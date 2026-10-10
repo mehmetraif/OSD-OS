@@ -295,6 +295,7 @@ private:
     QElapsedTimer m_retireClock;           // since m_retiringProcess was told to quit
     bool          m_handingBack    = false; // handBackScreen() under way
     QLocalSocket *m_ipc            = nullptr;
+    bool          m_ipcWanted     = false;
     QTimer       *m_connectTimer   = nullptr;
     QTimer       *m_watchdogTimer  = nullptr;
     qint64        m_lastIpcEventMs = 0;

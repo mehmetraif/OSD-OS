@@ -119,6 +119,24 @@ private slots:
         QTest::newRow("failed-write-preserves-old-file") << true;
 #endif
     }
+    void destroyingDownloadOwnerDoesNotDestroyRunningThread() {
+        QTemporaryDir tmp;
+        const QString base = tmp.path() + "/movie";
+        QVERIFY(writeFileAtomically(base + ".mp4", "old"));
+        QTcpServer server;
+        QVERIFY(server.listen(QHostAddress::LocalHost));
+        auto *owner = new QObject;
+        ServerDownload::start(QNetworkRequest(QUrl(QString("http://127.0.0.1:%1/file").arg(server.serverPort()))), base, owner);
+        QTRY_VERIFY(server.hasPendingConnections());
+        QScopedPointer<QTcpSocket> socket(server.nextPendingConnection());
+        socket->write("HTTP/1.1 200 OK\r\nContent-Type: video/mp4\r\nContent-Length: 1000000\r\n\r\npartial");
+        socket->flush();
+        QElapsedTimer elapsed; elapsed.start();
+        delete owner;
+        QVERIFY(elapsed.elapsed() < 300);
+        QTRY_COMPARE(socket->state(), QAbstractSocket::UnconnectedState);
+        QCOMPARE(contents(base + ".mp4"), QByteArray("old"));
+    }
     void serverDownload() {
         QFETCH(bool, failWrite);
         QTemporaryDir tmp;

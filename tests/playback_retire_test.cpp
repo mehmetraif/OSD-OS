@@ -85,6 +85,16 @@ private slots:
             QTRY_VERIFY_WITH_TIMEOUT(commands.contains("keypress") && commands.contains("seek"), 3000);
             QVERIFY(commands.contains("UP"));
             QVERIFY(commands.contains("absolute+exact"));
+            // The picture can keep playing after its control socket drops.
+            // Re-establish IPC instead of leaving every key except stop inert.
+            socket.reset();
+            QTRY_VERIFY_WITH_TIMEOUT(control.hasPendingConnections(), 5000);
+            socket.reset(control.nextPendingConnection());
+            commands.clear();
+            connect(socket.data(), &QLocalSocket::readyRead, this, [&]() { commands += socket->readAll(); });
+            m_mpv->sendKey(QStringLiteral("DOWN"));
+            m_mpv->seekTo(10000);
+            QTRY_VERIFY_WITH_TIMEOUT(commands.contains("DOWN") && commands.contains("seek"), 3000);
         }
         QVERIFY(before("exit A", "start B"));
         QVERIFY(before("exit B", "start C"));

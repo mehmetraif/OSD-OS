@@ -162,6 +162,12 @@ MpvController::MpvController(const QString &appRoot, const QString &dataRoot,
     m_connectTimer = new QTimer(this);
     m_connectTimer->setInterval(100);
     connect(m_connectTimer, &QTimer::timeout, this, &MpvController::tryConnectIpc);
+    connect(m_ipc, &QLocalSocket::disconnected, this, [this]() {
+        if (!m_ipcWanted) return;
+        qWarning("[MpvController] Control connection lost; reconnecting to the current player");
+        m_watchdogTimer->stop();
+        m_connectTimer->start();
+    });
 
     // Watchdog: fires every 10 s; logs a warning if no IPC time-pos event has
     // arrived for 30 s while connected — strong indicator of a playback freeze.
@@ -182,6 +188,7 @@ MpvController::MpvController(const QString &appRoot, const QString &dataRoot,
 }
 
 MpvController::~MpvController() {
+    m_ipcWanted = false;
     // An embedded session ends first, while everything it reports to is still here.
     if (m_embedded)
         m_embedded->stop();
@@ -512,6 +519,7 @@ void MpvController::loadAndPlay(const QString &url, float startSeconds,
         }
         m_process = nullptr;
     }
+    m_ipcWanted = false;
     endEmbedded();
     m_watchdogTimer->stop();
     m_connectTimer->stop();
@@ -663,6 +671,7 @@ void MpvController::startProcess(QStringList args, const QStringList &media) {
         options << QStringLiteral("--") << media;
         qDebug("[MpvController] launch: mpv %s", qPrintable(redactSecrets(options.join(QLatin1Char(' ')))));
         m_process->start(bin, options);
+        m_ipcWanted = true;
         m_connectTimer->start();
     };
 
@@ -830,6 +839,7 @@ void MpvController::clearOsdPrompt() {
 }
 
 void MpvController::tryConnectIpc() {
+    if (!m_ipcWanted) { m_connectTimer->stop(); return; }
     if (m_ipc->state() == QLocalSocket::ConnectedState ||
         m_ipc->state() == QLocalSocket::ConnectingState)
         return;
@@ -909,6 +919,7 @@ void MpvController::onIpcReadyRead() {
 }
 
 void MpvController::onProcessFinished() {
+    m_ipcWanted = false;
     int exitCode = m_process ? m_process->exitCode() : -1;
     if (m_process) {
         const QByteArray remaining = m_process->readAll();
@@ -1273,6 +1284,7 @@ void MpvController::startEmbedded(QStringList args) {
     }
     m_sessionArgs = args;
     emit videoActiveChanged();
+    m_ipcWanted = true;
     m_connectTimer->start();
 }
 
@@ -1296,6 +1308,7 @@ void MpvController::endEmbedded() {
 }
 
 void MpvController::onEmbeddedFinished(const QString &lastEndReason) {
+    m_ipcWanted = false;
     m_connectTimer->stop();
     m_watchdogTimer->stop();
     // As for a process: the last events may still sit unread on the socket.
