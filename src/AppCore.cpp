@@ -1,5 +1,6 @@
 #include "AppCore.h"
 #include "util/AtomicFile.h"
+#include "util/AsyncDirectoryCache.h"
 #include <QDir>
 #include <QFile>
 #include <QFileInfo>
@@ -782,7 +783,7 @@ QVariantList AppCore::filePlaces() const {
     return places;
 }
 
-QVariantList AppCore::folderEntries(const QString &path, const QStringList &fileTypes) const {
+static QVariantList readPickerDirectory(const QString &path, const QStringList &fileTypes) {
     QVariantList entries;
     const QDir dir(path);
     if (path.isEmpty() || !dir.exists())
@@ -800,6 +801,23 @@ QVariantList AppCore::folderEntries(const QString &path, const QStringList &file
             entries.append(QVariantMap{ { "name", f.fileName() }, { "path", f.absoluteFilePath() }, { "isFolder", false } });
     }
     return entries;
+}
+
+QVariantList AppCore::folderEntries(const QString &path, const QStringList &fileTypes) const {
+    return readPickerDirectory(path, fileTypes);
+}
+
+void AppCore::clearFolderCache() {
+    if (m_directoryCache) m_directoryCache->clear();
+}
+
+QVariant AppCore::requestFolderEntries(const QString &path, const QStringList &fileTypes) {
+    if (!m_directoryCache) {
+        m_directoryCache = new AsyncDirectoryCache(this);
+        m_directoryCache->ready = [this](const QString &key) { emit folderEntriesReady(key.section(QChar(0), 0, 0)); };
+    }
+    return m_directoryCache->fetch(path + QChar(0) + fileTypes.join(','),
+                                  [path, fileTypes]() { return readPickerDirectory(path, fileTypes); });
 }
 
 // A device typically has several addresses (RPi: eth0 + wlan0; SteamOS: wlan0 plus

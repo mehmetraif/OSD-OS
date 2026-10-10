@@ -219,7 +219,7 @@ end
 local function draw_text(ass, x, y, anchor, text, fs, fc, fa)
     ass:new_event()
     ass:append(string.format(
-        "{\\an%d\\pos(%d,%d)\\fnVCR OSD Mono\\fs%d\\1c%s\\1a%s\\shad0\\bord0}%s",
+        "{\\an%d\\pos(%.2f,%.2f)\\fnVCR OSD Mono\\fs%d\\1c%s\\1a%s\\shad0\\bord0}%s",
         anchor, x, y, fs, fc, fa, text))
 end
 

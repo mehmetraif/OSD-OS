@@ -7,8 +7,10 @@
 #include <QNetworkAccessManager>
 #include <QNetworkReply>
 #include <QRegularExpression>
+#include <QSaveFile>
 #include <QThread>
 #include <QUrl>
+#include <memory>
 
 namespace {
 
@@ -37,17 +39,13 @@ class Worker : public QObject {
     Q_OBJECT
 public:
     Worker(const QNetworkRequest &request, const QString &base)
-        : m_request(request), m_base(base), m_part(base + QStringLiteral(".part")) {}
+        : m_request(request), m_base(base) {}
 
 public slots:
     void run() {
         // Cancelled before it got going.
         if (m_aborted)
             return;
-        if (!m_part.open(QIODevice::WriteOnly | QIODevice::Truncate)) {
-            emit done(false, QString(), QStringLiteral("can't write to ") + QFileInfo(m_base).absolutePath());
-            return;
-        }
         m_nam = new QNetworkAccessManager(this);
         m_reply = m_nam->get(m_request);
         // Lets the socket hold the server back while the card catches up.
@@ -63,7 +61,7 @@ public slots:
         });
         connect(m_reply, &QNetworkReply::readyRead, this, [this]() {
             if (m_reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt() < 300)
-                m_part.write(m_reply->readAll());
+                if (!writePending()) m_reply->abort();
         });
         connect(m_reply, &QNetworkReply::downloadProgress, this, [this](qint64 received, qint64 total) {
             if (total > 0)
@@ -73,13 +71,14 @@ public slots:
     }
 
     void abort() {
+        if (m_completed) return;
+        m_completed = true;
         m_aborted = true;
         if (m_reply) {
             m_reply->disconnect(this);
             m_reply->abort();
         }
-        m_part.close();
-        m_part.remove();
+        m_file.reset();
         emit done(false, QString(), QStringLiteral("cancelled"));
     }
 
@@ -88,23 +87,44 @@ signals:
     void done(bool ok, const QString &finalPath, const QString &reason);
 
 private:
+    bool writePending() {
+        if (!m_writeError.isEmpty()) return false;
+        if (!m_file) {
+            m_finalPath = m_base + QLatin1Char('.') + extensionOf(m_reply);
+            m_file = std::make_unique<QSaveFile>(m_finalPath);
+            if (!m_file->open(QIODevice::WriteOnly)) {
+                m_writeError = m_file->errorString();
+                return false;
+            }
+        }
+        const QByteArray bytes = m_reply->readAll();
+        if (m_file->write(bytes) != bytes.size()) {
+            m_writeError = m_file->errorString();
+            return false;
+        }
+        return true;
+    }
+
     void onFinished() {
+        if (m_completed) return;
+        m_completed = true;
         const int status = m_reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
-        bool ok = m_reply->error() == QNetworkReply::NoError && status < 300;
+        bool ok = m_writeError.isEmpty() && m_reply->error() == QNetworkReply::NoError
+                  && status >= 200 && status < 300;
         QString finalPath;
         QString reason;
         if (ok) {
-            m_part.write(m_reply->readAll());
-            ok = m_part.flush();
-            m_part.close();
-            finalPath = m_base + QLatin1Char('.') + extensionOf(m_reply);
-            QFile::remove(finalPath);
-            ok = ok && QFile::rename(m_part.fileName(), finalPath);
+            ok = writePending();
+            if (ok) {
+                ok = m_file->commit();
+                if (!ok) m_writeError = m_file->errorString();
+            }
+            finalPath = m_finalPath;
         } else {
-            m_part.close();
-            m_part.remove();
             reason = (status == 401 || status == 403) ? QStringLiteral("not allowed") : m_reply->errorString();
         }
+        if (!m_writeError.isEmpty()) reason = m_writeError;
+        m_file.reset(); // An uncommitted temporary file is removed; the old target survives.
         m_reply->deleteLater();
         m_reply = nullptr;
         emit done(ok, ok ? finalPath : QString(), reason);
@@ -112,10 +132,13 @@ private:
 
     QNetworkRequest m_request;
     QString m_base;
-    QFile m_part;
+    std::unique_ptr<QSaveFile> m_file;
+    QString m_finalPath;
+    QString m_writeError;
     QNetworkAccessManager *m_nam = nullptr;
     QNetworkReply *m_reply = nullptr;
     bool m_aborted = false;
+    bool m_completed = false;
 };
 
 } // namespace
@@ -123,10 +146,9 @@ private:
 ServerDownload::ServerDownload(QObject *parent) : QObject(parent) {}
 
 ServerDownload::~ServerDownload() {
-    if (m_thread) {
-        m_thread->quit();
-        m_thread->wait(3000);
-    }
+    // A blocked disk write cannot be interrupted by quit(). The independent
+    // thread owns its remaining lifetime and cleans up after cancellation.
+    cancel();
 }
 
 ServerDownload *ServerDownload::start(const QNetworkRequest &request, const QString &base, QObject *parent) {
@@ -137,18 +159,19 @@ ServerDownload *ServerDownload::start(const QNetworkRequest &request, const QStr
     timed.setTransferTimeout(30000);
     auto *worker = new Worker(timed, base);
     download->m_worker = worker;
-    download->m_thread = new QThread(download);
-    worker->moveToThread(download->m_thread);
-    connect(download->m_thread, &QThread::started, worker, &Worker::run);
-    connect(download->m_thread, &QThread::finished, worker, &QObject::deleteLater);
+    auto *thread = new QThread;
+    worker->moveToThread(thread);
+    connect(thread, &QThread::started, worker, &Worker::run);
+    connect(thread, &QThread::finished, worker, &QObject::deleteLater);
+    connect(thread, &QThread::finished, thread, &QObject::deleteLater);
+    connect(worker, &Worker::done, thread, &QThread::quit, Qt::DirectConnection);
     connect(worker, &Worker::progress, download, &ServerDownload::progress);
     connect(worker, &Worker::done, download, [download](bool ok, const QString &finalPath, const QString &reason) {
-        download->m_thread->quit();
         if (!download->m_cancelled)
             emit download->finished(ok, finalPath, reason);
         download->deleteLater();
     });
-    download->m_thread->start();
+    thread->start();
     return download;
 }
 
@@ -156,7 +179,7 @@ void ServerDownload::cancel() {
     if (m_cancelled)
         return;
     m_cancelled = true;
-    QMetaObject::invokeMethod(m_worker, "abort", Qt::QueuedConnection);
+    if (m_worker) QMetaObject::invokeMethod(m_worker, "abort", Qt::QueuedConnection);
 }
 
 #include "ServerDownload.moc"

@@ -2,6 +2,7 @@
 
 #include "../../AppCore.h"
 #include "../../util/FileNames.h"
+#include "../../util/DurableFile.h"
 #include "../../util/YtDlpLocator.h"
 #include "../local_files/LocalFilesBackend.h"
 #include "../youtube/YouTubeBackend.h"
@@ -24,6 +25,7 @@
 #include <QUuid>
 
 #include <algorithm>
+#include <memory>
 
 #ifdef Q_OS_UNIX
 #include <fcntl.h>
@@ -56,28 +58,9 @@ QString sourceFolderName(const QString &moduleId) {
 // A file's data flushed to the card, then its folder's entry for it: the film
 // partition is exFAT, which a power cut mid-write can leave half done. Slow
 // on a card (seconds for a film), so never on the app's thread.
-void syncFile(const QString &path) {
-#ifdef Q_OS_UNIX
-    const int fd = ::open(QFile::encodeName(path).constData(), O_RDONLY);
-    if (fd >= 0) {
-        ::fsync(fd);
-        ::close(fd);
-    }
-#else
-    Q_UNUSED(path)
-#endif
-}
-
 void syncFolder(const QString &folder) {
-#ifdef Q_OS_UNIX
-    const int fd = ::open(QFile::encodeName(folder).constData(), O_RDONLY | O_DIRECTORY);
-    if (fd >= 0) {
-        ::fsync(fd);
-        ::close(fd);
-    }
-#else
-    Q_UNUSED(folder)
-#endif
+    const QString error = syncPath(folder, true);
+    if (!error.isEmpty()) qWarning("[Playlists] folder sync failed: %s", qPrintable(error));
 }
 
 // A YouTube video's id, from whichever of its fields an entry has.
@@ -858,15 +841,19 @@ void PlaylistsBackend::finish(bool ok) {
     m_active.percent = 100;
     const QString key = m_active.key;
     const QString path = m_active.finalPath;
-    QThread *thread = QThread::create([path]() {
-        syncFile(path);
-        syncFolder(QFileInfo(path).absolutePath());
+    const quint64 generation = ++m_flushGeneration;
+    auto error = std::make_shared<QString>();
+    QThread *thread = QThread::create([path, error]() {
+        *error = syncPath(path);
+        if (error->isEmpty()) *error = syncPath(QFileInfo(path).absolutePath(), true);
     });
-    connect(thread, &QThread::finished, this, [this, thread, key]() {
-        thread->deleteLater();
+    connect(thread, &QThread::finished, thread, &QObject::deleteLater);
+    connect(thread, &QThread::finished, this, [this, key, generation, error]() {
         // Cancelled while it was flushing: its record is gone with it.
-        if (m_active.key == key && m_active.flushing)
-            record(true);
+        if (m_active.key == key && m_active.flushing && m_flushGeneration == generation) {
+            if (!error->isEmpty()) m_active.reason = QStringLiteral("Could not sync download: ") + *error;
+            record(error->isEmpty());
+        }
     });
     thread->start();
 }

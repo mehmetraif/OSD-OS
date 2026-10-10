@@ -309,6 +309,27 @@ FocusScope {
     // file picker's USE THIS FOLDER, in every folder).
     function blockFor(path, around) {
         var l = listing(path, true)
+        if (expandedFolderPreviews) {
+            if (!l.expandedBlock) {
+                var expandedRows = []
+                var expandedItems = []
+                var expandedWidth = 0
+                for (var e = 0; e < l.items.length; ++e) {
+                    if (l.items[e].branchHidden) continue
+                    var label = displayName(l.items[e])
+                    expandedRows.push({ label: label, item: l.items[e] })
+                    expandedItems.push(l.items[e])
+                    expandedWidth = Math.max(expandedWidth, textWidth(label))
+                }
+                l.expandedBlock = { rows: expandedRows, items: expandedItems, width: expandedWidth }
+            }
+            var cached = l.expandedBlock
+            if (cached.rows.length > 0) {
+                var selectedIndex = around >= 0 ? cached.items.indexOf(l.items[around]) : 0
+                return { path: path, rows: cached.rows, offset: Math.max(0, selectedIndex),
+                         width: Math.min(maxColumnWidth, cached.width) }
+            }
+        }
         var items = expandedFolderPreviews || around < 0
             ? l.items.filter(function(item) { return !item.branchHidden }) : l.items
         if (expandedFolderPreviews && around >= 0) {

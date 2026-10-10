@@ -74,7 +74,7 @@ local function draw_frame(w, h, tx, ty)
     -- Bouncing logo on top
     a:new_event()
     a:append(string.format(
-        "{\\an7\\pos(%d,%d)\\bord0\\shad0\\1c&HFFFFFF&\\p1}%s{\\p0}",
+        "{\\an7\\pos(%.2f,%.2f)\\bord0\\shad0\\1c&HFFFFFF&\\p1}%s{\\p0}",
         math.floor(tx), math.floor(ty), logo_path
     ))
     overlay.res_x = w

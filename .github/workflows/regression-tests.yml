@@ -9,6 +9,7 @@ on:
     branches: [main]
     paths:
       - 'src/**'
+      - 'scripts/**'
       - 'views/**'
       - 'modules/**'
       - 'tests/**'
@@ -17,6 +18,7 @@ on:
   pull_request:
     paths:
       - 'src/**'
+      - 'scripts/**'
       - 'views/**'
       - 'modules/**'
       - 'tests/**'
@@ -48,7 +50,7 @@ jobs:
           # This build doesn't need them, so drop them first.
           sudo rm -f /etc/apt/sources.list.d/microsoft-prod.* /etc/apt/sources.list.d/azure-cli.*
           sudo apt-get update
-          sudo apt-get install -y build-essential cmake qt6-base-dev qt6-declarative-dev qml6-module-qttest qml6-module-qtquick qml6-module-qtqml-workerscript qml6-module-qtquick-window qt6-svg-dev libdrm-dev libssl-dev libsdl2-dev libpcsclite-dev libmpv-dev
+          sudo apt-get install -y build-essential lua5.4 cmake qt6-base-dev qt6-declarative-dev qml6-module-qttest qml6-module-qtquick qml6-module-qtqml-workerscript qml6-module-qtquick-window qt6-svg-dev libdrm-dev libssl-dev libsdl2-dev libpcsclite-dev libmpv-dev
       - name: Configure application
         run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
       - name: Build application
@@ -96,7 +98,7 @@ jobs:
           apt-get dist-upgrade -y
       - name: Install dependencies
         run: |
-          apt-get install -y build-essential cmake pkgconf qt6-base-dev qt6-declarative-dev qml6-module-qttest qml6-module-qtquick qml6-module-qtqml-workerscript qml6-module-qtquick-window qt6-svg-dev \
+          apt-get install -y build-essential lua5.4 cmake pkgconf qt6-base-dev qt6-declarative-dev qml6-module-qttest qml6-module-qtquick qml6-module-qtqml-workerscript qml6-module-qtquick-window qt6-svg-dev \
             qt6-shadertools-dev libdrm-dev libssl-dev libsdl2-dev libpcsclite-dev libmpv-dev
       - name: Configure application
         run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
