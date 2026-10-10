@@ -215,6 +215,7 @@ The picture is never touched by an effect: the effects and the menu music rest w
 - **Behind the menus** the video plays on, sound and all. The menus' ground (Settings → OSD Background: all over, or only the window, the picture showing whole around it) lies over it as solid as the slider says; at SOLID none of the picture shows. The module has saved where it got to.
 - **The main menu** leads with a row for it, `► <title>`, the cursor on it (YouTube, Local Files and Playlists note their videos; other modules' come back by choosing them again). Select brings it back full screen where it is. Choosing the same video in its module does the same, without its resume question: OSD/OS knows it by its command line, and carries on rather than starting it again.
 - **It ends** when it plays out, with play/pause on the main menu (`[SPACE]:STOP`), when anything else plays, when something else takes the screen (a takeover script, Netflix or Prime Video's browser), and when Transparent Background is turned off.
+- **Without Transparent Background** mpv has the screen, so the video stops for its menu, and starts again where it was as the menu closes. **Browse** leaves it stopped there, and the main menu leads with its row all the same: select starts it again where it was saved, without asking. The row stays until mpv plays anything else.
 
 ## Per-device decode profiles
 

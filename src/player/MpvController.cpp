@@ -438,8 +438,13 @@ void MpvController::loadAndPlay(const QString &url, float startSeconds,
     // The menu music stops before mpv opens the sound card; it plays again
     // once the session has ended (main.cpp) and the menus want it.
     MenuMusic::hold(QStringLiteral("video"));
-    // Its player notes the new session afresh (noteSession), or leaves none.
+    // Its player notes the new session afresh (noteSession), or leaves none,
+    // and a session left with Browse is gone: this one takes its place.
     m_sessionNote.clear();
+    if (!m_leftNote.isEmpty()) {
+        m_leftNote.clear();
+        emit leftNoteChanged();
+    }
     m_menuOnExit = false;
     // Transparent Background plays inside the app's own window, where the
     // menus can lie over the picture.
@@ -1183,6 +1188,13 @@ void MpvController::noteSession(const QVariantMap &note) {
     // Only a session played inside the window is left behind the menus
     // (backgroundNote), but a process's says whether back opens a menu.
     m_sessionNote = note;
+}
+
+void MpvController::leaveSession() {
+    if (m_sessionNote.isEmpty() || m_leftNote == m_sessionNote)
+        return;
+    m_leftNote = m_sessionNote;
+    emit leftNoteChanged();
 }
 
 void MpvController::appendEmbeddedVideoArgs(QStringList &args, bool gpu) const {

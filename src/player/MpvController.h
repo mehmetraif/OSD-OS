@@ -29,6 +29,10 @@ class MpvController : public QObject {
     // What its player noted of the session behind the menus (noteSession), so
     // the main menu can offer it back; empty while there is none.
     Q_PROPERTY(QVariantMap backgroundNote READ backgroundNote NOTIFY backgroundChanged)
+    // A session its player left with its menu's Browse while an mpv process
+    // had the screen (leaveSession), for the main menu to offer back as it
+    // does one behind the menus; empty while there is none.
+    Q_PROPERTY(QVariantMap leftNote READ leftNote NOTIFY leftNoteChanged)
 
 public:
     explicit MpvController(const QString &appRoot, const QString &dataRoot,
@@ -100,6 +104,13 @@ public:
     // clears it, so a player that notes nothing leaves no row.
     Q_INVOKABLE void noteSession(const QVariantMap &note);
     QVariantMap backgroundNote() const { return m_background ? m_sessionNote : QVariantMap(); }
+    // Its player's menu left the session with Browse, an mpv process having
+    // ended for the menu (Transparent Background off): it stopped there, where
+    // its player saved it, and its note stays as leftNote until the next
+    // loadAndPlay(). Its player, opened again with the note's params, starts
+    // it where it was saved without asking.
+    Q_INVOKABLE void leaveSession();
+    QVariantMap leftNote() const { return m_leftNote; }
     // The session behind the menus, full screen again where it is, for the
     // player it belongs to (backgroundNote says whose it is): false when
     // there is none, and the player starts its video as it would any.
@@ -165,6 +176,7 @@ signals:
     void skipRequested();
     void videoActiveChanged();
     void backgroundChanged();
+    void leftNoteChanged();
     void playerMenuRequested();
     void videoFrameReady();
     // The OSC's SUBTITLE button when the sub is burned into the stream and mpv
@@ -263,6 +275,8 @@ private:
     // The embedded session's command line, to know it when it is asked for again.
     QStringList     m_sessionArgs;
     QVariantMap     m_sessionNote;
+    // The session left with Browse (leaveSession).
+    QVariantMap     m_leftNote;
     // Back has its player's menu open over the picture (see closePlayerMenu).
     bool            m_playerMenu   = false;
     // The process is quitting for its player's menu (backFromProcess).

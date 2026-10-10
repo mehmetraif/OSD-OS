@@ -25,12 +25,12 @@ FocusScope {
     }
 
     // The enabled modules (AppCore), led by a row for the video playing on
-    // behind the menus (Transparent Background), when its player noted how
-    // to take it back (root.behindNote): select opens that player again,
-    // which brings the video back to full screen where it is.
+    // behind the menus (Transparent Background), or left with its menu's
+    // Browse while mpv had the screen, when its player noted how to take it
+    // back (root.takeBackNote): select opens that player again, which brings
+    // the video back to full screen where it is, or starts it where it was.
     property var modules: []
-    readonly property var behind: root.videoBehind && root.behindNote && root.behindNote.module
-                                  ? root.behindNote : null
+    readonly property var behind: root.takeBackNote && root.takeBackNote.module ? root.takeBackNote : null
     // Coming and going while the menu is up (STOP, the video ending) moves
     // the rows below it, so the cursor stays on its row rather than its index.
     onBehindChanged: if (modules.length > 0) showRows(cursorState())

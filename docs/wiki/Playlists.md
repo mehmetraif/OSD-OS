@@ -179,7 +179,7 @@ Back in the menu returns to the video. A setting changed here is saved, as if ch
 
 <img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/screenshots/main-menu-over-video.png" width="100%" alt="The main menu leading with the video playing behind it, the cursor on its row" />
 
-**Without Transparent Background** mpv has the whole screen while it plays, so the list stops for the menu: where it was is saved, and going back to the video starts it again there, in the same order, with the settings as you left them. **Browse Playlists** and **Close Video** then return to the list's page or the main menu.
+**Without Transparent Background** mpv has the whole screen while it plays, so the list stops for the menu: where it was is saved, and going back to the video starts it again there, in the same order, with the settings as you left them. **Close Video** returns to the main menu. **Browse Playlists** returns to the list's page, and the main menu then leads with a row for the list, `► <NAME>`: choosing that row, or **Play** on the list's page, starts it again at the video it was on, where it was, without asking. A shuffled list keeps no place, so it starts shuffled afresh. The row stays until mpv plays another video.
 
 ## Downloads
 

@@ -701,6 +701,8 @@ With Settings → Transparent Background on, the video plays inside OSD/OS's win
 
 Without a note, a video behind the menus comes back only by choosing it again.
 
+A player with a menu of its own (`menu: true` in its note) gets the row without Transparent Background too. Its menu's Browse, with nothing playing under it (`mpvController.videoActive` false), calls `mpvController.leaveSession()` before going back, and the main menu offers the stopped video until mpv plays anything else. Opened with the noted `params`, the player finds its video in `root.takeBackNote` and starts it where it saved it, without asking.
+
 ## Part 3: a C++ backend
 
 A backend is a `QObject` the views call. It is worth one when QML alone can't, or shouldn't: walking folders, talking to a service's API (`QNetworkAccessManager`, asynchronous, on the main thread), running a process, keeping state in JSON files. Hello Channel's backend gives the module a folder of its own, lists it, and offers the **Video Type** setting choices that depend on what is in the folder.

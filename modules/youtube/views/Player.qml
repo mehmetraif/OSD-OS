@@ -135,10 +135,13 @@ FocusScope {
             // the video playing on behind it. Ended for the menu (an mpv
             // process has the screen), it is saved already.
             playerMenu.close()
-            if (mpvController.videoActive)
+            if (mpvController.videoActive) {
                 mpvController.leavePlayerMenu()
-            else
+            } else {
+                // The main menu's first row takes it back from there.
+                mpvController.leaveSession()
                 goBack()
+            }
             return
         } else if (action === "close") {
             closeToMainMenu = true
@@ -280,8 +283,9 @@ FocusScope {
         var saved = youtubeBackend.getSavedPosition(videoId)
         var savedPos = saved.pos || 0
         // This video, still playing behind the menus: it goes on full screen
-        // where it is, without asking (back saved where it got to).
-        var note = root.behindNote
+        // where it is, without asking (back saved where it got to); left with
+        // Browse, it starts again where it was saved.
+        var note = root.takeBackNote
         var behind = note.module === moduleRoot.moduleId && note.params && note.params.item
                      && note.params.item.videoId === videoId
 

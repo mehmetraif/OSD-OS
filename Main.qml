@@ -831,6 +831,13 @@ Window {
     // params }, see MpvController::noteSession): the main menu offers it
     // back as its first row. Empty for a player that notes nothing.
     readonly property var behindNote: mpvController ? mpvController.backgroundNote : ({})
+    // A video its menu's Browse left while an mpv process had the screen
+    // (Transparent Background off): stopped where its player saved it.
+    readonly property var leftNote: mpvController ? mpvController.leftNote : ({})
+    // The video the main menu's first row takes back: the one behind the
+    // menus, or one left with Browse, which its player starts again where it
+    // was, without asking.
+    readonly property var takeBackNote: videoBehind ? behindNote : leftNote
     property int backdropSolidity: 100
     // Another process has the screen: mpv, or a script, on the Pi's console
     // (see DisplayHandoff). Nothing drawn here reaches it until it is back,

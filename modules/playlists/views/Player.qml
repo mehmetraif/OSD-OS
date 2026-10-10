@@ -97,10 +97,12 @@ FocusScope {
         playlist = playlistsBackend.playlist(playlistId)
 
         // This list, still playing behind the menus: full screen where it
-        // is, without asking, the same session going on.
-        var note = root.behindNote
-        if (fromItemId === "" && note.module === moduleRoot.moduleId && note.params
-                && note.params.playlistId === playlistId && note.params.prepared) {
+        // is, without asking, the same session going on. Left with Browse,
+        // it starts again where it was saved, without asking either.
+        var note = root.takeBackNote
+        var takenBack = fromItemId === "" && note.module === moduleRoot.moduleId && note.params
+                        && note.params.playlistId === playlistId
+        if (takenBack && root.videoBehind && note.params.prepared) {
             var resumeMs = playlistsBackend.savedPositionMs(playlistId)
             if (mpvController.takeBack(resumeMs / 1000.0)) {
                 prepared = note.params.prepared
@@ -123,6 +125,8 @@ FocusScope {
 
         if (prepared.startIndex >= 0) {
             play(0, prepared.startIndex)
+        } else if (takenBack && (prepared.resumeIndex > 0 || prepared.resumeMs > 0)) {
+            play(prepared.resumeMs, prepared.resumeIndex)
         } else if (prepared.resumeIndex > 0 || prepared.resumeMs > 0) {
             choices = [{ label: "Resume video " + (prepared.resumeIndex + 1) + " at " + root.formatTime(prepared.resumeMs),
                          startMs: prepared.resumeMs, plPos: prepared.resumeIndex },
@@ -171,10 +175,13 @@ FocusScope {
             // the video playing on behind it. Ended for the menu (an mpv
             // process has the screen), it is saved already.
             playerMenu.close()
-            if (mpvController.videoActive)
+            if (mpvController.videoActive) {
                 mpvController.leavePlayerMenu()
-            else
+            } else {
+                // The main menu's first row takes it back from there.
+                mpvController.leaveSession()
                 goBack()
+            }
         } else if (action === "close") {
             closeToMainMenu = true
             playerMenu.close()

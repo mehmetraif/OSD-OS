@@ -37,7 +37,7 @@ flowchart TD
     vmenu -- "Close Video" --> menu
 ```
 
-With [Transparent Background](https://github.com/mehmetraif/OSD-OS/wiki/Using-OSD-OS#transparent-background) on, the video goes on playing behind wherever back leads, and the main menu's first row takes it back to full screen.
+With [Transparent Background](https://github.com/mehmetraif/OSD-OS/wiki/Using-OSD-OS#transparent-background) on, the video goes on playing behind wherever back leads, and the main menu's first row takes it back to full screen. Without it, Browse leaves the video stopped, and the main menu's first row starts it again where it was.
 
 ## The boot screen
 
@@ -254,7 +254,7 @@ Local Files, YouTube and Playlists give a video a menu of its own: first the mod
 - **Select** on an action does it. **Browse** returns to the module's menus. **Close Video** ends the video and goes to the main menu.
 - **Back** returns to the video, full screen. Play/pause still pauses the video under the menu. The hint bar reads `[ESC]:VIDEO`.
 
-With Transparent Background, the video plays on under the menu, as much of it showing as the setting says (40% solid in the picture). Without it, nothing plays under the menu: the video stopped for it, and starts again where it was, with the settings as they are now, as the menu closes. **Browse** and **Close Video** then leave without a video playing anywhere.
+With Transparent Background, the video plays on under the menu, as much of it showing as the setting says (40% solid in the picture). Without it, nothing plays under the menu: the video stopped for it, and starts again where it was, with the settings as they are now, as the menu closes. **Close Video** then leaves without a video anywhere. **Browse** leaves it stopped where it was, and the main menu leads with a row for it, `► <title>`, as for a video behind the menus: select starts it again there, without asking. The row stays until mpv plays another video.
 
 ### A service's own player
 

@@ -2,7 +2,8 @@
 // process (an NFC card tapped mid-film, say): MpvController against a
 // stand-in for mpv, a shell script first on PATH that writes down when it
 // starts, is told to quit (SIGTERM) and exits, and whether an earlier one was
-// still alive as it started.
+// still alive as it started. And what becomes of a video its menu's Browse
+// left as the next is asked for.
 #include "player/MpvController.h"
 #include "audio/MenuMusic.h"
 #include <QDir>
@@ -184,6 +185,30 @@ private slots:
         QVERIFY2(since.elapsed() >= 900, qPrintable(QStringLiteral("B started after %1 ms").arg(since.elapsed())));
         QVERIFY(happened("term A"));
         QVERIFY(!overlapped());
+    }
+
+    // A video its menu's Browse left (an mpv process having ended for the
+    // menu): the main menu offers it back until another video is asked for.
+    void aLeftVideoIsOfferedUntilTheNext() {
+        QSignalSpy left(m_mpv, &MpvController::leftNoteChanged);
+        play("A");
+        QTRY_VERIFY_WITH_TIMEOUT(happened("start A"), 5000);
+        const QVariantMap note{{QStringLiteral("module"), QStringLiteral("com.osdos.local_files")},
+                               {QStringLiteral("title"), QStringLiteral("A")},
+                               {QStringLiteral("menu"), true}};
+        m_mpv->noteSession(note);
+        QVERIFY(m_mpv->leftNote().isEmpty());
+        m_mpv->leaveSession();
+        QCOMPARE(m_mpv->leftNote(), note);
+        m_mpv->leaveSession();
+        QCOMPARE(left.count(), 1);
+        play("B");
+        QVERIFY(m_mpv->leftNote().isEmpty());
+        QCOMPARE(left.count(), 2);
+        // B noted nothing, so leaving it leaves no row.
+        m_mpv->leaveSession();
+        QVERIFY(m_mpv->leftNote().isEmpty());
+        QCOMPARE(left.count(), 2);
     }
 };
 

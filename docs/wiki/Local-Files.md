@@ -295,7 +295,7 @@ Back in the menu returns to the video. Every setting changed here is saved, as i
 
 **With Transparent Background** (Settings → Transparent Background, which needs libmpv) the menu lies over the picture, which plays on, at the solidity the setting's slider gives. **Browse Local Files** returns to the tree with the video still playing behind it; the main menu then leads with a row for it, `► <title>`, and choosing that row, or the same file in the tree, takes it back to full screen where it is. Play/pause on the main menu stops it.
 
-**Without Transparent Background** mpv has the whole screen while it plays, so the video stops for the menu: its position is saved, the menu shows on the app's own background, and as you go back to the video it starts again from where it was, with the settings as you left them. **Browse Local Files** and **Close Video** then simply return to the tree or the main menu.
+**Without Transparent Background** mpv has the whole screen while it plays, so the video stops for the menu: its position is saved, the menu shows on the app's own background, and as you go back to the video it starts again from where it was, with the settings as you left them. **Close Video** returns to the main menu. **Browse Local Files** returns to the tree, and the main menu then leads with a row for the file, `► <title>`, the cursor on it: choosing that row, or the same file in the tree, starts it again where it was, without asking (a playlist at the video it was on; a shuffled one starts shuffled afresh). The row stays until mpv plays another video.
 
 ## Settings
 

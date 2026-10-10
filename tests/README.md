@@ -35,6 +35,7 @@ ctest --test-dir build-tests --output-on-failure
   - Stopped and followed at once by another, that one plays and the stop isn't reported.
   - A player that ignores being told to quit is killed a second on.
   - Menu music playing as a video is asked for is gone before the video's player starts, and stays off while it plays.
+  - A video its menu's Browse left is offered back (`leftNote`) until another video is asked for; one its player noted nothing of leaves none.
 - **menu_music** (`menu_music_test.cpp`, Linux only). The menu music against stand-ins for mpv, FluidSynth and openmpt123: shell scripts first on `PATH` that write down what they were asked.
   - Wanted, with a file, it plays a moment later; unwanted, it stops.
   - A hold stops it before `hold()` returns, so the sound card is free; it plays again once nothing holds it, and two holds keep it off until both let go.

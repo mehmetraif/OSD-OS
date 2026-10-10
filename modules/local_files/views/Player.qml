@@ -133,10 +133,13 @@ FocusScope {
             // the video playing on behind it. Ended for the menu (an mpv
             // process has the screen), it is saved already.
             playerMenu.close()
-            if (mpvController.videoActive)
+            if (mpvController.videoActive) {
                 mpvController.leavePlayerMenu()
-            else
+            } else {
+                // The main menu's first row takes it back from there.
+                mpvController.leaveSession()
                 goBack()
+            }
             return
         } else if (action === "close") {
             closeToMainMenu = true
@@ -287,10 +290,19 @@ FocusScope {
 
         // This file, still playing behind the menus: it goes on full screen
         // where it is, without asking, played as it was started so that it is
-        // the same session (back saved where it got to).
-        var note = root.behindNote
+        // the same session (back saved where it got to). Left with Browse, it
+        // starts again where it was saved, at the playlist's video then; a
+        // shuffled playlist's places are gone with its order, so it starts
+        // shuffled afresh.
+        var note = root.takeBackNote
         if (note.module === moduleRoot.moduleId && note.params && note.params.filePath === filePath) {
-            play(localFilesBackend.getSavedPosition(filePath).pos || 0, note.plPos, note.shuffle)
+            var held = localFilesBackend.getSavedPosition(filePath)
+            if (root.videoBehind)
+                play(held.pos || 0, note.plPos, note.shuffle)
+            else if (note.shuffle)
+                play(0, -1, true)
+            else
+                play(held.pos || 0, held.plPos !== undefined && held.plPos !== null ? held.plPos : -1, false)
             return
         }
 
