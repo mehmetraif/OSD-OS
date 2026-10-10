@@ -17,6 +17,7 @@ add_executable(reliability_test
     ../src/util/LegacyNames.cpp
     ../src/util/MpvLocator.cpp)
 target_include_directories(reliability_test PRIVATE ../src)
+target_compile_definitions(reliability_test PRIVATE APP_VERSION="test")
 target_link_libraries(reliability_test PRIVATE Qt6::Core Qt6::Network Qt6::Qml Qt6::Test)
 add_test(NAME reliability COMMAND reliability_test)
 find_program(LUA_EXECUTABLE NAMES lua5.4 lua REQUIRED)
