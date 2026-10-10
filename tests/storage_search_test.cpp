@@ -12,6 +12,25 @@
 class StorageSearchTest : public QObject {
     Q_OBJECT
 private slots:
+    void asyncFolderEntriesMatchAndRefresh() {
+        QTemporaryDir tmp;
+        const QString media = tmp.path() + "/media";
+        QVERIFY(QDir().mkpath(media + "/lost+found"));
+        QVERIFY(QDir().mkpath(media + "/Folder"));
+        QVERIFY(writeFileAtomically(media + "/Film.mp4", "film"));
+        QVERIFY(writeFileAtomically(media + "/ignored.txt", "ignored"));
+        LocalFilesBackend backend(tmp.path(), tmp.path(), nullptr);
+        backend.setMediaRoot(media);
+        QSignalSpy ready(&backend, &LocalFilesBackend::entriesReady);
+        QVERIFY(!backend.requestEntries(media).isValid());
+        QTRY_COMPARE(ready.count(), 1);
+        QCOMPARE(backend.requestEntries(media), backend.entries(media));
+        QVERIFY(writeFileAtomically(media + "/Another.mp4", "film"));
+        backend.clearDirectoryCache();
+        QVERIFY(!backend.requestEntries(media).isValid());
+        QTRY_COMPARE(ready.count(), 2);
+        QCOMPARE(backend.requestEntries(media), backend.entries(media));
+    }
     void first200SortedMatches() {
         QTemporaryDir tmp;
         QVERIFY(tmp.isValid());

@@ -21,6 +21,8 @@ struct ModuleEntry {
     QVariantList settings;
 };
 
+class AsyncDirectoryCache;
+
 class AppCore : public QObject {
     Q_OBJECT
     Q_PROPERTY(QString appVersion READ appVersion CONSTANT)
@@ -92,6 +94,8 @@ public:
     // folders, then its files of these types (lower case; none, no files),
     // each by name, hidden ones left out.
     Q_INVOKABLE QVariantList folderEntries(const QString &path, const QStringList &fileTypes) const;
+    Q_INVOKABLE QVariant requestFolderEntries(const QString &path, const QStringList &fileTypes);
+    Q_INVOKABLE void clearFolderCache();
     Q_INVOKABLE QString localIpAddress() const;
     // The licence's text (LICENSE next to the app, the GNU GPL v3), its
     // paragraphs each on one line so a view wraps them to its width; "" when
@@ -135,6 +139,7 @@ public:
                         QObject *backend, QQmlContext *ctx);
 
 signals:
+    void folderEntriesReady(const QString &path);
     void modulesLoaded(const QVariantList &modules);
     void appSettingChanged(const QString &key, const QString &value);
     void moduleSettingChanged(const QString &moduleId, const QString &key, const QVariant &value);
@@ -149,6 +154,7 @@ private slots:
     void onBackendAuthStateChanged();
 
 private:
+    AsyncDirectoryCache *m_directoryCache = nullptr;
     QJsonObject loadConfig() const;
     // False when it couldn't be written (the reason is in the log).
     bool saveConfig(const QJsonObject &config) const;

@@ -6,6 +6,7 @@
 #include <QVariantMap>
 #include <memory>
 
+class AsyncDirectoryCache;
 class AppCore;
 class QDirIterator;
 class RemovableDrives;
@@ -26,6 +27,8 @@ public:
     // searchReady following), and any other folder's files and folders. The
     // Playlists module browses with it too.
     Q_INVOKABLE QVariant     entries(const QString &path);
+    Q_INVOKABLE QVariant     requestEntries(const QString &path);
+    Q_INVOKABLE void         clearDirectoryCache();
     Q_INVOKABLE bool         isImage(const QString &path) const;
     Q_INVOKABLE bool         isPlaylist(const QString &path) const;
     Q_INVOKABLE bool         playlistContainsImages(const QString &path) const;
@@ -55,6 +58,7 @@ public:
 signals:
     void dynamicOptionsReady(const QString &key, const QVariant &options);
     void searchReady(const QString &path);
+    void entriesReady(const QString &path);
     // A USB drive was plugged in or taken out; `gone` are the folders of
     // those taken out, which the tree closes.
     void drivesChanged(const QStringList &gone);
@@ -68,6 +72,10 @@ private:
     // folder in the data folder.
     QString defaultMediaRoot() const;
 
+    bool allowedDirectory(const QString &path) const;
+    static QVariantList readDirectory(const QString &path);
+    QVariantList decorateEntries(const QString &path, QVariantList items) const;
+    AsyncDirectoryCache *m_directories = nullptr;
     QString m_appRoot;
     QString m_dataRoot;
     AppCore *m_appCore = nullptr;

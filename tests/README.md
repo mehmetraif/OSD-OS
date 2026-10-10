@@ -1,6 +1,6 @@
 # Regression tests
 
-Five test programs, built apart from the app. CI runs them on Linux x64 and arm64 for every pull request that touches `src/`, `views/`, `modules/`, `tests/` or the build ([regression-tests.yml](../.github/workflows/regression-tests.yml)): on Ubuntu, with the oldest Qt the releases are built with (6.4), and on Raspberry Pi OS (Debian 13 "trixie" with Raspberry Pi's archive, arm64), the system the OS image is made of, with the Pi's own Qt (6.8) and mpv (0.40). They need CMake, a C++17 compiler and Qt 6's development packages (Core, Concurrent, Gui, Network, Qml, Quick, QuickTest and Test), and libdrm's on Linux; the QML test also needs Qt Quick's QML modules at run time (on Debian and Raspberry Pi OS, `qml6-module-qttest qml6-module-qtquick qml6-module-qtqml-workerscript qml6-module-qtquick-window`). None needs mpv, FluidSynth or a display.
+Seven test suites, built apart from the app. CI runs them on Linux x64 and arm64 for every pull request that touches `src/`, `views/`, `modules/`, `tests/` or the build ([regression-tests.yml](../.github/workflows/regression-tests.yml)): on Ubuntu, with the oldest Qt the releases are built with (6.4), and on Raspberry Pi OS (Debian 13 "trixie" with Raspberry Pi's archive, arm64), the system the OS image is made of, with the Pi's own Qt (6.8) and mpv (0.40). They need Lua 5.4, CMake, a C++17 compiler and Qt 6's development packages (Core, Concurrent, Gui, Network, Qml, Quick, QuickTest and Test), and libdrm's on Linux; the QML test also needs Qt Quick's QML modules at run time (on Debian and Raspberry Pi OS, `qml6-module-qttest qml6-module-qtquick qml6-module-qtqml-workerscript qml6-module-qtquick-window`). None needs mpv, FluidSynth or a display.
 
 ```sh
 cmake -S tests -B build-tests
@@ -55,3 +55,7 @@ What the tests can't reach, above all the screen changing hands (DRM and the VT)
 - Fill the data folder, or make it read-only. A save then logs why and leaves the old file.
 - Pick each theme with music, on the sound card in use: the music starts a moment after, stops the moment a video starts (and while it loads, and under its menu), and starts again back in the menus. A MIDI theme's first start waits for FluidSynth a few seconds.
 - Move about the menus with each theme: the effects keep up at the CRT's 480 lines, and none of them, nor the music, shows or plays while a video does.
+
+- **osc_controls** runs the actual menu script at five output sizes with and without subtitles; verifies menu and seek bindings, including Lua 5.4 fractional-coordinate formatting.
+- **reliability** exercises stale geocoding callbacks, failed update marker writes, fsync errors, asynchronous directory cache invalidation, atomic download replacement under a file-size limit, and download-owner destruction.
+- **playback_retire** also replaces three films without stopping, verifies IPC keys/seeks for each, and disconnects/reconnects every control socket. Hardware decoding, DRM handoff and the user's actual media file still require a physical Pi.

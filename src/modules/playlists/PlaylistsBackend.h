@@ -104,6 +104,7 @@ public slots:
     void onSettingChanged(const QString &moduleId, const QString &key, const QVariant &value);
 
 private:
+    quint64 m_flushGeneration = 0;
     // The download under way: yt-dlp's process, or a server's file on its
     // own thread.
     struct Active {

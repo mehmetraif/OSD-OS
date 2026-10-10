@@ -105,12 +105,12 @@ FocusScope {
         anchors.fill: parent
         focus: true
         visible: !rootEmpty
-        rootPath: itemsRoot.rootPath
+        rootPath: { if (localFilesBackend) localFilesBackend.clearDirectoryCache(); return itemsRoot.rootPath }
         savedTrail: itemsRoot.navListState.trail || []
         fetch: function(path, preview) {
             if (!localFilesBackend)
                 return []
-            var entries = localFilesBackend.entries(path)
+            var entries = localFilesBackend.requestEntries(path)
             return entries === undefined ? null : entries
         }
         labelOf: function(item) {
@@ -135,6 +135,7 @@ FocusScope {
     Connections {
         target: localFilesBackend
         function onSearchReady(path) { tree.refresh(path) }
+        function onEntriesReady(path) { tree.refresh(path) }
         // A drive plugged in or taken out: the top of the tree lists it or
         // not, folders open on one taken out close, and the two lists show
         // its files again or leave them out.

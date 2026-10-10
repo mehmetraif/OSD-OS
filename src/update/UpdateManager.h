@@ -58,6 +58,7 @@ signals:
     void progressChanged();
 
 private:
+    friend class ReliabilityTest;
     void setState(const QString &state, const QString &error = QString());
     void evaluateApplyCapability();
     void reconcileStagingDir();
@@ -71,7 +72,7 @@ private:
     QString updatesDir() const;
     QString stagedJsonPath() const;
     QString stagedSha256Path() const;
-    void writeStagedMarkers(const QString &sha256Hex);
+    bool writeStagedMarkers(const QString &sha256Hex);
     void clearStagingFiles();
 
     QNetworkAccessManager m_nam;

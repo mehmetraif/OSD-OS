@@ -723,6 +723,8 @@ bool WeatherBackend::parseCoordLine(const QString &line, double *lat, double *lo
 }
 
 void WeatherBackend::resolveLocation() {
+    const quint64 generation = ++m_locationGeneration;
+    ++m_extraLocationGeneration;
     QFile probe(location_file_path());
     if (!probe.exists())                                    { emitError(QStringLiteral("missing"));    return; }
     if (!probe.open(QIODevice::ReadOnly | QIODevice::Text)) { emitError(QStringLiteral("unreadable")); return; }
@@ -751,8 +753,9 @@ void WeatherBackend::resolveLocation() {
         return;
     }
 
-    geocodeLine(primary, [this, primary, others](bool ok, QString name,
-                                                 double la, double lo) {
+    geocodeLine(primary, [this, primary, others, generation](bool ok, QString name,
+                                                  double la, double lo) {
+        if (generation != m_locationGeneration) return;
         if (!ok) { emitError(name); return; }   // name carries the reason here
         m_locationName = name;
         m_lat = la;
@@ -836,6 +839,7 @@ void WeatherBackend::geocodeLine(const QString &line,
 // rather than fatal: one unrecognised extra should not take out the whole
 // module, and the primary location is what the rest of the screens need.
 void WeatherBackend::resolveOthers(const QStringList &lines) {
+    const quint64 generation = ++m_extraLocationGeneration;
     m_otherPoints.clear();
     m_pendingOthers = 0;
     if (lines.isEmpty()) { fetchOthers(); return; }
@@ -856,7 +860,8 @@ void WeatherBackend::resolveOthers(const QStringList &lines) {
             continue;
         }
         ++m_pendingOthers;
-        geocodeLine(line, [this, line, i](bool ok, QString name, double la, double lo) {
+        geocodeLine(line, [this, line, i, generation](bool ok, QString name, double la, double lo) {
+            if (generation != m_extraLocationGeneration) return;
             if (ok) {
                 m_otherPoints[i] = QVariantMap{
                     { "name", name }, { "lat", la }, { "lon", lo } };

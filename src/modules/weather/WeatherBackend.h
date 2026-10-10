@@ -101,6 +101,7 @@ public slots:
     void onSettingChanged(const QString &moduleId, const QString &key, const QVariant &value);
 
 private:
+    friend class ReliabilityTest;
     QJsonObject loadConfig() const;
     QJsonObject moduleConfig() const;
     bool        useUsUnits() const;
@@ -164,6 +165,8 @@ private:
     // that finish out of order cannot overwrite the newest snapshot.
     quint64 m_weatherRequestGeneration = 0;
     quint64 m_otherRequestGeneration = 0;
+    quint64 m_locationGeneration = 0;
+    quint64 m_extraLocationGeneration = 0;
 
     // Resolved location, cached for the life of the process. Deliberately not
     // persisted: the project writes config.json only on direct user

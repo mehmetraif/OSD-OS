@@ -2,6 +2,7 @@
 
 #include <QNetworkRequest>
 #include <QObject>
+#include <QPointer>
 #include <QString>
 
 class QThread;
@@ -10,7 +11,9 @@ class QThread;
 // thread of its own: the reply is read and the file written there, so a
 // server faster than the card never holds the app's thread (the kernel
 // pauses whoever writes while the card catches up, and that is minutes for a
-// film). The bytes go to <base>.part, which becomes <base>.<extension> once
+// film). The bytes go to a QSaveFile temporary file, committed atomically to
+// <base>.<extension> only when complete. An existing good file survives failure.
+// The target name is chosen once
 // the server's reply says what the file is (its Content-Disposition name,
 // else its type). A transfer that stops moving for half a minute fails. The
 // server's own TLS allowances apply (SslErrors.h). Reports on the app's
@@ -36,7 +39,6 @@ private:
     explicit ServerDownload(QObject *parent);
     ~ServerDownload() override;
 
-    QThread *m_thread = nullptr;
-    QObject *m_worker = nullptr;
+    QPointer<QObject> m_worker;
     bool m_cancelled = false;
 };

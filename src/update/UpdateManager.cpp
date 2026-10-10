@@ -1,5 +1,6 @@
 #include "UpdateManager.h"
 #include "util/LegacyNames.h"
+#include "util/AtomicFile.h"
 
 #include <QCoreApplication>
 #include <QDir>
@@ -380,7 +381,8 @@ void UpdateManager::finishDownload() {
     if (!m_downloadFile.rename(finalPath))
         return fail(QStringLiteral("Could not save the downloaded update."));
 
-    writeStagedMarkers(sha256);
+    if (!writeStagedMarkers(sha256))
+        return fail(QStringLiteral("Could not save update metadata — please try again."));
     setState(QStringLiteral("readyToApply"));
 }
 
@@ -389,16 +391,14 @@ void UpdateManager::finishDownload() {
 // only created at the commitment point in applyLinux(). Until then a downloaded
 // update is inert: backing out and rebooting runs the old version, and the page
 // just re-offers Install.
-void UpdateManager::writeStagedMarkers(const QString &sha256Hex) {
+bool UpdateManager::writeStagedMarkers(const QString &sha256Hex) {
     QJsonObject staged{
         {QStringLiteral("version"), m_latestVersion},
         {QStringLiteral("asset"), m_assetName},
         {QStringLiteral("sha256"), sha256Hex},
         {QStringLiteral("size"), QString::number(QFileInfo(updatesDir() + QStringLiteral("/") + m_assetName).size())},
     };
-    QFile json(stagedJsonPath());
-    if (json.open(QIODevice::WriteOnly | QIODevice::Truncate))
-        json.write(QJsonDocument(staged).toJson());
+    return writeFileAtomically(stagedJsonPath(), QJsonDocument(staged).toJson());
 }
 
 void UpdateManager::clearStagingFiles() {
@@ -455,13 +455,11 @@ void UpdateManager::applyLinux() {
         setState(QStringLiteral("error"), QStringLiteral("Staged update is invalid — please download again."));
         return;
     }
-    QFile sums(stagedSha256Path());
-    if (!sums.open(QIODevice::WriteOnly | QIODevice::Truncate)) {
+    if (!writeFileAtomically(stagedSha256Path(),
+                            QStringLiteral("%1  %2\n").arg(sha256, asset).toUtf8())) {
         setState(QStringLiteral("error"), QStringLiteral("Could not write to the updates folder."));
         return;
     }
-    sums.write(QStringLiteral("%1  %2\n").arg(sha256, asset).toUtf8());
-    sums.close();
 
     if (legacy::envIsSet("AUTOSTART"))
         QTimer::singleShot(0, qApp, []() { QCoreApplication::exit(kExitCodeUpdateRestart); });

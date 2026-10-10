@@ -37,7 +37,7 @@ FocusScope {
 
     // The tree's entries: at its root the default and the places, in a folder
     // USE THIS FOLDER (picking folders) and what is in it.
-    function entriesOf(path) {
+    function entriesOf(path, asynchronous) {
         if (!appCore)
             return []
         if (path === "places") {
@@ -48,7 +48,9 @@ FocusScope {
                 top.push({ name: places[i].name, path: places[i].path, isFolder: true })
             return top
         }
-        var entries = appCore.folderEntries(path, pickFile ? (navParams.types || []) : [])
+        var types = pickFile ? (navParams.types || []) : []
+        var entries = asynchronous ? appCore.requestFolderEntries(path, types) : appCore.folderEntries(path, types)
+        if (entries === undefined || entries === null) return null
         // Not in a branch's glance at a folder: there it would be every
         // folder's first line.
         if (!pickFile)
@@ -102,6 +104,11 @@ FocusScope {
         return trail
     }
 
+    Connections {
+        target: appCore
+        function onFolderEntriesReady(path) { tree.refresh(path) }
+    }
+
     AppBar {
         iconSource: "../../assets/images/settings.svg"
         title: picker.navParams.label || "Settings"
@@ -117,8 +124,8 @@ FocusScope {
         id: tree
         anchors.fill: parent
         focus: true
-        rootPath: "places"
-        fetch: function(path, preview) { return picker.entriesOf(path) }
+        rootPath: { if (appCore) appCore.clearFolderCache(); return "places" }
+        fetch: function(path, preview) { return picker.entriesOf(path, true) }
         savedTrail: picker.trailTo(picker.navParams.currentPath)
         onActivated: function(item) {
             if (item.kind === "default")

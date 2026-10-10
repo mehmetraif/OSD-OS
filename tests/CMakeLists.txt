@@ -5,6 +5,24 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_AUTOMOC ON)
 find_package(Qt6 REQUIRED COMPONENTS Core Concurrent Network Qml Test)
 enable_testing()
+link_libraries(Qt6::Concurrent)
+add_executable(reliability_test
+    reliability_test.cpp
+    ../src/modules/playlists/ServerDownload.cpp
+    ../src/modules/weather/WeatherBackend.cpp
+    ../src/update/UpdateManager.cpp
+    ../src/AppCore.cpp
+    ../src/audio/AudioOutput.cpp
+    ../src/audio/MenuMusic.cpp
+    ../src/util/LegacyNames.cpp
+    ../src/util/MpvLocator.cpp)
+target_include_directories(reliability_test PRIVATE ../src)
+target_compile_definitions(reliability_test PRIVATE APP_VERSION="test")
+target_link_libraries(reliability_test PRIVATE Qt6::Core Qt6::Network Qt6::Qml Qt6::Test)
+add_test(NAME reliability COMMAND reliability_test)
+find_program(LUA_EXECUTABLE NAMES lua5.4 lua REQUIRED)
+add_test(NAME osc_controls COMMAND ${LUA_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/osc_test.lua
+                                  ${CMAKE_CURRENT_SOURCE_DIR}/../scripts/mpv-osc.lua)
 add_executable(storage_search_test
     storage_search_test.cpp
     ../src/AppCore.cpp

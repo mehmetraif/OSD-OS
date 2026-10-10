@@ -10,6 +10,7 @@
 #include <QElapsedTimer>
 #include <QFile>
 #include <QGuiApplication>
+#include <QLocalServer>
 #include <QSignalSpy>
 #include <QTemporaryDir>
 #include <QtTest>
@@ -66,6 +67,41 @@ class PlaybackRetireTest : public QObject {
     }
 
 private slots:
+    void threeFilmsWithoutStopKeepControlsOnNewest() {
+        QSignalSpy ended(m_mpv, &MpvController::playbackEnded);
+        for (const char *film : {"A", "B", "C"}) {
+            play(film);
+            QTRY_VERIFY_WITH_TIMEOUT(happened(QStringLiteral("start ") + film), 5000);
+            QLocalServer control;
+            const QString path = m_dir.path() + QStringLiteral("/osdos-mpv.sock");
+            QLocalServer::removeServer(path);
+            QVERIFY(control.listen(path));
+            QTRY_VERIFY_WITH_TIMEOUT(control.hasPendingConnections(), 5000);
+            QScopedPointer<QLocalSocket> socket(control.nextPendingConnection());
+            QByteArray commands;
+            connect(socket.data(), &QLocalSocket::readyRead, this, [&]() { commands += socket->readAll(); });
+            m_mpv->sendKey(QStringLiteral("UP"));
+            m_mpv->seekTo(20000);
+            QTRY_VERIFY_WITH_TIMEOUT(commands.contains("keypress") && commands.contains("seek"), 3000);
+            QVERIFY(commands.contains("UP"));
+            QVERIFY(commands.contains("absolute+exact"));
+            // The picture can keep playing after its control socket drops.
+            // Re-establish IPC instead of leaving every key except stop inert.
+            socket.reset();
+            QTRY_VERIFY_WITH_TIMEOUT(control.hasPendingConnections(), 5000);
+            socket.reset(control.nextPendingConnection());
+            commands.clear();
+            connect(socket.data(), &QLocalSocket::readyRead, this, [&]() { commands += socket->readAll(); });
+            m_mpv->sendKey(QStringLiteral("DOWN"));
+            m_mpv->seekTo(10000);
+            QTRY_VERIFY_WITH_TIMEOUT(commands.contains("DOWN") && commands.contains("seek"), 3000);
+        }
+        QVERIFY(before("exit A", "start B"));
+        QVERIFY(before("exit B", "start C"));
+        QVERIFY(!overlapped());
+        QCOMPARE(ended.count(), 0); // old exits must not stop the current view
+    }
+
     void initTestCase() {
         QVERIFY(m_dir.isValid());
         const QString bin = m_dir.path() + QStringLiteral("/bin");
