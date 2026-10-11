@@ -419,6 +419,10 @@ How you read logs depends on whether you installed the autostart service:
 
 During playback the app hands off to mpv as a subprocess (see [ARCHITECTURE.md → Playback Hand-off](ARCHITECTURE.md#playback-hand-off-mpvcontroller)). mpv keeps its own log in the temp dir, `/tmp/osdos-mpv.log` (`--log-file`), next to its IPC socket (`/tmp/osdos-mpv.sock`), and what mpv prints goes into the app's own log as `[mpv]` lines — both useful when a video won't play or transcoding misbehaves.
 
+### Crash and freeze reports
+
+On Linux a crash writes its backtrace, and a main thread that hasn't answered for 5 s writes where it and every other thread are, to the log and to `crash-report.txt` or `stall-report.txt` in the data folder, which outlive a reboot where the Pi's journal doesn't ([ARCHITECTURE.md → Crash and stall reports](ARCHITECTURE.md#crash-and-stall-reports-utildiagnostics)). Under the autostart service, a main thread stuck for 20 s ends the app with exit code 70, and systemd starts it again. Under a debugger, which stops the app at a breakpoint, set `OSDOS_WATCHDOG=0`.
+
 ### Qt / QML debugging knobs
 
 These environment variables help when the UI itself is misbehaving:

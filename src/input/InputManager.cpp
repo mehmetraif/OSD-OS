@@ -60,6 +60,26 @@ bool isRightShift(const QKeyEvent *ke) {
 #endif
 }
 
+// Keys that act once per press however long they are held: Back, Select and
+// Play/Pause. Held, Qt repeats them; a repeated Back opens a screen and leaves
+// it at once (the main menu's Settings), or opens a video's menu and closes
+// it. A Bluetooth keyboard can make it happen without holding: a key whose
+// release comes late, as its first press after it wakes may, looks held.
+// Backspace still repeats, to delete in the on-screen keyboard.
+bool isOneShotKey(int key) {
+    switch (key) {
+    case Qt::Key_Escape:
+    case Qt::Key_Back:
+    case Qt::Key_Return:
+    case Qt::Key_Enter:
+    case Qt::Key_Select:
+    case Qt::Key_Space:
+        return true;
+    default:
+        return false;
+    }
+}
+
 // True when an editable text field (e.g. a QML TextInput/TextField) currently
 // holds focus. Detected via the Qt::ImEnabled input-method query — the same
 // signal virtual keyboards use to decide when to appear — so it doesn't depend
@@ -831,6 +851,11 @@ bool InputManager::eventFilter(QObject *obj, QEvent *event) {
 
     if (type == QEvent::KeyPress && !synthetic)
         setLastInputDevice(QStringLiteral("keyboard"));
+
+    // Back, Select and Play/Pause held (or let go late): the first press
+    // only (isOneShotKey). Typing in a text field still repeats them.
+    if (ke->isAutoRepeat() && isOneShotKey(ke->key()) && !textInputHasFocus())
+        return true;
 
     // Right shift acts as Back so the keyboard works one-handed: reuse the
     // gamepad Back path, which posts Escape into QML — or sends ESC to mpv

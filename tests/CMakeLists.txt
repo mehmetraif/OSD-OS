@@ -53,6 +53,7 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
         playback_retire_test.cpp
         ../src/player/MpvController.cpp
         ../src/player/EmbeddedMpv.cpp
+        ../src/util/Diagnostics.cpp
         ../src/AppCore.cpp
         ../src/audio/AudioOutput.cpp
         ../src/util/Board.cpp
@@ -80,6 +81,13 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
     target_include_directories(menu_music_test PRIVATE ../src)
     target_link_libraries(menu_music_test PRIVATE Qt6::Core Qt6::Network Qt6::Qml Qt6::Test)
     add_test(NAME menu_music COMMAND menu_music_test)
+
+    # The crash and stall reports (util/Diagnostics), from child processes
+    # that crash or freeze on purpose. Linux only, as the reports are.
+    add_executable(diagnostics_test diagnostics_test.cpp ../src/util/Diagnostics.cpp)
+    target_include_directories(diagnostics_test PRIVATE ../src)
+    target_link_libraries(diagnostics_test PRIVATE Qt6::Core Qt6::Test)
+    add_test(NAME diagnostics COMMAND diagnostics_test)
 endif()
 
 find_package(Qt6 REQUIRED COMPONENTS Quick QuickTest)

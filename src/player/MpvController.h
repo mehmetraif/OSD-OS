@@ -296,6 +296,8 @@ private:
     bool          m_handingBack    = false; // handBackScreen() under way
     QLocalSocket *m_ipc            = nullptr;
     bool          m_ipcWanted     = false;
+    // The control connection went while wanted, and is being made again.
+    bool          m_reconnecting  = false;
     QTimer       *m_connectTimer   = nullptr;
     QTimer       *m_watchdogTimer  = nullptr;
     qint64        m_lastIpcEventMs = 0;

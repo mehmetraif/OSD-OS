@@ -42,6 +42,7 @@
 #include "util/OsdIconProvider.h"
 #include "util/OsdSkinProvider.h"
 #include "util/LegacyNames.h"
+#include "util/Diagnostics.h"
 #ifdef Q_OS_MAC
 #include "util/MacosUtils.h"
 #endif
@@ -93,6 +94,10 @@ static volatile std::sig_atomic_t g_termSignal = 0;
 extern "C" void osdosHandleTerm(int sig) { g_termSignal = sig; }
 
 int main(int argc, char *argv[]) {
+    // Before any thread exists, Qt's or a libmpv core's: fewer malloc arenas
+    // (util/Diagnostics), or every film played inside the window leaves tens
+    // of MB behind.
+    diagnostics::limitMallocArenas();
     // On a headless screen (EGLFS) Qt draws the mouse pointer itself, as a
     // hardware cursor, and the BlankCursor below doesn't always keep it hidden:
     // it came back over the menus after a web player session. The app has no
@@ -148,6 +153,9 @@ int main(int argc, char *argv[]) {
     const QString dataRoot = resolveDataRoot();
     qDebug("[main] appRoot  = %s", qPrintable(appRoot));
     qDebug("[main] dataRoot = %s", qPrintable(dataRoot));
+    // A crash writes where it was to the journal and to crash-report.txt in
+    // the data folder, which outlives a reboot where the Pi's journal doesn't.
+    diagnostics::installCrashHandlers(dataRoot);
 
     // Log every attached display so a user can discover which index is their
     // target (e.g. a CRT) and set the app-level "display_index" in config.json
@@ -319,6 +327,20 @@ int main(int argc, char *argv[]) {
         QObject::connect(rootWindow, &QQuickWindow::frameSwapped, &bootProgress,
                          &BootProgress::markReady, Qt::SingleShotConnection);
     QTimer::singleShot(5000, &bootProgress, &BootProgress::markReady);
+
+    // The main thread watched once the event loop runs (util/Diagnostics):
+    // stuck 5 s, where it is goes to the journal and stall-report.txt. Under
+    // the autostart service, still stuck at 20 s, the app exits and the
+    // service starts it again, so a frozen menu comes back by itself.
+    // OSDOS_WATCHDOG=0 leaves it off.
+    if (legacy::env("WATCHDOG") != QLatin1String("0")) {
+        const int restartMs = legacy::envIsSet("AUTOSTART") ? 20000 : 0;
+        QTimer::singleShot(0, &app, [dataRoot, restartMs]() {
+            diagnostics::startStallWatchdog(dataRoot, 5000, restartMs);
+        });
+        // Its shutdown may take a while (an mpv to see off): not a freeze.
+        QObject::connect(&app, &QCoreApplication::aboutToQuit, []() { diagnostics::stopStallWatchdog(); });
+    }
 
 #ifdef Q_OS_MAC
     if (QWindow *win = qobject_cast<QWindow *>(engine.rootObjects().first())) {

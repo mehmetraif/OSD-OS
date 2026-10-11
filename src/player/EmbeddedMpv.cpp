@@ -1,4 +1,5 @@
 #include "EmbeddedMpv.h"
+#include "../util/Diagnostics.h"
 #include "../util/LegacyNames.h"
 #include <QCoreApplication>
 #include <QDebug>
@@ -776,10 +777,15 @@ void EmbeddedMpv::teardown() {
     }
     a.terminateDestroy(m_mpv);
     m_mpv = nullptr;
-    QMutexLocker lock(&m_frameLock);
-    m_frame = QImage();
-    m_gpuPublished = GpuFrame();
-    m_gpuPublishedIndex = -1;
+    {
+        QMutexLocker lock(&m_frameLock);
+        m_frame = QImage();
+        m_gpuPublished = GpuFrame();
+        m_gpuPublishedIndex = -1;
+    }
+    // What the core freed goes back to the system, film by film
+    // (util/Diagnostics), rather than staying with the app.
+    diagnostics::releaseFreedMemory();
 }
 
 #else // !OSDOS_EMBEDDED_MPV — built without libmpv's headers: never available.

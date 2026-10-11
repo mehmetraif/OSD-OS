@@ -95,6 +95,7 @@ add_executable(osdos
     src/util/OsdIconProvider.cpp
     src/util/OsdSkinProvider.cpp
     src/util/FontconfigOverride.cpp
+    src/util/Diagnostics.cpp
     src/input/InputManager.cpp
     src/input/IdleTracker.cpp
     src/update/UpdateManager.cpp
@@ -107,6 +108,12 @@ add_executable(osdos
 )
 
 target_compile_definitions(osdos PRIVATE APP_VERSION="${APP_VERSION}" APP_BUILD="${APP_BUILD}")
+
+# The app's own functions in its dynamic symbol table (-rdynamic), so that
+# a crash or a stall report's backtrace names them (util/Diagnostics).
+if(UNIX AND NOT APPLE)
+    set_target_properties(osdos PROPERTIES ENABLE_EXPORTS ON)
+endif()
 
 target_link_libraries(osdos PRIVATE
     Qt6::Core
