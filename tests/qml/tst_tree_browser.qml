@@ -119,6 +119,18 @@ Rectangle {
             verify(browser.visibleRows(b).rows.length <= Math.ceil((browser.bandBottom - browser.bandTop) / browser.rowHeight))
             compare(b.rows[0].label, "item0")
         }
+        function test_closedFolderShrinksBeforeReopening() {
+            verify(browser.openFolder())
+            browser.move(6)
+            compare(browser.currentItem().path, "/projects/LICENSE")
+            verify(browser.closeFolder())
+            // Another app removed the later entries while the folder was closed.
+            root.entries["/projects"] = root.entries["/projects"].slice(0, 2)
+            browser.refresh("/projects")
+            compare(block("/projects").offset, 1)
+            verify(browser.openFolder())
+            compare(browser.currentItem().path, "/projects/tests")
+        }
         function test_hintBarRoom() {
             // With the hint bar off, the area reaches the content box's foot:
             // more of a long folder shows under the spine, which stays put.
