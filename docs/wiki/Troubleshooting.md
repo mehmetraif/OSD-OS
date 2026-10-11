@@ -34,6 +34,21 @@ On the image, the user OSD/OS runs as (`pi`) is in the `adm` group, so `journalc
 <tr><td>Run by hand, Quit asks Yes or No. Started by the service, it offers Power Off, Restart, Exit to Terminal and Cancel.</td><td>A line per service as it comes up: <code>[ OK ]</code> once it is up, <code>[FAIL]</code> if it failed, <code>[ -- ]</code> if it was skipped.</td></tr>
 </table>
 
+### When it crashes or freezes: the reports
+
+On Linux, OSD/OS leaves a report of its own where its log may not last: the Pi's journal is kept in memory and gone at the next boot.
+
+- **A crash** writes where it happened (the functions it was in, one per line) to the log (`[crash] OSD/OS … ended by SIGSEGV …`) and to `crash-report.txt` in the [data folder](https://github.com/mehmetraif/OSD-OS/wiki/Configuration-Files#the-data-folder).
+- **A freeze**: when the screens haven't answered for 5 seconds, OSD/OS writes when it began, how much memory the app and the system had, and where the app is stuck, to the log (`[watchdog] …`) and to `stall-report.txt`, which adds where each of its other threads is (the picture's, mpv's); and once the screens answer again, after how long. Started by the service, OSD/OS still frozen at 20 seconds ends itself, and systemd starts it again five seconds later, as after a crash: a frozen menu comes back by itself, on the main menu.
+
+Each file holds the latest report only: the next crash or freeze writes over it. On the image they are in `/home/pi/.local/share/OSD-OS/`. To keep them, quit with Exit to Terminal and copy them to the films partition, which a computer can read:
+
+```sh
+cp ~/.local/share/OSD-OS/crash-report.txt ~/.local/share/OSD-OS/stall-report.txt /media/OSD-OS/
+```
+
+Freeze reports are off with `OSDOS_WATCHDOG=0`, for a debugger, which stops the app at a breakpoint.
+
 ### mpv's own log
 
 The player's messages reach OSD/OS's log as `[mpv] …` lines, with every token blanked out; with Transparent Background, libmpv's warnings and errors are logged as they come. mpv also writes a complete, verbose log of the latest video to `/tmp/osdos-mpv.log` (the system's temporary folder; on a Mac, `$TMPDIR`). mpv starts the file afresh for each video, so copy it before playing the next one. It is readable by its owner only: it holds each video's full address, and a media server's token with it. Look through it before you post it anywhere.
@@ -81,7 +96,7 @@ qml: Routing to: modules/local_files/views/Root.qml
 |---|---|---|
 | `[main]` | Start-up | Each screen it found (`display index 0: "…" 720x480 at (0,0)`) and the one it uses, a `display_index` out of range, a stop by a signal, and `QML engine failed to load Main.qml` when the screens can't load at all. A build from source adds `appRoot` and `dataRoot` |
 | `[AppCore]` | The shell: modules, settings, themes, skins | A `manifest.json` that isn't JSON or lacks `id` or `entry_point_qml`, each theme and skin read and what in it can't be used, a setting that couldn't be saved, a custom color scheme that is wrong. A build from source adds every module loaded, enabled or disabled, and every setting saved |
-| `[MpvController]` | Playback | The video profile chosen at start (`video profile: Pi 4 — drm + drm-copy,v4l2m2m-copy`), `mpv not found`, mpv's exit code when it isn't 0, `WATCHDOG: no IPC time-pos event for N s — possible freeze`, the screen held by something else, a logo picture it couldn't read |
+| `[MpvController]` | Playback | The video profile chosen at start (`video profile: Pi 4 — drm + drm-copy,v4l2m2m-copy`), the memory as each video starts (`memory as a video starts: app 251 MB, available 1203 of 1848 MB, swap 0 of 100 MB in use`), `mpv not found`, mpv's exit code when it isn't 0, `WATCHDOG: no IPC time-pos event for N s — possible freeze`, the connection to a playing mpv lost and made again, the screen held by something else, a logo picture it couldn't read |
 | `[mpv]` | mpv's own output | Why a file won't open, an option it refuses |
 | `[EmbeddedMpv]` | Transparent Background (libmpv inside the window) | Whether libmpv was found (`using libmpv.so.2`, or `libmpv not found: Transparent Background is unavailable`), where the pictures are drawn (`pictures drawn on the GPU: <renderer>`, or by mpv's software renderer), an option this libmpv doesn't know, a GPU that can't take the decoder's frames |
 | `[DisplayHandoff]` | A Pi without a desktop handing its screen to mpv, a takeover script or a web player, and taking it back (VTs, DRM) | A VT that couldn't be switched, DRM master or the CRTC that couldn't be saved or restored: the lines behind a black screen after a video |
@@ -90,6 +105,8 @@ qml: Routing to: modules/local_files/views/Root.qml
 | `[MenuMusic]` | The menu music | What it plays, what it makes into a WAV first, and why a file can't play |
 | `[Bluetooth]` | Settings → Bluetooth | No system bus (D-Bus), the pairing agent, an adapter that wouldn't power on |
 | `[input]` | Gamepads and remotes | SDL ready or failed, controllers added and removed, `input.cfg` lines ignored (with their line number) and the bindings applied, `gamecontrollerdb.txt` mappings loaded, a remote's Consumer Control device |
+| `[crash]` | A crash (Linux) | The signal it ended by and where it was, as in `crash-report.txt` |
+| `[watchdog]` | Freezes (Linux) | The screens not answering for 5 seconds, the memory, and where the app is stuck; answering again, or the app ending to start again, as in `stall-report.txt` |
 | `[boot]` | The image's boot screen | The first frame's time, each held-back service settling, the boot screen closing |
 | `[legacy]` | Moving over from 240-MP | 240-MP's data folder moved over, module ids renamed |
 | `[AtomicFile]` | Saving state | `Could not write <path>: <reason>`: a file left as it was, never half written |
@@ -358,6 +375,15 @@ Settings offers a row only where it can work:
 
 A build without Qt Shader Tools says so when CMake configures it: `Qt Shader Tools not found — the shader effects will be unavailable` ([Building from source](https://github.com/mehmetraif/OSD-OS/wiki/Building-from-Source#qt-shader-tools)). Under Qt's software renderer (`QT_QUICK_BACKEND=software`) the shaders can't run whatever the build; OpenGL drawn on the CPU (Mesa's llvmpipe) still runs them, slowly. More in [Effects](https://github.com/mehmetraif/OSD-OS/wiki/Effects).
 
+## The menus freeze, or OSD/OS starts again by itself
+
+| What you see | What happened | What to do |
+|---|---|---|
+| The screen stops answering, then goes on | The app was busy or stuck: `[watchdog] … the main thread hasn't answered for 5.0 s`, then `… answered again, N s after it stopped` | Send `stall-report.txt` with a bug report: it says where it was stuck |
+| The picture goes, and OSD/OS comes back on its main menu | Frozen for 20 seconds, it ended itself (`the app starts again`), or it crashed (`[crash] …`), and the service started it again | Send `stall-report.txt` or `crash-report.txt` ([the reports](https://github.com/mehmetraif/OSD-OS/wiki/Troubleshooting#when-it-crashes-or-freezes-the-reports)) |
+| A login prompt in place of OSD/OS | It failed three times in two minutes, and the service gave up ([When OSD/OS crashes](https://github.com/mehmetraif/OSD-OS/wiki/Troubleshooting#where-the-log-is)) | `sudo systemctl reset-failed osdos`, then `sudo systemctl start osdos`, or switch the Pi off and on |
+| Ended with no report: `status=9/KILL` in the log | The system ran out of memory, and the kernel ended the app: `journalctl -k -b \| grep -i -e oom -e 'out of memory'` says so | The memory line as each video starts (`[MpvController] memory as a video starts`) shows where it went: send the log |
+
 ## The app won't start
 
 | What the log says | Cause | Fix |
@@ -418,6 +444,7 @@ Open an issue at [github.com/mehmetraif/OSD-OS/issues](https://github.com/mehmet
 - **The version**: Settings shows it in its title bar, after SETTINGS (`DEV` for a build from source), and Settings → About → Build has the commit and the day the build was made.
 - **mpv's version**, the first line of `mpv --version`: playback problems often come from it.
 - **The log**, as text: `journalctl -u osdos -b --no-pager > osdos.log` on the image, or the terminal's output. For a playback problem, `/tmp/osdos-mpv.log` too, once you have looked through it for addresses and tokens.
+- **After a crash or a freeze**, `crash-report.txt` or `stall-report.txt` from the data folder ([the reports](https://github.com/mehmetraif/OSD-OS/wiki/Troubleshooting#when-it-crashes-or-freezes-the-reports)).
 - **A photo of the screen** where it helps: Settings → Bluetooth's Details page is made for one.
 
 ## See also

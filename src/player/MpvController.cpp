@@ -10,6 +10,7 @@
 #include "../audio/MenuMusic.h"
 #include "../util/Board.h"
 #include "../util/LegacyNames.h"
+#include "../util/Diagnostics.h"
 #include <QCoreApplication>
 #include <QGuiApplication>
 #include <QImageReader>
@@ -150,6 +151,10 @@ MpvController::MpvController(const QString &appRoot, const QString &dataRoot,
     m_ipc = new QLocalSocket(this);
     connect(m_ipc, &QLocalSocket::connected, this, [this] {
         m_connectTimer->stop();
+        if (m_reconnecting) {
+            m_reconnecting = false;
+            qWarning("[MpvController] Control connection to the player made again");
+        }
         m_lastIpcEventMs = QDateTime::currentMSecsSinceEpoch();
         m_watchdogTimer->start();
         sendCommand({"observe_property", 1, "time-pos"});
@@ -162,11 +167,21 @@ MpvController::MpvController(const QString &appRoot, const QString &dataRoot,
     m_connectTimer = new QTimer(this);
     m_connectTimer->setInterval(100);
     connect(m_connectTimer, &QTimer::timeout, this, &MpvController::tryConnectIpc);
+    // The player's control connection gone while it is wanted: made again.
+    // An mpv ending closes it too, a moment before its process has gone, so
+    // that alone isn't worth a line in the log; one that still plays a few
+    // seconds on without it is.
     connect(m_ipc, &QLocalSocket::disconnected, this, [this]() {
         if (!m_ipcWanted) return;
-        qWarning("[MpvController] Control connection lost; reconnecting to the current player");
+        m_reconnecting = true;
         m_watchdogTimer->stop();
         m_connectTimer->start();
+        const int serial = m_launchSerial;
+        QTimer::singleShot(3000, this, [this, serial]() {
+            if (m_reconnecting && serial == m_launchSerial
+                    && ((m_process && m_process->state() == QProcess::Running) || videoActive()))
+                qWarning("[MpvController] Control connection to the playing player lost; making it again");
+        });
     });
 
     // Watchdog: fires every 10 s; logs a warning if no IPC time-pos event has
@@ -545,6 +560,11 @@ void MpvController::loadAndPlay(const QString &url, float startSeconds,
                          .toUtf8());
         }
     }
+    // How much memory there was, video by video (util/Diagnostics): a Pi
+    // running short shows here before it stalls.
+    const QString memory = diagnostics::memoryLine();
+    if (!memory.isEmpty())
+        qInfo("[MpvController] memory as a video starts: %s", qPrintable(memory));
 
     // The session starts a tick later, so that its player's loading screen
     // is drawn first: starting mpv runs synchronously and, on the Pi,
@@ -839,7 +859,7 @@ void MpvController::clearOsdPrompt() {
 }
 
 void MpvController::tryConnectIpc() {
-    if (!m_ipcWanted) { m_connectTimer->stop(); return; }
+    if (!m_ipcWanted) { m_connectTimer->stop(); m_reconnecting = false; return; }
     if (m_ipc->state() == QLocalSocket::ConnectedState ||
         m_ipc->state() == QLocalSocket::ConnectingState)
         return;
@@ -920,6 +940,7 @@ void MpvController::onIpcReadyRead() {
 
 void MpvController::onProcessFinished() {
     m_ipcWanted = false;
+    m_reconnecting = false;
     int exitCode = m_process ? m_process->exitCode() : -1;
     if (m_process) {
         const QByteArray remaining = m_process->readAll();
@@ -1309,6 +1330,7 @@ void MpvController::endEmbedded() {
 
 void MpvController::onEmbeddedFinished(const QString &lastEndReason) {
     m_ipcWanted = false;
+    m_reconnecting = false;
     m_connectTimer->stop();
     m_watchdogTimer->stop();
     // As for a process: the last events may still sit unread on the socket.

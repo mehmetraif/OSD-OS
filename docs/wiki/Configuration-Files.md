@@ -56,6 +56,7 @@ OSD/OS reads these. Each is also read under its 240-MP name, `MP240_<NAME>`, whe
 | `OSDOS_BOOT_UNITS_FILE` | The OSD/OS image: `/etc/osdos/boot-units` | The services the boot screen follows, as `unit\|LABEL` lines. Unset, there is no boot screen |
 | `OSDOS_READY_FILE` | The OSD/OS image: `/run/osdos/ready` | Written, with OSD/OS's process id, once its first frame is on screen: the image's held-back services wait for it |
 | `OSDOS_BOOT_DIR` | Nothing; `/boot/firmware` by default | Where Display Output finds `osdos-display.txt` and its presets |
+| `OSDOS_WATCHDOG` | Nothing | `0`: no freeze reports, and no restart after 20 seconds frozen under the service. For a debugger, which stops the app at a breakpoint ([Troubleshooting](https://github.com/mehmetraif/OSD-OS/wiki/Troubleshooting#when-it-crashes-or-freezes-the-reports)) |
 | `OSDOS_EMBEDDED_RENDER` | Nothing | With Transparent Background: `sw` draws the video on the CPU always; `gpu` draws it with OpenGL even when OpenGL itself runs on the CPU (Mesa's llvmpipe), for tests |
 | `OSDOS_UPDATE_FEED_URL` | Nothing | The release feed Update asks, in place of `https://api.github.com/repos/mehmetraif/OSD-OS/releases/latest` |
 | `OSDOS_NFC_DEBUG` | Nothing | Set to anything: the NFC Reader logs how it looks for readers |
@@ -66,7 +67,7 @@ OSD/OS reads these. Each is also read under its 240-MP name, `MP240_<NAME>`, whe
 | `OSDOS_TMDB_URL`, `OSDOS_WIKIDATA_URL` | Nothing | Stand in for TMDB's API (`https://api.themoviedb.org/3`) and Wikidata's query service, for tests |
 | `OSDOS_WEB_PLAYER_UA` | Nothing | Read by `scripts/web-player.sh`: the user agent the Netflix and Prime Video browser sends |
 
-Two Qt variables matter too. OSD/OS sets `QT_QPA_EGLFS_HIDECURSOR=1` for itself when it is unset, so Qt's own cursor never shows. The launcher picks the platform, `QT_QPA_PLATFORM` (`wayland` with `WAYLAND_DISPLAY`, `xcb` with `DISPLAY`, else `eglfs`), and for `eglfs` sets `QT_QPA_EGLFS_ALWAYS_SET_MODE=1`, `QT_QPA_EGLFS_KMS_ATOMIC=1` and `QT_QPA_EGLFS_KMS_CONFIG`, a file naming the display card (`$XDG_RUNTIME_DIR/osdos-kms.json`, or `/tmp/osdos-kms.json`). A `QT_QPA_PLATFORM` already set is left as it is. The variables `os/build.sh` takes to build the image are in [The OSD/OS image](https://github.com/mehmetraif/OSD-OS/wiki/The-OSD-OS-Image).
+Two Qt variables matter too. OSD/OS sets `QT_QPA_EGLFS_HIDECURSOR=1` for itself when it is unset, so Qt's own cursor never shows. The launcher picks the platform, `QT_QPA_PLATFORM` (`wayland` with `WAYLAND_DISPLAY`, `xcb` with `DISPLAY`, else `eglfs`), and for `eglfs` sets `QT_QPA_EGLFS_ALWAYS_SET_MODE=1`, `QT_QPA_EGLFS_KMS_ATOMIC=1` and `QT_QPA_EGLFS_KMS_CONFIG`, a file naming the display card (`$XDG_RUNTIME_DIR/osdos-kms.json`, or `/tmp/osdos-kms.json`). A `QT_QPA_PLATFORM` already set is left as it is. On Linux, glibc's `MALLOC_ARENA_MAX` matters as well: unset, OSD/OS keeps its allocator to two arenas, so that a video's threads don't each leave memory behind; set, it decides. The variables `os/build.sh` takes to build the image are in [The OSD/OS image](https://github.com/mehmetraif/OSD-OS/wiki/The-OSD-OS-Image).
 
 ### What OSD/OS hands on
 
@@ -101,6 +102,8 @@ Two Qt variables matter too. OSD/OS sets `QT_QPA_EGLFS_HIDECURSOR=1` for itself 
 ├── input.cfg                   you write it, if you like: gamepad buttons
 ├── gamecontrollerdb.txt        you add it, if you like: SDL mappings for unusual pads
 ├── display-output.json         a Display Output switch under way (the image)
+├── crash-report.txt            where the latest crash happened (Linux)
+├── stall-report.txt            where the latest freeze happened (Linux)
 ├── themes/                     your themes, a folder each
 ├── skins/                      your skins, a folder each
 ├── soundfonts/                 SoundFonts (.sf2) for MIDI menu music
@@ -132,6 +135,7 @@ A file or folder appears only once something needs it. The rest of this section 
 | `custom_color_schemes.json`, `custom_color_scheme.json` | You | Color schemes of your own ([below](https://github.com/mehmetraif/OSD-OS/wiki/Configuration-Files#custom-color-schemes)) |
 | `input.cfg`, `gamecontrollerdb.txt` | You | Gamepad remapping, read again as soon as it changes, and extra SDL controller mappings, read at start ([Controls](https://github.com/mehmetraif/OSD-OS/wiki/Controls)) |
 | `display-output.json` | Settings → Display Output | `{ "from", "to" }` while a new output waits to be kept, `{ "reverted" }` after one wasn't. Deleted once the output is kept, or once OSD/OS has said what became of it |
+| `crash-report.txt`, `stall-report.txt` | OSD/OS on Linux: at a crash, and when its screens stop answering for 5 seconds | The latest crash or freeze only: when, the memory, and where the app was ([Troubleshooting](https://github.com/mehmetraif/OSD-OS/wiki/Troubleshooting#when-it-crashes-or-freezes-the-reports)) |
 | `themes/`, `skins/` | You | A theme or skin of the same folder name as one of OSD/OS's replaces it ([Themes](https://github.com/mehmetraif/OSD-OS/wiki/Themes), [Skins](https://github.com/mehmetraif/OSD-OS/wiki/Skins)). A `theme.json` of window pictures only in `themes/` is read as a skin |
 | `soundfonts/` | You | MIDI menu music plays with a SoundFont beside the file of its name, else the first `.sf2` here by name, else the system's ([Menu music](https://github.com/mehmetraif/OSD-OS/wiki/Menu-Music)) |
 | `bin/yt-dlp` | You; on the OSD/OS image a timer, after each boot and once a day | The yt-dlp found first: then one beside the `osdos` binary, then one on `PATH`. mpv's ytdl hook is pointed at the same one |
