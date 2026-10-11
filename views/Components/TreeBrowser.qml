@@ -94,6 +94,13 @@ FocusScope {
                 return
             }
         }
+        // A closed folder can shrink too. Keep its remembered cursor valid
+        // both for its preview and when it is opened again.
+        if (remembered[path] !== undefined) {
+            var refreshed = listing(path, true)
+            if (!refreshed.pending)
+                remembered[path] = Math.max(0, Math.min(remembered[path], refreshed.items.length - 1))
+        }
         if (branched)
             layoutBranches(true)
     }
@@ -325,7 +332,7 @@ FocusScope {
             }
             var cached = l.expandedBlock
             if (cached.rows.length > 0) {
-                var selectedIndex = around >= 0 ? cached.items.indexOf(l.items[around]) : 0
+                var selectedIndex = around >= 0 ? cached.items.indexOf(l.items[Math.min(around, l.items.length - 1)]) : 0
                 return { path: path, rows: cached.rows, offset: Math.max(0, selectedIndex),
                          width: Math.min(maxColumnWidth, cached.width) }
             }
