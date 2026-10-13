@@ -7,8 +7,19 @@
 #include <QXmlStreamReader>
 
 // What the Arcade module asks of MAME and makes of its answers, with no
-// process or file of its own, so tests/arcade_test.cpp can drive it.
+// process of its own, so tests/arcade_test.cpp can drive it; and where MAME
+// and its plugins are, for the High Scores module too.
 namespace mame {
+
+// MAME's program: <data>/bin/mame (one of the user's own, as yt-dlp's
+// drop-in is), else mame on the PATH, else Debian's /usr/games/mame, which a
+// systemd service's PATH leaves out. "" for none.
+QString programPath(const QString &dataRoot);
+// The plugins folder of that MAME, with the hiscore plugin in it: beside the
+// program as installed (Debian's /usr/games/../share/games/mame/plugins,
+// Homebrew's bin/../share/mame/plugins, or a plugins folder of its own),
+// else Debian's own. "" when there is none.
+QString pluginsFolder(const QString &program);
 
 // A machine as -listxml describes it: what the game list shows and sorts by.
 struct Machine {

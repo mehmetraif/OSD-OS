@@ -562,6 +562,8 @@ private slots:
         QCOMPARE(names(arcade.requestEntries(QStringLiteral("recent"))),
                  QStringList({ QStringLiteral("Pac-Man (Midway)") }));
         QVERIFY(arcade.requestEntries(QStringLiteral("favorites")).toList().isEmpty());
+        // As High Scores has them: every set played, newest first.
+        QCOMPARE(arcade.recentSets(), QStringList({ QStringLiteral("gone"), QStringLiteral("pacman") }));
     }
 
     // A set whose file MAME can't open by its name: in upper case, where the

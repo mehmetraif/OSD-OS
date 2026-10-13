@@ -113,6 +113,7 @@ qml: Routing to: modules/local_files/views/Root.qml
 | `[LocalFiles]` | Local Files | A folder not found, USB drives in and out |
 | `[Scripts]` | Scripts | Each run, how it ended and its exit code, sidecar lines it couldn't read, a takeover run in console mode |
 | `[Arcade]` | Arcade | The games folder (`games folder: /media/OSD-OS/Games/Arcade`), the sets MAME is asked about (`Asking MAME about 18 games`), MAME changed or unable to list them, a game that didn't play and why (`mslug: Missing sp-s2.sp1, …`), MAME's hiscore plugin not found. MAME runs through the Scripts module's launcher, so its runs and their ends are `[Scripts]` lines (`'mame' finished: failed (exit 2)`) |
+| `[HighScores]` | High Scores | How many games' files it reads (`Reading 3 games' files`), and each file it couldn't read and why (`ffightu.hi: The file isn't laid out as hi2txt knows this game's: …`) |
 | `[NfcReader]` | NFC Reader | Readers found and lost, polling started or disabled, tag files skipped or created |
 | `[Weather]` | Weather | The place it resolved, forecasts fetched or not, the US stations it reads, its music |
 | `[AmbientMode]` | Ambient:Mode | mpv not found for its music |
@@ -126,7 +127,7 @@ qml: Routing to: modules/local_files/views/Root.qml
 
 ## A module is missing from the main menu
 
-Most modules come switched off. Only Local Files and Playlists are on at first; Ambient:Mode, Arcade, Emby, Jellyfin, Netflix, NFC Reader, Plex, Prime Video, Scripts, Weather and YouTube each have an **Enabled** setting that starts at Off. Turn it on in Settings → *the module's name* → Enabled, and the module joins the main menu. With every module off, the main menu says **No modules enabled**.
+Most modules come switched off. Only Local Files and Playlists are on at first; Ambient:Mode, Arcade, Emby, High Scores, Jellyfin, Netflix, NFC Reader, Plex, Prime Video, Scripts, Weather and YouTube each have an **Enabled** setting that starts at Off. Turn it on in Settings → *the module's name* → Enabled, and the module joins the main menu. With every module off, the main menu says **No modules enabled**.
 
 ## Black screen or no picture
 
@@ -256,6 +257,20 @@ The Arcade module lists the ROM sets in its games folder as MAME names them, and
 | Coin and Start don't bring you back | They count together, on player 1's controller | Press them on the controller Settings → Controls → Players makes player 1, or Esc on a keyboard |
 
 The log has the module's lines, and MAME's runs as the Scripts module's launcher logs them: `journalctl -u osdos -b | grep -E 'Arcade|Scripts'`. More in [Arcade → Troubleshooting](https://github.com/mehmetraif/OSD-OS/wiki/Arcade#troubleshooting).
+
+## High Scores
+
+The High Scores module reads the files MAME keeps of the games played in Arcade. What keeps it from reading them shows on its screen; a game whose file can't be read is under **Not Readable**, with why on the line under the tree.
+
+| What you see | Cause | Fix |
+|---|---|---|
+| `This build of OSD/OS reads no high score tables: it was built without minizip` | A build of your own, made without minizip | Install `libminizip-dev` (or Homebrew's `minizip`) and build again ([Building from source](https://github.com/mehmetraif/OSD-OS/wiki/Building-from-Source)) |
+| `hi2txt's game definitions are missing: …` | The app's `modules/highscores/data/hi2txt.zip` isn't there | Install OSD/OS again |
+| `No high scores yet` | No game has a file yet: none played, or played without the hiscore plugin | Turn on **Settings → Arcade → High Scores**, play a game, and leave it with Coin and Start |
+| A game played isn't listed | The hiscore plugin keeps a table only for the games its `hiscore.dat` knows, and a game's NVRAM is listed only when hi2txt knows of a table in it | See [High Scores → Troubleshooting](https://github.com/mehmetraif/OSD-OS/wiki/High-Scores#troubleshooting) |
+| A game under **Not Readable** | hi2txt has no definition of the game, or its file isn't laid out as the definition says | The line under the tree says which ([High Scores → Not Readable](https://github.com/mehmetraif/OSD-OS/wiki/High-Scores#not-readable)) |
+
+The log has the module's lines: `journalctl -u osdos -b | grep HighScores`.
 
 ## Bluetooth won't turn on
 
@@ -448,6 +463,7 @@ Other files hold the rest, and stay when only `config.json` goes:
 | `plex_auth.json`, `plex_key.pem`, `jellyfin_auth.json`, `emby_auth.json` | The media servers' sign-ins |
 | `netflix/browser`, `prime_video/browser`, `youtube/browser` | The web players' browser profiles, with their sign-ins |
 | `arcade/` | The Arcade module's: what MAME said of the games, and MAME's settings, NVRAM and high scores |
+| `highscores/` | What the High Scores module read of MAME's files, read again without it |
 | `input.cfg`, `themes/`, `skins/`, `nfc_tags/`, `user_scripts/` | Your own files |
 
 Moving the whole data folder aside starts OSD/OS as on its first day. On the image, keep `bin/yt-dlp` from it: the YouTube module's yt-dlp lives there, and its daily update runs that copy.

@@ -31,6 +31,15 @@ dafont.com, and GNU Unifont, by Roman Czyborra, Paul Hardy and others,
 under the SIL Open Font License 1.1. Their terms are in
 /opt/osdos/share/osdos/assets/fonts/.
 
+The High Scores module reads MAME's high score files with openhi2txt
+(https://github.com/inigomonyota/openhi2txt), which is built into OSD/OS
+under the same licence, the GPL-3.0, and parses XML with RapidXML, by
+Marcin Kalicinski, under the Boost Software License 1.0 or the MIT License.
+It reads them through hi2txt's game definitions
+(https://github.com/GreatStoneEx/hi2txt-xml), by GreatStone and their
+contributors, under the GPL-2.0: data the module reads, with the licence's
+text beside them in /opt/osdos/share/osdos/modules/highscores/data/.
+
 OSD/OS's changes to 240-MP were written with Claude Code (Anthropic). The
 OSD/OS logo, the channel logo and the boot screen's cassette were made with
 ChatGPT (OpenAI).

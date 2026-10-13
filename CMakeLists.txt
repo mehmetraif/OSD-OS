@@ -83,6 +83,8 @@ add_executable(osdos
     src/modules/scripts/ScriptLauncher.cpp
     src/modules/arcade/ArcadeBackend.cpp
     src/modules/arcade/Mame.cpp
+    src/modules/highscores/HighScoresBackend.cpp
+    src/modules/highscores/ScoreTable.cpp
     src/modules/web_player/WebPlayerBackend.cpp
     src/modules/web_player/TmdbCatalog.cpp
     src/player/MpvController.cpp
@@ -200,6 +202,18 @@ if(Qt6DBus_FOUND)
     target_link_libraries(osdos PRIVATE Qt6::DBus)
 else()
     message(STATUS "Qt D-Bus not found — Settings → Bluetooth will be unavailable")
+endif()
+
+# openhi2txt, for the High Scores module's tables (src/modules/highscores): it
+# reads MAME's high score files through hi2txt's game definitions, a zip it
+# opens with minizip. Optional: without minizip the module is there but says
+# its tables were left out.
+include(cmake/openhi2txt.cmake)
+if(OPENHI2TXT_FOUND)
+    target_compile_definitions(osdos PRIVATE OSDOS_HIGH_SCORES=1)
+    target_link_libraries(osdos PRIVATE openhi2txt::openhi2txt)
+else()
+    message(STATUS "minizip not found — High Scores will show no tables")
 endif()
 
 target_include_directories(osdos PRIVATE

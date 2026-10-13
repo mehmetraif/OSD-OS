@@ -95,7 +95,7 @@ Six-player games, such as X-Men (6 Players), take six controllers: the JAMMA boa
 
 ## High scores
 
-With **High Scores** on (the default), MAME runs with its hiscore plugin, which keeps the high score tables of the games that forget them when they are switched off, as most early ones do: each in `arcade/hiscore/<game>.hi` in the data folder, for the games its `hiscore.dat` knows (the one in MAME's plugins). Games that keep their own scores in NVRAM keep them in `arcade/nvram`. A table is saved when the game closes the proper way, with Coin and Start, and also a few seconds after a new score goes in.
+With **High Scores** on (the default), MAME runs with its hiscore plugin, which keeps the high score tables of the games that forget them when they are switched off, as most early ones do: each in `arcade/hiscore/<game>.hi` in the data folder, for the games its `hiscore.dat` knows (the one in MAME's plugins). Games that keep their own scores in NVRAM keep them in `arcade/nvram`. A table is saved when the game closes the proper way, with Coin and Start, and also a few seconds after a new score goes in. The [High Scores](https://github.com/mehmetraif/OSD-OS/wiki/High-Scores) module shows the tables, as lines of names and scores.
 
 ## The picture and the sound
 

@@ -1,8 +1,43 @@
 #include "Mame.h"
+#include <QDir>
+#include <QFileInfo>
 #include <QRegularExpression>
 #include <QSet>
+#include <QStandardPaths>
 
 namespace mame {
+
+QString programPath(const QString &dataRoot) {
+    const QFileInfo dropIn(dataRoot + QStringLiteral("/bin/mame"));
+    if (dropIn.isFile() && dropIn.isExecutable())
+        return dropIn.absoluteFilePath();
+    const QString onPath = QStandardPaths::findExecutable(QStringLiteral("mame"));
+    if (!onPath.isEmpty())
+        return onPath;
+    const QFileInfo debian(QStringLiteral("/usr/games/mame"));
+    if (debian.isFile() && debian.isExecutable())
+        return debian.absoluteFilePath();
+    return QString();
+}
+
+QString pluginsFolder(const QString &program) {
+    QStringList candidates;
+    if (!program.isEmpty()) {
+        const QFileInfo info(program);
+        for (const QString &dir : { info.absolutePath(), QFileInfo(info.canonicalFilePath()).absolutePath() }) {
+            candidates << dir + QStringLiteral("/../share/games/mame/plugins")
+                       << dir + QStringLiteral("/../share/mame/plugins")
+                       << dir + QStringLiteral("/plugins");
+        }
+    }
+    candidates << QStringLiteral("/usr/share/games/mame/plugins")
+               << QStringLiteral("/usr/local/share/games/mame/plugins");
+    for (const QString &candidate : std::as_const(candidates)) {
+        if (QFileInfo::exists(candidate + QStringLiteral("/hiscore/init.lua")))
+            return QDir::cleanPath(candidate);
+    }
+    return QString();
+}
 
 QVariantMap Machine::toVariant() const {
     QVariantMap map{ { QStringLiteral("description"), description } };

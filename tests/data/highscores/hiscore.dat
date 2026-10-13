@@ -1,0 +1,23 @@
+; MAME's hiscore.dat (its hiscore plugin's), the blocks of the games in
+; tests/data/highscores only: see README.md.
+
+ffight:
+ffightbl:
+ffightblb:
+ffightj:
+ffightjh:
+@:maincpu,program,ff850c,3c,ff,00
+@:maincpu,program,ff80a0,04,00,00
+
+gng:
+gnga:
+gngbl:
+gngblita:
+gngc:
+gngt:
+makaimur:
+makaimurc:
+makaimurg:
+@:maincpu,program,1518,5a,15,72
+@:maincpu,program,00d0,4,00,00
+

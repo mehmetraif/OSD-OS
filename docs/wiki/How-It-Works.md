@@ -102,7 +102,7 @@ appCore.registerModule("com.osdos.playlists",    "playlistsBackend",   &playlist
 | `Q_INVOKABLE QString get_auth_state()` | asked when needed, for `requires_auth` settings |
 | `Q_INVOKABLE QVariantList get_menu_entries()` | asked when needed, for rows of its own on the main menu |
 
-All thirteen modules have one: `com.osdos.local_files`, `plex`, `jellyfin`, `emby`, `ambient_mode`, `nfc_reader`, `youtube`, `weather`, `scripts`, `netflix`, `prime_video`, `playlists` and `arcade`. A module of QML alone needs no line at all. [Writing a module](https://github.com/mehmetraif/OSD-OS/wiki/Writing-a-Module) walks through one; [ARCHITECTURE.md → AppCore](https://github.com/mehmetraif/OSD-OS/blob/main/ARCHITECTURE.md#appcore--the-app-shell) lists every slot.
+All fourteen modules have one: `com.osdos.local_files`, `plex`, `jellyfin`, `emby`, `ambient_mode`, `nfc_reader`, `youtube`, `weather`, `scripts`, `netflix`, `prime_video`, `playlists`, `arcade` and `highscores`. A module of QML alone needs no line at all. [Writing a module](https://github.com/mehmetraif/OSD-OS/wiki/Writing-a-Module) walks through one; [ARCHITECTURE.md → AppCore](https://github.com/mehmetraif/OSD-OS/blob/main/ARCHITECTURE.md#appcore--the-app-shell) lists every slot.
 
 ### What QML can reach
 
@@ -521,7 +521,7 @@ OSD/OS logs to its standard output and error: a terminal when you run it by hand
 | `[input]` | Gamepads, remaps, `input.cfg` |
 | `[Scripts]`, `[WebPlayer]`, `[TMDB]` | Scripts, the web players and their catalogue |
 | `[Bluetooth]` | Settings → Bluetooth |
-| `[LocalFiles]`, `[Plex]`, `[Jellyfin]`, `[Emby]`, `[Playlists]`, `[Weather]`, `[NfcReader]`, `[AmbientMode]`, `[Arcade]` | The modules |
+| `[LocalFiles]`, `[Plex]`, `[Jellyfin]`, `[Emby]`, `[Playlists]`, `[Weather]`, `[NfcReader]`, `[AmbientMode]`, `[Arcade]`, `[HighScores]` | The modules |
 | `[legacy]` | 240-MP's data brought over |
 | `[AtomicFile]` | A file that couldn't be saved |
 | `[Effect]` | A shader that couldn't be used |

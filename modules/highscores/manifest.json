@@ -1,0 +1,14 @@
+{
+  "id": "com.osdos.highscores",
+  "name": "High Scores",
+  "icon": "assets/images/logo.svg",
+  "entry_point_qml": "views/Root.qml",
+  "settings": [
+    {
+      "key": "enabled",
+      "label": "ENABLED",
+      "type": "toggle",
+      "default": "OFF"
+    }
+  ]
+}

@@ -62,6 +62,8 @@ Rectangle {
             Text {
                 id: first
                 text: help.line
+                // As it is: what a line quotes (a name, a file) isn't markup.
+                textFormat: Text.PlainText
                 color: root.primaryColor
                 font.family: root.globalFont
                 font.pixelSize: root.sh * 0.0375 //18
@@ -70,6 +72,7 @@ Rectangle {
             Text {
                 visible: help.scrolls
                 text: help.line
+                textFormat: Text.PlainText
                 color: root.primaryColor
                 font.family: root.globalFont
                 font.pixelSize: root.sh * 0.0375 //18

@@ -115,6 +115,7 @@ Two Qt variables matter too. OSD/OS sets `QT_QPA_EGLFS_HIDECURSOR=1` for itself 
 ├── nfc_tags/                   the NFC Reader's card files
 ├── user_scripts/               the Scripts module's folder when nothing else is named
 ├── arcade/                     the Arcade module's MAME files: games.json, cfg/, nvram/, hiscore/, ctrlr/, sta/, snap/…
+├── highscores/                 the High Scores module's: scores.json, and mame/, links to MAME's files
 ├── netflix/browser/            Chromium's profile for Netflix: the sign-in
 ├── prime_video/browser/        Chromium's profile for Prime Video
 ├── youtube/browser/            Chromium's profile for the YouTube sign-in
@@ -145,6 +146,7 @@ A file or folder appears only once something needs it. The rest of this section 
 | `bin/mame` | You | The MAME the Arcade module finds first: then `mame` on `PATH`, then Debian's `/usr/games/mame` ([Arcade](https://github.com/mehmetraif/OSD-OS/wiki/Arcade#setting-it-up)) |
 | `media/`, `ambient/`, `user_scripts/`, `nfc_tags/` | You, and the modules | The modules' default folders, used while their folder setting is Default. Tapping an unknown card makes a stub file in `nfc_tags/`; a new script gets its `.txt` in `user_scripts/` |
 | `arcade/` | The Arcade module, and MAME | `games.json`, what MAME said of each set and which MAME said it; MAME's settings for each game (`cfg/`), the games' NVRAM (`nvram/`), the hiscore plugin's tables (`hiscore/`), save states, snapshots, input recordings and hard disk diffs (`sta/`, `snap/`, `inp/`, `diff/`), and the controller file written before each game (`ctrlr/osdos.cfg`) ([Arcade](https://github.com/mehmetraif/OSD-OS/wiki/Arcade#files-it-keeps)) |
+| `highscores/` | The High Scores module | `scores.json`, the tables read of each game's files in `arcade/`, why a file couldn't be read, and the games' names, so a file is read again only once it has changed; `mame/`, links to `arcade/hiscore`, `arcade/nvram` and MAME's `hiscore.dat`, as openhi2txt reads them ([High Scores](https://github.com/mehmetraif/OSD-OS/wiki/High-Scores#files-it-keeps)) |
 | `<service>/browser/` | Chromium, through `web-player.sh` | A browser profile per service, which keeps its sign-in. Sign out deletes it. A run with a Scaling other than Letterbox also leaves `<service>/scaling/` (the small extension that applies it), and a run under `cage` keeps `<service>/wayland` while it lasts |
 | `updates/` | Settings → Update | The downloaded release with `staged.json` (what it is), `staged.sha256` (written at Apply: it arms the release for the launcher), unfinished `*.part` downloads (deleted at the next start), and on an AppImage or a Mac the helper script and its `apply.log` |
 
@@ -322,7 +324,7 @@ A module's settings are under `modules.<module id>`, the keys its `manifest.json
 | A multi-select page | an object of ids, each `true` or `false`; one missing is on | `"libraries": { "<id>": false }` |
 | A folder | its path, `""` for the module's own | `"media_directory": "/media/usb/FILMS"` |
 
-Every module has `enabled` (`true` or `false`); while it is missing, the manifest's default applies: Local Files and Playlists on, the others off. The module ids are `com.osdos.` followed by the module's folder name: `com.osdos.ambient_mode`, `com.osdos.arcade`, `com.osdos.emby`, `com.osdos.jellyfin`, `com.osdos.local_files`, `com.osdos.netflix`, `com.osdos.nfc_reader`, `com.osdos.playlists`, `com.osdos.plex`, `com.osdos.prime_video`, `com.osdos.scripts`, `com.osdos.weather`, `com.osdos.youtube`.
+Every module has `enabled` (`true` or `false`); while it is missing, the manifest's default applies: Local Files and Playlists on, the others off. The module ids are `com.osdos.` followed by the module's folder name: `com.osdos.ambient_mode`, `com.osdos.arcade`, `com.osdos.emby`, `com.osdos.highscores`, `com.osdos.jellyfin`, `com.osdos.local_files`, `com.osdos.netflix`, `com.osdos.nfc_reader`, `com.osdos.playlists`, `com.osdos.plex`, `com.osdos.prime_video`, `com.osdos.scripts`, `com.osdos.weather`, `com.osdos.youtube`.
 
 ### How OSD/OS reads and writes it
 

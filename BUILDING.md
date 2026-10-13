@@ -52,6 +52,14 @@ brew install mame
 
 The Arcade module plays its games in MAME, a program of its own: it looks for `bin/mame` in the data directory first, then `mame` on the `PATH`. See the wiki's [Arcade](https://github.com/mehmetraif/OSD-OS/wiki/Arcade) page.
 
+**Install minizip (optional, for the High Scores module's tables):**
+
+```bash
+brew install minizip
+```
+
+The High Scores module reads MAME's high score files with openhi2txt (`thirdparty/openhi2txt`, built with the app), which opens hi2txt's game definitions (`modules/highscores/data/hi2txt.zip`) with minizip, linked into the app. Without it the module is there but shows no tables, and says why. See the wiki's [High Scores](https://github.com/mehmetraif/OSD-OS/wiki/High-Scores) page.
+
 **Install SDL2 (required, gamepad input):**
 
 ```bash
@@ -125,11 +133,11 @@ sudo apt-get install -y \
   libqt6svg6 qt6-svg-dev qt6-svg-plugins qt6-wayland \
   qt6-shadertools-dev \
   libdrm-dev libxkbcommon-dev libssl-dev \
-  libsdl2-dev libpcsclite-dev libmpv-dev \
+  libsdl2-dev libpcsclite-dev libmpv-dev libminizip-dev \
   mpv
 ```
 
-`libmpv-dev` builds in Transparent Background and `libpcsclite-dev` the NFC Reader's PC/SC readers; without either, the build goes on without that part.
+`libmpv-dev` builds in Transparent Background, `libpcsclite-dev` the NFC Reader's PC/SC readers and `libminizip-dev` the High Scores module's tables (its static library is linked in, so nothing more is needed at run time); without one of them, the build goes on without its part.
 
 `mpv` is the playback engine — OSD/OS launches it as a subprocess. No libmpv build dependency is required. `libmpv-dev` is optional: with its headers the Transparent Background setting is built in, which plays video inside the app's window through libmpv (`libmpv2`, opened at run time; `install.sh` and the OS image install it).
 
@@ -480,9 +488,9 @@ These build jobs run in parallel:
 | `build-linux-x86_64` | `ubuntu-24.04` | `OSD-OS-linux-x86_64.AppImage` (version-less — self-updates in place) |
 | `build-os-image` | `ubuntu-24.04-arm` (after `build-linux-arm64`) | `OSD-OS-<tag>-raspberry-pi.img.xz` and its `.info` |
 
-macOS job: installs Qt via the Qt CDN, builds, runs `macdeployqt` to embed Qt frameworks (including `libSDL2.dylib`), signs, packages as `.dmg`. With the repository secrets `APPLE_CERT_P12_BASE64`, `APPLE_CERT_PASSWORD`, `APPLE_ID`, `APPLE_APP_PASSWORD` and `APPLE_TEAM_ID` it signs with the Developer ID and notarizes the `.dmg`; without them (a fork) it signs ad hoc, and the release notes say how to open it the first time. mpv is not bundled — users install it via `brew install mpv`.
+macOS job: installs Qt via the Qt CDN, builds, runs `macdeployqt` to embed Qt frameworks (including `libSDL2.dylib`; Homebrew's minizip is linked in), signs, packages as `.dmg`. With the repository secrets `APPLE_CERT_P12_BASE64`, `APPLE_CERT_PASSWORD`, `APPLE_ID`, `APPLE_APP_PASSWORD` and `APPLE_TEAM_ID` it signs with the Developer ID and notarizes the `.dmg`; without them (a fork) it signs ad hoc, and the release notes say how to open it the first time. mpv is not bundled — users install it via `brew install mpv`.
 
-Linux arm64 job: installs Qt from apt, builds, package as `.tar.gz`. mpv and SDL2 are not bundled — end users install them via `apt install mpv libsdl2-2.0-0` or by running the `install.sh` that is bundled with each release where they are installed as part of the dependency list.
+Linux arm64 job: installs Qt from apt, builds, package as `.tar.gz`. mpv and SDL2 are not bundled (minizip is linked in) — end users install them via `apt install mpv libsdl2-2.0-0` or by running the `install.sh` that is bundled with each release where they are installed as part of the dependency list.
 
 Linux x86_64 job: installs Qt via the Qt CDN, builds the app, builds **mpv 0.40 from source** (`scripts/build-mpv.sh`, against 24.04's stock FFmpeg 6.1 — apt's mpv 0.37 is one release too old for the app's forced-subtitle option, and the savoury1 PPA for a newer one is now gated), then runs `scripts/build-appimage.sh` to bundle Qt, SDL2 **and** that mpv into a self-contained `.AppImage`. Built on `ubuntu-24.04`, which sets a glibc 2.39 floor (a current Steam Deck and modern distros — not Ubuntu 22.04 / Debian 12 / older SteamOS). Nothing to install on the target — it runs on immutable distros like SteamOS.
 

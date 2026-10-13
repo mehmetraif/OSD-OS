@@ -14,7 +14,6 @@
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QRegularExpression>
-#include <QStandardPaths>
 #include <QTimer>
 #include <algorithm>
 #include <utility>
@@ -163,17 +162,7 @@ void ArcadeBackend::setProblem(const QString &problem) {
 QString ArcadeBackend::mamePath() const {
     // One of the user's own first (a MAME built for CRTs, like GroovyMAME),
     // as yt-dlp's is; then the system's.
-    const QFileInfo dropIn(m_dataRoot + QStringLiteral("/bin/mame"));
-    if (dropIn.isFile() && dropIn.isExecutable())
-        return dropIn.absoluteFilePath();
-    const QString onPath = QStandardPaths::findExecutable(QStringLiteral("mame"));
-    if (!onPath.isEmpty())
-        return onPath;
-    // Debian's, which a service's PATH leaves out.
-    const QFileInfo debian(QStringLiteral("/usr/games/mame"));
-    if (debian.isFile() && debian.isExecutable())
-        return debian.absoluteFilePath();
-    return QString();
+    return mame::programPath(m_dataRoot);
 }
 
 QString ArcadeBackend::mameIdentity() const {
@@ -566,17 +555,24 @@ QVariantMap ArcadeBackend::unknownEntry(const QString &set) const {
              { QStringLiteral("detail"), detail } };
 }
 
-QVariantList ArcadeBackend::listEntries(const QString &list) const {
-    QVariantList entries;
+QStringList ArcadeBackend::listedSets(const QString &list) const {
+    QStringList sets;
     if (!m_appCore)
-        return entries;
+        return sets;
     const QVariantList stored = m_appCore->get_list(kModuleId, list);
     for (const QVariant &v : stored) {
         const QString path = v.toMap().value(QStringLiteral("path")).toString();
-        if (!path.startsWith(QLatin1String("game:")))
-            continue;
+        if (path.startsWith(QLatin1String("game:")))
+            sets << path.mid(5);
+    }
+    return sets;
+}
+
+QVariantList ArcadeBackend::listEntries(const QString &list) const {
+    QVariantList entries;
+    const QStringList sets = listedSets(list);
+    for (const QString &set : sets) {
         // Those still in the folder, as MAME says they are now.
-        const QString set = path.mid(5);
         if (m_sets.contains(set))
             entries << gameEntry(set);
     }
@@ -669,22 +665,7 @@ QString ArcadeBackend::rompath() const {
 }
 
 QString ArcadeBackend::pluginsPath() const {
-    const QFileInfo program(mamePath());
-    QStringList candidates;
-    // Beside the program as installed: Debian's (/usr/games/../share/games/
-    // mame), Homebrew's (bin/../share/mame), and a MAME of its own folder.
-    for (const QString &dir : { program.absolutePath(), QFileInfo(program.canonicalFilePath()).absolutePath() }) {
-        candidates << dir + QStringLiteral("/../share/games/mame/plugins")
-                   << dir + QStringLiteral("/../share/mame/plugins")
-                   << dir + QStringLiteral("/plugins");
-    }
-    candidates << QStringLiteral("/usr/share/games/mame/plugins")
-               << QStringLiteral("/usr/local/share/games/mame/plugins");
-    for (const QString &candidate : std::as_const(candidates)) {
-        if (QFileInfo::exists(candidate + QStringLiteral("/hiscore/init.lua")))
-            return QDir::cleanPath(candidate);
-    }
-    return QString();
+    return mame::pluginsFolder(mamePath());
 }
 
 QString ArcadeBackend::ownFolder() const {
