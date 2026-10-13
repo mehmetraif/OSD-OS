@@ -289,6 +289,7 @@ Its settings are environment variables:
 | `OSDOS_DISPLAY` | `hdmi` | The first display preset (`crt-pal` for `osdos-display-crt-pal.txt`) |
 | `OSDOS_STREAMING` | `1` | `0` leaves out Chromium, Widevine, cage and wtype (about 400 MB) |
 | `OSDOS_YOUTUBE` | `1` | `0` leaves out yt-dlp, Deno and ffmpeg (about 90 MB) |
+| `OSDOS_ARCADE` | `1` | `0` leaves out MAME (about 450 MB) |
 | `OSDOS_ROOT_SIZE` | `8` | GiB the system keeps of the card; the rest becomes the films partition on the first boot. `0`: no films partition |
 | `ENABLE_SSH` | `0` | `1` turns SSH on |
 | `TARGET_HOSTNAME`, `IMG_NAME` | `osdos` | |

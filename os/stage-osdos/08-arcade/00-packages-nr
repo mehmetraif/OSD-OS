@@ -1,0 +1,5 @@
+# The Arcade module's MAME: Debian's (GPL-2.0+), the emulator and its data,
+# among which its plugins (the hiscore plugin, with hiscore.dat, which keeps
+# the games' high scores). About 450 MB with what it depends on. os/build.sh
+# skips it with OSDOS_ARCADE=0; the module then says MAME is not installed.
+mame mame-data
