@@ -4,7 +4,9 @@ import Components
 // Remote/keyboard button remapping, lets an extra physical key (e.g. a
 // remote's "OK" button sending a code the app doesn't otherwise recognize)
 // also fire one of the six navigation actions, on top of that action's
-// default key. Backed by InputManager's keyRemap table (config.json
+// default key, on every keyboard and remote (Settings → Controls → All
+// Keyboards & Remotes; one keyboard's own are on its page,
+// ControllerSettings.qml). Backed by InputManager's keyRemap table (config.json
 // app.remote_keymap.<action>), which is additive: it never removes an
 // action's default key, so a bad remap can't lock the menus out from a
 // plain keyboard. See src/input/InputManager.cpp for the runtime side.
@@ -121,6 +123,7 @@ FocusScope {
     AppBar {
         iconSource: "../../assets/images/keyboard.svg"
         title: "Controls"
+        subtitle: "All Keyboards & Remotes"
         anchors.top: parent.top
         anchors.left: parent.left
         anchors.topMargin: root.sh * 0.125 //60

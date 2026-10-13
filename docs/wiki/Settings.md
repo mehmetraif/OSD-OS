@@ -198,7 +198,7 @@ Some rows wait for something:
 |---|---|---|---|---|
 | Display Output | HDMI, Composite NTSC, Composite PAL, GPIO Composite NTSC, GPIO Composite PAL, SCART RGB NTSC, SCART RGB PAL, SCART RGB 240p, SCART RGB 288p, JAMMA 240p: those this Pi has | The image's build setting, HDMI unless built otherwise | On the OSD/OS image only. Where the picture goes. A change restarts the Pi on the new output, powers it off for it, or waits for its next start, and the new output stays only when you keep it. **Next: <output>** while one waits | None: the preset is copied over `/boot/firmware/osdos-display.txt` |
 | Audio Output | Auto, then each sound card that can play: AV Jack, HDMI (HDMI 0 and HDMI 1 when there are two), a USB card by its name | Auto | Which sound card plays, from the moment you choose it, for a video playing behind the menus too. Auto is the Pi's own default | `app.audio_output`: `""` for Auto, or `{ "card", "name" }` |
-| Controls | A page | | One more button for each action | `app.remote_keymap.<action>` |
+| Controls | A page | | Each controller connected, with its own buttons and a pad's button labels; the pads of players 1 to 6; and one more key for each action on every keyboard and remote | `app.controllers.<key>`, `app.players`, `app.remote_keymap.<action>` |
 | Bluetooth | A page | | Searching for, pairing and connecting keyboards, gamepads and remotes | None: BlueZ keeps the pairings |
 | Update | A page | | Checks for a newer release, downloads it and installs it | None |
 | About | A page | | What OSD/OS is, who makes it, what it is made of, and its license | None |
@@ -222,16 +222,22 @@ The row needs the OSD/OS image's presets beside `config.txt`, the app started by
 
 ### Controls
 
-<img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/screenshots/controls.png" width="100%" alt="Controls: Up, Down, Left, Right, Select / OK and Back, each DEFAULT, then Reset to Defaults" />
+<img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/screenshots/controls.png" width="100%" alt="Controls: ALL KEYBOARDS & REMOTES; PLAYERS: PLAYER 1 8BITDO PRO 2, PLAYER 2 AUTO (OSD/OS JAMMA P2); CONNECTED: 8BITDO PRO 2 P1 GAMEPAD ◄, DUALSENSE WIRELESS CONT… GAMEPAD, OSD/OS JAMMA P1 ARCADE" />
 
-Controls adds one more button to each of six actions: **Up**, **Down**, **Left**, **Right**, **Select / OK** and **Back**. Select on a row asks **Press a new button for [ACTION]**. The next key pressed is saved: a keyboard's key, a remote's own button (a remote's separate Consumer Control buttons such as Home or Menu, read straight from the device on Linux), or a mouse button (an air mouse's OK is often a left click). Back cancels instead of binding. The row then reads `DEFAULT + KEY`.
+Controls lists every controller connected: each gamepad (the JAMMA board's two sticks among them, as `ARCADE`) and, on Linux, each keyboard and remote, with **◄** on the one used last. Controllers away with settings of their own follow under **Not Connected**. Above them, **Player 1** to **Player 6** choose the pad each player has in games, from the pads connected, or Auto (the JAMMA board's stick of that number, else the pads in the order they came): two lines, and one more for each pad connected beyond two. Select on a controller opens its page:
+
+- **Button Labels** (a pad's): Auto, Xbox, PlayStation, Nintendo or Arcade, what its buttons are called on its page and in the hints.
+- **Up**, **Down**, **Left**, **Right**, **Select / OK**, **Back**, **Play / Pause**: what does each on it. Select, then press a button on that controller: on a pad that button does the action from then on; on a keyboard or remote the key is one more for it, on that one only. Another controller's Back cancels, and so does whatever does Back on a keyboard or remote; the wait ends by itself after 10 seconds. A pad keeps one Select / OK, one Back, one Up and one Down, and a keyboard's or remote's keys for Select / OK, Up and Down and the keys the menus use keep what they do: the help line says why nothing changed.
+- **Clear a Button** (a pad's) or **Remove a Key**, and **Reset to Defaults**.
+
+The first line, **All Keyboards & Remotes**, adds one more button to each of six actions on all of them at once: **Up**, **Down**, **Left**, **Right**, **Select / OK** and **Back**. Select on a row asks **Press a new button for [ACTION]**. The next key pressed is saved: a keyboard's key, a remote's own button (a remote's separate Consumer Control buttons such as Home or Menu, read straight from the device on Linux), or a mouse button (an air mouse's OK is often a left click). Back cancels instead of binding. The row then reads `DEFAULT + KEY`.
 
 - The default key always keeps working, so a bad choice can't lock you out.
 - One button serves one action: binding a button to an action takes it off any other.
 - **Reset to Defaults** clears all six.
 - Saved as `app.remote_keymap.up`, `.down`, `.left`, `.right`, `.select` and `.back`, each a number: a Qt key code; a Consumer Control button as 33554432 (`0x02000000`) plus its Linux key code; a mouse button as 50331648 (`0x03000000`) plus Qt's button number (1 left, 2 right). `0` means none.
 
-Gamepad buttons are remapped in the data folder's `input.cfg` instead ([Controls](https://github.com/mehmetraif/OSD-OS/wiki/Controls)).
+A controller's own settings are saved under `app.controllers`, by its key. Every gamepad's buttons, the map each pad starts from, can also be set in the data folder's `input.cfg`. All of it is in [Controls](https://github.com/mehmetraif/OSD-OS/wiki/Controls#settings--controls).
 
 ### Bluetooth
 

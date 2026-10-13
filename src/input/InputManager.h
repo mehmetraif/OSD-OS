@@ -8,7 +8,10 @@
 #include <QDateTime>
 #include <QVariantMap>
 #include <QFileSystemWatcher>
+#include <QElapsedTimer>
 #include <SDL.h>
+
+#include "ControllerProfile.h"
 
 class QQuickWindow;
 class QKeyEvent;
@@ -27,11 +30,27 @@ class AppCore;
 // one of the six actions via config.json's "remote_keymap.<action>" settings,
 // on top of (never replacing) that action's default key, see keyRemap handling
 // in eventFilter().
+//
+// Settings → Controls also sets each controller apart (ControllerProfile):
+// every pad has its own map, the shared one with its profile's bindings over
+// it, and its own button labels; on Linux every keyboard and remote is read
+// from its /dev/input nodes beside Qt, which tells whose a key is, for its
+// own extra keys. config.json's app.controllers.<key> holds them.
 class InputManager : public QObject {
     Q_OBJECT
     Q_PROPERTY(bool gamepadConnected READ gamepadConnected NOTIFY gamepadConnectedChanged)
     Q_PROPERTY(QString lastInputDevice READ lastInputDevice NOTIFY lastInputDeviceChanged)
     Q_PROPERTY(QVariantMap hints READ hints NOTIFY hintsChanged)
+    // [{ key, name, kind ("gamepad", "arcade", "keyboard", "remote"), count,
+    // present }]: the controllers connected, pads first, then those with
+    // settings of their own that aren't (present false, count 0).
+    Q_PROPERTY(QVariantList controllers READ controllers NOTIFY controllersChanged)
+    // The key of the controller used last.
+    Q_PROPERTY(QString activeController READ activeController NOTIFY activeControllerChanged)
+    // Settings → Controls → Players: [{ player (1 to 6), key (the controller
+    // chosen, "" for Auto), name (the one playing, or the one chosen while
+    // it is away), playing (the key of the one playing, ""), connected }].
+    Q_PROPERTY(QVariantList players READ players NOTIFY playersChanged)
 
 public:
     explicit InputManager(const QString &dataRoot, AppCore *appCore, QObject *parent = nullptr);
@@ -42,6 +61,42 @@ public:
     bool gamepadConnected() const { return !m_controllers.isEmpty(); }
     QString lastInputDevice() const { return m_lastInputDevice; }
     QVariantMap hints() const { return m_hints; }
+    QVariantList controllers() const;
+    QString activeController() const { return m_activeController; }
+    QVariantList players() const;
+
+    // One controller's page: { key, name, kind, present, labels, labelsInUse,
+    // rows }; labels the style chosen ("auto"...), labelsInUse the one shown
+    // (a pad's, by its title); rows [{ action, label, value }], value what
+    // fires the action on it.
+    Q_INVOKABLE QVariantMap controllerPage(const QString &key) const;
+    // The next input of the controller with this key is reported through
+    // controllerInputCaptured() instead of acting; "" ends it, and so do 12
+    // seconds (the page's own wait is 10), should the page go without.
+    Q_INVOKABLE void captureController(const QString &key);
+    // An input of a controller (as controllerInputCaptured() named it) given
+    // an action; "none" takes a pad's input's action away, and a keyboard's
+    // or a remote's extra key. Returns { outcome, action, label }, action
+    // (and label) what the input does now. outcome: "set"; "already" for an
+    // input that does it already, or keeps what it does (keyCapture()); "only"
+    // for a pad's only Select / OK or Back, which stays; "other" for a key to
+    // take away that isn't one of its extra keys; "cancel" for a keyboard's or
+    // a remote's Back, which ends the wait instead.
+    Q_INVOKABLE QVariantMap bindControllerInput(const QString &key, const QString &input, const QString &action);
+    // What a wait for a press makes of a keyboard's or a remote's key (a Qt
+    // key, or a Consumer Control button's or a mouse button's extended id)
+    // on the controller with this key, or "" for All Keyboards & Remotes:
+    // { outcome, action, label } as bindControllerInput() returns them. A key
+    // that does Back ends the wait; one that does Select / OK, or one the
+    // menus use (the arrows, Enter, Space), keeps what it does, so that no
+    // keyboard loses them. For an action, "none" too on a controller's page.
+    Q_INVOKABLE QVariantMap keyCapture(const QString &key, int id, const QString &action) const;
+    // A pad's button labels: "auto", "xbox", "playstation", "nintendo", "arcade".
+    Q_INVOKABLE void setControllerLabels(const QString &key, const QString &style);
+    Q_INVOKABLE void resetController(const QString &key);
+    // A player's controller: a connected pad's key, or "" for Auto. A pad is
+    // one player at a time, unless two of its model are connected.
+    Q_INVOKABLE void setPlayer(int player, const QString &key);
 
     // Human-readable name for a Qt::Key value (e.g. "Return", "O", "F5"), for
     // the remap screen to show what's currently bound. Used from QML.
@@ -68,10 +123,16 @@ signals:
     // Capture-mode reporting (see setRemapCapture): a raw press on any of the
     // three remappable input paths — a real keyboard key (its Qt::Key), a
     // Consumer Control button (kEvdevKeyBase + Linux KEY_* code; Linux only,
-    // see openConsumerControlDevice()), or a mouse button (kMouseButtonBase +
+    // see scanNodes()), or a mouse button (kMouseButtonBase +
     // Qt::MouseButton). keyDisplayName() and the remote_keymap.* settings
     // accept all three id spaces alike. Only emitted while capture is active.
     void auxButtonPressed(int extendedKeyId);
+    void controllersChanged();
+    void activeControllerChanged();
+    void playersChanged();
+    // captureController()'s: the input, as bindControllerInput() takes it, and
+    // what it is called.
+    void controllerInputCaptured(const QString &key, const QString &input, const QString &label);
 
 protected:
     bool eventFilter(QObject *obj, QEvent *event) override;
@@ -85,7 +146,7 @@ private slots:
 #ifdef Q_OS_LINUX
     // Defined in the Q_OS_LINUX section of InputManager.cpp; the ifdef keeps
     // moc from emitting a metacall reference to it on other platforms.
-    void onConsumerControlReadable();
+    void scanNodes();
 #endif
 
 private:
@@ -98,8 +159,35 @@ private:
     void loadDefaultMapping();
     void loadUserMapping();
     void loadKeyRemap();
+    void loadProfiles();
+    void rebuildPads();
+    void rebuildPad(SDL_JoystickID id);
+    struct Pad;
+    Pad padFor(const QString &key, const QString &name, int sdlType) const;
+    Pad padOf(const QString &key, const QString &name) const;
+    static bool parsePadInput(const QString &token, int *button, int *axis, int *sign);
+    static Action padInputAction(const Pad &pad, const QString &input);
+    int padInputsFor(SDL_JoystickID id, Action a) const;
+    Action keyActionOn(const QString &key, int id) const;
+    static Action defaultKeyAction(int qtKey);
+    static QString actionName(Action a);
+    static QVariantMap captureOutcome(const QString &outcome, Action does);
+    void saveProfiles();
+    void loadPlayers();
+    void savePlayers();
+    void updatePlayers();
+    controllers::Profile &editProfile(const QString &key);
+    void noteController(const QString &key);
+    Action profileAction(const QString &key, const QString &input) const;
+    bool capturing(const QString &key) const;
+    static QString buttonToken(int button);
+    static QString axisToken(int axis, int sign);
 #ifdef Q_OS_LINUX
-    void openConsumerControlDevice();
+    struct Node;
+    void watchNodes();
+    void readNode(Node *node);
+    void drainNodes();
+    void closeNode(Node *node);
 #endif
     static QString evdevKeyName(int linuxCode);
     static QString mouseButtonName(int qtButton);
@@ -110,12 +198,19 @@ private:
     void pressAction(Action a);
     void beginPress(Action a);
     void releaseAction(Action a);
+    // An input that can be held down: its controller (a pad's instance,
+    // padSource(); a node's path; "mouse") and which input (a button, a pad's
+    // axis numbered after its buttons, a key code).
+    using HeldInput = QPair<QString, int>;
+    static QString padSource(SDL_JoystickID id);
+    void releaseHeld(const QString &source);
+    void letGoOfPad(SDL_JoystickID id);
+    static bool essentialAction(Action a);
     void deliverPress(Action a, bool autoRepeat);
     void postKey(int qtKey, QEvent::Type type, bool autoRepeat);
     bool windowActive() const;
     void setLastInputDevice(const QString &device);
     void updateHints();
-    QString labelForButton(int button) const;
     static int qtKeyForAction(Action a);
     static QString mpvKeyForAction(Action a);
     // Maps a HID media-key event to the canonical mpv key name mpv-media-keys.lua
@@ -137,9 +232,36 @@ private:
     QDateTime m_cfgLastModified;
 
     QHash<SDL_JoystickID, SDL_GameController*> m_controllers;
+    // The map every pad starts from, the defaults and input.cfg's lines.
     QHash<int, Action> m_buttonMap;                  // SDL_GameControllerButton → Action
     QHash<int, QPair<Action, Action>> m_axisMap;     // SDL_GameControllerAxis → (negative, positive)
-    QHash<int, int> m_axisState;                     // per-axis engaged direction: -1 / 0 / +1
+    // Each pad's own: that map with its profile's bindings over it.
+    struct Pad {
+        QString key;
+        QString name;
+        bool arcade = false;
+        QHash<int, Action> buttons;
+        QHash<int, QPair<Action, Action>> axes;
+        controllers::LabelStyle labels = controllers::LabelStyle::Xbox;   // never Auto
+    };
+    QHash<SDL_JoystickID, Pad> m_pads;
+    QHash<qint64, int> m_axisState;                  // (pad, axis) → engaged direction: -1 / 0 / +1
+    QHash<QString, controllers::Profile> m_profiles; // config.json app.controllers.<key>
+    // What each controller was last seen as, kept once it goes, for its page
+    // while it is away: its name, its kind and a pad's SDL type (its Auto
+    // labels).
+    struct Seen {
+        QString name;
+        QString kind;
+        int sdlType = 0;   // SDL_CONTROLLER_TYPE_UNKNOWN
+    };
+    QHash<QString, Seen> m_seenAs;
+    QString m_activeController;
+    QString m_captureController;                     // captureController()'s key, or ""
+    qint64 m_captureEnds = 0;                        // m_clock's time it ends at
+    QStringList m_playerKeys;                        // config.json app.players: chosen, "" for Auto
+    QStringList m_playerNames;                       // and the names they had
+    QList<SDL_JoystickID> m_playerPads;              // who plays, -1 for nobody
     QHash<int, QString> m_labelOverrides;            // SDL button → user display label (input.cfg)
     QHash<int, Action> m_keyRemap;                   // Qt::Key or extended evdev id → Action
     SDL_JoystickID m_lastActiveController = -1;      // labels follow the pad last touched
@@ -155,12 +277,35 @@ private:
     // Actions currently held down — idempotent press/release hygiene (a device
     // can't re-fire a press it's already holding).
     QSet<Action> m_heldActions;
+    // What each input held down began. Letting go ends that, whatever the
+    // input does by then (a page has bound it anew, or waits for a press of
+    // its controller's), and a controller that goes lets go of what it held.
+    QHash<HeldInput, Action> m_heldInputs;
+    // Keys whose press a wait for a press took (Qt::Key): swallowed until let
+    // go, as their repeats would act as what they were just given.
+    QSet<int> m_capturedKeys;
     bool m_remapCapture = false;                     // see setRemapCapture()
 
 #ifdef Q_OS_LINUX
-    int m_consumerFd = -1;
-    QSocketNotifier *m_consumerNotifier = nullptr;
+    // A keyboard's or a remote's /dev/input node. A Consumer Control node's
+    // buttons never reach Qt, and are acted on from here; any other node's
+    // keys do, and only say whose they are (m_keySources).
+    struct Node {
+        int fd = -1;
+        QSocketNotifier *notifier = nullptr;
+        QString path;
+        QString key;
+        QString name;
+        controllers::NodeKind kind = controllers::NodeKind::None;
+        bool consumer = false;
+    };
+    QList<Node *> m_nodes;
+    QFileSystemWatcher m_nodeWatcher;
+    QTimer m_nodeScanTimer;
+    int m_nodeRetries = 0;
+    controllers::KeySources m_keySources;
 #endif
+    QElapsedTimer m_clock;
 
     QString m_lastInputDevice = "keyboard";
     QVariantMap m_hints;
