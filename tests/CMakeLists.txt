@@ -114,6 +114,11 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
     target_link_libraries(jamma_test PRIVATE Qt6::Core Qt6::Test)
     add_test(NAME jamma COMMAND jamma_test)
 
+    # A release's notes (scripts/release-notes.sh) on a made-up history: the
+    # commits since the previous tag under What's New, Changelog and Bug Fixes.
+    add_test(NAME release_notes COMMAND bash ${CMAKE_CURRENT_SOURCE_DIR}/release_notes_test.sh
+                                        ${CMAKE_CURRENT_SOURCE_DIR}/../scripts/release-notes.sh)
+
     # The image's stop helper, osdos-stop (scripts/install.sh), on a stand-in
     # boot partition: the display presets it writes, and At Next Start's
     # requests, good and bad.

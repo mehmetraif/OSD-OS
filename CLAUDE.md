@@ -47,3 +47,14 @@ This file stays intentionally lean. The detailed documentation is single-sourced
 - **Config** is `config.json` in the data dir; module settings live under `modules.<id>`. Use `save_setting` / `get_setting` (dot-notation supported), not direct file writes.
 - **An NFC card can hand off to another module** (a Plex guid on a card plays through the Plex module). The NFC backend routes by URI scheme; the receiving module carries a `CardPlay.qml` that resolves and then `replaceWith`s its Player. A module reached this way must bypass its own auth/user gate — a card plays as whoever is already active and must never prompt a profile switch. (Details: [ARCHITECTURE.md → Card Hand-off](ARCHITECTURE.md#card-hand-off-nfc--a-module).)
 - **Gamepad input is centralized in `src/input/InputManager`** (SDL2) and arrives in QML as ordinary synthesized key events — never add gamepad-specific handling to views; if a view handles the right keys it handles gamepads. Footer hint labels bind to `root.hints.*` (adapts keyboard↔gamepad), never hardcoded `[ESC]`/`[ENTER]` strings and never `inputManager.hints.*` directly — context-property bindings throw TypeErrors when the view Loader tears down; id-resolved `root.*` is teardown-safe. (Details: [ARCHITECTURE.md → Input](ARCHITECTURE.md#input-inputmanager).)
+
+---
+
+## Commits, pull requests and releases
+
+These rules apply to everything written for the repository: commit messages, pull request titles and descriptions, comments and release notes.
+
+- **No session links or signatures.** Never include a link to a Claude Code session (`claude.ai/code/…`), and never add a "Generated with Claude Code" line. The only attribution in a commit is its `Co-Authored-By` trailer.
+- **No "AI involvement" section.** Pull request descriptions follow `.github/pull_request_template.md` with its AI involvement section left out.
+- **Professional language.** Write clear, complete sentences that state what a change does and why. Describe the change itself; never attribute it to a request ("the owner asked for…", "as requested").
+- **Release notes** open with what the release brings since the previous tag, as short descriptions under **What's New**, **Changelog** and **Bug Fixes**. The release workflow writes these sections from the commits' subject lines (`scripts/release-notes.sh`): `feat:` commits under What's New, `fix:` commits under Bug Fixes and every other commit under Changelog. Give every commit a conventional-commit type and a subject that reads well as a release-note line. (Details: [BUILDING.md → GitHub Actions](BUILDING.md#github-actions).)
