@@ -422,8 +422,12 @@ jobs:
       contents: write
 
     steps:
+      # The whole history and its tags: the notes list the commits since the
+      # previous release tag.
       - name: Checkout
         uses: actions/checkout@v7.0.1
+        with:
+          fetch-depth: 0
 
       - name: Download artifacts
         uses: actions/download-artifact@v8.0.1
@@ -440,8 +444,11 @@ jobs:
             os-image/*.img.xz \
             | sed 's|  .*/|  |' > SHA256SUMS
 
-      # The notes, with absolute links (a release's body doesn't resolve the
-      # repository's relative ones), and a word on a DMG that isn't notarized.
+      # The notes: what the release brings since the previous tag, under What's
+      # New, Changelog and Bug Fixes (scripts/release-notes.sh, from the
+      # commits' subjects), then how to install and update it, with absolute
+      # links (a release's body doesn't resolve the repository's relative
+      # ones), and a word on a DMG that isn't notarized.
       - name: Write release notes
         env:
           TAG: ${{ github.ref_name }}
@@ -449,6 +456,7 @@ jobs:
           REPO: ${{ github.server_url }}/${{ github.repository }}
         run: |
           {
+            bash scripts/release-notes.sh "$TAG"
             echo "## The OSD/OS image (Raspberry Pi)"
             echo
             echo "\`OSD-OS-${TAG}-raspberry-pi.img.xz\` is the whole system: flash it with Raspberry Pi Imager (**Use custom**), put the card in the Pi, and it boots straight into OSD/OS. Raspberry Pi OS Lite (64-bit), based on Debian 13 trixie, with OSD/OS on top; tested on the Raspberry Pi 4. How to flash it, and set up Wi-Fi and a user: ${REPO}/blob/${TAG}/os/README.md#flashing. What it is made of, under which licences: ${REPO}/blob/${TAG}/os/NOTICE (the \`.info\` file lists its packages)."

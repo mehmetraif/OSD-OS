@@ -1,6 +1,6 @@
 # Regression tests
 
-Eleven test suites, built apart from the app. CI runs them on Linux x64 and arm64 for every pull request that touches `src/`, `views/`, `modules/`, `tests/` or the build ([regression-tests.yml](../.github/workflows/regression-tests.yml)): on Ubuntu, with the oldest Qt the releases are built with (6.4), and on Raspberry Pi OS (Debian 13 "trixie" with Raspberry Pi's archive, arm64), the system the OS image is made of, with the Pi's own Qt (6.8) and mpv (0.40). They need Lua 5.4, CMake, a C++17 compiler and Qt 6's development packages (Core, Concurrent, Gui, Network, Qml, Quick, QuickTest and Test), and libdrm's on Linux; the QML test also needs Qt Quick's QML modules at run time (on Debian and Raspberry Pi OS, `qml6-module-qttest qml6-module-qtquick qml6-module-qtqml-workerscript qml6-module-qtquick-window`). None needs mpv, FluidSynth or a display.
+Twelve test suites, built apart from the app. CI runs them on Linux x64 and arm64 for every pull request that touches `src/`, `views/`, `modules/`, `tests/` or the build ([regression-tests.yml](../.github/workflows/regression-tests.yml)): on Ubuntu, with the oldest Qt the releases are built with (6.4), and on Raspberry Pi OS (Debian 13 "trixie" with Raspberry Pi's archive, arm64), the system the OS image is made of, with the Pi's own Qt (6.8) and mpv (0.40). They need Lua 5.4, CMake, a C++17 compiler and Qt 6's development packages (Core, Concurrent, Gui, Network, Qml, Quick, QuickTest and Test), and libdrm's on Linux; the QML test also needs Qt Quick's QML modules at run time (on Debian and Raspberry Pi OS, `qml6-module-qttest qml6-module-qtquick qml6-module-qtqml-workerscript qml6-module-qtquick-window`). None needs mpv, FluidSynth or a display.
 
 ```sh
 cmake -S tests -B build-tests
@@ -57,6 +57,9 @@ ctest --test-dir build-tests --output-on-failure
   - Each display exit code writes its preset and reboots, or powers off (40–50); a Pi 5's SCART sync is written, JAMMA's isn't.
   - At Next Start writes without a reboot, keeps the output in force to go back to, and keeps it through a second request and a switch made after.
   - A name that isn't a preset (`previous`, a path, two names, a long line, nothing), or a preset not on the boot partition, changes nothing.
+- **release_notes** (`release_notes_test.sh`, Linux only). A release's notes (`scripts/release-notes.sh`) on a made-up git history with tags.
+  - The commits since the previous tag, by subject: `feat:` and "Add…" under What's New, `fix:` and "Fix…" under Bug Fixes, the rest under Changelog; a merge commit left out, a subject listed once, its `<` and `>` escaped.
+  - The previous tag found by itself or given; the first release lists the whole history; a section with nothing in it is left out; no tag is an error.
 - **jamma** (`jamma_test.cpp`, Linux only). A Raspberry Pi to JAMMA board's pins as gamepad events (`src/jamma`, `osdos-jamma`).
   - The built-in mapping is that of RGB-Pi's driver (JammaPi's `joypi`), on both expanders.
   - A mapping file moves pins and takes them out; its bad lines are named and change nothing.

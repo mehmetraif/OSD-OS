@@ -476,7 +476,7 @@ Linux x86_64 job: installs Qt via the Qt CDN, builds the app, builds **mpv 0.40 
 
 OS image job: once the arm64 tarball is built, builds the OSD/OS image from it with pi-gen ([os/README.md](os/README.md#building)), as the OS image workflow does, the first user's password from the secret `OS_FIRST_USER_PASS` if there is one (else the account is locked).
 
-A final `release` job waits for all four, then creates a GitHub Release with all artifacts attached (including `install.sh`), and notes written for the tag, their links absolute.
+A final `release` job waits for all four, then creates a GitHub Release with all artifacts attached (including `install.sh`), and notes written for the tag, their links absolute. The notes open with what the release brings since the previous tag, written by `scripts/release-notes.sh` from the commits' subject lines (merges left out): `feat:` commits under **What's New**, `fix:` commits under **Bug Fixes**, and every other commit under **Changelog**. A commit without a conventional-commit type goes under Bug Fixes when its subject starts with "Fix", under What's New when it starts with "Add", and under Changelog otherwise. Run the script locally to preview a release's notes: `scripts/release-notes.sh v1.2.0` (or `scripts/release-notes.sh <tag> <previous tag>`).
 
 ### Output
 
