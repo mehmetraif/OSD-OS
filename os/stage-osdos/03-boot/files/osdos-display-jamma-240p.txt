@@ -1,0 +1,46 @@
+# A JAMMA arcade cabinet, through a Raspberry Pi to JAMMA board in RGB-Pi's
+# layout (DPI "mode 6": Crown Arcade's, RGB-Pi's own), at 240p and 15 kHz,
+# from the GPIO pins: GPIO 2 and 3 the vertical and horizontal sync (the board
+# makes them one), GPIO 4-9 blue, 12-17 green and 20-25 red; GPIO 0 and 1 the
+# I2C bus of its two MCP23017s, the players' controls, which osdos-jamma reads
+# (the line below tells it to). The sound: on a Pi 4 GPIO 18 and 19, to the
+# board's amplifier; a Pi 5 can't put it there, so a USB sound card's (Settings
+# → Audio Output). Chosen in Settings → Display Output, or copied over
+# osdos-display.txt (config.txt says how).
+# osdos-controls: jamma
+# A Pi 5 keeps HDMI on beside it: OSD/OS takes this output, in this mode. The
+# board makes the composite sync itself, so none on GPIO 1 (osdos-stop).
+# osdos-output: DPI
+# osdos-mode: 720x240
+# osdos-sync: separate
+
+# The Pi 4's DPI is its firmware's, the only output. Its pins are set one by
+# one (gpio=), as dpi18cpadhi would take GPIO 0 and 1 from the I2C bus too.
+# The syncs as RGB-Pi's own Pi 4 timings have them (dpi_timings' 2nd and 7th
+# numbers, 1): should the picture roll, try 0.
+[pi4]
+gpio=2-9,12-17,20-25=a2
+enable_dpi_lcd=1
+display_default_lcd=1
+hdmi_ignore_hotplug=1
+dpi_output_format=6
+dpi_group=2
+dpi_mode=87
+dpi_timings=720 1 16 62 60 240 1 4 3 15 0 0 0 60 0 13500000 1
+dtparam=i2c_vc=on
+dtoverlay=audremap,pins_18_19
+
+# The Pi 5's DPI is the kernel's, with the same timing and both syncs active
+# low (hsync-invert, vsync-invert), as RGUI-Pi's DPI driver drives the board:
+# should the picture roll, leave them out. rgb666-padhi is the layout;
+# osdos-jamma-dpi, after it, gives the DPI its pins without GPIO 0 and 1.
+[pi5]
+dtparam=i2c_vc=on
+dtoverlay=vc4-kms-v3d,cma-512
+dtoverlay=vc4-kms-dpi-generic,clock-frequency=13500000
+dtparam=hactive=720,hfp=16,hsync=62,hbp=60
+dtparam=vactive=240,vfp=4,vsync=3,vbp=15
+dtparam=hsync-invert,vsync-invert,rgb666-padhi
+dtoverlay=osdos-jamma-dpi
+
+[all]

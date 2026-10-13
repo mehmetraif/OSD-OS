@@ -106,8 +106,9 @@ fi
 # the checkout having kept the bits (a ZIP download, a Windows clone).
 chmod +x "${STAGE}/prerun.sh" "${STAGE}"/*/[0-9][0-9]-run.sh
 
-# The launcher, stop helper and exit-to-terminal unit are taken verbatim from
-# scripts/install.sh, so the image and a manual install never drift apart.
+# The launcher, the stop helper, the exit-to-terminal unit and Display Output's
+# next-start socket are taken verbatim from scripts/install.sh, so the image
+# and a manual install never drift apart.
 extract() {
     awk -v marker="$1" '
         $0 ~ "<< .?" marker ".?$" { on = 1; next }
@@ -118,12 +119,16 @@ extract() {
 extract LAUNCHER_SCRIPT > "${STAGE}/01-app/files/osdos-launcher"
 extract STOP_HELPER     > "${STAGE}/02-system/files/osdos-stop"
 extract TERMINAL_UNIT   > "${STAGE}/02-system/files/osdos-terminal.service"
+extract DISPLAY_SOCKET  > "${STAGE}/02-system/files/osdos-display.socket"
+extract DISPLAY_SERVICE > "${STAGE}/02-system/files/osdos-display@.service"
 for f in 01-app/files/osdos-launcher 02-system/files/osdos-stop; do
     head -n1 "${STAGE}/${f}" | grep -q '^#!' \
         || { echo "error: could not extract ${f} from scripts/install.sh" >&2; exit 1; }
 done
-head -n1 "${STAGE}/02-system/files/osdos-terminal.service" | grep -q '^\[Unit\]' \
-    || { echo "error: could not extract osdos-terminal.service from scripts/install.sh" >&2; exit 1; }
+for f in osdos-terminal.service osdos-display.socket osdos-display@.service; do
+    head -n1 "${STAGE}/02-system/files/${f}" | grep -q '^\[Unit\]' \
+        || { echo "error: could not extract ${f} from scripts/install.sh" >&2; exit 1; }
+done
 
 cp "${TARBALL}" "${STAGE}/01-app/files/osdos.tar.gz"
 # What the image is made of and under which licences, os/NOTICE.

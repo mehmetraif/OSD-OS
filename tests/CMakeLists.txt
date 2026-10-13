@@ -88,6 +88,38 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
     target_include_directories(diagnostics_test PRIVATE ../src)
     target_link_libraries(diagnostics_test PRIVATE Qt6::Core Qt6::Test)
     add_test(NAME diagnostics COMMAND diagnostics_test)
+
+    # Settings → Display Output against the image's presets in a stand-in boot
+    # partition: which are offered, by board and launcher API, and At Next
+    # Start through a stand-in for its socket.
+    add_executable(display_output_test
+        display_output_test.cpp
+        ../src/display/DisplayOutput.cpp
+        ../src/util/Board.cpp
+        ../src/util/LegacyNames.cpp)
+    target_include_directories(display_output_test PRIVATE ../src)
+    target_compile_definitions(display_output_test PRIVATE
+        PRESETS_DIR="${CMAKE_CURRENT_SOURCE_DIR}/../os/stage-osdos/03-boot/files")
+    target_link_libraries(display_output_test PRIVATE Qt6::Core Qt6::Network Qt6::Test)
+    add_test(NAME display_output COMMAND display_output_test)
+    # The same as a Pi 5, whose outputs are others.
+    add_test(NAME display_output_pi5 COMMAND display_output_test)
+    set_tests_properties(display_output_pi5 PROPERTIES
+        ENVIRONMENT "OSDOS_BOARD_MODEL=Raspberry Pi 5 Model B Rev 1.0")
+
+    # A Raspberry Pi to JAMMA board's pins as gamepad events (osdos-jamma).
+    # Linux only, as uinput's codes are.
+    add_executable(jamma_test jamma_test.cpp ../src/jamma/JammaPanel.cpp)
+    target_include_directories(jamma_test PRIVATE ../src)
+    target_link_libraries(jamma_test PRIVATE Qt6::Core Qt6::Test)
+    add_test(NAME jamma COMMAND jamma_test)
+
+    # The image's stop helper, osdos-stop (scripts/install.sh), on a stand-in
+    # boot partition: the display presets it writes, and At Next Start's
+    # requests, good and bad.
+    add_test(NAME osdos_stop COMMAND bash ${CMAKE_CURRENT_SOURCE_DIR}/osdos_stop_test.sh
+                                     ${CMAKE_CURRENT_SOURCE_DIR}/../scripts/install.sh
+                                     ${CMAKE_CURRENT_SOURCE_DIR}/../os/stage-osdos/03-boot/files)
 endif()
 
 find_package(Qt6 REQUIRED COMPONENTS Quick QuickTest)

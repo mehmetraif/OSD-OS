@@ -543,7 +543,7 @@ What OSD/OS reads from its environment. Each `OSDOS_…` name is also read as `M
 | `OSDOS_EMBEDDED_RENDER` | `sw` keeps Transparent Background's pictures on the CPU; `gpu` takes OpenGL drawn on the CPU too |
 | `OSDOS_UPDATE_FEED_URL` | Where Settings → Update looks for releases |
 | `OSDOS_NFC_SERIAL_DEVICE`, `OSDOS_NFC_DEBUG` | The NFC reader's serial port, when detection can't find it; more about detection in the log |
-| `OSDOS_BOARD_MODEL`, `OSDOS_BOOT_DIR`, `OSDOS_ASOUND_DIR`, `OSDOS_MOUNTINFO`, `OSDOS_TMDB_URL`, `OSDOS_WIKIDATA_URL` | Stand-ins for tests: the board's model, `/boot/firmware`, `/proc/asound`, the mount table, TMDB and Wikidata |
+| `OSDOS_BOARD_MODEL`, `OSDOS_BOOT_DIR`, `OSDOS_RUN_DIR`, `OSDOS_ASOUND_DIR`, `OSDOS_MOUNTINFO`, `OSDOS_TMDB_URL`, `OSDOS_WIKIDATA_URL` | Stand-ins for tests: the board's model, `/boot/firmware`, `/run`, `/proc/asound`, the mount table, TMDB and Wikidata |
 
 And what it gives the programs it starts: `APP_ROOT` to mpv and to scripts; on Linux, `FONTCONFIG_FILE` to mpv, so its menus find OSD/OS's fonts; `DATA_ROOT`, `OSDOS_MODE` (`console` or `takeover`) and, for a takeover on a Pi, `OSDOS_VT` to scripts; `ALSA_CARD` to scripts and web players when Settings → Audio Output names a card ([Scripts](https://github.com/mehmetraif/OSD-OS/wiki/Scripts)).
 

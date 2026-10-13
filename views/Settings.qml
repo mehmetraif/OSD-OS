@@ -28,12 +28,18 @@ FocusScope {
     property bool canRestart: false
 
     // Display Output, read from displayOutput in buildModel(): the outputs
-    // this board has, the one in force, and the one chosen to switch to.
+    // this board has, the one in force, the one written for the next start,
+    // the ways to switch the launcher knows, and the one chosen to switch to.
     property string boardModel: ""
     property var outputOptions: []
     property string outputCurrent: ""
     property string outputCurrentLabel: ""
+    property string outputNext: ""
+    property string outputNextLabel: ""
+    property bool outputAtNextStart: false
+    property bool outputPowerOff: false
     property var outputChoice: ({})
+    property string outputFailure: ""
     property var quitOptions: settingsRoot.autostartSession
         ? [{ label: "Power Off",        action: "quit"     }]
           .concat(settingsRoot.canRestart ? [{ label: "Restart", action: "restart" }] : [])
@@ -465,18 +471,27 @@ FocusScope {
         items.push({ type: "section", label: "Application" })
         // DISPLAY OUTPUT — where the picture goes, among the outputs this
         // board has (displayOutput, by its model): select opens them. The Pi
-        // reads it at power-on, so a change restarts OSD/OS, and the new
-        // output stays only when kept on it (views/DisplayKeep.qml).
+        // reads it at power-on, so a change restarts it, powers it off, or
+        // waits for its next start, and the new output stays only when kept
+        // on it (views/DisplayKeep.qml).
         if (displayOutput && displayOutput.available) {
             boardModel = displayOutput.boardModel
             outputOptions = displayOutput.options
             outputCurrent = displayOutput.current
             outputCurrentLabel = displayOutput.currentLabel
+            outputNext = displayOutput.next
+            outputNextLabel = displayOutput.nextLabel
+            outputAtNextStart = displayOutput.nextStartAvailable
+            outputPowerOff = displayOutput.powerOffAvailable
+            var later = outputAtNextStart || outputPowerOff
             items.push({
                 type: "display_output",
                 label: "Display Output",
-                value: outputCurrentLabel,
-                description: "Where the picture goes, among the outputs this Pi has: a change restarts OSD/OS, and the new output stays only when you keep it on its screen, else the old one comes back in 15 seconds\n[COMPOSITE] The AV jack (Pi 4) or TV pads (Pi 5)  [GPIO COMPOSITE] Pi 5's GPIO pins  [SCART RGB] A cable on the GPIO pins",
+                value: outputNext !== "" ? "Next: " + outputNextLabel : outputCurrentLabel,
+                description: (outputNext !== "" ? "Now " + outputCurrentLabel + ", " + outputNextLabel + " from the next start • " : "")
+                             + "Where the picture goes, among the outputs this Pi has: "
+                             + (later ? "now, with a restart, or from the next start. " : "a change restarts OSD/OS. ")
+                             + "The new output stays only when you keep it on its screen, else the old one comes back in 15 seconds\n[COMPOSITE] The AV jack (Pi 4) or TV pads (Pi 5)  [GPIO COMPOSITE] Pi 5's GPIO pins  [SCART RGB] A cable on the GPIO pins  [JAMMA] A Raspberry Pi to JAMMA board",
                 moduleId: ""
             })
         }
@@ -886,37 +901,93 @@ FocusScope {
         anchors.leftMargin: root.sw * 0.125 //80
     }
 
-    // --- DISPLAY OUTPUT: the outputs this board has, then a restart for one ---
+    // --- DISPLAY OUTPUT: the outputs this board has, then how to switch ---
     ChoiceOverlay {
         id: outputPrompt
         anchors.fill: parent
         promptText: "Display Output"
         subtitleText: settingsRoot.boardModel + "\nNow: " + settingsRoot.outputCurrentLabel
+                      + (settingsRoot.outputNext !== "" ? "  Next start: " + settingsRoot.outputNextLabel : "")
         choices: settingsRoot.outputOptions.map(function(o) { return { label: o.label, action: o.id } })
         onActivated: function(id) {
-            if (id === settingsRoot.outputCurrent)
-                return
             for (var i = 0; i < settingsRoot.outputOptions.length; i++) {
                 if (settingsRoot.outputOptions[i].id === id)
                     settingsRoot.outputChoice = settingsRoot.outputOptions[i]
+            }
+            // The one in force: nothing to do, or what waits for the next
+            // start taken back.
+            if (id === settingsRoot.outputCurrent) {
+                if (settingsRoot.outputNext !== "")
+                    outputStay.open()
+                return
             }
             outputConfirm.open()
         }
         onClosed: settingsList.forceActiveFocus()
     }
 
+    // Now, with a restart; written now for the next start, the Pi left on;
+    // or written, then off: on the new output the next time it is switched
+    // on, as when it goes into a cabinet whose screen this one isn't.
     ChoiceOverlay {
         id: outputConfirm
         anchors.fill: parent
         promptText: "Switch to " + (settingsRoot.outputChoice.label || "") + "?"
-        subtitleText: "OSD/OS restarts on it. Keep it there, or in 15 seconds it comes back to "
-                      + settingsRoot.outputCurrentLabel
-        choices: [{ label: "Switch and Restart", action: "switch" },
-                  { label: "Cancel",             action: "cancel" }]
+        subtitleText: (settingsRoot.outputAtNextStart || settingsRoot.outputPowerOff
+                       ? "Now, or from the next time the Pi starts. " : "OSD/OS restarts on it. ")
+                      + "Keep it there, or in 15 seconds it comes back to " + settingsRoot.outputCurrentLabel
+        choices: [{ label: "Switch and Restart", action: "switch" }]
+                 .concat(settingsRoot.outputAtNextStart && settingsRoot.outputChoice.id !== settingsRoot.outputNext
+                         ? [{ label: "At Next Start", action: "next" }] : [])
+                 .concat(settingsRoot.outputPowerOff ? [{ label: "Switch and Power Off", action: "poweroff" }] : [])
+                 .concat([{ label: "Cancel", action: "cancel" }])
         onActivated: function(act) {
             if (act === "switch")
                 displayOutput.apply(settingsRoot.outputChoice.id)
+            else if (act === "next")
+                displayOutput.applyAtNextStart(settingsRoot.outputChoice.id)
+            else if (act === "poweroff")
+                displayOutput.applyAndPowerOff(settingsRoot.outputChoice.id)
         }
+        onClosed: settingsList.forceActiveFocus()
+    }
+
+    ChoiceOverlay {
+        id: outputStay
+        anchors.fill: parent
+        promptText: "Stay on " + settingsRoot.outputCurrentLabel + "?"
+        subtitleText: settingsRoot.outputNextLabel + " was to come at the next start"
+        choices: [{ label: "Stay on " + settingsRoot.outputCurrentLabel, action: "stay" },
+                  { label: "Cancel", action: "cancel" }]
+        onActivated: function(act) {
+            if (act === "stay")
+                displayOutput.applyAtNextStart(settingsRoot.outputCurrent)
+        }
+        onClosed: settingsList.forceActiveFocus()
+    }
+
+    // At Next Start's answer: the row as it is now, or why it didn't happen.
+    Connections {
+        target: displayOutput
+        function onChanged() {
+            if (displayOutput.available)
+                settingsRoot.buildModel(settingsList.currentIndex)
+        }
+        function onNextStartFinished(ok, reason) {
+            if (ok)
+                return
+            settingsRoot.outputFailure = reason
+            outputFailed.open()
+        }
+    }
+
+    ChoiceOverlay {
+        id: outputFailed
+        anchors.fill: parent
+        promptKind: "notice"
+        promptText: "Not written for the next start"
+        subtitleText: (settingsRoot.outputChoice.label || "") + " couldn't be written: " + settingsRoot.outputFailure
+        choices: []
         onClosed: settingsList.forceActiveFocus()
     }
 

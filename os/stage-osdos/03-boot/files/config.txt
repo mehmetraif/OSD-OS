@@ -12,8 +12,12 @@
 #   osdos-display-scart-rgb-pal.txt   RGB on the GPIO pins for SCART, 576i
 #   osdos-display-scart-rgb-240p.txt  the same on a Pi 4, 240p
 #   osdos-display-scart-rgb-288p.txt  the same on a Pi 4, 288p
+#   osdos-display-jamma-240p.txt      a JAMMA cabinet through a Raspberry Pi to
+#                                     JAMMA board (RGB-Pi's layout), 240p: its
+#                                     controls too, and on a Pi 4 its sound
 # On a Pi 5 a SCART RGB preset also needs its composite sync (copied by hand,
-# /etc/modprobe.d/osdos-display.conf: options drm_rp1_dpi force_csync=1).
+# /etc/modprobe.d/osdos-display.conf: options drm_rp1_dpi force_csync=1), and
+# the JAMMA one must not have it (delete that file).
 #
 # The per-model settings below are the ones INSTALL.md documents.
 

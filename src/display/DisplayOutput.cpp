@@ -4,32 +4,49 @@
 
 #include <QCoreApplication>
 #include <QFile>
+#include <QFileInfo>
 #include <QJsonDocument>
 #include <QJsonObject>
+#include <QLocalSocket>
 #include <QSaveFile>
+#include <QTimer>
+
+#include <algorithm>
+#include <memory>
 
 namespace {
 
 // The presets, in the menu's order, with the exit code osdos-stop
-// (scripts/install.sh, STOP_HELPER) writes each on: keep the two in step.
+// (scripts/install.sh, STOP_HELPER) writes each on, then reboots: keep the two
+// in step. kPowerOff more, it writes it and powers off. A preset is offered
+// from the launcher API whose osdos-stop knows its code.
 struct Preset {
     const char *id;     // osdos-display-<id>.txt
     const char *label;
     int exitCode;
+    int launcherApi;
 };
 const Preset kPresets[] = {
-    { "hdmi",           "HDMI",                20 },
-    { "crt-ntsc",       "Composite NTSC",      21 },
-    { "crt-pal",        "Composite PAL",       22 },
-    { "crt-gpio-ntsc",  "GPIO Composite NTSC", 23 },
-    { "crt-gpio-pal",   "GPIO Composite PAL",  24 },
-    { "scart-rgb-ntsc", "SCART RGB NTSC",      25 },
-    { "scart-rgb-pal",  "SCART RGB PAL",       26 },
-    { "scart-rgb-240p", "SCART RGB 240p",      27 },
-    { "scart-rgb-288p", "SCART RGB 288p",      28 },
+    { "hdmi",           "HDMI",                20, 3 },
+    { "crt-ntsc",       "Composite NTSC",      21, 3 },
+    { "crt-pal",        "Composite PAL",       22, 3 },
+    { "crt-gpio-ntsc",  "GPIO Composite NTSC", 23, 3 },
+    { "crt-gpio-pal",   "GPIO Composite PAL",  24, 3 },
+    { "scart-rgb-ntsc", "SCART RGB NTSC",      25, 3 },
+    { "scart-rgb-pal",  "SCART RGB PAL",       26, 3 },
+    { "scart-rgb-240p", "SCART RGB 240p",      27, 3 },
+    { "scart-rgb-288p", "SCART RGB 288p",      28, 3 },
+    { "jamma-240p",     "JAMMA 240p",          30, 4 },
 };
 // osdos-stop's for the output before the last one chosen.
 constexpr int kRevertExitCode = 29;
+// Added to a preset's code: written, then off (40-50).
+constexpr int kPowerOff = 20;
+// The launcher whose osdos-stop powers off after a preset, and writes one for
+// the next start through osdos-display.socket.
+constexpr int kNextStartApi = 5;
+// For osdos-stop's answer to At Next Start: a few copies and a sync on the card.
+constexpr int kNextStartTimeoutMs = 15000;
 
 const Preset *presetById(const QString &id) {
     for (const Preset &p : kPresets) {
@@ -64,6 +81,11 @@ bool boardHas(const QString &id) {
         return pi4 || pi5;
     if (id.startsWith(QLatin1String("scart-rgb-")))
         return pi4;
+    // A Raspberry Pi to JAMMA board in RGB-Pi's layout: the Pi 4's firmware
+    // DPI, its sound on GPIO 18 and 19; the Pi 5's kernel DPI, its sound on a
+    // USB card. Not a Pi 3's.
+    if (id == QLatin1String("jamma-240p"))
+        return pi4 || pi5;
     return false;
 }
 
@@ -77,11 +99,17 @@ QByteArray readFile(const QString &path) {
 DisplayOutput::DisplayOutput(const QString &dataRoot, QObject *parent)
     : QObject(parent),
       m_dataRoot(dataRoot),
-      m_bootDir(legacy::env("BOOT_DIR", QStringLiteral("/boot/firmware"))) {
+      m_bootDir(legacy::env("BOOT_DIR", QStringLiteral("/boot/firmware"))),
+      m_runDir(legacy::env("RUN_DIR", QStringLiteral("/run"))) {
     // Not the OSD/OS image: nothing to offer.
-    const QByteArray inForce = readFile(m_bootDir + QStringLiteral("/osdos-display.txt"));
-    if (inForce.isEmpty())
+    const QByteArray written = readFile(m_bootDir + QStringLiteral("/osdos-display.txt"));
+    if (written.isEmpty())
         return;
+    // Once a preset has been written for the next start, osdos-stop keeps the
+    // one this boot started on in /run: that one is in force.
+    const QByteArray atBoot = readFile(atBootPath());
+    const QByteArray inForce = atBoot.isEmpty() ? written : atBoot;
+    const int launcherApi = legacy::envInt("LAUNCHER_API");
     for (const Preset &p : kPresets) {
         const QString id = QString::fromLatin1(p.id);
         const QByteArray preset = readFile(presetPath(id));
@@ -89,12 +117,15 @@ DisplayOutput::DisplayOutput(const QString &dataRoot, QObject *parent)
             continue;
         if (preset == inForce)
             m_current = id;
-        if (boardHas(id))
+        else if (preset == written)
+            m_next = id;
+        if (boardHas(id) && launcherApi >= p.launcherApi)
             m_options.append(QVariantMap{ { QStringLiteral("id"), id },
                                           { QStringLiteral("label"), labelOf(id) } });
     }
-    m_available = legacy::envIsSet("AUTOSTART") && legacy::envInt("LAUNCHER_API") >= 3
-                  && m_options.size() > 1;
+    m_available = legacy::envIsSet("AUTOSTART") && launcherApi >= 3 && m_options.size() > 1;
+    m_powerOffAvailable = m_available && launcherApi >= kNextStartApi;
+    m_nextStartAvailable = m_powerOffAvailable && QFileInfo::exists(socketPath());
 
     // What became of the last change.
     const QJsonObject state = QJsonDocument::fromJson(readFile(statePath())).object();
@@ -102,6 +133,12 @@ DisplayOutput::DisplayOutput(const QString &dataRoot, QObject *parent)
         return;
     const QString to = state.value(QStringLiteral("to")).toString();
     const QString reverted = state.value(QStringLiteral("reverted")).toString();
+    if (!atBoot.isEmpty()) {
+        // This boot's change, for the next start: asked about there.
+        if (to.isEmpty() || to != m_next)
+            QFile::remove(statePath());
+        return;
+    }
     if (!to.isEmpty() && to == m_current && m_available) {
         // On the new output: it stays only when said so (keep(), revert()).
         m_confirmPending = true;
@@ -126,16 +163,113 @@ QString DisplayOutput::currentLabel() const {
     return labelOf(m_current);
 }
 
+QString DisplayOutput::nextLabel() const {
+    return m_next.isEmpty() ? QString() : labelOf(m_next);
+}
+
 bool DisplayOutput::apply(const QString &id) {
+    return switchTo(id, false);
+}
+
+bool DisplayOutput::applyAndPowerOff(const QString &id) {
+    return switchTo(id, true);
+}
+
+bool DisplayOutput::switchTo(const QString &id, bool powerOff) {
     const Preset *p = presetById(id);
-    if (!m_available || !p || id == m_current || !boardHas(id))
+    if (!m_available || !p || id == m_current || !offered(id) || m_busy
+        || (powerOff && !m_powerOffAvailable))
         return false;
     if (!writeState({ { QStringLiteral("from"), currentLabel() }, { QStringLiteral("to"), id } }))
         return false;
-    qInfo("[DisplayOutput] %s -> %s: exit %d for osdos-stop", qPrintable(m_current), qPrintable(id),
-          p->exitCode);
-    QCoreApplication::exit(p->exitCode);
+    const int code = p->exitCode + (powerOff ? kPowerOff : 0);
+    qInfo("[DisplayOutput] %s -> %s%s: exit %d for osdos-stop", qPrintable(m_current), qPrintable(id),
+          powerOff ? ", then off" : "", code);
+    QCoreApplication::exit(code);
     return true;
+}
+
+bool DisplayOutput::applyAtNextStart(const QString &id) {
+    // The one in force takes back what waits; another is written over it.
+    const QString waiting = m_next.isEmpty() ? m_current : m_next;
+    if (!m_nextStartAvailable || m_busy || !presetById(id) || id == waiting
+        || (id != m_current && !offered(id)))
+        return false;
+    // Noted first, as for a switch: what osdos-stop writes is asked about at
+    // the next start even should its answer never come back.
+    if (id != m_current
+        && !writeState({ { QStringLiteral("from"), currentLabel() }, { QStringLiteral("to"), id } }))
+        return false;
+    m_busy = true;
+    emit changed();
+
+    // osdos-stop next-start, as root, behind the socket: the name on a line,
+    // "ok" or why not back. The connections are this object's, so that none
+    // is left to call on it as it goes: its socket goes after them.
+    auto *socket = new QLocalSocket(this);
+    auto reply = std::make_shared<QByteArray>();
+    auto sent = std::make_shared<bool>(false);
+    auto done = std::make_shared<bool>(false);
+    const auto finish = [this, socket, reply, sent, done, id](const QString &failure) {
+        if (*done)
+            return;
+        *done = true;
+        if (socket->isOpen())
+            reply->append(socket->readAll());
+        const QByteArray line = reply->left(reply->indexOf('\n')).trimmed();
+        socket->deleteLater();
+        if (line == "ok")
+            nextStartDone(id, true, QString(), false);
+        else
+            nextStartDone(id, false, line.isEmpty() ? failure : QString::fromUtf8(line),
+                          line.isEmpty() && *sent);
+    };
+    connect(socket, &QLocalSocket::connected, this, [socket, sent, id] {
+        socket->write(id.toLatin1() + '\n');
+        *sent = true;
+    });
+    connect(socket, &QLocalSocket::readyRead, this, [socket, reply, finish] {
+        reply->append(socket->readAll());
+        if (reply->contains('\n'))
+            finish(QString());
+    });
+    connect(socket, &QLocalSocket::disconnected, this, [finish] {
+        finish(QStringLiteral("no answer"));
+    });
+    connect(socket, &QLocalSocket::errorOccurred, this, [socket, finish](QLocalSocket::LocalSocketError error) {
+        const bool away = error == QLocalSocket::ServerNotFoundError || error == QLocalSocket::ConnectionRefusedError;
+        finish(away ? QStringLiteral("osdos-display.socket isn't listening") : socket->errorString());
+    });
+    QTimer::singleShot(kNextStartTimeoutMs, this, [finish] {
+        finish(QStringLiteral("no answer in time"));
+    });
+    socket->connectToServer(socketPath());
+    return true;
+}
+
+void DisplayOutput::nextStartDone(const QString &id, bool ok, const QString &reason, bool unanswered) {
+    m_busy = false;
+    // As the boot partition has it now, whatever the answer: osdos-stop may
+    // have written it all the same.
+    const QByteArray written = readFile(m_bootDir + QStringLiteral("/osdos-display.txt"));
+    const QByteArray atBoot = readFile(atBootPath());
+    m_next = atBoot.isEmpty() || written == atBoot ? QString() : presetMatching(written);
+    if (!m_next.isEmpty()) {
+        // What waits, to keep or go back on at the next start.
+        if (!writeState({ { QStringLiteral("from"), currentLabel() }, { QStringLiteral("to"), m_next } }))
+            qWarning("[DisplayOutput] %s can't be noted: no question at the next start",
+                     qPrintable(statePath()));
+    } else if (!unanswered || id == m_current) {
+        // Nothing waits. Asked and not answered, osdos-stop may yet write
+        // it: the note stays for the next start.
+        QFile::remove(statePath());
+    }
+    if (ok)
+        qInfo("[DisplayOutput] at the next start: %s", qPrintable(m_next.isEmpty() ? m_current : m_next));
+    else
+        qWarning("[DisplayOutput] %s not written for the next start: %s", qPrintable(id), qPrintable(reason));
+    emit changed();
+    emit nextStartFinished(ok, reason);
 }
 
 void DisplayOutput::keep() {
@@ -162,8 +296,31 @@ void DisplayOutput::dismissNotice() {
     emit changed();
 }
 
+bool DisplayOutput::offered(const QString &id) const {
+    return std::any_of(m_options.cbegin(), m_options.cend(), [&](const QVariant &o) {
+        return o.toMap().value(QStringLiteral("id")).toString() == id;
+    });
+}
+
+QString DisplayOutput::presetMatching(const QByteArray &bytes) const {
+    for (const Preset &p : kPresets) {
+        const QString id = QString::fromLatin1(p.id);
+        if (readFile(presetPath(id)) == bytes)
+            return id;
+    }
+    return QString();
+}
+
 QString DisplayOutput::presetPath(const QString &id) const {
     return m_bootDir + QStringLiteral("/osdos-display-") + id + QStringLiteral(".txt");
+}
+
+QString DisplayOutput::atBootPath() const {
+    return m_runDir + QStringLiteral("/osdos-display-boot.txt");
+}
+
+QString DisplayOutput::socketPath() const {
+    return m_runDir + QStringLiteral("/osdos-display.sock");
 }
 
 QString DisplayOutput::statePath() const {
