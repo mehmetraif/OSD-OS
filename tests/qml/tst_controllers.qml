@@ -1,12 +1,13 @@
 import QtQuick
 import QtTest
 
-// Settings → Controls' two pages, views/Controllers.qml and
-// ControllerSettings.qml, against a stand-in for InputManager: the list of
+// Settings → Controls' pages, views/Controllers.qml, ControllerSettings.qml
+// and RemapControls.qml, against a stand-in for InputManager: the list of
 // controllers (connected, away, the one used last, the players' pads chosen
 // from those connected), a controller's page (its labels, a press waited for
 // and set or kept, cancelled by another controller's Back or by the wait
-// running out, a button cleared, the defaults).
+// running out, a button cleared, the defaults), and All Keyboards & Remotes'
+// wait for a press.
 Rectangle {
     id: root
     color: surfaceColor
@@ -59,13 +60,21 @@ Rectangle {
         // What a press makes of a key ("<controller> <input>"), as
         // InputManager decides it; any other is set.
         property var outcomes: ({})
+        property bool remapCapture: false
         signal controllerInputCaptured(string key, string input, string label)
+        signal auxButtonPressed(int extendedKeyId)
         function controllerPage(key) { return pages[key] || ({}) }
         function captureController(key) { capturing = key }
         function bindControllerInput(key, input, action) {
             calls = calls.concat([["bind", key, input, action]])
             return outcomes[key + " " + input] || { outcome: "set", action: action, label: "" }
         }
+        function keyCapture(key, id, action) {
+            calls = calls.concat([["keyCapture", key, id, action]])
+            return outcomes[key + " " + id] || { outcome: "set", action: "none", label: "none" }
+        }
+        function setRemapCapture(active) { remapCapture = active }
+        function keyDisplayName(id) { return id === Qt.Key_Return ? "Return" : id === Qt.Key_F5 ? "F5" : String(id) }
         function setControllerLabels(key, style) {
             calls = calls.concat([["labels", key, style]])
             var p = pages
@@ -85,6 +94,18 @@ Rectangle {
                             playing: c ? key : root.jammaKey, connected: true }
             }
             players = list
+        }
+    }
+
+    // AppCore's settings, for All Keyboards & Remotes.
+    QtObject {
+        id: appCore
+        property var settings: ({})
+        function get_setting(module, key) { return settings[key] }
+        function save_setting(module, key, value) {
+            var s = settings
+            s[key] = value
+            settings = s
         }
     }
 
@@ -155,6 +176,8 @@ Rectangle {
             inputManager.calls = []
             inputManager.capturing = ""
             inputManager.outcomes = {}
+            inputManager.remapCapture = false
+            appCore.settings = {}
             root.navigations = []
             root.backs = 0
         }
@@ -440,6 +463,32 @@ Rectangle {
             tryVerify(function() { return !page.capturing }, 2500)
         }
 
+        // All Keyboards & Remotes: a button pressed is the action's, unless
+        // it is Back, which cancels, or keeps what it does.
+        function test_sharedPage() {
+            var page = open("RemapControls.qml")
+            inputManager.outcomes[" " + Qt.Key_Escape] = { outcome: "cancel", action: "back", label: "Back" }
+            inputManager.outcomes[" " + Qt.Key_Return] = { outcome: "already", action: "select", label: "Select / OK" }
+            keyClick(Qt.Key_Return)   // UP
+            verify(page.capturing)
+            verify(inputManager.remapCapture)
+            inputManager.auxButtonPressed(Qt.Key_Return)
+            verify(!page.capturing)
+            compare(appCore.settings["remote_keymap.up"], undefined)
+            compare(page.notice, "Return is Select / OK already")
+            keyClick(Qt.Key_Down)
+            compare(page.notice, "")
+            keyClick(Qt.Key_Return)   // DOWN
+            inputManager.auxButtonPressed(Qt.Key_Escape)
+            verify(!page.capturing)
+            compare(appCore.settings["remote_keymap.down"], undefined)
+            keyClick(Qt.Key_Return)
+            inputManager.auxButtonPressed(Qt.Key_F5)
+            verify(!page.capturing)
+            verify(!inputManager.remapCapture)
+            compare(appCore.settings["remote_keymap.down"], Qt.Key_F5)
+            compare(inputManager.calls[inputManager.calls.length - 1], ["keyCapture", "", Qt.Key_F5, "down"])
+        }
 
         function test_awayPage() {
             var page = open("ControllerSettings.qml", { key: root.awayKey })

@@ -132,8 +132,9 @@ add_executable(tree_browser_test tree_browser_test.cpp)
 target_link_libraries(tree_browser_test PRIVATE Qt6::QuickTest Qt6::Quick)
 add_test(NAME tree_browser COMMAND tree_browser_test -input ${CMAKE_CURRENT_SOURCE_DIR}/qml/tst_tree_browser.qml)
 set_tests_properties(tree_browser PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen;QT_QUICK_BACKEND=software")
-# Settings → Controls' two pages (views/Controllers.qml, ControllerSettings.qml)
-# against a stand-in for InputManager, with the same QML test runner.
+# Settings → Controls' pages (views/Controllers.qml, ControllerSettings.qml,
+# RemapControls.qml) against a stand-in for InputManager, with the same QML
+# test runner.
 add_test(NAME controls_views COMMAND tree_browser_test -input ${CMAKE_CURRENT_SOURCE_DIR}/qml/tst_controllers.qml
                                      -import ${CMAKE_CURRENT_SOURCE_DIR}/../views)
 set_tests_properties(controls_views PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen;QT_QUICK_BACKEND=software")

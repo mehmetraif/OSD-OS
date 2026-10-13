@@ -15,11 +15,12 @@ ctest --test-dir build-tests --output-on-failure
   - A folder opened again comes back with its cursor where it was; the compact branches keep to a few rows.
   - With Settings' Hint Bar off, the area reaches the content box's foot and shows more rows, the spine where it was.
   - A picture of it is saved as `tree-browser-preview.png`, which CI keeps.
-- **controls_views** (`qml/tst_controllers.qml`, run by the same runner): Settings → Controls' two pages, `views/Controllers.qml` and `views/ControllerSettings.qml`, against a stand-in for `InputManager`.
+- **controls_views** (`qml/tst_controllers.qml`, run by the same runner): Settings → Controls' pages, `views/Controllers.qml`, `views/ControllerSettings.qml` and `views/RemapControls.qml`, against a stand-in for `InputManager`.
   - The list: All Keyboards & Remotes, the players, a line for each player there is a pad for (two at least), the controllers connected by kind (P1, P2… on the pads that play), the one used last marked ◄, those away under Not Connected, nothing connected; the cursor skips the headings, keeps to its controller as another goes, and comes back to it from its page.
   - The players: Select lists Auto and the pads connected (no keyboard, remote or pad away), the player's own chosen; ◄ ► go round them; Back leaves the chooser unchanged; a pad chosen and away, and its line kept beyond the pads there.
   - A pad's page: its labels go round both ways; a press on it is waited for and set, another controller's input ignored; another controller's Back cancels, and so does the wait running out; its only Select / OK, and a button that does the action already, say so; Clear a Button and Reset to Defaults; leaving the page while it waits lets the pad act again.
   - A keyboard's page: what does Back on it cancels, Select / OK's key stays and says so, another key is set as an extra one; Remove a Key takes one of its own, says so of a key that isn't; its wait runs out too, as its hint says.
+  - All Keyboards & Remotes: a key that keeps what it does says so and saves nothing, Back cancels, another key is saved for the action.
   - A controller away: its buttons wait for it, its labels don't, and Reset to Defaults leaves its page.
 - **controllers** (`controllers_test.cpp`): each controller apart (`ControllerProfile`, and `InputManager` with pads SDL makes up, its virtual joysticks, its settings in `config.json` through `AppCore`).
   - What each label style calls a pad's buttons, sticks and d-pad; a profile as config.json keeps it, unknown actions dropped; which `/dev/input` nodes are keyboards and remotes; whose a key is (with and without X11's 8, the latest press, too old, a device gone, a queue that stays short).
