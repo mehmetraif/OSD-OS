@@ -317,7 +317,7 @@ To spare a CRT's phosphor, a screen saver puts OSD/OS's logo bouncing across a b
 
 <img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/screenshots/settings.png" width="100%" alt="Settings: THEME NONE, COLOR SCHEME VIDEO 1, SKIN NONE, the effects OFF, a help line scrolling its text, and the hint bar [ESC]:BACK [▲▼]:NAVIGATE [◄►]:CHANGE [ENTER]:SELECT" />
 
-- **The hint bar**, the solid bar at the foot of every screen, says which keys do what there, as a deck's menu ends with "SELECT WITH (▲▼) AND (OK)". It shows the keyboard's keys (`[ESC]`, `[ENTER]`, `[SPACE]`) until you press a gamepad button, then that gamepad's (`[B]`, `[A]`, `[START]`, or a PlayStation pad's `[O]`, `[X]`), and back again with the next key ([Controls](https://github.com/mehmetraif/OSD-OS/wiki/Controls#the-hints-at-the-foot-of-the-screen)).
+- **The hint bar**, the solid bar at the foot of every screen, says which keys do what there, as a deck's menu ends with "SELECT WITH (▲▼) AND (OK)". It shows the keyboard's keys (`[ESC]`, `[ENTER]`, `[SPACE]`) until you press a gamepad button, then that gamepad's (`[B]`, `[A]`, `[START]`, or a PlayStation pad's `[O]`, `[X]`, as its button labels in Settings → Controls name them), and back again with the next key ([Controls](https://github.com/mehmetraif/OSD-OS/wiki/Controls#the-hints-at-the-foot-of-the-screen)).
 - **The help line** is the box under a menu (Settings, a module's settings, Controls, Bluetooth, a video's menu, About) with a line about the selected row. A line too long for the box scrolls through it like a ticker, pausing each time its start comes round.
 
 Both can go once the keys are second nature; the keys work as they always do.
@@ -329,7 +329,7 @@ Both can go once the keys are second nature; the keys work as they always do.
 
 ## The mouse pointer
 
-A mouse, or a keyboard's touchpad, shows OSD/OS's own pointer, drawn in its pixels and colors, while it moves, and hides it again after a few seconds still. The menus still go by keys: the pointer shows where the mouse is, and a click does nothing unless you have made a mouse button one of the actions in Settings → Controls ([Controls](https://github.com/mehmetraif/OSD-OS/wiki/Controls#the-mouse)).
+A mouse, or a keyboard's touchpad, shows OSD/OS's own pointer, drawn in its pixels and colors, while it moves, and hides it again after a few seconds still. The menus still go by keys: the pointer shows where the mouse is, and a click does nothing unless you have made a mouse button one of the actions in Settings → Controls → All Keyboards & Remotes ([Controls](https://github.com/mehmetraif/OSD-OS/wiki/Controls#the-mouse)).
 
 | Setting | Values | Default | What it does | Config key |
 |---|---|---|---|---|

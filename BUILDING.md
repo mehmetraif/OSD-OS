@@ -310,7 +310,9 @@ Inputs use SDL controller names — short (`a`, `b`, `x`, `y`, `back`, `start`, 
 
 **Button names are positional**, following an Xbox reference layout: `a` means the *south* face button, `b` east, `x` west, `y` north, no matter what's "printed" on the buttons on your pad. Because of that you can also write the positions directly: `south`, `east`, `west`, `north`. So `south select` makes the bottom face button select on an Xbox pad, an 8BitDo, and a PlayStation pad alike.
 
-**Footer labels** will attempt to adapt automatically and the on-screen hints show what's printed on the controller you touched last (Nintendo-type pads show B at south, PlayStation pads show X/O/SQ/TR). If your controller reports the wrong type (which is common for pads with Nintendo-style labels running in X-input mode) you can define the label you see with a `label` line in the input.cfg
+**Footer labels** will attempt to adapt automatically and the on-screen hints show what's printed on the controller you touched last (Nintendo-type pads show B at south, PlayStation pads show X/O/SQ/TR). If your controller reports the wrong type (which is common for pads with Nintendo-style labels running in X-input mode) you can pick its Button Labels on its page in Settings → Controls, or define the label you see with a `label` line in the input.cfg, which wins on every pad.
+
+`input.cfg` is the map every pad starts from. A pad's own page in Settings → Controls changes that one model of pad over it (saved in `config.json` under `app.controllers`), so most people never need the file.
 
 ```
 # input.cfg — example overrides

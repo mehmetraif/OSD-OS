@@ -4,7 +4,9 @@ import Components
 // Remote/keyboard button remapping, lets an extra physical key (e.g. a
 // remote's "OK" button sending a code the app doesn't otherwise recognize)
 // also fire one of the six navigation actions, on top of that action's
-// default key. Backed by InputManager's keyRemap table (config.json
+// default key, on every keyboard and remote (Settings → Controls → All
+// Keyboards & Remotes; one keyboard's own are on its page,
+// ControllerSettings.qml). Backed by InputManager's keyRemap table (config.json
 // app.remote_keymap.<action>), which is additive: it never removes an
 // action's default key, so a bad remap can't lock the menus out from a
 // plain keyboard. See src/input/InputManager.cpp for the runtime side.
@@ -29,6 +31,8 @@ FocusScope {
     property var rows: []
     property bool capturing: false
     property int captureIndex: -1
+    // A button that kept what it does, in the help line until the cursor moves.
+    property string notice: ""
 
     // While capturing, InputManager suspends remap delivery and reports every
     // real input (keyboard key, Consumer Control button, mouse button) through
@@ -60,6 +64,7 @@ FocusScope {
     }
 
     function startCapture(idx) {
+        notice = ""
         captureIndex = idx
         capturing = true
     }
@@ -102,18 +107,24 @@ FocusScope {
 
     // The single capture feed: while capturing, InputManager reports every
     // real input — keyboard key, Consumer Control button, mouse button —
-    // through this one signal (see setRemapCapture). Back-family keys cancel
-    // instead of binding, so there is always a guaranteed way out.
+    // through this one signal (see setRemapCapture). A button that does Back
+    // cancels instead of binding, so there is always a guaranteed way out,
+    // and those that do Select / OK, Up or Down, and the keys the menus use,
+    // keep what they do (InputManager::keyCapture()), so no keyboard or
+    // remote loses them.
     Connections {
         target: inputManager
         function onAuxButtonPressed(extendedKeyId) {
             if (!remapRoot.capturing)
                 return
-            if (extendedKeyId === Qt.Key_Escape || extendedKeyId === Qt.Key_Backspace
-                    || extendedKeyId === Qt.Key_Back)
-                remapRoot.cancelCapture()
-            else
+            var result = inputManager.keyCapture("", extendedKeyId, remapRoot.actions[remapRoot.captureIndex].id)
+            if (result.outcome === "set") {
                 remapRoot.finishCapture(extendedKeyId)
+                return
+            }
+            remapRoot.cancelCapture()
+            if (result.outcome === "already")
+                remapRoot.notice = inputManager.keyDisplayName(extendedKeyId) + " is " + result.label + " already"
         }
     }
 
@@ -121,6 +132,7 @@ FocusScope {
     AppBar {
         iconSource: "../../assets/images/keyboard.svg"
         title: "Controls"
+        subtitle: "All Keyboards & Remotes"
         anchors.top: parent.top
         anchors.left: parent.left
         anchors.topMargin: root.sh * 0.125 //60
@@ -142,16 +154,18 @@ FocusScope {
         focus: !remapRoot.capturing
 
         Keys.onUpPressed: {
-            if (currentIndex > 0) currentIndex-- 
+            if (currentIndex > 0) currentIndex--
             else {
                 currentIndex = rows.length-1
             }
             rowList.positionViewAtIndex(currentIndex, ListView.Contain)
+            remapRoot.notice = ""
         }
         Keys.onDownPressed: {
             if (currentIndex < count - 1) currentIndex++
             else currentIndex = 0
             rowList.positionViewAtIndex(currentIndex, ListView.Contain)
+            remapRoot.notice = ""
         }
         Keys.onReturnPressed: {
             var row = remapRoot.rows[currentIndex]
@@ -185,7 +199,8 @@ FocusScope {
     // --- HELP TEXT --- on one line that scrolls when it is too long.
     HelpLine {
         visible: !remapRoot.capturing
-        text: "Map one additional button for each action\n(the default button will continue to function)"
+        text: remapRoot.notice !== "" ? remapRoot.notice
+              : "Map one additional button for each action\n(the default button will continue to function)"
         anchors.bottom: parent.bottom
         anchors.left: parent.left
         anchors.bottomMargin: root.helpLineMargin

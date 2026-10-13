@@ -3,7 +3,7 @@
 What OSD/OS does, at a glance. Each line links to the page with the details, and every screen is in the [screen tour](https://github.com/mehmetraif/OSD-OS/blob/main/docs/TOUR.md).
 
 - **Modules**, like the inputs on a deck: Local Files, Plex, Jellyfin, Emby, YouTube, Netflix and Prime Video, Playlists, an NFC reader, a 90s weather channel, your own shell scripts and Ambient:Mode, each turned on in Settings → Modules ([Modules](https://github.com/mehmetraif/OSD-OS/wiki/Modules)).
-- **A remote, a keyboard or a gamepad**: the arrows, select and back on any of them. Settings → Controls teaches OSD/OS a button it doesn't know, like a remote's OK ([Controls](https://github.com/mehmetraif/OSD-OS/wiki/Controls)).
+- **A remote, a keyboard or a gamepad**: the arrows, select and back on any of them. Settings → Controls lists every controller connected and sets each apart: its own buttons, and a pad's button labels (Xbox, PlayStation, Nintendo or a cabinet's numbers). It also chooses which pad is player 1 and which player 2. It also teaches OSD/OS a button it doesn't know, like a remote's OK ([Controls](https://github.com/mehmetraif/OSD-OS/wiki/Controls)).
 
 - **One way to browse.** Local Files, Netflix, Prime Video and YouTube open as a horizontal tree. The folders you open run along a line across the screen, and every folder branches out to its entries, the one under the cursor in full and the rest faint. Each starts with **Recently Watched**, **Favorites** and **Search** ([Using OSD/OS](https://github.com/mehmetraif/OSD-OS/wiki/Using-OSD-OS)).
 - **Search with the remote**, typed on an on-screen keyboard.

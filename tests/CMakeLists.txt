@@ -127,8 +127,30 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
                                      ${CMAKE_CURRENT_SOURCE_DIR}/../os/stage-osdos/03-boot/files)
 endif()
 
-find_package(Qt6 REQUIRED COMPONENTS Quick QuickTest)
+find_package(Qt6 REQUIRED COMPONENTS Gui Quick QuickTest)
 add_executable(tree_browser_test tree_browser_test.cpp)
 target_link_libraries(tree_browser_test PRIVATE Qt6::QuickTest Qt6::Quick)
-add_test(NAME tree_browser COMMAND tree_browser_test -input ${CMAKE_CURRENT_SOURCE_DIR}/qml)
+add_test(NAME tree_browser COMMAND tree_browser_test -input ${CMAKE_CURRENT_SOURCE_DIR}/qml/tst_tree_browser.qml)
 set_tests_properties(tree_browser PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen;QT_QUICK_BACKEND=software")
+# Settings → Controls' pages (views/Controllers.qml, ControllerSettings.qml,
+# RemapControls.qml) against a stand-in for InputManager, with the same QML
+# test runner.
+add_test(NAME controls_views COMMAND tree_browser_test -input ${CMAKE_CURRENT_SOURCE_DIR}/qml/tst_controllers.qml
+                                     -import ${CMAKE_CURRENT_SOURCE_DIR}/../views)
+set_tests_properties(controls_views PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen;QT_QUICK_BACKEND=software")
+
+# Settings → Controls, each controller apart: the labels, the profiles and
+# whose a key is (ControllerProfile), and InputManager with pads SDL makes up
+# (its virtual joysticks), its settings kept in config.json (AppCore).
+find_package(SDL2 CONFIG REQUIRED)
+add_executable(controllers_test
+    controllers_test.cpp
+    ../src/input/InputManager.cpp
+    ../src/input/ControllerProfile.cpp
+    ../src/AppCore.cpp
+    ../src/util/LegacyNames.cpp)
+target_include_directories(controllers_test PRIVATE ../src)
+target_link_libraries(controllers_test PRIVATE
+    Qt6::Core Qt6::Gui Qt6::Quick Qt6::Qml Qt6::Network Qt6::Test SDL2::SDL2)
+add_test(NAME controllers COMMAND controllers_test)
+set_tests_properties(controllers PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")

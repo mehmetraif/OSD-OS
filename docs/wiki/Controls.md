@@ -1,8 +1,8 @@
 # Controls
 
-Every way to drive OSD/OS: a keyboard, a remote, a gamepad, a mouse. This page lists what each key and button does, on the menus and during a video; how gamepads and remotes reach OSD/OS; how to give an action one more button in Settings → Controls, or remap a gamepad in `input.cfg`; the hints at the foot of the screen; and pairing Bluetooth devices in Settings → Bluetooth.
+Every way to drive OSD/OS: a keyboard, a remote, a gamepad, a mouse. This page lists what each key and button does, on the menus and during a video; how gamepads and remotes reach OSD/OS; how Settings → Controls sets each controller apart, with its own buttons and button labels, chooses the pads of players 1 and 2, and gives every keyboard and remote one more key for an action; remapping every gamepad in `input.cfg`; the hints at the foot of the screen; and pairing Bluetooth devices in Settings → Bluetooth.
 
-<img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/screenshots/controls.png" width="100%" alt="Settings → Controls: UP, DOWN, LEFT, RIGHT, SELECT / OK and BACK, each DEFAULT, then RESET TO DEFAULTS" />
+<img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/screenshots/controls.png" width="100%" alt="Settings → Controls: ALL KEYBOARDS & REMOTES; PLAYERS: PLAYER 1 8BITDO PRO 2, PLAYER 2 AUTO (OSD/OS JAMMA P2); CONNECTED: 8BITDO PRO 2 P1 GAMEPAD ◄, DUALSENSE WIRELESS CONT… GAMEPAD, OSD/OS JAMMA P1 ARCADE" />
 
 ## The actions
 
@@ -19,7 +19,7 @@ All of OSD/OS works with a handful of actions. Every screen reads them as key pr
 | **Play/pause** | Space | Start | Its Play/Pause key only pauses: a media key goes straight to mpv | Pause a video. On the main menu: stop the video playing behind the menus. In Netflix's, Prime Video's or YouTube's tree: open the info screen |
 | **Info** | I | | Its Info key | Open a title's info screen (Netflix, Prime Video, YouTube) |
 
-Apart from typing, Ctrl+Q and the media keys, only these keys do anything in OSD/OS's own screens; a key a screen doesn't use does nothing there. If a remote's button sends none of them, give it an action in [Settings → Controls](https://github.com/mehmetraif/OSD-OS/wiki/Controls#settings--controls-one-more-button-per-action).
+Apart from typing, Ctrl+Q and the media keys, only these keys do anything in OSD/OS's own screens; a key a screen doesn't use does nothing there. If a remote's button sends none of them, give it an action in [Settings → Controls](https://github.com/mehmetraif/OSD-OS/wiki/Controls#settings--controls).
 
 **Esc, Enter and Space act once a press**, and so do a remote's Back and OK keys: held down, they don't repeat. The arrows, the volume keys and Backspace (which deletes a letter on the on-screen keyboard) still do, and so does every key while a text field has the focus. Holding Back for 2 seconds still closes a sign-in browser. A key whose release reaches the system late, as can happen to a Bluetooth keyboard's first press after it wakes, looks held down, and its repeats took Back a step too far: from the main menu into Settings and straight out again.
 
@@ -85,7 +85,7 @@ Buttons are named by **where they are**, on an Xbox pad's layout: `a` is always 
 | Start / Options / Menu (`start`) | Play/pause |
 | LB, RB (`leftshoulder`, `rightshoulder`) | Left, Right: during a video, jump back and forward |
 
-The west and north face buttons, the right stick, the triggers and the Guide button do nothing until you give them an action in `input.cfg`. A direction held on the D-pad or the stick repeats, after 0.4 seconds and then every 0.1 seconds, as a keyboard's arrow does.
+The west and north face buttons, the right stick, the triggers and the Guide button do nothing until you give them an action: on the pad's page in [Settings → Controls](https://github.com/mehmetraif/OSD-OS/wiki/Controls#a-controllers-own-page), for that model of pad, or in `input.cfg`, for every pad. A direction held on the D-pad or the stick repeats, after 0.4 seconds and then every 0.1 seconds, as a keyboard's arrow does.
 
 ### How a gamepad becomes key presses
 
@@ -108,12 +108,13 @@ A few things it takes care of:
 
 - **The Steam Deck, and Steam.** With Steam running, Steam Input shows a "Steam Virtual Gamepad" beside the pads it mirrors, and each press would arrive twice, the second half a second late. While that virtual gamepad is there, OSD/OS listens to it alone.
 - **One press, once.** A press of an action already held is dropped, so a pad seen twice can't double every move.
-- **Unplugged mid-press**, nothing is left held or repeating.
+- **Let go, a button ends what its press began**, even if its binding changed while it was held, as a page in Settings → Controls can do.
+- **Unplugged mid-press**, nothing it held is left held or repeating: a pad, a keyboard or a remote. The same goes for a pad that Steam's virtual gamepad comes to stand for, whose releases are no longer listened to. An action two controllers hold at once ends with the first of them to let go.
 - **On a manual install run by hand**, reading a gamepad needs your user in the `input` group: `sudo usermod -aG input $USER`, then reboot. The autostart service and the OSD/OS image give it that access already.
 
 ### Remapping a gamepad: input.cfg
 
-Settings → Controls takes keys and remote buttons, not gamepad buttons. A gamepad is remapped in a text file, `input.cfg`, in the data folder (`~/.local/share/OSD-OS/input.cfg` on Linux and the Pi, `~/Library/Application Support/OSD-OS/input.cfg` on a Mac). You only write what you want to change: everything else keeps its default. OSD/OS reads it again as soon as it is saved, so you can try changes without restarting.
+`input.cfg` remaps every gamepad at once: it is the map each pad starts from, and a pad's own page in [Settings → Controls](https://github.com/mehmetraif/OSD-OS/wiki/Controls#a-controllers-own-page) changes that pad's over it. It is a text file in the data folder (`~/.local/share/OSD-OS/input.cfg` on Linux and the Pi, `~/Library/Application Support/OSD-OS/input.cfg` on a Mac). You only write what you want to change: everything else keeps its default. OSD/OS reads it again as soon as it is saved, so you can try changes without restarting.
 
 ```text
 # input.cfg: OSD/OS's gamepad buttons. One binding per line: <input> <action>
@@ -131,7 +132,7 @@ label east     A              # the hints show what is printed on its buttons
 - **A binding** is `<input> <action>`. The actions are `up`, `down`, `left`, `right`, `select`, `back`, `play_pause`, and `none`, which takes a button's action away.
 - **Buttons** take SDL's names: `a`, `b`, `x`, `y`, `back`, `guide`, `start`, `leftstick`, `rightstick`, `leftshoulder`, `rightshoulder`, `dpup`, `dpdown`, `dpleft`, `dpright`, `misc1`, `paddle1` to `paddle4`, `touchpad`; or their long forms (`SDL_CONTROLLER_BUTTON_A`); or the positions `south`, `east`, `west` and `north`.
 - **Sticks and triggers** take a direction after their name: `leftx-` (left), `leftx+` (right), `lefty-` (up), `lefty+` (down), the same for `rightx` and `righty`, and `lefttrigger+` and `righttrigger+` (or `triggerleft+`, `triggerright+`). A line binds that one direction.
-- **`label <button> <text>`** sets what the hints at the foot of the screen call a button. OSD/OS already shows what is printed on the pad touched last, by the type the pad reports (a Nintendo pad has B at the bottom; a PlayStation pad shows X, O, SQ and TR). A pad that reports the wrong type, as many Nintendo-style pads in X-input mode do, gets the right names with `label` lines.
+- **`label <button> <text>`** sets what a button is called, in the hints at the foot of the screen and on the pads' pages, on every pad. OSD/OS already shows what is printed on each pad, by the type it reports (a Nintendo pad has B at the bottom; a PlayStation pad shows X, O, SQ and TR), or as its [Button Labels](https://github.com/mehmetraif/OSD-OS/wiki/Controls#button-labels) say. A `label` line wins over both.
 - Upper or lower case doesn't matter (a label's text keeps its own). `#` starts a comment. A line OSD/OS can't read is skipped, with a warning in the log naming its line number.
 
 **A pad SDL doesn't know** at all can be taught with the community's [gamecontrollerdb.txt](https://github.com/mdqinc/SDL_GameControllerDB): put the file in the data folder, beside `input.cfg`. It is read as OSD/OS starts, so restart it after adding the file.
@@ -142,6 +143,7 @@ On the OSD/OS image, with a Raspberry Pi to JAMMA board in RGB-Pi's layout and t
 
 - **Where they come from.** The board reads the joysticks and buttons through two MCP23017 port expanders on the Pi's I2C bus, player 1's at address 0x20 and player 2's at 0x21. `osdos-jamma.service` (`/opt/osdos/bin/osdos-jamma`) reads both every 2 ms and plays what changes on the two pads.
 - **What they are.** OSD/OS and any emulator take them as any other gamepad: the joystick a stick that is either all the way over or in the middle, as RGB-Pi's own driver has it, the buttons gamepad buttons. MAME takes the stick as its joystick.
+- **Two controllers.** Settings → Controls lists them apart, each with its own page, its buttons named as the cabinet numbers them: 1 to 8, COIN and START, the stick JOYSTICK ([Button Labels](https://github.com/mehmetraif/OSD-OS/wiki/Controls#button-labels): Arcade).
 - **Bounce.** A switch's bounce in the 5 ms after it closes or opens is let go by.
 - **Six buttons on the edge.** A cabinet with buttons 4 to 6 on the JAMMA edge, pins 27 and e among them (CHAMMA), needs the board's JP1 and JP2 on CHAMMA ([Display Output → A Raspberry Pi to JAMMA board](https://github.com/mehmetraif/OSD-OS/wiki/Display-Output#a-raspberry-pi-to-jamma-board)).
 
@@ -154,7 +156,7 @@ With the built-in mapping, the same on both expanders: the layout of RGB-Pi's ow
 | A6 | `coin` (the pad's Back/Select button) | Back |
 | B7 | Button 1: `a` | Select |
 | B6 | Button 2: `b` | Back |
-| B5, B4 | Buttons 3 and 4: `x`, `y` | Nothing, until `input.cfg` gives them an action |
+| B5, B4 | Buttons 3 and 4: `x`, `y` | Nothing, until the stick's page in Settings → Controls or `input.cfg` gives them an action |
 | B3, B2 | Buttons 5 and 6: `tl`, `tr` (the shoulders) | Left, Right |
 | B1, B0 | Buttons 7 and 8: `tl2`, `tr2` | Nothing |
 | A4, A7 | `mode`, `z` | Nothing |
@@ -182,31 +184,99 @@ It plays nothing, and prints each pin as it changes, with what the mapping makes
 - **When it is read:** as the Pi starts, or with `sudo systemctl restart osdos-jamma`.
 - **A line it can't read** is skipped, and named in its log.
 
-**Nothing moves?** `journalctl -u osdos-jamma -b` says what it found: `osdos-jamma: player 1 at 0x20`, or why not: the JAMMA display output isn't in force, or no MCP23017 answers at 0x20 or 0x21. An expander that stops answering has its buttons let go within 50 ms, and is taken up again once it answers. The pads are remapped in `input.cfg` like any other, by SDL's button names.
+**Nothing moves?** `journalctl -u osdos-jamma -b` says what it found: `osdos-jamma: player 1 at 0x20`, or why not: the JAMMA display output isn't in force, or no MCP23017 answers at 0x20 or 0x21. An expander that stops answering has its buttons let go within 50 ms, and is taken up again once it answers. The pads are remapped on their pages in Settings → Controls, or in `input.cfg` like any other, by SDL's button names.
 
 ## Remotes
 
-- **Remotes that type keys.** Most USB remotes, and the 2.4 GHz ones with a USB dongle, present themselves as a keyboard: their arrows, OK and Back arrive as keys, and work as the keyboard's do. Bluetooth remotes are paired in [Settings → Bluetooth](https://github.com/mehmetraif/OSD-OS/wiki/Controls#bluetooth) and then work the same way. What a button sends depends on the remote: if one does nothing, give it an action in Settings → Controls.
-- **Consumer Control buttons.** Some remotes send their extra buttons (Home, Back, Menu, the colored buttons, zoom, the media buttons) from a second device of their own, named "Consumer Control", beside the keyboard one. Without a desktop, as on the Pi, those buttons never reach OSD/OS as keys. So on Linux OSD/OS reads that device itself, and its buttons do something only once you give them an action in Settings → Controls. It looks for one as it starts, and takes the first it finds: plug the remote's dongle in before OSD/OS starts (on the image, before switching the Pi on).
-- **Air mice.** Some remotes are a mouse, their OK a left click. Give the click an action in Settings → Controls (Select, say).
+- **Remotes that type keys.** Most USB remotes, and the 2.4 GHz ones with a USB dongle, present themselves as a keyboard: their arrows, OK and Back arrive as keys, and work as the keyboard's do. Bluetooth remotes are paired in [Settings → Bluetooth](https://github.com/mehmetraif/OSD-OS/wiki/Controls#bluetooth) and then work the same way. What a button sends depends on the remote: if one does nothing, give it an action in Settings → Controls, on the remote's own page or under All Keyboards & Remotes.
+- **Consumer Control buttons.** Some remotes send their extra buttons (Home, Back, Menu, the colored buttons, zoom, the media buttons) from a second device of their own, named "Consumer Control", beside the keyboard one. Without a desktop, as on the Pi, those buttons never reach OSD/OS as keys. So on Linux OSD/OS reads every such device itself, as it comes and goes, and its buttons do something only once you give them an action in Settings → Controls, on the remote's own page or under All Keyboards & Remotes.
+- **Air mice.** Some remotes are a mouse, their OK a left click. Give the click an action in Settings → Controls → All Keyboards & Remotes (Select, say).
 - **Media keys** (volume, play/pause, stop, skipping) that a remote sends as keys go to mpv, as a keyboard's do ([During playback](https://github.com/mehmetraif/OSD-OS/wiki/Controls#during-playback)).
 
 ### HDMI-CEC
 
-OSD/OS has no HDMI-CEC support: a TV's own remote, passed on over HDMI, doesn't drive it. Use a USB, 2.4 GHz or Bluetooth remote, a keyboard or a gamepad.
+OSD/OS has no HDMI-CEC support: a TV's own remote, passed on over HDMI, doesn't drive it. Use a USB, 2.4 GHz or Bluetooth remote, a keyboard or a gamepad. The Pi's input device for CEC, there whenever its HDMI is, stays silent, and Settings → Controls leaves it out.
 
-## Settings → Controls: one more button per action
+## Settings → Controls
 
-Settings → **Controls** gives each of six actions one more button, from a keyboard, a remote or a mouse: a remote's OK that sends a key OSD/OS doesn't use, say, or its Home button for Back. The action's own key keeps working beside it, so a bad choice can never lock you out of the menus.
+Settings → **Controls** lists every controller connected, each with a page of its own. Above them come **All Keyboards & Remotes**, one more key for an action on every keyboard and remote at once, and **Players**, the pads of players 1 to 6.
+
+| Line | What it is |
+|---|---|
+| **All Keyboards & Remotes** | One more key, remote button or mouse button for each of six actions, on all of them ([below](https://github.com/mehmetraif/OSD-OS/wiki/Controls#all-keyboards--remotes-one-more-key-per-action)) |
+| **Players** · **Player 1**, **Player 2**… | The pad each player has in games, up to six, chosen from the pads connected, or Auto ([below](https://github.com/mehmetraif/OSD-OS/wiki/Controls#players)) |
+| **Connected** | Each controller there now, pads first, then keyboards, then remotes: its name, and `GAMEPAD`, `ARCADE` (the JAMMA board's sticks), `KEYBOARD` or `REMOTE`, after `P1`, `P2`… for a pad that plays (`P2+P3` for two of a model). Two of the same pad make one line, `x2`. **◄** marks the one used last, so a button pressed on a controller shows which line is its own (one that does nothing there, such as Y, shows it without moving the cursor) |
+| **Not Connected** | Controllers away that have settings of their own, kept for when they are back. Their pages show them; Reset to Defaults forgets them |
+
+**What a controller is:**
+
+- **A gamepad**, as SDL knows it, the JAMMA board's two sticks among them. Its settings go by its model (SDL's GUID for it: its connection, maker, product and name), so two of the same pad share them, and a pad finds them again whenever it is plugged in or paired. The same pad over USB and over Bluetooth is two.
+- **A keyboard or a remote**, on Linux, by its connection, maker and product: a remote's keyboard, Consumer Control and mouse parts are one line, and so are two of the same keyboard. One with the letters is a keyboard; one with only arrows, OK or media buttons, a remote. On a Mac keyboards aren't listed, and All Keyboards & Remotes is theirs.
+
+### Players
+
+<img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/screenshots/controller-players.png" width="100%" alt="PLAYER 1: WHICH PAD IS PLAYER 1, then AUTO (selected), 8BITDO PRO 2, DUALSENSE WIRELESS CONTROLLER, OSD/OS JAMMA P1, OSD/OS JAMMA P2" />
+
+**Player 1** to **Player 6** say which pad each player has in games: the Arcade module's games to come, and any game or emulator a [script](https://github.com/mehmetraif/OSD-OS/wiki/Scripts#what-a-script-receives) starts. There are lines for two players, and one more for each pad connected beyond two, up to six: the JAMMA board's two sticks and four pads over USB or Bluetooth, as many as MAME's six-player games take. A player whose pad was chosen keeps its line while the pad is away. Select on one lists the pads connected, Auto first; ◄ ► go through the same list in place. Keyboards and remotes aren't players. The menus go on taking every controller, players or not.
+
+- **Auto**, the default, takes the JAMMA board's stick of the player's number (`OSD/OS JAMMA P1` for player 1, `P2` for player 2), else the first pad left, in the order the pads came: players 3 to 6 take the pads after the sticks. The line reads `AUTO (<pad>)`.
+- **A pad chosen** is that player's wherever it is plugged in. While it is away its player has no pad, rather than another's, and the line reads `<pad> (AWAY)`.
+- **One pad, one player.** A model of pad is as many players as there are of it connected: chosen for one more, it is taken from the highest-numbered other, which goes back to Auto. Two of a model chosen by two players give each one of them, the first connected to the lower player.
+- **On the pad.** OSD/OS gives SDL each pad's player number. A pad with player lights (a PlayStation pad's, a Switch Pro Controller's, an Xbox 360 pad's ring, where SDL drives them) shows its player; the pads that don't play are numbered on from 7.
+- **For a game or an emulator.** A script, and so what it starts, finds each player's pad in its environment: `OSDOS_PLAYER1_NAME` (its name), `OSDOS_PLAYER1_GUID` (SDL's GUID for it) and `OSDOS_PLAYER1_DEVICE` (its device node, `/dev/input/event7` on Linux), and the same for players 2 to 6. A player without a pad has none of them.
+- **Saved** in `config.json` as `app.players`: `{ "1": { "key", "name" }, "2": …, "6": … }`, a pad's key (`""` for Auto) and its name, for its line while it is away.
+
+### A controller's own page
+
+<table>
+<tr><th width="50%">A pad's page</th><th width="50%">Waiting for a press</th></tr>
+<tr><td><img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/screenshots/controller-page.png" width="100%" alt="OSD/OS JAMMA P1's page: BUTTON LABELS AUTO (ARCADE), then BUTTONS: UP D-PAD ▲, JOYSTICK ▲; DOWN D-PAD ▼, JOYSTICK ▼; LEFT 5, D-PAD ◄, JOYSTICK ◄; RIGHT 6, D-PAD ►, JOYSTICK ►; SELECT / OK 1; BACK 2, COIN. The hints read [2]:BACK and [1]:SET" /></td><td><img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/screenshots/controller-capture.png" width="100%" alt="NEW BUTTON: PRESS A BUTTON ON OSD/OS JAMMA P1 FOR [SELECT / OK], CANCELS IN 9" /></td></tr>
+<tr><td>The JAMMA board's first stick, its buttons named as the cabinet numbers them. Each action lists every button and stick direction that does it.</td><td>Select on an action waits for a press on that controller, and only that one.</td></tr>
+</table>
+
+| Row | On a pad | On a keyboard or a remote |
+|---|---|---|
+| **Button Labels** | What its buttons are called, here and in the hints: Auto, Xbox, PlayStation, Nintendo or Arcade ([below](https://github.com/mehmetraif/OSD-OS/wiki/Controls#button-labels)). ◄ ► or select go round them | (none) |
+| **Up**, **Down**, **Left**, **Right**, **Select / OK**, **Back**, **Play / Pause** | The buttons and stick directions that do it, by their labels (`D-PAD ▲, L STICK ▲`), or `NONE`. Select, then press a button on the pad: it does this from now on | `DEFAULT`, or `DEFAULT + ` its extra keys. Select, then press a key on it: one more key for the action, on this one only |
+| **Clear a Button** / **Remove a Key** | Select, then press a button: it does nothing from now on (not its only Select / OK or Back) | Select, then press one of its extra keys: it is taken away (not one that does Select / OK or Back) |
+| **Reset to Defaults** | Its buttons as every pad has them, and Auto labels | No extra keys of its own. A controller away has nothing left, and its line goes |
+
+- **Waiting for a press.** The screen says "Press a button on <name> for [Select / OK]", and takes only that controller's presses: every other goes on as usual, and **its Back cancels**. The wait also ends on its own after 10 seconds (`CANCELS IN 9` on a pad, `[ESC]:CANCEL (9)` on a keyboard): a pad can't cancel it itself, as every button of it is one to set. On a keyboard or a remote, whatever does Back on it cancels too, as on All Keyboards & Remotes: Esc, Backspace, a Back key, or a button given Back. A key held on through the wait does nothing until it is let go.
+- **What stays.** A press never leaves a controller without a way through the menus. The help line then says why nothing changed (`A is its only Select / OK button`, `Return is Select / OK already`):
+  - A pad keeps one Select / OK, one Back, one Up and one Down: the last button or stick direction that does one of them can't be set to another action or cleared (`L STICK ▼ is its only Down button`). Give the action another button first.
+  - On a keyboard or a remote, a key that does Select / OK, Up or Down keeps it, and so do the keys the menus use: the arrows, Enter and Space. One of its own extra keys for Select / OK, Back, Up or Down goes only with Reset to Defaults.
+  - A button that does the action already is left as it is.
+- **On a pad**, the button pressed does that action instead of what `input.cfg` or the defaults give it, on this model of pad. The action's other buttons keep doing it: X set to Select leaves A selecting too, until Clear a Button or another action takes A. A stick's direction or a trigger can be set like a button (`L STICK ◄`, `RT`). A pad away shows its buttons, but can't be set until it is back.
+- **On a keyboard or a remote**, a key set here is one more for the action, as All Keyboards & Remotes' are, on this one only: the action's own keys keep working, a text field still types, and of the two, this one's comes first. One of its extra keys pressed for another action moves to it. A remote's Consumer Control buttons can be set here too.
+- **A mouse's buttons** have no page of their own, as a mouse isn't told apart: give them an action under All Keyboards & Remotes.
+
+### Button labels
+
+What a pad's buttons are called, on its page and in the hints at the foot of the screen. The buttons are the same whatever the labels: `a`, the bottom face button, is A on an Xbox pad and B on a Nintendo one.
+
+| Labels | `a` (south) | `b` (east) | `x` (west) | `y` (north) | Shoulders | Triggers | `back` | `start` | `guide` |
+|---|---|---|---|---|---|---|---|---|---|
+| Xbox | A | B | X | Y | LB, RB | LT, RT | BACK | START | GUIDE |
+| PlayStation | X | O | SQ | TR | L1, R1 | L2, R2 | SELECT | START | PS |
+| Nintendo | B | A | Y | X | L, R | ZL, ZR | - | + | HOME |
+| Arcade | 1 | 2 | 3 | 4 | 5, 6 | 7, 8 | COIN | START | MODE |
+
+The d-pad is `D-PAD ▲ ▼ ◄ ►` on all of them, the sticks `L STICK` and `R STICK` with their direction (Arcade's left stick `JOYSTICK`), and the stick buttons `LS`, `RS` (PlayStation's `L3`, `R3`). The font has no ✕ ○ □ △, so PlayStation's are spelled as the hints always have.
+
+**Auto**, the default, names a pad as it says it is: PlayStation's labels on a PlayStation pad, Nintendo's on a Switch pad, Arcade's on the JAMMA board's sticks, Xbox's on any other. A pad that says it is the wrong thing, as many Nintendo-style pads in X-input mode do, gets its right names here. A `label` line in `input.cfg` still wins, on every pad.
+
+### All Keyboards & Remotes: one more key per action
+
+Settings → Controls → **All Keyboards & Remotes** gives each of six actions one more button, from any keyboard, remote or mouse: a remote's OK that sends a key OSD/OS doesn't use, say, or its Home button for Back. The action's own key keeps working beside it, so a bad choice can never lock you out of the menus. To give one keyboard or remote a key of its own, use its own page instead.
 
 | Row | What it does |
 |---|---|
 | **Up**, **Down**, **Left**, **Right**, **Select / OK**, **Back** | Each reads `DEFAULT`, or `DEFAULT + ` the extra button's name. Select opens **New button**: press the button to give that action |
 | **Reset to Defaults** | Takes every extra button away |
 
-- On the **New button** screen ("Press a new button for [Select / OK]"), the next key, remote button or mouse button you press is the action's. Esc, Backspace, or a Back key that arrives as a key, cancel instead (and so does Right Shift, which stands for back), so those can't be chosen; a gamepad's back buttons cancel too.
-- **One button, one action**: a button given to an action is taken off any other.
-- **What can be chosen:** any keyboard key, a remote's Consumer Control buttons (Linux), and a mouse's buttons. **Not** a gamepad's buttons (remap those in [input.cfg](https://github.com/mehmetraif/OSD-OS/wiki/Controls#remapping-a-gamepad-inputcfg)), and **not Play/pause**, which has no row here.
+- On the **New button** screen ("Press a new button for [Select / OK]"), the next key, remote button or mouse button you press is the action's. Whatever does Back cancels instead: Esc, Backspace, a Back key that arrives as a key, the button given Back here or on the remote's own page, and Right Shift, which stands for back; a gamepad's back buttons cancel too. The buttons that do Select / OK, Up or Down, and the keys the menus use (the arrows, Enter and Space), keep what they do, and the help line says so (`Return is Select / OK already`), so that no keyboard or remote loses them. A key held on does nothing until it is let go.
+- **One button, one action**: a button given to an action is taken off any other (but those above, which keep theirs).
+- **What can be chosen:** any keyboard key, a remote's Consumer Control buttons (Linux), and a mouse's buttons. **Not** a gamepad's buttons (those are set on the pad's own page, or in [input.cfg](https://github.com/mehmetraif/OSD-OS/wiki/Controls#remapping-a-gamepad-inputcfg)), and **not Play/pause**, which has no row here (a keyboard's own page has one).
 - An extra *key* doesn't act while a text field has the focus, so typing still types; nor while Netflix, Prime Video or YouTube's sign-in has the screen.
 - A Consumer Control or mouse button given a direction repeats while held, after 0.4 seconds and then every 0.1 seconds, as a held arrow does. The hints at the foot of the screen still name the actions' own keys.
 
@@ -237,25 +307,71 @@ For example, an air mouse remote whose OK is a left click and whose Back button 
 
 The screen saves these as you choose, and OSD/OS takes them up at once. A change made to `config.json` by hand is read as OSD/OS starts: edit it while OSD/OS isn't running ([Configuration files](https://github.com/mehmetraif/OSD-OS/wiki/Configuration-Files)).
 
+### How a controller's settings are saved
+
+In `config.json`, under `app.controllers`, by the controller's key:
+
+| Controller | Its key | Its `bindings` |
+|---|---|---|
+| A gamepad | `pad-` and SDL's GUID for it, in lower case | Its inputs by `input.cfg`'s names (`a`, `dpup`, `leftx-`, `lefttrigger+`), each with an action, or `none` |
+| A keyboard or a remote | `kbd-` and its connection, maker and product in hex: `kbd-0005-046d-b342` is a Bluetooth (`0005`) Logitech (`046d`) K380 (`b342`) | Its extra keys, by the numbers All Keyboards & Remotes saves them as, each with an action |
+
+Beside `bindings`, `labels` (`auto`, `xbox`, `playstation`, `nintendo` or `arcade`), and `name` and `kind`, as it was last seen, for its line while it is away. A controller with nothing of its own isn't written. A pad's key is in the log as it comes: `[input] controller added: Xbox Wireless Controller (pad-…)`.
+
+```json
+{
+  "app": {
+    "controllers": {
+      "pad-0300c9b85e040000ea02000000007801": {
+        "name": "Xbox Wireless Controller",
+        "kind": "gamepad",
+        "labels": "nintendo",
+        "bindings": { "x": "select", "a": "none", "leftshoulder": "play_pause" }
+      },
+      "kbd-0005-046d-b342": {
+        "name": "Logitech K380",
+        "kind": "keyboard",
+        "labels": "auto",
+        "bindings": { "79": "select" }
+      }
+    }
+  }
+}
+```
+
+The pages save these as you choose, and OSD/OS takes them up at once. A change made to `config.json` by hand is read as OSD/OS starts.
+
 | Setting | Values | Default | What it does | Config key |
 |---|---|---|---|---|
-| Controls → Up, Down, Left, Right, Select / OK, Back | DEFAULT, or DEFAULT + a button | DEFAULT | One more button for that action | `app.remote_keymap.up`, `.down`, `.left`, `.right`, `.select`, `.back` |
+| Player 1 to Player 6 | Auto, or a pad connected | Auto | The pad that player has in games | `app.players.1` to `app.players.6`: `{ "key", "name" }` |
+| A pad's Button Labels | Auto, Xbox, PlayStation, Nintendo, Arcade | Auto | What its buttons are called | `app.controllers.<key>.labels` |
+| A controller's Up, Down, Left, Right, Select / OK, Back, Play / Pause | A pad's buttons; a keyboard's DEFAULT + its keys | As every pad, or keyboard, has them | Which of its buttons do the action | `app.controllers.<key>.bindings` |
+| All Keyboards & Remotes → Up, Down, Left, Right, Select / OK, Back | DEFAULT, or DEFAULT + a button | DEFAULT | One more button for that action | `app.remote_keymap.up`, `.down`, `.left`, `.right`, `.select`, `.back` |
+
+### How OSD/OS tells keyboards apart
+
+Qt, which hands OSD/OS its key presses, doesn't say which keyboard a key came from. So on Linux OSD/OS reads each keyboard's and remote's device itself (`/dev/input/event*`), read-only and never grabbed, so that Qt and everything else go on reading it too, and a key Qt reports is the one a device has just sent.
+
+- **It needs the `input` group**, as gamepads do: the OSD/OS image and the autostart service have it. Without it only the gamepads are listed, and All Keyboards & Remotes works as before.
+- **As devices come and go** (a Bluetooth keyboard connecting) the list follows. A device that can't be opened yet, as udev hands it to the `input` group a moment after it appears, is tried again every second for 10 seconds.
+- **Not listed:** a device with gamepad or joystick buttons, which is SDL's, as a gamepad; a mouse; a power button; and the Pi's HDMI-CEC device ([HDMI-CEC](https://github.com/mehmetraif/OSD-OS/wiki/Controls#hdmi-cec)).
+- **The log** names each as it is found: `[input] keyboard: Logitech K380 (/dev/input/event4, kbd-0005-046d-b342)`, `[input] remote: …`, and `[input] Logitech K380 gone (/dev/input/event4)` when it goes.
 
 ## The hints at the foot of the screen
 
 The bar at the foot of every screen names the keys that work there (`[ESC]:BACK [▲▼]:NAVIGATE [◄►]:CHANGE [ENTER]:SELECT`), and follows the last thing you pressed: a key on a keyboard (or a remote that types keys) puts the keyboard's names there, a gamepad button the gamepad's. The arrows keep their arrows on both.
 
-| Hint | Keyboard | Xbox-style pad | Nintendo pad | PlayStation pad |
-|---|---|---|---|---|
-| Back | `[ESC]` | `[B]` | `[A]` | `[O]` |
-| Select | `[ENTER]` | `[A]` | `[B]` | `[X]` |
-| Play/pause | `[SPACE]` | `[START]` | `[START]` | `[START]` |
-| Navigate | `[▲▼]` | `[▲▼]` | `[▲▼]` | `[▲▼]` |
-| The trees' arrows | `[▲▼◄►]` | `[▲▼◄►]` | `[▲▼◄►]` | `[▲▼◄►]` |
-| Change | `[◄►]` | `[◄►]` | `[◄►]` | `[◄►]` |
-| Options or info | `[►]` | `[►]` | `[►]` | `[►]` |
+| Hint | Keyboard | Xbox labels | Nintendo labels | PlayStation labels | Arcade labels |
+|---|---|---|---|---|---|
+| Back | `[ESC]` | `[B]` | `[A]` | `[O]` | `[2]` |
+| Select | `[ENTER]` | `[A]` | `[B]` | `[X]` | `[1]` |
+| Play/pause | `[SPACE]` | `[START]` | `[+]` | `[START]` | `[START]` |
+| Navigate | `[▲▼]` | `[▲▼]` | `[▲▼]` | `[▲▼]` | `[▲▼]` |
+| The trees' arrows | `[▲▼◄►]` | `[▲▼◄►]` | `[▲▼◄►]` | `[▲▼◄►]` | `[▲▼◄►]` |
+| Change | `[◄►]` | `[◄►]` | `[◄►]` | `[◄►]` | `[◄►]` |
+| Options or info | `[►]` | `[►]` | `[►]` | `[►]` | `[►]` |
 
-A gamepad's names come from the pad touched last, by the type it reports, and from `input.cfg`: the hint for an action names the first button bound to it, in SDL's order (`a`, `b`, `x`, `y`, `back`, `guide`, `start`, …: so `x play_pause` makes the play/pause hint `[X]`, but `y back` leaves the back hint `[B]`), and a `label` line renames a button. An action with no gamepad button keeps the keyboard's name. Settings → **Hint Bar** takes the bar away (`app.hint_bar`: `Off`); the keys work as they always do.
+A gamepad's names are those of the pad used last, from its own map: the hint for an action names the first of that pad's buttons that does it, in SDL's order (`a`, `b`, `x`, `y`, `back`, `guide`, `start`, …: so `x play_pause` makes the play/pause hint `[X]`, but `y back` leaves the back hint `[B]`), by the pad's [Button Labels](https://github.com/mehmetraif/OSD-OS/wiki/Controls#button-labels) (Auto: as the pad says it is), and a `label` line in `input.cfg` renames a button on every pad. An action with no gamepad button keeps the keyboard's name. Settings → **Hint Bar** takes the bar away (`app.hint_bar`: `Off`); the keys work as they always do.
 
 ## Bluetooth
 
@@ -326,7 +442,7 @@ bluetoothctl show
 
 ## The mouse
 
-A mouse, or a keyboard's touchpad, shows OSD/OS's own pointer while it moves, drawn in the screen's pixels and colors, and the pointer goes again once the mouse has been still for a few seconds. Moving it also counts as being there: it wakes the screen saver (not with Mouse Pointer Off). The menus still go by keys, though: a click selects nothing. To make a mouse button do something, give it an action in [Settings → Controls](https://github.com/mehmetraif/OSD-OS/wiki/Controls#settings--controls-one-more-button-per-action), where it shows as `MOUSE: LEFT CLICK`, `MOUSE: RIGHT CLICK`, `MOUSE: MIDDLE CLICK`, `MOUSE: BACK` or `MOUSE: FORWARD`. A button given an action works whatever Mouse Pointer is set to, and every press of it is that action and nothing else.
+A mouse, or a keyboard's touchpad, shows OSD/OS's own pointer while it moves, drawn in the screen's pixels and colors, and the pointer goes again once the mouse has been still for a few seconds. Moving it also counts as being there: it wakes the screen saver (not with Mouse Pointer Off). The menus still go by keys, though: a click selects nothing. To make a mouse button do something, give it an action in [Settings → Controls → All Keyboards & Remotes](https://github.com/mehmetraif/OSD-OS/wiki/Controls#all-keyboards--remotes-one-more-key-per-action), where it shows as `MOUSE: LEFT CLICK`, `MOUSE: RIGHT CLICK`, `MOUSE: MIDDLE CLICK`, `MOUSE: BACK` or `MOUSE: FORWARD`. A button given an action works whatever Mouse Pointer is set to, and every press of it is that action and nothing else.
 
 | Setting | Values | Default | What it does | Config key |
 |---|---|---|---|---|

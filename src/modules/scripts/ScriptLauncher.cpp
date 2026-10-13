@@ -2,6 +2,7 @@
 #include "../../audio/MenuMusic.h"
 #include "../../util/DisplayHandoff.h"
 #include "../../audio/AudioOutput.h"
+#include "../../input/ControllerProfile.h"
 #include <QFileInfo>
 #include <QFile>
 #include <QDir>
@@ -253,6 +254,9 @@ bool ScriptLauncher::start(const ScriptEntry &entry, QString *errorOut) {
     // Settings → Audio Output's card, for what plays sound through ALSA (a
     // web player's browser among them).
     AudioOutput::applyTo(env);
+    // Settings → Controls' players, for a game or an emulator it starts:
+    // OSDOS_PLAYER1_NAME, _GUID and _DEVICE, and the same for player 2.
+    controllers::applyPlayersTo(env);
 #ifdef Q_OS_LINUX
     // Strip the wrong-word-size Steam overlay hook the Gaming Mode session hands
     // down, so ld.so's "wrong ELF class ... ignored" warning stops appearing in

@@ -86,7 +86,7 @@ Every line OSD/OS writes starts with the part it comes from, in brackets. Lines 
 [NfcReader] Polling disabled by configuration
 [MpvController] video profile: generic
 [input] SDL game-controller subsystem ready
-[input] no Consumer Control device found, remote's extra buttons (if any) won't be remappable
+[input] keyboard: Logitech K380 (/dev/input/event4, kbd-0005-046d-b342)
 [Bluetooth] No system bus: Failed to connect to socket /run/dbus/system_bus_socket: No such file or directory
 [boot] first frame 166 ms after start
 qml: Routing to: modules/local_files/views/Root.qml
@@ -104,7 +104,7 @@ qml: Routing to: modules/local_files/views/Root.qml
 | `[AudioOutput]` | Settings → Audio Output | `Sound through <card>` at start and at each change |
 | `[MenuMusic]` | The menu music | What it plays, what it makes into a WAV first, and why a file can't play |
 | `[Bluetooth]` | Settings → Bluetooth | No system bus (D-Bus), the pairing agent, an adapter that wouldn't power on |
-| `[input]` | Gamepads and remotes | SDL ready or failed, controllers added and removed, `input.cfg` lines ignored (with their line number) and the bindings applied, `gamecontrollerdb.txt` mappings loaded, a remote's Consumer Control device |
+| `[input]` | Gamepads, keyboards and remotes | SDL ready or failed, controllers added (with their key in `app.controllers`) and removed, `input.cfg` lines ignored (with their line number) and the bindings applied, `gamecontrollerdb.txt` mappings loaded, each keyboard and remote found (Linux) and gone |
 | `[crash]` | A crash (Linux) | The signal it ended by and where it was, as in `crash-report.txt` |
 | `[watchdog]` | Freezes (Linux) | The screens not answering for 5 seconds, the memory, and where the app is stuck; answering again, or the app ending to start again, as in `stall-report.txt` |
 | `[boot]` | The image's boot screen | The first frame's time, each held-back service settling, the boot screen closing |
@@ -395,7 +395,8 @@ A build without Qt Shader Tools says so when CMake configures it: `Qt Shader Too
 | Nothing on screen when started over SSH | The service holds the screen | `sudo systemctl stop osdos` first |
 | macOS: it won't open | A release that isn't notarized | System Settings → Privacy & Security → **Open Anyway**, or `xattr -dr com.apple.quarantine /Applications/osdos.app` |
 | The AppImage: ``version `GLIBC_2.39' not found`` | It is built on Ubuntu 24.04, which sets its glibc floor at 2.39 | A newer distribution (a current Steam Deck, Ubuntu 24.04 and later), or build it on yours ([Building from source](https://github.com/mehmetraif/OSD-OS/wiki/Building-from-Source#the-appimage-and-mpv-038)) |
-| A gamepad does nothing | `[input]` lines: SDL failed, the controller not found, `input.cfg` lines ignored | On Linux the user must be in the `input` group (`sudo usermod -aG input $USER`, then reboot) ([Controls](https://github.com/mehmetraif/OSD-OS/wiki/Controls)) |
+| A gamepad does nothing | `[input]` lines: SDL failed, the controller not found, `input.cfg` lines ignored | On Linux the user must be in the `input` group (`sudo usermod -aG input $USER`, then reboot) ([Controls](https://github.com/mehmetraif/OSD-OS/wiki/Controls)). One button only: its page in Settings → Controls may have cleared it, or given it another action (Reset to Defaults) |
+| A keyboard or remote isn't in Settings → Controls | No `[input] keyboard:` or `[input] remote:` line for it | Linux only, and only with the `input` group, as above. A device with gamepad or joystick buttons (SDL's: listed as a gamepad when SDL has a mapping for it), a mouse and the Pi's HDMI-CEC device aren't listed ([Controls](https://github.com/mehmetraif/OSD-OS/wiki/Controls#how-osdos-tells-keyboards-apart)) |
 
 ## Resetting settings
 

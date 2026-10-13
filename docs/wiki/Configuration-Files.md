@@ -75,7 +75,7 @@ Two Qt variables matter too. OSD/OS sets `QT_QPA_EGLFS_HIDECURSOR=1` for itself 
 | To | Variables |
 |---|---|
 | An mpv process | `APP_ROOT`; on Linux `FONTCONFIG_FILE=/tmp/osdos-fonts.conf`, so mpv's on-screen menu finds the VCR font; on a Linux desktop with `DISPLAY` set, `WAYLAND_DISPLAY` removed, so mpv runs on X11 or Xwayland |
-| A script (the Scripts module), and `web-player.sh` (Netflix, Prime Video, YouTube's sign-in), which runs as a takeover script | `APP_ROOT`, `DATA_ROOT`, `OSDOS_MODE` (`console` or `takeover`), `OSDOS_VT` for a takeover on its own VT, the same two as `MP240_MODE` and `MP240_VT`, and `ALSA_CARD` when Settings → Audio Output names a card |
+| A script (the Scripts module), and `web-player.sh` (Netflix, Prime Video, YouTube's sign-in), which runs as a takeover script | `APP_ROOT`, `DATA_ROOT`, `OSDOS_MODE` (`console` or `takeover`), `OSDOS_VT` for a takeover on its own VT, the same two as `MP240_MODE` and `MP240_VT`, `ALSA_CARD` when Settings → Audio Output names a card, and the players' pads (`OSDOS_PLAYER1_NAME`, `_GUID`, `_DEVICE`, and players 2 to 6's) |
 
 ## What is in it
 
@@ -286,7 +286,9 @@ Every key Settings writes, with the row it belongs to. The values and defaults a
 | `mouse_pointer` | Mouse Pointer | string: `"off"`, `"2"`, `"5"`, `"10"`, `"30"`, `"always"` |
 | `info_screen` | Info Screen | string: `"off"`, `"key"`, `"1"`, `"2"`, `"3"`, `"5"` |
 | `audio_output` | Audio Output | object `{ "card", "name" }` (the card's ALSA id and its name), or `""` for Auto |
-| `remote_keymap` | Controls | object: `up`, `down`, `left`, `right`, `select`, `back`, each a key's number, `0` for none |
+| `remote_keymap` | Controls → All Keyboards & Remotes | object: `up`, `down`, `left`, `right`, `select`, `back`, each a key's number, `0` for none |
+| `players` | Controls → Players | object: `"1"` to `"6"`, each `{ "key", "name" }`, a pad's key (`""` for Auto) and its name |
+| `controllers` | Controls → a controller's page | object: by each controller's key (`pad-<SDL GUID>`, `kbd-<bus>-<vendor>-<product>`), an object of `name`, `kind`, `labels` and `bindings` ([Controls](https://github.com/mehmetraif/OSD-OS/wiki/Controls#how-a-controllers-settings-are-saved)) |
 
 And three that have no row, set by hand:
 
@@ -331,7 +333,7 @@ When each part is read:
 |---|---|
 | The look (Theme and its parts, menu music), OSD Background, Window Frame, Transparent Background's solidity, Loading Effect, Loading Screen Colors, Boot Screen Colors, Hint Bar, Help Line, Mouse Pointer, Screen Saver | At start, then at each change made in Settings |
 | `display_index` | At start |
-| Audio Output, Controls' buttons | At start, then at each change made in Settings |
+| Audio Output, Controls' buttons and button labels | At start, then at each change made in Settings |
 | The modules' folders (Media Directory, Tags Directory, Scripts Directory, Ambient:Mode's) | At start, then at each change made in their settings |
 | Scaling (the app's and the module's), Video Levels, Channel Logo, Logo Image, Screen Saver's script, 1080p Playback, `mpv_video_args`, Transparent Background on or off | As each video starts |
 | Start on Module, Play at Startup, Startup From | As OSD/OS starts |

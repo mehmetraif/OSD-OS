@@ -145,7 +145,7 @@ Once signed in, each opens on the server's Continue Watching and its libraries. 
 <table>
 <tr><th width="50%">Controls</th><th width="50%">Update</th></tr>
 <tr><td><img src="screenshots/controls.png" width="100%" alt="Controls" /></td><td><img src="screenshots/update.png" width="100%" alt="Update" /></td></tr>
-<tr><td>One more button for each action, from any keyboard or remote (a gamepad's buttons go in <code>input.cfg</code>).</td><td>Checks for a newer release and installs it.</td></tr>
+<tr><td>Every controller connected, each with its own buttons and a pad's button labels, the pads of players 1 to 6, and one more button for each action on every keyboard and remote.</td><td>Checks for a newer release and installs it.</td></tr>
 </table>
 
 <table>

@@ -185,6 +185,7 @@ The setting stores the script's file name, not its path, so moving the scripts f
 | **`OSDOS_MODE`** | `console` or `takeover`: how it is really running (`console` for a takeover that couldn't be handed the screen). |
 | **`OSDOS_VT`** | Only when the screen was handed over (a takeover on Linux without a desktop): the number of the virtual console OSD/OS switched to. |
 | **`ALSA_CARD`** | Only when Settings → Audio Output names a sound card: that card, so a program playing through ALSA's default device plays where OSD/OS does. |
+| **`OSDOS_PLAYER1_NAME`, `OSDOS_PLAYER1_GUID`, `OSDOS_PLAYER1_DEVICE`** | Player 1's pad (Settings → Controls → [Players](https://github.com/mehmetraif/OSD-OS/wiki/Controls#players)): its name, SDL's GUID for it, and its device node (`/dev/input/event7` on Linux), for a game or an emulator to give player 1 that pad. `OSDOS_PLAYER2_…` to `OSDOS_PLAYER6_…` the same for players 2 to 6. None for a player without a pad. |
 | **`MP240_MODE`, `MP240_VT`** | The same as `OSDOS_MODE` and `OSDOS_VT`, under 240-MP's names, for scripts written for it. |
 | **Everything else** | The environment OSD/OS itself was started with. On the image that includes `QT_QPA_PLATFORM=eglfs`, which a Qt program started from a script will follow. |
 

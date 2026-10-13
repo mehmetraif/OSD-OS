@@ -516,6 +516,7 @@ FocusScope {
             type: "submenu",
             key: "remap_controls",
             label: "Controls",
+            description: "Every controller connected, each with its own buttons (and a pad's button labels), and extra keys for every keyboard and remote",
             moduleId: ""
         })
         // Pairing a Bluetooth keyboard, gamepad or remote (BlueZ, so Linux).
@@ -795,7 +796,7 @@ FocusScope {
                 if (row.key === "software_update")
                     settingsRoot.navigateTo("views/Update.qml", {}, { currentIndex: settingsList.currentIndex })
                 else if (row.key === "remap_controls")
-                    settingsRoot.navigateTo("views/RemapControls.qml", {}, { currentIndex: settingsList.currentIndex })
+                    settingsRoot.navigateTo("views/Controllers.qml", {}, { currentIndex: settingsList.currentIndex })
                 else if (row.key === "bluetooth")
                     settingsRoot.navigateTo("views/Bluetooth.qml", {}, { currentIndex: settingsList.currentIndex })
                 else if (row.key === "about")
