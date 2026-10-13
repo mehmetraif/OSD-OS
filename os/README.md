@@ -84,10 +84,11 @@ A card with less than 2 GiB to spare past the system gets no film partition, and
 | Composite NTSC / PAL from a Pi 5's GPIO pins | `crt-gpio-ntsc`, `crt-gpio-pal` | | | ✓ |
 | SCART RGB on the GPIO pins, NTSC timing (480i) / PAL timing (576i) | `scart-rgb-ntsc`, `scart-rgb-pal` | | ✓ | ✓ |
 | SCART RGB on the GPIO pins, 240p / 288p | `scart-rgb-240p`, `scart-rgb-288p` | | ✓ | |
+| A JAMMA arcade cabinet through a Raspberry Pi to JAMMA board in RGB-Pi's layout, 240p: its picture, sound and controls | `jamma-240p` | | ✓ | ✓ |
 
 The Pi reads its display settings only as it powers on, so the switch is a restart:
 
-1. Choose an output and **Switch and Restart**. OSD/OS writes that preset over `osdos-display.txt` on the boot partition (as root, through its stop helper `osdos-stop`: no `sudo`) and reboots.
+1. Choose an output, then **Switch and Restart**, **At Next Start** or **Switch and Power Off**. OSD/OS writes that preset over `osdos-display.txt` on the boot partition (as root, through its stop helper `osdos-stop`: no `sudo`), and reboots, or stays on as it is until the next start, or powers off. The last two are for a screen that isn't here yet, as a JAMMA cabinet's.
 2. On the new output it asks **Keep this display output?** first, over the boot screen. **Keep** keeps it. Without an answer within 15 seconds (a screen that shows nothing, a TV that can't show that standard), it goes back to the output before, restarting again, and says so.
 
 From any computer, copy a preset over `osdos-display.txt` on the boot partition (the FAT one, **bootfs**), the way to put a card right that shows nothing. On a Pi 5 a SCART RGB preset also needs its composite sync: the line `options drm_rp1_dpi force_csync=1` in `/etc/modprobe.d/osdos-display.conf` (the setting writes it).
@@ -95,6 +96,7 @@ From any computer, copy a preset over `osdos-display.txt` on the boot partition 
 Only the Pi 4's HDMI and composite have been tested. The other outputs are starting points, there for the keep-or-go-back to fall back on:
 
 - **Pi 4**: one output is on at a time. Its composite turns HDMI off, as Raspberry Pi's firmware does with `enable_tvout=1`, and so does its RGB, whose timing is the firmware's (`dpi_timings`). Should its 480i or 576i not hold, 240p and 288p are progressive (the menus then have half the lines).
+- **JAMMA (Pi 4 and Pi 5)**: a Raspberry Pi to JAMMA board in RGB-Pi's layout (RGB-Pi's JAMMA board, Crown Arcade's) takes the picture in DPI "mode 6", not the VGA666's, so it has a preset of its own. It turns on I2C on GPIO 0 and 1, where `osdos-jamma.service` reads the board's two MCP23017s and plays the cabinet's joysticks and buttons as two gamepads ([Controls](https://github.com/mehmetraif/OSD-OS/wiki/Controls#a-jamma-cabinet)). On a Pi 4 it moves the sound to GPIO 18 and 19, the board's amplifier. On a Pi 5 the DPI is the kernel's, set up as RGUI-Pi has it, on pins that leave GPIO 0 and 1 to I2C (`osdos-jamma-dpi`, an overlay the image compiles); a Pi 5's sound can't reach the amplifier, so it goes through a USB sound card (Settings → Audio Output).
 - **Pi 5**: it may keep HDMI on beside a CRT. The preset names the output OSD/OS and its videos use (`# osdos-output:` in it) and the mode (`# osdos-mode:`), whose lines make composite NTSC (480) or PAL (576): its composite chip takes the standard from them. Its RGB is the kernel's (`vc4-kms-dpi-generic`), 480i and 576i as Raspberry Pi added them in 2025, with the composite sync SCART needs made on GPIO 1. Netflix and Prime Video's browser picks a screen of its own.
 
 #### The cables

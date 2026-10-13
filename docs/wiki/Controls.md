@@ -136,6 +136,54 @@ label east     A              # the hints show what is printed on its buttons
 
 **A pad SDL doesn't know** at all can be taught with the community's [gamecontrollerdb.txt](https://github.com/mdqinc/SDL_GameControllerDB): put the file in the data folder, beside `input.cfg`. It is read as OSD/OS starts, so restart it after adding the file.
 
+## A JAMMA cabinet
+
+On the OSD/OS image, with a Raspberry Pi to JAMMA board in RGB-Pi's layout and the **JAMMA 240p** display output ([Display Output](https://github.com/mehmetraif/OSD-OS/wiki/Display-Output#jamma-a-raspberry-pi-to-jamma-board)), the cabinet's controls are two gamepads, **OSD/OS JAMMA P1** and **OSD/OS JAMMA P2**, on a Pi 4 and a Pi 5 alike:
+
+- **Where they come from.** The board reads the joysticks and buttons through two MCP23017 port expanders on the Pi's I2C bus, player 1's at address 0x20 and player 2's at 0x21. `osdos-jamma.service` (`/opt/osdos/bin/osdos-jamma`) reads both every 2 ms and plays what changes on the two pads.
+- **What they are.** OSD/OS and any emulator take them as any other gamepad: the joystick a stick that is either all the way over or in the middle, as RGB-Pi's own driver has it, the buttons gamepad buttons. MAME takes the stick as its joystick.
+- **Bounce.** A switch's bounce in the 5 ms after it closes or opens is let go by.
+- **Six buttons on the edge.** A cabinet with buttons 4 to 6 on the JAMMA edge, pins 27 and e among them (CHAMMA), needs the board's JP1 and JP2 on CHAMMA ([Display Output → A Raspberry Pi to JAMMA board](https://github.com/mehmetraif/OSD-OS/wiki/Display-Output#a-raspberry-pi-to-jamma-board)).
+
+With the built-in mapping, the same on both expanders: the layout of RGB-Pi's own driver for these boards.
+
+| Pin | Input | In OSD/OS's menus |
+|---|---|---|
+| A0, A1, A2, A3 | Joystick up, down, left, right | Up, Down, Left, Right |
+| A5 | `start` | Play/pause |
+| A6 | `coin` (the pad's Back/Select button) | Back |
+| B7 | Button 1: `a` | Select |
+| B6 | Button 2: `b` | Back |
+| B5, B4 | Buttons 3 and 4: `x`, `y` | Nothing, until `input.cfg` gives them an action |
+| B3, B2 | Buttons 5 and 6: `tl`, `tr` (the shoulders) | Left, Right |
+| B1, B0 | Buttons 7 and 8: `tl2`, `tr2` | Nothing |
+| A4, A7 | `mode`, `z` | Nothing |
+
+**Which of your cabinet's buttons is on which pin** depends on the board and the harness. To see, run the test from Exit to Terminal, or over SSH (the first user may read the I2C bus):
+
+```sh
+/opt/osdos/bin/osdos-jamma --test
+```
+
+It plays nothing, and prints each pin as it changes, with what the mapping makes of it: `P1 0x20 B7 pressed  a`. Ctrl+C ends it. The service goes on reading beside it.
+
+**A button on another pin.** Write `osdos-jamma.txt` on the boot partition, beside `config.txt`. From a computer it is the **bootfs** drive. A line a pin, `<address> <pin> <input>`:
+
+```text
+# osdos-jamma.txt: a Raspberry Pi to JAMMA board's pins, where they differ
+0x20 B7 b       # player 1's first two buttons the other way round
+0x20 B6 a
+0x21 A4 none    # and nothing on player 2's A4
+```
+
+- **The inputs** are `up`, `down`, `left`, `right`, `start`, `coin`, `a`, `b`, `x`, `y`, `tl`, `tr`, `tl2`, `tr2`, `c`, `z`, `mode` and `none`.
+- **Other names:** `b1` to `b6` stand for `a`, `b`, `x`, `y`, `tl`, `tr`; `select` for `coin`; `service` for `mode`.
+- **Two pins on one input** are held while either is.
+- **When it is read:** as the Pi starts, or with `sudo systemctl restart osdos-jamma`.
+- **A line it can't read** is skipped, and named in its log.
+
+**Nothing moves?** `journalctl -u osdos-jamma -b` says what it found: `osdos-jamma: player 1 at 0x20`, or why not: the JAMMA display output isn't in force, or no MCP23017 answers at 0x20 or 0x21. An expander that stops answering has its buttons let go within 50 ms, and is taken up again once it answers. The pads are remapped in `input.cfg` like any other, by SDL's button names.
+
 ## Remotes
 
 - **Remotes that type keys.** Most USB remotes, and the 2.4 GHz ones with a USB dongle, present themselves as a keyboard: their arrows, OK and Back arrive as keys, and work as the keyboard's do. Bluetooth remotes are paired in [Settings → Bluetooth](https://github.com/mehmetraif/OSD-OS/wiki/Controls#bluetooth) and then work the same way. What a button sends depends on the remote: if one does nothing, give it an action in Settings → Controls.

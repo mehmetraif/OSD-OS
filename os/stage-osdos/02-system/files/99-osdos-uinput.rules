@@ -1,0 +1,3 @@
+# OSD/OS image: /dev/uinput for the input group, so osdos-jamma (a JAMMA
+# board's controls) makes its gamepads without being root.
+KERNEL=="uinput", SUBSYSTEM=="misc", GROUP="input", MODE="0660", OPTIONS+="static_node=uinput"

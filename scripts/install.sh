@@ -130,7 +130,12 @@ INSTALL_DIR="/opt/osdos"
 # 3: osdos-stop also writes a display preset on exit 20-29 and reboots, so
 #    Settings offers Display Output (OSD/OS image), and the launcher takes the
 #    output that preset names.
-export OSDOS_LAUNCHER_API=3
+# 4: osdos-stop also writes the JAMMA preset on exit 30, so Display Output
+#    offers it (and the OSD/OS image reads a JAMMA board's controls).
+# 5: osdos-stop also writes a preset and powers off on exit 40-50, and writes
+#    one for the next start while the app runs (osdos-display.socket), so
+#    Display Output offers Switch and Power Off and At Next Start.
+export OSDOS_LAUNCHER_API=5
 
 # ── Apply a staged in-app update ───────────────────────────────────────────────
 # The app downloads the release tarball to DATA_ROOT/updates and writes
@@ -276,7 +281,7 @@ ExecStart=${LAUNCHER}
 Restart=on-failure
 RestartSec=5s
 RestartMode=direct
-SuccessExitStatus=10 12 20 21 22 23 24 25 26 27 28 29 129 130 143
+SuccessExitStatus=10 12 20 21 22 23 24 25 26 27 28 29 30 40 41 42 43 44 45 46 47 48 49 50 129 130 143
 ExecStopPost=+/usr/local/bin/osdos-stop
 StandardOutput=journal
 StandardError=journal
@@ -288,8 +293,9 @@ UNIT
     # ExecStopPost helper: the user's Quit → Power Off (exit 0) powers the Pi off;
     # exit 10 means the user chose "Exit to Terminal", so instead spawn a login
     # shell on tty1 (see views/Settings.qml). Exit 12 is the quit menu's
-    # "Restart": reboot. Exit 20-29 is Settings → Display Output on the OSD/OS
-    # image: a display preset written, then a reboot. SuccessExitStatus= counts
+    # "Restart": reboot. Exit 20-30 is Settings → Display Output on the OSD/OS
+    # image: a display preset written, then a reboot; 40-50 the same, then off
+    # (Switch and Power Off). SuccessExitStatus= counts
     # those as no failure, so Restart=on-failure doesn't start the app again
     # over the shell or on the way down, and OnFailure= stays out of it.
     # Exit 11 is "Apply & Restart" from the in-app updater (views/Update.qml):
@@ -305,39 +311,79 @@ UNIT
     sudo tee /usr/local/bin/osdos-stop > /dev/null << 'STOP_HELPER'
 #!/usr/bin/env bash
 # Called by osdos.service ExecStopPost. systemd sets $EXIT_STATUS to the app's
-# exit code, or to the signal name if a signal killed it.
+# exit code, or to the signal name if a signal killed it. Called with
+# next-start, by osdos-display.socket instead: Display Output's At Next Start.
 
 # Settings → Display Output on the OSD/OS image: the chosen preset (or the one
 # before it, to go back) over osdos-display.txt, which the firmware reads only
 # at power-on. A missing preset changes nothing; the app says so after the
-# reboot. A Pi 5's SCART RGB needs its composite sync on GPIO 1.
+# reboot. The one to go back to is the output this boot started on, which
+# AT_BOOT keeps once a preset has been written for the next start. A Pi 5's
+# SCART RGB needs its composite sync on GPIO 1; a JAMMA board makes its own,
+# and has its I2C on GPIO 1 ("# osdos-sync: separate").
+AT_BOOT=/run/osdos-display-boot.txt
 display_output() {
-    local boot=/boot/firmware src
+    local boot=/boot/firmware src now
     if [ "$1" = previous ]; then
         src="$boot/osdos-display-previous.txt"
     else
         src="$boot/osdos-display-$1.txt"
     fi
     [ -f "$src" ] || return 1
-    [ "$1" = previous ] || cp -f "$boot/osdos-display.txt" "$boot/osdos-display-previous.txt"
+    now="$boot/osdos-display.txt"
+    [ -f "$AT_BOOT" ] && now="$AT_BOOT"
+    [ "$1" = previous ] || cp -f "$now" "$boot/osdos-display-previous.txt"
     cp -f "$src" "$boot/osdos-display.txt.new" && mv -f "$boot/osdos-display.txt.new" "$boot/osdos-display.txt" || return 1
-    if grep -q '^# osdos-output: DPI' "$boot/osdos-display.txt"; then
+    if grep -q '^# osdos-output: DPI' "$boot/osdos-display.txt" \
+            && ! grep -q '^# osdos-sync: separate' "$boot/osdos-display.txt"; then
         echo "options drm_rp1_dpi force_csync=1" > /etc/modprobe.d/osdos-display.conf
     else
         rm -f /etc/modprobe.d/osdos-display.conf
     fi
-    sync
+    # Those two file systems only: a download on the film partition mustn't
+    # hold the answer back.
+    sync -f "$boot/osdos-display.txt" /etc/modprobe.d
 }
 # The app's codes for them (src/display/DisplayOutput.cpp): keep the two in step.
 DISPLAY_PRESETS=(hdmi crt-ntsc crt-pal crt-gpio-ntsc crt-gpio-pal
-                 scart-rgb-ntsc scart-rgb-pal scart-rgb-240p scart-rgb-288p previous)
+                 scart-rgb-ntsc scart-rgb-pal scart-rgb-240p scart-rgb-288p previous
+                 jamma-240p)
+
+# At Next Start: a preset's name on a line from the app, through the socket,
+# and "ok" back, or why not. Written now, for the firmware to read the next
+# time the Pi starts; the output in force is kept in AT_BOOT first, as the one
+# to go back to. Only a name from the list, never echoed. A refusal goes to
+# the journal too; answered, the request hasn't failed, whatever the answer.
+refuse() {
+    echo "$1"
+    echo "osdos-stop next-start: $1" >&2
+}
+next_start() {
+    local id p known=""
+    IFS= read -r -t 5 -n 64 id || [ -n "$id" ] || { refuse "no preset named"; return; }
+    for p in "${DISPLAY_PRESETS[@]}"; do
+        [ "$p" != previous ] && [ "$p" = "$id" ] && known=1
+    done
+    [ -n "$known" ] || { refuse "no such preset"; return; }
+    [ -f "/boot/firmware/osdos-display-$id.txt" ] || { refuse "the preset isn't on the boot partition"; return; }
+    [ -f "$AT_BOOT" ] || cp -f /boot/firmware/osdos-display.txt "$AT_BOOT" \
+        || { refuse "the output in force couldn't be kept"; return; }
+    display_output "$id" || { refuse "the preset couldn't be written"; return; }
+    echo ok
+}
+if [ "${1:-}" = next-start ]; then
+    next_start
+    exit 0
+fi
 
 case "${EXIT_STATUS:-}" in
     0)  systemctl poweroff ;;  # Quit → Power Off, or Ctrl+Q
     10) systemctl start osdos-terminal.service ;;
     11) : ;;  # in-app update restart — Restart=on-failure brings the app back up
     12) systemctl reboot ;;  # the quit menu's Restart
-    2[0-9]) display_output "${DISPLAY_PRESETS[EXIT_STATUS - 20]}"; systemctl reboot ;;
+    2[0-9]|30) display_output "${DISPLAY_PRESETS[EXIT_STATUS - 20]}"; systemctl reboot ;;
+    # The same, then off: on the new output the next time the Pi is switched on.
+    4[0-9]|50) display_output "${DISPLAY_PRESETS[EXIT_STATUS - 40]}"; systemctl poweroff ;;
     # Anything else leaves the Pi on: a stop from outside (129, 130, 143, or the
     # signal itself), and a crash or an error exit, after which systemd starts
     # the app again (Restart=on-failure), or brings up a login prompt.
@@ -345,6 +391,42 @@ case "${EXIT_STATUS:-}" in
 esac
 STOP_HELPER
     sudo chmod +x /usr/local/bin/osdos-stop
+
+    # Display Output's At Next Start, while the app runs: it writes a preset's
+    # name to this socket, which only its user may, and osdos-stop next-start,
+    # as root, writes that preset for the next start and answers.
+    sudo tee /etc/systemd/system/osdos-display.socket > /dev/null << 'DISPLAY_SOCKET'
+[Unit]
+Description=OSD/OS display output for the next start (Settings → Display Output)
+
+[Socket]
+ListenStream=/run/osdos-display.sock
+SocketUser=root
+SocketGroup=@OSDOS_GROUP@
+SocketMode=0660
+Accept=yes
+MaxConnections=1
+
+[Install]
+WantedBy=sockets.target
+DISPLAY_SOCKET
+    sudo sed -i "s/@OSDOS_GROUP@/$(id -gn "${SERVICE_USER}")/" /etc/systemd/system/osdos-display.socket
+    sudo tee /etc/systemd/system/osdos-display@.service > /dev/null << 'DISPLAY_SERVICE'
+[Unit]
+Description=OSD/OS display output for the next start, one request
+# One unit a request: gone once it has run, however it ended.
+CollectMode=inactive-or-failed
+
+[Service]
+ExecStart=/usr/local/bin/osdos-stop next-start
+StandardInput=socket
+StandardOutput=socket
+StandardError=journal
+NoNewPrivileges=yes
+PrivateNetwork=yes
+PrivateTmp=yes
+ProtectHome=yes
+DISPLAY_SERVICE
 
     # On-demand login shell for "Exit to Terminal". Not enabled (no boot race with
     # osdos.service); getty@tty1 stays masked. Started only by osdos-stop, or by
@@ -369,6 +451,7 @@ TERMINAL_UNIT
     sudo systemctl mask getty@tty1.service autovt@.service
     sudo systemctl daemon-reload
     sudo systemctl enable osdos.service
+    sudo systemctl enable --now osdos-display.socket
     echo "Service installed and enabled."
     echo "Start now with: sudo systemctl start osdos"
 fi

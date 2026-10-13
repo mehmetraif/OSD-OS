@@ -279,9 +279,10 @@ At this point you can type `osdos` at any time to start up the app.  And if you 
 1) If you installed the autostart service, stop and remove it first (stopping it from outside leaves the Pi on):
 
     ```bash
-    sudo systemctl disable --now osdos.service
+    sudo systemctl disable --now osdos.service osdos-display.socket
     sudo systemctl unmask getty@tty1.service autovt@.service
     sudo rm -f /etc/systemd/system/osdos.service /etc/systemd/system/osdos-terminal.service /usr/local/bin/osdos-stop
+    sudo rm -f /etc/systemd/system/osdos-display.socket /etc/systemd/system/osdos-display@.service
     sudo systemctl daemon-reload
     ```
 

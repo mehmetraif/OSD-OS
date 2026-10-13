@@ -203,6 +203,14 @@ target_include_directories(osdos PRIVATE
     src
 )
 
+# osdos-jamma: a Raspberry Pi to JAMMA board's controls (two MCP23017s on I2C)
+# as two gamepads, through uinput (src/jamma). Linux only, and no Qt: the OS
+# image runs it as a service of its own, from the app's folder.
+if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+    add_executable(osdos-jamma src/jamma/main.cpp src/jamma/JammaPanel.cpp)
+    set_target_properties(osdos-jamma PROPERTIES AUTOMOC OFF)
+endif()
+
 # ── macOS bundle metadata ──────────────────────────────────────────────────────
 set_target_properties(osdos PROPERTIES
     MACOSX_BUNDLE TRUE
@@ -264,6 +272,11 @@ else()
     install(TARGETS osdos
         RUNTIME DESTINATION "${CMAKE_INSTALL_BINDIR}"
         COMPONENT Runtime)
+    if(TARGET osdos-jamma)
+        install(TARGETS osdos-jamma
+            RUNTIME DESTINATION "${CMAKE_INSTALL_BINDIR}"
+            COMPONENT Runtime)
+    endif()
 
     # LICENSE goes with every copy, as the GPL asks; Settings → About shows it.
     install(FILES "${CMAKE_SOURCE_DIR}/Main.qml" "${CMAKE_SOURCE_DIR}/LICENSE"

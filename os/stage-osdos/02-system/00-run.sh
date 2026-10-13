@@ -1,8 +1,9 @@
 #!/bin/bash -e
 
-# The app's service, its exit-to-terminal shell and stop helper (the last two
-# taken from scripts/install.sh by os/build.sh), and the boot order: the units
-# below hold back until the app is on screen, then start one after another.
+# The app's service, its exit-to-terminal shell, its stop helper and Display
+# Output's next-start socket (all but the service taken from scripts/install.sh
+# by os/build.sh), and the boot order: the units below hold back until the app
+# is on screen, then start one after another.
 
 ETC="${ROOTFS_DIR}/etc"
 LIB="${ROOTFS_DIR}/usr/lib/osdos"
@@ -12,9 +13,19 @@ sed -i "s/@FIRST_USER_NAME@/${FIRST_USER_NAME}/" "${ETC}/systemd/system/osdos.se
 install -m 644 files/osdos-terminal.service "${ETC}/systemd/system/"
 install -m 644 files/osdos-cloud-init-once.service "${ETC}/systemd/system/"
 install -m 755 files/osdos-stop "${ROOTFS_DIR}/usr/local/bin/osdos-stop"
+install -m 644 files/osdos-display.socket files/osdos-display@.service "${ETC}/systemd/system/"
+sed -i "s/@OSDOS_GROUP@/${FIRST_USER_NAME}/" "${ETC}/systemd/system/osdos-display.socket"
 install -m 644 files/99-osdos-tty.rules "${ETC}/udev/rules.d/"
 install -d "${LIB}"
 install -m 755 files/wait-for-app files/wait-for-display "${LIB}/"
+
+# A Raspberry Pi to JAMMA board's controls (osdos-jamma, in the app's folder):
+# its service, which does nothing without the JAMMA display preset, the kernel
+# modules it reads and plays through, and /dev/uinput for the input group, as
+# it doesn't run as root.
+install -m 644 files/osdos-jamma.service "${ETC}/systemd/system/"
+install -D -m 644 files/osdos-jamma-modules.conf "${ETC}/modules-load.d/osdos-jamma.conf"
+install -m 644 files/99-osdos-uinput.rules "${ETC}/udev/rules.d/"
 
 # unit|LABEL, in start order. The boot screen lists them in this order too.
 UNITS=(

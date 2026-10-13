@@ -3,7 +3,7 @@
 # Runs inside the image. Which services run at all: the app, and nothing an
 # appliance plugged into a TV doesn't need.
 
-systemctl enable osdos.service osdos-cloud-init-once.service
+systemctl enable osdos.service osdos-cloud-init-once.service osdos-jamma.service osdos-display.socket
 
 # Built without a password (os/build.sh): the app still runs as this user, but
 # nobody logs in as it. Raspberry Pi Imager's OS customisation creates the

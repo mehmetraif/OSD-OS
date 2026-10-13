@@ -1,0 +1,23 @@
+// OSD/OS image: a Raspberry Pi to JAMMA board in RGB-Pi's layout on a Pi 5.
+// Its DPI is "mode 6" (vc4-kms-dpi-generic's rgb666-padhi) without the pixel
+// clock and data enable, which it doesn't use: GPIO 2-9, 12-17 and 20-25, the
+// Pi 5's own group for it, so GPIO 0 and 1 stay I2C0's, where the board's two
+// MCP23017s (its controls) are. rgb666-padhi takes GPIO 0 and 1 as well: this
+// is loaded after vc4-kms-dpi-generic, and gives the DPI its pins back.
+// Compiled into /boot/firmware/overlays/osdos-jamma-dpi.dtbo as the image is
+// built (03-boot/00-run.sh), loaded by osdos-display-jamma-240p.txt.
+
+/dts-v1/;
+/plugin/;
+
+/ {
+	compatible = "brcm,bcm2712";
+
+	fragment@0 {
+		target = <&dpi>;
+		__overlay__ {
+			pinctrl-names = "default";
+			pinctrl-0 = <&dpi_18bit_cpadhi_gpio2>;
+		};
+	};
+};

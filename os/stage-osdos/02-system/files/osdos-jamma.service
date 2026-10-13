@@ -1,0 +1,28 @@
+[Unit]
+Description=OSD/OS JAMMA controls (a Raspberry Pi to JAMMA board's MCP23017s)
+# The cabinet's joysticks and buttons as two gamepads, "OSD/OS JAMMA P1" and
+# "P2", read from the board's port expanders on I2C0 (GPIO 0 and 1), which
+# only the JAMMA display preset turns on (osdos-display-jamma-240p.txt).
+# Without them osdos-jamma says so and exits 0: at once without the preset,
+# after 15 seconds with it. Started before the app; the app takes the pads
+# whenever they come.
+After=systemd-modules-load.service
+Before=osdos.service
+ConditionPathExists=/opt/osdos/bin/osdos-jamma
+
+[Service]
+Type=simple
+ExecStart=/opt/osdos/bin/osdos-jamma
+Restart=on-failure
+RestartSec=2s
+# Not root: the program is in /opt/osdos, which the app's user owns (for its
+# updates). A user of its own for the run, with the I2C bus (group i2c) and
+# /dev/uinput (group input, 99-osdos-uinput.rules) and nothing else.
+DynamicUser=yes
+SupplementaryGroups=i2c input
+PrivateNetwork=yes
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

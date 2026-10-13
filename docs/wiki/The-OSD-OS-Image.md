@@ -199,6 +199,8 @@ The `[boot]` lines read `boot screen up, watching 4 unit(s)`, `first frame … m
 | `osdos-cloud-init-once.service` | After the first boot, writes `/etc/cloud/cloud-init.disabled`: cloud-init's stages would otherwise delay every boot. Delete that file to have cloud-init run again |
 | `osdos-yt-dlp-update.timer` | Updates yt-dlp two minutes after each boot and once a day ([Updates](https://github.com/mehmetraif/OSD-OS/wiki/The-OSD-OS-Image#updates)) |
 | `osdos-usb-mount@<device>.service` | One per USB drive plugged in ([USB drives](https://github.com/mehmetraif/OSD-OS/wiki/The-OSD-OS-Image#usb-drives)) |
+| `osdos-jamma.service` | Enabled, and does something only with the JAMMA display preset in force: a Raspberry Pi to JAMMA board's joysticks and buttons as two gamepads ([Controls](https://github.com/mehmetraif/OSD-OS/wiki/Controls#a-jamma-cabinet)), as a user of its own (`DynamicUser=yes`) in the `i2c` and `input` groups. Without the preset it exits at once; with it and no board, after 15 seconds |
+| `osdos-display.socket` | Enabled: Settings → Display Output's At Next Start, through `osdos-display@.service` ([At Next Start's socket](https://github.com/mehmetraif/OSD-OS/wiki/The-OSD-OS-Image#at-next-starts-socket)) |
 | `osdos-terminal.service` | Not enabled. Started only by Exit to Terminal |
 | `getty@tty1.service`, `autovt@.service` | Masked: `tty1` belongs to OSD/OS, and no login prompt appears on the console mpv switches to |
 | `apt-daily.timer`, `apt-daily-upgrade.timer`, `man-db.timer`, `e2scrub_all.timer`, `dpkg-db-backup.timer`, `cron.service` | Disabled. They wake the CPU and the SD card at random times, mid-film included. Updating the system is the image's business, not a timer's |
@@ -236,7 +238,7 @@ ExecStart=/usr/local/bin/osdos
 Restart=on-failure
 RestartSec=5s
 RestartMode=direct
-SuccessExitStatus=10 12 20 21 22 23 24 25 26 27 28 29 129 130 143
+SuccessExitStatus=10 12 20 21 22 23 24 25 26 27 28 29 30 40 41 42 43 44 45 46 47 48 49 50 129 130 143
 ExecStopPost=+/usr/local/bin/osdos-stop
 StandardOutput=journal
 StandardError=journal
@@ -249,7 +251,7 @@ WantedBy=multi-user.target
 - **`SupplementaryGroups` and `CAP_SYS_TTY_CONFIG`** let it switch virtual terminals and hand the screen to mpv. A udev rule (`/etc/udev/rules.d/99-osdos-tty.rules`) lets the `tty` group open `/dev/tty0` for that.
 - **`OSDOS_AUTOSTART=1`** tells OSD/OS it runs as the system's own: Quit offers Power Off, Restart and Exit to Terminal, and Settings offers Display Output.
 - **`Restart=on-failure`** starts OSD/OS again five seconds after a crash or an error exit. **`StartLimitBurst=3`** in **`StartLimitIntervalSec=120`** makes the third start in two minutes the last: when that one fails too, the service is failed, and **`OnFailure=`** starts `osdos-terminal.service`, a login prompt on the screen. **`RestartMode=direct`** (systemd 254 or later; the image has 257) keeps the failures before that from bringing the prompt up too: without it, systemd runs `OnFailure=` at every failure, a restart to follow or not. The Pi stays on throughout.
-- **`SuccessExitStatus`** counts Exit to Terminal (10), a restart (12), a display switch (20 to 29) and a stop from outside (129, 130, 143) as no failure, so systemd neither starts OSD/OS again over them nor brings up the login prompt. `osdos-stop` acts on them ([Quitting](https://github.com/mehmetraif/OSD-OS/wiki/The-OSD-OS-Image#quitting-restarting-and-exit-to-terminal)).
+- **`SuccessExitStatus`** counts Exit to Terminal (10), a restart (12), a display switch (20 to 30, and 40 to 50 with a power-off) and a stop from outside (129, 130, 143) as no failure, so systemd neither starts OSD/OS again over them nor brings up the login prompt. `osdos-stop` acts on them ([Quitting](https://github.com/mehmetraif/OSD-OS/wiki/The-OSD-OS-Image#quitting-restarting-and-exit-to-terminal)).
 - **The drop-in** `/etc/systemd/system/osdos.service.d/osdos-media.conf` adds `Environment=OSDOS_MEDIA_DIR=/media/OSD-OS`: Local Files opens the film partition while its Media Directory setting is unset.
 
 ## Nothing between the app and the screen
@@ -457,7 +459,7 @@ Settings → **Quit** on the image asks **Really quit?** with:
 | Choice | Offered | OSD/OS exits with | Then |
 |---|---|---|---|
 | **Power Off** | Always | 0 | The Pi powers off |
-| **Restart** | Launcher API 2 or later (the image's is 3) | 12 | The Pi reboots |
+| **Restart** | Launcher API 2 or later (the image's is 5) | 12 | The Pi reboots |
 | **Exit to Terminal** | Always | 10 | A login shell on the screen (`tty1`); the Pi stays on |
 | **Cancel** | Always | | Back to Settings |
 
@@ -473,7 +475,9 @@ case "${EXIT_STATUS:-}" in
     10) systemctl start osdos-terminal.service ;;
     11) : ;;  # in-app update restart — Restart=on-failure brings the app back up
     12) systemctl reboot ;;  # the quit menu's Restart
-    2[0-9]) display_output "${DISPLAY_PRESETS[EXIT_STATUS - 20]}"; systemctl reboot ;;
+    2[0-9]|30) display_output "${DISPLAY_PRESETS[EXIT_STATUS - 20]}"; systemctl reboot ;;
+    # The same, then off: on the new output the next time the Pi is switched on.
+    4[0-9]|50) display_output "${DISPLAY_PRESETS[EXIT_STATUS - 40]}"; systemctl poweroff ;;
     # Anything else leaves the Pi on: a stop from outside (129, 130, 143, or the
     # signal itself), and a crash or an error exit, after which systemd starts
     # the app again (Restart=on-failure), or brings up a login prompt.
@@ -487,8 +491,9 @@ esac
 | 10 | Quit → Exit to Terminal | `osdos-terminal.service` starts |
 | 11 | Update → Apply & Restart | Nothing: systemd starts OSD/OS again (`Restart=on-failure`) and the launcher applies the update first |
 | 12 | Quit → Restart | Reboot |
-| 20 to 28 | Settings → Display Output | That output's preset written, then a reboot ([Display Output](https://github.com/mehmetraif/OSD-OS/wiki/Display-Output#what-the-switch-writes)) |
+| 20 to 28, 30 | Settings → Display Output | That output's preset written, then a reboot ([Display Output](https://github.com/mehmetraif/OSD-OS/wiki/Display-Output#what-the-switch-writes)) |
 | 29 | A new display output not kept | The previous preset written back, then a reboot |
+| 40 to 48, 50 | Settings → Display Output → Switch and Power Off | That output's preset written, then the Pi powers off |
 | 129, 130, 143, or killed by SIGHUP, SIGINT, SIGTERM or SIGKILL | `systemctl stop`, `systemctl restart`, a shutdown | Nothing: the Pi stays on |
 | anything else: a crash, an error exit such as 1 | | Nothing: systemd starts OSD/OS again five seconds later (`Restart=on-failure`). The third start in two minutes is the last; when it fails too, `osdos-terminal.service` starts (`OnFailure=`) |
 
@@ -503,8 +508,23 @@ The launcher exports `OSDOS_LAUNCHER_API`, and OSD/OS offers only what the launc
 | set at all | The launcher applies staged updates: Settings → Update can install them |
 | 2 or more | `osdos-stop` reboots on exit 12: Quit offers Restart |
 | 3 or more | `osdos-stop` writes a display preset on exits 20 to 29, and the launcher takes the output a preset names: Settings offers Display Output |
+| 4 or more | `osdos-stop` also writes the JAMMA preset on exit 30: Display Output offers JAMMA 240p |
+| 5 or more | `osdos-stop` also powers off after a preset on exits 40 to 50, and writes one for the next start through `osdos-display.socket`: Display Output offers Switch and Power Off and At Next Start |
 
-The image's launcher is level 3, as `install.sh`'s is.
+The image's launcher is level 5, as `install.sh`'s is.
+
+### At Next Start's socket
+
+Settings → Display Output's **At Next Start** writes a preset while OSD/OS runs, as the Pi isn't to restart. `osdos-stop` does it as root, behind a socket ([Display Output → At the next start](https://github.com/mehmetraif/OSD-OS/wiki/Display-Output#at-the-next-start)):
+
+- **`osdos-display.socket`** listens on `/run/osdos-display.sock`, owned by root and OSD/OS's user's group, mode 0660, one connection at a time.
+- **`osdos-display@.service`** runs `osdos-stop next-start` for each request, the socket as its input and output.
+- **`osdos-stop next-start`** reads a preset's name, at most 64 characters, from a list of its own names (not `previous`), and writes that preset. It never repeats the name back. It answers `ok`, or why not, which it also logs; either way the request unit ends cleanly and is unloaded (`CollectMode=inactive-or-failed`).
+- **The output this boot started on** is kept in `/run/osdos-display-boot.txt` from the first request on. A switch made before the next start goes back to that one, not to the one waiting.
+
+```sh
+journalctl -u 'osdos-display@*' -b    # what At Next Start did
+```
 
 ### Exit to Terminal
 
@@ -592,22 +612,28 @@ Then start OSD/OS again ([Exit to Terminal](https://github.com/mehmetraif/OSD-OS
 | Path | What |
 |---|---|
 | `/opt/osdos/bin/osdos` | The app |
+| `/opt/osdos/bin/osdos-jamma` | A JAMMA board's controls as gamepads, run by `osdos-jamma.service` |
 | `/opt/osdos/share/osdos/` | Its QML, modules, assets, mpv scripts and `LICENSE` (the app's `APP_ROOT`) |
 | `/usr/local/bin/osdos` | The launcher: applies a staged update, picks the display, starts the app |
 | `/usr/local/bin/osdos-stop` | The stop helper, run as root when the app ends |
 | `/etc/systemd/system/osdos.service` | The service; its drop-in `osdos.service.d/osdos-media.conf` |
 | `/etc/systemd/system/osdos-terminal.service` | Exit to Terminal's login shell |
+| `/etc/systemd/system/osdos-display.socket`, `osdos-display@.service` | Display Output's At Next Start ([At Next Start's socket](https://github.com/mehmetraif/OSD-OS/wiki/The-OSD-OS-Image#at-next-starts-socket)) |
 | `/etc/systemd/system/osdos-cloud-init-once.service` | Turns cloud-init off after the first boot |
+| `/etc/systemd/system/osdos-jamma.service`, `/etc/modules-load.d/osdos-jamma.conf` | A JAMMA board's controls, and the kernel modules they go through (`i2c-dev`, `uinput`) |
 | `/etc/systemd/system/<unit>.d/osdos-defer.conf` | The held-back services' drop-ins |
 | `/etc/osdos/boot-units` | What the boot screen follows |
 | `/usr/lib/osdos/wait-for-app`, `wait-for-display`, `usb-mount` | The image's helpers |
-| `/etc/udev/rules.d/99-osdos-tty.rules`, `99-osdos-usb-mount.rules` | The `/dev/tty0` and USB drive rules |
+| `/etc/udev/rules.d/99-osdos-tty.rules`, `99-osdos-usb-mount.rules`, `99-osdos-uinput.rules` | The `/dev/tty0` and USB drive rules, and `/dev/uinput` for the `input` group (a JAMMA board's gamepads) |
 | `/run/osdos/ready` | Written at OSD/OS's first frame |
+| `/run/osdos-display.sock`, `/run/osdos-display-boot.txt` | At Next Start's socket, and the display preset this boot started on once one waits for the next start |
 | `/home/pi/.local/share/OSD-OS/` | The data folder: `config.json`, `lists.json`, sign-ins, `bin/yt-dlp`, `updates/` ([Configuration files](https://github.com/mehmetraif/OSD-OS/wiki/Configuration-Files)) |
 | `/media/OSD-OS` | The film partition |
 | `/media/usb/<label>` | USB drives, read-only |
 | `/boot/firmware/config.txt` | The firmware's settings, including `osdos-display.txt` |
 | `/boot/firmware/osdos-display.txt`, `osdos-display-*.txt` | The display output in force, and the presets ([Display Output](https://github.com/mehmetraif/OSD-OS/wiki/Display-Output)) |
+| `/boot/firmware/overlays/osdos-jamma-dpi.dtbo` | A JAMMA board's DPI pins on a Pi 5, without GPIO 0 and 1 ([Display Output](https://github.com/mehmetraif/OSD-OS/wiki/Display-Output#jamma-a-raspberry-pi-to-jamma-board)) |
+| `/boot/firmware/osdos-jamma.txt` | A JAMMA board's pins, should they differ from the built-in mapping: not there unless you write it ([Controls](https://github.com/mehmetraif/OSD-OS/wiki/Controls#a-jamma-cabinet)) |
 | `/boot/firmware/cmdline.txt` | The kernel's command line |
 | `/boot/firmware/network-config`, `user-data`, `meta-data` | cloud-init's first-boot files |
 | `/etc/initramfs-tools/scripts/local-premount/resize_early` | The first boot's card split |
@@ -625,6 +651,8 @@ journalctl -u osdos -f                    # as it happens
 journalctl -u osdos -b | grep '\[boot\]'   # the boot screen's timings
 journalctl -u 'osdos-usb-mount@*'         # USB drives
 journalctl -u osdos-yt-dlp-update         # yt-dlp's updates
+journalctl -u osdos-jamma                 # a JAMMA board's controls
+journalctl -u 'osdos-display@*'           # Display Output's At Next Start
 ```
 
 mpv's messages reach the journal too, as `[mpv]` lines, with every token blanked out. mpv also writes its own, more detailed log to `/tmp/osdos-mpv.log`, of the last video only (mpv empties it as it starts); it is readable only by `pi`, as it can hold a server's token. [Troubleshooting](https://github.com/mehmetraif/OSD-OS/wiki/Troubleshooting) has more, and [How it works → Logs](https://github.com/mehmetraif/OSD-OS/wiki/How-It-Works#logs) the tags each part of OSD/OS logs under.
@@ -694,7 +722,7 @@ All of them come through the environment:
 |---|---|---|
 | `FIRST_USER_PASS` | none | The first user's password. Without one the account is locked ([The user](https://github.com/mehmetraif/OSD-OS/wiki/The-OSD-OS-Image#the-user-its-password-and-sudo)) |
 | `FIRST_USER_NAME` | `pi` | The first user, as which OSD/OS runs |
-| `OSDOS_DISPLAY` | `hdmi` | The display preset the image starts on, by its name: `hdmi`, `crt-ntsc`, `crt-pal`, `crt-gpio-ntsc`, `crt-gpio-pal`, `scart-rgb-ntsc`, `scart-rgb-pal`, `scart-rgb-240p`, `scart-rgb-288p` ([Display Output](https://github.com/mehmetraif/OSD-OS/wiki/Display-Output)) |
+| `OSDOS_DISPLAY` | `hdmi` | The display preset the image starts on, by its name: `hdmi`, `crt-ntsc`, `crt-pal`, `crt-gpio-ntsc`, `crt-gpio-pal`, `scart-rgb-ntsc`, `scart-rgb-pal`, `scart-rgb-240p`, `scart-rgb-288p`, `jamma-240p` ([Display Output](https://github.com/mehmetraif/OSD-OS/wiki/Display-Output)) |
 | `OSDOS_STREAMING` | `1` | `0` leaves out the browser Netflix, Prime Video and YouTube's sign-in open (Chromium, Widevine, cage, wtype), about 400 MB |
 | `OSDOS_YOUTUBE` | `1` | `0` leaves out yt-dlp, Deno and ffmpeg, about 90 MB; the YouTube module then says yt-dlp is missing |
 | `OSDOS_ROOT_SIZE` | `8` | GiB the system keeps of the card; the rest becomes the film partition. A whole number. `0`: no film partition, the system takes the whole card |
@@ -750,8 +778,8 @@ flowchart TD
 |---|---|---|
 | [`00-packages`](https://github.com/mehmetraif/OSD-OS/tree/main/os/stage-osdos/00-packages) | What `install.sh` installs, without recommends and without `qt6-wayland`, plus alsa-utils: Qt 6, SDL2, pcsclite, mpv and libmpv2, and FluidSynth, the TimGM6mb SoundFont and openmpt123 for the menu music | |
 | [`01-app`](https://github.com/mehmetraif/OSD-OS/tree/main/os/stage-osdos/01-app) | The tarball unpacked into `/opt/osdos`, owned by `pi`; the launcher; the NOTICE | |
-| [`02-system`](https://github.com/mehmetraif/OSD-OS/tree/main/os/stage-osdos/02-system) | The service, the terminal, the stop helper, the cloud-init switch, the tty rule, the boot order, the online check's 20 seconds, the Bluetooth unblock, the autologin of a locked user; the `bluetooth` group, the masked getty, the removed timers, cron and Raspberry Pi Connect | |
-| [`03-boot`](https://github.com/mehmetraif/OSD-OS/tree/main/os/stage-osdos/03-boot) | `config.txt`, the display presets and `osdos-display.txt` (from `OSDOS_DISPLAY`), the quiet `cmdline.txt` | |
+| [`02-system`](https://github.com/mehmetraif/OSD-OS/tree/main/os/stage-osdos/02-system) | The service, the terminal, the stop helper and At Next Start's socket, the cloud-init switch, the tty rule, the JAMMA controls' service, modules and uinput rule, the boot order, the online check's 20 seconds, the Bluetooth unblock, the autologin of a locked user; the `bluetooth` group, the masked getty, the removed timers, cron and Raspberry Pi Connect | |
+| [`03-boot`](https://github.com/mehmetraif/OSD-OS/tree/main/os/stage-osdos/03-boot) | `config.txt`, the display presets and `osdos-display.txt` (from `OSDOS_DISPLAY`), the JAMMA preset's Pi 5 overlay (`osdos-jamma-dpi`, compiled with `device-tree-compiler`), the quiet `cmdline.txt` | |
 | [`04-streaming`](https://github.com/mehmetraif/OSD-OS/tree/main/os/stage-osdos/04-streaming) | `chromium`, `rpi-chromium-mods`, `libwidevinecdm0`, `libgl1-mesa-dri`, `fonts-liberation`, `cage`, `wtype` | `OSDOS_STREAMING=0` |
 | [`05-media`](https://github.com/mehmetraif/OSD-OS/tree/main/os/stage-osdos/05-media) | `exfatprogs`, the `resize_early` override and its initramfs hook, `/media/OSD-OS`, its `fstab` line and `OSDOS_MEDIA_DIR` | `OSDOS_ROOT_SIZE=0` |
 | [`06-youtube`](https://github.com/mehmetraif/OSD-OS/tree/main/os/stage-osdos/06-youtube) | Python with pycryptodome, requests and brotli; ffmpeg; yt-dlp's nightly build, checked against its SHA-256 sums; Deno, pinned (today `v2.9.7`) with its checksum and licence; the update timer | `OSDOS_YOUTUBE=0` |

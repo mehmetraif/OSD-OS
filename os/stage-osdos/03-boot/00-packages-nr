@@ -1,0 +1,2 @@
+# The device tree compiler, for the JAMMA preset's Pi 5 overlay (00-run.sh).
+device-tree-compiler
