@@ -237,6 +237,20 @@ void applyPlayersTo(QProcessEnvironment &env) {
         env.insert(variable.first, variable.second);
 }
 
+QStringList playerGuids() {
+    QStringList guids;
+    for (int p = 1; p <= kPlayers; ++p) {
+        const QString name = QStringLiteral("OSDOS_PLAYER%1_GUID").arg(p);
+        QString guid;
+        for (const auto &variable : std::as_const(playerVariables())) {
+            if (variable.first == name)
+                guid = variable.second;
+        }
+        guids << guid;
+    }
+    return guids;
+}
+
 void KeySources::pressed(const QString &device, int code, qint64 ms) {
     while (!m_pending.isEmpty()
            && (ms - m_pending.first().ms > kPressWindowMs || m_pending.size() >= kMaxPending))

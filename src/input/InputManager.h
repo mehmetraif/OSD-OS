@@ -101,6 +101,10 @@ public:
     // Human-readable name for a Qt::Key value (e.g. "Return", "O", "F5"), for
     // the remap screen to show what's currently bound. Used from QML.
     Q_INVOKABLE QString keyDisplayName(int qtKey) const;
+    // What a pad's own labels call one of its buttons, by input.cfg's token
+    // ("back", "start"): "COIN" on a JAMMA stick, "BACK" on an Xbox pad. ""
+    // for a controller that isn't a pad.
+    Q_INVOKABLE QString buttonLabel(const QString &key, const QString &token) const;
 
     // Remap-capture mode, held on by the remap screen while its "press a
     // button" overlay is up. While active, remap delivery is suspended and

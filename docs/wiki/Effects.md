@@ -220,7 +220,7 @@ A video is always shown as it is. The effects and the menu music **rest** while:
 | What | When |
 |---|---|
 | A video plays inside OSD/OS's window | With Settings → Transparent Background, full screen or behind the menus |
-| Another program has the screen | On a Pi without a desktop: mpv playing a video, a takeover script, a web player |
+| Another program has the screen | On a Pi without a desktop: mpv playing a video, a takeover script, an Arcade game in MAME, a web player |
 | A video is loading | The loading screen, the tape winding in |
 | A video's menu is open | The menu that back opens over a Local Files, YouTube or Playlists video with Transparent Background ([Using OSD/OS](https://github.com/mehmetraif/OSD-OS/wiki/Using-OSD-OS)) |
 | A module shows a video's screen | A player's (also while mpv plays in a window of its own, over OSD/OS's), a card's, Netflix's and Prime Video's launch screen, a script's console or takeover, YouTube's sign-in |

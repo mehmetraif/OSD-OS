@@ -24,6 +24,7 @@
 #include "modules/weather/WeatherBackend.h"
 #include "modules/scripts/ScriptsBackend.h"
 #include "modules/web_player/WebPlayerBackend.h"
+#include "modules/arcade/ArcadeBackend.h"
 #include "modules/playlists/PlaylistsBackend.h"
 #include "player/MpvController.h"
 #include "player/VideoSurface.h"
@@ -207,6 +208,8 @@ int main(int argc, char *argv[]) {
     YouTubeBackend      youtubeBackend(appRoot, dataRoot, &appCore, &displayHandoff);
     WeatherBackend      weatherBackend(appRoot, dataRoot);
     ScriptsBackend      scriptsBackend(appRoot, dataRoot, &displayHandoff);
+    // The games in MAME, which takes the screen as a script does.
+    ArcadeBackend       arcadeBackend(appRoot, dataRoot, &appCore, &displayHandoff);
     // The streaming services opened as their own web players. TMDB's
     // provider ids are fallbacks for when its name lookup misses; the
     // Wikidata properties hold each service's id for a title.
@@ -272,6 +275,7 @@ int main(int argc, char *argv[]) {
     appCore.registerModule("com.osdos.netflix",      "netflixBackend",     &netflixBackend, ctx);
     appCore.registerModule("com.osdos.prime_video",  "primeVideoBackend",  &primeVideoBackend, ctx);
     appCore.registerModule("com.osdos.playlists",    "playlistsBackend",   &playlistsBackend, ctx);
+    appCore.registerModule("com.osdos.arcade",       "arcadeBackend",      &arcadeBackend, ctx);
 
     ctx->setContextProperty("idleTracker",   &idleTracker);
     ctx->setContextProperty("appCore",       &appCore);

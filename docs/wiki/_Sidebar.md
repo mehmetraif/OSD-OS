@@ -23,6 +23,7 @@
 - [Playlists](https://github.com/mehmetraif/OSD-OS/wiki/Playlists)
 - [NFC Reader](https://github.com/mehmetraif/OSD-OS/wiki/NFC-Reader)
 - [Weather](https://github.com/mehmetraif/OSD-OS/wiki/Weather)
+- [Arcade](https://github.com/mehmetraif/OSD-OS/wiki/Arcade)
 - [Scripts](https://github.com/mehmetraif/OSD-OS/wiki/Scripts)
 - [Ambient:Mode](https://github.com/mehmetraif/OSD-OS/wiki/Ambient-Mode)
 

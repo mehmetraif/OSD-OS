@@ -21,6 +21,7 @@ Everything OSD/OS plays comes in through a module, like the inputs on a VHS deck
 | [Netflix and Prime Video](https://github.com/mehmetraif/OSD-OS/wiki/Netflix-and-Prime-Video) | The service's catalogue in your country, from TMDB; a title plays in the service's own player | No | A TMDB API key; Chromium with Widevine, cage and wtype (the OSD/OS image has them) |
 | [NFC Reader](https://github.com/mehmetraif/OSD-OS/wiki/NFC-Reader) | The video an NFC card stands for, the moment it touches the reader | No | A PN532 USB reader, or a PC/SC reader with pcscd. On Linux, `setup-nfc-reader.sh` gives OSD/OS access to it; the image doesn't run it for you |
 | [Weather](https://github.com/mehmetraif/OSD-OS/wiki/Weather) | The weather, the way a 90s cable channel showed it | No | The network (Open-Meteo, and NWS in the US) |
+| [Arcade](https://github.com/mehmetraif/OSD-OS/wiki/Arcade) | Arcade games in MAME, from a folder of ROM sets, listed by players, decade and maker | No | MAME (the OSD/OS image has it) and MAME's ROM sets |
 | [Scripts](https://github.com/mehmetraif/OSD-OS/wiki/Scripts) | Your own shell scripts: anything else on the machine | No | Nothing more |
 | [Ambient:Mode](https://github.com/mehmetraif/OSD-OS/wiki/Ambient-Mode) | A video on a loop, a fireplace or an aquarium, with music of your choice | No | Nothing more |
 
@@ -54,12 +55,13 @@ The rest of that screen is the module's own settings: each module's page lists t
 | Prime Video | `com.osdos.prime_video` | [modules/prime_video](https://github.com/mehmetraif/OSD-OS/tree/main/modules/prime_video) |
 | NFC Reader | `com.osdos.nfc_reader` | [modules/nfc_reader](https://github.com/mehmetraif/OSD-OS/tree/main/modules/nfc_reader) |
 | Weather | `com.osdos.weather` | [modules/weather](https://github.com/mehmetraif/OSD-OS/tree/main/modules/weather) |
+| Arcade | `com.osdos.arcade` | [modules/arcade](https://github.com/mehmetraif/OSD-OS/tree/main/modules/arcade) |
 | Scripts | `com.osdos.scripts` | [modules/scripts](https://github.com/mehmetraif/OSD-OS/tree/main/modules/scripts) |
 | Ambient:Mode | `com.osdos.ambient_mode` | [modules/ambient_mode](https://github.com/mehmetraif/OSD-OS/tree/main/modules/ambient_mode) |
 
 ## What the modules share
 
-- **One way to browse.** Local Files, YouTube, Netflix and Prime Video open as the same horizontal tree, starting with Recently Watched, Favorites and Search. [Using OSD/OS](https://github.com/mehmetraif/OSD-OS/wiki/Using-OSD-OS) shows it.
+- **One way to browse.** Local Files, YouTube, Netflix, Prime Video and Arcade open as the same horizontal tree, starting with Recently Watched (Recently Played in Arcade), Favorites and Search. [Using OSD/OS](https://github.com/mehmetraif/OSD-OS/wiki/Using-OSD-OS) shows it.
 - **Options with ►** on an entry: Add to Favorites, Play at Startup, Add to Playlist, where the module has them.
 - **One player.** Every video but Netflix's and Prime Video's plays through mpv, with the tape loading screen while it starts; a Local Files, YouTube or Playlists video has a menu of its own on back. [Playback and mpv](https://github.com/mehmetraif/OSD-OS/wiki/Playback-and-mpv) covers it.
 - **Scaling** for 16:9 pictures on a 4:3 screen, set for every module in Settings, or for one in its own settings.

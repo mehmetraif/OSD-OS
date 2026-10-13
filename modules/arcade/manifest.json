@@ -1,0 +1,43 @@
+{
+  "id": "com.osdos.arcade",
+  "name": "Arcade",
+  "icon": "assets/images/logo.svg",
+  "entry_point_qml": "views/Root.qml",
+  "settings": [
+    {
+      "key": "enabled",
+      "label": "ENABLED",
+      "type": "toggle",
+      "default": "OFF"
+    },
+    {
+      "key": "games_directory",
+      "label": "Games Folder",
+      "type": "directory_browser",
+      "default": "",
+      "description": "The folder of MAME's ROM sets (a zip each, BIOS sets beside them)\n[DEFAULT] Games/Arcade in Local Files' default folder: on the OSD/OS image, on the card's OSD-OS partition"
+    },
+    {
+      "key": "high_scores",
+      "label": "High Scores",
+      "type": "toggle",
+      "default": "ON",
+      "description": "Keep each game's high score table, as MAME's hiscore plugin does\nFor the games that forget it when they are switched off"
+    },
+    {
+      "key": "video",
+      "label": "Video",
+      "type": "list_single",
+      "options": ["Auto", "OpenGL", "BGFX", "Accelerated", "Software"],
+      "default": "Auto",
+      "description": "How MAME draws the game\n[AUTO] As MAME's own settings say\nTry another when a game shows no picture"
+    },
+    {
+      "key": "rescan",
+      "label": "Read the Games Again",
+      "type": "action",
+      "action_slot": "rescan",
+      "description": "Ask MAME about every game in the folder again"
+    }
+  ]
+}

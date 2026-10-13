@@ -156,6 +156,7 @@ void ScriptLauncher::resetForNewRun() {
     m_stopRequested = false;
     m_finished      = false;
     m_lastExitCode  = 0;
+    m_lastCrashed   = false;
     m_pendingReason.clear();
     m_takeoverRun  = false;
     m_waitForGroup  = true;
@@ -229,7 +230,9 @@ bool ScriptLauncher::start(const ScriptEntry &entry, QString *errorOut) {
 
     delete m_process;
     m_process = new QProcess(this);
-    m_process->setWorkingDirectory(fi.absolutePath());   // scripts assume their own dir
+    // Scripts assume their own dir.
+    m_process->setWorkingDirectory(entry.workingDirectory.isEmpty() ? fi.absolutePath()
+                                                                    : entry.workingDirectory);
 
     // Only a child that will be handed a controlling terminal gets
     // ForwardedChannels: in forwarded mode Qt performs no dup2 on 0/1/2 at all,
@@ -254,8 +257,15 @@ bool ScriptLauncher::start(const ScriptEntry &entry, QString *errorOut) {
     // Settings → Audio Output's card, for what plays sound through ALSA (a
     // web player's browser among them).
     AudioOutput::applyTo(env);
+    // On a Pi 5 the launcher names the card of the output in use (as it does
+    // for mpv): an SDL program (MAME) opens that card, not the first one with
+    // a screen plugged in, which may be HDMI's beside a CRT.
+    static const QRegularExpression card(QStringLiteral("^/dev/dri/card(\\d+)$"));
+    const QRegularExpressionMatch drm = card.match(env.value(QStringLiteral("OSDOS_DRM_DEVICE")));
+    if (drm.hasMatch() && !env.contains(QStringLiteral("SDL_KMSDRM_DEVICE_INDEX")))
+        env.insert(QStringLiteral("SDL_KMSDRM_DEVICE_INDEX"), drm.captured(1));
     // Settings → Controls' players, for a game or an emulator it starts:
-    // OSDOS_PLAYER1_NAME, _GUID and _DEVICE, and the same for player 2.
+    // OSDOS_PLAYER1_NAME, _GUID and _DEVICE, and the same for players 2 to 6.
     controllers::applyPlayersTo(env);
 #ifdef Q_OS_LINUX
     // Strip the wrong-word-size Steam overlay hook the Gaming Mode session hands
@@ -329,9 +339,10 @@ bool ScriptLauncher::start(const ScriptEntry &entry, QString *errorOut) {
         emit runningChanged();
     });
 
-    const QStringList extra = entry.meta.args.trimmed().isEmpty()
-                                ? QStringList()
-                                : QProcess::splitCommand(entry.meta.args);
+    const QStringList extra = (entry.meta.args.trimmed().isEmpty()
+                                   ? QStringList()
+                                   : QProcess::splitCommand(entry.meta.args))
+                              + entry.argv;
 
     // The menu music stops first: what runs may play sound of its own.
     MenuMusic::hold(musicHolder());
@@ -452,6 +463,7 @@ QString ScriptLauncher::outputText() const {
 }
 
 void ScriptLauncher::onProcessFinished(int exitCode, QProcess::ExitStatus status) {
+    m_lastCrashed = status == QProcess::CrashExit;
     QString reason;
     if (m_stopRequested)                          reason = QStringLiteral("stopped");
     else if (status == QProcess::CrashExit)        reason = QStringLiteral("failed");

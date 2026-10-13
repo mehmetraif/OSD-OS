@@ -107,6 +107,27 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
     set_tests_properties(display_output_pi5 PROPERTIES
         ENVIRONMENT "OSDOS_BOARD_MODEL=Raspberry Pi 5 Model B Rev 1.0")
 
+    # The Arcade module against a stand-in for MAME (a shell script): what
+    # MAME says of the games folder's sets and the tree made of it, a game
+    # started with the players' controllers and a way out, and how one that
+    # didn't play ended.
+    add_executable(arcade_test
+        arcade_test.cpp
+        ../src/modules/arcade/ArcadeBackend.cpp
+        ../src/modules/arcade/Mame.cpp
+        ../src/modules/scripts/ScriptLauncher.cpp
+        ../src/input/ControllerProfile.cpp
+        ../src/audio/AudioOutput.cpp
+        ../src/audio/MenuMusic.cpp
+        ../src/util/DisplayHandoff.cpp
+        ../src/util/MpvLocator.cpp
+        ../src/AppCore.cpp
+        ../src/util/LegacyNames.cpp)
+    target_include_directories(arcade_test PRIVATE ../src ${Libdrm_INCLUDE_DIRS})
+    target_link_libraries(arcade_test PRIVATE
+        Qt6::Core Qt6::Network Qt6::Qml Qt6::Test ${Libdrm_LIBRARIES})
+    add_test(NAME arcade COMMAND arcade_test)
+
     # A Raspberry Pi to JAMMA board's pins as gamepad events (osdos-jamma).
     # Linux only, as uinput's codes are.
     add_executable(jamma_test jamma_test.cpp ../src/jamma/JammaPanel.cpp)
@@ -138,6 +159,11 @@ set_tests_properties(tree_browser PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscr
 add_test(NAME controls_views COMMAND tree_browser_test -input ${CMAKE_CURRENT_SOURCE_DIR}/qml/tst_controllers.qml
                                      -import ${CMAKE_CURRENT_SOURCE_DIR}/../views)
 set_tests_properties(controls_views PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen;QT_QUICK_BACKEND=software")
+# The Arcade module's views (modules/arcade/views/Games.qml, Play.qml) against
+# a stand-in for ArcadeBackend.
+add_test(NAME arcade_views COMMAND tree_browser_test -input ${CMAKE_CURRENT_SOURCE_DIR}/qml/tst_arcade.qml
+                                   -import ${CMAKE_CURRENT_SOURCE_DIR}/../views)
+set_tests_properties(arcade_views PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen;QT_QUICK_BACKEND=software")
 
 # Settings → Controls, each controller apart: the labels, the profiles and
 # whose a key is (ControllerProfile), and InputManager with pads SDL makes up

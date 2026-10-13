@@ -22,6 +22,8 @@
 #   OSDOS_YOUTUBE     1 (default) or 0: the YouTube module's yt-dlp (its
 #                     latest nightly build, which then updates itself) and
 #                     Deno, the JavaScript runtime it needs, about 90 MB
+#   OSDOS_ARCADE      1 (default) or 0: MAME, which the Arcade module plays
+#                     arcade games in, about 450 MB
 #   OSDOS_ROOT_SIZE   GiB the system keeps of the card, 8 by default; the rest
 #                     becomes the exFAT film partition on the first boot. 0: no
 #                     film partition, the system takes the whole card
@@ -93,6 +95,11 @@ fi
 # missing.
 if [ "${OSDOS_YOUTUBE:-1}" = "0" ]; then
     touch "${STAGE}/06-youtube/SKIP"
+fi
+# MAME for the Arcade module; with OSDOS_ARCADE=0 the module says it is
+# missing.
+if [ "${OSDOS_ARCADE:-1}" = "0" ]; then
+    touch "${STAGE}/08-arcade/SKIP"
 fi
 # The film partition, unless OSDOS_ROOT_SIZE=0 leaves the card to the system.
 case "${OSDOS_ROOT_SIZE:-8}" in

@@ -70,6 +70,9 @@ QString actionLabel(const QString &action);
 constexpr int kPlayers = 6;
 void setPlayerEnvironment(const QList<QPair<QString, QString>> &variables);
 void applyPlayersTo(QProcessEnvironment &env);
+// Each player's controller's SDL GUID, players 1 to kPlayers in order, "" for
+// one without: what the Arcade module tells MAME (its mapdevice lines).
+QStringList playerGuids();
 
 // Which keyboard or remote a key came from. Qt doesn't say; the nodes, read
 // beside it, do: each press noted as it comes, then taken by the key event

@@ -419,7 +419,7 @@ It is written for any preset with `# osdos-output: DPI` in it (the two SCART RGB
 
 ### JAMMA: a Raspberry Pi to JAMMA board
 
-A Raspberry Pi to JAMMA board puts the Pi in an arcade cabinet. Its picture goes to the cabinet's monitor at 15 kHz, its sound to the cabinet's speaker through an amplifier of the board's own, and the cabinet's joysticks and buttons come back to the Pi. **JAMMA 240p** is for the boards in RGB-Pi's layout: RGB-Pi's own JAMMA board, and Crown Arcade's "Raspberry Pi TO JAMMA". Their DPI is in the "mode 6" layout, not the VGA666's, so the SCART presets would show them the wrong colours.
+A Raspberry Pi to JAMMA board puts the Pi in an arcade cabinet. Its picture goes to the cabinet's monitor at 15 kHz, its sound to the cabinet's speaker through an amplifier of the board's own, and the cabinet's joysticks and buttons come back to the Pi. **JAMMA 240p** is for the boards in RGB-Pi's layout: RGB-Pi's own JAMMA board, and Crown Arcade's "Raspberry Pi TO JAMMA". Their DPI is in the "mode 6" layout, not the VGA666's, so the SCART presets would show them the wrong colours. The [Arcade](https://github.com/mehmetraif/OSD-OS/wiki/Arcade) module plays the cabinet's games in MAME, on this output and with the cabinet's controls as players 1 and 2.
 
 It has a part for the Pi 4 and one for the Pi 5. Crown Arcade names the Pi 3 B+ and the Pi 4 for its board, not the Pi 5. The Pi 5's part sets the board up as [RGUI-Pi](https://github.com/forkymcforkface/RGUI-Pi) does on a Pi 5: the same pins, colours and syncs. A Pi 5 can't send its sound to the board's amplifier, so there it goes through a USB sound card.
 

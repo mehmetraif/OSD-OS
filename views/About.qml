@@ -51,7 +51,7 @@ FocusScope {
                        + " • GNU Unifont by Roman Czyborra, Paul Hardy and others, under the SIL Open Font License 1.1" },
         { key: "built", label: "Built With", value: "Qt, SDL2, mpv",
           description: "Qt 6 (LGPL v3) • SDL2 (zlib) • mpv and libmpv (GPL v2+)"
-                       + " • On the OSD/OS image: yt-dlp (Unlicense), Deno (MIT), FFmpeg (LGPL/GPL), Chromium (BSD)" },
+                       + " • On the OSD/OS image: yt-dlp (Unlicense), Deno (MIT), FFmpeg (LGPL/GPL), Chromium (BSD), MAME (GPL v2+)" },
         { key: "system", label: "Image OS", value: "Raspberry Pi OS",
           description: "The OSD/OS image is Raspberry Pi OS Lite (64-bit), which is based on Debian 13 (trixie),"
                        + " built with Raspberry Pi's pi-gen, and OSD/OS on top • Each package keeps its own license:"

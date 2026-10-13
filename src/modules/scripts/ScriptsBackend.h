@@ -1,6 +1,7 @@
 #pragma once
 #include <QObject>
 #include <QString>
+#include <QStringList>
 #include <QVariantList>
 #include <QList>
 
@@ -25,6 +26,11 @@ struct ScriptEntry {
     QString    path;      // absolute path to the .sh
     QString    basename;  // "foo.sh" — the stable key stored in settings
     ScriptMeta meta;
+    // For a program a module starts rather than a user's script (the Arcade
+    // module's MAME): arguments passed as they are, after meta.args, and the
+    // folder it runs in ("" for the one it is in).
+    QStringList argv;
+    QString     workingDirectory;
 };
 
 class ScriptLauncher;

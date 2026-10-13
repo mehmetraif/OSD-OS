@@ -59,14 +59,14 @@ flowchart TD
     A --> V["A video's mpv<br/>--audio-device=alsa/default:CARD=id"]
     A --> M["The menu music<br/>starts again on the new card"]
     A --> W["Weather's and Ambient:Mode's music<br/>--audio-device as they start"]
-    A --> X["Scripts, and the browser of Netflix,<br/>Prime Video and YouTube's sign-in<br/>ALSA_CARD=id in their environment"]
+    A --> X["Scripts, MAME's games, and the browser of<br/>Netflix, Prime Video and YouTube's sign-in<br/>ALSA_CARD=id in their environment"]
     A --> B["A video playing behind the menus<br/>moves to the new card at once"]
 ```
 
 - **A video** is played by mpv started with `--audio-device=alsa/default:CARD=<id>`. That is ALSA's `default` device on that card: the card's own where ALSA has one (a USB card's mixes what plays at once; the Pi's HDMI under full KMS wants its samples framed as IEC958, which this does), else the card's first device, converting.
 - **The menu music** stops and starts again, after a moment, on the new card. Since Settings is a menu, you hear the change straight away when menu music is on.
 - **Weather's music and Ambient:Mode's music** play through the card chosen when they start.
-- **Anything else OSD/OS starts** (a script, Chromium for Netflix, Prime Video or YouTube's sign-in) gets `ALSA_CARD=<id>` in its environment, which ALSA's `default` device follows.
+- **Anything else OSD/OS starts** (a script, MAME for an Arcade game, Chromium for Netflix, Prime Video or YouTube's sign-in) gets `ALSA_CARD=<id>` in its environment, which ALSA's `default` device follows.
 - **A video playing behind the menus** (Transparent Background) moves to the new card as it plays: OSD/OS sets mpv's `audio-device` property, `auto` for Auto. An mpv process can't be playing while Settings is up; the next one starts with the card.
 - **OSD/OS's own environment isn't touched.** Each player is told; nothing else changes.
 

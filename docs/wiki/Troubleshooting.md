@@ -99,7 +99,7 @@ qml: Routing to: modules/local_files/views/Root.qml
 | `[MpvController]` | Playback | The video profile chosen at start (`video profile: Pi 4 — drm + drm-copy,v4l2m2m-copy`), the memory as each video starts (`memory as a video starts: app 251 MB, available 1203 of 1848 MB, swap 0 of 100 MB in use`), `mpv not found`, mpv's exit code when it isn't 0, `WATCHDOG: no IPC time-pos event for N s — possible freeze`, the connection to a playing mpv lost and made again, the screen held by something else, a logo picture it couldn't read |
 | `[mpv]` | mpv's own output | Why a file won't open, an option it refuses |
 | `[EmbeddedMpv]` | Transparent Background (libmpv inside the window) | Whether libmpv was found (`using libmpv.so.2`, or `libmpv not found: Transparent Background is unavailable`), where the pictures are drawn (`pictures drawn on the GPU: <renderer>`, or by mpv's software renderer), an option this libmpv doesn't know, a GPU that can't take the decoder's frames |
-| `[DisplayHandoff]` | A Pi without a desktop handing its screen to mpv, a takeover script or a web player, and taking it back (VTs, DRM) | A VT that couldn't be switched, DRM master or the CRTC that couldn't be saved or restored: the lines behind a black screen after a video |
+| `[DisplayHandoff]` | A Pi without a desktop handing its screen to mpv, a takeover script, MAME or a web player, and taking it back (VTs, DRM) | A VT that couldn't be switched, DRM master or the CRTC that couldn't be saved or restored: the lines behind a black screen after a video |
 | `[DisplayOutput]` | Settings → Display Output | The switch asked for, and an output not kept |
 | `[AudioOutput]` | Settings → Audio Output | `Sound through <card>` at start and at each change |
 | `[MenuMusic]` | The menu music | What it plays, what it makes into a WAV first, and why a file can't play |
@@ -112,6 +112,7 @@ qml: Routing to: modules/local_files/views/Root.qml
 | `[AtomicFile]` | Saving state | `Could not write <path>: <reason>`: a file left as it was, never half written |
 | `[LocalFiles]` | Local Files | A folder not found, USB drives in and out |
 | `[Scripts]` | Scripts | Each run, how it ended and its exit code, sidecar lines it couldn't read, a takeover run in console mode |
+| `[Arcade]` | Arcade | The games folder (`games folder: /media/OSD-OS/Games/Arcade`), the sets MAME is asked about (`Asking MAME about 18 games`), MAME changed or unable to list them, a game that didn't play and why (`mslug: Missing sp-s2.sp1, …`), MAME's hiscore plugin not found. MAME runs through the Scripts module's launcher, so its runs and their ends are `[Scripts]` lines (`'mame' finished: failed (exit 2)`) |
 | `[NfcReader]` | NFC Reader | Readers found and lost, polling started or disabled, tag files skipped or created |
 | `[Weather]` | Weather | The place it resolved, forecasts fetched or not, the US stations it reads, its music |
 | `[AmbientMode]` | Ambient:Mode | mpv not found for its music |
@@ -125,7 +126,7 @@ qml: Routing to: modules/local_files/views/Root.qml
 
 ## A module is missing from the main menu
 
-Most modules come switched off. Only Local Files and Playlists are on at first; Ambient:Mode, Emby, Jellyfin, Netflix, NFC Reader, Plex, Prime Video, Scripts, Weather and YouTube each have an **Enabled** setting that starts at Off. Turn it on in Settings → *the module's name* → Enabled, and the module joins the main menu. With every module off, the main menu says **No modules enabled**.
+Most modules come switched off. Only Local Files and Playlists are on at first; Ambient:Mode, Arcade, Emby, Jellyfin, Netflix, NFC Reader, Plex, Prime Video, Scripts, Weather and YouTube each have an **Enabled** setting that starts at Off. Turn it on in Settings → *the module's name* → Enabled, and the module joins the main menu. With every module off, the main menu says **No modules enabled**.
 
 ## Black screen or no picture
 
@@ -238,6 +239,23 @@ More in [Netflix and Prime Video](https://github.com/mehmetraif/OSD-OS/wiki/Netf
 | **Not Allowed** on an offline playlist's video | The Jellyfin or Emby user may not download | Allow downloads for that user on the server, then Retry Downloads |
 
 Each module's settings has **Sign out**. The sign-ins are kept in the data folder: `plex_auth.json` (with `plex_key.pem`), `jellyfin_auth.json`, `emby_auth.json`. More in [Plex](https://github.com/mehmetraif/OSD-OS/wiki/Plex), [Jellyfin](https://github.com/mehmetraif/OSD-OS/wiki/Jellyfin) and [Emby](https://github.com/mehmetraif/OSD-OS/wiki/Emby).
+
+## Arcade
+
+The Arcade module lists the ROM sets in its games folder as MAME names them, and plays a game in MAME, full screen. What stands in the way of the list shows on the line under the tree, or with no games on the screen itself; a game that couldn't start stays on its screen with what went wrong and MAME's last lines.
+
+| What you see | Cause | Fix |
+|---|---|---|
+| `MAME is not installed` | No MAME where the module looks: `bin/mame` in the data folder, then `mame` on the `PATH`, then `/usr/games/mame` | `sudo apt install mame` (Raspberry Pi OS, Debian), `brew install mame` (macOS). The OSD/OS image has it, unless it was built with `OSDOS_ARCADE=0` |
+| `No games found` | The sets aren't straight in the games folder, as zip or 7z files (a game's own folder of files is the exception) | Move them there; the screen names the folder |
+| `The games folder can't be read: …` | The folder isn't there and couldn't be made, or can't be read: a drive not plugged in, a Games Folder that is gone | Plug the drive in, or choose the folder again in **Settings → Arcade → Games Folder** |
+| A game under **Not Recognized** | Its file isn't named as MAME names the game (`pacman.zip`, not `Pac-Man.zip`, nor `PACMAN.ZIP` on a drive that tells cases apart), or this MAME has no such game: a set for another version of MAME | A set named and made for this MAME: the image's is 0.276 |
+| `Missing …, looked for in …` | The set lacks files this MAME needs: a clone's parent set, a BIOS set such as `neogeo.zip`, or a file a set for another version lacks | Put the sets it names in the games folder, a BIOS set there or in its `bios` folder |
+| `MAME stopped: …` about OpenGL, video or a window | MAME couldn't draw the way it was asked | Try another **Video** in Settings → Arcade |
+| `MAME closed unexpectedly` | MAME crashed | Try another **Video** in Settings → Arcade |
+| Coin and Start don't bring you back | They count together, on player 1's controller | Press them on the controller Settings → Controls → Players makes player 1, or Esc on a keyboard |
+
+The log has the module's lines, and MAME's runs as the Scripts module's launcher logs them: `journalctl -u osdos -b | grep -E 'Arcade|Scripts'`. More in [Arcade → Troubleshooting](https://github.com/mehmetraif/OSD-OS/wiki/Arcade#troubleshooting).
 
 ## Bluetooth won't turn on
 
@@ -429,6 +447,7 @@ Other files hold the rest, and stay when only `config.json` goes:
 | `youtube_watch_later.json`, `playlists.json` | Watch Later, and the playlists |
 | `plex_auth.json`, `plex_key.pem`, `jellyfin_auth.json`, `emby_auth.json` | The media servers' sign-ins |
 | `netflix/browser`, `prime_video/browser`, `youtube/browser` | The web players' browser profiles, with their sign-ins |
+| `arcade/` | The Arcade module's: what MAME said of the games, and MAME's settings, NVRAM and high scores |
 | `input.cfg`, `themes/`, `skins/`, `nfc_tags/`, `user_scripts/` | Your own files |
 
 Moving the whole data folder aside starts OSD/OS as on its first day. On the image, keep `bin/yt-dlp` from it: the YouTube module's yt-dlp lives there, and its daily update runs that copy.

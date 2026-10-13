@@ -33,6 +33,7 @@ Compared with flashing Raspberry Pi OS Lite and running `scripts/install.sh` ([I
   - It lives in the app's data directory (`~/.local/share/OSD-OS/bin/yt-dlp`), where the app looks first, and replaces itself with the newest build two minutes after each boot and once a day (`osdos-yt-dlp-update.timer`). A check is one small request to GitHub. Without a connection within five minutes, it waits for the next run.
   - ffmpeg comes with them, for the Playlists module's offline playlists: above 360p YouTube sends a video's picture and sound apart, and ffmpeg puts a download back together.
   - They add about 90 MB; build with `OSDOS_YOUTUBE=0` to leave them out.
+- **MAME for arcade games.** Debian's MAME (0.276) and its data, among which the hiscore plugin that keeps the games' high scores, for the Arcade module, which plays the ROM sets copied into `Games/Arcade` on the card's OSD-OS partition ([Arcade](https://github.com/mehmetraif/OSD-OS/wiki/Arcade)). They add about 450 MB with what they depend on; build with `OSDOS_ARCADE=0` to leave them out.
 - **Menu music in any format.** FluidSynth with a small General MIDI SoundFont (TimGM6mb, about 6 MB) plays a theme's or your own MIDI file, and openmpt123 a tracker's module mpv can't play itself (XM, MOD, S3M, IT).
 - **Films go on the card.** On the first boot the system keeps 8 GiB of the card, and the rest becomes a partition of its own in exFAT, labelled **OSD-OS**, which Windows and macOS open too. Local Files opens it, and offline playlists download into it. See [Films on the card](#films-on-the-card).
 - **USB drives mount by themselves.** A USB stick or disk plugged in is mounted read-only and shows up in Local Files under its label. See [USB drives](#usb-drives).
@@ -57,6 +58,8 @@ The first boot splits the card: the system keeps 8 GiB (`OSDOS_ROOT_SIZE`), and 
 2. In the computer's card reader the card shows up as two drives, **bootfs** and **OSD-OS**. Copy films onto **OSD-OS**, in folders if you like.
 3. Windows also offers to format the system's partition, which it can't read. Always say no (**Cancel**): formatting it erases the system.
 4. Put the card back in the Pi. Local Files opens **OSD-OS** (`/media/OSD-OS`) until its Media Directory setting names another folder.
+
+Arcade games go there too: the Arcade module plays the MAME ROM sets in a **Games/Arcade** folder on it, which it makes the first time it opens, or which you can make on the computer ([Arcade](https://github.com/mehmetraif/OSD-OS/wiki/Arcade)).
 
 The Pi writes to it too: the Playlists module downloads its offline playlists' videos into a **Playlists** folder there (its Download Folder setting can name another), each video once, flushed to the card as it completes. Switching the Pi off at the wall in the middle of a download can still leave the partition untidy, so it is checked (`fsck.exfat`) at every boot before it is mounted. Nothing on it can run (it is mounted `noexec`): it only ever holds media, and anyone with the card can write it. A card flashed with an earlier image mounts it read-only (`ro` in `/etc/fstab`), where offline playlists' downloads fail with the folder named as the reason: flash the new image, or change `ro` to `rw,noexec,nosuid,nodev` (and the last `0` to `2`) on the film partition's line (`/media/240-MP`, as those images named it).
 
@@ -163,6 +166,7 @@ The image lands in `os/work/pi-gen/deploy/`. `os/build.sh` fetches pi-gen at a p
 | `OSDOS_DISPLAY` | `hdmi` | Initial display preset, by its name in the table [above](#display-output-hdmi-composite-or-scart) (`crt-pal` for `osdos-display-crt-pal.txt`). |
 | `OSDOS_STREAMING` | `1` | `0` leaves out the Netflix and Prime Video modules' browser (Chromium, Widevine, cage, wtype), which YouTube's sign-in uses too. |
 | `OSDOS_YOUTUBE` | `1` | `0` leaves out the YouTube module's yt-dlp, Deno and ffmpeg; the module then says yt-dlp is missing. |
+| `OSDOS_ARCADE` | `1` | `0` leaves out MAME (`mame`, `mame-data`); the Arcade module then says MAME is not installed. |
 | `OSDOS_ROOT_SIZE` | `8` | GiB the system keeps of the card; the rest becomes the film partition on the first boot. `0`: no film partition, the system takes the whole card. |
 | `ENABLE_SSH` | `0` | `1` enables SSH (it then also waits for the app, after mDNS). |
 | `TARGET_HOSTNAME` | `osdos` | |
@@ -208,7 +212,7 @@ systemd-analyze blame
 
 - OSD/OS itself, under GPL-3.0, with its licence at `/opt/osdos/share/osdos/LICENSE` (and in Settings → About).
 - Raspberry Pi OS's and Debian's packages, each with its own licence in `/usr/share/doc/<package>/copyright`. The list of them, with their versions, is the image's `.info` file, which the workflow publishes with the image. Their source is in the Debian and Raspberry Pi archives, and OSD/OS offers the source of the GPL and LGPL software on an image for three years after it is published.
-- What the stage adds: yt-dlp (public domain), Deno (MIT, its licence in `/usr/local/share/doc/deno/LICENSE.md`, from `stage-osdos/06-youtube/files/deno-LICENSE.md`, which is bumped with `DENO_VERSION`) and Widevine, Google's proprietary module, from Raspberry Pi's archive as Raspberry Pi OS installs it.
+- What the stage adds: yt-dlp (public domain), Deno (MIT, its licence in `/usr/local/share/doc/deno/LICENSE.md`, from `stage-osdos/06-youtube/files/deno-LICENSE.md`, which is bumped with `DENO_VERSION`), MAME (GPL-2.0 or later, Debian's `mame` and `mame-data` packages, with their copyright files in `/usr/share/doc`) and Widevine, Google's proprietary module, from Raspberry Pi's archive as Raspberry Pi OS installs it.
 - The notices for the data the modules show (TMDB, Open-Meteo, Wikidata), pi-gen's licence, the Raspberry Pi firmware's licence, which asks to be reproduced with it, and the trademarks: Raspberry Pi is a trademark of Raspberry Pi Ltd, Debian a registered trademark of Software in the Public Interest, Inc., and OSD/OS is endorsed by neither.
 
 ## Notes

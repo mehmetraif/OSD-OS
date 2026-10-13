@@ -52,7 +52,7 @@ OSD/OS reads these. Each is also read under its 240-MP name, `MP240_<NAME>`, whe
 | `OSDOS_AUTOSTART` | The autostart service (`Environment=OSDOS_AUTOSTART=1`) | Set to anything: OSD/OS runs as the system's app. Quit offers Power Off, Restart and Exit to Terminal; Update's Apply & Restart exits for the service to start it again; Display Output can be offered |
 | `OSDOS_LAUNCHER_API` | The launcher, `/usr/local/bin/osdos` (`5`) | What the launcher and its stop helper can do. Set at all, with the app in `/opt/osdos`: in-app updates can be applied. `2` or more: Quit offers Restart. `3` or more: Settings offers Display Output. `4` or more: JAMMA 240p among its outputs. `5` or more: Switch and Power Off and At Next Start |
 | `OSDOS_DRM_DEVICE`, `OSDOS_DRM_CONNECTOR`, `OSDOS_DRM_MODE` | The launcher, on a Pi 5, from the display preset's `# osdos-output:` and `# osdos-mode:` lines | The output OSD/OS draws on, which mpv plays on too: `--drm-device`, `--drm-connector` and, when set, `--drm-mode` ([Playback and mpv](https://github.com/mehmetraif/OSD-OS/wiki/Playback-and-mpv#per-device-decode-profiles)) |
-| `OSDOS_MEDIA_DIR` | The OSD/OS image: `/media/OSD-OS`, in `/etc/systemd/system/osdos.service.d/osdos-media.conf` | Local Files' folder while its Media Directory is Default; else `media` in the data folder. The Playlists module downloads into a `Playlists` folder there unless its Download Folder names another |
+| `OSDOS_MEDIA_DIR` | The OSD/OS image: `/media/OSD-OS`, in `/etc/systemd/system/osdos.service.d/osdos-media.conf` | Local Files' folder while its Media Directory is Default; else `media` in the data folder. The Playlists module downloads into a `Playlists` folder there unless its Download Folder names another, and the Arcade module looks for its games in `Games/Arcade` there unless its Games Folder names another |
 | `OSDOS_BOOT_UNITS_FILE` | The OSD/OS image: `/etc/osdos/boot-units` | The services the boot screen follows, as `unit\|LABEL` lines. Unset, there is no boot screen |
 | `OSDOS_READY_FILE` | The OSD/OS image: `/run/osdos/ready` | Written, with OSD/OS's process id, once its first frame is on screen: the image's held-back services wait for it |
 | `OSDOS_BOOT_DIR` | Nothing; `/boot/firmware` by default | Where Display Output finds `osdos-display.txt` and its presets |
@@ -75,7 +75,7 @@ Two Qt variables matter too. OSD/OS sets `QT_QPA_EGLFS_HIDECURSOR=1` for itself 
 | To | Variables |
 |---|---|
 | An mpv process | `APP_ROOT`; on Linux `FONTCONFIG_FILE=/tmp/osdos-fonts.conf`, so mpv's on-screen menu finds the VCR font; on a Linux desktop with `DISPLAY` set, `WAYLAND_DISPLAY` removed, so mpv runs on X11 or Xwayland |
-| A script (the Scripts module), and `web-player.sh` (Netflix, Prime Video, YouTube's sign-in), which runs as a takeover script | `APP_ROOT`, `DATA_ROOT`, `OSDOS_MODE` (`console` or `takeover`), `OSDOS_VT` for a takeover on its own VT, the same two as `MP240_MODE` and `MP240_VT`, `ALSA_CARD` when Settings → Audio Output names a card, and the players' pads (`OSDOS_PLAYER1_NAME`, `_GUID`, `_DEVICE`, and players 2 to 6's) |
+| A script (the Scripts module), and what runs as a takeover script: `web-player.sh` (Netflix, Prime Video, YouTube's sign-in) and MAME (the Arcade module) | `APP_ROOT`, `DATA_ROOT`, `OSDOS_MODE` (`console` or `takeover`), `OSDOS_VT` for a takeover on its own VT, the same two as `MP240_MODE` and `MP240_VT`, `ALSA_CARD` when Settings → Audio Output names a card, on a Pi 5 `SDL_KMSDRM_DEVICE_INDEX` (the number of the DRM card of the output the display preset names, for SDL programs), and the players' pads (`OSDOS_PLAYER1_NAME`, `_GUID`, `_DEVICE`, and players 2 to 6's) |
 
 ## What is in it
 
@@ -109,10 +109,12 @@ Two Qt variables matter too. OSD/OS sets `QT_QPA_EGLFS_HIDECURSOR=1` for itself 
 ├── skins/                      your skins, a folder each
 ├── soundfonts/                 SoundFonts (.sf2) for MIDI menu music
 ├── bin/yt-dlp                  the yt-dlp OSD/OS and mpv use first
+├── bin/mame                    you add it, if you like: a MAME of your own, used first
 ├── media/                      Local Files' folder when nothing else is named (not on the image)
 ├── ambient/                    Ambient:Mode's folder when nothing else is named
 ├── nfc_tags/                   the NFC Reader's card files
 ├── user_scripts/               the Scripts module's folder when nothing else is named
+├── arcade/                     the Arcade module's MAME files: games.json, cfg/, nvram/, hiscore/, ctrlr/, sta/, snap/…
 ├── netflix/browser/            Chromium's profile for Netflix: the sign-in
 ├── prime_video/browser/        Chromium's profile for Prime Video
 ├── youtube/browser/            Chromium's profile for the YouTube sign-in
@@ -124,7 +126,7 @@ A file or folder appears only once something needs it. The rest of this section 
 | File or folder | Written by | What it holds |
 |---|---|---|
 | `config.json` | OSD/OS, at every change in Settings or a module's settings; Plex and Jellyfin for the server and user they are on | The settings ([below](https://github.com/mehmetraif/OSD-OS/wiki/Configuration-Files#configjson)) |
-| `lists.json` | OSD/OS | `{ "<module id>": { "recent": [...], "favorites": [...] } }`, each entry as the module's tree has it (`name`, `path`, …), newest first: Recently Watched keeps 30, Favorites 100. Local Files, Netflix, Prime Video and YouTube use it |
+| `lists.json` | OSD/OS | `{ "<module id>": { "recent": [...], "favorites": [...] } }`, each entry as the module's tree has it (`name`, `path`, …), newest first: Recently Watched keeps 30, Favorites 100. Local Files, Netflix, Prime Video, YouTube and Arcade use it |
 | `local_files_history.json`, `nfc_reader_history.json` | Local Files, the NFC Reader | Where each file stopped, by its path: `{ "<path>": { "pos": <ms>, "plPos": <video in a playlist, or -1> } }` |
 | `youtube_history.json` | YouTube | By video id: `{ "pos", "title", "channelName", "lastPlayed" }` |
 | `youtube_watch_later.json` | YouTube | The Watch Later list |
@@ -140,7 +142,9 @@ A file or folder appears only once something needs it. The rest of this section 
 | `themes/`, `skins/` | You | A theme or skin of the same folder name as one of OSD/OS's replaces it ([Themes](https://github.com/mehmetraif/OSD-OS/wiki/Themes), [Skins](https://github.com/mehmetraif/OSD-OS/wiki/Skins)). A `theme.json` of window pictures only in `themes/` is read as a skin |
 | `soundfonts/` | You | MIDI menu music plays with a SoundFont beside the file of its name, else the first `.sf2` here by name, else the system's ([Menu music](https://github.com/mehmetraif/OSD-OS/wiki/Menu-Music)) |
 | `bin/yt-dlp` | You; on the OSD/OS image a timer, after each boot and once a day | The yt-dlp found first: then one beside the `osdos` binary, then one on `PATH`. mpv's ytdl hook is pointed at the same one |
+| `bin/mame` | You | The MAME the Arcade module finds first: then `mame` on `PATH`, then Debian's `/usr/games/mame` ([Arcade](https://github.com/mehmetraif/OSD-OS/wiki/Arcade#setting-it-up)) |
 | `media/`, `ambient/`, `user_scripts/`, `nfc_tags/` | You, and the modules | The modules' default folders, used while their folder setting is Default. Tapping an unknown card makes a stub file in `nfc_tags/`; a new script gets its `.txt` in `user_scripts/` |
+| `arcade/` | The Arcade module, and MAME | `games.json`, what MAME said of each set and which MAME said it; MAME's settings for each game (`cfg/`), the games' NVRAM (`nvram/`), the hiscore plugin's tables (`hiscore/`), save states, snapshots, input recordings and hard disk diffs (`sta/`, `snap/`, `inp/`, `diff/`), and the controller file written before each game (`ctrlr/osdos.cfg`) ([Arcade](https://github.com/mehmetraif/OSD-OS/wiki/Arcade#files-it-keeps)) |
 | `<service>/browser/` | Chromium, through `web-player.sh` | A browser profile per service, which keeps its sign-in. Sign out deletes it. A run with a Scaling other than Letterbox also leaves `<service>/scaling/` (the small extension that applies it), and a run under `cage` keeps `<service>/wayland` while it lasts |
 | `updates/` | Settings → Update | The downloaded release with `staged.json` (what it is), `staged.sha256` (written at Apply: it arms the release for the launcher), unfinished `*.part` downloads (deleted at the next start), and on an AppImage or a Mac the helper script and its `apply.log` |
 
@@ -318,7 +322,7 @@ A module's settings are under `modules.<module id>`, the keys its `manifest.json
 | A multi-select page | an object of ids, each `true` or `false`; one missing is on | `"libraries": { "<id>": false }` |
 | A folder | its path, `""` for the module's own | `"media_directory": "/media/usb/FILMS"` |
 
-Every module has `enabled` (`true` or `false`); while it is missing, the manifest's default applies: Local Files and Playlists on, the others off. The module ids are `com.osdos.` followed by the module's folder name: `com.osdos.ambient_mode`, `com.osdos.emby`, `com.osdos.jellyfin`, `com.osdos.local_files`, `com.osdos.netflix`, `com.osdos.nfc_reader`, `com.osdos.playlists`, `com.osdos.plex`, `com.osdos.prime_video`, `com.osdos.scripts`, `com.osdos.weather`, `com.osdos.youtube`.
+Every module has `enabled` (`true` or `false`); while it is missing, the manifest's default applies: Local Files and Playlists on, the others off. The module ids are `com.osdos.` followed by the module's folder name: `com.osdos.ambient_mode`, `com.osdos.arcade`, `com.osdos.emby`, `com.osdos.jellyfin`, `com.osdos.local_files`, `com.osdos.netflix`, `com.osdos.nfc_reader`, `com.osdos.playlists`, `com.osdos.plex`, `com.osdos.prime_video`, `com.osdos.scripts`, `com.osdos.weather`, `com.osdos.youtube`.
 
 ### How OSD/OS reads and writes it
 
@@ -334,7 +338,7 @@ When each part is read:
 | The look (Theme and its parts, menu music), OSD Background, Window Frame, Transparent Background's solidity, Loading Effect, Loading Screen Colors, Boot Screen Colors, Hint Bar, Help Line, Mouse Pointer, Screen Saver | At start, then at each change made in Settings |
 | `display_index` | At start |
 | Audio Output, Controls' buttons and button labels | At start, then at each change made in Settings |
-| The modules' folders (Media Directory, Tags Directory, Scripts Directory, Ambient:Mode's) | At start, then at each change made in their settings |
+| The modules' folders (Media Directory, Tags Directory, Scripts Directory, Ambient:Mode's, Arcade's Games Folder) | At start, then at each change made in their settings |
 | Scaling (the app's and the module's), Video Levels, Channel Logo, Logo Image, Screen Saver's script, 1080p Playback, `mpv_video_args`, Transparent Background on or off | As each video starts |
 | Start on Module, Play at Startup, Startup From | As OSD/OS starts |
 | A module's other settings | When the module needs them: most as a video starts or a list opens |
