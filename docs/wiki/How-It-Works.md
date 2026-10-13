@@ -4,7 +4,7 @@ What happens inside OSD/OS, for the curious and for anyone about to change it: t
 
 ## The big picture
 
-OSD/OS is a **browsing shell that hands off to tools made for the job**. The shell, one C++ Qt 6 program with its screens in QML, does the browsing, the sign-ins and the settings. Playing is someone else's: mpv for a video (as a process of its own, or inside the window as libmpv with Transparent Background), Chromium for Netflix and Prime Video, and your own programs through the Scripts module.
+OSD/OS is a **browsing shell that hands off to tools made for the job**. The shell, one C++ Qt 6 program with its screens in QML, does the browsing, the sign-ins and the settings. Playing is someone else's: mpv for a video (as a process of its own, or inside the window as libmpv with Transparent Background), Chromium for Netflix and Prime Video, MAME for the Arcade module's games, and your own programs through the Scripts module.
 
 ```mermaid
 flowchart TB
@@ -20,7 +20,7 @@ flowchart TB
     mpvc -- "process, JSON over a socket" --> mpv["mpv"]
     mpvc -- "Transparent Background" --> emb["libmpv inside the window<br/>EmbeddedMpv, VideoSurface"]
     sys -- "MenuMusic" --> mm["mpv, for the menu music"]
-    be -- "ScriptLauncher" --> ch["Chromium in cage, scripts"]
+    be -- "ScriptLauncher" --> ch["Chromium in cage, MAME, scripts"]
     mpv --> dh
     ch --> dh
 ```
@@ -102,7 +102,7 @@ appCore.registerModule("com.osdos.playlists",    "playlistsBackend",   &playlist
 | `Q_INVOKABLE QString get_auth_state()` | asked when needed, for `requires_auth` settings |
 | `Q_INVOKABLE QVariantList get_menu_entries()` | asked when needed, for rows of its own on the main menu |
 
-All twelve modules have one: `com.osdos.local_files`, `plex`, `jellyfin`, `emby`, `ambient_mode`, `nfc_reader`, `youtube`, `weather`, `scripts`, `netflix`, `prime_video` and `playlists`. A module of QML alone needs no line at all. [Writing a module](https://github.com/mehmetraif/OSD-OS/wiki/Writing-a-Module) walks through one; [ARCHITECTURE.md → AppCore](https://github.com/mehmetraif/OSD-OS/blob/main/ARCHITECTURE.md#appcore--the-app-shell) lists every slot.
+All thirteen modules have one: `com.osdos.local_files`, `plex`, `jellyfin`, `emby`, `ambient_mode`, `nfc_reader`, `youtube`, `weather`, `scripts`, `netflix`, `prime_video`, `playlists` and `arcade`. A module of QML alone needs no line at all. [Writing a module](https://github.com/mehmetraif/OSD-OS/wiki/Writing-a-Module) walks through one; [ARCHITECTURE.md → AppCore](https://github.com/mehmetraif/OSD-OS/blob/main/ARCHITECTURE.md#appcore--the-app-shell) lists every slot.
 
 ### What QML can reach
 
@@ -262,7 +262,7 @@ sequenceDiagram
 
 - **The VT switch goes first**, because it suspends Qt's drawing before the master is dropped; on kernels from 5.8 a process not root can't take master while another holds it.
 - **The 200 ms wait** lets the child's last display commit clear in the vc4 driver, and the restore uses the old `drmModeSetCrtc`, not an atomic commit, which would fail after the child's cleanup.
-- **One owner at a time.** `acquire()` takes a name and refuses another while one holds the screen. The names are `mpv`, `scripts`, and the web players' `netflix`, `prime_video` and `youtube` (its sign-in).
+- **One owner at a time.** `acquire()` takes a name and refuses another while one holds the screen. The names are `mpv`, `scripts`, `arcade` (the Arcade module's MAME), and the web players' `netflix`, `prime_video` and `youtube` (its sign-in).
 - **What Qt last drew stays on the glass** for the whole hand-off, since nothing clears it. So a screen is painted, and presented, before the hand-off: a video's loading screen, a takeover script's notice.
 - **Anything that animates rests** while the screen is handed off (`root.screenHandedOff`), and a video playing behind the menus ends the moment another takes the screen (`handingOff`).
 - **Quitting mid-video** gives the screen back at once (`releaseNow()`), so the Pi never stays on a blank console.
@@ -273,6 +273,7 @@ sequenceDiagram
 | A video | mpv with `--vo=drm` | `mpv` |
 | Netflix, Prime Video, YouTube's sign-in | `scripts/web-player.sh`: Chromium in kiosk mode, inside the `cage` compositor | `netflix`, `prime_video`, `youtube` |
 | A takeover script | Your script, run by `ScriptLauncher` in a session of its own | `scripts` |
+| An Arcade game | MAME, handed the screen the same way: run as a takeover by the Arcade module's own `ScriptLauncher` | `arcade` |
 | A video with Transparent Background | Nobody: OSD/OS keeps the screen and draws the video itself | |
 
 [ARCHITECTURE.md → Raspberry Pi headless hand-off](https://github.com/mehmetraif/OSD-OS/blob/main/ARCHITECTURE.md#raspberry-pi-headless-hand-off-eglfs) has the pitfalls, such as never switching to the VT already in use.
@@ -406,7 +407,7 @@ mpv --no-config --no-video --no-terminal --really-quiet --loop-file=inf --volume
 ```
 
 - **When.** `Main.qml` wants it in the menus only: not while the effects rest (a video playing, loading or showing its menu), nor under the boot screen, the screen saver or the display question.
-- **Held off.** Anything about to play sound holds it first: a video (`video`), Ambient:Mode's music, Weather's music, a script or a web player. A hold kills the music's mpv and waits for it, so the sound card is free before the other opens it. It starts again, from the beginning, 700 ms after nothing holds it.
+- **Held off.** Anything about to play sound holds it first: a video (`video`), Ambient:Mode's music, Weather's music, a script, an Arcade game or a web player. A hold kills the music's mpv and waits for it, so the sound card is free before the other opens it. It starts again, from the beginning, 700 ms after nothing holds it.
 - **Live.** Settings → Music Volume changes its volume over its socket as the slider moves, and a new sound card in Settings → Audio Output restarts it there.
 - **MIDI and trackers.** A MIDI file is made into a WAV first by FluidSynth, with a SoundFont; a tracker's module mpv can't play, by openmpt123. The WAV is kept in the cache folder, so a file is made once. A file mpv gives up on within three seconds isn't tried again until the setting changes.
 
@@ -520,7 +521,7 @@ OSD/OS logs to its standard output and error: a terminal when you run it by hand
 | `[input]` | Gamepads, remaps, `input.cfg` |
 | `[Scripts]`, `[WebPlayer]`, `[TMDB]` | Scripts, the web players and their catalogue |
 | `[Bluetooth]` | Settings → Bluetooth |
-| `[LocalFiles]`, `[Plex]`, `[Jellyfin]`, `[Emby]`, `[Playlists]`, `[Weather]`, `[NfcReader]`, `[AmbientMode]` | The modules |
+| `[LocalFiles]`, `[Plex]`, `[Jellyfin]`, `[Emby]`, `[Playlists]`, `[Weather]`, `[NfcReader]`, `[AmbientMode]`, `[Arcade]` | The modules |
 | `[legacy]` | 240-MP's data brought over |
 | `[AtomicFile]` | A file that couldn't be saved |
 | `[Effect]` | A shader that couldn't be used |
@@ -545,7 +546,7 @@ What OSD/OS reads from its environment. Each `OSDOS_…` name is also read as `M
 | `OSDOS_NFC_SERIAL_DEVICE`, `OSDOS_NFC_DEBUG` | The NFC reader's serial port, when detection can't find it; more about detection in the log |
 | `OSDOS_BOARD_MODEL`, `OSDOS_BOOT_DIR`, `OSDOS_RUN_DIR`, `OSDOS_ASOUND_DIR`, `OSDOS_MOUNTINFO`, `OSDOS_TMDB_URL`, `OSDOS_WIKIDATA_URL` | Stand-ins for tests: the board's model, `/boot/firmware`, `/run`, `/proc/asound`, the mount table, TMDB and Wikidata |
 
-And what it gives the programs it starts: `APP_ROOT` to mpv and to scripts; on Linux, `FONTCONFIG_FILE` to mpv, so its menus find OSD/OS's fonts; `DATA_ROOT`, `OSDOS_MODE` (`console` or `takeover`) and, for a takeover on a Pi, `OSDOS_VT` to scripts; `ALSA_CARD` to scripts and web players when Settings → Audio Output names a card; and to scripts, the players' pads from Settings → Controls (`OSDOS_PLAYER1_NAME`, `_GUID` and `_DEVICE`, and player 2's) ([Scripts](https://github.com/mehmetraif/OSD-OS/wiki/Scripts)).
+And what it gives the programs it starts: `APP_ROOT` to mpv and to scripts; on Linux, `FONTCONFIG_FILE` to mpv, so its menus find OSD/OS's fonts; `DATA_ROOT`, `OSDOS_MODE` (`console` or `takeover`) and, for a takeover on a Pi, `OSDOS_VT` to scripts; `ALSA_CARD` to scripts and web players when Settings → Audio Output names a card; on a Pi 5, `SDL_KMSDRM_DEVICE_INDEX` to scripts, the number of the DRM card of the output the display preset names, for SDL programs such as the Arcade module's MAME; and to scripts, the players' pads from Settings → Controls (`OSDOS_PLAYER1_NAME`, `_GUID` and `_DEVICE`, and players 2 to 6's) ([Scripts](https://github.com/mehmetraif/OSD-OS/wiki/Scripts)).
 
 ## Tests
 

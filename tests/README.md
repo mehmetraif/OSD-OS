@@ -1,6 +1,6 @@
 # Regression tests
 
-Fourteen test suites, built apart from the app. CI runs them on Linux x64 and arm64 for every pull request that touches `src/`, `views/`, `modules/`, `tests/` or the build ([regression-tests.yml](../.github/workflows/regression-tests.yml)): on Ubuntu, with the oldest Qt the releases are built with (6.4), and on Raspberry Pi OS (Debian 13 "trixie" with Raspberry Pi's archive, arm64), the system the OS image is made of, with the Pi's own Qt (6.8) and mpv (0.40). They need Lua 5.4, CMake, a C++17 compiler, Qt 6's development packages (Core, Concurrent, Gui, Network, Qml, Quick, QuickTest and Test) and SDL2's, and libdrm's on Linux; the QML test also needs Qt Quick's QML modules at run time (on Debian and Raspberry Pi OS, `qml6-module-qttest qml6-module-qtquick qml6-module-qtqml-workerscript qml6-module-qtquick-window`). None needs mpv, FluidSynth or a display.
+Sixteen test suites, built apart from the app. CI runs them on Linux x64 and arm64 for every pull request that touches `src/`, `views/`, `modules/`, `tests/` or the build ([regression-tests.yml](../.github/workflows/regression-tests.yml)): on Ubuntu, with the oldest Qt the releases are built with (6.4), and on Raspberry Pi OS (Debian 13 "trixie" with Raspberry Pi's archive, arm64), the system the OS image is made of, with the Pi's own Qt (6.8) and mpv (0.40). They need Lua 5.4, CMake, a C++17 compiler, Qt 6's development packages (Core, Concurrent, Gui, Network, Qml, Quick, QuickTest and Test) and SDL2's, and libdrm's on Linux; the QML tests also need Qt Quick's QML modules at run time (on Debian and Raspberry Pi OS, `qml6-module-qttest qml6-module-qtquick qml6-module-qtqml-workerscript qml6-module-qtquick-window`). None needs mpv, FluidSynth, MAME or a display.
 
 ```sh
 cmake -S tests -B build-tests
@@ -81,6 +81,22 @@ ctest --test-dir build-tests --output-on-failure
   - A mapping file moves pins and takes them out; its bad lines are named and change nothing.
   - Buttons go out as their codes, a button on two pins held while either is; the joystick as a digital stick on two axes (up and down together: neither).
   - A switch's bounce within 5 ms is let go by, without holding back another pin; an expander lost lets go of everything at once.
+- **arcade** (`arcade_test.cpp`, Linux only). The Arcade module (`ArcadeBackend`, `Mame`) against a stand-in for MAME: a shell script in the data folder's `bin`, where the module looks first, that answers `-listxml` and writes down each game's arguments, folder, display card and controller file.
+  - A set's short name, a maker before its licence or partner (none for one MAME calls unknown), a year's decade (`1982?` too); MAME's last error line, and of the files it says are missing only those it can't go without, with the sets it looked in.
+  - The controller file: each player's pad as MAME's joystick of the same number, a pad of a model a player before has left to MAME's order, and Esc or player 1's Coin and Start together as the way out, with players or none.
+  - `-listxml` read as it comes, a byte at a time as well as at once: a game's name, year, maker, players, rotation and status; a BIOS and a device aren't games; a broken answer fails.
+  - The tree: Recently Played, Favorites, Search, All Games, Players, Years, Makers and Not Recognized, each game with its line under the tree and each set that isn't one with why; MAME asked once, about every file or folder whose name can be a set's, not the `bios` and `samples` folders, a zip ahead of a folder of its name; while MAME answers the top holds Recently Played and Favorites, and the folders asked for come once it has.
+  - What MAME said is kept in `arcade/games.json`: it is asked again only about a set new in the folder, and about every one once MAME itself has changed. Each test runs on its own too.
+  - A game started in `arcade` with every folder MAME writes in there, the samples folder, the hiscore plugin and the controller file, and on a Pi 5 the output's DRM card for SDL; Video and High Scores change its arguments; a MAME with its own folders beside it runs in its folder.
+  - A game that didn't play says why: the files missing and where MAME looked (a folder of files as a folder, a set not there as a zip), or MAME's error with another Video suggested; a game gone from the folder, a name that isn't a set's and a second game while one runs are refused.
+  - A set not in lower case on a filesystem that tells cases apart is under Not Recognized, with what to rename it to, and isn't played, but a name that can't be a set's isn't told to be renamed; `BIOS` and `Samples` folders go to MAME as they are named; a games folder that can't be made says so.
+  - A game started while MAME is asked about the sets holds the next batch until it has ended.
+  - Recently Played and Favorites show the games still in the folder, by MAME's names; without MAME the sets are listed by their names, and the module says MAME is not installed.
+- **arcade_views** (`qml/tst_arcade.qml`, run by tree_browser's runner): the Arcade module's views, `modules/arcade/views/Games.qml` and `Play.qml`, against a stand-in for `ArcadeBackend`.
+  - A game chosen in the tree plays and goes on Recently Played, and back from it lands where it was chosen; what stands in the way of the list shows under the tree, and on the empty screen with where the games go (not for a folder that can't be read); a set that isn't a game says why; the startup favourite plays at once, from Favorites.
+  - A game's screen says how to come back in player 1's own buttons (`COIN + START`), or with Esc when there is no controller; the first game of a run waits for that to be read, and back meanwhile starts nothing.
+  - While MAME has the screen every key is kept from the menus and the screen saver held off, until the game ends and the list comes back.
+  - A game MAME ended with an error says why, with MAME's lines; one that never started says how to install MAME.
 
 ## On a Raspberry Pi
 

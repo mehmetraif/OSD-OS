@@ -214,7 +214,7 @@ The picture is never touched by an effect: the effects and the menu music rest w
 - **Back** during a Local Files, YouTube or Playlists video opens its menu over the picture. First come its module's settings for it, which ◄ ► change: the speed, looping and Scaling at once, the others (subtitles, YouTube's format and languages) by reloading the video where it is as you go back to it. Then, in Local Files and YouTube, Add to Favorites and Play at Startup (and YouTube's Watch Later); then **Browse** (back to the module's menus) and **Close Video** (to the main menu). Back from the menu returns to the video. Back during any other module's video returns to the module's menus.
 - **Behind the menus** the video plays on, sound and all. The menus' ground (Settings → OSD Background: all over, or only the window, the picture showing whole around it) lies over it as solid as the slider says; at SOLID none of the picture shows. The module has saved where it got to.
 - **The main menu** leads with a row for it, `► <title>`, the cursor on it (YouTube, Local Files and Playlists note their videos; other modules' come back by choosing them again). Select brings it back full screen where it is. Choosing the same video in its module does the same, without its resume question: OSD/OS knows it by its command line, and carries on rather than starting it again.
-- **It ends** when it plays out, with play/pause on the main menu (`[SPACE]:STOP`), when anything else plays, when something else takes the screen (a takeover script, Netflix or Prime Video's browser), and when Transparent Background is turned off.
+- **It ends** when it plays out, with play/pause on the main menu (`[SPACE]:STOP`), when anything else plays, when something else takes the screen (a takeover script, an Arcade game, Netflix or Prime Video's browser), and when Transparent Background is turned off.
 - **Without Transparent Background** mpv has the screen, so the video stops for its menu, and starts again where it was as the menu closes. **Browse** leaves it stopped there, and the main menu leads with its row all the same: select starts it again where it was saved, without asking. The row stays until mpv plays anything else.
 
 ## Per-device decode profiles
@@ -380,7 +380,7 @@ Settings → Channel Logo puts OSD/OS's logo in a corner of the picture, and Log
 
 Settings → Audio Output (Linux with plain ALSA: the image and Raspberry Pi OS Lite) tells mpv the card: `--audio-device=alsa/default:CARD=<id>`, the card's own ALSA `default` device. That is the right door to each card: a USB card's `default` mixes what plays at once, and the Pi's HDMI under full KMS takes only samples framed as IEC958, which `plughw:` can't give it.
 
-- The menu music's mpv, Ambient:Mode's and Weather's music get the same flag; a script or a web player's browser gets `ALSA_CARD=<id>`.
+- The menu music's mpv, Ambient:Mode's and Weather's music get the same flag; a script, an Arcade game's MAME or a web player's browser gets `ALSA_CARD=<id>`.
 - With Transparent Background, a video playing behind the menus moves to a newly chosen card at once (`set_property audio-device`). An mpv process can't be playing while Settings is open; the next one starts with the card.
 - A card chosen but unplugged is passed over until it is back: nothing is added, as on Auto.
 - On **Auto** nothing is added, so `audio-device=` in `mpv.conf` or the default card in `/etc/asound.conf` still choose. `mpv --audio-device=help` lists the devices mpv can use.

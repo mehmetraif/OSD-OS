@@ -65,7 +65,7 @@ On an app install (Raspberry Pi OS, macOS, SteamOS) there is no boot screen: OSD
 
 The main menu lists the modules, like the inputs on a deck: Local Files, Plex, YouTube and the rest. Select opens one; back opens Settings.
 
-- **Which modules.** Only the modules that are turned on, in the order of their folders' names (`modules/ambient_mode`, `emby`, `jellyfin`, …). Out of the box, **Local Files** and **Playlists** are on. Turn others on in Settings: each module has a line under **Modules**, and its **Enabled** row turns it on. The picture above has them all on. With none on, the menu says **No modules enabled** and **Please enable one in settings**.
+- **Which modules.** Only the modules that are turned on, in the order of their folders' names (`modules/ambient_mode`, `arcade`, `emby`, …). Out of the box, **Local Files** and **Playlists** are on. Turn others on in Settings: each module has a line under **Modules**, and its **Enabled** row turns it on. The picture above has most of them on. With none on, the menu says **No modules enabled** and **Please enable one in settings**.
 - **Rows a module adds.** A module can put rows of its own on the menu, after the modules: a script you marked in [Scripts](https://github.com/mehmetraif/OSD-OS/wiki/Scripts) has one, which runs it.
 - **The video playing behind.** With [Transparent Background](https://github.com/mehmetraif/OSD-OS/wiki/Using-OSD-OS#transparent-background), a video left playing behind the menus leads the list as `► <its title>`, with the cursor on it.
 - ▲ ▼ go round from the last row to the first. The menu remembers the row you left it on.
@@ -74,7 +74,7 @@ The main menu lists the modules, like the inputs on a deck: Local Files, Plex, Y
 
 ## The tree
 
-Local Files, YouTube, Netflix and Prime Video are all browsed the same way, as a horizontal tree, and so are the playlists' Add Videos and the pickers for folders and files in Settings. (Plex, Jellyfin and Emby have list screens of their own, and Weather, Ambient:Mode, NFC Reader and Scripts screens of their own: see their pages.)
+Local Files, YouTube, Netflix, Prime Video and Arcade are all browsed the same way, as a horizontal tree, and so are the playlists' Add Videos and the pickers for folders and files in Settings. (Plex, Jellyfin and Emby have list screens of their own, and Weather, Ambient:Mode, NFC Reader and Scripts screens of their own: see their pages.)
 
 <table>
 <tr><th width="50%">Recently Watched</th><th width="50%">Folders</th></tr>
@@ -99,11 +99,11 @@ The hint bar follows the entry under the cursor: on a folder `[ESC]:BACK [▲▼
 
 **What is at the top.** Every module's tree starts with the same three entries, then the module's own:
 
-- **Recently Watched**: what you played last, newest first.
+- **Recently Watched**: what you played last, newest first (in Arcade, **Recently Played**).
 - **Favorites**: what you marked from its [options](https://github.com/mehmetraif/OSD-OS/wiki/Using-OSD-OS#options).
 - **Search**: select opens the [on-screen keyboard](https://github.com/mehmetraif/OSD-OS/wiki/Using-OSD-OS#searching).
 
-In Local Files, the drives plugged in follow, each as `USB: <its label>` (the OSD/OS image mounts USB drives by itself; on a desktop or a Mac, those the system mounts), coming and going as you plug them in and pull them out, then the media folder's own folders and files. With nothing in the media folder and no drive, Local Files says **No items found** instead. In YouTube, Subscriptions, Channels, Playlists and Watch Later follow; in Netflix and Prime Video, Movies and Series by genre, and the service's own home page. Each module's page has its tree.
+In Local Files, the drives plugged in follow, each as `USB: <its label>` (the OSD/OS image mounts USB drives by itself; on a desktop or a Mac, those the system mounts), coming and going as you plug them in and pull them out, then the media folder's own folders and files. With nothing in the media folder and no drive, Local Files says **No items found** instead. In YouTube, Subscriptions, Channels, Playlists and Watch Later follow; in Netflix and Prime Video, Movies and Series by genre, and the service's own home page; in Arcade, All Games, Players, Years and Makers. Each module's page has its tree.
 
 <table>
 <tr><th width="50%">Favorites</th><th width="50%">Search results</th></tr>
@@ -274,7 +274,7 @@ Normally, back from a video stops it. With Settings → **Transparent Background
 
 - **The slider.** The setting is a slider, drawn as the deck's tape bar, from **TRANSPARENT** to **SOLID**: how solid the menus' background is over the video, in steps of 10%. ◄ ► move it, and save at once, so over a video playing behind you see each step. At SOLID none of the picture shows, but the video plays on, sound and all. Select turns the setting off and back on at the bar's place; ◄ ► turn it on too. Off, back stops the video, as it always did.
 - **Taking it back.** The main menu's first row is the video behind, `► <its title>`, with the cursor on it: select brings it back full screen, from where it is. Choosing the same video again in its module does the same. YouTube, Local Files and Playlists videos come back this way; another module's video only comes back by choosing it again.
-- **Stopping it.** Play/pause on the main menu stops it (`[SPACE]:STOP` in the hint bar). It also ends when its playlist has played out, when you play anything else, when something else takes the screen (a script that takes over the screen, Netflix or Prime Video's browser) and when you turn the setting off.
+- **Stopping it.** Play/pause on the main menu stops it (`[SPACE]:STOP` in the hint bar). It also ends when its playlist has played out, when you play anything else, when something else takes the screen (a script that takes over the screen, an Arcade game in MAME, Netflix or Prime Video's browser) and when you turn the setting off.
 - **With OSD Background on Window,** only the window lies over the video, which shows whole around it.
 - The theme's effects and menu music rest while a video plays behind the menus, as they do while it plays full screen, and the screen saver doesn't come.
 

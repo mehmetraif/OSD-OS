@@ -96,6 +96,20 @@ Once signed in, each opens on the server's Continue Watching and its libraries. 
 <tr><td>Local Files, YouTube, Jellyfin and Emby in one tree, down to a show's episodes. Select adds a video and stays, for the next.</td><td>From a module itself: a video's options (►), or ► on PLAY in Jellyfin and Emby.</td></tr>
 </table>
 
+### Arcade
+
+<table>
+<tr><th width="50%">The games</th><th width="50%">All Games</th></tr>
+<tr><td><img src="screenshots/arcade.png" width="100%" alt="Arcade" /></td><td><img src="screenshots/arcade-games.png" width="100%" alt="All Games" /></td></tr>
+<tr><td>MAME's ROM sets from the games folder, by players, decade and maker, as MAME names them.</td><td>A game's year, maker, players and file under the tree. Select plays it in MAME.</td></tr>
+</table>
+
+<table>
+<tr><th width="50%">Playing</th><th width="50%">A game that couldn't start</th></tr>
+<tr><td><img src="screenshots/arcade-play.png" width="100%" alt="Playing" /></td><td><img src="screenshots/arcade-missing.png" width="100%" alt="A game that couldn't start" /></td></tr>
+<tr><td>How to come back, in player 1's own buttons, then MAME has the screen, with Settings → Controls' players as its players 1 to 6.</td><td>What the set lacked and where MAME looked: here the Neo-Geo BIOS.</td></tr>
+</table>
+
 ### Weather, Ambient:Mode, NFC Reader and Scripts
 
 <table>

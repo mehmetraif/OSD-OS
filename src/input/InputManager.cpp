@@ -1602,6 +1602,16 @@ bool InputManager::isDirectional(Action a) {
     return a == Action::Up || a == Action::Down || a == Action::Left || a == Action::Right;
 }
 
+QString InputManager::buttonLabel(const QString &key, const QString &token) const {
+    if (!key.startsWith(QLatin1String("pad-")))
+        return QString();
+    const Pad pad = padOf(key, m_seenAs.value(key).name);
+    int button = -1, axis = -1, sign = 0;
+    if (parsePadInput(token, &button, &axis, &sign) && sign == 0)
+        return padLabel(m_labelOverrides, pad.labels, token, button);
+    return controllers::inputLabel(pad.labels, token);
+}
+
 QString InputManager::keyDisplayName(int qtKey) const {
     if (qtKey == 0)
         return QString();

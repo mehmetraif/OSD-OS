@@ -43,6 +43,11 @@ public:
     static QStringList mpvArgs();
     // For another program about to start: ALSA_CARD names the card.
     static void applyTo(QProcessEnvironment &env);
+    // Whether there is a card to play through, as far as ALSA says: false
+    // only where ALSA is all there is and it lists none that can play. A
+    // program that can't open one may not start at all (MAME), and is better
+    // told to play no sound.
+    static bool hasPlaybackCard();
 
 signals:
     // Settings → Audio Output was saved (another card, or the same again).

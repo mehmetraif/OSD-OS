@@ -44,6 +44,14 @@ mpv's ytdl hook uses `yt-dlp` to resolve YouTube URLs at playback time, and the 
 
 For full YouTube support, current yt-dlp versions also use an external JavaScript runtime. Deno is the recommended runtime. See yt-dlp's [EJS setup guide](https://github.com/yt-dlp/yt-dlp/wiki/EJS) for the currently supported runtimes and versions.
 
+**Install MAME (optional, required only for the Arcade module):**
+
+```bash
+brew install mame
+```
+
+The Arcade module plays its games in MAME, a program of its own: it looks for `bin/mame` in the data directory first, then `mame` on the `PATH`. See the wiki's [Arcade](https://github.com/mehmetraif/OSD-OS/wiki/Arcade) page.
+
 **Install SDL2 (required, gamepad input):**
 
 ```bash
@@ -165,6 +173,8 @@ yt-dlp --verbose --simulate --force-ipv6 \
 If IPv4 returns the bot-check error while IPv6 succeeds, the failure is tied to the IPv4 route rather than the yt-dlp installation. A working IPv6 route may allow playback to proceed, but enabling it is a device and network configuration choice outside OSD/OS.
 
 IPv6 is not an OSD/OS requirement, and OSD/OS should not enable or force it automatically; these commands are only a diagnostic.
+
+For the Arcade module, install MAME, at run time only: `sudo apt install mame` (the OS image has it; `install.sh` doesn't install it). The module looks for `bin/mame` in the data directory first, then `mame` on the `PATH`, then `/usr/games/mame`. See the wiki's [Arcade](https://github.com/mehmetraif/OSD-OS/wiki/Arcade) page.
 
 ### Get the source
 

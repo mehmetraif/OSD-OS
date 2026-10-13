@@ -193,6 +193,16 @@ QStringList AudioOutput::mpvArgs() {
     return { QStringLiteral("--audio-device=%1").arg(device) };
 }
 
+bool AudioOutput::hasPlaybackCard() {
+#ifdef Q_OS_LINUX
+    if (!QFileInfo::exists(asoundDir() + QStringLiteral("/cards")) || soundServer())
+        return true;
+    return !playbackCards().isEmpty();
+#else
+    return true;
+#endif
+}
+
 void AudioOutput::applyTo(QProcessEnvironment &env) {
     // ALSA's default device ("default") is then on that card, as above.
     const QString id = card();

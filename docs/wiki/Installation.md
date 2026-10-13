@@ -14,7 +14,7 @@ Everything it takes to get OSD/OS running: the OSD/OS image, which makes a Raspb
 | mpv | On the image | Installed by `install.sh` | `brew install mpv` | Inside the AppImage |
 | Transparent Background | Yes | Yes (`libmpv2`) | Yes (Homebrew's libmpv) | No |
 | Settings → Display Output | Yes | No | No | No |
-| What YouTube, Netflix and Prime Video run | On the image (yt-dlp, Deno, Chromium with Widevine) | Installed by hand ([below](https://github.com/mehmetraif/OSD-OS/wiki/Installation#optional-extras)) | See [YouTube](https://github.com/mehmetraif/OSD-OS/wiki/YouTube) and [Netflix and Prime Video](https://github.com/mehmetraif/OSD-OS/wiki/Netflix-and-Prime-Video) | See the same pages |
+| What YouTube, Netflix, Prime Video and Arcade run | On the image (yt-dlp, Deno, Chromium with Widevine, MAME) | Installed by hand ([below](https://github.com/mehmetraif/OSD-OS/wiki/Installation#optional-extras)) | See [YouTube](https://github.com/mehmetraif/OSD-OS/wiki/YouTube), [Netflix and Prime Video](https://github.com/mehmetraif/OSD-OS/wiki/Netflix-and-Prime-Video) and [Arcade](https://github.com/mehmetraif/OSD-OS/wiki/Arcade) | See the same pages |
 
 The OSD/OS image is the simplest way, and the only one where OSD/OS is the whole system. The app installs keep the system you already have.
 
@@ -41,7 +41,7 @@ It prints the file's name and `OK`.
 
 ## The OSD/OS image
 
-The OSD/OS image is Raspberry Pi OS Lite (64-bit), based on Debian 13 "trixie" and built with Raspberry Pi's own image builder, pi-gen, with one stage on top that makes it boot straight into OSD/OS. There is no desktop, no login prompt and no boot text: from power-on the screen is OSD/OS's, starting with its boot screen. OSD/OS starts as soon as the display driver is up, and Wi-Fi, Bluetooth and the local network wait until it is on screen. On the first boot the card's free space becomes a partition of its own, in exFAT, for your films. Chromium (for Netflix and Prime Video), yt-dlp and Deno (for YouTube), FluidSynth and openmpt123 (for menu music) are already on it. [The OSD/OS image](https://github.com/mehmetraif/OSD-OS/wiki/The-OSD-OS-Image) has the details; this section is how to get it onto a card.
+The OSD/OS image is Raspberry Pi OS Lite (64-bit), based on Debian 13 "trixie" and built with Raspberry Pi's own image builder, pi-gen, with one stage on top that makes it boot straight into OSD/OS. There is no desktop, no login prompt and no boot text: from power-on the screen is OSD/OS's, starting with its boot screen. OSD/OS starts as soon as the display driver is up, and Wi-Fi, Bluetooth and the local network wait until it is on screen. On the first boot the card's free space becomes a partition of its own, in exFAT, for your films. Chromium (for Netflix and Prime Video), yt-dlp and Deno (for YouTube), MAME (for the Arcade module), FluidSynth and openmpt123 (for menu music) are already on it. [The OSD/OS image](https://github.com/mehmetraif/OSD-OS/wiki/The-OSD-OS-Image) has the details; this section is how to get it onto a card.
 
 ### What you need
 
@@ -451,6 +451,13 @@ osdos
   ```
 
   See [Netflix and Prime Video](https://github.com/mehmetraif/OSD-OS/wiki/Netflix-and-Prime-Video).
+- **Arcade** plays its games in MAME:
+
+  ```sh
+  sudo apt install mame
+  ```
+
+  A MAME of your own at `~/.local/share/OSD-OS/bin/mame` is used first. See [Arcade](https://github.com/mehmetraif/OSD-OS/wiki/Arcade).
 - **An NFC reader** needs device access set up once: see [NFC Reader](https://github.com/mehmetraif/OSD-OS/wiki/NFC-Reader).
 - **USB drives** are not mounted by themselves on Raspberry Pi OS Lite, as they are on the image. Local Files still lists a drive mounted under `/media` some other way.
 - **A gamepad that isn't seen**: the service runs OSD/OS with access to the input devices; run by hand, your user needs to be in the `input` group: `sudo usermod -aG input $USER`, then reboot.
@@ -478,6 +485,7 @@ OSD/OS runs on Apple Silicon Macs (not Intel ones), full screen. It plays videos
    brew install mpv                  # required: plays the videos, and libmpv for Transparent Background
    brew install fluid-synth libopenmpt   # optional: menu music from MIDI files and trackers' XM, MOD, S3M and IT
    brew install yt-dlp deno          # optional: the YouTube module
+   brew install mame                 # optional: the Arcade module
    ```
 
    A MIDI file needs a General MIDI SoundFont (an `.sf2` file) in the data folder's `soundfonts` folder, `~/Library/Application Support/OSD-OS/soundfonts/`: Homebrew's FluidSynth doesn't bring one.

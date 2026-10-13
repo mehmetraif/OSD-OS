@@ -81,6 +81,8 @@ add_executable(osdos
     src/modules/weather/WeatherBackend.cpp
     src/modules/scripts/ScriptsBackend.cpp
     src/modules/scripts/ScriptLauncher.cpp
+    src/modules/arcade/ArcadeBackend.cpp
+    src/modules/arcade/Mame.cpp
     src/modules/web_player/WebPlayerBackend.cpp
     src/modules/web_player/TmdbCatalog.cpp
     src/player/MpvController.cpp

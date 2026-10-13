@@ -60,6 +60,9 @@ public:
     // bytes, trimmed from the front, so a chatty script can't grow without limit.
     QString outputText() const;
     int     lastExitCode() const { return m_lastExitCode; }
+    // The last run ended by a signal (a crash, a kill), lastExitCode() being
+    // then the signal's number rather than an exit code.
+    bool    lastRunCrashed() const { return m_lastCrashed; }
 
 signals:
     void runningChanged();
@@ -123,6 +126,7 @@ private:
     bool        m_stopRequested = false;
     bool        m_finished      = true;   // latch; true when no run is in flight
     int         m_lastExitCode  = 0;
+    bool        m_lastCrashed   = false;
     QString     m_pendingReason;          // held while the display is handed back
     // This run took the takeover path, so it gets the takeover teardown (drain the
     // process group, hand the display back, then report). Note this is true on

@@ -139,13 +139,14 @@ The music plays while it is **wanted** and **nothing holds it**.
 | Weather's music | As its music starts | When its music stops |
 | A script, from the Scripts module | As it starts | When it has ended |
 | Netflix's or Prime Video's web player | As it starts | When it has ended |
+| An Arcade game in MAME | As MAME starts | When the game has ended |
 
 A hold stops the music there and then: its mpv is killed and waited for, so the sound card is free before the other opens it. Once nothing holds it and it is wanted again, it starts 700 ms later, from the beginning.
 
 ```mermaid
 flowchart TD
     W{"Wanted? A tune chosen, the effects not resting,<br/>no boot screen, no screen saver,<br/>Display Output not asking"} -- no --> S["Silent: stopped at once"]
-    W -- yes --> H{"Held? A video, Ambient:Mode's or Weather's music,<br/>a script, a web player"}
+    W -- yes --> H{"Held? A video, Ambient:Mode's or Weather's music,<br/>a script, an Arcade game, a web player"}
     H -- yes --> S
     H -- no --> F{"Has this file failed already?"}
     F -- yes --> S

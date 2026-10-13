@@ -18,7 +18,7 @@ OSD/OS is one C++17 program (Qt 6 and QML) built with CMake 3.21 or newer. CMake
 | Qt D-Bus (Linux) | Settings → Bluetooth, through BlueZ | `Qt D-Bus not found — Settings → Bluetooth will be unavailable` |
 | git | The commit in Settings → About → Build | The build has the day alone |
 
-At run time OSD/OS starts other programs rather than linking them: **mpv** for every video (0.38 or newer), and for some modules yt-dlp and Deno (YouTube), FluidSynth with a SoundFont and openmpt123 (menu music in MIDI or a tracker's format), Chromium with Widevine (Netflix and Prime Video). None of them is needed to build.
+At run time OSD/OS starts other programs rather than linking them: **mpv** for every video (0.38 or newer), and for some modules yt-dlp and Deno (YouTube), FluidSynth with a SoundFont and openmpt123 (menu music in MIDI or a tracker's format), Chromium with Widevine (Netflix and Prime Video), MAME (Arcade). None of them is needed to build.
 
 Get the source first:
 
@@ -49,6 +49,7 @@ Any of three:
 brew install cmake sdl2 mpv pkgconf      # build tools, gamepads, playback, libmpv's headers
 brew install fluid-synth libopenmpt      # optional: menu music in MIDI and trackers' formats
 brew install yt-dlp deno                 # optional: the YouTube module
+brew install mame                        # optional: the Arcade module
 ```
 
 - `sdl2`, the formula BUILDING.md names, is Homebrew's `sdl2-compat`, SDL2's API on top of SDL3. The release workflow builds SDL2 2.32.10 from source instead, so that the DMG carries SDL2 itself and no SDL3.
@@ -97,6 +98,7 @@ This is [BUILDING.md](https://github.com/mehmetraif/OSD-OS/blob/main/BUILDING.md
 | `qt6-shadertools-dev` (in the list above) | The effects' shaders; leave it out and they are left out. `qt6-shader-baker` brings `qsb`, for a theme's own shader |
 | `libpcsclite-dev` | PC/SC NFC readers. Run `bash scripts/setup-nfc-reader.sh` once either way: it lets the user open a PN532 reader, and sets up `pcscd` where PC/SC is usable |
 | `fluidsynth timgm6mb-soundfont openmpt123` | Menu music in MIDI and trackers' formats (run time only) |
+| `mame` | The Arcade module's games, in MAME (run time only; the image has it) |
 | `bluez`, and the user in the `bluetooth` group | Settings → Bluetooth (run time; Raspberry Pi OS Lite has BlueZ). `sudo usermod -aG bluetooth $USER` |
 
 For YouTube, yt-dlp from its own releases (the one apt brings is too old) and Deno, on the `PATH` of the user that runs OSD/OS ([yt-dlp's EJS notes](https://github.com/yt-dlp/yt-dlp/wiki/EJS)):
