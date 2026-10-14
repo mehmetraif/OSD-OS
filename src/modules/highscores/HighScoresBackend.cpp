@@ -467,6 +467,59 @@ QVariantList HighScoresBackend::rowEntries(const QString &set, const scores::Tab
     return entries;
 }
 
+QVariantList HighScoresBackend::topEntries(const QString &set, int count) const {
+    QVariantList entries;
+    const auto game = m_games.constFind(set);
+    if (game == m_games.constEnd() || game->hidden || !game->error.isEmpty() || count <= 0)
+        return entries;
+    const auto ordinal = [](int n) {
+        const int tens = n % 100;
+        const char *suffix = tens >= 11 && tens <= 13 ? "TH"
+                           : n % 10 == 1 ? "ST" : n % 10 == 2 ? "ND" : n % 10 == 3 ? "RD" : "TH";
+        return QString::number(n) + QLatin1String(suffix);
+    };
+    const auto entry = [](const QString &rank, const QString &score, const QString &name) {
+        return QVariantMap{ { QStringLiteral("rank"), rank }, { QStringLiteral("score"), score },
+                            { QStringLiteral("name"), name } };
+    };
+    if (game->tables.isEmpty()) {
+        // A best score kept on its own, and whose it is.
+        QString score, name;
+        for (const auto &[id, value] : game->fields) {
+            const QString field = scores::label(id).toUpper();
+            if (score.isEmpty() && field.contains(QLatin1String("SCORE")))
+                score = value;
+            else if (name.isEmpty() && (field.contains(QLatin1String("NAME")) || field.contains(QLatin1String("INITIAL"))))
+                name = value;
+        }
+        if (!score.isEmpty())
+            entries << entry(ordinal(1), score, name);
+        return entries;
+    }
+    const scores::Table &table = game->tables.first();
+    int rank = -1, score = -1, name = -1;
+    for (int c = 0; c < table.columns.size(); ++c) {
+        const QString column = scores::label(table.columns.at(c)).toUpper();
+        if (rank < 0 && (column == QLatin1String("RANK") || column == QLatin1String("POSITION")))
+            rank = c;
+        else if (score < 0 && column.contains(QLatin1String("SCORE")))
+            score = c;
+        else if (name < 0 && (column.contains(QLatin1String("NAME")) || column.contains(QLatin1String("INITIAL"))))
+            name = c;
+    }
+    // A table of times, or of rounds: its first column of those.
+    for (int c = 0; score < 0 && c < table.columns.size(); ++c) {
+        if (c != rank && c != name)
+            score = c;
+    }
+    for (int r = 0; r < table.rows.size() && entries.size() < count; ++r) {
+        const QStringList &row = table.rows.at(r);
+        const auto cell = [&row](int c) { return c >= 0 && c < row.size() ? row.at(c).trimmed() : QString(); };
+        entries << entry(ordinal(r + 1), cell(score), cell(name));
+    }
+    return entries;
+}
+
 QVariant HighScoresBackend::requestEntries(const QString &path) {
     // To be listed again should what it holds change.
     m_shown.insert(path);

@@ -179,11 +179,16 @@ set_tests_properties(tree_browser PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscr
 add_test(NAME controls_views COMMAND tree_browser_test -input ${CMAKE_CURRENT_SOURCE_DIR}/qml/tst_controllers.qml
                                      -import ${CMAKE_CURRENT_SOURCE_DIR}/../views)
 set_tests_properties(controls_views PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen;QT_QUICK_BACKEND=software")
-# The Arcade module's views (modules/arcade/views/Games.qml, Play.qml) against
-# a stand-in for ArcadeBackend.
+# The Arcade module's views (modules/arcade/views/Games.qml, ArcadeScreen.qml,
+# Play.qml) against a stand-in for ArcadeBackend.
 add_test(NAME arcade_views COMMAND tree_browser_test -input ${CMAKE_CURRENT_SOURCE_DIR}/qml/tst_arcade.qml
                                    -import ${CMAKE_CURRENT_SOURCE_DIR}/../views)
 set_tests_properties(arcade_views PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen;QT_QUICK_BACKEND=software")
+# A module's settings page (views/ModuleSettings.qml) against a stand-in for
+# AppCore: rows that follow another row's value.
+add_test(NAME module_settings_view COMMAND tree_browser_test -input ${CMAKE_CURRENT_SOURCE_DIR}/qml/tst_module_settings.qml
+                                           -import ${CMAKE_CURRENT_SOURCE_DIR}/../views)
+set_tests_properties(module_settings_view PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen;QT_QUICK_BACKEND=software")
 # The High Scores module's view (modules/highscores/views/Scores.qml) against
 # a stand-in for HighScoresBackend.
 add_test(NAME highscores_views COMMAND tree_browser_test -input ${CMAKE_CURRENT_SOURCE_DIR}/qml/tst_highscores.qml

@@ -44,8 +44,10 @@ FocusScope {
         return null
     }
 
-    function buildModel() {
+    // `keepKey`: the row the cursor stays on, as rows come and go round it.
+    function buildModel(keepKey) {
         var schema = appCore.get_module_settings_schema(moduleId)
+        fullSchema = schema
         if (submenuKey !== "") {
             var submenu = findSubmenu(schema, submenuKey)
             submenuLabel = submenu ? (submenu.label || "") : ""
@@ -65,15 +67,53 @@ FocusScope {
             var item = schema[i]
             if (item.requires_auth && (authState === "none" || authState === "")) continue
             if (item.requires_capability && caps.indexOf(item.requires_capability) < 0) continue
+            if (item.shown_with && !shownWith(item.shown_with)) continue
             filtered.push(item)
         }
         schemaItems = filtered
 
         if (filtered.length > 0) {
             var restore = (navListState.currentIndex !== undefined) ? navListState.currentIndex : 0
+            for (var k = 0; keepKey !== undefined && k < filtered.length; k++) {
+                if (filtered[k].key === keepKey) restore = k
+            }
             settingsList.currentIndex = Math.min(restore, filtered.length - 1)
             settingsList.positionViewAtIndex(settingsList.currentIndex, ListView.Contain)
         }
+    }
+
+    // The module's whole schema, submenus and all, as buildModel() last read it.
+    property var fullSchema: []
+
+    // A row offered only while another of the module's has a value
+    // (manifest "shown_with": { "key", "value" }), such as the Arcade
+    // module's rows for its Arcade screen. An unset one is its default.
+    function shownWith(cond) {
+        var value = currentValues[cond.key]
+        if (value === undefined || value === null || value === "") {
+            var row = findRow(fullSchema, cond.key)
+            value = row ? row.default : undefined
+        }
+        return String(value) === String(cond.value)
+    }
+
+    // The row with this key, at any depth.
+    function findRow(list, key) {
+        for (var i = 0; i < list.length; i++) {
+            if (list[i].key === key) return list[i]
+            var inner = list[i].type === "submenu" ? findRow(list[i].settings || [], key) : null
+            if (inner) return inner
+        }
+        return null
+    }
+
+    // Whether a row of this menu comes and goes with this key's value.
+    function rowsFollow(key) {
+        var schema = submenuKey !== "" ? ((findSubmenu(fullSchema, submenuKey) || {}).settings || []) : fullSchema
+        for (var i = 0; i < schema.length; i++) {
+            if (schema[i].shown_with && schema[i].shown_with.key === key) return true
+        }
+        return false
     }
 
     // Rows that show their current value after the dots.
@@ -157,6 +197,8 @@ FocusScope {
             }
             settingsList.forceLayout()
         }
+        if (rowsFollow(item.key))
+            buildModel(item.key)
     }
 
     // Forward dynamicOptionsReady from appCore into our local cache

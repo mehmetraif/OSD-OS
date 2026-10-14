@@ -6,13 +6,14 @@ import QtQuick
 // written as several lines reads as one, its lines joined with "•".
 // Settings' HELP LINE (root.helpLine) hides every one at once, by its opacity,
 // so a host's own visible binding holds and its menu keeps its shape; one
-// whose lines are the page itself (ABOUT's) stays, with always.
+// whose lines are the page itself (ABOUT's) stays, with always. A module with
+// a Help Line setting of its own (Arcade's) sets shown instead.
 Rectangle {
     id: help
 
     property string text: ""
     property bool always: false
-    readonly property bool shown: always || root.helpLine
+    property bool shown: always || root.helpLine
 
     readonly property string line: text.split("\n")
         .map(function(part) { return part.trim() })

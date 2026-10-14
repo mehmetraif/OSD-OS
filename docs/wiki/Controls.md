@@ -144,7 +144,7 @@ On the OSD/OS image, with a Raspberry Pi to JAMMA board in RGB-Pi's layout and t
 - **Where they come from.** The board reads the joysticks and buttons through two MCP23017 port expanders on the Pi's I2C bus, player 1's at address 0x20 and player 2's at 0x21. `osdos-jamma.service` (`/opt/osdos/bin/osdos-jamma`) reads both every 2 ms and plays what changes on the two pads.
 - **What they are.** OSD/OS and any emulator take them as any other gamepad: the joystick a stick that is either all the way over or in the middle, as RGB-Pi's own driver has it, the buttons gamepad buttons. MAME takes the stick as its joystick.
 - **Two controllers.** Settings → Controls lists them apart, each with its own page, its buttons named as the cabinet numbers them: 1 to 8, COIN and START, the stick JOYSTICK ([Button Labels](https://github.com/mehmetraif/OSD-OS/wiki/Controls#button-labels): Arcade).
-- **In the Arcade module.** Buttons 1 to 6, COIN and START are MAME's buttons 1 to 6, coin and start, for both players, and COIN and START together on player 1's controller leave a game ([Arcade](https://github.com/mehmetraif/OSD-OS/wiki/Arcade#players-and-buttons)).
+- **In the Arcade module.** Buttons 1 to 6, COIN and START are MAME's buttons 1 to 6, coin and start, for both players, and COIN and START together on player 1's controller leave a game ([Arcade](https://github.com/mehmetraif/OSD-OS/wiki/Arcade#players-and-buttons)). On the Arcade screen, COIN puts a credit in and START plays the game, as on a cabinet's own selection screen ([The Arcade screen](https://github.com/mehmetraif/OSD-OS/wiki/Arcade#the-arcade-screen)).
 - **Bounce.** A switch's bounce in the 5 ms after it closes or opens is let go by.
 - **Six buttons on the edge.** A cabinet with buttons 4 to 6 on the JAMMA edge, pins 27 and e among them (CHAMMA), needs the board's JP1 and JP2 on CHAMMA ([Display Output → A Raspberry Pi to JAMMA board](https://github.com/mehmetraif/OSD-OS/wiki/Display-Output#a-raspberry-pi-to-jamma-board)).
 
@@ -371,6 +371,7 @@ The bar at the foot of every screen names the keys that work there (`[ESC]:BACK 
 | The trees' arrows | `[▲▼◄►]` | `[▲▼◄►]` | `[▲▼◄►]` | `[▲▼◄►]` | `[▲▼◄►]` |
 | Change | `[◄►]` | `[◄►]` | `[◄►]` | `[◄►]` | `[◄►]` |
 | Options or info | `[►]` | `[►]` | `[►]` | `[►]` | `[►]` |
+| Coin (the [Arcade screen](https://github.com/mehmetraif/OSD-OS/wiki/Arcade#the-arcade-screen)'s) | `[5]` | `[BACK]` | `[-]` | `[SELECT]` | `[COIN]` |
 
 A gamepad's names are those of the pad used last, from its own map: the hint for an action names the first of that pad's buttons that does it, in SDL's order (`a`, `b`, `x`, `y`, `back`, `guide`, `start`, …: so `x play_pause` makes the play/pause hint `[X]`, but `y back` leaves the back hint `[B]`), by the pad's [Button Labels](https://github.com/mehmetraif/OSD-OS/wiki/Controls#button-labels) (Auto: as the pad says it is), and a `label` line in `input.cfg` renames a button on every pad. An action with no gamepad button keeps the keyboard's name. Settings → **Hint Bar** takes the bar away (`app.hint_bar`: `Off`); the keys work as they always do.
 

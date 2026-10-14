@@ -5,9 +5,9 @@ import QtQuick
 // app plays straight after the boot screen (PLAY AT STARTUP), and put it on a
 // playlist (ADD TO PLAYLIST, where the Playlists module takes the module's
 // videos: PlaylistAdder, over these options, which close with it, closed()
-// once). A host can offer its own as well (moreChoices, acted on in
-// onActivated as with any ChoiceOverlay), and refreshes its FAVORITES folder
-// on favoritesEdited.
+// once). A host can offer its own as well, ahead of these (firstChoices) or
+// after them (moreChoices), acted on in onActivated as with any
+// ChoiceOverlay, and refreshes its FAVORITES folder on favoritesEdited.
 // FAVORITES is one of the module's lists in AppCore (get_list(moduleId,
 // "favorites")), keeping the entries as offer() was given them; the startup
 // favourite is the app setting "startup_favorite": { module, path, name }.
@@ -31,7 +31,8 @@ ChoiceOverlay {
     property bool atStartup: false
     // Whether it can go on a playlist.
     property bool playlists: false
-    // The host's own, after FAVORITES': [{ label, action }].
+    // The host's own, before FAVORITES' and after them: [{ label, action }].
+    property var firstChoices: []
     property var moreChoices: []
 
     signal favoritesEdited()
@@ -47,8 +48,9 @@ ChoiceOverlay {
 
     promptText: "Options"
     subtitleText: entry ? (entry.title || entry.name || "") : ""
-    choices: [{ label: favorite ? "Remove from Favorites" : "Add to Favorites", action: "favorite" },
-              { label: atStartup ? "Don't Play at Startup" : "Play at Startup", action: "startup" }]
+    choices: firstChoices
+             .concat([{ label: favorite ? "Remove from Favorites" : "Add to Favorites", action: "favorite" },
+                      { label: atStartup ? "Don't Play at Startup" : "Play at Startup", action: "startup" }])
              .concat(playlists ? [{ label: "Add to Playlist", action: "playlist" }] : [])
              .concat(moreChoices)
 

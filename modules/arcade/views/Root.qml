@@ -15,6 +15,26 @@ FocusScope {
     property string moduleName: _moduleInfo.name || ""
     property string moduleIcon: _moduleInfo.icon || ""
 
+    // Settings → Arcade's, as the module opens. Screen: "Original", the tree
+    // (Games.qml), or "Arcade", the selection screen (ArcadeScreen.qml),
+    // whose own are its Hint Bar and Help Line and the filter it opens on.
+    // Start Info Screen is both's: how to come back, before a game.
+    property string screen: "Original"
+    readonly property bool arcadeScreen: screen === "Arcade"
+    property bool hintBar: true
+    property bool helpLine: true
+    property bool startInfo: true
+    property string startFilter: "all"
+    // The credits bought on the Arcade screen with COIN, 9 at most: they go
+    // in the next game played (Play.qml).
+    property int credits: 0
+
+    // A toggle of the module's, ON unless it is turned off.
+    function settingOn(key) {
+        var value = appCore ? appCore.get_setting(moduleId, key) : undefined
+        return value === undefined || value === null || value === true || String(value).toUpperCase() === "ON"
+    }
+
     // Internal navigation state
     property var navStack: []
     property var currentParams: ({})
@@ -64,11 +84,16 @@ FocusScope {
     }
 
     Component.onCompleted: {
+        screen = appCore && appCore.get_setting(moduleId, "screen") === "Arcade" ? "Arcade" : "Original"
+        hintBar = settingOn("hint_bar")
+        helpLine = settingOn("help_line")
+        startInfo = settingOn("start_info")
+        startFilter = (appCore && appCore.get_setting(moduleId, "start_filter")) || "all"
         // The folder looked at again, and MAME asked about any game new in
         // it, before the list asks for what is in it.
         if (arcadeBackend)
             arcadeBackend.refresh()
         // The startup favourite, when the app opens on one (Main.qml).
-        navigateTo("Games.qml", { startupPlay: navParams.startupPlay })
+        navigateTo(arcadeScreen ? "ArcadeScreen.qml" : "Games.qml", { startupPlay: navParams.startupPlay })
     }
 }

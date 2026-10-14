@@ -15,12 +15,20 @@
 #include <QJsonObject>
 #include <QRegularExpression>
 #include <QTimer>
+#include <QUrl>
 #include <algorithm>
 #include <utility>
 
 namespace {
 
 const QString kModuleId = QStringLiteral("com.osdos.arcade");
+
+// games.json's layout: one of another is read as none, and every set asked
+// about again (2: each machine's source file, for its system).
+constexpr int kCacheVersion = 2;
+
+// The most credits a game is started with, as most games show at most 9.
+constexpr int kMaxCredits = 9;
 
 // MAME asked about this many sets at a time: a short enough command line, and
 // what it says comes in batches.
@@ -34,8 +42,8 @@ constexpr int kNoSuchSystem = 5;
 constexpr int kInvalidConfig = 6;
 
 // Folders beside the games that aren't games: the BIOS sets' (on MAME's
-// rompath too) and the samples' (its samplepath).
-const QStringList kNotSets = { QStringLiteral("bios"), QStringLiteral("samples") };
+// rompath too), the samples' (its samplepath) and the games' pictures.
+const QStringList kNotSets = { QStringLiteral("bios"), QStringLiteral("samples"), QStringLiteral("snap") };
 
 // The folders MAME writes what it keeps of the games in, by the option that
 // names each: all in <data>/arcade, whatever MAME's own settings say.
@@ -48,8 +56,11 @@ constexpr std::pair<const char *, const char *> kOutputs[] = {
     { "-diff_directory", "diff" },         // what a game writes to its hard disk
 };
 
-// The tree's folders by players, decade and maker.
-const char *const kKinds[] = { "players", "years", "makers" };
+// The places games are under: the Arcade screen's filters by genre, players
+// and decade, and the tree's folders by players, decade and maker.
+const char *const kKinds[] = { "genres", "players", "years", "makers" };
+const char *const kFilterKinds[] = { "genres", "players", "years" };
+const char *const kFolderKinds[] = { "players", "years", "makers" };
 
 bool isOn(const QVariant &value, bool fallback) {
     if (!value.isValid() || value.isNull())
@@ -62,6 +73,11 @@ bool isOn(const QVariant &value, bool fallback) {
 QVariantMap folder(const QString &name, const QString &path) {
     return { { QStringLiteral("name"), name }, { QStringLiteral("path"), path },
              { QStringLiteral("isFolder"), true } };
+}
+
+QVariantMap filter(const QString &id, const QString &name, qsizetype count) {
+    return { { QStringLiteral("id"), id }, { QStringLiteral("name"), name },
+             { QStringLiteral("count"), static_cast<int>(count) } };
 }
 
 } // namespace
@@ -78,6 +94,14 @@ ArcadeBackend::ArcadeBackend(const QString &appRoot, const QString &dataRoot, Ap
         const QString notice = noticeFor(exitCode, reason);
         if (!notice.isEmpty())
             qWarning("[Arcade] %s: %s", qPrintable(m_playing), qPrintable(notice));
+        // The time it ran counts as played, unless MAME refused the game
+        // (files missing, no such game, its settings wrong) or never ran.
+        const bool refused = reason == QLatin1String("failed_to_start")
+                             || (reason == QLatin1String("failed") && !m_launcher->lastRunCrashed()
+                                 && (exitCode == kMissingFiles || exitCode == kNoSuchSystem
+                                     || exitCode == kInvalidConfig));
+        if (!refused && !m_playing.isEmpty())
+            addPlayTime(m_playing, (m_playClock.elapsed() + 500) / 1000);
         m_playing.clear();
         emit finished(exitCode, reason, notice);
         // The sets MAME was still to be asked about, held while it played.
@@ -100,6 +124,16 @@ ArcadeBackend::ArcadeBackend(const QString &appRoot, const QString &dataRoot, Ap
     for (const char *key : { "games_directory", "high_scores", "video" }) {
         const QString k = QLatin1String(key);
         applySetting(k, m_appCore ? m_appCore->get_setting(kModuleId, k) : QVariant());
+    }
+
+    // Play at Startup shows the app's startup favourite, whichever screen
+    // set it (a game's options, Settings' own Play at Startup).
+    if (m_appCore) {
+        connect(m_appCore, &AppCore::appSettingChanged, this, [this](const QString &key) {
+            if (key == QLatin1String("startup_favorite"))
+                syncStartupGame();
+        });
+        syncStartupGame();
     }
 }
 
@@ -131,7 +165,49 @@ void ArcadeBackend::applySetting(const QString &key, const QVariant &value) {
             { QStringLiteral("Software"), QStringLiteral("soft") },
         };
         m_video = kVideo.value(value.toString());
+    } else if (key == QLatin1String("play_at_startup") && m_appCore) {
+        // A favourite's set, or "" for none: the app's startup favourite
+        // made it, as a game's options would.
+        const QString set = value.toString();
+        if (set == startupSet())
+            return;
+        if (set.isEmpty()) {
+            // None: no game of this module's starts with the app. Another
+            // module's favourite is left as it is.
+            if (!startupSet().isEmpty())
+                m_appCore->save_setting(QString(), QStringLiteral("startup_favorite"), QString());
+            return;
+        }
+        // Named as its favourite is.
+        QString name = set;
+        const QVariantList favorites = m_appCore->get_list(kModuleId, QStringLiteral("favorites"));
+        for (const QVariant &v : favorites) {
+            const QVariantMap entry = v.toMap();
+            if (entry.value(QStringLiteral("path")).toString() == QStringLiteral("game:") + set)
+                name = entry.value(QStringLiteral("name"), set).toString();
+        }
+        m_appCore->save_setting(QString(), QStringLiteral("startup_favorite"),
+                                QVariantMap{ { QStringLiteral("module"), kModuleId },
+                                             { QStringLiteral("path"), QStringLiteral("game:") + set },
+                                             { QStringLiteral("name"), name } });
     }
+}
+
+QString ArcadeBackend::startupSet() const {
+    if (!m_appCore)
+        return QString();
+    const QVariantMap startup = m_appCore->get_setting(QString(), QStringLiteral("startup_favorite")).toMap();
+    const QString path = startup.value(QStringLiteral("path")).toString();
+    if (startup.value(QStringLiteral("module")).toString() != kModuleId || !path.startsWith(QLatin1String("game:")))
+        return QString();
+    return path.mid(5);
+}
+
+void ArcadeBackend::syncStartupGame() {
+    // Saving it comes back to applySetting(), which finds them the same.
+    const QString set = startupSet();
+    if (m_appCore->get_setting(kModuleId, QStringLiteral("play_at_startup")).toString() != set)
+        m_appCore->save_setting(kModuleId, QStringLiteral("play_at_startup"), set);
 }
 
 void ArcadeBackend::setGamesFolder(const QString &path) {
@@ -144,6 +220,7 @@ void ArcadeBackend::setGamesFolder(const QString &path) {
     if (folder == m_gamesFolder)
         return;
     m_gamesFolder = folder;
+    m_listed = false;
     m_sets.clear();
     m_misnamed.clear();
     m_folders.clear();
@@ -220,7 +297,8 @@ void ArcadeBackend::listFolder() {
         else
             misnamed.remove(name);
     }
-    // The tree stays as it was made while the folder is as it was.
+    m_listed = true;
+    // The list stays as it was made while the folder is as it was.
     if (sets == m_sets && misnamed == m_misnamed)
         return;
     m_sets = std::move(sets);
@@ -250,6 +328,7 @@ void ArcadeBackend::refresh() {
     // There, so that whoever copies games onto the card sees where they go.
     QDir().mkpath(m_gamesFolder);
     listFolder();
+    loadGenres();
     // A MAME changed (an update, a drop-in) may know the sets differently:
     // all of them are asked about again. With none there is nothing to ask,
     // and what the last one said is kept.
@@ -266,6 +345,38 @@ void ArcadeBackend::refresh() {
     // As the list opens there is nothing shown yet; anything that is lists
     // the folder as it is now.
     emitShown();
+}
+
+void ArcadeBackend::prepare() {
+    if (!m_cacheLoaded)
+        loadCache();
+    if (!m_listed)
+        listFolder();
+    loadGenres();
+}
+
+void ArcadeBackend::loadGenres() {
+    // catver.ini beside the games, else in the module's own folder.
+    QString path;
+    for (const QString &candidate : { m_gamesFolder + QStringLiteral("/catver.ini"), m_home + QStringLiteral("/catver.ini") }) {
+        if (QFileInfo(candidate).isFile()) {
+            path = candidate;
+            break;
+        }
+    }
+    QString from;
+    if (!path.isEmpty()) {
+        const QFileInfo info(path);
+        from = QStringLiteral("%1:%2:%3").arg(info.absoluteFilePath()).arg(info.size())
+                                         .arg(info.lastModified().toMSecsSinceEpoch());
+    }
+    if (from == m_genresFrom)
+        return;
+    m_genresFrom = from;
+    m_genres = path.isEmpty() ? QHash<QString, QString>() : mame::readGenres(path);
+    if (!path.isEmpty())
+        qInfo("[Arcade] %lld games' genres from %s", static_cast<long long>(m_genres.size()), qPrintable(path));
+    invalidate();
 }
 
 void ArcadeBackend::rescan() {
@@ -293,6 +404,11 @@ void ArcadeBackend::loadCache() {
     if (!file.open(QIODevice::ReadOnly))
         return;
     const QJsonObject cache = QJsonDocument::fromJson(file.readAll()).object();
+    // Made by an older version, without what this one keeps of each game.
+    if (cache.value(QStringLiteral("version")).toInt() != kCacheVersion) {
+        qInfo("[Arcade] games.json is from an older version: asking MAME about every game again");
+        return;
+    }
     m_identity = cache.value(QStringLiteral("mame")).toString();
     m_build = cache.value(QStringLiteral("build")).toString();
     const QJsonObject machines = cache.value(QStringLiteral("machines")).toObject();
@@ -310,7 +426,8 @@ void ArcadeBackend::saveCache() const {
         machines.insert(it.key(), QJsonObject::fromVariantMap(it.value().toVariant()));
     QStringList unknown(m_unknown.cbegin(), m_unknown.cend());
     unknown.sort();
-    const QJsonObject cache{ { QStringLiteral("mame"), m_identity },
+    const QJsonObject cache{ { QStringLiteral("version"), kCacheVersion },
+                             { QStringLiteral("mame"), m_identity },
                              { QStringLiteral("build"), m_build },
                              { QStringLiteral("machines"), machines },
                              { QStringLiteral("unknown"), QJsonArray::fromStringList(unknown) } };
@@ -420,10 +537,31 @@ void ArcadeBackend::emitShown() {
     const QSet<QString> shown = std::exchange(m_shown, {});
     for (const QString &path : shown)
         emit entriesReady(path);
+    emit gamesChanged();
 }
 
 // ---------------------------------------------------------------------------
-// The tree.
+// The filters.
+
+bool ArcadeBackend::isGame(const QString &set) const {
+    if (!m_sets.contains(set) || !mame::isShortName(set) || m_unknown.contains(set) || m_misnamed.contains(set))
+        return false;
+    // One MAME wasn't asked about (there is none) is listed by its name.
+    const auto machine = m_machines.constFind(set);
+    return machine == m_machines.constEnd() || machine->isGame();
+}
+
+QString ArcadeBackend::sortKey(const QString &set) const {
+    const auto machine = m_machines.constFind(set);
+    const bool named = machine != m_machines.constEnd() && !machine->description.isEmpty();
+    return (named ? machine->description : set).toCaseFolded();
+}
+
+QString ArcadeBackend::titleOf(const QString &set) const {
+    const auto machine = m_machines.constFind(set);
+    return machine != m_machines.constEnd() && !machine->description.isEmpty()
+               ? mame::titleOf(machine->description) : set;
+}
 
 const ArcadeBackend::Index &ArcadeBackend::index() const {
     if (m_indexed)
@@ -433,27 +571,20 @@ const ArcadeBackend::Index &ArcadeBackend::index() const {
     byName.reserve(m_sets.size());
     for (auto it = m_sets.cbegin(); it != m_sets.cend(); ++it) {
         const QString &set = it.key();
-        if (!mame::isShortName(set) || m_unknown.contains(set) || m_misnamed.contains(set)) {
+        if (!mame::isShortName(set) || m_unknown.contains(set) || m_misnamed.contains(set))
             index.unknown << set;
-            continue;
-        }
-        const auto machine = m_machines.constFind(set);
-        // One MAME wasn't asked about (there is none) is listed by its name.
-        if (machine == m_machines.constEnd())
-            byName.append({ set.toCaseFolded(), set });
-        else if (machine->isGame())
-            byName.append({ (machine->description.isEmpty() ? set : machine->description).toCaseFolded(), set });
+        else if (isGame(set))
+            byName.append({ sortKey(set), set });
     }
     std::sort(byName.begin(), byName.end());
     index.games.reserve(byName.size());
     for (const auto &[name, set] : std::as_const(byName)) {
         index.games << set;
         const auto machine = m_machines.constFind(set);
-        if (machine == m_machines.constEnd())
-            continue;
+        const mame::Machine *known = machine == m_machines.constEnd() ? nullptr : &machine.value();
         for (const char *kind : kKinds) {
             const QString k = QLatin1String(kind);
-            const QString place = folderOf(k, *machine);
+            const QString place = placeOf(k, set, known);
             if (!place.isEmpty())
                 index.places[k][place] << set;
         }
@@ -464,15 +595,242 @@ const ArcadeBackend::Index &ArcadeBackend::index() const {
     return m_index;
 }
 
-QString ArcadeBackend::folderOf(const QString &kind, const mame::Machine &machine) {
+QString ArcadeBackend::placeOf(const QString &kind, const QString &set, const mame::Machine *machine) const {
+    if (kind == QLatin1String("genres")) {
+        // A clone's own, else its parent's.
+        const QString genre = m_genres.value(set);
+        return genre.isEmpty() && machine && !machine->cloneOf.isEmpty() ? m_genres.value(machine->cloneOf) : genre;
+    }
+    if (!machine)
+        return QString();
     if (kind == QLatin1String("players"))
-        return machine.players > 0 ? QString::number(machine.players) : QString();
+        return machine->players > 0 ? QString::number(machine->players) : QString();
     if (kind == QLatin1String("years")) {
-        const QString decade = mame::decadeOf(machine.year);
+        const QString decade = mame::decadeOf(machine->year);
         return decade.isEmpty() ? QStringLiteral("unknown") : decade;
     }
-    return mame::makerOf(machine.manufacturer);
+    return mame::makerOf(machine->manufacturer);
 }
+
+QVariantList ArcadeBackend::placeFilters() const {
+    QVariantList list;
+    for (const char *kind : kFilterKinds) {
+        const QString k = QLatin1String(kind);
+        const QMap<QString, QStringList> places = index().places.value(k);
+        QStringList names = places.keys();
+        if (k == QLatin1String("players")) {
+            std::sort(names.begin(), names.end(),
+                      [](const QString &a, const QString &b) { return a.toInt() < b.toInt(); });
+        } else if (k == QLatin1String("years")) {
+            std::sort(names.begin(), names.end(), [](const QString &a, const QString &b) {
+                // The years without a decade last.
+                if ((a == QLatin1String("unknown")) != (b == QLatin1String("unknown")))
+                    return b == QLatin1String("unknown");
+                return a < b;
+            });
+        } else {
+            std::sort(names.begin(), names.end(),
+                      [](const QString &a, const QString &b) { return a.compare(b, Qt::CaseInsensitive) < 0; });
+        }
+        for (const QString &place : std::as_const(names)) {
+            QString name = place;
+            if (k == QLatin1String("players"))
+                name = place == QLatin1String("1") ? QStringLiteral("1 Player") : place + QStringLiteral(" Players");
+            else if (k == QLatin1String("years") && place == QLatin1String("unknown"))
+                name = QStringLiteral("Year Unknown");
+            list << filter(k + QLatin1Char('/') + place, name, places.value(place).size());
+        }
+    }
+    return list;
+}
+
+QStringList ArcadeBackend::filterSets(const QString &filter) const {
+    // The lists as they are kept, but for what is no game in the folder now:
+    // Favorites by name, Recently Played latest first.
+    if (filter == QLatin1String("favorites") || filter == QLatin1String("recent")) {
+        QStringList sets;
+        const QStringList listed = listedSets(filter);
+        for (const QString &set : listed) {
+            if (isGame(set) && !sets.contains(set))
+                sets << set;
+        }
+        if (filter == QLatin1String("favorites")) {
+            std::sort(sets.begin(), sets.end(),
+                      [this](const QString &a, const QString &b) { return sortKey(a) < sortKey(b); });
+        }
+        return sets;
+    }
+    // The rest once MAME has said what the sets are.
+    if (scanning())
+        return QStringList();
+    const Index &games = index();
+    if (filter == QLatin1String("all"))
+        return games.games;
+    if (filter == QLatin1String("unknown"))
+        return games.unknown;
+    const int slash = filter.indexOf(QLatin1Char('/'));
+    return slash < 0 ? QStringList() : games.places.value(filter.left(slash)).value(filter.mid(slash + 1));
+}
+
+QVariantList ArcadeBackend::filters() {
+    QVariantList list;
+    if (!scanning() && !index().games.isEmpty())
+        list << filter(QStringLiteral("all"), QStringLiteral("All Games"), index().games.size());
+    for (const auto &[id, name] : { std::pair{ "favorites", "Favorites" }, std::pair{ "recent", "Recently Played" } }) {
+        const qsizetype count = filterSets(QLatin1String(id)).size();
+        if (count > 0)
+            list << filter(QLatin1String(id), QLatin1String(name), count);
+    }
+    if (scanning())
+        return list;
+    list << placeFilters();
+    if (!index().unknown.isEmpty())
+        list << filter(QStringLiteral("unknown"), QStringLiteral("Not Recognized"), index().unknown.size());
+    return list;
+}
+
+QVariantList ArcadeBackend::filterGames(const QString &filter, int first, int count) {
+    QVariantList games;
+    const QStringList sets = filterSets(filter);
+    if (first < 0 || count <= 0 || first >= sets.size())
+        return games;
+    const bool unknown = filter == QLatin1String("unknown");
+    const QStringList favorites = unknown ? QStringList() : listedSets(QStringLiteral("favorites"));
+    const int last = static_cast<int>(std::min<qsizetype>(sets.size(), qsizetype(first) + count));
+    for (int i = first; i < last; ++i) {
+        const QString &set = sets.at(i);
+        if (unknown) {
+            games << QVariantMap{ { QStringLiteral("set"), set }, { QStringLiteral("name"), m_sets.value(set) },
+                                  { QStringLiteral("unknown"), true } };
+        } else {
+            games << QVariantMap{ { QStringLiteral("set"), set }, { QStringLiteral("name"), titleOf(set) },
+                                  { QStringLiteral("favorite"), favorites.contains(set) } };
+        }
+    }
+    return games;
+}
+
+int ArcadeBackend::filterIndex(const QString &filter, const QString &set) {
+    return static_cast<int>(filterSets(filter).indexOf(set));
+}
+
+QVariantMap ArcadeBackend::gameDetails(const QString &set) {
+    if (!m_sets.contains(set))
+        return QVariantMap();
+    if (!mame::isShortName(set) || m_unknown.contains(set) || m_misnamed.contains(set)) {
+        return { { QStringLiteral("set"), set }, { QStringLiteral("name"), m_sets.value(set) },
+                 { QStringLiteral("unknown"), true }, { QStringLiteral("detail"), unknownDetail(set) } };
+    }
+    QVariantMap details{ { QStringLiteral("set"), set }, { QStringLiteral("name"), set },
+                         { QStringLiteral("playTime"), playTimeOf(set) },
+                         { QStringLiteral("picture"), pictureOf(set) } };
+    const auto machine = m_machines.constFind(set);
+    if (machine == m_machines.constEnd())
+        return details;
+    if (!machine->description.isEmpty())
+        details.insert(QStringLiteral("name"), machine->description);
+    details.insert(QStringLiteral("system"), mame::systemOf(machine->sourceFile));
+    details.insert(QStringLiteral("maker"), mame::makerOf(machine->manufacturer));
+    details.insert(QStringLiteral("year"), machine->year);
+    details.insert(QStringLiteral("players"), machine->players);
+    details.insert(QStringLiteral("vertical"), machine->rotate == 90 || machine->rotate == 270);
+    return details;
+}
+
+QString ArcadeBackend::pictureOf(const QString &set) const {
+    // A clone's own, else its parent's.
+    QStringList sets{ set };
+    const auto machine = m_machines.constFind(set);
+    if (machine != m_machines.constEnd() && !machine->cloneOf.isEmpty())
+        sets << machine->cloneOf;
+    // The games folder's snap, named by the set as MAME names it, the way
+    // the picture packs for MAME have them; then the first MAME took of it
+    // (F12 in the game), in its own snap folder.
+    const QString snap = otherFolder(QStringLiteral("snap"));
+    for (const QString &s : std::as_const(sets)) {
+        for (const char *suffix : { ".png", ".jpg" }) {
+            const QString path = snap + QLatin1Char('/') + s + QLatin1String(suffix);
+            if (!snap.isEmpty() && QFileInfo(path).isFile())
+                return QUrl::fromLocalFile(path).toString();
+        }
+    }
+    for (const QString &s : std::as_const(sets)) {
+        const QDir own(m_home + QStringLiteral("/snap/") + s);
+        const QStringList shots = own.entryList({ QStringLiteral("*.png") }, QDir::Files, QDir::Name);
+        if (!shots.isEmpty())
+            return QUrl::fromLocalFile(own.filePath(shots.first())).toString();
+    }
+    return QString();
+}
+
+QString ArcadeBackend::mameFileName(const QString &set) const {
+    return m_folders.contains(set) ? set
+                                   : set + QLatin1Char('.') + QFileInfo(m_sets.value(set)).suffix().toLower();
+}
+
+QString ArcadeBackend::unknownDetail(const QString &set) const {
+    if (!mame::isShortName(set))
+        return QStringLiteral("Not the name of a set MAME knows\nA set is named as MAME names its game: pacman.zip");
+    if (m_misnamed.contains(set))
+        return QStringLiteral("MAME looks for %1, in lower case\nRename the file to %1").arg(mameFileName(set));
+    return QStringLiteral("MAME has no game called %1\nIts set may be for another version of MAME").arg(set);
+}
+
+QStringList ArcadeBackend::listedSets(const QString &list) const {
+    QStringList sets;
+    if (!m_appCore)
+        return sets;
+    const QVariantList stored = m_appCore->get_list(kModuleId, list);
+    for (const QVariant &v : stored) {
+        const QString path = v.toMap().value(QStringLiteral("path")).toString();
+        if (path.startsWith(QLatin1String("game:")))
+            sets << path.mid(5);
+    }
+    return sets;
+}
+
+void ArcadeBackend::startFilterOptions() {
+    prepare();
+    // Favorites and Recently Played whether or not they hold a game yet.
+    QVariantList options;
+    for (const auto &[id, label] : { std::pair{ "all", "All Games" }, std::pair{ "favorites", "Favorites" },
+                                     std::pair{ "recent", "Recently Played" } }) {
+        options << QVariantMap{ { QStringLiteral("id"), QLatin1String(id) },
+                                { QStringLiteral("label"), QLatin1String(label) } };
+    }
+    const QVariantList places = placeFilters();
+    for (const QVariant &v : places) {
+        const QVariantMap place = v.toMap();
+        options << QVariantMap{ { QStringLiteral("id"), place.value(QStringLiteral("id")) },
+                                { QStringLiteral("label"), place.value(QStringLiteral("name")) } };
+    }
+    emit dynamicOptionsReady(QStringLiteral("start_filter"), options);
+}
+
+void ArcadeBackend::startupGameOptions() {
+    prepare();
+    // The favorites, by name: the app's startup favourite is one of them.
+    QList<std::pair<QString, QString>> games;   // the name, the set
+    const QVariantList favorites = m_appCore ? m_appCore->get_list(kModuleId, QStringLiteral("favorites")) : QVariantList();
+    for (const QVariant &v : favorites) {
+        const QVariantMap entry = v.toMap();
+        const QString path = entry.value(QStringLiteral("path")).toString();
+        if (!path.startsWith(QLatin1String("game:")))
+            continue;
+        const QString set = path.mid(5);
+        games.append({ m_machines.contains(set) ? titleOf(set) : entry.value(QStringLiteral("name"), set).toString(), set });
+    }
+    std::sort(games.begin(), games.end(), [](const auto &a, const auto &b) {
+        return a.first.compare(b.first, Qt::CaseInsensitive) < 0;
+    });
+    QVariantList options{ QVariantMap{ { QStringLiteral("id"), QString() }, { QStringLiteral("label"), QStringLiteral("None") } } };
+    for (const auto &[name, set] : std::as_const(games))
+        options << QVariantMap{ { QStringLiteral("id"), set }, { QStringLiteral("label"), name } };
+    emit dynamicOptionsReady(QStringLiteral("play_at_startup"), options);
+}
+
+// ---------------------------------------------------------------------------
+// The original screen's tree.
 
 QVariantList ArcadeBackend::folders(const QString &kind) const {
     QStringList places = index().places.value(kind).keys();
@@ -535,37 +893,12 @@ QVariantList ArcadeBackend::gameEntries(const QStringList &sets) const {
     return entries;
 }
 
-QString ArcadeBackend::mameFileName(const QString &set) const {
-    return m_folders.contains(set) ? set
-                                   : set + QLatin1Char('.') + QFileInfo(m_sets.value(set)).suffix().toLower();
-}
-
 QVariantMap ArcadeBackend::unknownEntry(const QString &set) const {
-    QString detail;
-    if (!mame::isShortName(set))
-        detail = QStringLiteral("Not the name of a set MAME knows\nA set is named as MAME names its game: pacman.zip");
-    else if (m_misnamed.contains(set))
-        detail = QStringLiteral("MAME looks for %1, in lower case\nRename the file to %1").arg(mameFileName(set));
-    else
-        detail = QStringLiteral("MAME has no game called %1\nIts set may be for another version of MAME").arg(set);
     return { { QStringLiteral("name"), m_sets.value(set) },
              { QStringLiteral("path"), QStringLiteral("unknown:") + set },
              { QStringLiteral("isFolder"), false },
              { QStringLiteral("kind"), QStringLiteral("unknown") },
-             { QStringLiteral("detail"), detail } };
-}
-
-QStringList ArcadeBackend::listedSets(const QString &list) const {
-    QStringList sets;
-    if (!m_appCore)
-        return sets;
-    const QVariantList stored = m_appCore->get_list(kModuleId, list);
-    for (const QVariant &v : stored) {
-        const QString path = v.toMap().value(QStringLiteral("path")).toString();
-        if (path.startsWith(QLatin1String("game:")))
-            sets << path.mid(5);
-    }
-    return sets;
+             { QStringLiteral("detail"), unknownDetail(set) } };
 }
 
 QVariantList ArcadeBackend::listEntries(const QString &list) const {
@@ -626,7 +959,7 @@ QVariant ArcadeBackend::requestEntries(const QString &path) {
         }
         return gameEntries(found);
     }
-    for (const char *kind : kKinds) {
+    for (const char *kind : kFolderKinds) {
         const QString k = QLatin1String(kind);
         if (path == k)
             return folders(k);
@@ -640,6 +973,34 @@ QVariant ArcadeBackend::requestEntries(const QString &path) {
         return unknown;
     }
     return QVariantList();
+}
+
+// ---------------------------------------------------------------------------
+// How long each game has been played.
+
+qint64 ArcadeBackend::playTimeOf(const QString &set) {
+    if (!m_playTimeLoaded) {
+        m_playTimeLoaded = true;
+        QFile file(m_home + QStringLiteral("/playtime.json"));
+        if (file.open(QIODevice::ReadOnly)) {
+            const QJsonObject times = QJsonDocument::fromJson(file.readAll()).object();
+            for (auto it = times.constBegin(); it != times.constEnd(); ++it)
+                m_playTime.insert(it.key(), static_cast<qint64>(it.value().toDouble()));
+        }
+    }
+    return m_playTime.value(set);
+}
+
+void ArcadeBackend::addPlayTime(const QString &set, qint64 seconds) {
+    if (seconds <= 0)
+        return;
+    m_playTime.insert(set, playTimeOf(set) + seconds);
+    QJsonObject times;
+    for (auto it = m_playTime.constBegin(); it != m_playTime.constEnd(); ++it)
+        times.insert(it.key(), static_cast<double>(it.value()));
+    QDir().mkpath(m_home);
+    if (!writeFileAtomically(m_home + QStringLiteral("/playtime.json"), QJsonDocument(times).toJson(QJsonDocument::Compact)))
+        qWarning("[Arcade] The play times could not be saved");
 }
 
 // ---------------------------------------------------------------------------
@@ -680,7 +1041,7 @@ QString ArcadeBackend::ownFolder() const {
     return QString();
 }
 
-bool ArcadeBackend::play(const QString &name) {
+bool ArcadeBackend::play(const QString &name, int credits) {
     m_lastError.clear();
     if (m_launcher->isBusy()) {
         m_lastError = QStringLiteral("A game is still running");
@@ -746,6 +1107,15 @@ bool ArcadeBackend::play(const QString &name) {
     // card on a Pi 5 whose HDMI is off): the game is played in silence.
     if (!AudioOutput::hasPlaybackCard())
         args << QStringLiteral("-sound") << QStringLiteral("none");
+    // The credits bought on the Arcade screen, put in as the game starts.
+    // Without the script the game still starts, with no credits.
+    if (credits > 0) {
+        const QString coins = m_home + QStringLiteral("/coins.lua");
+        if (writeFileAtomically(coins, mame::coinScript(std::min(credits, kMaxCredits)).toUtf8()))
+            args << QStringLiteral("-autoboot_script") << coins;
+        else
+            qWarning("[Arcade] The credits could not be written for MAME: the game starts without them");
+    }
 
     const auto machine = m_machines.constFind(name);
     ScriptEntry entry;
@@ -767,6 +1137,7 @@ bool ArcadeBackend::play(const QString &name) {
         return false;
     }
     m_playing = name;
+    m_playClock.start();
     if (!m_played) {
         m_played = true;
         emit playedChanged();

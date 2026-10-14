@@ -5,17 +5,22 @@
 
 #include <QDir>
 #include <QFile>
+#include <QJsonDocument>
+#include <QJsonObject>
 #include <QScopeGuard>
 #include <QSignalSpy>
 #include <QTemporaryDir>
+#include <QUrl>
 #include <QtTest>
 
 // The Arcade module against a stand-in for MAME (a shell script in the data
 // folder's bin, where the module looks first): what MAME's -listxml says of
 // the sets in the games folder, read as it comes and kept until MAME changes,
-// the tree made of it, and a game started with its folders, the high scores
-// plugin, the players' controllers in its controller file and a way out, and
-// what a game that couldn't start lacked.
+// the original screen's tree and the Arcade screen's filters made of it, a
+// game's details, and a game started with its folders, the high scores
+// plugin, the players' controllers in its controller file, a way out and the
+// credits bought, how long it was played, and what a game that couldn't
+// start lacked.
 class ArcadeTest : public QObject {
     Q_OBJECT
 
@@ -27,17 +32,18 @@ class ArcadeTest : public QObject {
     // (exit 5 for a name it has none of, after the XML of those it has),
     // and a game, whose arguments, folder, display card and controller file
     // it notes. mslug and kinst lack files; sf2 can't open its picture;
-    // slowgame takes a second, as does asking about a_slowlist half of one.
+    // slowgame takes a second, as does asking about a_slowlist half of one;
+    // any other game takes $MAME_SECONDS.
     static constexpr const char *kFakeMame = R"SH(#!/bin/sh
 machine() {
 	case "$1" in
 	pacman) echo '<machine name="pacman" sourcefile="pacman/pacman.cpp" cloneof="puckman" romof="puckman"><description>Pac-Man (Midway)</description><year>1980</year><manufacturer>Namco (Midway license)</manufacturer><rom name="pacman.6e" size="4096"/><display tag="screen" type="raster" rotate="90"/><input players="2" coins="2"><control type="joy" player="1"/></input><driver status="good"/></machine>' ;;
 	galaga) echo '<machine name="galaga" sourcefile="namco/galaga.cpp"><description>Galaga (Namco rev. B)</description><year>1981</year><manufacturer>Namco</manufacturer><input players="2"/><driver status="good"/></machine>' ;;
-	mslug) echo '<machine name="mslug" romof="neogeo"><description>Metal Slug - Super Vehicle-001</description><year>1996</year><manufacturer>Nazca</manufacturer><input players="2"/><driver status="good"/></machine>' ;;
+	mslug) echo '<machine name="mslug" sourcefile="neogeo/neogeo.cpp" romof="neogeo"><description>Metal Slug - Super Vehicle-001</description><year>1996</year><manufacturer>Nazca</manufacturer><input players="2"/><driver status="good"/></machine>' ;;
 	neogeo) echo '<machine name="neogeo" isbios="yes"><description>Neo-Geo MV-6F</description><year>1990</year><manufacturer>SNK</manufacturer></machine>' ;;
-	xmen6p) echo '<machine name="xmen6p" cloneof="xmen"><description>X-Men (6 Players ver EAB)</description><year>1992</year><manufacturer>Konami</manufacturer><display tag="lscreen" rotate="270"/><display tag="rscreen" rotate="0"/><input players="6"/><driver status="imperfect"/></machine>' ;;
+	xmen6p) echo '<machine name="xmen6p" sourcefile="konami/xmen.cpp" cloneof="xmen"><description>X-Men (6 Players ver EAB)</description><year>1992</year><manufacturer>Konami</manufacturer><display tag="lscreen" rotate="270"/><display tag="rscreen" rotate="0"/><input players="6"/><driver status="imperfect"/></machine>' ;;
 	kinst) echo '<machine name="kinst"><description>Killer Instinct (v1.5d)</description><year>1994</year><manufacturer>Rare / Nintendo</manufacturer><input players="2"/><driver status="good"/></machine>' ;;
-	sf2) echo '<machine name="sf2"><description>Street Fighter II: The World Warrior</description><year>1991</year><manufacturer>Capcom</manufacturer><input players="2"/><driver status="good"/></machine>' ;;
+	sf2) echo '<machine name="sf2" sourcefile="capcom/cps1.cpp"><description>Street Fighter II: The World Warrior</description><year>1991</year><manufacturer>Capcom</manufacturer><input players="2"/><driver status="good"/></machine>' ;;
 	acefruit) echo '<machine name="acefruit"><description>Ace (Cassette)</description><year>1982?</year><manufacturer>unknown</manufacturer><input players="1"/><driver status="preliminary"/></machine>' ;;
 	*) return 1 ;;
 	esac
@@ -97,6 +103,9 @@ crash)
 	;;
 slowgame)
 	sleep 1
+	;;
+*)
+	[ -n "$MAME_SECONDS" ] && sleep "$MAME_SECONDS"
 	;;
 esac
 echo "end $1" >> "$MAME_LOG"
@@ -251,7 +260,7 @@ private slots:
     void listXmlInChunks() {
         const QByteArray xml =
             "<?xml version=\"1.0\"?>\n<mame build=\"0.276 (test)\" debug=\"no\" mameconfig=\"10\">\n"
-            "\t<machine name=\"xmen6p\" cloneof=\"xmen\"><description>X-Men &amp; Friends</description>"
+            "\t<machine name=\"xmen6p\" sourcefile=\"konami/xmen.cpp\" cloneof=\"xmen\"><description>X-Men &amp; Friends</description>"
             "<year>1992</year><manufacturer>Konami</manufacturer><rom name=\"a\"/>"
             "<display tag=\"l\" rotate=\"270\"/><display tag=\"r\" rotate=\"0\"/>"
             "<input players=\"6\"><control type=\"joy\"/></input><dipswitch name=\"x\"><dipvalue name=\"y\"/></dipswitch>"
@@ -275,6 +284,7 @@ private slots:
             QCOMPARE(x.year, QStringLiteral("1992"));
             QCOMPARE(x.manufacturer, QStringLiteral("Konami"));
             QCOMPARE(x.cloneOf, QStringLiteral("xmen"));
+            QCOMPARE(x.sourceFile, QStringLiteral("konami/xmen.cpp"));
             QCOMPARE(x.players, 6);
             QCOMPARE(x.rotate, 270);
             QCOMPARE(x.status, QStringLiteral("imperfect"));
@@ -284,6 +294,7 @@ private slots:
             // As the cache keeps it.
             const mame::Machine kept = mame::Machine::fromVariant(x.name, x.toVariant());
             QCOMPARE(kept.description, x.description);
+            QCOMPARE(kept.sourceFile, x.sourceFile);
             QCOMPARE(kept.players, 6);
             QCOMPARE(kept.rotate, 270);
             QVERIFY(mame::Machine::fromVariant(QStringLiteral("neogeo"), machines.at(1).toVariant()).bios);
@@ -704,7 +715,311 @@ private slots:
         QVERIFY(!arcade.play(QStringLiteral("pacman")));
         QCOMPARE(arcade.lastError(), QStringLiteral("MAME is not installed"));
     }
+    // ── The Arcade screen ────────────────────────────────────────────────
+
+    // What the Arcade screen makes of a game's description and its driver,
+    // catver.ini's genres, and the credits' script.
+    void screenHelpers() {
+        QCOMPARE(mame::titleOf(QStringLiteral("Galaga (Namco rev. B)")), QStringLiteral("Galaga"));
+        QCOMPARE(mame::titleOf(QStringLiteral("Truxton / Tatsujin")), QStringLiteral("Truxton"));
+        QCOMPARE(mame::titleOf(QStringLiteral("Samurai Shodown II / Shin Samurai Spirits (NGM-063 ~ NGH-063)")),
+                 QStringLiteral("Samurai Shodown II"));
+        QCOMPARE(mame::titleOf(QStringLiteral("Metal Slug - Super Vehicle-001")),
+                 QStringLiteral("Metal Slug - Super Vehicle-001"));
+        QCOMPARE(mame::titleOf(QStringLiteral("(prototype)")), QStringLiteral("(prototype)"));
+
+        QCOMPARE(mame::systemOf(QStringLiteral("capcom/cps1.cpp")), QStringLiteral("CPS-1"));
+        QCOMPARE(mame::systemOf(QStringLiteral("cps2.cpp")), QStringLiteral("CPS-2"));
+        QCOMPARE(mame::systemOf(QStringLiteral("neogeo/neogeo.cpp")), QStringLiteral("Neo-Geo"));
+        QCOMPARE(mame::systemOf(QStringLiteral("sega/naomi.cpp")), QStringLiteral("NAOMI"));
+        QCOMPARE(mame::systemOf(QStringLiteral("nintendo/dkong.cpp")), QStringLiteral("DKONG"));
+        QCOMPARE(mame::systemOf(QString()), QString());
+
+        // [Category]'s lines only, each set's genre before the kind of it.
+        const QString catver = m_data.path() + QStringLiteral("/catver-test.ini");
+        writeFile(catver, "[FOLDER_SETTINGS]\nRootFolderIcon mame\n\n[ROOT_FOLDER]\n\n[Category]\n"
+                          "sf2=Fighter / Versus\nmk=Fighter / Versus * Mature *\npuckman=Maze / Collect\n"
+                          "tetris=Puzzle\n;note=Not a game\n\n[VerAdded]\nsf2=0.30\n");
+        const QHash<QString, QString> genres = mame::readGenres(catver);
+        QCOMPARE(genres.size(), 4);
+        QCOMPARE(genres.value(QStringLiteral("sf2")), QStringLiteral("Fighter"));
+        QCOMPARE(genres.value(QStringLiteral("mk")), QStringLiteral("Fighter"));
+        QCOMPARE(genres.value(QStringLiteral("puckman")), QStringLiteral("Maze"));
+        QCOMPARE(genres.value(QStringLiteral("tetris")), QStringLiteral("Puzzle"));
+        QFile::remove(catver);
+        QVERIFY(mame::readGenres(catver).isEmpty());
+
+        // Player 1's coin pressed that many times, from five seconds in.
+        const QString script = mame::coinScript(3);
+        QVERIFY(script.contains(QStringLiteral("local left = 3\n")));
+        QVERIFY(script.contains(QStringLiteral("local nextAt, hold, gap = 5, 0.1, 0.2\n")));
+        QVERIFY(script.contains(QStringLiteral("token_to_input_type(\"COIN1\")")));
+    }
+
+    // The filters: All Games, the lists, the genres catver.ini gives (a
+    // clone's its parent's), players and decades, Not Recognized; a page of
+    // one, where a game is in it, what a game is, its picture, and the
+    // settings' choices. While MAME is asked, only the lists.
+    void filters() {
+        const QString module = QStringLiteral("com.osdos.arcade");
+        AppCore core(m_data.path(), m_data.path());
+        const auto restore = qScopeGuard([this] {
+            QFile::remove(m_games + QStringLiteral("/catver.ini"));
+            QDir(m_games + QStringLiteral("/snap")).removeRecursively();
+            QDir(m_data.path() + QStringLiteral("/arcade/snap/galaga")).removeRecursively();
+            QFile::remove(m_data.path() + QStringLiteral("/lists.json"));
+        });
+        writeFile(m_games + QStringLiteral("/catver.ini"),
+                  "[Category]\nsf2=Fighter / Versus\nkinst=Fighter / Versus\nxmen6p=Fighter / Scrolling\n"
+                  "puckman=Maze / Collect\ngalaga=Shooter / Flying Vertical\n");
+        // A picture beside the games, Pac-Man's parent's, and one MAME took.
+        writeFile(m_games + QStringLiteral("/snap/puckman.png"), "png");
+        writeFile(m_data.path() + QStringLiteral("/arcade/snap/galaga/0000.png"), "png");
+        QFile::remove(m_data.path() + QStringLiteral("/lists.json"));
+        core.add_to_list(module, QStringLiteral("favorites"),
+                         { { QStringLiteral("name"), QStringLiteral("Galaga (Namco rev. B)") },
+                           { QStringLiteral("path"), QStringLiteral("game:galaga") } });
+        core.add_to_list(module, QStringLiteral("favorites"),
+                         { { QStringLiteral("name"), QStringLiteral("Street Fighter II") },
+                           { QStringLiteral("path"), QStringLiteral("game:sf2") } });
+        core.add_to_list(module, QStringLiteral("recent"), { { QStringLiteral("path"), QStringLiteral("game:pacman") } });
+        core.add_to_list(module, QStringLiteral("recent"), { { QStringLiteral("path"), QStringLiteral("game:gone") } });
+
+        ArcadeBackend arcade(m_data.path(), m_data.path(), &core, nullptr);
+        refreshed(arcade);
+        const auto described = [](const QVariantList &filters) {
+            QStringList list;
+            for (const QVariant &v : filters) {
+                const QVariantMap f = v.toMap();
+                list << QStringLiteral("%1 %2 %3").arg(f.value(QStringLiteral("id")).toString(),
+                                                      f.value(QStringLiteral("name")).toString())
+                            .arg(f.value(QStringLiteral("count")).toInt());
+            }
+            return list;
+        };
+        QCOMPARE(described(arcade.filters()), QStringList({
+            QStringLiteral("all All Games 7"), QStringLiteral("favorites Favorites 2"),
+            QStringLiteral("recent Recently Played 1"), QStringLiteral("genres/Fighter Fighter 3"),
+            QStringLiteral("genres/Maze Maze 1"), QStringLiteral("genres/Shooter Shooter 1"),
+            QStringLiteral("players/1 1 Player 1"), QStringLiteral("players/2 2 Players 5"),
+            QStringLiteral("players/6 6 Players 1"), QStringLiteral("years/1980s 1980s 3"),
+            QStringLiteral("years/1990s 1990s 4"), QStringLiteral("unknown Not Recognized 2") }));
+
+        // A page: the games' titles, the favourites marked.
+        const QVariantList first = arcade.filterGames(QStringLiteral("all"), 0, 3);
+        QCOMPARE(names(first), QStringList({ QStringLiteral("Ace"), QStringLiteral("Galaga"),
+                                             QStringLiteral("Killer Instinct") }));
+        QCOMPARE(first.at(1).toMap().value(QStringLiteral("set")).toString(), QStringLiteral("galaga"));
+        QVERIFY(first.at(1).toMap().value(QStringLiteral("favorite")).toBool());
+        QVERIFY(!first.at(0).toMap().value(QStringLiteral("favorite")).toBool());
+        QCOMPARE(names(arcade.filterGames(QStringLiteral("all"), 5, 10)),
+                 QStringList({ QStringLiteral("Street Fighter II: The World Warrior"), QStringLiteral("X-Men") }));
+        QVERIFY(arcade.filterGames(QStringLiteral("all"), 7, 3).isEmpty());
+        QVERIFY(arcade.filterGames(QStringLiteral("all"), -1, 3).isEmpty());
+        QCOMPARE(names(arcade.filterGames(QStringLiteral("favorites"), 0, 10)),
+                 QStringList({ QStringLiteral("Galaga"), QStringLiteral("Street Fighter II: The World Warrior") }));
+        QCOMPARE(names(arcade.filterGames(QStringLiteral("recent"), 0, 10)), QStringList({ QStringLiteral("Pac-Man") }));
+        QCOMPARE(names(arcade.filterGames(QStringLiteral("genres/Maze"), 0, 10)), QStringList({ QStringLiteral("Pac-Man") }));
+        const QVariantList unknown = arcade.filterGames(QStringLiteral("unknown"), 0, 10);
+        QCOMPARE(names(unknown), QStringList({ QStringLiteral("notagame.zip"), QStringLiteral("Street Fighter.zip") }));
+        QVERIFY(unknown.first().toMap().value(QStringLiteral("unknown")).toBool());
+        QVERIFY(arcade.filterGames(QStringLiteral("genres/Nothing"), 0, 10).isEmpty());
+
+        QCOMPARE(arcade.filterIndex(QStringLiteral("all"), QStringLiteral("pacman")), 4);
+        QCOMPARE(arcade.filterIndex(QStringLiteral("genres/Fighter"), QStringLiteral("sf2")), 1);
+        QCOMPARE(arcade.filterIndex(QStringLiteral("favorites"), QStringLiteral("pacman")), -1);
+
+        // What a game is.
+        const QVariantMap sf2 = arcade.gameDetails(QStringLiteral("sf2"));
+        QCOMPARE(sf2.value(QStringLiteral("name")).toString(), QStringLiteral("Street Fighter II: The World Warrior"));
+        QCOMPARE(sf2.value(QStringLiteral("system")).toString(), QStringLiteral("CPS-1"));
+        QCOMPARE(sf2.value(QStringLiteral("maker")).toString(), QStringLiteral("Capcom"));
+        QCOMPARE(sf2.value(QStringLiteral("year")).toString(), QStringLiteral("1991"));
+        QCOMPARE(sf2.value(QStringLiteral("players")).toInt(), 2);
+        QCOMPARE(sf2.value(QStringLiteral("vertical")).toBool(), false);
+        QCOMPARE(sf2.value(QStringLiteral("picture")).toString(), QString());
+        const QVariantMap pacman = arcade.gameDetails(QStringLiteral("pacman"));
+        QCOMPARE(pacman.value(QStringLiteral("system")).toString(), QStringLiteral("PACMAN"));
+        QCOMPARE(pacman.value(QStringLiteral("maker")).toString(), QStringLiteral("Namco"));
+        QVERIFY(pacman.value(QStringLiteral("vertical")).toBool());
+        QCOMPARE(pacman.value(QStringLiteral("picture")).toString(),
+                 QUrl::fromLocalFile(m_games + QStringLiteral("/snap/puckman.png")).toString());
+        QCOMPARE(arcade.gameDetails(QStringLiteral("galaga")).value(QStringLiteral("picture")).toString(),
+                 QUrl::fromLocalFile(m_data.path() + QStringLiteral("/arcade/snap/galaga/0000.png")).toString());
+        const QVariantMap notagame = arcade.gameDetails(QStringLiteral("notagame"));
+        QVERIFY(notagame.value(QStringLiteral("unknown")).toBool());
+        QCOMPARE(notagame.value(QStringLiteral("name")).toString(), QStringLiteral("notagame.zip"));
+        QCOMPARE(notagame.value(QStringLiteral("detail")).toString(),
+                 QStringLiteral("MAME has no game called notagame\nIts set may be for another version of MAME"));
+        QVERIFY(arcade.gameDetails(QStringLiteral("gone")).isEmpty());
+
+        // Settings → Arcade's choices: Start Filter's, the lists whether or
+        // not they hold a game, and Play at Startup's, the favourites.
+        QSignalSpy options(&arcade, &ArcadeBackend::dynamicOptionsReady);
+        arcade.startFilterOptions();
+        arcade.startupGameOptions();
+        QCOMPARE(options.size(), 2);
+        QStringList ids;
+        for (const QVariant &v : options.at(0).at(1).toList())
+            ids << v.toMap().value(QStringLiteral("id")).toString();
+        QCOMPARE(options.at(0).at(0).toString(), QStringLiteral("start_filter"));
+        QCOMPARE(ids, QStringList({ QStringLiteral("all"), QStringLiteral("favorites"), QStringLiteral("recent"),
+                                    QStringLiteral("genres/Fighter"), QStringLiteral("genres/Maze"),
+                                    QStringLiteral("genres/Shooter"), QStringLiteral("players/1"),
+                                    QStringLiteral("players/2"), QStringLiteral("players/6"),
+                                    QStringLiteral("years/1980s"), QStringLiteral("years/1990s") }));
+        QCOMPARE(options.at(1).at(0).toString(), QStringLiteral("play_at_startup"));
+        QStringList games;
+        for (const QVariant &v : options.at(1).at(1).toList())
+            games << v.toMap().value(QStringLiteral("id")).toString() + QLatin1Char('=') + v.toMap().value(QStringLiteral("label")).toString();
+        QCOMPARE(games, QStringList({ QStringLiteral("=None"), QStringLiteral("galaga=Galaga"),
+                                      QStringLiteral("sf2=Street Fighter II: The World Warrior") }));
+
+        // Asked again: only the lists, then all of them once MAME has
+        // answered.
+        QSignalSpy changed(&arcade, &ArcadeBackend::gamesChanged);
+        arcade.rescan();
+        QVERIFY(arcade.scanning());
+        QCOMPARE(described(arcade.filters()), QStringList({ QStringLiteral("favorites Favorites 2"),
+                                                            QStringLiteral("recent Recently Played 1") }));
+        QVERIFY(arcade.filterGames(QStringLiteral("all"), 0, 3).isEmpty());
+        QTRY_VERIFY_WITH_TIMEOUT(!arcade.scanning(), 10000);
+        QVERIFY(!changed.isEmpty());
+        QCOMPARE(arcade.filters().size(), 12);
+    }
+
+    // The credits bought go in as the game starts, nine at most: MAME runs
+    // the script that puts them in.
+    void credits() {
+        QFile::remove(m_log);
+        ArcadeBackend arcade(m_data.path(), m_data.path(), nullptr, nullptr);
+        refreshed(arcade);
+        const QString script = m_data.path() + QStringLiteral("/arcade/coins.lua");
+        const auto coins = [&script] {
+            QFile f(script);
+            return f.open(QIODevice::ReadOnly) ? QString::fromUtf8(f.readAll()) : QString();
+        };
+        QSignalSpy finished(&arcade, &ArcadeBackend::finished);
+        QVERIFY(arcade.play(QStringLiteral("galaga"), 3));
+        QVERIFY(finished.wait(10000));
+        QVERIFY2(logLines(QStringLiteral("play")).last().endsWith(QStringLiteral(" -autoboot_script ") + script),
+                 qPrintable(logLines(QStringLiteral("play")).last()));
+        QVERIFY(coins().contains(QStringLiteral("local left = 3\n")));
+        QVERIFY(arcade.play(QStringLiteral("galaga"), 20));
+        QVERIFY(finished.wait(10000));
+        QVERIFY(coins().contains(QStringLiteral("local left = 9\n")));
+        QVERIFY(arcade.play(QStringLiteral("galaga")));
+        QVERIFY(finished.wait(10000));
+        QVERIFY(!logLines(QStringLiteral("play")).last().contains(QStringLiteral("autoboot")));
+    }
+
+    // How long each game has been played, kept for the next start; not a
+    // game MAME refused.
+    void playTime() {
+        QFile::remove(m_data.path() + QStringLiteral("/arcade/playtime.json"));
+        {
+            ArcadeBackend arcade(m_data.path(), m_data.path(), nullptr, nullptr);
+            refreshed(arcade);
+            QCOMPARE(arcade.gameDetails(QStringLiteral("galaga")).value(QStringLiteral("playTime")).toLongLong(), 0);
+            qputenv("MAME_SECONDS", "1.2");
+            QCOMPARE(played(arcade, QStringLiteral("galaga")).at(1).toString(), QStringLiteral("ok"));
+            qunsetenv("MAME_SECONDS");
+            const qint64 seconds = arcade.gameDetails(QStringLiteral("galaga")).value(QStringLiteral("playTime")).toLongLong();
+            QVERIFY2(seconds >= 1 && seconds <= 2, qPrintable(QString::number(seconds)));
+            QCOMPARE(played(arcade, QStringLiteral("mslug")).at(0).toInt(), 2);
+            QCOMPARE(arcade.gameDetails(QStringLiteral("mslug")).value(QStringLiteral("playTime")).toLongLong(), 0);
+        }
+        ArcadeBackend arcade(m_data.path(), m_data.path(), nullptr, nullptr);
+        refreshed(arcade);
+        QVERIFY(arcade.gameDetails(QStringLiteral("galaga")).value(QStringLiteral("playTime")).toLongLong() >= 1);
+    }
+
+    // Settings → Arcade → Play at Startup is the app's startup favourite
+    // while it is one of the module's games, whichever screen set it.
+    void startupGame() {
+        const QString module = QStringLiteral("com.osdos.arcade");
+        AppCore core(m_data.path(), m_data.path());
+        const auto restore = qScopeGuard([this, &core, &module] {
+            core.save_setting(QString(), QStringLiteral("startup_favorite"), QString());
+            core.save_setting(module, QStringLiteral("play_at_startup"), QString());
+            QFile::remove(m_data.path() + QStringLiteral("/lists.json"));
+        });
+        QFile::remove(m_data.path() + QStringLiteral("/lists.json"));
+        core.add_to_list(module, QStringLiteral("favorites"),
+                         { { QStringLiteral("name"), QStringLiteral("Galaga (Namco rev. B)") },
+                           { QStringLiteral("path"), QStringLiteral("game:galaga") } });
+        core.save_setting(QString(), QStringLiteral("startup_favorite"), QString());
+        ArcadeBackend arcade(m_data.path(), m_data.path(), &core, nullptr);
+
+        // Chosen here: the app's, as a game's options make it.
+        arcade.onSettingChanged(module, QStringLiteral("play_at_startup"), QStringLiteral("galaga"));
+        const QVariantMap startup = core.get_setting(QString(), QStringLiteral("startup_favorite")).toMap();
+        QCOMPARE(startup.value(QStringLiteral("module")).toString(), module);
+        QCOMPARE(startup.value(QStringLiteral("path")).toString(), QStringLiteral("game:galaga"));
+        QCOMPARE(startup.value(QStringLiteral("name")).toString(), QStringLiteral("Galaga (Namco rev. B)"));
+        QCOMPARE(core.get_setting(module, QStringLiteral("play_at_startup")).toString(), QStringLiteral("galaga"));
+
+        // Another module's favourite chosen: none here, and none chosen here
+        // leaves it.
+        core.save_setting(QString(), QStringLiteral("startup_favorite"),
+                          QVariantMap{ { QStringLiteral("module"), QStringLiteral("com.osdos.local_files") },
+                                       { QStringLiteral("path"), QStringLiteral("/media/film.mkv") },
+                                       { QStringLiteral("name"), QStringLiteral("Film") } });
+        QCOMPARE(core.get_setting(module, QStringLiteral("play_at_startup")).toString(), QString());
+        arcade.onSettingChanged(module, QStringLiteral("play_at_startup"), QString());
+        QCOMPARE(core.get_setting(QString(), QStringLiteral("startup_favorite")).toMap().value(QStringLiteral("module")).toString(),
+                 QStringLiteral("com.osdos.local_files"));
+
+        // One of this module's, then none: no startup favourite at all.
+        arcade.onSettingChanged(module, QStringLiteral("play_at_startup"), QStringLiteral("galaga"));
+        arcade.onSettingChanged(module, QStringLiteral("play_at_startup"), QString());
+        QCOMPARE(core.get_setting(QString(), QStringLiteral("startup_favorite")).toString(), QString());
+
+        // Set while the module wasn't there to see it: shown as it is from
+        // the start.
+        core.save_setting(module, QStringLiteral("play_at_startup"), QStringLiteral("pacman"));
+        QVariantMap sf2{ { QStringLiteral("module"), module }, { QStringLiteral("path"), QStringLiteral("game:sf2") },
+                         { QStringLiteral("name"), QStringLiteral("Street Fighter II") } };
+        QJsonObject config;
+        {
+            QFile f(m_data.path() + QStringLiteral("/config.json"));
+            QVERIFY(f.open(QIODevice::ReadOnly));
+            config = QJsonDocument::fromJson(f.readAll()).object();
+        }
+        QJsonObject app = config.value(QStringLiteral("app")).toObject();
+        app.insert(QStringLiteral("startup_favorite"), QJsonObject::fromVariantMap(sf2));
+        config.insert(QStringLiteral("app"), app);
+        writeFile(m_data.path() + QStringLiteral("/config.json"), QJsonDocument(config).toJson());
+        ArcadeBackend again(m_data.path(), m_data.path(), &core, nullptr);
+        QCOMPARE(core.get_setting(module, QStringLiteral("play_at_startup")).toString(), QStringLiteral("sf2"));
+    }
+
+    // games.json from before it kept each machine's source file is read as
+    // none: MAME is asked about every set again.
+    void oldCache() {
+        {
+            ArcadeBackend arcade(m_data.path(), m_data.path(), nullptr, nullptr);
+            refreshed(arcade);
+        }
+        const QString path = m_data.path() + QStringLiteral("/arcade/games.json");
+        QJsonObject cache;
+        {
+            QFile f(path);
+            QVERIFY(f.open(QIODevice::ReadOnly));
+            cache = QJsonDocument::fromJson(f.readAll()).object();
+        }
+        QCOMPARE(cache.value(QStringLiteral("version")).toInt(), 2);
+        cache.remove(QStringLiteral("version"));
+        writeFile(path, QJsonDocument(cache).toJson());
+        QFile::remove(m_log);
+        ArcadeBackend arcade(m_data.path(), m_data.path(), nullptr, nullptr);
+        refreshed(arcade);
+        QCOMPARE(logLines(QStringLiteral("listxml")),
+                 QStringList({ QStringLiteral("listxml acefruit galaga kinst mslug neogeo notagame pacman sf2 xmen6p") }));
+        QCOMPARE(arcade.gameDetails(QStringLiteral("sf2")).value(QStringLiteral("system")).toString(), QStringLiteral("CPS-1"));
+    }
 };
+
 
 QTEST_GUILESS_MAIN(ArcadeTest)
 #include "arcade_test.moc"

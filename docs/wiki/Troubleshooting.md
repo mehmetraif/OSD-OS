@@ -462,7 +462,7 @@ Other files hold the rest, and stay when only `config.json` goes:
 | `youtube_watch_later.json`, `playlists.json` | Watch Later, and the playlists |
 | `plex_auth.json`, `plex_key.pem`, `jellyfin_auth.json`, `emby_auth.json` | The media servers' sign-ins |
 | `netflix/browser`, `prime_video/browser`, `youtube/browser` | The web players' browser profiles, with their sign-ins |
-| `arcade/` | The Arcade module's: what MAME said of the games, and MAME's settings, NVRAM and high scores |
+| `arcade/` | The Arcade module's: what MAME said of the games, how long each has been played, and MAME's settings, NVRAM and high scores |
 | `highscores/` | What the High Scores module read of MAME's files, read again without it |
 | `input.cfg`, `themes/`, `skins/`, `nfc_tags/`, `user_scripts/` | Your own files |
 

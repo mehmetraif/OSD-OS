@@ -105,6 +105,11 @@ public:
     // ("back", "start"): "COIN" on a JAMMA stick, "BACK" on an Xbox pad. ""
     // for a controller that isn't a pad.
     Q_INVOKABLE QString buttonLabel(const QString &key, const QString &token) const;
+    // The pad button a key event came from, by its nativeScanCode, as
+    // input.cfg's token: "back" for the Back press a pad's Back (Coin)
+    // button made, "b" for the one its B made. "" for a key of a keyboard or
+    // a remote, a stick, or a direction's repeat.
+    Q_INVOKABLE QString padButton(quint32 scanCode) const;
 
     // Remap-capture mode, held on by the remap screen while its "press a
     // button" overlay is up. While active, remap delivery is suspended and
@@ -199,9 +204,11 @@ private:
     void recomputeSuppressedDevices();
     void handleButton(SDL_JoystickID which, Uint8 button, bool pressed);
     void handleAxis(SDL_JoystickID which, Uint8 axis, Sint16 value);
-    void pressAction(Action a);
-    void beginPress(Action a);
-    void releaseAction(Action a);
+    // button: the pad button pressed or let go (SDL's), or -1 for anything
+    // else; its key event says which (padButton()).
+    void pressAction(Action a, int button = -1);
+    void beginPress(Action a, int button = -1);
+    void releaseAction(Action a, int button = -1);
     // An input that can be held down: its controller (a pad's instance,
     // padSource(); a node's path; "mouse") and which input (a button, a pad's
     // axis numbered after its buttons, a key code).
@@ -210,8 +217,8 @@ private:
     void releaseHeld(const QString &source);
     void letGoOfPad(SDL_JoystickID id);
     static bool essentialAction(Action a);
-    void deliverPress(Action a, bool autoRepeat);
-    void postKey(int qtKey, QEvent::Type type, bool autoRepeat);
+    void deliverPress(Action a, bool autoRepeat, int button = -1);
+    void postKey(int qtKey, QEvent::Type type, bool autoRepeat, int button = -1);
     bool windowActive() const;
     void setLastInputDevice(const QString &device);
     void updateHints();

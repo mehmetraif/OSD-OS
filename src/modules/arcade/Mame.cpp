@@ -1,11 +1,21 @@
 #include "Mame.h"
 #include <QDir>
+#include <QFile>
 #include <QFileInfo>
 #include <QRegularExpression>
 #include <QSet>
 #include <QStandardPaths>
 
 namespace mame {
+
+namespace {
+
+// How far into the game the credits go in (coinScript()): past the start-up
+// checks most boards run (Galaga's RAM and ROM test, the Neo-Geo BIOS's), in
+// the game's own time, so a game MAME warns about first waits for it.
+constexpr int kCoinDelaySeconds = 5;
+
+} // namespace
 
 QString programPath(const QString &dataRoot) {
     const QFileInfo dropIn(dataRoot + QStringLiteral("/bin/mame"));
@@ -49,6 +59,7 @@ QVariantMap Machine::toVariant() const {
     put("year", year);
     put("manufacturer", manufacturer);
     put("cloneof", cloneOf);
+    put("sourcefile", sourceFile);
     put("status", status);
     if (players > 0)
         map.insert(QStringLiteral("players"), players);
@@ -70,6 +81,7 @@ Machine Machine::fromVariant(const QString &name, const QVariantMap &map) {
     m.year = map.value(QStringLiteral("year")).toString();
     m.manufacturer = map.value(QStringLiteral("manufacturer")).toString();
     m.cloneOf = map.value(QStringLiteral("cloneof")).toString();
+    m.sourceFile = map.value(QStringLiteral("sourcefile")).toString();
     m.status = map.value(QStringLiteral("status")).toString();
     m.players = map.value(QStringLiteral("players")).toInt();
     m.rotate = map.value(QStringLiteral("rotate")).toInt();
@@ -126,6 +138,7 @@ void ListXmlReader::read() {
                     m_machine = Machine();
                     m_machine.name = attrs.value(QLatin1String("name")).toString();
                     m_machine.cloneOf = attrs.value(QLatin1String("cloneof")).toString();
+                    m_machine.sourceFile = attrs.value(QLatin1String("sourcefile")).toString();
                     m_machine.bios = attrs.value(QLatin1String("isbios")) == QLatin1String("yes");
                     m_machine.device = attrs.value(QLatin1String("isdevice")) == QLatin1String("yes");
                     m_machine.runnable = attrs.value(QLatin1String("runnable")) != QLatin1String("no");
@@ -214,6 +227,214 @@ QString decadeOf(const QString &year) {
     static const QRegularExpression decade(QStringLiteral("^(\\d{3})[\\d?]\\??$"));
     const QRegularExpressionMatch m = decade.match(year.trimmed());
     return m.hasMatch() ? m.captured(1) + QStringLiteral("0s") : QString();
+}
+
+QString titleOf(const QString &description) {
+    QString title = description;
+    // "Galaga (Namco rev. B)": the game, without which version of it.
+    const int paren = title.indexOf(QLatin1String(" ("));
+    if (paren > 0)
+        title.truncate(paren);
+    // "Truxton / Tatsujin": the first of the names it went by.
+    const int slash = title.indexOf(QLatin1String(" / "));
+    if (slash > 0)
+        title.truncate(slash);
+    title = title.trimmed();
+    return title.isEmpty() ? description.trimmed() : title;
+}
+
+QString systemOf(const QString &sourceFile) {
+    // The boards most of MAME's games are on, as their makers named them.
+    static const QHash<QString, QString> kBoards = {
+        // Capcom, and Sony's ZN boards (Capcom's, Taito's and others')
+        { QStringLiteral("cps1"), QStringLiteral("CPS-1") },
+        { QStringLiteral("cps2"), QStringLiteral("CPS-2") },
+        { QStringLiteral("cps3"), QStringLiteral("CPS-3") },
+        { QStringLiteral("zn"), QStringLiteral("ZN") },
+        // SNK
+        { QStringLiteral("neogeo"), QStringLiteral("Neo-Geo") },
+        { QStringLiteral("hng64"), QStringLiteral("Hyper Neo-Geo 64") },
+        // Sega
+        { QStringLiteral("naomi"), QStringLiteral("NAOMI") },
+        { QStringLiteral("dc_atomiswave"), QStringLiteral("Atomiswave") },
+        { QStringLiteral("segasp"), QStringLiteral("Sega SP") },
+        { QStringLiteral("chihiro"), QStringLiteral("Chihiro") },
+        { QStringLiteral("triforce"), QStringLiteral("Triforce") },
+        { QStringLiteral("lindbergh"), QStringLiteral("Lindbergh") },
+        { QStringLiteral("stv"), QStringLiteral("ST-V") },
+        { QStringLiteral("model1"), QStringLiteral("Model 1") },
+        { QStringLiteral("model2"), QStringLiteral("Model 2") },
+        { QStringLiteral("model3"), QStringLiteral("Model 3") },
+        { QStringLiteral("system1"), QStringLiteral("Sega System 1") },
+        { QStringLiteral("system16"), QStringLiteral("Sega System 16") },
+        { QStringLiteral("segas16a"), QStringLiteral("Sega System 16A") },
+        { QStringLiteral("segas16b"), QStringLiteral("Sega System 16B") },
+        { QStringLiteral("segas18"), QStringLiteral("Sega System 18") },
+        { QStringLiteral("segas24"), QStringLiteral("Sega System 24") },
+        { QStringLiteral("segas32"), QStringLiteral("Sega System 32") },
+        { QStringLiteral("segac2"), QStringLiteral("Sega System C-2") },
+        { QStringLiteral("segae"), QStringLiteral("Sega System E") },
+        { QStringLiteral("segaxbd"), QStringLiteral("Sega X Board") },
+        { QStringLiteral("segaybd"), QStringLiteral("Sega Y Board") },
+        { QStringLiteral("segaorun"), QStringLiteral("Sega Out Run") },
+        { QStringLiteral("segahang"), QStringLiteral("Sega Hang-On") },
+        { QStringLiteral("megatech"), QStringLiteral("Mega-Tech") },
+        { QStringLiteral("megaplay"), QStringLiteral("Mega Play") },
+        // Namco
+        { QStringLiteral("namcos1"), QStringLiteral("Namco System 1") },
+        { QStringLiteral("namcos2"), QStringLiteral("Namco System 2") },
+        { QStringLiteral("namcos10"), QStringLiteral("Namco System 10") },
+        { QStringLiteral("namcos11"), QStringLiteral("Namco System 11") },
+        { QStringLiteral("namcos12"), QStringLiteral("Namco System 12") },
+        { QStringLiteral("namcos21"), QStringLiteral("Namco System 21") },
+        { QStringLiteral("namcos22"), QStringLiteral("Namco System 22") },
+        { QStringLiteral("namcos23"), QStringLiteral("Namco System 23") },
+        { QStringLiteral("namcos86"), QStringLiteral("Namco System 86") },
+        { QStringLiteral("namconb1"), QStringLiteral("Namco NB-1") },
+        { QStringLiteral("namcona1"), QStringLiteral("Namco NA-1") },
+        { QStringLiteral("namcops2"), QStringLiteral("Namco System 246") },
+        // Konami
+        { QStringLiteral("konamigx"), QStringLiteral("Konami GX") },
+        { QStringLiteral("ksys573"), QStringLiteral("Konami System 573") },
+        { QStringLiteral("djmain"), QStringLiteral("DJ Main") },
+        { QStringLiteral("firebeat"), QStringLiteral("Firebeat") },
+        { QStringLiteral("viper"), QStringLiteral("Konami Viper") },
+        { QStringLiteral("twinkle"), QStringLiteral("Twinkle") },
+        { QStringLiteral("hornet"), QStringLiteral("Konami Hornet") },
+        { QStringLiteral("kpython2"), QStringLiteral("Konami Python 2") },
+        // Taito
+        { QStringLiteral("taito_b"), QStringLiteral("Taito B System") },
+        { QStringLiteral("taito_f2"), QStringLiteral("Taito F2 System") },
+        { QStringLiteral("taito_f3"), QStringLiteral("Taito F3 System") },
+        { QStringLiteral("taito_h"), QStringLiteral("Taito H System") },
+        { QStringLiteral("taito_l"), QStringLiteral("Taito L System") },
+        { QStringLiteral("taito_x"), QStringLiteral("Taito X System") },
+        { QStringLiteral("taito_z"), QStringLiteral("Taito Z System") },
+        { QStringLiteral("taitojc"), QStringLiteral("Taito JC System") },
+        { QStringLiteral("taitogn"), QStringLiteral("Taito G-NET") },
+        { QStringLiteral("taitotz"), QStringLiteral("Taito Type-Zero") },
+        { QStringLiteral("taitotx"), QStringLiteral("Taito Type X") },
+        // Irem
+        { QStringLiteral("m62"), QStringLiteral("Irem M62") },
+        { QStringLiteral("m72"), QStringLiteral("Irem M72") },
+        { QStringLiteral("m90"), QStringLiteral("Irem M90") },
+        { QStringLiteral("m92"), QStringLiteral("Irem M92") },
+        { QStringLiteral("m107"), QStringLiteral("Irem M107") },
+        // Midway and Atari
+        { QStringLiteral("midtunit"), QStringLiteral("Midway T-Unit") },
+        { QStringLiteral("midwunit"), QStringLiteral("Midway Wolf Unit") },
+        { QStringLiteral("midyunit"), QStringLiteral("Midway Y-Unit") },
+        { QStringLiteral("midxunit"), QStringLiteral("Midway X-Unit") },
+        { QStringLiteral("midvunit"), QStringLiteral("Midway V-Unit") },
+        { QStringLiteral("mcr"), QStringLiteral("Midway MCR") },
+        { QStringLiteral("mcr3"), QStringLiteral("Midway MCR-III") },
+        { QStringLiteral("mcr68"), QStringLiteral("Midway MCR-68k") },
+        { QStringLiteral("seattle"), QStringLiteral("Midway Seattle") },
+        { QStringLiteral("vegas"), QStringLiteral("Midway Vegas") },
+        { QStringLiteral("atarisy1"), QStringLiteral("Atari System 1") },
+        { QStringLiteral("atarisy2"), QStringLiteral("Atari System 2") },
+        { QStringLiteral("atarig1"), QStringLiteral("Atari G1") },
+        { QStringLiteral("atarig42"), QStringLiteral("Atari G42") },
+        { QStringLiteral("atarigt"), QStringLiteral("Atari GT") },
+        { QStringLiteral("atarigx2"), QStringLiteral("Atari GX2") },
+        // Nintendo
+        { QStringLiteral("playch10"), QStringLiteral("PlayChoice-10") },
+        { QStringLiteral("vsnes"), QStringLiteral("Vs. System") },
+        { QStringLiteral("nss"), QStringLiteral("Super System") },
+        // The rest
+        { QStringLiteral("toaplan1"), QStringLiteral("Toaplan 1") },
+        { QStringLiteral("toaplan2"), QStringLiteral("Toaplan 2") },
+        { QStringLiteral("cave"), QStringLiteral("Cave 68000") },
+        { QStringLiteral("cv1k"), QStringLiteral("Cave CV1000") },
+        { QStringLiteral("psikyo"), QStringLiteral("Psikyo") },
+        { QStringLiteral("psikyosh"), QStringLiteral("Psikyo SH-2") },
+        { QStringLiteral("psikyo4"), QStringLiteral("Psikyo PS4") },
+        { QStringLiteral("pgm"), QStringLiteral("PGM") },
+        { QStringLiteral("pgm2"), QStringLiteral("PGM2") },
+        { QStringLiteral("kaneko16"), QStringLiteral("Kaneko 16") },
+        { QStringLiteral("suprnova"), QStringLiteral("Super Kaneko Nova") },
+        { QStringLiteral("megasys1"), QStringLiteral("Mega System 1") },
+        { QStringLiteral("ms32"), QStringLiteral("Mega System 32") },
+        { QStringLiteral("seta"), QStringLiteral("Seta") },
+        { QStringLiteral("seta2"), QStringLiteral("Seta 2") },
+        { QStringLiteral("ssv"), QStringLiteral("Seta SSV") },
+        { QStringLiteral("decocass"), QStringLiteral("DECO Cassette") },
+        { QStringLiteral("deco32"), QStringLiteral("DECO 32") },
+        { QStringLiteral("nmk16"), QStringLiteral("NMK16") },
+    };
+    // "capcom/cps1.cpp", or "cps1.cpp" from a MAME before its drivers went
+    // in folders by maker: "cps1".
+    const QString driver = sourceFile.section(QLatin1Char('/'), -1).section(QLatin1Char('.'), 0, 0).toLower();
+    if (driver.isEmpty())
+        return QString();
+    return kBoards.value(driver, driver.toUpper());
+}
+
+QHash<QString, QString> readGenres(const QString &path) {
+    QHash<QString, QString> genres;
+    QFile file(path);
+    if (!file.open(QIODevice::ReadOnly | QIODevice::Text))
+        return genres;
+    // [Category]'s lines only: the file has a section for the version each
+    // game came in as well.
+    bool categories = false;
+    while (!file.atEnd()) {
+        const QString line = QString::fromUtf8(file.readLine()).trimmed();
+        if (line.startsWith(QLatin1Char('['))) {
+            categories = line.compare(QLatin1String("[Category]"), Qt::CaseInsensitive) == 0;
+            continue;
+        }
+        const int equals = line.indexOf(QLatin1Char('='));
+        if (!categories || equals <= 0 || line.startsWith(QLatin1Char(';')))
+            continue;
+        // "Fighter / Versus * Mature *": the genre before the kind of it.
+        QString genre = line.mid(equals + 1);
+        const int slash = genre.indexOf(QLatin1Char('/'));
+        if (slash >= 0)
+            genre.truncate(slash);
+        genre.remove(QLatin1String("* Mature *"));
+        genre = genre.trimmed();
+        if (!genre.isEmpty())
+            genres.insert(line.left(equals).trimmed().toLower(), genre);
+    }
+    return genres;
+}
+
+QString coinScript(int coins) {
+    // Each coin held down a tenth of a second, a fifth between them, as a
+    // coin mech's switch would be: games read it once a frame, and some count
+    // a coin only once it has been there a few frames. Timed by the game's
+    // own clock, which stands still while MAME shows a warning first.
+    return QStringLiteral(
+               "-- Written by OSD/OS as the game starts: the credits bought on its\n"
+               "-- Arcade screen, player 1's coin pressed once for each.\n"
+               "local left = %1\n"
+               "local nextAt, hold, gap = %2, 0.1, 0.2\n"
+               "local coin = manager.machine.ioport:token_to_input_type(\"COIN1\")\n"
+               "local field\n"
+               "for _, port in pairs(manager.machine.ioport.ports) do\n"
+               "  for _, f in pairs(port.fields) do\n"
+               "    if f.type == coin then field = f end\n"
+               "  end\n"
+               "end\n"
+               "if field and left > 0 then\n"
+               "  local down = false\n"
+               "  osdos_coins = emu.add_machine_frame_notifier(function()\n"
+               "    local now = manager.machine.time:as_double()\n"
+               "    if now < nextAt then return end\n"
+               "    if down then\n"
+               "      field:clear_value()\n"
+               "      left = left - 1\n"
+               "      if left == 0 then osdos_coins:unsubscribe() end\n"
+               "      nextAt = now + gap\n"
+               "    else\n"
+               "      field:set_value(1)\n"
+               "      nextAt = now + hold\n"
+               "    end\n"
+               "    down = not down\n"
+               "  end)\n"
+               "end\n")
+        .arg(coins).arg(kCoinDelaySeconds);
 }
 
 QString controllerConfig(const QStringList &playerGuids) {
