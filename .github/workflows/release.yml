@@ -64,11 +64,22 @@ jobs:
       - name: Install mpv (libmpv headers)
         run: brew install mpv || echo "::warning::brew install mpv failed; Transparent Background will be left out"
 
+      # minizip, which the High Scores module opens hi2txt's game definitions
+      # with (thirdparty/openhi2txt), linked into the app. Without it the
+      # module shows no tables, so a failure here only warns.
+      - name: Install minizip
+        run: |
+          if brew install minizip; then
+            echo "MINIZIP_PREFIX=$(brew --prefix minizip)" >> "$GITHUB_ENV"
+          else
+            echo "::warning::brew install minizip failed; High Scores will show no tables"
+          fi
+
       - name: Configure
         run: |
           cmake -B build \
             -DCMAKE_BUILD_TYPE=Release \
-            -DCMAKE_PREFIX_PATH="${QT_ROOT_DIR};${SDL2_PREFIX}" \
+            -DCMAKE_PREFIX_PATH="${QT_ROOT_DIR};${SDL2_PREFIX};${MINIZIP_PREFIX}" \
             -DCMAKE_INSTALL_PREFIX="${GITHUB_WORKSPACE}/install" \
             -DAPP_VERSION="${{ github.ref_name }}"
 
@@ -83,11 +94,17 @@ jobs:
           APP="${GITHUB_WORKSPACE}/install/osdos.app"
           "${QT_ROOT_DIR}/bin/macdeployqt" "$APP" -qmldir="${GITHUB_WORKSPACE}" -verbose=2
 
-      - name: Verify SDL bundling
+      - name: Verify bundled libraries
         run: |
-          FW="${GITHUB_WORKSPACE}/install/osdos.app/Contents/Frameworks"
+          APP="${GITHUB_WORKSPACE}/install/osdos.app"
+          FW="$APP/Contents/Frameworks"
           test -f "$FW/libSDL2-2.0.0.dylib" || { echo "SDL2 not bundled"; exit 1; }
           ! ls "$FW" | grep -qi sdl3 || { echo "SDL3 leaked into bundle"; exit 1; }
+          # minizip too, had the app been linked with its dynamic library
+          # rather than the static one (cmake/openhi2txt.cmake).
+          if otool -L "$APP/Contents/MacOS/osdos" | grep -q libminizip; then
+            ls "$FW" | grep -q '^libminizip' || { echo "minizip not bundled"; exit 1; }
+          fi
 
       - name: Import signing certificate
         if: env.DEVELOPER_ID == 'true'
@@ -204,7 +221,8 @@ jobs:
             libssl-dev \
             libsdl2-dev \
             libpcsclite-dev \
-            libmpv-dev
+            libmpv-dev \
+            libminizip-dev
 
       - name: Configure
         run: |
@@ -278,6 +296,7 @@ jobs:
             libssl-dev \
             libsdl2-dev \
             libpcsclite-dev \
+            libminizip-dev \
             libgl1-mesa-dev \
             libxkbcommon-dev \
             libxcb-cursor0 \

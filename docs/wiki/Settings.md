@@ -145,7 +145,7 @@ The older setting `app.auto_crop` (`On` or `Off`), from before Scaling, still co
 
 ## Modules
 
-Under the **MODULES** heading is one row for every module that has settings, which is all thirteen, in the order of their folders: Ambient:Mode, Arcade, Emby, Jellyfin, Local Files, Netflix, NFC Reader, Playlists, Plex, Prime Video, Scripts, Weather, YouTube. Select opens the module's own page, `SETTINGS | <MODULE>`. Its rows are written in the module's `manifest.json`, so a module brings its own ([Writing a module](https://github.com/mehmetraif/OSD-OS/wiki/Writing-a-Module)).
+Under the **MODULES** heading is one row for every module that has settings, which is all fourteen, in the order of their folders: Ambient:Mode, Arcade, Emby, High Scores, Jellyfin, Local Files, Netflix, NFC Reader, Playlists, Plex, Prime Video, Scripts, Weather, YouTube. Select opens the module's own page, `SETTINGS | <MODULE>`. Its rows are written in the module's `manifest.json`, so a module brings its own ([Writing a module](https://github.com/mehmetraif/OSD-OS/wiki/Writing-a-Module)).
 
 <table>
 <tr><th width="50%">A module's settings</th><th width="50%">Picking a folder</th></tr>
@@ -155,13 +155,14 @@ Under the **MODULES** heading is one row for every module that has settings, whi
 
 ### Turning a module on
 
-Every module's first row is **Enabled**. A module that is turned off is left off the main menu, can't be chosen in Start on Module, and an NFC card can't hand off to it. Until you change the row, the manifest's default applies: **Local Files** and **Playlists** are on, the other eleven off. The main menu picks up a change the next time you go back to it. The setting is saved as `modules.<module id>.enabled`, `true` or `false`.
+Every module's first row is **Enabled**. A module that is turned off is left off the main menu, can't be chosen in Start on Module, and an NFC card can't hand off to it. Until you change the row, the manifest's default applies: **Local Files** and **Playlists** are on, the other twelve off. The main menu picks up a change the next time you go back to it. The setting is saved as `modules.<module id>.enabled`, `true` or `false`.
 
 | Module | Module id | On by default | Its rows, in order |
 |---|---|---|---|
 | [Ambient:Mode](https://github.com/mehmetraif/OSD-OS/wiki/Ambient-Mode) | `com.osdos.ambient_mode` | No | Enabled, Media Directory, Auto-Launch Playback, Scaling |
 | [Arcade](https://github.com/mehmetraif/OSD-OS/wiki/Arcade) | `com.osdos.arcade` | No | Enabled, Games Folder, High Scores, Video, Read the Games Again |
 | [Emby](https://github.com/mehmetraif/OSD-OS/wiki/Emby) | `com.osdos.emby` | No | Enabled; once signed in Libraries, Video Quality, Resume Playback, Autoplay Next Episode, Intro Skip, Credit Skip; Scaling; Sign out once signed in |
+| [High Scores](https://github.com/mehmetraif/OSD-OS/wiki/High-Scores) | `com.osdos.highscores` | No | Enabled |
 | [Jellyfin](https://github.com/mehmetraif/OSD-OS/wiki/Jellyfin) | `com.osdos.jellyfin` | No | Enabled; once signed in Libraries, Video Quality, Resume Playback, Autoplay Next Episode, and Intro Skip and Credit Skip where the server has the Intro Skipper plugin; Scaling; Sign out once signed in |
 | [Local Files](https://github.com/mehmetraif/OSD-OS/wiki/Local-Files) | `com.osdos.local_files` | Yes | Enabled, Media Directory, Loop Playback, Shuffle Playback, Resume Playback, Auto Show Subtitles, Subtitle Language, Image Duration, Hide File Extensions, Scaling |
 | [Netflix](https://github.com/mehmetraif/OSD-OS/wiki/Netflix-and-Prime-Video) | `com.osdos.netflix` | No | Enabled, Catalogue Region, Catalogue Language, Scaling, Sign in, Sign out |

@@ -80,6 +80,10 @@ public:
     // manifest: rescan (action): MAME asked about every set again.
     Q_INVOKABLE void rescan();
 
+    // The sets played last, newest first: the High Scores module's Recently
+    // Played, as main.cpp hands them over.
+    QStringList recentSets() const { return listedSets(QStringLiteral("recent")); }
+
     // MAME's program: DATA_ROOT/bin/mame, else mame on the PATH, else
     // Debian's /usr/games/mame (not on a service's PATH). "" for none.
     QString mamePath() const;
@@ -144,6 +148,8 @@ private:
     QVariantList gameEntries(const QStringList &sets) const;
     QVariantMap gameEntry(const QString &set) const;
     QVariantMap unknownEntry(const QString &set) const;
+    // The sets on one of the module's lists (AppCore's), newest first.
+    QStringList listedSets(const QString &list) const;
     QVariantList listEntries(const QString &list) const;
     // The file name MAME opens a set by: its short name in lower case.
     QString mameFileName(const QString &set) const;

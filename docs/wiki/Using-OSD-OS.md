@@ -74,7 +74,7 @@ The main menu lists the modules, like the inputs on a deck: Local Files, Plex, Y
 
 ## The tree
 
-Local Files, YouTube, Netflix, Prime Video and Arcade are all browsed the same way, as a horizontal tree, and so are the playlists' Add Videos and the pickers for folders and files in Settings. (Plex, Jellyfin and Emby have list screens of their own, and Weather, Ambient:Mode, NFC Reader and Scripts screens of their own: see their pages.)
+Local Files, YouTube, Netflix, Prime Video, Arcade and High Scores are all browsed the same way, as a horizontal tree, and so are the playlists' Add Videos and the pickers for folders and files in Settings. (Plex, Jellyfin and Emby have list screens of their own, and Weather, Ambient:Mode, NFC Reader and Scripts screens of their own: see their pages.)
 
 <table>
 <tr><th width="50%">Recently Watched</th><th width="50%">Folders</th></tr>
@@ -97,13 +97,13 @@ Local Files, YouTube, Netflix, Prime Video and Arcade are all browsed the same w
 
 The hint bar follows the entry under the cursor: on a folder `[ESC]:BACK [▲▼◄►]:NAVIGATE [ENTER]:OPEN`, on a file `[ESC]:BACK [▲▼◄]:NAVIGATE [►]:OPTIONS [ENTER]:PLAY` (► is taken by the options there). Each folder remembers the entry you left it on, and coming back from a video reopens the tree exactly where it was.
 
-**What is at the top.** Every module's tree starts with the same three entries, then the module's own:
+**What is at the top.** Every module's tree but High Scores' starts with the same three entries, then the module's own:
 
 - **Recently Watched**: what you played last, newest first (in Arcade, **Recently Played**).
 - **Favorites**: what you marked from its [options](https://github.com/mehmetraif/OSD-OS/wiki/Using-OSD-OS#options).
 - **Search**: select opens the [on-screen keyboard](https://github.com/mehmetraif/OSD-OS/wiki/Using-OSD-OS#searching).
 
-In Local Files, the drives plugged in follow, each as `USB: <its label>` (the OSD/OS image mounts USB drives by itself; on a desktop or a Mac, those the system mounts), coming and going as you plug them in and pull them out, then the media folder's own folders and files. With nothing in the media folder and no drive, Local Files says **No items found** instead. In YouTube, Subscriptions, Channels, Playlists and Watch Later follow; in Netflix and Prime Video, Movies and Series by genre, and the service's own home page; in Arcade, All Games, Players, Years and Makers. Each module's page has its tree.
+In Local Files, the drives plugged in follow, each as `USB: <its label>` (the OSD/OS image mounts USB drives by itself; on a desktop or a Mac, those the system mounts), coming and going as you plug them in and pull them out, then the media folder's own folders and files. With nothing in the media folder and no drive, Local Files says **No items found** instead. In YouTube, Subscriptions, Channels, Playlists and Watch Later follow; in Netflix and Prime Video, Movies and Series by genre, and the service's own home page; in Arcade, All Games, Players, Years and Makers. High Scores has Recently Played and All Games alone, with Not Readable when a file can't be read ([High Scores](https://github.com/mehmetraif/OSD-OS/wiki/High-Scores#the-list)). Each module's page has its tree.
 
 <table>
 <tr><th width="50%">Favorites</th><th width="50%">Search results</th></tr>

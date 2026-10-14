@@ -25,6 +25,7 @@
 #include "modules/scripts/ScriptsBackend.h"
 #include "modules/web_player/WebPlayerBackend.h"
 #include "modules/arcade/ArcadeBackend.h"
+#include "modules/highscores/HighScoresBackend.h"
 #include "modules/playlists/PlaylistsBackend.h"
 #include "player/MpvController.h"
 #include "player/VideoSurface.h"
@@ -210,6 +211,8 @@ int main(int argc, char *argv[]) {
     ScriptsBackend      scriptsBackend(appRoot, dataRoot, &displayHandoff);
     // The games in MAME, which takes the screen as a script does.
     ArcadeBackend       arcadeBackend(appRoot, dataRoot, &appCore, &displayHandoff);
+    // Its Recently Played is the Arcade module's.
+    HighScoresBackend   highScoresBackend(appRoot, dataRoot, [&arcadeBackend] { return arcadeBackend.recentSets(); });
     // The streaming services opened as their own web players. TMDB's
     // provider ids are fallbacks for when its name lookup misses; the
     // Wikidata properties hold each service's id for a title.
@@ -276,6 +279,7 @@ int main(int argc, char *argv[]) {
     appCore.registerModule("com.osdos.prime_video",  "primeVideoBackend",  &primeVideoBackend, ctx);
     appCore.registerModule("com.osdos.playlists",    "playlistsBackend",   &playlistsBackend, ctx);
     appCore.registerModule("com.osdos.arcade",       "arcadeBackend",      &arcadeBackend, ctx);
+    appCore.registerModule("com.osdos.highscores",   "highScoresBackend",  &highScoresBackend, ctx);
 
     ctx->setContextProperty("idleTracker",   &idleTracker);
     ctx->setContextProperty("appCore",       &appCore);

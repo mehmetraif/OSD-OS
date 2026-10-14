@@ -778,6 +778,9 @@ FocusScope {
                             anchors.verticalCenter: parent.verticalCenter
                             width: row.cursor ? implicitWidth : row.width
                             text: row.label
+                            // As it is: a name such as "<B>" (a player's, a
+                            // file's) isn't markup.
+                            textFormat: Text.PlainText
                             elide: row.cursor ? Text.ElideNone : Text.ElideRight
                             color: row.cursor ? root.surfaceColor : root.primaryColor
                             font.family: root.globalFont
@@ -946,6 +949,7 @@ FocusScope {
                                     height: tree.rowHeight
                                     verticalAlignment: Text.AlignVCenter
                                     text: modelData.label
+                                    textFormat: Text.PlainText
                                     elide: Text.ElideRight
                                     color: root.primaryColor
                                     font.family: root.globalFont

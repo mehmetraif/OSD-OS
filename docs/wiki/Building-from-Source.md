@@ -16,6 +16,7 @@ OSD/OS is one C++17 program (Qt 6 and QML) built with CMake 3.21 or newer. CMake
 | libmpv's headers, through pkg-config | Transparent Background: video inside the app's window | `libmpv headers not found — Transparent Background will be unavailable` |
 | PC/SC (`libpcsclite`, Linux; macOS has it) | ACR122U and other PC/SC NFC readers | `PC/SC not found — NFC reader module will build with PN532 USB serial support only` |
 | Qt D-Bus (Linux) | Settings → Bluetooth, through BlueZ | `Qt D-Bus not found — Settings → Bluetooth will be unavailable` |
+| zlib and minizip | The High Scores module's tables, read by openhi2txt (`thirdparty/openhi2txt`, built with the app) | `minizip not found — High Scores will show no tables` |
 | git | The commit in Settings → About → Build | The build has the day alone |
 
 At run time OSD/OS starts other programs rather than linking them: **mpv** for every video (0.38 or newer), and for some modules yt-dlp and Deno (YouTube), FluidSynth with a SoundFont and openmpt123 (menu music in MIDI or a tracker's format), Chromium with Widevine (Netflix and Prime Video), MAME (Arcade). None of them is needed to build.
@@ -50,6 +51,7 @@ brew install cmake sdl2 mpv pkgconf      # build tools, gamepads, playback, libm
 brew install fluid-synth libopenmpt      # optional: menu music in MIDI and trackers' formats
 brew install yt-dlp deno                 # optional: the YouTube module
 brew install mame                        # optional: the Arcade module
+brew install minizip                     # optional: the High Scores module's tables
 ```
 
 - `sdl2`, the formula BUILDING.md names, is Homebrew's `sdl2-compat`, SDL2's API on top of SDL3. The release workflow builds SDL2 2.32.10 from source instead, so that the DMG carries SDL2 itself and no SDL3.
@@ -90,7 +92,7 @@ sudo apt-get install -y \
   mpv
 ```
 
-This is [BUILDING.md](https://github.com/mehmetraif/OSD-OS/blob/main/BUILDING.md#raspberry-pi-os-arm64)'s list less `libpcsclite-dev` and `libmpv-dev`, which are optional (below). `pkgconf` is there for CMake to find libdrm (the CI job on Raspberry Pi OS installs it), and `qml6-module-qtquick-effects` for the Weather and NFC Reader screens, which import it (`install.sh` installs it). The optional parts:
+This is [BUILDING.md](https://github.com/mehmetraif/OSD-OS/blob/main/BUILDING.md#raspberry-pi-os-arm64)'s list less `libpcsclite-dev`, `libmpv-dev` and `libminizip-dev`, which are optional (below). `pkgconf` is there for CMake to find libdrm (the CI job on Raspberry Pi OS installs it), and `qml6-module-qtquick-effects` for the Weather and NFC Reader screens, which import it (`install.sh` installs it). The optional parts:
 
 | Package | Adds |
 |---|---|
@@ -99,6 +101,7 @@ This is [BUILDING.md](https://github.com/mehmetraif/OSD-OS/blob/main/BUILDING.md
 | `libpcsclite-dev` | PC/SC NFC readers. Run `bash scripts/setup-nfc-reader.sh` once either way: it lets the user open a PN532 reader, and sets up `pcscd` where PC/SC is usable |
 | `fluidsynth timgm6mb-soundfont openmpt123` | Menu music in MIDI and trackers' formats (run time only) |
 | `mame` | The Arcade module's games, in MAME (run time only; the image has it) |
+| `libminizip-dev` | The High Scores module's tables. Its static library is linked in, so nothing more is needed at run time |
 | `bluez`, and the user in the `bluetooth` group | Settings → Bluetooth (run time; Raspberry Pi OS Lite has BlueZ). `sudo usermod -aG bluetooth $USER` |
 
 For YouTube, yt-dlp from its own releases (the one apt brings is too old) and Deno, on the `PATH` of the user that runs OSD/OS ([yt-dlp's EJS notes](https://github.com/yt-dlp/yt-dlp/wiki/EJS)):
@@ -131,7 +134,7 @@ sudo apt-get install -y build-essential cmake pkgconf \
   libgl1-mesa-dev libxkbcommon-dev mpv
 ```
 
-`pkgconf` is there for CMake to find libdrm, as on the Pi; `libpcsclite-dev` is optional (PC/SC readers), and so is `libmpv-dev` (Transparent Background).
+`pkgconf` is there for CMake to find libdrm, as on the Pi; `libpcsclite-dev` is optional (PC/SC readers), and so are `libmpv-dev` (Transparent Background) and `libminizip-dev` (the High Scores module's tables).
 
 Qt comes from the distribution (`qt6-base-dev qt6-declarative-dev qt6-svg-dev qt6-shadertools-dev` and the `qml6-module-qtquick*` modules) or from Qt's installer or aqtinstall with Qt Shader Tools, CMake then pointed at it:
 
@@ -211,7 +214,7 @@ How the AppImage finds Wayland's libraries on X11-only systems, and its library 
 
 ## The regression tests
 
-A few things that are easy to break have tests in [`tests/`](https://github.com/mehmetraif/OSD-OS/tree/main/tests), built apart from the app. They need CMake, a C++17 compiler and Qt 6's Core, Concurrent, Gui, Network, Qml, Quick and Test development packages, and libdrm's on Linux; not mpv, FluidSynth or a screen.
+A few things that are easy to break have tests in [`tests/`](https://github.com/mehmetraif/OSD-OS/tree/main/tests), built apart from the app. They need CMake, a C++17 compiler and Qt 6's Core, Concurrent, Gui, Network, Qml, Quick and Test development packages, libdrm's on Linux, and zlib's and minizip's for the High Scores suite (`libminizip-dev`; that suite is left out without them); not mpv, FluidSynth or a screen.
 
 ```sh
 cmake -S tests -B build-tests
@@ -236,7 +239,7 @@ Four workflows in [`.github/workflows`](https://github.com/mehmetraif/OSD-OS/tre
 
 | Workflow | Runs on | What it does |
 |---|---|---|
-| [`regression-tests.yml`](https://github.com/mehmetraif/OSD-OS/blob/main/.github/workflows/regression-tests.yml) | Every pull request, and every push to `main`, that touches `src/`, `tests/`, `CMakeLists.txt` or the workflow | Builds the app (Release) and the tests, and runs the tests, in two jobs. **Linux**: Ubuntu 24.04 on x64 and on arm64, with apt's Qt 6.4, the oldest the releases are built with. **Raspberry Pi OS (trixie, arm64)**: a `debian:trixie` container with Raspberry Pi's archive added as pi-gen adds it for the image, at the commit `os/build.sh` pins, so with the Pi's own Qt (6.8) and mpv (0.40); there the tests run as an ordinary user, as OSD/OS runs on the Pi |
+| [`regression-tests.yml`](https://github.com/mehmetraif/OSD-OS/blob/main/.github/workflows/regression-tests.yml) | Every pull request, and every push to `main`, that touches `src/`, `views/`, `modules/`, `scripts/`, `tests/`, `thirdparty/`, `cmake/`, `CMakeLists.txt` or the workflow | Builds the app (Release) and the tests, and runs the tests, in two jobs. **Linux**: Ubuntu 24.04 on x64 and on arm64, with apt's Qt 6.4, the oldest the releases are built with. **Raspberry Pi OS (trixie, arm64)**: a `debian:trixie` container with Raspberry Pi's archive added as pi-gen adds it for the image, at the commit `os/build.sh` pins, so with the Pi's own Qt (6.8) and mpv (0.40); there the tests run as an ordinary user, as OSD/OS runs on the Pi |
 | [`os-image.yml`](https://github.com/mehmetraif/OSD-OS/blob/main/.github/workflows/os-image.yml) | By hand (Actions → OS image → Run workflow), and pull requests that touch `os/`, `src/boot/`, `views/BootScreen.qml`, `views/Components/VhsCassette.qml`, `scripts/install.sh` or the workflow | Builds the app for arm64 as a `dev` tarball, then the OSD/OS image from it with pi-gen, on GitHub's arm64 runners. The image is the run's `osdos-image` artifact, kept 30 days; pi-gen's logs are kept when it fails |
 | [`release.yml`](https://github.com/mehmetraif/OSD-OS/blob/main/.github/workflows/release.yml) | A pushed tag matching `v*.*.*` | Builds and publishes a release ([below](#making-a-release)) |
 | [`wiki.yml`](https://github.com/mehmetraif/OSD-OS/blob/main/.github/workflows/wiki.yml) | A push to `main` that touches `docs/wiki/` or the workflow, and by hand | Publishes `docs/wiki` to the [wiki](https://github.com/mehmetraif/OSD-OS/wiki), page for page, replacing what the wiki had. GitHub makes a wiki's repository only once its first page is saved in the web interface, so that was done once |
@@ -256,7 +259,7 @@ Any tag matching `v*.*.*` starts `release.yml`; one containing `-rc`, `-beta` or
 
 | Job | Runner | Makes |
 |---|---|---|
-| `build-macos-arm64` | `macos-15` | `OSD-OS-<tag>-macOS-arm64.dmg`: Qt 6.7 with Qt Shader Tools, SDL2 2.32.10 built from source and bundled, `macdeployqt`. With the secrets `APPLE_CERT_P12_BASE64`, `APPLE_CERT_PASSWORD`, `APPLE_ID`, `APPLE_APP_PASSWORD` and `APPLE_TEAM_ID` it is signed with the Developer ID and notarized; without them (a fork) signed ad hoc, and the release notes say how to open it the first time. mpv isn't bundled |
+| `build-macos-arm64` | `macos-15` | `OSD-OS-<tag>-macOS-arm64.dmg`: Qt 6.7 with Qt Shader Tools, SDL2 2.32.10 built from source and bundled, Homebrew's minizip linked in, `macdeployqt`. With the secrets `APPLE_CERT_P12_BASE64`, `APPLE_CERT_PASSWORD`, `APPLE_ID`, `APPLE_APP_PASSWORD` and `APPLE_TEAM_ID` it is signed with the Developer ID and notarized; without them (a fork) signed ad hoc, and the release notes say how to open it the first time. mpv isn't bundled |
 | `build-linux-arm64` | `ubuntu-24.04-arm` | `OSD-OS-<tag>-linux-arm64.tar.gz`, apt's Qt, for Raspberry Pi OS: `install.sh` installs it and the packages it needs |
 | `build-linux-x86_64` | `ubuntu-24.04` | `OSD-OS-linux-x86_64.AppImage`, with mpv 0.40 built by `scripts/build-mpv.sh`. Its name has no version, as it updates itself in place |
 | `build-os-image` | `ubuntu-24.04-arm` | `OSD-OS-<tag>-raspberry-pi.img.xz` and its `.info` (the packages on it), from the release's own tarball |

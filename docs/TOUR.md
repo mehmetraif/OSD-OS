@@ -110,6 +110,20 @@ Once signed in, each opens on the server's Continue Watching and its libraries. 
 <tr><td>How to come back, in player 1's own buttons, then MAME has the screen, with Settings → Controls' players as its players 1 to 6.</td><td>What the set lacked and where MAME looked: here the Neo-Geo BIOS.</td></tr>
 </table>
 
+### High Scores
+
+<table>
+<tr><th width="50%">The games</th><th width="50%">All Games</th></tr>
+<tr><td><img src="screenshots/high-scores.png" width="100%" alt="High Scores" /></td><td><img src="screenshots/high-scores-games.png" width="100%" alt="All Games" /></td></tr>
+<tr><td>The games played last in Arcade, latest first, those with a table.</td><td>A game's table beside it, and under the tree its best entry and the file MAME kept it in.</td></tr>
+</table>
+
+<table>
+<tr><th width="50%">A game's table</th><th width="50%">Several tables</th></tr>
+<tr><td><img src="screenshots/high-scores-table.png" width="100%" alt="A game's table" /></td><td><img src="screenshots/high-scores-tables.png" width="100%" alt="Several tables" /></td></tr>
+<tr><td>An entry's cells by column, under the tree.</td><td>A game with a table for each mode, a folder each.</td></tr>
+</table>
+
 ### Weather, Ambient:Mode, NFC Reader and Scripts
 
 <table>

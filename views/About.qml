@@ -51,6 +51,8 @@ FocusScope {
                        + " • GNU Unifont by Roman Czyborra, Paul Hardy and others, under the SIL Open Font License 1.1" },
         { key: "built", label: "Built With", value: "Qt, SDL2, mpv",
           description: "Qt 6 (LGPL v3) • SDL2 (zlib) • mpv and libmpv (GPL v2+)"
+                       + " • High Scores: openhi2txt (GPL v3) with RapidXML (Boost or MIT) and minizip (zlib),"
+                       + " hi2txt's game definitions (GPL v2) by GreatStone and their contributors"
                        + " • On the OSD/OS image: yt-dlp (Unlicense), Deno (MIT), FFmpeg (LGPL/GPL), Chromium (BSD), MAME (GPL v2+)" },
         { key: "system", label: "Image OS", value: "Raspberry Pi OS",
           description: "The OSD/OS image is Raspberry Pi OS Lite (64-bit), which is based on Debian 13 (trixie),"

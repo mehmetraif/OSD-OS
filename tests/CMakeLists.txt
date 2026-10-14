@@ -43,6 +43,26 @@ target_include_directories(looks_test PRIVATE ../src)
 target_link_libraries(looks_test PRIVATE Qt6::Core Qt6::Network Qt6::Qml Qt6::Test)
 add_test(NAME looks COMMAND looks_test)
 
+# The High Scores module on MAME's files of three games (data/highscores),
+# read by openhi2txt with hi2txt's definitions: the tables as lines, what is
+# kept and read again, the games' names, the files that can't be read. Where
+# minizip is found, as the module's tables are in the app.
+include(${CMAKE_CURRENT_SOURCE_DIR}/../cmake/openhi2txt.cmake)
+if(OPENHI2TXT_FOUND)
+    add_executable(highscores_test
+        highscores_test.cpp
+        ../src/modules/highscores/HighScoresBackend.cpp
+        ../src/modules/highscores/ScoreTable.cpp
+        ../src/modules/arcade/Mame.cpp)
+    target_include_directories(highscores_test PRIVATE ../src)
+    target_compile_definitions(highscores_test PRIVATE
+        OSDOS_HIGH_SCORES=1 APP_DIR="${CMAKE_CURRENT_SOURCE_DIR}/..")
+    target_link_libraries(highscores_test PRIVATE Qt6::Core Qt6::Test openhi2txt::openhi2txt)
+    add_test(NAME highscores COMMAND highscores_test)
+else()
+    message(WARNING "minizip not found: the High Scores test is left out")
+endif()
+
 # One video handed over to the next (MpvController), against a stand-in for
 # mpv. Linux only: the stand-in is a shell script that looks in /proc.
 if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
@@ -164,6 +184,11 @@ set_tests_properties(controls_views PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offs
 add_test(NAME arcade_views COMMAND tree_browser_test -input ${CMAKE_CURRENT_SOURCE_DIR}/qml/tst_arcade.qml
                                    -import ${CMAKE_CURRENT_SOURCE_DIR}/../views)
 set_tests_properties(arcade_views PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen;QT_QUICK_BACKEND=software")
+# The High Scores module's view (modules/highscores/views/Scores.qml) against
+# a stand-in for HighScoresBackend.
+add_test(NAME highscores_views COMMAND tree_browser_test -input ${CMAKE_CURRENT_SOURCE_DIR}/qml/tst_highscores.qml
+                                       -import ${CMAKE_CURRENT_SOURCE_DIR}/../views)
+set_tests_properties(highscores_views PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen;QT_QUICK_BACKEND=software")
 
 # Settings → Controls, each controller apart: the labels, the profiles and
 # whose a key is (ControllerProfile), and InputManager with pads SDL makes up
