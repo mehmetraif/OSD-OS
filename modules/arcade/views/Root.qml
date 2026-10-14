@@ -25,13 +25,25 @@ FocusScope {
     property bool helpLine: true
     property bool startInfo: true
     property string startFilter: "all"
-    // The credits bought on the Arcade screen with COIN, 9 at most: they go
-    // in the next game played (Play.qml).
+    // The Arcade screen's Hint Bar and Help Line, which Main.qml's hintBar and
+    // helpLine go by while the module is open, its dialogs and all; the
+    // original screen goes by Settings' own.
+    readonly property var hintBarShown: arcadeScreen ? hintBar : undefined
+    readonly property var helpLineShown: arcadeScreen ? helpLine : undefined
+
+    // The credits bought on the Arcade screen with COIN: they go in the next
+    // game played (Play.qml), as many as ArcadeBackend puts in (kMaxCredits).
     property int credits: 0
+    readonly property int maxCredits: 9
+    function addCredit() { credits = Math.min(maxCredits, credits + 1) }
+
+    // A game about to be played, on Recently Played (the newest 30).
+    function addRecent(set, name) {
+        appCore.add_to_list(moduleId, "recent", { name: name, path: "game:" + set, isFolder: false }, 30)
+    }
 
     // A toggle of the module's, ON unless it is turned off.
-    function settingOn(key) {
-        var value = appCore ? appCore.get_setting(moduleId, key) : undefined
+    function isOn(value) {
         return value === undefined || value === null || value === true || String(value).toUpperCase() === "ON"
     }
 
@@ -84,11 +96,13 @@ FocusScope {
     }
 
     Component.onCompleted: {
-        screen = appCore && appCore.get_setting(moduleId, "screen") === "Arcade" ? "Arcade" : "Original"
-        hintBar = settingOn("hint_bar")
-        helpLine = settingOn("help_line")
-        startInfo = settingOn("start_info")
-        startFilter = (appCore && appCore.get_setting(moduleId, "start_filter")) || "all"
+        var settings = appCore ? appCore.get_settings() : {}
+        var own = (settings.modules && settings.modules[moduleId]) || {}
+        screen = own.screen === "Arcade" ? "Arcade" : "Original"
+        hintBar = isOn(own.hint_bar)
+        helpLine = isOn(own.help_line)
+        startInfo = isOn(own.start_info)
+        startFilter = own.start_filter || "all"
         // The folder looked at again, and MAME asked about any game new in
         // it, before the list asks for what is in it.
         if (arcadeBackend)

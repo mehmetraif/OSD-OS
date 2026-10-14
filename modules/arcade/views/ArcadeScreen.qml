@@ -8,18 +8,19 @@ import Components
 // the credits bought, its high scores (the High Scores module's) and what it
 // is (ArcadeBackend::gameDetails); under them the help line with its full
 // name, and the hint bar. The module's own Hint Bar and Help Line settings
-// hide those, and their room goes to the list, a row more each, and to the
-// high scores. Laid out in the design's units: a 960th of the width, a 720th
-// of the height.
+// (Root.qml's, which root.hintBar and root.helpLine go by here) hide those,
+// and their room goes to the list, a row more each, and to the high scores.
+// Laid out in the design's units: a 960th of the width, a 720th of the
+// height.
 //
 // ▲ ▼ choose a game, from page to page and round; ◄ ► go round the filters,
-// keeping the game where the next filter has it. COIN (a pad's Back button,
-// MAME's coin, or 5) buys a credit, START (a pad's Start, Space, or 1) plays
-// the game with them (Play.qml), select opens its options (Play, its
-// favourite, Play at Startup) and back leaves the module. Coming back from a
-// game restores the filter and the game from the listState handed to
-// navigateTo. Opened with the startup favourite (navParams.startupPlay), it
-// plays that at once.
+// keeping the game where the next filter has it. COIN (MAME's 5, which a
+// pad's Back button, MAME's coin, is here: takesCoin) buys a credit, START
+// (Space, a pad's Start, or 1) plays the game with them (Play.qml), select
+// opens its options (Play, its favourite, Play at Startup) and back leaves
+// the module. Coming back from a game restores the filter and the game from
+// the listState handed to navigateTo. Opened with the startup favourite
+// (navParams.startupPlay), it plays that at once.
 FocusScope {
     id: arcadeScreen
 
@@ -38,16 +39,17 @@ FocusScope {
     readonly property bool scanning: arcadeBackend ? arcadeBackend.scanning : false
     readonly property string gamesFolder: arcadeBackend ? arcadeBackend.gamesFolder() : ""
     readonly property var scoresBackend: typeof highScoresBackend !== "undefined" ? highScoresBackend : null
+    // A pad's Back button is COIN here, not while the options are up
+    // (InputManager).
+    readonly property bool takesCoin: !options.visible
 
     // The design's units.
     readonly property real u: root.sw / 960
     readonly property real v: root.sh / 720
 
-    readonly property bool hintShown: moduleRoot.hintBar
-    readonly property bool helpShown: moduleRoot.helpLine
     // Where the list and the column end, in the design's 720 lines: above
     // the help line, or above what is in its place.
-    readonly property int listBottom: hintShown ? (helpShown ? 552 : 604) : (helpShown ? 592 : 644)
+    readonly property int listBottom: root.hintBar ? (root.helpLine ? 552 : 604) : (root.helpLine ? 592 : 644)
     // As many rows as fit 38 lines apart, spread over the room.
     readonly property int perPage: Math.floor((listBottom - 179) / 38) + 1
     readonly property int pitch: Math.floor((listBottom - 179) / (perPage - 1))
@@ -103,9 +105,14 @@ FocusScope {
             return
         var keep = currentSet !== "" ? currentSet : (navListState.set || "")
         filters = arcadeBackend.filters()
-        filterIndex = Math.max(0, indexOfFilter(wanted))
-        var at = keep !== "" && filterId !== "" ? arcadeBackend.filterIndex(filterId, keep) : -1
-        selected = at >= 0 ? at : Math.max(0, Math.min(selected, count - 1))
+        var at = indexOfFilter(wanted)
+        filterIndex = Math.max(0, at)
+        // One with no games once MAME has answered gives way to the one
+        // shown, which a favourite added later doesn't take the list from.
+        if (at < 0 && !scanning && filterId !== "")
+            wanted = filterId
+        var place = keep !== "" && filterId !== "" ? arcadeBackend.filterIndex(filterId, keep) : -1
+        selected = place >= 0 ? place : Math.max(0, Math.min(selected, count - 1))
         revision++
     }
 
@@ -124,14 +131,10 @@ FocusScope {
         selected = Math.max(0, at)
     }
 
-    function addCredit() {
-        moduleRoot.credits = Math.min(9, moduleRoot.credits + 1)
-    }
-
     // Plays a game, putting it on Recently Played; coming back lands on it in
     // listFilter.
     function play(set, name, listFilter) {
-        appCore.add_to_list(moduleRoot.moduleId, "recent", { name: name, path: "game:" + set, isFolder: false }, 30)
+        moduleRoot.addRecent(set, name)
         arcadeScreen.navigateTo("Play.qml", { game: set, title: name }, { filter: listFilter, set: set })
     }
     function playCurrent() {
@@ -158,9 +161,10 @@ FocusScope {
     }
 
     Component.onCompleted: {
-        reload()
+        // The high scores kept, read before the first game's are asked for.
         if (scoresBackend)
             scoresBackend.refresh()
+        reload()
         if (!navParams.navListState && navParams.startupPlay)
             Qt.callLater(playAtStartup, navParams.startupPlay)
     }
@@ -182,12 +186,10 @@ FocusScope {
         // Keys the options leave go no further.
         if (options.visible)
             return
-        var button = typeof inputManager !== "undefined" && inputManager
-                     ? inputManager.padButton(event.nativeScanCode) : ""
-        if (button === "back" || event.key === Qt.Key_5) {
-            // COIN, though a pad's Back button does Back everywhere else.
+        if (event.key === Qt.Key_5) {
+            // COIN.
             if (!event.isAutoRepeat)
-                addCredit()
+                moduleRoot.addCredit()
         } else if (event.key === Qt.Key_Space || event.key === Qt.Key_1) {
             if (!event.isAutoRepeat)
                 playCurrent()
@@ -225,10 +227,6 @@ FocusScope {
 
     ArcadeBar {
         visible: arcadeScreen.filters.length > 0
-        x: Math.round(120 * arcadeScreen.u)
-        y: Math.round(90 * arcadeScreen.v)
-        width: Math.round(420 * arcadeScreen.u)
-        height: Math.round(42 * arcadeScreen.v)
         text: arcadeScreen.filter ? arcadeScreen.filter.name : ""
         arrows: arcadeScreen.filters.length > 1
         rightText: "Page " + (arcadeScreen.page + 1) + "/" + arcadeScreen.pages
@@ -393,22 +391,26 @@ FocusScope {
             font.capitalization: Font.AllUppercase
             font.pixelSize: Math.round(18 * arcadeScreen.v)
         }
+        // A line for each the column has room for, kept from game to game.
         Repeater {
-            model: arcadeScreen.scores
+            model: arcadeScreen.scoreRows
             Item {
-                required property var modelData
+                id: scoreLine
+                required property int index
+                readonly property var entry: index < arcadeScreen.scores.length ? arcadeScreen.scores[index] : null
+                visible: entry !== null
                 width: parent.width
                 height: Math.round(20 * arcadeScreen.v)
                 Text {
-                    text: modelData.rank
+                    text: scoreLine.entry ? scoreLine.entry.rank : ""
                     color: root.primaryColor
                     font.family: root.globalFont
                     font.pixelSize: Math.round(20 * arcadeScreen.v)
                 }
                 Text {
                     anchors.right: parent.right
-                    anchors.rightMargin: modelData.name !== "" ? Math.round(60 * arcadeScreen.u) : 0
-                    text: modelData.score
+                    anchors.rightMargin: scoreLine.entry && scoreLine.entry.name !== "" ? Math.round(60 * arcadeScreen.u) : 0
+                    text: scoreLine.entry ? scoreLine.entry.score : ""
                     textFormat: Text.PlainText
                     color: root.primaryColor
                     font.family: root.globalFont
@@ -418,7 +420,7 @@ FocusScope {
                     anchors.right: parent.right
                     width: Math.round(48 * arcadeScreen.u)
                     horizontalAlignment: Text.AlignRight
-                    text: modelData.name
+                    text: scoreLine.entry ? scoreLine.entry.name : ""
                     textFormat: Text.PlainText
                     elide: Text.ElideRight
                     color: root.primaryColor
@@ -438,29 +440,36 @@ FocusScope {
         }
     }
 
-    // What the game is, against the column's foot. The online line keeps its
-    // place while it is hidden, so the column stays still from game to game.
+    // A line of what the game is, by its place in the column.
+    function detail(line) {
+        var d = details
+        switch (line) {
+        case 0: return d.system || "?"
+        case 1: return d.maker || "?"
+        case 2: return d.year || "?"
+        case 3: return d.players > 0 ? String(d.players) : "?"
+        case 4: return playTime(d.playTime)
+        default: return "Available"
+        }
+    }
+
+    // What the game is, against the column's foot: lines kept from game to
+    // game, their values following it. The online line keeps its place while
+    // it is hidden, so the column stays still.
     Repeater {
-        model: arcadeScreen.isGame ? [
-            { label: "System", value: arcadeScreen.details.system || "?", shown: true },
-            { label: "Maker", value: arcadeScreen.details.maker || "?", shown: true },
-            { label: "Year", value: arcadeScreen.details.year || "?", shown: true },
-            { label: "Players", value: arcadeScreen.details.players > 0 ? String(arcadeScreen.details.players) : "?", shown: true },
-            { label: "Play Time", value: arcadeScreen.playTime(arcadeScreen.details.playTime), shown: true },
-            { label: "Online", value: "Available", shown: !!arcadeScreen.details.online }
-        ] : []
+        model: ["System", "Maker", "Year", "Players", "Play Time", "Online"]
         MenuRow {
-            required property var modelData
+            required property string modelData
             required property int index
-            visible: modelData.shown
+            visible: arcadeScreen.isGame && (index < 5 || !!arcadeScreen.details.online)
             // The label where the high scores' are: MenuRow pads its line.
             x: Math.round(560 * arcadeScreen.u) - pad
             y: Math.round((arcadeScreen.infoTop + index * 23) * arcadeScreen.v)
             width: Math.round(280 * arcadeScreen.u) + 2 * pad
             height: Math.round(18 * arcadeScreen.v)
             fontSize: Math.round(18 * arcadeScreen.v)
-            label: modelData.label
-            value: modelData.value
+            label: modelData
+            value: arcadeScreen.detail(index)
         }
     }
 
@@ -468,44 +477,14 @@ FocusScope {
     // Nothing to list
     // ---
 
-    // No games: what stands in the way, and where the games go (unless that
-    // is the folder that can't be read); while MAME is asked, that it is.
-    Column {
-        anchors.centerIn: parent
-        width: root.sw * 0.75 //480
-        spacing: root.sh * 0.0333333 //16
+    // No games: what stands in the way, and where the games go; while MAME is
+    // asked, that it is.
+    NoGames {
         visible: arcadeScreen.filters.length === 0
-        Text {
-            width: parent.width
-            text: arcadeScreen.scanning ? "Reading the games…" : "No games found"
-            color: root.secondaryColor
-            font.family: root.globalFont
-            font.capitalization: Font.AllUppercase
-            horizontalAlignment: Text.AlignHCenter
-            font.pixelSize: root.sh * 0.05 //24
-        }
-        Text {
-            visible: !arcadeScreen.scanning && arcadeScreen.problem !== ""
-            width: parent.width
-            text: arcadeScreen.problem
-            color: root.secondaryColor
-            font.family: root.globalFont
-            font.capitalization: Font.AllUppercase
-            horizontalAlignment: Text.AlignHCenter
-            wrapMode: Text.WrapAtWordBoundaryOrAnywhere
-            font.pixelSize: root.sh * 0.0333333 //16
-        }
-        Text {
-            visible: !arcadeScreen.scanning && arcadeScreen.folderReadable
-            width: parent.width
-            text: "Put MAME's ROM sets, a zip file for each game, in " + arcadeScreen.gamesFolder
-            color: root.tertiaryColor
-            font.family: root.globalFont
-            font.capitalization: Font.AllUppercase
-            horizontalAlignment: Text.AlignHCenter
-            wrapMode: Text.WrapAtWordBoundaryOrAnywhere
-            font.pixelSize: root.sh * 0.0333333 //16
-        }
+        reading: arcadeScreen.scanning
+        problem: arcadeScreen.problem
+        folderReadable: arcadeScreen.folderReadable
+        gamesFolder: arcadeScreen.gamesFolder
     }
 
     // ---
@@ -516,14 +495,13 @@ FocusScope {
     // stands in the way of the list comes first.
     HelpLine {
         visible: arcadeScreen.filters.length > 0 && !options.visible
-        shown: arcadeScreen.helpShown
         text: arcadeScreen.problem !== "" ? arcadeScreen.problem
               : arcadeScreen.scanning ? "Reading the games…"
               : arcadeScreen.details.unknown ? arcadeScreen.details.detail
               : arcadeScreen.details.name || ""
         anchors.bottom: parent.bottom
         anchors.left: parent.left
-        anchors.bottomMargin: arcadeScreen.hintShown ? root.sh * 0.1583333 : root.sh * 0.1041667 //76, or the hint bar's 50
+        anchors.bottomMargin: root.helpLineMargin
         anchors.leftMargin: root.sw * 0.125 //80
     }
 
@@ -531,7 +509,6 @@ FocusScope {
     // bar has room for four.
     HintBar {
         visible: !options.visible
-        shown: arcadeScreen.hintShown
         text: arcadeScreen.filters.length === 0 ? root.hints.back + ":BACK"
               : root.hints.back + ":BACK " + root.hints.coin + ":CREDIT " + root.hints.play_pause + ":PLAY "
                 + root.hints.select + ":OPTIONS"

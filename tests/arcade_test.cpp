@@ -749,8 +749,10 @@ private slots:
         QFile::remove(catver);
         QVERIFY(mame::readGenres(catver).isEmpty());
 
-        // Player 1's coin pressed that many times, from five seconds in.
+        // Player 1's coin pressed that many times, from five seconds in, once
+        // whatever resets the game (MAME runs the script again at each).
         const QString script = mame::coinScript(3);
+        QVERIFY(script.contains(QStringLiteral("if osdos_coins_run then return end\nosdos_coins_run = true\n")));
         QVERIFY(script.contains(QStringLiteral("local left = 3\n")));
         QVERIFY(script.contains(QStringLiteral("local nextAt, hold, gap = 5, 0.1, 0.2\n")));
         QVERIFY(script.contains(QStringLiteral("token_to_input_type(\"COIN1\")")));
@@ -758,8 +760,9 @@ private slots:
 
     // The filters: All Games, the lists, the genres catver.ini gives (a
     // clone's its parent's), players and decades, Not Recognized; a page of
-    // one, where a game is in it, what a game is, its picture, and the
-    // settings' choices. While MAME is asked, only the lists.
+    // one, where a game is in it, what a game is, its picture (looked for
+    // once a list), and the settings' choices. While MAME is asked, only the
+    // lists.
     void filters() {
         const QString module = QStringLiteral("com.osdos.arcade");
         AppCore core(m_data.path(), m_data.path());
@@ -846,6 +849,12 @@ private slots:
                  QUrl::fromLocalFile(m_games + QStringLiteral("/snap/puckman.png")).toString());
         QCOMPARE(arcade.gameDetails(QStringLiteral("galaga")).value(QStringLiteral("picture")).toString(),
                  QUrl::fromLocalFile(m_data.path() + QStringLiteral("/arcade/snap/galaga/0000.png")).toString());
+        // A picture is looked for once, till the list opens again.
+        writeFile(m_games + QStringLiteral("/snap/sf2.png"), "png");
+        QCOMPARE(arcade.gameDetails(QStringLiteral("sf2")).value(QStringLiteral("picture")).toString(), QString());
+        refreshed(arcade);
+        QCOMPARE(arcade.gameDetails(QStringLiteral("sf2")).value(QStringLiteral("picture")).toString(),
+                 QUrl::fromLocalFile(m_games + QStringLiteral("/snap/sf2.png")).toString());
         const QVariantMap notagame = arcade.gameDetails(QStringLiteral("notagame"));
         QVERIFY(notagame.value(QStringLiteral("unknown")).toBool());
         QCOMPARE(notagame.value(QStringLiteral("name")).toString(), QStringLiteral("notagame.zip"));
@@ -873,7 +882,7 @@ private slots:
         for (const QVariant &v : options.at(1).at(1).toList())
             games << v.toMap().value(QStringLiteral("id")).toString() + QLatin1Char('=') + v.toMap().value(QStringLiteral("label")).toString();
         QCOMPARE(games, QStringList({ QStringLiteral("=None"), QStringLiteral("galaga=Galaga"),
-                                      QStringLiteral("sf2=Street Fighter II: The World Warrior") }));
+                                      QStringLiteral("sf2=Street Fighter II") }));
 
         // Asked again: only the lists, then all of them once MAME has
         // answered.

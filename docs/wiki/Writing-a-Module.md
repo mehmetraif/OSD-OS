@@ -68,7 +68,7 @@ Each setting is an object:
 | `settings` | `submenu` | Its own rows, in this same format |
 | `requires_auth` | Every type | Shown only while the backend's `get_auth_state()` is neither `""` nor `"none"`: Plex hides its server, user and library rows until it is signed in |
 | `requires_capability` | Every type | Shown only while the backend's choices for `_capabilities` name it: Jellyfin's skip rows need its server's media segments |
-| `shown_with` | Every type | Shown only while another of the module's rows has a value: `{ "key": "screen", "value": "Arcade" }`, an unset row counting as its `default`. The rows come and go as that row changes, the cursor staying on it, and a hidden row keeps what was saved in it: Arcade's rows for its Arcade screen |
+| `shown_with` | Every type | Shown only while another of the module's rows has a value as the page shows it: `{ "key": "screen", "value": "Arcade" }`, a toggle's `"ON"` or `"OFF"`, an unset row counting as its `default` (a dynamic list as its first choice), and never while that row is hidden itself. The rows come and go as that row changes, the cursor staying on it, a dynamic row's choices asked for as it comes, and a hidden row keeps what was saved in it: Arcade's rows for its Arcade screen |
 
 The types, as Settings shows and saves them:
 

@@ -9,9 +9,10 @@ import Components
 // MAME ended with an error, says why here.
 //
 // From the Arcade screen (ArcadeScreen.qml) it has that screen's bar, says
-// how many credits go in, and takes COIN (another credit) and START or
-// select (the game at once) before MAME starts; the credits go in with the
-// game (ArcadeBackend::play), and are spent.
+// how many credits go in, and takes COIN (another credit: MAME's 5, which a
+// pad's Back button is meanwhile) and START or select (the game at once)
+// before MAME starts; the credits go in with the game (ArcadeBackend::play),
+// and are spent.
 //
 // The way back is MAME's own, Coin and Start together on player 1's
 // controller or Esc on a keyboard (the controller file ArcadeBackend writes),
@@ -30,10 +31,6 @@ FocusScope {
 
     focus: true
 
-    // The design's units, for the Arcade screen's bar.
-    readonly property real u: root.sw / 960
-    readonly property real v: root.sh / 720
-
     // "opening", "running", "error" (never started), "failed" (MAME ended
     // with an error) or "canceled".
     property string phase: "opening"
@@ -47,6 +44,9 @@ FocusScope {
     // Played from the Arcade screen rather than the original tree.
     readonly property bool arcade: moduleRoot.arcadeScreen
     readonly property bool before: phase === "opening" || phase === "running"
+    // A pad's Back button is COIN before a game from the Arcade screen
+    // (InputManager).
+    readonly property bool takesCoin: arcade && phase === "opening"
 
     function isBack(key) {
         return key === Qt.Key_Escape || key === Qt.Key_Backspace || key === Qt.Key_Back
@@ -116,12 +116,10 @@ FocusScope {
         if (event.isAutoRepeat)
             return
         if (playRoot.arcade && playRoot.phase === "opening") {
-            // As on the Arcade screen: COIN (a pad's Back button, or 5) buys
-            // another credit, START or select plays at once.
-            var button = typeof inputManager !== "undefined" && inputManager
-                         ? inputManager.padButton(event.nativeScanCode) : ""
-            if (button === "back" || event.key === Qt.Key_5) {
-                moduleRoot.credits = Math.min(9, moduleRoot.credits + 1)
+            // As on the Arcade screen: COIN buys another credit, START or
+            // select plays at once.
+            if (event.key === Qt.Key_5) {
+                moduleRoot.addCredit()
                 return
             }
             if (event.key === Qt.Key_Space || event.key === Qt.Key_1
@@ -159,10 +157,6 @@ FocusScope {
     // The Arcade screen's bar: PLAY ▶, or STOP ■ for a game that didn't.
     ArcadeBar {
         visible: playRoot.arcade
-        x: Math.round(120 * u)
-        y: Math.round(90 * v)
-        width: Math.round(420 * u)
-        height: Math.round(42 * v)
         text: playRoot.before ? "Play" : "Stop"
         icon: playRoot.before ? "play" : "stop"
     }
@@ -300,7 +294,6 @@ FocusScope {
 
     HintBar {
         visible: playRoot.phase !== "running"
-        shown: playRoot.arcade ? moduleRoot.hintBar : root.hintBar
         text: playRoot.phase !== "opening" ? root.hints.back + ":BACK"
               : playRoot.arcade ? root.hints.back + ":CANCEL " + root.hints.coin + ":CREDIT "
                                   + root.hints.play_pause + ":PLAY"

@@ -482,14 +482,19 @@ QVariantList HighScoresBackend::topEntries(const QString &set, int count) const 
         return QVariantMap{ { QStringLiteral("rank"), rank }, { QStringLiteral("score"), score },
                             { QStringLiteral("name"), name } };
     };
+    // A column's or a field's label, in capitals, says what it holds.
+    const auto isScore = [](const QString &label) { return label.contains(QLatin1String("SCORE")); };
+    const auto isName = [](const QString &label) {
+        return label.contains(QLatin1String("NAME")) || label.contains(QLatin1String("INITIAL"));
+    };
     if (game->tables.isEmpty()) {
         // A best score kept on its own, and whose it is.
         QString score, name;
         for (const auto &[id, value] : game->fields) {
             const QString field = scores::label(id).toUpper();
-            if (score.isEmpty() && field.contains(QLatin1String("SCORE")))
+            if (score.isEmpty() && isScore(field))
                 score = value;
-            else if (name.isEmpty() && (field.contains(QLatin1String("NAME")) || field.contains(QLatin1String("INITIAL"))))
+            else if (name.isEmpty() && isName(field))
                 name = value;
         }
         if (!score.isEmpty())
@@ -502,9 +507,9 @@ QVariantList HighScoresBackend::topEntries(const QString &set, int count) const 
         const QString column = scores::label(table.columns.at(c)).toUpper();
         if (rank < 0 && (column == QLatin1String("RANK") || column == QLatin1String("POSITION")))
             rank = c;
-        else if (score < 0 && column.contains(QLatin1String("SCORE")))
+        else if (score < 0 && isScore(column))
             score = c;
-        else if (name < 0 && (column.contains(QLatin1String("NAME")) || column.contains(QLatin1String("INITIAL"))))
+        else if (name < 0 && isName(column))
             name = c;
     }
     // A table of times, or of rounds: its first column of those.

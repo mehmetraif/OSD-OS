@@ -7,6 +7,7 @@
 #include <QJsonObject>
 #include <QKeyEvent>
 #include <QProcessEnvironment>
+#include <QQuickItem>
 #include <QQuickWindow>
 #include <QSaveFile>
 #include <QSignalSpy>
@@ -28,7 +29,8 @@
 // and input.cfg), its presses reported instead of acting while its page waits
 // for one, its labels in the hints, a model of pad plugged in twice, the JAMMA
 // board's sticks, the players' pads, and all of it kept in config.json for the
-// next start; and which of a pad's buttons a key event came from.
+// next start; and a pad's Back button as MAME's coin key where the focus
+// takes a coin.
 class ControllersTest : public QObject {
     Q_OBJECT
 
@@ -851,11 +853,11 @@ private slots:
         QCOMPARE(tap(pad, SDL_CONTROLLER_BUTTON_DPAD_DOWN, keys), QString("DOWN"));
     }
 
-    // A pad button's key event says which button it was (padButton()): Back
-    // as a pad's Back button made it, the Arcade screen's Coin, is told from
-    // the Back its B made. Anything else's says none. The hints name the
-    // pad's Back button for it.
-    void padButtons() {
+    // A pad's Back button is MAME's coin key, 5, where the item with the
+    // focus takes a coin (takesCoin: the nearest item round it that says),
+    // and Back anywhere else; its B is Back either way. The hints name the
+    // pad's Back button for the coin.
+    void coinButton() {
         AppCore core(m_app.path(), m_data.path());
         InputManager im(m_data.path(), &core);
         QQuickWindow window;
@@ -864,41 +866,52 @@ private slots:
         window.requestActivate();
         QTRY_VERIFY(window.isActive());
         im.setTargetWindow(&window);
-        // The presses as the window gets them: the key, and the pad button
-        // by its scan code.
+        // A screen that takes a coin, and a line of it with the focus.
+        QQuickItem screen(window.contentItem());
+        screen.setProperty("takesCoin", true);
+        QQuickItem line(&screen);
+        line.forceActiveFocus();
+        QTRY_COMPARE(window.activeFocusItem(), &line);
+        // The keys as the window gets them, pressed and let go.
         struct Catcher : QObject {
-            InputManager *im = nullptr;
-            QList<QPair<int, QString>> presses;
+            QList<int> pressed, released;
             bool eventFilter(QObject *, QEvent *event) override {
-                if (event->type() == QEvent::KeyPress) {
-                    const auto *ke = static_cast<QKeyEvent *>(event);
-                    presses.append({ ke->key(), im->padButton(ke->nativeScanCode()) });
-                }
+                if (event->type() == QEvent::KeyPress)
+                    pressed << static_cast<QKeyEvent *>(event)->key();
+                else if (event->type() == QEvent::KeyRelease)
+                    released << static_cast<QKeyEvent *>(event)->key();
                 return false;
             }
         } catcher;
-        catcher.im = &im;
         window.installEventFilter(&catcher);
 
         VirtualPad pad;
         QVERIFY(pad.attach("OSD/OS JAMMA P1", 0, 0));
         QTRY_VERIFY(entry(im, "OSD/OS JAMMA P1").value("present").toBool());
-        const auto press = [&](SDL_GameControllerButton b) -> QPair<int, QString> {
-            catcher.presses.clear();
+        // The key a button presses, once it has been let go too.
+        const auto press = [&](SDL_GameControllerButton b) -> int {
+            catcher.pressed.clear();
+            catcher.released.clear();
             pad.button(b, true);
-            const bool got = QTest::qWaitFor([&] { return !catcher.presses.isEmpty(); }, 1000);
+            const bool got = QTest::qWaitFor([&] { return !catcher.pressed.isEmpty(); }, 1000);
             release(pad, b);
-            return got ? catcher.presses.first() : QPair<int, QString>(0, QStringLiteral("<none>"));
+            if (!got || !QTest::qWaitFor([&] { return !catcher.released.isEmpty(); }, 1000))
+                return 0;
+            return catcher.pressed.first() == catcher.released.first() ? catcher.pressed.first() : -1;
         };
-        QCOMPARE(press(SDL_CONTROLLER_BUTTON_BACK), qMakePair(int(Qt::Key_Escape), QString("back")));
-        QCOMPARE(press(SDL_CONTROLLER_BUTTON_B), qMakePair(int(Qt::Key_Escape), QString("b")));
-        QCOMPARE(press(SDL_CONTROLLER_BUTTON_START), qMakePair(int(Qt::Key_Space), QString("start")));
-        QCOMPARE(press(SDL_CONTROLLER_BUTTON_A), qMakePair(int(Qt::Key_Return), QString("a")));
+        QCOMPARE(press(SDL_CONTROLLER_BUTTON_BACK), int(Qt::Key_5));
+        QCOMPARE(press(SDL_CONTROLLER_BUTTON_B), int(Qt::Key_Escape));
+        QCOMPARE(press(SDL_CONTROLLER_BUTTON_START), int(Qt::Key_Space));
         // The JAMMA board's Coin, by the stick's labels.
         QCOMPARE(im.hints().value("coin").toString(), QString("[COIN]"));
-        // A keyboard's key, with a scan code of its own, says none.
-        QCOMPARE(im.padButton(9), QString());
-        QCOMPARE(im.padButton(0), QString());
+        // The line says it takes none: Back.
+        line.setProperty("takesCoin", false);
+        QCOMPARE(press(SDL_CONTROLLER_BUTTON_BACK), int(Qt::Key_Escape));
+        line.setProperty("takesCoin", QVariant());
+        QCOMPARE(press(SDL_CONTROLLER_BUTTON_BACK), int(Qt::Key_5));
+        // The screen stops taking one: Back.
+        screen.setProperty("takesCoin", false);
+        QCOMPARE(press(SDL_CONTROLLER_BUTTON_BACK), int(Qt::Key_Escape));
         window.removeEventFilter(&catcher);
         im.setTargetWindow(nullptr);
     }

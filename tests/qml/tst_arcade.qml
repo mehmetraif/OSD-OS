@@ -54,11 +54,14 @@ Rectangle {
         property string moduleIcon: ""
         property string screen: "Original"
         readonly property bool arcadeScreen: screen === "Arcade"
-        property bool hintBar: true
-        property bool helpLine: true
         property bool startInfo: true
         property string startFilter: "all"
         property int credits: 0
+        readonly property int maxCredits: 9
+        function addCredit() { credits = Math.min(maxCredits, credits + 1) }
+        function addRecent(set, name) {
+            appCore.add_to_list(moduleId, "recent", { name: name, path: "game:" + set, isFolder: false }, 30)
+        }
     }
 
     function game(set, name, detail) {
@@ -117,27 +120,26 @@ Rectangle {
         function output() { return "sp-s2.sp1 NOT FOUND (tried in mslug neogeo)" }
     }
 
-    // InputManager: player 1's pad, a JAMMA stick, and its buttons' labels;
-    // the pad button the next key comes from (padButton()), as a test sets it.
+    // InputManager: player 1's pad, a JAMMA stick, and its buttons' labels.
     QtObject {
         id: inputManager
         property var players: [{ player: 1, key: "", name: "OSD/OS JAMMA P1", playing: "pad-0600aaaa", connected: true }]
-        property string button: ""
         function buttonLabel(key, token) {
             if (key !== "pad-0600aaaa") return ""
             return token === "back" ? "COIN" : token === "start" ? "START" : ""
         }
-        function padButton(scanCode) { return button }
     }
 
-    // The High Scores module's backend, as the Arcade screen asks it.
+    // The High Scores module's backend, as the Arcade screen asks it: its
+    // tables once it has read what it keeps.
     QtObject {
         id: highScoresBackend
         property bool reading: false
+        property bool loaded: false
         property int refreshes: 0
         property var tables: ({})
-        function refresh() { refreshes++ }
-        function topEntries(set, count) { return (tables[set] || []).slice(0, count) }
+        function refresh() { refreshes++; loaded = true }
+        function topEntries(set, count) { return loaded ? (tables[set] || []).slice(0, count) : [] }
     }
 
     QtObject {
@@ -196,10 +198,9 @@ Rectangle {
                         root.game("pacman", "Pac-Man (Midway)", "1980\nNamco\n2 players\npacman.zip")]
             }
             inputManager.players = [{ player: 1, key: "", name: "OSD/OS JAMMA P1", playing: "pad-0600aaaa", connected: true }]
-            inputManager.button = ""
             moduleRoot.screen = "Original"
-            moduleRoot.hintBar = true
-            moduleRoot.helpLine = true
+            root.hintBar = true
+            root.helpLine = true
             moduleRoot.startInfo = true
             moduleRoot.startFilter = "all"
             moduleRoot.credits = 0
@@ -223,6 +224,7 @@ Rectangle {
                             maker: "Namco", year: "1981", players: 2, playTime: 59, picture: "", vertical: true }
             }
             highScoresBackend.refreshes = 0
+            highScoresBackend.loaded = false
             highScoresBackend.tables = {
                 "sf2": [{ rank: "1ST", score: "110,000", name: "RYU" }, { rank: "2ND", score: "90,000", name: "KEN" },
                         { rank: "3RD", score: "70,000", name: "CHN" }, { rank: "4TH", score: "50,000", name: "GUY" },
@@ -410,7 +412,8 @@ Rectangle {
             verify(findText(screen, "CPS-1") !== null)
             verify(findText(screen, "Capcom") !== null)
             verify(findText(screen, "1H 30M") !== null)
-            // Three high scores, with the hint bar and the help line there.
+            // Three high scores, with the hint bar and the help line there,
+            // the High Scores module's tables read first.
             compare(screen.scores.length, 3)
             verify(findText(screen, "110,000") !== null)
             compare(findText(screen, "50,000"), null)
@@ -465,17 +468,16 @@ Rectangle {
             compare(screen.filterId, "players/6")
         }
 
-        // COIN, a pad's Back button or 5, buys a credit, nine at most, and
-        // doesn't leave; START plays the game, from where the list is; back
-        // leaves.
+        // COIN (MAME's 5, which a pad's Back button is here: takesCoin) buys
+        // a credit, nine at most, and doesn't leave; START plays the game,
+        // from where the list is; back leaves.
         function test_screenCoinStart() {
             var screen = openScreen()
+            verify(screen.takesCoin)
             keyClick(Qt.Key_5)
             compare(moduleRoot.credits, 1)
             verify(findText(screen, "Credit 1") !== null)
-            inputManager.button = "back"
-            keyClick(Qt.Key_Escape)
-            inputManager.button = ""
+            keyClick(Qt.Key_5)
             compare(moduleRoot.credits, 2)
             compare(root.backs, 0)
             for (var i = 0; i < 10; ++i)
@@ -500,7 +502,9 @@ Rectangle {
             keyClick(Qt.Key_Return)
             verify(findText(screen, "Add to Favorites") !== null)
             verify(findText(screen, "Play at Startup") !== null)
-            // Keys the options leave don't buy credits behind them.
+            // A pad's Back button is Back in them, and keys they leave don't
+            // buy credits behind them.
+            verify(!screen.takesCoin)
             keyClick(Qt.Key_5)
             compare(moduleRoot.credits, 0)
             keyClick(Qt.Key_Return)
@@ -511,17 +515,17 @@ Rectangle {
         // The hint bar's and the help line's room, when they are off, goes to
         // the list, a row more each, and to the high scores.
         function test_screenRoom() {
-            moduleRoot.hintBar = false
+            root.hintBar = false
             var screen = openScreen()
             compare(screen.perPage, 11)
             loader.source = ""
-            moduleRoot.hintBar = true
-            moduleRoot.helpLine = false
+            root.hintBar = true
+            root.helpLine = false
             screen = openScreen()
             compare(screen.perPage, 12)
             compare(screen.scoreRows, 5)
             loader.source = ""
-            moduleRoot.hintBar = false
+            root.hintBar = false
             screen = openScreen()
             compare(screen.perPage, 13)
             compare(screen.pages, 2)
@@ -563,6 +567,33 @@ Rectangle {
             compare(screen.currentSet, "sf2")
         }
 
+        // A Start Filter with no games once MAME has answered gives way to
+        // the one shown for good: a favourite added later doesn't take the
+        // list from it. While MAME is asked, it is waited for.
+        function test_screenFilterGone() {
+            var all = arcadeBackend.filterList
+            moduleRoot.startFilter = "favorites"
+            arcadeBackend.filterList = all.filter(function(f) { return f.id !== "favorites" })
+            var screen = openScreen()
+            compare(screen.filterId, "all")
+            keyClick(Qt.Key_Down)
+            compare(screen.currentSet, "1942")
+            arcadeBackend.filterList = all
+            arcadeBackend.gamesChanged()
+            compare(screen.filterId, "all")
+            compare(screen.currentSet, "1942")
+            loader.source = ""
+            moduleRoot.startFilter = "genres/Fighter"
+            arcadeBackend.scanning = true
+            arcadeBackend.filterList = all.filter(function(f) { return f.id === "favorites" })
+            screen = openScreen()
+            compare(screen.filterId, "favorites")
+            arcadeBackend.scanning = false
+            arcadeBackend.filterList = all
+            arcadeBackend.gamesChanged()
+            compare(screen.filterId, "genres/Fighter")
+        }
+
         // The startup favourite plays at once, as if chosen in Favorites.
         function test_screenStartup() {
             openScreen({ startupPlay: { name: "Street Fighter II", path: "game:sf2" } })
@@ -580,16 +611,16 @@ Rectangle {
             var play = open("Play.qml", { game: "sf2", title: "Street Fighter II" })
             verify(findText(play, "Press COIN + START together") !== null)
             verify(findText(play, "2 credits go in as the game starts") !== null)
+            verify(play.takesCoin)
             keyClick(Qt.Key_5)
             verify(findText(play, "3 credits go in as the game starts") !== null)
-            inputManager.button = "back"
-            keyClick(Qt.Key_Escape)
-            inputManager.button = ""
+            keyClick(Qt.Key_5)
             compare(moduleRoot.credits, 4)
             compare(play.phase, "opening")
             compare(root.backs, 0)
             keyClick(Qt.Key_Space)
             compare(play.phase, "running")
+            verify(!play.takesCoin)
             compare(arcadeBackend.started, ["sf2"])
             compare(arcadeBackend.credited, [4])
             compare(moduleRoot.credits, 0)

@@ -21,6 +21,12 @@ Item {
     readonly property real pad: Math.round(12 * u)
     readonly property real gap: Math.round(8 * u)
 
+    // Where the design has it, over the list and the column's picture.
+    x: Math.round(120 * u)
+    y: Math.round(90 * v)
+    width: Math.round(420 * u)
+    height: Math.round(42 * v)
+
     SkinImage {
         id: skinned
         anchors.fill: parent

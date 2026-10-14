@@ -590,9 +590,9 @@ Window {
             } else if (key === "loading_colors") {
                 root.loadingThemed = value !== "Default"
             } else if (key === "hint_bar") {
-                root.hintBar = value !== "Off"
+                root.hintBarSetting = value !== "Off"
             } else if (key === "help_line") {
-                root.helpLine = value !== "Off"
+                root.helpLineSetting = value !== "Off"
             } else if (key === "osd_background") {
                 root.osdBackground = root.osdBackgroundOf(value)
             } else if (key === "mouse_pointer") {
@@ -655,8 +655,8 @@ Window {
         root.loadingEffect = !(cfg.app && cfg.app.loading_effect === "Off")
         root.bootThemed = !(cfg.app && cfg.app.boot_colors === "Default")
         root.loadingThemed = !(cfg.app && cfg.app.loading_colors === "Default")
-        root.hintBar = !(cfg.app && cfg.app.hint_bar === "Off")
-        root.helpLine = !(cfg.app && cfg.app.help_line === "Off")
+        root.hintBarSetting = !(cfg.app && cfg.app.hint_bar === "Off")
+        root.helpLineSetting = !(cfg.app && cfg.app.help_line === "Off")
         root.osdBackground = root.osdBackgroundOf(cfg.app && cfg.app.osd_background)
 
         // Screensaver: the tracker starts disabled; this is the single place the
@@ -848,10 +848,21 @@ Window {
     property bool loadingEffect: true
     // "hint_bar": the key hints on the bar at the foot of every screen
     // (HintBar), "On" (the default, when unset) or "Off".
-    property bool hintBar: true
+    property bool hintBarSetting: true
     // "help_line": the line about the selected row in the box under a menu
     // (HelpLine), "On" (the default, when unset) or "Off".
-    property bool helpLine: true
+    property bool helpLineSetting: true
+    // What the screens go by: those two, unless the module open has its own
+    // for its screens (its Root.qml's hintBarShown and helpLineShown, true or
+    // false: the Arcade module's Arcade screen), dialogs and all.
+    readonly property bool hintBar: {
+        var own = moduleLoader.item ? moduleLoader.item.hintBarShown : undefined
+        return typeof own === "boolean" ? own : hintBarSetting
+    }
+    readonly property bool helpLine: {
+        var own = moduleLoader.item ? moduleLoader.item.helpLineShown : undefined
+        return typeof own === "boolean" ? own : helpLineSetting
+    }
     // "boot_colors", "loading_colors": the boot screen's and the loading
     // screen's colours, the ones in force like every screen's ("Theme", the
     // default, when unset) or OSD/OS's own, Video 1's white on a VCR's blue

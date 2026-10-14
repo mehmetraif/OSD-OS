@@ -4,6 +4,7 @@
 #include <QCoreApplication>
 #include <QGuiApplication>
 #include <QInputMethodQueryEvent>
+#include <QQuickItem>
 #include <QQuickWindow>
 #include <QKeyEvent>
 #include <QKeySequence>
@@ -27,15 +28,6 @@ namespace {
 // Planted in nativeScanCode of synthesized events so the keyboard detector in
 // eventFilter() can tell our gamepad-originated key events from real key presses.
 constexpr quint32 kSyntheticScanCode = 0x240F00D;
-// A pad button's events carry which button it was instead, this plus its SDL
-// button, for a view that tells apart two of a pad's buttons doing the same
-// action (padButton()): the Arcade screen's Coin, which is Back elsewhere.
-constexpr quint32 kPadButtonScanCode = 0x2410000;
-
-bool isSynthetic(quint32 scanCode) {
-    return scanCode == kSyntheticScanCode
-           || (scanCode >= kPadButtonScanCode && scanCode < kPadButtonScanCode + SDL_CONTROLLER_BUTTON_MAX);
-}
 
 // Extended key ids for the Consumer Control evdev path (see
 // scanNodes()) are stored in m_keyRemap as kEvdevKeyBase plus
@@ -1372,10 +1364,14 @@ void InputManager::handleButton(SDL_JoystickID which, Uint8 button, bool pressed
         return;
     const HeldInput input{ padSource(which), button };
     if (!pressed) {
+        if (m_coinInputs.remove(input)) {
+            postKey(Qt::Key_5, QEvent::KeyRelease, false);
+            return;
+        }
         const Action held = m_heldInputs.take(input);
         if (held != Action::None) {
             noteActiveController(which);
-            releaseAction(held, button);
+            releaseAction(held);
         }
         return;
     }
@@ -1386,12 +1382,21 @@ void InputManager::handleButton(SDL_JoystickID which, Uint8 button, bool pressed
         emit controllerInputCaptured(key, token, padLabel(m_labelOverrides, pad->labels, token, button));
         return;
     }
+    // MAME's coin, where the focus takes one: its key, whatever the button
+    // is bound to.
+    if (button == SDL_CONTROLLER_BUTTON_BACK && takesCoin()) {
+        noteActiveController(which);
+        setLastInputDevice(QStringLiteral("gamepad"));
+        m_coinInputs.insert(input);
+        postKey(Qt::Key_5, QEvent::KeyPress, false);
+        return;
+    }
     const Action a = pad->buttons.value(button, Action::None);
     if (a == Action::None)
         return;
     noteActiveController(which);
     m_heldInputs.insert(input, a);
-    pressAction(a, button);
+    pressAction(a);
 }
 
 void InputManager::handleAxis(SDL_JoystickID which, Uint8 axis, Sint16 value) {
@@ -1451,11 +1456,11 @@ void InputManager::handleAxis(SDL_JoystickID which, Uint8 axis, Sint16 value) {
     pressAction(pressed);
 }
 
-void InputManager::pressAction(Action a, int button) {
+void InputManager::pressAction(Action a) {
     if (a == Action::None)
         return;
     setLastInputDevice(QStringLiteral("gamepad"));
-    beginPress(a, button);
+    beginPress(a);
 }
 
 // Deliver a press and arm the held-direction auto-repeat. Shared by gamepad
@@ -1463,7 +1468,7 @@ void InputManager::pressAction(Action a, int button) {
 // filters out autorepeat (and many remotes never send it), so a held direction
 // button repeats through the same timers a held d-pad does. Remapped keyboard
 // keys don't come through here: the OS supplies their repeat.
-void InputManager::beginPress(Action a, int button) {
+void InputManager::beginPress(Action a) {
     // Drop a press for an action already held. The Steam Deck reports one
     // physical press from two SDL devices (built-in + Steam Input virtual pad),
     // which would otherwise double every navigation. Genuine repeat still comes
@@ -1473,7 +1478,7 @@ void InputManager::beginPress(Action a, int button) {
         return;
     m_heldActions.insert(a);
 
-    deliverPress(a, false, button);
+    deliverPress(a, false);
 
     if (isDirectional(a)) {
         // Most recent direction wins the repeat slot.
@@ -1483,7 +1488,7 @@ void InputManager::beginPress(Action a, int button) {
     }
 }
 
-void InputManager::releaseAction(Action a, int button) {
+void InputManager::releaseAction(Action a) {
     if (a == Action::None)
         return;
     // Ignore a release for an action that isn't held — the mirror device's
@@ -1497,7 +1502,7 @@ void InputManager::releaseAction(Action a, int button) {
     }
     // mpv's "keypress" command is one-shot — releases only matter for QML.
     if (windowActive())
-        postKey(qtKeyForAction(a), QEvent::KeyRelease, false, button);
+        postKey(qtKeyForAction(a), QEvent::KeyRelease, false);
 }
 
 QString InputManager::padSource(SDL_JoystickID id) {
@@ -1532,6 +1537,14 @@ void InputManager::releaseHeld(const QString &source) {
     }
     for (const Action a : std::as_const(held))
         releaseAction(a);
+    for (auto it = m_coinInputs.begin(); it != m_coinInputs.end();) {
+        if (it->first == source) {
+            it = m_coinInputs.erase(it);
+            postKey(Qt::Key_5, QEvent::KeyRelease, false);
+        } else {
+            ++it;
+        }
+    }
 }
 
 // While the Qt window is active, actions become posted key events into QML.
@@ -1541,9 +1554,9 @@ void InputManager::releaseHeld(const QString &source) {
 // forwarding does on platforms where the window stays active (RPi/EGLFS).
 // When mpv isn't running either, sendKey is a no-op, so background presses
 // while the user is in another app do nothing — same as keyboard.
-void InputManager::deliverPress(Action a, bool autoRepeat, int button) {
+void InputManager::deliverPress(Action a, bool autoRepeat) {
     if (windowActive())
-        postKey(qtKeyForAction(a), QEvent::KeyPress, autoRepeat, button);
+        postKey(qtKeyForAction(a), QEvent::KeyPress, autoRepeat);
     else
         emit mpvKeyRequested(mpvKeyForAction(a));
 }
@@ -1565,18 +1578,29 @@ bool InputManager::windowActive() const {
     return m_window && m_window->isActive();
 }
 
+bool InputManager::takesCoin() const {
+    if (!windowActive())
+        return false;
+    // The nearest item round the focus that says.
+    for (const QQuickItem *item = m_window->activeFocusItem(); item; item = item->parentItem()) {
+        const QVariant takes = item->property("takesCoin");
+        if (takes.isValid())
+            return takes.toBool();
+    }
+    return false;
+}
+
 // Post to the root QQuickWindow, not QGuiApplication::focusWindow(): Qt Quick
 // delivers posted key events to the window's activeFocusItem even when the
 // window has no OS-level focus, which is exactly the state during fullscreen
 // mpv playback on macOS.
-void InputManager::postKey(int qtKey, QEvent::Type type, bool autoRepeat, int button) {
+void InputManager::postKey(int qtKey, QEvent::Type type, bool autoRepeat) {
     if (!m_window)
         return;
-    const quint32 scanCode = button >= 0 ? kPadButtonScanCode + quint32(button) : kSyntheticScanCode;
     QCoreApplication::postEvent(
         m_window,
         new QKeyEvent(type, qtKey, Qt::NoModifier,
-                      scanCode, 0, 0, QString(), autoRepeat));
+                      kSyntheticScanCode, 0, 0, QString(), autoRepeat));
 }
 
 int InputManager::qtKeyForAction(Action a) {
@@ -1610,12 +1634,6 @@ QString InputManager::mpvKeyForAction(Action a) {
 
 bool InputManager::isDirectional(Action a) {
     return a == Action::Up || a == Action::Down || a == Action::Left || a == Action::Right;
-}
-
-QString InputManager::padButton(quint32 scanCode) const {
-    if (scanCode < kPadButtonScanCode || scanCode >= kPadButtonScanCode + SDL_CONTROLLER_BUTTON_MAX)
-        return QString();
-    return buttonToken(int(scanCode - kPadButtonScanCode));
 }
 
 QString InputManager::buttonLabel(const QString &key, const QString &token) const {
@@ -1714,7 +1732,7 @@ bool InputManager::eventFilter(QObject *obj, QEvent *event) {
     if (type != QEvent::KeyPress && type != QEvent::KeyRelease)
         return false;
     const auto *ke = static_cast<QKeyEvent *>(event);
-    const bool synthetic = isSynthetic(ke->nativeScanCode());
+    const bool synthetic = ke->nativeScanCode() == kSyntheticScanCode;
 
     // Whose key it is, from the keyboards' nodes (scanNodes()): worked out
     // where a real key event comes in, at its window, and not again for the
@@ -1877,8 +1895,8 @@ void InputManager::updateHints() {
     h["back"]       = QStringLiteral("[ESC]");
     h["select"]     = QStringLiteral("[ENTER]");
     h["play_pause"] = QStringLiteral("[SPACE]");
-    // The Arcade screen's Coin: MAME's key for it, or a pad's Back button,
-    // which is MAME's coin (padButton()).
+    // MAME's coin, where the focus takes one (takesCoin()): its key, or a
+    // pad's Back button.
     h["coin"]       = QStringLiteral("[5]");
 
     if (m_lastInputDevice == QStringLiteral("gamepad")) {

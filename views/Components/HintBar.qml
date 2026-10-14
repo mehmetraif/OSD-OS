@@ -6,13 +6,11 @@ import QtQuick
 // exactly as on one; the bar keeps its own font size, a size a CRT reads, and
 // steps it down only as far as a long hint line needs to fit the safe width.
 // Settings' HINT BAR (root.hintBar) hides every one at once: by its opacity,
-// so a view's own visible binding holds, and the window keeps its shape. A
-// module with a Hint Bar setting of its own (Arcade's) sets shown instead.
+// so a view's own visible binding holds, and the window keeps its shape.
 Text {
     id: hint
 
-    property bool shown: root.hintBar
-    opacity: shown ? 1 : 0
+    opacity: root.hintBar ? 1 : 0
 
     readonly property real largest: root.sh * 0.0375 //18
     readonly property real smallest: root.sh * 0.0291667 //14

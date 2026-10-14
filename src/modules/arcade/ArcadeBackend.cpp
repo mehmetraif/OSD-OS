@@ -75,6 +75,12 @@ QVariantMap folder(const QString &name, const QString &path) {
              { QStringLiteral("isFolder"), true } };
 }
 
+// A file as it is now, to tell when it has changed: its path, size and time.
+QString fileStamp(const QFileInfo &file) {
+    return QStringLiteral("%1:%2:%3").arg(file.canonicalFilePath()).arg(file.size())
+                                     .arg(file.lastModified().toMSecsSinceEpoch());
+}
+
 QVariantMap filter(const QString &id, const QString &name, qsizetype count) {
     return { { QStringLiteral("id"), id }, { QStringLiteral("name"), name },
              { QStringLiteral("count"), static_cast<int>(count) } };
@@ -102,6 +108,8 @@ ArcadeBackend::ArcadeBackend(const QString &appRoot, const QString &dataRoot, Ap
                                      || exitCode == kInvalidConfig));
         if (!refused && !m_playing.isEmpty())
             addPlayTime(m_playing, (m_playClock.elapsed() + 500) / 1000);
+        // A snapshot taken in the game (F12) is its picture now.
+        m_pictures.remove(m_playing);
         m_playing.clear();
         emit finished(exitCode, reason, notice);
         // The sets MAME was still to be asked about, held while it played.
@@ -221,6 +229,7 @@ void ArcadeBackend::setGamesFolder(const QString &path) {
         return;
     m_gamesFolder = folder;
     m_listed = false;
+    m_pictures.clear();
     m_sets.clear();
     m_misnamed.clear();
     m_folders.clear();
@@ -244,10 +253,7 @@ QString ArcadeBackend::mamePath() const {
 
 QString ArcadeBackend::mameIdentity() const {
     const QFileInfo program(mamePath());
-    if (!program.exists())
-        return QString();
-    return QStringLiteral("%1:%2:%3").arg(program.canonicalFilePath()).arg(program.size())
-                                    .arg(program.lastModified().toMSecsSinceEpoch());
+    return program.exists() ? fileStamp(program) : QString();
 }
 
 void ArcadeBackend::listFolder() {
@@ -329,6 +335,8 @@ void ArcadeBackend::refresh() {
     QDir().mkpath(m_gamesFolder);
     listFolder();
     loadGenres();
+    // Pictures put in the folder since, or taken in a game.
+    m_pictures.clear();
     // A MAME changed (an update, a drop-in) may know the sets differently:
     // all of them are asked about again. With none there is nothing to ask,
     // and what the last one said is kept.
@@ -364,12 +372,7 @@ void ArcadeBackend::loadGenres() {
             break;
         }
     }
-    QString from;
-    if (!path.isEmpty()) {
-        const QFileInfo info(path);
-        from = QStringLiteral("%1:%2:%3").arg(info.absoluteFilePath()).arg(info.size())
-                                         .arg(info.lastModified().toMSecsSinceEpoch());
-    }
+    const QString from = path.isEmpty() ? QString() : fileStamp(QFileInfo(path));
     if (from == m_genresFrom)
         return;
     m_genresFrom = from;
@@ -543,24 +546,29 @@ void ArcadeBackend::emitShown() {
 // ---------------------------------------------------------------------------
 // The filters.
 
+bool ArcadeBackend::isUnrecognized(const QString &set) const {
+    return !mame::isShortName(set) || m_unknown.contains(set) || m_misnamed.contains(set);
+}
+
 bool ArcadeBackend::isGame(const QString &set) const {
-    if (!m_sets.contains(set) || !mame::isShortName(set) || m_unknown.contains(set) || m_misnamed.contains(set))
+    if (!m_sets.contains(set) || isUnrecognized(set))
         return false;
     // One MAME wasn't asked about (there is none) is listed by its name.
     const auto machine = m_machines.constFind(set);
     return machine == m_machines.constEnd() || machine->isGame();
 }
 
-QString ArcadeBackend::sortKey(const QString &set) const {
+QString ArcadeBackend::descriptionOf(const QString &set) const {
     const auto machine = m_machines.constFind(set);
-    const bool named = machine != m_machines.constEnd() && !machine->description.isEmpty();
-    return (named ? machine->description : set).toCaseFolded();
+    return machine != m_machines.constEnd() && !machine->description.isEmpty() ? machine->description : set;
+}
+
+QString ArcadeBackend::sortKey(const QString &set) const {
+    return descriptionOf(set).toCaseFolded();
 }
 
 QString ArcadeBackend::titleOf(const QString &set) const {
-    const auto machine = m_machines.constFind(set);
-    return machine != m_machines.constEnd() && !machine->description.isEmpty()
-               ? mame::titleOf(machine->description) : set;
+    return mame::titleOf(descriptionOf(set));
 }
 
 const ArcadeBackend::Index &ArcadeBackend::index() const {
@@ -571,7 +579,7 @@ const ArcadeBackend::Index &ArcadeBackend::index() const {
     byName.reserve(m_sets.size());
     for (auto it = m_sets.cbegin(); it != m_sets.cend(); ++it) {
         const QString &set = it.key();
-        if (!mame::isShortName(set) || m_unknown.contains(set) || m_misnamed.contains(set))
+        if (isUnrecognized(set))
             index.unknown << set;
         else if (isGame(set))
             byName.append({ sortKey(set), set });
@@ -612,34 +620,42 @@ QString ArcadeBackend::placeOf(const QString &kind, const QString &set, const ma
     return mame::makerOf(machine->manufacturer);
 }
 
+QList<std::pair<QString, QString>> ArcadeBackend::sortedPlaces(const QString &kind) const {
+    QStringList places = index().places.value(kind).keys();
+    if (kind == QLatin1String("players")) {
+        std::sort(places.begin(), places.end(),
+                  [](const QString &a, const QString &b) { return a.toInt() < b.toInt(); });
+    } else if (kind == QLatin1String("years")) {
+        std::sort(places.begin(), places.end(), [](const QString &a, const QString &b) {
+            // The years without a decade last.
+            if ((a == QLatin1String("unknown")) != (b == QLatin1String("unknown")))
+                return b == QLatin1String("unknown");
+            return a < b;
+        });
+    } else {
+        std::sort(places.begin(), places.end(),
+                  [](const QString &a, const QString &b) { return a.compare(b, Qt::CaseInsensitive) < 0; });
+    }
+    QList<std::pair<QString, QString>> sorted;
+    for (const QString &place : std::as_const(places)) {
+        QString name = place;
+        if (kind == QLatin1String("players"))
+            name = place == QLatin1String("1") ? QStringLiteral("1 Player") : place + QStringLiteral(" Players");
+        else if (kind == QLatin1String("years") && place == QLatin1String("unknown"))
+            name = QStringLiteral("Year Unknown");
+        sorted.append({ place, name });
+    }
+    return sorted;
+}
+
 QVariantList ArcadeBackend::placeFilters() const {
     QVariantList list;
     for (const char *kind : kFilterKinds) {
         const QString k = QLatin1String(kind);
         const QMap<QString, QStringList> places = index().places.value(k);
-        QStringList names = places.keys();
-        if (k == QLatin1String("players")) {
-            std::sort(names.begin(), names.end(),
-                      [](const QString &a, const QString &b) { return a.toInt() < b.toInt(); });
-        } else if (k == QLatin1String("years")) {
-            std::sort(names.begin(), names.end(), [](const QString &a, const QString &b) {
-                // The years without a decade last.
-                if ((a == QLatin1String("unknown")) != (b == QLatin1String("unknown")))
-                    return b == QLatin1String("unknown");
-                return a < b;
-            });
-        } else {
-            std::sort(names.begin(), names.end(),
-                      [](const QString &a, const QString &b) { return a.compare(b, Qt::CaseInsensitive) < 0; });
-        }
-        for (const QString &place : std::as_const(names)) {
-            QString name = place;
-            if (k == QLatin1String("players"))
-                name = place == QLatin1String("1") ? QStringLiteral("1 Player") : place + QStringLiteral(" Players");
-            else if (k == QLatin1String("years") && place == QLatin1String("unknown"))
-                name = QStringLiteral("Year Unknown");
+        const QList<std::pair<QString, QString>> sorted = sortedPlaces(k);
+        for (const auto &[place, name] : sorted)
             list << filter(k + QLatin1Char('/') + place, name, places.value(place).size());
-        }
     }
     return list;
 }
@@ -695,7 +711,9 @@ QVariantList ArcadeBackend::filterGames(const QString &filter, int first, int co
     if (first < 0 || count <= 0 || first >= sets.size())
         return games;
     const bool unknown = filter == QLatin1String("unknown");
-    const QStringList favorites = unknown ? QStringList() : listedSets(QStringLiteral("favorites"));
+    const QStringList favorites = unknown ? QStringList()
+                                  : filter == QLatin1String("favorites") ? sets
+                                  : listedSets(QStringLiteral("favorites"));
     const int last = static_cast<int>(std::min<qsizetype>(sets.size(), qsizetype(first) + count));
     for (int i = first; i < last; ++i) {
         const QString &set = sets.at(i);
@@ -717,18 +735,16 @@ int ArcadeBackend::filterIndex(const QString &filter, const QString &set) {
 QVariantMap ArcadeBackend::gameDetails(const QString &set) {
     if (!m_sets.contains(set))
         return QVariantMap();
-    if (!mame::isShortName(set) || m_unknown.contains(set) || m_misnamed.contains(set)) {
+    if (isUnrecognized(set)) {
         return { { QStringLiteral("set"), set }, { QStringLiteral("name"), m_sets.value(set) },
                  { QStringLiteral("unknown"), true }, { QStringLiteral("detail"), unknownDetail(set) } };
     }
-    QVariantMap details{ { QStringLiteral("set"), set }, { QStringLiteral("name"), set },
+    QVariantMap details{ { QStringLiteral("set"), set }, { QStringLiteral("name"), descriptionOf(set) },
                          { QStringLiteral("playTime"), playTimeOf(set) },
                          { QStringLiteral("picture"), pictureOf(set) } };
     const auto machine = m_machines.constFind(set);
     if (machine == m_machines.constEnd())
         return details;
-    if (!machine->description.isEmpty())
-        details.insert(QStringLiteral("name"), machine->description);
     details.insert(QStringLiteral("system"), mame::systemOf(machine->sourceFile));
     details.insert(QStringLiteral("maker"), mame::makerOf(machine->manufacturer));
     details.insert(QStringLiteral("year"), machine->year);
@@ -738,6 +754,17 @@ QVariantMap ArcadeBackend::gameDetails(const QString &set) {
 }
 
 QString ArcadeBackend::pictureOf(const QString &set) const {
+    // As last looked for: a folder of a full set's pictures is slow to look
+    // through for one that isn't there (exFAT's has no index).
+    const auto cached = m_pictures.constFind(set);
+    if (cached != m_pictures.constEnd())
+        return cached.value();
+    const QString picture = lookForPicture(set);
+    m_pictures.insert(set, picture);
+    return picture;
+}
+
+QString ArcadeBackend::lookForPicture(const QString &set) const {
     // A clone's own, else its parent's.
     QStringList sets{ set };
     const auto machine = m_machines.constFind(set);
@@ -808,8 +835,8 @@ void ArcadeBackend::startFilterOptions() {
 }
 
 void ArcadeBackend::startupGameOptions() {
-    prepare();
-    // The favorites, by name: the app's startup favourite is one of them.
+    // The favorites, by their titles as they were put there: the app's
+    // startup favourite is one of them.
     QList<std::pair<QString, QString>> games;   // the name, the set
     const QVariantList favorites = m_appCore ? m_appCore->get_list(kModuleId, QStringLiteral("favorites")) : QVariantList();
     for (const QVariant &v : favorites) {
@@ -818,7 +845,8 @@ void ArcadeBackend::startupGameOptions() {
         if (!path.startsWith(QLatin1String("game:")))
             continue;
         const QString set = path.mid(5);
-        games.append({ m_machines.contains(set) ? titleOf(set) : entry.value(QStringLiteral("name"), set).toString(), set });
+        const QString name = entry.value(QStringLiteral("name")).toString();
+        games.append({ mame::titleOf(name.isEmpty() ? set : name), set });
     }
     std::sort(games.begin(), games.end(), [](const auto &a, const auto &b) {
         return a.first.compare(b.first, Qt::CaseInsensitive) < 0;
@@ -833,30 +861,10 @@ void ArcadeBackend::startupGameOptions() {
 // The original screen's tree.
 
 QVariantList ArcadeBackend::folders(const QString &kind) const {
-    QStringList places = index().places.value(kind).keys();
-    if (kind == QLatin1String("players")) {
-        std::sort(places.begin(), places.end(),
-                  [](const QString &a, const QString &b) { return a.toInt() < b.toInt(); });
-    } else if (kind == QLatin1String("years")) {
-        std::sort(places.begin(), places.end(), [](const QString &a, const QString &b) {
-            // The years without a decade last.
-            if ((a == QLatin1String("unknown")) != (b == QLatin1String("unknown")))
-                return b == QLatin1String("unknown");
-            return a < b;
-        });
-    } else {
-        std::sort(places.begin(), places.end(),
-                  [](const QString &a, const QString &b) { return a.compare(b, Qt::CaseInsensitive) < 0; });
-    }
     QVariantList list;
-    for (const QString &place : std::as_const(places)) {
-        QString name = place;
-        if (kind == QLatin1String("players"))
-            name = place == QLatin1String("1") ? QStringLiteral("1 Player") : place + QStringLiteral(" Players");
-        else if (kind == QLatin1String("years") && place == QLatin1String("unknown"))
-            name = QStringLiteral("Year Unknown");
+    const QList<std::pair<QString, QString>> sorted = sortedPlaces(kind);
+    for (const auto &[place, name] : sorted)
         list << folder(name, kind + QLatin1Char('/') + place);
-    }
     return list;
 }
 
@@ -878,7 +886,7 @@ QVariantMap ArcadeBackend::gameEntry(const QString &set) const {
             detail << QStringLiteral("Imperfect in MAME");
     }
     detail << m_sets.value(set);
-    return { { QStringLiteral("name"), known && !machine->description.isEmpty() ? machine->description : set },
+    return { { QStringLiteral("name"), descriptionOf(set) },
              { QStringLiteral("path"), QStringLiteral("game:") + set },
              { QStringLiteral("isFolder"), false },
              { QStringLiteral("game"), set },
@@ -952,9 +960,7 @@ QVariant ArcadeBackend::requestEntries(const QString &path) {
         const QString words = path.mid(7).trimmed();
         QStringList found;
         for (const QString &set : games.games) {
-            const auto machine = m_machines.constFind(set);
-            const QString name = machine != m_machines.constEnd() ? machine->description : QString();
-            if (set.contains(words, Qt::CaseInsensitive) || name.contains(words, Qt::CaseInsensitive))
+            if (set.contains(words, Qt::CaseInsensitive) || descriptionOf(set).contains(words, Qt::CaseInsensitive))
                 found << set;
         }
         return gameEntries(found);
@@ -1121,8 +1127,7 @@ bool ArcadeBackend::play(const QString &name, int credits) {
     ScriptEntry entry;
     entry.path = program;
     entry.basename = QStringLiteral("mame");
-    entry.meta.name = machine != m_machines.constEnd() && !machine->description.isEmpty()
-                          ? machine->description : name;
+    entry.meta.name = descriptionOf(name);
     entry.meta.mode = QStringLiteral("takeover");
     entry.argv = args;
     // A MAME of its own folder runs there, as by hand, to find its files

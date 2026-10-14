@@ -8,6 +8,7 @@
 #include <QString>
 #include <QStringList>
 #include <QVariant>
+#include <utility>
 #include "Mame.h"
 
 class AppCore;
@@ -182,10 +183,15 @@ private:
     // catver.ini, read again once it has changed (or another is found).
     void loadGenres();
 
+    // A set under Not Recognized: a name that can't be a set's, one MAME has
+    // no game of, or one MAME can't open by its name.
+    bool isUnrecognized(const QString &set) const;
     // A set listed as a game: in the folder, a name MAME opens, and one of
     // its games (or one it wasn't asked about), not a BIOS or a device.
     bool isGame(const QString &set) const;
-    // What a set is sorted by, and called on the list.
+    // MAME's description of a set's machine, else the set's name; what it is
+    // sorted by, and its title on the list.
+    QString descriptionOf(const QString &set) const;
     QString sortKey(const QString &set) const;
     QString titleOf(const QString &set) const;
 
@@ -204,6 +210,10 @@ private:
     // A game's place among the genres, players, decades or makers; "" for
     // none.
     QString placeOf(const QString &kind, const QString &set, const mame::Machine *machine) const;
+    // A kind's places in the order they are listed, with what each is
+    // called: players by number, decades in order with the years unknown
+    // last, the rest by name.
+    QList<std::pair<QString, QString>> sortedPlaces(const QString &kind) const;
     // The tree's folders of "players", "years" or "makers".
     QVariantList folders(const QString &kind) const;
     QVariantList gameEntries(const QStringList &sets) const;
@@ -216,8 +226,10 @@ private:
     QStringList filterSets(const QString &filter) const;
     // Why a set is under Not Recognized, and what to do.
     QString unknownDetail(const QString &set) const;
-    // The games folder's snap, else MAME's own snapshot; "" for none.
+    // The games folder's snap, else MAME's own snapshot; "" for none. As
+    // last looked for (m_pictures), till the list opens again.
     QString pictureOf(const QString &set) const;
+    QString lookForPicture(const QString &set) const;
     // The sets on one of the module's lists (AppCore's), newest first.
     QStringList listedSets(const QString &list) const;
     // The file name MAME opens a set by: its short name in lower case.
@@ -268,6 +280,7 @@ private:
     bool    m_cacheLoaded = false;
     QHash<QString, QString> m_genres;   // set → genre, catver.ini's
     QString m_genresFrom;         // the catver.ini read: its path, size and time
+    mutable QHash<QString, QString> m_pictures;   // set → pictureOf()
     mutable Index m_index;
     mutable bool  m_indexed = false;
 

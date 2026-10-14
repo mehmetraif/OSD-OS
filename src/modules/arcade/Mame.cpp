@@ -404,10 +404,14 @@ QString coinScript(int coins) {
     // Each coin held down a tenth of a second, a fifth between them, as a
     // coin mech's switch would be: games read it once a frame, and some count
     // a coin only once it has been there a few frames. Timed by the game's
-    // own clock, which stands still while MAME shows a warning first.
+    // own clock, which stands still while MAME shows a warning first. MAME
+    // runs the script again at every reset of the game (F3, a watchdog),
+    // keeping its globals: the credits go in once.
     return QStringLiteral(
                "-- Written by OSD/OS as the game starts: the credits bought on its\n"
                "-- Arcade screen, player 1's coin pressed once for each.\n"
+               "if osdos_coins_run then return end\n"
+               "osdos_coins_run = true\n"
                "local left = %1\n"
                "local nextAt, hold, gap = %2, 0.1, 0.2\n"
                "local coin = manager.machine.ioport:token_to_input_type(\"COIN1\")\n"
@@ -419,13 +423,14 @@ QString coinScript(int coins) {
                "end\n"
                "if field and left > 0 then\n"
                "  local down = false\n"
-               "  osdos_coins = emu.add_machine_frame_notifier(function()\n"
+               "  local pressing\n"
+               "  pressing = emu.add_machine_frame_notifier(function()\n"
                "    local now = manager.machine.time:as_double()\n"
                "    if now < nextAt then return end\n"
                "    if down then\n"
                "      field:clear_value()\n"
                "      left = left - 1\n"
-               "      if left == 0 then osdos_coins:unsubscribe() end\n"
+               "      if left <= 0 then pressing:unsubscribe() end\n"
                "      nextAt = now + gap\n"
                "    else\n"
                "      field:set_value(1)\n"
