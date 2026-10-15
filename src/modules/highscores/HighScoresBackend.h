@@ -57,6 +57,12 @@ public:
     // { name, path ("unreadable:" and the set), kind: "unreadable", detail
     // (why, and the file) }.
     Q_INVOKABLE QVariant requestEntries(const QString &path);
+    // A game's best, for the Arcade screen: its first table's first count
+    // rows as { rank ("1ST", "2ND"…), score, name }, the score the SCORE
+    // column's (else the first that is neither the rank nor the name), the
+    // name the NAME column's ("" for none); a game with fields alone, its
+    // score. [] for a game with none (or none read yet).
+    Q_INVOKABLE QVariantList topEntries(const QString &set, int count) const;
 
     bool    reading() const { return m_reading; }
     QString problem() const { return m_problem; }

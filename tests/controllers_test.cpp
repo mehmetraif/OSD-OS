@@ -5,7 +5,10 @@
 #include <QFile>
 #include <QJsonDocument>
 #include <QJsonObject>
+#include <QKeyEvent>
 #include <QProcessEnvironment>
+#include <QQuickItem>
+#include <QQuickWindow>
 #include <QSaveFile>
 #include <QSignalSpy>
 #include <QTemporaryDir>
@@ -26,7 +29,8 @@
 // and input.cfg), its presses reported instead of acting while its page waits
 // for one, its labels in the hints, a model of pad plugged in twice, the JAMMA
 // board's sticks, the players' pads, and all of it kept in config.json for the
-// next start.
+// next start; and a pad's Back button as MAME's coin key where the focus
+// takes a coin.
 class ControllersTest : public QObject {
     Q_OBJECT
 
@@ -847,6 +851,69 @@ private slots:
         steam.detach();
         QTRY_VERIFY(entry(im, "OSD/OS Test Pad").value("present").toBool());
         QCOMPARE(tap(pad, SDL_CONTROLLER_BUTTON_DPAD_DOWN, keys), QString("DOWN"));
+    }
+
+    // A pad's Back button is MAME's coin key, 5, where the item with the
+    // focus takes a coin (takesCoin: the nearest item round it that says),
+    // and Back anywhere else; its B is Back either way. The hints name the
+    // pad's Back button for the coin.
+    void coinButton() {
+        AppCore core(m_app.path(), m_data.path());
+        InputManager im(m_data.path(), &core);
+        QQuickWindow window;
+        window.resize(64, 48);
+        window.show();
+        window.requestActivate();
+        QTRY_VERIFY(window.isActive());
+        im.setTargetWindow(&window);
+        // A screen that takes a coin, and a line of it with the focus.
+        QQuickItem screen(window.contentItem());
+        screen.setProperty("takesCoin", true);
+        QQuickItem line(&screen);
+        line.forceActiveFocus();
+        QTRY_COMPARE(window.activeFocusItem(), &line);
+        // The keys as the window gets them, pressed and let go.
+        struct Catcher : QObject {
+            QList<int> pressed, released;
+            bool eventFilter(QObject *, QEvent *event) override {
+                if (event->type() == QEvent::KeyPress)
+                    pressed << static_cast<QKeyEvent *>(event)->key();
+                else if (event->type() == QEvent::KeyRelease)
+                    released << static_cast<QKeyEvent *>(event)->key();
+                return false;
+            }
+        } catcher;
+        window.installEventFilter(&catcher);
+
+        VirtualPad pad;
+        QVERIFY(pad.attach("OSD/OS JAMMA P1", 0, 0));
+        QTRY_VERIFY(entry(im, "OSD/OS JAMMA P1").value("present").toBool());
+        // The key a button presses, once it has been let go too.
+        const auto press = [&](SDL_GameControllerButton b) -> int {
+            catcher.pressed.clear();
+            catcher.released.clear();
+            pad.button(b, true);
+            const bool got = QTest::qWaitFor([&] { return !catcher.pressed.isEmpty(); }, 1000);
+            release(pad, b);
+            if (!got || !QTest::qWaitFor([&] { return !catcher.released.isEmpty(); }, 1000))
+                return 0;
+            return catcher.pressed.first() == catcher.released.first() ? catcher.pressed.first() : -1;
+        };
+        QCOMPARE(press(SDL_CONTROLLER_BUTTON_BACK), int(Qt::Key_5));
+        QCOMPARE(press(SDL_CONTROLLER_BUTTON_B), int(Qt::Key_Escape));
+        QCOMPARE(press(SDL_CONTROLLER_BUTTON_START), int(Qt::Key_Space));
+        // The JAMMA board's Coin, by the stick's labels.
+        QCOMPARE(im.hints().value("coin").toString(), QString("[COIN]"));
+        // The line says it takes none: Back.
+        line.setProperty("takesCoin", false);
+        QCOMPARE(press(SDL_CONTROLLER_BUTTON_BACK), int(Qt::Key_Escape));
+        line.setProperty("takesCoin", QVariant());
+        QCOMPARE(press(SDL_CONTROLLER_BUTTON_BACK), int(Qt::Key_5));
+        // The screen stops taking one: Back.
+        screen.setProperty("takesCoin", false);
+        QCOMPARE(press(SDL_CONTROLLER_BUTTON_BACK), int(Qt::Key_Escape));
+        window.removeEventFilter(&catcher);
+        im.setTargetWindow(nullptr);
     }
 };
 

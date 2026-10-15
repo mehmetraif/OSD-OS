@@ -30,8 +30,7 @@ FocusScope {
     // Plays a game, putting it on Recently Played; trail is where coming back
     // lands.
     function play(item, trail) {
-        appCore.add_to_list(moduleRoot.moduleId, "recent",
-                            { name: item.name, path: item.path, isFolder: false }, 30)
+        moduleRoot.addRecent(item.game, item.name)
         gamesRoot.navigateTo("Play.qml", { game: item.game, title: item.name }, { trail: trail })
     }
 
@@ -63,44 +62,12 @@ FocusScope {
         anchors.leftMargin: root.sw * 0.125 //80
     }
 
-    // Nothing in the folder: what stands in the way, and where the games go
-    // (unless that is the folder that can't be read).
-    Column {
-        anchors.centerIn: parent
-        width: root.sw * 0.75 //480
-        spacing: root.sh * 0.0333333 //16
+    // Nothing in the folder: what stands in the way, and where the games go.
+    NoGames {
         visible: tree.rootEmpty
-        Text {
-            width: parent.width
-            text: "No games found"
-            color: root.secondaryColor
-            font.family: root.globalFont
-            font.capitalization: Font.AllUppercase
-            horizontalAlignment: Text.AlignHCenter
-            font.pixelSize: root.sh * 0.05 //24
-        }
-        Text {
-            visible: gamesRoot.problem !== ""
-            width: parent.width
-            text: gamesRoot.problem
-            color: root.secondaryColor
-            font.family: root.globalFont
-            font.capitalization: Font.AllUppercase
-            horizontalAlignment: Text.AlignHCenter
-            wrapMode: Text.WrapAtWordBoundaryOrAnywhere
-            font.pixelSize: root.sh * 0.0333333 //16
-        }
-        Text {
-            visible: gamesRoot.folderReadable
-            width: parent.width
-            text: "Put MAME's ROM sets, a zip file for each game, in " + gamesRoot.gamesFolder
-            color: root.tertiaryColor
-            font.family: root.globalFont
-            font.capitalization: Font.AllUppercase
-            horizontalAlignment: Text.AlignHCenter
-            wrapMode: Text.WrapAtWordBoundaryOrAnywhere
-            font.pixelSize: root.sh * 0.0333333 //16
-        }
+        problem: gamesRoot.problem
+        folderReadable: gamesRoot.folderReadable
+        gamesFolder: gamesRoot.gamesFolder
     }
 
     TreeBrowser {

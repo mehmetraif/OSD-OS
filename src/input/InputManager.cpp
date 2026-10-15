@@ -4,6 +4,7 @@
 #include <QCoreApplication>
 #include <QGuiApplication>
 #include <QInputMethodQueryEvent>
+#include <QQuickItem>
 #include <QQuickWindow>
 #include <QKeyEvent>
 #include <QKeySequence>
@@ -1363,6 +1364,10 @@ void InputManager::handleButton(SDL_JoystickID which, Uint8 button, bool pressed
         return;
     const HeldInput input{ padSource(which), button };
     if (!pressed) {
+        if (m_coinInputs.remove(input)) {
+            postKey(Qt::Key_5, QEvent::KeyRelease, false);
+            return;
+        }
         const Action held = m_heldInputs.take(input);
         if (held != Action::None) {
             noteActiveController(which);
@@ -1375,6 +1380,15 @@ void InputManager::handleButton(SDL_JoystickID which, Uint8 button, bool pressed
     if (capturing(key)) {
         const QString token = buttonToken(button);
         emit controllerInputCaptured(key, token, padLabel(m_labelOverrides, pad->labels, token, button));
+        return;
+    }
+    // MAME's coin, where the focus takes one: its key, whatever the button
+    // is bound to.
+    if (button == SDL_CONTROLLER_BUTTON_BACK && takesCoin()) {
+        noteActiveController(which);
+        setLastInputDevice(QStringLiteral("gamepad"));
+        m_coinInputs.insert(input);
+        postKey(Qt::Key_5, QEvent::KeyPress, false);
         return;
     }
     const Action a = pad->buttons.value(button, Action::None);
@@ -1523,6 +1537,14 @@ void InputManager::releaseHeld(const QString &source) {
     }
     for (const Action a : std::as_const(held))
         releaseAction(a);
+    for (auto it = m_coinInputs.begin(); it != m_coinInputs.end();) {
+        if (it->first == source) {
+            it = m_coinInputs.erase(it);
+            postKey(Qt::Key_5, QEvent::KeyRelease, false);
+        } else {
+            ++it;
+        }
+    }
 }
 
 // While the Qt window is active, actions become posted key events into QML.
@@ -1554,6 +1576,18 @@ void InputManager::onRepeatTick() {
 
 bool InputManager::windowActive() const {
     return m_window && m_window->isActive();
+}
+
+bool InputManager::takesCoin() const {
+    if (!windowActive())
+        return false;
+    // The nearest item round the focus that says.
+    for (const QQuickItem *item = m_window->activeFocusItem(); item; item = item->parentItem()) {
+        const QVariant takes = item->property("takesCoin");
+        if (takes.isValid())
+            return takes.toBool();
+    }
+    return false;
 }
 
 // Post to the root QQuickWindow, not QGuiApplication::focusWindow(): Qt Quick
@@ -1861,6 +1895,9 @@ void InputManager::updateHints() {
     h["back"]       = QStringLiteral("[ESC]");
     h["select"]     = QStringLiteral("[ENTER]");
     h["play_pause"] = QStringLiteral("[SPACE]");
+    // MAME's coin, where the focus takes one (takesCoin()): its key, or a
+    // pad's Back button.
+    h["coin"]       = QStringLiteral("[5]");
 
     if (m_lastInputDevice == QStringLiteral("gamepad")) {
         auto pad = m_pads.constFind(m_lastActiveController);
@@ -1882,9 +1919,12 @@ void InputManager::updateHints() {
         const QString back = buttonLabel(Action::Back);
         const QString select = buttonLabel(Action::Select);
         const QString playPause = buttonLabel(Action::PlayPause);
+        const QString coin = padLabel(m_labelOverrides, style, buttonToken(SDL_CONTROLLER_BUTTON_BACK),
+                                      SDL_CONTROLLER_BUTTON_BACK);
         if (!back.isEmpty())      h["back"]       = back;
         if (!select.isEmpty())    h["select"]     = select;
         if (!playPause.isEmpty()) h["play_pause"] = playPause;
+        if (!coin.isEmpty())      h["coin"]       = "[" + coin + "]";
     }
 
     if (h != m_hints) {

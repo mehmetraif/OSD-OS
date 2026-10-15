@@ -15,6 +15,38 @@ FocusScope {
     property string moduleName: _moduleInfo.name || ""
     property string moduleIcon: _moduleInfo.icon || ""
 
+    // Settings → Arcade's, as the module opens. Screen: "Original", the tree
+    // (Games.qml), or "Arcade", the selection screen (ArcadeScreen.qml),
+    // whose own are its Hint Bar and Help Line and the filter it opens on.
+    // Start Info Screen is both's: how to come back, before a game.
+    property string screen: "Original"
+    readonly property bool arcadeScreen: screen === "Arcade"
+    property bool hintBar: true
+    property bool helpLine: true
+    property bool startInfo: true
+    property string startFilter: "all"
+    // The Arcade screen's Hint Bar and Help Line, which Main.qml's hintBar and
+    // helpLine go by while the module is open, its dialogs and all; the
+    // original screen goes by Settings' own.
+    readonly property var hintBarShown: arcadeScreen ? hintBar : undefined
+    readonly property var helpLineShown: arcadeScreen ? helpLine : undefined
+
+    // The credits bought on the Arcade screen with COIN: they go in the next
+    // game played (Play.qml), as many as ArcadeBackend puts in (kMaxCredits).
+    property int credits: 0
+    readonly property int maxCredits: 9
+    function addCredit() { credits = Math.min(maxCredits, credits + 1) }
+
+    // A game about to be played, on Recently Played (the newest 30).
+    function addRecent(set, name) {
+        appCore.add_to_list(moduleId, "recent", { name: name, path: "game:" + set, isFolder: false }, 30)
+    }
+
+    // A toggle of the module's, ON unless it is turned off.
+    function isOn(value) {
+        return value === undefined || value === null || value === true || String(value).toUpperCase() === "ON"
+    }
+
     // Internal navigation state
     property var navStack: []
     property var currentParams: ({})
@@ -64,11 +96,18 @@ FocusScope {
     }
 
     Component.onCompleted: {
+        var settings = appCore ? appCore.get_settings() : {}
+        var own = (settings.modules && settings.modules[moduleId]) || {}
+        screen = own.screen === "Arcade" ? "Arcade" : "Original"
+        hintBar = isOn(own.hint_bar)
+        helpLine = isOn(own.help_line)
+        startInfo = isOn(own.start_info)
+        startFilter = own.start_filter || "all"
         // The folder looked at again, and MAME asked about any game new in
         // it, before the list asks for what is in it.
         if (arcadeBackend)
             arcadeBackend.refresh()
         // The startup favourite, when the app opens on one (Main.qml).
-        navigateTo("Games.qml", { startupPlay: navParams.startupPlay })
+        navigateTo(arcadeScreen ? "ArcadeScreen.qml" : "Games.qml", { startupPlay: navParams.startupPlay })
     }
 }

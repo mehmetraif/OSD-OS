@@ -2,10 +2,17 @@ import QtQuick
 import Components
 
 // A game in MAME (ArcadeBackend::play). This view says which game and how to
-// come back, then MAME has the screen until the game ends, and the view goes
-// back to the list. On a headless Pi it isn't drawn while MAME runs: what it
-// shows just before the hand-off stays on the screen while MAME starts. A game
-// that couldn't start, or that MAME ended with an error, says why here.
+// come back (Settings → Arcade → Start Info Screen), then MAME has the screen
+// until the game ends, and the view goes back to the list. On a headless Pi
+// it isn't drawn while MAME runs: what it shows just before the hand-off
+// stays on the screen while MAME starts. A game that couldn't start, or that
+// MAME ended with an error, says why here.
+//
+// From the Arcade screen (ArcadeScreen.qml) it has that screen's bar, says
+// how many credits go in, and takes COIN (another credit: MAME's 5, which a
+// pad's Back button is meanwhile) and START or select (the game at once)
+// before MAME starts; the credits go in with the game (ArcadeBackend::play),
+// and are spent.
 //
 // The way back is MAME's own, Coin and Start together on player 1's
 // controller or Esc on a keyboard (the controller file ArcadeBackend writes),
@@ -34,14 +41,25 @@ FocusScope {
     // with no controller.
     property string exitKeys: ""
     readonly property bool running: arcadeBackend ? arcadeBackend.running : false
+    // Played from the Arcade screen rather than the original tree.
+    readonly property bool arcade: moduleRoot.arcadeScreen
+    readonly property bool before: phase === "opening" || phase === "running"
+    // A pad's Back button is COIN before a game from the Arcade screen
+    // (InputManager).
+    readonly property bool takesCoin: arcade && phase === "opening"
 
     function isBack(key) {
         return key === Qt.Key_Escape || key === Qt.Key_Backspace || key === Qt.Key_Back
     }
 
     function launch() {
-        if (arcadeBackend.play(playRoot.game)) {
+        launchTimer.stop()
+        if (playRoot.phase !== "opening")
+            return
+        if (arcadeBackend.play(playRoot.game, moduleRoot.credits)) {
             playRoot.phase = "running"
+            // In the game now.
+            moduleRoot.credits = 0
         } else {
             playRoot.phase = "error"
             playRoot.message = arcadeBackend.lastError()
@@ -55,12 +73,15 @@ FocusScope {
             exitKeys = inputManager.buttonLabel(key, "back") + " + " + inputManager.buttonLabel(key, "start")
     }
 
-    // This frame on the screen first, as a headless Pi hands it over; the
-    // first game this run long enough to read how to come back, as the
-    // screen stays as it is while MAME starts.
+    // This frame on the screen first, as a headless Pi hands it over. With
+    // Start Info Screen on, long enough to read how to come back: from the
+    // Arcade screen every time, from the tree the first game this run, as
+    // the screen stays as it is while MAME starts.
     Timer {
         id: launchTimer
-        interval: arcadeBackend && arcadeBackend.played ? 150 : 1500
+        interval: !moduleRoot.startInfo ? 150
+                  : playRoot.arcade ? 3000
+                  : arcadeBackend && arcadeBackend.played ? 150 : 1500
         running: true
         onTriggered: playRoot.launch()
     }
@@ -92,7 +113,22 @@ FocusScope {
 
     Keys.onPressed: function(event) {
         event.accepted = true
-        if (!isBack(event.key) || event.isAutoRepeat)
+        if (event.isAutoRepeat)
+            return
+        if (playRoot.arcade && playRoot.phase === "opening") {
+            // As on the Arcade screen: COIN buys another credit, START or
+            // select plays at once.
+            if (event.key === Qt.Key_5) {
+                moduleRoot.addCredit()
+                return
+            }
+            if (event.key === Qt.Key_Space || event.key === Qt.Key_1
+                || event.key === Qt.Key_Return || event.key === Qt.Key_Enter) {
+                playRoot.launch()
+                return
+            }
+        }
+        if (!isBack(event.key))
             return
         if (playRoot.phase === "opening") {
             launchTimer.stop()
@@ -109,6 +145,7 @@ FocusScope {
     // ---
 
     AppBar {
+        visible: !playRoot.arcade
         iconSource: moduleRoot.moduleIcon
         title: moduleRoot.moduleName
         anchors.top: parent.top
@@ -117,15 +154,23 @@ FocusScope {
         anchors.leftMargin: root.sw * 0.125 //80
     }
 
+    // The Arcade screen's bar: PLAY ▶, or STOP ■ for a game that didn't.
+    ArcadeBar {
+        visible: playRoot.arcade
+        text: playRoot.before ? "Play" : "Stop"
+        icon: playRoot.before ? "play" : "stop"
+    }
+
     Column {
         x: root.sw * 0.125 //80
         y: root.sh * 0.25 //120
         width: root.sw * 0.75 //480
         spacing: root.sh * 0.025 //12
 
-        // The deck's own display, as for a video.
+        // The deck's own display, as for a video (the Arcade screen's bar
+        // says it).
         Row {
-            visible: playRoot.phase === "opening" || playRoot.phase === "running"
+            visible: !playRoot.arcade && playRoot.before
             spacing: root.sw * 0.0125 //8
             Text {
                 id: playLabel
@@ -156,7 +201,7 @@ FocusScope {
 
         // How to come back, in a box, the way a deck prints a notice.
         Rectangle {
-            visible: playRoot.phase === "opening" || playRoot.phase === "running"
+            visible: moduleRoot.startInfo && playRoot.before
             width: parent.width
             height: howTo.height + 2 * root.sh * 0.025
             color: "transparent"
@@ -187,6 +232,20 @@ FocusScope {
                     }
                 }
             }
+        }
+
+        // The credits going in with the game, from the Arcade screen.
+        Text {
+            visible: playRoot.arcade && moduleRoot.startInfo && playRoot.before
+            width: parent.width
+            text: moduleRoot.credits === 0 ? "No credit: insert a coin in the game"
+                  : moduleRoot.credits + (moduleRoot.credits === 1 ? " credit goes" : " credits go")
+                    + " in as the game starts"
+            color: root.primaryColor
+            font.family: root.globalFont
+            font.capitalization: Font.AllUppercase
+            font.pixelSize: root.sh * 0.0375 //18
+            wrapMode: Text.WordWrap
         }
 
         // Why it didn't play, and what MAME said.
@@ -235,7 +294,10 @@ FocusScope {
 
     HintBar {
         visible: playRoot.phase !== "running"
-        text: root.hints.back + (playRoot.phase === "opening" ? ":CANCEL" : ":BACK")
+        text: playRoot.phase !== "opening" ? root.hints.back + ":BACK"
+              : playRoot.arcade ? root.hints.back + ":CANCEL " + root.hints.coin + ":CREDIT "
+                                  + root.hints.play_pause + ":PLAY"
+              : root.hints.back + ":CANCEL"
         anchors.bottom: parent.bottom
         anchors.left: parent.left
         anchors.bottomMargin: root.sh * 0.1041667 //50

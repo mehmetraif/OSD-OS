@@ -1,5 +1,6 @@
 #pragma once
 #include <QByteArray>
+#include <QHash>
 #include <QList>
 #include <QString>
 #include <QStringList>
@@ -28,6 +29,7 @@ struct Machine {
     QString year;          // "1980", or "198?" or "1980?" where MAME isn't sure
     QString manufacturer;  // "Namco (Midway license)"
     QString cloneOf;       // its parent's short name, for a clone
+    QString sourceFile;    // its driver's source: "capcom/cps1.cpp" (MAME before 0.229: "cps1.cpp")
     QString status;        // its driver's: "good", "imperfect" or "preliminary"
     int     players = 0;   // as many as play at once
     int     rotate = 0;    // its (first) screen's rotation: 0, 90, 180 or 270
@@ -81,6 +83,25 @@ QString makerOf(const QString &manufacturer);
 // Its decade: "1981", "198?" and "1981?" → "1980s"; "" when the year doesn't
 // say ("19??").
 QString decadeOf(const QString &year);
+// A game's title, its description without what tells its versions apart:
+// "Galaga (Namco rev. B)" → "Galaga", "Truxton / Tatsujin" → "Truxton".
+QString titleOf(const QString &description);
+// The board or system a driver is for, as the Arcade screen names it, from
+// its source file: "capcom/cps1.cpp" → "CPS-1", "neogeo/neogeo.cpp" →
+// "Neo-Geo"; any other, the driver's own name: "nintendo/dkong.cpp" →
+// "DKONG". "" for none.
+QString systemOf(const QString &sourceFile);
+
+// The genres of catver.ini (progettosnaps' category list): each set's
+// category up to its first " / ", without the "* Mature *" mark:
+// "sf2=Fighter / Versus" → "sf2" → "Fighter". Empty for a file that can't be
+// read.
+QHash<QString, QString> readGenres(const QString &path);
+
+// The Lua MAME runs as the game starts (-autoboot_script) to put the credits
+// bought on the Arcade screen in: player 1's coin pressed that many times,
+// from a few seconds in, once the game is past its start-up checks.
+QString coinScript(int coins);
 
 // The controller file MAME is started with (-ctrlr): each player's controller
 // (Settings → Controls) as MAME's joystick of that number, by its SDL GUID

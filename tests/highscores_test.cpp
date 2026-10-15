@@ -262,6 +262,27 @@ private slots:
                  QStringLiteral("SCORE 15,430\nNAME IVQ\nnvram/solarfox/nvram"));
     }
 
+    // A game's best for the Arcade screen: the first table's first rows as
+    // rank, score and name; a best score kept on its own as the first.
+    void topEntries() {
+        HighScoresBackend scores(QStringLiteral(APP_DIR), m_data.path(), played());
+        refreshed(scores);
+        const auto row = [](const char *rank, const char *score, const char *name) {
+            return QVariant(QVariantMap{ { QStringLiteral("rank"), QLatin1String(rank) },
+                                         { QStringLiteral("score"), QLatin1String(score) },
+                                         { QStringLiteral("name"), QLatin1String(name) } });
+        };
+        QCOMPARE(scores.topEntries(QStringLiteral("ffight"), 3),
+                 QVariantList({ row("1ST", "116,370", "ACD"), row("2ND", "89,760", ".Z"), row("3RD", "20,000", "NIN") }));
+        QCOMPARE(scores.topEntries(QStringLiteral("ffight"), 9).size(), 5);
+        QCOMPARE(scores.topEntries(QStringLiteral("gng"), 1), QVariantList({ row("1ST", "17,200", "*&?") }));
+        QCOMPARE(scores.topEntries(QStringLiteral("solarfox"), 3), QVariantList({ row("1ST", "15,430", "IVQ") }));
+        // None: a game with no table read, one that couldn't be, none asked.
+        QVERIFY(scores.topEntries(QStringLiteral("nothing"), 3).isEmpty());
+        QVERIFY(scores.topEntries(QStringLiteral("ffightu"), 3).isEmpty());
+        QVERIFY(scores.topEntries(QStringLiteral("ffight"), 0).isEmpty());
+    }
+
     // The files hi2txt can't read, and why; not NVRAM with settings in it.
     void notReadable() {
         HighScoresBackend scores(QStringLiteral(APP_DIR), m_data.path(), played());

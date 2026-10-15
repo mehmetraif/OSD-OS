@@ -36,6 +36,12 @@ class AppCore;
 // it, and its own button labels; on Linux every keyboard and remote is read
 // from its /dev/input nodes beside Qt, which tells whose a key is, for its
 // own extra keys. config.json's app.controllers.<key> holds them.
+//
+// A pad's Back button is MAME's coin (COIN on the JAMMA board's sticks).
+// Where the item with the focus takes a coin (a takesCoin property true on
+// it, or on the nearest item round it that has one: the Arcade module's
+// Arcade screen), that button is MAME's coin key, 5, instead of its action,
+// so the view handles the key alone, as it does from a keyboard.
 class InputManager : public QObject {
     Q_OBJECT
     Q_PROPERTY(bool gamepadConnected READ gamepadConnected NOTIFY gamepadConnectedChanged)
@@ -213,6 +219,8 @@ private:
     void deliverPress(Action a, bool autoRepeat);
     void postKey(int qtKey, QEvent::Type type, bool autoRepeat);
     bool windowActive() const;
+    // The item with the focus takes a coin (see the class's comment).
+    bool takesCoin() const;
     void setLastInputDevice(const QString &device);
     void updateHints();
     static int qtKeyForAction(Action a);
@@ -285,6 +293,8 @@ private:
     // input does by then (a page has bound it anew, or waits for a press of
     // its controller's), and a controller that goes lets go of what it held.
     QHash<HeldInput, Action> m_heldInputs;
+    // Back buttons held down as the coin key: their release is its release.
+    QSet<HeldInput> m_coinInputs;
     // Keys whose press a wait for a press took (Qt::Key): swallowed until let
     // go, as their repeats would act as what they were just given.
     QSet<int> m_capturedKeys;

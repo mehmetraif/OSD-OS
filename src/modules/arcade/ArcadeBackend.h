@@ -1,4 +1,5 @@
 #pragma once
+#include <QElapsedTimer>
 #include <QHash>
 #include <QMap>
 #include <QObject>
@@ -7,6 +8,7 @@
 #include <QString>
 #include <QStringList>
 #include <QVariant>
+#include <utility>
 #include "Mame.h"
 
 class AppCore;
@@ -23,17 +25,29 @@ class QTimer;
 //   is (-listxml, asked only about sets it hasn't been asked about, kept in
 //   <data>/arcade/games.json until MAME itself changes, read as the list
 //   first opens), and BIOS sets and devices aren't listed.
-// - The tree (requestEntries) lists them under Recently Played, Favorites,
+// - Two screens list them, Settings → Arcade → Screen's. The original, the
+//   tree (requestEntries), lists them under Recently Played, Favorites,
 //   Search, All Games, and by players, decade and maker, and those MAME has
-//   no game of, or can't open by their names, under Not Recognized.
+//   no game of, or can't open by their names, under Not Recognized. The
+//   Arcade screen lists them a filter at a time (filters(), filterGames()):
+//   All Games, Favorites, Recently Played, each genre (catver.ini's, in the
+//   games folder or in <data>/arcade), each number of players and each
+//   decade, and Not Recognized; gameDetails() says what a game is: its
+//   system, maker, year, players, picture (the games folder's snap folder,
+//   or MAME's own snapshots) and how long it has been played
+//   (<data>/arcade/playtime.json).
 // - A game plays as a takeover through a ScriptLauncher of the module's own
 //   ("arcade" to DisplayHandoff), MAME's keeping in <data>/arcade: its
 //   settings, NVRAM, high scores (the hiscore plugin, High Scores), save
 //   states and the like, and the controller file Settings → Controls'
-//   players are given to it in (mame::controllerConfig). It ends the way
-//   MAME does, Coin and Start
-//   together on player 1's controller or Esc, never stopped from here: MAME
-//   ignores SIGTERM, and a game killed loses what it would have saved.
+//   players are given to it in (mame::controllerConfig). The credits bought
+//   on the screen go in as it starts (mame::coinScript). It ends the way
+//   MAME does, Coin and Start together on player 1's controller or Esc,
+//   never stopped from here: MAME ignores SIGTERM, and a game killed loses
+//   what it would have saved.
+// - Settings → Arcade → Play at Startup is the app's startup favourite
+//   (app.startup_favorite, which a game's options set too) while it is one
+//   of this module's games: the two are kept the same.
 class ArcadeBackend : public QObject {
     Q_OBJECT
     Q_PROPERTY(bool running READ running NOTIFY runningChanged)
@@ -44,8 +58,9 @@ class ArcadeBackend : public QObject {
     Q_PROPERTY(QString problem READ problem NOTIFY problemChanged)
     // The games folder is there to be read (and copied into).
     Q_PROPERTY(bool folderReadable READ folderReadable NOTIFY problemChanged)
-    // A game has been played this run: the first waits longer before MAME
-    // takes the screen, for how to come back to be read.
+    // A game has been played this run: on the original screen, the first
+    // waits longer before MAME takes the screen, for how to come back to be
+    // read.
     Q_PROPERTY(bool played READ played NOTIFY playedChanged)
 public:
     explicit ArcadeBackend(const QString &appRoot, const QString &dataRoot, AppCore *appCore,
@@ -59,26 +74,54 @@ public:
     // Looks in the folder again (each time the list opens), and asks MAME
     // about any set it hasn't been asked about.
     Q_INVOKABLE void refresh();
-    // A folder of the tree ("top" its top), or undefined while MAME is being
-    // asked: entriesReady(path) follows (then "top" holds only Recently
-    // Played and Favorites, and entriesReady("top") follows too). A game is
-    // { name, path ("game:" and its set), isFolder, game (its set), detail
-    // (its year, maker, players, how well MAME runs it and its file, a line
-    // each) }; a set MAME doesn't know, or can't open by its name, is
-    // { name (its file's), path ("unknown:" and the set), kind: "unknown",
-    // detail (why, two lines) }. Every folder asked for gets entriesReady
-    // again once what it holds may have changed: MAME has answered.
+
+    // The original screen's tree: a folder of it ("top" its top), or
+    // undefined while MAME is being asked: entriesReady(path) follows (then
+    // "top" holds only Recently Played and Favorites, and entriesReady("top")
+    // follows too). A game is { name, path ("game:" and its set), isFolder,
+    // game (its set), detail (its year, maker, players, how well MAME runs it
+    // and its file, a line each) }; a set MAME doesn't know, or can't open by
+    // its name, is { name (its file's), path ("unknown:" and the set), kind:
+    // "unknown", detail (why, two lines) }. Every folder asked for gets
+    // entriesReady again once what it holds may have changed: MAME has
+    // answered.
     Q_INVOKABLE QVariant requestEntries(const QString &path);
 
+    // The filters with games in them, in the order ◄ ► goes round them:
+    // [{ id, name, count }]. id: "all", "favorites", "recent",
+    // "genres/<genre>", "players/<n>", "years/<decade>" ("years/unknown"),
+    // "unknown" (Not Recognized). While MAME is being asked, only Favorites
+    // and Recently Played: gamesChanged() follows once it has answered.
+    Q_INVOKABLE QVariantList filters();
+    // A page of a filter: its games from first on, count at most, as
+    // { set, name (its title), favorite }; Not Recognized's as { set, name
+    // (its file's), unknown: true }.
+    Q_INVOKABLE QVariantList filterGames(const QString &filter, int first, int count);
+    // Where a set is in a filter: -1 when it isn't in it.
+    Q_INVOKABLE int filterIndex(const QString &filter, const QString &set);
+    // What the screen says of a set: { set, name (MAME's description),
+    // system, maker, year, players, playTime (seconds played), picture (a
+    // file URL, "" for none), vertical }; for one under Not Recognized
+    // { set, name (its file's), unknown: true, detail (why, and what to do,
+    // a line each) }; {} for a set not in the folder.
+    Q_INVOKABLE QVariantMap gameDetails(const QString &set);
+
     // Starts a game in MAME, which has the screen until it ends: finished().
-    // False, with lastError(), when it couldn't be started; nothing was.
-    Q_INVOKABLE bool play(const QString &name);
+    // credits: the coins to put in as it starts (9 at most). False, with
+    // lastError(), when it couldn't be started; nothing was.
+    Q_INVOKABLE bool play(const QString &name, int credits = 0);
     Q_INVOKABLE QString lastError() const { return m_lastError; }
     // What MAME printed in the last game's run.
     Q_INVOKABLE QString output() const;
 
     // manifest: rescan (action): MAME asked about every set again.
     Q_INVOKABLE void rescan();
+    // manifest: start_filter's choices (dynamicOptionsReady): All Games,
+    // Favorites, Recently Played and the genres, players and decades there
+    // are.
+    Q_INVOKABLE void startFilterOptions();
+    // manifest: play_at_startup's: None and the favorites.
+    Q_INVOKABLE void startupGameOptions();
 
     // The sets played last, newest first: the High Scores module's Recently
     // Played, as main.cpp hands them over.
@@ -100,6 +143,9 @@ public slots:
 
 signals:
     void entriesReady(const QString &path);
+    // What the filters hold may have changed: MAME has answered, or the
+    // folder isn't as it was.
+    void gamesChanged();
     void runningChanged();
     void scanningChanged();
     void problemChanged();
@@ -107,6 +153,7 @@ signals:
     // reason: "ok", "failed", "stopped" or "failed_to_start" (ScriptLauncher's);
     // notice: what to tell the player when it isn't "ok", else "".
     void finished(int exitCode, const QString &reason, const QString &notice);
+    void dynamicOptionsReady(const QString &key, const QVariant &options);
 
 private:
     void applySetting(const QString &key, const QVariant &value);
@@ -117,6 +164,9 @@ private:
     // What makes the list's own problem: no folder, no MAME, MAME not
     // answering.
     void checkProblem();
+    // What the filters are made of, read as far as it hasn't been, for the
+    // settings' choices: games.json, the folder and catver.ini.
+    void prepare();
     void loadCache();
     void saveCache() const;
     // What MAME said of the sets, all forgotten: it is asked again.
@@ -127,14 +177,29 @@ private:
     void scanNext();
     void takeMachines();
     void onScanFinished(int exitCode, QProcess::ExitStatus status);
-    // entriesReady for every folder asked for since the last time.
+    // entriesReady for every folder asked for since the last time, and
+    // gamesChanged().
     void emitShown();
+    // catver.ini, read again once it has changed (or another is found).
+    void loadGenres();
+
+    // A set under Not Recognized: a name that can't be a set's, one MAME has
+    // no game of, or one MAME can't open by its name.
+    bool isUnrecognized(const QString &set) const;
+    // A set listed as a game: in the folder, a name MAME opens, and one of
+    // its games (or one it wasn't asked about), not a BIOS or a device.
+    bool isGame(const QString &set) const;
+    // MAME's description of a set's machine, else the set's name; what it is
+    // sorted by, and its title on the list.
+    QString descriptionOf(const QString &set) const;
+    QString sortKey(const QString &set) const;
+    QString titleOf(const QString &set) const;
 
     // The folder's games (not BIOS sets, devices or sets MAME doesn't know)
-    // by name, the players, decades and makers they are under, and the sets
-    // under Not Recognized: made again only once the folder or what MAME
-    // says of it has changed (invalidate()), as a full set of MAME's games
-    // is tens of thousands.
+    // by name, the genres, players, decades and makers they are under, and
+    // the sets under Not Recognized: made again only once the folder or what
+    // MAME says of it has changed (invalidate()), as a full set of MAME's
+    // games is tens of thousands.
     struct Index {
         QStringList games;
         QHash<QString, QMap<QString, QStringList>> places;   // kind → place → its games
@@ -142,19 +207,35 @@ private:
     };
     const Index &index() const;
     void invalidate() { m_indexed = false; }
-    // The folders of "players", "years" or "makers", and a game's place in them.
+    // A game's place among the genres, players, decades or makers; "" for
+    // none.
+    QString placeOf(const QString &kind, const QString &set, const mame::Machine *machine) const;
+    // A kind's places in the order they are listed, with what each is
+    // called: players by number, decades in order with the years unknown
+    // last, the rest by name.
+    QList<std::pair<QString, QString>> sortedPlaces(const QString &kind) const;
+    // The tree's folders of "players", "years" or "makers".
     QVariantList folders(const QString &kind) const;
-    static QString folderOf(const QString &kind, const mame::Machine &machine);
     QVariantList gameEntries(const QStringList &sets) const;
     QVariantMap gameEntry(const QString &set) const;
     QVariantMap unknownEntry(const QString &set) const;
+    QVariantList listEntries(const QString &list) const;
+    // The filters of the genres, players and decades: [{ id, name, count }].
+    QVariantList placeFilters() const;
+    // A filter's sets, in the order it lists them.
+    QStringList filterSets(const QString &filter) const;
+    // Why a set is under Not Recognized, and what to do.
+    QString unknownDetail(const QString &set) const;
+    // The games folder's snap, else MAME's own snapshot; "" for none. As
+    // last looked for (m_pictures), till the list opens again.
+    QString pictureOf(const QString &set) const;
+    QString lookForPicture(const QString &set) const;
     // The sets on one of the module's lists (AppCore's), newest first.
     QStringList listedSets(const QString &list) const;
-    QVariantList listEntries(const QString &list) const;
     // The file name MAME opens a set by: its short name in lower case.
     QString mameFileName(const QString &set) const;
-    // The games folder's bios or samples folder, as it is named there; ""
-    // for none.
+    // The games folder's bios, samples or snap folder, as it is named
+    // there; "" for none.
     QString otherFolder(const QString &name) const;
     QString rompath() const;
     QString pluginsPath() const;
@@ -163,6 +244,17 @@ private:
     // system's (Debian's), whose mame.ini says where they are.
     QString ownFolder() const;
     QString noticeFor(int exitCode, const QString &reason) const;
+
+    // How long each game has been played: playtime.json, read when first
+    // needed.
+    qint64 playTimeOf(const QString &set);
+    void addPlayTime(const QString &set, qint64 seconds);
+
+    // The app's startup favourite's set, while it is one of this module's
+    // games; "".
+    QString startupSet() const;
+    // play_at_startup made what the app's startup favourite is.
+    void syncStartupGame();
 
     QString m_appRoot;
     QString m_dataRoot;
@@ -177,14 +269,18 @@ private:
 
     // The folder's sets, and what MAME said of every set it was asked about.
     QHash<QString, QString> m_sets;
+    bool    m_listed = false;     // the folder has been read
     QSet<QString> m_folders;      // sets that are a folder of files
-    QHash<QString, QString> m_otherFolders;   // "bios", "samples" → as named there
+    QHash<QString, QString> m_otherFolders;   // "bios", "samples", "snap" → as named there
     QSet<QString> m_misnamed;     // sets whose file MAME can't open by its name
     QHash<QString, mame::Machine> m_machines;
     QSet<QString> m_unknown;      // sets MAME has no machine of
     QString m_identity;           // mameIdentity() the cache was made with
     QString m_build;              // MAME's build, as it says
     bool    m_cacheLoaded = false;
+    QHash<QString, QString> m_genres;   // set → genre, catver.ini's
+    QString m_genresFrom;         // the catver.ini read: its path, size and time
+    mutable QHash<QString, QString> m_pictures;   // set → pictureOf()
     mutable Index m_index;
     mutable bool  m_indexed = false;
 
@@ -197,12 +293,16 @@ private:
     mame::ListXmlReader m_reader;
     bool m_scanFailed = false;
 
-    // The folders asked for since entriesReady was last sent for them.
+    // The tree's folders asked for since entriesReady was last sent for them.
     QSet<QString> m_shown;
+
+    QHash<QString, qint64> m_playTime;   // set → seconds
+    bool m_playTimeLoaded = false;
 
     QString m_problem;
     bool    m_folderReadable = true;
     QString m_lastError;
     QString m_playing;
+    QElapsedTimer m_playClock;    // since the game playing started
     bool    m_played = false;
 };

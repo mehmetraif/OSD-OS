@@ -35,22 +35,20 @@ FocusScope {
 
     // The submenu row with this key, at any depth.
     function findSubmenu(list, key) {
-        for (var i = 0; i < list.length; i++) {
-            if (list[i].type !== "submenu") continue
-            if (list[i].key === key) return list[i]
-            var inner = findSubmenu(list[i].settings || [], key)
-            if (inner) return inner
-        }
-        return null
+        var row = findRow(list, key)
+        return row && row.type === "submenu" ? row : null
     }
 
-    function buildModel() {
+    // `keepKey`: the row the cursor stays on, as rows come and go round it.
+    function buildModel(keepKey) {
         var schema = appCore.get_module_settings_schema(moduleId)
+        fullSchema = schema
         if (submenuKey !== "") {
             var submenu = findSubmenu(schema, submenuKey)
             submenuLabel = submenu ? (submenu.label || "") : ""
             schema = submenu ? (submenu.settings || []) : []
         }
+        menuSchema = schema
         var needsAuthState = false
         for (var n = 0; n < schema.length; n++) {
             if (schema[n].requires_auth) {
@@ -65,15 +63,91 @@ FocusScope {
             var item = schema[i]
             if (item.requires_auth && (authState === "none" || authState === "")) continue
             if (item.requires_capability && caps.indexOf(item.requires_capability) < 0) continue
+            if (item.shown_with && !shownWith(item.shown_with)) continue
             filtered.push(item)
         }
         schemaItems = filtered
 
         if (filtered.length > 0) {
             var restore = (navListState.currentIndex !== undefined) ? navListState.currentIndex : 0
+            for (var k = 0; keepKey !== undefined && k < filtered.length; k++) {
+                if (filtered[k].key === keepKey) restore = k
+            }
             settingsList.currentIndex = Math.min(restore, filtered.length - 1)
             settingsList.positionViewAtIndex(settingsList.currentIndex, ListView.Contain)
         }
+    }
+
+    // The module's whole schema, submenus and all, and this menu's rows, as
+    // buildModel() last read them.
+    property var fullSchema: []
+    property var menuSchema: []
+
+    // A row offered only while another of the module's has a value
+    // (manifest "shown_with": { "key", "value" }), such as the Arcade
+    // module's rows for its Arcade screen: that row's value as the page
+    // shows it, and never while that row is hidden itself.
+    function shownWith(cond, depth) {
+        var row = findRow(fullSchema, cond.key)
+        depth = depth || 0
+        if (!row || depth > 8)
+            return false
+        if (row.shown_with && !shownWith(row.shown_with, depth + 1))
+            return false
+        return String(valueOf(row)) === String(cond.value)
+    }
+
+    // A row's value as the page shows it: a toggle's "ON" or "OFF", a list's
+    // choice, an unset one's default (a dynamic list's first choice).
+    function valueOf(item) {
+        var saved = currentValues[item.key]
+        if (item.type === "toggle") {
+            if (saved === undefined || saved === null) saved = (item.default === "ON")
+            return (saved === true || saved === "ON") ? "ON" : "OFF"
+        }
+        if (saved !== undefined && saved !== null && saved !== "")
+            return saved
+        if (item.options_source === "dynamic") {
+            var opts = dynamicOptions[item.key] || []
+            return opts.length > 0 ? opts[0].id : ""
+        }
+        return item.default || ""
+    }
+
+    // The row with this key, at any depth.
+    function findRow(list, key) {
+        for (var i = 0; i < list.length; i++) {
+            if (list[i].key === key) return list[i]
+            var inner = list[i].type === "submenu" ? findRow(list[i].settings || [], key) : null
+            if (inner) return inner
+        }
+        return null
+    }
+
+    // Whether a row of this menu comes and goes with this key's value.
+    function rowsFollow(key) {
+        for (var i = 0; i < menuSchema.length; i++) {
+            if (menuSchema[i].shown_with && menuSchema[i].shown_with.key === key) return true
+        }
+        return false
+    }
+
+    // Asks the backend for the choices of the dynamic rows shown that it
+    // hasn't sent yet (a row just offered), or of all of them again (a
+    // sign-in changes them).
+    function requestOptions(again) {
+        for (var i = 0; i < schemaItems.length; i++) {
+            var item = schemaItems[i]
+            if (item.options_source === "dynamic" && item.options_slot
+                && (again || dynamicOptions[item.key] === undefined))
+                appCore.invoke_module_action(moduleId, item.options_slot)
+        }
+    }
+
+    // The key of the row the cursor is on.
+    function currentKey() {
+        var item = schemaItems[settingsList.currentIndex]
+        return item ? item.key : undefined
     }
 
     // Rows that show their current value after the dots.
@@ -85,11 +159,8 @@ FocusScope {
         var key = item.key
         var type = item.type
 
-        if (type === "toggle") {
-            var raw = currentValues[key]
-            if (raw === undefined || raw === null) raw = (item.default === "ON")
-            return (raw === true || raw === "ON") ? "ON" : "OFF"
-        }
+        if (type === "toggle")
+            return valueOf(item)
 
         if (type === "list_single") {
             if (item.options_source === "dynamic") {
@@ -100,7 +171,7 @@ FocusScope {
                 }
                 return opts.length > 0 ? opts[0].label : "---"
             }
-            return currentValues[key] || (item.default || "---")
+            return valueOf(item) || "---"
         }
 
         if (type === "directory_browser") {
@@ -146,7 +217,7 @@ FocusScope {
                 opts = item.options || []
                 if (opts.length === 0) return
                 // From the value shown: an unset one shows its default.
-                var curVal = currentValues[item.key] || item.default || opts[0]
+                var curVal = valueOf(item) || opts[0]
                 var ci = opts.indexOf(curVal)
                 if (ci < 0) ci = 0
                 var ni = (ci + direction + opts.length) % opts.length
@@ -156,6 +227,10 @@ FocusScope {
                 appCore.save_setting(moduleId, item.key, opts[ni])
             }
             settingsList.forceLayout()
+        }
+        if (rowsFollow(item.key)) {
+            buildModel(item.key)
+            requestOptions(false)
         }
     }
 
@@ -171,30 +246,22 @@ FocusScope {
             // settings with requires_capability appear/disappear immediately.
             if (key === "_capabilities")
                 buildModel()
+            else if (rowsFollow(key))
+                buildModel(currentKey())
             else
                 settingsList.forceLayout()
         }
         function onModuleAuthStateChanged(mid) {
             if (mid !== moduleSettingsRoot.moduleId) return
             buildModel()
-            for (var i = 0; i < schemaItems.length; i++) {
-                var item = schemaItems[i]
-                if (item.options_source === "dynamic" && item.options_slot) {
-                    appCore.invoke_module_action(moduleId, item.options_slot)
-                }
-            }
+            requestOptions(true)
         }
     }
 
     Component.onCompleted: {
         loadSettings()
         // Kick off loading dynamic option lists for any dynamic settings
-        for (var i = 0; i < schemaItems.length; i++) {
-            var item = schemaItems[i]
-            if (item.options_source === "dynamic" && item.options_slot) {
-                appCore.invoke_module_action(moduleId, item.options_slot)
-            }
-        }
+        requestOptions(true)
     }
 
     // Header
