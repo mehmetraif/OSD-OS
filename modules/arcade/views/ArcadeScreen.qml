@@ -131,11 +131,9 @@ FocusScope {
         selected = Math.max(0, at)
     }
 
-    // Plays a game, putting it on Recently Played; coming back lands on it in
-    // listFilter.
+    // Plays a game; coming back lands on it in listFilter.
     function play(set, name, listFilter) {
-        moduleRoot.addRecent(set, name)
-        arcadeScreen.navigateTo("Play.qml", { game: set, title: name }, { filter: listFilter, set: set })
+        moduleRoot.playGame(set, name, { filter: listFilter, set: set })
     }
     function playCurrent() {
         if (isGame)
@@ -172,6 +170,14 @@ FocusScope {
     Connections {
         target: arcadeBackend
         function onGamesChanged() { arcadeScreen.reload() }
+        // A game played from the screen itself (Start Info Screen off): its
+        // play time, Recently Played, a snapshot taken in it and its high
+        // scores, as the screen opening again would read them.
+        function onFinished() {
+            if (arcadeScreen.scoresBackend)
+                arcadeScreen.scoresBackend.refresh()
+            arcadeScreen.reload()
+        }
     }
     Connections {
         target: arcadeScreen.scoresBackend

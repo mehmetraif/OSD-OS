@@ -42,6 +42,53 @@ FocusScope {
         appCore.add_to_list(moduleId, "recent", { name: name, path: "game:" + set, isFolder: false }, 30)
     }
 
+    // Plays a game from either screen, putting it on Recently Played; coming
+    // back lands on it as listState says. With Start Info Screen on, the
+    // screen before it (Play.qml) says how to come back first. With it off
+    // the game starts from the list itself, which stays on the screen while
+    // MAME starts and has every key kept from it till the game ends
+    // (keyCatcher): Play.qml only says why a game didn't play.
+    function playGame(set, name, listState) {
+        addRecent(set, name)
+        if (startInfo) {
+            navigateTo("Play.qml", { game: set, title: name }, listState)
+            return
+        }
+        if (!arcadeBackend)
+            return
+        // Before MAME is started, for a game that should end at once.
+        playing = { game: set, title: name, listState: listState || {} }
+        keyCatcher.forceActiveFocus()
+        if (arcadeBackend.play(set, credits)) {
+            // In the game now.
+            credits = 0
+            return
+        }
+        playing = null
+        navigateTo("Play.qml", { game: set, title: name, error: arcadeBackend.lastError() }, listState)
+    }
+    // The game playGame() started from the list, while it runs: { game,
+    // title, listState }; null for none.
+    property var playing: null
+
+    Connections {
+        target: arcadeBackend
+        ignoreUnknownSignals: true
+        function onFinished(exitCode, reason, notice) {
+            var ended = moduleRoot.playing
+            if (!ended)
+                return
+            moduleRoot.playing = null
+            if (internalLoader.item)
+                internalLoader.item.forceActiveFocus()
+            // Back on the list, as after a video; else why it didn't play.
+            if (reason !== "ok")
+                moduleRoot.navigateTo("Play.qml", { game: ended.game, title: ended.title, failed: true,
+                                                    message: notice, output: arcadeBackend.output() },
+                                      ended.listState)
+        }
+    }
+
     // A toggle of the module's, ON unless it is turned off.
     function isOn(value) {
         return value === undefined || value === null || value === true || String(value).toUpperCase() === "ON"
@@ -78,6 +125,23 @@ FocusScope {
         restored.navListState = prev.listState || {}
         currentParams = restored
         root.changeWindow(internalLoader, prev.source, { "navParams": restored })
+    }
+
+    // While a game from the list runs, every key (both read the controllers)
+    // is kept from the list, and it counts as activity: no screen saver comes
+    // up behind it.
+    FocusScope {
+        id: keyCatcher
+        anchors.fill: parent
+        Keys.onPressed: function(event) { event.accepted = true }
+        Keys.onReleased: function(event) { event.accepted = true }
+    }
+    Timer {
+        interval: 10000
+        repeat: true
+        triggeredOnStart: true
+        running: moduleRoot.playing !== null
+        onTriggered: if (idleTracker) idleTracker.resetActivity()
     }
 
     Loader {

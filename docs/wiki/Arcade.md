@@ -136,16 +136,14 @@ Without MAME the sets are listed by their names, and select says MAME is not ins
 
 ## Playing
 
-Select on a game in the tree, or START on the Arcade screen. The screen says **PLAY ▶** and the game's name, and how to come back; then MAME has the screen for as long as the game runs. On the OSD/OS image OSD/OS hands the screen to MAME as it does to a script's takeover ([Scripts](https://github.com/mehmetraif/OSD-OS/wiki/Scripts#takeover)), and what it showed stays there while MAME starts.
+Select on a game in the tree, or START on the Arcade screen. MAME then has the screen for as long as the game runs. On the OSD/OS image OSD/OS hands the screen to MAME as it does to a script's takeover ([Scripts](https://github.com/mehmetraif/OSD-OS/wiki/Scripts#takeover)), and what it showed stays there while MAME starts.
 
-How long that screen stays is **Settings → Arcade → Start Info Screen**'s:
+**Settings → Arcade → Start Info Screen** says what comes before the game:
 
-- **On** (the default): from the tree, the first game after OSD/OS starts waits a second and a half before MAME takes the screen, for how to come back to be read, and the games after it a moment. From the Arcade screen, every game waits three seconds, and the screen says how many credits go in with it (`2 credits go in as the game starts`, or `No credit: insert a coin in the game`); COIN puts in another, and START or select starts the game at once.
-- **Off**: the game starts at once, with no screen of how to come back.
+- **On** (the default): a screen saying **PLAY ▶** and the game's name, and how to come back. From the tree, the first game after OSD/OS starts waits a second and a half before MAME takes the screen, for how to come back to be read, and the games after it a moment. From the Arcade screen, every game waits three seconds, and the screen says how many credits go in with it (`2 credits go in as the game starts`, or `No credit: insert a coin in the game`); COIN puts in another, and START or select starts the game at once. Back in that time cancels the game, and keeps the credits.
+- **Off**: nothing. The game starts straight from the list, which stays on the screen while MAME starts.
 
-Back in that time cancels the game, and keeps the credits.
-
-**Coming back**: press **Coin and Start together** on player 1's controller, or **Esc** on a keyboard. The screen names them as player 1's controller does: `COIN + START` on the JAMMA board's sticks, `BACK + START` on an Xbox pad, `SELECT + START` on a PlayStation one, `- + +` on a Nintendo one. This is MAME's own way out (its UI Cancel input), so MAME closes the game properly and saves its high scores, its NVRAM and its settings on the way. Back in OSD/OS the list is where you left it, on the game, and the game's play time has the time it ran added to it.
+**Coming back**: press **Coin and Start together** on player 1's controller, or **Esc** on a keyboard. The screen names them as player 1's controller does: `COIN + START` on the JAMMA board's sticks, `BACK + START` on an Xbox pad, `SELECT + START` on a PlayStation one, `- + +` on a Nintendo one. This is MAME's own way out (its UI Cancel input), so MAME closes the game properly and saves its high scores, its NVRAM and its settings on the way. Back in OSD/OS the list is where you left it, on the game, and the game's play time has the time it ran added to it (and a new high score is on the Arcade screen).
 
 While MAME runs:
 
@@ -154,7 +152,7 @@ While MAME runs:
 - The menu music is off.
 - MAME's own menu is **Tab** on a keyboard, or the controller's guide button: **MODE** (the service button) on the JAMMA board.
 
-A game that couldn't start, or that MAME ended with an error, stays on the screen with what went wrong and MAME's last lines; back returns to the list ([Troubleshooting](#troubleshooting)).
+A game that couldn't start, or that MAME ended with an error, shows what went wrong and MAME's last lines, with Start Info Screen off too; back returns to the list ([Troubleshooting](#troubleshooting)).
 
 ## Players and buttons
 
@@ -197,7 +195,7 @@ Settings → Arcade.
 | Look | (a page) | | The Arcade screen's own theme, color scheme, skin, music, background effect (Stars, Checkered Flag, Matrix), selector effect and transitions. Each comes in a later version: for now they offer their default alone, and the screen has the app's look. Shown while Screen is Arcade | `modules.com.osdos.arcade.look_theme`, `look_color_scheme`, `look_skin`, `look_music`, `look_background_effect`, `look_selector_effect`, `look_filter_transition`, `look_game_transition` |
 | Hint Bar | ON, OFF | ON | The keys at the foot of the Arcade screen and its windows, in place of Settings' own Hint Bar; off, the list and the high scores take its room. Shown while Screen is Arcade | `modules.com.osdos.arcade.hint_bar` |
 | Help Line | ON, OFF | ON | The game's full name under the Arcade screen's list, in place of Settings' own Help Line; off, the list and the high scores take its room. Shown while Screen is Arcade | `modules.com.osdos.arcade.help_line` |
-| Start Info Screen | ON, OFF | ON | Before a game, the screen of how to come back (and from the Arcade screen, the credits going in); off, the game starts at once ([Playing](#playing)) | `modules.com.osdos.arcade.start_info` |
+| Start Info Screen | ON, OFF | ON | Before a game, the screen of how to come back (and from the Arcade screen, the credits going in); off, the game starts straight from the list ([Playing](#playing)) | `modules.com.osdos.arcade.start_info` |
 | High Scores | ON, OFF | ON | Keeps the games' high score tables with MAME's hiscore plugin ([above](#high-scores)) | `modules.com.osdos.arcade.high_scores` |
 | Online High Scores | Off | Off | High score tables from the internet beside this machine's own. Comes in a later version | `modules.com.osdos.arcade.online_high_scores` |
 | Online Play | Off | Off | Playing a game with someone over the internet. Comes in a later version | `modules.com.osdos.arcade.online_play` |

@@ -9,7 +9,9 @@ import QtTest
 // back to the list, or why it didn't play. The Arcade screen: its filters
 // and pages, a game's details and high scores, COIN, START and the options,
 // the room of its hint bar and help line, and the credits going in with the
-// game.
+// game. The module's router, Root.qml: a game played straight from the list
+// with Start Info Screen off, every key kept from it meanwhile, back on it
+// after, or why it didn't play.
 Rectangle {
     id: root
     color: surfaceColor
@@ -45,6 +47,8 @@ Rectangle {
     function selectorShown(item, shown) {}
     function coverShown(item, shown) {}
     function skinIcon(url) { return url }
+    // Main.qml's, for Root.qml's views: the new one, without a transition.
+    function changeWindow(loader, source, properties) { loader.setSource(source, properties) }
 
     // The module's router, as the views read it.
     QtObject {
@@ -59,8 +63,11 @@ Rectangle {
         property int credits: 0
         readonly property int maxCredits: 9
         function addCredit() { credits = Math.min(maxCredits, credits + 1) }
-        function addRecent(set, name) {
-            appCore.add_to_list(moduleId, "recent", { name: name, path: "game:" + set, isFolder: false }, 30)
+        // playGame, noted: the game and where coming back lands, as the
+        // views hand them over (Root.qml's own is tested on it).
+        property var played: []
+        function playGame(set, name, listState) {
+            played = played.concat([{ game: set, title: name, listState: listState }])
         }
     }
 
@@ -148,10 +155,14 @@ Rectangle {
         function resetActivity() { resets++ }
     }
 
-    // AppCore's lists and settings, for Recently Played and the options.
+    // AppCore's lists and settings, for Recently Played and the options, and
+    // the module's settings as Root.qml reads them.
     QtObject {
         id: appCore
         property var added: []
+        property var settings: ({})
+        function get_settings() { return { modules: { "com.osdos.arcade": settings } } }
+        function get_module_info(id) { return { name: "Arcade", icon: "" } }
         function add_to_list(module, list, entry, limit) { added = added.concat([[module, list, entry.path]]) }
         function list_contains(module, list, path) { return false }
         function get_setting(module, key) { return undefined }
@@ -232,6 +243,8 @@ Rectangle {
             }
             idleTracker.resets = 0
             appCore.added = []
+            appCore.settings = {}
+            moduleRoot.played = []
             root.navigations = []
             root.backs = 0
         }
@@ -268,14 +281,12 @@ Rectangle {
             verify(findText(games, "1981") !== null)
             keyClick(Qt.Key_Down)   // Pac-Man
             keyClick(Qt.Key_Return)
-            compare(root.navigations.length, 1)
-            var nav = root.navigations[0]
-            compare(nav.path, "Play.qml")
-            compare(nav.params.game, "pacman")
-            compare(nav.params.title, "Pac-Man (Midway)")
+            compare(moduleRoot.played.length, 1)
+            var played = moduleRoot.played[0]
+            compare(played.game, "pacman")
+            compare(played.title, "Pac-Man (Midway)")
             // Back from the game lands where it was chosen.
-            compare(nav.listState.trail[nav.listState.trail.length - 1].path, "all")
-            compare(appCore.added, [["com.osdos.arcade", "recent", "game:pacman"]])
+            compare(played.listState.trail[played.listState.trail.length - 1].path, "all")
         }
 
         // What stands in the way comes first in the line under the tree.
@@ -316,10 +327,10 @@ Rectangle {
         // The startup favourite plays at once, from Favorites.
         function test_startup() {
             open("Games.qml", { startupPlay: { name: "Pac-Man (Midway)", path: "game:pacman" } })
-            tryVerify(function() { return root.navigations.length === 1 })
-            var nav = root.navigations[0]
-            compare(nav.params.game, "pacman")
-            compare(nav.listState.trail[1].path, "favorites")
+            tryVerify(function() { return moduleRoot.played.length === 1 })
+            var played = moduleRoot.played[0]
+            compare(played.game, "pacman")
+            compare(played.listState.trail[1].path, "favorites")
         }
 
         // How to come back, then MAME has the screen and every key is kept
@@ -484,14 +495,12 @@ Rectangle {
                 keyClick(Qt.Key_5)
             compare(moduleRoot.credits, 9)
             keyClick(Qt.Key_Space)
-            compare(root.navigations.length, 1)
-            var nav = root.navigations[0]
-            compare(nav.path, "Play.qml")
-            compare(nav.params.game, "sf2")
-            compare(nav.params.title, "Street Fighter II: The World Warrior (World 910522)")
-            compare(nav.listState.filter, "all")
-            compare(nav.listState.set, "sf2")
-            compare(appCore.added, [["com.osdos.arcade", "recent", "game:sf2"]])
+            compare(moduleRoot.played.length, 1)
+            var played = moduleRoot.played[0]
+            compare(played.game, "sf2")
+            compare(played.title, "Street Fighter II: The World Warrior (World 910522)")
+            compare(played.listState.filter, "all")
+            compare(played.listState.set, "sf2")
             keyClick(Qt.Key_Escape)
             compare(root.backs, 1)
         }
@@ -508,8 +517,8 @@ Rectangle {
             keyClick(Qt.Key_5)
             compare(moduleRoot.credits, 0)
             keyClick(Qt.Key_Return)
-            compare(root.navigations.length, 1)
-            compare(root.navigations[0].params.game, "sf2")
+            compare(moduleRoot.played.length, 1)
+            compare(moduleRoot.played[0].game, "sf2")
         }
 
         // The hint bar's and the help line's room, when they are off, goes to
@@ -597,10 +606,10 @@ Rectangle {
         // The startup favourite plays at once, as if chosen in Favorites.
         function test_screenStartup() {
             openScreen({ startupPlay: { name: "Street Fighter II", path: "game:sf2" } })
-            tryVerify(function() { return root.navigations.length === 1 })
-            var nav = root.navigations[0]
-            compare(nav.params.game, "sf2")
-            compare(nav.listState.filter, "favorites")
+            tryVerify(function() { return moduleRoot.played.length === 1 })
+            var played = moduleRoot.played[0]
+            compare(played.game, "sf2")
+            compare(played.listState.filter, "favorites")
         }
 
         // From the Arcade screen: the credits going in, COIN for another and
@@ -626,19 +635,25 @@ Rectangle {
             compare(moduleRoot.credits, 0)
         }
 
-        // Start Info Screen off: the game at once, how to come back unsaid.
-        function test_playStartInfoOff() {
-            moduleRoot.startInfo = false
-            arcadeBackend.played = false
-            var play = open("Play.qml", { game: "galaga", title: "Galaga" })
-            compare(findText(play, "Press COIN + START together"), null)
-            tryCompare(play, "phase", "running", 1000)
-            compare(arcadeBackend.started, ["galaga"])
-            loader.source = ""
+        // Opened for why a game played from the list didn't (Start Info
+        // Screen off): that, at once, and nothing started.
+        function test_playWhyNot() {
             moduleRoot.screen = "Arcade"
-            play = open("Play.qml", { game: "sf2", title: "Street Fighter II" })
-            compare(findText(play, "credits go in"), null)
-            tryCompare(play, "phase", "running", 1000)
+            var play = open("Play.qml", { game: "galaga", title: "Galaga", error: "MAME is not installed" })
+            compare(play.phase, "error")
+            verify(findText(play, "Could not play Galaga") !== null)
+            verify(findText(play, "sudo apt install mame") !== null)
+            compare(findText(play, "Press COIN + START together"), null)
+            loader.source = ""
+            play = open("Play.qml", { game: "mslug", title: "Metal Slug", failed: true,
+                                      message: "Missing sp-s2.sp1", output: "sp-s2.sp1 NOT FOUND" })
+            compare(play.phase, "failed")
+            verify(findText(play, "Missing sp-s2.sp1") !== null)
+            verify(findText(play, "sp-s2.sp1 NOT FOUND") !== null)
+            wait(3500)
+            compare(arcadeBackend.started, [])
+            keyClick(Qt.Key_Escape)
+            compare(root.backs, 1)
         }
 
         // On, from the Arcade screen, every game waits for it to be read.
@@ -648,6 +663,104 @@ Rectangle {
             wait(1500)
             compare(play.phase, "opening")
             tryCompare(play, "phase", "running", 3000)
+        }
+
+        // ── The module's router, Root.qml ────────────────────────────────
+
+        // Root.qml as the module opens, with these settings of its own; and
+        // the view it shows.
+        function openRoot(settings) {
+            appCore.settings = settings
+            return open("Root.qml")
+        }
+        function shown(router) {
+            for (var i = 0; i < router.children.length; ++i) {
+                if (router.children[i].source !== undefined)
+                    return router.children[i].item
+            }
+            return null
+        }
+
+        // Start Info Screen off: START plays the game straight from the
+        // list, on Recently Played, with the credits bought. While it runs,
+        // every key is kept from the list and the screen saver held off; as
+        // it ends the list has the keys again, the game still selected.
+        function test_rootStartInfoOff() {
+            var router = openRoot({ screen: "Arcade", start_info: false })
+            var screen = shown(router)
+            compare(screen.currentSet, "sf2")
+            keyClick(Qt.Key_5)
+            keyClick(Qt.Key_Space)
+            compare(arcadeBackend.started, ["sf2"])
+            compare(arcadeBackend.credited, [1])
+            compare(router.credits, 0)
+            compare(appCore.added, [["com.osdos.arcade", "recent", "game:sf2"]])
+            compare(shown(router), screen)
+            compare(router.playing.game, "sf2")
+            tryVerify(function() { return idleTracker.resets > 0 })
+            keyClick(Qt.Key_Down)
+            keyClick(Qt.Key_Escape)
+            keyClick(Qt.Key_Space)
+            compare(screen.selected, 0)
+            compare(root.backs, 0)
+            compare(arcadeBackend.started, ["sf2"])
+            arcadeBackend.running = false
+            arcadeBackend.finished(0, "ok", "")
+            compare(router.playing, null)
+            compare(shown(router), screen)
+            compare(screen.currentSet, "sf2")
+            keyClick(Qt.Key_Down)
+            compare(screen.currentSet, "1942")
+            // The original screen's tree too.
+            loader.source = ""
+            arcadeBackend.started = []
+            router = openRoot({ start_info: false })
+            var games = shown(router)
+            keyClick(Qt.Key_Down)
+            keyClick(Qt.Key_Down)
+            keyClick(Qt.Key_Right)
+            keyClick(Qt.Key_Return)
+            compare(arcadeBackend.started, ["galaga"])
+            compare(shown(router), games)
+            arcadeBackend.finished(0, "ok", "")
+            compare(router.playing, null)
+        }
+
+        // A game MAME ended with an error, or one that never started, says
+        // why on Play.qml; back from it lands on the game in the list.
+        function test_rootWhyNot() {
+            var router = openRoot({ screen: "Arcade", start_info: false })
+            keyClick(Qt.Key_Down)
+            keyClick(Qt.Key_Space)
+            compare(arcadeBackend.started, ["1942"])
+            arcadeBackend.running = false
+            arcadeBackend.finished(2, "failed", "Missing 1942.zip")
+            var play = shown(router)
+            compare(play.phase, "failed")
+            verify(findText(play, "Missing 1942.zip") !== null)
+            verify(findText(play, "NOT FOUND (tried in mslug neogeo)") !== null)
+            keyClick(Qt.Key_Escape)
+            var screen = shown(router)
+            compare(screen.currentSet, "1942")
+            compare(root.backs, 0)
+            arcadeBackend.playResult = false
+            arcadeBackend.error = "MAME is not installed"
+            keyClick(Qt.Key_Space)
+            play = shown(router)
+            compare(play.phase, "error")
+            compare(router.playing, null)
+            verify(findText(play, "sudo apt install mame") !== null)
+        }
+
+        // Start Info Screen on: how to come back first.
+        function test_rootStartInfoOn() {
+            var router = openRoot({ screen: "Arcade" })
+            keyClick(Qt.Key_Space)
+            var play = shown(router)
+            compare(play.game, "sf2")
+            compare(play.phase, "opening")
+            compare(arcadeBackend.started, [])
+            compare(appCore.added, [["com.osdos.arcade", "recent", "game:sf2"]])
         }
     }
 }

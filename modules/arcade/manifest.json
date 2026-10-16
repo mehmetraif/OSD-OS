@@ -136,7 +136,7 @@
       "label": "Start Info Screen",
       "type": "toggle",
       "default": "ON",
-      "description": "Before a game, how to come back to OSD/OS (and from the Arcade screen, the credits going in)\n[OFF] The game starts at once"
+      "description": "Before a game, how to come back to OSD/OS (and from the Arcade screen, the credits going in)\n[OFF] The game starts straight from the list"
     },
     {
       "key": "high_scores",

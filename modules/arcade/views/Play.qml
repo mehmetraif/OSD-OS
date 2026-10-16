@@ -6,7 +6,10 @@ import Components
 // until the game ends, and the view goes back to the list. On a headless Pi
 // it isn't drawn while MAME runs: what it shows just before the hand-off
 // stays on the screen while MAME starts. A game that couldn't start, or that
-// MAME ended with an error, says why here.
+// MAME ended with an error, says why here: with Start Info Screen off a game
+// starts from the list itself (Root.qml's playGame), and this view opens only
+// for that, with navParams.error (it never started) or navParams.failed (MAME
+// ended with an error: message and output).
 //
 // From the Arcade screen (ArcadeScreen.qml) it has that screen's bar, says
 // how many credits go in, and takes COIN (another credit: MAME's 5, which a
@@ -53,7 +56,6 @@ FocusScope {
     }
 
     function launch() {
-        launchTimer.stop()
         if (playRoot.phase !== "opening")
             return
         if (arcadeBackend.play(playRoot.game, moduleRoot.credits)) {
@@ -67,22 +69,28 @@ FocusScope {
     }
 
     Component.onCompleted: {
+        // Why a game played from the list didn't (Root.qml's playGame).
+        if (navParams.error !== undefined) {
+            phase = "error"
+            message = navParams.error
+        } else if (navParams.failed) {
+            phase = "failed"
+            message = navParams.message || ""
+            output = navParams.output || ""
+        }
         var players = inputManager ? inputManager.players : []
         var key = players.length > 0 ? players[0].playing : ""
         if (key)
             exitKeys = inputManager.buttonLabel(key, "back") + " + " + inputManager.buttonLabel(key, "start")
     }
 
-    // This frame on the screen first, as a headless Pi hands it over. With
-    // Start Info Screen on, long enough to read how to come back: from the
-    // Arcade screen every time, from the tree the first game this run, as
-    // the screen stays as it is while MAME starts.
+    // Long enough to read how to come back: from the Arcade screen every
+    // time, from the tree the first game this run, as the screen stays as it
+    // is while MAME starts; otherwise just this frame on the screen first, as
+    // a headless Pi hands it over.
     Timer {
-        id: launchTimer
-        interval: !moduleRoot.startInfo ? 150
-                  : playRoot.arcade ? 3000
-                  : arcadeBackend && arcadeBackend.played ? 150 : 1500
-        running: true
+        interval: playRoot.arcade ? 3000 : arcadeBackend && arcadeBackend.played ? 150 : 1500
+        running: playRoot.phase === "opening"
         onTriggered: playRoot.launch()
     }
 
@@ -131,7 +139,6 @@ FocusScope {
         if (!isBack(event.key))
             return
         if (playRoot.phase === "opening") {
-            launchTimer.stop()
             playRoot.phase = "canceled"
             playRoot.goBack()
         } else if (playRoot.phase === "error" || playRoot.phase === "failed") {
@@ -201,7 +208,7 @@ FocusScope {
 
         // How to come back, in a box, the way a deck prints a notice.
         Rectangle {
-            visible: moduleRoot.startInfo && playRoot.before
+            visible: playRoot.before
             width: parent.width
             height: howTo.height + 2 * root.sh * 0.025
             color: "transparent"
@@ -236,7 +243,7 @@ FocusScope {
 
         // The credits going in with the game, from the Arcade screen.
         Text {
-            visible: playRoot.arcade && moduleRoot.startInfo && playRoot.before
+            visible: playRoot.arcade && playRoot.before
             width: parent.width
             text: moduleRoot.credits === 0 ? "No credit: insert a coin in the game"
                   : moduleRoot.credits + (moduleRoot.credits === 1 ? " credit goes" : " credits go")
