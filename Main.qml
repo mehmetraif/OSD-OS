@@ -574,10 +574,42 @@ Window {
                                      "selector_effect", "screen_effect", "transition", "menu_music",
                                      "menu_music_file", "menu_music_volume"]
 
+    // The open module's own theme for its screens, if it has one: its
+    // Root.qml's themeShown, a theme's folder name ("" for none), or
+    // undefined to go by Settings' (the Arcade module's Arcade screen). While
+    // it is open that theme is the look, every part of it its own (the
+    // colours, the skin, the text, background and selector effects, the
+    // transition); the screen effect and the menu music go by Settings' rows
+    // still, at THEME the module's theme's. Settings' look comes back as the
+    // module closes.
+    readonly property bool moduleThemed: moduleLoader.item ? typeof moduleLoader.item.themeShown === "string" : false
+    readonly property string moduleTheme: moduleThemed ? moduleLoader.item.themeShown : ""
+    readonly property var moduleThemeKeys: ["osd_theme", "color_scheme", "skin", "text_effect",
+                                            "background_effect", "selector_effect", "transition"]
+    onModuleThemedChanged: applyLooks()
+    onModuleThemeChanged: applyLooks()
+    // Every part of the look, as config.json has it, or the module's theme.
+    function applyLooks() {
+        var app = appCore.get_settings().app || {}
+        // A skin chosen before skins had their name was saved as app.theme.
+        if (app.skin === undefined && app.theme)
+            app.skin = app.theme
+        for (var k = 0; k < lookKeys.length; ++k) {
+            var key = lookKeys[k]
+            if (moduleThemed && moduleThemeKeys.indexOf(key) >= 0)
+                applyLook(key, key === "osd_theme" ? moduleTheme : "")
+            else
+                applyLook(key, app[key])
+        }
+    }
+
     Connections {
         target: appCore
         function onAppSettingChanged(key, value) {
-            if (root.applyLook(key, value)) {
+            if (root.lookKeys.indexOf(key) >= 0) {
+                // Settings' own, once the module with its theme has closed.
+                if (!root.moduleThemed || root.moduleThemeKeys.indexOf(key) < 0)
+                    root.applyLook(key, value)
                 return
             } else if (key === "osd_frame") {
                 root.osdFrame = root.osdFrameOf(value)
@@ -638,17 +670,13 @@ Window {
             appCore.save_setting("", "color_scheme", "")
             app.color_scheme = ""
         }
-        // A theme or a skin gone from its folder reads as none. A skin chosen
-        // before skins had their name was saved as app.theme.
-        if (app.skin === undefined && app.theme)
-            app.skin = app.theme
+        // A theme or a skin gone from its folder reads as none.
         var cube = root.cubeOf(app.transition)
         if (cube !== app.transition) {
             appCore.save_setting("", "transition", cube)
             app.transition = cube
         }
-        for (var k = 0; k < root.lookKeys.length; ++k)
-            root.applyLook(root.lookKeys[k], app[root.lookKeys[k]])
+        root.applyLooks()
         root.osdFrame = root.osdFrameOf(cfg.app && cfg.app.osd_frame)
         root.backdropSolidity = root.solidityOf(cfg.app && cfg.app.transparent_background)
         root.pointerSetting = String((cfg.app && cfg.app.mouse_pointer) || "5")

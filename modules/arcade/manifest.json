@@ -53,9 +53,9 @@
           "key": "look_theme",
           "label": "Theme",
           "type": "list_single",
-          "options": ["Default"],
-          "default": "Default",
-          "description": "The Arcade screen's theme\n[DEFAULT] The one Settings → Theme chooses\nThemes of its own come in a later version"
+          "options_source": "dynamic",
+          "options_slot": "themeOptions",
+          "description": "The Arcade screen's whole look while Arcade is open: its colors, skin, effects and transitions\n[DEFAULT] The one Settings → Theme chooses, with Settings' own parts\n[NONE] No theme: OSD/OS's own look"
         },
         {
           "key": "look_color_scheme",
