@@ -74,7 +74,7 @@ FocusScope {
                 if (filtered[k].key === keepKey) restore = k
             }
             settingsList.currentIndex = Math.min(restore, filtered.length - 1)
-            settingsList.positionViewAtIndex(settingsList.currentIndex, ListView.Contain)
+            settingsList.show(settingsList.currentIndex)
         }
     }
 
@@ -141,11 +141,12 @@ FocusScope {
 
     // Asks the backend for the choices of the dynamic rows shown that it
     // hasn't sent yet (a row just offered), or of all of them again (a
-    // sign-in changes them).
+    // sign-in changes them). A multi-select row's are its own page's, which
+    // asks for them as it opens.
     function requestOptions(again) {
         for (var i = 0; i < schemaItems.length; i++) {
             var item = schemaItems[i]
-            if (item.options_source === "dynamic" && item.options_slot
+            if (item.options_source === "dynamic" && item.options_slot && item.type !== "multiselect_submenu"
                 && (again || dynamicOptions[item.key] === undefined))
                 appCore.invoke_module_action(moduleId, item.options_slot)
         }
@@ -189,17 +190,20 @@ FocusScope {
         return ""
     }
 
+    // A row's new value, shown and saved.
+    function store(key, value) {
+        var updated = Object.assign({}, currentValues)
+        updated[key] = value
+        currentValues = updated
+        appCore.save_setting(moduleId, key, value)
+    }
+
     function cycleValue(index, direction) {
         var item = schemaItems[index]
         if (!item) return
 
         if (item.type === "toggle") {
-            var cur = currentDisplayValue(item)
-            var newVal = (cur === "ON") ? false : true
-            var updated = Object.assign({}, currentValues)
-            updated[item.key] = newVal
-            currentValues = updated
-            appCore.save_setting(moduleId, item.key, newVal)
+            store(item.key, currentDisplayValue(item) !== "ON")
             settingsList.forceLayout()
         } else if (item.type === "list_single") {
             var opts
@@ -212,11 +216,7 @@ FocusScope {
                     if (opts[i].id === storedId) { curIdx = i; break }
                 }
                 var newIdx = (curIdx + direction + opts.length) % opts.length
-                var newId = opts[newIdx].id
-                var u = Object.assign({}, currentValues)
-                u[item.key] = newId
-                currentValues = u
-                appCore.save_setting(moduleId, item.key, newId)
+                store(item.key, opts[newIdx].id)
                 if (item.apply_slot) {
                     appCore.invoke_module_action(moduleId, item.apply_slot)
                 }
@@ -227,11 +227,7 @@ FocusScope {
                 var curVal = valueOf(item) || opts[0]
                 var ci = opts.indexOf(curVal)
                 if (ci < 0) ci = 0
-                var ni = (ci + direction + opts.length) % opts.length
-                var u2 = Object.assign({}, currentValues)
-                u2[item.key] = opts[ni]
-                currentValues = u2
-                appCore.save_setting(moduleId, item.key, opts[ni])
+                store(item.key, opts[(ci + direction + opts.length) % opts.length])
             }
             settingsList.forceLayout()
         } else if (item.type === "slider") {
@@ -239,10 +235,7 @@ FocusScope {
             var at = valueOf(item)
             var v = Math.max(0, Math.min(100, at + direction * (item.step || 10)))
             if (v === at) return
-            var u3 = Object.assign({}, currentValues)
-            u3[item.key] = v
-            currentValues = u3
-            appCore.save_setting(moduleId, item.key, v)
+            store(item.key, v)
         }
         if (rowsFollow(item.key)) {
             buildModel(item.key)
@@ -292,32 +285,10 @@ FocusScope {
         anchors.leftMargin: root.sw * 0.125 //80
     }
 
-    ListView {
+    MenuList {
         id: settingsList
         model: schemaItems
-        anchors.top: parent.top
-        anchors.left: parent.left
-        anchors.topMargin: root.sh * 0.25 //120
-        anchors.leftMargin: root.sw * 0.115625 //74
-        width: root.sw * 0.76875 //492
-        // One row short of the space, so the ▼ fits above the help line; a
-        // row more for each bar that is off (Main.qml's helpRoom, hintRoom).
-        height: root.sh * 0.4666667 + root.helpRoom + root.hintRoom //224
-        clip: true
         focus: true
-
-        Keys.onUpPressed: {
-            if (currentIndex > 0) currentIndex--
-            else {
-                currentIndex = schemaItems.length-1
-            }
-            settingsList.positionViewAtIndex(currentIndex, ListView.Contain)
-        }
-        Keys.onDownPressed: {
-            if (currentIndex < count - 1) currentIndex++
-            else currentIndex = 0
-            settingsList.positionViewAtIndex(currentIndex, ListView.Contain)
-        }
 
         Keys.onLeftPressed: {
             moduleSettingsRoot.cycleValue(currentIndex, -1)
@@ -406,12 +377,6 @@ FocusScope {
                 }
             }
         }
-    }
-
-    // ▲ / ▼ while lines are hidden above or below.
-    ScrollMarks {
-        anchors.fill: settingsList
-        list: settingsList
     }
 
     // --- HELP TEXT --- (shown when a focused row has a description), on one
