@@ -37,7 +37,7 @@ ROM sets are copyrighted, like the games on them: use the games you are entitled
 | Screen | What it is |
 |---|---|
 | **Original** (the default) | OSD/OS's own tree, as the other modules have: Recently Played, Favorites, Search, All Games, and the games by players, decade and maker ([below](#the-original-screen)) |
-| **Arcade** | A cabinet's selection screen: one filter's games at a time, on an arc, with the selected one's picture, high scores and details beside them; ◄ ► go through the filters, COIN buys credits and select or START plays ([below](#the-arcade-screen)) |
+| **Arcade** | A cabinet's selection screen: one filter's games at a time, on an arc, with the selected one's picture and high scores beside them and what it is under them; ◄ ► go through the filters, COIN buys credits and select or START plays ([below](#the-arcade-screen)) |
 
 Both list the same games from the same folder, share Recently Played and Favorites, and play a game the same way. Start Filter, Hint Bar and Help Line are the Arcade screen's own settings, so Settings → Arcade shows them only while Screen is Arcade. Its look is Settings' own, as every screen's is: its theme, colors, skin, background, selector effect and transitions.
 

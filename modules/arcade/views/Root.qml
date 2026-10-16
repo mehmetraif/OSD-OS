@@ -32,40 +32,43 @@ FocusScope {
     readonly property var helpLineShown: arcadeScreen ? helpLine : undefined
 
     // The credits bought on the Arcade screen with COIN: they go in the next
-    // game played (Play.qml), as many as ArcadeBackend puts in (kMaxCredits).
+    // game started (startGame()), as many as ArcadeBackend puts in
+    // (kMaxCredits).
     property int credits: 0
     readonly property int maxCredits: 9
     function addCredit() { credits = Math.min(maxCredits, credits + 1) }
 
-    // A game about to be played, on Recently Played (the newest 30).
-    function addRecent(set, name) {
-        appCore.add_to_list(moduleId, "recent", { name: name, path: "game:" + set, isFolder: false }, 30)
+    // Starts a game in MAME with the credits bought, which are then spent.
+    // False, with arcadeBackend.lastError(), when it couldn't be started.
+    function startGame(set) {
+        if (!arcadeBackend || !arcadeBackend.play(set, credits))
+            return false
+        credits = 0
+        return true
     }
 
-    // Plays a game from either screen, putting it on Recently Played; coming
-    // back lands on it as listState says. With Start Info Screen on, the
-    // screen before it (Play.qml) says how to come back first. With it off
-    // the game starts from the list itself, which stays on the screen while
-    // MAME starts and has every key kept from it till the game ends
-    // (keyCatcher): Play.qml only says why a game didn't play.
-    function playGame(set, name, listState) {
-        addRecent(set, name)
+    // A game a view asks for (navigateTo Play.qml with its set and title),
+    // put on Recently Played (the newest 30); coming back lands on it as
+    // listState says. With Start Info Screen on, Play.qml says how to come
+    // back first, then starts it. With it off the game starts from the list
+    // itself, which stays on the screen while MAME starts and has every key
+    // kept from it till the game ends (keyCatcher): Play.qml only says why a
+    // game didn't play.
+    function playGame(params, listState) {
+        appCore.add_to_list(moduleId, "recent", { name: params.title, path: "game:" + params.game,
+                                                  isFolder: false }, 30)
         if (startInfo) {
-            navigateTo("Play.qml", { game: set, title: name }, listState)
+            navigateTo("Play.qml", params, listState)
             return
         }
-        if (!arcadeBackend)
-            return
         // Before MAME is started, for a game that should end at once.
-        playing = { game: set, title: name, listState: listState || {} }
+        playing = { game: params.game, title: params.title, listState: listState || {} }
         keyCatcher.forceActiveFocus()
-        if (arcadeBackend.play(set, credits)) {
-            // In the game now.
-            credits = 0
+        if (startGame(params.game))
             return
-        }
         playing = null
-        navigateTo("Play.qml", { game: set, title: name, error: arcadeBackend.lastError() }, listState)
+        navigateTo("Play.qml", { game: params.game, title: params.title,
+                                 error: arcadeBackend ? arcadeBackend.lastError() : "" }, listState)
     }
     // The game playGame() started from the list, while it runs: { game,
     // title, listState }; null for none.
@@ -128,19 +131,19 @@ FocusScope {
     }
 
     // While a game from the list runs, every key (both read the controllers)
-    // is kept from the list, and it counts as activity: no screen saver comes
-    // up behind it.
+    // is kept from the list.
     FocusScope {
         id: keyCatcher
         anchors.fill: parent
         Keys.onPressed: function(event) { event.accepted = true }
         Keys.onReleased: function(event) { event.accepted = true }
     }
+    // A game played counts as activity: no screen saver comes up behind it.
     Timer {
         interval: 10000
         repeat: true
         triggeredOnStart: true
-        running: moduleRoot.playing !== null
+        running: arcadeBackend ? arcadeBackend.running : false
         onTriggered: if (idleTracker) idleTracker.resetActivity()
     }
 
@@ -153,7 +156,13 @@ FocusScope {
         Connections {
             target: internalLoader.item
             ignoreUnknownSignals: true
-            function onNavigateTo(path, params, listState) { moduleRoot.navigateTo(path, params, listState) }
+            function onNavigateTo(path, params, listState) {
+                // A game asked for, played as Start Info Screen says.
+                if (path === "Play.qml" && params && params.game)
+                    moduleRoot.playGame(params, listState)
+                else
+                    moduleRoot.navigateTo(path, params, listState)
+            }
             function onReplaceWith(path, params) { moduleRoot.replaceWith(path, params) }
             function onGoBack() { moduleRoot.navigateBack() }
         }

@@ -59,16 +59,15 @@ Rectangle {
         property string moduleIcon: ""
         property string screen: "Original"
         readonly property bool arcadeScreen: screen === "Arcade"
-        property bool startInfo: true
         property string startFilter: "all"
         property int credits: 0
         readonly property int maxCredits: 9
         function addCredit() { credits = Math.min(maxCredits, credits + 1) }
-        // playGame, noted: the game and where coming back lands, as the
-        // views hand them over (Root.qml's own is tested on it).
-        property var played: []
-        function playGame(set, name, listState) {
-            played = played.concat([{ game: set, title: name, listState: listState }])
+        function startGame(set) {
+            if (!arcadeBackend.play(set, credits))
+                return false
+            credits = 0
+            return true
         }
     }
 
@@ -213,7 +212,6 @@ Rectangle {
             moduleRoot.screen = "Original"
             root.hintBar = true
             root.helpLine = true
-            moduleRoot.startInfo = true
             moduleRoot.startFilter = "all"
             moduleRoot.credits = 0
             arcadeBackend.credited = []
@@ -245,7 +243,6 @@ Rectangle {
             idleTracker.resets = 0
             appCore.added = []
             appCore.settings = {}
-            moduleRoot.played = []
             root.navigations = []
             root.backs = 0
         }
@@ -261,30 +258,20 @@ Rectangle {
             return loader.item
         }
 
-        function findText(item, text) {
-            if (item.text !== undefined && String(item.text).indexOf(text) >= 0 && item.visible)
+        // The text item showing this, or with exact, showing it alone.
+        function findText(item, text, exact) {
+            if (item.text !== undefined && item.visible
+                    && (exact ? String(item.text) === text : String(item.text).indexOf(text) >= 0))
                 return item
             for (var i = 0; i < item.children.length; i++) {
-                var found = findText(item.children[i], text)
+                var found = findText(item.children[i], text, exact)
                 if (found)
                     return found
             }
             return null
         }
 
-        // The text item showing exactly this.
-        function findExact(item, text) {
-            if (item.text !== undefined && String(item.text) === text && item.visible)
-                return item
-            for (var i = 0; i < item.children.length; i++) {
-                var found = findExact(item.children[i], text)
-                if (found)
-                    return found
-            }
-            return null
-        }
-
-        // A game chosen in the tree plays, and goes on Recently Played.
+        // A game chosen in the tree plays.
         function test_choose() {
             var games = open("Games.qml")
             keyClick(Qt.Key_Down)
@@ -294,12 +281,13 @@ Rectangle {
             verify(findText(games, "1981") !== null)
             keyClick(Qt.Key_Down)   // Pac-Man
             keyClick(Qt.Key_Return)
-            compare(moduleRoot.played.length, 1)
-            var played = moduleRoot.played[0]
-            compare(played.game, "pacman")
-            compare(played.title, "Pac-Man (Midway)")
+            compare(root.navigations.length, 1)
+            var nav = root.navigations[0]
+            compare(nav.path, "Play.qml")
+            compare(nav.params.game, "pacman")
+            compare(nav.params.title, "Pac-Man (Midway)")
             // Back from the game lands where it was chosen.
-            compare(played.listState.trail[played.listState.trail.length - 1].path, "all")
+            compare(nav.listState.trail[nav.listState.trail.length - 1].path, "all")
         }
 
         // What stands in the way comes first in the line under the tree.
@@ -340,10 +328,10 @@ Rectangle {
         // The startup favourite plays at once, from Favorites.
         function test_startup() {
             open("Games.qml", { startupPlay: { name: "Pac-Man (Midway)", path: "game:pacman" } })
-            tryVerify(function() { return moduleRoot.played.length === 1 })
-            var played = moduleRoot.played[0]
-            compare(played.game, "pacman")
-            compare(played.listState.trail[1].path, "favorites")
+            tryVerify(function() { return root.navigations.length === 1 })
+            var nav = root.navigations[0]
+            compare(nav.params.game, "pacman")
+            compare(nav.listState.trail[1].path, "favorites")
         }
 
         // How to come back, then MAME has the screen and every key is kept
@@ -359,7 +347,6 @@ Rectangle {
             compare(arcadeBackend.started, [])
             tryCompare(play, "phase", "running", 3000)
             compare(arcadeBackend.started, ["galaga"])
-            tryVerify(function() { return idleTracker.resets > 0 })
             keyClick(Qt.Key_Escape)
             keyClick(Qt.Key_Down)
             keyClick(Qt.Key_Return)
@@ -510,12 +497,13 @@ Rectangle {
                 keyClick(Qt.Key_5)
             compare(moduleRoot.credits, 9)
             keyClick(Qt.Key_Space)
-            compare(moduleRoot.played.length, 1)
-            var played = moduleRoot.played[0]
-            compare(played.game, "sf2")
-            compare(played.title, "Street Fighter II: The World Warrior (World 910522)")
-            compare(played.listState.filter, "all")
-            compare(played.listState.set, "sf2")
+            compare(root.navigations.length, 1)
+            var nav = root.navigations[0]
+            compare(nav.path, "Play.qml")
+            compare(nav.params.game, "sf2")
+            compare(nav.params.title, "Street Fighter II: The World Warrior (World 910522)")
+            compare(nav.listState.filter, "all")
+            compare(nav.listState.set, "sf2")
             keyClick(Qt.Key_Escape)
             compare(root.backs, 1)
         }
@@ -526,22 +514,22 @@ Rectangle {
         function test_screenSelect() {
             var screen = openScreen()
             keyPress(Qt.Key_Return)
-            compare(moduleRoot.played.length, 0)
+            compare(root.navigations.length, 0)
             wait(300)
             keyRelease(Qt.Key_Return)
-            compare(moduleRoot.played.length, 1)
-            compare(moduleRoot.played[0].game, "sf2")
+            compare(root.navigations.length, 1)
+            compare(root.navigations[0].params.game, "sf2")
             compare(findText(screen, "Add to Favorites"), null)
             // A release without its press.
             keyRelease(Qt.Key_Return)
-            compare(moduleRoot.played.length, 1)
+            compare(root.navigations.length, 1)
             // Another key while it is held.
             keyPress(Qt.Key_Return)
             keyClick(Qt.Key_Down)
             wait(1000)
             compare(findText(screen, "Add to Favorites"), null)
             keyRelease(Qt.Key_Return)
-            compare(moduleRoot.played.length, 1)
+            compare(root.navigations.length, 1)
             compare(screen.currentSet, "1942")
             // Held.
             keyClick(Qt.Key_Up)
@@ -549,22 +537,22 @@ Rectangle {
             tryVerify(function() { return findText(screen, "Add to Favorites") !== null }, 1500)
             verify(findText(screen, "Play at Startup") !== null)
             keyRelease(Qt.Key_Return)
-            compare(moduleRoot.played.length, 1)
+            compare(root.navigations.length, 1)
             // A pad's Back button is Back in them, and keys they leave don't
             // buy credits behind them.
             verify(!screen.takesCoin)
             keyClick(Qt.Key_5)
             compare(moduleRoot.credits, 0)
             keyClick(Qt.Key_Return)
-            compare(moduleRoot.played.length, 2)
-            compare(moduleRoot.played[1].game, "sf2")
+            compare(root.navigations.length, 2)
+            compare(root.navigations[1].params.game, "sf2")
         }
 
         // The selected game's name, too long for its row, scrolls through;
         // the others' are cut short.
         function test_screenScroll() {
             var screen = openScreen()
-            var name = findExact(screen, "Street Fighter II")
+            var name = findText(screen, "Street Fighter II", true)
             verify(name !== null)
             compare(name.x, 0)
             tryVerify(function() { return name.x < 0 }, 4000)
@@ -661,10 +649,10 @@ Rectangle {
         // The startup favourite plays at once, as if chosen in Favorites.
         function test_screenStartup() {
             openScreen({ startupPlay: { name: "Street Fighter II", path: "game:sf2" } })
-            tryVerify(function() { return moduleRoot.played.length === 1 })
-            var played = moduleRoot.played[0]
-            compare(played.game, "sf2")
-            compare(played.listState.filter, "favorites")
+            tryVerify(function() { return root.navigations.length === 1 })
+            var nav = root.navigations[0]
+            compare(nav.params.game, "sf2")
+            compare(nav.listState.filter, "favorites")
         }
 
         // From the Arcade screen: the credits going in, COIN for another and

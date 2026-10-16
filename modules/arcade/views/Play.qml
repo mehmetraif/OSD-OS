@@ -9,7 +9,9 @@ import Components
 // MAME ended with an error, says why here: with Start Info Screen off a game
 // starts from the list itself (Root.qml's playGame), and this view opens only
 // for that, with navParams.error (it never started) or navParams.failed (MAME
-// ended with an error: message and output).
+// ended with an error: message and output). Root.qml starts the game, with
+// the credits bought (startGame()), and keeps the screen saver off while it
+// runs.
 //
 // From the Arcade screen (ArcadeScreen.qml) it has that screen's bar, says
 // how many credits go in, and takes COIN (another credit: MAME's 5, which a
@@ -43,7 +45,6 @@ FocusScope {
     // ("COIN + START" on a JAMMA stick, "BACK + START" on an Xbox pad); ""
     // with no controller.
     property string exitKeys: ""
-    readonly property bool running: arcadeBackend ? arcadeBackend.running : false
     // Played from the Arcade screen rather than the original tree.
     readonly property bool arcade: moduleRoot.arcadeScreen
     readonly property bool before: phase === "opening" || phase === "running"
@@ -61,13 +62,11 @@ FocusScope {
     function launch() {
         if (playRoot.phase !== "opening")
             return
-        if (arcadeBackend.play(playRoot.game, moduleRoot.credits)) {
+        if (moduleRoot.startGame(playRoot.game)) {
             playRoot.phase = "running"
-            // In the game now.
-            moduleRoot.credits = 0
         } else {
             playRoot.phase = "error"
-            playRoot.message = arcadeBackend.lastError()
+            playRoot.message = arcadeBackend ? arcadeBackend.lastError() : ""
         }
     }
 
@@ -95,15 +94,6 @@ FocusScope {
         interval: playRoot.arcade ? 3000 : arcadeBackend && arcadeBackend.played ? 150 : 1500
         running: playRoot.phase === "opening"
         onTriggered: playRoot.launch()
-    }
-
-    // A game played counts as activity: no screen saver comes up behind it.
-    Timer {
-        interval: 10000
-        repeat: true
-        triggeredOnStart: true
-        running: playRoot.running
-        onTriggered: if (idleTracker) idleTracker.resetActivity()
     }
 
     Connections {

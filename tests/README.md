@@ -100,7 +100,7 @@ ctest --test-dir build-tests --output-on-failure
   - Play at Startup follows the app's startup favourite whichever way it is set, None clears it only while it is the module's, and the choices are None and the favorites.
   - A `games.json` from before the system was kept is read as none, and every set asked about again.
 - **arcade_views** (`qml/tst_arcade.qml`, run by tree_browser's runner): the Arcade module's views, `modules/arcade/views/Games.qml`, `ArcadeScreen.qml` and `Play.qml`, and its router, `Root.qml`, against a stand-in for `ArcadeBackend`.
-  - A game chosen in the tree plays and goes on Recently Played, and back from it lands where it was chosen; what stands in the way of the list shows under the tree, and on the empty screen with where the games go (not for a folder that can't be read); a set that isn't a game says why; the startup favourite plays at once, from Favorites.
+  - A game chosen in the tree plays, and back from it lands where it was chosen; what stands in the way of the list shows under the tree, and on the empty screen with where the games go (not for a folder that can't be read); a set that isn't a game says why; the startup favourite plays at once, from Favorites.
   - A game's screen says how to come back in player 1's own buttons (`COIN + START`), or with Esc when there is no controller; the first game of a run waits for that to be read, and back meanwhile starts nothing.
   - While MAME has the screen every key is kept from the menus and the screen saver held off, until the game ends and the list comes back.
   - A game MAME ended with an error says why, with MAME's lines; one that never started says how to install MAME.

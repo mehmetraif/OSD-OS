@@ -20,8 +20,8 @@ Item {
     readonly property real v: root.sh / 720
     readonly property real pad: Math.round(12 * u)
     readonly property real gap: Math.round(8 * u)
-    // The hint bar's letters, 18 of 480 lines.
-    readonly property int textSize: Math.round(27 * v)
+    // The hint bar's letters.
+    readonly property real textSize: root.sh * 0.0375 //18
 
     // Where the design has it, over the list, beside the column's picture.
     x: Math.round(120 * u)

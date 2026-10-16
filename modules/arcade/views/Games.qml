@@ -5,12 +5,13 @@ import Components
 // Played, Favorites and Search, then All Games and the games by players,
 // decade and maker, from what MAME says of each set in the games folder
 // (ArcadeBackend), and the sets MAME has no game of under Not Recognized.
-// Select on a game plays it (Root.qml's playGame), right on it offers its
-// options (EntryOptions: its favourite, Play at Startup), and the line under
-// the tree says what the game is. Coming back from a game restores the tree
-// from the listState handed to navigateTo; a game played from the tree
-// itself (Start Info Screen off) leaves it as it was. Opened with the
-// startup favourite (navParams.startupPlay), it plays that at once.
+// Select on a game plays it (navigateTo Play.qml, which Root.qml plays as
+// Start Info Screen says), right on it offers its options (EntryOptions: its
+// favourite, Play at Startup), and the line under the tree says what the
+// game is. Coming back from a game restores the tree from the listState
+// handed to navigateTo; a game played from the tree itself (Start Info
+// Screen off) leaves it as it was. Opened with the startup favourite
+// (navParams.startupPlay), it plays that at once.
 FocusScope {
     id: gamesRoot
 
@@ -30,7 +31,7 @@ FocusScope {
 
     // Plays a game; trail is where coming back lands.
     function play(item, trail) {
-        moduleRoot.playGame(item.game, item.name, { trail: trail })
+        gamesRoot.navigateTo("Play.qml", { game: item.game, title: item.name }, { trail: trail })
     }
 
     // The startup favourite, played as if chosen in Favorites, so coming back
