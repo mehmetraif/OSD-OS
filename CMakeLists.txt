@@ -184,6 +184,7 @@ if(Qt6ShaderTools_FOUND)
             shaders/bg-fire.frag
             shaders/bg-stars.frag
             shaders/bg-snow.frag
+            shaders/bg-flag.frag
             shaders/ripple.frag
             shaders/wave.frag
             shaders/drop.frag)
