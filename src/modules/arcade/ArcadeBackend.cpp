@@ -857,27 +857,6 @@ void ArcadeBackend::startupGameOptions() {
     emit dynamicOptionsReady(QStringLiteral("play_at_startup"), options);
 }
 
-void ArcadeBackend::themeOptions() {
-    // Default was the row's only choice before it listed the themes, saved
-    // by its name.
-    QVariantList options{ QVariantMap{ { QStringLiteral("id"), QString() }, { QStringLiteral("label"), QStringLiteral("Default") },
-                                       { QStringLiteral("old"), QStringLiteral("Default") } },
-                          QVariantMap{ { QStringLiteral("id"), QStringLiteral("None") }, { QStringLiteral("label"), QStringLiteral("None") } } };
-    QStringList labels{ QStringLiteral("Default"), QStringLiteral("None") };
-    const QVariantList themes = m_appCore ? m_appCore->themes() : QVariantList();
-    for (const QVariant &v : themes) {
-        const QVariantMap theme = v.toMap();
-        const QString id = theme.value(QStringLiteral("id")).toString();
-        // Two of the same name told apart by their folders, as in Settings.
-        QString label = theme.value(QStringLiteral("name")).toString();
-        if (labels.contains(label))
-            label += QStringLiteral(" (%1)").arg(id);
-        labels << label;
-        options << QVariantMap{ { QStringLiteral("id"), id }, { QStringLiteral("label"), label } };
-    }
-    emit dynamicOptionsReady(QStringLiteral("look_theme"), options);
-}
-
 // ---------------------------------------------------------------------------
 // The original screen's tree.
 

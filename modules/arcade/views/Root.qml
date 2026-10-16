@@ -17,27 +17,19 @@ FocusScope {
 
     // Settings → Arcade's, as the module opens. Screen: "Original", the tree
     // (Games.qml), or "Arcade", the selection screen (ArcadeScreen.qml),
-    // whose own are its Hint Bar and Help Line, its theme (Look → Theme) and
-    // the filter it opens on. Start Info Screen is both's: how to come back,
-    // before a game.
+    // whose own are its Hint Bar and Help Line and the filter it opens on.
+    // Start Info Screen is both's: how to come back, before a game.
     property string screen: "Original"
     readonly property bool arcadeScreen: screen === "Arcade"
     property bool hintBar: true
     property bool helpLine: true
     property bool startInfo: true
     property string startFilter: "all"
-    // Look → Theme as saved: "" (Default, Settings' theme), "None", or a
-    // theme's folder name.
-    property string lookTheme: ""
     // The Arcade screen's Hint Bar and Help Line, which Main.qml's hintBar and
     // helpLine go by while the module is open, its dialogs and all; the
     // original screen goes by Settings' own.
     readonly property var hintBarShown: arcadeScreen ? hintBar : undefined
     readonly property var helpLineShown: arcadeScreen ? helpLine : undefined
-    // And its theme, the whole look while the module is open (Main.qml): a
-    // theme's folder name, "" for none, undefined for Settings' own.
-    readonly property var themeShown: !arcadeScreen || lookTheme === "" ? undefined
-                                      : lookTheme === "None" ? "" : lookTheme
 
     // The credits bought on the Arcade screen with COIN: they go in the next
     // game played (Play.qml), as many as ArcadeBackend puts in (kMaxCredits).
@@ -175,8 +167,6 @@ FocusScope {
         helpLine = isOn(own.help_line)
         startInfo = isOn(own.start_info)
         startFilter = own.start_filter || "all"
-        // Default was saved by its name while it was the only choice.
-        lookTheme = own.look_theme && own.look_theme !== "Default" ? own.look_theme : ""
         // The folder looked at again, and MAME asked about any game new in
         // it, before the list asks for what is in it.
         if (arcadeBackend)

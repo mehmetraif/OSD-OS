@@ -122,10 +122,6 @@ public:
     Q_INVOKABLE void startFilterOptions();
     // manifest: play_at_startup's: None and the favorites.
     Q_INVOKABLE void startupGameOptions();
-    // manifest: look_theme's: Default (Settings' theme, saved as ""), None
-    // and OSD/OS's themes (AppCore::themes()), as Settings → Theme names
-    // them.
-    Q_INVOKABLE void themeOptions();
 
     // The sets played last, newest first: the High Scores module's Recently
     // Played, as main.cpp hands them over.

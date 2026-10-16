@@ -897,31 +897,6 @@ private slots:
         QCOMPARE(arcade.filters().size(), 12);
     }
 
-    // Look → Theme's choices: Default (Settings' theme, saved as "", the
-    // row's one choice saved by its name before), None, and the themes by
-    // name, two of the same name told apart by their folders.
-    void themeOptions() {
-        const QString themes = m_data.path() + QStringLiteral("/themes");
-        const auto restore = qScopeGuard([themes] { QDir(themes).removeRecursively(); });
-        writeFile(themes + QStringLiteral("/neon/theme.json"), R"({ "name": "Neon Nights", "colors": "video1" })");
-        writeFile(themes + QStringLiteral("/neon2/theme.json"), R"({ "name": "Neon Nights", "colors": "video2" })");
-        writeFile(themes + QStringLiteral("/amber/theme.json"), R"({ "name": "Amber", "colors": "video3" })");
-        AppCore core(m_data.path(), m_data.path());
-        ArcadeBackend arcade(m_data.path(), m_data.path(), &core, nullptr);
-        QSignalSpy options(&arcade, &ArcadeBackend::dynamicOptionsReady);
-        arcade.themeOptions();
-        QCOMPARE(options.size(), 1);
-        QCOMPARE(options.at(0).at(0).toString(), QStringLiteral("look_theme"));
-        const QVariantList list = options.at(0).at(1).toList();
-        QStringList choices;
-        for (const QVariant &v : list)
-            choices << v.toMap().value(QStringLiteral("id")).toString() + QLatin1Char('=') + v.toMap().value(QStringLiteral("label")).toString();
-        QCOMPARE(choices, QStringList({ QStringLiteral("=Default"), QStringLiteral("None=None"),
-                                        QStringLiteral("amber=Amber"), QStringLiteral("neon=Neon Nights"),
-                                        QStringLiteral("neon2=Neon Nights (neon2)") }));
-        QCOMPARE(list.first().toMap().value(QStringLiteral("old")).toString(), QStringLiteral("Default"));
-    }
-
     // The credits bought go in as the game starts, nine at most: MAME runs
     // the script that puts them in.
     void credits() {

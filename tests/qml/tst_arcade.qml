@@ -12,7 +12,7 @@ import QtTest
 // and help line, and the credits going in with the game. The module's
 // router, Root.qml: a game played straight from the list with Start Info
 // Screen off, every key kept from it meanwhile, back on it after, or why it
-// didn't play; and the Arcade screen's theme.
+// didn't play.
 Rectangle {
     id: root
     color: surfaceColor
@@ -816,21 +816,6 @@ Rectangle {
             compare(play.phase, "opening")
             compare(arcadeBackend.started, [])
             compare(appCore.added, [["com.osdos.arcade", "recent", "game:sf2"]])
-        }
-
-        // Look → Theme: the Arcade screen's theme while the module is open
-        // (Main.qml goes by themeShown); Default, as it was saved while it
-        // was the only choice too, and the original screen go by Settings'.
-        function test_rootTheme() {
-            compare(openRoot({ screen: "Arcade", look_theme: "arcade" }).themeShown, "arcade")
-            loader.source = ""
-            compare(openRoot({ screen: "Arcade", look_theme: "None" }).themeShown, "")
-            loader.source = ""
-            compare(openRoot({ screen: "Arcade", look_theme: "Default" }).themeShown, undefined)
-            loader.source = ""
-            compare(openRoot({ screen: "Arcade" }).themeShown, undefined)
-            loader.source = ""
-            compare(openRoot({ look_theme: "arcade" }).themeShown, undefined)
         }
     }
 }
