@@ -39,7 +39,7 @@ ROM sets are copyrighted, like the games on them: use the games you are entitled
 | **Original** (the default) | OSD/OS's own tree, as the other modules have: Recently Played, Favorites, Search, All Games, and the games by players, decade and maker ([below](#the-original-screen)) |
 | **Arcade** | A cabinet's selection screen: one filter's games at a time, on an arc, with the selected one's picture, high scores and details beside them; ◄ ► go through the filters, COIN buys credits and select or START plays ([below](#the-arcade-screen)) |
 
-Both list the same games from the same folder, share Recently Played and Favorites, and play a game the same way. Start Filter, Look, Hint Bar and Help Line are the Arcade screen's own settings, so Settings → Arcade shows them only while Screen is Arcade.
+Both list the same games from the same folder, share Recently Played and Favorites, and play a game the same way. Start Filter, Hint Bar and Help Line are the Arcade screen's own settings, so Settings → Arcade shows them only while Screen is Arcade. Its look is Settings' own, as every screen's is: its theme, colors, skin, background, selector effect and transitions.
 
 ## The original screen
 
@@ -193,7 +193,6 @@ Settings → Arcade.
 | Screen | Original, Arcade | Original | How the games are listed, from the next time Arcade opens: the tree, or the Arcade screen ([Two screens](#two-screens)) | `modules.com.osdos.arcade.screen` |
 | Start Filter | All Games, Favorites, Recently Played, then the genres, players and decades there are | All Games | The filter the Arcade screen opens on ([Filters](#filters)); while it has no games, the first that has. Shown while Screen is Arcade | `modules.com.osdos.arcade.start_filter` |
 | Play at Startup | None, then the favorites | None | A favorite game started straight after the boot screen, as a game's options set it ([A game's options](#a-games-options)). One for the whole app: choosing a game replaces another module's | `modules.com.osdos.arcade.play_at_startup` |
-| Look | (a page) | | The Arcade screen's own theme, color scheme, skin, music, background effect (Stars, Checkered Flag, Matrix), selector effect and transitions. Each comes in a later version: for now they offer their default alone, and the screen has the app's look. Shown while Screen is Arcade | `modules.com.osdos.arcade.look_theme`, `look_color_scheme`, `look_skin`, `look_music`, `look_background_effect`, `look_selector_effect`, `look_filter_transition`, `look_game_transition` |
 | Hint Bar | ON, OFF | ON | The keys at the foot of the Arcade screen and its windows, in place of Settings' own Hint Bar; off, the list and the high scores take its room. Shown while Screen is Arcade | `modules.com.osdos.arcade.hint_bar` |
 | Help Line | ON, OFF | ON | The game's full name and what it is (its system, maker, year and players) under the Arcade screen's list, in place of Settings' own Help Line; off, the list and the high scores take its room. Shown while Screen is Arcade | `modules.com.osdos.arcade.help_line` |
 | Start Info Screen | ON, OFF | ON | Before a game, the screen of how to come back (and from the Arcade screen, the credits going in); off, the game starts straight from the list ([Playing](#playing)) | `modules.com.osdos.arcade.start_info` |
@@ -212,8 +211,6 @@ Settings → Arcade.
 | `screen` | `"Original"` or `"Arcade"` |
 | `start_filter` | The filter's id: `"all"`, `"favorites"`, `"recent"`, `"genres/<genre>"` (`"genres/Fighter"`), `"players/<n>"` (`"players/2"`) or `"years/<decade>"` (`"years/1980s"`, `"years/unknown"`) |
 | `play_at_startup` | The game's set (`"galaga"`), `""` for None; the app's own `startup_favorite` holds the same game, and either changes the other |
-| `look_theme` | `"Default"` |
-| `look_color_scheme`, `look_skin`, `look_music`, `look_background_effect`, `look_selector_effect`, `look_filter_transition`, `look_game_transition` | `"Theme"`, the default; `look_background_effect` also `"Off"`, `"Stars"`, `"Checkered Flag"` or `"Matrix"`, the other effects and transitions `"Off"` |
 | `online_high_scores`, `online_play` | `"Off"` |
 | `video` | `"Auto"`, `"OpenGL"`, `"BGFX"`, `"Accelerated"` or `"Software"` |
 
@@ -291,7 +288,7 @@ mame galaga \
 | The Arcade screen has no genre filters | Put `catver.ini` in the games folder or in `arcade` in the data folder ([Genres](#genres)), then open Arcade again |
 | `No Picture` | Put the game's picture in the games folder's `snap` folder, named by its set: `snap/galaga.png` ([Pictures](#pictures)). The frame names the file it looks for |
 | The credits bought don't show in the game | They go in 5 seconds into the game. A board still starting up then may miss them: insert a coin in the game with COIN. A game MAME shows a warning for first counts them once the warning is gone |
-| The Arcade screen's settings aren't in Settings → Arcade | Start Filter, Look, Hint Bar and Help Line show while **Screen** is **Arcade** |
+| The Arcade screen's settings aren't in Settings → Arcade | Start Filter, Hint Bar and Help Line show while **Screen** is **Arcade** |
 
 The app's log has the module's lines: `journalctl -u osdos -b | grep -E 'Arcade|Scripts'` with the service, such as `[Arcade] games folder: /media/OSD-OS/Games/Arcade`, `[Arcade] Asking MAME about 18 games`, `[Arcade] mslug: Missing sp-s2.sp1, …` and `[Scripts] 'mame' finished: failed (exit 2)`. To see all MAME says, run it by hand from a terminal with the [arguments above](#files-it-keeps). See [Troubleshooting](https://github.com/mehmetraif/OSD-OS/wiki/Troubleshooting).
 
