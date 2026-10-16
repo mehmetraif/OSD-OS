@@ -98,9 +98,16 @@ FocusScope {
     }
 
     // A row's value as the page shows it: a toggle's "ON" or "OFF", a list's
-    // choice, an unset one's default (a dynamic list's first choice).
+    // choice, a slider's 0 to 100, an unset one's default (a dynamic list's
+    // first choice).
     function valueOf(item) {
         var saved = currentValues[item.key]
+        if (item.type === "slider") {
+            var n = parseInt(saved)
+            if (isNaN(n))
+                n = item.default !== undefined ? item.default : 100
+            return Math.max(0, Math.min(100, n))
+        }
         if (item.type === "toggle") {
             if (saved === undefined || saved === null) saved = (item.default === "ON")
             return (saved === true || saved === "ON") ? "ON" : "OFF"
@@ -227,6 +234,15 @@ FocusScope {
                 appCore.save_setting(moduleId, item.key, opts[ni])
             }
             settingsList.forceLayout()
+        } else if (item.type === "slider") {
+            // A step toward one end, 10 unless the row says.
+            var at = valueOf(item)
+            var v = Math.max(0, Math.min(100, at + direction * (item.step || 10)))
+            if (v === at) return
+            var u3 = Object.assign({}, currentValues)
+            u3[item.key] = v
+            currentValues = u3
+            appCore.save_setting(moduleId, item.key, v)
         }
         if (rowsFollow(item.key)) {
             buildModel(item.key)
@@ -354,14 +370,41 @@ FocusScope {
             }
         }
 
-        // Lines read like a camcorder's menu: "DISPLAY······ON".
-        delegate: MenuRow {
+        // Lines read like a camcorder's menu: "DISPLAY······ON". A slider
+        // ("type": "slider") is its label, and the deck's tape bar in whole
+        // lines under it, as in Settings: ◄ ► move the ▼ between its ends
+        // ("start_text", "end_text"), a "step" at a time.
+        delegate: Item {
+            id: rowItem
+            required property var modelData
+            required property int index
+            readonly property bool slider: modelData.type === "slider"
+            readonly property real lineHeight: root.sh * 0.0583333 //28
+            readonly property int barLines: slider ? Math.ceil((tape.height + 2 * root.px) / lineHeight) : 0
             width: settingsList.width
-            height: root.sh * 0.0583333 //28
-            label: modelData.label || ""
-            value: moduleSettingsRoot.hasValue(modelData)
-                ? moduleSettingsRoot.currentDisplayValue(modelData) : ""
-            selected: settingsList.currentIndex === index
+            height: lineHeight * (1 + barLines)
+
+            MenuRow {
+                width: parent.width
+                height: rowItem.lineHeight
+                label: rowItem.modelData.label || ""
+                value: moduleSettingsRoot.hasValue(rowItem.modelData)
+                    ? moduleSettingsRoot.currentDisplayValue(rowItem.modelData) : ""
+                selected: settingsList.currentIndex === rowItem.index
+            }
+            Loader {
+                id: tape
+                active: rowItem.slider
+                x: root.sw * 0.009375 //6
+                y: rowItem.lineHeight + Math.round((rowItem.barLines * rowItem.lineHeight - height) / 2)
+                width: parent.width - 2 * x
+                sourceComponent: OsdTapeBar {
+                    fontSize: root.sh * 0.0333333 //16
+                    value: moduleSettingsRoot.valueOf(rowItem.modelData) / 100
+                    startText: rowItem.modelData.start_text || ""
+                    endText: rowItem.modelData.end_text || ""
+                }
+            }
         }
     }
 

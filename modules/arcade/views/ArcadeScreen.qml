@@ -66,16 +66,19 @@ FocusScope {
     readonly property int minPitch: 54
     readonly property int perPage: Math.floor((listBottom - listTop - rowHeight) / minPitch) + 1
     readonly property int pitch: Math.floor((listBottom - listTop - rowHeight) / (perPage - 1))
-    // The column right of the list: the picture, and under it the high
-    // scores, as many as fit (four with both bars, five at most), a line a
-    // scorePitch apart from scoreFirst under their heading, and the play
-    // time against its foot.
+    // The column right of the list: the picture, and under it a box of the
+    // high scores, as many as fit (four with both bars, five at most), a line
+    // a scorePitch apart from scoreFirst under their heading, and the play
+    // time against its foot, infoPadX and infoPadY in from its frame.
     readonly property int columnX: 495
     readonly property int columnWidth: 345
-    readonly property int scoresTop: 362
-    readonly property int scoreFirst: 34
-    readonly property int scorePitch: 31
-    readonly property int playTimeTop: listBottom - textLines
+    readonly property int infoTop: 356
+    readonly property int infoPadX: 10
+    readonly property int infoPadY: 6
+    readonly property int scoresTop: infoTop + infoPadY
+    readonly property int scoreFirst: 32
+    readonly property int scorePitch: 29
+    readonly property int playTimeTop: listBottom - infoPadY - textLines
     readonly property int scoreRows: Math.min(5, Math.floor((playTimeTop - 3 - textLines - scoresTop - scoreFirst)
                                                             / scorePitch) + 1)
 
@@ -105,6 +108,12 @@ FocusScope {
     readonly property bool isGame: !!current && !current.unknown
     readonly property var details: (revision, arcadeBackend && currentSet !== ""
                                                ? arcadeBackend.gameDetails(currentSet) : ({}))
+    // The column's ground, the scheme's background as solid as Settings →
+    // Arcade → Info Background says (Root.qml's infoGround), over Settings'
+    // Background Effect. Main.qml names its colours; a color property reads
+    // the name as the colour.
+    readonly property color surface: root.surfaceColor
+    readonly property color ground: Qt.rgba(surface.r, surface.g, surface.b, moduleRoot.infoGround / 100)
     // The game's high scores, read again once the High Scores module has
     // read MAME's files (a game just played).
     property int scoresRevision: 0
@@ -400,7 +409,7 @@ FocusScope {
         y: Math.round(90 * arcadeScreen.v)
         width: Math.round(arcadeScreen.columnWidth * arcadeScreen.u)
         height: Math.round(259 * arcadeScreen.v)
-        color: picture.status === Image.Ready ? "#000000" : "transparent"
+        color: picture.status === Image.Ready ? "#000000" : arcadeScreen.ground
         border.width: root.px
         border.color: root.primaryColor
         antialiasing: false
@@ -471,13 +480,26 @@ FocusScope {
         }
     }
 
-    // The high scores, under the picture: a line for each the column has
-    // room for, kept from game to game.
+    // The box under the picture, framed as the picture is.
+    Rectangle {
+        visible: arcadeScreen.filters.length > 0
+        x: Math.round(arcadeScreen.columnX * arcadeScreen.u)
+        y: Math.round(arcadeScreen.infoTop * arcadeScreen.v)
+        width: Math.round(arcadeScreen.columnWidth * arcadeScreen.u)
+        height: Math.round(arcadeScreen.listBottom * arcadeScreen.v) - y
+        color: arcadeScreen.ground
+        border.width: root.px
+        border.color: root.primaryColor
+        antialiasing: false
+    }
+
+    // The high scores, in the box: a line for each it has room for, kept
+    // from game to game.
     Item {
         visible: arcadeScreen.isGame
-        x: Math.round(arcadeScreen.columnX * arcadeScreen.u)
+        x: Math.round((arcadeScreen.columnX + arcadeScreen.infoPadX) * arcadeScreen.u)
         y: Math.round(arcadeScreen.scoresTop * arcadeScreen.v)
-        width: Math.round(arcadeScreen.columnWidth * arcadeScreen.u)
+        width: Math.round((arcadeScreen.columnWidth - 2 * arcadeScreen.infoPadX) * arcadeScreen.u)
 
         Text {
             text: "Hi-Score"
@@ -536,13 +558,13 @@ FocusScope {
         }
     }
 
-    // How long the game has been played, against the column's foot. The
-    // label where the high scores' are: MenuRow pads its line.
+    // How long the game has been played, against the box's foot. The label
+    // where the high scores' are: MenuRow pads its line.
     MenuRow {
         visible: arcadeScreen.isGame
-        x: Math.round(arcadeScreen.columnX * arcadeScreen.u) - pad
+        x: Math.round((arcadeScreen.columnX + arcadeScreen.infoPadX) * arcadeScreen.u) - pad
         y: Math.round(arcadeScreen.playTimeTop * arcadeScreen.v)
-        width: Math.round(arcadeScreen.columnWidth * arcadeScreen.u) + 2 * pad
+        width: Math.round((arcadeScreen.columnWidth - 2 * arcadeScreen.infoPadX) * arcadeScreen.u) + 2 * pad
         height: arcadeScreen.textSize
         fontSize: arcadeScreen.textSize
         label: "Play Time"

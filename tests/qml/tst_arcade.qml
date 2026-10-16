@@ -23,11 +23,12 @@ Rectangle {
     property real sh: height
     property real px: 2
     property string globalFont: "monospace"
-    property color primaryColor: "white"
-    property color secondaryColor: "white"
-    property color tertiaryColor: "white"
-    property color accentColor: "white"
-    property color surfaceColor: "black"
+    // Colour names, as Main.qml has them.
+    property string primaryColor: "white"
+    property string secondaryColor: "white"
+    property string tertiaryColor: "white"
+    property string accentColor: "white"
+    property string surfaceColor: "#000080"
     property var skin: ({})
     property bool hintBar: true
     property bool helpLine: true
@@ -66,6 +67,7 @@ Rectangle {
         readonly property int handOverDelay: 150
         property int credits: 0
         readonly property int maxCredits: 9
+        property int infoGround: 100
         function addCredit() { credits = Math.min(maxCredits, credits + 1) }
         function startGame(set) {
             if (!arcadeBackend.play(set, credits))
@@ -217,6 +219,7 @@ Rectangle {
             root.hintBar = true
             root.helpLine = true
             moduleRoot.startFilter = "all"
+            moduleRoot.infoGround = 100
             moduleRoot.credits = 0
             arcadeBackend.credited = []
             arcadeBackend.favorites = ["galaga", "sf2"]
@@ -567,6 +570,22 @@ Rectangle {
             verify(name.width < name.implicitWidth)
             wait(2000)
             compare(name.x, 0)
+        }
+
+        // The column's ground, the scheme's background as solid as Info
+        // Background says, under the picture's frame when there is none, and
+        // in the box of the high scores.
+        function test_screenGround() {
+            var screen = openScreen()
+            compare(screen.ground.a, 1)
+            fuzzyCompare(screen.ground.b, 128 / 255, 0.01)
+            compare(screen.ground.r, 0)
+            loader.source = ""
+            moduleRoot.infoGround = 40
+            screen = openScreen()
+            fuzzyCompare(screen.ground.a, 0.4, 0.01)
+            fuzzyCompare(screen.ground.b, 128 / 255, 0.01)
+            verify(findText(screen, "No Picture") !== null)
         }
 
         // The hint bar's and the help line's room, when they are off, goes to

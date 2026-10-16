@@ -39,7 +39,7 @@ ROM sets are copyrighted, like the games on them: use the games you are entitled
 | **Original** (the default) | OSD/OS's own tree, as the other modules have: Recently Played, Favorites, Search, All Games, and the games by players, decade and maker ([below](#the-original-screen)) |
 | **Arcade** | A cabinet's selection screen: one filter's games at a time, on an arc, with the selected one's picture and high scores beside them and what it is under them; ◄ ► go through the filters, COIN buys credits and select or START plays ([below](#the-arcade-screen)) |
 
-Both list the same games from the same folder, share Recently Played and Favorites, and play a game the same way. Start Filter, Hint Bar and Help Line are the Arcade screen's own settings, so Settings → Arcade shows them only while Screen is Arcade. Its look is Settings' own, as every screen's is: its theme, colors, skin, background, selector effect and transitions.
+Both list the same games from the same folder, share Recently Played and Favorites, and play a game the same way. Start Filter, Info Background, Hint Bar and Help Line are the Arcade screen's own settings, so Settings → Arcade shows them only while Screen is Arcade. Its look is Settings' own, as every screen's is: its theme, colors, skin, background, selector effect and transitions.
 
 ## The original screen
 
@@ -74,12 +74,12 @@ With **Settings → Arcade → Screen** on **Arcade**, Arcade opens on a cabinet
 - **The list**, on the left: the games of one filter, seven to a page, on an arc, each with its number and its title (`Galaga`, where MAME's name is `Galaga (Namco rev. B)`), and a heart on a favorite. The selected game stands out of the arc, and its title, when it is too long for the row, scrolls through; the others are cut short with `…`.
 - **The bar** over it: the filter, with ◄ ► while there are others, and the page (`1/4`).
 - **The picture**, on the right ([below](#pictures)), with the credits bought in its corner (`Credit 2`).
-- **Hi-Score**: the best entries of the game's high score table, its rank, score and name, as the [High Scores](https://github.com/mehmetraif/OSD-OS/wiki/High-Scores) module reads them (four, or five without the hint bar or the help line); `No Scores Yet` before the game has a table.
-- **Play Time**: how long the game has been played in OSD/OS (`1H 31M`, `Never`).
+- **Hi-Score**, in a box under the picture: the best entries of the game's high score table, its rank, score and name, as the [High Scores](https://github.com/mehmetraif/OSD-OS/wiki/High-Scores) module reads them (four, or five without the hint bar or the help line); `No Scores Yet` before the game has a table.
+- **Play Time**, at the foot of the box: how long the game has been played in OSD/OS (`1H 31M`, `Never`).
 - **The help line**: the game's full name, as MAME has it, then what it is: its system (the board it ran on: CPS-1, Neo-Geo, NAOMI, Sega System 16B, Namco System 2, Midway T-Unit and about a hundred more; for any other, the name of MAME's driver for it), maker, year and players, scrolling through as `Final Fight (World, set 1) • CPS-1 • Capcom • 1989 • 2 Players`; on a set under Not Recognized, why it is there and what to do.
 - **The hint bar**: the keys.
 
-**Hint Bar** and **Help Line** in Settings → Arcade take those two away, on the Arcade screen and its windows (the options, the screen before a game) whatever Settings' own say, each giving its room to one more game on every page and to more of the high score table (up to five entries). With the help line off, the screen doesn't show the game's system, maker, year and players.
+**Info Background** in Settings → Arcade, a slider from TRANSPARENT to SOLID, says how solid the ground of the picture's frame and of the box under it is over the background (Settings → Background Effect): at SOLID, the default, none of the background shows through. **Hint Bar** and **Help Line** in Settings → Arcade take those two away, on the Arcade screen and its windows (the options, the screen before a game) whatever Settings' own say, each giving its room to one more game on every page and to more of the high score table (up to five entries). With the help line off, the screen doesn't show the game's system, maker, year and players.
 
 | Key | Pad (the JAMMA board's names) | Keyboard | What it does |
 |---|---|---|---|
@@ -193,6 +193,7 @@ Settings → Arcade.
 | Screen | Original, Arcade | Original | How the games are listed, from the next time Arcade opens: the tree, or the Arcade screen ([Two screens](#two-screens)) | `modules.com.osdos.arcade.screen` |
 | Start Filter | All Games, Favorites, Recently Played, then the genres, players and decades there are | All Games | The filter the Arcade screen opens on ([Filters](#filters)); while it has no games, the first that has. Shown while Screen is Arcade | `modules.com.osdos.arcade.start_filter` |
 | Play at Startup | None, then the favorites | None | A favorite game started straight after the boot screen, as a game's options set it ([A game's options](#a-games-options)). One for the whole app: choosing a game replaces another module's | `modules.com.osdos.arcade.play_at_startup` |
+| Info Background | A slider from TRANSPARENT to SOLID, 0 to 100 in steps of 10 | 100 (SOLID) | How solid the ground under the Arcade screen's picture, high scores and play time is over Settings' Background Effect ([The Arcade screen](#the-arcade-screen)). Shown while Screen is Arcade | `modules.com.osdos.arcade.info_background` |
 | Hint Bar | ON, OFF | ON | The keys at the foot of the Arcade screen and its windows, in place of Settings' own Hint Bar; off, the list and the high scores take its room. Shown while Screen is Arcade | `modules.com.osdos.arcade.hint_bar` |
 | Help Line | ON, OFF | ON | The game's full name and what it is (its system, maker, year and players) under the Arcade screen's list, in place of Settings' own Help Line; off, the list and the high scores take its room. Shown while Screen is Arcade | `modules.com.osdos.arcade.help_line` |
 | Start Info Screen | ON, OFF | ON | Before a game, the screen of how to come back (and from the Arcade screen, the credits going in); off, the game starts straight from the list ([Playing](#playing)) | `modules.com.osdos.arcade.start_info` |
@@ -211,6 +212,7 @@ Settings → Arcade.
 | `screen` | `"Original"` or `"Arcade"` |
 | `start_filter` | The filter's id: `"all"`, `"favorites"`, `"recent"`, `"genres/<genre>"` (`"genres/Fighter"`), `"players/<n>"` (`"players/2"`) or `"years/<decade>"` (`"years/1980s"`, `"years/unknown"`) |
 | `play_at_startup` | The game's set (`"galaga"`), `""` for None; the app's own `startup_favorite` holds the same game, and either changes the other |
+| `info_background` | A number from 0 (transparent) to 100 (solid) |
 | `online_high_scores`, `online_play` | `"Off"` |
 | `video` | `"Auto"`, `"OpenGL"`, `"BGFX"`, `"Accelerated"` or `"Software"` |
 
@@ -288,7 +290,7 @@ mame galaga \
 | The Arcade screen has no genre filters | Put `catver.ini` in the games folder or in `arcade` in the data folder ([Genres](#genres)), then open Arcade again |
 | `No Picture` | Put the game's picture in the games folder's `snap` folder, named by its set: `snap/galaga.png` ([Pictures](#pictures)). The frame names the file it looks for |
 | The credits bought don't show in the game | They go in 5 seconds into the game. A board still starting up then may miss them: insert a coin in the game with COIN. A game MAME shows a warning for first counts them once the warning is gone |
-| The Arcade screen's settings aren't in Settings → Arcade | Start Filter, Hint Bar and Help Line show while **Screen** is **Arcade** |
+| The Arcade screen's settings aren't in Settings → Arcade | Start Filter, Info Background, Hint Bar and Help Line show while **Screen** is **Arcade** |
 
 The app's log has the module's lines: `journalctl -u osdos -b | grep -E 'Arcade|Scripts'` with the service, such as `[Arcade] games folder: /media/OSD-OS/Games/Arcade`, `[Arcade] Asking MAME about 18 games`, `[Arcade] mslug: Missing sp-s2.sp1, …` and `[Scripts] 'mame' finished: failed (exit 2)`. To see all MAME says, run it by hand from a terminal with the [arguments above](#files-it-keeps). See [Troubleshooting](https://github.com/mehmetraif/OSD-OS/wiki/Troubleshooting).
 

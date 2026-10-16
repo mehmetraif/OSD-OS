@@ -7,7 +7,7 @@ import QtTest
 // unset one by its default, coming and going as that row changes with the
 // cursor kept on it, and their values kept while they are hidden; a dynamic
 // row's choices asked for as it comes; a toggle's value as ON or OFF, and a
-// row whose own row is hidden hidden too.
+// row whose own row is hidden hidden too; a slider and its tape bar.
 Rectangle {
     id: root
     color: surfaceColor
@@ -93,6 +93,16 @@ Rectangle {
         function keys(page) {
             return page.schemaItems.map(function(item) { return item.key })
         }
+        function findText(item, text) {
+            if (item.text !== undefined && String(item.text).indexOf(text) >= 0 && item.visible)
+                return item
+            for (var i = 0; i < item.children.length; i++) {
+                var found = findText(item.children[i], text)
+                if (found)
+                    return found
+            }
+            return null
+        }
         // The row the cursor is on, by its key.
         function cursor(page) {
             for (var i = 0; i < page.children.length; i++) {
@@ -165,6 +175,35 @@ Rectangle {
             compare(appCore.values.volume, "Low")
             compare(keys(page), ["music", "volume"])
             compare(cursor(page), "volume")
+        }
+
+        // A slider: its label, and the tape bar between its two ends under
+        // it, at its value, unset its default; ◄ ► a step toward either end,
+        // saved, and no further than an end. ▼ goes past its bar's lines.
+        function test_slider() {
+            appCore.schema = [
+                { key: "enabled", label: "Enabled", type: "toggle", default: "OFF" },
+                { key: "ground", label: "Info Background", type: "slider", default: 100, step: 10,
+                  start_text: "TRANSPARENT", end_text: "SOLID" },
+                { key: "video", label: "Video", type: "list_single", options: ["Auto", "OpenGL"], default: "Auto" }
+            ]
+            var page = open()
+            compare(page.valueOf(page.schemaItems[1]), 100)
+            verify(findText(page, "TRANSPARENT") !== null)
+            verify(findText(page, "SOLID") !== null)
+            keyClick(Qt.Key_Down)
+            compare(cursor(page), "ground")
+            keyClick(Qt.Key_Right)
+            compare(appCore.values.ground, undefined)
+            keyClick(Qt.Key_Left)
+            keyClick(Qt.Key_Left)
+            compare(appCore.values.ground, 80)
+            compare(page.valueOf(page.schemaItems[1]), 80)
+            for (var i = 0; i < 10; ++i)
+                keyClick(Qt.Key_Left)
+            compare(appCore.values.ground, 0)
+            keyClick(Qt.Key_Down)
+            compare(cursor(page), "video")
         }
     }
 }

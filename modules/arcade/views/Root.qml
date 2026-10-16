@@ -17,14 +17,18 @@ FocusScope {
 
     // Settings → Arcade's, as the module opens. Screen: "Original", the tree
     // (Games.qml), or "Arcade", the selection screen (ArcadeScreen.qml),
-    // whose own are its Hint Bar and Help Line and the filter it opens on.
-    // Start Info Screen is both's: how to come back, before a game.
+    // whose own are its Hint Bar and Help Line, the filter it opens on and
+    // its column's ground. Start Info Screen is both's: how to come back,
+    // before a game.
     property string screen: "Original"
     readonly property bool arcadeScreen: screen === "Arcade"
     property bool hintBar: true
     property bool helpLine: true
     property bool startInfo: true
     property string startFilter: "all"
+    // Info Background: how solid the Arcade screen's column's ground is, 0
+    // (transparent) to 100 (solid).
+    property int infoGround: 100
     // The Arcade screen's Hint Bar and Help Line, which Main.qml's hintBar and
     // helpLine go by while the module is open, its dialogs and all; the
     // original screen goes by Settings' own.
@@ -193,6 +197,8 @@ FocusScope {
         helpLine = isOn(own.help_line)
         startInfo = isOn(own.start_info)
         startFilter = own.start_filter || "all"
+        var ground = parseInt(own.info_background)
+        infoGround = isNaN(ground) ? 100 : Math.max(0, Math.min(100, ground))
         // The folder looked at again, and MAME asked about any game new in
         // it, before the list asks for what is in it.
         if (arcadeBackend)
