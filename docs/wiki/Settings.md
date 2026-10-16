@@ -160,7 +160,7 @@ Every module's first row is **Enabled**. A module that is turned off is left off
 | Module | Module id | On by default | Its rows, in order |
 |---|---|---|---|
 | [Ambient:Mode](https://github.com/mehmetraif/OSD-OS/wiki/Ambient-Mode) | `com.osdos.ambient_mode` | No | Enabled, Media Directory, Auto-Launch Playback, Scaling |
-| [Arcade](https://github.com/mehmetraif/OSD-OS/wiki/Arcade) | `com.osdos.arcade` | No | Enabled, Games Folder, Screen, Play at Startup, Start Info Screen, High Scores, Online High Scores, Online Play, Video, Read the Games Again; with Screen on Arcade, Start Filter, Info Background, Hint Bar and Help Line too |
+| [Arcade](https://github.com/mehmetraif/OSD-OS/wiki/Arcade) | `com.osdos.arcade` | No | Enabled, Games Folder, Screen, Play at Startup, Start Info Screen, High Scores, Online High Scores, Online Play, Video, Read the Games Again; with Screen on Arcade, Start Filter, Menu Filters, Screen Adjustment, Info Background, Hint Bar and Help Line too |
 | [Emby](https://github.com/mehmetraif/OSD-OS/wiki/Emby) | `com.osdos.emby` | No | Enabled; once signed in Libraries, Video Quality, Resume Playback, Autoplay Next Episode, Intro Skip, Credit Skip; Scaling; Sign out once signed in |
 | [High Scores](https://github.com/mehmetraif/OSD-OS/wiki/High-Scores) | `com.osdos.highscores` | No | Enabled |
 | [Jellyfin](https://github.com/mehmetraif/OSD-OS/wiki/Jellyfin) | `com.osdos.jellyfin` | No | Enabled; once signed in Libraries, Video Quality, Resume Playback, Autoplay Next Episode, and Intro Skip and Credit Skip where the server has the Intro Skipper plugin; Scaling; Sign out once signed in |
@@ -187,7 +187,7 @@ Each module's page on this wiki explains its rows. Every module that plays video
 | `directory_browser` | `LABEL······/PATH`, or `DEFAULT` | Nothing | Opens the folder picker: **Default Folder** first, then the places, and **Use This Folder** at the top of every folder | The folder's path; `""` for the module's own |
 | `slider` | `LABEL`, and under it the deck's tape bar between its two ends' names | Moves the ▼ a step toward either end | Nothing | A number from 0 to 100; unset, the manifest's `default` (Arcade's Info Background) |
 | `action` | `LABEL` | Nothing | Runs it at once: Sign out, Delete Watch Later, Rescan Scripts | Nothing |
-| `module_view` | `LABEL` | Nothing | Opens the module on one of its own screens, enabled or not: Sign in for Netflix, Prime Video and YouTube | Nothing |
+| `module_view` | `LABEL` | Nothing | Opens the module on one of its own screens, enabled or not: Sign in for Netflix, Prime Video and YouTube, Arcade's Screen Adjustment | Nothing |
 
 Some rows wait for something:
 

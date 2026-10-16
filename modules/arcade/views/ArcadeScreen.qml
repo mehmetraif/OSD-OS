@@ -10,9 +10,10 @@ import Components
 // what it is (ArcadeBackend::gameDetails), and the hint bar. The module's
 // own Hint Bar and Help Line settings (Root.qml's, which root.hintBar and
 // root.helpLine go by here) hide those, and their room goes to the list, a
-// row more each, and to the high scores. Laid out in the design's units, a
-// 960th of the width and a 720th of the height, in letters a CRT reads: none
-// smaller than the hint bar's and the help line's.
+// row more each. Laid out in the design's units, a 960th of the width and a
+// 720th of the height, in letters a CRT reads: none smaller than the hint
+// bar's and the help line's; and in an area that Settings → Arcade → Screen
+// Adjustment moves each side of, which then holds as many games as fit.
 //
 // ▲ ▼ choose a game, from page to page and round; ◄ ► go round the filters,
 // keeping the game where the next filter has it. COIN (MAME's 5, which a
@@ -23,7 +24,13 @@ import Components
 // back leaves the module. Coming back from a game restores the filter and
 // the game from the listState handed to navigateTo; a game played from the
 // screen itself (Start Info Screen off) leaves it as it was. Opened with the
-// startup favourite (navParams.startupPlay), it plays that at once.
+// startup favourite (navParams.startupPlay), it plays that at once, the
+// screen on it in Favorites.
+//
+// Opened to adjust it (navParams.adjust, Screen Adjustment's), a frame lies
+// round the area: ▲ ▼ ◄ ► move that side of it out, or in once select has
+// switched to shrinking, the list and the column following at once; select
+// held puts it back where the design has it, and back keeps it and leaves.
 FocusScope {
     id: arcadeScreen
 
@@ -42,9 +49,9 @@ FocusScope {
     readonly property bool scanning: arcadeBackend ? arcadeBackend.scanning : false
     readonly property string gamesFolder: arcadeBackend ? arcadeBackend.gamesFolder() : ""
     readonly property var scoresBackend: typeof highScoresBackend !== "undefined" ? highScoresBackend : null
-    // A pad's Back button is COIN here, not while the options are up
-    // (InputManager).
-    readonly property bool takesCoin: !options.visible
+    // A pad's Back button is COIN here, not while the options are up, nor
+    // while the screen is adjusted (InputManager).
+    readonly property bool takesCoin: !options.visible && !adjusting
 
     // The design's units.
     readonly property real u: root.sw / 960
@@ -56,31 +63,47 @@ FocusScope {
     readonly property int textSize: Math.round(textLines * v)
     readonly property int nameSize: Math.round(30 * v)
 
-    // Where the list and the column end, in the design's 720 lines: above
-    // the help line, or above what is in its place.
-    readonly property int listBottom: root.hintBar ? (root.helpLine ? 552 : 604) : (root.helpLine ? 592 : 644)
+    // The area everything lies in: from the bar's top and the help line's
+    // left to the column's right and the hint bar's foot, as the design has
+    // it, each side moved out (in, below 0) as far as Screen Adjustment says
+    // (Root.qml's screenAdjustment), in the design's units.
+    readonly property var adjustment: moduleRoot.screenAdjustment
+    readonly property int areaLeft: 120 - adjustment.left
+    readonly property int areaTop: 90 - adjustment.top
+    readonly property int areaRight: 840 + adjustment.right
+    readonly property int areaBottom: 645 + adjustment.bottom
+    readonly property int areaWidth: areaRight - areaLeft
+    // Where the list and the column end: above the help line, or above what
+    // is in its place.
+    readonly property int listBottom: areaBottom - (root.hintBar ? (root.helpLine ? 93 : 41) : (root.helpLine ? 53 : 1))
     // The rows under the bar, as many as fit minPitch lines apart (seven with
-    // both bars), spread over the room.
-    readonly property int listTop: 147
+    // both bars, as the design has it), spread over the room.
+    readonly property int listTop: areaTop + 57
     readonly property int rowHeight: 48
     readonly property int minPitch: 54
     readonly property int perPage: Math.floor((listBottom - listTop - rowHeight) / minPitch) + 1
     readonly property int pitch: Math.floor((listBottom - listTop - rowHeight) / (perPage - 1))
-    // The column right of the list: the picture, and under it a box of the
-    // high scores, as many as fit (four with both bars, five at most), a line
-    // a scorePitch apart from scoreFirst under their heading, and the play
-    // time against its foot, infoPadX and infoPadY in from its frame.
-    readonly property int columnX: 495
-    readonly property int columnWidth: 345
-    readonly property int infoTop: 356
+    // The column right of the list, its share of the area's width: the
+    // picture, 4:3, and under it a box of the high scores, three or as many
+    // as fit, a line a scorePitch apart from scoreFirst under their heading,
+    // and the play time against its foot, infoPadX and infoPadY in from its
+    // frame. The list and the bar over it have the rest, 20 short of it.
+    readonly property int columnWidth: Math.round(345 * areaWidth / 720)
+    readonly property int columnX: areaRight - columnWidth
+    readonly property int pictureHeight: Math.round(columnWidth * 259 / 345)
+    readonly property int listWidth: columnX - 20 - areaLeft
+    readonly property int infoTop: areaTop + pictureHeight + 7
     readonly property int infoPadX: 10
     readonly property int infoPadY: 6
+    // The box's inside, across: where its lines start, and their width.
+    readonly property int infoX: columnX + infoPadX
+    readonly property int infoWidth: columnWidth - 2 * infoPadX
     readonly property int scoresTop: infoTop + infoPadY
     readonly property int scoreFirst: 32
     readonly property int scorePitch: 29
     readonly property int playTimeTop: listBottom - infoPadY - textLines
-    readonly property int scoreRows: Math.min(5, Math.floor((playTimeTop - 3 - textLines - scoresTop - scoreFirst)
-                                                            / scorePitch) + 1)
+    readonly property int scoreRows: Math.max(0, Math.min(3, Math.floor((playTimeTop - 3 - textLines - scoresTop
+                                                                         - scoreFirst) / scorePitch) + 1))
 
     // The filters with games (ArcadeBackend::filters), the one shown, and the
     // one wanted: Start Filter's, or the one ◄ ► came to, shown as soon as it
@@ -109,16 +132,61 @@ FocusScope {
     readonly property var details: (revision, arcadeBackend && currentSet !== ""
                                                ? arcadeBackend.gameDetails(currentSet) : ({}))
     // The column's ground, the scheme's background as solid as Settings →
-    // Arcade → Info Background says (Root.qml's infoGround), over Settings'
+    // Arcade → Info Background says (Root.qml's infoBackground), over Settings'
     // Background Effect. Main.qml names its colours; a color property reads
     // the name as the colour.
     readonly property color surface: root.surfaceColor
-    readonly property color ground: Qt.rgba(surface.r, surface.g, surface.b, moduleRoot.infoGround / 100)
+    readonly property color ground: Qt.rgba(surface.r, surface.g, surface.b, moduleRoot.infoBackground / 100)
     // The game's high scores, read again once the High Scores module has
     // read MAME's files (a game just played).
     property int scoresRevision: 0
     readonly property var scores: (scoresRevision, scoresBackend && isGame
                                                    ? scoresBackend.topEntries(currentSet, scoreRows) : [])
+
+    // Screen Adjustment: whether ▲ ▼ ◄ ► move the sides in rather than out;
+    // how far a press moves one, up to the screen's edge; and the least room
+    // the list and the column need.
+    readonly property bool adjusting: !!navParams.adjust
+    property bool shrinking: false
+    readonly property int adjustStep: 6
+    readonly property int minAreaWidth: 600
+    readonly property int minAreaHeight: 420
+
+    // One side of the area ("top", "bottom", "left" or "right") a step out,
+    // or in while shrinking, as far as the screen's edge and the least room
+    // allow.
+    function adjustSide(side) {
+        var across = side === "left" || side === "right"
+        var room = side === "left" ? areaLeft : side === "top" ? areaTop
+                 : side === "right" ? 960 - areaRight : 720 - areaBottom
+        var spare = across ? areaWidth - minAreaWidth : areaBottom - areaTop - minAreaHeight
+        var by = shrinking ? -Math.min(adjustStep, Math.max(0, spare)) : Math.min(adjustStep, Math.max(0, room))
+        if (by === 0)
+            return
+        var moved = Object.assign({}, adjustment)
+        moved[side] += by
+        moduleRoot.screenAdjustment = moved
+        saveAdjustment.restart()
+    }
+    function resetAdjustment() {
+        moduleRoot.screenAdjustment = { top: 0, bottom: 0, left: 0, right: 0 }
+        saveAdjustment.restart()
+    }
+    // Saved a moment after the last move rather than at every step of a held
+    // key, and as the screen leaves.
+    function keepAdjustment() {
+        saveAdjustment.stop()
+        appCore.save_setting(moduleRoot.moduleId, "screen_adjustment", moduleRoot.screenAdjustment)
+    }
+    Timer {
+        id: saveAdjustment
+        interval: 500
+        onTriggered: arcadeScreen.keepAdjustment()
+    }
+    Component.onDestruction: {
+        if (saveAdjustment.running && appCore)
+            keepAdjustment()
+    }
 
     function indexOfFilter(id) {
         for (var i = 0; i < filters.length; ++i) {
@@ -176,12 +244,14 @@ FocusScope {
     }
 
     // Select plays the game as it is let go, and opens its options once held
-    // this long. Only a press this screen saw counts, while the timer runs:
-    // one let go after the options or a game took it doesn't.
+    // this long (while the screen is adjusted, switches between moving the
+    // sides out and in, and held puts them back). Only a press this screen
+    // saw counts, while the timer runs: one let go after the options or a
+    // game took it doesn't.
     Timer {
         id: holdTimer
         interval: 800
-        onTriggered: arcadeScreen.openOptions()
+        onTriggered: arcadeScreen.adjusting ? arcadeScreen.resetAdjustment() : arcadeScreen.openOptions()
     }
 
     // The startup favourite, played as if chosen in Favorites. Only as the
@@ -238,6 +308,10 @@ FocusScope {
         // A held select is select alone.
         if (!event.isAutoRepeat && event.key !== Qt.Key_Return && event.key !== Qt.Key_Enter)
             holdTimer.stop()
+        if (adjusting) {
+            adjustKey(event)
+            return
+        }
         if (event.key === Qt.Key_5) {
             // COIN.
             if (!event.isAutoRepeat)
@@ -272,7 +346,36 @@ FocusScope {
         if (!holdTimer.running)
             return
         holdTimer.stop()
-        playCurrent()
+        if (adjusting)
+            shrinking = !shrinking
+        else
+            playCurrent()
+    }
+
+    // Screen Adjustment's keys: ▲ ▼ ◄ ► move their side, select switches
+    // between out and in (held, back as the design has it), and back keeps
+    // the area and leaves.
+    function adjustKey(event) {
+        if (event.key === Qt.Key_Up) {
+            adjustSide("top")
+        } else if (event.key === Qt.Key_Down) {
+            adjustSide("bottom")
+        } else if (event.key === Qt.Key_Left) {
+            adjustSide("left")
+        } else if (event.key === Qt.Key_Right) {
+            adjustSide("right")
+        } else if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter) {
+            if (!event.isAutoRepeat)
+                holdTimer.restart()
+        } else if (event.key === Qt.Key_Escape || event.key === Qt.Key_Backspace || event.key === Qt.Key_Back) {
+            if (!event.isAutoRepeat) {
+                keepAdjustment()
+                arcadeScreen.goBack()
+            }
+        } else {
+            return
+        }
+        event.accepted = true
     }
 
     // A play time as the column shows it: 1H 23M, 45M; NEVER.
@@ -288,10 +391,13 @@ FocusScope {
     // ---
 
     ArcadeBar {
-        visible: arcadeScreen.filters.length > 0
-        text: arcadeScreen.filter ? arcadeScreen.filter.name : ""
-        arrows: arcadeScreen.filters.length > 1
-        rightText: (arcadeScreen.page + 1) + "/" + arcadeScreen.pages
+        visible: arcadeScreen.adjusting || arcadeScreen.filters.length > 0
+        x: Math.round(arcadeScreen.areaLeft * arcadeScreen.u)
+        y: Math.round(arcadeScreen.areaTop * arcadeScreen.v)
+        width: Math.round(arcadeScreen.listWidth * arcadeScreen.u)
+        text: arcadeScreen.adjusting ? "Screen Adjustment" : arcadeScreen.filter ? arcadeScreen.filter.name : ""
+        arrows: !arcadeScreen.adjusting && arcadeScreen.filters.length > 1
+        rightText: arcadeScreen.adjusting ? "" : (arcadeScreen.page + 1) + "/" + arcadeScreen.pages
     }
 
     Repeater {
@@ -307,9 +413,9 @@ FocusScope {
             readonly property int arc: Math.round(24 * Math.sin(Math.PI * (index + 0.5) / arcadeScreen.perPage))
             readonly property color ink: isCurrent ? root.surfaceColor : root.primaryColor
             readonly property real gap: Math.round(10 * arcadeScreen.u)
-            x: Math.round((132 + arc - (isCurrent ? 16 : 0)) * arcadeScreen.u)
+            x: Math.round((arcadeScreen.areaLeft + 12 + arc - (isCurrent ? 16 : 0)) * arcadeScreen.u)
             y: Math.round((arcadeScreen.listTop + index * arcadeScreen.pitch) * arcadeScreen.v)
-            width: Math.round((isCurrent ? 336 : 320) * arcadeScreen.u)
+            width: Math.round((arcadeScreen.listWidth - (isCurrent ? 19 : 35)) * arcadeScreen.u)
             height: Math.round(arcadeScreen.rowHeight * arcadeScreen.v)
 
             SelectionBox {
@@ -406,9 +512,9 @@ FocusScope {
         id: preview
         visible: arcadeScreen.filters.length > 0
         x: Math.round(arcadeScreen.columnX * arcadeScreen.u)
-        y: Math.round(90 * arcadeScreen.v)
+        y: Math.round(arcadeScreen.areaTop * arcadeScreen.v)
         width: Math.round(arcadeScreen.columnWidth * arcadeScreen.u)
-        height: Math.round(259 * arcadeScreen.v)
+        height: Math.round(arcadeScreen.pictureHeight * arcadeScreen.v)
         color: picture.status === Image.Ready ? "#000000" : arcadeScreen.ground
         border.width: root.px
         border.color: root.primaryColor
@@ -497,9 +603,9 @@ FocusScope {
     // from game to game.
     Item {
         visible: arcadeScreen.isGame
-        x: Math.round((arcadeScreen.columnX + arcadeScreen.infoPadX) * arcadeScreen.u)
+        x: Math.round(arcadeScreen.infoX * arcadeScreen.u)
         y: Math.round(arcadeScreen.scoresTop * arcadeScreen.v)
-        width: Math.round((arcadeScreen.columnWidth - 2 * arcadeScreen.infoPadX) * arcadeScreen.u)
+        width: Math.round(arcadeScreen.infoWidth * arcadeScreen.u)
 
         Text {
             text: "Hi-Score"
@@ -562,9 +668,9 @@ FocusScope {
     // where the high scores' are: MenuRow pads its line.
     MenuRow {
         visible: arcadeScreen.isGame
-        x: Math.round((arcadeScreen.columnX + arcadeScreen.infoPadX) * arcadeScreen.u) - pad
+        x: Math.round(arcadeScreen.infoX * arcadeScreen.u) - pad
         y: Math.round(arcadeScreen.playTimeTop * arcadeScreen.v)
-        width: Math.round((arcadeScreen.columnWidth - 2 * arcadeScreen.infoPadX) * arcadeScreen.u) + 2 * pad
+        width: Math.round(arcadeScreen.infoWidth * arcadeScreen.u) + 2 * pad
         height: arcadeScreen.textSize
         fontSize: arcadeScreen.textSize
         label: "Play Time"
@@ -600,27 +706,81 @@ FocusScope {
     // What the game is; why a set isn't a game. What stands in the way of
     // the list comes first.
     HelpLine {
-        visible: arcadeScreen.filters.length > 0 && !options.visible
-        text: arcadeScreen.problem !== "" ? arcadeScreen.problem
+        visible: (arcadeScreen.adjusting || arcadeScreen.filters.length > 0) && !options.visible
+        width: Math.round(arcadeScreen.areaWidth * arcadeScreen.u)
+        text: arcadeScreen.adjusting ? "The frame's sides go to the screen's edges: ▲ ▼ ◄ ► move each, and the list holds as many games as fit"
+              : arcadeScreen.problem !== "" ? arcadeScreen.problem
               : arcadeScreen.scanning ? "Reading the games…"
               : arcadeScreen.details.unknown ? arcadeScreen.details.detail
               : arcadeScreen.about
         anchors.bottom: parent.bottom
         anchors.left: parent.left
-        anchors.bottomMargin: root.helpLineMargin
-        anchors.leftMargin: root.sw * 0.125 //80
+        anchors.bottomMargin: root.helpLineMargin + Math.round((645 - arcadeScreen.areaBottom) * arcadeScreen.v)
+        anchors.leftMargin: Math.round(arcadeScreen.areaLeft * arcadeScreen.u)
     }
 
     // ▲ ▼ and ◄ ► go without saying, the filter's bar showing ◄ ►, and
     // START with select: the bar has room for four.
     HintBar {
         visible: !options.visible
-        text: arcadeScreen.filters.length === 0 ? root.hints.back + ":BACK"
+        width: Math.round(arcadeScreen.areaWidth * arcadeScreen.u)
+        text: arcadeScreen.adjusting
+              ? root.hints.back + ":DONE " + root.hints.arrows + (arcadeScreen.shrinking ? ":SHRINK " : ":EXPAND ")
+                + root.hints.select + (arcadeScreen.shrinking ? ":EXPAND" : ":SHRINK") + " HOLD:RESET"
+              : arcadeScreen.filters.length === 0 ? root.hints.back + ":BACK"
               : root.hints.back + ":BACK " + root.hints.coin + ":COIN " + root.hints.select + ":PLAY HOLD:OPTIONS"
         anchors.bottom: parent.bottom
         anchors.left: parent.left
-        anchors.bottomMargin: root.sh * 0.1041667 //50
-        anchors.leftMargin: root.sw * 0.125 //80
+        anchors.bottomMargin: root.sh * 0.1041667 + Math.round((645 - arcadeScreen.areaBottom) * arcadeScreen.v) //50
+        anchors.leftMargin: Math.round(arcadeScreen.areaLeft * arcadeScreen.u)
+    }
+
+    // Screen Adjustment's frame, a little outside the area and inside the
+    // screen, with an arrow beyond each side the way ▲ ▼ ◄ ► move it; none
+    // beyond a side at the screen's edge, where there is no room.
+    Item {
+        id: adjustFrame
+        readonly property int gap: 8
+        visible: arcadeScreen.adjusting
+        x: Math.round(Math.max(0, arcadeScreen.areaLeft - gap) * arcadeScreen.u)
+        y: Math.round(Math.max(0, arcadeScreen.areaTop - gap) * arcadeScreen.v)
+        width: Math.round(Math.min(960, arcadeScreen.areaRight + gap) * arcadeScreen.u) - x
+        height: Math.round(Math.min(720, arcadeScreen.areaBottom + gap) * arcadeScreen.v) - y
+
+        Rectangle {
+            anchors.fill: parent
+            color: "transparent"
+            border.width: root.px
+            border.color: root.primaryColor
+            antialiasing: false
+        }
+        Repeater {
+            model: [{ across: 0.5, down: 0, out: "▲", back: "▼" }, { across: 0.5, down: 1, out: "▼", back: "▲" },
+                    { across: 0, down: 0.5, out: "◄", back: "►" }, { across: 1, down: 0.5, out: "►", back: "◄" }]
+            Rectangle {
+                required property var modelData
+                width: mark.implicitWidth + 4 * root.px
+                height: mark.implicitHeight
+                visible: modelData.across === 0 ? adjustFrame.x >= width
+                         : modelData.across === 1 ? adjustFrame.x + adjustFrame.width + width <= arcadeScreen.width
+                         : modelData.down === 0 ? adjustFrame.y >= height
+                         : adjustFrame.y + adjustFrame.height + height <= arcadeScreen.height
+                x: modelData.across === 0.5 ? Math.round((adjustFrame.width - width) / 2)
+                   : modelData.across === 0 ? -width : adjustFrame.width
+                y: modelData.down === 0.5 ? Math.round((adjustFrame.height - height) / 2)
+                   : modelData.down === 0 ? -height : adjustFrame.height
+                color: root.surfaceColor
+                antialiasing: false
+                Text {
+                    id: mark
+                    anchors.centerIn: parent
+                    text: arcadeScreen.shrinking ? parent.modelData.back : parent.modelData.out
+                    color: root.primaryColor
+                    font.family: root.globalFont
+                    font.pixelSize: arcadeScreen.textSize
+                }
+            }
+        }
     }
 
     // A game's options: Play, its favourite, Play at Startup.

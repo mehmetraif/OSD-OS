@@ -28,7 +28,11 @@ FocusScope {
     property string startFilter: "all"
     // Info Background: how solid the Arcade screen's column's ground is, 0
     // (transparent) to 100 (solid).
-    property int infoGround: 100
+    property int infoBackground: 100
+    // Screen Adjustment: how far each side of the Arcade screen's area is
+    // moved out from where the design has it (in, below 0), in the design's
+    // units, a 960th of the width and a 720th of the height.
+    property var screenAdjustment: ({ top: 0, bottom: 0, left: 0, right: 0 })
     // The Arcade screen's Hint Bar and Help Line, which Main.qml's hintBar and
     // helpLine go by while the module is open, its dialogs and all; the
     // original screen goes by Settings' own.
@@ -69,14 +73,14 @@ FocusScope {
         keyCatcher.forceActiveFocus()
         listLaunch.restart()
     }
-    // The list on the screen first, without the window a game may have been
-    // chosen in (its options), as a headless Pi hands it over to MAME.
-    Timer {
-        id: listLaunch
     // How long what is on the screen stays before MAME takes it, so that a
     // headless Pi hands that over, not a frame of what was there before.
     readonly property int handOverDelay: 150
 
+    // The list on the screen first, without the window a game may have been
+    // chosen in (its options), as a headless Pi hands it over to MAME.
+    Timer {
+        id: listLaunch
         interval: moduleRoot.handOverDelay
         onTriggered: {
             var game = moduleRoot.playing
@@ -198,12 +202,22 @@ FocusScope {
         startInfo = isOn(own.start_info)
         startFilter = own.start_filter || "all"
         var ground = parseInt(own.info_background)
-        infoGround = isNaN(ground) ? 100 : Math.max(0, Math.min(100, ground))
+        infoBackground = isNaN(ground) ? 100 : Math.max(0, Math.min(100, ground))
+        var saved = own.screen_adjustment || {}
+        var sides = {}
+        for (var side in screenAdjustment)
+            sides[side] = parseInt(saved[side]) || 0
+        screenAdjustment = sides
         // The folder looked at again, and MAME asked about any game new in
         // it, before the list asks for what is in it.
         if (arcadeBackend)
             arcadeBackend.refresh()
-        // The startup favourite, when the app opens on one (Main.qml).
-        navigateTo(arcadeScreen ? "ArcadeScreen.qml" : "Games.qml", { startupPlay: navParams.startupPlay })
+        // The startup favourite, when the app opens on one (Main.qml); or
+        // the Arcade screen to adjust, from Settings → Arcade → Screen
+        // Adjustment.
+        if (navParams.adjustScreen)
+            navigateTo("ArcadeScreen.qml", { adjust: true })
+        else
+            navigateTo(arcadeScreen ? "ArcadeScreen.qml" : "Games.qml", { startupPlay: navParams.startupPlay })
     }
 }

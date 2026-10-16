@@ -67,7 +67,8 @@ Rectangle {
         readonly property int handOverDelay: 150
         property int credits: 0
         readonly property int maxCredits: 9
-        property int infoGround: 100
+        property int infoBackground: 100
+        property var screenAdjustment: ({ top: 0, bottom: 0, left: 0, right: 0 })
         function addCredit() { credits = Math.min(maxCredits, credits + 1) }
         function startGame(set) {
             if (!arcadeBackend.play(set, credits))
@@ -167,12 +168,17 @@ Rectangle {
         id: appCore
         property var added: []
         property var settings: ({})
+        property var saved: ({})
         function get_settings() { return { modules: { "com.osdos.arcade": settings } } }
         function get_module_info(id) { return { name: "Arcade", icon: "" } }
         function add_to_list(module, list, entry, limit) { added = added.concat([[module, list, entry.path]]) }
         function list_contains(module, list, path) { return false }
         function get_setting(module, key) { return undefined }
-        function save_setting(module, key, value) {}
+        function save_setting(module, key, value) {
+            var all = Object.assign({}, saved)
+            all[key] = value
+            saved = all
+        }
         function is_module_enabled(id) { return false }
     }
 
@@ -219,7 +225,8 @@ Rectangle {
             root.hintBar = true
             root.helpLine = true
             moduleRoot.startFilter = "all"
-            moduleRoot.infoGround = 100
+            moduleRoot.infoBackground = 100
+            moduleRoot.screenAdjustment = { top: 0, bottom: 0, left: 0, right: 0 }
             moduleRoot.credits = 0
             arcadeBackend.credited = []
             arcadeBackend.favorites = ["galaga", "sf2"]
@@ -228,7 +235,7 @@ Rectangle {
                   sets: ["sf2", "1942", "avsp", "bublbobl", "dkong", "ffight", "galaga", "kinst", "mslug",
                          "pacman", "rtype", "tmnt", "xmen6p", "zerowing", "dino"] },
                 { id: "favorites", name: "Favorites", sets: ["galaga", "sf2"] },
-                { id: "genres/Fighter", name: "Fighter", sets: ["kinst", "sf2"] },
+                { id: "genres/Fighting", name: "Fighting", sets: ["kinst", "sf2"] },
                 { id: "players/6", name: "6 Players", sets: ["xmen6p"] }
             ]
             arcadeBackend.gameInfo = {
@@ -250,6 +257,7 @@ Rectangle {
             idleTracker.resets = 0
             appCore.added = []
             appCore.settings = {}
+            appCore.saved = {}
             root.navigations = []
             root.backs = 0
         }
@@ -433,12 +441,11 @@ Rectangle {
             verify(findText(screen, "1H 30M") !== null)
             compare(screen.textSize, 18)
             compare(screen.nameSize, 20)
-            // Four high scores, with the hint bar and the help line there,
-            // the High Scores module's tables read first.
-            compare(screen.scores.length, 4)
+            // Three high scores, the High Scores module's tables read first.
+            compare(screen.scores.length, 3)
             verify(findText(screen, "110,000") !== null)
-            verify(findText(screen, "50,000") !== null)
-            compare(findText(screen, "30,000"), null)
+            verify(findText(screen, "70,000") !== null)
+            compare(findText(screen, "50,000"), null)
             verify(findText(screen, "Street Fighter II: The World Warrior (World 910522)  •  CPS-1  •  Capcom  •  1991  •  2 Players") !== null)
             verify(findText(screen, "[ESC]:BACK [5]:COIN [ENTER]:PLAY HOLD:OPTIONS") !== null)
             verify(highScoresBackend.refreshes > 0)
@@ -474,11 +481,11 @@ Rectangle {
             compare(screen.currentSet, "galaga")
             keyClick(Qt.Key_Down)
             compare(screen.currentSet, "sf2")
-            // In Fighter too: kept.
+            // In Fighting too: kept.
             keyClick(Qt.Key_Right)
-            compare(screen.filterId, "genres/Fighter")
+            compare(screen.filterId, "genres/Fighting")
             compare(screen.currentSet, "sf2")
-            verify(findText(screen, "Fighter") !== null)
+            verify(findText(screen, "Fighting") !== null)
             // Not in 6 Players: its first, kept round in All Games.
             keyClick(Qt.Key_Right)
             compare(screen.filterId, "players/6")
@@ -581,7 +588,7 @@ Rectangle {
             fuzzyCompare(screen.ground.b, 128 / 255, 0.01)
             compare(screen.ground.r, 0)
             loader.source = ""
-            moduleRoot.infoGround = 40
+            moduleRoot.infoBackground = 40
             screen = openScreen()
             fuzzyCompare(screen.ground.a, 0.4, 0.01)
             fuzzyCompare(screen.ground.b, 128 / 255, 0.01)
@@ -589,25 +596,86 @@ Rectangle {
         }
 
         // The hint bar's and the help line's room, when they are off, goes to
-        // the list, a row more each, and to the high scores.
+        // the list, a row more each; the high scores stay three.
         function test_screenRoom() {
             root.hintBar = false
             var screen = openScreen()
             compare(screen.perPage, 8)
-            compare(screen.scoreRows, 5)
+            compare(screen.scoreRows, 3)
             loader.source = ""
             root.hintBar = true
             root.helpLine = false
             screen = openScreen()
             compare(screen.perPage, 8)
-            compare(screen.scoreRows, 5)
+            compare(screen.scoreRows, 3)
             loader.source = ""
             root.hintBar = false
             screen = openScreen()
             compare(screen.perPage, 9)
             compare(screen.pages, 2)
-            compare(screen.scores.length, 5)
-            verify(findText(screen, "30,000") !== null)
+            compare(screen.scores.length, 3)
+            compare(findText(screen, "50,000"), null)
+        }
+
+        // Screen Adjustment: a frame round the area, whose sides ▲ ▼ ◄ ► move
+        // out, or in once select has switched, a step at a time, as far as the
+        // screen's edge and no smaller than the list and the column need; the
+        // list holding as many games as fit, the column its share of the
+        // width; held select back as the design has it; saved a moment after
+        // the last move, and as back leaves.
+        function test_screenAdjust() {
+            var screen = openScreen({ adjust: true })
+            verify(screen.adjusting)
+            verify(!screen.takesCoin)
+            verify(findText(screen, "Screen Adjustment") !== null)
+            verify(findText(screen, "[ESC]:DONE [▲▼◄►]:EXPAND [ENTER]:SHRINK HOLD:RESET") !== null)
+            compare([screen.areaLeft, screen.areaTop, screen.areaRight, screen.areaBottom], [120, 90, 840, 645])
+            compare(screen.perPage, 7)
+            for (var i = 0; i < 9; ++i)
+                keyClick(Qt.Key_Down)
+            compare(moduleRoot.screenAdjustment.bottom, 54)
+            compare(screen.perPage, 8)
+            for (i = 0; i < 9; ++i)
+                keyClick(Qt.Key_Down)
+            compare(screen.areaBottom, 720)
+            keyClick(Qt.Key_Right)
+            compare(screen.areaRight, 846)
+            compare(screen.columnWidth, 348)
+            compare(screen.listWidth, 726 - 348 - 20)
+            // In, from here on.
+            keyClick(Qt.Key_Return)
+            verify(screen.shrinking)
+            verify(findText(screen, "[▲▼◄►]:SHRINK [ENTER]:EXPAND") !== null)
+            keyClick(Qt.Key_Up)
+            compare(screen.areaTop, 96)
+            for (i = 0; i < 30; ++i)
+                keyClick(Qt.Key_Left)
+            compare(screen.areaWidth, 600)
+            tryVerify(function() { return appCore.saved.screen_adjustment !== undefined })
+            compare(appCore.saved.screen_adjustment, moduleRoot.screenAdjustment)
+            // Held: back as the design has it.
+            keyPress(Qt.Key_Return)
+            wait(900)
+            keyRelease(Qt.Key_Return)
+            compare(moduleRoot.screenAdjustment, { top: 0, bottom: 0, left: 0, right: 0 })
+            verify(screen.shrinking)
+            keyClick(Qt.Key_Left)
+            compare(moduleRoot.screenAdjustment.left, -6)
+            keyClick(Qt.Key_Escape)
+            compare(appCore.saved.screen_adjustment, { top: 0, bottom: 0, left: -6, right: 0 })
+            compare(root.backs, 1)
+            compare(root.navigations, [])
+        }
+
+        // Laid out in the adjusted area as it opens: a taller one holds more
+        // games, the bar, the column and the bars where its sides are.
+        function test_screenAdjusted() {
+            moduleRoot.screenAdjustment = { top: 30, bottom: 54, left: 60, right: 0 }
+            var screen = openScreen()
+            verify(!screen.adjusting)
+            compare(screen.perPage, 9)
+            compare(screen.areaWidth, 780)
+            verify(findText(screen, "[ESC]:BACK [5]:COIN [ENTER]:PLAY HOLD:OPTIONS") !== null)
         }
 
         // Nothing to list: what stands in the way, or that the games are
@@ -631,9 +699,9 @@ Rectangle {
         // Start Filter's, or back from a game, the filter and the game it was
         // on; a filter that isn't there, All Games.
         function test_screenOpensOn() {
-            moduleRoot.startFilter = "genres/Fighter"
+            moduleRoot.startFilter = "genres/Fighting"
             var screen = openScreen()
-            compare(screen.filterId, "genres/Fighter")
+            compare(screen.filterId, "genres/Fighting")
             loader.source = ""
             moduleRoot.startFilter = "genres/Nothing"
             screen = openScreen()
@@ -660,7 +728,7 @@ Rectangle {
             compare(screen.filterId, "all")
             compare(screen.currentSet, "1942")
             loader.source = ""
-            moduleRoot.startFilter = "genres/Fighter"
+            moduleRoot.startFilter = "genres/Fighting"
             arcadeBackend.scanning = true
             arcadeBackend.filterList = all.filter(function(f) { return f.id === "favorites" })
             screen = openScreen()
@@ -668,7 +736,7 @@ Rectangle {
             arcadeBackend.scanning = false
             arcadeBackend.filterList = all
             arcadeBackend.gamesChanged()
-            compare(screen.filterId, "genres/Fighter")
+            compare(screen.filterId, "genres/Fighting")
         }
 
         // The startup favourite plays at once, as if chosen in Favorites.
@@ -839,6 +907,20 @@ Rectangle {
             compare(play.phase, "opening")
             compare(arcadeBackend.started, [])
             compare(appCore.added, [["com.osdos.arcade", "recent", "game:sf2"]])
+        }
+
+        // Settings → Arcade → Screen Adjustment opens the Arcade screen to
+        // adjust, whichever screen lists the games, in the area saved (a side
+        // saved as no number taken as 0); back from it leaves the module.
+        function test_rootAdjust() {
+            appCore.settings = { screen: "Original", screen_adjustment: { top: 6, bottom: -12, left: "x", right: 3 } }
+            var router = open("Root.qml", { adjustScreen: true })
+            var screen = shown(router)
+            verify(screen.adjusting)
+            compare(router.screenAdjustment, { top: 6, bottom: -12, left: 0, right: 3 })
+            compare([screen.areaLeft, screen.areaTop, screen.areaRight, screen.areaBottom], [120, 84, 843, 633])
+            keyClick(Qt.Key_Escape)
+            compare(root.backs, 1)
         }
     }
 }

@@ -63,6 +63,14 @@
       "description": "The ground under the Arcade screen's picture, high scores and play time, over Settings' Background Effect\n[TRANSPARENT] The background shows through  [SOLID] None of it"
     },
     {
+      "key": "screen_adjustment",
+      "label": "Screen Adjustment",
+      "type": "module_view",
+      "params": { "adjustScreen": true },
+      "shown_with": { "key": "screen", "value": "Arcade" },
+      "description": "Fits the Arcade screen to your screen: a frame round it whose sides ▲ ▼ ◄ ► move out, or in after select, the list holding as many games as fit\nHold select to put it back as it was made; back keeps it"
+    },
+    {
       "key": "hint_bar",
       "label": "Hint Bar",
       "type": "toggle",

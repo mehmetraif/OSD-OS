@@ -11,7 +11,8 @@ import Components
 // game is. Coming back from a game restores the tree from the listState
 // handed to navigateTo; a game played from the tree itself (Start Info
 // Screen off) leaves it as it was. Opened with the startup favourite
-// (navParams.startupPlay), it plays that at once.
+// (navParams.startupPlay), it plays that at once, the tree open on it in
+// Favorites.
 FocusScope {
     id: gamesRoot
 
