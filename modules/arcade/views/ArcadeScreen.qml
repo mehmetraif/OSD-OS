@@ -120,11 +120,11 @@ FocusScope {
     }
 
     // The filters read again, the wanted one shown if it has games, and the
-    // game kept where it is in it.
-    function reload() {
+    // game kept where it is in it, or landOn.
+    function reload(landOn) {
         if (!arcadeBackend)
             return
-        var keep = currentSet !== "" ? currentSet : (navListState.set || "")
+        var keep = landOn || (currentSet !== "" ? currentSet : (navListState.set || ""))
         filters = arcadeBackend.filters()
         var at = indexOfFilter(wanted)
         filterIndex = Math.max(0, at)
@@ -184,8 +184,12 @@ FocusScope {
             return
         var set = path.substring(5)
         var game = arcadeBackend.gameDetails(set)
-        if (game.set && !game.unknown)
-            play(set, game.name, "favorites")
+        if (!game.set || game.unknown)
+            return
+        // There as it plays, for a game played from the screen itself.
+        wanted = "favorites"
+        reload(set)
+        play(set, game.name, "favorites")
     }
 
     Component.onCompleted: {

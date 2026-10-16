@@ -61,18 +61,35 @@ FocusScope {
             navigateTo("Play.qml", params, listState)
             return
         }
-        // Before MAME is started, for a game that should end at once.
         playing = { game: params.game, title: params.title, listState: listState || {} }
         keyCatcher.forceActiveFocus()
-        if (startGame(params.game))
-            return
-        playing = null
-        navigateTo("Play.qml", { game: params.game, title: params.title,
-                                 error: arcadeBackend ? arcadeBackend.lastError() : "" }, listState)
+        listLaunch.restart()
+    }
+    // The list on the screen first, without the window a game may have been
+    // chosen in (its options), as a headless Pi hands it over to MAME.
+    Timer {
+        id: listLaunch
+    // How long what is on the screen stays before MAME takes it, so that a
+    // headless Pi hands that over, not a frame of what was there before.
+    readonly property int handOverDelay: 150
+
+        interval: moduleRoot.handOverDelay
+        onTriggered: {
+            var game = moduleRoot.playing
+            if (!game || moduleRoot.startGame(game.game))
+                return
+            moduleRoot.playing = null
+            moduleRoot.navigateTo("Play.qml", { game: game.game, title: game.title,
+                                                error: arcadeBackend ? arcadeBackend.lastError() : "" },
+                                  game.listState)
+        }
     }
     // The game playGame() started from the list, while it runs: { game,
-    // title, listState }; null for none.
+    // title, listState }; null for none. Nothing of the menus moves behind
+    // it: their effects rest, as for a game's own screen (Play.qml).
     property var playing: null
+    onPlayingChanged: root.restFor(moduleRoot, playing !== null)
+    Component.onDestruction: root.restFor(moduleRoot, false)
 
     Connections {
         target: arcadeBackend

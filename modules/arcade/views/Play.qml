@@ -88,10 +88,10 @@ FocusScope {
 
     // Long enough to read how to come back: from the Arcade screen every
     // time, from the tree the first game this run, as the screen stays as it
-    // is while MAME starts; otherwise just this frame on the screen first, as
-    // a headless Pi hands it over.
+    // is while MAME starts; otherwise just long enough for this screen to be
+    // what a headless Pi hands over.
     Timer {
-        interval: playRoot.arcade ? 3000 : arcadeBackend && arcadeBackend.played ? 150 : 1500
+        interval: playRoot.arcade ? 3000 : arcadeBackend && arcadeBackend.played ? moduleRoot.handOverDelay : 1500
         running: playRoot.phase === "opening"
         onTriggered: playRoot.launch()
     }

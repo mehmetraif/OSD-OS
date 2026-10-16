@@ -45,8 +45,11 @@ FocusScope {
         var favorites = arcadeBackend.requestEntries("favorites")
         for (var i = 0; i < favorites.length; ++i) {
             if (favorites[i].path === entry.path) {
-                play(favorites[i], [{ path: "top", sel: 1, name: "", pushed: false },
-                                    { path: "favorites", sel: i, name: "Favorites", pushed: false }])
+                var trail = [{ path: "top", sel: 1, name: "", pushed: false },
+                             { path: "favorites", sel: i, name: "Favorites", pushed: false }]
+                // There as it plays, for a game played from the tree itself.
+                tree.reopen(trail)
+                play(favorites[i], trail)
                 return
             }
         }
