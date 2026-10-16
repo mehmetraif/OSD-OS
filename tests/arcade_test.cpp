@@ -735,15 +735,40 @@ private slots:
         QCOMPARE(mame::systemOf(QStringLiteral("nintendo/dkong.cpp")), QStringLiteral("DKONG"));
         QCOMPARE(mame::systemOf(QString()), QString());
 
-        // [Category]'s lines only, each set's genre before the kind of it.
+        // The genre arcade players know a game by, from its category.
+        const std::pair<const char *, const char *> kGenres[] = {
+            { "Fighter / Versus", "Fighting" },                  // Street Fighter II
+            { "Fighter / Versus * Mature *", "Fighting" },       // Mortal Kombat
+            { "Fighter / 3D", "Fighting" },
+            { "Fighter / 2.5D", "Beat 'em Up" },                 // Final Fight
+            { "Fighter / 2D", "Beat 'em Up" },                   // Kung-Fu Master
+            { "Platform / Fighter", "Beat 'em Up" },             // China Gate
+            { "Platform / Shooter Scrolling", "Run and Gun" },   // Metal Slug
+            { "Shooter / Walking", "Run and Gun" },              // Commando
+            { "Shooter / Flying Vertical", "Shmup" },            // 1942
+            { "Shooter / Gallery", "Shmup" },                    // Galaga
+            { "Shooter / Misc. Horizontal", "Shmup" },
+            { "Shooter / Gun", "Light Gun" },                    // Operation Wolf
+            { "Shooter / Field", "Shooter" },
+            { "Platform / Run Jump", "Platform" },               // Donkey Kong
+            { "Platform / Fighter Scrolling", "Platform" },      // Shinobi
+            { "Driving / Race (chase view)", "Racing" },         // Out Run
+            { "Climbing / Building", "Climbing" },               // Crazy Climber
+            { "Maze / Collect", "Maze" },
+            { "Puzzle", "Puzzle" },
+        };
+        for (const auto &[category, genre] : kGenres)
+            QCOMPARE(mame::genreOf(QString::fromUtf8(category)), QString::fromUtf8(genre));
+
+        // [Category]'s lines only, each set's genre by its category.
         const QString catver = m_data.path() + QStringLiteral("/catver-test.ini");
         writeFile(catver, "[FOLDER_SETTINGS]\nRootFolderIcon mame\n\n[ROOT_FOLDER]\n\n[Category]\n"
                           "sf2=Fighter / Versus\nmk=Fighter / Versus * Mature *\npuckman=Maze / Collect\n"
                           "tetris=Puzzle\n;note=Not a game\n\n[VerAdded]\nsf2=0.30\n");
         const QHash<QString, QString> genres = mame::readGenres(catver);
         QCOMPARE(genres.size(), 4);
-        QCOMPARE(genres.value(QStringLiteral("sf2")), QStringLiteral("Fighter"));
-        QCOMPARE(genres.value(QStringLiteral("mk")), QStringLiteral("Fighter"));
+        QCOMPARE(genres.value(QStringLiteral("sf2")), QStringLiteral("Fighting"));
+        QCOMPARE(genres.value(QStringLiteral("mk")), QStringLiteral("Fighting"));
         QCOMPARE(genres.value(QStringLiteral("puckman")), QStringLiteral("Maze"));
         QCOMPARE(genres.value(QStringLiteral("tetris")), QStringLiteral("Puzzle"));
         QFile::remove(catver);
@@ -773,7 +798,7 @@ private slots:
             QFile::remove(m_data.path() + QStringLiteral("/lists.json"));
         });
         writeFile(m_games + QStringLiteral("/catver.ini"),
-                  "[Category]\nsf2=Fighter / Versus\nkinst=Fighter / Versus\nxmen6p=Fighter / Scrolling\n"
+                  "[Category]\nsf2=Fighter / Versus\nkinst=Fighter / Versus\nxmen6p=Fighter / 2.5D\n"
                   "puckman=Maze / Collect\ngalaga=Shooter / Flying Vertical\n");
         // A picture beside the games, Pac-Man's parent's, and one MAME took.
         writeFile(m_games + QStringLiteral("/snap/puckman.png"), "png");
@@ -802,8 +827,9 @@ private slots:
         };
         QCOMPARE(described(arcade.filters()), QStringList({
             QStringLiteral("all All Games 7"), QStringLiteral("favorites Favorites 2"),
-            QStringLiteral("recent Recently Played 1"), QStringLiteral("genres/Fighter Fighter 3"),
-            QStringLiteral("genres/Maze Maze 1"), QStringLiteral("genres/Shooter Shooter 1"),
+            QStringLiteral("recent Recently Played 1"), QStringLiteral("genres/Beat 'em Up Beat 'em Up 1"),
+            QStringLiteral("genres/Fighting Fighting 2"), QStringLiteral("genres/Maze Maze 1"),
+            QStringLiteral("genres/Shmup Shmup 1"),
             QStringLiteral("players/1 1 Player 1"), QStringLiteral("players/2 2 Players 5"),
             QStringLiteral("players/6 6 Players 1"), QStringLiteral("years/1980s 1980s 3"),
             QStringLiteral("years/1990s 1990s 4"), QStringLiteral("unknown Not Recognized 2") }));
@@ -829,7 +855,7 @@ private slots:
         QVERIFY(arcade.filterGames(QStringLiteral("genres/Nothing"), 0, 10).isEmpty());
 
         QCOMPARE(arcade.filterIndex(QStringLiteral("all"), QStringLiteral("pacman")), 4);
-        QCOMPARE(arcade.filterIndex(QStringLiteral("genres/Fighter"), QStringLiteral("sf2")), 1);
+        QCOMPARE(arcade.filterIndex(QStringLiteral("genres/Fighting"), QStringLiteral("sf2")), 1);
         QCOMPARE(arcade.filterIndex(QStringLiteral("favorites"), QStringLiteral("pacman")), -1);
 
         // What a game is.
@@ -873,8 +899,9 @@ private slots:
             ids << v.toMap().value(QStringLiteral("id")).toString();
         QCOMPARE(options.at(0).at(0).toString(), QStringLiteral("start_filter"));
         QCOMPARE(ids, QStringList({ QStringLiteral("all"), QStringLiteral("favorites"), QStringLiteral("recent"),
-                                    QStringLiteral("genres/Fighter"), QStringLiteral("genres/Maze"),
-                                    QStringLiteral("genres/Shooter"), QStringLiteral("players/1"),
+                                    QStringLiteral("genres/Beat 'em Up"), QStringLiteral("genres/Fighting"),
+                                    QStringLiteral("genres/Maze"), QStringLiteral("genres/Shmup"),
+                                    QStringLiteral("players/1"),
                                     QStringLiteral("players/2"), QStringLiteral("players/6"),
                                     QStringLiteral("years/1980s"), QStringLiteral("years/1990s") }));
         QCOMPARE(options.at(1).at(0).toString(), QStringLiteral("play_at_startup"));
@@ -894,7 +921,118 @@ private slots:
         QVERIFY(arcade.filterGames(QStringLiteral("all"), 0, 3).isEmpty());
         QTRY_VERIFY_WITH_TIMEOUT(!arcade.scanning(), 10000);
         QVERIFY(!changed.isEmpty());
-        QCOMPARE(arcade.filters().size(), 12);
+        QCOMPARE(arcade.filters().size(), 13);
+    }
+
+    // Settings → Arcade → Menu Filters: its page, the lists and the places
+    // under their headings, a publisher's off; the filters the Arcade screen
+    // goes round and Start Filter offers, as turned on or off there (the row
+    // saved whole each time, as its page saves it), a publisher's id with
+    // dots in it among them. A Start Filter saved under one of catver.ini's
+    // own genres is the genre it became.
+    void menuFilters() {
+        const QString module = QStringLiteral("com.osdos.arcade");
+        AppCore core(m_data.path(), m_data.path());
+        const auto restore = qScopeGuard([this, &core, &module] {
+            QFile::remove(m_games + QStringLiteral("/catver.ini"));
+            QFile::remove(m_data.path() + QStringLiteral("/lists.json"));
+            core.save_setting(module, QStringLiteral("menu_filters"), QVariantMap());
+            core.save_setting(module, QStringLiteral("start_filter"), QString());
+        });
+        QFile::remove(m_data.path() + QStringLiteral("/lists.json"));
+        writeFile(m_games + QStringLiteral("/catver.ini"),
+                  "[Category]\nsf2=Fighter / Versus\nxmen6p=Fighter / 2.5D\ngalaga=Shooter / Gallery\n");
+        core.save_setting(module, QStringLiteral("start_filter"), QStringLiteral("genres/Fighter"));
+
+        ArcadeBackend arcade(m_data.path(), m_data.path(), &core, nullptr);
+        QCOMPARE(core.get_setting(module, QStringLiteral("start_filter")).toString(), QStringLiteral("genres/Fighting"));
+        // As main.cpp's registerModule() wires it.
+        connect(&core, &AppCore::moduleSettingChanged, &arcade, &ArcadeBackend::onSettingChanged);
+        refreshed(arcade);
+        const auto ids = [](const QVariantList &list) {
+            QStringList all;
+            for (const QVariant &v : list)
+                all << v.toMap().value(QStringLiteral("id")).toString();
+            return all;
+        };
+
+        QSignalSpy options(&arcade, &ArcadeBackend::dynamicOptionsReady);
+        arcade.menuFilterOptions();
+        QCOMPARE(options.size(), 1);
+        QCOMPARE(options.at(0).at(0).toString(), QStringLiteral("menu_filters"));
+        QStringList page;
+        for (const QVariant &v : options.at(0).at(1).toList()) {
+            const QVariantMap o = v.toMap();
+            if (o.value(QStringLiteral("heading")).toBool())
+                page << o.value(QStringLiteral("label")).toString().toUpper();
+            else
+                page << o.value(QStringLiteral("id")).toString() + QLatin1Char('=') + o.value(QStringLiteral("label")).toString()
+                            + (o.value(QStringLiteral("default")).toBool() ? QString() : QStringLiteral(" off"));
+        }
+        QCOMPARE(page, QStringList({
+            QStringLiteral("LISTS"), QStringLiteral("favorites=Favorites"), QStringLiteral("recent=Recently Played"),
+            QStringLiteral("unknown=Not Recognized"),
+            QStringLiteral("GENRES"), QStringLiteral("genres/Beat 'em Up=Beat 'em Up"),
+            QStringLiteral("genres/Fighting=Fighting"), QStringLiteral("genres/Shmup=Shmup"),
+            QStringLiteral("PLAYERS"), QStringLiteral("players/1=1 Player"), QStringLiteral("players/2=2 Players"),
+            QStringLiteral("players/6=6 Players"),
+            QStringLiteral("YEARS"), QStringLiteral("years/1980s=1980s"), QStringLiteral("years/1990s=1990s"),
+            QStringLiteral("PUBLISHERS"), QStringLiteral("makers/Capcom=Capcom off"), QStringLiteral("makers/Konami=Konami off"),
+            QStringLiteral("makers/Namco=Namco off"), QStringLiteral("makers/Nazca=Nazca off"),
+            QStringLiteral("makers/Rare=Rare off") }));
+        QCOMPARE(ids(arcade.filters()), QStringList({
+            QStringLiteral("all"), QStringLiteral("genres/Beat 'em Up"), QStringLiteral("genres/Fighting"),
+            QStringLiteral("genres/Shmup"), QStringLiteral("players/1"), QStringLiteral("players/2"),
+            QStringLiteral("players/6"), QStringLiteral("years/1980s"), QStringLiteral("years/1990s"),
+            QStringLiteral("unknown") }));
+
+        // A publisher on, a genre and Not Recognized off. Start Filter offers
+        // what is shown.
+        QSignalSpy changed(&arcade, &ArcadeBackend::gamesChanged);
+        QVariantMap shown{ { QStringLiteral("makers/Namco"), true } };
+        core.save_setting(module, QStringLiteral("menu_filters"), shown);
+        shown.insert(QStringLiteral("genres/Fighting"), false);
+        shown.insert(QStringLiteral("unknown"), false);
+        core.save_setting(module, QStringLiteral("menu_filters"), shown);
+        QCOMPARE(changed.size(), 2);
+        QCOMPARE(ids(arcade.filters()), QStringList({
+            QStringLiteral("all"), QStringLiteral("genres/Beat 'em Up"), QStringLiteral("genres/Shmup"),
+            QStringLiteral("players/1"), QStringLiteral("players/2"), QStringLiteral("players/6"),
+            QStringLiteral("years/1980s"), QStringLiteral("years/1990s"), QStringLiteral("makers/Namco") }));
+        QCOMPARE(arcade.filterGames(QStringLiteral("makers/Namco"), 0, 10).size(), 2);
+        options.clear();
+        arcade.startFilterOptions();
+        QCOMPARE(ids(options.at(0).at(1).toList()), QStringList({
+            QStringLiteral("all"), QStringLiteral("favorites"), QStringLiteral("recent"),
+            QStringLiteral("genres/Beat 'em Up"), QStringLiteral("genres/Shmup"), QStringLiteral("players/1"),
+            QStringLiteral("players/2"), QStringLiteral("players/6"), QStringLiteral("years/1980s"),
+            QStringLiteral("years/1990s"), QStringLiteral("makers/Namco") }));
+
+        // A heading's all at once: the players off, Favorites and Recently
+        // Played too.
+        for (const char *id : { "players/1", "players/2", "players/6", "favorites", "recent" })
+            shown.insert(QLatin1String(id), false);
+        core.save_setting(module, QStringLiteral("menu_filters"), shown);
+        QCOMPARE(ids(arcade.filters()), QStringList({
+            QStringLiteral("all"), QStringLiteral("genres/Beat 'em Up"), QStringLiteral("genres/Shmup"),
+            QStringLiteral("years/1980s"), QStringLiteral("years/1990s"), QStringLiteral("makers/Namco") }));
+        core.add_to_list(module, QStringLiteral("favorites"), { { QStringLiteral("path"), QStringLiteral("game:galaga") } });
+        QVERIFY(!ids(arcade.filters()).contains(QStringLiteral("favorites")));
+        options.clear();
+        arcade.startFilterOptions();
+        QCOMPARE(ids(options.at(0).at(1).toList()).mid(0, 2),
+                 QStringList({ QStringLiteral("all"), QStringLiteral("genres/Beat 'em Up") }));
+
+        // A publisher with dots in its name, saved and read back as it is.
+        shown.insert(QStringLiteral("makers/U.S. Games"), true);
+        core.save_setting(module, QStringLiteral("menu_filters"), shown);
+        QVERIFY(core.get_setting(module, QStringLiteral("menu_filters")).toMap()
+                    .value(QStringLiteral("makers/U.S. Games")).toBool());
+        AppCore again(m_data.path(), m_data.path());
+        ArcadeBackend reread(m_data.path(), m_data.path(), &again, nullptr);
+        refreshed(reread);
+        QVERIFY(ids(reread.filters()).contains(QStringLiteral("makers/Namco")));
+        QVERIFY(!ids(reread.filters()).contains(QStringLiteral("genres/Fighting")));
     }
 
     // The credits bought go in as the game starts, nine at most: MAME runs

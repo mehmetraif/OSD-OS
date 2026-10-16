@@ -1,6 +1,14 @@
 import QtQuick
 import Components
 
+// A module's multiselect_submenu row (Plex's Libraries, Arcade's Menu
+// Filters): a line for each of the backend's choices (dynamicOptionsReady,
+// [{ id, label, default }]), ON or OFF, the row saved whole at every change
+// as { "<id>": true or false } under its key, so an id may hold any
+// character. A choice not saved there is as its default says, else ON. A
+// heading among them ({ label, heading: true }) groups the choices under it,
+// up to the next, and turns them all on at once, or all off once they all
+// are on.
 FocusScope {
     id: multiSelectRoot
 
@@ -11,28 +19,46 @@ FocusScope {
     property string settingKey: navParams.settingKey || ""
     property string settingLabel: navParams.settingLabel || ""
 
-    property var options: []         // [{id, label, enabled}]
-    property var enabledMap: ({})    // id -> bool
+    property var options: []         // [{id, label, default}], and [{label, heading}]
+    property var enabledMap: ({})    // id -> bool, as the page shows them
+    property var saved: ({})         // the row as saved, read as the choices come
 
     function buildEnabledMap() {
         var allSettings = appCore.get_settings()
         var moduleConfig = (allSettings.modules && allSettings.modules[moduleId]) ? allSettings.modules[moduleId] : {}
-        var storedMap = moduleConfig[settingKey] || {}
+        saved = moduleConfig[settingKey] || {}
         var map = {}
         for (var i = 0; i < options.length; i++) {
-            var id = options[i].id
-            map[id] = (storedMap[id] !== undefined) ? storedMap[id] : true
+            var option = options[i]
+            if (!option.heading)
+                map[option.id] = saved[option.id] !== undefined ? saved[option.id] : option.default !== false
         }
         enabledMap = map
     }
 
-    function toggleItem(id) {
-        var updated = Object.assign({}, enabledMap)
-        updated[id] = !updated[id]
-        enabledMap = updated
-        // Save as nested key: settingKey.{id}
-        appCore.save_setting(moduleId, settingKey + "." + id, enabledMap[id])
-        optionsList.forceLayout()
+    // The ids of the choices under the heading at index.
+    function groupOf(index) {
+        var ids = []
+        for (var i = index + 1; i < options.length && !options[i].heading; i++)
+            ids.push(options[i].id)
+        return ids
+    }
+
+    // A choice flipped, or a heading's group all on (off once they all are),
+    // and the row saved.
+    function toggleItem(index) {
+        var option = options[index]
+        if (!option)
+            return
+        var ids = option.heading ? groupOf(index) : [option.id]
+        var on = !ids.every(function(id) { return enabledMap[id] })
+        var shown = Object.assign({}, enabledMap)
+        var kept = Object.assign({}, saved)
+        for (var i = 0; i < ids.length; i++)
+            shown[ids[i]] = kept[ids[i]] = on
+        enabledMap = shown
+        saved = kept
+        appCore.save_setting(moduleId, settingKey, kept)
     }
 
     // Receive dynamic options from backend via appCore
@@ -73,110 +99,43 @@ FocusScope {
         anchors.leftMargin: root.sw * 0.125 //80
     }
 
-    ListView {
+    // "NAME······ON", a heading "GENRES ─────" over its choices.
+    MenuList {
         id: optionsList
-        model: options
-        anchors.top: parent.top
-        anchors.left: parent.left
-        anchors.topMargin: root.sh * 0.25 //120
-        anchors.leftMargin: root.sw * 0.115625 //74
-        width: root.sw * 0.76875 //492
-        height: root.sh * 0.525 + root.hintRoom //252
-        clip: true
+        model: multiSelectRoot.options
         focus: true
 
-        Keys.onUpPressed: {
-            if (count === 0) return
-            if (currentIndex > 0) currentIndex--
-            else currentIndex = count - 1
-            optionsList.positionViewAtIndex(optionsList.currentIndex, ListView.Contain)
-        }
-        Keys.onDownPressed: {
-            if (count === 0) return
-            if (currentIndex < count - 1) currentIndex++
-            else currentIndex = 0
-            optionsList.positionViewAtIndex(optionsList.currentIndex, ListView.Contain)
+        delegate: MenuRow {
+            required property var modelData
+            required property int index
+            width: optionsList.width
+            height: root.sh * 0.0583333 //28
+            label: modelData.label || ""
+            heading: !!modelData.heading
+            value: modelData.heading ? "" : (multiSelectRoot.enabledMap[modelData.id] ? "ON" : "OFF")
+            selected: optionsList.currentIndex === index
         }
 
-        Keys.onLeftPressed: {
-            if (options[currentIndex]) toggleItem(options[currentIndex].id)
-        }
-        Keys.onRightPressed: {
-            if (options[currentIndex]) toggleItem(options[currentIndex].id)
-        }
-
-        Keys.onReturnPressed: {
-            if (options[currentIndex]) toggleItem(options[currentIndex].id)
-        }
-
+        Keys.onLeftPressed: multiSelectRoot.toggleItem(currentIndex)
+        Keys.onRightPressed: multiSelectRoot.toggleItem(currentIndex)
+        Keys.onReturnPressed: multiSelectRoot.toggleItem(currentIndex)
         Keys.onPressed: function(event) {
             if (event.key === Qt.Key_Escape || event.key === Qt.Key_Backspace || event.key === Qt.Key_Back) {
                 multiSelectRoot.goBack()
                 event.accepted = true
             }
         }
+    }
 
-        delegate: Item {
-            width: optionsList.width
-            height: root.sh * 0.0583333 //28
-
-            Rectangle {
-                anchors.fill: parent
-                color: optionsList.currentIndex === index ? root.accentColor : "transparent"
-
-                Text {
-                    text: modelData.label || ""
-                    color: optionsList.currentIndex === index ? root.surfaceColor : root.primaryColor
-                    font.family: root.globalFont
-                    font.capitalization: Font.AllUppercase
-                    anchors.verticalCenter: parent.verticalCenter
-                    x: 0
-                    topPadding: root.sh * 0.0041667 //2
-                    leftPadding: root.sw * 0.009375 //6
-                    rightPadding: root.sw * 0.009375 //6
-                    bottomPadding: root.sh * 0.00625 //3
-                    font.pixelSize: root.sh * 0.05 //24
-                }
-
-                Row {
-                    anchors.verticalCenter: parent.verticalCenter
-                    anchors.right: parent.right
-                    anchors.rightMargin: root.sw * 0.009375 //6
-                    spacing: root.sw * 0.00625 //4
-
-                    Text {
-                        text: "\u25C4"
-                        color: optionsList.currentIndex === index ? root.surfaceColor : root.tertiaryColor
-                        font.family: root.globalFont
-                        anchors.verticalCenter: parent.verticalCenter
-                        topPadding: root.sh * 0.0041667 //2
-                        bottomPadding: root.sh * 0.00625 //3
-                        font.pixelSize: root.sh * 0.0375 //18
-                    }
-                    Text {
-                        text: multiSelectRoot.enabledMap[modelData.id] ? "ON" : "OFF"
-                        color: optionsList.currentIndex === index ? root.surfaceColor : root.primaryColor
-                        font.family: root.globalFont
-                        font.capitalization: Font.AllUppercase
-                        anchors.verticalCenter: parent.verticalCenter
-                        topPadding: root.sh * 0.0041667 //2
-                        leftPadding: root.sw * 0.009375 //6
-                        rightPadding: root.sw * 0.009375 //6
-                        bottomPadding: root.sh * 0.00625 //3
-                        font.pixelSize:root.sh * 0.05 //24
-                    }
-                    Text {
-                        text: "\u25BA"
-                        color: optionsList.currentIndex === index ? root.surfaceColor : root.tertiaryColor
-                        font.family: root.globalFont
-                        anchors.verticalCenter: parent.verticalCenter
-                        topPadding: root.sh * 0.0041667 //2
-                        bottomPadding: root.sh * 0.00625 //3
-                        font.pixelSize: root.sh * 0.0375 //18
-                    }
-                }
-            }
-        }
+    // What a heading does, on its line.
+    HelpLine {
+        readonly property var currentRow: multiSelectRoot.options[optionsList.currentIndex]
+        visible: !!(currentRow && currentRow.heading)
+        text: "Turns all of the choices under it on or off"
+        anchors.bottom: parent.bottom
+        anchors.left: parent.left
+        anchors.bottomMargin: root.helpLineMargin
+        anchors.leftMargin: root.sw * 0.125 //80
     }
 
     // --- FOOTER ---

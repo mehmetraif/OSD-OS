@@ -78,7 +78,7 @@ The types, as Settings shows and saves them:
 | `toggle` | `ON` or `OFF`; ◄ ►, and select, flip it. `default` is `"ON"` or `"OFF"` | `true` or `false` |
 | `list_single` with `options` | ◄ ► step through the choices, round the ends | The choice's text |
 | `list_single` with `"options_source": "dynamic"` | The backend's labels. While nothing is saved the row shows the first choice, so put the default first | The choice's `id` |
-| `multiselect_submenu` | Select opens a page of the backend's choices, each switched on and off | `{ "<id>": true, … }` under the key; every choice is on until it is switched off |
+| `multiselect_submenu` | Select opens a page of the backend's choices, each switched on and off. Choices under a heading (`{ "label": "Genres", "heading": true }` among them) are a group, which select on the heading turns on, or off once they all are on | `{ "<id>": true, … }` under the key, saved whole at every change; every choice is on until it is switched off, but one sent with `"default": false` (Arcade's publishers), which is off until it is switched on |
 | `submenu` | Select opens its rows on a page of their own, titled `MODULE / LABEL` (YouTube's Advanced) | Its rows' keys, flat under `modules.<id>` |
 | `module_view` | Select opens the module itself, its `Root.qml` with `params` (Netflix's Sign in) | Nothing |
 | `directory_browser` | Select opens the folder picker, the tree Local Files is browsed with; the row shows the path, or `Default` | The folder's path; `""` for **Default Folder**, which the module gives a meaning |

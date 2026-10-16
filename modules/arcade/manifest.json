@@ -32,7 +32,16 @@
       "options_source": "dynamic",
       "options_slot": "startFilterOptions",
       "shown_with": { "key": "screen", "value": "Arcade" },
-      "description": "The list the Arcade screen opens on: All Games, Favorites, Recently Played, a genre, a number of players or a decade\nOne with no games opens on All Games"
+      "description": "The list the Arcade screen opens on: All Games, or one of the lists, genres, players, decades and publishers Menu Filters shows\nOne with no games opens on All Games"
+    },
+    {
+      "key": "menu_filters",
+      "label": "Menu Filters",
+      "type": "multiselect_submenu",
+      "options_source": "dynamic",
+      "options_slot": "menuFilterOptions",
+      "shown_with": { "key": "screen", "value": "Arcade" },
+      "description": "The filters ◄ ► goes round on the Arcade screen, under their headings: the lists, the genres (Fighting, Beat 'em Up, Shmup, Run and Gun…), players, years and publishers\nAll Games is always there, a publisher only once turned on"
     },
     {
       "key": "play_at_startup",

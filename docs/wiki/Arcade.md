@@ -12,7 +12,7 @@ The module is in [modules/arcade](https://github.com/mehmetraif/OSD-OS/tree/main
 <tr><td><img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/screenshots/arcade-play.png" width="100%" alt="PLAY Galaga (Namco rev. B): press COIN + START together to come back to OSD/OS, or Esc on a keyboard" /></td><td><img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/screenshots/arcade-missing.png" width="100%" alt="Could not play Metal Slug: missing sp-s2.sp1, 000-lo.lo, sfix.sfix and 1 more, looked for in mslug.zip, neogeo.zip, and MAME's own lines" /></td></tr>
 <tr><td>How to come back, in player 1's own buttons, then MAME has the screen.</td><td>What the set lacked and where MAME looked: here the Neo-Geo BIOS, neogeo.zip.</td></tr>
 <tr><th>The Arcade screen</th><th>A game started from it</th></tr>
-<tr><td><img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/screenshots/arcade-screen.png" width="100%" alt="The Arcade screen: ◄ Fighter ► 1/3 over seven games on an arc, Final Fight selected and marked a favorite; on the right its picture with Credit 2, Hi-Score 1ST 116,370 ACD, 2ND 89,760 .Z, 3RD 20,000 NIN, 4TH 17,000 CAP, and Play Time 1H 31M; under the list Final Fight (World, set 1) • CPS-1 • Capcom, scrolling through" /></td><td><img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/screenshots/arcade-screen-play.png" width="100%" alt="Play ▶ Final Fight (World, set 1): press COIN + START together to come back to OSD/OS, or Esc on a keyboard; 2 credits go in as the game starts" /></td></tr>
+<tr><td><img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/screenshots/arcade-screen.png" width="100%" alt="The Arcade screen: ◄ Beat 'em Up ► 1/2 over seven games on an arc, Final Fight selected and marked a favorite; on the right its picture with Credit 2, and in a framed box under it Hi-Score 1ST 116,370 ACD, 2ND 89,760 .Z, 3RD 20,000 NIN, 4TH 17,000 CAP, and Play Time 1H 31M; under the list Final Fight (World, set 1) • CPS-1 • Capcom, scrolling through" /></td><td><img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/screenshots/arcade-screen-play.png" width="100%" alt="Play ▶ Final Fight (World, set 1): press COIN + START together to come back to OSD/OS, or Esc on a keyboard; 2 credits go in as the game starts" /></td></tr>
 <tr><td>The games of one filter at a time, here a genre, with the selected one's picture, high scores and play time, and what it is under them. The pictures here are stand-ins.</td><td>How to come back, and the credits going in with the game.</td></tr>
 </table>
 
@@ -39,7 +39,7 @@ ROM sets are copyrighted, like the games on them: use the games you are entitled
 | **Original** (the default) | OSD/OS's own tree, as the other modules have: Recently Played, Favorites, Search, All Games, and the games by players, decade and maker ([below](#the-original-screen)) |
 | **Arcade** | A cabinet's selection screen: one filter's games at a time, on an arc, with the selected one's picture and high scores beside them and what it is under them; ◄ ► go through the filters, COIN buys credits and select or START plays ([below](#the-arcade-screen)) |
 
-Both list the same games from the same folder, share Recently Played and Favorites, and play a game the same way. Start Filter, Info Background, Hint Bar and Help Line are the Arcade screen's own settings, so Settings → Arcade shows them only while Screen is Arcade. Its look is Settings' own, as every screen's is: its theme, colors, skin, background, selector effect and transitions.
+Both list the same games from the same folder, share Recently Played and Favorites, and play a game the same way. Start Filter, Menu Filters, Info Background, Hint Bar and Help Line are the Arcade screen's own settings, so Settings → Arcade shows them only while Screen is Arcade. Its look is Settings' own, as every screen's is: its theme, colors, skin, background, selector effect and transitions.
 
 ## The original screen
 
@@ -95,23 +95,51 @@ COIN and START are MAME's own keys and buttons for them, so the screen works as 
 
 ### Filters
 
-◄ ► go round the filters that have games, in this order:
+◄ ► go round the filters that have games and that Menu Filters shows ([below](#menu-filters)), in this order:
 
 | Filter | What it holds |
 |---|---|
-| **All Games** | Every game, by name |
+| **All Games** | Every game, by name. Always there |
 | **Favorites** | The games put on Favorites, by name |
 | **Recently Played** | The games played last, latest first (up to 30) |
-| A genre (**Fighter**, **Shooter**, **Platform**…) | The games of that genre, by catver.ini ([below](#genres)) |
+| A genre (**Beat 'em Up**, **Fighting**, **Shmup**, **Run and Gun**…) | The games of that genre, by catver.ini ([below](#genres)) |
 | **1 Player**, **2 Players**… | The games for that many players at once |
 | **1980s**, **1990s**… | The games of each decade, **Year Unknown** last |
+| A publisher (**Capcom**, **Namco**…) | The games of that maker, as MAME names it (the first, for a game made by two), once turned on in Menu Filters |
 | **Not Recognized** | The files MAME has no game of, as under the tree's Not Recognized ([above](#the-original-screen)) |
 
-**Settings → Arcade → Start Filter** is the one the screen opens on: All Games, Favorites, Recently Played, a genre, a number of players or a decade. One that has no games then (Favorites before any is added) opens on All Games. Back from a game, the screen is on its filter and on the game again.
+**Settings → Arcade → Start Filter** is the one the screen opens on: All Games, or one of the lists, genres, numbers of players, decades and publishers that Menu Filters shows. One that has no games then (Favorites before any is added), or that Menu Filters no longer shows, opens on All Games. Back from a game, the screen is on its filter and on the game again.
+
+### Menu Filters
+
+<img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/screenshots/arcade-menu-filters.png" width="100%" alt="Settings / Arcade / Menu Filters: the LISTS heading over Favorites, Recently Played and Not Recognized, ON; the GENRES heading selected, over Beat 'em Up, Fighting and Maze, ON; the help line: Turns all of the choices under it on or off" />
+
+**Settings → Arcade → Menu Filters** chooses the filters ◄ ► goes round. Its page lists them under five headings, each with the ones the games in the folder have: **Lists** (Favorites, Recently Played, Not Recognized), **Genres**, **Players**, **Years** and **Publishers**.
+
+- ◄, ► or select on a filter turns it **ON** or **OFF**.
+- On a heading, they turn every filter under it on at once, or off once they all are on.
+- Every filter is on until it is turned off, but a publisher's: a full set of MAME's games has hundreds of makers, so each publisher is off until it is turned on (the Publishers heading turns them all on).
+- All Games is always there, so the screen always has a filter.
 
 ### Genres
 
-The genres come from **catver.ini**, the category list for MAME's games that progettosnaps.net keeps (in its *Catver.ini* pack): a line for each game, such as `sf2=Fighter / Versus`. Put `catver.ini` in the games folder, beside the sets, or in `arcade` in the data folder. A game's genre is its category up to the `/`: `Fighter`; a clone without a line of its own takes its parent's. A catver.ini made for the same MAME as the sets names the most of them. Without one there are no genre filters; the rest of the screen is the same.
+The genres come from **catver.ini**, the category list for MAME's games that progettosnaps.net keeps (in its *Catver.ini* pack): a line for each game, such as `sf2=Fighter / Versus`. Put `catver.ini` in the games folder, beside the sets, or in `arcade` in the data folder. A clone without a line of its own takes its parent's genre. A catver.ini made for the same MAME as the sets names the most of them. Without one there are no genre filters; the rest of the screen is the same.
+
+A game's genre is the one arcade players know it by, made from its category (its `* Mature *` mark aside):
+
+| Genre | catver.ini's categories | For instance |
+|---|---|---|
+| **Fighting** | `Fighter / Versus`, `Versus Co-op`, `3D` and the other fighters | Street Fighter II, Mortal Kombat |
+| **Beat 'em Up** | `Fighter / 2.5D`, `2D`, `Vertical`, `Field`, `Scrolling`; `Platform / Fighter` | Final Fight, Double Dragon, Kung-Fu Master |
+| **Shmup** | `Shooter / Flying` and every `Flying …`, `Gallery`, `Misc. Vertical`, `Misc. Horizontal` | 1942, R-Type, Xevious, Galaga |
+| **Run and Gun** | `Platform / Shooter …`, `Shooter / Walking` | Metal Slug, Contra, Commando, Ikari Warriors |
+| **Light Gun** | `Shooter / Gun` | Operation Wolf |
+| **Shooter** | The other shooters | Asteroids, Robotron: 2084, Cabal |
+| **Platform** | The other platform games: `Run Jump`, `Fighter Scrolling`… | Donkey Kong, Ghosts'n Goblins, Shinobi |
+| **Racing** | `Driving / …` | Out Run, Pole Position |
+| Any other | Its category up to the `/` | **Maze** (Pac-Man), **Puzzle** (Tetris), **Sports**, **Climbing**… |
+
+A Start Filter saved under the genres OSD/OS 0.0.9 listed, catver.ini's own, is read as the one it became: `genres/Fighter` as Fighting, `genres/Driving` as Racing.
 
 ### Pictures
 
@@ -191,7 +219,8 @@ Settings → Arcade.
 | Enabled | ON, OFF | OFF | Shows Arcade on the main menu | `modules.com.osdos.arcade.enabled` |
 | Games Folder | Default, or a folder | Default | The folder of ROM sets. Default: `Games/Arcade` in Local Files' default folder, on the OSD/OS image `/media/OSD-OS/Games/Arcade` | `modules.com.osdos.arcade.games_directory` |
 | Screen | Original, Arcade | Original | How the games are listed, from the next time Arcade opens: the tree, or the Arcade screen ([Two screens](#two-screens)) | `modules.com.osdos.arcade.screen` |
-| Start Filter | All Games, Favorites, Recently Played, then the genres, players and decades there are | All Games | The filter the Arcade screen opens on ([Filters](#filters)); while it has no games, the first that has. Shown while Screen is Arcade | `modules.com.osdos.arcade.start_filter` |
+| Start Filter | All Games, then the lists, genres, players, decades and publishers Menu Filters shows | All Games | The filter the Arcade screen opens on ([Filters](#filters)); while it has no games, the first that has. Shown while Screen is Arcade | `modules.com.osdos.arcade.start_filter` |
+| Menu Filters | A page of the filters under their headings, each ON or OFF | All on, the publishers off | The filters ◄ ► goes round on the Arcade screen ([Menu Filters](#menu-filters)). Shown while Screen is Arcade | `modules.com.osdos.arcade.menu_filters` |
 | Play at Startup | None, then the favorites | None | A favorite game started straight after the boot screen, as a game's options set it ([A game's options](#a-games-options)). One for the whole app: choosing a game replaces another module's | `modules.com.osdos.arcade.play_at_startup` |
 | Info Background | A slider from TRANSPARENT to SOLID, 0 to 100 in steps of 10 | 100 (SOLID) | How solid the ground under the Arcade screen's picture, high scores and play time is over Settings' Background Effect ([The Arcade screen](#the-arcade-screen)). Shown while Screen is Arcade | `modules.com.osdos.arcade.info_background` |
 | Hint Bar | ON, OFF | ON | The keys at the foot of the Arcade screen and its windows, in place of Settings' own Hint Bar; off, the list and the high scores take its room. Shown while Screen is Arcade | `modules.com.osdos.arcade.hint_bar` |
@@ -210,13 +239,14 @@ Settings → Arcade.
 | `enabled`, `hint_bar`, `help_line`, `start_info`, `high_scores` | `true` or `false` |
 | `games_directory` | `""` for the default, else the folder's full path |
 | `screen` | `"Original"` or `"Arcade"` |
-| `start_filter` | The filter's id: `"all"`, `"favorites"`, `"recent"`, `"genres/<genre>"` (`"genres/Fighter"`), `"players/<n>"` (`"players/2"`) or `"years/<decade>"` (`"years/1980s"`, `"years/unknown"`) |
+| `start_filter` | The filter's id: `"all"`, `"favorites"`, `"recent"`, `"genres/<genre>"` (`"genres/Fighting"`), `"players/<n>"` (`"players/2"`), `"years/<decade>"` (`"years/1980s"`, `"years/unknown"`) or `"makers/<publisher>"` (`"makers/Capcom"`) |
+| `menu_filters` | The filters turned on or off, by id: `{ "genres/Puzzle": false, "makers/Capcom": true }`, and `"unknown"` for Not Recognized. One not in it is on, but a publisher's |
 | `play_at_startup` | The game's set (`"galaga"`), `""` for None; the app's own `startup_favorite` holds the same game, and either changes the other |
 | `info_background` | A number from 0 (transparent) to 100 (solid) |
 | `online_high_scores`, `online_play` | `"Off"` |
 | `video` | `"Auto"`, `"OpenGL"`, `"BGFX"`, `"Accelerated"` or `"Software"` |
 
-The module's entry in `config.json` (in the data folder), with the games on a USB drive, the Arcade screen opening on the fighting games without its hint bar, and MAME's software drawing:
+The module's entry in `config.json` (in the data folder), with the games on a USB drive, the Arcade screen opening on the fighting games without its hint bar, its filters without the puzzle games and with Capcom's, and MAME's software drawing:
 
 ```json
 {
@@ -225,7 +255,8 @@ The module's entry in `config.json` (in the data folder), with the games on a US
             "enabled": true,
             "games_directory": "/media/usb/MAME",
             "screen": "Arcade",
-            "start_filter": "genres/Fighter",
+            "start_filter": "genres/Fighting",
+            "menu_filters": { "genres/Puzzle": false, "makers/Capcom": true },
             "hint_bar": false,
             "high_scores": true,
             "video": "Software"
@@ -290,7 +321,8 @@ mame galaga \
 | The Arcade screen has no genre filters | Put `catver.ini` in the games folder or in `arcade` in the data folder ([Genres](#genres)), then open Arcade again |
 | `No Picture` | Put the game's picture in the games folder's `snap` folder, named by its set: `snap/galaga.png` ([Pictures](#pictures)). The frame names the file it looks for |
 | The credits bought don't show in the game | They go in 5 seconds into the game. A board still starting up then may miss them: insert a coin in the game with COIN. A game MAME shows a warning for first counts them once the warning is gone |
-| The Arcade screen's settings aren't in Settings → Arcade | Start Filter, Info Background, Hint Bar and Help Line show while **Screen** is **Arcade** |
+| The Arcade screen's settings aren't in Settings → Arcade | Start Filter, Menu Filters, Info Background, Hint Bar and Help Line show while **Screen** is **Arcade** |
+| A genre, a decade or Favorites isn't among the Arcade screen's filters | It has no games, or **Settings → Arcade → Menu Filters** has it off ([Menu Filters](#menu-filters)) |
 
 The app's log has the module's lines: `journalctl -u osdos -b | grep -E 'Arcade|Scripts'` with the service, such as `[Arcade] games folder: /media/OSD-OS/Games/Arcade`, `[Arcade] Asking MAME about 18 games`, `[Arcade] mslug: Missing sp-s2.sp1, …` and `[Scripts] 'mame' finished: failed (exit 2)`. To see all MAME says, run it by hand from a terminal with the [arguments above](#files-it-keeps). See [Troubleshooting](https://github.com/mehmetraif/OSD-OS/wiki/Troubleshooting).
 
