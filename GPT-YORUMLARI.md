@@ -1,7 +1,7 @@
 # OSD/OS performans ve mantık incelemesi
 
-İnceleme tarihi: 16 Ekim 2026  
-İncelenen sürüm: `b9c8eff`  
+İnceleme tarihi: 16 Ekim 2026<br>
+İncelenen sürüm: `b9c8eff`<br>
 Hedef donanım: Raspberry Pi 4 ve Raspberry Pi 5 (8 GB), CRT televizyon ve arcade kabini
 
 ## Kısa sonuç
@@ -22,7 +22,7 @@ Statik incelemede doğrudan veri kaybına veya sürekli çökmeye yol açan krit
 
 ### 1. Büyük medya kütüphaneleri tek seferde belleğe ve QML modeline alınıyor
 
-**Önem:** Yüksek  
+**Önem:** Yüksek<br>
 **Tür:** Doğrulanmış performans/mimari riski
 
 - Jellyfin tüm sonuçları limitsiz istiyor, JSON'u ana iş parçacığında ayrıştırıp tamamını `QVariantList` yapıyor: `src/modules/jellyfin/JellyfinBackend.cpp:668-705`.
@@ -36,7 +36,7 @@ Binlerce filmlik/dizilik bir arşivde ağ yanıtından sonra JSON ayrıştırma,
 
 ### 2. Arcade koleksiyonunun önemli işleri GUI iş parçacığında
 
-**Önem:** Yüksek (tam MAME seti ve yavaş USB/SD için)  
+**Önem:** Yüksek (tam MAME seti ve yavaş USB/SD için)<br>
 **Tür:** Doğrulanmış performans riski
 
 - ROM klasörü senkron dolaşılıyor ve bazı dosyalar için ek varlık kontrolü yapılıyor: `src/modules/arcade/ArcadeBackend.cpp:317-371`.
@@ -50,7 +50,7 @@ Tam bir MAME seti on binlerce girdiye ulaşabilir. exFAT USB disklerde dizin ve 
 
 ### 3. Plex sezonları sınırsız paralel HTTP isteğine dönüşebiliyor
 
-**Önem:** Yüksek  
+**Önem:** Yüksek<br>
 **Tür:** Doğrulanmış mantık/performans riski
 
 `flattenSeasons()` listedeki her sezon için ayrı `/children` isteğini hemen başlatıyor: `src/modules/plex/PlexBackend.cpp:819-859`. Bu işlev hem hub listelerinde hem de tüm kütüphane yüklemesinde çağrılıyor: `src/modules/plex/PlexBackend.cpp:1517-1553`.
@@ -61,7 +61,7 @@ Sezon sayısı yüksek bir TV arşivi çok sayıda eşzamanlı istek, çoklu JSO
 
 ### 4. Arcade ekran ayarı bozuk/elle değiştirilmiş kayda karşı korunmuyor
 
-**Önem:** Orta  
+**Önem:** Orta<br>
 **Tür:** Doğrulanmış dayanıklılık hatası
 
 Normal ayar ekranı minimum alanı koruyor: `modules/arcade/views/ArcadeScreen.qml:146-169`. Ancak kaydedilmiş `screen_adjustment` değerleri başlangıçta doğrulanmadan yükleniyor: `modules/arcade/views/Root.qml:205-210`. Aşırı bir değer liste alanını küçültebilir; `perPage` sıfır veya bir olduğunda `pitch` hesabındaki `(perPage - 1)` bölümü geçersiz sonuç üretebilir: `modules/arcade/views/ArcadeScreen.qml:70-85`.
@@ -72,7 +72,7 @@ Bu, normal tuş kullanımıyla kolayca oluşmuyor; yarım kalmış eski bir ayar
 
 ### 5. Arcade görseli aranırken seçim değişimi GUI'de disk erişimi yapıyor
 
-**Önem:** Orta  
+**Önem:** Orta<br>
 **Tür:** Doğrulanmış performans riski
 
 Her yeni oyun seçimi `gameDetails()` çağırıyor: `modules/arcade/views/ArcadeScreen.qml:130-133`. İlk ziyarette `pictureOf()` PNG/JPG varlık kontrolleri ve ekran görüntüsü klasörü listelemesi yapıyor: `src/modules/arcade/ArcadeBackend.cpp:776-831`. Sonuçlar, bulunamayan görseller dahil, oturum içinde önbelleğe alındığı için ikinci ziyaret ucuzdur.
@@ -83,7 +83,7 @@ Yavaş exFAT/USB ortamında ilk kez hızlı gezinirken her başlık kısa bir ta
 
 ### 6. Asenkron liste yanıtları istek kimliği taşımıyor
 
-**Önem:** Orta  
+**Önem:** Orta<br>
 **Tür:** Mantık ve gereksiz iş riski
 
 Jellyfin ve Emby `itemsLoaded` yanıtını yalnızca ekran moduna göre kabul ediyor; hangi `parentId` isteğine ait olduğunu denetlemiyor: `modules/jellyfin/views/Items.qml:79-84`, `modules/emby/views/Items.qml:79-84`. Plex tarafında da bölüm/hub kimliğiyle korelasyon yok: `modules/plex/views/Items.qml:172-179`.
@@ -94,7 +94,7 @@ Kullanıcı hızlı gezinirse eski ve büyük bir yanıt yeni ekran açıldıkta
 
 ### 7. YouTube abonelik yenilemesi bütün kanalları aynı anda çağırıyor
 
-**Önem:** Orta  
+**Önem:** Orta<br>
 **Tür:** Ölçeğe bağlı performans riski
 
 15 dakikalık önbellek eskidiğinde bütün kanallar `refreshChannel()` ile aynı anda başlatılıyor: `src/modules/youtube/YouTubeBackend.cpp:160-190`. Her tamamlanma RSS XML'ini ana iş parçacığında ayrıştırıyor: `src/modules/youtube/YouTubeBackend.cpp:264-293`.
@@ -105,7 +105,7 @@ Az sayıda abonelikte sorun beklenmez. Yüzlerce kanalda Pi 4 Wi-Fi ve CPU üzer
 
 ### 8. Ayar dosyası oynatma başlangıcında tekrar tekrar okunuyor
 
-**Önem:** Orta-düşük  
+**Önem:** Orta-düşük<br>
 **Tür:** Doğrulanmış I/O verimsizliği
 
 `AppCore::get_setting()` her çağrıda `config.json` dosyasını okuyup ayrıştırıyor: `src/AppCore.cpp:58-71`, `src/AppCore.cpp:164-181`. `MpvController` bir oturumun ölçekleme, crop, altyazı, arka plan ve video profil ayarları için bu işlevi birden fazla kez çağırıyor; örnekler `src/player/MpvController.cpp:1018-1028` ve `src/player/MpvController.cpp:1100-1138`.
@@ -116,7 +116,7 @@ Dosya küçükken etkisi sınırlıdır; yine de her video başlangıcında tekr
 
 ### 9. Local Files önbelleği ekran her açıldığında temizleniyor
 
-**Önem:** Orta-düşük  
+**Önem:** Orta-düşük<br>
 **Tür:** Doğrulanmış I/O verimsizliği
 
 `TreeBrowser.rootPath` binding'i her ekran kuruluşunda `clearDirectoryCache()` çağırıyor: `modules/local_files/views/Items.qml:102-109`. Böylece aynı USB/NAS dizinlerine dönüşte `AsyncDirectoryCache` yeniden disk/ağ erişimi yapıyor.
@@ -125,7 +125,7 @@ Dosya küçükken etkisi sınırlıdır; yine de her video başlangıcında tekr
 
 ### 10. TreeBrowser oturum önbelleği sınırsız büyüyebiliyor
 
-**Önem:** Orta-düşük  
+**Önem:** Orta-düşük<br>
 **Tür:** Uzun oturuma bağlı bellek riski
 
 Her ziyaret edilen yol `listings` JavaScript nesnesinde saklanıyor: `views/Components/TreeBrowser.qml:172-180`, `views/Components/TreeBrowser.qml:222-247`. Derin yerel klasörlerde ve çok sayfalı çevrim içi kataloglarda modül kapanana kadar büyüyebilir.
@@ -136,7 +136,7 @@ Her ziyaret edilen yol `listings` JavaScript nesnesinde saklanıyor: `views/Comp
 
 ### 11. Arcade teması Pi 4 için pahalı bir varsayılan kombinasyon
 
-**Önem:** Orta (yüksek çözünürlüklü çıkışta)  
+**Önem:** Orta (yüksek çözünürlüklü çıkışta)<br>
 **Tür:** Ölçüm gerektiren performans riski
 
 Arcade teması aynı anda `Stars`, `Rainbow` metin, `Rainbow` seçici ve `Cube` geçişini açıyor: `assets/themes/arcade/theme.json:1-11`. Rainbow metin, ekranı tam çözünürlükte bir shader katmanına alıyor: `Main.qml:936-947`. Hareketli efekt zamanı yaklaşık 30 Hz güncelleniyor: `Main.qml:239-250`.
@@ -147,7 +147,7 @@ Fiziksel 480i CRT'de piksel sayısı düşük olduğu için maliyet makul olabil
 
 ### 12. Pi 5 composite raster/aspect davranışı yalnızca yorum ve kullanıcı ayarına bırakılmış
 
-**Önem:** Düşük-orta  
+**Önem:** Düşük-orta<br>
 **Tür:** Donanım doğrulama açığı
 
 Kod, Pi 5 composite çıkışın bazen 720×480i yerine 704×432 raporladığını açıkça belirtiyor ve çözümü `monitorpixelaspect`/sistem ayarına bırakıyor: `src/player/MpvController.cpp:1055-1063`.
