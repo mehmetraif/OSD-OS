@@ -5,22 +5,25 @@ import Components
 // selection screen in place of the original tree (Games.qml). The games of
 // one filter (ArcadeBackend::filters) lie on an arc, a page at a time, under
 // a bar naming the filter and the page; on the right the game's picture with
-// the credits bought, its high scores (the High Scores module's) and what it
-// is (ArcadeBackend::gameDetails); under them the help line with its full
-// name, and the hint bar. The module's own Hint Bar and Help Line settings
-// (Root.qml's, which root.hintBar and root.helpLine go by here) hide those,
-// and their room goes to the list, a row more each, and to the high scores.
-// Laid out in the design's units: a 960th of the width, a 720th of the
-// height.
+// the credits bought, its high scores (the High Scores module's) and how
+// long it has been played; under them the help line with its full name and
+// what it is (ArcadeBackend::gameDetails), and the hint bar. The module's
+// own Hint Bar and Help Line settings (Root.qml's, which root.hintBar and
+// root.helpLine go by here) hide those, and their room goes to the list, a
+// row more each, and to the high scores. Laid out in the design's units, a
+// 960th of the width and a 720th of the height, in letters a CRT reads: none
+// smaller than the hint bar's and the help line's.
 //
 // ▲ ▼ choose a game, from page to page and round; ◄ ► go round the filters,
 // keeping the game where the next filter has it. COIN (MAME's 5, which a
-// pad's Back button, MAME's coin, is here: takesCoin) buys a credit, START
-// (Space, a pad's Start, or 1) plays the game with them (Play.qml), select
-// opens its options (Play, its favourite, Play at Startup) and back leaves
-// the module. Coming back from a game restores the filter and the game from
-// the listState handed to navigateTo. Opened with the startup favourite
-// (navParams.startupPlay), it plays that at once.
+// pad's Back button, MAME's coin, is here: takesCoin) buys a credit; select,
+// let go, or START (Space, a pad's Start, or 1) plays the game with them
+// (Root.qml's playGame); select held opens its options (Play, its favourite,
+// Play at Startup) and back leaves the module. Coming back from a game
+// restores the filter and the game from the listState handed to navigateTo;
+// a game played from the screen itself (Start Info Screen off) leaves it as
+// it was. Opened with the startup favourite (navParams.startupPlay), it
+// plays that at once.
 FocusScope {
     id: arcadeScreen
 
@@ -47,16 +50,25 @@ FocusScope {
     readonly property real u: root.sw / 960
     readonly property real v: root.sh / 720
 
+    // The letters: the hint bar's and the help line's, 18 of 480 lines, and
+    // the games' names larger.
+    readonly property int textSize: Math.round(27 * v)
+    readonly property int nameSize: Math.round(30 * v)
+
     // Where the list and the column end, in the design's 720 lines: above
     // the help line, or above what is in its place.
     readonly property int listBottom: root.hintBar ? (root.helpLine ? 552 : 604) : (root.helpLine ? 592 : 644)
-    // As many rows as fit 38 lines apart, spread over the room.
-    readonly property int perPage: Math.floor((listBottom - 179) / 38) + 1
-    readonly property int pitch: Math.floor((listBottom - 179) / (perPage - 1))
-    // The column's lines against its foot; the high scores above them, as
-    // many as fit, five at most.
-    readonly property int infoTop: listBottom - 130
-    readonly property int scoreRows: Math.min(5, Math.floor((infoTop - 333) / 25))
+    // The rows under the bar, as many as fit 54 lines apart (seven with both
+    // bars), spread over the room.
+    readonly property int listTop: 147
+    readonly property int rowHeight: 48
+    readonly property int perPage: Math.floor((listBottom - listTop - rowHeight) / 54) + 1
+    readonly property int pitch: Math.floor((listBottom - listTop - rowHeight) / (perPage - 1))
+    // The column under the picture: the high scores, as many as fit (four
+    // with both bars, five at most), and the play time against its foot.
+    readonly property int scoresTop: 362
+    readonly property int playTimeTop: listBottom - 27
+    readonly property int scoreRows: Math.min(5, Math.floor((playTimeTop - scoresTop - 64) / 31) + 1)
 
     // The filters with games (ArcadeBackend::filters), the one shown, and the
     // one wanted: Start Filter's, or the one ◄ ► came to, shown as soon as it
@@ -145,6 +157,19 @@ FocusScope {
             options.offer({ name: details.name || current.name, path: "game:" + currentSet, isFolder: false })
     }
 
+    // Select plays the game as it is let go, and opens its options once held
+    // this long. Only a press this screen saw counts: one let go after the
+    // options or a game took it doesn't.
+    property bool selectHeld: false
+    Timer {
+        id: holdTimer
+        interval: 800
+        onTriggered: {
+            arcadeScreen.selectHeld = false
+            arcadeScreen.openOptions()
+        }
+    }
+
     // The startup favourite, played as if chosen in Favorites. Only as the
     // view first opens: coming back from the game brings navListState
     // instead.
@@ -192,6 +217,11 @@ FocusScope {
         // Keys the options leave go no further.
         if (options.visible)
             return
+        // A held select is select alone.
+        if (!event.isAutoRepeat && event.key !== Qt.Key_Return && event.key !== Qt.Key_Enter) {
+            selectHeld = false
+            holdTimer.stop()
+        }
         if (event.key === Qt.Key_5) {
             // COIN.
             if (!event.isAutoRepeat)
@@ -208,8 +238,10 @@ FocusScope {
         } else if (event.key === Qt.Key_Right) {
             cycle(1)
         } else if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter) {
-            if (!event.isAutoRepeat)
-                openOptions()
+            if (!event.isAutoRepeat) {
+                selectHeld = true
+                holdTimer.restart()
+            }
         } else if (event.key === Qt.Key_Escape || event.key === Qt.Key_Backspace || event.key === Qt.Key_Back) {
             if (!event.isAutoRepeat)
                 arcadeScreen.goBack()
@@ -217,6 +249,17 @@ FocusScope {
             return
         }
         event.accepted = true
+    }
+
+    Keys.onReleased: function(event) {
+        if ((event.key !== Qt.Key_Return && event.key !== Qt.Key_Enter) || event.isAutoRepeat)
+            return
+        event.accepted = true
+        if (!selectHeld)
+            return
+        selectHeld = false
+        holdTimer.stop()
+        playCurrent()
     }
 
     // A play time as the column shows it: 1H 23M, 45M; NEVER.
@@ -235,7 +278,7 @@ FocusScope {
         visible: arcadeScreen.filters.length > 0
         text: arcadeScreen.filter ? arcadeScreen.filter.name : ""
         arrows: arcadeScreen.filters.length > 1
-        rightText: "Page " + (arcadeScreen.page + 1) + "/" + arcadeScreen.pages
+        rightText: (arcadeScreen.page + 1) + "/" + arcadeScreen.pages
     }
 
     Repeater {
@@ -248,12 +291,13 @@ FocusScope {
             readonly property bool isCurrent: number - 1 === arcadeScreen.selected
             // The rows lie on an arc, the middle of the page furthest right;
             // the selected one stands out of it to the left.
-            readonly property int arc: Math.round(36 * Math.sin(Math.PI * (index + 0.5) / arcadeScreen.perPage))
+            readonly property int arc: Math.round(24 * Math.sin(Math.PI * (index + 0.5) / arcadeScreen.perPage))
             readonly property color ink: isCurrent ? root.surfaceColor : root.primaryColor
-            x: Math.round((150 + arc - (isCurrent ? 18 : 0)) * arcadeScreen.u)
-            y: Math.round((146 + index * arcadeScreen.pitch) * arcadeScreen.v)
-            width: Math.round((isCurrent ? 348 : 330) * arcadeScreen.u)
-            height: Math.round(33 * arcadeScreen.v)
+            readonly property real gap: Math.round(10 * arcadeScreen.u)
+            x: Math.round((132 + arc - (isCurrent ? 16 : 0)) * arcadeScreen.u)
+            y: Math.round((arcadeScreen.listTop + index * arcadeScreen.pitch) * arcadeScreen.v)
+            width: Math.round((isCurrent ? 336 : 320) * arcadeScreen.u)
+            height: Math.round(arcadeScreen.rowHeight * arcadeScreen.v)
 
             SelectionBox {
                 anchors.fill: parent
@@ -270,48 +314,88 @@ FocusScope {
 
             Text {
                 id: numberText
-                x: Math.round(10 * arcadeScreen.u) + root.px
+                x: row.gap + root.px
                 anchors.verticalCenter: parent.verticalCenter
                 text: ("00" + row.number).slice(-Math.max(3, String(row.number).length))
                 color: row.ink
                 font.family: root.globalFont
-                font.pixelSize: Math.round(16 * arcadeScreen.v)
+                font.pixelSize: arcadeScreen.textSize
             }
-            Text {
-                x: numberText.x + numberText.width + Math.round(10 * arcadeScreen.u)
-                width: (heart.visible ? heart.x - Math.round(10 * arcadeScreen.u)
-                                      : row.width - Math.round(10 * arcadeScreen.u) - root.px) - x
-                anchors.verticalCenter: parent.verticalCenter
-                text: row.modelData.name
-                textFormat: Text.PlainText
-                elide: Text.ElideRight
-                color: row.ink
-                font.family: root.globalFont
-                font.capitalization: Font.AllUppercase
-                font.pixelSize: Math.round(22 * arcadeScreen.v)
+
+            // The name: cut short with "…" when it is too long for the row,
+            // scrolled through instead while the game is selected.
+            Item {
+                id: nameClip
+                x: numberText.x + numberText.width + row.gap
+                width: (heart.visible ? heart.x - row.gap : row.width - row.gap - root.px) - x
+                height: parent.height
+                clip: true
+
+                Text {
+                    id: nameText
+                    anchors.verticalCenter: parent.verticalCenter
+                    width: row.isCurrent ? implicitWidth : Math.min(implicitWidth, nameClip.width)
+                    text: row.modelData.name
+                    textFormat: Text.PlainText
+                    elide: Text.ElideRight
+                    color: row.ink
+                    font.family: root.globalFont
+                    font.capitalization: Font.AllUppercase
+                    font.pixelSize: arcadeScreen.nameSize
+                }
+
+                // Whether it scrolls, and how far: started (and started over)
+                // once the row has its new width, a turn of the event loop
+                // later, as MenuRow's value is.
+                readonly property bool scrolls: row.isCurrent && nameText.implicitWidth > width
+                readonly property real scrollBy: width - nameText.implicitWidth
+                onScrollsChanged: Qt.callLater(updateScroll)
+                onScrollByChanged: Qt.callLater(updateScroll)
+                function updateScroll() {
+                    if (scrolls)
+                        scroll.restart()
+                    else
+                        scroll.stop()
+                }
+
+                SequentialAnimation {
+                    id: scroll
+                    loops: Animation.Infinite
+                    onRunningChanged: if (!running) nameText.x = 0
+
+                    PauseAnimation { duration: 1500 }
+                    NumberAnimation {
+                        target: nameText
+                        property: "x"
+                        to: nameClip.scrollBy
+                        duration: Math.abs(to) * 20
+                    }
+                    PauseAnimation { duration: 2000 }
+                    PropertyAction { target: nameText; property: "x"; value: 0 }
+                }
             }
             PixelIcon {
                 id: heart
                 visible: !!row.modelData.favorite
                 name: "heart"
                 color: row.ink
-                x: row.width - width - Math.round(10 * arcadeScreen.u) - root.px
+                x: row.width - width - row.gap - root.px
                 anchors.verticalCenter: parent.verticalCenter
             }
         }
     }
 
     // ---
-    // The column: the picture, the high scores, what the game is
+    // The column: the picture, the high scores, the play time
     // ---
 
     Rectangle {
         id: preview
         visible: arcadeScreen.filters.length > 0
-        x: Math.round(560 * arcadeScreen.u)
+        x: Math.round(495 * arcadeScreen.u)
         y: Math.round(90 * arcadeScreen.v)
-        width: Math.round(280 * arcadeScreen.u)
-        height: Math.round(210 * arcadeScreen.v)
+        width: Math.round(345 * arcadeScreen.u)
+        height: Math.round(259 * arcadeScreen.v)
         color: picture.status === Image.Ready ? "#000000" : "transparent"
         border.width: root.px
         border.color: root.primaryColor
@@ -346,7 +430,7 @@ FocusScope {
                 color: root.primaryColor
                 font.family: root.globalFont
                 font.capitalization: Font.AllUppercase
-                font.pixelSize: Math.round(20 * arcadeScreen.v)
+                font.pixelSize: arcadeScreen.nameSize
             }
             Text {
                 visible: arcadeScreen.isGame
@@ -357,7 +441,7 @@ FocusScope {
                 elide: Text.ElideMiddle
                 color: root.primaryColor
                 font.family: root.globalFont
-                font.pixelSize: Math.round(15 * arcadeScreen.v)
+                font.pixelSize: arcadeScreen.textSize
             }
         }
 
@@ -378,26 +462,26 @@ FocusScope {
                 color: root.primaryColor
                 font.family: root.globalFont
                 font.capitalization: Font.AllUppercase
-                font.pixelSize: Math.round(15 * arcadeScreen.v)
+                font.pixelSize: arcadeScreen.textSize
             }
         }
     }
 
-    Column {
+    // The high scores, under the picture: a line for each the column has
+    // room for, kept from game to game.
+    Item {
         visible: arcadeScreen.isGame
-        x: Math.round(560 * arcadeScreen.u)
-        y: Math.round(312 * arcadeScreen.v)
-        width: Math.round(280 * arcadeScreen.u)
-        spacing: Math.round(5 * arcadeScreen.v)
+        x: Math.round(495 * arcadeScreen.u)
+        y: Math.round(arcadeScreen.scoresTop * arcadeScreen.v)
+        width: Math.round(345 * arcadeScreen.u)
 
         Text {
             text: "Hi-Score"
             color: root.primaryColor
             font.family: root.globalFont
             font.capitalization: Font.AllUppercase
-            font.pixelSize: Math.round(18 * arcadeScreen.v)
+            font.pixelSize: arcadeScreen.textSize
         }
-        // A line for each the column has room for, kept from game to game.
         Repeater {
             model: arcadeScreen.scoreRows
             Item {
@@ -405,26 +489,27 @@ FocusScope {
                 required property int index
                 readonly property var entry: index < arcadeScreen.scores.length ? arcadeScreen.scores[index] : null
                 visible: entry !== null
+                y: Math.round((34 + index * 31) * arcadeScreen.v)
                 width: parent.width
-                height: Math.round(20 * arcadeScreen.v)
+                height: arcadeScreen.textSize
                 Text {
                     text: scoreLine.entry ? scoreLine.entry.rank : ""
                     color: root.primaryColor
                     font.family: root.globalFont
-                    font.pixelSize: Math.round(20 * arcadeScreen.v)
+                    font.pixelSize: arcadeScreen.textSize
                 }
                 Text {
                     anchors.right: parent.right
-                    anchors.rightMargin: scoreLine.entry && scoreLine.entry.name !== "" ? Math.round(60 * arcadeScreen.u) : 0
+                    anchors.rightMargin: scoreLine.entry && scoreLine.entry.name !== "" ? Math.round(64 * arcadeScreen.u) : 0
                     text: scoreLine.entry ? scoreLine.entry.score : ""
                     textFormat: Text.PlainText
                     color: root.primaryColor
                     font.family: root.globalFont
-                    font.pixelSize: Math.round(20 * arcadeScreen.v)
+                    font.pixelSize: arcadeScreen.textSize
                 }
                 Text {
                     anchors.right: parent.right
-                    width: Math.round(48 * arcadeScreen.u)
+                    width: Math.round(50 * arcadeScreen.u)
                     horizontalAlignment: Text.AlignRight
                     text: scoreLine.entry ? scoreLine.entry.name : ""
                     textFormat: Text.PlainText
@@ -432,51 +517,40 @@ FocusScope {
                     color: root.primaryColor
                     font.family: root.globalFont
                     font.capitalization: Font.AllUppercase
-                    font.pixelSize: Math.round(20 * arcadeScreen.v)
+                    font.pixelSize: arcadeScreen.textSize
                 }
             }
         }
         Text {
             visible: arcadeScreen.scores.length === 0
+            y: Math.round(34 * arcadeScreen.v)
             text: "No Scores Yet"
             color: root.primaryColor
             font.family: root.globalFont
             font.capitalization: Font.AllUppercase
-            font.pixelSize: Math.round(18 * arcadeScreen.v)
+            font.pixelSize: arcadeScreen.textSize
         }
     }
 
-    // A line of what the game is, by its place in the column.
-    function detail(line) {
+    // How long the game has been played, against the column's foot. The
+    // label where the high scores' are: MenuRow pads its line.
+    MenuRow {
+        visible: arcadeScreen.isGame
+        x: Math.round(495 * arcadeScreen.u) - pad
+        y: Math.round(arcadeScreen.playTimeTop * arcadeScreen.v)
+        width: Math.round(345 * arcadeScreen.u) + 2 * pad
+        height: arcadeScreen.textSize
+        fontSize: arcadeScreen.textSize
+        label: "Play Time"
+        value: arcadeScreen.playTime(arcadeScreen.details.playTime)
+    }
+
+    // What the game is, for the help line: its full name as MAME has it,
+    // then its system, maker, year and players, those MAME says.
+    readonly property string about: {
         var d = details
-        switch (line) {
-        case 0: return d.system || "?"
-        case 1: return d.maker || "?"
-        case 2: return d.year || "?"
-        case 3: return d.players > 0 ? String(d.players) : "?"
-        case 4: return playTime(d.playTime)
-        default: return "Available"
-        }
-    }
-
-    // What the game is, against the column's foot: lines kept from game to
-    // game, their values following it. The online line keeps its place while
-    // it is hidden, so the column stays still.
-    Repeater {
-        model: ["System", "Maker", "Year", "Players", "Play Time", "Online"]
-        MenuRow {
-            required property string modelData
-            required property int index
-            visible: arcadeScreen.isGame && (index < 5 || !!arcadeScreen.details.online)
-            // The label where the high scores' are: MenuRow pads its line.
-            x: Math.round(560 * arcadeScreen.u) - pad
-            y: Math.round((arcadeScreen.infoTop + index * 23) * arcadeScreen.v)
-            width: Math.round(280 * arcadeScreen.u) + 2 * pad
-            height: Math.round(18 * arcadeScreen.v)
-            fontSize: Math.round(18 * arcadeScreen.v)
-            label: modelData
-            value: arcadeScreen.detail(index)
-        }
+        return [d.name || "", d.system || "", d.maker || "", d.year || "",
+                d.players > 0 ? d.players + (d.players === 1 ? " Player" : " Players") : ""].join("\n")
     }
 
     // ---
@@ -497,27 +571,26 @@ FocusScope {
     // The help line and the hint bar
     // ---
 
-    // The game's full name, as MAME has it; why a set isn't a game. What
-    // stands in the way of the list comes first.
+    // What the game is; why a set isn't a game. What stands in the way of
+    // the list comes first.
     HelpLine {
         visible: arcadeScreen.filters.length > 0 && !options.visible
         text: arcadeScreen.problem !== "" ? arcadeScreen.problem
               : arcadeScreen.scanning ? "Reading the games…"
               : arcadeScreen.details.unknown ? arcadeScreen.details.detail
-              : arcadeScreen.details.name || ""
+              : arcadeScreen.about
         anchors.bottom: parent.bottom
         anchors.left: parent.left
         anchors.bottomMargin: root.helpLineMargin
         anchors.leftMargin: root.sw * 0.125 //80
     }
 
-    // ▲ ▼ and ◄ ► go without saying, the filter's bar showing ◄ ►: the
-    // bar has room for four.
+    // ▲ ▼ and ◄ ► go without saying, the filter's bar showing ◄ ►, and
+    // START with select: the bar has room for four.
     HintBar {
         visible: !options.visible
         text: arcadeScreen.filters.length === 0 ? root.hints.back + ":BACK"
-              : root.hints.back + ":BACK " + root.hints.coin + ":CREDIT " + root.hints.play_pause + ":PLAY "
-                + root.hints.select + ":OPTIONS"
+              : root.hints.back + ":BACK " + root.hints.coin + ":COIN " + root.hints.select + ":PLAY HOLD:OPTIONS"
         anchors.bottom: parent.bottom
         anchors.left: parent.left
         anchors.bottomMargin: root.sh * 0.1041667 //50

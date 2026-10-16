@@ -7,11 +7,12 @@ import QtTest
 // once, and a game's screen, from how to come back (player 1's own buttons)
 // to MAME having the screen, every key kept from the menus meanwhile, and
 // back to the list, or why it didn't play. The Arcade screen: its filters
-// and pages, a game's details and high scores, COIN, START and the options,
-// the room of its hint bar and help line, and the credits going in with the
-// game. The module's router, Root.qml: a game played straight from the list
-// with Start Info Screen off, every key kept from it meanwhile, back on it
-// after, or why it didn't play.
+// and pages, a game's details and high scores, COIN, select (let go or
+// held) and START, the selected name scrolling, the room of its hint bar
+// and help line, and the credits going in with the game. The module's
+// router, Root.qml: a game played straight from the list with Start Info
+// Screen off, every key kept from it meanwhile, back on it after, or why it
+// didn't play.
 Rectangle {
     id: root
     color: surfaceColor
@@ -271,6 +272,18 @@ Rectangle {
             return null
         }
 
+        // The text item showing exactly this.
+        function findExact(item, text) {
+            if (item.text !== undefined && String(item.text) === text && item.visible)
+                return item
+            for (var i = 0; i < item.children.length; i++) {
+                var found = findExact(item.children[i], text)
+                if (found)
+                    return found
+            }
+            return null
+        }
+
         // A game chosen in the tree plays, and goes on Recently Played.
         function test_choose() {
             var games = open("Games.qml")
@@ -407,29 +420,31 @@ Rectangle {
             return open("ArcadeScreen.qml", params)
         }
 
-        // A filter's page on the arc, the filter and the page in the bar,
-        // what the game is in the column, its high scores, its full name
-        // under the list, and the screen's own hints.
+        // A filter's page on the arc, seven games with both bars, the filter
+        // and the page in the bar, the game's high scores and play time in
+        // the column, its full name and what it is under the list, and the
+        // screen's own hints; no letters smaller than the hint bar's.
         function test_screen() {
             var screen = openScreen()
             compare(screen.filterId, "all")
-            compare(screen.perPage, 10)
-            compare(screen.pages, 2)
+            compare(screen.perPage, 7)
+            compare(screen.pages, 3)
             compare(screen.currentSet, "sf2")
             verify(findText(screen, "All Games") !== null)
-            verify(findText(screen, "Page 1/2") !== null)
-            verify(findText(screen, "010") !== null)
-            compare(findText(screen, "011"), null)
-            verify(findText(screen, "CPS-1") !== null)
-            verify(findText(screen, "Capcom") !== null)
+            verify(findText(screen, "1/3") !== null)
+            verify(findText(screen, "007") !== null)
+            compare(findText(screen, "008"), null)
             verify(findText(screen, "1H 30M") !== null)
-            // Three high scores, with the hint bar and the help line there,
+            compare(screen.textSize, 18)
+            compare(screen.nameSize, 20)
+            // Four high scores, with the hint bar and the help line there,
             // the High Scores module's tables read first.
-            compare(screen.scores.length, 3)
+            compare(screen.scores.length, 4)
             verify(findText(screen, "110,000") !== null)
-            compare(findText(screen, "50,000"), null)
-            verify(findText(screen, "Street Fighter II: The World Warrior (World 910522)") !== null)
-            verify(findText(screen, "[5]:CREDIT [SPACE]:PLAY [ENTER]:OPTIONS") !== null)
+            verify(findText(screen, "50,000") !== null)
+            compare(findText(screen, "30,000"), null)
+            verify(findText(screen, "Street Fighter II: The World Warrior (World 910522)  •  CPS-1  •  Capcom  •  1991  •  2 Players") !== null)
+            verify(findText(screen, "[ESC]:BACK [5]:COIN [ENTER]:PLAY HOLD:OPTIONS") !== null)
             verify(highScoresBackend.refreshes > 0)
             // A game not played, with no table.
             keyClick(Qt.Key_Down)
@@ -448,8 +463,8 @@ Rectangle {
             var screen = openScreen()
             keyClick(Qt.Key_Up)
             compare(screen.selected, 14)
-            compare(screen.page, 1)
-            verify(findText(screen, "Page 2/2") !== null)
+            compare(screen.page, 2)
+            verify(findText(screen, "3/3") !== null)
             verify(findText(screen, "015") !== null)
             keyClick(Qt.Key_Down)
             compare(screen.selected, 0)
@@ -505,20 +520,59 @@ Rectangle {
             compare(root.backs, 1)
         }
 
-        // Select opens the game's options, Play first.
-        function test_screenOptions() {
+        // Select plays the game as it is let go; held, it opens the game's
+        // options, Play first, and plays nothing as it is let go. Only a press
+        // the screen saw counts, and a held select is select alone.
+        function test_screenSelect() {
             var screen = openScreen()
-            keyClick(Qt.Key_Return)
-            verify(findText(screen, "Add to Favorites") !== null)
+            keyPress(Qt.Key_Return)
+            compare(moduleRoot.played.length, 0)
+            wait(300)
+            keyRelease(Qt.Key_Return)
+            compare(moduleRoot.played.length, 1)
+            compare(moduleRoot.played[0].game, "sf2")
+            compare(findText(screen, "Add to Favorites"), null)
+            // A release without its press.
+            keyRelease(Qt.Key_Return)
+            compare(moduleRoot.played.length, 1)
+            // Another key while it is held.
+            keyPress(Qt.Key_Return)
+            keyClick(Qt.Key_Down)
+            wait(1000)
+            compare(findText(screen, "Add to Favorites"), null)
+            keyRelease(Qt.Key_Return)
+            compare(moduleRoot.played.length, 1)
+            compare(screen.currentSet, "1942")
+            // Held.
+            keyClick(Qt.Key_Up)
+            keyPress(Qt.Key_Return)
+            tryVerify(function() { return findText(screen, "Add to Favorites") !== null }, 1500)
             verify(findText(screen, "Play at Startup") !== null)
+            keyRelease(Qt.Key_Return)
+            compare(moduleRoot.played.length, 1)
             // A pad's Back button is Back in them, and keys they leave don't
             // buy credits behind them.
             verify(!screen.takesCoin)
             keyClick(Qt.Key_5)
             compare(moduleRoot.credits, 0)
             keyClick(Qt.Key_Return)
-            compare(moduleRoot.played.length, 1)
-            compare(moduleRoot.played[0].game, "sf2")
+            compare(moduleRoot.played.length, 2)
+            compare(moduleRoot.played[1].game, "sf2")
+        }
+
+        // The selected game's name, too long for its row, scrolls through;
+        // the others' are cut short.
+        function test_screenScroll() {
+            var screen = openScreen()
+            var name = findExact(screen, "Street Fighter II")
+            verify(name !== null)
+            compare(name.x, 0)
+            tryVerify(function() { return name.x < 0 }, 4000)
+            keyClick(Qt.Key_Down)
+            tryCompare(name, "x", 0)
+            verify(name.width < name.implicitWidth)
+            wait(2000)
+            compare(name.x, 0)
         }
 
         // The hint bar's and the help line's room, when they are off, goes to
@@ -526,17 +580,18 @@ Rectangle {
         function test_screenRoom() {
             root.hintBar = false
             var screen = openScreen()
-            compare(screen.perPage, 11)
+            compare(screen.perPage, 8)
+            compare(screen.scoreRows, 5)
             loader.source = ""
             root.hintBar = true
             root.helpLine = false
             screen = openScreen()
-            compare(screen.perPage, 12)
+            compare(screen.perPage, 8)
             compare(screen.scoreRows, 5)
             loader.source = ""
             root.hintBar = false
             screen = openScreen()
-            compare(screen.perPage, 13)
+            compare(screen.perPage, 9)
             compare(screen.pages, 2)
             compare(screen.scores.length, 5)
             verify(findText(screen, "30,000") !== null)
@@ -681,7 +736,7 @@ Rectangle {
             return null
         }
 
-        // Start Info Screen off: START plays the game straight from the
+        // Start Info Screen off: select plays the game straight from the
         // list, on Recently Played, with the credits bought. While it runs,
         // every key is kept from the list and the screen saver held off; as
         // it ends the list has the keys again, the game still selected.
@@ -690,7 +745,7 @@ Rectangle {
             var screen = shown(router)
             compare(screen.currentSet, "sf2")
             keyClick(Qt.Key_5)
-            keyClick(Qt.Key_Space)
+            keyClick(Qt.Key_Return)
             compare(arcadeBackend.started, ["sf2"])
             compare(arcadeBackend.credited, [1])
             compare(router.credits, 0)
@@ -731,7 +786,7 @@ Rectangle {
         function test_rootWhyNot() {
             var router = openRoot({ screen: "Arcade", start_info: false })
             keyClick(Qt.Key_Down)
-            keyClick(Qt.Key_Space)
+            keyClick(Qt.Key_Return)
             compare(arcadeBackend.started, ["1942"])
             arcadeBackend.running = false
             arcadeBackend.finished(2, "failed", "Missing 1942.zip")
@@ -745,7 +800,7 @@ Rectangle {
             compare(root.backs, 0)
             arcadeBackend.playResult = false
             arcadeBackend.error = "MAME is not installed"
-            keyClick(Qt.Key_Space)
+            keyClick(Qt.Key_Return)
             play = shown(router)
             compare(play.phase, "error")
             compare(router.playing, null)
@@ -755,7 +810,7 @@ Rectangle {
         // Start Info Screen on: how to come back first.
         function test_rootStartInfoOn() {
             var router = openRoot({ screen: "Arcade" })
-            keyClick(Qt.Key_Space)
+            keyClick(Qt.Key_Return)
             var play = shown(router)
             compare(play.game, "sf2")
             compare(play.phase, "opening")

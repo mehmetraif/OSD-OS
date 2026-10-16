@@ -34,7 +34,7 @@ Column {
         font.capitalization: Font.AllUppercase
         horizontalAlignment: Text.AlignHCenter
         wrapMode: Text.WrapAtWordBoundaryOrAnywhere
-        font.pixelSize: root.sh * 0.0333333 //16
+        font.pixelSize: root.sh * 0.0375 //18
     }
     Text {
         visible: !noGames.reading && noGames.folderReadable
@@ -45,6 +45,6 @@ Column {
         font.capitalization: Font.AllUppercase
         horizontalAlignment: Text.AlignHCenter
         wrapMode: Text.WrapAtWordBoundaryOrAnywhere
-        font.pixelSize: root.sh * 0.0333333 //16
+        font.pixelSize: root.sh * 0.0375 //18
     }
 }

@@ -129,7 +129,7 @@
       "type": "toggle",
       "default": "ON",
       "shown_with": { "key": "screen", "value": "Arcade" },
-      "description": "The game's full name, as MAME has it, under the Arcade screen's list\n[OFF] No line: the list takes a game more, the column more of the high scores"
+      "description": "The game's full name, as MAME has it, and what it is (its system, maker, year and players) under the Arcade screen's list\n[OFF] No line: the list takes a game more, the column more of the high scores"
     },
     {
       "key": "start_info",

@@ -50,6 +50,9 @@ FocusScope {
     // A pad's Back button is COIN before a game from the Arcade screen
     // (InputManager).
     readonly property bool takesCoin: arcade && phase === "opening"
+    // The finer print: in the Arcade screen's look, no smaller than its own
+    // letters (the hint bar's).
+    readonly property real smallText: arcade ? root.sh * 0.0375 : root.sh * 0.0291667 //18, or 14
 
     function isBack(key) {
         return key === Qt.Key_Escape || key === Qt.Key_Backspace || key === Qt.Key_Back
@@ -272,7 +275,7 @@ FocusScope {
             text: "On Raspberry Pi OS: sudo apt install mame"
             color: root.primaryColor
             font.family: root.globalFont
-            font.pixelSize: root.sh * 0.0291667 //14
+            font.pixelSize: playRoot.smallText
             wrapMode: Text.WordWrap
         }
         Rectangle {
@@ -293,7 +296,7 @@ FocusScope {
                 verticalAlignment: Text.AlignBottom
                 color: root.primaryColor
                 font.family: root.globalFont
-                font.pixelSize: root.sh * 0.0291667 //14
+                font.pixelSize: playRoot.smallText
                 wrapMode: Text.WrapAtWordBoundaryOrAnywhere
             }
         }
@@ -302,7 +305,7 @@ FocusScope {
     HintBar {
         visible: playRoot.phase !== "running"
         text: playRoot.phase !== "opening" ? root.hints.back + ":BACK"
-              : playRoot.arcade ? root.hints.back + ":CANCEL " + root.hints.coin + ":CREDIT "
+              : playRoot.arcade ? root.hints.back + ":CANCEL " + root.hints.coin + ":COIN "
                                   + root.hints.play_pause + ":PLAY"
               : root.hints.back + ":CANCEL"
         anchors.bottom: parent.bottom
