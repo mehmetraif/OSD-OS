@@ -7,7 +7,9 @@ import QtTest
 // unset one by its default, coming and going as that row changes with the
 // cursor kept on it, and their values kept while they are hidden; a dynamic
 // row's choices asked for as it comes; a toggle's value as ON or OFF, and a
-// row whose own row is hidden hidden too.
+// row whose own row is hidden hidden too; a slider and its tape bar. A
+// multiselect_submenu row's page, views/MultiSelectSettings.qml, with its
+// headings.
 Rectangle {
     id: root
     color: surfaceColor
@@ -93,6 +95,16 @@ Rectangle {
         function keys(page) {
             return page.schemaItems.map(function(item) { return item.key })
         }
+        function findText(item, text) {
+            if (item.text !== undefined && String(item.text).indexOf(text) >= 0 && item.visible)
+                return item
+            for (var i = 0; i < item.children.length; i++) {
+                var found = findText(item.children[i], text)
+                if (found)
+                    return found
+            }
+            return null
+        }
         // The row the cursor is on, by its key.
         function cursor(page) {
             for (var i = 0; i < page.children.length; i++) {
@@ -165,6 +177,104 @@ Rectangle {
             compare(appCore.values.volume, "Low")
             compare(keys(page), ["music", "volume"])
             compare(cursor(page), "volume")
+        }
+
+        // A slider: its label, and the tape bar between its two ends under
+        // it, at its value, unset its default; ◄ ► a step toward either end,
+        // saved, and no further than an end. ▼ goes past its bar's lines.
+        function test_slider() {
+            appCore.schema = [
+                { key: "enabled", label: "Enabled", type: "toggle", default: "OFF" },
+                { key: "ground", label: "Info Background", type: "slider", default: 100, step: 10,
+                  start_text: "TRANSPARENT", end_text: "SOLID" },
+                { key: "video", label: "Video", type: "list_single", options: ["Auto", "OpenGL"], default: "Auto" }
+            ]
+            var page = open()
+            compare(page.valueOf(page.schemaItems[1]), 100)
+            verify(findText(page, "TRANSPARENT") !== null)
+            verify(findText(page, "SOLID") !== null)
+            keyClick(Qt.Key_Down)
+            compare(cursor(page), "ground")
+            keyClick(Qt.Key_Right)
+            compare(appCore.values.ground, undefined)
+            keyClick(Qt.Key_Left)
+            keyClick(Qt.Key_Left)
+            compare(appCore.values.ground, 80)
+            compare(page.valueOf(page.schemaItems[1]), 80)
+            for (var i = 0; i < 10; ++i)
+                keyClick(Qt.Key_Left)
+            compare(appCore.values.ground, 0)
+            keyClick(Qt.Key_Down)
+            compare(cursor(page), "video")
+        }
+
+        // A multiselect_submenu row's page: its choices asked for as it
+        // opens, each ON unless saved OFF or its default says OFF, under
+        // their headings. ◄ ► or select flips a choice; on a heading, its
+        // whole group: all on, unless they all are. The row is saved whole
+        // each time, whatever its ids hold. The help line says so on a
+        // heading.
+        function test_multiSelect() {
+            appCore.schema = [{ key: "menu_filters", label: "Menu Filters", type: "multiselect_submenu",
+                                options_source: "dynamic", options_slot: "menuFilterOptions" }]
+            appCore.values = { menu_filters: { "genres/Shmup": false } }
+            loader.setSource(Qt.resolvedUrl("../../views/MultiSelectSettings.qml"),
+                             { navParams: { moduleId: "com.osdos.test", settingKey: "menu_filters",
+                                            settingLabel: "Menu Filters" } })
+            var page = loader.item
+            verify(page !== null, "loaded MultiSelectSettings.qml")
+            page.forceActiveFocus()
+            compare(appCore.actions, ["menuFilterOptions"])
+            appCore.dynamicOptionsReady("com.osdos.test", "menu_filters", [
+                { label: "Genres", heading: true },
+                { id: "genres/Fighting", label: "Fighting", default: true },
+                { id: "genres/Shmup", label: "Shmup", default: true },
+                { label: "Publishers", heading: true },
+                { id: "makers/Capcom", label: "Capcom", default: false },
+                { id: "makers/U.S. Games", label: "U.S. Games", default: false }
+            ])
+            compare(page.enabledMap, { "genres/Fighting": true, "genres/Shmup": false,
+                                       "makers/Capcom": false, "makers/U.S. Games": false })
+            verify(findText(page, "Turns all of the choices") !== null)
+
+            // Genres: one of two on, so both on; then both off.
+            keyClick(Qt.Key_Return)
+            compare(appCore.values.menu_filters, { "genres/Fighting": true, "genres/Shmup": true })
+            keyClick(Qt.Key_Right)
+            compare(appCore.values.menu_filters, { "genres/Fighting": false, "genres/Shmup": false })
+            compare(page.enabledMap["genres/Shmup"], false)
+
+            // A choice, then one with dots in its id.
+            keyClick(Qt.Key_Down)
+            verify(findText(page, "Turns all of the choices") === null)
+            keyClick(Qt.Key_Left)
+            compare(appCore.values.menu_filters["genres/Fighting"], true)
+            keyClick(Qt.Key_Down)
+            keyClick(Qt.Key_Down)
+            keyClick(Qt.Key_Down)
+            keyClick(Qt.Key_Down)
+            keyClick(Qt.Key_Return)
+            compare(appCore.values.menu_filters["makers/U.S. Games"], true)
+            compare(page.enabledMap["makers/U.S. Games"], true)
+            compare(page.enabledMap["makers/Capcom"], false)
+
+            // Publishers: one on, so both on.
+            keyClick(Qt.Key_Up)
+            keyClick(Qt.Key_Up)
+            keyClick(Qt.Key_Return)
+            compare(page.enabledMap, { "genres/Fighting": true, "genres/Shmup": false,
+                                       "makers/Capcom": true, "makers/U.S. Games": true })
+            compare(appCore.values.menu_filters, { "genres/Fighting": true, "genres/Shmup": false,
+                                                   "makers/Capcom": true, "makers/U.S. Games": true })
+
+            var back = signalSpy.createObject(page, { target: page, signalName: "goBack" })
+            keyClick(Qt.Key_Escape)
+            compare(back.count, 1)
+        }
+
+        Component {
+            id: signalSpy
+            SignalSpy {}
         }
     }
 }

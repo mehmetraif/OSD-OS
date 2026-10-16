@@ -49,9 +49,22 @@ Item {
         show(i)
     }
 
-    // Scrolls so that the row is in view.
+    // Scrolls so that the row is in view. Rows are whole lines, a slider's
+    // several (a module's settings), so a scroll can stop with one cut by an
+    // edge: it carries on past it, keeping the row.
     function show(i) {
         view.positionViewAtIndex(i, ListView.Contain)
+        var top = view.itemAt(0, view.contentY + 1)
+        if (top && top !== view.currentItem && top.y < view.contentY - 1)
+            view.contentY = Math.min(top.y + top.height, view.originY + view.contentHeight - view.height)
+        var bottom = view.itemAt(0, view.contentY + view.height - 1)
+        if (bottom && bottom !== view.currentItem && bottom.y + bottom.height > view.contentY + view.height + 1)
+            view.contentY = Math.max(bottom.y - view.height, view.originY)
+    }
+
+    // The rows laid out again at once, after one has changed its height.
+    function forceLayout() {
+        view.forceLayout()
     }
 
     Keys.onUpPressed: step(-1)

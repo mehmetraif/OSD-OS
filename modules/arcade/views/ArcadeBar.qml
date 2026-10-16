@@ -20,12 +20,14 @@ Item {
     readonly property real v: root.sh / 720
     readonly property real pad: Math.round(12 * u)
     readonly property real gap: Math.round(8 * u)
+    // The hint bar's letters.
+    readonly property real textSize: root.sh * 0.0375 //18
 
-    // Where the design has it, over the list and the column's picture.
+    // Where the design has it, over the list, beside the column's picture.
     x: Math.round(120 * u)
     y: Math.round(90 * v)
-    width: Math.round(420 * u)
-    height: Math.round(42 * v)
+    width: Math.round(355 * u)
+    height: Math.round(45 * v)
 
     SkinImage {
         id: skinned
@@ -50,7 +52,7 @@ Item {
             text: "◄"
             color: root.surfaceColor
             font.family: root.globalFont
-            font.pixelSize: Math.round(22 * bar.v)
+            font.pixelSize: bar.textSize
         }
         Text {
             id: label
@@ -65,14 +67,14 @@ Item {
             color: root.surfaceColor
             font.family: root.globalFont
             font.capitalization: Font.AllUppercase
-            font.pixelSize: Math.round(22 * bar.v)
+            font.pixelSize: bar.textSize
         }
         Text {
             visible: bar.arrows
             text: "►"
             color: root.surfaceColor
             font.family: root.globalFont
-            font.pixelSize: Math.round(22 * bar.v)
+            font.pixelSize: bar.textSize
         }
         PixelIcon {
             id: symbol
@@ -93,6 +95,6 @@ Item {
         color: root.surfaceColor
         font.family: root.globalFont
         font.capitalization: Font.AllUppercase
-        font.pixelSize: Math.round(20 * bar.v)
+        font.pixelSize: bar.textSize
     }
 }

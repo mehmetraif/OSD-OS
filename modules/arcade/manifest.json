@@ -32,7 +32,16 @@
       "options_source": "dynamic",
       "options_slot": "startFilterOptions",
       "shown_with": { "key": "screen", "value": "Arcade" },
-      "description": "The list the Arcade screen opens on: All Games, Favorites, Recently Played, a genre, a number of players or a decade\nOne with no games opens on All Games"
+      "description": "The list the Arcade screen opens on: All Games, or one of the lists, genres, players, decades and publishers Menu Filters shows\nOne with no games opens on All Games"
+    },
+    {
+      "key": "menu_filters",
+      "label": "Menu Filters",
+      "type": "multiselect_submenu",
+      "options_source": "dynamic",
+      "options_slot": "menuFilterOptions",
+      "shown_with": { "key": "screen", "value": "Arcade" },
+      "description": "The filters ◄ ► goes round on the Arcade screen, under their headings: the lists, the genres (Fighting, Beat 'em Up, Shmup, Run and Gun…), players, years and publishers\nAll Games is always there, a publisher only once turned on"
     },
     {
       "key": "play_at_startup",
@@ -43,77 +52,23 @@
       "description": "One of your favorite games, started as OSD/OS starts, as a game's options set it too\n[NONE] No game starts with OSD/OS\nThere is one for the whole of OSD/OS: choosing a game replaces another module's"
     },
     {
-      "key": "look",
-      "label": "Look",
-      "type": "submenu",
+      "key": "info_background",
+      "label": "Info Background",
+      "type": "slider",
+      "default": 100,
+      "step": 10,
+      "start_text": "TRANSPARENT",
+      "end_text": "SOLID",
       "shown_with": { "key": "screen", "value": "Arcade" },
-      "description": "The Arcade screen's own look: its theme, colors, skin, music and effects",
-      "settings": [
-        {
-          "key": "look_theme",
-          "label": "Theme",
-          "type": "list_single",
-          "options": ["Default"],
-          "default": "Default",
-          "description": "The Arcade screen's theme\n[DEFAULT] The one Settings → Theme chooses\nThemes of its own come in a later version"
-        },
-        {
-          "key": "look_color_scheme",
-          "label": "Color Scheme",
-          "type": "list_single",
-          "options": ["Theme"],
-          "default": "Theme",
-          "description": "The Arcade screen's colors\n[THEME] The theme's\nColor schemes of its own come in a later version"
-        },
-        {
-          "key": "look_skin",
-          "label": "Skin",
-          "type": "list_single",
-          "options": ["Theme"],
-          "default": "Theme",
-          "description": "How the Arcade screen's bars, rows and frames are dressed\n[THEME] The theme's\nSkins of its own come in a later version"
-        },
-        {
-          "key": "look_music",
-          "label": "Music",
-          "type": "list_single",
-          "options": ["Theme"],
-          "default": "Theme",
-          "description": "Music on the Arcade screen, stopping as a game starts\n[THEME] The theme's\nMusic of its own comes in a later version"
-        },
-        {
-          "key": "look_background_effect",
-          "label": "Background Effect",
-          "type": "list_single",
-          "options": ["Theme", "Off", "Stars", "Checkered Flag", "Matrix"],
-          "default": "Theme",
-          "description": "What goes on behind the Arcade screen\n[STARS] A starfield  [CHECKERED FLAG] A racing flag waving  [MATRIX] A rain of glyphs\nComes in a later version: until then the theme's"
-        },
-        {
-          "key": "look_selector_effect",
-          "label": "Selector Effect",
-          "type": "list_single",
-          "options": ["Theme", "Off"],
-          "default": "Theme",
-          "description": "What goes on round the selected game\nEffects of its own come in a later version: until then the theme's"
-        },
-        {
-          "key": "look_filter_transition",
-          "label": "Filter Transition",
-          "type": "list_single",
-          "options": ["Theme", "Off"],
-          "default": "Theme",
-          "description": "How the list gives way to the next filter's, as ◄ ► change it\nTransitions of its own come in a later version"
-        },
-        {
-          "key": "look_game_transition",
-          "label": "Game Transition",
-          "type": "list_single",
-          "options": ["Theme", "Off"],
-          "default": "Theme",
-          "description": "How the Arcade screen gives way to a game as it starts\nTransitions of its own come in a later version"
-        }
-      ]
+      "description": "The ground under the Arcade screen's picture, high scores and play time, over Settings' Background Effect\n[TRANSPARENT] The background shows through  [SOLID] None of it"
+    },
+    {
+      "key": "screen_adjustment",
+      "label": "Screen Adjustment",
+      "type": "module_view",
+      "params": { "adjustScreen": true },
+      "shown_with": { "key": "screen", "value": "Arcade" },
+      "description": "Fits the Arcade screen to your screen: a frame round it whose sides ▲ ▼ ◄ ► move out, or in after select, the list holding as many games as fit\nHold select to put it back as it was made; back keeps it"
     },
     {
       "key": "hint_bar",
@@ -129,14 +84,14 @@
       "type": "toggle",
       "default": "ON",
       "shown_with": { "key": "screen", "value": "Arcade" },
-      "description": "The game's full name, as MAME has it, under the Arcade screen's list\n[OFF] No line: the list takes a game more, the column more of the high scores"
+      "description": "The game's full name, as MAME has it, and what it is (its system, maker, year and players) under the Arcade screen's list\n[OFF] No line: the list takes a game more, the column more of the high scores"
     },
     {
       "key": "start_info",
       "label": "Start Info Screen",
       "type": "toggle",
       "default": "ON",
-      "description": "Before a game, how to come back to OSD/OS (and from the Arcade screen, the credits going in)\n[OFF] The game starts at once"
+      "description": "Before a game, how to come back to OSD/OS (and from the Arcade screen, the credits going in)\n[OFF] The game starts straight from the list"
     },
     {
       "key": "high_scores",

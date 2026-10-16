@@ -51,7 +51,7 @@ The first rows set how the menus look: **Theme**, then one row for each part of 
 | Color Scheme | THEME (with a theme), Video 1, Late Night, Synthwave, Terminal, T-120, Amber, Kinescope, SMPTE ECR 1-1978, and your own | THEME; without a theme, Video 1 | The two colours everything is drawn in: the text, lines and selection, and the background | `app.color_scheme`: the scheme's name, `""` for THEME |
 | Skin | THEME (with a theme), None, DOS, Rounded, and those in the data folder's `skins` | THEME; without a theme, None | The shapes of the window's frame, the title and hint bars and the selected line, and icons of its own, drawn in the color scheme's colours ([Skins](https://github.com/mehmetraif/OSD-OS/wiki/Skins)) | `app.skin`: the skin's folder name (`dos`, `rounded`), `"Off"` for None, `""` for THEME |
 | Text Effect | THEME, Off, Rainbow, Shimmer, Glow, Flicker | THEME; without a theme, Off | What the text, the lines and the bars do, drawn by the GPU | `app.text_effect` |
-| Background Effect | THEME, Off, Matrix, Fire, Stars, Snow | THEME; without a theme, Off | What goes on behind the menus, in the window, drawn by the GPU | `app.background_effect` |
+| Background Effect | THEME, Off, Matrix, Fire, Stars, Snow, Checkered Flag | THEME; without a theme, Off | What goes on behind the menus, in the window, drawn by the GPU | `app.background_effect` |
 | Selector Effect | THEME, Off, Sparkles, Welding, Lightning, Rainbow, Snow | THEME; without a theme, Off | What goes on round the selected line. Drawn by the CPU, so offered everywhere | `app.selector_effect` |
 | Screen Effect | THEME, Off, Scanlines, CRT, VHS | THEME; without a theme, Off | A picture tube's or a tape's look over the whole screen, drawn by the GPU | `app.screen_effect` |
 | Transition | THEME, Off, Fade, Cube, Ripple, Wave, Drop | THEME; without a theme, Off | How one window gives way to the next. Ripple, Wave and Drop need a GPU; without one a theme's falls back to Fade | `app.transition` |
@@ -160,7 +160,7 @@ Every module's first row is **Enabled**. A module that is turned off is left off
 | Module | Module id | On by default | Its rows, in order |
 |---|---|---|---|
 | [Ambient:Mode](https://github.com/mehmetraif/OSD-OS/wiki/Ambient-Mode) | `com.osdos.ambient_mode` | No | Enabled, Media Directory, Auto-Launch Playback, Scaling |
-| [Arcade](https://github.com/mehmetraif/OSD-OS/wiki/Arcade) | `com.osdos.arcade` | No | Enabled, Games Folder, Screen, Play at Startup, Start Info Screen, High Scores, Online High Scores, Online Play, Video, Read the Games Again; with Screen on Arcade, Start Filter, Look, Hint Bar and Help Line too |
+| [Arcade](https://github.com/mehmetraif/OSD-OS/wiki/Arcade) | `com.osdos.arcade` | No | Enabled, Games Folder, Screen, Play at Startup, Start Info Screen, High Scores, Online High Scores, Online Play, Video, Read the Games Again; with Screen on Arcade, Start Filter, Menu Filters, Screen Adjustment, Info Background, Hint Bar and Help Line too |
 | [Emby](https://github.com/mehmetraif/OSD-OS/wiki/Emby) | `com.osdos.emby` | No | Enabled; once signed in Libraries, Video Quality, Resume Playback, Autoplay Next Episode, Intro Skip, Credit Skip; Scaling; Sign out once signed in |
 | [High Scores](https://github.com/mehmetraif/OSD-OS/wiki/High-Scores) | `com.osdos.highscores` | No | Enabled |
 | [Jellyfin](https://github.com/mehmetraif/OSD-OS/wiki/Jellyfin) | `com.osdos.jellyfin` | No | Enabled; once signed in Libraries, Video Quality, Resume Playback, Autoplay Next Episode, and Intro Skip and Credit Skip where the server has the Intro Skipper plugin; Scaling; Sign out once signed in |
@@ -182,11 +182,12 @@ Each module's page on this wiki explains its rows. Every module that plays video
 |---|---|---|---|---|
 | `toggle` | `LABEL······ON` | Flips it | Flips it | `true` or `false`; unset, the manifest's `default` (`"ON"` or `"OFF"`) |
 | `list_single` | `LABEL······VALUE` | Steps through the choices, round | Nothing | The choice's text for a fixed list (`"Pan & Scan"`); for a list the module supplies (`"options_source": "dynamic"`), the choice's id (`"ask"`, `"forced"`) |
-| `multiselect_submenu` | `LABEL` | Nothing | Opens a page of `NAME ◄ ON ►` lines, one per choice; ◄, ► or select flips one | An object under the key, `{ "<id>": true, "<id>": false }`; a choice not in it is on (Plex's Libraries: every library shows until you turn it off) |
+| `multiselect_submenu` | `LABEL` | Nothing | Opens a page of `NAME······ON` lines, one per choice, under headings when the module groups them; ◄, ► or select flips one, and on a heading turns all of its group on, or off once they all are on | An object under the key, `{ "<id>": true, "<id>": false }`, saved whole at every change; a choice not in it is on (Plex's Libraries: every library shows until you turn it off), unless the module makes it off until turned on (Arcade's Menu Filters' publishers) |
 | `submenu` | `LABEL` | Nothing | Opens a page of its own rows, titled `MODULE / LABEL` (YouTube's Advanced) | Nothing itself; its rows' keys stay flat under the module |
 | `directory_browser` | `LABEL······/PATH`, or `DEFAULT` | Nothing | Opens the folder picker: **Default Folder** first, then the places, and **Use This Folder** at the top of every folder | The folder's path; `""` for the module's own |
+| `slider` | `LABEL`, and under it the deck's tape bar between its two ends' names | Moves the ▼ a step toward either end | Nothing | A number from 0 to 100; unset, the manifest's `default` (Arcade's Info Background) |
 | `action` | `LABEL` | Nothing | Runs it at once: Sign out, Delete Watch Later, Rescan Scripts | Nothing |
-| `module_view` | `LABEL` | Nothing | Opens the module on one of its own screens, enabled or not: Sign in for Netflix, Prime Video and YouTube | Nothing |
+| `module_view` | `LABEL` | Nothing | Opens the module on one of its own screens, enabled or not: Sign in for Netflix, Prime Video and YouTube, Arcade's Screen Adjustment | Nothing |
 
 Some rows wait for something:
 

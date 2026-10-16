@@ -589,6 +589,15 @@ FocusScope {
             activated(item)
     }
 
+    // The tree on a trail saved by trailState(), as it opens on savedTrail:
+    // a host's own way to a folder, such as a game played at startup shown
+    // where it was chosen from.
+    function reopen(saved) {
+        trail.clear()
+        restore(saved || [])
+        relayout()
+    }
+
     // Reopens the folders saved by trailState(), as far as they still exist.
     // A folder still on its way is taken on trust; refresh() puts its cursor
     // back in range once it is in.

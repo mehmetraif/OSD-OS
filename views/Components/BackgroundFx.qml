@@ -2,9 +2,9 @@ import QtQuick
 
 // Settings → Background Effect, or the theme's (root.backgroundEffect):
 // something going on behind the menus, over the window's ground and under
-// what a view shows. Matrix rain, stars, snow and fire fill the window inside
-// its frame (the whole screen without one), the fire burning up from the
-// frame's foot. A theme may bring a shader of its own, and draw it from the
+// what a view shows. Matrix rain, stars, snow, a checkered flag and fire fill
+// the window inside its frame (the whole screen without one), the fire
+// burning up from the frame's foot. A theme may bring a shader of its own, and draw it from the
 // window's top down to the screen's foot ("area": "foot").
 //
 // Drawn in art pixels and scaled up, so it is as blocky as the menus, and on

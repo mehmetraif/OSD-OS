@@ -6,7 +6,12 @@ import Components
 // until the game ends, and the view goes back to the list. On a headless Pi
 // it isn't drawn while MAME runs: what it shows just before the hand-off
 // stays on the screen while MAME starts. A game that couldn't start, or that
-// MAME ended with an error, says why here.
+// MAME ended with an error, says why here: with Start Info Screen off a game
+// starts from the list itself (Root.qml's playGame), and this view opens only
+// for that, with navParams.error (it never started) or navParams.failed (MAME
+// ended with an error: message and output). Root.qml starts the game, with
+// the credits bought (startGame()), and keeps the screen saver off while it
+// runs.
 //
 // From the Arcade screen (ArcadeScreen.qml) it has that screen's bar, says
 // how many credits go in, and takes COIN (another credit: MAME's 5, which a
@@ -40,59 +45,55 @@ FocusScope {
     // ("COIN + START" on a JAMMA stick, "BACK + START" on an Xbox pad); ""
     // with no controller.
     property string exitKeys: ""
-    readonly property bool running: arcadeBackend ? arcadeBackend.running : false
     // Played from the Arcade screen rather than the original tree.
     readonly property bool arcade: moduleRoot.arcadeScreen
     readonly property bool before: phase === "opening" || phase === "running"
     // A pad's Back button is COIN before a game from the Arcade screen
     // (InputManager).
     readonly property bool takesCoin: arcade && phase === "opening"
+    // The finer print: in the Arcade screen's look, no smaller than its own
+    // letters (the hint bar's).
+    readonly property real smallText: arcade ? root.sh * 0.0375 : root.sh * 0.0291667 //18, or 14
 
     function isBack(key) {
         return key === Qt.Key_Escape || key === Qt.Key_Backspace || key === Qt.Key_Back
     }
 
     function launch() {
-        launchTimer.stop()
         if (playRoot.phase !== "opening")
             return
-        if (arcadeBackend.play(playRoot.game, moduleRoot.credits)) {
+        if (moduleRoot.startGame(playRoot.game)) {
             playRoot.phase = "running"
-            // In the game now.
-            moduleRoot.credits = 0
         } else {
             playRoot.phase = "error"
-            playRoot.message = arcadeBackend.lastError()
+            playRoot.message = arcadeBackend ? arcadeBackend.lastError() : ""
         }
     }
 
     Component.onCompleted: {
+        // Why a game played from the list didn't (Root.qml's playGame).
+        if (navParams.error !== undefined) {
+            phase = "error"
+            message = navParams.error
+        } else if (navParams.failed) {
+            phase = "failed"
+            message = navParams.message || ""
+            output = navParams.output || ""
+        }
         var players = inputManager ? inputManager.players : []
         var key = players.length > 0 ? players[0].playing : ""
         if (key)
             exitKeys = inputManager.buttonLabel(key, "back") + " + " + inputManager.buttonLabel(key, "start")
     }
 
-    // This frame on the screen first, as a headless Pi hands it over. With
-    // Start Info Screen on, long enough to read how to come back: from the
-    // Arcade screen every time, from the tree the first game this run, as
-    // the screen stays as it is while MAME starts.
+    // Long enough to read how to come back: from the Arcade screen every
+    // time, from the tree the first game this run, as the screen stays as it
+    // is while MAME starts; otherwise just long enough for this screen to be
+    // what a headless Pi hands over.
     Timer {
-        id: launchTimer
-        interval: !moduleRoot.startInfo ? 150
-                  : playRoot.arcade ? 3000
-                  : arcadeBackend && arcadeBackend.played ? 150 : 1500
-        running: true
+        interval: playRoot.arcade ? 3000 : arcadeBackend && arcadeBackend.played ? moduleRoot.handOverDelay : 1500
+        running: playRoot.phase === "opening"
         onTriggered: playRoot.launch()
-    }
-
-    // A game played counts as activity: no screen saver comes up behind it.
-    Timer {
-        interval: 10000
-        repeat: true
-        triggeredOnStart: true
-        running: playRoot.running
-        onTriggered: if (idleTracker) idleTracker.resetActivity()
     }
 
     Connections {
@@ -131,7 +132,6 @@ FocusScope {
         if (!isBack(event.key))
             return
         if (playRoot.phase === "opening") {
-            launchTimer.stop()
             playRoot.phase = "canceled"
             playRoot.goBack()
         } else if (playRoot.phase === "error" || playRoot.phase === "failed") {
@@ -201,7 +201,7 @@ FocusScope {
 
         // How to come back, in a box, the way a deck prints a notice.
         Rectangle {
-            visible: moduleRoot.startInfo && playRoot.before
+            visible: playRoot.before
             width: parent.width
             height: howTo.height + 2 * root.sh * 0.025
             color: "transparent"
@@ -236,7 +236,7 @@ FocusScope {
 
         // The credits going in with the game, from the Arcade screen.
         Text {
-            visible: playRoot.arcade && moduleRoot.startInfo && playRoot.before
+            visible: playRoot.arcade && playRoot.before
             width: parent.width
             text: moduleRoot.credits === 0 ? "No credit: insert a coin in the game"
                   : moduleRoot.credits + (moduleRoot.credits === 1 ? " credit goes" : " credits go")
@@ -265,7 +265,7 @@ FocusScope {
             text: "On Raspberry Pi OS: sudo apt install mame"
             color: root.primaryColor
             font.family: root.globalFont
-            font.pixelSize: root.sh * 0.0291667 //14
+            font.pixelSize: playRoot.smallText
             wrapMode: Text.WordWrap
         }
         Rectangle {
@@ -286,7 +286,7 @@ FocusScope {
                 verticalAlignment: Text.AlignBottom
                 color: root.primaryColor
                 font.family: root.globalFont
-                font.pixelSize: root.sh * 0.0291667 //14
+                font.pixelSize: playRoot.smallText
                 wrapMode: Text.WrapAtWordBoundaryOrAnywhere
             }
         }
@@ -295,7 +295,7 @@ FocusScope {
     HintBar {
         visible: playRoot.phase !== "running"
         text: playRoot.phase !== "opening" ? root.hints.back + ":BACK"
-              : playRoot.arcade ? root.hints.back + ":CANCEL " + root.hints.coin + ":CREDIT "
+              : playRoot.arcade ? root.hints.back + ":CANCEL " + root.hints.coin + ":COIN "
                                   + root.hints.play_pause + ":PLAY"
               : root.hints.back + ":CANCEL"
         anchors.bottom: parent.bottom

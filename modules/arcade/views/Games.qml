@@ -5,11 +5,14 @@ import Components
 // Played, Favorites and Search, then All Games and the games by players,
 // decade and maker, from what MAME says of each set in the games folder
 // (ArcadeBackend), and the sets MAME has no game of under Not Recognized.
-// Select on a game plays it (Play.qml), right on it offers its options
-// (EntryOptions: its favourite, Play at Startup), and the line under the
-// tree says what the game is. Coming back from a game restores the tree from
-// the listState handed to navigateTo. Opened with the startup favourite
-// (navParams.startupPlay), it plays that at once.
+// Select on a game plays it (navigateTo Play.qml, which Root.qml plays as
+// Start Info Screen says), right on it offers its options (EntryOptions: its
+// favourite, Play at Startup), and the line under the tree says what the
+// game is. Coming back from a game restores the tree from the listState
+// handed to navigateTo; a game played from the tree itself (Start Info
+// Screen off) leaves it as it was. Opened with the startup favourite
+// (navParams.startupPlay), it plays that at once, the tree open on it in
+// Favorites.
 FocusScope {
     id: gamesRoot
 
@@ -27,10 +30,8 @@ FocusScope {
 
     focus: true
 
-    // Plays a game, putting it on Recently Played; trail is where coming back
-    // lands.
+    // Plays a game; trail is where coming back lands.
     function play(item, trail) {
-        moduleRoot.addRecent(item.game, item.name)
         gamesRoot.navigateTo("Play.qml", { game: item.game, title: item.name }, { trail: trail })
     }
 
@@ -45,8 +46,11 @@ FocusScope {
         var favorites = arcadeBackend.requestEntries("favorites")
         for (var i = 0; i < favorites.length; ++i) {
             if (favorites[i].path === entry.path) {
-                play(favorites[i], [{ path: "top", sel: 1, name: "", pushed: false },
-                                    { path: "favorites", sel: i, name: "Favorites", pushed: false }])
+                var trail = [{ path: "top", sel: 1, name: "", pushed: false },
+                             { path: "favorites", sel: i, name: "Favorites", pushed: false }]
+                // There as it plays, for a game played from the tree itself.
+                tree.reopen(trail)
+                play(favorites[i], trail)
                 return
             }
         }
@@ -101,6 +105,8 @@ FocusScope {
     Connections {
         target: arcadeBackend
         function onEntriesReady(path) { tree.refresh(path, true) }
+        // A game played from the tree, now on Recently Played.
+        function onFinished() { tree.refresh("recent", true) }
     }
 
     // What the entry under the cursor is: a game's year, maker, players and

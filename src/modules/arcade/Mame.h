@@ -92,10 +92,17 @@ QString titleOf(const QString &description);
 // "DKONG". "" for none.
 QString systemOf(const QString &sourceFile);
 
-// The genres of catver.ini (progettosnaps' category list): each set's
-// category up to its first " / ", without the "* Mature *" mark:
-// "sf2=Fighter / Versus" → "sf2" → "Fighter". Empty for a file that can't be
-// read.
+// The genre arcade players know a game by, from its catver.ini category
+// (progettosnaps' list), without the "* Mature *" mark: "Fighter / Versus"
+// is Fighting, "Fighter / 2.5D" Beat 'em Up (Final Fight), "Shooter / Flying
+// Vertical" Shmup, "Platform / Shooter Scrolling" Run and Gun (Metal Slug),
+// "Shooter / Gun" Light Gun, "Driving / …" Racing; any other is its main
+// category: Platform, Sports, Puzzle, Maze, Climbing, Shooter…
+QString genreOf(const QString &category);
+
+// The genres of catver.ini: each set's, genreOf() its category:
+// "sf2=Fighter / Versus" → "sf2" → "Fighting". Empty for a file that can't
+// be read.
 QHash<QString, QString> readGenres(const QString &path);
 
 // The Lua MAME runs as the game starts (-autoboot_script) to put the credits

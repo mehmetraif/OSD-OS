@@ -56,11 +56,55 @@ constexpr std::pair<const char *, const char *> kOutputs[] = {
     { "-diff_directory", "diff" },         // what a game writes to its hard disk
 };
 
-// The places games are under: the Arcade screen's filters by genre, players
-// and decade, and the tree's folders by players, decade and maker.
-const char *const kKinds[] = { "genres", "players", "years", "makers" };
-const char *const kFilterKinds[] = { "genres", "players", "years" };
+// The places games are under: the Arcade screen's filters by genre, players,
+// decade and publisher (the tree's maker), each kind under its heading in
+// Menu Filters, and the tree's folders by players, decade and maker.
+constexpr std::pair<const char *, const char *> kKinds[] = {
+    { "genres", "Genres" }, { "players", "Players" }, { "years", "Years" }, { "makers", "Publishers" },
+};
 const char *const kFolderKinds[] = { "players", "years", "makers" };
+// The lists among the filters, before the places, and Not Recognized after,
+// which the tree has too.
+constexpr std::pair<const char *, const char *> kLists[] = {
+    { "favorites", "Favorites" }, { "recent", "Recently Played" },
+};
+constexpr std::pair<const char *, const char *> kUnknown = { "unknown", "Not Recognized" };
+
+// A kind's places in the order they are listed, with what each is called:
+// players by number, decades in order with the years unknown last, the rest
+// by name.
+QList<std::pair<QString, QString>> sortPlaces(const QString &kind, QStringList places) {
+    if (kind == QLatin1String("players")) {
+        std::sort(places.begin(), places.end(),
+                  [](const QString &a, const QString &b) { return a.toInt() < b.toInt(); });
+    } else if (kind == QLatin1String("years")) {
+        std::sort(places.begin(), places.end(), [](const QString &a, const QString &b) {
+            // The years without a decade last.
+            if ((a == QLatin1String("unknown")) != (b == QLatin1String("unknown")))
+                return b == QLatin1String("unknown");
+            return a < b;
+        });
+    } else {
+        std::sort(places.begin(), places.end(),
+                  [](const QString &a, const QString &b) { return a.compare(b, Qt::CaseInsensitive) < 0; });
+    }
+    QList<std::pair<QString, QString>> sorted;
+    for (const QString &place : std::as_const(places)) {
+        QString name = place;
+        if (kind == QLatin1String("players"))
+            name = place == QLatin1String("1") ? QStringLiteral("1 Player") : place + QStringLiteral(" Players");
+        else if (kind == QLatin1String("years") && place == QLatin1String("unknown"))
+            name = QStringLiteral("Year Unknown");
+        sorted.append({ place, name });
+    }
+    return sorted;
+}
+
+// Whether Menu Filters shows a filter it hasn't had turned on or off: all
+// but a publisher's, as a full set has hundreds.
+bool shownByDefault(const QString &filter) {
+    return !filter.startsWith(QLatin1String("makers/"));
+}
 
 bool isOn(const QVariant &value, bool fallback) {
     if (!value.isValid() || value.isNull())
@@ -129,9 +173,19 @@ ArcadeBackend::ArcadeBackend(const QString &appRoot, const QString &dataRoot, Ap
 
     // The module's settings as they stand. games.json waits for the list to
     // open (refresh()): with a full set of MAME's games it is megabytes.
-    for (const char *key : { "games_directory", "high_scores", "video" }) {
+    for (const char *key : { "games_directory", "high_scores", "video", "menu_filters" }) {
         const QString k = QLatin1String(key);
         applySetting(k, m_appCore ? m_appCore->get_setting(kModuleId, k) : QVariant());
+    }
+    // A Start Filter saved under one of catver.ini's own genres (0.0.9's:
+    // Fighter, Driving) is saved again as the genre it became.
+    if (m_appCore) {
+        const QString start = m_appCore->get_setting(kModuleId, QStringLiteral("start_filter")).toString();
+        if (start.startsWith(QLatin1String("genres/"))) {
+            const QString genre = QStringLiteral("genres/") + mame::genreOf(start.mid(7));
+            if (genre != start)
+                m_appCore->save_setting(kModuleId, QStringLiteral("start_filter"), genre);
+        }
     }
 
     // Play at Startup shows the app's startup favourite, whichever screen
@@ -173,6 +227,10 @@ void ArcadeBackend::applySetting(const QString &key, const QVariant &value) {
             { QStringLiteral("Software"), QStringLiteral("soft") },
         };
         m_video = kVideo.value(value.toString());
+    } else if (key == QLatin1String("menu_filters")) {
+        // Saved whole at every change (MultiSelectSettings.qml).
+        m_menuFilters = value.toMap();
+        emit gamesChanged();
     } else if (key == QLatin1String("play_at_startup") && m_appCore) {
         // A favourite's set, or "" for none: the app's startup favourite
         // made it, as a game's options would.
@@ -590,14 +648,18 @@ const ArcadeBackend::Index &ArcadeBackend::index() const {
         index.games << set;
         const auto machine = m_machines.constFind(set);
         const mame::Machine *known = machine == m_machines.constEnd() ? nullptr : &machine.value();
-        for (const char *kind : kKinds) {
-            const QString k = QLatin1String(kind);
+        for (const auto &kind : kKinds) {
+            const QString k = QLatin1String(kind.first);
             const QString place = placeOf(k, set, known);
             if (!place.isEmpty())
                 index.places[k][place] << set;
         }
     }
     index.unknown.sort();
+    for (const auto &kind : kKinds) {
+        const QString k = QLatin1String(kind.first);
+        index.sorted.insert(k, sortPlaces(k, index.places.value(k).keys()));
+    }
     m_index = std::move(index);
     m_indexed = true;
     return m_index;
@@ -620,44 +682,23 @@ QString ArcadeBackend::placeOf(const QString &kind, const QString &set, const ma
     return mame::makerOf(machine->manufacturer);
 }
 
-QList<std::pair<QString, QString>> ArcadeBackend::sortedPlaces(const QString &kind) const {
-    QStringList places = index().places.value(kind).keys();
-    if (kind == QLatin1String("players")) {
-        std::sort(places.begin(), places.end(),
-                  [](const QString &a, const QString &b) { return a.toInt() < b.toInt(); });
-    } else if (kind == QLatin1String("years")) {
-        std::sort(places.begin(), places.end(), [](const QString &a, const QString &b) {
-            // The years without a decade last.
-            if ((a == QLatin1String("unknown")) != (b == QLatin1String("unknown")))
-                return b == QLatin1String("unknown");
-            return a < b;
-        });
-    } else {
-        std::sort(places.begin(), places.end(),
-                  [](const QString &a, const QString &b) { return a.compare(b, Qt::CaseInsensitive) < 0; });
-    }
-    QList<std::pair<QString, QString>> sorted;
-    for (const QString &place : std::as_const(places)) {
-        QString name = place;
-        if (kind == QLatin1String("players"))
-            name = place == QLatin1String("1") ? QStringLiteral("1 Player") : place + QStringLiteral(" Players");
-        else if (kind == QLatin1String("years") && place == QLatin1String("unknown"))
-            name = QStringLiteral("Year Unknown");
-        sorted.append({ place, name });
-    }
-    return sorted;
-}
-
 QVariantList ArcadeBackend::placeFilters() const {
     QVariantList list;
-    for (const char *kind : kFilterKinds) {
-        const QString k = QLatin1String(kind);
+    for (const auto &kind : kKinds) {
+        const QString k = QLatin1String(kind.first);
         const QMap<QString, QStringList> places = index().places.value(k);
-        const QList<std::pair<QString, QString>> sorted = sortedPlaces(k);
-        for (const auto &[place, name] : sorted)
-            list << filter(k + QLatin1Char('/') + place, name, places.value(place).size());
+        const QList<std::pair<QString, QString>> sorted = index().sorted.value(k);
+        for (const auto &[place, name] : sorted) {
+            const QString id = k + QLatin1Char('/') + place;
+            if (menuShows(id))
+                list << filter(id, name, places.value(place).size());
+        }
     }
     return list;
+}
+
+bool ArcadeBackend::menuShows(const QString &filter) const {
+    return m_menuFilters.value(filter, shownByDefault(filter)).toBool();
 }
 
 QStringList ArcadeBackend::filterSets(const QString &filter) const {
@@ -692,16 +733,16 @@ QVariantList ArcadeBackend::filters() {
     QVariantList list;
     if (!scanning() && !index().games.isEmpty())
         list << filter(QStringLiteral("all"), QStringLiteral("All Games"), index().games.size());
-    for (const auto &[id, name] : { std::pair{ "favorites", "Favorites" }, std::pair{ "recent", "Recently Played" } }) {
-        const qsizetype count = filterSets(QLatin1String(id)).size();
+    for (const auto &[id, name] : kLists) {
+        const qsizetype count = menuShows(QLatin1String(id)) ? filterSets(QLatin1String(id)).size() : 0;
         if (count > 0)
             list << filter(QLatin1String(id), QLatin1String(name), count);
     }
     if (scanning())
         return list;
     list << placeFilters();
-    if (!index().unknown.isEmpty())
-        list << filter(QStringLiteral("unknown"), QStringLiteral("Not Recognized"), index().unknown.size());
+    if (menuShows(QLatin1String(kUnknown.first)) && !index().unknown.isEmpty())
+        list << filter(QLatin1String(kUnknown.first), QLatin1String(kUnknown.second), index().unknown.size());
     return list;
 }
 
@@ -819,11 +860,12 @@ QStringList ArcadeBackend::listedSets(const QString &list) const {
 void ArcadeBackend::startFilterOptions() {
     prepare();
     // Favorites and Recently Played whether or not they hold a game yet.
-    QVariantList options;
-    for (const auto &[id, label] : { std::pair{ "all", "All Games" }, std::pair{ "favorites", "Favorites" },
-                                     std::pair{ "recent", "Recently Played" } }) {
-        options << QVariantMap{ { QStringLiteral("id"), QLatin1String(id) },
-                                { QStringLiteral("label"), QLatin1String(label) } };
+    QVariantList options{ QVariantMap{ { QStringLiteral("id"), QStringLiteral("all") },
+                                       { QStringLiteral("label"), QStringLiteral("All Games") } } };
+    for (const auto &[id, label] : kLists) {
+        if (menuShows(QLatin1String(id)))
+            options << QVariantMap{ { QStringLiteral("id"), QLatin1String(id) },
+                                    { QStringLiteral("label"), QLatin1String(label) } };
     }
     const QVariantList places = placeFilters();
     for (const QVariant &v : places) {
@@ -832,6 +874,32 @@ void ArcadeBackend::startFilterOptions() {
                                 { QStringLiteral("label"), place.value(QStringLiteral("name")) } };
     }
     emit dynamicOptionsReady(QStringLiteral("start_filter"), options);
+}
+
+void ArcadeBackend::menuFilterOptions() {
+    prepare();
+    const auto heading = [](const QString &label) {
+        return QVariantMap{ { QStringLiteral("label"), label }, { QStringLiteral("heading"), true } };
+    };
+    const auto choice = [](const QString &id, const QString &label) {
+        return QVariantMap{ { QStringLiteral("id"), id }, { QStringLiteral("label"), label },
+                            { QStringLiteral("default"), shownByDefault(id) } };
+    };
+    // The lists whether or not they hold a game yet.
+    QVariantList options{ heading(QStringLiteral("Lists")) };
+    for (const auto &[id, label] : kLists)
+        options << choice(QLatin1String(id), QLatin1String(label));
+    options << choice(QLatin1String(kUnknown.first), QLatin1String(kUnknown.second));
+    for (const auto &[kind, label] : kKinds) {
+        const QString k = QLatin1String(kind);
+        const QList<std::pair<QString, QString>> sorted = index().sorted.value(k);
+        if (sorted.isEmpty())
+            continue;
+        options << heading(QLatin1String(label));
+        for (const auto &[place, name] : sorted)
+            options << choice(k + QLatin1Char('/') + place, name);
+    }
+    emit dynamicOptionsReady(QStringLiteral("menu_filters"), options);
 }
 
 void ArcadeBackend::startupGameOptions() {
@@ -862,7 +930,7 @@ void ArcadeBackend::startupGameOptions() {
 
 QVariantList ArcadeBackend::folders(const QString &kind) const {
     QVariantList list;
-    const QList<std::pair<QString, QString>> sorted = sortedPlaces(kind);
+    const QList<std::pair<QString, QString>> sorted = index().sorted.value(kind);
     for (const auto &[place, name] : sorted)
         list << folder(name, kind + QLatin1Char('/') + place);
     return list;
@@ -951,7 +1019,7 @@ QVariant ArcadeBackend::requestEntries(const QString &path) {
             }
         }
         if (!games.unknown.isEmpty())
-            top << folder(QStringLiteral("Not Recognized"), QStringLiteral("unknown"));
+            top << folder(QLatin1String(kUnknown.second), QLatin1String(kUnknown.first));
         return top;
     }
     if (path == QLatin1String("all"))

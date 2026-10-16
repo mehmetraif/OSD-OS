@@ -370,6 +370,40 @@ QString systemOf(const QString &sourceFile) {
     return kBoards.value(driver, driver.toUpper());
 }
 
+QString genreOf(const QString &category) {
+    QString text = category;
+    text.remove(QLatin1String("* Mature *"));
+    const int slash = text.indexOf(QLatin1Char('/'));
+    const QString main = (slash < 0 ? text : text.left(slash)).trimmed();
+    const QString kind = slash < 0 ? QString() : text.mid(slash + 1).trimmed();
+    if (main == QLatin1String("Fighter")) {
+        // One against one, but the brawls through a level: Final Fight, Kung-Fu
+        // Master, Double Dragon.
+        static const QStringList brawls = { QStringLiteral("2.5D"), QStringLiteral("2D"), QStringLiteral("Vertical"),
+                                            QStringLiteral("Field"), QStringLiteral("Scrolling") };
+        return brawls.contains(kind) ? QStringLiteral("Beat 'em Up") : QStringLiteral("Fighting");
+    }
+    if (main == QLatin1String("Platform")) {
+        if (kind.startsWith(QLatin1String("Shooter")))
+            return QStringLiteral("Run and Gun");
+        return kind == QLatin1String("Fighter") ? QStringLiteral("Beat 'em Up") : QStringLiteral("Platform");
+    }
+    if (main == QLatin1String("Shooter")) {
+        // Flying ones, and the fixed ones under a field of enemies (Galaga).
+        if (kind.startsWith(QLatin1String("Flying")) || kind == QLatin1String("Gallery")
+                || kind == QLatin1String("Misc. Vertical") || kind == QLatin1String("Misc. Horizontal"))
+            return QStringLiteral("Shmup");
+        if (kind == QLatin1String("Walking"))
+            return QStringLiteral("Run and Gun");
+        if (kind == QLatin1String("Gun"))
+            return QStringLiteral("Light Gun");
+        return QStringLiteral("Shooter");
+    }
+    if (main == QLatin1String("Driving"))
+        return QStringLiteral("Racing");
+    return main;
+}
+
 QHash<QString, QString> readGenres(const QString &path) {
     QHash<QString, QString> genres;
     QFile file(path);
@@ -387,13 +421,7 @@ QHash<QString, QString> readGenres(const QString &path) {
         const int equals = line.indexOf(QLatin1Char('='));
         if (!categories || equals <= 0 || line.startsWith(QLatin1Char(';')))
             continue;
-        // "Fighter / Versus * Mature *": the genre before the kind of it.
-        QString genre = line.mid(equals + 1);
-        const int slash = genre.indexOf(QLatin1Char('/'));
-        if (slash >= 0)
-            genre.truncate(slash);
-        genre.remove(QLatin1String("* Mature *"));
-        genre = genre.trimmed();
+        const QString genre = genreOf(line.mid(equals + 1));
         if (!genre.isEmpty())
             genres.insert(line.left(equals).trimmed().toLower(), genre);
     }

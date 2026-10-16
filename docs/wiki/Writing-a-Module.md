@@ -58,7 +58,7 @@ Each setting is an object:
 | `key` | Every type | Its key under `modules.<id>`. A dot reaches one level down (`libraries.abc` is `"libraries": { "abc": … }`) |
 | `label` | Every type | The row's text, shown in capitals |
 | `type` | Every type | One of the types below |
-| `default` | `toggle`, `list_single` | What the row shows while nothing is saved: `"ON"` or `"OFF"`, or one of the options (a dynamic list shows its first choice instead, and a `directory_browser` shows `Default`). OSD/OS doesn't write it: your own code must read an unset key as this default too |
+| `default` | `toggle`, `list_single`, `slider` | What the row shows while nothing is saved: `"ON"` or `"OFF"`, one of the options (a dynamic list shows its first choice instead, and a `directory_browser` shows `Default`), or a slider's number. OSD/OS doesn't write it: your own code must read an unset key as this default too |
 | `description` | Every type | The help line under the menu while the row is selected. Lines written with `\n` read as one, joined with `•`; by convention `[WORD]` explains one of the choices |
 | `options` | `list_single` | The choices, saved as they are written |
 | `options_source`, `options_slot` | `list_single`, `multiselect_submenu` | `"dynamic"`, and the backend slot that sends the choices ([part 3](#part-3-a-c-backend)) |
@@ -66,6 +66,7 @@ Each setting is an object:
 | `action_slot` | `action` | The backend slot select calls |
 | `params` | `module_view` | The `navParams` the module's `Root.qml` opens with |
 | `settings` | `submenu` | Its own rows, in this same format |
+| `step`, `start_text`, `end_text` | `slider` | How far ◄ ► move it (10 unless given), and the names under the bar's two ends, as Settings' TRANSPARENT and SOLID |
 | `requires_auth` | Every type | Shown only while the backend's `get_auth_state()` is neither `""` nor `"none"`: Plex hides its server, user and library rows until it is signed in |
 | `requires_capability` | Every type | Shown only while the backend's choices for `_capabilities` name it: Jellyfin's skip rows need its server's media segments |
 | `shown_with` | Every type | Shown only while another of the module's rows has a value as the page shows it: `{ "key": "screen", "value": "Arcade" }`, a toggle's `"ON"` or `"OFF"`, an unset row counting as its `default` (a dynamic list as its first choice), and never while that row is hidden itself. The rows come and go as that row changes, the cursor staying on it, a dynamic row's choices asked for as it comes, and a hidden row keeps what was saved in it: Arcade's rows for its Arcade screen |
@@ -77,10 +78,11 @@ The types, as Settings shows and saves them:
 | `toggle` | `ON` or `OFF`; ◄ ►, and select, flip it. `default` is `"ON"` or `"OFF"` | `true` or `false` |
 | `list_single` with `options` | ◄ ► step through the choices, round the ends | The choice's text |
 | `list_single` with `"options_source": "dynamic"` | The backend's labels. While nothing is saved the row shows the first choice, so put the default first | The choice's `id` |
-| `multiselect_submenu` | Select opens a page of the backend's choices, each switched on and off | `{ "<id>": true, … }` under the key; every choice is on until it is switched off |
+| `multiselect_submenu` | Select opens a page of the backend's choices, each switched on and off. Choices under a heading (`{ "label": "Genres", "heading": true }` among them) are a group, which select on the heading turns on, or off once they all are on | `{ "<id>": true, … }` under the key, saved whole at every change; every choice is on until it is switched off, but one sent with `"default": false` (Arcade's publishers), which is off until it is switched on |
 | `submenu` | Select opens its rows on a page of their own, titled `MODULE / LABEL` (YouTube's Advanced) | Its rows' keys, flat under `modules.<id>` |
 | `module_view` | Select opens the module itself, its `Root.qml` with `params` (Netflix's Sign in) | Nothing |
 | `directory_browser` | Select opens the folder picker, the tree Local Files is browsed with; the row shows the path, or `Default` | The folder's path; `""` for **Default Folder**, which the module gives a meaning |
+| `slider` | Its label, and the deck's tape bar under it with a ▼ at the value between its two ends; ◄ ► move it a `step` toward either end (Arcade's Info Background) | A number from 0 to 100 |
 | `action` | Select calls `action_slot` | Nothing |
 
 There is no free-text type: Weather reads its places from a file in the data folder instead, and a view of your own can open the `OnScreenKeyboard`.

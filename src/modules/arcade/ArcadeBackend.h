@@ -30,11 +30,12 @@ class QTimer;
 //   Search, All Games, and by players, decade and maker, and those MAME has
 //   no game of, or can't open by their names, under Not Recognized. The
 //   Arcade screen lists them a filter at a time (filters(), filterGames()):
-//   All Games, Favorites, Recently Played, each genre (catver.ini's, in the
-//   games folder or in <data>/arcade), each number of players and each
-//   decade, and Not Recognized; gameDetails() says what a game is: its
-//   system, maker, year, players, picture (the games folder's snap folder,
-//   or MAME's own snapshots) and how long it has been played
+//   All Games, Favorites, Recently Played, each genre (made from catver.ini's
+//   categories, in the games folder or in <data>/arcade), each number of
+//   players, each decade and each publisher, and Not Recognized, as
+//   Settings → Arcade → Menu Filters chooses; gameDetails() says what a game
+//   is: its system, maker, year, players, picture (the games folder's snap
+//   folder, or MAME's own snapshots) and how long it has been played
 //   (<data>/arcade/playtime.json).
 // - A game plays as a takeover through a ScriptLauncher of the module's own
 //   ("arcade" to DisplayHandoff), MAME's keeping in <data>/arcade: its
@@ -90,8 +91,9 @@ public:
     // The filters with games in them, in the order ◄ ► goes round them:
     // [{ id, name, count }]. id: "all", "favorites", "recent",
     // "genres/<genre>", "players/<n>", "years/<decade>" ("years/unknown"),
-    // "unknown" (Not Recognized). While MAME is being asked, only Favorites
-    // and Recently Played: gamesChanged() follows once it has answered.
+    // "makers/<publisher>", "unknown" (Not Recognized); all but All Games
+    // only while Menu Filters shows them. While MAME is being asked, only
+    // the lists: gamesChanged() follows once it has answered.
     Q_INVOKABLE QVariantList filters();
     // A page of a filter: its games from first on, count at most, as
     // { set, name (its title), favorite }; Not Recognized's as { set, name
@@ -116,10 +118,16 @@ public:
 
     // manifest: rescan (action): MAME asked about every set again.
     Q_INVOKABLE void rescan();
-    // manifest: start_filter's choices (dynamicOptionsReady): All Games,
-    // Favorites, Recently Played and the genres, players and decades there
-    // are.
+    // manifest: start_filter's choices (dynamicOptionsReady): All Games, and
+    // Favorites, Recently Played and the genres, players, decades and
+    // publishers there are, those Menu Filters shows.
     Q_INVOKABLE void startFilterOptions();
+    // manifest: menu_filters' (dynamicOptionsReady): under a heading each,
+    // the lists, the genres, players, decades and publishers there are, as
+    // { id (the filter's), label, default }; a heading as { label,
+    // heading: true }. A publisher's is off until turned on: a full set has
+    // hundreds.
+    Q_INVOKABLE void menuFilterOptions();
     // manifest: play_at_startup's: None and the favorites.
     Q_INVOKABLE void startupGameOptions();
 
@@ -143,8 +151,8 @@ public slots:
 
 signals:
     void entriesReady(const QString &path);
-    // What the filters hold may have changed: MAME has answered, or the
-    // folder isn't as it was.
+    // What the filters hold may have changed: MAME has answered, the folder
+    // isn't as it was, or Menu Filters has changed.
     void gamesChanged();
     void runningChanged();
     void scanningChanged();
@@ -203,6 +211,10 @@ private:
     struct Index {
         QStringList games;
         QHash<QString, QMap<QString, QStringList>> places;   // kind → place → its games
+        // kind → its places in the order they are listed, with what each is
+        // called: players by number, decades with the years unknown last,
+        // the rest by name.
+        QHash<QString, QList<std::pair<QString, QString>>> sorted;
         QStringList unknown;
     };
     const Index &index() const;
@@ -210,18 +222,18 @@ private:
     // A game's place among the genres, players, decades or makers; "" for
     // none.
     QString placeOf(const QString &kind, const QString &set, const mame::Machine *machine) const;
-    // A kind's places in the order they are listed, with what each is
-    // called: players by number, decades in order with the years unknown
-    // last, the rest by name.
-    QList<std::pair<QString, QString>> sortedPlaces(const QString &kind) const;
     // The tree's folders of "players", "years" or "makers".
     QVariantList folders(const QString &kind) const;
     QVariantList gameEntries(const QStringList &sets) const;
     QVariantMap gameEntry(const QString &set) const;
     QVariantMap unknownEntry(const QString &set) const;
     QVariantList listEntries(const QString &list) const;
-    // The filters of the genres, players and decades: [{ id, name, count }].
+    // The filters of the genres, players, decades and publishers that Menu
+    // Filters shows: [{ id, name, count }].
     QVariantList placeFilters() const;
+    // Whether Menu Filters shows a filter: as turned on or off there, else
+    // on, but a publisher's.
+    bool menuShows(const QString &filter) const;
     // A filter's sets, in the order it lists them.
     QStringList filterSets(const QString &filter) const;
     // Why a set is under Not Recognized, and what to do.
@@ -266,6 +278,7 @@ private:
     QString m_gamesFolder;
     bool    m_highScores = true;
     QString m_video;              // "" for MAME's own (mame.ini's)
+    QVariantMap m_menuFilters;    // Menu Filters: filter id → shown
 
     // The folder's sets, and what MAME said of every set it was asked about.
     QHash<QString, QString> m_sets;
