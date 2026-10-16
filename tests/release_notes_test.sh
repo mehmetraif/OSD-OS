@@ -81,6 +81,30 @@ check "only what a release has" "## Changelog
 
 - Only docs" "$(bash "$script" v1.1.1)"
 
+# A commit reverted in the same release goes with its revert; one reverted,
+# then put back, stays; a revert of an earlier release's commit is a change.
+commit "feat: a screen that went"
+went=$(git rev-parse HEAD)
+commit "fix: a crash on the way out"
+commit "$(printf 'Revert "feat: a screen that went"\n\nThe old one is back.\n\nThis reverts commit %s.' "$went")"
+commit "feat: a toggle"
+toggle=$(git rev-parse HEAD)
+commit "$(printf 'Revert "feat: a toggle"\n\nThis reverts commit %s.' "$toggle")"
+commit "$(printf 'Reapply "feat: a toggle"\n\nThis reverts commit %s.' "$(git rev-parse HEAD)")"
+commit "$(printf 'Revert "feat: before the last release"\n\nThis reverts commit %s.' "$(git rev-parse v1.0.0)")"
+git tag v1.2.0
+check "reverts in the release" "## What's New
+
+- A toggle
+
+## Changelog
+
+- Revert \"feat: before the last release\"
+
+## Bug Fixes
+
+- A crash on the way out" "$(bash "$script" v1.2.0)"
+
 if bash "$script" 2>/dev/null; then
     echo "FAIL: no tag given"
     failures=$((failures + 1))

@@ -8,7 +8,9 @@
 #
 # <previous tag> defaults to the tag before <tag>; with none, the whole
 # history counts. Merge commits are left out (a pull request's own commits
-# describe it). A commit goes by its conventional-commit type: feat under
+# describe it), and so is a commit reverted in the same release, with its
+# revert (git revert's "This reverts commit <hash>."): neither changes what
+# the release brings. A commit goes by its conventional-commit type: feat under
 # What's New, fix under Bug Fixes, any other type under Changelog. One
 # without a type goes by its first word: Fix… under Bug Fixes, Add… under
 # What's New, anything else under Changelog. A section with nothing in it
@@ -19,11 +21,45 @@ tag=${1:?usage: release-notes.sh <tag> [<previous tag>]}
 previous=${2:-$(git describe --tags --abbrev=0 "${tag}^" 2>/dev/null || true)}
 range=${previous:+${previous}..}${tag}
 
+# The commits, oldest first: each one's hash, subject, and the commit it
+# reverts, if it is a revert.
+hashes=()
+subjects=()
+reverts=()
+while IFS=$'\x1f' read -r -d $'\x1e' hash subject body; do
+    hash=${hash#$'\n'}
+    [ -n "$hash" ] || continue
+    hashes+=("$hash")
+    subjects+=("$subject")
+    if [[ $body =~ This\ reverts\ commit\ ([0-9a-f]{7,40}) ]]; then
+        reverts+=("${BASH_REMATCH[1]}")
+    else
+        reverts+=("")
+    fi
+done < <(git log --no-merges --reverse --date-order --format='%H%x1f%s%x1f%b%x1e' "$range")
+
+# A revert and the commit it reverts, both in the release, cancel out. The
+# newest first, so that a revert reverted in its turn cancels with that
+# revert, and the commit they both followed stays.
+declare -A dropped=()
+for (( i = ${#hashes[@]} - 1; i >= 0; i-- )); do
+    target=${reverts[$i]}
+    [ -n "$target" ] && [ -z "${dropped[$i]:-}" ] || continue
+    for (( j = i - 1; j >= 0; j-- )); do
+        if [[ ${hashes[$j]} == "$target"* ]]; then
+            [ -n "${dropped[$j]:-}" ] || { dropped[$i]=1; dropped[$j]=1; }
+            break
+        fi
+    done
+done
+
 new=()
 changes=()
 fixes=()
 seen=$'\n'
-while IFS= read -r subject; do
+for i in "${!subjects[@]}"; do
+    [ -z "${dropped[$i]:-}" ] || continue
+    subject=${subjects[$i]}
     [ -n "$subject" ] || continue
     if [[ $subject =~ ^([A-Za-z]+)(\([^\)]*\))?!?:[[:space:]]*(.*)$ ]]; then
         type=${BASH_REMATCH[1],,}
@@ -50,7 +86,7 @@ while IFS= read -r subject; do
         fix) fixes+=("$text") ;;
         *) changes+=("$text") ;;
     esac
-done < <(git log --no-merges --reverse --date-order --format=%s "$range")
+done
 
 section() {
     local title=$1
