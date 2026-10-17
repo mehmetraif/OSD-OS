@@ -39,7 +39,7 @@ ROM sets are copyrighted, like the games on them: use the games you are entitled
 | **Original** (the default) | OSD/OS's own tree, as the other modules have: Recently Played, Favorites, Search, All Games, and the games by players, decade and maker ([below](#the-original-screen)) |
 | **Arcade** | A cabinet's selection screen: one filter's games at a time, on an arc, with the selected one's picture, high scores and details beside them; ◄ ► go through the filters, COIN buys credits and select or START plays ([below](#the-arcade-screen)) |
 
-Both list the same games from the same folder, share Recently Played and Favorites, and play a game the same way. Start Filter, Menu Filters, Info Background, Screen Adjustment, Hint Bar and Help Line are the Arcade screen's own settings, so Settings → Arcade shows them only while Screen is Arcade. Its look is Settings' own, as every screen's is: its theme, colors, skin, background, selector effect and transitions.
+Both list the same games from the same folder, share Recently Played and Favorites, and play a game the same way. Start Filter, Menu Filters, Border, Info Background, Screen Adjustment, Hint Bar and Help Line are the Arcade screen's own settings, so Settings → Arcade shows them only while Screen is Arcade. Its look is Settings' own, as every screen's is: its theme, colors, skin, background, selector effect and transitions.
 
 ## The original screen
 
@@ -81,7 +81,7 @@ With **Settings → Arcade → Screen** on **Arcade**, Arcade opens on a cabinet
 - **The help line**: the game's full name, as MAME has it, then those of its maker, year, players and system the box has no line for, scrolling through as `Final Fight (World, set 1) • 1989 • 2 Players • CPS-1`; on a set under Not Recognized, why it is there and what to do.
 - **The hint bar**: the keys.
 
-**Info Background** in Settings → Arcade, a slider from TRANSPARENT to SOLID, says how solid the ground of the picture's frame and of the box under it is over the background (Settings → Background Effect): at SOLID, the default, none of the background shows through. **Hint Bar** and **Help Line** in Settings → Arcade take those two away, on the Arcade screen and its windows (the options, the screen before a game) whatever Settings' own say, each giving its room to one more game on every page and to the box: a line more of the game's details for the hint bar's, two for the help line's. With the help line off, the details the box has no line for aren't shown.
+**Border** in Settings → Arcade, ON by default, frames the picture and the box under it; OFF, they stand on their ground alone. **Info Background**, a slider from TRANSPARENT to SOLID, says how solid that ground is over the background (Settings → Background Effect): at SOLID, the default, none of the background shows through. **Hint Bar** and **Help Line** in Settings → Arcade take those two away, on the Arcade screen and its windows (the options, the screen before a game) whatever Settings' own say, each giving its room to one more game on every page and to the box: a line more of the game's details for the hint bar's, two for the help line's. With the help line off, the details the box has no line for aren't shown.
 
 | Key | Pad (the JAMMA board's names) | Keyboard | What it does |
 |---|---|---|---|
@@ -258,6 +258,7 @@ Settings → Arcade.
 | Start Filter | All Games, then the lists, genres, players, decades and publishers Menu Filters shows | All Games | The filter the Arcade screen opens on ([Filters](#filters)); while it has no games, the first that has. Shown while Screen is Arcade | `modules.com.osdos.arcade.start_filter` |
 | Menu Filters | A page of the filters under their headings, each ON or OFF | All on, the publishers off | The filters ◄ ► goes round on the Arcade screen ([Menu Filters](#menu-filters)). Shown while Screen is Arcade | `modules.com.osdos.arcade.menu_filters` |
 | Play at Startup | None, then the favorites | None | A favorite game started straight after the boot screen, as a game's options set it ([A game's options](#a-games-options)). One for the whole app: choosing a game replaces another module's | `modules.com.osdos.arcade.play_at_startup` |
+| Border | ON, OFF | ON | The frames round the Arcade screen's picture and the box under it ([The Arcade screen](#the-arcade-screen)). Shown while Screen is Arcade | `modules.com.osdos.arcade.border` |
 | Info Background | A slider from TRANSPARENT to SOLID, 0 to 100 in steps of 10 | 100 (SOLID) | How solid the ground under the Arcade screen's picture and the box under it is over Settings' Background Effect ([The Arcade screen](#the-arcade-screen)). Shown while Screen is Arcade | `modules.com.osdos.arcade.info_background` |
 | Screen Adjustment | (opens the Arcade screen to adjust) | As OSD/OS lays it out | Fits the Arcade screen to the screen: a frame whose sides ▲ ▼ ◄ ► move, the list and the box under the picture holding as many games and lines as fit ([Screen Adjustment](#screen-adjustment)). Shown while Screen is Arcade | `modules.com.osdos.arcade.screen_adjustment` |
 | Hint Bar | ON, OFF | ON | The keys at the foot of the Arcade screen and its windows, in place of Settings' own Hint Bar; off, the list and the box under the picture take its room. Shown while Screen is Arcade | `modules.com.osdos.arcade.hint_bar` |
@@ -273,7 +274,7 @@ Settings → Arcade.
 
 | Key | Saved as |
 |---|---|
-| `enabled`, `hint_bar`, `help_line`, `start_info`, `high_scores` | `true` or `false` |
+| `enabled`, `border`, `hint_bar`, `help_line`, `start_info`, `high_scores` | `true` or `false` |
 | `games_directory` | `""` for the default, else the folder's full path |
 | `screen` | `"Original"` or `"Arcade"` |
 | `start_filter` | The filter's id: `"all"`, `"favorites"`, `"recent"`, `"genres/<genre>"` (`"genres/Fighting"`), `"players/<n>"` (`"players/2"`), `"years/<decade>"` (`"years/1980s"`, `"years/unknown"`) or `"makers/<publisher>"` (`"makers/Capcom"`) |
@@ -359,7 +360,7 @@ mame galaga \
 | The Arcade screen has no genre filters | Put `catver.ini` in the games folder or in `arcade` in the data folder ([Genres](#genres)), then open Arcade again |
 | `No Picture` | Put the game's picture in the games folder's `snap` folder, named by its set: `snap/galaga.png` ([Pictures](#pictures)). The frame names the file it looks for |
 | The credits bought don't show in the game | They go in 5 seconds into the game. A board still starting up then may miss them: insert a coin in the game with COIN. A game MAME shows a warning for first counts them once the warning is gone |
-| The Arcade screen's settings aren't in Settings → Arcade | Start Filter, Menu Filters, Info Background, Screen Adjustment, Hint Bar and Help Line show while **Screen** is **Arcade** |
+| The Arcade screen's settings aren't in Settings → Arcade | Start Filter, Menu Filters, Border, Info Background, Screen Adjustment, Hint Bar and Help Line show while **Screen** is **Arcade** |
 | The Arcade screen's edges are cut off on a CRT, or it leaves a border unused | **Settings → Arcade → Screen Adjustment**: move each side of the frame to the screen's edge ([Screen Adjustment](#screen-adjustment)) |
 | A genre, a decade or Favorites isn't among the Arcade screen's filters | It has no games, or **Settings → Arcade → Menu Filters** has it off ([Menu Filters](#menu-filters)) |
 

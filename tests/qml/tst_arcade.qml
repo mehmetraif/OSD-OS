@@ -68,6 +68,7 @@ Rectangle {
         property int credits: 0
         readonly property int maxCredits: 9
         property int infoBackground: 100
+        property bool border: true
         property var screenAdjustment: ({ top: 0, bottom: 0, left: 0, right: 0 })
         function addCredit() { credits = Math.min(maxCredits, credits + 1) }
         function startGame(set) {
@@ -226,6 +227,7 @@ Rectangle {
             root.helpLine = true
             moduleRoot.startFilter = "all"
             moduleRoot.infoBackground = 100
+            moduleRoot.border = true
             moduleRoot.screenAdjustment = { top: 0, bottom: 0, left: 0, right: 0 }
             moduleRoot.credits = 0
             arcadeBackend.credited = []
@@ -667,6 +669,27 @@ Rectangle {
             compare(value.width, value.implicitWidth)
             verify(value.width > value.parent.width)
             tryVerify(function() { return value.x < 0 }, 4000)
+        }
+
+        // Border OFF: no frame round the picture or the box under it, the
+        // picture filling its place.
+        function test_screenBorder() {
+            var frames = function(screen) {
+                var found = []
+                for (var i = 0; i < screen.children.length; ++i) {
+                    var item = screen.children[i]
+                    if (item.border !== undefined && item.x === Math.round(screen.columnX * screen.u))
+                        found.push(item.border.width)
+                }
+                return found
+            }
+            var screen = openScreen()
+            compare(frames(screen), [root.px, root.px])
+            loader.source = ""
+            moduleRoot.border = false
+            screen = openScreen()
+            compare(screen.frame, 0)
+            compare(frames(screen), [0, 0])
         }
 
         // Screen Adjustment: a frame round the area, whose sides ▲ ▼ ◄ ► move

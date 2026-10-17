@@ -150,6 +150,9 @@ FocusScope {
     // the name as the colour.
     readonly property color surface: root.surfaceColor
     readonly property color ground: Qt.rgba(surface.r, surface.g, surface.b, moduleRoot.infoBackground / 100)
+    // The frame round the picture and the box, as wide as Settings → Arcade
+    // → Border has it (Root.qml's border): a line, or none.
+    readonly property int frame: moduleRoot.border ? root.px : 0
     // The game's high scores, read again once the High Scores module has
     // read MAME's files (a game just played).
     property int scoresRevision: 0
@@ -530,18 +533,19 @@ FocusScope {
         width: Math.round(arcadeScreen.columnWidth * arcadeScreen.u)
         height: Math.round(arcadeScreen.pictureHeight * arcadeScreen.v)
         color: picture.status === Image.Ready ? "#000000" : arcadeScreen.ground
-        border.width: root.px
+        border.width: arcadeScreen.frame
         border.color: root.primaryColor
         antialiasing: false
 
-        // The game's picture, 4:3; a vertical game's upright in the middle.
+        // The game's picture, 4:3, inside the frame; a vertical game's
+        // upright in the middle.
         Image {
             id: picture
-            readonly property real inner: preview.height - 2 * root.px
+            readonly property real inner: preview.height - 2 * arcadeScreen.frame
             visible: status === Image.Ready
-            y: root.px
+            y: arcadeScreen.frame
             height: inner
-            width: arcadeScreen.details.vertical ? Math.round(inner * 3 / 4) : preview.width - 2 * root.px
+            width: arcadeScreen.details.vertical ? Math.round(inner * 3 / 4) : preview.width - 2 * arcadeScreen.frame
             x: Math.round((preview.width - width) / 2)
             source: arcadeScreen.isGame && arcadeScreen.details.picture ? arcadeScreen.details.picture : ""
             sourceSize.width: width
@@ -583,7 +587,7 @@ FocusScope {
         Rectangle {
             anchors.right: parent.right
             anchors.bottom: parent.bottom
-            anchors.margins: root.px
+            anchors.margins: arcadeScreen.frame
             width: creditText.implicitWidth + 2 * Math.round(6 * arcadeScreen.u)
             height: creditText.implicitHeight + 2 * root.px
             color: root.surfaceColor
@@ -608,7 +612,7 @@ FocusScope {
         width: Math.round(arcadeScreen.columnWidth * arcadeScreen.u)
         height: Math.round(arcadeScreen.listBottom * arcadeScreen.v) - y
         color: arcadeScreen.ground
-        border.width: root.px
+        border.width: arcadeScreen.frame
         border.color: root.primaryColor
         antialiasing: false
     }

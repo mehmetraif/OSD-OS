@@ -52,6 +52,14 @@
       "description": "One of your favorite games, started as OSD/OS starts, as a game's options set it too\n[NONE] No game starts with OSD/OS\nThere is one for the whole of OSD/OS: choosing a game replaces another module's"
     },
     {
+      "key": "border",
+      "label": "Border",
+      "type": "toggle",
+      "default": "ON",
+      "shown_with": { "key": "screen", "value": "Arcade" },
+      "description": "The frames round the Arcade screen's picture and the box under it\n[OFF] No frames: the picture and the box stand on their ground alone"
+    },
+    {
       "key": "info_background",
       "label": "Info Background",
       "type": "slider",
