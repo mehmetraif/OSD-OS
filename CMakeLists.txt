@@ -106,6 +106,7 @@ add_executable(osdos
     src/input/InputManager.cpp
     src/input/ControllerProfile.cpp
     src/input/IdleTracker.cpp
+    src/input/JammaPins.cpp
     src/update/UpdateManager.cpp
     src/boot/BootProgress.cpp
     src/display/DisplayOutput.cpp

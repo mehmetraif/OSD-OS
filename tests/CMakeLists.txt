@@ -285,6 +285,7 @@ add_executable(controllers_test
     controllers_test.cpp
     ../src/input/InputManager.cpp
     ../src/input/ControllerProfile.cpp
+    ../src/input/JammaPins.cpp
     ../src/AppCore.cpp
     ../src/util/LegacyNames.cpp)
 target_include_directories(controllers_test PRIVATE ../src)

@@ -1,4 +1,5 @@
 #include "InputManager.h"
+#include "JammaPins.h"
 #include "../AppCore.h"
 
 #include <QCoreApplication>
@@ -131,6 +132,11 @@ InputManager::InputManager(const QString &dataRoot, AppCore *appCore, QObject *p
     loadKeyRemap();
     if (m_appCore)
         connect(m_appCore, &AppCore::appSettingChanged, this, &InputManager::onAppSettingChanged);
+
+    // The JAMMA sticks' button test (watchJammaPins()).
+    m_jammaPins = new JammaPins(this);
+    connect(m_jammaPins, &JammaPins::pinPressed, this, &InputManager::jammaPinPressed);
+    connect(m_jammaPins, &JammaPins::failed, this, &InputManager::jammaPinsFailed);
 
 #ifdef Q_OS_LINUX
     // Keyboards and remotes, as they come and go: a Bluetooth keyboard makes
@@ -327,6 +333,14 @@ InputManager::Pad InputManager::padFor(const QString &key, const QString &name, 
 InputManager::Pad InputManager::padOf(const QString &key, const QString &name) const {
     const auto live = std::find_if(m_pads.cbegin(), m_pads.cend(), [&key](const Pad &p) { return p.key == key; });
     return live != m_pads.cend() ? *live : padFor(key, name, m_seenAs.value(key).sdlType);
+}
+
+// The JAMMA board's player a stick of its is (osdos-jamma names them "OSD/OS
+// JAMMA P1" and "OSD/OS JAMMA P2"), or 0.
+int InputManager::jammaPlayer(const Pad &pad) {
+    if (!pad.arcade)
+        return 0;
+    return pad.name.endsWith(QLatin1String("P1")) ? 1 : pad.name.endsWith(QLatin1String("P2")) ? 2 : 0;
 }
 
 // A pad's input as its profile and controllerInputCaptured() name it: a
@@ -719,11 +733,8 @@ void InputManager::updatePlayers() {
     const auto rank = [this](SDL_JoystickID id) {
         const Pad pad = m_pads.value(id);
         if (pad.arcade) {
-            if (pad.name.endsWith(QLatin1String("P1")))
-                return 0;
-            if (pad.name.endsWith(QLatin1String("P2")))
-                return 1;
-            return 2;
+            const int player = jammaPlayer(pad);
+            return player > 0 ? player - 1 : 2;
         }
         return 3;
     };
@@ -867,9 +878,10 @@ void InputManager::noteController(const QString &key) {
 }
 
 QVariantList InputManager::controllers() const {
-    struct Entry { QString key, name, kind; int count; int order; };   // order 3: not connected
+    struct Entry { QString key, name, kind; int count; int order; int jamma; };   // order 3: not connected
     QList<Entry> entries;
-    const auto add = [&entries](const QString &key, const QString &name, const QString &kind, int order) {
+    const auto add = [&entries](const QString &key, const QString &name, const QString &kind, int order,
+                                int jamma = 0) {
         for (Entry &e : entries) {
             if (e.key != key)
                 continue;
@@ -886,11 +898,12 @@ QVariantList InputManager::controllers() const {
             }
             return;
         }
-        entries.append({ key, name, kind, 1, order });
+        entries.append({ key, name, kind, 1, order, jamma });
     };
     for (auto it = m_pads.cbegin(); it != m_pads.cend(); ++it) {
         if (!m_suppressedDevices.contains(it.key()))
-            add(it->key, it->name, it->arcade ? QStringLiteral("arcade") : QStringLiteral("gamepad"), 0);
+            add(it->key, it->name, it->arcade ? QStringLiteral("arcade") : QStringLiteral("gamepad"), 0,
+                jammaPlayer(*it));
     }
 #ifdef Q_OS_LINUX
     for (const Node *node : m_nodes) {
@@ -908,7 +921,7 @@ QVariantList InputManager::controllers() const {
         QString kind = it->kind;
         if (kind.isEmpty())
             kind = pad ? QStringLiteral("gamepad") : QStringLiteral("keyboard");
-        entries.append({ it.key(), it->name.isEmpty() ? it.key() : it->name, kind, 0, 3 });
+        entries.append({ it.key(), it->name.isEmpty() ? it.key() : it->name, kind, 0, 3, 0 });
     }
     std::stable_sort(entries.begin(), entries.end(), [](const Entry &a, const Entry &b) {
         return a.order != b.order ? a.order < b.order : a.name.compare(b.name, Qt::CaseInsensitive) < 0;
@@ -917,7 +930,7 @@ QVariantList InputManager::controllers() const {
     for (const Entry &e : entries)
         list << QVariantMap{ { QStringLiteral("key"), e.key }, { QStringLiteral("name"), e.name },
                              { QStringLiteral("kind"), e.kind }, { QStringLiteral("count"), e.count },
-                             { QStringLiteral("present"), e.order < 3 } };
+                             { QStringLiteral("present"), e.order < 3 }, { QStringLiteral("jamma"), e.jamma } };
     return list;
 }
 
@@ -979,16 +992,30 @@ QVariantMap InputManager::controllerPage(const QString &key) const {
                         { QStringLiteral("present"), present },
                         { QStringLiteral("labels"), controllers::labelStyleName(profile.labels) },
                         { QStringLiteral("labelsInUse"), isPad ? controllers::labelStyleTitle(pad.labels) : QString() },
+                        { QStringLiteral("jamma"), isPad ? jammaPlayer(pad) : 0 },
                         { QStringLiteral("rows"), rows } };
 }
 
 void InputManager::captureController(const QString &key) {
-    m_captureController = key;
-    m_captureEnds = key.isEmpty() ? 0 : m_clock.elapsed() + 12000;
+    captureControllers(key.isEmpty() ? QStringList() : QStringList{ key });
+}
+
+void InputManager::captureControllers(const QStringList &keys) {
+    m_captureControllers = keys;
+    m_captureControllers.removeAll(QString());
+    m_captureEnds = m_captureControllers.isEmpty() ? 0 : m_clock.elapsed() + 12000;
+}
+
+void InputManager::watchJammaPins(bool on) {
+    m_jammaPins->watch(on);
+}
+
+void InputManager::setJammaProgram(const QString &program) {
+    m_jammaPins->setProgram(program);
 }
 
 bool InputManager::capturing(const QString &key) const {
-    return !key.isEmpty() && key == m_captureController && m_clock.elapsed() < m_captureEnds;
+    return !key.isEmpty() && m_captureControllers.contains(key) && m_clock.elapsed() < m_captureEnds;
 }
 
 // Its profile, to change, with what it is as it's seen now.

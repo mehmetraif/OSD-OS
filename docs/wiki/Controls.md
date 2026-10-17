@@ -162,13 +162,17 @@ With the built-in mapping, the same on both expanders: the layout of RGB-Pi's ow
 | B1, B0 | Buttons 7 and 8: `tl2`, `tr2` | Nothing |
 | A4, A7 | `mode`, `z` | Nothing |
 
-**Which of your cabinet's buttons is on which pin** depends on the board and the harness. To see, run the test from Exit to Terminal, or over SSH (the first user may read the I2C bus):
+**Which of your cabinet's buttons is on which pin** depends on the board and the harness. To see, open Settings → Controls → OSD/OS JAMMA P1 (or P2) → **Test Buttons** and press each control in turn. Both players' controls are tested at once, and each press shows its player, its pin on the board and what OSD/OS sees: `P1 B1 → 7`, or `P1 A7 → NONE` for a pin the sticks don't show (one the mapping makes `z`, `c` or `none`). A control that shows no line at all reaches neither expander. The test ends 10 seconds after the last press ([A controller's own page](https://github.com/mehmetraif/OSD-OS/wiki/Controls#a-controllers-own-page)).
+
+<img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/screenshots/controller-test.png" width="50%" alt="TEST BUTTONS: BOTH PLAYERS' CONTROLS: EACH PRESS'S PIN ON THE BOARD → WHAT OSD/OS SEES, then P1 A4 → MODE (the last, boxed), P2 A6 → COIN, P2 A0 → JOYSTICK ▲, P1 A7 → NONE, P1 B1 → 7. ENDS IN 9" />
+
+The same comes from Exit to Terminal, or over SSH (the first user may read the I2C bus):
 
 ```sh
 /opt/osdos/bin/osdos-jamma --test
 ```
 
-It plays nothing, and prints each pin as it changes, with what the mapping makes of it: `P1 0x20 B7 pressed  a`. Ctrl+C ends it. The service goes on reading beside it.
+It plays nothing, and prints each pin as it changes, with what the mapping makes of it: `P1 0x20 B7 pressed  a`. Ctrl+C ends it. The service goes on reading beside it, and Test Buttons runs this same test.
 
 **A button on another pin.** Write `osdos-jamma.txt` on the boot partition, beside `config.txt`. From a computer it is the **bootfs** drive. A line a pin, `<address> <pin> <input>`:
 
@@ -231,17 +235,19 @@ Settings → **Controls** lists every controller connected, each with a page of 
 
 <table>
 <tr><th width="50%">A pad's page</th><th width="50%">Waiting for a press</th></tr>
-<tr><td><img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/screenshots/controller-page.png" width="100%" alt="OSD/OS JAMMA P1's page: BUTTON LABELS AUTO (ARCADE), then BUTTONS: UP D-PAD ▲, JOYSTICK ▲; DOWN D-PAD ▼, JOYSTICK ▼; LEFT 5, D-PAD ◄, JOYSTICK ◄; RIGHT 6, D-PAD ►, JOYSTICK ►; SELECT / OK 1; BACK 2, COIN. The hints read [2]:BACK and [1]:SET" /></td><td><img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/screenshots/controller-capture.png" width="100%" alt="NEW BUTTON: PRESS A BUTTON ON OSD/OS JAMMA P1 FOR [SELECT / OK], CANCELS IN 9" /></td></tr>
+<tr><td><img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/screenshots/controller-page.png" width="100%" alt="OSD/OS JAMMA P1's page: BUTTON LABELS AUTO (ARCADE), TEST BUTTONS, then BUTTONS: UP D-PAD ▲, JOYSTICK ▲; DOWN D-PAD ▼, JOYSTICK ▼; LEFT 5, D-PAD ◄, JOYSTICK ◄; RIGHT 6, D-PAD ►, JOYSTICK ►; SELECT / OK 1. The hints read [2]:BACK and [1]:SET" /></td><td><img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/screenshots/controller-capture.png" width="100%" alt="NEW BUTTON: PRESS A BUTTON ON OSD/OS JAMMA P1 FOR [SELECT / OK], CANCELS IN 9" /></td></tr>
 <tr><td>The JAMMA board's first stick, its buttons named as the cabinet numbers them. Each action lists every button and stick direction that does it.</td><td>Select on an action waits for a press on that controller, and only that one.</td></tr>
 </table>
 
 | Row | On a pad | On a keyboard or a remote |
 |---|---|---|
 | **Button Labels** | What its buttons are called, here and in the hints: Auto, Xbox, PlayStation, Nintendo or Arcade ([below](https://github.com/mehmetraif/OSD-OS/wiki/Controls#button-labels)). ◄ ► or select go round them | (none) |
+| **Test Buttons** / **Test Keys** | Select, then press its buttons and move its sticks: each press shows what it is called, the last at the top, and does nothing else. On the JAMMA board's sticks it tests both players' controls, each press with its pin on the board ([A JAMMA cabinet](https://github.com/mehmetraif/OSD-OS/wiki/Controls#a-jamma-cabinet)) | Select, then press its keys: each shows what it is called. Whatever does Back on it ends the test |
 | **Up**, **Down**, **Left**, **Right**, **Select / OK**, **Back**, **Play / Pause** | The buttons and stick directions that do it, by their labels (`D-PAD ▲, L STICK ▲`), or `NONE`. Select, then press a button on the pad: it does this from now on | `DEFAULT`, or `DEFAULT + ` its extra keys. Select, then press a key on it: one more key for the action, on this one only |
 | **Clear a Button** / **Remove a Key** | Select, then press a button: it does nothing from now on (not its only Select / OK or Back) | Select, then press one of its extra keys: it is taken away (not one that does Select / OK or Back) |
 | **Reset to Defaults** | Its buttons as every pad has them, and Auto labels | No extra keys of its own. A controller away has nothing left, and its line goes |
 
+- **Testing its buttons.** The test takes only that controller's presses (on the JAMMA board, both sticks'), and ends 10 seconds after the last one (`ENDS IN 9` on a pad, `[ESC]:END (9)` on a keyboard), or with another controller's Back. Each press starts the 10 seconds again. The last six presses are kept, five shown (six with the Hint Bar off).
 - **Waiting for a press.** The screen says "Press a button on <name> for [Select / OK]", and takes only that controller's presses: every other goes on as usual, and **its Back cancels**. The wait also ends on its own after 10 seconds (`CANCELS IN 9` on a pad, `[ESC]:CANCEL (9)` on a keyboard): a pad can't cancel it itself, as every button of it is one to set. On a keyboard or a remote, whatever does Back on it cancels too, as on All Keyboards & Remotes: Esc, Backspace, a Back key, or a button given Back. A key held on through the wait does nothing until it is let go.
 - **What stays.** A press never leaves a controller without a way through the menus. The help line then says why nothing changed (`A is its only Select / OK button`, `Return is Select / OK already`):
   - A pad keeps one Select / OK, one Back, one Up and one Down: the last button or stick direction that does one of them can't be set to another action or cleared (`L STICK ▼ is its only Down button`). Give the action another button first.

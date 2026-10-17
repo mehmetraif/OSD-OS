@@ -17,6 +17,7 @@ class QQuickWindow;
 class QKeyEvent;
 class QSocketNotifier;
 class AppCore;
+class JammaPins;
 
 // Centralized gamepad input. SDL controller buttons/axes are mapped to a small
 // set of named actions (up/down/left/right/select/back/play_pause), and each
@@ -48,8 +49,9 @@ class InputManager : public QObject {
     Q_PROPERTY(QString lastInputDevice READ lastInputDevice NOTIFY lastInputDeviceChanged)
     Q_PROPERTY(QVariantMap hints READ hints NOTIFY hintsChanged)
     // [{ key, name, kind ("gamepad", "arcade", "keyboard", "remote"), count,
-    // present }]: the controllers connected, pads first, then those with
-    // settings of their own that aren't (present false, count 0).
+    // present, jamma }]: the controllers connected, pads first, then those
+    // with settings of their own that aren't (present false, count 0); jamma
+    // the JAMMA board's player (1, 2) for its sticks connected, else 0.
     Q_PROPERTY(QVariantList controllers READ controllers NOTIFY controllersChanged)
     // The key of the controller used last.
     Q_PROPERTY(QString activeController READ activeController NOTIFY activeControllerChanged)
@@ -72,14 +74,18 @@ public:
     QVariantList players() const;
 
     // One controller's page: { key, name, kind, present, labels, labelsInUse,
-    // rows }; labels the style chosen ("auto"...), labelsInUse the one shown
-    // (a pad's, by its title); rows [{ action, label, value }], value what
+    // jamma, rows }; labels the style chosen ("auto"...), labelsInUse the one
+    // shown (a pad's, by its title); jamma the JAMMA board's player (1, 2)
+    // for its sticks, else 0; rows [{ action, label, value }], value what
     // fires the action on it.
     Q_INVOKABLE QVariantMap controllerPage(const QString &key) const;
     // The next input of the controller with this key is reported through
     // controllerInputCaptured() instead of acting; "" ends it, and so do 12
     // seconds (the page's own wait is 10), should the page go without.
     Q_INVOKABLE void captureController(const QString &key);
+    // The same for several at once: the JAMMA board's two sticks, tested
+    // together.
+    Q_INVOKABLE void captureControllers(const QStringList &keys);
     // An input of a controller (as controllerInputCaptured() named it) given
     // an action; "none" takes a pad's input's action away, and a keyboard's
     // or a remote's extra key. Returns { outcome, action, label }, action
@@ -111,6 +117,12 @@ public:
     // ("back", "start"): "COIN" on a JAMMA stick, "BACK" on an Xbox pad. ""
     // for a controller that isn't a pad.
     Q_INVOKABLE QString buttonLabel(const QString &key, const QString &token) const;
+    // While a JAMMA stick's page tests the board's controls: both players'
+    // pins as they are pressed (JammaPins), through jammaPinPressed(), the
+    // pins the sticks never show among them.
+    Q_INVOKABLE void watchJammaPins(bool on);
+    // A stand-in for osdos-jamma, for the tests.
+    void setJammaProgram(const QString &program);
 
     // Remap-capture mode, held on by the remap screen while its "press a
     // button" overlay is up. While active, remap delivery is suspended and
@@ -143,6 +155,11 @@ signals:
     // captureController()'s: the input, as bindControllerInput() takes it, and
     // what it is called.
     void controllerInputCaptured(const QString &key, const QString &input, const QString &label);
+    // watchJammaPins()'s: a pin pressed, its player (1, 2) and name ("B1"),
+    // with the input osdos-jamma's mapping makes of it ("tl2"); or why none
+    // come, which ends the watch.
+    void jammaPinPressed(int player, const QString &pin, const QString &input);
+    void jammaPinsFailed(const QString &reason);
 
 protected:
     bool eventFilter(QObject *obj, QEvent *event) override;
@@ -175,6 +192,7 @@ private:
     struct Pad;
     Pad padFor(const QString &key, const QString &name, int sdlType) const;
     Pad padOf(const QString &key, const QString &name) const;
+    static int jammaPlayer(const Pad &pad);
     static bool parsePadInput(const QString &token, int *button, int *axis, int *sign);
     static Action padInputAction(const Pad &pad, const QString &input);
     int padInputsFor(SDL_JoystickID id, Action a) const;
@@ -269,7 +287,8 @@ private:
     };
     QHash<QString, Seen> m_seenAs;
     QString m_activeController;
-    QString m_captureController;                     // captureController()'s key, or ""
+    QStringList m_captureControllers;                // captureController()'s keys
+    JammaPins *m_jammaPins = nullptr;
     qint64 m_captureEnds = 0;                        // m_clock's time it ends at
     QStringList m_playerKeys;                        // config.json app.players: chosen, "" for Auto
     QStringList m_playerNames;                       // and the names they had

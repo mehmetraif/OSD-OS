@@ -6,7 +6,8 @@ import QtTest
 // controllers (connected, away, the one used last, the players' pads chosen
 // from those connected), a controller's page (its labels, a press waited for
 // and set or kept, cancelled by another controller's Back or by the wait
-// running out, a button cleared, the defaults), and All Keyboards & Remotes'
+// running out, a button cleared, the defaults, its buttons tested, the JAMMA
+// board's two sticks together with their pins), and All Keyboards & Remotes'
 // wait for a press.
 Rectangle {
     id: root
@@ -43,6 +44,7 @@ Rectangle {
 
     readonly property string padKey: "pad-0300aaaa"
     readonly property string jammaKey: "pad-0600bbbb"
+    readonly property string jamma2Key: "pad-0700dddd"
     readonly property string keyboardKey: "kbd-0003-046d-c31c"
     readonly property string remoteKey: "kbd-0003-1d57-ad02"
     readonly property string awayKey: "pad-0500cccc"
@@ -55,6 +57,7 @@ Rectangle {
         property string activeController: ""
         property var calls: []
         property string capturing: ""
+        property bool watchingPins: false
         property var pages: ({})
         property var players: []
         // What a press makes of a key ("<controller> <input>"), as
@@ -63,8 +66,12 @@ Rectangle {
         property bool remapCapture: false
         signal controllerInputCaptured(string key, string input, string label)
         signal auxButtonPressed(int extendedKeyId)
+        signal jammaPinPressed(int player, string pin, string input)
+        signal jammaPinsFailed(string reason)
         function controllerPage(key) { return pages[key] || ({}) }
         function captureController(key) { capturing = key }
+        function captureControllers(keys) { capturing = keys.join(",") }
+        function watchJammaPins(on) { watchingPins = on }
         function bindControllerInput(key, input, action) {
             calls = calls.concat([["bind", key, input, action]])
             return outcomes[key + " " + input] || { outcome: "set", action: action, label: "" }
@@ -95,6 +102,13 @@ Rectangle {
             }
             players = list
         }
+    }
+
+    // The screen saver's idle tracker: the activity a button test notes.
+    QtObject {
+        id: idleTracker
+        property int resets: 0
+        function resetActivity() { resets++ }
     }
 
     // AppCore's settings, for All Keyboards & Remotes.
@@ -150,7 +164,7 @@ Rectangle {
         function init() {
             inputManager.controllers = [
                 { key: root.padKey, name: "8BitDo Pro 2", kind: "gamepad", count: 2, present: true },
-                { key: root.jammaKey, name: "OSD/OS JAMMA P1", kind: "arcade", count: 1, present: true },
+                { key: root.jammaKey, name: "OSD/OS JAMMA P1", kind: "arcade", count: 1, present: true, jamma: 1 },
                 { key: root.keyboardKey, name: "Logitech K400", kind: "keyboard", count: 1, present: true },
                 { key: root.remoteKey, name: "G20S PRO", kind: "remote", count: 1, present: true },
                 { key: root.awayKey, name: "DualSense", kind: "gamepad", count: 0, present: false }
@@ -166,7 +180,11 @@ Rectangle {
                                                          "Default", "Default"]) },
                 "pad-0500cccc": { key: root.awayKey, name: "DualSense", kind: "gamepad", present: false,
                                   labels: "playstation", labelsInUse: "PlayStation",
-                                  rows: root.rows(["D-PAD ▲", "D-PAD ▼", "D-PAD ◄", "D-PAD ►", "X", "O", "START"]) }
+                                  rows: root.rows(["D-PAD ▲", "D-PAD ▼", "D-PAD ◄", "D-PAD ►", "X", "O", "START"]) },
+                "pad-0600bbbb": { key: root.jammaKey, name: "OSD/OS JAMMA P1", kind: "arcade", present: true,
+                                  labels: "auto", labelsInUse: "Arcade", jamma: 1,
+                                  rows: root.rows(["D-PAD ▲, JOYSTICK ▲", "D-PAD ▼, JOYSTICK ▼", "5, D-PAD ◄, JOYSTICK ◄",
+                                                   "6, D-PAD ►, JOYSTICK ►", "1", "2, COIN", "START"]) }
             }
             inputManager.players = root.withAuto([
                 { player: 1, key: "", name: "OSD/OS JAMMA P1", playing: root.jammaKey, connected: true },
@@ -176,6 +194,8 @@ Rectangle {
             inputManager.activeController = ""
             inputManager.calls = []
             inputManager.capturing = ""
+            inputManager.watchingPins = false
+            idleTracker.resets = 0
             inputManager.outcomes = {}
             inputManager.remapCapture = false
             appCore.settings = {}
@@ -324,10 +344,10 @@ Rectangle {
         function test_padPage() {
             var page = open("ControllerSettings.qml", { key: root.padKey })
             compare(page.rows.map(function(r) { return r.type }),
-                    ["labels", "section", "action", "action", "action", "action", "action", "action", "action",
+                    ["labels", "test", "section", "action", "action", "action", "action", "action", "action", "action",
                      "clear", "reset"])
             compare(page.rows[0].value, "Auto (Xbox)")
-            compare(page.rows[6].value, "A")
+            compare(page.rows[7].value, "A")
 
             // The labels: ◄ ► and select go round them.
             keyClick(Qt.Key_Right)
@@ -338,6 +358,7 @@ Rectangle {
             compare(inputManager.calls[2], ["labels", root.padKey, "arcade"])
 
             // UP: a press on the pad is waited for, then set.
+            keyClick(Qt.Key_Down)   // TEST BUTTONS
             keyClick(Qt.Key_Down)
             keyClick(Qt.Key_Return)
             compare(inputManager.capturing, root.padKey)
@@ -411,10 +432,10 @@ Rectangle {
         function test_keyboardPage() {
             var page = open("ControllerSettings.qml", { key: root.keyboardKey })
             compare(page.rows.map(function(r) { return r.type }),
-                    ["section", "action", "action", "action", "action", "action", "action", "action",
+                    ["test", "section", "action", "action", "action", "action", "action", "action", "action",
                      "clear", "reset"])
-            compare(page.rows[5].value, "Default + O")
-            compare(page.rows[8].label, "Remove a Key")
+            compare(page.rows[6].value, "Default + O")
+            compare(page.rows[9].label, "Remove a Key")
 
             // What does Back on it cancels, as on the shared page; Select /
             // OK's keys and the menus' stay; another key is set.
@@ -422,6 +443,7 @@ Rectangle {
             var enter = root.keyboardKey + " " + String(Qt.Key_Return)
             inputManager.outcomes[esc] = { outcome: "cancel", action: "back", label: "Back" }
             inputManager.outcomes[enter] = { outcome: "already", action: "select", label: "Select / OK" }
+            keyClick(Qt.Key_Down)   // past TEST KEYS to UP
             keyClick(Qt.Key_Return)
             compare(inputManager.capturing, root.keyboardKey)
             inputManager.controllerInputCaptured(root.keyboardKey, String(Qt.Key_Escape), "Esc")
@@ -444,7 +466,7 @@ Rectangle {
             // a key that isn't one is said so.
             for (i = 0; i < 3; i++)
                 keyClick(Qt.Key_Down)
-            compare(page.rows[8].type, "clear")
+            compare(page.rows[9].type, "clear")
             keyClick(Qt.Key_Return)
             inputManager.controllerInputCaptured(root.keyboardKey, String(Qt.Key_O), "O")
             compare(page.notice, "O is no extra key now")
@@ -491,15 +513,155 @@ Rectangle {
             compare(inputManager.calls[inputManager.calls.length - 1], ["keyCapture", "", Qt.Key_F5, "down"])
         }
 
+        // TEST BUTTONS: each press on the pad shown, the last first, acting on
+        // nothing, until 10 seconds go by without one or another
+        // controller's Back.
+        function test_padTest() {
+            var page = open("ControllerSettings.qml", { key: root.padKey })
+            compare(page.rows[1].label, "Test Buttons")
+            keyClick(Qt.Key_Down)
+            keyClick(Qt.Key_Return)
+            verify(page.testing)
+            compare(inputManager.capturing, root.padKey)
+            verify(!inputManager.watchingPins)
+            var prompt = findChild(page, "testPrompt")
+            verify(prompt.visible)
+            compare(prompt.title, "Test Buttons")
+            compare(prompt.message, "Press the buttons on 8BitDo Pro 2")
+            compare(prompt.choices, [])
+            inputManager.controllerInputCaptured(root.padKey, "a", "A")
+            inputManager.controllerInputCaptured(root.keyboardKey, "79", "O")
+            inputManager.controllerInputCaptured(root.padKey, "dpup", "D-PAD ▲")
+            compare(prompt.choices, ["D-PAD ▲", "A"])
+            compare(prompt.currentIndex, 0)
+            compare(inputManager.calls.filter(function(c) { return c[0] === "bind" }), [])
+            // Each press keeps it going; the last six are kept, five shown.
+            page.secondsLeft = 3
+            inputManager.controllerInputCaptured(root.padKey, "b", "B")
+            compare(page.secondsLeft, 10)
+            compare(prompt.hint, "ENDS IN 10")
+            for (var i = 1; i <= 6; i++)
+                inputManager.controllerInputCaptured(root.padKey, "x", "X" + i)
+            compare(page.presses.length, 6)
+            compare(prompt.choices, ["X6", "X5", "X4", "X3", "X2"])
+
+            // Another controller's Back ends it, and so does the wait.
+            keyClick(Qt.Key_Escape)
+            verify(!page.testing)
+            compare(inputManager.capturing, "")
+            compare(root.backs, 0)
+            keyClick(Qt.Key_Return)
+            verify(page.testing)
+            compare(page.presses, [])
+            page.secondsLeft = 1
+            tryVerify(function() { return !page.testing }, 2500)
+            compare(inputManager.capturing, "")
+
+            // Leaving the page while it tests lets the pad act again.
+            keyClick(Qt.Key_Return)
+            compare(inputManager.capturing, root.padKey)
+            loader.source = ""
+            compare(inputManager.capturing, "")
+        }
+
+        // A JAMMA stick's test takes the board's two sticks and their pins:
+        // each press with its player and pin, the two halves paired as they
+        // come, either first, a pin the sticks don't show as NONE.
+        function test_jammaTest() {
+            inputManager.controllers = inputManager.controllers.concat([
+                { key: root.jamma2Key, name: "OSD/OS JAMMA P2", kind: "arcade", count: 1, present: true, jamma: 2 }])
+            var page = open("ControllerSettings.qml", { key: root.jammaKey })
+            compare(page.rows[1].type, "test")
+            keyClick(Qt.Key_Down)
+            keyClick(Qt.Key_Return)
+            verify(page.testing)
+            compare(inputManager.capturing, root.jammaKey + "," + root.jamma2Key)
+            verify(inputManager.watchingPins)
+            var prompt = findChild(page, "testPrompt")
+            compare(prompt.message, "Both players' controls: each press's pin on the board → what OSD/OS sees")
+
+            // A pin, then what OSD/OS calls it.
+            inputManager.jammaPinPressed(1, "B1", "tl2")
+            compare(prompt.choices, ["P1 B1 → NONE"])
+            inputManager.controllerInputCaptured(root.jammaKey, "lefttrigger+", "7")
+            compare(prompt.choices, ["P1 B1 → 7"])
+            // What it is, then its pin; each player's apart.
+            inputManager.controllerInputCaptured(root.jamma2Key, "guide", "MODE")
+            compare(prompt.choices, ["P2 ? → MODE", "P1 B1 → 7"])
+            inputManager.jammaPinPressed(1, "A4", "mode")
+            inputManager.jammaPinPressed(2, "A4", "mode")
+            compare(prompt.choices, ["P1 A4 → NONE", "P2 A4 → MODE", "P1 B1 → 7"])
+            // A moment later, a press is one of its own.
+            wait(page.pairMs + 50)
+            inputManager.controllerInputCaptured(root.jammaKey, "a", "1")
+            compare(prompt.choices[0], "P1 ? → 1")
+            inputManager.jammaPinPressed(1, "B7", "a")
+            compare(prompt.choices.slice(0, 2), ["P1 B7 → 1", "P1 A4 → NONE"])
+            // A controller that isn't one of the board's: not this.
+            inputManager.controllerInputCaptured(root.padKey, "a", "A")
+            compare(prompt.choices[0], "P1 B7 → 1")
+            // A pin the sticks don't show takes no press; two pressed at once
+            // are each told by what they are, whatever order they come in.
+            wait(page.pairMs + 50)
+            inputManager.jammaPinPressed(1, "A7", "z")
+            inputManager.jammaPinPressed(1, "B1", "tl2")
+            inputManager.controllerInputCaptured(root.jammaKey, "lefttrigger+", "7")
+            compare(prompt.choices.slice(0, 2), ["P1 B1 → 7", "P1 A7 → NONE"])
+            wait(page.pairMs + 50)
+            inputManager.jammaPinPressed(1, "B6", "b")
+            inputManager.jammaPinPressed(1, "B7", "a")
+            inputManager.controllerInputCaptured(root.jammaKey, "a", "1")
+            inputManager.controllerInputCaptured(root.jammaKey, "b", "2")
+            compare(prompt.choices.slice(0, 2), ["P1 B7 → 1", "P1 B6 → 2"])
+            // Each press is activity to the screen saver.
+            verify(idleTracker.resets > 0)
+
+            // The pins can't be read: it says why, and the presses come alone.
+            inputManager.jammaPinsFailed("no MCP23017 at 0x20 or 0x21 on /dev/i2c-0: nothing to read")
+            compare(prompt.message, "The board's pins can't be read: no MCP23017 at 0x20 or 0x21 on /dev/i2c-0: nothing to read")
+            inputManager.controllerInputCaptured(root.jammaKey, "b", "2")
+            compare(prompt.choices[0], "P1 2")
+
+            page.secondsLeft = 1
+            tryVerify(function() { return !page.testing }, 2500)
+            verify(!inputManager.watchingPins)
+            compare(inputManager.capturing, "")
+        }
+
+        // TEST KEYS: a keyboard's key shown; what does Back on it ends it.
+        function test_keyboardTest() {
+            var page = open("ControllerSettings.qml", { key: root.keyboardKey })
+            compare(page.rows[0].label, "Test Keys")
+            inputManager.outcomes[root.keyboardKey + " " + String(Qt.Key_Escape)] = { outcome: "cancel", action: "back", label: "Back" }
+            keyClick(Qt.Key_Return)
+            verify(page.testing)
+            compare(inputManager.capturing, root.keyboardKey)
+            var prompt = findChild(page, "testPrompt")
+            compare(prompt.title, "Test Keys")
+            compare(prompt.hint, "[ESC]:END (10)")
+            inputManager.controllerInputCaptured(root.keyboardKey, String(Qt.Key_P), "P")
+            compare(prompt.choices, ["P"])
+            inputManager.controllerInputCaptured(root.keyboardKey, String(Qt.Key_Escape), "Esc")
+            verify(!page.testing)
+            compare(inputManager.capturing, "")
+            compare(root.backs, 0)
+        }
+
         function test_awayPage() {
             var page = open("ControllerSettings.qml", { key: root.awayKey })
             compare(page.rows[0].value, "PlayStation")
-            // Its buttons wait for it to be back; its labels and the defaults don't.
+            // Its buttons and their test wait for it to be back; its labels
+            // and the defaults don't.
+            keyClick(Qt.Key_Down)
+            keyClick(Qt.Key_Return)
+            verify(!page.testing)
+            compare(page.notice, "Connect it first")
             keyClick(Qt.Key_Down)
             keyClick(Qt.Key_Return)
             verify(!page.capturing)
             compare(inputManager.capturing, "")
             compare(page.notice, "Connect it first")
+            keyClick(Qt.Key_Up)
             keyClick(Qt.Key_Up)
             keyClick(Qt.Key_Right)
             compare(inputManager.calls[0], ["labels", root.awayKey, "nintendo"])
