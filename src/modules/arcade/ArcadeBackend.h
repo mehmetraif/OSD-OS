@@ -225,8 +225,13 @@ private:
     QString mameIdentity() const;
     void startScan();
     void scanNext();
+    // The MAME asked about a batch stopped, for a game starting: the sets
+    // it hadn't answered for are asked about first once the game has ended.
+    void pauseScan();
     void takeMachines();
     void onScanFinished(int exitCode, QProcess::ExitStatus status);
+    // Every set asked about: games.json saved, and the views told.
+    void finishScan();
     // entriesReady for every folder asked for since the last time, and
     // gamesChanged().
     void emitShown();

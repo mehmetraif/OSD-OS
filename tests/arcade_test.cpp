@@ -32,8 +32,8 @@ class ArcadeTest : public QObject {
 
     // MAME as far as the module asks it: -listxml for the machines below
     // (exit 5 for a name it has none of, after the XML of those it has),
-    // and a game, whose arguments, folder, display card and controller file
-    // it notes. mslug and kinst lack files; sf2 can't open its picture;
+    // noted as asked and as answered, and a game, whose arguments, folder,
+    // display card and controller file it notes. mslug and kinst lack files; sf2 can't open its picture;
     // slowgame takes a second, as does asking about a_slowlist half of one;
     // any other game takes $MAME_SECONDS.
     static constexpr const char *kFakeMame = R"SH(#!/bin/sh
@@ -64,6 +64,7 @@ case "$1" in
 	done
 	echo '<machine name="z80" isdevice="yes" runnable="no"><description>Zilog Z80</description></machine>'
 	echo '</mame>'
+	echo "answered" >> "$MAME_LOG"
 	if [ -n "$missing" ]; then
 		echo "No matching machines found for '$missing'" >&2
 		exit 5
@@ -721,8 +722,9 @@ private slots:
         QVERIFY2(line.contains(QStringLiteral(" -samplepath %1/Samples ").arg(m_games)), qPrintable(line));
     }
 
-    // A game started while MAME is asked about the sets holds the rest of
-    // the asking until it has ended: MAME isn't run beside a game.
+    // A game started while MAME is asked about the sets stops that MAME and
+    // holds the asking until it has ended: MAME isn't run beside a game. The
+    // sets the stopped MAME hadn't answered for are asked about first.
     void scanWaitsForGame() {
         QTemporaryDir data;
         QVERIFY(data.isValid());
@@ -744,19 +746,26 @@ private slots:
         arcade.refresh();
         QTRY_COMPARE_WITH_TIMEOUT(logLines(QStringLiteral("listxml")).size(), 1, 5000);
         QVERIFY(arcade.play(QStringLiteral("slowgame")));
+        QVERIFY(arcade.scanning());
         QVERIFY(finished.wait(10000));
         QTRY_VERIFY_WITH_TIMEOUT(!arcade.scanning(), 10000);
-        // The first batch answered while the game played; the second only
-        // once it had ended.
+        // The first batch never answered: stopped as the game started, and
+        // asked about again once it had ended, before the second.
         QStringList order;
         const QStringList lines = logLines();
         for (const QString &line : lines) {
             const QString word = line.section(QLatin1Char(' '), 0, 0);
-            if (word == QLatin1String("listxml") || word == QLatin1String("play") || word == QLatin1String("end"))
+            if (word == QLatin1String("listxml") || word == QLatin1String("answered")
+                || word == QLatin1String("play") || word == QLatin1String("end"))
                 order << word;
         }
         QCOMPARE(order, QStringList({ QStringLiteral("listxml"), QStringLiteral("play"), QStringLiteral("end"),
-                                      QStringLiteral("listxml") }));
+                                      QStringLiteral("listxml"), QStringLiteral("answered"),
+                                      QStringLiteral("listxml"), QStringLiteral("answered") }));
+        const QStringList asked = logLines(QStringLiteral("listxml"));
+        QCOMPARE(asked.at(1), asked.at(0));
+        QVERIFY(asked.at(0).startsWith(QStringLiteral("listxml a_slowlist g000 ")));
+        QCOMPARE(asked.at(2), QStringLiteral("listxml g299 slowgame"));
         QCOMPARE(names(arcade.requestEntries(QStringLiteral("unknown"))).size(), 302);
     }
 

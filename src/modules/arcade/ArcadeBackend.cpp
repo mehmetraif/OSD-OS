@@ -661,6 +661,29 @@ void ArcadeBackend::scanNext() {
     m_scanTimer->start();
 }
 
+void ArcadeBackend::pauseScan() {
+    if (!m_scan)
+        return;
+    // Not a failure: what it listed in full is kept, nothing is taken for a
+    // set it has no machine of, and the asking goes on after the game.
+    m_scanTimer->stop();
+    m_scan->disconnect(this);
+    m_scan->kill();
+    m_scan->waitForFinished(1000);
+    m_scan->deleteLater();
+    m_scan = nullptr;
+    QStringList again;
+    for (const QString &name : std::as_const(m_asked)) {
+        if (!m_machines.contains(name))
+            again << name;
+    }
+    m_asked.clear();
+    m_toAsk = again + m_toAsk;
+    // It had listed every set it was asked about, and only had to exit.
+    if (m_toAsk.isEmpty())
+        finishScan();
+}
+
 void ArcadeBackend::takeMachines() {
     const QList<mame::Machine> machines = m_reader.take();
     for (const mame::Machine &machine : machines) {
@@ -707,6 +730,10 @@ void ArcadeBackend::onScanFinished(int exitCode, QProcess::ExitStatus status) {
             scanNext();
         return;
     }
+    finishScan();
+}
+
+void ArcadeBackend::finishScan() {
     saveCache();
     checkProblem();
     emit scanningChanged();
@@ -1313,9 +1340,14 @@ bool ArcadeBackend::play(const QString &name, int credits) {
     const QString own = ownFolder();
     entry.workingDirectory = own.isEmpty() ? m_home : own;
 
+    // MAME asked about the sets meanwhile would share the machine with the
+    // game: it is stopped, and asked again once the game has ended.
+    pauseScan();
     QString error;
     if (!m_launcher->start(entry, &error)) {
         m_lastError = error;
+        if (!m_scan && !m_toAsk.isEmpty())
+            scanNext();
         return false;
     }
     m_playing = name;
