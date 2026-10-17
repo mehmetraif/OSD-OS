@@ -326,17 +326,32 @@ FocusScope {
     }
 
     // Plays a game; coming back lands on it in listFilter.
-    function play(set, name, listFilter) {
-        arcadeScreen.navigateTo("Play.qml", { game: set, title: name }, { filter: listFilter, set: set })
+    // A game played, or with online, a room of the lobby joined ({ room,
+    // host }) or one hosted ({ hosting: true }).
+    function play(set, name, listFilter, online) {
+        var params = { game: set, title: name }
+        if (online)
+            params.online = online
+        arcadeScreen.navigateTo("Play.qml", params, { filter: listFilter, set: set })
     }
     function playCurrent() {
-        if (isGame)
+        if (current && current.room !== undefined)
+            play(currentSet, current.name, filterId, { room: current.room, host: current.host })
+        else if (isGame)
             play(currentSet, details.name || current.name, filterId)
     }
 
     function openOptions() {
-        if (isGame)
+        if (isGame && current.room === undefined)
             options.offer({ name: details.name || current.name, path: "game:" + currentSet, isFolder: false })
+    }
+
+    // The lobby read again while its rooms are the filter shown.
+    Timer {
+        interval: 20000
+        repeat: true
+        running: arcadeScreen.filterId === "online" && !!arcadeBackend && !arcadeBackend.running
+        onTriggered: arcadeBackend.refreshRooms()
     }
 
     // Select plays the game as it is let go, and opens its options once held
@@ -901,6 +916,8 @@ FocusScope {
               ? root.hints.back + ":DONE " + root.hints.arrows + (arcadeScreen.shrinking ? ":SHRINK " : ":EXPAND ")
                 + root.hints.select + (arcadeScreen.shrinking ? ":EXPAND" : ":SHRINK") + " HOLD:RESET"
               : arcadeScreen.filters.length === 0 ? root.hints.back + ":BACK"
+              : arcadeScreen.current && arcadeScreen.current.room !== undefined
+                ? root.hints.back + ":BACK " + root.hints.select + ":JOIN"
               : root.hints.back + ":BACK " + root.hints.coin + ":COIN " + root.hints.select + ":PLAY HOLD:OPTIONS"
         anchors.bottom: parent.bottom
         anchors.left: parent.left
@@ -956,20 +973,26 @@ FocusScope {
         }
     }
 
-    // A game's options: Play, its favourite, Play at Startup, and its engine
-    // where FinalBurn Neo has it.
+    // A game's options: Play, its favourite, Play at Startup, its engine
+    // where FinalBurn Neo has it, and with Online Play on, hosting it.
     EntryOptions {
         id: options
         anchors.fill: parent
         moduleId: moduleRoot.moduleId
         firstChoices: [{ label: "Play", action: "play" }]
-        moreChoices: (arcadeScreen.revision, engines.offered(arcadeScreen.currentSet)
-                      ? [{ label: engines.lineFor(arcadeScreen.currentSet), action: "engine" }] : [])
+        moreChoices: (arcadeScreen.revision,
+                      (engines.offered(arcadeScreen.currentSet)
+                       ? [{ label: engines.lineFor(arcadeScreen.currentSet), action: "engine" }] : [])
+                      .concat(arcadeBackend && arcadeBackend.canHost(arcadeScreen.currentSet)
+                              ? [{ label: "Host Online Game", action: "host" }] : []))
         onActivated: function(action) {
             if (action === "play")
                 arcadeScreen.playCurrent()
             else if (action === "engine")
                 engines.offer(arcadeScreen.currentSet, arcadeScreen.details.name)
+            else if (action === "host")
+                arcadeScreen.play(arcadeScreen.currentSet, arcadeScreen.details.name || arcadeScreen.current.name,
+                                  arcadeScreen.filterId, { hosting: true })
         }
         onFavoritesEdited: arcadeScreen.reload()
         onClosed: if (!engines.visible) arcadeScreen.forceActiveFocus()

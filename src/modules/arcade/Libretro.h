@@ -86,12 +86,14 @@ Run readLog(const QString &path);
 QString savedToken(const QString &configPath);
 
 // A room the netplay lobby lists (lobby.libretro.com/list): a game
-// FinalBurn Neo hosts, joined at joinAddress.
+// FinalBurn Neo hosts, joined at joinAddress. What anyone hosting wrote, so
+// taken only as it can be used: a set's name, an address, a port and a
+// session, and the host's name without markup, 32 characters at most.
 struct Room {
     int     id = 0;
     QString game;             // its set: game_name, the file's name in lower case
     QString host;             // who hosts it
-    QString country;
+    QString country;          // its two letters, "" for none
     QString joinAddress;      // RetroArch's --connect: through the relay when it is relayed
     bool    password = false;
 };

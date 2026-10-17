@@ -72,8 +72,11 @@ Rectangle {
         property bool border: true
         property var screenAdjustment: ({ top: 0, bottom: 0, left: 0, right: 0 })
         function addCredit() { credits = Math.min(maxCredits, credits + 1) }
-        function startGame(set, title) {
-            if (!arcadeBackend.play(set, credits))
+        function startGame(set, title, online) {
+            var started = online && online.room !== undefined ? arcadeBackend.joinRoom(online.room)
+                        : online && online.hosting ? arcadeBackend.hostGame(set)
+                        : arcadeBackend.play(set, credits)
+            if (!started)
                 return false
             credits = 0
             appCore.add_to_list(moduleId, "recent", { name: title || set, path: "game:" + set, isFolder: false }, 30)
@@ -121,6 +124,11 @@ Rectangle {
             return filterList.map(function(f) { return { id: f.id, name: f.name, count: f.sets.length } })
         }
         function filterGames(id, first, count) {
+            // A filter's own rows (the lobby's rooms), else its sets'.
+            for (var i = 0; i < filterList.length; ++i) {
+                if (filterList[i].id === id && filterList[i].rows)
+                    return filterList[i].rows.slice(first, first + count)
+            }
             return setsOf(id).slice(first, first + count).map(function(set) {
                 return { set: set, name: gameInfo[set] ? gameInfo[set].title : set,
                          favorite: favorites.indexOf(set) >= 0 }
@@ -163,6 +171,17 @@ Rectangle {
         property var signIns: []
         property string keyGiven: ""
         signal achievementsChanged()
+        // Online Play: the sets that can be hosted, the rooms joined, the
+        // games hosted and the lobby's reads.
+        property var hostable: []
+        property var joined: []
+        property var hosted: []
+        property int roomReads: 0
+        signal roomsChanged()
+        function canHost(set) { return hostable.indexOf(set) >= 0 }
+        function refreshRooms() { roomReads++ }
+        function joinRoom(id) { joined = joined.concat([id]); running = playResult; return playResult }
+        function hostGame(set) { hosted = hosted.concat([set]); running = playResult; return playResult }
         // Each game's RetroAchievements leaderboard, by set, as leaderboard()
         // gives it ("off" for any other); changed in place, so the screen
         // reads it again only on leaderboardReady().
@@ -317,6 +336,10 @@ Rectangle {
             arcadeBackend.signIns = []
             arcadeBackend.keyGiven = ""
             arcadeBackend.boards = {}
+            arcadeBackend.hostable = []
+            arcadeBackend.joined = []
+            arcadeBackend.hosted = []
+            arcadeBackend.roomReads = 0
             arcadeBackend.favorites = ["galaga", "sf2"]
             arcadeBackend.filterList = [
                 { id: "all", name: "All Games",
@@ -807,6 +830,108 @@ Rectangle {
             tryVerify(function() { return findText(screen, "110,000", true) !== null }, 1000)
             verify(findText(screen, "Hi-Score", true) !== null)
             compare(findText(screen, "RA Hi-Score", true), null)
+        }
+
+        // Online Games in the tree: select joins a room, which has no
+        // options, the line under the tree saying whose it is; a game's
+        // options host it where it can be.
+        function test_onlineTree() {
+            arcadeBackend.entries = Object.assign({}, arcadeBackend.entries, {
+                "top": [{ name: "Online Games", path: "online", isFolder: true }].concat(arcadeBackend.entries.top),
+                "online": [{ name: "Street Fighter II (ann)", path: "room:11", isFolder: false, kind: "room",
+                             game: "sf2", room: 11, host: "ann", detail: "Hosted by ann in ES • sf2.zip" }]
+            })
+            arcadeBackend.hostable = ["pacman"]
+            var games = open("Games.qml")
+            keyClick(Qt.Key_Right)
+            tryVerify(function() { return findText(games, "Hosted by ann in ES") !== null }, 1000)
+            verify(findText(games, ":JOIN") !== null)
+            compare(findText(games, ":OPTIONS"), null)
+            keyClick(Qt.Key_Right)
+            compare(findText(games, "Add to Favorites"), null)
+            keyClick(Qt.Key_Return)
+            compare(root.navigations.length, 1)
+            compare(root.navigations[0].path, "Play.qml")
+            compare(root.navigations[0].params.game, "sf2")
+            compare(root.navigations[0].params.online.room, 11)
+            compare(root.navigations[0].params.online.host, "ann")
+            // Pac-Man, in Favorites: hosted from its options, the last of
+            // them.
+            keyClick(Qt.Key_Left)
+            keyClick(Qt.Key_Down)
+            keyClick(Qt.Key_Down)
+            keyClick(Qt.Key_Right)
+            keyClick(Qt.Key_Right)
+            tryVerify(function() { return findText(games, "Host Online Game") !== null }, 1000)
+            keyClick(Qt.Key_Up)
+            keyClick(Qt.Key_Return)
+            compare(root.navigations.length, 2)
+            compare(root.navigations[1].params.game, "pacman")
+            verify(root.navigations[1].params.online.hosting)
+        }
+
+        // The Arcade screen's Online Games: select joins the room, JOIN in
+        // the hint bar, and held, nothing; a game's options host it where it
+        // can be.
+        function test_onlineScreen() {
+            arcadeBackend.filterList = [{ id: "online", name: "Online Games", sets: ["sf2"],
+                                          rows: [{ set: "sf2", name: "Street Fighter II (ann)", favorite: false,
+                                                   room: 11, host: "ann" }] }].concat(arcadeBackend.filterList)
+            arcadeBackend.hostable = ["sf2"]
+            moduleRoot.startFilter = "online"
+            var screen = openScreen()
+            compare(screen.filterId, "online")
+            verify(findText(screen, "Street Fighter II (ann)") !== null)
+            verify(findText(screen, ":JOIN") !== null)
+            keyPress(Qt.Key_Return)
+            keyRelease(Qt.Key_Return)
+            compare(root.navigations.length, 1)
+            compare(root.navigations[0].params.game, "sf2")
+            compare(root.navigations[0].params.online.room, 11)
+            compare(root.navigations[0].params.online.host, "ann")
+            keyPress(Qt.Key_Return)
+            wait(1000)
+            keyRelease(Qt.Key_Return)
+            compare(findText(screen, "Add to Favorites"), null)
+            compare(root.navigations.length, 1)
+            // All Games, on the same game: hosted from its options.
+            keyClick(Qt.Key_Right)
+            compare(screen.filterId, "all")
+            compare(screen.currentSet, "sf2")
+            keyPress(Qt.Key_Return)
+            tryVerify(function() { return findText(screen, "Host Online Game") !== null }, 1500)
+            keyRelease(Qt.Key_Return)
+            keyClick(Qt.Key_Up)
+            keyClick(Qt.Key_Return)
+            compare(root.navigations.length, 2)
+            compare(root.navigations[1].params.game, "sf2")
+            verify(root.navigations[1].params.online.hosting)
+        }
+
+        // A room joined from the game's screen says whose game it is and
+        // joins it; a game hosted says so and hosts it; and with Start Info
+        // Screen off, the router joins straight from the list.
+        function test_playOnline() {
+            var play = open("Play.qml", { game: "sf2", title: "Street Fighter II (ann)", online: { room: 11, host: "ann" } })
+            verify(findText(play, "Joining ann's game online") !== null)
+            tryCompare(play, "phase", "running", 3000)
+            compare(arcadeBackend.joined, [11])
+            compare(arcadeBackend.started, [])
+            arcadeBackend.running = false
+            arcadeBackend.finished(0, "ok", "")
+            play = open("Play.qml", { game: "sf2", title: "Street Fighter II", online: { hosting: true } })
+            verify(findText(play, "Hosting online: others join from RetroArch's lobby") !== null)
+            tryCompare(play, "phase", "running", 3000)
+            compare(arcadeBackend.hosted, ["sf2"])
+            arcadeBackend.running = false
+            arcadeBackend.finished(0, "ok", "")
+            loader.source = ""
+            appCore.added = []
+            var router = openRoot({ start_info: false })
+            router.playGame({ game: "sf2", title: "Street Fighter II (ann)", online: { room: 11, host: "ann" } }, {})
+            tryVerify(function() { return arcadeBackend.joined.length === 2 })
+            compare(arcadeBackend.started, [])
+            compare(appCore.added, [["com.osdos.arcade", "recent", "game:sf2"]])
         }
 
         // Select plays the game as it is let go; held, it opens the game's

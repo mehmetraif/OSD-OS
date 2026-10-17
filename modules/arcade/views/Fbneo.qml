@@ -69,7 +69,7 @@ FocusScope {
                                   : "The emulator FinalBurn Neo plays in: on Raspberry Pi OS, sudo apt install retroarch"
         case "core": return info.core ? info.core : "Its core for RetroArch, with its list of games"
         case "games":
-            return "FinalBurn Neo's arcade games: a set of these plays in it when Online High Scores is on, or its options choose it"
+            return "FinalBurn Neo's arcade games: a set of these plays in it when Online High Scores or Online Play is on, or its options choose it"
         case "download":
             return failure !== "" ? failure
                                   : "The latest core from libretro's build server, its list of games and its licence (some 35 MB)"

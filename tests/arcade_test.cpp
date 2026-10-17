@@ -853,18 +853,25 @@ private slots:
         // The lobby: FinalBurn Neo's rooms that can be joined, newest
         // first, a relayed one through its relay; not another core's, one
         // that can't be called (behind a home router, unrelayed) or an old
-        // RetroArch's.
+        // RetroArch's. What hosts write is taken as it can be used: a name
+        // without its markup, a set's name without its extension, and no
+        // room whose game isn't a set's name or whose address isn't one.
         const QByteArray lobby = fixture("lobby.json");
         const QList<libretro::Room> rooms = libretro::readLobby(lobby);
-        QCOMPARE(rooms.size(), 2);
-        QCOMPARE(rooms.at(0).id, 14);
-        QCOMPARE(rooms.at(0).game, QStringLiteral("mslug"));
-        QCOMPARE(rooms.at(0).host, QStringLiteral("bob"));
-        QCOMPARE(rooms.at(0).joinAddress, QStringLiteral("198.51.100.7|55435|c2Vzc2lvbg=="));
-        QVERIFY(rooms.at(0).password);
-        QCOMPARE(rooms.at(1).game, QStringLiteral("sf2"));
-        QCOMPARE(rooms.at(1).country, QStringLiteral("es"));
-        QCOMPARE(rooms.at(1).joinAddress, QStringLiteral("203.0.113.5|55435"));
+        QCOMPARE(rooms.size(), 3);
+        QCOMPARE(rooms.at(0).id, 18);
+        QCOMPARE(rooms.at(0).game, QStringLiteral("kof98"));
+        // Without its markup, 32 characters at most.
+        QCOMPARE(rooms.at(0).host, QStringLiteral("img src=http://192.0.2.99/a.pngz"));
+        QCOMPARE(rooms.at(0).country, QString());
+        QCOMPARE(rooms.at(1).id, 14);
+        QCOMPARE(rooms.at(1).game, QStringLiteral("mslug"));
+        QCOMPARE(rooms.at(1).host, QStringLiteral("bob"));
+        QCOMPARE(rooms.at(1).joinAddress, QStringLiteral("198.51.100.7|55435|c2Vzc2lvbg=="));
+        QVERIFY(rooms.at(1).password);
+        QCOMPARE(rooms.at(2).game, QStringLiteral("sf2"));
+        QCOMPARE(rooms.at(2).country, QStringLiteral("es"));
+        QCOMPARE(rooms.at(2).joinAddress, QStringLiteral("203.0.113.5|55435"));
         QVERIFY(libretro::readLobby("<html>busy</html>").isEmpty());
 
         // rcheevos' arcade hash: the file's name without its extension, as
@@ -1255,6 +1262,141 @@ private slots:
         gone.board(QStringLiteral("sf2.zip"));
         QVERIFY(readyGone.wait(5000));
         QCOMPARE(state(gone.board(QStringLiteral("sf2.zip"))), QStringLiteral("failed"));
+    }
+
+    // Online Play against a stand-in for RetroArch's lobby: the rooms of the
+    // folder's games FinalBurn Neo plays (not a room with a password, nor
+    // one of a game not there), in the tree's Online Games and the Arcade
+    // screen's filter; a room joined and a game hosted through the relay
+    // chosen, with the online name; a lobby that can't be reached said so;
+    // nothing of it with Online Play off.
+    void onlinePlay() {
+        QTemporaryDir data;
+        QVERIFY(data.isValid());
+        const QString games = data.path() + QStringLiteral("/media/Games/Arcade");
+        for (const char *set : { "sf2.zip", "mslug.zip", "galaga.zip", "pacman.zip" })
+            writeFile(games + QLatin1Char('/') + QLatin1String(set));
+        QVERIFY(QDir().mkpath(data.path() + QStringLiteral("/bin")));
+        QVERIFY(QFile::copy(mamePath(), data.path() + QStringLiteral("/bin/mame")));
+        writeFile(data.path() + QStringLiteral("/bin/retroarch"), fixture("retroarch"));
+        for (const char *program : { "/bin/mame", "/bin/retroarch" })
+            QVERIFY(QFile::setPermissions(data.path() + QLatin1String(program),
+                                          QFile::ReadOwner | QFile::WriteOwner | QFile::ExeOwner));
+        writeFile(libretro::downloadedCore(data.path()));
+        writeFile(libretro::downloadedDat(data.path()), fixture("fbneo-arcade.dat"));
+        const QString configCopy = data.path() + QStringLiteral("/ra.cfg");
+        qputenv("RA_CONFIG_COPY", configCopy.toUtf8());
+        qputenv("OSDOS_MEDIA_DIR", (data.path() + QStringLiteral("/media")).toUtf8());
+        const auto restore = qScopeGuard([this] {
+            qunsetenv("RA_CONFIG_COPY");
+            qputenv("OSDOS_MEDIA_DIR", (m_data.path() + QStringLiteral("/media")).toUtf8());
+        });
+        const QByteArray lobby = fixture("lobby.json");
+        int asked = 0;
+        QTcpServer server;
+        QVERIFY(server.listen(QHostAddress::LocalHost));
+        connect(&server, &QTcpServer::newConnection, &server, [&server, &lobby, &asked] {
+            QTcpSocket *socket = server.nextPendingConnection();
+            connect(socket, &QTcpSocket::readyRead, socket, [socket, &lobby, &asked] {
+                socket->readAll();
+                ++asked;
+                socket->write("HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: "
+                              + QByteArray::number(lobby.size()) + "\r\nConnection: close\r\n\r\n" + lobby);
+                socket->disconnectFromHost();
+            });
+        });
+
+        ArcadeBackend arcade(data.path(), data.path(), nullptr, nullptr);
+        arcade.setLobbyUrl(QUrl(QStringLiteral("http://127.0.0.1:%1/list").arg(server.serverPort())));
+        refreshed(arcade);
+        // Off: no lobby, no folder, nothing to host.
+        QCOMPARE(asked, 0);
+        QVERIFY(arcade.rooms().isEmpty());
+        QVERIFY(!names(arcade.requestEntries(QStringLiteral("top"))).contains(QStringLiteral("Online Games")));
+        QVERIFY(!arcade.canHost(QStringLiteral("sf2")));
+
+        const QString module = QStringLiteral("com.osdos.arcade");
+        arcade.onSettingChanged(module, QStringLiteral("online_play"), QStringLiteral("On"));
+        QCOMPARE(arcade.engineOf(QStringLiteral("sf2")), QStringLiteral("fbneo"));
+        QVERIFY(arcade.canHost(QStringLiteral("sf2")));
+        QVERIFY(!arcade.canHost(QStringLiteral("pacman")));
+        QCOMPARE(names(arcade.requestEntries(QStringLiteral("top"))).value(0), QStringLiteral("Online Games"));
+        // Asked for before the lobby is read: read then, listed once it is.
+        QSignalSpy roomsRead(&arcade, &ArcadeBackend::roomsChanged);
+        QSignalSpy ready(&arcade, &ArcadeBackend::entriesReady);
+        QVERIFY(!arcade.requestEntries(QStringLiteral("online")).isValid());
+        QVERIFY(roomsRead.wait(5000));
+        QCOMPARE(asked, 1);
+        QVERIFY(ready.contains(QVariantList{ QStringLiteral("online") }));
+        const QVariantList rooms = arcade.rooms();
+        QCOMPARE(rooms.size(), 1);
+        const QVariantMap room = rooms.first().toMap();
+        QCOMPARE(room.value(QStringLiteral("id")).toInt(), 11);
+        QCOMPARE(room.value(QStringLiteral("set")).toString(), QStringLiteral("sf2"));
+        QCOMPARE(room.value(QStringLiteral("host")).toString(), QStringLiteral("ann"));
+        const QVariantList entries = arcade.requestEntries(QStringLiteral("online")).toList();
+        QCOMPARE(entries.size(), 1);
+        const QVariantMap entry = entries.first().toMap();
+        QCOMPARE(entry.value(QStringLiteral("kind")).toString(), QStringLiteral("room"));
+        QCOMPARE(entry.value(QStringLiteral("room")).toInt(), 11);
+        QCOMPARE(entry.value(QStringLiteral("game")).toString(), QStringLiteral("sf2"));
+        QVERIFY(entry.value(QStringLiteral("name")).toString().endsWith(QStringLiteral(" (ann)")));
+        QCOMPARE(entry.value(QStringLiteral("detail")).toString(), QStringLiteral("Hosted by ann in ES • sf2.zip"));
+        // The Arcade screen's filter, after All Games.
+        const QVariantList filters = arcade.filters();
+        QCOMPARE(filters.value(1).toMap().value(QStringLiteral("id")).toString(), QStringLiteral("online"));
+        QCOMPARE(filters.value(1).toMap().value(QStringLiteral("count")).toInt(), 1);
+        const QVariantMap row = arcade.filterGames(QStringLiteral("online"), 0, 7).value(0).toMap();
+        QCOMPARE(row.value(QStringLiteral("set")).toString(), QStringLiteral("sf2"));
+        QCOMPARE(row.value(QStringLiteral("room")).toInt(), 11);
+        QCOMPARE(row.value(QStringLiteral("host")).toString(), QStringLiteral("ann"));
+
+        // Joined: RetroArch connects to the room, under the default name.
+        const auto ended = [&arcade](const std::function<bool()> &start) {
+            QSignalSpy finished(&arcade, &ArcadeBackend::finished);
+            if (!start())
+                return QVariantList{ -1, QStringLiteral("not started"), arcade.lastError() };
+            if (!finished.wait(10000) && finished.isEmpty())
+                return QVariantList{ -1, QStringLiteral("no end"), QString() };
+            return finished.first();
+        };
+        QFile::remove(m_log);
+        QCOMPARE(ended([&arcade] { return arcade.joinRoom(11); }).value(1).toString(), QStringLiteral("ok"));
+        const QString home = data.path() + QStringLiteral("/arcade/retroarch");
+        QCOMPARE(logLines(QStringLiteral("retroarch ")).value(0),
+                 QStringLiteral("retroarch -L %1 --config %2/retroarch.cfg --verbose --log-file=%2/last.log "
+                                "--connect 203.0.113.5|55435 %3/sf2.zip").arg(libretro::downloadedCore(data.path()), home, games));
+        QString config = QString::fromUtf8(contents(configCopy));
+        QVERIFY2(config.contains(QStringLiteral("netplay_nickname = \"OSD-OS\"")), qPrintable(config));
+        QVERIFY(config.contains(QStringLiteral("netplay_start_as_spectator = \"false\"")));
+        QVERIFY(!config.contains(QStringLiteral("netplay_public_announce")));
+        // Hosted: announced in the lobby through the relay chosen, under the
+        // online name.
+        arcade.onSettingChanged(module, QStringLiteral("online_name"), QStringLiteral(" Mehmet "));
+        arcade.onSettingChanged(module, QStringLiteral("relay_server"), QStringLiteral("Madrid"));
+        QFile::remove(m_log);
+        QCOMPARE(ended([&arcade] { return arcade.hostGame(QStringLiteral("sf2")); }).value(1).toString(),
+                 QStringLiteral("ok"));
+        QVERIFY(logLines(QStringLiteral("retroarch ")).value(0).contains(QStringLiteral(" --host ")));
+        config = QString::fromUtf8(contents(configCopy));
+        for (const char *line : { "netplay_nickname = \"Mehmet\"", "netplay_public_announce = \"true\"",
+                                  "netplay_use_mitm_server = \"true\"", "netplay_mitm_server = \"madrid\"" })
+            QVERIFY2(config.contains(QLatin1String(line)), line);
+        // A room gone from the lobby, and a game that can't be hosted.
+        QVERIFY(!arcade.joinRoom(99));
+        QCOMPARE(arcade.lastError(), QStringLiteral("The game is no longer in RetroArch's lobby"));
+        QVERIFY(!arcade.hostGame(QStringLiteral("pacman")));
+
+        // The lobby gone: said so where the rooms were.
+        server.close();
+        arcade.refreshRooms();
+        QVERIFY(roomsRead.wait(5000));
+        QVERIFY(arcade.rooms().isEmpty());
+        const QVariantMap gone = arcade.requestEntries(QStringLiteral("online")).toList().value(0).toMap();
+        QCOMPARE(gone.value(QStringLiteral("kind")).toString(), QStringLiteral("message"));
+        QCOMPARE(gone.value(QStringLiteral("name")).toString(), QStringLiteral("Lobby Not Reachable"));
+        QVERIFY(gone.value(QStringLiteral("detail")).toString().startsWith(QStringLiteral("RetroArch's lobby can't be reached")));
+        QCOMPARE(arcade.filters().value(1).toMap().value(QStringLiteral("id")).toString() == QLatin1String("online"), false);
     }
 
     // A game started while MAME is asked about the sets stops that MAME and

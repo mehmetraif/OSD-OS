@@ -8,6 +8,7 @@
 #include <QSet>
 #include <QString>
 #include <QStringList>
+#include <QUrl>
 #include <QVariant>
 #include <functional>
 #include <utility>
@@ -18,6 +19,8 @@ class AppCore;
 class DisplayHandoff;
 class FbneoInstaller;
 class RetroAchievements;
+class QNetworkAccessManager;
+class QNetworkReply;
 class ScriptLauncher;
 class QTimer;
 
@@ -147,8 +150,8 @@ public:
     Q_INVOKABLE bool play(const QString &name, int credits = 0);
     // The engine a game plays in: "fbneo", RetroArch with the FinalBurn Neo
     // core, for a set FinalBurn Neo has, chosen in its options, or by itself
-    // (Auto) while Online High Scores is on, which only it has, or with no
-    // MAME; else "mame".
+    // (Auto) while Online High Scores or Online Play is on, which only it
+    // has, or with no MAME; else "mame".
     Q_INVOKABLE QString engineOf(const QString &set) const;
     // A game's choices of engine, for its options: [{ id ("auto", "mame",
     // "fbneo"), label, current }], Auto naming the one it picks. Only Auto
@@ -157,6 +160,24 @@ public:
     Q_INVOKABLE void setEngine(const QString &set, const QString &engine);
     // RetroArch, the FinalBurn Neo core and its list of games are there.
     Q_INVOKABLE bool fbneoReady() const;
+
+    // Online Play (Settings → Arcade → Online Play): the netplay lobby's
+    // rooms (lobby.libretro.com) of the folder's games FinalBurn Neo plays,
+    // without a password, newest first: [{ id, set, title, host, country }].
+    // refreshRooms() reads the lobby again, once at a time: roomsChanged(),
+    // and the Online Games folder and filter listed again, once it has.
+    Q_INVOKABLE QVariantList rooms() const;
+    Q_INVOKABLE void refreshRooms();
+    // A room joined, or a game hosted through the relay Settings chose, in
+    // RetroArch with FinalBurn Neo, as play() starts a game: finished() when
+    // it ends; false, with lastError(), when it couldn't be started.
+    Q_INVOKABLE bool joinRoom(int id);
+    Q_INVOKABLE bool hostGame(const QString &set);
+    // Whether a game can be hosted: Online Play on, FinalBurn Neo there, and
+    // the set its, a zip or a 7z.
+    Q_INVOKABLE bool canHost(const QString &set) const;
+    // The lobby's address: lobby.libretro.com's, or a stand-in's.
+    void setLobbyUrl(const QUrl &url) { m_lobbyUrl = url; }
 
     // Account page (Settings → Arcade → RetroAchievements Account). The
     // password is kept in memory only, for RetroArch to sign in with at the
@@ -247,6 +268,7 @@ signals:
     void playedChanged();
     void achievementsChanged();
     void leaderboardReady(const QString &set);
+    void roomsChanged();
     void fbneoChanged();
     // reason: "ok", "failed", "stopped" or "failed_to_start" (ScriptLauncher's);
     // notice: what to tell the player when it isn't "ok", else "".
@@ -386,8 +408,12 @@ private:
     QString noticeFor(int exitCode, const QString &reason) const;
     QString fbneoNotice(int exitCode, const QString &reason, const libretro::Run &run) const;
     // A game started in RetroArch with FinalBurn Neo, the checks play() makes
-    // of every game made.
-    bool playFbneo(const QString &name);
+    // of every game made: alone, hosted online or joining a room.
+    bool playFbneo(const QString &name, libretro::Launch::Netplay netplay = libretro::Launch::Netplay::None,
+                   const QString &joinAddress = QString());
+    // The Online Games folder's entries: the rooms, or a line saying why
+    // there are none.
+    QVariantList roomEntries() const;
     // RetroArch's folder in <data>/arcade, and its config and log there.
     QString retroarchHome() const { return m_home + QStringLiteral("/retroarch"); }
     // What a FinalBurn Neo game's run left: the token RetroArch swapped the
@@ -418,7 +444,10 @@ private:
     QString m_video;              // "" for MAME's own (mame.ini's)
     QVariantMap m_menuFilters;    // Menu Filters: filter id → shown
     bool    m_achievements = false;   // Online High Scores: RetroAchievements
+    bool    m_onlinePlay = false;
     QVariantMap m_engines;        // set → "mame" or "fbneo", as its options chose
+    QString m_onlineName;         // the name online play shows ("" for the account's)
+    QString m_relay = QStringLiteral("nyc");   // the relay a hosted game goes through
 
     // The RetroAchievements account: <data>/arcade/retroachievements.json,
     // owner-only, but the password, which RetroArch has once and swaps.
@@ -432,6 +461,15 @@ private:
 
     FbneoInstaller *m_installer = nullptr;
     RetroAchievements *m_leaderboards = nullptr;
+
+    // The netplay lobby: its rooms as last read, why it couldn't be read
+    // ("" when it was), whether it has been, and the read under way.
+    QNetworkAccessManager *m_nam = nullptr;
+    QNetworkReply *m_lobbyReply = nullptr;
+    QUrl m_lobbyUrl{ QStringLiteral("http://lobby.libretro.com/list") };
+    QList<libretro::Room> m_rooms;
+    QString m_roomsProblem;
+    bool    m_roomsRead = false;
     QString m_fbneoMessage;
 
     // The folder's sets, and what MAME said of every set it was asked about.

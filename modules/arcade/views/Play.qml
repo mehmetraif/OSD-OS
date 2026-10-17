@@ -30,6 +30,9 @@ FocusScope {
     property var navParams: ({})
     readonly property string game: navParams.game || ""
     readonly property string title: navParams.title || game
+    // Online: { room, host }, a room of the lobby joined, or { hosting:
+    // true }, the game hosted; null for a game played here alone.
+    readonly property var online: navParams.online || null
 
     signal navigateTo(string path, var params, var listState)
     signal goBack()
@@ -64,7 +67,7 @@ FocusScope {
     function launch() {
         if (playRoot.phase !== "opening")
             return
-        if (moduleRoot.startGame(playRoot.game, playRoot.title)) {
+        if (moduleRoot.startGame(playRoot.game, playRoot.title, playRoot.online)) {
             playRoot.phase = "running"
         } else {
             playRoot.phase = "error"
@@ -235,6 +238,21 @@ FocusScope {
                     }
                 }
             }
+        }
+
+        // Online: whose game it joins, or that it is hosted.
+        Text {
+            visible: !!playRoot.online && playRoot.before
+            width: parent.width
+            text: !playRoot.online ? ""
+                  : playRoot.online.hosting ? "Hosting online: others join from RetroArch's lobby"
+                  : "Joining " + (playRoot.online.host || "a player") + "'s game online"
+            textFormat: Text.PlainText
+            color: root.primaryColor
+            font.family: root.globalFont
+            font.capitalization: Font.AllUppercase
+            font.pixelSize: root.sh * 0.0375 //18
+            wrapMode: Text.WordWrap
         }
 
         // The credits going in with the game, from the Arcade screen.

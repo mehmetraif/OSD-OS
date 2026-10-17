@@ -35,7 +35,7 @@ Out of the box it is plain on purpose, as above: two colors, and nothing moving 
 - **Transparent Background**: back from a video, the menus lie over it while it plays on.
 - **Themes**, the whole look at once: the colors, the skin, effects like the ones above and the menu music. Eight come with it, and a new one is a folder.
 - **Made for old TVs**: composite, SCART RGB or HDMI from Settings, or an arcade cabinet's monitor through a Raspberry Pi to JAMMA board, 16:9 films fitted to 4:3, a channel logo in the corner, and a tape loading while a video starts.
-- **Arcade games** in MAME, from a folder of ROM sets, for up to six players: listed by players, decade and maker in OSD/OS's tree, or on a cabinet's selection screen with each game's picture, high scores and genre, where COIN buys credits and START plays. A game FinalBurn Neo has can play in RetroArch instead, its scores going to RetroAchievements' leaderboards, whose top three the selection screen shows.
+- **Arcade games** in MAME, from a folder of ROM sets, for up to six players: listed by players, decade and maker in OSD/OS's tree, or on a cabinet's selection screen with each game's picture, high scores and genre, where COIN buys credits and START plays. A game FinalBurn Neo has can play in RetroArch instead, its scores going to RetroAchievements' leaderboards, whose top three the selection screen shows, and be played online with others through RetroArch's lobby.
 - **High scores** of the games played, each game's table as MAME kept it, read on the device.
 - **And more**: a fireplace on a loop (Ambient:Mode), a 90s weather channel, NFC cards that play a film when they touch the reader, and anything a shell script can start.
 

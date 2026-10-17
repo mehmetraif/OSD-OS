@@ -43,6 +43,28 @@ QString quoted(QString value) {
 // The lobby's oldest RetroArch the menu lists rooms of.
 const QVersionNumber kOldestRetroArch(1, 9, 1);
 
+// A name from the lobby, as whoever hosts wrote it: no markup or control
+// characters (a view may take '<' for rich text), and not too long.
+QString cleaned(const QString &text, int length) {
+    QString out;
+    for (const QChar c : text) {
+        if (c.isPrint() && c != QLatin1Char('<') && c != QLatin1Char('>') && c != QLatin1Char('&'))
+            out += c;
+    }
+    return out.trimmed().left(length);
+}
+
+// The lobby's address for a room, "address|port[|session]" as --connect
+// takes it, or "" for one that isn't an address, a port and a session.
+QString joinAddressOf(const QString &address, int port, const QString &session) {
+    static const QRegularExpression host(QStringLiteral("^[0-9A-Za-z.:-]{1,64}$"));
+    static const QRegularExpression token(QStringLiteral("^[0-9A-Za-z+/=_-]{0,128}$"));
+    if (!host.match(address).hasMatch() || port <= 0 || port > 65535 || !token.match(session).hasMatch())
+        return QString();
+    return session.isEmpty() ? QStringLiteral("%1|%2").arg(address).arg(port)
+                             : QStringLiteral("%1|%2|%3").arg(address).arg(port).arg(session);
+}
+
 } // namespace
 
 QString programPath(const QString &dataRoot) {
@@ -283,21 +305,29 @@ QList<Room> readLobby(const QByteArray &json) {
             continue;
         Room room;
         room.id = fields.value(QLatin1String("id")).toInt();
+        // The game as its file is named, the set: a short name, lower case.
+        static const QRegularExpression set(QStringLiteral("^[a-z0-9_]{1,32}$"));
         room.game = fields.value(QLatin1String("game_name")).toString().toLower();
-        room.host = fields.value(QLatin1String("username")).toString();
-        room.country = fields.value(QLatin1String("country")).toString();
+        for (const char *extension : { ".zip", ".7z" }) {
+            if (room.game.endsWith(QLatin1String(extension)))
+                room.game.chop(static_cast<int>(qstrlen(extension)));
+        }
+        room.host = cleaned(fields.value(QLatin1String("username")).toString(), 32);
+        static const QRegularExpression code(QStringLiteral("^[a-z]{2}$"));
+        room.country = fields.value(QLatin1String("country")).toString().toLower();
+        if (!code.match(room.country).hasMatch())
+            room.country.clear();
         room.password = fields.value(QLatin1String("has_password")).toBool();
         // Relayed (host_method 3, MITM): through the relay, its session the
         // lobby's; else straight to the host.
-        if (fields.value(QLatin1String("host_method")).toInt() == 3) {
-            room.joinAddress = QStringLiteral("%1|%2|%3").arg(fields.value(QLatin1String("mitm_ip")).toString())
-                                   .arg(fields.value(QLatin1String("mitm_port")).toInt())
-                                   .arg(fields.value(QLatin1String("mitm_session")).toString());
-        } else {
-            room.joinAddress = QStringLiteral("%1|%2").arg(fields.value(QLatin1String("ip")).toString())
-                                   .arg(fields.value(QLatin1String("port")).toInt());
-        }
-        if (room.game.isEmpty() || room.joinAddress.startsWith(QLatin1Char('|')))
+        if (fields.value(QLatin1String("host_method")).toInt() == 3)
+            room.joinAddress = joinAddressOf(fields.value(QLatin1String("mitm_ip")).toString(),
+                                             fields.value(QLatin1String("mitm_port")).toInt(),
+                                             fields.value(QLatin1String("mitm_session")).toString());
+        else
+            room.joinAddress = joinAddressOf(fields.value(QLatin1String("ip")).toString(),
+                                             fields.value(QLatin1String("port")).toInt(), QString());
+        if (!set.match(room.game).hasMatch() || room.joinAddress.isEmpty())
             continue;
         rooms << room;
     }

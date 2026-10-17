@@ -51,12 +51,18 @@ FocusScope {
     readonly property int maxCredits: 9
     function addCredit() { credits = Math.min(maxCredits, credits + 1) }
 
-    // Starts a game in MAME with the credits bought, which are then spent,
-    // and puts it on Recently Played (the newest 30). False, with
-    // arcadeBackend.lastError(), when it couldn't be started: a game that
-    // never started, or was canceled before, isn't put there.
-    function startGame(set, title) {
-        if (!arcadeBackend || !arcadeBackend.play(set, credits))
+    // Starts a game with the credits bought, which are then spent, and puts
+    // it on Recently Played (the newest 30); with online, joins a room of
+    // the lobby ({ room }) or hosts the game ({ hosting: true }) instead.
+    // False, with arcadeBackend.lastError(), when it couldn't be started: a
+    // game that never started, or was canceled before, isn't put there.
+    function startGame(set, title, online) {
+        if (!arcadeBackend)
+            return false
+        var started = online && online.room !== undefined ? arcadeBackend.joinRoom(online.room)
+                    : online && online.hosting ? arcadeBackend.hostGame(set)
+                    : arcadeBackend.play(set, credits)
+        if (!started)
             return false
         credits = 0
         appCore.add_to_list(moduleId, "recent", { name: title || set, path: "game:" + set, isFolder: false }, 30)
@@ -74,7 +80,7 @@ FocusScope {
             navigateTo("Play.qml", params, listState)
             return
         }
-        playing = { game: params.game, title: params.title, listState: listState || {} }
+        playing = { game: params.game, title: params.title, online: params.online, listState: listState || {} }
         keyCatcher.forceActiveFocus()
         listLaunch.restart()
     }
@@ -89,7 +95,7 @@ FocusScope {
         interval: moduleRoot.handOverDelay
         onTriggered: {
             var game = moduleRoot.playing
-            if (!game || moduleRoot.startGame(game.game, game.title))
+            if (!game || moduleRoot.startGame(game.game, game.title, game.online))
                 return
             moduleRoot.playing = null
             moduleRoot.navigateTo("Play.qml", { game: game.game, title: game.title,
@@ -221,14 +227,16 @@ FocusScope {
             arcadeBackend.refresh()
         // The startup favourite, when the app opens on one (Main.qml); or
         // one of Settings → Arcade's pages: the Arcade screen to adjust
-        // (Screen Adjustment), FinalBurn Neo's, or the RetroAchievements
-        // account's.
+        // (Screen Adjustment), FinalBurn Neo's, the RetroAchievements
+        // account's, or the online name's.
         if (navParams.adjustScreen)
             navigateTo("ArcadeScreen.qml", { adjust: true })
         else if (navParams.fbneo)
             navigateTo("Fbneo.qml", {})
         else if (navParams.achievements)
             navigateTo("Account.qml", {})
+        else if (navParams.onlineName)
+            navigateTo("OnlineName.qml", {})
         else
             navigateTo(arcadeScreen ? "ArcadeScreen.qml" : "Games.qml", { startupPlay: navParams.startupPlay })
     }
