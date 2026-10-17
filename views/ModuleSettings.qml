@@ -190,12 +190,15 @@ FocusScope {
         return ""
     }
 
-    // A row's new value, shown and saved.
+    // A row's new value, saved and shown. One that couldn't be saved (a full
+    // card) leaves the row on what is still saved: false.
     function store(key, value) {
+        if (!appCore.save_setting(moduleId, key, value))
+            return false
         var updated = Object.assign({}, currentValues)
         updated[key] = value
         currentValues = updated
-        appCore.save_setting(moduleId, key, value)
+        return true
     }
 
     function cycleValue(index, direction) {
@@ -216,8 +219,7 @@ FocusScope {
                     if (opts[i].id === storedId) { curIdx = i; break }
                 }
                 var newIdx = (curIdx + direction + opts.length) % opts.length
-                store(item.key, opts[newIdx].id)
-                if (item.apply_slot) {
+                if (store(item.key, opts[newIdx].id) && item.apply_slot) {
                     appCore.invoke_module_action(moduleId, item.apply_slot)
                 }
             } else {

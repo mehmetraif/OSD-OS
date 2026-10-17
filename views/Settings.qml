@@ -731,8 +731,10 @@ FocusScope {
             settingsRoot.revision++
         }
 
-        // A slider's step toward one end (-1 left, 1 right), kept and saved.
-        // One that is off turns on instead, where its bar waits.
+        // A slider's step toward one end (-1 left, 1 right), saved and kept.
+        // One that is off turns on instead, where its bar waits. A row whose
+        // value couldn't be saved (a full card) stays on what is saved, here
+        // and in the list ones below.
         function moveSlider(direction) {
             var row = settingsItems[currentIndex]
             if (row.on === false) {
@@ -740,10 +742,9 @@ FocusScope {
                 return
             }
             var v = Math.max(0, Math.min(100, row.value + direction * row.step))
-            if (v === row.value)
+            if (v === row.value || !appCore.save_setting(row.moduleId, row.key, v))
                 return
             replaceCurrentRow(Object.assign({}, row, { value: v }))
-            appCore.save_setting(row.moduleId, row.key, v)
         }
 
         // A slider that can be off (one with `on`), turned off, saved as its
@@ -751,44 +752,37 @@ FocusScope {
         function toggleSlider() {
             var row = settingsItems[currentIndex]
             var on = !row.on
-            replaceCurrentRow(Object.assign({}, row, { on: on }))
-            appCore.save_setting(row.moduleId, row.key, on ? row.value : row.offValue)
+            if (appCore.save_setting(row.moduleId, row.key, on ? row.value : row.offValue))
+                replaceCurrentRow(Object.assign({}, row, { on: on }))
+        }
+
+        // A list row's choice, one step back (-1) or on (1), saved and shown;
+        // the label shown, the parallel value saved when there is one.
+        function cycleList(direction) {
+            var row = settingsItems[currentIndex]
+            var opts = row.options
+            var newIdx = (opts.indexOf(row.value) + direction + opts.length) % opts.length
+            if (!appCore.save_setting(row.moduleId, row.key, row.values ? row.values[newIdx] : opts[newIdx]))
+                return
+            replaceCurrentRow(Object.assign({}, row, { value: opts[newIdx] }))
+            if (row.key === "osd_theme")
+                settingsRoot.themeChosen()
         }
 
         Keys.onLeftPressed: {
             var row = settingsItems[currentIndex]
-            if (row && row.type === "slider") {
+            if (row && row.type === "slider")
                 moveSlider(-1)
-            } else if (row && row.type === "list_single") {
-                var opts = row.options
-                var idx = opts.indexOf(row.value)
-                var newIdx = (idx - 1 + opts.length) % opts.length
-                var newVal = opts[newIdx]
-                // Display the label; persist the parallel value when one exists.
-                var savedVal = row.values ? row.values[newIdx] : newVal
-                replaceCurrentRow(Object.assign({}, row, { value: newVal }))
-                appCore.save_setting(row.moduleId, row.key, savedVal)
-                if (row.key === "osd_theme")
-                    settingsRoot.themeChosen()
-            }
+            else if (row && row.type === "list_single")
+                cycleList(-1)
         }
 
         Keys.onRightPressed: {
             var row = settingsItems[currentIndex]
-            if (row && row.type === "slider") {
+            if (row && row.type === "slider")
                 moveSlider(1)
-            } else if (row && row.type === "list_single") {
-                var opts = row.options
-                var idx = opts.indexOf(row.value)
-                var newIdx = (idx + 1) % opts.length
-                var newVal = opts[newIdx]
-                // Display the label; persist the parallel value when one exists.
-                var savedVal = row.values ? row.values[newIdx] : newVal
-                replaceCurrentRow(Object.assign({}, row, { value: newVal }))
-                appCore.save_setting(row.moduleId, row.key, savedVal)
-                if (row.key === "osd_theme")
-                    settingsRoot.themeChosen()
-            }
+            else if (row && row.type === "list_single")
+                cycleList(1)
         }
 
         Keys.onReturnPressed: {
