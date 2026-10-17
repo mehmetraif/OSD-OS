@@ -107,7 +107,9 @@ FocusScope {
         }
 
         function onStreamUrlReady(url) {
-            if (!detailRoot.detail) return
+            // Only the stream this screen asked for, not one asked for
+            // elsewhere that answers while it is open.
+            if (!detailRoot.isLaunching || !detailRoot.detail) return
             var d = detailRoot.detail
 
             detailRoot.navigateTo("Player.qml", {
@@ -220,6 +222,10 @@ FocusScope {
     Keys.onPressed: function(event) {
         if (event.key === Qt.Key_Escape || event.key === Qt.Key_Backspace || event.key === Qt.Key_Back) {
             _saveCurrentLangs()
+            // A stream still on its way is dropped as it comes, and not
+            // reported to the server as playing.
+            if (isLaunching)
+                embyBackend.cancel_playback_url()
             goBack()
             event.accepted = true
         }

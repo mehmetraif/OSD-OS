@@ -106,6 +106,12 @@ public:
                                        const QString &sessionId,
                                        const QString &audioId, const QString &subtitleId,
                                        int offsetMs);
+    // Forgets the stream a view asked for and no longer waits for (its launch
+    // given up with back): streamUrlReady answers only the last one asked for,
+    // so a transcode that answers late can't start in a view that didn't ask.
+    // The next item looked for (load_next_episode, load_queue_item,
+    // load_random_episode) is forgotten with it.
+    Q_INVOKABLE void cancel_stream();
     Q_INVOKABLE void update_timeline(const QString &ratingKey, const QString &partKey,
                                      const QString &state, int timeMs, int durationMs);
     Q_INVOKABLE void set_audio_stream(const QString &streamId, const QString &partId);
@@ -174,6 +180,7 @@ signals:
     void errorOccurred(const QString &message);
 
 private:
+    friend class MediaServersTest;
     // Auth file I/O
     QJsonObject loadAuth() const;
     void saveAuth(const QJsonObject &auth) const;
@@ -200,8 +207,13 @@ private:
     QString videoQuality() const;
     QString clientId() const;   // UUID, stored in plex_auth.json
 
-    // Item formatting helpers
-    QVariantMap formatItem(const QJsonObject &m) const;
+    // Item formatting helpers. Of the item alone, so a list can be read away
+    // from the screen's thread (loadList).
+    static QVariantMap formatItem(const QJsonObject &m);
+    static QVariantList formatItems(const QJsonArray &metadata);
+    // The rows of a reply's MediaContainer Metadata: a library's, a
+    // collection's or a playlist's items.
+    static QVariantList readMetadata(const QByteArray &data);
     // Builds the full playable detail map (streams, selections, transcode flag)
     // from a single /library/metadata Metadata object. Shared by load_item_detail
     // and load_next_episode.
@@ -215,6 +227,42 @@ private:
     // Expands any season-type items in rawItems into their child episodes, then calls callback.
     // Order is preserved. callback is called synchronously if no seasons are present.
     void flattenSeasons(const QVariantList &rawItems, std::function<void(const QVariantList &)> callback);
+
+    // A list the list view asked for (Items.qml), told by answer: a library,
+    // a hub's or a collection's items, a folder, the hubs, collections,
+    // playlists or categories of a library. Each one asked for supersedes the
+    // last, the user having moved on: a reply to an older one is dropped, not
+    // shown in the view after it. read makes the rows of the reply, away from
+    // the screen's thread (a whole library is megabytes of JSON); flatten
+    // expands the seasons among them. retry asks again after a token refresh
+    // (498). A list given a keep key is kept a while (kListKeepMs), so going
+    // back to it (from a film's detail screen) shows it without asking the
+    // server again; a playback ending forgets them all, its watched state
+    // having changed.
+    void loadList(void (PlexBackend::*answer)(const QVariant &), const QString &keep,
+                  const QUrl &url, const QString &failure, std::function<void()> retry,
+                  std::function<QVariantList(const QByteArray &)> read, bool flatten);
+    struct KeptList { QVariantList rows; qint64 at = 0; };
+    QHash<QString, KeptList> m_keptLists;
+    QStringList m_keptOrder;    // oldest first
+    int m_listRequest = 0;
+    // The stream asked for last (request_transcode, build_stream_url): one
+    // answering after another was asked for, or after cancel_stream, is dropped.
+    int m_streamRequest = 0;
+    // The next item looked for last, the same way: a queue played again after
+    // its player was left mid-lookup starts on its own first item, not on
+    // the one the player was waiting for (answerNext()).
+    int m_nextRequest = 0;
+    void answerNext(int request, const QVariantMap &detail);
+
+    // GETs a few at a time, in order: a collection of shows played as a
+    // queue, a shuffle's pool or a hub of seasons asks for every season's
+    // episodes at once, hundreds of requests for a big one.
+    void queuedGet(const QUrl &url, std::function<void(QNetworkReply *)> done);
+    void sendQueuedGets();
+    struct QueuedGet { QUrl url; std::function<void(QNetworkReply *)> done; };
+    QList<QueuedGet> m_queuedGets;
+    int m_queuedGetsSent = 0;
 
     // NFC card resolution helpers.
     void fetchChildren(const QString &ratingKey,
@@ -231,7 +279,7 @@ private:
     QString takeFromShuffleBag(const QString &scopeRatingKey, const QVariantList &pool);
     void emitCardDetail(const QString &ratingKey, bool trackProgress,
                         const QString &scopeRatingKey);
-    void emitNextEpisode(const QString &ratingKey);
+    void emitNextEpisode(int request, const QString &ratingKey);
 
     // Shuffle-card state. A bag (a shuffled permutation played to exhaustion,
     // then reshuffled) rather than independent random draws: independent draws

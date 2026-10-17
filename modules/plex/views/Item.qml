@@ -150,7 +150,9 @@ FocusScope {
         }
 
         function onStreamUrlReady(url, plexToken) {
-            if (!detailRoot.detail) return
+            // Only the stream this screen asked for, not one asked for
+            // elsewhere (an extra given up) that answers while it is open.
+            if (!detailRoot.isLaunching || !detailRoot.detail) return
             var d = detailRoot.detail
             var audioId = d.audioStreams && d.audioStreams[detailRoot.audioIdx]
                 ? d.audioStreams[detailRoot.audioIdx].id : ""
@@ -280,6 +282,9 @@ FocusScope {
     }
     Keys.onPressed: function(event) {
         if (event.key === Qt.Key_Escape || event.key === Qt.Key_Backspace || event.key === Qt.Key_Back) {
+            // A transcode still on its way is dropped as it comes.
+            if (isLaunching)
+                plexBackend.cancel_stream()
             goBack()
             event.accepted = true
         }

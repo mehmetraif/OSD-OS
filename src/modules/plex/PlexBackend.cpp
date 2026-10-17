@@ -15,7 +15,9 @@
 #include <QVariantMap>
 #include <QDebug>
 #include <QDateTime>
+#include <QFutureWatcher>
 #include <QRandomGenerator>
+#include <QtConcurrent/QtConcurrentRun>
 
 #include <openssl/evp.h>
 #include <openssl/pem.h>
@@ -63,6 +65,9 @@ PlexBackend::PlexBackend(const QString &appRoot, const QString &dataRoot, QObjec
 {
     m_pollTimer->setInterval(2000);
     connect(m_pollTimer, &QTimer::timeout, this, &PlexBackend::pollPinTick);
+    // A reply the server stops sending (a sleeping NAS, Wi-Fi gone) fails
+    // after this long without a byte, instead of leaving its view on LOADING.
+    m_nam->setTransferTimeout(30000);
 }
 
 // ---------------------------------------------------------------------------
@@ -786,7 +791,7 @@ QString PlexBackend::msToDisplay(int ms) {
     return QStringLiteral("%1MIN").arg(mins);
 }
 
-QVariantMap PlexBackend::formatItem(const QJsonObject &m) const {
+QVariantMap PlexBackend::formatItem(const QJsonObject &m) {
     return QVariantMap{
         {"ratingKey",              m["ratingKey"].toString()},
         {"guid",                   m["guid"].toString()},
@@ -834,16 +839,12 @@ void PlexBackend::flattenSeasons(const QVariantList &rawItems,
         if (item["type"].toString() == "season") {
             int idx = i;
             QString key = item["ratingKey"].toString();
-            auto *reply = plexGet(
-                QUrl(serverUrl() + "/library/metadata/" + key + "/children"), serverToken());
-            connect(reply, &QNetworkReply::finished, this,
-                    [this, reply, itemSlots, pending, idx, callback]() {
-                reply->deleteLater();
+            queuedGet(QUrl(serverUrl() + "/library/metadata/" + key + "/children"),
+                      [itemSlots, pending, idx, callback](QNetworkReply *reply) {
                 QVariantList eps;
                 if (reply->error() == QNetworkReply::NoError) {
-                    QJsonArray meta = QJsonDocument::fromJson(reply->readAll())
-                                     .object()["MediaContainer"].toObject()["Metadata"].toArray();
-                    for (const auto &mv : meta) eps.append(formatItem(mv.toObject()));
+                    eps = formatItems(QJsonDocument::fromJson(reply->readAll())
+                                      .object()["MediaContainer"].toObject()["Metadata"].toArray());
                 }
                 (*itemSlots)[idx] = eps;
                 if (--(*pending) == 0) {
@@ -858,6 +859,101 @@ void PlexBackend::flattenSeasons(const QVariantList &rawItems,
             (*itemSlots)[i] = {rawItems[i]};
         }
     }
+}
+
+QVariantList PlexBackend::formatItems(const QJsonArray &metadata) {
+    QVariantList items;
+    items.reserve(metadata.size());
+    for (const auto &mv : metadata) items.append(formatItem(mv.toObject()));
+    return items;
+}
+
+void PlexBackend::queuedGet(const QUrl &url, std::function<void(QNetworkReply *)> done) {
+    m_queuedGets.append({ url, std::move(done) });
+    sendQueuedGets();
+}
+
+void PlexBackend::sendQueuedGets() {
+    // Enough to keep the server busy, few enough to leave it (and the Wi-Fi)
+    // room for the view's own requests.
+    constexpr int kAtOnce = 4;
+    while (m_queuedGetsSent < kAtOnce && !m_queuedGets.isEmpty()) {
+        QueuedGet get = m_queuedGets.takeFirst();
+        ++m_queuedGetsSent;
+        auto *reply = plexGet(get.url, serverToken());
+        connect(reply, &QNetworkReply::finished, this, [this, reply, done = std::move(get.done)]() {
+            reply->deleteLater();
+            --m_queuedGetsSent;
+            done(reply);
+            sendQueuedGets();
+        });
+    }
+}
+
+void PlexBackend::loadList(void (PlexBackend::*answer)(const QVariant &), const QString &keep,
+                           const QUrl &url, const QString &failure, std::function<void()> retry,
+                           std::function<QVariantList(const QByteArray &)> read, bool flatten) {
+    // Long enough to go into a film's detail screen and back, or play a
+    // trailer, short enough to show what was added on the server meanwhile.
+    constexpr qint64 kListKeepMs = 10 * 60 * 1000;
+    constexpr int kListsKept = 6;
+    const int request = ++m_listRequest;
+    // Kept per server and user, whose token it is: a list of another's isn't.
+    const QString kept = keep.isEmpty() ? QString() : serverUrl() + QLatin1Char(' ') + serverToken()
+                                                       + QLatin1Char(' ') + keep;
+    const auto found = m_keptLists.constFind(kept);
+    if (!kept.isEmpty() && found != m_keptLists.constEnd()
+        && QDateTime::currentMSecsSinceEpoch() - found->at < kListKeepMs) {
+        // Told as a reply is: once the view that asked has done asking.
+        const QVariantList rows = found->rows;
+        QTimer::singleShot(0, this, [this, request, answer, rows]() {
+            if (request == m_listRequest)
+                emit (this->*answer)(rows);
+        });
+        return;
+    }
+    auto *reply = plexGet(url, serverToken());
+    connect(reply, &QNetworkReply::finished, this,
+            [this, reply, request, answer, kept, failure, retry, read, flatten]() {
+        reply->deleteLater();
+        if (request != m_listRequest)
+            return;
+        if (reply->error() != QNetworkReply::NoError) {
+            if (reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt() == 498) {
+                handle498([this, request, retry] {
+                    if (request == m_listRequest)
+                        retry();
+                });
+                return;
+            }
+            emit errorOccurred(failure + reply->errorString());
+            return;
+        }
+        auto *watcher = new QFutureWatcher<QVariantList>(this);
+        connect(watcher, &QFutureWatcher<QVariantList>::finished, this,
+                [this, watcher, request, answer, kept, flatten]() {
+            watcher->deleteLater();
+            if (request != m_listRequest)
+                return;
+            auto tell = [this, request, answer, kept](const QVariantList &rows) {
+                if (request != m_listRequest)
+                    return;
+                if (!kept.isEmpty()) {
+                    m_keptLists.insert(kept, { rows, QDateTime::currentMSecsSinceEpoch() });
+                    m_keptOrder.removeAll(kept);
+                    m_keptOrder.append(kept);
+                    while (m_keptOrder.size() > kListsKept)
+                        m_keptLists.remove(m_keptOrder.takeFirst());
+                }
+                emit (this->*answer)(rows);
+            };
+            if (flatten)
+                flattenSeasons(watcher->result(), tell);
+            else
+                tell(watcher->result());
+        });
+        watcher->setFuture(QtConcurrent::run(read, reply->readAll()));
+    });
 }
 
 // ---------------------------------------------------------------------------
@@ -928,7 +1024,14 @@ void PlexBackend::build_stream_url(const QString &ratingKey,
                 + "X-Plex-Client-Identifier="   + clientId()
                 + "&X-Plex-Session-Identifier=" + sessionId;
     qDebug() << "[Plex] Playback: DIRECT PLAY";
+    // Answered at once, and a transcode asked for before it is no longer wanted.
+    ++m_streamRequest;
     emit streamUrlReady(url, token);
+}
+
+void PlexBackend::cancel_stream() {
+    ++m_streamRequest;
+    ++m_nextRequest;
 }
 
 // ---------------------------------------------------------------------------
@@ -1462,41 +1565,29 @@ void PlexBackend::load_libraries_impl() {
     });
 }
 
+// A list like any other (loadList()), so a library's reply coming after it
+// was asked for doesn't take its place; never kept, as a playback changes it.
 void PlexBackend::load_continue_watching() {
-    QString uri = serverUrl(), token = serverToken();
-    auto *reply = plexGet(QUrl(uri + "/hubs/continueWatching"), token);
-    connect(reply, &QNetworkReply::finished, this, [this, reply]() {
-        reply->deleteLater();
-        if (reply->error() != QNetworkReply::NoError) {
-            if (reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt() == 498) {
-                handle498([this]{ load_continue_watching(); }); return;
-            }
-            emit errorOccurred("CONTINUE WATCHING FAILED: " + reply->errorString()); return;
-        }
-        QJsonArray hubs = QJsonDocument::fromJson(reply->readAll())
+    loadList(&PlexBackend::continueWatchingLoaded, QString(), QUrl(serverUrl() + "/hubs/continueWatching"),
+             "CONTINUE WATCHING FAILED: ", [this] { load_continue_watching(); },
+             [](const QByteArray &data) {
+        QJsonArray hubs = QJsonDocument::fromJson(data)
                           .object()["MediaContainer"].toObject()["Hub"].toArray();
         QVariantList items;
         for (const auto &hv : hubs)
             for (const auto &mv : hv.toObject()["Metadata"].toArray())
                 items.append(formatItem(mv.toObject()));
-        flattenSeasons(items, [this](const QVariantList &flat) { emit continueWatchingLoaded(flat); });
-    });
+        return items;
+    }, true);
 }
 
 void PlexBackend::load_section_hubs(const QString &sectionId) {
-    QString uri = serverUrl(), token = serverToken();
-    QUrl url(uri + "/hubs/sections/" + sectionId);
+    QUrl url(serverUrl() + "/hubs/sections/" + sectionId);
     QUrlQuery q; q.addQueryItem("count","20"); url.setQuery(q);
-    auto *reply = plexGet(url, token);
-    connect(reply, &QNetworkReply::finished, this, [this, reply, sectionId]() {
-        reply->deleteLater();
-        if (reply->error() != QNetworkReply::NoError) {
-            if (reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt() == 498) {
-                handle498([this, sectionId]{ load_section_hubs(sectionId); }); return;
-            }
-            emit errorOccurred("LOAD HUBS FAILED: " + reply->errorString()); return;
-        }
-        QJsonArray hubs = QJsonDocument::fromJson(reply->readAll())
+    loadList(&PlexBackend::hubsLoaded, QString(), url, "LOAD HUBS FAILED: ",
+             [this, sectionId] { load_section_hubs(sectionId); },
+             [](const QByteArray &data) {
+        QJsonArray hubs = QJsonDocument::fromJson(data)
                           .object()["MediaContainer"].toObject()["Hub"].toArray();
         QVariantList result;
         for (const auto &hv : hubs) {
@@ -1508,64 +1599,39 @@ void PlexBackend::load_section_hubs(const QString &sectionId) {
                 {"hubKey",  h["hubKey"].toString()},
             });
         }
-        emit hubsLoaded(result);
-    });
+        return result;
+    }, false);
 }
 
 void PlexBackend::load_items_for_hub(const QString &hubKey) {
-    QString uri = serverUrl(), token = serverToken();
-    QUrl url = hubKey.startsWith("http") ? QUrl(hubKey) : QUrl(uri + hubKey);
-    auto *reply = plexGet(url, token);
-    connect(reply, &QNetworkReply::finished, this, [this, reply, hubKey]() {
-        reply->deleteLater();
-        if (reply->error() != QNetworkReply::NoError) {
-            if (reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt() == 498) {
-                handle498([this, hubKey]{ load_items_for_hub(hubKey); }); return;
-            }
-            emit errorOccurred("LOAD HUB ITEMS FAILED: " + reply->errorString()); return;
-        }
-        QJsonObject container = QJsonDocument::fromJson(reply->readAll()).object();
+    QUrl url = hubKey.startsWith("http") ? QUrl(hubKey) : QUrl(serverUrl() + hubKey);
+    loadList(&PlexBackend::itemsLoaded, "hub " + hubKey, url, "LOAD HUB ITEMS FAILED: ",
+             [this, hubKey] { load_items_for_hub(hubKey); },
+             [](const QByteArray &data) {
+        QJsonObject container = QJsonDocument::fromJson(data).object();
         QJsonObject mc = container["MediaContainer"].toObject();
-        QJsonArray metadata = mc.isEmpty() ? container["Metadata"].toArray() : mc["Metadata"].toArray();
-        QVariantList items;
-        for (const auto &mv : metadata) items.append(formatItem(mv.toObject()));
-        flattenSeasons(items, [this](const QVariantList &flat) { emit itemsLoaded(flat); });
-    });
+        return formatItems(mc.isEmpty() ? container["Metadata"].toArray() : mc["Metadata"].toArray());
+    }, true);
+}
+
+QVariantList PlexBackend::readMetadata(const QByteArray &data) {
+    return formatItems(QJsonDocument::fromJson(data)
+                       .object()["MediaContainer"].toObject()["Metadata"].toArray());
 }
 
 void PlexBackend::load_library_all(const QString &sectionId) {
-    QString uri = serverUrl(), token = serverToken();
-    QUrl url(uri + "/library/sections/" + sectionId + "/all");
+    QUrl url(serverUrl() + "/library/sections/" + sectionId + "/all");
     QUrlQuery q; q.addQueryItem("sort","titleSort"); url.setQuery(q);
-    auto *reply = plexGet(url, token);
-    connect(reply, &QNetworkReply::finished, this, [this, reply, sectionId]() {
-        reply->deleteLater();
-        if (reply->error() != QNetworkReply::NoError) {
-            if (reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt() == 498) {
-                handle498([this, sectionId]{ load_library_all(sectionId); }); return;
-            }
-            emit errorOccurred("LOAD LIBRARY FAILED: " + reply->errorString()); return;
-        }
-        QJsonArray metadata = QJsonDocument::fromJson(reply->readAll())
-                              .object()["MediaContainer"].toObject()["Metadata"].toArray();
-        QVariantList items;
-        for (const auto &mv : metadata) items.append(formatItem(mv.toObject()));
-        flattenSeasons(items, [this](const QVariantList &flat) { emit itemsLoaded(flat); });
-    });
+    loadList(&PlexBackend::itemsLoaded, "library " + sectionId, url, "LOAD LIBRARY FAILED: ",
+             [this, sectionId] { load_library_all(sectionId); }, readMetadata, true);
 }
 
 void PlexBackend::load_collections(const QString &sectionId) {
-    QString uri = serverUrl(), token = serverToken();
-    auto *reply = plexGet(QUrl(uri + "/library/sections/" + sectionId + "/collections"), token);
-    connect(reply, &QNetworkReply::finished, this, [this, reply, sectionId]() {
-        reply->deleteLater();
-        if (reply->error() != QNetworkReply::NoError) {
-            if (reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt() == 498) {
-                handle498([this, sectionId]{ load_collections(sectionId); }); return;
-            }
-            emit errorOccurred("LOAD COLLECTIONS FAILED: " + reply->errorString()); return;
-        }
-        QJsonArray metadata = QJsonDocument::fromJson(reply->readAll())
+    loadList(&PlexBackend::collectionsLoaded, QString(),
+             QUrl(serverUrl() + "/library/sections/" + sectionId + "/collections"),
+             "LOAD COLLECTIONS FAILED: ", [this, sectionId] { load_collections(sectionId); },
+             [](const QByteArray &data) {
+        QJsonArray metadata = QJsonDocument::fromJson(data)
                               .object()["MediaContainer"].toObject()["Metadata"].toArray();
         QVariantList items;
         for (const auto &mv : metadata) {
@@ -1573,43 +1639,24 @@ void PlexBackend::load_collections(const QString &sectionId) {
             items.append(QVariantMap{{"ratingKey",m["ratingKey"].toString()},
                                      {"title",m["title"].toString().toUpper()},{"type","collection"}});
         }
-        emit collectionsLoaded(items);
-    });
+        return items;
+    }, false);
 }
 
 void PlexBackend::load_collection_items(const QString &ratingKey) {
-    QString uri = serverUrl(), token = serverToken();
-    auto *reply = plexGet(QUrl(uri + "/library/collections/" + ratingKey + "/items"), token);
-    connect(reply, &QNetworkReply::finished, this, [this, reply, ratingKey]() {
-        reply->deleteLater();
-        if (reply->error() != QNetworkReply::NoError) {
-            if (reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt() == 498) {
-                handle498([this, ratingKey]{ load_collection_items(ratingKey); }); return;
-            }
-            emit errorOccurred("LOAD COLLECTION ITEMS FAILED: " + reply->errorString()); return;
-        }
-        QJsonArray metadata = QJsonDocument::fromJson(reply->readAll())
-                              .object()["MediaContainer"].toObject()["Metadata"].toArray();
-        QVariantList items;
-        for (const auto &mv : metadata) items.append(formatItem(mv.toObject()));
-        flattenSeasons(items, [this](const QVariantList &flat) { emit itemsLoaded(flat); });
-    });
+    loadList(&PlexBackend::itemsLoaded, "collection " + ratingKey,
+             QUrl(serverUrl() + "/library/collections/" + ratingKey + "/items"),
+             "LOAD COLLECTION ITEMS FAILED: ", [this, ratingKey] { load_collection_items(ratingKey); },
+             readMetadata, true);
 }
 
 void PlexBackend::load_playlists(const QString &sectionId) {
-    QString uri = serverUrl(), token = serverToken();
-    QUrl url(uri + "/playlists");
+    QUrl url(serverUrl() + "/playlists");
     QUrlQuery q; q.addQueryItem("sectionID",sectionId); q.addQueryItem("playlistType","video"); url.setQuery(q);
-    auto *reply = plexGet(url, token);
-    connect(reply, &QNetworkReply::finished, this, [this, reply, sectionId]() {
-        reply->deleteLater();
-        if (reply->error() != QNetworkReply::NoError) {
-            if (reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt() == 498) {
-                handle498([this, sectionId]{ load_playlists(sectionId); }); return;
-            }
-            emit errorOccurred("LOAD PLAYLISTS FAILED: " + reply->errorString()); return;
-        }
-        QJsonArray metadata = QJsonDocument::fromJson(reply->readAll())
+    loadList(&PlexBackend::playlistsLoaded, QString(), url, "LOAD PLAYLISTS FAILED: ",
+             [this, sectionId] { load_playlists(sectionId); },
+             [](const QByteArray &data) {
+        QJsonArray metadata = QJsonDocument::fromJson(data)
                               .object()["MediaContainer"].toObject()["Metadata"].toArray();
         QVariantList items;
         for (const auto &mv : metadata) {
@@ -1617,41 +1664,23 @@ void PlexBackend::load_playlists(const QString &sectionId) {
             items.append(QVariantMap{{"ratingKey",m["ratingKey"].toString()},
                                      {"title",m["title"].toString().toUpper()},{"type","playlist"}});
         }
-        emit playlistsLoaded(items);
-    });
+        return items;
+    }, false);
 }
 
 void PlexBackend::load_playlist_items(const QString &ratingKey) {
-    QString uri = serverUrl(), token = serverToken();
-    auto *reply = plexGet(QUrl(uri + "/playlists/" + ratingKey + "/items"), token);
-    connect(reply, &QNetworkReply::finished, this, [this, reply, ratingKey]() {
-        reply->deleteLater();
-        if (reply->error() != QNetworkReply::NoError) {
-            if (reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt() == 498) {
-                handle498([this, ratingKey]{ load_playlist_items(ratingKey); }); return;
-            }
-            emit errorOccurred("LOAD PLAYLIST ITEMS FAILED: " + reply->errorString()); return;
-        }
-        QJsonArray metadata = QJsonDocument::fromJson(reply->readAll())
-                              .object()["MediaContainer"].toObject()["Metadata"].toArray();
-        QVariantList items;
-        for (const auto &mv : metadata) items.append(formatItem(mv.toObject()));
-        flattenSeasons(items, [this](const QVariantList &flat) { emit itemsLoaded(flat); });
-    });
+    loadList(&PlexBackend::itemsLoaded, "playlist " + ratingKey,
+             QUrl(serverUrl() + "/playlists/" + ratingKey + "/items"),
+             "LOAD PLAYLIST ITEMS FAILED: ", [this, ratingKey] { load_playlist_items(ratingKey); },
+             readMetadata, true);
 }
 
 void PlexBackend::load_categories(const QString &sectionId) {
-    QString uri = serverUrl(), token = serverToken();
-    auto *reply = plexGet(QUrl(uri + "/library/sections/" + sectionId + "/filters"), token);
-    connect(reply, &QNetworkReply::finished, this, [this, reply, sectionId]() {
-        reply->deleteLater();
-        if (reply->error() != QNetworkReply::NoError) {
-            if (reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt() == 498) {
-                handle498([this, sectionId]{ load_categories(sectionId); }); return;
-            }
-            emit errorOccurred("LOAD CATEGORIES FAILED: " + reply->errorString()); return;
-        }
-        QJsonArray dirs = QJsonDocument::fromJson(reply->readAll())
+    loadList(&PlexBackend::categoriesLoaded, QString(),
+             QUrl(serverUrl() + "/library/sections/" + sectionId + "/filters"),
+             "LOAD CATEGORIES FAILED: ", [this, sectionId] { load_categories(sectionId); },
+             [sectionId](const QByteArray &data) {
+        QJsonArray dirs = QJsonDocument::fromJson(data)
                           .object()["MediaContainer"].toObject()["Directory"].toArray();
         QVariantList items;
         for (const auto &fv : dirs) {
@@ -1663,44 +1692,27 @@ void PlexBackend::load_categories(const QString &sectionId) {
                 {"filterType", f["filterType"].toString("string")},
             });
         }
-        emit categoriesLoaded(items);
-    });
+        return items;
+    }, false);
 }
 
 void PlexBackend::load_category_items(const QString &sectionId, const QString &filterKey) {
-    QString uri = serverUrl(), token = serverToken();
+    QString uri = serverUrl();
+    auto retry = [this, sectionId, filterKey] { load_category_items(sectionId, filterKey); };
     if (filterKey.contains('=')) {
         // Filtered items: /library/sections/{id}/all?genre=50553
         QStringList parts = filterKey.split('=', Qt::KeepEmptyParts);
         QUrl url(uri + "/library/sections/" + sectionId + "/all");
         QUrlQuery q; q.addQueryItem(parts[0], parts[1]); q.addQueryItem("sort","titleSort"); url.setQuery(q);
-        auto *reply = plexGet(url, token);
-        connect(reply, &QNetworkReply::finished, this, [this, reply, sectionId, filterKey]() {
-            reply->deleteLater();
-            if (reply->error() != QNetworkReply::NoError) {
-                if (reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt() == 498) {
-                    handle498([this, sectionId, filterKey]{ load_category_items(sectionId, filterKey); }); return;
-                }
-                emit errorOccurred("LOAD CATEGORY ITEMS FAILED: " + reply->errorString()); return;
-            }
-            QJsonArray metadata = QJsonDocument::fromJson(reply->readAll())
-                                  .object()["MediaContainer"].toObject()["Metadata"].toArray();
-            QVariantList items;
-            for (const auto &mv : metadata) items.append(formatItem(mv.toObject()));
-            flattenSeasons(items, [this](const QVariantList &flat) { emit itemsLoaded(flat); });
-        });
+        loadList(&PlexBackend::itemsLoaded, "category " + sectionId + ' ' + filterKey, url,
+                 "LOAD CATEGORY ITEMS FAILED: ", retry, readMetadata, true);
     } else {
         // Filter values: /library/sections/{id}/genre
-        auto *reply = plexGet(QUrl(uri + "/library/sections/" + sectionId + "/" + filterKey), token);
-        connect(reply, &QNetworkReply::finished, this, [this, reply, filterKey, sectionId]() {
-            reply->deleteLater();
-            if (reply->error() != QNetworkReply::NoError) {
-                if (reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt() == 498) {
-                    handle498([this, sectionId, filterKey]{ load_category_items(sectionId, filterKey); }); return;
-                }
-                emit errorOccurred("LOAD CATEGORY ITEMS FAILED: " + reply->errorString()); return;
-            }
-            QJsonArray dirs = QJsonDocument::fromJson(reply->readAll())
+        loadList(&PlexBackend::itemsLoaded, QString(),
+                 QUrl(uri + "/library/sections/" + sectionId + "/" + filterKey),
+                 "LOAD CATEGORY ITEMS FAILED: ", retry,
+                 [sectionId, filterKey](const QByteArray &data) {
+            QJsonArray dirs = QJsonDocument::fromJson(data)
                               .object()["MediaContainer"].toObject()["Directory"].toArray();
             QVariantList items;
             for (const auto &dv : dirs) {
@@ -1717,8 +1729,8 @@ void PlexBackend::load_category_items(const QString &sectionId, const QString &f
                     {"_sectionId",sectionId},
                 });
             }
-            emit itemsLoaded(items);
-        });
+            return items;
+        }, false);
     }
 }
 
@@ -1733,20 +1745,12 @@ void PlexBackend::load_category_items(const QString &sectionId, const QString &f
 // arrives under Metadata. Both arrays are read, and a Metadata entry only counts
 // as media when it carries a ratingKey.
 void PlexBackend::load_folder(const QString &sectionId, const QString &folderKey) {
-    QString uri = serverUrl(), token = serverToken();
-    QUrl url(uri + (folderKey.isEmpty() ? "/library/sections/" + sectionId + "/folder"
-                                        : folderKey));
-    auto *reply = plexGet(url, token);
-    connect(reply, &QNetworkReply::finished, this, [this, reply, sectionId, folderKey]() {
-        reply->deleteLater();
-        if (reply->error() != QNetworkReply::NoError) {
-            if (reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt() == 498) {
-                handle498([this, sectionId, folderKey]{ load_folder(sectionId, folderKey); }); return;
-            }
-            emit errorOccurred("LOAD FOLDERS FAILED: " + reply->errorString()); return;
-        }
-        QJsonObject mc = QJsonDocument::fromJson(reply->readAll())
-                         .object()["MediaContainer"].toObject();
+    QUrl url(serverUrl() + (folderKey.isEmpty() ? "/library/sections/" + sectionId + "/folder"
+                                                : folderKey));
+    loadList(&PlexBackend::folderLoaded, "folder " + sectionId + ' ' + folderKey, url,
+             "LOAD FOLDERS FAILED: ", [this, sectionId, folderKey] { load_folder(sectionId, folderKey); },
+             [sectionId](const QByteArray &data) {
+        QJsonObject mc = QJsonDocument::fromJson(data).object()["MediaContainer"].toObject();
         QVariantList items;
         // A folder row with no key is not openable, so it is dropped rather than
         // listed as a dead end.
@@ -1768,8 +1772,8 @@ void PlexBackend::load_folder(const QString &sectionId, const QString &folderKey
             else
                 items.append(formatItem(m));
         }
-        emit folderLoaded(items);
-    });
+        return items;
+    }, false);
 }
 
 void PlexBackend::check_section_capabilities(const QString &sectionId) {
@@ -2068,21 +2072,27 @@ void PlexBackend::load_on_deck_for(const QString &ratingKey) {
 }
 
 void PlexBackend::load_next_episode(const QString &currentRatingKey) {
+    const int request = ++m_nextRequest;
     QString uri = serverUrl(), token = serverToken();
     // Step 1: fetch the current episode's metadata to learn its season
     // (parentRatingKey) and episode number (index).
     auto *reply = plexGet(QUrl(uri + "/library/metadata/" + currentRatingKey), token);
-    connect(reply, &QNetworkReply::finished, this, [this, reply, currentRatingKey, uri, token]() {
+    connect(reply, &QNetworkReply::finished, this, [this, reply, request, currentRatingKey, uri, token]() {
         reply->deleteLater();
         if (reply->error() != QNetworkReply::NoError) {
             if (reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt() == 498) {
-                handle498([this, currentRatingKey]{ load_next_episode(currentRatingKey); }); return;
+                // A lookup given up meanwhile isn't tried again.
+                handle498([this, request, currentRatingKey] {
+                    if (request == m_nextRequest)
+                        load_next_episode(currentRatingKey);
+                });
+                return;
             }
-            emit nextEpisodeReady(QVariantMap{}); return;
+            answerNext(request, {}); return;
         }
         QJsonArray metaArr = QJsonDocument::fromJson(reply->readAll())
                              .object()["MediaContainer"].toObject()["Metadata"].toArray();
-        if (metaArr.isEmpty()) { emit nextEpisodeReady(QVariantMap{}); return; }
+        if (metaArr.isEmpty()) { answerNext(request, {}); return; }
         QJsonObject meta = metaArr[0].toObject();
 
         const QString seasonKey   = meta["parentRatingKey"].toString();
@@ -2093,7 +2103,7 @@ void PlexBackend::load_next_episode(const QString &currentRatingKey) {
         // skip every sibling sharing this path and land on the next distinct file.
         const QString currentFile = mediaFilePath(meta);
         if (meta["type"].toString() != "episode" || seasonKey.isEmpty()) {
-            emit nextEpisodeReady(QVariantMap{}); return;
+            answerNext(request, {}); return;
         }
 
         // Step 2: fetch the season's episodes and pick the one whose index is the
@@ -2101,13 +2111,18 @@ void PlexBackend::load_next_episode(const QString &currentRatingKey) {
         // and arbitrary ordering), skipping siblings backed by the same file.
         auto *childReply = plexGet(QUrl(uri + "/library/metadata/" + seasonKey + "/children"), token);
         connect(childReply, &QNetworkReply::finished, this,
-                [this, childReply, currentRatingKey, currentIndex, currentFile, uri, token]() {
+                [this, childReply, request, currentRatingKey, currentIndex, currentFile, uri, token]() {
             childReply->deleteLater();
             if (childReply->error() != QNetworkReply::NoError) {
                 if (childReply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt() == 498) {
-                    handle498([this, currentRatingKey]{ load_next_episode(currentRatingKey); }); return;
+                    // A lookup given up meanwhile isn't tried again.
+                    handle498([this, request, currentRatingKey] {
+                        if (request == m_nextRequest)
+                            load_next_episode(currentRatingKey);
+                    });
+                    return;
                 }
-                emit nextEpisodeReady(QVariantMap{}); return;
+                answerNext(request, {}); return;
             }
             QJsonArray eps = QJsonDocument::fromJson(childReply->readAll())
                              .object()["MediaContainer"].toObject()["Metadata"].toArray();
@@ -2124,23 +2139,28 @@ void PlexBackend::load_next_episode(const QString &currentRatingKey) {
                     nextKey   = e["ratingKey"].toString();
                 }
             }
-            if (nextKey.isEmpty()) { emit nextEpisodeReady(QVariantMap{}); return; }
+            if (nextKey.isEmpty()) { answerNext(request, {}); return; }
 
             // Step 3: fetch the next episode's full metadata and build playable detail.
             auto *detailReply = plexGet(QUrl(uri + "/library/metadata/" + nextKey), token);
             connect(detailReply, &QNetworkReply::finished, this,
-                    [this, detailReply, currentRatingKey]() {
+                    [this, detailReply, request, currentRatingKey]() {
                 detailReply->deleteLater();
                 if (detailReply->error() != QNetworkReply::NoError) {
                     if (detailReply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt() == 498) {
-                        handle498([this, currentRatingKey]{ load_next_episode(currentRatingKey); }); return;
+                        // A lookup given up meanwhile isn't tried again.
+                        handle498([this, request, currentRatingKey] {
+                            if (request == m_nextRequest)
+                                load_next_episode(currentRatingKey);
+                        });
+                        return;
                     }
-                    emit nextEpisodeReady(QVariantMap{}); return;
+                    answerNext(request, {}); return;
                 }
                 QJsonArray arr = QJsonDocument::fromJson(detailReply->readAll())
                                  .object()["MediaContainer"].toObject()["Metadata"].toArray();
-                if (arr.isEmpty()) { emit nextEpisodeReady(QVariantMap{}); return; }
-                emit nextEpisodeReady(buildItemDetail(arr[0].toObject()));
+                if (arr.isEmpty()) { answerNext(request, {}); return; }
+                answerNext(request, buildItemDetail(arr[0].toObject()));
             });
         });
     });
@@ -2172,17 +2192,10 @@ void PlexBackend::load_next_episode(const QString &currentRatingKey) {
 // every caller here treats "no children" and "couldn't fetch children" the same.
 void PlexBackend::fetchChildren(const QString &ratingKey,
                                 std::function<void(const QVariantList &)> callback) {
-    auto *reply = plexGet(QUrl(serverUrl() + "/library/metadata/" + ratingKey + "/children"),
-                          serverToken());
-    connect(reply, &QNetworkReply::finished, this, [this, reply, callback]() {
-        reply->deleteLater();
-        QVariantList out;
-        if (reply->error() == QNetworkReply::NoError) {
-            QJsonArray meta = QJsonDocument::fromJson(reply->readAll())
-                              .object()["MediaContainer"].toObject()["Metadata"].toArray();
-            for (const auto &mv : meta) out.append(formatItem(mv.toObject()));
-        }
-        callback(out);
+    queuedGet(QUrl(serverUrl() + "/library/metadata/" + ratingKey + "/children"),
+              [callback](QNetworkReply *reply) {
+        callback(reply->error() == QNetworkReply::NoError ? readMetadata(reply->readAll())
+                                                          : QVariantList());
     });
 }
 
@@ -2278,25 +2291,33 @@ void PlexBackend::emitCardDetail(const QString &ratingKey, bool trackProgress,
 
 // Same fetch, reported through the signal the Player's autoplay already handles.
 // An empty map means "nothing to advance to", which the Player treats as the end.
-void PlexBackend::emitNextEpisode(const QString &ratingKey) {
-    if (ratingKey.isEmpty()) { emit nextEpisodeReady(QVariantMap{}); return; }
+void PlexBackend::emitNextEpisode(int request, const QString &ratingKey) {
+    if (ratingKey.isEmpty()) { answerNext(request, {}); return; }
     auto *reply = plexGet(QUrl(serverUrl() + "/library/metadata/" + ratingKey), serverToken());
-    connect(reply, &QNetworkReply::finished, this, [this, reply]() {
+    connect(reply, &QNetworkReply::finished, this, [this, reply, request]() {
         reply->deleteLater();
         if (reply->error() != QNetworkReply::NoError) {
-            emit nextEpisodeReady(QVariantMap{}); return;
+            answerNext(request, {}); return;
         }
         QJsonArray arr = QJsonDocument::fromJson(reply->readAll())
                          .object()["MediaContainer"].toObject()["Metadata"].toArray();
-        if (arr.isEmpty()) { emit nextEpisodeReady(QVariantMap{}); return; }
-        emit nextEpisodeReady(buildItemDetail(arr[0].toObject()));
+        if (arr.isEmpty()) { answerNext(request, {}); return; }
+        answerNext(request, buildItemDetail(arr[0].toObject()));
     });
 }
 
+void PlexBackend::answerNext(int request, const QVariantMap &detail) {
+    if (request == m_nextRequest)
+        emit nextEpisodeReady(detail);
+}
+
 void PlexBackend::load_random_episode(const QString &scopeRatingKey) {
-    if (scopeRatingKey.isEmpty()) { emit nextEpisodeReady(QVariantMap{}); return; }
-    fetchEpisodePool(scopeRatingKey, [this, scopeRatingKey](const QVariantList &pool) {
-        emitNextEpisode(takeFromShuffleBag(scopeRatingKey, pool));
+    const int request = ++m_nextRequest;
+    if (scopeRatingKey.isEmpty()) { answerNext(request, {}); return; }
+    fetchEpisodePool(scopeRatingKey, [this, request, scopeRatingKey](const QVariantList &pool) {
+        // Nothing drawn from the bag for a draw no longer waited for.
+        if (request == m_nextRequest)
+            emitNextEpisode(request, takeFromShuffleBag(scopeRatingKey, pool));
     });
 }
 
@@ -2372,7 +2393,7 @@ void PlexBackend::expand_queue(const QVariantList &items) {
 // the signal the Player's advance path consumes. An empty key (queue exhausted)
 // reports an empty map, which the Player treats as the end.
 void PlexBackend::load_queue_item(const QString &ratingKey) {
-    emitNextEpisode(ratingKey);
+    emitNextEpisode(++m_nextRequest, ratingKey);
 }
 
 void PlexBackend::resolve_card(const QString &guid, const QString &mode) {
@@ -2550,15 +2571,20 @@ void PlexBackend::request_transcode(const QString &ratingKey, const QString &par
     // matches the query param. Plex uses the Chrome profile for transcoding.
     QNetworkRequest req = plexRequest(url, token);
     req.setRawHeader("X-Plex-Platform", "Chrome");
+    const int request = ++m_streamRequest;
     auto *reply = m_nam->get(req);
     ignoreSslErrors(reply);
     connect(reply, &QNetworkReply::finished, this,
-            [this, reply, token, ratingKey, partKey, sessionId, audioId, subtitleId, offsetMs]() {
+            [this, reply, request, token, ratingKey, partKey, sessionId, audioId, subtitleId, offsetMs]() {
         reply->deleteLater();
+        // Not wanted any more: another stream asked for since, or given up.
+        if (request != m_streamRequest)
+            return;
         if (reply->error() != QNetworkReply::NoError) {
             if (reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt() == 498) {
-                handle498([this, ratingKey, partKey, sessionId, audioId, subtitleId, offsetMs]{
-                    request_transcode(ratingKey, partKey, sessionId, audioId, subtitleId, offsetMs);
+                handle498([this, request, ratingKey, partKey, sessionId, audioId, subtitleId, offsetMs]{
+                    if (request == m_streamRequest)
+                        request_transcode(ratingKey, partKey, sessionId, audioId, subtitleId, offsetMs);
                 }); return;
             }
             emit errorOccurred("TRANSCODE FAILED: " + reply->errorString()); return;
@@ -2601,6 +2627,12 @@ void PlexBackend::update_timeline(const QString &ratingKey, const QString &partK
     // Fire-and-forget
     auto *reply = plexGet(url, token);
     connect(reply, &QNetworkReply::finished, reply, &QNetworkReply::deleteLater);
+    // What was played is watched, or partly, now: the lists kept show it as
+    // it was.
+    if (state == QLatin1String("stopped")) {
+        m_keptLists.clear();
+        m_keptOrder.clear();
+    }
 }
 
 void PlexBackend::set_audio_stream(const QString &streamId, const QString &partId) {

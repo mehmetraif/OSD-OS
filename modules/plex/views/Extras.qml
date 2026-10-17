@@ -138,6 +138,10 @@ FocusScope {
     }
     Keys.onPressed: function(event) {
         if (event.key === Qt.Key_Escape || event.key === Qt.Key_Backspace || event.key === Qt.Key_Back) {
+            // A transcode still on its way is dropped as it comes, not played
+            // in the detail screen back is going to.
+            if (launchingExtra)
+                plexBackend.cancel_stream()
             goBack()
             event.accepted = true
         }

@@ -1,7 +1,9 @@
 #pragma once
 #include <QObject>
+#include <QHash>
 #include <QVariant>
 #include <QString>
+#include <QStringList>
 #include <QNetworkAccessManager>
 #include <QNetworkRequest>
 #include <QNetworkReply>
@@ -46,6 +48,11 @@ public:
     Q_INVOKABLE void get_playback_url(const QString &itemId, const QString &mediaSourceId,
                                        int audioStreamIndex, int subtitleStreamIndex,
                                        bool forceTranscode = false);
+    // Forgets the stream a view asked for and no longer waits for (its launch
+    // given up with back): get_playback_url answers only the last one asked
+    // for, so a reply that comes late neither starts in a view that didn't ask
+    // nor reports a playback the server would show as playing.
+    Q_INVOKABLE void cancel_playback_url();
     Q_INVOKABLE void load_next_episode(const QString &currentItemId);
     Q_INVOKABLE void update_playback_progress(const QString &itemId, const QString &mediaSourceId, qint64 positionTicks, bool isPaused);
     Q_INVOKABLE void report_playback_stopped(const QString &itemId, const QString &mediaSourceId, qint64 positionTicks, bool failed = false);
@@ -115,6 +122,7 @@ public slots:
     void onSettingChanged(const QString &moduleId, const QString &key, const QVariant &value);
 
 private:
+    friend class MediaServersTest;
     QString m_appRoot;
     QString m_dataRoot;
     QNetworkAccessManager *m_nam;
@@ -135,6 +143,30 @@ private:
     int m_lastSubLangIdx = -1;
     bool m_capabilitiesProbed = false;
     bool m_hasCapability = false;
+    // Last auth state broadcast to QML, so notifyAuthState() can suppress
+    // re-announcing an unchanged one.
+    QString m_lastAuthState;
+    // The stream asked for last (get_playback_url): a reply to one asked for
+    // before it, or given up with cancel_playback_url, is dropped.
+    int m_playbackRequest = 0;
+
+    // A list the list view asked for (Items.qml), told by answer: a library's
+    // items, a folder's or a box set's. Each one asked for supersedes the
+    // last, the user having moved on: a reply to an older one is dropped, not
+    // shown in the view after it. read makes the rows of the reply, away from
+    // the screen's thread (a whole library is megabytes of JSON). A list given
+    // a keep key is kept a while (kListKeepMs), so going back to it (from a
+    // film's detail screen) shows it without asking the server again; a
+    // playback ending forgets them all, its played state having changed.
+    void loadList(void (JellyfinBackend::*answer)(const QVariant &), const QString &keep,
+                  const QUrl &url, const QString &failure,
+                  std::function<QVariantList(const QByteArray &)> read);
+    struct KeptList { QVariantList rows; qint64 at = 0; };
+    QHash<QString, KeptList> m_keptLists;
+    QStringList m_keptOrder;    // oldest first
+    int m_listRequest = 0;
+
+    void notifyAuthState();
 
     static QString normalizeServerUrl(const QString &url);
 
@@ -145,7 +177,10 @@ private:
     // Lightweight "does this list have any items?" probe (GET with limit=1).
     void probeHasItems(const QUrl &url, std::function<void(bool)> cb);
 
-    QVariantMap formatItem(const QJsonObject &item) const;
+    // An item's row, its subtitles' URLs on serverUrl: of the item alone, so a
+    // list can be read away from the screen's thread (loadList).
+    static QVariantMap formatItem(const QJsonObject &item, const QString &serverUrl);
+    QVariantMap formatItem(const QJsonObject &item) const { return formatItem(item, m_serverUrl); }
 
     void ignoreSslErrors(QNetworkReply *reply) const;
 
