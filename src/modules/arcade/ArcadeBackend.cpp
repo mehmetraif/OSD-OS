@@ -1905,7 +1905,6 @@ void ArcadeBackend::takeAchievements(const libretro::Run &run) {
         // RetroArch saved its config on exit, the token in it if it signed
         // in; the password goes whatever became of it.
         const QString token = libretro::savedToken(config);
-        QFile::remove(config);
         m_raPassword.clear();
         if (!token.isEmpty()) {
             m_raToken = token;
@@ -1916,13 +1915,20 @@ void ArcadeBackend::takeAchievements(const libretro::Run &run) {
         }
         saveAchievements();
         changed = true;
-    } else if (!m_raToken.isEmpty() && !run.loginFailure.isEmpty()) {
-        // The token no longer taken (the password changed since): signed out.
+    } else if (!m_raToken.isEmpty() && libretro::loginRefused(run.loginFailure)) {
+        // The token no longer taken (the password changed since, or it
+        // expired): signed out.
         m_raToken.clear();
         m_raFailure = run.loginFailure;
         saveAchievements();
         changed = true;
+    } else if (!run.loginFailure.isEmpty()) {
+        // RetroAchievements not reached this time: still signed in.
+        qWarning("[Arcade] RetroArch did not sign in to RetroAchievements: %s", qPrintable(run.loginFailure));
     }
+    // A game's config is written anew for each game; the one it ended with
+    // holds the token, or the password RetroArch was given: not left behind.
+    QFile::remove(config);
     if (changed)
         emit achievementsChanged();
 }

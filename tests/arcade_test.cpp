@@ -756,6 +756,15 @@ private slots:
         QVERIFY(!games.contains(QStringLiteral("neogeo")));
         QVERIFY(libretro::readDat(dir.path() + QStringLiteral("/none.dat")).isEmpty());
 
+        // A sign-in RetroAchievements turned down, and one that didn't reach it.
+        for (const char *refused : { "Invalid user/token combination.", "Invalid token",
+                                     "Invalid User/Password combination. Please try again",
+                                     "The access token has expired. Please log in again." })
+            QVERIFY2(libretro::loginRefused(QLatin1String(refused)), refused);
+        for (const char *unreached : { "No response from server", "Unexpected API failure with no error message",
+                                       "502 Bad Gateway", "" })
+            QVERIFY2(!libretro::loginRefused(QLatin1String(unreached)), unreached);
+
         // A USB pad's vendor and product (SDL's GUID, little-endian), as
         // RetroArch's menu writes them; a device without them by its name.
         QCOMPARE(libretro::reservedDevice(QStringLiteral("030000005e0400008e02000014010000"),
@@ -1012,6 +1021,19 @@ private slots:
         QVERIFY(config.contains(QStringLiteral("cheevos_password = \"\"")));
         QVERIFY(config.contains(QStringLiteral("config_save_on_exit = \"false\"")));
         QCOMPARE(arcade.achievementsState(), QStringLiteral("signedIn"));
+        // The config, the token in it, goes with the game.
+        QVERIFY(!QFile::exists(home + QStringLiteral("/retroarch.cfg")));
+        // RetroAchievements not reached: still signed in, the token kept.
+        writeFile(kept, "{\"user\": \"player\", \"token\": \"offline\"}");
+        {
+            ArcadeBackend offline(data.path(), data.path(), nullptr, nullptr);
+            refreshed(offline);
+            offline.onSettingChanged(module, QStringLiteral("online_high_scores"), QStringLiteral("RetroAchievements"));
+            played(offline, QStringLiteral("sf2"));
+            QCOMPARE(offline.achievementsState(), QStringLiteral("signedIn"));
+            QCOMPARE(QJsonDocument::fromJson(contents(kept)).object().value(QStringLiteral("token")).toString(),
+                     QStringLiteral("offline"));
+        }
         writeFile(kept, "{\"user\": \"player\", \"token\": \"expired\"}");
         // A config left by a game the app didn't see end goes as it starts.
         writeFile(home + QStringLiteral("/retroarch.cfg"), "cheevos_password = \"secret\"\n");
@@ -1253,15 +1275,39 @@ private slots:
         QCOMPARE(refused.size(), 1);
         QCOMPARE(state(again.board(QStringLiteral("sf2.zip"))), QStringLiteral("failed"));
 
-        // No server, and no list kept: the board can't be read.
+        // A key refused before any list was read, then the right one: the
+        // list read at once, not a minute later.
+        QTemporaryDir fresh;
+        RetroAchievements corrected(fresh.path(), api);
+        QSignalSpy readyCorrected(&corrected, &RetroAchievements::boardReady);
+        corrected.setKey(QStringLiteral("bad"));
+        corrected.board(QStringLiteral("sf2.zip"));
+        QVERIFY(readyCorrected.wait(5000));
+        QCOMPARE(state(corrected.board(QStringLiteral("sf2.zip"))), QStringLiteral("failed"));
+        corrected.setKey(QStringLiteral("key1"));
+        QCOMPARE(state(corrected.board(QStringLiteral("sf2.zip"))), QStringLiteral("loading"));
+        QVERIFY(readyCorrected.wait(5000));
+        QCOMPARE(state(corrected.board(QStringLiteral("sf2.zip"))), QStringLiteral("ready"));
+
+        // No server, and no list kept: the board can't be read. What is
+        // logged names what wasn't read, never the key.
         server.close();
         QTemporaryDir empty;
         RetroAchievements gone(empty.path(), api);
         QSignalSpy readyGone(&gone, &RetroAchievements::boardReady);
+        static QStringList logged;
+        logged.clear();
+        const QtMessageHandler previous = qInstallMessageHandler(
+            [](QtMsgType, const QMessageLogContext &, const QString &message) { logged << message; });
         gone.setKey(QStringLiteral("key1"));
         gone.board(QStringLiteral("sf2.zip"));
-        QVERIFY(readyGone.wait(5000));
+        const bool readyInTime = readyGone.wait(5000);
+        qInstallMessageHandler(previous);
+        QVERIFY(readyInTime);
         QCOMPARE(state(gone.board(QStringLiteral("sf2.zip"))), QStringLiteral("failed"));
+        QVERIFY(logged.join(QLatin1Char('\n')).contains(QStringLiteral("API_GetGameList.php could not be read")));
+        for (const QString &message : std::as_const(logged))
+            QVERIFY2(!message.contains(QStringLiteral("key1")), qPrintable(message));
     }
 
     // Online Play against a stand-in for RetroArch's lobby: the rooms of the

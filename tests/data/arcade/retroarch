@@ -4,9 +4,9 @@
 # given in $MAME_LOG, copies the config it was started with to $RA_CONFIG_COPY,
 # and logs (--log-file) what RetroArch with FinalBurn Neo would: the game
 # started, but files missing for mslug and a set it doesn't know for galaga,
-# and a sign-in refused for the password "wrong" or the token "expired". It
-# swaps the password "secret" for a token in the config, as RetroArch saves it
-# on exit.
+# a sign-in refused for the password "wrong" or the token "expired", and
+# RetroAchievements not reached for the token "offline". It swaps the password
+# "secret" for a token in the config, as RetroArch saves it on exit.
 log=""; config=""; content=""; prev=""
 for a in "$@"; do
 	case "$a" in --log-file=*) log="${a#--log-file=}" ;; esac
@@ -35,6 +35,8 @@ game=$(basename "$content"); game="${game%.*}"
 		&& echo "[INFO] [RCHEEVOS]: RetroAchievements login failed: Invalid User/Password combination. Please try again"
 	grep -q 'cheevos_token = "expired"' "$config" \
 		&& echo "[INFO] [RCHEEVOS]: RetroAchievements login failed: Invalid token"
+	grep -q 'cheevos_token = "offline"' "$config" \
+		&& echo "[INFO] [RCHEEVOS]: RetroAchievements login failed: No response from server"
 } > "$log"
 if grep -q 'cheevos_password = "secret"' "$config"; then
 	sed -i 's/^cheevos_token = .*/cheevos_token = "tok123"/; s/^cheevos_password = .*/cheevos_password = ""/' "$config"

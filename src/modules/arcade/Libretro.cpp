@@ -275,6 +275,16 @@ Run readLog(const QString &path) {
     return run;
 }
 
+bool loginRefused(const QString &failure) {
+    // RetroAchievements' own words for its invalid_credentials and
+    // expired_token answers ("Invalid user/token combination.", "Invalid
+    // User/Password combination. Please try again", "The access token has
+    // expired"), which rcheevos passes on as they are.
+    static const QRegularExpression refused(QStringLiteral("invalid|expired|password|token|credential"),
+                                            QRegularExpression::CaseInsensitiveOption);
+    return refused.match(failure).hasMatch();
+}
+
 QString savedToken(const QString &configPath) {
     QFile file(configPath);
     if (!file.open(QIODevice::ReadOnly | QIODevice::Text))

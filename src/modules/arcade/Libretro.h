@@ -82,6 +82,10 @@ struct Run {
     QString error;                // RetroArch's last error line
 };
 Run readLog(const QString &path);
+// Whether a sign-in failure (Run::loginFailure) is RetroAchievements turning
+// the account down, a password or a token it doesn't take, rather than not
+// being reached ("No response from server"), which leaves a token as it is.
+bool loginRefused(const QString &failure);
 // The token RetroArch saved in a config it wrote back on exit; "" for none.
 QString savedToken(const QString &configPath);
 

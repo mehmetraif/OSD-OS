@@ -417,7 +417,8 @@ private:
     // RetroArch's folder in <data>/arcade, and its config and log there.
     QString retroarchHome() const { return m_home + QStringLiteral("/retroarch"); }
     // What a FinalBurn Neo game's run left: the token RetroArch swapped the
-    // password for, or why it couldn't; the config with the password goes.
+    // password for, or why it couldn't; the config, with the password or the
+    // token in it, goes.
     void takeAchievements(const libretro::Run &run);
     void saveAchievements() const;
 
