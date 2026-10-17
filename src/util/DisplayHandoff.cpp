@@ -56,7 +56,7 @@ bool DisplayHandoff::isHeadless() {
 }
 
 bool DisplayHandoff::isHeldBy(const QString &owner) const {
-    return !m_owner.isEmpty() && m_owner == owner && m_previousVt > 0;
+    return !m_owner.isEmpty() && m_owner == owner;
 }
 
 bool DisplayHandoff::savedStateValid() const {
@@ -101,8 +101,15 @@ int DisplayHandoff::acquire(const QString &owner) {
     // hand-off, with the display recovering correctly. A continuous stream of them
     // instead means the VT switch silently failed — see the warning below.
     const int freeVt = findFreeVt(m_previousVt);
-    m_switchedVt = switchToVt(freeVt);
-    if (!m_switchedVt) {
+    m_switchedVt = m_previousVt > 0 && switchToVt(freeVt);
+    if (m_previousVt <= 0) {
+        // A switch with no VT to come back to would leave the app on the free
+        // one, and each hand-off after it a VT further on: the lesser harm is
+        // the renderer drawing on, as below, until the child is done.
+        qWarning("[DisplayHandoff] The active VT is unknown, so the VT is not "
+                 "switched (it could not be switched back). Qt's renderer will "
+                 "keep drawing while DRM master is dropped.");
+    } else if (!m_switchedVt) {
         // This is not cosmetic. Without the switch, Qt's renderer keeps drawing
         // while DRM master is dropped below it: expect a stream of
         // "Failed to commit atomic request (code=-13)" (EACCES), and a child that
@@ -190,11 +197,22 @@ void DisplayHandoff::doRestore() {
 int DisplayHandoff::getActiveVt() const {
 #ifdef Q_OS_LINUX
     QFile f("/sys/class/tty/tty0/active");
-    if (!f.open(QIODevice::ReadOnly)) return -1;
-    const QString name = QString::fromLatin1(f.readAll()).trimmed();
-    bool ok;
-    int n = name.mid(3).toInt(&ok);
-    return ok ? n : -1;
+    if (f.open(QIODevice::ReadOnly)) {
+        const QString name = QString::fromLatin1(f.readAll()).trimmed();
+        bool ok;
+        const int n = name.mid(3).toInt(&ok);
+        if (ok && n > 0)
+            return n;
+    }
+    // Without sysfs (a sandboxed service, a kernel built without it): the
+    // console's own answer. Write-only, as the tty group may only write it.
+    const int fd = ::open("/dev/tty0", O_WRONLY);
+    if (fd < 0)
+        return -1;
+    struct vt_stat state {};
+    const bool ok = ::ioctl(fd, VT_GETSTATE, &state) == 0;
+    ::close(fd);
+    return ok && state.v_active > 0 ? state.v_active : -1;
 #else
     return -1;
 #endif
@@ -266,17 +284,22 @@ bool DisplayHandoff::switchToVt(int vt) {
                  vt, strerror(errno));
         return false;
     }
-    bool ok = true;
     if (::ioctl(fd, VT_ACTIVATE, vt) < 0) {
         qWarning("[DisplayHandoff] VT_ACTIVATE %d failed: %s", vt, strerror(errno));
-        ok = false;
+        ::close(fd);
+        return false;
     }
-    if (::ioctl(fd, VT_WAITACTIVE, vt) < 0) {
+    // Asked for, the switch happens whatever the wait says: switched, so the
+    // VT is switched back. A wait a signal cuts short is waited again.
+    int waited;
+    int tries = 0;
+    do {
+        waited = ::ioctl(fd, VT_WAITACTIVE, vt);
+    } while (waited < 0 && errno == EINTR && ++tries < 10);
+    if (waited < 0)
         qWarning("[DisplayHandoff] VT_WAITACTIVE %d failed: %s", vt, strerror(errno));
-        ok = false;
-    }
     ::close(fd);
-    return ok;
+    return true;
 #else
     Q_UNUSED(vt)
     return false;
