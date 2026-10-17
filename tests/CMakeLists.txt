@@ -282,3 +282,31 @@ target_link_libraries(controllers_test PRIVATE
     Qt6::Core Qt6::Gui Qt6::Quick Qt6::Qml Qt6::Network Qt6::Test SDL2::SDL2)
 add_test(NAME controllers COMMAND controllers_test)
 set_tests_properties(controllers PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+
+# The app itself (the build in build/, made apart from the tests; OSDOS_APP
+# for another), started offscreen: the main menu with every module on it, and
+# each module as the startup module, open without a QML warning, and the app
+# stops on SIGTERM as the service stops it. Skipped without the app, and for a
+# module that needs a QML module of Qt's this Qt doesn't have (QtQuick.Effects
+# before Qt 6.5).
+if(UNIX)
+    if(APPLE)
+        set(osdos_app "${CMAKE_CURRENT_SOURCE_DIR}/../build/osdos.app/Contents/MacOS/osdos")
+    else()
+        set(osdos_app "${CMAKE_CURRENT_SOURCE_DIR}/../build/osdos")
+    endif()
+    set(OSDOS_APP "${osdos_app}" CACHE FILEPATH "The app the smoke tests start (app_smoke_test.sh)")
+    get_filename_component(osdos_root "${CMAKE_CURRENT_SOURCE_DIR}/.." ABSOLUTE)
+    set(qt_qml "${QT6_INSTALL_PREFIX}/${QT6_INSTALL_QML}")
+    set(smoke ${CMAKE_CURRENT_SOURCE_DIR}/app_smoke_test.sh ${OSDOS_APP} ${osdos_root} ${qt_qml})
+    add_test(NAME app_main_menu COMMAND bash ${smoke})
+    set(smoke_tests app_main_menu)
+    file(GLOB manifests CONFIGURE_DEPENDS ${osdos_root}/modules/*/manifest.json)
+    foreach(manifest ${manifests})
+        get_filename_component(folder ${manifest} DIRECTORY)
+        get_filename_component(folder ${folder} NAME)
+        add_test(NAME app_module_${folder} COMMAND bash ${smoke} ${folder})
+        list(APPEND smoke_tests app_module_${folder})
+    endforeach()
+    set_tests_properties(${smoke_tests} PROPERTIES SKIP_RETURN_CODE 77)
+endif()

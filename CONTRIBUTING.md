@@ -71,7 +71,7 @@ A pure-QML module needs **no C++ changes** — the shell discovers it from its m
 
 ### Testing your change
 
-A few things that are easy to get wrong have regression tests in `tests/` (Local Files' search, settings and state files written whole, themes and skins read from their folders, one video handed over to the next, the menu music and what holds it off; see [tests/README.md](tests/README.md)). CI runs them on every pull request that touches the C++, and you can run them yourself in a minute. Everything else is tested by hand:
+A few things that are easy to get wrong have regression tests in `tests/` (Local Files' search, settings and state files written whole, themes and skins read from their folders, one video handed over to the next, the menu music and what holds it off; see [tests/README.md](tests/README.md)), and the app itself is started on the main menu and on each module, which must open without a QML warning. CI runs them on every pull request that touches the app or its tests, and you can run them yourself in a minute. Everything else is tested by hand:
 
 - **Build and run** on at least one target (macOS ARM or Raspberry Pi). See [BUILDING.md](BUILDING.md#run).
 - **Navigate with a remote/keyboard only** and confirm every screen in your change is reachable and exitable.

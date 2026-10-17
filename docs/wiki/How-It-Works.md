@@ -551,7 +551,7 @@ And what it gives the programs it starts: `APP_ROOT` to mpv and to scripts; on L
 
 ## Tests
 
-Four regression test programs live in [`tests/`](https://github.com/mehmetraif/OSD-OS/tree/main/tests), built apart from the app: Local Files' search and the state files, themes and skins, an mpv player retired for the next, and the menu music. CI runs them for every pull request that touches the C++, and for every release tag, whose release is published only once they pass ([tests/README.md](https://github.com/mehmetraif/OSD-OS/blob/main/tests/README.md)).
+The regression tests live in [`tests/`](https://github.com/mehmetraif/OSD-OS/tree/main/tests), built apart from the app: among them Local Files' search and the state files, themes and skins, an mpv player retired for the next, the menu music, and the app itself, started offscreen on the main menu and on each module, which must open without a QML warning. CI runs them for every pull request that touches the app or its tests, and for every release tag, whose release is published only once they pass ([tests/README.md](https://github.com/mehmetraif/OSD-OS/blob/main/tests/README.md)).
 
 ## See also
 

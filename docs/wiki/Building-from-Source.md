@@ -222,7 +222,7 @@ cmake --build build-tests --parallel
 ctest --test-dir build-tests --output-on-failure
 ```
 
-They take under a minute; `ctest --test-dir build-tests -R looks` runs one by name.
+They take under a minute; `ctest --test-dir build-tests -R looks` runs one by name. The `app_` tests start your build of the app, from `build/` (`-DOSDOS_APP=<path>` for one elsewhere), and are skipped until there is one.
 
 | Test | What it covers |
 |---|---|
@@ -230,6 +230,7 @@ They take under a minute; `ctest --test-dir build-tests -R looks` runs one by na
 | `looks` | Themes and skins read from the app's folder and the data folder's: listed by name, each once, the data folder's in place of the app's; a skin's pictures and icons read from its own folder only; a theme's colours, skin, effects and music read, what can't be used left empty; an id is a folder's name, never a path |
 | `playback_retire` (Linux) | One video handed over to the next, against a stand-in for mpv: the app goes on while the old player quits, of several asked for in a row only the last plays, a stop while waiting starts nothing, a player that ignores being told to quit is killed a second later, and the menu music is gone before a video's player starts |
 | `menu_music` (Linux) | The menu music, against stand-ins for mpv, FluidSynth and openmpt123: it plays when wanted and stops when not, a hold stops it before `hold()` returns, a file mpv can't play isn't tried again, a MIDI file is made into a WAV with the right SoundFont, a tracker's module goes to openmpt123 when mpv can't play it |
+| `app_main_menu`, `app_module_<folder>` | The app itself, started offscreen with the network out of reach: the main menu with every module on it, and each module as the startup module, opens without a QML warning, and SIGTERM stops the app cleanly. A module that needs a QML module the Qt in use doesn't have (QtQuick.Effects before Qt 6.5) is skipped |
 
 [tests/README.md](https://github.com/mehmetraif/OSD-OS/blob/main/tests/README.md) has each test's cases, and the checks that want a Raspberry Pi: the screen changing hands between the app and mpv, power cuts while saving, menu music on the sound card in use. A test of your own goes in `tests/CMakeLists.txt` with the sources it needs; [Writing a module](https://github.com/mehmetraif/OSD-OS/wiki/Writing-a-Module#a-test-in-tests) shows one.
 
