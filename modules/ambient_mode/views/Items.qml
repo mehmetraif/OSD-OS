@@ -199,7 +199,8 @@ FocusScope {
 
                     Text {
                         id: videoValueText
-                        text: videoShuffleSelected ? "SHUFFLE" : videoFiles[videoIndex].name
+                        // The body is hidden with no videos, but still bound.
+                        text: videoShuffleSelected ? "SHUFFLE" : (videoFiles.length > 0 ? videoFiles[videoIndex].name : "")
                         color: focusRow === 0 ? root.surfaceColor : root.primaryColor
                         font.family: root.globalFont
                         font.capitalization: Font.AllUppercase
