@@ -56,6 +56,22 @@ JellyfinBackend::JellyfinBackend(const QString &appRoot, const QString &dataRoot
     if (m_deviceId.isEmpty()) {
         m_deviceId = QUuid::createUuid().toString(QUuid::WithoutBraces);
     }
+    // Seed the change guard from the restored state so a token that is still
+    // valid at startup is not reported as a transition (see notifyAuthState).
+    m_lastAuthState = get_auth_state();
+}
+
+// authStateChanged drives navigation in Root.qml, so emitting it when nothing
+// actually changed reloads the current view on top of itself. check_auth()
+// re-validating a good token is the common case: Root has already shown
+// Libraries by then, and an unconditional emit reloaded it, or threw the user
+// back to it from a library opened meanwhile. Only signal real transitions.
+void JellyfinBackend::notifyAuthState() {
+    const QString state = get_auth_state();
+    if (state == m_lastAuthState)
+        return;
+    m_lastAuthState = state;
+    emit authStateChanged();
 }
 
 // ---------------------------------------------------------------------------
@@ -258,7 +274,7 @@ QString JellyfinBackend::get_auth_state() {
 
 void JellyfinBackend::check_auth() {
     if (!has_auth()) {
-        emit authStateChanged();
+        notifyAuthState();
         return;
     }
 
@@ -271,14 +287,14 @@ void JellyfinBackend::check_auth() {
             qWarning("[JellyfinBackend] Token rejected — signing out");
             clearAuthState();
             emit authRevoked();
-            emit authStateChanged();
+            notifyAuthState();
             return;
         }
         if (reply->error() != QNetworkReply::NoError) {
             emit errorOccurred("AUTH CHECK FAILED: " + reply->errorString());
             return;
         }
-        emit authStateChanged();
+        notifyAuthState();
         probeCapabilities();
     });
 }
@@ -292,7 +308,7 @@ void JellyfinBackend::logout() {
     }
     clearAuthState();
     emit logoutComplete();
-    emit authStateChanged();
+    notifyAuthState();
 }
 
 // ---------------------------------------------------------------------------
@@ -489,7 +505,7 @@ void JellyfinBackend::quick_connect_authenticate(const QString &secret) {
         saveConfig(cfg);
 
         probeCapabilities();
-        emit authStateChanged();
+        notifyAuthState();
     });
 }
 
