@@ -134,7 +134,17 @@ Rectangle {
                          favorite: favorites.indexOf(set) >= 0 }
             })
         }
-        function filterIndex(id, set) { return setsOf(id).indexOf(set) }
+        // On a filter of rooms, room's row when it is there.
+        function filterIndex(id, set, room) {
+            for (var i = 0; i < filterList.length; ++i) {
+                var rows = filterList[i].id === id && room !== undefined && room >= 0 ? filterList[i].rows || [] : []
+                for (var r = 0; r < rows.length; ++r) {
+                    if (rows[r].room === room)
+                        return r
+                }
+            }
+            return setsOf(id).indexOf(set)
+        }
         function gameDetails(set) {
             var details = gameInfo[set]
             return details ? Object.assign({}, details, { engine: engineOf(set) }) : ({})
@@ -908,11 +918,45 @@ Rectangle {
             verify(root.navigations[1].params.online.hosting)
         }
 
+        // Two rooms of one game: the cursor keeps to its room as the lobby is
+        // read again, and a room joined comes back to it. A room takes no
+        // credits bought on the screen: FinalBurn Neo plays it.
+        function test_onlineRooms() {
+            arcadeBackend.filterList = [{ id: "online", name: "Online Games", sets: ["sf2", "sf2"],
+                                          rows: [{ set: "sf2", name: "Street Fighter II (bob)", favorite: false,
+                                                   room: 14, host: "bob" },
+                                                 { set: "sf2", name: "Street Fighter II (ann)", favorite: false,
+                                                   room: 11, host: "ann" }] }].concat(arcadeBackend.filterList)
+            moduleRoot.startFilter = "online"
+            var screen = openScreen()
+            compare(screen.current.room, 14)
+            verify(screen.fbneo)
+            keyClick(Qt.Key_Down)
+            compare(screen.current.room, 11)
+            arcadeBackend.gamesChanged()
+            compare(screen.current.room, 11)
+            keyPress(Qt.Key_Return)
+            keyRelease(Qt.Key_Return)
+            compare(root.navigations[0].params.online.room, 11)
+            compare(root.navigations[0].listState.room, 11)
+            loader.source = ""
+            screen = openScreen({ navListState: root.navigations[0].listState })
+            compare(screen.current.room, 11)
+            // The room gone: the game's other one.
+            arcadeBackend.filterList[0].rows = arcadeBackend.filterList[0].rows.slice(0, 1)
+            arcadeBackend.filterList[0].sets = ["sf2"]
+            arcadeBackend.gamesChanged()
+            compare(screen.current.room, 14)
+        }
+
         // A room joined from the game's screen says whose game it is and
         // joins it; a game hosted says so and hosts it; and with Start Info
         // Screen off, the router joins straight from the list.
         function test_playOnline() {
+            // Online, FinalBurn Neo plays it, whatever its engine.
+            arcadeBackend.engines = { sf2: "mame" }
             var play = open("Play.qml", { game: "sf2", title: "Street Fighter II (ann)", online: { room: 11, host: "ann" } })
+            verify(play.fbneo)
             verify(findText(play, "Joining ann's game online") !== null)
             tryCompare(play, "phase", "running", 3000)
             compare(arcadeBackend.joined, [11])

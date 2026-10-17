@@ -134,8 +134,10 @@ public:
     // { set, name (its title), favorite }; Not Recognized's as { set, name
     // (its file's), unknown: true }.
     Q_INVOKABLE QVariantList filterGames(const QString &filter, int first, int count);
-    // Where a set is in a filter: -1 when it isn't in it.
-    Q_INVOKABLE int filterIndex(const QString &filter, const QString &set);
+    // Where a set is in a filter: -1 when it isn't in it. On Online Games,
+    // where a game is once for each room that hosts it, room's row (a room's
+    // id), else the game's first.
+    Q_INVOKABLE int filterIndex(const QString &filter, const QString &set, int room = -1);
     // What the screen says of a set: { set, name (MAME's description),
     // system, maker, year, players, playTime (seconds played), picture (a
     // file URL, "" for none), vertical }; for one under Not Recognized
@@ -160,6 +162,10 @@ public:
     Q_INVOKABLE void setEngine(const QString &set, const QString &engine);
     // RetroArch, the FinalBurn Neo core and its list of games are there.
     Q_INVOKABLE bool fbneoReady() const;
+    // FinalBurn Neo can play the game: it is ready, has the set, and the set
+    // is a zip or a 7z named as it looks for it (not a folder of files, not
+    // in capitals).
+    bool fbneoPlays(const QString &set) const;
 
     // Online Play (Settings → Arcade → Online Play): the netplay lobby's
     // rooms (lobby.libretro.com) of the folder's games FinalBurn Neo plays,
@@ -420,6 +426,8 @@ private:
     // password for, or why it couldn't; the config, with the password or the
     // token in it, goes.
     void takeAchievements(const libretro::Run &run);
+    // fbneoPlays() but for FinalBurn Neo being ready, asked once for many.
+    bool fbneoHas(const QString &set) const;
     void saveAchievements() const;
 
     // How long each game has been played: playtime.json, read when first

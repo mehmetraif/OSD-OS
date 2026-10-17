@@ -6,7 +6,8 @@
 # started, but files missing for mslug and a set it doesn't know for galaga,
 # a sign-in refused for the password "wrong" or the token "expired", and
 # RetroAchievements not reached for the token "offline". It swaps the password
-# "secret" for a token in the config, as RetroArch saves it on exit.
+# "secret" for a token in the config, as RetroArch saves it on exit, and takes
+# $RA_SECONDS to end.
 log=""; config=""; content=""; prev=""
 for a in "$@"; do
 	case "$a" in --log-file=*) log="${a#--log-file=}" ;; esac
@@ -38,6 +39,7 @@ game=$(basename "$content"); game="${game%.*}"
 	grep -q 'cheevos_token = "offline"' "$config" \
 		&& echo "[INFO] [RCHEEVOS]: RetroAchievements login failed: No response from server"
 } > "$log"
+[ -n "$RA_SECONDS" ] && sleep "$RA_SECONDS"
 if grep -q 'cheevos_password = "secret"' "$config"; then
 	sed -i 's/^cheevos_token = .*/cheevos_token = "tok123"/; s/^cheevos_password = .*/cheevos_password = ""/' "$config"
 fi

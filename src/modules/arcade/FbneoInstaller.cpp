@@ -130,9 +130,12 @@ void FbneoInstaller::fetch(int index) {
     m_reply = m_nam->get(request);
     auto *file = new QFile(partOf(targets[index]), m_reply);
     if (!file->open(QIODevice::WriteOnly | QIODevice::Truncate)) {
-        const QString error = file->errorString();
-        m_reply->abort();
-        fail(QStringLiteral("%1 could not be written: %2").arg(file->fileName(), error));
+        const QString error = QStringLiteral("%1 could not be written: %2").arg(file->fileName(), file->errorString());
+        // Nothing listens to it yet: it goes here, the file with it.
+        QNetworkReply *reply = std::exchange(m_reply, nullptr);
+        reply->abort();
+        reply->deleteLater();
+        fail(error);
         return;
     }
     int base = 0;
@@ -205,6 +208,11 @@ void FbneoInstaller::unpack() {
 
 void FbneoInstaller::fail(const QString &message) {
     qWarning("[Arcade] FinalBurn Neo's download failed: %s", qPrintable(message));
+    // What the files before it brought goes too: tens of megabytes on the
+    // card. What was installed stays as it was.
+    for (const QString &path : { libretro::downloadedCore(m_dataRoot) + QStringLiteral(".zip"),
+                                 libretro::downloadedDat(m_dataRoot), libretro::downloadedLicense(m_dataRoot) })
+        QFile::remove(partOf(path));
     m_running = false;
     emit finished(false, message);
 }

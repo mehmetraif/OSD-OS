@@ -62,6 +62,8 @@ const QHash<QString, QString> kRelays = {
 };
 // How long the lobby is waited for.
 constexpr int kLobbyTimeoutMs = 15000;
+constexpr qint64 kLobbyMaxBytes = 4 * 1024 * 1024;
+constexpr const char *kTooBig = "osdosTooBig";
 
 // Folders beside the games that aren't games: the BIOS sets' (on MAME's
 // rompath too), the samples' (its samplepath) and the games' pictures.
@@ -739,7 +741,10 @@ void ArcadeBackend::startScan() {
     ask.sort();
     qInfo("[Arcade] Asking MAME about %lld games", static_cast<long long>(ask.size()));
     m_toAsk = ask;
-    scanNext();
+    // Not beside a game started while the folder was read: once it has
+    // ended (the launcher's finished()).
+    if (!m_launcher->isBusy())
+        scanNext();
     emit scanningChanged();
 }
 
@@ -1045,7 +1050,14 @@ QVariantList ArcadeBackend::filterGames(const QString &filter, int first, int co
     return games;
 }
 
-int ArcadeBackend::filterIndex(const QString &filter, const QString &set) {
+int ArcadeBackend::filterIndex(const QString &filter, const QString &set, int room) {
+    if (room >= 0 && filter == QLatin1String("online")) {
+        const QVariantList list = rooms();
+        for (int i = 0; i < list.size(); ++i) {
+            if (list.at(i).toMap().value(QStringLiteral("id")).toInt() == room)
+                return i;
+        }
+    }
     return static_cast<int>(filterSets(filter).indexOf(set));
 }
 
@@ -1501,7 +1513,7 @@ bool ArcadeBackend::play(const QString &name, int credits) {
 }
 
 QString ArcadeBackend::engineOf(const QString &set) const {
-    const bool fbneo = fbneoReady() && m_fbneoGames.contains(set);
+    const bool fbneo = fbneoPlays(set);
     const QString chosen = m_engines.value(set).toString();
     if (chosen == QLatin1String("mame") && !mamePath().isEmpty())
         return QStringLiteral("mame");
@@ -1517,7 +1529,7 @@ QVariantList ArcadeBackend::engineChoices(const QString &set) const {
                             { QStringLiteral("current"), chosen == id || (id == QLatin1String("auto") && chosen.isEmpty()) } };
     };
     // Auto as it stands: what the game would play in left to it.
-    const bool fbneo = fbneoReady() && m_fbneoGames.contains(set);
+    const bool fbneo = fbneoPlays(set);
     const bool autoFbneo = fbneo && (m_achievements || m_onlinePlay || mamePath().isEmpty());
     QVariantList choices{ choice(QStringLiteral("auto"),
                                  autoFbneo ? QStringLiteral("Auto (FinalBurn Neo)") : QStringLiteral("Auto (MAME)")),
@@ -1541,6 +1553,14 @@ void ArcadeBackend::setEngine(const QString &set, const QString &engine) {
 
 bool ArcadeBackend::fbneoReady() const {
     return !retroarchPath().isEmpty() && !libretro::corePath(m_dataRoot).isEmpty() && !m_fbneoGames.isEmpty();
+}
+
+bool ArcadeBackend::fbneoPlays(const QString &set) const {
+    return fbneoReady() && fbneoHas(set);
+}
+
+bool ArcadeBackend::fbneoHas(const QString &set) const {
+    return m_fbneoGames.contains(set) && m_sets.contains(set) && !m_folders.contains(set) && !m_misnamed.contains(set);
 }
 
 bool ArcadeBackend::playFbneo(const QString &name, libretro::Launch::Netplay netplay, const QString &joinAddress) {
@@ -1672,8 +1692,7 @@ bool ArcadeBackend::playFbneo(const QString &name, libretro::Launch::Netplay net
 }
 
 bool ArcadeBackend::canHost(const QString &set) const {
-    return m_onlinePlay && fbneoReady() && m_fbneoGames.contains(set) && m_sets.contains(set)
-           && !m_folders.contains(set) && !m_misnamed.contains(set);
+    return m_onlinePlay && fbneoPlays(set);
 }
 
 bool ArcadeBackend::hostGame(const QString &set) {
@@ -1704,8 +1723,7 @@ QVariantList ArcadeBackend::rooms() const {
     for (const libretro::Room &room : m_rooms) {
         // A game in the folder FinalBurn Neo plays, joined without a
         // password (RetroArch would ask for one on its own screen).
-        if (room.password || !m_fbneoGames.contains(room.game) || !m_sets.contains(room.game)
-            || m_folders.contains(room.game) || m_misnamed.contains(room.game))
+        if (room.password || !fbneoHas(room.game))
             continue;
         list << QVariantMap{ { QStringLiteral("id"), room.id }, { QStringLiteral("set"), room.game },
                              { QStringLiteral("title"), titleOf(room.game) },
@@ -1724,16 +1742,35 @@ void ArcadeBackend::refreshRooms() {
                       QStringLiteral("OSD-OS/%1").arg(QCoreApplication::applicationVersion()));
     request.setTransferTimeout(kLobbyTimeoutMs);
     m_lobbyReply = m_nam->get(request);
+    // A list of rooms is tens of kilobytes: one far bigger isn't the lobby's,
+    // and isn't read whole. Given up on once its size says so (its header, or
+    // as much as has come), and not read at its end, which a fast answer
+    // reaches first.
+    const auto tooBig = [this](qint64 size) {
+        if (m_lobbyReply && m_lobbyReply->isRunning() && size > kLobbyMaxBytes) {
+            m_lobbyReply->setProperty(kTooBig, true);
+            m_lobbyReply->abort();
+        }
+    };
+    connect(m_lobbyReply, &QNetworkReply::metaDataChanged, this, [this, tooBig] {
+        if (m_lobbyReply)
+            tooBig(m_lobbyReply->header(QNetworkRequest::ContentLengthHeader).toLongLong());
+    });
+    connect(m_lobbyReply, &QNetworkReply::downloadProgress, this, [tooBig](qint64 received, qint64 total) {
+        tooBig(std::max(received, total));
+    });
     connect(m_lobbyReply, &QNetworkReply::finished, this, [this] {
         QNetworkReply *reply = std::exchange(m_lobbyReply, nullptr);
         reply->deleteLater();
         m_roomsRead = true;
-        if (reply->error() == QNetworkReply::NoError) {
+        const bool big = reply->property(kTooBig).toBool() || reply->bytesAvailable() > kLobbyMaxBytes;
+        if (reply->error() == QNetworkReply::NoError && !big) {
             m_rooms = libretro::readLobby(reply->readAll());
             m_roomsProblem.clear();
         } else {
             m_rooms.clear();
-            m_roomsProblem = QStringLiteral("RetroArch's lobby can't be reached: ") + reply->errorString();
+            m_roomsProblem = QStringLiteral("RetroArch's lobby can't be reached: ")
+                             + (big ? QStringLiteral("its answer is too big") : reply->errorString());
             qWarning("[Arcade] %s", qPrintable(m_roomsProblem));
         }
         emit roomsChanged();
