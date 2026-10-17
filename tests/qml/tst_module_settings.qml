@@ -330,6 +330,30 @@ Rectangle {
             compare(back.count, 1)
         }
 
+        // A choice whose name is too long for its line is cut short, its ON
+        // or OFF kept whole at the line's end.
+        function test_multiSelectLongName() {
+            appCore.schema = [{ key: "menu_filters", label: "Menu Filters", type: "multiselect_submenu",
+                                options_source: "dynamic", options_slot: "menuFilterOptions" }]
+            loader.setSource(Qt.resolvedUrl("../../views/MultiSelectSettings.qml"),
+                             { navParams: { moduleId: "com.osdos.test", settingKey: "menu_filters",
+                                            settingLabel: "Menu Filters" } })
+            var page = loader.item
+            verify(page !== null, "loaded MultiSelectSettings.qml")
+            var name = "Konami Industry Company Limited of Japan and America"
+            appCore.dynamicOptionsReady("com.osdos.test", "menu_filters", [
+                { id: "makers/Konami", label: name, default: false }
+            ])
+            var label = findText(page, name)
+            verify(label !== null)
+            verify(label.width < label.implicitWidth)
+            var value = findText(label.parent, "OFF")
+            verify(value !== null)
+            compare(value.width, value.implicitWidth)
+            verify(value.mapToItem(label.parent, value.width, 0).x <= label.parent.width)
+            verify(value.parent.width >= value.implicitWidth)
+        }
+
         Component {
             id: signalSpy
             SignalSpy {}
