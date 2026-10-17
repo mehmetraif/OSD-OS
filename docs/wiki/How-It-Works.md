@@ -261,6 +261,7 @@ sequenceDiagram
 ```
 
 - **The VT switch goes first**, because it suspends Qt's drawing before the master is dropped; on kernels from 5.8 a process not root can't take master while another holds it.
+- **No VT to come back to, no switch.** The VT in use is read from `/sys/class/tty/tty0/active`, else asked of the console itself (`/dev/tty0`). When neither answers there would be no VT to switch back to, so the screen is handed over without a switch, and the log says so: Qt draws on meanwhile, rather than the console being left on another VT.
 - **The 200 ms wait** lets the child's last display commit clear in the vc4 driver, and the restore uses the old `drmModeSetCrtc`, not an atomic commit, which would fail after the child's cleanup.
 - **One owner at a time.** `acquire()` takes a name and refuses another while one holds the screen. The names are `mpv`, `scripts`, `arcade` (the Arcade module's MAME), and the web players' `netflix`, `prime_video` and `youtube` (its sign-in).
 - **What Qt last drew stays on the glass** for the whole hand-off, since nothing clears it. So a screen is painted, and presented, before the hand-off: a video's loading screen, a takeover script's notice.
@@ -484,7 +485,7 @@ Settings live in **`config.json`** in the data folder, the app's under `app`, ea
 ```
 
 - **Read and written through `AppCore`**: `get_setting(moduleId, key)` and `save_setting(moduleId, key, value)`, `""` as the module for the app's own. A key may reach one level down with a dot (`"remote_keymap.back"` is `remote_keymap` → `back`).
-- **Each save reads the file, changes the one key and writes it all again**, then signals `appSettingChanged` or `moduleSettingChanged`, which the views and backends follow. An edit you make by hand while OSD/OS runs survives its next save; it applies when the setting is next read, which for most settings is the next start.
+- **Each save reads the file, changes the one key and writes it all again**, then signals `appSettingChanged` or `moduleSettingChanged`, which the views and backends follow. A save that can't be written (a full or read-only disk) signals nothing and returns `false`: the setting stays as it was saved, and Settings keeps showing that. An edit you make by hand while OSD/OS runs survives its next save; it applies when the setting is next read, which for most settings is the next start.
 - **Written whole, never cut short.** Every state file goes through `writeFileAtomically()`: a new file beside the old one, renamed over it once it is complete and on the disk. A power cut mid-save leaves the old file. That matters most here: a `config.json` the app can't read is taken for none, and the next save would write the defaults over every setting.
 
   ```cpp
@@ -550,7 +551,7 @@ And what it gives the programs it starts: `APP_ROOT` to mpv and to scripts; on L
 
 ## Tests
 
-Four regression test programs live in [`tests/`](https://github.com/mehmetraif/OSD-OS/tree/main/tests), built apart from the app: Local Files' search and the state files, themes and skins, an mpv player retired for the next, and the menu music. CI runs them for every pull request that touches the C++ ([tests/README.md](https://github.com/mehmetraif/OSD-OS/blob/main/tests/README.md)).
+Four regression test programs live in [`tests/`](https://github.com/mehmetraif/OSD-OS/tree/main/tests), built apart from the app: Local Files' search and the state files, themes and skins, an mpv player retired for the next, and the menu music. CI runs them for every pull request that touches the C++, and for every release tag, whose release is published only once they pass ([tests/README.md](https://github.com/mehmetraif/OSD-OS/blob/main/tests/README.md)).
 
 ## See also
 

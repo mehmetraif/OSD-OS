@@ -214,10 +214,10 @@ The card writer is armed only while its screen is open, so a card lying near the
 
 What it writes is an ordinary tag file in the tags folder:
 
-- named after the title, with the year, so two of a kind don't collide: `Dune (2021)`, `Cowboy Bebop (1998)` for a show, `Cowboy Bebop (1998) - S1` for a season, `Cowboy Bebop (1998) - S1E5` for an episode, `80s Action (Collection)` or `Road Trip (Playlist)` for a set. A name already taken by another card gets ` (2)`, ` (3)` and so on;
+- named after the title, with the year, so two of a kind don't collide: `Dune (2021)`, `Cowboy Bebop (1998)` for a show, `Cowboy Bebop (1998) - S1` for a season, `Cowboy Bebop (1998) - S1E5` for an episode, `80s Action (Collection)` or `Road Trip (Playlist)` for a set. A name already taken by another card gets ` (2)`, ` (3)` and so on. A very long title is shortened in the name, to what any file system takes;
 - holding the item's Plex guid (`plex://movie/…`), which survives library rescans and moves between servers, or for a collection or playlist its ratingKey (`plex://collection/<ratingKey>`), since those exist only on one server. A set's contents are looked up at each tap, so the card follows the collection as it changes;
 - with `shuffle` on the third line for the shuffled choices;
-- replacing the file that held this card before, if any.
+- replacing the file that held this card before, if any, once the new one is written. Should it not be (the SD card full, say), the screen says **COULD NOT WRITE CARD**, and the card goes on playing what it played.
 
 You can rename the file afterwards; only its contents matter for the mapping.
 
@@ -248,7 +248,7 @@ flowchart TD
 What the receiving module does:
 
 - Its `Root.qml` sends a card (`navParams.cardRef`, with `cardMode` and `cardTitle`) straight to its `CardPlay.qml`, **ahead of its own sign-in and user screens**. A card plays as whoever is already signed in, and never asks for a profile switch or a PIN: in physical form that would be a way round the profile PIN.
-- `CardPlay.qml` resolves the ref and replaces itself with the player, so back from the video goes straight to the NFC Reader's tap screen, ready for the next card.
+- `CardPlay.qml` resolves the ref and replaces itself with the player, so back from the video goes straight to the NFC Reader's tap screen, ready for the next card. Back while it is still looking the item up, or preparing its stream, gives the card up and returns there too.
 - It doesn't change what the server remembers for the item (Plex's audio and subtitle choices). A shuffle card reports no progress, so your watched state, Continue Watching and On Deck stay as they were.
 - Its errors look like the NFC module's. Plex's: **NOT SIGNED IN TO PLEX**, **NO PLEX SERVER SELECTED**, **THIS PLEX PROFILE NEEDS ITS PIN / OPEN THE PLEX MODULE TO SIGN IN**, **THIS CARD HAS NO PLEX ITEM**, **PLEX SERVER UNREACHABLE**, **NOT FOUND ON THIS SERVER**, **THIS ITEM HAS NO PLAYABLE MEDIA**, **NO EPISODES FOUND**, **UNSUPPORTED ITEM TYPE**, **COULD NOT LOAD ITEM**. Select retries, back returns.
 - Cards never switch server or user: an item on another server, or one the signed-in user can't see, is **NOT FOUND ON THIS SERVER**.

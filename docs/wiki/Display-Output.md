@@ -507,7 +507,7 @@ The Pi 5's part, the kernel's DPI:
 
 ### The Pi 5's output
 
-On a Pi 5 the launcher (`/usr/local/bin/osdos`, from `scripts/install.sh`) reads the preset's two comment lines and looks for that kind of connector, `/sys/class/drm/card*-Composite-*` or `card*-DPI-*`. When it finds one it:
+On a Pi 5 the launcher (`/usr/local/bin/osdos`, from `scripts/install.sh`) reads the preset's two comment lines and looks for that kind of connector, `/sys/class/drm/card*-Composite-*` or `card*-DPI-*`. The composite and DPI drivers may register theirs after HDMI's, so it waits for it, up to ten seconds. When it finds one it:
 
 - points Qt's EGLFS at that card, with that output as the primary one, in the preset's mode when the connector lists it. It writes this to `osdos-kms.json` in `$XDG_RUNTIME_DIR` (else `/tmp`) and sets `QT_QPA_EGLFS_KMS_CONFIG`. For composite NTSC on `card1`, for example:
 
@@ -517,7 +517,7 @@ On a Pi 5 the launcher (`/usr/local/bin/osdos`, from `scripts/install.sh`) reads
 
 - exports `OSDOS_DRM_DEVICE`, `OSDOS_DRM_CONNECTOR` and `OSDOS_DRM_MODE`, which OSD/OS passes to mpv as `--drm-device=/dev/dri/card1 --drm-connector=Composite-1 --drm-mode=720x480`, so the videos play on the same screen, in the same standard.
 
-Without such a connector it falls back to the first card with a connected display, as on any other Pi. On a Pi 5 the GPU's render-only node often takes the first card number, which is why the launcher looks rather than assumes. A Pi 4 has one output on at a time and is left as it was. Netflix and Prime Video's browser picks a screen of its own.
+Without such a connector it falls back to the first card with a connected display, as on any other Pi, and logs why: `osdos: the display preset's Composite output never appeared; taking the first display connected` (`DPI` for an RGB or JAMMA preset). On a Pi 5 the GPU's render-only node often takes the first card number, which is why the launcher looks rather than assumes. A Pi 4 has one output on at a time and is left as it was. Netflix and Prime Video's browser picks a screen of its own.
 
 ### The other presets, whole
 
@@ -964,7 +964,7 @@ After the reboot Settings offers Display Output, as on the image. To undo it, co
 | Nothing on a composite or SCART TV after the switch, and the old output came back | The TV didn't show it. Check the TV's input (AV, SCART, the right one of two) and the cable, then the standard: a TV made for PAL may not take NTSC, and the other way round. Try the other one |
 | Nothing at all, not even after the 15 seconds | Take the card to a computer and copy `osdos-display-hdmi.txt` (or the output you know works) over `osdos-display.txt` on **bootfs** ([On the image, from a computer](https://github.com/mehmetraif/OSD-OS/wiki/Display-Output#on-the-image-from-a-computer)) |
 | HDMI went dark on a Pi 4 after choosing composite or SCART RGB | As it should: a Pi 4 has one output on at a time. Plug in the CRT |
-| A Pi 5's picture still on HDMI after choosing composite or RGB | Check the connector exists: `ls /sys/class/drm/` should list a `card*-Composite-*` or `card*-DPI-*`. Without one the launcher falls back to the connected HDMI |
+| A Pi 5's picture still on HDMI after choosing composite or RGB | Check the connector exists: `ls /sys/class/drm/` should list a `card*-Composite-*` or `card*-DPI-*`. The launcher waits up to ten seconds for it at boot; without one it falls back to the connected HDMI, and `journalctl -u osdos -b` has `the display preset's … output never appeared` |
 | SCART RGB picture rolls (Pi 4) | Change `dpi_timings`' 2nd and 7th numbers from `0` to `1` in `osdos-display.txt` |
 | SCART RGB: no picture, though the colours and the sync are wired | Check pin 16 (blanking, "RGB on"): without it the TV doesn't take RGB |
 | A Pi 5's SCART RGB shows nothing, or the picture doesn't hold | Check that `/etc/modprobe.d/osdos-display.conf` has the `force_csync` line: Settings writes it, a preset copied by hand doesn't |

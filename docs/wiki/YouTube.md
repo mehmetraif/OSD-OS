@@ -139,7 +139,7 @@ How OSD/OS uses it:
 - The file is read again each time the tree asks for it, so an edit shows the next time you open YouTube. No restart is needed.
 - Each channel's official feed (`https://www.youtube.com/feeds/videos.xml?channel_id=<ID>`) gives its 15 or so newest videos, with their titles, dates and descriptions. No yt-dlp is involved.
 - **Subscriptions** is every channel's videos merged, newest first, at most 100.
-- **Channels** has a folder per channel, named after the channel and sorted by name; each holds that channel's newest videos. A channel whose feed failed still shows, under its ID.
+- **Channels** has a folder per channel, named after the channel and sorted by name; each holds that channel's newest videos, shown as soon as its own feed has come, while the other channels' are still being fetched. A channel whose feed failed still shows, under its ID.
 - What was fetched is kept for 15 minutes, so moving between Subscriptions and Channels doesn't fetch again. A feed that fails keeps whatever it had before.
 
 ## Playlists

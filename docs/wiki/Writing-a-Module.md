@@ -1268,7 +1268,7 @@ ctest --test-dir build-tests -R hello_channel --output-on-failure
 100% tests passed, 0 tests failed out of 1
 ```
 
-`registerModule()` takes a null context, so a test needs no QML engine. `invoke_module_action()` is queued, hence `QTRY_COMPARE`, which lets the event loop run until the signal comes; `save_setting()` reaches `onSettingChanged()` at once. A test that needs mpv, FluidSynth or another program puts a shell script of that name first on the `PATH`, as `playback_retire` and `menu_music` do. CI runs every test on each pull request that touches `src/` or `tests/`, on Ubuntu and on Raspberry Pi OS ([Building from source → The regression tests](https://github.com/mehmetraif/OSD-OS/wiki/Building-from-Source#the-regression-tests)).
+`registerModule()` takes a null context, so a test needs no QML engine. `invoke_module_action()` is queued, hence `QTRY_COMPARE`, which lets the event loop run until the signal comes; `save_setting()` reaches `onSettingChanged()` at once. A test that needs mpv, FluidSynth or another program puts a shell script of that name first on the `PATH`, as `playback_retire` and `menu_music` do. CI runs every test on each pull request that touches `src/` or `tests/`, on Ubuntu and on Raspberry Pi OS, and on each release tag, whose release is published only once they pass ([Building from source → The regression tests](https://github.com/mehmetraif/OSD-OS/wiki/Building-from-Source#the-regression-tests)).
 
 ### On the device
 

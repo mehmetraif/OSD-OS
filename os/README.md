@@ -40,7 +40,7 @@ Compared with flashing Raspberry Pi OS Lite and running `scripts/install.sh` ([I
 - **Bluetooth switches on from the app.** Bluetooth is unblocked (`rfkill unblock bluetooth`) as bluetoothd starts, so Settings → Bluetooth's switch is the only one. (The user the app runs as is in the `bluetooth` group, as with `install.sh`.)
   - Raspberry Pi OS starts every radio blocked, so that Wi-Fi stays off until its country is set (`rfkill.default_state=0`), and then unblocks Bluetooth only on the adapters pi-gen knows by device path. The Pi 4 this was found on wasn't one of them: its adapter stayed blocked, and BlueZ couldn't turn it on.
 
-Everything else (the launcher, in-app updates, Exit to Terminal, the data directory in `~/.local/share/OSD-OS`) is the same as a manual install. The launcher, stop helper and terminal unit are taken from `scripts/install.sh` at build time.
+Everything else (the launcher, in-app updates, Exit to Terminal, the data directory in `~/.local/share/OSD-OS`) is the same as a manual install. The launcher, stop helper and terminal unit are taken from `scripts/install.sh` at build time. Run on the image, `install.sh` leaves the image's own `osdos.service` as it is, with its user, and brings the app, the launcher and those helpers up to date.
 
 ## Flashing
 
@@ -74,7 +74,7 @@ A USB stick or disk plugged into the Pi is mounted by itself, read-only, under `
 - **How:** a udev rule (`/etc/udev/rules.d/99-osdos-usb-mount.rules`) starts `osdos-usb-mount@<device>.service` as a drive's partition comes; it runs `/usr/lib/osdos/usb-mount`, and stops, unmounting the drive, as it goes. `journalctl -u 'osdos-usb-mount@*'` says what each drive was mounted as, or why it couldn't be.
 - A manual install (`scripts/install.sh`) doesn't do this: Raspberry Pi OS Lite mounts nothing by itself. Local Files still lists a drive mounted under `/media` some other way.
 
-A card with less than 2 GiB to spare past the system gets no film partition, and the system takes all of it, as Raspberry Pi OS does. The split replaces Raspberry Pi OS's first-boot resize (`raspberrypi-sys-mods`' `resize_early`, overridden in `/etc/initramfs-tools/scripts`), so it happens once, on a freshly flashed card.
+A card with less than 2 GiB to spare past the system gets no film partition, and the system takes all of it, as Raspberry Pi OS does. The split replaces Raspberry Pi OS's first-boot resize (`raspberrypi-sys-mods`' `resize_early`, overridden in `/etc/initramfs-tools/scripts`), so it happens once, on a freshly flashed card. A first boot cut short between making the film partition and formatting it leaves the partition blank, and the next boot formats it, but only when `blkid` (which the initramfs carries for this) finds no file system on it at all: one with a file system of any kind, or one it can't read, is left as it is.
 
 ### Display output: HDMI, composite or SCART
 
@@ -100,7 +100,7 @@ Only the Pi 4's HDMI and composite have been tested. The other outputs are start
 
 - **Pi 4**: one output is on at a time. Its composite turns HDMI off, as Raspberry Pi's firmware does with `enable_tvout=1`, and so does its RGB, whose timing is the firmware's (`dpi_timings`). Should its 480i or 576i not hold, 240p and 288p are progressive (the menus then have half the lines).
 - **JAMMA (Pi 4 and Pi 5)**: a Raspberry Pi to JAMMA board in RGB-Pi's layout (RGB-Pi's JAMMA board, Crown Arcade's) takes the picture in DPI "mode 6", not the VGA666's, so it has a preset of its own. It turns on I2C on GPIO 0 and 1, where `osdos-jamma.service` reads the board's two MCP23017s and plays the cabinet's joysticks and buttons as two gamepads ([Controls](https://github.com/mehmetraif/OSD-OS/wiki/Controls#a-jamma-cabinet)). On a Pi 4 it moves the sound to GPIO 18 and 19, the board's amplifier. On a Pi 5 the DPI is the kernel's, set up as RGUI-Pi has it, on pins that leave GPIO 0 and 1 to I2C (`osdos-jamma-dpi`, an overlay the image compiles); a Pi 5's sound can't reach the amplifier, so it goes through a USB sound card (Settings → Audio Output).
-- **Pi 5**: it may keep HDMI on beside a CRT. The preset names the output OSD/OS and its videos use (`# osdos-output:` in it) and the mode (`# osdos-mode:`), whose lines make composite NTSC (480) or PAL (576): its composite chip takes the standard from them. Its RGB is the kernel's (`vc4-kms-dpi-generic`), 480i and 576i as Raspberry Pi added them in 2025, with the composite sync SCART needs made on GPIO 1. Netflix and Prime Video's browser picks a screen of its own.
+- **Pi 5**: it may keep HDMI on beside a CRT. The preset names the output OSD/OS and its videos use (`# osdos-output:` in it) and the mode (`# osdos-mode:`), whose lines make composite NTSC (480) or PAL (576): its composite chip takes the standard from them. At boot the launcher waits up to ten seconds for that composite or DPI output to register (it may come after HDMI's); should it never come, the launcher takes the first display connected instead, and logs why (`the display preset's … output never appeared`). Its RGB is the kernel's (`vc4-kms-dpi-generic`), 480i and 576i as Raspberry Pi added them in 2025, with the composite sync SCART needs made on GPIO 1. Netflix and Prime Video's browser picks a screen of its own.
 
 #### The cables
 
@@ -149,7 +149,7 @@ The run gives the `pi` user the repository secret `OS_FIRST_USER_PASS` as its pa
 
 The app in these images is built as `dev`, which turns its self-update off. That way a branch image can't swap itself for a release that doesn't have its changes.
 
-**With a release:** pushing a version tag (see [BUILDING.md](../BUILDING.md#github-actions)) builds the image from that release's own tarball and attaches it to the release as `OSD-OS-<tag>-raspberry-pi.img.xz`, with its `.info` (the packages on it). Its app is the release's, and updates itself from later releases.
+**With a release:** pushing a version tag (see [BUILDING.md](../BUILDING.md#github-actions)) builds the image from that release's own tarball and attaches it to the release as `OSD-OS-<tag>-raspberry-pi.img.xz`, with its `.info` (the packages on it). The release is published only once the regression tests have passed on the tagged commit. Its app is the release's, and updates itself from later releases.
 
 **Locally:** with Docker on an arm64 Linux host (an x86 host works too, through QEMU emulation, but takes hours), run:
 

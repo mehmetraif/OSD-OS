@@ -103,7 +103,7 @@ Along the foot of every screen runs a strip: on its first row the date and a clo
 | Pause or resume the music | ▼ | D-pad down | For this visit only; the Music setting is unchanged |
 | Leave | Esc | B | Back to the main menu; the music stops |
 
-While the module is open, the screen saver stays away: Weather is meant to be left running, like the channel it imitates.
+While the module is open, the screen saver stays away: Weather is meant to be left running, like the channel it imitates. Leaving it doesn't let the screen saver in over a video still playing behind the menus (Transparent Background), which keeps it away by itself.
 
 ## Where the numbers come from
 
