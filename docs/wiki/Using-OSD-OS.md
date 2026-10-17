@@ -337,7 +337,7 @@ A mouse, or a keyboard's touchpad, shows OSD/OS's own pointer, drawn in its pixe
 
 ## Settings
 
-Back on the main menu opens Settings, laid out like a camcorder's menu: a line per setting, its value at the end (`COLOR SCHEME······VIDEO 1`). The version is in the title bar, and the IP address at its right.
+Back on the main menu opens Settings, laid out like a camcorder's menu: a line per setting, its value at the end (`COLOR SCHEME······VIDEO 1`). A release's version is in the title bar, and the IP address at its right.
 
 - ▲ ▼ move, skipping the headings, round from the bottom to the top. ◄ ► change the value, saved at once. Select opens a line that leads somewhere (a module's settings, Bluetooth, Update, a file or folder picker) and turns a slider on or off.
 - The look comes first: Theme, then its parts (Color Scheme, Skin, the effects, Transition, Menu Music), then OSD Background and Window Frame. Then what plays (Start on Module, Play at Startup, Scaling, Transparent Background, Video Levels, Loading Effect, Loading Screen Colors, Boot Screen Colors, Channel Logo) and the screen (Hint Bar, Help Line, Screen Saver, Mouse Pointer, Info Screen).

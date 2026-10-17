@@ -649,11 +649,12 @@ FocusScope {
 
     Component.onCompleted: buildModel()
 
-    // Header
+    // Header: a release's version beside the title; none for a build made
+    // from source ("dev"), which About names.
     AppBar {
         iconSource: "../../assets/images/settings.svg"
         title: "Settings"
-        subtitle: root.appVersion
+        subtitle: root.devBuild ? "" : root.appVersion
         anchors.top: parent.top
         anchors.left: parent.left
         anchors.topMargin: root.sh * 0.125 //60

@@ -477,7 +477,7 @@ Open an issue at [github.com/mehmetraif/OSD-OS/issues](https://github.com/mehmet
 - **The hardware**: the board (`cat /proc/device-tree/model` on a Pi), or the Mac or PC.
 - **The output**: composite NTSC or PAL, SCART RGB, HDMI; and the `config.txt` or Display Output preset in use (`cat /boot/firmware/osdos-display.txt` on the image). Overscan and `config.txt` differences are common causes.
 - **How OSD/OS is installed**: the image, `install.sh`, the DMG, the AppImage, or built from source.
-- **The version**: Settings shows it in its title bar, after SETTINGS (`DEV` for a build from source), and Settings → About → Build has the commit and the day the build was made.
+- **The version**: Settings shows a release's in its title bar, after SETTINGS, and Settings → About any build's in its own (`DEV` for a build from source); About → Build has the commit and the day the build was made.
 - **mpv's version**, the first line of `mpv --version`: playback problems often come from it.
 - **The log**, as text: `journalctl -u osdos -b --no-pager > osdos.log` on the image, or the terminal's output. For a playback problem, `/tmp/osdos-mpv.log` too, once you have looked through it for addresses and tokens.
 - **After a crash or a freeze**, `crash-report.txt` or `stall-report.txt` from the data folder ([the reports](https://github.com/mehmetraif/OSD-OS/wiki/Troubleshooting#when-it-crashes-or-freezes-the-reports)).

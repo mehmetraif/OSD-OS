@@ -16,7 +16,7 @@ Back on the main menu opens Settings (the hint bar there says `[ESC]:SETTINGS`).
 | Back | Esc, Backspace | B, or the pad's Back/Select button | Back to the main menu |
 
 - **A change is saved at once.** Settings calls `appCore.save_setting("", key, value)`, which writes the value into `config.json` under `app.<key>` ([Configuration files](https://github.com/mehmetraif/OSD-OS/wiki/Configuration-Files#configjson)). Most rows take effect at once. The rows mpv is started with (Scaling, Video Levels, Channel Logo, Logo Image, Screen Saver during a video) apply from the next video.
-- **The title bar** shows the version (`DEV` for a build made from source). The top right corner shows the device's IP address on the network, wired before Wi-Fi, read again every five seconds: handy for SSH.
+- **The title bar** shows a release's version; a build made from source shows none there (About names it `DEV`). The top right corner shows the device's IP address on the network, wired before Wi-Fi, read again every five seconds: handy for SSH.
 - **The help line** under the list explains the selected row, and scrolls when the text is longer than the box. Settings → Help Line turns it off.
 - **Rows that come and go.** Some rows are offered only sometimes. A row that depends on another row (Window Frame on OSD Background, Music File and Music Volume on Menu Music, Logo Image on Channel Logo) stays in the list without a line while it isn't offered: the list doesn't move as it comes and goes, and the cursor skips over it.
 
@@ -141,7 +141,7 @@ The older setting `app.auto_crop` (`On` or `Off`), from before Scaling, still co
 | Mouse Pointer | Off, 2 sec, 5 sec, 10 sec, 30 sec, Always | 5 sec | A mouse's pointer, or a keyboard touchpad's, drawn in the OSD's pixels: it shows as the mouse moves and goes again after this long without moving. **Off**: never shown. **Always**: stays. Moving the mouse also wakes the screen saver. The menus still go by keys | `app.mouse_pointer`: `off`, `2`, `5`, `10`, `30` or `always` |
 | Info Screen | Off, Key, 1 sec, 2 sec, 3 sec, 5 sec | 3 sec | A film's details (story, genre, director, cast, rating) in the Netflix, Prime Video and YouTube trees. **Key**: only with ► on a film. **A number**: also on its own once the cursor has rested on a film that long. **Off**: no info screen; ► offers the film's options instead | `app.info_screen`: `off`, `key`, `1`, `2`, `3` or `5` |
 
-<img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/screenshots/settings-modules.png" width="100%" alt="Settings further down: Channel Logo, Hint Bar, Help Line, Screen Saver, Mouse Pointer, Info Screen, then the MODULES heading and Ambient:Mode" />
+<img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/screenshots/settings-modules.png" width="100%" alt="Settings further down: Logo Image, Hint Bar, Help Line, Screen Saver, Mouse Pointer, Info Screen, then the MODULES heading and Ambient:Mode" />
 
 ## Modules
 

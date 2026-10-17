@@ -24,12 +24,11 @@ FocusScope {
     readonly property string errorMessage: updateManager ? updateManager.errorMessage : ""
     readonly property string applyHint: updateManager ? updateManager.applyHint : ""
     readonly property bool canApply: updateManager ? updateManager.canApply : false
-    readonly property bool devBuild: root.appVersion === "dev"
 
     // Dev builds can check (to read the notes) but not download; on the Pi a
     // download is pointless unless the launcher can actually apply it. macOS
     // always allows download — the no-canApply fallback opens the DMG manually.
-    readonly property bool canDownload: !devBuild && (Qt.platform.os === "osx" || canApply)
+    readonly property bool canDownload: !root.devBuild && (Qt.platform.os === "osx" || canApply)
 
     readonly property string actionLabel: {
         switch (updState) {
@@ -55,7 +54,7 @@ FocusScope {
 
     // Contextual hint under the status line, when there is something to explain
     readonly property string hintText: {
-        if (devBuild && (updState === "updateAvailable" || updState === "readyToApply"))
+        if (root.devBuild && (updState === "updateAvailable" || updState === "readyToApply"))
             return "Dev build — self-update is disabled."
         if (!canApply && applyHint && (updState === "updateAvailable" || updState === "readyToApply"))
             return applyHint

@@ -181,7 +181,7 @@ APP_ROOT=$(pwd) ./build/osdos
 
   Without it, the build uses the usual data folder: `~/.local/share/OSD-OS/` on Linux, `~/Library/Application Support/OSD-OS/` on a Mac ([Configuration files](https://github.com/mehmetraif/OSD-OS/wiki/Configuration-Files)).
 - **The log** prints in the terminal. A build configured without `-DCMAKE_BUILD_TYPE=Release`, as above, keeps OSD/OS's debug lines, which a Release build strips (`-DQT_NO_DEBUG_OUTPUT`): the modules loaded, every setting saved, each video's mpv command line ([Troubleshooting](https://github.com/mehmetraif/OSD-OS/wiki/Troubleshooting#what-a-build-from-source-adds)).
-- **The version** of a local build is `dev` (CMake's `APP_VERSION`; CI passes the tag), which Settings shows in its title bar. A `dev` build's Update screen doesn't download releases: `Dev build — self-update is disabled.`
+- **The version** of a local build is `dev` (CMake's `APP_VERSION`; CI passes the tag), which Settings → About shows in its title bar; Settings' own title bar shows a release's version only. A `dev` build's Update screen doesn't download releases: `Dev build — self-update is disabled.`
 - **Another screen.** On a Mac or a Linux desktop, `display_index` under `"app"` in `config.json` opens OSD/OS on another display; the log lists each display's index at start ([BUILDING.md → Choosing the display](https://github.com/mehmetraif/OSD-OS/blob/main/BUILDING.md#choosing-the-display-display_index)).
 - **Ctrl+Q** on a keyboard quits.
 
