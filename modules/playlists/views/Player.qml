@@ -114,6 +114,10 @@ FocusScope {
         }
 
         prepared = playlistsBackend.prepare(playlistId, fromItemId)
+        if (prepared.error) {
+            showError("Could not play", prepared.error, false)
+            return
+        }
         if (!prepared.file || prepared.count === 0) {
             var items = playlist.items || []
             showError("Nothing to play",

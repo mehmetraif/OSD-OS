@@ -1,6 +1,7 @@
 #include "PlaylistsBackend.h"
 
 #include "../../AppCore.h"
+#include "../../util/AtomicFile.h"
 #include "../../util/FileNames.h"
 #include "../../util/DurableFile.h"
 #include "../../util/YtDlpLocator.h"
@@ -510,15 +511,14 @@ QVariantMap PlaylistsBackend::prepare(const QString &playlistId, const QString &
     // a server's token: for this user's eyes only, and the last one only.
     const QString folder = m_dataRoot + QStringLiteral("/playlists");
     QDir().mkpath(folder);
-    removeM3us(playlistId);
-    const QString path = folder + QLatin1Char('/') + playlistId + QLatin1Char('-')
-                         + QString::number(++m_serial) + QStringLiteral(".m3u");
-    QSaveFile file(path);
-    if (file.open(QIODevice::WriteOnly)) {
-        file.write(m3u.toUtf8());
-        file.commit();
-        QFile::setPermissions(path, QFileDevice::ReadOwner | QFileDevice::WriteOwner);
-    }
+    const QString name = playlistId + QLatin1Char('-') + QString::number(++m_serial) + QStringLiteral(".m3u");
+    const QString path = folder + QLatin1Char('/') + name;
+    // Owner-only from its first line, and whole or not at all: one that
+    // can't be written (a full card) isn't played, and the one before stays
+    // till one is.
+    if (!writeFileAtomically(path, m3u.toUtf8(), QFileDevice::ReadOwner | QFileDevice::WriteOwner))
+        return {{QStringLiteral("error"), QStringLiteral("The list could not be written in ") + folder}};
+    removeM3us(playlistId, name);
     m_prepared.insert(playlistId, ids);
 
     // Where it stopped, for a list in order played from its start.
@@ -534,10 +534,12 @@ QVariantMap PlaylistsBackend::prepare(const QString &playlistId, const QString &
             {QStringLiteral("resumeMs"), resumeIndex >= 0 ? resume.value(QStringLiteral("positionMs")).toInt() : 0}};
 }
 
-void PlaylistsBackend::removeM3us(const QString &playlistId) const {
+void PlaylistsBackend::removeM3us(const QString &playlistId, const QString &keep) const {
     QDir folder(m_dataRoot + QStringLiteral("/playlists"));
-    for (const QString &name : folder.entryList({playlistId + QStringLiteral("*.m3u")}, QDir::Files))
-        folder.remove(name);
+    for (const QString &name : folder.entryList({playlistId + QStringLiteral("*.m3u")}, QDir::Files)) {
+        if (name != keep)
+            folder.remove(name);
+    }
 }
 
 int PlaylistsBackend::savedPositionMs(const QString &playlistId) const {
