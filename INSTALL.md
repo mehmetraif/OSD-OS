@@ -257,7 +257,7 @@ At this point you can type `osdos` at any time to start up the app.  And if you 
 
 ### Update
 
-**From within the app (recommended):** go to `Settings → Update`, check for updates, download, and choose Apply & Restart. Your settings will be retained.
+**From within the app (recommended):** go to `Settings → Update`, check for updates, download, and choose Apply & Restart. Your settings will be retained. Only a newer release is ever offered, and if the power goes out while the update is being swapped in, the next start puts the previous version back whole and applies the update again.
 
 > Installs made before in-app updates were possible need to re-run the install script **once** (just follow the steps below).  Doing that will pick up the new launcher.  There is a check on the Update screen that will let you know if that's the case for you.
 
@@ -269,9 +269,11 @@ At this point you can type `osdos` at any time to start up the app.  And if you 
     bash <(curl -fsSL https://github.com/mehmetraif/OSD-OS/releases/latest/download/install.sh)
     ```
 3) When it asks to "`Install systemd autostart service? [y/N]`"
-    - If you already have autostart set up please answer `Y` (that's needed to keep the app files owned by the service user, which in-app updates rely on)
+    - If you already have autostart set up please answer `Y`, which brings the service and its helpers up to date (the next prompt offers the user the service already runs as). Answering `N` keeps your existing service as it is, and the app files still go to its user, which in-app updates rely on
     - If you don't have autostart installed and want to keep it that way just answer `N`
     - And if you want to turn on autostart please answer `Y`
+    - On the OSD/OS image you won't be asked: the script keeps the image's own service as it is and just brings the app and its helpers up to date
+    - If the script warns that the user can't write `/opt/osdos`, in-app updates won't be able to apply until that user can
 4) Once that completes just run `sudo reboot` and when your pi restarts you'll be on the latest version
 
 ### Uninstall

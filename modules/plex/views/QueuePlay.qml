@@ -94,8 +94,19 @@ FocusScope {
     }
 
     Keys.onPressed: function(event) {
-        if (errorMessage === "") return
-        if (event.key === Qt.Key_Escape || event.key === Qt.Key_Backspace || event.key === Qt.Key_Back) {
+        var back = event.key === Qt.Key_Escape || event.key === Qt.Key_Backspace || event.key === Qt.Key_Back
+        // While it launches only back counts, giving the launch up: the item
+        // looked for and a transcode still on its way are dropped as they come.
+        if (errorMessage === "") {
+            if (back && launching) {
+                launching = false
+                plexBackend.cancel_stream()
+                goBack()
+                event.accepted = true
+            }
+            return
+        }
+        if (back) {
             goBack()
             event.accepted = true
         } else if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter) {

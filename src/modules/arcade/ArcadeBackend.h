@@ -1,5 +1,6 @@
 #pragma once
 #include <QElapsedTimer>
+#include <QFutureWatcher>
 #include <QHash>
 #include <QMap>
 #include <QObject>
@@ -8,6 +9,7 @@
 #include <QString>
 #include <QStringList>
 #include <QVariant>
+#include <functional>
 #include <utility>
 #include "Mame.h"
 
@@ -24,7 +26,9 @@ class QTimer;
 //   after the game's short name, BIOS sets beside them. MAME says what each
 //   is (-listxml, asked only about sets it hasn't been asked about, kept in
 //   <data>/arcade/games.json until MAME itself changes, read as the list
-//   first opens), and BIOS sets and devices aren't listed.
+//   first opens), and BIOS sets and devices aren't listed. The folder,
+//   games.json, catver.ini and the pictures are read off the GUI thread
+//   (read()): a full set is tens of thousands of files.
 // - Two screens list them, Settings → Arcade → Screen's. The original, the
 //   tree (requestEntries), lists them under Recently Played, Favorites,
 //   Search, All Games, and by players, decade and maker, and those MAME has
@@ -43,7 +47,7 @@ class QTimer;
 //   states and the like, and the controller file Settings → Controls'
 //   players are given to it in (mame::controllerConfig). The credits bought
 //   on the screen go in as it starts (mame::coinScript). It ends the way
-//   MAME does, Coin and Start together on player 1's controller or Esc,
+//   MAME does, Coin and Start together on any player's controller or Esc,
 //   never stopped from here: MAME ignores SIGTERM, and a game killed loses
 //   what it would have saved.
 // - Settings → Arcade → Play at Startup is the app's startup favourite
@@ -52,8 +56,12 @@ class QTimer;
 class ArcadeBackend : public QObject {
     Q_OBJECT
     Q_PROPERTY(bool running READ running NOTIFY runningChanged)
-    // MAME is being asked about sets it hasn't been asked about yet.
+    // The folder is being read, or MAME asked about sets it hasn't been
+    // asked about yet.
     Q_PROPERTY(bool scanning READ scanning NOTIFY scanningChanged)
+    // The folder is being read (refresh()): what is in it is known once it
+    // is false again, which a startup favourite waits for.
+    Q_PROPERTY(bool reading READ reading NOTIFY readingChanged)
     // What stands in the way of the list, for a help line: a folder that
     // can't be read, no MAME. "" when nothing does.
     Q_PROPERTY(QString problem READ problem NOTIFY problemChanged)
@@ -72,8 +80,8 @@ public:
     // Local Files' default media folder (on the image, the card's OSD-OS
     // partition).
     Q_INVOKABLE QString gamesFolder() const { return m_gamesFolder; }
-    // Looks in the folder again (each time the list opens), and asks MAME
-    // about any set it hasn't been asked about.
+    // Looks in the folder again (each time the list opens), off the GUI
+    // thread, and then asks MAME about any set it hasn't been asked about.
     Q_INVOKABLE void refresh();
 
     // The original screen's tree: a folder of it ("top" its top), or
@@ -142,8 +150,10 @@ public:
     QString mamePath() const;
 
     bool    running() const;
-    // A batch being asked, or more to ask once the game playing has ended.
-    bool    scanning() const { return m_scan != nullptr || !m_toAsk.isEmpty(); }
+    // The folder being read; or a batch being asked, or more to ask once the
+    // game playing has ended.
+    bool    scanning() const { return m_reading || m_scan != nullptr || !m_toAsk.isEmpty(); }
+    bool    reading() const { return m_reading; }
     QString problem() const { return m_problem; }
     bool    folderReadable() const { return m_folderReadable; }
     bool    played() const { return m_played; }
@@ -158,6 +168,7 @@ signals:
     void gamesChanged();
     void runningChanged();
     void scanningChanged();
+    void readingChanged();
     void problemChanged();
     void playedChanged();
     // reason: "ok", "failed", "stopped" or "failed_to_start" (ScriptLauncher's);
@@ -169,15 +180,44 @@ private:
     void applySetting(const QString &key, const QVariant &value);
     void setGamesFolder(const QString &path);
     void setProblem(const QString &problem);
-    // The sets in the folder now: short name → its file's or folder's name.
-    void listFolder();
     // What makes the list's own problem: no folder, no MAME, MAME not
     // answering.
     void checkProblem();
-    // What the filters are made of, read as far as it hasn't been, for the
-    // settings' choices: games.json, the folder and catver.ini.
-    void prepare();
-    void loadCache();
+
+    // What refresh() reads, by value: the read may finish after this object
+    // is gone.
+    struct Read {
+        QString folder;                          // the games folder read
+        QHash<QString, QString> sets;            // as m_sets, m_misnamed and so on
+        QSet<QString> misnamed;
+        QSet<QString> folders;
+        QHash<QString, QString> otherFolders;
+        // games.json, when it was to be read (cacheAsked): what MAME said.
+        bool cacheAsked = false;
+        QString identity;
+        QString build;
+        QHash<QString, mame::Machine> machines;
+        QSet<QString> unknown;
+        // catver.ini, when it wasn't the one read before (genresRead).
+        bool genresRead = false;
+        QString genresFrom;
+        QHash<QString, QString> genres;
+        // The pictures: the games folder's snap by set, and the first MAME
+        // took of each game.
+        QHash<QString, QString> snaps;
+        QHash<QString, QString> shots;
+    };
+    // Off the GUI thread: the games folder (made should it not be there),
+    // games.json when withCache, catver.ini unless it is still genresFrom's,
+    // and the pictures.
+    static Read read(const QString &folder, const QString &home, bool withCache, const QString &genresFrom);
+    void startRead();
+    // What was read taken, the read begun again should the folder have
+    // changed meanwhile; then, for refresh(), MAME asked about new sets.
+    void onRead();
+    // fn once the folder and games.json have been read: at once when they
+    // have, for the settings' choices.
+    void afterRead(std::function<void()> fn);
     void saveCache() const;
     // What MAME said of the sets, all forgotten: it is asked again.
     void forget();
@@ -190,8 +230,6 @@ private:
     // entriesReady for every folder asked for since the last time, and
     // gamesChanged().
     void emitShown();
-    // catver.ini, read again once it has changed (or another is found).
-    void loadGenres();
 
     // A set under Not Recognized: a name that can't be a set's, one MAME has
     // no game of, or one MAME can't open by its name.
@@ -241,9 +279,8 @@ private:
     // Why a set is under Not Recognized, and what to do.
     QString unknownDetail(const QString &set) const;
     // The games folder's snap, else MAME's own snapshot; "" for none. As
-    // last looked for (m_pictures), till the list opens again.
+    // read with the folder (m_snaps, m_shots), till the list opens again.
     QString pictureOf(const QString &set) const;
-    QString lookForPicture(const QString &set) const;
     // The sets on one of the module's lists (AppCore's), newest first.
     QStringList listedSets(const QString &list) const;
     // The file name MAME opens a set by: its short name in lower case.
@@ -295,9 +332,21 @@ private:
     bool    m_cacheLoaded = false;
     QHash<QString, QString> m_genres;   // set → genre, catver.ini's
     QString m_genresFrom;         // the catver.ini read: its path, size and time
-    mutable QHash<QString, QString> m_pictures;   // set → pictureOf()
+    QHash<QString, QString> m_snaps;    // set → its picture in the games folder's snap
+    QHash<QString, QString> m_shots;    // set → the first snapshot MAME took of it
     mutable Index m_index;
     mutable bool  m_indexed = false;
+
+    // The read under way (read()); another to follow it, the list having
+    // opened meanwhile; MAME to be asked once it is done (refresh()), about
+    // every set when Read the Games Again came meanwhile (rescan()); and what
+    // waits for it (afterRead()).
+    QFutureWatcher<Read> *m_watcher = nullptr;
+    bool m_reading = false;
+    bool m_readAgain = false;
+    bool m_scanAfterRead = false;
+    bool m_rescanAfterRead = false;
+    QList<std::function<void()>> m_afterRead;
 
     // A -listxml run, a batch of sets at a time. The next waits for a game
     // that is playing to end.

@@ -66,9 +66,10 @@ public:
     // compositor, which is the only case that needs a hand-off.
     static bool isHeadless();
 
-    // True only while this owner holds a hand-off that has a VT to return to.
-    // Callers use it as a re-entrancy guard: acquiring twice without releasing
-    // would overwrite the saved VT with the free one we just switched to.
+    // True while this owner holds a hand-off, whether or not it found a VT to
+    // return to. Callers use it as a re-entrancy guard: acquiring twice without
+    // releasing would overwrite the saved VT with the free one we just switched
+    // to, and look for Qt's DRM fd after its master is already dropped.
     bool    isHeldBy(const QString &owner) const;
     QString currentOwner() const { return m_owner; }
 

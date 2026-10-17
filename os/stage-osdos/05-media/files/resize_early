@@ -60,19 +60,42 @@ grow_root () {
   fi
 }
 
-make_media () {
-  # "ntfs" makes it MBR type 0x07, where Windows looks for exFAT.
-  if ! parted -s -m "$ROOT_DEV" u s mkpart primary ntfs "$1" "$TARGET_END"; then
-    log_warning_msg "Could not make the film partition"
-    return
-  fi
-  # udev makes its device node in a moment.
+# udev makes the film partition's device node in a moment.
+wait_for_media () {
   udevadm settle --timeout=10 2> /dev/null
   WAITED=0
   while [ ! -b "/dev/$MEDIA_NAME" ] && [ "$WAITED" -lt 10 ]; do
     sleep 1
     WAITED=$((WAITED + 1))
   done
+}
+
+make_media () {
+  # "ntfs" makes it MBR type 0x07, where Windows looks for exFAT.
+  if ! parted -s -m "$ROOT_DEV" u s mkpart primary ntfs "$1" "$TARGET_END"; then
+    log_warning_msg "Could not make the film partition"
+    return
+  fi
+  wait_for_media
+  if ! mkfs.exfat -L OSD-OS "/dev/$MEDIA_NAME"; then
+    log_warning_msg "Could not format the film partition"
+  fi
+}
+
+# A first boot cut short between making the film partition and formatting it
+# leaves it blank, and the next one finds it made: formatted then, but only
+# when blkid finds no filesystem on it at all. Its -D leaves out what the
+# partition table says of it (PART_ENTRY_*), which every partition has; exit
+# 2 is then nothing found, or nothing read, so the partition's start is read
+# first. One with a filesystem of any kind, or one that can't be read, is left
+# as it is.
+format_blank_media () {
+  wait_for_media
+  [ -b "/dev/$MEDIA_NAME" ] && command -v blkid > /dev/null || return 0
+  dd if="/dev/$MEDIA_NAME" of=/dev/null bs=65536 count=16 2> /dev/null || return 0
+  blkid -p -D "/dev/$MEDIA_NAME" > /dev/null 2>&1
+  [ $? -eq 2 ] || return 0
+  log_warning_msg "The film partition has no filesystem: formatting it"
   if ! mkfs.exfat -L OSD-OS "/dev/$MEDIA_NAME"; then
     log_warning_msg "Could not format the film partition"
   fi
@@ -89,6 +112,7 @@ if [ "$ROOT_PART_NUM" != 2 ]; then
 elif [ -e "/sys/block/$ROOT_DEV_NAME/$MEDIA_NAME" ]; then
   # A first boot cut short after this ran: the partitions are made already.
   log_warning_msg "Resize skipped: the card has its film partition already"
+  format_blank_media
 else
   ROOT_END=$((ROOT_PART_START + ROOT_MIB * 2048 - 1))
   CUR_END=$((ROOT_PART_START + ROOT_PART_SIZE - 1))

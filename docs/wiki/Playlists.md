@@ -158,6 +158,7 @@ The subtitles are those inside the file or stream. A Jellyfin or Emby video's su
 | **Nothing to play** · Add videos to it first | The list is empty |
 | **Nothing to play** · None of its videos is on the device yet | An offline list with nothing downloaded |
 | **Nothing to play** · None of its videos can be reached | An online list whose every video is missing or on a server you are signed out of |
+| **Could not play** · The list could not be written in … | Its m3u couldn't be written in the data folder's `playlists` folder (a full or read-only disk), so nothing plays ([below](#the-m3u-it-writes)) |
 | **Playback failed** · Its YouTube videos need yt-dlp, up to date, and the network | mpv stopped before showing anything, on a list with streamed YouTube videos. Select retries |
 | **Playback failed** · None of its videos would play | The same, on any other list. Select retries |
 
@@ -459,7 +460,7 @@ Edit it only with OSD/OS stopped (`sudo systemctl stop osdos` on the image), and
 
 ### The m3u it writes
 
-Each time a list starts, it is written into `playlists/<playlist id>-<n>.m3u` in the data folder, a new number each time, replacing the list's previous one. The file is readable by your user only, because a Jellyfin or Emby address in it carries the server's token. A shuffled list is shuffled here, so the file is in the order it plays. Played, the online list above writes (in the order that shuffle gave):
+Each time a list starts, it is written into `playlists/<playlist id>-<n>.m3u` in the data folder, a new number each time, replacing the list's previous one once it is written whole. One that can't be written (a full or read-only disk) isn't played: the player says **Could not play** and why, and the previous one stays. The file is readable by your user only, because a Jellyfin or Emby address in it carries the server's token. A shuffled list is shuffled here, so the file is in the order it plays. Played, the online list above writes (in the order that shuffle gave):
 
 ```text
 #EXTM3U
@@ -485,6 +486,7 @@ A YouTube video is written as `https://www.youtube.com/watch?v=<id>` (mpv's yt-d
 | A video stays **QUEUED** | Downloads run one at a time, and start 15 seconds after OSD/OS does; a server that stops sending fails after 30 seconds and the queue moves on |
 | The card fills up | Every offline video is a full file. Take videos off offline lists, or delete lists you don't need: their downloads go at once. `bytes` in `playlists.json` gives each file's size |
 | **Nothing to play** | The list is empty, nothing is downloaded yet, or nothing can be reached: see [Playing](#playing) |
+| **Could not play** · The list could not be written in … | The disk the data folder is on is full or read-only. Make room on it, then play the list again |
 | **Playback failed** on a list with YouTube videos | yt-dlp must be there and up to date, and the network up |
 | A Jellyfin or Emby video doesn't play on an online list | The server must be reachable from the device; the list streams the original file, so a file mpv can't decode won't play here even though the server module would transcode it |
 

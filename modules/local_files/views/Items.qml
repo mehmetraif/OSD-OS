@@ -105,7 +105,14 @@ FocusScope {
         anchors.fill: parent
         focus: true
         visible: !rootEmpty
-        rootPath: { if (localFilesBackend) localFilesBackend.clearDirectoryCache(); return itemsRoot.rootPath }
+        // Folders read afresh as Local Files opens, so what was copied in
+        // since shows; coming back from a video (navListState) they are as
+        // they were read, on a NAS or a disk that sleeps a wait each time.
+        rootPath: {
+            if (localFilesBackend && !itemsRoot.navParams.navListState)
+                localFilesBackend.clearDirectoryCache()
+            return itemsRoot.rootPath
+        }
         savedTrail: itemsRoot.navListState.trail || []
         fetch: function(path, preview) {
             if (!localFilesBackend)

@@ -59,6 +59,8 @@ signals:
 
 private:
     friend class ReliabilityTest;
+    // Whether release is a newer version than running (UpdateManager.cpp).
+    static bool isNewer(const QString &release, const QString &running);
     void setState(const QString &state, const QString &error = QString());
     void evaluateApplyCapability();
     void reconcileStagingDir();

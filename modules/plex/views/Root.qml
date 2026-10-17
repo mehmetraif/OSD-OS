@@ -73,16 +73,18 @@ FocusScope {
         }
     }
 
-    // Handle logout signal from backend: clear stack and go to auth
+    // Handle logout signal from backend: clear stack and go to auth. Replaced,
+    // not navigated to, so the view signed out of isn't put back on the stack
+    // for back to return to: back from PinAuth leaves the module.
     Connections {
         target: plexBackend
         function onLogoutComplete() {
             moduleRoot.navStack = []
-            moduleRoot.navigateTo("PinAuth.qml", {})
+            moduleRoot.replaceWith("PinAuth.qml", {})
         }
         function onAuthRevoked() {
             moduleRoot.navStack = []
-            moduleRoot.navigateTo("PinAuth.qml", {})
+            moduleRoot.replaceWith("PinAuth.qml", {})
         }
     }
 

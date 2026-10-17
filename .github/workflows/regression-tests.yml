@@ -2,9 +2,11 @@ name: Regression tests
 
 # Builds the app and the regression tests (tests/, see tests/README.md) on
 # both Linux architectures, and runs the tests; then once more on the Pi's own
-# system, Raspberry Pi OS, with its newer Qt and mpv.
+# system, Raspberry Pi OS, with its newer Qt and mpv. The release workflow
+# runs it too, and publishes nothing unless it passes.
 
 on:
+  workflow_call:
   push:
     branches: [main]
     paths:

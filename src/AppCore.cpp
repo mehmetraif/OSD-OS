@@ -181,7 +181,7 @@ QVariant AppCore::get_setting(const QString &moduleId, const QString &key) {
     return target[key].toVariant();
 }
 
-void AppCore::save_setting(const QString &moduleId, const QString &key, const QVariant &rawValue) {
+bool AppCore::save_setting(const QString &moduleId, const QString &key, const QVariant &rawValue) {
     // A JS object or array from QML arrives wrapped as a QJSValue, which
     // QJsonValue::fromVariant() would store as null.
     const QVariant value = rawValue.metaType() == QMetaType::fromType<QJSValue>()
@@ -217,18 +217,23 @@ void AppCore::save_setting(const QString &moduleId, const QString &key, const QV
     }
 
     setTarget(target);
-    if (saveConfig(config))
-        qDebug("[AppCore] Setting saved: %s.%s = %s",
-               qPrintable(moduleId.isEmpty() ? "app" : moduleId),
-               qPrintable(key), qPrintable(value.toString()));
-    else
+    // Only a setting on the card is one the backends take up: one that
+    // couldn't be saved would be gone at the next start, and get_setting()
+    // says the old one meanwhile.
+    if (!saveConfig(config)) {
         qWarning("[AppCore] Setting not saved: %s.%s",
                  qPrintable(moduleId.isEmpty() ? "app" : moduleId), qPrintable(key));
+        return false;
+    }
+    qDebug("[AppCore] Setting saved: %s.%s = %s",
+           qPrintable(moduleId.isEmpty() ? "app" : moduleId),
+           qPrintable(key), qPrintable(value.toString()));
 
     if (moduleId.isEmpty())
         emit appSettingChanged(key, value.toString());
     else
         emit moduleSettingChanged(moduleId, key, value);
+    return true;
 }
 
 QVariant AppCore::get_module_info(const QString &moduleId) {

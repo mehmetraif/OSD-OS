@@ -10,8 +10,8 @@ import Components
 // starts from the list itself (Root.qml's playGame), and this view opens only
 // for that, with navParams.error (it never started) or navParams.failed (MAME
 // ended with an error: message and output). Root.qml starts the game, with
-// the credits bought (startGame()), and keeps the screen saver off while it
-// runs.
+// the credits bought, and puts it on Recently Played once it has started
+// (startGame()), and keeps the screen saver off while it runs.
 //
 // From the Arcade screen (ArcadeScreen.qml) it has that screen's bar, says
 // how many credits go in, and takes COIN (another credit: MAME's 5, which a
@@ -19,7 +19,7 @@ import Components
 // before MAME starts; the credits go in with the game (ArcadeBackend::play),
 // and are spent.
 //
-// The way back is MAME's own, Coin and Start together on player 1's
+// The way back is MAME's own, Coin and Start together on any player's
 // controller or Esc on a keyboard (the controller file ArcadeBackend writes),
 // so that MAME saves the game's high scores and settings as it closes. While
 // it runs every key reaches this view too (both read the controllers) and is
@@ -62,7 +62,7 @@ FocusScope {
     function launch() {
         if (playRoot.phase !== "opening")
             return
-        if (moduleRoot.startGame(playRoot.game)) {
+        if (moduleRoot.startGame(playRoot.game, playRoot.title)) {
             playRoot.phase = "running"
         } else {
             playRoot.phase = "error"

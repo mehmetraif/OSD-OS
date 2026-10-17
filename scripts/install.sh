@@ -81,12 +81,31 @@ sudo udevadm trigger /dev/tty0
 # ── Choose install owner ──────────────────────────────────────────────────────
 # Asked up front so the extract step can hand /opt/osdos to the user the app
 # will run as — the launcher applies in-app staged updates there without root.
-echo ""
-read -r -p "Install systemd autostart service? [y/N] " AUTOSTART_REPLY
+# A service already installed runs the app as the user it names: that one is
+# offered, and kept when the service is. The OSD/OS image's service is its own
+# (it holds the boot screen's units back until the app is up): never rewritten,
+# though the helpers around it are brought up to date.
+EXISTING_USER=""
+if [ -f "${SYSTEMD_SERVICE}" ]; then
+    EXISTING_USER=$(sed -n '/^User=/{s///p;q}' "${SYSTEMD_SERVICE}")
+fi
+IMAGE_SERVICE=""
 SERVICE_USER=""
-if [[ "${AUTOSTART_REPLY}" =~ ^[Yy]$ ]]; then
-    read -r -p "Run service as user [default: pi]: " SERVICE_USER
-    SERVICE_USER="${SERVICE_USER:-pi}"
+if [ -f /etc/osdos/boot-units ] && [ -n "${EXISTING_USER}" ]; then
+    IMAGE_SERVICE=1
+    AUTOSTART_REPLY=y
+    SERVICE_USER="${EXISTING_USER}"
+    echo "The OSD/OS image's own service is kept; it runs the app as ${SERVICE_USER}."
+else
+    echo ""
+    read -r -p "Install systemd autostart service? [y/N] " AUTOSTART_REPLY
+    if [[ "${AUTOSTART_REPLY}" =~ ^[Yy]$ ]]; then
+        read -r -p "Run service as user [default: ${EXISTING_USER:-pi}]: " SERVICE_USER
+        SERVICE_USER="${SERVICE_USER:-${EXISTING_USER:-pi}}"
+    elif [ -n "${EXISTING_USER}" ]; then
+        SERVICE_USER="${EXISTING_USER}"
+        echo "The autostart service already installed is kept; it runs the app as ${SERVICE_USER}."
+    fi
 fi
 OWNER_USER="${SERVICE_USER:-$USER}"
 
@@ -114,6 +133,9 @@ sudo tar -xzf "${TMP_DIR}/${TARBALL}" \
 
 # Owned by the running user so the launcher can swap in staged in-app updates.
 sudo chown -R "${OWNER_USER}:" "${INSTALL_DIR}"
+if ! sudo -u "${OWNER_USER}" test -w "${INSTALL_DIR}"; then
+    echo "Warning: ${OWNER_USER} can't write ${INSTALL_DIR}, so in-app updates won't apply." >&2
+fi
 
 # ── Create launcher ────────────────────────────────────────────────────────────
 echo "Creating launcher at ${LAUNCHER}..."
@@ -146,10 +168,21 @@ export OSDOS_LAUNCHER_API=5
 # (e.g. the systemd unit) or this block won't find the staging directory.
 UPDATES_DIR="${DATA_ROOT:-${XDG_DATA_HOME:-$HOME/.local/share}/OSD-OS}/updates"
 
-# Crash recovery: a previous apply died between the child renames below.
-if [ ! -x "$INSTALL_DIR/bin/osdos" ] && [ -x "$INSTALL_DIR/.new/bin/osdos" ]; then
-    for d in "$INSTALL_DIR"/.new/*; do mv -f "$d" "$INSTALL_DIR/"; done
-    rm -rf "$INSTALL_DIR/.new" "$INSTALL_DIR/.old"
+# Crash recovery: a previous apply died between the child renames below. What
+# it had swapped in goes back out for what .old kept of the release before, so
+# that one runs whole, and the stage, still there until a swap is on the card,
+# is applied again below. A .discard is the release before a finished apply,
+# left half deleted.
+if [ -d "$INSTALL_DIR/.old" ] && [ -w "$INSTALL_DIR" ]; then
+    for d in "$INSTALL_DIR"/.old/*; do
+        [ -e "$d" ] || continue
+        name=$(basename "$d")
+        rm -rf "${INSTALL_DIR:?}/$name"
+        mv "$d" "$INSTALL_DIR/$name"
+    done
+fi
+if [ -w "$INSTALL_DIR" ]; then
+    rm -rf "$INSTALL_DIR/.new" "$INSTALL_DIR/.old" "$INSTALL_DIR/.discard"
 fi
 
 if [ -f "$UPDATES_DIR/staged.sha256" ] && [ -w "$INSTALL_DIR" ]; then
@@ -159,15 +192,22 @@ if [ -f "$UPDATES_DIR/staged.sha256" ] && [ -w "$INSTALL_DIR" ]; then
         mkdir -p "$INSTALL_DIR/.new" "$INSTALL_DIR/.old"
         # Extract fully, then swap top-level dirs (bin, share) via rename —
         # shrinks the power-loss window from the whole extraction to two mv's,
-        # and drops files that no longer exist in the new release.
+        # and drops files that no longer exist in the new release. The new
+        # files are on the card before any rename names them, and the renames
+        # before the stage that would apply them again goes: a Pi switched off
+        # at the wall meanwhile starts on the release before, or applies it
+        # again, never on a file half written.
         if tar -xzf "$UPDATES_DIR/$STAGED_TARBALL" --strip-components=3 -C "$INSTALL_DIR/.new" \
            && [ -x "$INSTALL_DIR/.new/bin/osdos" ]; then
+            sync -f "$INSTALL_DIR" 2> /dev/null || sync
             for d in "$INSTALL_DIR"/.new/*; do
                 name=$(basename "$d")
                 [ -e "$INSTALL_DIR/$name" ] && mv "$INSTALL_DIR/$name" "$INSTALL_DIR/.old/$name"
                 mv "$d" "$INSTALL_DIR/$name"
             done
-            rm -rf "$INSTALL_DIR/.new" "$INSTALL_DIR/.old"
+            mv "$INSTALL_DIR/.old" "$INSTALL_DIR/.discard"
+            sync -f "$INSTALL_DIR" 2> /dev/null || sync
+            rm -rf "$INSTALL_DIR/.new" "$INSTALL_DIR/.discard"
             rm -f "$UPDATES_DIR/$STAGED_TARBALL" "$UPDATES_DIR/staged.sha256" "$UPDATES_DIR/staged.json"
         else
             # Bad extract: keep the old tree; .failed stops a retry every boot.
@@ -200,6 +240,18 @@ else
     if [ -r "$PRESET" ] && tr -d '\0' 2>/dev/null < /proc/device-tree/model | grep -q '^Raspberry Pi 5'; then
         want=$(sed -n 's/^# osdos-output: *\([A-Za-z-]*\).*/\1/p' "$PRESET" | head -n1)
         mode=$(sed -n 's/^# osdos-mode: *\([0-9]*x[0-9]*\).*/\1/p' "$PRESET" | head -n1)
+        # Composite and DPI come from the RP1's drivers, which may register
+        # their connector after vc4's HDMI has: waited for, up to ten seconds,
+        # rather than taking HDMI for the boot and leaving the CRT dark.
+        tries=0
+        while [ -n "$want" ] && [ "$tries" -lt 100 ] \
+                && ! compgen -G "/sys/class/drm/card*-${want}-*" > /dev/null; do
+            sleep 0.1
+            tries=$((tries + 1))
+        done
+        if [ -n "$want" ] && ! compgen -G "/sys/class/drm/card*-${want}-*" > /dev/null; then
+            echo "osdos: the display preset's $want output never appeared; taking the first display connected" >&2
+        fi
         for d in /sys/class/drm/card*-"${want:-none}"-*; do
             [ -e "$d" ] || continue
             n=$(basename "$d"); KMS_CARD="${n%%-*}"; KMS_OUTPUT="${n#*-}"
@@ -258,7 +310,8 @@ sudo chmod +x "${LAUNCHER}"
 
 # ── Optional: systemd autostart ───────────────────────────────────────────────
 if [[ "${AUTOSTART_REPLY}" =~ ^[Yy]$ ]]; then
-    sudo tee "${SYSTEMD_SERVICE}" > /dev/null << UNIT
+    if [ -z "${IMAGE_SERVICE}" ]; then
+        sudo tee "${SYSTEMD_SERVICE}" > /dev/null << UNIT
 [Unit]
 Description=OSD/OS Media Player
 After=multi-user.target sound.target
@@ -289,6 +342,7 @@ StandardError=journal
 [Install]
 WantedBy=multi-user.target
 UNIT
+    fi
 
     # ExecStopPost helper: the user's Quit → Power Off (exit 0) powers the Pi off;
     # exit 10 means the user chose "Exit to Terminal", so instead spawn a login

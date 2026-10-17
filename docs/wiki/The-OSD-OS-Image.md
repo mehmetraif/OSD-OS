@@ -70,7 +70,7 @@ Download `OSD-OS-<version>-raspberry-pi.img.xz` from the [latest release](https:
 
 The first boot does a few things once and takes longer:
 
-1. In the initramfs, the card is split: the system's partition grows to 8 GiB and the rest becomes the film partition, formatted exFAT ([Films on the card](https://github.com/mehmetraif/OSD-OS/wiki/The-OSD-OS-Image#films-on-the-card)).
+1. In the initramfs, the card is split: the system's partition grows to 8 GiB and the rest becomes the film partition, formatted exFAT ([Films on the card](https://github.com/mehmetraif/OSD-OS/wiki/The-OSD-OS-Image#films-on-the-card)). A first boot cut short before the film partition is formatted leaves that to the next boot.
 2. The root file system grows to fill its partition (Raspberry Pi OS's `rpi-resize.service`).
 3. cloud-init applies what Raspberry Pi Imager or `network-config` asked for: a user, Wi-Fi, SSH, the locale. Then `osdos-cloud-init-once.service` switches cloud-init off for good.
 4. OSD/OS starts as on every boot, with the boot screen.
@@ -281,10 +281,10 @@ On the first boot, Raspberry Pi OS grows its system partition to the end of the 
 1. It acts only on a freshly flashed card: when `resize` is on the kernel command line, which Raspberry Pi OS removes after the first boot.
 2. It grows the system partition (the second) to `OSDOS_ROOT_SIZE` GiB, 8 by default, counted from where it starts. It never shrinks it.
 3. It makes a third partition from the next 4 MiB boundary to the end of the card, of MBR type 0x07, where Windows looks for exFAT.
-4. It formats it with `mkfs.exfat -L OSD-OS`. The image's initramfs carries `mkfs.exfat` for this (the hook `/etc/initramfs-tools/hooks/osdos-media`).
+4. It formats it with `mkfs.exfat -L OSD-OS`. The image's initramfs carries `mkfs.exfat` for this, and `blkid` (the hook `/etc/initramfs-tools/hooks/osdos-media`).
 5. Should less than **2 GiB** be left after the system, there is no film partition: the system takes the whole card, as on stock Raspberry Pi OS. The same goes for an image built with `OSDOS_ROOT_SIZE=0`.
 
-Nothing in it can stop the boot. A step that fails is logged, and the card is left as far as it got. A first boot cut short after the split finds the film partition there and leaves the card alone.
+Nothing in it can stop the boot. A step that fails is logged, and the card is left as far as it got. A first boot cut short after the split finds the film partition there and leaves the partitions alone. One cut short between making the film partition and formatting it leaves the partition blank: the next boot formats it then, but only when `blkid` finds no file system on it at all. A partition with a file system of any kind, or one `blkid` can't read, is left as it is.
 
 | Partition | Label | File system | Size | Mounted at |
 |---|---|---|---|---|
@@ -563,11 +563,11 @@ On an image built without a password, its drop-in replaces the `ExecStart` with 
 
 Settings → **Update** checks GitHub for the latest release ([Installation](https://github.com/mehmetraif/OSD-OS/wiki/Installation)). On an image made by a release:
 
-1. **CHECK** reads the latest release and its notes. **DOWNLOAD** fetches its `OSD-OS-<version>-linux-arm64.tar.gz` into `~/.local/share/OSD-OS/updates`, checks it against the release's `SHA256SUMS`, and needs three times its size free.
+1. **CHECK** reads the latest release and its notes, and offers it only when its version is newer than the one installed: an older release is never offered. **DOWNLOAD** fetches its `OSD-OS-<version>-linux-arm64.tar.gz` into `~/.local/share/OSD-OS/updates`, checks it against the release's `SHA256SUMS`, and needs three times its size free.
 2. **INSTALL** offers **Apply & Restart** and **Discard Update**. Apply & Restart arms the update (`staged.sha256`) and exits with 11.
-3. systemd starts OSD/OS again, and the launcher, before it starts the app, checks the tarball's SHA-256, unpacks it into `/opt/osdos/.new` and swaps its folders in. A half-done swap is put right at the next start, and a tarball that won't unpack is set aside rather than tried at every boot. Settings stay as they were.
+3. systemd starts OSD/OS again, and the launcher, before it starts the app, checks the tarball's SHA-256, unpacks it into `/opt/osdos/.new`, flushes it to the card and swaps its folders in, the old ones moved into `/opt/osdos/.old` on the way. The update stays staged until the swap has finished. A swap the power cut short is undone at the next start, the release before put back from `.old`, and the update applied again: the Pi starts on one release or the other, whole. A tarball that won't unpack is set aside rather than tried at every boot. Settings stay as they were.
 
-This works because `/opt/osdos` belongs to `pi`, the launcher's API is set, and the app is `/opt/osdos/bin/osdos`.
+This works because `/opt/osdos` belongs to `pi`, the launcher's API is set, and the app is `/opt/osdos/bin/osdos`. `install.sh` run on the image (for a particular release, say) keeps the image's own `osdos.service` as it is, with its user, and brings the app, the launcher and the helpers around the service up to date.
 
 An image built by the **OS image** workflow (or locally from a branch) has an app built as `dev`. Its Update screen checks, to read the notes, but says **Dev build — self-update is disabled.** That way a branch's image can't replace itself with a release that doesn't have the branch's changes.
 
@@ -692,7 +692,7 @@ The workflow also runs on every pull request that touches `os/`, `src/boot/`, `v
 - **app** builds OSD/OS from the branch with `APP_VERSION` left at `dev` and packs it as `OSD-OS-dev-linux-arm64.tar.gz`;
 - **image** frees disk space, then runs `os/build.sh` on that tarball, with up to three hours to do it.
 
-**With a release**: pushing a version tag ([Building from source](https://github.com/mehmetraif/OSD-OS/wiki/Building-from-Source)) runs the release workflow, whose `build-os-image` job builds the image from that release's own tarball, names it `OSD-OS-<tag>-raspberry-pi.img.xz` with its `.info`, and attaches both to the release. Its app is the release's and updates itself from later releases.
+**With a release**: pushing a version tag ([Building from source](https://github.com/mehmetraif/OSD-OS/wiki/Building-from-Source)) runs the release workflow, whose `build-os-image` job builds the image from that release's own tarball, names it `OSD-OS-<tag>-raspberry-pi.img.xz` with its `.info`, and attaches both to the release, which is published only once the regression tests have passed on the tagged commit. Its app is the release's and updates itself from later releases.
 
 ### Locally
 

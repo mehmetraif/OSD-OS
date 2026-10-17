@@ -72,10 +72,11 @@ Rectangle {
         property bool border: true
         property var screenAdjustment: ({ top: 0, bottom: 0, left: 0, right: 0 })
         function addCredit() { credits = Math.min(maxCredits, credits + 1) }
-        function startGame(set) {
+        function startGame(set, title) {
             if (!arcadeBackend.play(set, credits))
                 return false
             credits = 0
+            appCore.add_to_list(moduleId, "recent", { name: title || set, path: "game:" + set, isFolder: false }, 30)
             return true
         }
     }
@@ -90,6 +91,7 @@ Rectangle {
         property bool running: false
         property bool played: true
         property bool scanning: false
+        property bool reading: false
         property string problem: ""
         property bool folderReadable: true
         property bool playResult: true
@@ -169,17 +171,22 @@ Rectangle {
     QtObject {
         id: appCore
         property var added: []
+        property var lastAdded: null
         property var settings: ({})
         property var saved: ({})
         function get_settings() { return { modules: { "com.osdos.arcade": settings } } }
         function get_module_info(id) { return { name: "Arcade", icon: "" } }
-        function add_to_list(module, list, entry, limit) { added = added.concat([[module, list, entry.path]]) }
+        function add_to_list(module, list, entry, limit) {
+            added = added.concat([[module, list, entry.path]])
+            lastAdded = entry
+        }
         function list_contains(module, list, path) { return false }
         function get_setting(module, key) { return undefined }
         function save_setting(module, key, value) {
             var all = Object.assign({}, saved)
             all[key] = value
             saved = all
+            return true
         }
         function is_module_enabled(id) { return false }
     }
@@ -208,6 +215,7 @@ Rectangle {
             arcadeBackend.running = false
             arcadeBackend.played = true
             arcadeBackend.scanning = false
+            arcadeBackend.reading = false
             arcadeBackend.problem = ""
             arcadeBackend.folderReadable = true
             arcadeBackend.playResult = true
@@ -260,6 +268,7 @@ Rectangle {
             }
             idleTracker.resets = 0
             appCore.added = []
+            appCore.lastAdded = null
             appCore.settings = {}
             appCore.saved = {}
             root.navigations = []
@@ -353,6 +362,27 @@ Rectangle {
             compare(nav.listState.trail[1].path, "favorites")
             // The tree there as it plays, its line on the game.
             verify(findText(games, "1980") !== null)
+        }
+
+        // While the folder is read, the startup favourite waits for it, on
+        // both screens; then it plays.
+        function test_startupWaitsForFolder() {
+            arcadeBackend.reading = true
+            open("Games.qml", { startupPlay: { name: "Pac-Man (Midway)", path: "game:pacman" } })
+            wait(100)
+            compare(root.navigations, [])
+            arcadeBackend.reading = false
+            tryVerify(function() { return root.navigations.length === 1 })
+            compare(root.navigations[0].params.game, "pacman")
+            loader.source = ""
+            root.navigations = []
+            arcadeBackend.reading = true
+            openScreen({ startupPlay: { name: "Street Fighter II", path: "game:sf2" } })
+            wait(100)
+            compare(root.navigations, [])
+            arcadeBackend.reading = false
+            tryVerify(function() { return root.navigations.length === 1 })
+            compare(root.navigations[0].params.game, "sf2")
         }
 
         // How to come back, then MAME has the screen and every key is kept
@@ -659,6 +689,31 @@ Rectangle {
             verify(findText(screen, "Street Fighter II: The World Warrior (World 910522)  •  Capcom  •  1991  •  2 Players  •  CPS-1") !== null)
         }
 
+        // A saved adjustment Screen Adjustment couldn't have made (config.json
+        // edited, an older form): no side past the screen's edge, and a pair
+        // of sides leaving less than the least room as the design has them,
+        // the list keeping its rows.
+        function test_screenAdjustmentLimits() {
+            moduleRoot.screenAdjustment = { top: 500, bottom: 300, left: 400, right: 200 }
+            var screen = openScreen()
+            compare([screen.areaLeft, screen.areaTop, screen.areaRight, screen.areaBottom], [0, 0, 960, 720])
+            loader.source = ""
+            moduleRoot.screenAdjustment = { top: -100, bottom: -100, left: -200, right: 0 }
+            screen = openScreen({ adjust: true })
+            compare([screen.areaLeft, screen.areaTop, screen.areaRight, screen.areaBottom], [120, 90, 840, 645])
+            compare(screen.perPage, 7)
+            verify(screen.pitch >= screen.minPitch)
+            // A move starts from the area shown, so what it saves is within
+            // the limits.
+            keyClick(Qt.Key_Down)
+            compare(moduleRoot.screenAdjustment, { top: 0, bottom: 6, left: 0, right: 0 })
+            loader.source = ""
+            // The least room itself is kept.
+            moduleRoot.screenAdjustment = { top: -60, bottom: -75, left: -60, right: -60 }
+            screen = openScreen()
+            compare([screen.areaWidth, screen.areaBottom - screen.areaTop], [600, 420])
+        }
+
         // A detail too long for its line in the box scrolls through it, so it
         // shows whole.
         function test_screenLongDetail() {
@@ -894,6 +949,35 @@ Rectangle {
             compare(screen.filterId, "genres/Fighting")
         }
 
+        // Opened while the games are read, the lists stand in for Start
+        // Filter's, which then opens on its first game, not on the favourite
+        // the screen stood on meanwhile; a game moved to meanwhile is kept.
+        function test_screenWaitedFilterOpensAtItsStart() {
+            var all = arcadeBackend.filterList
+            arcadeBackend.scanning = true
+            arcadeBackend.filterList = all.filter(function(f) { return f.id === "favorites" })
+            var screen = openScreen()
+            compare(screen.filterId, "favorites")
+            compare(screen.currentSet, "galaga")
+            arcadeBackend.scanning = false
+            arcadeBackend.filterList = all
+            arcadeBackend.gamesChanged()
+            compare(screen.filterId, "all")
+            compare(screen.currentSet, "sf2")
+            loader.source = ""
+            arcadeBackend.scanning = true
+            arcadeBackend.filterList = all.filter(function(f) { return f.id === "favorites" })
+            screen = openScreen()
+            keyClick(Qt.Key_Down)
+            keyClick(Qt.Key_Up)
+            compare(screen.currentSet, "galaga")
+            arcadeBackend.scanning = false
+            arcadeBackend.filterList = all
+            arcadeBackend.gamesChanged()
+            compare(screen.filterId, "all")
+            compare(screen.currentSet, "galaga")
+        }
+
         // The startup favourite plays at once, as if chosen in Favorites.
         function test_screenStartup() {
             var screen = openScreen({ startupPlay: { name: "Street Fighter II", path: "game:sf2" } })
@@ -1051,9 +1135,14 @@ Rectangle {
             play = shown(router)
             compare(router.playing, null)
             verify(findText(play, "sudo apt install mame") !== null)
+            // On Recently Played: the game MAME started, not the one it
+            // couldn't.
+            compare(appCore.added, [["com.osdos.arcade", "recent", "game:1942"]])
         }
 
-        // Start Info Screen on: how to come back first.
+        // Start Info Screen on: how to come back first. The game goes on
+        // Recently Played as it starts, not before: canceled on this screen,
+        // it isn't.
         function test_rootStartInfoOn() {
             var router = openRoot({ screen: "Arcade" })
             keyClick(Qt.Key_Return)
@@ -1061,7 +1150,18 @@ Rectangle {
             compare(play.game, "sf2")
             compare(play.phase, "opening")
             compare(arcadeBackend.started, [])
+            compare(appCore.added, [])
+            keyClick(Qt.Key_Escape)
+            compare(shown(router).currentSet, "sf2")
+            compare(appCore.added, [])
+            keyClick(Qt.Key_Return)
+            play = shown(router)
+            compare(play.phase, "opening")
+            keyClick(Qt.Key_Space)
+            compare(play.phase, "running")
+            compare(arcadeBackend.started, ["sf2"])
             compare(appCore.added, [["com.osdos.arcade", "recent", "game:sf2"]])
+            compare(appCore.lastAdded.name, "Street Fighter II: The World Warrior (World 910522)")
         }
 
         // Settings → Arcade → Screen Adjustment opens the Arcade screen to

@@ -16,6 +16,7 @@
 #include <QRegularExpression>
 #include <QTimer>
 #include <QUrl>
+#include <QtConcurrent/QtConcurrentRun>
 #include <algorithm>
 #include <utility>
 
@@ -130,6 +131,14 @@ QVariantMap filter(const QString &id, const QString &name, qsizetype count) {
              { QStringLiteral("count"), static_cast<int>(count) } };
 }
 
+// The first snapshot MAME took of a game (F12 in it), in its folder of them;
+// "" for none.
+QString firstShot(const QString &folder) {
+    const QDir dir(folder);
+    const QStringList shots = dir.entryList({ QStringLiteral("*.png") }, QDir::Files, QDir::Name);
+    return shots.isEmpty() ? QString() : dir.filePath(shots.first());
+}
+
 } // namespace
 
 ArcadeBackend::ArcadeBackend(const QString &appRoot, const QString &dataRoot, AppCore *appCore,
@@ -153,13 +162,22 @@ ArcadeBackend::ArcadeBackend(const QString &appRoot, const QString &dataRoot, Ap
         if (!refused && !m_playing.isEmpty())
             addPlayTime(m_playing, (m_playClock.elapsed() + 500) / 1000);
         // A snapshot taken in the game (F12) is its picture now.
-        m_pictures.remove(m_playing);
+        if (!m_playing.isEmpty()) {
+            const QString shot = firstShot(m_home + QStringLiteral("/snap/") + m_playing);
+            if (shot.isEmpty())
+                m_shots.remove(m_playing);
+            else
+                m_shots.insert(m_playing, shot);
+        }
         m_playing.clear();
         emit finished(exitCode, reason, notice);
         // The sets MAME was still to be asked about, held while it played.
         if (!m_scan && !m_toAsk.isEmpty())
             scanNext();
     });
+
+    m_watcher = new QFutureWatcher<Read>(this);
+    connect(m_watcher, &QFutureWatcherBase::finished, this, &ArcadeBackend::onRead);
 
     m_scanTimer = new QTimer(this);
     m_scanTimer->setSingleShot(true);
@@ -200,6 +218,8 @@ ArcadeBackend::ArcadeBackend(const QString &appRoot, const QString &dataRoot, Ap
 }
 
 ArcadeBackend::~ArcadeBackend() {
+    // The read keeps nothing of this object's: it may finish on its own.
+    m_watcher->disconnect(this);
     if (m_scan) {
         m_scan->disconnect(this);
         m_scan->kill();
@@ -287,7 +307,7 @@ void ArcadeBackend::setGamesFolder(const QString &path) {
         return;
     m_gamesFolder = folder;
     m_listed = false;
-    m_pictures.clear();
+    m_snaps.clear();
     m_sets.clear();
     m_misnamed.clear();
     m_folders.clear();
@@ -314,14 +334,15 @@ QString ArcadeBackend::mameIdentity() const {
     return program.exists() ? fileStamp(program) : QString();
 }
 
-void ArcadeBackend::listFolder() {
-    // Unsorted, and no check of each entry's permissions: tens of thousands
-    // of sets in a full set of MAME's games.
-    QHash<QString, QString> sets;
-    QSet<QString> misnamed;
-    QSet<QString> folders;
-    m_otherFolders.clear();
-    QDirIterator it(m_gamesFolder, QDir::Dirs | QDir::Files | QDir::NoDotAndDotDot);
+ArcadeBackend::Read ArcadeBackend::read(const QString &folder, const QString &home, bool withCache,
+                                        const QString &genresFrom) {
+    Read read;
+    read.folder = folder;
+    // There, so that whoever copies games onto the card sees where they go.
+    QDir().mkpath(folder);
+
+    // The sets: unsorted, and no check of each entry's permissions.
+    QDirIterator it(folder, QDir::Dirs | QDir::Files | QDir::NoDotAndDotDot);
     while (it.hasNext()) {
         it.next();
         const QFileInfo info = it.fileInfo();
@@ -333,7 +354,7 @@ void ArcadeBackend::listFolder() {
             if (kNotSets.contains(name)) {
                 // As it is named: Samples on a filesystem that tells cases
                 // apart isn't samples.
-                m_otherFolders.insert(name, info.fileName());
+                read.otherFolders.insert(name, info.fileName());
                 continue;
             }
             asMame = name;
@@ -345,30 +366,186 @@ void ArcadeBackend::listFolder() {
             asMame = name + QLatin1Char('.') + suffix;
         }
         // A zip ahead of a folder of the same name (where a game's CHD is).
-        if (sets.contains(name) && (isFolder || !folders.contains(name)))
+        if (read.sets.contains(name) && (isFolder || !read.folders.contains(name)))
             continue;
-        sets.insert(name, info.fileName());
+        read.sets.insert(name, info.fileName());
         if (isFolder)
-            folders.insert(name);
+            read.folders.insert(name);
         else
-            folders.remove(name);
+            read.folders.remove(name);
         // MAME opens a set by its name in lower case: where the filesystem
         // tells cases apart (ext4, not the card's exFAT), PACMAN.ZIP isn't
         // the pacman.zip it looks for.
         if (asMame != info.fileName() && mame::isShortName(name)
-            && !QFileInfo::exists(m_gamesFolder + QLatin1Char('/') + asMame))
-            misnamed.insert(name);
+            && !QFileInfo::exists(folder + QLatin1Char('/') + asMame))
+            read.misnamed.insert(name);
         else
-            misnamed.remove(name);
+            read.misnamed.remove(name);
+    }
+
+    // What MAME said of the sets, while it hasn't been read: with a full set
+    // of MAME's games it is megabytes.
+    read.cacheAsked = withCache;
+    QFile cacheFile(home + QStringLiteral("/games.json"));
+    if (withCache && cacheFile.open(QIODevice::ReadOnly)) {
+        const QJsonObject cache = QJsonDocument::fromJson(cacheFile.readAll()).object();
+        cacheFile.close();
+        // Made by an older version, without what this one keeps of each game.
+        if (cache.value(QStringLiteral("version")).toInt() != kCacheVersion) {
+            qInfo("[Arcade] games.json is from an older version: asking MAME about every game again");
+        } else {
+            read.identity = cache.value(QStringLiteral("mame")).toString();
+            read.build = cache.value(QStringLiteral("build")).toString();
+            const QJsonObject machines = cache.value(QStringLiteral("machines")).toObject();
+            for (auto m = machines.constBegin(); m != machines.constEnd(); ++m)
+                read.machines.insert(m.key(), mame::Machine::fromVariant(m.key(), m.value().toObject().toVariantMap()));
+            const QJsonArray unknown = cache.value(QStringLiteral("unknown")).toArray();
+            for (const QJsonValue &name : unknown)
+                read.unknown.insert(name.toString());
+        }
+    }
+
+    // catver.ini beside the games, else in the module's own folder, read
+    // again once it has changed (or another is found).
+    QString catver;
+    for (const QString &candidate : { folder + QStringLiteral("/catver.ini"), home + QStringLiteral("/catver.ini") }) {
+        if (QFileInfo(candidate).isFile()) {
+            catver = candidate;
+            break;
+        }
+    }
+    const QString from = catver.isEmpty() ? QString() : fileStamp(QFileInfo(catver));
+    if (from != genresFrom) {
+        read.genresRead = true;
+        read.genresFrom = from;
+        if (!catver.isEmpty()) {
+            read.genres = mame::readGenres(catver);
+            qInfo("[Arcade] %lld games' genres from %s", static_cast<long long>(read.genres.size()),
+                  qPrintable(catver));
+        }
+    }
+
+    // The pictures, looked for here once rather than file by file as the
+    // games are chosen (exFAT's folders have no index): the games folder's
+    // snap, named by the set as MAME names it, the way the picture packs for
+    // MAME have them, a .png before a .jpg; and the first MAME took of each
+    // game, in its own snap folder.
+    QHash<QString, int> ranks;   // set → how well its picture's name fits
+    QDirIterator snaps(folder + QLatin1Char('/') + read.otherFolders.value(QStringLiteral("snap"), QStringLiteral("snap")),
+                       QDir::Files);
+    while (snaps.hasNext()) {
+        snaps.next();
+        const QFileInfo info = snaps.fileInfo();
+        const QString suffix = info.suffix().toLower();
+        if (suffix != QLatin1String("png") && suffix != QLatin1String("jpg"))
+            continue;
+        // Its exact name first (as MAME's own folder has it), then a .png.
+        const QString set = info.completeBaseName().toLower();
+        const int rank = (info.fileName() == set + QLatin1Char('.') + suffix ? 2 : 0)
+                         + (suffix == QLatin1String("png") ? 1 : 0);
+        if (rank > ranks.value(set, -1)) {
+            ranks.insert(set, rank);
+            read.snaps.insert(set, info.filePath());
+        }
+    }
+    QDirIterator shots(home + QStringLiteral("/snap"), QDir::Dirs | QDir::NoDotAndDotDot);
+    while (shots.hasNext()) {
+        shots.next();
+        const QString shot = firstShot(shots.filePath());
+        if (!shot.isEmpty())
+            read.shots.insert(shots.fileName(), shot);
+    }
+    return read;
+}
+
+void ArcadeBackend::startRead() {
+    const bool wasScanning = scanning();
+    const bool wasReading = std::exchange(m_reading, true);
+    m_watcher->setFuture(QtConcurrent::run(&ArcadeBackend::read, m_gamesFolder, m_home, !m_cacheLoaded,
+                                           m_genresFrom));
+    if (!wasReading)
+        emit readingChanged();
+    if (!wasScanning)
+        emit scanningChanged();
+}
+
+void ArcadeBackend::onRead() {
+    Read read = m_watcher->result();
+    // games.json, whatever folder was read: it is the module's own.
+    if (read.cacheAsked && !m_cacheLoaded) {
+        m_cacheLoaded = true;
+        m_identity = read.identity;
+        m_build = read.build;
+        m_machines = std::move(read.machines);
+        m_unknown = std::move(read.unknown);
+        invalidate();
+    }
+    // Another folder chosen meanwhile, or the list opened again since this
+    // began: read again.
+    const bool again = std::exchange(m_readAgain, false);
+    if (again || read.folder != m_gamesFolder) {
+        startRead();
+        return;
     }
     m_listed = true;
+    m_otherFolders = std::move(read.otherFolders);
     // The list stays as it was made while the folder is as it was.
-    if (sets == m_sets && misnamed == m_misnamed)
+    if (read.sets != m_sets || read.misnamed != m_misnamed) {
+        m_sets = std::move(read.sets);
+        m_misnamed = std::move(read.misnamed);
+        m_folders = std::move(read.folders);
+        invalidate();
+    }
+    if (read.genresRead) {
+        m_genresFrom = read.genresFrom;
+        m_genres = std::move(read.genres);
+        invalidate();
+    }
+    m_snaps = std::move(read.snaps);
+    m_shots = std::move(read.shots);
+    m_reading = false;
+    // Read the Games Again, asked while this read went on, as rescan() does
+    // it: unless MAME is being asked already (a game paused it), what it said
+    // of every set is forgotten, and it is asked about them all.
+    if (std::exchange(m_rescanAfterRead, false) && !scanning()) {
+        forget();
+        saveCache();
+        m_scanAfterRead = true;
+    }
+    if (std::exchange(m_scanAfterRead, false)) {
+        // A MAME changed (an update, a drop-in) may know the sets
+        // differently: all of them are asked about again. With none there
+        // is nothing to ask, and what the last one said is kept.
+        const QString identity = mameIdentity();
+        if (!identity.isEmpty() && identity != m_identity) {
+            if (!m_identity.isEmpty())
+                qInfo("[Arcade] MAME has changed: asking it about every game again");
+            forget();
+            m_identity = identity;
+        }
+        m_scanFailed = false;
+        checkProblem();
+        startScan();
+    }
+    emit readingChanged();
+    // Unless MAME is asked about the sets now (startScan() says so).
+    if (!scanning())
+        emit scanningChanged();
+    // The folders shown list the folder as it is now.
+    emitShown();
+    const QList<std::function<void()>> waiting = std::exchange(m_afterRead, {});
+    for (const std::function<void()> &fn : waiting)
+        fn();
+}
+
+void ArcadeBackend::afterRead(std::function<void()> fn) {
+    if (m_listed && m_cacheLoaded && !m_reading) {
+        fn();
         return;
-    m_sets = std::move(sets);
-    m_misnamed = std::move(misnamed);
-    m_folders = std::move(folders);
-    invalidate();
+    }
+    m_afterRead << std::move(fn);
+    if (!m_reading)
+        startRead();
 }
 
 void ArcadeBackend::checkProblem() {
@@ -387,60 +564,24 @@ void ArcadeBackend::checkProblem() {
 }
 
 void ArcadeBackend::refresh() {
-    if (!m_cacheLoaded)
-        loadCache();
-    // There, so that whoever copies games onto the card sees where they go.
-    QDir().mkpath(m_gamesFolder);
-    listFolder();
-    loadGenres();
-    // Pictures put in the folder since, or taken in a game.
-    m_pictures.clear();
-    // A MAME changed (an update, a drop-in) may know the sets differently:
-    // all of them are asked about again. With none there is nothing to ask,
-    // and what the last one said is kept.
-    const QString identity = mameIdentity();
-    if (!identity.isEmpty() && identity != m_identity) {
-        if (!m_identity.isEmpty())
-            qInfo("[Arcade] MAME has changed: asking it about every game again");
-        forget();
-        m_identity = identity;
-    }
-    m_scanFailed = false;
-    checkProblem();
-    startScan();
-    // As the list opens there is nothing shown yet; anything that is lists
-    // the folder as it is now.
-    emitShown();
-}
-
-void ArcadeBackend::prepare() {
-    if (!m_cacheLoaded)
-        loadCache();
-    if (!m_listed)
-        listFolder();
-    loadGenres();
-}
-
-void ArcadeBackend::loadGenres() {
-    // catver.ini beside the games, else in the module's own folder.
-    QString path;
-    for (const QString &candidate : { m_gamesFolder + QStringLiteral("/catver.ini"), m_home + QStringLiteral("/catver.ini") }) {
-        if (QFileInfo(candidate).isFile()) {
-            path = candidate;
-            break;
-        }
-    }
-    const QString from = path.isEmpty() ? QString() : fileStamp(QFileInfo(path));
-    if (from == m_genresFrom)
+    // The folder, games.json until it has been read, catver.ini and the
+    // pictures put there since, or taken in a game; then MAME is asked about
+    // what it hasn't been (onRead()). A read under way is followed by
+    // another, the folder having perhaps changed since it began.
+    m_scanAfterRead = true;
+    if (m_reading) {
+        m_readAgain = true;
         return;
-    m_genresFrom = from;
-    m_genres = path.isEmpty() ? QHash<QString, QString>() : mame::readGenres(path);
-    if (!path.isEmpty())
-        qInfo("[Arcade] %lld games' genres from %s", static_cast<long long>(m_genres.size()), qPrintable(path));
-    invalidate();
+    }
+    startRead();
 }
 
 void ArcadeBackend::rescan() {
+    // Asked while the folder is read: once it has been (onRead()).
+    if (m_reading) {
+        m_rescanAfterRead = true;
+        return;
+    }
     if (scanning())
         return;
     m_cacheLoaded = true;
@@ -457,29 +598,8 @@ void ArcadeBackend::forget() {
 }
 
 // ---------------------------------------------------------------------------
-// What MAME says of the sets (-listxml), kept in games.json.
-
-void ArcadeBackend::loadCache() {
-    m_cacheLoaded = true;
-    QFile file(m_home + QStringLiteral("/games.json"));
-    if (!file.open(QIODevice::ReadOnly))
-        return;
-    const QJsonObject cache = QJsonDocument::fromJson(file.readAll()).object();
-    // Made by an older version, without what this one keeps of each game.
-    if (cache.value(QStringLiteral("version")).toInt() != kCacheVersion) {
-        qInfo("[Arcade] games.json is from an older version: asking MAME about every game again");
-        return;
-    }
-    m_identity = cache.value(QStringLiteral("mame")).toString();
-    m_build = cache.value(QStringLiteral("build")).toString();
-    const QJsonObject machines = cache.value(QStringLiteral("machines")).toObject();
-    for (auto it = machines.constBegin(); it != machines.constEnd(); ++it)
-        m_machines.insert(it.key(), mame::Machine::fromVariant(it.key(), it.value().toObject().toVariantMap()));
-    const QJsonArray unknown = cache.value(QStringLiteral("unknown")).toArray();
-    for (const QJsonValue &name : unknown)
-        m_unknown.insert(name.toString());
-    invalidate();
-}
+// What MAME says of the sets (-listxml), kept in games.json (read with the
+// folder, read()).
 
 void ArcadeBackend::saveCache() const {
     QJsonObject machines;
@@ -798,38 +918,18 @@ QVariantMap ArcadeBackend::gameDetails(const QString &set) {
 }
 
 QString ArcadeBackend::pictureOf(const QString &set) const {
-    // As last looked for: a folder of a full set's pictures is slow to look
-    // through for one that isn't there (exFAT's has no index).
-    const auto cached = m_pictures.constFind(set);
-    if (cached != m_pictures.constEnd())
-        return cached.value();
-    const QString picture = lookForPicture(set);
-    m_pictures.insert(set, picture);
-    return picture;
-}
-
-QString ArcadeBackend::lookForPicture(const QString &set) const {
-    // A clone's own, else its parent's.
+    // A clone's own, else its parent's: the games folder's snap first, then
+    // the first MAME took of it.
     QStringList sets{ set };
     const auto machine = m_machines.constFind(set);
     if (machine != m_machines.constEnd() && !machine->cloneOf.isEmpty())
         sets << machine->cloneOf;
-    // The games folder's snap, named by the set as MAME names it, the way
-    // the picture packs for MAME have them; then the first MAME took of it
-    // (F12 in the game), in its own snap folder.
-    const QString snap = otherFolder(QStringLiteral("snap"));
-    for (const QString &s : std::as_const(sets)) {
-        for (const char *suffix : { ".png", ".jpg" }) {
-            const QString path = snap + QLatin1Char('/') + s + QLatin1String(suffix);
-            if (!snap.isEmpty() && QFileInfo(path).isFile())
+    for (const QHash<QString, QString> *pictures : { &m_snaps, &m_shots }) {
+        for (const QString &s : std::as_const(sets)) {
+            const QString path = pictures->value(s);
+            if (!path.isEmpty())
                 return QUrl::fromLocalFile(path).toString();
         }
-    }
-    for (const QString &s : std::as_const(sets)) {
-        const QDir own(m_home + QStringLiteral("/snap/") + s);
-        const QStringList shots = own.entryList({ QStringLiteral("*.png") }, QDir::Files, QDir::Name);
-        if (!shots.isEmpty())
-            return QUrl::fromLocalFile(own.filePath(shots.first())).toString();
     }
     return QString();
 }
@@ -861,48 +961,52 @@ QStringList ArcadeBackend::listedSets(const QString &list) const {
 }
 
 void ArcadeBackend::startFilterOptions() {
-    prepare();
-    // Favorites and Recently Played whether or not they hold a game yet.
-    QVariantList options{ QVariantMap{ { QStringLiteral("id"), QStringLiteral("all") },
-                                       { QStringLiteral("label"), QStringLiteral("All Games") } } };
-    for (const auto &[id, label] : kLists) {
-        if (menuShows(QLatin1String(id)))
-            options << QVariantMap{ { QStringLiteral("id"), QLatin1String(id) },
-                                    { QStringLiteral("label"), QLatin1String(label) } };
-    }
-    const QVariantList places = placeFilters();
-    for (const QVariant &v : places) {
-        const QVariantMap place = v.toMap();
-        options << QVariantMap{ { QStringLiteral("id"), place.value(QStringLiteral("id")) },
-                                { QStringLiteral("label"), place.value(QStringLiteral("name")) } };
-    }
-    emit dynamicOptionsReady(QStringLiteral("start_filter"), options);
+    // Once the folder and games.json have been read (Settings opened before
+    // the list ever was): the filters are made of them.
+    afterRead([this] {
+        // Favorites and Recently Played whether or not they hold a game yet.
+        QVariantList options{ QVariantMap{ { QStringLiteral("id"), QStringLiteral("all") },
+                                           { QStringLiteral("label"), QStringLiteral("All Games") } } };
+        for (const auto &[id, label] : kLists) {
+            if (menuShows(QLatin1String(id)))
+                options << QVariantMap{ { QStringLiteral("id"), QLatin1String(id) },
+                                        { QStringLiteral("label"), QLatin1String(label) } };
+        }
+        const QVariantList places = placeFilters();
+        for (const QVariant &v : places) {
+            const QVariantMap place = v.toMap();
+            options << QVariantMap{ { QStringLiteral("id"), place.value(QStringLiteral("id")) },
+                                    { QStringLiteral("label"), place.value(QStringLiteral("name")) } };
+        }
+        emit dynamicOptionsReady(QStringLiteral("start_filter"), options);
+    });
 }
 
 void ArcadeBackend::menuFilterOptions() {
-    prepare();
-    const auto heading = [](const QString &label) {
-        return QVariantMap{ { QStringLiteral("label"), label }, { QStringLiteral("heading"), true } };
-    };
-    const auto choice = [](const QString &id, const QString &label) {
-        return QVariantMap{ { QStringLiteral("id"), id }, { QStringLiteral("label"), label },
-                            { QStringLiteral("default"), shownByDefault(id) } };
-    };
-    // The lists whether or not they hold a game yet.
-    QVariantList options{ heading(QStringLiteral("Lists")) };
-    for (const auto &[id, label] : kLists)
-        options << choice(QLatin1String(id), QLatin1String(label));
-    options << choice(QLatin1String(kUnknown.first), QLatin1String(kUnknown.second));
-    for (const auto &[kind, label] : kKinds) {
-        const QString k = QLatin1String(kind);
-        const QList<std::pair<QString, QString>> sorted = index().sorted.value(k);
-        if (sorted.isEmpty())
-            continue;
-        options << heading(QLatin1String(label));
-        for (const auto &[place, name] : sorted)
-            options << choice(k + QLatin1Char('/') + place, name);
-    }
-    emit dynamicOptionsReady(QStringLiteral("menu_filters"), options);
+    afterRead([this] {
+        const auto heading = [](const QString &label) {
+            return QVariantMap{ { QStringLiteral("label"), label }, { QStringLiteral("heading"), true } };
+        };
+        const auto choice = [](const QString &id, const QString &label) {
+            return QVariantMap{ { QStringLiteral("id"), id }, { QStringLiteral("label"), label },
+                                { QStringLiteral("default"), shownByDefault(id) } };
+        };
+        // The lists whether or not they hold a game yet.
+        QVariantList options{ heading(QStringLiteral("Lists")) };
+        for (const auto &[id, label] : kLists)
+            options << choice(QLatin1String(id), QLatin1String(label));
+        options << choice(QLatin1String(kUnknown.first), QLatin1String(kUnknown.second));
+        for (const auto &[kind, label] : kKinds) {
+            const QString k = QLatin1String(kind);
+            const QList<std::pair<QString, QString>> sorted = index().sorted.value(k);
+            if (sorted.isEmpty())
+                continue;
+            options << heading(QLatin1String(label));
+            for (const auto &[place, name] : sorted)
+                options << choice(k + QLatin1Char('/') + place, name);
+        }
+        emit dynamicOptionsReady(QStringLiteral("menu_filters"), options);
+    });
 }
 
 void ArcadeBackend::startupGameOptions() {
@@ -1135,9 +1239,11 @@ bool ArcadeBackend::play(const QString &name, int credits) {
         m_lastError = QStringLiteral("MAME has no game called ") + name;
         return false;
     }
-    if (!m_sets.contains(name))
-        listFolder();
-    if (!m_sets.contains(name)) {
+    // A set not in the folder as it was read (a startup favourite, before
+    // it has been): looked for by itself, by the names MAME opens it by.
+    const QString inFolder = m_gamesFolder + QLatin1Char('/') + name;
+    if (!m_sets.contains(name) && !QFileInfo(inFolder + QStringLiteral(".zip")).isFile()
+        && !QFileInfo(inFolder + QStringLiteral(".7z")).isFile() && !QFileInfo(inFolder).isDir()) {
         m_lastError = QStringLiteral("The game is no longer in the games folder");
         return false;
     }

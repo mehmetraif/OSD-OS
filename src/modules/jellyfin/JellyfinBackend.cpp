@@ -19,6 +19,10 @@
 #include <QSysInfo>
 #include <QSet>
 #include <QRegularExpression>
+#include <QDateTime>
+#include <QFutureWatcher>
+#include <QTimer>
+#include <QtConcurrent/QtConcurrentRun>
 
 static const QString kModuleId = QStringLiteral("com.osdos.jellyfin");
 
@@ -52,6 +56,22 @@ JellyfinBackend::JellyfinBackend(const QString &appRoot, const QString &dataRoot
     if (m_deviceId.isEmpty()) {
         m_deviceId = QUuid::createUuid().toString(QUuid::WithoutBraces);
     }
+    // Seed the change guard from the restored state so a token that is still
+    // valid at startup is not reported as a transition (see notifyAuthState).
+    m_lastAuthState = get_auth_state();
+}
+
+// authStateChanged drives navigation in Root.qml, so emitting it when nothing
+// actually changed reloads the current view on top of itself. check_auth()
+// re-validating a good token is the common case: Root has already shown
+// Libraries by then, and an unconditional emit reloaded it, or threw the user
+// back to it from a library opened meanwhile. Only signal real transitions.
+void JellyfinBackend::notifyAuthState() {
+    const QString state = get_auth_state();
+    if (state == m_lastAuthState)
+        return;
+    m_lastAuthState = state;
+    emit authStateChanged();
 }
 
 // ---------------------------------------------------------------------------
@@ -254,7 +274,7 @@ QString JellyfinBackend::get_auth_state() {
 
 void JellyfinBackend::check_auth() {
     if (!has_auth()) {
-        emit authStateChanged();
+        notifyAuthState();
         return;
     }
 
@@ -267,14 +287,14 @@ void JellyfinBackend::check_auth() {
             qWarning("[JellyfinBackend] Token rejected — signing out");
             clearAuthState();
             emit authRevoked();
-            emit authStateChanged();
+            notifyAuthState();
             return;
         }
         if (reply->error() != QNetworkReply::NoError) {
             emit errorOccurred("AUTH CHECK FAILED: " + reply->errorString());
             return;
         }
-        emit authStateChanged();
+        notifyAuthState();
         probeCapabilities();
     });
 }
@@ -288,7 +308,7 @@ void JellyfinBackend::logout() {
     }
     clearAuthState();
     emit logoutComplete();
-    emit authStateChanged();
+    notifyAuthState();
 }
 
 // ---------------------------------------------------------------------------
@@ -485,7 +505,7 @@ void JellyfinBackend::quick_connect_authenticate(const QString &secret) {
         saveConfig(cfg);
 
         probeCapabilities();
-        emit authStateChanged();
+        notifyAuthState();
     });
 }
 
@@ -502,7 +522,7 @@ void JellyfinBackend::quick_connect_cancel() {
 // Item formatting
 // ---------------------------------------------------------------------------
 
-QVariantMap JellyfinBackend::formatItem(const QJsonObject &item) const {
+QVariantMap JellyfinBackend::formatItem(const QJsonObject &item, const QString &serverUrl) {
     QJsonObject userData = item["UserData"].toObject();
     QJsonObject imageTags = item["ImageTags"].toObject();
     QJsonArray mediaSources = item["MediaSources"].toArray();
@@ -549,7 +569,7 @@ QVariantMap JellyfinBackend::formatItem(const QJsonObject &item) const {
                 const QString ext = (codec == "ass" || codec == "ssa") ? "ass"
                                   : (codec == "subrip" || codec == "srt") ? "srt"
                                   : "vtt";
-                subUrl = m_serverUrl + "/Videos/" + item["Id"].toString() + "/"
+                subUrl = serverUrl + "/Videos/" + item["Id"].toString() + "/"
                        + mediaSource["Id"].toString() + "/Subtitles/"
                        + QString::number(idx) + "/Stream." + ext;
             }
@@ -690,19 +710,64 @@ void JellyfinBackend::load_items(const QString &parentId, const QString &include
     // matching items when limit is omitted.
     url.setQuery(q);
 
+    const QString serverUrl = m_serverUrl;
+    loadList(&JellyfinBackend::itemsLoaded, "items " + parentId + ' ' + includeTypes + ' ' + sortBy,
+             url, "LOAD ITEMS FAILED: ", [serverUrl](const QByteArray &data) {
+        QVariantList result;
+        for (const QJsonValue &v : QJsonDocument::fromJson(data).object()["Items"].toArray())
+            result.append(formatItem(v.toObject(), serverUrl));
+        return result;
+    });
+}
+
+void JellyfinBackend::loadList(void (JellyfinBackend::*answer)(const QVariant &), const QString &keep,
+                               const QUrl &url, const QString &failure,
+                               std::function<QVariantList(const QByteArray &)> read) {
+    // Long enough to go into a film's detail screen and back, or play a
+    // trailer, short enough to show what was added on the server meanwhile.
+    constexpr qint64 kListKeepMs = 10 * 60 * 1000;
+    constexpr int kListsKept = 6;
+    const int request = ++m_listRequest;
+    // Kept per server and user: a list of another's isn't theirs.
+    const QString kept = keep.isEmpty() ? QString()
+                                        : m_serverUrl + QLatin1Char(' ') + m_userId + QLatin1Char(' ') + keep;
+    const auto found = m_keptLists.constFind(kept);
+    if (!kept.isEmpty() && found != m_keptLists.constEnd()
+        && QDateTime::currentMSecsSinceEpoch() - found->at < kListKeepMs) {
+        // Told as a reply is: once the view that asked has done asking.
+        const QVariantList rows = found->rows;
+        QTimer::singleShot(0, this, [this, request, answer, rows]() {
+            if (request == m_listRequest)
+                emit (this->*answer)(rows);
+        });
+        return;
+    }
     auto *reply = jellyfinGet(url);
-    connect(reply, &QNetworkReply::finished, this, [this, reply]() {
+    connect(reply, &QNetworkReply::finished, this, [this, reply, request, answer, kept, failure, read]() {
         reply->deleteLater();
+        if (request != m_listRequest)
+            return;
         if (reply->error() != QNetworkReply::NoError) {
-            emit errorOccurred("LOAD ITEMS FAILED: " + reply->errorString());
+            emit errorOccurred(failure + reply->errorString());
             return;
         }
-
-        QJsonArray items = QJsonDocument::fromJson(reply->readAll()).object()["Items"].toArray();
-        QVariantList result;
-        for (const QJsonValue &v : items)
-            result.append(formatItem(v.toObject()));
-        emit itemsLoaded(result);
+        auto *watcher = new QFutureWatcher<QVariantList>(this);
+        connect(watcher, &QFutureWatcher<QVariantList>::finished, this,
+                [this, watcher, request, answer, kept]() {
+            watcher->deleteLater();
+            if (request != m_listRequest)
+                return;
+            const QVariantList rows = watcher->result();
+            if (!kept.isEmpty()) {
+                m_keptLists.insert(kept, { rows, QDateTime::currentMSecsSinceEpoch() });
+                m_keptOrder.removeAll(kept);
+                m_keptOrder.append(kept);
+                while (m_keptOrder.size() > kListsKept)
+                    m_keptLists.remove(m_keptOrder.takeFirst());
+            }
+            emit (this->*answer)(rows);
+        });
+        watcher->setFuture(QtConcurrent::run(read, reply->readAll()));
     });
 }
 
@@ -784,19 +849,13 @@ void JellyfinBackend::load_boxset_children(const QString &parentId) {
     q.addQueryItem("sortOrder", "Ascending");
     url.setQuery(q);
 
-    auto *reply = jellyfinGet(url);
-    connect(reply, &QNetworkReply::finished, this, [this, reply]() {
-        reply->deleteLater();
-        if (reply->error() != QNetworkReply::NoError) {
-            emit errorOccurred("LOAD BOXSET FAILED: " + reply->errorString());
-            return;
-        }
-
-        QJsonArray items = QJsonDocument::fromJson(reply->readAll()).object()["Items"].toArray();
+    const QString serverUrl = m_serverUrl;
+    loadList(&JellyfinBackend::boxsetChildrenLoaded, QString(), url, "LOAD BOXSET FAILED: ",
+             [serverUrl](const QByteArray &data) {
         QVariantList result;
-        for (const QJsonValue &v : items)
-            result.append(formatItem(v.toObject()));
-        emit boxsetChildrenLoaded(result);
+        for (const QJsonValue &v : QJsonDocument::fromJson(data).object()["Items"].toArray())
+            result.append(formatItem(v.toObject(), serverUrl));
+        return result;
     });
 }
 
@@ -819,18 +878,12 @@ void JellyfinBackend::load_folder_children(const QString &parentId) {
     q.addQueryItem("sortOrder", "Ascending");
     url.setQuery(q);
 
-    auto *reply = jellyfinGet(url);
-    connect(reply, &QNetworkReply::finished, this, [this, reply]() {
-        reply->deleteLater();
-        if (reply->error() != QNetworkReply::NoError) {
-            emit errorOccurred("LOAD FOLDER FAILED: " + reply->errorString());
-            return;
-        }
-
-        QJsonArray items = QJsonDocument::fromJson(reply->readAll()).object()["Items"].toArray();
+    const QString serverUrl = m_serverUrl;
+    loadList(&JellyfinBackend::folderChildrenLoaded, "folder " + parentId, url, "LOAD FOLDER FAILED: ",
+             [serverUrl](const QByteArray &data) {
         QVariantList result;
-        for (const QJsonValue &v : items) {
-            QVariantMap map = formatItem(v.toObject());
+        for (const QJsonValue &v : QJsonDocument::fromJson(data).object()["Items"].toArray()) {
+            QVariantMap map = formatItem(v.toObject(), serverUrl);
             // Keep navigable folders and playable videos; drop photos / photo
             // albums / audio so nothing un-playable can be selected.
             const QString t = map["type"].toString();
@@ -840,7 +893,7 @@ void JellyfinBackend::load_folder_children(const QString &parentId) {
                 result.append(map);
             }
         }
-        emit folderChildrenLoaded(result);
+        return result;
     });
 }
 
@@ -1123,11 +1176,16 @@ void JellyfinBackend::get_playback_url(const QString &itemId, const QString &med
     profile["DirectPlayProfiles"] = directPlayProfiles;
     body["DeviceProfile"] = profile;
 
+    const int request = ++m_playbackRequest;
     auto *reply = jellyfinPost(url, QJsonDocument(body).toJson(QJsonDocument::Compact));
     // [dev] qDebug("[JellyfinBackend] PlaybackInfo POST %s audio=%d sub=%d bitrate=%d",
     // [dev]        qPrintable(itemId), audioStreamIndex, subtitleStreamIndex, videoQualityBitrate());
-    connect(reply, &QNetworkReply::finished, this, [this, reply, itemId, mediaSourceId, audioStreamIndex, subtitleStreamIndex, directPlay]() {
+    connect(reply, &QNetworkReply::finished, this, [this, reply, request, itemId, mediaSourceId, audioStreamIndex, subtitleStreamIndex, directPlay]() {
         reply->deleteLater();
+        // Not wanted any more: another stream asked for since, or given up.
+        // Nothing of it is reported to the server, which would show it playing.
+        if (request != m_playbackRequest)
+            return;
         if (reply->error() != QNetworkReply::NoError) {
             emit errorOccurred("PLAYBACK INFO FAILED: " + reply->errorString());
             return;
@@ -1245,6 +1303,10 @@ void JellyfinBackend::get_playback_url(const QString &itemId, const QString &med
                               subtitleStreamIndex >= 0 ? QString::number(subtitleStreamIndex) : QString());
         emit streamUrlReady(fullUrl);
     });
+}
+
+void JellyfinBackend::cancel_playback_url() {
+    ++m_playbackRequest;
 }
 
 void JellyfinBackend::load_next_episode(const QString &currentItemId) {
@@ -1413,6 +1475,10 @@ void JellyfinBackend::report_playback_stopped(const QString &itemId, const QStri
         if (m_currentPlaySessionId == reportedSessionId)
             m_currentPlaySessionId.clear();
     });
+    // What was played is played, or partly, now: the lists kept show it as
+    // it was.
+    m_keptLists.clear();
+    m_keptOrder.clear();
 }
 
 // ---------------------------------------------------------------------------

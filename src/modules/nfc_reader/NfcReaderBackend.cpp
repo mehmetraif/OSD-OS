@@ -472,8 +472,10 @@ bool NfcReaderBackend::writeCardFile(const QString &uid, const QString &title,
     }
 
     // The title doubles as the tag file's name, so it has to survive
-    // round-tripping on either target OS; '-' for what can't stay.
-    QString name = safeFileName(title, QLatin1Char('-'), 0, QString());
+    // round-tripping on either target OS; '-' for what can't stay, and short
+    // enough for any filesystem's limit on a name with a counter and ".txt"
+    // after it.
+    QString name = safeFileName(title, QLatin1Char('-'), 0, QString(), 240);
     if (name.isEmpty()) name = QString(normalizedUid).replace(u':', u'-');
 
     QDir().mkpath(tagsDirPath());
@@ -496,24 +498,28 @@ bool NfcReaderBackend::writeCardFile(const QString &uid, const QString &title,
 
     const QString path = tagsDirPath() + "/" + name + ".txt";
 
-    // Replacing a card means removing whatever file previously held this UID.
-    // Leaving it behind would make two files claim one card, and scanTagsDir
-    // resolves that by keeping the alphabetically earlier one — which might be
-    // the stale one.
-    if (!prevName.isEmpty()) {
-        const QString prevPath = tagsDirPath() + "/" + prevName + ".txt";
-        if (prevPath != path && QFile::exists(prevPath)) {
-            if (QFile::remove(prevPath))
-                qDebug("[NfcReader] Removed previous tag file: %s", qPrintable(prevPath));
-            else
-                qWarning("[NfcReader] Could not remove previous tag file: %s", qPrintable(prevPath));
-        }
-    }
-
     QString body = normalizedUid + "\n" + ref + "\n";
     if (!mode.isEmpty()) body += mode + "\n";
     if (!writeFileAtomically(path, body.toUtf8()))
         return false;
+
+    // Replacing a card means removing whatever file previously held this UID,
+    // once the new one is written: a write that fails (a full card) leaves
+    // the card as it was. Leaving it behind would make two files claim one
+    // card, and scanTagsDir resolves that by keeping the alphabetically
+    // earlier one — which might be the stale one — so one that can't be
+    // removed takes the new file back, and the card stays as it was.
+    if (!prevName.isEmpty()) {
+        const QString prevPath = tagsDirPath() + "/" + prevName + ".txt";
+        if (prevPath != path && QFile::exists(prevPath)) {
+            if (!QFile::remove(prevPath)) {
+                qWarning("[NfcReader] Could not remove previous tag file: %s", qPrintable(prevPath));
+                QFile::remove(path);
+                return false;
+            }
+            qDebug("[NfcReader] Removed previous tag file: %s", qPrintable(prevPath));
+        }
+    }
 
     qDebug("[NfcReader] Wrote tag file: %s -> %s%s", qPrintable(path), qPrintable(ref),
            mode.isEmpty() ? "" : qPrintable(" (" + mode + ")"));

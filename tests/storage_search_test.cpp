@@ -9,6 +9,11 @@
 #include <QThreadPool>
 #include <QtTest>
 
+#ifdef Q_OS_UNIX
+#include <csignal>
+#include <sys/resource.h>
+#endif
+
 class StorageSearchTest : public QObject {
     Q_OBJECT
 private slots:
@@ -127,6 +132,39 @@ private slots:
         QVERIFY(restored);
         QCOMPARE(core.get_setting("", "color_scheme").toString(), QString("Video 2"));
         QCOMPARE(backend.getSavedPosition("film.mp4").value("pos").toInt(), 12345);
+#endif
+    }
+
+    // A setting config.json couldn't take (a full card) is neither reported
+    // saved nor signalled: the backends keep what get_setting() still says.
+    // (A file size limit, which holds for root too.)
+    void unsavedSettingIsNotSignalled() {
+#ifndef Q_OS_UNIX
+        QSKIP("Requires a Unix file size limit");
+#else
+        QTemporaryDir tmp;
+        QVERIFY(tmp.isValid());
+        AppCore core(tmp.path(), tmp.path());
+        QSignalSpy app(&core, &AppCore::appSettingChanged);
+        QSignalSpy module(&core, &AppCore::moduleSettingChanged);
+        QVERIFY(core.save_setting("", "color_scheme", "Video 2"));
+        QVERIFY(core.save_setting("com.osdos.arcade", "video", "BGFX"));
+        QCOMPARE(app.size(), 1);
+        QCOMPARE(module.size(), 1);
+        std::signal(SIGXFSZ, SIG_IGN);
+        rlimit limit{};
+        QCOMPARE(getrlimit(RLIMIT_FSIZE, &limit), 0);
+        const rlimit full{ 1, limit.rlim_max };
+        QCOMPARE(setrlimit(RLIMIT_FSIZE, &full), 0);
+        const bool appSaved = core.save_setting("", "color_scheme", "Video 3");
+        const bool moduleSaved = core.save_setting("com.osdos.arcade", "video", "Software");
+        QCOMPARE(setrlimit(RLIMIT_FSIZE, &limit), 0);
+        QVERIFY(!appSaved);
+        QVERIFY(!moduleSaved);
+        QCOMPARE(app.size(), 1);
+        QCOMPARE(module.size(), 1);
+        QCOMPARE(core.get_setting("", "color_scheme").toString(), QString("Video 2"));
+        QCOMPARE(core.get_setting("com.osdos.arcade", "video").toString(), QString("BGFX"));
 #endif
     }
 

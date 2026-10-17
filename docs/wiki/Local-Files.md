@@ -160,7 +160,7 @@ The results open as a folder of their own, `Search: <words>`, at the end of the 
 
 ### Folders
 
-Any folder of the media folder or a drive. Select or ► opens it; ◄ or back closes it again. Coming back from a video lands in the same folders, on the same entry.
+Any folder of the media folder or a drive. Select or ► opens it; ◄ or back closes it again. Coming back from a video lands in the same folders, on the same entry, listed as they were read, without reading them again (a wait each time on a NAS or a disk that sleeps). Folders are read afresh each time Local Files opens, so a file copied in during a video shows the next time you open it.
 
 ### Playlists (m3u and m3u8)
 

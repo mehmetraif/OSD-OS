@@ -50,7 +50,7 @@ sequenceDiagram
     O->>O: save jellyfin_auth.json and server_url, open the libraries
 ```
 
-OSD/OS then shows up in the server's list of devices as **OSD/OS**, named after the machine's host name. Each time you open the module it checks its token with the server; a token the server no longer accepts (the device was removed in the dashboard, say) signs OSD/OS out and brings back the sign-in screen.
+OSD/OS then shows up in the server's list of devices as **OSD/OS**, named after the machine's host name. Each time you open the module it checks its token with the server, while the libraries are already on the screen; a token the server no longer accepts (the device was removed in the dashboard, say) signs OSD/OS out and brings back the sign-in screen, and back from there leaves Jellyfin. A token that is still good leaves you where you are, in a library you have opened meanwhile too.
 
 What the sign-in screens can say:
 
@@ -96,6 +96,8 @@ Music, books and photo libraries, and libraries of mixed content, are left out. 
 
 In every list, an episode reads `SHOW S1E2: TITLE` and anything else `TITLE (YEAR)`. Selecting a series opens its page, a collection its contents, a folder the folder, anything else its own page. **LOADING…** while the server answers, **NO ITEMS FOUND** for an empty list.
 
+A library's list, and a Home Videos folder's, is kept for 10 minutes once it has come, for the server and user it came from, so going back to it from an item's page shows it at once, without asking the server again. After a video it is asked for again, since what was watched has changed. A list you leave before it has come is dropped, never shown in the screen you went to.
+
 | Library | How it is listed |
 |---|---|
 | Movies | Every film, A to Z by the server's sort name, with the letter panel |
@@ -137,7 +139,7 @@ A film's, episode's or video's page shows **PLAY ►** (**RSUM ►** when it has
 
 The tracks start as your server would choose them. OSD/OS reads your user's preferences from the server (preferred audio language, preferred subtitle language and subtitle mode) and picks the way Jellyfin's own apps do: the subtitle mode **Default** shows the file's forced or default subtitles; **Smart** shows those, or your language's when the audio isn't in it; **Always** shows your language's; **OnlyForced** shows forced ones only; **None** shows none. After that, the languages of the tracks on the last page you left or played from (changed or not) come first on the next item, down to the same one among several in a language (a commentary track, say), until OSD/OS restarts.
 
-While the stream is prepared, the loading screen covers the page, with the item's resume point and length as the server gives them; back cancels.
+While the stream is prepared, the loading screen covers the page, with the item's resume point and length as the server gives them; back cancels, and the server isn't told the video started.
 
 ## Playing
 
@@ -155,7 +157,7 @@ While the stream is prepared, the loading screen covers the page, with the item'
 
 A transcode is an HLS stream of H.264 video with AAC or MP3 audio, carrying the audio track you chose, with the subtitle you chose burned into the picture. A CRT shows 480 or 576 lines anyway, so the CRT tiers save the network and the Pi's work without losing anything on screen.
 
-If Direct Play fails (mpv can't open or play the file), OSD/OS reports the failure, asks the server for a transcode, and goes on by itself from where it was.
+If Direct Play fails (mpv can't open or play the file), OSD/OS reports the failure, asks the server for a transcode, and goes on by itself from where it was. Back while it waits for the transcode returns to the page, and so does a transcode the server fails to give.
 
 ### Resume, Continue Watching and Next Up
 
@@ -163,14 +165,14 @@ Resume points are the server's: what you watch here shows up in Continue Watchin
 
 ### Autoplay Next Episode
 
-With **Autoplay Next Episode** on, an episode that plays to its end is followed by the next one of the series, from its beginning: the next episode of the season, or the first of the next season after the last one. It carries on the audio and subtitle languages you had, choosing the closest track by language, then title, codec and channels. When there is no next episode, or the video wasn't an episode, the player returns to the page. Back from the player returns to the page of the episode that was playing.
+With **Autoplay Next Episode** on, an episode that plays to its end is followed by the next one of the series, from its beginning: the next episode of the season, or the first of the next season after the last one. It carries on the audio and subtitle languages you had, choosing the closest track by language, then title, codec and channels. When there is no next episode, or the video wasn't an episode, the player returns to the page. Back from the player returns to the page of the episode that was playing. Back while the next episode is being prepared returns to the page too, and so does a next episode the server fails to give.
 
 ### Tracks during playback
 
 ▲ or ▼ during a video opens the deck's menu: the position bar, **AUDIO**, **SUBTITLE**, **CROP** and **STOP** ([Playback and mpv](https://github.com/mehmetraif/OSD-OS/wiki/Playback-and-mpv)).
 
 - **Direct Play:** **AUDIO** and **SUBTITLE** step through the file's tracks, as with any file.
-- **A transcode** carries one audio track and burns one subtitle in, so the deck's **AUDIO** and **SUBTITLE** buttons ask the server for a new transcode with the next track instead (subtitles step through to Off and round again; audio has no Off). The video stops, the new stream starts where it was, and the menu's track lines at the top left (`AUDIO:`, `SUBTITLE:`) name the track in use.
+- **A transcode** carries one audio track and burns one subtitle in, so the deck's **AUDIO** and **SUBTITLE** buttons ask the server for a new transcode with the next track instead (subtitles step through to Off and round again; audio has no Off). The video stops, the new stream starts where it was, and the menu's track lines at the top left (`AUDIO:`, `SUBTITLE:`) name the track in use. Back while the new stream is prepared returns to the page.
 
 ### Intro Skip and Credit Skip
 

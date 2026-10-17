@@ -114,7 +114,7 @@ QString coinScript(int coins);
 // The controller file MAME is started with (-ctrlr): each player's controller
 // (Settings → Controls) as MAME's joystick of that number, by its SDL GUID
 // (mapdevice; a GUID a second player shares, two pads of one model, is left
-// to MAME's order), and Coin and Start together on player 1's, or Esc, to
+// to MAME's order), and Coin and Start together on any player's, or Esc, to
 // leave the game, MAME's own way out, so it saves what it keeps on the way.
 QString controllerConfig(const QStringList &playerGuids);
 

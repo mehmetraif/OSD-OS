@@ -27,6 +27,10 @@ class IdleTracker : public QObject {
     // A separate flag rather than sharing mpvActive: two independent producers
     // sharing one flag means whichever session ends first unblocks the other.
     Q_PROPERTY(bool scriptActive READ isScriptActive WRITE setScriptActive NOTIFY scriptActiveChanged)
+    // Blocks activation while a view that is itself a screen to leave running
+    // is up (Weather): a flag of its own too, so leaving it can't unblock the
+    // saver over a video still playing behind the menus.
+    Q_PROPERTY(bool viewActive READ isViewActive WRITE setViewActive NOTIFY viewActiveChanged)
 
 public:
     explicit IdleTracker(int thresholdSec = 60, QObject *parent = nullptr);
@@ -37,11 +41,13 @@ public:
     bool isEnabled()     const { return m_enabled;      }
     bool isMpvActive()    const { return m_mpvActive;    }
     bool isScriptActive() const { return m_scriptActive; }
+    bool isViewActive()   const { return m_viewActive;   }
 
     void setThreshold(int seconds);
     void setEnabled(bool on);
     void setMpvActive(bool active);
     void setScriptActive(bool active);
+    void setViewActive(bool active);
 
     // Called from C++ or QML to mark input activity — resets the idle counter
     // and deactivates the idle state if it was active.
@@ -54,6 +60,7 @@ signals:
     void enabledChanged();
     void mpvActiveChanged();
     void scriptActiveChanged();
+    void viewActiveChanged();
     // Emitted on every call to resetActivity (including from the event filter).
     void activityDetected();
 
@@ -65,7 +72,7 @@ private slots:
 
 private:
     // Any external session that owns the screen suppresses the saver.
-    bool blocked() const { return m_mpvActive || m_scriptActive; }
+    bool blocked() const { return m_mpvActive || m_scriptActive || m_viewActive; }
 
     QTimer m_timer;
     int    m_threshold;
@@ -74,4 +81,5 @@ private:
     bool   m_enabled     = false;   // off until Main.qml applies the saved setting
     bool   m_mpvActive    = false;
     bool   m_scriptActive = false;
+    bool   m_viewActive   = false;
 };

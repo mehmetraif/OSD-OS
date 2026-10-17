@@ -99,7 +99,7 @@ qml: Routing to: modules/local_files/views/Root.qml
 | `[MpvController]` | Playback | The video profile chosen at start (`video profile: Pi 4 — drm + drm-copy,v4l2m2m-copy`), the memory as each video starts (`memory as a video starts: app 251 MB, available 1203 of 1848 MB, swap 0 of 100 MB in use`), `mpv not found`, mpv's exit code when it isn't 0, `WATCHDOG: no IPC time-pos event for N s — possible freeze`, the connection to a playing mpv lost and made again, the screen held by something else, a logo picture it couldn't read |
 | `[mpv]` | mpv's own output | Why a file won't open, an option it refuses |
 | `[EmbeddedMpv]` | Transparent Background (libmpv inside the window) | Whether libmpv was found (`using libmpv.so.2`, or `libmpv not found: Transparent Background is unavailable`), where the pictures are drawn (`pictures drawn on the GPU: <renderer>`, or by mpv's software renderer), an option this libmpv doesn't know, a GPU that can't take the decoder's frames |
-| `[DisplayHandoff]` | A Pi without a desktop handing its screen to mpv, a takeover script, MAME or a web player, and taking it back (VTs, DRM) | A VT that couldn't be switched, DRM master or the CRTC that couldn't be saved or restored: the lines behind a black screen after a video |
+| `[DisplayHandoff]` | A Pi without a desktop handing its screen to mpv, a takeover script, MAME or a web player, and taking it back (VTs, DRM) | A VT that couldn't be switched, or the VT in use that couldn't be read (the screen is then handed over without a switch), DRM master or the CRTC that couldn't be saved or restored: the lines behind a black screen after a video |
 | `[DisplayOutput]` | Settings → Display Output | The switch asked for, and an output not kept |
 | `[AudioOutput]` | Settings → Audio Output | `Sound through <card>` at start and at each change |
 | `[MenuMusic]` | The menu music | What it plays, what it makes into a WAV first, and why a file can't play |
@@ -237,6 +237,7 @@ More in [Netflix and Prime Video](https://github.com/mehmetraif/OSD-OS/wiki/Netf
 | Jellyfin or Emby: **CONNECTION FAILED: …**, or nothing | The server URL: OSD/OS takes it as typed, so it needs the scheme and the port (`http://192.168.1.20:8096`) | Type the whole URL. A self-signed or private certificate on your own server is accepted for that server; an expired one isn't |
 | Signed out by itself | `Token rejected — signing out` in the log: the server no longer knows the token (a password changed, the device removed) | Sign in again |
 | A Plex film fails, then plays after a while | Plex retries with a transcode when mpv can't play the file directly | Set Settings → Plex → Video Quality to one of its Mbps choices instead of Direct Play, or read the server's log for why the stream failed |
+| Plex: **LOADING...** for half a minute, then an error such as **LOAD LIBRARY FAILED: …** | The server stopped answering (a NAS gone to sleep, the Wi-Fi dropped): Plex gives a request up after 30 seconds without a byte from it | Wake the server or check the network, then open the list again |
 | **Not Allowed** on an offline playlist's video | The Jellyfin or Emby user may not download | Allow downloads for that user on the server, then Retry Downloads |
 
 Each module's settings has **Sign out**. The sign-ins are kept in the data folder: `plex_auth.json` (with `plex_key.pem`), `jellyfin_auth.json`, `emby_auth.json`. More in [Plex](https://github.com/mehmetraif/OSD-OS/wiki/Plex), [Jellyfin](https://github.com/mehmetraif/OSD-OS/wiki/Jellyfin) and [Emby](https://github.com/mehmetraif/OSD-OS/wiki/Emby).
@@ -254,7 +255,7 @@ The Arcade module lists the ROM sets in its games folder as MAME names them, and
 | `Missing …, looked for in …` | The set lacks files this MAME needs: a clone's parent set, a BIOS set such as `neogeo.zip`, or a file a set for another version lacks | Put the sets it names in the games folder, a BIOS set there or in its `bios` folder |
 | `MAME stopped: …` about OpenGL, video or a window | MAME couldn't draw the way it was asked | Try another **Video** in Settings → Arcade |
 | `MAME closed unexpectedly` | MAME crashed | Try another **Video** in Settings → Arcade |
-| Coin and Start don't bring you back | They count together, on player 1's controller | Press them on the controller Settings → Controls → Players makes player 1, or Esc on a keyboard |
+| Coin and Start don't bring you back | They count together, on one player's controller | Press them together on a controller Settings → Controls → Players gives a player, or Esc on a keyboard |
 
 The log has the module's lines, and MAME's runs as the Scripts module's launcher logs them: `journalctl -u osdos -b | grep -E 'Arcade|Scripts'`. More in [Arcade → Troubleshooting](https://github.com/mehmetraif/OSD-OS/wiki/Arcade#troubleshooting).
 
@@ -318,6 +319,7 @@ A video of a drive that was pulled out drops out of Recently Watched and Favorit
 | What you see | Cause | Fix |
 |---|---|---|
 | No **OSD-OS** drive on the card | The first boot splits the card: the system keeps 8 GiB and the rest becomes the exFAT **OSD-OS** partition. A card with less than 2 GiB to spare gets none | Use a bigger card |
+| No **OSD-OS** drive after a first boot that was cut short (the power pulled) | The partition was made but not yet formatted | Switch the Pi on again: the next boot formats a film partition that has no file system at all, and leaves one with any file system alone |
 | Windows offers to format a drive | It can't read the system's partition | Always **Cancel**: formatting it erases the system |
 | Films copied on, not in Local Files | Local Files opens `/media/OSD-OS` only until its Media Directory names another folder | Settings → Local Files → Media Directory → Default Folder |
 | Offline playlists fail, naming the folder | A card flashed with an earlier image mounts the partition read-only (`ro` in `/etc/fstab`, its line naming `/media/240-MP`) | Flash the new image, or change `ro` to `rw,noexec,nosuid,nodev` and the line's last `0` to `2` |

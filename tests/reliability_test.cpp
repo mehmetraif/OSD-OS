@@ -84,6 +84,34 @@ private slots:
         QCOMPARE(manager.state(), QString("error"));
     }
 
+    // Only a newer release is offered: not the release before a prerelease
+    // running (which GitHub's "latest" passes over), nor the same one.
+    void updateOffersOnlyNewerReleases() {
+        QVERIFY(UpdateManager::isNewer("v0.1.0", "v0.0.9"));
+        QVERIFY(UpdateManager::isNewer("v0.0.10", "v0.0.9"));
+        QVERIFY(UpdateManager::isNewer("v0.1.0", "v0.1.0-rc.1"));
+        QVERIFY(UpdateManager::isNewer("v0.1.0-rc.2", "v0.1.0-rc.1"));
+        QVERIFY(UpdateManager::isNewer("v0.1.0-rc.10", "v0.1.0-rc.2"));
+        QVERIFY(UpdateManager::isNewer("v0.1.0-rc.1", "v0.1.0-beta.3"));
+        // Tags without a dot (v1.0.0-rc1), as BUILDING.md writes them.
+        QVERIFY(UpdateManager::isNewer("v1.0.0-rc10", "v1.0.0-rc9"));
+        QVERIFY(!UpdateManager::isNewer("v1.0.0-rc9", "v1.0.0-rc10"));
+        QVERIFY(UpdateManager::isNewer("v1.0.0-rc1", "v1.0.0-beta12"));
+        QVERIFY(!UpdateManager::isNewer("v1.0.0-rc2", "v1.0.0-rc2"));
+        QVERIFY(!UpdateManager::isNewer("v0.0.9", "v0.1.0-rc.1"));
+        QVERIFY(!UpdateManager::isNewer("v0.1.0-rc.1", "v0.1.0"));
+        QVERIFY(!UpdateManager::isNewer("v0.0.9", "v0.0.9"));
+        QVERIFY(!UpdateManager::isNewer("nightly", "v0.0.9"));
+        QVERIFY(UpdateManager::isNewer("v0.0.9", "dev"));
+        QTemporaryDir tmp;
+        UpdateManager manager(tmp.path(), tmp.path());
+        const QString running = QCoreApplication::applicationVersion();
+        QCoreApplication::setApplicationVersion("v0.1.0-rc.1");
+        manager.handleReleaseInfo(R"({"tag_name": "v0.0.9", "assets": []})");
+        QCOMPARE(manager.state(), QString("upToDate"));
+        QCoreApplication::setApplicationVersion(running);
+    }
+
     void durableWriteErrorsAreReported() {
 #ifdef Q_OS_UNIX
         QTemporaryDir tmp;

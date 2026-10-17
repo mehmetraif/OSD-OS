@@ -68,6 +68,20 @@ FocusScope {
     property string carryAudioLang:     ""        // language code of the chosen audio track
     property string carrySubLang:       "__off__" // language code, or "__off__" when subtitles are off
 
+    // Waiting on the server with no mpv running: for the next episode, or for
+    // the transcode a failed direct play falls back to.
+    readonly property bool waiting: pendingNextEpisode || pendingRetryTranscode
+
+    // Back to the detail screen from a wait that won't end: the server failed
+    // it, or the user gave up on it with back. Its answer, should it come, is
+    // dropped.
+    function leaveWaiting() {
+        pendingNextEpisode = false
+        pendingRetryTranscode = false
+        plexBackend.cancel_stream()
+        goBack()
+    }
+
     property int lastKnownPositionMs: 0
     property int lastKnownDurationMs: 0
 
@@ -93,6 +107,11 @@ FocusScope {
                 }
                 event.accepted = true
             }
+        } else if (waiting) {
+            // No mpv to send the keys to: back leaves.
+            if (event.key === Qt.Key_Escape || event.key === Qt.Key_Backspace || event.key === Qt.Key_Back)
+                leaveWaiting()
+            event.accepted = true
         } else {
             if (event.key === Qt.Key_Escape || event.key === Qt.Key_Back) {
                 mpvController.sendKey("ESC")
@@ -231,7 +250,13 @@ FocusScope {
 
     Connections {
         target: plexBackend
-        function onErrorOccurred(msg) { console.log("[Player] Backend error: " + msg) }
+        function onErrorOccurred(msg) {
+            console.log("[Player] Backend error: " + msg)
+            // The stream it waited for won't come: back to the detail screen,
+            // not a black screen with no mpv to take a key.
+            if (waiting)
+                leaveWaiting()
+        }
         function onStreamUrlReady(url, plexToken) {
             if (pendingNextEpisode) {
                 // Stream URL for the auto-advanced next episode just arrived.

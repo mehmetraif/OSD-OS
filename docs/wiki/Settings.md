@@ -15,7 +15,7 @@ Back on the main menu opens Settings (the hint bar there says `[ESC]:SETTINGS`).
 | Select | Enter | A | Opens a page (a module's settings, Controls, Bluetooth, Update, About), the list of Display Output, the file browser of Music File and Logo Image, or the Quit question. On Transparent Background it turns the setting on or off |
 | Back | Esc, Backspace | B, or the pad's Back/Select button | Back to the main menu |
 
-- **A change is saved at once.** Settings calls `appCore.save_setting("", key, value)`, which writes the value into `config.json` under `app.<key>` ([Configuration files](https://github.com/mehmetraif/OSD-OS/wiki/Configuration-Files#configjson)). Most rows take effect at once. The rows mpv is started with (Scaling, Video Levels, Channel Logo, Logo Image, Screen Saver during a video) apply from the next video.
+- **A change is saved at once.** Settings calls `appCore.save_setting("", key, value)`, which writes the value into `config.json` under `app.<key>` ([Configuration files](https://github.com/mehmetraif/OSD-OS/wiki/Configuration-Files#configjson)). Most rows take effect at once. The rows mpv is started with (Scaling, Video Levels, Channel Logo, Logo Image, Screen Saver during a video) apply from the next video. A value that can't be saved (a full or read-only disk) isn't applied, here or on a module's page: the row stays on the value saved, and the log says `[AppCore] Setting not saved: …`.
 - **The title bar** shows a release's version; a build made from source shows none there (About names it `DEV`). The top right corner shows the device's IP address on the network, wired before Wi-Fi, read again every five seconds: handy for SSH.
 - **The help line** under the list explains the selected row, and scrolls when the text is longer than the box. Settings → Help Line turns it off.
 - **Rows that come and go.** Some rows are offered only sometimes. A row that depends on another row (Window Frame on OSD Background, Music File and Music Volume on Menu Music, Logo Image on Channel Logo) stays in the list without a line while it isn't offered: the list doesn't move as it comes and goes, and the cursor skips over it.
@@ -266,7 +266,7 @@ If BlueZ isn't running, or the computer has no adapter, the page says **No Bluet
 
 Update compares the installed version with the latest release of [mehmetraif/OSD-OS](https://github.com/mehmetraif/OSD-OS/releases/latest) and shows its notes (▲ ▼ scroll them). Select does the next step, which the hint bar names:
 
-1. **CHECK** asks GitHub for the latest release.
+1. **CHECK** asks GitHub for the latest release, and offers it only when its version is newer than the one installed: an older one is never offered (**You're up to date**).
 2. **DOWNLOAD** fetches this platform's file (`-linux-arm64.tar.gz` on a Pi, `-linux-x86_64.AppImage`, `-macOS-arm64.dmg`) into the data folder's `updates`, with a progress bar, and checks it against the release's `SHA256SUMS` when the release has one. Back during a download cancels it.
 3. **INSTALL** asks **Install update?**:
    - **Apply & Restart** on a Pi under the autostart service: OSD/OS exits, and the launcher swaps the new release into `/opt/osdos` before it starts again.

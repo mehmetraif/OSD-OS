@@ -51,25 +51,25 @@ FocusScope {
     readonly property int maxCredits: 9
     function addCredit() { credits = Math.min(maxCredits, credits + 1) }
 
-    // Starts a game in MAME with the credits bought, which are then spent.
-    // False, with arcadeBackend.lastError(), when it couldn't be started.
-    function startGame(set) {
+    // Starts a game in MAME with the credits bought, which are then spent,
+    // and puts it on Recently Played (the newest 30). False, with
+    // arcadeBackend.lastError(), when it couldn't be started: a game that
+    // never started, or was canceled before, isn't put there.
+    function startGame(set, title) {
         if (!arcadeBackend || !arcadeBackend.play(set, credits))
             return false
         credits = 0
+        appCore.add_to_list(moduleId, "recent", { name: title || set, path: "game:" + set, isFolder: false }, 30)
         return true
     }
 
-    // A game a view asks for (navigateTo Play.qml with its set and title),
-    // put on Recently Played (the newest 30); coming back lands on it as
-    // listState says. With Start Info Screen on, Play.qml says how to come
-    // back first, then starts it. With it off the game starts from the list
-    // itself, which stays on the screen while MAME starts and has every key
-    // kept from it till the game ends (keyCatcher): Play.qml only says why a
-    // game didn't play.
+    // A game a view asks for (navigateTo Play.qml with its set and title);
+    // coming back lands on it as listState says. With Start Info Screen on,
+    // Play.qml says how to come back first, then starts it. With it off the
+    // game starts from the list itself, which stays on the screen while MAME
+    // starts and has every key kept from it till the game ends (keyCatcher):
+    // Play.qml only says why a game didn't play.
     function playGame(params, listState) {
-        appCore.add_to_list(moduleId, "recent", { name: params.title, path: "game:" + params.game,
-                                                  isFolder: false }, 30)
         if (startInfo) {
             navigateTo("Play.qml", params, listState)
             return
@@ -89,7 +89,7 @@ FocusScope {
         interval: moduleRoot.handOverDelay
         onTriggered: {
             var game = moduleRoot.playing
-            if (!game || moduleRoot.startGame(game.game))
+            if (!game || moduleRoot.startGame(game.game, game.title))
                 return
             moduleRoot.playing = null
             moduleRoot.navigateTo("Play.qml", { game: game.game, title: game.title,

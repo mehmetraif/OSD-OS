@@ -74,7 +74,8 @@ public:
     // startIndex (fromItemId's place, -1 for none), resumeIndex and resumeMs
     // (where a list in order stopped, -1 / 0 for none or when played from
     // fromItemId) }. What can't play (a file gone, a server signed out of, a
-    // download not done) is left out.
+    // download not done) is left out. { error } when the m3u couldn't be
+    // written (a full card): nothing is played.
     Q_INVOKABLE QVariantMap prepare(const QString &playlistId, const QString &fromItemId = QString());
     // Where a list stopped: a place in the m3u of the last prepare().
     Q_INVOKABLE void savePosition(const QString &playlistId, int index, int positionMs);
@@ -148,7 +149,8 @@ private:
     // Whether a download can go in the folder; if not, it fails, saying so.
     bool writable(const QString &folder);
     void removePartials(const QString &key) const;
-    void removeM3us(const QString &playlistId) const;
+    // A list's m3us, all but the one named keep.
+    void removeM3us(const QString &playlistId, const QString &keep = QString()) const;
 
     QString m_dataRoot;
     AppCore *m_appCore = nullptr;

@@ -239,9 +239,9 @@ Four workflows in [`.github/workflows`](https://github.com/mehmetraif/OSD-OS/tre
 
 | Workflow | Runs on | What it does |
 |---|---|---|
-| [`regression-tests.yml`](https://github.com/mehmetraif/OSD-OS/blob/main/.github/workflows/regression-tests.yml) | Every pull request, and every push to `main`, that touches `src/`, `views/`, `modules/`, `scripts/`, `tests/`, `thirdparty/`, `cmake/`, `CMakeLists.txt` or the workflow | Builds the app (Release) and the tests, and runs the tests, in two jobs. **Linux**: Ubuntu 24.04 on x64 and on arm64, with apt's Qt 6.4, the oldest the releases are built with. **Raspberry Pi OS (trixie, arm64)**: a `debian:trixie` container with Raspberry Pi's archive added as pi-gen adds it for the image, at the commit `os/build.sh` pins, so with the Pi's own Qt (6.8) and mpv (0.40); there the tests run as an ordinary user, as OSD/OS runs on the Pi |
+| [`regression-tests.yml`](https://github.com/mehmetraif/OSD-OS/blob/main/.github/workflows/regression-tests.yml) | Every pull request, and every push to `main`, that touches `src/`, `views/`, `modules/`, `scripts/`, `tests/`, `thirdparty/`, `cmake/`, `CMakeLists.txt` or the workflow; and every release, whose workflow calls it (`workflow_call`) | Builds the app (Release) and the tests, and runs the tests, in two jobs. **Linux**: Ubuntu 24.04 on x64 and on arm64, with apt's Qt 6.4, the oldest the releases are built with. **Raspberry Pi OS (trixie, arm64)**: a `debian:trixie` container with Raspberry Pi's archive added as pi-gen adds it for the image, at the commit `os/build.sh` pins, so with the Pi's own Qt (6.8) and mpv (0.40); there the tests run as an ordinary user, as OSD/OS runs on the Pi |
 | [`os-image.yml`](https://github.com/mehmetraif/OSD-OS/blob/main/.github/workflows/os-image.yml) | By hand (Actions → OS image → Run workflow), and pull requests that touch `os/`, `src/boot/`, `views/BootScreen.qml`, `views/Components/VhsCassette.qml`, `scripts/install.sh` or the workflow | Builds the app for arm64 as a `dev` tarball, then the OSD/OS image from it with pi-gen, on GitHub's arm64 runners. The image is the run's `osdos-image` artifact, kept 30 days; pi-gen's logs are kept when it fails |
-| [`release.yml`](https://github.com/mehmetraif/OSD-OS/blob/main/.github/workflows/release.yml) | A pushed tag matching `v*.*.*` | Builds and publishes a release ([below](#making-a-release)) |
+| [`release.yml`](https://github.com/mehmetraif/OSD-OS/blob/main/.github/workflows/release.yml) | A pushed tag matching `v*.*.*` | Builds a release, runs the regression tests on its commit, and publishes it once they pass ([below](#making-a-release)) |
 | [`wiki.yml`](https://github.com/mehmetraif/OSD-OS/blob/main/.github/workflows/wiki.yml) | A push to `main` that touches `docs/wiki/` or the workflow, and by hand | Publishes `docs/wiki` to the [wiki](https://github.com/mehmetraif/OSD-OS/wiki), page for page, replacing what the wiki had. GitHub makes a wiki's repository only once its first page is saved in the web interface, so that was done once |
 
 A `dev` image's app never updates itself, so a branch's image can't swap itself for a release without its changes. With the repository secret `OS_FIRST_USER_PASS`, the image's `pi` user gets it as its password; without it the account is locked.
@@ -255,7 +255,7 @@ git tag v2026.06.04
 git push origin v2026.06.04
 ```
 
-Any tag matching `v*.*.*` starts `release.yml`; one containing `-rc`, `-beta` or `-alpha` (`v1.0.0-rc1`) is published as a pre-release, a way to try the workflow: `install.sh` and the in-app updater only take the latest full release. Four builds run, the image after the arm64 one:
+Any tag matching `v*.*.*` starts `release.yml`; one containing `-rc`, `-beta` or `-alpha` (`v1.0.0-rc1`) is published as a pre-release, a way to try the workflow: `install.sh` and the in-app updater only take the latest full release. Four builds run, the image after the arm64 one, and beside them the regression tests, `regression-tests.yml` called on the tagged commit:
 
 | Job | Runner | Makes |
 |---|---|---|
@@ -264,7 +264,7 @@ Any tag matching `v*.*.*` starts `release.yml`; one containing `-rc`, `-beta` or
 | `build-linux-x86_64` | `ubuntu-24.04` | `OSD-OS-linux-x86_64.AppImage`, with mpv 0.40 built by `scripts/build-mpv.sh`. Its name has no version, as it updates itself in place |
 | `build-os-image` | `ubuntu-24.04-arm` | `OSD-OS-<tag>-raspberry-pi.img.xz` and its `.info` (the packages on it), from the release's own tarball |
 
-The last job, `release`, writes `SHA256SUMS` (which the in-app updater checks downloads against) and release notes with absolute links, and publishes the release with every file, `install.sh` and `setup-nfc-reader.sh` among them. While the workflow runs, each job's file can be downloaded from its run's **Artifacts**.
+The last job, `release`, waits for the builds and the regression tests: a tag whose tests fail has its builds made, but no release published. It writes `SHA256SUMS` (which the in-app updater checks downloads against) and release notes with absolute links, and publishes the release with every file, `install.sh` and `setup-nfc-reader.sh` among them. While the workflow runs, each job's file can be downloaded from its run's **Artifacts**.
 
 ## Building the OSD/OS image
 

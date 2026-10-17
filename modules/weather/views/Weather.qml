@@ -40,10 +40,10 @@ FocusScope {
 
         // Suppress the screen saver for as long as this view is up. The module
         // IS a screen saver — a rotating display you leave running — so letting
-        // the saver paint over it would be actively wrong. The flag is
-        // mpv-named because playback was its first user; it is the app's
-        // general "something is already owning the screen" signal.
-        idleTracker.mpvActive = true
+        // the saver paint over it would be actively wrong. Its own flag, not
+        // playback's: leaving it must not unblock the saver over a video still
+        // playing behind the menus.
+        idleTracker.viewActive = true
 
         // Absent means enabled, matching MultiSelectSettings.qml, which defaults
         // an option to true when config has no entry for it.
@@ -82,7 +82,7 @@ FocusScope {
 
     Component.onDestruction: {
         if (idleTracker) {
-            idleTracker.mpvActive = false
+            idleTracker.viewActive = false
             idleTracker.resetActivity()
         }
     }

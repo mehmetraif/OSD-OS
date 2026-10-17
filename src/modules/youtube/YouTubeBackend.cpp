@@ -282,6 +282,15 @@ void YouTubeBackend::refreshChannel(const QString &channelId) {
                 e.videos      = videos;
                 e.feedOk      = true;
                 e.fetchedMs   = QDateTime::currentMSecsSinceEpoch();
+                // The channel opened is answered as its own feed lands, not
+                // once the slowest of the others has.
+                const QString path = QStringLiteral("channel/") + channelId;
+                if (m_channelWaits.removeAll(path) > 0)
+                    answerLater({ path });
+                if (m_emitChannelVideosWhenDone == channelId) {
+                    m_emitChannelVideosWhenDone.clear();
+                    emit channelVideosLoaded(channelId, videos);
+                }
             }
         }
         // On failure: keep any previously cached videos (stale beats empty);
@@ -1015,6 +1024,13 @@ QVariant YouTubeBackend::channelListing(const QString &path) {
     if (now - m_channelsFailedMs < kRetryAfterMs) {
         setProblem(QString::fromLatin1(kSubscriptionsProblem));
         return QVariantList();
+    }
+    // A channel whose own feed is fresh is listed as it is, the others
+    // perhaps still being asked for.
+    if (path.startsWith(QLatin1String("channel/"))) {
+        const ChannelEntry entry = m_channels.value(path.section(QLatin1Char('/'), 1));
+        if (entry.feedOk && now - entry.fetchedMs < kCacheTtlMs)
+            return videoEntries(entry.videos);
     }
     // Fresh as a whole: a channel whose own feed failed stays empty until the
     // next load, rather than having the tree ask again and again.

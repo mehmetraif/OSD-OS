@@ -19,6 +19,10 @@
 #include <QSysInfo>
 #include <QSet>
 #include <QRegularExpression>
+#include <QDateTime>
+#include <QFutureWatcher>
+#include <QTimer>
+#include <QtConcurrent/QtConcurrentRun>
 
 static const QString kModuleId = QStringLiteral("com.osdos.emby");
 
@@ -642,7 +646,8 @@ void EmbyBackend::persistConnectAuthAndFinish() {
 // Item formatting
 // ---------------------------------------------------------------------------
 
-QVariantMap EmbyBackend::formatItem(const QJsonObject &item) const {
+QVariantMap EmbyBackend::formatItem(const QJsonObject &item, const QString &serverUrl,
+                                    const QString &accessToken) {
     QJsonObject userData = item["UserData"].toObject();
     QJsonObject imageTags = item["ImageTags"].toObject();
     QJsonArray mediaSources = item["MediaSources"].toArray();
@@ -689,14 +694,14 @@ QVariantMap EmbyBackend::formatItem(const QJsonObject &item) const {
                 const QString ext = (codec == "ass" || codec == "ssa") ? "ass"
                                   : (codec == "subrip" || codec == "srt") ? "srt"
                                   : "vtt";
-                subUrl = m_serverUrl + "/Videos/" + item["Id"].toString() + "/"
+                subUrl = serverUrl + "/Videos/" + item["Id"].toString() + "/"
                        + mediaSource["Id"].toString() + "/Subtitles/"
                        + QString::number(idx) + "/Stream." + ext;
                 // mpv fetches sidecars itself and only carries the Jellyfin-style
                 // Authorization header; Emby authenticates the sidecar via the
                 // api_key query param, so embed the token in the URL.
-                if (!m_accessToken.isEmpty())
-                    subUrl += "?api_key=" + m_accessToken;
+                if (!accessToken.isEmpty())
+                    subUrl += "?api_key=" + accessToken;
             }
             ss["subUrl"] = subUrl;
             subtitleStreams.append(ss);
@@ -847,19 +852,64 @@ void EmbyBackend::load_items(const QString &parentId, const QString &includeType
     // matching items when limit is omitted.
     url.setQuery(q);
 
+    const QString serverUrl = m_serverUrl, accessToken = m_accessToken;
+    loadList(&EmbyBackend::itemsLoaded, "items " + parentId + ' ' + includeTypes + ' ' + sortBy,
+             url, "LOAD ITEMS FAILED: ", [serverUrl, accessToken](const QByteArray &data) {
+        QVariantList result;
+        for (const QJsonValue &v : QJsonDocument::fromJson(data).object()["Items"].toArray())
+            result.append(formatItem(v.toObject(), serverUrl, accessToken));
+        return result;
+    });
+}
+
+void EmbyBackend::loadList(void (EmbyBackend::*answer)(const QVariant &), const QString &keep,
+                           const QUrl &url, const QString &failure,
+                           std::function<QVariantList(const QByteArray &)> read) {
+    // Long enough to go into a film's detail screen and back, or play a
+    // trailer, short enough to show what was added on the server meanwhile.
+    constexpr qint64 kListKeepMs = 10 * 60 * 1000;
+    constexpr int kListsKept = 6;
+    const int request = ++m_listRequest;
+    // Kept per server and user: a list of another's isn't theirs.
+    const QString kept = keep.isEmpty() ? QString()
+                                        : m_serverUrl + QLatin1Char(' ') + m_userId + QLatin1Char(' ') + keep;
+    const auto found = m_keptLists.constFind(kept);
+    if (!kept.isEmpty() && found != m_keptLists.constEnd()
+        && QDateTime::currentMSecsSinceEpoch() - found->at < kListKeepMs) {
+        // Told as a reply is: once the view that asked has done asking.
+        const QVariantList rows = found->rows;
+        QTimer::singleShot(0, this, [this, request, answer, rows]() {
+            if (request == m_listRequest)
+                emit (this->*answer)(rows);
+        });
+        return;
+    }
     auto *reply = embyGet(url);
-    connect(reply, &QNetworkReply::finished, this, [this, reply]() {
+    connect(reply, &QNetworkReply::finished, this, [this, reply, request, answer, kept, failure, read]() {
         reply->deleteLater();
+        if (request != m_listRequest)
+            return;
         if (reply->error() != QNetworkReply::NoError) {
-            emit errorOccurred("LOAD ITEMS FAILED: " + reply->errorString());
+            emit errorOccurred(failure + reply->errorString());
             return;
         }
-
-        QJsonArray items = QJsonDocument::fromJson(reply->readAll()).object()["Items"].toArray();
-        QVariantList result;
-        for (const QJsonValue &v : items)
-            result.append(formatItem(v.toObject()));
-        emit itemsLoaded(result);
+        auto *watcher = new QFutureWatcher<QVariantList>(this);
+        connect(watcher, &QFutureWatcher<QVariantList>::finished, this,
+                [this, watcher, request, answer, kept]() {
+            watcher->deleteLater();
+            if (request != m_listRequest)
+                return;
+            const QVariantList rows = watcher->result();
+            if (!kept.isEmpty()) {
+                m_keptLists.insert(kept, { rows, QDateTime::currentMSecsSinceEpoch() });
+                m_keptOrder.removeAll(kept);
+                m_keptOrder.append(kept);
+                while (m_keptOrder.size() > kListsKept)
+                    m_keptLists.remove(m_keptOrder.takeFirst());
+            }
+            emit (this->*answer)(rows);
+        });
+        watcher->setFuture(QtConcurrent::run(read, reply->readAll()));
     });
 }
 
@@ -941,19 +991,13 @@ void EmbyBackend::load_boxset_children(const QString &parentId) {
     q.addQueryItem("sortOrder", "Ascending");
     url.setQuery(q);
 
-    auto *reply = embyGet(url);
-    connect(reply, &QNetworkReply::finished, this, [this, reply]() {
-        reply->deleteLater();
-        if (reply->error() != QNetworkReply::NoError) {
-            emit errorOccurred("LOAD BOXSET FAILED: " + reply->errorString());
-            return;
-        }
-
-        QJsonArray items = QJsonDocument::fromJson(reply->readAll()).object()["Items"].toArray();
+    const QString serverUrl = m_serverUrl, accessToken = m_accessToken;
+    loadList(&EmbyBackend::boxsetChildrenLoaded, QString(), url, "LOAD BOXSET FAILED: ",
+             [serverUrl, accessToken](const QByteArray &data) {
         QVariantList result;
-        for (const QJsonValue &v : items)
-            result.append(formatItem(v.toObject()));
-        emit boxsetChildrenLoaded(result);
+        for (const QJsonValue &v : QJsonDocument::fromJson(data).object()["Items"].toArray())
+            result.append(formatItem(v.toObject(), serverUrl, accessToken));
+        return result;
     });
 }
 
@@ -976,18 +1020,12 @@ void EmbyBackend::load_folder_children(const QString &parentId) {
     q.addQueryItem("sortOrder", "Ascending");
     url.setQuery(q);
 
-    auto *reply = embyGet(url);
-    connect(reply, &QNetworkReply::finished, this, [this, reply]() {
-        reply->deleteLater();
-        if (reply->error() != QNetworkReply::NoError) {
-            emit errorOccurred("LOAD FOLDER FAILED: " + reply->errorString());
-            return;
-        }
-
-        QJsonArray items = QJsonDocument::fromJson(reply->readAll()).object()["Items"].toArray();
+    const QString serverUrl = m_serverUrl, accessToken = m_accessToken;
+    loadList(&EmbyBackend::folderChildrenLoaded, "folder " + parentId, url, "LOAD FOLDER FAILED: ",
+             [serverUrl, accessToken](const QByteArray &data) {
         QVariantList result;
-        for (const QJsonValue &v : items) {
-            QVariantMap map = formatItem(v.toObject());
+        for (const QJsonValue &v : QJsonDocument::fromJson(data).object()["Items"].toArray()) {
+            QVariantMap map = formatItem(v.toObject(), serverUrl, accessToken);
             // Keep navigable folders and playable videos; drop photos / photo
             // albums / audio so nothing un-playable can be selected.
             const QString t = map["type"].toString();
@@ -997,7 +1035,7 @@ void EmbyBackend::load_folder_children(const QString &parentId) {
                 result.append(map);
             }
         }
-        emit folderChildrenLoaded(result);
+        return result;
     });
 }
 
@@ -1318,11 +1356,16 @@ void EmbyBackend::get_playback_url(const QString &itemId, const QString &mediaSo
     profile["DirectPlayProfiles"] = directPlayProfiles;
     body["DeviceProfile"] = profile;
 
+    const int request = ++m_playbackRequest;
     auto *reply = embyPost(url, QJsonDocument(body).toJson(QJsonDocument::Compact));
     // [dev] qDebug("[EmbyBackend] PlaybackInfo POST %s audio=%d sub=%d bitrate=%d",
     // [dev]        qPrintable(itemId), audioStreamIndex, subtitleStreamIndex, videoQualityBitrate());
-    connect(reply, &QNetworkReply::finished, this, [this, reply, itemId, mediaSourceId, audioStreamIndex, subtitleStreamIndex, directPlay]() {
+    connect(reply, &QNetworkReply::finished, this, [this, reply, request, itemId, mediaSourceId, audioStreamIndex, subtitleStreamIndex, directPlay]() {
         reply->deleteLater();
+        // Not wanted any more: another stream asked for since, or given up.
+        // Nothing of it is reported to the server, which would show it playing.
+        if (request != m_playbackRequest)
+            return;
         if (reply->error() != QNetworkReply::NoError) {
             emit errorOccurred("PLAYBACK INFO FAILED: " + reply->errorString());
             return;
@@ -1509,6 +1552,10 @@ void EmbyBackend::get_playback_url(const QString &itemId, const QString &mediaSo
     });
 }
 
+void EmbyBackend::cancel_playback_url() {
+    ++m_playbackRequest;
+}
+
 void EmbyBackend::load_next_episode(const QString &currentItemId) {
     if (!has_auth()) {
         emit nextEpisodeReady(QVariantMap{});
@@ -1675,6 +1722,10 @@ void EmbyBackend::report_playback_stopped(const QString &itemId, const QString &
         if (m_currentPlaySessionId == reportedSessionId)
             m_currentPlaySessionId.clear();
     });
+    // What was played is played, or partly, now: the lists kept show it as
+    // it was.
+    m_keptLists.clear();
+    m_keptOrder.clear();
 }
 
 // ---------------------------------------------------------------------------

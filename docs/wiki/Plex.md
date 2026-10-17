@@ -100,7 +100,9 @@ A library opens on its own menu:
 | **Categories** | The filters the server offers for the library (genre, year, director and the like). Select one to see its values (each genre…), then a value to see its titles. A yes-or-no filter goes straight to its titles |
 | **Folders** | The library's folders as they are on the server's disk, shown with a trailing `/`. The title bar shows the way down (`MOVIES / 1980S / A`) |
 
-In the lists, an episode reads `SHOW S1E2: TITLE` and a film with an edition carries it (`BLADE RUNNER (FINAL CUT)`). A season in Continue Watching, a hub, a collection, a playlist or a category is shown as its episodes. Selecting a show opens its page, anything else its own page.
+In the lists, an episode reads `SHOW S1E2: TITLE` and a film with an edition carries it (`BLADE RUNNER (FINAL CUT)`). A season in Continue Watching, a hub, a collection, a playlist or a category is shown as its episodes, which OSD/OS asks the server for, four seasons at a time. Selecting a show opens its page, anything else its own page.
+
+A list is kept for 10 minutes once it has come, for the server and profile it came from: a library's titles, or a hub's, a collection's, a playlist's, a category's or a folder's. Going back to it from a title's page shows it at once, without asking the server again. After a video it is asked for again, since what was watched has changed. A list you leave before it has come is dropped, never shown in the screen you went to.
 
 ### Browsing by letter
 
@@ -122,7 +124,7 @@ A collection's or playlist's list starts with rows that act on the whole set, wh
 | **~ SHUFFLE** | The same, shuffled after the shows have been opened up, so episodes of different shows are mixed |
 | **@ WRITE NFC CARD** | Writes a card that plays the set ([below](#writing-an-nfc-card)). Shown while the NFC Reader module is on and a reader is connected |
 
-Every title in such a queue starts from its beginning, and the queue goes on to the next title whatever Autoplay Next Episode says; one that won't load is skipped. A queue that opens up shows is cut at 2000 episodes. Back from the player returns to the list. Progress is reported to Plex as for any playback.
+Every title in such a queue starts from its beginning, and the queue goes on to the next title whatever Autoplay Next Episode says; one that won't load is skipped. A queue that opens up shows is cut at 2000 episodes. Back from the player returns to the list, even while the next title is being prepared, and a title the server can't stream returns there too. Progress is reported to Plex as for any playback.
 
 ## Shows and seasons
 
@@ -161,7 +163,7 @@ The page shows **PLAY ►** (or **RSUM ►** when it has a saved position), the 
 | **Direct Play** (the default) | The file is streamed as it is and mpv decodes it. The best picture, and no work for the server. Subtitle files kept beside the video on the server are fetched and handed to mpv; subtitles inside the file (text or pictures, such as PGS and VobSub) are picked from it |
 | **8 Mbps (1080p)**, **4 Mbps (720p)**, **2 Mbps (480p)** | The server re-encodes every video into an HLS stream capped at that bitrate (`maxVideoBitrate` 8000, 4000 or 2000 kbps, Plex's Chrome profile), with the audio track you chose and the subtitle burned into the picture. For a weak network, or a file the device can't decode |
 
-A transcode always starts from the beginning of the video, so all of it can be sought, and mpv jumps to the resume point. If Direct Play fails (mpv can't open or play the stream), OSD/OS asks the server for a transcode and starts the video again by itself, at its resume point.
+A transcode always starts from the beginning of the video, so all of it can be sought, and mpv jumps to the resume point. If Direct Play fails (mpv can't open or play the stream), OSD/OS asks the server for a transcode and starts the video again by itself, at its resume point. Back while it waits for the transcode returns to the page, and so does a transcode the server fails to make.
 
 ### Resume and Continue Watching
 
@@ -169,7 +171,7 @@ Resume points are Plex's own: what you watch here shows up in Continue Watching 
 
 ### Autoplay Next Episode
 
-With **Autoplay Next Episode** on, an episode that plays to its end is followed by the next one of the same season, from its beginning, without going back to the menus. It carries on the audio and subtitle languages you had (saving them to Plex for the new episode too). Episode entries that share one file with the episode just played (a double episode, `S01E01-E02.mkv`) are passed over, so the same file doesn't play twice. The last episode of a season, and anything that isn't an episode, return to the page. Back from the player then returns to the page of the episode that was playing, not the one you started from.
+With **Autoplay Next Episode** on, an episode that plays to its end is followed by the next one of the same season, from its beginning, without going back to the menus. It carries on the audio and subtitle languages you had (saving them to Plex for the new episode too). Episode entries that share one file with the episode just played (a double episode, `S01E01-E02.mkv`) are passed over, so the same file doesn't play twice. The last episode of a season, and anything that isn't an episode, return to the page. Back from the player then returns to the page of the episode that was playing, not the one you started from. Back while the next episode is being prepared returns to the page too, and so does a next episode the server can't stream.
 
 ### Audio and subtitles during playback
 
@@ -193,7 +195,7 @@ With the [NFC Reader](https://github.com/mehmetraif/OSD-OS/wiki/NFC-Reader) modu
 | A show's or a season's page | The show or season: the episode on deck (part-watched, else the first unwatched), or random episodes | **Write card (Sequential Episodes)** or **Write card (Shuffle Episodes)** |
 | A collection's or playlist's list (**@ WRITE NFC CARD**) | The whole set, as PLAY ALL or SHUFFLE would | **Write card (In Order)** or **Write card (Shuffled)** |
 
-The screen reads **TAP A CARD FOR…** and the title; hold a card to the reader. If the card already plays something, it asks **THIS CARD PLAYS "…". CHANGE TO…** (**Change this card** or **Cancel**). **CARD WRITTEN FOR…** when it is done. Nothing is written to the card itself: OSD/OS keeps a text file per card in the NFC Reader's tags folder (`nfc_tags` in the data folder unless its Tags Directory setting names another), named after the title, which holds the card's ID, what it plays and, for a shuffle card, `shuffle`:
+The screen reads **TAP A CARD FOR…** and the title; hold a card to the reader. If the card already plays something, it asks **THIS CARD PLAYS "…". CHANGE TO…** (**Change this card** or **Cancel**). **CARD WRITTEN FOR…** when it is done, or **COULD NOT WRITE CARD** when its file can't be written (the SD card full, say), the card going on playing what it played. Nothing is written to the card itself: OSD/OS keeps a text file per card in the NFC Reader's tags folder (`nfc_tags` in the data folder unless its Tags Directory setting names another), named after the title, which holds the card's ID, what it plays and, for a shuffle card, `shuffle`:
 
 ```text
 04:A3:5B:2C:8D:61:80
@@ -291,7 +293,7 @@ Two files in the data folder (`~/.local/share/OSD-OS/` on Linux and the image, `
 How it is kept fresh:
 
 - Each time Plex loads its libraries, an account token that expires within a day is renewed first, signed with the device key. A server that answers 498 (token expired) gets the same renewal and the request again.
-- Each time you open Plex, OSD/OS checks with plex.tv (once) that the device is still authorized; if it isn't (removed from the account), it goes back to the sign-in screen.
+- Each time you open Plex, OSD/OS checks with plex.tv (once) that the device is still authorized; if it isn't (removed from the account), it goes back to the sign-in screen, with no screen left behind it: back from there leaves Plex.
 - A server that answers 401 makes OSD/OS fetch the profile's server tokens again and try once more before it shows an error.
 - A sign-in made by an older version, a token without a device key, is moved over to a device key by itself the first time it is used.
 - **Sign out** asks plex.tv to forget the device (as far as Plex lets a device do that for itself), then deletes both files. Without the key, the device can't renew a sign-in again even if a token survived somewhere.
@@ -308,6 +310,7 @@ Profile PINs and your Plex password are never stored. The sign-in's log lines (`
 | **Select Server** is empty | The account has no server it can use, or none of a server's addresses answered and it offered no other. Check the server is running and signed in to the same account (or shared with it) |
 | **NO SERVER CONFIGURED**, or **LOAD LIBRARIES FAILED: …** | The server's saved address doesn't answer: the server is off, or it moved (new IP). **Settings → Plex → Sign out**, then sign in again: the addresses are tried afresh |
 | **SERVER REJECTED THIS DEVICE. PLEASE TRY AGAIN.** | The server refused the token even after OSD/OS fetched new ones. Try again; if it stays, sign out and in |
+| **LOADING...** for half a minute, then an error such as **LOAD LIBRARY FAILED: …** | The server stopped answering (a NAS gone to sleep, the Wi-Fi dropped): OSD/OS gives a request up after 30 seconds without a byte from the server. Wake the server or check the network, then open the list again |
 | **PLEX DID NOT ISSUE A SERVER TOKEN FOR THIS DEVICE…** | plex.tv gave no token the server accepts. Sign out and sign in again |
 | Back on the sign-in screen by itself | The device was removed from your Plex account, or its sign-in couldn't be renewed. Sign in again |
 | **INCORRECT PIN** | The profile's PIN is wrong; ◄ ► to the digit, ▲ ▼ to fix it |

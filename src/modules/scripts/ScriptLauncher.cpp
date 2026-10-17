@@ -116,6 +116,15 @@ ScriptLauncher::ScriptLauncher(const QString &appRoot, const QString &dataRoot,
         if (!m_finished && (!m_process || m_process->state() == QProcess::Starting)) {
             qWarning("[Scripts] '%s' did not start within %d ms — giving up",
                      qPrintable(m_runningBasename), kStartWatchdogMs);
+            if (m_process) {
+                // One that starts after all must not run with the screen and
+                // the sound given back: killed, and heard from no more but to
+                // say it is gone, isBusy() true till then.
+                m_process->disconnect(this);
+                connect(m_process, &QProcess::finished, this, &ScriptLauncher::runningChanged);
+                connect(m_process, &QProcess::errorOccurred, this, &ScriptLauncher::runningChanged);
+                m_process->kill();
+            }
             finish(-1, QStringLiteral("failed_to_start"));
         }
     });

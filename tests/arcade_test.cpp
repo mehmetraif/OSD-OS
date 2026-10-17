@@ -10,12 +10,14 @@
 #include <QScopeGuard>
 #include <QSignalSpy>
 #include <QTemporaryDir>
+#include <QThreadPool>
 #include <QUrl>
 #include <QtTest>
 
 // The Arcade module against a stand-in for MAME (a shell script in the data
-// folder's bin, where the module looks first): what MAME's -listxml says of
-// the sets in the games folder, read as it comes and kept until MAME changes,
+// folder's bin, where the module looks first): the games folder read off the
+// GUI thread, what MAME's -listxml says of its sets, read as it comes and
+// kept until MAME changes,
 // the original screen's tree and the Arcade screen's filters made of it, a
 // game's details, and a game started with its folders, the high scores
 // plugin, the players' controllers in its controller file, a way out and the
@@ -229,8 +231,17 @@ private slots:
         QCOMPARE(config.count(QStringLiteral("aaaa")), 1);
         QVERIFY(!config.contains(QStringLiteral("JOYCODE_3\"")));
         QVERIFY(config.contains(QStringLiteral("<port type=\"UI_CANCEL\">")));
-        QVERIFY(config.contains(QStringLiteral("KEYCODE_ESC OR JOYCODE_1_SELECT JOYCODE_1_START")));
+        // Coin and Start leave the game on every player's controller, so
+        // a cabinet whose player 1 pad is unplugged still has a way out.
+        QVERIFY(config.contains(QStringLiteral(">KEYCODE_ESC OR JOYCODE_1_SELECT JOYCODE_1_START"
+                                               " OR JOYCODE_2_SELECT JOYCODE_2_START"
+                                               " OR JOYCODE_3_SELECT JOYCODE_3_START"
+                                               " OR JOYCODE_5_SELECT JOYCODE_5_START<")));
+        QVERIFY(mame::controllerConfig({ QString(), QStringLiteral("bbbb") })
+                    .contains(QStringLiteral(">KEYCODE_ESC OR JOYCODE_1_SELECT JOYCODE_1_START"
+                                             " OR JOYCODE_2_SELECT JOYCODE_2_START<")));
         QVERIFY(!mame::controllerConfig({}).contains(QStringLiteral("mapdevice")));
+        QVERIFY(mame::controllerConfig({}).contains(QStringLiteral(">KEYCODE_ESC OR JOYCODE_1_SELECT JOYCODE_1_START<")));
 
         // Only what MAME can't go without: not an optional file, nor one
         // with no good dump known.
@@ -313,9 +324,15 @@ private slots:
         QCOMPARE(arcade.mamePath(), mamePath());
 
         QSignalSpy ready(&arcade, &ArcadeBackend::entriesReady);
+        QSignalSpy reading(&arcade, &ArcadeBackend::readingChanged);
         arcade.refresh();
-        ready.clear();
         QVERIFY(arcade.scanning());
+        // The folder read, and MAME asked about its sets (the read's end is
+        // waited for alone, so MAME can't have answered yet).
+        QVERIFY(reading.wait(10000));
+        QVERIFY(!arcade.reading());
+        QVERIFY(arcade.scanning());
+        ready.clear();
         // While MAME is asked: the lists at once, the rest once it has
         // answered, and the top again then.
         QCOMPARE(names(arcade.requestEntries(QStringLiteral("top"))),
@@ -404,8 +421,7 @@ private slots:
         QFile::remove(m_log);
         {
             ArcadeBackend arcade(m_data.path(), m_data.path(), nullptr, nullptr);
-            arcade.refresh();
-            QVERIFY(!arcade.scanning());
+            refreshed(arcade);
             QCOMPARE(names(arcade.requestEntries(QStringLiteral("all"))).size(), 7);
         }
         QVERIFY(logLines(QStringLiteral("listxml")).isEmpty());
@@ -430,6 +446,91 @@ private slots:
                      QStringList({ QStringLiteral("listxml 1942 acefruit galaga kinst mslug neogeo notagame pacman sf2 xmen6p") }));
         }
         QFile::remove(m_games + QStringLiteral("/1942.zip"));
+    }
+
+    // The folder is read off the GUI thread: refresh() returns at once, the
+    // list waiting for the read (scanning meanwhile); a refresh while it
+    // reads reads again, and another folder chosen meanwhile is the one
+    // read. Before the folder has been read a game plays all the same, and
+    // the settings' choices come once it has; a snapshot MAME took in a game
+    // is its picture as the game ends.
+    void readOffThread() {
+        const QString module = QStringLiteral("com.osdos.arcade");
+        const QString other = m_data.path() + QStringLiteral("/other-games");
+        const QString shots = m_data.path() + QStringLiteral("/arcade/snap/galaga");
+        AppCore core(m_data.path(), m_data.path());
+        const auto restore = qScopeGuard([this, &core, &module, &other, &shots] {
+            core.save_setting(module, QStringLiteral("games_directory"), QString());
+            QDir(other).removeRecursively();
+            QDir(shots).removeRecursively();
+            QFile::remove(m_games + QStringLiteral("/1943.zip"));
+        });
+        {
+            ArcadeBackend arcade(m_data.path(), m_data.path(), &core, nullptr);
+            QSignalSpy reading(&arcade, &ArcadeBackend::readingChanged);
+            arcade.refresh();
+            QVERIFY(arcade.reading());
+            QVERIFY(arcade.scanning());
+            QVERIFY(!arcade.requestEntries(QStringLiteral("all")).isValid());
+            // The read done but not yet taken, which waits for the event
+            // loop: a set put in the folder now is only in a read after it.
+            QThreadPool::globalInstance()->waitForDone();
+            QVERIFY(arcade.reading());
+            writeFile(m_games + QStringLiteral("/1943.zip"));
+            arcade.refresh();
+            QTRY_VERIFY_WITH_TIMEOUT(!arcade.scanning(), 10000);
+            QVERIFY(!arcade.reading());
+            QCOMPARE(reading.size(), 2);
+            QVERIFY(names(arcade.requestEntries(QStringLiteral("unknown"))).contains(QStringLiteral("1943.zip")));
+        }
+        writeFile(other + QStringLiteral("/galaga.zip"));
+        {
+            ArcadeBackend arcade(m_data.path(), m_data.path(), &core, nullptr);
+            connect(&core, &AppCore::moduleSettingChanged, &arcade, &ArcadeBackend::onSettingChanged);
+            arcade.refresh();
+            core.save_setting(module, QStringLiteral("games_directory"), other);
+            QTRY_VERIFY_WITH_TIMEOUT(!arcade.scanning(), 10000);
+            QCOMPARE(names(arcade.requestEntries(QStringLiteral("all"))),
+                     QStringList({ QStringLiteral("Galaga (Namco rev. B)") }));
+            core.save_setting(module, QStringLiteral("games_directory"), QString());
+        }
+        QFile::remove(m_log);
+        {
+            ArcadeBackend arcade(m_data.path(), m_data.path(), &core, nullptr);
+            QCOMPARE(played(arcade, QStringLiteral("galaga")).at(1).toString(), QStringLiteral("ok"));
+            QVERIFY(!arcade.play(QStringLiteral("gone")));
+            QCOMPARE(arcade.lastError(), QStringLiteral("The game is no longer in the games folder"));
+            QSignalSpy options(&arcade, &ArcadeBackend::dynamicOptionsReady);
+            arcade.startFilterOptions();
+            QVERIFY(arcade.reading());
+            QVERIFY(options.isEmpty());
+            QTRY_COMPARE_WITH_TIMEOUT(options.size(), 1, 10000);
+            QCOMPARE(options.first().at(0).toString(), QStringLiteral("start_filter"));
+            QVERIFY(options.first().at(1).toList().size() > 1);
+            // MAME isn't asked from the settings: that waits for the list.
+            QVERIFY(logLines(QStringLiteral("listxml")).isEmpty());
+        }
+        {
+            // Read the Games Again while the settings' read goes on: MAME
+            // asked about every set once the folder has been read.
+            ArcadeBackend arcade(m_data.path(), m_data.path(), &core, nullptr);
+            arcade.startFilterOptions();
+            QVERIFY(arcade.reading());
+            arcade.rescan();
+            QTRY_VERIFY_WITH_TIMEOUT(!arcade.scanning(), 10000);
+            QCOMPARE(logLines(QStringLiteral("listxml")),
+                     QStringList({ QStringLiteral("listxml 1943 acefruit galaga kinst mslug neogeo notagame pacman sf2 xmen6p") }));
+            QFile::remove(m_log);
+        }
+        {
+            ArcadeBackend arcade(m_data.path(), m_data.path(), nullptr, nullptr);
+            refreshed(arcade);
+            QCOMPARE(arcade.gameDetails(QStringLiteral("galaga")).value(QStringLiteral("picture")).toString(), QString());
+            writeFile(shots + QStringLiteral("/0001.png"), "png");
+            QCOMPARE(played(arcade, QStringLiteral("galaga")).at(1).toString(), QStringLiteral("ok"));
+            QCOMPARE(arcade.gameDetails(QStringLiteral("galaga")).value(QStringLiteral("picture")).toString(),
+                     QUrl::fromLocalFile(shots + QStringLiteral("/0001.png")).toString());
+        }
     }
 
     // A game started as MAME is to have it, and back.
@@ -516,7 +617,7 @@ private slots:
         QCOMPARE(arcade.lastError(), QStringLiteral("The game is no longer in the games folder"));
         // A file in the folder whose name isn't a set's, nor an option's.
         writeFile(m_games + QStringLiteral("/-listxml.zip"));
-        arcade.refresh();
+        refreshed(arcade);
         QVERIFY(!arcade.play(QStringLiteral("-listxml")));
         QCOMPARE(arcade.lastError(), QStringLiteral("MAME has no game called -listxml"));
         QVERIFY(!arcade.play(QStringLiteral("street fighter")));
@@ -687,8 +788,7 @@ private slots:
                           m_data.path() + QStringLiteral("/not-a-folder/MAME"));
         ArcadeBackend arcade(m_data.path(), m_data.path(), &core, nullptr);
         QSignalSpy problem(&arcade, &ArcadeBackend::problemChanged);
-        arcade.refresh();
-        QVERIFY(!arcade.scanning());
+        refreshed(arcade);
         QVERIFY(!arcade.folderReadable());
         QCOMPARE(arcade.problem(), QStringLiteral("The games folder can't be read: %1/not-a-folder/MAME")
                                        .arg(m_data.path()));
@@ -708,8 +808,7 @@ private slots:
         ArcadeBackend arcade(data.path(), data.path(), nullptr, nullptr);
         qputenv("OSDOS_MEDIA_DIR", (m_data.path() + QStringLiteral("/media")).toUtf8());
         writeFile(arcade.gamesFolder() + QStringLiteral("/pacman.zip"));
-        arcade.refresh();
-        QVERIFY(!arcade.scanning());
+        refreshed(arcade);
         QCOMPARE(arcade.problem(), QStringLiteral("MAME is not installed"));
         QCOMPARE(names(arcade.requestEntries(QStringLiteral("all"))), QStringList({ QStringLiteral("pacman") }));
         QVERIFY(!arcade.play(QStringLiteral("pacman")));
@@ -915,10 +1014,14 @@ private slots:
         QCOMPARE(games, QStringList({ QStringLiteral("=None"), QStringLiteral("galaga=Galaga"),
                                       QStringLiteral("sf2=Street Fighter II") }));
 
-        // Asked again: only the lists, then all of them once MAME has
-        // answered.
+        // Asked again: only the lists while MAME is asked (once the folder
+        // has been read), then all of them once it has answered.
         QSignalSpy changed(&arcade, &ArcadeBackend::gamesChanged);
+        QSignalSpy reading(&arcade, &ArcadeBackend::readingChanged);
         arcade.rescan();
+        QVERIFY(arcade.scanning());
+        QVERIFY(reading.wait(10000));
+        QVERIFY(!arcade.reading());
         QVERIFY(arcade.scanning());
         QCOMPARE(described(arcade.filters()), QStringList({ QStringLiteral("favorites Favorites 2"),
                                                             QStringLiteral("recent Recently Played 1") }));

@@ -431,11 +431,19 @@ jobs:
           if-no-files-found: ignore
 
   # ──────────────────────────────────────────────────────────────────────────────
+  # The regression tests, on the tagged commit: a release that fails them isn't
+  # published, though its builds are made.
+  # ──────────────────────────────────────────────────────────────────────────────
+  regression-tests:
+    name: Regression tests
+    uses: ./.github/workflows/regression-tests.yml
+
+  # ──────────────────────────────────────────────────────────────────────────────
   # Publish GitHub Release
   # ──────────────────────────────────────────────────────────────────────────────
   release:
     name: Publish Release
-    needs: [build-macos-arm64, build-linux-arm64, build-linux-x86_64, build-os-image]
+    needs: [build-macos-arm64, build-linux-arm64, build-linux-x86_64, build-os-image, regression-tests]
     runs-on: ubuntu-latest
     permissions:
       contents: write

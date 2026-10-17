@@ -50,7 +50,9 @@ public:
     Q_INVOKABLE void scan_for_modules();
     Q_INVOKABLE QVariant get_settings();
     Q_INVOKABLE QVariant get_setting(const QString &moduleId, const QString &key);
-    Q_INVOKABLE void save_setting(const QString &moduleId, const QString &key, const QVariant &value);
+    // False when config.json couldn't be written (a full or read-only card):
+    // nothing then changes, and no setting changed is signalled.
+    Q_INVOKABLE bool save_setting(const QString &moduleId, const QString &key, const QVariant &value);
     Q_INVOKABLE QVariant get_module_info(const QString &moduleId);
     Q_INVOKABLE QVariant get_module_settings_schema(const QString &moduleId);
     Q_INVOKABLE void invoke_module_action(const QString &moduleId, const QString &slotName);

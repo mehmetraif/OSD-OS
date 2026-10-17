@@ -191,7 +191,7 @@ A Pi 5's SCART RGB also needs a line on the system partition (`options drm_rp1_d
 
 Put the card in the Pi, connect the TV and the keyboard, remote or gamepad, and switch it on. On the first boot:
 
-1. **The card is split.** Before the system starts, the root partition grows to 8 GiB instead of the whole card, and the rest becomes a third partition in exFAT, labelled **OSD-OS**. This happens once, on a freshly flashed card. A card with less than 2 GiB to spare past the system gets no film partition, and the system takes all of it.
+1. **The card is split.** Before the system starts, the root partition grows to 8 GiB instead of the whole card, and the rest becomes a third partition in exFAT, labelled **OSD-OS**. This happens once, on a freshly flashed card. A card with less than 2 GiB to spare past the system gets no film partition, and the system takes all of it. A first boot cut short after the partition is made but before it is formatted leaves it blank, and the next boot formats it, but only a partition with no file system at all.
 2. **The boot screen.** OSD/OS comes up as soon as the display driver is ready and shows its boot screen: the OSD/OS cassette, its reels turning and its tape winding from one onto the other as the progress bar fills, and a line per service: `[ OK ] WI-FI`, `BLUETOOTH`, `LOCAL NETWORK`, `SSH` (only when the image was built with SSH on) and `ONLINE`, a check that the network is really up, which gives up after 20 seconds without one. The boot screen closes by itself once every service has settled, or after a minute. Keys do nothing while it is up, but Ctrl+Q, which powers the Pi off.
 3. **cloud-init** applies Imager's customisation or your `network-config`, then is switched off for later boots.
 4. **The main menu.** Out of the box it lists **Local Files** and **Playlists**, the two modules that are on by default. Turn the others on in Settings (back, on the main menu); each module's own page says how to set it up ([Modules](https://github.com/mehmetraif/OSD-OS/wiki/Modules)).
@@ -393,8 +393,10 @@ bash install.sh "$TAG"
 
 It asks two questions:
 
-- `Install systemd autostart service? [y/N]`: **y** makes the Pi start OSD/OS at every boot, an appliance as close to the image as an install gets. **N** (the default) installs the app only.
-- `Run service as user [default: pi]:` (only after **y**): the user OSD/OS runs as. Give your own user's name if it isn't `pi`.
+- `Install systemd autostart service? [y/N]`: **y** makes the Pi start OSD/OS at every boot, an appliance as close to the image as an install gets. **N** (the default) installs the app only; a service installed before is kept as it is, with the user it runs as.
+- `Run service as user [default: pi]:` (only after **y**): the user OSD/OS runs as. Give your own user's name if it isn't `pi`. With a service installed before, the default offered is the user it runs as.
+
+On the OSD/OS image it asks neither: it keeps the image's own service, and the user it runs as, and brings what goes with it up to date (the stop helper, the Exit to Terminal unit, At Next Start's socket).
 
 Installing the dependencies can take a while; over Wi-Fi, about 20 minutes. Then `osdos` starts OSD/OS at any time, and with the service installed, the next boot goes straight into it. Follow the service's log with `sudo journalctl -u osdos -f`.
 
@@ -407,9 +409,9 @@ Installing the dependencies can take a while; over Wi-Fi, about 20 minutes. Then
 | Installs packages | `libqt6quick6 libqt6qml6 libqt6opengl6 libqt6network6 libqt6svg6 qt6-svg-plugins qt6-wayland qml6-module-qtquick qml6-module-qtquick-controls qml6-module-qtquick-window qml6-module-qtquick-effects libsdl2-2.0-0 libpcsclite1 libmpv2 mpv fluidsynth timgm6mb-soundfont openmpt123` |
 | A udev rule | `/etc/udev/rules.d/99-osdos-tty.rules`: lets the `tty` group open `/dev/tty0`, for handing the screen to mpv and back |
 | The `bluetooth` group | Adds the user OSD/OS runs as, so Settings → Bluetooth can talk to BlueZ |
-| Unpacks the app | `OSD-OS-<version>-linux-arm64.tar.gz` into `/opt/osdos`, owned by the user OSD/OS runs as, so in-app updates can replace it |
+| Unpacks the app | `OSD-OS-<version>-linux-arm64.tar.gz` into `/opt/osdos`, owned by the user OSD/OS runs as, so in-app updates can replace it. It warns when that user still can't write there, as in-app updates then won't apply |
 | The launcher | `/usr/local/bin/osdos`: applies a downloaded update, then starts OSD/OS on Wayland or X11 when there is a desktop, or straight on the screen (Qt's EGLFS) when there isn't, on the right display card (a Pi 5's video card is not always the first) |
-| The service | Only after **y**: `/etc/systemd/system/osdos.service`, its stop helper `/usr/local/bin/osdos-stop`, `osdos-terminal.service` for Exit to Terminal, and `osdos-display.socket` with `osdos-display@.service` for Display Output's At Next Start. The console login on `tty1` is masked (`getty@tty1`, `autovt@`), so the screen is OSD/OS's |
+| The service | Only after **y**: `/etc/systemd/system/osdos.service`, its stop helper `/usr/local/bin/osdos-stop`, `osdos-terminal.service` for Exit to Terminal, and `osdos-display.socket` with `osdos-display@.service` for Display Output's At Next Start. The console login on `tty1` is masked (`getty@tty1`, `autovt@`), so the screen is OSD/OS's. On the OSD/OS image the image's own `osdos.service` is left as it is, and the rest is written afresh |
 
 #### The autostart service
 
@@ -569,8 +571,8 @@ Settings → **Update** checks GitHub for the [latest release](https://github.co
 ```mermaid
 stateDiagram-v2
     [*] --> Check
-    Check --> UpToDate: the latest tag is the installed version
-    Check --> Available: another tag
+    Check --> UpToDate: the latest release is not newer than the installed version
+    Check --> Available: a newer release
     Available --> Downloading: select (DOWNLOAD)
     Downloading --> Ready: the file matches SHA256SUMS
     Downloading --> Available: back cancels it
@@ -578,9 +580,9 @@ stateDiagram-v2
     Ready --> Available: Discard Update
 ```
 
-- **CHECK** asks GitHub for the latest release. A release whose tag differs from the installed version is offered. Pre-releases (tags with `-rc`, `-beta` or `-alpha`) are never the latest, so they are never offered.
+- **CHECK** asks GitHub for the latest release, and offers it only when it is newer than the installed version (**You're up to date** otherwise). Versions are compared by their numbers, so `v0.10.0` comes after `v0.9.0`, and a pre-release before its release (`v0.2.0-rc.1` before `v0.2.0`): an older release is never offered. Pre-releases (tags with `-rc`, `-beta` or `-alpha`) are never the latest, so they are never offered.
 - **DOWNLOAD** fetches the file for this system (the `.tar.gz` on a Raspberry Pi, the `.dmg` on a Mac, the AppImage on x86_64 Linux) into the data folder's `updates` folder, and checks it against the release's `SHA256SUMS`. It needs three times the file's size free. Back during the download cancels it.
-- **INSTALL** asks **Install update?** A downloaded update does nothing until you choose to apply it; back, or **Discard Update**, leaves the installed version as it is.
+- **INSTALL** asks **Install update?** A downloaded update does nothing until you choose to apply it; back, or **Discard Update**, leaves the installed version as it is. A download that is no longer newer than the version running when OSD/OS next starts (a newer one installed with `install.sh` meanwhile, say) is deleted then.
 
 What applying does depends on the system:
 
@@ -592,6 +594,8 @@ What applying does depends on the system:
 | macOS, the app anywhere else | **Quit & Open Disk Image** | OSD/OS quits and opens the downloaded `.dmg`, to drag the app into place yourself |
 | The AppImage | **Quit & Apply on Next Launch** | The new AppImage replaces the old one in place, keeping a `.bak` of the old one until the new one starts; in Desktop Mode it then starts again by itself, in Gaming Mode it quits and you start it from Steam (the path is the same, so the shortcut still works) |
 
+On a Raspberry Pi the launcher unpacks the new version beside the old one, makes sure it is on the card, then swaps the two in with renames. Should the power go in the middle, the next start puts the version before back whole from what it kept of it, and applies the update again, which stays downloaded until a swap has finished: the Pi starts on one version or the other, never on a file half written.
+
 Your settings stay as they are. Some installs can't update in place, and the page says why: an install from before in-app updates (run `install.sh` once more, below), an install in a non-standard place, an AppImage in a read-only folder (download the new one by hand), or a `dev` build, such as an image from the OS image workflow, which can check and read the notes but not download.
 
 ### Updating with install.sh
@@ -602,7 +606,7 @@ On Raspberry Pi OS, running the installer again also updates OSD/OS, keeping you
 bash <(curl -fsSL https://github.com/mehmetraif/OSD-OS/releases/latest/download/install.sh)
 ```
 
-Answer **y** to the autostart question if the service is installed (that keeps the app's files owned by the service's user, which in-app updates need), **N** to keep going without it. Then `sudo reboot`.
+If the service is installed, answer **y** to the autostart question: the service and its helpers are written afresh, with the user it runs as offered as the default. **N** keeps the service as it is, and its user; either way the app's files go to that user, which in-app updates need. Without a service, **N** keeps going without one. On the OSD/OS image there is no question: the image's own service stays as it is, and what goes with it is brought up to date. Then `sudo reboot`.
 
 ### Updating Raspberry Pi OS on the image
 

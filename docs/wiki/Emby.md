@@ -94,7 +94,7 @@ In the server's list of devices, OSD/OS appears under the machine's host name, w
 Once signed in, these work exactly as in the Jellyfin module, so its page describes them:
 
 - [The home screen](https://github.com/mehmetraif/OSD-OS/wiki/Jellyfin#the-home-screen): `EMBY | <SERVER> (<USER>)`, **Continue Watching** and **Next Up** when they have something (up to 20 each), then the Movies, Shows, Home Videos and Collections libraries that are ON in **Settings → Emby → Libraries**.
-- [Browsing](https://github.com/mehmetraif/OSD-OS/wiki/Jellyfin#browsing): films and series A to Z, home videos folder by folder, collections by kind, oldest first.
+- [Browsing](https://github.com/mehmetraif/OSD-OS/wiki/Jellyfin#browsing): films and series A to Z, home videos folder by folder, collections by kind, oldest first; a library's list and a folder's kept for 10 minutes, so going back to one is quick.
 - [Browsing by letter](https://github.com/mehmetraif/OSD-OS/wiki/Jellyfin#browsing-by-letter): ► to the letters in the Movies, Shows and Home Videos lists.
 - [Series and seasons](https://github.com/mehmetraif/OSD-OS/wiki/Jellyfin#series-and-seasons): PLAY on a series opens the episode the server's Next Up gives; on a season, its part-watched, first unwatched or first episode.
 - [An item's page](https://github.com/mehmetraif/OSD-OS/wiki/Jellyfin#an-items-page): **PLAY ►** / **RSUM ►**, **Audio** and **Subtitles** picked from your server user's language preferences and subtitle mode, ► on PLAY for a playlist.

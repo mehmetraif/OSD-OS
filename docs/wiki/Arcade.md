@@ -47,7 +47,7 @@ Both list the same games from the same folder, share Recently Played and Favorit
 
 | Folder | What it holds |
 |---|---|
-| **Recently Played** | The games played last, latest first (up to 30) |
+| **Recently Played** | The games played last, latest first (up to 30). A game goes on it once MAME has started it: one cancelled before it starts, or that couldn't be started, stays off it |
 | **Favorites** | The games you added with right on a game ([below](#a-games-options)) |
 | **Search** | Asks for words on the on-screen keyboard and lists the games whose name or set has them: `pac` finds Pac-Man and Ms. Pac-Man |
 | **All Games** | Every game, by name |
@@ -65,7 +65,7 @@ Right on a game opens its options:
 | Option | What it does |
 |---|---|
 | **Add to Favorites** / **Remove from Favorites** | Puts it on Favorites, or takes it off |
-| **Play at Startup** / **Don't Play at Startup** | Starts it straight after the boot screen every time OSD/OS starts, ahead of Settings → Start on Module: a cabinet that boots into its game. It goes on Favorites too. There is one for the whole app, as in [Local Files](https://github.com/mehmetraif/OSD-OS/wiki/Local-Files): choosing another replaces it. **Settings → Arcade → Play at Startup** shows it, and chooses it among the favorites too |
+| **Play at Startup** / **Don't Play at Startup** | Starts it after the boot screen every time OSD/OS starts, as soon as the games folder has been read, ahead of Settings → Start on Module: a cabinet that boots into its game. It goes on Favorites too. There is one for the whole app, as in [Local Files](https://github.com/mehmetraif/OSD-OS/wiki/Local-Files): choosing another replaces it. **Settings → Arcade → Play at Startup** shows it, and chooses it among the favorites too |
 
 ## The Arcade screen
 
@@ -212,7 +212,7 @@ With no credits, the game starts as it always does, and a coin goes in in the ga
 
 ## Reading the games
 
-The names, years, makers and players, and each game's system, come from MAME (`mame -listxml`). The module asks MAME about the sets it hasn't asked about yet each time it opens: all of them the first time, a few hundred at a time, then only the sets new in the folder. While it asks, the tree's folders show `loading…` and the line `Reading the games…`; Recently Played and Favorites are there at once (on the Arcade screen, the only filters until MAME has answered), and a game played from them meanwhile pauses the asking until it ends. What MAME said is kept in `arcade/games.json` in the data folder (read as the list first opens), until MAME itself changes (an update, or a MAME of your own): then it is asked about every set again, as it is once after OSD/OS updates from a version that kept less of each game. **Settings → Arcade → Read the Games Again** does the same by hand.
+The names, years, makers and players, and each game's system, come from MAME (`mame -listxml`). Each time it opens the module reads the folder, in the background so the screen keeps answering however many sets it holds, then asks MAME about the sets it hasn't asked about yet: all of them the first time, a few hundred at a time, then only the sets new in the folder. While it reads and asks, the tree's folders show `loading…` and the line `Reading the games…`; Recently Played and Favorites are there at once (on the Arcade screen, the only filters until MAME has answered), and a game played from them meanwhile pauses the asking until it ends. What MAME said is kept in `arcade/games.json` in the data folder (read as the list first opens), until MAME itself changes (an update, or a MAME of your own): then it is asked about every set again, as it is once after OSD/OS updates from a version that kept less of each game. **Settings → Arcade → Read the Games Again** does the same by hand.
 
 Without MAME the sets are listed by their names, and select says MAME is not installed.
 
@@ -225,7 +225,7 @@ Select on a game in the tree, or select or START on the Arcade screen. MAME then
 - **On** (the default): a screen saying **PLAY ▶** and the game's name, and how to come back. From the tree, the first game after OSD/OS starts waits a second and a half before MAME takes the screen, for how to come back to be read, and the games after it a moment. From the Arcade screen, every game waits three seconds, and the screen says how many credits go in with it (`2 credits go in as the game starts`, or `No credit: insert a coin in the game`); COIN puts in another, and START or select starts the game at once. Back in that time cancels the game, and keeps the credits.
 - **Off**: nothing. The game starts straight from the list, which stays on the screen while MAME starts.
 
-**Coming back**: press **Coin and Start together** on player 1's controller, or **Esc** on a keyboard. The screen names them as player 1's controller does: `COIN + START` on the JAMMA board's sticks, `BACK + START` on an Xbox pad, `SELECT + START` on a PlayStation one, `- + +` on a Nintendo one. This is MAME's own way out (its UI Cancel input), so MAME closes the game properly and saves its high scores, its NVRAM and its settings on the way. Back in OSD/OS the list is where you left it, on the game, and the game's play time has the time it ran added to it (and a new high score is on the Arcade screen).
+**Coming back**: press **Coin and Start together** on any player's controller, or **Esc** on a keyboard. The screen names them as player 1's controller does: `COIN + START` on the JAMMA board's sticks, `BACK + START` on an Xbox pad, `SELECT + START` on a PlayStation one, `- + +` on a Nintendo one. This is MAME's own way out (its UI Cancel input), so MAME closes the game properly and saves its high scores, its NVRAM and its settings on the way. Back in OSD/OS the list is where you left it, on the game, and the game's play time has the time it ran added to it (and a new high score is on the Arcade screen).
 
 While MAME runs:
 
@@ -300,7 +300,7 @@ Settings → Arcade.
 | `play_at_startup` | The game's set (`"galaga"`), `""` for None; the app's own `startup_favorite` holds the same game, and either changes the other |
 | `list_style` | `"Straight"`, `"Curved"` or `"3D Curved"` |
 | `info_background` | A number from 0 (transparent) to 100 (solid) |
-| `screen_adjustment` | How far each side of the Arcade screen is moved out (in, below 0) from where OSD/OS lays it out, in 960ths of the screen's width and 720ths of its height: `{ "top": 30, "bottom": 54, "left": 12, "right": 12 }` |
+| `screen_adjustment` | How far each side of the Arcade screen is moved out (in, below 0) from where OSD/OS lays it out, in 960ths of the screen's width and 720ths of its height: `{ "top": 30, "bottom": 54, "left": 12, "right": 12 }`. Edited by hand, a side out past the screen's edge is drawn at the edge, and two opposite sides that leave less room than the list and the picture need are drawn where OSD/OS lays them out |
 | `online_high_scores`, `online_play` | `"Off"` |
 | `video` | `"Auto"`, `"OpenGL"`, `"BGFX"`, `"Accelerated"` or `"Software"` |
 
@@ -374,7 +374,7 @@ mame galaga \
 | The game plays but there is no sound | Check **Settings → Audio Output**: on a Pi 5 with the JAMMA board, the USB sound card |
 | A game plays without some of its sounds | It plays them from samples: put its sample set (`dkong.zip` for Donkey Kong) in a `samples` folder in the games folder |
 | A player's controls are wrong | Check **Settings → Controls → Players**: who is player 1 is who MAME's joystick 1 is. Then MAME's own menu: **Tab → Input Settings** |
-| Coin and Start don't bring you back | Press them together on player 1's controller (the one Settings → Controls → Players makes player 1), or Esc on a keyboard. A button changed in MAME's menu for UI Cancel replaces the way back |
+| Coin and Start don't bring you back | Press them together on one player's controller (one Settings → Controls → Players gives a player), or Esc on a keyboard. A button changed in MAME's menu for UI Cancel replaces the way back |
 | High scores aren't kept | **High Scores** must be on, the game must be in MAME's `hiscore.dat`, and the game must close with Coin and Start: a power cut loses what wasn't saved |
 | The Arcade screen has no genre filters | Put `catver.ini` in the games folder or in `arcade` in the data folder ([Genres](#genres)), then open Arcade again |
 | `No Picture` | Put the game's picture in the games folder's `snap` folder, named by its set: `snap/galaga.png` ([Pictures](#pictures)). The frame names the file it looks for |

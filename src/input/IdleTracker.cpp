@@ -108,3 +108,16 @@ void IdleTracker::setScriptActive(bool active)
         emit activeChanged();
     }
 }
+
+void IdleTracker::setViewActive(bool active)
+{
+    if (m_viewActive == active)
+        return;
+    m_viewActive = active;
+    emit viewActiveChanged();
+
+    if (!blocked() && m_active) {
+        m_active = false;
+        emit activeChanged();
+    }
+}

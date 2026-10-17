@@ -119,7 +119,7 @@ The script gets the whole screen until it exits. For a program with a picture of
 - **When it exits**, with `wait = pgroup` (the default) OSD/OS waits until every process the script started has gone before taking the screen back. That covers a launcher that starts a program in the background and exits at once: the screen stays the program's until it has really gone. With `wait = child`, OSD/OS takes the screen back as soon as the script itself exits.
 - **Exit code 0** returns to where you started it (the list, or the main menu for a favourite), as after a video. Any other ending stays on the takeover screen, with the exit code and the output the script printed, the only way to see what went wrong on a Pi.
 - If the display's state couldn't be saved (it then couldn't be put back), OSD/OS doesn't hand it over: it runs the script anyway, without the screen, and says **DISPLAY COULD NOT BE HANDED OVER — RAN WITHOUT IT**. Back then stops the script, as in a console.
-- A process that hasn't started within five seconds counts as failed to start, so the screen is never left handed over to nothing.
+- A process that hasn't started within five seconds counts as failed to start, so the screen is never left handed over to nothing. It is stopped for good then, so it can't start later, once OSD/OS has the screen and the sound back.
 - Starting a takeover ends a video OSD/OS had left playing behind its menus (Transparent Background).
 
 While any script runs, console or takeover, the menu music is held off, and comes back afterwards.
