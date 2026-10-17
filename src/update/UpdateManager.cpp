@@ -97,6 +97,94 @@ QString UpdateManager::currentVersion() const {
     return QCoreApplication::applicationVersion();
 }
 
+// A version as the tags write it ("v0.1.2", "v0.2.0-rc.1"): its numbers, and
+// what follows a "-", a prerelease's name. False for one that isn't (a build
+// from source's "dev").
+static bool parseVersion(const QString &text, QList<int> *numbers, QString *prerelease) {
+    QString v = text.trimmed();
+    if (v.startsWith(QLatin1Char('v')) || v.startsWith(QLatin1Char('V')))
+        v.remove(0, 1);
+    const qsizetype dash = v.indexOf(QLatin1Char('-'));
+    *prerelease = dash < 0 ? QString() : v.mid(dash + 1);
+    const QStringList parts = (dash < 0 ? v : v.left(dash)).split(QLatin1Char('.'));
+    numbers->clear();
+    for (const QString &part : parts) {
+        bool ok = false;
+        const int n = part.toInt(&ok);
+        if (!ok || n < 0)
+            return false;
+        numbers->append(n);
+    }
+    return !numbers->isEmpty();
+}
+
+// A prerelease's word letter by letter, a run of digits in both by its
+// number: rc9 before rc10, as a tag without a dot (v1.0.0-rc10) writes it.
+static int compareWord(const QString &a, const QString &b) {
+    qsizetype i = 0, j = 0;
+    while (i < a.size() && j < b.size()) {
+        if (a.at(i).isDigit() && b.at(j).isDigit()) {
+            qsizetype iEnd = i, jEnd = j;
+            while (iEnd < a.size() && a.at(iEnd).isDigit())
+                ++iEnd;
+            while (jEnd < b.size() && b.at(jEnd).isDigit())
+                ++jEnd;
+            const qulonglong x = a.mid(i, iEnd - i).toULongLong(), y = b.mid(j, jEnd - j).toULongLong();
+            if (x != y)
+                return x < y ? -1 : 1;
+            i = iEnd;
+            j = jEnd;
+        } else if (a.at(i) != b.at(j)) {
+            return a.at(i) < b.at(j) ? -1 : 1;
+        } else {
+            ++i;
+            ++j;
+        }
+    }
+    const qsizetype aLeft = a.size() - i, bLeft = b.size() - j;
+    return aLeft == bLeft ? 0 : (aLeft < bLeft ? -1 : 1);
+}
+
+// Its dot-separated names one by one, a number below a word, numbers by size:
+// rc.2 before rc.10, beta before rc.
+static int comparePrerelease(const QString &a, const QString &b) {
+    const QStringList x = a.split(QLatin1Char('.')), y = b.split(QLatin1Char('.'));
+    for (qsizetype i = 0; i < qMin(x.size(), y.size()); ++i) {
+        bool xNum = false, yNum = false;
+        const int xn = x.at(i).toInt(&xNum), yn = y.at(i).toInt(&yNum);
+        if (xNum && yNum && xn != yn)
+            return xn < yn ? -1 : 1;
+        if (xNum != yNum)
+            return xNum ? -1 : 1;
+        if (!xNum) {
+            if (const int word = compareWord(x.at(i), y.at(i)))
+                return word;
+        }
+    }
+    return x.size() == y.size() ? 0 : (x.size() < y.size() ? -1 : 1);
+}
+
+// Whether release is newer than running: by their numbers, and at the same
+// numbers a release ahead of a prerelease of it (v0.2.0 after v0.2.0-rc.1).
+// A running version that isn't one, a build from source's, takes any release
+// but its own name; a release that isn't one is never newer.
+bool UpdateManager::isNewer(const QString &release, const QString &running) {
+    QList<int> r, c;
+    QString rPre, cPre;
+    if (!parseVersion(running, &c, &cPre))
+        return release != running;
+    if (!parseVersion(release, &r, &rPre))
+        return false;
+    for (qsizetype i = 0; i < qMax(r.size(), c.size()); ++i) {
+        const int a = i < r.size() ? r.at(i) : 0, b = i < c.size() ? c.at(i) : 0;
+        if (a != b)
+            return a > b;
+    }
+    if (rPre.isEmpty() || cPre.isEmpty())
+        return rPre.isEmpty() && !cPre.isEmpty();
+    return comparePrerelease(rPre, cPre) > 0;
+}
+
 QString UpdateManager::updatesDir() const { return m_dataRoot + QStringLiteral("/updates"); }
 QString UpdateManager::stagedJsonPath() const { return updatesDir() + QStringLiteral("/staged.json"); }
 QString UpdateManager::stagedSha256Path() const { return updatesDir() + QStringLiteral("/staged.sha256"); }
@@ -187,10 +275,12 @@ void UpdateManager::reconcileStagingDir() {
     const QFileInfo payload(dir.filePath(asset));
 
     // Version matching the running app means the update was already applied (or
-    // installed another way); a size mismatch means a corrupt stage. The sha is
-    // not recomputed here — the RPi launcher re-verifies it before swapping, and
-    // hashing a full tarball on every boot is wasted Pi CPU.
-    if (version.isEmpty() || asset.isEmpty() || version == currentVersion()
+    // installed another way); one older, that a newer one has been installed
+    // another way since, and the launcher would put the older back; a size
+    // mismatch means a corrupt stage. The sha is not recomputed here — the RPi
+    // launcher re-verifies it before swapping, and hashing a full tarball on
+    // every boot is wasted Pi CPU.
+    if (version.isEmpty() || asset.isEmpty() || !isNewer(version, currentVersion())
         || !payload.exists() || payload.size() != size) {
         clearStagingFiles();
         return;
@@ -242,7 +332,10 @@ void UpdateManager::handleReleaseInfo(const QByteArray &json) {
     m_releaseNotes = release.value(QStringLiteral("body")).toString();
     emit infoChanged();
 
-    if (tag == currentVersion()) {
+    // Not one older than this, whatever "latest" says: the release before
+    // the one running, for a Pi on a prerelease (which "latest" passes over),
+    // or a newest release taken down.
+    if (!isNewer(tag, currentVersion())) {
         setState(QStringLiteral("upToDate"));
         return;
     }
