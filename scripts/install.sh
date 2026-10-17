@@ -81,12 +81,31 @@ sudo udevadm trigger /dev/tty0
 # ── Choose install owner ──────────────────────────────────────────────────────
 # Asked up front so the extract step can hand /opt/osdos to the user the app
 # will run as — the launcher applies in-app staged updates there without root.
-echo ""
-read -r -p "Install systemd autostart service? [y/N] " AUTOSTART_REPLY
+# A service already installed runs the app as the user it names: that one is
+# offered, and kept when the service is. The OSD/OS image's service is its own
+# (it holds the boot screen's units back until the app is up): never rewritten,
+# though the helpers around it are brought up to date.
+EXISTING_USER=""
+if [ -f "${SYSTEMD_SERVICE}" ]; then
+    EXISTING_USER=$(sed -n '/^User=/{s///p;q}' "${SYSTEMD_SERVICE}")
+fi
+IMAGE_SERVICE=""
 SERVICE_USER=""
-if [[ "${AUTOSTART_REPLY}" =~ ^[Yy]$ ]]; then
-    read -r -p "Run service as user [default: pi]: " SERVICE_USER
-    SERVICE_USER="${SERVICE_USER:-pi}"
+if [ -f /etc/osdos/boot-units ] && [ -n "${EXISTING_USER}" ]; then
+    IMAGE_SERVICE=1
+    AUTOSTART_REPLY=y
+    SERVICE_USER="${EXISTING_USER}"
+    echo "The OSD/OS image's own service is kept; it runs the app as ${SERVICE_USER}."
+else
+    echo ""
+    read -r -p "Install systemd autostart service? [y/N] " AUTOSTART_REPLY
+    if [[ "${AUTOSTART_REPLY}" =~ ^[Yy]$ ]]; then
+        read -r -p "Run service as user [default: ${EXISTING_USER:-pi}]: " SERVICE_USER
+        SERVICE_USER="${SERVICE_USER:-${EXISTING_USER:-pi}}"
+    elif [ -n "${EXISTING_USER}" ]; then
+        SERVICE_USER="${EXISTING_USER}"
+        echo "The autostart service already installed is kept; it runs the app as ${SERVICE_USER}."
+    fi
 fi
 OWNER_USER="${SERVICE_USER:-$USER}"
 
@@ -114,6 +133,9 @@ sudo tar -xzf "${TMP_DIR}/${TARBALL}" \
 
 # Owned by the running user so the launcher can swap in staged in-app updates.
 sudo chown -R "${OWNER_USER}:" "${INSTALL_DIR}"
+if ! sudo -u "${OWNER_USER}" test -w "${INSTALL_DIR}"; then
+    echo "Warning: ${OWNER_USER} can't write ${INSTALL_DIR}, so in-app updates won't apply." >&2
+fi
 
 # ── Create launcher ────────────────────────────────────────────────────────────
 echo "Creating launcher at ${LAUNCHER}..."
@@ -288,7 +310,8 @@ sudo chmod +x "${LAUNCHER}"
 
 # ── Optional: systemd autostart ───────────────────────────────────────────────
 if [[ "${AUTOSTART_REPLY}" =~ ^[Yy]$ ]]; then
-    sudo tee "${SYSTEMD_SERVICE}" > /dev/null << UNIT
+    if [ -z "${IMAGE_SERVICE}" ]; then
+        sudo tee "${SYSTEMD_SERVICE}" > /dev/null << UNIT
 [Unit]
 Description=OSD/OS Media Player
 After=multi-user.target sound.target
@@ -319,6 +342,7 @@ StandardError=journal
 [Install]
 WantedBy=multi-user.target
 UNIT
+    fi
 
     # ExecStopPost helper: the user's Quit → Power Off (exit 0) powers the Pi off;
     # exit 10 means the user chose "Exit to Terminal", so instead spawn a login
