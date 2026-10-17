@@ -160,7 +160,7 @@ Qt Shader Tools compiles the shaders in [`shaders/`](https://github.com/mehmetra
 | Shader | What it draws |
 |---|---|
 | `effects.frag` | The screen effects (Scanlines, CRT, VHS) and the text effects (Rainbow, Shimmer, Glow, Flicker), in one pass over the menus |
-| `bg-matrix.frag`, `bg-fire.frag`, `bg-stars.frag`, `bg-snow.frag` | The background effects |
+| `bg-matrix.frag`, `bg-fire.frag`, `bg-stars.frag`, `bg-snow.frag`, `bg-flag.frag` | The background effects |
 | `ripple.frag`, `wave.frag`, `drop.frag` | The Ripple, Wave and Drop transitions |
 
 A build without it runs as well: Settings leaves out Text Effect, Background Effect and Screen Effect and the Ripple, Wave and Drop transitions, and a theme's built-in effects of those kinds go with them (its Ripple, Wave or Drop fades instead). What needs no shader stays: the selector effects (sparks, lightning, the rainbow) and the Fade and Cube transitions. A theme's own compiled shader, a `.qsb` in its folder, still runs. The effects also need a GPU: under Qt's software renderer Settings leaves them out whatever the build. More in [Effects](https://github.com/mehmetraif/OSD-OS/wiki/Effects) and [Shaders](https://github.com/mehmetraif/OSD-OS/wiki/Shaders).
