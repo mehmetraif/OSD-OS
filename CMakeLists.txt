@@ -83,6 +83,9 @@ add_executable(osdos
     src/modules/scripts/ScriptLauncher.cpp
     src/modules/arcade/ArcadeBackend.cpp
     src/modules/arcade/Mame.cpp
+    src/modules/arcade/Libretro.cpp
+    src/modules/arcade/FbneoInstaller.cpp
+    src/modules/arcade/RetroAchievements.cpp
     src/modules/highscores/HighScoresBackend.cpp
     src/modules/highscores/ScoreTable.cpp
     src/modules/web_player/WebPlayerBackend.cpp
@@ -208,11 +211,13 @@ endif()
 # openhi2txt, for the High Scores module's tables (src/modules/highscores): it
 # reads MAME's high score files through hi2txt's game definitions, a zip it
 # opens with minizip. Optional: without minizip the module is there but says
-# its tables were left out.
+# its tables were left out. The Arcade module unpacks the FinalBurn Neo core it
+# downloads with minizip too (OSDOS_MINIZIP).
 include(cmake/openhi2txt.cmake)
 if(OPENHI2TXT_FOUND)
-    target_compile_definitions(osdos PRIVATE OSDOS_HIGH_SCORES=1)
-    target_link_libraries(osdos PRIVATE openhi2txt::openhi2txt)
+    target_compile_definitions(osdos PRIVATE OSDOS_HIGH_SCORES=1 OSDOS_MINIZIP=1)
+    target_include_directories(osdos PRIVATE ${MINIZIP_INCLUDE_DIR})
+    target_link_libraries(osdos PRIVATE openhi2txt::openhi2txt ${MINIZIP_LIBRARY})
 else()
     message(STATUS "minizip not found — High Scores will show no tables")
 endif()

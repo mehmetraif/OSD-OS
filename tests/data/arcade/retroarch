@@ -1,0 +1,42 @@
+#!/bin/sh
+# RetroArch as far as the Arcade module starts it (tests/arcade_test.cpp): it
+# notes its arguments, the folder it runs in and the controller database it is
+# given in $MAME_LOG, copies the config it was started with to $RA_CONFIG_COPY,
+# and logs (--log-file) what RetroArch with FinalBurn Neo would: the game
+# started, but files missing for mslug and a set it doesn't know for galaga,
+# and a sign-in refused for the password "wrong" or the token "expired". It
+# swaps the password "secret" for a token in the config, as RetroArch saves it
+# on exit.
+log=""; config=""; content=""; prev=""
+for a in "$@"; do
+	case "$a" in --log-file=*) log="${a#--log-file=}" ;; esac
+	[ "$prev" = "--config" ] && config="$a"
+	prev="$a"; content="$a"
+done
+{
+	echo "retroarch $*"
+	echo "cwd $(pwd)"
+	echo "sdlconfig ${SDL_GAMECONTROLLERCONFIG_FILE:-}"
+} >> "$MAME_LOG"
+cp "$config" "$RA_CONFIG_COPY"
+game=$(basename "$content"); game="${game%.*}"
+{
+	echo "[INFO] RetroArch 1.20.0 (Git c4f8f5f)"
+	case "$game" in
+	mslug)
+		echo "[libretro ERROR] [FBNeo] ROM at index 1 with name 201-p1.p1 and CRC 0x12345678 is required"
+		echo "[libretro ERROR] [FBNeo] ROM at index 2 with name 201-s1.s1 and CRC 0x2345678a is required"
+		echo "[libretro ERROR] [FBNeo] None of those archives was found in your paths"
+		;;
+	galaga) ;;
+	*) echo "[libretro INFO] [FBNeo] Driver successfully started" ;;
+	esac
+	grep -q 'cheevos_password = "wrong"' "$config" \
+		&& echo "[INFO] [RCHEEVOS]: RetroAchievements login failed: Invalid User/Password combination. Please try again"
+	grep -q 'cheevos_token = "expired"' "$config" \
+		&& echo "[INFO] [RCHEEVOS]: RetroAchievements login failed: Invalid token"
+} > "$log"
+if grep -q 'cheevos_password = "secret"' "$config"; then
+	sed -i 's/^cheevos_token = .*/cheevos_token = "tok123"/; s/^cheevos_password = .*/cheevos_password = ""/' "$config"
+fi
+exit 0

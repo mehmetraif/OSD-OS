@@ -1,5 +1,9 @@
 # The Arcade module's MAME: Debian's (GPL-2.0+), the emulator and its data,
 # among which its plugins (the hiscore plugin, with hiscore.dat, which keeps
-# the games' high scores). About 450 MB with what it depends on. os/build.sh
-# skips it with OSDOS_ARCADE=0; the module then says MAME is not installed.
-mame mame-data
+# the games' high scores). About 450 MB with what it depends on. And its second
+# engine, for RetroAchievements' high scores and online play: Debian's
+# RetroArch (GPL-3.0), which brings the core information and assets it reads;
+# FinalBurn Neo, the core it plays the games with, comes in 00-run.sh.
+# os/build.sh skips it all with OSDOS_ARCADE=0; the module then says MAME is
+# not installed.
+mame mame-data retroarch

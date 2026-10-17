@@ -23,7 +23,10 @@
 #                     latest nightly build, which then updates itself) and
 #                     Deno, the JavaScript runtime it needs, about 90 MB
 #   OSDOS_ARCADE      1 (default) or 0: MAME, which the Arcade module plays
-#                     arcade games in, about 450 MB
+#                     arcade games in, about 450 MB, and RetroArch with
+#                     FinalBurn Neo (its latest nightly build), the module's
+#                     engine for RetroAchievements and online play, about
+#                     230 MB
 #   OSDOS_ROOT_SIZE   GiB the system keeps of the card, 8 by default; the rest
 #                     becomes the exFAT film partition on the first boot. 0: no
 #                     film partition, the system takes the whole card
@@ -96,8 +99,8 @@ fi
 if [ "${OSDOS_YOUTUBE:-1}" = "0" ]; then
     touch "${STAGE}/06-youtube/SKIP"
 fi
-# MAME for the Arcade module; with OSDOS_ARCADE=0 the module says it is
-# missing.
+# MAME for the Arcade module, and RetroArch with FinalBurn Neo, its second
+# engine; with OSDOS_ARCADE=0 the module says MAME is missing.
 if [ "${OSDOS_ARCADE:-1}" = "0" ]; then
     touch "${STAGE}/08-arcade/SKIP"
 fi

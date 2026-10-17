@@ -30,6 +30,9 @@ FocusScope {
     property var navParams: ({})
     readonly property string game: navParams.game || ""
     readonly property string title: navParams.title || game
+    // Online: { room, host }, a room of the lobby joined, or { hosting:
+    // true }, the game hosted; null for a game played here alone.
+    readonly property var online: navParams.online || null
 
     signal navigateTo(string path, var params, var listState)
     signal goBack()
@@ -47,6 +50,8 @@ FocusScope {
     property string exitKeys: ""
     // Played from the Arcade screen rather than the original tree.
     readonly property bool arcade: moduleRoot.arcadeScreen
+    // Played in FinalBurn Neo, which takes no credits bought beforehand.
+    readonly property bool fbneo: !!arcadeBackend && game !== "" && arcadeBackend.engineOf(game) === "fbneo"
     readonly property bool before: phase === "opening" || phase === "running"
     // A pad's Back button is COIN before a game from the Arcade screen
     // (InputManager).
@@ -62,7 +67,7 @@ FocusScope {
     function launch() {
         if (playRoot.phase !== "opening")
             return
-        if (moduleRoot.startGame(playRoot.game, playRoot.title)) {
+        if (moduleRoot.startGame(playRoot.game, playRoot.title, playRoot.online)) {
             playRoot.phase = "running"
         } else {
             playRoot.phase = "error"
@@ -120,7 +125,8 @@ FocusScope {
             // As on the Arcade screen: COIN buys another credit, START or
             // select plays at once.
             if (event.key === Qt.Key_5) {
-                moduleRoot.addCredit()
+                if (!playRoot.fbneo)
+                    moduleRoot.addCredit()
                 return
             }
             if (event.key === Qt.Key_Space || event.key === Qt.Key_1
@@ -234,11 +240,27 @@ FocusScope {
             }
         }
 
+        // Online: whose game it joins, or that it is hosted.
+        Text {
+            visible: !!playRoot.online && playRoot.before
+            width: parent.width
+            text: !playRoot.online ? ""
+                  : playRoot.online.hosting ? "Hosting online: others join from RetroArch's lobby"
+                  : "Joining " + (playRoot.online.host || "a player") + "'s game online"
+            textFormat: Text.PlainText
+            color: root.primaryColor
+            font.family: root.globalFont
+            font.capitalization: Font.AllUppercase
+            font.pixelSize: root.sh * 0.0375 //18
+            wrapMode: Text.WordWrap
+        }
+
         // The credits going in with the game, from the Arcade screen.
         Text {
             visible: playRoot.arcade && playRoot.before
             width: parent.width
-            text: moduleRoot.credits === 0 ? "No credit: insert a coin in the game"
+            text: playRoot.fbneo ? "FinalBurn Neo: insert a coin in the game"
+                  : moduleRoot.credits === 0 ? "No credit: insert a coin in the game"
                   : moduleRoot.credits + (moduleRoot.credits === 1 ? " credit goes" : " credits go")
                     + " in as the game starts"
             color: root.primaryColor

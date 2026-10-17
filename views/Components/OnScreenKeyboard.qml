@@ -6,12 +6,18 @@ import QtQuick
 // back cancels. A real keyboard types straight in, which moves the box to OK
 // so Enter then finishes. It covers its parent below the title bar.
 //     OnScreenKeyboard { anchors.fill: parent; onAccepted: (text) => … }
+// For a password or a key (caseSensitive), letters in both cases (SHIFT) and
+// the signs one may hold, typed as they are and given back untrimmed; masked
+// shows a star for each.
 FocusScope {
     id: osk
 
     property string title: "Search"
     property string text: ""
     property int maxLength: 40
+    property bool caseSensitive: false
+    property bool masked: false
+    property bool shifted: false
 
     signal accepted(string text)
     signal canceled()
@@ -20,21 +26,27 @@ FocusScope {
         text = initial || ""
         row = 0
         col = 0
+        shifted = false
         visible = true
         forceActiveFocus()
     }
     function close() { visible = false }
 
-    readonly property var rows: [
+    readonly property var letters: [
         ["A", "B", "C", "D", "E", "F", "G", "H", "I", "J"],
         ["K", "L", "M", "N", "O", "P", "Q", "R", "S", "T"],
         ["U", "V", "W", "X", "Y", "Z", "0", "1", "2", "3"],
-        ["4", "5", "6", "7", "8", "9", "-", "'", ".", "&"],
-        ["SPACE", "DEL", "OK"]
+        ["4", "5", "6", "7", "8", "9", "-", "'", ".", "&"]
     ]
+    readonly property var rows: caseSensitive
+        ? letters.map(function(keys) {
+              return keys.map(function(key) { return shifted ? key : key.toLowerCase() })
+          }).concat([["@", "_", "!", "?", "#", "$", "%", "*", "+", "="], ["SHIFT", "SPACE", "DEL", "OK"]])
+        : letters.concat([["SPACE", "DEL", "OK"]])
     property int row: 0
     property int col: 0
-    readonly property bool onOk: row === rows.length - 1 && col === 2
+    readonly property int okCol: rows[rows.length - 1].length - 1
+    readonly property bool onOk: row === rows.length - 1 && col === okCol
 
     visible: false
 
@@ -42,12 +54,24 @@ FocusScope {
         if (key === "OK") {
             if (text.trim() === "") return
             close()
-            accepted(text.trim())
+            accepted(caseSensitive ? text : text.trim())
         } else if (key === "DEL") {
             text = text.slice(0, -1)
+        } else if (key === "SHIFT") {
+            shifted = !shifted
         } else if (text.length < maxLength) {
             text += key === "SPACE" ? " " : key
         }
+    }
+    // Down onto the last row's keys from the grid's column, and up from one
+    // of them: three keys over the grid's ten columns, or four.
+    function lastKeyOf(column) {
+        var count = rows[rows.length - 1].length
+        return count === 3 ? Math.floor(column / 4) : Math.floor(column * count / 10)
+    }
+    function columnOf(key) {
+        var count = rows[rows.length - 1].length
+        return count === 3 ? key * 4 : Math.round(key * 10 / count)
     }
     function moveTo(r, c) {
         row = (r + rows.length) % rows.length
@@ -57,8 +81,8 @@ FocusScope {
     Keys.onPressed: function(event) {
         event.accepted = true
         switch (event.key) {
-        case Qt.Key_Up:    moveTo(row - 1, row === rows.length - 1 ? col * 4 : col); return
-        case Qt.Key_Down:  moveTo(row + 1, row === rows.length - 2 ? Math.floor(col / 4) : col); return
+        case Qt.Key_Up:    moveTo(row - 1, row === rows.length - 1 ? columnOf(col) : col); return
+        case Qt.Key_Down:  moveTo(row + 1, row === rows.length - 2 ? lastKeyOf(col) : col); return
         case Qt.Key_Left:  col = (col - 1 + rows[row].length) % rows[row].length; return
         case Qt.Key_Right: col = (col + 1) % rows[row].length; return
         case Qt.Key_Return:
@@ -68,10 +92,10 @@ FocusScope {
         case Qt.Key_Backspace: press("DEL"); return
         }
         // Typed on a real keyboard: straight in, and the box goes to OK.
-        var ch = event.text.toUpperCase()
+        var ch = caseSensitive ? event.text : event.text.toUpperCase()
         if (ch.length === 1 && ch >= " " && text.length < maxLength) {
             text += ch
-            moveTo(rows.length - 1, 2)
+            moveTo(rows.length - 1, okCol)
         }
     }
 
@@ -114,10 +138,10 @@ FocusScope {
                 anchors.verticalCenter: parent.verticalCenter
                 Text {
                     id: typed
-                    text: osk.text
+                    text: osk.masked ? "*".repeat(osk.text.length) : osk.text
                     color: root.primaryColor
                     font.family: root.globalFont
-                    font.capitalization: Font.AllUppercase
+                    font.capitalization: osk.caseSensitive ? Font.MixedCase : Font.AllUppercase
                     font.pixelSize: osk.fontSize
                 }
                 Rectangle {

@@ -121,17 +121,49 @@
       "key": "online_high_scores",
       "label": "Online High Scores",
       "type": "list_single",
-      "options": ["Off"],
+      "options": ["Off", "RetroAchievements"],
       "default": "Off",
-      "description": "High score tables from the internet beside this machine's own\nComes in a later version"
+      "description": "High scores from the internet beside this machine's own\n[RETROACHIEVEMENTS] A game FinalBurn Neo has plays in it, in hardcore mode, its scores going to RetroAchievements, and the Arcade screen shows its leaderboard's top three"
+    },
+    {
+      "key": "achievements_account",
+      "label": "RetroAchievements Account",
+      "type": "module_view",
+      "params": { "achievements": true },
+      "shown_with": { "key": "online_high_scores", "value": "RetroAchievements" },
+      "description": "The account the scores go to, and the Web API key the leaderboards are read with"
     },
     {
       "key": "online_play",
       "label": "Online Play",
       "type": "list_single",
-      "options": ["Off"],
+      "options": ["Off", "On"],
       "default": "Off",
-      "description": "Playing a game with someone over the internet\nComes in a later version"
+      "description": "Playing a game with someone over the internet, in FinalBurn Neo\n[ON] Online Games lists the rooms RetroArch's lobby has of your games, and a game's options can host one"
+    },
+    {
+      "key": "online_name",
+      "label": "Online Name",
+      "type": "module_view",
+      "params": { "onlineName": true },
+      "shown_with": { "key": "online_play", "value": "On" },
+      "description": "The name the others see\n[DEFAULT] The RetroAchievements account's, else OSD-OS"
+    },
+    {
+      "key": "relay_server",
+      "label": "Relay Server",
+      "type": "list_single",
+      "options": ["New York", "Madrid", "São Paulo", "Singapore", "Chuncheon"],
+      "default": "New York",
+      "shown_with": { "key": "online_play", "value": "On" },
+      "description": "Where a game you host is relayed from, for players a home router would turn away: the nearest plays smoothest"
+    },
+    {
+      "key": "fbneo",
+      "label": "FinalBurn Neo",
+      "type": "module_view",
+      "params": { "fbneo": true },
+      "description": "The second engine, RetroArch with the FinalBurn Neo core, for online high scores and play: what is installed, and the core's download"
     },
     {
       "key": "video",

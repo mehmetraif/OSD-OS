@@ -19,7 +19,7 @@ OSD/OS is one C++17 program (Qt 6 and QML) built with CMake 3.21 or newer. CMake
 | zlib and minizip | The High Scores module's tables, read by openhi2txt (`thirdparty/openhi2txt`, built with the app) | `minizip not found — High Scores will show no tables` |
 | git | The commit in Settings → About → Build | The build has the day alone |
 
-At run time OSD/OS starts other programs rather than linking them: **mpv** for every video (0.38 or newer), and for some modules yt-dlp and Deno (YouTube), FluidSynth with a SoundFont and openmpt123 (menu music in MIDI or a tracker's format), Chromium with Widevine (Netflix and Prime Video), MAME (Arcade). None of them is needed to build.
+At run time OSD/OS starts other programs rather than linking them: **mpv** for every video (0.38 or newer), and for some modules yt-dlp and Deno (YouTube), FluidSynth with a SoundFont and openmpt123 (menu music in MIDI or a tracker's format), Chromium with Widevine (Netflix and Prime Video), MAME and RetroArch (Arcade). None of them is needed to build.
 
 Get the source first:
 
@@ -101,6 +101,7 @@ This is [BUILDING.md](https://github.com/mehmetraif/OSD-OS/blob/main/BUILDING.md
 | `libpcsclite-dev` | PC/SC NFC readers. Run `bash scripts/setup-nfc-reader.sh` once either way: it lets the user open a PN532 reader, and sets up `pcscd` where PC/SC is usable |
 | `fluidsynth timgm6mb-soundfont openmpt123` | Menu music in MIDI and trackers' formats (run time only) |
 | `mame` | The Arcade module's games, in MAME (run time only; the image has it) |
+| `retroarch` | The Arcade module's second engine, FinalBurn Neo, whose core Settings → Arcade → FinalBurn Neo downloads (run time only; the image has both) |
 | `libminizip-dev` | The High Scores module's tables. Its static library is linked in, so nothing more is needed at run time |
 | `bluez`, and the user in the `bluetooth` group | Settings → Bluetooth (run time; Raspberry Pi OS Lite has BlueZ). `sudo usermod -aG bluetooth $USER` |
 
@@ -222,7 +223,7 @@ cmake --build build-tests --parallel
 ctest --test-dir build-tests --output-on-failure
 ```
 
-They take under a minute; `ctest --test-dir build-tests -R looks` runs one by name.
+They take under a minute; `ctest --test-dir build-tests -R looks` runs one by name. The `app_` tests start your build of the app, from `build/` (`-DOSDOS_APP=<path>` for one elsewhere), and are skipped until there is one.
 
 | Test | What it covers |
 |---|---|
@@ -230,6 +231,7 @@ They take under a minute; `ctest --test-dir build-tests -R looks` runs one by na
 | `looks` | Themes and skins read from the app's folder and the data folder's: listed by name, each once, the data folder's in place of the app's; a skin's pictures and icons read from its own folder only; a theme's colours, skin, effects and music read, what can't be used left empty; an id is a folder's name, never a path |
 | `playback_retire` (Linux) | One video handed over to the next, against a stand-in for mpv: the app goes on while the old player quits, of several asked for in a row only the last plays, a stop while waiting starts nothing, a player that ignores being told to quit is killed a second later, and the menu music is gone before a video's player starts |
 | `menu_music` (Linux) | The menu music, against stand-ins for mpv, FluidSynth and openmpt123: it plays when wanted and stops when not, a hold stops it before `hold()` returns, a file mpv can't play isn't tried again, a MIDI file is made into a WAV with the right SoundFont, a tracker's module goes to openmpt123 when mpv can't play it |
+| `app_main_menu`, `app_module_<folder>` | The app itself, started offscreen with the network out of reach: the main menu with every module on it, and each module as the startup module, opens without a QML warning, and SIGTERM stops the app cleanly. A module that needs a QML module the Qt in use doesn't have (QtQuick.Effects before Qt 6.5) is skipped |
 
 [tests/README.md](https://github.com/mehmetraif/OSD-OS/blob/main/tests/README.md) has each test's cases, and the checks that want a Raspberry Pi: the screen changing hands between the app and mpv, power cuts while saving, menu music on the sound card in use. A test of your own goes in `tests/CMakeLists.txt` with the sources it needs; [Writing a module](https://github.com/mehmetraif/OSD-OS/wiki/Writing-a-Module#a-test-in-tests) shows one.
 
@@ -292,7 +294,7 @@ Its settings are environment variables:
 | `OSDOS_DISPLAY` | `hdmi` | The first display preset (`crt-pal` for `osdos-display-crt-pal.txt`) |
 | `OSDOS_STREAMING` | `1` | `0` leaves out Chromium, Widevine, cage and wtype (about 400 MB) |
 | `OSDOS_YOUTUBE` | `1` | `0` leaves out yt-dlp, Deno and ffmpeg (about 90 MB) |
-| `OSDOS_ARCADE` | `1` | `0` leaves out MAME (about 450 MB) |
+| `OSDOS_ARCADE` | `1` | `0` leaves out MAME (about 450 MB), and RetroArch with FinalBurn Neo (about 230 MB) |
 | `OSDOS_ROOT_SIZE` | `8` | GiB the system keeps of the card; the rest becomes the films partition on the first boot. `0`: no films partition |
 | `ENABLE_SSH` | `0` | `1` turns SSH on |
 | `TARGET_HOSTNAME`, `IMG_NAME` | `osdos` | |

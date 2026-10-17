@@ -7,8 +7,11 @@ import Components
 // (ArcadeBackend), and the sets MAME has no game of under Not Recognized.
 // Select on a game plays it (navigateTo Play.qml, which Root.qml plays as
 // Start Info Screen says), right on it offers its options (EntryOptions: its
-// favourite, Play at Startup), and the line under the tree says what the
-// game is. Coming back from a game restores the tree from the listState
+// favourite, Play at Startup, its engine, hosting it online), and the line
+// under the tree says what the game is. With Online Play on, Online Games
+// lists the rooms of RetroArch's lobby that host games of the folder
+// (ArcadeBackend::rooms()), read again every 20 s while they are shown:
+// select joins one. Coming back from a game restores the tree from the listState
 // handed to navigateTo; a game played from the tree itself (Start Info
 // Screen off) leaves it as it was. Opened with the startup favourite
 // (navParams.startupPlay), it plays that at once, the tree open on it in
@@ -30,9 +33,15 @@ FocusScope {
 
     focus: true
 
-    // Plays a game; trail is where coming back lands.
-    function play(item, trail) {
-        gamesRoot.navigateTo("Play.qml", { game: item.game, title: item.name }, { trail: trail })
+    // Plays a game, or joins a room of the lobby (item.room) or hosts one
+    // (host); trail is where coming back lands.
+    function play(item, trail, host) {
+        var params = { game: item.game, title: item.name }
+        if (item.room !== undefined)
+            params.online = { room: item.room, host: item.host }
+        else if (host)
+            params.online = { hosting: true }
+        gamesRoot.navigateTo("Play.qml", params, { trail: trail })
     }
 
     // The startup favourite, played as if chosen in Favorites, so coming back
@@ -102,10 +111,19 @@ FocusScope {
                 gamesRoot.play(item, tree.trailState())
         }
         onOptionsRequested: function(item) {
-            if (item.game)
+            if (item.game && item.room === undefined)
                 options.offer({ name: item.name, path: item.path, isFolder: false })
         }
         onLeaveRequested: gamesRoot.goBack()
+    }
+
+    // The lobby read again while its rooms are shown: they last a minute
+    // there, and hosts say they are still there every 20 s.
+    Timer {
+        interval: 20000
+        repeat: true
+        running: tree.folderName === "Online Games" && !!arcadeBackend && !arcadeBackend.running
+        onTriggered: arcadeBackend.refreshRooms()
     }
 
     Connections {
@@ -130,7 +148,7 @@ FocusScope {
         visible: !tree.rootEmpty && !osk.visible && !options.visible
         readonly property var entry: tree.currentEntry
         text: gamesRoot.problem !== "" ? gamesRoot.problem
-              : entry && (entry.game || entry.kind === "unknown") ? entry.detail
+              : entry && (entry.game || entry.kind === "unknown" || entry.kind === "message") ? entry.detail
               : entry && entry.kind === "search" ? "Find a game by its name"
               : gamesRoot.scanning ? "Reading the games…"
               : "Games folder: " + gamesRoot.gamesFolder
@@ -146,13 +164,15 @@ FocusScope {
         // Select opens a folder and plays a game, and right on a game offers
         // its options rather than moving.
         readonly property var entry: tree.currentEntry
-        readonly property bool onGame: !!entry && !!entry.game
+        readonly property bool onRoom: !!entry && entry.room !== undefined
+        readonly property bool onGame: !!entry && !!entry.game && !onRoom
         text: root.hints.back + ":BACK "
               + (onGame ? String(root.hints.navigate).replace("]", "◄]") + ":NAVIGATE "
                           + root.hints.browse + ":OPTIONS "
                         : root.hints.arrows + ":NAVIGATE ")
-              + (entry && entry.kind === "unknown" ? ""
-                 : root.hints.select + (onGame ? ":PLAY" : entry && entry.kind === "search" ? ":SEARCH" : ":OPEN"))
+              + (entry && (entry.kind === "unknown" || entry.kind === "message") ? ""
+                 : root.hints.select + (onRoom ? ":JOIN" : onGame ? ":PLAY"
+                                        : entry && entry.kind === "search" ? ":SEARCH" : ":OPEN"))
         anchors.bottom: parent.bottom
         anchors.left: parent.left
         anchors.bottomMargin: root.sh * 0.1041667 //50
@@ -172,11 +192,33 @@ FocusScope {
         onCanceled: tree.forceActiveFocus()
     }
 
+    // A game's options, its engine among them where FinalBurn Neo has it,
+    // and with Online Play on, hosting it.
+    property int engineRevision: 0
+    readonly property string optionsSet: options.entry && String(options.entry.path).indexOf("game:") === 0
+                                         ? String(options.entry.path).substring(5) : ""
     EntryOptions {
         id: options
         anchors.fill: parent
         moduleId: moduleRoot.moduleId
+        moreChoices: (gamesRoot.engineRevision,
+                      (engines.offered(gamesRoot.optionsSet)
+                       ? [{ label: engines.lineFor(gamesRoot.optionsSet), action: "engine" }] : [])
+                      .concat(arcadeBackend && arcadeBackend.canHost(gamesRoot.optionsSet)
+                              ? [{ label: "Host Online Game", action: "host" }] : []))
+        onActivated: function(action) {
+            if (action === "engine")
+                engines.offer(gamesRoot.optionsSet, options.entry.name)
+            else if (action === "host")
+                gamesRoot.play({ game: gamesRoot.optionsSet, name: options.entry.name }, tree.trailState(), true)
+        }
         onFavoritesEdited: tree.refresh("favorites")
+        onClosed: if (!engines.visible) tree.forceActiveFocus()
+    }
+    EngineChooser {
+        id: engines
+        anchors.fill: parent
+        onEngineChosen: gamesRoot.engineRevision++
         onClosed: tree.forceActiveFocus()
     }
 }

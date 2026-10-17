@@ -5,6 +5,9 @@
 #include "../../input/ControllerProfile.h"
 #include "../../util/AtomicFile.h"
 #include "../../util/LegacyNames.h"
+#include "FbneoInstaller.h"
+#include "Libretro.h"
+#include "RetroAchievements.h"
 #include <QDateTime>
 #include <QDir>
 #include <QDirIterator>
@@ -13,6 +16,10 @@
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
+#include <QCoreApplication>
+#include <QNetworkAccessManager>
+#include <QNetworkReply>
+#include <QNetworkRequest>
 #include <QRegularExpression>
 #include <QTimer>
 #include <QUrl>
@@ -41,6 +48,20 @@ constexpr int kScanTimeoutMs = 120000;
 constexpr int kMissingFiles = 2;
 constexpr int kNoSuchSystem = 5;
 constexpr int kInvalidConfig = 6;
+
+// What a file holding a token or a key is written with.
+constexpr QFileDevice::Permissions kOwnerOnly = QFileDevice::ReadOwner | QFileDevice::WriteOwner;
+
+// Settings → Arcade → Relay Server's choices, by RetroArch's names.
+const QHash<QString, QString> kRelays = {
+    { QStringLiteral("New York"), QStringLiteral("nyc") },
+    { QStringLiteral("Madrid"), QStringLiteral("madrid") },
+    { QStringLiteral("São Paulo"), QStringLiteral("saopaulo") },
+    { QStringLiteral("Singapore"), QStringLiteral("singapore") },
+    { QStringLiteral("Chuncheon"), QStringLiteral("chuncheon") },
+};
+// How long the lobby is waited for.
+constexpr int kLobbyTimeoutMs = 15000;
 
 // Folders beside the games that aren't games: the BIOS sets' (on MAME's
 // rompath too), the samples' (its samplepath) and the games' pictures.
@@ -149,16 +170,32 @@ ArcadeBackend::ArcadeBackend(const QString &appRoot, const QString &dataRoot, Ap
     m_launcher = new ScriptLauncher(m_appRoot, m_dataRoot, handoff, this);
     m_launcher->setHandoffOwner(QStringLiteral("arcade"));
     connect(m_launcher, &ScriptLauncher::runningChanged, this, &ArcadeBackend::runningChanged);
-    connect(m_launcher, &ScriptLauncher::finished, this, [this](int exitCode, const QString &reason) {
-        const QString notice = noticeFor(exitCode, reason);
+    connect(m_launcher, &ScriptLauncher::finished, this, [this](int exitCode, const QString &launcherReason) {
+        QString reason = launcherReason;
+        QString notice;
+        bool refused = false;
+        if (m_playingEngine == QLatin1String("fbneo")) {
+            const libretro::Run run = libretro::readLog(retroarchHome() + QStringLiteral("/last.log"));
+            takeAchievements(run);
+            // FinalBurn Neo shows its own error for a game it can't start,
+            // and RetroArch goes on: a game is one it started, as its log
+            // says (a log there to say so).
+            if (reason == QLatin1String("ok") && run.logged && !run.started)
+                reason = QStringLiteral("failed");
+            notice = fbneoNotice(exitCode, reason, run);
+            refused = reason == QLatin1String("failed_to_start")
+                      || (reason == QLatin1String("failed") && !m_launcher->lastRunCrashed() && !run.started);
+        } else {
+            notice = noticeFor(exitCode, reason);
+            // The time it ran counts as played, unless MAME refused the game
+            // (files missing, no such game, its settings wrong) or never ran.
+            refused = reason == QLatin1String("failed_to_start")
+                      || (reason == QLatin1String("failed") && !m_launcher->lastRunCrashed()
+                          && (exitCode == kMissingFiles || exitCode == kNoSuchSystem
+                              || exitCode == kInvalidConfig));
+        }
         if (!notice.isEmpty())
             qWarning("[Arcade] %s: %s", qPrintable(m_playing), qPrintable(notice));
-        // The time it ran counts as played, unless MAME refused the game
-        // (files missing, no such game, its settings wrong) or never ran.
-        const bool refused = reason == QLatin1String("failed_to_start")
-                             || (reason == QLatin1String("failed") && !m_launcher->lastRunCrashed()
-                                 && (exitCode == kMissingFiles || exitCode == kNoSuchSystem
-                                     || exitCode == kInvalidConfig));
         if (!refused && !m_playing.isEmpty())
             addPlayTime(m_playing, (m_playClock.elapsed() + 500) / 1000);
         // A snapshot taken in the game (F12) is its picture now.
@@ -179,6 +216,38 @@ ArcadeBackend::ArcadeBackend(const QString &appRoot, const QString &dataRoot, Ap
     m_watcher = new QFutureWatcher<Read>(this);
     connect(m_watcher, &QFutureWatcherBase::finished, this, &ArcadeBackend::onRead);
 
+    m_installer = new FbneoInstaller(m_dataRoot, this);
+    connect(m_installer, &FbneoInstaller::progressChanged, this, &ArcadeBackend::fbneoChanged);
+    connect(m_installer, &FbneoInstaller::finished, this, [this](bool ok, const QString &message) {
+        m_fbneoMessage = message;
+        // Its list read with the folder, now that it has changed.
+        if (ok)
+            refresh();
+        emit fbneoChanged();
+    });
+
+    // The RetroAchievements account, without its password, which is never
+    // kept.
+    QFile account(m_home + QStringLiteral("/retroachievements.json"));
+    if (account.open(QIODevice::ReadOnly)) {
+        const QJsonObject kept = QJsonDocument::fromJson(account.readAll()).object();
+        m_raUser = kept.value(QStringLiteral("user")).toString();
+        m_raToken = kept.value(QStringLiteral("token")).toString();
+        m_raKey = kept.value(QStringLiteral("key")).toString();
+    }
+    m_leaderboards = new RetroAchievements(m_home, RetroAchievements::kApi, this);
+    m_leaderboards->setKey(m_raKey);
+    connect(m_leaderboards, &RetroAchievements::boardReady, this, [this](const QString &fileName) {
+        emit leaderboardReady(QFileInfo(fileName).completeBaseName().toLower());
+    });
+    connect(m_leaderboards, &RetroAchievements::keyRefused, this, [this] {
+        if (!std::exchange(m_raKeyRefused, true))
+            emit achievementsChanged();
+    });
+    // A game's config is written anew for each game: one a game left that the
+    // app didn't see end (it was stopped meanwhile) may hold the password.
+    QFile::remove(retroarchHome() + QStringLiteral("/retroarch.cfg"));
+
     m_scanTimer = new QTimer(this);
     m_scanTimer->setSingleShot(true);
     m_scanTimer->setInterval(kScanTimeoutMs);
@@ -191,7 +260,8 @@ ArcadeBackend::ArcadeBackend(const QString &appRoot, const QString &dataRoot, Ap
 
     // The module's settings as they stand. games.json waits for the list to
     // open (refresh()): with a full set of MAME's games it is megabytes.
-    for (const char *key : { "games_directory", "high_scores", "video", "menu_filters" }) {
+    for (const char *key : { "games_directory", "high_scores", "video", "menu_filters", "online_high_scores",
+                             "online_play", "engines", "online_name", "relay_server" }) {
         const QString k = QLatin1String(key);
         applySetting(k, m_appCore ? m_appCore->get_setting(kModuleId, k) : QVariant());
     }
@@ -251,6 +321,19 @@ void ArcadeBackend::applySetting(const QString &key, const QVariant &value) {
         // Saved whole at every change (MultiSelectSettings.qml).
         m_menuFilters = value.toMap();
         emit gamesChanged();
+    } else if (key == QLatin1String("online_high_scores")) {
+        m_achievements = value.toString() == QLatin1String("RetroAchievements");
+        emit gamesChanged();
+    } else if (key == QLatin1String("online_play")) {
+        m_onlinePlay = value.toString() == QLatin1String("On");
+        emit gamesChanged();
+    } else if (key == QLatin1String("engines")) {
+        // Saved whole by setEngine().
+        m_engines = value.toMap();
+    } else if (key == QLatin1String("online_name")) {
+        m_onlineName = value.toString().trimmed();
+    } else if (key == QLatin1String("relay_server")) {
+        m_relay = kRelays.value(value.toString(), QStringLiteral("nyc"));
     } else if (key == QLatin1String("play_at_startup") && m_appCore) {
         // A favourite's set, or "" for none: the app's startup favourite
         // made it, as a game's options would.
@@ -329,13 +412,17 @@ QString ArcadeBackend::mamePath() const {
     return mame::programPath(m_dataRoot);
 }
 
+QString ArcadeBackend::retroarchPath() const {
+    return libretro::programPath(m_dataRoot);
+}
+
 QString ArcadeBackend::mameIdentity() const {
     const QFileInfo program(mamePath());
     return program.exists() ? fileStamp(program) : QString();
 }
 
 ArcadeBackend::Read ArcadeBackend::read(const QString &folder, const QString &home, bool withCache,
-                                        const QString &genresFrom) {
+                                        const QString &genresFrom, const QString &dat, const QString &datFrom) {
     Read read;
     read.folder = folder;
     // There, so that whoever copies games onto the card sees where they go.
@@ -425,6 +512,19 @@ ArcadeBackend::Read ArcadeBackend::read(const QString &folder, const QString &ho
         }
     }
 
+    // FinalBurn Neo's games, read again once its list has changed (an
+    // update downloaded, or another found).
+    const QString fbneoFrom = dat.isEmpty() ? QString() : fileStamp(QFileInfo(dat));
+    if (fbneoFrom != datFrom) {
+        read.fbneoRead = true;
+        read.fbneoFrom = fbneoFrom;
+        if (!dat.isEmpty()) {
+            read.fbneoGames = libretro::readDat(dat);
+            qInfo("[Arcade] %lld of FinalBurn Neo's games from %s", static_cast<long long>(read.fbneoGames.size()),
+                  qPrintable(dat));
+        }
+    }
+
     // The pictures, looked for here once rather than file by file as the
     // games are chosen (exFAT's folders have no index): the games folder's
     // snap, named by the set as MAME names it, the way the picture packs for
@@ -462,7 +562,7 @@ void ArcadeBackend::startRead() {
     const bool wasScanning = scanning();
     const bool wasReading = std::exchange(m_reading, true);
     m_watcher->setFuture(QtConcurrent::run(&ArcadeBackend::read, m_gamesFolder, m_home, !m_cacheLoaded,
-                                           m_genresFrom));
+                                           m_genresFrom, libretro::datPath(m_dataRoot), m_fbneoFrom));
     if (!wasReading)
         emit readingChanged();
     if (!wasScanning)
@@ -500,6 +600,10 @@ void ArcadeBackend::onRead() {
         m_genresFrom = read.genresFrom;
         m_genres = std::move(read.genres);
         invalidate();
+    }
+    if (read.fbneoRead) {
+        m_fbneoFrom = read.fbneoFrom;
+        m_fbneoGames = std::move(read.fbneoGames);
     }
     m_snaps = std::move(read.snaps);
     m_shots = std::move(read.shots);
@@ -569,6 +673,8 @@ void ArcadeBackend::refresh() {
     // what it hasn't been (onRead()). A read under way is followed by
     // another, the folder having perhaps changed since it began.
     m_scanAfterRead = true;
+    // The lobby's rooms with the list, for Online Games.
+    refreshRooms();
     if (m_reading) {
         m_readAgain = true;
         return;
@@ -661,6 +767,29 @@ void ArcadeBackend::scanNext() {
     m_scanTimer->start();
 }
 
+void ArcadeBackend::pauseScan() {
+    if (!m_scan)
+        return;
+    // Not a failure: what it listed in full is kept, nothing is taken for a
+    // set it has no machine of, and the asking goes on after the game.
+    m_scanTimer->stop();
+    m_scan->disconnect(this);
+    m_scan->kill();
+    m_scan->waitForFinished(1000);
+    m_scan->deleteLater();
+    m_scan = nullptr;
+    QStringList again;
+    for (const QString &name : std::as_const(m_asked)) {
+        if (!m_machines.contains(name))
+            again << name;
+    }
+    m_asked.clear();
+    m_toAsk = again + m_toAsk;
+    // It had listed every set it was asked about, and only had to exit.
+    if (m_toAsk.isEmpty())
+        finishScan();
+}
+
 void ArcadeBackend::takeMachines() {
     const QList<mame::Machine> machines = m_reader.take();
     for (const mame::Machine &machine : machines) {
@@ -707,6 +836,10 @@ void ArcadeBackend::onScanFinished(int exitCode, QProcess::ExitStatus status) {
             scanNext();
         return;
     }
+    finishScan();
+}
+
+void ArcadeBackend::finishScan() {
     saveCache();
     checkProblem();
     emit scanningChanged();
@@ -837,6 +970,13 @@ QStringList ArcadeBackend::filterSets(const QString &filter) const {
         }
         return sets;
     }
+    // The rooms of the lobby, a game's as often as it is hosted.
+    if (filter == QLatin1String("online")) {
+        QStringList sets;
+        for (const QVariant &room : rooms())
+            sets << room.toMap().value(QStringLiteral("set")).toString();
+        return sets;
+    }
     // The rest once MAME has said what the sets are.
     if (scanning())
         return QStringList();
@@ -853,6 +993,9 @@ QVariantList ArcadeBackend::filters() {
     QVariantList list;
     if (!scanning() && !index().games.isEmpty())
         list << filter(QStringLiteral("all"), QStringLiteral("All Games"), index().games.size());
+    // While someone hosts one of the games: the lobby is read with the list.
+    if (const qsizetype online = rooms().size(); online > 0)
+        list << filter(QStringLiteral("online"), QStringLiteral("Online Games"), online);
     for (const auto &[id, name] : kLists) {
         const qsizetype count = menuShows(QLatin1String(id)) ? filterSets(QLatin1String(id)).size() : 0;
         if (count > 0)
@@ -879,9 +1022,19 @@ QVariantList ArcadeBackend::filterGames(const QString &filter, int first, int co
                                   : filter == QLatin1String("favorites") ? sets
                                   : listedSets(QStringLiteral("favorites"));
     const int last = static_cast<int>(std::min<qsizetype>(sets.size(), qsizetype(first) + count));
+    // A room: the game, who hosts it, and the room joined.
+    const QVariantList rooms = filter == QLatin1String("online") ? this->rooms() : QVariantList();
     for (int i = first; i < last; ++i) {
         const QString &set = sets.at(i);
-        if (unknown) {
+        if (!rooms.isEmpty()) {
+            const QVariantMap room = rooms.value(i).toMap();
+            games << QVariantMap{ { QStringLiteral("set"), set },
+                                  { QStringLiteral("name"), QStringLiteral("%1 (%2)").arg(titleOf(set),
+                                                                                         room.value(QStringLiteral("host")).toString()) },
+                                  { QStringLiteral("favorite"), favorites.contains(set) },
+                                  { QStringLiteral("room"), room.value(QStringLiteral("id")) },
+                                  { QStringLiteral("host"), room.value(QStringLiteral("host")) } };
+        } else if (unknown) {
             games << QVariantMap{ { QStringLiteral("set"), set }, { QStringLiteral("name"), m_sets.value(set) },
                                   { QStringLiteral("unknown"), true } };
         } else {
@@ -905,7 +1058,8 @@ QVariantMap ArcadeBackend::gameDetails(const QString &set) {
     }
     QVariantMap details{ { QStringLiteral("set"), set }, { QStringLiteral("name"), descriptionOf(set) },
                          { QStringLiteral("playTime"), playTimeOf(set) },
-                         { QStringLiteral("picture"), pictureOf(set) } };
+                         { QStringLiteral("picture"), pictureOf(set) },
+                         { QStringLiteral("engine"), engineOf(set) } };
     const auto machine = m_machines.constFind(set);
     if (machine == m_machines.constEnd())
         return details;
@@ -1100,16 +1254,27 @@ QVariant ArcadeBackend::requestEntries(const QString &path) {
     m_shown.insert(path);
     if (path == QLatin1String("recent") || path == QLatin1String("favorites"))
         return listEntries(path);
+    // The rooms once the lobby has been read (refreshRooms()).
+    if (path == QLatin1String("online")) {
+        if (!m_roomsRead) {
+            refreshRooms();
+            return QVariant();
+        }
+        return roomEntries();
+    }
+    // Online Games first, with Online Play on.
+    QVariantList top;
+    if (m_onlinePlay && fbneoReady())
+        top << folder(QStringLiteral("Online Games"), QStringLiteral("online"));
     if (scanning()) {
         // The lists at once; the rest once MAME has said what the sets are.
         if (path == QLatin1String("top"))
-            return QVariantList{ folder(QStringLiteral("Recently Played"), QStringLiteral("recent")),
-                                 folder(QStringLiteral("Favorites"), QStringLiteral("favorites")) };
+            return top << folder(QStringLiteral("Recently Played"), QStringLiteral("recent"))
+                       << folder(QStringLiteral("Favorites"), QStringLiteral("favorites"));
         return QVariant();
     }
     const Index &games = index();
     if (path == QLatin1String("top")) {
-        QVariantList top;
         if (!games.games.isEmpty()) {
             top << folder(QStringLiteral("Recently Played"), QStringLiteral("recent"))
                 << folder(QStringLiteral("Favorites"), QStringLiteral("favorites"))
@@ -1228,6 +1393,8 @@ bool ArcadeBackend::play(const QString &name, int credits) {
         m_lastError = QStringLiteral("A game is still running");
         return false;
     }
+    if (engineOf(name) == QLatin1String("fbneo"))
+        return playFbneo(name);
     const QString program = mamePath();
     if (program.isEmpty()) {
         m_lastError = QStringLiteral("MAME is not installed");
@@ -1313,18 +1480,451 @@ bool ArcadeBackend::play(const QString &name, int credits) {
     const QString own = ownFolder();
     entry.workingDirectory = own.isEmpty() ? m_home : own;
 
+    // MAME asked about the sets meanwhile would share the machine with the
+    // game: it is stopped, and asked again once the game has ended.
+    pauseScan();
     QString error;
     if (!m_launcher->start(entry, &error)) {
         m_lastError = error;
+        if (!m_scan && !m_toAsk.isEmpty())
+            scanNext();
         return false;
     }
     m_playing = name;
+    m_playingEngine = QStringLiteral("mame");
     m_playClock.start();
     if (!m_played) {
         m_played = true;
         emit playedChanged();
     }
     return true;
+}
+
+QString ArcadeBackend::engineOf(const QString &set) const {
+    const bool fbneo = fbneoReady() && m_fbneoGames.contains(set);
+    const QString chosen = m_engines.value(set).toString();
+    if (chosen == QLatin1String("mame") && !mamePath().isEmpty())
+        return QStringLiteral("mame");
+    if (fbneo && (chosen == QLatin1String("fbneo") || m_achievements || m_onlinePlay || mamePath().isEmpty()))
+        return QStringLiteral("fbneo");
+    return QStringLiteral("mame");
+}
+
+QVariantList ArcadeBackend::engineChoices(const QString &set) const {
+    const QString chosen = m_engines.value(set).toString();
+    const auto choice = [&chosen](const QString &id, const QString &label) {
+        return QVariantMap{ { QStringLiteral("id"), id }, { QStringLiteral("label"), label },
+                            { QStringLiteral("current"), chosen == id || (id == QLatin1String("auto") && chosen.isEmpty()) } };
+    };
+    // Auto as it stands: what the game would play in left to it.
+    const bool fbneo = fbneoReady() && m_fbneoGames.contains(set);
+    const bool autoFbneo = fbneo && (m_achievements || m_onlinePlay || mamePath().isEmpty());
+    QVariantList choices{ choice(QStringLiteral("auto"),
+                                 autoFbneo ? QStringLiteral("Auto (FinalBurn Neo)") : QStringLiteral("Auto (MAME)")),
+                          choice(QStringLiteral("mame"), QStringLiteral("MAME")) };
+    if (fbneo)
+        choices << choice(QStringLiteral("fbneo"), QStringLiteral("FinalBurn Neo"));
+    return choices;
+}
+
+void ArcadeBackend::setEngine(const QString &set, const QString &engine) {
+    if (!m_appCore || !mame::isShortName(set))
+        return;
+    QVariantMap engines = m_engines;
+    if (engine == QLatin1String("mame") || engine == QLatin1String("fbneo"))
+        engines.insert(set, engine);
+    else
+        engines.remove(set);
+    // Comes back through onSettingChanged(), which takes it.
+    m_appCore->save_setting(kModuleId, QStringLiteral("engines"), engines);
+}
+
+bool ArcadeBackend::fbneoReady() const {
+    return !retroarchPath().isEmpty() && !libretro::corePath(m_dataRoot).isEmpty() && !m_fbneoGames.isEmpty();
+}
+
+bool ArcadeBackend::playFbneo(const QString &name, libretro::Launch::Netplay netplay, const QString &joinAddress) {
+    const QString program = retroarchPath();
+    if (program.isEmpty()) {
+        m_lastError = QStringLiteral("RetroArch is not installed");
+        return false;
+    }
+    const QString core = libretro::corePath(m_dataRoot);
+    if (core.isEmpty()) {
+        m_lastError = QStringLiteral("FinalBurn Neo is not installed: Settings → Arcade → FinalBurn Neo");
+        return false;
+    }
+    if (!m_fbneoGames.contains(name)) {
+        m_lastError = QStringLiteral("FinalBurn Neo has no game called ") + name;
+        return false;
+    }
+    // FinalBurn Neo opens a zip or a 7z, never a folder of files.
+    const QString file = m_sets.value(name);
+    if (file.isEmpty() || m_folders.contains(name)) {
+        m_lastError = m_folders.contains(name) ? QStringLiteral("FinalBurn Neo plays a game's zip or 7z, not a folder")
+                                               : QStringLiteral("The game is no longer in the games folder");
+        return false;
+    }
+    if (m_misnamed.contains(name)) {
+        m_lastError = QStringLiteral("FinalBurn Neo looks for %1, in lower case: rename the file to %1")
+                          .arg(mameFileName(name));
+        return false;
+    }
+
+    // RetroArch's keeping, in a folder of its own: a config with a token in
+    // it is no one else's to read.
+    const QString home = retroarchHome();
+    for (const char *dir : { "system/fbneo", "saves", "states", "config" })
+        QDir().mkpath(home + QLatin1Char('/') + QLatin1String(dir));
+    QFile::setPermissions(home, QFileDevice::ReadOwner | QFileDevice::WriteOwner | QFileDevice::ExeOwner);
+    // The BIOS sets: FinalBurn Neo looks beside the game, then in
+    // system/fbneo, where the games folder's bios folder's are linked anew.
+    const QString fbneo = home + QStringLiteral("/system/fbneo");
+    QDirIterator links(fbneo, QDir::Files | QDir::System);
+    while (links.hasNext()) {
+        links.next();
+        if (links.fileInfo().isSymLink())
+            QFile::remove(links.filePath());
+    }
+    const QString bios = otherFolder(QStringLiteral("bios"));
+    if (!bios.isEmpty()) {
+        QDirIterator sets(bios, { QStringLiteral("*.zip"), QStringLiteral("*.7z") }, QDir::Files);
+        while (sets.hasNext()) {
+            sets.next();
+            QFile::link(sets.filePath(), fbneo + QLatin1Char('/') + sets.fileName());
+        }
+    }
+
+    libretro::Launch launch;
+    launch.core = core;
+    launch.content = m_gamesFolder + QLatin1Char('/') + file;
+    launch.config = home + QStringLiteral("/retroarch.cfg");
+    launch.log = home + QStringLiteral("/last.log");
+    launch.systemDir = home + QStringLiteral("/system");
+    launch.saveDir = home + QStringLiteral("/saves");
+    launch.stateDir = home + QStringLiteral("/states");
+    launch.configDir = home + QStringLiteral("/config");
+#ifdef Q_OS_LINUX
+    // A desktop's RetroArch draws in its window; the console's needs KMS.
+    launch.console = qEnvironmentVariableIsEmpty("WAYLAND_DISPLAY") && qEnvironmentVariableIsEmpty("DISPLAY");
+#else
+    launch.console = false;
+#endif
+    launch.sound = AudioOutput::hasPlaybackCard();
+    const QStringList guids = controllers::playerGuids();
+    const QStringList names = controllers::playerNames();
+    for (int p = 0; p < guids.size(); ++p)
+        launch.pads << (guids.at(p).isEmpty() ? QString() : libretro::reservedDevice(guids.at(p), names.value(p)));
+    m_raPasswordGiven = false;
+    if (m_achievements && !m_raUser.isEmpty()) {
+        launch.achievementsUser = m_raUser;
+        launch.achievementsToken = m_raToken;
+        if (m_raToken.isEmpty() && !m_raPassword.isEmpty()) {
+            launch.achievementsPassword = m_raPassword;
+            m_raPasswordGiven = true;
+        }
+    }
+    launch.netplay = netplay;
+    launch.joinAddress = joinAddress;
+    launch.nickname = m_onlineName.isEmpty() ? (m_raUser.isEmpty() ? QStringLiteral("OSD-OS") : m_raUser) : m_onlineName;
+    launch.relay = m_relay;
+    if (!writeFileAtomically(launch.config, libretro::configText(launch).toUtf8(), kOwnerOnly)) {
+        m_lastError = QStringLiteral("RetroArch's settings could not be written");
+        return false;
+    }
+    // This run's log: the last one's mustn't speak for it.
+    QFile::remove(launch.log);
+
+    ScriptEntry entry;
+    entry.path = program;
+    entry.basename = QStringLiteral("retroarch");
+    entry.meta.name = descriptionOf(name);
+    entry.meta.mode = QStringLiteral("takeover");
+    entry.argv = libretro::arguments(launch);
+    entry.workingDirectory = home;
+    // The pads the menus know of the controller database OSD/OS reads, for
+    // RetroArch's SDL too.
+    const QString mappings = m_dataRoot + QStringLiteral("/gamecontrollerdb.txt");
+    if (QFileInfo::exists(mappings))
+        entry.environment << qMakePair(QStringLiteral("SDL_GAMECONTROLLERCONFIG_FILE"), mappings);
+
+    // As for MAME: the batch MAME is asked meanwhile shares the machine.
+    pauseScan();
+    QString error;
+    if (!m_launcher->start(entry, &error)) {
+        m_lastError = error;
+        if (m_raPasswordGiven) {
+            m_raPasswordGiven = false;
+            QFile::remove(launch.config);
+        }
+        if (!m_scan && !m_toAsk.isEmpty())
+            scanNext();
+        return false;
+    }
+    m_playing = name;
+    m_playingEngine = QStringLiteral("fbneo");
+    m_playClock.start();
+    if (!m_played) {
+        m_played = true;
+        emit playedChanged();
+    }
+    return true;
+}
+
+bool ArcadeBackend::canHost(const QString &set) const {
+    return m_onlinePlay && fbneoReady() && m_fbneoGames.contains(set) && m_sets.contains(set)
+           && !m_folders.contains(set) && !m_misnamed.contains(set);
+}
+
+bool ArcadeBackend::hostGame(const QString &set) {
+    if (running()) {
+        m_lastError = QStringLiteral("A game is still running");
+        return false;
+    }
+    return playFbneo(set, libretro::Launch::Netplay::Host);
+}
+
+bool ArcadeBackend::joinRoom(int id) {
+    if (running()) {
+        m_lastError = QStringLiteral("A game is still running");
+        return false;
+    }
+    for (const libretro::Room &room : std::as_const(m_rooms)) {
+        if (room.id == id)
+            return playFbneo(room.game, libretro::Launch::Netplay::Join, room.joinAddress);
+    }
+    m_lastError = QStringLiteral("The game is no longer in RetroArch's lobby");
+    return false;
+}
+
+QVariantList ArcadeBackend::rooms() const {
+    QVariantList list;
+    if (!m_onlinePlay || !fbneoReady())
+        return list;
+    for (const libretro::Room &room : m_rooms) {
+        // A game in the folder FinalBurn Neo plays, joined without a
+        // password (RetroArch would ask for one on its own screen).
+        if (room.password || !m_fbneoGames.contains(room.game) || !m_sets.contains(room.game)
+            || m_folders.contains(room.game) || m_misnamed.contains(room.game))
+            continue;
+        list << QVariantMap{ { QStringLiteral("id"), room.id }, { QStringLiteral("set"), room.game },
+                             { QStringLiteral("title"), titleOf(room.game) },
+                             { QStringLiteral("host"), room.host }, { QStringLiteral("country"), room.country } };
+    }
+    return list;
+}
+
+void ArcadeBackend::refreshRooms() {
+    if (m_lobbyReply || !m_onlinePlay)
+        return;
+    if (!m_nam)
+        m_nam = new QNetworkAccessManager(this);
+    QNetworkRequest request(m_lobbyUrl);
+    request.setHeader(QNetworkRequest::UserAgentHeader,
+                      QStringLiteral("OSD-OS/%1").arg(QCoreApplication::applicationVersion()));
+    request.setTransferTimeout(kLobbyTimeoutMs);
+    m_lobbyReply = m_nam->get(request);
+    connect(m_lobbyReply, &QNetworkReply::finished, this, [this] {
+        QNetworkReply *reply = std::exchange(m_lobbyReply, nullptr);
+        reply->deleteLater();
+        m_roomsRead = true;
+        if (reply->error() == QNetworkReply::NoError) {
+            m_rooms = libretro::readLobby(reply->readAll());
+            m_roomsProblem.clear();
+        } else {
+            m_rooms.clear();
+            m_roomsProblem = QStringLiteral("RetroArch's lobby can't be reached: ") + reply->errorString();
+            qWarning("[Arcade] %s", qPrintable(m_roomsProblem));
+        }
+        emit roomsChanged();
+        // The Online Games folder, and the Arcade screen's filter.
+        emit entriesReady(QStringLiteral("online"));
+        emit gamesChanged();
+    });
+}
+
+QVariantList ArcadeBackend::roomEntries() const {
+    QVariantList entries;
+    for (const QVariant &value : rooms()) {
+        const QVariantMap room = value.toMap();
+        const QString host = room.value(QStringLiteral("host")).toString();
+        const QString country = room.value(QStringLiteral("country")).toString().toUpper();
+        const QString set = room.value(QStringLiteral("set")).toString();
+        entries << QVariantMap{ { QStringLiteral("name"), QStringLiteral("%1 (%2)").arg(room.value(QStringLiteral("title")).toString(), host) },
+                                { QStringLiteral("path"), QStringLiteral("room:%1").arg(room.value(QStringLiteral("id")).toInt()) },
+                                { QStringLiteral("isFolder"), false },
+                                { QStringLiteral("kind"), QStringLiteral("room") },
+                                { QStringLiteral("game"), set },
+                                { QStringLiteral("room"), room.value(QStringLiteral("id")) },
+                                { QStringLiteral("host"), host },
+                                { QStringLiteral("detail"), QStringLiteral("Hosted by %1%2 • %3")
+                                                                .arg(host, country.isEmpty() ? QString() : QStringLiteral(" in ") + country,
+                                                                     m_sets.value(set)) } };
+    }
+    if (entries.isEmpty()) {
+        const bool failed = !m_roomsProblem.isEmpty();
+        entries << QVariantMap{ { QStringLiteral("name"), failed ? QStringLiteral("Lobby Not Reachable") : QStringLiteral("No Games Online") },
+                                { QStringLiteral("path"), QStringLiteral("online/none") },
+                                { QStringLiteral("isFolder"), false },
+                                { QStringLiteral("kind"), QStringLiteral("message") },
+                                { QStringLiteral("detail"), failed ? m_roomsProblem
+                                                            : QStringLiteral("No one in RetroArch's lobby hosts a game you have: "
+                                                                             "host one from a game's options") } };
+    }
+    return entries;
+}
+
+QString ArcadeBackend::fbneoNotice(int exitCode, const QString &reason, const libretro::Run &run) const {
+    if (reason == QLatin1String("ok"))
+        return QString();
+    if (reason == QLatin1String("failed_to_start"))
+        return QStringLiteral("RetroArch did not start");
+    if (reason == QLatin1String("stopped"))
+        return QStringLiteral("The game was stopped");
+    if (m_launcher->lastRunCrashed())
+        return QStringLiteral("RetroArch closed unexpectedly (signal %1)").arg(exitCode);
+    if (!run.missing.isEmpty()) {
+        QString files = run.missing.mid(0, 3).join(QStringLiteral(", "));
+        if (run.missing.size() > 3)
+            files += QStringLiteral(" and %1 more").arg(run.missing.size() - 3);
+        return QStringLiteral("Missing %1: FinalBurn Neo's sets aren't always MAME's\n"
+                              "Choose MAME for the game in its options").arg(files);
+    }
+    if (!run.started && exitCode == 0)
+        return QStringLiteral("FinalBurn Neo could not start the game: its set may be for another version");
+    if (!run.error.isEmpty())
+        return QStringLiteral("RetroArch stopped: ") + run.error;
+    return QStringLiteral("RetroArch closed with error %1").arg(exitCode);
+}
+
+QVariantMap ArcadeBackend::fbneoInfo() const {
+    const QString core = libretro::corePath(m_dataRoot);
+    const QString license = libretro::downloadedLicense(m_dataRoot);
+    const QString imageLicense = QStringLiteral("/usr/local/share/doc/fbneo/license.txt");
+#ifdef OSDOS_MINIZIP
+    const bool unpacks = true;
+#else
+    const bool unpacks = false;
+#endif
+    return { { QStringLiteral("retroarch"), retroarchPath() },
+             { QStringLiteral("core"), core },
+             { QStringLiteral("coreDate"), core.isEmpty() ? QString()
+                                           : QFileInfo(core).lastModified().toString(QStringLiteral("yyyy-MM-dd")) },
+             { QStringLiteral("downloaded"), !core.isEmpty() && core == libretro::downloadedCore(m_dataRoot) },
+             { QStringLiteral("games"), static_cast<int>(m_fbneoGames.size()) },
+             { QStringLiteral("license"), QFileInfo::exists(license) ? license
+                                          : QFileInfo::exists(imageLicense) ? imageLicense : QString() },
+             { QStringLiteral("canDownload"), unpacks && !FbneoInstaller::defaultSource().core.isEmpty() } };
+}
+
+QString ArcadeBackend::fbneoLicenseText() const {
+    QFile file(fbneoInfo().value(QStringLiteral("license")).toString());
+    return file.open(QIODevice::ReadOnly) ? QString::fromUtf8(file.readAll()) : QString();
+}
+
+void ArcadeBackend::downloadFbneo() {
+    if (m_installer->running())
+        return;
+    m_fbneoMessage.clear();
+    m_installer->start(FbneoInstaller::defaultSource());
+    emit fbneoChanged();
+}
+
+bool ArcadeBackend::fbneoDownloading() const {
+    return m_installer->running();
+}
+
+int ArcadeBackend::fbneoProgress() const {
+    return m_installer->progress();
+}
+
+QString ArcadeBackend::achievementsMessage() const {
+    if (achievementsState() == QLatin1String("failed") && m_raFailure.isEmpty())
+        return QStringLiteral("Sign in again: the password is only kept until the next game");
+    return m_raFailure;
+}
+
+QString ArcadeBackend::achievementsState() const {
+    if (m_raUser.isEmpty())
+        return QStringLiteral("none");
+    if (!m_raToken.isEmpty())
+        return QStringLiteral("signedIn");
+    if (!m_raPassword.isEmpty())
+        return QStringLiteral("pending");
+    return QStringLiteral("failed");
+}
+
+void ArcadeBackend::signInAchievements(const QString &user, const QString &password) {
+    const QString name = user.trimmed();
+    if (name.isEmpty() || password.isEmpty())
+        return;
+    m_raUser = name;
+    m_raToken.clear();
+    m_raPassword = password;
+    m_raFailure.clear();
+    saveAchievements();
+    emit achievementsChanged();
+}
+
+void ArcadeBackend::signOutAchievements() {
+    m_raUser.clear();
+    m_raToken.clear();
+    m_raPassword.clear();
+    m_raFailure.clear();
+    saveAchievements();
+    emit achievementsChanged();
+}
+
+void ArcadeBackend::setAchievementsKey(const QString &key) {
+    m_raKey = key.trimmed();
+    m_raKeyRefused = false;
+    m_leaderboards->setKey(m_raKey);
+    saveAchievements();
+    emit achievementsChanged();
+}
+
+QVariantMap ArcadeBackend::leaderboard(const QString &set) {
+    const QString file = m_sets.value(set);
+    if (!m_achievements || m_raKey.isEmpty() || file.isEmpty() || engineOf(set) != QLatin1String("fbneo"))
+        return { { QStringLiteral("state"), QStringLiteral("off") } };
+    return m_leaderboards->board(QFileInfo(file).fileName());
+}
+
+void ArcadeBackend::saveAchievements() const {
+    QDir().mkpath(m_home);
+    const QJsonObject kept{ { QStringLiteral("user"), m_raUser }, { QStringLiteral("token"), m_raToken },
+                            { QStringLiteral("key"), m_raKey } };
+    writeFileAtomically(m_home + QStringLiteral("/retroachievements.json"),
+                        QJsonDocument(kept).toJson(QJsonDocument::Compact), kOwnerOnly);
+}
+
+void ArcadeBackend::takeAchievements(const libretro::Run &run) {
+    const QString config = retroarchHome() + QStringLiteral("/retroarch.cfg");
+    bool changed = false;
+    if (std::exchange(m_raPasswordGiven, false)) {
+        // RetroArch saved its config on exit, the token in it if it signed
+        // in; the password goes whatever became of it.
+        const QString token = libretro::savedToken(config);
+        QFile::remove(config);
+        m_raPassword.clear();
+        if (!token.isEmpty()) {
+            m_raToken = token;
+            m_raFailure.clear();
+        } else {
+            m_raFailure = run.loginFailure.isEmpty() ? QStringLiteral("RetroArch did not sign in: sign in again")
+                                                     : run.loginFailure;
+        }
+        saveAchievements();
+        changed = true;
+    } else if (!m_raToken.isEmpty() && !run.loginFailure.isEmpty()) {
+        // The token no longer taken (the password changed since): signed out.
+        m_raToken.clear();
+        m_raFailure = run.loginFailure;
+        saveAchievements();
+        changed = true;
+    }
+    if (changed)
+        emit achievementsChanged();
 }
 
 QString ArcadeBackend::noticeFor(int exitCode, const QString &reason) const {

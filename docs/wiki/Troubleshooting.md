@@ -112,7 +112,7 @@ qml: Routing to: modules/local_files/views/Root.qml
 | `[AtomicFile]` | Saving state | `Could not write <path>: <reason>`: a file left as it was, never half written |
 | `[LocalFiles]` | Local Files | A folder not found, USB drives in and out |
 | `[Scripts]` | Scripts | Each run, how it ended and its exit code, sidecar lines it couldn't read, a takeover run in console mode |
-| `[Arcade]` | Arcade | The games folder (`games folder: /media/OSD-OS/Games/Arcade`), the sets MAME is asked about (`Asking MAME about 18 games`), MAME changed or unable to list them, a game that didn't play and why (`mslug: Missing sp-s2.sp1, …`), MAME's hiscore plugin not found. MAME runs through the Scripts module's launcher, so its runs and their ends are `[Scripts]` lines (`'mame' finished: failed (exit 2)`) |
+| `[Arcade]` | Arcade | The games folder (`games folder: /media/OSD-OS/Games/Arcade`), the sets MAME is asked about (`Asking MAME about 18 games`), MAME changed or unable to list them, a game that didn't play and why (`mslug: Missing sp-s2.sp1, …`), MAME's hiscore plugin not found, how many of FinalBurn Neo's games its list has, a RetroAchievements answer that couldn't be read or a Web API key it refused. MAME and RetroArch run through the Scripts module's launcher, so their runs and their ends are `[Scripts]` lines (`'mame' finished: failed (exit 2)`) |
 | `[HighScores]` | High Scores | How many games' files it reads (`Reading 3 games' files`), and each file it couldn't read and why (`ffightu.hi: The file isn't laid out as hi2txt knows this game's: …`) |
 | `[NfcReader]` | NFC Reader | Readers found and lost, polling started or disabled, tag files skipped or created |
 | `[Weather]` | Weather | The place it resolved, forecasts fetched or not, the US stations it reads, its music |
@@ -464,7 +464,7 @@ Other files hold the rest, and stay when only `config.json` goes:
 | `youtube_watch_later.json`, `playlists.json` | Watch Later, and the playlists |
 | `plex_auth.json`, `plex_key.pem`, `jellyfin_auth.json`, `emby_auth.json` | The media servers' sign-ins |
 | `netflix/browser`, `prime_video/browser`, `youtube/browser` | The web players' browser profiles, with their sign-ins |
-| `arcade/` | The Arcade module's: what MAME said of the games, how long each has been played, and MAME's settings, NVRAM and high scores |
+| `arcade/` | The Arcade module's: what MAME said of the games, how long each has been played, MAME's settings, NVRAM and high scores, and RetroArch's for FinalBurn Neo's games (`arcade/retroarch/`) with the RetroAchievements account |
 | `highscores/` | What the High Scores module read of MAME's files, read again without it |
 | `input.cfg`, `themes/`, `skins/`, `nfc_tags/`, `user_scripts/` | Your own files |
 

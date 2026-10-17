@@ -193,6 +193,8 @@ FocusScope {
     readonly property bool isGame: !!current && !current.unknown
     readonly property var details: (revision, arcadeBackend && currentSet !== ""
                                                ? arcadeBackend.gameDetails(currentSet) : ({}))
+    // The game plays in FinalBurn Neo, which takes no credits bought here.
+    readonly property bool fbneo: details.engine === "fbneo"
     // The column's ground, the scheme's background as solid as Settings →
     // Arcade → Info Background says (Root.qml's infoBackground), over Settings'
     // Background Effect. Main.qml names its colours; a color property reads
@@ -203,10 +205,17 @@ FocusScope {
     // → Border has it (Root.qml's border): a line, or none.
     readonly property int frame: moduleRoot.border ? root.px : 0
     // The game's high scores, read again once the High Scores module has
-    // read MAME's files (a game just played).
+    // read MAME's files (a game just played), or for a game FinalBurn Neo
+    // plays with Online High Scores on and a Web API key kept, its
+    // RetroAchievements leaderboard's, once it has been read (board: its
+    // state, "off" for any other game).
     property int scoresRevision: 0
-    readonly property var scores: (scoresRevision, scoresBackend && isGame
-                                                   ? scoresBackend.topEntries(currentSet, scoreRows) : [])
+    readonly property var board: (scoresRevision, arcadeBackend && isGame
+                                                  ? arcadeBackend.leaderboard(currentSet) : ({ state: "off" }))
+    readonly property bool onlineScores: !!board.state && board.state !== "off"
+    readonly property var scores: (scoresRevision, onlineScores ? (board.entries || [])
+                                                   : scoresBackend && isGame
+                                                     ? scoresBackend.topEntries(currentSet, scoreRows) : [])
 
     // Screen Adjustment: whether ▲ ▼ ◄ ► move the sides in rather than out;
     // how far a press moves one, up to the screen's edge; and the least room
@@ -317,17 +326,32 @@ FocusScope {
     }
 
     // Plays a game; coming back lands on it in listFilter.
-    function play(set, name, listFilter) {
-        arcadeScreen.navigateTo("Play.qml", { game: set, title: name }, { filter: listFilter, set: set })
+    // A game played, or with online, a room of the lobby joined ({ room,
+    // host }) or one hosted ({ hosting: true }).
+    function play(set, name, listFilter, online) {
+        var params = { game: set, title: name }
+        if (online)
+            params.online = online
+        arcadeScreen.navigateTo("Play.qml", params, { filter: listFilter, set: set })
     }
     function playCurrent() {
-        if (isGame)
+        if (current && current.room !== undefined)
+            play(currentSet, current.name, filterId, { room: current.room, host: current.host })
+        else if (isGame)
             play(currentSet, details.name || current.name, filterId)
     }
 
     function openOptions() {
-        if (isGame)
+        if (isGame && current.room === undefined)
             options.offer({ name: details.name || current.name, path: "game:" + currentSet, isFolder: false })
+    }
+
+    // The lobby read again while its rooms are the filter shown.
+    Timer {
+        interval: 20000
+        repeat: true
+        running: arcadeScreen.filterId === "online" && !!arcadeBackend && !arcadeBackend.running
+        onTriggered: arcadeBackend.refreshRooms()
     }
 
     // Select plays the game as it is let go, and opens its options once held
@@ -401,6 +425,14 @@ FocusScope {
                 arcadeScreen.scoresRevision++
         }
     }
+    Connections {
+        target: arcadeBackend
+        ignoreUnknownSignals: true
+        function onLeaderboardReady(set) {
+            if (set === arcadeScreen.currentSet)
+                arcadeScreen.scoresRevision++
+        }
+    }
 
     Keys.onPressed: function(event) {
         // Keys the options leave go no further.
@@ -414,8 +446,8 @@ FocusScope {
             return
         }
         if (event.key === Qt.Key_5) {
-            // COIN.
-            if (!event.isAutoRepeat)
+            // COIN, for MAME to put in: FinalBurn Neo takes the game's own.
+            if (!event.isAutoRepeat && !arcadeScreen.fbneo)
                 moduleRoot.addCredit()
         } else if (event.key === Qt.Key_Space || event.key === Qt.Key_1) {
             if (!event.isAutoRepeat)
@@ -692,8 +724,9 @@ FocusScope {
         }
 
         // The credits bought, on a ground of their own so they read over
-        // the picture.
+        // the picture; none for a game FinalBurn Neo plays.
         Rectangle {
+            visible: !arcadeScreen.fbneo
             anchors.right: parent.right
             anchors.bottom: parent.bottom
             anchors.margins: arcadeScreen.frame
@@ -735,7 +768,7 @@ FocusScope {
         width: Math.round(arcadeScreen.infoWidth * arcadeScreen.u)
 
         Text {
-            text: "Hi-Score"
+            text: arcadeScreen.onlineScores ? "RA Hi-Score" : "Hi-Score"
             color: root.primaryColor
             font.family: root.globalFont
             font.capitalization: Font.AllUppercase
@@ -757,9 +790,12 @@ FocusScope {
                     font.family: root.globalFont
                     font.pixelSize: arcadeScreen.textSize
                 }
+                // A name: initials, or a RetroAchievements user's, longer.
+                readonly property int nameWidth: arcadeScreen.onlineScores ? 100 : 50
                 Text {
                     anchors.right: parent.right
-                    anchors.rightMargin: scoreLine.entry && scoreLine.entry.name !== "" ? Math.round(64 * arcadeScreen.u) : 0
+                    anchors.rightMargin: scoreLine.entry && scoreLine.entry.name !== ""
+                                         ? Math.round((scoreLine.nameWidth + 14) * arcadeScreen.u) : 0
                     text: scoreLine.entry ? scoreLine.entry.score : ""
                     textFormat: Text.PlainText
                     color: root.primaryColor
@@ -768,7 +804,7 @@ FocusScope {
                 }
                 Text {
                     anchors.right: parent.right
-                    width: Math.round(50 * arcadeScreen.u)
+                    width: Math.round(scoreLine.nameWidth * arcadeScreen.u)
                     horizontalAlignment: Text.AlignRight
                     text: scoreLine.entry ? scoreLine.entry.name : ""
                     textFormat: Text.PlainText
@@ -783,7 +819,10 @@ FocusScope {
         Text {
             visible: arcadeScreen.scores.length === 0
             y: Math.round(arcadeScreen.scoreFirst * arcadeScreen.v)
-            text: "No Scores Yet"
+            text: !arcadeScreen.onlineScores ? "No Scores Yet"
+                  : arcadeScreen.board.state === "loading" ? "Reading…"
+                  : arcadeScreen.board.state === "none" ? "No Leaderboard"
+                  : arcadeScreen.board.state === "failed" ? "Not Reachable" : "No Scores Yet"
             color: root.primaryColor
             font.family: root.globalFont
             font.capitalization: Font.AllUppercase
@@ -877,6 +916,8 @@ FocusScope {
               ? root.hints.back + ":DONE " + root.hints.arrows + (arcadeScreen.shrinking ? ":SHRINK " : ":EXPAND ")
                 + root.hints.select + (arcadeScreen.shrinking ? ":EXPAND" : ":SHRINK") + " HOLD:RESET"
               : arcadeScreen.filters.length === 0 ? root.hints.back + ":BACK"
+              : arcadeScreen.current && arcadeScreen.current.room !== undefined
+                ? root.hints.back + ":BACK " + root.hints.select + ":JOIN"
               : root.hints.back + ":BACK " + root.hints.coin + ":COIN " + root.hints.select + ":PLAY HOLD:OPTIONS"
         anchors.bottom: parent.bottom
         anchors.left: parent.left
@@ -932,17 +973,34 @@ FocusScope {
         }
     }
 
-    // A game's options: Play, its favourite, Play at Startup.
+    // A game's options: Play, its favourite, Play at Startup, its engine
+    // where FinalBurn Neo has it, and with Online Play on, hosting it.
     EntryOptions {
         id: options
         anchors.fill: parent
         moduleId: moduleRoot.moduleId
         firstChoices: [{ label: "Play", action: "play" }]
+        moreChoices: (arcadeScreen.revision,
+                      (engines.offered(arcadeScreen.currentSet)
+                       ? [{ label: engines.lineFor(arcadeScreen.currentSet), action: "engine" }] : [])
+                      .concat(arcadeBackend && arcadeBackend.canHost(arcadeScreen.currentSet)
+                              ? [{ label: "Host Online Game", action: "host" }] : []))
         onActivated: function(action) {
             if (action === "play")
                 arcadeScreen.playCurrent()
+            else if (action === "engine")
+                engines.offer(arcadeScreen.currentSet, arcadeScreen.details.name)
+            else if (action === "host")
+                arcadeScreen.play(arcadeScreen.currentSet, arcadeScreen.details.name || arcadeScreen.current.name,
+                                  arcadeScreen.filterId, { hosting: true })
         }
         onFavoritesEdited: arcadeScreen.reload()
+        onClosed: if (!engines.visible) arcadeScreen.forceActiveFocus()
+    }
+    EngineChooser {
+        id: engines
+        anchors.fill: parent
+        onEngineChosen: arcadeScreen.revision++
         onClosed: arcadeScreen.forceActiveFocus()
     }
 }

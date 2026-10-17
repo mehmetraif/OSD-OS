@@ -1,8 +1,8 @@
 # Arcade
 
-The Arcade module plays arcade games in MAME, the arcade machine emulator, from a folder of MAME's ROM sets: a zip file for each game. It lists them on one of two screens: OSD/OS's own tree, by name, number of players, decade and maker, or the Arcade screen, a cabinet's selection screen with each game's picture, high scores and details, where COIN buys credits and select or START plays. It starts MAME full screen for the game you choose. MAME takes its players from Settings → Controls, so the JAMMA board's two sticks and up to four more pads play as players 1 to 6, and you come back to OSD/OS with Coin and Start together. This page covers setting it up, the two screens, playing, the players and their buttons, high scores, every setting with its config key, the files the module keeps, and what to do when a game doesn't start.
+The Arcade module plays arcade games in MAME, the arcade machine emulator, from a folder of MAME's ROM sets: a zip file for each game. It lists them on one of two screens: OSD/OS's own tree, by name, number of players, decade and maker, or the Arcade screen, a cabinet's selection screen with each game's picture, high scores and details, where COIN buys credits and select or START plays. It starts MAME full screen for the game you choose. MAME takes its players from Settings → Controls, so the JAMMA board's two sticks and up to four more pads play as players 1 to 6, and you come back to OSD/OS with Coin and Start together. A game FinalBurn Neo has can play in RetroArch with FinalBurn Neo instead, where its scores go to RetroAchievements' leaderboards and where it can be played online with others ([FinalBurn Neo](#finalburn-neo), [Online play](#online-play)). This page covers setting it up, the two screens, playing, the players and their buttons, high scores, every setting with its config key, the files the module keeps, and what to do when a game doesn't start.
 
-The module is in [modules/arcade](https://github.com/mehmetraif/OSD-OS/tree/main/modules/arcade) (views and manifest) and [src/modules/arcade](https://github.com/mehmetraif/OSD-OS/tree/main/src/modules/arcade) (`ArcadeBackend`, and `Mame`, what it asks MAME and makes of its answers). It is off at first: turn it on in **Settings → Arcade → Enabled**, and **Arcade** is on the main menu.
+The module is in [modules/arcade](https://github.com/mehmetraif/OSD-OS/tree/main/modules/arcade) (views and manifest) and [src/modules/arcade](https://github.com/mehmetraif/OSD-OS/tree/main/src/modules/arcade) (`ArcadeBackend`; `Mame`, what it asks MAME and makes of its answers; `Libretro`, the same for RetroArch with FinalBurn Neo; and `FbneoInstaller`, FinalBurn Neo's download). It is off at first: turn it on in **Settings → Arcade → Enabled**, and **Arcade** is on the main menu.
 
 <table>
 <tr><th width="50%">The games</th><th width="50%">All Games</th></tr>
@@ -27,6 +27,7 @@ The module is in [modules/arcade](https://github.com/mehmetraif/OSD-OS/tree/main
    The module makes the folder the first time it opens, so it is there to copy into.
 3. **Sets for this MAME.** A ROM set has to match the MAME that plays it: a set made for another version may lack files this one needs, or have a name it doesn't know. The image's MAME is 0.276.
 4. **Turn it on**: **Settings → Arcade → Enabled**. **Arcade** is then on the main menu.
+5. **FinalBurn Neo**, for online high scores (optional). The OSD/OS image has it: Debian's RetroArch, and the FinalBurn Neo core with its list of games. Elsewhere, install RetroArch (`sudo apt install retroarch` on Raspberry Pi OS or Debian; on a Mac, RetroArch from retroarch.com or `brew install --cask retroarch`), then download the core in **Settings → Arcade → FinalBurn Neo → Download** ([FinalBurn Neo](#finalburn-neo)).
 
 ROM sets are copyrighted, like the games on them: use the games you are entitled to. MAME itself is free software (GPL-2.0 or later).
 
@@ -47,6 +48,7 @@ Both list the same games from the same folder, share Recently Played and Favorit
 
 | Folder | What it holds |
 |---|---|
+| **Online Games** | With **Online Play** on: the games others host in RetroArch's lobby that you have, each with who hosts it ([Online play](#online-play)) |
 | **Recently Played** | The games played last, latest first (up to 30). A game goes on it once MAME has started it: one cancelled before it starts, or that couldn't be started, stays off it |
 | **Favorites** | The games you added with right on a game ([below](#a-games-options)) |
 | **Search** | Asks for words on the on-screen keyboard and lists the games whose name or set has them: `pac` finds Pac-Man and Ms. Pac-Man |
@@ -65,6 +67,8 @@ Right on a game opens its options:
 | Option | What it does |
 |---|---|
 | **Add to Favorites** / **Remove from Favorites** | Puts it on Favorites, or takes it off |
+| **Engine** | Shown for a game FinalBurn Neo has, as `Engine: Auto (MAME)`: which emulator plays it. **Auto**, MAME, unless Online High Scores or Online Play is on, which only FinalBurn Neo has ([FinalBurn Neo](#finalburn-neo)); **MAME**; or **FinalBurn Neo** |
+| **Host Online Game** | With **Online Play** on, for a game FinalBurn Neo has: starts it for others to join from RetroArch's lobby ([Online play](#online-play)) |
 | **Play at Startup** / **Don't Play at Startup** | Starts it after the boot screen every time OSD/OS starts, as soon as the games folder has been read, ahead of Settings → Start on Module: a cabinet that boots into its game. It goes on Favorites too. There is one for the whole app, as in [Local Files](https://github.com/mehmetraif/OSD-OS/wiki/Local-Files): choosing another replaces it. **Settings → Arcade → Play at Startup** shows it, and chooses it among the favorites too |
 
 ## The Arcade screen
@@ -75,7 +79,7 @@ With **Settings → Arcade → Screen** on **Arcade**, Arcade opens on a cabinet
 - **The bar** over it: the filter, with ◄ ► while there are others, and the page (`1/4`); on the wheel of 3D Curved, the game (`12/512`).
 - **The picture**, on the right ([below](#pictures)), with the credits bought in its corner (`Credit 2`).
 - **The box** under the picture, a line for each of these that its height has room for ([below](#the-box-under-the-picture)):
-  - **Hi-Score**: the best three entries of the game's high score table, their rank, score and name, as the [High Scores](https://github.com/mehmetraif/OSD-OS/wiki/High-Scores) module reads them; `No Scores Yet` before the game has a table.
+  - **Hi-Score**: the best three entries of the game's high score table, their rank, score and name, as the [High Scores](https://github.com/mehmetraif/OSD-OS/wiki/High-Scores) module reads them; `No Scores Yet` before the game has a table. For a game played in FinalBurn Neo with Online High Scores on and a Web API key given, **RA Hi-Score**: the top three of its RetroAchievements leaderboard, with their users' names ([FinalBurn Neo](#finalburn-neo)).
   - **Maker**, **Year**, **Players** and **System**: what the game is, `?` for what MAME doesn't say, and one too long for its line (`Data East Corporation`) scrolling through it. Its system is the board it ran on: CPS-1, Neo-Geo, NAOMI, Sega System 16B, Namco System 2, Midway T-Unit and about a hundred more; for any other, the name of MAME's driver for it.
   - **Play Time**, at the foot of the box: how long the game has been played in OSD/OS (`1H 31M`, `Never`).
 - **The help line**: the game's full name, as MAME has it, then those of its maker, year, players and system the box has no line for, scrolling through as `Final Fight (World, set 1) • 1989 • 2 Players • CPS-1`; on a set under Not Recognized, why it is there and what to do.
@@ -153,6 +157,7 @@ On a CRT, move each side to where the tube's edge cuts the picture off (its over
 | Filter | What it holds |
 |---|---|
 | **All Games** | Every game, by name. Always there: in a folder of sets MAME knows none of, Not Recognized is there in its place |
+| **Online Games** | With **Online Play** on, while someone hosts one of your games in RetroArch's lobby: each, with who hosts it; select joins it ([Online play](#online-play)) |
 | **Favorites** | The games put on Favorites, by name |
 | **Recently Played** | The games played last, latest first (up to 30) |
 | A genre (**Beat 'em Up**, **Fighting**, **Shmup**, **Run and Gun**…) | The games of that genre, by catver.ini ([below](#genres)) |
@@ -259,9 +264,54 @@ Six-player games, such as X-Men (6 Players), take six controllers: the JAMMA boa
 
 With **High Scores** on (the default), MAME runs with its hiscore plugin, which keeps the high score tables of the games that forget them when they are switched off, as most early ones do: each in `arcade/hiscore/<game>.hi` in the data folder, for the games its `hiscore.dat` knows (the one in MAME's plugins). Games that keep their own scores in NVRAM keep them in `arcade/nvram`. A table is saved when the game closes the proper way, with Coin and Start, and also a few seconds after a new score goes in. The [High Scores](https://github.com/mehmetraif/OSD-OS/wiki/High-Scores) module shows the tables, as lines of names and scores, and the Arcade screen shows the best entries of each game's beside it.
 
+## FinalBurn Neo
+
+FinalBurn Neo is an arcade emulator of its own, played here in RetroArch as a libretro core. The module plays a game in it where it has what MAME hasn't: RetroAchievements, whose leaderboards take each game's scores from players everywhere. It plays the games FinalBurn Neo has (its list holds some 8,400 arcade sets, clones among them, with Capcom's CPS boards and SNK's Neo-Geo) from the same games folder, on the same screens.
+
+**Which engine plays a game** is the game's own choice, **Engine** in its options ([A game's options](#a-games-options)), Auto unless it is changed:
+
+| Engine | The game plays in |
+|---|---|
+| **Auto** | FinalBurn Neo while **Online High Scores** is **RetroAchievements** or **Online Play** is on (or with no MAME installed), for a game it has; MAME otherwise. The option names the one it picks: `Auto (FinalBurn Neo)` |
+| **MAME** | MAME, always |
+| **FinalBurn Neo** | FinalBurn Neo, always |
+
+The Arcade screen's box and the screen before a game say nothing different; the credits do: COIN buys none for a FinalBurn Neo game, as nothing puts them in for it, so insert a coin in the game itself.
+
+**Its sets** are FinalBurn Neo's own, named as MAME names its games, and most of a ROM set for MAME 0.276 plays in it too: a set it doesn't know, or one it needs another file for, stops with a notice naming the files, and **Engine: MAME** plays it as before. A Neo-Geo game needs `neogeo.zip`, beside the games or in their `bios` folder, as for MAME. It plays a zip or a 7z, not a folder of files.
+
+**Playing** is as with MAME: the same screen first, then RetroArch full screen, and back to OSD/OS with **Coin and Start together** on a player's controller (RetroArch's own way out, Select and Start), or **Esc** on a keyboard. Each player's controller is the one **Settings → Controls → Players** gives that player, the game's buttons laid on it as FinalBurn Neo lays them on a pad. RetroArch's menu is **F1** on a keyboard; OSD/OS writes RetroArch's settings anew for each game, so a change made there lasts that game, but FinalBurn Neo's own options (in the menu's **Core Options**) are kept.
+
+**Online High Scores**, set to **RetroAchievements**, plays the games FinalBurn Neo has in it, signed in to your RetroAchievements account, in **hardcore** mode: the only one whose scores go on the leaderboards, with no save states, rewinding or cheats. Sign in under **Settings → Arcade → RetroAchievements Account**:
+
+1. Make an account at retroachievements.org, if you have none.
+2. **User**, then **Password**, typed on the on-screen keyboard (SHIFT for capitals; the password shows as stars), then **Sign In**. The page says **At the Next Game**: RetroAchievements lets an emulator sign in, not a launcher, so RetroArch signs in with it as the next FinalBurn Neo game starts, and keeps a token in its place. OSD/OS keeps the password only until then, in memory.
+3. After that game the page says **Signed In**, or **Not Signed In** with RetroAchievements' reason: sign in again.
+4. For the leaderboards on the Arcade screen, **Web API Key**: your account's key, from retroachievements.org's **Settings** page, under **Keys**, typed on the on-screen keyboard. The page then says **Kept**, or **Refused** once RetroAchievements has turned it down: type it again. **Forget Web API Key** takes the leaderboards away again.
+
+With a key given, the Arcade screen's box shows each FinalBurn Neo game's RetroAchievements leaderboard, under **RA Hi-Score**: its top three, the rank, the score and the user. It is read as the game is chosen, over HTTPS, and kept ten minutes: `Reading…` meanwhile, `No Leaderboard` for a game RetroAchievements has no leaderboard of, and `Not Reachable` without a connection, or with a key it refused. Of a game's leaderboards it shows the high scores' (the one whose name says score, where the highest is best). RetroAchievements' list of arcade games, with which each game is found, is kept a week in `arcade/retroachievements-games.json`.
+
+The account, its token and its key are kept in `arcade/retroachievements.json`, readable by you alone; **Sign Out** forgets the account and its token. RetroArch as Debian builds it reaches RetroAchievements over plain HTTP, the password at that first sign-in and the token after it, so use a password you use nowhere else.
+
+The High Scores module shows MAME's tables only: a game played in FinalBurn Neo keeps no table on the machine.
+
+**Settings → Arcade → FinalBurn Neo** shows what it has: RetroArch, the core (**Downloaded** with its date, or **Installed**), and how many games its list has. **Download** (**Download Again** for a newer one) fetches the latest core libretro builds every night for the machine (64-bit Linux on a Pi or a PC, or a Mac), with its list of games and its licence, about 35 MB, into `arcade/retroarch` in the data folder, ahead of any installed with RetroArch. **License** shows FinalBurn Neo's licence: it may be used and shared, never sold, and no ROMs come with it.
+
+## Online play
+
+**Settings → Arcade → Online Play**, **On**, plays the games FinalBurn Neo has with others over the internet, through RetroArch's netplay and its lobby, the list of the games RetroArch players host everywhere (lobby.libretro.com).
+
+- **Joining**: **Online Games** (the first folder of the tree, or a filter of the Arcade screen) lists the games hosted in the lobby that you have in your games folder, each with who hosts it and where; select joins one. The list is read as Arcade opens, and every 20 seconds while it is shown: a game stays in the lobby only while its host is there. A game with a password isn't listed.
+- **Hosting**: **Host Online Game**, in a game's options, starts the game for others to join: it shows in the lobby under your name, through the **Relay Server** chosen, so that no router of yours has to let anyone in.
+- **Coming back**: as from any game, Coin and Start together, or Esc; the others stay or leave in RetroArch as it says.
+
+**Online Name** is the name the others see, typed on the on-screen keyboard; unset, the RetroAchievements account's, else OSD-OS. **Relay Server** is where a game you host goes through: New York (the default), Madrid, São Paulo, Singapore or Chuncheon, the nearest playing smoothest.
+
+Both players need the same game's set: a game listed under Online Games is in your folder under the name the host's has, but a set of another version may not play together. The lobby's names are other players' own, shown without markup; the lobby is read over plain HTTP, as RetroArch reads it, and holds nothing of yours.
+
 ## The picture and the sound
 
-MAME draws the game in the display mode OSD/OS runs in (**Settings → Display Output**: on the JAMMA board, its 240p), scaled to it; a vertical game stands upright inside the horizontal screen. On a Raspberry Pi 5 it opens the output the display preset names, as mpv does, rather than the first with a screen plugged in. **Video** chooses how MAME draws: if a game shows no picture, or MAME stops with an error about OpenGL, try another. The sound goes to the card **Settings → Audio Output** chose ([Audio Output](https://github.com/mehmetraif/OSD-OS/wiki/Audio-Output)). With no sound card at all, MAME plays the game without sound (`-sound none`), as its sound output would stop it otherwise.
+MAME draws the game in the display mode OSD/OS runs in (**Settings → Display Output**: on the JAMMA board, its 240p), scaled to it; a vertical game stands upright inside the horizontal screen. On a Raspberry Pi 5 it opens the output the display preset names, as mpv does, rather than the first with a screen plugged in. **Video** chooses how MAME draws: if a game shows no picture, or MAME stops with an error about OpenGL, try another. The sound goes to the card **Settings → Audio Output** chose ([Audio Output](https://github.com/mehmetraif/OSD-OS/wiki/Audio-Output)). With no sound card at all, MAME plays the game without sound (`-sound none`), as its sound output would stop it otherwise. RetroArch draws FinalBurn Neo's games the same way, in the display mode OSD/OS runs in (on the Pi's console through KMS, the first output with a screen plugged in), and plays their sound through the same card, or none.
 
 ## Settings
 
@@ -283,8 +333,12 @@ Settings → Arcade.
 | Help Line | ON, OFF | ON | The game's full name, and what the box under the picture has no line for of its maker, year, players and system, under the Arcade screen's list, in place of Settings' own Help Line; off, the list and the box take its room. Shown while Screen is Arcade | `modules.com.osdos.arcade.help_line` |
 | Start Info Screen | ON, OFF | ON | Before a game, the screen of how to come back (and from the Arcade screen, the credits going in); off, the game starts straight from the list ([Playing](#playing)) | `modules.com.osdos.arcade.start_info` |
 | High Scores | ON, OFF | ON | Keeps the games' high score tables with MAME's hiscore plugin ([above](#high-scores)) | `modules.com.osdos.arcade.high_scores` |
-| Online High Scores | Off | Off | High score tables from the internet beside this machine's own. Comes in a later version | `modules.com.osdos.arcade.online_high_scores` |
-| Online Play | Off | Off | Playing a game with someone over the internet. Comes in a later version | `modules.com.osdos.arcade.online_play` |
+| Online High Scores | Off, RetroAchievements | Off | RetroAchievements: a game FinalBurn Neo has plays in it, in hardcore mode, its scores going to RetroAchievements' leaderboards ([FinalBurn Neo](#finalburn-neo)) | `modules.com.osdos.arcade.online_high_scores` |
+| RetroAchievements Account | (opens the account's page) | | The account the scores go to: sign in and out, and the Web API key the Arcade screen reads the leaderboards with ([FinalBurn Neo](#finalburn-neo)). Shown while Online High Scores is RetroAchievements | |
+| Online Play | Off, On | Off | Playing the games FinalBurn Neo has with others over the internet: Online Games, and Host Online Game in a game's options ([Online play](#online-play)) | `modules.com.osdos.arcade.online_play` |
+| Online Name | (opens the on-screen keyboard) | The RetroAchievements account's, else OSD-OS | The name the others see in online games ([Online play](#online-play)). Shown while Online Play is On | `modules.com.osdos.arcade.online_name` |
+| Relay Server | New York, Madrid, São Paulo, Singapore, Chuncheon | New York | Where a game you host is relayed from ([Online play](#online-play)). Shown while Online Play is On | `modules.com.osdos.arcade.relay_server` |
+| FinalBurn Neo | (opens FinalBurn Neo's page) | | What is installed of RetroArch and FinalBurn Neo, the core's download, and its licence ([FinalBurn Neo](#finalburn-neo)) | |
 | Video | Auto, OpenGL, BGFX, Accelerated, Software | Auto | How MAME draws the game: Auto leaves it to MAME's own settings (Debian's `mame.ini` says OpenGL); the others are MAME's `-video opengl`, `bgfx`, `accel` and `soft` | `modules.com.osdos.arcade.video` |
 | Read the Games Again | (action) | | Asks MAME about every set in the folder again ([Reading the games](#reading-the-games)) | |
 
@@ -301,7 +355,11 @@ Settings → Arcade.
 | `list_style` | `"Straight"`, `"Curved"` or `"3D Curved"` |
 | `info_background` | A number from 0 (transparent) to 100 (solid) |
 | `screen_adjustment` | How far each side of the Arcade screen is moved out (in, below 0) from where OSD/OS lays it out, in 960ths of the screen's width and 720ths of its height: `{ "top": 30, "bottom": 54, "left": 12, "right": 12 }`. Edited by hand, a side out past the screen's edge is drawn at the edge, and two opposite sides that leave less room than the list and the picture need are drawn where OSD/OS lays them out |
-| `online_high_scores`, `online_play` | `"Off"` |
+| `online_high_scores` | `"Off"` or `"RetroAchievements"` |
+| `online_play` | `"Off"` or `"On"` |
+| `online_name` | The name, `""` for the default |
+| `relay_server` | `"New York"`, `"Madrid"`, `"São Paulo"`, `"Singapore"` or `"Chuncheon"` |
+| `engines` | Each game's Engine, by set, but Auto's: `{ "sf2": "fbneo", "mslug": "mame" }` |
 | `video` | `"Auto"`, `"OpenGL"`, `"BGFX"`, `"Accelerated"` or `"Software"` |
 
 The module's entry in `config.json` (in the data folder), with the games on a USB drive, the Arcade screen opening on the fighting games without its hint bar, its filters without the puzzle games and with Capcom's, and MAME's software drawing:
@@ -338,6 +396,9 @@ Everything MAME writes is in `arcade` in the data folder (`~/.local/share/OSD-OS
 | `arcade/hiscore/` | The hiscore plugin's tables ([High scores](#high-scores)) |
 | `arcade/sta/`, `arcade/snap/`, `arcade/inp/`, `arcade/diff/` | Save states, snapshots, input recordings, and what a game with a hard disk writes to it |
 | `arcade/ctrlr/osdos.cfg` | The controller file, written afresh before each game ([Players and buttons](#players-and-buttons)) |
+| `arcade/retroarch/` | RetroArch's, for FinalBurn Neo's games, readable by you alone: `retroarch.cfg`, its settings, written afresh before each game and removed after it; `last.log`, what it said in the last game; `system/fbneo`, the BIOS sets (links to the games folder's `bios`); `saves`, `states` and `config`, the games' NVRAM, save states and FinalBurn Neo's options; and, once downloaded, `cores/fbneo_libretro.so` (`.dylib` on a Mac), `fbneo-arcade.dat` and `fbneo-license.txt` |
+| `arcade/retroachievements.json` | The RetroAchievements account: its user, the token RetroArch signed in with and the Web API key, readable by you alone; never the password |
+| `arcade/retroachievements-games.json` | RetroAchievements' list of arcade games with leaderboards, by their hashes, kept a week ([FinalBurn Neo](#finalburn-neo)) |
 
 Recently Played and Favorites are in `lists.json` with the other modules' lists. In the games folder, beside the sets, the module reads `catver.ini` and the `snap` folder's pictures, as you put them there ([Genres](#genres), [Pictures](#pictures)). MAME runs in `arcade`, with these arguments:
 
@@ -379,6 +440,15 @@ mame galaga \
 | The Arcade screen has no genre filters | Put `catver.ini` in the games folder or in `arcade` in the data folder ([Genres](#genres)), then open Arcade again |
 | `No Picture` | Put the game's picture in the games folder's `snap` folder, named by its set: `snap/galaga.png` ([Pictures](#pictures)). The frame names the file it looks for |
 | The credits bought don't show in the game | They go in 5 seconds into the game. A board still starting up then may miss them: insert a coin in the game with COIN. A game MAME shows a warning for first counts them once the warning is gone |
+| `RetroArch is not installed`, `FinalBurn Neo is not installed` | A game set to play in FinalBurn Neo, with RetroArch or the core missing: install RetroArch, and download the core in **Settings → Arcade → FinalBurn Neo** ([Setting it up](#setting-it-up)), or set the game's **Engine** to MAME |
+| `Missing …: FinalBurn Neo's sets aren't always MAME's` | The set lacks files FinalBurn Neo needs (a set made for MAME often does). Set the game's **Engine** to **MAME**, or put a set made for FinalBurn Neo in the folder |
+| `FinalBurn Neo could not start the game` | FinalBurn Neo doesn't know the set: one for another version. As above |
+| The RetroAchievements account says **Not Signed In** | The reason is on its line: a password RetroAchievements refused, or RetroArch couldn't reach it (no connection). Sign in again, then play a FinalBurn Neo game |
+| The box says `Not Reachable` under **RA Hi-Score** | No connection, or RetroAchievements refused the Web API key: the account page then says **Refused**. Type the key again from retroachievements.org's Settings, Keys |
+| **Online Games** says `Lobby Not Reachable` | No connection, or the lobby is down: the line under it says what went wrong. It is read again every 20 seconds while it is shown |
+| **Online Games** says `No Games Online` | No one in the lobby hosts a game you have, without a password. Host one from a game's options |
+| A game joined online stops, or doesn't start | RetroArch says why on its own screen: the host gone, or sets of other versions. Both players need the same set |
+| RetroArch's picture is on the other screen, or none | On a Pi with two screens plugged in, RetroArch opens the first with a screen. Unplug the other |
 | The Arcade screen's settings aren't in Settings → Arcade | Start Filter, Menu Filters, List Style, Border, Info Background, Screen Adjustment, Hint Bar and Help Line show while **Screen** is **Arcade** |
 | The Arcade screen's edges are cut off on a CRT, or it leaves a border unused | **Settings → Arcade → Screen Adjustment**: move each side of the frame to the screen's edge ([Screen Adjustment](#screen-adjustment)) |
 | A genre, a decade or Favorites isn't among the Arcade screen's filters | It has no games, or **Settings → Arcade → Menu Filters** has it off ([Menu Filters](#menu-filters)) |
@@ -389,7 +459,7 @@ The app's log has the module's lines: `journalctl -u osdos -b | grep -E 'Arcade|
 
 - [Controls](https://github.com/mehmetraif/OSD-OS/wiki/Controls): the players, and the JAMMA board's sticks
 - [Display Output](https://github.com/mehmetraif/OSD-OS/wiki/Display-Output): the JAMMA board's 240p, SCART RGB and composite
-- [Audio Output](https://github.com/mehmetraif/OSD-OS/wiki/Audio-Output): the sound card MAME plays through
+- [Audio Output](https://github.com/mehmetraif/OSD-OS/wiki/Audio-Output): the sound card MAME and RetroArch play through
 - [Scripts](https://github.com/mehmetraif/OSD-OS/wiki/Scripts): other games and emulators, as takeover scripts
 - [The OSD/OS Image](https://github.com/mehmetraif/OSD-OS/wiki/The-OSD-OS-Image): MAME on the image, and the card's OSD-OS partition
 - [Settings](https://github.com/mehmetraif/OSD-OS/wiki/Settings) and [Configuration Files](https://github.com/mehmetraif/OSD-OS/wiki/Configuration-Files)

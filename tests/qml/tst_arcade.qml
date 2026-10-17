@@ -72,8 +72,11 @@ Rectangle {
         property bool border: true
         property var screenAdjustment: ({ top: 0, bottom: 0, left: 0, right: 0 })
         function addCredit() { credits = Math.min(maxCredits, credits + 1) }
-        function startGame(set, title) {
-            if (!arcadeBackend.play(set, credits))
+        function startGame(set, title, online) {
+            var started = online && online.room !== undefined ? arcadeBackend.joinRoom(online.room)
+                        : online && online.hosting ? arcadeBackend.hostGame(set)
+                        : arcadeBackend.play(set, credits)
+            if (!started)
                 return false
             credits = 0
             appCore.add_to_list(moduleId, "recent", { name: title || set, path: "game:" + set, isFolder: false }, 30)
@@ -121,13 +124,21 @@ Rectangle {
             return filterList.map(function(f) { return { id: f.id, name: f.name, count: f.sets.length } })
         }
         function filterGames(id, first, count) {
+            // A filter's own rows (the lobby's rooms), else its sets'.
+            for (var i = 0; i < filterList.length; ++i) {
+                if (filterList[i].id === id && filterList[i].rows)
+                    return filterList[i].rows.slice(first, first + count)
+            }
             return setsOf(id).slice(first, first + count).map(function(set) {
                 return { set: set, name: gameInfo[set] ? gameInfo[set].title : set,
                          favorite: favorites.indexOf(set) >= 0 }
             })
         }
         function filterIndex(id, set) { return setsOf(id).indexOf(set) }
-        function gameDetails(set) { return gameInfo[set] || ({}) }
+        function gameDetails(set) {
+            var details = gameInfo[set]
+            return details ? Object.assign({}, details, { engine: engineOf(set) }) : ({})
+        }
         function play(name, credits) {
             started = started.concat([name])
             credited = credited.concat([credits || 0])
@@ -136,6 +147,73 @@ Rectangle {
         }
         function lastError() { return error }
         function output() { return "sp-s2.sp1 NOT FOUND (tried in mslug neogeo)" }
+        // The sets FinalBurn Neo has (fbneoSets), the engine each plays in
+        // (engines: "fbneo" or "mame", Auto taking FinalBurn Neo's), and the
+        // choices made.
+        property var fbneoSets: []
+        property var engines: ({})
+        property var engineChoicesMade: []
+        // FinalBurn Neo's page, and the RetroAchievements account's.
+        property var fbneo: ({})
+        property bool fbneoDownloading: false
+        property int fbneoProgress: 0
+        property string fbneoMessage: ""
+        // fbneo's own change signal stands for the backend's fbneoChanged().
+        property int downloads: 0
+        function fbneoInfo() { return fbneo }
+        function fbneoLicenseText() { return "You may freely use, modify, and distribute FB Neo." }
+        function downloadFbneo() { downloads++; fbneoDownloading = true; fbneoProgress = 40; fbneoChanged() }
+        property string achievementsUser: ""
+        property string achievementsState: "none"
+        property string achievementsMessage: ""
+        property bool achievementsKey: false
+        property bool achievementsKeyRefused: false
+        property var signIns: []
+        property string keyGiven: ""
+        signal achievementsChanged()
+        // Online Play: the sets that can be hosted, the rooms joined, the
+        // games hosted and the lobby's reads.
+        property var hostable: []
+        property var joined: []
+        property var hosted: []
+        property int roomReads: 0
+        signal roomsChanged()
+        function canHost(set) { return hostable.indexOf(set) >= 0 }
+        function refreshRooms() { roomReads++ }
+        function joinRoom(id) { joined = joined.concat([id]); running = playResult; return playResult }
+        function hostGame(set) { hosted = hosted.concat([set]); running = playResult; return playResult }
+        // Each game's RetroAchievements leaderboard, by set, as leaderboard()
+        // gives it ("off" for any other); changed in place, so the screen
+        // reads it again only on leaderboardReady().
+        property var boards: ({})
+        signal leaderboardReady(string set)
+        function leaderboard(set) { return (engineOf(set) === "fbneo" && boards[set]) || { state: "off" } }
+        function setAchievementsKey(key) { keyGiven = key; achievementsKey = key !== ""; achievementsKeyRefused = false }
+        function signInAchievements(user, password) {
+            signIns = signIns.concat([user + ":" + password])
+            achievementsUser = user
+            achievementsState = "pending"
+        }
+        function signOutAchievements() { achievementsUser = ""; achievementsState = "none" }
+        function engineOf(set) {
+            return engines[set] || (fbneoSets.indexOf(set) >= 0 ? "fbneo" : "mame")
+        }
+        function engineChoices(set) {
+            if (fbneoSets.indexOf(set) < 0)
+                return [{ id: "auto", label: "Auto (MAME)", current: true }, { id: "mame", label: "MAME", current: false }]
+            return [{ id: "auto", label: "Auto (FinalBurn Neo)", current: !engines[set] },
+                    { id: "mame", label: "MAME", current: engines[set] === "mame" },
+                    { id: "fbneo", label: "FinalBurn Neo", current: engines[set] === "fbneo" }]
+        }
+        function setEngine(set, engine) {
+            engineChoicesMade = engineChoicesMade.concat([set + "=" + engine])
+            var map = Object.assign({}, engines)
+            if (engine === "auto")
+                delete map[set]
+            else
+                map[set] = engine
+            engines = map
+        }
     }
 
     // InputManager: player 1's pad, a JAMMA stick, and its buttons' labels.
@@ -241,6 +319,27 @@ Rectangle {
             moduleRoot.screenAdjustment = { top: 0, bottom: 0, left: 0, right: 0 }
             moduleRoot.credits = 0
             arcadeBackend.credited = []
+            arcadeBackend.fbneoSets = []
+            arcadeBackend.engines = {}
+            arcadeBackend.engineChoicesMade = []
+            arcadeBackend.fbneo = { retroarch: "/usr/bin/retroarch", core: "", coreDate: "", downloaded: false,
+                                    games: 0, license: "", canDownload: true }
+            arcadeBackend.fbneoDownloading = false
+            arcadeBackend.fbneoProgress = 0
+            arcadeBackend.fbneoMessage = ""
+            arcadeBackend.downloads = 0
+            arcadeBackend.achievementsUser = ""
+            arcadeBackend.achievementsState = "none"
+            arcadeBackend.achievementsMessage = ""
+            arcadeBackend.achievementsKey = false
+            arcadeBackend.achievementsKeyRefused = false
+            arcadeBackend.signIns = []
+            arcadeBackend.keyGiven = ""
+            arcadeBackend.boards = {}
+            arcadeBackend.hostable = []
+            arcadeBackend.joined = []
+            arcadeBackend.hosted = []
+            arcadeBackend.roomReads = 0
             arcadeBackend.favorites = ["galaga", "sf2"]
             arcadeBackend.filterList = [
                 { id: "all", name: "All Games",
@@ -560,6 +659,279 @@ Rectangle {
             compare(nav.listState.set, "sf2")
             keyClick(Qt.Key_Escape)
             compare(root.backs, 1)
+        }
+
+        // A game FinalBurn Neo plays takes no credits bought (COIN), and
+        // shows none; its options offer its engine, Auto naming FinalBurn
+        // Neo, and MAME chosen there is saved for it, which takes credits.
+        function test_screenFbneoGame() {
+            arcadeBackend.fbneoSets = ["sf2"]
+            var screen = openScreen()
+            compare(screen.currentSet, "sf2")
+            verify(screen.fbneo)
+            keyClick(Qt.Key_5)
+            compare(moduleRoot.credits, 0)
+            compare(findText(screen, "Credit 0"), null)
+            keyPress(Qt.Key_Return)
+            tryVerify(function() { return findText(screen, "Engine: Auto (FinalBurn Neo)") !== null }, 1500)
+            keyRelease(Qt.Key_Return)
+            // The last of them, round from Play.
+            keyClick(Qt.Key_Up)
+            keyClick(Qt.Key_Return)
+            // The chooser's answers as its list lays them out.
+            tryVerify(function() { return findText(screen, "FinalBurn Neo", true) !== null }, 1000)
+            verify(findText(screen, "Auto (FinalBurn Neo)", true) !== null)
+            keyClick(Qt.Key_Down)
+            keyClick(Qt.Key_Return)
+            compare(arcadeBackend.engineChoicesMade, ["sf2=mame"])
+            verify(!screen.fbneo)
+            keyClick(Qt.Key_5)
+            compare(moduleRoot.credits, 1)
+            verify(findText(screen, "Credit 1") !== null)
+            // A game FinalBurn Neo hasn't: no engine to choose.
+            keyClick(Qt.Key_Down)
+            compare(screen.currentSet, "1942")
+            keyPress(Qt.Key_Return)
+            tryVerify(function() { return findText(screen, "Add to Favorites") !== null }, 1500)
+            keyRelease(Qt.Key_Return)
+            compare(findText(screen, "Engine:"), null)
+        }
+
+        // FinalBurn Neo's page: RetroArch there, the core not; Download
+        // starts it and shows how far it has got; once it is in, the core's
+        // date, its games and its licence, a page of its own.
+        function test_fbneoPage() {
+            var page = open("Fbneo.qml")
+            verify(findText(page, "Not Installed") !== null)
+            verify(findText(page, "Download", true) !== null)
+            keyClick(Qt.Key_Down)
+            keyClick(Qt.Key_Down)
+            keyClick(Qt.Key_Down)
+            keyClick(Qt.Key_Return)
+            compare(arcadeBackend.downloads, 1)
+            tryVerify(function() { return findText(page, "40%") !== null }, 1000)
+            keyClick(Qt.Key_Return)
+            compare(arcadeBackend.downloads, 1)
+            arcadeBackend.fbneoDownloading = false
+            arcadeBackend.fbneo = { retroarch: "/usr/bin/retroarch", core: "/data/arcade/retroarch/cores/fbneo_libretro.so",
+                                    coreDate: "2026-10-17", downloaded: true, games: 9123,
+                                    license: "/data/arcade/retroarch/fbneo-license.txt", canDownload: true }
+            arcadeBackend.fbneoChanged()
+            tryVerify(function() { return findText(page, "Downloaded 2026-10-17") !== null }, 1000)
+            verify(findText(page, "9123") !== null)
+            verify(findText(page, "Download Again") !== null)
+            keyClick(Qt.Key_Down)
+            keyClick(Qt.Key_Return)
+            tryVerify(function() { return findText(page, "freely use, modify") !== null }, 1000)
+            keyClick(Qt.Key_Escape)
+            compare(findText(page, "freely use, modify"), null)
+            compare(root.backs, 0)
+            keyClick(Qt.Key_Escape)
+            compare(root.backs, 1)
+        }
+
+        // The account's page: the user and password typed (the password a
+        // star a letter, both cases kept), Sign In hands them over for the
+        // next game, and Sign Out brings them back.
+        function test_accountPage() {
+            var page = open("Account.qml")
+            verify(findText(page, "None") !== null)
+            keyClick(Qt.Key_Down)
+            keyClick(Qt.Key_Down)   // User
+            keyClick(Qt.Key_Return)
+            tryVerify(function() { return findText(page, "RetroAchievements User") !== null }, 1000)
+            for (var i = 0; i < "Player".length; ++i)
+                keyClick("Player"[i])
+            keyClick(Qt.Key_Return)
+            tryVerify(function() { return findText(page, "Player", true) !== null }, 1000)
+            keyClick(Qt.Key_Down)   // Password
+            keyClick(Qt.Key_Return)
+            for (var j = 0; j < "Se".length; ++j)
+                keyClick("Se"[j])
+            verify(findText(page, "**", true) !== null)
+            keyClick(Qt.Key_Return)
+            keyClick(Qt.Key_Down)   // Sign In
+            keyClick(Qt.Key_Return)
+            compare(arcadeBackend.signIns, ["Player:Se"])
+            tryVerify(function() { return findText(page, "At the Next Game") !== null }, 1000)
+            verify(findText(page, "Sign Out", true) !== null)
+            // Sign In gone, the cursor on the account's first line; the
+            // password gone from the page.
+            compare(page.keys, ["state", "status", "signOut", "key"])
+            compare(page.typedPassword, "")
+            // The key, kept by the backend and never shown; refused, the
+            // page says so; forgotten, its line goes.
+            keyClick(Qt.Key_Down)
+            keyClick(Qt.Key_Down)
+            keyClick(Qt.Key_Down)
+            keyClick(Qt.Key_Return)
+            tryVerify(function() { return findText(page, "Web API Key") !== null }, 1000)
+            keyClick("A")
+            keyClick("b")
+            keyClick(Qt.Key_Return)
+            compare(arcadeBackend.keyGiven, "Ab")
+            tryVerify(function() { return findText(page, "Kept", true) !== null }, 1000)
+            compare(findText(page, "Ab", true), null)
+            compare(page.keys, ["state", "status", "signOut", "key", "forgetKey"])
+            arcadeBackend.achievementsKeyRefused = true
+            tryVerify(function() { return findText(page, "Refused", true) !== null }, 1000)
+            verify(findText(page, "refused the key") !== null)
+            keyClick(Qt.Key_Down)
+            keyClick(Qt.Key_Return)
+            compare(arcadeBackend.keyGiven, "")
+            tryVerify(function() { return page.keys.length === 4 }, 1000)
+            compare(page.keys[3], "key")
+            // Its line gone, the cursor on the first; signed out, the lines
+            // to sign in again.
+            keyClick(Qt.Key_Down)
+            keyClick(Qt.Key_Down)
+            keyClick(Qt.Key_Return)
+            tryVerify(function() { return page.keys.length === 6 }, 1000)
+            compare(page.keys, ["state", "status", "user", "password", "signIn", "key"])
+        }
+
+        // A game FinalBurn Neo plays with a leaderboard to show: its top
+        // three under RA Hi-Score, the users' names wider than initials;
+        // while it is read and for a game RetroAchievements hasn't, the box
+        // says so; another game's leaderboard read changes nothing; the High
+        // Scores module's table for a game MAME plays.
+        function test_screenLeaderboard() {
+            arcadeBackend.fbneoSets = ["sf2"]
+            arcadeBackend.boards = { sf2: { state: "loading" } }
+            var screen = openScreen()
+            compare(screen.currentSet, "sf2")
+            verify(findText(screen, "RA Hi-Score", true) !== null)
+            verify(findText(screen, "Reading…", true) !== null)
+            compare(findText(screen, "110,000"), null)
+            arcadeBackend.boards.sf2 = { state: "ready", title: "High Score", entries: [
+                { rank: "1ST", score: "1,234,560", name: "Mehmet" }, { rank: "2ND", score: "990,000", name: "Player2" },
+                { rank: "3RD", score: "12,000", name: "abc" }] }
+            arcadeBackend.leaderboardReady("1942")
+            verify(findText(screen, "Reading…", true) !== null)
+            arcadeBackend.leaderboardReady("sf2")
+            tryVerify(function() { return findText(screen, "1,234,560", true) !== null }, 1000)
+            compare(findText(screen, "Reading…", true), null)
+            var name = findText(screen, "Mehmet", true)
+            verify(name !== null)
+            compare(name.width, Math.round(100 * screen.u))
+            verify(findText(screen, "3RD", true) !== null)
+            arcadeBackend.boards.sf2 = { state: "none" }
+            arcadeBackend.leaderboardReady("sf2")
+            tryVerify(function() { return findText(screen, "No Leaderboard", true) !== null }, 1000)
+            arcadeBackend.boards.sf2 = { state: "failed" }
+            arcadeBackend.leaderboardReady("sf2")
+            tryVerify(function() { return findText(screen, "Not Reachable", true) !== null }, 1000)
+            // A game MAME plays: this machine's own table.
+            arcadeBackend.boards = { sf2: { state: "ready", title: "High Score", entries: [] } }
+            arcadeBackend.engines = { sf2: "mame" }
+            keyClick(Qt.Key_Down)
+            keyClick(Qt.Key_Up)
+            compare(screen.currentSet, "sf2")
+            tryVerify(function() { return findText(screen, "110,000", true) !== null }, 1000)
+            verify(findText(screen, "Hi-Score", true) !== null)
+            compare(findText(screen, "RA Hi-Score", true), null)
+        }
+
+        // Online Games in the tree: select joins a room, which has no
+        // options, the line under the tree saying whose it is; a game's
+        // options host it where it can be.
+        function test_onlineTree() {
+            arcadeBackend.entries = Object.assign({}, arcadeBackend.entries, {
+                "top": [{ name: "Online Games", path: "online", isFolder: true }].concat(arcadeBackend.entries.top),
+                "online": [{ name: "Street Fighter II (ann)", path: "room:11", isFolder: false, kind: "room",
+                             game: "sf2", room: 11, host: "ann", detail: "Hosted by ann in ES • sf2.zip" }]
+            })
+            arcadeBackend.hostable = ["pacman"]
+            var games = open("Games.qml")
+            keyClick(Qt.Key_Right)
+            tryVerify(function() { return findText(games, "Hosted by ann in ES") !== null }, 1000)
+            verify(findText(games, ":JOIN") !== null)
+            compare(findText(games, ":OPTIONS"), null)
+            keyClick(Qt.Key_Right)
+            compare(findText(games, "Add to Favorites"), null)
+            keyClick(Qt.Key_Return)
+            compare(root.navigations.length, 1)
+            compare(root.navigations[0].path, "Play.qml")
+            compare(root.navigations[0].params.game, "sf2")
+            compare(root.navigations[0].params.online.room, 11)
+            compare(root.navigations[0].params.online.host, "ann")
+            // Pac-Man, in Favorites: hosted from its options, the last of
+            // them.
+            keyClick(Qt.Key_Left)
+            keyClick(Qt.Key_Down)
+            keyClick(Qt.Key_Down)
+            keyClick(Qt.Key_Right)
+            keyClick(Qt.Key_Right)
+            tryVerify(function() { return findText(games, "Host Online Game") !== null }, 1000)
+            keyClick(Qt.Key_Up)
+            keyClick(Qt.Key_Return)
+            compare(root.navigations.length, 2)
+            compare(root.navigations[1].params.game, "pacman")
+            verify(root.navigations[1].params.online.hosting)
+        }
+
+        // The Arcade screen's Online Games: select joins the room, JOIN in
+        // the hint bar, and held, nothing; a game's options host it where it
+        // can be.
+        function test_onlineScreen() {
+            arcadeBackend.filterList = [{ id: "online", name: "Online Games", sets: ["sf2"],
+                                          rows: [{ set: "sf2", name: "Street Fighter II (ann)", favorite: false,
+                                                   room: 11, host: "ann" }] }].concat(arcadeBackend.filterList)
+            arcadeBackend.hostable = ["sf2"]
+            moduleRoot.startFilter = "online"
+            var screen = openScreen()
+            compare(screen.filterId, "online")
+            verify(findText(screen, "Street Fighter II (ann)") !== null)
+            verify(findText(screen, ":JOIN") !== null)
+            keyPress(Qt.Key_Return)
+            keyRelease(Qt.Key_Return)
+            compare(root.navigations.length, 1)
+            compare(root.navigations[0].params.game, "sf2")
+            compare(root.navigations[0].params.online.room, 11)
+            compare(root.navigations[0].params.online.host, "ann")
+            keyPress(Qt.Key_Return)
+            wait(1000)
+            keyRelease(Qt.Key_Return)
+            compare(findText(screen, "Add to Favorites"), null)
+            compare(root.navigations.length, 1)
+            // All Games, on the same game: hosted from its options.
+            keyClick(Qt.Key_Right)
+            compare(screen.filterId, "all")
+            compare(screen.currentSet, "sf2")
+            keyPress(Qt.Key_Return)
+            tryVerify(function() { return findText(screen, "Host Online Game") !== null }, 1500)
+            keyRelease(Qt.Key_Return)
+            keyClick(Qt.Key_Up)
+            keyClick(Qt.Key_Return)
+            compare(root.navigations.length, 2)
+            compare(root.navigations[1].params.game, "sf2")
+            verify(root.navigations[1].params.online.hosting)
+        }
+
+        // A room joined from the game's screen says whose game it is and
+        // joins it; a game hosted says so and hosts it; and with Start Info
+        // Screen off, the router joins straight from the list.
+        function test_playOnline() {
+            var play = open("Play.qml", { game: "sf2", title: "Street Fighter II (ann)", online: { room: 11, host: "ann" } })
+            verify(findText(play, "Joining ann's game online") !== null)
+            tryCompare(play, "phase", "running", 3000)
+            compare(arcadeBackend.joined, [11])
+            compare(arcadeBackend.started, [])
+            arcadeBackend.running = false
+            arcadeBackend.finished(0, "ok", "")
+            play = open("Play.qml", { game: "sf2", title: "Street Fighter II", online: { hosting: true } })
+            verify(findText(play, "Hosting online: others join from RetroArch's lobby") !== null)
+            tryCompare(play, "phase", "running", 3000)
+            compare(arcadeBackend.hosted, ["sf2"])
+            arcadeBackend.running = false
+            arcadeBackend.finished(0, "ok", "")
+            loader.source = ""
+            appCore.added = []
+            var router = openRoot({ start_info: false })
+            router.playGame({ game: "sf2", title: "Street Fighter II (ann)", online: { room: 11, host: "ann" } }, {})
+            tryVerify(function() { return arcadeBackend.joined.length === 2 })
+            compare(arcadeBackend.started, [])
+            compare(appCore.added, [["com.osdos.arcade", "recent", "game:sf2"]])
         }
 
         // Select plays the game as it is let go; held, it opens the game's

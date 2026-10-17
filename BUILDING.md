@@ -52,13 +52,21 @@ brew install mame
 
 The Arcade module plays its games in MAME, a program of its own: it looks for `bin/mame` in the data directory first, then `mame` on the `PATH`. See the wiki's [Arcade](https://github.com/mehmetraif/OSD-OS/wiki/Arcade) page.
 
-**Install minizip (optional, for the High Scores module's tables):**
+**Install RetroArch (optional, for the Arcade module's second engine, FinalBurn Neo):**
+
+```bash
+brew install --cask retroarch
+```
+
+The module finds `RetroArch.app` in `/Applications`; Settings → Arcade → FinalBurn Neo then downloads the FinalBurn Neo core, its list of games and its licence, unpacking the core with minizip (below).
+
+**Install minizip (optional, for the High Scores module's tables and FinalBurn Neo's download):**
 
 ```bash
 brew install minizip
 ```
 
-The High Scores module reads MAME's high score files with openhi2txt (`thirdparty/openhi2txt`, built with the app), which opens hi2txt's game definitions (`modules/highscores/data/hi2txt.zip`) with minizip, linked into the app. Without it the module is there but shows no tables, and says why. See the wiki's [High Scores](https://github.com/mehmetraif/OSD-OS/wiki/High-Scores) page.
+The High Scores module reads MAME's high score files with openhi2txt (`thirdparty/openhi2txt`, built with the app), which opens hi2txt's game definitions (`modules/highscores/data/hi2txt.zip`) with minizip, linked into the app. Without it the module is there but shows no tables, and says why, and the Arcade module can't unpack the FinalBurn Neo core it downloads (one installed with RetroArch still plays). See the wiki's [High Scores](https://github.com/mehmetraif/OSD-OS/wiki/High-Scores) page.
 
 **Install SDL2 (required, gamepad input):**
 
@@ -182,7 +190,7 @@ If IPv4 returns the bot-check error while IPv6 succeeds, the failure is tied to 
 
 IPv6 is not an OSD/OS requirement, and OSD/OS should not enable or force it automatically; these commands are only a diagnostic.
 
-For the Arcade module, install MAME, at run time only: `sudo apt install mame` (the OS image has it; `install.sh` doesn't install it). The module looks for `bin/mame` in the data directory first, then `mame` on the `PATH`, then `/usr/games/mame`. See the wiki's [Arcade](https://github.com/mehmetraif/OSD-OS/wiki/Arcade) page.
+For the Arcade module, install MAME, at run time only: `sudo apt install mame` (the OS image has it; `install.sh` doesn't install it). The module looks for `bin/mame` in the data directory first, then `mame` on the `PATH`, then `/usr/games/mame`. For its second engine, FinalBurn Neo, install RetroArch the same way (`sudo apt install retroarch`), with the user the app runs as in the `input` group, then download the core in Settings → Arcade → FinalBurn Neo (an app built with minizip unpacks it; the OS image has the core already). See the wiki's [Arcade](https://github.com/mehmetraif/OSD-OS/wiki/Arcade) page.
 
 ### Get the source
 
@@ -457,7 +465,7 @@ Set them inline, e.g. `QML_IMPORT_TRACE=1 APP_ROOT=$(pwd) ./build/osdos`.
 
 ## GitHub Actions
 
-Besides the release workflow below, three run on their own: **Regression tests** ([regression-tests.yml](.github/workflows/regression-tests.yml)) builds the app and runs the tests in `tests/` on Linux x64 and arm64 for every pull request, and every push to `main`, that touches the C++ (see [tests/README.md](tests/README.md)), and once more on Raspberry Pi OS: a Debian 13 "trixie" container with Raspberry Pi's archive added as pi-gen adds it for the OS image, on arm64 (other workflows can call it too, `workflow_call`, and the release workflow does); **OS image** ([os-image.yml](.github/workflows/os-image.yml)) builds the OSD/OS image for a pull request that touches it; and **Wiki** ([wiki.yml](.github/workflows/wiki.yml)) publishes `docs/wiki` to the [GitHub wiki](https://github.com/mehmetraif/OSD-OS/wiki) whenever it changes on `main`, replacing what the wiki had (GitHub makes a wiki's repository only once its first page is saved in the web interface, so that is done once first).
+Besides the release workflow below, three run on their own: **Regression tests** ([regression-tests.yml](.github/workflows/regression-tests.yml)) builds the app and runs the tests in `tests/` on Linux x64 and arm64 for every pull request, and every push to `main`, that touches the app or its tests (its C++, QML, assets, shaders and scripts; see [tests/README.md](tests/README.md)), and once more on Raspberry Pi OS: a Debian 13 "trixie" container with Raspberry Pi's archive added as pi-gen adds it for the OS image, on arm64 (other workflows can call it too, `workflow_call`, and the release workflow does); **OS image** ([os-image.yml](.github/workflows/os-image.yml)) builds the OSD/OS image for a pull request that touches it; and **Wiki** ([wiki.yml](.github/workflows/wiki.yml)) publishes `docs/wiki` to the [GitHub wiki](https://github.com/mehmetraif/OSD-OS/wiki) whenever it changes on `main`, replacing what the wiki had (GitHub makes a wiki's repository only once its first page is saved in the web interface, so that is done once first).
 
 ### How to trigger a build
 
