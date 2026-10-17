@@ -43,7 +43,7 @@ class QTimer;
 //   states and the like, and the controller file Settings → Controls'
 //   players are given to it in (mame::controllerConfig). The credits bought
 //   on the screen go in as it starts (mame::coinScript). It ends the way
-//   MAME does, Coin and Start together on player 1's controller or Esc,
+//   MAME does, Coin and Start together on any player's controller or Esc,
 //   never stopped from here: MAME ignores SIGTERM, and a game killed loses
 //   what it would have saved.
 // - Settings → Arcade → Play at Startup is the app's startup favourite

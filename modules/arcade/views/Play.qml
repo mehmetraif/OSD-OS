@@ -19,7 +19,7 @@ import Components
 // before MAME starts; the credits go in with the game (ArcadeBackend::play),
 // and are spent.
 //
-// The way back is MAME's own, Coin and Start together on player 1's
+// The way back is MAME's own, Coin and Start together on any player's
 // controller or Esc on a keyboard (the controller file ArcadeBackend writes),
 // so that MAME saves the game's high scores and settings as it closes. While
 // it runs every key reaches this view too (both read the controllers) and is

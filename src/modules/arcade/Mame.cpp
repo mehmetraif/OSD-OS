@@ -477,12 +477,20 @@ QString coinScript(int coins) {
 
 QString controllerConfig(const QStringList &playerGuids) {
     QString maps;
+    // Coin and Start on every player's controller, as player 1's may be the
+    // one unplugged; on MAME's first joystick always, player 1's when no
+    // controller is set.
+    QString leave = QStringLiteral("KEYCODE_ESC OR JOYCODE_1_SELECT JOYCODE_1_START");
     QSet<QString> mapped;
     for (int p = 0; p < playerGuids.size(); ++p) {
         const QString guid = playerGuids.at(p).trimmed();
+        if (guid.isEmpty())
+            continue;
+        if (p > 0)
+            leave += QStringLiteral(" OR JOYCODE_%1_SELECT JOYCODE_%1_START").arg(p + 1);
         // MAME keeps one line per device: a second player on a pad of the
         // same model goes where MAME's order puts it.
-        if (guid.isEmpty() || mapped.contains(guid))
+        if (mapped.contains(guid))
             continue;
         mapped.insert(guid);
         maps += QStringLiteral("            <mapdevice device=\"%1\" controller=\"JOYCODE_%2\" />\n")
@@ -491,18 +499,18 @@ QString controllerConfig(const QStringList &playerGuids) {
     return QStringLiteral(
                "<?xml version=\"1.0\"?>\n"
                "<!-- Written by OSD/OS as each game starts: the players of Settings -> Controls,\n"
-               "     and Coin and Start together on player 1's controller, or Esc, to leave the game. -->\n"
+               "     and Coin and Start together on any player's controller, or Esc, to leave the game. -->\n"
                "<mameconfig version=\"10\">\n"
                "    <system name=\"default\">\n"
                "        <input>\n"
                "%1"
                "            <port type=\"UI_CANCEL\">\n"
-               "                <newseq type=\"standard\">KEYCODE_ESC OR JOYCODE_1_SELECT JOYCODE_1_START</newseq>\n"
+               "                <newseq type=\"standard\">%2</newseq>\n"
                "            </port>\n"
                "        </input>\n"
                "    </system>\n"
                "</mameconfig>\n")
-        .arg(maps);
+        .arg(maps, leave);
 }
 
 Missing missingFiles(const QString &output) {
