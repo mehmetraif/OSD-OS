@@ -83,14 +83,27 @@ the image.
   Copyright 2018-2026 the Deno authors. The licence's text is in
   /usr/local/share/doc/deno/LICENSE.md.
 
+- FinalBurn Neo (https://github.com/libretro/FBNeo), the arcade emulator
+  RetroArch plays the Arcade module's games with for RetroAchievements and
+  online play: the core /usr/local/lib/libretro/fbneo_libretro.so, from
+  libretro's nightly builds (https://buildbot.libretro.com), with its list
+  of arcade games in /usr/local/share/libretro/fbneo/. It is Team FB Neo's,
+  under its own licence, which also brings in MAME's: it may be used and
+  shared, never sold, and a project that uses it may not ask for
+  donations. The licence's full text is in
+  /usr/local/share/doc/fbneo/license.txt, and the build's date and CRC in
+  /usr/local/share/doc/fbneo/BUILD. No ROM images come with it.
+  RetroArch itself is Debian's retroarch package (GPL-3.0).
+
 - Widevine (the libwidevinecdm0 package), Google's content decryption
   module, which the Netflix and Prime Video players need. It is installed
   from the Raspberry Pi archive, as Raspberry Pi OS installs it. It is
   Google's proprietary software: none of the licences in this file cover
   it, and its package carries no licence of its own.
 
-An image built with OSDOS_YOUTUBE=0 has neither yt-dlp nor Deno, and one
-built with OSDOS_STREAMING=0 has no Chromium or Widevine.
+An image built with OSDOS_YOUTUBE=0 has neither yt-dlp nor Deno, one built
+with OSDOS_STREAMING=0 has no Chromium or Widevine, and one built with
+OSDOS_ARCADE=0 has no FinalBurn Neo.
 
 
 4. Data the modules show

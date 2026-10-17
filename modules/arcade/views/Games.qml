@@ -172,11 +172,27 @@ FocusScope {
         onCanceled: tree.forceActiveFocus()
     }
 
+    // A game's options, its engine among them where FinalBurn Neo has it.
+    property int engineRevision: 0
+    readonly property string optionsSet: options.entry && String(options.entry.path).indexOf("game:") === 0
+                                         ? String(options.entry.path).substring(5) : ""
     EntryOptions {
         id: options
         anchors.fill: parent
         moduleId: moduleRoot.moduleId
+        moreChoices: (gamesRoot.engineRevision, engines.offered(gamesRoot.optionsSet)
+                      ? [{ label: engines.lineFor(gamesRoot.optionsSet), action: "engine" }] : [])
+        onActivated: function(action) {
+            if (action === "engine")
+                engines.offer(gamesRoot.optionsSet, options.entry.name)
+        }
         onFavoritesEdited: tree.refresh("favorites")
+        onClosed: if (!engines.visible) tree.forceActiveFocus()
+    }
+    EngineChooser {
+        id: engines
+        anchors.fill: parent
+        onEngineChosen: gamesRoot.engineRevision++
         onClosed: tree.forceActiveFocus()
     }
 }

@@ -127,7 +127,10 @@ Rectangle {
             })
         }
         function filterIndex(id, set) { return setsOf(id).indexOf(set) }
-        function gameDetails(set) { return gameInfo[set] || ({}) }
+        function gameDetails(set) {
+            var details = gameInfo[set]
+            return details ? Object.assign({}, details, { engine: engineOf(set) }) : ({})
+        }
         function play(name, credits) {
             started = started.concat([name])
             credited = credited.concat([credits || 0])
@@ -136,6 +139,52 @@ Rectangle {
         }
         function lastError() { return error }
         function output() { return "sp-s2.sp1 NOT FOUND (tried in mslug neogeo)" }
+        // The sets FinalBurn Neo has (fbneoSets), the engine each plays in
+        // (engines: "fbneo" or "mame", Auto taking FinalBurn Neo's), and the
+        // choices made.
+        property var fbneoSets: []
+        property var engines: ({})
+        property var engineChoicesMade: []
+        // FinalBurn Neo's page, and the RetroAchievements account's.
+        property var fbneo: ({})
+        property bool fbneoDownloading: false
+        property int fbneoProgress: 0
+        property string fbneoMessage: ""
+        // fbneo's own change signal stands for the backend's fbneoChanged().
+        property int downloads: 0
+        function fbneoInfo() { return fbneo }
+        function fbneoLicenseText() { return "You may freely use, modify, and distribute FB Neo." }
+        function downloadFbneo() { downloads++; fbneoDownloading = true; fbneoProgress = 40; fbneoChanged() }
+        property string achievementsUser: ""
+        property string achievementsState: "none"
+        property string achievementsMessage: ""
+        property var signIns: []
+        signal achievementsChanged()
+        function signInAchievements(user, password) {
+            signIns = signIns.concat([user + ":" + password])
+            achievementsUser = user
+            achievementsState = "pending"
+        }
+        function signOutAchievements() { achievementsUser = ""; achievementsState = "none" }
+        function engineOf(set) {
+            return engines[set] || (fbneoSets.indexOf(set) >= 0 ? "fbneo" : "mame")
+        }
+        function engineChoices(set) {
+            if (fbneoSets.indexOf(set) < 0)
+                return [{ id: "auto", label: "Auto (MAME)", current: true }, { id: "mame", label: "MAME", current: false }]
+            return [{ id: "auto", label: "Auto (FinalBurn Neo)", current: !engines[set] },
+                    { id: "mame", label: "MAME", current: engines[set] === "mame" },
+                    { id: "fbneo", label: "FinalBurn Neo", current: engines[set] === "fbneo" }]
+        }
+        function setEngine(set, engine) {
+            engineChoicesMade = engineChoicesMade.concat([set + "=" + engine])
+            var map = Object.assign({}, engines)
+            if (engine === "auto")
+                delete map[set]
+            else
+                map[set] = engine
+            engines = map
+        }
     }
 
     // InputManager: player 1's pad, a JAMMA stick, and its buttons' labels.
@@ -241,6 +290,19 @@ Rectangle {
             moduleRoot.screenAdjustment = { top: 0, bottom: 0, left: 0, right: 0 }
             moduleRoot.credits = 0
             arcadeBackend.credited = []
+            arcadeBackend.fbneoSets = []
+            arcadeBackend.engines = {}
+            arcadeBackend.engineChoicesMade = []
+            arcadeBackend.fbneo = { retroarch: "/usr/bin/retroarch", core: "", coreDate: "", downloaded: false,
+                                    games: 0, license: "", canDownload: true }
+            arcadeBackend.fbneoDownloading = false
+            arcadeBackend.fbneoProgress = 0
+            arcadeBackend.fbneoMessage = ""
+            arcadeBackend.downloads = 0
+            arcadeBackend.achievementsUser = ""
+            arcadeBackend.achievementsState = "none"
+            arcadeBackend.achievementsMessage = ""
+            arcadeBackend.signIns = []
             arcadeBackend.favorites = ["galaga", "sf2"]
             arcadeBackend.filterList = [
                 { id: "all", name: "All Games",
@@ -560,6 +622,111 @@ Rectangle {
             compare(nav.listState.set, "sf2")
             keyClick(Qt.Key_Escape)
             compare(root.backs, 1)
+        }
+
+        // A game FinalBurn Neo plays takes no credits bought (COIN), and
+        // shows none; its options offer its engine, Auto naming FinalBurn
+        // Neo, and MAME chosen there is saved for it, which takes credits.
+        function test_screenFbneoGame() {
+            arcadeBackend.fbneoSets = ["sf2"]
+            var screen = openScreen()
+            compare(screen.currentSet, "sf2")
+            verify(screen.fbneo)
+            keyClick(Qt.Key_5)
+            compare(moduleRoot.credits, 0)
+            compare(findText(screen, "Credit 0"), null)
+            keyPress(Qt.Key_Return)
+            tryVerify(function() { return findText(screen, "Engine: Auto (FinalBurn Neo)") !== null }, 1500)
+            keyRelease(Qt.Key_Return)
+            // The last of them, round from Play.
+            keyClick(Qt.Key_Up)
+            keyClick(Qt.Key_Return)
+            // The chooser's answers as its list lays them out.
+            tryVerify(function() { return findText(screen, "FinalBurn Neo", true) !== null }, 1000)
+            verify(findText(screen, "Auto (FinalBurn Neo)", true) !== null)
+            keyClick(Qt.Key_Down)
+            keyClick(Qt.Key_Return)
+            compare(arcadeBackend.engineChoicesMade, ["sf2=mame"])
+            verify(!screen.fbneo)
+            keyClick(Qt.Key_5)
+            compare(moduleRoot.credits, 1)
+            verify(findText(screen, "Credit 1") !== null)
+            // A game FinalBurn Neo hasn't: no engine to choose.
+            keyClick(Qt.Key_Down)
+            compare(screen.currentSet, "1942")
+            keyPress(Qt.Key_Return)
+            tryVerify(function() { return findText(screen, "Add to Favorites") !== null }, 1500)
+            keyRelease(Qt.Key_Return)
+            compare(findText(screen, "Engine:"), null)
+        }
+
+        // FinalBurn Neo's page: RetroArch there, the core not; Download
+        // starts it and shows how far it has got; once it is in, the core's
+        // date, its games and its licence, a page of its own.
+        function test_fbneoPage() {
+            var page = open("Fbneo.qml")
+            verify(findText(page, "Not Installed") !== null)
+            verify(findText(page, "Download", true) !== null)
+            keyClick(Qt.Key_Down)
+            keyClick(Qt.Key_Down)
+            keyClick(Qt.Key_Down)
+            keyClick(Qt.Key_Return)
+            compare(arcadeBackend.downloads, 1)
+            tryVerify(function() { return findText(page, "40%") !== null }, 1000)
+            keyClick(Qt.Key_Return)
+            compare(arcadeBackend.downloads, 1)
+            arcadeBackend.fbneoDownloading = false
+            arcadeBackend.fbneo = { retroarch: "/usr/bin/retroarch", core: "/data/arcade/retroarch/cores/fbneo_libretro.so",
+                                    coreDate: "2026-10-17", downloaded: true, games: 9123,
+                                    license: "/data/arcade/retroarch/fbneo-license.txt", canDownload: true }
+            arcadeBackend.fbneoChanged()
+            tryVerify(function() { return findText(page, "Downloaded 2026-10-17") !== null }, 1000)
+            verify(findText(page, "9123") !== null)
+            verify(findText(page, "Download Again") !== null)
+            keyClick(Qt.Key_Down)
+            keyClick(Qt.Key_Return)
+            tryVerify(function() { return findText(page, "freely use, modify") !== null }, 1000)
+            keyClick(Qt.Key_Escape)
+            compare(findText(page, "freely use, modify"), null)
+            compare(root.backs, 0)
+            keyClick(Qt.Key_Escape)
+            compare(root.backs, 1)
+        }
+
+        // The account's page: the user and password typed (the password a
+        // star a letter, both cases kept), Sign In hands them over for the
+        // next game, and Sign Out brings them back.
+        function test_accountPage() {
+            var page = open("Account.qml")
+            verify(findText(page, "None") !== null)
+            keyClick(Qt.Key_Down)
+            keyClick(Qt.Key_Down)   // User
+            keyClick(Qt.Key_Return)
+            tryVerify(function() { return findText(page, "RetroAchievements User") !== null }, 1000)
+            for (var i = 0; i < "Player".length; ++i)
+                keyClick("Player"[i])
+            keyClick(Qt.Key_Return)
+            tryVerify(function() { return findText(page, "Player", true) !== null }, 1000)
+            keyClick(Qt.Key_Down)   // Password
+            keyClick(Qt.Key_Return)
+            for (var j = 0; j < "Se".length; ++j)
+                keyClick("Se"[j])
+            verify(findText(page, "**", true) !== null)
+            keyClick(Qt.Key_Return)
+            keyClick(Qt.Key_Down)   // Sign In
+            keyClick(Qt.Key_Return)
+            compare(arcadeBackend.signIns, ["Player:Se"])
+            tryVerify(function() { return findText(page, "At the Next Game") !== null }, 1000)
+            verify(findText(page, "Sign Out", true) !== null)
+            // Sign In gone, the cursor on the account's first line; the
+            // password gone from the page.
+            compare(page.keys, ["state", "status", "signOut"])
+            compare(page.typedPassword, "")
+            keyClick(Qt.Key_Down)
+            keyClick(Qt.Key_Down)
+            keyClick(Qt.Key_Return)
+            tryVerify(function() { return findText(page, "None") !== null }, 1000)
+            compare(page.keys, ["state", "status", "user", "password", "signIn"])
         }
 
         // Select plays the game as it is let go; held, it opens the game's

@@ -1,0 +1,11 @@
+<?xml version="1.0"?>
+<!DOCTYPE datafile PUBLIC "-//FinalBurn Neo//DTD ROM Management Datafile//EN" "http://www.logiqx.com/Dats/datafile.dtd">
+<datafile>
+	<!-- FinalBurn Neo's arcade DAT as ClrMame Pro's XML has it, for tests/arcade_test.cpp: games, a clone, and a BIOS set, which isn't a game. -->
+	<header><name>FinalBurn Neo - Arcade Games</name><version>1.0.0.03</version></header>
+	<game name="sf2" sourcefile="d_cps1.cpp"><description>Street Fighter II - The World Warrior (World 910522)</description><year>1991</year><manufacturer>Capcom</manufacturer><rom name="sf2e_30g.11e" size="131072" crc="fe39ee33"/></game>
+	<game name="mslug" romof="neogeo" sourcefile="d_neogeo.cpp"><description>Metal Slug - Super Vehicle-001</description><year>1996</year><manufacturer>Nazca</manufacturer></game>
+	<game name="galaga" sourcefile="d_galaga.cpp"><description>Galaga (Namco rev. B)</description><year>1981</year><manufacturer>Namco</manufacturer></game>
+	<game name="SF2CE" cloneof="sf2" sourcefile="d_cps1.cpp"><description>Street Fighter II' - Champion Edition</description></game>
+	<game name="neogeo" isbios="yes" sourcefile="neo_run.cpp"><description>Neo Geo</description></game>
+</datafile>

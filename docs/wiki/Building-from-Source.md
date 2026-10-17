@@ -19,7 +19,7 @@ OSD/OS is one C++17 program (Qt 6 and QML) built with CMake 3.21 or newer. CMake
 | zlib and minizip | The High Scores module's tables, read by openhi2txt (`thirdparty/openhi2txt`, built with the app) | `minizip not found — High Scores will show no tables` |
 | git | The commit in Settings → About → Build | The build has the day alone |
 
-At run time OSD/OS starts other programs rather than linking them: **mpv** for every video (0.38 or newer), and for some modules yt-dlp and Deno (YouTube), FluidSynth with a SoundFont and openmpt123 (menu music in MIDI or a tracker's format), Chromium with Widevine (Netflix and Prime Video), MAME (Arcade). None of them is needed to build.
+At run time OSD/OS starts other programs rather than linking them: **mpv** for every video (0.38 or newer), and for some modules yt-dlp and Deno (YouTube), FluidSynth with a SoundFont and openmpt123 (menu music in MIDI or a tracker's format), Chromium with Widevine (Netflix and Prime Video), MAME and RetroArch (Arcade). None of them is needed to build.
 
 Get the source first:
 
@@ -101,6 +101,7 @@ This is [BUILDING.md](https://github.com/mehmetraif/OSD-OS/blob/main/BUILDING.md
 | `libpcsclite-dev` | PC/SC NFC readers. Run `bash scripts/setup-nfc-reader.sh` once either way: it lets the user open a PN532 reader, and sets up `pcscd` where PC/SC is usable |
 | `fluidsynth timgm6mb-soundfont openmpt123` | Menu music in MIDI and trackers' formats (run time only) |
 | `mame` | The Arcade module's games, in MAME (run time only; the image has it) |
+| `retroarch` | The Arcade module's second engine, FinalBurn Neo, whose core Settings → Arcade → FinalBurn Neo downloads (run time only; the image has both) |
 | `libminizip-dev` | The High Scores module's tables. Its static library is linked in, so nothing more is needed at run time |
 | `bluez`, and the user in the `bluetooth` group | Settings → Bluetooth (run time; Raspberry Pi OS Lite has BlueZ). `sudo usermod -aG bluetooth $USER` |
 
@@ -293,7 +294,7 @@ Its settings are environment variables:
 | `OSDOS_DISPLAY` | `hdmi` | The first display preset (`crt-pal` for `osdos-display-crt-pal.txt`) |
 | `OSDOS_STREAMING` | `1` | `0` leaves out Chromium, Widevine, cage and wtype (about 400 MB) |
 | `OSDOS_YOUTUBE` | `1` | `0` leaves out yt-dlp, Deno and ffmpeg (about 90 MB) |
-| `OSDOS_ARCADE` | `1` | `0` leaves out MAME (about 450 MB) |
+| `OSDOS_ARCADE` | `1` | `0` leaves out MAME (about 450 MB), and RetroArch with FinalBurn Neo (about 230 MB) |
 | `OSDOS_ROOT_SIZE` | `8` | GiB the system keeps of the card; the rest becomes the films partition on the first boot. `0`: no films partition |
 | `ENABLE_SSH` | `0` | `1` turns SSH on |
 | `TARGET_HOSTNAME`, `IMG_NAME` | `osdos` | |

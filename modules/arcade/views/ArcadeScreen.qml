@@ -193,6 +193,8 @@ FocusScope {
     readonly property bool isGame: !!current && !current.unknown
     readonly property var details: (revision, arcadeBackend && currentSet !== ""
                                                ? arcadeBackend.gameDetails(currentSet) : ({}))
+    // The game plays in FinalBurn Neo, which takes no credits bought here.
+    readonly property bool fbneo: details.engine === "fbneo"
     // The column's ground, the scheme's background as solid as Settings →
     // Arcade → Info Background says (Root.qml's infoBackground), over Settings'
     // Background Effect. Main.qml names its colours; a color property reads
@@ -414,8 +416,8 @@ FocusScope {
             return
         }
         if (event.key === Qt.Key_5) {
-            // COIN.
-            if (!event.isAutoRepeat)
+            // COIN, for MAME to put in: FinalBurn Neo takes the game's own.
+            if (!event.isAutoRepeat && !arcadeScreen.fbneo)
                 moduleRoot.addCredit()
         } else if (event.key === Qt.Key_Space || event.key === Qt.Key_1) {
             if (!event.isAutoRepeat)
@@ -692,8 +694,9 @@ FocusScope {
         }
 
         // The credits bought, on a ground of their own so they read over
-        // the picture.
+        // the picture; none for a game FinalBurn Neo plays.
         Rectangle {
+            visible: !arcadeScreen.fbneo
             anchors.right: parent.right
             anchors.bottom: parent.bottom
             anchors.margins: arcadeScreen.frame
@@ -932,17 +935,28 @@ FocusScope {
         }
     }
 
-    // A game's options: Play, its favourite, Play at Startup.
+    // A game's options: Play, its favourite, Play at Startup, and its engine
+    // where FinalBurn Neo has it.
     EntryOptions {
         id: options
         anchors.fill: parent
         moduleId: moduleRoot.moduleId
         firstChoices: [{ label: "Play", action: "play" }]
+        moreChoices: (arcadeScreen.revision, engines.offered(arcadeScreen.currentSet)
+                      ? [{ label: engines.lineFor(arcadeScreen.currentSet), action: "engine" }] : [])
         onActivated: function(action) {
             if (action === "play")
                 arcadeScreen.playCurrent()
+            else if (action === "engine")
+                engines.offer(arcadeScreen.currentSet, arcadeScreen.details.name)
         }
         onFavoritesEdited: arcadeScreen.reload()
+        onClosed: if (!engines.visible) arcadeScreen.forceActiveFocus()
+    }
+    EngineChooser {
+        id: engines
+        anchors.fill: parent
+        onEngineChosen: arcadeScreen.revision++
         onClosed: arcadeScreen.forceActiveFocus()
     }
 }

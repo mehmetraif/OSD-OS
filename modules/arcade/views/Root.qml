@@ -220,10 +220,15 @@ FocusScope {
         if (arcadeBackend)
             arcadeBackend.refresh()
         // The startup favourite, when the app opens on one (Main.qml); or
-        // the Arcade screen to adjust, from Settings → Arcade → Screen
-        // Adjustment.
+        // one of Settings → Arcade's pages: the Arcade screen to adjust
+        // (Screen Adjustment), FinalBurn Neo's, or the RetroAchievements
+        // account's.
         if (navParams.adjustScreen)
             navigateTo("ArcadeScreen.qml", { adjust: true })
+        else if (navParams.fbneo)
+            navigateTo("Fbneo.qml", {})
+        else if (navParams.achievements)
+            navigateTo("Account.qml", {})
         else
             navigateTo(arcadeScreen ? "ArcadeScreen.qml" : "Games.qml", { startupPlay: navParams.startupPlay })
     }

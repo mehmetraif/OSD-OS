@@ -52,13 +52,21 @@ brew install mame
 
 The Arcade module plays its games in MAME, a program of its own: it looks for `bin/mame` in the data directory first, then `mame` on the `PATH`. See the wiki's [Arcade](https://github.com/mehmetraif/OSD-OS/wiki/Arcade) page.
 
-**Install minizip (optional, for the High Scores module's tables):**
+**Install RetroArch (optional, for the Arcade module's second engine, FinalBurn Neo):**
+
+```bash
+brew install --cask retroarch
+```
+
+The module finds `RetroArch.app` in `/Applications`; Settings → Arcade → FinalBurn Neo then downloads the FinalBurn Neo core, its list of games and its licence, unpacking the core with minizip (below).
+
+**Install minizip (optional, for the High Scores module's tables and FinalBurn Neo's download):**
 
 ```bash
 brew install minizip
 ```
 
-The High Scores module reads MAME's high score files with openhi2txt (`thirdparty/openhi2txt`, built with the app), which opens hi2txt's game definitions (`modules/highscores/data/hi2txt.zip`) with minizip, linked into the app. Without it the module is there but shows no tables, and says why. See the wiki's [High Scores](https://github.com/mehmetraif/OSD-OS/wiki/High-Scores) page.
+The High Scores module reads MAME's high score files with openhi2txt (`thirdparty/openhi2txt`, built with the app), which opens hi2txt's game definitions (`modules/highscores/data/hi2txt.zip`) with minizip, linked into the app. Without it the module is there but shows no tables, and says why, and the Arcade module can't unpack the FinalBurn Neo core it downloads (one installed with RetroArch still plays). See the wiki's [High Scores](https://github.com/mehmetraif/OSD-OS/wiki/High-Scores) page.
 
 **Install SDL2 (required, gamepad input):**
 
@@ -182,7 +190,7 @@ If IPv4 returns the bot-check error while IPv6 succeeds, the failure is tied to 
 
 IPv6 is not an OSD/OS requirement, and OSD/OS should not enable or force it automatically; these commands are only a diagnostic.
 
-For the Arcade module, install MAME, at run time only: `sudo apt install mame` (the OS image has it; `install.sh` doesn't install it). The module looks for `bin/mame` in the data directory first, then `mame` on the `PATH`, then `/usr/games/mame`. See the wiki's [Arcade](https://github.com/mehmetraif/OSD-OS/wiki/Arcade) page.
+For the Arcade module, install MAME, at run time only: `sudo apt install mame` (the OS image has it; `install.sh` doesn't install it). The module looks for `bin/mame` in the data directory first, then `mame` on the `PATH`, then `/usr/games/mame`. For its second engine, FinalBurn Neo, install RetroArch the same way (`sudo apt install retroarch`), with the user the app runs as in the `input` group, then download the core in Settings → Arcade → FinalBurn Neo (an app built with minizip unpacks it; the OS image has the core already). See the wiki's [Arcade](https://github.com/mehmetraif/OSD-OS/wiki/Arcade) page.
 
 ### Get the source
 

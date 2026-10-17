@@ -4,6 +4,7 @@
 #include <QStringList>
 #include <QVariantList>
 #include <QList>
+#include <QPair>
 
 // Per-script settings, read from the sidecar .txt beside each .sh.
 //
@@ -27,10 +28,12 @@ struct ScriptEntry {
     QString    basename;  // "foo.sh" — the stable key stored in settings
     ScriptMeta meta;
     // For a program a module starts rather than a user's script (the Arcade
-    // module's MAME): arguments passed as they are, after meta.args, and the
-    // folder it runs in ("" for the one it is in).
+    // module's MAME): arguments passed as they are, after meta.args, the
+    // folder it runs in ("" for the one it is in), and variables added to its
+    // environment, over the rest.
     QStringList argv;
     QString     workingDirectory;
+    QList<QPair<QString, QString>> environment;
 };
 
 class ScriptLauncher;

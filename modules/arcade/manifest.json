@@ -121,9 +121,17 @@
       "key": "online_high_scores",
       "label": "Online High Scores",
       "type": "list_single",
-      "options": ["Off"],
+      "options": ["Off", "RetroAchievements"],
       "default": "Off",
-      "description": "High score tables from the internet beside this machine's own\nComes in a later version"
+      "description": "High scores from the internet beside this machine's own\n[RETROACHIEVEMENTS] A game FinalBurn Neo has plays in it, in hardcore mode, its scores going to RetroAchievements' leaderboards"
+    },
+    {
+      "key": "achievements_account",
+      "label": "RetroAchievements Account",
+      "type": "module_view",
+      "params": { "achievements": true },
+      "shown_with": { "key": "online_high_scores", "value": "RetroAchievements" },
+      "description": "The account the scores go to"
     },
     {
       "key": "online_play",
@@ -132,6 +140,13 @@
       "options": ["Off"],
       "default": "Off",
       "description": "Playing a game with someone over the internet\nComes in a later version"
+    },
+    {
+      "key": "fbneo",
+      "label": "FinalBurn Neo",
+      "type": "module_view",
+      "params": { "fbneo": true },
+      "description": "The second engine, RetroArch with the FinalBurn Neo core, for online high scores and play: what is installed, and the core's download"
     },
     {
       "key": "video",

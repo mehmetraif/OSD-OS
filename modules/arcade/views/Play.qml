@@ -47,6 +47,8 @@ FocusScope {
     property string exitKeys: ""
     // Played from the Arcade screen rather than the original tree.
     readonly property bool arcade: moduleRoot.arcadeScreen
+    // Played in FinalBurn Neo, which takes no credits bought beforehand.
+    readonly property bool fbneo: !!arcadeBackend && game !== "" && arcadeBackend.engineOf(game) === "fbneo"
     readonly property bool before: phase === "opening" || phase === "running"
     // A pad's Back button is COIN before a game from the Arcade screen
     // (InputManager).
@@ -120,7 +122,8 @@ FocusScope {
             // As on the Arcade screen: COIN buys another credit, START or
             // select plays at once.
             if (event.key === Qt.Key_5) {
-                moduleRoot.addCredit()
+                if (!playRoot.fbneo)
+                    moduleRoot.addCredit()
                 return
             }
             if (event.key === Qt.Key_Space || event.key === Qt.Key_1
@@ -238,7 +241,8 @@ FocusScope {
         Text {
             visible: playRoot.arcade && playRoot.before
             width: parent.width
-            text: moduleRoot.credits === 0 ? "No credit: insert a coin in the game"
+            text: playRoot.fbneo ? "FinalBurn Neo: insert a coin in the game"
+                  : moduleRoot.credits === 0 ? "No credit: insert a coin in the game"
                   : moduleRoot.credits + (moduleRoot.credits === 1 ? " credit goes" : " credits go")
                     + " in as the game starts"
             color: root.primaryColor

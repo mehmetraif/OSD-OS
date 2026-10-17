@@ -276,6 +276,8 @@ bool ScriptLauncher::start(const ScriptEntry &entry, QString *errorOut) {
     // Settings → Controls' players, for a game or an emulator it starts:
     // OSDOS_PLAYER1_NAME, _GUID and _DEVICE, and the same for players 2 to 6.
     controllers::applyPlayersTo(env);
+    for (const auto &variable : std::as_const(entry.environment))
+        env.insert(variable.first, variable.second);
 #ifdef Q_OS_LINUX
     // Strip the wrong-word-size Steam overlay hook the Gaming Mode session hands
     // down, so ld.so's "wrong ELF class ... ignored" warning stops appearing in

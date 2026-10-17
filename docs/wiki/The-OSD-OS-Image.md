@@ -14,7 +14,7 @@ Installed as an app ([Installation](https://github.com/mehmetraif/OSD-OS/wiki/In
 
 - **It boots into OSD/OS.** There is no rainbow splash, no boot text and no login prompt. The first thing on screen is OSD/OS's boot screen, in the theme's colours, or white on blue with Settings → Boot Screen Colors → Default.
 - **No desktop.** There is no display server (X11 or Wayland), no window manager and no file manager. OSD/OS draws straight to the screen through the kernel's display driver, and so does mpv ([Nothing between the app and the screen](https://github.com/mehmetraif/OSD-OS/wiki/The-OSD-OS-Image#nothing-between-the-app-and-the-screen)).
-- **Every screen is OSD/OS's own**: the boot screen, the menus, the file browser, the on-screen keyboard, Settings, Bluetooth pairing, updates, and power off. It hands the screen over only to what plays: mpv for a video, Chromium (full screen, nothing around it) for Netflix, Prime Video and YouTube's sign-in, MAME for the Arcade module's games, and a script of yours that asks for the screen.
+- **Every screen is OSD/OS's own**: the boot screen, the menus, the file browser, the on-screen keyboard, Settings, Bluetooth pairing, updates, and power off. It hands the screen over only to what plays: mpv for a video, Chromium (full screen, nothing around it) for Netflix, Prime Video and YouTube's sign-in, MAME or RetroArch for the Arcade module's games, and a script of yours that asks for the screen.
 - **Nothing runs that a TV box doesn't need.** Wi-Fi, Bluetooth, the local network and SSH wait until OSD/OS is on screen. The timers that wake the SD card at random times are gone.
 - **Films go on the card**, on a partition of their own that Windows and macOS can open.
 - **USB drives** show up in Local Files as they are plugged in, read-only.
@@ -53,7 +53,7 @@ What changes against flashing Raspberry Pi OS Lite and running `scripts/install.
 | USB drives | Not mounted by themselves | Mounted read-only under `/media/usb` as they come |
 | Netflix, Prime Video, YouTube sign-in | Install Chromium, Widevine, cage and wtype yourself | Included |
 | YouTube | Install yt-dlp and Deno yourself | Included; yt-dlp updates itself |
-| Arcade | Install MAME yourself | Included: Debian's MAME 0.276 |
+| Arcade | Install MAME yourself, and RetroArch for FinalBurn Neo (its core downloaded in Settings) | Included: Debian's MAME 0.276, and Debian's RetroArch with the FinalBurn Neo core |
 | Settings → Display Output | Not offered | Offered |
 | Bluetooth adapter blocked by rfkill | Stays blocked | Unblocked as Bluetooth starts |
 
@@ -265,7 +265,7 @@ The image has no display server at all. OSD/OS draws through Qt's EGLFS platform
 
 - mpv (`--vo=drm`) while a video plays;
 - Chromium, in the `cage` kiosk compositor, for Netflix, Prime Video and YouTube's sign-in;
-- MAME, for a game in the Arcade module;
+- MAME or RetroArch, for a game in the Arcade module;
 - a takeover script from the Scripts module.
 
 With **Transparent Background**, mpv runs inside OSD/OS as libmpv instead. OSD/OS then keeps the screen the whole time, draws the video as part of its own picture, and lays its menus over it. [How it works → The display path](https://github.com/mehmetraif/OSD-OS/wiki/How-It-Works#the-display-path) has the mechanics, and [Display Output](https://github.com/mehmetraif/OSD-OS/wiki/Display-Output) how the output itself is chosen.
@@ -643,6 +643,7 @@ Then start OSD/OS again ([Exit to Terminal](https://github.com/mehmetraif/OSD-OS
 | `/etc/initramfs-tools/scripts/local-premount/resize_early` | The first boot's card split |
 | `/usr/local/bin/deno` | The JavaScript runtime yt-dlp needs for YouTube |
 | `/usr/games/mame`, `/etc/mame/mame.ini` | MAME, which the Arcade module plays its games in, and MAME's own settings ([Arcade](https://github.com/mehmetraif/OSD-OS/wiki/Arcade)) |
+| `/usr/bin/retroarch`, `/usr/local/lib/libretro/fbneo_libretro.so`, `/usr/local/share/libretro/fbneo/`, `/usr/local/share/doc/fbneo/` | RetroArch and the FinalBurn Neo core, the Arcade module's second engine, with FinalBurn Neo's list of arcade games, its licence and which nightly build it is (`BUILD`) ([Arcade](https://github.com/mehmetraif/OSD-OS/wiki/Arcade#finalburn-neo)) |
 | `/usr/share/doc/osdos/NOTICE` | What the image is made of, and under which licences |
 | `/tmp/osdos-mpv.log` | mpv's own log ([Logs](https://github.com/mehmetraif/OSD-OS/wiki/The-OSD-OS-Image#logs)) |
 
@@ -668,7 +669,7 @@ mpv's messages reach the journal too, as `[mpv]` lines, with every token blanked
 
 1. **OSD/OS**, under the GNU GPL version 3, with its licence at `/opt/osdos/share/osdos/LICENSE` and in Settings → About → License. Its source is the commit Settings → About → Build names. For the High Scores module it has openhi2txt (GPL-3.0) with RapidXML (Boost or MIT) built in, and hi2txt's game definitions (GPL-2.0) with it, their licence beside them in `/opt/osdos/share/osdos/modules/highscores/data/`.
 2. **Raspberry Pi OS's and Debian's packages**, unmodified, each with its own licence in `/usr/share/doc/<package>/copyright`. The image's `.info` file, published with it, lists them with their versions. Their source is in the Debian and Raspberry Pi archives, and OSD/OS offers the source of the GPL and LGPL software on an image for three years after it is published.
-3. **What the stage adds**: yt-dlp (public domain, The Unlicense), Deno (MIT; its licence in `/usr/local/share/doc/deno/LICENSE.md`), MAME (GPL-2.0 or later; Debian's `mame` and `mame-data` packages, from Debian's archive, with their copyright files in `/usr/share/doc`), and Widevine, Google's proprietary module, from Raspberry Pi's archive as Raspberry Pi OS installs it. An image built with `OSDOS_YOUTUBE=0` has neither yt-dlp nor Deno; one built with `OSDOS_STREAMING=0` has no Chromium or Widevine; one built with `OSDOS_ARCADE=0` has no MAME.
+3. **What the stage adds**: yt-dlp (public domain, The Unlicense), Deno (MIT; its licence in `/usr/local/share/doc/deno/LICENSE.md`), MAME (GPL-2.0 or later; Debian's `mame` and `mame-data` packages, from Debian's archive, with their copyright files in `/usr/share/doc`), RetroArch (GPL-3.0, Debian's `retroarch` package), FinalBurn Neo (Team FB Neo's own licence: it may be used and shared with its text, never sold, nor used by a project that asks for donations; libretro's nightly build, its licence's full text in `/usr/local/share/doc/fbneo/license.txt`), and Widevine, Google's proprietary module, from Raspberry Pi's archive as Raspberry Pi OS installs it. An image built with `OSDOS_YOUTUBE=0` has neither yt-dlp nor Deno; one built with `OSDOS_STREAMING=0` has no Chromium or Widevine; one built with `OSDOS_ARCADE=0` has no MAME, RetroArch or FinalBurn Neo.
 4. **The data the modules show**: TMDB (with the notice its terms ask for), Open-Meteo (CC BY 4.0) and Wikidata (CC0).
 5. **pi-gen's licence**, since its configuration stays on the image.
 6. **The Raspberry Pi firmware's licence**, which asks to be reproduced with it.
@@ -730,7 +731,7 @@ All of them come through the environment:
 | `OSDOS_DISPLAY` | `hdmi` | The display preset the image starts on, by its name: `hdmi`, `crt-ntsc`, `crt-pal`, `crt-gpio-ntsc`, `crt-gpio-pal`, `scart-rgb-ntsc`, `scart-rgb-pal`, `scart-rgb-240p`, `scart-rgb-288p`, `jamma-240p` ([Display Output](https://github.com/mehmetraif/OSD-OS/wiki/Display-Output)) |
 | `OSDOS_STREAMING` | `1` | `0` leaves out the browser Netflix, Prime Video and YouTube's sign-in open (Chromium, Widevine, cage, wtype), about 400 MB |
 | `OSDOS_YOUTUBE` | `1` | `0` leaves out yt-dlp, Deno and ffmpeg, about 90 MB; the YouTube module then says yt-dlp is missing |
-| `OSDOS_ARCADE` | `1` | `0` leaves out MAME (`mame`, `mame-data`), about 450 MB; the Arcade module then says MAME is not installed |
+| `OSDOS_ARCADE` | `1` | `0` leaves out MAME (`mame`, `mame-data`), about 450 MB, and RetroArch with FinalBurn Neo, about 230 MB; the Arcade module then says MAME is not installed |
 | `OSDOS_ROOT_SIZE` | `8` | GiB the system keeps of the card; the rest becomes the film partition. A whole number. `0`: no film partition, the system takes the whole card |
 | `ENABLE_SSH` | `0` | `1` enables SSH, held back after the local network |
 | `TARGET_HOSTNAME` | `osdos` | The hostname |
@@ -790,7 +791,7 @@ flowchart TD
 | [`05-media`](https://github.com/mehmetraif/OSD-OS/tree/main/os/stage-osdos/05-media) | `exfatprogs`, the `resize_early` override and its initramfs hook, `/media/OSD-OS`, its `fstab` line and `OSDOS_MEDIA_DIR` | `OSDOS_ROOT_SIZE=0` |
 | [`06-youtube`](https://github.com/mehmetraif/OSD-OS/tree/main/os/stage-osdos/06-youtube) | Python with pycryptodome, requests and brotli; ffmpeg; yt-dlp's nightly build, checked against its SHA-256 sums; Deno, pinned (today `v2.9.7`) with its checksum and licence; the update timer | `OSDOS_YOUTUBE=0` |
 | [`07-usb`](https://github.com/mehmetraif/OSD-OS/tree/main/os/stage-osdos/07-usb) | `ntfs-3g`, the USB rule, unit and script, `/media/usb` | |
-| [`08-arcade`](https://github.com/mehmetraif/OSD-OS/tree/main/os/stage-osdos/08-arcade) | Debian's `mame` and `mame-data`: MAME 0.276 for the Arcade module, with its data and plugins (the hiscore plugin among them), about 450 MB with what they depend on | `OSDOS_ARCADE=0` |
+| [`08-arcade`](https://github.com/mehmetraif/OSD-OS/tree/main/os/stage-osdos/08-arcade) | Debian's `mame` and `mame-data`: MAME 0.276 for the Arcade module, with its data and plugins (the hiscore plugin among them), about 450 MB with what they depend on; Debian's `retroarch`, and the FinalBurn Neo core, its list of games and its licence, downloaded as the image is built (libretro's latest nightly build), about 230 MB more | `OSDOS_ARCADE=0` |
 
 A file named `00-packages-nr` is pi-gen's list of packages to install without their recommends. To put another package on the image, add its name to [`os/stage-osdos/00-packages/00-packages-nr`](https://github.com/mehmetraif/OSD-OS/blob/main/os/stage-osdos/00-packages/00-packages-nr), for example a line with `mc` for Midnight Commander.
 

@@ -73,6 +73,9 @@ void applyPlayersTo(QProcessEnvironment &env);
 // Each player's controller's SDL GUID, players 1 to kPlayers in order, "" for
 // one without: what the Arcade module tells MAME (its mapdevice lines).
 QStringList playerGuids();
+// And its name, as SDL has it: with the GUID, the controller RetroArch keeps
+// for the player.
+QStringList playerNames();
 
 // Which keyboard or remote a key came from. Qt doesn't say; the nodes, read
 // beside it, do: each press noted as it comes, then taken by the key event

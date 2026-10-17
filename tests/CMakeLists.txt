@@ -163,6 +163,8 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
         arcade_test.cpp
         ../src/modules/arcade/ArcadeBackend.cpp
         ../src/modules/arcade/Mame.cpp
+        ../src/modules/arcade/Libretro.cpp
+        ../src/modules/arcade/FbneoInstaller.cpp
         ../src/modules/scripts/ScriptLauncher.cpp
         ../src/input/ControllerProfile.cpp
         ../src/audio/AudioOutput.cpp
@@ -172,8 +174,15 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
         ../src/AppCore.cpp
         ../src/util/LegacyNames.cpp)
     target_include_directories(arcade_test PRIVATE ../src ${Libdrm_INCLUDE_DIRS})
+    target_compile_definitions(arcade_test PRIVATE TESTS_DIR="${CMAKE_CURRENT_SOURCE_DIR}")
     target_link_libraries(arcade_test PRIVATE
         Qt6::Core Qt6::Network Qt6::Qml Qt6::Test ${Libdrm_LIBRARIES})
+    # FinalBurn Neo's download unpacks its core with minizip, where there is one.
+    if(OPENHI2TXT_FOUND)
+        target_compile_definitions(arcade_test PRIVATE OSDOS_MINIZIP=1)
+        target_include_directories(arcade_test PRIVATE ${MINIZIP_INCLUDE_DIR})
+        target_link_libraries(arcade_test PRIVATE ${MINIZIP_LIBRARY})
+    endif()
     add_test(NAME arcade COMMAND arcade_test)
 
     # A playlist's m3u: owner-only and whole, the one before removed once it

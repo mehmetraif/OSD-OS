@@ -1,0 +1,16 @@
+[
+            {"fields": {"id": 11, "username": "ann", "country": "es", "game_name": "SF2", "core_name": "FinalBurn Neo",
+                        "ip": "203.0.113.5", "port": 55435, "host_method": 0, "connectable": true,
+                        "has_password": false, "retroarch_version": "1.20.0", "is_retroarch": true}},
+            {"fields": {"id": 14, "username": "bob", "country": "tr", "game_name": "mslug", "core_name": "FinalBurn Neo",
+                        "ip": "", "port": 55435, "host_method": 3, "mitm_ip": "198.51.100.7", "mitm_port": 55435,
+                        "mitm_session": "c2Vzc2lvbg==", "connectable": true, "has_password": true,
+                        "retroarch_version": "1.22.2"}},
+            {"fields": {"id": 15, "username": "cid", "game_name": "galaga", "core_name": "FinalBurn Neo",
+                        "ip": "192.0.2.9", "port": 55435, "host_method": 0, "connectable": false,
+                        "retroarch_version": "1.22.2"}},
+            {"fields": {"id": 16, "username": "dee", "game_name": "smb", "core_name": "Snes9x",
+                        "ip": "192.0.2.10", "port": 55435, "connectable": true, "retroarch_version": "1.22.2"}},
+            {"fields": {"id": 17, "username": "eve", "game_name": "sf2", "core_name": "FinalBurn Neo",
+                        "ip": "192.0.2.11", "port": 55435, "connectable": true, "retroarch_version": "1.8.9"}}
+        ]

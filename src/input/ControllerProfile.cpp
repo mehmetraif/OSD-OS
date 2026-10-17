@@ -237,18 +237,32 @@ void applyPlayersTo(QProcessEnvironment &env) {
         env.insert(variable.first, variable.second);
 }
 
-QStringList playerGuids() {
-    QStringList guids;
+namespace {
+
+// One variable of each player's, OSDOS_PLAYER<n><part>: "" for a player
+// without a controller.
+QStringList playerValues(const char *part) {
+    QStringList values;
     for (int p = 1; p <= kPlayers; ++p) {
-        const QString name = QStringLiteral("OSDOS_PLAYER%1_GUID").arg(p);
-        QString guid;
+        const QString name = QStringLiteral("OSDOS_PLAYER%1").arg(p) + QLatin1String(part);
+        QString value;
         for (const auto &variable : std::as_const(playerVariables())) {
             if (variable.first == name)
-                guid = variable.second;
+                value = variable.second;
         }
-        guids << guid;
+        values << value;
     }
-    return guids;
+    return values;
+}
+
+} // namespace
+
+QStringList playerGuids() {
+    return playerValues("_GUID");
+}
+
+QStringList playerNames() {
+    return playerValues("_NAME");
 }
 
 void KeySources::pressed(const QString &device, int code, qint64 ms) {
