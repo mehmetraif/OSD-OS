@@ -123,7 +123,7 @@
       "type": "list_single",
       "options": ["Off", "RetroAchievements"],
       "default": "Off",
-      "description": "High scores from the internet beside this machine's own\n[RETROACHIEVEMENTS] A game FinalBurn Neo has plays in it, in hardcore mode, its scores going to RetroAchievements' leaderboards"
+      "description": "High scores from the internet beside this machine's own\n[RETROACHIEVEMENTS] A game FinalBurn Neo has plays in it, in hardcore mode, its scores going to RetroAchievements, and the Arcade screen shows its leaderboard's top three"
     },
     {
       "key": "achievements_account",
@@ -131,7 +131,7 @@
       "type": "module_view",
       "params": { "achievements": true },
       "shown_with": { "key": "online_high_scores", "value": "RetroAchievements" },
-      "description": "The account the scores go to"
+      "description": "The account the scores go to, and the Web API key the leaderboards are read with"
     },
     {
       "key": "online_play",

@@ -7,6 +7,7 @@
 #include "../../util/LegacyNames.h"
 #include "FbneoInstaller.h"
 #include "Libretro.h"
+#include "RetroAchievements.h"
 #include <QDateTime>
 #include <QDir>
 #include <QDirIterator>
@@ -217,7 +218,17 @@ ArcadeBackend::ArcadeBackend(const QString &appRoot, const QString &dataRoot, Ap
         const QJsonObject kept = QJsonDocument::fromJson(account.readAll()).object();
         m_raUser = kept.value(QStringLiteral("user")).toString();
         m_raToken = kept.value(QStringLiteral("token")).toString();
+        m_raKey = kept.value(QStringLiteral("key")).toString();
     }
+    m_leaderboards = new RetroAchievements(m_home, RetroAchievements::kApi, this);
+    m_leaderboards->setKey(m_raKey);
+    connect(m_leaderboards, &RetroAchievements::boardReady, this, [this](const QString &fileName) {
+        emit leaderboardReady(QFileInfo(fileName).completeBaseName().toLower());
+    });
+    connect(m_leaderboards, &RetroAchievements::keyRefused, this, [this] {
+        if (!std::exchange(m_raKeyRefused, true))
+            emit achievementsChanged();
+    });
     // A game's config is written anew for each game: one a game left that the
     // app didn't see end (it was stopped meanwhile) may hold the password.
     QFile::remove(retroarchHome() + QStringLiteral("/retroarch.cfg"));
@@ -1702,9 +1713,25 @@ void ArcadeBackend::signOutAchievements() {
     emit achievementsChanged();
 }
 
+void ArcadeBackend::setAchievementsKey(const QString &key) {
+    m_raKey = key.trimmed();
+    m_raKeyRefused = false;
+    m_leaderboards->setKey(m_raKey);
+    saveAchievements();
+    emit achievementsChanged();
+}
+
+QVariantMap ArcadeBackend::leaderboard(const QString &set) {
+    const QString file = m_sets.value(set);
+    if (!m_achievements || m_raKey.isEmpty() || file.isEmpty() || engineOf(set) != QLatin1String("fbneo"))
+        return { { QStringLiteral("state"), QStringLiteral("off") } };
+    return m_leaderboards->board(QFileInfo(file).fileName());
+}
+
 void ArcadeBackend::saveAchievements() const {
     QDir().mkpath(m_home);
-    const QJsonObject kept{ { QStringLiteral("user"), m_raUser }, { QStringLiteral("token"), m_raToken } };
+    const QJsonObject kept{ { QStringLiteral("user"), m_raUser }, { QStringLiteral("token"), m_raToken },
+                            { QStringLiteral("key"), m_raKey } };
     writeFileAtomically(m_home + QStringLiteral("/retroachievements.json"),
                         QJsonDocument(kept).toJson(QJsonDocument::Compact), kOwnerOnly);
 }

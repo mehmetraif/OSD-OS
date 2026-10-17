@@ -17,6 +17,7 @@
 class AppCore;
 class DisplayHandoff;
 class FbneoInstaller;
+class RetroAchievements;
 class ScriptLauncher;
 class QTimer;
 
@@ -82,6 +83,10 @@ class ArcadeBackend : public QObject {
     Q_PROPERTY(QString achievementsUser READ achievementsUser NOTIFY achievementsChanged)
     Q_PROPERTY(QString achievementsState READ achievementsState NOTIFY achievementsChanged)
     Q_PROPERTY(QString achievementsMessage READ achievementsMessage NOTIFY achievementsChanged)
+    // A Web API key is kept, for the leaderboards on the Arcade screen; and
+    // RetroAchievements refused it.
+    Q_PROPERTY(bool achievementsKey READ achievementsKey NOTIFY achievementsChanged)
+    Q_PROPERTY(bool achievementsKeyRefused READ achievementsKeyRefused NOTIFY achievementsChanged)
     // Settings → Arcade → FinalBurn Neo's download (downloadFbneo()): under
     // way, how far (0 to 100), and why the last one failed ("" when it
     // didn't).
@@ -159,6 +164,15 @@ public:
     // written but into that game's config, which goes as the game ends.
     Q_INVOKABLE void signInAchievements(const QString &user, const QString &password);
     Q_INVOKABLE void signOutAchievements();
+    // The account's Web API key (RetroAchievements' settings page), for
+    // reading leaderboards; "" forgets it.
+    Q_INVOKABLE void setAchievementsKey(const QString &key);
+    // The Arcade screen's high scores for a game that plays in FinalBurn Neo
+    // while Online High Scores is on and a key is kept: its RetroAchievements
+    // leaderboard (RetroAchievements::board()), { state, title, entries };
+    // { state: "off" } for any other game, whose are the High Scores
+    // module's. leaderboardReady() once one asked for has been read.
+    Q_INVOKABLE QVariantMap leaderboard(const QString &set);
 
     // FinalBurn Neo's page (Settings → Arcade → FinalBurn Neo): { retroarch
     // (its program, "" for none), core ("" for none), coreDate (its file's,
@@ -212,6 +226,8 @@ public:
     QString achievementsUser() const { return m_raUser; }
     QString achievementsState() const;
     QString achievementsMessage() const;
+    bool    achievementsKey() const { return !m_raKey.isEmpty(); }
+    bool    achievementsKeyRefused() const { return m_raKeyRefused; }
     bool    fbneoDownloading() const;
     int     fbneoProgress() const;
     QString fbneoMessage() const { return m_fbneoMessage; }
@@ -230,6 +246,7 @@ signals:
     void problemChanged();
     void playedChanged();
     void achievementsChanged();
+    void leaderboardReady(const QString &set);
     void fbneoChanged();
     // reason: "ok", "failed", "stopped" or "failed_to_start" (ScriptLauncher's);
     // notice: what to tell the player when it isn't "ok", else "".
@@ -407,11 +424,14 @@ private:
     // owner-only, but the password, which RetroArch has once and swaps.
     QString m_raUser;
     QString m_raToken;
+    QString m_raKey;
+    bool    m_raKeyRefused = false;
     QString m_raPassword;
     QString m_raFailure;
     bool    m_raPasswordGiven = false;   // the game playing was given it
 
     FbneoInstaller *m_installer = nullptr;
+    RetroAchievements *m_leaderboards = nullptr;
     QString m_fbneoMessage;
 
     // The folder's sets, and what MAME said of every set it was asked about.

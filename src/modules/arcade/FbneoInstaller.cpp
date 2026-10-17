@@ -21,7 +21,7 @@ namespace {
 // games, its licence.
 constexpr int kShares[] = { 58, 40, 2 };
 // A list of fewer games than this isn't FinalBurn Neo's arcade DAT (it has
-// some 9,000).
+// some 8,400).
 constexpr int kLeastGames = 1000;
 
 // Where each download goes until all three are whole: beside where it ends

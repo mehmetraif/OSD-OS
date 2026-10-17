@@ -205,10 +205,17 @@ FocusScope {
     // → Border has it (Root.qml's border): a line, or none.
     readonly property int frame: moduleRoot.border ? root.px : 0
     // The game's high scores, read again once the High Scores module has
-    // read MAME's files (a game just played).
+    // read MAME's files (a game just played), or for a game FinalBurn Neo
+    // plays with Online High Scores on and a Web API key kept, its
+    // RetroAchievements leaderboard's, once it has been read (board: its
+    // state, "off" for any other game).
     property int scoresRevision: 0
-    readonly property var scores: (scoresRevision, scoresBackend && isGame
-                                                   ? scoresBackend.topEntries(currentSet, scoreRows) : [])
+    readonly property var board: (scoresRevision, arcadeBackend && isGame
+                                                  ? arcadeBackend.leaderboard(currentSet) : ({ state: "off" }))
+    readonly property bool onlineScores: !!board.state && board.state !== "off"
+    readonly property var scores: (scoresRevision, onlineScores ? (board.entries || [])
+                                                   : scoresBackend && isGame
+                                                     ? scoresBackend.topEntries(currentSet, scoreRows) : [])
 
     // Screen Adjustment: whether ▲ ▼ ◄ ► move the sides in rather than out;
     // how far a press moves one, up to the screen's edge; and the least room
@@ -400,6 +407,14 @@ FocusScope {
         ignoreUnknownSignals: true
         function onReadingChanged() {
             if (!arcadeScreen.scoresBackend.reading)
+                arcadeScreen.scoresRevision++
+        }
+    }
+    Connections {
+        target: arcadeBackend
+        ignoreUnknownSignals: true
+        function onLeaderboardReady(set) {
+            if (set === arcadeScreen.currentSet)
                 arcadeScreen.scoresRevision++
         }
     }
@@ -738,7 +753,7 @@ FocusScope {
         width: Math.round(arcadeScreen.infoWidth * arcadeScreen.u)
 
         Text {
-            text: "Hi-Score"
+            text: arcadeScreen.onlineScores ? "RA Hi-Score" : "Hi-Score"
             color: root.primaryColor
             font.family: root.globalFont
             font.capitalization: Font.AllUppercase
@@ -760,9 +775,12 @@ FocusScope {
                     font.family: root.globalFont
                     font.pixelSize: arcadeScreen.textSize
                 }
+                // A name: initials, or a RetroAchievements user's, longer.
+                readonly property int nameWidth: arcadeScreen.onlineScores ? 100 : 50
                 Text {
                     anchors.right: parent.right
-                    anchors.rightMargin: scoreLine.entry && scoreLine.entry.name !== "" ? Math.round(64 * arcadeScreen.u) : 0
+                    anchors.rightMargin: scoreLine.entry && scoreLine.entry.name !== ""
+                                         ? Math.round((scoreLine.nameWidth + 14) * arcadeScreen.u) : 0
                     text: scoreLine.entry ? scoreLine.entry.score : ""
                     textFormat: Text.PlainText
                     color: root.primaryColor
@@ -771,7 +789,7 @@ FocusScope {
                 }
                 Text {
                     anchors.right: parent.right
-                    width: Math.round(50 * arcadeScreen.u)
+                    width: Math.round(scoreLine.nameWidth * arcadeScreen.u)
                     horizontalAlignment: Text.AlignRight
                     text: scoreLine.entry ? scoreLine.entry.name : ""
                     textFormat: Text.PlainText
@@ -786,7 +804,10 @@ FocusScope {
         Text {
             visible: arcadeScreen.scores.length === 0
             y: Math.round(arcadeScreen.scoreFirst * arcadeScreen.v)
-            text: "No Scores Yet"
+            text: !arcadeScreen.onlineScores ? "No Scores Yet"
+                  : arcadeScreen.board.state === "loading" ? "Reading…"
+                  : arcadeScreen.board.state === "none" ? "No Leaderboard"
+                  : arcadeScreen.board.state === "failed" ? "Not Reachable" : "No Scores Yet"
             color: root.primaryColor
             font.family: root.globalFont
             font.capitalization: Font.AllUppercase

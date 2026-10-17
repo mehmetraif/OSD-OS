@@ -77,7 +77,7 @@ With **Settings → Arcade → Screen** on **Arcade**, Arcade opens on a cabinet
 - **The bar** over it: the filter, with ◄ ► while there are others, and the page (`1/4`); on the wheel of 3D Curved, the game (`12/512`).
 - **The picture**, on the right ([below](#pictures)), with the credits bought in its corner (`Credit 2`).
 - **The box** under the picture, a line for each of these that its height has room for ([below](#the-box-under-the-picture)):
-  - **Hi-Score**: the best three entries of the game's high score table, their rank, score and name, as the [High Scores](https://github.com/mehmetraif/OSD-OS/wiki/High-Scores) module reads them; `No Scores Yet` before the game has a table.
+  - **Hi-Score**: the best three entries of the game's high score table, their rank, score and name, as the [High Scores](https://github.com/mehmetraif/OSD-OS/wiki/High-Scores) module reads them; `No Scores Yet` before the game has a table. For a game played in FinalBurn Neo with Online High Scores on and a Web API key given, **RA Hi-Score**: the top three of its RetroAchievements leaderboard, with their users' names ([FinalBurn Neo](#finalburn-neo)).
   - **Maker**, **Year**, **Players** and **System**: what the game is, `?` for what MAME doesn't say, and one too long for its line (`Data East Corporation`) scrolling through it. Its system is the board it ran on: CPS-1, Neo-Geo, NAOMI, Sega System 16B, Namco System 2, Midway T-Unit and about a hundred more; for any other, the name of MAME's driver for it.
   - **Play Time**, at the foot of the box: how long the game has been played in OSD/OS (`1H 31M`, `Never`).
 - **The help line**: the game's full name, as MAME has it, then those of its maker, year, players and system the box has no line for, scrolling through as `Final Fight (World, set 1) • 1989 • 2 Players • CPS-1`; on a set under Not Recognized, why it is there and what to do.
@@ -284,8 +284,11 @@ The Arcade screen's box and the screen before a game say nothing different; the 
 1. Make an account at retroachievements.org, if you have none.
 2. **User**, then **Password**, typed on the on-screen keyboard (SHIFT for capitals; the password shows as stars), then **Sign In**. The page says **At the Next Game**: RetroAchievements lets an emulator sign in, not a launcher, so RetroArch signs in with it as the next FinalBurn Neo game starts, and keeps a token in its place. OSD/OS keeps the password only until then, in memory.
 3. After that game the page says **Signed In**, or **Not Signed In** with RetroAchievements' reason: sign in again.
+4. For the leaderboards on the Arcade screen, **Web API Key**: your account's key, from retroachievements.org's **Settings** page, under **Keys**, typed on the on-screen keyboard. The page then says **Kept**, or **Refused** once RetroAchievements has turned it down: type it again. **Forget Web API Key** takes the leaderboards away again.
 
-The account and its token are kept in `arcade/retroachievements.json`, readable by you alone; **Sign Out** forgets them. RetroArch as Debian builds it reaches RetroAchievements over plain HTTP, the password at that first sign-in and the token after it, so use a password you use nowhere else.
+With a key given, the Arcade screen's box shows each FinalBurn Neo game's RetroAchievements leaderboard, under **RA Hi-Score**: its top three, the rank, the score and the user. It is read as the game is chosen, over HTTPS, and kept ten minutes: `Reading…` meanwhile, `No Leaderboard` for a game RetroAchievements has no leaderboard of, and `Not Reachable` without a connection, or with a key it refused. Of a game's leaderboards it shows the high scores' (the one whose name says score, where the highest is best). RetroAchievements' list of arcade games, with which each game is found, is kept a week in `arcade/retroachievements-games.json`.
+
+The account, its token and its key are kept in `arcade/retroachievements.json`, readable by you alone; **Sign Out** forgets the account and its token. RetroArch as Debian builds it reaches RetroAchievements over plain HTTP, the password at that first sign-in and the token after it, so use a password you use nowhere else.
 
 The High Scores module shows MAME's tables only: a game played in FinalBurn Neo keeps no table on the machine.
 
@@ -316,7 +319,7 @@ Settings → Arcade.
 | Start Info Screen | ON, OFF | ON | Before a game, the screen of how to come back (and from the Arcade screen, the credits going in); off, the game starts straight from the list ([Playing](#playing)) | `modules.com.osdos.arcade.start_info` |
 | High Scores | ON, OFF | ON | Keeps the games' high score tables with MAME's hiscore plugin ([above](#high-scores)) | `modules.com.osdos.arcade.high_scores` |
 | Online High Scores | Off, RetroAchievements | Off | RetroAchievements: a game FinalBurn Neo has plays in it, in hardcore mode, its scores going to RetroAchievements' leaderboards ([FinalBurn Neo](#finalburn-neo)) | `modules.com.osdos.arcade.online_high_scores` |
-| RetroAchievements Account | (opens the account's page) | | The account the scores go to: sign in and out ([FinalBurn Neo](#finalburn-neo)). Shown while Online High Scores is RetroAchievements | |
+| RetroAchievements Account | (opens the account's page) | | The account the scores go to: sign in and out, and the Web API key the Arcade screen reads the leaderboards with ([FinalBurn Neo](#finalburn-neo)). Shown while Online High Scores is RetroAchievements | |
 | Online Play | Off | Off | Playing a game with someone over the internet. Comes in a later version | `modules.com.osdos.arcade.online_play` |
 | FinalBurn Neo | (opens FinalBurn Neo's page) | | What is installed of RetroArch and FinalBurn Neo, the core's download, and its licence ([FinalBurn Neo](#finalburn-neo)) | |
 | Video | Auto, OpenGL, BGFX, Accelerated, Software | Auto | How MAME draws the game: Auto leaves it to MAME's own settings (Debian's `mame.ini` says OpenGL); the others are MAME's `-video opengl`, `bgfx`, `accel` and `soft` | `modules.com.osdos.arcade.video` |
@@ -375,7 +378,8 @@ Everything MAME writes is in `arcade` in the data folder (`~/.local/share/OSD-OS
 | `arcade/sta/`, `arcade/snap/`, `arcade/inp/`, `arcade/diff/` | Save states, snapshots, input recordings, and what a game with a hard disk writes to it |
 | `arcade/ctrlr/osdos.cfg` | The controller file, written afresh before each game ([Players and buttons](#players-and-buttons)) |
 | `arcade/retroarch/` | RetroArch's, for FinalBurn Neo's games, readable by you alone: `retroarch.cfg`, its settings, written afresh before each game and removed after it; `last.log`, what it said in the last game; `system/fbneo`, the BIOS sets (links to the games folder's `bios`); `saves`, `states` and `config`, the games' NVRAM, save states and FinalBurn Neo's options; and, once downloaded, `cores/fbneo_libretro.so` (`.dylib` on a Mac), `fbneo-arcade.dat` and `fbneo-license.txt` |
-| `arcade/retroachievements.json` | The RetroAchievements account: its user and the token RetroArch signed in with, readable by you alone; never the password |
+| `arcade/retroachievements.json` | The RetroAchievements account: its user, the token RetroArch signed in with and the Web API key, readable by you alone; never the password |
+| `arcade/retroachievements-games.json` | RetroAchievements' list of arcade games with leaderboards, by their hashes, kept a week ([FinalBurn Neo](#finalburn-neo)) |
 
 Recently Played and Favorites are in `lists.json` with the other modules' lists. In the games folder, beside the sets, the module reads `catver.ini` and the `snap` folder's pictures, as you put them there ([Genres](#genres), [Pictures](#pictures)). MAME runs in `arcade`, with these arguments:
 
@@ -421,6 +425,7 @@ mame galaga \
 | `Missing …: FinalBurn Neo's sets aren't always MAME's` | The set lacks files FinalBurn Neo needs (a set made for MAME often does). Set the game's **Engine** to **MAME**, or put a set made for FinalBurn Neo in the folder |
 | `FinalBurn Neo could not start the game` | FinalBurn Neo doesn't know the set: one for another version. As above |
 | The RetroAchievements account says **Not Signed In** | The reason is on its line: a password RetroAchievements refused, or RetroArch couldn't reach it (no connection). Sign in again, then play a FinalBurn Neo game |
+| The box says `Not Reachable` under **RA Hi-Score** | No connection, or RetroAchievements refused the Web API key: the account page then says **Refused**. Type the key again from retroachievements.org's Settings, Keys |
 | RetroArch's picture is on the other screen, or none | On a Pi with two screens plugged in, RetroArch opens the first with a screen. Unplug the other |
 | The Arcade screen's settings aren't in Settings → Arcade | Start Filter, Menu Filters, List Style, Border, Info Background, Screen Adjustment, Hint Bar and Help Line show while **Screen** is **Arcade** |
 | The Arcade screen's edges are cut off on a CRT, or it leaves a border unused | **Settings → Arcade → Screen Adjustment**: move each side of the frame to the screen's edge ([Screen Adjustment](#screen-adjustment)) |

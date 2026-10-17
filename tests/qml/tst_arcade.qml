@@ -158,8 +158,18 @@ Rectangle {
         property string achievementsUser: ""
         property string achievementsState: "none"
         property string achievementsMessage: ""
+        property bool achievementsKey: false
+        property bool achievementsKeyRefused: false
         property var signIns: []
+        property string keyGiven: ""
         signal achievementsChanged()
+        // Each game's RetroAchievements leaderboard, by set, as leaderboard()
+        // gives it ("off" for any other); changed in place, so the screen
+        // reads it again only on leaderboardReady().
+        property var boards: ({})
+        signal leaderboardReady(string set)
+        function leaderboard(set) { return (engineOf(set) === "fbneo" && boards[set]) || { state: "off" } }
+        function setAchievementsKey(key) { keyGiven = key; achievementsKey = key !== ""; achievementsKeyRefused = false }
         function signInAchievements(user, password) {
             signIns = signIns.concat([user + ":" + password])
             achievementsUser = user
@@ -302,7 +312,11 @@ Rectangle {
             arcadeBackend.achievementsUser = ""
             arcadeBackend.achievementsState = "none"
             arcadeBackend.achievementsMessage = ""
+            arcadeBackend.achievementsKey = false
+            arcadeBackend.achievementsKeyRefused = false
             arcadeBackend.signIns = []
+            arcadeBackend.keyGiven = ""
+            arcadeBackend.boards = {}
             arcadeBackend.favorites = ["galaga", "sf2"]
             arcadeBackend.filterList = [
                 { id: "all", name: "All Games",
@@ -720,13 +734,79 @@ Rectangle {
             verify(findText(page, "Sign Out", true) !== null)
             // Sign In gone, the cursor on the account's first line; the
             // password gone from the page.
-            compare(page.keys, ["state", "status", "signOut"])
+            compare(page.keys, ["state", "status", "signOut", "key"])
             compare(page.typedPassword, "")
+            // The key, kept by the backend and never shown; refused, the
+            // page says so; forgotten, its line goes.
+            keyClick(Qt.Key_Down)
             keyClick(Qt.Key_Down)
             keyClick(Qt.Key_Down)
             keyClick(Qt.Key_Return)
-            tryVerify(function() { return findText(page, "None") !== null }, 1000)
-            compare(page.keys, ["state", "status", "user", "password", "signIn"])
+            tryVerify(function() { return findText(page, "Web API Key") !== null }, 1000)
+            keyClick("A")
+            keyClick("b")
+            keyClick(Qt.Key_Return)
+            compare(arcadeBackend.keyGiven, "Ab")
+            tryVerify(function() { return findText(page, "Kept", true) !== null }, 1000)
+            compare(findText(page, "Ab", true), null)
+            compare(page.keys, ["state", "status", "signOut", "key", "forgetKey"])
+            arcadeBackend.achievementsKeyRefused = true
+            tryVerify(function() { return findText(page, "Refused", true) !== null }, 1000)
+            verify(findText(page, "refused the key") !== null)
+            keyClick(Qt.Key_Down)
+            keyClick(Qt.Key_Return)
+            compare(arcadeBackend.keyGiven, "")
+            tryVerify(function() { return page.keys.length === 4 }, 1000)
+            compare(page.keys[3], "key")
+            // Its line gone, the cursor on the first; signed out, the lines
+            // to sign in again.
+            keyClick(Qt.Key_Down)
+            keyClick(Qt.Key_Down)
+            keyClick(Qt.Key_Return)
+            tryVerify(function() { return page.keys.length === 6 }, 1000)
+            compare(page.keys, ["state", "status", "user", "password", "signIn", "key"])
+        }
+
+        // A game FinalBurn Neo plays with a leaderboard to show: its top
+        // three under RA Hi-Score, the users' names wider than initials;
+        // while it is read and for a game RetroAchievements hasn't, the box
+        // says so; another game's leaderboard read changes nothing; the High
+        // Scores module's table for a game MAME plays.
+        function test_screenLeaderboard() {
+            arcadeBackend.fbneoSets = ["sf2"]
+            arcadeBackend.boards = { sf2: { state: "loading" } }
+            var screen = openScreen()
+            compare(screen.currentSet, "sf2")
+            verify(findText(screen, "RA Hi-Score", true) !== null)
+            verify(findText(screen, "Reading…", true) !== null)
+            compare(findText(screen, "110,000"), null)
+            arcadeBackend.boards.sf2 = { state: "ready", title: "High Score", entries: [
+                { rank: "1ST", score: "1,234,560", name: "Mehmet" }, { rank: "2ND", score: "990,000", name: "Player2" },
+                { rank: "3RD", score: "12,000", name: "abc" }] }
+            arcadeBackend.leaderboardReady("1942")
+            verify(findText(screen, "Reading…", true) !== null)
+            arcadeBackend.leaderboardReady("sf2")
+            tryVerify(function() { return findText(screen, "1,234,560", true) !== null }, 1000)
+            compare(findText(screen, "Reading…", true), null)
+            var name = findText(screen, "Mehmet", true)
+            verify(name !== null)
+            compare(name.width, Math.round(100 * screen.u))
+            verify(findText(screen, "3RD", true) !== null)
+            arcadeBackend.boards.sf2 = { state: "none" }
+            arcadeBackend.leaderboardReady("sf2")
+            tryVerify(function() { return findText(screen, "No Leaderboard", true) !== null }, 1000)
+            arcadeBackend.boards.sf2 = { state: "failed" }
+            arcadeBackend.leaderboardReady("sf2")
+            tryVerify(function() { return findText(screen, "Not Reachable", true) !== null }, 1000)
+            // A game MAME plays: this machine's own table.
+            arcadeBackend.boards = { sf2: { state: "ready", title: "High Score", entries: [] } }
+            arcadeBackend.engines = { sf2: "mame" }
+            keyClick(Qt.Key_Down)
+            keyClick(Qt.Key_Up)
+            compare(screen.currentSet, "sf2")
+            tryVerify(function() { return findText(screen, "110,000", true) !== null }, 1000)
+            verify(findText(screen, "Hi-Score", true) !== null)
+            compare(findText(screen, "RA Hi-Score", true), null)
         }
 
         // Select plays the game as it is let go; held, it opens the game's

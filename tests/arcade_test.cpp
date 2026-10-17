@@ -4,6 +4,7 @@
 #include "modules/arcade/FbneoInstaller.h"
 #include "modules/arcade/Libretro.h"
 #include "modules/arcade/Mame.h"
+#include "modules/arcade/RetroAchievements.h"
 
 #include <QDir>
 #include <QFile>
@@ -16,6 +17,7 @@
 #include <QTemporaryDir>
 #include <QThreadPool>
 #include <QUrl>
+#include <QUrlQuery>
 #include <QtTest>
 
 // The Arcade module against a stand-in for MAME (a shell script in the data
@@ -920,6 +922,22 @@ private slots:
         QCOMPARE(arcade.engineOf(QStringLiteral("sf2")), QStringLiteral("fbneo"));
         QCOMPARE(arcade.engineOf(QStringLiteral("pacman")), QStringLiteral("mame"));
         QCOMPARE(arcade.gameDetails(QStringLiteral("sf2")).value(QStringLiteral("engine")).toString(), QStringLiteral("fbneo"));
+        // Its leaderboard for the Arcade screen once a key is kept, and only
+        // for a game FinalBurn Neo plays; the key forgotten before anything
+        // is asked, so no test reaches RetroAchievements.
+        const auto boardState = [&arcade](const char *set) {
+            return arcade.leaderboard(QLatin1String(set)).value(QStringLiteral("state")).toString();
+        };
+        QCOMPARE(boardState("sf2"), QStringLiteral("off"));
+        arcade.setAchievementsKey(QStringLiteral(" key1 "));
+        QVERIFY(arcade.achievementsKey());
+        QCOMPARE(QJsonDocument::fromJson(contents(data.path() + QStringLiteral("/arcade/retroachievements.json")))
+                     .object().value(QStringLiteral("key")).toString(), QStringLiteral("key1"));
+        QCOMPARE(boardState("sf2"), QStringLiteral("loading"));
+        QCOMPARE(boardState("pacman"), QStringLiteral("off"));
+        arcade.setAchievementsKey(QString());
+        QVERIFY(!arcade.achievementsKey());
+        QCOMPARE(boardState("sf2"), QStringLiteral("off"));
         const auto labels = [](const QVariantList &choices) {
             QStringList list;
             for (const QVariant &c : choices)
@@ -1034,7 +1052,7 @@ private slots:
     void fbneoDownload() {
         QTemporaryDir data;
         QVERIFY(data.isValid());
-        // FinalBurn Neo's list has some 9,000 games: one of a thousand.
+        // FinalBurn Neo's list has some 8,400 sets: one of a thousand.
         QByteArray dat = "<?xml version=\"1.0\"?>\n<datafile>\n";
         for (int i = 0; i < 1000; ++i)
             dat += "<game name=\"game" + QByteArray::number(i) + "\"><description>Game</description></game>\n";
@@ -1109,6 +1127,134 @@ private slots:
         // A machine libretro builds none for.
         installer.start(FbneoInstaller::Source{ QUrl(), QUrl(base), QUrl(base) });
         QCOMPARE(finished.last().at(1).toString().left(40), QStringLiteral("libretro builds no FinalBurn Neo for thi"));
+    }
+
+    // The Arcade screen's leaderboards from a stand-in for RetroAchievements'
+    // Web API: the arcade games' list read once and kept, a game found by
+    // its file's hash, its leaderboard of scores chosen and its first three
+    // read; only the game last asked for is read; a game with no leaderboard,
+    // a key refused and a server gone said so.
+    void retroAchievementsBoards() {
+        QTemporaryDir data;
+        QVERIFY(data.isValid());
+        const QByteArray sf2 = libretro::achievementsHash(QStringLiteral("sf2.zip")).toLatin1();
+        const QByteArray mslug = libretro::achievementsHash(QStringLiteral("mslug.zip")).toLatin1();
+        const QByteArray galaga = libretro::achievementsHash(QStringLiteral("galaga.zip")).toLatin1();
+        // sf2's game has a board of times first, then one of scores;
+        // galaga's none; mslug's (its hash in capitals) one of points, with
+        // no one on it yet.
+        const QHash<QByteArray, QByteArray> answers{
+            { "/API/API_GetGameList.php?i=27&f=1&h=1",
+              "[{\"ID\": 1, \"NumLeaderboards\": 2, \"Hashes\": [\"" + sf2 + "\"]},"
+              " {\"ID\": 2, \"NumLeaderboards\": 0, \"Hashes\": [\"" + galaga + "\"]},"
+              " {\"ID\": 3, \"NumLeaderboards\": 1, \"Hashes\": [\"" + mslug.toUpper() + "\"]}]" },
+            { "/API/API_GetGameLeaderboards.php?i=1",
+              "{\"Count\": 2, \"Results\": [{\"ID\": 11, \"RankAsc\": true, \"Title\": \"Fastest Clear\","
+              " \"Description\": \"Fewest seconds\", \"Format\": \"TIME\"}, {\"ID\": 12, \"RankAsc\": false,"
+              " \"Title\": \" Arcade Mode\", \"Description\": \"The highest score possible\", \"Format\": \"VALUE\"}]}" },
+            { "/API/API_GetLeaderboardEntries.php?i=12&c=3",
+              "{\"Count\": 3, \"Total\": 40, \"Results\": [{\"Rank\": 1, \"User\": \"Ryu\", \"Score\": 1234560,"
+              " \"FormattedScore\": \"1,234,560\"}, {\"Rank\": 2, \"User\": \"Ken\", \"Score\": 990000,"
+              " \"FormattedScore\": \"990,000\"}, {\"Rank\": 2, \"User\": \"Chun\", \"Score\": 990000}]}" },
+            { "/API/API_GetGameLeaderboards.php?i=3",
+              "{\"Results\": [{\"ID\": 31, \"RankAsc\": false, \"Title\": \"Mission 1\","
+              " \"Description\": \"Most points\", \"Format\": \"SCORE\"}]}" },
+            { "/API/API_GetLeaderboardEntries.php?i=31&c=3", "{\"Count\": 0, \"Total\": 0, \"Results\": []}" },
+        };
+        QStringList asked;
+        QTcpServer server;
+        QVERIFY(server.listen(QHostAddress::LocalHost));
+        connect(&server, &QTcpServer::newConnection, &server, [&server, &answers, &asked] {
+            QTcpSocket *socket = server.nextPendingConnection();
+            connect(socket, &QTcpSocket::readyRead, socket, [socket, &answers, &asked] {
+                const QUrl url(QString::fromLatin1(socket->readAll().split(' ').value(1)));
+                QUrlQuery query(url);
+                const QString key = query.queryItemValue(QStringLiteral("y"));
+                query.removeQueryItem(QStringLiteral("y"));
+                const QByteArray path = (url.path() + QLatin1Char('?') + query.toString()).toLatin1();
+                asked << QString::fromLatin1(path) + QStringLiteral(" y=") + key;
+                QByteArray status = "200 OK";
+                QByteArray body = answers.value(path);
+                if (key != QLatin1String("key1"))
+                    status = "401 Unauthorized", body = "{\"message\": \"Unauthenticated.\"}";
+                else if (!answers.contains(path))
+                    status = "404 Not Found";
+                socket->write("HTTP/1.1 " + status + "\r\nContent-Type: application/json\r\nContent-Length: "
+                              + QByteArray::number(body.size()) + "\r\nConnection: close\r\n\r\n" + body);
+                socket->disconnectFromHost();
+            });
+        });
+        const QUrl api(QStringLiteral("http://127.0.0.1:%1/API/").arg(server.serverPort()));
+        const auto state = [](const QVariantMap &board) { return board.value(QStringLiteral("state")).toString(); };
+
+        RetroAchievements boards(data.path(), api);
+        QSignalSpy ready(&boards, &RetroAchievements::boardReady);
+        QCOMPARE(state(boards.board(QStringLiteral("sf2.zip"))), QStringLiteral("failed"));
+        boards.setKey(QStringLiteral("key1"));
+        QCOMPARE(state(boards.board(QStringLiteral("sf2.zip"))), QStringLiteral("loading"));
+        QVERIFY(ready.wait(5000));
+        QCOMPARE(ready.last().at(0).toString(), QStringLiteral("sf2.zip"));
+        QVariantMap board = boards.board(QStringLiteral("sf2.zip"));
+        QCOMPARE(state(board), QStringLiteral("ready"));
+        QCOMPARE(board.value(QStringLiteral("title")).toString(), QStringLiteral("Arcade Mode"));
+        QVariantList entries = board.value(QStringLiteral("entries")).toList();
+        QCOMPARE(entries.size(), 3);
+        QCOMPARE(entries.at(0).toMap(), (QVariantMap{ { QStringLiteral("rank"), QStringLiteral("1ST") },
+                                                      { QStringLiteral("score"), QStringLiteral("1,234,560") },
+                                                      { QStringLiteral("name"), QStringLiteral("Ryu") } }));
+        QCOMPARE(entries.at(2).toMap().value(QStringLiteral("rank")).toString(), QStringLiteral("2ND"));
+        QCOMPARE(entries.at(2).toMap().value(QStringLiteral("score")).toString(), QStringLiteral("990000"));
+        QCOMPARE(asked, QStringList({ QStringLiteral("/API/API_GetGameList.php?i=27&f=1&h=1 y=key1"),
+                                      QStringLiteral("/API/API_GetGameLeaderboards.php?i=1 y=key1"),
+                                      QStringLiteral("/API/API_GetLeaderboardEntries.php?i=12&c=3 y=key1") }));
+        QVERIFY(contents(data.path() + QStringLiteral("/retroachievements-games.json")).contains(sf2));
+
+        // A game whose leaderboards are none, and one with no one on its
+        // board yet: the list isn't read again.
+        asked.clear();
+        QCOMPARE(state(boards.board(QStringLiteral("galaga.zip"))), QStringLiteral("loading"));
+        QVERIFY(ready.wait(5000));
+        QCOMPARE(state(boards.board(QStringLiteral("galaga.zip"))), QStringLiteral("none"));
+        boards.board(QStringLiteral("mslug.zip"));
+        QVERIFY(ready.wait(5000));
+        board = boards.board(QStringLiteral("mslug.zip"));
+        QCOMPARE(state(board), QStringLiteral("ready"));
+        QCOMPARE(board.value(QStringLiteral("title")).toString(), QStringLiteral("Mission 1"));
+        QVERIFY(board.value(QStringLiteral("entries")).toList().isEmpty());
+        QCOMPARE(asked, QStringList({ QStringLiteral("/API/API_GetGameLeaderboards.php?i=3 y=key1"),
+                                      QStringLiteral("/API/API_GetLeaderboardEntries.php?i=31&c=3 y=key1") }));
+
+        // The list kept read from its file; of two games asked for at once,
+        // only the last is read.
+        asked.clear();
+        RetroAchievements again(data.path(), api);
+        QSignalSpy readyAgain(&again, &RetroAchievements::boardReady);
+        again.setKey(QStringLiteral("key1"));
+        again.board(QStringLiteral("sf2.zip"));
+        again.board(QStringLiteral("mslug.zip"));
+        QVERIFY(readyAgain.wait(5000));
+        QCOMPARE(readyAgain.size(), 1);
+        QCOMPARE(readyAgain.last().at(0).toString(), QStringLiteral("mslug.zip"));
+        QCOMPARE(asked.size(), 2);
+        QVERIFY(asked.first().startsWith(QStringLiteral("/API/API_GetGameLeaderboards.php?i=3 ")));
+
+        // A key RetroAchievements refuses.
+        QSignalSpy refused(&again, &RetroAchievements::keyRefused);
+        again.setKey(QStringLiteral("bad"));
+        QCOMPARE(state(again.board(QStringLiteral("sf2.zip"))), QStringLiteral("loading"));
+        QVERIFY(readyAgain.wait(5000));
+        QCOMPARE(refused.size(), 1);
+        QCOMPARE(state(again.board(QStringLiteral("sf2.zip"))), QStringLiteral("failed"));
+
+        // No server, and no list kept: the board can't be read.
+        server.close();
+        QTemporaryDir empty;
+        RetroAchievements gone(empty.path(), api);
+        QSignalSpy readyGone(&gone, &RetroAchievements::boardReady);
+        gone.setKey(QStringLiteral("key1"));
+        gone.board(QStringLiteral("sf2.zip"));
+        QVERIFY(readyGone.wait(5000));
+        QCOMPARE(state(gone.board(QStringLiteral("sf2.zip"))), QStringLiteral("failed"));
     }
 
     // A game started while MAME is asked about the sets stops that MAME and

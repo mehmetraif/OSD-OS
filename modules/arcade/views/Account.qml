@@ -2,10 +2,12 @@ import QtQuick
 import Components
 
 // Settings → Arcade → RetroAchievements Account: the account RetroArch plays
-// FinalBurn Neo's games under for Online High Scores. Signing in hands the
-// password to ArcadeBackend for RetroArch to sign in with at the next game,
-// which swaps it for a token (RetroAchievements lets an emulator sign in, not
-// a launcher); the page says how that went (achievementsState).
+// FinalBurn Neo's games under for Online High Scores, and the Web API key the
+// Arcade screen reads their leaderboards with (ArcadeBackend::leaderboard()).
+// Signing in hands the password to ArcadeBackend for RetroArch to sign in
+// with at the next game, which swaps it for a token (RetroAchievements lets
+// an emulator sign in, not a launcher); the page says how that went
+// (achievementsState).
 FocusScope {
     id: accountRoot
 
@@ -19,17 +21,19 @@ FocusScope {
     readonly property string user: arcadeBackend ? arcadeBackend.achievementsUser : ""
     readonly property string accountState: arcadeBackend ? arcadeBackend.achievementsState : "none"
     readonly property string message: arcadeBackend ? arcadeBackend.achievementsMessage : ""
+    readonly property bool keyKept: arcadeBackend ? arcadeBackend.achievementsKey : false
+    readonly property bool keyRefused: arcadeBackend ? arcadeBackend.achievementsKeyRefused : false
     // What is typed for the next sign-in.
     property string typedUser: ""
     property string typedPassword: ""
-    // The keyboard is for: "user" or "password".
+    // The keyboard is for: "user", "password" or "key".
     property string typing: ""
 
     readonly property string stateText: accountState === "signedIn" ? "Signed In"
                                       : accountState === "pending" ? "At the Next Game"
                                       : accountState === "failed" ? "Not Signed In" : "None"
     // The page's lines, by key: the list is made again only when a line
-    // comes or goes (signed in), the cursor kept on its line.
+    // comes or goes (signed in, a key kept), the cursor kept on its line.
     property var keys: []
     function updateKeys() {
         var made = ["state", "status"]
@@ -37,6 +41,9 @@ FocusScope {
             made.push("signOut")
         else
             made.push("user", "password", "signIn")
+        made.push("key")
+        if (keyKept)
+            made.push("forgetKey")
         if (JSON.stringify(made) === JSON.stringify(keys))
             return
         var at = keys[list.currentIndex]
@@ -46,6 +53,7 @@ FocusScope {
         list.currentIndex = Math.max(0, made.indexOf(at))
     }
     onAccountStateChanged: updateKeys()
+    onKeyKeptChanged: updateKeys()
     Component.onCompleted: updateKeys()
 
     function labelOf(key) {
@@ -56,6 +64,8 @@ FocusScope {
         case "user": return "User"
         case "password": return "Password"
         case "signIn": return "Sign In"
+        case "key": return "Web API Key"
+        case "forgetKey": return "Forget Web API Key"
         }
         return ""
     }
@@ -65,6 +75,7 @@ FocusScope {
         case "status": return stateText
         case "user": return typedUser !== "" ? typedUser : "None"
         case "password": return typedPassword !== "" ? "*".repeat(typedPassword.length) : "None"
+        case "key": return !keyKept ? "None" : keyRefused ? "Refused" : "Kept"
         }
         return ""
     }
@@ -84,6 +95,10 @@ FocusScope {
         case "signIn":
             return typedUser !== "" && typedPassword !== "" ? "RetroArch signs in at the next game FinalBurn Neo plays"
                                                             : "Type your user name and password first"
+        case "key":
+            return keyRefused ? "RetroAchievements refused the key: type it again from retroachievements.org, Settings, Keys"
+                              : "For the leaderboards on the Arcade screen: retroachievements.org, Settings, Keys"
+        case "forgetKey": return "The Arcade screen shows this machine's own high scores again"
         }
         return ""
     }
@@ -112,6 +127,15 @@ FocusScope {
             break
         case "signOut":
             arcadeBackend.signOutAchievements()
+            break
+        case "key":
+            typing = "key"
+            keyboard.title = "Web API Key"
+            keyboard.masked = false
+            keyboard.open("")
+            break
+        case "forgetKey":
+            arcadeBackend.setAchievementsKey("")
             break
         }
     }
@@ -165,7 +189,7 @@ FocusScope {
         visible: !keyboard.visible
         text: root.hints.back + ":BACK " + root.hints.navigate + ":NAVIGATE"
               + (key !== "" && key !== "state" && key !== "status" ? " " + root.hints.select + ":"
-                 + (key === "user" || key === "password" ? "TYPE" : "SELECT") : "")
+                 + (key === "user" || key === "password" || key === "key" ? "TYPE" : "SELECT") : "")
         anchors.bottom: parent.bottom
         anchors.left: parent.left
         anchors.bottomMargin: root.sh * 0.1041667 //50
@@ -182,6 +206,8 @@ FocusScope {
                 accountRoot.typedUser = text.trim()
             else if (accountRoot.typing === "password")
                 accountRoot.typedPassword = text
+            else if (accountRoot.typing === "key" && arcadeBackend)
+                arcadeBackend.setAchievementsKey(text.trim())
             accountRoot.typing = ""
             list.forceActiveFocus()
         }
