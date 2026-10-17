@@ -756,6 +756,10 @@ private slots:
             { "Climbing / Building", "Climbing" },               // Crazy Climber
             { "Maze / Collect", "Maze" },
             { "Puzzle", "Puzzle" },
+            // A TTL game's kind, as a CPU's game's.
+            { "TTL * Driving / Race", "Racing" },                // Gran Trak 10
+            { "TTL * Shooter / Gun", "Light Gun" },
+            { "TTL * Ball & Paddle / Pong", "Ball & Paddle" },   // Pong
         };
         for (const auto &[category, genre] : kGenres)
             QCOMPARE(mame::genreOf(QString::fromUtf8(category)), QString::fromUtf8(genre));

@@ -93,11 +93,12 @@ QString titleOf(const QString &description);
 QString systemOf(const QString &sourceFile);
 
 // The genre arcade players know a game by, from its catver.ini category
-// (progettosnaps' list), without the "* Mature *" mark: "Fighter / Versus"
-// is Fighting, "Fighter / 2.5D" Beat 'em Up (Final Fight), "Shooter / Flying
-// Vertical" Shmup, "Platform / Shooter Scrolling" Run and Gun (Metal Slug),
-// "Shooter / Gun" Light Gun, "Driving / …" Racing; any other is its main
-// category: Platform, Sports, Puzzle, Maze, Climbing, Shooter…
+// (progettosnaps' list), without the "* Mature *" mark and a TTL game's
+// "TTL *": "Fighter / Versus" is Fighting, "Fighter / 2.5D" Beat 'em Up
+// (Final Fight), "Shooter / Flying Vertical" Shmup, "Platform / Shooter
+// Scrolling" Run and Gun (Metal Slug), "Shooter / Gun" Light Gun, "Driving /
+// …" Racing; any other is its main category: Platform, Sports, Puzzle, Maze,
+// Climbing, Shooter…
 QString genreOf(const QString &category);
 
 // The genres of catver.ini: each set's, genreOf() its category:

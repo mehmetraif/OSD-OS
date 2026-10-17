@@ -139,7 +139,7 @@ COIN and START are MAME's own keys and buttons for them, so the screen works as 
 
 The genres come from **catver.ini**, the category list for MAME's games that progettosnaps.net keeps (in its *Catver.ini* pack): a line for each game, such as `sf2=Fighter / Versus`. Put `catver.ini` in the games folder, beside the sets, or in `arcade` in the data folder. A clone without a line of its own takes its parent's genre. A catver.ini made for the same MAME as the sets names the most of them. Without one there are no genre filters; the rest of the screen is the same.
 
-A game's genre is the one arcade players know it by, made from its category (its `* Mature *` mark aside):
+A game's genre is the one arcade players know it by, made from its category (its `* Mature *` mark aside, and a game of logic chips' `TTL *`: `TTL * Driving / Race` is Racing):
 
 | Genre | catver.ini's categories | For instance |
 |---|---|---|
