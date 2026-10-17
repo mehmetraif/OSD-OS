@@ -472,12 +472,7 @@ QVariantList HighScoresBackend::topEntries(const QString &set, int count) const 
     const auto game = m_games.constFind(set);
     if (game == m_games.constEnd() || game->hidden || !game->error.isEmpty() || count <= 0)
         return entries;
-    const auto ordinal = [](int n) {
-        const int tens = n % 100;
-        const char *suffix = tens >= 11 && tens <= 13 ? "TH"
-                           : n % 10 == 1 ? "ST" : n % 10 == 2 ? "ND" : n % 10 == 3 ? "RD" : "TH";
-        return QString::number(n) + QLatin1String(suffix);
-    };
+    using scores::ordinal;
     const auto entry = [](const QString &rank, const QString &score, const QString &name) {
         return QVariantMap{ { QStringLiteral("rank"), rank }, { QStringLiteral("score"), score },
                             { QStringLiteral("name"), name } };

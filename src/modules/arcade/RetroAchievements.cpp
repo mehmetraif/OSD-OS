@@ -1,5 +1,6 @@
 #include "RetroAchievements.h"
 #include "Libretro.h"
+#include "../highscores/ScoreTable.h"
 #include "../../util/AtomicFile.h"
 #include <QCoreApplication>
 #include <QDir>
@@ -34,14 +35,6 @@ constexpr int kEntries = 3;
 constexpr int kTimeoutMs = 20000;
 // On a reply stopped to be asked again (another key).
 constexpr const char *kAgain = "osdosAskAgain";
-
-// As the High Scores module ranks a table's lines.
-QString ordinal(int n) {
-    const int tens = n % 100;
-    const char *suffix = tens >= 11 && tens <= 13 ? "TH"
-                       : n % 10 == 1 ? "ST" : n % 10 == 2 ? "ND" : n % 10 == 3 ? "RD" : "TH";
-    return QString::number(n) + QLatin1String(suffix);
-}
 
 QString listFile(const QString &home) {
     return home + QStringLiteral("/retroachievements-games.json");
@@ -239,7 +232,7 @@ void RetroAchievements::readEntries(const QString &fileName, int leaderboard, co
                 const QJsonObject entry = value.toObject();
                 const QString formatted = entry.value(QStringLiteral("FormattedScore")).toString();
                 entries << QVariantMap{
-                    { QStringLiteral("rank"), ordinal(entry.value(QStringLiteral("Rank")).toInt()) },
+                    { QStringLiteral("rank"), scores::ordinal(entry.value(QStringLiteral("Rank")).toInt()) },
                     { QStringLiteral("score"), !formatted.isEmpty() ? formatted
                                                : entry.value(QStringLiteral("Score")).toVariant().toString() },
                     { QStringLiteral("name"), entry.value(QStringLiteral("User")).toString() } };

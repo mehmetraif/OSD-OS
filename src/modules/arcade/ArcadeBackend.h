@@ -94,7 +94,7 @@ class ArcadeBackend : public QObject {
     // way, how far (0 to 100), and why the last one failed ("" when it
     // didn't).
     Q_PROPERTY(bool fbneoDownloading READ fbneoDownloading NOTIFY fbneoChanged)
-    Q_PROPERTY(int fbneoProgress READ fbneoProgress NOTIFY fbneoChanged)
+    Q_PROPERTY(int fbneoProgress READ fbneoProgress NOTIFY fbneoProgressChanged)
     Q_PROPERTY(QString fbneoMessage READ fbneoMessage NOTIFY fbneoChanged)
 public:
     explicit ArcadeBackend(const QString &appRoot, const QString &dataRoot, AppCore *appCore,
@@ -211,7 +211,8 @@ public:
     // The licence's text (fbneoInfo().license), "" for none.
     Q_INVOKABLE QString fbneoLicenseText() const;
     // Downloads the core, its list of games and its licence (FbneoInstaller);
-    // fbneoChanged() as it goes, and the list read again once it is in.
+    // fbneoProgressChanged() as it goes, fbneoChanged() as it starts and
+    // ends, and the list read again once it is in.
     Q_INVOKABLE void downloadFbneo();
     Q_INVOKABLE QString lastError() const { return m_lastError; }
     // What MAME printed in the last game's run.
@@ -276,6 +277,9 @@ signals:
     void leaderboardReady(const QString &set);
     void roomsChanged();
     void fbneoChanged();
+    // The download's progress, apart: what the page reads of the rest
+    // (fbneoInfo()) isn't read again with each step of it.
+    void fbneoProgressChanged();
     // reason: "ok", "failed", "stopped" or "failed_to_start" (ScriptLauncher's);
     // notice: what to tell the player when it isn't "ok", else "".
     void finished(int exitCode, const QString &reason, const QString &notice);

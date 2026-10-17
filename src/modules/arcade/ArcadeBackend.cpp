@@ -219,7 +219,7 @@ ArcadeBackend::ArcadeBackend(const QString &appRoot, const QString &dataRoot, Ap
     connect(m_watcher, &QFutureWatcherBase::finished, this, &ArcadeBackend::onRead);
 
     m_installer = new FbneoInstaller(m_dataRoot, this);
-    connect(m_installer, &FbneoInstaller::progressChanged, this, &ArcadeBackend::fbneoChanged);
+    connect(m_installer, &FbneoInstaller::progressChanged, this, &ArcadeBackend::fbneoProgressChanged);
     connect(m_installer, &FbneoInstaller::finished, this, [this](bool ok, const QString &message) {
         m_fbneoMessage = message;
         // Its list read with the folder, now that it has changed.
