@@ -43,6 +43,34 @@ target_include_directories(looks_test PRIVATE ../src)
 target_link_libraries(looks_test PRIVATE Qt6::Core Qt6::Network Qt6::Qml Qt6::Test)
 add_test(NAME looks COMMAND looks_test)
 
+# The Jellyfin, Emby and Plex backends against a stand-in network: a list
+# asked for after another drops the first's reply, lists kept until a playback
+# ends, a stream given up dropped unreported, an auth check that changes
+# nothing quiet, and Plex's next item for a player left dropped.
+find_package(OpenSSL REQUIRED)
+add_executable(media_servers_test
+    media_servers_test.cpp
+    ../src/modules/jellyfin/JellyfinBackend.cpp
+    ../src/modules/emby/EmbyBackend.cpp
+    ../src/modules/plex/PlexBackend.cpp)
+target_include_directories(media_servers_test PRIVATE ../src)
+target_link_libraries(media_servers_test PRIVATE Qt6::Core Qt6::Concurrent Qt6::Network Qt6::Test OpenSSL::Crypto)
+add_test(NAME media_servers COMMAND media_servers_test)
+
+# An NFC card's file: mapped again, the old one kept till the new one is
+# written, and a long title cut to a name every filesystem takes.
+add_executable(nfc_cards_test
+    nfc_cards_test.cpp
+    ../src/modules/nfc_reader/NfcReaderBackend.cpp
+    ../src/modules/nfc_reader/PcscDriver.cpp
+    ../src/modules/nfc_reader/Pn532SerialDriver.cpp
+    ../src/modules/nfc_reader/SerialPort.cpp
+    ../src/AppCore.cpp
+    ../src/util/LegacyNames.cpp)
+target_include_directories(nfc_cards_test PRIVATE ../src)
+target_link_libraries(nfc_cards_test PRIVATE Qt6::Core Qt6::Network Qt6::Qml Qt6::Test)
+add_test(NAME nfc_cards COMMAND nfc_cards_test)
+
 # The High Scores module on MAME's files of three games (data/highscores),
 # read by openhi2txt with hi2txt's definitions: the tables as lines, what is
 # kept and read again, the games' names, the files that can't be read. Where
@@ -148,6 +176,32 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
         Qt6::Core Qt6::Network Qt6::Qml Qt6::Test ${Libdrm_LIBRARIES})
     add_test(NAME arcade COMMAND arcade_test)
 
+    # A playlist's m3u: owner-only and whole, the one before removed once it
+    # is written, and one a full card can't take reported, the one before
+    # kept. Linux only, as the arcade test, for what the backends start.
+    add_executable(playlists_test
+        playlists_test.cpp
+        ../src/modules/playlists/PlaylistsBackend.cpp
+        ../src/modules/playlists/ServerDownload.cpp
+        ../src/modules/local_files/LocalFilesBackend.cpp
+        ../src/modules/local_files/RemovableDrives.cpp
+        ../src/modules/youtube/YouTubeBackend.cpp
+        ../src/modules/web_player/WebPlayerBackend.cpp
+        ../src/modules/web_player/TmdbCatalog.cpp
+        ../src/modules/scripts/ScriptLauncher.cpp
+        ../src/input/ControllerProfile.cpp
+        ../src/audio/AudioOutput.cpp
+        ../src/audio/MenuMusic.cpp
+        ../src/util/DisplayHandoff.cpp
+        ../src/util/MpvLocator.cpp
+        ../src/util/YtDlpLocator.cpp
+        ../src/AppCore.cpp
+        ../src/util/LegacyNames.cpp)
+    target_include_directories(playlists_test PRIVATE ../src ${Libdrm_INCLUDE_DIRS})
+    target_link_libraries(playlists_test PRIVATE
+        Qt6::Core Qt6::Network Qt6::Qml Qt6::Test ${Libdrm_LIBRARIES})
+    add_test(NAME playlists COMMAND playlists_test)
+
     # A Raspberry Pi to JAMMA board's pins as gamepad events (osdos-jamma).
     # Linux only, as uinput's codes are.
     add_executable(jamma_test jamma_test.cpp ../src/jamma/JammaPanel.cpp)
@@ -166,6 +220,17 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
     add_test(NAME osdos_stop COMMAND bash ${CMAKE_CURRENT_SOURCE_DIR}/osdos_stop_test.sh
                                      ${CMAKE_CURRENT_SOURCE_DIR}/../scripts/install.sh
                                      ${CMAKE_CURRENT_SOURCE_DIR}/../os/stage-osdos/03-boot/files)
+
+    # The launcher (scripts/install.sh) on a stand-in install: a staged update
+    # applied, or one cut short by a power cut put right, and a Pi 5 waiting
+    # for its display preset's output.
+    add_test(NAME launcher COMMAND bash ${CMAKE_CURRENT_SOURCE_DIR}/launcher_test.sh
+                                   ${CMAKE_CURRENT_SOURCE_DIR}/../scripts/install.sh)
+
+    # The installer's choice of the user OSD/OS runs as (scripts/install.sh):
+    # no service yet, one installed before, and the image's own.
+    add_test(NAME installer COMMAND bash ${CMAKE_CURRENT_SOURCE_DIR}/installer_test.sh
+                                    ${CMAKE_CURRENT_SOURCE_DIR}/../scripts/install.sh)
 endif()
 
 find_package(Qt6 REQUIRED COMPONENTS Gui Quick QuickTest)
@@ -194,6 +259,13 @@ set_tests_properties(module_settings_view PROPERTIES ENVIRONMENT "QT_QPA_PLATFOR
 add_test(NAME highscores_views COMMAND tree_browser_test -input ${CMAKE_CURRENT_SOURCE_DIR}/qml/tst_highscores.qml
                                        -import ${CMAKE_CURRENT_SOURCE_DIR}/../views)
 set_tests_properties(highscores_views PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen;QT_QUICK_BACKEND=software")
+# The media server modules' players, detail screens and routers (Plex,
+# Jellyfin, Emby) against stand-ins for their backends and MpvController, and
+# for the app's VhsNoise (stubs).
+add_test(NAME media_players_views COMMAND tree_browser_test -input ${CMAKE_CURRENT_SOURCE_DIR}/qml/tst_media_players.qml
+                                          -import ${CMAKE_CURRENT_SOURCE_DIR}/../views
+                                          -import ${CMAKE_CURRENT_SOURCE_DIR}/stubs)
+set_tests_properties(media_players_views PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen;QT_QUICK_BACKEND=software")
 
 # Settings → Controls, each controller apart: the labels, the profiles and
 # whose a key is (ControllerProfile), and InputManager with pads SDL makes up

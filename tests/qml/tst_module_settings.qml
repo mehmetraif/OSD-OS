@@ -7,9 +7,9 @@ import QtTest
 // unset one by its default, coming and going as that row changes with the
 // cursor kept on it, and their values kept while they are hidden; a dynamic
 // row's choices asked for as it comes; a toggle's value as ON or OFF, and a
-// row whose own row is hidden hidden too; a slider and its tape bar. A
-// multiselect_submenu row's page, views/MultiSelectSettings.qml, with its
-// headings.
+// row whose own row is hidden hidden too; a slider and its tape bar; a value
+// that couldn't be saved left as it was. A multiselect_submenu row's page,
+// views/MultiSelectSettings.qml, with its headings.
 Rectangle {
     id: root
     color: surfaceColor
@@ -40,6 +40,8 @@ Rectangle {
         property var values: ({})
         property var actions: []
         property var schema: []
+        // config.json can't be written (a full card): nothing is saved.
+        property bool saveFails: false
         signal dynamicOptionsReady(string mid, string key, var items)
         signal moduleAuthStateChanged(string mid)
         function get_settings() { return { modules: { "com.osdos.test": values } } }
@@ -47,9 +49,12 @@ Rectangle {
         function get_module_auth_state(id) { return "" }
         function invoke_module_action(id, slot) { actions = actions.concat([slot]) }
         function save_setting(module, key, value) {
+            if (saveFails)
+                return false
             var v = Object.assign({}, values)
             v[key] = value
             values = v
+            return true
         }
         function get_module_settings_schema(id) { return schema }
     }
@@ -80,6 +85,7 @@ Rectangle {
             appCore.values = {}
             appCore.actions = []
             appCore.schema = arcadeRows
+            appCore.saveFails = false
         }
         function cleanup() {
             loader.source = ""
@@ -151,6 +157,25 @@ Rectangle {
             page = open()
             compare(keys(page), ["enabled", "screen", "start_filter", "look", "video"])
             compare(appCore.actions, ["startFilterOptions"])
+        }
+
+        // A value that couldn't be saved (a full card): the row stays on what
+        // is saved, its rows with it; saved, it changes.
+        function test_unsaved() {
+            var page = open()
+            keyClick(Qt.Key_Down)
+            appCore.saveFails = true
+            keyClick(Qt.Key_Right)
+            compare(appCore.values.screen, undefined)
+            compare(page.currentDisplayValue(page.schemaItems[1]), "Original")
+            compare(keys(page), ["enabled", "screen", "video"])
+            keyClick(Qt.Key_Up)
+            keyClick(Qt.Key_Right)
+            compare(page.currentDisplayValue(page.schemaItems[0]), "OFF")
+            appCore.saveFails = false
+            keyClick(Qt.Key_Right)
+            compare(page.currentDisplayValue(page.schemaItems[0]), "ON")
+            compare(appCore.values.enabled, true)
         }
 
         // A toggle's rows follow it as ON or OFF, unset as its default and

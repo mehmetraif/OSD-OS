@@ -106,6 +106,7 @@ Rectangle {
             var s = settings
             s[key] = value
             settings = s
+            return true
         }
     }
 
