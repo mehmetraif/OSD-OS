@@ -218,6 +218,18 @@ else
     if [ -r "$PRESET" ] && tr -d '\0' 2>/dev/null < /proc/device-tree/model | grep -q '^Raspberry Pi 5'; then
         want=$(sed -n 's/^# osdos-output: *\([A-Za-z-]*\).*/\1/p' "$PRESET" | head -n1)
         mode=$(sed -n 's/^# osdos-mode: *\([0-9]*x[0-9]*\).*/\1/p' "$PRESET" | head -n1)
+        # Composite and DPI come from the RP1's drivers, which may register
+        # their connector after vc4's HDMI has: waited for, up to ten seconds,
+        # rather than taking HDMI for the boot and leaving the CRT dark.
+        tries=0
+        while [ -n "$want" ] && [ "$tries" -lt 100 ] \
+                && ! compgen -G "/sys/class/drm/card*-${want}-*" > /dev/null; do
+            sleep 0.1
+            tries=$((tries + 1))
+        done
+        if [ -n "$want" ] && ! compgen -G "/sys/class/drm/card*-${want}-*" > /dev/null; then
+            echo "osdos: the display preset's $want output never appeared; taking the first display connected" >&2
+        fi
         for d in /sys/class/drm/card*-"${want:-none}"-*; do
             [ -e "$d" ] || continue
             n=$(basename "$d"); KMS_CARD="${n%%-*}"; KMS_OUTPUT="${n#*-}"
