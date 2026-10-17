@@ -71,8 +71,9 @@ FocusScope {
     // The area everything lies in: from the bar's top and the help line's
     // left to the column's right and the hint bar's foot, as the design has
     // it, each side moved out (in, below 0) as far as Screen Adjustment says
-    // (Root.qml's screenAdjustment), in the design's units.
-    readonly property var adjustment: moduleRoot.screenAdjustment
+    // (Root.qml's screenAdjustment), in the design's units, within what
+    // adjustSide() allows (withinLimits()).
+    readonly property var adjustment: withinLimits(moduleRoot.screenAdjustment)
     readonly property int areaLeft: 120 - adjustment.left
     readonly property int areaTop: 90 - adjustment.top
     readonly property int areaRight: 840 + adjustment.right
@@ -215,6 +216,20 @@ FocusScope {
     readonly property int adjustStep: 6
     readonly property int minAreaWidth: 600
     readonly property int minAreaHeight: 420
+
+    // A saved adjustment as adjustSide() could have made it, whatever
+    // config.json says: no side out past the screen's edge, and a pair of
+    // sides that leaves less than the least room back where the design has
+    // them.
+    function withinLimits(saved) {
+        var sides = { top: Math.min(90, saved.top), bottom: Math.min(720 - 645, saved.bottom),
+                      left: Math.min(120, saved.left), right: Math.min(960 - 840, saved.right) }
+        if (840 + sides.right - (120 - sides.left) < minAreaWidth)
+            sides.left = sides.right = 0
+        if (645 + sides.bottom - (90 - sides.top) < minAreaHeight)
+            sides.top = sides.bottom = 0
+        return sides
+    }
 
     // One side of the area ("top", "bottom", "left" or "right") a step out,
     // or in while shrinking, as far as the screen's edge and the least room
