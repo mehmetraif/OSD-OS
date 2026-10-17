@@ -28,8 +28,8 @@ import Components
 // back leaves the module. Coming back from a game restores the filter and
 // the game from the listState handed to navigateTo; a game played from the
 // screen itself (Start Info Screen off) leaves it as it was. Opened with the
-// startup favourite (navParams.startupPlay), it plays that at once, the
-// screen on it in Favorites.
+// startup favourite (navParams.startupPlay), it plays that as soon as the
+// folder has been read, the screen on it in Favorites.
 //
 // Opened to adjust it (navParams.adjust, Screen Adjustment's), a frame lies
 // round the area: ▲ ▼ ◄ ► move that side of it out, or in once select has
@@ -276,11 +276,17 @@ FocusScope {
     }
 
     // The filters read again, the wanted one shown if it has games, and the
-    // game kept where it is in it, or landOn.
+    // game kept where it is in it, or landOn. A filter shown in the wanted
+    // one's place while that one has no games yet (the folder read, MAME
+    // asked) hands its game on only once ▲ ▼ have moved in it (browsed):
+    // else the wanted one opens as the screen would have, on the game it was
+    // left on or its first.
+    property bool browsed: false
     function reload(landOn) {
         if (!arcadeBackend)
             return
-        var keep = landOn || (currentSet !== "" ? currentSet : (navListState.set || ""))
+        var standIn = filterId !== "" && filterId !== wanted && !browsed
+        var keep = landOn || (currentSet !== "" && !standIn ? currentSet : (navListState.set || ""))
         filters = arcadeBackend.filters()
         var at = indexOfFilter(wanted)
         filterIndex = Math.max(0, at)
@@ -289,13 +295,15 @@ FocusScope {
         if (at < 0 && !scanning && filterId !== "")
             wanted = filterId
         var place = keep !== "" && filterId !== "" ? arcadeBackend.filterIndex(filterId, keep) : -1
-        selected = place >= 0 ? place : Math.max(0, Math.min(selected, count - 1))
+        selected = place >= 0 ? place : (standIn ? 0 : Math.max(0, Math.min(selected, count - 1)))
         revision++
     }
 
     function move(delta) {
-        if (count > 0)
+        if (count > 0) {
             selected = (selected + delta + count) % count
+            browsed = true
+        }
     }
 
     function cycle(delta) {
@@ -336,7 +344,14 @@ FocusScope {
     // The startup favourite, played as if chosen in Favorites. Only as the
     // view first opens: coming back from the game brings navListState
     // instead.
+    // Waits here while the folder is read (ArcadeBackend reads it as the
+    // module opens).
+    property var startupEntry: null
     function playAtStartup(entry) {
+        if (arcadeBackend.reading) {
+            startupEntry = entry
+            return
+        }
         var path = String(entry.path || "")
         if (path.indexOf("game:") !== 0)
             return
@@ -362,6 +377,13 @@ FocusScope {
     Connections {
         target: arcadeBackend
         function onGamesChanged() { arcadeScreen.reload() }
+        function onReadingChanged() {
+            var entry = arcadeScreen.startupEntry
+            if (entry && !arcadeBackend.reading) {
+                arcadeScreen.startupEntry = null
+                arcadeScreen.playAtStartup(entry)
+            }
+        }
         // A game played from the screen itself (Start Info Screen off): its
         // play time, Recently Played, a snapshot taken in it and its high
         // scores, as the screen opening again would read them.

@@ -37,12 +37,18 @@ FocusScope {
 
     // The startup favourite, played as if chosen in Favorites, so coming back
     // from it lands there. Only as the view first opens: coming back from the
-    // game brings navListState instead.
+    // game brings navListState instead. Once the folder has been read
+    // (ArcadeBackend reads it as the module opens): till then it waits here.
+    property var startupEntry: null
     Component.onCompleted: {
         if (!navParams.navListState && navParams.startupPlay)
             Qt.callLater(playAtStartup, navParams.startupPlay)
     }
     function playAtStartup(entry) {
+        if (arcadeBackend.reading) {
+            startupEntry = entry
+            return
+        }
         var favorites = arcadeBackend.requestEntries("favorites")
         for (var i = 0; i < favorites.length; ++i) {
             if (favorites[i].path === entry.path) {
@@ -107,6 +113,13 @@ FocusScope {
         function onEntriesReady(path) { tree.refresh(path, true) }
         // A game played from the tree, now on Recently Played.
         function onFinished() { tree.refresh("recent", true) }
+        function onReadingChanged() {
+            var entry = gamesRoot.startupEntry
+            if (entry && !arcadeBackend.reading) {
+                gamesRoot.startupEntry = null
+                gamesRoot.playAtStartup(entry)
+            }
+        }
     }
 
     // What the entry under the cursor is: a game's year, maker, players and
