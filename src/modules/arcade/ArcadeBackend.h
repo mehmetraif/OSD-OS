@@ -94,7 +94,7 @@ class ArcadeBackend : public QObject {
     // way, how far (0 to 100), and why the last one failed ("" when it
     // didn't).
     Q_PROPERTY(bool fbneoDownloading READ fbneoDownloading NOTIFY fbneoChanged)
-    Q_PROPERTY(int fbneoProgress READ fbneoProgress NOTIFY fbneoChanged)
+    Q_PROPERTY(int fbneoProgress READ fbneoProgress NOTIFY fbneoProgressChanged)
     Q_PROPERTY(QString fbneoMessage READ fbneoMessage NOTIFY fbneoChanged)
 public:
     explicit ArcadeBackend(const QString &appRoot, const QString &dataRoot, AppCore *appCore,
@@ -134,8 +134,10 @@ public:
     // { set, name (its title), favorite }; Not Recognized's as { set, name
     // (its file's), unknown: true }.
     Q_INVOKABLE QVariantList filterGames(const QString &filter, int first, int count);
-    // Where a set is in a filter: -1 when it isn't in it.
-    Q_INVOKABLE int filterIndex(const QString &filter, const QString &set);
+    // Where a set is in a filter: -1 when it isn't in it. On Online Games,
+    // where a game is once for each room that hosts it, room's row (a room's
+    // id), else the game's first.
+    Q_INVOKABLE int filterIndex(const QString &filter, const QString &set, int room = -1);
     // What the screen says of a set: { set, name (MAME's description),
     // system, maker, year, players, playTime (seconds played), picture (a
     // file URL, "" for none), vertical }; for one under Not Recognized
@@ -160,6 +162,10 @@ public:
     Q_INVOKABLE void setEngine(const QString &set, const QString &engine);
     // RetroArch, the FinalBurn Neo core and its list of games are there.
     Q_INVOKABLE bool fbneoReady() const;
+    // FinalBurn Neo can play the game: it is ready, has the set, and the set
+    // is a zip or a 7z named as it looks for it (not a folder of files, not
+    // in capitals).
+    bool fbneoPlays(const QString &set) const;
 
     // Online Play (Settings → Arcade → Online Play): the netplay lobby's
     // rooms (lobby.libretro.com) of the folder's games FinalBurn Neo plays,
@@ -205,7 +211,8 @@ public:
     // The licence's text (fbneoInfo().license), "" for none.
     Q_INVOKABLE QString fbneoLicenseText() const;
     // Downloads the core, its list of games and its licence (FbneoInstaller);
-    // fbneoChanged() as it goes, and the list read again once it is in.
+    // fbneoProgressChanged() as it goes, fbneoChanged() as it starts and
+    // ends, and the list read again once it is in.
     Q_INVOKABLE void downloadFbneo();
     Q_INVOKABLE QString lastError() const { return m_lastError; }
     // What MAME printed in the last game's run.
@@ -270,6 +277,9 @@ signals:
     void leaderboardReady(const QString &set);
     void roomsChanged();
     void fbneoChanged();
+    // The download's progress, apart: what the page reads of the rest
+    // (fbneoInfo()) isn't read again with each step of it.
+    void fbneoProgressChanged();
     // reason: "ok", "failed", "stopped" or "failed_to_start" (ScriptLauncher's);
     // notice: what to tell the player when it isn't "ok", else "".
     void finished(int exitCode, const QString &reason, const QString &notice);
@@ -417,8 +427,11 @@ private:
     // RetroArch's folder in <data>/arcade, and its config and log there.
     QString retroarchHome() const { return m_home + QStringLiteral("/retroarch"); }
     // What a FinalBurn Neo game's run left: the token RetroArch swapped the
-    // password for, or why it couldn't; the config with the password goes.
+    // password for, or why it couldn't; the config, with the password or the
+    // token in it, goes.
     void takeAchievements(const libretro::Run &run);
+    // fbneoPlays() but for FinalBurn Neo being ready, asked once for many.
+    bool fbneoHas(const QString &set) const;
     void saveAchievements() const;
 
     // How long each game has been played: playtime.json, read when first

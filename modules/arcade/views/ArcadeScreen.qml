@@ -193,8 +193,9 @@ FocusScope {
     readonly property bool isGame: !!current && !current.unknown
     readonly property var details: (revision, arcadeBackend && currentSet !== ""
                                                ? arcadeBackend.gameDetails(currentSet) : ({}))
-    // The game plays in FinalBurn Neo, which takes no credits bought here.
-    readonly property bool fbneo: details.engine === "fbneo"
+    // The game plays in FinalBurn Neo, which takes no credits bought here: as
+    // its engine says, and a room of the lobby always.
+    readonly property bool fbneo: details.engine === "fbneo" || (!!current && current.room !== undefined)
     // The column's ground, the scheme's background as solid as Settings →
     // Arcade → Info Background says (Root.qml's infoBackground), over Settings'
     // Background Effect. Main.qml names its colours; a color property reads
@@ -295,7 +296,12 @@ FocusScope {
         if (!arcadeBackend)
             return
         var standIn = filterId !== "" && filterId !== wanted && !browsed
-        var keep = landOn || (currentSet !== "" && !standIn ? currentSet : (navListState.set || ""))
+        var fromCurrent = !landOn && currentSet !== "" && !standIn
+        var keep = landOn || (fromCurrent ? currentSet : (navListState.set || ""))
+        // On Online Games, the room it was on: its game may be hosted twice.
+        var keepRoom = landOn ? -1
+                     : fromCurrent ? (current.room !== undefined ? current.room : -1)
+                     : (navListState.room !== undefined ? navListState.room : -1)
         filters = arcadeBackend.filters()
         var at = indexOfFilter(wanted)
         filterIndex = Math.max(0, at)
@@ -303,7 +309,7 @@ FocusScope {
         // shown, which a favourite added later doesn't take the list from.
         if (at < 0 && !scanning && filterId !== "")
             wanted = filterId
-        var place = keep !== "" && filterId !== "" ? arcadeBackend.filterIndex(filterId, keep) : -1
+        var place = keep !== "" && filterId !== "" ? arcadeBackend.filterIndex(filterId, keep, keepRoom) : -1
         selected = place >= 0 ? place : (standIn ? 0 : Math.max(0, Math.min(selected, count - 1)))
         revision++
     }
@@ -330,9 +336,12 @@ FocusScope {
     // host }) or one hosted ({ hosting: true }).
     function play(set, name, listFilter, online) {
         var params = { game: set, title: name }
+        var state = { filter: listFilter, set: set }
         if (online)
             params.online = online
-        arcadeScreen.navigateTo("Play.qml", params, { filter: listFilter, set: set })
+        if (online && online.room !== undefined)
+            state.room = online.room
+        arcadeScreen.navigateTo("Play.qml", params, state)
     }
     function playCurrent() {
         if (current && current.room !== undefined)

@@ -1,6 +1,7 @@
 #include "AppCore.h"
 #include "input/ControllerProfile.h"
 #include "input/InputManager.h"
+#include "input/JammaPins.h"
 
 #include <QFile>
 #include <QJsonDocument>
@@ -28,9 +29,10 @@
 // virtual joysticks): each pad's own map over the shared one (the defaults
 // and input.cfg), its presses reported instead of acting while its page waits
 // for one, its labels in the hints, a model of pad plugged in twice, the JAMMA
-// board's sticks, the players' pads, and all of it kept in config.json for the
-// next start; and a pad's Back button as MAME's coin key where the focus
-// takes a coin.
+// board's sticks and their button test (both taken at once, with the board's
+// pins from a stand-in osdos-jamma), the players' pads, and all of it kept in
+// config.json for the next start; and a pad's Back button as MAME's coin key
+// where the focus takes a coin.
 class ControllersTest : public QObject {
     Q_OBJECT
 
@@ -150,6 +152,16 @@ class ControllersTest : public QObject {
     bool writeData(const QString &name, const QByteArray &data) const {
         QFile f(m_data.path() + "/" + name);
         return f.open(QIODevice::WriteOnly) && f.write(data) == data.size();
+    }
+    // A stand-in for osdos-jamma, a shell script, in the app's folder.
+    QString script(const QString &name, const QByteArray &body) const {
+        const QString path = m_app.path() + "/" + name;
+        QFile f(path);
+        if (!f.open(QIODevice::WriteOnly) || f.write("#!/bin/sh\n" + body) < 0)
+            return QString();
+        f.close();
+        f.setPermissions(QFile::ReadOwner | QFile::WriteOwner | QFile::ExeOwner);
+        return path;
     }
 
 private slots:
@@ -827,6 +839,93 @@ private slots:
         im.setControllerLabels(key2, "xbox");
         QCOMPARE(entry(im, "OSD/OS JAMMA P2").value("kind").toString(), QString("arcade"));
         QCOMPARE(savedControllers().value(key2).toObject().value("name").toString(), QString("OSD/OS JAMMA P2"));
+    }
+
+    // TEST BUTTONS on a JAMMA stick's page takes both sticks at once, their
+    // presses reported and acting on nothing, and the board's pins as
+    // osdos-jamma --test prints them, both players', pressed ones only.
+    void jammaTest() {
+        using Change = JammaPins::Change;
+        const auto parsed = [](const char *line) { return JammaPins::parse(line).value_or(Change{ -1, {}, false, {} }); };
+        QCOMPARE(parsed("P1 0x20 B1 pressed  tl2").player, 1);
+        QCOMPARE(parsed("P1 0x20 B1 pressed  tl2").pin, QString("B1"));
+        QVERIFY(parsed("P1 0x20 B1 pressed  tl2").pressed);
+        QCOMPARE(parsed("P1 0x20 B1 pressed  tl2").input, QString("tl2"));
+        QCOMPARE(parsed("P2 0x21 A7 released none\n").player, 2);
+        QVERIFY(!parsed("P2 0x21 A7 released none").pressed);
+        QCOMPARE(parsed("P2 0x21 A7 released none").input, QString("none"));
+        for (const char *other : { "osdos-jamma: player 1 at 0x20", "Press each control; Ctrl+C ends.",
+                                   "P3 0x20 B1 pressed  a", "P1 0x20 C1 pressed  a", "P1 0x20 B8 pressed  a",
+                                   "P1 0x20 B1 held     a", "P1 0x20 B1 pressed  <b>", "" })
+            QVERIFY2(!JammaPins::parse(other), other);
+
+        AppCore core(m_app.path(), m_data.path());
+        InputManager im(m_data.path(), &core);
+        QSignalSpy keys(&im, &InputManager::mpvKeyRequested);
+        VirtualPad p1, p2, other;
+        QVERIFY(p1.attach("OSD/OS JAMMA P1", 0, 0));
+        QVERIFY(p2.attach("OSD/OS JAMMA P2", 0, 0));
+        QVERIFY(other.attach("OSD/OS Test Pad"));
+        QTRY_VERIFY(entry(im, "OSD/OS JAMMA P2").value("present").toBool());
+        QTRY_VERIFY(entry(im, "OSD/OS Test Pad").value("present").toBool());
+        QCOMPARE(entry(im, "OSD/OS JAMMA P1").value("jamma").toInt(), 1);
+        QCOMPARE(entry(im, "OSD/OS JAMMA P2").value("jamma").toInt(), 2);
+        QCOMPARE(entry(im, "OSD/OS Test Pad").value("jamma").toInt(), 0);
+        const QString key1 = entry(im, "OSD/OS JAMMA P1").value("key").toString();
+        const QString key2 = entry(im, "OSD/OS JAMMA P2").value("key").toString();
+        QCOMPARE(im.controllerPage(key2).value("jamma").toInt(), 2);
+        QCOMPARE(im.controllerPage(entry(im, "OSD/OS Test Pad").value("key").toString()).value("jamma").toInt(), 0);
+
+        // Both sticks waited on: each press reported with its stick's key,
+        // and none acts; another pad's do.
+        QSignalSpy captured(&im, &InputManager::controllerInputCaptured);
+        im.captureControllers({ key1, key2 });
+        QCOMPARE(tap(p1, SDL_CONTROLLER_BUTTON_LEFTSHOULDER, keys), QString());
+        QCOMPARE(tap(p2, SDL_CONTROLLER_BUTTON_BACK, keys), QString());
+        QCOMPARE(tap(other, SDL_CONTROLLER_BUTTON_A, keys), QString("ENTER"));
+        QCOMPARE(captured.count(), 2);
+        QCOMPARE(captured.at(0).at(0).toString(), key1);
+        QCOMPARE(captured.at(0).at(2).toString(), QString("5"));
+        QCOMPARE(captured.at(1).at(0).toString(), key2);
+        QCOMPARE(captured.at(1).at(2).toString(), QString("COIN"));
+        im.captureController(QString());
+        QCOMPARE(tap(p1, SDL_CONTROLLER_BUTTON_A, keys), QString("ENTER"));
+
+        // The pins: both players' presses, in their order; the rest of what it
+        // prints is no pin. Stopped, it is no failure.
+        QSignalSpy pins(&im, &InputManager::jammaPinPressed);
+        QSignalSpy failed(&im, &InputManager::jammaPinsFailed);
+        im.setJammaProgram(script("osdos-jamma",
+            "[ \"$1\" = --test ] || exit 3\n"
+            "echo 'osdos-jamma: player 1 at 0x20' >&2\n"
+            "echo 'Press each control; Ctrl+C ends.'\n"
+            "echo 'P1 0x20 B1 pressed  tl2'\n"
+            "echo 'P1 0x20 B1 released tl2'\n"
+            "printf 'P2 0x21 A7 pre'\n"
+            "sleep 0.2\n"
+            "printf 'ssed  z\\nP1 0x20 A4 pressed  mode\\n'\n"
+            "exec sleep 30\n"));
+        im.watchJammaPins(true);
+        QTRY_COMPARE(pins.count(), 3);
+        QCOMPARE(pins.at(0), QVariantList({ 1, QString("B1"), QString("tl2") }));
+        QCOMPARE(pins.at(1), QVariantList({ 2, QString("A7"), QString("z") }));
+        QCOMPARE(pins.at(2), QVariantList({ 1, QString("A4"), QString("mode") }));
+        im.watchJammaPins(false);
+        QTest::qWait(300);
+        QCOMPARE(failed.count(), 0);
+
+        // It ends: what it said last is why.
+        im.setJammaProgram(script("osdos-jamma-none",
+            "echo 'osdos-jamma: /dev/i2c-0 opened' >&2\n"
+            "echo 'osdos-jamma: no MCP23017 at 0x20 or 0x21 on /dev/i2c-0: nothing to read' >&2\n"));
+        im.watchJammaPins(true);
+        QVERIFY(failed.wait(3000));
+        QCOMPARE(failed.at(0).at(0).toString(), QString("no MCP23017 at 0x20 or 0x21 on /dev/i2c-0: nothing to read"));
+        // None there at all.
+        im.setJammaProgram(m_app.path() + "/osdos-jamma-missing");
+        im.watchJammaPins(true);
+        QCOMPARE(failed.count(), 2);
+        QCOMPARE(failed.at(1).at(0).toString(), QString("osdos-jamma isn't installed"));
     }
 
     // A pad Steam's virtual pad comes to stand for lets go of what it held,

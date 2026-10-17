@@ -1,5 +1,6 @@
 #include "RetroAchievements.h"
 #include "Libretro.h"
+#include "../highscores/ScoreTable.h"
 #include "../../util/AtomicFile.h"
 #include <QCoreApplication>
 #include <QDir>
@@ -32,14 +33,8 @@ constexpr qint64 kOldListSeconds = 3600;
 constexpr int kWaitMs = 400;
 constexpr int kEntries = 3;
 constexpr int kTimeoutMs = 20000;
-
-// As the High Scores module ranks a table's lines.
-QString ordinal(int n) {
-    const int tens = n % 100;
-    const char *suffix = tens >= 11 && tens <= 13 ? "TH"
-                       : n % 10 == 1 ? "ST" : n % 10 == 2 ? "ND" : n % 10 == 3 ? "RD" : "TH";
-    return QString::number(n) + QLatin1String(suffix);
-}
+// On a reply stopped to be asked again (another key).
+constexpr const char *kAgain = "osdosAskAgain";
 
 QString listFile(const QString &home) {
     return home + QStringLiteral("/retroachievements-games.json");
@@ -64,9 +59,14 @@ void RetroAchievements::setKey(const QString &key) {
         return;
     m_key = key;
     m_boards.clear();
-    // What is being read was asked with the other key.
-    if (m_reply)
+    // The list the other key couldn't read, this one may.
+    m_listRetry = QDateTime();
+    // What is being read was asked with the other key: stopped, and read
+    // again with this one.
+    if (m_reply) {
+        m_reply->setProperty(kAgain, true);
         m_reply->abort();
+    }
 }
 
 QVariantMap RetroAchievements::board(const QString &fileName) {
@@ -232,7 +232,7 @@ void RetroAchievements::readEntries(const QString &fileName, int leaderboard, co
                 const QJsonObject entry = value.toObject();
                 const QString formatted = entry.value(QStringLiteral("FormattedScore")).toString();
                 entries << QVariantMap{
-                    { QStringLiteral("rank"), ordinal(entry.value(QStringLiteral("Rank")).toInt()) },
+                    { QStringLiteral("rank"), scores::ordinal(entry.value(QStringLiteral("Rank")).toInt()) },
                     { QStringLiteral("score"), !formatted.isEmpty() ? formatted
                                                : entry.value(QStringLiteral("Score")).toVariant().toString() },
                     { QStringLiteral("name"), entry.value(QStringLiteral("User")).toString() } };
@@ -258,11 +258,12 @@ void RetroAchievements::get(const QString &endpoint, const QList<std::pair<QStri
     request.setTransferTimeout(kTimeoutMs);
     m_reply = m_nam->get(request);
     QNetworkReply *reply = m_reply;
-    connect(reply, &QNetworkReply::finished, this, [this, reply, answer] {
+    connect(reply, &QNetworkReply::finished, this, [this, reply, endpoint, answer] {
         reply->deleteLater();
         m_reply = nullptr;
-        // Stopped for another key: what is wanted read with it.
-        if (reply->error() == QNetworkReply::OperationCanceledError) {
+        // Stopped for another key: what is wanted read with it. A read that
+        // ran out of time is stopped too, and is a failure.
+        if (reply->property(kAgain).toBool()) {
             readWanted();
             return;
         }
@@ -274,7 +275,9 @@ void RetroAchievements::get(const QString &endpoint, const QList<std::pair<QStri
             return;
         }
         if (reply->error() != QNetworkReply::NoError) {
-            qWarning("[Arcade] RetroAchievements: %s", qPrintable(reply->errorString()));
+            // Not errorString(): it names the URL, the key in it.
+            qWarning("[Arcade] RetroAchievements' %s could not be read (HTTP %d, error %d)",
+                     qPrintable(endpoint), status, int(reply->error()));
             answer(QByteArray(), false);
             return;
         }

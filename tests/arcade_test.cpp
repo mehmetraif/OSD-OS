@@ -750,11 +750,20 @@ private slots:
         QVERIFY(dir.isValid());
         writeFile(dir.path() + QStringLiteral("/fbneo.dat"), fixture("fbneo-arcade.dat"));
         const QHash<QString, QString> games = libretro::readDat(dir.path() + QStringLiteral("/fbneo.dat"));
-        QCOMPARE(games.size(), 4);
+        QCOMPARE(games.size(), 5);
         QCOMPARE(games.value(QStringLiteral("sf2")), QStringLiteral("Street Fighter II - The World Warrior (World 910522)"));
         QVERIFY(games.contains(QStringLiteral("sf2ce")));
         QVERIFY(!games.contains(QStringLiteral("neogeo")));
         QVERIFY(libretro::readDat(dir.path() + QStringLiteral("/none.dat")).isEmpty());
+
+        // A sign-in RetroAchievements turned down, and one that didn't reach it.
+        for (const char *refused : { "Invalid user/token combination.", "Invalid token",
+                                     "Invalid User/Password combination. Please try again",
+                                     "The access token has expired. Please log in again." })
+            QVERIFY2(libretro::loginRefused(QLatin1String(refused)), refused);
+        for (const char *unreached : { "No response from server", "Unexpected API failure with no error message",
+                                       "502 Bad Gateway", "" })
+            QVERIFY2(!libretro::loginRefused(QLatin1String(unreached)), unreached);
 
         // A USB pad's vendor and product (SDL's GUID, little-endian), as
         // RetroArch's menu writes them; a device without them by its name.
@@ -891,7 +900,9 @@ private slots:
         QTemporaryDir data;
         QVERIFY(data.isValid());
         const QString games = data.path() + QStringLiteral("/media/Games/Arcade");
-        for (const char *set : { "sf2.zip", "mslug.zip", "galaga.zip", "pacman.zip", "bios/neogeo.zip" })
+        // kof98 a folder of files, which FinalBurn Neo doesn't open.
+        for (const char *set : { "sf2.zip", "mslug.zip", "galaga.zip", "pacman.zip", "bios/neogeo.zip",
+                                 "kof98/242-p1.p1" })
             writeFile(games + QLatin1Char('/') + QLatin1String(set));
         QVERIFY(QDir().mkpath(data.path() + QStringLiteral("/bin")));
         QVERIFY(QFile::copy(mamePath(), data.path() + QStringLiteral("/bin/mame")));
@@ -928,6 +939,9 @@ private slots:
         arcade.onSettingChanged(module, QStringLiteral("online_high_scores"), QStringLiteral("RetroAchievements"));
         QCOMPARE(arcade.engineOf(QStringLiteral("sf2")), QStringLiteral("fbneo"));
         QCOMPARE(arcade.engineOf(QStringLiteral("pacman")), QStringLiteral("mame"));
+        // A game of its list kept as a folder: MAME's, and not offered.
+        QCOMPARE(arcade.engineOf(QStringLiteral("kof98")), QStringLiteral("mame"));
+        QCOMPARE(arcade.engineChoices(QStringLiteral("kof98")).size(), 2);
         QCOMPARE(arcade.gameDetails(QStringLiteral("sf2")).value(QStringLiteral("engine")).toString(), QStringLiteral("fbneo"));
         // Its leaderboard for the Arcade screen once a key is kept, and only
         // for a game FinalBurn Neo plays; the key forgotten before anything
@@ -942,6 +956,7 @@ private slots:
                      .object().value(QStringLiteral("key")).toString(), QStringLiteral("key1"));
         QCOMPARE(boardState("sf2"), QStringLiteral("loading"));
         QCOMPARE(boardState("pacman"), QStringLiteral("off"));
+        QCOMPARE(boardState("kof98"), QStringLiteral("off"));
         arcade.setAchievementsKey(QString());
         QVERIFY(!arcade.achievementsKey());
         QCOMPARE(boardState("sf2"), QStringLiteral("off"));
@@ -1012,6 +1027,19 @@ private slots:
         QVERIFY(config.contains(QStringLiteral("cheevos_password = \"\"")));
         QVERIFY(config.contains(QStringLiteral("config_save_on_exit = \"false\"")));
         QCOMPARE(arcade.achievementsState(), QStringLiteral("signedIn"));
+        // The config, the token in it, goes with the game.
+        QVERIFY(!QFile::exists(home + QStringLiteral("/retroarch.cfg")));
+        // RetroAchievements not reached: still signed in, the token kept.
+        writeFile(kept, "{\"user\": \"player\", \"token\": \"offline\"}");
+        {
+            ArcadeBackend offline(data.path(), data.path(), nullptr, nullptr);
+            refreshed(offline);
+            offline.onSettingChanged(module, QStringLiteral("online_high_scores"), QStringLiteral("RetroAchievements"));
+            played(offline, QStringLiteral("sf2"));
+            QCOMPARE(offline.achievementsState(), QStringLiteral("signedIn"));
+            QCOMPARE(QJsonDocument::fromJson(contents(kept)).object().value(QStringLiteral("token")).toString(),
+                     QStringLiteral("offline"));
+        }
         writeFile(kept, "{\"user\": \"player\", \"token\": \"expired\"}");
         // A config left by a game the app didn't see end goes as it starts.
         writeFile(home + QStringLiteral("/retroarch.cfg"), "cheevos_password = \"secret\"\n");
@@ -1033,12 +1061,18 @@ private slots:
         QCOMPARE(QJsonDocument::fromJson(contents(kept)).object().value(QStringLiteral("user")).toString(), QString());
 
         // Files missing: what FinalBurn Neo said, as a game that didn't
-        // play, with no play time.
+        // play, with no play time, however long RetroArch took; a game that
+        // played has its time.
+        qputenv("RA_SECONDS", "1.2");
         end = played(arcade, QStringLiteral("mslug"));
         QCOMPARE(end.value(1).toString(), QStringLiteral("failed"));
         QVERIFY2(end.value(2).toString().startsWith(QStringLiteral("Missing 201-p1.p1, 201-s1.s1: FinalBurn Neo's sets")),
                  qPrintable(end.value(2).toString()));
         QCOMPARE(arcade.gameDetails(QStringLiteral("mslug")).value(QStringLiteral("playTime")).toLongLong(), 0);
+        const qint64 before = arcade.gameDetails(QStringLiteral("sf2")).value(QStringLiteral("playTime")).toLongLong();
+        played(arcade, QStringLiteral("sf2"));
+        qunsetenv("RA_SECONDS");
+        QVERIFY(arcade.gameDetails(QStringLiteral("sf2")).value(QStringLiteral("playTime")).toLongLong() >= before + 1);
         // A set it doesn't know starts nothing, and RetroArch says nothing.
         arcade.onSettingChanged(module, QStringLiteral("engines"), QVariantMap{ { QStringLiteral("galaga"), QStringLiteral("fbneo") } });
         end = played(arcade, QStringLiteral("galaga"));
@@ -1117,6 +1151,8 @@ private slots:
         QVERIFY(finished.wait(10000));
         QCOMPARE(finished.last().at(0).toBool(), false);
         QCOMPARE(finished.last().at(1).toString(), QStringLiteral("127.0.0.1 answered 404"));
+        // The core downloaded before it goes too.
+        QVERIFY(noParts());
         installer.start(source("/core.zip", "/small.dat"));
         QVERIFY(finished.wait(10000));
         QCOMPARE(finished.last().at(1).toString(), QStringLiteral("The list of games downloaded isn't FinalBurn Neo's"));
@@ -1253,15 +1289,39 @@ private slots:
         QCOMPARE(refused.size(), 1);
         QCOMPARE(state(again.board(QStringLiteral("sf2.zip"))), QStringLiteral("failed"));
 
-        // No server, and no list kept: the board can't be read.
+        // A key refused before any list was read, then the right one: the
+        // list read at once, not a minute later.
+        QTemporaryDir fresh;
+        RetroAchievements corrected(fresh.path(), api);
+        QSignalSpy readyCorrected(&corrected, &RetroAchievements::boardReady);
+        corrected.setKey(QStringLiteral("bad"));
+        corrected.board(QStringLiteral("sf2.zip"));
+        QVERIFY(readyCorrected.wait(5000));
+        QCOMPARE(state(corrected.board(QStringLiteral("sf2.zip"))), QStringLiteral("failed"));
+        corrected.setKey(QStringLiteral("key1"));
+        QCOMPARE(state(corrected.board(QStringLiteral("sf2.zip"))), QStringLiteral("loading"));
+        QVERIFY(readyCorrected.wait(5000));
+        QCOMPARE(state(corrected.board(QStringLiteral("sf2.zip"))), QStringLiteral("ready"));
+
+        // No server, and no list kept: the board can't be read. What is
+        // logged names what wasn't read, never the key.
         server.close();
         QTemporaryDir empty;
         RetroAchievements gone(empty.path(), api);
         QSignalSpy readyGone(&gone, &RetroAchievements::boardReady);
+        static QStringList logged;
+        logged.clear();
+        const QtMessageHandler previous = qInstallMessageHandler(
+            [](QtMsgType, const QMessageLogContext &, const QString &message) { logged << message; });
         gone.setKey(QStringLiteral("key1"));
         gone.board(QStringLiteral("sf2.zip"));
-        QVERIFY(readyGone.wait(5000));
+        const bool readyInTime = readyGone.wait(5000);
+        qInstallMessageHandler(previous);
+        QVERIFY(readyInTime);
         QCOMPARE(state(gone.board(QStringLiteral("sf2.zip"))), QStringLiteral("failed"));
+        QVERIFY(logged.join(QLatin1Char('\n')).contains(QStringLiteral("API_GetGameList.php could not be read")));
+        for (const QString &message : std::as_const(logged))
+            QVERIFY2(!message.contains(QStringLiteral("key1")), qPrintable(message));
     }
 
     // Online Play against a stand-in for RetroArch's lobby: the rooms of the
@@ -1292,16 +1352,19 @@ private slots:
             qputenv("OSDOS_MEDIA_DIR", (m_data.path() + QStringLiteral("/media")).toUtf8());
         });
         const QByteArray lobby = fixture("lobby.json");
+        // big: an answer far bigger than a list of rooms.
+        bool big = false;
         int asked = 0;
         QTcpServer server;
         QVERIFY(server.listen(QHostAddress::LocalHost));
-        connect(&server, &QTcpServer::newConnection, &server, [&server, &lobby, &asked] {
+        connect(&server, &QTcpServer::newConnection, &server, [&server, &lobby, &asked, &big] {
             QTcpSocket *socket = server.nextPendingConnection();
-            connect(socket, &QTcpSocket::readyRead, socket, [socket, &lobby, &asked] {
+            connect(socket, &QTcpSocket::readyRead, socket, [socket, &lobby, &asked, &big] {
                 socket->readAll();
                 ++asked;
+                const QByteArray body = big ? QByteArray(5 * 1024 * 1024, ' ') : lobby;
                 socket->write("HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: "
-                              + QByteArray::number(lobby.size()) + "\r\nConnection: close\r\n\r\n" + lobby);
+                              + QByteArray::number(body.size()) + "\r\nConnection: close\r\n\r\n" + body);
                 socket->disconnectFromHost();
             });
         });
@@ -1350,6 +1413,10 @@ private slots:
         QCOMPARE(row.value(QStringLiteral("set")).toString(), QStringLiteral("sf2"));
         QCOMPARE(row.value(QStringLiteral("room")).toInt(), 11);
         QCOMPARE(row.value(QStringLiteral("host")).toString(), QStringLiteral("ann"));
+        // A room's row, by its id; one gone, the game's first.
+        QCOMPARE(arcade.filterIndex(QStringLiteral("online"), QStringLiteral("sf2"), 11), 0);
+        QCOMPARE(arcade.filterIndex(QStringLiteral("online"), QStringLiteral("sf2"), 99), 0);
+        QCOMPARE(arcade.filterIndex(QStringLiteral("online"), QStringLiteral("pacman"), 99), -1);
 
         // Joined: RetroArch connects to the room, under the default name.
         const auto ended = [&arcade](const std::function<bool()> &start) {
@@ -1386,6 +1453,15 @@ private slots:
         QVERIFY(!arcade.joinRoom(99));
         QCOMPARE(arcade.lastError(), QStringLiteral("The game is no longer in RetroArch's lobby"));
         QVERIFY(!arcade.hostGame(QStringLiteral("pacman")));
+
+        // An answer far bigger than a list of rooms isn't read whole.
+        big = true;
+        arcade.refreshRooms();
+        QVERIFY(roomsRead.wait(5000));
+        big = false;
+        QVERIFY(arcade.rooms().isEmpty());
+        QCOMPARE(arcade.requestEntries(QStringLiteral("online")).toList().value(0).toMap().value(QStringLiteral("detail")).toString(),
+                 QStringLiteral("RetroArch's lobby can't be reached: its answer is too big"));
 
         // The lobby gone: said so where the rooms were.
         server.close();
@@ -1444,6 +1520,24 @@ private slots:
         QVERIFY(asked.at(0).startsWith(QStringLiteral("listxml a_slowlist g000 ")));
         QCOMPARE(asked.at(2), QStringLiteral("listxml g299 slowgame"));
         QCOMPARE(names(arcade.requestEntries(QStringLiteral("unknown"))).size(), 302);
+
+        // A game started while the folder is read: the sets new to it are
+        // asked about once the game has ended, not beside it.
+        writeFile(games + QStringLiteral("/newgame.zip"));
+        QFile::remove(m_log);
+        finished.clear();
+        arcade.refresh();
+        QVERIFY(arcade.play(QStringLiteral("slowgame")));
+        QVERIFY(finished.wait(10000));
+        QTRY_VERIFY_WITH_TIMEOUT(!arcade.scanning(), 10000);
+        order.clear();
+        for (const QString &line : logLines()) {
+            const QString word = line.section(QLatin1Char(' '), 0, 0);
+            if (word == QLatin1String("listxml") || word == QLatin1String("play") || word == QLatin1String("end"))
+                order << word;
+        }
+        QCOMPARE(order, QStringList({ QStringLiteral("play"), QStringLiteral("end"), QStringLiteral("listxml") }));
+        QCOMPARE(logLines(QStringLiteral("listxml")), QStringList({ QStringLiteral("listxml newgame") }));
     }
 
     // A MAME with its own files beside it runs in its folder, to find them;

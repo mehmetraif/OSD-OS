@@ -50,8 +50,10 @@ FocusScope {
     property string exitKeys: ""
     // Played from the Arcade screen rather than the original tree.
     readonly property bool arcade: moduleRoot.arcadeScreen
-    // Played in FinalBurn Neo, which takes no credits bought beforehand.
-    readonly property bool fbneo: !!arcadeBackend && game !== "" && arcadeBackend.engineOf(game) === "fbneo"
+    // Played in FinalBurn Neo, which takes no credits bought beforehand: as
+    // its engine says, and online always.
+    readonly property bool fbneo: !!online
+                                  || (!!arcadeBackend && game !== "" && arcadeBackend.engineOf(game) === "fbneo")
     readonly property bool before: phase === "opening" || phase === "running"
     // A pad's Back button is COIN before a game from the Arcade screen
     // (InputManager).
@@ -270,11 +272,12 @@ FocusScope {
             wrapMode: Text.WordWrap
         }
 
-        // Why it didn't play, and what MAME said.
+        // Why it didn't play, and what MAME said: as it is, markup and all.
         Text {
             visible: playRoot.phase === "error" || playRoot.phase === "failed"
             width: parent.width
             text: playRoot.message
+            textFormat: Text.PlainText
             color: root.primaryColor
             font.family: root.globalFont
             font.capitalization: Font.AllUppercase

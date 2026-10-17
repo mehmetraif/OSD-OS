@@ -53,4 +53,12 @@ QString label(const QString &id);
 // "NAME ACD"; the cells left blank are left out.
 QStringList describeRow(const Table &table, int row);
 
+// A rank as the top three show it on the Arcade screen: "1ST", "2ND", "11TH".
+inline QString ordinal(int n) {
+    const int tens = n % 100;
+    const char *suffix = tens >= 11 && tens <= 13 ? "TH"
+                       : n % 10 == 1 ? "ST" : n % 10 == 2 ? "ND" : n % 10 == 3 ? "RD" : "TH";
+    return QString::number(n) + QLatin1String(suffix);
+}
+
 } // namespace scores
