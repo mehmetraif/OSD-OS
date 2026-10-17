@@ -37,9 +37,9 @@ ROM sets are copyrighted, like the games on them: use the games you are entitled
 | Screen | What it is |
 |---|---|
 | **Original** (the default) | OSD/OS's own tree, as the other modules have: Recently Played, Favorites, Search, All Games, and the games by players, decade and maker ([below](#the-original-screen)) |
-| **Arcade** | A cabinet's selection screen: one filter's games at a time, on an arc, with the selected one's picture, high scores and details beside them; ◄ ► go through the filters, COIN buys credits and select or START plays ([below](#the-arcade-screen)) |
+| **Arcade** | A cabinet's selection screen: one filter's games at a time, straight, on an arc or on a wheel, with the selected one's picture, high scores and details beside them; ◄ ► go through the filters, COIN buys credits and select or START plays ([below](#the-arcade-screen)) |
 
-Both list the same games from the same folder, share Recently Played and Favorites, and play a game the same way. Start Filter, Menu Filters, Border, Info Background, Screen Adjustment, Hint Bar and Help Line are the Arcade screen's own settings, so Settings → Arcade shows them only while Screen is Arcade. Its look is Settings' own, as every screen's is: its theme, colors, skin, background, selector effect and transitions.
+Both list the same games from the same folder, share Recently Played and Favorites, and play a game the same way. Start Filter, Menu Filters, List Style, Border, Info Background, Screen Adjustment, Hint Bar and Help Line are the Arcade screen's own settings, so Settings → Arcade shows them only while Screen is Arcade. Its look is Settings' own, as every screen's is: its theme, colors, skin, background, selector effect and transitions.
 
 ## The original screen
 
@@ -71,8 +71,8 @@ Right on a game opens its options:
 
 With **Settings → Arcade → Screen** on **Arcade**, Arcade opens on a cabinet's selection screen, in letters made to be read on a CRT: none smaller than the hint bar's, the games' names larger.
 
-- **The list**, on the left: the games of one filter, seven to a page (as many as fit, in an area [Screen Adjustment](#screen-adjustment) made larger or smaller), on an arc, each with its number and its title (`Galaga`, where MAME's name is `Galaga (Namco rev. B)`), and a heart on a favorite. The selected game stands out of the arc, and its title, when it is too long for the row, scrolls through; the others are cut short with `…`.
-- **The bar** over it: the filter, with ◄ ► while there are others, and the page (`1/4`).
+- **The list**, on the left: the games of one filter, seven to a page (as many as fit, in an area [Screen Adjustment](#screen-adjustment) made larger or smaller), each with its number and its title (`Galaga`, where MAME's name is `Galaga (Namco rev. B)`), and a heart on a favorite. They lie as **List Style** says ([below](#list-style)): on an arc unless it is changed. The selected game stands out of the others to the left, and its title, when it is too long for the row, scrolls through; the others are cut short with `…`.
+- **The bar** over it: the filter, with ◄ ► while there are others, and the page (`1/4`); on the wheel of 3D Curved, the game (`12/512`).
 - **The picture**, on the right ([below](#pictures)), with the credits bought in its corner (`Credit 2`).
 - **The box** under the picture, a line for each of these that its height has room for ([below](#the-box-under-the-picture)):
   - **Hi-Score**: the best three entries of the game's high score table, their rank, score and name, as the [High Scores](https://github.com/mehmetraif/OSD-OS/wiki/High-Scores) module reads them; `No Scores Yet` before the game has a table.
@@ -94,6 +94,23 @@ With **Settings → Arcade → Screen** on **Arcade**, Arcade opens on a cabinet
 | Back | Button 2 (B) | **Esc**, **Backspace** | Leaves Arcade |
 
 COIN and START are MAME's own keys and buttons for them, so the screen works as a cabinet does: coins in, then START (or select). On a pad, COIN is its Back button, which is Back everywhere else in OSD/OS; here the pad's B is Back.
+
+### List Style
+
+<table>
+<tr><th>Straight</th><th>Curved</th><th>3D Curved</th></tr>
+<tr><td><img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/screenshots/arcade-list-straight.png" width="100%" alt="List Style Straight: seven games one under another as wide as the bar, Final Fight selected and out to the bar's left end" /></td><td><img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/screenshots/arcade-screen.png" width="100%" alt="List Style Curved: seven games on an arc, the middle of the page furthest right, Final Fight selected" /></td><td><img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/screenshots/arcade-list-3d-curved.png" width="100%" alt="List Style 3D Curved: Final Fight in the middle row, furthest out, the games over and under it smaller and fainter the further they are from it; the bar reads 4/9" /></td></tr>
+</table>
+
+**Settings → Arcade → List Style** lays the list out:
+
+| List Style | How the games lie |
+|---|---|
+| **Straight** | One under another, as wide as the bar over them, a page at a time |
+| **Curved** (the default) | On an arc, the middle of the page furthest out, a page at a time |
+| **3D Curved** | On a wheel that turns with the game chosen, on Curved's arc. The game you are on stays in the middle row, furthest out, and the others go further back the further they are from it: smaller, their left ends on the arc, and fainter. Past the list's last game the wheel goes round to its first, once the filter has a game for every row; with fewer, the rows past either end stay empty. The wheel always has an odd number of rows, for a middle one: room for eight rows holds seven |
+
+The rows going back on the wheel are the screen's only letters smaller than the hint bar's.
 
 ### The box under the picture
 
@@ -258,6 +275,7 @@ Settings → Arcade.
 | Start Filter | All Games, then the lists, genres, players, decades and publishers Menu Filters shows | All Games | The filter the Arcade screen opens on ([Filters](#filters)); while it has no games, the first that has. Shown while Screen is Arcade | `modules.com.osdos.arcade.start_filter` |
 | Menu Filters | A page of the filters under their headings, each ON or OFF | All on, the publishers off | The filters ◄ ► goes round on the Arcade screen ([Menu Filters](#menu-filters)). Shown while Screen is Arcade | `modules.com.osdos.arcade.menu_filters` |
 | Play at Startup | None, then the favorites | None | A favorite game started straight after the boot screen, as a game's options set it ([A game's options](#a-games-options)). One for the whole app: choosing a game replaces another module's | `modules.com.osdos.arcade.play_at_startup` |
+| List Style | Straight, Curved, 3D Curved | Curved | How the Arcade screen's games lie: one under another, on an arc, or on a wheel turning with the game chosen ([List Style](#list-style)). Shown while Screen is Arcade | `modules.com.osdos.arcade.list_style` |
 | Border | ON, OFF | ON | The frames round the Arcade screen's picture and the box under it ([The Arcade screen](#the-arcade-screen)). Shown while Screen is Arcade | `modules.com.osdos.arcade.border` |
 | Info Background | A slider from TRANSPARENT to SOLID, 0 to 100 in steps of 10 | 100 (SOLID) | How solid the ground under the Arcade screen's picture and the box under it is over Settings' Background Effect ([The Arcade screen](#the-arcade-screen)). Shown while Screen is Arcade | `modules.com.osdos.arcade.info_background` |
 | Screen Adjustment | (opens the Arcade screen to adjust) | As OSD/OS lays it out | Fits the Arcade screen to the screen: a frame whose sides ▲ ▼ ◄ ► move, the list and the box under the picture holding as many games and lines as fit ([Screen Adjustment](#screen-adjustment)). Shown while Screen is Arcade | `modules.com.osdos.arcade.screen_adjustment` |
@@ -280,6 +298,7 @@ Settings → Arcade.
 | `start_filter` | The filter's id: `"all"`, `"favorites"`, `"recent"`, `"genres/<genre>"` (`"genres/Fighting"`), `"players/<n>"` (`"players/2"`), `"years/<decade>"` (`"years/1980s"`, `"years/unknown"`) or `"makers/<publisher>"` (`"makers/Capcom"`) |
 | `menu_filters` | The filters turned on or off, by id: `{ "genres/Puzzle": false, "makers/Capcom": true }`, and `"unknown"` for Not Recognized. One not in it is on, but a publisher's |
 | `play_at_startup` | The game's set (`"galaga"`), `""` for None; the app's own `startup_favorite` holds the same game, and either changes the other |
+| `list_style` | `"Straight"`, `"Curved"` or `"3D Curved"` |
 | `info_background` | A number from 0 (transparent) to 100 (solid) |
 | `screen_adjustment` | How far each side of the Arcade screen is moved out (in, below 0) from where OSD/OS lays it out, in 960ths of the screen's width and 720ths of its height: `{ "top": 30, "bottom": 54, "left": 12, "right": 12 }` |
 | `online_high_scores`, `online_play` | `"Off"` |
@@ -360,7 +379,7 @@ mame galaga \
 | The Arcade screen has no genre filters | Put `catver.ini` in the games folder or in `arcade` in the data folder ([Genres](#genres)), then open Arcade again |
 | `No Picture` | Put the game's picture in the games folder's `snap` folder, named by its set: `snap/galaga.png` ([Pictures](#pictures)). The frame names the file it looks for |
 | The credits bought don't show in the game | They go in 5 seconds into the game. A board still starting up then may miss them: insert a coin in the game with COIN. A game MAME shows a warning for first counts them once the warning is gone |
-| The Arcade screen's settings aren't in Settings → Arcade | Start Filter, Menu Filters, Border, Info Background, Screen Adjustment, Hint Bar and Help Line show while **Screen** is **Arcade** |
+| The Arcade screen's settings aren't in Settings → Arcade | Start Filter, Menu Filters, List Style, Border, Info Background, Screen Adjustment, Hint Bar and Help Line show while **Screen** is **Arcade** |
 | The Arcade screen's edges are cut off on a CRT, or it leaves a border unused | **Settings → Arcade → Screen Adjustment**: move each side of the frame to the screen's edge ([Screen Adjustment](#screen-adjustment)) |
 | A genre, a decade or Favorites isn't among the Arcade screen's filters | It has no games, or **Settings → Arcade → Menu Filters** has it off ([Menu Filters](#menu-filters)) |
 

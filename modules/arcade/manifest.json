@@ -23,7 +23,7 @@
       "type": "list_single",
       "options": ["Original", "Arcade"],
       "default": "Original",
-      "description": "How the games are listed, from the next time Arcade opens\n[ORIGINAL] OSD/OS's own tree, by players, decade and maker\n[ARCADE] A cabinet's selection screen: the games on an arc, their picture, high scores and details, ◄ ► through the filters, COIN and START"
+      "description": "How the games are listed, from the next time Arcade opens\n[ORIGINAL] OSD/OS's own tree, by players, decade and maker\n[ARCADE] A cabinet's selection screen: the games straight, on an arc or on a wheel, their picture, high scores and details, ◄ ► through the filters, COIN and START"
     },
     {
       "key": "start_filter",
@@ -50,6 +50,15 @@
       "options_source": "dynamic",
       "options_slot": "startupGameOptions",
       "description": "One of your favorite games, started as OSD/OS starts, as a game's options set it too\n[NONE] No game starts with OSD/OS\nThere is one for the whole of OSD/OS: choosing a game replaces another module's"
+    },
+    {
+      "key": "list_style",
+      "label": "List Style",
+      "type": "list_single",
+      "options": ["Straight", "Curved", "3D Curved"],
+      "default": "Curved",
+      "shown_with": { "key": "screen", "value": "Arcade" },
+      "description": "How the games lie on the Arcade screen\n[STRAIGHT] One under another, a page at a time\n[CURVED] On an arc, a page at a time\n[3D CURVED] On a wheel turning with the game chosen, which stays in the middle and furthest out, the others going back and fading the further they are from it"
     },
     {
       "key": "border",

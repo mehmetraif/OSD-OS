@@ -68,6 +68,7 @@ Rectangle {
         property int credits: 0
         readonly property int maxCredits: 9
         property int infoBackground: 100
+        property string listStyle: "Curved"
         property bool border: true
         property var screenAdjustment: ({ top: 0, bottom: 0, left: 0, right: 0 })
         function addCredit() { credits = Math.min(maxCredits, credits + 1) }
@@ -227,6 +228,7 @@ Rectangle {
             root.helpLine = true
             moduleRoot.startFilter = "all"
             moduleRoot.infoBackground = 100
+            moduleRoot.listStyle = "Curved"
             moduleRoot.border = true
             moduleRoot.screenAdjustment = { top: 0, bottom: 0, left: 0, right: 0 }
             moduleRoot.credits = 0
@@ -669,6 +671,84 @@ Rectangle {
             compare(value.width, value.implicitWidth)
             verify(value.width > value.parent.width)
             tryVerify(function() { return value.x < 0 }, 4000)
+        }
+
+        // List Style Straight: the rows one under another as wide as the bar,
+        // the selected one out to its left end; Curved, on an arc.
+        function test_screenStraight() {
+            moduleRoot.listStyle = "Straight"
+            var screen = openScreen()
+            var row = function(number) { return findText(screen, number).parent }
+            compare(row("001").x, Math.round(screen.areaLeft * screen.u))
+            compare(row("002").x, Math.round((screen.areaLeft + 16) * screen.u))
+            compare(row("004").x, row("002").x)
+            compare(row("007").x, row("002").x)
+            fuzzyCompare(row("002").x + row("002").width, Math.round((screen.areaLeft + screen.listWidth) * screen.u), 1)
+            fuzzyCompare(row("001").x + row("001").width, row("002").x + row("002").width, 1)
+            loader.source = ""
+            moduleRoot.listStyle = "Curved"
+            screen = openScreen()
+            verify(row("004").x > row("002").x)
+        }
+
+        // 3D Curved: a wheel turning with the game chosen, in its middle row
+        // furthest out, round from the list's end to its start; the rows going
+        // back from it smaller and fainter. The bar has the game of so many.
+        // Fewer games than rows lie round the middle row, the others empty;
+        // the room of an even number of rows holds one fewer, for a middle.
+        function test_screenWheel() {
+            moduleRoot.listStyle = "3D Curved"
+            var screen = openScreen()
+            verify(screen.wheel)
+            compare(screen.perPage, 7)
+            compare(screen.middleRow, 3)
+            compare(screen.currentSet, "sf2")
+            verify(findText(screen, "1/15") !== null)
+            var rows = ["013", "014", "015", "001", "002", "003", "004"].map(function(number) {
+                return findText(screen, number).parent
+            })
+            var middle = Math.round((screen.listTop + 3 * screen.pitch) * screen.v)
+            verify(rows[3].y <= middle)
+            compare(findText(screen, "005"), null)
+            compare(rows[3].opacity, 1)
+            for (var i = 0; i < 3; ++i) {
+                verify(rows[i].y < rows[i + 1].y)
+                verify(rows[i].opacity < rows[i + 1].opacity)
+                verify(rows[i].height < rows[i + 1].height)
+                verify(rows[i].x + rows[i].width < rows[i + 1].x + rows[i + 1].width)
+                verify(rows[6 - i].opacity < rows[5 - i].opacity)
+                verify(rows[6 - i].x + rows[6 - i].width < rows[5 - i].x + rows[5 - i].width)
+                // Their left ends on Curved's arc, the ends furthest left.
+                compare(rows[i].x, Math.round((screen.areaLeft + 12
+                                               + Math.round(24 * Math.sin(Math.PI * (i + 0.5) / 7))) * screen.u))
+                compare(rows[6 - i].x, rows[i].x)
+            }
+            verify(rows[0].x < rows[1].x && rows[1].x < rows[2].x)
+            // The game chosen stands out of the arc to the left.
+            compare(rows[3].x, Math.round((screen.areaLeft + 12 + 24 - 16) * screen.u))
+            keyClick(Qt.Key_Down)
+            compare(screen.currentSet, "1942")
+            verify(findText(screen, "2/15") !== null)
+            compare(findText(screen, "002").parent.y, rows[3].y)
+            compare(findText(screen, "013"), null)
+            verify(findText(screen, "005") !== null)
+            keyClick(Qt.Key_Up)
+            keyClick(Qt.Key_Up)
+            compare(screen.currentSet, "dino")
+            compare(findText(screen, "015").parent.y, rows[3].y)
+            verify(findText(screen, "003") !== null)
+            loader.source = ""
+            moduleRoot.startFilter = "genres/Fighting"
+            screen = openScreen()
+            compare(screen.currentSet, "kinst")
+            compare(screen.rows.filter(function(r) { return r !== null }).length, 2)
+            compare(screen.rows[3].game.set, "kinst")
+            compare(screen.rows[4].game.set, "sf2")
+            loader.source = ""
+            root.hintBar = false
+            screen = openScreen()
+            compare(screen.rowsFit, 8)
+            compare(screen.perPage, 7)
         }
 
         // Border OFF: no frame round the picture or the box under it, the
