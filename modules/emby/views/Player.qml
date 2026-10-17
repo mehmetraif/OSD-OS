@@ -65,6 +65,25 @@ FocusScope {
     property int lastKnownPositionMs: 0
     property int lastKnownDurationMs: 0
 
+    // Waiting on the server with no mpv running: for the next episode, or for
+    // the transcode a failed direct play (or a track switch) falls back to.
+    readonly property bool waiting: pendingNextEpisode || pendingRetryTranscode
+
+    // Back to the detail screen from a wait that won't end: the server failed
+    // it, or the user gave up on it with back. Its answer, should it come, is
+    // dropped; a transcode retried is reported stopped as a failed one is.
+    // A next episode never started is reported nothing, not even as the view
+    // goes (Component.onDestruction): a stop at 0 would wipe its resume point.
+    function leaveWaiting() {
+        if (pendingRetryTranscode)
+            reportStopped(lastKnownPositionMs, lastKnownDurationMs, true)
+        stoppedReported = true
+        pendingNextEpisode = false
+        pendingRetryTranscode = false
+        embyBackend.cancel_playback_url()
+        goBack()
+    }
+
     focus: true
 
     Keys.onPressed: function(event) {
@@ -88,6 +107,11 @@ FocusScope {
                 }
                 event.accepted = true
             }
+        } else if (waiting) {
+            // No mpv to send the keys to: back leaves.
+            if (event.key === Qt.Key_Escape || event.key === Qt.Key_Backspace || event.key === Qt.Key_Back)
+                leaveWaiting()
+            event.accepted = true
         } else {
             if (event.key === Qt.Key_Escape || event.key === Qt.Key_Back) {
                 mpvController.sendKey("ESC")
@@ -417,11 +441,10 @@ FocusScope {
         target: embyBackend
         function onErrorOccurred(msg) {
             console.log("[Emby Player] Backend error: " + msg)
-            if (pendingRetryTranscode) {
-                pendingRetryTranscode = false
-                reportStopped(lastKnownPositionMs, lastKnownDurationMs, true)
-                goBack()
-            }
+            // The stream it waited for won't come: back to the detail screen,
+            // not LOADING with no mpv to take a key.
+            if (waiting)
+                leaveWaiting()
         }
 
         function onSegmentsReady(itemId_, segments_) {
