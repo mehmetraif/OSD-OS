@@ -60,7 +60,7 @@
       "start_text": "TRANSPARENT",
       "end_text": "SOLID",
       "shown_with": { "key": "screen", "value": "Arcade" },
-      "description": "The ground under the Arcade screen's picture, high scores and play time, over Settings' Background Effect\n[TRANSPARENT] The background shows through  [SOLID] None of it"
+      "description": "The ground under the Arcade screen's picture and the box of the game's high scores and details, over Settings' Background Effect\n[TRANSPARENT] The background shows through  [SOLID] None of it"
     },
     {
       "key": "screen_adjustment",
@@ -76,7 +76,7 @@
       "type": "toggle",
       "default": "ON",
       "shown_with": { "key": "screen", "value": "Arcade" },
-      "description": "The key hints at the foot of the Arcade screen\n[OFF] No bar: the list takes a game more, the column more of the high scores"
+      "description": "The key hints at the foot of the Arcade screen\n[OFF] No bar: the list takes a game more, the box under the picture more of the game's details"
     },
     {
       "key": "help_line",
@@ -84,7 +84,7 @@
       "type": "toggle",
       "default": "ON",
       "shown_with": { "key": "screen", "value": "Arcade" },
-      "description": "The game's full name, as MAME has it, and what it is (its system, maker, year and players) under the Arcade screen's list\n[OFF] No line: the list takes a game more, the column more of the high scores"
+      "description": "The game's full name, as MAME has it, and those of its maker, year, players and system the box under the picture has no line for, under the Arcade screen's list\n[OFF] No line: the list takes a game more, the box more of the game's details"
     },
     {
       "key": "start_info",

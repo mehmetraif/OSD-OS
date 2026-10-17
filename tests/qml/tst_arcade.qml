@@ -425,9 +425,10 @@ Rectangle {
         }
 
         // A filter's page on the arc, seven games with both bars, the filter
-        // and the page in the bar, the game's high scores and play time in
-        // the column, its full name and what it is under the list, and the
-        // screen's own hints; no letters smaller than the hint bar's.
+        // and the page in the bar, the game's high scores, maker and play time
+        // in the box under its picture, its full name and the rest of what it
+        // is under the list, and the screen's own hints; no letters smaller
+        // than the hint bar's.
         function test_screen() {
             var screen = openScreen()
             compare(screen.filterId, "all")
@@ -446,7 +447,10 @@ Rectangle {
             verify(findText(screen, "110,000") !== null)
             verify(findText(screen, "70,000") !== null)
             compare(findText(screen, "50,000"), null)
-            verify(findText(screen, "Street Fighter II: The World Warrior (World 910522)  •  CPS-1  •  Capcom  •  1991  •  2 Players") !== null)
+            compare(screen.detailRows, 1)
+            verify(findText(screen, "Maker") !== null)
+            verify(findText(screen, "Capcom", true) !== null)
+            verify(findText(screen, "Street Fighter II: The World Warrior (World 910522)  •  1991  •  2 Players  •  CPS-1") !== null)
             verify(findText(screen, "[ESC]:BACK [5]:COIN [ENTER]:PLAY HOLD:OPTIONS") !== null)
             verify(highScoresBackend.refreshes > 0)
             // A game not played, with no table.
@@ -596,18 +600,22 @@ Rectangle {
         }
 
         // The hint bar's and the help line's room, when they are off, goes to
-        // the list, a row more each; the high scores stay three.
+        // the list, a row more each, and to the box under the picture, a line
+        // of the game's details more for the hint bar's and two for the help
+        // line's; the high scores stay three.
         function test_screenRoom() {
             root.hintBar = false
             var screen = openScreen()
             compare(screen.perPage, 8)
             compare(screen.scoreRows, 3)
+            compare(screen.detailRows, 2)
             loader.source = ""
             root.hintBar = true
             root.helpLine = false
             screen = openScreen()
             compare(screen.perPage, 8)
             compare(screen.scoreRows, 3)
+            compare(screen.detailRows, 3)
             loader.source = ""
             root.hintBar = false
             screen = openScreen()
@@ -615,6 +623,50 @@ Rectangle {
             compare(screen.pages, 2)
             compare(screen.scores.length, 3)
             compare(findText(screen, "50,000"), null)
+            compare(screen.detailRows, 4)
+            verify(findText(screen, "System") !== null)
+            verify(findText(screen, "CPS-1", true) !== null)
+        }
+
+        // The box under the picture: the high scores first, then the game's
+        // maker, year, players and system over the play time, as many lines as
+        // its height has room for, the help line saying the rest. An area too
+        // short for a line under a picture as wide as the column's share
+        // narrows the column, the box keeping the play time alone.
+        function test_screenDetails() {
+            moduleRoot.screenAdjustment = { top: 48, bottom: 60, left: 0, right: 0 }
+            var screen = openScreen()
+            compare(screen.scoreRows, 3)
+            compare(screen.detailRows, 4)
+            var topOf = function(text) { return findText(screen, text, true).mapToItem(screen, 0, 0).y }
+            var lines = ["70,000", "Maker", "Year", "Players", "System", "Play Time"]
+            for (var i = 1; i < lines.length; ++i)
+                verify(topOf(lines[i - 1]) < topOf(lines[i]), lines[i - 1] + " over " + lines[i])
+            verify(findText(screen, "Street Fighter II: The World Warrior (World 910522)", true) !== null)
+            loader.source = ""
+            moduleRoot.screenAdjustment = { top: -30, bottom: -105, left: 120, right: 120 }
+            screen = openScreen()
+            compare(screen.areaWidth, 960)
+            compare(screen.columnWidth, 374)
+            verify(screen.infoTop + 2 * screen.infoPadY + screen.textLines <= screen.listBottom)
+            compare(screen.infoLines, 0)
+            compare(findText(screen, "Hi-Score"), null)
+            verify(findText(screen, "Play Time", true) !== null)
+            verify(findText(screen, "Street Fighter II: The World Warrior (World 910522)  •  Capcom  •  1991  •  2 Players  •  CPS-1") !== null)
+        }
+
+        // A detail too long for its line in the box scrolls through it, so it
+        // shows whole.
+        function test_screenLongDetail() {
+            var info = Object.assign({}, arcadeBackend.gameInfo)
+            info.sf2 = Object.assign({}, info.sf2, { maker: "Data East Corporation" })
+            arcadeBackend.gameInfo = info
+            var screen = openScreen()
+            var value = findText(screen, "Data East Corporation", true)
+            verify(value !== null)
+            compare(value.width, value.implicitWidth)
+            verify(value.width > value.parent.width)
+            tryVerify(function() { return value.x < 0 }, 4000)
         }
 
         // Screen Adjustment: a frame round the area, whose sides ▲ ▼ ◄ ► move
