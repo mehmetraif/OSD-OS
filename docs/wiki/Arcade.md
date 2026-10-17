@@ -113,7 +113,7 @@ COIN and START are MAME's own keys and buttons for them, so the screen works as 
 
 | Filter | What it holds |
 |---|---|
-| **All Games** | Every game, by name. Always there |
+| **All Games** | Every game, by name. Always there: in a folder of sets MAME knows none of, Not Recognized is there in its place |
 | **Favorites** | The games put on Favorites, by name |
 | **Recently Played** | The games played last, latest first (up to 30) |
 | A genre (**Beat 'em Up**, **Fighting**, **Shmup**, **Run and Gun**…) | The games of that genre, by catver.ini ([below](#genres)) |
@@ -133,7 +133,7 @@ COIN and START are MAME's own keys and buttons for them, so the screen works as 
 - ◄, ► or select on a filter turns it **ON** or **OFF**.
 - On a heading, they turn every filter under it on at once, or off once they all are on.
 - Every filter is on until it is turned off, but a publisher's: a full set of MAME's games has hundreds of makers, so each publisher is off until it is turned on (the Publishers heading turns them all on).
-- All Games is always there, so the screen always has a filter.
+- All Games is always there, so the screen always has a filter. In a folder of sets MAME knows none of, Not Recognized takes its place, even when it is turned off here, to say why.
 
 ### Genres
 
