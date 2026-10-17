@@ -19,9 +19,13 @@
 inline bool writeFileAtomically(const QString &path, const QByteArray &data,
                                 QFileDevice::Permissions permissions = {}) {
     QSaveFile file(path);
+    // flush() first: Qt 6.4's commit() takes a write that fails as the file
+    // closes (the last of it, on a full card) for one that succeeded, and
+    // renames the file cut short over the whole one.
     const bool written = file.open(QIODevice::WriteOnly)
                          && (!permissions || file.setPermissions(permissions))
                          && file.write(data) == data.size()
+                         && file.flush()
                          && file.commit();
     if (!written)
         qWarning("[AtomicFile] Could not write %s: %s", qPrintable(path), qPrintable(file.errorString()));
