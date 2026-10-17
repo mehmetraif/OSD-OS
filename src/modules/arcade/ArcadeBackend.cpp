@@ -741,8 +741,11 @@ QVariantList ArcadeBackend::filters() {
     if (scanning())
         return list;
     list << placeFilters();
-    if (menuShows(QLatin1String(kUnknown.first)) && !index().unknown.isEmpty())
-        list << filter(QLatin1String(kUnknown.first), QLatin1String(kUnknown.second), index().unknown.size());
+    // Not Recognized while Menu Filters shows it, and in All Games' place
+    // when MAME knows none of the sets: the screen says why.
+    const Index &games = index();
+    if (!games.unknown.isEmpty() && (menuShows(QLatin1String(kUnknown.first)) || games.games.isEmpty()))
+        list << filter(QLatin1String(kUnknown.first), QLatin1String(kUnknown.second), games.unknown.size());
     return list;
 }
 

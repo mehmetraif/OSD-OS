@@ -373,6 +373,11 @@ QString systemOf(const QString &sourceFile) {
 QString genreOf(const QString &category) {
     QString text = category;
     text.remove(QLatin1String("* Mature *"));
+    // A game of logic chips rather than a CPU's program (TTL * Driving /
+    // Race) is of its kind all the same.
+    const QLatin1String ttl("TTL *");
+    if (text.startsWith(ttl))
+        text.remove(0, ttl.size());
     const int slash = text.indexOf(QLatin1Char('/'));
     const QString main = (slash < 0 ? text : text.left(slash)).trimmed();
     const QString kind = slash < 0 ? QString() : text.mid(slash + 1).trimmed();

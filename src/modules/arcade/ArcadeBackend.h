@@ -92,8 +92,10 @@ public:
     // [{ id, name, count }]. id: "all", "favorites", "recent",
     // "genres/<genre>", "players/<n>", "years/<decade>" ("years/unknown"),
     // "makers/<publisher>", "unknown" (Not Recognized); all but All Games
-    // only while Menu Filters shows them. While MAME is being asked, only
-    // the lists: gamesChanged() follows once it has answered.
+    // only while Menu Filters shows them, but Not Recognized in All Games'
+    // place when MAME knows none of the sets. While MAME is being asked,
+    // only the lists, All Games not yet: gamesChanged() follows once it has
+    // answered.
     Q_INVOKABLE QVariantList filters();
     // A page of a filter: its games from first on, count at most, as
     // { set, name (its title), favorite }; Not Recognized's as { set, name

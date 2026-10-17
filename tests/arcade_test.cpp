@@ -756,6 +756,10 @@ private slots:
             { "Climbing / Building", "Climbing" },               // Crazy Climber
             { "Maze / Collect", "Maze" },
             { "Puzzle", "Puzzle" },
+            // A TTL game's kind, as a CPU's game's.
+            { "TTL * Driving / Race", "Racing" },                // Gran Trak 10
+            { "TTL * Shooter / Gun", "Light Gun" },
+            { "TTL * Ball & Paddle / Pong", "Ball & Paddle" },   // Pong
         };
         for (const auto &[category, genre] : kGenres)
             QCOMPARE(mame::genreOf(QString::fromUtf8(category)), QString::fromUtf8(genre));
@@ -1033,6 +1037,29 @@ private slots:
         refreshed(reread);
         QVERIFY(ids(reread.filters()).contains(QStringLiteral("makers/Namco")));
         QVERIFY(!ids(reread.filters()).contains(QStringLiteral("genres/Fighting")));
+    }
+
+    // A folder of sets MAME knows none of has Not Recognized in All Games'
+    // place, though Menu Filters hides it: the screen then says why.
+    void onlyUnrecognized() {
+        const QString module = QStringLiteral("com.osdos.arcade");
+        const QString folder = m_data.path() + QStringLiteral("/unrecognized");
+        AppCore core(m_data.path(), m_data.path());
+        const auto restore = qScopeGuard([&core, &module, &folder] {
+            core.save_setting(module, QStringLiteral("games_directory"), QString());
+            core.save_setting(module, QStringLiteral("menu_filters"), QVariantMap());
+            QDir(folder).removeRecursively();
+        });
+        writeFile(folder + QStringLiteral("/notagame.zip"));
+        writeFile(folder + QStringLiteral("/nothing.zip"));
+        core.save_setting(module, QStringLiteral("games_directory"), folder);
+        core.save_setting(module, QStringLiteral("menu_filters"), QVariantMap{ { QStringLiteral("unknown"), false } });
+        ArcadeBackend arcade(m_data.path(), m_data.path(), &core, nullptr);
+        refreshed(arcade);
+        const QVariantList filters = arcade.filters();
+        QCOMPARE(filters.size(), 1);
+        QCOMPARE(filters.first().toMap().value(QStringLiteral("id")).toString(), QStringLiteral("unknown"));
+        QCOMPARE(filters.first().toMap().value(QStringLiteral("count")).toInt(), 2);
     }
 
     // The credits bought go in as the game starts, nine at most: MAME runs

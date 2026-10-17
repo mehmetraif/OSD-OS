@@ -446,7 +446,7 @@ flowchart LR
   }
   ```
 
-- **The background**: `BackgroundFx`, placed by each OSD background in its window, draws its shader (`shaders/bg-matrix.frag`, `bg-fire.frag`, `bg-stars.frag`, `bg-snow.frag`, or a theme's) at the size of the art pixels and scales it up without smoothing.
+- **The background**: `BackgroundFx`, placed by each OSD background in its window, draws its shader (`shaders/bg-matrix.frag`, `bg-fire.frag`, `bg-stars.frag`, `bg-snow.frag`, `bg-flag.frag`, or a theme's) at the size of the art pixels and scales it up without smoothing.
 - **The selector**: [`SelectorFx`](https://github.com/mehmetraif/OSD-OS/blob/main/src/fx/SelectorFx.cpp), a C++ item, draws sparks, bolts or a rainbow round the selected line into a small picture about thirty times a second.
 - **The transitions**: `changeWindow()` catches the old window, then Fade and the cubes move pictures, and Ripple, Wave and Drop are shaders (`ripple.frag`, `wave.frag`, `drop.frag`).
 - **Time** counts every 33 ms only while something moves; a still menu isn't drawn again.

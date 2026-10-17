@@ -208,6 +208,64 @@ Rectangle {
             compare(cursor(page), "video")
         }
 
+        // A slider the list's foot would cut as the page opens is left out
+        // of it until ▼ brings it in whole.
+        function test_sliderAtEdge() {
+            var rows = []
+            for (var i = 0; i < 6; ++i)
+                rows.push({ key: "row" + i, label: "Row " + i, type: "toggle", default: "ON" })
+            rows.push({ key: "ground", label: "Info Background", type: "slider", default: 100, step: 10,
+                        start_text: "TRANSPARENT", end_text: "SOLID" })
+            appCore.schema = rows
+            var page = open()
+            var list = null
+            for (i = 0; i < page.children.length; i++) {
+                if (page.children[i].shownHeight !== undefined)
+                    list = page.children[i]
+            }
+            verify(list !== null)
+            var line = root.sh * 0.0583333
+            // Eight lines' room: the six rows, not the slider's three lines
+            // (in whole pixels).
+            tryVerify(function() { return Math.abs(list.shownHeight - 6 * line) < 1 })
+            for (i = 0; i < 6; ++i)
+                keyClick(Qt.Key_Down)
+            compare(cursor(page), "ground")
+            tryCompare(list, "shownHeight", list.height)
+            compare(list.shownTop, 0)
+        }
+
+        // A slider the list's top would cut at its end, where no scroll can
+        // carry on past it, is left out of it too.
+        function test_sliderAtEnd() {
+            var rows = []
+            for (var i = 0; i < 12; ++i)
+                rows.push({ key: "row" + i, label: "Row " + i, type: "toggle", default: "ON" })
+            rows.splice(6, 0, { key: "ground", label: "Info Background", type: "slider", default: 100, step: 10,
+                                start_text: "TRANSPARENT", end_text: "SOLID" })
+            appCore.schema = rows
+            var page = open()
+            var list = null
+            for (i = 0; i < page.children.length; i++) {
+                if (page.children[i].shownTop !== undefined)
+                    list = page.children[i]
+            }
+            verify(list !== null)
+            var line = root.sh * 0.0583333
+            // ▲ round to the last row: the list at its end, lines 8 to 15 of
+            // 15 in view, the slider's last two of its three lines among them.
+            keyClick(Qt.Key_Up)
+            compare(cursor(page), "row11")
+            tryVerify(function() { return Math.abs(list.shownTop - 2 * line) < 1 })
+            verify(Math.abs(list.shownHeight - (list.height - 2 * line)) < 1)
+            // Up to it: wholly in view.
+            for (i = 0; i < 6; ++i)
+                keyClick(Qt.Key_Up)
+            compare(cursor(page), "ground")
+            tryCompare(list, "shownTop", 0)
+            compare(list.shownHeight, list.height)
+        }
+
         // A multiselect_submenu row's page: its choices asked for as it
         // opens, each ON unless saved OFF or its default says OFF, under
         // their headings. ◄ ► or select flips a choice; on a heading, its
@@ -270,6 +328,30 @@ Rectangle {
             var back = signalSpy.createObject(page, { target: page, signalName: "goBack" })
             keyClick(Qt.Key_Escape)
             compare(back.count, 1)
+        }
+
+        // A choice whose name is too long for its line is cut short, its ON
+        // or OFF kept whole at the line's end.
+        function test_multiSelectLongName() {
+            appCore.schema = [{ key: "menu_filters", label: "Menu Filters", type: "multiselect_submenu",
+                                options_source: "dynamic", options_slot: "menuFilterOptions" }]
+            loader.setSource(Qt.resolvedUrl("../../views/MultiSelectSettings.qml"),
+                             { navParams: { moduleId: "com.osdos.test", settingKey: "menu_filters",
+                                            settingLabel: "Menu Filters" } })
+            var page = loader.item
+            verify(page !== null, "loaded MultiSelectSettings.qml")
+            var name = "Konami Industry Company Limited of Japan and America"
+            appCore.dynamicOptionsReady("com.osdos.test", "menu_filters", [
+                { id: "makers/Konami", label: name, default: false }
+            ])
+            var label = findText(page, name)
+            verify(label !== null)
+            verify(label.width < label.implicitWidth)
+            var value = findText(label.parent, "OFF")
+            verify(value !== null)
+            compare(value.width, value.implicitWidth)
+            verify(value.mapToItem(label.parent, value.width, 0).x <= label.parent.width)
+            verify(value.parent.width >= value.implicitWidth)
         }
 
         Component {

@@ -23,7 +23,7 @@
       "type": "list_single",
       "options": ["Original", "Arcade"],
       "default": "Original",
-      "description": "How the games are listed, from the next time Arcade opens\n[ORIGINAL] OSD/OS's own tree, by players, decade and maker\n[ARCADE] A cabinet's selection screen: the games on an arc, their picture, high scores and details, ◄ ► through the filters, COIN and START"
+      "description": "How the games are listed, from the next time Arcade opens\n[ORIGINAL] OSD/OS's own tree, by players, decade and maker\n[ARCADE] A cabinet's selection screen: the games straight, on an arc or on a wheel, their picture, high scores and details, ◄ ► through the filters, COIN and START"
     },
     {
       "key": "start_filter",
@@ -52,6 +52,23 @@
       "description": "One of your favorite games, started as OSD/OS starts, as a game's options set it too\n[NONE] No game starts with OSD/OS\nThere is one for the whole of OSD/OS: choosing a game replaces another module's"
     },
     {
+      "key": "list_style",
+      "label": "List Style",
+      "type": "list_single",
+      "options": ["Straight", "Curved", "3D Curved"],
+      "default": "Curved",
+      "shown_with": { "key": "screen", "value": "Arcade" },
+      "description": "How the games lie on the Arcade screen\n[STRAIGHT] One under another, a page at a time\n[CURVED] On an arc, a page at a time\n[3D CURVED] On a wheel turning with the game chosen, which stays in the middle and furthest out, the others going back and fading the further they are from it"
+    },
+    {
+      "key": "border",
+      "label": "Border",
+      "type": "toggle",
+      "default": "ON",
+      "shown_with": { "key": "screen", "value": "Arcade" },
+      "description": "The frames round the Arcade screen's picture and the box under it\n[OFF] No frames: the picture and the box stand on their ground alone"
+    },
+    {
       "key": "info_background",
       "label": "Info Background",
       "type": "slider",
@@ -60,7 +77,7 @@
       "start_text": "TRANSPARENT",
       "end_text": "SOLID",
       "shown_with": { "key": "screen", "value": "Arcade" },
-      "description": "The ground under the Arcade screen's picture, high scores and play time, over Settings' Background Effect\n[TRANSPARENT] The background shows through  [SOLID] None of it"
+      "description": "The ground under the Arcade screen's picture and the box of the game's high scores and details, over Settings' Background Effect\n[TRANSPARENT] The background shows through  [SOLID] None of it"
     },
     {
       "key": "screen_adjustment",
@@ -76,7 +93,7 @@
       "type": "toggle",
       "default": "ON",
       "shown_with": { "key": "screen", "value": "Arcade" },
-      "description": "The key hints at the foot of the Arcade screen\n[OFF] No bar: the list takes a game more, the column more of the high scores"
+      "description": "The key hints at the foot of the Arcade screen\n[OFF] No bar: the list takes a game more, the box under the picture more of the game's details"
     },
     {
       "key": "help_line",
@@ -84,7 +101,7 @@
       "type": "toggle",
       "default": "ON",
       "shown_with": { "key": "screen", "value": "Arcade" },
-      "description": "The game's full name, as MAME has it, and what it is (its system, maker, year and players) under the Arcade screen's list\n[OFF] No line: the list takes a game more, the column more of the high scores"
+      "description": "The game's full name, as MAME has it, and those of its maker, year, players and system the box under the picture has no line for, under the Arcade screen's list\n[OFF] No line: the list takes a game more, the box more of the game's details"
     },
     {
       "key": "start_info",

@@ -68,6 +68,8 @@ Rectangle {
         property int credits: 0
         readonly property int maxCredits: 9
         property int infoBackground: 100
+        property string listStyle: "Curved"
+        property bool border: true
         property var screenAdjustment: ({ top: 0, bottom: 0, left: 0, right: 0 })
         function addCredit() { credits = Math.min(maxCredits, credits + 1) }
         function startGame(set) {
@@ -226,6 +228,8 @@ Rectangle {
             root.helpLine = true
             moduleRoot.startFilter = "all"
             moduleRoot.infoBackground = 100
+            moduleRoot.listStyle = "Curved"
+            moduleRoot.border = true
             moduleRoot.screenAdjustment = { top: 0, bottom: 0, left: 0, right: 0 }
             moduleRoot.credits = 0
             arcadeBackend.credited = []
@@ -425,9 +429,10 @@ Rectangle {
         }
 
         // A filter's page on the arc, seven games with both bars, the filter
-        // and the page in the bar, the game's high scores and play time in
-        // the column, its full name and what it is under the list, and the
-        // screen's own hints; no letters smaller than the hint bar's.
+        // and the page in the bar, the game's high scores, maker and play time
+        // in the box under its picture, its full name and the rest of what it
+        // is under the list, and the screen's own hints; no letters smaller
+        // than the hint bar's.
         function test_screen() {
             var screen = openScreen()
             compare(screen.filterId, "all")
@@ -446,7 +451,10 @@ Rectangle {
             verify(findText(screen, "110,000") !== null)
             verify(findText(screen, "70,000") !== null)
             compare(findText(screen, "50,000"), null)
-            verify(findText(screen, "Street Fighter II: The World Warrior (World 910522)  •  CPS-1  •  Capcom  •  1991  •  2 Players") !== null)
+            compare(screen.detailRows, 1)
+            verify(findText(screen, "Maker") !== null)
+            verify(findText(screen, "Capcom", true) !== null)
+            verify(findText(screen, "Street Fighter II: The World Warrior (World 910522)  •  1991  •  2 Players  •  CPS-1") !== null)
             verify(findText(screen, "[ESC]:BACK [5]:COIN [ENTER]:PLAY HOLD:OPTIONS") !== null)
             verify(highScoresBackend.refreshes > 0)
             // A game not played, with no table.
@@ -596,18 +604,22 @@ Rectangle {
         }
 
         // The hint bar's and the help line's room, when they are off, goes to
-        // the list, a row more each; the high scores stay three.
+        // the list, a row more each, and to the box under the picture, a line
+        // of the game's details more for the hint bar's and two for the help
+        // line's; the high scores stay three.
         function test_screenRoom() {
             root.hintBar = false
             var screen = openScreen()
             compare(screen.perPage, 8)
             compare(screen.scoreRows, 3)
+            compare(screen.detailRows, 2)
             loader.source = ""
             root.hintBar = true
             root.helpLine = false
             screen = openScreen()
             compare(screen.perPage, 8)
             compare(screen.scoreRows, 3)
+            compare(screen.detailRows, 3)
             loader.source = ""
             root.hintBar = false
             screen = openScreen()
@@ -615,6 +627,149 @@ Rectangle {
             compare(screen.pages, 2)
             compare(screen.scores.length, 3)
             compare(findText(screen, "50,000"), null)
+            compare(screen.detailRows, 4)
+            verify(findText(screen, "System") !== null)
+            verify(findText(screen, "CPS-1", true) !== null)
+        }
+
+        // The box under the picture: the high scores first, then the game's
+        // maker, year, players and system over the play time, as many lines as
+        // its height has room for, the help line saying the rest. An area too
+        // short for a line under a picture as wide as the column's share
+        // narrows the column, the box keeping the play time alone.
+        function test_screenDetails() {
+            moduleRoot.screenAdjustment = { top: 48, bottom: 60, left: 0, right: 0 }
+            var screen = openScreen()
+            compare(screen.scoreRows, 3)
+            compare(screen.detailRows, 4)
+            var topOf = function(text) { return findText(screen, text, true).mapToItem(screen, 0, 0).y }
+            var lines = ["70,000", "Maker", "Year", "Players", "System", "Play Time"]
+            for (var i = 1; i < lines.length; ++i)
+                verify(topOf(lines[i - 1]) < topOf(lines[i]), lines[i - 1] + " over " + lines[i])
+            verify(findText(screen, "Street Fighter II: The World Warrior (World 910522)", true) !== null)
+            loader.source = ""
+            moduleRoot.screenAdjustment = { top: -30, bottom: -105, left: 120, right: 120 }
+            screen = openScreen()
+            compare(screen.areaWidth, 960)
+            compare(screen.columnWidth, 374)
+            verify(screen.infoTop + 2 * screen.infoPadY + screen.textLines <= screen.listBottom)
+            compare(screen.infoLines, 0)
+            compare(findText(screen, "Hi-Score"), null)
+            verify(findText(screen, "Play Time", true) !== null)
+            verify(findText(screen, "Street Fighter II: The World Warrior (World 910522)  •  Capcom  •  1991  •  2 Players  •  CPS-1") !== null)
+        }
+
+        // A detail too long for its line in the box scrolls through it, so it
+        // shows whole.
+        function test_screenLongDetail() {
+            var info = Object.assign({}, arcadeBackend.gameInfo)
+            info.sf2 = Object.assign({}, info.sf2, { maker: "Data East Corporation" })
+            arcadeBackend.gameInfo = info
+            var screen = openScreen()
+            var value = findText(screen, "Data East Corporation", true)
+            verify(value !== null)
+            compare(value.width, value.implicitWidth)
+            verify(value.width > value.parent.width)
+            tryVerify(function() { return value.x < 0 }, 4000)
+        }
+
+        // List Style Straight: the rows one under another as wide as the bar,
+        // the selected one out to its left end; Curved, on an arc.
+        function test_screenStraight() {
+            moduleRoot.listStyle = "Straight"
+            var screen = openScreen()
+            var row = function(number) { return findText(screen, number).parent }
+            compare(row("001").x, Math.round(screen.areaLeft * screen.u))
+            compare(row("002").x, Math.round((screen.areaLeft + 16) * screen.u))
+            compare(row("004").x, row("002").x)
+            compare(row("007").x, row("002").x)
+            fuzzyCompare(row("002").x + row("002").width, Math.round((screen.areaLeft + screen.listWidth) * screen.u), 1)
+            fuzzyCompare(row("001").x + row("001").width, row("002").x + row("002").width, 1)
+            loader.source = ""
+            moduleRoot.listStyle = "Curved"
+            screen = openScreen()
+            verify(row("004").x > row("002").x)
+        }
+
+        // 3D Curved: a wheel turning with the game chosen, in its middle row
+        // furthest out, round from the list's end to its start; the rows going
+        // back from it smaller and fainter. The bar has the game of so many.
+        // Fewer games than rows lie round the middle row, the others empty;
+        // the room of an even number of rows holds one fewer, for a middle.
+        function test_screenWheel() {
+            moduleRoot.listStyle = "3D Curved"
+            var screen = openScreen()
+            verify(screen.wheel)
+            compare(screen.perPage, 7)
+            compare(screen.middleRow, 3)
+            compare(screen.currentSet, "sf2")
+            verify(findText(screen, "1/15") !== null)
+            var rows = ["013", "014", "015", "001", "002", "003", "004"].map(function(number) {
+                return findText(screen, number).parent
+            })
+            var middle = Math.round((screen.listTop + 3 * screen.pitch) * screen.v)
+            verify(rows[3].y <= middle)
+            compare(findText(screen, "005"), null)
+            compare(rows[3].opacity, 1)
+            for (var i = 0; i < 3; ++i) {
+                verify(rows[i].y < rows[i + 1].y)
+                verify(rows[i].opacity < rows[i + 1].opacity)
+                verify(rows[i].height < rows[i + 1].height)
+                verify(rows[i].x + rows[i].width < rows[i + 1].x + rows[i + 1].width)
+                verify(rows[6 - i].opacity < rows[5 - i].opacity)
+                verify(rows[6 - i].x + rows[6 - i].width < rows[5 - i].x + rows[5 - i].width)
+                // Their left ends on Curved's arc, the ends furthest left.
+                compare(rows[i].x, Math.round((screen.areaLeft + 12
+                                               + Math.round(24 * Math.sin(Math.PI * (i + 0.5) / 7))) * screen.u))
+                compare(rows[6 - i].x, rows[i].x)
+            }
+            verify(rows[0].x < rows[1].x && rows[1].x < rows[2].x)
+            // The game chosen stands out of the arc to the left.
+            compare(rows[3].x, Math.round((screen.areaLeft + 12 + 24 - 16) * screen.u))
+            keyClick(Qt.Key_Down)
+            compare(screen.currentSet, "1942")
+            verify(findText(screen, "2/15") !== null)
+            compare(findText(screen, "002").parent.y, rows[3].y)
+            compare(findText(screen, "013"), null)
+            verify(findText(screen, "005") !== null)
+            keyClick(Qt.Key_Up)
+            keyClick(Qt.Key_Up)
+            compare(screen.currentSet, "dino")
+            compare(findText(screen, "015").parent.y, rows[3].y)
+            verify(findText(screen, "003") !== null)
+            loader.source = ""
+            moduleRoot.startFilter = "genres/Fighting"
+            screen = openScreen()
+            compare(screen.currentSet, "kinst")
+            compare(screen.rows.filter(function(r) { return r !== null }).length, 2)
+            compare(screen.rows[3].game.set, "kinst")
+            compare(screen.rows[4].game.set, "sf2")
+            loader.source = ""
+            root.hintBar = false
+            screen = openScreen()
+            compare(screen.rowsFit, 8)
+            compare(screen.perPage, 7)
+        }
+
+        // Border OFF: no frame round the picture or the box under it, the
+        // picture filling its place.
+        function test_screenBorder() {
+            var frames = function(screen) {
+                var found = []
+                for (var i = 0; i < screen.children.length; ++i) {
+                    var item = screen.children[i]
+                    if (item.border !== undefined && item.x === Math.round(screen.columnX * screen.u))
+                        found.push(item.border.width)
+                }
+                return found
+            }
+            var screen = openScreen()
+            compare(frames(screen), [root.px, root.px])
+            loader.source = ""
+            moduleRoot.border = false
+            screen = openScreen()
+            compare(screen.frame, 0)
+            compare(frames(screen), [0, 0])
         }
 
         // Screen Adjustment: a frame round the area, whose sides ▲ ▼ ◄ ► move

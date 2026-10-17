@@ -3,17 +3,21 @@ import Components
 
 // The Arcade screen (Settings → Arcade → Screen: Arcade), a cabinet's
 // selection screen in place of the original tree (Games.qml). The games of
-// one filter (ArcadeBackend::filters) lie on an arc, a page at a time, under
-// a bar naming the filter and the page; on the right the game's picture with
-// the credits bought, its high scores (the High Scores module's) and how
-// long it has been played; under them the help line with its full name and
-// what it is (ArcadeBackend::gameDetails), and the hint bar. The module's
-// own Hint Bar and Help Line settings (Root.qml's, which root.hintBar and
-// root.helpLine go by here) hide those, and their room goes to the list, a
-// row more each. Laid out in the design's units, a 960th of the width and a
-// 720th of the height, in letters a CRT reads: none smaller than the hint
-// bar's and the help line's; and in an area that Settings → Arcade → Screen
-// Adjustment moves each side of, which then holds as many games as fit.
+// one filter (ArcadeBackend::filters) lie as Settings → Arcade → List Style
+// says, one under another or on an arc a page at a time, or on a wheel
+// turning with the game chosen, under a bar naming the filter and the page;
+// on the right the game's picture with the credits bought, and under it a
+// box of its high scores (the High Scores module's), what it is
+// (ArcadeBackend::gameDetails) and how long it has been played, as many
+// lines as fit; under them the help line with its full name and what the box
+// has no line for, and the hint bar. The module's own Hint Bar and Help Line
+// settings (Root.qml's, which root.hintBar and root.helpLine go by here) hide
+// those, and their room goes to the list, a row more each, and to the box.
+// Laid out in the design's units, a 960th of the width and a 720th of the
+// height, in letters a CRT reads: none smaller than the hint bar's and the
+// help line's, but for the wheel's rows going back; and in an area that
+// Settings → Arcade → Screen Adjustment moves each side of, which then holds
+// as many games and lines as fit.
 //
 // ▲ ▼ choose a game, from page to page and round; ◄ ► go round the filters,
 // keeping the game where the next filter has it. COIN (MAME's 5, which a
@@ -61,7 +65,8 @@ FocusScope {
     // line's, 18 of 480 lines, and the games' names larger.
     readonly property int textLines: 27
     readonly property int textSize: Math.round(textLines * v)
-    readonly property int nameSize: Math.round(30 * v)
+    readonly property int nameLines: 30
+    readonly property int nameSize: Math.round(nameLines * v)
 
     // The area everything lies in: from the bar's top and the help line's
     // left to the column's right and the hint bar's foot, as the design has
@@ -76,34 +81,58 @@ FocusScope {
     // Where the list and the column end: above the help line, or above what
     // is in its place.
     readonly property int listBottom: areaBottom - (root.hintBar ? (root.helpLine ? 93 : 41) : (root.helpLine ? 53 : 1))
+    // Settings → Arcade → List Style (Root.qml's listStyle): the games one
+    // under another (Straight) or on an arc (Curved), a page at a time; or
+    // on a wheel (3D Curved) that turns with the game chosen, which keeps to
+    // its middle row, furthest out, the others going back and fading the
+    // further they are from it.
+    readonly property bool straight: moduleRoot.listStyle === "Straight"
+    readonly property bool wheel: moduleRoot.listStyle === "3D Curved"
     // The rows under the bar, as many as fit minPitch lines apart (seven with
-    // both bars, as the design has it), spread over the room.
+    // both bars, as the design has it; the wheel an odd number, so it has a
+    // middle row), spread over the room.
     readonly property int listTop: areaTop + 57
     readonly property int rowHeight: 48
     readonly property int minPitch: 54
-    readonly property int perPage: Math.floor((listBottom - listTop - rowHeight) / minPitch) + 1
-    readonly property int pitch: Math.floor((listBottom - listTop - rowHeight) / (perPage - 1))
-    // The column right of the list, its share of the area's width: the
-    // picture, 4:3, and under it a box of the high scores, three or as many
-    // as fit, a line a scorePitch apart from scoreFirst under their heading,
-    // and the play time against its foot, infoPadX and infoPadY in from its
-    // frame. The list and the bar over it have the rest, 20 short of it.
-    readonly property int columnWidth: Math.round(345 * areaWidth / 720)
-    readonly property int columnX: areaRight - columnWidth
-    readonly property int pictureHeight: Math.round(columnWidth * 259 / 345)
-    readonly property int listWidth: columnX - 20 - areaLeft
-    readonly property int infoTop: areaTop + pictureHeight + 7
+    readonly property int rowsFit: Math.floor((listBottom - listTop - rowHeight) / minPitch) + 1
+    readonly property int perPage: wheel && rowsFit % 2 === 0 ? rowsFit - 1 : rowsFit
+    readonly property int pitch: Math.floor((listBottom - listTop - rowHeight) / Math.max(1, perPage - 1))
+    // The wheel's middle row, and how many rows from it a row would be just
+    // past its ends.
+    readonly property int middleRow: Math.floor(perPage / 2)
+    readonly property int wheelReach: perPage - middleRow
+    // The column right of the list, its share of the area's width, or
+    // narrower where the height would leave the box under its picture no
+    // line: the picture, 4:3 on the screen (the design's 345 by 259), and
+    // infoGap under it a box down to the list's foot, its lines infoPadX and
+    // infoPadY in from its frame. The list and the bar over it have the rest,
+    // 20 short of it.
+    readonly property int infoGap: 7
     readonly property int infoPadX: 10
     readonly property int infoPadY: 6
+    readonly property real pictureAspect: 345 / 259
+    readonly property int pictureRoom: listBottom - areaTop - infoGap - 2 * infoPadY - textLines
+    readonly property int columnWidth: Math.min(Math.round(345 * areaWidth / 720), Math.floor(pictureRoom * pictureAspect))
+    readonly property int columnX: areaRight - columnWidth
+    readonly property int pictureHeight: Math.round(columnWidth / pictureAspect)
+    readonly property int listWidth: columnX - 20 - areaLeft
+    readonly property int infoTop: areaTop + pictureHeight + infoGap
     // The box's inside, across: where its lines start, and their width.
     readonly property int infoX: columnX + infoPadX
     readonly property int infoWidth: columnWidth - 2 * infoPadX
+    // The box's lines, a scorePitch apart, as many as its height holds, in
+    // this order: the play time, against its foot; the high scores' heading
+    // with the first of them, scoreFirst under it; the next two; then the
+    // game's maker, year, players and system (detailList), over the play
+    // time. The help line says what the box has no line for.
     readonly property int scoresTop: infoTop + infoPadY
     readonly property int scoreFirst: 32
     readonly property int scorePitch: 29
     readonly property int playTimeTop: listBottom - infoPadY - textLines
-    readonly property int scoreRows: Math.max(0, Math.min(3, Math.floor((playTimeTop - 3 - textLines - scoresTop
-                                                                         - scoreFirst) / scorePitch) + 1))
+    readonly property int infoLines: Math.max(0, Math.floor((playTimeTop - 3 - textLines - scoresTop - scoreFirst)
+                                                            / scorePitch) + 1)
+    readonly property int scoreRows: Math.min(3, infoLines)
+    readonly property int detailRows: Math.min(4, infoLines - scoreRows)
 
     // The filters with games (ArcadeBackend::filters), the one shown, and the
     // one wanted: Start Filter's, or the one ◄ ► came to, shown as soon as it
@@ -114,18 +143,50 @@ FocusScope {
     readonly property var filter: filters.length > 0 ? filters[Math.min(filterIndex, filters.length - 1)] : null
     readonly property string filterId: filter ? filter.id : ""
     readonly property int count: filter ? filter.count : 0
-    // The game selected, by its place in the filter, and its page's games.
+    // The game selected, by its place in the filter, and the page it is on.
     property int selected: 0
     readonly property int page: Math.floor(selected / perPage)
     readonly property int pages: Math.max(1, Math.ceil(count / perPage))
-    // Counted up as what the filters hold changes, so the page and the game
+    // Counted up as what the filters hold changes, so the rows and the game
     // are read again.
     property int revision: 0
-    readonly property var rows: (revision, arcadeBackend && filterId !== ""
-                                            ? arcadeBackend.filterGames(filterId, page * perPage, perPage) : [])
-    readonly property var current: {
-        var at = selected - page * perPage
-        return at >= 0 && at < rows.length ? rows[at] : null
+    // The games in the rows (gamesInRows()), and the row of the game
+    // selected: on the wheel its middle one.
+    readonly property var rows: (revision, gamesInRows())
+    readonly property int selectedRow: wheel ? middleRow : selected - page * perPage
+    readonly property var current: rows[selectedRow] ? rows[selectedRow].game : null
+    // A { place, game } for each row, null for one with none: the page's; or
+    // the wheel's, the game chosen in its middle row, round from the list's
+    // end to its start once the filter has a game for every row.
+    function gamesInRows() {
+        var shown = []
+        for (var r = 0; r < perPage; ++r)
+            shown.push(null)
+        if (!arcadeBackend || filterId === "" || count === 0)
+            return shown
+        // n games from place from on, in the rows from row down.
+        var fill = function(row, from, n) {
+            var games = n > 0 ? arcadeBackend.filterGames(filterId, from, n) : []
+            for (var i = 0; i < games.length; ++i)
+                shown[row + i] = { place: from + i, game: games[i] }
+        }
+        if (!wheel) {
+            fill(0, page * perPage, perPage)
+            return shown
+        }
+        // The place the wheel's top row would have, before the list's start
+        // when the game chosen is near it.
+        var top = selected - middleRow
+        if (count >= perPage) {
+            var start = (top % count + count) % count
+            var head = Math.min(perPage, count - start)
+            fill(0, start, head)
+            fill(head, 0, perPage - head)
+        } else {
+            var first = Math.max(0, top)
+            fill(first - top, first, Math.min(count - first, perPage - (first - top)))
+        }
+        return shown
     }
     readonly property string currentSet: current ? current.set : ""
     readonly property bool isGame: !!current && !current.unknown
@@ -137,6 +198,9 @@ FocusScope {
     // the name as the colour.
     readonly property color surface: root.surfaceColor
     readonly property color ground: Qt.rgba(surface.r, surface.g, surface.b, moduleRoot.infoBackground / 100)
+    // The frame round the picture and the box, as wide as Settings → Arcade
+    // → Border has it (Root.qml's border): a line, or none.
+    readonly property int frame: moduleRoot.border ? root.px : 0
     // The game's high scores, read again once the High Scores module has
     // read MAME's files (a game just played).
     property int scoresRevision: 0
@@ -397,26 +461,48 @@ FocusScope {
         width: Math.round(arcadeScreen.listWidth * arcadeScreen.u)
         text: arcadeScreen.adjusting ? "Screen Adjustment" : arcadeScreen.filter ? arcadeScreen.filter.name : ""
         arrows: !arcadeScreen.adjusting && arcadeScreen.filters.length > 1
-        rightText: arcadeScreen.adjusting ? "" : (arcadeScreen.page + 1) + "/" + arcadeScreen.pages
+        // The page of so many; on the wheel, the game of so many.
+        rightText: arcadeScreen.adjusting ? ""
+                   : arcadeScreen.wheel ? (arcadeScreen.selected + 1) + "/" + arcadeScreen.count
+                   : (arcadeScreen.page + 1) + "/" + arcadeScreen.pages
     }
 
     Repeater {
-        model: arcadeScreen.rows
+        model: arcadeScreen.perPage
         Item {
             id: row
-            required property var modelData
             required property int index
-            readonly property int number: arcadeScreen.page * arcadeScreen.perPage + index + 1
-            readonly property bool isCurrent: number - 1 === arcadeScreen.selected
-            // The rows lie on an arc, the middle of the page furthest right;
-            // the selected one stands out of it to the left.
-            readonly property int arc: Math.round(24 * Math.sin(Math.PI * (index + 0.5) / arcadeScreen.perPage))
+            readonly property var entry: arcadeScreen.rows[index] || null
+            readonly property var game: entry ? entry.game : ({})
+            readonly property int number: entry ? entry.place + 1 : 0
+            readonly property bool isCurrent: !!entry && index === arcadeScreen.selectedRow
+            // On the wheel, how far the row is from its middle: from 0 there
+            // to 1 just past its ends. It is as much further back: smaller,
+            // and fainter.
+            readonly property real depth: arcadeScreen.wheel
+                                          ? Math.abs(index - arcadeScreen.middleRow) / arcadeScreen.wheelReach : 0
+            readonly property real size: 1 - 0.3 * depth
+            // The arc the rows' left ends lie on, those at the page's ends (the
+            // wheel's) furthest left and those in its middle furthest right;
+            // none for Straight. The selected row stands out of the others to
+            // the left, and a straight one reaches the bar's ends.
+            readonly property int arc: arcadeScreen.straight ? 0
+                                       : Math.round(24 * Math.sin(Math.PI * (index + 0.5) / arcadeScreen.perPage))
+            readonly property int boxLeft: arcadeScreen.areaLeft + (arcadeScreen.straight ? 16 : 12 + arc)
+                                           - (isCurrent ? 16 : 0)
+            readonly property int boxWidth: arcadeScreen.listWidth - (arcadeScreen.straight ? 16 : 35)
+                                            + (isCurrent ? 16 : 0)
             readonly property color ink: isCurrent ? root.surfaceColor : root.primaryColor
-            readonly property real gap: Math.round(10 * arcadeScreen.u)
-            x: Math.round((arcadeScreen.areaLeft + 12 + arc - (isCurrent ? 16 : 0)) * arcadeScreen.u)
-            y: Math.round((arcadeScreen.listTop + index * arcadeScreen.pitch) * arcadeScreen.v)
-            width: Math.round((arcadeScreen.listWidth - (isCurrent ? 19 : 35)) * arcadeScreen.u)
-            height: Math.round(arcadeScreen.rowHeight * arcadeScreen.v)
+            readonly property real gap: Math.round(10 * size * arcadeScreen.u)
+            visible: entry !== null
+            opacity: 1 - 0.7 * depth
+            // Made smaller from its left end, which keeps to the arc, the
+            // middle of its row.
+            x: Math.round(boxLeft * arcadeScreen.u)
+            y: Math.round((arcadeScreen.listTop + index * arcadeScreen.pitch
+                           + arcadeScreen.rowHeight * (1 - size) / 2) * arcadeScreen.v)
+            width: Math.round(boxWidth * size * arcadeScreen.u)
+            height: Math.round(arcadeScreen.rowHeight * size * arcadeScreen.v)
 
             SelectionBox {
                 anchors.fill: parent
@@ -438,7 +524,7 @@ FocusScope {
                 text: ("00" + row.number).slice(-Math.max(3, String(row.number).length))
                 color: row.ink
                 font.family: root.globalFont
-                font.pixelSize: arcadeScreen.textSize
+                font.pixelSize: Math.round(arcadeScreen.textLines * row.size * arcadeScreen.v)
             }
 
             // The name: cut short with "…" when it is too long for the row,
@@ -454,18 +540,20 @@ FocusScope {
                     id: nameText
                     anchors.verticalCenter: parent.verticalCenter
                     width: row.isCurrent ? implicitWidth : Math.min(implicitWidth, nameClip.width)
-                    text: row.modelData.name
+                    text: row.game.name || ""
                     textFormat: Text.PlainText
                     elide: Text.ElideRight
                     color: row.ink
                     font.family: root.globalFont
                     font.capitalization: Font.AllUppercase
-                    font.pixelSize: arcadeScreen.nameSize
+                    font.pixelSize: Math.round(arcadeScreen.nameLines * row.size * arcadeScreen.v)
+                    onTextChanged: Qt.callLater(nameClip.updateScroll)
                 }
 
                 // Whether it scrolls, and how far: started (and started over)
                 // once the row has its new width, a turn of the event loop
-                // later, as MenuRow's value is.
+                // later, as MenuRow's value is; and for each name the row
+                // comes to (the wheel's middle row has every game chosen).
                 readonly property bool scrolls: row.isCurrent && nameText.implicitWidth > width
                 readonly property real scrollBy: width - nameText.implicitWidth
                 onScrollsChanged: Qt.callLater(updateScroll)
@@ -495,7 +583,7 @@ FocusScope {
             }
             PixelIcon {
                 id: heart
-                visible: !!row.modelData.favorite
+                visible: !!row.game.favorite
                 name: "heart"
                 color: row.ink
                 x: row.width - width - row.gap - root.px
@@ -505,7 +593,8 @@ FocusScope {
     }
 
     // ---
-    // The column: the picture, the high scores, the play time
+    // The column: the picture, and the box of the high scores, the game's
+    // details and the play time
     // ---
 
     Rectangle {
@@ -516,18 +605,19 @@ FocusScope {
         width: Math.round(arcadeScreen.columnWidth * arcadeScreen.u)
         height: Math.round(arcadeScreen.pictureHeight * arcadeScreen.v)
         color: picture.status === Image.Ready ? "#000000" : arcadeScreen.ground
-        border.width: root.px
+        border.width: arcadeScreen.frame
         border.color: root.primaryColor
         antialiasing: false
 
-        // The game's picture, 4:3; a vertical game's upright in the middle.
+        // The game's picture, 4:3, inside the frame; a vertical game's
+        // upright in the middle.
         Image {
             id: picture
-            readonly property real inner: preview.height - 2 * root.px
+            readonly property real inner: preview.height - 2 * arcadeScreen.frame
             visible: status === Image.Ready
-            y: root.px
+            y: arcadeScreen.frame
             height: inner
-            width: arcadeScreen.details.vertical ? Math.round(inner * 3 / 4) : preview.width - 2 * root.px
+            width: arcadeScreen.details.vertical ? Math.round(inner * 3 / 4) : preview.width - 2 * arcadeScreen.frame
             x: Math.round((preview.width - width) / 2)
             source: arcadeScreen.isGame && arcadeScreen.details.picture ? arcadeScreen.details.picture : ""
             sourceSize.width: width
@@ -569,7 +659,7 @@ FocusScope {
         Rectangle {
             anchors.right: parent.right
             anchors.bottom: parent.bottom
-            anchors.margins: root.px
+            anchors.margins: arcadeScreen.frame
             width: creditText.implicitWidth + 2 * Math.round(6 * arcadeScreen.u)
             height: creditText.implicitHeight + 2 * root.px
             color: root.surfaceColor
@@ -594,7 +684,7 @@ FocusScope {
         width: Math.round(arcadeScreen.columnWidth * arcadeScreen.u)
         height: Math.round(arcadeScreen.listBottom * arcadeScreen.v) - y
         color: arcadeScreen.ground
-        border.width: root.px
+        border.width: arcadeScreen.frame
         border.color: root.primaryColor
         antialiasing: false
     }
@@ -602,7 +692,7 @@ FocusScope {
     // The high scores, in the box: a line for each it has room for, kept
     // from game to game.
     Item {
-        visible: arcadeScreen.isGame
+        visible: arcadeScreen.isGame && arcadeScreen.scoreRows > 0
         x: Math.round(arcadeScreen.infoX * arcadeScreen.u)
         y: Math.round(arcadeScreen.scoresTop * arcadeScreen.v)
         width: Math.round(arcadeScreen.infoWidth * arcadeScreen.u)
@@ -664,26 +754,48 @@ FocusScope {
         }
     }
 
-    // How long the game has been played, against the box's foot. The label
-    // where the high scores' are: MenuRow pads its line.
-    MenuRow {
-        visible: arcadeScreen.isGame
-        x: Math.round(arcadeScreen.infoX * arcadeScreen.u) - pad
-        y: Math.round(arcadeScreen.playTimeTop * arcadeScreen.v)
-        width: Math.round(arcadeScreen.infoWidth * arcadeScreen.u) + 2 * pad
-        height: arcadeScreen.textSize
-        fontSize: arcadeScreen.textSize
-        label: "Play Time"
-        value: arcadeScreen.playTime(arcadeScreen.details.playTime)
+    // What the game is, a line each in the box as it has room, over the play
+    // time; the rest for the help line. In the order the box takes them:
+    // value is the box's ("?" for what MAME doesn't say), told the help
+    // line's.
+    readonly property var detailList: {
+        var d = details
+        var players = d.players > 0 ? d.players : 0
+        return [{ label: "Maker", value: d.maker || "?", told: d.maker || "" },
+                { label: "Year", value: d.year || "?", told: d.year || "" },
+                { label: "Players", value: players > 0 ? String(players) : "?",
+                  told: players > 0 ? players + (players === 1 ? " Player" : " Players") : "" },
+                { label: "System", value: d.system || "?", told: d.system || "" }]
+    }
+
+    // The game's details, and how long it has been played, against the box's
+    // foot. The labels where the high scores' are: MenuRow pads its line. A
+    // value too long for its line (Data East Corporation) scrolls through it,
+    // as About's lines do: the box's are read rather than chosen.
+    Repeater {
+        model: arcadeScreen.detailRows + 1
+        MenuRow {
+            required property int index
+            readonly property var detail: index < arcadeScreen.detailRows ? arcadeScreen.detailList[index]
+                                          : { label: "Play Time", value: arcadeScreen.playTime(arcadeScreen.details.playTime) }
+            alwaysScroll: true
+            visible: arcadeScreen.isGame
+            x: Math.round(arcadeScreen.infoX * arcadeScreen.u) - pad
+            y: Math.round((arcadeScreen.playTimeTop - (arcadeScreen.detailRows - index) * arcadeScreen.scorePitch)
+                          * arcadeScreen.v)
+            width: Math.round(arcadeScreen.infoWidth * arcadeScreen.u) + 2 * pad
+            height: arcadeScreen.textSize
+            fontSize: arcadeScreen.textSize
+            label: detail.label
+            value: detail.value
+        }
     }
 
     // What the game is, for the help line: its full name as MAME has it,
-    // then its system, maker, year and players, those MAME says.
-    readonly property string about: {
-        var d = details
-        return [d.name || "", d.system || "", d.maker || "", d.year || "",
-                d.players > 0 ? d.players + (d.players === 1 ? " Player" : " Players") : ""].join("\n")
-    }
+    // then those of its details the box has no line for.
+    readonly property string about: [details.name || ""].concat(detailList.slice(detailRows).map(function(detail) {
+        return detail.told
+    })).join("\n")
 
     // ---
     // Nothing to list

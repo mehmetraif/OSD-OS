@@ -218,7 +218,7 @@ The image's own user is `pi`, and OSD/OS runs as that user. You only need to log
   ssh your-user@osdos.local
   ```
 
-<img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/screenshots/settings-modules.png" width="100%" alt="Settings, with the version (DEV) and the IP address (192.0.2.2) in its title bar" />
+<img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/screenshots/settings-modules.png" width="100%" alt="Settings, with the IP address (192.0.2.2) in its title bar" />
 
 Once in, `journalctl -u osdos -b` shows OSD/OS's log for this boot ([Troubleshooting](https://github.com/mehmetraif/OSD-OS/wiki/Troubleshooting)).
 

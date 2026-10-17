@@ -704,6 +704,8 @@ Window {
     // engine invalidates the root context itself.
     readonly property var hints: inputManager ? inputManager.hints : ({})
     readonly property string appVersion: appCore ? appCore.appVersion : ""
+    // A build made from source rather than a release (CMake's APP_VERSION).
+    readonly property bool devBuild: appVersion === "dev"
     readonly property string appBuild: appCore ? appCore.appBuild : ""
 
     // --- BOOT SCREEN (OSD/OS image only, see os/README.md) ---

@@ -647,7 +647,7 @@ The template's `theme.json` gives it `"animate": true`, so that the hum bar roll
 
 ## Tips
 
-- **Start from OSD/OS's own.** The repository's [shaders](https://github.com/mehmetraif/OSD-OS/tree/main/shaders) take the same names: `effects.frag` is the screen and text effects, `bg-matrix.frag`, `bg-fire.frag`, `bg-stars.frag` and `bg-snow.frag` the backgrounds. Copy one into your theme, change it, compile it. Compiled into a theme with `"area": "foot"`, `bg-fire.frag` burns from the screen's foot instead of the window's.
+- **Start from OSD/OS's own.** The repository's [shaders](https://github.com/mehmetraif/OSD-OS/tree/main/shaders) take the same names: `effects.frag` is the screen and text effects, `bg-matrix.frag`, `bg-fire.frag`, `bg-stars.frag`, `bg-snow.frag` and `bg-flag.frag` the backgrounds. Copy one into your theme, change it, compile it. Compiled into a theme with `"area": "foot"`, `bg-fire.frag` burns from the screen's foot instead of the window's.
 - **Think in art pixels.** Snap to them with `floor()`, draw in the scheme's colour, and shade with a dither rather than with transparency, and an effect looks like the rest of the OSD.
 - **Make random numbers without `sin()`.** The `grain()` hash above keeps its precision on the Pi's GPU.
 - **Keep it light.** A screen shader runs for every screen pixel each time the screen is drawn, about 2 million at 1080p and 307,200 at 640 × 480, and a moving effect draws the screen about thirty times a second. Each read of `source` and each turn of a loop counts.

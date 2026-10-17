@@ -4,7 +4,7 @@ On a Raspberry Pi, OSD/OS can be the whole system: one image that you flash to a
 
 <table>
 <tr><th width="50%">The boot screen</th><th width="50%">Settings, once it is up</th></tr>
-<tr><td><img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/screenshots/boot.png" width="100%" alt="The boot screen: the OSD/OS cassette over a progress bar and a list of services, two of them OK" /></td><td><img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/screenshots/settings.png" width="100%" alt="Settings, with the version and the Pi's address in its title bar" /></td></tr>
+<tr><td><img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/screenshots/boot.png" width="100%" alt="The boot screen: the OSD/OS cassette over a progress bar and a list of services, two of them OK" /></td><td><img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/screenshots/settings.png" width="100%" alt="Settings, with the Pi's address in its title bar" /></td></tr>
 <tr><td>From power on, the screen is OSD/OS's. The cassette winds its tape while the services start, <code>[ OK ]</code> once each is up.</td><td>The title bar shows the version and the Pi's network address, which is handy for SSH.</td></tr>
 </table>
 

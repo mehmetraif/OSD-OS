@@ -17,15 +17,20 @@ FocusScope {
 
     // Settings → Arcade's, as the module opens. Screen: "Original", the tree
     // (Games.qml), or "Arcade", the selection screen (ArcadeScreen.qml),
-    // whose own are its Hint Bar and Help Line, the filter it opens on and
-    // its column's ground. Start Info Screen is both's: how to come back,
-    // before a game.
+    // whose own are its Hint Bar and Help Line, the filter it opens on, how
+    // its list lies, its column's frames and ground. Start Info Screen is
+    // both's: how to come back, before a game.
     property string screen: "Original"
     readonly property bool arcadeScreen: screen === "Arcade"
     property bool hintBar: true
     property bool helpLine: true
     property bool startInfo: true
     property string startFilter: "all"
+    // List Style: "Straight", "Curved" or "3D Curved".
+    property string listStyle: "Curved"
+    // Border: the frames round the Arcade screen's picture and the box under
+    // it.
+    property bool border: true
     // Info Background: how solid the Arcade screen's column's ground is, 0
     // (transparent) to 100 (solid).
     property int infoBackground: 100
@@ -201,6 +206,8 @@ FocusScope {
         helpLine = isOn(own.help_line)
         startInfo = isOn(own.start_info)
         startFilter = own.start_filter || "all"
+        listStyle = own.list_style || "Curved"
+        border = isOn(own.border)
         var ground = parseInt(own.info_background)
         infoBackground = isNaN(ground) ? 100 : Math.max(0, Math.min(100, ground))
         var saved = own.screen_adjustment || {}
