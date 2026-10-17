@@ -146,10 +146,21 @@ export OSDOS_LAUNCHER_API=5
 # (e.g. the systemd unit) or this block won't find the staging directory.
 UPDATES_DIR="${DATA_ROOT:-${XDG_DATA_HOME:-$HOME/.local/share}/OSD-OS}/updates"
 
-# Crash recovery: a previous apply died between the child renames below.
-if [ ! -x "$INSTALL_DIR/bin/osdos" ] && [ -x "$INSTALL_DIR/.new/bin/osdos" ]; then
-    for d in "$INSTALL_DIR"/.new/*; do mv -f "$d" "$INSTALL_DIR/"; done
-    rm -rf "$INSTALL_DIR/.new" "$INSTALL_DIR/.old"
+# Crash recovery: a previous apply died between the child renames below. What
+# it had swapped in goes back out for what .old kept of the release before, so
+# that one runs whole, and the stage, still there until a swap is on the card,
+# is applied again below. A .discard is the release before a finished apply,
+# left half deleted.
+if [ -d "$INSTALL_DIR/.old" ] && [ -w "$INSTALL_DIR" ]; then
+    for d in "$INSTALL_DIR"/.old/*; do
+        [ -e "$d" ] || continue
+        name=$(basename "$d")
+        rm -rf "${INSTALL_DIR:?}/$name"
+        mv "$d" "$INSTALL_DIR/$name"
+    done
+fi
+if [ -w "$INSTALL_DIR" ]; then
+    rm -rf "$INSTALL_DIR/.new" "$INSTALL_DIR/.old" "$INSTALL_DIR/.discard"
 fi
 
 if [ -f "$UPDATES_DIR/staged.sha256" ] && [ -w "$INSTALL_DIR" ]; then
@@ -159,15 +170,22 @@ if [ -f "$UPDATES_DIR/staged.sha256" ] && [ -w "$INSTALL_DIR" ]; then
         mkdir -p "$INSTALL_DIR/.new" "$INSTALL_DIR/.old"
         # Extract fully, then swap top-level dirs (bin, share) via rename —
         # shrinks the power-loss window from the whole extraction to two mv's,
-        # and drops files that no longer exist in the new release.
+        # and drops files that no longer exist in the new release. The new
+        # files are on the card before any rename names them, and the renames
+        # before the stage that would apply them again goes: a Pi switched off
+        # at the wall meanwhile starts on the release before, or applies it
+        # again, never on a file half written.
         if tar -xzf "$UPDATES_DIR/$STAGED_TARBALL" --strip-components=3 -C "$INSTALL_DIR/.new" \
            && [ -x "$INSTALL_DIR/.new/bin/osdos" ]; then
+            sync -f "$INSTALL_DIR" 2> /dev/null || sync
             for d in "$INSTALL_DIR"/.new/*; do
                 name=$(basename "$d")
                 [ -e "$INSTALL_DIR/$name" ] && mv "$INSTALL_DIR/$name" "$INSTALL_DIR/.old/$name"
                 mv "$d" "$INSTALL_DIR/$name"
             done
-            rm -rf "$INSTALL_DIR/.new" "$INSTALL_DIR/.old"
+            mv "$INSTALL_DIR/.old" "$INSTALL_DIR/.discard"
+            sync -f "$INSTALL_DIR" 2> /dev/null || sync
+            rm -rf "$INSTALL_DIR/.new" "$INSTALL_DIR/.discard"
             rm -f "$UPDATES_DIR/$STAGED_TARBALL" "$UPDATES_DIR/staged.sha256" "$UPDATES_DIR/staged.json"
         else
             # Bad extract: keep the old tree; .failed stops a retry every boot.
