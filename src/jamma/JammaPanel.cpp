@@ -107,12 +107,12 @@ ChipMap defaultMap(uint8_t address) {
     ChipMap map;
     map.address = address;
     const Input pins[16] = {
-        // GPA0-7
+        // GPA0-7: the joystick, Start, Coin, then buttons 1 and 2
         Input::Up, Input::Down, Input::Left, Input::Right,
-        Input::Mode, Input::Start, Input::Coin, Input::Z,
-        // GPB0-7: the buttons from GPB7 down
-        Input::TR2, Input::TL2, Input::TR, Input::TL,
-        Input::Y, Input::X, Input::B, Input::A,
+        Input::Start, Input::Coin, Input::A, Input::B,
+        // GPB0-7: buttons 3 to 8, then the two extras
+        Input::X, Input::Y, Input::TL, Input::TR,
+        Input::TL2, Input::TR2, Input::Z, Input::Mode,
     };
     std::copy(std::begin(pins), std::end(pins), map.pins);
     return map;

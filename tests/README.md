@@ -111,7 +111,7 @@ ctest --test-dir build-tests --output-on-failure
   - The commits since the previous tag, by subject: `feat:` and "Add…" under What's New, `fix:` and "Fix…" under Bug Fixes, the rest under Changelog; a merge commit left out, a subject listed once, its `<` and `>` escaped.
   - The previous tag found by itself or given; the first release lists the whole history; a section with nothing in it is left out; no tag is an error.
 - **jamma** (`jamma_test.cpp`, Linux only). A Raspberry Pi to JAMMA board's pins as gamepad events (`src/jamma`, `osdos-jamma`).
-  - The built-in mapping is that of RGB-Pi's driver (JammaPi's `joypi`), on both expanders.
+  - The built-in mapping is the layout Crown Arcade's board is wired in (`mk_arcade_joystick_rpi`'s): the joystick, Start and Coin, then the buttons in their order from GPA6, on both expanders.
   - A mapping file moves pins and takes them out; its bad lines are named and change nothing.
   - Buttons go out as their codes, a button on two pins held while either is; the joystick as a digital stick on two axes (up and down together: neither).
   - A switch's bounce within 5 ms is let go by, without holding back another pin; an expander lost lets go of everything at once.
