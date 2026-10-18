@@ -1163,7 +1163,7 @@ Rectangle {
         // round from the list's end to its start; ▲ ▼ move it up and down
         // the rows, the wheel turning a row once it would leave them; the
         // rows going back from it, wherever it is, smaller and fainter, as
-        // far back as the wheel's ends from its middle and no further. The
+        // far back as they go wheelReach rows from it (four of seven). The
         // bar has the game of so many. Fewer games than rows lie from the
         // top row down, the others empty; the room of an even number of rows
         // holds one fewer, for a middle.
@@ -1220,8 +1220,8 @@ Rectangle {
             compare(row("013"), null)
             compare(row("005").y, top(6))
             // Up to the top row, the rows under it going back the further
-            // they are, the furthest as far back as the wheel's ends; and past
-            // it, round to the list's end.
+            // they are, those four rows from it and more as far back as they
+            // go; and past it, round to the list's end.
             for (var k = 0; k < 6; ++k)
                 keyClick(Qt.Key_Up)
             compare(screen.selectedRow, 0)
@@ -1254,6 +1254,76 @@ Rectangle {
             screen = openScreen()
             compare(screen.rowsFit, 8)
             compare(screen.perPage, 7)
+        }
+
+        // The wheel with as many games as rows turns at its ends as it does
+        // with more. The game kept as the list is read again keeps its row,
+        // but for one found in another filter, which comes to the middle
+        // row; a game played comes back to the row it was played from; and
+        // fewer rows (Screen Adjustment) keep it in the last of them.
+        function test_screenWheelRows() {
+            moduleRoot.listStyle = "3D Curved"
+            arcadeBackend.filterList[0].sets = arcadeBackend.filterList[0].sets.slice(0, 7)
+            var screen = openScreen()
+            compare(screen.count, 7)
+            compare(screen.perPage, 7)
+            compare(screen.selectedRow, 3)
+            compare(screen.rows[0].place, 4)
+            for (var i = 0; i < 4; ++i)
+                keyClick(Qt.Key_Down)
+            compare(screen.currentSet, "dkong")
+            compare(screen.selectedRow, 6)
+            compare(screen.rows[0].place, 5)
+            for (i = 0; i < 6; ++i)
+                keyClick(Qt.Key_Up)
+            compare(screen.currentSet, "ffight")
+            compare(screen.selectedRow, 0)
+            keyClick(Qt.Key_Up)
+            compare(screen.currentSet, "dkong")
+            compare(screen.selectedRow, 0)
+            compare(screen.rows[0].place, 4)
+
+            // Read again, a game more ahead of it.
+            arcadeBackend.filterList[0].sets = ["kinst"].concat(arcadeBackend.filterList[0].sets)
+            arcadeBackend.gamesChanged()
+            compare(screen.count, 8)
+            compare(screen.currentSet, "dkong")
+            compare(screen.selectedRow, 0)
+
+            // Its filter gone, its last favourite with it.
+            loader.source = ""
+            moduleRoot.startFilter = "favorites"
+            screen = openScreen()
+            compare(screen.filterId, "favorites")
+            keyClick(Qt.Key_Down)
+            compare(screen.currentSet, "sf2")
+            compare(screen.selectedRow, 1)
+            arcadeBackend.filterList.splice(1, 1)
+            arcadeBackend.gamesChanged()
+            compare(screen.filterId, "all")
+            compare(screen.currentSet, "sf2")
+            compare(screen.selectedRow, 3)
+
+            // Played from the sixth row, and back.
+            loader.source = ""
+            moduleRoot.startFilter = "all"
+            screen = openScreen()
+            keyClick(Qt.Key_Down)
+            keyClick(Qt.Key_Down)
+            compare(screen.currentSet, "1942")
+            compare(screen.selectedRow, 5)
+            keyClick(Qt.Key_Space)
+            var played = root.navigations[root.navigations.length - 1]
+            compare(played.path, "Play.qml")
+            compare(played.listState.row, 5)
+            loader.source = ""
+            screen = openScreen({ navListState: played.listState })
+            compare(screen.currentSet, "1942")
+            compare(screen.selectedRow, 5)
+            moduleRoot.screenAdjustment = { top: -30, bottom: -105, left: 0, right: 0 }
+            compare(screen.perPage, 5)
+            compare(screen.currentSet, "1942")
+            compare(screen.selectedRow, 4)
         }
 
         // Border OFF: no frame round the picture or the box under it, the

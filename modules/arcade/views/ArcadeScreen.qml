@@ -26,11 +26,11 @@ import Components
 // or 1) plays the game with them (navigateTo Play.qml, which Root.qml plays
 // as Start Info Screen says); select held opens its options (Play, its
 // favourite, Play at Startup) and back leaves the module. Coming back from
-// a game restores the filter and the game from the listState handed to
-// navigateTo; a game played from the screen itself (Start Info Screen off)
-// leaves it as it was. Opened with the startup favourite
-// (navParams.startupPlay), it plays that as soon as the folder has been
-// read, the screen on it in Favorites.
+// a game restores the filter, the game and its row on the wheel from the
+// listState handed to navigateTo; a game played from the screen itself
+// (Start Info Screen off) leaves it as it was. Opened with the startup
+// favourite (navParams.startupPlay), it plays that as soon as the folder
+// has been read, the screen on it in Favorites.
 //
 // Opened to adjust it (navParams.adjust, Screen Adjustment's), a frame lies
 // round the area: ▲ ▼ ◄ ► move that side of it out, or in once select has
@@ -101,7 +101,8 @@ FocusScope {
     readonly property int pitch: Math.floor((listBottom - listTop - rowHeight) / Math.max(1, perPage - 1))
     // The wheel's middle row, where a game chosen afresh comes to (a filter,
     // the screen opened), and how many rows from the game chosen a row is
-    // as far back as the wheel goes, as its ends are from the middle.
+    // as far back as the wheel goes: a row more than its ends are from its
+    // middle, so with the game there they aren't quite as far back.
     readonly property int middleRow: Math.floor(perPage / 2)
     readonly property int wheelReach: perPage - middleRow
     // The column right of the list, its share of the area's width, or
@@ -166,10 +167,10 @@ FocusScope {
     function placeWheel(row) {
         wheelTop = count >= perPage ? ((selected - row) % count + count) % count : 0
     }
-    // Its rows changed (the bars, Screen Adjustment, the style): the game
-    // keeps its row, the last if there are fewer now.
+    // Its rows changed (Screen Adjustment): the game keeps its row, the last
+    // if there are fewer now. The style and the bars are read as the module
+    // opens, before this screen is made.
     onPerPageChanged: if (wheel) placeWheel(Math.min(selectedRow, perPage - 1))
-    onWheelChanged: if (wheel) placeWheel(middleRow)
     // A { place, game } for each row, null for one with none: the page's; or
     // the wheel's, from its top row on.
     function gamesInRows() {
@@ -313,9 +314,9 @@ FocusScope {
         var keepRoom = landOn ? -1
                      : fromCurrent ? (current.room !== undefined ? current.room : -1)
                      : (navListState.room !== undefined ? navListState.room : -1)
-        // On the wheel, the game kept keeps its row; another comes to the
-        // middle one.
-        var keepRow = fromCurrent ? selectedRow : middleRow
+        // Where it is: its filter, and its row on the wheel.
+        var keptFilter = filterId
+        var keptRow = selectedRow
         filters = arcadeBackend.filters()
         var at = indexOfFilter(wanted)
         filterIndex = Math.max(0, at)
@@ -325,19 +326,26 @@ FocusScope {
             wanted = filterId
         var place = keep !== "" && filterId !== "" ? arcadeBackend.filterIndex(filterId, keep, keepRoom) : -1
         selected = place >= 0 ? place : (standIn ? 0 : Math.max(0, Math.min(selected, count - 1)))
-        placeWheel(Math.min(keepRow, perPage - 1))
+        // On the wheel, the game kept keeps its row while its filter is the
+        // one shown still, and the game come back to after playing it the
+        // row it was played from; any other comes to the middle row.
+        var row = fromCurrent ? (filterId === keptFilter ? keptRow : middleRow)
+                : !landOn && navListState.row !== undefined ? navListState.row : middleRow
+        placeWheel(Math.min(row, perPage - 1))
         revision++
     }
 
     function move(delta) {
         if (count === 0)
             return
-        selected = (selected + delta + count) % count
         browsed = true
-        // The wheel turns a row as the game chosen would leave its rows, round
-        // from the list's end to its start.
-        if (wheel && count > perPage && (selected - wheelTop + count) % count >= perPage)
+        // The wheel turns a row as the game chosen would leave its rows,
+        // round from the list's end to its start, before the game changes,
+        // so it is never out of them.
+        var row = selectedRow + delta
+        if (wheel && count >= perPage && (row < 0 || row >= perPage))
             wheelTop = (wheelTop + delta + count) % count
+        selected = (selected + delta + count) % count
     }
 
     function cycle(delta) {
@@ -356,7 +364,7 @@ FocusScope {
     // host }) or one hosted ({ hosting: true }).
     function play(set, name, listFilter, online) {
         var params = { game: set, title: name }
-        var state = { filter: listFilter, set: set }
+        var state = { filter: listFilter, set: set, row: selectedRow }
         if (online)
             params.online = online
         if (online && online.room !== undefined)
@@ -575,9 +583,9 @@ FocusScope {
             readonly property int number: entry ? entry.place + 1 : 0
             readonly property bool isCurrent: !!entry && index === arcadeScreen.selectedRow
             // On the wheel, how far the row is from the game chosen: from 0
-            // there to 1 as far from it as the wheel's ends are from its
-            // middle, and no further. It is as much further back: smaller,
-            // and fainter, wherever the game chosen is.
+            // there to 1 wheelReach rows from it, and no further. It is as
+            // much further back: smaller, and fainter, wherever the game
+            // chosen is.
             readonly property real depth: arcadeScreen.wheel
                                           ? Math.min(1, Math.abs(index - arcadeScreen.selectedRow) / arcadeScreen.wheelReach) : 0
             readonly property real size: 1 - 0.3 * depth
