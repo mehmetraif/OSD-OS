@@ -66,6 +66,7 @@ Right on a game opens its options:
 
 | Option | What it does |
 |---|---|
+| **Game Details** | What the game is, and its achievements on RetroAchievements, those you have earned and those you haven't ([Game Details](#game-details)) |
 | **Add to Favorites** / **Remove from Favorites** | Puts it on Favorites, or takes it off |
 | **Engine** | Shown for a game FinalBurn Neo has, as `Engine: Auto (MAME)`: which emulator plays it. **Auto**, MAME, unless Online High Scores or Online Play is on, which only FinalBurn Neo has ([FinalBurn Neo](#finalburn-neo)); **MAME**; or **FinalBurn Neo** |
 | **Host Online Game** | With **Online Play** on, for a game FinalBurn Neo has: starts it for others to join from RetroArch's lobby ([Online play](#online-play)) |
@@ -77,10 +78,11 @@ With **Settings → Arcade → Screen** on **Arcade**, Arcade opens on a cabinet
 
 - **The list**, on the left: the games of one filter, seven to a page (as many as fit, in an area [Screen Adjustment](#screen-adjustment) made larger or smaller), each with its number and its title (`Galaga`, where MAME's name is `Galaga (Namco rev. B)`), and a heart on a favorite. They lie as **List Style** says ([below](#list-style)): on an arc unless it is changed. The selected game stands out of the others to the left, and its title, when it is too long for the row, scrolls through; the others are cut short with `…`.
 - **The bar** over it: the filter, with ◄ ► while there are others, and the page (`1/4`); on the wheel of 3D Curved, the game (`12/512`).
-- **The picture**, on the right ([below](#pictures)), with the credits bought in its corner (`Credit 2`).
+- **The picture**, on the right ([below](#pictures)), with the credits bought in its corner (`Credit 2`). A game with more than one picture shows the next every 4 seconds.
 - **The box** under the picture, a line for each of these that its height has room for ([below](#the-box-under-the-picture)):
   - **Hi-Score**: the best three entries of the game's high score table, their rank, score and name, as the [High Scores](https://github.com/mehmetraif/OSD-OS/wiki/High-Scores) module reads them; `No Scores Yet` before the game has a table. For a game played in FinalBurn Neo with Online High Scores on and a Web API key given, **RA Hi-Score**: the top three of its RetroAchievements leaderboard, with their users' names ([FinalBurn Neo](#finalburn-neo)).
   - **Maker**, **Year**, **Players** and **System**: what the game is, `?` for what MAME doesn't say, and one too long for its line (`Data East Corporation`) scrolling through it. Its system is the board it ran on: CPS-1, Neo-Geo, NAOMI, Sega System 16B, Namco System 2, Midway T-Unit and about a hundred more; for any other, the name of MAME's driver for it.
+  - **Achievements**, for a game RetroAchievements has achievements of, with a Web API key given: those earned of all of them (`7/100`) ([below](#the-box-under-the-picture)).
   - **Play Time**, at the foot of the box: how long the game has been played in OSD/OS (`1H 31M`, `Never`).
 - **The help line**: the game's full name, as MAME has it, then those of its maker, year, players and system the box has no line for, scrolling through as `Final Fight (World, set 1) • 1989 • 2 Players • CPS-1`; on a set under Not Recognized, why it is there and what to do.
 - **The hint bar**: the keys.
@@ -94,7 +96,7 @@ With **Settings → Arcade → Screen** on **Arcade**, Arcade opens on a cabinet
 | ◄ ► | Joystick, D-pad | Arrows | The filter before or after, staying on the same game where that filter has it |
 | COIN | **COIN** (Back, Select, -) | **5** | Puts a credit in, up to 9: they go in with the next game played |
 | Select | Button 1 (A) | **Enter** | Plays the game, with the credits, as you let it go |
-| Select, held | Button 1 (A), held | **Enter**, held | The game's options, once it has been held most of a second: **Play**, **Add to Favorites** or **Remove from Favorites**, **Play at Startup** ([above](#a-games-options)). Letting it go then plays nothing |
+| Select, held | Button 1 (A), held | **Enter**, held | The game's options, once it has been held most of a second: **Play**, **Game Details**, **Add to Favorites** or **Remove from Favorites**, **Play at Startup** ([above](#a-games-options)). Letting it go then plays nothing |
 | START | **START** | **Space**, **1** | Plays the game, with the credits |
 | Back | Button 2 (B) | **Esc**, **Backspace** | Leaves Arcade |
 
@@ -124,9 +126,11 @@ The box under the picture has a line every 29 of the screen's 720 lines. Its hei
 1. **Play Time**, against the box's foot: always.
 2. **Hi-Score** with the best score, at the top.
 3. The second and third scores.
-4. **Maker**, **Year**, **Players** and **System**, a line each over the play time, in that order.
+4. **Maker**, **Year**, **Players** and **System**, a line each over the play time, in that order. Ahead of them, for a game RetroAchievements has achievements of and with a Web API key given ([FinalBurn Neo](#finalburn-neo)), **Achievements**: those you have earned of all of them, `ACHIEVEMENTS······7/100`, or how many there are without an account signed in (`…` while they are read). Its [Game Details](#game-details) list them.
 
-The help line has the details the box has no line for. The list has a row for every 54 lines. As OSD/OS lays the screen out, they hold:
+The help line has the details the box has no line for (`7/100 Achievements` among them).
+
+The table below is for a game without achievements: for one with them, Achievements takes the first detail line and each detail moves one place on, the last with no line left going to the help line. The list has a row for every 54 lines. As OSD/OS lays the screen out, they hold:
 
 | Room | List | Box |
 |---|---|---|
@@ -202,19 +206,34 @@ A Start Filter saved under the genres OSD/OS 0.0.9 listed, catver.ini's own, is 
 
 ### Pictures
 
-A game's picture is the first of:
+A game's pictures are, in this order:
 
 1. `snap/<set>.png` (or `.jpg`) in the games folder: `snap/galaga.png`, named by the set as MAME names it, the way the picture packs for MAME (progettosnaps' *Snapshots*) lay them out;
-2. its parent's, for a clone (`snap/puckman.png` for `pacman`);
-3. the first snapshot taken of it in MAME (F12 in the game), which MAME keeps in `arcade/snap/<set>/`.
+2. those numbered after the set there, by their numbers: `snap/galaga_1.png`, `snap/galaga_2.jpg`…, your own and those downloaded from RetroAchievements ([below](#pictures-from-retroachievements));
+3. for a clone, its parent's numbered pictures (`snap/puckman_1.png` for `pacman`), and its parent's `snap/puckman.png` when the clone has no picture of its own;
+4. the first snapshot taken of it in MAME (F12 in the game), which MAME keeps in `arcade/snap/<set>/`.
 
-Without one, the frame says `No Picture` and the file it would be. A vertical game's picture (Galaga, 1943) stands upright in the middle of the frame. `snap` isn't a set: it is never listed as a game.
+With more than one, the Arcade screen shows the next every 4 seconds, cutting straight to it, and the first again whenever the game is chosen. A screenshot fills the frame in the game's own shape, 4:3, as the game itself does, whatever its pixels; a picture of another shape (a box, a flyer) keeps its own, as large as fits, on black. Without any, the frame says `No Picture` and the file it would be. A vertical game's picture (Galaga, 1943) stands upright in the middle of the frame. `snap` isn't a set: it is never listed as a game.
+
+#### Pictures from RetroAchievements
+
+With a **Web API Key** given in **Settings → Arcade → RetroAchievements Account** ([FinalBurn Neo](#finalburn-neo); Online High Scores needn't be on) and a connection, OSD/OS downloads the pictures RetroAchievements has of a game, its title screen, a screenshot in play and its box art, the first time the game is shown on the Arcade screen or its [Game Details](#game-details) are opened. They go in the games folder's `snap` folder, named after the game with the first number free: `sf2_1.png`, `sf2_2.png`, `sf2_3.png`. A file already there is never written over: your own pictures keep their names, and a downloaded one takes the next number no file has. A clone that RetroAchievements counts as the same game as its parent gets the parent's pictures, under the parent's name (`puckman_1.png` for `pacman`), which every clone of it shows after its own. What was downloaded of each game is noted beside the pictures, in `snap/.retroachievements.json`, so a game's pictures are downloaded once into that folder, whichever machine uses it; one that couldn't be is tried again ten minutes later. A picture you don't want can be deleted: it isn't downloaded again. Nothing is downloaded into a folder that can't be written, such as a USB drive's (mounted read-only).
 
 ### Credits
 
 COIN puts in a credit, up to 9, shown as `Credit 2` on the picture. They go in with the next game played, whichever it is: OSD/OS has MAME press player 1's coin once for each, a few seconds after the game starts (5 seconds of the game's own time, past the start-up checks most boards run), as if the coins had been dropped in the cabinet. MAME is given a small script for it (`arcade/coins.lua`, with `-autoboot_script`), which puts them in once: a reset of the game (F3 in MAME) doesn't put them in again. The credits are spent once MAME starts, even if the game then stops with an error. A game that is still starting up after 5 seconds may not count them all: insert a coin in the game then.
 
 With no credits, the game starts as it always does, and a coin goes in in the game itself (COIN).
+
+## Game Details
+
+**Game Details**, in a game's options on either screen ([A game's options](#a-games-options)), opens a page of the game: under its title, a line of what it is (maker, year, players, system and how long it has been played), then its achievements on RetroAchievements.
+
+- **How many**: `2 of 3 Earned • 35 of 40 Points`, or without a signed-in account, `3 Achievements • 40 Points`.
+- **The list**: those you have earned under **Earned**, then the rest under **Not Earned** (all under **Achievements** without an account), each with its badge, its title and its points. A badge is in colour once earned and grey until then (in colour for all without an account), downloaded the first time it is shown into `arcade/badges`.
+- **The help line**: what the one selected asks for, its points, and the day it was earned (`Earned 2026-03-14 in Hardcore`) or `Not Earned Yet`.
+
+They are read with the account's **Web API Key** and, for which you have earned, its **User** ([FinalBurn Neo](#finalburn-neo)), over HTTPS, and kept five minutes; a game's are read again after it is played. Without them the page says why: `No Web API key: Settings, Arcade, RetroAchievements Account`, `RetroAchievements refused the Web API key`, `RetroAchievements could not be reached`, or `RetroAchievements has no achievements for this game`. Select plays the game; back goes back to where it was chosen.
 
 ## Reading the games
 
@@ -288,7 +307,9 @@ The Arcade screen's box and the screen before a game say nothing different; the 
 1. Make an account at retroachievements.org, if you have none.
 2. **User**, then **Password**, typed on the on-screen keyboard (SHIFT for capitals; the password shows as stars), then **Sign In**. The page says **At the Next Game**: RetroAchievements lets an emulator sign in, not a launcher, so RetroArch signs in with it as the next FinalBurn Neo game starts, and keeps a token in its place. OSD/OS keeps the password only until then, in memory.
 3. After that game the page says **Signed In**, or **Not Signed In** with RetroAchievements' reason: sign in again. Signed in, a game played with no connection leaves you signed in: only RetroAchievements turning the token down (the password changed since) signs you out.
-4. For the leaderboards on the Arcade screen, **Web API Key**: your account's key, from retroachievements.org's **Settings** page, under **Keys**, typed on the on-screen keyboard. The page then says **Kept**, or **Refused** once RetroAchievements has turned it down: type it again. **Forget Web API Key** takes the leaderboards away again.
+4. For the leaderboards and the games' pictures on the Arcade screen and the achievements in [Game Details](#game-details), **Web API Key**: your account's key, from retroachievements.org's **Settings** page, under **Keys**, typed on the on-screen keyboard. The page then says **Kept**, or **Refused** once RetroAchievements has turned it down: type it again. **Forget Web API Key** takes the leaderboards and achievements away again, and downloads no more pictures (those downloaded stay).
+
+The account's page is in Settings → Arcade whether Online High Scores is on or not: the key alone is enough for the pictures and Game Details.
 
 With a key given, the Arcade screen's box shows each FinalBurn Neo game's RetroAchievements leaderboard, under **RA Hi-Score**: its top three, the rank, the score and the user. It is read as the game is chosen, over HTTPS, and kept ten minutes: `Reading…` meanwhile, `No Leaderboard` for a game RetroAchievements has no leaderboard of, and `Not Reachable` without a connection, or with a key it refused. Of a game's leaderboards it shows the high scores' (the one whose name says score, where the highest is best). RetroAchievements' list of arcade games, with which each game is found, is kept a week in `arcade/retroachievements-games.json`.
 
@@ -345,7 +366,7 @@ Settings → Arcade, the second row of Settings' first screen. The page is share
 | Start Info Screen | ON, OFF | ON | Before a game, the screen of how to come back (and from the Arcade screen, the credits going in); off, the game starts straight from the list ([Playing](#playing)) | `modules.com.osdos.arcade.start_info` |
 | Save High Scores | ON, OFF | ON | Keeps the games' high score tables with MAME's hiscore plugin ([above](#high-scores)) | `modules.com.osdos.arcade.high_scores` |
 | Online High Scores | Off, RetroAchievements | Off | RetroAchievements: a game FinalBurn Neo has plays in it, in hardcore mode, its scores going to RetroAchievements' leaderboards ([FinalBurn Neo](#finalburn-neo)) | `modules.com.osdos.arcade.online_high_scores` |
-| RetroAchievements Account | (opens the account's page) | | The account the scores go to: sign in and out, and the Web API key the Arcade screen reads the leaderboards with ([FinalBurn Neo](#finalburn-neo)). Shown while Online High Scores is RetroAchievements | |
+| RetroAchievements Account | (opens the account's page) | | The account the scores go to with Online High Scores: sign in and out, and the Web API key the leaderboards, the games' pictures and their achievements are read with ([FinalBurn Neo](#finalburn-neo), [Pictures](#pictures-from-retroachievements), [Game Details](#game-details)) | |
 | Online Play | Off, On | Off | Playing the games FinalBurn Neo has with others over the internet: Online Games, and Host Online Game in a game's options ([Online play](#online-play)) | `modules.com.osdos.arcade.online_play` |
 | Online Name | (opens the on-screen keyboard) | The RetroAchievements account's, else OSD-OS | The name the others see in online games ([Online play](#online-play)). Shown while Online Play is On | `modules.com.osdos.arcade.online_name` |
 | Relay Server | New York, Madrid, São Paulo, Singapore, Chuncheon | New York | Where a game you host is relayed from ([Online play](#online-play)). Shown while Online Play is On | `modules.com.osdos.arcade.relay_server` |
@@ -412,9 +433,10 @@ Everything MAME writes is in `arcade` in the data folder (`~/.local/share/OSD-OS
 | `arcade/ctrlr/osdos.cfg` | The controller file, written afresh before each game ([Players and buttons](#players-and-buttons)) |
 | `arcade/retroarch/` | RetroArch's, for FinalBurn Neo's games, readable by you alone: `retroarch.cfg`, its settings, written afresh before each game and removed after it; `last.log`, what it said in the last game; `system/fbneo`, the BIOS sets (links to the games folder's `bios`); `saves`, `states` and `config`, the games' NVRAM, save states and FinalBurn Neo's options; and, once downloaded, `cores/fbneo_libretro.so` (`.dylib` on a Mac), `fbneo-arcade.dat` and `fbneo-license.txt` |
 | `arcade/retroachievements.json` | The RetroAchievements account: its user, the token RetroArch signed in with and the Web API key, readable by you alone; never the password |
-| `arcade/retroachievements-games.json` | RetroAchievements' list of arcade games with leaderboards, by their hashes, kept a week ([FinalBurn Neo](#finalburn-neo)) |
+| `arcade/retroachievements-games.json` | RetroAchievements' list of arcade games with achievements, by their hashes, and which of them have leaderboards, kept a week ([FinalBurn Neo](#finalburn-neo)) |
+| `arcade/badges/` | The achievements' badges, in colour and grey, downloaded as Game Details shows them ([Game Details](#game-details)) |
 
-Recently Played and Favorites are in `lists.json` with the other modules' lists. In the games folder, beside the sets, the module reads `catver.ini` and the `snap` folder's pictures, as you put them there ([Genres](#genres), [Pictures](#pictures)). MAME runs in `arcade`, with these arguments:
+Recently Played and Favorites are in `lists.json` with the other modules' lists. In the games folder, beside the sets, the module reads `catver.ini` and the `snap` folder's pictures, as you put them there ([Genres](#genres), [Pictures](#pictures)), and with a Web API key writes the pictures downloaded from RetroAchievements in that `snap` folder, never over a file there, with `.retroachievements.json`, the note of what was downloaded ([Pictures from RetroAchievements](#pictures-from-retroachievements)). MAME runs in `arcade`, with these arguments:
 
 ```sh
 mame galaga \

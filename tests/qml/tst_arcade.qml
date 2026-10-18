@@ -73,6 +73,13 @@ Rectangle {
         property bool border: true
         property var screenAdjustment: ({ top: 0, bottom: 0, left: 0, right: 0 })
         function addCredit() { credits = Math.min(maxCredits, credits + 1) }
+        function playTime(seconds) {
+            if (!seconds)
+                return "Never"
+            var minutes = Math.ceil(seconds / 60)
+            return minutes >= 60 ? Math.floor(minutes / 60) + "H " + (minutes % 60) + "M" : minutes + "M"
+        }
+        function players(count) { return count > 0 ? count + (count === 1 ? " Player" : " Players") : "" }
         function startGame(set, title, online) {
             var started = online && online.room !== undefined ? arcadeBackend.joinRoom(online.room)
                         : online && online.hosting ? arcadeBackend.hostGame(set)
@@ -206,6 +213,32 @@ Rectangle {
             achievementsState = "pending"
         }
         function signOutAchievements() { achievementsUser = ""; achievementsState = "none" }
+        // A game's pictures coming in, and its achievements as
+        // gameAchievements() gives them (achievementsData, by set; a game
+        // with none "none"); the badges downloaded (badgeFiles: a file URL
+        // by name and earned) and those asked for. Changed in place, so the
+        // views read them again only on gameAchievementsReady() and
+        // badgesReady().
+        signal picturesChanged(string set)
+        property var achievementsData: ({})
+        property var badgeFiles: ({})
+        property var badgeAsks: []
+        signal gameAchievementsReady(string set)
+        signal badgesReady()
+        function gameAchievements(set) { return achievementsData[set] || { state: "none" } }
+        function achievementCount(set) {
+            var found = gameAchievements(set)
+            var list = found.achievements || []
+            var earned = list.filter(function(a) { return a.earned !== "" }).length
+            return { state: found.state, earned: earned, total: list.length, progress: !!found.progress }
+        }
+        // The sets whose pictures were wanted (wantPictures()).
+        property var picturesWanted: []
+        function wantPictures(set) { picturesWanted.push(set) }
+        function achievementBadge(name, earned) {
+            badgeAsks.push(name + (earned ? "" : "_lock"))
+            return badgeFiles[name + (earned ? "" : "_lock")] || ""
+        }
         function engineOf(set) {
             return engines[set] || (fbneoSets.indexOf(set) >= 0 ? "fbneo" : "mame")
         }
@@ -347,6 +380,10 @@ Rectangle {
             arcadeBackend.signIns = []
             arcadeBackend.keyGiven = ""
             arcadeBackend.boards = {}
+            arcadeBackend.achievementsData = {}
+            arcadeBackend.badgeFiles = {}
+            arcadeBackend.badgeAsks = []
+            arcadeBackend.picturesWanted = []
             root.statusIcons = []
             arcadeBackend.hostable = []
             arcadeBackend.joined = []
@@ -799,6 +836,63 @@ Rectangle {
             compare(page.keys, ["state", "status", "user", "password", "signIn", "key"])
         }
 
+        // Pictures of the repository's, as a game's: a screenshot (4:3) and
+        // one wider than a screen.
+        readonly property string screenshot: Qt.resolvedUrl("../../docs/screenshots/arcade-games.png")
+        readonly property string widePicture: Qt.resolvedUrl("../../assets/images/cassette.png")
+
+        // The picture on the screen: the one of the two shown.
+        function shownPicture(screen) {
+            var found = null
+            var walk = function(item) {
+                if (found)
+                    return
+                if (item.fillMode !== undefined && item.sourceSize !== undefined && item.visible
+                        && String(item.source) !== "")
+                    found = item
+                for (var i = 0; i < item.children.length; i++)
+                    walk(item.children[i])
+            }
+            walk(screen)
+            return found
+        }
+
+        // A game's pictures go round, the first again as it is chosen anew:
+        // a screenshot fills the screen, one of another shape keeps its own.
+        // One more comes in (picturesChanged) and joins them; with none,
+        // which file it would be.
+        function test_screenPictures() {
+            arcadeBackend.gameInfo.sf2.pictures = [screenshot, widePicture]
+            var screen = openScreen()
+            compare(screen.currentSet, "sf2")
+            tryVerify(function() { var p = shownPicture(screen); return p !== null && String(p.source) === screenshot }, 2000)
+            var picture = shownPicture(screen)
+            verify(picture.parent.screenWidth > 0)
+            compare(picture.width, picture.parent.screenWidth)
+            compare(picture.height, picture.parent.screenHeight)
+            screen.pictureIndex = 1
+            tryVerify(function() { var p = shownPicture(screen); return p !== null && String(p.source) === widePicture }, 2000)
+            picture = shownPicture(screen)
+            compare(picture.width, picture.parent.screenWidth)
+            verify(picture.height < picture.parent.screenHeight)
+            fuzzyCompare(picture.width / picture.height, 612 / 284, 0.05)
+            // Chosen anew: its first again.
+            keyClick(Qt.Key_Down)
+            keyClick(Qt.Key_Up)
+            compare(screen.pictureIndex, 0)
+            tryVerify(function() { var p = shownPicture(screen); return p !== null && String(p.source) === screenshot }, 2000)
+            // One more comes in.
+            arcadeBackend.gameInfo.sf2.pictures = [screenshot, widePicture, screenshot + "?3"]
+            arcadeBackend.picturesChanged("sf2")
+            compare(screen.pictures.length, 3)
+            // 1942 has none: which file it would be.
+            keyClick(Qt.Key_Down)
+            compare(screen.currentSet, "1942")
+            verify(findText(screen, "No Picture", true) !== null)
+            verify(findText(screen, "snap/1942.png", true) !== null)
+            compare(shownPicture(screen), null)
+        }
+
         // The status icons at the right of the help line, which makes room
         // for them; with no help line, at the hint bar's right end in its
         // letters' colour; with neither bar, and with none to show, nowhere.
@@ -850,6 +944,146 @@ Rectangle {
             root.helpLine = true
             root.statusIcons = []
             verify(!row.visible)
+        }
+
+        // A game's achievements counted in the box, first among its details:
+        // those earned of all, all alone with no account to say, "…" while
+        // they are read; none for a game RetroAchievements has none of. The
+        // game's pictures are wanted as it is shown.
+        function test_screenAchievements() {
+            arcadeBackend.achievementsData = { sf2: { state: "loading" } }
+            var screen = openScreen()
+            compare(screen.currentSet, "sf2")
+            verify(arcadeBackend.picturesWanted.indexOf("sf2") >= 0)
+            compare(screen.detailList[0].label, "Achievements")
+            compare(screen.detailList[0].value, "…")
+            arcadeBackend.achievementsData.sf2 = { state: "ready", progress: true, achievements: [
+                { earned: "2026-03-14" }, { earned: "" }, { earned: "2025-01-02" }] }
+            arcadeBackend.gameAchievementsReady("1942")
+            compare(screen.detailList[0].value, "…")
+            arcadeBackend.gameAchievementsReady("sf2")
+            compare(screen.detailList[0].value, "2/3")
+            // In the box while it has a line for it, else on the help line.
+            if (screen.detailRows > 0)
+                verify(findText(screen, "2/3", true) !== null)
+            else
+                verify(screen.about.indexOf("2/3 Achievements") >= 0)
+            arcadeBackend.achievementsData.sf2.progress = false
+            arcadeBackend.gameAchievementsReady("sf2")
+            compare(screen.detailList[0].value, "3")
+            arcadeBackend.achievementsData.sf2 = { state: "none" }
+            arcadeBackend.gameAchievementsReady("sf2")
+            compare(screen.detailList[0].label, "Maker")
+            keyClick(Qt.Key_Down)
+            verify(arcadeBackend.picturesWanted.indexOf("1942") >= 0)
+        }
+
+        // A game's options offer its Game Details, which open on it; back
+        // from them lands where it was, as from playing it. The tree's too.
+        function test_gameDetailsOption() {
+            var screen = openScreen()
+            keyPress(Qt.Key_Return)
+            wait(900)
+            keyRelease(Qt.Key_Return)
+            verify(findText(screen, "Game Details", true) !== null)
+            keyClick(Qt.Key_Down)   // Game Details
+            keyClick(Qt.Key_Return)
+            compare(root.navigations.length, 1)
+            compare(root.navigations[0].path, "Details.qml")
+            compare(root.navigations[0].params.game, "sf2")
+            compare(root.navigations[0].params.title, "Street Fighter II: The World Warrior (World 910522)")
+            compare(root.navigations[0].listState.set, "sf2")
+            compare(root.navigations[0].listState.filter, "all")
+            loader.source = ""
+            root.navigations = []
+            var games = open("Games.qml")
+            keyClick(Qt.Key_Down)
+            keyClick(Qt.Key_Down)   // All Games
+            keyClick(Qt.Key_Right)  // into it, on Galaga
+            keyClick(Qt.Key_Right)  // its options
+            verify(findText(games, "Game Details", true) !== null)
+            keyClick(Qt.Key_Return)
+            compare(root.navigations.length, 1)
+            compare(root.navigations[0].path, "Details.qml")
+            compare(root.navigations[0].params.game, "galaga")
+            compare(root.navigations[0].listState.trail[root.navigations[0].listState.trail.length - 1].path, "all")
+        }
+
+        // Game Details: what the game is; while its achievements are read,
+        // that they are; then those earned and those not, under headings,
+        // the cursor on the first, each with its badge (earned or locked)
+        // once downloaded and its points; the help line says what it asks
+        // for and when it was earned. Select plays the game, back goes back.
+        function test_details() {
+            arcadeBackend.achievementsData = { sf2: { state: "loading" } }
+            var details = open("Details.qml", { game: "sf2", title: "Street Fighter II" })
+            compare(arcadeBackend.picturesWanted, ["sf2"])
+            verify(findText(details, "Capcom • 1991 • 2 Players • CPS-1 • Played 1H 30M", true) !== null)
+            verify(findText(details, "Reading RetroAchievements…", true) !== null)
+            arcadeBackend.achievementsData.sf2 = { state: "ready", progress: true, achievements: [
+                { id: 1, title: "Hadouken", description: "Throw a fireball", points: 5, badge: "101", earned: "", hardcore: false },
+                { id: 2, title: "World Warrior", description: "Beat the game", points: 25, badge: "102",
+                  earned: "2026-03-14", hardcore: true },
+                { id: 3, title: "Bonus Stage", description: "Wreck the car", points: 10, badge: "103",
+                  earned: "2025-01-02", hardcore: false }] }
+            arcadeBackend.gameAchievementsReady("1942")
+            verify(findText(details, "Reading RetroAchievements…", true) !== null)
+            arcadeBackend.gameAchievementsReady("sf2")
+            tryVerify(function() { return findText(details, "2 of 3 Earned • 35 of 40 Points", true) !== null }, 1000)
+            verify(findText(details, "Earned", true) !== null)
+            verify(findText(details, "Not Earned", true) !== null)
+            // Earned first, the cursor on the first of them.
+            var top = function(text) { return findText(details, text, true).mapToItem(details, 0, 0).y }
+            verify(top("World Warrior") < top("Bonus Stage"))
+            verify(top("Bonus Stage") < top("Not Earned"))
+            verify(top("Not Earned") < top("Hadouken"))
+            tryVerify(function() { return findText(details, "Beat the game") !== null }, 1000)
+            verify(findText(details, "Earned 2026-03-14 in Hardcore") !== null)
+            // Their badges, earned or locked, asked for and shown once in.
+            verify(arcadeBackend.badgeAsks.indexOf("102") >= 0)
+            verify(arcadeBackend.badgeAsks.indexOf("101_lock") >= 0)
+            compare(shownPicture(details), null)
+            arcadeBackend.badgeFiles["102"] = screenshot
+            compare(shownPicture(details), null)
+            arcadeBackend.badgesReady()
+            tryVerify(function() {
+                var p = shownPicture(details)
+                return p !== null && String(p.source) === screenshot
+            }, 2000)
+            // Down to the one not earned.
+            keyClick(Qt.Key_Down)
+            keyClick(Qt.Key_Down)
+            tryVerify(function() { return findText(details, "Not Earned Yet") !== null }, 1000)
+            keyClick(Qt.Key_Return)
+            compare(root.navigations.length, 1)
+            compare(root.navigations[0].path, "Play.qml")
+            compare(root.navigations[0].params.game, "sf2")
+            keyClick(Qt.Key_Escape)
+            compare(root.backs, 1)
+        }
+
+        // Why there are none: no key, a key refused, RetroAchievements not
+        // reached, a game it has none of; with no user to say which were
+        // earned, all under one heading, each badge in colour.
+        function test_detailsWithout() {
+            var cases = [["nokey", "No Web API key: Settings, Arcade, RetroAchievements Account"],
+                         ["refused", "RetroAchievements refused the Web API key"],
+                         ["failed", "RetroAchievements could not be reached"],
+                         ["none", "RetroAchievements has no achievements for this game"]]
+            var details
+            for (var i = 0; i < cases.length; ++i) {
+                arcadeBackend.achievementsData = { sf2: { state: cases[i][0] } }
+                details = open("Details.qml", { game: "sf2", title: "Street Fighter II" })
+                verify(findText(details, cases[i][1], true) !== null, cases[i][0])
+                loader.source = ""
+            }
+            arcadeBackend.achievementsData = { sf2: { state: "ready", progress: false, achievements: [
+                { id: 1, title: "Hadouken", description: "", points: 5, badge: "101", earned: "", hardcore: false }] } }
+            details = open("Details.qml", { game: "sf2", title: "Street Fighter II" })
+            verify(findText(details, "1 Achievement • 5 Points", true) !== null)
+            verify(findText(details, "Achievements", true) !== null)
+            compare(findText(details, "Not Earned", true), null)
+            compare(arcadeBackend.badgeAsks[arcadeBackend.badgeAsks.length - 1], "101")
         }
 
         // A game FinalBurn Neo plays with a leaderboard to show: its top

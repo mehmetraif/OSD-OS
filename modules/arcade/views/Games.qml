@@ -6,16 +6,16 @@ import Components
 // decade and maker, from what MAME says of each set in the games folder
 // (ArcadeBackend), and the sets MAME has no game of under Not Recognized.
 // Select on a game plays it (navigateTo Play.qml, which Root.qml plays as
-// Start Info Screen says), right on it offers its options (EntryOptions: its
-// favourite, Play at Startup, its engine, hosting it online), and the line
-// under the tree says what the game is. With Online Play on, Online Games
-// lists the rooms of RetroArch's lobby that host games of the folder
-// (ArcadeBackend::rooms()), read again every 20 s while they are shown:
-// select joins one. Coming back from a game restores the tree from the listState
-// handed to navigateTo; a game played from the tree itself (Start Info
-// Screen off) leaves it as it was. Opened with the startup favourite
-// (navParams.startupPlay), it plays that at once, the tree open on it in
-// Favorites.
+// Start Info Screen says), right on it offers its options (EntryOptions: Game
+// Details, its favourite, Play at Startup, its engine, hosting it online),
+// and the line under the tree says what the game is. With Online Play on,
+// Online Games lists the rooms of RetroArch's lobby that host games of the
+// folder (ArcadeBackend::rooms()), read again every 20 s while they are
+// shown: select joins one. Coming back from a game restores the tree from
+// the listState handed to navigateTo; a game played from the tree itself
+// (Start Info Screen off) leaves it as it was. Opened with the startup
+// favourite (navParams.startupPlay), it plays that at once, the tree open on
+// it in Favorites.
 FocusScope {
     id: gamesRoot
 
@@ -192,8 +192,9 @@ FocusScope {
         onCanceled: tree.forceActiveFocus()
     }
 
-    // A game's options, its engine among them where FinalBurn Neo has it,
-    // and with Online Play on, hosting it.
+    // A game's options: its Game Details (Details.qml) first, its engine
+    // among them where FinalBurn Neo has it, and with Online Play on,
+    // hosting it.
     property int engineRevision: 0
     readonly property string optionsSet: options.entry && String(options.entry.path).indexOf("game:") === 0
                                          ? String(options.entry.path).substring(5) : ""
@@ -201,13 +202,17 @@ FocusScope {
         id: options
         anchors.fill: parent
         moduleId: moduleRoot.moduleId
+        firstChoices: [{ label: "Game Details", action: "details" }]
         moreChoices: (gamesRoot.engineRevision,
                       (engines.offered(gamesRoot.optionsSet)
                        ? [{ label: engines.lineFor(gamesRoot.optionsSet), action: "engine" }] : [])
                       .concat(arcadeBackend && arcadeBackend.canHost(gamesRoot.optionsSet)
                               ? [{ label: "Host Online Game", action: "host" }] : []))
         onActivated: function(action) {
-            if (action === "engine")
+            if (action === "details")
+                gamesRoot.navigateTo("Details.qml", { game: gamesRoot.optionsSet, title: options.entry.name },
+                                     { trail: tree.trailState() })
+            else if (action === "engine")
                 engines.offer(gamesRoot.optionsSet, options.entry.name)
             else if (action === "host")
                 gamesRoot.play({ game: gamesRoot.optionsSet, name: options.entry.name }, tree.trailState(), true)

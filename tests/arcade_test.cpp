@@ -6,8 +6,10 @@
 #include "modules/arcade/Mame.h"
 #include "modules/arcade/RetroAchievements.h"
 
+#include <QDateTime>
 #include <QDir>
 #include <QFile>
+#include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QScopeGuard>
@@ -180,6 +182,47 @@ exit 0
             return { -1, QStringLiteral("no end"), QString() };
         return finished.first();
     }
+
+    // A stand-in for RetroAchievements' Web API and media server: the API's
+    // answers by their path and query, the key left out (key1 the only one
+    // it takes), the media server's by their path; every request noted.
+    struct StandIn {
+        QTcpServer server;
+        QHash<QByteArray, QByteArray> answers;
+        QStringList asked;
+        QUrl api() const { return QUrl(QStringLiteral("http://127.0.0.1:%1/API/").arg(server.serverPort())); }
+        QUrl media() const { return QUrl(QStringLiteral("http://127.0.0.1:%1/media/").arg(server.serverPort())); }
+    };
+    static bool serve(StandIn &standIn) {
+        if (!standIn.server.listen(QHostAddress::LocalHost))
+            return false;
+        connect(&standIn.server, &QTcpServer::newConnection, &standIn.server, [&standIn] {
+            QTcpSocket *socket = standIn.server.nextPendingConnection();
+            connect(socket, &QTcpSocket::readyRead, socket, [socket, &standIn] {
+                const QUrl url(QString::fromLatin1(socket->readAll().split(' ').value(1)));
+                QUrlQuery query(url);
+                const QString key = query.queryItemValue(QStringLiteral("y"));
+                query.removeQueryItem(QStringLiteral("y"));
+                const bool api = url.path().startsWith(QLatin1String("/API/"));
+                const QByteArray path = (api ? url.path() + QLatin1Char('?') + query.toString() : url.path()).toLatin1();
+                standIn.asked << QString::fromLatin1(path);
+                QByteArray status = "200 OK";
+                QByteArray body = standIn.answers.value(path);
+                if (api && key != QLatin1String("key1"))
+                    status = "401 Unauthorized", body = "{}";
+                else if (!standIn.answers.contains(path))
+                    status = "404 Not Found", body.clear();
+                socket->write("HTTP/1.1 " + status + "\r\nContent-Length: " + QByteArray::number(body.size())
+                              + "\r\nConnection: close\r\n\r\n" + body);
+                socket->disconnectFromHost();
+            });
+        });
+        return true;
+    }
+    // A picture as RetroAchievements' media server sends one: its first bytes.
+    static QByteArray png(const QByteArray &mark) { return QByteArray("\x89PNG\r\n\x1a\n", 8) + mark; }
+    static QByteArray jpeg(const QByteArray &mark) { return QByteArray("\xff\xd8\xff\xe0", 4) + mark; }
+    static QByteArray hashOf(const char *file) { return libretro::achievementsHash(QLatin1String(file)).toLatin1(); }
 
 private slots:
     void initTestCase() {
@@ -1345,9 +1388,10 @@ private slots:
             });
         });
         const QUrl api(QStringLiteral("http://127.0.0.1:%1/API/").arg(server.serverPort()));
+        const QUrl media(QStringLiteral("http://127.0.0.1:%1/media/").arg(server.serverPort()));
         const auto state = [](const QVariantMap &board) { return board.value(QStringLiteral("state")).toString(); };
 
-        RetroAchievements boards(data.path(), api);
+        RetroAchievements boards(data.path(), api, media);
         QSignalSpy ready(&boards, &RetroAchievements::boardReady);
         QCOMPARE(state(boards.board(QStringLiteral("sf2.zip"))), QStringLiteral("failed"));
         boards.setKey(QStringLiteral("key1"));
@@ -1387,7 +1431,7 @@ private slots:
         // The list kept read from its file; of two games asked for at once,
         // only the last is read.
         asked.clear();
-        RetroAchievements again(data.path(), api);
+        RetroAchievements again(data.path(), api, media);
         QSignalSpy readyAgain(&again, &RetroAchievements::boardReady);
         again.setKey(QStringLiteral("key1"));
         again.board(QStringLiteral("sf2.zip"));
@@ -1397,6 +1441,22 @@ private slots:
         QCOMPARE(readyAgain.last().at(0).toString(), QStringLiteral("mslug.zip"));
         QCOMPARE(asked.size(), 2);
         QVERIFY(asked.first().startsWith(QStringLiteral("/API/API_GetGameLeaderboards.php?i=3 ")));
+
+        // A list kept as 0.0.9 kept it, of the games with leaderboards alone:
+        // its boards read meanwhile, and the list read again with the rest.
+        QTemporaryDir older;
+        writeFile(older.path() + QStringLiteral("/retroachievements-games.json"),
+                  "{\"read\": \"" + QDateTime::currentDateTimeUtc().toString(Qt::ISODate).toLatin1()
+                  + "\", \"games\": {\"" + sf2 + "\": 1}}");
+        asked.clear();
+        RetroAchievements kept(older.path(), api, media);
+        QSignalSpy readyKept(&kept, &RetroAchievements::boardReady);
+        kept.setKey(QStringLiteral("key1"));
+        kept.board(QStringLiteral("sf2.zip"));
+        QVERIFY(readyKept.wait(5000));
+        QCOMPARE(state(kept.board(QStringLiteral("sf2.zip"))), QStringLiteral("ready"));
+        QCOMPARE(asked.first(), QStringLiteral("/API/API_GetGameList.php?i=27&f=1&h=1 y=key1"));
+        QVERIFY(contents(older.path() + QStringLiteral("/retroachievements-games.json")).contains("\"boards\""));
 
         // A key RetroAchievements refuses.
         QSignalSpy refused(&again, &RetroAchievements::keyRefused);
@@ -1409,7 +1469,7 @@ private slots:
         // A key refused before any list was read, then the right one: the
         // list read at once, not a minute later.
         QTemporaryDir fresh;
-        RetroAchievements corrected(fresh.path(), api);
+        RetroAchievements corrected(fresh.path(), api, media);
         QSignalSpy readyCorrected(&corrected, &RetroAchievements::boardReady);
         corrected.setKey(QStringLiteral("bad"));
         corrected.board(QStringLiteral("sf2.zip"));
@@ -1424,7 +1484,7 @@ private slots:
         // logged names what wasn't read, never the key.
         server.close();
         QTemporaryDir empty;
-        RetroAchievements gone(empty.path(), api);
+        RetroAchievements gone(empty.path(), api, media);
         QSignalSpy readyGone(&gone, &RetroAchievements::boardReady);
         static QStringList logged;
         logged.clear();
@@ -1439,6 +1499,337 @@ private slots:
         QVERIFY(logged.join(QLatin1Char('\n')).contains(QStringLiteral("API_GetGameList.php could not be read")));
         for (const QString &message : std::as_const(logged))
             QVERIFY2(!message.contains(QStringLiteral("key1")), qPrintable(message));
+    }
+
+    // A game's achievements and pictures from the stand-in: the user's
+    // earned ones (in hardcore, or not), in RetroAchievements' order, a badge
+    // name that isn't one dropped; with no user, as they are; a game with
+    // none; one RetroAchievements hasn't, none at once; kept a while and read
+    // again once forgotten. Its title screen and box art, not its
+    // placeholder nor a path off the media server; a clone of the same game
+    // as its parent's going by the parent; one looked for left be; one
+    // RetroAchievements hasn't, unknown. A file downloaded only when it is a
+    // picture, from a path of the media server's, and no bigger than its
+    // kind's; a badge kept once downloaded, locked or not.
+    void retroAchievementsGameData() {
+        QTemporaryDir data;
+        QVERIFY(data.isValid());
+        StandIn standIn;
+        QVERIFY(serve(standIn));
+        const QByteArray progress = R"({"ID": 1, "Title": "Street Fighter II", "Achievements": {
+            "12": {"ID": 12, "Title": "World Warrior", "Description": "Beat the game", "Points": 25,
+                   "BadgeName": "250336", "DisplayOrder": 2, "DateEarned": "2026-03-14 10:00:00",
+                   "DateEarnedHardcore": "2026-03-14 10:00:00"},
+            "11": {"ID": 11, "Title": " Hadouken ", "Description": "Throw a fireball", "Points": 5,
+                   "BadgeName": "250337", "DisplayOrder": 1},
+            "13": {"ID": 13, "Title": "Bonus Stage", "Description": "Wreck the car", "Points": 10,
+                   "BadgeName": "../250338", "DisplayOrder": 2, "DateEarned": "2025-01-02 08:30:00"}}})";
+        standIn.answers = {
+            { "/API/API_GetGameList.php?i=27&f=1&h=1",
+              "[{\"ID\": 1, \"NumLeaderboards\": 0, \"Hashes\": [\"" + hashOf("sf2") + "\"]},"
+              " {\"ID\": 4, \"NumLeaderboards\": 0, \"Hashes\": [\"" + hashOf("sf2ce") + "\"]},"
+              " {\"ID\": 2, \"NumLeaderboards\": 1, \"Hashes\": [\"" + hashOf("puckman") + "\", \"" + hashOf("pacman") + "\"]}]" },
+            { "/API/API_GetGameInfoAndUserProgress.php?g=1&u=Ryu", progress },
+            { "/API/API_GetGameExtended.php?i=1", R"({"ID": 1, "Achievements": {"11": {"ID": 11, "Title": "Hadouken",
+                                                    "Points": 5, "BadgeName": "250337", "DisplayOrder": 1}}})" },
+            { "/API/API_GetGameInfoAndUserProgress.php?g=4&u=Ryu", R"({"ID": 4, "Achievements": []})" },
+            { "/API/API_GetGame.php?i=1", R"({"Title": "Street Fighter II", "ImageIcon": "/Images/000100.png",
+                                            "ImageTitle": "/Images/000101.png", "ImageIngame": "/Images/000002.png",
+                                            "ImageBoxArt": "/Images/000102.jpg"})" },
+            { "/API/API_GetGame.php?i=2", R"({"Title": "Pac-Man", "ImageTitle": "/Images/000201.png",
+                                            "ImageIngame": "/Images/000201.png", "ImageBoxArt": "/Images/../../x.png"})" },
+            { "/media/Images/000101.png", png("title") },
+            { "/media/Images/000102.jpg", jpeg("box") },
+            { "/media/Images/000201.png", "<html>not a picture</html>" },
+            { "/media/Badge/250336.png", png("badge") },
+            { "/media/Badge/250337_lock.png", png("locked") },
+            { "/media/Badge/big.png", png(QByteArray(600 * 1024, 'x')) },
+        };
+        const auto state = [](const QVariantMap &read) { return read.value(QStringLiteral("state")).toString(); };
+
+        RetroAchievements ra(data.path(), standIn.api(), standIn.media());
+        QSignalSpy ready(&ra, &RetroAchievements::achievementsReady);
+        QCOMPARE(state(ra.achievements(QStringLiteral("sf2.zip"))), QStringLiteral("failed"));
+        ra.setKey(QStringLiteral("key1"));
+        ra.setUser(QStringLiteral("Ryu"));
+        QCOMPARE(state(ra.achievements(QStringLiteral("sf2.zip"))), QStringLiteral("loading"));
+        QVERIFY(ready.wait(5000));
+        QCOMPARE(ready.last().at(0).toString(), QStringLiteral("sf2.zip"));
+        QVariantMap read = ra.achievements(QStringLiteral("sf2.zip"));
+        QCOMPARE(state(read), QStringLiteral("ready"));
+        QVERIFY(read.value(QStringLiteral("progress")).toBool());
+        const QVariantList achievements = read.value(QStringLiteral("achievements")).toList();
+        QCOMPARE(achievements.size(), 3);
+        QCOMPARE(achievements.at(0).toMap(), (QVariantMap{
+            { QStringLiteral("id"), 11 }, { QStringLiteral("title"), QStringLiteral("Hadouken") },
+            { QStringLiteral("description"), QStringLiteral("Throw a fireball") }, { QStringLiteral("points"), 5 },
+            { QStringLiteral("badge"), QStringLiteral("250337") }, { QStringLiteral("earned"), QString() },
+            { QStringLiteral("hardcore"), false } }));
+        QCOMPARE(achievements.at(1).toMap().value(QStringLiteral("earned")).toString(), QStringLiteral("2026-03-14"));
+        QVERIFY(achievements.at(1).toMap().value(QStringLiteral("hardcore")).toBool());
+        QCOMPARE(achievements.at(2).toMap().value(QStringLiteral("earned")).toString(), QStringLiteral("2025-01-02"));
+        QVERIFY(!achievements.at(2).toMap().value(QStringLiteral("hardcore")).toBool());
+        QCOMPARE(achievements.at(2).toMap().value(QStringLiteral("badge")).toString(), QString());
+        QCOMPARE(standIn.asked, QStringList({ QStringLiteral("/API/API_GetGameList.php?i=27&f=1&h=1"),
+                                              QStringLiteral("/API/API_GetGameInfoAndUserProgress.php?g=1&u=Ryu") }));
+
+        // A game with none, and one RetroAchievements hasn't: none at once,
+        // nothing asked.
+        ra.achievements(QStringLiteral("sf2ce.zip"));
+        QVERIFY(ready.wait(5000));
+        QCOMPARE(state(ra.achievements(QStringLiteral("sf2ce.zip"))), QStringLiteral("none"));
+        standIn.asked.clear();
+        QCOMPARE(state(ra.achievements(QStringLiteral("galaga.zip"))), QStringLiteral("none"));
+        QTest::qWait(600);
+        QVERIFY(standIn.asked.isEmpty());
+
+        // Kept a while; read again once forgotten (the game played); with no
+        // user, as they are.
+        QCOMPARE(state(ra.achievements(QStringLiteral("sf2.zip"))), QStringLiteral("ready"));
+        QTest::qWait(600);
+        QVERIFY(standIn.asked.isEmpty());
+        ra.forgetAchievements(QStringLiteral("sf2.zip"));
+        QCOMPARE(state(ra.achievements(QStringLiteral("sf2.zip"))), QStringLiteral("loading"));
+        QVERIFY(ready.wait(5000));
+        QCOMPARE(standIn.asked, QStringList({ QStringLiteral("/API/API_GetGameInfoAndUserProgress.php?g=1&u=Ryu") }));
+        ra.setUser(QString());
+        QCOMPARE(state(ra.achievements(QStringLiteral("sf2.zip"))), QStringLiteral("loading"));
+        QVERIFY(ready.wait(5000));
+        read = ra.achievements(QStringLiteral("sf2.zip"));
+        QVERIFY(!read.value(QStringLiteral("progress")).toBool());
+        QCOMPARE(read.value(QStringLiteral("achievements")).toList().size(), 1);
+        QCOMPARE(standIn.asked.last(), QStringLiteral("/API/API_GetGameExtended.php?i=1"));
+
+        // The pictures' paths.
+        QSignalSpy found(&ra, &RetroAchievements::picturesFound);
+        ra.findPictures({ QStringLiteral("sf2") }, {});
+        QVERIFY(found.wait(5000));
+        QCOMPARE(found.last(), (QVariantList{ QStringLiteral("sf2"), QStringLiteral("found"),
+                                              QStringList({ QStringLiteral("/Images/000101.png"),
+                                                            QStringLiteral("/Images/000102.jpg") }) }));
+        ra.findPictures({ QStringLiteral("pacman"), QStringLiteral("puckman") }, {});
+        QVERIFY(found.wait(5000));
+        QCOMPARE(found.last(), (QVariantList{ QStringLiteral("puckman"), QStringLiteral("found"),
+                                              QStringList({ QStringLiteral("/Images/000201.png") }) }));
+        standIn.asked.clear();
+        ra.findPictures({ QStringLiteral("pacman"), QStringLiteral("puckman") }, { QStringLiteral("puckman") });
+        QVERIFY(!found.wait(800));
+        QVERIFY(standIn.asked.isEmpty());
+        ra.findPictures({ QStringLiteral("galaga") }, {});
+        QVERIFY(found.wait(5000));
+        QCOMPARE(found.last(), (QVariantList{ QStringLiteral("galaga"), QStringLiteral("unknown"), QStringList() }));
+
+        // Files of the media server's.
+        const auto download = [&ra](const QString &path) {
+            QByteArray got = "none yet";
+            bool done = false;
+            ra.media(path, [&got, &done](const QByteArray &data) { got = data; done = true; });
+            [&done] { QTRY_VERIFY_WITH_TIMEOUT(done, 5000); }();
+            return got;
+        };
+        QCOMPARE(download(QStringLiteral("/Images/000101.png")), png("title"));
+        QCOMPARE(download(QStringLiteral("/Images/000102.jpg")), jpeg("box"));
+        QCOMPARE(download(QStringLiteral("/Images/000201.png")), QByteArray());
+        QCOMPARE(download(QStringLiteral("/Images/404.png")), QByteArray());
+        QCOMPARE(download(QStringLiteral("/Badge/big.png")), QByteArray());
+        standIn.asked.clear();
+        QCOMPARE(download(QStringLiteral("/Images/../../etc/passwd")), QByteArray());
+        QCOMPARE(download(QStringLiteral("http://elsewhere/Images/1.png")), QByteArray());
+        QVERIFY(standIn.asked.isEmpty());
+
+        // Badges.
+        QSignalSpy badges(&ra, &RetroAchievements::badgesReady);
+        QCOMPARE(ra.badge(QStringLiteral("250336"), false), QString());
+        QCOMPARE(ra.badge(QStringLiteral("250336"), false), QString());
+        QVERIFY(badges.wait(5000));
+        const QString earned = data.path() + QStringLiteral("/badges/250336.png");
+        QCOMPARE(ra.badge(QStringLiteral("250336"), false), QUrl::fromLocalFile(earned).toString());
+        QCOMPARE(contents(earned), png("badge"));
+        QCOMPARE(ra.badge(QStringLiteral("250337"), true), QString());
+        QVERIFY(badges.wait(5000));
+        QCOMPARE(ra.badge(QStringLiteral("250337"), true),
+                 QUrl::fromLocalFile(data.path() + QStringLiteral("/badges/250337_lock.png")).toString());
+        QCOMPARE(badges.size(), 2);
+        QCOMPARE(standIn.asked.count(QStringLiteral("/media/Badge/250336.png")), 1);
+        // One that can't be downloaded isn't asked for again at once.
+        standIn.asked.clear();
+        QCOMPARE(ra.badge(QStringLiteral("999"), false), QString());
+        QTRY_COMPARE_WITH_TIMEOUT(standIn.asked.size(), 1, 5000);
+        QTest::qWait(300);
+        QCOMPARE(ra.badge(QStringLiteral("999"), false), QString());
+        QCOMPARE(ra.badge(QStringLiteral("../999"), false), QString());
+        QCOMPARE(ra.badge(QStringLiteral("999\n"), false), QString());
+        QTest::qWait(300);
+        QCOMPARE(standIn.asked.size(), 1);
+    }
+
+    // RetroAchievements' pictures of a game as it is shown, with a key kept:
+    // saved in the games folder's snap folder as <set>_<n> in the first
+    // numbers free, never over the user's own (whatever its suffix's case)
+    // nor as a set's name, a clone's under its parent's name when it is its
+    // parent's game and shown after the clone's own snap, listed among its
+    // pictures (the snap first) and kept through the folder read again; each
+    // game's looked for once, this run and the next (its record, beside
+    // them); one that failed not again at once; none with no key, nor for a
+    // game RetroAchievements hasn't. Its achievements counted for the Arcade
+    // screen's box.
+    void retroAchievementsPictures() {
+        const QString snap = m_games + QStringLiteral("/snap");
+        const QString record = snap + QStringLiteral("/.retroachievements.json");
+        const auto restore = qScopeGuard([this, snap, record] {
+            QDir(snap).removeRecursively();
+            QFile::remove(record);
+            QFile::remove(m_data.path() + QStringLiteral("/arcade/retroachievements.json"));
+            QFile::remove(m_data.path() + QStringLiteral("/arcade/retroachievements-games.json"));
+            QFile::remove(m_games + QStringLiteral("/sf2_3.zip"));
+        });
+        // The user's own: the snap pack's sf2.png and pacman.png, an sf2_1.png
+        // and an sf2_4.PNG; and a set named sf2_3 (its own picture's name).
+        writeFile(snap + QStringLiteral("/sf2.png"), png("pack"));
+        writeFile(snap + QStringLiteral("/sf2_1.png"), png("mine"));
+        writeFile(snap + QStringLiteral("/sf2_4.PNG"), png("shouting"));
+        writeFile(snap + QStringLiteral("/pacman.png"), png("pac pack"));
+        writeFile(m_games + QStringLiteral("/sf2_3.zip"));
+        StandIn standIn;
+        QVERIFY(serve(standIn));
+        standIn.answers = {
+            { "/API/API_GetGameList.php?i=27&f=1&h=1",
+              "[{\"ID\": 1, \"NumLeaderboards\": 0, \"Hashes\": [\"" + hashOf("sf2") + "\"]},"
+              " {\"ID\": 2, \"NumLeaderboards\": 0, \"Hashes\": [\"" + hashOf("puckman") + "\", \"" + hashOf("pacman") + "\"]},"
+              " {\"ID\": 3, \"NumLeaderboards\": 0, \"Hashes\": [\"" + hashOf("kinst") + "\"]}]" },
+            { "/API/API_GetGame.php?i=1", R"({"ImageTitle": "/Images/000101.png", "ImageIngame": "/Images/000103.png",
+                                            "ImageBoxArt": "/Images/000102.jpg"})" },
+            { "/API/API_GetGame.php?i=2", R"({"ImageTitle": "/Images/000201.png", "ImageIngame": "/Images/000002.png",
+                                            "ImageBoxArt": "/Images/000002.png"})" },
+            { "/API/API_GetGame.php?i=3", R"({"ImageTitle": "/Images/000301.png", "ImageIngame": "/Images/000302.png"})" },
+            { "/media/Images/000101.png", png("title") },
+            { "/media/Images/000103.png", png("ingame") },
+            { "/media/Images/000102.jpg", jpeg("box") },
+            { "/media/Images/000201.png", png("pacman") },
+            { "/media/Images/000301.png", png("kinst") },
+            { "/API/API_GetGameExtended.php?i=1", R"({"ID": 1, "Achievements": {
+                "11": {"ID": 11, "Title": "Hadouken", "Points": 5, "BadgeName": "250337", "DisplayOrder": 1},
+                "12": {"ID": 12, "Title": "World Warrior", "Points": 25, "BadgeName": "250336", "DisplayOrder": 2}}})" },
+        };
+        const auto urls = [](const QStringList &files) {
+            QStringList list;
+            for (const QString &file : files)
+                list << QUrl::fromLocalFile(file).toString();
+            return QVariant(list);
+        };
+
+        AppCore core(m_data.path(), m_data.path());
+        ArcadeBackend arcade(m_data.path(), m_data.path(), &core, nullptr);
+        arcade.setAchievementsServers(standIn.api(), standIn.media());
+        refreshed(arcade);
+        // No key: nothing asked.
+        arcade.wantPictures(QStringLiteral("sf2"));
+        QTest::qWait(600);
+        QVERIFY(standIn.asked.isEmpty());
+
+        QSignalSpy changed(&arcade, &ArcadeBackend::picturesChanged);
+        arcade.setAchievementsKey(QStringLiteral("key1"));
+        QCOMPARE(arcade.gameDetails(QStringLiteral("sf2")).value(QStringLiteral("pictures")),
+                 urls({ snap + QStringLiteral("/sf2.png"), snap + QStringLiteral("/sf2_1.png"),
+                        snap + QStringLiteral("/sf2_4.PNG") }));
+        QTest::qWait(600);
+        QVERIFY(standIn.asked.isEmpty());
+        arcade.wantPictures(QStringLiteral("sf2"));
+        QTRY_COMPARE_WITH_TIMEOUT(changed.size(), 3, 10000);
+        QCOMPARE(changed.last().at(0).toString(), QStringLiteral("sf2"));
+        // The user's untouched; RetroAchievements' in 2, 5 and 6, 3 being a
+        // set's name and 4 the user's, each named as it is a PNG or a JPEG.
+        QCOMPARE(contents(snap + QStringLiteral("/sf2.png")), png("pack"));
+        QCOMPARE(contents(snap + QStringLiteral("/sf2_1.png")), png("mine"));
+        QCOMPARE(contents(snap + QStringLiteral("/sf2_4.PNG")), png("shouting"));
+        QStringList files = QDir(snap).entryList({ QStringLiteral("sf2_*") }, QDir::Files, QDir::Name);
+        QVERIFY(files.removeOne(QStringLiteral("sf2_1.png")));
+        QVERIFY(files.removeOne(QStringLiteral("sf2_4.PNG")));
+        QStringList stems;
+        QStringList saved;
+        QList<QByteArray> bytes;
+        for (const QString &file : std::as_const(files)) {
+            const QByteArray data = contents(snap + QLatin1Char('/') + file);
+            stems << QFileInfo(file).completeBaseName();
+            saved << snap + QLatin1Char('/') + file;
+            bytes << data;
+            QCOMPARE(QFileInfo(file).suffix(), data.startsWith("\xff\xd8") ? QStringLiteral("jpg") : QStringLiteral("png"));
+        }
+        QCOMPARE(stems, QStringList({ QStringLiteral("sf2_2"), QStringLiteral("sf2_5"), QStringLiteral("sf2_6") }));
+        // In the order they came: the title screen, the screenshot, the box.
+        QCOMPARE(bytes, QList<QByteArray>({ png("title"), png("ingame"), jpeg("box") }));
+        // Shown by their numbers, the user's among them.
+        const QStringList shown{ snap + QStringLiteral("/sf2.png"), snap + QStringLiteral("/sf2_1.png"), saved.at(0),
+                                 snap + QStringLiteral("/sf2_4.PNG"), saved.at(1), saved.at(2) };
+        QCOMPARE(arcade.gameDetails(QStringLiteral("sf2")).value(QStringLiteral("pictures")), urls(shown));
+        QCOMPARE(arcade.gameDetails(QStringLiteral("sf2")).value(QStringLiteral("picture")).toString(),
+                 QUrl::fromLocalFile(snap + QStringLiteral("/sf2.png")).toString());
+        // The record, written after the pictures off the GUI thread.
+        const auto kept = [record](const char *name) {
+            return QJsonDocument::fromJson(contents(record)).object().value(QLatin1String(name)).toObject();
+        };
+        QTRY_VERIFY_WITH_TIMEOUT(kept("sf2").value(QStringLiteral("complete")).toBool(), 5000);
+        QCOMPARE(kept("sf2").value(QStringLiteral("saved")).toArray().size(), 3);
+
+        // Looked for once: asked for again, nothing read.
+        standIn.asked.clear();
+        arcade.wantPictures(QStringLiteral("sf2"));
+        QTest::qWait(700);
+        QVERIFY(standIn.asked.isEmpty());
+
+        // Pac-Man is its parent's game: saved as Puck Man's, shown after its
+        // own snap. Galaga isn't RetroAchievements': nothing read, asked
+        // again or not.
+        arcade.wantPictures(QStringLiteral("pacman"));
+        QTRY_COMPARE_WITH_TIMEOUT(changed.size(), 4, 10000);
+        QCOMPARE(changed.last().at(0).toString(), QStringLiteral("puckman"));
+        QCOMPARE(arcade.gameDetails(QStringLiteral("pacman")).value(QStringLiteral("pictures")),
+                 urls({ snap + QStringLiteral("/pacman.png"), snap + QStringLiteral("/puckman_1.png") }));
+        standIn.asked.clear();
+        arcade.wantPictures(QStringLiteral("galaga"));
+        QTest::qWait(700);
+        arcade.wantPictures(QStringLiteral("galaga"));
+        QTest::qWait(700);
+        QVERIFY(standIn.asked.isEmpty());
+
+        // A picture that can't be downloaded: those that could be kept, the
+        // game not complete.
+        arcade.wantPictures(QStringLiteral("kinst"));
+        QTRY_COMPARE_WITH_TIMEOUT(changed.size(), 5, 10000);
+        QTRY_VERIFY_WITH_TIMEOUT(standIn.asked.contains(QStringLiteral("/media/Images/000302.png")), 5000);
+        QTRY_COMPARE_WITH_TIMEOUT(kept("kinst").value(QStringLiteral("saved")).toArray().size(), 1, 5000);
+        QVERIFY(!kept("kinst").value(QStringLiteral("complete")).toBool());
+        // Its job ended: not asked about again at once.
+        standIn.asked.clear();
+        arcade.wantPictures(QStringLiteral("kinst"));
+        QTest::qWait(700);
+        QVERIFY(standIn.asked.isEmpty());
+
+        // The folder read again: the pictures still there, in turn.
+        refreshed(arcade);
+        QCOMPARE(arcade.gameDetails(QStringLiteral("sf2")).value(QStringLiteral("pictures")), urls(shown));
+
+        // The next run: looked for already, as its record says.
+        standIn.asked.clear();
+        ArcadeBackend next(m_data.path(), m_data.path(), &core, nullptr);
+        next.setAchievementsServers(standIn.api(), standIn.media());
+        refreshed(next);
+        next.wantPictures(QStringLiteral("sf2"));
+        next.wantPictures(QStringLiteral("pacman"));
+        QTest::qWait(700);
+        QVERIFY(standIn.asked.isEmpty());
+
+        // Its achievements counted, with no account to say which were
+        // earned; none at once for a game the list hasn't.
+        QSignalSpy counted(&arcade, &ArcadeBackend::gameAchievementsReady);
+        QCOMPARE(arcade.achievementCount(QStringLiteral("sf2")).value(QStringLiteral("state")).toString(),
+                 QStringLiteral("loading"));
+        QVERIFY(counted.wait(5000));
+        QCOMPARE(arcade.achievementCount(QStringLiteral("sf2")),
+                 (QVariantMap{ { QStringLiteral("state"), QStringLiteral("ready") }, { QStringLiteral("earned"), 0 },
+                               { QStringLiteral("total"), 2 }, { QStringLiteral("progress"), false } }));
+        QCOMPARE(arcade.achievementCount(QStringLiteral("galaga")).value(QStringLiteral("state")).toString(),
+                 QStringLiteral("none"));
     }
 
     // The status icons the module adds, as its settings and account stand,

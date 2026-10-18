@@ -4,6 +4,7 @@
 #include "../../audio/AudioOutput.h"
 #include "../../input/ControllerProfile.h"
 #include "../../util/AtomicFile.h"
+#include "../../util/DurableFile.h"
 #include "../../util/LegacyNames.h"
 #include "FbneoInstaller.h"
 #include "Libretro.h"
@@ -23,6 +24,7 @@
 #include <QRegularExpression>
 #include <QTimer>
 #include <QUrl>
+#include <QFuture>
 #include <QtConcurrent/QtConcurrentRun>
 #include <algorithm>
 #include <utility>
@@ -163,6 +165,74 @@ QString firstShot(const QString &folder) {
     return shots.isEmpty() ? QString() : dir.filePath(shots.first());
 }
 
+// How long after a game's pictures couldn't be had they are asked for again.
+constexpr qint64 kPicturesRetrySeconds = 600;
+
+// The order a set's numbered pictures go round in: by their number, a .png
+// before a .jpg of the same.
+bool beforeInTurn(const QString &a, const QString &b) {
+    const auto turn = [](const QString &path) {
+        const QFileInfo info(path);
+        const QString stem = info.completeBaseName();
+        return std::pair(stem.mid(stem.lastIndexOf(QLatin1Char('_')) + 1).toInt(),
+                         info.suffix().compare(QLatin1String("png"), Qt::CaseInsensitive) != 0);
+    };
+    return turn(a) < turn(b);
+}
+
+// A picture numbered after name, put among its others in turn.
+void addNumbered(QHash<QString, QStringList> &numbered, const QString &name, const QString &picture) {
+    QStringList &pictures = numbered[name];
+    if (pictures.contains(picture))
+        return;
+    pictures << picture;
+    std::sort(pictures.begin(), pictures.end(), beforeInTurn);
+}
+
+// A picture saved in folder as <name>_<n>.png (or .jpg, as data is), n the
+// first number no picture of that name has there (.png or .jpg, in either
+// case), nor a set of the folder's (sets) as its name: never over a file,
+// which a new file only (NewOnly) makes sure of. Flushed to the card with its
+// folder. Its path, "" when it couldn't be saved.
+QString savePicture(const QString &folder, const QString &name, const QByteArray &data,
+                    const QHash<QString, QString> &sets) {
+    if (!QDir().mkpath(folder))
+        return QString();
+    const QString suffix = data.startsWith("\x89PNG") ? QStringLiteral("png") : QStringLiteral("jpg");
+    const auto taken = [](const QString &base) {
+        for (const char *ending : { ".png", ".jpg", ".PNG", ".JPG" }) {
+            if (QFile::exists(base + QLatin1String(ending)))
+                return true;
+        }
+        return false;
+    };
+    for (int n = 1; n <= 999; ++n) {
+        const QString stem = QStringLiteral("%1_%2").arg(name).arg(n);
+        const QString base = folder + QLatin1Char('/') + stem;
+        if (sets.contains(stem) || taken(base))
+            continue;
+        QFile file(base + QLatin1Char('.') + suffix);
+        if (!file.open(QIODevice::WriteOnly | QIODevice::NewOnly)) {
+            // Made meanwhile: the next number.
+            if (file.exists())
+                continue;
+            qWarning("[Arcade] A picture could not be saved in %s: %s", qPrintable(folder),
+                     qPrintable(file.errorString()));
+            return QString();
+        }
+        const bool written = file.write(data) == data.size() && file.flush();
+        file.close();
+        if (!written || !syncPath(file.fileName()).isEmpty()) {
+            qWarning("[Arcade] A picture could not be saved in %s", qPrintable(folder));
+            file.remove();
+            return QString();
+        }
+        syncPath(folder, true);
+        return file.fileName();
+    }
+    return QString();
+}
+
 } // namespace
 
 ArcadeBackend::ArcadeBackend(const QString &appRoot, const QString &dataRoot, AppCore *appCore,
@@ -201,6 +271,9 @@ ArcadeBackend::ArcadeBackend(const QString &appRoot, const QString &dataRoot, Ap
             qWarning("[Arcade] %s: %s", qPrintable(m_playing), qPrintable(notice));
         if (!refused && !m_playing.isEmpty())
             addPlayTime(m_playing, (m_playClock.elapsed() + 500) / 1000);
+        // Its achievements as the game left them, when next shown.
+        if (!m_playing.isEmpty())
+            m_retroAchievements->forgetAchievements(QFileInfo(m_sets.value(m_playing)).fileName());
         // A snapshot taken in the game (F12) is its picture now.
         if (!m_playing.isEmpty()) {
             const QString shot = firstShot(m_home + QStringLiteral("/snap/") + m_playing);
@@ -218,6 +291,7 @@ ArcadeBackend::ArcadeBackend(const QString &appRoot, const QString &dataRoot, Ap
 
     m_watcher = new QFutureWatcher<Read>(this);
     connect(m_watcher, &QFutureWatcherBase::finished, this, &ArcadeBackend::onRead);
+    m_pictureSaves.setMaxThreadCount(1);
 
     m_installer = new FbneoInstaller(m_dataRoot, this);
     connect(m_installer, &FbneoInstaller::progressChanged, this, &ArcadeBackend::fbneoProgressChanged);
@@ -238,12 +312,18 @@ ArcadeBackend::ArcadeBackend(const QString &appRoot, const QString &dataRoot, Ap
         m_raToken = kept.value(QStringLiteral("token")).toString();
         m_raKey = kept.value(QStringLiteral("key")).toString();
     }
-    m_leaderboards = new RetroAchievements(m_home, RetroAchievements::kApi, this);
-    m_leaderboards->setKey(m_raKey);
-    connect(m_leaderboards, &RetroAchievements::boardReady, this, [this](const QString &fileName) {
+    m_retroAchievements = new RetroAchievements(m_home, RetroAchievements::kApi, RetroAchievements::kMedia, this);
+    m_retroAchievements->setKey(m_raKey);
+    m_retroAchievements->setUser(m_raUser);
+    connect(m_retroAchievements, &RetroAchievements::boardReady, this, [this](const QString &fileName) {
         emit leaderboardReady(QFileInfo(fileName).completeBaseName().toLower());
     });
-    connect(m_leaderboards, &RetroAchievements::keyRefused, this, [this] {
+    connect(m_retroAchievements, &RetroAchievements::achievementsReady, this, [this](const QString &fileName) {
+        emit gameAchievementsReady(QFileInfo(fileName).completeBaseName().toLower());
+    });
+    connect(m_retroAchievements, &RetroAchievements::badgesReady, this, &ArcadeBackend::badgesReady);
+    connect(m_retroAchievements, &RetroAchievements::picturesFound, this, &ArcadeBackend::onPicturesFound);
+    connect(m_retroAchievements, &RetroAchievements::keyRefused, this, [this] {
         if (!std::exchange(m_raKeyRefused, true))
             emit achievementsChanged();
     });
@@ -545,8 +625,11 @@ ArcadeBackend::Read ArcadeBackend::read(const QString &folder, const QString &ho
     // The pictures, looked for here once rather than file by file as the
     // games are chosen (exFAT's folders have no index): the games folder's
     // snap, named by the set as MAME names it, the way the picture packs for
-    // MAME have them, a .png before a .jpg; and the first MAME took of each
-    // game, in its own snap folder.
+    // MAME have them, a .png before a .jpg, and those numbered after a set
+    // there (sf2_1.png, sf2_2.jpg: RetroAchievements' and the user's own;
+    // not a set's own snap, sf2_1.png while there is a set sf2_1); and the
+    // first MAME took of each game, in its own snap folder.
+    static const QRegularExpression numbered(QRegularExpression::anchoredPattern(QStringLiteral("(.+)_(\\d{1,3})")));
     QHash<QString, int> ranks;   // set → how well its picture's name fits
     QDirIterator snaps(folder + QLatin1Char('/') + read.otherFolders.value(QStringLiteral("snap"), QStringLiteral("snap")),
                        QDir::Files);
@@ -564,7 +647,12 @@ ArcadeBackend::Read ArcadeBackend::read(const QString &folder, const QString &ho
             ranks.insert(set, rank);
             read.snaps.insert(set, info.filePath());
         }
+        const QRegularExpressionMatch match = numbered.match(set);
+        if (match.hasMatch() && !read.sets.contains(set))
+            read.numbered[match.captured(1)] << info.filePath();
     }
+    for (QStringList &pictures : read.numbered)
+        std::sort(pictures.begin(), pictures.end(), beforeInTurn);
     QDirIterator shots(home + QStringLiteral("/snap"), QDir::Dirs | QDir::NoDotAndDotDot);
     while (shots.hasNext()) {
         shots.next();
@@ -624,7 +712,14 @@ void ArcadeBackend::onRead() {
         m_fbneoAspects = std::move(read.fbneoAspects);
     }
     m_snaps = std::move(read.snaps);
+    m_numbered = std::move(read.numbered);
     m_shots = std::move(read.shots);
+    // Pictures saved while the folder was read, which it may not have seen.
+    for (auto it = m_savedDuringRead.constBegin(); it != m_savedDuringRead.constEnd(); ++it) {
+        for (const QString &picture : it.value())
+            addNumbered(m_numbered, it.key(), picture);
+    }
+    m_savedDuringRead.clear();
     m_reading = false;
     // Read the Games Again, asked while this read went on, as rescan() does
     // it: unless MAME is being asked already (a game paused it), what it said
@@ -1084,9 +1179,11 @@ QVariantMap ArcadeBackend::gameDetails(const QString &set) {
         return { { QStringLiteral("set"), set }, { QStringLiteral("name"), m_sets.value(set) },
                  { QStringLiteral("unknown"), true }, { QStringLiteral("detail"), unknownDetail(set) } };
     }
+    const QStringList pictures = picturesOf(set);
     QVariantMap details{ { QStringLiteral("set"), set }, { QStringLiteral("name"), descriptionOf(set) },
                          { QStringLiteral("playTime"), playTimeOf(set) },
-                         { QStringLiteral("picture"), pictureOf(set) },
+                         { QStringLiteral("pictures"), pictures },
+                         { QStringLiteral("picture"), pictures.value(0) },
                          { QStringLiteral("engine"), engineOf(set) } };
     const auto machine = m_machines.constFind(set);
     if (machine == m_machines.constEnd())
@@ -1099,21 +1196,181 @@ QVariantMap ArcadeBackend::gameDetails(const QString &set) {
     return details;
 }
 
-QString ArcadeBackend::pictureOf(const QString &set) const {
-    // A clone's own, else its parent's: the games folder's snap first, then
-    // the first MAME took of it.
+QStringList ArcadeBackend::setAndParent(const QString &set) const {
     QStringList sets{ set };
     const auto machine = m_machines.constFind(set);
     if (machine != m_machines.constEnd() && !machine->cloneOf.isEmpty())
         sets << machine->cloneOf;
-    for (const QHash<QString, QString> *pictures : { &m_snaps, &m_shots }) {
-        for (const QString &s : std::as_const(sets)) {
-            const QString path = pictures->value(s);
-            if (!path.isEmpty())
-                return QUrl::fromLocalFile(path).toString();
+    return sets;
+}
+
+QStringList ArcadeBackend::picturesOf(const QString &set) const {
+    const QStringList sets = setAndParent(set);
+    // Its own; then of a clone, its parent's numbered pictures (those
+    // RetroAchievements has of a clone of the same game are saved under the
+    // parent's name), and the parent's snap only for a clone without one.
+    QStringList pictures;
+    const QString snap = m_snaps.value(set);
+    if (!snap.isEmpty())
+        pictures << snap;
+    pictures << m_numbered.value(set);
+    if (sets.size() > 1) {
+        const QString parentSnap = m_snaps.value(sets.at(1));
+        if (pictures.isEmpty() && !parentSnap.isEmpty())
+            pictures << parentSnap;
+        pictures << m_numbered.value(sets.at(1));
+    }
+    for (const QString &s : sets) {
+        const QString shot = m_shots.value(s);
+        if (!shot.isEmpty()) {
+            pictures << shot;
+            break;
         }
     }
-    return QString();
+    QStringList urls;
+    for (const QString &picture : std::as_const(pictures))
+        urls << QUrl::fromLocalFile(picture).toString();
+    return urls;
+}
+
+QString ArcadeBackend::snapFolder() const {
+    if (m_gamesFolder.isEmpty() || !m_folderReadable || !m_listed)
+        return QString();
+    return m_gamesFolder + QLatin1Char('/') + m_otherFolders.value(QStringLiteral("snap"), QStringLiteral("snap"));
+}
+
+void ArcadeBackend::wantPictures(const QString &set) {
+    if (m_raKey.isEmpty() || m_raKeyRefused || !m_sets.contains(set) || isUnrecognized(set) || snapFolder().isEmpty()
+        || m_noPictures.contains(set))
+        return;
+    // The set's game, else its parent's.
+    const QStringList names = setAndParent(set);
+    loadPictureRecord();
+    const QDateTime now = QDateTime::currentDateTimeUtc();
+    QStringList looked;
+    for (const QString &name : std::as_const(names)) {
+        const auto retry = m_picturesRetry.constFind(name);
+        if (m_pictureRecord.value(name).complete || m_pictureJobs.contains(name)
+            || (retry != m_picturesRetry.constEnd() && *retry > now))
+            looked << name;
+    }
+    if (looked.size() == names.size())
+        return;
+    // None for a folder they can't be saved in (a read-only USB drive's).
+    const QString folder = snapFolder();
+    if (!QFileInfo(QFileInfo::exists(folder) ? folder : m_gamesFolder).isWritable())
+        return;
+    m_retroAchievements->findPictures(names, looked);
+}
+
+void ArcadeBackend::onPicturesFound(const QString &name, const QString &state, const QStringList &paths) {
+    if (state == QLatin1String("unknown")) {
+        m_noPictures.insert(name);
+        return;
+    }
+    if (state != QLatin1String("found")) {
+        m_picturesRetry.insert(name, QDateTime::currentDateTimeUtc().addSecs(kPicturesRetrySeconds));
+        return;
+    }
+    loadPictureRecord();
+    if (m_pictureJobs.contains(name) || m_pictureRecordFolder.isEmpty())
+        return;
+    PictureRecord &record = m_pictureRecord[name];
+    QStringList wanted;
+    for (const QString &path : paths) {
+        if (!record.saved.contains(path))
+            wanted << path;
+    }
+    if (wanted.isEmpty()) {
+        record.complete = true;
+        savePictureRecord();
+        return;
+    }
+    m_pictureJobs.insert(name, { static_cast<int>(wanted.size()), false, m_pictureRecordFolder });
+    for (const QString &path : std::as_const(wanted)) {
+        m_retroAchievements->media(path, [this, name, path](const QByteArray &data) {
+            onPictureDownloaded(name, path, data);
+        });
+    }
+}
+
+void ArcadeBackend::onPictureDownloaded(const QString &name, const QString &path, const QByteArray &data) {
+    const auto job = m_pictureJobs.constFind(name);
+    if (job == m_pictureJobs.constEnd())
+        return;
+    // Into the folder it was asked for, whatever the games folder is now.
+    const QString folder = job->folder;
+    if (data.isEmpty()) {
+        finishPicture(name, false);
+        return;
+    }
+    QtConcurrent::run(&m_pictureSaves, savePicture, folder, name, data, m_sets).then(this, [this, name, path, folder](const QString &file) {
+        if (file.isEmpty()) {
+            finishPicture(name, false);
+            return;
+        }
+        if (folder == m_pictureRecordFolder)
+            m_pictureRecord[name].saved << path;
+        if (folder == snapFolder()) {
+            addNumbered(m_numbered, name, file);
+            if (m_reading)
+                m_savedDuringRead[name] << file;
+        }
+        finishPicture(name, true);
+        emit picturesChanged(name);
+    });
+}
+
+void ArcadeBackend::finishPicture(const QString &name, bool saved) {
+    auto job = m_pictureJobs.find(name);
+    if (job == m_pictureJobs.end())
+        return;
+    job->failed = job->failed || !saved;
+    const bool recorded = job->folder == m_pictureRecordFolder;
+    if (--job->pending <= 0) {
+        // All in, or those that weren't tried again in ten minutes.
+        if (job->failed)
+            m_picturesRetry.insert(name, QDateTime::currentDateTimeUtc().addSecs(kPicturesRetrySeconds));
+        else if (recorded)
+            m_pictureRecord[name].complete = true;
+        m_pictureJobs.erase(job);
+    }
+    // The record as it now stands, unless nothing came into it.
+    if (saved && recorded)
+        savePictureRecord();
+}
+
+void ArcadeBackend::loadPictureRecord() {
+    const QString folder = snapFolder();
+    if (folder == m_pictureRecordFolder)
+        return;
+    m_pictureRecordFolder = folder;
+    m_pictureRecord.clear();
+    QFile file(folder + QStringLiteral("/.retroachievements.json"));
+    if (folder.isEmpty() || !file.open(QIODevice::ReadOnly))
+        return;
+    const QJsonObject kept = QJsonDocument::fromJson(file.readAll()).object();
+    for (auto it = kept.constBegin(); it != kept.constEnd(); ++it) {
+        const QJsonObject game = it.value().toObject();
+        PictureRecord record;
+        for (const QJsonValue &path : game.value(QStringLiteral("saved")).toArray())
+            record.saved << path.toString();
+        record.complete = game.value(QStringLiteral("complete")).toBool();
+        m_pictureRecord.insert(it.key(), record);
+    }
+}
+
+void ArcadeBackend::savePictureRecord() {
+    QJsonObject kept;
+    for (auto it = m_pictureRecord.constBegin(); it != m_pictureRecord.constEnd(); ++it) {
+        kept.insert(it.key(), QJsonObject{ { QStringLiteral("saved"), QJsonArray::fromStringList(it->saved) },
+                                           { QStringLiteral("complete"), it->complete } });
+    }
+    // Written beside the pictures, after the one it names, off the GUI
+    // thread.
+    const QString file = m_pictureRecordFolder + QStringLiteral("/.retroachievements.json");
+    const QByteArray json = QJsonDocument(kept).toJson(QJsonDocument::Compact);
+    m_pictureSaves.start([file, json] { writeFileAtomically(file, json); });
 }
 
 QString ArcadeBackend::mameFileName(const QString &set) const {
@@ -1950,6 +2207,7 @@ void ArcadeBackend::signInAchievements(const QString &user, const QString &passw
     m_raToken.clear();
     m_raPassword = password;
     m_raFailure.clear();
+    m_retroAchievements->setUser(m_raUser);
     saveAchievements();
     emit achievementsChanged();
 }
@@ -1959,6 +2217,7 @@ void ArcadeBackend::signOutAchievements() {
     m_raToken.clear();
     m_raPassword.clear();
     m_raFailure.clear();
+    m_retroAchievements->setUser(QString());
     saveAchievements();
     emit achievementsChanged();
 }
@@ -1966,7 +2225,7 @@ void ArcadeBackend::signOutAchievements() {
 void ArcadeBackend::setAchievementsKey(const QString &key) {
     m_raKey = key.trimmed();
     m_raKeyRefused = false;
-    m_leaderboards->setKey(m_raKey);
+    m_retroAchievements->setKey(m_raKey);
     saveAchievements();
     emit achievementsChanged();
 }
@@ -1975,7 +2234,40 @@ QVariantMap ArcadeBackend::leaderboard(const QString &set) {
     const QString file = m_sets.value(set);
     if (!m_achievements || m_raKey.isEmpty() || file.isEmpty() || engineOf(set) != QLatin1String("fbneo"))
         return { { QStringLiteral("state"), QStringLiteral("off") } };
-    return m_leaderboards->board(QFileInfo(file).fileName());
+    return m_retroAchievements->board(QFileInfo(file).fileName());
+}
+
+void ArcadeBackend::setAchievementsServers(const QUrl &api, const QUrl &media) {
+    m_retroAchievements->setServers(api, media);
+}
+
+QVariantMap ArcadeBackend::gameAchievements(const QString &set) {
+    const QString file = m_sets.value(set);
+    if (file.isEmpty() || isUnrecognized(set))
+        return { { QStringLiteral("state"), QStringLiteral("none") } };
+    if (m_raKey.isEmpty())
+        return { { QStringLiteral("state"), QStringLiteral("nokey") } };
+    if (m_raKeyRefused)
+        return { { QStringLiteral("state"), QStringLiteral("refused") } };
+    return m_retroAchievements->achievements(QFileInfo(file).fileName());
+}
+
+QVariantMap ArcadeBackend::achievementCount(const QString &set) {
+    const QVariantMap found = gameAchievements(set);
+    const QVariantList achievements = found.value(QStringLiteral("achievements")).toList();
+    int earned = 0;
+    for (const QVariant &achievement : achievements) {
+        if (!achievement.toMap().value(QStringLiteral("earned")).toString().isEmpty())
+            ++earned;
+    }
+    return { { QStringLiteral("state"), found.value(QStringLiteral("state")) },
+             { QStringLiteral("earned"), earned },
+             { QStringLiteral("total"), int(achievements.size()) },
+             { QStringLiteral("progress"), found.value(QStringLiteral("progress")).toBool() } };
+}
+
+QString ArcadeBackend::achievementBadge(const QString &name, bool earned) {
+    return m_retroAchievements->badge(name, !earned);
 }
 
 QStringList ArcadeBackend::statusIcons() const {

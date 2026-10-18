@@ -131,8 +131,7 @@
       "label": "RetroAchievements Account",
       "type": "module_view",
       "params": { "achievements": true },
-      "shown_with": { "key": "online_high_scores", "value": "RetroAchievements" },
-      "description": "The account the scores go to, and the Web API key the leaderboards are read with"
+      "description": "The account the scores go to with Online High Scores, and the Web API key the leaderboards, the games' pictures and their achievements are read with\nWith a key, the pictures RetroAchievements has of a game are downloaded as it is shown, into the games folder's snap folder, named after it (sf2_1.png, sf2_2.png…) and never over a file there"
     },
     {
       "key": "online_play",

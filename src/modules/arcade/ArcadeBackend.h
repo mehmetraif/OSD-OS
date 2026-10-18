@@ -1,4 +1,5 @@
 #pragma once
+#include <QDateTime>
 #include <QElapsedTimer>
 #include <QFutureWatcher>
 #include <QHash>
@@ -9,6 +10,7 @@
 #include <QSize>
 #include <QString>
 #include <QStringList>
+#include <QThreadPool>
 #include <QUrl>
 #include <QVariant>
 #include <functional>
@@ -152,11 +154,31 @@ public:
     // id), else the game's first.
     Q_INVOKABLE int filterIndex(const QString &filter, const QString &set, int room = -1);
     // What the screen says of a set: { set, name (MAME's description),
-    // system, maker, year, players, playTime (seconds played), picture (a
-    // file URL, "" for none), vertical }; for one under Not Recognized
-    // { set, name (its file's), unknown: true, detail (why, and what to do,
-    // a line each) }; {} for a set not in the folder.
+    // system, maker, year, players, playTime (seconds played), pictures
+    // (file URLs, picturesOf()), picture (the first, "" for none), vertical
+    // }; for one under Not Recognized { set, name (its file's), unknown:
+    // true, detail (why, and what to do, a line each) }; {} for a set not in
+    // the folder.
     Q_INVOKABLE QVariantMap gameDetails(const QString &set);
+    // The pictures RetroAchievements has of a set's game, or its parent's,
+    // downloaded into the snap folder with a Web API key kept, as the game
+    // is shown (the Arcade screen, Game Details): once, unless they have
+    // been, are being, RetroAchievements has none this run, a try failed
+    // less than ten minutes ago or the folder can't be written.
+    // picturesChanged() as each is in.
+    Q_INVOKABLE void wantPictures(const QString &set);
+    // A game's achievements on RetroAchievements, for its Game Details
+    // (Details.qml), as RetroAchievements::achievements() reads them with
+    // the Web API key and the account's user: { state, achievements,
+    // progress }, state "nokey" without a key and "refused" with one
+    // RetroAchievements refused. gameAchievementsReady() once read.
+    Q_INVOKABLE QVariantMap gameAchievements(const QString &set);
+    // Of those, the Arcade screen's box's count, without the list: { state,
+    // earned, total, progress }.
+    Q_INVOKABLE QVariantMap achievementCount(const QString &set);
+    // An achievement's badge (its name), as earned or not, as a file URL;
+    // "" until it has been downloaded: badgesReady() then.
+    Q_INVOKABLE QString achievementBadge(const QString &name, bool earned);
 
     // Starts a game in its engine (engineOf()), which has the screen until it
     // ends: finished(). credits: the coins MAME puts in as it starts (9 at
@@ -197,6 +219,8 @@ public:
     Q_INVOKABLE bool canHost(const QString &set) const;
     // The lobby's address: lobby.libretro.com's, or a stand-in's.
     void setLobbyUrl(const QUrl &url) { m_lobbyUrl = url; }
+    // RetroAchievements' Web API and media server: its own, or a stand-in's.
+    void setAchievementsServers(const QUrl &api, const QUrl &media);
 
     // Account page (Settings → Arcade → RetroAchievements Account). The
     // password is kept in memory only, for RetroArch to sign in with at the
@@ -289,6 +313,11 @@ signals:
     void playedChanged();
     void achievementsChanged();
     void leaderboardReady(const QString &set);
+    void gameAchievementsReady(const QString &set);
+    void badgesReady();
+    // A game's pictures have changed: one of RetroAchievements' is in. set:
+    // the one it is named after, the game's or its parent's.
+    void picturesChanged(const QString &set);
     void statusIconsChanged();
     void roomsChanged();
     void fbneoChanged();
@@ -326,9 +355,11 @@ private:
         bool genresRead = false;
         QString genresFrom;
         QHash<QString, QString> genres;
-        // The pictures: the games folder's snap by set, and the first MAME
-        // took of each game.
+        // The pictures: the games folder's snap by set, those numbered after
+        // a set in it (<set>_1.png…) in turn, and the first MAME took of each
+        // game.
         QHash<QString, QString> snaps;
+        QHash<QString, QStringList> numbered;
         QHash<QString, QString> shots;
         // FinalBurn Neo's list of games, when it wasn't the one read before
         // (fbneoRead).
@@ -415,9 +446,33 @@ private:
     QStringList filterSets(const QString &filter) const;
     // Why a set is under Not Recognized, and what to do.
     QString unknownDetail(const QString &set) const;
-    // The games folder's snap, else MAME's own snapshot; "" for none. As
-    // read with the folder (m_snaps, m_shots), till the list opens again.
-    QString pictureOf(const QString &set) const;
+    // A set, and the parent of a clone.
+    QStringList setAndParent(const QString &set) const;
+    // A game's pictures, as file URLs, in the order the Arcade screen shows
+    // them: the games folder's snap of it, those numbered after it there
+    // (RetroAchievements' among them), then the first snapshot MAME took of
+    // it; a clone's own, else its parent's. As read with the folder
+    // (m_snaps, m_numbered, m_shots), till the list opens again, and those
+    // downloaded since.
+    QStringList picturesOf(const QString &set) const;
+    // The folder pictures are kept in: the games folder's snap folder, as it
+    // is named there, else snap; "" while there is no games folder to read.
+    QString snapFolder() const;
+    void onPicturesFound(const QString &name, const QString &state, const QStringList &paths);
+    // A picture of RetroAchievements' downloaded for a game, or not (data
+    // empty): saved off the GUI thread as <name>_<n> in the snap folder, n
+    // the first number no picture of that name has there, so that a file
+    // already there, the user's own or one saved before, is never written
+    // over; then its record kept.
+    void onPictureDownloaded(const QString &name, const QString &path, const QByteArray &data);
+    void finishPicture(const QString &name, bool saved);
+    // The pictures downloaded for each game (by the set they are named
+    // after): .retroachievements.json in the snap folder, beside them, so
+    // that it goes where they go (another games folder, another machine
+    // with the same one); read when first needed in a folder, written where
+    // the pictures are saved.
+    void loadPictureRecord();
+    void savePictureRecord();
     // The sets on one of the module's lists (AppCore's), newest first.
     QStringList listedSets(const QString &list) const;
     // The file name MAME opens a set by: its short name in lower case.
@@ -501,7 +556,7 @@ private:
     bool    m_raPasswordGiven = false;   // the game playing was given it
 
     FbneoInstaller *m_installer = nullptr;
-    RetroAchievements *m_leaderboards = nullptr;
+    RetroAchievements *m_retroAchievements = nullptr;
 
     // The netplay lobby: its rooms as last read, why it couldn't be read
     // ("" when it was), whether it has been, and the read under way.
@@ -527,7 +582,33 @@ private:
     QHash<QString, QString> m_genres;   // set → genre, catver.ini's
     QString m_genresFrom;         // the catver.ini read: its path, size and time
     QHash<QString, QString> m_snaps;    // set → its picture in the games folder's snap
+    QHash<QString, QStringList> m_numbered;   // set → the pictures numbered after it there, in turn
     QHash<QString, QString> m_shots;    // set → the first snapshot MAME took of it
+    // RetroAchievements' pictures: what was downloaded of each game into the
+    // snap folder whose record is read (the pictures' paths on its media
+    // server, and whether all of them are in), the downloads under way (how
+    // many to come, whether one failed, and the folder they go in), the
+    // games it has none of (this run), when a game whose pictures couldn't
+    // be read may be tried again, and those saved while the folder was read,
+    // which that read may not have seen.
+    struct PictureRecord {
+        QStringList saved;
+        bool complete = false;
+    };
+    struct PictureJob {
+        int pending = 0;
+        bool failed = false;
+        QString folder;
+    };
+    QHash<QString, PictureRecord> m_pictureRecord;
+    QString m_pictureRecordFolder;
+    QHash<QString, PictureJob> m_pictureJobs;
+    QSet<QString> m_noPictures;
+    QHash<QString, QDateTime> m_picturesRetry;
+    QHash<QString, QStringList> m_savedDuringRead;
+    // Where the pictures and their record are saved, one at a time, in the
+    // order they came.
+    QThreadPool m_pictureSaves;
     QHash<QString, QString> m_fbneoGames;   // set → its description, FinalBurn Neo's
     QHash<QString, double> m_fbneoAspects;  // set → its shape, where FinalBurn Neo's list says
     QString m_fbneoFrom;          // the list of them read: its path, size and time

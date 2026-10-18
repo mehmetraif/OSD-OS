@@ -52,6 +52,18 @@ FocusScope {
     readonly property int maxCredits: 9
     function addCredit() { credits = Math.min(maxCredits, credits + 1) }
 
+    // How long a game has been played, as its screens say it ("1H 31M",
+    // "Never"), and how many play it ("2 Players", "" when MAME doesn't say).
+    function playTime(seconds) {
+        if (!seconds)
+            return "Never"
+        var minutes = Math.ceil(seconds / 60)
+        return minutes >= 60 ? Math.floor(minutes / 60) + "H " + (minutes % 60) + "M" : minutes + "M"
+    }
+    function players(count) {
+        return count > 0 ? count + (count === 1 ? " Player" : " Players") : ""
+    }
+
     // Starts a game with the credits bought, which are then spent, and puts
     // it on Recently Played (the newest 30); with online, joins a room of
     // the lobby ({ room }) or hosts the game ({ hosting: true }) instead.
