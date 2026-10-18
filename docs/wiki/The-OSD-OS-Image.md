@@ -512,7 +512,7 @@ The launcher exports `OSDOS_LAUNCHER_API`, and OSD/OS offers only what the launc
 | set at all | The launcher applies staged updates: Settings → Update can install them |
 | 2 or more | `osdos-stop` reboots on exit 12: Quit offers Restart |
 | 3 or more | `osdos-stop` writes a display preset on exits 20 to 29, and the launcher takes the output a preset names: Settings offers Display Output |
-| 4 or more | `osdos-stop` also writes the JAMMA preset on exit 30: Display Output offers JAMMA 240p |
+| 4 or more | `osdos-stop` also writes the JAMMA preset on exit 30: Display Output offers JAMMA 240p 15 kHz (720x240) |
 | 5 or more | `osdos-stop` also powers off after a preset on exits 40 to 50, and writes one for the next start through `osdos-display.socket`: Display Output offers Switch and Power Off and At Next Start |
 | 6 or more | `osdos-stop` also writes the JAMMA board's other modes on exits 31 to 38, and powers off after them on 51 to 58: Display Output offers them |
 

@@ -70,7 +70,7 @@ check "exit 29 brings SCART's sync back" yes "$(csync)"
 new_boot
 # The JAMMA board's other modes, 31-38, none with a composite sync.
 on_exit 31
-check "exit 31 writes JAMMA 240p Native" jamma-240p-native "$(in_force)"
+check "exit 31 writes JAMMA 240p 15 kHz (320x240)" jamma-240p-native "$(in_force)"
 check "exit 31 writes no composite sync" no "$(csync)"
 check "exit 31 reboots" reboot "$(asked)"
 new_boot
