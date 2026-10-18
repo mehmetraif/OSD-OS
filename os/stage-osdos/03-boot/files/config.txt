@@ -15,9 +15,18 @@
 #   osdos-display-jamma-240p.txt      a JAMMA cabinet through a Raspberry Pi to
 #                                     JAMMA board (RGB-Pi's layout), 240p: its
 #                                     controls too, and on a Pi 4 its sound
+#   osdos-display-jamma-240p-native.txt, -240p-super.txt, -288p.txt and
+#   -288p-super.txt                   the same board at 320x240, 1920x240,
+#                                     720x288 or 1920x288
+#   osdos-display-jamma-480i.txt and -576i.txt
+#                                     the same on a Pi 4, interlaced
+#   osdos-display-jamma-25k.txt and -31k.txt
+#                                     the same for a 25 kHz or 31 kHz (VGA)
+#                                     monitor ONLY: too high a scan rate can
+#                                     damage a 15 kHz one
 # On a Pi 5 a SCART RGB preset also needs its composite sync (copied by hand,
 # /etc/modprobe.d/osdos-display.conf: options drm_rp1_dpi force_csync=1), and
-# the JAMMA one must not have it (delete that file).
+# the JAMMA ones must not have it (delete that file).
 #
 # The per-model settings below are the ones INSTALL.md documents.
 

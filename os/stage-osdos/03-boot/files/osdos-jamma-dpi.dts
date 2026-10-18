@@ -5,7 +5,8 @@
 // MCP23017s (its controls) are. rgb666-padhi takes GPIO 0 and 1 as well: this
 // is loaded after vc4-kms-dpi-generic, and gives the DPI its pins back.
 // Compiled into /boot/firmware/overlays/osdos-jamma-dpi.dtbo as the image is
-// built (03-boot/00-run.sh), loaded by osdos-display-jamma-240p.txt.
+// built (03-boot/00-run.sh), loaded by the JAMMA presets' [pi5] parts
+// (osdos-display-jamma-*.txt).
 
 /dts-v1/;
 /plugin/;
