@@ -2,7 +2,7 @@
 
 A tour of OSD/OS, screen by screen, as you meet them: the boot screen, the main menu, the tree every module is browsed with, searching, info screens and options, playing a video and the menus over it, the logo in the corner, and quitting. Every screen is drawn like a VCR's on-screen display, in the color scheme's two colors, and works with the arrows, select and back. [Controls](https://github.com/mehmetraif/OSD-OS/wiki/Controls) lists which key, button or remote button does each; the pictures are the app itself at 640×480.
 
-<p align="center"><img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/images/default-look.gif" width="640" alt="OSD/OS as it comes: the main menu, Local Files' tree and Settings, in two colors" /></p>
+<p align="center"><img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/images/default-look.gif" width="640" alt="OSD/OS as it comes, in two colors: the main menu, Local Files' tree, the Arcade screen's games on a 3D wheel, its filters and the games others host online, and Settings" /></p>
 
 ## The basics
 
