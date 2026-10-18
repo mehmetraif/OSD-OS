@@ -3,12 +3,14 @@
   "name": "High Scores",
   "icon": "assets/images/logo.svg",
   "entry_point_qml": "views/Root.qml",
+  "settings_group": "arcade",
   "settings": [
     {
       "key": "enabled",
       "label": "ENABLED",
       "type": "toggle",
-      "default": "OFF"
+      "default": "OFF",
+      "description": "Shows High Scores on the main menu: each game's high score tables as MAME keeps them, with Save High Scores on"
     }
   ]
 }

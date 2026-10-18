@@ -15,7 +15,7 @@ flowchart TB
         main --> mpvc["MpvController"]
         main --> inp["InputManager (SDL2)"]
         main --> dh["DisplayHandoff"]
-        main --> sys["AudioOutput, MenuMusic, DisplayOutput,<br/>BootProgress, UpdateManager, BluetoothManager"]
+        main --> sys["AudioOutput, MenuMusic, DisplayOutput,<br/>BootProgress, UpdateManager,<br/>BluetoothManager, WifiManager"]
     end
     mpvc -- "process, JSON over a socket" --> mpv["mpv"]
     mpvc -- "Transparent Background" --> emb["libmpv inside the window<br/>EmbeddedMpv, VideoSurface"]
@@ -36,7 +36,7 @@ The rest of this page follows that picture from the top.
 3. **Signals.** SIGTERM, SIGINT and SIGHUP are only noted; a 100 ms timer then leaves the event loop with 128 plus the signal's number, so destructors run, mpv is stopped and the screen is given back. That exit code is also how the service's stop helper tells `systemctl stop` from the user's Quit ([The OSD/OS image → osdos-stop](https://github.com/mehmetraif/OSD-OS/wiki/The-OSD-OS-Image#osdos-stop)).
 4. **The two folders** (below), and a line in the log for every screen attached: `[main] display index 0: "<name>" 720x480 at (0,0)`.
 5. **`AppCore`**, which finds the modules.
-6. **The objects**, each living as long as the app: the module backends, `DisplayHandoff` (ahead of everything that takes the screen through it, so it outlives them), `MpvController`, `InputManager`, `IdleTracker` (the screen saver), `UpdateManager`, `BootProgress`, `DisplayOutput`, `AudioOutput`, `MenuMusic`, `BluetoothManager`.
+6. **The objects**, each living as long as the app: the module backends, `DisplayHandoff` (ahead of everything that takes the screen through it, so it outlives them), `MpvController`, `InputManager`, `IdleTracker` (the screen saver), `UpdateManager`, `BootProgress`, `DisplayOutput`, `AudioOutput`, `MenuMusic`, `BluetoothManager`, `WifiManager`.
 7. **The wiring** between them: a gamepad's keys to mpv while the window has no focus, a change of sound card to mpv and to the menu music, and a video's end to the menu music.
 8. **Each backend registered** with `AppCore`, then the other objects handed to QML as context properties, the image providers `osdicon` and `osdskin`, and the QML types `VideoSurface`, `VhsNoise` and `SelectorFx` (`import OSDOS.Video`).
 9. **`Main.qml` loaded.** If it fails to load, the app logs `[main] QML engine failed to load Main.qml` and exits with 1.
@@ -61,6 +61,7 @@ Run from a source tree, `APP_ROOT=$(pwd) ./build/osdos` points the app at the ch
   "name": "Ambient:Mode",
   "icon": "assets/images/logo.svg",
   "entry_point_qml": "views/Root.qml",
+  "settings_group": "tv",
   "settings": [
     { "key": "enabled", "label": "ENABLED", "type": "toggle", "default": "OFF" },
     { "key": "media_directory", "label": "Media Directory", "type": "directory_browser", "default": "" },
@@ -77,7 +78,7 @@ Run from a source tree, `APP_ROOT=$(pwd) ./build/osdos` points the app at the ch
 }
 ```
 
-- **The settings** a manifest lists become the module's page under Settings → Modules, saved under `modules.<id>` in `config.json`. No C++ is needed to add one ([ARCHITECTURE.md → manifest.json Reference](https://github.com/mehmetraif/OSD-OS/blob/main/ARCHITECTURE.md#manifestjson-reference)).
+- **The settings** a manifest lists become the module's page in Settings, saved under `modules.<id>` in `config.json`. Its `settings_group` says where Settings lists that page: `"tv"` under Modules on the TV / Movie page, as here; `"arcade"` on the Arcade page, which the arcade modules share; none, under Modules on Settings' first screen. No C++ is needed to add one ([ARCHITECTURE.md → manifest.json Reference](https://github.com/mehmetraif/OSD-OS/blob/main/ARCHITECTURE.md#manifestjson-reference)).
 - **Enabled or not**: the module's `enabled` in `config.json`, else its manifest's default for `enabled`, else on.
 - **The main menu** (`views/ModuleList.qml`) asks `scan_for_modules()` and gets the enabled modules, each with its entry point (`modules/<folder>/views/Root.qml`). A backend may add rows of its own after them (`get_menu_entries()`), as Scripts does for the scripts you put on the main menu.
 
@@ -114,7 +115,7 @@ All fourteen modules have one: `com.osdos.local_files`, `plex`, `jellyfin`, `emb
 | `inputManager` | Gamepads, remaps, the hints for the foot of each screen |
 | `displayHandoff` | Whether something else has the screen |
 | `audioOutput`, `menuMusic`, `displayOutput`, `bootProgress` | Settings → Audio Output, the menu music, Settings → Display Output, the boot screen |
-| `updateManager`, `bluetoothManager`, `idleTracker` | Settings → Update, Settings → Bluetooth, the screen saver |
+| `updateManager`, `bluetoothManager`, `wifiManager`, `idleTracker` | Settings → Update, Settings → Bluetooth, Settings → Wi-Fi, the screen saver |
 
 ## Main.qml and the screens
 
@@ -218,7 +219,7 @@ flowchart LR
 | play_pause | Space | `SPACE` | Start |
 
 - **Gamepads** go through SDL2's game controller layer, without its video part, so it works on a bare console. Buttons are named by position on an Xbox layout, so a Nintendo or PlayStation pad behaves alike. A held direction repeats after 400 ms, every 100 ms. `input.cfg` in the data folder overrides any binding on every pad and is read again as it changes; a pad's page in Settings → Controls sets that model's own over it, and what its buttons are called (`app.controllers.<key>`); `gamecontrollerdb.txt` there adds pads SDL doesn't know ([Controls](https://github.com/mehmetraif/OSD-OS/wiki/Controls)).
-- **Keyboards and remotes** send real keys. Right Shift is a second back, for one hand, except while a text field has the focus. Settings → Controls → All Keyboards & Remotes binds one more key, remote button or mouse button to each of six actions, up, down, left, right, select and back (`app.remote_keymap.<action>`), on top of its own key; a keyboard's or remote's own page, on that one only (`app.controllers.<key>`). On Linux each keyboard and remote is read from its `/dev/input` device beside Qt, read-only, which says which one a key came from.
+- **Keyboards and remotes** send real keys. Right Shift is a second back, for one hand, except while a text field has the focus. A remote's OK that comes as keypad Enter, or as a Select or OK key, is select as Enter is. Without a desktop (Qt's EGLFS) a mouse's left and right buttons are select and back, as an air-mouse remote's OK is a left click. Settings → Controls → All Keyboards & Remotes binds one more key, remote button or mouse button to each of six actions, up, down, left, right, select and back (`app.remote_keymap.<action>`), on top of its own key; a keyboard's or remote's own page, on that one only (`app.controllers.<key>`). On Linux each keyboard and remote is read from its `/dev/input` device beside Qt, read-only, which says which one a key came from.
 - **Media keys** (volume, mute, play/pause, stop, next, previous, forward, rewind) always go to mpv, over its socket, never to the menus.
 - **During a video in an mpv process**, the player's view passes keys on to mpv (`mpvController.sendKey()`), where the deck's menu (`scripts/mpv-osc.lua`) takes them. On a Pi the window keeps the keyboard even while mpv has the screen: Qt and SDL read `/dev/input` directly, and only drawing stops. On a Mac, where mpv's window has the focus, a gamepad's keys go to mpv straight from `InputManager`.
 - **The hints** at the foot of each screen (`[ESC]:BACK`, `[B]:BACK`) follow the device used last and the bindings in force: views bind `root.hints.*`.
@@ -335,7 +336,7 @@ The board's family (from `/proc/device-tree/model`, [`src/util/Board`](https://g
 | Where | mpv process | Why |
 |---|---|---|
 | Pi 4, no display server | `--vo=drm --hwdec=drm-copy,v4l2m2m-copy` | Hardware decoding, its frames copied back so they land on the main plane: smooth, and cropping works |
-| Pi 3, no display server | `--vo=gpu --gpu-context=drm --hwdec=v4l2m2m`; with Settings → 1080p Playback Off, `--vo=drm --hwdec=v4l2m2m-copy` | Straight to an overlay plane, the lightest on its CPU, but it can't crop; Off trades smoothness for crop |
+| Pi 3, no display server | `--vo=gpu --gpu-context=drm --hwdec=v4l2m2m`; with Settings → TV / Movie → 1080p Playback Off, `--vo=drm --hwdec=v4l2m2m-copy` | Straight to an overlay plane, the lightest on its CPU, but it can't crop; Off trades smoothness for crop |
 | Pi 5, and any other Linux with no display server | `--vo=drm --hwdec=auto-safe` | On a Pi 5 this finds FFmpeg's Vulkan decoder on its V3D GPU, for H.264 and HEVC; elsewhere it is a safe default |
 | Linux desktop (X11, Wayland, SteamOS) | `--hwdec=vaapi,nvdec,vaapi-copy,nvdec-copy,no` | VA-API or NVDEC where they work, else software, never Vulkan decoding, which froze on some PCs |
 | macOS | `--hwdec=videotoolbox` | Apple's decoder |
@@ -362,7 +363,7 @@ A presentation setting left at its default (Scaling on Letterbox, Video Levels o
 
 ### Transparent Background: mpv inside the window
 
-With Settings → **Transparent Background** on, a video plays inside OSD/OS's own window, so the menus can lie over the picture while it plays on.
+With Settings → TV / Movie → **Transparent Background** on, a video plays inside OSD/OS's own window, so the menus can lie over the picture while it plays on.
 
 - **[`EmbeddedMpv`](https://github.com/mehmetraif/OSD-OS/blob/main/src/player/EmbeddedMpv.cpp)** is mpv as a library. libmpv is opened as the app runs (`libmpv.so.2`, or `libmpv.2.dylib` on a Mac), never linked, so OSD/OS runs where it is missing; Settings offers the row only where it loaded.
 - **The same session.** It takes the command line an mpv process would get and turns it into options, adding `vo=libmpv`. The socket, the deck's menu and every signal work as for a process. It reads no `mpv.conf`, and `mpv_video_args` doesn't apply. There is no hand-off: OSD/OS keeps the screen.
@@ -447,7 +448,7 @@ flowchart LR
   }
   ```
 
-- **The background**: `BackgroundFx`, placed by each OSD background in its window, draws its shader (`shaders/bg-matrix.frag`, `bg-fire.frag`, `bg-stars.frag`, `bg-snow.frag`, `bg-flag.frag`, or a theme's) at the size of the art pixels and scales it up without smoothing.
+- **The background**: `BackgroundFx`, placed by each OSD background in its window, draws its shader (`shaders/bg-matrix.frag`, `bg-fire.frag`, `bg-stars.frag`, `bg-snow.frag`, `bg-flag.frag`, `bg-plasma.frag`, or a theme's) at the size of the art pixels and scales it up without smoothing.
 - **The selector**: [`SelectorFx`](https://github.com/mehmetraif/OSD-OS/blob/main/src/fx/SelectorFx.cpp), a C++ item, draws sparks, bolts or a rainbow round the selected line into a small picture about thirty times a second.
 - **The transitions**: `changeWindow()` catches the old window, then Fade and the cubes move pictures, and Ripple, Wave and Drop are shaders (`ripple.frag`, `wave.frag`, `drop.frag`).
 - **Time** counts every 33 ms only while something moves; a still menu isn't drawn again.
@@ -522,6 +523,7 @@ OSD/OS logs to its standard output and error: a terminal when you run it by hand
 | `[input]` | Gamepads, remaps, `input.cfg` |
 | `[Scripts]`, `[WebPlayer]`, `[TMDB]` | Scripts, the web players and their catalogue |
 | `[Bluetooth]` | Settings → Bluetooth |
+| `[Wi-Fi]` | Settings → Wi-Fi |
 | `[LocalFiles]`, `[Plex]`, `[Jellyfin]`, `[Emby]`, `[Playlists]`, `[Weather]`, `[NfcReader]`, `[AmbientMode]`, `[Arcade]`, `[HighScores]` | The modules |
 | `[legacy]` | 240-MP's data brought over |
 | `[AtomicFile]` | A file that couldn't be saved |
@@ -545,7 +547,7 @@ What OSD/OS reads from its environment. Each `OSDOS_…` name is also read as `M
 | `OSDOS_EMBEDDED_RENDER` | `sw` keeps Transparent Background's pictures on the CPU; `gpu` takes OpenGL drawn on the CPU too |
 | `OSDOS_UPDATE_FEED_URL` | Where Settings → Update looks for releases |
 | `OSDOS_NFC_SERIAL_DEVICE`, `OSDOS_NFC_DEBUG` | The NFC reader's serial port, when detection can't find it; more about detection in the log |
-| `OSDOS_BOARD_MODEL`, `OSDOS_BOOT_DIR`, `OSDOS_RUN_DIR`, `OSDOS_ASOUND_DIR`, `OSDOS_MOUNTINFO`, `OSDOS_TMDB_URL`, `OSDOS_WIKIDATA_URL` | Stand-ins for tests: the board's model, `/boot/firmware`, `/run`, `/proc/asound`, the mount table, TMDB and Wikidata |
+| `OSDOS_BOARD_MODEL`, `OSDOS_BOOT_DIR`, `OSDOS_RUN_DIR`, `OSDOS_ZONEINFO_DIR`, `OSDOS_ASOUND_DIR`, `OSDOS_MOUNTINFO`, `OSDOS_TMDB_URL`, `OSDOS_WIKIDATA_URL` | Stand-ins for tests: the board's model, `/boot/firmware`, `/run`, `/usr/share/zoneinfo`, `/proc/asound`, the mount table, TMDB and Wikidata |
 
 And what it gives the programs it starts: `APP_ROOT` to mpv and to scripts; on Linux, `FONTCONFIG_FILE` to mpv, so its menus find OSD/OS's fonts; `DATA_ROOT`, `OSDOS_MODE` (`console` or `takeover`) and, for a takeover on a Pi, `OSDOS_VT` to scripts; `ALSA_CARD` to scripts and web players when Settings → Audio Output names a card; on a Pi 5, `SDL_KMSDRM_DEVICE_INDEX` to scripts, the number of the DRM card of the output the display preset names, for SDL programs such as the Arcade module's MAME; and to scripts, the players' pads from Settings → Controls (`OSDOS_PLAYER1_NAME`, `_GUID` and `_DEVICE`, and players 2 to 6's) ([Scripts](https://github.com/mehmetraif/OSD-OS/wiki/Scripts)).
 

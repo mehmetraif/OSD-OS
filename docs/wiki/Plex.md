@@ -18,7 +18,7 @@ The module is in [modules/plex](https://github.com/mehmetraif/OSD-OS/tree/main/m
 
 ## Turning it on
 
-Plex is off until you turn it on: **Settings → Plex → Enabled** (in the Modules section of Settings). It then appears on the main menu. Its other settings show once you have signed in.
+Plex is off until you turn it on: **Settings → TV / Movie → Plex → Enabled**. It then appears on the main menu. Its other settings show once you have signed in.
 
 ## Signing in
 
@@ -55,9 +55,9 @@ The device shows up in your Plex account's authorized devices as **OSD/OS**, nam
 Plex Home profiles are Plex's users. OSD/OS plays as one of them at a time: its Continue Watching, its watched marks, its libraries.
 
 - **Choosing one.** **Select User** lists the profiles. With **Auto Sign In** off, the default, it comes up every time you open Plex, so each person picks themselves. With **Auto Sign In** on, Plex opens straight on the libraries as the profile chosen last.
-- **Changing it from Settings.** **Settings → Plex → Current User** switches profile without opening the module. If the new profile has a PIN, Settings can't ask for it: the PIN screen comes up the next time you open Plex, and the switch happens only once it is right.
+- **Changing it from Settings.** **Settings → TV / Movie → Plex → Current User** switches profile without opening the module. If the new profile has a PIN, Settings can't ask for it: the PIN screen comes up the next time you open Plex, and the switch happens only once it is right.
 - **A PIN.** A profile protected with a PIN asks for its 4 digits on a spinner made for a remote: ▲ ▼ change the digit under the cursor, ◄ ► move between the four (only the one under the cursor shows; the others read `*`), select submits. A keyboard's digit keys type straight in. **Checking…** while plex.tv checks it; **INCORRECT PIN** if it is wrong. Back cancels, and the profile in use stays as it was. OSD/OS asks plex.tv live whether a profile has a PIN each time you switch, so a PIN added or removed in Plex counts at once. The PIN goes to plex.tv with the switch and is never saved.
-- **Managed users** (profiles the account owner made) see only the servers shared with them; Select Server, Settings → Plex → Server and the quick switch list only those.
+- **Managed users** (profiles the account owner made) see only the servers shared with them; Select Server, Settings → TV / Movie → Plex → Server and the quick switch list only those.
 - **NFC cards never switch profiles.** A card plays as whoever is signed in now; switching profiles from a card would get round the PIN ([Writing an NFC card](#writing-an-nfc-card)).
 
 ## Servers
@@ -73,7 +73,7 @@ The first that answers is kept. When none answers, a relay address is taken if t
 To use another server:
 
 - On the Plex home screen, ◄ or ► opens **Select Server** (when the profile has more than one server; the hint bar shows `[◄►]:SERVER`). The one in use is highlighted; choosing one returns to the home screen on it.
-- Or **Settings → Plex → Server**, which takes effect the next time Plex loads its libraries.
+- Or **Settings → TV / Movie → Plex → Server**, which takes effect the next time Plex loads its libraries.
 
 ## The home screen
 
@@ -83,7 +83,7 @@ The title bar reads `PLEX | <SERVER> (<PROFILE>)`. The list holds:
 |---|---|---|
 | **Continue Watching** | The server has something to carry on with | What this profile has part-watched and what comes next, as Plex's Continue Watching has it |
 | **Live TV** | The server has a DVR with a channel lineup | The channel list ([Live TV](#live-tv)) |
-| Each library | It is a film, TV or other-video library (Plex's section types `movie`, `show` and `clip`) and is ON in **Settings → Plex → Libraries** | The library's own menu |
+| Each library | It is a film, TV or other-video library (Plex's section types `movie`, `show` and `clip`) and is ON in **Settings → TV / Movie → Plex → Libraries** | The library's own menu |
 
 Music and photo libraries are left out. Back leaves Plex.
 
@@ -156,7 +156,7 @@ The page shows **PLAY ►** (or **RSUM ►** when it has a saved position), the 
 
 ### Direct Play and transcoding
 
-**Settings → Plex → Video Quality** decides how the server sends a video:
+**Settings → TV / Movie → Plex → Video Quality** decides how the server sends a video:
 
 | Video Quality | What happens |
 |---|---|
@@ -179,7 +179,7 @@ With **Autoplay Next Episode** on, an episode that plays to its end is followed 
 
 ### With Transparent Background
 
-With **Settings → Transparent Background** on, back during a video returns to Plex's menus while the picture plays on behind them. OSD/OS reports the video stopped to Plex as it does, so a transcode may end soon after, when the server closes it. The Plex player has no menu of its own and no row on the main menu: choose the title again to play it full screen, from its resume point.
+With **Settings → TV / Movie → Transparent Background** on, back during a video returns to Plex's menus while the picture plays on behind them. OSD/OS reports the video stopped to Plex as it does, so a transcode may end soon after, when the server closes it. The Plex player has no menu of its own and no row on the main menu: choose the title again to play it full screen, from its resume point.
 
 ## Live TV
 
@@ -218,7 +218,7 @@ A card never signs in, switches profile or switches server. When it can't play, 
 
 ## Settings
 
-Settings → Plex. Everything but Enabled and Scaling shows only once you have signed in.
+Settings → TV / Movie → Plex. Everything but Enabled and Scaling shows only once you have signed in.
 
 | Setting | Values | Default | What it does | Config key |
 |---|---|---|---|---|
@@ -230,7 +230,7 @@ Settings → Plex. Everything but Enabled and Scaling shows only once you have s
 | Video Quality | Direct Play, 8 Mbps (1080p), 4 Mbps (720p), 2 Mbps (480p) | Direct Play | Direct Play, or a transcode capped at that bitrate | `modules.com.osdos.plex.video_quality` |
 | Resume Playback | Ask, Always | Ask | Whether a video with a resume point asks, or carries on | `modules.com.osdos.plex.resume_playback` |
 | Autoplay Next Episode | ON, OFF | OFF | Plays the season's next episode when one ends | `modules.com.osdos.plex.autoplay_next_episode` |
-| Scaling | Default, Letterbox, 14:9, Pan & Scan, Anamorphic | Default | How a 16:9 picture fills the 4:3 screen in Plex; Default follows Settings → Scaling | `modules.com.osdos.plex.video_scaling` |
+| Scaling | Default, Letterbox, 14:9, Pan & Scan, Anamorphic | Default | How a 16:9 picture fills the 4:3 screen in Plex; Default follows Settings → TV / Movie → Scaling | `modules.com.osdos.plex.video_scaling` |
 | Sign out | (an action) | | Signs out of Plex on this device | |
 
 ### How the values are saved
@@ -308,13 +308,13 @@ Profile PINs and your Plex password are never stored. The sign-in's log lines (`
 | The code was entered but it still says **Waiting…** | The code may have run out at plex.tv. Back out, open Plex again for a fresh code, and enter that one |
 | **FAILED TO LOAD ACCOUNT: …** | plex.tv answered the sign-in but not the account's profiles; try again |
 | **Select Server** is empty | The account has no server it can use, or none of a server's addresses answered and it offered no other. Check the server is running and signed in to the same account (or shared with it) |
-| **NO SERVER CONFIGURED**, or **LOAD LIBRARIES FAILED: …** | The server's saved address doesn't answer: the server is off, or it moved (new IP). **Settings → Plex → Sign out**, then sign in again: the addresses are tried afresh |
+| **NO SERVER CONFIGURED**, or **LOAD LIBRARIES FAILED: …** | The server's saved address doesn't answer: the server is off, or it moved (new IP). **Settings → TV / Movie → Plex → Sign out**, then sign in again: the addresses are tried afresh |
 | **SERVER REJECTED THIS DEVICE. PLEASE TRY AGAIN.** | The server refused the token even after OSD/OS fetched new ones. Try again; if it stays, sign out and in |
 | **LOADING...** for half a minute, then an error such as **LOAD LIBRARY FAILED: …** | The server stopped answering (a NAS gone to sleep, the Wi-Fi dropped): OSD/OS gives a request up after 30 seconds without a byte from the server. Wake the server or check the network, then open the list again |
 | **PLEX DID NOT ISSUE A SERVER TOKEN FOR THIS DEVICE…** | plex.tv gave no token the server accepts. Sign out and sign in again |
 | Back on the sign-in screen by itself | The device was removed from your Plex account, or its sign-in couldn't be renewed. Sign in again |
 | **INCORRECT PIN** | The profile's PIN is wrong; ◄ ► to the digit, ▲ ▼ to fix it |
-| A library is missing | Settings → Plex → Libraries; music and photo libraries are never listed |
+| A library is missing | Settings → TV / Movie → Plex → Libraries; music and photo libraries are never listed |
 | A video stutters or buffers | On a weak or remote connection (a relay address is slow), pick a lower **Video Quality**. With a transcode, the server's processor may be the limit: try **Direct Play**. How the Pi decodes is covered in [Playback and mpv](https://github.com/mehmetraif/OSD-OS/wiki/Playback-and-mpv) |
 | A video always transcodes | Video Quality isn't Direct Play. On Direct Play, a file mpv couldn't play is transcoded by itself after the first try fails |
 | Subtitles show though they're OFF | They are forced subtitles, for dialogue in another language; they show with OFF too |

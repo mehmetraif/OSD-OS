@@ -11,7 +11,8 @@
 -- logo-height), and it is laid over the picture with overlay-add. It stands 7%
 -- of the output's height tall and 10% of the picture's width and height in
 -- from the picture's corner (the letterbox bars are outside it), inside a
--- CRT's safe area, and follows the output's size.
+-- CRT's safe area, and follows the output's size. On a tube's pixels, which
+-- aren't square, it keeps its shape.
 local assdraw = require 'mp.assdraw'
 local options = require 'mp.options'
 
@@ -84,9 +85,15 @@ local function draw()
         return
     end
 
+    -- A tube's pixels aren't square (720×240 shown 4:3): mpv gives the
+    -- output's pixel aspect (osd-dimensions' par, how many of its pixels
+    -- across make one down) and shapes text for it, not drawings, so the
+    -- drawing is made that much wider.
+    local par = (dims.par and dims.par > 0) and dims.par or 1
     local h = H * 0.07
     local s = h / ART.h
-    local w = ART.w * s
+    local sx = s * par
+    local w = ART.w * sx
 
     local ass = assdraw.ass_new()
     for _, corner in ipairs(corners) do
@@ -100,7 +107,7 @@ local function draw()
             ass:draw_start()
             for _, contour in ipairs(shape.contours) do
                 for i, p in ipairs(contour) do
-                    local x = x0 + (p[1] - ART.x) * s
+                    local x = x0 + (p[1] - ART.x) * sx
                     local y = y0 + (p[2] - ART.y) * s
                     if i == 1 then
                         ass:move_to(x, y)

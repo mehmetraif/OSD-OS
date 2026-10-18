@@ -49,7 +49,7 @@ The OSD/OS image is Raspberry Pi OS Lite (64-bit), based on Debian 13 "trixie" a
 - A microSD card. The system keeps 8 GiB of it; the rest becomes the film partition, as long as at least 2 GiB is left over: on a 16 GB card that is about 6 GiB for films, on an 8 GB card none.
 - A TV. The image starts on HDMI. For a CRT, it switches to composite (or SCART RGB on the GPIO pins) in Settings → Display Output, or you can pick the output on the card before the first boot ([below](https://github.com/mehmetraif/OSD-OS/wiki/Installation#composite-or-scart-from-the-first-boot)).
 - A USB keyboard, remote or gamepad. A Bluetooth one can be paired later, from Settings → Bluetooth ([Controls](https://github.com/mehmetraif/OSD-OS/wiki/Controls#bluetooth)).
-- A network, if you want the network modules: an Ethernet cable, or Wi-Fi set up while flashing.
+- A network, if you want the network modules: an Ethernet cable, or Wi-Fi, set up while flashing or later in Settings → Wi-Fi.
 
 ### Download
 
@@ -163,7 +163,7 @@ network:
 - `regulatory-domain` is the Wi-Fi country. Raspberry Pi OS keeps Wi-Fi switched off until a country is set.
 - Indent with spaces, never tabs: YAML reads the indentation. Keep the quotes around the name and the password.
 - For an open network, replace the `password:` line with `auth:` and, under it, `key-management: none`; for a hidden one, add `hidden: true` at the same level as `password:`.
-- It is applied on the first boot only. To change the Wi-Fi later, use NetworkManager on the Pi itself, over SSH or from Exit to Terminal: `sudo nmcli device wifi connect "My Home WiFi" password "correct battery horse staple"`.
+- It is applied on the first boot only. To change the Wi-Fi later, use Settings → Wi-Fi, or NetworkManager on the Pi itself, over SSH or from Exit to Terminal: `sudo nmcli device wifi connect "My Home WiFi" password "correct battery horse staple"`.
 
 ### Composite or SCART from the first boot
 
@@ -182,6 +182,8 @@ cp /Volumes/bootfs/osdos-display-crt-pal.txt /Volumes/bootfs/osdos-display.txt  
 | `osdos-display-scart-rgb-ntsc.txt`, `osdos-display-scart-rgb-pal.txt` | SCART RGB on the GPIO pins, 480i / 576i | ✓ | ✓ |
 | `osdos-display-scart-rgb-240p.txt`, `osdos-display-scart-rgb-288p.txt` | SCART RGB on the GPIO pins, 240p / 288p | ✓ | |
 | `osdos-display-jamma-240p.txt` | A JAMMA arcade cabinet through a Raspberry Pi to JAMMA board in RGB-Pi's layout, 240p: its picture, sound and controls | ✓ | ✓ |
+| `osdos-display-jamma-240p-native.txt`, `-240p-super.txt`, `-288p.txt`, `-288p-super.txt`, `-25k.txt`, `-31k.txt` | The same board in its other modes: 320×240, 1920×240, 720×288, 1920×288, and a 25 kHz or 31 kHz monitor's (only for such a monitor) | ✓ | ✓ |
+| `osdos-display-jamma-480i.txt`, `osdos-display-jamma-576i.txt` | The same board interlaced, 480i / 576i | ✓ | |
 
 A Pi 5's SCART RGB also needs a line on the system partition (`options drm_rp1_dpi force_csync=1` in `/etc/modprobe.d/osdos-display.conf`), which Windows and macOS can't reach: choose it in Settings → Display Output instead, which writes it. Once running, Settings → Display Output switches outputs, and keeps a new one only when you confirm it on its own screen. [Display Output](https://github.com/mehmetraif/OSD-OS/wiki/Display-Output) has the cables and every detail.
 
@@ -218,7 +220,7 @@ The image's own user is `pi`, and OSD/OS runs as that user. You only need to log
   ssh your-user@osdos.local
   ```
 
-<img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/screenshots/settings-modules.png" width="100%" alt="Settings, with the IP address (192.0.2.2) in its title bar" />
+<img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/screenshots/settings.png" width="100%" alt="Settings, with the IP address (192.0.2.2) in its title bar" />
 
 Once in, `journalctl -u osdos -b` shows OSD/OS's log for this boot ([Troubleshooting](https://github.com/mehmetraif/OSD-OS/wiki/Troubleshooting)).
 
@@ -406,12 +408,13 @@ Installing the dependencies can take a while; over Wi-Fi, about 20 minutes. Then
 |---|---|
 | Finds the release | The latest release's tag from GitHub's API, or the tag you gave it |
 | Replaces 240-MP | An install from OSD/OS's days as 240-MP (`/opt/240mp`, `240mp.service`) is removed, so the two never fight over the screen. OSD/OS moves 240-MP's data folder over to its own on its first start |
-| Installs packages | `libqt6quick6 libqt6qml6 libqt6opengl6 libqt6network6 libqt6svg6 qt6-svg-plugins qt6-wayland qml6-module-qtquick qml6-module-qtquick-controls qml6-module-qtquick-window qml6-module-qtquick-effects libsdl2-2.0-0 libpcsclite1 libmpv2 mpv fluidsynth timgm6mb-soundfont openmpt123` |
+| Installs packages | `libqt6quick6 libqt6qml6 libqt6opengl6 libqt6network6 libqt6svg6 qt6-svg-plugins qt6-wayland qml6-module-qtquick qml6-module-qtquick-controls qml6-module-qtquick-window qml6-module-qtquick-effects libsdl2-2.0-0 libpcsclite1 libmpv2 mpv fluidsynth timgm6mb-soundfont openmpt123 polkitd` |
 | A udev rule | `/etc/udev/rules.d/99-osdos-tty.rules`: lets the `tty` group open `/dev/tty0`, for handing the screen to mpv and back |
 | The `bluetooth` group | Adds the user OSD/OS runs as, so Settings → Bluetooth can talk to BlueZ |
+| A polkit rule | With a service, a new one or one kept: `/etc/polkit-1/rules.d/50-osdos-networkmanager.rules`, which lets the user the service runs OSD/OS as scan, join and forget networks and turn Wi-Fi on and off through NetworkManager for Settings → Wi-Fi. The service runs outside any login session, where polkit would otherwise ask for a password nobody can type |
 | Unpacks the app | `OSD-OS-<version>-linux-arm64.tar.gz` into `/opt/osdos`, owned by the user OSD/OS runs as, so in-app updates can replace it. It warns when that user still can't write there, as in-app updates then won't apply |
 | The launcher | `/usr/local/bin/osdos`: applies a downloaded update, then starts OSD/OS on Wayland or X11 when there is a desktop, or straight on the screen (Qt's EGLFS) when there isn't, on the right display card (a Pi 5's video card is not always the first) |
-| The service | Only after **y**: `/etc/systemd/system/osdos.service`, its stop helper `/usr/local/bin/osdos-stop`, `osdos-terminal.service` for Exit to Terminal, and `osdos-display.socket` with `osdos-display@.service` for Display Output's At Next Start. The console login on `tty1` is masked (`getty@tty1`, `autovt@`), so the screen is OSD/OS's. On the OSD/OS image the image's own `osdos.service` is left as it is, and the rest is written afresh |
+| The service | Only after **y**: `/etc/systemd/system/osdos.service`, its stop helper `/usr/local/bin/osdos-stop`, `osdos-terminal.service` for Exit to Terminal, `osdos-display.socket` with `osdos-display@.service` for Display Output's At Next Start, and `osdos-wifi.socket` with `osdos-wifi@.service` for Settings → Wi-Fi's country. The console login on `tty1` is masked (`getty@tty1`, `autovt@`), so the screen is OSD/OS's. On the OSD/OS image the image's own `osdos.service` is left as it is, and the rest is written afresh |
 
 #### The autostart service
 
@@ -423,8 +426,8 @@ The service starts OSD/OS after the rest of the system (`multi-user.target`), as
 | 10 | Quit → Exit to Terminal | A login prompt on `tty1`; the service stays installed for the next boot |
 | 11 | Settings → Update → Apply & Restart | Nothing: systemd starts OSD/OS again through the launcher, which applies the update |
 | 12 | Quit → Restart | The Pi reboots |
-| 20–30 | Settings → Display Output (the OSD/OS image) | A display preset is written, then the Pi reboots |
-| 40–50 | Settings → Display Output → Switch and Power Off | A display preset is written, then the Pi powers off |
+| 20–38 | Settings → Display Output (the OSD/OS image) | A display preset is written, then the Pi reboots |
+| 40–58 | Settings → Display Output → Switch and Power Off | A display preset is written, then the Pi powers off |
 | 129, 130, 143 (SIGHUP, SIGINT, SIGTERM, which OSD/OS turns into these), or SIGKILL | `systemctl stop` / `restart`, a shutdown | Nothing: the Pi stays on |
 | Anything else: a crash (SIGSEGV, SIGABRT…), an error exit such as 1 | | Nothing: the Pi stays on, and systemd starts OSD/OS again five seconds later. After three starts in two minutes it gives up and starts `osdos-terminal.service`: a login prompt on `tty1`, where `sudo systemctl reset-failed osdos` and `sudo systemctl start osdos` try again |
 
@@ -466,11 +469,13 @@ osdos
 
 #### On a CRT: picture and sound
 
-- **A picture slightly squeezed or stretched.** mpv assumes square pixels, which a CRT's aren't. Create `~/.config/mpv/mpv.conf` (for the user OSD/OS runs as) with the line below, and tune the number against a 4:3 test pattern; [pixel aspect ratio](https://en.wikipedia.org/wiki/Pixel_aspect_ratio#Introduction) has the values for NTSC and PAL:
+- **A picture slightly squeezed or stretched.** On a CRT's display output (or off the image, a TV's mode: 288 lines or fewer at least twice as many pixels wide, or 720×480 or 720×576) OSD/OS tells mpv the screen is 4:3, whose pixels aren't square. A tube whose picture still isn't quite right can have its shape tuned in `~/.config/mpv/mpv.conf` (for the user OSD/OS runs as) against a 4:3 test pattern: start from OSD/OS's 4:3 and raise or lower it until a circle is round. A line there takes the place of OSD/OS's 4:3:
 
   ```ini
-  monitorpixelaspect=0.888889
+  monitoraspect=1.333
   ```
+
+  `monitoraspect` is the screen's shape, the same in every mode; `monitorpixelaspect` is a pixel's, which changes with the mode ([pixel aspect ratio](https://en.wikipedia.org/wiki/Pixel_aspect_ratio#Introduction)). A `monitorpixelaspect=0.888889` line from earlier advice is only right for 720×480: remove it, and OSD/OS gives mpv the screen's shape itself.
 
 - **Composite sound unusually quiet:** `amixer sset PCM 100%`, and `sudo alsactl store` to keep the level across reboots.
 - **No sound at all:** Settings → Audio Output picks the sound card (the AV jack, HDMI or a USB card) where plain ALSA plays, as on Raspberry Pi OS Lite. [Audio Output](https://github.com/mehmetraif/OSD-OS/wiki/Audio-Output) also covers choosing it for the whole system.
@@ -627,10 +632,12 @@ YouTube's yt-dlp is the exception: on the image it replaces itself with its newe
 **On Raspberry Pi OS,** stop and remove the service (if you installed it), then the app, its launcher and its udev rule, and last your settings if you don't want them back:
 
 ```sh
-sudo systemctl disable --now osdos.service osdos-display.socket
+sudo systemctl disable --now osdos.service osdos-display.socket osdos-wifi.socket
 sudo systemctl unmask getty@tty1.service autovt@.service
 sudo rm -f /etc/systemd/system/osdos.service /etc/systemd/system/osdos-terminal.service /usr/local/bin/osdos-stop
 sudo rm -f /etc/systemd/system/osdos-display.socket /etc/systemd/system/osdos-display@.service
+sudo rm -f /etc/systemd/system/osdos-wifi.socket /etc/systemd/system/osdos-wifi@.service
+sudo rm -f /etc/polkit-1/rules.d/50-osdos-networkmanager.rules
 sudo systemctl daemon-reload
 sudo rm -rf /opt/osdos
 sudo rm -f /usr/local/bin/osdos /etc/udev/rules.d/99-osdos-tty.rules
@@ -651,13 +658,13 @@ OSD/OS reads the board's model (`/proc/device-tree/model`) and sets itself up fo
 
 | Board | With OSD/OS | Display driver | mpv's video flags | Settings → Display Output offers (on the image) |
 |---|---|---|---|---|
-| Raspberry Pi 4 | Tested | Fake KMS (`vc4-fkms-v3d`) | `--vo=drm --hwdec=drm-copy,v4l2m2m-copy` | HDMI, composite (AV jack), SCART RGB 480i/576i/240p/288p, JAMMA 240p |
-| Raspberry Pi 5 | The owner also tests on one (8 GB) | Full KMS (`vc4-kms-v3d`) | `--vo=drm --hwdec=auto-safe` | HDMI, composite (TV pads, or GPIO), SCART RGB 480i/576i, JAMMA 240p |
+| Raspberry Pi 4 | Tested | Fake KMS (`vc4-fkms-v3d`) | `--vo=drm --hwdec=drm-copy,v4l2m2m-copy` | HDMI, composite (AV jack), SCART RGB 480i/576i/240p/288p, JAMMA 240p/288p/480i/576i/25 kHz/31 kHz |
+| Raspberry Pi 5 | The owner also tests on one (8 GB) | Full KMS (`vc4-kms-v3d`) | `--vo=drm --hwdec=auto-safe` | HDMI, composite (TV pads, or GPIO), SCART RGB 480i/576i, JAMMA 240p/288p/25 kHz/31 kHz |
 | Raspberry Pi 3B / 3B+ | Not tested with OSD/OS | Fake KMS (`vc4-fkms-v3d`) | `--vo=gpu --gpu-context=drm --hwdec=v4l2m2m` | HDMI, composite (AV jack) |
 | Raspberry Pi 400 / 500 | Not tested | As a Pi 4 / Pi 5 | As a Pi 4 / Pi 5 | As a Pi 4 / Pi 5, without the AV jack's or the TV pads' composite |
 | Any other board | Not tested | | `--vo=drm --hwdec=auto-safe` | Not offered |
 
-Of the outputs, only the Pi 4's HDMI and composite have been tried on a TV. The others are starting points; a new output stays only when you keep it on its own screen, so one that shows nothing comes back to the old one by itself after 15 seconds.
+Of the outputs, only the Pi 4's HDMI and composite have been tried on a TV. The others are starting points; a new output stays only when you keep it on its own screen, so one that shows nothing comes back to the old one by itself after 30 seconds.
 
 ### How a Raspberry Pi 5 differs
 
@@ -671,7 +678,7 @@ Of the outputs, only the Pi 4's HDMI and composite have been tried on a TV. The 
 
 ### The other boards
 
-- **Raspberry Pi 3B / 3B+.** OSD/OS keeps the settings 240-MP's author used on a Pi 3. Its mpv flags send the video straight to a hardware overlay, which keeps 1080p H.264 smooth but can't crop: Settings → **1080p Playback** (shown on a Pi 3 only) trades that the other way, and [Playback and mpv](https://github.com/mehmetraif/OSD-OS/wiki/Playback-and-mpv) shows how to set the flags yourself (`mpv_video_args`). Some USB flash drives hang a Pi 3 booting from USB: if it won't start from one, try an SD card first.
+- **Raspberry Pi 3B / 3B+.** OSD/OS keeps the settings 240-MP's author used on a Pi 3. Its mpv flags send the video straight to a hardware overlay, which keeps 1080p H.264 smooth but can't crop: Settings → TV / Movie → **1080p Playback** (shown on a Pi 3 only) trades that the other way, and [Playback and mpv](https://github.com/mehmetraif/OSD-OS/wiki/Playback-and-mpv) shows how to set the flags yourself (`mpv_video_args`). Some USB flash drives hang a Pi 3 booting from USB: if it won't start from one, try an SD card first.
 - **Raspberry Pi 400 / 500** are read as a Pi 4 and a Pi 5, without the AV jack or TV pads they don't have.
 - **Boards without a 64-bit Raspberry Pi OS** (the Pi 1 and the first Pi Zero, for example) can't run OSD/OS: the image and the app are 64-bit (arm64), and `install.sh` stops on anything else.
 - **Other computers:** an Apple Silicon Mac, or an x86_64 Linux machine with the AppImage (above).

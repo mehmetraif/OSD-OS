@@ -17,7 +17,7 @@ The module is in [modules/emby](https://github.com/mehmetraif/OSD-OS/tree/main/m
 
 ## Turning it on
 
-Emby is off until you turn it on: **Settings → Emby → Enabled** (in the Modules section of Settings). It then appears on the main menu. Its other settings show once you have signed in.
+Emby is off until you turn it on: **Settings → TV / Movie → Emby → Enabled**. It then appears on the main menu. Its other settings show once you have signed in.
 
 ## Signing in
 
@@ -93,7 +93,7 @@ In the server's list of devices, OSD/OS appears under the machine's host name, w
 
 Once signed in, these work exactly as in the Jellyfin module, so its page describes them:
 
-- [The home screen](https://github.com/mehmetraif/OSD-OS/wiki/Jellyfin#the-home-screen): `EMBY | <SERVER> (<USER>)`, **Continue Watching** and **Next Up** when they have something (up to 20 each), then the Movies, Shows, Home Videos and Collections libraries that are ON in **Settings → Emby → Libraries**.
+- [The home screen](https://github.com/mehmetraif/OSD-OS/wiki/Jellyfin#the-home-screen): `EMBY | <SERVER> (<USER>)`, **Continue Watching** and **Next Up** when they have something (up to 20 each), then the Movies, Shows, Home Videos and Collections libraries that are ON in **Settings → TV / Movie → Emby → Libraries**.
 - [Browsing](https://github.com/mehmetraif/OSD-OS/wiki/Jellyfin#browsing): films and series A to Z, home videos folder by folder, collections by kind, oldest first; a library's list and a folder's kept for 10 minutes, so going back to one is quick.
 - [Browsing by letter](https://github.com/mehmetraif/OSD-OS/wiki/Jellyfin#browsing-by-letter): ► to the letters in the Movies, Shows and Home Videos lists.
 - [Series and seasons](https://github.com/mehmetraif/OSD-OS/wiki/Jellyfin#series-and-seasons): PLAY on a series opens the episode the server's Next Up gives; on a season, its part-watched, first unwatched or first episode.
@@ -143,7 +143,7 @@ Both settings show once you are signed in, whether or not the server has markers
 
 ## Settings
 
-Settings → Emby. Everything but Enabled and Scaling shows only once you have signed in.
+Settings → TV / Movie → Emby. Everything but Enabled and Scaling shows only once you have signed in.
 
 | Setting | Values | Default | What it does | Config key |
 |---|---|---|---|---|
@@ -154,7 +154,7 @@ Settings → Emby. Everything but Enabled and Scaling shows only once you have s
 | Autoplay Next Episode | ON, OFF | OFF | Plays the series' next episode when one ends | `modules.com.osdos.emby.autoplay_next_episode` |
 | Intro Skip | Off, Auto, Button | Off | What happens at an intro the server has marked | `modules.com.osdos.emby.intro_skip` |
 | Credit Skip | Off, Auto, Button | Off | What happens at credits the server has marked | `modules.com.osdos.emby.outro_skip` |
-| Scaling | Default, Letterbox, 14:9, Pan & Scan, Anamorphic | Default | How a 16:9 picture fills the 4:3 screen in Emby; Default follows Settings → Scaling | `modules.com.osdos.emby.video_scaling` |
+| Scaling | Default, Letterbox, 14:9, Pan & Scan, Anamorphic | Default | How a 16:9 picture fills the 4:3 screen in Emby; Default follows Settings → TV / Movie → Scaling | `modules.com.osdos.emby.video_scaling` |
 | Sign out | (an action) | | Removes this device from the server, ends the session and forgets it here | |
 
 ### How the values are saved
@@ -217,7 +217,7 @@ The Emby Connect token is used for the sign-in only and never saved; neither is 
 | **INCORRECT USERNAME OR PASSWORD** | The server's own account, not the emby.media one (that is Emby Connect) |
 | **NO SERVERS LINKED TO THIS ACCOUNT** | Link the server to your emby.media account in the server's user settings, or sign in with Local Server |
 | **SERVER EXCHANGE FAILED (HTTP …)** | The server's address from Emby Connect doesn't answer from the device (HTTP 0: nothing answered), or refused the account; try another server on the list, or Local Server with the address you know works |
-| The home screen stays on **LOADING...** | The server didn't answer (the log has `LOAD LIBRARIES FAILED`), or there is nothing to list: no Movies, Shows, Home Videos or Collections library is ON in Settings → Emby → Libraries, and nothing to continue |
+| The home screen stays on **LOADING...** | The server didn't answer (the log has `LOAD LIBRARIES FAILED`), or there is nothing to list: no Movies, Shows, Home Videos or Collections library is ON in Settings → TV / Movie → Emby → Libraries, and nothing to continue |
 | Back on the sign-in screen by itself | The server stopped accepting the token (the device was removed on the server). Sign in again |
 | A Dolby Vision film transcodes on Direct Play | On purpose: mpv can't show Dolby Vision, so the server makes SDR of it |
 | A film with many subtitles is slow to start | Only the subtitle you chose is fetched; with subtitles Off it starts straight away |

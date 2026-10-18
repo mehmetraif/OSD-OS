@@ -7,6 +7,7 @@
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QKeyEvent>
+#include <QMouseEvent>
 #include <QProcessEnvironment>
 #include <QQuickItem>
 #include <QQuickWindow>
@@ -17,6 +18,7 @@
 #include <QWindow>
 
 #include <SDL.h>
+#include <functional>
 #include <memory>
 #ifdef Q_OS_LINUX
 #include <linux/input-event-codes.h>
@@ -623,6 +625,159 @@ private slots:
         send(QEvent::KeyPress, false);
         send(QEvent::KeyRelease, false);
         QCOMPARE(keysOf(keys), QStringList({ "DOWN" }));
+    }
+
+    // A remote's OK, however it comes, is Select / OK: keypad Enter, which
+    // most views don't take, and the Select and OK keys (Qt::Key_Select from
+    // Qt's own evdev keymap; from libinput's, which has no symbol for them, a
+    // key of 0 known by its scan code), once per press. On the console a
+    // mouse's left and right buttons are Select / OK and Back, as an air-mouse
+    // remote's OK is a left click while its pointer is on; elsewhere, and
+    // once a click is bound to something else, a click does what it is bound
+    // to.
+    void remoteOk() {
+        AppCore core(m_app.path(), m_data.path());
+        InputManager im(m_data.path(), &core);
+        QSignalSpy keys(&im, &InputManager::mpvKeyRequested);
+        QWindow window;
+        // Pressed, held on as Qt repeats it, and let go.
+        const auto key = [&window](int qtKey, quint32 scanCode = 0, bool held = false) {
+            QKeyEvent press(QEvent::KeyPress, qtKey, Qt::NoModifier, scanCode, 0, 0);
+            QCoreApplication::sendEvent(&window, &press);
+            if (held) {
+                QKeyEvent repeat(QEvent::KeyPress, qtKey, Qt::NoModifier, scanCode, 0, 0, QString(), true);
+                QCoreApplication::sendEvent(&window, &repeat);
+            }
+            QKeyEvent release(QEvent::KeyRelease, qtKey, Qt::NoModifier, scanCode, 0, 0);
+            QCoreApplication::sendEvent(&window, &release);
+        };
+        const auto click = [&window](Qt::MouseButton button) {
+            QMouseEvent press(QEvent::MouseButtonPress, QPointF(1, 1), QPointF(1, 1), button, button, Qt::NoModifier);
+            QCoreApplication::sendEvent(&window, &press);
+            QMouseEvent release(QEvent::MouseButtonRelease, QPointF(1, 1), QPointF(1, 1), button, Qt::NoButton,
+                                Qt::NoModifier);
+            QCoreApplication::sendEvent(&window, &release);
+        };
+        const int leftClick = 0x03000000 + int(Qt::LeftButton);
+        const int rightClick = 0x03000000 + int(Qt::RightButton);
+
+        QStringList oks;
+        key(Qt::Key_Enter, 0, true);
+        key(Qt::Key_Select, 0, true);
+        oks << "ENTER" << "ENTER";
+#ifdef Q_OS_LINUX
+        key(0, KEY_OK + 8, true);
+        key(0, KEY_SELECT + 8);
+        oks << "ENTER" << "ENTER";
+        // Another key without a symbol is nothing.
+        key(0, KEY_VENDOR + 8);
+#endif
+        QCOMPARE(keysOf(keys), oks);
+        // Return goes on to the views as it is.
+        keys.clear();
+        key(Qt::Key_Return);
+        QCOMPARE(keysOf(keys), QStringList());
+        // The Select key keeps what it does, as Enter does.
+        QCOMPARE(outcome(im.keyCapture(QString(), Qt::Key_Select, "back")), QString("already"));
+#ifdef Q_OS_LINUX
+        // A wait for a press takes libinput's OK as a remote's OK button, which
+        // keeps what it does too.
+        QSignalSpy captured(&im, &InputManager::auxButtonPressed);
+        im.setRemapCapture(true);
+        key(0, KEY_OK + 8);
+        im.setRemapCapture(false);
+        QCOMPARE(captured.count(), 1);
+        const int ok = captured.at(0).at(0).toInt();
+        QCOMPARE(ok, 0x02000000 + KEY_OK);
+        QCOMPARE(im.keyDisplayName(ok), QString("OK"));
+        QCOMPARE(outcome(im.keyCapture(QString(), ok, "up")), QString("already"));
+        QCOMPARE(keysOf(keys), QStringList());
+#endif
+
+        // With a desktop a click is nothing until it is bound.
+        click(Qt::LeftButton);
+        click(Qt::RightButton);
+        QCOMPARE(keysOf(keys), QStringList());
+        QCOMPARE(outcome(im.keyCapture(QString(), rightClick, "up")), QString("set"));
+
+        // On the console: Select / OK and Back, the middle button nothing.
+        im.setClickActions(true);
+        click(Qt::LeftButton);
+        click(Qt::RightButton);
+        click(Qt::MiddleButton);
+        QCOMPARE(keysOf(keys), QStringList({ "ENTER", "ESC" }));
+        // A wait for a press keeps them: the right one ends it, as Back does.
+        QCOMPARE(outcome(im.keyCapture(QString(), leftClick, "back")), QString("already"));
+        QCOMPARE(outcome(im.keyCapture(QString(), rightClick, "up")), QString("cancel"));
+        // Bound to something else, the click does that.
+        core.save_setting(QString(), "remote_keymap.down", leftClick);
+        keys.clear();
+        click(Qt::LeftButton);
+        QCOMPARE(keysOf(keys), QStringList({ "DOWN" }));
+    }
+
+    // A key that stands for an action is let go as the action's key too, as
+    // the Arcade screen plays its game once select is let go: keypad Enter as
+    // Return, a key bound to Down as Down, Right Shift as Escape, and on the
+    // console a left click as Return.
+    void standInLetGo() {
+        AppCore core(m_app.path(), m_data.path());
+        InputManager im(m_data.path(), &core);
+        QQuickWindow window;
+        window.resize(64, 48);
+        window.show();
+        window.requestActivate();
+        QTRY_VERIFY(window.isActive());
+        im.setTargetWindow(&window);
+        im.setClickActions(true);
+        core.save_setting(QString(), "remote_keymap.down", int(Qt::Key_F7));
+        // The keys as the window gets them, pressed and let go.
+        struct Catcher : QObject {
+            QList<int> pressed, released;
+            bool eventFilter(QObject *, QEvent *event) override {
+                if (event->type() == QEvent::KeyPress)
+                    pressed << static_cast<QKeyEvent *>(event)->key();
+                else if (event->type() == QEvent::KeyRelease)
+                    released << static_cast<QKeyEvent *>(event)->key();
+                return false;
+            }
+        } catcher;
+        window.installEventFilter(&catcher);
+        // What came of an input pressed and let go: the keys pressed, then
+        // those let go.
+        const auto came = [&catcher](const std::function<void()> &input) {
+            catcher.pressed.clear();
+            catcher.released.clear();
+            input();
+            // Without a release, the comparison says so.
+            (void)QTest::qWaitFor([&catcher] { return !catcher.released.isEmpty(); }, 1000);
+            return QList<QList<int>>{ catcher.pressed, catcher.released };
+        };
+        const auto key = [&window](int qtKey, quint32 scanCode = 0) {
+            for (const QEvent::Type type : { QEvent::KeyPress, QEvent::KeyRelease }) {
+                QKeyEvent event(type, qtKey, Qt::NoModifier, scanCode, 0, 0);
+                QCoreApplication::sendEvent(&window, &event);
+            }
+        };
+        const QList<QList<int>> enter{ { Qt::Key_Return }, { Qt::Key_Return } };
+
+        QCOMPARE(came([&] { key(Qt::Key_Enter); }), enter);
+        QCOMPARE(came([&] { key(Qt::Key_F7); }), (QList<QList<int>>{ { Qt::Key_Down }, { Qt::Key_Down } }));
+#ifdef Q_OS_LINUX
+        QCOMPARE(came([&] { key(Qt::Key_Shift, KEY_RIGHTSHIFT + 8); }),
+                 (QList<QList<int>>{ { Qt::Key_Escape }, { Qt::Key_Escape } }));
+#endif
+        QCOMPARE(came([&] {
+                     QMouseEvent press(QEvent::MouseButtonPress, QPointF(1, 1), QPointF(1, 1), Qt::LeftButton,
+                                       Qt::LeftButton, Qt::NoModifier);
+                     QCoreApplication::sendEvent(&window, &press);
+                     QMouseEvent release(QEvent::MouseButtonRelease, QPointF(1, 1), QPointF(1, 1),
+                                         Qt::LeftButton, Qt::NoButton, Qt::NoModifier);
+                     QCoreApplication::sendEvent(&window, &release);
+                 }),
+                 enter);
+        window.removeEventFilter(&catcher);
+        im.setTargetWindow(nullptr);
     }
 
     // The same model twice is one line, and one set of settings for both.

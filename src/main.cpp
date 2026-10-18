@@ -39,6 +39,7 @@
 #include "audio/AudioOutput.h"
 #include "audio/MenuMusic.h"
 #include "bluetooth/BluetoothManager.h"
+#include "wifi/WifiManager.h"
 #include "util/ExecPath.h"
 #include "util/DisplayHandoff.h"
 #include "util/OsdIconProvider.h"
@@ -245,10 +246,21 @@ int main(int argc, char *argv[]) {
     AudioOutput         audioOutput(&appCore);   // Settings → Audio Output (ALSA)
     MenuMusic           menuMusic(dataRoot);     // Settings → Menu Music, or a theme's
     BluetoothManager    bluetoothManager;  // Settings → Bluetooth (BlueZ on Linux)
+    WifiManager         wifiManager;       // Settings → Wi-Fi (NetworkManager on Linux)
 
     // Playback follows the UI's display: mpv gets a --fs-screen* arg derived
     // from this on macOS / desktop Linux (no-op at index 0 and on headless).
     mpvController.setTargetDisplay(displayIndex, targetScreen ? targetScreen->name() : QString());
+    // A TV's tube shows the picture 4:3 whatever its mode's pixels: the
+    // menus (Main.qml's stage), the videos and the games keep their shapes.
+    const QSize screenPixels = targetScreen
+        ? targetScreen->geometry().size() * targetScreen->devicePixelRatio() : QSize();
+    const bool tube = DisplayOutput::isTube(displayOutput.current(), screenPixels);
+    qInfo("[main] display %dx%d, preset %s: %s", screenPixels.width(), screenPixels.height(),
+          displayOutput.current().isEmpty() ? "none" : qPrintable(displayOutput.current()),
+          tube ? "a TV's tube, drawn 4:3" : "square pixels");
+    mpvController.setScreen(tube, screenPixels);
+    arcadeBackend.setScreen(tube, screenPixels);
 
     // When the Qt window is inactive (fullscreen mpv has OS focus on macOS),
     // gamepad actions bypass QML and drive mpv directly over IPC.
@@ -291,8 +303,10 @@ int main(int argc, char *argv[]) {
     ctx->setContextProperty("audioOutput",   &audioOutput);
     ctx->setContextProperty("menuMusic",     &menuMusic);
     ctx->setContextProperty("bluetoothManager", &bluetoothManager);
+    ctx->setContextProperty("wifiManager", &wifiManager);
     // Whether a child has the screen (Main.qml: root.screenHandedOff).
     ctx->setContextProperty("displayHandoff", &displayHandoff);
+    ctx->setContextProperty("screenIsTube", tube);
 #ifdef Q_OS_MAC
     // Target display geometry in Qt coordinates (top-left origin), so the QML
     // Window bindings position onto the chosen screen. The native fullscreen
@@ -327,6 +341,9 @@ int main(int argc, char *argv[]) {
     // the QML focus item even when another window (mpv) holds OS focus.
     QQuickWindow *rootWindow = qobject_cast<QQuickWindow *>(engine.rootObjects().first());
     inputManager.setTargetWindow(rootWindow);
+    // Without a desktop a mouse is most likely an air-mouse remote, whose OK
+    // is a left click: there the clicks are Select / OK and Back.
+    inputManager.setClickActions(QGuiApplication::platformName() == QLatin1String("eglfs"));
 
     // On the OS image the services held back for the app start once its first
     // frame is on screen. The timer is a backstop for a platform whose window

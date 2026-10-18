@@ -6,10 +6,11 @@
 // A Raspberry Pi to JAMMA board's controls, as osdos-jamma reads them: two
 // MCP23017 port expanders on I2C, player 1's at 0x20 and player 2's at 0x21,
 // each switch closing a pin to ground. What each pin is (the joystick, the
-// buttons, Start, Coin) is a mapping. The built-in one is the layout RGB-Pi's
-// JAMMA driver reads (joypi, from JammaPi, the driver RGUI-Pi uses), the layout
-// of the boards made for it: RGB-Pi's JAMMA, Crown Arcade's. Apart from the I2C
-// and uinput side, so the tests can drive it.
+// buttons, Start, Coin) is a mapping. The built-in one is the layout Crown
+// Arcade's board is wired in, that of the driver it gives for it
+// (mk_arcade_joystick_rpi): the joystick, Start and Coin, then the buttons in
+// their order. A board wired otherwise takes a mapping file. Apart from the
+// I2C and uinput side, so the tests can drive it.
 namespace jamma {
 
 // What a pin is. The joystick goes out as a digital stick (ABS_X, ABS_Y from
@@ -37,10 +38,11 @@ struct ChipMap {
     Input pins[16] = {};
 };
 
-// The built-in mapping, the same on both expanders, as RGB-Pi's driver reads
-// it: GPA0-3 the joystick (up, down, left, right), GPA4 its "select" (mode),
-// GPA5 start, GPA6 coin, GPA7 its "alt" (z); the buttons from GPB7 down,
-// button 1 to 6 on GPB7 to GPB2 (a, b, x, y, tl, tr), then GPB1 tl2, GPB0 tr2.
+// The built-in mapping, the same on both expanders, in the order Crown
+// Arcade's board has them: GPA0-3 the joystick (up, down, left, right), GPA4
+// start, GPA5 coin, then the buttons from GPA6 up, button 1 to 6 on GPA6 to
+// GPB3 (a, b, x, y, tl, tr), 7 and 8 on GPB4 and GPB5 (tl2, tr2), and GPB6 z,
+// GPB7 mode.
 ChipMap defaultMap(uint8_t address);
 // "A0".."B7" (or "GPA0".."GPB7") -> 0..15; -1 for anything else.
 int pinFromName(const std::string &name);

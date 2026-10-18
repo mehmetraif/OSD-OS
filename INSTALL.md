@@ -15,7 +15,7 @@ However, if you already have Raspberry Pi OS set up and working for your TV then
 - A RaspberryPi
     - The [Pi 4](https://www.raspberrypi.com/products/raspberry-pi-4-model-b/) fits in a nice sweet spot of performance + composite out and its the model I use daily so its the model I am most familiar with. It supports 1080p H264/HEVC playback well on both a CRT and over HDMI.
     - The [Pi 3B and 3B+](https://www.raspberrypi.com/products/raspberry-pi-3-model-b/) work well too with some caveats...  
-        - The default configuration for Pi 3 supports smooth 1080p H264 playback at the expense of removing crop functionality.  If crop is important for your use case on a Pi 3 then set Settings → **1080p Playback** to Off, with the caveat that 1080p H264 playback will no longer be smooth (720p and below will still work well). [Playback and mpv](https://github.com/mehmetraif/OSD-OS/wiki/Playback-and-mpv) in the wiki explains the two decode paths.
+        - The default configuration for Pi 3 supports smooth 1080p H264 playback at the expense of removing crop functionality.  If crop is important for your use case on a Pi 3 then set Settings → TV / Movie → **1080p Playback** to Off, with the caveat that 1080p H264 playback will no longer be smooth (720p and below will still work well). [Playback and mpv](https://github.com/mehmetraif/OSD-OS/wiki/Playback-and-mpv) in the wiki explains the two decode paths.
         - If you choose to boot a Pi 3/3B+ from USB mass storage instead of SD, some USB flash drives can hang during early boot. If that happens, try an SD card or a different USB drive first before assuming the OSD/OS install is the issue.
     - The [Pi 5](https://www.raspberrypi.com/products/raspberry-pi-5/) also works well but I've only tested over HDMI to a modern TV. The Pi 5 doesn't have a direct composite output port: its composite output is on two pads on the board, which [Display Output](https://github.com/mehmetraif/OSD-OS/wiki/Display-Output) in the wiki covers, along with SCART RGB.
     - What is known about each model is in the wiki's [Installation](https://github.com/mehmetraif/OSD-OS/wiki/Installation#supported-hardware) page. If you have a setup that is working for you and would like to help out others, please tell us in an [issue](https://github.com/mehmetraif/OSD-OS/issues) so it can go in the wiki.
@@ -209,15 +209,16 @@ At this point you can type `osdos` at any time to start up the app.  And if you 
 
 **CRT Ouput**
 
-- If video playback looks like its slightly squeezed/stretched then please try these steps:
+- On a CRT's display output (or a TV's mode off the image: 288 lines or fewer at least twice as many pixels wide, or 720×480 or 720×576) OSD/OS draws for the tube's 4:3, whose pixels aren't square: the menus, the games and the videos, mpv being told the screen is 4:3 (`--monitoraspect=4:3`).
+- If video playback still looks slightly squeezed/stretched on your tube then please try these steps:
     - create an `mpv.conf` file in `~/.config/mpv`
-    - in that file add a line with the following
+    - in that file add a line with the following, the 4:3 OSD/OS gives mpv
         ```
-        monitorpixelaspect=0.888889
+        monitoraspect=1.333
         ```
-- By default, mpv assumes your display has square pixels (a ratio of 1). But for CRT output that ratio can distort the output slightly.
-- `monitorpixelaspect` tells MPV how to set the pixel aspect ratio (PAR) for your particular CRT and `0.888889` is a good starting ratio to try to address that distortion.
-- If that specific ratio doesn't look as you'd like on your CRT then please feel free to tweak it to best work for your set up using a 4:3 test pattern (I recommend adding one to the local files media directory for easy access if you need it).
+    - raise or lower it a little until a circle in a 4:3 test pattern is round (I recommend adding one to the local files media directory for easy access if you need it).
+- A `monitoraspect` (or `monitorpixelaspect`) line there takes the place of the 4:3 OSD/OS gives mpv. `monitoraspect` is the screen's shape, the same in every mode, where `monitorpixelaspect` is a pixel's and so changes with the mode.
+- An earlier version of these steps suggested `monitorpixelaspect=0.888889`. OSD/OS now tells mpv the screen's shape itself, so remove that line: it is only right for 720×480, and in its place OSD/OS stops passing its 4:3.
 - For an explanation on PAR along with other values you can try for both NTSC and PAL set ups; please see [this wiki entry](https://en.wikipedia.org/wiki/Pixel_aspect_ratio#Introduction) and thank you to DVDCreep for the findings [here](https://github.com/anthonycaccese/240-MP/discussions/267) that helped work this out.
 
 **Audio**
@@ -281,10 +282,12 @@ At this point you can type `osdos` at any time to start up the app.  And if you 
 1) If you installed the autostart service, stop and remove it first (stopping it from outside leaves the Pi on):
 
     ```bash
-    sudo systemctl disable --now osdos.service osdos-display.socket
+    sudo systemctl disable --now osdos.service osdos-display.socket osdos-wifi.socket
     sudo systemctl unmask getty@tty1.service autovt@.service
     sudo rm -f /etc/systemd/system/osdos.service /etc/systemd/system/osdos-terminal.service /usr/local/bin/osdos-stop
     sudo rm -f /etc/systemd/system/osdos-display.socket /etc/systemd/system/osdos-display@.service
+    sudo rm -f /etc/systemd/system/osdos-wifi.socket /etc/systemd/system/osdos-wifi@.service
+    sudo rm -f /etc/polkit-1/rules.d/50-osdos-networkmanager.rules
     sudo systemctl daemon-reload
     ```
 

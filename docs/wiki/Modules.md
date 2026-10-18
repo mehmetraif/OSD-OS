@@ -3,9 +3,9 @@
 Everything OSD/OS plays comes in through a module, like the inputs on a VHS deck: each is a source of video, browsed in OSD/OS's own menus and handed to mpv, or, for Netflix and Prime Video, to the service's own player. This page lists them all and shows how to turn them on. Each has a page of its own, with its setup, its settings and examples.
 
 <table>
-<tr><th width="50%">The main menu</th><th width="50%">Settings → Modules</th></tr>
-<tr><td><img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/screenshots/main-menu.png" width="100%" alt="The main menu" /></td><td><img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/screenshots/settings-modules.png" width="100%" alt="Settings → Modules" /></td></tr>
-<tr><td>The modules turned on, like the inputs on a deck. Select opens one; back opens Settings.</td><td>Every module has a row under Modules in Settings, which opens its own settings.</td></tr>
+<tr><th width="50%">The main menu</th><th width="50%">Settings → TV / Movie</th></tr>
+<tr><td><img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/screenshots/main-menu.png" width="100%" alt="The main menu" /></td><td><img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/screenshots/settings-modules.png" width="100%" alt="Settings → TV / Movie: the videos' rows, then the MODULES heading and Ambient:Mode" /></td></tr>
+<tr><td>The modules turned on, like the inputs on a deck. Select opens one; back opens Settings.</td><td>The video modules and Weather have a row each under Modules on TV / Movie's page, which opens their own settings. Arcade and High Scores share the Arcade page, and Scripts is under Modules on Settings' first screen.</td></tr>
 </table>
 
 ## All of them
@@ -29,7 +29,10 @@ Everything OSD/OS plays comes in through a module, like the inputs on a VHS deck
 ## Turning a module on or off
 
 1. On the main menu, press back: Settings opens.
-2. Go down to the **Modules** section and select the module.
+2. Open the module's page:
+   - Ambient:Mode, Emby, Jellyfin, Local Files, Netflix, NFC Reader, Playlists, Plex, Prime Video, Weather or YouTube: select **TV / Movie**, then the module under that page's **Modules** heading;
+   - Arcade or High Scores: select **Arcade**, the page the two share, High Scores' row under its own heading after Arcade's;
+   - Scripts: go down to the **Modules** heading of the first screen and select it.
 3. **Enabled** is its first row: left, right or select turns it on or off. Back on the main menu, which looks for the modules again each time it opens, a module turned on is there.
 
 The rest of that screen is the module's own settings: each module's page lists them. Every setting is saved in `config.json` in the data folder, under the module's id, as in `modules.com.osdos.youtube.enabled`:
@@ -63,10 +66,10 @@ The rest of that screen is the module's own settings: each module's page lists t
 
 ## What the modules share
 
-- **One way to browse.** Local Files, YouTube, Netflix, Prime Video and Arcade open as the same horizontal tree, starting with Recently Watched (Recently Played in Arcade), Favorites and Search. [Using OSD/OS](https://github.com/mehmetraif/OSD-OS/wiki/Using-OSD-OS) shows it.
+- **One way to browse.** Local Files, YouTube, Netflix and Prime Video open as the same horizontal tree, and so does Arcade on its Original screen, starting with Recently Watched (Recently Played in Arcade), Favorites and Search. [Using OSD/OS](https://github.com/mehmetraif/OSD-OS/wiki/Using-OSD-OS) shows it.
 - **Options with ►** on an entry: Add to Favorites, Play at Startup, Add to Playlist, where the module has them.
 - **One player.** Every video but Netflix's and Prime Video's plays through mpv, with the tape loading screen while it starts; a Local Files, YouTube or Playlists video has a menu of its own on back. [Playback and mpv](https://github.com/mehmetraif/OSD-OS/wiki/Playback-and-mpv) covers it.
-- **Scaling** for 16:9 pictures on a 4:3 screen, set for every module in Settings, or for one in its own settings.
+- **Scaling** for 16:9 pictures on a 4:3 screen, set for every module in Settings → TV / Movie, or for one in its own settings.
 
 ## A module of your own
 

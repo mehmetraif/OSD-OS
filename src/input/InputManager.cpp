@@ -64,25 +64,74 @@ bool isRightShift(const QKeyEvent *ke) {
 #endif
 }
 
-// Keys that act once per press however long they are held: Back, Select and
-// Play/Pause. Held, Qt repeats them; a repeated Back opens a screen and leaves
-// it at once (the main menu's Settings), or opens a video's menu and closes
-// it. A Bluetooth keyboard can make it happen without holding: a key whose
-// release comes late, as its first press after it wakes may, looks held.
-// Backspace still repeats, to delete in the on-screen keyboard.
-bool isOneShotKey(int key) {
-    switch (key) {
+// A key event's id, as the remaps and the waits for a press take it: Qt's
+// key, but for a remote's OK and Select keys, which libinput's keymap has no
+// symbol for (a key of 0, its scan code the evdev code plus 8), the id of a
+// remote's button of that code, as a Consumer Control node's is.
+int keyId(const QKeyEvent *ke) {
+#ifdef Q_OS_LINUX
+    if (ke->key() == 0) {
+        const int code = int(ke->nativeScanCode()) - 8;
+        if (code == KEY_OK || code == KEY_SELECT)
+            return kEvdevKeyBase + code;
+    }
+#endif
+    return ke->key();
+}
+
+// A remote's OK that the views don't take for Return (by keyId()): keypad
+// Enter, which most of them don't handle, the Select key, and the OK and
+// Select keys libinput has no symbol for.
+bool isRemoteOk(int id) {
+    switch (id) {
+    case Qt::Key_Enter:
+    case Qt::Key_Select:
+#ifdef Q_OS_LINUX
+    case kEvdevKeyBase + KEY_OK:
+    case kEvdevKeyBase + KEY_SELECT:
+#endif
+        return true;
+    default:
+        return false;
+    }
+}
+
+// Keys that act once per press however long they are held (by keyId()):
+// Back, Select and Play/Pause. Held, Qt repeats them; a repeated Back opens a
+// screen and leaves it at once (the main menu's Settings), or opens a video's
+// menu and closes it. A Bluetooth keyboard can make it happen without
+// holding: a key whose release comes late, as its first press after it wakes
+// may, looks held. Backspace still repeats, to delete in the on-screen
+// keyboard.
+bool isOneShotKey(int id) {
+    if (isRemoteOk(id))
+        return true;
+    switch (id) {
     case Qt::Key_Escape:
     case Qt::Key_Back:
     case Qt::Key_Return:
-    case Qt::Key_Enter:
-    case Qt::Key_Select:
     case Qt::Key_Space:
         return true;
     default:
         return false;
     }
 }
+
+#ifdef Q_OS_LINUX
+// Whose a key event is, by the presses a KeySources was told of as they were
+// read from the nodes: a press takes the latest of its key, a repeat or a
+// release goes to the one holding it, and a release lets go of it.
+QString whoseKey(controllers::KeySources &sources, const QKeyEvent *ke, qint64 now) {
+    const quint32 sc = ke->nativeScanCode();
+    if (ke->type() == QEvent::KeyRelease) {
+        const QString device = sources.heldBy(sc);
+        if (!ke->isAutoRepeat())
+            sources.released(sc);
+        return device;
+    }
+    return ke->isAutoRepeat() ? sources.heldBy(sc) : sources.takePress(sc, now);
+}
+#endif
 
 // What a pad's input is called: input.cfg's label for the button, else its
 // name in the pad's label style.
@@ -465,19 +514,28 @@ QString InputManager::actionName(Action a) {
     return QStringLiteral("none");
 }
 
-// What a key does in the views when nothing is bound to it.
-InputManager::Action InputManager::defaultKeyAction(int qtKey) {
-    switch (qtKey) {
+// What a key does when nothing is bound to it (by keyId()): the views' own
+// keys, a remote's OK and Select keys (isRemoteOk()), and on the console a
+// mouse's left and right buttons (setClickActions()).
+InputManager::Action InputManager::defaultKeyAction(int id) const {
+    switch (id) {
     case Qt::Key_Up:        return Action::Up;
     case Qt::Key_Down:      return Action::Down;
     case Qt::Key_Left:      return Action::Left;
     case Qt::Key_Right:     return Action::Right;
     case Qt::Key_Return:
-    case Qt::Key_Enter:     return Action::Select;
+    case Qt::Key_Enter:
+    case Qt::Key_Select:    return Action::Select;
     case Qt::Key_Escape:
     case Qt::Key_Backspace:
     case Qt::Key_Back:      return Action::Back;
     case Qt::Key_Space:     return Action::PlayPause;
+#ifdef Q_OS_LINUX
+    case kEvdevKeyBase + KEY_OK:
+    case kEvdevKeyBase + KEY_SELECT: return Action::Select;
+#endif
+    case kMouseButtonBase + int(Qt::LeftButton):  return m_clickActions ? Action::Select : Action::None;
+    case kMouseButtonBase + int(Qt::RightButton): return m_clickActions ? Action::Back : Action::None;
     default:                return Action::None;
     }
 }
@@ -1089,10 +1147,13 @@ void InputManager::setRemapCapture(bool active) {
 // key is (m_keySources, eventFilter()). Not a "Consumer Control" node: some
 // remote/keyboard USB combos expose their Consumer Page HID buttons (Home,
 // Back, Menu, the coloured buttons, zoom, media transport...) as a node of
-// their own beside the keyboard's, and Qt's EGLFS/libinput backend doesn't
-// take it for a keyboard, so those buttons never reach QML as QKeyEvents.
-// They are acted on from here, as kEvdevKeyBase + their KEY_* code, through
-// the device's own bindings and the shared remap (m_keyRemap).
+// their own beside the keyboard's. Qt's evdev keyboard handler doesn't read
+// such a node; libinput takes it for a keyboard, but its keymap has no
+// symbol for some of those buttons (OK, Select). They are acted on from
+// here, as kEvdevKeyBase + their KEY_* code, through the device's own
+// bindings, the shared remap (m_keyRemap) and a remote's OK
+// (defaultKeyAction()); Qt's copy of a press taken here is dropped
+// (m_consumerTaken), and one not taken goes on as Qt's key.
 //
 // Looked at again whenever /dev/input changes (a Bluetooth keyboard makes its
 // node as it connects) and, while a node can't be opened yet (udev gives it
@@ -1228,36 +1289,41 @@ void InputManager::readNode(Node *node) {
         }
         const int extendedId = kEvdevKeyBase + ev.code;
         noteController(node->key);
+        // A press taken here, reported to a wait or acted on, is this node's
+        // alone: Qt may have a copy of it too, as libinput takes such a node
+        // for a keyboard, and eventFilter() drops that (m_consumerTaken).
         if (m_remapCapture) {
             // Capture mode: report the button, never act on it. Acting is what
             // must not happen here — finishing a capture writes the binding
             // into m_keyRemap before this function resumes, so a lookup after
             // the emit would fire the action on the very press that bound it.
+            m_consumerTaken.pressed(node->key, ev.code, m_clock.elapsed());
             emit auxButtonPressed(extendedId);
             continue;
         }
         if (capturing(node->key)) {
+            m_consumerTaken.pressed(node->key, ev.code, m_clock.elapsed());
             emit controllerInputCaptured(node->key, QString::number(extendedId), evdevKeyName(ev.code));
             continue;
         }
 
-        Action a = profileAction(node->key, QString::number(extendedId));
-        if (a == Action::None)
-            a = m_keyRemap.value(extendedId, Action::None);
+        const Action a = keyActionOn(node->key, extendedId);
         if (a == Action::None)
             continue;
+        m_consumerTaken.pressed(node->key, ev.code, m_clock.elapsed());
         m_heldInputs.insert(button, a);
         beginPress(a);
     }
 }
 
-// What the keyboards' nodes have read so far, before the key event in hand is
-// looked at: the kernel gives a key to every reader of its node at once, so
-// the press Qt reports is in the node's queue by now.
+// What the nodes have read so far, before the key event in hand is looked at:
+// the kernel gives a key to every reader of its node at once, so the press Qt
+// reports is in the node's queue by now. A Consumer Control node's press is
+// acted on as it is read.
 void InputManager::drainNodes() {
     const QList<Node *> nodes = m_nodes;
     for (Node *node : nodes) {
-        if (!node->consumer && m_nodes.contains(node))
+        if (m_nodes.contains(node))
             readNode(node);
     }
 }
@@ -1267,8 +1333,10 @@ void InputManager::closeNode(Node *node) {
     // Gone, its releases may never be read: what it holds is let go here.
     releaseHeld(node->path);
     const QString key = node->key;
-    if (std::none_of(m_nodes.cbegin(), m_nodes.cend(), [&key](const Node *n) { return n->key == key; }))
+    if (std::none_of(m_nodes.cbegin(), m_nodes.cend(), [&key](const Node *n) { return n->key == key; })) {
         m_keySources.forget(key);
+        m_consumerTaken.forget(key);
+    }
     if (node->notifier) {
         node->notifier->setEnabled(false);
         node->notifier->deleteLater();
@@ -1289,6 +1357,7 @@ QString InputManager::evdevKeyName(int linuxCode) {
     return QStringLiteral("Button %1").arg(linuxCode);
 #else
     switch (linuxCode) {
+    case KEY_OK:          return QStringLiteral("OK");
     case KEY_HOMEPAGE:    return QStringLiteral("Home");
     case KEY_BACK:        return QStringLiteral("Back");
     case KEY_MENU:        return QStringLiteral("Menu");
@@ -1588,6 +1657,15 @@ void InputManager::deliverPress(Action a, bool autoRepeat) {
         emit mpvKeyRequested(mpvKeyForAction(a));
 }
 
+// A key that stood for an action (eventFilter()) let go: the action's key is
+// let go too, as a view that acts on the release (the Arcade screen's select)
+// waits for it. A key isn't held as a pad's button is (m_heldActions): the
+// system repeats it itself. mpv's keypress has no release.
+void InputManager::deliverRelease(Action a, bool autoRepeat) {
+    if (windowActive())
+        postKey(qtKeyForAction(a), QEvent::KeyRelease, autoRepeat);
+}
+
 void InputManager::onRepeatDelayElapsed() {
     if (m_heldDirection == Action::None)
         return;
@@ -1720,10 +1798,13 @@ bool InputManager::eventFilter(QObject *obj, QEvent *event) {
     const QEvent::Type type = event->type();
 
     // Some remotes wire their center/OK button as a literal mouse click (see
-    // scanNodes()'s comment for the sibling-devices story).
+    // scanNodes()'s comment for the sibling-devices story): an air mouse's OK
+    // is a left click while its pointer is on.
     // Qt still delivers that as an ordinary QMouseEvent regardless of what
     // libinput thinks the device is, so no raw evdev reader is needed here,
-    // just the same remap table and capture signal as everything else.
+    // just the same remap table and capture signal as everything else, and
+    // on the console left and right as Select / OK and Back where nothing
+    // else is bound to them (setClickActions()).
     if (type == QEvent::MouseButtonPress || type == QEvent::MouseButtonDblClick
         || type == QEvent::MouseButtonRelease) {
         const auto *me = static_cast<QMouseEvent *>(event);
@@ -1745,11 +1826,11 @@ bool InputManager::eventFilter(QObject *obj, QEvent *event) {
             return true;
         }
 
-        const Action remapped = m_keyRemap.value(extendedId, Action::None);
-        if (remapped != Action::None) {
+        const Action does = keyActionOn(QString(), extendedId);
+        if (does != Action::None) {
             if (isPress) {
-                m_heldInputs.insert(button, remapped);
-                beginPress(remapped);
+                m_heldInputs.insert(button, does);
+                beginPress(does);
             }
             return true;
         }
@@ -1760,25 +1841,23 @@ bool InputManager::eventFilter(QObject *obj, QEvent *event) {
         return false;
     const auto *ke = static_cast<QKeyEvent *>(event);
     const bool synthetic = ke->nativeScanCode() == kSyntheticScanCode;
+    const int id = keyId(ke);
 
     // Whose key it is, from the keyboards' nodes (scanNodes()): worked out
     // where a real key event comes in, at its window, and not again for the
-    // items it then goes on to, which see it through this filter too.
+    // items it then goes on to, which see it through this filter too. A
+    // Consumer Control node's press that readNode() took (acted on, or
+    // reported to a wait) is that node's alone, and Qt's copy of it goes no
+    // further.
     QString device;
 #ifdef Q_OS_LINUX
     if (!synthetic && obj && obj->isWindowType() && !m_nodes.isEmpty()) {
         drainNodes();
-        const quint32 sc = ke->nativeScanCode();
-        if (type == QEvent::KeyRelease) {
-            device = m_keySources.heldBy(sc);
-            if (!ke->isAutoRepeat())
-                m_keySources.released(sc);
-        } else if (ke->isAutoRepeat()) {
-            device = m_keySources.heldBy(sc);
-        } else {
-            device = m_keySources.takePress(sc, m_clock.elapsed());
+        device = whoseKey(m_keySources, ke, m_clock.elapsed());
+        if (type == QEvent::KeyPress && !ke->isAutoRepeat())
             noteController(device);
-        }
+        if (device.isEmpty() && !whoseKey(m_consumerTaken, ke, m_clock.elapsed()).isEmpty())
+            return true;
     }
 #else
     Q_UNUSED(obj)
@@ -1789,7 +1868,7 @@ bool InputManager::eventFilter(QObject *obj, QEvent *event) {
 
     // Back, Select and Play/Pause held (or let go late): the first press
     // only (isOneShotKey). Typing in a text field still repeats them.
-    if (ke->isAutoRepeat() && isOneShotKey(ke->key()) && !textInputHasFocus())
+    if (ke->isAutoRepeat() && isOneShotKey(id) && !textInputHasFocus())
         return true;
 
     // Right shift acts as Back so the keyboard works one-handed: reuse the
@@ -1811,7 +1890,7 @@ bool InputManager::eventFilter(QObject *obj, QEvent *event) {
             if (type == QEvent::KeyPress)
                 deliverPress(Action::Back, false);
             else
-                releaseAction(Action::Back);
+                deliverRelease(Action::Back, false);
         }
         return true;
     }
@@ -1839,7 +1918,7 @@ bool InputManager::eventFilter(QObject *obj, QEvent *event) {
     if (m_remapCapture && !synthetic) {
         if (type == QEvent::KeyPress && !ke->isAutoRepeat()) {
             m_capturedKeys.insert(ke->key());
-            emit auxButtonPressed(ke->key());
+            emit auxButtonPressed(id);
         }
         return true;
     }
@@ -1849,7 +1928,7 @@ bool InputManager::eventFilter(QObject *obj, QEvent *event) {
     if (capturing(device)) {
         if (type == QEvent::KeyPress && !ke->isAutoRepeat()) {
             m_capturedKeys.insert(ke->key());
-            emit controllerInputCaptured(device, QString::number(ke->key()), keyDisplayName(ke->key()));
+            emit controllerInputCaptured(device, QString::number(id), keyDisplayName(id));
         }
         return true;
     }
@@ -1866,16 +1945,20 @@ bool InputManager::eventFilter(QObject *obj, QEvent *event) {
     // (the hash miss is checked first — it's cheap, while textInputHasFocus
     // is a synchronous input-method query and shouldn't run per keystroke).
     // A keyboard's or a remote's own extra keys (its page in Settings →
-    // Controls) come first, then the ones every keyboard shares.
+    // Controls) come first, then the ones every keyboard shares. A remote's
+    // OK that the views don't take for Return (isRemoteOk()) is Select the
+    // same way.
     if (!synthetic) {
-        Action remapped = device.isEmpty() ? Action::None : profileAction(device, QString::number(ke->key()));
+        Action remapped = device.isEmpty() ? Action::None : profileAction(device, QString::number(id));
         if (remapped == Action::None)
-            remapped = m_keyRemap.value(ke->key(), Action::None);
+            remapped = m_keyRemap.value(id, Action::None);
+        if (remapped == Action::None && isRemoteOk(id))
+            remapped = Action::Select;
         if (remapped != Action::None && !textInputHasFocus()) {
             if (type == QEvent::KeyPress)
                 deliverPress(remapped, ke->isAutoRepeat());
             else
-                releaseAction(remapped);
+                deliverRelease(remapped, ke->isAutoRepeat());
             return true;
         }
     }

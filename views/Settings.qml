@@ -9,6 +9,8 @@ FocusScope {
 
     property var navParams: ({})
     property var navListState: ({})
+    // The page: the first screen (""), or TV / Movie's ("tv").
+    readonly property string group: navParams.group || ""
 
     property var appSettings: ({})
     property var installedModules: []
@@ -57,8 +59,56 @@ FocusScope {
         canRestart = appCore.canRestartSystem()
 
         var items = []
+        if (group === "tv")
+            tvRows(items)
+        else
+            firstRows(items)
 
-        // APPLICATION section
+        settingsItems = items
+
+        // Restore saved position, or default to first selectable row
+        var start = at !== undefined ? Math.min(at, items.length - 1)
+                  : navListState.currentIndex !== undefined ? Math.min(navListState.currentIndex, items.length - 1) : 0
+        for (var k = 0; k < items.length; k++) {
+            if (selectable((start + k) % items.length)) {
+                settingsList.currentIndex = (start + k) % items.length
+                break
+            }
+        }
+        settingsList.positionViewAtIndex(settingsList.currentIndex, ListView.Contain)
+        settingsList.showWholeRows()
+    }
+
+    // The first screen: TV / Movie's and Arcade's pages, the general settings
+    // under their heading, then the modules of no group and the
+    // application's own.
+    function firstRows(items) {
+        // TV / MOVIE and ARCADE — a page each, for the videos and the games:
+        // TV / Movie's rows (this view again, group "tv") and the video
+        // modules', and the arcade modules' own settings on one page, the
+        // first module's with the others' under their names (ModuleSettings,
+        // alsoModules). A module's group is its manifest's "settings_group".
+        items.push({
+            type: "submenu",
+            key: "group_tv",
+            label: "TV / Movie",
+            description: "The videos' settings: how a picture fills the screen, Transparent Background, the loading screen, the channel logo, the info screen, and each video module's own",
+            moduleId: ""
+        })
+        var arcade = groupModules("arcade")
+        if (arcade.length > 0) {
+            items.push({
+                type: "submenu",
+                key: "group_arcade",
+                label: "Arcade",
+                description: "The games' settings on one page: " + arcade.map(function(m) { return m.name }).join(", "),
+                moduleId: arcade[0].id,
+                alsoModules: arcade.slice(1).map(function(m) { return m.id })
+            })
+        }
+
+        // GENERAL SETTINGS section
+        items.push({ type: "section", label: "General Settings" })
         // Theme — the whole look in one (AppCore::themes(), the app's own and
         // the data folder's themes folder; read in Main.qml as root.theme):
         // the color scheme, the skin, the effects and the menu music. Each of
@@ -108,7 +158,7 @@ FocusScope {
             items.push(partRow("text_effect", "Text Effect", Object.keys(root.textPresets), true,
                 "What the text, the lines and the bars do, on the GPU\n[THEME] The theme's  [RAINBOW] Run through the colors  [SHIMMER] A glint sweeping across now and then  [GLOW] A halo round them  [FLICKER] Like a failing neon sign"))
             items.push(partRow("background_effect", "Background Effect", Object.keys(root.backgroundPresets), true,
-                "What goes on behind the menus, in the window, on the GPU\n[THEME] The theme's  [MATRIX] A rain of glyphs  [FIRE] Pixel flames burning up from under the window  [STARS] A starfield drifting by  [SNOW] Snow falling  [CHECKERED FLAG] A racing flag waving in the window"))
+                "What goes on behind the menus, in the window, on the GPU\n[THEME] The theme's  [MATRIX] A rain of glyphs  [FIRE] Pixel flames burning up from under the window  [STARS] A starfield drifting by  [SNOW] Snow falling  [CHECKERED FLAG] A racing flag waving in the window  [PLASMA] An old demo's plasma drifting, dithered in pixels"))
         }
         items.push(partRow("selector_effect", "Selector Effect", root.selectorPresets, true,
             "What goes on round the selected line\n[THEME] The theme's  [SPARKLES] Sparks flying off its corners  [WELDING] A welder's sparks bursting from its corners  [LIGHTNING] Bolts crackling out of it  [RAINBOW] A pixel rainbow running down from under it"))
@@ -235,6 +285,166 @@ FocusScope {
             })
         }
 
+        // BOOT SCREEN COLORS — the boot screen in the colours in force, as
+        // the loading screen's are (TV / Movie). Read in Main.qml
+        // (root.bootInk).
+        items.push({
+            type: "list_single",
+            key: "boot_colors",
+            label: "Boot Screen Colors",
+            options: ["Theme", "Default"],
+            value: appSettings["boot_colors"] === "Default" ? "Default" : "Theme",
+            description: "The colours of the boot screen, with its cassette, on the OSD/OS image\n[THEME] The theme's or color scheme's  [DEFAULT] White on blue",
+            moduleId: ""
+        })
+
+        // HINT BAR — the key hints on the bar at the foot of every screen
+        // (Components/HintBar). Read in Main.qml.
+        items.push({
+            type: "list_single",
+            key: "hint_bar",
+            label: "Hint Bar",
+            options: ["On", "Off"],
+            value: appSettings["hint_bar"] === "Off" ? "Off" : "On",
+            description: "The key hints on the bar at the foot of every screen\n[OFF] No bar; the keys work as they do",
+            moduleId: ""
+        })
+
+        // HELP LINE — the line about the selected row in the box under a
+        // menu, this one (Components/HelpLine). Read in Main.qml.
+        items.push({
+            type: "list_single",
+            key: "help_line",
+            label: "Help Line",
+            options: ["On", "Off"],
+            value: appSettings["help_line"] === "Off" ? "Off" : "On",
+            description: "The box under a menu with a line about the selected row, this one\n[OFF] No box",
+            moduleId: ""
+        })
+
+        // SCREEN SAVER section — single control: OFF disables, a number sets the
+        // timeout for both menu idle and playback pause (handled inside mpv).
+        items.push({
+            type: "list_single",
+            key: "screensaver_timeout",
+            label: "Screen Saver",
+            options: ["OFF", "30", "60", "120"],
+            value: appSettings["screensaver_timeout"] || "OFF",
+            description: "Prevent CRT burn-in after seconds of inactivity or pause",
+            moduleId: ""
+        })
+
+        // MOUSE POINTER — drawn by Main.qml: it shows as the mouse moves and
+        // goes again after this many seconds without moving.
+        var pointerVals = ["off", "2", "5", "10", "30", "always"]
+        var pointerOpts = ["Off", "2 sec", "5 sec", "10 sec", "30 sec", "Always"]
+        var pointerIdx = pointerVals.indexOf(appSettings["mouse_pointer"] || "5")
+        items.push({
+            type: "list_single",
+            key: "mouse_pointer",
+            label: "Mouse Pointer",
+            options: pointerOpts,
+            values: pointerVals,
+            value: pointerOpts[pointerIdx < 0 ? pointerVals.indexOf("5") : pointerIdx],
+            description: "A mouse's pointer shows as it moves, and goes again after these seconds without moving\n[OFF] Never shown  [ALWAYS] Stays on screen",
+            moduleId: ""
+        })
+
+        // MODULES section — the modules of no group with settings
+        moduleRows(items, groupModules(""))
+
+        // APPLICATION section
+        items.push({ type: "section", label: "Application" })
+        // DISPLAY OUTPUT — where the picture goes, among the outputs this
+        // board has (displayOutput, by its model): select opens them. The Pi
+        // reads it at power-on, so a change restarts it, powers it off, or
+        // waits for its next start, and the new output stays only when kept
+        // on it (views/DisplayKeep.qml).
+        if (displayOutput && displayOutput.available) {
+            boardModel = displayOutput.boardModel
+            outputOptions = displayOutput.options
+            outputCurrent = displayOutput.current
+            outputCurrentLabel = displayOutput.currentLabel
+            outputNext = displayOutput.next
+            outputNextLabel = displayOutput.nextLabel
+            outputAtNextStart = displayOutput.nextStartAvailable
+            outputPowerOff = displayOutput.powerOffAvailable
+            var later = outputAtNextStart || outputPowerOff
+            items.push({
+                type: "display_output",
+                label: "Display Output",
+                value: outputNext !== "" ? "Next: " + outputNextLabel : outputCurrentLabel,
+                description: (outputNext !== "" ? "Now " + outputCurrentLabel + ", " + outputNextLabel + " from the next start • " : "")
+                             + "Where the picture goes, among the outputs this Pi has: "
+                             + (later ? "now, with a restart, or from the next start. " : "a change restarts OSD/OS. ")
+                             + "The new output stays only when you keep it on its screen, else the old one comes back in 30 seconds\n[COMPOSITE] The AV jack (Pi 4) or TV pads (Pi 5)  [GPIO COMPOSITE] Pi 5's GPIO pins  [SCART RGB] A cable on the GPIO pins  [JAMMA] A Raspberry Pi to JAMMA board, in the modes of a 15 kHz monitor (240p at 720, 320 or 1920 across, 320 the games' own pixels and 1920 a super resolution; 288p at 720 or 1920; 480i and 576i on a Pi 4), or a 25 kHz or 31 kHz one's, each named with its rate and resolution",
+                moduleId: ""
+            })
+        }
+        // AUDIO OUTPUT — the sound card the players play through, among those
+        // ALSA has now (audioOutput): ◄ ► change it at once, for a video
+        // playing behind the menus too. One chosen but unplugged stays
+        // chosen, passed over until it is back.
+        if (audioOutput && audioOutput.available) {
+            var audio = audioOutput.settingRow()
+            items.push({
+                type: "list_single",
+                key: "audio_output",
+                label: "Audio Output",
+                options: audio.options,
+                values: audio.values,
+                value: audio.value,
+                description: "Which sound card plays: the AV jack, HDMI or a USB sound card, from the moment it is chosen\n[AUTO] The Pi's own default  [UNPLUGGED] Chosen but not plugged in: sound goes as on Auto until it is back",
+                moduleId: ""
+            })
+        }
+        items.push({
+            type: "submenu",
+            key: "remap_controls",
+            label: "Controls",
+            description: "Every controller connected, each with its own buttons (and a pad's button labels), and extra keys for every keyboard and remote",
+            moduleId: ""
+        })
+        // Joining a Wi-Fi network (NetworkManager, so Linux).
+        if (wifiManager && wifiManager.supported) {
+            items.push({
+                type: "submenu",
+                key: "wifi",
+                label: "Wi-Fi",
+                description: "The networks within reach: join one with its password, or one that doesn't say its name, and the country Wi-Fi keeps to the rules of",
+                moduleId: ""
+            })
+        }
+        // Pairing a Bluetooth keyboard, gamepad or remote (BlueZ, so Linux).
+        if (bluetoothManager && bluetoothManager.supported) {
+            items.push({
+                type: "submenu",
+                key: "bluetooth",
+                label: "Bluetooth",
+                moduleId: ""
+            })
+        }
+        items.push({
+            type: "submenu",
+            key: "software_update",
+            label: "Update",
+            moduleId: ""
+        })
+        // ABOUT — what OSD/OS is, who makes it, what it is made of and under
+        // which licence (views/About.qml).
+        items.push({
+            type: "submenu",
+            key: "about",
+            label: "About",
+            description: "What OSD/OS is, who makes it, what it is made of and under which license",
+            moduleId: ""
+        })
+        items.push({ type: "quit", label: "Quit" })
+    }
+
+    // TV / Movie's page: the rows that are the videos' alone, then the video
+    // modules' (manifest "settings_group": "tv").
+    function tvRows(items) {
         // Smooth Playback — only shown on devices whose smooth decode path can't
         // crop/zoom (the Pi 3 overlay path). Default ON; turning it off restores the
         // crop-capable video output. Takes effect on the next video.
@@ -324,10 +534,10 @@ FocusScope {
             moduleId: ""
         })
 
-        // LOADING SCREEN COLORS, BOOT SCREEN COLORS — those two screens in the
+        // LOADING SCREEN COLORS — the screen a video loads behind in the
         // colours in force, a theme's or a scheme's (Theme, the default), or
         // in OSD/OS's own whatever the look: Video 1's white on a VCR's blue.
-        // Read in Main.qml (root.loadingInk, root.bootInk).
+        // Read in Main.qml (root.loadingInk).
         items.push({
             type: "list_single",
             key: "loading_colors",
@@ -337,16 +547,6 @@ FocusScope {
             description: "The colours of the screen a video loads behind\n[THEME] The theme's or color scheme's  [DEFAULT] White on blue",
             moduleId: ""
         })
-        items.push({
-            type: "list_single",
-            key: "boot_colors",
-            label: "Boot Screen Colors",
-            options: ["Theme", "Default"],
-            value: appSettings["boot_colors"] === "Default" ? "Default" : "Theme",
-            description: "The colours of the boot screen, with its cassette, on the OSD/OS image\n[THEME] The theme's or color scheme's  [DEFAULT] White on blue",
-            moduleId: ""
-        })
-
         // CHANNEL LOGO — OSD/OS's logo in a corner of the picture while a
         // video plays, drawn by mpv (scripts/mpv-logo.lua, loaded by
         // MpvController at each launch, so it applies from the next video).
@@ -381,58 +581,6 @@ FocusScope {
             moduleId: ""
         })
 
-        // HINT BAR — the key hints on the bar at the foot of every screen
-        // (Components/HintBar). Read in Main.qml.
-        items.push({
-            type: "list_single",
-            key: "hint_bar",
-            label: "Hint Bar",
-            options: ["On", "Off"],
-            value: appSettings["hint_bar"] === "Off" ? "Off" : "On",
-            description: "The key hints on the bar at the foot of every screen\n[OFF] No bar; the keys work as they do",
-            moduleId: ""
-        })
-
-        // HELP LINE — the line about the selected row in the box under a
-        // menu, this one (Components/HelpLine). Read in Main.qml.
-        items.push({
-            type: "list_single",
-            key: "help_line",
-            label: "Help Line",
-            options: ["On", "Off"],
-            value: appSettings["help_line"] === "Off" ? "Off" : "On",
-            description: "The box under a menu with a line about the selected row, this one\n[OFF] No box",
-            moduleId: ""
-        })
-
-        // SCREEN SAVER section — single control: OFF disables, a number sets the
-        // timeout for both menu idle and playback pause (handled inside mpv).
-        items.push({
-            type: "list_single",
-            key: "screensaver_timeout",
-            label: "Screen Saver",
-            options: ["OFF", "30", "60", "120"],
-            value: appSettings["screensaver_timeout"] || "OFF",
-            description: "Prevent CRT burn-in after seconds of inactivity or pause",
-            moduleId: ""
-        })
-
-        // MOUSE POINTER — drawn by Main.qml: it shows as the mouse moves and
-        // goes again after this many seconds without moving.
-        var pointerVals = ["off", "2", "5", "10", "30", "always"]
-        var pointerOpts = ["Off", "2 sec", "5 sec", "10 sec", "30 sec", "Always"]
-        var pointerIdx = pointerVals.indexOf(appSettings["mouse_pointer"] || "5")
-        items.push({
-            type: "list_single",
-            key: "mouse_pointer",
-            label: "Mouse Pointer",
-            options: pointerOpts,
-            values: pointerVals,
-            value: pointerOpts[pointerIdx < 0 ? pointerVals.indexOf("5") : pointerIdx],
-            description: "A mouse's pointer shows as it moves, and goes again after these seconds without moving\n[OFF] Never shown  [ALWAYS] Stays on screen",
-            moduleId: ""
-        })
-
         // INFO SCREEN — a film's details in the trees (Netflix, Prime Video,
         // YouTube): with right on it always, and with a number also on its own
         // once the cursor has rested on it that many seconds. One control, like
@@ -451,113 +599,24 @@ FocusScope {
             moduleId: ""
         })
 
-        // MODULES section — only show modules with has_settings
-        var hasModuleSettings = false
-        for (var i = 0; i < installedModules.length; i++) {
-            if (installedModules[i].has_settings) { hasModuleSettings = true; break }
-        }
+        moduleRows(items, groupModules("tv"))
+    }
 
-        if (hasModuleSettings) {
-            items.push({ type: "section", label: "Modules" })
-            for (var j = 0; j < installedModules.length; j++) {
-                var m = installedModules[j]
-                if (m.has_settings) {
-                    items.push({ type: "submenu", label: m.name, moduleId: m.id })
-                }
-            }
-        }
-
-        // SYSTEM section
-        items.push({ type: "section", label: "Application" })
-        // DISPLAY OUTPUT — where the picture goes, among the outputs this
-        // board has (displayOutput, by its model): select opens them. The Pi
-        // reads it at power-on, so a change restarts it, powers it off, or
-        // waits for its next start, and the new output stays only when kept
-        // on it (views/DisplayKeep.qml).
-        if (displayOutput && displayOutput.available) {
-            boardModel = displayOutput.boardModel
-            outputOptions = displayOutput.options
-            outputCurrent = displayOutput.current
-            outputCurrentLabel = displayOutput.currentLabel
-            outputNext = displayOutput.next
-            outputNextLabel = displayOutput.nextLabel
-            outputAtNextStart = displayOutput.nextStartAvailable
-            outputPowerOff = displayOutput.powerOffAvailable
-            var later = outputAtNextStart || outputPowerOff
-            items.push({
-                type: "display_output",
-                label: "Display Output",
-                value: outputNext !== "" ? "Next: " + outputNextLabel : outputCurrentLabel,
-                description: (outputNext !== "" ? "Now " + outputCurrentLabel + ", " + outputNextLabel + " from the next start • " : "")
-                             + "Where the picture goes, among the outputs this Pi has: "
-                             + (later ? "now, with a restart, or from the next start. " : "a change restarts OSD/OS. ")
-                             + "The new output stays only when you keep it on its screen, else the old one comes back in 15 seconds\n[COMPOSITE] The AV jack (Pi 4) or TV pads (Pi 5)  [GPIO COMPOSITE] Pi 5's GPIO pins  [SCART RGB] A cable on the GPIO pins  [JAMMA] A Raspberry Pi to JAMMA board",
-                moduleId: ""
-            })
-        }
-        // AUDIO OUTPUT — the sound card the players play through, among those
-        // ALSA has now (audioOutput): ◄ ► change it at once, for a video
-        // playing behind the menus too. One chosen but unplugged stays
-        // chosen, passed over until it is back.
-        if (audioOutput && audioOutput.available) {
-            var audio = audioOutput.settingRow()
-            items.push({
-                type: "list_single",
-                key: "audio_output",
-                label: "Audio Output",
-                options: audio.options,
-                values: audio.values,
-                value: audio.value,
-                description: "Which sound card plays: the AV jack, HDMI or a USB sound card, from the moment it is chosen\n[AUTO] The Pi's own default  [UNPLUGGED] Chosen but not plugged in: sound goes as on Auto until it is back",
-                moduleId: ""
-            })
-        }
-        items.push({
-            type: "submenu",
-            key: "remap_controls",
-            label: "Controls",
-            description: "Every controller connected, each with its own buttons (and a pad's button labels), and extra keys for every keyboard and remote",
-            moduleId: ""
+    // The installed modules with settings of a group ("" for none, as a
+    // group with no page here counts), and their rows under the MODULES
+    // heading, a page each.
+    function groupModules(group) {
+        return installedModules.filter(function(m) {
+            var own = m.settings_group === "tv" || m.settings_group === "arcade" ? m.settings_group : ""
+            return m.has_settings && own === group
         })
-        // Pairing a Bluetooth keyboard, gamepad or remote (BlueZ, so Linux).
-        if (bluetoothManager && bluetoothManager.supported) {
-            items.push({
-                type: "submenu",
-                key: "bluetooth",
-                label: "Bluetooth",
-                moduleId: ""
-            })
-        }
-        items.push({
-            type: "submenu",
-            key: "software_update",
-            label: "Update",
-            moduleId: ""
-        })
-        // ABOUT — what OSD/OS is, who makes it, what it is made of and under
-        // which licence (views/About.qml).
-        items.push({
-            type: "submenu",
-            key: "about",
-            label: "About",
-            description: "What OSD/OS is, who makes it, what it is made of and under which license",
-            moduleId: ""
-        })
-        items.push({ type: "quit", label: "Quit" })
-
-        settingsItems = items
-
-        // Restore saved position, or default to first selectable row
-        var start = at !== undefined ? Math.min(at, items.length - 1)
-                  : navListState.currentIndex !== undefined ? Math.min(navListState.currentIndex, items.length - 1) : 0
-        for (var k = 0; k < items.length; k++) {
-            if (selectable((start + k) % items.length)) {
-                settingsList.currentIndex = (start + k) % items.length
-                break
-            }
-        }
-        settingsList.positionViewAtIndex(settingsList.currentIndex, ListView.Contain)
-        settingsList.showWholeRows()
+    }
+    function moduleRows(items, modules) {
+        if (modules.length === 0)
+            return
+        items.push({ type: "section", label: "Modules" })
+        for (var i = 0; i < modules.length; i++)
+            items.push({ type: "submenu", label: modules[i].name, moduleId: modules[i].id })
     }
 
     // A row offered only while another row has a value (its shownWith,
@@ -650,11 +709,11 @@ FocusScope {
     Component.onCompleted: buildModel()
 
     // Header: a release's version beside the title; none for a build made
-    // from source ("dev"), which About names.
+    // from source ("dev"), which About names. A group's page: its name.
     AppBar {
         iconSource: "../../assets/images/settings.svg"
         title: "Settings"
-        subtitle: root.devBuild ? "" : root.appVersion
+        subtitle: settingsRoot.group === "tv" ? "TV / Movie" : root.devBuild ? "" : root.appVersion
         anchors.top: parent.top
         anchors.left: parent.left
         anchors.topMargin: root.sh * 0.125 //60
@@ -672,7 +731,7 @@ FocusScope {
     }
     Text {
         text: settingsRoot.ipAddress
-        visible: settingsRoot.ipAddress !== ""
+        visible: settingsRoot.ipAddress !== "" && settingsRoot.group === ""
         anchors.top: parent.top
         anchors.right: parent.right
         anchors.topMargin: root.sh * 0.125 //60
@@ -792,12 +851,17 @@ FocusScope {
                     settingsRoot.navigateTo("views/Update.qml", {}, { currentIndex: settingsList.currentIndex })
                 else if (row.key === "remap_controls")
                     settingsRoot.navigateTo("views/Controllers.qml", {}, { currentIndex: settingsList.currentIndex })
+                else if (row.key === "wifi")
+                    settingsRoot.navigateTo("views/Wifi.qml", {}, { currentIndex: settingsList.currentIndex })
                 else if (row.key === "bluetooth")
                     settingsRoot.navigateTo("views/Bluetooth.qml", {}, { currentIndex: settingsList.currentIndex })
                 else if (row.key === "about")
                     settingsRoot.navigateTo("views/About.qml", {}, { currentIndex: settingsList.currentIndex })
+                else if (row.key === "group_tv")
+                    settingsRoot.navigateTo("views/Settings.qml", { group: "tv" }, { currentIndex: settingsList.currentIndex })
                 else
-                    settingsRoot.navigateTo("views/ModuleSettings.qml", { moduleId: row.moduleId }, { currentIndex: settingsList.currentIndex })
+                    settingsRoot.navigateTo("views/ModuleSettings.qml", { moduleId: row.moduleId, alsoModules: row.alsoModules || [] },
+                                            { currentIndex: settingsList.currentIndex })
             } else if (row && row.type === "display_output") {
                 settingsRoot.openOutputs()
             } else if (row && row.type === "file") {
@@ -903,7 +967,7 @@ FocusScope {
         anchors.fill: parent
         promptText: "Display Output"
         subtitleText: settingsRoot.boardModel + "\nNow: " + settingsRoot.outputCurrentLabel
-                      + (settingsRoot.outputNext !== "" ? "  Next start: " + settingsRoot.outputNextLabel : "")
+                      + (settingsRoot.outputNext !== "" ? "\nNext start: " + settingsRoot.outputNextLabel : "")
         choices: settingsRoot.outputOptions.map(function(o) { return { label: o.label, action: o.id } })
         onActivated: function(id) {
             for (var i = 0; i < settingsRoot.outputOptions.length; i++) {
@@ -929,9 +993,11 @@ FocusScope {
         id: outputConfirm
         anchors.fill: parent
         promptText: "Switch to " + (settingsRoot.outputChoice.label || "") + "?"
-        subtitleText: (settingsRoot.outputAtNextStart || settingsRoot.outputPowerOff
-                       ? "Now, or from the next time the Pi starts. " : "OSD/OS restarts on it. ")
-                      + "Keep it there, or in 15 seconds it comes back to " + settingsRoot.outputCurrentLabel
+        // A scan rate only some monitors take says so first.
+        subtitleText: (settingsRoot.outputChoice.warning ? settingsRoot.outputChoice.warning + "\n" : "")
+                      + (settingsRoot.outputAtNextStart || settingsRoot.outputPowerOff
+                         ? "Now, or from the next time the Pi starts. " : "OSD/OS restarts on it. ")
+                      + "Keep it there, or in 30 seconds it comes back to " + settingsRoot.outputCurrentLabel
         choices: [{ label: "Switch and Restart", action: "switch" }]
                  .concat(settingsRoot.outputAtNextStart && settingsRoot.outputChoice.id !== settingsRoot.outputNext
                          ? [{ label: "At Next Start", action: "next" }] : [])
@@ -953,7 +1019,8 @@ FocusScope {
         anchors.fill: parent
         promptText: "Stay on " + settingsRoot.outputCurrentLabel + "?"
         subtitleText: settingsRoot.outputNextLabel + " was to come at the next start"
-        choices: [{ label: "Stay on " + settingsRoot.outputCurrentLabel, action: "stay" },
+        // The title names the output: a long one wouldn't fit an answer.
+        choices: [{ label: "Stay", action: "stay" },
                   { label: "Cancel", action: "cancel" }]
         onActivated: function(act) {
             if (act === "stay")

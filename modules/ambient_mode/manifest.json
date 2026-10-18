@@ -3,6 +3,7 @@
   "name": "Ambient:Mode",
   "icon": "assets/images/logo.svg",
   "entry_point_qml": "views/Root.qml",
+  "settings_group": "tv",
   "settings": [
     {
       "key": "enabled",

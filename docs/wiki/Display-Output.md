@@ -4,13 +4,13 @@ Settings → **Display Output**, on the OSD/OS image, switches where the picture
 
 ## Where it is, and when
 
-**Settings → Display Output** is in Settings' Application section, its value the output in force (`HDMI`, `Composite PAL`, …). Its help line reads: *Where the picture goes, among the outputs this Pi has: a change restarts OSD/OS, and the new output stays only when you keep it on its screen, else the old one comes back in 15 seconds.*
+**Settings → Display Output** is in Settings' Application section, its value the output in force (`HDMI`, `Composite PAL`, …). Its help line reads: *Where the picture goes, among the outputs this Pi has: a change restarts OSD/OS, and the new output stays only when you keep it on its screen, else the old one comes back in 30 seconds.*
 
 The row is there only when all of this holds ([`src/display/DisplayOutput.cpp`](https://github.com/mehmetraif/OSD-OS/blob/main/src/display/DisplayOutput.cpp)):
 
 1. `/boot/firmware/osdos-display.txt` exists, as on the OSD/OS image, with the presets beside it.
 2. OSD/OS was started by its service (`OSDOS_AUTOSTART` set), whose stop helper writes the presets as root.
-3. The launcher is level 3 or later (`OSDOS_LAUNCHER_API`), so the stop helper knows how. **Switch and Power Off** and **At Next Start** need level 5.
+3. The launcher is level 3 or later (`OSDOS_LAUNCHER_API`), so the stop helper knows how. **Switch and Power Off** and **At Next Start** need level 5, JAMMA 240p level 4 and the JAMMA board's other modes level 6.
 4. The Pi has more than one output to choose from.
 
 So it isn't offered on macOS, SteamOS or desktop Linux, on Raspberry Pi OS with the app installed (unless you add the presets, see [On an app install](https://github.com/mehmetraif/OSD-OS/wiki/Display-Output#on-an-app-install)), when `osdos` is started by hand from a shell, or on a board OSD/OS doesn't know.
@@ -62,7 +62,15 @@ The menu lists, in this order, the presets that are on the boot partition and th
 | SCART RGB PAL | `scart-rgb-pal` (576i) | | ✓ | ✓ | ✓ | ✓ |
 | SCART RGB 240p | `scart-rgb-240p` | | ✓ | ✓ | | |
 | SCART RGB 288p | `scart-rgb-288p` | | ✓ | ✓ | | |
-| JAMMA 240p | `jamma-240p` | | ✓ | ✓ | ✓ | ✓ |
+| JAMMA 240p 15 kHz (720x240) | `jamma-240p` | | ✓ | ✓ | ✓ | ✓ |
+| JAMMA 240p 15 kHz (320x240) | `jamma-240p-native` | | ✓ | ✓ | ✓ | ✓ |
+| JAMMA 240p 15 kHz (1920x240) | `jamma-240p-super` | | ✓ | ✓ | ✓ | ✓ |
+| JAMMA 288p 15 kHz (720x288) | `jamma-288p` | | ✓ | ✓ | ✓ | ✓ |
+| JAMMA 288p 15 kHz (1920x288) | `jamma-288p-super` | | ✓ | ✓ | ✓ | ✓ |
+| JAMMA 480i 15 kHz (720x480) | `jamma-480i` | | ✓ | ✓ | | |
+| JAMMA 576i 15 kHz (720x576) | `jamma-576i` | | ✓ | ✓ | | |
+| JAMMA 25 kHz (496x384) | `jamma-25k` | | ✓ | ✓ | ✓ | ✓ |
+| JAMMA 31 kHz (640x480) | `jamma-31k` | | ✓ | ✓ | ✓ | ✓ |
 
 That is `boardHas()` in `DisplayOutput.cpp`:
 
@@ -83,12 +91,15 @@ if (id.startsWith(QLatin1String("scart-rgb-")))
     return pi4;
 // A Raspberry Pi to JAMMA board in RGB-Pi's layout: the Pi 4's firmware
 // DPI, its sound on GPIO 18 and 19; the Pi 5's kernel DPI, its sound on a
-// USB card. Not a Pi 3's.
-if (id == QLatin1String("jamma-240p"))
+// USB card, which interlaces only with GPIO 1, the board's I2C. Not a
+// Pi 3's.
+if (id == QLatin1String("jamma-480i") || id == QLatin1String("jamma-576i"))
+    return pi4;
+if (id.startsWith(QLatin1String("jamma-")))
     return pi4 || pi5;
 ```
 
-JAMMA 240p is offered only by a launcher at level 4 or later, whose stop helper knows its code (30): an image from the version that brought it, or an install whose `install.sh` was run again since.
+JAMMA 240p is offered only by a launcher at level 4 or later, whose stop helper knows its code (30), and the board's other modes by one at level 6 or later (31 to 38): an image from the version that brought them, or an install whose `install.sh` was run again since.
 
 **What has been tried.** [os/README.md](https://github.com/mehmetraif/OSD-OS/blob/main/os/README.md#display-output-hdmi-composite-or-scart) says only the Pi 4's HDMI and composite had been tested on hardware when it was written. The other outputs are starting points, with the keep-or-go-back question to fall back on. If one works for you, or needs a change, say so in an [issue](https://github.com/mehmetraif/OSD-OS/issues).
 
@@ -100,7 +111,7 @@ JAMMA 240p is offered only by a launcher at level 4 or later, whose stop helper 
 ## Switching
 
 1. Open **Settings → Display Output** and press select. A chooser opens: **Display Output**, with the Pi's model and **Now: <output>** under it (and **Next start: <output>** while one waits). The arrows move, select chooses, back closes it.
-2. Choose another output. OSD/OS asks **Switch to <output>?**, *Now, or from the next time the Pi starts. Keep it there, or in 15 seconds it comes back to <output now>*:
+2. Choose another output. OSD/OS asks **Switch to <output>?**, *Now, or from the next time the Pi starts. Keep it there, or in 30 seconds it comes back to <output now>*:
    - **Switch and Restart**: now. The Pi restarts on it.
    - **At Next Start**: written now, and the Pi stays on, on the output it has. It starts on the new one the next time it starts, however that comes: Quit, the power switch, a power cut ([At the next start](https://github.com/mehmetraif/OSD-OS/wiki/Display-Output#at-the-next-start)).
    - **Switch and Power Off**: written, then the Pi powers off. It starts on the new output when it is switched on again.
@@ -110,15 +121,15 @@ JAMMA 240p is offered only by a launcher at level 4 or later, whose stop helper 
 5. The firmware reads its display settings only as the Pi powers on: `config.txt` includes `osdos-display.txt`, so the Pi starts on the new output.
 6. On it, OSD/OS asks whether to keep it, whichever way it was switched.
 
-**Into a cabinet, or onto a TV that isn't here.** Choose the output with **At Next Start** or **Switch and Power Off**, then move the Pi. **Switch and Restart** would ask to keep the new output on a screen that isn't connected, and go back after 15 seconds.
+**Into a cabinet, or onto a TV that isn't here.** Choose the output with **At Next Start** or **Switch and Power Off**, then move the Pi. **Switch and Restart** would ask to keep the new output on a screen that isn't connected, and go back after 30 seconds.
 
 ```mermaid
 flowchart TD
     A["Settings → Display Output<br/>choose an output"] --> B["Switch to …?<br/>Switch and Restart"]
-    B --> C["display-output.json: from, to<br/>exit 20 to 30, or 40 to 50 to power off"]
+    B --> C["display-output.json: from, to<br/>exit 20 to 38, or 40 to 58 to power off"]
     C --> D["osdos-stop, as root:<br/>osdos-display.txt → osdos-display-previous.txt<br/>preset → osdos-display.txt<br/>modprobe line for a Pi 5's SCART"]
     D --> E["reboot, or off until switched on"]
-    E --> F["Keep this display output?<br/>15 seconds"]
+    E --> F["Keep this display output?<br/>30 seconds"]
     F -- "Keep" --> G["stays, display-output.json removed"]
     F -- "Switch Back, or no answer" --> H["exit 29<br/>osdos-display-previous.txt → osdos-display.txt"]
     H --> I["reboot, then: Back to … / … was not kept"]
@@ -139,7 +150,8 @@ The codes, in `DisplayOutput.cpp`'s `kPresets` and `osdos-stop`'s `DISPLAY_PRESE
 | 28 | `scart-rgb-288p` |
 | 29 | `previous`: the output before, to go back |
 | 30 | `jamma-240p` (launcher API 4) |
-| 40 to 48, 50 | The same presets, then the Pi powers off: Switch and Power Off (launcher API 5) |
+| 31 to 38 | `jamma-240p-native`, `jamma-240p-super`, `jamma-288p`, `jamma-288p-super`, `jamma-480i`, `jamma-576i`, `jamma-25k`, `jamma-31k` (launcher API 6) |
+| 40 to 48, 50 to 58 | The same presets, then the Pi powers off: Switch and Power Off (launcher API 5; 6 for 51 to 58) |
 
 The service lists them all in `SuccessExitStatus`, so systemd counts them as no failure and doesn't start OSD/OS again on the way down. Just before it exits, OSD/OS logs a line like `[DisplayOutput] hdmi -> crt-pal: exit 22 for osdos-stop` (`journalctl -b -1 -u osdos | grep DisplayOutput` shows it, where the journal keeps the boot before).
 
@@ -158,17 +170,17 @@ The service lists them all in `SuccessExitStatus`, so systemd counts them as no 
 It is on the card from then on, so a power cut doesn't lose it. Until the next start:
 
 - **Another output** with At Next Start is written over it. The one to go back to stays the output in force.
-- **The output in force** asks **Stay on <output>?**, and **Stay on <output>** takes the waiting one back.
+- **The output in force** asks **Stay on <output>?**, and **Stay** takes the waiting one back.
 - **Switch and Restart** or **Switch and Power Off** still switch as they always do.
 
 A restart of OSD/OS alone, without the Pi's, keeps it waiting: `/run` lasts until the Pi starts again.
 
 ## Keep or go back
 
-On the new output, before anything else and over the boot screen, OSD/OS asks **Keep this display output?**, with the new output's name and *Back to <old output> in 15 sec*, counting down ([`views/DisplayKeep.qml`](https://github.com/mehmetraif/OSD-OS/blob/main/views/DisplayKeep.qml)):
+On the new output, before anything else and over the boot screen, OSD/OS asks **Keep this display output?**, with the new output's name and *Back to <old output> in 30 sec*, counting down from when OSD/OS starts, which leaves a CRT time to warm up and show the picture first ([`views/DisplayKeep.qml`](https://github.com/mehmetraif/OSD-OS/blob/main/views/DisplayKeep.qml)):
 
 - **Keep** (select): the output stays. `display-output.json` is removed.
-- **Switch Back**, or no answer within **15 seconds**: OSD/OS exits with 29, `osdos-stop` copies `osdos-display-previous.txt` back over `osdos-display.txt`, and the Pi reboots on the old output. A screen that shows nothing, or a TV that can't show that standard, so puts itself right.
+- **Switch Back**, or no answer within **30 seconds**: OSD/OS exits with 29, `osdos-stop` copies `osdos-display-previous.txt` back over `osdos-display.txt`, and the Pi reboots on the old output. A screen that shows nothing, or a TV that can't show that standard, so puts itself right.
 - **Back does nothing** here, on purpose: on a screen that shows nothing, a key pressed at random must not keep it. ▲ ▼ move between the two answers.
 - Until it is answered, the startup module waits, and so does a favourite set to Play at Startup. The menu music waits too.
 
@@ -415,11 +427,11 @@ SCART wants one composite sync, not two. On a Pi 5 the DPI driver makes it on **
 options drm_rp1_dpi force_csync=1
 ```
 
-It is written for any preset with `# osdos-output: DPI` in it (the two SCART RGB presets), unless it also says `# osdos-sync: separate` (JAMMA 240p, whose board makes the composite sync itself), and removed for any other. It matters only on a Pi 5, whose DPI driver it is for. A Pi 5 keeps HDMI on beside its RGB, and OSD/OS takes the DPI output.
+It is written for any preset with `# osdos-output: DPI` in it (the two SCART RGB presets), unless it also says `# osdos-sync: separate` (the JAMMA presets, whose board makes the composite sync itself), and removed for any other. It matters only on a Pi 5, whose DPI driver it is for. A Pi 5 keeps HDMI on beside its RGB, and OSD/OS takes the DPI output.
 
 ### JAMMA: a Raspberry Pi to JAMMA board
 
-A Raspberry Pi to JAMMA board puts the Pi in an arcade cabinet. Its picture goes to the cabinet's monitor at 15 kHz, its sound to the cabinet's speaker through an amplifier of the board's own, and the cabinet's joysticks and buttons come back to the Pi. **JAMMA 240p** is for the boards in RGB-Pi's layout: RGB-Pi's own JAMMA board, and Crown Arcade's "Raspberry Pi TO JAMMA". Their DPI is in the "mode 6" layout, not the VGA666's, so the SCART presets would show them the wrong colours. The [Arcade](https://github.com/mehmetraif/OSD-OS/wiki/Arcade) module plays the cabinet's games in MAME, on this output and with the cabinet's controls as players 1 and 2.
+A Raspberry Pi to JAMMA board puts the Pi in an arcade cabinet. Its picture goes to the cabinet's monitor at 15 kHz, its sound to the cabinet's speaker through an amplifier of the board's own, and the cabinet's joysticks and buttons come back to the Pi. The **JAMMA** presets are for the boards in RGB-Pi's layout: RGB-Pi's own JAMMA board, and Crown Arcade's "Raspberry Pi TO JAMMA". Their DPI is in the "mode 6" layout, not the VGA666's, so the SCART presets would show them the wrong colours. The [Arcade](https://github.com/mehmetraif/OSD-OS/wiki/Arcade) module plays the cabinet's games in MAME, on this output and with the cabinet's controls as players 1 and 2.
 
 It has a part for the Pi 4 and one for the Pi 5. Crown Arcade names the Pi 3 B+ and the Pi 4 for its board, not the Pi 5. The Pi 5's part sets the board up as [RGUI-Pi](https://github.com/forkymcforkface/RGUI-Pi) does on a Pi 5: the same pins, colours and syncs. A Pi 5 can't send its sound to the board's amplifier, so there it goes through a USB sound card.
 
@@ -503,7 +515,28 @@ The Pi 5's part, the kernel's DPI:
 
 **Should the picture roll**: on a Pi 4, change the 2nd and 7th numbers of `dpi_timings` from `1` to `0`; on a Pi 5, take `hsync-invert,vsync-invert,` out of the line `dtparam=hsync-invert,vsync-invert,rgb666-padhi`. A monitor that drops its sync now and then may need a sync cleaner, as it would with other Pi boards.
 
-**By hand on a Pi 5.** Copied over `osdos-display.txt` from a computer, the preset can't remove the line a SCART RGB preset leaves on the system partition (`force_csync=1`), whose sync would take GPIO 1 from the controls. After SCART RGB, choose JAMMA 240p in Settings, or delete `/etc/modprobe.d/osdos-display.conf`.
+**By hand on a Pi 5.** Copied over `osdos-display.txt` from a computer, the preset can't remove the line a SCART RGB preset leaves on the system partition (`force_csync=1`), whose sync would take GPIO 1 from the controls. After SCART RGB, choose a JAMMA preset in Settings, or delete `/etc/modprobe.d/osdos-display.conf`.
+
+#### The board's other modes
+
+An arcade monitor may be one of several kinds, so beside JAMMA 240p the board has eight more presets. Each one's name in the menu says its scan rate, 15, 25 or 31 kHz, the kind of monitor it is for, then its resolution, which tells apart the modes of the same lines. Each is JAMMA 240p's but for its mode: the same pins, controls and sound, both syncs active low, and the board making the composite sync. They need launcher API 6 ([The launcher API](https://github.com/mehmetraif/OSD-OS/wiki/The-OSD-OS-Image#the-launcher-api)).
+
+| In the menu | Preset | Mode | Scan rate | For | Timing |
+|---|---|---|---|---|---|
+| JAMMA 240p 15 kHz (720x240) | `jamma-240p` | 720×240, 60 Hz | 15.73 kHz | A 15 kHz monitor | SCART RGB 240p's |
+| JAMMA 240p 15 kHz (320x240) | `jamma-240p-native` | 320×240, 60 Hz | 15.66 kHz | A 15 kHz monitor, one of its pixels for each of a game's 320 | Recalbox RGB JAMMA's |
+| JAMMA 240p 15 kHz (1920x240) | `jamma-240p-super` | 1920×240, 60 Hz | 15.66 kHz | A 15 kHz monitor, a super resolution: a game of any width fills it with its lines whole | Switchres' (arcade_15) |
+| JAMMA 288p 15 kHz (720x288) | `jamma-288p` | 720×288, 50 Hz | 15.63 kHz | A 15 kHz monitor, for games of 50 Hz | CEA-861's, as SCART RGB 288p |
+| JAMMA 288p 15 kHz (1920x288) | `jamma-288p-super` | 1920×288, 50 Hz | 15.65 kHz | The same, a super resolution | Recalbox's |
+| JAMMA 480i 15 kHz (720x480) | `jamma-480i` | 720×480 interlaced, 60 fields a second | 15.73 kHz | A 15 kHz monitor, twice the lines, which flicker. A Pi 4 only | SCART RGB 480i's |
+| JAMMA 576i 15 kHz (720x576) | `jamma-576i` | 720×576 interlaced, 50 fields a second | 15.63 kHz | The same at 50 Hz. A Pi 4 only | Raspberry Pi's 576i |
+| JAMMA 25 kHz (496x384) | `jamma-25k` | 496×384, 60 Hz | 24.96 kHz | A medium resolution (25 kHz) or tri-sync monitor only | Recalbox RGB JAMMA's |
+| JAMMA 31 kHz (640x480) | `jamma-31k` | 640×480, 60 Hz | 31.47 kHz | A 31 kHz (VGA) or tri-sync monitor only | VESA's |
+
+- **Too high a scan rate can damage a 15 kHz monitor.** Choosing JAMMA 25 kHz or JAMMA 31 kHz says so first, in the switch's question: *For a 31 kHz (VGA) or tri-sync monitor only: too high a scan rate can damage a 15 kHz one.* Choose them only for a monitor made for that rate. The keep-or-go-back question still brings the mode before back after 30 seconds, but a monitor that can't take the rate is driven at it until then.
+- **No interlace on a Pi 5.** The Pi 5's DPI interlaces only with a sync on GPIO 1, which carries the board's controls (I2C), so JAMMA 480i and 576i are the Pi 4's alone, interlaced by its firmware. Neither has been tried on the board yet.
+- **The picture's shape.** Every JAMMA mode is shown 4:3 whatever its pixels, and OSD/OS draws the menus, the videos and the games for that ([below](https://github.com/mehmetraif/OSD-OS/wiki/Display-Output#overscan-and-the-safe-area)). 320×240 and 640×480 have square pixels on a 4:3 tube anyway.
+- **Should the picture roll**, change the syncs as for JAMMA 240p, above.
 
 ### The Pi 5's output
 
@@ -749,11 +782,11 @@ No cable to make: the board sits on the Pi's GPIO header, and the cabinet's JAMM
 
 To set it up:
 
-1. Choose **JAMMA 240p** on the screen you have, with **At Next Start** or **Switch and Power Off**.
+1. Choose **JAMMA 240p 15 kHz (720x240)**, or the mode the cabinet's monitor takes ([The board's other modes](https://github.com/mehmetraif/OSD-OS/wiki/Display-Output#the-boards-other-modes)), on the screen you have, with **At Next Start** or **Switch and Power Off**.
 2. Move the Pi into the cabinet and switch it on. It starts on the cabinet's monitor.
-3. There, **Keep this display output?** comes up. Button 1 keeps it, as the cabinet's controls work once JAMMA 240p is in force.
+3. There, **Keep this display output?** comes up. Button 1 keeps it, as the cabinet's controls work once a JAMMA preset is in force.
 
-Or copy `osdos-display-jamma-240p.txt` over `osdos-display.txt` from a computer, which asks nothing ([Doing it by hand](https://github.com/mehmetraif/OSD-OS/wiki/Display-Output#doing-it-by-hand)). **Switch and Restart** away from the cabinet would ask on its monitor, which isn't there, and go back to the old output after 15 seconds.
+Or copy `osdos-display-jamma-240p.txt` (or another mode's) over `osdos-display.txt` from a computer, which asks nothing ([Doing it by hand](https://github.com/mehmetraif/OSD-OS/wiki/Display-Output#doing-it-by-hand)). **Switch and Restart** away from the cabinet would ask on its monitor, which isn't there, and go back to the old output after 30 seconds.
 
 What owners of Crown Arcade's board report, in [its thread on Arcade-Projects](https://www.arcade-projects.com/threads/raspberry-pi-to-jamma-arcade-cabinet-interface.26347/):
 
@@ -761,13 +794,13 @@ What owners of Crown Arcade's board report, in [its thread on Arcade-Projects](h
 - **Pins 27 and e.** Two jumpers (slide switches on later boards), JP1 and JP2, set the edge's pins 27 and e, player 1's and player 2's: ground, as standard JAMMA has them, or the sixth button (CHAMMA). A cabinet with all six buttons on the edge needs CHAMMA. For a kick harness, Capcom's CPS1 and CPS2 connectors on the board's left side take buttons 4 to 6.
 - **Screws.** Mount it so no screw touches the edge's pins: one owner lost the amplifier that way.
 - **Ground.** Should the controls or the picture be unsteady, the maker's advice is a ground wire from the harness's edge (pin 27 or 28) to the board's ground.
-- **The Pi 5** is not among the boards Crown Arcade names for it. JAMMA 240p sets the picture and the controls up there as RGUI-Pi does, and the sound goes through a USB sound card, as the board's amplifier gets none from a Pi 5.
+- **The Pi 5** is not among the boards Crown Arcade names for it. The JAMMA presets set the picture and the controls up there as RGUI-Pi does, and the sound goes through a USB sound card, as the board's amplifier gets none from a Pi 5.
 
 ## Overscan and the safe area
 
 A CRT draws its picture a little larger than its glass, so the edges hide under the bezel: overscan. Every TV hides a different amount. The image sets `disable_overscan=1`, so the firmware adds no black borders of its own and OSD/OS gets the whole mode. OSD/OS then keeps everything that matters well inside the edges, the way TV graphics keep to a title-safe area:
 
-- **Everything is sized from the screen**, never in fixed pixels: `root.sw` and `root.sh` are the screen's width and height, and `root.px`, one pixel of a 240-line picture (`sh / 240`), is the unit the pixel-drawn pieces are built on. The same layout fits 480i, 576i and 1080p.
+- **Everything is sized from the screen**, never in fixed pixels: `root.sw` and `root.sh` are the screen's width and height (on a tube, the width of its 4:3 stage, as below), and `root.px`, one pixel of a 240-line picture (`sh / 240`), is the unit the pixel-drawn pieces are built on. The same layout fits 480i, 576i and 1080p.
 - **The content box**, where every view lays out its content, runs from 74 to 566 across and 57 to 430 down at 640×480: about 11.6 % in from each side and 11.9 % from the top, ending 10.4 % above the bottom. The title bar starts 12.5 % in from the top and the left, and every hint bar ends 10.4 % above the bottom.
 - **The channel logo** mpv draws on a video stands 10 % of the picture in from its corner, inside a CRT's safe area.
 - **A video** fills the whole screen, as a broadcast does, and its edges go under the bezel like one.
@@ -775,7 +808,8 @@ A CRT draws its picture a little larger than its glass, so the edges hide under 
 From [`Main.qml`](https://github.com/mehmetraif/OSD-OS/blob/main/Main.qml):
 
 ```qml
-readonly property real sw: width
+readonly property bool tube: typeof screenIsTube !== "undefined" && screenIsTube === true
+readonly property real sw: tube ? Math.round(height * 4 / 3) : width
 readonly property real sh: height
 // One pixel of a 240-line picture, in screen pixels: the unit the
 // pixel-drawn OSD elements (Components/Osd*, PixelIcon) are built on.
@@ -788,13 +822,15 @@ readonly property rect contentBox: Qt.rect(sw * 0.115625, sh * 0.11875, sw * 0.7
 
 A module of your own should do the same: [Writing a module](https://github.com/mehmetraif/OSD-OS/wiki/Writing-a-Module).
 
-**A picture a little squeezed or stretched.** mpv assumes square pixels, and a CRT's aren't quite. [INSTALL.md](https://github.com/mehmetraif/OSD-OS/blob/main/INSTALL.md) suggests telling mpv the pixel shape in `~/.config/mpv/mpv.conf` (on the image, `/home/pi/.config/mpv/mpv.conf`):
+**The picture's shape on a CRT.** A CRT's display mode doesn't have square pixels: JAMMA 240p is 720×240 on a 4:3 tube, its pixels more than twice as tall as they are wide, and composite's 720×480 a little taller. On every output but HDMI, OSD/OS draws for the tube's 4:3: the menus on a 4:3 stage stretched across the screen, the videos with mpv told the screen is 4:3 (`--monitoraspect=4:3`, or, inside OSD/OS with Transparent Background, drawn in that shape), and the arcade games through Emulator Video's Auto ([Arcade](https://github.com/mehmetraif/OSD-OS/wiki/Arcade)). Off the image, a TV's mode counts as a tube: 288 lines or fewer, at least twice as many pixels wide (720×240, 1920×240, 720×288), or 480 or 576 lines 720 wide. A screen of more lines than 576 never does: a Pi 5 whose preset's output never comes up starts on the first display connected, HDMI, and draws for its square pixels.
+
+A tube whose picture still looks a little squeezed or stretched (its overscan, or a Pi 5 on composite that reports a narrower raster, 704×432 instead of 720×480) can have the videos' shape tuned in `~/.config/mpv/mpv.conf` (on the image, `/home/pi/.config/mpv/mpv.conf`): a line there takes the place of OSD/OS's 4:3. Start from 4:3's 1.333 and raise or lower it until a circle in a 4:3 test pattern played from Local Files is round:
 
 ```ini
-monitorpixelaspect=0.888889
+monitoraspect=1.333
 ```
 
-Tune the value against a 4:3 test pattern played from Local Files. A Pi 5 on composite sometimes reports a narrower raster (704×432 instead of 720×480), which the same line can make up for. mpv.conf applies to videos played by an mpv process, not to those played inside OSD/OS with Transparent Background ([Playback and mpv](https://github.com/mehmetraif/OSD-OS/wiki/Playback-and-mpv)).
+mpv.conf applies to videos played by an mpv process, not to those played inside OSD/OS with Transparent Background ([Playback and mpv](https://github.com/mehmetraif/OSD-OS/wiki/Playback-and-mpv)).
 
 ## Doing it by hand
 
@@ -953,16 +989,16 @@ sudo cp /boot/firmware/osdos-display-hdmi.txt /boot/firmware/osdos-display.txt
 sudo reboot
 ```
 
-After the reboot Settings offers Display Output, as on the image. To undo it, copy `config.txt.before-osdos` back over `config.txt`. JAMMA 240p is left out: a JAMMA board's controls need the image's `osdos-jamma.service`, and a Pi 5 its `osdos-jamma-dpi` overlay.
+After the reboot Settings offers Display Output, as on the image. To undo it, copy `config.txt.before-osdos` back over `config.txt`. The JAMMA presets are left out: a JAMMA board's controls need the image's `osdos-jamma.service`, and a Pi 5 its `osdos-jamma-dpi` overlay.
 
 ## Troubleshooting a black screen
 
-**Right after a switch, wait.** 15 seconds after OSD/OS has started on the new output, it goes back to the old one by itself and reboots again. With two reboots, that takes a while.
+**Right after a switch, wait.** 30 seconds after OSD/OS has started on the new output, it goes back to the old one by itself and reboots again. With two reboots, that takes a while.
 
 | What you see | What to do |
 |---|---|
 | Nothing on a composite or SCART TV after the switch, and the old output came back | The TV didn't show it. Check the TV's input (AV, SCART, the right one of two) and the cable, then the standard: a TV made for PAL may not take NTSC, and the other way round. Try the other one |
-| Nothing at all, not even after the 15 seconds | Take the card to a computer and copy `osdos-display-hdmi.txt` (or the output you know works) over `osdos-display.txt` on **bootfs** ([On the image, from a computer](https://github.com/mehmetraif/OSD-OS/wiki/Display-Output#on-the-image-from-a-computer)) |
+| Nothing at all, not even after the 30 seconds | Take the card to a computer and copy `osdos-display-hdmi.txt` (or the output you know works) over `osdos-display.txt` on **bootfs** ([On the image, from a computer](https://github.com/mehmetraif/OSD-OS/wiki/Display-Output#on-the-image-from-a-computer)) |
 | HDMI went dark on a Pi 4 after choosing composite or SCART RGB | As it should: a Pi 4 has one output on at a time. Plug in the CRT |
 | A Pi 5's picture still on HDMI after choosing composite or RGB | Check the connector exists: `ls /sys/class/drm/` should list a `card*-Composite-*` or `card*-DPI-*`. The launcher waits up to ten seconds for it at boot; without one it falls back to the connected HDMI, and `journalctl -u osdos -b` has `the display preset's … output never appeared` |
 | SCART RGB picture rolls (Pi 4) | Change `dpi_timings`' 2nd and 7th numbers from `0` to `1` in `osdos-display.txt` |

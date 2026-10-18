@@ -139,7 +139,7 @@ label east     A              # the hints show what is printed on its buttons
 
 ## A JAMMA cabinet
 
-On the OSD/OS image, with a Raspberry Pi to JAMMA board in RGB-Pi's layout and the **JAMMA 240p** display output ([Display Output](https://github.com/mehmetraif/OSD-OS/wiki/Display-Output#jamma-a-raspberry-pi-to-jamma-board)), the cabinet's controls are two gamepads, **OSD/OS JAMMA P1** and **OSD/OS JAMMA P2**, on a Pi 4 and a Pi 5 alike:
+On the OSD/OS image, with a Raspberry Pi to JAMMA board in RGB-Pi's layout and one of the **JAMMA** display outputs ([Display Output](https://github.com/mehmetraif/OSD-OS/wiki/Display-Output#jamma-a-raspberry-pi-to-jamma-board)), the cabinet's controls are two gamepads, **OSD/OS JAMMA P1** and **OSD/OS JAMMA P2**, on a Pi 4 and a Pi 5 alike:
 
 - **Where they come from.** The board reads the joysticks and buttons through two MCP23017 port expanders on the Pi's I2C bus, player 1's at address 0x20 and player 2's at 0x21. `osdos-jamma.service` (`/opt/osdos/bin/osdos-jamma`) reads both every 2 ms and plays what changes on the two pads.
 - **What they are.** OSD/OS and any emulator take them as any other gamepad: the joystick a stick that is either all the way over or in the middle, as RGB-Pi's own driver has it, the buttons gamepad buttons. MAME takes the stick as its joystick.
@@ -148,23 +148,53 @@ On the OSD/OS image, with a Raspberry Pi to JAMMA board in RGB-Pi's layout and t
 - **Bounce.** A switch's bounce in the 5 ms after it closes or opens is let go by.
 - **Six buttons on the edge.** A cabinet with buttons 4 to 6 on the JAMMA edge, pins 27 and e among them (CHAMMA), needs the board's JP1 and JP2 on CHAMMA ([Display Output → A Raspberry Pi to JAMMA board](https://github.com/mehmetraif/OSD-OS/wiki/Display-Output#a-raspberry-pi-to-jamma-board)).
 
-With the built-in mapping, the same on both expanders: the layout of RGB-Pi's own driver for these boards.
+With the built-in mapping, the same on both expanders: the layout Crown Arcade's board is wired in, that of the driver Crown gives for it (mk_arcade_joystick_rpi). The joystick, START and COIN come first, then the buttons in their order.
 
 | Pin | Input | In OSD/OS's menus |
 |---|---|---|
 | A0, A1, A2, A3 | Joystick up, down, left, right | Up, Down, Left, Right |
-| A5 | `start` | Play/pause |
-| A6 | `coin` (the pad's Back/Select button) | Back |
-| B7 | Button 1: `a` | Select |
-| B6 | Button 2: `b` | Back |
-| B5, B4 | Buttons 3 and 4: `x`, `y` | Nothing, until the stick's page in Settings → Controls or `input.cfg` gives them an action |
-| B3, B2 | Buttons 5 and 6: `tl`, `tr` (the shoulders) | Left, Right |
-| B1, B0 | Buttons 7 and 8: `tl2`, `tr2` | Nothing |
-| A4, A7 | `mode`, `z` | Nothing |
+| A4 | `start` | Play/pause |
+| A5 | `coin` (the pad's Back/Select button) | Back |
+| A6 | Button 1: `a` | Select |
+| A7 | Button 2: `b` | Back |
+| B0, B1 | Buttons 3 and 4: `x`, `y` | Nothing, until the stick's page in Settings → Controls or `input.cfg` gives them an action |
+| B2, B3 | Buttons 5 and 6: `tl`, `tr` (the shoulders) | Left, Right |
+| B4, B5 | Buttons 7 and 8: `tl2`, `tr2` | Nothing |
+| B6, B7 | `z`, `mode` | Nothing |
 
-**Which of your cabinet's buttons is on which pin** depends on the board and the harness. To see, open Settings → Controls → OSD/OS JAMMA P1 (or P2) → **Test Buttons** and press each control in turn. Both players' controls are tested at once, and each press shows its player, its pin on the board and what OSD/OS sees: `P1 B1 → 7`, or `P1 A7 → NONE` for a pin the sticks don't show (one the mapping makes `z`, `c` or `none`). A control that shows no line at all reaches neither expander. The test ends 10 seconds after the last press ([A controller's own page](https://github.com/mehmetraif/OSD-OS/wiki/Controls#a-controllers-own-page)).
+Up to OSD/OS v0.0.11 the built-in mapping was the layout JammaPi's driver (joypi) reads. Bindings made then in Settings → Controls were made for those pins: after the update, choose **Reset to Defaults** on each JAMMA stick's page. A board wired in JammaPi's layout gets it back with this `osdos-jamma.txt` (how to write one is below):
 
-<img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/screenshots/controller-test.png" width="50%" alt="TEST BUTTONS: BOTH PLAYERS' CONTROLS: EACH PRESS'S PIN ON THE BOARD → WHAT OSD/OS SEES, then P1 A4 → MODE (the last, boxed), P2 A6 → COIN, P2 A0 → JOYSTICK ▲, P1 A7 → NONE, P1 B1 → 7. ENDS IN 9" />
+```text
+# osdos-jamma.txt: JammaPi's layout (joypi), on both expanders
+0x20 A4 mode
+0x20 A5 start
+0x20 A6 coin
+0x20 A7 z
+0x20 B0 tr2
+0x20 B1 tl2
+0x20 B2 tr
+0x20 B3 tl
+0x20 B4 y
+0x20 B5 x
+0x20 B6 b
+0x20 B7 a
+0x21 A4 mode
+0x21 A5 start
+0x21 A6 coin
+0x21 A7 z
+0x21 B0 tr2
+0x21 B1 tl2
+0x21 B2 tr
+0x21 B3 tl
+0x21 B4 y
+0x21 B5 x
+0x21 B6 b
+0x21 B7 a
+```
+
+**Which of your cabinet's buttons is on which pin** depends on the board and the harness. To see, open Settings → Controls → OSD/OS JAMMA P1 (or P2) → **Test Buttons** and press each control in turn. Both players' controls are tested at once, and each press shows its player, its pin on the board and what OSD/OS sees: `P1 B4 → 7`, or `P1 B6 → NONE` for a pin the sticks don't show (one the mapping makes `z`, `c` or `none`). A control that shows no line at all reaches neither expander. The test ends 10 seconds after the last press ([A controller's own page](https://github.com/mehmetraif/OSD-OS/wiki/Controls#a-controllers-own-page)).
+
+<img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/screenshots/controller-test.png" width="50%" alt="TEST BUTTONS: BOTH PLAYERS' CONTROLS: EACH PRESS'S PIN ON THE BOARD → WHAT OSD/OS SEES, then P1 A4 → START (the last, boxed), P2 A5 → COIN, P2 A0 → JOYSTICK ▲, P1 B6 → NONE, P1 B4 → 7. ENDS IN 8" />
 
 The same comes from Exit to Terminal, or over SSH (the first user may read the I2C bus):
 
@@ -172,15 +202,15 @@ The same comes from Exit to Terminal, or over SSH (the first user may read the I
 /opt/osdos/bin/osdos-jamma --test
 ```
 
-It plays nothing, and prints each pin as it changes, with what the mapping makes of it: `P1 0x20 B7 pressed  a`. Ctrl+C ends it. The service goes on reading beside it, and Test Buttons runs this same test.
+It plays nothing, and prints each pin as it changes, with what the mapping makes of it: `P1 0x20 A6 pressed  a`. Ctrl+C ends it. The service goes on reading beside it, and Test Buttons runs this same test.
 
 **A button on another pin.** Write `osdos-jamma.txt` on the boot partition, beside `config.txt`. From a computer it is the **bootfs** drive. A line a pin, `<address> <pin> <input>`:
 
 ```text
 # osdos-jamma.txt: a Raspberry Pi to JAMMA board's pins, where they differ
-0x20 B7 b       # player 1's first two buttons the other way round
-0x20 B6 a
-0x21 A4 none    # and nothing on player 2's A4
+0x20 A6 b       # player 1's first two buttons the other way round
+0x20 A7 a
+0x21 B7 none    # and nothing on player 2's B7
 ```
 
 - **The inputs** are `up`, `down`, `left`, `right`, `start`, `coin`, `a`, `b`, `x`, `y`, `tl`, `tr`, `tl2`, `tr2`, `c`, `z`, `mode` and `none`.
@@ -193,9 +223,9 @@ It plays nothing, and prints each pin as it changes, with what the mapping makes
 
 ## Remotes
 
-- **Remotes that type keys.** Most USB remotes, and the 2.4 GHz ones with a USB dongle, present themselves as a keyboard: their arrows, OK and Back arrive as keys, and work as the keyboard's do. Bluetooth remotes are paired in [Settings → Bluetooth](https://github.com/mehmetraif/OSD-OS/wiki/Controls#bluetooth) and then work the same way. What a button sends depends on the remote: if one does nothing, give it an action in Settings → Controls, on the remote's own page or under All Keyboards & Remotes.
-- **Consumer Control buttons.** Some remotes send their extra buttons (Home, Back, Menu, the colored buttons, zoom, the media buttons) from a second device of their own, named "Consumer Control", beside the keyboard one. Without a desktop, as on the Pi, those buttons never reach OSD/OS as keys. So on Linux OSD/OS reads every such device itself, as it comes and goes, and its buttons do something only once you give them an action in Settings → Controls, on the remote's own page or under All Keyboards & Remotes.
-- **Air mice.** Some remotes are a mouse, their OK a left click. Give the click an action in Settings → Controls → All Keyboards & Remotes (Select, say).
+- **Remotes that type keys.** Most USB remotes, and the 2.4 GHz ones with a USB dongle, present themselves as a keyboard: their arrows, OK and Back arrive as keys, and work as the keyboard's do. An OK that arrives as keypad Enter, or as a Select or OK key, is Select / OK as Enter is. Bluetooth remotes are paired in [Settings → Bluetooth](https://github.com/mehmetraif/OSD-OS/wiki/Controls#bluetooth) and then work the same way. What a button sends depends on the remote: if one does nothing, give it an action in Settings → Controls, on the remote's own page or under All Keyboards & Remotes.
+- **Consumer Control buttons.** Some remotes send their extra buttons (Home, Back, Menu, the colored buttons, zoom, the media buttons) from a second device of their own, named "Consumer Control", beside the keyboard one. On Linux OSD/OS reads every such device itself, as it comes and goes: its OK and Select buttons are Select / OK, and its other buttons do what you give them in Settings → Controls, on the remote's own page or under All Keyboards & Remotes.
+- **Air mice.** Some remotes are a mouse as well, their OK a left click while their pointer is on. Without a desktop, as on the OSD/OS image, a left click is Select / OK and a right click Back, so such a remote works as it comes. (On many, a button of their own turns the pointer off, and OK then arrives as a key.) With a desktop, a click does only what you give it in Settings → Controls → All Keyboards & Remotes.
 - **Media keys** (volume, play/pause, stop, skipping) that a remote sends as keys go to mpv, as a keyboard's do ([During playback](https://github.com/mehmetraif/OSD-OS/wiki/Controls#during-playback)).
 
 ### HDMI-CEC
@@ -281,7 +311,7 @@ Settings → Controls → **All Keyboards & Remotes** gives each of six actions 
 | **Up**, **Down**, **Left**, **Right**, **Select / OK**, **Back** | Each reads `DEFAULT`, or `DEFAULT + ` the extra button's name. Select opens **New button**: press the button to give that action |
 | **Reset to Defaults** | Takes every extra button away |
 
-- On the **New button** screen ("Press a new button for [Select / OK]"), the next key, remote button or mouse button you press is the action's. Whatever does Back cancels instead: Esc, Backspace, a Back key that arrives as a key, the button given Back here or on the remote's own page, and Right Shift, which stands for back; a gamepad's back buttons cancel too. The buttons that do Select / OK, Up or Down, and the keys the menus use (the arrows, Enter and Space), keep what they do, and the help line says so (`Return is Select / OK already`), so that no keyboard or remote loses them. A key held on does nothing until it is let go.
+- On the **New button** screen ("Press a new button for [Select / OK]"), the next key, remote button or mouse button you press is the action's. Whatever does Back cancels instead: Esc, Backspace, a Back key that arrives as a key, the button given Back here or on the remote's own page, and Right Shift, which stands for back; a gamepad's back buttons cancel too, and without a desktop a right click. The buttons that do Select / OK, Up or Down (without a desktop, a left click among them), and the keys the menus use (the arrows, Enter and Space), keep what they do, and the help line says so (`Return is Select / OK already`), so that no keyboard or remote loses them. A key held on does nothing until it is let go.
 - **One button, one action**: a button given to an action is taken off any other (but those above, which keep theirs).
 - **What can be chosen:** any keyboard key, a remote's Consumer Control buttons (Linux), and a mouse's buttons. **Not** a gamepad's buttons (those are set on the pad's own page, or in [input.cfg](https://github.com/mehmetraif/OSD-OS/wiki/Controls#remapping-a-gamepad-inputcfg)), and **not Play/pause**, which has no row here (a keyboard's own page has one).
 - An extra *key* doesn't act while a text field has the focus, so typing still types; nor while Netflix, Prime Video or YouTube's sign-in has the screen.
@@ -295,7 +325,7 @@ Settings → Controls → **All Keyboards & Remotes** gives each of six actions 
 | A Consumer Control button (Linux) | 33554432 (`0x02000000`) + the Linux key code | its Back button, `KEY_BACK` 158: `33554590` | `BACK` |
 | A mouse button | 50331648 (`0x03000000`) + Qt's code for the button | the left click, 1: `50331649` | `MOUSE: LEFT CLICK` |
 
-For example, an air mouse remote whose OK is a left click and whose Back button comes from a Consumer Control device:
+For example, a remote whose Menu key is given Select / OK, and whose Home button, from a Consumer Control device, is given Back:
 
 ```json
 {
@@ -305,8 +335,8 @@ For example, an air mouse remote whose OK is a left click and whose Back button 
       "down": 0,
       "left": 0,
       "right": 0,
-      "select": 50331649,
-      "back": 33554590
+      "select": 16777301,
+      "back": 33554604
     }
   }
 }
@@ -450,7 +480,7 @@ bluetoothctl show
 
 ## The mouse
 
-A mouse, or a keyboard's touchpad, shows OSD/OS's own pointer while it moves, drawn in the screen's pixels and colors, and the pointer goes again once the mouse has been still for a few seconds. Moving it also counts as being there: it wakes the screen saver (not with Mouse Pointer Off). The menus still go by keys, though: a click selects nothing. To make a mouse button do something, give it an action in [Settings → Controls → All Keyboards & Remotes](https://github.com/mehmetraif/OSD-OS/wiki/Controls#all-keyboards--remotes-one-more-key-per-action), where it shows as `MOUSE: LEFT CLICK`, `MOUSE: RIGHT CLICK`, `MOUSE: MIDDLE CLICK`, `MOUSE: BACK` or `MOUSE: FORWARD`. A button given an action works whatever Mouse Pointer is set to, and every press of it is that action and nothing else.
+A mouse, or a keyboard's touchpad, shows OSD/OS's own pointer while it moves, drawn in the screen's pixels and colors, and the pointer goes again once the mouse has been still for a few seconds. Moving it also counts as being there: it wakes the screen saver (not with Mouse Pointer Off). The menus still go by keys, though, and a click isn't on what the pointer is over: without a desktop, as on the OSD/OS image, a left click is Select / OK and a right click Back, as an air-mouse remote's OK is a left click; with a desktop a click selects nothing. To make a mouse button do something else, give it an action in [Settings → Controls → All Keyboards & Remotes](https://github.com/mehmetraif/OSD-OS/wiki/Controls#all-keyboards--remotes-one-more-key-per-action), where it shows as `MOUSE: LEFT CLICK`, `MOUSE: RIGHT CLICK`, `MOUSE: MIDDLE CLICK`, `MOUSE: BACK` or `MOUSE: FORWARD`. A button given an action works whatever Mouse Pointer is set to, and every press of it is that action and nothing else.
 
 | Setting | Values | Default | What it does | Config key |
 |---|---|---|---|---|

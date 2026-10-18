@@ -7,7 +7,7 @@ OSD/OS has five kinds of effect, each with a row in Settings and a key in a [the
 | Kind | Settings row | Choices | Drawn by | Theme key | Config key |
 |---|---|---|---|---|---|
 | Text | Text Effect | Rainbow, Shimmer, Glow, Flicker | the GPU, in the screen's shader | `effects.text` | `app.text_effect` |
-| Background | Background Effect | Matrix, Fire, Stars, Snow, Checkered Flag | the GPU, a shader of its own | `effects.background` | `app.background_effect` |
+| Background | Background Effect | Matrix, Fire, Stars, Snow, Checkered Flag, Plasma | the GPU, a shader of its own | `effects.background` | `app.background_effect` |
 | Selector | Selector Effect | Sparkles, Welding, Lightning, Rainbow, Snow | the CPU | `effects.selector` | `app.selector_effect` |
 | Screen | Screen Effect | Scanlines, CRT, VHS | the GPU, in the screen's shader | `effects.screen` | `app.screen_effect` |
 | Transition | Transition | Fade, Cube, Ripple, Wave, Drop | Qt Quick; Ripple, Wave and Drop the GPU | `effects.transition` | `app.transition` |
@@ -23,7 +23,7 @@ Select the row and change it with ◄ ►. **THEME** (saved as `""`) is the them
 | Setting | Values | Default | What it does | Config key |
 |---|---|---|---|---|
 | Text Effect | THEME, Off, Rainbow, Shimmer, Glow, Flicker | THEME; without a theme, Off | What the text, the lines and the bars do | `app.text_effect` |
-| Background Effect | THEME, Off, Matrix, Fire, Stars, Snow, Checkered Flag | THEME; without a theme, Off | What goes on behind the menus | `app.background_effect` |
+| Background Effect | THEME, Off, Matrix, Fire, Stars, Snow, Checkered Flag, Plasma | THEME; without a theme, Off | What goes on behind the menus | `app.background_effect` |
 | Selector Effect | THEME, Off, Sparkles, Welding, Lightning, Rainbow, Snow | THEME; without a theme, Off | What goes on round the selected line | `app.selector_effect` |
 | Screen Effect | THEME, Off, Scanlines, CRT, VHS | THEME; without a theme, Off | A tube's or a tape's look over the whole screen | `app.screen_effect` |
 | Transition | THEME, Off, Fade, Cube, Ripple, Wave, Drop | THEME; without a theme, Off | How one window gives way to the next | `app.transition` |
@@ -101,10 +101,11 @@ What goes on behind the menus: over the window's ground and under what a view sh
 | **Stars** | A starfield drifting from right to left in three layers, far, middle and near, at 1.5, 5 and 8.5 art pixels a second, the nearer brighter, every star twinkling. In the scheme's colour, a little lighter | The window |
 | **Snow** | Snow falling in three layers, at 4 to 15 art pixels a second, the nearer faster, swaying as it falls: far flakes a dot, near ones a small cross. In the scheme's colour, lighter | The window |
 | **Checkered Flag** | The window a racing flag of 16-art-pixel squares, waving: its waves run along it from the left, where a pole would hold it, a long one and a shorter one across it, each fold lit as it rises and shaded as it falls away, in four shades dithered where they meet. Faint behind the menus: the light squares the scheme's colour, paled, the dark ones the window's ground | The window |
+| **Plasma** | The old demos' plasma, as the [template theme](https://github.com/mehmetraif/OSD-OS/wiki/Shaders#plasmafrag-a-background) draws it: four waves, across, down, slanted and in rings round a wandering point, drifting slowly, the brighter its swirls the more of their art pixels lit, in a 4×4 ordered dither. Faint behind the menus, in the scheme's colour | The window |
 
 **Where it is drawn.** Each background effect has an area:
 
-- **The window** (all five): with OSD Background: Window, inside the window's frame (the skin's `border`, or the one-art-pixel line, or the window's edge with Window Frame Off). With Full or Off, the whole screen.
+- **The window** (all six): with OSD Background: Window, inside the window's frame (the skin's `border`, or the one-art-pixel line, or the window's edge with Window Frame Off). With Full or Off, the whole screen.
 - **The foot** (`"area": "foot"`, for a theme's own shader): from the window's top down to the screen's foot, the window's width (the whole screen with Full or Off), so it rises from the bottom of the screen into the window.
 
 **On art pixels.** It is drawn at one pixel per art pixel, a pixel of a 240-line picture, and scaled up without smoothing, so it is as blocky as the menus. Every dialog that lays its own ground over the screen (a question, the on-screen keyboard, an info screen) draws the same picture in the same place, so it carries on under the dialog as if the window were still there.
@@ -220,7 +221,7 @@ A video is always shown as it is. The effects and the menu music **rest** while:
 
 | What | When |
 |---|---|
-| A video plays inside OSD/OS's window | With Settings → Transparent Background, full screen or behind the menus |
+| A video plays inside OSD/OS's window | With Settings → TV / Movie → Transparent Background, full screen or behind the menus |
 | Another program has the screen | On a Pi without a desktop: mpv playing a video, a takeover script, an Arcade game in MAME, a web player |
 | A video is loading | The loading screen, the tape winding in |
 | A video's menu is open | The menu that back opens over a Local Files, YouTube or Playlists video with Transparent Background ([Using OSD/OS](https://github.com/mehmetraif/OSD-OS/wiki/Using-OSD-OS)) |
@@ -242,7 +243,7 @@ A video played inside the window is drawn outside the layer the screen effect dr
 | Effect | Drawn by | Needs Qt Shader Tools in the build | Needs a GPU |
 |---|---|---|---|
 | Text: Rainbow, Shimmer, Glow, Flicker | OSD/OS's screen shader | yes | yes |
-| Background: Matrix, Fire, Stars, Snow, Checkered Flag | OSD/OS's background shaders | yes | yes |
+| Background: Matrix, Fire, Stars, Snow, Checkered Flag, Plasma | OSD/OS's background shaders | yes | yes |
 | Screen: Scanlines, CRT, VHS | OSD/OS's screen shader | yes | yes |
 | A theme's own background or screen shader | its `.qsb` | no: it comes compiled | yes |
 | Selector: Sparkles, Welding, Lightning, Rainbow, Snow | the CPU | no | no |

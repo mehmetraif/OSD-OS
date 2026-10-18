@@ -65,6 +65,10 @@ QVariantMap Machine::toVariant() const {
         map.insert(QStringLiteral("players"), players);
     if (rotate != 0)
         map.insert(QStringLiteral("rotate"), rotate);
+    if (width > 0 && height > 0) {
+        map.insert(QStringLiteral("width"), width);
+        map.insert(QStringLiteral("height"), height);
+    }
     if (bios)
         map.insert(QStringLiteral("bios"), true);
     if (device)
@@ -85,6 +89,8 @@ Machine Machine::fromVariant(const QString &name, const QVariantMap &map) {
     m.status = map.value(QStringLiteral("status")).toString();
     m.players = map.value(QStringLiteral("players")).toInt();
     m.rotate = map.value(QStringLiteral("rotate")).toInt();
+    m.width = map.value(QStringLiteral("width")).toInt();
+    m.height = map.value(QStringLiteral("height")).toInt();
     m.bios = map.value(QStringLiteral("bios")).toBool();
     m.device = map.value(QStringLiteral("device")).toBool();
     m.runnable = map.value(QStringLiteral("runnable"), true).toBool();
@@ -155,8 +161,11 @@ void ListXmlReader::read() {
                 m_text.clear();
             } else if (element == QLatin1String("display")) {
                 // The first screen's, for a game with several.
-                if (!m_hadDisplay)
+                if (!m_hadDisplay) {
                     m_machine.rotate = attrs.value(QLatin1String("rotate")).toInt();
+                    m_machine.width = attrs.value(QLatin1String("width")).toInt();
+                    m_machine.height = attrs.value(QLatin1String("height")).toInt();
+                }
                 m_hadDisplay = true;
             } else if (element == QLatin1String("input")) {
                 m_machine.players = attrs.value(QLatin1String("players")).toInt();
@@ -190,6 +199,19 @@ void ListXmlReader::read() {
             --m_depth;
         }
     }
+}
+
+QStringList screenArguments(const Machine &machine, int screenLines, const QString &shape, bool integer) {
+    QStringList args;
+    if (!shape.isEmpty())
+        args << QStringLiteral("-aspect") << shape;
+    // The lines the picture has on the screen: a vertical game's are its
+    // width before the rotation.
+    const bool vertical = machine.rotate == 90 || machine.rotate == 270;
+    const int lines = vertical ? machine.width : machine.height;
+    if (integer && lines > 0 && lines <= screenLines)
+        args << QStringLiteral("-nounevenstretch") << QStringLiteral("-unevenstretchx");
+    return args;
 }
 
 bool isShortName(const QString &name) {

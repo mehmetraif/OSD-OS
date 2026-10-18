@@ -37,14 +37,14 @@ ROM sets are copyrighted, like the games on them: use the games you are entitled
 
 | Screen | What it is |
 |---|---|
-| **Original** (the default) | OSD/OS's own tree, as the other modules have: Recently Played, Favorites, Search, All Games, and the games by players, decade and maker ([below](#the-original-screen)) |
-| **Arcade** | A cabinet's selection screen: one filter's games at a time, straight, on an arc or on a wheel, with the selected one's picture, high scores and details beside them; ◄ ► go through the filters, COIN buys credits and select or START plays ([below](#the-arcade-screen)) |
+| **Original** | OSD/OS's own tree, as the other modules have: Recently Played, Favorites, Search, All Games, and the games by players, decade and maker ([below](#the-original-screen)) |
+| **Arcade** (the default) | A cabinet's selection screen: one filter's games at a time, straight, on an arc or on a wheel, with the selected one's picture, high scores and details beside them; ◄ ► go through the filters, COIN buys credits and select or START plays ([below](#the-arcade-screen)) |
 
 Both list the same games from the same folder, share Recently Played and Favorites, and play a game the same way. Start Filter, Menu Filters, List Style, Border, Info Background, Screen Adjustment, Hint Bar and Help Line are the Arcade screen's own settings, so Settings → Arcade shows them only while Screen is Arcade. Its look is Settings' own, as every screen's is: its theme, colors, skin, background, selector effect and transitions.
 
 ## The original screen
 
-**Arcade** opens on a tree, which works as Local Files' does ([The tree](https://github.com/mehmetraif/OSD-OS/wiki/Local-Files#the-tree)): up and down move, right or select opens a folder, left or back closes it, and back at the top leaves the module.
+With **Settings → Arcade → Screen** on **Original**, Arcade opens on a tree, which works as Local Files' does ([The tree](https://github.com/mehmetraif/OSD-OS/wiki/Local-Files#the-tree)): up and down move, right or select opens a folder, left or back closes it, and back at the top leaves the module.
 
 | Folder | What it holds |
 |---|---|
@@ -103,7 +103,7 @@ COIN and START are MAME's own keys and buttons for them, so the screen works as 
 
 <table>
 <tr><th>Straight</th><th>Curved</th><th>3D Curved</th></tr>
-<tr><td><img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/screenshots/arcade-list-straight.png" width="100%" alt="List Style Straight: seven games one under another as wide as the bar, Final Fight selected and out to the bar's left end" /></td><td><img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/screenshots/arcade-screen.png" width="100%" alt="List Style Curved: seven games on an arc, the middle of the page furthest right, Final Fight selected" /></td><td><img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/screenshots/arcade-list-3d-curved.png" width="100%" alt="List Style 3D Curved: Final Fight in the middle row, furthest out, the games over and under it smaller and fainter the further they are from it; the bar reads 4/9" /></td></tr>
+<tr><td><img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/screenshots/arcade-list-straight.png" width="100%" alt="List Style Straight: seven games one under another as wide as the bar, Final Fight selected and out to the bar's left end" /></td><td><img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/screenshots/arcade-screen.png" width="100%" alt="List Style Curved: seven games on an arc, the middle of the page furthest right, Final Fight selected" /></td><td><img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/screenshots/arcade-list-3d-curved.png" width="100%" alt="List Style 3D Curved as it opens: Final Fight in the middle row, furthest out, the games over and under it smaller and fainter the further they are from it; the bar reads 4/9" /></td></tr>
 </table>
 
 **Settings → Arcade → List Style** lays the list out:
@@ -112,7 +112,7 @@ COIN and START are MAME's own keys and buttons for them, so the screen works as 
 |---|---|
 | **Straight** | One under another, as wide as the bar over them, a page at a time |
 | **Curved** (the default) | On an arc, the middle of the page furthest out, a page at a time |
-| **3D Curved** | On a wheel that turns with the game chosen, on Curved's arc. The game you are on stays in the middle row, furthest out, and the others go further back the further they are from it: smaller, their left ends on the arc, and fainter. Past the list's last game the wheel goes round to its first, once the filter has a game for every row; with fewer, the rows past either end stay empty. The wheel always has an odd number of rows, for a middle one: room for eight rows holds seven |
+| **3D Curved** | On a wheel, on Curved's arc. The game you are on is furthest out, and the others go further back the further they are from it, wherever it is: smaller, their left ends on the arc, and fainter, as far back as they go a row further from it than the wheel's ends are from its middle (four rows on a wheel of seven). It opens in the middle row, and after a game in the row it was played from; ▲ ▼ move it up and down the rows, and once it reaches the top or bottom row the wheel turns a row at a time. Past the list's last game the wheel goes round to its first, once the filter has a game for every row; fewer games lie from the top row down. The wheel always has an odd number of rows, for a middle one: room for eight rows holds seven |
 
 The rows going back on the wheel are the screen's only letters smaller than the hint bar's.
 
@@ -262,7 +262,7 @@ Six-player games, such as X-Men (6 Players), take six controllers: the JAMMA boa
 
 ## High scores
 
-With **High Scores** on (the default), MAME runs with its hiscore plugin, which keeps the high score tables of the games that forget them when they are switched off, as most early ones do: each in `arcade/hiscore/<game>.hi` in the data folder, for the games its `hiscore.dat` knows (the one in MAME's plugins). Games that keep their own scores in NVRAM keep them in `arcade/nvram`. A table is saved when the game closes the proper way, with Coin and Start, and also a few seconds after a new score goes in. The [High Scores](https://github.com/mehmetraif/OSD-OS/wiki/High-Scores) module shows the tables, as lines of names and scores, and the Arcade screen shows the best entries of each game's beside it.
+With **Save High Scores** on (the default), MAME runs with its hiscore plugin, which keeps the high score tables of the games that forget them when they are switched off, as most early ones do: each in `arcade/hiscore/<game>.hi` in the data folder, for the games its `hiscore.dat` knows (the one in MAME's plugins). Games that keep their own scores in NVRAM keep them in `arcade/nvram`. A table is saved when the game closes the proper way, with Coin and Start, and also a few seconds after a new score goes in. The [High Scores](https://github.com/mehmetraif/OSD-OS/wiki/High-Scores) module shows the tables, as lines of names and scores, and the Arcade screen shows the best entries of each game's beside it.
 
 ## FinalBurn Neo
 
@@ -295,7 +295,7 @@ The account, its token and its key are kept in `arcade/retroachievements.json`, 
 
 The High Scores module shows MAME's tables only: a game played in FinalBurn Neo keeps no table on the machine.
 
-**Settings → Arcade → FinalBurn Neo** shows what it has: RetroArch, the core (**Downloaded** with its date, or **Installed**), and how many games its list has. **Download** (**Download Again** for a newer one) fetches the latest core libretro builds every night for the machine (64-bit Linux on a Pi or a PC, or a Mac), with its list of games and its licence, about 35 MB, into `arcade/retroarch` in the data folder, ahead of any installed with RetroArch. **License** shows FinalBurn Neo's licence: it may be used and shared, never sold, and no ROMs come with it.
+**Settings → Arcade → FinalBurn Neo** shows what it has: RetroArch, the core (**Downloaded** with its date, or **Installed**), and how many games its list has. **Download** (**Download Again** for a newer one) fetches the latest core libretro builds every night for the machine (64-bit Linux on a Pi or a PC, or a Mac), with its list of games and its licence, about 35 MB, into `arcade/retroarch` in the data folder, ahead of any installed with RetroArch. Its licence, which comes with it, is on **Settings → About**'s FinalBurn Neo line, among the arcade's free software: it may be used and shared, never sold, and no ROMs come with it.
 
 ## Online play
 
@@ -311,35 +311,48 @@ Both players need the same game's set: a game listed under Online Games is in yo
 
 ## The picture and the sound
 
-MAME draws the game in the display mode OSD/OS runs in (**Settings → Display Output**: on the JAMMA board, its 240p), scaled to it; a vertical game stands upright inside the horizontal screen. On a Raspberry Pi 5 it opens the output the display preset names, as mpv does, rather than the first with a screen plugged in. **Video** chooses how MAME draws: if a game shows no picture, or MAME stops with an error about OpenGL, try another. The sound goes to the card **Settings → Audio Output** chose ([Audio Output](https://github.com/mehmetraif/OSD-OS/wiki/Audio-Output)). With no sound card at all, MAME plays the game without sound (`-sound none`), as its sound output would stop it otherwise. RetroArch draws FinalBurn Neo's games the same way, in the display mode OSD/OS runs in (on the Pi's console through KMS, the first output with a screen plugged in), and plays their sound through the same card, or none.
+MAME draws the game in the display mode OSD/OS runs in (**Settings → Display Output**: on the JAMMA board, its 240p), scaled to it; a vertical game stands upright inside the horizontal screen. On a Raspberry Pi 5 it opens the output the display preset names, as mpv does, rather than the first with a screen plugged in. The sound goes to the card **Settings → Audio Output** chose ([Audio Output](https://github.com/mehmetraif/OSD-OS/wiki/Audio-Output)). With no sound card at all, MAME plays the game without sound (`-sound none`), as its sound output would stop it otherwise. RetroArch draws FinalBurn Neo's games the same way, in the display mode OSD/OS runs in (on the Pi's console through KMS, the first output with a screen plugged in), and plays their sound through the same card, or none.
+
+### Emulator Video
+
+**Settings → Arcade → Emulator Video** sets how both MAME and FinalBurn Neo draw a game on your screen, the way OSD/OS's own menus fill it:
+
+- **Screen Shape**: the shape of your screen, which a game's picture is drawn to in its own shape (a horizontal game 4:3, a vertical one 3:4). A CRT's display mode doesn't have square pixels: JAMMA 240p is 720×240 on a 4:3 tube, which an emulator left to itself takes as a screen three times as wide as it is tall, squeezing the game into the middle third. **Auto** says 4:3 on a CRT's display output (composite, SCART RGB, JAMMA; off the OSD/OS image, a display mode of 576 lines or fewer) and square pixels on HDMI. **4:3** and **16:9** say so whatever the output; **Square Pixels** leaves the picture as the screen's pixels give it.
+- **Integer Scale**: a game's lines drawn whole, once (twice on a 480-line output), rather than spread over the screen's. On a CRT the lines stay sharp, with a thin border above and below a 224-line game on a 240-line screen; spread over 240, one line in fourteen comes out doubled or blurred. **Auto** is on on a CRT's display output and off elsewhere. A game with more lines than the screen (a vertical one on a 240p tube) fills it either way.
+- **MAME Video**: how MAME draws: if a game shows no picture, or MAME stops with an error about OpenGL, try another.
+
+On a JAMMA cabinet at 240p, with everything on Auto, a horizontal game of 224 lines is drawn once each, as wide as its shape on the tube, and a vertical game upright in the middle, its lines spread over the screen's.
 
 ## Settings
 
-Settings → Arcade.
+Settings → Arcade, the second row of Settings' first screen. The page is shared with the [High Scores](https://github.com/mehmetraif/OSD-OS/wiki/High-Scores) module, whose **Enabled** follows these rows under a **High Scores** heading.
 
 | Setting | Values | Default | What it does | Config key |
 |---|---|---|---|---|
 | Enabled | ON, OFF | OFF | Shows Arcade on the main menu | `modules.com.osdos.arcade.enabled` |
 | Games Folder | Default, or a folder | Default | The folder of ROM sets. Default: `Games/Arcade` in Local Files' default folder, on the OSD/OS image `/media/OSD-OS/Games/Arcade` | `modules.com.osdos.arcade.games_directory` |
-| Screen | Original, Arcade | Original | How the games are listed, from the next time Arcade opens: the tree, or the Arcade screen ([Two screens](#two-screens)) | `modules.com.osdos.arcade.screen` |
+| Screen | Original, Arcade | Arcade | How the games are listed, from the next time Arcade opens: the tree, or the Arcade screen ([Two screens](#two-screens)) | `modules.com.osdos.arcade.screen` |
 | Start Filter | All Games, then the lists, genres, players, decades and publishers Menu Filters shows | All Games | The filter the Arcade screen opens on ([Filters](#filters)); while it has no games, the first that has. Shown while Screen is Arcade | `modules.com.osdos.arcade.start_filter` |
 | Menu Filters | A page of the filters under their headings, each ON or OFF | All on, the publishers off | The filters ◄ ► goes round on the Arcade screen ([Menu Filters](#menu-filters)). Shown while Screen is Arcade | `modules.com.osdos.arcade.menu_filters` |
 | Play at Startup | None, then the favorites | None | A favorite game started straight after the boot screen, as a game's options set it ([A game's options](#a-games-options)). One for the whole app: choosing a game replaces another module's | `modules.com.osdos.arcade.play_at_startup` |
-| List Style | Straight, Curved, 3D Curved | Curved | How the Arcade screen's games lie: one under another, on an arc, or on a wheel turning with the game chosen ([List Style](#list-style)). Shown while Screen is Arcade | `modules.com.osdos.arcade.list_style` |
+| List Style | Straight, Curved, 3D Curved | Curved | How the Arcade screen's games lie: one under another, on an arc, or on a wheel the game chosen goes up and down ([List Style](#list-style)). Shown while Screen is Arcade | `modules.com.osdos.arcade.list_style` |
 | Border | ON, OFF | ON | The frames round the Arcade screen's picture and the box under it ([The Arcade screen](#the-arcade-screen)). Shown while Screen is Arcade | `modules.com.osdos.arcade.border` |
 | Info Background | A slider from TRANSPARENT to SOLID, 0 to 100 in steps of 10 | 100 (SOLID) | How solid the ground under the Arcade screen's picture and the box under it is over Settings' Background Effect ([The Arcade screen](#the-arcade-screen)). Shown while Screen is Arcade | `modules.com.osdos.arcade.info_background` |
 | Screen Adjustment | (opens the Arcade screen to adjust) | As OSD/OS lays it out | Fits the Arcade screen to the screen: a frame whose sides ▲ ▼ ◄ ► move, the list and the box under the picture holding as many games and lines as fit ([Screen Adjustment](#screen-adjustment)). Shown while Screen is Arcade | `modules.com.osdos.arcade.screen_adjustment` |
 | Hint Bar | ON, OFF | ON | The keys at the foot of the Arcade screen and its windows, in place of Settings' own Hint Bar; off, the list and the box under the picture take its room. Shown while Screen is Arcade | `modules.com.osdos.arcade.hint_bar` |
 | Help Line | ON, OFF | ON | The game's full name, and what the box under the picture has no line for of its maker, year, players and system, under the Arcade screen's list, in place of Settings' own Help Line; off, the list and the box take its room. Shown while Screen is Arcade | `modules.com.osdos.arcade.help_line` |
 | Start Info Screen | ON, OFF | ON | Before a game, the screen of how to come back (and from the Arcade screen, the credits going in); off, the game starts straight from the list ([Playing](#playing)) | `modules.com.osdos.arcade.start_info` |
-| High Scores | ON, OFF | ON | Keeps the games' high score tables with MAME's hiscore plugin ([above](#high-scores)) | `modules.com.osdos.arcade.high_scores` |
+| Save High Scores | ON, OFF | ON | Keeps the games' high score tables with MAME's hiscore plugin ([above](#high-scores)) | `modules.com.osdos.arcade.high_scores` |
 | Online High Scores | Off, RetroAchievements | Off | RetroAchievements: a game FinalBurn Neo has plays in it, in hardcore mode, its scores going to RetroAchievements' leaderboards ([FinalBurn Neo](#finalburn-neo)) | `modules.com.osdos.arcade.online_high_scores` |
 | RetroAchievements Account | (opens the account's page) | | The account the scores go to: sign in and out, and the Web API key the Arcade screen reads the leaderboards with ([FinalBurn Neo](#finalburn-neo)). Shown while Online High Scores is RetroAchievements | |
 | Online Play | Off, On | Off | Playing the games FinalBurn Neo has with others over the internet: Online Games, and Host Online Game in a game's options ([Online play](#online-play)) | `modules.com.osdos.arcade.online_play` |
 | Online Name | (opens the on-screen keyboard) | The RetroAchievements account's, else OSD-OS | The name the others see in online games ([Online play](#online-play)). Shown while Online Play is On | `modules.com.osdos.arcade.online_name` |
 | Relay Server | New York, Madrid, São Paulo, Singapore, Chuncheon | New York | Where a game you host is relayed from ([Online play](#online-play)). Shown while Online Play is On | `modules.com.osdos.arcade.relay_server` |
-| FinalBurn Neo | (opens FinalBurn Neo's page) | | What is installed of RetroArch and FinalBurn Neo, the core's download, and its licence ([FinalBurn Neo](#finalburn-neo)) | |
-| Video | Auto, OpenGL, BGFX, Accelerated, Software | Auto | How MAME draws the game: Auto leaves it to MAME's own settings (Debian's `mame.ini` says OpenGL); the others are MAME's `-video opengl`, `bgfx`, `accel` and `soft` | `modules.com.osdos.arcade.video` |
+| FinalBurn Neo | (opens FinalBurn Neo's page) | | What is installed of RetroArch and FinalBurn Neo, and the core's download ([FinalBurn Neo](#finalburn-neo)); its licence is in Settings → About | |
+| Emulator Video | (opens its page) | | How MAME and FinalBurn Neo draw a game on your screen ([Emulator Video](#emulator-video)) | |
+| Emulator Video → Screen Shape | Auto, 4:3, 16:9, Square Pixels | Auto | The screen's shape the games are drawn to: Auto 4:3 on a CRT's display output, square pixels on HDMI. MAME's `-aspect`; for FinalBurn Neo, the picture's shape in the screen's pixels (`video_aspect_ratio`) | `modules.com.osdos.arcade.screen_shape` |
+| Emulator Video → Integer Scale | Auto, On, Off | Auto | A game's lines drawn whole rather than spread over the screen's: Auto on on a CRT's display output. MAME's `-nounevenstretch -unevenstretchx` for a game whose lines fit; RetroArch's `video_scale_integer` | `modules.com.osdos.arcade.integer_scale` |
+| Emulator Video → MAME Video | Auto, OpenGL, BGFX, Accelerated, Software | Auto | How MAME draws the game: Auto leaves it to MAME's own settings (Debian's `mame.ini` says OpenGL); the others are MAME's `-video opengl`, `bgfx`, `accel` and `soft` | `modules.com.osdos.arcade.video` |
 | Read the Games Again | (action) | | Asks MAME about every set in the folder again ([Reading the games](#reading-the-games)) | |
 
 ### How the values are saved
@@ -416,10 +429,11 @@ mame galaga \
     -skip_gameinfo \
     -samplepath /media/OSD-OS/Games/Arcade/samples \
     -pluginspath /usr/share/games/mame/plugins -plugin hiscore \
+    -aspect 4:3 -nounevenstretch -unevenstretchx \
     -autoboot_script ~/.local/share/OSD-OS/arcade/coins.lua
 ```
 
-(`;…/bios` while there is a `bios` folder; `-samplepath` while there is a `samples` folder, in place of MAME's own; the plugin's two while High Scores is on; `-video …` with any Video but Auto; `-sound none` without a sound card; `-autoboot_script` with credits bought on the Arcade screen.) Everything else is MAME's own settings: `/etc/mame/mame.ini` on the image, or a `mame.ini` of your own in `~/.mame`. A MAME of your own with its folders beside it runs in its own folder instead, as it would by hand, to find them, and reads the `mame.ini` there.
+(`;…/bios` while there is a `bios` folder; `-samplepath` while there is a `samples` folder, in place of MAME's own; the plugin's two while High Scores is on; `-video …` with any MAME Video but Auto; `-aspect` with a Screen Shape that isn't square pixels, and the two `unevenstretch` with Integer Scale on, for a game whose lines fit in the screen's ([Emulator Video](#emulator-video)); `-sound none` without a sound card; `-autoboot_script` with credits bought on the Arcade screen.) Everything else is MAME's own settings: `/etc/mame/mame.ini` on the image, or a `mame.ini` of your own in `~/.mame`. A MAME of your own with its folders beside it runs in its own folder instead, as it would by hand, to find them, and reads the `mame.ini` there.
 
 ## Troubleshooting
 
@@ -430,8 +444,8 @@ mame galaga \
 | `The games folder can't be read: …` | The folder isn't there and couldn't be made, or can't be read: a drive that isn't plugged in, or a Games Folder that is gone. Plug the drive in, or choose the folder again in **Settings → Arcade → Games Folder** |
 | A game is under **Not Recognized** | Its file isn't named as MAME names the game (`pacman.zip`, not `Pac-Man.zip`, nor `PACMAN.ZIP` on a drive that tells cases apart), or this MAME has no such game: a set for another version of MAME. The line under the tree says which |
 | `Missing …, looked for in …` | The set lacks files this MAME needs. The sets it names say where: a clone also needs its parent's set (`puckman.zip` for `pacman.zip`), unless the sets are non-merged; a Neo-Geo game needs `neogeo.zip`, a PGM game `pgm.zip`, and so on. A set made for another version of MAME often lacks a file or two |
-| `MAME stopped: …` about OpenGL, video or a window | Try another **Video** in Settings → Arcade |
-| `MAME closed unexpectedly` | MAME crashed. Try another **Video** in Settings → Arcade; if every Video does the same, run MAME by hand ([below](#troubleshooting)) to see its last lines |
+| `MAME stopped: …` about OpenGL, video or a window | Try another **MAME Video** in Settings → Arcade → Emulator Video |
+| `MAME closed unexpectedly` | MAME crashed. Try another **MAME Video** in Settings → Arcade → Emulator Video; if every one does the same, run MAME by hand ([below](#troubleshooting)) to see its last lines |
 | The game plays but there is no sound | Check **Settings → Audio Output**: on a Pi 5 with the JAMMA board, the USB sound card |
 | A game plays without some of its sounds | It plays them from samples: put its sample set (`dkong.zip` for Donkey Kong) in a `samples` folder in the games folder |
 | A player's controls are wrong | Check **Settings → Controls → Players**: who is player 1 is who MAME's joystick 1 is. Then MAME's own menu: **Tab → Input Settings** |

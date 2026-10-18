@@ -2,7 +2,7 @@
 
 The Playlists module keeps your own lists of videos, like a mixtape, taken from several modules at once: files from Local Files, YouTube videos, and films and episodes from Jellyfin and Emby can sit on one list and play as one, in order or shuffled. An **online** playlist plays each video from where it lives; an **offline** one downloads every video to the device once and then plays without the network. This page covers making and filling playlists, playing them, how downloads work (where they go, how YouTube and the servers are fetched, what each status means), every setting with its config key, the files the module keeps, and what to do when something doesn't work.
 
-The module is in [modules/playlists](https://github.com/mehmetraif/OSD-OS/tree/main/modules/playlists) (views and manifest) and [src/modules/playlists](https://github.com/mehmetraif/OSD-OS/tree/main/src/modules/playlists) (`PlaylistsBackend`, `ServerDownload`, `MediaServer`). It is on from the start: **Playlists** is on the main menu until you turn it off in **Settings → Playlists → Enabled**.
+The module is in [modules/playlists](https://github.com/mehmetraif/OSD-OS/tree/main/modules/playlists) (views and manifest) and [src/modules/playlists](https://github.com/mehmetraif/OSD-OS/tree/main/src/modules/playlists) (`PlaylistsBackend`, `ServerDownload`, `MediaServer`). It is on from the start: **Playlists** is on the main menu until you turn it off in **Settings → TV / Movie → Playlists → Enabled**.
 
 <table>
 <tr><th width="50%">Playlists</th><th width="50%">An offline playlist</th></tr>
@@ -100,7 +100,7 @@ The tree works as Local Files' does ([The tree](https://github.com/mehmetraif/OS
 | Where | How |
 |---|---|
 | **Local Files** | ► on a file: **Add to Playlist** in its options |
-| **YouTube** | ► on a video, then ► on its info screen (one ► with Settings → Info Screen off): **Add to Playlist** in its options |
+| **YouTube** | ► on a video, then ► on its info screen (one ► with Settings → TV / Movie → Info Screen off): **Add to Playlist** in its options |
 | **Jellyfin**, **Emby** | ► on **PLAY** on a film's, episode's or video's page (the hint bar shows `[►]:PLAYLIST`) |
 
 <img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/screenshots/options.png" width="100%" alt="A Local Files file's options: Add to Favorites, Play at Startup, Add to Playlist" />
@@ -149,7 +149,7 @@ The subtitles are those inside the file or stream. A Jellyfin or Emby video's su
 
 **Still images** from Local Files show for Local Files' **Image Duration** (5 seconds unless changed) before the list moves on.
 
-**Scaling.** The module's own **Scaling** decides how a 16:9 picture fills the 4:3 screen for every video on the list; **Default** follows **Settings → Scaling**.
+**Scaling.** The module's own **Scaling** decides how a 16:9 picture fills the 4:3 screen for every video on the list; **Default** follows **Settings → TV / Movie → Scaling**.
 
 **When it can't play:**
 
@@ -174,7 +174,7 @@ Back during a video (with the deck's menu closed) opens the list's own menu, tit
 | **Browse Playlists** | Back to the list's page |
 | **Close Video** | Stops the list and leaves Playlists for the main menu |
 
-Back in the menu returns to the video. A setting changed here is saved, as if changed in Settings → Playlists.
+Back in the menu returns to the video. A setting changed here is saved, as if changed in Settings → TV / Movie → Playlists.
 
 **With Transparent Background** the menu lies over the picture, which plays on. **Browse Playlists** returns to the list's page with the video still playing behind it; the main menu then leads with a row for the list, `► <NAME>`, and choosing that row, or **Play** on the list's page, takes it back to full screen where it is. Play/pause on the main menu stops it; playing anything else replaces it. See [Playback and mpv](https://github.com/mehmetraif/OSD-OS/wiki/Playback-and-mpv).
 
@@ -209,13 +209,13 @@ flowchart TD
 
 <img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/screenshots/folder-picker.png" width="100%" alt="The folder picker, here for Local Files' Media Directory: Use This Folder at the top of each folder" />
 
-**Settings → Playlists → Download Folder** names the folder, picked on the same tree as Local Files' Media Directory (above): **Use This Folder** picks the folder open, **Default Folder** goes back to the default. The default is a **Playlists** folder in Local Files' media folder, so it follows Local Files' **Media Directory**:
+**Settings → TV / Movie → Playlists → Download Folder** names the folder, picked on the same tree as Local Files' Media Directory (above): **Use This Folder** picks the folder open, **Default Folder** goes back to the default. The default is a **Playlists** folder in Local Files' media folder, so it follows Local Files' **Media Directory**:
 
 | Local Files' media folder | Default download folder |
 |---|---|
 | On the OSD/OS image, unchanged: `/media/OSD-OS`, the card's OSD-OS partition ([The film partition](https://github.com/mehmetraif/OSD-OS/wiki/Local-Files#the-film-partition-on-the-osdos-image)) | `/media/OSD-OS/Playlists` |
 | Elsewhere, unchanged: `<data folder>/media` | `~/.local/share/OSD-OS/media/Playlists` on Linux, `~/Library/Application Support/OSD-OS/media/Playlists` on a Mac |
-| Set in **Settings → Local Files → Media Directory** (or by `OSDOS_MEDIA_DIR`, [Local Files](https://github.com/mehmetraif/OSD-OS/wiki/Local-Files#the-media-folder)) | `<that folder>/Playlists` |
+| Set in **Settings → TV / Movie → Local Files → Media Directory** (or by `OSDOS_MEDIA_DIR`, [Local Files](https://github.com/mehmetraif/OSD-OS/wiki/Local-Files#the-media-folder)) | `<that folder>/Playlists` |
 
 Inside it each source has a folder of its own, made as needed, and each file carries the video's id in brackets, so two videos of the same name never collide:
 
@@ -235,7 +235,7 @@ Changing the Download Folder affects what downloads next; files already download
 
 ### YouTube videos
 
-YouTube videos download with yt-dlp, in the YouTube module's **Advanced** settings: **Playback Resolution**, **Video Codec**, **Max Frame Rate** and **Audio Language**. If you are signed in to YouTube (Settings → YouTube → Sign in), the download uses that sign-in too. OSD/OS finds yt-dlp where it does for the YouTube module: `<data folder>/bin/yt-dlp` first (where the OSD/OS image keeps it, updated after each boot and daily), then a copy beside the app, then the one on the `PATH`.
+YouTube videos download with yt-dlp, in the YouTube module's **Advanced** settings: **Playback Resolution**, **Video Codec**, **Max Frame Rate** and **Audio Language**. If you are signed in to YouTube (Settings → TV / Movie → YouTube → Sign in), the download uses that sign-in too. OSD/OS finds yt-dlp where it does for the YouTube module: `<data folder>/bin/yt-dlp` first (where the OSD/OS image keeps it, updated after each boot and daily), then a copy beside the app, then the one on the `PATH`.
 
 Above 360p YouTube sends a video's picture and sound separately, and **ffmpeg** puts them back together into one MP4. The OSD/OS image has ffmpeg; elsewhere install it (`sudo apt install ffmpeg`, `brew install ffmpeg`). Without it, OSD/OS asks yt-dlp only for files that hold both, which YouTube offers in low resolutions.
 
@@ -290,7 +290,7 @@ Earlier OSD/OS images mounted the film partition read-only, so every download fa
 
 ## Settings
 
-Settings → Playlists.
+Settings → TV / Movie → Playlists.
 
 | Setting | Values | Default | What it does | Config key |
 |---|---|---|---|---|
@@ -298,7 +298,7 @@ Settings → Playlists.
 | Download Folder | Default, or a folder | Default | Where offline playlists' videos are downloaded, each video once whatever lists it is on. Default: a Playlists folder in Local Files' folder | `modules.com.osdos.playlists.download_folder` |
 | Subtitles | Forced Only, On, Off | Forced Only | Whether a video's subtitles show as it starts ([Playing](#playing)) | `modules.com.osdos.playlists.subtitles` |
 | Loop Playback | ON, OFF | OFF | When a playlist ends, start it again from its first video | `modules.com.osdos.playlists.loop_playback` |
-| Scaling | Default, Letterbox, 14:9, Pan & Scan, Anamorphic | Default | How a 16:9 picture fills the 4:3 screen in Playlists; Default follows Settings → Scaling | `modules.com.osdos.playlists.video_scaling` |
+| Scaling | Default, Letterbox, 14:9, Pan & Scan, Anamorphic | Default | How a 16:9 picture fills the 4:3 screen in Playlists; Default follows Settings → TV / Movie → Scaling | `modules.com.osdos.playlists.video_scaling` |
 
 ### How the values are saved
 
@@ -477,7 +477,7 @@ A YouTube video is written as `https://www.youtube.com/watch?v=<id>` (mpv's yt-d
 | Problem | What to do |
 |---|---|
 | A YouTube video **FAILED**, `no yt-dlp` | Install yt-dlp ([Installation](https://github.com/mehmetraif/OSD-OS/wiki/Installation)): the OSD/OS image has it in `~/.local/share/OSD-OS/bin/yt-dlp`; elsewhere put a copy there or on the `PATH`. Then **Retry Downloads** |
-| A YouTube video **FAILED** with yt-dlp's error | Usually an out-of-date yt-dlp, or YouTube's bot check: update yt-dlp (`~/.local/share/OSD-OS/bin/yt-dlp -U` for the copy in the data folder; the image's updates itself daily), or sign in with Settings → YouTube → Sign in. Run the [command above](#youtube-videos) by hand to see the whole error |
+| A YouTube video **FAILED** with yt-dlp's error | Usually an out-of-date yt-dlp, or YouTube's bot check: update yt-dlp (`~/.local/share/OSD-OS/bin/yt-dlp -U` for the copy in the data folder; the image's updates itself daily), or sign in with Settings → TV / Movie → YouTube → Sign in. Run the [command above](#youtube-videos) by hand to see the whole error |
 | YouTube downloads are low resolution | ffmpeg is missing: install it (`sudo apt install ffmpeg`, `brew install ffmpeg`); videos downloaded from then on are joined at the YouTube module's resolution |
 | Everything **FAILED**, `can't write to …` | The download folder can't be written: pick another **Download Folder**, or on a card from an earlier image [make the partition writable](#a-card-flashed-with-an-earlier-image) |
 | **NOT ALLOWED** | Your Jellyfin or Emby user may not download media; an administrator can allow it on the server, then **Retry Downloads** |

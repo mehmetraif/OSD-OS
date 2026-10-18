@@ -37,7 +37,7 @@ Every screen below is the app itself, running at 640×480. The film and YouTube 
 <table>
 <tr><th width="33%">Resume</th><th width="33%">Loading</th><th width="33%">Deck menu</th></tr>
 <tr><td><img src="screenshots/resume.png" width="100%" alt="Resume" /></td><td><img src="screenshots/loading.png" width="100%" alt="Loading" /></td><td><img src="screenshots/playback-menu.png" width="100%" alt="Deck menu" /></td></tr>
-<tr><td>Pick up where you left off, or start from the beginning.</td><td>While a video starts, a tape loads: live VHS noise in the theme's colours, the tracking band rolling through, and a dubbing deck's display, TAPE A at where the video is and TAPE B LOADING with its length once known. Settings → Loading Effect turns the noise off, and Loading Screen Colors keeps it white on blue whatever the theme.</td><td>▲ or ▼ during playback opens the deck's menu: the position bar, audio and subtitle tracks, crop (the four Scalings in turn) and stop.</td></tr>
+<tr><td>Pick up where you left off, or start from the beginning.</td><td>While a video starts, a tape loads: live VHS noise in the theme's colours, the tracking band rolling through, and a dubbing deck's display, TAPE A at where the video is and TAPE B LOADING with its length once known. Settings → TV / Movie → Loading Effect turns the noise off, and Loading Screen Colors keeps it white on blue whatever the theme.</td><td>▲ or ▼ during playback opens the deck's menu: the position bar, audio and subtitle tracks, crop (the four Scalings in turn) and stop.</td></tr>
 </table>
 
 <table>
@@ -147,9 +147,9 @@ Once signed in, each opens on the server's Continue Watching and its libraries. 
 ### Settings
 
 <table>
-<tr><th width="50%">Settings</th><th width="50%">Modules</th></tr>
-<tr><td><img src="screenshots/settings.png" width="100%" alt="Settings" /></td><td><img src="screenshots/settings-modules.png" width="100%" alt="Modules" /></td></tr>
-<tr><td>Laid out like a camcorder's menu, the look at its top: Theme, then each of its parts (the color scheme, the skin, the effects, the transition and the menu music), each the theme's, Off or one of your own. Further down, Transparent Background is a slider, the deck's tape bar, from TRANSPARENT to SOLID; Hint Bar takes the key hints off the foot of every screen, Help Line the box under the menu; Channel Logo puts OSD/OS's logo in a corner of the picture while a video plays.</td><td>Each module is turned on and set up from here.</td></tr>
+<tr><th width="50%">Settings</th><th width="50%">TV / Movie</th></tr>
+<tr><td><img src="screenshots/settings.png" width="100%" alt="Settings" /></td><td><img src="screenshots/settings-modules.png" width="100%" alt="TV / Movie" /></td></tr>
+<tr><td>Laid out like a camcorder's menu. TV / Movie and Arcade open the videos' and the games' pages; under General Settings comes the look: Theme, then each of its parts (the color scheme, the skin, the effects, the transition and the menu music), each the theme's, Off or one of your own. Further down, Hint Bar takes the key hints off the foot of every screen, Help Line the box under the menu.</td><td>The videos' page: Transparent Background is a slider, the deck's tape bar, from TRANSPARENT to SOLID; Channel Logo puts OSD/OS's logo in a corner of the picture while a video plays. Under Modules, each video module is turned on and set up from its own page.</td></tr>
 </table>
 
 <table>
@@ -185,13 +185,13 @@ Once signed in, each opens on the server's Continue Watching and its libraries. 
 <table>
 <tr><th width="50%">Channel Logo</th><th width="50%">Under the menus</th></tr>
 <tr><td><img src="screenshots/channel-logo.png" width="100%" alt="Channel Logo" /></td><td><img src="screenshots/channel-logo-menu.png" width="100%" alt="The logo under the menus" /></td></tr>
-<tr><td>OSD/OS's logo in a corner of the picture while a video plays, the way a channel's sits in a broadcast. Settings → Channel Logo picks the corner, all four, or none.</td><td>It is in the picture itself, so with Transparent Background the menus lie over it.</td></tr>
+<tr><td>OSD/OS's logo in a corner of the picture while a video plays, the way a channel's sits in a broadcast. Settings → TV / Movie → Channel Logo picks the corner, all four, or none.</td><td>It is in the picture itself, so with Transparent Background the menus lie over it.</td></tr>
 </table>
 
 <table>
 <tr><th width="50%">Logo Image</th><th width="50%">Picking the picture</th></tr>
 <tr><td><img src="screenshots/channel-logo-custom.png" width="100%" alt="Logo Image" /></td><td><img src="screenshots/logo-picker.png" width="100%" alt="Picking the picture" /></td></tr>
-<tr><td>Settings → Logo Image puts a picture of your own there instead, as tall as OSD/OS's logo.</td><td>Picked on the same file browser: select on a picture, or OSD/OS Logo at the top to go back to it.</td></tr>
+<tr><td>Settings → TV / Movie → Logo Image puts a picture of your own there instead, as tall as OSD/OS's logo.</td><td>Picked on the same file browser: select on a picture, or OSD/OS Logo at the top to go back to it.</td></tr>
 </table>
 
 ### Themes

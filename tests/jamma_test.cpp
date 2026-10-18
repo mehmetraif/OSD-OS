@@ -31,21 +31,23 @@ class JammaTest : public QObject {
     Q_OBJECT
 
 private slots:
-    void defaultMapIsRgbPis() {
-        // The layout RGB-Pi's JAMMA driver (joypi) reads, the same on both
-        // chips: the joystick and Start, Coin on GPA, the buttons from GPB7 down.
+    void defaultMapIsCrowns() {
+        // The layout Crown Arcade's board is wired in (mk_arcade_joystick_rpi's),
+        // the same on both chips: the joystick, Start and Coin, then the
+        // buttons in their order from GPA6.
         const ChipMap p1 = defaultMap(0x20);
         QCOMPARE(int(p1.address), 0x20);
         const Input expected[16] = {
             Input::Up, Input::Down, Input::Left, Input::Right,
-            Input::Mode, Input::Start, Input::Coin, Input::Z,
-            Input::TR2, Input::TL2, Input::TR, Input::TL,
-            Input::Y, Input::X, Input::B, Input::A,
+            Input::Start, Input::Coin, Input::A, Input::B,
+            Input::X, Input::Y, Input::TL, Input::TR,
+            Input::TL2, Input::TR2, Input::Z, Input::Mode,
         };
         for (int pin = 0; pin < 16; ++pin)
             QCOMPARE(int(p1.pins[pin]), int(expected[pin]));
-        // Button 1 on GPB7, as on both chips.
-        QCOMPARE(int(defaultMap(0x21).pins[pinFromName("B7")]), int(Input::A));
+        // Button 1 on GPA6 and button 6 on GPB3, as on both chips.
+        QCOMPARE(int(defaultMap(0x21).pins[pinFromName("A6")]), int(Input::A));
+        QCOMPARE(int(defaultMap(0x21).pins[pinFromName("B3")]), int(Input::TR));
     }
 
     void pinAndInputNames() {
@@ -92,13 +94,13 @@ private slots:
 
     void buttonsGoOutAsTheirCodes() {
         Panel panel(defaultMap(0x20));
-        std::vector<Event> e = panel.update(bit("B7"), 1000);  // button 1
+        std::vector<Event> e = panel.update(bit("A6"), 1000);  // button 1
         QCOMPARE(int(e.size()), 1);
         QVERIFY(has(e, EV_KEY, BTN_A, 1));
-        e = panel.update(bit("B7") | bit("A5"), 1010);  // and Start
+        e = panel.update(bit("A6") | bit("A4"), 1010);  // and Start
         QVERIFY(has(e, EV_KEY, BTN_START, 1));
         QCOMPARE(int(e.size()), 1);
-        e = panel.update(bit("A6"), 1020);  // Coin; button 1 and Start let go
+        e = panel.update(bit("A5"), 1020);  // Coin; button 1 and Start let go
         QVERIFY(has(e, EV_KEY, BTN_SELECT, 1));
         QVERIFY(has(e, EV_KEY, BTN_A, 0));
         QVERIFY(has(e, EV_KEY, BTN_START, 0));
@@ -115,8 +117,8 @@ private slots:
         std::vector<ChipMap> maps = { defaultMap(0x20) };
         applyMapFile("0x20 B2 a", maps, nullptr);
         Panel panel(maps[0]);
-        QVERIFY(has(panel.update(bit("B7"), 1000), EV_KEY, BTN_A, 1));
-        QVERIFY(panel.update(bit("B7") | bit("B2"), 1010).empty());
+        QVERIFY(has(panel.update(bit("A6"), 1000), EV_KEY, BTN_A, 1));
+        QVERIFY(panel.update(bit("A6") | bit("B2"), 1010).empty());
         QVERIFY(panel.update(bit("B2"), 1020).empty());
         QVERIFY(has(panel.update(0, 1030), EV_KEY, BTN_A, 0));
     }
@@ -138,20 +140,20 @@ private slots:
 
     void bounceIsLetGoBy() {
         Panel panel(defaultMap(0x20), 5);
-        QVERIFY(has(panel.update(bit("B6"), 1000), EV_KEY, BTN_B, 1));
+        QVERIFY(has(panel.update(bit("A7"), 1000), EV_KEY, BTN_B, 1));
         // Opens and closes again within 5 ms: nothing goes out.
         QVERIFY(panel.update(0, 1001).empty());
-        QVERIFY(panel.update(bit("B6"), 1002).empty());
+        QVERIFY(panel.update(bit("A7"), 1002).empty());
         QVERIFY(panel.update(0, 1004).empty());
         // Still open once the 5 ms are up: the release goes out then.
         QVERIFY(has(panel.update(0, 1005), EV_KEY, BTN_B, 0));
         // Another pin isn't held back by this one's change.
-        QVERIFY(has(panel.update(bit("B7"), 1006), EV_KEY, BTN_A, 1));
+        QVERIFY(has(panel.update(bit("A6"), 1006), EV_KEY, BTN_A, 1));
     }
 
     void releaseAllLetsGoAtOnce() {
         Panel panel(defaultMap(0x20), 5);
-        panel.update(bit("B7") | bit("A2"), 1000);
+        panel.update(bit("A6") | bit("A2"), 1000);
         const std::vector<Event> e = panel.releaseAll(1001);
         QVERIFY(has(e, EV_KEY, BTN_A, 0));
         QVERIFY(has(e, EV_ABS, ABS_X, 0));

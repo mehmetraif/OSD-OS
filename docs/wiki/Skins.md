@@ -213,6 +213,7 @@ A skin's icon replaces OSD/OS's in the title bar, by name (the skin template's t
 | `logo` | The main menu, About |
 | `settings` | Settings, a module's settings, the file browser that picks a folder or a file |
 | `keyboard` | Controls |
+| `wifi` | Wi-Fi |
 | `bluetooth` | Bluetooth |
 | `update` | Update |
 | `question` | A question: resume, quit, install an update |

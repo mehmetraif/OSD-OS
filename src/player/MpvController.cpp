@@ -36,28 +36,37 @@ namespace {
 constexpr int kRetireKillMs   = 1000;
 constexpr int kRetireGiveUpMs = 5000;
 
-// A channel logo of the user's own (Settings → Logo Image), read for
-// mpv-logo.lua to lay over the picture with mpv's overlay-add: at the height
-// OSD/OS's logo stands (7% of the screen's), its shape kept, as raw
-// premultiplied BGRA, mpv's overlay format, in `out`. mpv before 0.38 can't
-// scale an overlay, so it is made at the size it is shown. False, and a line
-// in the log, for a picture that can't be read.
-bool writeLogoOverlay(const QString &image, const QString &out, int *width, int *height) {
+// A channel logo of the user's own (Settings → TV / Movie → Logo Image), read
+// for mpv-logo.lua to lay over the picture with mpv's overlay-add: at the
+// height OSD/OS's logo stands (7% of the output's, `outputHeight` pixels), its
+// shape kept on pixels `pixelAspect` as wide as they are tall (a tube's aren't
+// square), as raw premultiplied BGRA, mpv's overlay format, in `out`. mpv
+// before 0.38 can't scale an overlay, so it is made at the size it is shown.
+// False, and a line in the log, for a picture that can't be read.
+bool writeLogoOverlay(const QString &image, const QString &out, int outputHeight, double pixelAspect,
+                      int *width, int *height) {
     QImageReader reader(image);
     reader.setAutoTransform(true);
-    const QSize natural = reader.size();
-    const QScreen *screen = QGuiApplication::primaryScreen();
-    const int screenHeight = screen ? qRound(screen->size().height() * screen->devicePixelRatio()) : 480;
-    const int h = qMax(8, qRound(screenHeight * 0.07));
-    if (natural.isValid() && !natural.isEmpty())
-        reader.setScaledSize(QSize(qMax(1, qRound(double(natural.width()) * h / natural.height())), h));
+    // A camera's picture may be stored on its side and turned as it is read,
+    // after it is scaled: its size as stored, and the size it is scaled to,
+    // are turned too.
+    const bool turned = reader.transformation() & QImageIOHandler::TransformationRotate90;
+    const QSize natural = turned ? reader.size().transposed() : reader.size();
+    const int h = qMax(8, qRound(outputHeight * 0.07));
+    const auto widthFor = [h, pixelAspect](const QSize &size) {
+        return qMax(1, qRound(double(size.width()) * h / size.height() / pixelAspect));
+    };
+    if (natural.isValid() && !natural.isEmpty()) {
+        const QSize shown(widthFor(natural), h);
+        reader.setScaledSize(turned ? shown.transposed() : shown);
+    }
     QImage picture = reader.read();
     if (picture.isNull()) {
         qWarning("[MpvController] logo image %s: %s", qPrintable(image), qPrintable(reader.errorString()));
         return false;
     }
     if (picture.height() != h)
-        picture = picture.scaledToHeight(h, Qt::SmoothTransformation);
+        picture = picture.scaled(widthFor(picture.size()), h, Qt::IgnoreAspectRatio, Qt::SmoothTransformation);
     picture = picture.convertToFormat(QImage::Format_ARGB32_Premultiplied);
     QByteArray raw;
     raw.reserve(picture.width() * picture.height() * 4);
@@ -70,6 +79,36 @@ bool writeLogoOverlay(const QString &image, const QString &out, int *width, int 
     *width = picture.width();
     *height = picture.height();
     return true;
+}
+
+// Whether the user gives mpv the screen's shape themselves (monitoraspect or
+// monitorpixelaspect, tuned against a test pattern for a tube whose picture
+// isn't quite 4:3), in the mpv_video_args setting (`videoArgs`) or mpv.conf:
+// then theirs stands, in place of a tube's 4:3. mpv reads $MPV_HOME, else
+// $XDG_CONFIG_HOME/mpv (~/.config/mpv while that is unset or empty), and
+// /etc/mpv. A line under a [profile] counts too: the profile may be in use
+// (profile=, profile-cond), and the 4:3 on the command line would win over
+// it.
+bool userSetsScreenShape(const QString &videoArgs) {
+    static const QRegularExpression key(QStringLiteral("^(--)?monitor(pixel)?aspect\\s*="));
+    const QStringList args = videoArgs.split(QLatin1Char(' '), Qt::SkipEmptyParts);
+    if (std::any_of(args.cbegin(), args.cend(), [](const QString &a) { return key.match(a).hasMatch(); }))
+        return true;
+    const QString home = qEnvironmentVariable("MPV_HOME");
+    QString config = qEnvironmentVariable("XDG_CONFIG_HOME");
+    if (config.isEmpty())
+        config = QDir::homePath() + QStringLiteral("/.config");
+    for (const QString &path : { home.isEmpty() ? config + QStringLiteral("/mpv/mpv.conf")
+                                                : home + QStringLiteral("/mpv.conf"),
+                                 QStringLiteral("/etc/mpv/mpv.conf") }) {
+        QFile file(path);
+        if (!file.open(QIODevice::ReadOnly))
+            continue;
+        const QStringList lines = QString::fromUtf8(file.readAll()).split(QLatin1Char('\n'));
+        if (std::any_of(lines.cbegin(), lines.cend(), [](const QString &line) { return key.match(line.trimmed()).hasMatch(); }))
+            return true;
+    }
+    return false;
 }
 
 // Text for the log with every token the modules hand mpv blanked out: a
@@ -274,8 +313,9 @@ QStringList MpvController::sessionArgs(const QString &url, float startSeconds,
     // by mpv itself (scripts/mpv-logo.lua), so it is in the picture in both
     // modes and under whatever the app draws over it. The corner reaches the
     // script with the script options below; unset is the top right.
-    // Settings → Logo Image puts a picture of the user's own there instead,
-    // made for the script as an overlay of the size it is shown at.
+    // Settings → TV / Movie → Logo Image puts a picture of the user's own
+    // there instead, made for the script as an overlay of the size it is
+    // shown at.
     QString logoCorner;
     int logoWidth = 0, logoHeight = 0;
     if (m_appCore) {
@@ -287,7 +327,23 @@ QStringList MpvController::sessionArgs(const QString &url, float startSeconds,
                          ? corner : QStringLiteral("tr");
             args << QString("--script=%1").arg(logoScript);
             const QString image = m_appCore->get_setting(QString(), "video_logo_image").toString();
-            if (!image.isEmpty() && !writeLogoOverlay(image, m_logoOverlayPath, &logoWidth, &logoHeight))
+            // What mpv draws on: the window's own session the size
+            // VideoSurface asked for, in square pixels; a process the UI's
+            // screen (setScreen()), whose pixels a tube's mode has narrower or
+            // wider.
+            QSize output = m_videoTargetSize;
+            double pixelAspect = 1;
+            if (!embedded) {
+                output = m_screenSize;
+                if (output.isEmpty()) {
+                    const QScreen *screen = QGuiApplication::primaryScreen();
+                    output = screen ? screen->size() * screen->devicePixelRatio() : QSize(640, 480);
+                }
+                if (m_tubeScreen && !output.isEmpty())
+                    pixelAspect = (4.0 / 3) * output.height() / output.width();
+            }
+            if (!image.isEmpty()
+                && !writeLogoOverlay(image, m_logoOverlayPath, output.height(), pixelAspect, &logoWidth, &logoHeight))
                 logoWidth = logoHeight = 0;
         }
     }
@@ -434,6 +490,15 @@ QStringList MpvController::sessionArgs(const QString &url, float startSeconds,
         else if (scaling == QLatin1String("14:9"))
             args << QStringLiteral("--panscan=0.43");
     }
+    // A tube's pixels aren't square (720×240 from a JAMMA board fills a 4:3
+    // screen), and mpv takes them as square unless told the screen's shape:
+    // 4:3, or the user's own in mpv.conf or mpv_video_args. The window's own
+    // session is drawn on square ones in that shape instead (VideoSurface):
+    // libmpv's render API leaves the screen's shape out.
+    if (m_tubeScreen && !embedded
+            && !userSetsScreenShape(m_appCore ? m_appCore->get_setting(QString(), "mpv_video_args").toString()
+                                              : QString()))
+        args << QStringLiteral("--monitoraspect=4:3");
 
     // Video Levels: the RGB range mpv converts YUV into. Emitted only when the
     // user has overridden it, so "Auto" leaves both mpv's own default and
@@ -1112,6 +1177,11 @@ bool MpvController::smoothPlaybackEnabled() const {
 void MpvController::setTargetDisplay(int index, const QString &screenName) {
     m_displayIndex      = index;
     m_displayScreenName = screenName;
+}
+
+void MpvController::setScreen(bool tube, const QSize &size) {
+    m_tubeScreen = tube;
+    m_screenSize = size;
 }
 
 bool MpvController::autoCropEnabled() const {

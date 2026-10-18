@@ -16,6 +16,14 @@
 
 namespace {
 
+// A mode with a horizontal frequency above a standard arcade monitor's
+// 15 kHz: said before it is chosen, for a monitor that can't take it may be
+// damaged by it.
+constexpr const char *k25kHz =
+    "For a medium resolution (25 kHz) or tri-sync monitor only: too high a scan rate can damage a 15 kHz one.";
+constexpr const char *k31kHz =
+    "For a 31 kHz (VGA) or tri-sync monitor only: too high a scan rate can damage a 15 kHz one.";
+
 // The presets, in the menu's order, with the exit code osdos-stop
 // (scripts/install.sh, STOP_HELPER) writes each on, then reboots: keep the two
 // in step. kPowerOff more, it writes it and powers off. A preset is offered
@@ -25,6 +33,7 @@ struct Preset {
     const char *label;
     int exitCode;
     int launcherApi;
+    const char *warning = nullptr;  // said as it is chosen
 };
 const Preset kPresets[] = {
     { "hdmi",           "HDMI",                20, 3 },
@@ -36,11 +45,25 @@ const Preset kPresets[] = {
     { "scart-rgb-pal",  "SCART RGB PAL",       26, 3 },
     { "scart-rgb-240p", "SCART RGB 240p",      27, 3 },
     { "scart-rgb-288p", "SCART RGB 288p",      28, 3 },
-    { "jamma-240p",     "JAMMA 240p",          30, 4 },
+    // A JAMMA mode's name says its scan rate, as an arcade monitor takes 15,
+    // 25 or 31 kHz, or several, and its preset's resolution (dpi_timings'),
+    // which tells apart the modes of the same lines. The font has no ×.
+    { "jamma-240p",     "JAMMA 240p 15 kHz (720x240)", 30, 4 },
+    // The JAMMA board's other modes: 320 across (the games' own pixels),
+    // super resolutions 1920 across, PAL's 288 lines, interlaced 480 and 576
+    // lines (a Pi 4's alone), and the 25 and 31 kHz monitors'.
+    { "jamma-240p-native", "JAMMA 240p 15 kHz (320x240)",  31, 6 },
+    { "jamma-240p-super",  "JAMMA 240p 15 kHz (1920x240)", 32, 6 },
+    { "jamma-288p",        "JAMMA 288p 15 kHz (720x288)",  33, 6 },
+    { "jamma-288p-super",  "JAMMA 288p 15 kHz (1920x288)", 34, 6 },
+    { "jamma-480i",        "JAMMA 480i 15 kHz (720x480)",  35, 6 },
+    { "jamma-576i",        "JAMMA 576i 15 kHz (720x576)",  36, 6 },
+    { "jamma-25k",         "JAMMA 25 kHz (496x384)",       37, 6, k25kHz },
+    { "jamma-31k",         "JAMMA 31 kHz (640x480)",       38, 6, k31kHz },
 };
 // osdos-stop's for the output before the last one chosen.
 constexpr int kRevertExitCode = 29;
-// Added to a preset's code: written, then off (40-50).
+// Added to a preset's code: written, then off (40-58).
 constexpr int kPowerOff = 20;
 // The launcher whose osdos-stop powers off after a preset, and writes one for
 // the next start through osdos-display.socket.
@@ -83,8 +106,11 @@ bool boardHas(const QString &id) {
         return pi4;
     // A Raspberry Pi to JAMMA board in RGB-Pi's layout: the Pi 4's firmware
     // DPI, its sound on GPIO 18 and 19; the Pi 5's kernel DPI, its sound on a
-    // USB card. Not a Pi 3's.
-    if (id == QLatin1String("jamma-240p"))
+    // USB card, which interlaces only with GPIO 1, the board's I2C. Not a
+    // Pi 3's.
+    if (id == QLatin1String("jamma-480i") || id == QLatin1String("jamma-576i"))
+        return pi4;
+    if (id.startsWith(QLatin1String("jamma-")))
         return pi4 || pi5;
     return false;
 }
@@ -121,7 +147,8 @@ DisplayOutput::DisplayOutput(const QString &dataRoot, QObject *parent)
             m_next = id;
         if (boardHas(id) && launcherApi >= p.launcherApi)
             m_options.append(QVariantMap{ { QStringLiteral("id"), id },
-                                          { QStringLiteral("label"), labelOf(id) } });
+                                          { QStringLiteral("label"), labelOf(id) },
+                                          { QStringLiteral("warning"), QString::fromUtf8(p.warning ? p.warning : "") } });
     }
     m_available = legacy::envIsSet("AUTOSTART") && launcherApi >= 3 && m_options.size() > 1;
     m_powerOffAvailable = m_available && launcherApi >= kNextStartApi;
@@ -294,6 +321,15 @@ void DisplayOutput::dismissNotice() {
     m_notice.clear();
     m_noticeDetail.clear();
     emit changed();
+}
+
+bool DisplayOutput::isTube(const QString &preset, const QSize &size) {
+    if (size.isEmpty() || size.height() > 576)
+        return false;
+    if (!preset.isEmpty())
+        return preset != QLatin1String("hdmi");
+    return (size.height() <= 288 && size.width() >= 2 * size.height())
+        || (size.width() == 720 && (size.height() == 480 || size.height() == 576));
 }
 
 bool DisplayOutput::offered(const QString &id) const {

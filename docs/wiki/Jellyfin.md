@@ -19,7 +19,7 @@ The module is in [modules/jellyfin](https://github.com/mehmetraif/OSD-OS/tree/ma
 
 ## Turning it on
 
-Jellyfin is off until you turn it on: **Settings → Jellyfin → Enabled** (in the Modules section of Settings). It then appears on the main menu. Its other settings show once you have signed in.
+Jellyfin is off until you turn it on: **Settings → TV / Movie → Jellyfin → Enabled**. It then appears on the main menu. Its other settings show once you have signed in.
 
 ## Signing in with Quick Connect
 
@@ -88,7 +88,7 @@ The title bar reads `JELLYFIN | <SERVER> (<USER>)`. The list holds:
 |---|---|---|
 | **Continue Watching** | You have something part-watched | Up to 20 part-watched films and episodes |
 | **Next Up** | A series has a next episode for you | Up to 20 next episodes, one per series, as Jellyfin works them out |
-| Each library | It is a Movies, Shows, Home Videos or Collections library, and ON in **Settings → Jellyfin → Libraries** | The library ([below](#browsing)) |
+| Each library | It is a Movies, Shows, Home Videos or Collections library, and ON in **Settings → TV / Movie → Jellyfin → Libraries** | The library ([below](#browsing)) |
 
 Music, books and photo libraries, and libraries of mixed content, are left out. Back leaves Jellyfin.
 
@@ -145,7 +145,7 @@ While the stream is prepared, the loading screen covers the page, with the item'
 
 ### Direct Play and transcoding
 
-**Settings → Jellyfin → Video Quality** decides how the server sends a video:
+**Settings → TV / Movie → Jellyfin → Video Quality** decides how the server sends a video:
 
 | Video Quality | What happens |
 |---|---|
@@ -186,7 +186,7 @@ With **Autoplay Next Episode** on, an episode that plays to its end is followed 
 
 ### With Transparent Background
 
-With **Settings → Transparent Background** on, back during a video returns to Jellyfin's menus while the picture plays on behind them. OSD/OS reports the video stopped to the server, as it does, so a transcode may end soon after, when the server closes it. The Jellyfin player has no menu of its own and no row on the main menu: choose the video again to play it full screen, from its resume point.
+With **Settings → TV / Movie → Transparent Background** on, back during a video returns to Jellyfin's menus while the picture plays on behind them. OSD/OS reports the video stopped to the server, as it does, so a transcode may end soon after, when the server closes it. The Jellyfin player has no menu of its own and no row on the main menu: choose the video again to play it full screen, from its resume point.
 
 ## Putting a video on a playlist
 
@@ -196,7 +196,7 @@ On an **online** playlist a Jellyfin video streams from the server as it is (the
 
 ## Settings
 
-Settings → Jellyfin. Everything but Enabled and Scaling shows only once you have signed in; Intro Skip and Credit Skip only when the server answers for media segments.
+Settings → TV / Movie → Jellyfin. Everything but Enabled and Scaling shows only once you have signed in; Intro Skip and Credit Skip only when the server answers for media segments.
 
 | Setting | Values | Default | What it does | Config key |
 |---|---|---|---|---|
@@ -207,7 +207,7 @@ Settings → Jellyfin. Everything but Enabled and Scaling shows only once you ha
 | Autoplay Next Episode | ON, OFF | OFF | Plays the series' next episode when one ends | `modules.com.osdos.jellyfin.autoplay_next_episode` |
 | Intro Skip | Off, Auto, Button | Off | What happens at an intro segment | `modules.com.osdos.jellyfin.intro_skip` |
 | Credit Skip | Off, Auto, Button | Off | What happens at a credits segment | `modules.com.osdos.jellyfin.outro_skip` |
-| Scaling | Default, Letterbox, 14:9, Pan & Scan, Anamorphic | Default | How a 16:9 picture fills the 4:3 screen in Jellyfin; Default follows Settings → Scaling | `modules.com.osdos.jellyfin.video_scaling` |
+| Scaling | Default, Letterbox, 14:9, Pan & Scan, Anamorphic | Default | How a 16:9 picture fills the 4:3 screen in Jellyfin; Default follows Settings → TV / Movie → Scaling | `modules.com.osdos.jellyfin.video_scaling` |
 | Sign out | (an action) | | Signs out: revokes the token on the server and forgets it here | |
 
 ### How the values are saved
@@ -271,8 +271,8 @@ OSD/OS's own requests to the server accept a certificate the server made itself,
 | **CONNECTION FAILED: HOST REQUIRES AUTHENTICATION** | Quick Connect is off: turn it on in the Jellyfin dashboard |
 | **CODE EXPIRED** | Approve within 2 minutes; go back and start again for a new code |
 | Back on the sign-in screen by itself | The server stopped accepting the token (the device was removed in the dashboard, or signed out from there). Sign in again |
-| The home screen stays on **LOADING...** | The server didn't answer (the log has `LOAD LIBRARIES FAILED`), or there is nothing to list: no Movies, Shows, Home Videos or Collections library is ON in Settings → Jellyfin → Libraries, and nothing to continue |
-| A library is missing | Settings → Jellyfin → Libraries. Only Movies, Shows, Home Videos and Collections libraries are listed |
+| The home screen stays on **LOADING...** | The server didn't answer (the log has `LOAD LIBRARIES FAILED`), or there is nothing to list: no Movies, Shows, Home Videos or Collections library is ON in Settings → TV / Movie → Jellyfin → Libraries, and nothing to continue |
+| A library is missing | Settings → TV / Movie → Jellyfin → Libraries. Only Movies, Shows, Home Videos and Collections libraries are listed |
 | No Continue Watching or Next Up | They show only when they have something |
 | No Intro Skip or Credit Skip rows | The server has no media segments (the setting's help line names the Intro Skipper plugin), or you aren't signed in |
 | A video stutters | Choose a CRT tier in Video Quality: the server then sends at most 480 or 576 lines. A file mpv can't play falls back to a transcode by itself |

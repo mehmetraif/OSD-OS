@@ -164,7 +164,8 @@ Window {
         "Fire":   { "shader": builtInShader("bg-fire") },
         "Stars":  { "shader": builtInShader("bg-stars") },
         "Snow":   { "shader": builtInShader("bg-snow") },
-        "Checkered Flag": { "shader": builtInShader("bg-flag") }
+        "Checkered Flag": { "shader": builtInShader("bg-flag") },
+        "Plasma": { "shader": builtInShader("bg-plasma") }
     })
     readonly property var selectorPresets: ["Sparkles", "Welding", "Lightning", "Rainbow", "Snow"]
     readonly property var transitionPresets: ["Fade", "Cube", "Ripple", "Wave", "Drop"]
@@ -494,7 +495,15 @@ Window {
     property string tertiaryColor:  primaryColor
     property string accentColor:    primaryColor
 
-    readonly property real sw: width
+    // A TV's tube shows the picture 4:3 whatever its mode, so a mode of
+    // another shape has pixels that aren't square: a JAMMA board's 720×240
+    // has them more than twice as tall as they are wide, composite's 720×480
+    // a little taller. On one (screenIsTube, main.cpp) the menus are laid out
+    // on a 4:3 stage of square pixels with the screen's lines, sw by sh, and
+    // drawn stretched across the screen (the screen item below), so that they
+    // keep their shapes. Anywhere else the stage is the window.
+    readonly property bool tube: typeof screenIsTube !== "undefined" && screenIsTube === true
+    readonly property real sw: tube ? Math.round(height * 4 / 3) : width
     readonly property real sh: height
     // One pixel of a 240-line picture, in screen pixels: the unit the
     // pixel-drawn OSD elements (Components/Osd*, PixelIcon) are built on.
@@ -903,10 +912,12 @@ Window {
     // --- A VIDEO PLAYED INSIDE THIS WINDOW (Transparent Background) ---
     // Its picture is never touched by an effect: it lies outside the screen's
     // layer below, over the menus while it plays full screen, under them while
-    // it plays on behind them.
+    // it plays on behind them. On a tube, drawn in the stage's square pixels
+    // and stretched as the menus are.
     VideoSurface {
         anchors.fill: parent
         controller: mpvController
+        pixelAspect: root.width > 0 ? root.sw / root.width : 1
         visible: root.videoActive
         z: root.videoBehind ? -1 : 1
     }
@@ -922,9 +933,15 @@ Window {
     // rainbow, glinting, flickering or glowing. With none, or while the
     // effects rest (root.effectsRest), neither the texture nor the shader is
     // there.
+    // It is the stage, sw by sh, stretched over the window on a tube; its
+    // textures (the effects', the window changes') then have the window's
+    // pixels, the effects counting in the stage's.
     Item {
         id: screen
-        anchors.fill: parent
+        width: root.sw
+        height: root.sh
+        transform: Scale { xScale: root.sw > 0 ? root.width / root.sw : 1 }
+        readonly property size texturePixels: root.tube ? Qt.size(root.width, root.height) : Qt.size(0, 0)
 
         // The software renderer draws no shaders.
         readonly property bool gpu: GraphicsInfo.api !== GraphicsInfo.Software
@@ -945,6 +962,7 @@ Window {
 
         layer.enabled: shaded
         layer.smooth: true
+        layer.textureSize: texturePixels
         layer.effect: ShaderEffect {
             fragmentShader: screen.shader
             property size resolution: Qt.size(root.sw, root.sh)
@@ -1115,6 +1133,7 @@ Window {
             id: lastFace
             anchors.fill: parent
             sourceItem: face
+            textureSize: screen.texturePixels
             live: false
             visible: windowChange.capturing || windowChange.running
             z: windowChange.kind === "Fade" ? 0.5 : -1.5
@@ -1127,6 +1146,7 @@ Window {
             id: nextFace
             anchors.fill: parent
             sourceItem: windowChange.kind in root.transitionShaders ? face : null
+            textureSize: screen.texturePixels
             hideSource: windowChange.kind in root.transitionShaders
             visible: false
         }
@@ -1286,7 +1306,8 @@ Window {
         // Only follows the mouse: clicks and the wheel go on to what is under it.
         acceptedButtons: Qt.NoButton
         onPositionChanged: function(mouse) {
-            pointer.x = mouse.x
+            // On the stage, whose pixels are the window's on all but a tube.
+            pointer.x = root.width > 0 ? mouse.x * root.sw / root.width : mouse.x
             pointer.y = mouse.y
             root.pointerShown = true
             pointerTimer.restart()

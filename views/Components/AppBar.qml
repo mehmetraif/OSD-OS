@@ -14,11 +14,15 @@ Item {
     property string subtitle: ""
 
     readonly property bool hasLogo: iconSource.toString() !== "" && logo.status === Image.Ready
+    // No room for the subtitle beside a title that fills the bar.
+    readonly property bool subtitleShown: subtitle !== "" && !titleClip.clip
+                                          && titleClip.width + 2 * content.spacing + root.px < content.width
     // A fifth taller than the bar, in whole art pixels.
     readonly property real logoHeight: Math.round(height * 1.2 / root.px) * root.px
 
     // Fits the standard screen gutter — 80px (root.sw * 0.125) on each side.
-    // The subtitle elides when it would overflow this width.
+    // The subtitle elides when it would overflow this width; a title too
+    // long for it scrolls.
     width: root.sw * 0.75 //480
     height: content.height + 2 * root.px
 
@@ -76,17 +80,67 @@ Item {
             anchors.verticalCenter: parent.verticalCenter
             spacing: root.sw * 0.025 //16
 
-            Text {
-                text: appBar.title
-                color: root.surfaceColor
-                font.family: root.globalFont
-                font.capitalization: Font.AllUppercase
+            // The title, scrolled through when it is too long for the bar (a
+            // question naming a long display output, say), as a row's value is
+            // while it is selected (MenuRow). Cut on the font's character
+            // grid, as a row's value is.
+            Item {
+                id: titleClip
+                readonly property real cell: Math.max(1, titleCell.advanceWidth)
+                width: Math.min(titleText.implicitWidth, Math.floor(content.width / cell) * cell)
+                height: titleText.implicitHeight
                 anchors.verticalCenter: parent.verticalCenter
-                font.pixelSize: root.sh * 0.05 //24
+                clip: titleText.implicitWidth > width
+
+                Text {
+                    id: titleText
+                    textFormat: Text.PlainText
+                    text: appBar.title
+                    color: root.surfaceColor
+                    font.family: root.globalFont
+                    font.capitalization: Font.AllUppercase
+                    font.pixelSize: root.sh * 0.05 //24
+                }
+                TextMetrics {
+                    id: titleCell
+                    font: titleText.font
+                    text: "M"
+                }
+
+                // Started (and started over) a turn of the event loop after
+                // the layout changes, as MenuRow's is: the animation keeps
+                // the distance it started with.
+                readonly property bool scrolls: appBar.visible && titleText.implicitWidth > width
+                readonly property real scrollBy: width - titleText.implicitWidth
+                onScrollsChanged: Qt.callLater(updateScroll)
+                onScrollByChanged: Qt.callLater(updateScroll)
+                Component.onCompleted: Qt.callLater(updateScroll)
+                function updateScroll() {
+                    if (scrolls)
+                        scroll.restart()
+                    else
+                        scroll.stop()
+                }
+
+                SequentialAnimation {
+                    id: scroll
+                    loops: Animation.Infinite
+                    onRunningChanged: if (!running) titleText.x = 0
+
+                    PauseAnimation { duration: 1500 }
+                    NumberAnimation {
+                        target: titleText
+                        property: "x"
+                        to: titleClip.scrollBy
+                        duration: Math.abs(to) * 20
+                    }
+                    PauseAnimation { duration: 2000 }
+                    PropertyAction { target: titleText; property: "x"; value: 0 }
+                }
             }
 
             Rectangle {
-                visible: appBar.subtitle !== ""
+                visible: appBar.subtitleShown
                 color: root.surfaceColor
                 anchors.verticalCenter: parent.verticalCenter
                 width: root.px
@@ -95,6 +149,8 @@ Item {
             }
 
             Text {
+                visible: appBar.subtitleShown
+                textFormat: Text.PlainText
                 text: appBar.subtitle
                 color: root.surfaceColor
                 font.family: root.globalFont

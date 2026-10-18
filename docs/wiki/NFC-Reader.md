@@ -74,11 +74,11 @@ Nothing to set up: PC/SC comes with macOS, and PN532 modules appear as `/dev/cu.
 
 ### Turning the module on
 
-Settings → **NFC Reader** → **Enabled**: On. NFC Reader then appears on the main menu.
+Settings → TV / Movie → **NFC Reader** → **Enabled**: On. NFC Reader then appears on the main menu.
 
 ## How cards map to videos
 
-Each card has a text file in the tags folder: `nfc_tags` in the data folder (`~/.local/share/OSD-OS/nfc_tags/` on Linux and the image, `~/Library/Application Support/OSD-OS/nfc_tags/` on a Mac), or the folder Settings → NFC Reader → **Tags Directory** names. OSD/OS creates it if it is missing.
+Each card has a text file in the tags folder: `nfc_tags` in the data folder (`~/.local/share/OSD-OS/nfc_tags/` on Linux and the image, `~/Library/Application Support/OSD-OS/nfc_tags/` on a Mac), or the folder Settings → TV / Movie → NFC Reader → **Tags Directory** names. OSD/OS creates it if it is missing.
 
 A tag file:
 
@@ -188,7 +188,7 @@ Where you stopped is kept per mapped path in `nfc_reader_history.json`, so remap
   ```
 
   H.264 first, which a Pi decodes in hardware, then any codec at that height, then the best single file.
-- **Scaling**: how a 16:9 picture fills a 4:3 screen for this module's videos; **Default** follows Settings → Scaling.
+- **Scaling**: how a 16:9 picture fills a 4:3 screen for this module's videos; **Default** follows Settings → TV / Movie → Scaling.
 
 A Plex card plays with the Plex module's own settings, since Plex plays it.
 
@@ -265,7 +265,7 @@ A reader that stops answering (PC/SC calls can hang on a Mac after a replug) is 
 
 ## Settings
 
-Settings → **NFC Reader**:
+Settings → TV / Movie → **NFC Reader**:
 
 | Setting | Values | Default | What it does | Config key |
 |---|---|---|---|---|

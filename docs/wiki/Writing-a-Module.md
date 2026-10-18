@@ -44,10 +44,11 @@ Five principles from CONTRIBUTING.md shape every module:
 | Key | Needed | What it is |
 |---|---|---|
 | `id` | Yes | The module's id, `com.osdos.<name>` by convention. Its settings are saved under `modules.<id>` in `config.json`, its lists under it in `lists.json` |
-| `name` | | Shown on the main menu (in capitals), as the Settings row, and in the module's title bar |
+| `name` | | Shown on the main menu (in capitals), as the Settings row (on the Arcade page, the heading over its rows), and in the module's title bar |
 | `icon` | | Its logo, relative to the module's folder |
 | `entry_point_qml` | Yes | Its router, relative to the module's folder: `views/Root.qml` |
 | `settings` | | Its settings, in the order Settings shows them. A module with none isn't listed in Settings |
+| `settings_group` | | Where Settings lists the module's page: `"tv"` under **Modules** on the **TV / Movie** page, with the video modules; `"arcade"` on the **Arcade** page, its rows after the Arcade module's under its name as a heading. Left out, as Hello Channel's is (or naming a group Settings has no page for), the page is under **Modules** on Settings' first screen. Its settings are saved under `modules.<id>` whichever it is |
 
 A manifest that isn't JSON is left out, with `[AppCore] Bad manifest.json in <folder>: <error>` in the log; one without `id` or `entry_point_qml`, with `[AppCore] Skipping <folder>: manifest missing 'id' or 'entry_point_qml'`.
 
@@ -502,9 +503,9 @@ APP_ROOT=$(pwd) ./build/osdos
 **HELLO CHANNEL** is on the main menu, among the modules in the order of their folders' names: first, with OSD/OS's defaults. Its list says **No Folder Chosen** until Settings → Hello Channel → Video Folder names one; the page is built from the manifest:
 
 <table>
-<tr><th width="50%">Settings → Modules</th><th width="50%">A module's settings</th></tr>
-<tr><td><img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/screenshots/settings-modules.png" width="100%" alt="Settings: each module is turned on and set up from its own row" /></td><td><img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/screenshots/module-settings.png" width="100%" alt="Local Files' settings page, made from its manifest" /></td></tr>
-<tr><td>Further down Settings, a row per module that has settings, under the MODULES heading, in the order of their folders: Hello Channel's comes after Emby's.</td><td>A settings page made from a manifest, Local Files' here: a toggle, a folder, lists. Hello Channel's has its five rows the same way.</td></tr>
+<tr><th width="50%">The modules in Settings</th><th width="50%">A module's settings</th></tr>
+<tr><td><img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/screenshots/settings-modules.png" width="100%" alt="Settings → TV / Movie: each video module is turned on and set up from its own row, under the MODULES heading" /></td><td><img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/screenshots/module-settings.png" width="100%" alt="Local Files' settings page, made from its manifest" /></td></tr>
+<tr><td>A row per module that has settings, under a MODULES heading, in the order of their folders: here the video modules', on the TV / Movie page (<code>"settings_group": "tv"</code>). Hello Channel names no group, so its row is under the MODULES heading of Settings' first screen, before Scripts'.</td><td>A settings page made from a manifest, Local Files' here: a toggle, a folder, lists. Hello Channel's has its five rows the same way.</td></tr>
 </table>
 
 Changing a row saves it at once. With Sort Order on Z to A and Loop Playback on, `config.json` has, among the rest:
@@ -697,7 +698,7 @@ The app adds the rest itself: the board's decoder and output, Settings' Scaling 
 
 ### Transparent Background, and the main menu's first row
 
-With Settings → Transparent Background on, the video plays inside OSD/OS's window, and back returns to the menus with the picture going on behind them. For the player nothing changes: back still ends in `playbackEnded(…, "stopped")`, and it goes back as always. Two lines make the video easy to take back:
+With Settings → TV / Movie → Transparent Background on, the video plays inside OSD/OS's window, and back returns to the menus with the picture going on behind them. For the player nothing changes: back still ends in `playbackEnded(…, "stopped")`, and it goes back as always. Two lines make the video easy to take back:
 
 1. **`noteSession({ module, title, params })`**, right after `loadAndPlay()`. While the video plays behind the menus, the main menu leads with a row for it, `► TEST CARD`, the cursor on it.
 2. **Routing `resumePlayer`.** Select on that row opens the module with `navParams.resumePlayer`, the `params` noted. `Root.qml` passes it to `Channels.qml`, which opens the player with it. The player starts the same file from the point back saved, and `mpvController` sees the same command line apart from the start: rather than starting the video again, it brings the one playing back to full screen, carrying on where the picture is.

@@ -5,12 +5,12 @@ A backdrop for the room, like the art or wallpaper modes of modern TVs: a video 
 <table>
 <tr><th width="50%">Ambient:Mode</th><th width="50%">Picking the media folder</th></tr>
 <tr><td><img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/screenshots/ambient-mode.png" width="100%" alt="Ambient:Mode: the Video and Audio rows and START" /></td><td><img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/screenshots/folder-picker.png" width="100%" alt="Picking a folder on the tree: USE THIS FOLDER" /></td></tr>
-<tr><td>A video, with music of your choice, on a loop: ◄ ► choose the video and the audio, START plays.</td><td>Settings → Ambient:Mode → Media Directory is picked on the same tree Local Files is browsed with (shown here for Local Files): USE THIS FOLDER picks the one open, Default Folder the module's own.</td></tr>
+<tr><td>A video, with music of your choice, on a loop: ◄ ► choose the video and the audio, START plays.</td><td>Settings → TV / Movie → Ambient:Mode → Media Directory is picked on the same tree Local Files is browsed with (shown here for Local Files): USE THIS FOLDER picks the one open, Default Folder the module's own.</td></tr>
 </table>
 
 ## Setting it up
 
-1. Settings → **Ambient:Mode** → **ENABLED**: On. Ambient:Mode appears on the main menu.
+1. Settings → TV / Movie → **Ambient:Mode** → **ENABLED**: On. Ambient:Mode appears on the main menu.
 2. Put your clips, and any music, in its media folder: `ambient` in the data folder. Create it if it isn't there: OSD/OS makes it only when you pick Default Folder in Media Directory.
 
    | System | Folder |
@@ -18,7 +18,7 @@ A backdrop for the room, like the art or wallpaper modes of modern TVs: a video 
    | OSD/OS image, Raspberry Pi OS, SteamOS | `~/.local/share/OSD-OS/ambient/` |
    | macOS | `~/Library/Application Support/OSD-OS/ambient/` |
 
-   Or pick another with Settings → Ambient:Mode → **Media Directory**. On the OSD/OS image the easiest is a folder on the card's film partition, which Windows and macOS open too: make an `Ambient` folder on the card's **OSD-OS** drive from a computer, copy the clips into it, then pick `/media/OSD-OS/Ambient` in Media Directory.
+   Or pick another with Settings → TV / Movie → Ambient:Mode → **Media Directory**. On the OSD/OS image the easiest is a folder on the card's film partition, which Windows and macOS open too: make an `Ambient` folder on the card's **OSD-OS** drive from a computer, copy the clips into it, then pick `/media/OSD-OS/Ambient` in Media Directory.
 3. Open **Ambient:Mode** from the main menu.
 
 Only files directly in the folder are listed (not in folders under it), by name, and only these types (in any case):
@@ -58,7 +58,7 @@ With no video in the folder, the screen says **No items found: Please add items 
 - **With Audio on SHUFFLE**, the files and playlists are shuffled as whole entries: a playlist counts as one, and its tracks play in their own order when its turn comes. The order is shuffled once, then repeats.
 - **The menu music** (Settings → Menu Music) is held off while the clip and the music play, and comes back afterwards.
 - **The screen saver** stays away while it plays.
-- The module's own **Scaling** applies: how a 16:9 clip fills a 4:3 screen (Settings → Ambient:Mode → Scaling, or Settings → Scaling while it says Default).
+- The module's own **Scaling** applies: how a 16:9 clip fills a 4:3 screen (Settings → TV / Movie → Ambient:Mode → Scaling, or Settings → TV / Movie → Scaling while it says Default).
 
 During playback:
 
@@ -68,7 +68,7 @@ During playback:
 | Pause | Enter or Space | A or Start | Pauses the clip (the music goes on). |
 | Stop | Esc | B | Ends playback, and the music, and returns to the Ambient:Mode screen. |
 
-With **Transparent Background** (Settings), back returns to the Ambient:Mode screen with the clip playing on behind the menus, while your music stops. START takes it back to full screen and starts the music again; play/pause on the main menu stops the clip ([Using OSD/OS](https://github.com/mehmetraif/OSD-OS/wiki/Using-OSD-OS)).
+With **Transparent Background** (Settings → TV / Movie), back returns to the Ambient:Mode screen with the clip playing on behind the menus, while your music stops. START takes it back to full screen and starts the music again; play/pause on the main menu stops the clip ([Using OSD/OS](https://github.com/mehmetraif/OSD-OS/wiki/Using-OSD-OS)).
 
 ## Music playlists
 
@@ -96,7 +96,7 @@ The `music` folder itself isn't listed (only files directly in the media folder 
 
 **Auto-Launch Playback** plays straight away when OSD/OS starts on this module, for a TV that should come on as a fireplace:
 
-1. Settings → Ambient:Mode → **Auto-Launch Playback**: On.
+1. Settings → TV / Movie → Ambient:Mode → **Auto-Launch Playback**: On.
 2. Settings → **Start on Module**: Ambient:Mode.
 
 At start it always shuffles: the videos on SHUFFLE when there is more than one (the only one otherwise), and the music on SHUFFLE when there is more than one audio file or playlist; with one or none, the clip's own sound. It doesn't happen when you open the module from the main menu, so the screen stays reachable to choose, and back from the auto-launched playback lands on the Ambient:Mode screen rather than starting it again. A favourite chosen with **Play at Startup** comes before Start on Module ([Settings](https://github.com/mehmetraif/OSD-OS/wiki/Settings)).
@@ -136,20 +136,20 @@ The Video row offers AQUARIUM.MKV, FIREPLACE.MP4 and SHUFFLE; the Audio row VIDE
 
 ## Settings
 
-Settings → **Ambient:Mode**:
+Settings → TV / Movie → **Ambient:Mode**:
 
 | Setting | Values | Default | What it does | Config key |
 |---|---|---|---|---|
 | ENABLED | On, Off | Off | Shows Ambient:Mode on the main menu. | `modules.com.osdos.ambient_mode.enabled` |
 | Media Directory | A folder, or Default Folder | Default (`ambient` in the data folder) | Where the clips and the music are. | `modules.com.osdos.ambient_mode.media_directory` (`""` for the default) |
 | Auto-Launch Playback | On, Off | Off | Plays, shuffled, as soon as OSD/OS starts on this module. See [Starting by itself](https://github.com/mehmetraif/OSD-OS/wiki/Ambient-Mode#starting-by-itself). | `modules.com.osdos.ambient_mode.auto_launch` |
-| Scaling | Default, Letterbox, 14:9, Pan & Scan, Anamorphic | Default | How a 16:9 clip fills a 4:3 screen in this module. Default follows Settings → Scaling. | `modules.com.osdos.ambient_mode.video_scaling` |
+| Scaling | Default, Letterbox, 14:9, Pan & Scan, Anamorphic | Default | How a 16:9 clip fills a 4:3 screen in this module. Default follows Settings → TV / Movie → Scaling. | `modules.com.osdos.ambient_mode.video_scaling` |
 
 The module keeps no other files: what you chose on its screen isn't remembered between visits.
 
 ## Troubleshooting
 
-**No items found.** No video of a listed type sits directly in the media folder. Check Settings → Ambient:Mode → Media Directory, the files' extensions, and that they aren't in a folder under it.
+**No items found.** No video of a listed type sits directly in the media folder. Check Settings → TV / Movie → Ambient:Mode → Media Directory, the files' extensions, and that they aren't in a folder under it.
 
 **A file I put in the folder isn't on the Audio row.** Its type isn't listed (Opus, for one): put it in an `m3u`.
 

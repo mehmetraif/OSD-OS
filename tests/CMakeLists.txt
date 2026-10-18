@@ -101,6 +101,7 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
         playback_retire_test.cpp
         ../src/player/MpvController.cpp
         ../src/player/EmbeddedMpv.cpp
+        ../src/player/VideoSurface.cpp
         ../src/util/Diagnostics.cpp
         ../src/AppCore.cpp
         ../src/audio/AudioOutput.cpp
@@ -147,13 +148,38 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
         ../src/util/LegacyNames.cpp)
     target_include_directories(display_output_test PRIVATE ../src)
     target_compile_definitions(display_output_test PRIVATE
-        PRESETS_DIR="${CMAKE_CURRENT_SOURCE_DIR}/../os/stage-osdos/03-boot/files")
+        PRESETS_DIR="${CMAKE_CURRENT_SOURCE_DIR}/../os/stage-osdos/03-boot/files"
+        INSTALL_SH="${CMAKE_CURRENT_SOURCE_DIR}/../scripts/install.sh")
     target_link_libraries(display_output_test PRIVATE Qt6::Core Qt6::Network Qt6::Test)
     add_test(NAME display_output COMMAND display_output_test)
     # The same as a Pi 5, whose outputs are others.
     add_test(NAME display_output_pi5 COMMAND display_output_test)
     set_tests_properties(display_output_pi5 PROPERTIES
         ENVIRONMENT "OSDOS_BOARD_MODEL=Raspberry Pi 5 Model B Rev 1.0")
+
+    # Settings → Wi-Fi (WifiManager) against a stand-in for NetworkManager
+    # (fake_networkmanager) on a D-Bus of the test's own, and for the country
+    # against a stand-in boot partition and osdos-wifi.socket. Built where Qt
+    # has D-Bus, as the app's Wi-Fi is; the test skips itself without
+    # dbus-daemon. The fake_networkmanager program is the stand-in on its own,
+    # for screenshots of the app against it; ctest doesn't run it.
+    find_package(Qt6 QUIET COMPONENTS DBus)
+    if(Qt6DBus_FOUND)
+        add_executable(wifi_test
+            wifi_test.cpp
+            fake_networkmanager.cpp
+            ../src/wifi/WifiManager.cpp
+            ../src/util/LegacyNames.cpp)
+        target_include_directories(wifi_test PRIVATE ../src)
+        target_compile_definitions(wifi_test PRIVATE OSDOS_WIFI=1)
+        target_link_libraries(wifi_test PRIVATE Qt6::Core Qt6::DBus Qt6::Network Qt6::Test)
+        add_test(NAME wifi COMMAND wifi_test)
+
+        add_executable(fake_networkmanager fake_networkmanager_main.cpp fake_networkmanager.cpp)
+        target_link_libraries(fake_networkmanager PRIVATE Qt6::Core Qt6::DBus)
+    else()
+        message(WARNING "Qt D-Bus not found: the Wi-Fi test is left out")
+    endif()
 
     # The Arcade module against a stand-in for MAME (a shell script): what
     # MAME says of the games folder's sets and the tree made of it, a game
@@ -225,8 +251,8 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
                                         ${CMAKE_CURRENT_SOURCE_DIR}/../scripts/release-notes.sh)
 
     # The image's stop helper, osdos-stop (scripts/install.sh), on a stand-in
-    # boot partition: the display presets it writes, and At Next Start's
-    # requests, good and bad.
+    # boot partition: the display presets it writes, and At Next Start's and
+    # the Wi-Fi country's requests, good and bad.
     add_test(NAME osdos_stop COMMAND bash ${CMAKE_CURRENT_SOURCE_DIR}/osdos_stop_test.sh
                                      ${CMAKE_CURRENT_SOURCE_DIR}/../scripts/install.sh
                                      ${CMAKE_CURRENT_SOURCE_DIR}/../os/stage-osdos/03-boot/files)
@@ -264,6 +290,23 @@ set_tests_properties(arcade_views PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscr
 add_test(NAME module_settings_view COMMAND tree_browser_test -input ${CMAKE_CURRENT_SOURCE_DIR}/qml/tst_module_settings.qml
                                            -import ${CMAKE_CURRENT_SOURCE_DIR}/../views)
 set_tests_properties(module_settings_view PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen;QT_QUICK_BACKEND=software")
+# Settings (views/Settings.qml): the first screen's groups and the general
+# settings, and TV / Movie's page, against stand-ins for AppCore and the rest;
+# and the title bar (AppBar) with a title too long for it.
+add_test(NAME settings_view COMMAND tree_browser_test -input ${CMAKE_CURRENT_SOURCE_DIR}/qml/tst_settings.qml
+                                    -import ${CMAKE_CURRENT_SOURCE_DIR}/../views)
+set_tests_properties(settings_view PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen;QT_QUICK_BACKEND=software")
+# Settings → Wi-Fi (views/Wifi.qml) against a stand-in for WifiManager: the
+# switch, the country and its chooser, joining with a password, a network's
+# options, one not listed, and a search.
+add_test(NAME wifi_views COMMAND tree_browser_test -input ${CMAKE_CURRENT_SOURCE_DIR}/qml/tst_wifi.qml
+                                 -import ${CMAKE_CURRENT_SOURCE_DIR}/../views)
+set_tests_properties(wifi_views PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen;QT_QUICK_BACKEND=software")
+# About (views/About.qml): OSD/OS's lines and the arcade's, each licence a
+# page of its own, against stand-ins for the licence files.
+add_test(NAME about_view COMMAND tree_browser_test -input ${CMAKE_CURRENT_SOURCE_DIR}/qml/tst_about.qml
+                                 -import ${CMAKE_CURRENT_SOURCE_DIR}/../views)
+set_tests_properties(about_view PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen;QT_QUICK_BACKEND=software")
 # The High Scores module's view (modules/highscores/views/Scores.qml) against
 # a stand-in for HighScoresBackend.
 add_test(NAME highscores_views COMMAND tree_browser_test -input ${CMAKE_CURRENT_SOURCE_DIR}/qml/tst_highscores.qml

@@ -3,6 +3,7 @@
   "name": "Arcade",
   "icon": "assets/images/logo.svg",
   "entry_point_qml": "views/Root.qml",
+  "settings_group": "arcade",
   "settings": [
     {
       "key": "enabled",
@@ -22,7 +23,7 @@
       "label": "Screen",
       "type": "list_single",
       "options": ["Original", "Arcade"],
-      "default": "Original",
+      "default": "Arcade",
       "description": "How the games are listed, from the next time Arcade opens\n[ORIGINAL] OSD/OS's own tree, by players, decade and maker\n[ARCADE] A cabinet's selection screen: the games straight, on an arc or on a wheel, their picture, high scores and details, ◄ ► through the filters, COIN and START"
     },
     {
@@ -58,7 +59,7 @@
       "options": ["Straight", "Curved", "3D Curved"],
       "default": "Curved",
       "shown_with": { "key": "screen", "value": "Arcade" },
-      "description": "How the games lie on the Arcade screen\n[STRAIGHT] One under another, a page at a time\n[CURVED] On an arc, a page at a time\n[3D CURVED] On a wheel turning with the game chosen, which stays in the middle and furthest out, the others going back and fading the further they are from it"
+      "description": "How the games lie on the Arcade screen\n[STRAIGHT] One under another, a page at a time\n[CURVED] On an arc, a page at a time\n[3D CURVED] On a wheel: the game chosen goes up and down it, furthest out, the others going back and fading the further they are from it, and the wheel turns at its top and bottom rows"
     },
     {
       "key": "border",
@@ -112,7 +113,7 @@
     },
     {
       "key": "high_scores",
-      "label": "High Scores",
+      "label": "Save High Scores",
       "type": "toggle",
       "default": "ON",
       "description": "Keep each game's high score table, as MAME's hiscore plugin does\nFor the games that forget it when they are switched off"
@@ -166,12 +167,36 @@
       "description": "The second engine, RetroArch with the FinalBurn Neo core, for online high scores and play: what is installed, and the core's download"
     },
     {
-      "key": "video",
-      "label": "Video",
-      "type": "list_single",
-      "options": ["Auto", "OpenGL", "BGFX", "Accelerated", "Software"],
-      "default": "Auto",
-      "description": "How MAME draws the game\n[AUTO] As MAME's own settings say\nTry another when a game shows no picture"
+      "key": "emulator_video",
+      "label": "Emulator Video",
+      "type": "submenu",
+      "description": "How MAME and FinalBurn Neo draw a game's picture on your screen",
+      "settings": [
+        {
+          "key": "screen_shape",
+          "label": "Screen Shape",
+          "type": "list_single",
+          "options": ["Auto", "4:3", "16:9", "Square Pixels"],
+          "default": "Auto",
+          "description": "Your screen's shape, which a game's picture is drawn to in its own shape\n[AUTO] 4:3 on a CRT's display output (a TV, a JAMMA cabinet), whatever its pixels are; Square Pixels on HDMI  [16:9] A widescreen TV  [SQUARE PIXELS] As the screen's pixels give it"
+        },
+        {
+          "key": "integer_scale",
+          "label": "Integer Scale",
+          "type": "list_single",
+          "options": ["Auto", "On", "Off"],
+          "default": "Auto",
+          "description": "A game's lines drawn whole, once or twice, rather than spread over the screen's: sharp lines, with a thin border above and below\n[AUTO] On a CRT's display output  [OFF] The picture fills the screen's height\nA game with more lines than the screen fills it either way"
+        },
+        {
+          "key": "video",
+          "label": "MAME Video",
+          "type": "list_single",
+          "options": ["Auto", "OpenGL", "BGFX", "Accelerated", "Software"],
+          "default": "Auto",
+          "description": "How MAME draws the game\n[AUTO] As MAME's own settings say\nTry another when a game shows no picture"
+        }
+      ]
     },
     {
       "key": "rescan",

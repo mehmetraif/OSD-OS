@@ -9,7 +9,8 @@ import QtTest
 // row's choices asked for as it comes; a toggle's value as ON or OFF, and a
 // row whose own row is hidden hidden too; a slider and its tape bar; a value
 // that couldn't be saved left as it was. A multiselect_submenu row's page,
-// views/MultiSelectSettings.qml, with its headings.
+// views/MultiSelectSettings.qml, with its headings. A group's page, with
+// another module's rows under its name, saved in that module.
 Rectangle {
     id: root
     color: surfaceColor
@@ -34,29 +35,35 @@ Rectangle {
     function selectorShown(item, shown) {}
     function skinIcon(url) { return url }
 
-    // AppCore as the page uses it: the module's schema and saved values.
+    // AppCore as the page uses it: the module's schema and saved values, and
+    // another module's, of the same group.
     QtObject {
         id: appCore
         property var values: ({})
         property var actions: []
         property var schema: []
+        property var otherValues: ({})
+        property var otherSchema: []
         // config.json can't be written (a full card): nothing is saved.
         property bool saveFails: false
         signal dynamicOptionsReady(string mid, string key, var items)
         signal moduleAuthStateChanged(string mid)
-        function get_settings() { return { modules: { "com.osdos.test": values } } }
-        function get_installed_modules() { return [{ id: "com.osdos.test", name: "Test" }] }
+        function get_settings() { return { modules: { "com.osdos.test": values, "com.osdos.other": otherValues } } }
+        function get_installed_modules() { return [{ id: "com.osdos.test", name: "Test" }, { id: "com.osdos.other", name: "Other" }] }
         function get_module_auth_state(id) { return "" }
         function invoke_module_action(id, slot) { actions = actions.concat([slot]) }
         function save_setting(module, key, value) {
             if (saveFails)
                 return false
-            var v = Object.assign({}, values)
+            var v = Object.assign({}, module === "com.osdos.other" ? otherValues : values)
             v[key] = value
-            values = v
+            if (module === "com.osdos.other")
+                otherValues = v
+            else
+                values = v
             return true
         }
-        function get_module_settings_schema(id) { return schema }
+        function get_module_settings_schema(id) { return id === "com.osdos.other" ? otherSchema : schema }
     }
 
     Loader {
@@ -85,15 +92,18 @@ Rectangle {
             appCore.values = {}
             appCore.actions = []
             appCore.schema = arcadeRows
+            appCore.otherValues = {}
+            appCore.otherSchema = []
             appCore.saveFails = false
         }
         function cleanup() {
             loader.source = ""
         }
 
-        function open() {
+        // With `also`, a group's page, those modules' rows after the test's.
+        function open(also) {
             loader.setSource(Qt.resolvedUrl("../../views/ModuleSettings.qml"),
-                             { navParams: { moduleId: "com.osdos.test" } })
+                             { navParams: { moduleId: "com.osdos.test", alsoModules: also || [] } })
             verify(loader.item !== null, "loaded ModuleSettings.qml")
             loader.item.forceActiveFocus()
             return loader.item
@@ -111,14 +121,60 @@ Rectangle {
             }
             return null
         }
-        // The row the cursor is on, by its key.
+        // The row the cursor is on, by its key, and where.
         function cursor(page) {
+            var at = cursorIndex(page)
+            return at >= 0 ? page.schemaItems[at].key : ""
+        }
+        function cursorIndex(page) {
             for (var i = 0; i < page.children.length; i++) {
                 var list = page.children[i]
                 if (list.currentIndex !== undefined && list.model !== undefined)
-                    return page.schemaItems[list.currentIndex].key
+                    return list.currentIndex
             }
-            return ""
+            return -1
+        }
+
+        // A group's page: the other module's rows after the test's, under its
+        // name, which the cursor steps over; their values their own, shown
+        // and saved in that module though a key is the same, and its own
+        // rows following them.
+        function test_alsoModules() {
+            appCore.otherSchema = [
+                { key: "enabled", label: "Enabled", type: "toggle", default: "OFF" },
+                { key: "mode", label: "Mode", type: "list_single", options: ["A", "B"], default: "A",
+                  shown_with: { key: "enabled", value: "ON" } }
+            ]
+            appCore.values = { enabled: true }
+            var page = open(["com.osdos.other"])
+            compare(keys(page), ["enabled", "screen", "video", undefined, "enabled"])
+            compare(page.schemaItems[3].type, "section")
+            compare(page.schemaItems[3].label, "Other")
+            verify(findText(page, "Other") !== null)
+            compare(page.currentDisplayValue(page.schemaItems[0]), "ON")
+            compare(page.currentDisplayValue(page.schemaItems[4]), "OFF")
+            keyClick(Qt.Key_Down)
+            keyClick(Qt.Key_Down)
+            keyClick(Qt.Key_Down)
+            compare(cursorIndex(page), 4)
+            keyClick(Qt.Key_Right)
+            compare(appCore.otherValues.enabled, true)
+            compare(appCore.values.enabled, true)
+            compare(page.currentDisplayValue(page.schemaItems[4]), "ON")
+            compare(keys(page), ["enabled", "screen", "video", undefined, "enabled", "mode"])
+            compare(cursorIndex(page), 4)
+            keyClick(Qt.Key_Down)
+            keyClick(Qt.Key_Right)
+            compare(appCore.otherValues.mode, "B")
+            compare(appCore.values.mode, undefined)
+            // Up from the other's first row steps over the heading too.
+            keyClick(Qt.Key_Up)
+            keyClick(Qt.Key_Up)
+            compare(cursor(page), "video")
+            // A page of one module has no other rows.
+            loader.source = ""
+            page = open()
+            compare(keys(page), ["enabled", "screen", "video"])
         }
 
         // Unset, Screen is its default, Original: the Arcade screen's rows

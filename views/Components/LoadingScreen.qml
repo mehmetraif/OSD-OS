@@ -4,11 +4,11 @@ import OSDOS.Video
 // What a player shows while its video starts: a VCR's screen as a tape loads.
 // The theme's ground in a tape's noise (VhsNoise), and a dubbing deck's
 // on-screen display in its corners, in the theme's colours or Video 1's
-// (Settings → Loading Screen Colors: root.loadingInk, root.loadingPaper):
-// TAPE A PLAY at the point the video is (where it starts from), TV between
-// them, TAPE B LOADING with the video's length once that is known and the
-// seconds it has taken until then, and the source under SLP ▶; what loads,
-// when the player knows, across the middle.
+// (Settings → TV / Movie → Loading Screen Colors: root.loadingInk,
+// root.loadingPaper): TAPE A PLAY at the point the video is (where it starts
+// from), TV between them, TAPE B LOADING with the video's length once that is
+// known and the seconds it has taken until then, and the source under SLP ▶;
+// what loads, when the player knows, across the middle.
 // The tracking band jitters across the top and now and then rolls down over
 // the lot, eating into the letters; Settings' Loading Effect turns all of
 // that off, leaving the display on the plain ground. It runs while it is
@@ -52,7 +52,7 @@ Item {
     // picture shows): nothing drawn here would reach it.
     readonly property bool live: visible && !root.screenHandedOff
     // The tape's effects: its noise and bands, the display's jumps and its
-    // colour bleeding (Settings → Loading Effect).
+    // colour bleeding (Settings → TV / Movie → Loading Effect).
     property bool effect: root.loadingEffect
 
     readonly property real fontSize: root.sh * 0.05 //24

@@ -24,3 +24,6 @@
 - Does OSD/OS support bluetooth keyboards/remotes/controllers?
     - Yes. On Linux (a Raspberry Pi included) pair them in Settings → Bluetooth: SEARCH, then select the device. A keyboard shows a code on screen to type on it. Once paired, a device comes back by itself after a restart, and OSD/OS sees it as it would a USB one. [Controls](https://github.com/mehmetraif/OSD-OS/wiki/Controls#bluetooth) has the details.
     - On a Mac, pair them in the Mac's own Bluetooth settings.
+- Can I join a Wi-Fi network from OSD/OS?
+    - Yes, on Linux: Settings → Wi-Fi lists the networks within reach; select one and type its password on the on-screen keyboard. Wi-Fi stays off until the country is set, which the page asks for first. On the OSD/OS image it needs an image, or an `install.sh` run, from the version that brought it ([Settings → Wi-Fi](https://github.com/mehmetraif/OSD-OS/wiki/Settings#wi-fi)).
+    - On a Mac, join networks in the Mac's own settings.

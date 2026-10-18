@@ -65,7 +65,7 @@ Each is a name OSD/OS has (as Settings lists it), `"Off"`, or, for some, one of 
 | Key | Names | Of its own |
 |---|---|---|
 | `text` | `Rainbow`, `Shimmer`, `Glow`, `Flicker`: what the text, the lines and the bars do | Any of `rainbow`, `shimmer`, `glow`, `flicker`, each 0 (none) to 1 |
-| `background` | `Matrix`, `Fire`, `Stars`, `Snow`, `Checkered Flag`: what goes on behind the menus, in the window | A shader (`"shader"`, below), and `"area": "foot"` to draw it from the window's top down to the screen's foot, rising into the window from below; the window inside its frame without, as every effect of OSD/OS's own is |
+| `background` | `Matrix`, `Fire`, `Stars`, `Snow`, `Checkered Flag`, `Plasma`: what goes on behind the menus, in the window | A shader (`"shader"`, below), and `"area": "foot"` to draw it from the window's top down to the screen's foot, rising into the window from below; the window inside its frame without, as every effect of OSD/OS's own is |
 | `selector` | `Sparkles`, `Welding`, `Lightning`, `Rainbow`, `Snow`: what goes on round the selected line | None |
 | `screen` | `Scanlines`, `CRT`, `VHS`: a tube's or a tape's look over the whole screen | Any of `scanlines`, `curvature`, `glow`, `bleed`, `noise`, `vignette`, each 0 to 1, driving OSD/OS's own shader; or a shader, with `"animate": true` if it moves |
 | `transition` | `Fade`, `Cube` (a way at random each time), `Ripple`, `Wave`, `Drop`: how one window gives way to the next | None |

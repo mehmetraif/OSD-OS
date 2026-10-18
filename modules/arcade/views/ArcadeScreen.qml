@@ -5,31 +5,32 @@ import Components
 // selection screen in place of the original tree (Games.qml). The games of
 // one filter (ArcadeBackend::filters) lie as Settings → Arcade → List Style
 // says, one under another or on an arc a page at a time, or on a wheel
-// turning with the game chosen, under a bar naming the filter and the page;
-// on the right the game's picture with the credits bought, and under it a
-// box of its high scores (the High Scores module's), what it is
-// (ArcadeBackend::gameDetails) and how long it has been played, as many
-// lines as fit; under them the help line with its full name and what the box
-// has no line for, and the hint bar. The module's own Hint Bar and Help Line
-// settings (Root.qml's, which root.hintBar and root.helpLine go by here) hide
-// those, and their room goes to the list, a row more each, and to the box.
-// Laid out in the design's units, a 960th of the width and a 720th of the
-// height, in letters a CRT reads: none smaller than the hint bar's and the
-// help line's, but for the wheel's rows going back; and in an area that
-// Settings → Arcade → Screen Adjustment moves each side of, which then holds
-// as many games and lines as fit.
+// turning once the game chosen reaches its top or bottom row, under a bar
+// naming the filter and the page; on the right the game's picture with the
+// credits bought, and under it a box of its high scores (the High Scores
+// module's), what it is (ArcadeBackend::gameDetails) and how long it has
+// been played, as many lines as fit; under them the help line with its full
+// name and what the box has no line for, and the hint bar. The module's own
+// Hint Bar and Help Line settings (Root.qml's, which root.hintBar and
+// root.helpLine go by here) hide those, and their room goes to the list, a
+// row more each, and to the box. Laid out in the design's units, a 960th of
+// the width and a 720th of the height, in letters a CRT reads: none smaller
+// than the hint bar's and the help line's, but for the wheel's rows going
+// back; and in an area that Settings → Arcade → Screen Adjustment moves
+// each side of, which then holds as many games and lines as fit.
 //
-// ▲ ▼ choose a game, from page to page and round; ◄ ► go round the filters,
-// keeping the game where the next filter has it. COIN (MAME's 5, which a
-// pad's Back button, MAME's coin, is here: takesCoin) buys a credit; select,
-// let go, or START (Space, a pad's Start, or 1) plays the game with them
-// (navigateTo Play.qml, which Root.qml plays as Start Info Screen says);
-// select held opens its options (Play, its favourite, Play at Startup) and
-// back leaves the module. Coming back from a game restores the filter and
-// the game from the listState handed to navigateTo; a game played from the
-// screen itself (Start Info Screen off) leaves it as it was. Opened with the
-// startup favourite (navParams.startupPlay), it plays that as soon as the
-// folder has been read, the screen on it in Favorites.
+// ▲ ▼ choose a game, from page to page (the wheel a row at a time) and
+// round; ◄ ► go round the filters, keeping the game where the next filter
+// has it. COIN (MAME's 5, which a pad's Back button, MAME's coin, is here:
+// takesCoin) buys a credit; select, let go, or START (Space, a pad's Start,
+// or 1) plays the game with them (navigateTo Play.qml, which Root.qml plays
+// as Start Info Screen says); select held opens its options (Play, its
+// favourite, Play at Startup) and back leaves the module. Coming back from
+// a game restores the filter, the game and its row on the wheel from the
+// listState handed to navigateTo; a game played from the screen itself
+// (Start Info Screen off) leaves it as it was. Opened with the startup
+// favourite (navParams.startupPlay), it plays that as soon as the folder
+// has been read, the screen on it in Favorites.
 //
 // Opened to adjust it (navParams.adjust, Screen Adjustment's), a frame lies
 // round the area: ▲ ▼ ◄ ► move that side of it out, or in once select has
@@ -84,9 +85,9 @@ FocusScope {
     readonly property int listBottom: areaBottom - (root.hintBar ? (root.helpLine ? 93 : 41) : (root.helpLine ? 53 : 1))
     // Settings → Arcade → List Style (Root.qml's listStyle): the games one
     // under another (Straight) or on an arc (Curved), a page at a time; or
-    // on a wheel (3D Curved) that turns with the game chosen, which keeps to
-    // its middle row, furthest out, the others going back and fading the
-    // further they are from it.
+    // on a wheel (3D Curved), where the game chosen goes up and down its
+    // rows, furthest out, the others going back and fading the further they
+    // are from it, and the wheel turns a row once it would leave them.
     readonly property bool straight: moduleRoot.listStyle === "Straight"
     readonly property bool wheel: moduleRoot.listStyle === "3D Curved"
     // The rows under the bar, as many as fit minPitch lines apart (seven with
@@ -98,8 +99,10 @@ FocusScope {
     readonly property int rowsFit: Math.floor((listBottom - listTop - rowHeight) / minPitch) + 1
     readonly property int perPage: wheel && rowsFit % 2 === 0 ? rowsFit - 1 : rowsFit
     readonly property int pitch: Math.floor((listBottom - listTop - rowHeight) / Math.max(1, perPage - 1))
-    // The wheel's middle row, and how many rows from it a row would be just
-    // past its ends.
+    // The wheel's middle row, where a game chosen afresh comes to (a filter,
+    // the screen opened), and how many rows from the game chosen a row is
+    // as far back as the wheel goes: a row more than its ends are from its
+    // middle, so with the game there they aren't quite as far back.
     readonly property int middleRow: Math.floor(perPage / 2)
     readonly property int wheelReach: perPage - middleRow
     // The column right of the list, its share of the area's width, or
@@ -151,14 +154,25 @@ FocusScope {
     // Counted up as what the filters hold changes, so the rows and the game
     // are read again.
     property int revision: 0
+    // The place of the game in the wheel's top row, round from the list's
+    // end to its start once the filter has a game for every row (else 0).
+    property int wheelTop: 0
     // The games in the rows (gamesInRows()), and the row of the game
-    // selected: on the wheel its middle one.
+    // selected.
     readonly property var rows: (revision, gamesInRows())
-    readonly property int selectedRow: wheel ? middleRow : selected - page * perPage
+    readonly property int selectedRow: wheel ? (count > 0 ? (selected - wheelTop + count) % count : 0)
+                                             : selected - page * perPage
     readonly property var current: rows[selectedRow] ? rows[selectedRow].game : null
+    // The wheel turned so the game selected is in that row.
+    function placeWheel(row) {
+        wheelTop = count >= perPage ? ((selected - row) % count + count) % count : 0
+    }
+    // Its rows changed (Screen Adjustment): the game keeps its row, the last
+    // if there are fewer now. The style and the bars are read as the module
+    // opens, before this screen is made.
+    onPerPageChanged: if (wheel) placeWheel(Math.min(selectedRow, perPage - 1))
     // A { place, game } for each row, null for one with none: the page's; or
-    // the wheel's, the game chosen in its middle row, round from the list's
-    // end to its start once the filter has a game for every row.
+    // the wheel's, from its top row on.
     function gamesInRows() {
         var shown = []
         for (var r = 0; r < perPage; ++r)
@@ -175,17 +189,15 @@ FocusScope {
             fill(0, page * perPage, perPage)
             return shown
         }
-        // The place the wheel's top row would have, before the list's start
-        // when the game chosen is near it.
-        var top = selected - middleRow
+        // Round from the list's end to its start; fewer games than rows
+        // from the top row down.
         if (count >= perPage) {
-            var start = (top % count + count) % count
+            var start = (wheelTop % count + count) % count
             var head = Math.min(perPage, count - start)
             fill(0, start, head)
             fill(head, 0, perPage - head)
         } else {
-            var first = Math.max(0, top)
-            fill(first - top, first, Math.min(count - first, perPage - (first - top)))
+            fill(0, 0, count)
         }
         return shown
     }
@@ -302,6 +314,9 @@ FocusScope {
         var keepRoom = landOn ? -1
                      : fromCurrent ? (current.room !== undefined ? current.room : -1)
                      : (navListState.room !== undefined ? navListState.room : -1)
+        // Where it is: its filter, and its row on the wheel.
+        var keptFilter = filterId
+        var keptRow = selectedRow
         filters = arcadeBackend.filters()
         var at = indexOfFilter(wanted)
         filterIndex = Math.max(0, at)
@@ -311,14 +326,26 @@ FocusScope {
             wanted = filterId
         var place = keep !== "" && filterId !== "" ? arcadeBackend.filterIndex(filterId, keep, keepRoom) : -1
         selected = place >= 0 ? place : (standIn ? 0 : Math.max(0, Math.min(selected, count - 1)))
+        // On the wheel, the game kept keeps its row while its filter is the
+        // one shown still, and the game come back to after playing it the
+        // row it was played from; any other comes to the middle row.
+        var row = fromCurrent ? (filterId === keptFilter ? keptRow : middleRow)
+                : !landOn && navListState.row !== undefined ? navListState.row : middleRow
+        placeWheel(Math.min(row, perPage - 1))
         revision++
     }
 
     function move(delta) {
-        if (count > 0) {
-            selected = (selected + delta + count) % count
-            browsed = true
-        }
+        if (count === 0)
+            return
+        browsed = true
+        // The wheel turns a row as the game chosen would leave its rows,
+        // round from the list's end to its start, before the game changes,
+        // so it is never out of them.
+        var row = selectedRow + delta
+        if (wheel && count >= perPage && (row < 0 || row >= perPage))
+            wheelTop = (wheelTop + delta + count) % count
+        selected = (selected + delta + count) % count
     }
 
     function cycle(delta) {
@@ -329,6 +356,7 @@ FocusScope {
         wanted = filterId
         var at = keep !== "" ? arcadeBackend.filterIndex(filterId, keep) : -1
         selected = Math.max(0, at)
+        placeWheel(middleRow)
     }
 
     // Plays a game; coming back lands on it in listFilter.
@@ -336,7 +364,7 @@ FocusScope {
     // host }) or one hosted ({ hosting: true }).
     function play(set, name, listFilter, online) {
         var params = { game: set, title: name }
-        var state = { filter: listFilter, set: set }
+        var state = { filter: listFilter, set: set, row: selectedRow }
         if (online)
             params.online = online
         if (online && online.room !== undefined)
@@ -554,11 +582,12 @@ FocusScope {
             readonly property var game: entry ? entry.game : ({})
             readonly property int number: entry ? entry.place + 1 : 0
             readonly property bool isCurrent: !!entry && index === arcadeScreen.selectedRow
-            // On the wheel, how far the row is from its middle: from 0 there
-            // to 1 just past its ends. It is as much further back: smaller,
-            // and fainter.
+            // On the wheel, how far the row is from the game chosen: from 0
+            // there to 1 wheelReach rows from it, and no further. It is as
+            // much further back: smaller, and fainter, wherever the game
+            // chosen is.
             readonly property real depth: arcadeScreen.wheel
-                                          ? Math.abs(index - arcadeScreen.middleRow) / arcadeScreen.wheelReach : 0
+                                          ? Math.min(1, Math.abs(index - arcadeScreen.selectedRow) / arcadeScreen.wheelReach) : 0
             readonly property real size: 1 - 0.3 * depth
             // The arc the rows' left ends lie on, those at the page's ends (the
             // wheel's) furthest left and those in its middle furthest right;
@@ -573,7 +602,7 @@ FocusScope {
             readonly property color ink: isCurrent ? root.surfaceColor : root.primaryColor
             readonly property real gap: Math.round(10 * size * arcadeScreen.u)
             visible: entry !== null
-            opacity: 1 - 0.7 * depth
+            opacity: 1 - 0.6 * depth
             // Made smaller from its left end, which keeps to the arc, the
             // middle of its row.
             x: Math.round(boxLeft * arcadeScreen.u)
@@ -631,7 +660,7 @@ FocusScope {
                 // Whether it scrolls, and how far: started (and started over)
                 // once the row has its new width, a turn of the event loop
                 // later, as MenuRow's value is; and for each name the row
-                // comes to (the wheel's middle row has every game chosen).
+                // comes to (the wheel's rows as it turns).
                 readonly property bool scrolls: row.isCurrent && nameText.implicitWidth > width
                 readonly property real scrollBy: width - nameText.implicitWidth
                 onScrollsChanged: Qt.callLater(updateScroll)

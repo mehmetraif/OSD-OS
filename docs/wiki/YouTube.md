@@ -95,7 +95,7 @@ flowchart LR
 
 ## Turning it on
 
-Settings → **YouTube** (in the Modules section) → **Enabled**: On. YouTube then appears on the main menu. With nothing else set up, its tree holds Recently Watched, Favorites and Search; Subscriptions, Channels and Playlists appear once you list channels and playlists in the two files below, and Watch Later once something is saved to it.
+Settings → TV / Movie → **YouTube** → **Enabled**: On. YouTube then appears on the main menu. With nothing else set up, its tree holds Recently Watched, Favorites and Search; Subscriptions, Channels and Playlists appear once you list channels and playlists in the two files below, and Watch Later once something is saved to it.
 
 ## Channels and subscriptions
 
@@ -183,7 +183,7 @@ YouTube is browsed in the same tree as Local Files ([Using OSD/OS](https://githu
 | Move | ▲ ▼ | D-pad, left stick | Up and down the folder |
 | Open | ► or Enter | D-pad right, A | Opens a folder |
 | Up a level | ◄ | D-pad left | Back to the parent folder |
-| Info / options | ► on a video | D-pad right | Opens its info screen, or its options with Settings → Info Screen off |
+| Info / options | ► on a video | D-pad right | Opens its info screen, or its options with Settings → TV / Movie → Info Screen off |
 | Play | Enter on a video | A | Plays it |
 | Back | Esc (or Backspace) | B | Up a level; at the top, back to the main menu |
 
@@ -199,7 +199,7 @@ yt-dlp --flat-playlist --no-warnings -I 1:20 --print "%(.{id,title,channel,uploa
 
 ### Info screens
 
-A video's info screen shows the PLAY box, its title, the channel and date, the description, then CHANNEL, DATE, LENGTH and VIEWS as menu lines. It opens with ► on a video, or by itself once the cursor has rested on one, as **Settings → Info Screen** says: after 1, 2, 3 (the default) or 5 seconds, **Key** for ► only, or **Off**, where ► offers the video's options instead.
+A video's info screen shows the PLAY box, its title, the channel and date, the description, then CHANNEL, DATE, LENGTH and VIEWS as menu lines. It opens with ► on a video, or by itself once the cursor has rested on one, as **Settings → TV / Movie → Info Screen** says: after 1, 2, 3 (the default) or 5 seconds, **Key** for ► only, or **Off**, where ► offers the video's options instead.
 
 What the list already knows (from the feed: title, channel, date and description) shows at once. yt-dlp then adds the length, the view count and the whole description, which takes a few seconds on a Pi (`yt-dlp --skip-download --no-playlist --print …`). One video is looked up at a time; while one runs, only the last video you rested on is queued. Each video is looked up once per run.
 
@@ -243,21 +243,21 @@ Back during a video opens its menu:
 
 Back in the menu returns to the video.
 
-- **With Transparent Background** (Settings), the menu lies over the picture, which plays on. Playback Speed and Scaling change at once; the others (resolution, codec, frame rate, audio and subtitles) reload the video where it is when you go back to it. **Browse YouTube** leaves it playing behind the menus, and the main menu's first row takes it back to full screen.
+- **With Transparent Background** (Settings → TV / Movie), the menu lies over the picture, which plays on. Playback Speed and Scaling change at once; the others (resolution, codec, frame rate, audio and subtitles) reload the video where it is when you go back to it. **Browse YouTube** leaves it playing behind the menus, and the main menu's first row takes it back to full screen.
 - **Without it**, mpv has the screen, so the video stops for the menu, and starts again where it was, with the settings as you left them, when you go back to it. **Browse YouTube** leaves it stopped there, and the main menu's first row, or the same video in the tree, starts it again where it was, without asking.
 
 If mpv fails before the video starts (yt-dlp missing, out of date, or YouTube refusing), OSD/OS shows **Playback failed: Please check that yt-dlp is installed and up to date**. Select retries; back returns to the tree.
 
 ## The Advanced settings, and what yt-dlp is asked for
 
-Settings → YouTube → **Advanced** holds everything about how a video plays. They are saved like any setting (under `modules.com.osdos.youtube`, not in a sub-object) and read each time a video starts.
+Settings → TV / Movie → YouTube → **Advanced** holds everything about how a video plays. They are saved like any setting (under `modules.com.osdos.youtube`, not in a sub-object) and read each time a video starts.
 
 | Setting | Values | Default | What it does | Config key |
 |---|---|---|---|---|
 | Playback Resolution | 240p, 360p, 480p, 720p, 1080p, 1440p, 2160p | 480p | The most a video plays at: `[height<=?N]` in the format. A video without that much plays at what it has. 480p suits a CRT and a Pi. 1440p and 2160p need Video Codec **Any**: YouTube has H.264 only up to 1080p. | `modules.com.osdos.youtube.playback_resolution` |
 | Video Codec | H.264, Any | H.264 | **H.264** tries `[vcodec^=avc1]` first, which a Pi decodes in hardware, and falls back to any codec. **Any** takes what yt-dlp ranks best, often VP9 or AV1, decoded in software. | `modules.com.osdos.youtube.video_codec` |
 | Max Frame Rate | Any, 30 | Any | **30** adds `[fps<=?30]`: 30 fps where a video also has 60, lighter on a Pi. | `modules.com.osdos.youtube.max_frame_rate` |
-| Scaling | Default, Letterbox, 14:9, Pan & Scan, Anamorphic | Default | How a 16:9 picture fills a 4:3 screen in this module. **Default** follows Settings → Scaling. | `modules.com.osdos.youtube.video_scaling` |
+| Scaling | Default, Letterbox, 14:9, Pan & Scan, Anamorphic | Default | How a 16:9 picture fills a 4:3 screen in this module. **Default** follows Settings → TV / Movie → Scaling. | `modules.com.osdos.youtube.video_scaling` |
 | Audio Language | Original, English, Spanish, French, German, Italian, Portuguese, Dutch, Polish, Russian, Turkish, Arabic, Hindi, Indonesian, Japanese, Korean, Chinese | Original | The audio track of a video dubbed in several: `bestaudio[language^=xx]` first, then the original. **Original** is the one it was made in. | `modules.com.osdos.youtube.audio_language` (`original`, `en`, `es`, `fr`, `de`, `it`, `pt`, `nl`, `pl`, `ru`, `tr`, `ar`, `hi`, `id`, `ja`, `ko`, `zh`) |
 | Subtitles | Off, On, With Auto | Off | **On**: the video's subtitles in Subtitle Language, where it has them. **With Auto**: YouTube's automatic captions too. | `modules.com.osdos.youtube.subtitles` |
 | Subtitle Language | English … Chinese (the same 16) | English | The language Subtitles fetches and shows. | `modules.com.osdos.youtube.subtitle_language` (`en` …) |
@@ -332,7 +332,7 @@ An account is optional. Signed in, yt-dlp searches and plays as that account, wh
 > [!WARNING]
 > YouTube can block an account used through yt-dlp, as [yt-dlp's wiki](https://github.com/yt-dlp/yt-dlp/wiki/Extractors#youtube) warns. Sign in with a spare account, not the one you care about.
 
-1. Settings → YouTube → **Sign in**. A screen says **Sign in to YouTube**, how to come back, and to use a spare account.
+1. Settings → TV / Movie → YouTube → **Sign in**. A screen says **Sign in to YouTube**, how to come back, and to use a spare account.
 2. Have a keyboard ready, and press select. Google's sign-in page opens full screen in Chromium.
 3. Sign in with the keyboard.
 4. Come back by holding back (Esc, or B on a gamepad) for two seconds, or with `Ctrl+W`.
@@ -344,11 +344,11 @@ What happens underneath:
 - Chromium writes new cookies to disk only every half minute or so, and a browser stopped outright loses what it hasn't written. Holding back therefore closes it the way `Ctrl+W` does (by typing `Ctrl+W` into it with `wtype`), so it saves first. Without `wtype`, close it with `Ctrl+W` on the keyboard, or wait half a minute after signing in before holding back.
 - It needs Chromium (`chromium`, `chromium-browser`, `google-chrome-stable` or `google-chrome`), with `cage` and `wtype` when there is no desktop: `sudo apt install chromium cage wtype` on Raspberry Pi OS (Widevine isn't needed for this). On a Mac it needs **Google Chrome** in `/Applications`: the web player's Safari fallback keeps its sign-in where yt-dlp can't read it, so without Chrome the screen says **Google Chrome is not installed**.
 
-**Sign out** (Settings → YouTube) deletes the profile, and with it the sign-in. It does nothing while the browser is open.
+**Sign out** (Settings → TV / Movie → YouTube) deletes the profile, and with it the sign-in. It does nothing while the browser is open.
 
 ## Settings
 
-Settings → **YouTube**:
+Settings → TV / Movie → **YouTube**:
 
 | Setting | Values | Default | What it does | Config key |
 |---|---|---|---|---|

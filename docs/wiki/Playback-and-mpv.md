@@ -1,6 +1,6 @@
 # Playback and mpv
 
-OSD/OS never decodes a video itself: [mpv](https://mpv.io) does. Usually mpv runs as a program of its own, started for each video. With Settings → Transparent Background it runs inside OSD/OS as a library, libmpv, so the menus can lie over the picture. This page covers both ways, the exact flags OSD/OS gives mpv on each device and how to change them, what the modules and the settings add, subtitles, audio tracks and resume points, the loading screen and the channel logo, mpv's own configuration, installing a modern mpv, and what to do when playback goes wrong.
+OSD/OS never decodes a video itself: [mpv](https://mpv.io) does. Usually mpv runs as a program of its own, started for each video. With Settings → TV / Movie → Transparent Background it runs inside OSD/OS as a library, libmpv, so the menus can lie over the picture. This page covers both ways, the exact flags OSD/OS gives mpv on each device and how to change them, what the modules and the settings add, subtitles, audio tracks and resume points, the loading screen and the channel logo, mpv's own configuration, installing a modern mpv, and what to do when playback goes wrong.
 
 ## Two ways to play
 
@@ -155,7 +155,7 @@ What OSD/OS runs to play a film from Local Files on a Pi 4 with the OSD/OS image
 | `--input-ipc-server`, `--log-file` | The control channel, and mpv's own log |
 | `--osc=no`, `--osd-level=0`, `--script=…mpv-osc.lua` | mpv's own controls and messages off; OSD/OS's deck menu in their place |
 | `--script=…mpv-media-keys.lua` | Media keys and the VOLUME bar, in every video |
-| `--script=…mpv-logo.lua`, `--script-opts=logo-corner=tr` | Settings → Channel Logo, top right |
+| `--script=…mpv-logo.lua`, `--script-opts=logo-corner=tr` | Settings → TV / Movie → Channel Logo, top right |
 | `--start=754.200` | The resume point, in seconds |
 | `--subs-with-matching-audio=forced`, `--subs-fallback-forced=always` | Auto Show Subtitles: Forced Only |
 | `--image-display-duration=5.0` | Image Duration, for photos (mpv ignores it for a video) |
@@ -243,7 +243,7 @@ OSD/OS reads the board's model once, from `/proc/device-tree/model` (`OSDOS_BOAR
 | macOS | (Qt draws with Metal there, so the picture is drawn on the CPU) | `--hwdec=videotoolbox-copy`, and `--osd-fonts-dir` for the VCR font |
 
 - **Pi 4.** `--vo=drm` draws on the display's primary plane, with exact page-flip timing, so the cadence is smooth. The decoders hand their frames back to memory (`-copy`), where mpv scales them: more CPU than the zero-copy overlay path (50 to 70% of the four cores), but the Pi 4 has the headroom, Scaling's cropping works, and the overlay path judders at 24 frames a second. `drm-copy` reaches the Pi 4's HEVC decoder through Raspberry Pi OS's own patched FFmpeg; the image's `config.txt` and INSTALL.md's load its overlay, `dtoverlay=rpivid-v4l2`, under `[pi4]`. `v4l2m2m-copy` decodes H.264. VP9 and AV1, which YouTube sends with Video Codec **Any**, have no decoder on a Pi 4 and decode in software.
-- **Pi 3.** The copy path pegs its four cores at 1080p. With Settings → 1080p Playback **On** (the default), frames go straight to an overlay plane without a copy: about 15% of the CPU and smooth 1080p H.264, but an overlay plane can't crop, so 14:9 and Pan & Scan show the whole picture and the deck menu has no CROP. **Off** brings back the copy path, cropping and all, for videos of 720p and below. Inside the app (Transparent Background) the picture can always be cropped.
+- **Pi 3.** The copy path pegs its four cores at 1080p. With Settings → TV / Movie → 1080p Playback **On** (the default), frames go straight to an overlay plane without a copy: about 15% of the CPU and smooth 1080p H.264, but an overlay plane can't crop, so 14:9 and Pan & Scan show the whole picture and the deck menu has no CROP. **Off** brings back the copy path, cropping and all, for videos of 720p and below. Inside the app (Transparent Background) the picture can always be cropped.
 - **Pi 5.** Full KMS, so `--vo=drm` draws directly. `auto-safe` finds no working VA-API or V4L2 decoder there and takes FFmpeg's Vulkan decoder on the V3D GPU for H.264 and HEVC: a copy decoder, so the frames land on the primary plane, smooth and croppable. On a Pi 5 the launcher points Qt at the output the display preset names, and exports `OSDOS_DRM_DEVICE`, `OSDOS_DRM_CONNECTOR` and `OSDOS_DRM_MODE` for mpv to play on the same one, in the same mode, when HDMI stays on beside a CRT ([Display Output](https://github.com/mehmetraif/OSD-OS/wiki/Display-Output)).
 - **A Linux desktop** (a Steam Deck, an Intel or AMD PC, a Pi with a desktop): an explicit list rather than `auto-safe`, because `auto-safe` also tries Vulkan decoding, which on a host where neither NVDEC nor VA-API works can show one frame and then hang. VA-API wins on Intel and AMD, NVDEC on NVIDIA, the `-copy` modes catch hosts whose output can't take their frames, and `no` falls back to software decoding. A Pi running a desktop gets this line too, and none of its own decoders are in it: set `mpv_video_args` there (below).
 - **macOS**: VideoToolbox, which mpv leaves off by default.
@@ -258,7 +258,7 @@ Every flag mpv gets belongs to one of five layers. On mpv's command line a later
 | Per video | `--start`, `--playlist-start`, `--aid`, `--sid` and the subtitle flags, `--sub-file`, `--slang`, `--script-opts`, `--loop-playlist`, `--shuffle`, `--image-display-duration`, `--no-audio`, `--ytdl`, and a module's own (`--ytdl-format`, `--http-header-fields`, `--speed` …) | The player, from its module's settings |
 | Presentation | `--audio-device` (Audio Output), `--panscan` or `--keepaspect` (Scaling, the app's or the module's), `--video-output-levels` (Video Levels) | You, in Settings |
 | Device decode | `--vo`, `--gpu-context`, `--hwdec`, `--drm-device`, `--drm-connector`, `--drm-mode` | OSD/OS by device; you, with `mpv_video_args` |
-| Your preferences | Anything else: `deinterlace`, `cache`, `sub-scale`, `monitorpixelaspect`, profiles … | You, in `~/.config/mpv/mpv.conf` (the process only) |
+| Your preferences | Anything else: `deinterlace`, `cache`, `sub-scale`, `monitoraspect`, profiles … | You, in `~/.config/mpv/mpv.conf` (the process only) |
 
 - **A setting at its default adds nothing**: Scaling on Letterbox, Video Levels on Auto, Audio Output on Auto. So a `video-output-levels=`, `panscan=` or `audio-device=` line in `mpv.conf` still applies then; choosing another value in Settings puts it on the command line, where it wins.
 - **The order on the command line**: the app constants, the per-video flags, Audio Output, `--ytdl=no`, the module's flags, the tokens, Scaling, Video Levels, then (the process only) `--input-conf`, `--video-sync`, the window flags, the device decode flags and `--no-input-terminal`, and last `--` with what plays. So `mpv_video_args`, near the end, wins over everything before it.
@@ -291,7 +291,7 @@ Examples:
 | `--vo=drm --hwdec=v4l2m2m-copy` | A Pi 4 with H.264 decoded in hardware and HEVC in software: its line before `drm-copy` was added |
 | `--hwdec=v4l2m2m-copy` | A Pi running a desktop: H.264 on the Pi's decoder, which the desktop line doesn't try |
 
-**Cropping on a Pi 3 is a setting, not this override:** Settings → 1080p Playback → Off gives exactly `--vo=drm --hwdec=v4l2m2m-copy` and lets Scaling crop. With 1080p Playback On, OSD/OS keeps the whole picture and hides CROP even when `mpv_video_args` names the copy path, because it goes by the setting.
+**Cropping on a Pi 3 is a setting, not this override:** Settings → TV / Movie → 1080p Playback → Off gives exactly `--vo=drm --hwdec=v4l2m2m-copy` and lets Scaling crop. With 1080p Playback On, OSD/OS keeps the whole picture and hides CROP even when `mpv_video_args` names the copy path, because it goes by the setting.
 
 ## What the modules add
 
@@ -309,7 +309,7 @@ OSD/OS blanks every token out of what it logs: a URL's `ApiKey=`/`api_key=`, `X-
 
 ## Scaling
 
-Settings → Scaling, or a module's own Scaling when it isn't Default, says how a picture of another shape fills the screen, a 16:9 film on a 4:3 tube above all:
+Settings → TV / Movie → Scaling, or a module's own Scaling when it isn't Default, says how a picture of another shape fills the screen, a 16:9 film on a 4:3 tube above all:
 
 | Scaling | mpv flag | What you see |
 |---|---|---|
@@ -364,13 +364,13 @@ While a video starts, the player shows a tape loading, after a dubbing deck's on
 - **Top middle:** TV, the deck's output.
 - **Top right:** TAPE B and LOADING blinking, with how long the video is once that is known (a server's length right away; mpv's once it has opened the file), and until then the seconds the screen has been up.
 - **Bottom:** SLP ▶ with the source (the module's name) on the left, SLP ◀ and DEST on the right.
-- **The tape's look**: VHS noise in the color scheme's colours (white on blue with Settings → Loading Screen Colors → Default), drawn afresh about twenty times a second, and a tracking band that jitters across the top and every few seconds rolls down the picture. Settings → Loading Effect → Off leaves the display alone on the plain background.
+- **The tape's look**: VHS noise in the color scheme's colours (white on blue with Settings → TV / Movie → Loading Screen Colors → Default), drawn afresh about twenty times a second, and a tracking band that jitters across the top and every few seconds rolls down the picture. Settings → TV / Movie → Loading Effect → Off leaves the display alone on the plain background.
 
 On a Pi without Transparent Background, mpv takes the screen as soon as it starts, and what stays on the glass until its picture comes is the frame drawn last: the loading screen, still, which is why OSD/OS starts mpv 50 ms after the player asks. The noise rests while mpv has the screen, leaving the CPU to mpv. With Transparent Background the loading screen keeps moving until the picture comes. A still photo never moves mpv's position, so Local Files ends the loading screen as a photo starts.
 
 ## The channel logo
 
-Settings → Channel Logo puts OSD/OS's logo in a corner of the picture, and Logo Image a picture of your own in its place ([Settings](https://github.com/mehmetraif/OSD-OS/wiki/Settings#video)). mpv draws it: `sessionArgs()` loads `scripts/mpv-logo.lua` with `logo-corner=tl`, `tr`, `bl`, `br` or `all` in the script options, so it is in the picture in both ways of playing, under whatever OSD/OS draws over it.
+Settings → TV / Movie → Channel Logo puts OSD/OS's logo in a corner of the picture, and Logo Image a picture of your own in its place ([Settings → TV / Movie](https://github.com/mehmetraif/OSD-OS/wiki/Settings#tv--movie)). mpv draws it: `sessionArgs()` loads `scripts/mpv-logo.lua` with `logo-corner=tl`, `tr`, `bl`, `br` or `all` in the script options, so it is in the picture in both ways of playing, under whatever OSD/OS draws over it.
 
 - The script redraws `assets/images/logo-bug.svg` as vector shapes through mpv's on-screen display, 7% of the output's height tall, 10% of the picture's width and height in from its corner (inside the picture, so letterbox bars stay clear of it), and again whenever the output's size changes.
 - **Logo Image**: OSD/OS reads your picture at the logo's height (7% of the screen's), its shape kept, into mpv's raw overlay format (premultiplied BGRA, `/tmp/osdos-logo.bgra`), and passes `logo-image`, `logo-width` and `logo-height`. The script lays it in each corner asked for with `overlay-add`. It is made at the size it is shown because mpv before 0.38 can't scale an overlay.
@@ -399,8 +399,9 @@ OSD/OS doesn't start mpv with `--no-config`, so an mpv process reads your `~/.co
 A `mpv.conf` with options that work with OSD/OS:
 
 ```ini
-# A CRT's pixels aren't square: correct the picture's shape (see Troubleshooting below).
-monitorpixelaspect=0.888889
+# A tube whose picture isn't quite 4:3 (see Troubleshooting below): the
+# screen's shape, in place of the 4:3 OSD/OS gives mpv on a CRT's output.
+monitoraspect=1.36
 
 # Subtitles a little larger, for a TV across the room.
 sub-scale=1.2
@@ -470,7 +471,7 @@ MPV_BIN=$(scripts/build-mpv.sh)
 
 - **Transparent Background at SOLID** hides the picture on purpose: the video plays on behind the menus, sound and all. Move the slider towards TRANSPARENT.
 - **A Pi 5 with HDMI and a CRT**: mpv plays on the output the display preset names. If you set `mpv_video_args`, it must carry `--drm-device` and `--drm-connector` too.
-- **Nothing on a new output**: Display Output switches back by itself after 15 seconds without Keep.
+- **Nothing on a new output**: Display Output switches back by itself after 30 seconds without Keep.
 - **Transparent Background on the GPU**: if the GPU can't take the decoder's frames, OSD/OS turns to the copy decoders by itself (the log says so). To rule the GPU out, start OSD/OS with `OSDOS_EMBEDDED_RENDER=sw`.
 - **A text console or a login prompt** for a moment as a video starts, on a Pi where OSD/OS runs without the autostart service: that is a `getty` on the virtual terminal the hand-off switched to, not anything OSD/OS drew. The autostart service's install and the image mask it (`getty@tty1` and `autovt@`).
 
@@ -481,12 +482,12 @@ MPV_BIN=$(scripts/build-mpv.sh)
 
 ### The picture is squeezed or stretched
 
-- A CRT's pixels aren't square, and mpv assumes they are: add `monitorpixelaspect=0.888889` to `mpv.conf` and adjust it with a 4:3 test pattern ([Installation](https://github.com/mehmetraif/OSD-OS/wiki/Installation)). A Pi 5's composite output sometimes reports a narrow raster (704×432 rather than 720×480), which the same setting can make up for.
+- A CRT's pixels aren't square: on a CRT's display output OSD/OS tells mpv the screen is 4:3 (`--monitoraspect=4:3`), and draws a video played inside it (Transparent Background) in that shape. A tube whose picture still isn't quite right takes `monitoraspect` or `monitorpixelaspect` from `mpv.conf` in its place: adjust it with a 4:3 test pattern ([Installation](https://github.com/mehmetraif/OSD-OS/wiki/Installation)). A Pi 5's composite output sometimes reports a narrow raster (704×432 rather than 720×480), which the same setting can make up for.
 - Anamorphic squeezes on purpose, for a TV set to 16:9: choose another Scaling.
 
 ### Washed-out or crushed colours
 
-Settings → Video Levels: **Limited** if blacks crush and whites blow out, **Full** if blacks look grey.
+Settings → TV / Movie → Video Levels: **Limited** if blacks crush and whites blow out, **Full** if blacks look grey.
 
 ### No sound
 

@@ -2,7 +2,7 @@
 
 The High Scores module shows the high score tables of the arcade games played in the [Arcade](https://github.com/mehmetraif/OSD-OS/wiki/Arcade) module, as MAME kept them: each game's table, a line for each entry, and what each entry holds. It reads MAME's own files on the device, through hi2txt's game definitions, with nothing online. This page covers setting it up, the list, where the tables come from and which games have them, the files the module keeps, and what to do when a game's table doesn't show.
 
-The module is in [modules/highscores](https://github.com/mehmetraif/OSD-OS/tree/main/modules/highscores) (views, manifest, and hi2txt's definitions in `data/hi2txt.zip`) and [src/modules/highscores](https://github.com/mehmetraif/OSD-OS/tree/main/src/modules/highscores) (`HighScoresBackend`, and `ScoreTable`, a table laid out as lines). It reads the files with [openhi2txt](https://github.com/inigomonyota/openhi2txt), which OSD/OS builds with it ([thirdparty/openhi2txt](https://github.com/mehmetraif/OSD-OS/tree/main/thirdparty/openhi2txt)). It is off at first: turn it on in **Settings → High Scores → Enabled**, and **High Scores** is on the main menu.
+The module is in [modules/highscores](https://github.com/mehmetraif/OSD-OS/tree/main/modules/highscores) (views, manifest, and hi2txt's definitions in `data/hi2txt.zip`) and [src/modules/highscores](https://github.com/mehmetraif/OSD-OS/tree/main/src/modules/highscores) (`HighScoresBackend`, and `ScoreTable`, a table laid out as lines). It reads the files with [openhi2txt](https://github.com/inigomonyota/openhi2txt), which OSD/OS builds with it ([thirdparty/openhi2txt](https://github.com/mehmetraif/OSD-OS/tree/main/thirdparty/openhi2txt)). It is off at first: turn it on in **Settings → Arcade → High Scores → Enabled**, and **High Scores** is on the main menu.
 
 <table>
 <tr><th width="50%">The games</th><th width="50%">All Games</th></tr>
@@ -15,8 +15,8 @@ The module is in [modules/highscores](https://github.com/mehmetraif/OSD-OS/tree/
 
 ## Setting it up
 
-1. **Play in Arcade.** The tables are those MAME keeps of the games the Arcade module plays, with **Settings → Arcade → High Scores** on (the default; [Arcade → High scores](https://github.com/mehmetraif/OSD-OS/wiki/Arcade#high-scores)). Leave a game the proper way, with Coin and Start together, so MAME saves its table as it closes.
-2. **Turn it on**: **Settings → High Scores → Enabled**. **High Scores** is then on the main menu.
+1. **Play in Arcade.** The tables are those MAME keeps of the games the Arcade module plays, with **Settings → Arcade → Save High Scores** on (the default; [Arcade → High scores](https://github.com/mehmetraif/OSD-OS/wiki/Arcade#high-scores)). Leave a game the proper way, with Coin and Start together, so MAME saves its table as it closes.
+2. **Turn it on**: **Settings → Arcade → High Scores → Enabled**, under the High Scores heading of the Arcade page. **High Scores** is then on the main menu.
 
 The releases and the OSD/OS image read the tables as they are. A build of your own needs minizip, which openhi2txt opens hi2txt's definitions with (`libminizip-dev` on Raspberry Pi OS and Debian, `brew install minizip` on a Mac; [Building from source](https://github.com/mehmetraif/OSD-OS/wiki/Building-from-Source)): without it the module is there, but shows no tables and says why.
 
@@ -73,7 +73,7 @@ A game whose NVRAM holds its settings but no table hi2txt knows of (most games' 
 
 ## Settings
 
-Settings → High Scores.
+Settings → Arcade → High Scores: the module shares the Arcade module's page, its row under a **High Scores** heading after the Arcade module's own.
 
 | Setting | Values | Default | What it does | Config key |
 |---|---|---|---|---|
@@ -106,7 +106,7 @@ See [Credits](https://github.com/mehmetraif/OSD-OS/wiki/Credits).
 
 **A game played isn't listed.**
 
-- Is **Settings → Arcade → High Scores** on? Without it MAME runs without its hiscore plugin, and only the games that keep their own scores in NVRAM have a file.
+- Is **Settings → Arcade → Save High Scores** on? Without it MAME runs without its hiscore plugin, and only the games that keep their own scores in NVRAM have a file.
 - Did the game end the proper way, with Coin and Start? MAME saves the hiscore plugin's file as the game closes, and also a few seconds after a new score goes in.
 - Does the plugin know the game? It keeps a table only for the games in its `hiscore.dat`: without an entry there, `arcade/hiscore` has no file for the game.
 - A game whose NVRAM hi2txt has no table in isn't listed ([above](#where-the-tables-come-from)).
@@ -118,6 +118,6 @@ See [Credits](https://github.com/mehmetraif/OSD-OS/wiki/Credits).
 
 ## See also
 
-- [Arcade](https://github.com/mehmetraif/OSD-OS/wiki/Arcade): the games, and MAME's High Scores setting
+- [Arcade](https://github.com/mehmetraif/OSD-OS/wiki/Arcade): the games, and its Save High Scores setting
 - [Troubleshooting → High Scores](https://github.com/mehmetraif/OSD-OS/wiki/Troubleshooting#high-scores)
 - [Settings](https://github.com/mehmetraif/OSD-OS/wiki/Settings) and [Configuration Files](https://github.com/mehmetraif/OSD-OS/wiki/Configuration-Files)

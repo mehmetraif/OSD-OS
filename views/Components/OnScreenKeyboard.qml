@@ -117,6 +117,7 @@ FocusScope {
         spacing: root.sh * 0.025 //12
 
         Text {
+            textFormat: Text.PlainText
             text: osk.title
             color: root.primaryColor
             font.family: root.globalFont
@@ -138,6 +139,7 @@ FocusScope {
                 anchors.verticalCenter: parent.verticalCenter
                 Text {
                     id: typed
+                    textFormat: Text.PlainText
                     text: osk.masked ? "*".repeat(osk.text.length) : osk.text
                     color: root.primaryColor
                     font.family: root.globalFont

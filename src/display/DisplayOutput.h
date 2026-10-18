@@ -1,5 +1,6 @@
 #pragma once
 #include <QObject>
+#include <QSize>
 #include <QString>
 #include <QVariantList>
 
@@ -20,15 +21,18 @@
 class DisplayOutput : public QObject {
     Q_OBJECT
     // The setting is offered: the image's presets are there, the app is run by
-    // its service, whose stop helper writes them (launcher API 3; the JAMMA
-    // preset from 4), and the board has more than one output to choose from.
+    // its service, whose stop helper writes them (launcher API 3; JAMMA 240p
+    // from 4, the JAMMA board's other modes from 6), and the board has more
+    // than one output to choose from.
     Q_PROPERTY(bool available READ available CONSTANT)
     // Switch and Power Off, and At Next Start (launcher API 5; the latter with
     // osdos-display.socket there).
     Q_PROPERTY(bool powerOffAvailable READ powerOffAvailable CONSTANT)
     Q_PROPERTY(bool nextStartAvailable READ nextStartAvailable CONSTANT)
     Q_PROPERTY(QString boardModel READ boardModel CONSTANT)
-    // [{ id, label }]: the outputs this board has, in the menu's order.
+    // [{ id, label, warning }]: the outputs this board has, in the menu's
+    // order; warning, said as one is chosen (a scan rate only some monitors
+    // take), or "".
     Q_PROPERTY(QVariantList options READ options CONSTANT)
     // The preset in force, "" when osdos-display.txt is none of them.
     Q_PROPERTY(QString current READ current CONSTANT)
@@ -78,6 +82,18 @@ public:
     // The output before it, back: the app exits as for apply().
     Q_INVOKABLE void revert();
     Q_INVOKABLE void dismissNotice();
+
+    // Whether the screen, this many pixels on this preset (current(): "" off
+    // the image, or for a config.txt of the user's own), is a TV's tube,
+    // which shows the picture 4:3 whatever its mode: then its pixels aren't
+    // square. No tube has more than 576 lines: a screen with more is another
+    // (the first display connected, which a Pi 5 takes when the preset's
+    // output never comes up). Every preset but HDMI's is a CRT's. Without
+    // one, a mode of a TV's is: 288 lines or fewer, at least twice as many
+    // pixels wide (720×240, 1920×240, 720×288), or 480 or 576 of 720 pixels
+    // (a Pi's composite out); not a small square-pixel panel's, 480×272 or
+    // 800×480.
+    static bool isTube(const QString &preset, const QSize &size);
 
 signals:
     void changed();

@@ -4,7 +4,8 @@ import Components
 // Settings → Arcade → FinalBurn Neo: the second engine's parts, RetroArch and
 // the FinalBurn Neo core with its list of games, whether each is there, and
 // the core's download (ArcadeBackend::downloadFbneo()) for an install the
-// OSD/OS image didn't bring it with; its licence, which comes with it.
+// OSD/OS image didn't bring it with. Its licence, which comes with it, is in
+// Settings → About, with the rest of the arcade's.
 FocusScope {
     id: fbneoRoot
 
@@ -29,8 +30,6 @@ FocusScope {
         var made = ["retroarch", "core", "games"]
         if (info.canDownload)
             made.push("download")
-        if (info.license)
-            made.push("license")
         if (JSON.stringify(made) === JSON.stringify(keys))
             return
         var at = keys[list.currentIndex]
@@ -48,7 +47,6 @@ FocusScope {
         case "core": return "FinalBurn Neo"
         case "games": return "Games It Knows"
         case "download": return info.core && info.downloaded ? "Download Again" : "Download"
-        case "license": return "License"
         }
         return ""
     }
@@ -58,7 +56,6 @@ FocusScope {
         case "core": return !info.core ? "Not Installed" : (info.downloaded ? "Downloaded " + info.coreDate : "Installed")
         case "games": return info.games > 0 ? String(info.games) : "None"
         case "download": return downloading ? progress + "%" : (failure !== "" ? "Failed" : "")
-        case "license": return "FB Neo"
         }
         return ""
     }
@@ -67,13 +64,14 @@ FocusScope {
         case "retroarch":
             return info.retroarch ? info.retroarch
                                   : "The emulator FinalBurn Neo plays in: on Raspberry Pi OS, sudo apt install retroarch"
-        case "core": return info.core ? info.core : "Its core for RetroArch, with its list of games"
+        case "core":
+            return (info.core ? info.core : "Its core for RetroArch, with its list of games")
+                   + " • Free to use and share, never to sell; its license is in Settings → About"
         case "games":
             return "FinalBurn Neo's arcade games: a set of these plays in it when Online High Scores or Online Play is on, or its options choose it"
         case "download":
             return failure !== "" ? failure
                                   : "The latest core from libretro's build server, its list of games and its licence (some 35 MB)"
-        case "license": return "Free to use and share, never to sell; no ROMs come with it"
         }
         return ""
     }
@@ -98,8 +96,7 @@ FocusScope {
     MenuList {
         id: list
         model: fbneoRoot.keys
-        visible: !licensePage.visible
-        focus: !licensePage.visible
+        focus: true
 
         delegate: MenuRow {
             width: list.width
@@ -116,8 +113,6 @@ FocusScope {
                 return
             if (key === "download" && !fbneoRoot.downloading)
                 arcadeBackend.downloadFbneo()
-            else if (key === "license")
-                licensePage.open()
         }
         Keys.onPressed: function(event) {
             if (event.key === Qt.Key_Escape || event.key === Qt.Key_Backspace || event.key === Qt.Key_Back) {
@@ -129,7 +124,6 @@ FocusScope {
 
     HelpLine {
         always: true
-        visible: !licensePage.visible
         text: fbneoRoot.descriptionOf(fbneoRoot.keys[list.currentIndex])
         anchors.bottom: parent.bottom
         anchors.left: parent.left
@@ -139,79 +133,11 @@ FocusScope {
 
     HintBar {
         readonly property string key: fbneoRoot.keys[list.currentIndex] || ""
-        visible: !licensePage.visible
         text: root.hints.back + ":BACK " + root.hints.navigate + ":NAVIGATE"
-              + (key === "download" && !fbneoRoot.downloading ? " " + root.hints.select + ":DOWNLOAD"
-                 : key === "license" ? " " + root.hints.select + ":LICENSE" : "")
+              + (key === "download" && !fbneoRoot.downloading ? " " + root.hints.select + ":DOWNLOAD" : "")
         anchors.bottom: parent.bottom
         anchors.left: parent.left
         anchors.bottomMargin: root.sh * 0.1041667 //50
         anchors.leftMargin: root.sw * 0.125 //80
-    }
-
-    // The licence, in place of the lines below the title bar, a page at a
-    // time with ▲ ▼.
-    FocusScope {
-        id: licensePage
-        anchors.fill: parent
-        visible: false
-
-        property string text: ""
-
-        function open() {
-            text = arcadeBackend ? arcadeBackend.fbneoLicenseText() : ""
-            flick.contentY = 0
-            visible = true
-            forceActiveFocus()
-        }
-        function close() {
-            visible = false
-            list.forceActiveFocus()
-        }
-
-        Flickable {
-            id: flick
-            anchors.top: parent.top
-            anchors.left: parent.left
-            anchors.topMargin: root.sh * 0.25 //120
-            anchors.leftMargin: root.sw * 0.125 //80
-            width: root.sw * 0.75 //480
-            height: root.sh * 0.5 + root.helpRoom + root.hintRoom //240
-            contentHeight: licenseText.height
-            clip: true
-
-            function page(direction) {
-                var maxY = Math.max(0, contentHeight - height)
-                contentY = Math.max(0, Math.min(maxY, contentY + direction * height * 0.9))
-            }
-            Text {
-                id: licenseText
-                width: flick.width
-                text: licensePage.text
-                textFormat: Text.PlainText
-                color: root.primaryColor
-                font.family: root.globalFont
-                wrapMode: Text.WrapAtWordBoundaryOrAnywhere
-                font.pixelSize: root.sh * 0.0291667 //14
-            }
-        }
-
-        Keys.onUpPressed: flick.page(-1)
-        Keys.onDownPressed: flick.page(1)
-        Keys.onPressed: function(event) {
-            if (event.key === Qt.Key_Escape || event.key === Qt.Key_Backspace || event.key === Qt.Key_Back
-                || event.key === Qt.Key_Return || event.key === Qt.Key_Enter) {
-                licensePage.close()
-                event.accepted = true
-            }
-        }
-
-        HintBar {
-            text: root.hints.back + ":BACK " + root.hints.navigate + ":SCROLL"
-            anchors.bottom: parent.bottom
-            anchors.left: parent.left
-            anchors.bottomMargin: root.sh * 0.1041667 //50
-            anchors.leftMargin: root.sw * 0.125 //80
-        }
     }
 }

@@ -110,8 +110,10 @@ QString datPath(const QString &dataRoot) {
                        QStringLiteral("/usr/local/share/libretro/fbneo/fbneo-arcade.dat") });
 }
 
-QHash<QString, QString> readDat(const QString &path) {
+QHash<QString, QString> readDat(const QString &path, QHash<QString, double> *aspects) {
     QHash<QString, QString> games;
+    if (aspects)
+        aspects->clear();
     QFile file(path);
     if (!file.open(QIODevice::ReadOnly))
         return games;
@@ -119,6 +121,7 @@ QHash<QString, QString> readDat(const QString &path) {
     QString name;
     bool bios = false;
     QString description;
+    double aspect = 0;
     while (!xml.atEnd()) {
         xml.readNext();
         if (xml.isStartElement()) {
@@ -128,13 +131,23 @@ QHash<QString, QString> readDat(const QString &path) {
                 name = attributes.value(QLatin1String("name")).toString().toLower();
                 bios = attributes.value(QLatin1String("isbios")) == QLatin1String("yes");
                 description.clear();
+                aspect = 0;
             } else if (xml.name() == QLatin1String("description") && !name.isEmpty()) {
                 description = xml.readElementText();
+            } else if (xml.name() == QLatin1String("video") && !name.isEmpty()) {
+                const QXmlStreamAttributes attributes = xml.attributes();
+                const double x = attributes.value(QLatin1String("aspectx")).toDouble();
+                const double y = attributes.value(QLatin1String("aspecty")).toDouble();
+                if (x > 0 && y > 0)
+                    aspect = x / y;
             }
         } else if (xml.isEndElement()
                    && (xml.name() == QLatin1String("game") || xml.name() == QLatin1String("machine"))) {
-            if (!name.isEmpty() && !bios)
+            if (!name.isEmpty() && !bios) {
                 games.insert(name, description.isEmpty() ? name : description);
+                if (aspects && aspect > 0)
+                    aspects->insert(name, aspect);
+            }
             name.clear();
         }
     }
@@ -142,6 +155,12 @@ QHash<QString, QString> readDat(const QString &path) {
         qWarning("[Arcade] FinalBurn Neo's list %s isn't whole: %s", qPrintable(path),
                  qPrintable(xml.errorString()));
     return games;
+}
+
+double viewportAspect(double gameAspect, const QSize &screen, double screenAspect) {
+    if (gameAspect <= 0 || screenAspect <= 0 || screen.width() <= 0 || screen.height() <= 0)
+        return 0;
+    return gameAspect * screen.width() / screen.height() / screenAspect;
 }
 
 QString reservedDevice(const QString &guid, const QString &name) {
@@ -189,6 +208,21 @@ QString configText(const Launch &launch) {
         set("assets_directory", QStringLiteral("/usr/share/libretro/assets"));
     }
     set("audio_enable", on(launch.sound));
+    // The picture in its shape on a screen whose pixels aren't square
+    // (aspect_ratio_index 20, Config: the ratio as it is).
+    if (launch.aspect > 0) {
+        set("aspect_ratio_index", QStringLiteral("20"));
+        set("video_aspect_ratio", QString::number(launch.aspect, 'f', 6));
+        set("video_aspect_ratio_auto", on(false));
+    }
+    // Its lines whole, the width to the shape (axis 0), fewer times rather
+    // than cut (scaling 0); a picture with more lines than the screen is
+    // spread over them.
+    set("video_scale_integer", on(launch.integerScale));
+    if (launch.integerScale) {
+        set("video_scale_integer_axis", QStringLiteral("0"));
+        set("video_scale_integer_scaling", QStringLiteral("0"));
+    }
     // Pads as SDL knows them, the menus' own (with the built-in Standard
     // Gamepad for any RetroArch has no profile of): Debian ships none.
     set("input_joypad_driver", QStringLiteral("sdl2"));

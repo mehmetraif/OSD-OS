@@ -4,11 +4,14 @@ import Components
 // ABOUT, from Settings: the wordmark with its tagline, then what OSD/OS is
 // made of, who makes it and under which licence, as menu lines whose help
 // line carries each one's detail (it stays whatever Settings' HELP LINE says:
-// these lines are the page). Behind the LICENSE line is the licence itself: the notice the GNU
-// GPL asks an interactive program to show (whose copyright, no warranty, the
-// freedom to pass it on, where the licence is), then the licence's text, the
-// LICENSE file every build carries next to the app (appCore.licenseText()),
-// a page at a time.
+// these lines are the page); then, under ARCADE, the free software the games
+// play in and read with, and the sites they are read from. Behind the LICENSE
+// line is the licence itself: the notice the GNU GPL asks an interactive
+// program to show (whose copyright, no warranty, the freedom to pass it on,
+// where the licence is), then the licence's text, the LICENSE file every
+// build carries next to the app (appCore.licenseText()), a page at a time;
+// behind an arcade line, its licence's (assets/licenses, or FinalBurn Neo's
+// as it was installed).
 FocusScope {
     id: aboutRoot
 
@@ -35,7 +38,7 @@ FocusScope {
         { key: "upstream", label: "Based On", value: "240-MP",
           description: "240-MP by " + aboutRoot.upstreamAuthor + " and its contributors, " + aboutRoot.upstreamUrl
                        + " • OSD/OS is a modified version of it, from " + aboutRoot.year + ", under the same license" },
-        { key: "license", label: "License", value: "GNU GPL v3",
+        { key: "license", label: "License", value: "GNU GPL v3", license: "LICENSE",
           description: "Free software under the GNU General Public License, version 3: use it, share it and change it, under the same license"
                        + " • It comes with no warranty • " + root.hints.select + " The notice and the license's text" },
         { key: "source", label: "Source", value: aboutRoot.sourceUrl,
@@ -51,9 +54,8 @@ FocusScope {
                        + " • GNU Unifont by Roman Czyborra, Paul Hardy and others, under the SIL Open Font License 1.1" },
         { key: "built", label: "Built With", value: "Qt, SDL2, mpv",
           description: "Qt 6 (LGPL v3) • SDL2 (zlib) • mpv and libmpv (GPL v2+)"
-                       + " • High Scores: openhi2txt (GPL v3) with RapidXML (Boost or MIT) and minizip (zlib),"
-                       + " hi2txt's game definitions (GPL v2) by GreatStone and their contributors"
-                       + " • On the OSD/OS image: yt-dlp (Unlicense), Deno (MIT), FFmpeg (LGPL/GPL), Chromium (BSD), MAME (GPL v2+)" },
+                       + " • On the OSD/OS image: yt-dlp (Unlicense), Deno (MIT), FFmpeg (LGPL/GPL), Chromium (BSD)"
+                       + " • The arcade's under ARCADE, below" },
         { key: "system", label: "Image OS", value: "Raspberry Pi OS",
           description: "The OSD/OS image is Raspberry Pi OS Lite (64-bit), which is based on Debian 13 (trixie),"
                        + " built with Raspberry Pi's pi-gen, and OSD/OS on top • Each package keeps its own license:"
@@ -63,7 +65,59 @@ FocusScope {
         { key: "data", label: "Data", value: "TMDB, Open-Meteo",
           description: "This product uses the TMDB API but is not endorsed or certified by TMDB: the Netflix and"
                        + " Prime Video catalogues, with JustWatch's listings through it • Weather data by"
-                       + " Open-Meteo.com, under CC BY 4.0 • Titles' pages on the services from Wikidata" }
+                       + " Open-Meteo.com, under CC BY 4.0 • Titles' pages on the services from Wikidata" },
+
+        // The arcade's (Settings → Arcade, the High Scores module): the free
+        // software its games play in and read with, each licence a page of
+        // its own (`license`: a file of the app's, "fbneo" FinalBurn Neo's),
+        // and the sites it reads from.
+        { type: "section", label: "Arcade" },
+        { key: "mame", label: "MAME", value: "GPL v2+", license: "assets/licenses/GPL-2.0.txt",
+          licenseName: "GNU General Public License, version 2 or later",
+          description: "The arcade machine emulator the games play in, by the MAME team, mamedev.org"
+                       + " • Free software under the GNU General Public License, version 2 or later"
+                       + " • Its hiscore plugin, which keeps the games' high score tables, by borgar (CC0), and its"
+                       + " hiscore.dat by Leezer • " + root.hints.select + " The license's text" },
+        { key: "retroarch", label: "RetroArch", value: "GPL v3", license: "LICENSE",
+          licenseName: "GNU General Public License, version 3",
+          description: "Plays the games FinalBurn Neo has, with RetroAchievements and online play, by libretro and its"
+                       + " contributors, retroarch.com • Free software under the GNU General Public License, version 3,"
+                       + " its rcheevos under the MIT License • " + root.hints.select + " The license's text" },
+        { key: "fbneo", label: "FinalBurn Neo", value: "Non-commercial", license: "fbneo",
+          licenseName: "FinalBurn Neo's license",
+          description: "The arcade emulator RetroArch plays those games with, as a libretro core, by Team FB Neo,"
+                       + " github.com/libretro/FBNeo, from libretro's build server, buildbot.libretro.com"
+                       + " • Free to use and share, never to sell; no ROMs come with it • " + root.hints.select
+                       + " The license's text" },
+        { key: "openhi2txt", label: "openhi2txt", value: "GPL v3", license: "LICENSE",
+          licenseName: "GNU General Public License, version 3",
+          description: "Reads MAME's high score files into the High Scores tables, by inigomonyota,"
+                       + " github.com/inigomonyota/openhi2txt • Free software under the GNU General Public License,"
+                       + " version 3 • " + root.hints.select + " The license's text" },
+        { key: "hi2txt", label: "hi2txt", value: "GPL v2", license: "assets/licenses/GPL-2.0.txt",
+          licenseName: "GNU General Public License, version 2",
+          description: "How each game keeps its high score table: hi2txt's game definitions by GreatStone and their"
+                       + " contributors, many from HiToText, greatstone.free.fr/hi2txt • Under the GNU General Public"
+                       + " License, version 2 • " + root.hints.select + " The license's text" },
+        { key: "rapidxml", label: "RapidXML", value: "Boost or MIT", license: "assets/licenses/RapidXML.txt",
+          licenseName: "Boost Software License 1.0, or the MIT License",
+          description: "The XML reader openhi2txt is built with, by Marcin Kalicinski, rapidxml.sourceforge.net"
+                       + " • Under the Boost Software License 1.0 or the MIT License, either • " + root.hints.select
+                       + " The licenses' text" },
+        { key: "zlib", label: "minizip, zlib", value: "zlib", license: "assets/licenses/zlib.txt",
+          licenseName: "zlib License",
+          description: "Open hi2txt's definitions and FinalBurn Neo's download: minizip by Gilles Vollant and zlib by"
+                       + " Jean-loup Gailly and Mark Adler, zlib.net • Under the zlib License • " + root.hints.select
+                       + " The license's text" },
+        { key: "achievements", label: "RetroAchievements", value: "retroachievements.org",
+          description: "Leaderboards and hardcore play for the games FinalBurn Neo plays, with your own account,"
+                       + " read through its Web API • OSD/OS is not affiliated with RetroAchievements" },
+        { key: "lobby", label: "Online Play", value: "lobby.libretro.com",
+          description: "The online games to join, from libretro's lobby, which also lists the games you host, and"
+                       + " libretro's relay servers, which carry a hosted game through when Relay Server is set" },
+        { key: "snaps", label: "Genres, Pictures", value: "progettosnaps.net",
+          description: "Genres from catver.ini and the games' pictures from the Snapshots pack, both from"
+                       + " Progetto-SNAPS, progettosnaps.net, put in the games folder" }
     ]
 
     // The notice at the head of the licence page: the GPL's own, for this
@@ -82,7 +136,7 @@ FocusScope {
     AppBar {
         iconSource: "../../assets/images/logo.svg"
         title: "About"
-        subtitle: licensePage.visible ? "License" : root.appVersion
+        subtitle: licensePage.visible ? licensePage.title : root.appVersion
         anchors.top: parent.top
         anchors.left: parent.left
         anchors.topMargin: root.sh * 0.125 //60
@@ -151,8 +205,9 @@ FocusScope {
         delegate: MenuRow {
             width: list.width
             height: root.sh * 0.0583333 //28
+            heading: modelData.type === "section"
             label: modelData.label
-            value: modelData.value
+            value: modelData.value || ""
             selected: list.currentIndex === index
             // Read rather than chosen: a value too long for its line (the
             // developer, the source) scrolls through, selected or not.
@@ -161,8 +216,8 @@ FocusScope {
 
         Keys.onReturnPressed: {
             var row = aboutRoot.rows[currentIndex]
-            if (row && row.key === "license")
-                licensePage.open()
+            if (row && row.license)
+                licensePage.open(row)
         }
         Keys.onPressed: function(event) {
             if (event.key === Qt.Key_Escape || event.key === Qt.Key_Backspace || event.key === Qt.Key_Back) {
@@ -176,7 +231,7 @@ FocusScope {
         readonly property var row: aboutRoot.rows[list.currentIndex]
         always: true
         visible: !licensePage.visible
-        text: row ? row.description : ""
+        text: row && row.description ? row.description : ""
         anchors.bottom: parent.bottom
         anchors.left: parent.left
         anchors.bottomMargin: root.helpLineMargin
@@ -187,29 +242,37 @@ FocusScope {
         readonly property var row: aboutRoot.rows[list.currentIndex]
         visible: !licensePage.visible
         text: root.hints.back + ":BACK " + root.hints.navigate + ":NAVIGATE"
-              + (row && row.key === "license" ? " " + root.hints.select + ":LICENSE" : "")
+              + (row && row.license ? " " + root.hints.select + ":LICENSE" : "")
         anchors.bottom: parent.bottom
         anchors.left: parent.left
         anchors.bottomMargin: root.sh * 0.1041667 //50
         anchors.leftMargin: root.sw * 0.125 //80
     }
 
-    // The licence, in place of the lines below the title bar: the notice,
-    // then the text, a page at a time with ▲ ▼.
+    // A licence, in place of the lines below the title bar: OSD/OS's with the
+    // notice, another's under its name, then the text, a page at a time with
+    // ▲ ▼.
     FocusScope {
         id: licensePage
         anchors.fill: parent
         visible: false
 
-        // The text, read once it is first asked for.
+        property string title: "License"
+        property string notice: ""
         property string text: ""
 
-        function open() {
-            if (text === "") {
-                var t = appCore ? appCore.licenseText() : ""
-                text = t !== "" ? t
-                     : "The license's text is missing from this build. It is at gnu.org/licenses/gpl-3.0.html."
-            }
+        function open(row) {
+            title = row.key === "license" ? "License" : row.label + " License"
+            notice = row.key === "license" ? aboutRoot.notice : row.label + "\n" + row.licenseName
+            var t = row.license === "fbneo"
+                    ? (typeof arcadeBackend !== "undefined" && arcadeBackend ? arcadeBackend.fbneoLicenseText() : "")
+                    : (appCore ? appCore.licenseText(row.license === "LICENSE" ? "" : row.license) : "")
+            text = t !== "" ? t
+                 : row.license === "fbneo"
+                   ? "FinalBurn Neo isn't installed: Settings → Arcade → FinalBurn Neo downloads it, with its license."
+                 : row.license === "LICENSE"
+                   ? "The license's text is missing from this build. It is at gnu.org/licenses/gpl-3.0.html."
+                   : "The license's text is missing from this build."
             flick.contentY = 0
             visible = true
             forceActiveFocus()
@@ -270,7 +333,7 @@ FocusScope {
 
                     Text {
                         width: parent.width
-                        text: aboutRoot.notice
+                        text: licensePage.notice
                         textFormat: Text.PlainText
                         color: root.primaryColor
                         font.family: root.globalFont

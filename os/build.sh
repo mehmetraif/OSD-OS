@@ -116,9 +116,10 @@ fi
 # the checkout having kept the bits (a ZIP download, a Windows clone).
 chmod +x "${STAGE}/prerun.sh" "${STAGE}"/*/[0-9][0-9]-run.sh
 
-# The launcher, the stop helper, the exit-to-terminal unit and Display Output's
-# next-start socket are taken verbatim from scripts/install.sh, so the image
-# and a manual install never drift apart.
+# The launcher, the stop helper, the exit-to-terminal unit, Display Output's
+# next-start socket, Settings → Wi-Fi's country socket and the polkit rule
+# that lets the app's user use NetworkManager are taken verbatim from
+# scripts/install.sh, so the image and a manual install never drift apart.
 extract() {
     awk -v marker="$1" '
         $0 ~ "<< .?" marker ".?$" { on = 1; next }
@@ -131,14 +132,20 @@ extract STOP_HELPER     > "${STAGE}/02-system/files/osdos-stop"
 extract TERMINAL_UNIT   > "${STAGE}/02-system/files/osdos-terminal.service"
 extract DISPLAY_SOCKET  > "${STAGE}/02-system/files/osdos-display.socket"
 extract DISPLAY_SERVICE > "${STAGE}/02-system/files/osdos-display@.service"
+extract WIFI_SOCKET     > "${STAGE}/02-system/files/osdos-wifi.socket"
+extract WIFI_SERVICE    > "${STAGE}/02-system/files/osdos-wifi@.service"
+extract POLKIT_RULE     > "${STAGE}/02-system/files/50-osdos-networkmanager.rules"
 for f in 01-app/files/osdos-launcher 02-system/files/osdos-stop; do
     head -n1 "${STAGE}/${f}" | grep -q '^#!' \
         || { echo "error: could not extract ${f} from scripts/install.sh" >&2; exit 1; }
 done
-for f in osdos-terminal.service osdos-display.socket osdos-display@.service; do
+for f in osdos-terminal.service osdos-display.socket osdos-display@.service \
+         osdos-wifi.socket osdos-wifi@.service; do
     head -n1 "${STAGE}/02-system/files/${f}" | grep -q '^\[Unit\]' \
         || { echo "error: could not extract ${f} from scripts/install.sh" >&2; exit 1; }
 done
+grep -q '^polkit\.addRule(' "${STAGE}/02-system/files/50-osdos-networkmanager.rules" \
+    || { echo "error: could not extract 50-osdos-networkmanager.rules from scripts/install.sh" >&2; exit 1; }
 
 cp "${TARBALL}" "${STAGE}/01-app/files/osdos.tar.gz"
 # What the image is made of and under which licences, os/NOTICE.

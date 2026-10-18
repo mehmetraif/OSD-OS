@@ -19,6 +19,7 @@ struct ModuleEntry {
     QString entryQml;    // relative to module folder, e.g. "views/Root.qml"
     QString iconRel;     // relative to module folder, e.g. "assets/images/logo.svg"
     QVariantList settings;
+    QString settingsGroup; // "tv", "arcade" or "": where Settings lists its page
 };
 
 class AsyncDirectoryCache;
@@ -99,10 +100,11 @@ public:
     Q_INVOKABLE QVariant requestFolderEntries(const QString &path, const QStringList &fileTypes);
     Q_INVOKABLE void clearFolderCache();
     Q_INVOKABLE QString localIpAddress() const;
-    // The licence's text (LICENSE next to the app, the GNU GPL v3), its
-    // paragraphs each on one line so a view wraps them to its width; "" when
-    // the file is missing.
-    Q_INVOKABLE QString licenseText() const;
+    // A licence's text: LICENSE next to the app (the GNU GPL v3), or a file
+    // of the app's own by its path from there (assets/licenses/…, About's
+    // others), its paragraphs each on one line so a view wraps them to its
+    // width; "" when the file is missing or isn't the app's.
+    Q_INVOKABLE QString licenseText(const QString &file = QString()) const;
     Q_INVOKABLE QString startupModuleEntryPoint() const;
     // The QML entry point of an enabled module ("modules/<folder>/<entry>"),
     // as startupModuleEntryPoint() gives the startup module's; "" for an

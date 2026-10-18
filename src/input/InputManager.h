@@ -65,6 +65,11 @@ public:
     ~InputManager() override;
 
     void setTargetWindow(QQuickWindow *window);
+    // On the console (EGLFS, main.cpp): a mouse's left and right buttons are
+    // Select / OK and Back where nothing else is bound to them, as an
+    // air-mouse remote's OK is a left click while its pointer is on.
+    // Elsewhere a click does only what it is bound to.
+    void setClickActions(bool on) { m_clickActions = on; }
 
     bool gamepadConnected() const { return !m_controllers.isEmpty(); }
     QString lastInputDevice() const { return m_lastInputDevice; }
@@ -197,7 +202,7 @@ private:
     static Action padInputAction(const Pad &pad, const QString &input);
     int padInputsFor(SDL_JoystickID id, Action a) const;
     Action keyActionOn(const QString &key, int id) const;
-    static Action defaultKeyAction(int qtKey);
+    Action defaultKeyAction(int id) const;
     static QString actionName(Action a);
     static QVariantMap captureOutcome(const QString &outcome, Action does);
     void saveProfiles();
@@ -235,6 +240,7 @@ private:
     void letGoOfPad(SDL_JoystickID id);
     static bool essentialAction(Action a);
     void deliverPress(Action a, bool autoRepeat);
+    void deliverRelease(Action a, bool autoRepeat);
     void postKey(int qtKey, QEvent::Type type, bool autoRepeat);
     bool windowActive() const;
     // The item with the focus takes a coin (see the class's comment).
@@ -318,11 +324,14 @@ private:
     // go, as their repeats would act as what they were just given.
     QSet<int> m_capturedKeys;
     bool m_remapCapture = false;                     // see setRemapCapture()
+    bool m_clickActions = false;                     // see setClickActions()
 
 #ifdef Q_OS_LINUX
     // A keyboard's or a remote's /dev/input node. A Consumer Control node's
-    // buttons never reach Qt, and are acted on from here; any other node's
-    // keys do, and only say whose they are (m_keySources).
+    // buttons are acted on from here when they do something (keyActionOn()),
+    // or reported to a wait, and Qt's copy of such a press, where Qt has one,
+    // is dropped (m_consumerTaken); any other node's keys reach Qt, and their
+    // nodes only say whose they are (m_keySources).
     struct Node {
         int fd = -1;
         QSocketNotifier *notifier = nullptr;
@@ -337,6 +346,7 @@ private:
     QTimer m_nodeScanTimer;
     int m_nodeRetries = 0;
     controllers::KeySources m_keySources;
+    controllers::KeySources m_consumerTaken;         // Consumer Control presses readNode() took
 #endif
     QElapsedTimer m_clock;
 

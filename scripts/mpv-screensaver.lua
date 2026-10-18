@@ -33,13 +33,14 @@ local LOGO_SUBPATHS = {
       29,15.535, 28,15.535, 28,14.536, 27,14.536 },
 }
 
--- Build the ASS drawing string at a pixel scale, origin 0,0 (\pos moves it)
-local function logo_drawing(scale)
+-- Build the ASS drawing string at a pixel scale across and down, origin 0,0
+-- (\pos moves it)
+local function logo_drawing(sx, sy)
     local parts = {}
     for _, sp in ipairs(LOGO_SUBPATHS) do
         for i = 1, #sp, 2 do
             parts[#parts + 1] = string.format("%s%.1f %.1f",
-                i == 1 and "m " or "l ", sp[i] * scale, sp[i + 1] * scale)
+                i == 1 and "m " or "l ", sp[i] * sx, sp[i + 1] * sy)
         end
     end
     return table.concat(parts, " ")
@@ -107,10 +108,16 @@ activate = function()
     if ww == 0 then ww = 640 end
     if wh == 0 then wh = 480 end
 
+    -- A tube's pixels aren't square (720×240 shown 4:3): mpv gives the
+    -- output's pixel aspect (osd-dimensions' par, how many of its pixels
+    -- across make one down), and the logo is that many times fewer pixels
+    -- tall for its shape.
+    local dims = mp.get_property_native("osd-dimensions") or {}
+    local par = (dims.par and dims.par > 0) and dims.par or 1
     local scale = (ww * 0.1) / LOGO_UNITS_W
     logo_w = LOGO_UNITS_W * scale
-    logo_h = LOGO_UNITS_H * scale
-    logo_path = logo_drawing(scale)
+    logo_h = LOGO_UNITS_H * scale / par
+    logo_path = logo_drawing(scale, scale / par)
 
     x = math.floor(math.random() * math.max(1, ww - logo_w))
     y = math.floor(math.random() * math.max(1, wh - logo_h))
