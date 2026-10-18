@@ -1,12 +1,15 @@
 import QtQuick
 import QtTest
+import "../../views/Components" as Components
 
 // Settings, views/Settings.qml, against stand-ins for AppCore and the rest it
 // reads: the first screen opens on TV / Movie's and Arcade's pages, then the
 // general settings under their heading, the modules of no group and the
 // application's rows; TV / Movie's page holds the videos' rows and the video
 // modules'; select opens TV / Movie's page, and Arcade's as the arcade
-// modules' settings on one page (ModuleSettings, alsoModules).
+// modules' settings on one page (ModuleSettings, alsoModules). And the title
+// bar its questions share with every view (AppBar): a title too long for it,
+// as a long display output's name makes Switch to …?, scrolls through it.
 Rectangle {
     id: root
     color: surfaceColor
@@ -219,6 +222,62 @@ Rectangle {
             // Down from Arcade steps over the heading, onto Theme.
             keyClick(Qt.Key_Down)
             compare(cursor(loader.item), "Theme")
+        }
+    }
+
+    Component {
+        id: appBar
+        Components.AppBar {}
+    }
+
+    TestCase {
+        name: "AppBar"
+        when: windowShown
+
+        function findText(item, text) {
+            if (item.text === text)
+                return item
+            for (var i = 0; i < item.children.length; i++) {
+                var found = findText(item.children[i], text)
+                if (found)
+                    return found
+            }
+            return null
+        }
+
+        // A title that fits stands still, its subtitle beside it.
+        function test_titleThatFits() {
+            var bar = createTemporaryObject(appBar, root, { title: "Display Output", subtitle: "Now" })
+            var title = findText(bar, "Display Output")
+            verify(title !== null)
+            compare(title.parent.width, title.implicitWidth)
+            verify(!title.parent.clip)
+            verify(findText(bar, "Now").visible)
+            wait(2000)
+            compare(title.x, 0)
+        }
+
+        // One too long for the bar shows its start, then scrolls to its
+        // end and back, with no room for a subtitle; hidden, it stops.
+        function test_titleTooLong() {
+            var text = "Switch to JAMMA 240p 15 kHz (1920x240)?"
+            var bar = createTemporaryObject(appBar, root, { title: text, subtitle: "Now" })
+            var title = findText(bar, text)
+            verify(title !== null)
+            var clip = title.parent
+            verify(title.implicitWidth > clip.width)
+            verify(clip.clip)
+            verify(clip.mapToItem(bar, clip.width, 0).x <= bar.width)
+            verify(!findText(bar, "Now").visible)
+            compare(title.x, 0)
+            // A pause, then 20 ms a pixel.
+            var scrollBy = clip.width - title.implicitWidth
+            tryVerify(function() { return Math.abs(title.x - scrollBy) < 1 }, 1500 - scrollBy * 20 + 3000,
+                      "scrolled to the title's end")
+            tryCompare(title, "x", 0, 4000)
+            bar.visible = false
+            wait(2500)
+            compare(title.x, 0)
         }
     }
 }

@@ -267,7 +267,8 @@ add_test(NAME module_settings_view COMMAND tree_browser_test -input ${CMAKE_CURR
                                            -import ${CMAKE_CURRENT_SOURCE_DIR}/../views)
 set_tests_properties(module_settings_view PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen;QT_QUICK_BACKEND=software")
 # Settings (views/Settings.qml): the first screen's groups and the general
-# settings, and TV / Movie's page, against stand-ins for AppCore and the rest.
+# settings, and TV / Movie's page, against stand-ins for AppCore and the rest;
+# and the title bar (AppBar) with a title too long for it.
 add_test(NAME settings_view COMMAND tree_browser_test -input ${CMAKE_CURRENT_SOURCE_DIR}/qml/tst_settings.qml
                                     -import ${CMAKE_CURRENT_SOURCE_DIR}/../views)
 set_tests_properties(settings_view PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen;QT_QUICK_BACKEND=software")
