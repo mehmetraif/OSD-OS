@@ -2,7 +2,7 @@
 
 OSD/OS makes a TV, preferably a CRT, a smart TV with the look of a VCR. On a Raspberry Pi it is the whole system: flash it, plug the Pi into the TV, and it starts straight into its menus. These pages cover all of it: getting it running, using it, every setting and module, making it look the way you want, and how it works inside.
 
-<p align="center"><img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/images/default-look.gif" width="640" alt="OSD/OS as it comes: the main menu, Local Files' tree and Settings" /></p>
+<p align="center"><img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/images/default-look.gif" width="640" alt="OSD/OS as it comes: the main menu, Local Files' tree, the Arcade screen's games on a 3D wheel, its filters and the games others host online, and Settings" /></p>
 
 ## Getting started
 

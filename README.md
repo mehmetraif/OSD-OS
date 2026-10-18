@@ -6,9 +6,11 @@
 
 **Smart TV for CRT.** OSD/OS makes a TV, preferably a CRT, a smart TV with the look of a VCR. Flash it to an SD card, plug the Raspberry Pi into the TV, and it starts straight into OSD/OS: nothing to log in to, no desktop. Every screen is drawn like a VCR's on-screen display, in two colors and large type, and works with the arrows, select and back on a remote, a keyboard or a gamepad.
 
-<p align="center"><img src="docs/images/default-look.gif" width="640" alt="OSD/OS as it comes: the main menu, Local Files' tree and Settings, in two colors" /></p>
+**Made for CRTs, arcade cabinets too.** OSD/OS is developed for tubes first: composite, SCART RGB or HDMI from Settings, and menus, films and games kept in their shapes on a CRT's non-square pixels. With Crown Arcade's Raspberry Pi to JAMMA board it runs an arcade cabinet's own monitor, in each mode one may take from 15 kHz to 31 kHz, and the cabinet's sticks and buttons drive it. Its arcade keeps each game's high scores and goes online too: achievements and leaderboards on RetroAchievements, and netplay, playing others over the internet through RetroArch's lobby.
 
-Out of the box it is plain on purpose, as above: two colors, and nothing moving but the cursor. If you want more, a theme changes the whole look at once, with effects, transitions between windows and music of its own, from a tube's curved glass to Matrix rain and a fire in the window. Eight come with it:
+<p align="center"><img src="docs/images/default-look.gif" width="640" alt="OSD/OS as it comes, in two colors: the main menu, Local Files' tree, the Arcade screen's games on a 3D wheel, its filters and the games others host online, and Settings" /></p>
+
+Out of the box it is plain on purpose, as above: two colors, and nothing moving but the cursor. If you want more, a theme changes the whole look at once, with effects, transitions between windows and music of its own, from a tube's curved glass to Matrix rain and a fire in the window. Eight come with it, here each on the Arcade screen and in Local Files' tree:
 
 <table>
 <tr>
@@ -29,14 +31,15 @@ Out of the box it is plain on purpose, as above: two colors, and nothing moving 
 
 ## What it does
 
+- **Made for CRTs**: composite, SCART RGB or HDMI from Settings; menus, videos and games kept in their shapes on a tube's non-square pixels; 16:9 films fitted to 4:3, a channel logo in the corner, and a tape loading while a video starts.
+- **JAMMA arcade cabinets**: Crown Arcade's Raspberry Pi to JAMMA board drives the cabinet's monitor in every mode it may take, 15 kHz 240p and 288p, 480i and 576i (on a Pi 4), 25 kHz and 31 kHz, and its two players' sticks and buttons work in the menus and the games.
+- **Arcade games** in MAME, from a folder of ROM sets, for up to six players: listed by players, decade and maker in OSD/OS's tree, or on a cabinet's selection screen, straight, on an arc or on a 3D wheel, with each game's picture, high scores and genre, filters to go round with ◄ ►, COIN for credits and START to play.
+- **Online achievements, high scores and netplay**: a game FinalBurn Neo has plays in RetroArch, signed in to RetroAchievements in hardcore mode, so that its achievements and scores count online, and the selection screen shows its leaderboard's top three. Online Games lists the games others host in RetroArch's lobby, joined with select, and a game's options host one. Each game's own high score table, as MAME kept it, is read on the device too.
 - **Your videos in one place**: films on the SD card or a USB drive, Plex, Jellyfin, Emby, YouTube, Netflix and Prime Video, each a module, like the inputs on a deck.
 - **One way to browse**: a horizontal tree that starts with Recently Watched, Favorites and Search, typed on an on-screen keyboard.
 - **Playlists** across modules, streamed, or downloaded to play without the network.
 - **Transparent Background**: back from a video, the menus lie over it while it plays on.
 - **Themes**, the whole look at once: the colors, the skin, effects like the ones above and the menu music. Eight come with it, and a new one is a folder.
-- **Made for old TVs**: composite, SCART RGB or HDMI from Settings, or an arcade cabinet's monitor through a Raspberry Pi to JAMMA board, 16:9 films fitted to 4:3, a channel logo in the corner, and a tape loading while a video starts.
-- **Arcade games** in MAME, from a folder of ROM sets, for up to six players: listed by players, decade and maker in OSD/OS's tree, or on a cabinet's selection screen with each game's picture, high scores and genre, where COIN buys credits and START plays. A game FinalBurn Neo has can play in RetroArch instead, its scores going to RetroAchievements' leaderboards, whose top three the selection screen shows, and be played online with others through RetroArch's lobby.
-- **High scores** of the games played, each game's table as MAME kept it, read on the device.
 - **And more**: a fireplace on a loop (Ambient:Mode), a 90s weather channel, NFC cards that play a film when they touch the reader, and anything a shell script can start.
 
 The [feature list](https://github.com/mehmetraif/OSD-OS/wiki/Features) has the rest.

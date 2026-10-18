@@ -41,7 +41,7 @@ A theme is the whole look of OSD/OS in one folder: the two colours everything is
 
 Without a theme (Theme: None), OSD/OS is plain on purpose: Video 1's two colours, OSD/OS's own window, nothing moving but the cursor, and no music.
 
-<p align="center"><img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/images/default-look.gif" width="640" alt="OSD/OS without a theme: the main menu, Local Files' tree and Settings" /></p>
+<p align="center"><img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/images/default-look.gif" width="640" alt="OSD/OS without a theme: the main menu, Local Files' tree, the Arcade screen and Settings" /></p>
 
 ## What each theme is made of
 
