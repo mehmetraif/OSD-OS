@@ -139,7 +139,7 @@ label east     A              # the hints show what is printed on its buttons
 
 ## A JAMMA cabinet
 
-On the OSD/OS image, with a Raspberry Pi to JAMMA board in RGB-Pi's layout and the **JAMMA 240p** display output ([Display Output](https://github.com/mehmetraif/OSD-OS/wiki/Display-Output#jamma-a-raspberry-pi-to-jamma-board)), the cabinet's controls are two gamepads, **OSD/OS JAMMA P1** and **OSD/OS JAMMA P2**, on a Pi 4 and a Pi 5 alike:
+On the OSD/OS image, with a Raspberry Pi to JAMMA board in RGB-Pi's layout and one of the **JAMMA** display outputs ([Display Output](https://github.com/mehmetraif/OSD-OS/wiki/Display-Output#jamma-a-raspberry-pi-to-jamma-board)), the cabinet's controls are two gamepads, **OSD/OS JAMMA P1** and **OSD/OS JAMMA P2**, on a Pi 4 and a Pi 5 alike:
 
 - **Where they come from.** The board reads the joysticks and buttons through two MCP23017 port expanders on the Pi's I2C bus, player 1's at address 0x20 and player 2's at 0x21. `osdos-jamma.service` (`/opt/osdos/bin/osdos-jamma`) reads both every 2 ms and plays what changes on the two pads.
 - **What they are.** OSD/OS and any emulator take them as any other gamepad: the joystick a stick that is either all the way over or in the middle, as RGB-Pi's own driver has it, the buttons gamepad buttons. MAME takes the stick as its joystick.

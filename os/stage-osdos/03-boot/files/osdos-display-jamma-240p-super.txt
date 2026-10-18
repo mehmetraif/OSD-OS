@@ -1,0 +1,43 @@
+# A JAMMA arcade cabinet, through a Raspberry Pi to JAMMA board in RGB-Pi's
+# layout, as osdos-display-jamma-240p.txt has it (the pins, the controls,
+# the sound), at 1920x240, a super resolution: 60 Hz, 15.66 kHz, a 4:3
+# picture of 240 lines whose pixels are six times narrower than they are
+# tall, so a game of any width fills it with its lines whole and its
+# columns hardly uneven. The timing is Switchres' arcade_15, as Recalbox's
+# modes have it. Chosen in Settings → Display Output, or copied over
+# osdos-display.txt (config.txt says how).
+# osdos-controls: jamma
+# A Pi 5 keeps HDMI on beside it: OSD/OS takes this output, in this mode. The
+# board makes the composite sync itself, so none on GPIO 1 (osdos-stop).
+# osdos-output: DPI
+# osdos-mode: 1920x240
+# osdos-sync: separate
+
+# The Pi 4's DPI is its firmware's, as in osdos-display-jamma-240p.txt, the
+# syncs active low (dpi_timings' 2nd and 7th numbers, 1): should the picture
+# roll, try 0.
+[pi4]
+gpio=2-9,12-17,20-25=a2
+enable_dpi_lcd=1
+display_default_lcd=1
+hdmi_ignore_hotplug=1
+dpi_output_format=6
+dpi_group=2
+dpi_mode=87
+dpi_timings=1920 1 80 184 312 240 1 2 3 16 0 0 0 60 0 39087360 1
+dtparam=i2c_vc=on
+dtoverlay=audremap,pins_18_19
+
+# The Pi 5's DPI is the kernel's, as in osdos-display-jamma-240p.txt, both
+# syncs active low (hsync-invert, vsync-invert): should the picture roll,
+# leave them out.
+[pi5]
+dtparam=i2c_vc=on
+dtoverlay=vc4-kms-v3d,cma-512
+dtoverlay=vc4-kms-dpi-generic,clock-frequency=39087360
+dtparam=hactive=1920,hfp=80,hsync=184,hbp=312
+dtparam=vactive=240,vfp=2,vsync=3,vbp=16
+dtparam=hsync-invert,vsync-invert,rgb666-padhi
+dtoverlay=osdos-jamma-dpi
+
+[all]

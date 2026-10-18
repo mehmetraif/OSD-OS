@@ -217,7 +217,7 @@ Some rows wait for something:
 
 | Setting | Values | Default | What it does | Config key |
 |---|---|---|---|---|
-| Display Output | HDMI, Composite NTSC, Composite PAL, GPIO Composite NTSC, GPIO Composite PAL, SCART RGB NTSC, SCART RGB PAL, SCART RGB 240p, SCART RGB 288p, JAMMA 240p: those this Pi has | The image's build setting, HDMI unless built otherwise | On the OSD/OS image only. Where the picture goes. A change restarts the Pi on the new output, powers it off for it, or waits for its next start, and the new output stays only when you keep it. **Next: <output>** while one waits | None: the preset is copied over `/boot/firmware/osdos-display.txt` |
+| Display Output | HDMI, Composite NTSC, Composite PAL, GPIO Composite NTSC, GPIO Composite PAL, SCART RGB NTSC, SCART RGB PAL, SCART RGB 240p, SCART RGB 288p, JAMMA 240p, JAMMA 240p Native, JAMMA 240p Super, JAMMA 288p, JAMMA 288p Super, JAMMA 480i, JAMMA 576i, JAMMA 25 kHz, JAMMA 31 kHz: those this Pi has | The image's build setting, HDMI unless built otherwise | On the OSD/OS image only. Where the picture goes. A change restarts the Pi on the new output, powers it off for it, or waits for its next start, and the new output stays only when you keep it. **Next: <output>** while one waits | None: the preset is copied over `/boot/firmware/osdos-display.txt` |
 | Audio Output | Auto, then each sound card that can play: AV Jack, HDMI (HDMI 0 and HDMI 1 when there are two), a USB card by its name | Auto | Which sound card plays, from the moment you choose it, for a video playing behind the menus too. Auto is the Pi's own default | `app.audio_output`: `""` for Auto, or `{ "card", "name" }` |
 | Controls | A page | | Each controller connected, with its own buttons and a pad's button labels; the pads of players 1 to 6; and one more key for each action on every keyboard and remote | `app.controllers.<key>`, `app.players`, `app.remote_keymap.<action>` |
 | Bluetooth | A page | | Searching for, pairing and connecting keyboards, gamepads and remotes | None: BlueZ keeps the pairings |
@@ -235,7 +235,7 @@ Select opens the list of the outputs this Pi has, with the board's model and the
 
 On the new output it first asks **Keep this display output?**. **Keep** keeps it. **Switch Back**, or 30 seconds without an answer (a TV that shows nothing), goes back to the output before, restarting again, and says so. Back does nothing there, so a key pressed at random on a blank screen can't keep it.
 
-The row needs the OSD/OS image's presets beside `config.txt`, the app started by the image's service, and a launcher new enough to switch (`OSDOS_LAUNCHER_API` 3; 4 for JAMMA 240p; 5 for At Next Start and Switch and Power Off). The outputs, the cables and how to put a card right from a computer are in [Display Output](https://github.com/mehmetraif/OSD-OS/wiki/Display-Output).
+The row needs the OSD/OS image's presets beside `config.txt`, the app started by the image's service, and a launcher new enough to switch (`OSDOS_LAUNCHER_API` 3; 4 for JAMMA 240p; 5 for At Next Start and Switch and Power Off; 6 for the JAMMA board's other modes). JAMMA 25 kHz and 31 kHz say first that they are for a monitor made for that scan rate only: too high a one can damage a 15 kHz monitor. The outputs, the cables and how to put a card right from a computer are in [Display Output](https://github.com/mehmetraif/OSD-OS/wiki/Display-Output).
 
 ### Audio Output
 

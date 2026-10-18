@@ -1,0 +1,29 @@
+# A JAMMA arcade cabinet, through a Raspberry Pi to JAMMA board in RGB-Pi's
+# layout, as osdos-display-jamma-240p.txt has it (the pins, the controls,
+# the sound), at 720x576 interlaced: 50 fields a second, 15.63 kHz, PAL's
+# lines twice over. A Pi 4 only: the Pi 5's DPI can interlace only with
+# GPIO 1, which carries the board's controls (I2C). The timing is
+# Raspberry Pi's own for 576i. Chosen in Settings → Display Output, or
+# copied over osdos-display.txt (config.txt says how).
+# osdos-controls: jamma
+# The board makes the composite sync itself, so none on GPIO 1 (osdos-stop).
+# osdos-output: DPI
+# osdos-mode: 720x576
+# osdos-sync: separate
+
+# The Pi 4's DPI is its firmware's, as in osdos-display-jamma-240p.txt, the
+# syncs active low (dpi_timings' 2nd and 7th numbers, 1): should the picture
+# roll, try 0.
+[pi4]
+gpio=2-9,12-17,20-25=a2
+enable_dpi_lcd=1
+display_default_lcd=1
+hdmi_ignore_hotplug=1
+dpi_output_format=6
+dpi_group=2
+dpi_mode=87
+dpi_timings=720 1 12 64 68 576 1 5 5 39 0 0 0 25 1 13500000 1
+dtparam=i2c_vc=on
+dtoverlay=audremap,pins_18_19
+
+[all]

@@ -463,7 +463,7 @@ Settings → **Quit** on the image asks **Really quit?** with:
 | Choice | Offered | OSD/OS exits with | Then |
 |---|---|---|---|
 | **Power Off** | Always | 0 | The Pi powers off |
-| **Restart** | Launcher API 2 or later (the image's is 5) | 12 | The Pi reboots |
+| **Restart** | Launcher API 2 or later (the image's is 6) | 12 | The Pi reboots |
 | **Exit to Terminal** | Always | 10 | A login shell on the screen (`tty1`); the Pi stays on |
 | **Cancel** | Always | | Back to Settings |
 
@@ -514,8 +514,9 @@ The launcher exports `OSDOS_LAUNCHER_API`, and OSD/OS offers only what the launc
 | 3 or more | `osdos-stop` writes a display preset on exits 20 to 29, and the launcher takes the output a preset names: Settings offers Display Output |
 | 4 or more | `osdos-stop` also writes the JAMMA preset on exit 30: Display Output offers JAMMA 240p |
 | 5 or more | `osdos-stop` also powers off after a preset on exits 40 to 50, and writes one for the next start through `osdos-display.socket`: Display Output offers Switch and Power Off and At Next Start |
+| 6 or more | `osdos-stop` also writes the JAMMA board's other modes on exits 31 to 38, and powers off after them on 51 to 58: Display Output offers them |
 
-The image's launcher is level 5, as `install.sh`'s is.
+The image's launcher is level 6, as `install.sh`'s is.
 
 ### At Next Start's socket
 
@@ -728,7 +729,7 @@ All of them come through the environment:
 |---|---|---|
 | `FIRST_USER_PASS` | none | The first user's password. Without one the account is locked ([The user](https://github.com/mehmetraif/OSD-OS/wiki/The-OSD-OS-Image#the-user-its-password-and-sudo)) |
 | `FIRST_USER_NAME` | `pi` | The first user, as which OSD/OS runs |
-| `OSDOS_DISPLAY` | `hdmi` | The display preset the image starts on, by its name: `hdmi`, `crt-ntsc`, `crt-pal`, `crt-gpio-ntsc`, `crt-gpio-pal`, `scart-rgb-ntsc`, `scart-rgb-pal`, `scart-rgb-240p`, `scart-rgb-288p`, `jamma-240p` ([Display Output](https://github.com/mehmetraif/OSD-OS/wiki/Display-Output)) |
+| `OSDOS_DISPLAY` | `hdmi` | The display preset the image starts on, by its name: `hdmi`, `crt-ntsc`, `crt-pal`, `crt-gpio-ntsc`, `crt-gpio-pal`, `scart-rgb-ntsc`, `scart-rgb-pal`, `scart-rgb-240p`, `scart-rgb-288p`, `jamma-240p`, `jamma-240p-native`, `jamma-240p-super`, `jamma-288p`, `jamma-288p-super`, `jamma-480i`, `jamma-576i`, `jamma-25k`, `jamma-31k` ([Display Output](https://github.com/mehmetraif/OSD-OS/wiki/Display-Output)) |
 | `OSDOS_STREAMING` | `1` | `0` leaves out the browser Netflix, Prime Video and YouTube's sign-in open (Chromium, Widevine, cage, wtype), about 400 MB |
 | `OSDOS_YOUTUBE` | `1` | `0` leaves out yt-dlp, Deno and ffmpeg, about 90 MB; the YouTube module then says yt-dlp is missing |
 | `OSDOS_ARCADE` | `1` | `0` leaves out MAME (`mame`, `mame-data`), about 450 MB, and RetroArch with FinalBurn Neo, about 230 MB; the Arcade module then says MAME is not installed |

@@ -21,15 +21,18 @@
 class DisplayOutput : public QObject {
     Q_OBJECT
     // The setting is offered: the image's presets are there, the app is run by
-    // its service, whose stop helper writes them (launcher API 3; the JAMMA
-    // preset from 4), and the board has more than one output to choose from.
+    // its service, whose stop helper writes them (launcher API 3; JAMMA 240p
+    // from 4, the JAMMA board's other modes from 6), and the board has more
+    // than one output to choose from.
     Q_PROPERTY(bool available READ available CONSTANT)
     // Switch and Power Off, and At Next Start (launcher API 5; the latter with
     // osdos-display.socket there).
     Q_PROPERTY(bool powerOffAvailable READ powerOffAvailable CONSTANT)
     Q_PROPERTY(bool nextStartAvailable READ nextStartAvailable CONSTANT)
     Q_PROPERTY(QString boardModel READ boardModel CONSTANT)
-    // [{ id, label }]: the outputs this board has, in the menu's order.
+    // [{ id, label, warning }]: the outputs this board has, in the menu's
+    // order; warning, said as one is chosen (a scan rate only some monitors
+    // take), or "".
     Q_PROPERTY(QVariantList options READ options CONSTANT)
     // The preset in force, "" when osdos-display.txt is none of them.
     Q_PROPERTY(QString current READ current CONSTANT)

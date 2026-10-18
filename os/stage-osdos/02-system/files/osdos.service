@@ -38,10 +38,10 @@ RestartSec=5s
 RestartMode=direct
 # Ways out that are no failure, so the app isn't started again over them nor
 # the login prompt brought up: Exit to Terminal (10), the quit menu's Restart
-# (12), a display output switch (20-30, and 40-50 to power off after), and a
+# (12), a display output switch (20-38, and 40-58 to power off after), and a
 # stop from outside, which the app ends with 128 plus the signal's number (129,
 # 130, 143). osdos-stop acts on them and on Power Off (0).
-SuccessExitStatus=10 12 20 21 22 23 24 25 26 27 28 29 30 40 41 42 43 44 45 46 47 48 49 50 129 130 143
+SuccessExitStatus=10 12 20 21 22 23 24 25 26 27 28 29 30 31 32 33 34 35 36 37 38 40 41 42 43 44 45 46 47 48 49 50 51 52 53 54 55 56 57 58 129 130 143
 ExecStopPost=+/usr/local/bin/osdos-stop
 StandardOutput=journal
 StandardError=journal

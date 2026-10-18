@@ -134,6 +134,49 @@ private slots:
         QCOMPARE(offered.contains(QStringLiteral("scart-rgb-240p")), !pi5());
     }
 
+    // The JAMMA board's other modes come with launcher API 6, after JAMMA
+    // 240p: interlaced ones on a Pi 4 alone, the 25 and 31 kHz monitors'
+    // with what they risk on a 15 kHz one.
+    void jammaModesNeedLauncherApi6() {
+        inForce(QStringLiteral("hdmi"));
+        qputenv("OSDOS_LAUNCHER_API", "5");
+        DisplayOutput api5(m_data.path());
+        QCOMPARE(ids(api5.options()).last(), QStringLiteral("jamma-240p"));
+
+        qputenv("OSDOS_LAUNCHER_API", "6");
+        DisplayOutput api6(m_data.path());
+        const QStringList offered = ids(api6.options());
+        QStringList jamma;
+        for (const QString &id : offered) {
+            if (id.startsWith(QLatin1String("jamma-")))
+                jamma << id;
+        }
+        QStringList expected{ "jamma-240p", "jamma-240p-native", "jamma-240p-super", "jamma-288p",
+                              "jamma-288p-super", "jamma-480i", "jamma-576i", "jamma-25k", "jamma-31k" };
+        if (pi5()) {
+            expected.removeAll(QStringLiteral("jamma-480i"));
+            expected.removeAll(QStringLiteral("jamma-576i"));
+        }
+        QCOMPARE(jamma, expected);
+        QString warning25, warning31, warning240;
+        for (const QVariant &o : api6.options()) {
+            const QVariantMap m = o.toMap();
+            if (m.value("id") == "jamma-25k") warning25 = m.value("warning").toString();
+            if (m.value("id") == "jamma-31k") warning31 = m.value("warning").toString();
+            if (m.value("id") == "jamma-240p") warning240 = m.value("warning").toString();
+        }
+        QVERIFY(warning25.contains(QLatin1String("25 kHz")) && warning25.contains(QLatin1String("15 kHz")));
+        QVERIFY(warning31.contains(QLatin1String("31 kHz")) && warning31.contains(QLatin1String("15 kHz")));
+        QCOMPARE(warning240, QString());
+
+        // In force and chosen as the others are: exit 38 for 31 kHz.
+        inForce(QStringLiteral("jamma-31k"));
+        DisplayOutput on31(m_data.path());
+        QCOMPARE(on31.current(), QStringLiteral("jamma-31k"));
+        QCOMPARE(on31.currentLabel(), QStringLiteral("JAMMA 31 kHz"));
+        QVERIFY(DisplayOutput::isTube(on31.current(), QSize(640, 480)));
+    }
+
     void jammaInForceIsKnown() {
         inForce(QStringLiteral("jamma-240p"));
         qputenv("OSDOS_LAUNCHER_API", "4");

@@ -68,6 +68,27 @@ on_exit 29
 check "exit 29 goes back" scart-rgb-pal "$(in_force)"
 check "exit 29 brings SCART's sync back" yes "$(csync)"
 new_boot
+# The JAMMA board's other modes, 31-38, none with a composite sync.
+on_exit 31
+check "exit 31 writes JAMMA 240p Native" jamma-240p-native "$(in_force)"
+check "exit 31 writes no composite sync" no "$(csync)"
+check "exit 31 reboots" reboot "$(asked)"
+new_boot
+on_exit 35
+check "exit 35 writes JAMMA 480i" jamma-480i "$(in_force)"
+new_boot
+on_exit 38
+check "exit 38 writes JAMMA 31 kHz" jamma-31k "$(in_force)"
+new_boot
+on_exit 39
+check "exit 39 is no preset's: nothing written" jamma-31k "$(in_force)"
+check "exit 39 is no preset's: nothing asked" "" "$(asked)"
+new_boot
+on_exit 29
+check "exit 29 goes back to JAMMA 480i" jamma-480i "$(in_force)"
+new_boot
+on_exit 26
+new_boot
 
 # Then off: on it the next time the Pi is switched on.
 on_exit 40
@@ -79,9 +100,23 @@ on_exit 50
 check "exit 50 writes JAMMA" jamma-240p "$(in_force)"
 check "exit 50 powers off" poweroff "$(asked)"
 new_boot
+on_exit 58
+check "exit 58 writes JAMMA 31 kHz" jamma-31k "$(in_force)"
+check "exit 58 powers off" poweroff "$(asked)"
+new_boot
+on_exit 59
+check "exit 59 is no preset's: nothing written" jamma-31k "$(in_force)"
+check "exit 59 is no preset's: nothing asked" "" "$(asked)"
+new_boot
 on_exit 20
 
 # At Next Start, while the app runs: no reboot, no power-off.
+new_boot
+: > "$T/systemctl"
+check "next start: JAMMA 25 kHz answers ok" ok "$(next_start jamma-25k)"
+check "next start: JAMMA 25 kHz written" jamma-25k "$(in_force)"
+new_boot
+on_exit 20
 new_boot
 : > "$T/systemctl"
 check "next start: JAMMA answers ok" ok "$(next_start jamma-240p)"

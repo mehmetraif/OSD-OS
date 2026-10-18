@@ -1,0 +1,42 @@
+# A JAMMA arcade cabinet, through a Raspberry Pi to JAMMA board in RGB-Pi's
+# layout, as osdos-display-jamma-240p.txt has it (the pins, the controls,
+# the sound), at 640x480: 60 Hz, 31.47 kHz, VGA's, for a 31 kHz monitor or
+# a tri-sync one. ONLY for such a monitor: too high a horizontal
+# frequency can damage a 15 kHz one. The timing is VESA's 640x480 at 60
+# Hz. Chosen in Settings → Display Output, or copied over
+# osdos-display.txt (config.txt says how).
+# osdos-controls: jamma
+# A Pi 5 keeps HDMI on beside it: OSD/OS takes this output, in this mode. The
+# board makes the composite sync itself, so none on GPIO 1 (osdos-stop).
+# osdos-output: DPI
+# osdos-mode: 640x480
+# osdos-sync: separate
+
+# The Pi 4's DPI is its firmware's, as in osdos-display-jamma-240p.txt, the
+# syncs active low (dpi_timings' 2nd and 7th numbers, 1): should the picture
+# roll, try 0.
+[pi4]
+gpio=2-9,12-17,20-25=a2
+enable_dpi_lcd=1
+display_default_lcd=1
+hdmi_ignore_hotplug=1
+dpi_output_format=6
+dpi_group=2
+dpi_mode=87
+dpi_timings=640 1 16 96 48 480 1 10 2 33 0 0 0 60 0 25175000 1
+dtparam=i2c_vc=on
+dtoverlay=audremap,pins_18_19
+
+# The Pi 5's DPI is the kernel's, as in osdos-display-jamma-240p.txt, both
+# syncs active low (hsync-invert, vsync-invert): should the picture roll,
+# leave them out.
+[pi5]
+dtparam=i2c_vc=on
+dtoverlay=vc4-kms-v3d,cma-512
+dtoverlay=vc4-kms-dpi-generic,clock-frequency=25175000
+dtparam=hactive=640,hfp=16,hsync=96,hbp=48
+dtparam=vactive=480,vfp=10,vsync=2,vbp=33
+dtparam=hsync-invert,vsync-invert,rgb666-padhi
+dtoverlay=osdos-jamma-dpi
+
+[all]

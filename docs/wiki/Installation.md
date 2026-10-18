@@ -182,6 +182,8 @@ cp /Volumes/bootfs/osdos-display-crt-pal.txt /Volumes/bootfs/osdos-display.txt  
 | `osdos-display-scart-rgb-ntsc.txt`, `osdos-display-scart-rgb-pal.txt` | SCART RGB on the GPIO pins, 480i / 576i | ✓ | ✓ |
 | `osdos-display-scart-rgb-240p.txt`, `osdos-display-scart-rgb-288p.txt` | SCART RGB on the GPIO pins, 240p / 288p | ✓ | |
 | `osdos-display-jamma-240p.txt` | A JAMMA arcade cabinet through a Raspberry Pi to JAMMA board in RGB-Pi's layout, 240p: its picture, sound and controls | ✓ | ✓ |
+| `osdos-display-jamma-240p-native.txt`, `-240p-super.txt`, `-288p.txt`, `-288p-super.txt`, `-25k.txt`, `-31k.txt` | The same board in its other modes: 320×240, 1920×240, 720×288, 1920×288, and a 25 kHz or 31 kHz monitor's (only for such a monitor) | ✓ | ✓ |
+| `osdos-display-jamma-480i.txt`, `osdos-display-jamma-576i.txt` | The same board interlaced, 480i / 576i | ✓ | |
 
 A Pi 5's SCART RGB also needs a line on the system partition (`options drm_rp1_dpi force_csync=1` in `/etc/modprobe.d/osdos-display.conf`), which Windows and macOS can't reach: choose it in Settings → Display Output instead, which writes it. Once running, Settings → Display Output switches outputs, and keeps a new one only when you confirm it on its own screen. [Display Output](https://github.com/mehmetraif/OSD-OS/wiki/Display-Output) has the cables and every detail.
 
@@ -423,8 +425,8 @@ The service starts OSD/OS after the rest of the system (`multi-user.target`), as
 | 10 | Quit → Exit to Terminal | A login prompt on `tty1`; the service stays installed for the next boot |
 | 11 | Settings → Update → Apply & Restart | Nothing: systemd starts OSD/OS again through the launcher, which applies the update |
 | 12 | Quit → Restart | The Pi reboots |
-| 20–30 | Settings → Display Output (the OSD/OS image) | A display preset is written, then the Pi reboots |
-| 40–50 | Settings → Display Output → Switch and Power Off | A display preset is written, then the Pi powers off |
+| 20–38 | Settings → Display Output (the OSD/OS image) | A display preset is written, then the Pi reboots |
+| 40–58 | Settings → Display Output → Switch and Power Off | A display preset is written, then the Pi powers off |
 | 129, 130, 143 (SIGHUP, SIGINT, SIGTERM, which OSD/OS turns into these), or SIGKILL | `systemctl stop` / `restart`, a shutdown | Nothing: the Pi stays on |
 | Anything else: a crash (SIGSEGV, SIGABRT…), an error exit such as 1 | | Nothing: the Pi stays on, and systemd starts OSD/OS again five seconds later. After three starts in two minutes it gives up and starts `osdos-terminal.service`: a login prompt on `tty1`, where `sudo systemctl reset-failed osdos` and `sudo systemctl start osdos` try again |
 
@@ -653,8 +655,8 @@ OSD/OS reads the board's model (`/proc/device-tree/model`) and sets itself up fo
 
 | Board | With OSD/OS | Display driver | mpv's video flags | Settings → Display Output offers (on the image) |
 |---|---|---|---|---|
-| Raspberry Pi 4 | Tested | Fake KMS (`vc4-fkms-v3d`) | `--vo=drm --hwdec=drm-copy,v4l2m2m-copy` | HDMI, composite (AV jack), SCART RGB 480i/576i/240p/288p, JAMMA 240p |
-| Raspberry Pi 5 | The owner also tests on one (8 GB) | Full KMS (`vc4-kms-v3d`) | `--vo=drm --hwdec=auto-safe` | HDMI, composite (TV pads, or GPIO), SCART RGB 480i/576i, JAMMA 240p |
+| Raspberry Pi 4 | Tested | Fake KMS (`vc4-fkms-v3d`) | `--vo=drm --hwdec=drm-copy,v4l2m2m-copy` | HDMI, composite (AV jack), SCART RGB 480i/576i/240p/288p, JAMMA 240p/288p/480i/576i/25 kHz/31 kHz |
+| Raspberry Pi 5 | The owner also tests on one (8 GB) | Full KMS (`vc4-kms-v3d`) | `--vo=drm --hwdec=auto-safe` | HDMI, composite (TV pads, or GPIO), SCART RGB 480i/576i, JAMMA 240p/288p/25 kHz/31 kHz |
 | Raspberry Pi 3B / 3B+ | Not tested with OSD/OS | Fake KMS (`vc4-fkms-v3d`) | `--vo=gpu --gpu-context=drm --hwdec=v4l2m2m` | HDMI, composite (AV jack) |
 | Raspberry Pi 400 / 500 | Not tested | As a Pi 4 / Pi 5 | As a Pi 4 / Pi 5 | As a Pi 4 / Pi 5, without the AV jack's or the TV pads' composite |
 | Any other board | Not tested | | `--vo=drm --hwdec=auto-safe` | Not offered |

@@ -377,7 +377,7 @@ FocusScope {
                 description: (outputNext !== "" ? "Now " + outputCurrentLabel + ", " + outputNextLabel + " from the next start • " : "")
                              + "Where the picture goes, among the outputs this Pi has: "
                              + (later ? "now, with a restart, or from the next start. " : "a change restarts OSD/OS. ")
-                             + "The new output stays only when you keep it on its screen, else the old one comes back in 30 seconds\n[COMPOSITE] The AV jack (Pi 4) or TV pads (Pi 5)  [GPIO COMPOSITE] Pi 5's GPIO pins  [SCART RGB] A cable on the GPIO pins  [JAMMA] A Raspberry Pi to JAMMA board",
+                             + "The new output stays only when you keep it on its screen, else the old one comes back in 30 seconds\n[COMPOSITE] The AV jack (Pi 4) or TV pads (Pi 5)  [GPIO COMPOSITE] Pi 5's GPIO pins  [SCART RGB] A cable on the GPIO pins  [JAMMA] A Raspberry Pi to JAMMA board, in the modes of a 15 kHz monitor (240p 720 across, Native 320, Super 1920; 288p; 480i and 576i on a Pi 4), or a 25 kHz or 31 kHz one's",
                 moduleId: ""
             })
         }
@@ -981,8 +981,10 @@ FocusScope {
         id: outputConfirm
         anchors.fill: parent
         promptText: "Switch to " + (settingsRoot.outputChoice.label || "") + "?"
-        subtitleText: (settingsRoot.outputAtNextStart || settingsRoot.outputPowerOff
-                       ? "Now, or from the next time the Pi starts. " : "OSD/OS restarts on it. ")
+        // A scan rate only some monitors take says so first.
+        subtitleText: (settingsRoot.outputChoice.warning ? settingsRoot.outputChoice.warning + "\n" : "")
+                      + (settingsRoot.outputAtNextStart || settingsRoot.outputPowerOff
+                         ? "Now, or from the next time the Pi starts. " : "OSD/OS restarts on it. ")
                       + "Keep it there, or in 30 seconds it comes back to " + settingsRoot.outputCurrentLabel
         choices: [{ label: "Switch and Restart", action: "switch" }]
                  .concat(settingsRoot.outputAtNextStart && settingsRoot.outputChoice.id !== settingsRoot.outputNext
