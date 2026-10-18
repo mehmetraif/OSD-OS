@@ -94,7 +94,7 @@ A card with less than 2 GiB to spare past the system gets no film partition, and
 The Pi reads its display settings only as it powers on, so the switch is a restart:
 
 1. Choose an output, then **Switch and Restart**, **At Next Start** or **Switch and Power Off**. OSD/OS writes that preset over `osdos-display.txt` on the boot partition (as root, through its stop helper `osdos-stop`: no `sudo`), and reboots, or stays on as it is until the next start, or powers off. The last two are for a screen that isn't here yet, as a JAMMA cabinet's.
-2. On the new output it asks **Keep this display output?** first, over the boot screen. **Keep** keeps it. Without an answer within 15 seconds (a screen that shows nothing, a TV that can't show that standard), it goes back to the output before, restarting again, and says so.
+2. On the new output it asks **Keep this display output?** first, over the boot screen. **Keep** keeps it. Without an answer within 30 seconds (a screen that shows nothing, a TV that can't show that standard), it goes back to the output before, restarting again, and says so.
 
 From any computer, copy a preset over `osdos-display.txt` on the boot partition (the FAT one, **bootfs**), the way to put a card right that shows nothing. On a Pi 5 a SCART RGB preset also needs its composite sync: the line `options drm_rp1_dpi force_csync=1` in `/etc/modprobe.d/osdos-display.conf` (the setting writes it).
 

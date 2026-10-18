@@ -12,7 +12,9 @@ import Components
 FocusScope {
     id: keepRoot
 
-    readonly property int seconds: 15
+    // Long enough for a CRT to warm up and show the picture first: the
+    // count starts with the app, before a tube has.
+    readonly property int seconds: 30
     // Main.qml's mirrors of displayOutput, safe as the view tears down.
     readonly property bool asking: root.displayConfirmPending
     readonly property bool holding: asking || root.displayNotice !== ""

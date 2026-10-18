@@ -491,7 +491,7 @@ FocusScope {
                 description: (outputNext !== "" ? "Now " + outputCurrentLabel + ", " + outputNextLabel + " from the next start • " : "")
                              + "Where the picture goes, among the outputs this Pi has: "
                              + (later ? "now, with a restart, or from the next start. " : "a change restarts OSD/OS. ")
-                             + "The new output stays only when you keep it on its screen, else the old one comes back in 15 seconds\n[COMPOSITE] The AV jack (Pi 4) or TV pads (Pi 5)  [GPIO COMPOSITE] Pi 5's GPIO pins  [SCART RGB] A cable on the GPIO pins  [JAMMA] A Raspberry Pi to JAMMA board",
+                             + "The new output stays only when you keep it on its screen, else the old one comes back in 30 seconds\n[COMPOSITE] The AV jack (Pi 4) or TV pads (Pi 5)  [GPIO COMPOSITE] Pi 5's GPIO pins  [SCART RGB] A cable on the GPIO pins  [JAMMA] A Raspberry Pi to JAMMA board",
                 moduleId: ""
             })
         }
@@ -931,7 +931,7 @@ FocusScope {
         promptText: "Switch to " + (settingsRoot.outputChoice.label || "") + "?"
         subtitleText: (settingsRoot.outputAtNextStart || settingsRoot.outputPowerOff
                        ? "Now, or from the next time the Pi starts. " : "OSD/OS restarts on it. ")
-                      + "Keep it there, or in 15 seconds it comes back to " + settingsRoot.outputCurrentLabel
+                      + "Keep it there, or in 30 seconds it comes back to " + settingsRoot.outputCurrentLabel
         choices: [{ label: "Switch and Restart", action: "switch" }]
                  .concat(settingsRoot.outputAtNextStart && settingsRoot.outputChoice.id !== settingsRoot.outputNext
                          ? [{ label: "At Next Start", action: "next" }] : [])

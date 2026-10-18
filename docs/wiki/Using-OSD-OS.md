@@ -57,7 +57,7 @@ On the [OSD/OS image](https://github.com/mehmetraif/OSD-OS/wiki/The-OSD-OS-Image
 
 On an app install (Raspberry Pi OS, macOS, SteamOS) there is no boot screen: OSD/OS opens on the main menu.
 
-**After Settings → Display Output** switched to another output, the first thing on the new one, over the boot screen, is **Keep this display output?**, with the time left. **Keep** keeps it; **Switch Back**, or 15 seconds without an answer, goes back to the old output, restarting again. Back does nothing there: on a screen that shows nothing, a key pressed at random must not keep it. [Display Output](https://github.com/mehmetraif/OSD-OS/wiki/Display-Output) has the rest.
+**After Settings → Display Output** switched to another output, the first thing on the new one, over the boot screen, is **Keep this display output?**, with the time left. **Keep** keeps it; **Switch Back**, or 30 seconds without an answer, goes back to the old output, restarting again. Back does nothing there: on a screen that shows nothing, a key pressed at random must not keep it. [Display Output](https://github.com/mehmetraif/OSD-OS/wiki/Display-Output) has the rest.
 
 ## The main menu
 

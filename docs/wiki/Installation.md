@@ -657,7 +657,7 @@ OSD/OS reads the board's model (`/proc/device-tree/model`) and sets itself up fo
 | Raspberry Pi 400 / 500 | Not tested | As a Pi 4 / Pi 5 | As a Pi 4 / Pi 5 | As a Pi 4 / Pi 5, without the AV jack's or the TV pads' composite |
 | Any other board | Not tested | | `--vo=drm --hwdec=auto-safe` | Not offered |
 
-Of the outputs, only the Pi 4's HDMI and composite have been tried on a TV. The others are starting points; a new output stays only when you keep it on its own screen, so one that shows nothing comes back to the old one by itself after 15 seconds.
+Of the outputs, only the Pi 4's HDMI and composite have been tried on a TV. The others are starting points; a new output stays only when you keep it on its own screen, so one that shows nothing comes back to the old one by itself after 30 seconds.
 
 ### How a Raspberry Pi 5 differs
 

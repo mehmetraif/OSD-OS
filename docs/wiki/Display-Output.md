@@ -4,7 +4,7 @@ Settings → **Display Output**, on the OSD/OS image, switches where the picture
 
 ## Where it is, and when
 
-**Settings → Display Output** is in Settings' Application section, its value the output in force (`HDMI`, `Composite PAL`, …). Its help line reads: *Where the picture goes, among the outputs this Pi has: a change restarts OSD/OS, and the new output stays only when you keep it on its screen, else the old one comes back in 15 seconds.*
+**Settings → Display Output** is in Settings' Application section, its value the output in force (`HDMI`, `Composite PAL`, …). Its help line reads: *Where the picture goes, among the outputs this Pi has: a change restarts OSD/OS, and the new output stays only when you keep it on its screen, else the old one comes back in 30 seconds.*
 
 The row is there only when all of this holds ([`src/display/DisplayOutput.cpp`](https://github.com/mehmetraif/OSD-OS/blob/main/src/display/DisplayOutput.cpp)):
 
@@ -100,7 +100,7 @@ JAMMA 240p is offered only by a launcher at level 4 or later, whose stop helper 
 ## Switching
 
 1. Open **Settings → Display Output** and press select. A chooser opens: **Display Output**, with the Pi's model and **Now: <output>** under it (and **Next start: <output>** while one waits). The arrows move, select chooses, back closes it.
-2. Choose another output. OSD/OS asks **Switch to <output>?**, *Now, or from the next time the Pi starts. Keep it there, or in 15 seconds it comes back to <output now>*:
+2. Choose another output. OSD/OS asks **Switch to <output>?**, *Now, or from the next time the Pi starts. Keep it there, or in 30 seconds it comes back to <output now>*:
    - **Switch and Restart**: now. The Pi restarts on it.
    - **At Next Start**: written now, and the Pi stays on, on the output it has. It starts on the new one the next time it starts, however that comes: Quit, the power switch, a power cut ([At the next start](https://github.com/mehmetraif/OSD-OS/wiki/Display-Output#at-the-next-start)).
    - **Switch and Power Off**: written, then the Pi powers off. It starts on the new output when it is switched on again.
@@ -110,7 +110,7 @@ JAMMA 240p is offered only by a launcher at level 4 or later, whose stop helper 
 5. The firmware reads its display settings only as the Pi powers on: `config.txt` includes `osdos-display.txt`, so the Pi starts on the new output.
 6. On it, OSD/OS asks whether to keep it, whichever way it was switched.
 
-**Into a cabinet, or onto a TV that isn't here.** Choose the output with **At Next Start** or **Switch and Power Off**, then move the Pi. **Switch and Restart** would ask to keep the new output on a screen that isn't connected, and go back after 15 seconds.
+**Into a cabinet, or onto a TV that isn't here.** Choose the output with **At Next Start** or **Switch and Power Off**, then move the Pi. **Switch and Restart** would ask to keep the new output on a screen that isn't connected, and go back after 30 seconds.
 
 ```mermaid
 flowchart TD
@@ -118,7 +118,7 @@ flowchart TD
     B --> C["display-output.json: from, to<br/>exit 20 to 30, or 40 to 50 to power off"]
     C --> D["osdos-stop, as root:<br/>osdos-display.txt → osdos-display-previous.txt<br/>preset → osdos-display.txt<br/>modprobe line for a Pi 5's SCART"]
     D --> E["reboot, or off until switched on"]
-    E --> F["Keep this display output?<br/>15 seconds"]
+    E --> F["Keep this display output?<br/>30 seconds"]
     F -- "Keep" --> G["stays, display-output.json removed"]
     F -- "Switch Back, or no answer" --> H["exit 29<br/>osdos-display-previous.txt → osdos-display.txt"]
     H --> I["reboot, then: Back to … / … was not kept"]
@@ -165,10 +165,10 @@ A restart of OSD/OS alone, without the Pi's, keeps it waiting: `/run` lasts unti
 
 ## Keep or go back
 
-On the new output, before anything else and over the boot screen, OSD/OS asks **Keep this display output?**, with the new output's name and *Back to <old output> in 15 sec*, counting down ([`views/DisplayKeep.qml`](https://github.com/mehmetraif/OSD-OS/blob/main/views/DisplayKeep.qml)):
+On the new output, before anything else and over the boot screen, OSD/OS asks **Keep this display output?**, with the new output's name and *Back to <old output> in 30 sec*, counting down from when OSD/OS starts, which leaves a CRT time to warm up and show the picture first ([`views/DisplayKeep.qml`](https://github.com/mehmetraif/OSD-OS/blob/main/views/DisplayKeep.qml)):
 
 - **Keep** (select): the output stays. `display-output.json` is removed.
-- **Switch Back**, or no answer within **15 seconds**: OSD/OS exits with 29, `osdos-stop` copies `osdos-display-previous.txt` back over `osdos-display.txt`, and the Pi reboots on the old output. A screen that shows nothing, or a TV that can't show that standard, so puts itself right.
+- **Switch Back**, or no answer within **30 seconds**: OSD/OS exits with 29, `osdos-stop` copies `osdos-display-previous.txt` back over `osdos-display.txt`, and the Pi reboots on the old output. A screen that shows nothing, or a TV that can't show that standard, so puts itself right.
 - **Back does nothing** here, on purpose: on a screen that shows nothing, a key pressed at random must not keep it. ▲ ▼ move between the two answers.
 - Until it is answered, the startup module waits, and so does a favourite set to Play at Startup. The menu music waits too.
 
@@ -753,7 +753,7 @@ To set it up:
 2. Move the Pi into the cabinet and switch it on. It starts on the cabinet's monitor.
 3. There, **Keep this display output?** comes up. Button 1 keeps it, as the cabinet's controls work once JAMMA 240p is in force.
 
-Or copy `osdos-display-jamma-240p.txt` over `osdos-display.txt` from a computer, which asks nothing ([Doing it by hand](https://github.com/mehmetraif/OSD-OS/wiki/Display-Output#doing-it-by-hand)). **Switch and Restart** away from the cabinet would ask on its monitor, which isn't there, and go back to the old output after 15 seconds.
+Or copy `osdos-display-jamma-240p.txt` over `osdos-display.txt` from a computer, which asks nothing ([Doing it by hand](https://github.com/mehmetraif/OSD-OS/wiki/Display-Output#doing-it-by-hand)). **Switch and Restart** away from the cabinet would ask on its monitor, which isn't there, and go back to the old output after 30 seconds.
 
 What owners of Crown Arcade's board report, in [its thread on Arcade-Projects](https://www.arcade-projects.com/threads/raspberry-pi-to-jamma-arcade-cabinet-interface.26347/):
 
@@ -957,12 +957,12 @@ After the reboot Settings offers Display Output, as on the image. To undo it, co
 
 ## Troubleshooting a black screen
 
-**Right after a switch, wait.** 15 seconds after OSD/OS has started on the new output, it goes back to the old one by itself and reboots again. With two reboots, that takes a while.
+**Right after a switch, wait.** 30 seconds after OSD/OS has started on the new output, it goes back to the old one by itself and reboots again. With two reboots, that takes a while.
 
 | What you see | What to do |
 |---|---|
 | Nothing on a composite or SCART TV after the switch, and the old output came back | The TV didn't show it. Check the TV's input (AV, SCART, the right one of two) and the cable, then the standard: a TV made for PAL may not take NTSC, and the other way round. Try the other one |
-| Nothing at all, not even after the 15 seconds | Take the card to a computer and copy `osdos-display-hdmi.txt` (or the output you know works) over `osdos-display.txt` on **bootfs** ([On the image, from a computer](https://github.com/mehmetraif/OSD-OS/wiki/Display-Output#on-the-image-from-a-computer)) |
+| Nothing at all, not even after the 30 seconds | Take the card to a computer and copy `osdos-display-hdmi.txt` (or the output you know works) over `osdos-display.txt` on **bootfs** ([On the image, from a computer](https://github.com/mehmetraif/OSD-OS/wiki/Display-Output#on-the-image-from-a-computer)) |
 | HDMI went dark on a Pi 4 after choosing composite or SCART RGB | As it should: a Pi 4 has one output on at a time. Plug in the CRT |
 | A Pi 5's picture still on HDMI after choosing composite or RGB | Check the connector exists: `ls /sys/class/drm/` should list a `card*-Composite-*` or `card*-DPI-*`. The launcher waits up to ten seconds for it at boot; without one it falls back to the connected HDMI, and `journalctl -u osdos -b` has `the display preset's … output never appeared` |
 | SCART RGB picture rolls (Pi 4) | Change `dpi_timings`' 2nd and 7th numbers from `0` to `1` in `osdos-display.txt` |

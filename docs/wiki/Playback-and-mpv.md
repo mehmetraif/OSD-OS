@@ -470,7 +470,7 @@ MPV_BIN=$(scripts/build-mpv.sh)
 
 - **Transparent Background at SOLID** hides the picture on purpose: the video plays on behind the menus, sound and all. Move the slider towards TRANSPARENT.
 - **A Pi 5 with HDMI and a CRT**: mpv plays on the output the display preset names. If you set `mpv_video_args`, it must carry `--drm-device` and `--drm-connector` too.
-- **Nothing on a new output**: Display Output switches back by itself after 15 seconds without Keep.
+- **Nothing on a new output**: Display Output switches back by itself after 30 seconds without Keep.
 - **Transparent Background on the GPU**: if the GPU can't take the decoder's frames, OSD/OS turns to the copy decoders by itself (the log says so). To rule the GPU out, start OSD/OS with `OSDOS_EMBEDDED_RENDER=sw`.
 - **A text console or a login prompt** for a moment as a video starts, on a Pi where OSD/OS runs without the autostart service: that is a `getty` on the virtual terminal the hand-off switched to, not anything OSD/OS drew. The autostart service's install and the image mask it (`getty@tty1` and `autovt@`).
 

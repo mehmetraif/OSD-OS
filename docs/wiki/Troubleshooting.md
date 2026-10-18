@@ -133,7 +133,7 @@ Most modules come switched off. Only Local Files and Playlists are on at first; 
 
 | Cause | Fix |
 |---|---|
-| Settings → Display Output switched to an output the TV doesn't show | Wait: 15 seconds after OSD/OS starts on the new output without **Keep**, it goes back to the old one by itself and restarts again |
+| Settings → Display Output switched to an output the TV doesn't show | Wait: 30 seconds after OSD/OS starts on the new output without **Keep**, it goes back to the old one by itself and restarts again |
 | Nothing at all, even after that | Take the card to a computer and copy `osdos-display-hdmi.txt` (or an output you know works) over `osdos-display.txt` on the **bootfs** drive |
 | A Pi 4 on composite or SCART RGB, and HDMI went dark | As it should be: a Pi 4 has one output on at a time |
 | An app install on Raspberry Pi OS, a CRT showing nothing | Raspberry Pi OS's own `config.txt` drives HDMI. Composite needs `enable_tvout=1`, `sdtv_mode` and `sdtv_aspect`, and OSD/OS's video settings expect fake KMS on a Pi 3 or 4 (`dtoverlay=vc4-fkms-v3d,cma-256`): use the composite `config.txt` in [INSTALL.md](https://github.com/mehmetraif/OSD-OS/blob/main/INSTALL.md) ([Installation](https://github.com/mehmetraif/OSD-OS/wiki/Installation)) |
