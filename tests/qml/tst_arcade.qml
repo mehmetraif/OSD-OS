@@ -1159,25 +1159,28 @@ Rectangle {
             verify(row("004").x > row("002").x)
         }
 
-        // 3D Curved: a wheel turning with the game chosen, in its middle row
-        // furthest out, round from the list's end to its start; the rows going
-        // back from it smaller and fainter. The bar has the game of so many.
-        // Fewer games than rows lie round the middle row, the others empty;
-        // the room of an even number of rows holds one fewer, for a middle.
+        // 3D Curved: a wheel opening with the game chosen in its middle row,
+        // round from the list's end to its start; ▲ ▼ move it up and down
+        // the rows, the wheel turning a row once it would leave them; the
+        // rows going back from it, wherever it is, smaller and fainter, as
+        // far back as the wheel's ends from its middle and no further. The
+        // bar has the game of so many. Fewer games than rows lie from the
+        // top row down, the others empty; the room of an even number of rows
+        // holds one fewer, for a middle.
         function test_screenWheel() {
             moduleRoot.listStyle = "3D Curved"
             var screen = openScreen()
+            var row = function(number) { var t = findText(screen, number); return t ? t.parent : null }
+            var top = function(r) { return Math.round((screen.listTop + r * screen.pitch) * screen.v) }
             verify(screen.wheel)
             compare(screen.perPage, 7)
             compare(screen.middleRow, 3)
             compare(screen.currentSet, "sf2")
+            compare(screen.selectedRow, 3)
             verify(findText(screen, "1/15") !== null)
-            var rows = ["013", "014", "015", "001", "002", "003", "004"].map(function(number) {
-                return findText(screen, number).parent
-            })
-            var middle = Math.round((screen.listTop + 3 * screen.pitch) * screen.v)
-            verify(rows[3].y <= middle)
-            compare(findText(screen, "005"), null)
+            var rows = ["013", "014", "015", "001", "002", "003", "004"].map(row)
+            compare(rows[3].y, top(3))
+            compare(row("005"), null)
             compare(rows[3].opacity, 1)
             for (var i = 0; i < 3; ++i) {
                 verify(rows[i].y < rows[i + 1].y)
@@ -1194,24 +1197,58 @@ Rectangle {
             verify(rows[0].x < rows[1].x && rows[1].x < rows[2].x)
             // The game chosen stands out of the arc to the left.
             compare(rows[3].x, Math.round((screen.areaLeft + 12 + 24 - 16) * screen.u))
+
+            // Down moves it a row; the wheel stays, and the rows go back from
+            // the game chosen now.
             keyClick(Qt.Key_Down)
             compare(screen.currentSet, "1942")
             verify(findText(screen, "2/15") !== null)
-            compare(findText(screen, "002").parent.y, rows[3].y)
-            compare(findText(screen, "013"), null)
-            verify(findText(screen, "005") !== null)
+            compare(screen.selectedRow, 4)
+            compare(row("002").y, top(4))
+            compare(row("002").opacity, 1)
+            verify(row("001").opacity < 1)
+            verify(row("013").opacity < row("014").opacity)
+            compare(row("005"), null)
+            // To the bottom row, and past it: the wheel turns a row.
+            keyClick(Qt.Key_Down)
+            keyClick(Qt.Key_Down)
+            compare(screen.selectedRow, 6)
+            verify(row("013") !== null)
+            keyClick(Qt.Key_Down)
+            compare(screen.selectedRow, 6)
+            verify(findText(screen, "5/15") !== null)
+            compare(row("013"), null)
+            compare(row("005").y, top(6))
+            // Up to the top row, the rows under it going back the further
+            // they are, the furthest as far back as the wheel's ends; and past
+            // it, round to the list's end.
+            for (var k = 0; k < 6; ++k)
+                keyClick(Qt.Key_Up)
+            compare(screen.selectedRow, 0)
+            compare(row("014").y, top(0))
+            var below = ["014", "015", "001", "002", "003", "004", "005"].map(row)
+            for (var j = 0; j < 4; ++j)
+                verify(below[j + 1].opacity < below[j].opacity)
+            compare(below[5].opacity, below[4].opacity)
+            compare(below[6].opacity, below[4].opacity)
+            fuzzyCompare(below[4].opacity, 0.4, 0.001)
             keyClick(Qt.Key_Up)
-            keyClick(Qt.Key_Up)
-            compare(screen.currentSet, "dino")
-            compare(findText(screen, "015").parent.y, rows[3].y)
-            verify(findText(screen, "003") !== null)
+            compare(screen.selectedRow, 0)
+            verify(findText(screen, "13/15") !== null)
+            compare(row("013").y, top(0))
+            compare(row("005"), null)
+
             loader.source = ""
             moduleRoot.startFilter = "genres/Fighting"
             screen = openScreen()
             compare(screen.currentSet, "kinst")
             compare(screen.rows.filter(function(r) { return r !== null }).length, 2)
-            compare(screen.rows[3].game.set, "kinst")
-            compare(screen.rows[4].game.set, "sf2")
+            compare(screen.rows[0].game.set, "kinst")
+            compare(screen.rows[1].game.set, "sf2")
+            compare(screen.selectedRow, 0)
+            keyClick(Qt.Key_Down)
+            compare(screen.currentSet, "sf2")
+            compare(screen.selectedRow, 1)
             loader.source = ""
             root.hintBar = false
             screen = openScreen()
