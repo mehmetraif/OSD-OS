@@ -105,6 +105,10 @@ Rectangle {
         id: bluetoothManager
         property bool supported: false
     }
+    QtObject {
+        id: wifiManager
+        property bool supported: false
+    }
 
     // Where the page asked to go.
     property var navigations: []
@@ -129,6 +133,7 @@ Rectangle {
         function init() {
             appCore.values = {}
             root.navigations = []
+            wifiManager.supported = false
         }
         function cleanup() {
             loader.source = ""
@@ -222,6 +227,23 @@ Rectangle {
             // Down from Arcade steps over the heading, onto Theme.
             keyClick(Qt.Key_Down)
             compare(cursor(loader.item), "Theme")
+        }
+
+        // Wi-Fi among the general settings once NetworkManager can be asked
+        // (wifiManager.supported), after Controls; select opens its page.
+        function test_wifiRow() {
+            var page = open()
+            verify(lines(page).indexOf("Wi-Fi") < 0)
+            loader.source = ""
+            wifiManager.supported = true
+            page = open()
+            var all = lines(page)
+            verify(all.indexOf("Wi-Fi") > all.indexOf("Controls"))
+            for (var i = 0; i < all.length && cursor(page) !== "Wi-Fi"; i++)
+                keyClick(Qt.Key_Down)
+            compare(cursor(page), "Wi-Fi")
+            keyClick(Qt.Key_Return)
+            compare(root.navigations[root.navigations.length - 1].path, "views/Wifi.qml")
         }
     }
 

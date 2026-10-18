@@ -94,6 +94,7 @@ Item {
 
                 Text {
                     id: titleText
+                    textFormat: Text.PlainText
                     text: appBar.title
                     color: root.surfaceColor
                     font.family: root.globalFont
@@ -149,6 +150,7 @@ Item {
 
             Text {
                 visible: appBar.subtitleShown
+                textFormat: Text.PlainText
                 text: appBar.subtitle
                 color: root.surfaceColor
                 font.family: root.globalFont

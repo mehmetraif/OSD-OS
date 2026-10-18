@@ -15,7 +15,7 @@ OSD/OS is one C++17 program (Qt 6 and QML) built with CMake 3.21 or newer. CMake
 | Qt Shader Tools | The effects' shaders, compiled into the binary ([below](#qt-shader-tools)) | `Qt Shader Tools not found — the shader effects will be unavailable` |
 | libmpv's headers, through pkg-config | Transparent Background: video inside the app's window | `libmpv headers not found — Transparent Background will be unavailable` |
 | PC/SC (`libpcsclite`, Linux; macOS has it) | ACR122U and other PC/SC NFC readers | `PC/SC not found — NFC reader module will build with PN532 USB serial support only` |
-| Qt D-Bus (Linux) | Settings → Bluetooth, through BlueZ | `Qt D-Bus not found — Settings → Bluetooth will be unavailable` |
+| Qt D-Bus (Linux) | Settings → Bluetooth and Wi-Fi, through BlueZ and NetworkManager | `Qt D-Bus not found — Settings → Bluetooth and Wi-Fi will be unavailable` |
 | zlib and minizip | The High Scores module's tables, read by openhi2txt (`thirdparty/openhi2txt`, built with the app) | `minizip not found — High Scores will show no tables` |
 | git | The commit in Settings → About → Build | The build has the day alone |
 
@@ -104,6 +104,7 @@ This is [BUILDING.md](https://github.com/mehmetraif/OSD-OS/blob/main/BUILDING.md
 | `retroarch` | The Arcade module's second engine, FinalBurn Neo, whose core Settings → Arcade → FinalBurn Neo downloads (run time only; the image has both) |
 | `libminizip-dev` | The High Scores module's tables. Its static library is linked in, so nothing more is needed at run time |
 | `bluez`, and the user in the `bluetooth` group | Settings → Bluetooth (run time; Raspberry Pi OS Lite has BlueZ). `sudo usermod -aG bluetooth $USER` |
+| NetworkManager | Settings → Wi-Fi (run time; Raspberry Pi OS has it). Run as a service, outside a desktop session, OSD/OS's user needs `install.sh`'s polkit rule to use it |
 
 For YouTube, yt-dlp from its own releases (the one apt brings is too old) and Deno, on the `PATH` of the user that runs OSD/OS ([yt-dlp's EJS notes](https://github.com/yt-dlp/yt-dlp/wiki/EJS)):
 

@@ -12,7 +12,7 @@ Back on the main menu opens Settings (the hint bar there says `[ESC]:SETTINGS`).
 |---|---|---|---|
 | ▲ ▼ | Up, Down | D-pad, left stick | Moves to the row above or below. Past the last row the cursor goes round to the first |
 | ◄ ► | Left, Right | D-pad, left stick, LB, RB | Changes the value, round from the last choice to the first. A slider moves by 10 |
-| Select | Enter | A | Opens a page (TV / Movie, Arcade, a module's settings, Controls, Bluetooth, Update, About), the list of Display Output, the file browser of Music File and Logo Image, or the Quit question. On Transparent Background it turns the setting on or off |
+| Select | Enter | A | Opens a page (TV / Movie, Arcade, a module's settings, Controls, Wi-Fi, Bluetooth, Update, About), the list of Display Output, the file browser of Music File and Logo Image, or the Quit question. On Transparent Background it turns the setting on or off |
 | Back | Esc, Backspace | B, or the pad's Back/Select button | Back to the main menu; from a page, back to the row that opened it |
 
 - **A change is saved at once.** Settings calls `appCore.save_setting("", key, value)`, on TV / Movie's page as on the first screen, which writes the value into `config.json` under `app.<key>` ([Configuration files](https://github.com/mehmetraif/OSD-OS/wiki/Configuration-Files#configjson)). Most rows take effect at once. The rows mpv is started with (Scaling, Video Levels, Channel Logo, Logo Image, Screen Saver during a video) apply from the next video. A value that can't be saved (a full or read-only disk) isn't applied, here or on a module's page: the row stays on the value saved, and the log says `[AppCore] Setting not saved: …`.
@@ -32,6 +32,7 @@ Back on the main menu opens Settings (the hint bar there says `[ESC]:SETTINGS`).
 | Startup From | A favourite is set to Play at Startup |
 | Display Output | On the OSD/OS image, started by its service, on a Pi with more than one output to offer |
 | Audio Output | On Linux where plain ALSA plays, with no PipeWire or PulseAudio server: the image and Raspberry Pi OS Lite |
+| Wi-Fi | On Linux builds made with Qt D-Bus (not on a Mac); on the OSD/OS image, from a launcher at level 7 |
 | Bluetooth | On Linux builds made with Qt D-Bus (not on a Mac) |
 
 ## TV / Movie
@@ -220,6 +221,7 @@ Some rows wait for something:
 | Display Output | HDMI, Composite NTSC, Composite PAL, GPIO Composite NTSC, GPIO Composite PAL, SCART RGB NTSC, SCART RGB PAL, SCART RGB 240p, SCART RGB 288p, JAMMA 240p 15 kHz (720x240), JAMMA 240p 15 kHz (320x240), JAMMA 240p 15 kHz (1920x240), JAMMA 288p 15 kHz (720x288), JAMMA 288p 15 kHz (1920x288), JAMMA 480i 15 kHz (720x480), JAMMA 576i 15 kHz (720x576), JAMMA 25 kHz (496x384), JAMMA 31 kHz (640x480): those this Pi has | The image's build setting, HDMI unless built otherwise | On the OSD/OS image only. Where the picture goes. A change restarts the Pi on the new output, powers it off for it, or waits for its next start, and the new output stays only when you keep it. **Next: <output>** while one waits | None: the preset is copied over `/boot/firmware/osdos-display.txt` |
 | Audio Output | Auto, then each sound card that can play: AV Jack, HDMI (HDMI 0 and HDMI 1 when there are two), a USB card by its name | Auto | Which sound card plays, from the moment you choose it, for a video playing behind the menus too. Auto is the Pi's own default | `app.audio_output`: `""` for Auto, or `{ "card", "name" }` |
 | Controls | A page | | Each controller connected, with its own buttons and a pad's button labels; the pads of players 1 to 6; and one more key for each action on every keyboard and remote | `app.controllers.<key>`, `app.players`, `app.remote_keymap.<action>` |
+| Wi-Fi | A page | | The networks within reach, joined with their passwords; one not listed; the networks saved; the country Wi-Fi keeps to the rules of | None: NetworkManager keeps the networks joined |
 | Bluetooth | A page | | Searching for, pairing and connecting keyboards, gamepads and remotes | None: BlueZ keeps the pairings |
 | Update | A page | | Checks for a newer release, downloads it and installs it | None |
 | About | A page | | What OSD/OS is, who makes it, what it is made of, the arcade's free software and sites, and their licenses | None |
@@ -259,6 +261,27 @@ The first line, **All Keyboards & Remotes**, adds one more button to each of six
 - Saved as `app.remote_keymap.up`, `.down`, `.left`, `.right`, `.select` and `.back`, each a number: a Qt key code; a Consumer Control button as 33554432 (`0x02000000`) plus its Linux key code; a mouse button as 50331648 (`0x03000000`) plus Qt's button number (1 left, 2 right). `0` means none.
 
 A controller's own settings are saved under `app.controllers`, by its key. Every gamepad's buttons, the map each pad starts from, can also be set in the data folder's `input.cfg`. All of it is in [Controls](https://github.com/mehmetraif/OSD-OS/wiki/Controls#settings--controls).
+
+### Wi-Fi
+
+<table>
+<tr><th width="50%">Wi-Fi</th><th width="50%">The country</th></tr>
+<tr><td><img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/screenshots/wifi.png" width="100%" alt="Wi-Fi: COUNTRY, SEARCH and NETWORK NOT LISTED, then the saved networks, HOME connected, and the others, each with its lock and its signal in bars" /></td><td><img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/screenshots/wifi-country.png" width="100%" alt="The Wi-Fi country's chooser, the countries by name, Turkey chosen" /></td></tr>
+<tr><td>Each network with its lock, when it wants a password, and its signal in bars. The one joined says so, and the title bar shows the Pi's address on it.</td><td>Wi-Fi stays off until the country is set. ▲ ▼ move a country at a time, ◄ ► from letter to letter.</td></tr>
+</table>
+
+The page talks to NetworkManager, Raspberry Pi OS's network service, as the user OSD/OS runs as. On the OSD/OS image, and after `install.sh` with its autostart service, a polkit rule lets that user use it from the service, which runs outside any login session (launcher level 7).
+
+- **Wi-Fi** turns it on or off. **Blocked** means a switch keeps the radio off.
+- **Country** is the country the Pi is used in, whose rules the radio keeps to. Raspberry Pi OS keeps Wi-Fi off until it is set, so turning Wi-Fi on without one opens its chooser first, on the system time zone's country.
+- **Search** looks for networks for a minute; select stops it early. The networks NetworkManager hears are listed without it too.
+- **Network Not Listed** joins one that doesn't say its name: type its name, then choose whether it is open or type its password.
+- **Saved** lists the networks NetworkManager keeps: the one joined first, then those it joins by itself, and those out of reach as **Not Here**. Select offers **Connect**, **New Password** and **Forget**; on the one joined, **Disconnect** and **Forget**.
+- **Networks** lists the others, the strongest first. Select one and type its password on the on-screen keyboard; an open one is joined at once. A network joined is saved and joined by itself from then on, after a restart too; one that couldn't be joined, a wrong password say, isn't kept. One that wants a user name too (WPA Enterprise) can't be joined here. A network chosen while another is being joined takes its place. A password with a character the on-screen keyboard hasn't (such as `/`, `:` or a bracket) can be typed on a real keyboard into the same box.
+- The help line says how it went: **Connected to …**, or why not (**wrong password?**, **it gave no address (DHCP)**, **it is out of reach**).
+- Leaving the page stops a search.
+
+If NetworkManager isn't running, or the computer has no Wi-Fi, the page says **No Wi-Fi**. On a Mac, join networks in the Mac's own settings.
 
 ### Bluetooth
 

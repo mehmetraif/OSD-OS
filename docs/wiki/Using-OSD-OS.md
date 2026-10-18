@@ -318,7 +318,7 @@ To spare a CRT's phosphor, a screen saver puts OSD/OS's logo bouncing across a b
 <img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/screenshots/settings.png" width="100%" alt="Settings: TV / MOVIE selected, ARCADE, the GENERAL SETTINGS heading, THEME NONE, COLOR SCHEME VIDEO 1, SKIN NONE, TEXT EFFECT and BACKGROUND EFFECT OFF, a help line scrolling its text, and the hint bar [ESC]:BACK [▲▼]:NAVIGATE [◄►]:CHANGE [ENTER]:SELECT" />
 
 - **The hint bar**, the solid bar at the foot of every screen, says which keys do what there, as a deck's menu ends with "SELECT WITH (▲▼) AND (OK)". It shows the keyboard's keys (`[ESC]`, `[ENTER]`, `[SPACE]`) until you press a gamepad button, then that gamepad's (`[B]`, `[A]`, `[START]`, or a PlayStation pad's `[O]`, `[X]`, as its button labels in Settings → Controls name them), and back again with the next key ([Controls](https://github.com/mehmetraif/OSD-OS/wiki/Controls#the-hints-at-the-foot-of-the-screen)).
-- **The help line** is the box under a menu (Settings, a module's settings, Controls, Bluetooth, a video's menu, About) with a line about the selected row. A line too long for the box scrolls through it like a ticker, pausing each time its start comes round.
+- **The help line** is the box under a menu (Settings, a module's settings, Controls, Wi-Fi, Bluetooth, a video's menu, About) with a line about the selected row. A line too long for the box scrolls through it like a ticker, pausing each time its start comes round.
 
 Both can go once the keys are second nature; the keys work as they always do.
 
@@ -339,12 +339,12 @@ A mouse, or a keyboard's touchpad, shows OSD/OS's own pointer, drawn in its pixe
 
 Back on the main menu opens Settings, laid out like a camcorder's menu: a line per setting, its value at the end (`COLOR SCHEME······VIDEO 1`). A release's version is in the title bar, and the IP address at its right.
 
-- ▲ ▼ move, skipping the headings, round from the bottom to the top. ◄ ► change the value, saved at once. Select opens a line that leads somewhere (TV / Movie, Arcade, a module's settings, Bluetooth, Update, a file or folder picker) and turns a slider on or off. Back from a page returns to the line it was opened from.
+- ▲ ▼ move, skipping the headings, round from the bottom to the top. ◄ ► change the value, saved at once. Select opens a line that leads somewhere (TV / Movie, Arcade, a module's settings, Wi-Fi, Bluetooth, Update, a file or folder picker) and turns a slider on or off. Back from a page returns to the line it was opened from.
 - **TV / Movie** opens the videos' page: Scaling, Transparent Background, Video Levels, Loading Effect, Loading Screen Colors, Channel Logo and Info Screen, then under **Modules** a line per video module (and Weather), for its settings, its **Enabled** row among them.
 - **Arcade** opens the Arcade module's settings, with the High Scores module's after them under its own heading.
 - **General Settings**: the look first, Theme, then its parts (Color Scheme, Skin, the effects, Transition, Menu Music), then OSD Background and Window Frame. Then startup (Start on Module, Play at Startup, Boot Screen Colors) and the screen (Hint Bar, Help Line, Screen Saver, Mouse Pointer).
 - **Modules**: a line for each module on neither page, Scripts, for its settings.
-- **Application**: Display Output (on the image), Audio Output (where plain ALSA plays), Controls, Bluetooth (on Linux), Update, About and Quit.
+- **Application**: Display Output (on the image), Audio Output (where plain ALSA plays), Controls, Wi-Fi and Bluetooth (on Linux), Update, About and Quit.
 
 <table>
 <tr><th width="50%">A module's settings</th><th width="50%">Picking a folder</th></tr>

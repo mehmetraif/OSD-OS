@@ -78,6 +78,7 @@ Item {
         Text {
             visible: prompt.message !== ""
             width: parent.width
+            textFormat: Text.PlainText
             text: prompt.message
             color: root.primaryColor
             font.family: root.globalFont
@@ -135,6 +136,7 @@ Item {
                         id: label
                         anchors.centerIn: parent
                         width: Math.min(implicitWidth, parent.width)
+                        textFormat: Text.PlainText
                         text: typeof modelData === "string" ? modelData : (modelData.label || "")
                         color: parent.current ? root.surfaceColor : root.primaryColor
                         font.family: root.globalFont

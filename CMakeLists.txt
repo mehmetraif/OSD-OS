@@ -113,6 +113,7 @@ add_executable(osdos
     src/audio/AudioOutput.cpp
     src/audio/MenuMusic.cpp
     src/bluetooth/BluetoothManager.cpp
+    src/wifi/WifiManager.cpp
     $<$<BOOL:${APPLE}>:src/util/MacosUtils.mm>
 )
 
@@ -197,17 +198,18 @@ else()
     message(STATUS "Qt Shader Tools not found — the shader effects will be unavailable")
 endif()
 
-# BlueZ over D-Bus for Settings → Bluetooth (src/bluetooth). Linux only: a Mac
-# pairs devices in its own settings. Without Qt D-Bus the row is left out.
+# BlueZ and NetworkManager over D-Bus for Settings → Bluetooth and Wi-Fi
+# (src/bluetooth, src/wifi). Linux only: a Mac pairs devices and joins
+# networks in its own settings. Without Qt D-Bus the rows are left out.
 if(NOT APPLE)
     find_package(Qt6 QUIET COMPONENTS DBus)
 endif()
 if(Qt6DBus_FOUND)
     target_sources(osdos PRIVATE src/bluetooth/BluetoothAgent.cpp)
-    target_compile_definitions(osdos PRIVATE OSDOS_BLUETOOTH=1)
+    target_compile_definitions(osdos PRIVATE OSDOS_BLUETOOTH=1 OSDOS_WIFI=1)
     target_link_libraries(osdos PRIVATE Qt6::DBus)
 else()
-    message(STATUS "Qt D-Bus not found — Settings → Bluetooth will be unavailable")
+    message(STATUS "Qt D-Bus not found — Settings → Bluetooth and Wi-Fi will be unavailable")
 endif()
 
 # openhi2txt, for the High Scores module's tables (src/modules/highscores): it

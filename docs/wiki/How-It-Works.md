@@ -15,7 +15,7 @@ flowchart TB
         main --> mpvc["MpvController"]
         main --> inp["InputManager (SDL2)"]
         main --> dh["DisplayHandoff"]
-        main --> sys["AudioOutput, MenuMusic, DisplayOutput,<br/>BootProgress, UpdateManager, BluetoothManager"]
+        main --> sys["AudioOutput, MenuMusic, DisplayOutput,<br/>BootProgress, UpdateManager,<br/>BluetoothManager, WifiManager"]
     end
     mpvc -- "process, JSON over a socket" --> mpv["mpv"]
     mpvc -- "Transparent Background" --> emb["libmpv inside the window<br/>EmbeddedMpv, VideoSurface"]
@@ -36,7 +36,7 @@ The rest of this page follows that picture from the top.
 3. **Signals.** SIGTERM, SIGINT and SIGHUP are only noted; a 100 ms timer then leaves the event loop with 128 plus the signal's number, so destructors run, mpv is stopped and the screen is given back. That exit code is also how the service's stop helper tells `systemctl stop` from the user's Quit ([The OSD/OS image → osdos-stop](https://github.com/mehmetraif/OSD-OS/wiki/The-OSD-OS-Image#osdos-stop)).
 4. **The two folders** (below), and a line in the log for every screen attached: `[main] display index 0: "<name>" 720x480 at (0,0)`.
 5. **`AppCore`**, which finds the modules.
-6. **The objects**, each living as long as the app: the module backends, `DisplayHandoff` (ahead of everything that takes the screen through it, so it outlives them), `MpvController`, `InputManager`, `IdleTracker` (the screen saver), `UpdateManager`, `BootProgress`, `DisplayOutput`, `AudioOutput`, `MenuMusic`, `BluetoothManager`.
+6. **The objects**, each living as long as the app: the module backends, `DisplayHandoff` (ahead of everything that takes the screen through it, so it outlives them), `MpvController`, `InputManager`, `IdleTracker` (the screen saver), `UpdateManager`, `BootProgress`, `DisplayOutput`, `AudioOutput`, `MenuMusic`, `BluetoothManager`, `WifiManager`.
 7. **The wiring** between them: a gamepad's keys to mpv while the window has no focus, a change of sound card to mpv and to the menu music, and a video's end to the menu music.
 8. **Each backend registered** with `AppCore`, then the other objects handed to QML as context properties, the image providers `osdicon` and `osdskin`, and the QML types `VideoSurface`, `VhsNoise` and `SelectorFx` (`import OSDOS.Video`).
 9. **`Main.qml` loaded.** If it fails to load, the app logs `[main] QML engine failed to load Main.qml` and exits with 1.
@@ -115,7 +115,7 @@ All fourteen modules have one: `com.osdos.local_files`, `plex`, `jellyfin`, `emb
 | `inputManager` | Gamepads, remaps, the hints for the foot of each screen |
 | `displayHandoff` | Whether something else has the screen |
 | `audioOutput`, `menuMusic`, `displayOutput`, `bootProgress` | Settings → Audio Output, the menu music, Settings → Display Output, the boot screen |
-| `updateManager`, `bluetoothManager`, `idleTracker` | Settings → Update, Settings → Bluetooth, the screen saver |
+| `updateManager`, `bluetoothManager`, `wifiManager`, `idleTracker` | Settings → Update, Settings → Bluetooth, Settings → Wi-Fi, the screen saver |
 
 ## Main.qml and the screens
 
@@ -523,6 +523,7 @@ OSD/OS logs to its standard output and error: a terminal when you run it by hand
 | `[input]` | Gamepads, remaps, `input.cfg` |
 | `[Scripts]`, `[WebPlayer]`, `[TMDB]` | Scripts, the web players and their catalogue |
 | `[Bluetooth]` | Settings → Bluetooth |
+| `[Wi-Fi]` | Settings → Wi-Fi |
 | `[LocalFiles]`, `[Plex]`, `[Jellyfin]`, `[Emby]`, `[Playlists]`, `[Weather]`, `[NfcReader]`, `[AmbientMode]`, `[Arcade]`, `[HighScores]` | The modules |
 | `[legacy]` | 240-MP's data brought over |
 | `[AtomicFile]` | A file that couldn't be saved |
@@ -546,7 +547,7 @@ What OSD/OS reads from its environment. Each `OSDOS_…` name is also read as `M
 | `OSDOS_EMBEDDED_RENDER` | `sw` keeps Transparent Background's pictures on the CPU; `gpu` takes OpenGL drawn on the CPU too |
 | `OSDOS_UPDATE_FEED_URL` | Where Settings → Update looks for releases |
 | `OSDOS_NFC_SERIAL_DEVICE`, `OSDOS_NFC_DEBUG` | The NFC reader's serial port, when detection can't find it; more about detection in the log |
-| `OSDOS_BOARD_MODEL`, `OSDOS_BOOT_DIR`, `OSDOS_RUN_DIR`, `OSDOS_ASOUND_DIR`, `OSDOS_MOUNTINFO`, `OSDOS_TMDB_URL`, `OSDOS_WIKIDATA_URL` | Stand-ins for tests: the board's model, `/boot/firmware`, `/run`, `/proc/asound`, the mount table, TMDB and Wikidata |
+| `OSDOS_BOARD_MODEL`, `OSDOS_BOOT_DIR`, `OSDOS_RUN_DIR`, `OSDOS_ZONEINFO_DIR`, `OSDOS_ASOUND_DIR`, `OSDOS_MOUNTINFO`, `OSDOS_TMDB_URL`, `OSDOS_WIKIDATA_URL` | Stand-ins for tests: the board's model, `/boot/firmware`, `/run`, `/usr/share/zoneinfo`, `/proc/asound`, the mount table, TMDB and Wikidata |
 
 And what it gives the programs it starts: `APP_ROOT` to mpv and to scripts; on Linux, `FONTCONFIG_FILE` to mpv, so its menus find OSD/OS's fonts; `DATA_ROOT`, `OSDOS_MODE` (`console` or `takeover`) and, for a takeover on a Pi, `OSDOS_VT` to scripts; `ALSA_CARD` to scripts and web players when Settings → Audio Output names a card; on a Pi 5, `SDL_KMSDRM_DEVICE_INDEX` to scripts, the number of the DRM card of the output the display preset names, for SDL programs such as the Arcade module's MAME; and to scripts, the players' pads from Settings → Controls (`OSDOS_PLAYER1_NAME`, `_GUID` and `_DEVICE`, and players 2 to 6's) ([Scripts](https://github.com/mehmetraif/OSD-OS/wiki/Scripts)).
 

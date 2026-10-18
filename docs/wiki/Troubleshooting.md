@@ -104,6 +104,7 @@ qml: Routing to: modules/local_files/views/Root.qml
 | `[AudioOutput]` | Settings → Audio Output | `Sound through <card>` at start and at each change |
 | `[MenuMusic]` | The menu music | What it plays, what it makes into a WAV first, and why a file can't play |
 | `[Bluetooth]` | Settings → Bluetooth | No system bus (D-Bus), the pairing agent, an adapter that wouldn't power on |
+| `[Wi-Fi]` | Settings → Wi-Fi | No system bus, NetworkManager's objects that couldn't be read, a network not joined and why, a country not set and why |
 | `[input]` | Gamepads, keyboards and remotes | SDL ready or failed, controllers added (with their key in `app.controllers`) and removed, `input.cfg` lines ignored (with their line number) and the bindings applied, `gamecontrollerdb.txt` mappings loaded, each keyboard and remote found (Linux) and gone |
 | `[crash]` | A crash (Linux) | The signal it ended by and where it was, as in `crash-report.txt` |
 | `[watchdog]` | Freezes (Linux) | The screens not answering for 5 seconds, the memory, and where the app is stuck; answering again, or the app ending to start again, as in `stall-report.txt` |
@@ -287,7 +288,20 @@ Settings → Bluetooth tries a second time two seconds after BlueZ refuses (blue
 
 ## Wi-Fi on the image
 
-There is no Wi-Fi setting in OSD/OS: the network is NetworkManager's. The boot screen's last line, **ONLINE**, is the check that the network is up; with no network it ends with `[FAIL]` after 20 seconds, and OSD/OS carries on without it.
+Settings → **Wi-Fi** joins a network from the couch: select one and type its password ([Settings → Wi-Fi](https://github.com/mehmetraif/OSD-OS/wiki/Settings#wi-fi)). NetworkManager keeps it and joins it by itself at every start. The boot screen's last line, **ONLINE**, is the check that the network is up; with no network it ends with `[FAIL]` after 20 seconds, and OSD/OS carries on without it.
+
+| What you see | Cause | Fix |
+|---|---|---|
+| No Wi-Fi row in Settings | An image, or an `install.sh` run, from before the version that brought it (launcher level 7), a Mac, or a build without Qt D-Bus | Run `install.sh` again, or use one of the ways below |
+| **No Wi-Fi** on the page | NetworkManager isn't running, or there is no Wi-Fi | `systemctl status NetworkManager`; a USB Wi-Fi stick may want its firmware |
+| Wi-Fi turns on, then goes off again | No country set: Raspberry Pi OS keeps Wi-Fi off until it is | Settings → Wi-Fi → **Country** |
+| **NetworkManager didn't allow it (polkit)** | The polkit rule that lets OSD/OS's user use NetworkManager isn't there | Run `install.sh` again. `ls /etc/polkit-1/rules.d/` should list `50-osdos-networkmanager.rules` |
+| **Couldn't set the country: …** | `osdos-wifi.socket` isn't listening, or raspi-config refused the code | `sudo systemctl enable --now osdos-wifi.socket`; the system log has raspi-config's answer |
+| **wrong password?** | The password, or a network whose password changed | Select it: **New Password**, or Forget it and join it again |
+| **it gave no address (DHCP)** | The router answered but gave no address | Restart the router; check how many devices it lets in |
+| **it is out of reach** | The network isn't heard, or doesn't say its name | Search again, or join it with **Network Not Listed** |
+
+The other ways, as before:
 
 - **Before the first boot**: set Wi-Fi in Raspberry Pi Imager through a local manifest (Imager 2 skips its customisation for an image chosen with **Use custom**), or in `network-config` on the **bootfs** drive ([Installation → Wi-Fi by hand](https://github.com/mehmetraif/OSD-OS/wiki/Installation#wi-fi-by-hand-network-config)). cloud-init reads it on the first boot only.
 - **After the first boot**, from a shell (Exit to Terminal, or SSH over Ethernet): `sudo raspi-config`, or NetworkManager's own tool:
@@ -297,7 +311,7 @@ There is no Wi-Fi setting in OSD/OS: the network is NetworkManager's. The boot s
   ```
 
   Both need `sudo`, so an image built with a password.
-- Wi-Fi stays off until its country is set: Imager's customisation and `network-config`'s `regulatory-domain` set it.
+- Wi-Fi stays off until its country is set: Settings → Wi-Fi, Imager's customisation and `network-config`'s `regulatory-domain` set it.
 
 Settings shows the Pi's IP address at the right end of its title bar once there is one. More in [The OSD/OS image → Wi-Fi](https://github.com/mehmetraif/OSD-OS/wiki/The-OSD-OS-Image#wi-fi).
 

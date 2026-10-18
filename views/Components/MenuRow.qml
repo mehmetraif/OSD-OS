@@ -24,6 +24,10 @@ Item {
     // all the time rather than only while the line is selected: lines that
     // are read rather than chosen (About's).
     property bool alwaysScroll: false
+    // Pixel symbols at the line's end, after the value (PixelIcon's names): a
+    // Wi-Fi network's lock and signal. They take whole cells, a cell before
+    // them, which the value and the dots stop short of.
+    property var icons: []
     property real fontSize: root.sh * 0.05 //24
 
     readonly property color ink: selected ? root.surfaceColor : root.primaryColor
@@ -35,11 +39,15 @@ Item {
     // By the label's drawn width, so a letter from the fallback font, which is
     // not one cell wide, still leaves the dots on the grid and clear of it.
     readonly property int labelCells: Math.ceil(labelText.width / cell - 0.01)
-    // The value ends on the line's last whole cell. One too long for the line
-    // starts two dots after the label instead, and is cut short there.
+    // The value ends on the line's last whole cell, or the last before the
+    // icons. One too long for the line starts two dots after the label
+    // instead, and is cut short there.
     readonly property int lineCells: Math.floor((width - 2 * pad) / cell)
+    readonly property int iconCells: icons.length > 0 ? Math.ceil(iconRow.width / cell - 0.01) + 1 : 0
+    readonly property int endCell: lineCells - iconCells
+    readonly property bool hasEnd: value !== "" || icons.length > 0
     readonly property int valueCells: Math.ceil(valueText.implicitWidth / cell - 0.01)
-    readonly property int valueCell: Math.max(labelCells + 2, lineCells - valueCells)
+    readonly property int valueCell: Math.max(labelCells + 2, endCell - valueCells)
     // How far above the baseline the middle of a capital is: VCR OSD Mono's
     // capitals stand from 100 to 1500 of its 2048 units, and its hyphen sits
     // at their middle, 800.
@@ -62,10 +70,11 @@ Item {
         id: labelText
         x: menuRow.pad
         anchors.verticalCenter: parent.verticalCenter
-        width: menuRow.keepValue && menuRow.value !== ""
-               ? Math.min(implicitWidth, Math.max(1, menuRow.lineCells - menuRow.valueCells - 2) * menuRow.cell)
+        width: menuRow.keepValue && menuRow.hasEnd
+               ? Math.min(implicitWidth, Math.max(1, menuRow.endCell - menuRow.valueCells - 2) * menuRow.cell)
                : implicitWidth
         elide: Text.ElideRight
+        textFormat: Text.PlainText
         text: menuRow.label
         color: menuRow.ink
         font.family: root.globalFont
@@ -77,7 +86,7 @@ Item {
     // level with the middle of the capitals. Drawn rather than typed, since the
     // font has no middle dot of its own.
     Repeater {
-        model: menuRow.value !== "" ? Math.max(0, menuRow.valueCell - menuRow.labelCells) : 0
+        model: menuRow.hasEnd ? Math.max(0, menuRow.valueCell - menuRow.labelCells) : 0
         Rectangle {
             x: Math.round(menuRow.pad + (menuRow.labelCells + index + 0.5) * menuRow.cell - width / 2)
             y: Math.round(labelText.y + labelText.baselineOffset - menuRow.capMiddle - height / 2)
@@ -107,7 +116,7 @@ Item {
         id: valueClip
         visible: menuRow.value !== ""
         x: menuRow.pad + menuRow.valueCell * menuRow.cell
-        width: Math.max(0, menuRow.lineCells - menuRow.valueCell) * menuRow.cell
+        width: Math.max(0, menuRow.endCell - menuRow.valueCell) * menuRow.cell
         height: parent.height
         clip: true
 
@@ -116,6 +125,7 @@ Item {
             anchors.verticalCenter: parent.verticalCenter
             width: menuRow.selected || menuRow.alwaysScroll ? implicitWidth
                                                             : Math.min(implicitWidth, valueClip.width)
+            textFormat: Text.PlainText
             text: menuRow.value
             color: menuRow.ink
             elide: Text.ElideRight
@@ -155,6 +165,25 @@ Item {
             }
             PauseAnimation { duration: 2000 }
             PropertyAction { target: valueText; property: "x"; value: 0 }
+        }
+    }
+
+    // The icons, against the line's end, their middles level with the
+    // capitals' as the dots are.
+    Row {
+        id: iconRow
+        visible: menuRow.icons.length > 0
+        x: Math.round(menuRow.pad + menuRow.lineCells * menuRow.cell - width)
+        y: Math.round(labelText.y + labelText.baselineOffset - menuRow.capMiddle - height / 2)
+        spacing: menuRow.cell
+
+        Repeater {
+            model: menuRow.icons
+            PixelIcon {
+                required property string modelData
+                name: modelData
+                color: menuRow.ink
+            }
         }
     }
 }
