@@ -654,7 +654,7 @@ private slots:
 
         // JAMMA 240p: Metal Slug's 224 lines once each, Pac-Man's 288
         // (a vertical game's width) spread over the screen's 240.
-        arcade.setScreen(QStringLiteral("jamma-240p"), QSize(720, 240));
+        arcade.setScreen(true, QSize(720, 240));
         QVERIFY(args("mslug").endsWith(QStringLiteral(" -aspect 4:3 -nounevenstretch -unevenstretchx")));
         QVERIFY(args("pacman").endsWith(QStringLiteral(" -aspect 4:3")));
         // A game MAME gives no size of: the shape only.
@@ -664,23 +664,22 @@ private slots:
 
         // HDMI: square pixels, the picture spread; the settings over it.
         arcade.onSettingChanged(module, QStringLiteral("integer_scale"), QStringLiteral("Auto"));
-        arcade.setScreen(QStringLiteral("hdmi"), QSize(1920, 1080));
+        arcade.setScreen(false, QSize(1920, 1080));
         QString line = args("pacman");
         QVERIFY2(!line.contains(QStringLiteral("-aspect")) && !line.contains(QStringLiteral("stretch")), qPrintable(line));
         arcade.onSettingChanged(module, QStringLiteral("integer_scale"), QStringLiteral("On"));
         arcade.onSettingChanged(module, QStringLiteral("screen_shape"), QStringLiteral("16:9"));
         QVERIFY(args("pacman").endsWith(QStringLiteral(" -aspect 16:9 -nounevenstretch -unevenstretchx")));
 
-        // Off the image, a TV's lines (a Pi's composite out) are a tube's,
-        // and Square Pixels says otherwise.
+        // Composite's tube, 480 lines, and Square Pixels saying otherwise.
         arcade.onSettingChanged(module, QStringLiteral("integer_scale"), QStringLiteral("Auto"));
         arcade.onSettingChanged(module, QStringLiteral("screen_shape"), QStringLiteral("Auto"));
-        arcade.setScreen(QString(), QSize(720, 480));
+        arcade.setScreen(true, QSize(720, 480));
         QVERIFY(args("mslug").endsWith(QStringLiteral(" -aspect 4:3 -nounevenstretch -unevenstretchx")));
         arcade.onSettingChanged(module, QStringLiteral("screen_shape"), QStringLiteral("Square Pixels"));
         QVERIFY(args("mslug").endsWith(QStringLiteral(" -nounevenstretch -unevenstretchx")));
         QVERIFY(!args("mslug").contains(QStringLiteral("-aspect")));
-        arcade.setScreen(QString(), QSize(1920, 1080));
+        arcade.setScreen(false, QSize(1920, 1080));
         arcade.onSettingChanged(module, QStringLiteral("screen_shape"), QStringLiteral("Auto"));
         line = args("mslug");
         QVERIFY2(!line.contains(QStringLiteral("-aspect")) && !line.contains(QStringLiteral("stretch")), qPrintable(line));
@@ -1098,7 +1097,7 @@ private slots:
         QFile::remove(m_log);
         // JAMMA 240p: Street Fighter II's 4:3 as wide as the screen's
         // pixels are narrow, its lines whole.
-        arcade.setScreen(QStringLiteral("jamma-240p"), QSize(720, 240));
+        arcade.setScreen(true, QSize(720, 240));
         QVariantList end = played(arcade, QStringLiteral("sf2"));
         QCOMPARE(end.value(1).toString(), QStringLiteral("ok"));
         const QString home = data.path() + QStringLiteral("/arcade/retroarch");
@@ -1192,7 +1191,7 @@ private slots:
         // Galaga is vertical (3:4): its picture as narrow on the tube.
         QVERIFY(QString::fromUtf8(contents(configCopy)).contains(QStringLiteral("video_aspect_ratio = \"1.687500\"")));
         // On HDMI, the core's shape on square pixels.
-        arcade.setScreen(QStringLiteral("hdmi"), QSize(1920, 1080));
+        arcade.setScreen(false, QSize(1920, 1080));
         played(arcade, QStringLiteral("galaga"));
         config = QString::fromUtf8(contents(configCopy));
         QVERIFY(!config.contains(QStringLiteral("aspect_ratio_index")));

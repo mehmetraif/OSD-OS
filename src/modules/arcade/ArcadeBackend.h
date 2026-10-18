@@ -102,14 +102,12 @@ public:
                            DisplayHandoff *handoff, QObject *parent = nullptr);
     ~ArcadeBackend() override;
 
-    // The screen the games play on, as OSD/OS has it: the display preset in
-    // force (Settings → Display Output's; "" off the OSD/OS image, or for a
-    // config.txt of the user's own) and its size in pixels. Emulator Video's
-    // Auto goes by it: on a tube's (a CRT's preset, or off the image a
-    // screen of a TV's lines) MAME and RetroArch are told it is 4:3,
+    // The screen the games play on, as OSD/OS has it: a TV's tube or not
+    // (DisplayOutput::isTube()), and its size in pixels. Emulator Video's
+    // Auto goes by it: on a tube MAME and RetroArch are told it is 4:3,
     // whatever its pixels are, and draw a game's lines whole where they fit
     // (mame::screenArguments(), libretro::viewportAspect()).
-    void setScreen(const QString &preset, const QSize &size);
+    void setScreen(bool tube, const QSize &size);
 
     // Where the games are: the module's Games Folder, else Games/Arcade in
     // Local Files' default media folder (on the image, the card's OSD-OS
@@ -428,8 +426,6 @@ private:
     QString ownFolder() const;
     QString noticeFor(int exitCode, const QString &reason) const;
     QString fbneoNotice(int exitCode, const QString &reason, const libretro::Run &run) const;
-    // The screen is a tube's (setScreen()).
-    bool onTube() const;
     // Emulator Video → Screen Shape as it stands: "4:3" or "16:9", Auto a
     // tube's 4:3; "" for square pixels, the screen's own. Integer Scale:
     // On, Off, Auto on a tube.
@@ -478,7 +474,7 @@ private:
     QString m_video;              // "" for MAME's own (mame.ini's)
     QString m_screenShape;        // Emulator Video: "4:3", "16:9", "Square Pixels"; "" for Auto
     QString m_integerScale;       // "On", "Off"; "" for Auto
-    QString m_screenPreset;       // setScreen()'s
+    bool    m_tube = false;       // setScreen()'s
     QSize   m_screenSize;
     QVariantMap m_menuFilters;    // Menu Filters: filter id → shown
     bool    m_achievements = false;   // Online High Scores: RetroAchievements

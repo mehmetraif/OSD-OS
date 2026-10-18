@@ -296,6 +296,15 @@ void DisplayOutput::dismissNotice() {
     emit changed();
 }
 
+bool DisplayOutput::isTube(const QString &preset, const QSize &size) {
+    if (size.isEmpty() || size.height() > 576)
+        return false;
+    if (!preset.isEmpty())
+        return preset != QLatin1String("hdmi");
+    return (size.height() <= 288 && size.width() >= 2 * size.height())
+        || (size.width() == 720 && (size.height() == 480 || size.height() == 576));
+}
+
 bool DisplayOutput::offered(const QString &id) const {
     return std::any_of(m_options.cbegin(), m_options.cend(), [&](const QVariant &o) {
         return o.toMap().value(QStringLiteral("id")).toString() == id;

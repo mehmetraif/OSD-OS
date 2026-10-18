@@ -153,6 +153,12 @@ public:
     // index 0 (the default) adds no mpv args at all. Desktop launches only —
     // the headless VT-handoff path is unaffected.
     void setTargetDisplay(int index, const QString &screenName);
+    // That display: whether it is a TV's tube (DisplayOutput::isTube()),
+    // which shows the picture 4:3 whatever its mode's pixels, and its size in
+    // pixels. mpv is told a tube's shape, and Logo Image is made for the
+    // screen a process draws on (sessionArgs()). main.cpp calls this once at
+    // startup.
+    void setScreen(bool tube, const QSize &size);
 
 signals:
     void positionChanged(int ms);
@@ -319,6 +325,8 @@ private:
     bool          m_headlessMode = false;
     int           m_displayIndex = 0;   // see setTargetDisplay()
     QString       m_displayScreenName;
+    bool          m_tubeScreen   = false;   // see setScreen()
+    QSize         m_screenSize;             // in pixels; see setScreen()
     int           m_previousVt   = -1;
     bool          m_hasMpvOscScript     = false;
     bool          m_hasAmbientOscScript = false;

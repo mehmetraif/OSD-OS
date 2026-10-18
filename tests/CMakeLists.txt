@@ -101,6 +101,7 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
         playback_retire_test.cpp
         ../src/player/MpvController.cpp
         ../src/player/EmbeddedMpv.cpp
+        ../src/player/VideoSurface.cpp
         ../src/util/Diagnostics.cpp
         ../src/AppCore.cpp
         ../src/audio/AudioOutput.cpp

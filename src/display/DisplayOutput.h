@@ -1,5 +1,6 @@
 #pragma once
 #include <QObject>
+#include <QSize>
 #include <QString>
 #include <QVariantList>
 
@@ -78,6 +79,18 @@ public:
     // The output before it, back: the app exits as for apply().
     Q_INVOKABLE void revert();
     Q_INVOKABLE void dismissNotice();
+
+    // Whether the screen, this many pixels on this preset (current(): "" off
+    // the image, or for a config.txt of the user's own), is a TV's tube,
+    // which shows the picture 4:3 whatever its mode: then its pixels aren't
+    // square. No tube has more than 576 lines: a screen with more is another
+    // (the first display connected, which a Pi 5 takes when the preset's
+    // output never comes up). Every preset but HDMI's is a CRT's. Without
+    // one, a mode of a TV's is: 288 lines or fewer, at least twice as many
+    // pixels wide (720×240, 1920×240, 720×288), or 480 or 576 of 720 pixels
+    // (a Pi's composite out); not a small square-pixel panel's, 480×272 or
+    // 800×480.
+    static bool isTube(const QString &preset, const QSize &size);
 
 signals:
     void changed();

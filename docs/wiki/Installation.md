@@ -466,11 +466,13 @@ osdos
 
 #### On a CRT: picture and sound
 
-- **A picture slightly squeezed or stretched.** mpv assumes square pixels, which a CRT's aren't. Create `~/.config/mpv/mpv.conf` (for the user OSD/OS runs as) with the line below, and tune the number against a 4:3 test pattern; [pixel aspect ratio](https://en.wikipedia.org/wiki/Pixel_aspect_ratio#Introduction) has the values for NTSC and PAL:
+- **A picture slightly squeezed or stretched.** On a CRT's display output (or off the image, a TV's mode: 288 lines or fewer at least twice as many pixels wide, or 720×480 or 720×576) OSD/OS tells mpv the screen is 4:3, whose pixels aren't square. A tube whose picture still isn't quite right can have its shape tuned in `~/.config/mpv/mpv.conf` (for the user OSD/OS runs as) against a 4:3 test pattern: start from OSD/OS's 4:3 and raise or lower it until a circle is round. A line there takes the place of OSD/OS's 4:3:
 
   ```ini
-  monitorpixelaspect=0.888889
+  monitoraspect=1.333
   ```
+
+  `monitoraspect` is the screen's shape, the same in every mode; `monitorpixelaspect` is a pixel's, which changes with the mode ([pixel aspect ratio](https://en.wikipedia.org/wiki/Pixel_aspect_ratio#Introduction)). A `monitorpixelaspect=0.888889` line from earlier advice is only right for 720×480: remove it, and OSD/OS gives mpv the screen's shape itself.
 
 - **Composite sound unusually quiet:** `amixer sset PCM 100%`, and `sudo alsactl store` to keep the level across reboots.
 - **No sound at all:** Settings → Audio Output picks the sound card (the AV jack, HDMI or a USB card) where plain ALSA plays, as on Raspberry Pi OS Lite. [Audio Output](https://github.com/mehmetraif/OSD-OS/wiki/Audio-Output) also covers choosing it for the whole system.

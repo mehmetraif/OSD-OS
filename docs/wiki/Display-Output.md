@@ -767,7 +767,7 @@ What owners of Crown Arcade's board report, in [its thread on Arcade-Projects](h
 
 A CRT draws its picture a little larger than its glass, so the edges hide under the bezel: overscan. Every TV hides a different amount. The image sets `disable_overscan=1`, so the firmware adds no black borders of its own and OSD/OS gets the whole mode. OSD/OS then keeps everything that matters well inside the edges, the way TV graphics keep to a title-safe area:
 
-- **Everything is sized from the screen**, never in fixed pixels: `root.sw` and `root.sh` are the screen's width and height, and `root.px`, one pixel of a 240-line picture (`sh / 240`), is the unit the pixel-drawn pieces are built on. The same layout fits 480i, 576i and 1080p.
+- **Everything is sized from the screen**, never in fixed pixels: `root.sw` and `root.sh` are the screen's width and height (on a tube, the width of its 4:3 stage, as below), and `root.px`, one pixel of a 240-line picture (`sh / 240`), is the unit the pixel-drawn pieces are built on. The same layout fits 480i, 576i and 1080p.
 - **The content box**, where every view lays out its content, runs from 74 to 566 across and 57 to 430 down at 640×480: about 11.6 % in from each side and 11.9 % from the top, ending 10.4 % above the bottom. The title bar starts 12.5 % in from the top and the left, and every hint bar ends 10.4 % above the bottom.
 - **The channel logo** mpv draws on a video stands 10 % of the picture in from its corner, inside a CRT's safe area.
 - **A video** fills the whole screen, as a broadcast does, and its edges go under the bezel like one.
@@ -775,7 +775,8 @@ A CRT draws its picture a little larger than its glass, so the edges hide under 
 From [`Main.qml`](https://github.com/mehmetraif/OSD-OS/blob/main/Main.qml):
 
 ```qml
-readonly property real sw: width
+readonly property bool tube: typeof screenIsTube !== "undefined" && screenIsTube === true
+readonly property real sw: tube ? Math.round(height * 4 / 3) : width
 readonly property real sh: height
 // One pixel of a 240-line picture, in screen pixels: the unit the
 // pixel-drawn OSD elements (Components/Osd*, PixelIcon) are built on.
@@ -788,13 +789,15 @@ readonly property rect contentBox: Qt.rect(sw * 0.115625, sh * 0.11875, sw * 0.7
 
 A module of your own should do the same: [Writing a module](https://github.com/mehmetraif/OSD-OS/wiki/Writing-a-Module).
 
-**A picture a little squeezed or stretched.** mpv assumes square pixels, and a CRT's aren't quite. [INSTALL.md](https://github.com/mehmetraif/OSD-OS/blob/main/INSTALL.md) suggests telling mpv the pixel shape in `~/.config/mpv/mpv.conf` (on the image, `/home/pi/.config/mpv/mpv.conf`):
+**The picture's shape on a CRT.** A CRT's display mode doesn't have square pixels: JAMMA 240p is 720×240 on a 4:3 tube, its pixels more than twice as tall as they are wide, and composite's 720×480 a little taller. On every output but HDMI, OSD/OS draws for the tube's 4:3: the menus on a 4:3 stage stretched across the screen, the videos with mpv told the screen is 4:3 (`--monitoraspect=4:3`, or, inside OSD/OS with Transparent Background, drawn in that shape), and the arcade games through Emulator Video's Auto ([Arcade](https://github.com/mehmetraif/OSD-OS/wiki/Arcade)). Off the image, a TV's mode counts as a tube: 288 lines or fewer, at least twice as many pixels wide (720×240, 1920×240, 720×288), or 480 or 576 lines 720 wide. A screen of more lines than 576 never does: a Pi 5 whose preset's output never comes up starts on the first display connected, HDMI, and draws for its square pixels.
+
+A tube whose picture still looks a little squeezed or stretched (its overscan, or a Pi 5 on composite that reports a narrower raster, 704×432 instead of 720×480) can have the videos' shape tuned in `~/.config/mpv/mpv.conf` (on the image, `/home/pi/.config/mpv/mpv.conf`): a line there takes the place of OSD/OS's 4:3. Start from 4:3's 1.333 and raise or lower it until a circle in a 4:3 test pattern played from Local Files is round:
 
 ```ini
-monitorpixelaspect=0.888889
+monitoraspect=1.333
 ```
 
-Tune the value against a 4:3 test pattern played from Local Files. A Pi 5 on composite sometimes reports a narrower raster (704×432 instead of 720×480), which the same line can make up for. mpv.conf applies to videos played by an mpv process, not to those played inside OSD/OS with Transparent Background ([Playback and mpv](https://github.com/mehmetraif/OSD-OS/wiki/Playback-and-mpv)).
+mpv.conf applies to videos played by an mpv process, not to those played inside OSD/OS with Transparent Background ([Playback and mpv](https://github.com/mehmetraif/OSD-OS/wiki/Playback-and-mpv)).
 
 ## Doing it by hand
 

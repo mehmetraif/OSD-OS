@@ -277,6 +277,25 @@ private slots:
         QCOMPARE(state().value(QStringLiteral("from")).toString(), QStringLiteral("HDMI"));
         QCOMPARE(state().value(QStringLiteral("to")).toString(), QStringLiteral("jamma-240p"));
     }
+
+    // A tube, whose pixels aren't square: every preset but HDMI's, whatever
+    // its mode, on a screen of a tube's lines (not the HDMI screen a Pi 5
+    // falls back to); without one, a TV's modes and not a small panel's.
+    void tubes() {
+        QVERIFY(DisplayOutput::isTube(QStringLiteral("jamma-240p"), QSize(720, 240)));
+        QVERIFY(DisplayOutput::isTube(QStringLiteral("crt-pal"), QSize(720, 576)));
+        QVERIFY(!DisplayOutput::isTube(QStringLiteral("crt-ntsc"), QSize(1920, 1080)));
+        QVERIFY(!DisplayOutput::isTube(QStringLiteral("hdmi"), QSize(720, 480)));
+        QVERIFY(!DisplayOutput::isTube(QStringLiteral("hdmi"), QSize(1920, 1080)));
+        QVERIFY(DisplayOutput::isTube(QString(), QSize(720, 480)));
+        QVERIFY(DisplayOutput::isTube(QString(), QSize(720, 576)));
+        QVERIFY(DisplayOutput::isTube(QString(), QSize(720, 240)));
+        QVERIFY(DisplayOutput::isTube(QString(), QSize(1920, 240)));
+        QVERIFY(!DisplayOutput::isTube(QString(), QSize(480, 272)));
+        QVERIFY(!DisplayOutput::isTube(QString(), QSize(800, 480)));
+        QVERIFY(!DisplayOutput::isTube(QString(), QSize(1920, 1080)));
+        QVERIFY(!DisplayOutput::isTube(QStringLiteral("jamma-240p"), QSize()));
+    }
 };
 
 QTEST_GUILESS_MAIN(DisplayOutputTest)

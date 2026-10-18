@@ -1525,20 +1525,9 @@ bool ArcadeBackend::play(const QString &name, int credits) {
     return true;
 }
 
-void ArcadeBackend::setScreen(const QString &preset, const QSize &size) {
-    m_screenPreset = preset;
+void ArcadeBackend::setScreen(bool tube, const QSize &size) {
+    m_tube = tube;
     m_screenSize = size;
-}
-
-bool ArcadeBackend::onTube() const {
-    if (!m_screenSize.isValid())
-        return false;
-    // HDMI's preset is the one that isn't a CRT's.
-    if (!m_screenPreset.isEmpty())
-        return m_screenPreset != QLatin1String("hdmi");
-    // Off the image: a TV's lines, 576 at most (720×480 from a Pi's
-    // composite out), are a tube's.
-    return m_screenSize.height() <= 576;
 }
 
 QString ArcadeBackend::screenShape() const {
@@ -1546,13 +1535,13 @@ QString ArcadeBackend::screenShape() const {
         return QString();
     if (!m_screenShape.isEmpty())
         return m_screenShape;
-    return onTube() ? QStringLiteral("4:3") : QString();
+    return m_tube ? QStringLiteral("4:3") : QString();
 }
 
 bool ArcadeBackend::integerScale() const {
     if (!m_integerScale.isEmpty())
         return m_integerScale == QLatin1String("On");
-    return onTube();
+    return m_tube;
 }
 
 double ArcadeBackend::gameAspect(const QString &set) const {

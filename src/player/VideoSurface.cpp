@@ -26,6 +26,21 @@ void VideoSurface::setController(QObject *controller) {
     emit controllerChanged();
 }
 
+void VideoSurface::setPixelAspect(qreal aspect) {
+    if (aspect <= 0 || qFuzzyCompare(aspect, m_pixelAspect))
+        return;
+    m_pixelAspect = aspect;
+    reportSize();
+    emit pixelAspectChanged();
+}
+
+QSize VideoSurface::drawingSize(const QSize &pixels, qreal pixelAspect) {
+    if (pixels.isEmpty() || pixelAspect <= 0 || qFuzzyCompare(pixelAspect, 1.0))
+        return pixels;
+    const int lines = pixels.height() * (pixels.height() <= 288 ? 2 : 1);
+    return QSize(qRound(lines * pixels.width() * pixelAspect / pixels.height()), lines);
+}
+
 QSGNode *VideoSurface::updatePaintNode(QSGNode *old, UpdatePaintNodeData *) {
     // The GUI thread waits while this runs, so the controller can be asked.
     auto *node = static_cast<QSGSimpleTextureNode *>(old);
@@ -81,5 +96,6 @@ void VideoSurface::reportSize() {
     if (!m_controller || !window() || width() <= 0 || height() <= 0)
         return;
     const qreal dpr = window()->effectiveDevicePixelRatio();
-    m_controller->setVideoTargetSize(QSize(qRound(width() * dpr), qRound(height() * dpr)));
+    m_controller->setVideoTargetSize(drawingSize(QSize(qRound(width() * dpr), qRound(height() * dpr)),
+                                                 m_pixelAspect));
 }

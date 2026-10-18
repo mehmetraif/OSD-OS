@@ -258,7 +258,7 @@ Every flag mpv gets belongs to one of five layers. On mpv's command line a later
 | Per video | `--start`, `--playlist-start`, `--aid`, `--sid` and the subtitle flags, `--sub-file`, `--slang`, `--script-opts`, `--loop-playlist`, `--shuffle`, `--image-display-duration`, `--no-audio`, `--ytdl`, and a module's own (`--ytdl-format`, `--http-header-fields`, `--speed` …) | The player, from its module's settings |
 | Presentation | `--audio-device` (Audio Output), `--panscan` or `--keepaspect` (Scaling, the app's or the module's), `--video-output-levels` (Video Levels) | You, in Settings |
 | Device decode | `--vo`, `--gpu-context`, `--hwdec`, `--drm-device`, `--drm-connector`, `--drm-mode` | OSD/OS by device; you, with `mpv_video_args` |
-| Your preferences | Anything else: `deinterlace`, `cache`, `sub-scale`, `monitorpixelaspect`, profiles … | You, in `~/.config/mpv/mpv.conf` (the process only) |
+| Your preferences | Anything else: `deinterlace`, `cache`, `sub-scale`, `monitoraspect`, profiles … | You, in `~/.config/mpv/mpv.conf` (the process only) |
 
 - **A setting at its default adds nothing**: Scaling on Letterbox, Video Levels on Auto, Audio Output on Auto. So a `video-output-levels=`, `panscan=` or `audio-device=` line in `mpv.conf` still applies then; choosing another value in Settings puts it on the command line, where it wins.
 - **The order on the command line**: the app constants, the per-video flags, Audio Output, `--ytdl=no`, the module's flags, the tokens, Scaling, Video Levels, then (the process only) `--input-conf`, `--video-sync`, the window flags, the device decode flags and `--no-input-terminal`, and last `--` with what plays. So `mpv_video_args`, near the end, wins over everything before it.
@@ -399,8 +399,9 @@ OSD/OS doesn't start mpv with `--no-config`, so an mpv process reads your `~/.co
 A `mpv.conf` with options that work with OSD/OS:
 
 ```ini
-# A CRT's pixels aren't square: correct the picture's shape (see Troubleshooting below).
-monitorpixelaspect=0.888889
+# A tube whose picture isn't quite 4:3 (see Troubleshooting below): the
+# screen's shape, in place of the 4:3 OSD/OS gives mpv on a CRT's output.
+monitoraspect=1.36
 
 # Subtitles a little larger, for a TV across the room.
 sub-scale=1.2
@@ -481,7 +482,7 @@ MPV_BIN=$(scripts/build-mpv.sh)
 
 ### The picture is squeezed or stretched
 
-- A CRT's pixels aren't square, and mpv assumes they are: add `monitorpixelaspect=0.888889` to `mpv.conf` and adjust it with a 4:3 test pattern ([Installation](https://github.com/mehmetraif/OSD-OS/wiki/Installation)). A Pi 5's composite output sometimes reports a narrow raster (704×432 rather than 720×480), which the same setting can make up for.
+- A CRT's pixels aren't square: on a CRT's display output OSD/OS tells mpv the screen is 4:3 (`--monitoraspect=4:3`), and draws a video played inside it (Transparent Background) in that shape. A tube whose picture still isn't quite right takes `monitoraspect` or `monitorpixelaspect` from `mpv.conf` in its place: adjust it with a 4:3 test pattern ([Installation](https://github.com/mehmetraif/OSD-OS/wiki/Installation)). A Pi 5's composite output sometimes reports a narrow raster (704×432 rather than 720×480), which the same setting can make up for.
 - Anamorphic squeezes on purpose, for a TV set to 16:9: choose another Scaling.
 
 ### Washed-out or crushed colours
