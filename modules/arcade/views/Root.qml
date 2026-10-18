@@ -15,12 +15,13 @@ FocusScope {
     property string moduleName: _moduleInfo.name || ""
     property string moduleIcon: _moduleInfo.icon || ""
 
-    // Settings → Arcade's, as the module opens. Screen: "Original", the tree
-    // (Games.qml), or "Arcade", the selection screen (ArcadeScreen.qml),
-    // whose own are its Hint Bar and Help Line, the filter it opens on, how
-    // its list lies, its column's frames and ground. Start Info Screen is
-    // both's: how to come back, before a game.
-    property string screen: "Original"
+    // Settings → Arcade's, as the module opens. Screen: "Arcade", the
+    // selection screen (ArcadeScreen.qml), unless it is set to "Original",
+    // the tree (Games.qml). The selection screen's own are its Hint Bar and
+    // Help Line, the filter it opens on, how its list lies, its column's
+    // frames and ground. Start Info Screen is both's: how to come back,
+    // before a game.
+    property string screen: "Arcade"
     readonly property bool arcadeScreen: screen === "Arcade"
     property bool hintBar: true
     property bool helpLine: true
@@ -207,7 +208,7 @@ FocusScope {
     Component.onCompleted: {
         var settings = appCore ? appCore.get_settings() : {}
         var own = (settings.modules && settings.modules[moduleId]) || {}
-        screen = own.screen === "Arcade" ? "Arcade" : "Original"
+        screen = own.screen === "Original" ? "Original" : "Arcade"
         hintBar = isOn(own.hint_bar)
         helpLine = isOn(own.help_line)
         startInfo = isOn(own.start_info)

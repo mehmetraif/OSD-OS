@@ -37,14 +37,14 @@ ROM sets are copyrighted, like the games on them: use the games you are entitled
 
 | Screen | What it is |
 |---|---|
-| **Original** (the default) | OSD/OS's own tree, as the other modules have: Recently Played, Favorites, Search, All Games, and the games by players, decade and maker ([below](#the-original-screen)) |
-| **Arcade** | A cabinet's selection screen: one filter's games at a time, straight, on an arc or on a wheel, with the selected one's picture, high scores and details beside them; ◄ ► go through the filters, COIN buys credits and select or START plays ([below](#the-arcade-screen)) |
+| **Original** | OSD/OS's own tree, as the other modules have: Recently Played, Favorites, Search, All Games, and the games by players, decade and maker ([below](#the-original-screen)) |
+| **Arcade** (the default) | A cabinet's selection screen: one filter's games at a time, straight, on an arc or on a wheel, with the selected one's picture, high scores and details beside them; ◄ ► go through the filters, COIN buys credits and select or START plays ([below](#the-arcade-screen)) |
 
 Both list the same games from the same folder, share Recently Played and Favorites, and play a game the same way. Start Filter, Menu Filters, List Style, Border, Info Background, Screen Adjustment, Hint Bar and Help Line are the Arcade screen's own settings, so Settings → Arcade shows them only while Screen is Arcade. Its look is Settings' own, as every screen's is: its theme, colors, skin, background, selector effect and transitions.
 
 ## The original screen
 
-**Arcade** opens on a tree, which works as Local Files' does ([The tree](https://github.com/mehmetraif/OSD-OS/wiki/Local-Files#the-tree)): up and down move, right or select opens a folder, left or back closes it, and back at the top leaves the module.
+With **Settings → Arcade → Screen** on **Original**, Arcade opens on a tree, which works as Local Files' does ([The tree](https://github.com/mehmetraif/OSD-OS/wiki/Local-Files#the-tree)): up and down move, right or select opens a folder, left or back closes it, and back at the top leaves the module.
 
 | Folder | What it holds |
 |---|---|
@@ -331,7 +331,7 @@ Settings → Arcade.
 |---|---|---|---|---|
 | Enabled | ON, OFF | OFF | Shows Arcade on the main menu | `modules.com.osdos.arcade.enabled` |
 | Games Folder | Default, or a folder | Default | The folder of ROM sets. Default: `Games/Arcade` in Local Files' default folder, on the OSD/OS image `/media/OSD-OS/Games/Arcade` | `modules.com.osdos.arcade.games_directory` |
-| Screen | Original, Arcade | Original | How the games are listed, from the next time Arcade opens: the tree, or the Arcade screen ([Two screens](#two-screens)) | `modules.com.osdos.arcade.screen` |
+| Screen | Original, Arcade | Arcade | How the games are listed, from the next time Arcade opens: the tree, or the Arcade screen ([Two screens](#two-screens)) | `modules.com.osdos.arcade.screen` |
 | Start Filter | All Games, then the lists, genres, players, decades and publishers Menu Filters shows | All Games | The filter the Arcade screen opens on ([Filters](#filters)); while it has no games, the first that has. Shown while Screen is Arcade | `modules.com.osdos.arcade.start_filter` |
 | Menu Filters | A page of the filters under their headings, each ON or OFF | All on, the publishers off | The filters ◄ ► goes round on the Arcade screen ([Menu Filters](#menu-filters)). Shown while Screen is Arcade | `modules.com.osdos.arcade.menu_filters` |
 | Play at Startup | None, then the favorites | None | A favorite game started straight after the boot screen, as a game's options set it ([A game's options](#a-games-options)). One for the whole app: choosing a game replaces another module's | `modules.com.osdos.arcade.play_at_startup` |

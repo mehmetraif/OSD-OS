@@ -1474,6 +1474,25 @@ Rectangle {
             }
             return null
         }
+        // The file of the view it shows.
+        function shownFile(router) {
+            for (var i = 0; i < router.children.length; ++i) {
+                if (router.children[i].source !== undefined)
+                    return String(router.children[i].source).replace(/.*\//, "")
+            }
+            return ""
+        }
+
+        // Screen unset, the module opens on the Arcade screen; set to
+        // Original, on the tree.
+        function test_rootScreen() {
+            var router = openRoot({})
+            verify(router.arcadeScreen)
+            compare(shownFile(router), "ArcadeScreen.qml")
+            router = openRoot({ screen: "Original" })
+            verify(!router.arcadeScreen)
+            compare(shownFile(router), "Games.qml")
+        }
 
         // Start Info Screen off: select plays the game straight from the
         // list, on Recently Played, with the credits bought. While it runs,
@@ -1513,7 +1532,8 @@ Rectangle {
             // The original screen's tree too.
             loader.source = ""
             arcadeBackend.started = []
-            router = openRoot({ start_info: false })
+            router = openRoot({ screen: "Original", start_info: false })
+            compare(shownFile(router), "Games.qml")
             var games = shown(router)
             keyClick(Qt.Key_Down)
             keyClick(Qt.Key_Down)

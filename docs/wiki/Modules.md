@@ -63,7 +63,7 @@ The rest of that screen is the module's own settings: each module's page lists t
 
 ## What the modules share
 
-- **One way to browse.** Local Files, YouTube, Netflix, Prime Video and Arcade open as the same horizontal tree, starting with Recently Watched (Recently Played in Arcade), Favorites and Search. [Using OSD/OS](https://github.com/mehmetraif/OSD-OS/wiki/Using-OSD-OS) shows it.
+- **One way to browse.** Local Files, YouTube, Netflix and Prime Video open as the same horizontal tree, and so does Arcade on its Original screen, starting with Recently Watched (Recently Played in Arcade), Favorites and Search. [Using OSD/OS](https://github.com/mehmetraif/OSD-OS/wiki/Using-OSD-OS) shows it.
 - **Options with ►** on an entry: Add to Favorites, Play at Startup, Add to Playlist, where the module has them.
 - **One player.** Every video but Netflix's and Prime Video's plays through mpv, with the tape loading screen while it starts; a Local Files, YouTube or Playlists video has a menu of its own on back. [Playback and mpv](https://github.com/mehmetraif/OSD-OS/wiki/Playback-and-mpv) covers it.
 - **Scaling** for 16:9 pictures on a 4:3 screen, set for every module in Settings, or for one in its own settings.
