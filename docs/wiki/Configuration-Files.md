@@ -172,7 +172,7 @@ A key is written only once its setting has been changed: one that isn't there ha
 
 ### A complete example
 
-The `config.json` of an OSD/OS image on a Pi 4 that has been used for a while: a theme with its selector effect turned off, its own MIDI file as menu music, a window with a shadow, a favourite played at startup, Transparent Background at 40, the logo bottom right, the AV jack chosen for sound, and an air mouse's clicks added as Select and Back in Controls. Local Files, YouTube and Plex are set up. The Plex ids are examples of their shape.
+The `config.json` of an OSD/OS image on a Pi 4 that has been used for a while: a theme with its selector effect turned off, its own MIDI file as menu music, a window with a shadow, a favourite played at startup, Transparent Background at 40, the logo bottom right, the AV jack chosen for sound, and a remote's Home button added as Back in Controls. Local Files, YouTube and Plex are set up. The Plex ids are examples of their shape.
 
 ```json
 {
@@ -197,11 +197,11 @@ The `config.json` of an OSD/OS image on a Pi 4 that has been used for a while: a
         "osd_frame": "Shadow",
         "osd_theme": "trinitron",
         "remote_keymap": {
-            "back": 50331650,
+            "back": 33554604,
             "down": 0,
             "left": 0,
             "right": 0,
-            "select": 50331649,
+            "select": 0,
             "up": 0
         },
         "screen_effect": "",

@@ -341,6 +341,9 @@ int main(int argc, char *argv[]) {
     // the QML focus item even when another window (mpv) holds OS focus.
     QQuickWindow *rootWindow = qobject_cast<QQuickWindow *>(engine.rootObjects().first());
     inputManager.setTargetWindow(rootWindow);
+    // Without a desktop a mouse is most likely an air-mouse remote, whose OK
+    // is a left click: there the clicks are Select / OK and Back.
+    inputManager.setClickActions(QGuiApplication::platformName() == QLatin1String("eglfs"));
 
     // On the OS image the services held back for the app start once its first
     // frame is on screen. The timer is a backstop for a platform whose window

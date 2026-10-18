@@ -223,9 +223,9 @@ It plays nothing, and prints each pin as it changes, with what the mapping makes
 
 ## Remotes
 
-- **Remotes that type keys.** Most USB remotes, and the 2.4 GHz ones with a USB dongle, present themselves as a keyboard: their arrows, OK and Back arrive as keys, and work as the keyboard's do. Bluetooth remotes are paired in [Settings → Bluetooth](https://github.com/mehmetraif/OSD-OS/wiki/Controls#bluetooth) and then work the same way. What a button sends depends on the remote: if one does nothing, give it an action in Settings → Controls, on the remote's own page or under All Keyboards & Remotes.
-- **Consumer Control buttons.** Some remotes send their extra buttons (Home, Back, Menu, the colored buttons, zoom, the media buttons) from a second device of their own, named "Consumer Control", beside the keyboard one. Without a desktop, as on the Pi, those buttons never reach OSD/OS as keys. So on Linux OSD/OS reads every such device itself, as it comes and goes, and its buttons do something only once you give them an action in Settings → Controls, on the remote's own page or under All Keyboards & Remotes.
-- **Air mice.** Some remotes are a mouse, their OK a left click. Give the click an action in Settings → Controls → All Keyboards & Remotes (Select, say).
+- **Remotes that type keys.** Most USB remotes, and the 2.4 GHz ones with a USB dongle, present themselves as a keyboard: their arrows, OK and Back arrive as keys, and work as the keyboard's do. An OK that arrives as keypad Enter, or as a Select or OK key, is Select / OK as Enter is. Bluetooth remotes are paired in [Settings → Bluetooth](https://github.com/mehmetraif/OSD-OS/wiki/Controls#bluetooth) and then work the same way. What a button sends depends on the remote: if one does nothing, give it an action in Settings → Controls, on the remote's own page or under All Keyboards & Remotes.
+- **Consumer Control buttons.** Some remotes send their extra buttons (Home, Back, Menu, the colored buttons, zoom, the media buttons) from a second device of their own, named "Consumer Control", beside the keyboard one. On Linux OSD/OS reads every such device itself, as it comes and goes: its OK and Select buttons are Select / OK, and its other buttons do what you give them in Settings → Controls, on the remote's own page or under All Keyboards & Remotes.
+- **Air mice.** Some remotes are a mouse as well, their OK a left click while their pointer is on. Without a desktop, as on the OSD/OS image, a left click is Select / OK and a right click Back, so such a remote works as it comes. (On many, a button of their own turns the pointer off, and OK then arrives as a key.) With a desktop, a click does only what you give it in Settings → Controls → All Keyboards & Remotes.
 - **Media keys** (volume, play/pause, stop, skipping) that a remote sends as keys go to mpv, as a keyboard's do ([During playback](https://github.com/mehmetraif/OSD-OS/wiki/Controls#during-playback)).
 
 ### HDMI-CEC
@@ -311,7 +311,7 @@ Settings → Controls → **All Keyboards & Remotes** gives each of six actions 
 | **Up**, **Down**, **Left**, **Right**, **Select / OK**, **Back** | Each reads `DEFAULT`, or `DEFAULT + ` the extra button's name. Select opens **New button**: press the button to give that action |
 | **Reset to Defaults** | Takes every extra button away |
 
-- On the **New button** screen ("Press a new button for [Select / OK]"), the next key, remote button or mouse button you press is the action's. Whatever does Back cancels instead: Esc, Backspace, a Back key that arrives as a key, the button given Back here or on the remote's own page, and Right Shift, which stands for back; a gamepad's back buttons cancel too. The buttons that do Select / OK, Up or Down, and the keys the menus use (the arrows, Enter and Space), keep what they do, and the help line says so (`Return is Select / OK already`), so that no keyboard or remote loses them. A key held on does nothing until it is let go.
+- On the **New button** screen ("Press a new button for [Select / OK]"), the next key, remote button or mouse button you press is the action's. Whatever does Back cancels instead: Esc, Backspace, a Back key that arrives as a key, the button given Back here or on the remote's own page, and Right Shift, which stands for back; a gamepad's back buttons cancel too, and without a desktop a right click. The buttons that do Select / OK, Up or Down (without a desktop, a left click among them), and the keys the menus use (the arrows, Enter and Space), keep what they do, and the help line says so (`Return is Select / OK already`), so that no keyboard or remote loses them. A key held on does nothing until it is let go.
 - **One button, one action**: a button given to an action is taken off any other (but those above, which keep theirs).
 - **What can be chosen:** any keyboard key, a remote's Consumer Control buttons (Linux), and a mouse's buttons. **Not** a gamepad's buttons (those are set on the pad's own page, or in [input.cfg](https://github.com/mehmetraif/OSD-OS/wiki/Controls#remapping-a-gamepad-inputcfg)), and **not Play/pause**, which has no row here (a keyboard's own page has one).
 - An extra *key* doesn't act while a text field has the focus, so typing still types; nor while Netflix, Prime Video or YouTube's sign-in has the screen.
@@ -325,7 +325,7 @@ Settings → Controls → **All Keyboards & Remotes** gives each of six actions 
 | A Consumer Control button (Linux) | 33554432 (`0x02000000`) + the Linux key code | its Back button, `KEY_BACK` 158: `33554590` | `BACK` |
 | A mouse button | 50331648 (`0x03000000`) + Qt's code for the button | the left click, 1: `50331649` | `MOUSE: LEFT CLICK` |
 
-For example, an air mouse remote whose OK is a left click and whose Back button comes from a Consumer Control device:
+For example, a remote whose Menu key is given Select / OK, and whose Home button, from a Consumer Control device, is given Back:
 
 ```json
 {
@@ -335,8 +335,8 @@ For example, an air mouse remote whose OK is a left click and whose Back button 
       "down": 0,
       "left": 0,
       "right": 0,
-      "select": 50331649,
-      "back": 33554590
+      "select": 16777301,
+      "back": 33554604
     }
   }
 }
@@ -480,7 +480,7 @@ bluetoothctl show
 
 ## The mouse
 
-A mouse, or a keyboard's touchpad, shows OSD/OS's own pointer while it moves, drawn in the screen's pixels and colors, and the pointer goes again once the mouse has been still for a few seconds. Moving it also counts as being there: it wakes the screen saver (not with Mouse Pointer Off). The menus still go by keys, though: a click selects nothing. To make a mouse button do something, give it an action in [Settings → Controls → All Keyboards & Remotes](https://github.com/mehmetraif/OSD-OS/wiki/Controls#all-keyboards--remotes-one-more-key-per-action), where it shows as `MOUSE: LEFT CLICK`, `MOUSE: RIGHT CLICK`, `MOUSE: MIDDLE CLICK`, `MOUSE: BACK` or `MOUSE: FORWARD`. A button given an action works whatever Mouse Pointer is set to, and every press of it is that action and nothing else.
+A mouse, or a keyboard's touchpad, shows OSD/OS's own pointer while it moves, drawn in the screen's pixels and colors, and the pointer goes again once the mouse has been still for a few seconds. Moving it also counts as being there: it wakes the screen saver (not with Mouse Pointer Off). The menus still go by keys, though, and a click isn't on what the pointer is over: without a desktop, as on the OSD/OS image, a left click is Select / OK and a right click Back, as an air-mouse remote's OK is a left click; with a desktop a click selects nothing. To make a mouse button do something else, give it an action in [Settings → Controls → All Keyboards & Remotes](https://github.com/mehmetraif/OSD-OS/wiki/Controls#all-keyboards--remotes-one-more-key-per-action), where it shows as `MOUSE: LEFT CLICK`, `MOUSE: RIGHT CLICK`, `MOUSE: MIDDLE CLICK`, `MOUSE: BACK` or `MOUSE: FORWARD`. A button given an action works whatever Mouse Pointer is set to, and every press of it is that action and nothing else.
 
 | Setting | Values | Default | What it does | Config key |
 |---|---|---|---|---|

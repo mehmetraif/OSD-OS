@@ -329,7 +329,7 @@ Both can go once the keys are second nature; the keys work as they always do.
 
 ## The mouse pointer
 
-A mouse, or a keyboard's touchpad, shows OSD/OS's own pointer, drawn in its pixels and colors, while it moves, and hides it again after a few seconds still. The menus still go by keys: the pointer shows where the mouse is, and a click does nothing unless you have made a mouse button one of the actions in Settings → Controls → All Keyboards & Remotes ([Controls](https://github.com/mehmetraif/OSD-OS/wiki/Controls#the-mouse)).
+A mouse, or a keyboard's touchpad, shows OSD/OS's own pointer, drawn in its pixels and colors, while it moves, and hides it again after a few seconds still. The menus still go by keys: the pointer shows where the mouse is, and a click isn't on what it is over. Without a desktop, as on the OSD/OS image, a left click is Select / OK and a right click Back, as an air-mouse remote's OK is a left click; with a desktop a click does nothing unless you have made a mouse button one of the actions in Settings → Controls → All Keyboards & Remotes ([Controls](https://github.com/mehmetraif/OSD-OS/wiki/Controls#the-mouse)).
 
 | Setting | Values | Default | What it does | Config key |
 |---|---|---|---|---|
