@@ -2,7 +2,7 @@
 Type=Application
 Name=OSD/OS
 GenericName=Media Player
-Comment=Smart TV for CRT: films, streams and arcade games with a VCR's look
+Comment=A VCR-style smart TV experience for CRTs: films, streams and arcade games
 Exec=osdos
 Icon=osd-os
 Terminal=false
