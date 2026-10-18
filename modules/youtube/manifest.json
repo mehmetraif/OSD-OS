@@ -4,6 +4,7 @@
   "icon": "assets/images/logo.svg",
   "version": "1.0",
   "entry_point_qml": "views/Root.qml",
+  "settings_group": "tv",
 
   "settings": [
     {

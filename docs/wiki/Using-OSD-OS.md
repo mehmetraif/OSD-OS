@@ -65,7 +65,7 @@ On an app install (Raspberry Pi OS, macOS, SteamOS) there is no boot screen: OSD
 
 The main menu lists the modules, like the inputs on a deck: Local Files, Plex, YouTube and the rest. Select opens one; back opens Settings.
 
-- **Which modules.** Only the modules that are turned on, in the order of their folders' names (`modules/ambient_mode`, `arcade`, `emby`, …). Out of the box, **Local Files** and **Playlists** are on. Turn others on in Settings: each module has a line under **Modules**, and its **Enabled** row turns it on. The picture above has most of them on. With none on, the menu says **No modules enabled** and **Please enable one in settings**.
+- **Which modules.** Only the modules that are turned on, in the order of their folders' names (`modules/ambient_mode`, `arcade`, `emby`, …). Out of the box, **Local Files** and **Playlists** are on. Turn others on in Settings, with the **Enabled** row on each module's page: the video modules' and Weather's are under **Modules** on the **TV / Movie** page, Arcade and High Scores share the **Arcade** page, and Scripts is under **Modules** on the first screen. The picture above has most of them on. With none on, the menu says **No modules enabled** and **Please enable one in settings**.
 - **Rows a module adds.** A module can put rows of its own on the menu, after the modules: a script you marked in [Scripts](https://github.com/mehmetraif/OSD-OS/wiki/Scripts) has one, which runs it.
 - **The video playing behind.** With [Transparent Background](https://github.com/mehmetraif/OSD-OS/wiki/Using-OSD-OS#transparent-background), a video left playing behind the menus leads the list as `► <its title>`, with the cursor on it.
 - ▲ ▼ go round from the last row to the first. The menu remembers the row you left it on.
@@ -144,7 +144,7 @@ In Netflix, Prime Video and YouTube, a title has an info screen, the way a deck'
 | ► | The title's [options](https://github.com/mehmetraif/OSD-OS/wiki/Using-OSD-OS#options) |
 | ◄, back, play/pause, I, or a remote's Info key | Close it |
 
-When it comes up is Settings → **Info Screen**:
+When it comes up is Settings → TV / Movie → **Info Screen**:
 
 | Setting | Values | Default | What it does | Config key |
 |---|---|---|---|---|
@@ -270,7 +270,7 @@ Netflix and Prime Video play in the service's own web player, in Chromium, which
 <tr><td>With Transparent Background, back during a Local Files or YouTube video opens its menu over the picture, which plays on, here at 40% solid. ◄ ► change its module's settings for it, at once or as you go back to it. Close Video goes to the main menu; back, to the video.</td><td>Browse in that menu, or back from any other module's video, returns to the module's menus, the video playing on behind them. Choose it again to watch it full screen from where it is.</td><td>The main menu leads with the video, the cursor on it: select takes it back to full screen where it is. Play/pause stops it (<code>[SPACE]:STOP</code>), and playing anything else replaces it.</td></tr>
 </table>
 
-Normally, back from a video stops it. With Settings → **Transparent Background**, OSD/OS plays videos inside its own window, so back returns to the menus while the video goes on playing behind them, the way a deck's menu lies over the tape.
+Normally, back from a video stops it. With Settings → TV / Movie → **Transparent Background**, OSD/OS plays videos inside its own window, so back returns to the menus while the video goes on playing behind them, the way a deck's menu lies over the tape.
 
 - **The slider.** The setting is a slider, drawn as the deck's tape bar, from **TRANSPARENT** to **SOLID**: how solid the menus' background is over the video, in steps of 10%. ◄ ► move it, and save at once, so over a video playing behind you see each step. At SOLID none of the picture shows, but the video plays on, sound and all. Select turns the setting off and back on at the bar's place; ◄ ► turn it on too. Off, back stops the video, as it always did.
 - **Taking it back.** The main menu's first row is the video behind, `► <its title>`, with the cursor on it: select brings it back full screen, from where it is. Choosing the same video again in its module does the same. YouTube, Local Files and Playlists videos come back this way; another module's video only comes back by choosing it again.
@@ -289,13 +289,13 @@ It needs libmpv, which OSD/OS opens as it runs: `libmpv2` on Raspberry Pi OS (on
 <table>
 <tr><th width="50%">Channel Logo</th><th width="50%">Under the menus</th></tr>
 <tr><td><img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/screenshots/channel-logo.png" width="100%" alt="A playing video with the OSD/OS logo in its top right corner" /></td><td><img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/screenshots/channel-logo-menu.png" width="100%" alt="The menus over a playing video, the logo still in the picture's corner under them" /></td></tr>
-<tr><td>OSD/OS's logo in a corner of the picture while a video plays, the way a channel's sits in a broadcast. Settings → Channel Logo picks the corner, all four, or none.</td><td>It is in the picture itself, so with Transparent Background the menus lie over it.</td></tr>
+<tr><td>OSD/OS's logo in a corner of the picture while a video plays, the way a channel's sits in a broadcast. Settings → TV / Movie → Channel Logo picks the corner, all four, or none.</td><td>It is in the picture itself, so with Transparent Background the menus lie over it.</td></tr>
 </table>
 
 <table>
 <tr><th width="50%">Logo Image</th><th width="50%">Picking the picture</th></tr>
 <tr><td><img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/screenshots/channel-logo-custom.png" width="100%" alt="A playing video with a picture of the user's own in place of the OSD/OS logo" /></td><td><img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/screenshots/logo-picker.png" width="100%" alt="The file picker for Logo Image: its places, the home folder's folders, LOGOS open on its two pictures" /></td></tr>
-<tr><td>Settings → Logo Image puts a picture of your own there instead, as tall as OSD/OS's logo.</td><td>Picked on the same file browser: select on a picture, or OSD/OS Logo at the top to go back to it.</td></tr>
+<tr><td>Settings → TV / Movie → Logo Image puts a picture of your own there instead, as tall as OSD/OS's logo.</td><td>Picked on the same file browser: select on a picture, or OSD/OS Logo at the top to go back to it.</td></tr>
 </table>
 
 mpv draws the logo into the picture, 7% of its height tall and 10% of the picture in from its corner (a letterboxed picture's bars stay clear of it). Both settings apply from the next video.
@@ -315,7 +315,7 @@ To spare a CRT's phosphor, a screen saver puts OSD/OS's logo bouncing across a b
 
 ## The hint bar and the help line
 
-<img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/screenshots/settings.png" width="100%" alt="Settings: THEME NONE, COLOR SCHEME VIDEO 1, SKIN NONE, the effects OFF, a help line scrolling its text, and the hint bar [ESC]:BACK [▲▼]:NAVIGATE [◄►]:CHANGE [ENTER]:SELECT" />
+<img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/screenshots/settings.png" width="100%" alt="Settings: TV / MOVIE selected, ARCADE, the GENERAL SETTINGS heading, THEME NONE, COLOR SCHEME VIDEO 1, SKIN NONE, TEXT EFFECT and BACKGROUND EFFECT OFF, a help line scrolling its text, and the hint bar [ESC]:BACK [▲▼]:NAVIGATE [◄►]:CHANGE [ENTER]:SELECT" />
 
 - **The hint bar**, the solid bar at the foot of every screen, says which keys do what there, as a deck's menu ends with "SELECT WITH (▲▼) AND (OK)". It shows the keyboard's keys (`[ESC]`, `[ENTER]`, `[SPACE]`) until you press a gamepad button, then that gamepad's (`[B]`, `[A]`, `[START]`, or a PlayStation pad's `[O]`, `[X]`, as its button labels in Settings → Controls name them), and back again with the next key ([Controls](https://github.com/mehmetraif/OSD-OS/wiki/Controls#the-hints-at-the-foot-of-the-screen)).
 - **The help line** is the box under a menu (Settings, a module's settings, Controls, Bluetooth, a video's menu, About) with a line about the selected row. A line too long for the box scrolls through it like a ticker, pausing each time its start comes round.
@@ -339,9 +339,11 @@ A mouse, or a keyboard's touchpad, shows OSD/OS's own pointer, drawn in its pixe
 
 Back on the main menu opens Settings, laid out like a camcorder's menu: a line per setting, its value at the end (`COLOR SCHEME······VIDEO 1`). A release's version is in the title bar, and the IP address at its right.
 
-- ▲ ▼ move, skipping the headings, round from the bottom to the top. ◄ ► change the value, saved at once. Select opens a line that leads somewhere (a module's settings, Bluetooth, Update, a file or folder picker) and turns a slider on or off.
-- The look comes first: Theme, then its parts (Color Scheme, Skin, the effects, Transition, Menu Music), then OSD Background and Window Frame. Then what plays (Start on Module, Play at Startup, Scaling, Transparent Background, Video Levels, Loading Effect, Loading Screen Colors, Boot Screen Colors, Channel Logo) and the screen (Hint Bar, Help Line, Screen Saver, Mouse Pointer, Info Screen).
-- **Modules**: a line per module, for its settings, its **Enabled** row among them.
+- ▲ ▼ move, skipping the headings, round from the bottom to the top. ◄ ► change the value, saved at once. Select opens a line that leads somewhere (TV / Movie, Arcade, a module's settings, Bluetooth, Update, a file or folder picker) and turns a slider on or off. Back from a page returns to the line it was opened from.
+- **TV / Movie** opens the videos' page: Scaling, Transparent Background, Video Levels, Loading Effect, Loading Screen Colors, Channel Logo and Info Screen, then under **Modules** a line per video module (and Weather), for its settings, its **Enabled** row among them.
+- **Arcade** opens the Arcade module's settings, with the High Scores module's after them under its own heading.
+- **General Settings**: the look first, Theme, then its parts (Color Scheme, Skin, the effects, Transition, Menu Music), then OSD Background and Window Frame. Then startup (Start on Module, Play at Startup, Boot Screen Colors) and the screen (Hint Bar, Help Line, Screen Saver, Mouse Pointer).
+- **Modules**: a line for each module on neither page, Scripts, for its settings.
 - **Application**: Display Output (on the image), Audio Output (where plain ALSA plays), Controls, Bluetooth (on Linux), Update, About and Quit.
 
 <table>

@@ -60,7 +60,7 @@ The **OSD/OS image** has all of it (Chromium with `rpi-chromium-mods`, `libwidev
 
 On a **desktop** (Raspberry Pi OS with a desktop, SteamOS, another Linux), only the browser, with Widevine, is needed: its window simply covers OSD/OS's. On a **Mac**, OSD/OS opens Google Chrome in kiosk mode if it is in `/Applications`, and Safari otherwise.
 
-Both modules are off by default: Settings → **Netflix** (or **Prime Video**) → **Enabled**: On.
+Both modules are off by default: Settings → TV / Movie → **Netflix** (or **Prime Video**) → **Enabled**: On.
 
 ## The TMDB API key
 
@@ -121,7 +121,7 @@ Keys in the tree are those of every tree: ▲ ▼ move, ► or select open a fol
 
 ### Info screens
 
-A title's info screen comes up with ► on it, or by itself once the cursor has rested on it, as **Settings → Info Screen** says (after 1, 2, 3 or 5 seconds; **Key** for ► only; **Off**, where ► offers the options instead). It shows the PLAY box, the title, a line of facts (`2018 - 1HR:56MIN` for a film, `3 SEASONS` for a series), the story, then GENRE (two at most), DIRECTOR for a film or CREATOR for a series (two at most), CAST (two names) and RATING (TMDB's average out of 10). Each title is fetched from TMDB once per run.
+A title's info screen comes up with ► on it, or by itself once the cursor has rested on it, as **Settings → TV / Movie → Info Screen** says (after 1, 2, 3 or 5 seconds; **Key** for ► only; **Off**, where ► offers the options instead). It shows the PLAY box, the title, a line of facts (`2018 - 1HR:56MIN` for a film, `3 SEASONS` for a series), the story, then GENRE (two at most), DIRECTOR for a film or CREATOR for a series (two at most), CAST (two names) and RATING (TMDB's average out of 10). Each title is fetched from TMDB once per run.
 
 On it, select plays the title, ▲ ▼ close it and move on through the list, ◄ or back close it, ► offers the options.
 
@@ -169,7 +169,7 @@ On a Mac, quit the browser (`⌘Q`): OSD/OS returns when it has quit.
 
 ## Signing in and out
 
-1. Settings → **Netflix** (or **Prime Video**) → **Sign in**. A screen says **Sign in to Netflix** and how to come back.
+1. Settings → TV / Movie → **Netflix** (or **Prime Video**) → **Sign in**. A screen says **Sign in to Netflix** and how to come back.
 2. Have a keyboard ready, and press select. The service's sign-in page opens full screen: `https://www.netflix.com/login`, or Prime Video's `https://www.primevideo.com/auth-redirect?signin=1&returnUrl=%2F`, which goes on to Amazon's sign-in for your region.
 3. Sign in with the keyboard.
 4. Come back by holding back, or with `Ctrl+W`.
@@ -201,18 +201,18 @@ The script:
 
 ## Settings
 
-Settings → **Netflix**:
+Settings → TV / Movie → **Netflix**:
 
 | Setting | Values | Default | What it does | Config key |
 |---|---|---|---|---|
 | Enabled | On, Off | Off | Shows Netflix on the main menu. | `modules.com.osdos.netflix.enabled` |
 | Catalogue Region | TR, US, GB, DE, FR, NL, ES, IT, CA, AU | TR | The country whose Netflix catalogue to list. | `modules.com.osdos.netflix.region` |
 | Catalogue Language | English, Turkish | English | The language of titles, genres and stories. | `modules.com.osdos.netflix.catalog_language` |
-| Scaling | Default, Letterbox, 14:9, Pan & Scan, Anamorphic | Default | How a 16:9 picture fills a 4:3 screen in Netflix's player. Default follows Settings → Scaling. | `modules.com.osdos.netflix.video_scaling` |
+| Scaling | Default, Letterbox, 14:9, Pan & Scan, Anamorphic | Default | How a 16:9 picture fills a 4:3 screen in Netflix's player. Default follows Settings → TV / Movie → Scaling. | `modules.com.osdos.netflix.video_scaling` |
 | Sign in | Select | | Opens Netflix's sign-in page full screen. | (the profile `netflix/browser`) |
 | Sign out | Select | | Forgets the sign-in: deletes the profile. | |
 
-Settings → **Prime Video**:
+Settings → TV / Movie → **Prime Video**:
 
 | Setting | Values | Default | What it does | Config key |
 |---|---|---|---|---|

@@ -36,10 +36,10 @@ namespace {
 constexpr int kRetireKillMs   = 1000;
 constexpr int kRetireGiveUpMs = 5000;
 
-// A channel logo of the user's own (Settings → Logo Image), read for
-// mpv-logo.lua to lay over the picture with mpv's overlay-add: at the height
-// OSD/OS's logo stands (7% of the output's, `outputHeight` pixels), its shape
-// kept on pixels `pixelAspect` as wide as they are tall (a tube's aren't
+// A channel logo of the user's own (Settings → TV / Movie → Logo Image), read
+// for mpv-logo.lua to lay over the picture with mpv's overlay-add: at the
+// height OSD/OS's logo stands (7% of the output's, `outputHeight` pixels), its
+// shape kept on pixels `pixelAspect` as wide as they are tall (a tube's aren't
 // square), as raw premultiplied BGRA, mpv's overlay format, in `out`. mpv
 // before 0.38 can't scale an overlay, so it is made at the size it is shown.
 // False, and a line in the log, for a picture that can't be read.
@@ -317,8 +317,9 @@ QStringList MpvController::sessionArgs(const QString &url, float startSeconds,
     // by mpv itself (scripts/mpv-logo.lua), so it is in the picture in both
     // modes and under whatever the app draws over it. The corner reaches the
     // script with the script options below; unset is the top right.
-    // Settings → Logo Image puts a picture of the user's own there instead,
-    // made for the script as an overlay of the size it is shown at.
+    // Settings → TV / Movie → Logo Image puts a picture of the user's own
+    // there instead, made for the script as an overlay of the size it is
+    // shown at.
     QString logoCorner;
     int logoWidth = 0, logoHeight = 0;
     if (m_appCore) {

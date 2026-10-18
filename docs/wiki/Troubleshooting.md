@@ -127,7 +127,7 @@ qml: Routing to: modules/local_files/views/Root.qml
 
 ## A module is missing from the main menu
 
-Most modules come switched off. Only Local Files and Playlists are on at first; Ambient:Mode, Arcade, Emby, High Scores, Jellyfin, Netflix, NFC Reader, Plex, Prime Video, Scripts, Weather and YouTube each have an **Enabled** setting that starts at Off. Turn it on in Settings → *the module's name* → Enabled, and the module joins the main menu. With every module off, the main menu says **No modules enabled**.
+Most modules come switched off. Only Local Files and Playlists are on at first; Ambient:Mode, Arcade, Emby, High Scores, Jellyfin, Netflix, NFC Reader, Plex, Prime Video, Scripts, Weather and YouTube each have an **Enabled** setting that starts at Off. Turn it on, and the module joins the main menu: Settings → TV / Movie → *the module's name* → Enabled for the video modules and Weather, Settings → Arcade → Enabled for Arcade (High Scores' Enabled follows on the same page, under its heading), and Settings → Scripts → Enabled for Scripts. With every module off, the main menu says **No modules enabled**.
 
 ## Black screen or no picture
 
@@ -161,7 +161,7 @@ The loading screen comes, then the menu again, or an error. The log says which o
 | Cause | Fix |
 |---|---|
 | An `mpv_video_args` override in `config.json` | OSD/OS picks the decoder and the output for each board itself. On a Pi 4 it draws on the primary plane (`--vo=drm --hwdec=drm-copy,v4l2m2m-copy`), because the zero-copy overlay path jitters into visible judder with 24 fps films. Take the override out of `"app"` and compare ([Playback and mpv](https://github.com/mehmetraif/OSD-OS/wiki/Playback-and-mpv)) |
-| A Pi 3 with Settings → 1080p Playback **Off** | Off lets crop, 14:9 and Pan & Scan work, but 1080p stutters on the copy path. Keep the films to 720p, or turn it back **On** (smooth 1080p, no crop) |
+| A Pi 3 with Settings → TV / Movie → 1080p Playback **Off** | Off lets crop, 14:9 and Pan & Scan work, but 1080p stutters on the copy path. Keep the films to 720p, or turn it back **On** (smooth 1080p, no crop) |
 | A film the board can't decode in hardware | A Pi 4 plays 1080p HEVC at about half its CPU, but not 4K HEVC. On YouTube, keep **Video Codec** at H.264 (a Pi decodes it in hardware) and set **Max Frame Rate** to 30; **Any** often picks VP9 or AV1, decoded in software |
 | Transparent Background drawing on the CPU | The log says `pictures drawn by mpv's software renderer` when Qt doesn't draw with OpenGL. `pictures drawn on the GPU: …` is the light way |
 | A 24 fps film on a 50 or 60 Hz output | Frames can't be shown for equal times there, on any player: OSD/OS doesn't change the output's rate for a film |
@@ -236,7 +236,7 @@ More in [Netflix and Prime Video](https://github.com/mehmetraif/OSD-OS/wiki/Netf
 | Jellyfin: **CONNECTION FAILED: Host requires authentication** as Quick Connect starts | The server answered 401 to Quick Connect | Turn Quick Connect on in the Jellyfin server's settings, then enter the code at `<server>/web/#quickconnect` |
 | Jellyfin or Emby: **CONNECTION FAILED: …**, or nothing | The server URL: OSD/OS takes it as typed, so it needs the scheme and the port (`http://192.168.1.20:8096`) | Type the whole URL. A self-signed or private certificate on your own server is accepted for that server; an expired one isn't |
 | Signed out by itself | `Token rejected — signing out` in the log: the server no longer knows the token (a password changed, the device removed) | Sign in again |
-| A Plex film fails, then plays after a while | Plex retries with a transcode when mpv can't play the file directly | Set Settings → Plex → Video Quality to one of its Mbps choices instead of Direct Play, or read the server's log for why the stream failed |
+| A Plex film fails, then plays after a while | Plex retries with a transcode when mpv can't play the file directly | Set Settings → TV / Movie → Plex → Video Quality to one of its Mbps choices instead of Direct Play, or read the server's log for why the stream failed |
 | Plex: **LOADING...** for half a minute, then an error such as **LOAD LIBRARY FAILED: …** | The server stopped answering (a NAS gone to sleep, the Wi-Fi dropped): Plex gives a request up after 30 seconds without a byte from it | Wake the server or check the network, then open the list again |
 | **Not Allowed** on an offline playlist's video | The Jellyfin or Emby user may not download | Allow downloads for that user on the server, then Retry Downloads |
 
@@ -267,7 +267,7 @@ The High Scores module reads the files MAME keeps of the games played in Arcade.
 |---|---|---|
 | `This build of OSD/OS reads no high score tables: it was built without minizip` | A build of your own, made without minizip | Install `libminizip-dev` (or Homebrew's `minizip`) and build again ([Building from source](https://github.com/mehmetraif/OSD-OS/wiki/Building-from-Source)) |
 | `hi2txt's game definitions are missing: …` | The app's `modules/highscores/data/hi2txt.zip` isn't there | Install OSD/OS again |
-| `No high scores yet` | No game has a file yet: none played, or played without the hiscore plugin | Turn on **Settings → Arcade → High Scores**, play a game, and leave it with Coin and Start |
+| `No high scores yet` | No game has a file yet: none played, or played without the hiscore plugin | Turn on **Settings → Arcade → Save High Scores**, play a game, and leave it with Coin and Start |
 | A game played isn't listed | The hiscore plugin keeps a table only for the games its `hiscore.dat` knows, and a game's NVRAM is listed only when hi2txt knows of a table in it | See [High Scores → Troubleshooting](https://github.com/mehmetraif/OSD-OS/wiki/High-Scores#troubleshooting) |
 | A game under **Not Readable** | hi2txt has no definition of the game, or its file isn't laid out as the definition says | The line under the tree says which ([High Scores → Not Readable](https://github.com/mehmetraif/OSD-OS/wiki/High-Scores#not-readable)) |
 
@@ -321,7 +321,7 @@ A video of a drive that was pulled out drops out of Recently Watched and Favorit
 | No **OSD-OS** drive on the card | The first boot splits the card: the system keeps 8 GiB and the rest becomes the exFAT **OSD-OS** partition. A card with less than 2 GiB to spare gets none | Use a bigger card |
 | No **OSD-OS** drive after a first boot that was cut short (the power pulled) | The partition was made but not yet formatted | Switch the Pi on again: the next boot formats a film partition that has no file system at all, and leaves one with any file system alone |
 | Windows offers to format a drive | It can't read the system's partition | Always **Cancel**: formatting it erases the system |
-| Films copied on, not in Local Files | Local Files opens `/media/OSD-OS` only until its Media Directory names another folder | Settings → Local Files → Media Directory → Default Folder |
+| Films copied on, not in Local Files | Local Files opens `/media/OSD-OS` only until its Media Directory names another folder | Settings → TV / Movie → Local Files → Media Directory → Default Folder |
 | Offline playlists fail, naming the folder | A card flashed with an earlier image mounts the partition read-only (`ro` in `/etc/fstab`, its line naming `/media/240-MP`) | Flash the new image, or change `ro` to `rw,noexec,nosuid,nodev` and the line's last `0` to `2` |
 | Files on it untidy after the power was cut | A download half written | It is checked with `fsck.exfat` at every boot before it is mounted |
 
@@ -391,21 +391,21 @@ The menu music's mpv starts with `--no-config`: nothing in `mpv.conf` reaches it
 
 ## Rows missing in Settings
 
-Settings offers a row only where it can work:
+Settings offers a row only where it can work (on the first screen, unless TV / Movie's page is named):
 
 | Row | Offered when |
 |---|---|
 | Text Effect, Background Effect, Screen Effect | The build has OSD/OS's shaders (Qt Shader Tools at build time) and Qt draws on a GPU, not with its software renderer |
 | Ripple, Wave and Drop among the Transitions | The same; without them a theme's Ripple, Wave or Drop fades instead |
 | Selector Effect, and Fade and the Cubes | Always: they need no shader |
-| Transparent Background | libmpv was found at run time (`libmpv2` on Raspberry Pi OS, part of Homebrew's mpv), and the build has libmpv's headers. The log says `[EmbeddedMpv] libmpv not found: Transparent Background is unavailable` |
+| Transparent Background (TV / Movie) | libmpv was found at run time (`libmpv2` on Raspberry Pi OS, part of Homebrew's mpv), and the build has libmpv's headers. The log says `[EmbeddedMpv] libmpv not found: Transparent Background is unavailable` |
 | Display Output | The OSD/OS image, OSD/OS started by its service, and more than one output for this board |
 | Audio Output | Linux with ALSA's cards (`/proc/asound/cards`) and no sound server |
 | Bluetooth | Linux, a build with Qt D-Bus |
-| 1080p Playback | A Raspberry Pi 3, whose smooth path can't crop |
+| 1080p Playback (TV / Movie) | A Raspberry Pi 3, whose smooth path can't crop |
 | Window Frame | OSD Background is Window |
 | Music File, Music Volume | Menu Music is File; Menu Music isn't Off |
-| Logo Image | Channel Logo isn't Off |
+| Logo Image (TV / Movie) | Channel Logo isn't Off |
 | Startup From | A favourite is set to Play at Startup |
 
 A build without Qt Shader Tools says so when CMake configures it: `Qt Shader Tools not found — the shader effects will be unavailable` ([Building from source](https://github.com/mehmetraif/OSD-OS/wiki/Building-from-Source#qt-shader-tools)). Under Qt's software renderer (`QT_QUICK_BACKEND=software`) the shaders can't run whatever the build; OpenGL drawn on the CPU (Mesa's llvmpipe) still runs them, slowly. More in [Effects](https://github.com/mehmetraif/OSD-OS/wiki/Effects).

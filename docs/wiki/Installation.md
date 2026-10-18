@@ -218,7 +218,7 @@ The image's own user is `pi`, and OSD/OS runs as that user. You only need to log
   ssh your-user@osdos.local
   ```
 
-<img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/screenshots/settings-modules.png" width="100%" alt="Settings, with the IP address (192.0.2.2) in its title bar" />
+<img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/screenshots/settings.png" width="100%" alt="Settings, with the IP address (192.0.2.2) in its title bar" />
 
 Once in, `journalctl -u osdos -b` shows OSD/OS's log for this boot ([Troubleshooting](https://github.com/mehmetraif/OSD-OS/wiki/Troubleshooting)).
 
@@ -673,7 +673,7 @@ Of the outputs, only the Pi 4's HDMI and composite have been tried on a TV. The 
 
 ### The other boards
 
-- **Raspberry Pi 3B / 3B+.** OSD/OS keeps the settings 240-MP's author used on a Pi 3. Its mpv flags send the video straight to a hardware overlay, which keeps 1080p H.264 smooth but can't crop: Settings → **1080p Playback** (shown on a Pi 3 only) trades that the other way, and [Playback and mpv](https://github.com/mehmetraif/OSD-OS/wiki/Playback-and-mpv) shows how to set the flags yourself (`mpv_video_args`). Some USB flash drives hang a Pi 3 booting from USB: if it won't start from one, try an SD card first.
+- **Raspberry Pi 3B / 3B+.** OSD/OS keeps the settings 240-MP's author used on a Pi 3. Its mpv flags send the video straight to a hardware overlay, which keeps 1080p H.264 smooth but can't crop: Settings → TV / Movie → **1080p Playback** (shown on a Pi 3 only) trades that the other way, and [Playback and mpv](https://github.com/mehmetraif/OSD-OS/wiki/Playback-and-mpv) shows how to set the flags yourself (`mpv_video_args`). Some USB flash drives hang a Pi 3 booting from USB: if it won't start from one, try an SD card first.
 - **Raspberry Pi 400 / 500** are read as a Pi 4 and a Pi 5, without the AV jack or TV pads they don't have.
 - **Boards without a 64-bit Raspberry Pi OS** (the Pi 1 and the first Pi Zero, for example) can't run OSD/OS: the image and the app are 64-bit (arm64), and `install.sh` stops on anything else.
 - **Other computers:** an Apple Silicon Mac, or an x86_64 Linux machine with the AppImage (above).

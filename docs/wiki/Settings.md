@@ -1,42 +1,88 @@
 # Settings
 
-Settings is OSD/OS's own menu: the look, the menus, playback, startup, the outputs, and a page for every module. This page goes through every row in the order the screen lists them, with its values, its default, what it does, the key it is saved under in `config.json`, and when it is offered at all.
+Settings is OSD/OS's own menu: the look, the menus, playback, startup, the outputs, and a page for every module. Its first screen opens with two pages, **TV / Movie** for the videos and **Arcade** for the games, then lists the general settings, the modules that belong to neither page, and the application's own rows. This page goes through every row in the order the screens list them, with its values, its default, what it does, the key it is saved under in `config.json`, and when it is offered at all.
 
-<img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/screenshots/settings.png" width="100%" alt="Settings: Theme, Color Scheme, Skin, Text Effect, Background Effect, Selector Effect, Screen Effect and Transition, the help line under them" />
+<img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/screenshots/settings.png" width="100%" alt="Settings: TV / Movie and Arcade, then the GENERAL SETTINGS heading over Theme, Color Scheme, Skin, Text Effect and Background Effect, the help line under them" />
 
 ## Getting around
 
-Back on the main menu opens Settings (the hint bar there says `[ESC]:SETTINGS`). Each row reads like a camcorder's menu, `LABEL······VALUE`. The first rows have no heading; further down come two headings drawn as a rule, **MODULES** and **APPLICATION**.
+Back on the main menu opens Settings (the hint bar there says `[ESC]:SETTINGS`). Each row reads like a camcorder's menu, `LABEL······VALUE`. The first screen opens with two rows that lead to a page each, **TV / Movie** and **Arcade**; under them come three headings drawn as a rule, **GENERAL SETTINGS**, **MODULES** and **APPLICATION**.
 
 | Action | Keyboard | Gamepad | What it does in Settings |
 |---|---|---|---|
 | ▲ ▼ | Up, Down | D-pad, left stick | Moves to the row above or below. Past the last row the cursor goes round to the first |
 | ◄ ► | Left, Right | D-pad, left stick, LB, RB | Changes the value, round from the last choice to the first. A slider moves by 10 |
-| Select | Enter | A | Opens a page (a module's settings, Controls, Bluetooth, Update, About), the list of Display Output, the file browser of Music File and Logo Image, or the Quit question. On Transparent Background it turns the setting on or off |
-| Back | Esc, Backspace | B, or the pad's Back/Select button | Back to the main menu |
+| Select | Enter | A | Opens a page (TV / Movie, Arcade, a module's settings, Controls, Bluetooth, Update, About), the list of Display Output, the file browser of Music File and Logo Image, or the Quit question. On Transparent Background it turns the setting on or off |
+| Back | Esc, Backspace | B, or the pad's Back/Select button | Back to the main menu; from a page, back to the row that opened it |
 
-- **A change is saved at once.** Settings calls `appCore.save_setting("", key, value)`, which writes the value into `config.json` under `app.<key>` ([Configuration files](https://github.com/mehmetraif/OSD-OS/wiki/Configuration-Files#configjson)). Most rows take effect at once. The rows mpv is started with (Scaling, Video Levels, Channel Logo, Logo Image, Screen Saver during a video) apply from the next video. A value that can't be saved (a full or read-only disk) isn't applied, here or on a module's page: the row stays on the value saved, and the log says `[AppCore] Setting not saved: …`.
-- **The title bar** shows a release's version; a build made from source shows none there (About names it `DEV`). The top right corner shows the device's IP address on the network, wired before Wi-Fi, read again every five seconds: handy for SSH.
+- **A change is saved at once.** Settings calls `appCore.save_setting("", key, value)`, on TV / Movie's page as on the first screen, which writes the value into `config.json` under `app.<key>` ([Configuration files](https://github.com/mehmetraif/OSD-OS/wiki/Configuration-Files#configjson)). Most rows take effect at once. The rows mpv is started with (Scaling, Video Levels, Channel Logo, Logo Image, Screen Saver during a video) apply from the next video. A value that can't be saved (a full or read-only disk) isn't applied, here or on a module's page: the row stays on the value saved, and the log says `[AppCore] Setting not saved: …`.
+- **The title bar** of the first screen shows a release's version; a build made from source shows none there (About names it `DEV`). TV / Movie's page shows its name there instead, `SETTINGS | TV / MOVIE`. The top right corner of the first screen shows the device's IP address on the network, wired before Wi-Fi, read again every five seconds: handy for SSH.
 - **The help line** under the list explains the selected row, and scrolls when the text is longer than the box. Settings → Help Line turns it off.
 - **Rows that come and go.** Some rows are offered only sometimes. A row that depends on another row (Window Frame on OSD Background, Music File and Music Volume on Menu Music, Logo Image on Channel Logo) stays in the list without a line while it isn't offered: the list doesn't move as it comes and goes, and the cursor skips over it.
 
 | Row | Offered when |
 |---|---|
+| 1080p Playback (TV / Movie) | On a Raspberry Pi 3 only |
+| Transparent Background (TV / Movie) | libmpv could be opened (`libmpv2` on Raspberry Pi OS and the image, Homebrew's mpv on a Mac), in a build made with libmpv's headers |
+| Logo Image (TV / Movie) | Channel Logo isn't Off |
 | Text Effect, Background Effect, Screen Effect, and the Ripple, Wave and Drop transitions | The build has Qt Shader Tools (the releases and the OSD/OS image do) and Qt draws with a GPU, not its software renderer |
 | Music File | Menu Music is File |
 | Music Volume | Menu Music isn't Off |
 | Window Frame | OSD Background is Window |
 | Startup From | A favourite is set to Play at Startup |
-| 1080p Playback | On a Raspberry Pi 3 only |
-| Transparent Background | libmpv could be opened (`libmpv2` on Raspberry Pi OS and the image, Homebrew's mpv on a Mac), in a build made with libmpv's headers |
-| Logo Image | Channel Logo isn't Off |
 | Display Output | On the OSD/OS image, started by its service, on a Pi with more than one output to offer |
 | Audio Output | On Linux where plain ALSA plays, with no PipeWire or PulseAudio server: the image and Raspberry Pi OS Lite |
 | Bluetooth | On Linux builds made with Qt D-Bus (not on a Mac) |
 
-## The look
+## TV / Movie
 
-The first rows set how the menus look: **Theme**, then one row for each part of a theme.
+The first row opens TV / Movie's page, `SETTINGS | TV / MOVIE`: the rows for the videos, then under a **MODULES** heading a row for each video module ([below](#the-video-modules)). Back returns to the first screen. These rows change how mpv plays, and what comes with a video: the screen it loads behind, the channel logo, a film's info screen. Everything about mpv itself, the flags each row adds and how they layer, is in [Playback and mpv](https://github.com/mehmetraif/OSD-OS/wiki/Playback-and-mpv).
+
+| Setting | Values | Default | What it does | Config key |
+|---|---|---|---|---|
+| 1080p Playback | On, Off | On | Raspberry Pi 3 only. **On**: the smooth overlay path that plays 1080p, where cropping can't work, so 14:9 and Pan & Scan show the whole picture and the deck menu has no CROP. **Off**: the scaler path, where cropping works but 1080p stutters. From the next video | `app.smooth_playback` |
+| Scaling | Letterbox, 14:9, Pan & Scan, Anamorphic | Letterbox | How a 16:9 picture fills a 4:3 screen, in every module whose own Scaling is Default. **Letterbox**: all of it, bars above and below. **14:9**: a little of the sides cut, thinner bars. **Pan & Scan**: fills the screen, the sides cut. **Anamorphic**: fills it squeezed, for a TV set to 16:9. From the next video; the deck menu's CROP changes it during one | `app.video_scaling` |
+| Transparent Background | Off, or a slider from TRANSPARENT to SOLID, 0 to 100 in steps of 10 | Off | Plays the video inside OSD/OS's own window (libmpv), so back from a video returns to the menus with the picture going on behind them; the main menu's first row takes it back to full screen. The slider says how solid the menus' ground is over the picture: at SOLID none of it shows, but it plays on, sound and all. Select turns it on or off. ◄ ► on it while it is off turn it on where its bar waits: at 40, or where it was if you turned it off on this visit to Settings. A change shows at once over a video playing behind the menus, and turning it off stops that video | `app.transparent_background`: a number from 0 to 100, or `"Off"` |
+| Video Levels | Auto, Limited, Full | Auto | The colour range mpv sends: **Limited** if blacks look crushed, **Full** if blacks look grey. Auto adds nothing, leaving mpv's default and your `mpv.conf`. From the next video | `app.video_output_levels` |
+| Loading Effect | On, Off | On | While a video loads, a tape's noise and tracking bands roll over the dubbing deck's counters. Off leaves the counters alone on the plain background | `app.loading_effect` |
+| Loading Screen Colors | Theme, Default | Theme | The colours of the screen a video loads behind: the theme's or colour scheme's, or OSD/OS's own, white on a VCR's blue, whatever the look | `app.loading_colors`: `"Theme"` or `"Default"` |
+| Channel Logo | Off, Top Left, Top Right, Bottom Left, Bottom Right, All Corners | Top Right | OSD/OS's logo in a corner of the picture while a video plays, the way a channel's sits in a broadcast. mpv draws it into the picture, so with Transparent Background the menus lie over it. From the next video | `app.video_logo`: `off`, `tl`, `tr`, `bl`, `br` or `all` |
+| Logo Image | OSD/OS Logo, or a picture picked on the file browser: PNG, JPG, JPEG, SVG, GIF, BMP or WebP | OSD/OS | Offered while Channel Logo isn't Off. A picture of your own in the logo's place, made as tall as OSD/OS's logo (7% of the screen's height), its shape kept. A PNG with a clear background works best. A picture that can't be read leaves OSD/OS's logo. From the next video | `app.video_logo_image`: the file's full path, `""` for OSD/OS's |
+| Info Screen | Off, Key, 1 sec, 2 sec, 3 sec, 5 sec | 3 sec | A film's details (story, genre, director, cast, rating) in the Netflix, Prime Video and YouTube trees. **Key**: only with ► on a film. **A number**: also on its own once the cursor has rested on a film that long. **Off**: no info screen; ► offers the film's options instead | `app.info_screen`: `off`, `key`, `1`, `2`, `3` or `5` |
+
+The older setting `app.auto_crop` (`On` or `Off`), from before Scaling, still counts while Scaling has never been set: `On` reads as Pan & Scan.
+
+<table>
+<tr><th width="50%">Channel Logo</th><th width="50%">Under the menus</th></tr>
+<tr><td><img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/screenshots/channel-logo.png" width="100%" alt="Channel Logo" /></td><td><img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/screenshots/channel-logo-menu.png" width="100%" alt="The logo under the menus" /></td></tr>
+<tr><td>OSD/OS's logo in a corner of the picture while a video plays.</td><td>It is in the picture itself, so with Transparent Background the menus lie over it.</td></tr>
+</table>
+
+<table>
+<tr><th width="50%">Logo Image</th><th width="50%">Picking the picture</th></tr>
+<tr><td><img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/screenshots/channel-logo-custom.png" width="100%" alt="Logo Image" /></td><td><img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/screenshots/logo-picker.png" width="100%" alt="Picking the picture" /></td></tr>
+<tr><td>A picture of your own in the logo's place, as tall as OSD/OS's logo.</td><td>Picked on the same file browser as everything else: select on a picture, or <b>OSD/OS Logo</b> at the top to go back to it.</td></tr>
+</table>
+
+**The file browser** that Music File and Logo Image open is the tree Local Files is browsed with. At its top is the default (**No File**, **OSD/OS Logo**), then the places that exist on this system: **Home**, **Media** (`/media`, where the image mounts its OSD-OS partition and USB drives), **Drives** (`/run/media/<user>`), **Volumes** (`/Volumes`, on a Mac) and **Root** (`/`). It shows folders and the files of the types the setting takes, hidden ones left out, and opens at the file chosen now. Select on a file picks it and goes back; back at the top leaves the setting as it was.
+
+<img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/screenshots/settings-modules.png" width="100%" alt="TV / Movie's page further down: Video Levels, Loading Effect, Loading Screen Colors, Channel Logo, Logo Image, Info Screen, then the MODULES heading and Ambient:Mode" />
+
+### The video modules
+
+Under the page's **MODULES** heading is a row for each module of the TV / Movie group (`"settings_group": "tv"` in its manifest), in the order of their folders: Ambient:Mode, Emby, Jellyfin, Local Files, Netflix, NFC Reader, Playlists, Plex, Prime Video, Weather, YouTube. Select opens the module's own page; [Modules](#modules) below lists their rows.
+
+## Arcade
+
+The second row opens the games' page, `SETTINGS | ARCADE`: the [Arcade](https://github.com/mehmetraif/OSD-OS/wiki/Arcade#settings) module's own rows, then under a **HIGH SCORES** heading the [High Scores](https://github.com/mehmetraif/OSD-OS/wiki/High-Scores#settings) module's, its **Enabled**, which puts High Scores on the main menu. The two modules make up the Arcade group (`"settings_group": "arcade"`), which shares one page: the cursor steps over the heading, and each row is saved in its own module, under `modules.com.osdos.arcade` or `modules.com.osdos.highscores`. Neither module has a row under a **MODULES** heading.
+
+## General Settings
+
+Under the **GENERAL SETTINGS** heading are the rows for the whole app: the look, what the menus are drawn on, starting up, and the menus' bars, screen saver and pointer.
+
+### The look
+
+The first rows under the heading set how the menus look: **Theme**, then one row for each part of a theme.
 
 - **Theme** names one of the themes, or None. Eight come with OSD/OS, and any folder with a `theme.json` in the data folder's `themes` is one too ([Themes](https://github.com/mehmetraif/OSD-OS/wiki/Themes)). Choosing one with ◄ ► sets every part row below back to THEME, including the rows that are hidden at the time.
 - **THEME** in a part row (saved as `""`) means the part as the theme has it.
@@ -76,7 +122,7 @@ The eight color schemes, by the two colours they draw with (`primary` on `surfac
 
 Schemes of your own come from two files in the data folder: `custom_color_schemes.json`, which adds any number of them by name, and `custom_color_scheme.json`, which adds one called **Custom**. Both are described, with examples, in [Configuration files](https://github.com/mehmetraif/OSD-OS/wiki/Configuration-Files#custom-color-schemes).
 
-## OSD Background and Window Frame
+### OSD Background and Window Frame
 
 | Setting | Values | Default | What it does | Config key |
 |---|---|---|---|---|
@@ -89,49 +135,18 @@ Schemes of your own come from two files in the data folder: `custom_color_scheme
 <tr><td>The menus in a framed window of the color scheme's background, black around it.</td><td>No background: the menus on black, in the scheme's lighter colour.</td><td>Skin DOS gives the frame a double line; Window Frame Shadow adds a DOS window's shadow.</td></tr>
 </table>
 
-## Starting up
+### Starting up
 
 | Setting | Values | Default | What it does | Config key |
 |---|---|---|---|---|
 | Start on Module | None, then each module that is turned on, by name | None | Opens that module straight after start (on the OSD/OS image, once the boot screen has closed). A module turned off later is never opened, and the row shows None | `app.startup_module`: the module's id, such as `com.osdos.local_files`; `"None"` |
 | Play at Startup | None, or the name of the favourite chosen | None | A favourite played straight after start, ahead of Start on Module. You choose it in its module: ► on the entry, then **Play at Startup** (it goes on Favorites too). Here you can only turn it off. It plays only while it is still one of that module's favourites | `app.startup_favorite`: `{ "module", "path", "name" }`, or `""` for None |
 | Startup From | Resume, Beginning | Resume | Offered while there is a favourite to play at startup. Where it begins, without asking: where it was stopped, or from the start | `app.startup_from` |
+| Boot Screen Colors | Theme, Default | Theme | The colours of the boot screen on the OSD/OS image, its cassette and the services coming up: the theme's or colour scheme's, or white on blue | `app.boot_colors`: `"Theme"` or `"Default"` |
 
 The Scripts module's **Auto-Run On Startup** runs a script when OSD/OS starts on that module, so it needs Start on Module set to Scripts ([Scripts](https://github.com/mehmetraif/OSD-OS/wiki/Scripts)).
 
-## Video
-
-These rows change how mpv plays. Everything about mpv itself, the flags each row adds and how they layer, is in [Playback and mpv](https://github.com/mehmetraif/OSD-OS/wiki/Playback-and-mpv).
-
-| Setting | Values | Default | What it does | Config key |
-|---|---|---|---|---|
-| 1080p Playback | On, Off | On | Raspberry Pi 3 only. **On**: the smooth overlay path that plays 1080p, where cropping can't work, so 14:9 and Pan & Scan show the whole picture and the deck menu has no CROP. **Off**: the scaler path, where cropping works but 1080p stutters. From the next video | `app.smooth_playback` |
-| Scaling | Letterbox, 14:9, Pan & Scan, Anamorphic | Letterbox | How a 16:9 picture fills a 4:3 screen, in every module whose own Scaling is Default. **Letterbox**: all of it, bars above and below. **14:9**: a little of the sides cut, thinner bars. **Pan & Scan**: fills the screen, the sides cut. **Anamorphic**: fills it squeezed, for a TV set to 16:9. From the next video; the deck menu's CROP changes it during one | `app.video_scaling` |
-| Transparent Background | Off, or a slider from TRANSPARENT to SOLID, 0 to 100 in steps of 10 | Off | Plays the video inside OSD/OS's own window (libmpv), so back from a video returns to the menus with the picture going on behind them; the main menu's first row takes it back to full screen. The slider says how solid the menus' ground is over the picture: at SOLID none of it shows, but it plays on, sound and all. Select turns it on or off. ◄ ► on it while it is off turn it on where its bar waits: at 40, or where it was if you turned it off on this visit to Settings. A change shows at once over a video playing behind the menus, and turning it off stops that video | `app.transparent_background`: a number from 0 to 100, or `"Off"` |
-| Video Levels | Auto, Limited, Full | Auto | The colour range mpv sends: **Limited** if blacks look crushed, **Full** if blacks look grey. Auto adds nothing, leaving mpv's default and your `mpv.conf`. From the next video | `app.video_output_levels` |
-| Loading Effect | On, Off | On | While a video loads, a tape's noise and tracking bands roll over the dubbing deck's counters. Off leaves the counters alone on the plain background | `app.loading_effect` |
-| Loading Screen Colors | Theme, Default | Theme | The colours of the screen a video loads behind: the theme's or colour scheme's, or OSD/OS's own, white on a VCR's blue, whatever the look | `app.loading_colors`: `"Theme"` or `"Default"` |
-| Boot Screen Colors | Theme, Default | Theme | The colours of the boot screen on the OSD/OS image, its cassette and the services coming up: the theme's or colour scheme's, or white on blue | `app.boot_colors`: `"Theme"` or `"Default"` |
-| Channel Logo | Off, Top Left, Top Right, Bottom Left, Bottom Right, All Corners | Top Right | OSD/OS's logo in a corner of the picture while a video plays, the way a channel's sits in a broadcast. mpv draws it into the picture, so with Transparent Background the menus lie over it. From the next video | `app.video_logo`: `off`, `tl`, `tr`, `bl`, `br` or `all` |
-| Logo Image | OSD/OS Logo, or a picture picked on the file browser: PNG, JPG, JPEG, SVG, GIF, BMP or WebP | OSD/OS | Offered while Channel Logo isn't Off. A picture of your own in the logo's place, made as tall as OSD/OS's logo (7% of the screen's height), its shape kept. A PNG with a clear background works best. A picture that can't be read leaves OSD/OS's logo. From the next video | `app.video_logo_image`: the file's full path, `""` for OSD/OS's |
-
-The older setting `app.auto_crop` (`On` or `Off`), from before Scaling, still counts while Scaling has never been set: `On` reads as Pan & Scan.
-
-<table>
-<tr><th width="50%">Channel Logo</th><th width="50%">Under the menus</th></tr>
-<tr><td><img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/screenshots/channel-logo.png" width="100%" alt="Channel Logo" /></td><td><img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/screenshots/channel-logo-menu.png" width="100%" alt="The logo under the menus" /></td></tr>
-<tr><td>OSD/OS's logo in a corner of the picture while a video plays.</td><td>It is in the picture itself, so with Transparent Background the menus lie over it.</td></tr>
-</table>
-
-<table>
-<tr><th width="50%">Logo Image</th><th width="50%">Picking the picture</th></tr>
-<tr><td><img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/screenshots/channel-logo-custom.png" width="100%" alt="Logo Image" /></td><td><img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/screenshots/logo-picker.png" width="100%" alt="Picking the picture" /></td></tr>
-<tr><td>A picture of your own in the logo's place, as tall as OSD/OS's logo.</td><td>Picked on the same file browser as everything else: select on a picture, or <b>OSD/OS Logo</b> at the top to go back to it.</td></tr>
-</table>
-
-**The file browser** that Music File and Logo Image open is the tree Local Files is browsed with. At its top is the default (**No File**, **OSD/OS Logo**), then the places that exist on this system: **Home**, **Media** (`/media`, where the image mounts its OSD-OS partition and USB drives), **Drives** (`/run/media/<user>`), **Volumes** (`/Volumes`, on a Mac) and **Root** (`/`). It shows folders and the files of the types the setting takes, hidden ones left out, and opens at the file chosen now. Select on a file picks it and goes back; back at the top leaves the setting as it was.
-
-## The menus
+### The menus
 
 | Setting | Values | Default | What it does | Config key |
 |---|---|---|---|---|
@@ -139,13 +154,16 @@ The older setting `app.auto_crop` (`On` or `Off`), from before Scaling, still co
 | Help Line | On, Off | On | The box under a menu with a line about the selected row. Off hides it everywhere but About, whose lines are the page, and the menu above it gets a row more | `app.help_line` |
 | Screen Saver | OFF, 30, 60, 120 | OFF | Seconds before a black screen with the OSD/OS logo bouncing across it, against CRT burn-in: in the menus after that long without a key or a mouse move, and over a video paused that long (mpv draws it then). Never over a playing video, a running script or the boot screen. The first key only wakes it | `app.screensaver_timeout`: `"OFF"` or the seconds |
 | Mouse Pointer | Off, 2 sec, 5 sec, 10 sec, 30 sec, Always | 5 sec | A mouse's pointer, or a keyboard touchpad's, drawn in the OSD's pixels: it shows as the mouse moves and goes again after this long without moving. **Off**: never shown. **Always**: stays. Moving the mouse also wakes the screen saver. The menus still go by keys | `app.mouse_pointer`: `off`, `2`, `5`, `10`, `30` or `always` |
-| Info Screen | Off, Key, 1 sec, 2 sec, 3 sec, 5 sec | 3 sec | A film's details (story, genre, director, cast, rating) in the Netflix, Prime Video and YouTube trees. **Key**: only with ► on a film. **A number**: also on its own once the cursor has rested on a film that long. **Off**: no info screen; ► offers the film's options instead | `app.info_screen`: `off`, `key`, `1`, `2`, `3` or `5` |
-
-<img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/screenshots/settings-modules.png" width="100%" alt="Settings further down: Logo Image, Hint Bar, Help Line, Screen Saver, Mouse Pointer, Info Screen, then the MODULES heading and Ambient:Mode" />
 
 ## Modules
 
-Under the **MODULES** heading is one row for every module that has settings, which is all fourteen, in the order of their folders: Ambient:Mode, Arcade, Emby, High Scores, Jellyfin, Local Files, Netflix, NFC Reader, Playlists, Plex, Prime Video, Scripts, Weather, YouTube. Select opens the module's own page, `SETTINGS | <MODULE>`. Its rows are written in the module's `manifest.json`, so a module brings its own ([Writing a module](https://github.com/mehmetraif/OSD-OS/wiki/Writing-a-Module)).
+Under the first screen's **MODULES** heading is a row for each module that belongs to neither page: Scripts, and a module of your own that names no group. Every module that has settings, which is all fourteen, brings them in its `manifest.json` ([Writing a module](https://github.com/mehmetraif/OSD-OS/wiki/Writing-a-Module)), and select on its row opens its page, `SETTINGS | <MODULE>`; the Arcade group's two share the Arcade page. Where a module's row is depends on its group, `settings_group` in the manifest:
+
+| Group | Where the module's page is | Modules, in the order of their folders |
+|---|---|---|
+| None | Under **MODULES** on the first screen, after the general settings | Scripts |
+| `"tv"` | Under **MODULES** on TV / Movie's page ([above](#the-video-modules)) | Ambient:Mode, Emby, Jellyfin, Local Files, Netflix, NFC Reader, Playlists, Plex, Prime Video, Weather, YouTube |
+| `"arcade"` | The Arcade page, which the group's modules share, each after the first under its name as a heading ([above](#arcade)) | Arcade, High Scores |
 
 <table>
 <tr><th width="50%">A module's settings</th><th width="50%">Picking a folder</th></tr>
@@ -160,9 +178,9 @@ Every module's first row is **Enabled**. A module that is turned off is left off
 | Module | Module id | On by default | Its rows, in order |
 |---|---|---|---|
 | [Ambient:Mode](https://github.com/mehmetraif/OSD-OS/wiki/Ambient-Mode) | `com.osdos.ambient_mode` | No | Enabled, Media Directory, Auto-Launch Playback, Scaling |
-| [Arcade](https://github.com/mehmetraif/OSD-OS/wiki/Arcade) | `com.osdos.arcade` | No | Enabled, Games Folder, Screen, Play at Startup, Start Info Screen, High Scores, Online High Scores (with RetroAchievements, RetroAchievements Account), Online Play (with On, Online Name and Relay Server), FinalBurn Neo, Video, Read the Games Again; with Screen on Arcade, Start Filter, Menu Filters, List Style, Border, Info Background, Screen Adjustment, Hint Bar and Help Line too |
+| [Arcade](https://github.com/mehmetraif/OSD-OS/wiki/Arcade) | `com.osdos.arcade` | No | Enabled, Games Folder, Screen, Play at Startup, Start Info Screen, Save High Scores, Online High Scores (with RetroAchievements, RetroAchievements Account), Online Play (with On, Online Name and Relay Server), FinalBurn Neo, Emulator Video (Screen Shape, Integer Scale, MAME Video), Read the Games Again; with Screen on Arcade, Start Filter, Menu Filters, List Style, Border, Info Background, Screen Adjustment, Hint Bar and Help Line too |
 | [Emby](https://github.com/mehmetraif/OSD-OS/wiki/Emby) | `com.osdos.emby` | No | Enabled; once signed in Libraries, Video Quality, Resume Playback, Autoplay Next Episode, Intro Skip, Credit Skip; Scaling; Sign out once signed in |
-| [High Scores](https://github.com/mehmetraif/OSD-OS/wiki/High-Scores) | `com.osdos.highscores` | No | Enabled |
+| [High Scores](https://github.com/mehmetraif/OSD-OS/wiki/High-Scores) | `com.osdos.highscores` | No | Enabled, on the Arcade page under the **HIGH SCORES** heading |
 | [Jellyfin](https://github.com/mehmetraif/OSD-OS/wiki/Jellyfin) | `com.osdos.jellyfin` | No | Enabled; once signed in Libraries, Video Quality, Resume Playback, Autoplay Next Episode, and Intro Skip and Credit Skip where the server has the Intro Skipper plugin; Scaling; Sign out once signed in |
 | [Local Files](https://github.com/mehmetraif/OSD-OS/wiki/Local-Files) | `com.osdos.local_files` | Yes | Enabled, Media Directory, Loop Playback, Shuffle Playback, Resume Playback, Auto Show Subtitles, Subtitle Language, Image Duration, Hide File Extensions, Scaling |
 | [Netflix](https://github.com/mehmetraif/OSD-OS/wiki/Netflix-and-Prime-Video) | `com.osdos.netflix` | No | Enabled, Catalogue Region, Catalogue Language, Scaling, Sign in, Sign out |
@@ -174,7 +192,7 @@ Every module's first row is **Enabled**. A module that is turned off is left off
 | [Weather](https://github.com/mehmetraif/OSD-OS/wiki/Weather) | `com.osdos.weather` | No | Enabled, Displays, Music, Units, Screen Time, Hours Format |
 | [YouTube](https://github.com/mehmetraif/OSD-OS/wiki/YouTube) | `com.osdos.youtube` | No | Enabled, Advanced (Playback Resolution, Video Codec, Max Frame Rate, Scaling, Audio Language, Subtitles, Subtitle Language, Playback Speed, Resume Playback, Display Shorts), Delete Watch Later, Delete Recently Watched, Sign in, Sign out |
 
-Each module's page on this wiki explains its rows. Every module that plays video has its own **Scaling**: **Default** (follow Settings → Scaling) or one of the four, for that module only.
+Each module's page on this wiki explains its rows. Every module that plays video has its own **Scaling**: **Default** (follow Settings → TV / Movie → Scaling) or one of the four, for that module only.
 
 ### The kinds of row a module can have
 

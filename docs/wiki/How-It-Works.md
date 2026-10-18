@@ -61,6 +61,7 @@ Run from a source tree, `APP_ROOT=$(pwd) ./build/osdos` points the app at the ch
   "name": "Ambient:Mode",
   "icon": "assets/images/logo.svg",
   "entry_point_qml": "views/Root.qml",
+  "settings_group": "tv",
   "settings": [
     { "key": "enabled", "label": "ENABLED", "type": "toggle", "default": "OFF" },
     { "key": "media_directory", "label": "Media Directory", "type": "directory_browser", "default": "" },
@@ -77,7 +78,7 @@ Run from a source tree, `APP_ROOT=$(pwd) ./build/osdos` points the app at the ch
 }
 ```
 
-- **The settings** a manifest lists become the module's page under Settings → Modules, saved under `modules.<id>` in `config.json`. No C++ is needed to add one ([ARCHITECTURE.md → manifest.json Reference](https://github.com/mehmetraif/OSD-OS/blob/main/ARCHITECTURE.md#manifestjson-reference)).
+- **The settings** a manifest lists become the module's page in Settings, saved under `modules.<id>` in `config.json`. Its `settings_group` says where Settings lists that page: `"tv"` under Modules on the TV / Movie page, as here; `"arcade"` on the Arcade page, which the arcade modules share; none, under Modules on Settings' first screen. No C++ is needed to add one ([ARCHITECTURE.md → manifest.json Reference](https://github.com/mehmetraif/OSD-OS/blob/main/ARCHITECTURE.md#manifestjson-reference)).
 - **Enabled or not**: the module's `enabled` in `config.json`, else its manifest's default for `enabled`, else on.
 - **The main menu** (`views/ModuleList.qml`) asks `scan_for_modules()` and gets the enabled modules, each with its entry point (`modules/<folder>/views/Root.qml`). A backend may add rows of its own after them (`get_menu_entries()`), as Scripts does for the scripts you put on the main menu.
 
@@ -335,7 +336,7 @@ The board's family (from `/proc/device-tree/model`, [`src/util/Board`](https://g
 | Where | mpv process | Why |
 |---|---|---|
 | Pi 4, no display server | `--vo=drm --hwdec=drm-copy,v4l2m2m-copy` | Hardware decoding, its frames copied back so they land on the main plane: smooth, and cropping works |
-| Pi 3, no display server | `--vo=gpu --gpu-context=drm --hwdec=v4l2m2m`; with Settings → 1080p Playback Off, `--vo=drm --hwdec=v4l2m2m-copy` | Straight to an overlay plane, the lightest on its CPU, but it can't crop; Off trades smoothness for crop |
+| Pi 3, no display server | `--vo=gpu --gpu-context=drm --hwdec=v4l2m2m`; with Settings → TV / Movie → 1080p Playback Off, `--vo=drm --hwdec=v4l2m2m-copy` | Straight to an overlay plane, the lightest on its CPU, but it can't crop; Off trades smoothness for crop |
 | Pi 5, and any other Linux with no display server | `--vo=drm --hwdec=auto-safe` | On a Pi 5 this finds FFmpeg's Vulkan decoder on its V3D GPU, for H.264 and HEVC; elsewhere it is a safe default |
 | Linux desktop (X11, Wayland, SteamOS) | `--hwdec=vaapi,nvdec,vaapi-copy,nvdec-copy,no` | VA-API or NVDEC where they work, else software, never Vulkan decoding, which froze on some PCs |
 | macOS | `--hwdec=videotoolbox` | Apple's decoder |
@@ -362,7 +363,7 @@ A presentation setting left at its default (Scaling on Letterbox, Video Levels o
 
 ### Transparent Background: mpv inside the window
 
-With Settings → **Transparent Background** on, a video plays inside OSD/OS's own window, so the menus can lie over the picture while it plays on.
+With Settings → TV / Movie → **Transparent Background** on, a video plays inside OSD/OS's own window, so the menus can lie over the picture while it plays on.
 
 - **[`EmbeddedMpv`](https://github.com/mehmetraif/OSD-OS/blob/main/src/player/EmbeddedMpv.cpp)** is mpv as a library. libmpv is opened as the app runs (`libmpv.so.2`, or `libmpv.2.dylib` on a Mac), never linked, so OSD/OS runs where it is missing; Settings offers the row only where it loaded.
 - **The same session.** It takes the command line an mpv process would get and turns it into options, adding `vo=libmpv`. The socket, the deck's menu and every signal work as for a process. It reads no `mpv.conf`, and `mpv_video_args` doesn't apply. There is no hand-off: OSD/OS keeps the screen.

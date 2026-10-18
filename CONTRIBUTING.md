@@ -38,7 +38,7 @@ For the full reference — module anatomy, `manifest.json` setting types, `AppCo
 
 A module is a folder under `modules/` with a `manifest.json` and QML views, plus an optional C++ backend. At a high level:
 
-1. **Create `modules/[name]/`** with a `manifest.json` (identity + settings) and `assets/images/logo.svg`. See the [manifest.json reference](ARCHITECTURE.md#manifestjson-reference).
+1. **Create `modules/[name]/`** with a `manifest.json` (identity + settings) and `assets/images/logo.svg`. Its optional `settings_group` says where Settings lists the module's page: `"tv"` with the video modules on the TV / Movie page, `"arcade"` on the Arcade page, or, left out, under Modules on Settings' first screen. See the [manifest.json reference](ARCHITECTURE.md#manifestjson-reference).
 2. **Add QML views** under `modules/[name]/views/`, with `Root.qml` as the entry point (the module router) plus list/detail views. Follow the [QML view patterns](ARCHITECTURE.md#qml-view-patterns).
 3. **(Optional) Add a C++ backend** under `src/modules/[name]/`, add the `.cpp` to `CMakeLists.txt`, and register it with one `registerModule(...)` call in `src/main.cpp`. See [AppCore → registerModule](ARCHITECTURE.md#registermodule--wiring-a-backend-in).
 

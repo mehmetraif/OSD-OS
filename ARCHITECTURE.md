@@ -80,7 +80,8 @@ osd-os/
     ...
   views/                            # app-level QML
     ModuleList.qml
-    Settings.qml
+    Settings.qml                    # Settings' first screen, and TV / Movie's page (navParams.group "tv")
+    ModuleSettings.qml              # a module's settings page, or a group's shared one (the Arcade page)
     About.qml                       # Settings → About: the credits, and the licence's text
     FilePicker.qml                  # the folder or file a setting names, picked on a TreeBrowser
     ...
@@ -140,6 +141,8 @@ Loaded at startup by `AppCore` — the single source of truth for a module's ide
 }
 ```
 
+An optional `"settings_group"` says where Settings lists the module's page: `"tv"` on TV / Movie's page, `"arcade"` on the Arcade page, left out under the first screen's MODULES heading (see [Where Settings lists a module](#where-settings-lists-a-module-settings_group)).
+
 ### Setting types
 
 | `type` | Description | Extra fields |
@@ -160,11 +163,21 @@ Additional fields any setting may carry:
 - `description` — the help line under the menu while the row is selected.
 - `requires_auth` — if `true`, the setting is only shown when the module reports an authenticated state via `get_module_auth_state(moduleId)`. Used by Plex to hide server/user/library settings until sign-in.
 - `requires_capability` — the setting is only shown while the backend has reported that capability, as `dynamicOptionsReady("_capabilities", [names])`. Jellyfin's intro and credit skipping rows wait for `mediasegments` this way.
-- `shown_with` — `{ "key", "value" }`: the setting is only shown while another row of the module's has that value as the page shows it (`valueOf()`: a toggle's `"ON"` or `"OFF"`, an unset row's `default`, a dynamic list's first choice), and never while that row is hidden itself. The rows come and go as that row changes, with the cursor kept on it (`buildModel(keepKey)`), a dynamic row's choices asked for as it comes (`requestOptions()`), and a hidden row keeps what was saved in it. Arcade's rows for its Arcade screen follow its SCREEN this way.
+- `shown_with` — `{ "key", "value" }`: the setting is only shown while another row of the module's has that value as the page shows it (`valueOf()`: a toggle's `"ON"` or `"OFF"`, an unset row's `default`, a dynamic list's first choice), and never while that row is hidden itself. The rows come and go as that row changes, with the cursor kept on it (`buildModel(keepId)`), a dynamic row's choices asked for as it comes (`requestOptions()`), and a hidden row keeps what was saved in it. Arcade's rows for its Arcade screen follow its SCREEN this way.
 
 A `submenu` row opens `ModuleSettings.qml` again on just its rows (`navParams.submenu` names it, and the title bar reads `MODULE / LABEL`); back returns to the row. Its rows' keys stay flat under `modules.<id>`, so moving a setting into or out of a submenu keeps what was saved.
 
 A `module_view` row loads the module's `Root.qml` (`AppCore::module_entry_point`, so a disabled module's too) on the app's navigation stack, with the row's `params` as its `navParams`; the router opens the view they ask for, and back from that view returns to the row. Netflix, Prime Video and YouTube open their sign-in page this way (`{ "signIn": true }`).
+
+### Where Settings lists a module (`settings_group`)
+
+`AppCore` reads the manifest's `settings_group` (`ModuleEntry::settingsGroup`) and hands it to QML in `get_installed_modules()`. `views/Settings.qml` sorts the modules with settings by it (`groupModules()`):
+
+- **None** (Scripts, and a module of your own that names no group, or one Settings has no page for): a row each under MODULES (`moduleRows()`) on the first screen, after GENERAL SETTINGS and before APPLICATION.
+- **`"tv"`** (the video modules and Weather): a row each under MODULES on TV / Movie's page, which the first screen's first row opens. That page is `Settings.qml` again, opened with `navParams.group: "tv"`: `tvRows()` builds it in place of `firstRows()`, the app rows that are the videos' alone (1080p Playback, Scaling, Transparent Background, Video Levels, Loading Effect, Loading Screen Colors, Channel Logo, Logo Image, Info Screen; still `app.<key>`, saved with `save_setting("", …)`), then the group's modules. Its title bar reads `SETTINGS | TV / MOVIE`, without the version or the IP address.
+- **`"arcade"`** (Arcade, High Scores): one page for the whole group, the first screen's second row, offered while a module of the group has settings. It opens `ModuleSettings.qml` on the group's first module by folder order (Arcade) with `navParams.alsoModules` naming the others. After that module's rows come each other module's, under its name as a heading: a `"type": "section"` row, which `MenuList`'s cursor steps over and `buildModel()` never leaves it on. Such a row is marked with its module's id, `_module` (`moduleOf()`): it is saved in that module (`save_setting(<its id>, key, …)`, so `modules.<its id>.<key>`), and its dynamic choices (kept as `"<id>/<key>"`, `rowId()`), sign-in state, capabilities, `shown_with`, slots and the pages it opens (a `submenu`, a multi-select, the folder picker, a `module_view`) are that module's own. A `submenu` opens on its own module alone.
+
+A group only says where a page is listed: moving a module into or out of one keeps what was saved under `modules.<id>`.
 
 ### Dynamic options and apply slots
 
@@ -197,6 +210,7 @@ A real example (Plex) — note `requires_auth`, dynamic options, and apply slots
 | Slot | Purpose |
 |---|---|
 | `scan_for_modules()` | Emits `modulesLoaded` with enabled modules |
+| `get_installed_modules()` | Every module found, enabled or not, for Settings: `[{ id, name, has_settings, settings_group, enabled }]` |
 | `get_settings()` | Returns entire `config.json` as a map |
 | `get_setting(moduleId, key)` | Returns a single setting value |
 | `save_setting(moduleId, key, value)` | Writes to `config.json`; supports dot-notation keys. False when the file couldn't be written (a full or read-only card): nothing changes then, and no setting changed is signalled |
@@ -282,7 +296,7 @@ The `--vo`/`--hwdec` flags mpv launches with are auto-selected per device to try
 | Target | Boot driver | Video flags |
 |---|---|---|
 | Pi 4B | Fake KMS (`vc4-fkms-v3d`) | `--vo=drm --hwdec=drm-copy,v4l2m2m-copy` |
-| Pi 3B / 3B+ | Fake KMS (`vc4-fkms-v3d`) | `--vo=gpu --gpu-context=drm --hwdec=v4l2m2m`; with Settings → **1080p Playback** → Off, `--vo=drm --hwdec=v4l2m2m-copy` |
+| Pi 3B / 3B+ | Fake KMS (`vc4-fkms-v3d`) | `--vo=gpu --gpu-context=drm --hwdec=v4l2m2m`; with Settings → TV / Movie → **1080p Playback** → Off, `--vo=drm --hwdec=v4l2m2m-copy` |
 | Pi 5 | Full KMS (`vc4-kms-v3d`) | `--vo=drm --hwdec=auto-safe` |
 | Unknown headless Linux | — | `--vo=drm --hwdec=auto-safe` (a safe fallback for now - will research this more later) |
 | Linux under a desktop (X11, Wayland) | — | `--hwdec=vaapi,nvdec,vaapi-copy,nvdec-copy,no` |
@@ -296,7 +310,7 @@ The key levers are which decoder and which DRM plane the frames land on:
     - I tried a bunch of other paths just to be safe... `auto`/`auto-copy` excludes `v4l2m2m` entirely (so they'd drop H.264 to software too), the Pi5's Vulkan path is unavailable here (the Pi4's V3D 4.2 GPU looks ot lack `VK_KHR_video_decode_queue`), and `--hwdec=drm` without `-copy` hands its frames to the overlay plane, which judders. So the list is `drm-copy` for HEVC, then `v4l2m2m-copy` for H.264.
 - **Pi 3**
     - H264 - the copy path I am using on the pi4 sadly pegs all four cores and goes choppy on the pi3. So I chose to take lowest-CPU path with zero-copy (e.g. `v4l2m2m` straight to the overlay plane).  
-    - That gives around ~15% CPU, smooth playback, with the single trade-off that crop (`--panscan`) is unavailable with this set up.  I figured that was an acceptable tradeoff for supporting 1080p video but Settings → **1080p Playback** → Off (`smooth_playback`, offered on a Pi 3 only) switches to `--vo=drm --hwdec=v4l2m2m-copy`, which crops but stutters on 1080p, so it suits 720p content. (The `mpv_video_args` override changes the flags, but not whether the app offers crop: that follows the setting.)
+    - That gives around ~15% CPU, smooth playback, with the single trade-off that crop (`--panscan`) is unavailable with this set up.  I figured that was an acceptable tradeoff for supporting 1080p video but Settings → TV / Movie → **1080p Playback** → Off (`smooth_playback`, offered on a Pi 3 only) switches to `--vo=drm --hwdec=v4l2m2m-copy`, which crops but stutters on 1080p, so it suits 720p content. (The `mpv_video_args` override changes the flags, but not whether the app offers crop: that follows the setting.)
 - **Pi 5** 
     - boots Full KMS, so plain `--vo=drm` direct-renders. when testing `auto-safe` I found no working VA-API/V4L2 path (the V3D VA-API driver fails to open) and it selects FFmpeg's Vulkan video decoder (`vulkan-copy`) on the V3D GPU for both H264 and HEVC. HEVC reaches the Pi5's hardware HEVC block this way — ~15% for 1080p, ~45% for 4K; H.264 goes through the same Vulkan path and stays light (~20–27% for 1080p). Because it's a `-copy` decoder the frames land on the primary draw plane, so I found this path is smooth and supports crop.
 
@@ -335,13 +349,13 @@ The on-screen controls mpv shows during playback are custom Lua scripts in `scri
 
 ### The channel logo (`scripts/mpv-logo.lua`)
 
-Settings → **Channel Logo** (`app.video_logo`: `"tl"`, `"tr"` (the default, when unset), `"bl"`, `"br"`, `"all"` for one in each corner, or `"off"`) puts OSD/OS's logo in a corner of the picture while a video plays, the way a channel's sits in a broadcast. mpv draws it itself: `sessionArgs()` loads `scripts/mpv-logo.lua` with `logo-corner=<corner>` among the script options, so it is there in both modes (the embedded session takes the same `--script`), and it is in the picture, under whatever the app draws over it (the menus over a video behind them, with Transparent Background). The script redraws `assets/images/logo-bug.svg` as ASS vector shapes (`mp.assdraw`, one event per colour) on `mp.set_osd_ass` at the output's size: 7% of the output's height tall, 10% of the picture's width and height in from the picture's corner (`osd-dimensions`, its margins taken off, so a letterboxed picture's bars stay clear of it), and again whenever the output's size changes. Like every setting mpv is launched with, it applies from the next video.
+Settings → TV / Movie → **Channel Logo** (`app.video_logo`: `"tl"`, `"tr"` (the default, when unset), `"bl"`, `"br"`, `"all"` for one in each corner, or `"off"`) puts OSD/OS's logo in a corner of the picture while a video plays, the way a channel's sits in a broadcast. mpv draws it itself: `sessionArgs()` loads `scripts/mpv-logo.lua` with `logo-corner=<corner>` among the script options, so it is there in both modes (the embedded session takes the same `--script`), and it is in the picture, under whatever the app draws over it (the menus over a video behind them, with Transparent Background). The script redraws `assets/images/logo-bug.svg` as ASS vector shapes (`mp.assdraw`, one event per colour) on `mp.set_osd_ass` at the output's size: 7% of the output's height tall, 10% of the picture's width and height in from the picture's corner (`osd-dimensions`, its margins taken off, so a letterboxed picture's bars stay clear of it), and again whenever the output's size changes. Like every setting mpv is launched with, it applies from the next video.
 
-Settings → **Logo Image** (`app.video_logo_image`, a picture's path; OSD/OS's logo when unset), offered while Channel Logo isn't Off, puts a picture of the user's own there instead, picked on the [FilePicker](#filepicker-viewsfilepickerqml) (PNG, JPEG, SVG, GIF, BMP or WebP). `sessionArgs()` reads it at the logo's height (7% of what mpv draws on: the UI's screen, `setScreen()`, or the window's session's picture) and its own shape on those pixels (on a tube's, as much wider or narrower as they are; a camera's picture turned as its EXIF says) into raw premultiplied BGRA (`osdos-logo.bgra` in the temp folder), mpv's overlay format, and hands the script `logo-image`, `logo-width` and `logo-height`; the script lays it in each corner with `overlay-add` (ids 0 to 3), placed as the drawn logo is. It is made at the size it is shown because mpv before 0.38 can't scale an overlay. A picture that can't be read leaves OSD/OS's logo, with a line in the log.
+Settings → TV / Movie → **Logo Image** (`app.video_logo_image`, a picture's path; OSD/OS's logo when unset), offered while Channel Logo isn't Off, puts a picture of the user's own there instead, picked on the [FilePicker](#filepicker-viewsfilepickerqml) (PNG, JPEG, SVG, GIF, BMP or WebP). `sessionArgs()` reads it at the logo's height (7% of what mpv draws on: the UI's screen, `setScreen()`, or the window's session's picture) and its own shape on those pixels (on a tube's, as much wider or narrower as they are; a camera's picture turned as its EXIF says) into raw premultiplied BGRA (`osdos-logo.bgra` in the temp folder), mpv's overlay format, and hands the script `logo-image`, `logo-width` and `logo-height`; the script lays it in each corner with `overlay-add` (ids 0 to 3), placed as the drawn logo is. It is made at the size it is shown because mpv before 0.38 can't scale an overlay. A picture that can't be read leaves OSD/OS's logo, with a line in the log.
 
 ### Transparent Background: video inside the app
 
-With Settings → **Transparent Background** (`app.transparent_background`: how solid the menus' ground is over the picture, `0` to `100`, or `Off`, the default), `loadAndPlay()` plays the video inside the app's own window instead of starting an mpv process over it, so the menus can be drawn over the picture. Back from a video then returns to the menus and leaves it playing behind them, the way a deck's menu lies over the tape.
+With Settings → TV / Movie → **Transparent Background** (`app.transparent_background`: how solid the menus' ground is over the picture, `0` to `100`, or `Off`, the default), `loadAndPlay()` plays the video inside the app's own window instead of starting an mpv process over it, so the menus can be drawn over the picture. Back from a video then returns to the menus and leaves it playing behind them, the way a deck's menu lies over the tape.
 
 - **`EmbeddedMpv`** (`src/player/EmbeddedMpv.h/.cpp`) is mpv as a library. libmpv is opened at run time with `QLibrary` (`libmpv.so.2`, or `libmpv.2.dylib` in Homebrew's prefixes), never linked, so the app runs where it is missing; `mpvController.embeddedAvailable()` says whether it loaded, and Settings offers the row only then. Its headers are optional at build time (`pkg-config mpv`, so `libmpv-dev` / Homebrew's mpv); without them `OSDOS_EMBEDDED_MPV` is left undefined and it is never available.
 - **The same session.** `sessionArgs()` builds the command line the subprocess gets, and `EmbeddedMpv::start()` turns it into options and a playlist: `--x=y` is option `x`, a repeated list option (`--script`, `--sub-file`, `--http-header-fields`) is gathered and set whole as a node array, so an item keeps any character, and an option this libmpv doesn't know is skipped with a warning where the mpv command line would refuse to start. On top: `vo=libmpv`, `idle=once` (it quits when its playlist has played out, as the process exits), `input-default-bindings=yes` (libmpv leaves them off). Decoding follows where the picture is drawn (below): on the GPU each decoder hands its frames over as they are, ahead of its copy-back mode (Pi 4 `drm,v4l2m2m,drm-copy,v4l2m2m-copy`, Pi 3 `v4l2m2m,v4l2m2m-copy`, desktop Linux `nvdec,vaapi-copy,nvdec-copy,no`, VA-API only as a copy since its frames would need the window system's display; a Pi 5 keeps `auto-copy-safe`, as FFmpeg's Vulkan decoder that it picks there hands mpv's OpenGL renderer only copies), for the software renderer the copy-back modes alone (Pi 4 `drm-copy,v4l2m2m-copy`, Pi 3 `v4l2m2m-copy`, Pi 5 `auto-copy-safe`, desktop Linux `vaapi-copy,nvdec-copy,no`, macOS `videotoolbox-copy`). Should the GPU not take a decoder's frames (`Mapping hardware decoded surface failed`: mpv then draws nothing, and doesn't fall back by itself), `EmbeddedMpv` sets the session's `hwdec` to the copy-back modes in its list, and the sessions after it start with them. The `mpv_video_args` override is not used, and libmpv reads no `mpv.conf`. The IPC socket, the OSC scripts and every signal work as for the process; there is no `DisplayHandoff`, since the app keeps the screen.
@@ -952,7 +966,7 @@ Anything shaped like folders, browsed as a horizontal tree, the way Local Files,
 
 ### FilePicker (`views/FilePicker.qml`)
 
-The picker every setting that names a folder or a file opens: the same horizontal tree Local Files is browsed with, from its places (`AppCore::filePlaces()`: home, where drives and partitions are mounted, the root) down, each folder's entries from `folderEntries()`. A module's `directory_browser` setting opens it (`ModuleSettings`), and so does Settings → Logo Image (a row of `type: "file"`, its `picker` the navParams below). It opens down to the folder or file chosen now, the cursor on it; the choice is saved with `save_setting` and back comes back, and back at the top leaves the setting as it was.
+The picker every setting that names a folder or a file opens: the same horizontal tree Local Files is browsed with, from its places (`AppCore::filePlaces()`: home, where drives and partitions are mounted, the root) down, each folder's entries from `folderEntries()`. A module's `directory_browser` setting opens it (`ModuleSettings`), and so does Settings → TV / Movie → Logo Image (a row of `type: "file"`, its `picker` the navParams below). It opens down to the folder or file chosen now, the cursor on it; the choice is saved with `save_setting` and back comes back, and back at the top leaves the setting as it was.
 
 | navParams | Description |
 |---|---|
@@ -1036,7 +1050,7 @@ What a player shows while its video starts, in place of a black screen: a VCR's 
 - bottom left: SLP ▶ and the source;
 - bottom right: SLP ◀ and DEST.
 
-The tracking band jitters across the top and, every few seconds, rolls down the picture, breaking up the letters it passes. The display jumps sideways now and then, and its letters bleed a little to the right. Settings → **Loading Effect** (`app.loading_effect`, `"On"` when unset, or `"Off"`; Main.qml's `root.loadingEffect`) turns all of that off: the display then stands alone on the plain background, its counters and blinking LOADING as before. Settings → **Loading Screen Colors** (`app.loading_colors`) draws it in the colours in force (`"Theme"`, when unset) or in Video 1's white on blue (`"Default"`), whatever the theme: Main.qml's `root.loadingInk` and `root.loadingPaper`. The boot screen has the same choice, Settings → **Boot Screen Colors** (`app.boot_colors`, `root.bootInk`, `root.bootPaper`).
+The tracking band jitters across the top and, every few seconds, rolls down the picture, breaking up the letters it passes. The display jumps sideways now and then, and its letters bleed a little to the right. Settings → TV / Movie → **Loading Effect** (`app.loading_effect`, `"On"` when unset, or `"Off"`; Main.qml's `root.loadingEffect`) turns all of that off: the display then stands alone on the plain background, its counters and blinking LOADING as before. Settings → TV / Movie → **Loading Screen Colors** (`app.loading_colors`) draws it in the colours in force (`"Theme"`, when unset) or in Video 1's white on blue (`"Default"`), whatever the theme: Main.qml's `root.loadingInk` and `root.loadingPaper`. The boot screen has the same choice, Settings → **Boot Screen Colors** (`app.boot_colors`, `root.bootInk`, `root.bootPaper`).
 
 | Property | Type | Description |
 |---|---|---|

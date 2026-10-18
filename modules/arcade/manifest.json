@@ -3,6 +3,7 @@
   "name": "Arcade",
   "icon": "assets/images/logo.svg",
   "entry_point_qml": "views/Root.qml",
+  "settings_group": "arcade",
   "settings": [
     {
       "key": "enabled",
@@ -112,7 +113,7 @@
     },
     {
       "key": "high_scores",
-      "label": "High Scores",
+      "label": "Save High Scores",
       "type": "toggle",
       "default": "ON",
       "description": "Keep each game's high score table, as MAME's hiscore plugin does\nFor the games that forget it when they are switched off"

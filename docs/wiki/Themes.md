@@ -197,7 +197,7 @@ The one theme whose music is a tracker's module: a four-channel FastTracker 2 XM
 
 ### Theme and the rows under it
 
-<img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/screenshots/settings.png" width="100%" alt="Settings: Theme at the top, then a row for each of its parts" />
+<img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/screenshots/settings.png" width="100%" alt="Settings: TV / Movie and Arcade, then under the GENERAL SETTINGS heading Theme and a row for each of its parts" />
 
 Settings → **Theme** lists None and every theme by name ([Settings](https://github.com/mehmetraif/OSD-OS/wiki/Settings#the-look)):
 

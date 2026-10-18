@@ -478,7 +478,7 @@ OSD/OS's temporary files go in the system's temporary folder (`/tmp`, or `$TMPDI
 | `osdos-input.conf`, `osdos-input-embedded.conf` | The key bindings each video's mpv gets ([Playback and mpv](https://github.com/mehmetraif/OSD-OS/wiki/Playback-and-mpv#back-and-the-end-of-a-video)) |
 | `osdos-mpv.log` | mpv's log, above |
 | `osdos-mpv-subinfo.json` | Subtitle tracks' names for the deck menu, while a server's sidecar subtitles play |
-| `osdos-logo.bgra` | Settings → Logo Image's picture, made into mpv's overlay format |
+| `osdos-logo.bgra` | Settings → TV / Movie → Logo Image's picture, made into mpv's overlay format |
 | `osdos-fonts.conf` | The fontconfig file that shows mpv the VCR font |
 | `osdos-menu-music-<pid>.sock`, `osdos-weather-music.sock` | The menu music's and Weather's music's mpv sockets |
 

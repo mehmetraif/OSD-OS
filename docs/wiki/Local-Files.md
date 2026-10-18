@@ -26,7 +26,7 @@ Local Files is on by default. Its code is in [modules/local_files](https://githu
 
 ```mermaid
 flowchart TD
-    A{"Settings → Local Files<br>Media Directory set?"} -- yes --> B["That folder"]
+    A{"Settings → TV / Movie → Local Files<br>Media Directory set?"} -- yes --> B["That folder"]
     A -- "no (Default)" --> C{"OSDOS_MEDIA_DIR set<br>in the environment?"}
     C -- yes --> D["That folder<br>(on the OSD/OS image: /media/OSD-OS,<br>the card's film partition)"]
     C -- no --> E["media in the data folder"]
@@ -37,7 +37,7 @@ flowchart TD
 
 ### The media folder
 
-**Settings → Local Files → Media Directory** names the folder Local Files shows. Until you pick one it reads **Default**, which is:
+**Settings → TV / Movie → Local Files → Media Directory** names the folder Local Files shows. Until you pick one it reads **Default**, which is:
 
 | Where OSD/OS runs | Default media folder |
 |---|---|
@@ -198,7 +198,7 @@ The favourite played at startup begins without asking: where it was stopped, or 
 <table>
 <tr><th width="50%">Resume</th><th width="50%">Loading</th></tr>
 <tr><td><img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/screenshots/resume.png" width="100%" alt="Resume playback? Resume from 1:12:34, or start from the beginning" /></td><td><img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/screenshots/loading.png" width="100%" alt="The loading screen: a tape loading, TAPE A PLAY and TAPE B LOADING" /></td></tr>
-<tr><td>Pick up where you left off, or start from the beginning.</td><td>While a video starts, a tape loads. Settings → Loading Effect turns the noise off.</td></tr>
+<tr><td>Pick up where you left off, or start from the beginning.</td><td>While a video starts, a tape loads. Settings → TV / Movie → Loading Effect turns the noise off.</td></tr>
 </table>
 
 Select on a file puts it at the top of Recently Watched and hands it to mpv, full screen. While mpv starts, the loading screen shows a dubbing deck's display, with **LOCAL FILES** as the source.
@@ -259,7 +259,7 @@ A still image is shown for **Image Duration** (5, 10, 30 or 60 seconds; mpv's `-
 
 ### Scaling
 
-**Scaling** sets how a 16:9 picture fills a 4:3 screen in Local Files only. **Default** follows **Settings → Scaling** (Letterbox unless changed); the others are:
+**Scaling** sets how a 16:9 picture fills a 4:3 screen in Local Files only. **Default** follows **Settings → TV / Movie → Scaling** (Letterbox unless changed); the others are:
 
 | Scaling | mpv flag | What you see |
 |---|---|---|
@@ -291,15 +291,15 @@ Back during a video (with the deck's menu closed) opens the video's own menu:
 | **Browse Local Files** | Back to the tree |
 | **Close Video** | Stops the video and leaves Local Files for the main menu |
 
-Back in the menu returns to the video. Every setting changed here is saved, as if changed in Settings → Local Files, so it holds for the next file too.
+Back in the menu returns to the video. Every setting changed here is saved, as if changed in Settings → TV / Movie → Local Files, so it holds for the next file too.
 
-**With Transparent Background** (Settings → Transparent Background, which needs libmpv) the menu lies over the picture, which plays on, at the solidity the setting's slider gives. **Browse Local Files** returns to the tree with the video still playing behind it; the main menu then leads with a row for it, `► <title>`, and choosing that row, or the same file in the tree, takes it back to full screen where it is. Play/pause on the main menu stops it.
+**With Transparent Background** (Settings → TV / Movie → Transparent Background, which needs libmpv) the menu lies over the picture, which plays on, at the solidity the setting's slider gives. **Browse Local Files** returns to the tree with the video still playing behind it; the main menu then leads with a row for it, `► <title>`, and choosing that row, or the same file in the tree, takes it back to full screen where it is. Play/pause on the main menu stops it.
 
 **Without Transparent Background** mpv has the whole screen while it plays, so the video stops for the menu: its position is saved, the menu shows on the app's own background, and as you go back to the video it starts again from where it was, with the settings as you left them. **Close Video** returns to the main menu. **Browse Local Files** returns to the tree, and the main menu then leads with a row for the file, `► <title>`, the cursor on it: choosing that row, or the same file in the tree, starts it again where it was, without asking (a playlist at the video it was on; a shuffled one starts shuffled afresh). The row stays until mpv plays another video.
 
 ## Settings
 
-Settings → Local Files (in the Modules section of Settings).
+Settings → TV / Movie → Local Files.
 
 | Setting | Values | Default | What it does | Config key |
 |---|---|---|---|---|
@@ -312,7 +312,7 @@ Settings → Local Files (in the Modules section of Settings).
 | Subtitle Language | Any, or a language | Any | The subtitle language mpv picks first; Any is no preference | `modules.com.osdos.local_files.sub_lang` |
 | Image Duration | 5, 10, 30, 60 Seconds | 5 Seconds | How long a still image is shown before moving on, alone or in a playlist | `modules.com.osdos.local_files.image_duration` |
 | Hide File Extensions | ON, OFF | OFF | Leaves `.mkv` and the like off the names in the tree | `modules.com.osdos.local_files.hide_extensions` |
-| Scaling | Default, Letterbox, 14:9, Pan & Scan, Anamorphic | Default | How a 16:9 picture fills the 4:3 screen in this module; Default follows Settings → Scaling | `modules.com.osdos.local_files.video_scaling` |
+| Scaling | Default, Letterbox, 14:9, Pan & Scan, Anamorphic | Default | How a 16:9 picture fills the 4:3 screen in this module; Default follows Settings → TV / Movie → Scaling | `modules.com.osdos.local_files.video_scaling` |
 
 ### How the values are saved
 
@@ -510,7 +510,7 @@ Media Directory, once set, still wins over it.
 
 | Problem | What to check |
 |---|---|
-| **No items found** | The media folder is empty, or isn't the one you think: Settings → Local Files → Media Directory shows the path (Default: see [above](#the-media-folder)). On the image, check the films went onto the **OSD-OS** drive, not **bootfs** |
+| **No items found** | The media folder is empty, or isn't the one you think: Settings → TV / Movie → Local Files → Media Directory shows the path (Default: see [above](#the-media-folder)). On the image, check the films went onto the **OSD-OS** drive, not **bootfs** |
 | A file isn't listed | Its extension isn't one of [those Local Files plays](#what-it-plays), or its name starts with a dot. Rename it, or list it in an m3u |
 | A USB drive doesn't show | It must be mounted under `/media/` or `/run/media/` (Linux) or `/Volumes/` (Mac), from a `/dev/…` device, and not by `/etc/fstab`. On the image, `journalctl -u 'osdos-usb-mount@*'` says why it wasn't mounted (an encrypted volume, swap or a RAID member is never mounted). A manual Raspberry Pi OS Lite install mounts nothing by itself: mount it under `/media`, or set Media Directory to where it is |
 | A drive mounted elsewhere (`/mnt/…`) isn't a `USB:` row | Only `/media/` and `/run/media/` count. Set Media Directory to it instead |

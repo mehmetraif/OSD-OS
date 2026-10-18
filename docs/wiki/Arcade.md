@@ -262,7 +262,7 @@ Six-player games, such as X-Men (6 Players), take six controllers: the JAMMA boa
 
 ## High scores
 
-With **High Scores** on (the default), MAME runs with its hiscore plugin, which keeps the high score tables of the games that forget them when they are switched off, as most early ones do: each in `arcade/hiscore/<game>.hi` in the data folder, for the games its `hiscore.dat` knows (the one in MAME's plugins). Games that keep their own scores in NVRAM keep them in `arcade/nvram`. A table is saved when the game closes the proper way, with Coin and Start, and also a few seconds after a new score goes in. The [High Scores](https://github.com/mehmetraif/OSD-OS/wiki/High-Scores) module shows the tables, as lines of names and scores, and the Arcade screen shows the best entries of each game's beside it.
+With **Save High Scores** on (the default), MAME runs with its hiscore plugin, which keeps the high score tables of the games that forget them when they are switched off, as most early ones do: each in `arcade/hiscore/<game>.hi` in the data folder, for the games its `hiscore.dat` knows (the one in MAME's plugins). Games that keep their own scores in NVRAM keep them in `arcade/nvram`. A table is saved when the game closes the proper way, with Coin and Start, and also a few seconds after a new score goes in. The [High Scores](https://github.com/mehmetraif/OSD-OS/wiki/High-Scores) module shows the tables, as lines of names and scores, and the Arcade screen shows the best entries of each game's beside it.
 
 ## FinalBurn Neo
 
@@ -325,7 +325,7 @@ On a JAMMA cabinet at 240p, with everything on Auto, a horizontal game of 224 li
 
 ## Settings
 
-Settings → Arcade.
+Settings → Arcade, the second row of Settings' first screen. The page is shared with the [High Scores](https://github.com/mehmetraif/OSD-OS/wiki/High-Scores) module, whose **Enabled** follows these rows under a **High Scores** heading.
 
 | Setting | Values | Default | What it does | Config key |
 |---|---|---|---|---|
@@ -342,7 +342,7 @@ Settings → Arcade.
 | Hint Bar | ON, OFF | ON | The keys at the foot of the Arcade screen and its windows, in place of Settings' own Hint Bar; off, the list and the box under the picture take its room. Shown while Screen is Arcade | `modules.com.osdos.arcade.hint_bar` |
 | Help Line | ON, OFF | ON | The game's full name, and what the box under the picture has no line for of its maker, year, players and system, under the Arcade screen's list, in place of Settings' own Help Line; off, the list and the box take its room. Shown while Screen is Arcade | `modules.com.osdos.arcade.help_line` |
 | Start Info Screen | ON, OFF | ON | Before a game, the screen of how to come back (and from the Arcade screen, the credits going in); off, the game starts straight from the list ([Playing](#playing)) | `modules.com.osdos.arcade.start_info` |
-| High Scores | ON, OFF | ON | Keeps the games' high score tables with MAME's hiscore plugin ([above](#high-scores)) | `modules.com.osdos.arcade.high_scores` |
+| Save High Scores | ON, OFF | ON | Keeps the games' high score tables with MAME's hiscore plugin ([above](#high-scores)) | `modules.com.osdos.arcade.high_scores` |
 | Online High Scores | Off, RetroAchievements | Off | RetroAchievements: a game FinalBurn Neo has plays in it, in hardcore mode, its scores going to RetroAchievements' leaderboards ([FinalBurn Neo](#finalburn-neo)) | `modules.com.osdos.arcade.online_high_scores` |
 | RetroAchievements Account | (opens the account's page) | | The account the scores go to: sign in and out, and the Web API key the Arcade screen reads the leaderboards with ([FinalBurn Neo](#finalburn-neo)). Shown while Online High Scores is RetroAchievements | |
 | Online Play | Off, On | Off | Playing the games FinalBurn Neo has with others over the internet: Online Games, and Host Online Game in a game's options ([Online play](#online-play)) | `modules.com.osdos.arcade.online_play` |

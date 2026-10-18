@@ -46,6 +46,7 @@ AppCore::AppCore(const QString &appRoot, const QString &dataRoot, QObject *paren
         m.entryQml = entryQml;
         m.iconRel  = manifest["icon"].toString();
         m.settings = manifest["settings"].toArray().toVariantList();
+        m.settingsGroup = manifest["settings_group"].toString();
         m_modules.append(m);
         qDebug("[AppCore] Loaded manifest: %s", qPrintable(id));
     }
@@ -366,6 +367,7 @@ QVariant AppCore::get_installed_modules() {
             {"id",           m.id},
             {"name",         m.name},
             {"has_settings", !m.settings.isEmpty()},
+            {"settings_group", m.settingsGroup},
             {"enabled",      isModuleEnabled(m, modulesConfig)}
         });
     }

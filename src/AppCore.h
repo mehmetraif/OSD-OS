@@ -19,6 +19,7 @@ struct ModuleEntry {
     QString entryQml;    // relative to module folder, e.g. "views/Root.qml"
     QString iconRel;     // relative to module folder, e.g. "assets/images/logo.svg"
     QVariantList settings;
+    QString settingsGroup; // "tv", "arcade" or "": where Settings lists its page
 };
 
 class AsyncDirectoryCache;

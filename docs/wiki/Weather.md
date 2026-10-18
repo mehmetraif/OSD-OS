@@ -10,7 +10,7 @@ The weather, shown the way a cable weather channel showed it in the 90s: current
 
 ## Setting it up
 
-1. Settings → **WEATHER** → **Enabled**: On. Weather appears on the main menu.
+1. Settings → TV / Movie → **WEATHER** → **Enabled**: On. Weather appears on the main menu.
 2. Write your location in `weather_location.txt` in the data folder (below).
 3. Open **Weather** from the main menu.
 
@@ -162,7 +162,7 @@ The music is a second mpv of its own, apart from the one that plays videos: `mpv
 
 ## Settings
 
-Settings → **WEATHER**:
+Settings → TV / Movie → **WEATHER**:
 
 | Setting | Values | Default | What it does | Config key |
 |---|---|---|---|---|
@@ -231,7 +231,7 @@ When the module can't start, it says why:
 
 **An extra place is missing from Other Locations.** It couldn't be found, and was skipped: the log says `skipping other location`. Add qualifiers or use coordinates. If no extra place could be found, the screen leaves the loop.
 
-**No music.** Check Settings → WEATHER → Music, the network (the built-in tracks stream), that each line of `weather_music.txt` names a file that exists, and Settings → Audio Output. The log says `music process exited` when mpv gave up, and `mpv not found` when there is no mpv.
+**No music.** Check Settings → TV / Movie → WEATHER → Music, the network (the built-in tracks stream), that each line of `weather_music.txt` names a file that exists, and Settings → Audio Output. The log says `music process exited` when mpv gave up, and `mpv not found` when there is no mpv.
 
 **The clock shows another time than the device.** It shows the time where the weather is: that is on purpose.
 
