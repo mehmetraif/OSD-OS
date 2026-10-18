@@ -175,8 +175,8 @@ private slots:
 
     // On a tube mpv is told the screen is 4:3 whatever its pixels; on a
     // screen of square ones, nothing. A shape of the user's own in mpv.conf
-    // stands, but not one under a profile of the file's, which applies only
-    // with it.
+    // stands, under a profile too (one in use would lose to the command
+    // line); one commented out doesn't.
     void aTubeIsToldItsShape() {
         const auto unset = qScopeGuard([] { qunsetenv("MPV_HOME"); });
         if (!ownMpvConf())
@@ -190,7 +190,7 @@ private slots:
         QTRY_VERIFY_WITH_TIMEOUT(happened("start B"), 5000);
         QVERIFY(!arguments().join(QLatin1Char(' ')).contains(QLatin1String("monitoraspect")));
         const QString conf = qEnvironmentVariable("MPV_HOME") + QStringLiteral("/mpv.conf");
-        QVERIFY(write(conf, "[crt]\nmonitoraspect=1.36\n[default]\nsub-scale=1.2\n"));
+        QVERIFY(write(conf, "sub-scale=1.2\n# monitorpixelaspect=0.95\n"));
         m_mpv->setScreen(true, QSize(720, 240));
         play("C");
         QTRY_VERIFY_WITH_TIMEOUT(happened("start C"), 5000);
@@ -198,6 +198,10 @@ private slots:
         QVERIFY(write(conf, "sub-scale=1.2\nmonitorpixelaspect=0.95\n"));
         play("D");
         QTRY_VERIFY_WITH_TIMEOUT(happened("start D"), 5000);
+        QVERIFY(!arguments().join(QLatin1Char(' ')).contains(QLatin1String("monitoraspect")));
+        QVERIFY(write(conf, "[crt]\nmonitoraspect=1.36\n[default]\nprofile=crt\n"));
+        play("E");
+        QTRY_VERIFY_WITH_TIMEOUT(happened("start E"), 5000);
         QVERIFY(!arguments().join(QLatin1Char(' ')).contains(QLatin1String("monitoraspect")));
     }
 

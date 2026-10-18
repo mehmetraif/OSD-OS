@@ -86,8 +86,9 @@ bool writeLogoOverlay(const QString &image, const QString &out, int outputHeight
 // isn't quite 4:3), in the mpv_video_args setting (`videoArgs`) or mpv.conf:
 // then theirs stands, in place of a tube's 4:3. mpv reads $MPV_HOME, else
 // $XDG_CONFIG_HOME/mpv (~/.config/mpv while that is unset or empty), and
-// /etc/mpv; a line under a [profile] of the file's own applies only with
-// that profile, so it doesn't count.
+// /etc/mpv. A line under a [profile] counts too: the profile may be in use
+// (profile=, profile-cond), and the 4:3 on the command line would win over
+// it.
 bool userSetsScreenShape(const QString &videoArgs) {
     static const QRegularExpression key(QStringLiteral("^(--)?monitor(pixel)?aspect\\s*="));
     const QStringList args = videoArgs.split(QLatin1Char(' '), Qt::SkipEmptyParts);
@@ -103,14 +104,9 @@ bool userSetsScreenShape(const QString &videoArgs) {
         QFile file(path);
         if (!file.open(QIODevice::ReadOnly))
             continue;
-        bool top = true;  // not under a [profile]; [default] is the top again
-        for (const QString &raw : QString::fromUtf8(file.readAll()).split(QLatin1Char('\n'))) {
-            const QString line = raw.trimmed();
-            if (line.startsWith(QLatin1Char('[')))
-                top = line.startsWith(QLatin1String("[default]"));
-            else if (top && key.match(line).hasMatch())
-                return true;
-        }
+        const QStringList lines = QString::fromUtf8(file.readAll()).split(QLatin1Char('\n'));
+        if (std::any_of(lines.cbegin(), lines.cend(), [](const QString &line) { return key.match(line.trimmed()).hasMatch(); }))
+            return true;
     }
     return false;
 }
