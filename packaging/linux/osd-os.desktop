@@ -2,9 +2,9 @@
 Type=Application
 Name=OSD/OS
 GenericName=Media Player
-Comment=Smart TV for CRT: a retro VHS-style media player
+Comment=Smart TV for CRT: films, streams and arcade games with a VCR's look
 Exec=osdos
 Icon=osd-os
 Terminal=false
 Categories=AudioVideo;Player;Video;
-Keywords=media;video;plex;jellyfin;mpv;retro;
+Keywords=media;video;plex;jellyfin;mpv;retro;crt;arcade;mame;

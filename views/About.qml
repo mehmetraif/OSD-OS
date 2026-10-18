@@ -32,7 +32,9 @@ FocusScope {
     readonly property var rows: [
         { key: "build", label: "Build", value: root.appBuild,
           description: "Version " + root.appVersion + " • The commit this build was made from, and the day"
-                       + " • A retro VHS-style media player for CRT televisions, on a Raspberry Pi or a Mac" },
+                       + " • Smart TV for CRT, with a VCR's look: films and streams, and arcade games on a TV or a"
+                       + " JAMMA cabinet's own monitor, with their high scores, RetroAchievements and netplay"
+                       + " • On a Raspberry Pi, a Mac or a Linux PC" },
         { key: "developer", label: "Developer", value: aboutRoot.developer,
           description: "OSD/OS is developed by " + aboutRoot.developer + " • " + aboutRoot.developerUrl },
         { key: "upstream", label: "Based On", value: "240-MP",
