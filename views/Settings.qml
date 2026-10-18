@@ -377,7 +377,7 @@ FocusScope {
                 description: (outputNext !== "" ? "Now " + outputCurrentLabel + ", " + outputNextLabel + " from the next start • " : "")
                              + "Where the picture goes, among the outputs this Pi has: "
                              + (later ? "now, with a restart, or from the next start. " : "a change restarts OSD/OS. ")
-                             + "The new output stays only when you keep it on its screen, else the old one comes back in 30 seconds\n[COMPOSITE] The AV jack (Pi 4) or TV pads (Pi 5)  [GPIO COMPOSITE] Pi 5's GPIO pins  [SCART RGB] A cable on the GPIO pins  [JAMMA] A Raspberry Pi to JAMMA board, in the modes of a 15 kHz monitor (240p and 288p at 720 across, at 320 the games' own pixels, at 1920 a super resolution; 480i and 576i on a Pi 4), or a 25 kHz or 31 kHz one's, each named with its rate and resolution",
+                             + "The new output stays only when you keep it on its screen, else the old one comes back in 30 seconds\n[COMPOSITE] The AV jack (Pi 4) or TV pads (Pi 5)  [GPIO COMPOSITE] Pi 5's GPIO pins  [SCART RGB] A cable on the GPIO pins  [JAMMA] A Raspberry Pi to JAMMA board, in the modes of a 15 kHz monitor (240p at 720, 320 or 1920 across, 320 the games' own pixels and 1920 a super resolution; 288p at 720 or 1920; 480i and 576i on a Pi 4), or a 25 kHz or 31 kHz one's, each named with its rate and resolution",
                 moduleId: ""
             })
         }
@@ -955,7 +955,7 @@ FocusScope {
         anchors.fill: parent
         promptText: "Display Output"
         subtitleText: settingsRoot.boardModel + "\nNow: " + settingsRoot.outputCurrentLabel
-                      + (settingsRoot.outputNext !== "" ? "  Next start: " + settingsRoot.outputNextLabel : "")
+                      + (settingsRoot.outputNext !== "" ? "\nNext start: " + settingsRoot.outputNextLabel : "")
         choices: settingsRoot.outputOptions.map(function(o) { return { label: o.label, action: o.id } })
         onActivated: function(id) {
             for (var i = 0; i < settingsRoot.outputOptions.length; i++) {
