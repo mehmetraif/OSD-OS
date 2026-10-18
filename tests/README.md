@@ -98,6 +98,7 @@ ctest --test-dir build-tests --output-on-failure
   - At Next Start, through a stand-in for its socket: written while the app goes on, still waiting when the app starts again in the same boot, taken back, and asked about once the Pi has started on it. A refusal or a socket gone says why and notes nothing.
   - Switch and Power Off needs launcher API 5.
   - The JAMMA board's other modes need launcher API 6, after JAMMA 240p: 240p Native and Super, 288p and its Super, 480i and 576i (a Pi 4's alone), 25 kHz and 31 kHz, those two with what they risk on a 15 kHz monitor; in force, known for what it is.
+  - Each preset offered exits with the code `osdos-stop` writes it on: its place in `install.sh`'s `DISPLAY_PRESETS`, from 20, and 20 more to power off after it.
   - A tube (`DisplayOutput::isTube`): every preset but HDMI's, whatever its mode, but not on a 1080p screen (a Pi 5's fallback to HDMI); without one, a TV's modes (720×480, 720×576, 720×240, 1920×240), not a 480×272 or 800×480 panel or 1080p.
 - **osdos_stop** (`osdos_stop_test.sh`, Linux only). The stop helper, taken from `scripts/install.sh` as the image build takes it, on a stand-in boot partition with the image's presets.
   - Each display exit code writes its preset and reboots, or powers off (40–58); a Pi 5's SCART sync is written, JAMMA's isn't. The JAMMA board's other modes are 31–38 (51–58 to power off after); 39 and 59 are no preset's and change nothing.

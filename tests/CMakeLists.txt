@@ -148,7 +148,8 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
         ../src/util/LegacyNames.cpp)
     target_include_directories(display_output_test PRIVATE ../src)
     target_compile_definitions(display_output_test PRIVATE
-        PRESETS_DIR="${CMAKE_CURRENT_SOURCE_DIR}/../os/stage-osdos/03-boot/files")
+        PRESETS_DIR="${CMAKE_CURRENT_SOURCE_DIR}/../os/stage-osdos/03-boot/files"
+        INSTALL_SH="${CMAKE_CURRENT_SOURCE_DIR}/../scripts/install.sh")
     target_link_libraries(display_output_test PRIVATE Qt6::Core Qt6::Network Qt6::Test)
     add_test(NAME display_output COMMAND display_output_test)
     # The same as a Pi 5, whose outputs are others.

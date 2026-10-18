@@ -2,9 +2,10 @@
 // own presets in a stand-in boot partition: the JAMMA preset is offered only
 // where osdos-stop knows its code (launcher API 4), and is told apart from the
 // others when it is in force. Switch and Power Off and At Next Start come with
-// launcher API 5, the latter through a stand-in for osdos-display.socket. On a
-// Pi 4, or the board OSDOS_BOARD_MODEL names (ctest's display_output_pi5 runs
-// it as a Pi 5).
+// launcher API 5, the latter through a stand-in for osdos-display.socket; the
+// JAMMA board's other modes with 6. Each preset exits with the code osdos-stop
+// writes it on. On a Pi 4, or the board OSDOS_BOARD_MODEL names (ctest's
+// display_output_pi5 runs it as a Pi 5).
 #include "display/DisplayOutput.h"
 #include "util/Board.h"
 
@@ -14,6 +15,7 @@
 #include <QJsonObject>
 #include <QLocalServer>
 #include <QLocalSocket>
+#include <QRegularExpression>
 #include <QSignalSpy>
 #include <QTemporaryDir>
 #include <QtTest>
@@ -169,7 +171,7 @@ private slots:
         QVERIFY(warning31.contains(QLatin1String("31 kHz")) && warning31.contains(QLatin1String("15 kHz")));
         QCOMPARE(warning240, QString());
 
-        // In force and chosen as the others are: exit 38 for 31 kHz.
+        // In force, told apart from the others.
         inForce(QStringLiteral("jamma-31k"));
         DisplayOutput on31(m_data.path());
         QCOMPARE(on31.current(), QStringLiteral("jamma-31k"));
@@ -338,6 +340,36 @@ private slots:
         QVERIFY(!DisplayOutput::isTube(QString(), QSize(800, 480)));
         QVERIFY(!DisplayOutput::isTube(QString(), QSize(1920, 1080)));
         QVERIFY(!DisplayOutput::isTube(QStringLiteral("jamma-240p"), QSize()));
+    }
+
+    // Each preset offered exits with the code osdos-stop (scripts/install.sh)
+    // writes it on: its place in DISPLAY_PRESETS, counted from 20, and 20
+    // more to power off after it.
+    void exitCodesAreOsdosStops() {
+        QFile script(QStringLiteral(INSTALL_SH));
+        QVERIFY(script.open(QIODevice::ReadOnly));
+        const QRegularExpressionMatch list = QRegularExpression(QStringLiteral("DISPLAY_PRESETS=\\(([^)]*)\\)"))
+                                                 .match(QString::fromUtf8(script.readAll()));
+        QVERIFY(list.hasMatch());
+        const QStringList order = list.captured(1).split(QRegularExpression(QStringLiteral("\\s+")), Qt::SkipEmptyParts);
+        QCOMPARE(order.indexOf(QStringLiteral("previous")), 9);  // 29: back to the output before
+        qputenv("OSDOS_LAUNCHER_API", "6");
+        inForce(QStringLiteral("hdmi"));
+        const QStringList offered = ids(DisplayOutput(m_data.path()).options());
+        QVERIFY(offered.contains(QStringLiteral("jamma-31k")));
+        for (const QString &id : offered) {
+            const int code = 20 + int(order.indexOf(id));
+            QVERIFY2(code >= 20, qPrintable(id + QStringLiteral(" isn't osdos-stop's")));
+            for (const bool off : { false, true }) {
+                inForce(id == QLatin1String("hdmi") ? QStringLiteral("jamma-240p") : QStringLiteral("hdmi"));
+                DisplayOutput output(m_data.path());
+                QTest::ignoreMessage(QtInfoMsg, QRegularExpression(
+                    QStringLiteral("-> %1%2: exit %3 for osdos-stop$")
+                        .arg(QRegularExpression::escape(id), off ? QStringLiteral(", then off") : QString())
+                        .arg(code + (off ? 20 : 0))));
+                QVERIFY(off ? output.applyAndPowerOff(id) : output.apply(id));
+            }
+        }
     }
 };
 
