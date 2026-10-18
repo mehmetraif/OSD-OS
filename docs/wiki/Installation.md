@@ -49,7 +49,7 @@ The OSD/OS image is Raspberry Pi OS Lite (64-bit), based on Debian 13 "trixie" a
 - A microSD card. The system keeps 8 GiB of it; the rest becomes the film partition, as long as at least 2 GiB is left over: on a 16 GB card that is about 6 GiB for films, on an 8 GB card none.
 - A TV. The image starts on HDMI. For a CRT, it switches to composite (or SCART RGB on the GPIO pins) in Settings → Display Output, or you can pick the output on the card before the first boot ([below](https://github.com/mehmetraif/OSD-OS/wiki/Installation#composite-or-scart-from-the-first-boot)).
 - A USB keyboard, remote or gamepad. A Bluetooth one can be paired later, from Settings → Bluetooth ([Controls](https://github.com/mehmetraif/OSD-OS/wiki/Controls#bluetooth)).
-- A network, if you want the network modules: an Ethernet cable, or Wi-Fi set up while flashing.
+- A network, if you want the network modules: an Ethernet cable, or Wi-Fi, set up while flashing or later in Settings → Wi-Fi.
 
 ### Download
 
@@ -163,7 +163,7 @@ network:
 - `regulatory-domain` is the Wi-Fi country. Raspberry Pi OS keeps Wi-Fi switched off until a country is set.
 - Indent with spaces, never tabs: YAML reads the indentation. Keep the quotes around the name and the password.
 - For an open network, replace the `password:` line with `auth:` and, under it, `key-management: none`; for a hidden one, add `hidden: true` at the same level as `password:`.
-- It is applied on the first boot only. To change the Wi-Fi later, use NetworkManager on the Pi itself, over SSH or from Exit to Terminal: `sudo nmcli device wifi connect "My Home WiFi" password "correct battery horse staple"`.
+- It is applied on the first boot only. To change the Wi-Fi later, use Settings → Wi-Fi, or NetworkManager on the Pi itself, over SSH or from Exit to Terminal: `sudo nmcli device wifi connect "My Home WiFi" password "correct battery horse staple"`.
 
 ### Composite or SCART from the first boot
 
@@ -408,12 +408,13 @@ Installing the dependencies can take a while; over Wi-Fi, about 20 minutes. Then
 |---|---|
 | Finds the release | The latest release's tag from GitHub's API, or the tag you gave it |
 | Replaces 240-MP | An install from OSD/OS's days as 240-MP (`/opt/240mp`, `240mp.service`) is removed, so the two never fight over the screen. OSD/OS moves 240-MP's data folder over to its own on its first start |
-| Installs packages | `libqt6quick6 libqt6qml6 libqt6opengl6 libqt6network6 libqt6svg6 qt6-svg-plugins qt6-wayland qml6-module-qtquick qml6-module-qtquick-controls qml6-module-qtquick-window qml6-module-qtquick-effects libsdl2-2.0-0 libpcsclite1 libmpv2 mpv fluidsynth timgm6mb-soundfont openmpt123` |
+| Installs packages | `libqt6quick6 libqt6qml6 libqt6opengl6 libqt6network6 libqt6svg6 qt6-svg-plugins qt6-wayland qml6-module-qtquick qml6-module-qtquick-controls qml6-module-qtquick-window qml6-module-qtquick-effects libsdl2-2.0-0 libpcsclite1 libmpv2 mpv fluidsynth timgm6mb-soundfont openmpt123 polkitd` |
 | A udev rule | `/etc/udev/rules.d/99-osdos-tty.rules`: lets the `tty` group open `/dev/tty0`, for handing the screen to mpv and back |
 | The `bluetooth` group | Adds the user OSD/OS runs as, so Settings → Bluetooth can talk to BlueZ |
+| A polkit rule | With a service, a new one or one kept: `/etc/polkit-1/rules.d/50-osdos-networkmanager.rules`, which lets the user the service runs OSD/OS as scan, join and forget networks and turn Wi-Fi on and off through NetworkManager for Settings → Wi-Fi. The service runs outside any login session, where polkit would otherwise ask for a password nobody can type |
 | Unpacks the app | `OSD-OS-<version>-linux-arm64.tar.gz` into `/opt/osdos`, owned by the user OSD/OS runs as, so in-app updates can replace it. It warns when that user still can't write there, as in-app updates then won't apply |
 | The launcher | `/usr/local/bin/osdos`: applies a downloaded update, then starts OSD/OS on Wayland or X11 when there is a desktop, or straight on the screen (Qt's EGLFS) when there isn't, on the right display card (a Pi 5's video card is not always the first) |
-| The service | Only after **y**: `/etc/systemd/system/osdos.service`, its stop helper `/usr/local/bin/osdos-stop`, `osdos-terminal.service` for Exit to Terminal, and `osdos-display.socket` with `osdos-display@.service` for Display Output's At Next Start. The console login on `tty1` is masked (`getty@tty1`, `autovt@`), so the screen is OSD/OS's. On the OSD/OS image the image's own `osdos.service` is left as it is, and the rest is written afresh |
+| The service | Only after **y**: `/etc/systemd/system/osdos.service`, its stop helper `/usr/local/bin/osdos-stop`, `osdos-terminal.service` for Exit to Terminal, `osdos-display.socket` with `osdos-display@.service` for Display Output's At Next Start, and `osdos-wifi.socket` with `osdos-wifi@.service` for Settings → Wi-Fi's country. The console login on `tty1` is masked (`getty@tty1`, `autovt@`), so the screen is OSD/OS's. On the OSD/OS image the image's own `osdos.service` is left as it is, and the rest is written afresh |
 
 #### The autostart service
 
@@ -631,10 +632,12 @@ YouTube's yt-dlp is the exception: on the image it replaces itself with its newe
 **On Raspberry Pi OS,** stop and remove the service (if you installed it), then the app, its launcher and its udev rule, and last your settings if you don't want them back:
 
 ```sh
-sudo systemctl disable --now osdos.service osdos-display.socket
+sudo systemctl disable --now osdos.service osdos-display.socket osdos-wifi.socket
 sudo systemctl unmask getty@tty1.service autovt@.service
 sudo rm -f /etc/systemd/system/osdos.service /etc/systemd/system/osdos-terminal.service /usr/local/bin/osdos-stop
 sudo rm -f /etc/systemd/system/osdos-display.socket /etc/systemd/system/osdos-display@.service
+sudo rm -f /etc/systemd/system/osdos-wifi.socket /etc/systemd/system/osdos-wifi@.service
+sudo rm -f /etc/polkit-1/rules.d/50-osdos-networkmanager.rules
 sudo systemctl daemon-reload
 sudo rm -rf /opt/osdos
 sudo rm -f /usr/local/bin/osdos /etc/udev/rules.d/99-osdos-tty.rules

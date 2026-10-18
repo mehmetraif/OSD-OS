@@ -42,7 +42,7 @@ Compared with flashing Raspberry Pi OS Lite and running `scripts/install.sh` ([I
 - **Bluetooth switches on from the app.** Bluetooth is unblocked (`rfkill unblock bluetooth`) as bluetoothd starts, so Settings → Bluetooth's switch is the only one. (The user the app runs as is in the `bluetooth` group, as with `install.sh`.)
   - Raspberry Pi OS starts every radio blocked, so that Wi-Fi stays off until its country is set (`rfkill.default_state=0`), and then unblocks Bluetooth only on the adapters pi-gen knows by device path. The Pi 4 this was found on wasn't one of them: its adapter stayed blocked, and BlueZ couldn't turn it on.
 
-Everything else (the launcher, in-app updates, Exit to Terminal, the data directory in `~/.local/share/OSD-OS`) is the same as a manual install. The launcher, stop helper and terminal unit are taken from `scripts/install.sh` at build time. Run on the image, `install.sh` leaves the image's own `osdos.service` as it is, with its user, and brings the app, the launcher and those helpers up to date.
+Everything else (the launcher, in-app updates, Exit to Terminal, the data directory in `~/.local/share/OSD-OS`) is the same as a manual install. The launcher, stop helper and terminal unit are taken from `scripts/install.sh` at build time. So are the two sockets through which the stop helper, as root, writes Display Output's At Next Start and sets the Wi-Fi country (`osdos-display.socket`, `osdos-wifi.socket`), and the polkit rule that lets the user the app runs as use NetworkManager for Settings → Wi-Fi (`/etc/polkit-1/rules.d/50-osdos-networkmanager.rules`). Run on the image, `install.sh` leaves the image's own `osdos.service` as it is, with its user, and brings the app, the launcher and those helpers up to date.
 
 ## Flashing
 

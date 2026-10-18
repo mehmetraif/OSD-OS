@@ -57,7 +57,7 @@ What changes against flashing Raspberry Pi OS Lite and running `scripts/install.
 | Settings → Display Output | Not offered | Offered |
 | Bluetooth adapter blocked by rfkill | Stays blocked | Unblocked as Bluetooth starts |
 
-Everything else is the same as an app install: the launcher, the in-app updater, Exit to Terminal, and the data folder `~/.local/share/OSD-OS`. The launcher, the stop helper and the terminal unit are taken from `scripts/install.sh` when the image is built, so the two can't drift apart.
+Everything else is the same as an app install: the launcher, the in-app updater, Exit to Terminal, and the data folder `~/.local/share/OSD-OS`. The launcher, the stop helper, the terminal unit, the sockets behind At Next Start and the Wi-Fi country, and the polkit rule that lets OSD/OS use NetworkManager are taken from `scripts/install.sh` when the image is built, so the two can't drift apart.
 
 ## Getting it onto a card
 
@@ -202,6 +202,7 @@ The `[boot]` lines read `boot screen up, watching 4 unit(s)`, `first frame … m
 | `osdos-usb-mount@<device>.service` | One per USB drive plugged in ([USB drives](https://github.com/mehmetraif/OSD-OS/wiki/The-OSD-OS-Image#usb-drives)) |
 | `osdos-jamma.service` | Enabled, and does something only with the JAMMA display preset in force: a Raspberry Pi to JAMMA board's joysticks and buttons as two gamepads ([Controls](https://github.com/mehmetraif/OSD-OS/wiki/Controls#a-jamma-cabinet)), as a user of its own (`DynamicUser=yes`) in the `i2c` and `input` groups. Without the preset it exits at once; with it and no board, after 15 seconds |
 | `osdos-display.socket` | Enabled: Settings → Display Output's At Next Start, through `osdos-display@.service` ([At Next Start's socket](https://github.com/mehmetraif/OSD-OS/wiki/The-OSD-OS-Image#at-next-starts-socket)) |
+| `osdos-wifi.socket` | Enabled: Settings → Wi-Fi's country, through `osdos-wifi@.service` ([The Wi-Fi country's socket](https://github.com/mehmetraif/OSD-OS/wiki/The-OSD-OS-Image#the-wi-fi-countrys-socket)) |
 | `osdos-terminal.service` | Not enabled. Started only by Exit to Terminal |
 | `getty@tty1.service`, `autovt@.service` | Masked: `tty1` belongs to OSD/OS, and no login prompt appears on the console mpv switches to |
 | `apt-daily.timer`, `apt-daily-upgrade.timer`, `man-db.timer`, `e2scrub_all.timer`, `dpkg-db-backup.timer`, `cron.service` | Disabled. They wake the CPU and the SD card at random times, mid-film included. Updating the system is the image's business, not a timer's |
@@ -372,11 +373,13 @@ usb-mount: /dev/sda1 (vfat) mounted read-only at /media/usb/KINGSTON
 
 ## Network, Wi-Fi and Bluetooth
 
-There is no Wi-Fi setting in OSD/OS. The network is NetworkManager's, as on Raspberry Pi OS: set it up with Raspberry Pi Imager's customisation, with `network-config` before the first boot, or from a shell.
+The network is NetworkManager's, as on Raspberry Pi OS. Settings → Wi-Fi joins networks through it ([Settings → Wi-Fi](https://github.com/mehmetraif/OSD-OS/wiki/Settings#wi-fi)); Raspberry Pi Imager's customisation, `network-config` before the first boot and a shell set it up too.
 
 ### Wi-Fi
 
-Raspberry Pi OS starts every radio blocked (`rfkill.default_state=0`) so that Wi-Fi stays off until its country is set. Raspberry Pi Imager's customisation sets it with the network, an image built with `WPA_COUNTRY` has it from the start, and in `network-config` it is `regulatory-domain`.
+**In OSD/OS**, Settings → Wi-Fi turns Wi-Fi on and off, searches for networks, joins one with its password typed on the on-screen keyboard (one that doesn't say its name too), and forgets saved ones. The service runs OSD/OS outside any login session, where NetworkManager would ask for a password nobody can type: the polkit rule `/etc/polkit-1/rules.d/50-osdos-networkmanager.rules` lets OSD/OS's user use the five NetworkManager actions they take, which reach every connection NetworkManager keeps (Ethernet's too), and nothing else.
+
+Raspberry Pi OS starts every radio blocked (`rfkill.default_state=0`) so that Wi-Fi stays off until its country is set. Raspberry Pi Imager's customisation sets it with the network, an image built with `WPA_COUNTRY` has it from the start, and in `network-config` it is `regulatory-domain`. Without one, Settings → Wi-Fi asks for the country as Wi-Fi is turned on, and sets it through `osdos-wifi.socket` ([The Wi-Fi country's socket](https://github.com/mehmetraif/OSD-OS/wiki/The-OSD-OS-Image#the-wi-fi-countrys-socket)).
 
 **Before the first boot**, with the card in a computer, open `network-config` on the **bootfs** drive. It is cloud-init's file, in netplan's format, and holds commented examples. cloud-init applies it on the first boot only. For one Wi-Fi network, the file can read:
 
@@ -463,7 +466,7 @@ Settings → **Quit** on the image asks **Really quit?** with:
 | Choice | Offered | OSD/OS exits with | Then |
 |---|---|---|---|
 | **Power Off** | Always | 0 | The Pi powers off |
-| **Restart** | Launcher API 2 or later (the image's is 6) | 12 | The Pi reboots |
+| **Restart** | Launcher API 2 or later (the image's is 7) | 12 | The Pi reboots |
 | **Exit to Terminal** | Always | 10 | A login shell on the screen (`tty1`); the Pi stays on |
 | **Cancel** | Always | | Back to Settings |
 
@@ -515,8 +518,9 @@ The launcher exports `OSDOS_LAUNCHER_API`, and OSD/OS offers only what the launc
 | 4 or more | `osdos-stop` also writes the JAMMA preset on exit 30: Display Output offers JAMMA 240p 15 kHz (720x240) |
 | 5 or more | `osdos-stop` also powers off after a preset on exits 40 to 50, and writes one for the next start through `osdos-display.socket`: Display Output offers Switch and Power Off and At Next Start |
 | 6 or more | `osdos-stop` also writes the JAMMA board's other modes on exits 31 to 38, and powers off after them on 51 to 58: Display Output offers them |
+| 7 or more | NetworkManager lets OSD/OS's user scan, join and forget networks and turn Wi-Fi on and off (the polkit rule `50-osdos-networkmanager.rules`), and `osdos-stop` sets the Wi-Fi country through `osdos-wifi.socket`: Settings offers Wi-Fi |
 
-The image's launcher is level 6, as `install.sh`'s is.
+The image's launcher is level 7, as `install.sh`'s is.
 
 ### At Next Start's socket
 
@@ -529,6 +533,18 @@ Settings → Display Output's **At Next Start** writes a preset while OSD/OS run
 
 ```sh
 journalctl -u 'osdos-display@*' -b    # what At Next Start did
+```
+
+### The Wi-Fi country's socket
+
+Raspberry Pi OS keeps Wi-Fi off until the country the Pi is used in is set, and setting it takes root. Settings → Wi-Fi has `osdos-stop` set it, behind a socket, as At Next Start does:
+
+- **`osdos-wifi.socket`** listens on `/run/osdos-wifi.sock`, owned by root and OSD/OS's user's group, mode 0660, one connection at a time.
+- **`osdos-wifi@.service`** runs `osdos-stop wifi-country` for each request, the socket as its input and output. Unlike At Next Start's, it keeps the system's network (no `PrivateNetwork=`): raspi-config sets up the Pi's own Wi-Fi.
+- **`osdos-stop wifi-country`** reads a line, at most 64 characters, and takes it only as two capital letters that the time zone database lists as a country (`/usr/share/zoneinfo/iso3166.tab`, which raspi-config checks against too). It never repeats it back. It runs `raspi-config nonint do_wifi_country` with that code, which writes it into `/boot/firmware/cmdline.txt` (`cfg80211.ieee80211_regdom=`), sets it in the kernel (`iw reg set`) and turns Wi-Fi on (`nmcli radio wifi on`); what raspi-config says goes to the journal. It flushes the boot partition to the card, then answers `ok`; or it answers why not, which it also logs. Either way the request unit ends cleanly and is unloaded (`CollectMode=inactive-or-failed`).
+
+```sh
+journalctl -u 'osdos-wifi@*' -b    # what setting the Wi-Fi country did
 ```
 
 ### Exit to Terminal
@@ -624,6 +640,8 @@ Then start OSD/OS again ([Exit to Terminal](https://github.com/mehmetraif/OSD-OS
 | `/etc/systemd/system/osdos.service` | The service; its drop-in `osdos.service.d/osdos-media.conf` |
 | `/etc/systemd/system/osdos-terminal.service` | Exit to Terminal's login shell |
 | `/etc/systemd/system/osdos-display.socket`, `osdos-display@.service` | Display Output's At Next Start ([At Next Start's socket](https://github.com/mehmetraif/OSD-OS/wiki/The-OSD-OS-Image#at-next-starts-socket)) |
+| `/etc/systemd/system/osdos-wifi.socket`, `osdos-wifi@.service` | Settings → Wi-Fi's country ([The Wi-Fi country's socket](https://github.com/mehmetraif/OSD-OS/wiki/The-OSD-OS-Image#the-wi-fi-countrys-socket)) |
+| `/etc/polkit-1/rules.d/50-osdos-networkmanager.rules` | Lets OSD/OS's user scan, join and forget networks and turn Wi-Fi on and off through NetworkManager from its service, which runs outside any login session, where polkit would otherwise ask for a password |
 | `/etc/systemd/system/osdos-cloud-init-once.service` | Turns cloud-init off after the first boot |
 | `/etc/systemd/system/osdos-jamma.service`, `/etc/modules-load.d/osdos-jamma.conf` | A JAMMA board's controls, and the kernel modules they go through (`i2c-dev`, `uinput`) |
 | `/etc/systemd/system/<unit>.d/osdos-defer.conf` | The held-back services' drop-ins |
@@ -632,6 +650,7 @@ Then start OSD/OS again ([Exit to Terminal](https://github.com/mehmetraif/OSD-OS
 | `/etc/udev/rules.d/99-osdos-tty.rules`, `99-osdos-usb-mount.rules`, `99-osdos-uinput.rules` | The `/dev/tty0` and USB drive rules, and `/dev/uinput` for the `input` group (a JAMMA board's gamepads) |
 | `/run/osdos/ready` | Written at OSD/OS's first frame |
 | `/run/osdos-display.sock`, `/run/osdos-display-boot.txt` | At Next Start's socket, and the display preset this boot started on once one waits for the next start |
+| `/run/osdos-wifi.sock` | The Wi-Fi country's socket |
 | `/home/pi/.local/share/OSD-OS/` | The data folder: `config.json`, `lists.json`, sign-ins, `bin/yt-dlp`, `updates/` ([Configuration files](https://github.com/mehmetraif/OSD-OS/wiki/Configuration-Files)) |
 | `/media/OSD-OS` | The film partition |
 | `/media/usb/<label>` | USB drives, read-only |
@@ -660,6 +679,7 @@ journalctl -u 'osdos-usb-mount@*'         # USB drives
 journalctl -u osdos-yt-dlp-update         # yt-dlp's updates
 journalctl -u osdos-jamma                 # a JAMMA board's controls
 journalctl -u 'osdos-display@*'           # Display Output's At Next Start
+journalctl -u 'osdos-wifi@*'              # Settings → Wi-Fi's country
 ```
 
 mpv's messages reach the journal too, as `[mpv]` lines, with every token blanked out. mpv also writes its own, more detailed log to `/tmp/osdos-mpv.log`, of the last video only (mpv empties it as it starts); it is readable only by `pi`, as it can hold a server's token. [Troubleshooting](https://github.com/mehmetraif/OSD-OS/wiki/Troubleshooting) has more, and [How it works → Logs](https://github.com/mehmetraif/OSD-OS/wiki/How-It-Works#logs) the tags each part of OSD/OS logs under.
@@ -766,7 +786,7 @@ flowchart TD
     A["os/build.sh tarball"] --> B["fetch pi-gen at PI_GEN_REF into os/work/pi-gen"]
     B --> C["copy os/stage-osdos into it"]
     C --> D["SKIP 04-streaming, 06-youtube, 08-arcade or 05-media<br/>as OSDOS_STREAMING, OSDOS_YOUTUBE, OSDOS_ARCADE and OSDOS_ROOT_SIZE say"]
-    D --> E["take the launcher, the stop helper and the terminal unit<br/>out of scripts/install.sh"]
+    D --> E["take the launcher, the stop helper, the terminal unit,<br/>the sockets and the polkit rule out of scripts/install.sh"]
     E --> F["copy in the tarball and os/NOTICE"]
     F --> G["write pi-gen's config: stage0 stage1 stage2 stage-osdos"]
     G --> H{"OSDOS_NATIVE=1?"}
@@ -784,9 +804,9 @@ flowchart TD
 
 | Part | What it does | Left out by |
 |---|---|---|
-| [`00-packages`](https://github.com/mehmetraif/OSD-OS/tree/main/os/stage-osdos/00-packages) | What `install.sh` installs, without recommends and without `qt6-wayland`, plus alsa-utils: Qt 6, SDL2, pcsclite, mpv and libmpv2, and FluidSynth, the TimGM6mb SoundFont and openmpt123 for the menu music | |
+| [`00-packages`](https://github.com/mehmetraif/OSD-OS/tree/main/os/stage-osdos/00-packages) | What `install.sh` installs, without recommends and without `qt6-wayland`, plus alsa-utils: Qt 6, SDL2, pcsclite, mpv and libmpv2, FluidSynth, the TimGM6mb SoundFont and openmpt123 for the menu music, and polkitd, which reads the NetworkManager rule | |
 | [`01-app`](https://github.com/mehmetraif/OSD-OS/tree/main/os/stage-osdos/01-app) | The tarball unpacked into `/opt/osdos`, owned by `pi`; the launcher; the NOTICE | |
-| [`02-system`](https://github.com/mehmetraif/OSD-OS/tree/main/os/stage-osdos/02-system) | The service, the terminal, the stop helper and At Next Start's socket, the cloud-init switch, the tty rule, the JAMMA controls' service, modules and uinput rule, the boot order, the online check's 20 seconds, the Bluetooth unblock, the autologin of a locked user; the `bluetooth` group, the masked getty, the removed timers, cron and Raspberry Pi Connect | |
+| [`02-system`](https://github.com/mehmetraif/OSD-OS/tree/main/os/stage-osdos/02-system) | The service, the terminal, the stop helper, At Next Start's socket and the Wi-Fi country's, the NetworkManager polkit rule, the cloud-init switch, the tty rule, the JAMMA controls' service, modules and uinput rule, the boot order, the online check's 20 seconds, the Bluetooth unblock, the autologin of a locked user; the `bluetooth` group, the masked getty, the removed timers, cron and Raspberry Pi Connect | |
 | [`03-boot`](https://github.com/mehmetraif/OSD-OS/tree/main/os/stage-osdos/03-boot) | `config.txt`, the display presets and `osdos-display.txt` (from `OSDOS_DISPLAY`), the JAMMA preset's Pi 5 overlay (`osdos-jamma-dpi`, compiled with `device-tree-compiler`), the quiet `cmdline.txt` | |
 | [`04-streaming`](https://github.com/mehmetraif/OSD-OS/tree/main/os/stage-osdos/04-streaming) | `chromium`, `rpi-chromium-mods`, `libwidevinecdm0`, `libgl1-mesa-dri`, `fonts-liberation`, `cage`, `wtype` | `OSDOS_STREAMING=0` |
 | [`05-media`](https://github.com/mehmetraif/OSD-OS/tree/main/os/stage-osdos/05-media) | `exfatprogs`, the `resize_early` override and its initramfs hook, `/media/OSD-OS`, its `fstab` line and `OSDOS_MEDIA_DIR` | `OSDOS_ROOT_SIZE=0` |

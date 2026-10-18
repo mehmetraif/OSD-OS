@@ -251,8 +251,8 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
                                         ${CMAKE_CURRENT_SOURCE_DIR}/../scripts/release-notes.sh)
 
     # The image's stop helper, osdos-stop (scripts/install.sh), on a stand-in
-    # boot partition: the display presets it writes, and At Next Start's
-    # requests, good and bad.
+    # boot partition: the display presets it writes, and At Next Start's and
+    # the Wi-Fi country's requests, good and bad.
     add_test(NAME osdos_stop COMMAND bash ${CMAKE_CURRENT_SOURCE_DIR}/osdos_stop_test.sh
                                      ${CMAKE_CURRENT_SOURCE_DIR}/../scripts/install.sh
                                      ${CMAKE_CURRENT_SOURCE_DIR}/../os/stage-osdos/03-boot/files)

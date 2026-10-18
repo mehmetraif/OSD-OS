@@ -70,7 +70,8 @@ sudo apt-get install -y \
     mpv \
     fluidsynth \
     timgm6mb-soundfont \
-    openmpt123
+    openmpt123 \
+    polkitd
 
 # ── udev rule: allow tty group to open /dev/tty0 for VT switching ─────────────
 echo 'KERNEL=="tty0", GROUP="tty", MODE="0620"' \
@@ -113,6 +114,34 @@ OWNER_USER="${SERVICE_USER:-$USER}"
 # BlueZ's D-Bus policy lets in through the bluetooth group.
 if getent group bluetooth > /dev/null; then
     sudo usermod -aG bluetooth "${OWNER_USER}"
+fi
+
+# Settings → Wi-Fi scans, joins and forgets networks and turns Wi-Fi on and
+# off through NetworkManager, as the user the service runs the app as. The
+# service is outside any login session, where polkit would ask for a password
+# nobody can type: this rule lets that user use the five NetworkManager actions
+# those take, which reach every connection NetworkManager keeps, Ethernet's
+# too, and nothing else.
+# Written for a service kept as it is too, which the launcher offers Wi-Fi to.
+if [ -n "${SERVICE_USER}" ]; then
+    sudo mkdir -p /etc/polkit-1/rules.d
+    sudo tee /etc/polkit-1/rules.d/50-osdos-networkmanager.rules > /dev/null << 'POLKIT_RULE'
+// OSD/OS's Wi-Fi setting scans, joins and forgets networks and turns Wi-Fi
+// on and off through NetworkManager, as the user the app's service runs as,
+// outside any login session, where polkit would otherwise ask for a password
+// nobody can type.
+polkit.addRule(function(action, subject) {
+    if (subject.user == "@OSDOS_USER@" &&
+        (action.id == "org.freedesktop.NetworkManager.wifi.scan" ||
+         action.id == "org.freedesktop.NetworkManager.network-control" ||
+         action.id == "org.freedesktop.NetworkManager.settings.modify.system" ||
+         action.id == "org.freedesktop.NetworkManager.settings.modify.own" ||
+         action.id == "org.freedesktop.NetworkManager.enable-disable-wifi")) {
+        return polkit.Result.YES;
+    }
+});
+POLKIT_RULE
+    sudo sed -i "s/@OSDOS_USER@/${SERVICE_USER}/" /etc/polkit-1/rules.d/50-osdos-networkmanager.rules
 fi
 
 # ── Download tarball ───────────────────────────────────────────────────────────
@@ -159,7 +188,11 @@ INSTALL_DIR="/opt/osdos"
 #    Display Output offers Switch and Power Off and At Next Start.
 # 6: osdos-stop also writes the JAMMA board's other modes on exit 31-38 (and
 #    powers off after them on 51-58), so Display Output offers them.
-export OSDOS_LAUNCHER_API=6
+# 7: NetworkManager lets the app's user scan, join and forget networks and
+#    turn Wi-Fi on and off (50-osdos-networkmanager.rules), and osdos-stop
+#    sets the Wi-Fi country through osdos-wifi.socket, so Settings offers
+#    Wi-Fi.
+export OSDOS_LAUNCHER_API=7
 
 # ── Apply a staged in-app update ───────────────────────────────────────────────
 # The app downloads the release tarball to DATA_ROOT/updates and writes
@@ -368,7 +401,8 @@ UNIT
 #!/usr/bin/env bash
 # Called by osdos.service ExecStopPost. systemd sets $EXIT_STATUS to the app's
 # exit code, or to the signal name if a signal killed it. Called with
-# next-start, by osdos-display.socket instead: Display Output's At Next Start.
+# next-start, by osdos-display.socket instead: Display Output's At Next Start;
+# with wifi-country, by osdos-wifi.socket: Settings → Wi-Fi's country.
 
 # Settings → Display Output on the OSD/OS image: the chosen preset (or the one
 # before it, to go back) over osdos-display.txt, which the firmware reads only
@@ -410,10 +444,11 @@ DISPLAY_PRESETS=(hdmi crt-ntsc crt-pal crt-gpio-ntsc crt-gpio-pal
 # and "ok" back, or why not. Written now, for the firmware to read the next
 # time the Pi starts; the output in force is kept in AT_BOOT first, as the one
 # to go back to. Only a name from the list, never echoed. A refusal goes to
-# the journal too; answered, the request hasn't failed, whatever the answer.
+# the journal too, under the mode's name; answered, the request hasn't
+# failed, whatever the answer.
 refuse() {
     echo "$1"
-    echo "osdos-stop next-start: $1" >&2
+    echo "osdos-stop $MODE: $1" >&2
 }
 next_start() {
     local id p known=""
@@ -428,10 +463,33 @@ next_start() {
     display_output "$id" || { refuse "the preset couldn't be written"; return; }
     echo ok
 }
-if [ "${1:-}" = next-start ]; then
-    next_start
-    exit 0
-fi
+
+# Settings → Wi-Fi's country: a two-letter code on a line from the app,
+# through the socket, and "ok" back, or why not. Only two capital letters,
+# and of those only a code the time zone database lists as a country (the
+# check raspi-config makes itself); never echoed. raspi-config writes the
+# code into the kernel's command line on the boot partition, sets it now (iw
+# reg set) and turns Wi-Fi on; what it says goes to the journal, not into the
+# answer.
+ISO3166=/usr/share/zoneinfo/iso3166.tab
+wifi_country() {
+    local code
+    IFS= read -r -t 5 -n 64 code || [ -n "$code" ] || { refuse "no country named"; return; }
+    [[ "$code" =~ ^[A-Z]{2}$ ]] || { refuse "no such country"; return; }
+    grep -q "^${code}[[:space:]]" "$ISO3166" || { refuse "no such country"; return; }
+    raspi-config nonint do_wifi_country "$code" < /dev/null >&2 \
+        || { refuse "raspi-config couldn't set it"; return; }
+    # On the card before the answer, as a display preset is: the boot
+    # partition only.
+    sync -f /boot/firmware
+    echo ok
+}
+
+MODE="${1:-}"
+case "$MODE" in
+    next-start)   next_start;   exit 0 ;;
+    wifi-country) wifi_country; exit 0 ;;
+esac
 
 case "${EXIT_STATUS:-}" in
     0)  systemctl poweroff ;;  # Quit → Power Off, or Ctrl+Q
@@ -485,6 +543,44 @@ PrivateTmp=yes
 ProtectHome=yes
 DISPLAY_SERVICE
 
+    # Settings → Wi-Fi's country, while the app runs: it writes a two-letter
+    # code to this socket, which only its user may, and osdos-stop
+    # wifi-country, as root, has raspi-config set it and answers.
+    sudo tee /etc/systemd/system/osdos-wifi.socket > /dev/null << 'WIFI_SOCKET'
+[Unit]
+Description=OSD/OS Wi-Fi country (Settings → Wi-Fi)
+
+[Socket]
+ListenStream=/run/osdos-wifi.sock
+SocketUser=root
+SocketGroup=@OSDOS_GROUP@
+SocketMode=0660
+Accept=yes
+MaxConnections=1
+
+[Install]
+WantedBy=sockets.target
+WIFI_SOCKET
+    sudo sed -i "s/@OSDOS_GROUP@/$(id -gn "${SERVICE_USER}")/" /etc/systemd/system/osdos-wifi.socket
+    sudo tee /etc/systemd/system/osdos-wifi@.service > /dev/null << 'WIFI_SERVICE'
+[Unit]
+Description=OSD/OS Wi-Fi country, one request
+# One unit a request: gone once it has run, however it ended.
+CollectMode=inactive-or-failed
+
+[Service]
+ExecStart=/usr/local/bin/osdos-stop wifi-country
+StandardInput=socket
+StandardOutput=socket
+StandardError=journal
+NoNewPrivileges=yes
+# No PrivateNetwork=, unlike the display output's: raspi-config sets the Wi-Fi's
+# regulatory domain over the kernel's nl80211 (iw reg set), and the Wi-Fi
+# device is in the host's network namespace, not one of the unit's own.
+PrivateTmp=yes
+ProtectHome=yes
+WIFI_SERVICE
+
     # On-demand login shell for "Exit to Terminal". Not enabled (no boot race with
     # osdos.service); getty@tty1 stays masked. Started only by osdos-stop, or by
     # osdos.service's OnFailure= once the app has failed three times running, and
@@ -508,7 +604,7 @@ TERMINAL_UNIT
     sudo systemctl mask getty@tty1.service autovt@.service
     sudo systemctl daemon-reload
     sudo systemctl enable osdos.service
-    sudo systemctl enable --now osdos-display.socket
+    sudo systemctl enable --now osdos-display.socket osdos-wifi.socket
     echo "Service installed and enabled."
     echo "Start now with: sudo systemctl start osdos"
 fi

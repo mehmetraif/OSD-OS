@@ -12,3 +12,7 @@ alsa-utils
 # MIDI SoundFont, and openmpt123 for a tracker's module (XM, MOD, S3M, IT)
 # where mpv's ffmpeg can't play one itself.
 fluidsynth timgm6mb-soundfont openmpt123
+# polkitd, which reads the rule that lets the app's user use NetworkManager
+# (Settings → Wi-Fi, 02-system). network-manager pulls it in already; named
+# so it stays.
+polkitd
