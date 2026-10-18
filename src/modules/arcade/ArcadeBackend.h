@@ -97,6 +97,11 @@ class ArcadeBackend : public QObject {
     Q_PROPERTY(bool fbneoDownloading READ fbneoDownloading NOTIFY fbneoChanged)
     Q_PROPERTY(int fbneoProgress READ fbneoProgress NOTIFY fbneoProgressChanged)
     Q_PROPERTY(QString fbneoMessage READ fbneoMessage NOTIFY fbneoChanged)
+    // The status icons the module adds (AppCore's statusIcons): "hiscore"
+    // while Save High Scores is on, "trophy" while Online High Scores plays
+    // with RetroAchievements and its account is signed in (or signs in at
+    // the next game), "globe" while Online Play is on.
+    Q_PROPERTY(QStringList statusIcons READ statusIcons NOTIFY statusIconsChanged)
 public:
     explicit ArcadeBackend(const QString &appRoot, const QString &dataRoot, AppCore *appCore,
                            DisplayHandoff *handoff, QObject *parent = nullptr);
@@ -267,6 +272,7 @@ public:
     bool    fbneoDownloading() const;
     int     fbneoProgress() const;
     QString fbneoMessage() const { return m_fbneoMessage; }
+    QStringList statusIcons() const;
 
 public slots:
     void onSettingChanged(const QString &moduleId, const QString &key, const QVariant &value);
@@ -283,6 +289,7 @@ signals:
     void playedChanged();
     void achievementsChanged();
     void leaderboardReady(const QString &set);
+    void statusIconsChanged();
     void roomsChanged();
     void fbneoChanged();
     // The download's progress, apart: what the page reads of the rest

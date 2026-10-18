@@ -39,6 +39,7 @@ Out of the box it is plain on purpose, as above: two colors, and nothing moving 
 - **One way to browse**: a horizontal tree that starts with Recently Watched, Favorites and Search, typed on an on-screen keyboard.
 - **Playlists** across modules, streamed, or downloaded to play without the network.
 - **Transparent Background**: back from a video, the menus lie over it while it plays on.
+- **Status icons** at the top right of the title bar: Wi-Fi's signal, Bluetooth, and the arcade's high scores, RetroAchievements and netplay while they are on.
 - **Themes**, the whole look at once: the colors, the skin, effects like the ones above and the menu music. Eight come with it, and a new one is a folder.
 - **And more**: a fireplace on a loop (Ambient:Mode), a 90s weather channel, NFC cards that play a film when they touch the reader, and anything a shell script can start.
 

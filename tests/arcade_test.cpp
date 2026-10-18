@@ -1441,6 +1441,54 @@ private slots:
             QVERIFY2(!message.contains(QStringLiteral("key1")), qPrintable(message));
     }
 
+    // The status icons the module adds, as its settings and account stand,
+    // and AppCore's of every enabled module's, read again as they change and
+    // as a module is turned on or off.
+    void statusIcons() {
+        const QString module = QStringLiteral("com.osdos.arcade");
+        QTemporaryDir app;
+        QVERIFY(app.isValid());
+        writeFile(app.path() + QStringLiteral("/modules/arcade/manifest.json"),
+                  R"({"id": "com.osdos.arcade", "name": "Arcade", "entry_point_qml": "views/Root.qml",
+                      "settings": [{"key": "enabled", "type": "toggle", "default": "OFF"}]})");
+        QTemporaryDir data;
+        QVERIFY(data.isValid());
+        AppCore core(app.path(), data.path());
+        ArcadeBackend arcade(m_data.path(), data.path(), &core, nullptr);
+        core.registerModule(module, QStringLiteral("arcadeBackend"), &arcade, nullptr);
+        QSignalSpy own(&arcade, &ArcadeBackend::statusIconsChanged);
+        QSignalSpy all(&core, &AppCore::statusIconsChanged);
+
+        // Save High Scores is on as it comes; the module isn't.
+        QCOMPARE(arcade.statusIcons(), QStringList({ QStringLiteral("hiscore") }));
+        QVERIFY(core.statusIcons().isEmpty());
+        QVERIFY(core.save_setting(module, QStringLiteral("enabled"), true));
+        QCOMPARE(all.size(), 1);
+        QCOMPARE(core.statusIcons(), QStringList({ QStringLiteral("hiscore") }));
+
+        QVERIFY(core.save_setting(module, QStringLiteral("online_play"), QStringLiteral("On")));
+        QCOMPARE(core.statusIcons(), QStringList({ QStringLiteral("hiscore"), QStringLiteral("globe") }));
+        // RetroAchievements: its trophy while its account is signed in, or
+        // signs in at the next game.
+        QVERIFY(core.save_setting(module, QStringLiteral("online_high_scores"), QStringLiteral("RetroAchievements")));
+        QCOMPARE(core.statusIcons(), QStringList({ QStringLiteral("hiscore"), QStringLiteral("globe") }));
+        arcade.signInAchievements(QStringLiteral("Ryu"), QStringLiteral("secret"));
+        QCOMPARE(core.statusIcons(), QStringList({ QStringLiteral("hiscore"), QStringLiteral("trophy"),
+                                                   QStringLiteral("globe") }));
+        QVERIFY(core.save_setting(module, QStringLiteral("high_scores"), false));
+        QCOMPARE(core.statusIcons(), QStringList({ QStringLiteral("trophy"), QStringLiteral("globe") }));
+        arcade.signOutAchievements();
+        QCOMPARE(core.statusIcons(), QStringList({ QStringLiteral("globe") }));
+        // AppCore's changed only as they did: not for Online High Scores
+        // alone, whose trophy waited for the account.
+        QVERIFY(own.size() >= 5);
+        QCOMPARE(all.size(), 5);
+
+        QVERIFY(core.save_setting(module, QStringLiteral("enabled"), false));
+        QVERIFY(core.statusIcons().isEmpty());
+        QCOMPARE(all.size(), 6);
+    }
+
     // Online Play against a stand-in for RetroArch's lobby: the rooms of the
     // folder's games FinalBurn Neo plays (not a room with a password, nor
     // one of a game not there), in the tree's Online Games and the Arcade

@@ -285,7 +285,7 @@ Every key Settings writes, with the row it belongs to. The values and defaults a
 | `video_scaling` | Scaling | string: `"Letterbox"`, `"14:9"`, `"Pan & Scan"`, `"Anamorphic"` |
 | `transparent_background` | Transparent Background | number, 0 to 100, or the string `"Off"`. Its first values, `"On"` and `"Dim"`, still read as 0 and 60 |
 | `video_output_levels` | Video Levels | string: `"Auto"`, `"Limited"`, `"Full"` |
-| `loading_effect`, `hint_bar`, `help_line` | Loading Effect, Hint Bar, Help Line | string: `"On"` or `"Off"` |
+| `loading_effect`, `hint_bar`, `help_line`, `status_icons` | Loading Effect, Hint Bar, Help Line, Status Icons | string: `"On"` or `"Off"` |
 | `loading_colors`, `boot_colors` | Loading Screen Colors, Boot Screen Colors | string: `"Theme"` (when unset) or `"Default"` |
 | `video_logo` | Channel Logo | string: `"off"`, `"tl"`, `"tr"`, `"bl"`, `"br"`, `"all"` |
 | `video_logo_image` | Logo Image | string: a full path, `""` for OSD/OS's logo |

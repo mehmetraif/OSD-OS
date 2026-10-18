@@ -84,6 +84,7 @@ With **Settings → Arcade → Screen** on **Arcade**, Arcade opens on a cabinet
   - **Play Time**, at the foot of the box: how long the game has been played in OSD/OS (`1H 31M`, `Never`).
 - **The help line**: the game's full name, as MAME has it, then those of its maker, year, players and system the box has no line for, scrolling through as `Final Fight (World, set 1) • 1989 • 2 Players • CPS-1`; on a set under Not Recognized, why it is there and what to do.
 - **The hint bar**: the keys.
+- **The status icons**, at the right of the help line (with the help line off, at the right end of the hint bar while the keys still fit beside them): what is on, as at the right end of every title bar ([Settings → Status Icons](https://github.com/mehmetraif/OSD-OS/wiki/Settings#status-icons)).
 
 **Border** in Settings → Arcade, ON by default, frames the picture and the box under it; OFF, they stand on their ground alone. **Info Background**, a slider from TRANSPARENT to SOLID, says how solid that ground is over the background (Settings → Background Effect): at SOLID, the default, none of the background shows through. **Hint Bar** and **Help Line** in Settings → Arcade take those two away, on the Arcade screen and its windows (the options, the screen before a game) whatever Settings' own say, each giving its room to one more game on every page and to the box: a line more of the game's details for the hint bar's, two for the help line's. With the help line off, the details the box has no line for aren't shown.
 

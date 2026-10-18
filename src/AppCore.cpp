@@ -6,6 +6,7 @@
 #include <QFileInfo>
 #include <QJsonDocument>
 #include <QJsonArray>
+#include <QMetaProperty>
 #include <QUrl>
 #include <QVariantMap>
 #include <QDebug>
@@ -234,6 +235,9 @@ bool AppCore::save_setting(const QString &moduleId, const QString &key, const QV
         emit appSettingChanged(key, value.toString());
     else
         emit moduleSettingChanged(moduleId, key, value);
+    // A module turned on or off: its status icons come or go.
+    if (!moduleId.isEmpty() && key == QLatin1String("enabled"))
+        updateStatusIcons();
     return true;
 }
 
@@ -320,6 +324,28 @@ void AppCore::registerModule(const QString &moduleId, const QString &contextProp
         int s = amo->indexOfSignal(
             QMetaObject::normalizedSignature("moduleSettingChanged(QString,QString,QVariant)"));
         QMetaObject::connect(this, s, backend, slot);
+    }
+
+    // statusIcons' notify signal -> updateStatusIcons(), which reads them again
+    const int icons = bmo->indexOfProperty("statusIcons");
+    if (icons >= 0 && bmo->property(icons).hasNotifySignal()) {
+        QMetaObject::connect(backend, bmo->property(icons).notifySignalIndex(), this,
+                             amo->indexOfSlot("updateStatusIcons()"));
+        updateStatusIcons();
+    }
+}
+
+void AppCore::updateStatusIcons() {
+    const QJsonObject modulesConfig = loadConfig()["modules"].toObject();
+    QStringList icons;
+    for (const auto &m : m_modules) {
+        QObject *backend = m_backends.value(m.id);
+        if (backend && isModuleEnabled(m, modulesConfig))
+            icons << backend->property("statusIcons").toStringList();
+    }
+    if (icons != m_statusIcons) {
+        m_statusIcons = icons;
+        emit statusIconsChanged();
     }
 }
 

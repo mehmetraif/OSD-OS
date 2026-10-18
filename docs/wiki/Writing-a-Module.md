@@ -885,6 +885,7 @@ Then configure and build again (`cmake -B build && cmake --build build`). `regis
 | signal `dynamicOptionsReady(QString, QVariant)` | `appCore.dynamicOptionsReady(moduleId, key, options)`, which Settings fills a dynamic row from |
 | signal `authStateChanged()` | `appCore.moduleAuthStateChanged(moduleId)`: Settings shows or hides the `requires_auth` rows again |
 | slot `onSettingChanged(QString, QString, QVariant)` | Called by `appCore.moduleSettingChanged` at every module's setting saved. An app setting (Settings' own rows) doesn't come here |
+| property `QStringList statusIcons`, with a notify signal | Gathered into `appCore.statusIcons`: the module's status icons, `PixelIcon`'s names, at the right end of every title bar while the module is on (the Arcade module's HI, trophy and globe) |
 | `Q_INVOKABLE QString get_auth_state()` | Asked by `appCore.get_module_auth_state()` for the `requires_auth` rows |
 | `Q_INVOKABLE QVariantList get_menu_entries()` | Asked as the main menu is built: rows `{ name, params }` of the module's own, after the modules' rows (Scripts puts its favourite scripts there) |
 

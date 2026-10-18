@@ -16,6 +16,7 @@ Rectangle {
     property var skin: ({})
     // Main.qml's: Settings' Hint Bar, and the area the views lay out in.
     property bool hintBar: true
+    property var statusIcons: []
     property rect contentBox: Qt.rect(sw * 0.115625, sh * 0.11875, sw * 0.76875, sh * 0.7770833)
     function selectorShown(item, showing) {}
     function folder(name, path) { return { name: name, path: path, isFolder: true } }

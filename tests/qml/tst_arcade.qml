@@ -32,6 +32,7 @@ Rectangle {
     property var skin: ({})
     property bool hintBar: true
     property bool helpLine: true
+    property var statusIcons: []
     readonly property real hintRoom: 0
     readonly property real helpRoom: 0
     readonly property real helpLineMargin: sh * 0.1583333
@@ -346,6 +347,7 @@ Rectangle {
             arcadeBackend.signIns = []
             arcadeBackend.keyGiven = ""
             arcadeBackend.boards = {}
+            root.statusIcons = []
             arcadeBackend.hostable = []
             arcadeBackend.joined = []
             arcadeBackend.hosted = []
@@ -795,6 +797,59 @@ Rectangle {
             keyClick(Qt.Key_Return)
             tryVerify(function() { return page.keys.length === 6 }, 1000)
             compare(page.keys, ["state", "status", "user", "password", "signIn", "key"])
+        }
+
+        // The status icons at the right of the help line, which makes room
+        // for them; with no help line, at the hint bar's right end in its
+        // letters' colour; with neither bar, and with none to show, nowhere.
+        function test_screenStatusIcons() {
+            var screen = openScreen()
+            var help = findText(screen, "Street Fighter II: The World Warrior")
+            verify(help !== null)
+            var box = help
+            while (box && box.border === undefined)
+                box = box.parent
+            var fullWidth = Math.round(screen.areaWidth * screen.u)
+            compare(box.width, fullWidth)
+            compare(screen.statusRoom, 0)
+            root.statusIcons = ["hiscore", "globe", "signal3"]
+            verify(screen.statusRoom > 0)
+            var row = null
+            var walk = function(item) {
+                if (!row && item.spacing !== undefined && item.color !== undefined && item.children.length === 4)
+                    row = item
+                for (var i = 0; !row && i < item.children.length; i++)
+                    walk(item.children[i])
+            }
+            walk(screen)
+            verify(row !== null, "the status icons")
+            verify(row.visible)
+            compare(row.x + row.width, Math.round(screen.areaRight * screen.u))
+            verify(Qt.colorEqual(row.color, root.primaryColor))
+            // The help line made room for them.
+            compare(box.width, fullWidth - screen.statusRoom)
+            // No help line: on the hint bar, while the hint line still fits
+            // beside them.
+            root.helpLine = false
+            verify(row.visible)
+            verify(Qt.colorEqual(row.color, root.surfaceColor))
+            compare(box.width, fullWidth)
+            var many = []
+            for (var i = 0; i < 40; ++i)
+                many.push("trophy")
+            // (The row is laid out a frame later.)
+            root.statusIcons = many
+            tryVerify(function() { return !row.visible }, 1000)
+            compare(screen.statusRoom, 0)
+            root.statusIcons = ["hiscore", "globe", "signal3"]
+            tryVerify(function() { return row.visible }, 1000)
+            root.hintBar = false
+            verify(!row.visible)
+            compare(screen.statusRoom, 0)
+            root.hintBar = true
+            root.helpLine = true
+            root.statusIcons = []
+            verify(!row.visible)
         }
 
         // A game FinalBurn Neo plays with a leaderboard to show: its top

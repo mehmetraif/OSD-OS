@@ -10,7 +10,8 @@ import Components
 // credits bought, and under it a box of its high scores (the High Scores
 // module's), what it is (ArcadeBackend::gameDetails) and how long it has
 // been played, as many lines as fit; under them the help line with its full
-// name and what the box has no line for, and the hint bar. The module's own
+// name and what the box has no line for, the status icons at its right, and
+// the hint bar. The module's own
 // Hint Bar and Help Line settings (Root.qml's, which root.hintBar and
 // root.helpLine go by here) hide those, and their room goes to the list, a
 // row more each, and to the box. Laid out in the design's units, a 960th of
@@ -930,10 +931,11 @@ FocusScope {
     // ---
 
     // What the game is; why a set isn't a game. What stands in the way of
-    // the list comes first.
+    // the list comes first. It makes room at its right for the status icons.
     HelpLine {
+        id: helpBox
         visible: (arcadeScreen.adjusting || arcadeScreen.filters.length > 0) && !options.visible
-        width: Math.round(arcadeScreen.areaWidth * arcadeScreen.u)
+        width: Math.round(arcadeScreen.areaWidth * arcadeScreen.u) - (root.helpLine ? arcadeScreen.statusRoom : 0)
         text: arcadeScreen.adjusting ? "The frame's sides go to the screen's edges: ▲ ▼ ◄ ► move each, and the list holds as many games as fit"
               : arcadeScreen.problem !== "" ? arcadeScreen.problem
               : arcadeScreen.scanning ? "Reading the games…"
@@ -946,10 +948,13 @@ FocusScope {
     }
 
     // ▲ ▼ and ◄ ► go without saying, the filter's bar showing ◄ ►, and
-    // START with select: the bar has room for four.
+    // START with select: the bar has room for four, and with no help line,
+    // for the status icons at its right end.
     HintBar {
+        id: hintLine
         visible: !options.visible
         width: Math.round(arcadeScreen.areaWidth * arcadeScreen.u)
+        rightPadding: root.sw * 0.0125 + (root.helpLine ? 0 : arcadeScreen.statusRoom) //8
         text: arcadeScreen.adjusting
               ? root.hints.back + ":DONE " + root.hints.arrows + (arcadeScreen.shrinking ? ":SHRINK " : ":EXPAND ")
                 + root.hints.select + (arcadeScreen.shrinking ? ":EXPAND" : ":SHRINK") + " HOLD:RESET"
@@ -961,6 +966,30 @@ FocusScope {
         anchors.left: parent.left
         anchors.bottomMargin: root.sh * 0.1041667 + Math.round((645 - arcadeScreen.areaBottom) * arcadeScreen.v) //50
         anchors.leftMargin: Math.round(arcadeScreen.areaLeft * arcadeScreen.u)
+    }
+
+    // What is on (Settings → Status Icons), at the screen's bottom right: at
+    // the right of the help line, which makes room for them; with no help
+    // line, at the hint bar's right end, in its letters' colour, while the
+    // hint line still fits beside them; with neither, none.
+    readonly property int statusRoom: statusRow.shown ? statusRow.width + Math.round(12 * u) : 0
+    // The hint line at its smallest, which beside the icons must still fit.
+    TextMetrics {
+        id: hintProbe
+        font.family: root.globalFont
+        font.pixelSize: hintLine.smallest
+        text: hintLine.text
+    }
+    StatusIcons {
+        id: statusRow
+        readonly property Item beside: root.helpLine ? helpBox : hintLine
+        readonly property bool shown: root.statusIcons.length > 0
+                                      && (root.helpLine || (root.hintBar && hintProbe.advanceWidth <= hintLine.width
+                                          - hintLine.leftPadding - root.sw * 0.0125 - width - Math.round(12 * arcadeScreen.u)))
+        visible: shown && beside.visible
+        color: root.helpLine ? root.primaryColor : root.surfaceColor
+        x: Math.round(arcadeScreen.areaRight * arcadeScreen.u) - width - (root.helpLine ? 0 : Math.round(root.sw * 0.0125))
+        y: Math.round(beside.y + (beside.height - height) / 2)
     }
 
     // Screen Adjustment's frame, a little outside the area and inside the

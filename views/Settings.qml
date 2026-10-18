@@ -322,6 +322,19 @@ FocusScope {
             moduleId: ""
         })
 
+        // STATUS ICONS — what is on, at the title bar's top right and the
+        // Arcade screen's bottom right (Components/StatusIcons). Read in
+        // Main.qml.
+        items.push({
+            type: "list_single",
+            key: "status_icons",
+            label: "Status Icons",
+            options: ["On", "Off"],
+            value: appSettings["status_icons"] === "Off" ? "Off" : "On",
+            description: "What is on, at the top right of the title bar and the bottom right of the Arcade screen: Wi-Fi's signal, Bluetooth, and the Arcade's HI (Save High Scores), trophy (RetroAchievements) and globe (Online Play)\n[OFF] None",
+            moduleId: ""
+        })
+
         // SCREEN SAVER section — single control: OFF disables, a number sets the
         // timeout for both menu idle and playback pause (handled inside mpv).
         items.push({
@@ -709,11 +722,13 @@ FocusScope {
     Component.onCompleted: buildModel()
 
     // Header: a release's version beside the title; none for a build made
-    // from source ("dev"), which About names. A group's page: its name.
+    // from source ("dev"), which About names. A group's page: its name. The
+    // first page's: the IP address at the bar's right end.
     AppBar {
         iconSource: "../../assets/images/settings.svg"
         title: "Settings"
         subtitle: settingsRoot.group === "tv" ? "TV / Movie" : root.devBuild ? "" : root.appVersion
+        note: settingsRoot.group === "" ? settingsRoot.ipAddress : ""
         anchors.top: parent.top
         anchors.left: parent.left
         anchors.topMargin: root.sh * 0.125 //60
@@ -728,21 +743,6 @@ FocusScope {
         repeat: true
         triggeredOnStart: true
         onTriggered: settingsRoot.ipAddress = appCore.localIpAddress()
-    }
-    Text {
-        text: settingsRoot.ipAddress
-        visible: settingsRoot.ipAddress !== "" && settingsRoot.group === ""
-        anchors.top: parent.top
-        anchors.right: parent.right
-        anchors.topMargin: root.sh * 0.125 //60
-        anchors.rightMargin: root.sw * 0.125 //80
-        font.pixelSize: root.sh * 0.0291667 //14
-        // On the title bar, so in the bar's text colour.
-        color: root.surfaceColor
-        font.family: root.globalFont
-        font.capitalization: Font.AllUppercase
-        topPadding: root.sh * 0.0125 //6
-        rightPadding: root.sw * 0.00625 //4
     }
 
     ListView {

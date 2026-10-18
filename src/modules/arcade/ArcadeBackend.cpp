@@ -247,6 +247,8 @@ ArcadeBackend::ArcadeBackend(const QString &appRoot, const QString &dataRoot, Ap
         if (!std::exchange(m_raKeyRefused, true))
             emit achievementsChanged();
     });
+    // The trophy among the status icons is the account's.
+    connect(this, &ArcadeBackend::achievementsChanged, this, &ArcadeBackend::statusIconsChanged);
     // A game's config is written anew for each game: one a game left that the
     // app didn't see end (it was stopped meanwhile) may hold the password.
     QFile::remove(retroarchHome() + QStringLiteral("/retroarch.cfg"));
@@ -312,6 +314,7 @@ void ArcadeBackend::applySetting(const QString &key, const QVariant &value) {
         setGamesFolder(value.toString());
     } else if (key == QLatin1String("high_scores")) {
         m_highScores = isOn(value, true);
+        emit statusIconsChanged();
     } else if (key == QLatin1String("video")) {
         // Auto leaves it to MAME (Debian's mame.ini says opengl).
         static const QHash<QString, QString> kVideo = {
@@ -336,9 +339,11 @@ void ArcadeBackend::applySetting(const QString &key, const QVariant &value) {
     } else if (key == QLatin1String("online_high_scores")) {
         m_achievements = value.toString() == QLatin1String("RetroAchievements");
         emit gamesChanged();
+        emit statusIconsChanged();
     } else if (key == QLatin1String("online_play")) {
         m_onlinePlay = value.toString() == QLatin1String("On");
         emit gamesChanged();
+        emit statusIconsChanged();
     } else if (key == QLatin1String("engines")) {
         // Saved whole by setEngine().
         m_engines = value.toMap();
@@ -1971,6 +1976,18 @@ QVariantMap ArcadeBackend::leaderboard(const QString &set) {
     if (!m_achievements || m_raKey.isEmpty() || file.isEmpty() || engineOf(set) != QLatin1String("fbneo"))
         return { { QStringLiteral("state"), QStringLiteral("off") } };
     return m_leaderboards->board(QFileInfo(file).fileName());
+}
+
+QStringList ArcadeBackend::statusIcons() const {
+    QStringList icons;
+    if (m_highScores)
+        icons << QStringLiteral("hiscore");
+    const QString account = achievementsState();
+    if (m_achievements && (account == QLatin1String("signedIn") || account == QLatin1String("pending")))
+        icons << QStringLiteral("trophy");
+    if (m_onlinePlay)
+        icons << QStringLiteral("globe");
+    return icons;
 }
 
 void ArcadeBackend::saveAchievements() const {
