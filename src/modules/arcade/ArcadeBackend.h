@@ -6,6 +6,7 @@
 #include <QObject>
 #include <QProcess>
 #include <QSet>
+#include <QSize>
 #include <QString>
 #include <QStringList>
 #include <QUrl>
@@ -100,6 +101,15 @@ public:
     explicit ArcadeBackend(const QString &appRoot, const QString &dataRoot, AppCore *appCore,
                            DisplayHandoff *handoff, QObject *parent = nullptr);
     ~ArcadeBackend() override;
+
+    // The screen the games play on, as OSD/OS has it: the display preset in
+    // force (Settings → Display Output's; "" off the OSD/OS image, or for a
+    // config.txt of the user's own) and its size in pixels. Emulator Video's
+    // Auto goes by it: on a tube's (a CRT's preset, or off the image a
+    // screen of a TV's lines) MAME and RetroArch are told it is 4:3,
+    // whatever its pixels are, and draw a game's lines whole where they fit
+    // (mame::screenArguments(), libretro::viewportAspect()).
+    void setScreen(const QString &preset, const QSize &size);
 
     // Where the games are: the module's Games Folder, else Games/Arcade in
     // Local Files' default media folder (on the image, the card's OSD-OS
@@ -320,6 +330,7 @@ private:
         bool fbneoRead = false;
         QString fbneoFrom;
         QHash<QString, QString> fbneoGames;
+        QHash<QString, double> fbneoAspects;
     };
     // Off the GUI thread: the games folder (made should it not be there),
     // games.json when withCache, catver.ini unless it is still genresFrom's,
@@ -417,6 +428,16 @@ private:
     QString ownFolder() const;
     QString noticeFor(int exitCode, const QString &reason) const;
     QString fbneoNotice(int exitCode, const QString &reason, const libretro::Run &run) const;
+    // The screen is a tube's (setScreen()).
+    bool onTube() const;
+    // Emulator Video → Screen Shape as it stands: "4:3" or "16:9", Auto a
+    // tube's 4:3; "" for square pixels, the screen's own. Integer Scale:
+    // On, Off, Auto on a tube.
+    QString screenShape() const;
+    bool integerScale() const;
+    // A game's shape on the glass, its width over its height: FinalBurn
+    // Neo's list's, else 3:4 for a game MAME says is vertical, else 4:3.
+    double gameAspect(const QString &set) const;
     // A game started in RetroArch with FinalBurn Neo, the checks play() makes
     // of every game made: alone, hosted online or joining a room.
     bool playFbneo(const QString &name, libretro::Launch::Netplay netplay = libretro::Launch::Netplay::None,
@@ -455,6 +476,10 @@ private:
     QString m_gamesFolder;
     bool    m_highScores = true;
     QString m_video;              // "" for MAME's own (mame.ini's)
+    QString m_screenShape;        // Emulator Video: "4:3", "16:9", "Square Pixels"; "" for Auto
+    QString m_integerScale;       // "On", "Off"; "" for Auto
+    QString m_screenPreset;       // setScreen()'s
+    QSize   m_screenSize;
     QVariantMap m_menuFilters;    // Menu Filters: filter id → shown
     bool    m_achievements = false;   // Online High Scores: RetroAchievements
     bool    m_onlinePlay = false;
@@ -501,6 +526,7 @@ private:
     QHash<QString, QString> m_snaps;    // set → its picture in the games folder's snap
     QHash<QString, QString> m_shots;    // set → the first snapshot MAME took of it
     QHash<QString, QString> m_fbneoGames;   // set → its description, FinalBurn Neo's
+    QHash<QString, double> m_fbneoAspects;  // set → its shape, where FinalBurn Neo's list says
     QString m_fbneoFrom;          // the list of them read: its path, size and time
     mutable Index m_index;
     mutable bool  m_indexed = false;

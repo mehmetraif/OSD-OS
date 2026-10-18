@@ -33,6 +33,10 @@ struct Machine {
     QString status;        // its driver's: "good", "imperfect" or "preliminary"
     int     players = 0;   // as many as play at once
     int     rotate = 0;    // its (first) screen's rotation: 0, 90, 180 or 270
+    // Its (first) screen's size in the game's own pixels, before the
+    // rotation: 0 where MAME doesn't say (a vector screen).
+    int     width = 0;
+    int     height = 0;
     bool    bios = false;  // a BIOS set (neogeo), which other games start from
     bool    device = false;
     bool    runnable = true;
@@ -71,6 +75,15 @@ private:
     QString          m_text;
     QString          m_build;
 };
+
+// What MAME is told of the screen (Settings → Arcade → Emulator Video): its
+// shape ("4:3", "16:9"), where its pixels aren't square (720×240 for JAMMA
+// 240p is a 4:3 tube, which MAME would take as 3:1 and squeeze the picture
+// on; "" leaves them square); and with integer, that a game's lines are
+// drawn whole, once or twice, the width to the picture's shape, where at
+// least one of each fits in the screen's (screenLines): a game with more is
+// spread over them, as MAME would otherwise draw it once and cut it.
+QStringList screenArguments(const Machine &machine, int screenLines, const QString &shape, bool integer);
 
 // A set's file or folder name MAME may know: letters, digits and underscores
 // only. Anything else (a space, a wildcard MAME would match against every

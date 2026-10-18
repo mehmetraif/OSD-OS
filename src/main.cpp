@@ -249,6 +249,9 @@ int main(int argc, char *argv[]) {
     // Playback follows the UI's display: mpv gets a --fs-screen* arg derived
     // from this on macOS / desktop Linux (no-op at index 0 and on headless).
     mpvController.setTargetDisplay(displayIndex, targetScreen ? targetScreen->name() : QString());
+    // So do the games, in its mode: MAME and RetroArch are told its shape.
+    arcadeBackend.setScreen(displayOutput.current(), targetScreen
+                                ? targetScreen->geometry().size() * targetScreen->devicePixelRatio() : QSize());
 
     // When the Qt window is inactive (fullscreen mpv has OS focus on macOS),
     // gamepad actions bypass QML and drive mpv directly over IPC.

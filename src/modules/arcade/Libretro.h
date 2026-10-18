@@ -2,6 +2,7 @@
 #include <QByteArray>
 #include <QHash>
 #include <QList>
+#include <QSize>
 #include <QString>
 #include <QStringList>
 
@@ -33,8 +34,17 @@ QString downloadedLicense(const QString &dataRoot);
 
 // FinalBurn Neo's arcade games, from its DAT (ClrMame Pro's XML): each
 // game's set by its description. Not a BIOS set (neogeo), which games start
-// from but which isn't one. Empty for a file that can't be read.
-QHash<QString, QString> readDat(const QString &path);
+// from but which isn't one. Empty for a file that can't be read. With
+// aspects, the shape of each game's picture on the glass, its width over its
+// height (4:3, 3:4 for a vertical one), where the DAT says (<video>).
+QHash<QString, QString> readDat(const QString &path, QHash<QString, double> *aspects = nullptr);
+
+// The shape of a game's picture in the pixels of a screen of that size and
+// shape (screenAspect, 4:3 for a tube), for RetroArch (Launch::aspect):
+// gameAspect, its shape on the glass, as much wider as the screen's pixels
+// are narrower (720×240, JAMMA 240p, a 4:3 tube: a 4:3 game 3.0, a vertical
+// one 1.6875). 0 for no size.
+double viewportAspect(double gameAspect, const QSize &screen, double screenAspect);
 
 // The device RetroArch keeps for a player (input_playerN_reserved_device):
 // "vvvv:pppp Name", the vendor and product its SDL GUID holds, as
@@ -53,6 +63,11 @@ struct Launch {
     QString configDir;        // the core's options
     bool    console = true;   // a Linux console, not a desktop: KMS, udev, ALSA
     bool    sound = true;
+    // Settings → Arcade → Emulator Video: the picture's shape in the
+    // screen's pixels where they aren't square (viewportAspect()), 0 for the
+    // core's on square ones; and its lines drawn whole where they fit.
+    double  aspect = 0;
+    bool    integerScale = false;
     // Each player's controller, as reservedDevice() makes it: "" for none.
     QStringList pads;
     // RetroAchievements: the account, signed in with its token, or with its

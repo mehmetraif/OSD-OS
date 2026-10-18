@@ -311,7 +311,17 @@ Both players need the same game's set: a game listed under Online Games is in yo
 
 ## The picture and the sound
 
-MAME draws the game in the display mode OSD/OS runs in (**Settings → Display Output**: on the JAMMA board, its 240p), scaled to it; a vertical game stands upright inside the horizontal screen. On a Raspberry Pi 5 it opens the output the display preset names, as mpv does, rather than the first with a screen plugged in. **Video** chooses how MAME draws: if a game shows no picture, or MAME stops with an error about OpenGL, try another. The sound goes to the card **Settings → Audio Output** chose ([Audio Output](https://github.com/mehmetraif/OSD-OS/wiki/Audio-Output)). With no sound card at all, MAME plays the game without sound (`-sound none`), as its sound output would stop it otherwise. RetroArch draws FinalBurn Neo's games the same way, in the display mode OSD/OS runs in (on the Pi's console through KMS, the first output with a screen plugged in), and plays their sound through the same card, or none.
+MAME draws the game in the display mode OSD/OS runs in (**Settings → Display Output**: on the JAMMA board, its 240p), scaled to it; a vertical game stands upright inside the horizontal screen. On a Raspberry Pi 5 it opens the output the display preset names, as mpv does, rather than the first with a screen plugged in. The sound goes to the card **Settings → Audio Output** chose ([Audio Output](https://github.com/mehmetraif/OSD-OS/wiki/Audio-Output)). With no sound card at all, MAME plays the game without sound (`-sound none`), as its sound output would stop it otherwise. RetroArch draws FinalBurn Neo's games the same way, in the display mode OSD/OS runs in (on the Pi's console through KMS, the first output with a screen plugged in), and plays their sound through the same card, or none.
+
+### Emulator Video
+
+**Settings → Arcade → Emulator Video** sets how both MAME and FinalBurn Neo draw a game on your screen, the way OSD/OS's own menus fill it:
+
+- **Screen Shape**: the shape of your screen, which a game's picture is drawn to in its own shape (a horizontal game 4:3, a vertical one 3:4). A CRT's display mode doesn't have square pixels: JAMMA 240p is 720×240 on a 4:3 tube, which an emulator left to itself takes as a screen three times as wide as it is tall, squeezing the game into the middle third. **Auto** says 4:3 on a CRT's display output (composite, SCART RGB, JAMMA; off the OSD/OS image, a display mode of 576 lines or fewer) and square pixels on HDMI. **4:3** and **16:9** say so whatever the output; **Square Pixels** leaves the picture as the screen's pixels give it.
+- **Integer Scale**: a game's lines drawn whole, once (twice on a 480-line output), rather than spread over the screen's. On a CRT the lines stay sharp, with a thin border above and below a 224-line game on a 240-line screen; spread over 240, one line in fourteen comes out doubled or blurred. **Auto** is on on a CRT's display output and off elsewhere. A game with more lines than the screen (a vertical one on a 240p tube) fills it either way.
+- **MAME Video**: how MAME draws: if a game shows no picture, or MAME stops with an error about OpenGL, try another.
+
+On a JAMMA cabinet at 240p, with everything on Auto, a horizontal game of 224 lines is drawn once each, as wide as its shape on the tube, and a vertical game upright in the middle, its lines spread over the screen's.
 
 ## Settings
 
@@ -339,7 +349,10 @@ Settings → Arcade.
 | Online Name | (opens the on-screen keyboard) | The RetroAchievements account's, else OSD-OS | The name the others see in online games ([Online play](#online-play)). Shown while Online Play is On | `modules.com.osdos.arcade.online_name` |
 | Relay Server | New York, Madrid, São Paulo, Singapore, Chuncheon | New York | Where a game you host is relayed from ([Online play](#online-play)). Shown while Online Play is On | `modules.com.osdos.arcade.relay_server` |
 | FinalBurn Neo | (opens FinalBurn Neo's page) | | What is installed of RetroArch and FinalBurn Neo, the core's download, and its licence ([FinalBurn Neo](#finalburn-neo)) | |
-| Video | Auto, OpenGL, BGFX, Accelerated, Software | Auto | How MAME draws the game: Auto leaves it to MAME's own settings (Debian's `mame.ini` says OpenGL); the others are MAME's `-video opengl`, `bgfx`, `accel` and `soft` | `modules.com.osdos.arcade.video` |
+| Emulator Video | (opens its page) | | How MAME and FinalBurn Neo draw a game on your screen ([Emulator Video](#emulator-video)) | |
+| Emulator Video → Screen Shape | Auto, 4:3, 16:9, Square Pixels | Auto | The screen's shape the games are drawn to: Auto 4:3 on a CRT's display output, square pixels on HDMI. MAME's `-aspect`; for FinalBurn Neo, the picture's shape in the screen's pixels (`video_aspect_ratio`) | `modules.com.osdos.arcade.screen_shape` |
+| Emulator Video → Integer Scale | Auto, On, Off | Auto | A game's lines drawn whole rather than spread over the screen's: Auto on on a CRT's display output. MAME's `-nounevenstretch -unevenstretchx` for a game whose lines fit; RetroArch's `video_scale_integer` | `modules.com.osdos.arcade.integer_scale` |
+| Emulator Video → MAME Video | Auto, OpenGL, BGFX, Accelerated, Software | Auto | How MAME draws the game: Auto leaves it to MAME's own settings (Debian's `mame.ini` says OpenGL); the others are MAME's `-video opengl`, `bgfx`, `accel` and `soft` | `modules.com.osdos.arcade.video` |
 | Read the Games Again | (action) | | Asks MAME about every set in the folder again ([Reading the games](#reading-the-games)) | |
 
 ### How the values are saved
@@ -416,10 +429,11 @@ mame galaga \
     -skip_gameinfo \
     -samplepath /media/OSD-OS/Games/Arcade/samples \
     -pluginspath /usr/share/games/mame/plugins -plugin hiscore \
+    -aspect 4:3 -nounevenstretch -unevenstretchx \
     -autoboot_script ~/.local/share/OSD-OS/arcade/coins.lua
 ```
 
-(`;…/bios` while there is a `bios` folder; `-samplepath` while there is a `samples` folder, in place of MAME's own; the plugin's two while High Scores is on; `-video …` with any Video but Auto; `-sound none` without a sound card; `-autoboot_script` with credits bought on the Arcade screen.) Everything else is MAME's own settings: `/etc/mame/mame.ini` on the image, or a `mame.ini` of your own in `~/.mame`. A MAME of your own with its folders beside it runs in its own folder instead, as it would by hand, to find them, and reads the `mame.ini` there.
+(`;…/bios` while there is a `bios` folder; `-samplepath` while there is a `samples` folder, in place of MAME's own; the plugin's two while High Scores is on; `-video …` with any MAME Video but Auto; `-aspect` with a Screen Shape that isn't square pixels, and the two `unevenstretch` with Integer Scale on, for a game whose lines fit in the screen's ([Emulator Video](#emulator-video)); `-sound none` without a sound card; `-autoboot_script` with credits bought on the Arcade screen.) Everything else is MAME's own settings: `/etc/mame/mame.ini` on the image, or a `mame.ini` of your own in `~/.mame`. A MAME of your own with its folders beside it runs in its own folder instead, as it would by hand, to find them, and reads the `mame.ini` there.
 
 ## Troubleshooting
 
@@ -430,8 +444,8 @@ mame galaga \
 | `The games folder can't be read: …` | The folder isn't there and couldn't be made, or can't be read: a drive that isn't plugged in, or a Games Folder that is gone. Plug the drive in, or choose the folder again in **Settings → Arcade → Games Folder** |
 | A game is under **Not Recognized** | Its file isn't named as MAME names the game (`pacman.zip`, not `Pac-Man.zip`, nor `PACMAN.ZIP` on a drive that tells cases apart), or this MAME has no such game: a set for another version of MAME. The line under the tree says which |
 | `Missing …, looked for in …` | The set lacks files this MAME needs. The sets it names say where: a clone also needs its parent's set (`puckman.zip` for `pacman.zip`), unless the sets are non-merged; a Neo-Geo game needs `neogeo.zip`, a PGM game `pgm.zip`, and so on. A set made for another version of MAME often lacks a file or two |
-| `MAME stopped: …` about OpenGL, video or a window | Try another **Video** in Settings → Arcade |
-| `MAME closed unexpectedly` | MAME crashed. Try another **Video** in Settings → Arcade; if every Video does the same, run MAME by hand ([below](#troubleshooting)) to see its last lines |
+| `MAME stopped: …` about OpenGL, video or a window | Try another **MAME Video** in Settings → Arcade → Emulator Video |
+| `MAME closed unexpectedly` | MAME crashed. Try another **MAME Video** in Settings → Arcade → Emulator Video; if every one does the same, run MAME by hand ([below](#troubleshooting)) to see its last lines |
 | The game plays but there is no sound | Check **Settings → Audio Output**: on a Pi 5 with the JAMMA board, the USB sound card |
 | A game plays without some of its sounds | It plays them from samples: put its sample set (`dkong.zip` for Donkey Kong) in a `samples` folder in the games folder |
 | A player's controls are wrong | Check **Settings → Controls → Players**: who is player 1 is who MAME's joystick 1 is. Then MAME's own menu: **Tab → Input Settings** |

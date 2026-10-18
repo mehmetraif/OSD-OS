@@ -32,8 +32,9 @@ namespace {
 const QString kModuleId = QStringLiteral("com.osdos.arcade");
 
 // games.json's layout: one of another is read as none, and every set asked
-// about again (2: each machine's source file, for its system).
-constexpr int kCacheVersion = 2;
+// about again (2: each machine's source file, for its system; 3: its
+// screen's size, for its picture on a tube).
+constexpr int kCacheVersion = 3;
 
 // The most credits a game is started with, as most games show at most 9.
 constexpr int kMaxCredits = 9;
@@ -262,8 +263,9 @@ ArcadeBackend::ArcadeBackend(const QString &appRoot, const QString &dataRoot, Ap
 
     // The module's settings as they stand. games.json waits for the list to
     // open (refresh()): with a full set of MAME's games it is megabytes.
-    for (const char *key : { "games_directory", "high_scores", "video", "menu_filters", "online_high_scores",
-                             "online_play", "engines", "online_name", "relay_server" }) {
+    for (const char *key : { "games_directory", "high_scores", "video", "screen_shape", "integer_scale",
+                             "menu_filters", "online_high_scores", "online_play", "engines", "online_name",
+                             "relay_server" }) {
         const QString k = QLatin1String(key);
         applySetting(k, m_appCore ? m_appCore->get_setting(kModuleId, k) : QVariant());
     }
@@ -319,6 +321,14 @@ void ArcadeBackend::applySetting(const QString &key, const QVariant &value) {
             { QStringLiteral("Software"), QStringLiteral("soft") },
         };
         m_video = kVideo.value(value.toString());
+    } else if (key == QLatin1String("screen_shape")) {
+        // Auto (or nothing saved) goes by the screen (screenShape()).
+        const QString shape = value.toString();
+        m_screenShape = shape == QLatin1String("4:3") || shape == QLatin1String("16:9")
+                                || shape == QLatin1String("Square Pixels") ? shape : QString();
+    } else if (key == QLatin1String("integer_scale")) {
+        const QString scale = value.toString();
+        m_integerScale = scale == QLatin1String("On") || scale == QLatin1String("Off") ? scale : QString();
     } else if (key == QLatin1String("menu_filters")) {
         // Saved whole at every change (MultiSelectSettings.qml).
         m_menuFilters = value.toMap();
@@ -521,7 +531,7 @@ ArcadeBackend::Read ArcadeBackend::read(const QString &folder, const QString &ho
         read.fbneoRead = true;
         read.fbneoFrom = fbneoFrom;
         if (!dat.isEmpty()) {
-            read.fbneoGames = libretro::readDat(dat);
+            read.fbneoGames = libretro::readDat(dat, &read.fbneoAspects);
             qInfo("[Arcade] %lld of FinalBurn Neo's games from %s", static_cast<long long>(read.fbneoGames.size()),
                   qPrintable(dat));
         }
@@ -606,6 +616,7 @@ void ArcadeBackend::onRead() {
     if (read.fbneoRead) {
         m_fbneoFrom = read.fbneoFrom;
         m_fbneoGames = std::move(read.fbneoGames);
+        m_fbneoAspects = std::move(read.fbneoAspects);
     }
     m_snaps = std::move(read.snaps);
     m_shots = std::move(read.shots);
@@ -1465,6 +1476,8 @@ bool ArcadeBackend::play(const QString &name, int credits) {
     }
     if (!m_video.isEmpty())
         args << QStringLiteral("-video") << m_video;
+    // Emulator Video: the screen's shape, and the game's lines whole.
+    args << mame::screenArguments(m_machines.value(name), m_screenSize.height(), screenShape(), integerScale());
     // MAME may not start at all without a sound card it can open (no USB
     // card on a Pi 5 whose HDMI is off): the game is played in silence.
     if (!AudioOutput::hasPlaybackCard())
@@ -1510,6 +1523,44 @@ bool ArcadeBackend::play(const QString &name, int credits) {
         emit playedChanged();
     }
     return true;
+}
+
+void ArcadeBackend::setScreen(const QString &preset, const QSize &size) {
+    m_screenPreset = preset;
+    m_screenSize = size;
+}
+
+bool ArcadeBackend::onTube() const {
+    if (!m_screenSize.isValid())
+        return false;
+    // HDMI's preset is the one that isn't a CRT's.
+    if (!m_screenPreset.isEmpty())
+        return m_screenPreset != QLatin1String("hdmi");
+    // Off the image: a TV's lines, 576 at most (720×480 from a Pi's
+    // composite out), are a tube's.
+    return m_screenSize.height() <= 576;
+}
+
+QString ArcadeBackend::screenShape() const {
+    if (m_screenShape == QLatin1String("Square Pixels"))
+        return QString();
+    if (!m_screenShape.isEmpty())
+        return m_screenShape;
+    return onTube() ? QStringLiteral("4:3") : QString();
+}
+
+bool ArcadeBackend::integerScale() const {
+    if (!m_integerScale.isEmpty())
+        return m_integerScale == QLatin1String("On");
+    return onTube();
+}
+
+double ArcadeBackend::gameAspect(const QString &set) const {
+    const double listed = m_fbneoAspects.value(set);
+    if (listed > 0)
+        return listed;
+    const int rotate = m_machines.value(set).rotate;
+    return rotate == 90 || rotate == 270 ? 3.0 / 4.0 : 4.0 / 3.0;
 }
 
 QString ArcadeBackend::engineOf(const QString &set) const {
@@ -1631,6 +1682,12 @@ bool ArcadeBackend::playFbneo(const QString &name, libretro::Launch::Netplay net
     launch.console = false;
 #endif
     launch.sound = AudioOutput::hasPlaybackCard();
+    // Emulator Video: the picture's shape on the screen, and its lines whole.
+    const QString shape = screenShape();
+    if (!shape.isEmpty())
+        launch.aspect = libretro::viewportAspect(gameAspect(name), m_screenSize,
+                                                 shape == QLatin1String("16:9") ? 16.0 / 9.0 : 4.0 / 3.0);
+    launch.integerScale = integerScale();
     const QStringList guids = controllers::playerGuids();
     const QStringList names = controllers::playerNames();
     for (int p = 0; p < guids.size(); ++p)

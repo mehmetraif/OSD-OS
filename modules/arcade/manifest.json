@@ -166,12 +166,36 @@
       "description": "The second engine, RetroArch with the FinalBurn Neo core, for online high scores and play: what is installed, and the core's download"
     },
     {
-      "key": "video",
-      "label": "Video",
-      "type": "list_single",
-      "options": ["Auto", "OpenGL", "BGFX", "Accelerated", "Software"],
-      "default": "Auto",
-      "description": "How MAME draws the game\n[AUTO] As MAME's own settings say\nTry another when a game shows no picture"
+      "key": "emulator_video",
+      "label": "Emulator Video",
+      "type": "submenu",
+      "description": "How MAME and FinalBurn Neo draw a game's picture on your screen",
+      "settings": [
+        {
+          "key": "screen_shape",
+          "label": "Screen Shape",
+          "type": "list_single",
+          "options": ["Auto", "4:3", "16:9", "Square Pixels"],
+          "default": "Auto",
+          "description": "Your screen's shape, which a game's picture is drawn to in its own shape\n[AUTO] 4:3 on a CRT's display output (a TV, a JAMMA cabinet), whatever its pixels are; Square Pixels on HDMI  [16:9] A widescreen TV  [SQUARE PIXELS] As the screen's pixels give it"
+        },
+        {
+          "key": "integer_scale",
+          "label": "Integer Scale",
+          "type": "list_single",
+          "options": ["Auto", "On", "Off"],
+          "default": "Auto",
+          "description": "A game's lines drawn whole, once or twice, rather than spread over the screen's: sharp lines, with a thin border above and below\n[AUTO] On a CRT's display output  [OFF] The picture fills the screen's height\nA game with more lines than the screen fills it either way"
+        },
+        {
+          "key": "video",
+          "label": "MAME Video",
+          "type": "list_single",
+          "options": ["Auto", "OpenGL", "BGFX", "Accelerated", "Software"],
+          "default": "Auto",
+          "description": "How MAME draws the game\n[AUTO] As MAME's own settings say\nTry another when a game shows no picture"
+        }
+      ]
     },
     {
       "key": "rescan",

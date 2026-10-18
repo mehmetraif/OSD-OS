@@ -45,9 +45,9 @@ class ArcadeTest : public QObject {
     static constexpr const char *kFakeMame = R"SH(#!/bin/sh
 machine() {
 	case "$1" in
-	pacman) echo '<machine name="pacman" sourcefile="pacman/pacman.cpp" cloneof="puckman" romof="puckman"><description>Pac-Man (Midway)</description><year>1980</year><manufacturer>Namco (Midway license)</manufacturer><rom name="pacman.6e" size="4096"/><display tag="screen" type="raster" rotate="90"/><input players="2" coins="2"><control type="joy" player="1"/></input><driver status="good"/></machine>' ;;
+	pacman) echo '<machine name="pacman" sourcefile="pacman/pacman.cpp" cloneof="puckman" romof="puckman"><description>Pac-Man (Midway)</description><year>1980</year><manufacturer>Namco (Midway license)</manufacturer><rom name="pacman.6e" size="4096"/><display tag="screen" type="raster" rotate="90" width="288" height="224"/><input players="2" coins="2"><control type="joy" player="1"/></input><driver status="good"/></machine>' ;;
 	galaga) echo '<machine name="galaga" sourcefile="namco/galaga.cpp"><description>Galaga (Namco rev. B)</description><year>1981</year><manufacturer>Namco</manufacturer><input players="2"/><driver status="good"/></machine>' ;;
-	mslug) echo '<machine name="mslug" sourcefile="neogeo/neogeo.cpp" romof="neogeo"><description>Metal Slug - Super Vehicle-001</description><year>1996</year><manufacturer>Nazca</manufacturer><input players="2"/><driver status="good"/></machine>' ;;
+	mslug) echo '<machine name="mslug" sourcefile="neogeo/neogeo.cpp" romof="neogeo"><description>Metal Slug - Super Vehicle-001</description><year>1996</year><manufacturer>Nazca</manufacturer><display tag="screen" type="raster" rotate="0" width="320" height="224"/><input players="2"/><driver status="good"/></machine>' ;;
 	neogeo) echo '<machine name="neogeo" isbios="yes"><description>Neo-Geo MV-6F</description><year>1990</year><manufacturer>SNK</manufacturer></machine>' ;;
 	xmen6p) echo '<machine name="xmen6p" sourcefile="konami/xmen.cpp" cloneof="xmen"><description>X-Men (6 Players ver EAB)</description><year>1992</year><manufacturer>Konami</manufacturer><display tag="lscreen" rotate="270"/><display tag="rscreen" rotate="0"/><input players="6"/><driver status="imperfect"/></machine>' ;;
 	kinst) echo '<machine name="kinst"><description>Killer Instinct (v1.5d)</description><year>1994</year><manufacturer>Rare / Nintendo</manufacturer><input players="2"/><driver status="good"/></machine>' ;;
@@ -285,6 +285,30 @@ private slots:
                  QStringLiteral("Fatal error: no screen"));
         QCOMPARE(mame::lastError(QStringLiteral("Initializing\nALSA lib pcm.c: Unknown PCM dmix error\n")),
                  QStringLiteral("Initializing"));
+
+        // The screen's shape, where its pixels aren't square, and a game's
+        // lines whole only where one of each fits: a vertical game's lines
+        // are its width before the rotation.
+        const QStringList shape{ QStringLiteral("-aspect"), QStringLiteral("4:3") };
+        const QStringList whole{ QStringLiteral("-nounevenstretch"), QStringLiteral("-unevenstretchx") };
+        mame::Machine wide;
+        wide.width = 384;
+        wide.height = 224;
+        mame::Machine tall = wide;
+        tall.height = 256;
+        mame::Machine vertical;
+        vertical.rotate = 90;
+        vertical.width = 288;
+        vertical.height = 224;
+        QCOMPARE(mame::screenArguments(wide, 240, QStringLiteral("4:3"), true), shape + whole);
+        QCOMPARE(mame::screenArguments(tall, 240, QStringLiteral("4:3"), true), shape);
+        QCOMPARE(mame::screenArguments(tall, 480, QStringLiteral("4:3"), true), shape + whole);
+        QCOMPARE(mame::screenArguments(vertical, 240, QStringLiteral("4:3"), true), shape);
+        QCOMPARE(mame::screenArguments(vertical, 1080, QString(), true), whole);
+        QCOMPARE(mame::screenArguments(mame::Machine(), 240, QStringLiteral("4:3"), true), shape);
+        QCOMPARE(mame::screenArguments(wide, 240, QStringLiteral("16:9"), false),
+                 QStringList({ QStringLiteral("-aspect"), QStringLiteral("16:9") }));
+        QVERIFY(mame::screenArguments(wide, 1080, QString(), false).isEmpty());
     }
 
     // -listxml read as it comes, a byte at a time as well as at once.
@@ -293,7 +317,7 @@ private slots:
             "<?xml version=\"1.0\"?>\n<mame build=\"0.276 (test)\" debug=\"no\" mameconfig=\"10\">\n"
             "\t<machine name=\"xmen6p\" sourcefile=\"konami/xmen.cpp\" cloneof=\"xmen\"><description>X-Men &amp; Friends</description>"
             "<year>1992</year><manufacturer>Konami</manufacturer><rom name=\"a\"/>"
-            "<display tag=\"l\" rotate=\"270\"/><display tag=\"r\" rotate=\"0\"/>"
+            "<display tag=\"l\" rotate=\"270\" width=\"288\" height=\"224\"/><display tag=\"r\" rotate=\"0\" width=\"320\" height=\"240\"/>"
             "<input players=\"6\"><control type=\"joy\"/></input><dipswitch name=\"x\"><dipvalue name=\"y\"/></dipswitch>"
             "<driver status=\"imperfect\"/></machine>\n"
             "\t<machine name=\"neogeo\" isbios=\"yes\"><description>Neo-Geo</description></machine>\n"
@@ -318,6 +342,8 @@ private slots:
             QCOMPARE(x.sourceFile, QStringLiteral("konami/xmen.cpp"));
             QCOMPARE(x.players, 6);
             QCOMPARE(x.rotate, 270);
+            QCOMPARE(x.width, 288);
+            QCOMPARE(x.height, 224);
             QCOMPARE(x.status, QStringLiteral("imperfect"));
             QVERIFY(x.isGame());
             QVERIFY(machines.at(1).bios && !machines.at(1).isGame());
@@ -328,6 +354,8 @@ private slots:
             QCOMPARE(kept.sourceFile, x.sourceFile);
             QCOMPARE(kept.players, 6);
             QCOMPARE(kept.rotate, 270);
+            QCOMPARE(kept.width, 288);
+            QCOMPARE(kept.height, 224);
             QVERIFY(mame::Machine::fromVariant(QStringLiteral("neogeo"), machines.at(1).toVariant()).bios);
         }
         mame::ListXmlReader broken;
@@ -606,6 +634,58 @@ private slots:
         QVERIFY(logLines().join(QLatin1Char('\n')).contains(QStringLiteral("UI_CANCEL")));
     }
 
+    // Settings → Arcade → Emulator Video and the screen OSD/OS is on: on a
+    // tube (a CRT's display preset, or off the image a TV's lines) MAME is
+    // told it is 4:3 and draws a horizontal game's lines whole; on HDMI
+    // nothing; the settings over either.
+    void screen() {
+        ArcadeBackend arcade(m_data.path(), m_data.path(), nullptr, nullptr);
+        refreshed(arcade);
+        const QString module = QStringLiteral("com.osdos.arcade");
+        const auto args = [this, &arcade](const char *set) {
+            QFile::remove(m_log);
+            played(arcade, QLatin1String(set));
+            return logLines(QStringLiteral("play ")).value(0);
+        };
+        const auto restore = qScopeGuard([&arcade, module] {
+            arcade.onSettingChanged(module, QStringLiteral("screen_shape"), QStringLiteral("Auto"));
+            arcade.onSettingChanged(module, QStringLiteral("integer_scale"), QStringLiteral("Auto"));
+        });
+
+        // JAMMA 240p: Metal Slug's 224 lines once each, Pac-Man's 288
+        // (a vertical game's width) spread over the screen's 240.
+        arcade.setScreen(QStringLiteral("jamma-240p"), QSize(720, 240));
+        QVERIFY(args("mslug").endsWith(QStringLiteral(" -aspect 4:3 -nounevenstretch -unevenstretchx")));
+        QVERIFY(args("pacman").endsWith(QStringLiteral(" -aspect 4:3")));
+        // A game MAME gives no size of: the shape only.
+        QVERIFY(args("galaga").endsWith(QStringLiteral(" -aspect 4:3")));
+        arcade.onSettingChanged(module, QStringLiteral("integer_scale"), QStringLiteral("Off"));
+        QVERIFY(args("mslug").endsWith(QStringLiteral(" -aspect 4:3")));
+
+        // HDMI: square pixels, the picture spread; the settings over it.
+        arcade.onSettingChanged(module, QStringLiteral("integer_scale"), QStringLiteral("Auto"));
+        arcade.setScreen(QStringLiteral("hdmi"), QSize(1920, 1080));
+        QString line = args("pacman");
+        QVERIFY2(!line.contains(QStringLiteral("-aspect")) && !line.contains(QStringLiteral("stretch")), qPrintable(line));
+        arcade.onSettingChanged(module, QStringLiteral("integer_scale"), QStringLiteral("On"));
+        arcade.onSettingChanged(module, QStringLiteral("screen_shape"), QStringLiteral("16:9"));
+        QVERIFY(args("pacman").endsWith(QStringLiteral(" -aspect 16:9 -nounevenstretch -unevenstretchx")));
+
+        // Off the image, a TV's lines (a Pi's composite out) are a tube's,
+        // and Square Pixels says otherwise.
+        arcade.onSettingChanged(module, QStringLiteral("integer_scale"), QStringLiteral("Auto"));
+        arcade.onSettingChanged(module, QStringLiteral("screen_shape"), QStringLiteral("Auto"));
+        arcade.setScreen(QString(), QSize(720, 480));
+        QVERIFY(args("mslug").endsWith(QStringLiteral(" -aspect 4:3 -nounevenstretch -unevenstretchx")));
+        arcade.onSettingChanged(module, QStringLiteral("screen_shape"), QStringLiteral("Square Pixels"));
+        QVERIFY(args("mslug").endsWith(QStringLiteral(" -nounevenstretch -unevenstretchx")));
+        QVERIFY(!args("mslug").contains(QStringLiteral("-aspect")));
+        arcade.setScreen(QString(), QSize(1920, 1080));
+        arcade.onSettingChanged(module, QStringLiteral("screen_shape"), QStringLiteral("Auto"));
+        line = args("mslug");
+        QVERIFY2(!line.contains(QStringLiteral("-aspect")) && !line.contains(QStringLiteral("stretch")), qPrintable(line));
+    }
+
     // What a game that didn't play says.
     void notices() {
         ArcadeBackend arcade(m_data.path(), m_data.path(), nullptr, nullptr);
@@ -749,8 +829,13 @@ private slots:
         QTemporaryDir dir;
         QVERIFY(dir.isValid());
         writeFile(dir.path() + QStringLiteral("/fbneo.dat"), fixture("fbneo-arcade.dat"));
-        const QHash<QString, QString> games = libretro::readDat(dir.path() + QStringLiteral("/fbneo.dat"));
+        QHash<QString, double> aspects;
+        const QHash<QString, QString> games = libretro::readDat(dir.path() + QStringLiteral("/fbneo.dat"), &aspects);
         QCOMPARE(games.size(), 5);
+        // The pictures' shapes, where the list says.
+        QCOMPARE(aspects.size(), 2);
+        QCOMPARE(aspects.value(QStringLiteral("sf2")), 4.0 / 3.0);
+        QCOMPARE(aspects.value(QStringLiteral("galaga")), 3.0 / 4.0);
         QCOMPARE(games.value(QStringLiteral("sf2")), QStringLiteral("Street Fighter II - The World Warrior (World 910522)"));
         QVERIFY(games.contains(QStringLiteral("sf2ce")));
         QVERIFY(!games.contains(QStringLiteral("neogeo")));
@@ -803,6 +888,25 @@ private slots:
             QVERIFY2(has(QLatin1String(line)), line);
         QVERIFY(!config.contains(QStringLiteral("input_player2_reserved_device")));
         QVERIFY(!config.contains(QStringLiteral("netplay_")));
+        // Square pixels and no integer scale: the core's shape.
+        QVERIFY(has(QStringLiteral("video_scale_integer = \"false\"")));
+        QVERIFY(!config.contains(QStringLiteral("aspect_ratio_index")));
+        // A 4:3 tube at 720×240: a picture of its shape as wide as the
+        // screen's pixels are narrow, its lines whole.
+        QCOMPARE(libretro::viewportAspect(4.0 / 3.0, QSize(720, 240), 4.0 / 3.0), 3.0);
+        QCOMPARE(libretro::viewportAspect(3.0 / 4.0, QSize(720, 240), 4.0 / 3.0), 1.6875);
+        QCOMPARE(libretro::viewportAspect(4.0 / 3.0, QSize(720, 576), 4.0 / 3.0), 1.25);
+        QCOMPARE(libretro::viewportAspect(4.0 / 3.0, QSize(720, 480), 16.0 / 9.0), 1.125);
+        QCOMPARE(libretro::viewportAspect(4.0 / 3.0, QSize(), 4.0 / 3.0), 0.0);
+        launch.aspect = 3.0;
+        launch.integerScale = true;
+        config = libretro::configText(launch);
+        for (const char *line : { "aspect_ratio_index = \"20\"", "video_aspect_ratio = \"3.000000\"",
+                                  "video_aspect_ratio_auto = \"false\"", "video_scale_integer = \"true\"",
+                                  "video_scale_integer_axis = \"0\"", "video_scale_integer_scaling = \"0\"" })
+            QVERIFY2(has(QLatin1String(line)), line);
+        launch.aspect = 0;
+        launch.integerScale = false;
         // With a token: the password is no longer RetroArch's, nor saved.
         launch.achievementsToken = QStringLiteral("tok123");
         config = libretro::configText(launch);
@@ -992,6 +1096,9 @@ private slots:
         QCOMPARE(QFile::permissions(kept) & (QFile::ReadGroup | QFile::ReadOther), QFileDevice::Permissions());
 
         QFile::remove(m_log);
+        // JAMMA 240p: Street Fighter II's 4:3 as wide as the screen's
+        // pixels are narrow, its lines whole.
+        arcade.setScreen(QStringLiteral("jamma-240p"), QSize(720, 240));
         QVariantList end = played(arcade, QStringLiteral("sf2"));
         QCOMPARE(end.value(1).toString(), QStringLiteral("ok"));
         const QString home = data.path() + QStringLiteral("/arcade/retroarch");
@@ -1006,6 +1113,9 @@ private slots:
         QVERIFY(config.contains(QStringLiteral("config_save_on_exit = \"true\"")));
         QVERIFY(config.contains(QStringLiteral("input_player1_reserved_device = \"045e:028e Xbox 360 Controller\"")));
         QVERIFY(config.contains(QStringLiteral("system_directory = \"%1/system\"").arg(home)));
+        QVERIFY(config.contains(QStringLiteral("aspect_ratio_index = \"20\"")));
+        QVERIFY(config.contains(QStringLiteral("video_aspect_ratio = \"3.000000\"")));
+        QVERIFY(config.contains(QStringLiteral("video_scale_integer = \"true\"")));
         // The token RetroArch saved taken, the password gone with the
         // config it saved.
         QCOMPARE(arcade.achievementsState(), QStringLiteral("signedIn"));
@@ -1079,6 +1189,14 @@ private slots:
         QCOMPARE(end.value(1).toString(), QStringLiteral("failed"));
         QVERIFY2(end.value(2).toString().startsWith(QStringLiteral("FinalBurn Neo could not start the game")),
                  qPrintable(end.value(2).toString()));
+        // Galaga is vertical (3:4): its picture as narrow on the tube.
+        QVERIFY(QString::fromUtf8(contents(configCopy)).contains(QStringLiteral("video_aspect_ratio = \"1.687500\"")));
+        // On HDMI, the core's shape on square pixels.
+        arcade.setScreen(QStringLiteral("hdmi"), QSize(1920, 1080));
+        played(arcade, QStringLiteral("galaga"));
+        config = QString::fromUtf8(contents(configCopy));
+        QVERIFY(!config.contains(QStringLiteral("aspect_ratio_index")));
+        QVERIFY(config.contains(QStringLiteral("video_scale_integer = \"false\"")));
         // MAME as before for the rest.
         QFile::remove(m_log);
         end = played(arcade, QStringLiteral("pacman"));
@@ -2065,7 +2183,7 @@ private slots:
             QVERIFY(f.open(QIODevice::ReadOnly));
             cache = QJsonDocument::fromJson(f.readAll()).object();
         }
-        QCOMPARE(cache.value(QStringLiteral("version")).toInt(), 2);
+        QCOMPARE(cache.value(QStringLiteral("version")).toInt(), 3);
         cache.remove(QStringLiteral("version"));
         writeFile(path, QJsonDocument(cache).toJson());
         QFile::remove(m_log);
