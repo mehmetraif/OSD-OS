@@ -212,7 +212,7 @@ Under it comes a row for each part of a theme:
 | Color Scheme | `colors` | `app.color_scheme` | — (no Off: everything is drawn in two colours) | the color schemes, by name |
 | Skin | `skin` | `app.skin` | **None** (saved as `"Off"`): OSD/OS's own window | the skins, by name (saved by folder name) |
 | Text Effect | `effects.text` | `app.text_effect` | Off | Rainbow, Shimmer, Glow, Flicker |
-| Background Effect | `effects.background` | `app.background_effect` | Off | Matrix, Fire, Stars, Snow, Checkered Flag |
+| Background Effect | `effects.background` | `app.background_effect` | Off | Matrix, Fire, Stars, Snow, Checkered Flag, Plasma |
 | Selector Effect | `effects.selector` | `app.selector_effect` | Off | Sparkles, Welding, Lightning, Rainbow, Snow |
 | Screen Effect | `effects.screen` | `app.screen_effect` | Off | Scanlines, CRT, VHS |
 | Transition | `effects.transition` | `app.transition` | Off | Fade, Cube, Ripple, Wave, Drop |
@@ -343,7 +343,7 @@ An object with any of five keys. Each takes the name of one of OSD/OS's effects,
 | Key | Names | An object of its own |
 |---|---|---|
 | `text` | `Rainbow`, `Shimmer`, `Glow`, `Flicker` | Any of `rainbow`, `shimmer`, `glow`, `flicker`: numbers from 0 (none) to 1 |
-| `background` | `Matrix`, `Fire`, `Stars`, `Snow`, `Checkered Flag` | `shader`: a compiled shader (`.qsb`) in the theme's folder; `area`: `"window"` (when left out) or `"foot"` |
+| `background` | `Matrix`, `Fire`, `Stars`, `Snow`, `Checkered Flag`, `Plasma` | `shader`: a compiled shader (`.qsb`) in the theme's folder; `area`: `"window"` (when left out) or `"foot"` |
 | `selector` | `Sparkles`, `Welding`, `Lightning`, `Rainbow`, `Snow` | None: a name only |
 | `screen` | `Scanlines`, `CRT`, `VHS` | Any of `scanlines`, `curvature`, `glow`, `bleed`, `noise`, `vignette`: numbers from 0 to 1; `shader`: a `.qsb` in the theme's folder; `animate`: `true` for a shader that moves |
 | `transition` | `Fade`, `Cube`, `Ripple`, `Wave`, `Drop` | None: a name only |

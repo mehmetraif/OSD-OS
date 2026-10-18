@@ -164,7 +164,8 @@ Window {
         "Fire":   { "shader": builtInShader("bg-fire") },
         "Stars":  { "shader": builtInShader("bg-stars") },
         "Snow":   { "shader": builtInShader("bg-snow") },
-        "Checkered Flag": { "shader": builtInShader("bg-flag") }
+        "Checkered Flag": { "shader": builtInShader("bg-flag") },
+        "Plasma": { "shader": builtInShader("bg-plasma") }
     })
     readonly property var selectorPresets: ["Sparkles", "Welding", "Lightning", "Rainbow", "Snow"]
     readonly property var transitionPresets: ["Fade", "Cube", "Ripple", "Wave", "Drop"]
