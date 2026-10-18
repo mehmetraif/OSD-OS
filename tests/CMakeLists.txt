@@ -270,6 +270,11 @@ set_tests_properties(module_settings_view PROPERTIES ENVIRONMENT "QT_QPA_PLATFOR
 add_test(NAME settings_view COMMAND tree_browser_test -input ${CMAKE_CURRENT_SOURCE_DIR}/qml/tst_settings.qml
                                     -import ${CMAKE_CURRENT_SOURCE_DIR}/../views)
 set_tests_properties(settings_view PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen;QT_QUICK_BACKEND=software")
+# About (views/About.qml): OSD/OS's lines and the arcade's, each licence a
+# page of its own, against stand-ins for the licence files.
+add_test(NAME about_view COMMAND tree_browser_test -input ${CMAKE_CURRENT_SOURCE_DIR}/qml/tst_about.qml
+                                 -import ${CMAKE_CURRENT_SOURCE_DIR}/../views)
+set_tests_properties(about_view PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen;QT_QUICK_BACKEND=software")
 # The High Scores module's view (modules/highscores/views/Scores.qml) against
 # a stand-in for HighScoresBackend.
 add_test(NAME highscores_views COMMAND tree_browser_test -input ${CMAKE_CURRENT_SOURCE_DIR}/qml/tst_highscores.qml

@@ -295,7 +295,7 @@ The account, its token and its key are kept in `arcade/retroachievements.json`, 
 
 The High Scores module shows MAME's tables only: a game played in FinalBurn Neo keeps no table on the machine.
 
-**Settings → Arcade → FinalBurn Neo** shows what it has: RetroArch, the core (**Downloaded** with its date, or **Installed**), and how many games its list has. **Download** (**Download Again** for a newer one) fetches the latest core libretro builds every night for the machine (64-bit Linux on a Pi or a PC, or a Mac), with its list of games and its licence, about 35 MB, into `arcade/retroarch` in the data folder, ahead of any installed with RetroArch. **License** shows FinalBurn Neo's licence: it may be used and shared, never sold, and no ROMs come with it.
+**Settings → Arcade → FinalBurn Neo** shows what it has: RetroArch, the core (**Downloaded** with its date, or **Installed**), and how many games its list has. **Download** (**Download Again** for a newer one) fetches the latest core libretro builds every night for the machine (64-bit Linux on a Pi or a PC, or a Mac), with its list of games and its licence, about 35 MB, into `arcade/retroarch` in the data folder, ahead of any installed with RetroArch. Its licence, which comes with it, is on **Settings → About**'s FinalBurn Neo line, among the arcade's free software: it may be used and shared, never sold, and no ROMs come with it.
 
 ## Online play
 
@@ -348,7 +348,7 @@ Settings → Arcade, the second row of Settings' first screen. The page is share
 | Online Play | Off, On | Off | Playing the games FinalBurn Neo has with others over the internet: Online Games, and Host Online Game in a game's options ([Online play](#online-play)) | `modules.com.osdos.arcade.online_play` |
 | Online Name | (opens the on-screen keyboard) | The RetroAchievements account's, else OSD-OS | The name the others see in online games ([Online play](#online-play)). Shown while Online Play is On | `modules.com.osdos.arcade.online_name` |
 | Relay Server | New York, Madrid, São Paulo, Singapore, Chuncheon | New York | Where a game you host is relayed from ([Online play](#online-play)). Shown while Online Play is On | `modules.com.osdos.arcade.relay_server` |
-| FinalBurn Neo | (opens FinalBurn Neo's page) | | What is installed of RetroArch and FinalBurn Neo, the core's download, and its licence ([FinalBurn Neo](#finalburn-neo)) | |
+| FinalBurn Neo | (opens FinalBurn Neo's page) | | What is installed of RetroArch and FinalBurn Neo, and the core's download ([FinalBurn Neo](#finalburn-neo)); its licence is in Settings → About | |
 | Emulator Video | (opens its page) | | How MAME and FinalBurn Neo draw a game on your screen ([Emulator Video](#emulator-video)) | |
 | Emulator Video → Screen Shape | Auto, 4:3, 16:9, Square Pixels | Auto | The screen's shape the games are drawn to: Auto 4:3 on a CRT's display output, square pixels on HDMI. MAME's `-aspect`; for FinalBurn Neo, the picture's shape in the screen's pixels (`video_aspect_ratio`) | `modules.com.osdos.arcade.screen_shape` |
 | Emulator Video → Integer Scale | Auto, On, Off | Auto | A game's lines drawn whole rather than spread over the screen's: Auto on on a CRT's display output. MAME's `-nounevenstretch -unevenstretchx` for a game whose lines fit; RetroArch's `video_scale_integer` | `modules.com.osdos.arcade.integer_scale` |

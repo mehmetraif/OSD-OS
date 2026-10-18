@@ -222,7 +222,7 @@ Some rows wait for something:
 | Controls | A page | | Each controller connected, with its own buttons and a pad's button labels; the pads of players 1 to 6; and one more key for each action on every keyboard and remote | `app.controllers.<key>`, `app.players`, `app.remote_keymap.<action>` |
 | Bluetooth | A page | | Searching for, pairing and connecting keyboards, gamepads and remotes | None: BlueZ keeps the pairings |
 | Update | A page | | Checks for a newer release, downloads it and installs it | None |
-| About | A page | | What OSD/OS is, who makes it, what it is made of, and its license | None |
+| About | A page | | What OSD/OS is, who makes it, what it is made of, the arcade's free software and sites, and their licenses | None |
 | Quit | A question | | Quits OSD/OS, or under the image's service powers off, restarts or drops to a terminal | None |
 
 ### Display Output
@@ -303,6 +303,8 @@ A build made from source (`DEV`) can check but not download, and so can the OSD/
 </table>
 
 About opens on the OSD/OS wordmark and SMART TV FOR CRT. Under it are lines whose help line carries the detail, shown even with Help Line off: **Build** (the commit the build was made from and the day; the version is in the title bar), **Developer**, **Based On** (240-MP), **License** (GNU GPL v3), **Source**, **Written With** (Claude Code), **Artwork** (ChatGPT), **Fonts** (VCR OSD Mono, Unifont), **Built With** (Qt, SDL2, mpv), **Image OS** (Raspberry Pi OS) and **Data** (TMDB, Open-Meteo). Select on License shows the notice the GPL asks for, then the license's text from the `LICENSE` file every build carries, a page at a time with ▲ ▼ ([Credits](https://github.com/mehmetraif/OSD-OS/wiki/Credits)).
+
+Under the **ARCADE** heading are the free software the [Arcade](https://github.com/mehmetraif/OSD-OS/wiki/Arcade) and [High Scores](https://github.com/mehmetraif/OSD-OS/wiki/High-Scores) modules play and read with, **MAME**, **RetroArch**, **FinalBurn Neo**, **openhi2txt**, **hi2txt**, **RapidXML** and **minizip, zlib**, and the sites they read from, **RetroAchievements**, **Online Play** (libretro's lobby) and **Genres, Pictures** (Progetto-SNAPS). Select on a software line shows its license the same way: the GNU GPL v3 or v2, RapidXML's or zlib's, which every build carries, and FinalBurn Neo's from the core as it was installed or downloaded (without it, where to download it).
 
 ### Quit
 

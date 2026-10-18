@@ -10,6 +10,8 @@
 // Skins and themes (AppCore::skins(), skin(), themes(), theme()): read from
 // the app's folder (assets) and the data folder's, the data folder's first.
 // A skin dresses the window; a theme is the whole look, a skin among it.
+// And the licences About shows (AppCore::licenseText()), read from the app's
+// folder alone.
 class LooksTest : public QObject {
     Q_OBJECT
 
@@ -260,6 +262,29 @@ private slots:
     }
 
     // An id is a folder's name, nothing else.
+    // LICENSE, or a file of the app's by its path, its paragraphs each on a
+    // line; nothing outside the app's folder.
+    void licenses() {
+        QVERIFY(QDir().mkpath(m_app.filePath("assets/licenses")));
+        const auto write = [](const QString &path, const QByteArray &text) {
+            QFile f(path);
+            QVERIFY(f.open(QIODevice::WriteOnly));
+            f.write(text);
+        };
+        write(m_app.filePath("LICENSE"), "GNU GENERAL PUBLIC LICENSE\n   Version 3\n\nPreamble\n");
+        write(m_app.filePath("assets/licenses/zlib.txt"), "zlib\n\nThis software is provided\n'as-is'.\n");
+        write(m_data.filePath("secret.txt"), "secret");
+        AppCore core(m_app.path(), m_data.path());
+        QCOMPARE(core.licenseText(), QStringLiteral("GNU GENERAL PUBLIC LICENSE Version 3\n\nPreamble"));
+        QCOMPARE(core.licenseText("assets/licenses/zlib.txt"), QStringLiteral("zlib\n\nThis software is provided 'as-is'."));
+        QCOMPARE(core.licenseText("assets/licenses/none.txt"), QString());
+        const QString outside = QDir(m_app.path()).relativeFilePath(m_data.filePath("secret.txt"));
+        QVERIFY(outside.startsWith(QLatin1String("..")));
+        QCOMPARE(core.licenseText(outside), QString());
+        QCOMPARE(core.licenseText("assets/../" + outside), QString());
+        QCOMPARE(core.licenseText(m_data.filePath("secret.txt")), QString());
+    }
+
     void ids() {
         AppCore core(m_app.path(), m_data.path());
         for (const QString &id : { QString(), QString("."), QString(".."), QString("../themes/own"),

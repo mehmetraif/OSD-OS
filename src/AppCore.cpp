@@ -831,8 +831,12 @@ QVariant AppCore::requestFolderEntries(const QString &path, const QStringList &f
 // Docker/Flatpak bridges; macOS: en0 plus awdl/bridge/utun VPN interfaces), so pick
 // rather than take the first: skip loopback, virtual/tunnel and down interfaces, keep
 // only routable IPv4, and prefer wired over wireless over anything else.
-QString AppCore::licenseText() const {
-    QFile f(m_appRoot + "/LICENSE");
+QString AppCore::licenseText(const QString &file) const {
+    // Only the app's own files: a path within its folder.
+    const QString name = file.isEmpty() ? QStringLiteral("LICENSE") : QDir::cleanPath(file);
+    if (QDir::isAbsolutePath(name) || name == QLatin1String("..") || name.startsWith(QLatin1String("../")))
+        return QString();
+    QFile f(m_appRoot + QLatin1Char('/') + name);
     if (!f.open(QIODevice::ReadOnly | QIODevice::Text))
         return QString();
     // The file is wrapped at 70 columns. A paragraph is its lines up to a

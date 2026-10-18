@@ -397,8 +397,19 @@ Settings → **About** opens on the OSD/OS wordmark and **SMART TV FOR CRT**, th
 | Built With | Qt, SDL2 and mpv, with their licenses, and what else the image carries |
 | Image OS | Raspberry Pi OS Lite on Debian 13, and the trademark notices |
 | Data | TMDB, Open-Meteo and Wikidata, with the notices their terms ask for |
+| *Arcade* | A heading over the arcade's lines |
+| MAME | The emulator the games play in, GPL v2 or later. Select opens the license |
+| RetroArch | What plays FinalBurn Neo's games, with RetroAchievements and online play, GPL v3. Select opens the license |
+| FinalBurn Neo | The emulator RetroArch plays those games with: free to use and share, never to sell. Select opens its license, as it came with the core |
+| openhi2txt | What reads MAME's high score files, GPL v3. Select opens the license |
+| hi2txt | How each game keeps its high score table, GPL v2. Select opens the license |
+| RapidXML | The XML reader openhi2txt is built with, Boost or MIT. Select opens the licenses |
+| minizip, zlib | What opens hi2txt's definitions and FinalBurn Neo's download, zlib License. Select opens the license |
+| RetroAchievements | Leaderboards and hardcore play, with your own account |
+| Online Play | libretro's lobby and relay servers |
+| Genres, Pictures | catver.ini and the Snapshots pack, from Progetto-SNAPS |
 
-Select on **License** shows the notice the GNU GPL asks an interactive program to show (whose copyright it is, that it comes with no warranty, that you may pass it on under the license), then the license's full text, from the `LICENSE` file every build carries. ▲ ▼ turn a page at a time; back returns to the lines. [Credits](https://github.com/mehmetraif/OSD-OS/wiki/Credits) has the same on the web.
+Select on **License** shows the notice the GNU GPL asks an interactive program to show (whose copyright it is, that it comes with no warranty, that you may pass it on under the license), then the license's full text, from the `LICENSE` file every build carries. ▲ ▼ turn a page at a time; back returns to the lines. Select on an arcade line with a license shows that one the same way, under its name. [Credits](https://github.com/mehmetraif/OSD-OS/wiki/Credits) has the same on the web.
 
 ## See also
 

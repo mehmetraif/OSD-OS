@@ -709,7 +709,7 @@ Rectangle {
 
         // FinalBurn Neo's page: RetroArch there, the core not; Download
         // starts it and shows how far it has got; once it is in, the core's
-        // date, its games and its licence, a page of its own.
+        // date and its games, its licence left to About.
         function test_fbneoPage() {
             var page = open("Fbneo.qml")
             verify(findText(page, "Not Installed") !== null)
@@ -730,10 +730,7 @@ Rectangle {
             tryVerify(function() { return findText(page, "Downloaded 2026-10-17") !== null }, 1000)
             verify(findText(page, "9123") !== null)
             verify(findText(page, "Download Again") !== null)
-            keyClick(Qt.Key_Down)
-            keyClick(Qt.Key_Return)
-            tryVerify(function() { return findText(page, "freely use, modify") !== null }, 1000)
-            keyClick(Qt.Key_Escape)
+            compare(page.keys, ["retroarch", "core", "games", "download"])
             compare(findText(page, "freely use, modify"), null)
             compare(root.backs, 0)
             keyClick(Qt.Key_Escape)

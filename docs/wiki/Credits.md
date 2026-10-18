@@ -17,7 +17,7 @@ Settings → About lists these credits on the device.
 
 ## License
 
-OSD/OS is free software under the GNU General Public License v3.0. See [LICENSE](https://github.com/mehmetraif/OSD-OS/blob/main/LICENSE) for the full text; every build carries it next to the app, and Settings → About → License shows it on the device, with the notice.
+OSD/OS is free software under the GNU General Public License v3.0. See [LICENSE](https://github.com/mehmetraif/OSD-OS/blob/main/LICENSE) for the full text; every build carries it next to the app, and Settings → About → License shows it on the device, with the notice. Under About's ARCADE heading are the arcade's free software, each line with its license (the GNU GPL v2, RapidXML's and zlib's are in [assets/licenses](https://github.com/mehmetraif/OSD-OS/tree/main/assets/licenses), FinalBurn Neo's comes with the core), and the sites it reads from.
 
 OSD/OS is a modified version of [240-MP](https://github.com/anthonycaccese/240-MP), Copyright (C) 2026 Anthony Caccese and the 240-MP contributors. The modifications, from 2026 on, are Copyright (C) 2026 mehmet raif tasdemir (darkBLACK). The whole stays under GPL-3.0.
 
