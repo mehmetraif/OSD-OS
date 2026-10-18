@@ -377,7 +377,7 @@ FocusScope {
                 description: (outputNext !== "" ? "Now " + outputCurrentLabel + ", " + outputNextLabel + " from the next start • " : "")
                              + "Where the picture goes, among the outputs this Pi has: "
                              + (later ? "now, with a restart, or from the next start. " : "a change restarts OSD/OS. ")
-                             + "The new output stays only when you keep it on its screen, else the old one comes back in 30 seconds\n[COMPOSITE] The AV jack (Pi 4) or TV pads (Pi 5)  [GPIO COMPOSITE] Pi 5's GPIO pins  [SCART RGB] A cable on the GPIO pins  [JAMMA] A Raspberry Pi to JAMMA board, in the modes of a 15 kHz monitor (240p 720 across, Native 320, Super 1920; 288p; 480i and 576i on a Pi 4), or a 25 kHz or 31 kHz one's",
+                             + "The new output stays only when you keep it on its screen, else the old one comes back in 30 seconds\n[COMPOSITE] The AV jack (Pi 4) or TV pads (Pi 5)  [GPIO COMPOSITE] Pi 5's GPIO pins  [SCART RGB] A cable on the GPIO pins  [JAMMA] A Raspberry Pi to JAMMA board, in the modes of a 15 kHz monitor (240p and 288p at 720 across, at 320 the games' own pixels, at 1920 a super resolution; 480i and 576i on a Pi 4), or a 25 kHz or 31 kHz one's, each named with its rate and resolution",
                 moduleId: ""
             })
         }
@@ -1007,7 +1007,8 @@ FocusScope {
         anchors.fill: parent
         promptText: "Stay on " + settingsRoot.outputCurrentLabel + "?"
         subtitleText: settingsRoot.outputNextLabel + " was to come at the next start"
-        choices: [{ label: "Stay on " + settingsRoot.outputCurrentLabel, action: "stay" },
+        // The title names the output: a long one wouldn't fit an answer.
+        choices: [{ label: "Stay", action: "stay" },
                   { label: "Cancel", action: "cancel" }]
         onActivated: function(act) {
             if (act === "stay")

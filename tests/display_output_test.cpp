@@ -33,6 +33,17 @@ bool pi5() {
     return board::family() == board::Family::Pi5;
 }
 
+// A preset file's active width and height, its dpi_timings' first and sixth.
+QString resolutionOf(const QString &presetPath) {
+    QFile f(presetPath);
+    if (!f.open(QIODevice::ReadOnly))
+        return QString();
+    static const QRegularExpression timings(QStringLiteral("^dpi_timings=(\\d+)(?: \\d+){4} (\\d+)"),
+                                            QRegularExpression::MultilineOption);
+    const QRegularExpressionMatch m = timings.match(QString::fromUtf8(f.readAll()));
+    return m.hasMatch() ? m.captured(1) + QLatin1Char('x') + m.captured(2) : QString();
+}
+
 } // namespace
 
 class DisplayOutputTest : public QObject {
@@ -130,7 +141,7 @@ private slots:
         const QStringList offered = ids(api4.options());
         QCOMPARE(offered.last(), QStringLiteral("jamma-240p"));
         QCOMPARE(api4.options().last().toMap().value(QStringLiteral("label")).toString(),
-                 QStringLiteral("JAMMA 240p"));
+                 QStringLiteral("JAMMA 240p 15 kHz (720x240)"));
         // Beside the board's own: a Pi 5's GPIO composite, a Pi 4's 240p SCART.
         QCOMPARE(offered.contains(QStringLiteral("crt-gpio-ntsc")), pi5());
         QCOMPARE(offered.contains(QStringLiteral("scart-rgb-240p")), !pi5());
@@ -166,6 +177,15 @@ private slots:
             if (m.value("id") == "jamma-25k") warning25 = m.value("warning").toString();
             if (m.value("id") == "jamma-31k") warning31 = m.value("warning").toString();
             if (m.value("id") == "jamma-240p") warning240 = m.value("warning").toString();
+            // Each names its scan rate, then its preset's resolution.
+            const QString id = m.value("id").toString();
+            if (!id.startsWith(QLatin1String("jamma-")))
+                continue;
+            const QString rate = id == "jamma-25k" ? "25 kHz" : id == "jamma-31k" ? "31 kHz" : "15 kHz";
+            const QString resolution = resolutionOf(m_boot.filePath(QStringLiteral("osdos-display-%1.txt").arg(id)));
+            QVERIFY2(!resolution.isEmpty(), qPrintable(id));
+            QVERIFY2(m.value("label").toString().endsWith(rate + " (" + resolution + ")"),
+                     qPrintable(id + ": " + m.value("label").toString()));
         }
         QVERIFY(warning25.contains(QLatin1String("25 kHz")) && warning25.contains(QLatin1String("15 kHz")));
         QVERIFY(warning31.contains(QLatin1String("31 kHz")) && warning31.contains(QLatin1String("15 kHz")));
@@ -175,7 +195,7 @@ private slots:
         inForce(QStringLiteral("jamma-31k"));
         DisplayOutput on31(m_data.path());
         QCOMPARE(on31.current(), QStringLiteral("jamma-31k"));
-        QCOMPARE(on31.currentLabel(), QStringLiteral("JAMMA 31 kHz"));
+        QCOMPARE(on31.currentLabel(), QStringLiteral("JAMMA 31 kHz (640x480)"));
         QVERIFY(DisplayOutput::isTube(on31.current(), QSize(640, 480)));
     }
 
@@ -184,7 +204,7 @@ private slots:
         qputenv("OSDOS_LAUNCHER_API", "4");
         DisplayOutput output(m_data.path());
         QCOMPARE(output.current(), QStringLiteral("jamma-240p"));
-        QCOMPARE(output.currentLabel(), QStringLiteral("JAMMA 240p"));
+        QCOMPARE(output.currentLabel(), QStringLiteral("JAMMA 240p 15 kHz (720x240)"));
     }
 
     // These before any test that switches: QCoreApplication::exit(),
@@ -209,7 +229,7 @@ private slots:
         QVERIFY(!output.busy());
         QCOMPARE(output.current(), QStringLiteral("hdmi"));
         QCOMPARE(output.next(), QStringLiteral("jamma-240p"));
-        QCOMPARE(output.nextLabel(), QStringLiteral("JAMMA 240p"));
+        QCOMPARE(output.nextLabel(), QStringLiteral("JAMMA 240p 15 kHz (720x240)"));
         QCOMPARE(state().value(QStringLiteral("from")).toString(), QStringLiteral("HDMI"));
         QCOMPARE(state().value(QStringLiteral("to")).toString(), QStringLiteral("jamma-240p"));
 

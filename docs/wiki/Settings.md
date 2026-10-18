@@ -217,7 +217,7 @@ Some rows wait for something:
 
 | Setting | Values | Default | What it does | Config key |
 |---|---|---|---|---|
-| Display Output | HDMI, Composite NTSC, Composite PAL, GPIO Composite NTSC, GPIO Composite PAL, SCART RGB NTSC, SCART RGB PAL, SCART RGB 240p, SCART RGB 288p, JAMMA 240p, JAMMA 240p Native, JAMMA 240p Super, JAMMA 288p, JAMMA 288p Super, JAMMA 480i, JAMMA 576i, JAMMA 25 kHz, JAMMA 31 kHz: those this Pi has | The image's build setting, HDMI unless built otherwise | On the OSD/OS image only. Where the picture goes. A change restarts the Pi on the new output, powers it off for it, or waits for its next start, and the new output stays only when you keep it. **Next: <output>** while one waits | None: the preset is copied over `/boot/firmware/osdos-display.txt` |
+| Display Output | HDMI, Composite NTSC, Composite PAL, GPIO Composite NTSC, GPIO Composite PAL, SCART RGB NTSC, SCART RGB PAL, SCART RGB 240p, SCART RGB 288p, JAMMA 240p 15 kHz (720x240), JAMMA 240p 15 kHz (320x240), JAMMA 240p 15 kHz (1920x240), JAMMA 288p 15 kHz (720x288), JAMMA 288p 15 kHz (1920x288), JAMMA 480i 15 kHz (720x480), JAMMA 576i 15 kHz (720x576), JAMMA 25 kHz (496x384), JAMMA 31 kHz (640x480): those this Pi has | The image's build setting, HDMI unless built otherwise | On the OSD/OS image only. Where the picture goes. A change restarts the Pi on the new output, powers it off for it, or waits for its next start, and the new output stays only when you keep it. **Next: <output>** while one waits | None: the preset is copied over `/boot/firmware/osdos-display.txt` |
 | Audio Output | Auto, then each sound card that can play: AV Jack, HDMI (HDMI 0 and HDMI 1 when there are two), a USB card by its name | Auto | Which sound card plays, from the moment you choose it, for a video playing behind the menus too. Auto is the Pi's own default | `app.audio_output`: `""` for Auto, or `{ "card", "name" }` |
 | Controls | A page | | Each controller connected, with its own buttons and a pad's button labels; the pads of players 1 to 6; and one more key for each action on every keyboard and remote | `app.controllers.<key>`, `app.players`, `app.remote_keymap.<action>` |
 | Bluetooth | A page | | Searching for, pairing and connecting keyboards, gamepads and remotes | None: BlueZ keeps the pairings |
@@ -230,7 +230,7 @@ Some rows wait for something:
 Select opens the list of the outputs this Pi has, with the board's model and the output in use (`Now: HDMI`). Choose another, then:
 
 - **Switch and Restart**: OSD/OS restarts the Pi on it.
-- **At Next Start**: it is written now, and the Pi stays on as it is. It starts on the new output the next time it starts. The row reads **Next: <output>** until then; choosing the output in force again takes it back (**Stay on <output>**).
+- **At Next Start**: it is written now, and the Pi stays on as it is. It starts on the new output the next time it starts. The row reads **Next: <output>** until then; choosing the output in force again takes it back (**Stay on <output>?**, **Stay**).
 - **Switch and Power Off**: it is written, and the Pi powers off, to start on it when switched on. With At Next Start, the way to set up a screen that isn't here, as a JAMMA cabinet's.
 
 On the new output it first asks **Keep this display output?**. **Keep** keeps it. **Switch Back**, or 30 seconds without an answer (a TV that shows nothing), goes back to the output before, restarting again, and says so. Back does nothing there, so a key pressed at random on a blank screen can't keep it.

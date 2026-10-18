@@ -62,15 +62,15 @@ The menu lists, in this order, the presets that are on the boot partition and th
 | SCART RGB PAL | `scart-rgb-pal` (576i) | | ✓ | ✓ | ✓ | ✓ |
 | SCART RGB 240p | `scart-rgb-240p` | | ✓ | ✓ | | |
 | SCART RGB 288p | `scart-rgb-288p` | | ✓ | ✓ | | |
-| JAMMA 240p | `jamma-240p` | | ✓ | ✓ | ✓ | ✓ |
-| JAMMA 240p Native | `jamma-240p-native` | | ✓ | ✓ | ✓ | ✓ |
-| JAMMA 240p Super | `jamma-240p-super` | | ✓ | ✓ | ✓ | ✓ |
-| JAMMA 288p | `jamma-288p` | | ✓ | ✓ | ✓ | ✓ |
-| JAMMA 288p Super | `jamma-288p-super` | | ✓ | ✓ | ✓ | ✓ |
-| JAMMA 480i | `jamma-480i` | | ✓ | ✓ | | |
-| JAMMA 576i | `jamma-576i` | | ✓ | ✓ | | |
-| JAMMA 25 kHz | `jamma-25k` | | ✓ | ✓ | ✓ | ✓ |
-| JAMMA 31 kHz | `jamma-31k` | | ✓ | ✓ | ✓ | ✓ |
+| JAMMA 240p 15 kHz (720x240) | `jamma-240p` | | ✓ | ✓ | ✓ | ✓ |
+| JAMMA 240p 15 kHz (320x240) | `jamma-240p-native` | | ✓ | ✓ | ✓ | ✓ |
+| JAMMA 240p 15 kHz (1920x240) | `jamma-240p-super` | | ✓ | ✓ | ✓ | ✓ |
+| JAMMA 288p 15 kHz (720x288) | `jamma-288p` | | ✓ | ✓ | ✓ | ✓ |
+| JAMMA 288p 15 kHz (1920x288) | `jamma-288p-super` | | ✓ | ✓ | ✓ | ✓ |
+| JAMMA 480i 15 kHz (720x480) | `jamma-480i` | | ✓ | ✓ | | |
+| JAMMA 576i 15 kHz (720x576) | `jamma-576i` | | ✓ | ✓ | | |
+| JAMMA 25 kHz (496x384) | `jamma-25k` | | ✓ | ✓ | ✓ | ✓ |
+| JAMMA 31 kHz (640x480) | `jamma-31k` | | ✓ | ✓ | ✓ | ✓ |
 
 That is `boardHas()` in `DisplayOutput.cpp`:
 
@@ -170,7 +170,7 @@ The service lists them all in `SuccessExitStatus`, so systemd counts them as no 
 It is on the card from then on, so a power cut doesn't lose it. Until the next start:
 
 - **Another output** with At Next Start is written over it. The one to go back to stays the output in force.
-- **The output in force** asks **Stay on <output>?**, and **Stay on <output>** takes the waiting one back.
+- **The output in force** asks **Stay on <output>?**, and **Stay** takes the waiting one back.
 - **Switch and Restart** or **Switch and Power Off** still switch as they always do.
 
 A restart of OSD/OS alone, without the Pi's, keeps it waiting: `/run` lasts until the Pi starts again.
@@ -519,19 +519,19 @@ The Pi 5's part, the kernel's DPI:
 
 #### The board's other modes
 
-An arcade monitor may be one of several kinds, so beside JAMMA 240p the board has eight more presets. Each is JAMMA 240p's but for its mode: the same pins, controls and sound, both syncs active low, and the board making the composite sync. They need launcher API 6 ([The launcher API](https://github.com/mehmetraif/OSD-OS/wiki/The-OSD-OS-Image#the-launcher-api)).
+An arcade monitor may be one of several kinds, so beside JAMMA 240p the board has eight more presets. Each one's name in the menu says its scan rate, 15, 25 or 31 kHz, the kind of monitor it is for, then its resolution, which tells apart the modes of the same lines. Each is JAMMA 240p's but for its mode: the same pins, controls and sound, both syncs active low, and the board making the composite sync. They need launcher API 6 ([The launcher API](https://github.com/mehmetraif/OSD-OS/wiki/The-OSD-OS-Image#the-launcher-api)).
 
 | In the menu | Preset | Mode | Scan rate | For | Timing |
 |---|---|---|---|---|---|
-| JAMMA 240p | `jamma-240p` | 720×240, 60 Hz | 15.73 kHz | A 15 kHz monitor | SCART RGB 240p's |
-| JAMMA 240p Native | `jamma-240p-native` | 320×240, 60 Hz | 15.66 kHz | A 15 kHz monitor, one of its pixels for each of a game's 320 | Recalbox RGB JAMMA's |
-| JAMMA 240p Super | `jamma-240p-super` | 1920×240, 60 Hz | 15.66 kHz | A 15 kHz monitor, a super resolution: a game of any width fills it with its lines whole | Switchres' (arcade_15) |
-| JAMMA 288p | `jamma-288p` | 720×288, 50 Hz | 15.63 kHz | A 15 kHz monitor, for games of 50 Hz | CEA-861's, as SCART RGB 288p |
-| JAMMA 288p Super | `jamma-288p-super` | 1920×288, 50 Hz | 15.65 kHz | The same, a super resolution | Recalbox's |
-| JAMMA 480i | `jamma-480i` | 720×480 interlaced, 60 fields a second | 15.73 kHz | A 15 kHz monitor, twice the lines, which flicker. A Pi 4 only | SCART RGB 480i's |
-| JAMMA 576i | `jamma-576i` | 720×576 interlaced, 50 fields a second | 15.63 kHz | The same at 50 Hz. A Pi 4 only | Raspberry Pi's 576i |
-| JAMMA 25 kHz | `jamma-25k` | 496×384, 60 Hz | 24.96 kHz | A medium resolution (25 kHz) or tri-sync monitor only | Recalbox RGB JAMMA's |
-| JAMMA 31 kHz | `jamma-31k` | 640×480, 60 Hz | 31.47 kHz | A 31 kHz (VGA) or tri-sync monitor only | VESA's |
+| JAMMA 240p 15 kHz (720x240) | `jamma-240p` | 720×240, 60 Hz | 15.73 kHz | A 15 kHz monitor | SCART RGB 240p's |
+| JAMMA 240p 15 kHz (320x240) | `jamma-240p-native` | 320×240, 60 Hz | 15.66 kHz | A 15 kHz monitor, one of its pixels for each of a game's 320 | Recalbox RGB JAMMA's |
+| JAMMA 240p 15 kHz (1920x240) | `jamma-240p-super` | 1920×240, 60 Hz | 15.66 kHz | A 15 kHz monitor, a super resolution: a game of any width fills it with its lines whole | Switchres' (arcade_15) |
+| JAMMA 288p 15 kHz (720x288) | `jamma-288p` | 720×288, 50 Hz | 15.63 kHz | A 15 kHz monitor, for games of 50 Hz | CEA-861's, as SCART RGB 288p |
+| JAMMA 288p 15 kHz (1920x288) | `jamma-288p-super` | 1920×288, 50 Hz | 15.65 kHz | The same, a super resolution | Recalbox's |
+| JAMMA 480i 15 kHz (720x480) | `jamma-480i` | 720×480 interlaced, 60 fields a second | 15.73 kHz | A 15 kHz monitor, twice the lines, which flicker. A Pi 4 only | SCART RGB 480i's |
+| JAMMA 576i 15 kHz (720x576) | `jamma-576i` | 720×576 interlaced, 50 fields a second | 15.63 kHz | The same at 50 Hz. A Pi 4 only | Raspberry Pi's 576i |
+| JAMMA 25 kHz (496x384) | `jamma-25k` | 496×384, 60 Hz | 24.96 kHz | A medium resolution (25 kHz) or tri-sync monitor only | Recalbox RGB JAMMA's |
+| JAMMA 31 kHz (640x480) | `jamma-31k` | 640×480, 60 Hz | 31.47 kHz | A 31 kHz (VGA) or tri-sync monitor only | VESA's |
 
 - **Too high a scan rate can damage a 15 kHz monitor.** Choosing JAMMA 25 kHz or JAMMA 31 kHz says so first, in the switch's question: *For a 31 kHz (VGA) or tri-sync monitor only: too high a scan rate can damage a 15 kHz one.* Choose them only for a monitor made for that rate. The keep-or-go-back question still brings the mode before back after 30 seconds, but a monitor that can't take the rate is driven at it until then.
 - **No interlace on a Pi 5.** The Pi 5's DPI interlaces only with a sync on GPIO 1, which carries the board's controls (I2C), so JAMMA 480i and 576i are the Pi 4's alone, interlaced by its firmware. Neither has been tried on the board yet.
@@ -782,7 +782,7 @@ No cable to make: the board sits on the Pi's GPIO header, and the cabinet's JAMM
 
 To set it up:
 
-1. Choose **JAMMA 240p**, or the mode the cabinet's monitor takes ([The board's other modes](https://github.com/mehmetraif/OSD-OS/wiki/Display-Output#the-boards-other-modes)), on the screen you have, with **At Next Start** or **Switch and Power Off**.
+1. Choose **JAMMA 240p 15 kHz (720x240)**, or the mode the cabinet's monitor takes ([The board's other modes](https://github.com/mehmetraif/OSD-OS/wiki/Display-Output#the-boards-other-modes)), on the screen you have, with **At Next Start** or **Switch and Power Off**.
 2. Move the Pi into the cabinet and switch it on. It starts on the cabinet's monitor.
 3. There, **Keep this display output?** comes up. Button 1 keeps it, as the cabinet's controls work once a JAMMA preset is in force.
 

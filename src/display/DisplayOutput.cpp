@@ -45,18 +45,21 @@ const Preset kPresets[] = {
     { "scart-rgb-pal",  "SCART RGB PAL",       26, 3 },
     { "scart-rgb-240p", "SCART RGB 240p",      27, 3 },
     { "scart-rgb-288p", "SCART RGB 288p",      28, 3 },
-    { "jamma-240p",     "JAMMA 240p",          30, 4 },
+    // A JAMMA mode's name says its scan rate, as an arcade monitor takes 15,
+    // 25 or 31 kHz, or several, and its preset's resolution (dpi_timings'),
+    // which tells apart the modes of the same lines. The font has no ×.
+    { "jamma-240p",     "JAMMA 240p 15 kHz (720x240)", 30, 4 },
     // The JAMMA board's other modes: 320 across (the games' own pixels),
     // super resolutions 1920 across, PAL's 288 lines, interlaced 480 and 576
     // lines (a Pi 4's alone), and the 25 and 31 kHz monitors'.
-    { "jamma-240p-native", "JAMMA 240p Native", 31, 6 },
-    { "jamma-240p-super",  "JAMMA 240p Super",  32, 6 },
-    { "jamma-288p",        "JAMMA 288p",        33, 6 },
-    { "jamma-288p-super",  "JAMMA 288p Super",  34, 6 },
-    { "jamma-480i",        "JAMMA 480i",        35, 6 },
-    { "jamma-576i",        "JAMMA 576i",        36, 6 },
-    { "jamma-25k",         "JAMMA 25 kHz",      37, 6, k25kHz },
-    { "jamma-31k",         "JAMMA 31 kHz",      38, 6, k31kHz },
+    { "jamma-240p-native", "JAMMA 240p 15 kHz (320x240)",  31, 6 },
+    { "jamma-240p-super",  "JAMMA 240p 15 kHz (1920x240)", 32, 6 },
+    { "jamma-288p",        "JAMMA 288p 15 kHz (720x288)",  33, 6 },
+    { "jamma-288p-super",  "JAMMA 288p 15 kHz (1920x288)", 34, 6 },
+    { "jamma-480i",        "JAMMA 480i 15 kHz (720x480)",  35, 6 },
+    { "jamma-576i",        "JAMMA 576i 15 kHz (720x576)",  36, 6 },
+    { "jamma-25k",         "JAMMA 25 kHz (496x384)",       37, 6, k25kHz },
+    { "jamma-31k",         "JAMMA 31 kHz (640x480)",       38, 6, k31kHz },
 };
 // osdos-stop's for the output before the last one chosen.
 constexpr int kRevertExitCode = 29;
