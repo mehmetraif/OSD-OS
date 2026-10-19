@@ -321,7 +321,6 @@ ArcadeBackend::ArcadeBackend(const QString &appRoot, const QString &dataRoot, Ap
     connect(m_retroAchievements, &RetroAchievements::achievementsReady, this, [this](const QString &fileName) {
         emit gameAchievementsReady(QFileInfo(fileName).completeBaseName().toLower());
     });
-    connect(m_retroAchievements, &RetroAchievements::badgesReady, this, &ArcadeBackend::badgesReady);
     connect(m_retroAchievements, &RetroAchievements::picturesFound, this, &ArcadeBackend::onPicturesFound);
     connect(m_retroAchievements, &RetroAchievements::keyRefused, this, [this] {
         if (!std::exchange(m_raKeyRefused, true))
@@ -638,6 +637,9 @@ ArcadeBackend::Read ArcadeBackend::read(const QString &folder, const QString &ho
         const QFileInfo info = snaps.fileInfo();
         const QString suffix = info.suffix().toLower();
         if (suffix != QLatin1String("png") && suffix != QLatin1String("jpg"))
+            continue;
+        // An achievement's badge (achievementBadge()), no game's picture.
+        if (info.fileName().startsWith(QLatin1String("achieve_"), Qt::CaseInsensitive))
             continue;
         // Its exact name first (as MAME's own folder has it), then a .png.
         const QString set = info.completeBaseName().toLower();
@@ -1239,6 +1241,11 @@ QString ArcadeBackend::snapFolder() const {
     return m_gamesFolder + QLatin1Char('/') + m_otherFolders.value(QStringLiteral("snap"), QStringLiteral("snap"));
 }
 
+bool ArcadeBackend::snapWritable() const {
+    const QString folder = snapFolder();
+    return !folder.isEmpty() && QFileInfo(QFileInfo::exists(folder) ? folder : m_gamesFolder).isWritable();
+}
+
 void ArcadeBackend::wantPictures(const QString &set) {
     if (m_raKey.isEmpty() || m_raKeyRefused || !m_sets.contains(set) || isUnrecognized(set) || snapFolder().isEmpty()
         || m_noPictures.contains(set))
@@ -1254,11 +1261,8 @@ void ArcadeBackend::wantPictures(const QString &set) {
             || (retry != m_picturesRetry.constEnd() && *retry > now))
             looked << name;
     }
-    if (looked.size() == names.size())
-        return;
     // None for a folder they can't be saved in (a read-only USB drive's).
-    const QString folder = snapFolder();
-    if (!QFileInfo(QFileInfo::exists(folder) ? folder : m_gamesFolder).isWritable())
+    if (looked.size() == names.size() || !snapWritable())
         return;
     m_retroAchievements->findPictures(names, looked);
 }
@@ -2266,8 +2270,47 @@ QVariantMap ArcadeBackend::achievementCount(const QString &set) {
              { QStringLiteral("progress"), found.value(QStringLiteral("progress")).toBool() } };
 }
 
-QString ArcadeBackend::achievementBadge(const QString &name, bool earned) {
-    return m_retroAchievements->badge(name, !earned);
+QString ArcadeBackend::achievementBadge(const QString &set, int id, const QString &name, bool earned) {
+    static const QRegularExpression badgeName(QRegularExpression::anchoredPattern(QStringLiteral("[0-9A-Za-z]{1,32}")));
+    if (id <= 0 || !badgeName.match(name).hasMatch() || !m_sets.contains(set) || isUnrecognized(set))
+        return QString();
+    const QString locked = earned ? QString() : QStringLiteral("_lock");
+    const QString file = QStringLiteral("achieve_%1_%2%3.png").arg(set).arg(id).arg(locked);
+    const QString snap = snapFolder();
+    const QString kept = m_home + QStringLiteral("/badges");
+    for (const QString &folder : { snap, kept }) {
+        if (!folder.isEmpty() && QFile::exists(folder + QLatin1Char('/') + file))
+            return QUrl::fromLocalFile(folder + QLatin1Char('/') + file).toString();
+    }
+    // One download of each at a time; one that couldn't be, a minute later.
+    const auto retry = m_badgesRetry.constFind(file);
+    if (m_badgesWanted.contains(file)
+        || (retry != m_badgesRetry.constEnd() && *retry > QDateTime::currentDateTimeUtc()))
+        return QString();
+    m_badgesWanted.insert(file);
+    const QString folder = snapWritable() ? snap : kept;
+    m_retroAchievements->media(QStringLiteral("/Badge/%1%2.png").arg(name, locked),
+                               [this, file, folder](const QByteArray &data) {
+        const auto saved = [this, file](bool written) {
+            m_badgesWanted.remove(file);
+            if (!written) {
+                m_badgesRetry.insert(file, QDateTime::currentDateTimeUtc().addSecs(60));
+                return;
+            }
+            m_badgesRetry.remove(file);
+            emit badgesReady();
+        };
+        if (data.isEmpty()) {
+            saved(false);
+            return;
+        }
+        // Written where the pictures are, off the GUI thread.
+        const QString path = folder + QLatin1Char('/') + file;
+        QtConcurrent::run(&m_pictureSaves, [folder, path, data] {
+            return QDir().mkpath(folder) && writeFileAtomically(path, data);
+        }).then(this, saved);
+    });
+    return QString();
 }
 
 QStringList ArcadeBackend::statusIcons() const {

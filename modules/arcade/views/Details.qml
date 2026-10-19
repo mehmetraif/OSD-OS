@@ -7,9 +7,10 @@ import Components
 // Arcade → RetroAchievements Account and, for which of them were earned, its
 // user: those earned, then those not, each with RetroAchievements' badge of
 // it (achievementBadge(), downloaded as its row is shown), in colour once
-// earned and grey till then, and its points. The help line says what the
-// one selected asks for and when it was earned. Select plays the game (as
-// from the list), and back goes back to where it was chosen.
+// earned and grey till then, and its points. The one selected has its badge
+// large at the right under the title bar, and the help line says what it
+// asks for and when it was earned. Select plays the game (as from the list),
+// and back goes back to where it was chosen.
 FocusScope {
     id: detailsRoot
 
@@ -108,6 +109,14 @@ FocusScope {
         return "RetroAchievements has no achievements for this game"
     }
 
+    // An achievement's badge: in colour once earned (or with no user to say),
+    // grey till then; looked for again as each is downloaded.
+    function badgeOf(row) {
+        return !row || row.type === "section" || !arcadeBackend ? ""
+               : (badgesRevision, arcadeBackend.achievementBadge(game, row.id, row.badge,
+                                                                  row.earned !== "" || !knowsEarned))
+    }
+
     // What the one selected asks for, its points and when it was earned.
     function about(row) {
         if (!row || row.type === "section")
@@ -146,10 +155,35 @@ FocusScope {
         anchors.leftMargin: root.sw * 0.125 //80
     }
 
+    // The selected achievement's badge, large, at the right under the title
+    // bar; framed while it is downloaded.
+    Rectangle {
+        id: selectedBadge
+        readonly property var row: detailsRoot.rows[list.currentIndex]
+        visible: !!row && row.type !== "section"
+        x: root.sw * 0.875 - width //560
+        y: root.sh * 0.2 //96
+        width: Math.round(root.sh * 0.1083333) //52
+        height: width
+        color: "transparent"
+        border.width: bigBadge.status === Image.Ready ? 0 : root.px
+        border.color: root.primaryColor
+        antialiasing: false
+        Image {
+            id: bigBadge
+            anchors.fill: parent
+            source: detailsRoot.badgeOf(selectedBadge.row)
+            sourceSize.width: width
+            sourceSize.height: height
+            asynchronous: true
+        }
+    }
+
+    // Beside the badge while there are achievements.
     Column {
         x: root.sw * 0.125 //80
         y: root.sh * 0.2041667 //98
-        width: root.sw * 0.75 //480
+        width: root.sw * 0.75 - (detailsRoot.rows.length > 0 ? selectedBadge.width + root.sw * 0.0125 : 0) //480
         spacing: root.sh * 0.0041667 //2
 
         Text {
@@ -215,9 +249,7 @@ FocusScope {
                 Image {
                     id: badge
                     anchors.fill: parent
-                    source: line.heading || !arcadeBackend ? ""
-                            : (detailsRoot.badgesRevision,
-                               arcadeBackend.achievementBadge(line.modelData.badge, line.earned || !detailsRoot.knowsEarned))
+                    source: detailsRoot.badgeOf(line.modelData)
                     sourceSize.width: width
                     sourceSize.height: height
                     asynchronous: true

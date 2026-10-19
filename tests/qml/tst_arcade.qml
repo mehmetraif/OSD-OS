@@ -235,7 +235,7 @@ Rectangle {
         // The sets whose pictures were wanted (wantPictures()).
         property var picturesWanted: []
         function wantPictures(set) { picturesWanted.push(set) }
-        function achievementBadge(name, earned) {
+        function achievementBadge(set, id, name, earned) {
             badgeAsks.push(name + (earned ? "" : "_lock"))
             return badgeFiles[name + (earned ? "" : "_lock")] || ""
         }
@@ -1050,8 +1050,26 @@ Rectangle {
                 var p = shownPicture(details)
                 return p !== null && String(p.source) === screenshot
             }, 2000)
-            // Down to the one not earned.
+            // The selected one's badge large, at the right under the title
+            // bar, beside the lines; the next one's, not downloaded yet, framed.
+            var big = null
+            var findBig = function(item) {
+                if (!big && item.fillMode !== undefined && item.sourceSize !== undefined && item.width > root.sh * 0.08)
+                    big = item
+                for (var i = 0; !big && i < item.children.length; ++i)
+                    findBig(item.children[i])
+            }
+            findBig(details)
+            verify(big !== null, "the selected badge")
+            compare(String(big.source), screenshot)
+            verify(big.parent.visible)
+            compare(big.parent.x + big.parent.width, root.sw * 0.875)
+            var facts = findText(details, "Capcom • 1991 • 2 Players • CPS-1 • Played 1H 30M", true)
+            verify(facts.mapToItem(details, 0, 0).x + facts.width <= big.parent.x)
             keyClick(Qt.Key_Down)
+            compare(String(big.source), "")
+            verify(big.parent.visible)
+            // Down to the one not earned.
             keyClick(Qt.Key_Down)
             tryVerify(function() { return findText(details, "Not Earned Yet") !== null }, 1000)
             keyClick(Qt.Key_Return)

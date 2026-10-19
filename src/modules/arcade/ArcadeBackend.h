@@ -176,9 +176,14 @@ public:
     // Of those, the Arcade screen's box's count, without the list: { state,
     // earned, total, progress }.
     Q_INVOKABLE QVariantMap achievementCount(const QString &set);
-    // An achievement's badge (its name), as earned or not, as a file URL;
-    // "" until it has been downloaded: badgesReady() then.
-    Q_INVOKABLE QString achievementBadge(const QString &name, bool earned);
+    // An achievement's badge (RetroAchievements' picture of it, by its name),
+    // in colour once earned or grey till then, as a file URL; "" until it has
+    // been downloaded, as it is first shown: badgesReady() then. Kept beside
+    // the games' pictures, in the snap folder, as achieve_<set>_<id>.png
+    // (achieve_<set>_<id>_lock.png the grey one), which no game's pictures
+    // are taken for; in <data>/arcade/badges where the snap folder can't be
+    // written.
+    Q_INVOKABLE QString achievementBadge(const QString &set, int id, const QString &name, bool earned);
 
     // Starts a game in its engine (engineOf()), which has the screen until it
     // ends: finished(). credits: the coins MAME puts in as it starts (9 at
@@ -458,6 +463,9 @@ private:
     // The folder pictures are kept in: the games folder's snap folder, as it
     // is named there, else snap; "" while there is no games folder to read.
     QString snapFolder() const;
+    // Whether it can be written in (or, while there is none, the games
+    // folder): not a read-only USB drive's.
+    bool snapWritable() const;
     void onPicturesFound(const QString &name, const QString &state, const QStringList &paths);
     // A picture of RetroAchievements' downloaded for a game, or not (data
     // empty): saved off the GUI thread as <name>_<n> in the snap folder, n
@@ -606,6 +614,10 @@ private:
     QSet<QString> m_noPictures;
     QHash<QString, QDateTime> m_picturesRetry;
     QHash<QString, QStringList> m_savedDuringRead;
+    // The achievements' badges being downloaded, by file, and when one that
+    // couldn't be may be again.
+    QSet<QString> m_badgesWanted;
+    QHash<QString, QDateTime> m_badgesRetry;
     // Where the pictures and their record are saved, one at a time, in the
     // order they came.
     QThreadPool m_pictureSaves;

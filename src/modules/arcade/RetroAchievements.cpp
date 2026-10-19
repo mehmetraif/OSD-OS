@@ -5,7 +5,6 @@
 #include <QCoreApplication>
 #include <QDir>
 #include <QFile>
-#include <QFuture>
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
@@ -15,7 +14,6 @@
 #include <QRegularExpression>
 #include <QTimer>
 #include <QUrlQuery>
-#include <QtConcurrent/QtConcurrentRun>
 #include <algorithm>
 #include <utility>
 
@@ -529,41 +527,6 @@ void RetroAchievements::nextMedia() {
         next.done(data);
         nextMedia();
     });
-}
-
-QString RetroAchievements::badge(const QString &name, bool locked) {
-    if (!isBadgeName(name))
-        return QString();
-    const QString file = name + (locked ? QStringLiteral("_lock.png") : QStringLiteral(".png"));
-    const QString path = m_home + QStringLiteral("/badges/") + file;
-    if (QFile::exists(path))
-        return QUrl::fromLocalFile(path).toString();
-    // One download of each at a time; one that couldn't be, a minute later.
-    const auto retry = m_badgesRetry.constFind(file);
-    if (m_badgesWanted.contains(file)
-        || (retry != m_badgesRetry.constEnd() && *retry > QDateTime::currentDateTimeUtc()))
-        return QString();
-    m_badgesWanted.insert(file);
-    media(QStringLiteral("/Badge/") + file, [this, file, path](const QByteArray &data) {
-        const auto saved = [this, file](bool written) {
-            m_badgesWanted.remove(file);
-            if (!written) {
-                m_badgesRetry.insert(file, QDateTime::currentDateTimeUtc().addSecs(kFailedSeconds));
-                return;
-            }
-            m_badgesRetry.remove(file);
-            emit badgesReady();
-        };
-        if (data.isEmpty()) {
-            saved(false);
-            return;
-        }
-        // Written to the card off the GUI thread, as the list scrolls.
-        const QString folder = m_home + QStringLiteral("/badges");
-        QtConcurrent::run([folder, path, data] { return QDir().mkpath(folder) && writeFileAtomically(path, data); })
-            .then(this, saved);
-    });
-    return QString();
 }
 
 void RetroAchievements::get(const QString &endpoint, const QList<std::pair<QString, QString>> &query,

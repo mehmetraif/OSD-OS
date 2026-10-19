@@ -29,15 +29,15 @@ class QTimer;
 //   screen's, which ArcadeBackend downloads with media()).
 // One request is under way at a time, achievements first, and of each only
 // the game last asked for is read, a moment after it was: a list scrolled
-// through asks for none of the games passed. The badges of achievements are
-// kept in <data>/arcade/badges once they have been shown (badge()).
+// through asks for none of the games passed. The files of the media server,
+// the games' pictures and the achievements' badges, come through media().
 class RetroAchievements : public QObject {
     Q_OBJECT
 public:
     static const QUrl kApi;     // https://retroachievements.org/API/
     static const QUrl kMedia;   // https://media.retroachievements.org/
 
-    // home: where the list of games and the badges are kept. api, media:
+    // home: where the list of games is kept. api, media:
     // kApi and kMedia, or a stand-in's.
     RetroAchievements(const QString &home, const QUrl &api, const QUrl &media, QObject *parent = nullptr);
 
@@ -85,11 +85,6 @@ public:
     // couldn't be downloaded or is neither.
     void media(const QString &path, const std::function<void(const QByteArray &data)> &done);
 
-    // An achievement's badge (its name), earned or locked (RetroAchievements'
-    // grey one), as a file URL from <home>/badges; "" while it isn't there,
-    // and it is downloaded (and saved off the GUI thread): badgesReady() once
-    // it is.
-    QString badge(const QString &name, bool locked);
 
 signals:
     void boardReady(const QString &fileName);
@@ -99,7 +94,6 @@ signals:
     // "failed" (the game couldn't be read); fileName, the file whose game it
     // is.
     void picturesFound(const QString &fileName, const QString &state, const QStringList &paths);
-    void badgesReady();
     // RetroAchievements refused the key (HTTP 401 or 403).
     void keyRefused();
 
@@ -167,6 +161,4 @@ private:
     // The media server's files to download, and the one under way.
     QList<Media> m_mediaQueue;
     QNetworkReply *m_mediaReply = nullptr;
-    QSet<QString> m_badgesWanted;               // badges being downloaded, by file
-    QHash<QString, QDateTime> m_badgesRetry;    // a badge that couldn't be: when it may be again
 };

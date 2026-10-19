@@ -1510,7 +1510,7 @@ private slots:
     // as its parent's going by the parent; one looked for left be; one
     // RetroAchievements hasn't, unknown. A file downloaded only when it is a
     // picture, from a path of the media server's, and no bigger than its
-    // kind's; a badge kept once downloaded, locked or not.
+    // kind's; a badge, locked or not.
     void retroAchievementsGameData() {
         QTemporaryDir data;
         QVERIFY(data.isValid());
@@ -1637,30 +1637,9 @@ private slots:
         QCOMPARE(download(QStringLiteral("http://elsewhere/Images/1.png")), QByteArray());
         QVERIFY(standIn.asked.isEmpty());
 
-        // Badges.
-        QSignalSpy badges(&ra, &RetroAchievements::badgesReady);
-        QCOMPARE(ra.badge(QStringLiteral("250336"), false), QString());
-        QCOMPARE(ra.badge(QStringLiteral("250336"), false), QString());
-        QVERIFY(badges.wait(5000));
-        const QString earned = data.path() + QStringLiteral("/badges/250336.png");
-        QCOMPARE(ra.badge(QStringLiteral("250336"), false), QUrl::fromLocalFile(earned).toString());
-        QCOMPARE(contents(earned), png("badge"));
-        QCOMPARE(ra.badge(QStringLiteral("250337"), true), QString());
-        QVERIFY(badges.wait(5000));
-        QCOMPARE(ra.badge(QStringLiteral("250337"), true),
-                 QUrl::fromLocalFile(data.path() + QStringLiteral("/badges/250337_lock.png")).toString());
-        QCOMPARE(badges.size(), 2);
-        QCOMPARE(standIn.asked.count(QStringLiteral("/media/Badge/250336.png")), 1);
-        // One that can't be downloaded isn't asked for again at once.
-        standIn.asked.clear();
-        QCOMPARE(ra.badge(QStringLiteral("999"), false), QString());
-        QTRY_COMPARE_WITH_TIMEOUT(standIn.asked.size(), 1, 5000);
-        QTest::qWait(300);
-        QCOMPARE(ra.badge(QStringLiteral("999"), false), QString());
-        QCOMPARE(ra.badge(QStringLiteral("../999"), false), QString());
-        QCOMPARE(ra.badge(QStringLiteral("999\n"), false), QString());
-        QTest::qWait(300);
-        QCOMPARE(standIn.asked.size(), 1);
+        // Badges, in colour and grey.
+        QCOMPARE(download(QStringLiteral("/Badge/250336.png")), png("badge"));
+        QCOMPARE(download(QStringLiteral("/Badge/250337_lock.png")), png("locked"));
     }
 
     // RetroAchievements' pictures of a game as it is shown, with a key kept:
@@ -1672,7 +1651,7 @@ private slots:
     // game's looked for once, this run and the next (its record, beside
     // them); one that failed not again at once; none with no key, nor for a
     // game RetroAchievements hasn't. Its achievements counted for the Arcade
-    // screen's box.
+    // screen's box, and their badges saved beside its pictures.
     void retroAchievementsPictures() {
         const QString snap = m_games + QStringLiteral("/snap");
         const QString record = snap + QStringLiteral("/.retroachievements.json");
@@ -1710,6 +1689,8 @@ private slots:
             { "/API/API_GetGameExtended.php?i=1", R"({"ID": 1, "Achievements": {
                 "11": {"ID": 11, "Title": "Hadouken", "Points": 5, "BadgeName": "250337", "DisplayOrder": 1},
                 "12": {"ID": 12, "Title": "World Warrior", "Points": 25, "BadgeName": "250336", "DisplayOrder": 2}}})" },
+            { "/media/Badge/250336.png", png("badge") },
+            { "/media/Badge/250337_lock.png", png("locked") },
         };
         const auto urls = [](const QStringList &files) {
             QStringList list;
@@ -1830,6 +1811,36 @@ private slots:
                                { QStringLiteral("total"), 2 }, { QStringLiteral("progress"), false } }));
         QCOMPARE(arcade.achievementCount(QStringLiteral("galaga")).value(QStringLiteral("state")).toString(),
                  QStringLiteral("none"));
+
+        // An achievement's badge, as it is first shown: saved beside the
+        // pictures as achieve_<set>_<id> (the grey one _lock), downloaded
+        // once, and no picture of the game's; one that couldn't be
+        // downloaded not asked for again at once; nothing for a name that
+        // isn't a badge's, nor for a set not in the folder.
+        QSignalSpy badges(&arcade, &ArcadeBackend::badgesReady);
+        standIn.asked.clear();
+        QCOMPARE(arcade.achievementBadge(QStringLiteral("sf2"), 12, QStringLiteral("250336"), true), QString());
+        QCOMPARE(arcade.achievementBadge(QStringLiteral("sf2"), 12, QStringLiteral("250336"), true), QString());
+        QVERIFY(badges.wait(5000));
+        const QString earned = snap + QStringLiteral("/achieve_sf2_12.png");
+        QCOMPARE(arcade.achievementBadge(QStringLiteral("sf2"), 12, QStringLiteral("250336"), true),
+                 QUrl::fromLocalFile(earned).toString());
+        QCOMPARE(contents(earned), png("badge"));
+        QCOMPARE(standIn.asked.count(QStringLiteral("/media/Badge/250336.png")), 1);
+        QCOMPARE(arcade.achievementBadge(QStringLiteral("sf2"), 11, QStringLiteral("250337"), false), QString());
+        QVERIFY(badges.wait(5000));
+        QCOMPARE(contents(snap + QStringLiteral("/achieve_sf2_11_lock.png")), png("locked"));
+        refreshed(arcade);
+        QCOMPARE(arcade.gameDetails(QStringLiteral("sf2")).value(QStringLiteral("pictures")), urls(shown));
+        standIn.asked.clear();
+        QCOMPARE(arcade.achievementBadge(QStringLiteral("sf2"), 13, QStringLiteral("999"), true), QString());
+        QTRY_COMPARE_WITH_TIMEOUT(standIn.asked.size(), 1, 5000);
+        QTest::qWait(300);
+        QCOMPARE(arcade.achievementBadge(QStringLiteral("sf2"), 13, QStringLiteral("999"), true), QString());
+        QCOMPARE(arcade.achievementBadge(QStringLiteral("sf2"), 14, QStringLiteral("../999"), true), QString());
+        QCOMPARE(arcade.achievementBadge(QStringLiteral("nosuchset"), 15, QStringLiteral("250336"), true), QString());
+        QTest::qWait(300);
+        QCOMPARE(standIn.asked.size(), 1);
     }
 
     // The status icons the module adds, as its settings and account stand,
