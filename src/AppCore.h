@@ -4,6 +4,7 @@
 #endif
 #include "util/LegacyNames.h"
 #include <QObject>
+#include <QStringList>
 #include <QVariant>
 #include <QVariantList>
 #include <QJsonObject>
@@ -29,11 +30,17 @@ class AppCore : public QObject {
     Q_PROPERTY(QString appVersion READ appVersion CONSTANT)
     // The build: the commit it was made from and the day (CMake's APP_BUILD).
     Q_PROPERTY(QString appBuild READ appBuild CONSTANT)
+    // The status icons the modules add (Settings → Status Icons, Main.qml's
+    // statusIcons): those of every enabled module whose backend has a
+    // statusIcons property (a QStringList of PixelIcon's names, with a
+    // notify signal), in the modules' order.
+    Q_PROPERTY(QStringList statusIcons READ statusIcons NOTIFY statusIconsChanged)
 public:
     explicit AppCore(const QString &appRoot, const QString &dataRoot, QObject *parent = nullptr);
 
     QString appVersion() const { return QCoreApplication::applicationVersion(); }
     QString appBuild() const { return QStringLiteral(APP_BUILD); }
+    QStringList statusIcons() const { return m_statusIcons; }
 
     // True when launched by the autostart systemd service (which injects OSDOS_AUTOSTART=1).
     // Gates the quit overlay's "Exit to Terminal" option, which only makes sense on a
@@ -138,7 +145,8 @@ public:
 
     // Registers a module backend: stores it for action routing, exposes it to QML under
     // contextProperty, and connects its optional signals/slots by introspection (only
-    // those the backend actually declares). The module ID is stated once, here.
+    // those the backend actually declares), and its statusIcons property's notify
+    // signal to updateStatusIcons(). The module ID is stated once, here.
     void registerModule(const QString &moduleId, const QString &contextProperty,
                         QObject *backend, QQmlContext *ctx);
 
@@ -149,6 +157,8 @@ signals:
     void moduleSettingChanged(const QString &moduleId, const QString &key, const QVariant &value);
     void dynamicOptionsReady(const QString &moduleId, const QString &key, const QVariant &options);
     void moduleAuthStateChanged(const QString &moduleId);
+    // A module's status icons changed, or a module was turned on or off.
+    void statusIconsChanged();
 
 private slots:
     // Receive a backend's signal and re-emit it with the module ID prepended, recovering
@@ -156,6 +166,9 @@ private slots:
     // generically, with no per-module forwarding lambdas.
     void onBackendDynamicOptions(const QString &key, const QVariant &options);
     void onBackendAuthStateChanged();
+    // The status icons gathered again (a module's changed, or a module was
+    // turned on or off): statusIconsChanged() when they differ.
+    void updateStatusIcons();
 
 private:
     AsyncDirectoryCache *m_directoryCache = nullptr;
@@ -185,4 +198,5 @@ private:
     QString m_dataRoot;
     QList<ModuleEntry> m_modules;
     QMap<QString, QObject*> m_backends;
+    QStringList m_statusIcons;
 };

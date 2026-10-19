@@ -6,11 +6,12 @@ import Components
 // one filter (ArcadeBackend::filters) lie as Settings → Arcade → List Style
 // says, one under another or on an arc a page at a time, or on a wheel
 // turning once the game chosen reaches its top or bottom row, under a bar
-// naming the filter and the page; on the right the game's picture with the
-// credits bought, and under it a box of its high scores (the High Scores
-// module's), what it is (ArcadeBackend::gameDetails) and how long it has
-// been played, as many lines as fit; under them the help line with its full
-// name and what the box has no line for, and the hint bar. The module's own
+// naming the filter and the page; on the right the game's pictures, one
+// after another, with the credits bought, and under them a box of its high
+// scores (the High Scores module's), what it is (ArcadeBackend::gameDetails)
+// and how long it has been played, as many lines as fit; under them the
+// help line with its full name and what the box has no line for, the
+// status icons at its right, and the hint bar. The module's own
 // Hint Bar and Help Line settings (Root.qml's, which root.hintBar and
 // root.helpLine go by here) hide those, and their room goes to the list, a
 // row more each, and to the box. Laid out in the design's units, a 960th of
@@ -24,13 +25,15 @@ import Components
 // has it. COIN (MAME's 5, which a pad's Back button, MAME's coin, is here:
 // takesCoin) buys a credit; select, let go, or START (Space, a pad's Start,
 // or 1) plays the game with them (navigateTo Play.qml, which Root.qml plays
-// as Start Info Screen says); select held opens its options (Play, its
-// favourite, Play at Startup) and back leaves the module. Coming back from
-// a game restores the filter, the game and its row on the wheel from the
-// listState handed to navigateTo; a game played from the screen itself
-// (Start Info Screen off) leaves it as it was. Opened with the startup
-// favourite (navParams.startupPlay), it plays that as soon as the folder
-// has been read, the screen on it in Favorites.
+// as Start Info Screen says); select held opens its options (Play, Game
+// Details, its favourite, Play at Startup) and back leaves the module.
+// Game Details (Details.qml) says what the game is and lists its
+// achievements on RetroAchievements. Coming back from it or from a game
+// restores the filter, the game and its row on the wheel from the listState
+// handed to navigateTo; a game played from the screen itself (Start Info
+// Screen off) leaves it as it was. Opened with the startup favourite
+// (navParams.startupPlay), it plays that as soon as the folder has been
+// read, the screen on it in Favorites.
 //
 // Opened to adjust it (navParams.adjust, Screen Adjustment's), a frame lies
 // round the area: ▲ ▼ ◄ ► move that side of it out, or in once select has
@@ -203,8 +206,39 @@ FocusScope {
     }
     readonly property string currentSet: current ? current.set : ""
     readonly property bool isGame: !!current && !current.unknown
-    readonly property var details: (revision, arcadeBackend && currentSet !== ""
-                                               ? arcadeBackend.gameDetails(currentSet) : ({}))
+    // Counted up as a game's pictures come in (RetroAchievements'), so its
+    // details are read again.
+    property int picturesRevision: 0
+    readonly property var details: (revision, picturesRevision, arcadeBackend && currentSet !== ""
+                                                                ? arcadeBackend.gameDetails(currentSet) : ({}))
+    // The game's pictures (ArcadeBackend::picturesOf), one after another
+    // every few seconds while it has more than one, from the first as it is
+    // chosen, but while a game plays; RetroAchievements' downloaded as it is
+    // shown, with a Web API key (wantPictures()).
+    readonly property var pictures: isGame && details.pictures ? details.pictures : []
+    property int pictureIndex: 0
+    onCurrentSetChanged: {
+        pictureIndex = 0
+        if (pictureTurn.running)
+            pictureTurn.restart()
+    }
+    onDetailsChanged: {
+        if (isGame && arcadeBackend)
+            arcadeBackend.wantPictures(currentSet)
+    }
+    Timer {
+        id: pictureTurn
+        interval: 4000
+        repeat: true
+        running: arcadeScreen.pictures.length > 1 && !!arcadeBackend && !arcadeBackend.running
+        onTriggered: arcadeScreen.pictureIndex = (arcadeScreen.pictureIndex + 1) % arcadeScreen.pictures.length
+    }
+    // Its achievements on RetroAchievements, counted, with a Web API key
+    // (the box's first line while it has some): read again once
+    // RetroAchievements has answered, and after the game has been played.
+    property int achievementsRevision: 0
+    readonly property var achievementCount: (revision, achievementsRevision,
+                                             isGame && arcadeBackend ? arcadeBackend.achievementCount(currentSet) : ({}))
     // The game plays in FinalBurn Neo, which takes no credits bought here: as
     // its engine says, and a room of the lobby always.
     readonly property bool fbneo: details.engine === "fbneo" || (!!current && current.room !== undefined)
@@ -382,6 +416,11 @@ FocusScope {
         if (isGame && current.room === undefined)
             options.offer({ name: details.name || current.name, path: "game:" + currentSet, isFolder: false })
     }
+    // Its Game Details; coming back lands on it, as from playing it.
+    function openDetails() {
+        navigateTo("Details.qml", { game: currentSet, title: details.name || current.name },
+                   { filter: filterId, set: currentSet, row: selectedRow })
+    }
 
     // The lobby read again while its rooms are the filter shown.
     Timer {
@@ -469,6 +508,12 @@ FocusScope {
             if (set === arcadeScreen.currentSet)
                 arcadeScreen.scoresRevision++
         }
+        function onGameAchievementsReady(set) {
+            if (set === arcadeScreen.currentSet)
+                arcadeScreen.achievementsRevision++
+        }
+        // Named after the game or its parent: read again either way.
+        function onPicturesChanged() { arcadeScreen.picturesRevision++ }
     }
 
     Keys.onPressed: function(event) {
@@ -549,13 +594,6 @@ FocusScope {
     }
 
     // A play time as the column shows it: 1H 23M, 45M; NEVER.
-    function playTime(seconds) {
-        if (!seconds)
-            return "Never"
-        var minutes = Math.ceil(seconds / 60)
-        return minutes >= 60 ? Math.floor(minutes / 60) + "H " + (minutes % 60) + "M" : minutes + "M"
-    }
-
     // ---
     // The list
     // ---
@@ -711,31 +749,65 @@ FocusScope {
         y: Math.round(arcadeScreen.areaTop * arcadeScreen.v)
         width: Math.round(arcadeScreen.columnWidth * arcadeScreen.u)
         height: Math.round(arcadeScreen.pictureHeight * arcadeScreen.v)
-        color: picture.status === Image.Ready ? "#000000" : arcadeScreen.ground
+        color: shown.status === Image.Ready ? "#000000" : arcadeScreen.ground
         border.width: arcadeScreen.frame
         border.color: root.primaryColor
         antialiasing: false
 
-        // The game's picture, 4:3, inside the frame; a vertical game's
-        // upright in the middle.
-        Image {
-            id: picture
-            readonly property real inner: preview.height - 2 * arcadeScreen.frame
-            visible: status === Image.Ready
-            y: arcadeScreen.frame
-            height: inner
-            width: arcadeScreen.details.vertical ? Math.round(inner * 3 / 4) : preview.width - 2 * arcadeScreen.frame
-            x: Math.round((preview.width - width) / 2)
-            source: arcadeScreen.isGame && arcadeScreen.details.picture ? arcadeScreen.details.picture : ""
-            sourceSize.width: width
-            sourceSize.height: height
-            fillMode: Image.Stretch
-            asynchronous: true
+        // The picture to show, and the two that show it: the one on the
+        // screen, and the next loading behind it, which takes its place once
+        // it is in (or can't be), so the pictures cut from one to the next.
+        readonly property string wanted: arcadeScreen.pictures.length > 0
+                                         ? arcadeScreen.pictures[arcadeScreen.pictureIndex % arcadeScreen.pictures.length]
+                                         : ""
+        property Image shown: pictureA
+        readonly property Image behind: shown === pictureA ? pictureB : pictureA
+        onWantedChanged: showWanted()
+        Component.onCompleted: showWanted()
+        function showWanted() {
+            if (wanted === "") {
+                pictureA.source = ""
+                pictureB.source = ""
+            } else if (shown.source.toString() !== wanted) {
+                behind.source = wanted
+                takeOver(behind)
+            }
+        }
+        function takeOver(picture) {
+            if (picture === behind && picture.source.toString() === wanted
+                && (picture.status === Image.Ready || picture.status === Image.Error))
+                shown = picture
         }
 
-        // Without one: which file it would be.
+        // A picture in the frame. A screenshot (its shape near enough the
+        // game's screen's, whatever its pixels) fills the screen, 4:3 (a
+        // vertical game's 3:4, upright in the middle); one of another shape (a
+        // box, a flyer, a marquee) keeps its own, as big as fits. Each is
+        // decoded no bigger than the screen, in its own shape (sourceSize).
+        readonly property real screenHeight: height - 2 * arcadeScreen.frame
+        readonly property real screenWidth: arcadeScreen.details.vertical ? Math.round(screenHeight * 3 / 4)
+                                                                          : width - 2 * arcadeScreen.frame
+        component Picture: Image {
+            id: picture
+            readonly property real shape: implicitHeight > 0 ? implicitWidth / implicitHeight : 0
+            readonly property bool screenLike: shape === 0 || (arcadeScreen.details.vertical ? shape >= 0.55 && shape <= 1
+                                                                                             : shape >= 1 && shape <= 2)
+            visible: preview.shown === picture && status === Image.Ready
+            width: screenLike ? preview.screenWidth : Math.min(preview.screenWidth, Math.round(preview.screenHeight * shape))
+            height: screenLike ? preview.screenHeight : Math.min(preview.screenHeight, Math.round(preview.screenWidth / shape))
+            x: Math.round((preview.width - width) / 2)
+            y: Math.round((preview.height - height) / 2)
+            sourceSize.width: preview.screenWidth
+            sourceSize.height: preview.screenHeight
+            asynchronous: true
+            onStatusChanged: preview.takeOver(picture)
+        }
+        Picture { id: pictureA }
+        Picture { id: pictureB }
+
+        // Without one, or with one that can't be shown: which file it would be.
         Column {
-            visible: picture.status !== Image.Ready && picture.status !== Image.Loading && arcadeScreen.current !== null
+            visible: (preview.wanted === "" || preview.shown.status === Image.Error) && arcadeScreen.current !== null
             anchors.centerIn: parent
             width: parent.width - 4 * root.px
             spacing: Math.round(12 * arcadeScreen.v)
@@ -871,15 +943,26 @@ FocusScope {
     // What the game is, a line each in the box as it has room, over the play
     // time; the rest for the help line. In the order the box takes them:
     // value is the box's ("?" for what MAME doesn't say), told the help
-    // line's.
+    // line's. First, while RetroAchievements has some of the game (or is
+    // being asked), its achievements: those earned of all (7/100), or all
+    // with no account to say.
     readonly property var detailList: {
         var d = details
         var players = d.players > 0 ? d.players : 0
-        return [{ label: "Maker", value: d.maker || "?", told: d.maker || "" },
-                { label: "Year", value: d.year || "?", told: d.year || "" },
-                { label: "Players", value: players > 0 ? String(players) : "?",
-                  told: players > 0 ? players + (players === 1 ? " Player" : " Players") : "" },
-                { label: "System", value: d.system || "?", told: d.system || "" }]
+        var list = []
+        var a = achievementCount
+        if (a.state === "loading")
+            list.push({ label: "Achievements", value: "…", told: "" })
+        else if (a.state === "ready") {
+            var count = a.progress ? a.earned + "/" + a.total : String(a.total)
+            list.push({ label: "Achievements", value: count,
+                        told: count + (a.total === 1 ? " Achievement" : " Achievements") })
+        }
+        return list.concat([{ label: "Maker", value: d.maker || "?", told: d.maker || "" },
+                            { label: "Year", value: d.year || "?", told: d.year || "" },
+                            { label: "Players", value: players > 0 ? String(players) : "?",
+                              told: moduleRoot.players(players) },
+                            { label: "System", value: d.system || "?", told: d.system || "" }])
     }
 
     // The game's details, and how long it has been played, against the box's
@@ -891,7 +974,7 @@ FocusScope {
         MenuRow {
             required property int index
             readonly property var detail: index < arcadeScreen.detailRows ? arcadeScreen.detailList[index]
-                                          : { label: "Play Time", value: arcadeScreen.playTime(arcadeScreen.details.playTime) }
+                                          : { label: "Play Time", value: moduleRoot.playTime(arcadeScreen.details.playTime) }
             alwaysScroll: true
             visible: arcadeScreen.isGame
             x: Math.round(arcadeScreen.infoX * arcadeScreen.u) - pad
@@ -930,10 +1013,11 @@ FocusScope {
     // ---
 
     // What the game is; why a set isn't a game. What stands in the way of
-    // the list comes first.
+    // the list comes first. It makes room at its right for the status icons.
     HelpLine {
+        id: helpBox
         visible: (arcadeScreen.adjusting || arcadeScreen.filters.length > 0) && !options.visible
-        width: Math.round(arcadeScreen.areaWidth * arcadeScreen.u)
+        width: Math.round(arcadeScreen.areaWidth * arcadeScreen.u) - (root.helpLine ? arcadeScreen.statusRoom : 0)
         text: arcadeScreen.adjusting ? "The frame's sides go to the screen's edges: ▲ ▼ ◄ ► move each, and the list holds as many games as fit"
               : arcadeScreen.problem !== "" ? arcadeScreen.problem
               : arcadeScreen.scanning ? "Reading the games…"
@@ -946,10 +1030,13 @@ FocusScope {
     }
 
     // ▲ ▼ and ◄ ► go without saying, the filter's bar showing ◄ ►, and
-    // START with select: the bar has room for four.
+    // START with select: the bar has room for four, and with no help line,
+    // for the status icons at its right end.
     HintBar {
+        id: hintLine
         visible: !options.visible
         width: Math.round(arcadeScreen.areaWidth * arcadeScreen.u)
+        rightPadding: root.sw * 0.0125 + (root.helpLine ? 0 : arcadeScreen.statusRoom) //8
         text: arcadeScreen.adjusting
               ? root.hints.back + ":DONE " + root.hints.arrows + (arcadeScreen.shrinking ? ":SHRINK " : ":EXPAND ")
                 + root.hints.select + (arcadeScreen.shrinking ? ":EXPAND" : ":SHRINK") + " HOLD:RESET"
@@ -961,6 +1048,30 @@ FocusScope {
         anchors.left: parent.left
         anchors.bottomMargin: root.sh * 0.1041667 + Math.round((645 - arcadeScreen.areaBottom) * arcadeScreen.v) //50
         anchors.leftMargin: Math.round(arcadeScreen.areaLeft * arcadeScreen.u)
+    }
+
+    // What is on (Settings → Status Icons), at the screen's bottom right: at
+    // the right of the help line, which makes room for them; with no help
+    // line, at the hint bar's right end, in its letters' colour, while the
+    // hint line still fits beside them; with neither, none.
+    readonly property int statusRoom: statusRow.shown ? statusRow.width + Math.round(12 * u) : 0
+    // The hint line at its smallest, which beside the icons must still fit.
+    TextMetrics {
+        id: hintProbe
+        font.family: root.globalFont
+        font.pixelSize: hintLine.smallest
+        text: hintLine.text
+    }
+    StatusIcons {
+        id: statusRow
+        readonly property Item beside: root.helpLine ? helpBox : hintLine
+        readonly property bool shown: root.statusIcons.length > 0
+                                      && (root.helpLine || (root.hintBar && hintProbe.advanceWidth <= hintLine.width
+                                          - hintLine.leftPadding - root.sw * 0.0125 - width - Math.round(12 * arcadeScreen.u)))
+        visible: shown && beside.visible
+        color: root.helpLine ? root.primaryColor : root.surfaceColor
+        x: Math.round(arcadeScreen.areaRight * arcadeScreen.u) - width - (root.helpLine ? 0 : Math.round(root.sw * 0.0125))
+        y: Math.round(beside.y + (beside.height - height) / 2)
     }
 
     // Screen Adjustment's frame, a little outside the area and inside the
@@ -1011,13 +1122,14 @@ FocusScope {
         }
     }
 
-    // A game's options: Play, its favourite, Play at Startup, its engine
-    // where FinalBurn Neo has it, and with Online Play on, hosting it.
+    // A game's options: Play, Game Details, its favourite, Play at Startup,
+    // its engine where FinalBurn Neo has it, and with Online Play on,
+    // hosting it.
     EntryOptions {
         id: options
         anchors.fill: parent
         moduleId: moduleRoot.moduleId
-        firstChoices: [{ label: "Play", action: "play" }]
+        firstChoices: [{ label: "Play", action: "play" }, { label: "Game Details", action: "details" }]
         moreChoices: (arcadeScreen.revision,
                       (engines.offered(arcadeScreen.currentSet)
                        ? [{ label: engines.lineFor(arcadeScreen.currentSet), action: "engine" }] : [])
@@ -1026,6 +1138,8 @@ FocusScope {
         onActivated: function(action) {
             if (action === "play")
                 arcadeScreen.playCurrent()
+            else if (action === "details")
+                arcadeScreen.openDetails()
             else if (action === "engine")
                 engines.offer(arcadeScreen.currentSet, arcadeScreen.details.name)
             else if (action === "host")

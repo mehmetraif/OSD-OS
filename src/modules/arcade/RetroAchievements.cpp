@@ -14,16 +14,19 @@
 #include <QRegularExpression>
 #include <QTimer>
 #include <QUrlQuery>
+#include <algorithm>
+#include <utility>
 
 namespace {
 
 // RetroAchievements' arcade games (its console 27), whose hash is their
 // file's name.
 constexpr int kArcade = 27;
-// How long the list of games is kept, how long a board read is, and one
-// that couldn't be read.
+// How long the list of games is kept, how long a board and a game's
+// achievements read are, and one that couldn't be read.
 constexpr qint64 kListSeconds = 7 * 24 * 3600;
 constexpr qint64 kBoardSeconds = 10 * 60;
+constexpr qint64 kAchievementsSeconds = 5 * 60;
 constexpr qint64 kFailedSeconds = 60;
 // After a list that couldn't be read: a minute, or with an older one to go
 // on with, an hour.
@@ -33,6 +36,12 @@ constexpr qint64 kOldListSeconds = 3600;
 constexpr int kWaitMs = 400;
 constexpr int kEntries = 3;
 constexpr int kTimeoutMs = 20000;
+// The most an answer of the Web API may be (the list of games, the biggest,
+// is some hundreds of kilobytes), and a file of the media server's: a badge,
+// 64 pixels square, or a picture.
+constexpr qint64 kMaxAnswer = 16 * 1024 * 1024;
+constexpr qint64 kMaxBadge = 512 * 1024;
+constexpr qint64 kMaxPicture = 4 * 1024 * 1024;
 // On a reply stopped to be asked again (another key).
 constexpr const char *kAgain = "osdosAskAgain";
 
@@ -40,12 +49,47 @@ QString listFile(const QString &home) {
     return home + QStringLiteral("/retroachievements-games.json");
 }
 
+// A request of the Web API's or the media server's.
+QNetworkRequest requestFor(const QUrl &url) {
+    QNetworkRequest request(url);
+    request.setAttribute(QNetworkRequest::RedirectPolicyAttribute, QNetworkRequest::NoLessSafeRedirectPolicy);
+    request.setHeader(QNetworkRequest::UserAgentHeader,
+                      QStringLiteral("OSD-OS/%1").arg(QCoreApplication::applicationVersion()));
+    request.setTransferTimeout(kTimeoutMs);
+    return request;
+}
+
+// A reply given up on once it is bigger than limit: as its header says so,
+// or as more than that comes.
+void limitReply(QNetworkReply *reply, qint64 limit) {
+    QObject::connect(reply, &QNetworkReply::metaDataChanged, reply, [reply, limit] {
+        if (reply->header(QNetworkRequest::ContentLengthHeader).toLongLong() > limit)
+            reply->abort();
+    });
+    QObject::connect(reply, &QNetworkReply::downloadProgress, reply, [reply, limit](qint64 received, qint64) {
+        if (received > limit)
+            reply->abort();
+    });
+}
+
+// A picture: a PNG or a JPEG, as its first bytes say.
+bool isPicture(const QByteArray &data) {
+    return data.startsWith("\x89PNG\r\n\x1a\n") || data.startsWith("\xff\xd8\xff");
+}
+
+// A badge's name as RetroAchievements gives it, and as it goes in a path.
+bool isBadgeName(const QString &name) {
+    static const QRegularExpression valid(QRegularExpression::anchoredPattern(QStringLiteral("[0-9A-Za-z]{1,32}")));
+    return valid.match(name).hasMatch();
+}
+
 } // namespace
 
 const QUrl RetroAchievements::kApi(QStringLiteral("https://retroachievements.org/API/"));
+const QUrl RetroAchievements::kMedia(QStringLiteral("https://media.retroachievements.org/"));
 
-RetroAchievements::RetroAchievements(const QString &home, const QUrl &api, QObject *parent)
-    : QObject(parent), m_home(home), m_api(api)
+RetroAchievements::RetroAchievements(const QString &home, const QUrl &api, const QUrl &media, QObject *parent)
+    : QObject(parent), m_home(home), m_api(api), m_media(media)
 {
     m_nam = new QNetworkAccessManager(this);
     m_wait = new QTimer(this);
@@ -59,6 +103,7 @@ void RetroAchievements::setKey(const QString &key) {
         return;
     m_key = key;
     m_boards.clear();
+    m_progress.clear();
     // The list the other key couldn't read, this one may.
     m_listRetry = QDateTime();
     // What is being read was asked with the other key: stopped, and read
@@ -67,6 +112,13 @@ void RetroAchievements::setKey(const QString &key) {
         m_reply->setProperty(kAgain, true);
         m_reply->abort();
     }
+}
+
+void RetroAchievements::setUser(const QString &user) {
+    if (user == m_user)
+        return;
+    m_user = user;
+    m_progress.clear();
 }
 
 QVariantMap RetroAchievements::board(const QString &fileName) {
@@ -85,9 +137,49 @@ QVariantMap RetroAchievements::board(const QString &fileName) {
     return { { QStringLiteral("state"), QStringLiteral("loading") } };
 }
 
+QVariantMap RetroAchievements::achievements(const QString &fileName) {
+    if (m_key.isEmpty())
+        return { { QStringLiteral("state"), QStringLiteral("failed") } };
+    // A game the list of games hasn't has none, without asking: the Arcade
+    // screen asks of every game it shows.
+    if (!m_listLoaded)
+        loadList();
+    if (listFresh() && gameOf(fileName) <= 0)
+        return { { QStringLiteral("state"), QStringLiteral("none") } };
+    const auto found = m_progress.constFind(fileName);
+    const bool known = found != m_progress.constEnd();
+    if (!known || !fresh(*found)) {
+        m_wantedAchievements = fileName;
+        m_wait->start();
+    }
+    // Those read before shown while they are read again: read for this
+    // user, as another has them read again (setUser()).
+    if (known && (fresh(*found) || found->state == QLatin1String("ready")))
+        return { { QStringLiteral("state"), found->state }, { QStringLiteral("achievements"), found->achievements },
+                 { QStringLiteral("progress"), !m_user.isEmpty() } };
+    return { { QStringLiteral("state"), QStringLiteral("loading") } };
+}
+
+void RetroAchievements::forgetAchievements(const QString &fileName) {
+    m_progress.remove(fileName);
+}
+
+void RetroAchievements::findPictures(const QStringList &games, const QStringList &looked) {
+    if (m_key.isEmpty() || games.isEmpty())
+        return;
+    m_wantedPictures = games;
+    m_lookedPictures = looked;
+    m_wait->start();
+}
+
 bool RetroAchievements::fresh(const Board &board) const {
     const qint64 age = board.read.secsTo(QDateTime::currentDateTimeUtc());
     return age >= 0 && age < (board.state == QLatin1String("failed") ? kFailedSeconds : kBoardSeconds);
+}
+
+bool RetroAchievements::fresh(const Progress &progress) const {
+    const qint64 age = progress.read.secsTo(QDateTime::currentDateTimeUtc());
+    return age >= 0 && age < (progress.state == QLatin1String("failed") ? kFailedSeconds : kAchievementsSeconds);
 }
 
 bool RetroAchievements::listFresh() const {
@@ -104,19 +196,52 @@ void RetroAchievements::loadList() {
     const QJsonObject games = kept.value(QStringLiteral("games")).toObject();
     for (auto it = games.constBegin(); it != games.constEnd(); ++it)
         m_games.insert(it.key(), it.value().toInt());
+    // A list kept before the games without leaderboards were: its games all
+    // have one, and it is read again as soon as it can be.
+    const QJsonValue boards = kept.value(QStringLiteral("boards"));
+    if (!boards.isArray()) {
+        for (const int game : std::as_const(m_games))
+            m_boardGames.insert(game);
+        return;
+    }
+    for (const QJsonValue &game : boards.toArray())
+        m_boardGames.insert(game.toInt());
     m_listRead = QDateTime::fromString(kept.value(QStringLiteral("read")).toString(), Qt::ISODate);
 }
 
+int RetroAchievements::gameOf(const QString &fileName) const {
+    return m_games.value(libretro::achievementsHash(fileName));
+}
+
+bool RetroAchievements::wanting() const {
+    return !m_wanted.isEmpty() || !m_wantedAchievements.isEmpty() || !m_wantedPictures.isEmpty();
+}
+
+void RetroAchievements::failWanted() {
+    // All taken first: what each signal leads to finds nothing wanted.
+    const QString board = std::exchange(m_wanted, QString());
+    const QString achievements = std::exchange(m_wantedAchievements, QString());
+    const QStringList pictures = std::exchange(m_wantedPictures, QStringList());
+    if (!achievements.isEmpty())
+        doneAchievements(achievements, { QStringLiteral("failed"), {}, {} });
+    if (!board.isEmpty())
+        done(board, { QStringLiteral("failed"), QString(), {}, {} });
+    if (!pictures.isEmpty())
+        emit picturesFound(pictures.first(), QStringLiteral("failed"), {});
+}
+
 void RetroAchievements::readWanted() {
-    if (m_reply || m_wanted.isEmpty() || m_key.isEmpty())
+    if (m_reply || m_key.isEmpty())
         return;
-    const QString fileName = m_wanted;
     // Read meanwhile, as it was asked for again.
-    const auto found = m_boards.constFind(fileName);
-    if (found != m_boards.constEnd() && fresh(*found)) {
+    const auto board = m_boards.constFind(m_wanted);
+    if (board != m_boards.constEnd() && fresh(*board))
         m_wanted.clear();
+    const auto progress = m_progress.constFind(m_wantedAchievements);
+    if (progress != m_progress.constEnd() && fresh(*progress))
+        m_wantedAchievements.clear();
+    if (!wanting())
         return;
-    }
     if (!m_listLoaded)
         loadList();
     if (!listFresh()) {
@@ -125,19 +250,47 @@ void RetroAchievements::readWanted() {
             return;
         }
         if (m_games.isEmpty()) {
-            m_wanted.clear();
-            done(fileName, { QStringLiteral("failed"), QString(), {}, {} });
+            failWanted();
             return;
         }
         // The older list meanwhile.
     }
-    m_wanted.clear();
-    const int game = m_games.value(libretro::achievementsHash(fileName));
-    if (game <= 0) {
-        done(fileName, { QStringLiteral("none"), QString(), {}, {} });
+    if (!m_wantedAchievements.isEmpty()) {
+        const QString fileName = std::exchange(m_wantedAchievements, QString());
+        const int game = gameOf(fileName);
+        if (game <= 0)
+            doneAchievements(fileName, { QStringLiteral("none"), {}, {} });
+        else
+            readAchievements(fileName, game);
         return;
     }
-    readBoards(fileName, game);
+    if (!m_wanted.isEmpty()) {
+        const QString fileName = std::exchange(m_wanted, QString());
+        const int game = gameOf(fileName);
+        if (game <= 0 || !m_boardGames.contains(game))
+            done(fileName, { QStringLiteral("none"), QString(), {}, {} });
+        else
+            readBoards(fileName, game);
+        return;
+    }
+    const QStringList games = std::exchange(m_wantedPictures, QStringList());
+    const QStringList looked = std::exchange(m_lookedPictures, QStringList());
+    int game = 0;
+    QString chosen;
+    for (const QString &fileName : games) {
+        const int id = gameOf(fileName);
+        if (id > 0 && (game == 0 || id == game)) {
+            game = id;
+            chosen = fileName;
+        }
+    }
+    if (game <= 0)
+        emit picturesFound(games.first(), QStringLiteral("unknown"), {});
+    else if (!looked.contains(chosen))
+        readPictures(chosen, game);
+    // Nothing read: the next wanted.
+    if (!m_reply)
+        readWanted();
 }
 
 void RetroAchievements::readList() {
@@ -149,24 +302,32 @@ void RetroAchievements::readList() {
             const QJsonArray games = ok ? QJsonDocument::fromJson(json).array() : QJsonArray();
             if (!games.isEmpty()) {
                 QHash<QString, int> found;
+                QSet<int> boards;
                 QJsonObject kept;
+                QJsonArray keptBoards;
                 for (const QJsonValue &value : games) {
                     const QJsonObject game = value.toObject();
-                    if (game.value(QStringLiteral("NumLeaderboards")).toInt() <= 0)
-                        continue;
                     const int id = game.value(QStringLiteral("ID")).toInt();
+                    if (id <= 0)
+                        continue;
+                    if (game.value(QStringLiteral("NumLeaderboards")).toInt() > 0) {
+                        boards.insert(id);
+                        keptBoards.append(id);
+                    }
                     for (const QJsonValue &hash : game.value(QStringLiteral("Hashes")).toArray()) {
                         found.insert(hash.toString().toLower(), id);
                         kept.insert(hash.toString().toLower(), id);
                     }
                 }
                 m_games = found;
+                m_boardGames = boards;
                 m_listRead = now;
                 m_listRetry = QDateTime();
                 QDir().mkpath(m_home);
                 writeFileAtomically(listFile(m_home),
                                     QJsonDocument(QJsonObject{ { QStringLiteral("read"), now.toString(Qt::ISODate) },
-                                                               { QStringLiteral("games"), kept } })
+                                                               { QStringLiteral("games"), kept },
+                                                               { QStringLiteral("boards"), keptBoards } })
                                         .toJson(QJsonDocument::Compact));
             } else {
                 // An answer that isn't the list keeps the one there was.
@@ -243,6 +404,131 @@ void RetroAchievements::readEntries(const QString &fileName, int leaderboard, co
         });
 }
 
+void RetroAchievements::readAchievements(const QString &fileName, int game) {
+    // As the user has them, or with no user, as they are.
+    const QString user = m_user;
+    const bool progress = !user.isEmpty();
+    const QString endpoint = progress ? QStringLiteral("API_GetGameInfoAndUserProgress.php")
+                                      : QStringLiteral("API_GetGameExtended.php");
+    const QList<std::pair<QString, QString>> query
+        = progress ? QList<std::pair<QString, QString>>{ { QStringLiteral("g"), QString::number(game) },
+                                                         { QStringLiteral("u"), user } }
+                   : QList<std::pair<QString, QString>>{ { QStringLiteral("i"), QString::number(game) } };
+    get(endpoint, query, [this, fileName, user](const QByteArray &json, bool ok) {
+        // Read for the user there was: read again for this one.
+        if (user != m_user) {
+            if (m_wantedAchievements.isEmpty())
+                m_wantedAchievements = fileName;
+            readWanted();
+            return;
+        }
+        const QJsonDocument document = QJsonDocument::fromJson(json);
+        if (!ok || !document.isObject()) {
+            doneAchievements(fileName, { QStringLiteral("failed"), {}, {} });
+            return;
+        }
+        // An object of them by their ids, or an empty array for none.
+        const QJsonValue listed = document.object().value(QStringLiteral("Achievements"));
+        QList<QJsonObject> found;
+        if (listed.isObject()) {
+            const QJsonObject byId = listed.toObject();
+            for (auto it = byId.constBegin(); it != byId.constEnd(); ++it)
+                found << it.value().toObject();
+        } else {
+            for (const QJsonValue &value : listed.toArray())
+                found << value.toObject();
+        }
+        std::sort(found.begin(), found.end(), [](const QJsonObject &a, const QJsonObject &b) {
+            const auto order = [](const QJsonObject &o) {
+                return std::pair(o.value(QStringLiteral("DisplayOrder")).toInt(), o.value(QStringLiteral("ID")).toInt());
+            };
+            return order(a) < order(b);
+        });
+        QVariantList achievements;
+        for (const QJsonObject &achievement : std::as_const(found)) {
+            const QString hardcore = achievement.value(QStringLiteral("DateEarnedHardcore")).toString();
+            const QString earned = !hardcore.isEmpty() ? hardcore : achievement.value(QStringLiteral("DateEarned")).toString();
+            const QString badge = achievement.value(QStringLiteral("BadgeName")).toString();
+            achievements << QVariantMap{
+                { QStringLiteral("id"), achievement.value(QStringLiteral("ID")).toInt() },
+                { QStringLiteral("title"), achievement.value(QStringLiteral("Title")).toString().trimmed() },
+                { QStringLiteral("description"), achievement.value(QStringLiteral("Description")).toString().trimmed() },
+                { QStringLiteral("points"), achievement.value(QStringLiteral("Points")).toInt() },
+                { QStringLiteral("badge"), isBadgeName(badge) ? badge : QString() },
+                { QStringLiteral("earned"), earned.left(10) },
+                { QStringLiteral("hardcore"), !hardcore.isEmpty() } };
+        }
+        doneAchievements(fileName, { achievements.isEmpty() ? QStringLiteral("none") : QStringLiteral("ready"),
+                                     achievements, {} });
+    });
+}
+
+void RetroAchievements::readPictures(const QString &fileName, int game) {
+    get(QStringLiteral("API_GetGame.php"), { { QStringLiteral("i"), QString::number(game) } },
+        [this, fileName](const QByteArray &json, bool ok) {
+            const QJsonObject found = QJsonDocument::fromJson(json).object();
+            if (!ok || found.isEmpty()) {
+                emit picturesFound(fileName, QStringLiteral("failed"), {});
+                readWanted();
+                return;
+            }
+            // Its title screen, a screenshot in play and its box art, each
+            // once; not RetroAchievements' pictures of none yet (000001 the
+            // icon's, 000002 the others').
+            static const QRegularExpression picture(
+                QRegularExpression::anchoredPattern(QStringLiteral("/Images/[0-9A-Za-z_]{1,32}\\.(png|jpg)")),
+                QRegularExpression::CaseInsensitiveOption);
+            static const QStringList placeholders{ QStringLiteral("/Images/000001.png"),
+                                                   QStringLiteral("/Images/000002.png") };
+            QStringList paths;
+            for (const char *key : { "ImageTitle", "ImageIngame", "ImageBoxArt" }) {
+                const QString path = found.value(QLatin1String(key)).toString();
+                if (picture.match(path).hasMatch() && !placeholders.contains(path) && !paths.contains(path))
+                    paths << path;
+            }
+            emit picturesFound(fileName, QStringLiteral("found"), paths);
+            readWanted();
+        });
+}
+
+void RetroAchievements::media(const QString &path, const std::function<void(const QByteArray &data)> &done) {
+    static const QRegularExpression valid(
+        QRegularExpression::anchoredPattern(QStringLiteral("/(Images|Badge)/[0-9A-Za-z_]{1,40}\\.(png|jpg)")),
+        QRegularExpression::CaseInsensitiveOption);
+    if (!valid.match(path).hasMatch()) {
+        QTimer::singleShot(0, this, [done] { done(QByteArray()); });
+        return;
+    }
+    m_mediaQueue.append({ path, done });
+    nextMedia();
+}
+
+void RetroAchievements::nextMedia() {
+    if (m_mediaReply || m_mediaQueue.isEmpty())
+        return;
+    const Media next = m_mediaQueue.takeFirst();
+    const qint64 limit = next.path.startsWith(QLatin1String("/Badge/")) ? kMaxBadge : kMaxPicture;
+    // Relative to the server's address, its path without the first /.
+    m_mediaReply = m_nam->get(requestFor(m_media.resolved(QUrl(next.path.mid(1)))));
+    QNetworkReply *reply = m_mediaReply;
+    limitReply(reply, limit);
+    connect(reply, &QNetworkReply::finished, this, [this, reply, next, limit] {
+        reply->deleteLater();
+        m_mediaReply = nullptr;
+        const int status = reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
+        QByteArray data;
+        if (reply->error() == QNetworkReply::NoError)
+            data = reply->readAll();
+        if (data.size() > limit || !isPicture(data)) {
+            qWarning("[Arcade] RetroAchievements' %s could not be downloaded (HTTP %d, error %d)",
+                     qPrintable(next.path), status, int(reply->error()));
+            data.clear();
+        }
+        next.done(data);
+        nextMedia();
+    });
+}
+
 void RetroAchievements::get(const QString &endpoint, const QList<std::pair<QString, QString>> &query,
                             const Answer &answer) {
     QUrl url = m_api.resolved(QUrl(endpoint));
@@ -251,13 +537,9 @@ void RetroAchievements::get(const QString &endpoint, const QList<std::pair<QStri
     for (const auto &[name, value] : query)
         items.addQueryItem(name, value);
     url.setQuery(items);
-    QNetworkRequest request(url);
-    request.setAttribute(QNetworkRequest::RedirectPolicyAttribute, QNetworkRequest::NoLessSafeRedirectPolicy);
-    request.setHeader(QNetworkRequest::UserAgentHeader,
-                      QStringLiteral("OSD-OS/%1").arg(QCoreApplication::applicationVersion()));
-    request.setTransferTimeout(kTimeoutMs);
-    m_reply = m_nam->get(request);
+    m_reply = m_nam->get(requestFor(url));
     QNetworkReply *reply = m_reply;
+    limitReply(reply, kMaxAnswer);
     connect(reply, &QNetworkReply::finished, this, [this, reply, endpoint, answer] {
         reply->deleteLater();
         m_reply = nullptr;
@@ -274,14 +556,15 @@ void RetroAchievements::get(const QString &endpoint, const QList<std::pair<QStri
             answer(QByteArray(), false);
             return;
         }
-        if (reply->error() != QNetworkReply::NoError) {
+        const QByteArray json = reply->error() == QNetworkReply::NoError ? reply->readAll() : QByteArray();
+        if (reply->error() != QNetworkReply::NoError || json.size() > kMaxAnswer) {
             // Not errorString(): it names the URL, the key in it.
             qWarning("[Arcade] RetroAchievements' %s could not be read (HTTP %d, error %d)",
                      qPrintable(endpoint), status, int(reply->error()));
             answer(QByteArray(), false);
             return;
         }
-        answer(reply->readAll(), true);
+        answer(json, true);
     });
 }
 
@@ -290,5 +573,13 @@ void RetroAchievements::done(const QString &fileName, const Board &board) {
     kept.read = QDateTime::currentDateTimeUtc();
     m_boards.insert(fileName, kept);
     emit boardReady(fileName);
+    readWanted();
+}
+
+void RetroAchievements::doneAchievements(const QString &fileName, const Progress &progress) {
+    Progress kept = progress;
+    kept.read = QDateTime::currentDateTimeUtc();
+    m_progress.insert(fileName, kept);
+    emit achievementsReady(fileName);
     readWanted();
 }

@@ -2,9 +2,10 @@ import QtQuick
 
 // The title bar every view starts with, the way a deck's on-screen menu does:
 // the module's logo, then a solid bar with its name and where you are in it in
-// the background colour. The logo is in the bar's colour, a fifth taller than
-// the bar so it stands out of it above and below, with an art pixel of space
-// either side of it.
+// the background colour, and at its right end the status icons (Settings →
+// Status Icons). The logo is in the bar's colour, a fifth taller than the bar
+// so it stands out of it above and below, with an art pixel of space either
+// side of it.
 Item {
     id: appBar
 
@@ -12,6 +13,9 @@ Item {
     property url iconSource: "../../assets/images/logo.svg"
     property string title: "OSD/OS"
     property string subtitle: ""
+    // A note at the bar's right end, before the status icons: Settings'
+    // address on the network.
+    property string note: ""
 
     readonly property bool hasLogo: iconSource.toString() !== "" && logo.status === Image.Ready
     // No room for the subtitle beside a title that fills the bar.
@@ -71,10 +75,36 @@ Item {
             part: root.skin.titleBar
         }
 
+        // What is on, at the bar's right end, in the title's colour, and the
+        // note before it.
+        StatusIcons {
+            id: statusRow
+            anchors.right: parent.right
+            anchors.rightMargin: content.x
+            anchors.verticalCenter: parent.verticalCenter
+            color: root.surfaceColor
+        }
+        Text {
+            id: noteText
+            visible: appBar.note !== ""
+            anchors.right: statusRow.visible ? statusRow.left : parent.right
+            anchors.rightMargin: statusRow.visible ? content.spacing : content.x
+            anchors.verticalCenter: parent.verticalCenter
+            text: appBar.note
+            textFormat: Text.PlainText
+            color: root.surfaceColor
+            font.family: root.globalFont
+            font.capitalization: Font.AllUppercase
+            font.pixelSize: root.sh * 0.0291667 //14
+        }
+
         Row {
             id: content
             x: root.sw * 0.0125 //8
-            width: bar.width - 2 * x
+            // The bar but for the note and the status icons, a spacing short
+            // of them.
+            width: bar.width - 2 * x - (statusRow.visible ? statusRow.width + spacing : 0)
+                   - (noteText.visible ? noteText.width + spacing : 0)
             // A line of title text, subtitle or not.
             height: Math.max(implicitHeight, root.sh * 0.05) //24
             anchors.verticalCenter: parent.verticalCenter

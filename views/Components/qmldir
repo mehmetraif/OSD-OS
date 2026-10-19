@@ -26,3 +26,4 @@ PlaylistAdder PlaylistAdder.qml
 OsdGround OsdGround.qml
 SkinImage SkinImage.qml
 SelectionBox SelectionBox.qml
+StatusIcons StatusIcons.qml

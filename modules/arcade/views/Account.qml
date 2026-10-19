@@ -3,7 +3,10 @@ import Components
 
 // Settings → Arcade → RetroAchievements Account: the account RetroArch plays
 // FinalBurn Neo's games under for Online High Scores, and the Web API key the
-// Arcade screen reads their leaderboards with (ArcadeBackend::leaderboard()).
+// Arcade screen reads their leaderboards and pictures with
+// (ArcadeBackend::leaderboard(), gameDetails()), and Game Details their
+// achievements (gameAchievements(), which of them the account's user has
+// earned).
 // Signing in hands the password to ArcadeBackend for RetroArch to sign in
 // with at the next game, which swaps it for a token (RetroAchievements lets
 // an emulator sign in, not a launcher); the page says how that went
@@ -97,8 +100,8 @@ FocusScope {
                                                             : "Type your user name and password first"
         case "key":
             return keyRefused ? "RetroAchievements refused the key: type it again from retroachievements.org, Settings, Keys"
-                              : "For the leaderboards on the Arcade screen: retroachievements.org, Settings, Keys"
-        case "forgetKey": return "The Arcade screen shows this machine's own high scores again"
+                              : "For the leaderboards and the games' pictures on the Arcade screen, and the achievements in Game Details: retroachievements.org, Settings, Keys"
+        case "forgetKey": return "The Arcade screen shows this machine's own high scores again, and no more pictures are downloaded"
         }
         return ""
     }

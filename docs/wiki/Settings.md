@@ -16,7 +16,7 @@ Back on the main menu opens Settings (the hint bar there says `[ESC]:SETTINGS`).
 | Back | Esc, Backspace | B, or the pad's Back/Select button | Back to the main menu; from a page, back to the row that opened it |
 
 - **A change is saved at once.** Settings calls `appCore.save_setting("", key, value)`, on TV / Movie's page as on the first screen, which writes the value into `config.json` under `app.<key>` ([Configuration files](https://github.com/mehmetraif/OSD-OS/wiki/Configuration-Files#configjson)). Most rows take effect at once. The rows mpv is started with (Scaling, Video Levels, Channel Logo, Logo Image, Screen Saver during a video) apply from the next video. A value that can't be saved (a full or read-only disk) isn't applied, here or on a module's page: the row stays on the value saved, and the log says `[AppCore] Setting not saved: …`.
-- **The title bar** of the first screen shows a release's version; a build made from source shows none there (About names it `DEV`). TV / Movie's page shows its name there instead, `SETTINGS | TV / MOVIE`. The top right corner of the first screen shows the device's IP address on the network, wired before Wi-Fi, read again every five seconds: handy for SSH.
+- **The title bar** of the first screen shows a release's version; a build made from source shows none there (About names it `DEV`). TV / Movie's page shows its name there instead, `SETTINGS | TV / MOVIE`. The first screen's title bar shows the device's IP address on the network at its right end, before the status icons, wired before Wi-Fi, read again every five seconds: handy for SSH.
 - **The help line** under the list explains the selected row, and scrolls when the text is longer than the box. Settings → Help Line turns it off.
 - **Rows that come and go.** Some rows are offered only sometimes. A row that depends on another row (Window Frame on OSD Background, Music File and Music Volume on Menu Music, Logo Image on Channel Logo) stays in the list without a line while it isn't offered: the list doesn't move as it comes and goes, and the cursor skips over it.
 
@@ -153,8 +153,23 @@ The Scripts module's **Auto-Run On Startup** runs a script when OSD/OS starts on
 |---|---|---|---|---|
 | Hint Bar | On, Off | On | The key hints on the bar at the foot of every screen. Off hides every one, and what is above it takes its room: a row more in every menu, more of the file browser, a help line moved down into its place; the keys work as before, and the window stays as it is | `app.hint_bar` |
 | Help Line | On, Off | On | The box under a menu with a line about the selected row. Off hides it everywhere but About, whose lines are the page, and the menu above it gets a row more | `app.help_line` |
+| Status Icons | On, Off | On | What is on, at the right end of every title bar and at the bottom right of the Arcade screen ([below](#status-icons)). Off hides them | `app.status_icons` |
 | Screen Saver | OFF, 30, 60, 120 | OFF | Seconds before a black screen with the OSD/OS logo bouncing across it, against CRT burn-in: in the menus after that long without a key or a mouse move, and over a video paused that long (mpv draws it then). Never over a playing video, a running script or the boot screen. The first key only wakes it | `app.screensaver_timeout`: `"OFF"` or the seconds |
 | Mouse Pointer | Off, 2 sec, 5 sec, 10 sec, 30 sec, Always | 5 sec | A mouse's pointer, or a keyboard touchpad's, drawn in the OSD's pixels: it shows as the mouse moves and goes again after this long without moving. **Off**: never shown. **Always**: stays. Moving the mouse also wakes the screen saver. The menus still go by keys | `app.mouse_pointer`: `off`, `2`, `5`, `10`, `30` or `always` |
+
+### Status Icons
+
+With **Status Icons** on, the right end of every title bar shows what is on, the way a phone's status bar does, in the bar's pixel symbols:
+
+| Icon | Shown while |
+|---|---|
+| **HI** | Arcade's **Save High Scores** is on ([Arcade](https://github.com/mehmetraif/OSD-OS/wiki/Arcade#high-scores)) |
+| A trophy | Arcade's **Online High Scores** is RetroAchievements and its account is signed in, or signs in at the next game |
+| A globe | Arcade's **Online Play** is on |
+| Bluetooth's rune | Bluetooth is on; with a dot either side while a device is connected |
+| Wi-Fi's bars | Wi-Fi is on: the signal of the network it has joined, or the bars' feet alone while it has joined none |
+
+The Arcade screen, whose bar is its own, shows them at its bottom right, beside the help line (with the help line off, at the right end of the hint bar, while the keys still fit beside them). A module turned off takes its icons with it.
 
 ## Modules
 

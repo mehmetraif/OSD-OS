@@ -34,6 +34,7 @@ Rectangle {
     property var skin: ({})
     property bool hintBar: true
     property bool helpLine: true
+    property var statusIcons: []
     readonly property real hintRoom: 0
     readonly property real helpRoom: 0
     readonly property real helpLineMargin: sh * 0.1583333

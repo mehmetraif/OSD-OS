@@ -603,6 +603,8 @@ Window {
                 root.hintBarSetting = value !== "Off"
             } else if (key === "help_line") {
                 root.helpLineSetting = value !== "Off"
+            } else if (key === "status_icons") {
+                root.statusIconsSetting = value !== "Off"
             } else if (key === "osd_background") {
                 root.osdBackground = root.osdBackgroundOf(value)
             } else if (key === "mouse_pointer") {
@@ -667,6 +669,7 @@ Window {
         root.loadingThemed = !(cfg.app && cfg.app.loading_colors === "Default")
         root.hintBarSetting = !(cfg.app && cfg.app.hint_bar === "Off")
         root.helpLineSetting = !(cfg.app && cfg.app.help_line === "Off")
+        root.statusIconsSetting = !(cfg.app && cfg.app.status_icons === "Off")
         root.osdBackground = root.osdBackgroundOf(cfg.app && cfg.app.osd_background)
 
         // Screensaver: the tracker starts disabled; this is the single place the
@@ -874,6 +877,31 @@ Window {
     readonly property bool helpLine: {
         var own = moduleLoader.item ? moduleLoader.item.helpLineShown : undefined
         return typeof own === "boolean" ? own : helpLineSetting
+    }
+    // "status_icons": what is on, at the title bar's top right and the Arcade
+    // screen's bottom right (Components/StatusIcons), "On" (the default,
+    // when unset) or "Off".
+    property bool statusIconsSetting: true
+    // The status icons, PixelIcon's names, left to right, while that is on:
+    // the modules' (AppCore's statusIcons: the Arcade's HI, trophy and
+    // globe), Bluetooth's while it is on (with a dot either side while a
+    // device is connected) and Wi-Fi's bars while it is on, the signal of
+    // the network it has joined, or their feet alone while it has none.
+    readonly property var statusIcons: {
+        if (!statusIconsSetting)
+            return []
+        // Context properties read null as the app quits, hence the guards.
+        var icons = appCore ? appCore.statusIcons.slice() : []
+        if (bluetoothManager && bluetoothManager.supported && bluetoothManager.powered) {
+            var linked = bluetoothManager.devices.some(function(device) { return !!device.connected })
+            icons.push(linked ? "bluetoothLinked" : "bluetooth")
+        }
+        if (wifiManager && wifiManager.supported && wifiManager.enabled
+            && wifiManager.state !== "" && wifiManager.state !== "off" && wifiManager.state !== "blocked") {
+            icons.push(wifiManager.state === "connected"
+                       ? "signal" + Math.max(1, Math.min(4, wifiManager.current.bars || 0)) : "signal0")
+        }
+        return icons
     }
     // "boot_colors", "loading_colors": the boot screen's and the loading
     // screen's colours, the ones in force like every screen's ("Theme", the
