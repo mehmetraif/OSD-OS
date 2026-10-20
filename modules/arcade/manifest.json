@@ -139,7 +139,7 @@
       "type": "list_single",
       "options": ["Off", "On"],
       "default": "Off",
-      "description": "Playing a game with someone over the internet, in FinalBurn Neo\n[ON] Online Games lists the rooms RetroArch's lobby has of your games, and a game's options can host one"
+      "description": "Playing a game with someone over the internet, in FinalBurn Neo\n[ON] Online Games lists the rooms RetroArch's lobby has of your games, Playable Online the games that can be played online, and a game's options can host one"
     },
     {
       "key": "online_name",

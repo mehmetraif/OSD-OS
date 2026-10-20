@@ -109,6 +109,7 @@ const char *const kFolderKinds[] = { "players", "years", "makers" };
 // two), and Not Recognized after, which the tree has too.
 constexpr std::pair<const char *, const char *> kLists[] = {
     { "favorites", "Favorites" }, { "recent", "Recently Played" }, { "achievements", "RetroAchievements" },
+    { "netplay", "Playable Online" },
 };
 constexpr std::pair<const char *, const char *> kUnknown = { "unknown", "Not Recognized" };
 
@@ -295,9 +296,9 @@ ArcadeBackend::ArcadeBackend(const QString &appRoot, const QString &dataRoot, Ap
     : QObject(parent), m_appRoot(appRoot), m_dataRoot(dataRoot),
       m_home(dataRoot + QStringLiteral("/arcade")), m_appCore(appCore)
 {
-    // The filters may hold other games: the RetroAchievements filter's made
-    // again when next asked for, before the screen asks.
-    connect(this, &ArcadeBackend::gamesChanged, this, [this] { m_achievementSetsKnown = false; });
+    // The filters may hold other games: RetroAchievements' and Playable
+    // Online's made again when next asked for, before the screen asks.
+    connect(this, &ArcadeBackend::gamesChanged, this, [this] { m_madeSets.clear(); });
     m_launcher = new ScriptLauncher(m_appRoot, m_dataRoot, handoff, this);
     m_launcher->setHandoffOwner(QStringLiteral("arcade"));
     connect(m_launcher, &ScriptLauncher::runningChanged, this, &ArcadeBackend::runningChanged);
@@ -801,6 +802,8 @@ void ArcadeBackend::onRead() {
         m_fbneoFrom = read.fbneoFrom;
         m_fbneoGames = std::move(read.fbneoGames);
         m_fbneoAspects = std::move(read.fbneoAspects);
+        // The filters made of the games it plays, made again.
+        m_madeSets.clear();
     }
     m_snaps = std::move(read.snaps);
     m_numbered = std::move(read.numbered);
@@ -1193,8 +1196,8 @@ QStringList ArcadeBackend::filterSets(const QString &filter) const {
     // The rest once MAME has said what the sets are.
     if (scanning())
         return QStringList();
-    if (filter == QLatin1String("achievements"))
-        return achievementSets();
+    if (filter == QLatin1String("achievements") || filter == QLatin1String("netplay"))
+        return madeSets(filter);
     const Index &games = index();
     if (filter == QLatin1String("all"))
         return games.games;
@@ -1929,27 +1932,35 @@ QString ArcadeBackend::engineFor(const QString &set, bool fbneoUsable, bool have
     return QStringLiteral("mame");
 }
 
-QStringList ArcadeBackend::achievementSets() const {
-    if (m_achievementSetsKnown)
-        return m_achievementSets;
-    m_achievementSets.clear();
-    // The games where achievements or a leaderboard's scores can be had:
-    // with Online High Scores on RetroAchievements, those that play in
-    // FinalBurn Neo and that RetroAchievements has a set of, by the hash of
-    // their own file (a clone's own, not its parent's), as its list of games
-    // says. The list needs the key.
-    if (m_achievements && !m_raKey.isEmpty()) {
+QStringList ArcadeBackend::madeSets(const QString &filter) const {
+    if (const auto made = m_madeSets.constFind(filter); made != m_madeSets.constEnd())
+        return *made;
+    QStringList sets;
+    if (filter == QLatin1String("achievements") && m_achievements && !m_raKey.isEmpty()) {
+        // The games where achievements or a leaderboard's scores can be had:
+        // with Online High Scores on RetroAchievements, those that play in
+        // FinalBurn Neo and that RetroAchievements has a set of, by the hash
+        // of their own file (a clone's own, not its parent's), as its list of
+        // games says. The list needs the key.
         m_retroAchievements->wantList();
         const bool ready = fbneoReady();
         const bool haveMame = !mamePath().isEmpty();
         for (const QString &set : index().games) {
             if (engineFor(set, ready, haveMame) == QLatin1String("fbneo")
                 && m_retroAchievements->hasGame(QFileInfo(m_sets.value(set)).fileName()))
-                m_achievementSets << set;
+                sets << set;
+        }
+    } else if (filter == QLatin1String("netplay") && m_onlinePlay && fbneoReady()) {
+        // The games that can be hosted, and joined in the lobby, with Online
+        // Play on: FinalBurn Neo's, whichever engine plays them off line, as
+        // a game online plays in it (canHost()).
+        for (const QString &set : index().games) {
+            if (fbneoHas(set))
+                sets << set;
         }
     }
-    m_achievementSetsKnown = true;
-    return m_achievementSets;
+    m_madeSets.insert(filter, sets);
+    return sets;
 }
 
 bool ArcadeBackend::filterPending(const QString &filter) const {

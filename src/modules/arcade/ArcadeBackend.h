@@ -45,7 +45,8 @@ class QTimer;
 //   no game of, or can't open by their names, under Not Recognized. The
 //   Arcade screen lists them a filter at a time (filters(), filterGames()):
 //   All Games, Favorites, Recently Played, RetroAchievements (the games it
-//   has achievements or leaderboards of, achievementSets()), each genre
+//   has achievements or leaderboards of), Playable Online (those that can be
+//   played online, madeSets()), each genre
 //   (made from catver.ini's categories, in the games folder or in
 //   <data>/arcade), each number of players, each decade and each publisher,
 //   and Not Recognized, as
@@ -144,7 +145,7 @@ public:
 
     // The filters with games in them, in the order ◄ ► goes round them:
     // [{ id, name, count }]. id: "all", "online" (Online Games, while
-    // someone hosts one), "favorites", "recent", "achievements",
+    // someone hosts one), "favorites", "recent", "achievements", "netplay",
     // "genres/<genre>", "players/<n>", "years/<decade>" ("years/unknown"),
     // "makers/<publisher>", "unknown" (Not Recognized); all but All Games and
     // Online Games only while Menu Filters shows them, but Not Recognized in
@@ -454,7 +455,7 @@ private:
         QStringList unknown;
     };
     const Index &index() const;
-    void invalidate() { m_indexed = false; m_achievementSetsKnown = false; }
+    void invalidate() { m_indexed = false; m_madeSets.clear(); }
     // A game's place among the genres, players, decades or makers; "" for
     // none.
     QString placeOf(const QString &kind, const QString &set, const mame::Machine *machine) const;
@@ -472,10 +473,11 @@ private:
     bool menuShows(const QString &filter) const;
     // A filter's sets, in the order it lists them.
     QStringList filterSets(const QString &filter) const;
-    // The RetroAchievements filter's: the games, by name, that achievements
-    // or a leaderboard's scores can be had in, kept until the filters may
-    // hold other games.
-    QStringList achievementSets() const;
+    // A filter's made from what each game is now: RetroAchievements', the
+    // games, by name, that achievements or a leaderboard's scores can be had
+    // in, and Playable Online's, those that can be played online; kept until
+    // the filters may hold other games.
+    QStringList madeSets(const QString &filter) const;
     // Why a set is under Not Recognized, and what to do.
     QString unknownDetail(const QString &set) const;
     // A set, and the parent of a clone.
@@ -620,10 +622,9 @@ private:
 
     FbneoInstaller *m_installer = nullptr;
     RetroAchievements *m_retroAchievements = nullptr;
-    // achievementSets(), made again once gamesChanged() or invalidate() says
-    // the filters may hold other games.
-    mutable QStringList m_achievementSets;
-    mutable bool m_achievementSetsKnown = false;
+    // madeSets(), by filter, made again once gamesChanged() or invalidate()
+    // says the filters may hold other games.
+    mutable QHash<QString, QStringList> m_madeSets;
 
     // The netplay lobby: its rooms as last read, why it couldn't be read
     // ("" when it was), whether it has been, and the read under way.

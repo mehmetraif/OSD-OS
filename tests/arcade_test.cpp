@@ -2219,9 +2219,10 @@ private slots:
             arcade.menuFilterOptions();
             QTRY_COMPARE_WITH_TIMEOUT(options.size(), 1, 5000);
             QCOMPARE(options.last().at(0).toString(), QStringLiteral("menu_filters"));
-            QCOMPARE(labels(options.last().at(1)).mid(0, 5),
+            QCOMPARE(labels(options.last().at(1)).mid(0, 6),
                      QStringList({ QStringLiteral("Lists"), QStringLiteral("Favorites"), QStringLiteral("Recently Played"),
-                                   QStringLiteral("RetroAchievements"), QStringLiteral("Not Recognized") }));
+                                   QStringLiteral("RetroAchievements"), QStringLiteral("Playable Online"),
+                                   QStringLiteral("Not Recognized") }));
             arcade.startFilterOptions();
             QTRY_COMPARE_WITH_TIMEOUT(options.size(), 2, 5000);
             QCOMPARE(options.last().at(0).toString(), QStringLiteral("start_filter"));
@@ -2360,17 +2361,56 @@ private slots:
         ArcadeBackend arcade(data.path(), data.path(), nullptr, nullptr);
         arcade.setLobbyUrl(QUrl(QStringLiteral("http://127.0.0.1:%1/list").arg(server.serverPort())));
         refreshed(arcade);
-        // Off: no lobby, no folder, nothing to host.
+        QTRY_VERIFY_WITH_TIMEOUT(!arcade.filters().isEmpty(), 10000);
+        // The Arcade screen's Playable Online: its games, and the count
+        // filters() gives it (0 while it isn't among them).
+        const auto playable = [&arcade] {
+            QStringList sets;
+            const QVariantList games = arcade.filterGames(QStringLiteral("netplay"), 0, 10);
+            for (const QVariant &v : games)
+                sets << v.toMap().value(QStringLiteral("set")).toString();
+            return sets;
+        };
+        const auto listed = [&arcade] {
+            const QVariantList filters = arcade.filters();
+            for (const QVariant &v : filters) {
+                const QVariantMap filter = v.toMap();
+                if (filter.value(QStringLiteral("id")).toString() == QLatin1String("netplay")
+                    && filter.value(QStringLiteral("name")).toString() == QLatin1String("Playable Online"))
+                    return filter.value(QStringLiteral("count")).toInt();
+            }
+            return 0;
+        };
+        // Off: no lobby, no folder, nothing to host, no Playable Online.
         QCOMPARE(asked, 0);
         QVERIFY(arcade.rooms().isEmpty());
         QVERIFY(!names(arcade.requestEntries(QStringLiteral("top"))).contains(QStringLiteral("Online Games")));
         QVERIFY(!arcade.canHost(QStringLiteral("sf2")));
+        QVERIFY(playable().isEmpty());
+        QCOMPARE(listed(), 0);
 
         const QString module = QStringLiteral("com.osdos.arcade");
         arcade.onSettingChanged(module, QStringLiteral("online_play"), QStringLiteral("On"));
         QCOMPARE(arcade.engineOf(QStringLiteral("sf2")), QStringLiteral("fbneo"));
         QVERIFY(arcade.canHost(QStringLiteral("sf2")));
         QVERIFY(!arcade.canHost(QStringLiteral("pacman")));
+        // Playable Online: the games that can be hosted, by name, not one
+        // FinalBurn Neo hasn't; one set to MAME too, as online it plays in
+        // FinalBurn Neo. Menu Filters can hide it.
+        QCOMPARE(listed(), 3);
+        QCOMPARE(playable(), QStringList({ QStringLiteral("galaga"), QStringLiteral("mslug"), QStringLiteral("sf2") }));
+        arcade.onSettingChanged(module, QStringLiteral("menu_filters"),
+                                QVariantMap{ { QStringLiteral("netplay"), false } });
+        QCOMPARE(listed(), 0);
+        arcade.onSettingChanged(module, QStringLiteral("menu_filters"), QVariantMap());
+        QCOMPARE(listed(), 3);
+        QCOMPARE(arcade.filterIndex(QStringLiteral("netplay"), QStringLiteral("pacman")), -1);
+        arcade.onSettingChanged(module, QStringLiteral("engines"),
+                                QVariantMap{ { QStringLiteral("sf2"), QStringLiteral("mame") } });
+        QCOMPARE(arcade.engineOf(QStringLiteral("sf2")), QStringLiteral("mame"));
+        QVERIFY(arcade.canHost(QStringLiteral("sf2")));
+        QCOMPARE(playable().size(), 3);
+        arcade.onSettingChanged(module, QStringLiteral("engines"), QVariantMap());
         QCOMPARE(names(arcade.requestEntries(QStringLiteral("top"))).value(0), QStringLiteral("Online Games"));
         // Asked for before the lobby is read: read then, listed once it is.
         QSignalSpy roomsRead(&arcade, &ArcadeBackend::roomsChanged);
@@ -2485,6 +2525,29 @@ private slots:
         QCOMPARE(gone.value(QStringLiteral("name")).toString(), QStringLiteral("Lobby Not Reachable"));
         QVERIFY(gone.value(QStringLiteral("detail")).toString().startsWith(QStringLiteral("RetroArch's lobby can't be reached")));
         QCOMPARE(arcade.filters().value(1).toMap().value(QStringLiteral("id")).toString() == QLatin1String("online"), false);
+
+        // FinalBurn Neo's core gone, and back: none can be played online
+        // meanwhile. Its list gone: none either, as the folder is read again.
+        const QString core = libretro::downloadedCore(data.path());
+        QVERIFY(QFile::rename(core, core + QStringLiteral(".away")));
+        refreshed(arcade);
+        QVERIFY(playable().isEmpty());
+        QCOMPARE(listed(), 0);
+        QVERIFY(QFile::rename(core + QStringLiteral(".away"), core));
+        refreshed(arcade);
+        QCOMPARE(listed(), 3);
+        QVERIFY(QFile::remove(libretro::downloadedDat(data.path())));
+        refreshed(arcade);
+        QVERIFY(playable().isEmpty());
+        QCOMPARE(listed(), 0);
+        writeFile(libretro::downloadedDat(data.path()), fixture("fbneo-arcade.dat"));
+        refreshed(arcade);
+        QCOMPARE(listed(), 3);
+
+        // Off again: no Playable Online.
+        arcade.onSettingChanged(module, QStringLiteral("online_play"), QStringLiteral("Off"));
+        QVERIFY(playable().isEmpty());
+        QCOMPARE(listed(), 0);
     }
 
     // A game started while MAME is asked about the sets stops that MAME and
@@ -2794,7 +2857,7 @@ private slots:
             ids << v.toMap().value(QStringLiteral("id")).toString();
         QCOMPARE(options.at(0).at(0).toString(), QStringLiteral("start_filter"));
         QCOMPARE(ids, QStringList({ QStringLiteral("all"), QStringLiteral("favorites"), QStringLiteral("recent"),
-                                    QStringLiteral("achievements"),
+                                    QStringLiteral("achievements"), QStringLiteral("netplay"),
                                     QStringLiteral("genres/Beat 'em Up"), QStringLiteral("genres/Fighting"),
                                     QStringLiteral("genres/Maze"), QStringLiteral("genres/Shmup"),
                                     QStringLiteral("players/1"),
@@ -2925,7 +2988,8 @@ private slots:
         }
         QCOMPARE(page, QStringList({
             QStringLiteral("LISTS"), QStringLiteral("favorites=Favorites"), QStringLiteral("recent=Recently Played"),
-            QStringLiteral("achievements=RetroAchievements"), QStringLiteral("unknown=Not Recognized"),
+            QStringLiteral("achievements=RetroAchievements"), QStringLiteral("netplay=Playable Online"),
+            QStringLiteral("unknown=Not Recognized"),
             QStringLiteral("GENRES"), QStringLiteral("genres/Beat 'em Up=Beat 'em Up"),
             QStringLiteral("genres/Fighting=Fighting"), QStringLiteral("genres/Shmup=Shmup"),
             QStringLiteral("PLAYERS"), QStringLiteral("players/1=1 Player"), QStringLiteral("players/2=2 Players"),
@@ -2958,13 +3022,14 @@ private slots:
         arcade.startFilterOptions();
         QCOMPARE(ids(options.at(0).at(1).toList()), QStringList({
             QStringLiteral("all"), QStringLiteral("favorites"), QStringLiteral("recent"), QStringLiteral("achievements"),
+            QStringLiteral("netplay"),
             QStringLiteral("genres/Beat 'em Up"), QStringLiteral("genres/Shmup"), QStringLiteral("players/1"),
             QStringLiteral("players/2"), QStringLiteral("players/6"), QStringLiteral("years/1980s"),
             QStringLiteral("years/1990s"), QStringLiteral("makers/Namco") }));
 
         // A heading's all at once: the players off, Favorites, Recently
-        // Played and RetroAchievements too.
-        for (const char *id : { "players/1", "players/2", "players/6", "favorites", "recent", "achievements" })
+        // Played, RetroAchievements and Playable Online too.
+        for (const char *id : { "players/1", "players/2", "players/6", "favorites", "recent", "achievements", "netplay" })
             shown.insert(QLatin1String(id), false);
         core.save_setting(module, QStringLiteral("menu_filters"), shown);
         QCOMPARE(ids(arcade.filters()), QStringList({

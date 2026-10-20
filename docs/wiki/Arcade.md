@@ -166,6 +166,7 @@ On a CRT, move each side to where the tube's edge cuts the picture off (its over
 | **Favorites** | The games put on Favorites, by name |
 | **Recently Played** | The games played last, latest first (up to 30) |
 | **RetroAchievements** | With **Online High Scores** on RetroAchievements and a Web API key: the games you can earn achievements or a leaderboard's scores in, by name. A game is on it when RetroAchievements has achievements or a leaderboard for its set, as its site lists each set by its MD5 (of the file's name: a clone needs its own), and it plays in FinalBurn Neo, so a game set to MAME in its options leaves it ([FinalBurn Neo](#finalburn-neo)) |
+| **Playable Online** | With **Online Play** on and FinalBurn Neo installed: the games you can play with others through RetroArch, by name: those FinalBurn Neo has, which you can host from a game's options or join when someone hosts them. A game set to MAME in its options is on it too, as a game played online always plays in FinalBurn Neo ([Online play](#online-play)) |
 | A genre (**Beat 'em Up**, **Fighting**, **Shmup**, **Run and Gun**…) | The games of that genre, by catver.ini ([below](#genres)) |
 | **1 Player**, **2 Players**… | The games for that many players at once |
 | **1980s**, **1990s**… | The games of each decade, **Year Unknown** last |
@@ -176,9 +177,9 @@ On a CRT, move each side to where the tube's edge cuts the picture off (its over
 
 ### Menu Filters
 
-<img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/screenshots/arcade-menu-filters.png" width="100%" alt="Settings / Arcade / Menu Filters: the LISTS heading over Favorites, Recently Played, RetroAchievements and Not Recognized, ON; the GENRES heading selected, over Beat 'em Up and Fighting, ON; the help line: Turns all of the choices under it on or off" />
+<img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/screenshots/arcade-menu-filters.png" width="100%" alt="Settings / Arcade / Menu Filters: the LISTS heading over Favorites, Recently Played, RetroAchievements, Playable Online and Not Recognized, ON; the GENRES heading selected, over Beat 'em Up, ON; the help line: Turns all of the choices under it on or off" />
 
-**Settings → Arcade → Menu Filters** chooses the filters ◄ ► goes round. Its page lists them under five headings, each with the ones the games in the folder have: **Lists** (Favorites, Recently Played, RetroAchievements, Not Recognized), **Genres**, **Players**, **Years** and **Publishers**.
+**Settings → Arcade → Menu Filters** chooses the filters ◄ ► goes round. Its page lists them under five headings, each with the ones the games in the folder have: **Lists** (Favorites, Recently Played, RetroAchievements, Playable Online, Not Recognized), **Genres**, **Players**, **Years** and **Publishers**.
 
 - ◄, ► or select on a filter turns it **ON** or **OFF**.
 - On a heading, they turn every filter under it on at once, or off once they all are on.
@@ -326,7 +327,7 @@ The High Scores module shows MAME's tables only: a game played in FinalBurn Neo 
 
 ## Online play
 
-**Settings → Arcade → Online Play**, **On**, plays the games FinalBurn Neo has with others over the internet, through RetroArch's netplay and its lobby, the list of the games RetroArch players host everywhere (lobby.libretro.com).
+**Settings → Arcade → Online Play**, **On**, plays the games FinalBurn Neo has with others over the internet, through RetroArch's netplay and its lobby, the list of the games RetroArch players host everywhere (lobby.libretro.com). The Arcade screen's **Playable Online** filter lists those games of yours.
 
 - **Joining**: **Online Games** (the first folder of the tree, or a filter of the Arcade screen) lists the games hosted in the lobby that you have in your games folder, each with who hosts it and where; select joins one. The list is read as Arcade opens, and every 20 seconds while it is shown: a game stays in the lobby only while its host is there. A game with a password isn't listed.
 - **Hosting**: **Host Online Game**, in a game's options, starts the game for others to join: it shows in the lobby under your name, through the **Relay Server** chosen, so that no router of yours has to let anyone in.
@@ -372,7 +373,7 @@ Settings → Arcade, the second row of Settings' first screen. The page is share
 | Save High Scores | ON, OFF | ON | Keeps the games' high score tables with MAME's hiscore plugin ([above](#high-scores)) | `modules.com.osdos.arcade.high_scores` |
 | Online High Scores | Off, RetroAchievements | Off | RetroAchievements: a game FinalBurn Neo has plays in it, in hardcore mode, its scores going to RetroAchievements' leaderboards ([FinalBurn Neo](#finalburn-neo)) | `modules.com.osdos.arcade.online_high_scores` |
 | RetroAchievements Account | (opens the account's page) | | The account the scores go to with Online High Scores: sign in and out, and the Web API key the leaderboards, the games' pictures and their achievements are read with ([FinalBurn Neo](#finalburn-neo), [Pictures](#pictures-from-retroachievements), [Game Details](#game-details)) | |
-| Online Play | Off, On | Off | Playing the games FinalBurn Neo has with others over the internet: Online Games, and Host Online Game in a game's options ([Online play](#online-play)) | `modules.com.osdos.arcade.online_play` |
+| Online Play | Off, On | Off | Playing the games FinalBurn Neo has with others over the internet: Online Games, Playable Online, and Host Online Game in a game's options ([Online play](#online-play)) | `modules.com.osdos.arcade.online_play` |
 | Online Name | (opens the on-screen keyboard) | The RetroAchievements account's, else OSD-OS | The name the others see in online games ([Online play](#online-play)). Shown while Online Play is On | `modules.com.osdos.arcade.online_name` |
 | Relay Server | New York, Madrid, São Paulo, Singapore, Chuncheon | New York | Where a game you host is relayed from ([Online play](#online-play)). Shown while Online Play is On | `modules.com.osdos.arcade.relay_server` |
 | FinalBurn Neo | (opens FinalBurn Neo's page) | | What is installed of RetroArch and FinalBurn Neo, and the core's download ([FinalBurn Neo](#finalburn-neo)); its licence is in Settings → About | |
@@ -389,8 +390,8 @@ Settings → Arcade, the second row of Settings' first screen. The page is share
 | `enabled`, `border`, `hint_bar`, `help_line`, `start_info`, `high_scores` | `true` or `false` |
 | `games_directory` | `""` for the default, else the folder's full path |
 | `screen` | `"Original"` or `"Arcade"` |
-| `start_filter` | The filter's id: `"all"`, `"favorites"`, `"recent"`, `"achievements"` (RetroAchievements), `"genres/<genre>"` (`"genres/Fighting"`), `"players/<n>"` (`"players/2"`), `"years/<decade>"` (`"years/1980s"`, `"years/unknown"`) or `"makers/<publisher>"` (`"makers/Capcom"`) |
-| `menu_filters` | The filters turned on or off, by id: `{ "genres/Puzzle": false, "makers/Capcom": true }`, `"achievements"` for RetroAchievements and `"unknown"` for Not Recognized. One not in it is on, but a publisher's |
+| `start_filter` | The filter's id: `"all"`, `"favorites"`, `"recent"`, `"achievements"` (RetroAchievements), `"netplay"` (Playable Online), `"genres/<genre>"` (`"genres/Fighting"`), `"players/<n>"` (`"players/2"`), `"years/<decade>"` (`"years/1980s"`, `"years/unknown"`) or `"makers/<publisher>"` (`"makers/Capcom"`) |
+| `menu_filters` | The filters turned on or off, by id: `{ "genres/Puzzle": false, "makers/Capcom": true }`, `"achievements"` for RetroAchievements, `"netplay"` for Playable Online and `"unknown"` for Not Recognized. One not in it is on, but a publisher's |
 | `play_at_startup` | The game's set (`"galaga"`), `""` for None; the app's own `startup_favorite` holds the same game, and either changes the other |
 | `list_style` | `"Straight"`, `"Curved"` or `"3D Curved"` |
 | `info_background` | A number from 0 (transparent) to 100 (solid) |
