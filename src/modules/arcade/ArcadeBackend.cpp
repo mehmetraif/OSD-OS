@@ -68,6 +68,16 @@ constexpr int kLobbyTimeoutMs = 15000;
 constexpr qint64 kLobbyMaxBytes = 4 * 1024 * 1024;
 constexpr const char *kTooBig = "osdosTooBig";
 
+// catver.ini, the games' genres, as progettosnaps publishes it with each MAME:
+// downloaded into <data>/arcade when neither folder has one (it may not be
+// handed out with OSD/OS, so it comes to each machine from its author's own
+// place). Some megabytes; an hour before one that failed is tried again.
+const QUrl kGenresUrl(QStringLiteral(
+    "https://raw.githubusercontent.com/AntoPISA/MAME_SupportFiles/main/catver.ini/catver.ini"));
+constexpr int kGenresTimeoutMs = 60000;
+constexpr qint64 kGenresMaxBytes = 16 * 1024 * 1024;
+constexpr qint64 kGenresRetrySeconds = 3600;
+
 // Folders beside the games that aren't games: the BIOS sets' (on MAME's
 // rompath too), the samples' (its samplepath) and the games' pictures.
 const QStringList kNotSets = { QStringLiteral("bios"), QStringLiteral("samples"), QStringLiteral("snap") };
@@ -131,6 +141,40 @@ QList<std::pair<QString, QString>> sortPlaces(const QString &kind, QStringList p
 // but a publisher's, as a full set has hundreds.
 bool shownByDefault(const QString &filter) {
     return !filter.startsWith(QLatin1String("makers/"));
+}
+
+// A request of the lobby's or of catver.ini's.
+QNetworkRequest requestFor(const QUrl &url, int timeoutMs) {
+    QNetworkRequest request(url);
+    request.setAttribute(QNetworkRequest::RedirectPolicyAttribute, QNetworkRequest::NoLessSafeRedirectPolicy);
+    request.setHeader(QNetworkRequest::UserAgentHeader,
+                      QStringLiteral("OSD-OS/%1").arg(QCoreApplication::applicationVersion()));
+    request.setTransferTimeout(timeoutMs);
+    return request;
+}
+
+// A reply far bigger than what was asked for isn't it, and isn't read whole:
+// given up on once its size says so (its header, or as much as has come), and
+// marked so (kTooBig).
+void limitReply(QNetworkReply *reply, qint64 limit) {
+    const auto tooBig = [reply, limit](qint64 size) {
+        if (reply->isRunning() && size > limit) {
+            reply->setProperty(kTooBig, true);
+            reply->abort();
+        }
+    };
+    QObject::connect(reply, &QNetworkReply::metaDataChanged, reply, [reply, tooBig] {
+        tooBig(reply->header(QNetworkRequest::ContentLengthHeader).toLongLong());
+    });
+    QObject::connect(reply, &QNetworkReply::downloadProgress, reply, [tooBig](qint64 received, qint64 total) {
+        tooBig(std::max(received, total));
+    });
+}
+
+// A finished reply given up on, or with more than limit to read, which a
+// fast answer reaches before its progress says so.
+bool tooBig(QNetworkReply *reply, qint64 limit) {
+    return reply->property(kTooBig).toBool() || reply->bytesAvailable() > limit;
 }
 
 bool isOn(const QVariant &value, bool fallback) {
@@ -331,6 +375,7 @@ ArcadeBackend::ArcadeBackend(const QString &appRoot, const QString &dataRoot, Ap
     // A game's config is written anew for each game: one a game left that the
     // app didn't see end (it was stopped meanwhile) may hold the password.
     QFile::remove(retroarchHome() + QStringLiteral("/retroarch.cfg"));
+    m_genresUrl = QUrl(legacy::env("GENRES_URL", kGenresUrl.toString()));
 
     m_scanTimer = new QTimer(this);
     m_scanTimer->setSingleShot(true);
@@ -723,6 +768,9 @@ void ArcadeBackend::onRead() {
     }
     m_savedDuringRead.clear();
     m_reading = false;
+    // Games and no catver.ini for their genres: one downloaded.
+    if (m_genresFrom.isEmpty() && !m_sets.isEmpty())
+        downloadGenres();
     // Read the Games Again, asked while this read went on, as rescan() does
     // it: unless MAME is being asked already (a game paused it), what it said
     // of every set is forgotten, and it is asked about them all.
@@ -790,11 +838,14 @@ void ArcadeBackend::refresh() {
     m_scanAfterRead = true;
     // The lobby's rooms with the list, for Online Games.
     refreshRooms();
-    if (m_reading) {
+    readAgain();
+}
+
+void ArcadeBackend::readAgain() {
+    if (m_reading)
         m_readAgain = true;
-        return;
-    }
-    startRead();
+    else
+        startRead();
 }
 
 void ArcadeBackend::rescan() {
@@ -2049,33 +2100,14 @@ void ArcadeBackend::refreshRooms() {
         return;
     if (!m_nam)
         m_nam = new QNetworkAccessManager(this);
-    QNetworkRequest request(m_lobbyUrl);
-    request.setHeader(QNetworkRequest::UserAgentHeader,
-                      QStringLiteral("OSD-OS/%1").arg(QCoreApplication::applicationVersion()));
-    request.setTransferTimeout(kLobbyTimeoutMs);
-    m_lobbyReply = m_nam->get(request);
-    // A list of rooms is tens of kilobytes: one far bigger isn't the lobby's,
-    // and isn't read whole. Given up on once its size says so (its header, or
-    // as much as has come), and not read at its end, which a fast answer
-    // reaches first.
-    const auto tooBig = [this](qint64 size) {
-        if (m_lobbyReply && m_lobbyReply->isRunning() && size > kLobbyMaxBytes) {
-            m_lobbyReply->setProperty(kTooBig, true);
-            m_lobbyReply->abort();
-        }
-    };
-    connect(m_lobbyReply, &QNetworkReply::metaDataChanged, this, [this, tooBig] {
-        if (m_lobbyReply)
-            tooBig(m_lobbyReply->header(QNetworkRequest::ContentLengthHeader).toLongLong());
-    });
-    connect(m_lobbyReply, &QNetworkReply::downloadProgress, this, [tooBig](qint64 received, qint64 total) {
-        tooBig(std::max(received, total));
-    });
+    m_lobbyReply = m_nam->get(requestFor(m_lobbyUrl, kLobbyTimeoutMs));
+    // A list of rooms is tens of kilobytes.
+    limitReply(m_lobbyReply, kLobbyMaxBytes);
     connect(m_lobbyReply, &QNetworkReply::finished, this, [this] {
         QNetworkReply *reply = std::exchange(m_lobbyReply, nullptr);
         reply->deleteLater();
         m_roomsRead = true;
-        const bool big = reply->property(kTooBig).toBool() || reply->bytesAvailable() > kLobbyMaxBytes;
+        const bool big = tooBig(reply, kLobbyMaxBytes);
         if (reply->error() == QNetworkReply::NoError && !big) {
             m_rooms = libretro::readLobby(reply->readAll());
             m_roomsProblem.clear();
@@ -2089,6 +2121,33 @@ void ArcadeBackend::refreshRooms() {
         // The Online Games folder, and the Arcade screen's filter.
         emit entriesReady(QStringLiteral("online"));
         emit gamesChanged();
+    });
+}
+
+void ArcadeBackend::downloadGenres() {
+    if (m_genresReply || !m_genresUrl.isValid()
+        || (m_genresRetry.isValid() && m_genresRetry > QDateTime::currentDateTimeUtc()))
+        return;
+    if (!m_nam)
+        m_nam = new QNetworkAccessManager(this);
+    qInfo("[Arcade] No catver.ini for the games' genres: downloading progettosnaps' into %s", qPrintable(m_home));
+    m_genresReply = m_nam->get(requestFor(m_genresUrl, kGenresTimeoutMs));
+    limitReply(m_genresReply, kGenresMaxBytes);
+    connect(m_genresReply, &QNetworkReply::finished, this, [this] {
+        QNetworkReply *reply = std::exchange(m_genresReply, nullptr);
+        reply->deleteLater();
+        const bool big = tooBig(reply, kGenresMaxBytes);
+        const QByteArray data = reply->error() == QNetworkReply::NoError && !big ? reply->readAll() : QByteArray();
+        // catver.ini by its section of genres, else not taken.
+        if (!data.contains("[Category]") || !QDir().mkpath(m_home)
+            || !writeFileAtomically(m_home + QStringLiteral("/catver.ini"), data)) {
+            qWarning("[Arcade] catver.ini couldn't be downloaded (%s): no genres for now",
+                     qPrintable(big ? QStringLiteral("too big") : reply->errorString()));
+            m_genresRetry = QDateTime::currentDateTimeUtc().addSecs(kGenresRetrySeconds);
+            return;
+        }
+        // Read with the folder, now that it is there.
+        readAgain();
     });
 }
 

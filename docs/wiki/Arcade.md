@@ -186,7 +186,9 @@ On a CRT, move each side to where the tube's edge cuts the picture off (its over
 
 ### Genres
 
-The genres come from **catver.ini**, the category list for MAME's games that progettosnaps.net keeps (in its *Catver.ini* pack): a line for each game, such as `sf2=Fighter / Versus`. Put `catver.ini` in the games folder, beside the sets, or in `arcade` in the data folder. A clone without a line of its own takes its parent's genre. A catver.ini made for the same MAME as the sets names the most of them. Without one there are no genre filters; the rest of the screen is the same.
+The genres come from **catver.ini**, the category list for MAME's games that progettosnaps.net keeps (in its *Catver.ini* pack): a line for each game, such as `sf2=Fighter / Versus`. Put `catver.ini` in the games folder, beside the sets, or in `arcade` in the data folder. A clone without a line of its own takes its parent's genre. A catver.ini made for the same MAME as the sets names the most of them.
+
+With neither, OSD/OS downloads one itself, with a connection, once it has read a games folder with games in it: progettosnaps' latest, from AntoPISA's *MAME_SupportFiles* on GitHub, into `arcade` in the data folder, then reads the folder again, and the genre filters appear (turned on in [Menu Filters](#menu-filters) as usual). It comes with no licence, so OSD/OS doesn't ship it: it is downloaded on your machine, for you. A download that fails is tried again an hour later. Until a catver.ini is there, there are no genre filters; the rest of the screen is the same.
 
 A game's genre is the one arcade players know it by, made from its category (its `* Mature *` mark aside, and a game of logic chips' `TTL *`: `TTL * Driving / Race` is Racing):
 
@@ -427,7 +429,7 @@ Everything MAME writes is in `arcade` in the data folder (`~/.local/share/OSD-OS
 | `arcade/games.json` | What MAME said of each set ([Reading the games](#reading-the-games)), and which MAME said it |
 | `arcade/playtime.json` | How long each game has been played, in seconds, by set: the Arcade screen's Play Time. A game MAME refused to start (files missing, no such game) adds nothing |
 | `arcade/coins.lua` | The credits bought on the Arcade screen, as the script MAME runs to put them in, written afresh before each game started with credits ([Credits](#credits)) |
-| `arcade/catver.ini` | The games' genres, when they aren't in the games folder ([Genres](#genres)): you put it there |
+| `arcade/catver.ini` | The games' genres, when they aren't in the games folder ([Genres](#genres)): you put it there, or OSD/OS downloaded it |
 | `arcade/cfg/` | MAME's settings for each game, and `default.cfg` for all of them: the buttons changed in its menu |
 | `arcade/nvram/` | The games' NVRAM: their settings and, for many, their scores |
 | `arcade/hiscore/` | The hiscore plugin's tables ([High scores](#high-scores)) |
@@ -476,7 +478,7 @@ mame galaga \
 | A player's controls are wrong | Check **Settings → Controls → Players**: who is player 1 is who MAME's joystick 1 is. Then MAME's own menu: **Tab → Input Settings** |
 | Coin and Start don't bring you back | Press them together on one player's controller (one Settings → Controls → Players gives a player), or Esc on a keyboard. A button changed in MAME's menu for UI Cancel replaces the way back |
 | High scores aren't kept | **High Scores** must be on, the game must be in MAME's `hiscore.dat`, and the game must close with Coin and Start: a power cut loses what wasn't saved |
-| The Arcade screen has no genre filters | Put `catver.ini` in the games folder or in `arcade` in the data folder ([Genres](#genres)), then open Arcade again |
+| The Arcade screen has no genre filters | With a connection, OSD/OS downloads catver.ini by itself as Arcade opens: open it again a little later. Without one, put `catver.ini` in the games folder or in `arcade` in the data folder ([Genres](#genres)), then open Arcade again. **Settings → Arcade → Menu Filters** must have the genres on |
 | `No Picture` | Put the game's picture in the games folder's `snap` folder, named by its set: `snap/galaga.png` ([Pictures](#pictures)). The frame names the file it looks for |
 | The credits bought don't show in the game | They go in 5 seconds into the game. A board still starting up then may miss them: insert a coin in the game with COIN. A game MAME shows a warning for first counts them once the warning is gone |
 | `RetroArch is not installed`, `FinalBurn Neo is not installed` | A game set to play in FinalBurn Neo, with RetroArch or the core missing: install RetroArch, and download the core in **Settings → Arcade → FinalBurn Neo** ([Setting it up](#setting-it-up)), or set the game's **Engine** to MAME |

@@ -236,6 +236,10 @@ public:
     // The account's Web API key (RetroAchievements' settings page), for
     // reading leaderboards; "" forgets it.
     Q_INVOKABLE void setAchievementsKey(const QString &key);
+    // Where catver.ini is downloaded from when neither folder has one
+    // (downloadGenres()): progettosnaps' own, OSDOS_GENRES_URL's (none when
+    // it is empty), or a stand-in's.
+    void setGenresUrl(const QUrl &url) { m_genresUrl = url; }
     // The Arcade screen's high scores for a game that plays in FinalBurn Neo
     // while Online High Scores is on and a key is kept: its RetroAchievements
     // leaderboard (RetroAchievements::board()), { state, title, entries };
@@ -520,6 +524,11 @@ private:
     // fbneoPlays() but for FinalBurn Neo being ready, asked once for many.
     bool fbneoHas(const QString &set) const;
     void saveAchievements() const;
+    // catver.ini into <data>/arcade, for the games' genres, and the folder
+    // read again with it; once at a time, and an hour after one that failed.
+    void downloadGenres();
+    // The folder read now, or after the read under way.
+    void readAgain();
 
     // How long each game has been played: playtime.json, read when first
     // needed.
@@ -574,6 +583,11 @@ private:
     QList<libretro::Room> m_rooms;
     QString m_roomsProblem;
     bool    m_roomsRead = false;
+    // catver.ini's download: from where, under way, and when one that failed
+    // may be tried again.
+    QUrl m_genresUrl;
+    QNetworkReply *m_genresReply = nullptr;
+    QDateTime m_genresRetry;
     QString m_fbneoMessage;
 
     // The folder's sets, and what MAME said of every set it was asked about.

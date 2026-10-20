@@ -62,6 +62,8 @@ Item {
                 bar.width - 2 * bar.pad - (bar.rightText !== "" ? right.implicitWidth + 2 * bar.gap : 0)
                 - (bar.arrows ? 2 * (before.implicitWidth + bar.gap) : 0)
                 - (bar.icon !== "" ? symbol.width + bar.gap : 0)))
+            // A filter's name may be catver.ini's: never markup.
+            textFormat: Text.PlainText
             text: bar.text
             elide: Text.ElideRight
             color: root.surfaceColor
@@ -91,6 +93,7 @@ Item {
         anchors.right: parent.right
         anchors.rightMargin: bar.pad
         anchors.verticalCenter: parent.verticalCenter
+        textFormat: Text.PlainText
         text: bar.rightText
         color: root.surfaceColor
         font.family: root.globalFont

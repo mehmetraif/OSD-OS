@@ -237,6 +237,8 @@ private slots:
                   "                      bcm2835 Headphones\n");
         QVERIFY(QDir().mkpath(m_data.path() + QStringLiteral("/asound/card0/pcm0p")));
         qputenv("OSDOS_ASOUND_DIR", (m_data.path() + QStringLiteral("/asound")).toUtf8());
+        // No catver.ini downloaded but where a test asks for one.
+        qputenv("OSDOS_GENRES_URL", "");
         writeFile(mamePath(), kFakeMame);
         QVERIFY(QFile::setPermissions(mamePath(), QFile::ReadOwner | QFile::WriteOwner | QFile::ExeOwner));
         // MAME's hiscore plugin, where Debian's is beside /usr/games.
@@ -257,6 +259,7 @@ private slots:
 
     void cleanupTestCase() {
         qunsetenv("OSDOS_ASOUND_DIR");
+        qunsetenv("OSDOS_GENRES_URL");
         qunsetenv("MAME_LOG");
         qunsetenv("OSDOS_MEDIA_DIR");
         qunsetenv("OSDOS_DRM_DEVICE");
@@ -2383,6 +2386,60 @@ private slots:
         QTRY_VERIFY_WITH_TIMEOUT(!arcade.scanning(), 10000);
         QVERIFY(!changed.isEmpty());
         QCOMPARE(arcade.filters().size(), 13);
+    }
+
+    // No catver.ini beside the games nor kept: one downloaded into the
+    // module's folder once the folder is read, and read with it, the genres
+    // then among the filters; not again once there. An answer that isn't
+    // one, not kept, and not asked for again at once.
+    void genresDownloaded() {
+        const QString kept = m_data.path() + QStringLiteral("/arcade/catver.ini");
+        const auto restore = qScopeGuard([kept] { QFile::remove(kept); });
+        QFile::remove(m_games + QStringLiteral("/catver.ini"));
+        QFile::remove(kept);
+        StandIn standIn;
+        QVERIFY(serve(standIn));
+        standIn.answers = {
+            { "/media/catver.ini", "[FOLDER_SETTINGS]\nRootFolderIcon mame\n\n[Category]\nsf2=Fighter / Versus\r\n"
+                                   "galaga=Shooter / Flying Vertical\r\n" },
+            { "/media/page.html", "<html>Not Found</html>" },
+        };
+        const auto genres = [](ArcadeBackend &arcade) {
+            QStringList ids;
+            for (const QVariant &v : arcade.filters()) {
+                const QString id = v.toMap().value(QStringLiteral("id")).toString();
+                if (id.startsWith(QLatin1String("genres/")))
+                    ids << id;
+            }
+            return ids;
+        };
+
+        AppCore core(m_data.path(), m_data.path());
+        {
+            ArcadeBackend arcade(m_data.path(), m_data.path(), &core, nullptr);
+            arcade.setGenresUrl(standIn.media().resolved(QUrl(QStringLiteral("page.html"))));
+            refreshed(arcade);
+            QTRY_VERIFY_WITH_TIMEOUT(standIn.asked.contains(QStringLiteral("/media/page.html")), 5000);
+            QTest::qWait(300);
+            QVERIFY(!QFileInfo::exists(kept));
+            QVERIFY(genres(arcade).isEmpty());
+            standIn.asked.clear();
+            refreshed(arcade);
+            QTest::qWait(300);
+            QVERIFY(standIn.asked.isEmpty());
+        }
+
+        ArcadeBackend arcade(m_data.path(), m_data.path(), &core, nullptr);
+        arcade.setGenresUrl(standIn.media().resolved(QUrl(QStringLiteral("catver.ini"))));
+        standIn.asked.clear();
+        refreshed(arcade);
+        QTRY_COMPARE_WITH_TIMEOUT(genres(arcade), QStringList({ QStringLiteral("genres/Fighting"),
+                                                                QStringLiteral("genres/Shmup") }), 10000);
+        QCOMPARE(standIn.asked, QStringList({ QStringLiteral("/media/catver.ini") }));
+        QCOMPARE(contents(kept), standIn.answers.value("/media/catver.ini"));
+        refreshed(arcade);
+        QTest::qWait(300);
+        QCOMPARE(standIn.asked.size(), 1);
     }
 
     // Settings → Arcade → Menu Filters: its page, the lists and the places
