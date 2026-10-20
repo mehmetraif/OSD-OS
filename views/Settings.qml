@@ -399,7 +399,10 @@ FocusScope {
         // playing behind the menus too. One chosen but unplugged stays
         // chosen, passed over until it is back.
         if (audioOutput && audioOutput.available) {
+            // Without a USB sound card to choose: what the system sees of one
+            // (note).
             var audio = audioOutput.settingRow()
+            var usbNote = audio.note || ""
             items.push({
                 type: "list_single",
                 key: "audio_output",
@@ -407,7 +410,9 @@ FocusScope {
                 options: audio.options,
                 values: audio.values,
                 value: audio.value,
-                description: "Which sound card plays: the AV jack, HDMI or a USB sound card, from the moment it is chosen\n[AUTO] The Pi's own default  [UNPLUGGED] Chosen but not plugged in: sound goes as on Auto until it is back",
+                description: "Which sound card plays: the AV jack, HDMI or a USB sound card, from the moment it is chosen"
+                             + (usbNote !== "" ? ". " + usbNote : "")
+                             + "\n[AUTO] The Pi's own default  [UNPLUGGED] Chosen but not plugged in: sound goes as on Auto until it is back",
                 moduleId: ""
             })
         }

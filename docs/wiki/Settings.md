@@ -256,7 +256,7 @@ The row needs the OSD/OS image's presets beside `config.txt`, the app started by
 
 ### Audio Output
 
-◄ ► step through **Auto** and the cards ALSA lists that can play (so a webcam's microphone isn't one). The Pi's analog card is **AV Jack**, its HDMI cards **HDMI**, and any other card shows by its own name, its id after it when two share one. mpv is told the card as `--audio-device=alsa/default:CARD=<id>`, and a script or a web player's browser gets `ALSA_CARD=<id>`. A card chosen and then unplugged stays chosen, shown as `NAME (Unplugged)`: sound goes as on Auto until it is back. On Auto nothing is added, so `audio-device` in `mpv.conf` and `/etc/asound.conf` still choose. More in [Audio Output](https://github.com/mehmetraif/OSD-OS/wiki/Audio-Output).
+◄ ► step through **Auto** and the cards ALSA lists that can play (so a webcam's microphone isn't one). The Pi's analog card is **AV Jack**, its HDMI cards **HDMI**, and any other card shows by its own name, its id after it when two share one. mpv is told the card as `--audio-device=alsa/default:CARD=<id>`, and a script or a web player's browser gets `ALSA_CARD=<id>`. A card chosen and then unplugged stays chosen, shown as `NAME (Unplugged)`: sound goes as on Auto until it is back. Without a USB sound card to choose, the help line says what the system sees of one: none plugged in, one plugged in that the system made no sound card of, and on a Pi a power supply too weak for USB devices. On Auto nothing is added, so `audio-device` in `mpv.conf` and `/etc/asound.conf` still choose. More in [Audio Output](https://github.com/mehmetraif/OSD-OS/wiki/Audio-Output).
 
 ### Controls
 

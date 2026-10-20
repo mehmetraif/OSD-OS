@@ -237,6 +237,8 @@ private slots:
                   "                      bcm2835 Headphones\n");
         QVERIFY(QDir().mkpath(m_data.path() + QStringLiteral("/asound/card0/pcm0p")));
         qputenv("OSDOS_ASOUND_DIR", (m_data.path() + QStringLiteral("/asound")).toUtf8());
+        // No catver.ini downloaded but where a test asks for one.
+        qputenv("OSDOS_GENRES_URL", "");
         writeFile(mamePath(), kFakeMame);
         QVERIFY(QFile::setPermissions(mamePath(), QFile::ReadOwner | QFile::WriteOwner | QFile::ExeOwner));
         // MAME's hiscore plugin, where Debian's is beside /usr/games.
@@ -257,6 +259,7 @@ private slots:
 
     void cleanupTestCase() {
         qunsetenv("OSDOS_ASOUND_DIR");
+        qunsetenv("OSDOS_GENRES_URL");
         qunsetenv("MAME_LOG");
         qunsetenv("OSDOS_MEDIA_DIR");
         qunsetenv("OSDOS_DRM_DEVICE");
@@ -276,6 +279,29 @@ private slots:
         QCOMPARE(mame::makerOf(QStringLiteral("<unknown>")), QString());
         QCOMPARE(mame::makerOf(QStringLiteral("unknown")), QString());
         QCOMPARE(mame::makerOf(QStringLiteral("bootleg")), QStringLiteral("bootleg"));
+        // A company under its own name, whichever of its arms, mergers and
+        // legal forms made the game.
+        QCOMPARE(mame::makerOf(QStringLiteral("Nintendo of America")), QStringLiteral("Nintendo"));
+        QCOMPARE(mame::makerOf(QStringLiteral("SNK Playmore")), QStringLiteral("SNK"));
+        QCOMPARE(mame::makerOf(QStringLiteral("SNK Corporation of America")), QStringLiteral("SNK"));
+        QCOMPARE(mame::makerOf(QStringLiteral("Taito America Corporation (Romstar license)")), QStringLiteral("Taito"));
+        QCOMPARE(mame::makerOf(QStringLiteral("Taito Corporation Japan")), QStringLiteral("Taito"));
+        QCOMPARE(mame::makerOf(QStringLiteral("Data East USA, Inc.")), QStringLiteral("Data East"));
+        QCOMPARE(mame::makerOf(QStringLiteral("Capcom U.S.A.")), QStringLiteral("Capcom"));
+        QCOMPARE(mame::makerOf(QStringLiteral("Video System Co.")), QStringLiteral("Video System"));
+        QCOMPARE(mame::makerOf(QStringLiteral("Sega Amusements Europe")), QStringLiteral("Sega"));
+        QCOMPARE(mame::makerOf(QStringLiteral("Konami Industry Co. Ltd.")), QStringLiteral("Konami"));
+        QCOMPARE(mame::makerOf(QStringLiteral("Bally Midway")), QStringLiteral("Midway"));
+        QCOMPARE(mame::makerOf(QStringLiteral("Midway Manufacturing Co.")), QStringLiteral("Midway"));
+        QCOMPARE(mame::makerOf(QStringLiteral("Atari Games")), QStringLiteral("Atari"));
+        QCOMPARE(mame::makerOf(QStringLiteral("Technos Japan")), QStringLiteral("Technos"));
+        QCOMPARE(mame::makerOf(QStringLiteral("American Sammy")), QStringLiteral("Sammy"));
+        // A name that is only an ending, or that only begins like a company
+        // or ends like one, as it is.
+        QCOMPARE(mame::makerOf(QStringLiteral("Universal")), QStringLiteral("Universal"));
+        QCOMPARE(mame::makerOf(QStringLiteral("Segasa")), QStringLiteral("Segasa"));
+        QCOMPARE(mame::makerOf(QStringLiteral("American Laser Games")), QStringLiteral("American Laser Games"));
+        QCOMPARE(mame::makerOf(QStringLiteral("U.S. Games")), QStringLiteral("U.S. Games"));
 
         QCOMPARE(mame::decadeOf(QStringLiteral("1981")), QStringLiteral("1980s"));
         QCOMPARE(mame::decadeOf(QStringLiteral("198?")), QStringLiteral("1980s"));
@@ -901,6 +927,11 @@ private slots:
                  QStringLiteral("Toolkit Pad"));
         QCOMPARE(libretro::reservedDevice(QStringLiteral("19000000000000000000000000000000"), QStringLiteral("JAMMA P1")),
                  QStringLiteral("JAMMA P1"));
+        // The JAMMA board's sticks by the vendor and the product osdos-jamma
+        // gives them, the player's number.
+        QCOMPARE(libretro::reservedDevice(QStringLiteral("06006869010000000200000001000000"),
+                                          QStringLiteral("OSD/OS JAMMA P2")),
+                 QStringLiteral("0001:0002 OSD/OS JAMMA P2"));
 
         libretro::Launch launch;
         launch.core = QStringLiteral("/cores/fbneo_libretro.so");
@@ -919,6 +950,12 @@ private slots:
         QVERIFY2(has(QStringLiteral("config_save_on_exit = \"true\"")), qPrintable(config));
         for (const char *line : { "video_driver = \"gl\"", "video_context_driver = \"kms\"", "input_driver = \"udev\"",
                                   "audio_driver = \"alsa\"", "audio_device = \"\"", "input_joypad_driver = \"sdl2\"",
+                                  // RetroArch's Standard Gamepad for every player, its own
+                                  // look-up off: no "not configured" over the game.
+                                  "input_autodetect_enable = \"false\"", "input_player1_b_btn = \"0\"",
+                                  "input_player1_a_btn = \"1\"", "input_player1_start_btn = \"6\"",
+                                  "input_player1_select_btn = \"4\"", "input_player2_up_btn = \"11\"",
+                                  "input_player6_l_x_minus_axis = \"-0\"", "input_player6_r_y_plus_axis = \"-3\"",
                                   "input_quit_gamepad_combo = \"4\"", "quit_press_twice = \"false\"",
                                   "menu_driver = \"rgui\"", "ui_companion_enable = \"false\"",
                                   "system_directory = \"/ra/system\"", "savefile_directory = \"/ra/saves\"",
@@ -929,7 +966,43 @@ private slots:
                                   "cheevos_password = \"secret\"", "cheevos_hardcore_mode_enable = \"true\"" })
             QVERIFY2(has(QLatin1String(line)), line);
         QVERIFY(!config.contains(QStringLiteral("input_player2_reserved_device")));
+        QVERIFY(!config.contains(QStringLiteral("input_player7_")));
         QVERIFY(!config.contains(QStringLiteral("netplay_")));
+        // A player on an arcade panel, a JAMMA board's stick: the cabinet's
+        // two rows as FinalBurn Neo's 6-Button Panel has them (Y X L above,
+        // B A R below), the joystick on the D-pad, and that controller type
+        // in FinalBurn Neo's remap file, loaded without a word; the other
+        // players as before.
+        launch.panels = { false, false, true };
+        launch.remapDir = QStringLiteral("/ra/remaps");
+        config = libretro::configText(launch);
+        for (const char *line : { "input_player3_y_btn = \"0\"", "input_player3_x_btn = \"1\"", "input_player3_l_btn = \"2\"",
+                                  "input_player3_b_btn = \"3\"", "input_player3_a_btn = \"9\"", "input_player3_r_btn = \"10\"",
+                                  "input_player3_select_btn = \"4\"", "input_player3_start_btn = \"6\"",
+                                  "input_player3_up_axis = \"-1\"", "input_player3_down_axis = \"+1\"",
+                                  "input_player3_left_axis = \"-0\"", "input_player3_right_axis = \"+0\"",
+                                  "input_player1_b_btn = \"0\"", "input_player1_up_btn = \"11\"",
+                                  "input_remapping_directory = \"/ra/remaps\"", "auto_remaps_enable = \"true\"",
+                                  "remap_save_on_exit = \"false\"", "notification_show_remap_load = \"false\"" })
+            QVERIFY2(has(QLatin1String(line)), line);
+        QVERIFY(!config.contains(QStringLiteral("input_player3_up_btn")));
+        QCOMPARE(libretro::coreRemapPath(QStringLiteral("/ra/remaps")),
+                 QStringLiteral("/ra/remaps/FinalBurn Neo/FinalBurn Neo.rmp"));
+        const QStringList remap = libretro::remapText(launch).split(QLatin1Char('\n'));
+        QVERIFY(remap.contains(QStringLiteral("input_libretro_device_p3 = \"261\"")));
+        QVERIFY(!remap.filter(QStringLiteral("input_libretro_device_p1")).size());
+        // Online, every player on the host's controller types: no panel.
+        for (const auto netplay : { libretro::Launch::Netplay::Join, libretro::Launch::Netplay::Host }) {
+            launch.netplay = netplay;
+            const QStringList online = libretro::configText(launch).split(QLatin1Char('\n'));
+            QVERIFY(online.contains(QStringLiteral("input_player3_b_btn = \"0\"")));
+            QVERIFY(online.contains(QStringLiteral("input_player3_up_btn = \"11\"")));
+            QVERIFY(online.filter(QStringLiteral("input_player3_up_axis")).isEmpty());
+            QCOMPARE(libretro::remapText(launch), QString());
+        }
+        launch.netplay = libretro::Launch::Netplay::None;
+        launch.panels.clear();
+        QCOMPARE(libretro::remapText(launch), QString());
         // Square pixels and no integer scale: the core's shape.
         QVERIFY(has(QStringLiteral("video_scale_integer = \"false\"")));
         QVERIFY(!config.contains(QStringLiteral("aspect_ratio_index")));
@@ -1096,6 +1169,9 @@ private slots:
             return arcade.leaderboard(QLatin1String(set)).value(QStringLiteral("state")).toString();
         };
         QCOMPARE(boardState("sf2"), QStringLiteral("off"));
+        // The key, asked about as it is set, asked of no server.
+        arcade.setAchievementsServers(QUrl(QStringLiteral("http://127.0.0.1:9/API/")),
+                                      QUrl(QStringLiteral("http://127.0.0.1:9/media/")));
         arcade.setAchievementsKey(QStringLiteral(" key1 "));
         QVERIFY(arcade.achievementsKey());
         QCOMPARE(QJsonDocument::fromJson(contents(data.path() + QStringLiteral("/arcade/retroachievements.json")))
@@ -1181,6 +1257,33 @@ private slots:
         QCOMPARE(arcade.achievementsState(), QStringLiteral("signedIn"));
         // The config, the token in it, goes with the game.
         QVERIFY(!QFile::exists(home + QStringLiteral("/retroarch.cfg")));
+        // No arcade panel: no remap file. The JAMMA board's sticks: each
+        // player's by its vendor and product, on FinalBurn Neo's 6-Button
+        // Panel through its remap file; a gamepad again, none.
+        const QString remap = home + QStringLiteral("/remaps/FinalBurn Neo/FinalBurn Neo.rmp");
+        QVERIFY(!QFileInfo::exists(remap));
+        QVERIFY(config.contains(QStringLiteral("input_remapping_directory = \"%1/remaps\"").arg(home)));
+        controllers::setPlayerEnvironment({ { QStringLiteral("OSDOS_PLAYER1_NAME"), QStringLiteral("OSD/OS JAMMA P1") },
+                                            { QStringLiteral("OSDOS_PLAYER1_GUID"),
+                                              QStringLiteral("06002868010000000100000001000000") },
+                                            { QStringLiteral("OSDOS_PLAYER2_NAME"), QStringLiteral("OSD/OS JAMMA P2") },
+                                            { QStringLiteral("OSDOS_PLAYER2_GUID"),
+                                              QStringLiteral("06006869010000000200000001000000") } });
+        played(arcade, QStringLiteral("sf2"));
+        config = QString::fromUtf8(contents(configCopy));
+        for (const char *line : { "input_player1_reserved_device = \"0001:0001 OSD/OS JAMMA P1\"",
+                                  "input_player2_reserved_device = \"0001:0002 OSD/OS JAMMA P2\"",
+                                  "input_player1_y_btn = \"0\"", "input_player2_b_btn = \"3\"",
+                                  "input_player3_b_btn = \"0\"" })
+            QVERIFY2(config.contains(QLatin1String(line)), line);
+        QCOMPARE(QString::fromUtf8(contents(remap)).split(QLatin1Char('\n')).filter(QStringLiteral("input_libretro_device_p")),
+                 QStringList({ QStringLiteral("input_libretro_device_p1 = \"261\""),
+                               QStringLiteral("input_libretro_device_p2 = \"261\"") }));
+        controllers::setPlayerEnvironment({ { QStringLiteral("OSDOS_PLAYER1_NAME"), QStringLiteral("Xbox 360 Controller") },
+                                            { QStringLiteral("OSDOS_PLAYER1_GUID"),
+                                              QStringLiteral("030000005e0400008e02000014010000") } });
+        played(arcade, QStringLiteral("sf2"));
+        QVERIFY(!QFileInfo::exists(remap));
         // RetroAchievements not reached: still signed in, the token kept.
         writeFile(kept, "{\"user\": \"player\", \"token\": \"offline\"}");
         {
@@ -1244,6 +1347,77 @@ private slots:
         end = played(arcade, QStringLiteral("pacman"));
         QCOMPARE(end.value(1).toString(), QStringLiteral("ok"));
         QVERIFY(logLines(QStringLiteral("play pacman")).size() == 1);
+    }
+
+    // A sign-in checked as it is made: RetroArch, with no picture, sound or
+    // controllers, signs in with the sign-in core and is stopped as it says
+    // how it went. The token it saved is kept and nothing of the check is
+    // left, its config having held the password; a password refused says
+    // why and isn't kept; RetroAchievements not reached leaves the password
+    // for the next game, saying so; signed out while it runs, it is stopped.
+    // Without the core, the next game signs in, as before.
+    void signInChecked() {
+        QTemporaryDir data;
+        QVERIFY(data.isValid());
+        QVERIFY(QDir().mkpath(data.path() + QStringLiteral("/bin")));
+        writeFile(data.path() + QStringLiteral("/bin/retroarch"), fixture("retroarch"));
+        QVERIFY(QFile::setPermissions(data.path() + QStringLiteral("/bin/retroarch"),
+                                      QFile::ReadOwner | QFile::WriteOwner | QFile::ExeOwner));
+        const QString core = data.path() + QStringLiteral("/osdos_signin_libretro.so");
+        writeFile(core);
+        const QString configCopy = data.path() + QStringLiteral("/ra.cfg");
+        qputenv("RA_CONFIG_COPY", configCopy.toUtf8());
+        const auto restore = qScopeGuard([] { qunsetenv("RA_CONFIG_COPY"); });
+        const QString dir = data.path() + QStringLiteral("/arcade/retroarch/sign-in");
+        const QString kept = data.path() + QStringLiteral("/arcade/retroachievements.json");
+
+        ArcadeBackend arcade(data.path(), data.path(), nullptr, nullptr);
+        arcade.setSignInCore(data.path() + QStringLiteral("/none.so"));
+        arcade.signInAchievements(QStringLiteral("player"), QStringLiteral("secret"));
+        QCOMPARE(arcade.achievementsState(), QStringLiteral("pending"));
+        QCOMPARE(arcade.achievementsMessage(), QString());
+
+        arcade.setSignInCore(core);
+        QFile::remove(m_log);
+        arcade.signInAchievements(QStringLiteral(" player "), QStringLiteral("secret"));
+        QCOMPARE(arcade.achievementsState(), QStringLiteral("checking"));
+        QTRY_COMPARE_WITH_TIMEOUT(arcade.achievementsState(), QStringLiteral("signedIn"), 10000);
+        QCOMPARE(logLines(QStringLiteral("retroarch ")).value(0),
+                 QStringLiteral("retroarch -L %1 --config %2/retroarch.cfg --verbose %2/sign-in.osdos").arg(core, dir));
+        QVERIFY(logLines().contains(QStringLiteral("cwd ") + dir));
+        QVERIFY(logLines().contains(QStringLiteral("xdg ") + dir + QStringLiteral("/config")));
+        const QString config = QString::fromUtf8(contents(configCopy));
+        for (const char *line : { "config_save_on_exit = \"true\"", "load_dummy_on_core_shutdown = \"false\"",
+                                  "video_driver = \"null\"", "audio_driver = \"null\"",
+                                  "input_driver = \"null\"", "input_joypad_driver = \"null\"", "cheevos_enable = \"true\"",
+                                  "cheevos_username = \"player\"", "cheevos_password = \"secret\"", "cheevos_token = \"\"",
+                                  "cheevos_hardcore_mode_enable = \"false\"" })
+            QVERIFY2(config.contains(QLatin1String(line)), line);
+        QCOMPARE(QJsonDocument::fromJson(contents(kept)).object().value(QStringLiteral("token")).toString(),
+                 QStringLiteral("tok789"));
+        QVERIFY(!contents(kept).contains("secret"));
+        QVERIFY(!QFileInfo::exists(dir));
+
+        arcade.signInAchievements(QStringLiteral("player"), QStringLiteral("wrong"));
+        QTRY_COMPARE_WITH_TIMEOUT(arcade.achievementsState(), QStringLiteral("failed"), 10000);
+        QCOMPARE(arcade.achievementsMessage(), QStringLiteral("Invalid User/Password combination. Please try again"));
+        QCOMPARE(QJsonDocument::fromJson(contents(kept)).object().value(QStringLiteral("token")).toString(), QString());
+        QVERIFY(!QFileInfo::exists(dir));
+
+        arcade.signInAchievements(QStringLiteral("player"), QStringLiteral("offline"));
+        QTRY_COMPARE_WITH_TIMEOUT(arcade.achievementsState(), QStringLiteral("pending"), 10000);
+        QCOMPARE(arcade.achievementsMessage(), QStringLiteral("No response from server: RetroArch signs in at the next game"));
+        QVERIFY(!QFileInfo::exists(dir));
+
+        arcade.signInAchievements(QStringLiteral("player"), QStringLiteral("silent"));
+        QCOMPARE(arcade.achievementsState(), QStringLiteral("checking"));
+        QTRY_VERIFY_WITH_TIMEOUT(QFileInfo::exists(configCopy) && contents(configCopy).contains("silent"), 10000);
+        arcade.signOutAchievements();
+        QCOMPARE(arcade.achievementsState(), QStringLiteral("none"));
+        QVERIFY(!QFileInfo::exists(dir));
+        // Nothing comes of the RetroArch stopped.
+        QTest::qWait(300);
+        QCOMPARE(arcade.achievementsState(), QStringLiteral("none"));
     }
 
     // Settings → Arcade → FinalBurn Neo's download from a stand-in server:
@@ -1363,6 +1537,7 @@ private slots:
               "{\"Results\": [{\"ID\": 31, \"RankAsc\": false, \"Title\": \"Mission 1\","
               " \"Description\": \"Most points\", \"Format\": \"SCORE\"}]}" },
             { "/API/API_GetLeaderboardEntries.php?i=31&c=3", "{\"Count\": 0, \"Total\": 0, \"Results\": []}" },
+            { "/API/API_GetConsoleIDs.php?", "[{\"ID\": 27, \"Name\": \"Arcade\"}]" },
         };
         QStringList asked;
         QTcpServer server;
@@ -1479,6 +1654,30 @@ private slots:
         QCOMPARE(state(corrected.board(QStringLiteral("sf2.zip"))), QStringLiteral("loading"));
         QVERIFY(readyCorrected.wait(5000));
         QCOMPARE(state(corrected.board(QStringLiteral("sf2.zip"))), QStringLiteral("ready"));
+
+        // A key asked about at once, with the smallest answer, and taken;
+        // asked again, not, as an answer came; another refused. An answer to
+        // anything else takes a key too.
+        QTemporaryDir checked;
+        RetroAchievements checker(checked.path(), api, media);
+        QSignalSpy accepted(&checker, &RetroAchievements::keyAccepted);
+        QSignalSpy refusedKey(&checker, &RetroAchievements::keyRefused);
+        asked.clear();
+        checker.setKey(QStringLiteral("key1"));
+        checker.checkKey();
+        QVERIFY(accepted.wait(5000));
+        QCOMPARE(asked, QStringList({ QStringLiteral("/API/API_GetConsoleIDs.php? y=key1") }));
+        checker.checkKey();
+        QTest::qWait(200);
+        QCOMPARE(asked.size(), 1);
+        checker.setKey(QStringLiteral("bad"));
+        checker.checkKey();
+        QVERIFY(refusedKey.wait(5000));
+        QCOMPARE(accepted.size(), 1);
+        QSignalSpy acceptedAgain(&again, &RetroAchievements::keyAccepted);
+        again.setKey(QStringLiteral("key1"));
+        again.board(QStringLiteral("sf2.zip"));
+        QVERIFY(acceptedAgain.wait(5000));
 
         // No server, and no list kept: the board can't be read. What is
         // logged names what wasn't read, never the key.
@@ -1691,6 +1890,7 @@ private slots:
                 "12": {"ID": 12, "Title": "World Warrior", "Points": 25, "BadgeName": "250336", "DisplayOrder": 2}}})" },
             { "/media/Badge/250336.png", png("badge") },
             { "/media/Badge/250337_lock.png", png("locked") },
+            { "/API/API_GetConsoleIDs.php?", R"([{"ID": 27, "Name": "Arcade"}])" },
         };
         const auto urls = [](const QStringList &files) {
             QStringList list;
@@ -1708,13 +1908,17 @@ private slots:
         QTest::qWait(600);
         QVERIFY(standIn.asked.isEmpty());
 
+        // A key: asked about at once, and taken; nothing else read until a
+        // game's pictures are wanted.
         QSignalSpy changed(&arcade, &ArcadeBackend::picturesChanged);
         arcade.setAchievementsKey(QStringLiteral("key1"));
         QCOMPARE(arcade.gameDetails(QStringLiteral("sf2")).value(QStringLiteral("pictures")),
                  urls({ snap + QStringLiteral("/sf2.png"), snap + QStringLiteral("/sf2_1.png"),
                         snap + QStringLiteral("/sf2_4.PNG") }));
+        QTRY_VERIFY_WITH_TIMEOUT(arcade.achievementsKeyWorks(), 5000);
         QTest::qWait(600);
-        QVERIFY(standIn.asked.isEmpty());
+        QCOMPARE(standIn.asked, QStringList({ QStringLiteral("/API/API_GetConsoleIDs.php?") }));
+        standIn.asked.clear();
         arcade.wantPictures(QStringLiteral("sf2"));
         QTRY_COMPARE_WITH_TIMEOUT(changed.size(), 3, 10000);
         QCOMPARE(changed.last().at(0).toString(), QStringLiteral("sf2"));
@@ -1917,6 +2121,7 @@ private slots:
         const auto restore = qScopeGuard([this] {
             qunsetenv("RA_CONFIG_COPY");
             qputenv("OSDOS_MEDIA_DIR", (m_data.path() + QStringLiteral("/media")).toUtf8());
+            controllers::setPlayerEnvironment({});
         });
         const QByteArray lobby = fixture("lobby.json");
         // big: an answer far bigger than a list of rooms.
@@ -1985,7 +2190,26 @@ private slots:
         QCOMPARE(arcade.filterIndex(QStringLiteral("online"), QStringLiteral("sf2"), 99), 0);
         QCOMPARE(arcade.filterIndex(QStringLiteral("online"), QStringLiteral("pacman"), 99), -1);
 
-        // Joined: RetroArch connects to the room, under the default name.
+        // Joined: RetroArch connects to the room, under the default name. The
+        // JAMMA board's sticks play on the host's controller types, as any
+        // pad: no arcade panel, and a remap file left by a game off line
+        // removed.
+        controllers::setPlayerEnvironment({ { QStringLiteral("OSDOS_PLAYER1_NAME"), QStringLiteral("OSD/OS JAMMA P1") },
+                                            { QStringLiteral("OSDOS_PLAYER1_GUID"),
+                                              QStringLiteral("06002868010000000100000001000000") },
+                                            { QStringLiteral("OSDOS_PLAYER2_NAME"), QStringLiteral("OSD/OS JAMMA P2") },
+                                            { QStringLiteral("OSDOS_PLAYER2_GUID"),
+                                              QStringLiteral("06006869010000000200000001000000") } });
+        const QString remap = data.path() + QStringLiteral("/arcade/retroarch/remaps/FinalBurn Neo/FinalBurn Neo.rmp");
+        writeFile(remap, "input_libretro_device_p1 = \"261\"\n");
+        const auto onPads = [](const QString &config) {
+            for (const char *line : { "input_player1_reserved_device = \"0001:0001 OSD/OS JAMMA P1\"",
+                                      "input_player1_b_btn = \"0\"", "input_player2_up_btn = \"11\"" }) {
+                if (!config.contains(QLatin1String(line)))
+                    return false;
+            }
+            return !config.contains(QStringLiteral("input_player1_up_axis"));
+        };
         const auto ended = [&arcade](const std::function<bool()> &start) {
             QSignalSpy finished(&arcade, &ArcadeBackend::finished);
             if (!start())
@@ -2004,11 +2228,14 @@ private slots:
         QVERIFY2(config.contains(QStringLiteral("netplay_nickname = \"OSD-OS\"")), qPrintable(config));
         QVERIFY(config.contains(QStringLiteral("netplay_start_as_spectator = \"false\"")));
         QVERIFY(!config.contains(QStringLiteral("netplay_public_announce")));
+        QVERIFY(onPads(config));
+        QVERIFY(!QFileInfo::exists(remap));
         // Hosted: announced in the lobby through the relay chosen, under the
         // online name.
         arcade.onSettingChanged(module, QStringLiteral("online_name"), QStringLiteral(" Mehmet "));
         arcade.onSettingChanged(module, QStringLiteral("relay_server"), QStringLiteral("Madrid"));
         QFile::remove(m_log);
+        writeFile(remap, "input_libretro_device_p1 = \"261\"\n");
         QCOMPARE(ended([&arcade] { return arcade.hostGame(QStringLiteral("sf2")); }).value(1).toString(),
                  QStringLiteral("ok"));
         QVERIFY(logLines(QStringLiteral("retroarch ")).value(0).contains(QStringLiteral(" --host ")));
@@ -2016,6 +2243,8 @@ private slots:
         for (const char *line : { "netplay_nickname = \"Mehmet\"", "netplay_public_announce = \"true\"",
                                   "netplay_use_mitm_server = \"true\"", "netplay_mitm_server = \"madrid\"" })
             QVERIFY2(config.contains(QLatin1String(line)), line);
+        QVERIFY(onPads(config));
+        QVERIFY(!QFileInfo::exists(remap));
         // A room gone from the lobby, and a game that can't be hosted.
         QVERIFY(!arcade.joinRoom(99));
         QCOMPARE(arcade.lastError(), QStringLiteral("The game is no longer in RetroArch's lobby"));
@@ -2378,6 +2607,60 @@ private slots:
         QCOMPARE(arcade.filters().size(), 13);
     }
 
+    // No catver.ini beside the games nor kept: one downloaded into the
+    // module's folder once the folder is read, and read with it, the genres
+    // then among the filters; not again once there. An answer that isn't
+    // one, not kept, and not asked for again at once.
+    void genresDownloaded() {
+        const QString kept = m_data.path() + QStringLiteral("/arcade/catver.ini");
+        const auto restore = qScopeGuard([kept] { QFile::remove(kept); });
+        QFile::remove(m_games + QStringLiteral("/catver.ini"));
+        QFile::remove(kept);
+        StandIn standIn;
+        QVERIFY(serve(standIn));
+        standIn.answers = {
+            { "/media/catver.ini", "[FOLDER_SETTINGS]\nRootFolderIcon mame\n\n[Category]\nsf2=Fighter / Versus\r\n"
+                                   "galaga=Shooter / Flying Vertical\r\n" },
+            { "/media/page.html", "<html>Not Found</html>" },
+        };
+        const auto genres = [](ArcadeBackend &arcade) {
+            QStringList ids;
+            for (const QVariant &v : arcade.filters()) {
+                const QString id = v.toMap().value(QStringLiteral("id")).toString();
+                if (id.startsWith(QLatin1String("genres/")))
+                    ids << id;
+            }
+            return ids;
+        };
+
+        AppCore core(m_data.path(), m_data.path());
+        {
+            ArcadeBackend arcade(m_data.path(), m_data.path(), &core, nullptr);
+            arcade.setGenresUrl(standIn.media().resolved(QUrl(QStringLiteral("page.html"))));
+            refreshed(arcade);
+            QTRY_VERIFY_WITH_TIMEOUT(standIn.asked.contains(QStringLiteral("/media/page.html")), 5000);
+            QTest::qWait(300);
+            QVERIFY(!QFileInfo::exists(kept));
+            QVERIFY(genres(arcade).isEmpty());
+            standIn.asked.clear();
+            refreshed(arcade);
+            QTest::qWait(300);
+            QVERIFY(standIn.asked.isEmpty());
+        }
+
+        ArcadeBackend arcade(m_data.path(), m_data.path(), &core, nullptr);
+        arcade.setGenresUrl(standIn.media().resolved(QUrl(QStringLiteral("catver.ini"))));
+        standIn.asked.clear();
+        refreshed(arcade);
+        QTRY_COMPARE_WITH_TIMEOUT(genres(arcade), QStringList({ QStringLiteral("genres/Fighting"),
+                                                                QStringLiteral("genres/Shmup") }), 10000);
+        QCOMPARE(standIn.asked, QStringList({ QStringLiteral("/media/catver.ini") }));
+        QCOMPARE(contents(kept), standIn.answers.value("/media/catver.ini"));
+        refreshed(arcade);
+        QTest::qWait(300);
+        QCOMPARE(standIn.asked.size(), 1);
+    }
+
     // Settings → Arcade → Menu Filters: its page, the lists and the places
     // under their headings, a publisher's off; the filters the Arcade screen
     // goes round and Start Filter offers, as turned on or off there (the row
@@ -2487,6 +2770,29 @@ private slots:
         refreshed(reread);
         QVERIFY(ids(reread.filters()).contains(QStringLiteral("makers/Namco")));
         QVERIFY(!ids(reread.filters()).contains(QStringLiteral("genres/Fighting")));
+    }
+
+    // A Start Filter and Menu Filters' publishers saved under a company's
+    // other names, before they were merged (Nintendo of America, SNK
+    // Playmore), are saved again under the company, on where any of its
+    // names was.
+    void publishersMerged() {
+        const QString module = QStringLiteral("com.osdos.arcade");
+        AppCore core(m_data.path(), m_data.path());
+        const auto restore = qScopeGuard([&core, &module] {
+            core.save_setting(module, QStringLiteral("menu_filters"), QVariantMap());
+            core.save_setting(module, QStringLiteral("start_filter"), QString());
+        });
+        core.save_setting(module, QStringLiteral("start_filter"), QStringLiteral("makers/Nintendo of America"));
+        core.save_setting(module, QStringLiteral("menu_filters"), QVariantMap{
+            { QStringLiteral("makers/SNK Playmore"), true }, { QStringLiteral("makers/SNK"), false },
+            { QStringLiteral("makers/Capcom U.S.A."), false }, { QStringLiteral("makers/Namco"), true },
+            { QStringLiteral("genres/Fighting"), false } });
+        ArcadeBackend arcade(m_data.path(), m_data.path(), &core, nullptr);
+        QCOMPARE(core.get_setting(module, QStringLiteral("start_filter")).toString(), QStringLiteral("makers/Nintendo"));
+        QCOMPARE(core.get_setting(module, QStringLiteral("menu_filters")).toMap(), (QVariantMap{
+            { QStringLiteral("makers/SNK"), true }, { QStringLiteral("makers/Capcom"), false },
+            { QStringLiteral("makers/Namco"), true }, { QStringLiteral("genres/Fighting"), false } }));
     }
 
     // A folder of sets MAME knows none of has Not Recognized in All Games'

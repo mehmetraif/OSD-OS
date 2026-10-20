@@ -8,6 +8,12 @@
 # RetroAchievements not reached for the token "offline". It swaps the password
 # "secret" for a token in the config, as RetroArch saves it on exit, and takes
 # $RA_SECONDS to end.
+#
+# Started with OSD/OS's sign-in core, to check a sign-in, it says on its
+# output what RetroArch's log does as it signs in, its token in the config
+# first, as it would save it on exit: signed in for the password "secret",
+# refused for "wrong", RetroAchievements not reached for "offline", nothing
+# for "silent"; and runs until it is stopped.
 log=""; config=""; content=""; prev=""
 for a in "$@"; do
 	case "$a" in --log-file=*) log="${a#--log-file=}" ;; esac
@@ -18,8 +24,29 @@ done
 	echo "retroarch $*"
 	echo "cwd $(pwd)"
 	echo "sdlconfig ${SDL_GAMECONTROLLERCONFIG_FILE:-}"
+	echo "xdg ${XDG_CONFIG_HOME:-}"
 } >> "$MAME_LOG"
 cp "$config" "$RA_CONFIG_COPY"
+case "$2" in
+*osdos_signin_libretro*)
+	user=$(sed -n 's/^cheevos_username = "\(.*\)"$/\1/p' "$config")
+	echo "[INFO] RetroArch 1.20.0 (Git c4f8f5f)"
+	if grep -q 'cheevos_password = "secret"' "$config"; then
+		sed -i 's/^cheevos_token = .*/cheevos_token = "tok789"/; s/^cheevos_password = .*/cheevos_password = ""/' "$config"
+		echo "[INFO] [RCHEEVOS]: $user logged in successfully"
+	elif grep -q 'cheevos_password = "wrong"' "$config"; then
+		echo "[INFO] [RCHEEVOS]: Login failed: Invalid User/Password combination. Please try again"
+		echo "[INFO] [RCHEEVOS]: RetroAchievements login failed: Invalid User/Password combination. Please try again"
+	elif grep -q 'cheevos_password = "offline"' "$config"; then
+		echo "[INFO] [RCHEEVOS]: RetroAchievements login failed: No response from server"
+	fi
+	echo "[INFO] [RCHEEVOS]: Game not recognized, pausing hardcore"
+	trap 'kill $! 2>/dev/null; exit 0' TERM
+	sleep 30 &
+	wait
+	exit 0
+	;;
+esac
 game=$(basename "$content"); game="${game%.*}"
 {
 	echo "[INFO] RetroArch 1.20.0 (Git c4f8f5f)"

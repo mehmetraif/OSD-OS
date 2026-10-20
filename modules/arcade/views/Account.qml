@@ -8,9 +8,11 @@ import Components
 // achievements (gameAchievements(), which of them the account's user has
 // earned).
 // Signing in hands the password to ArcadeBackend for RetroArch to sign in
-// with at the next game, which swaps it for a token (RetroAchievements lets
-// an emulator sign in, not a launcher); the page says how that went
-// (achievementsState).
+// with, which swaps it for a token (RetroAchievements lets an emulator sign
+// in, not a launcher): at once, RetroArch running unseen for the moment it
+// takes, or else at the next game. The page says how that went
+// (achievementsState), and whether RetroAchievements took the key, which it
+// is asked about as it is typed and as the page opens.
 FocusScope {
     id: accountRoot
 
@@ -26,6 +28,7 @@ FocusScope {
     readonly property string message: arcadeBackend ? arcadeBackend.achievementsMessage : ""
     readonly property bool keyKept: arcadeBackend ? arcadeBackend.achievementsKey : false
     readonly property bool keyRefused: arcadeBackend ? arcadeBackend.achievementsKeyRefused : false
+    readonly property bool keyWorks: arcadeBackend ? arcadeBackend.achievementsKeyWorks : false
     // What is typed for the next sign-in.
     property string typedUser: ""
     property string typedPassword: ""
@@ -33,14 +36,16 @@ FocusScope {
     property string typing: ""
 
     readonly property string stateText: accountState === "signedIn" ? "Signed In"
+                                      : accountState === "checking" ? "Checking"
                                       : accountState === "pending" ? "At the Next Game"
                                       : accountState === "failed" ? "Not Signed In" : "None"
     // The page's lines, by key: the list is made again only when a line
     // comes or goes (signed in, a key kept), the cursor kept on its line.
     property var keys: []
+    readonly property string currentKey: keys[list.currentIndex] || ""
     function updateKeys() {
         var made = ["state", "status"]
-        if (accountState === "signedIn" || accountState === "pending")
+        if (accountState === "signedIn" || accountState === "pending" || accountState === "checking")
             made.push("signOut")
         else
             made.push("user", "password", "signIn")
@@ -55,9 +60,22 @@ FocusScope {
         // gone: signed in).
         list.currentIndex = Math.max(0, made.indexOf(at))
     }
-    onAccountStateChanged: updateKeys()
+    onAccountStateChanged: {
+        updateKeys()
+        // Refused: the user as it was, the cursor on the password to type
+        // again.
+        if (accountState === "failed") {
+            if (typedUser === "")
+                typedUser = user
+            list.currentIndex = Math.max(0, keys.indexOf("password"))
+        }
+    }
     onKeyKeptChanged: updateKeys()
-    Component.onCompleted: updateKeys()
+    Component.onCompleted: {
+        updateKeys()
+        if (arcadeBackend)
+            arcadeBackend.checkAchievementsKey()
+    }
 
     function labelOf(key) {
         switch (key) {
@@ -78,15 +96,19 @@ FocusScope {
         case "status": return stateText
         case "user": return typedUser !== "" ? typedUser : "None"
         case "password": return typedPassword !== "" ? "*".repeat(typedPassword.length) : "None"
-        case "key": return !keyKept ? "None" : keyRefused ? "Refused" : "Kept"
+        case "key": return !keyKept ? "None" : keyRefused ? "Refused" : keyWorks ? "Working" : "Kept"
         }
         return ""
     }
     function descriptionOf(key) {
         switch (key) {
         case "state":
-            return accountState === "signedIn" ? "Signed in as " + user + ": the scores of FinalBurn Neo's games go to RetroAchievements"
-                 : accountState === "pending" ? "RetroArch signs in as " + user + " at the next game FinalBurn Neo plays"
+            return accountState === "signedIn"
+                       ? "Signed in as " + user + ": the scores of FinalBurn Neo's games go to RetroAchievements"
+                         + (keyKept ? "" : ". The pictures and achievements need the Web API Key too")
+                 : accountState === "checking" ? "RetroArch is signing in as " + user + ", out of sight"
+                 : accountState === "pending" ? (message !== "" ? message
+                                                                : "RetroArch signs in as " + user + " at the next game FinalBurn Neo plays")
                  : accountState === "failed" ? message
                  : "No account: the games play without RetroAchievements"
         case "status":
@@ -94,13 +116,17 @@ FocusScope {
         case "signOut": return "Forget the account: the games play without RetroAchievements"
         case "user": return "Your RetroAchievements user name"
         case "password":
+            // Refused: why, where the cursor lands to type it again.
+            if (accountState === "failed" && message !== "" && typedPassword === "")
+                return message
             return "Used once, by RetroArch, which keeps a token in its place. Debian's RetroArch sends it unencrypted: use one you use nowhere else"
         case "signIn":
-            return typedUser !== "" && typedPassword !== "" ? "RetroArch signs in at the next game FinalBurn Neo plays"
+            return typedUser !== "" && typedPassword !== "" ? "RetroArch signs in now, out of sight, and the Status line says how it went"
                                                             : "Type your user name and password first"
         case "key":
             return keyRefused ? "RetroAchievements refused the key: type it again from retroachievements.org, Settings, Keys"
-                              : "For the leaderboards and the games' pictures on the Arcade screen, and the achievements in Game Details: retroachievements.org, Settings, Keys"
+                 : keyWorks ? "RetroAchievements takes the key: the games' pictures and leaderboards on the Arcade screen, and the achievements in Game Details"
+                 : "Needed for the games' pictures and leaderboards on the Arcade screen, and the achievements in Game Details: retroachievements.org, Settings, Keys"
         case "forgetKey": return "The Arcade screen shows this machine's own high scores again, and no more pictures are downloaded"
         }
         return ""
@@ -168,7 +194,7 @@ FocusScope {
             keepValue: true
         }
 
-        Keys.onReturnPressed: accountRoot.choose(accountRoot.keys[currentIndex])
+        Keys.onReturnPressed: accountRoot.choose(accountRoot.currentKey)
         Keys.onPressed: function(event) {
             if (event.key === Qt.Key_Escape || event.key === Qt.Key_Backspace || event.key === Qt.Key_Back) {
                 accountRoot.goBack()
@@ -180,7 +206,7 @@ FocusScope {
     HelpLine {
         always: true
         visible: !keyboard.visible
-        text: accountRoot.descriptionOf(accountRoot.keys[list.currentIndex])
+        text: accountRoot.descriptionOf(accountRoot.currentKey)
         anchors.bottom: parent.bottom
         anchors.left: parent.left
         anchors.bottomMargin: root.helpLineMargin
@@ -188,7 +214,7 @@ FocusScope {
     }
 
     HintBar {
-        readonly property string key: accountRoot.keys[list.currentIndex] || ""
+        readonly property string key: accountRoot.currentKey
         visible: !keyboard.visible
         text: root.hints.back + ":BACK " + root.hints.navigate + ":NAVIGATE"
               + (key !== "" && key !== "state" && key !== "status" ? " " + root.hints.select + ":"

@@ -5,10 +5,12 @@
 // Pi's I2C0, GPIO 0 and 1 (/dev/i2c-0 on a Pi 4 and a Pi 5 alike): player 1's
 // at 0x20, player 2's at 0x21. This sets their pins as inputs with pull-ups,
 // reads both every 2 ms and plays what changes on a uinput gamepad each,
-// "OSD/OS JAMMA P1" and "OSD/OS JAMMA P2", which OSD/OS and MAME take as any
-// other pad: the joystick a digital stick, the buttons gamepad buttons
-// (JammaPanel.h). An expander that doesn't answer is asked again every half
-// second, so a player whose expander comes late still gets a pad.
+// "OSD/OS JAMMA P1" and "OSD/OS JAMMA P2", which OSD/OS, MAME and RetroArch
+// take as any other pad: the joystick a digital stick, the buttons gamepad
+// buttons (JammaPanel.h). Each has a vendor and a product of its own (1, and
+// the player's number), so that SDL tells them apart. An expander that
+// doesn't answer is asked again every half second, so a player whose
+// expander comes late still gets a pad.
 //
 // The JAMMA display preset (osdos-display-jamma-240p.txt) turns I2C0 on and
 // says so ("# osdos-controls: jamma"): with it in force, the expanders are
@@ -19,7 +21,9 @@
 //   osdos-jamma [--bus /dev/i2c-N] [--map FILE] [--test]
 //
 // --test prints each pin as it changes, with what the mapping makes of it, and
-// plays nothing: the way to find out a board's wiring. The mapping file,
+// plays nothing: the way to find out a board's wiring. It watches any other
+// expander on the bus too (0x22 to 0x27), as player "0", should a board wire
+// some of its controls to a third. The mapping file,
 // /boot/firmware/osdos-jamma.txt when there is one, moves pins, a line each:
 // "<address> <pin> <input>", e.g. "0x21 B3 b6".
 
@@ -48,6 +52,14 @@
 namespace {
 
 constexpr uint8_t kAddresses[] = { 0x20, 0x21 };  // player 1, player 2
+// The pads' vendor, as mk_arcade_joystick_rpi gives its joysticks; their
+// product is the player's number. Without either, SDL knows a pad by the
+// first eleven letters of its name, the same for both ("OSD/OS JAMM"), and
+// gives the second the first's mapping, name and all: RetroArch, which takes
+// a pad's name from that, would then have two P1s and no P2.
+constexpr uint16_t kVendor = 0x0001;
+// The other addresses an MCP23017 can have, watched by --test.
+constexpr uint8_t kOtherAddresses[] = { 0x22, 0x23, 0x24, 0x25, 0x26, 0x27 };
 constexpr const char *kDefaultBus = "/dev/i2c-0";
 constexpr const char *kDefaultMap = "/boot/firmware/osdos-jamma.txt";
 constexpr const char *kDisplayPreset = "/boot/firmware/osdos-display.txt";
@@ -109,6 +121,15 @@ bool readRegs(int bus, uint8_t address, uint8_t reg, uint8_t *out, uint16_t len)
     return ioctl(bus, I2C_RDWR, &data) == 2;
 }
 
+// Whether anything answers at an address: a read alone, which changes nothing
+// on whatever is there.
+bool answers(int bus, uint8_t address) {
+    uint8_t byte = 0;
+    i2c_msg msg = { address, I2C_M_RD, 1, &byte };
+    i2c_rdwr_ioctl_data data = { &msg, 1 };
+    return ioctl(bus, I2C_RDWR, &data) == 1;
+}
+
 // Every pin an input, with its pull-up, read as it is: the switches close to
 // ground, so a pin reads 0 while its switch is held. IOCON goes first, at both
 // the addresses it can have: 0x05 is IOCON with BANK = 1 (and GPINTENB, off
@@ -139,9 +160,10 @@ bool readPressed(int bus, uint8_t address, uint16_t *pressed) {
 
 // ── uinput ───────────────────────────────────────────────────────────────────
 
-// A gamepad with every button there is (jamma::allButtons()) and a digital
-// stick, -1 to 1 on each axis, as RGB-Pi's driver makes its joysticks.
-int openPad(const std::string &name) {
+// Player number's gamepad, with every button there is (jamma::allButtons())
+// and a digital stick, -1 to 1 on each axis, as RGB-Pi's driver makes its
+// joysticks.
+int openPad(int number) {
     const int fd = open("/dev/uinput", O_WRONLY | O_NONBLOCK | O_CLOEXEC);
     if (fd < 0)
         return -1;
@@ -157,8 +179,10 @@ int openPad(const std::string &name) {
     }
     uinput_setup setup = {};
     setup.id.bustype = BUS_VIRTUAL;
+    setup.id.vendor = kVendor;
+    setup.id.product = uint16_t(number);
     setup.id.version = 1;
-    std::snprintf(setup.name, sizeof setup.name, "%s", name.c_str());
+    std::snprintf(setup.name, sizeof setup.name, "OSD/OS JAMMA P%d", number);
     ok = ok && ioctl(fd, UI_DEV_SETUP, &setup) == 0 && ioctl(fd, UI_DEV_CREATE) == 0;
     if (!ok) {
         const int saved = errno;
@@ -191,7 +215,7 @@ bool send(int pad, const std::vector<jamma::Event> &events) {
 // ── The players ──────────────────────────────────────────────────────────────
 
 struct Player {
-    int number;
+    int number;             // 1, 2; 0 for another expander --test watches
     uint8_t address;
     jamma::Panel panel;
     int pad = -1;
@@ -243,13 +267,16 @@ bool takeUp(Player &p, uint64_t now) {
     p.lastGood = now;
     if (!p.found) {
         p.found = true;
-        say("player %d at 0x%02x", p.number, p.address);
+        if (p.number)
+            say("player %d at 0x%02x", p.number, p.address);
+        else
+            say("another expander at 0x%02x", p.address);
     } else {
-        say("player %d's expander answers again", p.number);
+        say("the expander at 0x%02x answers again", p.address);
     }
     if (g_test || p.pad >= 0)
         return true;
-    p.pad = openPad("OSD/OS JAMMA P" + std::to_string(p.number));
+    p.pad = openPad(p.number);
     if (p.pad < 0) {
         say("no gamepad for player %d (/dev/uinput): %s", p.number, std::strerror(errno));
         return false;
@@ -343,6 +370,19 @@ int main(int argc, char **argv) {
             break;
         usleep(250'000);
     }
+    // --test: any other expander on the bus too, its pins without a mapping.
+    // Only where something answers is anything written.
+    if (g_test && bus >= 0) {
+        for (const uint8_t a : kOtherAddresses) {
+            if (!answers(bus, a) || !setUp(bus, a))
+                continue;
+            jamma::ChipMap none;
+            none.address = a;
+            players.push_back({ 0, a, jamma::Panel(none) });
+            takeUp(players.back(), nowMs());
+            any = true;
+        }
+    }
     if (!any) {
         if (bus < 0)
             say("%s: %s: nothing to read%s", busPath.c_str(), std::strerror(openError),
@@ -374,7 +414,7 @@ int main(int argc, char **argv) {
                 // Lost once no read has been good for a while, however long
                 // each failed one took: nothing is left held meanwhile.
                 if (nowMs() - p.lastGood >= kLostAfterMs) {
-                    say("player %d's expander stopped answering: %s", p.number, std::strerror(errno));
+                    say("the expander at 0x%02x stopped answering: %s", p.address, std::strerror(errno));
                     p.lost = true;
                     p.retryAt = now + kRetryMs;
                     deliver(p, p.panel.releaseAll(now));

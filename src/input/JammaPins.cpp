@@ -17,11 +17,12 @@ constexpr int kLineMax = 256;
 
 std::optional<JammaPins::Change> JammaPins::parse(const QByteArray &line) {
     static const QRegularExpression format(
-        QStringLiteral("^P([12]) 0x[0-9a-f]{2} ([AB][0-7]) +(pressed|released) +([a-z0-9]+)$"));
+        QStringLiteral("^P([0-2]) (0x[0-9a-f]{2}) ([AB][0-7]) +(pressed|released) +([a-z0-9]+)$"));
     const QRegularExpressionMatch m = format.match(QString::fromLatin1(line.trimmed()));
     if (!m.hasMatch())
         return std::nullopt;
-    return Change{ m.captured(1).toInt(), m.captured(2), m.captured(3) == QLatin1String("pressed"), m.captured(4) };
+    return Change{ m.captured(1).toInt(), m.captured(2), m.captured(3), m.captured(4) == QLatin1String("pressed"),
+                   m.captured(5) };
 }
 
 JammaPins::JammaPins(QObject *parent)
@@ -67,8 +68,8 @@ void JammaPins::readOutput() {
         const std::optional<Change> change = parse(m_partial.left(end));
         m_partial.remove(0, end + 1);
         // What is done with it may stop the watch, and clear what is left.
-        if (change && change->pressed)
-            emit pinPressed(change->player, change->pin, change->input);
+        if (change)
+            emit pinChanged(change->player, change->address, change->pin, change->pressed, change->input);
     }
     if (m_partial.size() > kLineMax)
         m_partial.clear();

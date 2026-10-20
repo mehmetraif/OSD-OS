@@ -15,6 +15,59 @@ namespace {
 // the game's own time, so a game MAME warns about first waits for it.
 constexpr int kCoinDelaySeconds = 5;
 
+// The words that end a company's name without telling it apart from the
+// company itself: where its arm was ("Nintendo of America", "Data East USA",
+// "Technos Japan") and its legal form or line of trade ("Taito Corporation",
+// "Video System Co.", "Sega Enterprises", "Midway Manufacturing").
+const char *const kCompanyEndings[] = {
+    "of America", "America", "USA", "U.S.A.", "US", "U.S.", "of Europe", "Europe", "UK", "U.K.",
+    "of Japan", "Japan", "of Korea", "Korea", "Taiwan", "Hong Kong", "Asia", "Ireland",
+    "Deutschland", "Germany", "France", "Italia", "Italy", "Espana", "Spain", "do Brasil", "Brasil",
+    "Brazil", "Australia", "Canada",
+    "Corporation", "Corp.", "Corp", "Company", "Co.", "Co", "Limited", "Ltd.", "Ltd", "Inc.", "Inc",
+    "Incorporated", "GmbH", "S.A.", "SA", "S.L.", "S.R.L.", "SRL", "S.p.A.", "B.V.", "Pty", "K.K.",
+    "PLC", "LLC", "Industries", "Industry", "Industrial", "Manufacturing", "Mfg.", "Enterprises",
+    "Electronics", "Amusements", "Amusement", "International", "Trading",
+};
+// A company's names that aren't its name and an ending: after a merger, or
+// for its arm in another country.
+const std::pair<const char *, const char *> kCompanyNames[] = {
+    { "SNK Playmore", "SNK" }, { "Bally Midway", "Midway" }, { "Midway Games", "Midway" },
+    { "Atari Games", "Atari" }, { "Bandai Namco", "Namco" }, { "Namco Bandai", "Namco" },
+    { "Sega Sammy", "Sega" }, { "American Sammy", "Sammy" },
+};
+
+// Whether name starts with words, whole words, in any case.
+bool startsWithWords(const QString &name, const QString &words) {
+    return name.startsWith(words, Qt::CaseInsensitive)
+           && (name.size() == words.size() || !name.at(words.size()).isLetterOrNumber());
+}
+
+// The company a maker's name is one of: "Nintendo of America" and "Nintendo"
+// are Nintendo, "SNK Playmore" SNK, "Taito America Corporation" Taito.
+QString companyOf(QString maker) {
+    for (bool shorter = true; shorter;) {
+        shorter = false;
+        maker = maker.trimmed();
+        while (maker.endsWith(QLatin1Char(',')) || maker.endsWith(QLatin1Char('&')))
+            maker = maker.chopped(1).trimmed();
+        for (const char *ending : kCompanyEndings) {
+            const QString end = QLatin1Char(' ') + QLatin1String(ending);
+            // Never the whole name: "Universal" stays Universal.
+            if (maker.size() > end.size() && maker.endsWith(end, Qt::CaseInsensitive)) {
+                maker.chop(end.size());
+                shorter = true;
+                break;
+            }
+        }
+    }
+    for (const auto &[name, company] : kCompanyNames) {
+        if (startsWithWords(maker, QLatin1String(name)))
+            return QLatin1String(company);
+    }
+    return maker;
+}
+
 } // namespace
 
 QString programPath(const QString &dataRoot) {
@@ -241,7 +294,7 @@ QString makerOf(const QString &manufacturer) {
     // MAME's "<unknown>", and the odd game's "unknown".
     if (maker.startsWith(QLatin1Char('<')) || maker.compare(QLatin1String("unknown"), Qt::CaseInsensitive) == 0)
         return QString();
-    return maker;
+    return companyOf(maker);
 }
 
 QString decadeOf(const QString &year) {

@@ -102,6 +102,8 @@ void RetroAchievements::setKey(const QString &key) {
     if (key == m_key)
         return;
     m_key = key;
+    m_keyAccepted = false;
+    m_keyCheck = false;
     m_boards.clear();
     m_progress.clear();
     // The list the other key couldn't read, this one may.
@@ -112,6 +114,13 @@ void RetroAchievements::setKey(const QString &key) {
         m_reply->setProperty(kAgain, true);
         m_reply->abort();
     }
+}
+
+void RetroAchievements::checkKey() {
+    if (m_key.isEmpty() || m_keyAccepted)
+        return;
+    m_keyCheck = true;
+    readWanted();
 }
 
 void RetroAchievements::setUser(const QString &user) {
@@ -233,6 +242,12 @@ void RetroAchievements::failWanted() {
 void RetroAchievements::readWanted() {
     if (m_reply || m_key.isEmpty())
         return;
+    // The key asked about first, unless an answer came with it meanwhile:
+    // get() says how it went.
+    if (std::exchange(m_keyCheck, false) && !m_keyAccepted) {
+        get(QStringLiteral("API_GetConsoleIDs.php"), {}, [this](const QByteArray &, bool) { readWanted(); });
+        return;
+    }
     // Read meanwhile, as it was asked for again.
     const auto board = m_boards.constFind(m_wanted);
     if (board != m_boards.constEnd() && fresh(*board))
@@ -552,6 +567,7 @@ void RetroAchievements::get(const QString &endpoint, const QList<std::pair<QStri
         const int status = reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
         if (status == 401 || status == 403) {
             qWarning("[Arcade] RetroAchievements refused the Web API key");
+            m_keyAccepted = false;
             emit keyRefused();
             answer(QByteArray(), false);
             return;
@@ -564,6 +580,8 @@ void RetroAchievements::get(const QString &endpoint, const QList<std::pair<QStri
             answer(QByteArray(), false);
             return;
         }
+        if (!std::exchange(m_keyAccepted, true))
+            emit keyAccepted();
         answer(json, true);
     });
 }

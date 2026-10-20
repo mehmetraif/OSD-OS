@@ -996,19 +996,71 @@ private slots:
         QCOMPARE(savedControllers().value(key2).toObject().value("name").toString(), QString("OSD/OS JAMMA P2"));
     }
 
+    // The JAMMA board's sticks as osdos-jamma makes them now, with a vendor
+    // and a product: SDL tells them apart, each its own mapping and name. The
+    // settings one had under the key it had without them (legacyJammaKey()),
+    // its page's and a player's choice of it, follow it to its key.
+    void jammaStickKeys() {
+        QCOMPARE(controllers::legacyJammaKey("06002868010000000100000001000000", "OSD/OS JAMMA P1"),
+                 QString("pad-060028684f53442f4f53204a414d4d00"));
+        QCOMPARE(controllers::legacyJammaKey("0600", "OSD/OS JAMMA P1"), QString());
+        QVERIFY(controllers::isJammaStick("OSD/OS JAMMA P2"));
+        QVERIFY(!controllers::isJammaStick("Xbox 360 Controller"));
+
+        AppCore core(m_app.path(), m_data.path());
+        InputManager im(m_data.path(), &core);
+        VirtualPad p1, p2;
+        QVERIFY(p1.attach("OSD/OS JAMMA P1", 0x0001, 0x0001));
+        QVERIFY(p2.attach("OSD/OS JAMMA P2", 0x0001, 0x0002));
+        QTRY_VERIFY(entry(im, "OSD/OS JAMMA P1").value("present").toBool());
+        QTRY_VERIFY(entry(im, "OSD/OS JAMMA P2").value("present").toBool());
+        for (int i = 0; i < SDL_NumJoysticks(); ++i) {
+            if (SDL_JoystickGetDeviceInstanceID(i) == p2.id)
+                QCOMPARE(QString(SDL_GameControllerNameForIndex(i)), QString("OSD/OS JAMMA P2"));
+        }
+        const QString key1 = entry(im, "OSD/OS JAMMA P1").value("key").toString();
+        QVERIFY(key1 != entry(im, "OSD/OS JAMMA P2").value("key").toString());
+
+        // P1's settings from before: Xbox labels, and player 1's choice.
+        const QString legacy = controllers::legacyJammaKey(key1.mid(4), "OSD/OS JAMMA P1");
+        QVERIFY(!legacy.isEmpty() && legacy != key1);
+        p1.detach();
+        QTRY_VERIFY(entry(im, "OSD/OS JAMMA P1").isEmpty());
+        core.save_setting(QString(), "controllers", QVariantMap{ { legacy, QVariantMap{
+            { "name", "OSD/OS JAMMA P1" }, { "kind", "arcade" }, { "labels", "xbox" } } } });
+        core.save_setting(QString(), "players", QVariantMap{ { "1", QVariantMap{
+            { "key", legacy }, { "name", "OSD/OS JAMMA P1" } } } });
+        QVERIFY(p1.attach("OSD/OS JAMMA P1", 0x0001, 0x0001));
+        QTRY_COMPARE(player(im, 1).value("playing").toString(), key1);
+        QVERIFY(savedControllers().contains(key1));
+        QVERIFY(!savedControllers().contains(legacy));
+        QCOMPARE(savedApp("players").value("1").toObject().value("key").toString(), key1);
+        QCOMPARE(im.controllerPage(key1).value("labelsInUse").toString(), QString("Xbox"));
+        // Nothing of it left under the old key: listed once, connected.
+        int listed = 0;
+        for (const QVariant &v : im.controllers())
+            listed += v.toMap().value("name").toString() == "OSD/OS JAMMA P1";
+        QCOMPARE(listed, 1);
+        QCOMPARE(entry(im, "OSD/OS JAMMA P1").value("key").toString(), key1);
+    }
+
     // TEST BUTTONS on a JAMMA stick's page takes both sticks at once, their
     // presses reported and acting on nothing, and the board's pins as
-    // osdos-jamma --test prints them, both players', pressed ones only.
+    // osdos-jamma --test prints them, pressed and let go, both players' and
+    // another expander's.
     void jammaTest() {
         using Change = JammaPins::Change;
-        const auto parsed = [](const char *line) { return JammaPins::parse(line).value_or(Change{ -1, {}, false, {} }); };
+        const auto parsed = [](const char *line) { return JammaPins::parse(line).value_or(Change{ -1, {}, {}, false, {} }); };
         QCOMPARE(parsed("P1 0x20 B1 pressed  tl2").player, 1);
+        QCOMPARE(parsed("P1 0x20 B1 pressed  tl2").address, QString("0x20"));
         QCOMPARE(parsed("P1 0x20 B1 pressed  tl2").pin, QString("B1"));
         QVERIFY(parsed("P1 0x20 B1 pressed  tl2").pressed);
         QCOMPARE(parsed("P1 0x20 B1 pressed  tl2").input, QString("tl2"));
         QCOMPARE(parsed("P2 0x21 A7 released none\n").player, 2);
         QVERIFY(!parsed("P2 0x21 A7 released none").pressed);
         QCOMPARE(parsed("P2 0x21 A7 released none").input, QString("none"));
+        QCOMPARE(parsed("P0 0x24 B3 pressed  none").player, 0);
+        QCOMPARE(parsed("P0 0x24 B3 pressed  none").address, QString("0x24"));
         for (const char *other : { "osdos-jamma: player 1 at 0x20", "Press each control; Ctrl+C ends.",
                                    "P3 0x20 B1 pressed  a", "P1 0x20 C1 pressed  a", "P1 0x20 B8 pressed  a",
                                    "P1 0x20 B1 held     a", "P1 0x20 B1 pressed  <b>", "" })
@@ -1046,9 +1098,10 @@ private slots:
         im.captureController(QString());
         QCOMPARE(tap(p1, SDL_CONTROLLER_BUTTON_A, keys), QString("ENTER"));
 
-        // The pins: both players' presses, in their order; the rest of what it
-        // prints is no pin. Stopped, it is no failure.
-        QSignalSpy pins(&im, &InputManager::jammaPinPressed);
+        // The pins: both players' and another expander's, pressed and let go,
+        // in their order; the rest of what it prints is no pin. Stopped, it is
+        // no failure.
+        QSignalSpy pins(&im, &InputManager::jammaPinChanged);
         QSignalSpy failed(&im, &InputManager::jammaPinsFailed);
         im.setJammaProgram(script("osdos-jamma",
             "[ \"$1\" = --test ] || exit 3\n"
@@ -1058,13 +1111,15 @@ private slots:
             "echo 'P1 0x20 B1 released tl2'\n"
             "printf 'P2 0x21 A7 pre'\n"
             "sleep 0.2\n"
-            "printf 'ssed  z\\nP1 0x20 A4 pressed  mode\\n'\n"
+            "printf 'ssed  z\\nP1 0x20 A4 pressed  mode\\nP0 0x24 B3 pressed  none\\n'\n"
             "exec sleep 30\n"));
         im.watchJammaPins(true);
-        QTRY_COMPARE(pins.count(), 3);
-        QCOMPARE(pins.at(0), QVariantList({ 1, QString("B1"), QString("tl2") }));
-        QCOMPARE(pins.at(1), QVariantList({ 2, QString("A7"), QString("z") }));
-        QCOMPARE(pins.at(2), QVariantList({ 1, QString("A4"), QString("mode") }));
+        QTRY_COMPARE(pins.count(), 5);
+        QCOMPARE(pins.at(0), QVariantList({ 1, QString("0x20"), QString("B1"), true, QString("tl2") }));
+        QCOMPARE(pins.at(1), QVariantList({ 1, QString("0x20"), QString("B1"), false, QString("tl2") }));
+        QCOMPARE(pins.at(2), QVariantList({ 2, QString("0x21"), QString("A7"), true, QString("z") }));
+        QCOMPARE(pins.at(3), QVariantList({ 1, QString("0x20"), QString("A4"), true, QString("mode") }));
+        QCOMPARE(pins.at(4), QVariantList({ 0, QString("0x24"), QString("B3"), true, QString("none") }));
         im.watchJammaPins(false);
         QTest::qWait(300);
         QCOMPARE(failed.count(), 0);

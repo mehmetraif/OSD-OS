@@ -70,6 +70,12 @@ struct Launch {
     bool    integerScale = false;
     // Each player's controller, as reservedDevice() makes it: "" for none.
     QStringList pads;
+    // Which players' controllers are arcade panels, a JAMMA board's sticks:
+    // the cabinet's rows of buttons as FinalBurn Neo's 6-Button Panel has
+    // them (configText()'s binds, remapText()'s device), off line only.
+    QList<bool> panels;
+    // Where RetroArch looks for remap files (coreRemapPath()).
+    QString remapDir;
     // RetroAchievements: the account, signed in with its token, or with its
     // password for RetroArch to swap for one (it saves the token on exit).
     QString achievementsUser;
@@ -87,6 +93,13 @@ struct Launch {
 QString configText(const Launch &launch);
 // RetroArch's arguments: the core, the config, the log and the game.
 QStringList arguments(const Launch &launch);
+// The remap file RetroArch loads with FinalBurn Neo from remapDir: the
+// core's own, by its name.
+QString coreRemapPath(const QString &remapDir);
+// Its text: each player on an arcade panel on FinalBurn Neo's 6-Button
+// Panel, its controller type for such a panel, off line; "" for none, when
+// no file is needed.
+QString remapText(const Launch &launch);
 
 // What a run's log says (RetroArch's own, -v --log-file).
 struct Run {
@@ -103,6 +116,31 @@ Run readLog(const QString &path);
 bool loginRefused(const QString &failure);
 // The token RetroArch saved in a config it wrote back on exit; "" for none.
 QString savedToken(const QString &configPath);
+
+// The RetroAchievements account checked as it is signed in (Settings →
+// Arcade → RetroAchievements Account), not at the next game: RetroArch, with
+// no picture, sound or controllers, runs OSD/OS's sign-in core
+// (osdos_signin_libretro, src/modules/arcade/signin) on a file no game is
+// of. It signs in with the password as it would at a game, then finds no
+// game, so no session of one is started; and on exit it saves the token in
+// the password's place, as after a game.
+struct SignIn {
+    QString core;             // osdos_signin_libretro.so
+    QString content;          // the file it opens, <dir>/sign-in.osdos
+    QString config;           // the retroarch.cfg written for it
+    QString dir;              // where it keeps what it writes
+    QString user;
+    QString password;
+};
+QString signInConfigText(const SignIn &signIn);
+// The core, the config and the file; its log to its output (-v), read as it
+// comes.
+QStringList signInArguments(const SignIn &signIn);
+// What a line RetroArch printed says of the sign-in: nothing (None), that it
+// signed in, or that it was refused, why in failure ("Invalid User/Password
+// combination. Please try again"), or that RetroAchievements didn't answer.
+enum class SignInLine { None, SignedIn, Failed, Unreachable };
+SignInLine readSignInLine(const QString &line, QString *failure);
 
 // A room the netplay lobby lists (lobby.libretro.com/list): a game
 // FinalBurn Neo hosts, joined at joinAddress. What anyone hosting wrote, so

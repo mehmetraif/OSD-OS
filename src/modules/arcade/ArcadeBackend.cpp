@@ -63,10 +63,25 @@ const QHash<QString, QString> kRelays = {
     { QStringLiteral("Singapore"), QStringLiteral("singapore") },
     { QStringLiteral("Chuncheon"), QStringLiteral("chuncheon") },
 };
+// A sign-in RetroArch hasn't said how it went in this long is stopped (its
+// token read all the same), and one stopped is killed after this.
+constexpr int kSignInTimeoutMs = 20000;
+constexpr int kSignInStopMs = 5000;
+
 // How long the lobby is waited for.
 constexpr int kLobbyTimeoutMs = 15000;
 constexpr qint64 kLobbyMaxBytes = 4 * 1024 * 1024;
 constexpr const char *kTooBig = "osdosTooBig";
+
+// catver.ini, the games' genres, as progettosnaps publishes it with each MAME:
+// downloaded into <data>/arcade when neither folder has one (it may not be
+// handed out with OSD/OS, so it comes to each machine from its author's own
+// place). Some megabytes; an hour before one that failed is tried again.
+const QUrl kGenresUrl(QStringLiteral(
+    "https://raw.githubusercontent.com/AntoPISA/MAME_SupportFiles/main/catver.ini/catver.ini"));
+constexpr int kGenresTimeoutMs = 60000;
+constexpr qint64 kGenresMaxBytes = 16 * 1024 * 1024;
+constexpr qint64 kGenresRetrySeconds = 3600;
 
 // Folders beside the games that aren't games: the BIOS sets' (on MAME's
 // rompath too), the samples' (its samplepath) and the games' pictures.
@@ -131,6 +146,46 @@ QList<std::pair<QString, QString>> sortPlaces(const QString &kind, QStringList p
 // but a publisher's, as a full set has hundreds.
 bool shownByDefault(const QString &filter) {
     return !filter.startsWith(QLatin1String("makers/"));
+}
+
+// A request of the lobby's or of catver.ini's.
+QNetworkRequest requestFor(const QUrl &url, int timeoutMs) {
+    QNetworkRequest request(url);
+    request.setAttribute(QNetworkRequest::RedirectPolicyAttribute, QNetworkRequest::NoLessSafeRedirectPolicy);
+    request.setHeader(QNetworkRequest::UserAgentHeader,
+                      QStringLiteral("OSD-OS/%1").arg(QCoreApplication::applicationVersion()));
+    request.setTransferTimeout(timeoutMs);
+    return request;
+}
+
+// A reply far bigger than what was asked for isn't it, and isn't read whole:
+// given up on once its size says so (its header, or as much as has come), and
+// marked so (kTooBig).
+void limitReply(QNetworkReply *reply, qint64 limit) {
+    const auto tooBig = [reply, limit](qint64 size) {
+        if (reply->isRunning() && size > limit) {
+            reply->setProperty(kTooBig, true);
+            reply->abort();
+        }
+    };
+    QObject::connect(reply, &QNetworkReply::metaDataChanged, reply, [reply, tooBig] {
+        tooBig(reply->header(QNetworkRequest::ContentLengthHeader).toLongLong());
+    });
+    QObject::connect(reply, &QNetworkReply::downloadProgress, reply, [tooBig](qint64 received, qint64 total) {
+        tooBig(std::max(received, total));
+    });
+}
+
+// A finished reply given up on, or with more than limit to read, which a
+// fast answer reaches before its progress says so.
+bool tooBig(QNetworkReply *reply, qint64 limit) {
+    return reply->property(kTooBig).toBool() || reply->bytesAvailable() > limit;
+}
+
+// A publisher's filter under the company the name is one of, as the filters
+// are made now: "makers/Nintendo of America" → "makers/Nintendo".
+QString makerFilter(const QString &filter) {
+    return QStringLiteral("makers/") + mame::makerOf(filter.mid(7));
 }
 
 bool isOn(const QVariant &value, bool fallback) {
@@ -326,11 +381,16 @@ ArcadeBackend::ArcadeBackend(const QString &appRoot, const QString &dataRoot, Ap
         if (!std::exchange(m_raKeyRefused, true))
             emit achievementsChanged();
     });
+    connect(m_retroAchievements, &RetroAchievements::keyAccepted, this, &ArcadeBackend::achievementsChanged);
     // The trophy among the status icons is the account's.
     connect(this, &ArcadeBackend::achievementsChanged, this, &ArcadeBackend::statusIconsChanged);
     // A game's config is written anew for each game: one a game left that the
-    // app didn't see end (it was stopped meanwhile) may hold the password.
+    // app didn't see end (it was stopped meanwhile) may hold the password, as
+    // may a sign-in's.
     QFile::remove(retroarchHome() + QStringLiteral("/retroarch.cfg"));
+    QDir(signInDir()).removeRecursively();
+    m_signInCore = QCoreApplication::applicationDirPath() + QStringLiteral("/osdos_signin_libretro.so");
+    m_genresUrl = QUrl(legacy::env("GENRES_URL", kGenresUrl.toString()));
 
     m_scanTimer = new QTimer(this);
     m_scanTimer->setSingleShot(true);
@@ -351,13 +411,31 @@ ArcadeBackend::ArcadeBackend(const QString &appRoot, const QString &dataRoot, Ap
         applySetting(k, m_appCore ? m_appCore->get_setting(kModuleId, k) : QVariant());
     }
     // A Start Filter saved under one of catver.ini's own genres (0.0.9's:
-    // Fighter, Driving) is saved again as the genre it became.
+    // Fighter, Driving) is saved again as the genre it became, and one saved
+    // under a company's other name (Nintendo of America) as the company.
     if (m_appCore) {
         const QString start = m_appCore->get_setting(kModuleId, QStringLiteral("start_filter")).toString();
-        if (start.startsWith(QLatin1String("genres/"))) {
-            const QString genre = QStringLiteral("genres/") + mame::genreOf(start.mid(7));
-            if (genre != start)
-                m_appCore->save_setting(kModuleId, QStringLiteral("start_filter"), genre);
+        const QString moved = start.startsWith(QLatin1String("genres/"))
+                                  ? QStringLiteral("genres/") + mame::genreOf(start.mid(7))
+                              : start.startsWith(QLatin1String("makers/")) ? makerFilter(start)
+                                                                          : start;
+        if (moved != start)
+            m_appCore->save_setting(kModuleId, QStringLiteral("start_filter"), moved);
+        // Menu Filters' publishers likewise: a company on where any of its
+        // names was.
+        QVariantMap filters;
+        bool changed = false;
+        for (auto it = m_menuFilters.constBegin(); it != m_menuFilters.constEnd(); ++it) {
+            const QString filter = it.key().startsWith(QLatin1String("makers/")) ? makerFilter(it.key()) : it.key();
+            changed = changed || filter != it.key();
+            if (filter == QLatin1String("makers/"))
+                continue;
+            if (!filters.contains(filter) || isOn(it.value(), false))
+                filters.insert(filter, it.value());
+        }
+        if (changed) {
+            m_appCore->save_setting(kModuleId, QStringLiteral("menu_filters"), filters);
+            m_menuFilters = filters;
         }
     }
 
@@ -379,6 +457,10 @@ ArcadeBackend::~ArcadeBackend() {
         m_scan->disconnect(this);
         m_scan->kill();
         m_scan->waitForFinished(1000);
+    }
+    if (QProcess *signIn = m_signIn) {
+        stopSignIn();
+        signIn->waitForFinished(1000);
     }
 }
 
@@ -723,6 +805,9 @@ void ArcadeBackend::onRead() {
     }
     m_savedDuringRead.clear();
     m_reading = false;
+    // Games and no catver.ini for their genres: one downloaded.
+    if (m_genresFrom.isEmpty() && !m_sets.isEmpty())
+        downloadGenres();
     // Read the Games Again, asked while this read went on, as rescan() does
     // it: unless MAME is being asked already (a game paused it), what it said
     // of every set is forgotten, and it is asked about them all.
@@ -790,11 +875,14 @@ void ArcadeBackend::refresh() {
     m_scanAfterRead = true;
     // The lobby's rooms with the list, for Online Games.
     refreshRooms();
-    if (m_reading) {
+    readAgain();
+}
+
+void ArcadeBackend::readAgain() {
+    if (m_reading)
         m_readAgain = true;
-        return;
-    }
-    startRead();
+    else
+        startRead();
 }
 
 void ArcadeBackend::rescan() {
@@ -1930,6 +2018,7 @@ bool ArcadeBackend::playFbneo(const QString &name, libretro::Launch::Netplay net
     launch.saveDir = home + QStringLiteral("/saves");
     launch.stateDir = home + QStringLiteral("/states");
     launch.configDir = home + QStringLiteral("/config");
+    launch.remapDir = home + QStringLiteral("/remaps");
 #ifdef Q_OS_LINUX
     // A desktop's RetroArch draws in its window; the console's needs KMS.
     launch.console = qEnvironmentVariableIsEmpty("WAYLAND_DISPLAY") && qEnvironmentVariableIsEmpty("DISPLAY");
@@ -1945,10 +2034,16 @@ bool ArcadeBackend::playFbneo(const QString &name, libretro::Launch::Netplay net
     launch.integerScale = integerScale();
     const QStringList guids = controllers::playerGuids();
     const QStringList names = controllers::playerNames();
-    for (int p = 0; p < guids.size(); ++p)
+    for (int p = 0; p < guids.size(); ++p) {
         launch.pads << (guids.at(p).isEmpty() ? QString() : libretro::reservedDevice(guids.at(p), names.value(p)));
+        launch.panels << (!guids.at(p).isEmpty() && controllers::isJammaStick(names.value(p)));
+    }
     m_raPasswordGiven = false;
     if (m_achievements && !m_raUser.isEmpty()) {
+        // A sign-in still being checked: the game's RetroArch signs in
+        // instead. (Without Online High Scores it goes on beside the game.)
+        if (stopSignIn())
+            emit achievementsChanged();
         launch.achievementsUser = m_raUser;
         launch.achievementsToken = m_raToken;
         if (m_raToken.isEmpty() && !m_raPassword.isEmpty()) {
@@ -1960,7 +2055,16 @@ bool ArcadeBackend::playFbneo(const QString &name, libretro::Launch::Netplay net
     launch.joinAddress = joinAddress;
     launch.nickname = m_onlineName.isEmpty() ? (m_raUser.isEmpty() ? QStringLiteral("OSD-OS") : m_raUser) : m_onlineName;
     launch.relay = m_relay;
-    if (!writeFileAtomically(launch.config, libretro::configText(launch).toUtf8(), kOwnerOnly)) {
+    // FinalBurn Neo's remap file: the arcade panels' players on its 6-Button
+    // Panel; none without one, nor online.
+    const QString remap = libretro::coreRemapPath(launch.remapDir);
+    const QString remapText = libretro::remapText(launch);
+    bool written = true;
+    if (remapText.isEmpty())
+        QFile::remove(remap);
+    else
+        written = QDir().mkpath(QFileInfo(remap).path()) && writeFileAtomically(remap, remapText.toUtf8(), kOwnerOnly);
+    if (!written || !writeFileAtomically(launch.config, libretro::configText(launch).toUtf8(), kOwnerOnly)) {
         m_lastError = QStringLiteral("RetroArch's settings could not be written");
         return false;
     }
@@ -2049,33 +2153,14 @@ void ArcadeBackend::refreshRooms() {
         return;
     if (!m_nam)
         m_nam = new QNetworkAccessManager(this);
-    QNetworkRequest request(m_lobbyUrl);
-    request.setHeader(QNetworkRequest::UserAgentHeader,
-                      QStringLiteral("OSD-OS/%1").arg(QCoreApplication::applicationVersion()));
-    request.setTransferTimeout(kLobbyTimeoutMs);
-    m_lobbyReply = m_nam->get(request);
-    // A list of rooms is tens of kilobytes: one far bigger isn't the lobby's,
-    // and isn't read whole. Given up on once its size says so (its header, or
-    // as much as has come), and not read at its end, which a fast answer
-    // reaches first.
-    const auto tooBig = [this](qint64 size) {
-        if (m_lobbyReply && m_lobbyReply->isRunning() && size > kLobbyMaxBytes) {
-            m_lobbyReply->setProperty(kTooBig, true);
-            m_lobbyReply->abort();
-        }
-    };
-    connect(m_lobbyReply, &QNetworkReply::metaDataChanged, this, [this, tooBig] {
-        if (m_lobbyReply)
-            tooBig(m_lobbyReply->header(QNetworkRequest::ContentLengthHeader).toLongLong());
-    });
-    connect(m_lobbyReply, &QNetworkReply::downloadProgress, this, [tooBig](qint64 received, qint64 total) {
-        tooBig(std::max(received, total));
-    });
+    m_lobbyReply = m_nam->get(requestFor(m_lobbyUrl, kLobbyTimeoutMs));
+    // A list of rooms is tens of kilobytes.
+    limitReply(m_lobbyReply, kLobbyMaxBytes);
     connect(m_lobbyReply, &QNetworkReply::finished, this, [this] {
         QNetworkReply *reply = std::exchange(m_lobbyReply, nullptr);
         reply->deleteLater();
         m_roomsRead = true;
-        const bool big = reply->property(kTooBig).toBool() || reply->bytesAvailable() > kLobbyMaxBytes;
+        const bool big = tooBig(reply, kLobbyMaxBytes);
         if (reply->error() == QNetworkReply::NoError && !big) {
             m_rooms = libretro::readLobby(reply->readAll());
             m_roomsProblem.clear();
@@ -2089,6 +2174,33 @@ void ArcadeBackend::refreshRooms() {
         // The Online Games folder, and the Arcade screen's filter.
         emit entriesReady(QStringLiteral("online"));
         emit gamesChanged();
+    });
+}
+
+void ArcadeBackend::downloadGenres() {
+    if (m_genresReply || !m_genresUrl.isValid()
+        || (m_genresRetry.isValid() && m_genresRetry > QDateTime::currentDateTimeUtc()))
+        return;
+    if (!m_nam)
+        m_nam = new QNetworkAccessManager(this);
+    qInfo("[Arcade] No catver.ini for the games' genres: downloading progettosnaps' into %s", qPrintable(m_home));
+    m_genresReply = m_nam->get(requestFor(m_genresUrl, kGenresTimeoutMs));
+    limitReply(m_genresReply, kGenresMaxBytes);
+    connect(m_genresReply, &QNetworkReply::finished, this, [this] {
+        QNetworkReply *reply = std::exchange(m_genresReply, nullptr);
+        reply->deleteLater();
+        const bool big = tooBig(reply, kGenresMaxBytes);
+        const QByteArray data = reply->error() == QNetworkReply::NoError && !big ? reply->readAll() : QByteArray();
+        // catver.ini by its section of genres, else not taken.
+        if (!data.contains("[Category]") || !QDir().mkpath(m_home)
+            || !writeFileAtomically(m_home + QStringLiteral("/catver.ini"), data)) {
+            qWarning("[Arcade] catver.ini couldn't be downloaded (%s): no genres for now",
+                     qPrintable(big ? QStringLiteral("too big") : reply->errorString()));
+            m_genresRetry = QDateTime::currentDateTimeUtc().addSecs(kGenresRetrySeconds);
+            return;
+        }
+        // Read with the folder, now that it is there.
+        readAgain();
     });
 }
 
@@ -2198,6 +2310,8 @@ QString ArcadeBackend::achievementsState() const {
         return QStringLiteral("none");
     if (!m_raToken.isEmpty())
         return QStringLiteral("signedIn");
+    if (m_signIn)
+        return QStringLiteral("checking");
     if (!m_raPassword.isEmpty())
         return QStringLiteral("pending");
     return QStringLiteral("failed");
@@ -2207,16 +2321,19 @@ void ArcadeBackend::signInAchievements(const QString &user, const QString &passw
     const QString name = user.trimmed();
     if (name.isEmpty() || password.isEmpty())
         return;
+    stopSignIn();
     m_raUser = name;
     m_raToken.clear();
     m_raPassword = password;
     m_raFailure.clear();
     m_retroAchievements->setUser(m_raUser);
     saveAchievements();
+    checkSignIn();
     emit achievementsChanged();
 }
 
 void ArcadeBackend::signOutAchievements() {
+    stopSignIn();
     m_raUser.clear();
     m_raToken.clear();
     m_raPassword.clear();
@@ -2226,12 +2343,139 @@ void ArcadeBackend::signOutAchievements() {
     emit achievementsChanged();
 }
 
+void ArcadeBackend::checkSignIn() {
+    const QString program = retroarchPath();
+    if (program.isEmpty() || !QFileInfo(m_signInCore).isFile())
+        return;
+    const QString dir = signInDir();
+    if (!QDir().mkpath(dir))
+        return;
+    // What it keeps there, the password in its config, is no one else's.
+    QFile::setPermissions(dir, QFileDevice::ReadOwner | QFileDevice::WriteOwner | QFileDevice::ExeOwner);
+    libretro::SignIn signIn;
+    signIn.core = m_signInCore;
+    signIn.content = dir + QStringLiteral("/sign-in.osdos");
+    signIn.config = dir + QStringLiteral("/retroarch.cfg");
+    signIn.dir = dir;
+    signIn.user = m_raUser;
+    signIn.password = m_raPassword;
+    if (!writeFileAtomically(signIn.content, QByteArrayLiteral("OSD/OS"), kOwnerOnly)
+        || !writeFileAtomically(signIn.config, libretro::signInConfigText(signIn).toUtf8(), kOwnerOnly))
+        return;
+
+    m_signInResult = libretro::SignInLine::None;
+    m_signInFailure.clear();
+    m_signIn = new QProcess(this);
+    m_signIn->setProgram(program);
+    m_signIn->setArguments(libretro::signInArguments(signIn));
+    m_signIn->setWorkingDirectory(dir);
+    // Its log, on its output and its errors alike; and its own folder kept
+    // with the rest (XDG_CONFIG_HOME), not the user's RetroArch's.
+    m_signIn->setProcessChannelMode(QProcess::MergedChannels);
+    QProcessEnvironment environment = QProcessEnvironment::systemEnvironment();
+    environment.insert(QStringLiteral("XDG_CONFIG_HOME"), dir + QStringLiteral("/config"));
+    m_signIn->setProcessEnvironment(environment);
+    connect(m_signIn, &QProcess::readyReadStandardOutput, this, &ArcadeBackend::readSignIn);
+    connect(m_signIn, &QProcess::finished, this, &ArcadeBackend::signInEnded);
+    connect(m_signIn, &QProcess::errorOccurred, this, [this](QProcess::ProcessError error) {
+        if (error == QProcess::FailedToStart)
+            signInEnded();
+    });
+    // Not said how it went in time: stopped, and what it saved read all the
+    // same; and killed if even that doesn't end it. Once it has said, it is
+    // being stopped already: a second SIGTERM would end it unsaved.
+    QProcess *process = m_signIn;
+    QTimer::singleShot(kSignInTimeoutMs, process, [this, process] {
+        if (m_signInResult != libretro::SignInLine::None)
+            return;
+        process->terminate();
+        QTimer::singleShot(kSignInStopMs, process, &QProcess::kill);
+    });
+    qInfo("[Arcade] RetroArch signs in as %s to check it", qPrintable(m_raUser));
+    m_signIn->start();
+}
+
+void ArcadeBackend::readSignIn() {
+    while (m_signIn && m_signIn->canReadLine()) {
+        const QString line = QString::fromUtf8(m_signIn->readLine());
+        if (m_signInResult != libretro::SignInLine::None)
+            continue;
+        m_signInResult = libretro::readSignInLine(line.trimmed(), &m_signInFailure);
+        // Said: RetroArch ends, saving the token if it has one.
+        if (m_signInResult != libretro::SignInLine::None) {
+            m_signIn->terminate();
+            QTimer::singleShot(kSignInStopMs, m_signIn, &QProcess::kill);
+        }
+    }
+}
+
+void ArcadeBackend::signInEnded() {
+    if (!m_signIn)
+        return;
+    // What it said last, not read yet.
+    readSignIn();
+    const QString token = libretro::savedToken(signInDir() + QStringLiteral("/retroarch.cfg"));
+    // The password went in its folder, the token it was swapped for too.
+    stopSignIn();
+    if (!token.isEmpty()) {
+        qInfo("[Arcade] RetroArch signed in as %s", qPrintable(m_raUser));
+        m_raToken = token;
+        m_raPassword.clear();
+        m_raFailure.clear();
+    } else if (m_signInResult == libretro::SignInLine::Failed) {
+        qInfo("[Arcade] RetroAchievements refused %s: %s", qPrintable(m_raUser), qPrintable(m_signInFailure));
+        m_raPassword.clear();
+        m_raFailure = m_signInFailure;
+    } else {
+        // The password waits for the next game; why it does: RetroAchievements
+        // not reached, a sign-in RetroArch kept no token of, or nothing said
+        // (in time, or at all: RetroArch couldn't start or load the core).
+        qInfo("[Arcade] RetroArch couldn't sign in as %s now: at the next game", qPrintable(m_raUser));
+        m_raFailure = (m_signInResult == libretro::SignInLine::Unreachable
+                           ? (m_signInFailure.isEmpty() ? QStringLiteral("RetroAchievements couldn't be reached")
+                                                        : m_signInFailure)
+                           : m_signInResult == libretro::SignInLine::SignedIn
+                               ? QStringLiteral("RetroArch signed in but kept no token")
+                               : QStringLiteral("The sign-in couldn't be checked now"))
+                      + QStringLiteral(": RetroArch signs in at the next game");
+    }
+    saveAchievements();
+    emit achievementsChanged();
+}
+
+bool ArcadeBackend::stopSignIn() {
+    QProcess *process = std::exchange(m_signIn, nullptr);
+    if (!process)
+        return false;
+    process->disconnect(this);
+    if (process->state() == QProcess::NotRunning) {
+        process->deleteLater();
+    } else {
+        // Gone once it has ended, or once it couldn't start after all.
+        connect(process, &QProcess::finished, process, &QObject::deleteLater);
+        connect(process, &QProcess::errorOccurred, process, &QObject::deleteLater);
+        process->kill();
+    }
+    QDir(signInDir()).removeRecursively();
+    return true;
+}
+
 void ArcadeBackend::setAchievementsKey(const QString &key) {
     m_raKey = key.trimmed();
     m_raKeyRefused = false;
     m_retroAchievements->setKey(m_raKey);
+    m_retroAchievements->checkKey();
     saveAchievements();
     emit achievementsChanged();
+}
+
+void ArcadeBackend::checkAchievementsKey() {
+    if (!m_raKeyRefused)
+        m_retroAchievements->checkKey();
+}
+
+bool ArcadeBackend::achievementsKeyWorks() const {
+    return m_retroAchievements->keyWorks();
 }
 
 QVariantMap ArcadeBackend::leaderboard(const QString &set) {
@@ -2318,7 +2562,8 @@ QStringList ArcadeBackend::statusIcons() const {
     if (m_highScores)
         icons << QStringLiteral("hiscore");
     const QString account = achievementsState();
-    if (m_achievements && (account == QLatin1String("signedIn") || account == QLatin1String("pending")))
+    if (m_achievements && (account == QLatin1String("signedIn") || account == QLatin1String("pending")
+                           || account == QLatin1String("checking")))
         icons << QStringLiteral("trophy");
     if (m_onlinePlay)
         icons << QStringLiteral("globe");

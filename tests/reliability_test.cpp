@@ -1,3 +1,5 @@
+#include "AppCore.h"
+#include "audio/AudioOutput.h"
 #include "modules/playlists/ServerDownload.h"
 #include "modules/weather/WeatherBackend.h"
 #include "update/UpdateManager.h"
@@ -201,6 +203,67 @@ private slots:
         QCOMPARE(finished.first().at(0).toBool(), !failWrite);
         QCOMPARE(contents(target), failWrite ? QByteArray("previous-good-file") : payload);
         if (failWrite) QVERIFY(!finished.first().at(2).toString().isEmpty());
+    }
+
+    // Audio Output's note without a USB sound card to play through: nothing
+    // plugged in, a USB sound device ALSA made no card of (by its product
+    // name, once for its two sound interfaces, a keyboard left out), the
+    // Pi's power having dropped (the firmware's flags, or the hwmon's alarm
+    // where the kernel has no such file); none once ALSA has the card.
+    void usbSoundCardNote() {
+        QTemporaryDir dir;
+        QVERIFY(dir.isValid());
+        const QString asound = dir.path() + "/asound", usb = dir.path() + "/usb", platform = dir.path() + "/platform",
+                      hwmon = dir.path() + "/hwmon";
+        const auto write = [](const QString &path, const QByteArray &data) {
+            QDir().mkpath(QFileInfo(path).path()); QFile file(path);
+            return file.open(QIODevice::WriteOnly) && file.write(data) == data.size();
+        };
+        QVERIFY(write(asound + "/cards", " 0 [Headphones     ]: bcm2835_headpho - bcm2835 Headphones\n"
+                                         "                      bcm2835 Headphones\n"));
+        QVERIFY(QDir().mkpath(asound + "/card0/pcm0p") && QDir().mkpath(usb) && QDir().mkpath(platform));
+        qputenv("OSDOS_ASOUND_DIR", asound.toUtf8());
+        qputenv("OSDOS_USB_DEVICES_DIR", usb.toUtf8());
+        qputenv("OSDOS_PLATFORM_DIR", platform.toUtf8());
+        qputenv("OSDOS_HWMON_DIR", hwmon.toUtf8());
+        const auto restore = qScopeGuard([] {
+            qunsetenv("OSDOS_ASOUND_DIR"); qunsetenv("OSDOS_USB_DEVICES_DIR"); qunsetenv("OSDOS_PLATFORM_DIR");
+            qunsetenv("OSDOS_HWMON_DIR");
+        });
+        AppCore core(dir.path(), dir.path());
+        AudioOutput audio(&core);
+        const auto note = [](const AudioOutput &output) { return output.settingRow().value("note").toString(); };
+        QCOMPARE(note(audio), QString("No USB sound card is plugged in, as far as the system can tell"));
+
+        QVERIFY(write(usb + "/1-1.3/product", "USB Audio Device\n"));
+        QVERIFY(write(usb + "/1-1.3:1.0/bInterfaceClass", "01\n"));
+        QVERIFY(write(usb + "/1-1.3:1.1/bInterfaceClass", "01\n"));
+        QVERIFY(write(usb + "/1-1.4/product", "Keyboard\n"));
+        QVERIFY(write(usb + "/1-1.4:1.0/bInterfaceClass", "03\n"));
+        const QString unmade = "USB Audio Device is plugged in, but the system made no sound card of it to play through";
+        QCOMPARE(note(audio), unmade);
+        // Bit 16 of the firmware's get_throttled (hex, as the kernel writes
+        // it): under-voltage since boot.
+        QVERIFY(write(platform + "/soc/soc:firmware/get_throttled", "50000\n"));
+        QCOMPARE(note(audio), unmade + ". The Pi's power has dropped too low since it started,"
+                                           " which can keep USB devices from working");
+        QVERIFY(write(platform + "/soc/soc:firmware/get_throttled", "0\n"));
+        QCOMPARE(note(audio), unmade);
+        // A kernel without that file (6.12 on): the hwmon's alarm, for now.
+        QVERIFY(QFile::remove(platform + "/soc/soc:firmware/get_throttled"));
+        QVERIFY(write(hwmon + "/hwmon0/name", "cpu_thermal\n"));
+        QVERIFY(write(hwmon + "/hwmon1/name", "rpi_volt\n"));
+        QVERIFY(write(hwmon + "/hwmon1/in0_lcrit_alarm", "1\n"));
+        QCOMPARE(note(audio), unmade + ". The Pi's power is too low, which can keep USB devices from working");
+        QVERIFY(write(hwmon + "/hwmon1/in0_lcrit_alarm", "0\n"));
+        QCOMPARE(note(audio), unmade);
+
+        QVERIFY(write(asound + "/cards", " 0 [Headphones     ]: bcm2835_headpho - bcm2835 Headphones\n"
+                                         "                      bcm2835 Headphones\n"
+                                         " 1 [Device         ]: USB-Audio - USB Audio Device\n"
+                                         "                      GeneralPlus USB Audio Device at usb-xhci-hcd.0-1.3, full speed\n"));
+        QVERIFY(QDir().mkpath(asound + "/card1/pcm0p"));
+        QCOMPARE(note(audio), QString());
     }
 };
 QTEST_GUILESS_MAIN(ReliabilityTest)

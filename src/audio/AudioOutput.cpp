@@ -7,6 +7,7 @@
 #include <QFileInfo>
 #include <QProcessEnvironment>
 #include <QRegularExpression>
+#include <algorithm>
 
 namespace {
 
@@ -54,16 +55,90 @@ struct Card {
     QString label;
 };
 
-// The cards that can play (with a playback device, pcm*p), in ALSA's order,
-// each by its name in Settings. /proc/asound/cards has two lines a card:
+// A card as /proc/asound/cards has it, on two lines:
 //    0 [Headphones     ]: bcm2835_headpho - bcm2835 Headphones
 //                         bcm2835 Headphones
-QList<Card> playbackCards() {
+struct AlsaCard {
+    QString id;
+    QString driver;           // "USB-Audio" for a USB sound card
+    QString shortName;
+    bool playback = false;    // it has a playback device (pcm*p)
+};
+
+QList<AlsaCard> alsaCards() {
     QFile f(asoundDir() + QStringLiteral("/cards"));
     if (!f.open(QIODevice::ReadOnly | QIODevice::Text))
         return {};
     static const QRegularExpression line(
-        QStringLiteral("^\\s*(\\d+)\\s+\\[(\\S+)\\s*\\]:\\s*\\S*\\s+-\\s+(.*)$"));
+        QStringLiteral("^\\s*(\\d+)\\s+\\[(\\S+)\\s*\\]:\\s*(\\S*)\\s+-\\s+(.*)$"));
+    QList<AlsaCard> cards;
+    const QStringList lines = QString::fromUtf8(f.readAll()).split(QLatin1Char('\n'));
+    for (const QString &text : lines) {
+        const QRegularExpressionMatch m = line.match(text);
+        if (!m.hasMatch())
+            continue;
+        const QDir card(asoundDir() + QStringLiteral("/card") + m.captured(1));
+        const bool playback = !card.entryList({ QStringLiteral("pcm*p") }, QDir::Dirs | QDir::NoDotAndDotDot).isEmpty();
+        cards.append({ m.captured(2), m.captured(3), m.captured(4).trimmed(), playback });
+    }
+    return cards;
+}
+
+// The text of a small file of the kernel's (sysfs), trimmed; "" for none.
+QString readSmall(const QString &path) {
+    QFile f(path);
+    if (!f.open(QIODevice::ReadOnly | QIODevice::Text))
+        return QString();
+    return QString::fromUtf8(f.read(256)).trimmed();
+}
+
+// The USB devices plugged in that have a sound interface (class 01), by
+// their product names, as the kernel lists them: whether ALSA made a card of
+// them or not.
+QStringList usbSoundDevices() {
+    const QDir devices(legacy::env("USB_DEVICES_DIR", QStringLiteral("/sys/bus/usb/devices")));
+    QStringList names;
+    // A device's interfaces are "<device>:<configuration>.<interface>".
+    for (const QString &entry : devices.entryList(QDir::Dirs | QDir::NoDotAndDotDot)) {
+        if (!entry.contains(QLatin1Char(':'))
+            || readSmall(devices.filePath(entry + QStringLiteral("/bInterfaceClass"))) != QLatin1String("01"))
+            continue;
+        const QString device = entry.section(QLatin1Char(':'), 0, 0);
+        const QString product = readSmall(devices.filePath(device + QStringLiteral("/product")));
+        const QString name = product.isEmpty() ? device : product;
+        if (!names.contains(name))
+            names.append(name);
+    }
+    return names;
+}
+
+// Whether the Pi's power is too low, which can keep USB devices from coming
+// up, as a sentence: since it started (its firmware's get_throttled, bit 16,
+// or bit 0 for now), or, where the kernel no longer has that file (6.12 on),
+// now (the rpi_volt hwmon's alarm, which says only what its last look saw).
+// "" for neither, and where there is no such file (not a Pi).
+QString underVoltage() {
+    const QDir platform(legacy::env("PLATFORM_DIR", QStringLiteral("/sys/devices/platform")));
+    for (const QString &soc : platform.entryList({ QStringLiteral("soc*") }, QDir::Dirs | QDir::NoDotAndDotDot)) {
+        const QDir socDir(platform.filePath(soc));
+        for (const QString &fw : socDir.entryList({ QStringLiteral("*firmware") }, QDir::Dirs | QDir::NoDotAndDotDot)) {
+            bool ok = false;
+            const uint flags = readSmall(socDir.filePath(fw + QStringLiteral("/get_throttled"))).toUInt(&ok, 16);
+            if (ok)
+                return flags & 0x10001 ? QStringLiteral("The Pi's power has dropped too low since it started") : QString();
+        }
+    }
+    const QDir hwmon(legacy::env("HWMON_DIR", QStringLiteral("/sys/class/hwmon")));
+    for (const QString &entry : hwmon.entryList(QDir::Dirs | QDir::NoDotAndDotDot)) {
+        if (readSmall(hwmon.filePath(entry + QStringLiteral("/name"))) == QLatin1String("rpi_volt"))
+            return readSmall(hwmon.filePath(entry + QStringLiteral("/in0_lcrit_alarm"))) == QLatin1String("1")
+                       ? QStringLiteral("The Pi's power is too low") : QString();
+    }
+    return QString();
+}
+
+// The cards that can play, in ALSA's order, each by its name in Settings.
+QList<Card> playbackCards(const QList<AlsaCard> &all) {
     struct Found {
         QString id;
         QString shortName;
@@ -71,19 +146,13 @@ QList<Card> playbackCards() {
     };
     QList<Found> found;
     int hdmiCards = 0;
-    const QStringList lines = QString::fromUtf8(f.readAll()).split(QLatin1Char('\n'));
-    for (const QString &text : lines) {
-        const QRegularExpressionMatch m = line.match(text);
-        if (!m.hasMatch())
+    for (const AlsaCard &card : all) {
+        if (!card.playback)
             continue;
-        const QDir card(asoundDir() + QStringLiteral("/card") + m.captured(1));
-        if (card.entryList({ QStringLiteral("pcm*p") }, QDir::Dirs | QDir::NoDotAndDotDot).isEmpty())
-            continue;
-        const QString shortName = m.captured(3).trimmed();
-        const int hdmi = hdmiPort(m.captured(2), shortName);
+        const int hdmi = hdmiPort(card.id, card.shortName);
         if (hdmi >= 0)
             ++hdmiCards;
-        found.append({ m.captured(2), shortName, hdmi });
+        found.append({ card.id, card.shortName, hdmi });
     }
 
     QList<Card> cards;
@@ -103,6 +172,26 @@ QList<Card> playbackCards() {
         cards.append({ c.id, label });
     }
     return cards;
+}
+
+// Without a USB sound card among those that can play: why, as far as the
+// system can tell; "" with one.
+QString usbNote(const QList<AlsaCard> &cards) {
+    const bool usbCard = std::any_of(cards.cbegin(), cards.cend(), [](const AlsaCard &card) {
+        return card.playback && card.driver == QLatin1String("USB-Audio");
+    });
+    if (usbCard)
+        return QString();
+    const QStringList usb = usbSoundDevices();
+    QString note = usb.isEmpty()
+                       ? QStringLiteral("No USB sound card is plugged in, as far as the system can tell")
+                       : usb.join(QStringLiteral(", "))
+                             + QStringLiteral(" is plugged in, but the system made no sound card of it to play through");
+    const QString low = underVoltage();
+    if (!low.isEmpty())
+        note += QStringLiteral(". ") + low + QStringLiteral(", which can keep USB devices from working");
+    qInfo("[AudioOutput] %s", qPrintable(note));
+    return note;
 }
 
 QString describe() {
@@ -148,7 +237,8 @@ QVariantMap AudioOutput::settingRow() const {
     QVariantList values { QString() };
     QString value = options.first();
     bool plugged = false;
-    for (const Card &c : playbackCards()) {
+    const QList<AlsaCard> all = alsaCards();
+    for (const Card &c : playbackCards(all)) {
         options.append(c.label);
         values.append(QVariantMap { { QStringLiteral("card"), c.id }, { QStringLiteral("name"), c.label } });
         if (c.id == g_card) {
@@ -165,13 +255,14 @@ QVariantMap AudioOutput::settingRow() const {
     }
     return { { QStringLiteral("options"), options },
              { QStringLiteral("values"), values },
-             { QStringLiteral("value"), value } };
+             { QStringLiteral("value"), value },
+             { QStringLiteral("note"), usbNote(all) } };
 }
 
 QString AudioOutput::card() {
     if (!g_available || g_card.isEmpty())
         return QString();
-    for (const Card &c : playbackCards()) {
+    for (const Card &c : playbackCards(alsaCards())) {
         if (c.id == g_card)
             return g_card;
     }
@@ -197,7 +288,7 @@ bool AudioOutput::hasPlaybackCard() {
 #ifdef Q_OS_LINUX
     if (!QFileInfo::exists(asoundDir() + QStringLiteral("/cards")) || soundServer())
         return true;
-    return !playbackCards().isEmpty();
+    return !playbackCards(alsaCards()).isEmpty();
 #else
     return true;
 #endif

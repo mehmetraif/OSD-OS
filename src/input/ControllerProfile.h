@@ -34,6 +34,15 @@ QString inputLabel(LabelStyle style, const QString &token);
 QString padKey(const QString &sdlGuid);
 QString evdevKey(int bus, int vendor, int product);
 
+// One of the JAMMA board's sticks, by the name osdos-jamma gives it ("OSD/OS
+// JAMMA P1"): an arcade's controls, its buttons in the cabinet's two rows.
+bool isJammaStick(const QString &name);
+// The key a JAMMA stick had before osdos-jamma gave it a vendor and a
+// product: SDL then knew it by its bus, its name's CRC (as its GUID now
+// has them, sdlGuid) and the first eleven letters of its name. "" for a GUID
+// that isn't SDL's.
+QString legacyJammaKey(const QString &sdlGuid, const QString &name);
+
 // What an evdev node is to Settings → Controls, by the keys it has: a
 // keyboard, a remote, or nothing to list (a gamepad, which is SDL's; a mouse;
 // a power button). Linux only; None elsewhere.

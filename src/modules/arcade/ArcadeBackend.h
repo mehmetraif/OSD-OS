@@ -83,16 +83,20 @@ class ArcadeBackend : public QObject {
     Q_PROPERTY(bool played READ played NOTIFY playedChanged)
     // The RetroAchievements account RetroArch plays FinalBurn Neo's games
     // under (Online High Scores): its user ("" for none), and its state:
-    // "none", "pending" (signed in here, RetroArch to take the password at
-    // the next game and swap it for a token), "signedIn" (a token), or
-    // "failed" (achievementsMessage says why).
+    // "none", "checking" (RetroArch signing in with it now, with the sign-in
+    // core: checkSignIn()), "pending" (RetroArch to take the password at the
+    // next game and swap it for a token; achievementsMessage says why not
+    // now, when it was tried), "signedIn" (a token), or "failed"
+    // (achievementsMessage says why).
     Q_PROPERTY(QString achievementsUser READ achievementsUser NOTIFY achievementsChanged)
     Q_PROPERTY(QString achievementsState READ achievementsState NOTIFY achievementsChanged)
     Q_PROPERTY(QString achievementsMessage READ achievementsMessage NOTIFY achievementsChanged)
-    // A Web API key is kept, for the leaderboards on the Arcade screen; and
-    // RetroAchievements refused it.
+    // A Web API key is kept, for the leaderboards, the pictures and the
+    // achievements; RetroAchievements refused it; it took it (an answer came
+    // with it).
     Q_PROPERTY(bool achievementsKey READ achievementsKey NOTIFY achievementsChanged)
     Q_PROPERTY(bool achievementsKeyRefused READ achievementsKeyRefused NOTIFY achievementsChanged)
+    Q_PROPERTY(bool achievementsKeyWorks READ achievementsKeyWorks NOTIFY achievementsChanged)
     // Settings → Arcade → FinalBurn Neo's download (downloadFbneo()): under
     // way, how far (0 to 100), and why the last one failed ("" when it
     // didn't).
@@ -228,14 +232,26 @@ public:
     void setAchievementsServers(const QUrl &api, const QUrl &media);
 
     // Account page (Settings → Arcade → RetroAchievements Account). The
-    // password is kept in memory only, for RetroArch to sign in with at the
-    // next game (RetroAchievements' own way: a launcher may not), never
-    // written but into that game's config, which goes as the game ends.
+    // password is kept in memory only, for RetroArch to sign in with
+    // (RetroAchievements' own way: a launcher may not), never written but
+    // into the config of the RetroArch it goes to, which goes as it ends:
+    // at once, with the sign-in core (checkSignIn()), or else at the next
+    // game.
     Q_INVOKABLE void signInAchievements(const QString &user, const QString &password);
     Q_INVOKABLE void signOutAchievements();
     // The account's Web API key (RetroAchievements' settings page), for
-    // reading leaderboards; "" forgets it.
+    // reading leaderboards, pictures and achievements; "" forgets it. A key
+    // is asked about at once: achievementsKeyWorks or achievementsKeyRefused.
     Q_INVOKABLE void setAchievementsKey(const QString &key);
+    // The kept key asked about, while neither is known (the page opens).
+    Q_INVOKABLE void checkAchievementsKey();
+    // The sign-in core RetroArch checks a sign-in with: osdos_signin_libretro
+    // beside the app, or a stand-in's.
+    void setSignInCore(const QString &path) { m_signInCore = path; }
+    // Where catver.ini is downloaded from when neither folder has one
+    // (downloadGenres()): progettosnaps' own, OSDOS_GENRES_URL's (none when
+    // it is empty), or a stand-in's.
+    void setGenresUrl(const QUrl &url) { m_genresUrl = url; }
     // The Arcade screen's high scores for a game that plays in FinalBurn Neo
     // while Online High Scores is on and a key is kept: its RetroAchievements
     // leaderboard (RetroAchievements::board()), { state, title, entries };
@@ -298,6 +314,7 @@ public:
     QString achievementsMessage() const;
     bool    achievementsKey() const { return !m_raKey.isEmpty(); }
     bool    achievementsKeyRefused() const { return m_raKeyRefused; }
+    bool    achievementsKeyWorks() const;
     bool    fbneoDownloading() const;
     int     fbneoProgress() const;
     QString fbneoMessage() const { return m_fbneoMessage; }
@@ -520,6 +537,25 @@ private:
     // fbneoPlays() but for FinalBurn Neo being ready, asked once for many.
     bool fbneoHas(const QString &set) const;
     void saveAchievements() const;
+    // The sign-in checked at once (libretro::SignIn): RetroArch, with no
+    // picture, sound or controllers, signs in with the password and the
+    // sign-in core in <data>/arcade/retroarch/sign-in, and is stopped as it
+    // says how it went. Without RetroArch or the core (a Mac's build has
+    // none), nothing: the password waits for the next game.
+    void checkSignIn();
+    void readSignIn();
+    // RetroArch ended: the token it saved, or why there is none.
+    void signInEnded();
+    // Stopped without a result (signed out, in again, a game started): the
+    // password, if kept, waits for the next game. False when none was under
+    // way.
+    bool stopSignIn();
+    QString signInDir() const { return retroarchHome() + QStringLiteral("/sign-in"); }
+    // catver.ini into <data>/arcade, for the games' genres, and the folder
+    // read again with it; once at a time, and an hour after one that failed.
+    void downloadGenres();
+    // The folder read now, or after the read under way.
+    void readAgain();
 
     // How long each game has been played: playtime.json, read when first
     // needed.
@@ -562,6 +598,12 @@ private:
     QString m_raPassword;
     QString m_raFailure;
     bool    m_raPasswordGiven = false;   // the game playing was given it
+    // The sign-in being checked: RetroArch with the sign-in core, and what it
+    // said of the sign-in.
+    QProcess *m_signIn = nullptr;
+    libretro::SignInLine m_signInResult = libretro::SignInLine::None;
+    QString m_signInFailure;
+    QString m_signInCore;
 
     FbneoInstaller *m_installer = nullptr;
     RetroAchievements *m_retroAchievements = nullptr;
@@ -574,6 +616,11 @@ private:
     QList<libretro::Room> m_rooms;
     QString m_roomsProblem;
     bool    m_roomsRead = false;
+    // catver.ini's download: from where, under way, and when one that failed
+    // may be tried again.
+    QUrl m_genresUrl;
+    QNetworkReply *m_genresReply = nullptr;
+    QDateTime m_genresRetry;
     QString m_fbneoMessage;
 
     // The folder's sets, and what MAME said of every set it was asked about.
