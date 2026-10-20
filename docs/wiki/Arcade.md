@@ -168,7 +168,7 @@ On a CRT, move each side to where the tube's edge cuts the picture off (its over
 | A genre (**Beat 'em Up**, **Fighting**, **Shmup**, **Run and Gun**…) | The games of that genre, by catver.ini ([below](#genres)) |
 | **1 Player**, **2 Players**… | The games for that many players at once |
 | **1980s**, **1990s**… | The games of each decade, **Year Unknown** last |
-| A publisher (**Capcom**, **Namco**…) | The games of that maker, as MAME names it (the first, for a game made by two), once turned on in Menu Filters |
+| A publisher (**Capcom**, **Namco**…) | The games of that maker, as MAME names it (the first, for a game made by two), once turned on in Menu Filters. A company is one publisher whichever of its arms or names made the game: **Nintendo** for Nintendo of America too, **SNK** for SNK Playmore, **Taito** for Taito America Corporation |
 | **Not Recognized** | The files MAME has no game of, as under the tree's Not Recognized ([above](#the-original-screen)) |
 
 **Settings → Arcade → Start Filter** is the one the screen opens on: All Games, or one of the lists, genres, numbers of players, decades and publishers that Menu Filters shows. One that has no games then (Favorites before any is added), or that Menu Filters no longer shows, opens on All Games. Back from a game, the screen is on its filter and on the game again.

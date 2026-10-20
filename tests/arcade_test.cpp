@@ -279,6 +279,29 @@ private slots:
         QCOMPARE(mame::makerOf(QStringLiteral("<unknown>")), QString());
         QCOMPARE(mame::makerOf(QStringLiteral("unknown")), QString());
         QCOMPARE(mame::makerOf(QStringLiteral("bootleg")), QStringLiteral("bootleg"));
+        // A company under its own name, whichever of its arms, mergers and
+        // legal forms made the game.
+        QCOMPARE(mame::makerOf(QStringLiteral("Nintendo of America")), QStringLiteral("Nintendo"));
+        QCOMPARE(mame::makerOf(QStringLiteral("SNK Playmore")), QStringLiteral("SNK"));
+        QCOMPARE(mame::makerOf(QStringLiteral("SNK Corporation of America")), QStringLiteral("SNK"));
+        QCOMPARE(mame::makerOf(QStringLiteral("Taito America Corporation (Romstar license)")), QStringLiteral("Taito"));
+        QCOMPARE(mame::makerOf(QStringLiteral("Taito Corporation Japan")), QStringLiteral("Taito"));
+        QCOMPARE(mame::makerOf(QStringLiteral("Data East USA, Inc.")), QStringLiteral("Data East"));
+        QCOMPARE(mame::makerOf(QStringLiteral("Capcom U.S.A.")), QStringLiteral("Capcom"));
+        QCOMPARE(mame::makerOf(QStringLiteral("Video System Co.")), QStringLiteral("Video System"));
+        QCOMPARE(mame::makerOf(QStringLiteral("Sega Amusements Europe")), QStringLiteral("Sega"));
+        QCOMPARE(mame::makerOf(QStringLiteral("Konami Industry Co. Ltd.")), QStringLiteral("Konami"));
+        QCOMPARE(mame::makerOf(QStringLiteral("Bally Midway")), QStringLiteral("Midway"));
+        QCOMPARE(mame::makerOf(QStringLiteral("Midway Manufacturing Co.")), QStringLiteral("Midway"));
+        QCOMPARE(mame::makerOf(QStringLiteral("Atari Games")), QStringLiteral("Atari"));
+        QCOMPARE(mame::makerOf(QStringLiteral("Technos Japan")), QStringLiteral("Technos"));
+        QCOMPARE(mame::makerOf(QStringLiteral("American Sammy")), QStringLiteral("Sammy"));
+        // A name that is only an ending, or that only begins like a company
+        // or ends like one, as it is.
+        QCOMPARE(mame::makerOf(QStringLiteral("Universal")), QStringLiteral("Universal"));
+        QCOMPARE(mame::makerOf(QStringLiteral("Segasa")), QStringLiteral("Segasa"));
+        QCOMPARE(mame::makerOf(QStringLiteral("American Laser Games")), QStringLiteral("American Laser Games"));
+        QCOMPARE(mame::makerOf(QStringLiteral("U.S. Games")), QStringLiteral("U.S. Games"));
 
         QCOMPARE(mame::decadeOf(QStringLiteral("1981")), QStringLiteral("1980s"));
         QCOMPARE(mame::decadeOf(QStringLiteral("198?")), QStringLiteral("1980s"));
@@ -2655,6 +2678,29 @@ private slots:
         refreshed(reread);
         QVERIFY(ids(reread.filters()).contains(QStringLiteral("makers/Namco")));
         QVERIFY(!ids(reread.filters()).contains(QStringLiteral("genres/Fighting")));
+    }
+
+    // A Start Filter and Menu Filters' publishers saved under a company's
+    // other names, before they were merged (Nintendo of America, SNK
+    // Playmore), are saved again under the company, on where any of its
+    // names was.
+    void publishersMerged() {
+        const QString module = QStringLiteral("com.osdos.arcade");
+        AppCore core(m_data.path(), m_data.path());
+        const auto restore = qScopeGuard([&core, &module] {
+            core.save_setting(module, QStringLiteral("menu_filters"), QVariantMap());
+            core.save_setting(module, QStringLiteral("start_filter"), QString());
+        });
+        core.save_setting(module, QStringLiteral("start_filter"), QStringLiteral("makers/Nintendo of America"));
+        core.save_setting(module, QStringLiteral("menu_filters"), QVariantMap{
+            { QStringLiteral("makers/SNK Playmore"), true }, { QStringLiteral("makers/SNK"), false },
+            { QStringLiteral("makers/Capcom U.S.A."), false }, { QStringLiteral("makers/Namco"), true },
+            { QStringLiteral("genres/Fighting"), false } });
+        ArcadeBackend arcade(m_data.path(), m_data.path(), &core, nullptr);
+        QCOMPARE(core.get_setting(module, QStringLiteral("start_filter")).toString(), QStringLiteral("makers/Nintendo"));
+        QCOMPARE(core.get_setting(module, QStringLiteral("menu_filters")).toMap(), (QVariantMap{
+            { QStringLiteral("makers/SNK"), true }, { QStringLiteral("makers/Capcom"), false },
+            { QStringLiteral("makers/Namco"), true }, { QStringLiteral("genres/Fighting"), false } }));
     }
 
     // A folder of sets MAME knows none of has Not Recognized in All Games'

@@ -91,7 +91,10 @@ QStringList screenArguments(const Machine &machine, int screenLines, const QStri
 bool isShortName(const QString &name);
 
 // The maker a game is listed under: "Namco (Midway license)" → "Namco",
-// "Capcom / Mitchell" → "Capcom". "" for none.
+// "Capcom / Mitchell" → "Capcom"; a company under its own name whichever of
+// its arms, mergers and legal forms made the game: "Nintendo of America" →
+// "Nintendo", "SNK Playmore" → "SNK", "Taito America Corporation" → "Taito".
+// "" for none.
 QString makerOf(const QString &manufacturer);
 // Its decade: "1981", "198?" and "1981?" → "1980s"; "" when the year doesn't
 // say ("19??").

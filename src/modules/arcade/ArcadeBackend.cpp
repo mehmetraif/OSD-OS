@@ -182,6 +182,12 @@ bool tooBig(QNetworkReply *reply, qint64 limit) {
     return reply->property(kTooBig).toBool() || reply->bytesAvailable() > limit;
 }
 
+// A publisher's filter under the company the name is one of, as the filters
+// are made now: "makers/Nintendo of America" → "makers/Nintendo".
+QString makerFilter(const QString &filter) {
+    return QStringLiteral("makers/") + mame::makerOf(filter.mid(7));
+}
+
 bool isOn(const QVariant &value, bool fallback) {
     if (!value.isValid() || value.isNull())
         return fallback;
@@ -405,13 +411,31 @@ ArcadeBackend::ArcadeBackend(const QString &appRoot, const QString &dataRoot, Ap
         applySetting(k, m_appCore ? m_appCore->get_setting(kModuleId, k) : QVariant());
     }
     // A Start Filter saved under one of catver.ini's own genres (0.0.9's:
-    // Fighter, Driving) is saved again as the genre it became.
+    // Fighter, Driving) is saved again as the genre it became, and one saved
+    // under a company's other name (Nintendo of America) as the company.
     if (m_appCore) {
         const QString start = m_appCore->get_setting(kModuleId, QStringLiteral("start_filter")).toString();
-        if (start.startsWith(QLatin1String("genres/"))) {
-            const QString genre = QStringLiteral("genres/") + mame::genreOf(start.mid(7));
-            if (genre != start)
-                m_appCore->save_setting(kModuleId, QStringLiteral("start_filter"), genre);
+        const QString moved = start.startsWith(QLatin1String("genres/"))
+                                  ? QStringLiteral("genres/") + mame::genreOf(start.mid(7))
+                              : start.startsWith(QLatin1String("makers/")) ? makerFilter(start)
+                                                                          : start;
+        if (moved != start)
+            m_appCore->save_setting(kModuleId, QStringLiteral("start_filter"), moved);
+        // Menu Filters' publishers likewise: a company on where any of its
+        // names was.
+        QVariantMap filters;
+        bool changed = false;
+        for (auto it = m_menuFilters.constBegin(); it != m_menuFilters.constEnd(); ++it) {
+            const QString filter = it.key().startsWith(QLatin1String("makers/")) ? makerFilter(it.key()) : it.key();
+            changed = changed || filter != it.key();
+            if (filter == QLatin1String("makers/"))
+                continue;
+            if (!filters.contains(filter) || isOn(it.value(), false))
+                filters.insert(filter, it.value());
+        }
+        if (changed) {
+            m_appCore->save_setting(kModuleId, QStringLiteral("menu_filters"), filters);
+            m_menuFilters = filters;
         }
     }
 
