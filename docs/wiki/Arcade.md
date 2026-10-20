@@ -165,19 +165,20 @@ On a CRT, move each side to where the tube's edge cuts the picture off (its over
 | **Online Games** | With **Online Play** on, while someone hosts one of your games in RetroArch's lobby: each, with who hosts it; select joins it ([Online play](#online-play)) |
 | **Favorites** | The games put on Favorites, by name |
 | **Recently Played** | The games played last, latest first (up to 30) |
+| **RetroAchievements** | With **Online High Scores** on RetroAchievements and a Web API key: the games you can earn achievements or a leaderboard's scores in, by name. A game is on it when RetroAchievements has achievements or a leaderboard for its set, as its site lists each set by its MD5 (of the file's name: a clone needs its own), and it plays in FinalBurn Neo, so a game set to MAME in its options leaves it ([FinalBurn Neo](#finalburn-neo)) |
 | A genre (**Beat 'em Up**, **Fighting**, **Shmup**, **Run and Gun**…) | The games of that genre, by catver.ini ([below](#genres)) |
 | **1 Player**, **2 Players**… | The games for that many players at once |
 | **1980s**, **1990s**… | The games of each decade, **Year Unknown** last |
 | A publisher (**Capcom**, **Namco**…) | The games of that maker, as MAME names it (the first, for a game made by two), once turned on in Menu Filters. A company is one publisher whichever of its arms or names made the game: **Nintendo** for Nintendo of America too, **SNK** for SNK Playmore, **Taito** for Taito America Corporation |
 | **Not Recognized** | The files MAME has no game of, as under the tree's Not Recognized ([above](#the-original-screen)) |
 
-**Settings → Arcade → Start Filter** is the one the screen opens on: All Games, or one of the lists, genres, numbers of players, decades and publishers that Menu Filters shows. One that has no games then (Favorites before any is added), or that Menu Filters no longer shows, opens on All Games. Back from a game, the screen is on its filter and on the game again.
+**Settings → Arcade → Start Filter** is the one the screen opens on: All Games, or one of the lists, genres, numbers of players, decades and publishers that Menu Filters shows. One that has no games then (Favorites before any is added), or that Menu Filters no longer shows, opens on All Games. RetroAchievements is waited for while its list of games is read (the first time, and a week on): the screen shows All Games meanwhile and moves to it as the list comes. Back from a game, the screen is on its filter and on the game again.
 
 ### Menu Filters
 
-<img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/screenshots/arcade-menu-filters.png" width="100%" alt="Settings / Arcade / Menu Filters: the LISTS heading over Favorites, Recently Played and Not Recognized, ON; the GENRES heading selected, over Beat 'em Up, Fighting and Maze, ON; the help line: Turns all of the choices under it on or off" />
+<img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/screenshots/arcade-menu-filters.png" width="100%" alt="Settings / Arcade / Menu Filters: the LISTS heading over Favorites, Recently Played, RetroAchievements and Not Recognized, ON; the GENRES heading selected, over Beat 'em Up and Fighting, ON; the help line: Turns all of the choices under it on or off" />
 
-**Settings → Arcade → Menu Filters** chooses the filters ◄ ► goes round. Its page lists them under five headings, each with the ones the games in the folder have: **Lists** (Favorites, Recently Played, Not Recognized), **Genres**, **Players**, **Years** and **Publishers**.
+**Settings → Arcade → Menu Filters** chooses the filters ◄ ► goes round. Its page lists them under five headings, each with the ones the games in the folder have: **Lists** (Favorites, Recently Played, RetroAchievements, Not Recognized), **Genres**, **Players**, **Years** and **Publishers**.
 
 - ◄, ► or select on a filter turns it **ON** or **OFF**.
 - On a heading, they turn every filter under it on at once, or off once they all are on.
@@ -315,7 +316,7 @@ The Arcade screen's box and the screen before a game say nothing different; the 
 
 The account's page is in Settings → Arcade whether Online High Scores is on or not: the key alone is enough for the pictures and Game Details.
 
-With a key given, the Arcade screen's box shows each FinalBurn Neo game's RetroAchievements leaderboard, under **RA Hi-Score**: its top three, the rank, the score and the user. It is read as the game is chosen, over HTTPS, and kept ten minutes: `Reading…` meanwhile, `No Leaderboard` for a game RetroAchievements has no leaderboard of, and `Not Reachable` without a connection, or with a key it refused. Of a game's leaderboards it shows the high scores' (the one whose name says score, where the highest is best). RetroAchievements' list of arcade games, with which each game is found, is kept a week in `arcade/retroachievements-games.json`.
+With a key given, the Arcade screen's box shows each FinalBurn Neo game's RetroAchievements leaderboard, under **RA Hi-Score**: its top three, the rank, the score and the user. It is read as the game is chosen, over HTTPS, and kept ten minutes: `Reading…` meanwhile, `No Leaderboard` for a game RetroAchievements has no leaderboard of, and `Not Reachable` without a connection, or with a key it refused. Of a game's leaderboards it shows the high scores' (the one whose name says score, where the highest is best). RetroAchievements' list of arcade games, with which each game is found, is kept a week in `arcade/retroachievements-games.json`; the games on it that FinalBurn Neo plays make the Arcade screen's **RetroAchievements** filter ([Filters](#filters)).
 
 The account, its token and its key are kept in `arcade/retroachievements.json`, readable by you alone; **Sign Out** forgets the account and its token. RetroArch as Debian builds it reaches RetroAchievements over plain HTTP, the password at that first sign-in and the token after it, so use a password you use nowhere else.
 
@@ -388,8 +389,8 @@ Settings → Arcade, the second row of Settings' first screen. The page is share
 | `enabled`, `border`, `hint_bar`, `help_line`, `start_info`, `high_scores` | `true` or `false` |
 | `games_directory` | `""` for the default, else the folder's full path |
 | `screen` | `"Original"` or `"Arcade"` |
-| `start_filter` | The filter's id: `"all"`, `"favorites"`, `"recent"`, `"genres/<genre>"` (`"genres/Fighting"`), `"players/<n>"` (`"players/2"`), `"years/<decade>"` (`"years/1980s"`, `"years/unknown"`) or `"makers/<publisher>"` (`"makers/Capcom"`) |
-| `menu_filters` | The filters turned on or off, by id: `{ "genres/Puzzle": false, "makers/Capcom": true }`, and `"unknown"` for Not Recognized. One not in it is on, but a publisher's |
+| `start_filter` | The filter's id: `"all"`, `"favorites"`, `"recent"`, `"achievements"` (RetroAchievements), `"genres/<genre>"` (`"genres/Fighting"`), `"players/<n>"` (`"players/2"`), `"years/<decade>"` (`"years/1980s"`, `"years/unknown"`) or `"makers/<publisher>"` (`"makers/Capcom"`) |
+| `menu_filters` | The filters turned on or off, by id: `{ "genres/Puzzle": false, "makers/Capcom": true }`, `"achievements"` for RetroAchievements and `"unknown"` for Not Recognized. One not in it is on, but a publisher's |
 | `play_at_startup` | The game's set (`"galaga"`), `""` for None; the app's own `startup_favorite` holds the same game, and either changes the other |
 | `list_style` | `"Straight"`, `"Curved"` or `"3D Curved"` |
 | `info_background` | A number from 0 (transparent) to 100 (solid) |
@@ -437,7 +438,7 @@ Everything MAME writes is in `arcade` in the data folder (`~/.local/share/OSD-OS
 | `arcade/ctrlr/osdos.cfg` | The controller file, written afresh before each game ([Players and buttons](#players-and-buttons)) |
 | `arcade/retroarch/` | RetroArch's, for FinalBurn Neo's games, readable by you alone: `retroarch.cfg`, its settings, written afresh before each game and removed after it; `last.log`, what it said in the last game; `system/fbneo`, the BIOS sets (links to the games folder's `bios`); `saves`, `states` and `config`, the games' NVRAM, save states and FinalBurn Neo's options; `sign-in`, RetroArch's own while it signs in to RetroAchievements, removed as soon as it has; `remaps/FinalBurn Neo/FinalBurn Neo.rmp`, written before a game played off line when a player has one of the JAMMA board's sticks, which puts that player on FinalBurn Neo's 6-Button Panel; and, once downloaded, `cores/fbneo_libretro.so` (`.dylib` on a Mac), `fbneo-arcade.dat` and `fbneo-license.txt` |
 | `arcade/retroachievements.json` | The RetroAchievements account: its user, the token RetroArch signed in with and the Web API key, readable by you alone; never the password |
-| `arcade/retroachievements-games.json` | RetroAchievements' list of arcade games with achievements, by their hashes, and which of them have leaderboards, kept a week ([FinalBurn Neo](#finalburn-neo)) |
+| `arcade/retroachievements-games.json` | RetroAchievements' list of arcade games with achievements or leaderboards, by their hashes, and which have which, kept a week: the RetroAchievements filter's, and the leaderboards' ([FinalBurn Neo](#finalburn-neo)) |
 | `arcade/badges/` | The achievements' badges, when the games folder's `snap` can't be written ([Game Details](#game-details)) |
 
 Recently Played and Favorites are in `lists.json` with the other modules' lists. In the games folder, beside the sets, the module reads `catver.ini` and the `snap` folder's pictures, as you put them there ([Genres](#genres), [Pictures](#pictures)), and with a Web API key writes the pictures downloaded from RetroAchievements in that `snap` folder, never over a file there, with `.retroachievements.json`, the note of what was downloaded ([Pictures from RetroAchievements](#pictures-from-retroachievements)), and the achievements' badges, as `achieve_<set>_<number>.png` ([Game Details](#game-details)). MAME runs in `arcade`, with these arguments:

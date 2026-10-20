@@ -1518,13 +1518,16 @@ private slots:
         const QByteArray mslug = libretro::achievementsHash(QStringLiteral("mslug.zip")).toLatin1();
         const QByteArray galaga = libretro::achievementsHash(QStringLiteral("galaga.zip")).toLatin1();
         // sf2's game has a board of times first, then one of scores;
-        // galaga's none; mslug's (its hash in capitals) one of points, with
-        // no one on it yet.
+        // galaga's achievements and no board; mslug's (its hash in capitals)
+        // no achievements and a board of points, with no one on it yet;
+        // pacman's neither, so it isn't one of RetroAchievements' games.
+        const QByteArray pacman = libretro::achievementsHash(QStringLiteral("pacman.zip")).toLatin1();
         const QHash<QByteArray, QByteArray> answers{
-            { "/API/API_GetGameList.php?i=27&f=1&h=1",
-              "[{\"ID\": 1, \"NumLeaderboards\": 2, \"Hashes\": [\"" + sf2 + "\"]},"
-              " {\"ID\": 2, \"NumLeaderboards\": 0, \"Hashes\": [\"" + galaga + "\"]},"
-              " {\"ID\": 3, \"NumLeaderboards\": 1, \"Hashes\": [\"" + mslug.toUpper() + "\"]}]" },
+            { "/API/API_GetGameList.php?i=27&h=1",
+              "[{\"ID\": 1, \"NumAchievements\": 20, \"NumLeaderboards\": 2, \"Hashes\": [\"" + sf2 + "\"]},"
+              " {\"ID\": 2, \"NumAchievements\": 12, \"NumLeaderboards\": 0, \"Hashes\": [\"" + galaga + "\"]},"
+              " {\"ID\": 3, \"NumAchievements\": 0, \"NumLeaderboards\": 1, \"Hashes\": [\"" + mslug.toUpper() + "\"]},"
+              " {\"ID\": 4, \"NumAchievements\": 0, \"NumLeaderboards\": 0, \"Hashes\": [\"" + pacman + "\"]}]" },
             { "/API/API_GetGameLeaderboards.php?i=1",
               "{\"Count\": 2, \"Results\": [{\"ID\": 11, \"RankAsc\": true, \"Title\": \"Fastest Clear\","
               " \"Description\": \"Fewest seconds\", \"Format\": \"TIME\"}, {\"ID\": 12, \"RankAsc\": false,"
@@ -1583,14 +1586,25 @@ private slots:
                                                       { QStringLiteral("name"), QStringLiteral("Ryu") } }));
         QCOMPARE(entries.at(2).toMap().value(QStringLiteral("rank")).toString(), QStringLiteral("2ND"));
         QCOMPARE(entries.at(2).toMap().value(QStringLiteral("score")).toString(), QStringLiteral("990000"));
-        QCOMPARE(asked, QStringList({ QStringLiteral("/API/API_GetGameList.php?i=27&f=1&h=1 y=key1"),
+        QCOMPARE(asked, QStringList({ QStringLiteral("/API/API_GetGameList.php?i=27&h=1 y=key1"),
                                       QStringLiteral("/API/API_GetGameLeaderboards.php?i=1 y=key1"),
                                       QStringLiteral("/API/API_GetLeaderboardEntries.php?i=12&c=3 y=key1") }));
         QVERIFY(contents(data.path() + QStringLiteral("/retroachievements-games.json")).contains(sf2));
+        // RetroAchievements' games: those with achievements, or a leaderboard
+        // alone; not one with neither, nor one it hasn't.
+        QVERIFY(boards.hasGame(QStringLiteral("sf2.zip")));
+        QVERIFY(boards.hasGame(QStringLiteral("galaga.zip")));
+        QVERIFY(boards.hasGame(QStringLiteral("mslug.zip")));
+        QVERIFY(!boards.hasGame(QStringLiteral("pacman.zip")));
+        QVERIFY(!boards.hasGame(QStringLiteral("dkong.zip")));
+        // Wanted again while it is fresh: nothing read.
+        asked.clear();
+        boards.wantList();
+        QTest::qWait(600);
+        QVERIFY(asked.isEmpty());
 
         // A game whose leaderboards are none, and one with no one on its
         // board yet: the list isn't read again.
-        asked.clear();
         QCOMPARE(state(boards.board(QStringLiteral("galaga.zip"))), QStringLiteral("loading"));
         QVERIFY(ready.wait(5000));
         QCOMPARE(state(boards.board(QStringLiteral("galaga.zip"))), QStringLiteral("none"));
@@ -1603,12 +1617,20 @@ private slots:
         QCOMPARE(asked, QStringList({ QStringLiteral("/API/API_GetGameLeaderboards.php?i=3 y=key1"),
                                       QStringLiteral("/API/API_GetLeaderboardEntries.php?i=31&c=3 y=key1") }));
 
-        // The list kept read from its file; of two games asked for at once,
-        // only the last is read.
+        // The list kept read from its file, wanted for itself: its games
+        // known at once, nothing read. Of two games asked for at once, only
+        // the last is read.
         asked.clear();
         RetroAchievements again(data.path(), api, media);
         QSignalSpy readyAgain(&again, &RetroAchievements::boardReady);
+        QSignalSpy listAgain(&again, &RetroAchievements::listRead);
         again.setKey(QStringLiteral("key1"));
+        again.wantList();
+        QVERIFY(again.hasGame(QStringLiteral("mslug.zip")));
+        QVERIFY(!again.hasGame(QStringLiteral("pacman.zip")));
+        QTest::qWait(600);
+        QVERIFY(asked.isEmpty());
+        QVERIFY(listAgain.isEmpty());
         again.board(QStringLiteral("sf2.zip"));
         again.board(QStringLiteral("mslug.zip"));
         QVERIFY(readyAgain.wait(5000));
@@ -1630,8 +1652,27 @@ private slots:
         kept.board(QStringLiteral("sf2.zip"));
         QVERIFY(readyKept.wait(5000));
         QCOMPARE(state(kept.board(QStringLiteral("sf2.zip"))), QStringLiteral("ready"));
-        QCOMPARE(asked.first(), QStringLiteral("/API/API_GetGameList.php?i=27&f=1&h=1 y=key1"));
+        QCOMPARE(asked.first(), QStringLiteral("/API/API_GetGameList.php?i=27&h=1 y=key1"));
         QVERIFY(contents(older.path() + QStringLiteral("/retroachievements-games.json")).contains("\"boards\""));
+
+        // A list kept as 0.0.13 kept it, of the games with achievements
+        // alone: its games known meanwhile, and, wanted, the list read again
+        // with those that have a leaderboard alone.
+        QTemporaryDir oldList;
+        writeFile(oldList.path() + QStringLiteral("/retroachievements-games.json"),
+                  "{\"read\": \"" + QDateTime::currentDateTimeUtc().toString(Qt::ISODate).toLatin1()
+                  + "\", \"games\": {\"" + sf2 + "\": 1}, \"boards\": [1]}");
+        asked.clear();
+        RetroAchievements keptAgain(oldList.path(), api, media);
+        QSignalSpy listRead(&keptAgain, &RetroAchievements::listRead);
+        keptAgain.setKey(QStringLiteral("key1"));
+        keptAgain.wantList();
+        QVERIFY(keptAgain.hasGame(QStringLiteral("sf2.zip")));
+        QVERIFY(!keptAgain.hasGame(QStringLiteral("mslug.zip")));
+        QVERIFY(listRead.wait(5000));
+        QCOMPARE(asked, QStringList({ QStringLiteral("/API/API_GetGameList.php?i=27&h=1 y=key1") }));
+        QVERIFY(keptAgain.hasGame(QStringLiteral("mslug.zip")));
+        QVERIFY(contents(oldList.path() + QStringLiteral("/retroachievements-games.json")).contains("\"achievements\""));
 
         // A key RetroAchievements refuses.
         QSignalSpy refused(&again, &RetroAchievements::keyRefused);
@@ -1723,11 +1764,13 @@ private slots:
                    "BadgeName": "250337", "DisplayOrder": 1},
             "13": {"ID": 13, "Title": "Bonus Stage", "Description": "Wreck the car", "Points": 10,
                    "BadgeName": "../250338", "DisplayOrder": 2, "DateEarned": "2025-01-02 08:30:00"}}})";
+        // Puck Man's game (Pac-Man's too) has a leaderboard and no
+        // achievements.
         standIn.answers = {
-            { "/API/API_GetGameList.php?i=27&f=1&h=1",
-              "[{\"ID\": 1, \"NumLeaderboards\": 0, \"Hashes\": [\"" + hashOf("sf2") + "\"]},"
-              " {\"ID\": 4, \"NumLeaderboards\": 0, \"Hashes\": [\"" + hashOf("sf2ce") + "\"]},"
-              " {\"ID\": 2, \"NumLeaderboards\": 1, \"Hashes\": [\"" + hashOf("puckman") + "\", \"" + hashOf("pacman") + "\"]}]" },
+            { "/API/API_GetGameList.php?i=27&h=1",
+              "[{\"ID\": 1, \"NumAchievements\": 3, \"NumLeaderboards\": 0, \"Hashes\": [\"" + hashOf("sf2") + "\"]},"
+              " {\"ID\": 4, \"NumAchievements\": 1, \"NumLeaderboards\": 0, \"Hashes\": [\"" + hashOf("sf2ce") + "\"]},"
+              " {\"ID\": 2, \"NumAchievements\": 0, \"NumLeaderboards\": 1, \"Hashes\": [\"" + hashOf("puckman") + "\", \"" + hashOf("pacman") + "\"]}]" },
             { "/API/API_GetGameInfoAndUserProgress.php?g=1&u=Ryu", progress },
             { "/API/API_GetGameExtended.php?i=1", R"({"ID": 1, "Achievements": {"11": {"ID": 11, "Title": "Hadouken",
                                                     "Points": 5, "BadgeName": "250337", "DisplayOrder": 1}}})" },
@@ -1769,15 +1812,16 @@ private slots:
         QCOMPARE(achievements.at(2).toMap().value(QStringLiteral("earned")).toString(), QStringLiteral("2025-01-02"));
         QVERIFY(!achievements.at(2).toMap().value(QStringLiteral("hardcore")).toBool());
         QCOMPARE(achievements.at(2).toMap().value(QStringLiteral("badge")).toString(), QString());
-        QCOMPARE(standIn.asked, QStringList({ QStringLiteral("/API/API_GetGameList.php?i=27&f=1&h=1"),
+        QCOMPARE(standIn.asked, QStringList({ QStringLiteral("/API/API_GetGameList.php?i=27&h=1"),
                                               QStringLiteral("/API/API_GetGameInfoAndUserProgress.php?g=1&u=Ryu") }));
 
-        // A game with none, and one RetroAchievements hasn't: none at once,
-        // nothing asked.
+        // A game with none, one with a leaderboard alone and one
+        // RetroAchievements hasn't: the last two none at once, nothing asked.
         ra.achievements(QStringLiteral("sf2ce.zip"));
         QVERIFY(ready.wait(5000));
         QCOMPARE(state(ra.achievements(QStringLiteral("sf2ce.zip"))), QStringLiteral("none"));
         standIn.asked.clear();
+        QCOMPARE(state(ra.achievements(QStringLiteral("pacman.zip"))), QStringLiteral("none"));
         QCOMPARE(state(ra.achievements(QStringLiteral("galaga.zip"))), QStringLiteral("none"));
         QTest::qWait(600);
         QVERIFY(standIn.asked.isEmpty());
@@ -1798,6 +1842,27 @@ private slots:
         QVERIFY(!read.value(QStringLiteral("progress")).toBool());
         QCOMPARE(read.value(QStringLiteral("achievements")).toList().size(), 1);
         QCOMPARE(standIn.asked.last(), QStringLiteral("/API/API_GetGameExtended.php?i=1"));
+
+        // A list kept as 0.0.13 kept it, of the games with achievements,
+        // that can't be read again: its games' achievements read meanwhile.
+        QTemporaryDir oldList;
+        writeFile(oldList.path() + QStringLiteral("/retroachievements-games.json"),
+                  "{\"read\": \"" + QDateTime::currentDateTimeUtc().toString(Qt::ISODate).toLatin1()
+                  + "\", \"games\": {\"" + hashOf("sf2") + "\": 1}, \"boards\": []}");
+        StandIn noList;
+        QVERIFY(serve(noList));
+        noList.answers = { { "/API/API_GetGameInfoAndUserProgress.php?g=1&u=Ryu", progress } };
+        RetroAchievements kept(oldList.path(), noList.api(), noList.media());
+        QSignalSpy readyKept(&kept, &RetroAchievements::achievementsReady);
+        kept.setKey(QStringLiteral("key1"));
+        kept.setUser(QStringLiteral("Ryu"));
+        QCOMPARE(state(kept.achievements(QStringLiteral("sf2.zip"))), QStringLiteral("loading"));
+        QVERIFY(readyKept.wait(5000));
+        read = kept.achievements(QStringLiteral("sf2.zip"));
+        QCOMPARE(state(read), QStringLiteral("ready"));
+        QCOMPARE(read.value(QStringLiteral("achievements")).toList().size(), 3);
+        QCOMPARE(noList.asked, QStringList({ QStringLiteral("/API/API_GetGameList.php?i=27&h=1"),
+                                             QStringLiteral("/API/API_GetGameInfoAndUserProgress.php?g=1&u=Ryu") }));
 
         // The pictures' paths.
         QSignalSpy found(&ra, &RetroAchievements::picturesFound);
@@ -1871,10 +1936,10 @@ private slots:
         StandIn standIn;
         QVERIFY(serve(standIn));
         standIn.answers = {
-            { "/API/API_GetGameList.php?i=27&f=1&h=1",
-              "[{\"ID\": 1, \"NumLeaderboards\": 0, \"Hashes\": [\"" + hashOf("sf2") + "\"]},"
-              " {\"ID\": 2, \"NumLeaderboards\": 0, \"Hashes\": [\"" + hashOf("puckman") + "\", \"" + hashOf("pacman") + "\"]},"
-              " {\"ID\": 3, \"NumLeaderboards\": 0, \"Hashes\": [\"" + hashOf("kinst") + "\"]}]" },
+            { "/API/API_GetGameList.php?i=27&h=1",
+              "[{\"ID\": 1, \"NumAchievements\": 2, \"NumLeaderboards\": 0, \"Hashes\": [\"" + hashOf("sf2") + "\"]},"
+              " {\"ID\": 2, \"NumAchievements\": 4, \"NumLeaderboards\": 0, \"Hashes\": [\"" + hashOf("puckman") + "\", \"" + hashOf("pacman") + "\"]},"
+              " {\"ID\": 3, \"NumAchievements\": 6, \"NumLeaderboards\": 0, \"Hashes\": [\"" + hashOf("kinst") + "\"]}]" },
             { "/API/API_GetGame.php?i=1", R"({"ImageTitle": "/Images/000101.png", "ImageIngame": "/Images/000103.png",
                                             "ImageBoxArt": "/Images/000102.jpg"})" },
             { "/API/API_GetGame.php?i=2", R"({"ImageTitle": "/Images/000201.png", "ImageIngame": "/Images/000002.png",
@@ -2045,6 +2110,157 @@ private slots:
         QCOMPARE(arcade.achievementBadge(QStringLiteral("nosuchset"), 15, QStringLiteral("250336"), true), QString());
         QTest::qWait(300);
         QCOMPARE(standIn.asked.size(), 1);
+    }
+
+    // The Arcade screen's RetroAchievements filter: with Online High Scores
+    // on RetroAchievements and a key, the games it has achievements or a
+    // leaderboard of, by their own file's hash, that play in FinalBurn Neo;
+    // its list read once, as the filters are asked for, and kept for the
+    // next start. None with Online High Scores off or without the key; a game
+    // moved to MAME leaves it. Menu Filters lists it under Lists, after
+    // Recently Played, and can hide it; Start Filter offers it.
+    void retroAchievementsFilter() {
+        QTemporaryDir data;
+        QVERIFY(data.isValid());
+        const QString games = data.path() + QStringLiteral("/media/Games/Arcade");
+        for (const char *set : { "sf2.zip", "mslug.zip", "galaga.zip", "pacman.zip", "kinst.zip" })
+            writeFile(games + QLatin1Char('/') + QLatin1String(set));
+        QVERIFY(QDir().mkpath(data.path() + QStringLiteral("/bin")));
+        QVERIFY(QFile::copy(mamePath(), data.path() + QStringLiteral("/bin/mame")));
+        writeFile(data.path() + QStringLiteral("/bin/retroarch"), fixture("retroarch"));
+        for (const char *program : { "/bin/mame", "/bin/retroarch" })
+            QVERIFY(QFile::setPermissions(data.path() + QLatin1String(program),
+                                          QFile::ReadOwner | QFile::WriteOwner | QFile::ExeOwner));
+        writeFile(libretro::downloadedCore(data.path()));
+        writeFile(libretro::downloadedDat(data.path()), fixture("fbneo-arcade.dat"));
+        qputenv("OSDOS_MEDIA_DIR", (data.path() + QStringLiteral("/media")).toUtf8());
+        const auto restore = qScopeGuard([this] {
+            qputenv("OSDOS_MEDIA_DIR", (m_data.path() + QStringLiteral("/media")).toUtf8());
+        });
+        // sf2's game has achievements and a leaderboard, mslug's a
+        // leaderboard alone, galaga's neither; pacman's achievements, but
+        // FinalBurn Neo hasn't it; kinst RetroAchievements hasn't.
+        StandIn standIn;
+        QVERIFY(serve(standIn));
+        standIn.answers = {
+            { "/API/API_GetGameList.php?i=27&h=1",
+              "[{\"ID\": 1, \"NumAchievements\": 20, \"NumLeaderboards\": 1, \"Hashes\": [\"" + hashOf("sf2") + "\"]},"
+              " {\"ID\": 2, \"NumAchievements\": 0, \"NumLeaderboards\": 3, \"Hashes\": [\"" + hashOf("mslug") + "\"]},"
+              " {\"ID\": 3, \"NumAchievements\": 0, \"NumLeaderboards\": 0, \"Hashes\": [\"" + hashOf("galaga") + "\"]},"
+              " {\"ID\": 4, \"NumAchievements\": 8, \"NumLeaderboards\": 0, \"Hashes\": [\"" + hashOf("pacman") + "\"]}]" },
+            { "/API/API_GetConsoleIDs.php?", R"([{"ID": 27, "Name": "Arcade"}])" },
+        };
+        const QString module = QStringLiteral("com.osdos.arcade");
+        const QString list = QStringLiteral("/API/API_GetGameList.php?i=27&h=1");
+        const auto filterOf = [](ArcadeBackend &arcade) {
+            const QVariantList filters = arcade.filters();
+            for (const QVariant &v : filters) {
+                if (v.toMap().value(QStringLiteral("id")).toString() == QLatin1String("achievements"))
+                    return v.toMap();
+            }
+            return QVariantMap();
+        };
+        const auto setsOf = [](ArcadeBackend &arcade) {
+            QStringList sets;
+            const QVariantList games = arcade.filterGames(QStringLiteral("achievements"), 0, 10);
+            for (const QVariant &v : games)
+                sets << v.toMap().value(QStringLiteral("set")).toString();
+            return sets;
+        };
+        const auto labels = [](const QVariant &options) {
+            QStringList list;
+            const QVariantList all = options.toList();
+            for (const QVariant &v : all)
+                list << v.toMap().value(QStringLiteral("label")).toString();
+            return list;
+        };
+        {
+            ArcadeBackend arcade(data.path(), data.path(), nullptr, nullptr);
+            arcade.setAchievementsServers(standIn.api(), standIn.media());
+            refreshed(arcade);
+            QTRY_VERIFY_WITH_TIMEOUT(!arcade.filters().isEmpty(), 10000);
+            QVERIFY(arcade.fbneoReady());
+            // Neither Online High Scores on it nor a key: none, nothing asked.
+            QVERIFY(filterOf(arcade).isEmpty());
+            arcade.onSettingChanged(module, QStringLiteral("online_high_scores"), QStringLiteral("RetroAchievements"));
+            QVERIFY(filterOf(arcade).isEmpty());
+            QVERIFY(!arcade.filterPending(QStringLiteral("achievements")));
+            QTest::qWait(600);
+            QVERIFY(standIn.asked.isEmpty());
+
+            // A key: the list read once, the filter waited for meanwhile and
+            // there as it comes.
+            QSignalSpy changed(&arcade, &ArcadeBackend::gamesChanged);
+            arcade.setAchievementsKey(QStringLiteral("key1"));
+            QVERIFY(!changed.isEmpty());
+            QVERIFY(filterOf(arcade).isEmpty());
+            QVERIFY(arcade.filterPending(QStringLiteral("achievements")));
+            QVERIFY(!arcade.filterPending(QStringLiteral("favorites")));
+            QTRY_VERIFY_WITH_TIMEOUT(!filterOf(arcade).isEmpty(), 5000);
+            QVERIFY(!arcade.filterPending(QStringLiteral("achievements")));
+            QCOMPARE(filterOf(arcade).value(QStringLiteral("name")).toString(), QStringLiteral("RetroAchievements"));
+            QCOMPARE(filterOf(arcade).value(QStringLiteral("count")).toInt(), 2);
+            QCOMPARE(setsOf(arcade), QStringList({ QStringLiteral("mslug"), QStringLiteral("sf2") }));
+            QCOMPARE(arcade.filterIndex(QStringLiteral("achievements"), QStringLiteral("sf2")), 1);
+            QCOMPARE(arcade.filterIndex(QStringLiteral("achievements"), QStringLiteral("galaga")), -1);
+            QTest::qWait(600);
+            QCOMPARE(standIn.asked.count(list), 1);
+
+            // A game moved to MAME leaves it, and comes back with Auto.
+            arcade.onSettingChanged(module, QStringLiteral("engines"),
+                                    QVariantMap{ { QStringLiteral("sf2"), QStringLiteral("mame") } });
+            QCOMPARE(setsOf(arcade), QStringList({ QStringLiteral("mslug") }));
+            arcade.onSettingChanged(module, QStringLiteral("engines"), QVariantMap());
+            QCOMPARE(setsOf(arcade).size(), 2);
+
+            // Menu Filters: under Lists, after Recently Played; hidden there,
+            // not among the filters. Start Filter offers it.
+            QSignalSpy options(&arcade, &ArcadeBackend::dynamicOptionsReady);
+            arcade.menuFilterOptions();
+            QTRY_COMPARE_WITH_TIMEOUT(options.size(), 1, 5000);
+            QCOMPARE(options.last().at(0).toString(), QStringLiteral("menu_filters"));
+            QCOMPARE(labels(options.last().at(1)).mid(0, 5),
+                     QStringList({ QStringLiteral("Lists"), QStringLiteral("Favorites"), QStringLiteral("Recently Played"),
+                                   QStringLiteral("RetroAchievements"), QStringLiteral("Not Recognized") }));
+            arcade.startFilterOptions();
+            QTRY_COMPARE_WITH_TIMEOUT(options.size(), 2, 5000);
+            QCOMPARE(options.last().at(0).toString(), QStringLiteral("start_filter"));
+            QVERIFY(labels(options.last().at(1)).contains(QStringLiteral("RetroAchievements")));
+            arcade.onSettingChanged(module, QStringLiteral("menu_filters"),
+                                    QVariantMap{ { QStringLiteral("achievements"), false } });
+            QVERIFY(filterOf(arcade).isEmpty());
+            arcade.onSettingChanged(module, QStringLiteral("menu_filters"), QVariantMap());
+            QCOMPARE(filterOf(arcade).value(QStringLiteral("count")).toInt(), 2);
+
+            // Online High Scores off, or no key: none, the games set to
+            // FinalBurn Neo though they are.
+            arcade.onSettingChanged(module, QStringLiteral("engines"),
+                                    QVariantMap{ { QStringLiteral("sf2"), QStringLiteral("fbneo") },
+                                                 { QStringLiteral("mslug"), QStringLiteral("fbneo") } });
+            QCOMPARE(setsOf(arcade).size(), 2);
+            arcade.onSettingChanged(module, QStringLiteral("online_high_scores"), QStringLiteral("Off"));
+            QVERIFY(filterOf(arcade).isEmpty());
+            QVERIFY(!arcade.filterPending(QStringLiteral("achievements")));
+            arcade.onSettingChanged(module, QStringLiteral("online_high_scores"), QStringLiteral("RetroAchievements"));
+            QCOMPARE(filterOf(arcade).value(QStringLiteral("count")).toInt(), 2);
+            arcade.setAchievementsKey(QString());
+            QVERIFY(filterOf(arcade).isEmpty());
+            QVERIFY(!arcade.filterPending(QStringLiteral("achievements")));
+            arcade.setAchievementsKey(QStringLiteral("key1"));
+            QTRY_VERIFY_WITH_TIMEOUT(arcade.achievementsKeyWorks(), 5000);
+        }
+
+        // The next start: the list kept, the filter there at once, nothing
+        // read.
+        standIn.asked.clear();
+        ArcadeBackend again(data.path(), data.path(), nullptr, nullptr);
+        again.setAchievementsServers(standIn.api(), standIn.media());
+        refreshed(again);
+        QTRY_VERIFY_WITH_TIMEOUT(!again.filters().isEmpty(), 10000);
+        again.onSettingChanged(module, QStringLiteral("online_high_scores"), QStringLiteral("RetroAchievements"));
+        QCOMPARE(filterOf(again).value(QStringLiteral("count")).toInt(), 2);
+        QTest::qWait(600);
+        QVERIFY(standIn.asked.isEmpty());
     }
 
     // The status icons the module adds, as its settings and account stand,
@@ -2578,6 +2794,7 @@ private slots:
             ids << v.toMap().value(QStringLiteral("id")).toString();
         QCOMPARE(options.at(0).at(0).toString(), QStringLiteral("start_filter"));
         QCOMPARE(ids, QStringList({ QStringLiteral("all"), QStringLiteral("favorites"), QStringLiteral("recent"),
+                                    QStringLiteral("achievements"),
                                     QStringLiteral("genres/Beat 'em Up"), QStringLiteral("genres/Fighting"),
                                     QStringLiteral("genres/Maze"), QStringLiteral("genres/Shmup"),
                                     QStringLiteral("players/1"),
@@ -2708,7 +2925,7 @@ private slots:
         }
         QCOMPARE(page, QStringList({
             QStringLiteral("LISTS"), QStringLiteral("favorites=Favorites"), QStringLiteral("recent=Recently Played"),
-            QStringLiteral("unknown=Not Recognized"),
+            QStringLiteral("achievements=RetroAchievements"), QStringLiteral("unknown=Not Recognized"),
             QStringLiteral("GENRES"), QStringLiteral("genres/Beat 'em Up=Beat 'em Up"),
             QStringLiteral("genres/Fighting=Fighting"), QStringLiteral("genres/Shmup=Shmup"),
             QStringLiteral("PLAYERS"), QStringLiteral("players/1=1 Player"), QStringLiteral("players/2=2 Players"),
@@ -2740,14 +2957,14 @@ private slots:
         options.clear();
         arcade.startFilterOptions();
         QCOMPARE(ids(options.at(0).at(1).toList()), QStringList({
-            QStringLiteral("all"), QStringLiteral("favorites"), QStringLiteral("recent"),
+            QStringLiteral("all"), QStringLiteral("favorites"), QStringLiteral("recent"), QStringLiteral("achievements"),
             QStringLiteral("genres/Beat 'em Up"), QStringLiteral("genres/Shmup"), QStringLiteral("players/1"),
             QStringLiteral("players/2"), QStringLiteral("players/6"), QStringLiteral("years/1980s"),
             QStringLiteral("years/1990s"), QStringLiteral("makers/Namco") }));
 
-        // A heading's all at once: the players off, Favorites and Recently
-        // Played too.
-        for (const char *id : { "players/1", "players/2", "players/6", "favorites", "recent" })
+        // A heading's all at once: the players off, Favorites, Recently
+        // Played and RetroAchievements too.
+        for (const char *id : { "players/1", "players/2", "players/6", "favorites", "recent", "achievements" })
             shown.insert(QLatin1String(id), false);
         core.save_setting(module, QStringLiteral("menu_filters"), shown);
         QCOMPARE(ids(arcade.filters()), QStringList({

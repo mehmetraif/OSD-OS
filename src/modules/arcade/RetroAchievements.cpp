@@ -104,6 +104,8 @@ void RetroAchievements::setKey(const QString &key) {
     m_key = key;
     m_keyAccepted = false;
     m_keyCheck = false;
+    // The list wanted again with this one (wantList()).
+    m_wantedList = false;
     m_boards.clear();
     m_progress.clear();
     // The list the other key couldn't read, this one may.
@@ -149,11 +151,13 @@ QVariantMap RetroAchievements::board(const QString &fileName) {
 QVariantMap RetroAchievements::achievements(const QString &fileName) {
     if (m_key.isEmpty())
         return { { QStringLiteral("state"), QStringLiteral("failed") } };
-    // A game the list of games hasn't has none, without asking: the Arcade
-    // screen asks of every game it shows.
+    // A game the list of games hasn't, or has for its leaderboards alone,
+    // has none, without asking: the Arcade screen asks of every game it
+    // shows.
     if (!m_listLoaded)
         loadList();
-    if (listFresh() && gameOf(fileName) <= 0)
+    const int game = gameOf(fileName);
+    if (listFresh() && (game <= 0 || !m_achievementGames.contains(game)))
         return { { QStringLiteral("state"), QStringLiteral("none") } };
     const auto found = m_progress.constFind(fileName);
     const bool known = found != m_progress.constEnd();
@@ -181,6 +185,16 @@ void RetroAchievements::findPictures(const QStringList &games, const QStringList
     m_wait->start();
 }
 
+void RetroAchievements::wantList() {
+    if (!m_listLoaded)
+        loadList();
+    if (m_key.isEmpty() || listFresh() || m_wantedList)
+        return;
+    m_wantedList = true;
+    if (!m_wait->isActive())
+        m_wait->start();
+}
+
 bool RetroAchievements::fresh(const Board &board) const {
     const qint64 age = board.read.secsTo(QDateTime::currentDateTimeUtc());
     return age >= 0 && age < (board.state == QLatin1String("failed") ? kFailedSeconds : kBoardSeconds);
@@ -205,16 +219,29 @@ void RetroAchievements::loadList() {
     const QJsonObject games = kept.value(QStringLiteral("games")).toObject();
     for (auto it = games.constBegin(); it != games.constEnd(); ++it)
         m_games.insert(it.key(), it.value().toInt());
-    // A list kept before the games without leaderboards were: its games all
-    // have one, and it is read again as soon as it can be.
     const QJsonValue boards = kept.value(QStringLiteral("boards"));
-    if (!boards.isArray()) {
-        for (const int game : std::as_const(m_games))
-            m_boardGames.insert(game);
+    const QJsonValue achievements = kept.value(QStringLiteral("achievements"));
+    // Ids as RetroAchievements gives them: none below 1.
+    const auto add = [](QSet<int> &games, int game) {
+        if (game > 0)
+            games.insert(game);
+    };
+    for (const QJsonValue &game : boards.toArray())
+        add(m_boardGames, game.toInt());
+    for (const QJsonValue &game : achievements.toArray())
+        add(m_achievementGames, game.toInt());
+    // A list kept before the games with leaderboards alone were, or before
+    // those without were too: its games all have achievements (and, the
+    // oldest's, a leaderboard each), and it is read again as soon as it can
+    // be.
+    if (!achievements.isArray()) {
+        for (const int game : std::as_const(m_games)) {
+            add(m_achievementGames, game);
+            if (!boards.isArray())
+                add(m_boardGames, game);
+        }
         return;
     }
-    for (const QJsonValue &game : boards.toArray())
-        m_boardGames.insert(game.toInt());
     m_listRead = QDateTime::fromString(kept.value(QStringLiteral("read")).toString(), Qt::ISODate);
 }
 
@@ -223,11 +250,12 @@ int RetroAchievements::gameOf(const QString &fileName) const {
 }
 
 bool RetroAchievements::wanting() const {
-    return !m_wanted.isEmpty() || !m_wantedAchievements.isEmpty() || !m_wantedPictures.isEmpty();
+    return m_wantedList || !m_wanted.isEmpty() || !m_wantedAchievements.isEmpty() || !m_wantedPictures.isEmpty();
 }
 
 void RetroAchievements::failWanted() {
     // All taken first: what each signal leads to finds nothing wanted.
+    m_wantedList = false;
     const QString board = std::exchange(m_wanted, QString());
     const QString achievements = std::exchange(m_wantedAchievements, QString());
     const QStringList pictures = std::exchange(m_wantedPictures, QStringList());
@@ -270,10 +298,14 @@ void RetroAchievements::readWanted() {
         }
         // The older list meanwhile.
     }
+    // The list, wanted for itself (wantList()), is had.
+    m_wantedList = false;
+    if (!wanting())
+        return;
     if (!m_wantedAchievements.isEmpty()) {
         const QString fileName = std::exchange(m_wantedAchievements, QString());
         const int game = gameOf(fileName);
-        if (game <= 0)
+        if (game <= 0 || !m_achievementGames.contains(game))
             doneAchievements(fileName, { QStringLiteral("none"), {}, {} });
         else
             readAchievements(fileName, game);
@@ -309,23 +341,32 @@ void RetroAchievements::readWanted() {
 }
 
 void RetroAchievements::readList() {
+    // Every arcade game, those with leaderboards and no achievements too;
+    // those with neither left out.
     get(QStringLiteral("API_GetGameList.php"),
-        { { QStringLiteral("i"), QString::number(kArcade) }, { QStringLiteral("f"), QStringLiteral("1") },
-          { QStringLiteral("h"), QStringLiteral("1") } },
+        { { QStringLiteral("i"), QString::number(kArcade) }, { QStringLiteral("h"), QStringLiteral("1") } },
         [this](const QByteArray &json, bool ok) {
             const QDateTime now = QDateTime::currentDateTimeUtc();
             const QJsonArray games = ok ? QJsonDocument::fromJson(json).array() : QJsonArray();
             if (!games.isEmpty()) {
                 QHash<QString, int> found;
+                QSet<int> achievements;
                 QSet<int> boards;
                 QJsonObject kept;
+                QJsonArray keptAchievements;
                 QJsonArray keptBoards;
                 for (const QJsonValue &value : games) {
                     const QJsonObject game = value.toObject();
                     const int id = game.value(QStringLiteral("ID")).toInt();
-                    if (id <= 0)
+                    const bool withAchievements = game.value(QStringLiteral("NumAchievements")).toInt() > 0;
+                    const bool withBoards = game.value(QStringLiteral("NumLeaderboards")).toInt() > 0;
+                    if (id <= 0 || (!withAchievements && !withBoards))
                         continue;
-                    if (game.value(QStringLiteral("NumLeaderboards")).toInt() > 0) {
+                    if (withAchievements) {
+                        achievements.insert(id);
+                        keptAchievements.append(id);
+                    }
+                    if (withBoards) {
                         boards.insert(id);
                         keptBoards.append(id);
                     }
@@ -335,6 +376,7 @@ void RetroAchievements::readList() {
                     }
                 }
                 m_games = found;
+                m_achievementGames = achievements;
                 m_boardGames = boards;
                 m_listRead = now;
                 m_listRetry = QDateTime();
@@ -342,8 +384,10 @@ void RetroAchievements::readList() {
                 writeFileAtomically(listFile(m_home),
                                     QJsonDocument(QJsonObject{ { QStringLiteral("read"), now.toString(Qt::ISODate) },
                                                                { QStringLiteral("games"), kept },
+                                                               { QStringLiteral("achievements"), keptAchievements },
                                                                { QStringLiteral("boards"), keptBoards } })
                                         .toJson(QJsonDocument::Compact));
+                emit listRead();
             } else {
                 // An answer that isn't the list keeps the one there was.
                 qWarning("[Arcade] RetroAchievements' list of arcade games could not be read");

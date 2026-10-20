@@ -105,10 +105,10 @@ constexpr std::pair<const char *, const char *> kKinds[] = {
     { "genres", "Genres" }, { "players", "Players" }, { "years", "Years" }, { "makers", "Publishers" },
 };
 const char *const kFolderKinds[] = { "players", "years", "makers" };
-// The lists among the filters, before the places, and Not Recognized after,
-// which the tree has too.
+// The lists among the filters, before the places (the tree has the first
+// two), and Not Recognized after, which the tree has too.
 constexpr std::pair<const char *, const char *> kLists[] = {
-    { "favorites", "Favorites" }, { "recent", "Recently Played" },
+    { "favorites", "Favorites" }, { "recent", "Recently Played" }, { "achievements", "RetroAchievements" },
 };
 constexpr std::pair<const char *, const char *> kUnknown = { "unknown", "Not Recognized" };
 
@@ -295,6 +295,9 @@ ArcadeBackend::ArcadeBackend(const QString &appRoot, const QString &dataRoot, Ap
     : QObject(parent), m_appRoot(appRoot), m_dataRoot(dataRoot),
       m_home(dataRoot + QStringLiteral("/arcade")), m_appCore(appCore)
 {
+    // The filters may hold other games: the RetroAchievements filter's made
+    // again when next asked for, before the screen asks.
+    connect(this, &ArcadeBackend::gamesChanged, this, [this] { m_achievementSetsKnown = false; });
     m_launcher = new ScriptLauncher(m_appRoot, m_dataRoot, handoff, this);
     m_launcher->setHandoffOwner(QStringLiteral("arcade"));
     connect(m_launcher, &ScriptLauncher::runningChanged, this, &ArcadeBackend::runningChanged);
@@ -377,6 +380,8 @@ ArcadeBackend::ArcadeBackend(const QString &appRoot, const QString &dataRoot, Ap
         emit gameAchievementsReady(QFileInfo(fileName).completeBaseName().toLower());
     });
     connect(m_retroAchievements, &RetroAchievements::picturesFound, this, &ArcadeBackend::onPicturesFound);
+    // Its list of games read again: the RetroAchievements filter's games.
+    connect(m_retroAchievements, &RetroAchievements::listRead, this, &ArcadeBackend::gamesChanged);
     connect(m_retroAchievements, &RetroAchievements::keyRefused, this, [this] {
         if (!std::exchange(m_raKeyRefused, true))
             emit achievementsChanged();
@@ -506,8 +511,10 @@ void ArcadeBackend::applySetting(const QString &key, const QVariant &value) {
         emit gamesChanged();
         emit statusIconsChanged();
     } else if (key == QLatin1String("engines")) {
-        // Saved whole by setEngine().
+        // Saved whole by setEngine(). A game moved to MAME leaves the
+        // RetroAchievements filter.
         m_engines = value.toMap();
+        emit gamesChanged();
     } else if (key == QLatin1String("online_name")) {
         m_onlineName = value.toString().trimmed();
     } else if (key == QLatin1String("relay_server")) {
@@ -1186,6 +1193,8 @@ QStringList ArcadeBackend::filterSets(const QString &filter) const {
     // The rest once MAME has said what the sets are.
     if (scanning())
         return QStringList();
+    if (filter == QLatin1String("achievements"))
+        return achievementSets();
     const Index &games = index();
     if (filter == QLatin1String("all"))
         return games.games;
@@ -1907,13 +1916,45 @@ double ArcadeBackend::gameAspect(const QString &set) const {
 }
 
 QString ArcadeBackend::engineOf(const QString &set) const {
-    const bool fbneo = fbneoPlays(set);
+    return engineFor(set, fbneoReady(), !mamePath().isEmpty());
+}
+
+QString ArcadeBackend::engineFor(const QString &set, bool fbneoUsable, bool haveMame) const {
+    const bool fbneo = fbneoUsable && fbneoHas(set);
     const QString chosen = m_engines.value(set).toString();
-    if (chosen == QLatin1String("mame") && !mamePath().isEmpty())
+    if (chosen == QLatin1String("mame") && haveMame)
         return QStringLiteral("mame");
-    if (fbneo && (chosen == QLatin1String("fbneo") || m_achievements || m_onlinePlay || mamePath().isEmpty()))
+    if (fbneo && (chosen == QLatin1String("fbneo") || m_achievements || m_onlinePlay || !haveMame))
         return QStringLiteral("fbneo");
     return QStringLiteral("mame");
+}
+
+QStringList ArcadeBackend::achievementSets() const {
+    if (m_achievementSetsKnown)
+        return m_achievementSets;
+    m_achievementSets.clear();
+    // The games where achievements or a leaderboard's scores can be had:
+    // with Online High Scores on RetroAchievements, those that play in
+    // FinalBurn Neo and that RetroAchievements has a set of, by the hash of
+    // their own file (a clone's own, not its parent's), as its list of games
+    // says. The list needs the key.
+    if (m_achievements && !m_raKey.isEmpty()) {
+        m_retroAchievements->wantList();
+        const bool ready = fbneoReady();
+        const bool haveMame = !mamePath().isEmpty();
+        for (const QString &set : index().games) {
+            if (engineFor(set, ready, haveMame) == QLatin1String("fbneo")
+                && m_retroAchievements->hasGame(QFileInfo(m_sets.value(set)).fileName()))
+                m_achievementSets << set;
+        }
+    }
+    m_achievementSetsKnown = true;
+    return m_achievementSets;
+}
+
+bool ArcadeBackend::filterPending(const QString &filter) const {
+    return filter == QLatin1String("achievements") && m_achievements && !m_raKey.isEmpty() && menuShows(filter)
+           && m_retroAchievements->listPending();
 }
 
 QVariantList ArcadeBackend::engineChoices(const QString &set) const {
@@ -2467,6 +2508,8 @@ void ArcadeBackend::setAchievementsKey(const QString &key) {
     m_retroAchievements->checkKey();
     saveAchievements();
     emit achievementsChanged();
+    // The RetroAchievements filter comes or goes with it.
+    emit gamesChanged();
 }
 
 void ArcadeBackend::checkAchievementsKey() {

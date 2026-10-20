@@ -153,6 +153,9 @@ Rectangle {
             }
             return setsOf(id).indexOf(set)
         }
+        // The filters whose games are still to come.
+        property var pendingFilters: []
+        function filterPending(id) { return pendingFilters.indexOf(id) >= 0 }
         function gameDetails(set) {
             var details = gameInfo[set]
             return details ? Object.assign({}, details, { engine: engineOf(set) }) : ({})
@@ -399,6 +402,7 @@ Rectangle {
             arcadeBackend.joined = []
             arcadeBackend.hosted = []
             arcadeBackend.roomReads = 0
+            arcadeBackend.pendingFilters = []
             arcadeBackend.favorites = ["galaga", "sf2"]
             arcadeBackend.filterList = [
                 { id: "all", name: "All Games",
@@ -1809,6 +1813,33 @@ Rectangle {
             arcadeBackend.filterList = all
             arcadeBackend.gamesChanged()
             compare(screen.filterId, "genres/Fighting")
+        }
+
+        // One whose games are still to come (RetroAchievements' list being
+        // read) is waited for once MAME has answered too, and opens on its
+        // first game as they come; come without it, it gives way.
+        function test_screenFilterPending() {
+            var all = arcadeBackend.filterList
+            moduleRoot.startFilter = "achievements"
+            arcadeBackend.pendingFilters = ["achievements"]
+            var screen = openScreen()
+            compare(screen.filterId, "all")
+            compare(screen.wanted, "achievements")
+            arcadeBackend.pendingFilters = []
+            arcadeBackend.filterList = all.concat([{ id: "achievements", name: "RetroAchievements",
+                                                     sets: ["mslug", "sf2"] }])
+            arcadeBackend.gamesChanged()
+            compare(screen.filterId, "achievements")
+            compare(screen.currentSet, "mslug")
+            loader.source = ""
+            arcadeBackend.filterList = all
+            arcadeBackend.pendingFilters = ["achievements"]
+            screen = openScreen()
+            compare(screen.filterId, "all")
+            arcadeBackend.pendingFilters = []
+            arcadeBackend.gamesChanged()
+            compare(screen.filterId, "all")
+            compare(screen.wanted, "all")
         }
 
         // Opened while the games are read, the lists stand in for Start

@@ -18,9 +18,10 @@ class QTimer;
 // What the Arcade module reads of RetroAchievements: its Web API, with the
 // account's Web API key, and its media server, over HTTPS (Qt's own, not
 // RetroArch's). A game is found by its hash (libretro::achievementsHash() of
-// its file) in RetroAchievements' list of arcade games with achievements,
-// which is big and changes seldom, so it is kept a week in
-// <data>/arcade/retroachievements-games.json. Of a game then come:
+// its file) in RetroAchievements' list of arcade games with achievements or
+// leaderboards, which is big and changes seldom, so it is kept a week in
+// <data>/arcade/retroachievements-games.json (hasGame(): the Arcade screen's
+// RetroAchievements filter). Of a game then come:
 // - its leaderboards, the one of high scores among them, and that one's
 //   first entries, kept ten minutes (board(): the Arcade screen's);
 // - its achievements, and which of them the account has earned, kept five
@@ -66,7 +67,8 @@ public:
     // A game's achievements, by its file: { state, achievements, progress }.
     // state as a board's, achievementsReady() to come while it is "loading",
     // and "none" for a game RetroAchievements has no achievements of (at
-    // once for one its list of games hasn't, while that list is fresh).
+    // once for one its list of games hasn't, or has for its leaderboards
+    // alone, while that list is fresh).
     // achievements: [{ id, title, description, points, badge (its name, ""
     // for none), earned (the day, yyyy-MM-dd; "" for one not earned),
     // hardcore (earned in hardcore mode) }], in RetroAchievements' order.
@@ -91,6 +93,15 @@ public:
     // couldn't be downloaded or is neither.
     void media(const QString &path, const std::function<void(const QByteArray &data)> &done);
 
+    // The list of games wanted: the one kept read in at once, and one a week
+    // old, or none, read again a moment after, as the key allows
+    // (listRead()).
+    void wantList();
+    // Whether RetroAchievements has achievements or leaderboards of a game,
+    // by its file ("sf2.zip"), as the list read in says (wantList()).
+    bool hasGame(const QString &fileName) const { return gameOf(fileName) > 0; }
+    // The list wanted is still to be read: a moment from now, or under way.
+    bool listPending() const { return m_wantedList; }
 
 signals:
     void boardReady(const QString &fileName);
@@ -104,6 +115,9 @@ signals:
     // first of its answers to the key come.
     void keyRefused();
     void keyAccepted();
+    // The list of games was read: which games RetroAchievements has may have
+    // changed.
+    void listRead();
 
 private:
     struct Board {
@@ -161,9 +175,11 @@ private:
     QString m_wantedAchievements;       // the achievements last asked for
     QStringList m_wantedPictures;       // the games whose pictures were last asked for
     QStringList m_lookedPictures;       // of them, those looked for before
+    bool m_wantedList = false;          // the list itself (wantList())
     QHash<QString, Board> m_boards;     // by the game's file
     QHash<QString, Progress> m_progress;    // by the game's file
     QHash<QString, int> m_games;        // a hash → its game's id
+    QSet<int> m_achievementGames;       // the games with achievements
     QSet<int> m_boardGames;             // the games with leaderboards
     QDateTime m_listRead;               // when the list was read
     QDateTime m_listRetry;              // after a list that couldn't be read, when to try again

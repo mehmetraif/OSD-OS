@@ -355,8 +355,9 @@ FocusScope {
         var at = indexOfFilter(wanted)
         filterIndex = Math.max(0, at)
         // One with no games once MAME has answered gives way to the one
-        // shown, which a favourite added later doesn't take the list from.
-        if (at < 0 && !scanning && filterId !== "")
+        // shown, which a favourite added later doesn't take the list from;
+        // not one whose games are still to come (RetroAchievements' list).
+        if (at < 0 && !scanning && filterId !== "" && !arcadeBackend.filterPending(wanted))
             wanted = filterId
         var place = keep !== "" && filterId !== "" ? arcadeBackend.filterIndex(filterId, keep, keepRoom) : -1
         selected = place >= 0 ? place : (standIn ? 0 : Math.max(0, Math.min(selected, count - 1)))

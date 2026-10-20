@@ -44,9 +44,11 @@ class QTimer;
 //   Search, All Games, and by players, decade and maker, and those MAME has
 //   no game of, or can't open by their names, under Not Recognized. The
 //   Arcade screen lists them a filter at a time (filters(), filterGames()):
-//   All Games, Favorites, Recently Played, each genre (made from catver.ini's
-//   categories, in the games folder or in <data>/arcade), each number of
-//   players, each decade and each publisher, and Not Recognized, as
+//   All Games, Favorites, Recently Played, RetroAchievements (the games it
+//   has achievements or leaderboards of, achievementSets()), each genre
+//   (made from catver.ini's categories, in the games folder or in
+//   <data>/arcade), each number of players, each decade and each publisher,
+//   and Not Recognized, as
 //   Settings → Arcade → Menu Filters chooses; gameDetails() says what a game
 //   is: its system, maker, year, players, picture (the games folder's snap
 //   folder, or MAME's own snapshots) and how long it has been played
@@ -141,13 +143,14 @@ public:
     Q_INVOKABLE QVariant requestEntries(const QString &path);
 
     // The filters with games in them, in the order ◄ ► goes round them:
-    // [{ id, name, count }]. id: "all", "favorites", "recent",
+    // [{ id, name, count }]. id: "all", "online" (Online Games, while
+    // someone hosts one), "favorites", "recent", "achievements",
     // "genres/<genre>", "players/<n>", "years/<decade>" ("years/unknown"),
-    // "makers/<publisher>", "unknown" (Not Recognized); all but All Games
-    // only while Menu Filters shows them, but Not Recognized in All Games'
-    // place when MAME knows none of the sets. While MAME is being asked,
-    // only the lists, All Games not yet: gamesChanged() follows once it has
-    // answered.
+    // "makers/<publisher>", "unknown" (Not Recognized); all but All Games and
+    // Online Games only while Menu Filters shows them, but Not Recognized in
+    // All Games' place when MAME knows none of the sets. While MAME is being
+    // asked, only Online Games, Favorites and Recently Played, All Games not
+    // yet: gamesChanged() follows once it has answered.
     Q_INVOKABLE QVariantList filters();
     // A page of a filter: its games from first on, count at most, as
     // { set, name (its title), favorite }; Not Recognized's as { set, name
@@ -157,6 +160,9 @@ public:
     // where a game is once for each room that hosts it, room's row (a room's
     // id), else the game's first.
     Q_INVOKABLE int filterIndex(const QString &filter, const QString &set, int room = -1);
+    // A filter not in filters() that may be in a moment: RetroAchievements
+    // while its list of games is still to be read (gamesChanged() follows).
+    Q_INVOKABLE bool filterPending(const QString &filter) const;
     // What the screen says of a set: { set, name (MAME's description),
     // system, maker, year, players, playTime (seconds played), pictures
     // (file URLs, picturesOf()), picture (the first, "" for none), vertical
@@ -448,7 +454,7 @@ private:
         QStringList unknown;
     };
     const Index &index() const;
-    void invalidate() { m_indexed = false; }
+    void invalidate() { m_indexed = false; m_achievementSetsKnown = false; }
     // A game's place among the genres, players, decades or makers; "" for
     // none.
     QString placeOf(const QString &kind, const QString &set, const mame::Machine *machine) const;
@@ -466,6 +472,10 @@ private:
     bool menuShows(const QString &filter) const;
     // A filter's sets, in the order it lists them.
     QStringList filterSets(const QString &filter) const;
+    // The RetroAchievements filter's: the games, by name, that achievements
+    // or a leaderboard's scores can be had in, kept until the filters may
+    // hold other games.
+    QStringList achievementSets() const;
     // Why a set is under Not Recognized, and what to do.
     QString unknownDetail(const QString &set) const;
     // A set, and the parent of a clone.
@@ -536,6 +546,9 @@ private:
     void takeAchievements(const libretro::Run &run);
     // fbneoPlays() but for FinalBurn Neo being ready, asked once for many.
     bool fbneoHas(const QString &set) const;
+    // engineOf() with FinalBurn Neo's being ready and MAME's being there
+    // asked once for many.
+    QString engineFor(const QString &set, bool fbneoUsable, bool haveMame) const;
     void saveAchievements() const;
     // The sign-in checked at once (libretro::SignIn): RetroArch, with no
     // picture, sound or controllers, signs in with the password and the
@@ -607,6 +620,10 @@ private:
 
     FbneoInstaller *m_installer = nullptr;
     RetroAchievements *m_retroAchievements = nullptr;
+    // achievementSets(), made again once gamesChanged() or invalidate() says
+    // the filters may hold other games.
+    mutable QStringList m_achievementSets;
+    mutable bool m_achievementSetsKnown = false;
 
     // The netplay lobby: its rooms as last read, why it couldn't be read
     // ("" when it was), whether it has been, and the read under way.
