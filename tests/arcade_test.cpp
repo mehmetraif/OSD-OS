@@ -927,6 +927,11 @@ private slots:
                  QStringLiteral("Toolkit Pad"));
         QCOMPARE(libretro::reservedDevice(QStringLiteral("19000000000000000000000000000000"), QStringLiteral("JAMMA P1")),
                  QStringLiteral("JAMMA P1"));
+        // The JAMMA board's sticks by the vendor and the product osdos-jamma
+        // gives them, the player's number.
+        QCOMPARE(libretro::reservedDevice(QStringLiteral("06006869010000000200000001000000"),
+                                          QStringLiteral("OSD/OS JAMMA P2")),
+                 QStringLiteral("0001:0002 OSD/OS JAMMA P2"));
 
         libretro::Launch launch;
         launch.core = QStringLiteral("/cores/fbneo_libretro.so");
@@ -963,6 +968,41 @@ private slots:
         QVERIFY(!config.contains(QStringLiteral("input_player2_reserved_device")));
         QVERIFY(!config.contains(QStringLiteral("input_player7_")));
         QVERIFY(!config.contains(QStringLiteral("netplay_")));
+        // A player on an arcade panel, a JAMMA board's stick: the cabinet's
+        // two rows as FinalBurn Neo's 6-Button Panel has them (Y X L above,
+        // B A R below), the joystick on the D-pad, and that controller type
+        // in FinalBurn Neo's remap file, loaded without a word; the other
+        // players as before.
+        launch.panels = { false, false, true };
+        launch.remapDir = QStringLiteral("/ra/remaps");
+        config = libretro::configText(launch);
+        for (const char *line : { "input_player3_y_btn = \"0\"", "input_player3_x_btn = \"1\"", "input_player3_l_btn = \"2\"",
+                                  "input_player3_b_btn = \"3\"", "input_player3_a_btn = \"9\"", "input_player3_r_btn = \"10\"",
+                                  "input_player3_select_btn = \"4\"", "input_player3_start_btn = \"6\"",
+                                  "input_player3_up_axis = \"-1\"", "input_player3_down_axis = \"+1\"",
+                                  "input_player3_left_axis = \"-0\"", "input_player3_right_axis = \"+0\"",
+                                  "input_player1_b_btn = \"0\"", "input_player1_up_btn = \"11\"",
+                                  "input_remapping_directory = \"/ra/remaps\"", "auto_remaps_enable = \"true\"",
+                                  "remap_save_on_exit = \"false\"", "notification_show_remap_load = \"false\"" })
+            QVERIFY2(has(QLatin1String(line)), line);
+        QVERIFY(!config.contains(QStringLiteral("input_player3_up_btn")));
+        QCOMPARE(libretro::coreRemapPath(QStringLiteral("/ra/remaps")),
+                 QStringLiteral("/ra/remaps/FinalBurn Neo/FinalBurn Neo.rmp"));
+        const QStringList remap = libretro::remapText(launch).split(QLatin1Char('\n'));
+        QVERIFY(remap.contains(QStringLiteral("input_libretro_device_p3 = \"261\"")));
+        QVERIFY(!remap.filter(QStringLiteral("input_libretro_device_p1")).size());
+        // Online, every player on the host's controller types: no panel.
+        for (const auto netplay : { libretro::Launch::Netplay::Join, libretro::Launch::Netplay::Host }) {
+            launch.netplay = netplay;
+            const QStringList online = libretro::configText(launch).split(QLatin1Char('\n'));
+            QVERIFY(online.contains(QStringLiteral("input_player3_b_btn = \"0\"")));
+            QVERIFY(online.contains(QStringLiteral("input_player3_up_btn = \"11\"")));
+            QVERIFY(online.filter(QStringLiteral("input_player3_up_axis")).isEmpty());
+            QCOMPARE(libretro::remapText(launch), QString());
+        }
+        launch.netplay = libretro::Launch::Netplay::None;
+        launch.panels.clear();
+        QCOMPARE(libretro::remapText(launch), QString());
         // Square pixels and no integer scale: the core's shape.
         QVERIFY(has(QStringLiteral("video_scale_integer = \"false\"")));
         QVERIFY(!config.contains(QStringLiteral("aspect_ratio_index")));
@@ -1217,6 +1257,33 @@ private slots:
         QCOMPARE(arcade.achievementsState(), QStringLiteral("signedIn"));
         // The config, the token in it, goes with the game.
         QVERIFY(!QFile::exists(home + QStringLiteral("/retroarch.cfg")));
+        // No arcade panel: no remap file. The JAMMA board's sticks: each
+        // player's by its vendor and product, on FinalBurn Neo's 6-Button
+        // Panel through its remap file; a gamepad again, none.
+        const QString remap = home + QStringLiteral("/remaps/FinalBurn Neo/FinalBurn Neo.rmp");
+        QVERIFY(!QFileInfo::exists(remap));
+        QVERIFY(config.contains(QStringLiteral("input_remapping_directory = \"%1/remaps\"").arg(home)));
+        controllers::setPlayerEnvironment({ { QStringLiteral("OSDOS_PLAYER1_NAME"), QStringLiteral("OSD/OS JAMMA P1") },
+                                            { QStringLiteral("OSDOS_PLAYER1_GUID"),
+                                              QStringLiteral("06002868010000000100000001000000") },
+                                            { QStringLiteral("OSDOS_PLAYER2_NAME"), QStringLiteral("OSD/OS JAMMA P2") },
+                                            { QStringLiteral("OSDOS_PLAYER2_GUID"),
+                                              QStringLiteral("06006869010000000200000001000000") } });
+        played(arcade, QStringLiteral("sf2"));
+        config = QString::fromUtf8(contents(configCopy));
+        for (const char *line : { "input_player1_reserved_device = \"0001:0001 OSD/OS JAMMA P1\"",
+                                  "input_player2_reserved_device = \"0001:0002 OSD/OS JAMMA P2\"",
+                                  "input_player1_y_btn = \"0\"", "input_player2_b_btn = \"3\"",
+                                  "input_player3_b_btn = \"0\"" })
+            QVERIFY2(config.contains(QLatin1String(line)), line);
+        QCOMPARE(QString::fromUtf8(contents(remap)).split(QLatin1Char('\n')).filter(QStringLiteral("input_libretro_device_p")),
+                 QStringList({ QStringLiteral("input_libretro_device_p1 = \"261\""),
+                               QStringLiteral("input_libretro_device_p2 = \"261\"") }));
+        controllers::setPlayerEnvironment({ { QStringLiteral("OSDOS_PLAYER1_NAME"), QStringLiteral("Xbox 360 Controller") },
+                                            { QStringLiteral("OSDOS_PLAYER1_GUID"),
+                                              QStringLiteral("030000005e0400008e02000014010000") } });
+        played(arcade, QStringLiteral("sf2"));
+        QVERIFY(!QFileInfo::exists(remap));
         // RetroAchievements not reached: still signed in, the token kept.
         writeFile(kept, "{\"user\": \"player\", \"token\": \"offline\"}");
         {
@@ -2054,6 +2121,7 @@ private slots:
         const auto restore = qScopeGuard([this] {
             qunsetenv("RA_CONFIG_COPY");
             qputenv("OSDOS_MEDIA_DIR", (m_data.path() + QStringLiteral("/media")).toUtf8());
+            controllers::setPlayerEnvironment({});
         });
         const QByteArray lobby = fixture("lobby.json");
         // big: an answer far bigger than a list of rooms.
@@ -2122,7 +2190,26 @@ private slots:
         QCOMPARE(arcade.filterIndex(QStringLiteral("online"), QStringLiteral("sf2"), 99), 0);
         QCOMPARE(arcade.filterIndex(QStringLiteral("online"), QStringLiteral("pacman"), 99), -1);
 
-        // Joined: RetroArch connects to the room, under the default name.
+        // Joined: RetroArch connects to the room, under the default name. The
+        // JAMMA board's sticks play on the host's controller types, as any
+        // pad: no arcade panel, and a remap file left by a game off line
+        // removed.
+        controllers::setPlayerEnvironment({ { QStringLiteral("OSDOS_PLAYER1_NAME"), QStringLiteral("OSD/OS JAMMA P1") },
+                                            { QStringLiteral("OSDOS_PLAYER1_GUID"),
+                                              QStringLiteral("06002868010000000100000001000000") },
+                                            { QStringLiteral("OSDOS_PLAYER2_NAME"), QStringLiteral("OSD/OS JAMMA P2") },
+                                            { QStringLiteral("OSDOS_PLAYER2_GUID"),
+                                              QStringLiteral("06006869010000000200000001000000") } });
+        const QString remap = data.path() + QStringLiteral("/arcade/retroarch/remaps/FinalBurn Neo/FinalBurn Neo.rmp");
+        writeFile(remap, "input_libretro_device_p1 = \"261\"\n");
+        const auto onPads = [](const QString &config) {
+            for (const char *line : { "input_player1_reserved_device = \"0001:0001 OSD/OS JAMMA P1\"",
+                                      "input_player1_b_btn = \"0\"", "input_player2_up_btn = \"11\"" }) {
+                if (!config.contains(QLatin1String(line)))
+                    return false;
+            }
+            return !config.contains(QStringLiteral("input_player1_up_axis"));
+        };
         const auto ended = [&arcade](const std::function<bool()> &start) {
             QSignalSpy finished(&arcade, &ArcadeBackend::finished);
             if (!start())
@@ -2141,11 +2228,14 @@ private slots:
         QVERIFY2(config.contains(QStringLiteral("netplay_nickname = \"OSD-OS\"")), qPrintable(config));
         QVERIFY(config.contains(QStringLiteral("netplay_start_as_spectator = \"false\"")));
         QVERIFY(!config.contains(QStringLiteral("netplay_public_announce")));
+        QVERIFY(onPads(config));
+        QVERIFY(!QFileInfo::exists(remap));
         // Hosted: announced in the lobby through the relay chosen, under the
         // online name.
         arcade.onSettingChanged(module, QStringLiteral("online_name"), QStringLiteral(" Mehmet "));
         arcade.onSettingChanged(module, QStringLiteral("relay_server"), QStringLiteral("Madrid"));
         QFile::remove(m_log);
+        writeFile(remap, "input_libretro_device_p1 = \"261\"\n");
         QCOMPARE(ended([&arcade] { return arcade.hostGame(QStringLiteral("sf2")); }).value(1).toString(),
                  QStringLiteral("ok"));
         QVERIFY(logLines(QStringLiteral("retroarch ")).value(0).contains(QStringLiteral(" --host ")));
@@ -2153,6 +2243,8 @@ private slots:
         for (const char *line : { "netplay_nickname = \"Mehmet\"", "netplay_public_announce = \"true\"",
                                   "netplay_use_mitm_server = \"true\"", "netplay_mitm_server = \"madrid\"" })
             QVERIFY2(config.contains(QLatin1String(line)), line);
+        QVERIFY(onPads(config));
+        QVERIFY(!QFileInfo::exists(remap));
         // A room gone from the lobby, and a game that can't be hosted.
         QVERIFY(!arcade.joinRoom(99));
         QCOMPARE(arcade.lastError(), QStringLiteral("The game is no longer in RetroArch's lobby"));

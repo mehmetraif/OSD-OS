@@ -996,6 +996,54 @@ private slots:
         QCOMPARE(savedControllers().value(key2).toObject().value("name").toString(), QString("OSD/OS JAMMA P2"));
     }
 
+    // The JAMMA board's sticks as osdos-jamma makes them now, with a vendor
+    // and a product: SDL tells them apart, each its own mapping and name. The
+    // settings one had under the key it had without them (legacyJammaKey()),
+    // its page's and a player's choice of it, follow it to its key.
+    void jammaStickKeys() {
+        QCOMPARE(controllers::legacyJammaKey("06002868010000000100000001000000", "OSD/OS JAMMA P1"),
+                 QString("pad-060028684f53442f4f53204a414d4d00"));
+        QCOMPARE(controllers::legacyJammaKey("0600", "OSD/OS JAMMA P1"), QString());
+        QVERIFY(controllers::isJammaStick("OSD/OS JAMMA P2"));
+        QVERIFY(!controllers::isJammaStick("Xbox 360 Controller"));
+
+        AppCore core(m_app.path(), m_data.path());
+        InputManager im(m_data.path(), &core);
+        VirtualPad p1, p2;
+        QVERIFY(p1.attach("OSD/OS JAMMA P1", 0x0001, 0x0001));
+        QVERIFY(p2.attach("OSD/OS JAMMA P2", 0x0001, 0x0002));
+        QTRY_VERIFY(entry(im, "OSD/OS JAMMA P1").value("present").toBool());
+        QTRY_VERIFY(entry(im, "OSD/OS JAMMA P2").value("present").toBool());
+        for (int i = 0; i < SDL_NumJoysticks(); ++i) {
+            if (SDL_JoystickGetDeviceInstanceID(i) == p2.id)
+                QCOMPARE(QString(SDL_GameControllerNameForIndex(i)), QString("OSD/OS JAMMA P2"));
+        }
+        const QString key1 = entry(im, "OSD/OS JAMMA P1").value("key").toString();
+        QVERIFY(key1 != entry(im, "OSD/OS JAMMA P2").value("key").toString());
+
+        // P1's settings from before: Xbox labels, and player 1's choice.
+        const QString legacy = controllers::legacyJammaKey(key1.mid(4), "OSD/OS JAMMA P1");
+        QVERIFY(!legacy.isEmpty() && legacy != key1);
+        p1.detach();
+        QTRY_VERIFY(entry(im, "OSD/OS JAMMA P1").isEmpty());
+        core.save_setting(QString(), "controllers", QVariantMap{ { legacy, QVariantMap{
+            { "name", "OSD/OS JAMMA P1" }, { "kind", "arcade" }, { "labels", "xbox" } } } });
+        core.save_setting(QString(), "players", QVariantMap{ { "1", QVariantMap{
+            { "key", legacy }, { "name", "OSD/OS JAMMA P1" } } } });
+        QVERIFY(p1.attach("OSD/OS JAMMA P1", 0x0001, 0x0001));
+        QTRY_COMPARE(player(im, 1).value("playing").toString(), key1);
+        QVERIFY(savedControllers().contains(key1));
+        QVERIFY(!savedControllers().contains(legacy));
+        QCOMPARE(savedApp("players").value("1").toObject().value("key").toString(), key1);
+        QCOMPARE(im.controllerPage(key1).value("labelsInUse").toString(), QString("Xbox"));
+        // Nothing of it left under the old key: listed once, connected.
+        int listed = 0;
+        for (const QVariant &v : im.controllers())
+            listed += v.toMap().value("name").toString() == "OSD/OS JAMMA P1";
+        QCOMPARE(listed, 1);
+        QCOMPARE(entry(im, "OSD/OS JAMMA P1").value("key").toString(), key1);
+    }
+
     // TEST BUTTONS on a JAMMA stick's page takes both sticks at once, their
     // presses reported and acting on nothing, and the board's pins as
     // osdos-jamma --test prints them, pressed and let go, both players' and

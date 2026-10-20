@@ -70,6 +70,12 @@ struct Launch {
     bool    integerScale = false;
     // Each player's controller, as reservedDevice() makes it: "" for none.
     QStringList pads;
+    // Which players' controllers are arcade panels, a JAMMA board's sticks:
+    // the cabinet's rows of buttons as FinalBurn Neo's 6-Button Panel has
+    // them (configText()'s binds, remapText()'s device), off line only.
+    QList<bool> panels;
+    // Where RetroArch looks for remap files (coreRemapPath()).
+    QString remapDir;
     // RetroAchievements: the account, signed in with its token, or with its
     // password for RetroArch to swap for one (it saves the token on exit).
     QString achievementsUser;
@@ -87,6 +93,13 @@ struct Launch {
 QString configText(const Launch &launch);
 // RetroArch's arguments: the core, the config, the log and the game.
 QStringList arguments(const Launch &launch);
+// The remap file RetroArch loads with FinalBurn Neo from remapDir: the
+// core's own, by its name.
+QString coreRemapPath(const QString &remapDir);
+// Its text: each player on an arcade panel on FinalBurn Neo's 6-Button
+// Panel, its controller type for such a panel, off line; "" for none, when
+// no file is needed.
+QString remapText(const Launch &launch);
 
 // What a run's log says (RetroArch's own, -v --log-file).
 struct Run {

@@ -2018,6 +2018,7 @@ bool ArcadeBackend::playFbneo(const QString &name, libretro::Launch::Netplay net
     launch.saveDir = home + QStringLiteral("/saves");
     launch.stateDir = home + QStringLiteral("/states");
     launch.configDir = home + QStringLiteral("/config");
+    launch.remapDir = home + QStringLiteral("/remaps");
 #ifdef Q_OS_LINUX
     // A desktop's RetroArch draws in its window; the console's needs KMS.
     launch.console = qEnvironmentVariableIsEmpty("WAYLAND_DISPLAY") && qEnvironmentVariableIsEmpty("DISPLAY");
@@ -2033,8 +2034,10 @@ bool ArcadeBackend::playFbneo(const QString &name, libretro::Launch::Netplay net
     launch.integerScale = integerScale();
     const QStringList guids = controllers::playerGuids();
     const QStringList names = controllers::playerNames();
-    for (int p = 0; p < guids.size(); ++p)
+    for (int p = 0; p < guids.size(); ++p) {
         launch.pads << (guids.at(p).isEmpty() ? QString() : libretro::reservedDevice(guids.at(p), names.value(p)));
+        launch.panels << (!guids.at(p).isEmpty() && controllers::isJammaStick(names.value(p)));
+    }
     m_raPasswordGiven = false;
     if (m_achievements && !m_raUser.isEmpty()) {
         // A sign-in still being checked: the game's RetroArch signs in
@@ -2052,7 +2055,16 @@ bool ArcadeBackend::playFbneo(const QString &name, libretro::Launch::Netplay net
     launch.joinAddress = joinAddress;
     launch.nickname = m_onlineName.isEmpty() ? (m_raUser.isEmpty() ? QStringLiteral("OSD-OS") : m_raUser) : m_onlineName;
     launch.relay = m_relay;
-    if (!writeFileAtomically(launch.config, libretro::configText(launch).toUtf8(), kOwnerOnly)) {
+    // FinalBurn Neo's remap file: the arcade panels' players on its 6-Button
+    // Panel; none without one, nor online.
+    const QString remap = libretro::coreRemapPath(launch.remapDir);
+    const QString remapText = libretro::remapText(launch);
+    bool written = true;
+    if (remapText.isEmpty())
+        QFile::remove(remap);
+    else
+        written = QDir().mkpath(QFileInfo(remap).path()) && writeFileAtomically(remap, remapText.toUtf8(), kOwnerOnly);
+    if (!written || !writeFileAtomically(launch.config, libretro::configText(launch).toUtf8(), kOwnerOnly)) {
         m_lastError = QStringLiteral("RetroArch's settings could not be written");
         return false;
     }

@@ -5,10 +5,12 @@
 // Pi's I2C0, GPIO 0 and 1 (/dev/i2c-0 on a Pi 4 and a Pi 5 alike): player 1's
 // at 0x20, player 2's at 0x21. This sets their pins as inputs with pull-ups,
 // reads both every 2 ms and plays what changes on a uinput gamepad each,
-// "OSD/OS JAMMA P1" and "OSD/OS JAMMA P2", which OSD/OS and MAME take as any
-// other pad: the joystick a digital stick, the buttons gamepad buttons
-// (JammaPanel.h). An expander that doesn't answer is asked again every half
-// second, so a player whose expander comes late still gets a pad.
+// "OSD/OS JAMMA P1" and "OSD/OS JAMMA P2", which OSD/OS, MAME and RetroArch
+// take as any other pad: the joystick a digital stick, the buttons gamepad
+// buttons (JammaPanel.h). Each has a vendor and a product of its own (1, and
+// the player's number), so that SDL tells them apart. An expander that
+// doesn't answer is asked again every half second, so a player whose
+// expander comes late still gets a pad.
 //
 // The JAMMA display preset (osdos-display-jamma-240p.txt) turns I2C0 on and
 // says so ("# osdos-controls: jamma"): with it in force, the expanders are
@@ -50,6 +52,12 @@
 namespace {
 
 constexpr uint8_t kAddresses[] = { 0x20, 0x21 };  // player 1, player 2
+// The pads' vendor, as mk_arcade_joystick_rpi gives its joysticks; their
+// product is the player's number. Without either, SDL knows a pad by the
+// first eleven letters of its name, the same for both ("OSD/OS JAMM"), and
+// gives the second the first's mapping, name and all: RetroArch, which takes
+// a pad's name from that, would then have two P1s and no P2.
+constexpr uint16_t kVendor = 0x0001;
 // The other addresses an MCP23017 can have, watched by --test.
 constexpr uint8_t kOtherAddresses[] = { 0x22, 0x23, 0x24, 0x25, 0x26, 0x27 };
 constexpr const char *kDefaultBus = "/dev/i2c-0";
@@ -152,9 +160,10 @@ bool readPressed(int bus, uint8_t address, uint16_t *pressed) {
 
 // ── uinput ───────────────────────────────────────────────────────────────────
 
-// A gamepad with every button there is (jamma::allButtons()) and a digital
-// stick, -1 to 1 on each axis, as RGB-Pi's driver makes its joysticks.
-int openPad(const std::string &name) {
+// Player number's gamepad, with every button there is (jamma::allButtons())
+// and a digital stick, -1 to 1 on each axis, as RGB-Pi's driver makes its
+// joysticks.
+int openPad(int number) {
     const int fd = open("/dev/uinput", O_WRONLY | O_NONBLOCK | O_CLOEXEC);
     if (fd < 0)
         return -1;
@@ -170,8 +179,10 @@ int openPad(const std::string &name) {
     }
     uinput_setup setup = {};
     setup.id.bustype = BUS_VIRTUAL;
+    setup.id.vendor = kVendor;
+    setup.id.product = uint16_t(number);
     setup.id.version = 1;
-    std::snprintf(setup.name, sizeof setup.name, "%s", name.c_str());
+    std::snprintf(setup.name, sizeof setup.name, "OSD/OS JAMMA P%d", number);
     ok = ok && ioctl(fd, UI_DEV_SETUP, &setup) == 0 && ioctl(fd, UI_DEV_CREATE) == 0;
     if (!ok) {
         const int saved = errno;
@@ -265,7 +276,7 @@ bool takeUp(Player &p, uint64_t now) {
     }
     if (g_test || p.pad >= 0)
         return true;
-    p.pad = openPad("OSD/OS JAMMA P" + std::to_string(p.number));
+    p.pad = openPad(p.number);
     if (p.pad < 0) {
         say("no gamepad for player %d (/dev/uinput): %s", p.number, std::strerror(errno));
         return false;

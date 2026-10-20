@@ -146,6 +146,20 @@ QString padKey(const QString &sdlGuid) {
     return QStringLiteral("pad-") + sdlGuid.toLower();
 }
 
+bool isJammaStick(const QString &name) {
+    return name.startsWith(QLatin1String("OSD/OS JAMMA"));
+}
+
+QString legacyJammaKey(const QString &sdlGuid, const QString &name) {
+    if (sdlGuid.size() != 32)
+        return QString();
+    // SDL's GUID of a device with neither: its bus and CRC, then its name in
+    // the twelve bytes left, a nul at its end.
+    QByteArray named = name.toUtf8().left(11);
+    named.append(QByteArray(12 - named.size(), '\0'));
+    return padKey(sdlGuid.left(8) + QString::fromLatin1(named.toHex()));
+}
+
 QString evdevKey(int bus, int vendor, int product) {
     return QStringLiteral("kbd-%1-%2-%3")
         .arg(bus & 0xffff, 4, 16, QLatin1Char('0'))

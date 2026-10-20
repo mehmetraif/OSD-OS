@@ -196,6 +196,7 @@ private:
     void loadProfiles();
     void rebuildPads();
     void rebuildPad(SDL_JoystickID id);
+    void adoptLegacyJammaKey(SDL_JoystickID id);
     struct Pad;
     Pad padFor(const QString &key, const QString &name, int sdlType) const;
     Pad padOf(const QString &key, const QString &name) const;

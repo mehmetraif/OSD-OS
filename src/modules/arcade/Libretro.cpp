@@ -47,6 +47,34 @@ constexpr std::pair<const char *, const char *> kStandardGamepad[] = {
     { "r_x_plus_axis", "+2" }, { "r_x_minus_axis", "-2" }, { "r_y_plus_axis", "-3" }, { "r_y_minus_axis", "+3" },
 };
 
+// An arcade panel's, a JAMMA board's stick as SDL maps osdos-jamma's pad
+// (buttons 1 to 6 on A, B, X, Y and the shoulders, Coin on Back, the
+// joystick on the left stick's axes): the cabinet's two rows of buttons, 1
+// to 3 above and 4 to 6 below, where FinalBurn Neo's 6-Button Panel has
+// them (Y X L above, B A R below), and the joystick on the D-pad too, where
+// the games read their directions.
+constexpr std::pair<const char *, const char *> kArcadePanel[] = {
+    { "y_btn", "0" }, { "x_btn", "1" }, { "l_btn", "2" },
+    { "b_btn", "3" }, { "a_btn", "9" }, { "r_btn", "10" },
+    { "start_btn", "6" }, { "select_btn", "4" },
+    { "up_axis", "-1" }, { "down_axis", "+1" }, { "left_axis", "-0" }, { "right_axis", "+0" },
+    { "l2_axis", "+4" }, { "r2_axis", "+5" },
+    { "l_x_plus_axis", "+0" }, { "l_x_minus_axis", "-0" }, { "l_y_plus_axis", "+1" }, { "l_y_minus_axis", "-1" },
+};
+
+// FinalBurn Neo's name for RetroArch, which names its remap folder and file.
+const QLatin1String kCoreName("FinalBurn Neo");
+// FinalBurn Neo's 6-Button Panel, its RETROPAD_6PANEL:
+// RETRO_DEVICE_SUBCLASS(RETRO_DEVICE_ANALOG, 0).
+constexpr int k6ButtonPanel = (1 << 8) | 5;
+
+// Whether player p (from 0) plays on an arcade panel's layout: off line
+// only. Online, RetroArch gives every player the host's controller types,
+// on which a panel's binds would scatter its buttons.
+bool onPanel(const Launch &launch, int p) {
+    return launch.netplay == Launch::Netplay::None && launch.panels.value(p);
+}
+
 // A config's value, in its quotes: RetroArch's parser takes a line's value
 // to the next quote, so none in it, nor a line's end.
 QString quoted(QString value) {
@@ -262,13 +290,28 @@ QString configText(const Launch &launch) {
     // player, with RetroArch's own look-up off, so that it no longer says
     // over the game that each pad has no profile ("not configured, using
     // fallback"); the reservations below still give each player their pad.
+    // A player on an arcade panel has its two rows instead (kArcadePanel),
+    // off line (onPanel()).
     set("input_joypad_driver", QStringLiteral("sdl2"));
     set("input_autodetect_enable", on(false));
     for (int p = 1; p <= controllers::kPlayers; ++p) {
         const QByteArray player = QByteArray("input_player") + QByteArray::number(p) + '_';
-        for (const auto &[name, value] : kStandardGamepad)
-            set((player + name).constData(), QLatin1String(value));
+        const auto bind = [&set, &player](const auto &binds) {
+            for (const auto &[name, value] : binds)
+                set((player + name).constData(), QLatin1String(value));
+        };
+        if (onPanel(launch, p - 1))
+            bind(kArcadePanel);
+        else
+            bind(kStandardGamepad);
     }
+    // FinalBurn Neo's remap file, written with this config (remapText()):
+    // loaded without a word over the game, and never written back.
+    set("input_remapping_directory", launch.remapDir);
+    set("auto_remaps_enable", on(true));
+    set("input_remap_sort_by_controller_enable", on(false));
+    set("remap_save_on_exit", on(false));
+    set("notification_show_remap_load", on(false));
     // Coin and Start together, or Esc, at once: MAME's way out.
     set("input_quit_gamepad_combo", QStringLiteral("4"));
     set("input_menu_toggle_gamepad_combo", QStringLiteral("0"));
@@ -306,6 +349,23 @@ QString configText(const Launch &launch) {
         set("netplay_use_mitm_server", on(true));
         set("netplay_mitm_server", launch.relay.isEmpty() ? QStringLiteral("nyc") : launch.relay);
     }
+    return lines.join(QLatin1Char('\n')) + QLatin1Char('\n');
+}
+
+QString coreRemapPath(const QString &remapDir) {
+    return remapDir + QLatin1Char('/') + kCoreName + QLatin1Char('/') + kCoreName + QStringLiteral(".rmp");
+}
+
+QString remapText(const Launch &launch) {
+    QStringList lines;
+    for (int p = 0; p < launch.panels.size() && p < controllers::kPlayers; ++p) {
+        if (onPanel(launch, p))
+            lines << configLine(QByteArray("input_libretro_device_p" + QByteArray::number(p + 1)).constData(),
+                                QString::number(k6ButtonPanel));
+    }
+    if (lines.isEmpty())
+        return QString();
+    lines.prepend(QStringLiteral("# Written by OSD/OS for each FinalBurn Neo game: what is changed here is lost at the next."));
     return lines.join(QLatin1Char('\n')) + QLatin1Char('\n');
 }
 

@@ -293,6 +293,7 @@ void InputManager::openController(int deviceIndex) {
     }
     SDL_JoystickID id = SDL_JoystickInstanceID(SDL_GameControllerGetJoystick(gc));
     m_controllers.insert(id, gc);
+    adoptLegacyJammaKey(id);
     rebuildPad(id);
     qInfo("[input] controller added: %s (%s)", qPrintable(m_pads.value(id).name), qPrintable(m_pads.value(id).key));
     recomputeSuppressedDevices();
@@ -338,7 +339,7 @@ InputManager::Pad InputManager::padFor(const QString &key, const QString &name, 
     Pad pad;
     pad.key = key;
     pad.name = name;
-    pad.arcade = name.startsWith(QLatin1String("OSD/OS JAMMA"));
+    pad.arcade = controllers::isJammaStick(name);
     pad.buttons = m_buttonMap;
     pad.axes = m_axisMap;
 
@@ -451,6 +452,47 @@ void InputManager::rebuildPad(SDL_JoystickID id) {
                            name && *name ? QString::fromUtf8(name) : QStringLiteral("Gamepad"), type);
     m_pads.insert(id, pad);
     m_seenAs.insert(pad.key, { pad.name, pad.arcade ? QStringLiteral("arcade") : QStringLiteral("gamepad"), type });
+}
+
+// A JAMMA stick of an osdos-jamma that gives it a vendor and a product has
+// another key than it had (controllers::legacyJammaKey()): its own settings,
+// and a player's choice of it, go to its key now, so that nothing of the
+// stick's is lost and no player is left waiting for a stick that won't come.
+void InputManager::adoptLegacyJammaKey(SDL_JoystickID id) {
+    SDL_GameController *gc = m_controllers.value(id, nullptr);
+    if (!gc)
+        return;
+    SDL_Joystick *joystick = SDL_GameControllerGetJoystick(gc);
+    const QString name = QString::fromUtf8(SDL_JoystickName(joystick));
+    if (!controllers::isJammaStick(name))
+        return;
+    char guid[64] = {};
+    SDL_JoystickGetGUIDString(SDL_JoystickGetGUID(joystick), guid, sizeof guid);
+    const QString key = controllers::padKey(QString::fromLatin1(guid));
+    const QString legacy = controllers::legacyJammaKey(QString::fromLatin1(guid), name);
+    if (legacy.isEmpty() || legacy == key)
+        return;
+    // Its settings under its key already (made since) are the ones it keeps.
+    const bool profile = m_profiles.contains(legacy);
+    if (profile) {
+        const controllers::Profile old = m_profiles.take(legacy);
+        if (!m_profiles.contains(key))
+            m_profiles.insert(key, old);
+        m_seenAs.remove(legacy);
+    }
+    bool player = false;
+    for (QString &chosen : m_playerKeys) {
+        if (chosen == legacy) {
+            chosen = key;
+            player = true;
+        }
+    }
+    if (profile || player)
+        qInfo("[input] %s's settings follow it to its new key", qPrintable(name));
+    if (profile)
+        saveProfiles();
+    if (player)
+        savePlayers();
 }
 
 void InputManager::rebuildPads() {
