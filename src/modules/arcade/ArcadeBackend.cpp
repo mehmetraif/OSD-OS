@@ -716,7 +716,7 @@ ArcadeBackend::Read ArcadeBackend::read(const QString &folder, const QString &ho
         read.fbneoRead = true;
         read.fbneoFrom = fbneoFrom;
         if (!dat.isEmpty()) {
-            read.fbneoGames = libretro::readDat(dat, &read.fbneoAspects);
+            read.fbneoGames = libretro::readDat(dat, &read.fbneoAspects, &read.fbneoMachines);
             qInfo("[Arcade] %lld of FinalBurn Neo's games from %s", static_cast<long long>(read.fbneoGames.size()),
                   qPrintable(dat));
         }
@@ -813,8 +813,10 @@ void ArcadeBackend::onRead() {
         m_fbneoFrom = read.fbneoFrom;
         m_fbneoGames = std::move(read.fbneoGames);
         m_fbneoAspects = std::move(read.fbneoAspects);
-        // The filters made of the games it plays, made again.
-        m_madeSets.clear();
+        m_fbneoMachines = std::move(read.fbneoMachines);
+        // The games MAME doesn't know that it has, and the filters made of
+        // the games it plays, made again.
+        invalidate();
     }
     m_snaps = std::move(read.snaps);
     m_numbered = std::move(read.numbered);
@@ -1091,20 +1093,33 @@ void ArcadeBackend::emitShown() {
 // The filters.
 
 bool ArcadeBackend::isUnrecognized(const QString &set) const {
-    return !mame::isShortName(set) || m_unknown.contains(set) || m_misnamed.contains(set);
+    return !mame::isShortName(set) || m_misnamed.contains(set) || (m_unknown.contains(set) && !fbneoOnly(set));
+}
+
+bool ArcadeBackend::fbneoOnly(const QString &set) const {
+    return m_unknown.contains(set) && fbneoHas(set);
 }
 
 bool ArcadeBackend::isGame(const QString &set) const {
     if (!m_sets.contains(set) || isUnrecognized(set))
         return false;
-    // One MAME wasn't asked about (there is none) is listed by its name.
-    const auto machine = m_machines.constFind(set);
-    return machine == m_machines.constEnd() || machine->isGame();
+    // One MAME wasn't asked about (there is none) and FinalBurn Neo hasn't is
+    // listed by its name.
+    const mame::Machine *machine = machineOf(set);
+    return !machine || machine->isGame();
+}
+
+const mame::Machine *ArcadeBackend::machineOf(const QString &set) const {
+    if (const auto machine = m_machines.constFind(set); machine != m_machines.constEnd())
+        return &machine.value();
+    if (const auto machine = m_fbneoMachines.constFind(set); machine != m_fbneoMachines.constEnd() && fbneoHas(set))
+        return &machine.value();
+    return nullptr;
 }
 
 QString ArcadeBackend::descriptionOf(const QString &set) const {
-    const auto machine = m_machines.constFind(set);
-    return machine != m_machines.constEnd() && !machine->description.isEmpty() ? machine->description : set;
+    const mame::Machine *machine = machineOf(set);
+    return machine && !machine->description.isEmpty() ? machine->description : set;
 }
 
 QString ArcadeBackend::sortKey(const QString &set) const {
@@ -1132,8 +1147,7 @@ const ArcadeBackend::Index &ArcadeBackend::index() const {
     index.games.reserve(byName.size());
     for (const auto &[name, set] : std::as_const(byName)) {
         index.games << set;
-        const auto machine = m_machines.constFind(set);
-        const mame::Machine *known = machine == m_machines.constEnd() ? nullptr : &machine.value();
+        const mame::Machine *known = machineOf(set);
         for (const auto &kind : kKinds) {
             const QString k = QLatin1String(kind.first);
             const QString place = placeOf(k, set, known);
@@ -1304,8 +1318,8 @@ QVariantMap ArcadeBackend::gameDetails(const QString &set) {
                          { QStringLiteral("pictures"), pictures },
                          { QStringLiteral("picture"), pictures.value(0) },
                          { QStringLiteral("engine"), engineOf(set) } };
-    const auto machine = m_machines.constFind(set);
-    if (machine == m_machines.constEnd())
+    const mame::Machine *machine = machineOf(set);
+    if (!machine)
         return details;
     details.insert(QStringLiteral("system"), mame::systemOf(machine->sourceFile));
     details.insert(QStringLiteral("maker"), mame::makerOf(machine->manufacturer));
@@ -1317,8 +1331,8 @@ QVariantMap ArcadeBackend::gameDetails(const QString &set) {
 
 QStringList ArcadeBackend::setAndParent(const QString &set) const {
     QStringList sets{ set };
-    const auto machine = m_machines.constFind(set);
-    if (machine != m_machines.constEnd() && !machine->cloneOf.isEmpty())
+    const mame::Machine *machine = machineOf(set);
+    if (machine && !machine->cloneOf.isEmpty())
         sets << machine->cloneOf;
     return sets;
 }
@@ -1579,6 +1593,12 @@ QString ArcadeBackend::unknownDetail(const QString &set) const {
         return QStringLiteral("Not the name of a set MAME knows\nA set is named as MAME names its game: pacman.zip");
     if (m_misnamed.contains(set))
         return QStringLiteral("MAME looks for %1, in lower case\nRename the file to %1").arg(mameFileName(set));
+    // FinalBurn Neo has it, but not as a folder of files.
+    if (m_fbneoGames.contains(set))
+        return QStringLiteral("MAME has no game called %1\nFinalBurn Neo has it, but plays a zip or a 7z, not a folder").arg(set);
+    if (!m_fbneoGames.isEmpty())
+        return QStringLiteral("Neither MAME nor FinalBurn Neo has a game called %1\nIts set may be for another version of MAME")
+            .arg(set);
     return QStringLiteral("MAME has no game called %1\nIts set may be for another version of MAME").arg(set);
 }
 
@@ -1679,10 +1699,11 @@ QVariantList ArcadeBackend::folders(const QString &kind) const {
 }
 
 QVariantMap ArcadeBackend::gameEntry(const QString &set) const {
-    const auto machine = m_machines.constFind(set);
-    const bool known = machine != m_machines.constEnd();
+    const mame::Machine *machine = machineOf(set);
     QStringList detail;
-    if (known) {
+    if (machine) {
+        // How well it plays in the engine whose word that is.
+        const QString engine = m_machines.contains(set) ? QStringLiteral("MAME") : QStringLiteral("FinalBurn Neo");
         if (!machine->year.isEmpty())
             detail << machine->year;
         if (!machine->manufacturer.isEmpty())
@@ -1691,9 +1712,9 @@ QVariantMap ArcadeBackend::gameEntry(const QString &set) const {
             detail << (machine->players == 1 ? QStringLiteral("1 player")
                                              : QStringLiteral("%1 players").arg(machine->players));
         if (machine->status == QLatin1String("preliminary"))
-            detail << QStringLiteral("Not working in MAME");
+            detail << QStringLiteral("Not working in ") + engine;
         else if (machine->status == QLatin1String("imperfect"))
-            detail << QStringLiteral("Imperfect in MAME");
+            detail << QStringLiteral("Imperfect in ") + engine;
     }
     detail << m_sets.value(set);
     return { { QStringLiteral("name"), descriptionOf(set) },
@@ -2015,6 +2036,10 @@ QString ArcadeBackend::engineOf(const QString &set) const {
 }
 
 QString ArcadeBackend::engineFor(const QString &set, bool fbneoUsable, bool haveMame) const {
+    // One MAME doesn't know, whatever was chosen: without FinalBurn Neo
+    // ready, it says what is missing.
+    if (fbneoOnly(set))
+        return QStringLiteral("fbneo");
     const bool fbneo = fbneoUsable && fbneoHas(set);
     const QString chosen = m_engines.value(set).toString();
     if (chosen == QLatin1String("mame") && haveMame)
@@ -2038,7 +2063,7 @@ QStringList ArcadeBackend::madeSets(const QString &filter) const {
         const bool ready = fbneoReady();
         const bool haveMame = !mamePath().isEmpty();
         for (const QString &set : index().games) {
-            if (engineFor(set, ready, haveMame) == QLatin1String("fbneo")
+            if (ready && engineFor(set, ready, haveMame) == QLatin1String("fbneo")
                 && m_retroAchievements->hasGame(QFileInfo(m_sets.value(set)).fileName()))
                 sets << set;
         }
@@ -2061,11 +2086,19 @@ bool ArcadeBackend::filterPending(const QString &filter) const {
 }
 
 QVariantList ArcadeBackend::engineChoices(const QString &set) const {
-    const QString chosen = m_engines.value(set).toString();
+    // One MAME doesn't know plays in FinalBurn Neo alone: MAME, chosen for
+    // it before, is Auto.
+    const bool only = fbneoOnly(set);
+    QString chosen = m_engines.value(set).toString();
+    if (only && chosen == QLatin1String("mame"))
+        chosen.clear();
     const auto choice = [&chosen](const QString &id, const QString &label) {
         return QVariantMap{ { QStringLiteral("id"), id }, { QStringLiteral("label"), label },
                             { QStringLiteral("current"), chosen == id || (id == QLatin1String("auto") && chosen.isEmpty()) } };
     };
+    if (only)
+        return { choice(QStringLiteral("auto"), QStringLiteral("Auto (FinalBurn Neo)")),
+                 choice(QStringLiteral("fbneo"), QStringLiteral("FinalBurn Neo")) };
     // Auto as it stands: what the game would play in left to it.
     const bool fbneo = fbneoPlays(set);
     const bool autoFbneo = fbneo && (m_achievements || m_onlinePlay || mamePath().isEmpty());

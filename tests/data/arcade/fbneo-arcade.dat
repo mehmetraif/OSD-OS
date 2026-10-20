@@ -1,12 +1,13 @@
 <?xml version="1.0"?>
 <!DOCTYPE datafile PUBLIC "-//FinalBurn Neo//DTD ROM Management Datafile//EN" "http://www.logiqx.com/Dats/datafile.dtd">
 <datafile>
-	<!-- FinalBurn Neo's arcade DAT as ClrMame Pro's XML has it, for tests/arcade_test.cpp: games (two with their picture's shape), a clone, and a BIOS set, which isn't a game. -->
+	<!-- FinalBurn Neo's arcade DAT as ClrMame Pro's XML has it, for tests/arcade_test.cpp: games (two with their picture's shape, two with how well they work, two MAME doesn't know), a clone, and a BIOS set, which isn't a game. -->
 	<header><name>FinalBurn Neo - Arcade Games</name><version>1.0.0.03</version></header>
-	<game name="sf2" sourcefile="d_cps1.cpp"><description>Street Fighter II - The World Warrior (World 910522)</description><year>1991</year><manufacturer>Capcom</manufacturer><rom name="sf2e_30g.11e" size="131072" crc="fe39ee33"/><video type="raster" orientation="horizontal" width="384" height="224" aspectx="4" aspecty="3"/></game>
+	<game name="sf2" sourcefile="d_cps1.cpp"><description>Street Fighter II - The World Warrior (World 910522)</description><year>1991</year><manufacturer>Capcom</manufacturer><rom name="sf2e_30g.11e" size="131072" crc="fe39ee33"/><video type="raster" orientation="horizontal" width="384" height="224" aspectx="4" aspecty="3"/><driver status="good"/></game>
 	<game name="mslug" romof="neogeo" sourcefile="d_neogeo.cpp"><description>Metal Slug - Super Vehicle-001</description><year>1996</year><manufacturer>Nazca</manufacturer></game>
 	<game name="galaga" sourcefile="d_galaga.cpp"><description>Galaga (Namco rev. B)</description><year>1981</year><manufacturer>Namco</manufacturer><video type="raster" orientation="vertical" width="224" height="288" aspectx="3" aspecty="4"/></game>
-	<game name="kof98" romof="neogeo" sourcefile="d_neogeo.cpp"><description>The King of Fighters '98 - The Slugfest</description><year>1998</year><manufacturer>SNK</manufacturer></game>
-	<game name="SF2CE" cloneof="sf2" sourcefile="d_cps1.cpp"><description>Street Fighter II' - Champion Edition</description></game>
+	<game name="kof98" romof="neogeo" sourcefile="d_neogeo.cpp"><description>The King of Fighters '98 - The Slugfest</description><year>1998</year><manufacturer>SNK</manufacturer><driver status="preliminary"/></game>
+	<game name="dino" sourcefile="capcom/d_cps1.cpp"><description>Cadillacs and Dinosaurs (World 930201)</description><year>1993</year><manufacturer>Capcom</manufacturer></game>
+	<game name="SF2CE" cloneof="sf2" sourcefile="capcom/d_cps1.cpp"><description>Street Fighter II' - Champion Edition</description></game>
 	<game name="neogeo" isbios="yes" sourcefile="neo_run.cpp"><description>Neo Geo</description></game>
 </datafile>

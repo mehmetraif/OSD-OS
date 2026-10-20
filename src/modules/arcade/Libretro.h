@@ -6,6 +6,8 @@
 #include <QString>
 #include <QStringList>
 
+namespace mame { struct Machine; }
+
 // The Arcade module's second engine: RetroArch with the FinalBurn Neo core
 // (FBNeo), for the games it has, where RetroAchievements' high scores and
 // online play are. What is asked of it and made of what it says, with no
@@ -36,8 +38,13 @@ QString downloadedLicense(const QString &dataRoot);
 // game's set by its description. Not a BIOS set (neogeo), which games start
 // from but which isn't one. Empty for a file that can't be read. With
 // aspects, the shape of each game's picture on the glass, its width over its
-// height (4:3, 3:4 for a vertical one), where the DAT says (<video>).
-QHash<QString, QString> readDat(const QString &path, QHash<QString, double> *aspects = nullptr);
+// height (4:3, 3:4 for a vertical one), where the DAT says (<video>). With
+// machines, each game as MAME would describe it, for a set MAME doesn't
+// know: its description, year, maker, parent, driver (named as MAME's are:
+// capcom/d_cps1.cpp is capcom/cps1.cpp), whether it works, and a vertical
+// one's rotation (90); no players, which the DAT doesn't say.
+QHash<QString, QString> readDat(const QString &path, QHash<QString, double> *aspects = nullptr,
+                                QHash<QString, mame::Machine> *machines = nullptr);
 
 // The shape of a game's picture in the pixels of a screen of that size and
 // shape (screenAspect, 4:3 for a tube), for RetroArch (Launch::aspect):

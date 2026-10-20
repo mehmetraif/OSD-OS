@@ -204,11 +204,13 @@ public:
     // The engine a game plays in: "fbneo", RetroArch with the FinalBurn Neo
     // core, for a set FinalBurn Neo has, chosen in its options, or by itself
     // (Auto) while Online High Scores or Online Play is on, which only it
-    // has, or with no MAME; else "mame".
+    // has, or with no MAME, and always for one MAME doesn't know
+    // (fbneoOnly()); else "mame".
     Q_INVOKABLE QString engineOf(const QString &set) const;
     // A game's choices of engine, for its options: [{ id ("auto", "mame",
     // "fbneo"), label, current }], Auto naming the one it picks. Only Auto
-    // and MAME for a set FinalBurn Neo hasn't, or without it.
+    // and MAME for a set FinalBurn Neo hasn't, or without it; only Auto and
+    // FinalBurn Neo for one MAME doesn't know.
     Q_INVOKABLE QVariantList engineChoices(const QString &set) const;
     Q_INVOKABLE void setEngine(const QString &set, const QString &engine);
     // RetroArch, the FinalBurn Neo core and its list of games are there.
@@ -403,6 +405,7 @@ private:
         QString fbneoFrom;
         QHash<QString, QString> fbneoGames;
         QHash<QString, double> fbneoAspects;
+        QHash<QString, mame::Machine> fbneoMachines;
     };
     // Off the GUI thread: the games folder (made should it not be there),
     // games.json when withCache, catver.ini unless it is still genresFrom's,
@@ -436,13 +439,22 @@ private:
     void emitShown();
 
     // A set under Not Recognized: a name that can't be a set's, one MAME has
-    // no game of, or one MAME can't open by its name.
+    // no game of and FinalBurn Neo's list hasn't either (fbneoOnly()), or one
+    // MAME can't open by its name.
     bool isUnrecognized(const QString &set) const;
+    // A set MAME has no game of that FinalBurn Neo's list has, a zip or a 7z
+    // named as it looks for: a game all the same, which always plays in it.
+    bool fbneoOnly(const QString &set) const;
     // A set listed as a game: in the folder, a name MAME opens, and one of
-    // its games (or one it wasn't asked about), not a BIOS or a device.
+    // its games (or one it wasn't asked about) or FinalBurn Neo's, not a BIOS
+    // or a device.
     bool isGame(const QString &set) const;
-    // MAME's description of a set's machine, else the set's name; what it is
-    // sorted by, and its title on the list.
+    // What MAME said of a set's machine; for a set it hasn't (it doesn't know
+    // it, or there is none to ask), FinalBurn Neo's list's, should it have
+    // the set; else none.
+    const mame::Machine *machineOf(const QString &set) const;
+    // The description of a set's machine (machineOf()), else the set's name;
+    // what it is sorted by, and its title on the list.
     QString descriptionOf(const QString &set) const;
     QString sortKey(const QString &set) const;
     QString titleOf(const QString &set) const;
@@ -723,6 +735,7 @@ private:
     QThreadPool m_pictureSaves;
     QHash<QString, QString> m_fbneoGames;   // set → its description, FinalBurn Neo's
     QHash<QString, double> m_fbneoAspects;  // set → its shape, where FinalBurn Neo's list says
+    QHash<QString, mame::Machine> m_fbneoMachines;  // set → its game, as FinalBurn Neo's list describes it
     QString m_fbneoFrom;          // the list of them read: its path, size and time
     mutable Index m_index;
     mutable bool  m_indexed = false;

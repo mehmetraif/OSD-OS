@@ -56,7 +56,7 @@ With **Settings → Arcade → Screen** on **Original**, Arcade opens on a tree,
 | **Players** | **1 Player**, **2 Players**… up to the most a game takes: the games for that many players at once, as MAME counts them |
 | **Years** | **1980s**, **1990s**…: the games of each decade, a year MAME isn't sure of (`198?`, `1982?`) in its decade (**Year Unknown** for those MAME has no year for) |
 | **Makers** | The games by maker: the maker before any licence or partner, so `Namco (Midway license)` is under **Namco** and `Capcom / Mitchell` under **Capcom**. A game whose maker MAME doesn't know is in none |
-| **Not Recognized** | Shown when there are any: the files MAME has no game of, those whose name can't be a set's (`Street Fighter.zip`), and on a drive that tells cases apart those not in lower case (`PACMAN.ZIP`). The line under the tree says which, and what to do |
+| **Not Recognized** | Shown when there are any: the files MAME has no game of and FinalBurn Neo's list hasn't either ([FinalBurn Neo](#finalburn-neo)), those whose name can't be a set's (`Street Fighter.zip`), and on a drive that tells cases apart those not in lower case (`PACMAN.ZIP`). The line under the tree says which, and what to do |
 
 The line under the tree says what the entry under the cursor is: a game's year, maker, players, how well MAME plays it when it isn't fully (`Imperfect in MAME`, `Not working in MAME`) and its file, as `1981 • Namco • 2 players • galaga.zip`; on a folder, where the games are. What stands in the way of the list comes first: `The games folder can't be read: …`, `MAME is not installed`, `MAME could not list the games`. With no games at all, the screen says so, with what stands in the way and the folder they go in.
 
@@ -161,7 +161,7 @@ On a CRT, move each side to where the tube's edge cuts the picture off (its over
 
 | Filter | What it holds |
 |---|---|
-| **All Games** | Every game, by name. Always there: in a folder of sets MAME knows none of, Not Recognized is there in its place |
+| **All Games** | Every game, by name. Always there: in a folder of sets neither MAME nor FinalBurn Neo knows, Not Recognized is there in its place |
 | **Online Games** | With **Online Play** on, while someone hosts one of your games in RetroArch's lobby: each, with who hosts it; select joins it ([Online play](#online-play)) |
 | **Favorites** | The games put on Favorites, by name |
 | **Recently Played** | The games played last, latest first (up to 30) |
@@ -171,7 +171,7 @@ On a CRT, move each side to where the tube's edge cuts the picture off (its over
 | **1 Player**, **2 Players**… | The games for that many players at once |
 | **1980s**, **1990s**… | The games of each decade, **Year Unknown** last |
 | A publisher (**Capcom**, **Namco**…) | The games of that maker, as MAME names it (the first, for a game made by two), once turned on in Menu Filters. A company is one publisher whichever of its arms or names made the game: **Nintendo** for Nintendo of America too, **SNK** for SNK Playmore, **Taito** for Taito America Corporation |
-| **Not Recognized** | The files MAME has no game of, as under the tree's Not Recognized ([above](#the-original-screen)) |
+| **Not Recognized** | The files neither MAME nor FinalBurn Neo has a game of, as under the tree's Not Recognized ([above](#the-original-screen)) |
 
 **Settings → Arcade → Start Filter** is the one the screen opens on: All Games, or one of the lists, genres, numbers of players, decades and publishers that Menu Filters shows. One that has no games then (Favorites before any is added), or that Menu Filters no longer shows, opens on All Games. RetroAchievements is waited for while its list of games is read (the first time, and a week on): the screen shows All Games meanwhile and moves to it as the list comes. Back from a game, the screen is on its filter and on the game again.
 
@@ -184,7 +184,7 @@ On a CRT, move each side to where the tube's edge cuts the picture off (its over
 - ◄, ► or select on a filter turns it **ON** or **OFF**.
 - On a heading, they turn every filter under it on at once, or off once they all are on.
 - Every filter is on until it is turned off, but a publisher's: a full set of MAME's games has hundreds of makers, so each publisher is off until it is turned on (the Publishers heading turns them all on).
-- All Games is always there, so the screen always has a filter. In a folder of sets MAME knows none of, Not Recognized takes its place, even when it is turned off here, to say why.
+- All Games is always there, so the screen always has a filter. In a folder of sets neither MAME nor FinalBurn Neo knows, Not Recognized takes its place, even when it is turned off here, to say why.
 
 ### Genres
 
@@ -243,7 +243,7 @@ They are read with the account's **Web API Key** and, for which you have earned,
 
 ## Reading the games
 
-The names, years, makers and players, and each game's system, come from MAME (`mame -listxml`). Each time it opens the module reads the folder, in the background so the screen keeps answering however many sets it holds, then asks MAME about the sets it hasn't asked about yet: all of them the first time, a few hundred at a time, then only the sets new in the folder. While it reads and asks, the tree's folders show `loading…` and the line `Reading the games…`; Recently Played and Favorites are there at once (on the Arcade screen, the only filters until MAME has answered), and a game played from them meanwhile pauses the asking until it ends. What MAME said is kept in `arcade/games.json` in the data folder (read as the list first opens), until MAME itself changes (an update, or a MAME of your own): then it is asked about every set again, as it is once after OSD/OS updates from a version that kept less of each game. **Settings → Arcade → Read the Games Again** does the same by hand, and then, with a Web API key, downloads RetroAchievements' pictures of every game ([Pictures from RetroAchievements](#pictures-from-retroachievements)).
+The names, years, makers and players, and each game's system, come from MAME (`mame -listxml`); those of a set MAME doesn't know that FinalBurn Neo has, from FinalBurn Neo's list ([FinalBurn Neo](#finalburn-neo)). Each time it opens the module reads the folder, in the background so the screen keeps answering however many sets it holds, then asks MAME about the sets it hasn't asked about yet: all of them the first time, a few hundred at a time, then only the sets new in the folder. While it reads and asks, the tree's folders show `loading…` and the line `Reading the games…`; Recently Played and Favorites are there at once (on the Arcade screen, the only filters until MAME has answered), and a game played from them meanwhile pauses the asking until it ends. What MAME said is kept in `arcade/games.json` in the data folder (read as the list first opens), until MAME itself changes (an update, or a MAME of your own): then it is asked about every set again, as it is once after OSD/OS updates from a version that kept less of each game. **Settings → Arcade → Read the Games Again** does the same by hand, and then, with a Web API key, downloads RetroAchievements' pictures of every game ([Pictures from RetroAchievements](#pictures-from-retroachievements)).
 
 Without MAME the sets are listed by their names, and select says MAME is not installed.
 
@@ -305,6 +305,8 @@ FinalBurn Neo is an arcade emulator of its own, played here in RetroArch as a li
 The Arcade screen's box and the screen before a game say nothing different; the credits do: COIN buys none for a FinalBurn Neo game, as nothing puts them in for it, so insert a coin in the game itself.
 
 **Its sets** are FinalBurn Neo's own, named as MAME names its games, and most of a ROM set for MAME 0.276 plays in it too: a set it doesn't know, or one it needs another file for, stops with a notice naming the files, and **Engine: MAME** plays it as before. A Neo-Geo game needs `neogeo.zip`, beside the games or in their `bios` folder, as for MAME. It plays a zip or a 7z, not a folder of files.
+
+**A set MAME doesn't know** that FinalBurn Neo has, a zip or a 7z (a set for a newer MAME than yours, or one of FinalBurn Neo's own), is a game all the same once FinalBurn Neo is downloaded, rather than under Not Recognized: listed under FinalBurn Neo's name for it, with its year, maker and system from FinalBurn Neo's list (not its players, which the list doesn't say), a clone with its parent's pictures, and always played in FinalBurn Neo, its **Engine** offering Auto and FinalBurn Neo alone. It is on Playable Online and the RetroAchievements filter as FinalBurn Neo's other games are, and RetroAchievements' pictures of it are downloaded too.
 
 **Playing** is as with MAME: the same screen first, then RetroArch full screen, and back to OSD/OS with **Coin and Start together** on a player's controller (RetroArch's own way out, Select and Start), or **Esc** on a keyboard. Each player's controller is the one **Settings → Controls → Players** gives that player, the game's buttons laid on it as FinalBurn Neo lays them on a pad. The JAMMA board's sticks have the cabinet's own layout, FinalBurn Neo's **6-Button Panel**: buttons 1 to 3 in the top row and 4 to 6 below, so a fighting game has its punches above its kicks and a Neo Geo game A, B and C above D, with Coin and Start as they are and the joystick as the game's. In an online game ([Online play](#online-play)) they play as any pad does, buttons 1 to 4 the game's first four: RetroArch gives every player there the host's controller types. RetroArch's menu is **F1** on a keyboard; OSD/OS writes RetroArch's settings anew for each game, so a change made there lasts that game, but FinalBurn Neo's own options (in the menu's **Core Options**) are kept.
 
@@ -471,7 +473,7 @@ mame galaga \
 | `MAME is not installed` | Install it ([Setting it up](#setting-it-up)). The OSD/OS image has it, unless it was built with `OSDOS_ARCADE=0` ([The OSD/OS image](https://github.com/mehmetraif/OSD-OS/wiki/The-OSD-OS-Image)) |
 | No games, `No games found` | The sets go straight in the games folder, not in folders of their own (but for a game's own folder of files), as zip or 7z files. The screen names the folder |
 | `The games folder can't be read: …` | The folder isn't there and couldn't be made, or can't be read: a drive that isn't plugged in, or a Games Folder that is gone. Plug the drive in, or choose the folder again in **Settings → Arcade → Games Folder** |
-| A game is under **Not Recognized** | Its file isn't named as MAME names the game (`pacman.zip`, not `Pac-Man.zip`, nor `PACMAN.ZIP` on a drive that tells cases apart), or this MAME has no such game: a set for another version of MAME. The line under the tree says which |
+| A game is under **Not Recognized** | Its file isn't named as MAME names the game (`pacman.zip`, not `Pac-Man.zip`, nor `PACMAN.ZIP` on a drive that tells cases apart), or neither this MAME nor FinalBurn Neo has such a game: a set for another version of MAME (with FinalBurn Neo downloaded, a set it has is a game, played in it). The line under the tree says which |
 | `Missing …, looked for in …` | The set lacks files this MAME needs. The sets it names say where: a clone also needs its parent's set (`puckman.zip` for `pacman.zip`), unless the sets are non-merged; a Neo-Geo game needs `neogeo.zip`, a PGM game `pgm.zip`, and so on. A set made for another version of MAME often lacks a file or two |
 | `MAME stopped: …` about OpenGL, video or a window | Try another **MAME Video** in Settings → Arcade → Emulator Video |
 | `MAME closed unexpectedly` | MAME crashed. Try another **MAME Video** in Settings → Arcade → Emulator Video; if every one does the same, run MAME by hand ([below](#troubleshooting)) to see its last lines |

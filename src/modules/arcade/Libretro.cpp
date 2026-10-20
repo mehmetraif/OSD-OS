@@ -1,4 +1,5 @@
 #include "Libretro.h"
+#include "Mame.h"
 #include "../../input/ControllerProfile.h"
 #include <QCryptographicHash>
 #include <QDir>
@@ -173,10 +174,13 @@ QString datPath(const QString &dataRoot) {
                        QStringLiteral("/usr/local/share/libretro/fbneo/fbneo-arcade.dat") });
 }
 
-QHash<QString, QString> readDat(const QString &path, QHash<QString, double> *aspects) {
+QHash<QString, QString> readDat(const QString &path, QHash<QString, double> *aspects,
+                                QHash<QString, mame::Machine> *machines) {
     QHash<QString, QString> games;
     if (aspects)
         aspects->clear();
+    if (machines)
+        machines->clear();
     QFile file(path);
     if (!file.open(QIODevice::ReadOnly))
         return games;
@@ -185,6 +189,7 @@ QHash<QString, QString> readDat(const QString &path, QHash<QString, double> *asp
     bool bios = false;
     QString description;
     double aspect = 0;
+    mame::Machine machine;
     while (!xml.atEnd()) {
         xml.readNext();
         if (xml.isStartElement()) {
@@ -195,14 +200,31 @@ QHash<QString, QString> readDat(const QString &path, QHash<QString, double> *asp
                 bios = attributes.value(QLatin1String("isbios")) == QLatin1String("yes");
                 description.clear();
                 aspect = 0;
-            } else if (xml.name() == QLatin1String("description") && !name.isEmpty()) {
+                machine = mame::Machine();
+                machine.cloneOf = attributes.value(QLatin1String("cloneof")).toString().toLower();
+                // Its driver as MAME names its own (mame::systemOf()).
+                const QString source = attributes.value(QLatin1String("sourcefile")).toString();
+                const qsizetype file = source.lastIndexOf(QLatin1Char('/')) + 1;
+                machine.sourceFile = source.mid(file, 2) == QLatin1String("d_") ? source.left(file) + source.mid(file + 2)
+                                                                                 : source;
+            } else if (name.isEmpty()) {
+                continue;
+            } else if (xml.name() == QLatin1String("description")) {
                 description = xml.readElementText();
-            } else if (xml.name() == QLatin1String("video") && !name.isEmpty()) {
+            } else if (xml.name() == QLatin1String("year")) {
+                machine.year = xml.readElementText();
+            } else if (xml.name() == QLatin1String("manufacturer")) {
+                machine.manufacturer = xml.readElementText();
+            } else if (xml.name() == QLatin1String("driver")) {
+                machine.status = xml.attributes().value(QLatin1String("status")).toString();
+            } else if (xml.name() == QLatin1String("video")) {
                 const QXmlStreamAttributes attributes = xml.attributes();
                 const double x = attributes.value(QLatin1String("aspectx")).toDouble();
                 const double y = attributes.value(QLatin1String("aspecty")).toDouble();
                 if (x > 0 && y > 0)
                     aspect = x / y;
+                if (attributes.value(QLatin1String("orientation")) == QLatin1String("vertical"))
+                    machine.rotate = 90;
             }
         } else if (xml.isEndElement()
                    && (xml.name() == QLatin1String("game") || xml.name() == QLatin1String("machine"))) {
@@ -210,6 +232,11 @@ QHash<QString, QString> readDat(const QString &path, QHash<QString, double> *asp
                 games.insert(name, description.isEmpty() ? name : description);
                 if (aspects && aspect > 0)
                     aspects->insert(name, aspect);
+                if (machines) {
+                    machine.name = name;
+                    machine.description = games.value(name);
+                    machines->insert(name, machine);
+                }
             }
             name.clear();
         }
