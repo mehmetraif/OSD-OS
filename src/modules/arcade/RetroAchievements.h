@@ -30,8 +30,10 @@ class QTimer;
 //   screen's, which ArcadeBackend downloads with media()).
 // One request is under way at a time, achievements first, and of each only
 // the game last asked for is read, a moment after it was: a list scrolled
-// through asks for none of the games passed. The files of the media server,
-// the games' pictures and the achievements' badges, come through media().
+// through asks for none of the games passed. A game's pictures asked for by
+// themselves (findPicturesLater()) come after all of those. The files of
+// the media server, the games' pictures and the achievements' badges, come
+// through media().
 class RetroAchievements : public QObject {
     Q_OBJECT
 public:
@@ -87,6 +89,17 @@ public:
     // looked for before), which is left as it is. Only the last asked for is
     // read, a moment after it was.
     void findPictures(const QStringList &games, const QStringList &looked);
+    // The same for a game asked for by itself rather than shown (Read the
+    // Games Again's): read once nothing else is wanted, at once rather than
+    // a moment after, and neither taking the place of the game shown nor
+    // taken over by it. Another asked for in its turn takes its place. A
+    // read stopped for another key is read again with it.
+    void findPicturesLater(const QStringList &games, const QStringList &looked);
+    // The game asked for so is yet to be read, or being read: until its
+    // pictures are found (picturesFound()), or it is done without them (its
+    // pictures looked for already, none of the games RetroAchievements', or
+    // no list of games to find it in).
+    bool laterPending() const { return !m_laterPictures.isEmpty() || !m_laterRead.isEmpty(); }
     // A file of the media server's (a path findPictures() gave), downloaded
     // after those asked for before it: done with what it holds, a PNG or a
     // JPEG (a badge of 512 KB at most, a picture of 4 MB); empty when it
@@ -149,7 +162,8 @@ private:
     void readBoards(const QString &fileName, int game);
     void readEntries(const QString &fileName, int leaderboard, const QString &title);
     void readAchievements(const QString &fileName, int game);
-    void readPictures(const QString &fileName, int game);
+    // later: findPicturesLater()'s game (m_laterRead).
+    void readPictures(const QString &fileName, int game, bool later);
     void get(const QString &endpoint, const QList<std::pair<QString, QString>> &query, const Answer &answer);
     // A game's board read (or not): kept, and the next game asked for read.
     void done(const QString &fileName, const Board &board);
@@ -175,6 +189,10 @@ private:
     QString m_wantedAchievements;       // the achievements last asked for
     QStringList m_wantedPictures;       // the games whose pictures were last asked for
     QStringList m_lookedPictures;       // of them, those looked for before
+    QStringList m_laterPictures;        // findPicturesLater()'s, read after all the rest
+    QStringList m_laterLooked;
+    QStringList m_laterRead;            // findPicturesLater()'s being read, and its looked
+    QStringList m_laterReadLooked;
     bool m_wantedList = false;          // the list itself (wantList())
     QHash<QString, Board> m_boards;     // by the game's file
     QHash<QString, Progress> m_progress;    // by the game's file

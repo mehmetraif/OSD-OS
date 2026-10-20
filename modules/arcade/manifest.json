@@ -131,7 +131,7 @@
       "label": "RetroAchievements Account",
       "type": "module_view",
       "params": { "achievements": true },
-      "description": "The account the scores go to with Online High Scores, and the Web API key the leaderboards, the games' pictures and their achievements are read with\nWith a key, the pictures RetroAchievements has of a game are downloaded as it is shown, into the games folder's snap folder, named after it (sf2_1.png, sf2_2.png…) and never over a file there"
+      "description": "The account the scores go to with Online High Scores, and the Web API key the leaderboards, the games' pictures and their achievements are read with\nWith a key, the pictures RetroAchievements has of a game are downloaded as it is shown, or every game's with Read the Games Again, into the games folder's snap folder, named after it (sf2_1.png, sf2_2.png…) and never over a file there"
     },
     {
       "key": "online_play",
@@ -202,7 +202,7 @@
       "label": "Read the Games Again",
       "type": "action",
       "action_slot": "rescan",
-      "description": "Ask MAME about every game in the folder again"
+      "description": "Ask MAME about every game in the folder again\nWith a Web API key, the pictures RetroAchievements has of every game are then downloaded too, a game a second, in the background"
     }
   ]
 }

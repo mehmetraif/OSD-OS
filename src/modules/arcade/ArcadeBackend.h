@@ -237,6 +237,11 @@ public:
     void setLobbyUrl(const QUrl &url) { m_lobbyUrl = url; }
     // RetroAchievements' Web API and media server: its own, or a stand-in's.
     void setAchievementsServers(const QUrl &api, const QUrl &media);
+    // How long Read the Games Again's look through the games for pictures
+    // waits between two games (sweepPictures()): a second, or a test's.
+    void setPictureSweepInterval(int ms);
+    // Whether that look is under way.
+    bool sweepingPictures() const;
 
     // Account page (Settings → Arcade → RetroAchievements Account). The
     // password is kept in memory only, for RetroArch to sign in with
@@ -283,7 +288,9 @@ public:
     // What MAME printed in the last game's run.
     Q_INVOKABLE QString output() const;
 
-    // manifest: rescan (action): MAME asked about every set again.
+    // manifest: rescan (action): MAME asked about every set again; then,
+    // with a Web API key, RetroAchievements' pictures of every game it has
+    // downloaded (startPictureSweep()).
     Q_INVOKABLE void rescan();
     // manifest: start_filter's choices (dynamicOptionsReady): All Games, and
     // Favorites, Recently Played and the genres, players, decades and
@@ -496,6 +503,24 @@ private:
     // folder): not a read-only USB drive's.
     bool snapWritable() const;
     void onPicturesFound(const QString &name, const QString &state, const QStringList &paths);
+    // Of a set and its parent (setAndParent()), those whose pictures have
+    // been looked for: all in, being downloaded, or tried less than ten
+    // minutes ago. The record read first (loadPictureRecord()).
+    QStringList picturesLooked(const QStringList &names) const;
+    // Read the Games Again's, once the folder has been read and MAME has
+    // answered (emitShown()): every game of the folder's, by name, its
+    // pictures downloaded as they would be as it is shown, a game at a time
+    // (sweepPictures(), every m_sweepTimer's interval): not beside a game
+    // being played, nor while the folder is read or MAME asked, nor before
+    // RetroAchievements' list of games is in; those looked for before and
+    // those RetroAchievements hasn't passed over; a game's asked for once
+    // nothing else is (findPicturesLater()), and done with (laterPending())
+    // and its pictures saved before the next's. With the key gone or
+    // refused, or the folder that can't be written, it stops; Read the Games
+    // Again asked again starts it anew.
+    void startPictureSweep();
+    void sweepPictures();
+    void stopPictureSweep();
     // A picture of RetroAchievements' downloaded for a game, or not (data
     // empty): saved off the GUI thread as <name>_<n> in the snap folder, n
     // the first number no picture of that name has there, so that a file
@@ -679,6 +704,16 @@ private:
     QSet<QString> m_noPictures;
     QHash<QString, QDateTime> m_picturesRetry;
     QHash<QString, QStringList> m_savedDuringRead;
+    // Read the Games Again's look through the games for pictures: wanted
+    // once the games have been read again, the sets still to look at (taken
+    // as the first step can go: m_sweepListed), the game asked for (its set
+    // and parent), and how many games were asked for.
+    bool m_sweepWanted = false;
+    bool m_sweepListed = false;
+    QStringList m_sweep;
+    QStringList m_sweepGame;
+    int m_sweepAsked = 0;
+    QTimer *m_sweepTimer = nullptr;
     // The achievements' badges being downloaded, by file, and when one that
     // couldn't be may be again.
     QSet<QString> m_badgesWanted;

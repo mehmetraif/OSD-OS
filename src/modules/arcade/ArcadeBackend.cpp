@@ -223,6 +223,9 @@ QString firstShot(const QString &folder) {
 
 // How long after a game's pictures couldn't be had they are asked for again.
 constexpr qint64 kPicturesRetrySeconds = 600;
+// Read the Games Again's pictures: at most a game's asked for a second, as
+// RetroAchievements asks of those who read its Web API.
+constexpr int kSweepStepMs = 1000;
 
 // The order a set's numbered pictures go round in: by their number, a .png
 // before a .jpg of the same.
@@ -381,6 +384,10 @@ ArcadeBackend::ArcadeBackend(const QString &appRoot, const QString &dataRoot, Ap
         emit gameAchievementsReady(QFileInfo(fileName).completeBaseName().toLower());
     });
     connect(m_retroAchievements, &RetroAchievements::picturesFound, this, &ArcadeBackend::onPicturesFound);
+    m_sweepTimer = new QTimer(this);
+    m_sweepTimer->setTimerType(Qt::PreciseTimer);
+    m_sweepTimer->setInterval(kSweepStepMs);
+    connect(m_sweepTimer, &QTimer::timeout, this, &ArcadeBackend::sweepPictures);
     // Its list of games read again: the RetroAchievements filter's games.
     connect(m_retroAchievements, &RetroAchievements::listRead, this, &ArcadeBackend::gamesChanged);
     connect(m_retroAchievements, &RetroAchievements::keyRefused, this, [this] {
@@ -896,6 +903,10 @@ void ArcadeBackend::readAgain() {
 }
 
 void ArcadeBackend::rescan() {
+    // Every game's pictures too, once the games have been read again
+    // (emitShown()): a look under way starts anew then.
+    stopPictureSweep();
+    m_sweepWanted = true;
     // Asked while the folder is read: once it has been (onRead()).
     if (m_reading) {
         m_rescanAfterRead = true;
@@ -1068,6 +1079,8 @@ void ArcadeBackend::emitShown() {
     for (const QString &path : shown)
         emit entriesReady(path);
     emit gamesChanged();
+    if (m_sweepWanted && !m_reading && !scanning())
+        startPictureSweep();
 }
 
 // ---------------------------------------------------------------------------
@@ -1353,18 +1366,93 @@ void ArcadeBackend::wantPictures(const QString &set) {
     // The set's game, else its parent's.
     const QStringList names = setAndParent(set);
     loadPictureRecord();
+    const QStringList looked = picturesLooked(names);
+    // None for a folder they can't be saved in (a read-only USB drive's).
+    if (looked.size() == names.size() || !snapWritable())
+        return;
+    m_retroAchievements->findPictures(names, looked);
+}
+
+QStringList ArcadeBackend::picturesLooked(const QStringList &names) const {
     const QDateTime now = QDateTime::currentDateTimeUtc();
     QStringList looked;
-    for (const QString &name : std::as_const(names)) {
+    for (const QString &name : names) {
         const auto retry = m_picturesRetry.constFind(name);
         if (m_pictureRecord.value(name).complete || m_pictureJobs.contains(name)
             || (retry != m_picturesRetry.constEnd() && *retry > now))
             looked << name;
     }
-    // None for a folder they can't be saved in (a read-only USB drive's).
-    if (looked.size() == names.size() || !snapWritable())
+    return looked;
+}
+
+void ArcadeBackend::setPictureSweepInterval(int ms) {
+    m_sweepTimer->setInterval(ms);
+}
+
+bool ArcadeBackend::sweepingPictures() const {
+    return m_sweepTimer->isActive();
+}
+
+void ArcadeBackend::startPictureSweep() {
+    m_sweepWanted = false;
+    if (m_raKey.isEmpty() || m_raKeyRefused || !snapWritable())
         return;
-    m_retroAchievements->findPictures(names, looked);
+    m_sweepListed = false;
+    m_sweepGame.clear();
+    m_sweepAsked = 0;
+    m_sweepTimer->start();
+}
+
+void ArcadeBackend::sweepPictures() {
+    if (m_raKey.isEmpty() || m_raKeyRefused) {
+        stopPictureSweep();
+        return;
+    }
+    if (running() || scanning())
+        return;
+    if (!snapWritable()) {
+        stopPictureSweep();
+        return;
+    }
+    // RetroAchievements' list of games in first: the one kept, or one a week
+    // old read again.
+    m_retroAchievements->wantList();
+    if (m_retroAchievements->listPending())
+        return;
+    if (!std::exchange(m_sweepListed, true))
+        m_sweep = index().games;
+    if (!m_sweepGame.isEmpty()) {
+        const bool saving = std::any_of(m_sweepGame.cbegin(), m_sweepGame.cend(),
+                                        [this](const QString &name) { return m_pictureJobs.contains(name); });
+        if (m_retroAchievements->laterPending() || saving)
+            return;
+        m_sweepGame.clear();
+    }
+    loadPictureRecord();
+    while (!m_sweep.isEmpty()) {
+        const QString set = m_sweep.takeFirst();
+        if (!m_sets.contains(set) || isUnrecognized(set) || m_noPictures.contains(set))
+            continue;
+        const QStringList names = setAndParent(set);
+        const QStringList looked = picturesLooked(names);
+        const bool known = std::any_of(names.cbegin(), names.cend(), [this](const QString &name) {
+            return m_retroAchievements->hasGame(name);
+        });
+        if (!known || looked.size() == names.size())
+            continue;
+        m_sweepGame = names;
+        ++m_sweepAsked;
+        m_retroAchievements->findPicturesLater(names, looked);
+        return;
+    }
+    qInfo("[Arcade] RetroAchievements' pictures looked for: %d games asked about", m_sweepAsked);
+    stopPictureSweep();
+}
+
+void ArcadeBackend::stopPictureSweep() {
+    m_sweepTimer->stop();
+    m_sweep.clear();
+    m_sweepGame.clear();
 }
 
 void ArcadeBackend::onPicturesFound(const QString &name, const QString &state, const QStringList &paths) {

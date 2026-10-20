@@ -111,7 +111,14 @@ void RetroAchievements::setKey(const QString &key) {
     // The list the other key couldn't read, this one may.
     m_listRetry = QDateTime();
     // What is being read was asked with the other key: stopped, and read
-    // again with this one.
+    // again with this one; a game's pictures asked for by themselves put
+    // back for it.
+    if (!m_laterRead.isEmpty() && m_laterPictures.isEmpty()) {
+        m_laterPictures = m_laterRead;
+        m_laterLooked = m_laterReadLooked;
+    }
+    m_laterRead.clear();
+    m_laterReadLooked.clear();
     if (m_reply) {
         m_reply->setProperty(kAgain, true);
         m_reply->abort();
@@ -185,6 +192,17 @@ void RetroAchievements::findPictures(const QStringList &games, const QStringList
     m_wait->start();
 }
 
+void RetroAchievements::findPicturesLater(const QStringList &games, const QStringList &looked) {
+    if (m_key.isEmpty() || games.isEmpty())
+        return;
+    m_laterPictures = games;
+    m_laterLooked = looked;
+    // At once, unless something is being read, or a game shown is about to
+    // be: then after it.
+    if (!m_reply && !m_wait->isActive())
+        readWanted();
+}
+
 void RetroAchievements::wantList() {
     if (!m_listLoaded)
         loadList();
@@ -250,7 +268,8 @@ int RetroAchievements::gameOf(const QString &fileName) const {
 }
 
 bool RetroAchievements::wanting() const {
-    return m_wantedList || !m_wanted.isEmpty() || !m_wantedAchievements.isEmpty() || !m_wantedPictures.isEmpty();
+    return m_wantedList || !m_wanted.isEmpty() || !m_wantedAchievements.isEmpty() || !m_wantedPictures.isEmpty()
+           || !m_laterPictures.isEmpty();
 }
 
 void RetroAchievements::failWanted() {
@@ -259,12 +278,17 @@ void RetroAchievements::failWanted() {
     const QString board = std::exchange(m_wanted, QString());
     const QString achievements = std::exchange(m_wantedAchievements, QString());
     const QStringList pictures = std::exchange(m_wantedPictures, QStringList());
+    const QStringList later = std::exchange(m_laterPictures, QStringList());
+    m_lookedPictures.clear();
+    m_laterLooked.clear();
     if (!achievements.isEmpty())
         doneAchievements(achievements, { QStringLiteral("failed"), {}, {} });
     if (!board.isEmpty())
         done(board, { QStringLiteral("failed"), QString(), {}, {} });
     if (!pictures.isEmpty())
         emit picturesFound(pictures.first(), QStringLiteral("failed"), {});
+    if (!later.isEmpty())
+        emit picturesFound(later.first(), QStringLiteral("failed"), {});
 }
 
 void RetroAchievements::readWanted() {
@@ -320,8 +344,10 @@ void RetroAchievements::readWanted() {
             readBoards(fileName, game);
         return;
     }
-    const QStringList games = std::exchange(m_wantedPictures, QStringList());
-    const QStringList looked = std::exchange(m_lookedPictures, QStringList());
+    // The pictures of the game shown, else of one asked for by itself.
+    const bool shown = !m_wantedPictures.isEmpty();
+    const QStringList games = std::exchange(shown ? m_wantedPictures : m_laterPictures, QStringList());
+    const QStringList looked = std::exchange(shown ? m_lookedPictures : m_laterLooked, QStringList());
     int game = 0;
     QString chosen;
     for (const QString &fileName : games) {
@@ -331,10 +357,15 @@ void RetroAchievements::readWanted() {
             chosen = fileName;
         }
     }
-    if (game <= 0)
+    if (game <= 0) {
         emit picturesFound(games.first(), QStringLiteral("unknown"), {});
-    else if (!looked.contains(chosen))
-        readPictures(chosen, game);
+    } else if (!looked.contains(chosen)) {
+        if (!shown) {
+            m_laterRead = games;
+            m_laterReadLooked = looked;
+        }
+        readPictures(chosen, game, !shown);
+    }
     // Nothing read: the next wanted.
     if (!m_reply)
         readWanted();
@@ -522,9 +553,13 @@ void RetroAchievements::readAchievements(const QString &fileName, int game) {
     });
 }
 
-void RetroAchievements::readPictures(const QString &fileName, int game) {
+void RetroAchievements::readPictures(const QString &fileName, int game, bool later) {
     get(QStringLiteral("API_GetGame.php"), { { QStringLiteral("i"), QString::number(game) } },
-        [this, fileName](const QByteArray &json, bool ok) {
+        [this, fileName, later](const QByteArray &json, bool ok) {
+            if (later) {
+                m_laterRead.clear();
+                m_laterReadLooked.clear();
+            }
             const QJsonObject found = QJsonDocument::fromJson(json).object();
             if (!ok || found.isEmpty()) {
                 emit picturesFound(fileName, QStringLiteral("failed"), {});
