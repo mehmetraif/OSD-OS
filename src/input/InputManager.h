@@ -122,9 +122,9 @@ public:
     // ("back", "start"): "COIN" on a JAMMA stick, "BACK" on an Xbox pad. ""
     // for a controller that isn't a pad.
     Q_INVOKABLE QString buttonLabel(const QString &key, const QString &token) const;
-    // While a JAMMA stick's page tests the board's controls: both players'
-    // pins as they are pressed (JammaPins), through jammaPinPressed(), the
-    // pins the sticks never show among them.
+    // While a JAMMA stick's page tests the board's controls: the board's
+    // pins as they change (JammaPins), through jammaPinChanged(), the pins
+    // the sticks never show among them.
     Q_INVOKABLE void watchJammaPins(bool on);
     // A stand-in for osdos-jamma, for the tests.
     void setJammaProgram(const QString &program);
@@ -160,10 +160,12 @@ signals:
     // captureController()'s: the input, as bindControllerInput() takes it, and
     // what it is called.
     void controllerInputCaptured(const QString &key, const QString &input, const QString &label);
-    // watchJammaPins()'s: a pin pressed, its player (1, 2) and name ("B1"),
-    // with the input osdos-jamma's mapping makes of it ("tl2"); or why none
-    // come, which ends the watch.
-    void jammaPinPressed(int player, const QString &pin, const QString &input);
+    // watchJammaPins()'s: a pin pressed or let go, its player (1, 2; 0 for an
+    // expander that is neither's), expander ("0x20") and name ("B1"), with the
+    // input osdos-jamma's mapping makes of it ("tl2"); or why none come,
+    // which ends the watch.
+    void jammaPinChanged(int player, const QString &address, const QString &pin, bool pressed,
+                         const QString &input);
     void jammaPinsFailed(const QString &reason);
 
 protected:

@@ -192,9 +192,16 @@ Up to OSD/OS v0.0.11 the built-in mapping was the layout JammaPi's driver (joypi
 0x21 B7 a
 ```
 
-**Which of your cabinet's buttons is on which pin** depends on the board and the harness. To see, open Settings → Controls → OSD/OS JAMMA P1 (or P2) → **Test Buttons** and press each control in turn. Both players' controls are tested at once, and each press shows its player, its pin on the board and what OSD/OS sees: `P1 B4 → 7`, or `P1 B6 → NONE` for a pin the sticks don't show (one the mapping makes `z`, `c` or `none`). A control that shows no line at all reaches neither expander. The test ends 10 seconds after the last press ([A controller's own page](https://github.com/mehmetraif/OSD-OS/wiki/Controls#a-controllers-own-page)).
+**Which of your cabinet's buttons is on which pin** depends on the board and the harness. To see, open Settings → Controls → OSD/OS JAMMA P1 (or P2) → **Test Buttons** and press each control in turn. Both players' controls are tested at once.
 
-<img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/screenshots/controller-test.png" width="50%" alt="TEST BUTTONS: BOTH PLAYERS' CONTROLS: EACH PRESS'S PIN ON THE BOARD → WHAT OSD/OS SEES, then P1 A4 → START (the last, boxed), P2 A5 → COIN, P2 A0 → JOYSTICK ▲, P1 B6 → NONE, P1 B4 → 7. ENDS IN 8" />
+- **The grid** is the JAMMA edge connector's control pins: a column each for Coin, Start, the joystick and buttons 1 to 6, player 1's pins on the parts side (16 to 27) and player 2's on the solder side (T to e). 27 and e are ground on a JAMMA harness and button 6 on a Chinese one (CHAMMA). A pin lights while its switch is held, and stays framed once it has been; under it is the expander pin it came in on. A control whose pin stays dim however you press it never reaches the board: its wire, the harness's ground to the buttons, or the board's jumpers (JP1 and JP2, or the JAMMA/kick harness switch), not a setting.
+- **N** on a keyboard goes round the layouts that say which expander pin is which control: **OSD/OS** (what the mapping, `osdos-jamma.txt` included, makes of each pin), **Crown, CHAMMA** (Crown Arcade's board, in mk_arcade_joystick_rpi's order: A0-A3 the joystick, A4 Start, A5 Coin, A6 to B3 buttons 1 to 6) and **JammaPi** (buttons from B7 down). The layout whose columns light as you press your cabinet's controls is your board's.
+- **Other pins** lists the pins pressed that the layout places on no control: a system switch (Test, Service, Tilt), a button 7 or 8, or a third expander on the bus (by its address, `0x24 B3`), which the test watches too.
+- Under the grid, the last two presses: player, pin and what OSD/OS sees, `P1 B2 → 5`, or `NONE` for a pin the sticks don't show.
+
+The test ends 30 seconds after the last press, or with a keyboard's Esc ([A controller's own page](https://github.com/mehmetraif/OSD-OS/wiki/Controls#a-controllers-own-page)).
+
+<img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/screenshots/controller-test.png" width="50%" alt="TEST BUTTONS, LAYOUT: OSD/OS. A grid of the edge's pins under COIN, START, UP, DOWN, LEFT, RIGHT, B1 to B6: player 1's 16 to 21 and 25 to 27 framed with their expander pins (A5, A4, A0 to A3, B1 to B3), 26 held; 22, 23 and 24 dim. Player 2's T to Y and c framed; Z, a, b, d and e dim. OTHER PINS: P1 B7 (MODE). Then P1 B2 → 5, P1 B7 → MODE. ENDS IN 29 N:LAYOUT" />
 
 The same comes from Exit to Terminal, or over SSH (the first user may read the I2C bus):
 
@@ -202,7 +209,7 @@ The same comes from Exit to Terminal, or over SSH (the first user may read the I
 /opt/osdos/bin/osdos-jamma --test
 ```
 
-It plays nothing, and prints each pin as it changes, with what the mapping makes of it: `P1 0x20 A6 pressed  a`. Ctrl+C ends it. The service goes on reading beside it, and Test Buttons runs this same test.
+It plays nothing, and prints each pin as it changes, with what the mapping makes of it: `P1 0x20 A6 pressed  a`. It watches any other MCP23017 on the bus too (0x22 to 0x27), as `P0`: `P0 0x24 B3 pressed  none`. Ctrl+C ends it. The service goes on reading beside it, and Test Buttons runs this same test.
 
 **A button on another pin.** Write `osdos-jamma.txt` on the boot partition, beside `config.txt`. From a computer it is the **bootfs** drive. A line a pin, `<address> <pin> <input>`:
 
@@ -272,7 +279,7 @@ Settings → **Controls** lists every controller connected, each with a page of 
 | Row | On a pad | On a keyboard or a remote |
 |---|---|---|
 | **Button Labels** | What its buttons are called, here and in the hints: Auto, Xbox, PlayStation, Nintendo or Arcade ([below](https://github.com/mehmetraif/OSD-OS/wiki/Controls#button-labels)). ◄ ► or select go round them | (none) |
-| **Test Buttons** / **Test Keys** | Select, then press its buttons and move its sticks: each press shows what it is called, the last at the top, and does nothing else. On the JAMMA board's sticks it tests both players' controls, each press with its pin on the board ([A JAMMA cabinet](https://github.com/mehmetraif/OSD-OS/wiki/Controls#a-jamma-cabinet)) | Select, then press its keys: each shows what it is called. Whatever does Back on it ends the test |
+| **Test Buttons** / **Test Keys** | Select, then press its buttons and move its sticks: each press shows what it is called, the last at the top, and does nothing else. On the JAMMA board's sticks it tests both players' controls, on a grid of the edge connector's pins, each press with its pin on the board, and a keyboard's N changes the layout that names them ([A JAMMA cabinet](https://github.com/mehmetraif/OSD-OS/wiki/Controls#a-jamma-cabinet)) | Select, then press its keys: each shows what it is called. Whatever does Back on it ends the test |
 | **Up**, **Down**, **Left**, **Right**, **Select / OK**, **Back**, **Play / Pause** | The buttons and stick directions that do it, by their labels (`D-PAD ▲, L STICK ▲`), or `NONE`. Select, then press a button on the pad: it does this from now on | `DEFAULT`, or `DEFAULT + ` its extra keys. Select, then press a key on it: one more key for the action, on this one only |
 | **Clear a Button** / **Remove a Key** | Select, then press a button: it does nothing from now on (not its only Select / OK or Back) | Select, then press one of its extra keys: it is taken away (not one that does Select / OK or Back) |
 | **Reset to Defaults** | Its buttons as every pad has them, and Auto labels | No extra keys of its own. A controller away has nothing left, and its line goes |

@@ -16,7 +16,10 @@ import Components
 // none. On the JAMMA board's sticks it tests both players' controls at once,
 // each press with its pin on the board, from osdos-jamma
 // (inputManager.watchJammaPins()), the pins the sticks don't show among them
-// (NONE): the way to see how a board is wired.
+// (NONE): the way to see how a board is wired. The edge connector's control
+// pins are a grid there (JammaPinGrid), each lit as its switch reaches the
+// board, and a keyboard's N goes round the layouts that name the board's
+// pins.
 FocusScope {
     id: pageRoot
 
@@ -60,6 +63,13 @@ FocusScope {
     readonly property int jamma: page.jamma || 0
     property var sticks: ({})
     property string pinsNotice: ""
+    // The board's pins seen this test, for the grid (JammaPinGrid.pins), and
+    // the layout it names them by.
+    property var jammaPins: ({})
+    property int jammaLayout: 0
+    // How long a test waits for the next press: on the JAMMA board's, time
+    // to read the grid too.
+    readonly property int testSeconds: jamma ? 30 : 10
     // A press and its pin come apart, the one a moment after the other.
     readonly property int pairMs: 300
     // What SDL makes of a pin's input on the sticks (its Linux mapping), for
@@ -123,9 +133,16 @@ FocusScope {
             else if (result.outcome === "other")
                 pageRoot.notice = label + " is not one of its extra keys"
         }
-        function onJammaPinPressed(player, pin, input) {
-            if (pageRoot.testing && pageRoot.jamma)
+        function onJammaPinChanged(player, address, pin, pressed, input) {
+            if (!pageRoot.testing || !pageRoot.jamma)
+                return
+            var pins = Object.assign({}, pageRoot.jammaPins)
+            pins[address + " " + pin] = { player: player, address: address, pin: pin, input: input, held: pressed }
+            pageRoot.jammaPins = pins
+            if (pressed && player > 0)
                 pageRoot.notePress(player, "", "", pin, input)
+            else
+                pageRoot.keepTesting()
         }
         function onJammaPinsFailed(reason) {
             if (pageRoot.testing && pageRoot.jamma)
@@ -224,9 +241,10 @@ FocusScope {
         list.forceActiveFocus()
     }
 
-    // TEST BUTTONS: its presses are shown until 10 seconds go by without one,
-    // or another controller's Back (a keyboard's or a remote's own Back). A
-    // JAMMA stick's takes the board's other stick too, and its pins.
+    // TEST BUTTONS: its presses are shown until 10 seconds go by without one
+    // (30 on the JAMMA board's), or another controller's Back (a keyboard's
+    // or a remote's own Back). A JAMMA stick's takes the board's other stick
+    // too, and its pins.
     function startTest() {
         if (!present) {
             notice = "Connect it first"
@@ -235,7 +253,8 @@ FocusScope {
         notice = ""
         presses = []
         pinsNotice = ""
-        secondsLeft = 10
+        jammaPins = {}
+        secondsLeft = testSeconds
         var found = {}
         if (jamma) {
             var all = inputManager.controllers || []
@@ -307,7 +326,12 @@ FocusScope {
         if (!paired)
             seen.unshift({ player: player, label: label, token: token, pin: pin, pinInput: pinInput, at: now })
         presses = seen.slice(0, 6)
-        secondsLeft = 10
+        keepTesting()
+    }
+
+    // Something of the test's came: it goes on.
+    function keepTesting() {
+        secondsLeft = testSeconds
         captureTested()
         if (idleTracker)
             idleTracker.resetActivity()
@@ -507,9 +531,17 @@ FocusScope {
         // As the wait for a press: this controller's presses come through
         // controllerInputCaptured, another's Back ends it.
         Keys.onPressed: function(event) {
-            if (!event.isAutoRepeat
-                    && (event.key === Qt.Key_Escape || event.key === Qt.Key_Backspace || event.key === Qt.Key_Back))
+            if (event.isAutoRepeat) {
+                event.accepted = true
+                return
+            }
+            if (event.key === Qt.Key_Escape || event.key === Qt.Key_Backspace || event.key === Qt.Key_Back) {
                 pageRoot.endTest()
+            } else if (event.key === Qt.Key_N && pageRoot.jamma) {
+                // A keyboard's N: the next layout of the board's pins.
+                pageRoot.jammaLayout = (pageRoot.jammaLayout + 1) % pinGrid.layouts.length
+                pageRoot.keepTesting()
+            }
             event.accepted = true
         }
 
@@ -521,12 +553,24 @@ FocusScope {
             title: pageRoot.pad ? "Test Buttons" : "Test Keys"
             message: pageRoot.jamma && pageRoot.pinsNotice !== ""
                      ? "The board's pins can't be read: " + pageRoot.pinsNotice
-                     : pageRoot.jamma ? "Both players' controls: each press's pin on the board → what OSD/OS sees"
+                     : pageRoot.jamma ? "Layout: " + pinGrid.layoutName
                      : (pageRoot.pad ? "Press the buttons on " : "Press the keys on ") + pageRoot.name
+            // On the JAMMA board's, under its grid: the last two, each
+            // press's pin on the board → what OSD/OS sees.
+            maxChoices: pageRoot.jamma ? 2 : (root.hintBar ? 5 : 6)
             choices: pageRoot.presses.slice(0, maxChoices).map(pageRoot.pressText)
             currentIndex: 0
-            hint: pageRoot.pad ? "ENDS IN " + pageRoot.secondsLeft
-                               : root.hints.back + ":END (" + pageRoot.secondsLeft + ")"
+            hint: pageRoot.jamma ? "ENDS IN " + pageRoot.secondsLeft + " N:LAYOUT"
+                  : pageRoot.pad ? "ENDS IN " + pageRoot.secondsLeft
+                  : root.hints.back + ":END (" + pageRoot.secondsLeft + ")"
+
+            JammaPinGrid {
+                id: pinGrid
+                objectName: "pinGrid"
+                shown: pageRoot.jamma > 0 && pageRoot.pinsNotice === ""
+                pins: pageRoot.jammaPins
+                layout: pageRoot.jammaLayout
+            }
         }
     }
 }

@@ -19,7 +19,9 @@
 //   osdos-jamma [--bus /dev/i2c-N] [--map FILE] [--test]
 //
 // --test prints each pin as it changes, with what the mapping makes of it, and
-// plays nothing: the way to find out a board's wiring. The mapping file,
+// plays nothing: the way to find out a board's wiring. It watches any other
+// expander on the bus too (0x22 to 0x27), as player "0", should a board wire
+// some of its controls to a third. The mapping file,
 // /boot/firmware/osdos-jamma.txt when there is one, moves pins, a line each:
 // "<address> <pin> <input>", e.g. "0x21 B3 b6".
 
@@ -48,6 +50,8 @@
 namespace {
 
 constexpr uint8_t kAddresses[] = { 0x20, 0x21 };  // player 1, player 2
+// The other addresses an MCP23017 can have, watched by --test.
+constexpr uint8_t kOtherAddresses[] = { 0x22, 0x23, 0x24, 0x25, 0x26, 0x27 };
 constexpr const char *kDefaultBus = "/dev/i2c-0";
 constexpr const char *kDefaultMap = "/boot/firmware/osdos-jamma.txt";
 constexpr const char *kDisplayPreset = "/boot/firmware/osdos-display.txt";
@@ -107,6 +111,15 @@ bool readRegs(int bus, uint8_t address, uint8_t reg, uint8_t *out, uint16_t len)
     i2c_msg msgs[2] = { { address, 0, 1, &reg }, { address, I2C_M_RD, len, out } };
     i2c_rdwr_ioctl_data data = { msgs, 2 };
     return ioctl(bus, I2C_RDWR, &data) == 2;
+}
+
+// Whether anything answers at an address: a read alone, which changes nothing
+// on whatever is there.
+bool answers(int bus, uint8_t address) {
+    uint8_t byte = 0;
+    i2c_msg msg = { address, I2C_M_RD, 1, &byte };
+    i2c_rdwr_ioctl_data data = { &msg, 1 };
+    return ioctl(bus, I2C_RDWR, &data) == 1;
 }
 
 // Every pin an input, with its pull-up, read as it is: the switches close to
@@ -191,7 +204,7 @@ bool send(int pad, const std::vector<jamma::Event> &events) {
 // ── The players ──────────────────────────────────────────────────────────────
 
 struct Player {
-    int number;
+    int number;             // 1, 2; 0 for another expander --test watches
     uint8_t address;
     jamma::Panel panel;
     int pad = -1;
@@ -243,9 +256,12 @@ bool takeUp(Player &p, uint64_t now) {
     p.lastGood = now;
     if (!p.found) {
         p.found = true;
-        say("player %d at 0x%02x", p.number, p.address);
+        if (p.number)
+            say("player %d at 0x%02x", p.number, p.address);
+        else
+            say("another expander at 0x%02x", p.address);
     } else {
-        say("player %d's expander answers again", p.number);
+        say("the expander at 0x%02x answers again", p.address);
     }
     if (g_test || p.pad >= 0)
         return true;
@@ -343,6 +359,19 @@ int main(int argc, char **argv) {
             break;
         usleep(250'000);
     }
+    // --test: any other expander on the bus too, its pins without a mapping.
+    // Only where something answers is anything written.
+    if (g_test && bus >= 0) {
+        for (const uint8_t a : kOtherAddresses) {
+            if (!answers(bus, a) || !setUp(bus, a))
+                continue;
+            jamma::ChipMap none;
+            none.address = a;
+            players.push_back({ 0, a, jamma::Panel(none) });
+            takeUp(players.back(), nowMs());
+            any = true;
+        }
+    }
     if (!any) {
         if (bus < 0)
             say("%s: %s: nothing to read%s", busPath.c_str(), std::strerror(openError),
@@ -374,7 +403,7 @@ int main(int argc, char **argv) {
                 // Lost once no read has been good for a while, however long
                 // each failed one took: nothing is left held meanwhile.
                 if (nowMs() - p.lastGood >= kLostAfterMs) {
-                    say("player %d's expander stopped answering: %s", p.number, std::strerror(errno));
+                    say("the expander at 0x%02x stopped answering: %s", p.address, std::strerror(errno));
                     p.lost = true;
                     p.retryAt = now + kRetryMs;
                     deliver(p, p.panel.releaseAll(now));

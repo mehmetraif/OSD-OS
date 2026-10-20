@@ -90,7 +90,7 @@ Item {
 
         Item {
             id: extra
-            visible: children.length > 0
+            visible: children.length > 0 && childrenRect.height > 0
             width: parent.width
             height: childrenRect.height
         }

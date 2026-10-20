@@ -67,7 +67,7 @@ Rectangle {
         property bool remapCapture: false
         signal controllerInputCaptured(string key, string input, string label)
         signal auxButtonPressed(int extendedKeyId)
-        signal jammaPinPressed(int player, string pin, string input)
+        signal jammaPinChanged(int player, string address, string pin, bool pressed, string input)
         signal jammaPinsFailed(string reason)
         function controllerPage(key) { return pages[key] || ({}) }
         function captureController(key) { capturing = key }
@@ -576,50 +576,100 @@ Rectangle {
             keyClick(Qt.Key_Down)
             keyClick(Qt.Key_Return)
             verify(page.testing)
+            compare(page.secondsLeft, 30)
             compare(inputManager.capturing, root.jammaKey + "," + root.jamma2Key)
             verify(inputManager.watchingPins)
             var prompt = findChild(page, "testPrompt")
-            compare(prompt.message, "Both players' controls: each press's pin on the board → what OSD/OS sees")
+            compare(prompt.message, "Layout: OSD/OS")
+            compare(prompt.hint, "ENDS IN 30 N:LAYOUT")
+            // A pin pressed on a player's expander, and let go.
+            var pin = function(player, name, input) {
+                var address = player === 2 ? "0x21" : "0x20"
+                inputManager.jammaPinChanged(player, address, name, true, input)
+                inputManager.jammaPinChanged(player, address, name, false, input)
+            }
+            var shown = function() { return page.presses.map(page.pressText) }
 
             // A pin, then what OSD/OS calls it.
-            inputManager.jammaPinPressed(1, "B1", "tl2")
+            pin(1, "B1", "tl2")
             compare(prompt.choices, ["P1 B1 → NONE"])
             inputManager.controllerInputCaptured(root.jammaKey, "lefttrigger+", "7")
             compare(prompt.choices, ["P1 B1 → 7"])
-            // What it is, then its pin; each player's apart.
+            // What it is, then its pin; each player's apart. Two are shown
+            // under the grid.
             inputManager.controllerInputCaptured(root.jamma2Key, "guide", "MODE")
             compare(prompt.choices, ["P2 ? → MODE", "P1 B1 → 7"])
-            inputManager.jammaPinPressed(1, "A4", "mode")
-            inputManager.jammaPinPressed(2, "A4", "mode")
-            compare(prompt.choices, ["P1 A4 → NONE", "P2 A4 → MODE", "P1 B1 → 7"])
+            pin(1, "A4", "mode")
+            pin(2, "A4", "mode")
+            compare(shown(), ["P1 A4 → NONE", "P2 A4 → MODE", "P1 B1 → 7"])
+            compare(prompt.choices, ["P1 A4 → NONE", "P2 A4 → MODE"])
             // A moment later, a press is one of its own.
             wait(page.pairMs + 50)
             inputManager.controllerInputCaptured(root.jammaKey, "a", "1")
             compare(prompt.choices[0], "P1 ? → 1")
-            inputManager.jammaPinPressed(1, "B7", "a")
-            compare(prompt.choices.slice(0, 2), ["P1 B7 → 1", "P1 A4 → NONE"])
+            pin(1, "B7", "a")
+            compare(shown().slice(0, 2), ["P1 B7 → 1", "P1 A4 → NONE"])
             // A controller that isn't one of the board's: not this.
             inputManager.controllerInputCaptured(root.padKey, "a", "A")
             compare(prompt.choices[0], "P1 B7 → 1")
             // A pin the sticks don't show takes no press; two pressed at once
             // are each told by what they are, whatever order they come in.
             wait(page.pairMs + 50)
-            inputManager.jammaPinPressed(1, "A7", "z")
-            inputManager.jammaPinPressed(1, "B1", "tl2")
+            pin(1, "A7", "z")
+            pin(1, "B1", "tl2")
             inputManager.controllerInputCaptured(root.jammaKey, "lefttrigger+", "7")
-            compare(prompt.choices.slice(0, 2), ["P1 B1 → 7", "P1 A7 → NONE"])
+            compare(shown().slice(0, 2), ["P1 B1 → 7", "P1 A7 → NONE"])
             wait(page.pairMs + 50)
-            inputManager.jammaPinPressed(1, "B6", "b")
-            inputManager.jammaPinPressed(1, "B7", "a")
+            pin(1, "B6", "b")
+            pin(1, "B7", "a")
             inputManager.controllerInputCaptured(root.jammaKey, "a", "1")
             inputManager.controllerInputCaptured(root.jammaKey, "b", "2")
-            compare(prompt.choices.slice(0, 2), ["P1 B7 → 1", "P1 B6 → 2"])
+            compare(shown().slice(0, 2), ["P1 B7 → 1", "P1 B6 → 2"])
             // Each press is activity to the screen saver.
             verify(idleTracker.resets > 0)
+
+            // The grid: OSD/OS's own layout names the pins by their inputs,
+            // B7 (a) as button 1, at the edge's 22; A4 (mode), B1 (tl2) and
+            // A7 (z) as no control, and a third expander's pin as its own.
+            var grid = findChild(page, "pinGrid")
+            verify(grid.visible)
+            verify(grid.height > 0)
+            compare(grid.cellOf(1, "b1").seen, true)
+            compare(grid.cellOf(1, "b1").pins, ["B7"])
+            compare(grid.cellOf(1, "b4").seen, false)
+            compare(grid.cellOf(2, "b1").seen, false)
+            inputManager.jammaPinChanged(0, "0x24", "B3", true, "none")
+            compare(grid.others, "P1 A4 (mode), P1 A7 (z), P1 B1 (tl2), P2 A4 (mode), 0x24 B3 HELD")
+            // Held, then let go: still seen.
+            inputManager.jammaPinChanged(1, "0x20", "B7", true, "a")
+            verify(grid.cellOf(1, "b1").held)
+            inputManager.jammaPinChanged(1, "0x20", "B7", false, "a")
+            verify(!grid.cellOf(1, "b1").held)
+            verify(grid.cellOf(1, "b1").seen)
+            // N: the Crown board's layout, by the pins: B1 is button 4 there,
+            // B7 none; the layout's own pins on the controls not seen yet.
+            keyClick(Qt.Key_N)
+            compare(prompt.message, "Layout: Crown, CHAMMA")
+            verify(grid.cellOf(1, "b4").seen)
+            compare(grid.cellOf(1, "b1").pins, ["A6"])
+            verify(!grid.cellOf(1, "b1").seen)
+            compare(grid.cellOf(1, "start").pins, ["A4"])
+            verify(grid.cellOf(1, "start").seen)
+            compare(grid.cellOf(2, "b6").pins, ["B3"])
+            // JammaPi's: B7 is button 1 again, A4 nothing; then round to
+            // OSD/OS's.
+            keyClick(Qt.Key_N)
+            compare(prompt.message, "Layout: JammaPi")
+            verify(grid.cellOf(1, "b1").seen)
+            verify(!grid.cellOf(1, "start").seen)
+            keyClick(Qt.Key_N)
+            compare(prompt.message, "Layout: OSD/OS")
+            verify(page.testing)
 
             // The pins can't be read: it says why, and the presses come alone.
             inputManager.jammaPinsFailed("no MCP23017 at 0x20 or 0x21 on /dev/i2c-0: nothing to read")
             compare(prompt.message, "The board's pins can't be read: no MCP23017 at 0x20 or 0x21 on /dev/i2c-0: nothing to read")
+            verify(!grid.visible)
             inputManager.controllerInputCaptured(root.jammaKey, "b", "2")
             compare(prompt.choices[0], "P1 2")
 

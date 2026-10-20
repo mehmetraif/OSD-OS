@@ -184,7 +184,7 @@ InputManager::InputManager(const QString &dataRoot, AppCore *appCore, QObject *p
 
     // The JAMMA sticks' button test (watchJammaPins()).
     m_jammaPins = new JammaPins(this);
-    connect(m_jammaPins, &JammaPins::pinPressed, this, &InputManager::jammaPinPressed);
+    connect(m_jammaPins, &JammaPins::pinChanged, this, &InputManager::jammaPinChanged);
     connect(m_jammaPins, &JammaPins::failed, this, &InputManager::jammaPinsFailed);
 
 #ifdef Q_OS_LINUX
