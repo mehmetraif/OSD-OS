@@ -1541,7 +1541,8 @@ private slots:
             if (!QTest::qWaitFor([&started] { return !started.reading() && started.scanning(); }, 5000))
                 return QStringLiteral("not asked");
             const QString engine = started.engineOf(set);
-            QTest::qWaitFor([&started] { return !started.scanning(); }, 10000);
+            if (!QTest::qWaitFor([&started] { return !started.scanning(); }, 10000))
+                return QStringLiteral("not answered");
             return engine;
         };
         const QString kof98 = QStringLiteral("kof98");
