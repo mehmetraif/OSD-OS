@@ -1538,7 +1538,8 @@ private slots:
         // sf2's game has a board of times first, then one of scores;
         // galaga's achievements and no board; mslug's (its hash in capitals)
         // no achievements and a board of points, with no one on it yet;
-        // pacman's neither, so it isn't one of RetroAchievements' games.
+        // pacman's neither: a game of RetroAchievements', for its pictures,
+        // with nothing to earn in it.
         const QByteArray pacman = libretro::achievementsHash(QStringLiteral("pacman.zip")).toLatin1();
         const QHash<QByteArray, QByteArray> answers{
             { "/API/API_GetGameList.php?i=27&h=1",
@@ -1608,13 +1609,18 @@ private slots:
                                       QStringLiteral("/API/API_GetGameLeaderboards.php?i=1 y=key1"),
                                       QStringLiteral("/API/API_GetLeaderboardEntries.php?i=12&c=3 y=key1") }));
         QVERIFY(contents(data.path() + QStringLiteral("/retroachievements-games.json")).contains(sf2));
-        // RetroAchievements' games: those with achievements, or a leaderboard
-        // alone; not one with neither, nor one it hasn't.
+        QVERIFY(contents(data.path() + QStringLiteral("/retroachievements-games.json")).contains(pacman));
+        // The games with something to earn: those with achievements, or a
+        // leaderboard alone; not one with neither, nor one it hasn't. Every
+        // game it has known, one with neither too.
         QVERIFY(boards.hasGame(QStringLiteral("sf2.zip")));
         QVERIFY(boards.hasGame(QStringLiteral("galaga.zip")));
         QVERIFY(boards.hasGame(QStringLiteral("mslug.zip")));
         QVERIFY(!boards.hasGame(QStringLiteral("pacman.zip")));
         QVERIFY(!boards.hasGame(QStringLiteral("dkong.zip")));
+        QVERIFY(boards.knowsGame(QStringLiteral("pacman.zip")));
+        QVERIFY(boards.knowsGame(QStringLiteral("mslug.zip")));
+        QVERIFY(!boards.knowsGame(QStringLiteral("dkong.zip")));
         // Wanted again while it is fresh: nothing read.
         asked.clear();
         boards.wantList();
@@ -1646,6 +1652,7 @@ private slots:
         again.wantList();
         QVERIFY(again.hasGame(QStringLiteral("mslug.zip")));
         QVERIFY(!again.hasGame(QStringLiteral("pacman.zip")));
+        QVERIFY(again.knowsGame(QStringLiteral("pacman.zip")));
         QTest::qWait(600);
         QVERIFY(asked.isEmpty());
         QVERIFY(listAgain.isEmpty());
@@ -1691,6 +1698,29 @@ private slots:
         QCOMPARE(asked, QStringList({ QStringLiteral("/API/API_GetGameList.php?i=27&h=1 y=key1") }));
         QVERIFY(keptAgain.hasGame(QStringLiteral("mslug.zip")));
         QVERIFY(contents(oldList.path() + QStringLiteral("/retroachievements-games.json")).contains("\"achievements\""));
+
+        // A list kept without the games of neither achievements nor
+        // leaderboards: its games as it says meanwhile, mslug's of a
+        // leaderboard alone, and, wanted, the list read again with the rest.
+        QTemporaryDir withoutNeither;
+        writeFile(withoutNeither.path() + QStringLiteral("/retroachievements-games.json"),
+                  "{\"read\": \"" + QDateTime::currentDateTimeUtc().toString(Qt::ISODate).toLatin1()
+                  + "\", \"games\": {\"" + sf2 + "\": 1, \"" + mslug + "\": 3}, \"achievements\": [1], \"boards\": [1, 3]}");
+        asked.clear();
+        RetroAchievements keptThird(withoutNeither.path(), api, media);
+        QSignalSpy thirdRead(&keptThird, &RetroAchievements::listRead);
+        keptThird.setKey(QStringLiteral("key1"));
+        keptThird.wantList();
+        QVERIFY(keptThird.listPending());
+        QVERIFY(keptThird.hasGame(QStringLiteral("mslug.zip")));
+        QCOMPARE(keptThird.achievements(QStringLiteral("mslug.zip")).value(QStringLiteral("state")).toString(),
+                 QStringLiteral("loading"));
+        QVERIFY(!keptThird.knowsGame(QStringLiteral("pacman.zip")));
+        QVERIFY(thirdRead.wait(5000));
+        QCOMPARE(asked.value(0), QStringLiteral("/API/API_GetGameList.php?i=27&h=1 y=key1"));
+        QVERIFY(keptThird.knowsGame(QStringLiteral("pacman.zip")));
+        QVERIFY(!keptThird.listPending());
+        QVERIFY(contents(withoutNeither.path() + QStringLiteral("/retroachievements-games.json")).contains("\"version\":2"));
 
         // A key RetroAchievements refuses.
         QSignalSpy refused(&again, &RetroAchievements::keyRefused);
@@ -1967,7 +1997,7 @@ private slots:
             { "/API/API_GetGameList.php?i=27&h=1",
               "[{\"ID\": 1, \"NumAchievements\": 2, \"NumLeaderboards\": 0, \"Hashes\": [\"" + hashOf("sf2") + "\"]},"
               " {\"ID\": 2, \"NumAchievements\": 4, \"NumLeaderboards\": 0, \"Hashes\": [\"" + hashOf("puckman") + "\", \"" + hashOf("pacman") + "\"]},"
-              " {\"ID\": 3, \"NumAchievements\": 6, \"NumLeaderboards\": 0, \"Hashes\": [\"" + hashOf("kinst") + "\"]}]" },
+              " {\"ID\": 3, \"NumAchievements\": 0, \"NumLeaderboards\": 0, \"Hashes\": [\"" + hashOf("kinst") + "\"]}]" },
             { "/API/API_GetGame.php?i=1", R"({"ImageTitle": "/Images/000101.png", "ImageIngame": "/Images/000103.png",
                                             "ImageBoxArt": "/Images/000102.jpg"})" },
             { "/API/API_GetGame.php?i=2", R"({"ImageTitle": "/Images/000201.png", "ImageIngame": "/Images/000002.png",
@@ -2071,7 +2101,8 @@ private slots:
         QVERIFY(standIn.asked.isEmpty());
 
         // A picture that can't be downloaded: those that could be kept, the
-        // game not complete.
+        // game not complete. Its game has neither achievements nor
+        // leaderboards, and its pictures all the same.
         arcade.wantPictures(QStringLiteral("kinst"));
         QTRY_COMPARE_WITH_TIMEOUT(changed.size(), 5, 10000);
         QTRY_VERIFY_WITH_TIMEOUT(standIn.asked.contains(QStringLiteral("/media/Images/000302.png")), 5000);
@@ -2169,14 +2200,15 @@ private slots:
             qunsetenv("MAME_SECONDS");
         });
         // Kinst isn't RetroAchievements'; X-Men and Ace come into the folder
-        // later. Metal Slug's game is answered for slowly, and Ace's.
+        // later. Metal Slug's game, with neither achievements nor
+        // leaderboards, is answered for slowly, and Ace's.
         StandIn standIn;
         QVERIFY(serve(standIn));
         standIn.keys << QStringLiteral("key2");
         standIn.answers = {
             { "/API/API_GetGameList.php?i=27&h=1",
               "[{\"ID\": 1, \"NumAchievements\": 2, \"NumLeaderboards\": 0, \"Hashes\": [\"" + hashOf("sf2") + "\"]},"
-              " {\"ID\": 2, \"NumAchievements\": 3, \"NumLeaderboards\": 0, \"Hashes\": [\"" + hashOf("mslug") + "\"]},"
+              " {\"ID\": 2, \"NumAchievements\": 0, \"NumLeaderboards\": 0, \"Hashes\": [\"" + hashOf("mslug") + "\"]},"
               " {\"ID\": 3, \"NumAchievements\": 4, \"NumLeaderboards\": 0, \"Hashes\": [\"" + hashOf("galaga") + "\"]},"
               " {\"ID\": 4, \"NumAchievements\": 5, \"NumLeaderboards\": 0, \"Hashes\": [\"" + hashOf("puckman") + "\", \"" + hashOf("pacman") + "\"]},"
               " {\"ID\": 5, \"NumAchievements\": 6, \"NumLeaderboards\": 0, \"Hashes\": [\"" + hashOf("xmen6p") + "\"]},"

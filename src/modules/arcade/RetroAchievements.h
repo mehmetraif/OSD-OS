@@ -18,10 +18,11 @@ class QTimer;
 // What the Arcade module reads of RetroAchievements: its Web API, with the
 // account's Web API key, and its media server, over HTTPS (Qt's own, not
 // RetroArch's). A game is found by its hash (libretro::achievementsHash() of
-// its file) in RetroAchievements' list of arcade games with achievements or
-// leaderboards, which is big and changes seldom, so it is kept a week in
-// <data>/arcade/retroachievements-games.json (hasGame(): the Arcade screen's
-// RetroAchievements filter). Of a game then come:
+// its file) in RetroAchievements' list of arcade games, which is big and
+// changes seldom, so it is kept a week in
+// <data>/arcade/retroachievements-games.json (hasGame(), those with
+// achievements or leaderboards: the Arcade screen's RetroAchievements filter;
+// knowsGame(), every one). Of a game then come:
 // - its leaderboards, the one of high scores among them, and that one's
 //   first entries, kept ten minutes (board(): the Arcade screen's);
 // - its achievements, and which of them the account has earned, kept five
@@ -69,8 +70,8 @@ public:
     // A game's achievements, by its file: { state, achievements, progress }.
     // state as a board's, achievementsReady() to come while it is "loading",
     // and "none" for a game RetroAchievements has no achievements of (at
-    // once for one its list of games hasn't, or has for its leaderboards
-    // alone, while that list is fresh).
+    // once for one its list of games hasn't, or has without achievements,
+    // while that list is fresh).
     // achievements: [{ id, title, description, points, badge (its name, ""
     // for none), earned (the day, yyyy-MM-dd; "" for one not earned),
     // hardcore (earned in hardcore mode) }], in RetroAchievements' order.
@@ -112,7 +113,9 @@ public:
     void wantList();
     // Whether RetroAchievements has achievements or leaderboards of a game,
     // by its file ("sf2.zip"), as the list read in says (wantList()).
-    bool hasGame(const QString &fileName) const { return gameOf(fileName) > 0; }
+    bool hasGame(const QString &fileName) const;
+    // Whether it has the game at all, one with neither too: its pictures.
+    bool knowsGame(const QString &fileName) const { return gameOf(fileName) > 0; }
     // The list wanted is still to be read: a moment from now, or under way.
     bool listPending() const { return m_wantedList; }
 

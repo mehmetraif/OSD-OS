@@ -388,8 +388,12 @@ ArcadeBackend::ArcadeBackend(const QString &appRoot, const QString &dataRoot, Ap
     m_sweepTimer->setTimerType(Qt::PreciseTimer);
     m_sweepTimer->setInterval(kSweepStepMs);
     connect(m_sweepTimer, &QTimer::timeout, this, &ArcadeBackend::sweepPictures);
-    // Its list of games read again: the RetroAchievements filter's games.
-    connect(m_retroAchievements, &RetroAchievements::listRead, this, &ArcadeBackend::gamesChanged);
+    // Its list of games read again: the RetroAchievements filter's games, and
+    // the games it had none of, which it may have now.
+    connect(m_retroAchievements, &RetroAchievements::listRead, this, [this] {
+        m_noPictures.clear();
+        emit gamesChanged();
+    });
     connect(m_retroAchievements, &RetroAchievements::keyRefused, this, [this] {
         if (!std::exchange(m_raKeyRefused, true))
             emit achievementsChanged();
@@ -1436,7 +1440,7 @@ void ArcadeBackend::sweepPictures() {
         const QStringList names = setAndParent(set);
         const QStringList looked = picturesLooked(names);
         const bool known = std::any_of(names.cbegin(), names.cend(), [this](const QString &name) {
-            return m_retroAchievements->hasGame(name);
+            return m_retroAchievements->knowsGame(name);
         });
         if (!known || looked.size() == names.size())
             continue;
