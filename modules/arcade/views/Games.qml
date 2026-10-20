@@ -3,8 +3,9 @@ import Components
 
 // The Arcade module's games as a horizontal tree (see TreeBrowser): Recently
 // Played, Favorites and Search, then All Games and the games by players,
-// decade and maker, from what MAME says of each set in the games folder
-// (ArcadeBackend), and the sets MAME has no game of under Not Recognized.
+// decade and maker, from what MAME says of each set in the games folder, or
+// FinalBurn Neo's list of one MAME doesn't know (ArcadeBackend), and the sets
+// neither plays under Not Recognized.
 // Select on a game plays it (navigateTo Play.qml, which Root.qml plays as
 // Start Info Screen says), right on it offers its options (EntryOptions: Game
 // Details, its favourite, Play at Startup, its engine, hosting it online),

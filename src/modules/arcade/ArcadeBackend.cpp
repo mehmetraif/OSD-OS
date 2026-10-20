@@ -674,8 +674,14 @@ ArcadeBackend::Read ArcadeBackend::read(const QString &folder, const QString &ho
     if (withCache && cacheFile.open(QIODevice::ReadOnly)) {
         const QJsonObject cache = QJsonDocument::fromJson(cacheFile.readAll()).object();
         cacheFile.close();
+        // The sets MAME had no machine of before it was asked about every set
+        // again, all of them in one made by an older version.
+        const bool older = cache.value(QStringLiteral("version")).toInt() != kCacheVersion;
+        const QJsonArray before = cache.value(older ? QStringLiteral("unknown") : QStringLiteral("unknownBefore")).toArray();
+        for (const QJsonValue &name : before)
+            read.unknownBefore.insert(name.toString());
         // Made by an older version, without what this one keeps of each game.
-        if (cache.value(QStringLiteral("version")).toInt() != kCacheVersion) {
+        if (older) {
             qInfo("[Arcade] games.json is from an older version: asking MAME about every game again");
         } else {
             read.identity = cache.value(QStringLiteral("mame")).toString();
@@ -786,6 +792,7 @@ void ArcadeBackend::onRead() {
         m_build = read.build;
         m_machines = std::move(read.machines);
         m_unknown = std::move(read.unknown);
+        m_unknownBefore = std::move(read.unknownBefore);
         invalidate();
     }
     // Another folder chosen meanwhile, or the list opened again since this
@@ -928,6 +935,9 @@ void ArcadeBackend::rescan() {
 
 void ArcadeBackend::forget() {
     m_machines.clear();
+    // Until it has answered again: the games only FinalBurn Neo has still
+    // play in it.
+    m_unknownBefore.unite(m_unknown);
     m_unknown.clear();
     m_build.clear();
     invalidate();
@@ -941,13 +951,17 @@ void ArcadeBackend::saveCache() const {
     QJsonObject machines;
     for (auto it = m_machines.constBegin(); it != m_machines.constEnd(); ++it)
         machines.insert(it.key(), QJsonObject::fromVariantMap(it.value().toVariant()));
-    QStringList unknown(m_unknown.cbegin(), m_unknown.cend());
-    unknown.sort();
+    const auto sorted = [](const QSet<QString> &sets) {
+        QStringList list(sets.cbegin(), sets.cend());
+        list.sort();
+        return QJsonArray::fromStringList(list);
+    };
     const QJsonObject cache{ { QStringLiteral("version"), kCacheVersion },
                              { QStringLiteral("mame"), m_identity },
                              { QStringLiteral("build"), m_build },
                              { QStringLiteral("machines"), machines },
-                             { QStringLiteral("unknown"), QJsonArray::fromStringList(unknown) } };
+                             { QStringLiteral("unknown"), sorted(m_unknown) },
+                             { QStringLiteral("unknownBefore"), sorted(m_unknownBefore) } };
     QDir().mkpath(m_home);
     writeFileAtomically(m_home + QStringLiteral("/games.json"), QJsonDocument(cache).toJson(QJsonDocument::Compact));
 }
@@ -1073,6 +1087,10 @@ void ArcadeBackend::onScanFinished(int exitCode, QProcess::ExitStatus status) {
 }
 
 void ArcadeBackend::finishScan() {
+    // Every set answered for: what MAME said before is said again or no
+    // longer so.
+    if (!m_scanFailed)
+        m_unknownBefore.clear();
     saveCache();
     checkProblem();
     emit scanningChanged();
@@ -1093,11 +1111,15 @@ void ArcadeBackend::emitShown() {
 // The filters.
 
 bool ArcadeBackend::isUnrecognized(const QString &set) const {
-    return !mame::isShortName(set) || m_misnamed.contains(set) || (m_unknown.contains(set) && !fbneoOnly(set));
+    return !mame::isShortName(set) || m_misnamed.contains(set) || (mameLacks(set) && !fbneoHas(set));
+}
+
+bool ArcadeBackend::mameLacks(const QString &set) const {
+    return m_unknown.contains(set) || (m_unknownBefore.contains(set) && !m_machines.contains(set));
 }
 
 bool ArcadeBackend::fbneoOnly(const QString &set) const {
-    return m_unknown.contains(set) && fbneoHas(set);
+    return mameLacks(set) && fbneoHas(set);
 }
 
 bool ArcadeBackend::isGame(const QString &set) const {
@@ -1254,7 +1276,7 @@ QVariantList ArcadeBackend::filters() {
         return list;
     list << placeFilters();
     // Not Recognized while Menu Filters shows it, and in All Games' place
-    // when MAME knows none of the sets: the screen says why.
+    // when none of the sets is a game: the screen says why.
     const Index &games = index();
     if (!games.unknown.isEmpty() && (menuShows(QLatin1String(kUnknown.first)) || games.games.isEmpty()))
         list << filter(QLatin1String(kUnknown.first), QLatin1String(kUnknown.second), games.unknown.size());
@@ -2027,7 +2049,8 @@ double ArcadeBackend::gameAspect(const QString &set) const {
     const double listed = m_fbneoAspects.value(set);
     if (listed > 0)
         return listed;
-    const int rotate = m_machines.value(set).rotate;
+    const mame::Machine *machine = machineOf(set);
+    const int rotate = machine ? machine->rotate : 0;
     return rotate == 90 || rotate == 270 ? 3.0 / 4.0 : 4.0 / 3.0;
 }
 
@@ -2087,7 +2110,8 @@ bool ArcadeBackend::filterPending(const QString &filter) const {
 
 QVariantList ArcadeBackend::engineChoices(const QString &set) const {
     // One MAME doesn't know plays in FinalBurn Neo alone: MAME, chosen for
-    // it before, is Auto.
+    // it before, is Auto, and with nothing to choose its options have no
+    // Engine (EngineChooser's offered()).
     const bool only = fbneoOnly(set);
     QString chosen = m_engines.value(set).toString();
     if (only && chosen == QLatin1String("mame"))
@@ -2425,6 +2449,10 @@ QString ArcadeBackend::fbneoNotice(int exitCode, const QString &reason, const li
         QString files = run.missing.mid(0, 3).join(QStringLiteral(", "));
         if (run.missing.size() > 3)
             files += QStringLiteral(" and %1 more").arg(run.missing.size() - 3);
+        // One MAME doesn't know has no other engine to play in.
+        if (fbneoOnly(m_playing))
+            return QStringLiteral("Missing %1: the set may be for another version of FinalBurn Neo\n"
+                                  "Or a BIOS set it needs isn't in the games folder").arg(files);
         return QStringLiteral("Missing %1: FinalBurn Neo's sets aren't always MAME's\n"
                               "Choose MAME for the game in its options").arg(files);
     }

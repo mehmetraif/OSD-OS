@@ -919,9 +919,10 @@ private slots:
         QHash<QString, mame::Machine> machines;
         const QHash<QString, QString> games = libretro::readDat(dir.path() + QStringLiteral("/fbneo.dat"), &aspects,
                                                                 &machines);
-        QCOMPARE(games.size(), 6);
+        QCOMPARE(games.size(), 7);
         // The pictures' shapes, where the list says.
         QCOMPARE(aspects.size(), 2);
+        QVERIFY(!aspects.contains(QStringLiteral("1943")));
         QCOMPARE(aspects.value(QStringLiteral("sf2")), 4.0 / 3.0);
         QCOMPARE(aspects.value(QStringLiteral("galaga")), 3.0 / 4.0);
         QCOMPARE(games.value(QStringLiteral("sf2")), QStringLiteral("Street Fighter II - The World Warrior (World 910522)"));
@@ -930,7 +931,7 @@ private slots:
         // Each game as MAME would describe it: its year and maker, a clone's
         // parent, its driver named as MAME's are, whether it works, and a
         // vertical one's rotation.
-        QCOMPARE(machines.size(), 6);
+        QCOMPARE(machines.size(), 7);
         const mame::Machine kof98 = machines.value(QStringLiteral("kof98"));
         QCOMPARE(kof98.name, QStringLiteral("kof98"));
         QCOMPARE(kof98.description, QStringLiteral("The King of Fighters '98 - The Slugfest"));
@@ -944,6 +945,7 @@ private slots:
         QCOMPARE(machines.value(QStringLiteral("sf2ce")).cloneOf, QStringLiteral("sf2"));
         QCOMPARE(machines.value(QStringLiteral("sf2ce")).sourceFile, QStringLiteral("capcom/cps1.cpp"));
         QCOMPARE(machines.value(QStringLiteral("galaga")).rotate, 90);
+        QCOMPARE(machines.value(QStringLiteral("1943")).rotate, 90);
         QCOMPARE(machines.value(QStringLiteral("sf2")).rotate, 0);
         QCOMPARE(machines.value(QStringLiteral("sf2")).status, QStringLiteral("good"));
         QVERIFY(libretro::readDat(dir.path() + QStringLiteral("/none.dat"), nullptr, &machines).isEmpty());
@@ -1158,6 +1160,9 @@ private slots:
     void fbneoEngine() {
         QTemporaryDir data;
         QVERIFY(data.isValid());
+        // Without FinalBurn Neo at first: not where one is installed.
+        if (!libretro::corePath(data.path()).isEmpty() || !libretro::datPath(data.path()).isEmpty())
+            QSKIP("FinalBurn Neo is installed here");
         const QString games = data.path() + QStringLiteral("/media/Games/Arcade");
         // kof98 a folder of files, which FinalBurn Neo doesn't open.
         for (const char *set : { "sf2.zip", "mslug.zip", "galaga.zip", "pacman.zip", "bios/neogeo.zip",
@@ -1394,15 +1399,22 @@ private slots:
     // a clone with its parent's pictures, played in FinalBurn Neo whatever
     // engine was chosen for it, with no MAME to choose, and on Playable
     // Online and the RetroAchievements filter while FinalBurn Neo is there.
-    // Not Recognized keeps the sets neither has, and those FinalBurn Neo has
-    // as a folder; without FinalBurn Neo's list they are all there.
+    // A vertical one is drawn 3:4 where the list gives no shape, and files
+    // missing are said with nothing of MAME. While MAME is asked about every
+    // set again (Read the Games Again, a restart in the middle of it, an
+    // older games.json), what it said before holds. Not Recognized keeps the
+    // sets neither has, and those FinalBurn Neo has as a folder; without
+    // FinalBurn Neo's list they are all there.
     void fbneoOnlyGames() {
         QTemporaryDir data;
         QVERIFY(data.isValid());
+        // Without FinalBurn Neo at first: not where one is installed.
+        if (!libretro::corePath(data.path()).isEmpty() || !libretro::datPath(data.path()).isEmpty())
+            QSKIP("FinalBurn Neo is installed here");
         const QString games = data.path() + QStringLiteral("/media/Games/Arcade");
-        // MAME knows sf2 alone; FinalBurn Neo kof98 and sf2ce too, and
+        // MAME knows sf2 alone; FinalBurn Neo kof98, sf2ce and 1943 too, and
         // dino, kept as a folder; neither xyzzy.
-        for (const char *set : { "sf2.zip", "kof98.zip", "sf2ce.7z", "xyzzy.zip", "dino/cde_01.rom" })
+        for (const char *set : { "sf2.zip", "kof98.zip", "sf2ce.7z", "1943.zip", "xyzzy.zip", "dino/cde_01.rom" })
             writeFile(games + QLatin1Char('/') + QLatin1String(set));
         writeFile(games + QStringLiteral("/snap/sf2.png"), "sf2 snap");
         QVERIFY(QDir().mkpath(data.path() + QStringLiteral("/bin")));
@@ -1412,8 +1424,11 @@ private slots:
             QVERIFY(QFile::setPermissions(data.path() + QLatin1String(program),
                                           QFile::ReadOwner | QFile::WriteOwner | QFile::ExeOwner));
         writeFile(data.path() + QStringLiteral("/gamecontrollerdb.txt"), "# none\n");
+        const QString configCopy = data.path() + QStringLiteral("/ra.cfg");
+        qputenv("RA_CONFIG_COPY", configCopy.toUtf8());
         qputenv("OSDOS_MEDIA_DIR", (data.path() + QStringLiteral("/media")).toUtf8());
         const auto restore = qScopeGuard([this] {
+            qunsetenv("RA_CONFIG_COPY");
             qputenv("OSDOS_MEDIA_DIR", (m_data.path() + QStringLiteral("/media")).toUtf8());
         });
         const QString module = QStringLiteral("com.osdos.arcade");
@@ -1437,8 +1452,8 @@ private slots:
         // Without FinalBurn Neo's list: MAME's alone.
         QCOMPARE(setsOf(arcade, QStringLiteral("all")), QStringList({ QStringLiteral("sf2") }));
         QCOMPARE(setsOf(arcade, QStringLiteral("unknown")),
-                 QStringList({ QStringLiteral("dino"), QStringLiteral("kof98"), QStringLiteral("sf2ce"),
-                               QStringLiteral("xyzzy") }));
+                 QStringList({ QStringLiteral("1943"), QStringLiteral("dino"), QStringLiteral("kof98"),
+                               QStringLiteral("sf2ce"), QStringLiteral("xyzzy") }));
         QCOMPARE(arcade.gameDetails(QStringLiteral("xyzzy")).value(QStringLiteral("detail")).toString(),
                  QStringLiteral("MAME has no game called xyzzy\nIts set may be for another version of MAME"));
 
@@ -1448,14 +1463,15 @@ private slots:
         refreshed(arcade);
         QVERIFY(arcade.fbneoReady());
         QCOMPARE(setsOf(arcade, QStringLiteral("all")),
-                 QStringList({ QStringLiteral("sf2ce"), QStringLiteral("sf2"), QStringLiteral("kof98") }));
+                 QStringList({ QStringLiteral("1943"), QStringLiteral("sf2ce"), QStringLiteral("sf2"),
+                               QStringLiteral("kof98") }));
         QCOMPARE(setsOf(arcade, QStringLiteral("unknown")), QStringList({ QStringLiteral("dino"), QStringLiteral("xyzzy") }));
         QCOMPARE(arcade.gameDetails(QStringLiteral("xyzzy")).value(QStringLiteral("detail")).toString(),
                  QStringLiteral("Neither MAME nor FinalBurn Neo has a game called xyzzy\n"
                                 "Its set may be for another version of MAME"));
         QCOMPARE(arcade.gameDetails(QStringLiteral("dino")).value(QStringLiteral("detail")).toString(),
                  QStringLiteral("MAME has no game called dino\nFinalBurn Neo has it, but plays a zip or a 7z, not a folder"));
-        QCOMPARE(arcade.filterGames(QStringLiteral("all"), 2, 1).value(0).toMap().value(QStringLiteral("name")).toString(),
+        QCOMPARE(arcade.filterGames(QStringLiteral("all"), 3, 1).value(0).toMap().value(QStringLiteral("name")).toString(),
                  QStringLiteral("The King of Fighters '98 - The Slugfest"));
         // What FinalBurn Neo's list says of it: maker, year, system; the
         // players it doesn't.
@@ -1477,11 +1493,12 @@ private slots:
         QVERIFY(entry != all.cend());
         QCOMPARE(entry->toMap().value(QStringLiteral("detail")).toString(),
                  QStringLiteral("1998\nSNK\nNot working in FinalBurn Neo\nkof98.zip"));
-        // A clone of FinalBurn Neo's: its parent's snap, its parent's
-        // vertical or not.
+        // A clone of FinalBurn Neo's: its parent's snap. A vertical game,
+        // as the list says.
         QCOMPARE(arcade.gameDetails(QStringLiteral("sf2ce")).value(QStringLiteral("pictures")).toStringList(),
                  QStringList({ QUrl::fromLocalFile(games + QStringLiteral("/snap/sf2.png")).toString() }));
-        QVERIFY(!arcade.gameDetails(QStringLiteral("sf2ce")).value(QStringLiteral("vertical")).toBool());
+        QVERIFY(arcade.gameDetails(QStringLiteral("1943")).value(QStringLiteral("vertical")).toBool());
+        QVERIFY(!arcade.gameDetails(QStringLiteral("kof98")).value(QStringLiteral("vertical")).toBool());
 
         // FinalBurn Neo's whatever engine was chosen, Online High Scores off;
         // no MAME offered, one chosen before taken for Auto.
@@ -1493,6 +1510,42 @@ private slots:
         QCOMPARE(arcade.engineOf(QStringLiteral("kof98")), QStringLiteral("fbneo"));
         QCOMPARE(labels(arcade.engineChoices(QStringLiteral("kof98"))),
                  QStringList({ QStringLiteral("Auto (FinalBurn Neo) *"), QStringLiteral("FinalBurn Neo") }));
+        // Read the Games Again: while MAME is asked about every set again
+        // (a_slowlist holding it a moment), what it said before holds, the
+        // game FinalBurn Neo's still, and a set neither has still not
+        // recognized.
+        writeFile(games + QStringLiteral("/a_slowlist.zip"));
+        arcade.rescan();
+        QCOMPARE(arcade.engineOf(QStringLiteral("kof98")), QStringLiteral("fbneo"));
+        QTRY_VERIFY_WITH_TIMEOUT(!arcade.reading() && arcade.scanning(), 5000);
+        QCOMPARE(arcade.engineOf(QStringLiteral("kof98")), QStringLiteral("fbneo"));
+        QCOMPARE(labels(arcade.engineChoices(QStringLiteral("kof98"))),
+                 QStringList({ QStringLiteral("Auto (FinalBurn Neo) *"), QStringLiteral("FinalBurn Neo") }));
+        QVERIFY(arcade.gameDetails(QStringLiteral("xyzzy")).value(QStringLiteral("unknown")).toBool());
+        QTRY_VERIFY_WITH_TIMEOUT(!arcade.scanning(), 10000);
+        // And so after OSD/OS was stopped in the middle of it, and with a
+        // games.json of an older version, whose sets are all asked about
+        // again.
+        {
+            ArcadeBackend stopped(data.path(), data.path(), nullptr, nullptr);
+            refreshed(stopped);
+            stopped.rescan();
+            QTRY_VERIFY_WITH_TIMEOUT(!stopped.reading() && stopped.scanning(), 5000);
+        }
+        const auto engineWhileAsked = [&data] {
+            ArcadeBackend started(data.path(), data.path(), nullptr, nullptr);
+            started.refresh();
+            if (!QTest::qWaitFor([&started] { return !started.reading() && started.scanning(); }, 5000))
+                return QStringLiteral("not asked");
+            const QString engine = started.engineOf(QStringLiteral("kof98"));
+            QTest::qWaitFor([&started] { return !started.scanning(); }, 10000);
+            return engine;
+        };
+        QCOMPARE(engineWhileAsked(), QStringLiteral("fbneo"));
+        writeFile(data.path() + QStringLiteral("/arcade/games.json"), R"({"version": 1, "unknown": ["kof98"]})");
+        QCOMPARE(engineWhileAsked(), QStringLiteral("fbneo"));
+        QFile::remove(games + QStringLiteral("/a_slowlist.zip"));
+        refreshed(arcade);
         // Playable Online, with Online Play on.
         arcade.onSettingChanged(module, QStringLiteral("online_play"), QStringLiteral("On"));
         QVERIFY(setsOf(arcade, QStringLiteral("netplay")).contains(QStringLiteral("kof98")));
@@ -1504,6 +1557,15 @@ private slots:
         QVERIFY2(logLines(QStringLiteral("retroarch ")).value(0).endsWith(games + QStringLiteral("/kof98.zip")),
                  qPrintable(logLines().join(QLatin1Char('\n'))));
         QVERIFY(logLines(QStringLiteral("play kof98")).isEmpty());
+        // A vertical one the list gives no shape: 3:4, as narrow on a tube.
+        // Files missing, said with nothing of MAME, which hasn't the game.
+        arcade.setScreen(true, QSize(720, 240));
+        const QVariantList missing = played(arcade, QStringLiteral("1943"));
+        QCOMPARE(missing.value(1).toString(), QStringLiteral("failed"));
+        QCOMPARE(missing.value(2).toString(),
+                 QStringLiteral("Missing bme01.12d: the set may be for another version of FinalBurn Neo\n"
+                                "Or a BIOS set it needs isn't in the games folder"));
+        QVERIFY(QString::fromUtf8(contents(configCopy)).contains(QStringLiteral("video_aspect_ratio = \"1.687500\"")));
 
         // The RetroAchievements filter, Online High Scores on it and a key
         // kept: its game, which RetroAchievements has achievements of.

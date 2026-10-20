@@ -38,7 +38,8 @@ ChoiceOverlay {
         }
         return "Engine"
     }
-    // Whether a game has an engine to choose: FinalBurn Neo has it.
+    // Whether a game has an engine to choose: one FinalBurn Neo plays that
+    // MAME has too.
     function offered(game) {
         return !!arcadeBackend && arcadeBackend.engineChoices(game).length > 2
     }

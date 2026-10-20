@@ -41,8 +41,9 @@ class QTimer;
 //   (read()): a full set is tens of thousands of files.
 // - Two screens list them, Settings → Arcade → Screen's. The original, the
 //   tree (requestEntries), lists them under Recently Played, Favorites,
-//   Search, All Games, and by players, decade and maker, and those MAME has
-//   no game of, or can't open by their names, under Not Recognized. The
+//   Search, All Games, and by players, decade and maker, and those neither
+//   MAME nor FinalBurn Neo plays, or MAME can't open by their names, under
+//   Not Recognized. The
 //   Arcade screen lists them a filter at a time (filters(), filterGames()):
 //   All Games, Favorites, Recently Played, RetroAchievements (the games it
 //   has achievements or leaderboards of), Playable Online (those that can be
@@ -136,9 +137,9 @@ public:
     // "top" holds only Recently Played and Favorites, and entriesReady("top")
     // follows too). A game is { name, path ("game:" and its set), isFolder,
     // game (its set), detail (its year, maker, players, how well MAME runs it
-    // and its file, a line each) }; a set MAME doesn't know, or can't open by
-    // its name, is { name (its file's), path ("unknown:" and the set), kind:
-    // "unknown", detail (why, two lines) }. Every folder asked for gets
+    // and its file, a line each) }; a set under Not Recognized is { name (its
+    // file's), path ("unknown:" and the set), kind: "unknown", detail (why,
+    // two lines) }. Every folder asked for gets
     // entriesReady again once what it holds may have changed: MAME has
     // answered.
     Q_INVOKABLE QVariant requestEntries(const QString &path);
@@ -149,7 +150,7 @@ public:
     // "genres/<genre>", "players/<n>", "years/<decade>" ("years/unknown"),
     // "makers/<publisher>", "unknown" (Not Recognized); all but All Games and
     // Online Games only while Menu Filters shows them, but Not Recognized in
-    // All Games' place when MAME knows none of the sets. While MAME is being
+    // All Games' place when none of the sets is a game. While MAME is being
     // asked, only Online Games, Favorites and Recently Played, All Games not
     // yet: gamesChanged() follows once it has answered.
     Q_INVOKABLE QVariantList filters();
@@ -164,12 +165,12 @@ public:
     // A filter not in filters() that may be in a moment: RetroAchievements
     // while its list of games is still to be read (gamesChanged() follows).
     Q_INVOKABLE bool filterPending(const QString &filter) const;
-    // What the screen says of a set: { set, name (MAME's description),
-    // system, maker, year, players, playTime (seconds played), pictures
-    // (file URLs, picturesOf()), picture (the first, "" for none), vertical
-    // }; for one under Not Recognized { set, name (its file's), unknown:
-    // true, detail (why, and what to do, a line each) }; {} for a set not in
-    // the folder.
+    // What the screen says of a set: { set, name (its description, MAME's or
+    // FinalBurn Neo's), system, maker, year, players, playTime (seconds
+    // played), pictures (file URLs, picturesOf()), picture (the first, "" for
+    // none), vertical, engine (engineOf()) }; for one under Not Recognized
+    // { set, name (its file's), unknown: true, detail (why, and what to do, a
+    // line each) }; {} for a set not in the folder.
     Q_INVOKABLE QVariantMap gameDetails(const QString &set);
     // The pictures RetroAchievements has of a set's game, or its parent's,
     // downloaded into the snap folder with a Web API key kept, as the game
@@ -210,7 +211,8 @@ public:
     // A game's choices of engine, for its options: [{ id ("auto", "mame",
     // "fbneo"), label, current }], Auto naming the one it picks. Only Auto
     // and MAME for a set FinalBurn Neo hasn't, or without it; only Auto and
-    // FinalBurn Neo for one MAME doesn't know.
+    // FinalBurn Neo for one MAME doesn't know: with nothing to choose
+    // between, the game's options have no Engine.
     Q_INVOKABLE QVariantList engineChoices(const QString &set) const;
     Q_INVOKABLE void setEngine(const QString &set, const QString &engine);
     // RetroArch, the FinalBurn Neo core and its list of games are there.
@@ -383,12 +385,15 @@ private:
         QSet<QString> misnamed;
         QSet<QString> folders;
         QHash<QString, QString> otherFolders;
-        // games.json, when it was to be read (cacheAsked): what MAME said.
+        // games.json, when it was to be read (cacheAsked): what MAME said,
+        // and the sets it had no machine of before it was asked about every
+        // set again (one made by an older version: all it had none of).
         bool cacheAsked = false;
         QString identity;
         QString build;
         QHash<QString, mame::Machine> machines;
         QSet<QString> unknown;
+        QSet<QString> unknownBefore;
         // catver.ini, when it wasn't the one read before (genresRead).
         bool genresRead = false;
         QString genresFrom;
@@ -421,7 +426,9 @@ private:
     // have, for the settings' choices.
     void afterRead(std::function<void()> fn);
     void saveCache() const;
-    // What MAME said of the sets, all forgotten: it is asked again.
+    // What MAME said of the sets, all forgotten: it is asked again. The sets
+    // it had no machine of are kept apart until it has answered for them
+    // (m_unknownBefore, mameLacks()).
     void forget();
     // MAME's program as it is: its path, size and time, which change with it.
     QString mameIdentity() const;
@@ -439,9 +446,13 @@ private:
     void emitShown();
 
     // A set under Not Recognized: a name that can't be a set's, one MAME has
-    // no game of and FinalBurn Neo's list hasn't either (fbneoOnly()), or one
+    // no game of and FinalBurn Neo doesn't play either (fbneoOnly()), or one
     // MAME can't open by its name.
     bool isUnrecognized(const QString &set) const;
+    // A set MAME has no game of, as it last said: while it is asked about
+    // every set again (Read the Games Again, another MAME), as it said before
+    // until it has answered for the set.
+    bool mameLacks(const QString &set) const;
     // A set MAME has no game of that FinalBurn Neo's list has, a zip or a 7z
     // named as it looks for: a game all the same, which always plays in it.
     bool fbneoOnly(const QString &set) const;
@@ -459,8 +470,8 @@ private:
     QString sortKey(const QString &set) const;
     QString titleOf(const QString &set) const;
 
-    // The folder's games (not BIOS sets, devices or sets MAME doesn't know)
-    // by name, the genres, players, decades and makers they are under, and
+    // The folder's games (not BIOS sets, devices or sets under Not
+    // Recognized) by name, the genres, players, decades and makers they are under, and
     // the sets under Not Recognized: made again only once the folder or what
     // MAME says of it has changed (invalidate()), as a full set of MAME's
     // games is tens of thousands.
@@ -568,7 +579,7 @@ private:
     QString screenShape() const;
     bool integerScale() const;
     // A game's shape on the glass, its width over its height: FinalBurn
-    // Neo's list's, else 3:4 for a game MAME says is vertical, else 4:3.
+    // Neo's list's, else 3:4 for a vertical one (machineOf()), else 4:3.
     double gameAspect(const QString &set) const;
     // A game started in RetroArch with FinalBurn Neo, the checks play() makes
     // of every game made: alone, hosted online or joining a room.
@@ -686,6 +697,7 @@ private:
     QSet<QString> m_misnamed;     // sets whose file MAME can't open by its name
     QHash<QString, mame::Machine> m_machines;
     QSet<QString> m_unknown;      // sets MAME has no machine of
+    QSet<QString> m_unknownBefore;   // and had none of before it was asked again, till it has answered
     QString m_identity;           // mameIdentity() the cache was made with
     QString m_build;              // MAME's build, as it says
     bool    m_cacheLoaded = false;
