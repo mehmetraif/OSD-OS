@@ -109,7 +109,8 @@ public:
 
     // The list of games wanted: the one kept read in at once, and one a week
     // old, or none, read again a moment after, as the key allows
-    // (listRead()).
+    // (listRead()); one a week old that couldn't be read again is used as it
+    // is until it is tried again.
     void wantList();
     // Whether RetroAchievements has achievements or leaderboards of a game,
     // by its file ("sf2.zip"), as the list read in says (wantList()).

@@ -1948,6 +1948,29 @@ private slots:
         QVERIFY(!keptThird.listPending());
         QVERIFY(contents(withoutNeither.path() + QStringLiteral("/retroachievements-games.json")).contains("\"version\":2"));
 
+        // A list kept a week that can't be read again: the one kept used
+        // meanwhile, and not wanted again until it is to be tried again, so
+        // that what waits for it (Read the Games Again's pictures) goes on.
+        QTemporaryDir stale;
+        writeFile(stale.path() + QStringLiteral("/retroachievements-games.json"),
+                  "{\"version\": 2, \"read\": \""
+                  + QDateTime::currentDateTimeUtc().addDays(-8).toString(Qt::ISODate).toLatin1()
+                  + "\", \"games\": {\"" + sf2 + "\": 1}, \"achievements\": [1], \"boards\": [1]}");
+        asked.clear();
+        RetroAchievements keptStale(stale.path(), QUrl(QStringLiteral("http://127.0.0.1:%1/gone/").arg(server.serverPort())),
+                                    media);
+        keptStale.setKey(QStringLiteral("key1"));
+        keptStale.wantList();
+        QVERIFY(keptStale.listPending());
+        QVERIFY(keptStale.hasGame(QStringLiteral("sf2.zip")));
+        QTRY_VERIFY_WITH_TIMEOUT(!keptStale.listPending(), 5000);
+        QCOMPARE(asked, QStringList({ QStringLiteral("/gone/API_GetGameList.php?i=27&h=1 y=key1") }));
+        keptStale.wantList();
+        QVERIFY(!keptStale.listPending());
+        QTest::qWait(600);
+        QCOMPARE(asked.size(), 1);
+        QVERIFY(keptStale.hasGame(QStringLiteral("sf2.zip")));
+
         // A key RetroAchievements refuses.
         QSignalSpy refused(&again, &RetroAchievements::keyRefused);
         again.setKey(QStringLiteral("bad"));

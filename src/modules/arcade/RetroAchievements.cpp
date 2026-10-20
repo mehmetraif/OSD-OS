@@ -210,6 +210,10 @@ void RetroAchievements::wantList() {
         loadList();
     if (m_key.isEmpty() || listFresh() || m_wantedList)
         return;
+    // One that couldn't be read again is tried again later (readList()): the
+    // older one meanwhile, which nothing waits for.
+    if (!m_games.isEmpty() && m_listRetry.isValid() && m_listRetry > QDateTime::currentDateTimeUtc())
+        return;
     m_wantedList = true;
     if (!m_wait->isActive())
         m_wait->start();
