@@ -59,7 +59,7 @@
       "options": ["Straight", "Curved", "3D Curved"],
       "default": "Curved",
       "shown_with": { "key": "screen", "value": "Arcade" },
-      "description": "How the games lie on the Arcade screen\n[STRAIGHT] One under another, a page at a time\n[CURVED] On an arc, a page at a time\n[3D CURVED] On a wheel: the game chosen goes up and down it, furthest out, the others going back and fading the further they are from it, and the wheel turns at its top and bottom rows"
+      "description": "How the games lie on the Arcade screen\n[STRAIGHT] One under another, a page at a time\n[CURVED] On an arc, a page at a time\n[3D CURVED] On a wheel: the game chosen goes up and down it, furthest out, the others going back, nearer each other and fading the further they are from it, and the wheel turns at its top and bottom rows"
     },
     {
       "key": "border",

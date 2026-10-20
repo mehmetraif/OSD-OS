@@ -1509,80 +1509,96 @@ Rectangle {
         // round from the list's end to its start; ▲ ▼ move it up and down
         // the rows, the wheel turning a row once it would leave them; the
         // rows going back from it, wherever it is, smaller and fainter, as
-        // far back as they go wheelReach rows from it (four of seven). The
-        // bar has the game of so many. Fewer games than rows lie from the
-        // top row down, the others empty; the room of an even number of rows
-        // holds one fewer, for a middle.
+        // far back as they go wheelReach rows from it (five of nine), and
+        // nearer each other as they are smaller, from the list's top to its
+        // foot: nine rows where Curved has seven. The bar has the game of so
+        // many. Fewer games than rows lie from the top row down, the others
+        // empty; without the hint bar, ten rows.
         function test_screenWheel() {
             moduleRoot.listStyle = "3D Curved"
             var screen = openScreen()
             var row = function(number) { var t = findText(screen, number); return t ? t.parent : null }
-            var top = function(r) { return Math.round((screen.listTop + r * screen.pitch) * screen.v) }
+            var top = function(r) { return Math.round(screen.wheelTops[r] * screen.v) }
+            var gap = function(a, b) { return b.y - (a.y + a.height) }
             verify(screen.wheel)
-            compare(screen.perPage, 7)
-            compare(screen.middleRow, 3)
+            compare(screen.rowsFit, 7)
+            compare(screen.perPage, 9)
+            compare(screen.middleRow, 4)
             compare(screen.currentSet, "sf2")
-            compare(screen.selectedRow, 3)
+            compare(screen.selectedRow, 4)
             verify(findText(screen, "1/15") !== null)
-            var rows = ["013", "014", "015", "001", "002", "003", "004"].map(row)
-            compare(rows[3].y, top(3))
-            compare(row("005"), null)
-            compare(rows[3].opacity, 1)
-            for (var i = 0; i < 3; ++i) {
+            var rows = ["012", "013", "014", "015", "001", "002", "003", "004", "005"].map(row)
+            compare(rows[4].y, top(4))
+            compare(row("006"), null)
+            compare(rows[4].opacity, 1)
+            // From the list's top to its foot.
+            compare(rows[0].y, Math.round(screen.listTop * screen.v))
+            fuzzyCompare(rows[8].y + rows[8].height, Math.round(screen.listBottom * screen.v), 1)
+            for (var i = 0; i < 4; ++i) {
                 verify(rows[i].y < rows[i + 1].y)
                 verify(rows[i].opacity < rows[i + 1].opacity)
                 verify(rows[i].height < rows[i + 1].height)
                 verify(rows[i].x + rows[i].width < rows[i + 1].x + rows[i + 1].width)
-                verify(rows[6 - i].opacity < rows[5 - i].opacity)
-                verify(rows[6 - i].x + rows[6 - i].width < rows[5 - i].x + rows[5 - i].width)
+                verify(rows[8 - i].opacity < rows[7 - i].opacity)
+                verify(rows[8 - i].x + rows[8 - i].width < rows[7 - i].x + rows[7 - i].width)
+                // Apart, and nearer the next as they go back.
+                verify(gap(rows[i], rows[i + 1]) >= 1)
+                verify(gap(rows[7 - i], rows[8 - i]) >= 1)
+                verify(gap(rows[i], rows[i + 1]) <= gap(rows[3], rows[4]))
                 // Their left ends on Curved's arc, the ends furthest left.
                 compare(rows[i].x, Math.round((screen.areaLeft + 12
-                                               + Math.round(24 * Math.sin(Math.PI * (i + 0.5) / 7))) * screen.u))
-                compare(rows[6 - i].x, rows[i].x)
+                                               + Math.round(24 * Math.sin(Math.PI * (i + 0.5) / 9))) * screen.u))
+                compare(rows[8 - i].x, rows[i].x)
             }
             verify(rows[0].x < rows[1].x && rows[1].x < rows[2].x)
+            // No two further apart than Curved's rows are.
+            var curvedPitch = Math.floor((screen.listRoom - screen.rowHeight) / (screen.rowsFit - 1))
+            for (i = 0; i < 8; ++i)
+                verify(gap(rows[i], rows[i + 1]) <= Math.ceil((curvedPitch - screen.rowHeight) * screen.v))
             // The game chosen stands out of the arc to the left.
-            compare(rows[3].x, Math.round((screen.areaLeft + 12 + 24 - 16) * screen.u))
+            compare(rows[4].x, Math.round((screen.areaLeft + 12 + 24 - 16) * screen.u))
 
             // Down moves it a row; the wheel stays, and the rows go back from
             // the game chosen now.
             keyClick(Qt.Key_Down)
             compare(screen.currentSet, "1942")
             verify(findText(screen, "2/15") !== null)
-            compare(screen.selectedRow, 4)
-            compare(row("002").y, top(4))
+            compare(screen.selectedRow, 5)
+            compare(row("002").y, top(5))
             compare(row("002").opacity, 1)
             verify(row("001").opacity < 1)
-            verify(row("013").opacity < row("014").opacity)
-            compare(row("005"), null)
+            verify(row("012").opacity < row("013").opacity)
+            compare(row("006"), null)
+            compare(row("012").y, Math.round(screen.listTop * screen.v))
             // To the bottom row, and past it: the wheel turns a row.
+            for (var d = 0; d < 3; ++d)
+                keyClick(Qt.Key_Down)
+            compare(screen.selectedRow, 8)
+            verify(row("012") !== null)
             keyClick(Qt.Key_Down)
-            keyClick(Qt.Key_Down)
-            compare(screen.selectedRow, 6)
-            verify(row("013") !== null)
-            keyClick(Qt.Key_Down)
-            compare(screen.selectedRow, 6)
-            verify(findText(screen, "5/15") !== null)
-            compare(row("013"), null)
-            compare(row("005").y, top(6))
+            compare(screen.selectedRow, 8)
+            verify(findText(screen, "6/15") !== null)
+            compare(row("012"), null)
+            compare(row("006").y, top(8))
+            fuzzyCompare(row("006").y + row("006").height, Math.round(screen.listBottom * screen.v), 1)
             // Up to the top row, the rows under it going back the further
-            // they are, those four rows from it and more as far back as they
+            // they are, those five rows from it and more as far back as they
             // go; and past it, round to the list's end.
-            for (var k = 0; k < 6; ++k)
+            for (var k = 0; k < 8; ++k)
                 keyClick(Qt.Key_Up)
             compare(screen.selectedRow, 0)
-            compare(row("014").y, top(0))
-            var below = ["014", "015", "001", "002", "003", "004", "005"].map(row)
-            for (var j = 0; j < 4; ++j)
+            compare(row("013").y, top(0))
+            var below = ["013", "014", "015", "001", "002", "003", "004", "005", "006"].map(row)
+            for (var j = 0; j < 5; ++j)
                 verify(below[j + 1].opacity < below[j].opacity)
-            compare(below[5].opacity, below[4].opacity)
-            compare(below[6].opacity, below[4].opacity)
-            fuzzyCompare(below[4].opacity, 0.4, 0.001)
+            for (j = 6; j < 9; ++j)
+                compare(below[j].opacity, below[5].opacity)
+            fuzzyCompare(below[5].opacity, 0.4, 0.001)
             keyClick(Qt.Key_Up)
             compare(screen.selectedRow, 0)
-            verify(findText(screen, "13/15") !== null)
-            compare(row("013").y, top(0))
-            compare(row("005"), null)
+            verify(findText(screen, "12/15") !== null)
+            compare(row("012").y, top(0))
+            compare(row("006"), null)
 
             loader.source = ""
             moduleRoot.startFilter = "genres/Fighting"
@@ -1599,7 +1615,7 @@ Rectangle {
             root.hintBar = false
             screen = openScreen()
             compare(screen.rowsFit, 8)
-            compare(screen.perPage, 7)
+            compare(screen.perPage, 10)
         }
 
         // The wheel with as many games as rows turns at its ends as it does
@@ -1609,31 +1625,31 @@ Rectangle {
         // fewer rows (Screen Adjustment) keep it in the last of them.
         function test_screenWheelRows() {
             moduleRoot.listStyle = "3D Curved"
-            arcadeBackend.filterList[0].sets = arcadeBackend.filterList[0].sets.slice(0, 7)
+            arcadeBackend.filterList[0].sets = arcadeBackend.filterList[0].sets.slice(0, 9)
             var screen = openScreen()
-            compare(screen.count, 7)
-            compare(screen.perPage, 7)
-            compare(screen.selectedRow, 3)
-            compare(screen.rows[0].place, 4)
-            for (var i = 0; i < 4; ++i)
-                keyClick(Qt.Key_Down)
-            compare(screen.currentSet, "dkong")
-            compare(screen.selectedRow, 6)
+            compare(screen.count, 9)
+            compare(screen.perPage, 9)
+            compare(screen.selectedRow, 4)
             compare(screen.rows[0].place, 5)
-            for (i = 0; i < 6; ++i)
-                keyClick(Qt.Key_Up)
+            for (var i = 0; i < 5; ++i)
+                keyClick(Qt.Key_Down)
             compare(screen.currentSet, "ffight")
+            compare(screen.selectedRow, 8)
+            compare(screen.rows[0].place, 6)
+            for (i = 0; i < 8; ++i)
+                keyClick(Qt.Key_Up)
+            compare(screen.currentSet, "galaga")
             compare(screen.selectedRow, 0)
             keyClick(Qt.Key_Up)
-            compare(screen.currentSet, "dkong")
+            compare(screen.currentSet, "ffight")
             compare(screen.selectedRow, 0)
-            compare(screen.rows[0].place, 4)
+            compare(screen.rows[0].place, 5)
 
             // Read again, a game more ahead of it.
             arcadeBackend.filterList[0].sets = ["kinst"].concat(arcadeBackend.filterList[0].sets)
             arcadeBackend.gamesChanged()
-            compare(screen.count, 8)
-            compare(screen.currentSet, "dkong")
+            compare(screen.count, 10)
+            compare(screen.currentSet, "ffight")
             compare(screen.selectedRow, 0)
 
             // Its filter gone, its last favourite with it.
@@ -1648,28 +1664,28 @@ Rectangle {
             arcadeBackend.gamesChanged()
             compare(screen.filterId, "all")
             compare(screen.currentSet, "sf2")
-            compare(screen.selectedRow, 3)
+            compare(screen.selectedRow, 4)
 
-            // Played from the sixth row, and back.
+            // Played from the seventh row, and back.
             loader.source = ""
             moduleRoot.startFilter = "all"
             screen = openScreen()
             keyClick(Qt.Key_Down)
             keyClick(Qt.Key_Down)
             compare(screen.currentSet, "1942")
-            compare(screen.selectedRow, 5)
+            compare(screen.selectedRow, 6)
             keyClick(Qt.Key_Space)
             var played = root.navigations[root.navigations.length - 1]
             compare(played.path, "Play.qml")
-            compare(played.listState.row, 5)
+            compare(played.listState.row, 6)
             loader.source = ""
             screen = openScreen({ navListState: played.listState })
             compare(screen.currentSet, "1942")
-            compare(screen.selectedRow, 5)
+            compare(screen.selectedRow, 6)
             moduleRoot.screenAdjustment = { top: -30, bottom: -105, left: 0, right: 0 }
-            compare(screen.perPage, 5)
+            compare(screen.perPage, 6)
             compare(screen.currentSet, "1942")
-            compare(screen.selectedRow, 4)
+            compare(screen.selectedRow, 5)
         }
 
         // Border OFF: no frame round the picture or the box under it, the
