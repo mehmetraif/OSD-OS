@@ -471,10 +471,10 @@ private:
     QString titleOf(const QString &set) const;
 
     // The folder's games (not BIOS sets, devices or sets under Not
-    // Recognized) by name, the genres, players, decades and makers they are under, and
-    // the sets under Not Recognized: made again only once the folder or what
-    // MAME says of it has changed (invalidate()), as a full set of MAME's
-    // games is tens of thousands.
+    // Recognized) by name, the genres, players, decades and makers they are
+    // under, and the sets under Not Recognized: made again only once the
+    // folder or what MAME says of it has changed (invalidate()), as a full
+    // set of MAME's games is tens of thousands.
     struct Index {
         QStringList games;
         QHash<QString, QMap<QString, QStringList>> places;   // kind → place → its games

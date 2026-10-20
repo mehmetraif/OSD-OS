@@ -33,9 +33,10 @@ namespace {
 
 const QString kModuleId = QStringLiteral("com.osdos.arcade");
 
-// games.json's layout: one of another is read as none, and every set asked
-// about again (2: each machine's source file, for its system; 3: its
-// screen's size, for its picture on a tube).
+// games.json's layout: of one of another, only the sets MAME had no machine
+// of are read, kept apart as every set is asked about again (2: each
+// machine's source file, for its system; 3: its screen's size, for its
+// picture on a tube).
 constexpr int kCacheVersion = 3;
 
 // The most credits a game is started with, as most games show at most 9.
@@ -675,11 +676,15 @@ ArcadeBackend::Read ArcadeBackend::read(const QString &folder, const QString &ho
         const QJsonObject cache = QJsonDocument::fromJson(cacheFile.readAll()).object();
         cacheFile.close();
         // The sets MAME had no machine of before it was asked about every set
-        // again, all of them in one made by an older version.
+        // again; in one made by another version, all it had none of.
         const bool older = cache.value(QStringLiteral("version")).toInt() != kCacheVersion;
-        const QJsonArray before = cache.value(older ? QStringLiteral("unknown") : QStringLiteral("unknownBefore")).toArray();
-        for (const QJsonValue &name : before)
-            read.unknownBefore.insert(name.toString());
+        for (const QString &key : { QStringLiteral("unknownBefore"), QStringLiteral("unknown") }) {
+            if (key == QLatin1String("unknown") && !older)
+                continue;
+            const QJsonArray before = cache.value(key).toArray();
+            for (const QJsonValue &name : before)
+                read.unknownBefore.insert(name.toString());
+        }
         // Made by an older version, without what this one keeps of each game.
         if (older) {
             qInfo("[Arcade] games.json is from an older version: asking MAME about every game again");
@@ -920,24 +925,29 @@ void ArcadeBackend::rescan() {
     // (emitShown()): a look under way starts anew then.
     stopPictureSweep();
     m_sweepWanted = true;
-    // Asked while the folder is read: once it has been (onRead()).
-    if (m_reading) {
+    // Asked while the folder is read, or before games.json has been, whose
+    // sets MAME has no machine of are to be kept apart as it is asked
+    // again: once it has been (onRead()).
+    if (m_reading || !m_cacheLoaded) {
         m_rescanAfterRead = true;
+        if (!m_reading)
+            refresh();
         return;
     }
     if (scanning())
         return;
-    m_cacheLoaded = true;
     forget();
     saveCache();
     refresh();
 }
 
 void ArcadeBackend::forget() {
-    m_machines.clear();
     // Until it has answered again: the games only FinalBurn Neo has still
-    // play in it.
+    // play in it. Not those it has answered for since it last had none.
+    for (auto it = m_machines.cbegin(); it != m_machines.cend(); ++it)
+        m_unknownBefore.remove(it.key());
     m_unknownBefore.unite(m_unknown);
+    m_machines.clear();
     m_unknown.clear();
     m_build.clear();
     invalidate();

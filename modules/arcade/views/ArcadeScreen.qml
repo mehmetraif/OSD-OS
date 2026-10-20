@@ -1191,8 +1191,8 @@ FocusScope {
     }
 
     // A game's options: Play, Game Details, its favourite, Play at Startup,
-    // its engine where FinalBurn Neo has it, and with Online Play on,
-    // hosting it.
+    // its engine where MAME and FinalBurn Neo both have it, and with Online
+    // Play on, hosting it.
     EntryOptions {
         id: options
         anchors.fill: parent

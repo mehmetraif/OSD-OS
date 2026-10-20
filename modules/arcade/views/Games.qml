@@ -194,8 +194,8 @@ FocusScope {
     }
 
     // A game's options: its Game Details (Details.qml) first, its engine
-    // among them where FinalBurn Neo has it, and with Online Play on,
-    // hosting it.
+    // among them where MAME and FinalBurn Neo both have it, and with Online
+    // Play on, hosting it.
     property int engineRevision: 0
     readonly property string optionsSet: options.entry && String(options.entry.path).indexOf("game:") === 0
                                          ? String(options.entry.path).substring(5) : ""

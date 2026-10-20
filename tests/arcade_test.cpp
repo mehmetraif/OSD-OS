@@ -1523,27 +1523,45 @@ private slots:
                  QStringList({ QStringLiteral("Auto (FinalBurn Neo) *"), QStringLiteral("FinalBurn Neo") }));
         QVERIFY(arcade.gameDetails(QStringLiteral("xyzzy")).value(QStringLiteral("unknown")).toBool());
         QTRY_VERIFY_WITH_TIMEOUT(!arcade.scanning(), 10000);
-        // And so after OSD/OS was stopped in the middle of it, and with a
+        // And so after OSD/OS was stopped in the middle of it, with a
         // games.json of an older version, whose sets are all asked about
-        // again.
+        // again, and asked before games.json was read.
         {
             ArcadeBackend stopped(data.path(), data.path(), nullptr, nullptr);
             refreshed(stopped);
             stopped.rescan();
             QTRY_VERIFY_WITH_TIMEOUT(!stopped.reading() && stopped.scanning(), 5000);
         }
-        const auto engineWhileAsked = [&data] {
+        const auto engineWhileAsked = [&data](const QString &set, bool readAgain) {
             ArcadeBackend started(data.path(), data.path(), nullptr, nullptr);
-            started.refresh();
+            if (readAgain)
+                started.rescan();
+            else
+                started.refresh();
             if (!QTest::qWaitFor([&started] { return !started.reading() && started.scanning(); }, 5000))
                 return QStringLiteral("not asked");
-            const QString engine = started.engineOf(QStringLiteral("kof98"));
+            const QString engine = started.engineOf(set);
             QTest::qWaitFor([&started] { return !started.scanning(); }, 10000);
             return engine;
         };
-        QCOMPARE(engineWhileAsked(), QStringLiteral("fbneo"));
-        writeFile(data.path() + QStringLiteral("/arcade/games.json"), R"({"version": 1, "unknown": ["kof98"]})");
-        QCOMPARE(engineWhileAsked(), QStringLiteral("fbneo"));
+        const QString kof98 = QStringLiteral("kof98");
+        QCOMPARE(engineWhileAsked(kof98, false), QStringLiteral("fbneo"));
+        const QString cache = data.path() + QStringLiteral("/arcade/games.json");
+        writeFile(cache, R"({"version": 1, "unknown": ["kof98"]})");
+        QCOMPARE(engineWhileAsked(kof98, false), QStringLiteral("fbneo"));
+        // One of another version that kept them apart too.
+        writeFile(cache, R"({"version": 4, "unknownBefore": ["kof98"]})");
+        QCOMPARE(engineWhileAsked(kof98, false), QStringLiteral("fbneo"));
+        // Read the Games Again before the list was ever opened: games.json
+        // read first.
+        QCOMPARE(engineWhileAsked(kof98, true), QStringLiteral("fbneo"));
+        // A set MAME has answered for since it last had none (a list it
+        // didn't finish after that), asked about again: MAME's meanwhile.
+        QJsonObject kept = QJsonDocument::fromJson(contents(cache)).object();
+        QVERIFY(kept.value(QStringLiteral("machines")).toObject().contains(QStringLiteral("sf2")));
+        kept.insert(QStringLiteral("unknownBefore"), QJsonArray({ QStringLiteral("sf2") }));
+        writeFile(cache, QJsonDocument(kept).toJson());
+        QCOMPARE(engineWhileAsked(QStringLiteral("sf2"), true), QStringLiteral("mame"));
         QFile::remove(games + QStringLiteral("/a_slowlist.zip"));
         refreshed(arcade);
         // Playable Online, with Online Play on.
