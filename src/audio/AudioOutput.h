@@ -29,10 +29,17 @@ public:
 
     bool available() const;
 
-    // Settings' row, { options, values, value }: Auto, then each card that
-    // can play now by its name, and the chosen one marked when it is
+    // Settings' row, { options, values, value, note }: Auto, then each card
+    // that can play now by its name, and the chosen one marked when it is
     // unplugged. A value is the setting as saved (app.audio_output): "" for
-    // Auto, else { card, name }, the card's ALSA id and its name then.
+    // Auto, else { card, name }, the card's ALSA id and its name then. note,
+    // for the row's help, without a USB sound card among those that can play:
+    // why, as far as the system can tell ("" with one): no USB sound device
+    // plugged in, or one plugged in that ALSA made no card of; and the Pi's
+    // power having dropped too low, which can keep USB devices from working.
+    // OSDOS_USB_DEVICES_DIR, OSDOS_PLATFORM_DIR and OSDOS_HWMON_DIR stand in
+    // for /sys/bus/usb/devices, /sys/devices/platform and /sys/class/hwmon,
+    // for tests.
     Q_INVOKABLE QVariantMap settingRow() const;
 
     // The chosen card's ALSA id while it is plugged in, else "".

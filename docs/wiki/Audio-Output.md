@@ -35,7 +35,15 @@ The word in brackets is the card's **id** (`Headphones`), and after the dash com
 
 HDMI cards are numbered after the board's own ports, `HDMI0` and `HDMI1` as printed on a Pi 4 or a Pi 5, whichever driver names them. A Bluetooth speaker isn't an ALSA card, so it isn't listed.
 
-The row offers, with ◄ ►: **Auto**, then each card that is there now, in ALSA's order, then a chosen card that isn't plugged in, marked **(Unplugged)**.
+The row offers, with ◄ ►: **Auto**, then each card that is there now, in ALSA's order, then a chosen card that isn't plugged in, marked **(Unplugged)**. The list is read as Settings opens: a card plugged in shows the next time it is opened.
+
+Without a USB sound card among them, the help line says what the system sees of one, to tell a card that isn't there from one the system couldn't use:
+
+- *No USB sound card is plugged in, as far as the system can tell*: the kernel lists no USB device with a sound interface. Check the plug, or try another USB port.
+- *USB Audio Device is plugged in, but the system made no sound card of it to play through*: the device is there, by its product name, but ALSA has no card of it that can play.
+- And on a Pi, *The Pi's power has dropped too low since it started* (or, on a newer kernel that keeps no record of it, *The Pi's power is too low*, for now), *which can keep USB devices from working*: the Pi saw under-voltage (`vcgencmd get_throttled` says so too). A stronger power supply is the cure; a Pi 5 powered through its GPIO pins, as a JAMMA board does, also limits its USB ports' current.
+
+The same goes in the app's log, after `[AudioOutput]`.
 
 ## What each Pi has
 
@@ -197,6 +205,7 @@ The volume keys go to mpv, never to the menus, and hold to repeat. With Transpar
 | No Audio Output row | A sound server is running (a desktop), or it isn't Linux. Choose the output in the system's sound settings |
 | A Pi 4 on composite, sound only on HDMI or nowhere | Choose **AV Jack**: Auto may be on an HDMI card, which composite turns off |
 | A Pi 5 on a CRT, no sound | It has no analog sound: plug in a USB sound card and choose it |
+| A USB sound card isn't among the cards | The row's help line says what the system sees ([The cards and their names](#the-cards-and-their-names)): nothing plugged in, a device the system made no card of, or the Pi's power too low. `lsusb` and `dmesg | grep -i usb` from a shell say more |
 | HDMI 0 and HDMI 1, one silent | The TV is on the other port. Pick by the port's label on the board |
 | The card shows **(Unplugged)** | It isn't plugged in, or ALSA doesn't see it (`aplay -l`). Sound goes as on Auto until it is back |
 | Sound in the menus but not in a video, or the other way round | A video's mpv and the menu music both take the card from Settings; on Auto, an `audio-device=` in mpv.conf applies to videos only. Check mpv.conf, and `/tmp/osdos-mpv.log` |
