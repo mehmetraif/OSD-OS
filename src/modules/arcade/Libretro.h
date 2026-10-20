@@ -1,5 +1,6 @@
 #pragma once
 #include <QByteArray>
+#include <QDateTime>
 #include <QHash>
 #include <QList>
 #include <QSize>
@@ -149,20 +150,40 @@ QStringList signInArguments(const SignIn &signIn);
 enum class SignInLine { None, SignedIn, Failed, Unreachable };
 SignInLine readSignInLine(const QString &line, QString *failure);
 
-// A room the netplay lobby lists (lobby.libretro.com/list): a game
-// FinalBurn Neo hosts, joined at joinAddress. What anyone hosting wrote, so
-// taken only as it can be used: a set's name, an address, a port and a
-// session, and the host's name without markup, 32 characters at most.
+// A room the netplay lobby lists (lobby.libretro.com/list), of any core; one
+// FinalBurn Neo hosts is joined at joinAddress. What anyone hosting wrote,
+// so taken only as it can be shown or used: names without markup and cut
+// short, a set's name, a CRC of eight hex digits, an address, a port and a
+// session.
 struct Room {
     int     id = 0;
-    QString game;             // its set: game_name, the file's name in lower case
-    QString host;             // who hosts it
+    QString game;             // its set: game_name, the file's name in lower case; "" for a name that can't be one
+    QString rom;              // game_name as its host has it, its file's name, 64 characters at most
+    QString crc;              // game_crc, in capitals; "" for none
+    QString core;             // core_name: "FinalBurn Neo", "Snes9x"
+    QString coreVersion;
+    QString subsystem;        // the core's subsystem it plays in, "" for none
+    QString retroarch;        // retroarch_version, the host's
+    QString frontend;         // the host's system: "win32 x64", "unix ARMv8"
+    QString host;             // who hosts it, 32 characters at most
     QString country;          // its two letters, "" for none
     QString joinAddress;      // RetroArch's --connect: through the relay when it is relayed
+    QString relay;            // the relay it goes through ("us-east1"), "" for a room reached straight
+    QDateTime created;        // when it was hosted; invalid where the lobby doesn't say
+    int     players = -1;     // playing in it, -1 where the lobby doesn't say
+    int     spectators = -1;
     bool    password = false;
+    bool    spectatePassword = false;
+    bool    connectable = true;   // as RetroArch's menu reads it: unless the lobby says not
+    // One RetroArch joins with FinalBurn Neo: its core, connectable, hosted
+    // in a RetroArch the menu lists rooms of (1.9.1 on), for a set, at an
+    // address.
+    bool    joinable = false;
 };
-// The lobby's rooms FinalBurn Neo hosts that can be joined (connectable),
-// newest first. Empty for an answer that isn't the lobby's.
+// Every room the lobby lists, newest first: the newest thousand of an answer
+// with more. Empty for an answer that isn't the lobby's.
+QList<Room> readWholeLobby(const QByteArray &json);
+// Of them, those FinalBurn Neo hosts that can be joined (joinable).
 QList<Room> readLobby(const QByteArray &json);
 
 // RetroAchievements' hash of an arcade game (rcheevos' RC_CONSOLE_ARCADE):

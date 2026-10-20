@@ -26,7 +26,8 @@ import Components
 // takesCoin) buys a credit; select, let go, or START (Space, a pad's Start,
 // or 1) plays the game with them (navigateTo Play.qml, which Root.qml plays
 // as Start Info Screen says); select held opens its options (Play, Game
-// Details, its favourite, Play at Startup) and back leaves the module.
+// Details, its favourite, Play at Startup, and with Online Play on,
+// RetroArch Lobby, the whole lobby: Lobby.qml) and back leaves the module.
 // Game Details (Details.qml) says what the game is and lists its
 // achievements on RetroAchievements. Coming back from it or from a game
 // restores the filter, the game and its row on the wheel from the listState
@@ -1192,7 +1193,7 @@ FocusScope {
 
     // A game's options: Play, Game Details, its favourite, Play at Startup,
     // its engine where MAME and FinalBurn Neo both have it, and with Online
-    // Play on, hosting it.
+    // Play on, hosting it and RetroArch's whole lobby.
     EntryOptions {
         id: options
         anchors.fill: parent
@@ -1202,7 +1203,9 @@ FocusScope {
                       (engines.offered(arcadeScreen.currentSet)
                        ? [{ label: engines.lineFor(arcadeScreen.currentSet), action: "engine" }] : [])
                       .concat(arcadeBackend && arcadeBackend.canHost(arcadeScreen.currentSet)
-                              ? [{ label: "Host Online Game", action: "host" }] : []))
+                              ? [{ label: "Host Online Game", action: "host" }] : [])
+                      .concat(arcadeBackend && arcadeBackend.onlinePlay()
+                              ? [{ label: "RetroArch Lobby", action: "lobby" }] : []))
         onActivated: function(action) {
             if (action === "play")
                 arcadeScreen.playCurrent()
@@ -1213,6 +1216,10 @@ FocusScope {
             else if (action === "host")
                 arcadeScreen.play(arcadeScreen.currentSet, arcadeScreen.details.name || arcadeScreen.current.name,
                                   arcadeScreen.filterId, { hosting: true })
+            // The whole lobby; coming back lands on the game, as from it.
+            else if (action === "lobby")
+                arcadeScreen.navigateTo("Lobby.qml", {}, { filter: arcadeScreen.filterId, set: arcadeScreen.currentSet,
+                                                           row: arcadeScreen.selectedRow })
         }
         onFavoritesEdited: arcadeScreen.reload()
         onClosed: if (!engines.visible) arcadeScreen.forceActiveFocus()

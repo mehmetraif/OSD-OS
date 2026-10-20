@@ -1,4 +1,6 @@
 [
+            {"fields": {"id": 10, "username": "jo", "game_name": "Crash Bandicoot (USA)", "core_name": "Beetle PSX HW",
+                        "ip": "192.0.2.16", "port": 55435, "connectable": true, "retroarch_version": "1.22.2"}},
             {"fields": {"id": 11, "username": "ann", "country": "es", "game_name": "SF2", "core_name": "FinalBurn Neo",
                         "ip": "203.0.113.5", "port": 55435, "host_method": 0, "connectable": true,
                         "has_password": false, "retroarch_version": "1.20.0", "is_retroarch": true}},
@@ -21,5 +23,12 @@
             {"fields": {"id": 20, "username": "gus", "game_name": "../../etc/passwd", "core_name": "FinalBurn Neo",
                         "ip": "192.0.2.14", "port": 55435, "connectable": true, "retroarch_version": "1.22.2"}},
             {"fields": {"id": 21, "username": "hal", "game_name": "sf2", "core_name": "FinalBurn Neo",
-                        "ip": "192.0.2.15", "port": 0, "connectable": true, "retroarch_version": "1.22.2"}}
+                        "ip": "192.0.2.15", "port": 0, "connectable": true, "retroarch_version": "1.22.2"}},
+            {"fields": {"id": 22, "username": "ivy", "country": "gb", "game_name": "Super Mario Kart (USA)",
+                        "game_crc": "82993fa8", "core_name": "Snes9x", "core_version": "1.63 fae2fea",
+                        "subsystem_name": "N/A", "retroarch_version": "1.22.2", "frontend": "win32 x64",
+                        "ip": "", "port": 55435, "host_method": 3, "mitm_ip": "us-east1.relay.retroarch.com",
+                        "mitm_port": 55435, "mitm_session": "c2Vzc2lvbg==", "connectable": true,
+                        "has_password": false, "has_spectate_password": true, "player_count": 2,
+                        "spectator_count": 1, "created": "2026-10-20T19:38:57.756044425Z"}}
         ]

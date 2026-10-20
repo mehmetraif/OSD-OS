@@ -107,6 +107,10 @@ std::optional<QString> loginFailure(const QString &line) {
 // The lobby's oldest RetroArch the menu lists rooms of.
 const QVersionNumber kOldestRetroArch(1, 9, 1);
 
+// The most rooms of the lobby taken, the newest: it lists a few hundred, and
+// an answer as big as one is let be could hold a hundred thousand.
+constexpr qsizetype kMostRooms = 1000;
+
 // A name from the lobby, as whoever hosts wrote it: no markup or control
 // characters (a view may take '<' for rich text), and not too long.
 QString cleaned(const QString &text, int length) {
@@ -127,6 +131,17 @@ QString joinAddressOf(const QString &address, int port, const QString &session) 
         return QString();
     return session.isEmpty() ? QStringLiteral("%1|%2").arg(address).arg(port)
                              : QStringLiteral("%1|%2|%3").arg(address).arg(port).arg(session);
+}
+
+// The relay a room goes through, by its server's name: RetroArch's own by
+// where it is ("us-east1"), another by its whole name; "Unknown" for none.
+QString relayName(const QString &server) {
+    const QString name = cleaned(server, 64);
+    for (const char *own : { ".relay.retroarch.com", ".relay.libretro.com" }) {
+        if (name.endsWith(QLatin1String(own)) && name.size() > static_cast<qsizetype>(qstrlen(own)))
+            return name.chopped(static_cast<qsizetype>(qstrlen(own)));
+    }
+    return name.isEmpty() ? QStringLiteral("Unknown") : name;
 }
 
 } // namespace
@@ -510,49 +525,85 @@ SignInLine readSignInLine(const QString &line, QString *failure) {
     return SignInLine::None;
 }
 
-QList<Room> readLobby(const QByteArray &json) {
+QList<Room> readWholeLobby(const QByteArray &json) {
     QList<Room> rooms;
     const QJsonArray list = QJsonDocument::fromJson(json).array();
+    // The game as its file is named, the set: a short name, lower case.
+    static const QRegularExpression set(QStringLiteral("^[a-z0-9_]{1,32}$"));
+    static const QRegularExpression code(QStringLiteral("^[a-z]{2}$"));
+    static const QRegularExpression crc(QStringLiteral("^[0-9A-Fa-f]{8}$"));
+    static const QRegularExpression stamp(QStringLiteral("^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}"));
+    // The newest first, kMostRooms at most: only those made into rooms.
+    QList<std::pair<int, QJsonObject>> entries;
     for (const QJsonValue &entry : list) {
         const QJsonObject fields = entry.toObject().value(QLatin1String("fields")).toObject();
-        if (fields.value(QLatin1String("core_name")).toString() != QLatin1String("FinalBurn Neo"))
-            continue;
-        // As RetroArch's menu reads them: connectable unless it says not.
-        if (!fields.value(QLatin1String("connectable")).toBool(true)
-            || !fields.value(QLatin1String("is_retroarch")).toBool(true))
-            continue;
-        const QVersionNumber version = QVersionNumber::fromString(fields.value(QLatin1String("retroarch_version")).toString());
-        if (version < kOldestRetroArch)
-            continue;
+        if (!fields.isEmpty())
+            entries.append({ fields.value(QLatin1String("id")).toInt(), fields });
+    }
+    const auto newer = [](const std::pair<int, QJsonObject> &a, const std::pair<int, QJsonObject> &b) {
+        return a.first > b.first;
+    };
+    if (entries.size() > kMostRooms) {
+        std::nth_element(entries.begin(), entries.begin() + kMostRooms, entries.end(), newer);
+        entries.resize(kMostRooms);
+    }
+    std::sort(entries.begin(), entries.end(), newer);
+    for (const auto &entry : std::as_const(entries)) {
+        const QJsonObject &fields = entry.second;
+        const auto text = [&fields](const char *key) { return fields.value(QLatin1String(key)).toString(); };
         Room room;
-        room.id = fields.value(QLatin1String("id")).toInt();
-        // The game as its file is named, the set: a short name, lower case.
-        static const QRegularExpression set(QStringLiteral("^[a-z0-9_]{1,32}$"));
-        room.game = fields.value(QLatin1String("game_name")).toString().toLower();
+        room.id = entry.first;
+        room.rom = cleaned(text("game_name"), 64);
+        room.game = text("game_name").toLower();
         for (const char *extension : { ".zip", ".7z" }) {
             if (room.game.endsWith(QLatin1String(extension)))
                 room.game.chop(static_cast<int>(qstrlen(extension)));
         }
-        room.host = cleaned(fields.value(QLatin1String("username")).toString(), 32);
-        static const QRegularExpression code(QStringLiteral("^[a-z]{2}$"));
-        room.country = fields.value(QLatin1String("country")).toString().toLower();
+        if (!set.match(room.game).hasMatch())
+            room.game.clear();
+        if (crc.match(text("game_crc")).hasMatch())
+            room.crc = text("game_crc").toUpper();
+        room.core = cleaned(text("core_name"), 32);
+        room.coreVersion = cleaned(text("core_version"), 32);
+        room.subsystem = cleaned(text("subsystem_name"), 32);
+        if (room.subsystem == QLatin1String("N/A"))
+            room.subsystem.clear();
+        room.retroarch = cleaned(text("retroarch_version"), 16);
+        room.frontend = cleaned(text("frontend"), 32);
+        room.host = cleaned(text("username"), 32);
+        room.country = text("country").toLower();
         if (!code.match(room.country).hasMatch())
             room.country.clear();
+        if (stamp.match(text("created")).hasMatch())
+            room.created = QDateTime::fromString(text("created").left(19) + QLatin1Char('Z'), Qt::ISODate);
+        room.players = std::max(-1, fields.value(QLatin1String("player_count")).toInt(-1));
+        room.spectators = std::max(-1, fields.value(QLatin1String("spectator_count")).toInt(-1));
         room.password = fields.value(QLatin1String("has_password")).toBool();
+        room.spectatePassword = fields.value(QLatin1String("has_spectate_password")).toBool();
+        // As RetroArch's menu reads them: connectable unless it says not.
+        room.connectable = fields.value(QLatin1String("connectable")).toBool(true);
         // Relayed (host_method 3, MITM): through the relay, its session the
         // lobby's; else straight to the host.
-        if (fields.value(QLatin1String("host_method")).toInt() == 3)
-            room.joinAddress = joinAddressOf(fields.value(QLatin1String("mitm_ip")).toString(),
-                                             fields.value(QLatin1String("mitm_port")).toInt(),
-                                             fields.value(QLatin1String("mitm_session")).toString());
-        else
-            room.joinAddress = joinAddressOf(fields.value(QLatin1String("ip")).toString(),
-                                             fields.value(QLatin1String("port")).toInt(), QString());
-        if (!set.match(room.game).hasMatch() || room.joinAddress.isEmpty())
-            continue;
+        if (fields.value(QLatin1String("host_method")).toInt() == 3) {
+            room.joinAddress = joinAddressOf(text("mitm_ip"), fields.value(QLatin1String("mitm_port")).toInt(),
+                                             text("mitm_session"));
+            room.relay = relayName(text("mitm_ip"));
+        } else {
+            room.joinAddress = joinAddressOf(text("ip"), fields.value(QLatin1String("port")).toInt(), QString());
+        }
+        room.joinable = room.core == QLatin1String("FinalBurn Neo") && room.connectable
+                        && fields.value(QLatin1String("is_retroarch")).toBool(true)
+                        && QVersionNumber::fromString(text("retroarch_version")) >= kOldestRetroArch
+                        && !room.game.isEmpty() && !room.joinAddress.isEmpty();
         rooms << room;
     }
-    std::sort(rooms.begin(), rooms.end(), [](const Room &a, const Room &b) { return a.id > b.id; });
+    return rooms;
+}
+
+QList<Room> readLobby(const QByteArray &json) {
+    QList<Room> rooms = readWholeLobby(json);
+    rooms.erase(std::remove_if(rooms.begin(), rooms.end(), [](const Room &room) { return !room.joinable; }),
+                rooms.end());
     return rooms;
 }
 

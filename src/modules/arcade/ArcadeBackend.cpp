@@ -409,6 +409,7 @@ ArcadeBackend::ArcadeBackend(const QString &appRoot, const QString &dataRoot, Ap
     QDir(signInDir()).removeRecursively();
     m_signInCore = QCoreApplication::applicationDirPath() + QStringLiteral("/osdos_signin_libretro.so");
     m_genresUrl = QUrl(legacy::env("GENRES_URL", kGenresUrl.toString()));
+    m_lobbyUrl = QUrl(legacy::env("LOBBY_URL", m_lobbyUrl.toString()));
 
     m_scanTimer = new QTimer(this);
     m_scanTimer->setSingleShot(true);
@@ -2360,6 +2361,80 @@ QVariantList ArcadeBackend::rooms() const {
     return list;
 }
 
+QVariantMap ArcadeBackend::lobby() const {
+    const QDateTime now = QDateTime::currentDateTimeUtc();
+    const bool ready = fbneoReady();
+    struct Listed {
+        bool fbneo;
+        QString core;
+        QString title;
+        int id;
+        QVariantMap entry;
+    };
+    QList<Listed> listed;
+    for (const libretro::Room &room : m_lobby) {
+        const bool fbneo = room.core == QLatin1String("FinalBurn Neo");
+        const bool have = fbneo && !room.game.isEmpty() && fbneoHas(room.game);
+        // A game of the folder by its name there; any other as its host has it.
+        const QString title = have ? titleOf(room.game) : room.rom.isEmpty() ? QStringLiteral("?") : room.rom;
+        // Why it can't be joined from here, as rooms() leaves it out.
+        QString why;
+        if (!fbneo)
+            why = QStringLiteral("OSD/OS joins FinalBurn Neo's games alone: this one is %1's")
+                      .arg(room.core.isEmpty() ? QStringLiteral("another core") : room.core);
+        else if (!room.connectable)
+            why = QStringLiteral("Its host's connection takes no players");
+        else if (room.password)
+            why = QStringLiteral("It asks for a password");
+        else if (!room.joinable)
+            why = room.game.isEmpty() ? QStringLiteral("Its game isn't named as a set")
+                  : room.joinAddress.isEmpty() ? QStringLiteral("The lobby gives no address it can be joined at")
+                                               : QStringLiteral("Its host's RetroArch can't be joined from here");
+        else if (!ready)
+            why = QStringLiteral("FinalBurn Neo is not installed: Settings → Arcade → FinalBurn Neo");
+        else if (!m_sets.contains(room.game))
+            why = QStringLiteral("%1 isn't in your games folder").arg(room.game);
+        else if (m_folders.contains(room.game))
+            why = QStringLiteral("FinalBurn Neo plays a game's zip or 7z, not a folder");
+        else if (!have)
+            why = m_fbneoGames.contains(room.game)
+                      ? QStringLiteral("FinalBurn Neo looks for %1, in lower case").arg(mameFileName(room.game))
+                      : QStringLiteral("FinalBurn Neo has no game called %1").arg(room.game);
+        else if (!m_onlinePlay)
+            why = QStringLiteral("Online Play is off: Settings → Arcade → Online Play");
+        const QVariantMap entry{
+            { QStringLiteral("id"), room.id }, { QStringLiteral("title"), title }, { QStringLiteral("rom"), room.rom },
+            { QStringLiteral("set"), have ? room.game : QString() }, { QStringLiteral("crc"), room.crc },
+            { QStringLiteral("core"), room.core }, { QStringLiteral("coreVersion"), room.coreVersion },
+            { QStringLiteral("subsystem"), room.subsystem }, { QStringLiteral("retroarch"), room.retroarch },
+            { QStringLiteral("frontend"), room.frontend }, { QStringLiteral("host"), room.host },
+            { QStringLiteral("country"), room.country }, { QStringLiteral("relay"), room.relay },
+            { QStringLiteral("players"), room.players }, { QStringLiteral("spectators"), room.spectators },
+            { QStringLiteral("minutes"), room.created.isValid() ? std::max<qint64>(0, room.created.secsTo(now) / 60) : -1 },
+            { QStringLiteral("password"), room.password }, { QStringLiteral("spectatePassword"), room.spectatePassword },
+            { QStringLiteral("connectable"), room.connectable }, { QStringLiteral("joinable"), why.isEmpty() },
+            { QStringLiteral("why"), why } };
+        listed.append({ fbneo, room.core, title, room.id, entry });
+    }
+    // FinalBurn Neo's first, then by core and title, the newest first.
+    std::sort(listed.begin(), listed.end(), [](const Listed &a, const Listed &b) {
+        if (a.fbneo != b.fbneo)
+            return a.fbneo;
+        if (const int core = a.core.compare(b.core, Qt::CaseInsensitive))
+            return core < 0;
+        if (const int title = a.title.compare(b.title, Qt::CaseInsensitive))
+            return title < 0;
+        return a.id > b.id;
+    });
+    QVariantList rooms;
+    for (const Listed &room : std::as_const(listed))
+        rooms << room.entry;
+    return { { QStringLiteral("state"), !m_roomsRead ? QStringLiteral("loading")
+                                        : m_roomsProblem.isEmpty() ? QStringLiteral("ready") : QStringLiteral("failed") },
+             { QStringLiteral("problem"), m_roomsProblem },
+             { QStringLiteral("rooms"), rooms } };
+}
+
 void ArcadeBackend::refreshRooms() {
     if (m_lobbyReply || !m_onlinePlay)
         return;
@@ -2374,10 +2449,16 @@ void ArcadeBackend::refreshRooms() {
         m_roomsRead = true;
         const bool big = tooBig(reply, kLobbyMaxBytes);
         if (reply->error() == QNetworkReply::NoError && !big) {
-            m_rooms = libretro::readLobby(reply->readAll());
+            m_lobby = libretro::readWholeLobby(reply->readAll());
+            m_rooms.clear();
+            for (const libretro::Room &room : std::as_const(m_lobby)) {
+                if (room.joinable)
+                    m_rooms << room;
+            }
             m_roomsProblem.clear();
         } else {
             m_rooms.clear();
+            m_lobby.clear();
             m_roomsProblem = QStringLiteral("RetroArch's lobby can't be reached: ")
                              + (big ? QStringLiteral("its answer is too big") : reply->errorString());
             qWarning("[Arcade] %s", qPrintable(m_roomsProblem));
@@ -2444,6 +2525,13 @@ QVariantList ArcadeBackend::roomEntries() const {
                                                             : QStringLiteral("No one in RetroArch's lobby hosts a game you have: "
                                                                              "host one from a game's options") } };
     }
+    // The whole lobby, of every core (Lobby.qml).
+    entries << QVariantMap{ { QStringLiteral("name"), QStringLiteral("RetroArch Lobby") },
+                            { QStringLiteral("path"), QStringLiteral("lobby") },
+                            { QStringLiteral("isFolder"), false },
+                            { QStringLiteral("kind"), QStringLiteral("lobby") },
+                            { QStringLiteral("detail"), QStringLiteral("Every game hosted in RetroArch's lobby, of every core, "
+                                                                       "and what the lobby says of each") } };
     return entries;
 }
 

@@ -12,7 +12,8 @@ import Components
 // and the line under the tree says what the game is. With Online Play on,
 // Online Games lists the rooms of RetroArch's lobby that host games of the
 // folder (ArcadeBackend::rooms()), read again every 20 s while they are
-// shown: select joins one. Coming back from a game restores the tree from
+// shown: select joins one. Its last line, RetroArch Lobby, opens the whole
+// lobby (Lobby.qml). Coming back from a game restores the tree from
 // the listState handed to navigateTo; a game played from the tree itself
 // (Start Info Screen off) leaves it as it was. Opened with the startup
 // favourite (navParams.startupPlay), it plays that at once, the tree open on
@@ -108,6 +109,8 @@ FocusScope {
         onActivated: function(item) {
             if (item.kind === "search")
                 osk.open("")
+            else if (item.kind === "lobby")
+                gamesRoot.navigateTo("Lobby.qml", {}, { trail: tree.trailState() })
             else if (item.game)
                 gamesRoot.play(item, tree.trailState())
         }
@@ -149,7 +152,8 @@ FocusScope {
         visible: !tree.rootEmpty && !osk.visible && !options.visible
         readonly property var entry: tree.currentEntry
         text: gamesRoot.problem !== "" ? gamesRoot.problem
-              : entry && (entry.game || entry.kind === "unknown" || entry.kind === "message") ? entry.detail
+              : entry && (entry.game || entry.kind === "unknown" || entry.kind === "message" || entry.kind === "lobby")
+                ? entry.detail
               : entry && entry.kind === "search" ? "Find a game by its name"
               : gamesRoot.scanning ? "Reading the games…"
               : "Games folder: " + gamesRoot.gamesFolder

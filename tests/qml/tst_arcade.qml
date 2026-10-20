@@ -206,6 +206,14 @@ Rectangle {
         function refreshRooms() { roomReads++ }
         function joinRoom(id) { joined = joined.concat([id]); running = playResult; return playResult }
         function hostGame(set) { hosted = hosted.concat([set]); running = playResult; return playResult }
+        // The whole lobby, as lobby() gives it, kept where a page sees it
+        // change only on roomsChanged(), as with the backend's; and whether
+        // Online Play is on.
+        property var lobbyStore: ({ data: { state: "loading", problem: "", rooms: [] } })
+        function lobby() { return lobbyStore.data }
+        function setLobby(data) { lobbyStore.data = data }
+        property bool online: false
+        function onlinePlay() { return online }
         // Each game's RetroAchievements leaderboard, by set, as leaderboard()
         // gives it ("off" for any other); changed in place, so the screen
         // reads it again only on leaderboardReady().
@@ -402,6 +410,8 @@ Rectangle {
             arcadeBackend.joined = []
             arcadeBackend.hosted = []
             arcadeBackend.roomReads = 0
+            arcadeBackend.lobbyStore = { data: { state: "loading", problem: "", rooms: [] } }
+            arcadeBackend.online = false
             arcadeBackend.pendingFilters = []
             arcadeBackend.favorites = ["galaga", "sf2"]
             arcadeBackend.filterList = [
@@ -1292,6 +1302,200 @@ Rectangle {
             compare(screen.current.room, 14)
         }
 
+        // A room of the whole lobby, as lobby() gives it.
+        function lobbyRoom(id, core, title, host, more) {
+            return Object.assign({ id: id, core: core, title: title, rom: title, set: "", crc: "", coreVersion: "",
+                                   subsystem: "", retroarch: "1.22.2", frontend: "unix x64", host: host,
+                                   country: "", relay: "", players: -1, spectators: -1, minutes: -1,
+                                   password: false, spectatePassword: false, connectable: true,
+                                   joinable: false, why: "" }, more || {})
+        }
+
+        // RetroArch's whole lobby: read as the page opens, its rooms under
+        // their cores' headings, FinalBurn Neo's first, ▶ on the one to join
+        // and a lock on one with a password, the help line saying what each
+        // is; select opens a room, a line each of what the lobby says of it,
+        // Join first for one that can be joined, which joins it; back to the
+        // rooms on the same room, then out. Coming back from a game joined
+        // lands on its room; a lobby not reached says so.
+        function test_lobby() {
+            var page = open("Lobby.qml")
+            compare(arcadeBackend.roomReads, 1)
+            verify(findText(page, "Reading RetroArch's lobby") !== null)
+            arcadeBackend.setLobby({ state: "ready", problem: "", rooms: [
+                lobbyRoom(11, "FinalBurn Neo", "Street Fighter II", "ann",
+                          { rom: "sf2", set: "sf2", country: "es", coreVersion: "v1.0.0.03", crc: "B62D0BC7",
+                            joinable: true }),
+                lobbyRoom(14, "FinalBurn Neo", "Metal Slug", "bob",
+                          { rom: "mslug", set: "mslug", password: true, why: "It asks for a password" }),
+                lobbyRoom(16, "Snes9x", "Super Mario Kart PBD Edit", "dee",
+                          { crc: "82993FA8", coreVersion: "1.63", country: "gb", relay: "us-east1", players: 2,
+                            spectators: 0, minutes: 75,
+                            why: "OSD/OS joins FinalBurn Neo's games alone: this one is Snes9x's" })] })
+            // Seen once the backend says the lobby was read.
+            compare(findText(page, "3 Rooms"), null)
+            arcadeBackend.roomsChanged()
+            tryVerify(function() { return findText(page, "3 Rooms • 2 FinalBurn Neo • 1 To Join") !== null }, 1000)
+            verify(findText(page, "FinalBurn Neo", true) !== null)
+            verify(findText(page, "Snes9x", true) !== null)
+            // On the first room, which can be joined.
+            tryVerify(function() { return findText(page, "Select to join it") !== null }, 1000)
+            verify(findText(page, "ROM sf2, CRC B62D0BC7") !== null)
+            verify(findText(page, ":OPEN") !== null)
+            // Down over the heading, to the Snes9x room.
+            keyClick(Qt.Key_Down)
+            verify(findText(page, "It asks for a password") !== null)
+            keyClick(Qt.Key_Down)
+            verify(findText(page, "ROM Super Mario Kart PBD Edit, CRC 82993FA8") !== null)
+            verify(findText(page, "Through the relay us-east1") !== null)
+            verify(findText(page, "this one is Snes9x's") !== null)
+            // Its lines: what the lobby says of it, nothing to join.
+            keyClick(Qt.Key_Return)
+            verify(findText(page, "Snes9x • Hosted by dee") !== null)
+            verify(findText(page, "Core Version", true) !== null)
+            verify(findText(page, "1.63", true) !== null)
+            verify(findText(page, "82993FA8", true) !== null)
+            compare(findText(page, "Join", true), null)
+            compare(findText(page, ":JOIN"), null)
+            // Down to how it is reached, then to whether it can be joined.
+            for (var i = 0; i < 8; ++i)
+                keyClick(Qt.Key_Down)
+            verify(findText(page, "Through the relay us-east1, for") !== null)
+            verify(findText(page, "Relay", true) !== null)
+            verify(findText(page, "GB", true) !== null)
+            for (i = 0; i < 5; ++i)
+                keyClick(Qt.Key_Down)
+            verify(findText(page, "1H 15M Ago", true) !== null)
+            verify(findText(page, "this one is Snes9x's") !== null)
+            keyClick(Qt.Key_Return)
+            compare(root.navigations.length, 0)
+            // Back on the rooms, on the same one; up to the first, opened and
+            // joined.
+            keyClick(Qt.Key_Escape)
+            compare(root.backs, 0)
+            verify(findText(page, "3 Rooms") !== null)
+            verify(findText(page, "this one is Snes9x's") !== null)
+            keyClick(Qt.Key_Up)
+            keyClick(Qt.Key_Up)
+            keyClick(Qt.Key_Return)
+            verify(findText(page, "Join", true) !== null)
+            verify(findText(page, ":JOIN") !== null)
+            keyClick(Qt.Key_Return)
+            compare(root.navigations.length, 1)
+            compare(root.navigations[0].path, "Play.qml")
+            compare(root.navigations[0].params.game, "sf2")
+            compare(root.navigations[0].params.online.room, 11)
+            compare(root.navigations[0].params.online.host, "ann")
+            compare(root.navigations[0].listState.room, 11)
+            keyClick(Qt.Key_Escape)
+            keyClick(Qt.Key_Escape)
+            compare(root.backs, 1)
+            // Back from a game: on its room.
+            loader.source = ""
+            page = open("Lobby.qml", { navListState: { room: 16 } })
+            tryVerify(function() { return findText(page, "this one is Snes9x's") !== null }, 1000)
+            // Not reached: why.
+            arcadeBackend.setLobby({ state: "failed", problem: "RetroArch's lobby can't be reached: Connection refused",
+                                     rooms: [] })
+            arcadeBackend.roomsChanged()
+            tryVerify(function() { return findText(page, "Lobby Not Reachable") !== null }, 1000)
+            verify(findText(page, "Connection refused") !== null)
+        }
+
+        // The lobby read again with a room open: the cursor stays on its line,
+        // Join or not; a room gone, or the lobby not reached, has nothing to
+        // join and says why, and once it is back can be joined again; back on
+        // the rooms, the cursor is on it, though the list lost it a while.
+        function test_lobbyReadAgain() {
+            var sf2 = function(minutes) {
+                return lobbyRoom(11, "FinalBurn Neo", "Street Fighter II", "ann",
+                                 { rom: "sf2", set: "sf2", players: 1, spectators: 0, minutes: minutes, joinable: true })
+            }
+            var mslug = lobbyRoom(14, "FinalBurn Neo", "Metal Slug", "bob",
+                                  { rom: "mslug", set: "mslug", password: true, why: "It asks for a password" })
+            var kart = lobbyRoom(16, "Snes9x", "Super Mario Kart", "dee",
+                                 { why: "OSD/OS joins FinalBurn Neo's games alone: this one is Snes9x's" })
+            var page = open("Lobby.qml")
+            var read = function(state, rooms, problem) {
+                arcadeBackend.setLobby({ state: state, problem: problem || "", rooms: rooms })
+                arcadeBackend.roomsChanged()
+            }
+            read("ready", [mslug, sf2(5), kart])
+            tryVerify(function() { return findText(page, "3 Rooms") !== null }, 1000)
+            // The second room opened, and down to how long ago it was hosted:
+            // Join, Game, ROM, CRC, Core, RetroArch, System, Host, Country,
+            // Connection, Password, Players, Spectators, Hosted.
+            tryVerify(function() { return findText(page, "It asks for a password") !== null }, 1000)
+            keyClick(Qt.Key_Down)
+            verify(findText(page, "Select to join it") !== null)
+            keyClick(Qt.Key_Return)
+            for (var i = 0; i < 13; ++i)
+                keyClick(Qt.Key_Down)
+            verify(findText(page, "How long ago it was hosted") !== null)
+            verify(findText(page, "5M Ago", true) !== null)
+            // Read again a minute on: still there, and select joins nothing.
+            read("ready", [mslug, sf2(6), kart])
+            tryVerify(function() { return findText(page, "6M Ago", true) !== null }, 1000)
+            wait(50)
+            verify(findText(page, "How long ago it was hosted") !== null)
+            keyClick(Qt.Key_Return)
+            compare(root.navigations.length, 0)
+            // Gone from the lobby, the rooms' cursor falling back to another:
+            // no Join, the cursor on its line still, and why on the last line.
+            read("ready", [mslug, kart])
+            tryVerify(function() { return page.lines[0].type !== "join" }, 1000)
+            wait(50)
+            verify(findText(page, "How long ago it was hosted") !== null)
+            keyClick(Qt.Key_Down)
+            verify(findText(page, "It is no longer in RetroArch's lobby") !== null)
+            // The lobby not reached: why.
+            read("failed", [], "RetroArch's lobby can't be reached: Connection refused")
+            tryVerify(function() { return findText(page, "Connection refused") !== null }, 1000)
+            // Back, and to be joined again.
+            read("ready", [mslug, sf2(7), kart])
+            tryVerify(function() { return findText(page, "From here, in FinalBurn Neo") !== null }, 1000)
+            compare(page.lines[0].type, "join")
+            // Back on the rooms: on it, not on the room the list fell back to.
+            keyClick(Qt.Key_Escape)
+            compare(root.backs, 0)
+            verify(findText(page, "Select to join it") !== null)
+        }
+
+        // The lobby from the tree's Online Games, and from a game's options on
+        // the Arcade screen while Online Play is on.
+        function test_lobbyOpened() {
+            arcadeBackend.entries = Object.assign({}, arcadeBackend.entries, {
+                "top": [{ name: "Online Games", path: "online", isFolder: true }].concat(arcadeBackend.entries.top),
+                "online": [{ name: "RetroArch Lobby", path: "lobby", isFolder: false, kind: "lobby",
+                             detail: "Every game hosted in RetroArch's lobby" }]
+            })
+            var games = open("Games.qml")
+            keyClick(Qt.Key_Right)
+            tryVerify(function() { return findText(games, "Every game hosted in RetroArch's lobby") !== null }, 1000)
+            verify(findText(games, ":OPEN") !== null)
+            keyClick(Qt.Key_Return)
+            compare(root.navigations.length, 1)
+            compare(root.navigations[0].path, "Lobby.qml")
+            loader.source = ""
+            // The Arcade screen: not offered with Online Play off.
+            var screen = openScreen()
+            keyPress(Qt.Key_Return)
+            tryVerify(function() { return findText(screen, "Game Details") !== null }, 1500)
+            keyRelease(Qt.Key_Return)
+            compare(findText(screen, "RetroArch Lobby"), null)
+            keyClick(Qt.Key_Escape)
+            loader.source = ""
+            arcadeBackend.online = true
+            screen = openScreen()
+            keyPress(Qt.Key_Return)
+            tryVerify(function() { return findText(screen, "RetroArch Lobby") !== null }, 1500)
+            keyRelease(Qt.Key_Return)
+            keyClick(Qt.Key_Up)
+            keyClick(Qt.Key_Return)
+            compare(root.navigations.length, 2)
+            compare(root.navigations[1].path, "Lobby.qml")
+        }
+
         // A room joined from the game's screen says whose game it is and
         // joins it; a game hosted says so and hosts it; and with Start Info
         // Screen off, the router joins straight from the list.
@@ -2103,6 +2307,17 @@ Rectangle {
             verify(screen.adjusting)
             compare(router.screenAdjustment, { top: 6, bottom: -12, left: 0, right: 3 })
             compare([screen.areaLeft, screen.areaTop, screen.areaRight, screen.areaBottom], [120, 84, 843, 633])
+            keyClick(Qt.Key_Escape)
+            compare(root.backs, 1)
+        }
+
+        // Settings → Arcade → RetroArch Lobby opens the lobby's page,
+        // whichever screen lists the games; back from it leaves the module.
+        function test_rootLobby() {
+            appCore.settings = { screen: "Original", online_play: "On" }
+            var router = open("Root.qml", { lobby: true })
+            compare(shownFile(router), "Lobby.qml")
+            verify(findText(shown(router), "Reading RetroArch's lobby") !== null)
             keyClick(Qt.Key_Escape)
             compare(root.backs, 1)
         }

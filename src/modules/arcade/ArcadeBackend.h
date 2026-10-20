@@ -229,6 +229,19 @@ public:
     // and the Online Games folder and filter listed again, once it has.
     Q_INVOKABLE QVariantList rooms() const;
     Q_INVOKABLE void refreshRooms();
+    // The whole lobby as last read, every core's rooms, for the RetroArch
+    // Lobby page: { state ("loading" until it has been read, "ready", or
+    // "failed"), problem (why it couldn't be read), rooms }. Each room is
+    // { id, title (the folder's name for a game it has, else as its host
+    // wrote it), rom, set ("" for none), crc, core, coreVersion, subsystem,
+    // retroarch, frontend, host, country, relay ("" for a room reached
+    // straight), players, spectators, minutes (since it was hosted; -1 for
+    // these where the lobby doesn't say), password, spectatePassword,
+    // connectable, joinable (from here: one of rooms()), why (it isn't, ""
+    // for one that is) }, FinalBurn Neo's first, then by core and title.
+    Q_INVOKABLE QVariantMap lobby() const;
+    // Settings → Arcade → Online Play is on.
+    Q_INVOKABLE bool onlinePlay() const { return m_onlinePlay; }
     // A room joined, or a game hosted through the relay Settings chose, in
     // RetroArch with FinalBurn Neo, as play() starts a game: finished() when
     // it ends; false, with lastError(), when it couldn't be started.
@@ -237,7 +250,8 @@ public:
     // Whether a game can be hosted: Online Play on, FinalBurn Neo there, and
     // the set its, a zip or a 7z.
     Q_INVOKABLE bool canHost(const QString &set) const;
-    // The lobby's address: lobby.libretro.com's, or a stand-in's.
+    // The lobby's address: lobby.libretro.com's, or a stand-in's (a test's,
+    // or OSDOS_LOBBY_URL's).
     void setLobbyUrl(const QUrl &url) { m_lobbyUrl = url; }
     // RetroAchievements' Web API and media server: its own, or a stand-in's.
     void setAchievementsServers(const QUrl &api, const QUrl &media);
@@ -674,12 +688,14 @@ private:
     // says the filters may hold other games.
     mutable QHash<QString, QStringList> m_madeSets;
 
-    // The netplay lobby: its rooms as last read, why it couldn't be read
-    // ("" when it was), whether it has been, and the read under way.
+    // The netplay lobby: its rooms that can be joined as last read, every
+    // room, why it couldn't be read ("" when it was), whether it has been,
+    // and the read under way.
     QNetworkAccessManager *m_nam = nullptr;
     QNetworkReply *m_lobbyReply = nullptr;
     QUrl m_lobbyUrl{ QStringLiteral("http://lobby.libretro.com/list") };
     QList<libretro::Room> m_rooms;
+    QList<libretro::Room> m_lobby;   // every room, m_rooms among them
     QString m_roomsProblem;
     bool    m_roomsRead = false;
     // catver.ini's download: from where, under way, and when one that failed

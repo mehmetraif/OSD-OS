@@ -1143,6 +1143,51 @@ private slots:
         QCOMPARE(rooms.at(2).country, QStringLiteral("es"));
         QCOMPARE(rooms.at(2).joinAddress, QStringLiteral("203.0.113.5|55435"));
         QVERIFY(libretro::readLobby("<html>busy</html>").isEmpty());
+        // The whole lobby: every room, newest first, as it can be shown; a
+        // room FinalBurn Neo hosts that can be joined among them.
+        const QList<libretro::Room> whole = libretro::readWholeLobby(lobby);
+        QCOMPARE(whole.size(), 11);
+        const libretro::Room &kart = whole.at(0);
+        QCOMPARE(kart.id, 22);
+        QCOMPARE(kart.rom, QStringLiteral("Super Mario Kart (USA)"));
+        QVERIFY(kart.game.isEmpty());
+        QCOMPARE(kart.crc, QStringLiteral("82993FA8"));
+        QCOMPARE(kart.core, QStringLiteral("Snes9x"));
+        QCOMPARE(kart.coreVersion, QStringLiteral("1.63 fae2fea"));
+        QVERIFY(kart.subsystem.isEmpty());
+        QCOMPARE(kart.retroarch, QStringLiteral("1.22.2"));
+        QCOMPARE(kart.frontend, QStringLiteral("win32 x64"));
+        QCOMPARE(kart.country, QStringLiteral("gb"));
+        QCOMPARE(kart.relay, QStringLiteral("us-east1"));
+        QCOMPARE(kart.players, 2);
+        QCOMPARE(kart.spectators, 1);
+        QVERIFY(kart.spectatePassword);
+        QCOMPARE(kart.created.toUTC().toString(Qt::ISODate), QStringLiteral("2026-10-20T19:38:57Z"));
+        QVERIFY(!kart.joinable);
+        QStringList ids;
+        for (const libretro::Room &room : whole)
+            ids << QString::number(room.id) + (room.joinable ? QStringLiteral("+") : QString());
+        QCOMPARE(ids, QStringList({ "22", "21", "20", "19", "18+", "17", "16", "15", "14+", "11+", "10" }));
+        // What the lobby doesn't say, as such; the relay another runs by its
+        // name; a name that can't be a set's none, the host's name as it is.
+        QCOMPARE(whole.at(9).players, -1);
+        QVERIFY(!whole.at(9).created.isValid());
+        QVERIFY(whole.at(9).relay.isEmpty());
+        QCOMPARE(whole.at(8).relay, QStringLiteral("198.51.100.7"));
+        QVERIFY(whole.at(2).game.isEmpty());
+        QCOMPARE(whole.at(2).rom, QStringLiteral("../../etc/passwd"));
+        QVERIFY(!whole.at(7).connectable);
+        QCOMPARE(whole.at(4).host, QStringLiteral("img src=http://192.0.2.99/a.pngz"));
+        // An answer with more rooms than the lobby ever lists: the newest
+        // thousand.
+        QByteArray crowded = "[";
+        for (int id = 1; id <= 1005; ++id)
+            crowded += (id > 1 ? "," : "") + QByteArray("{\"fields\": {\"id\": ") + QByteArray::number(id) + "}}";
+        crowded += "]";
+        const QList<libretro::Room> kept = libretro::readWholeLobby(crowded);
+        QCOMPARE(kept.size(), 1000);
+        QCOMPARE(kept.first().id, 1005);
+        QCOMPARE(kept.last().id, 6);
 
         // rcheevos' arcade hash: the file's name without its extension, as
         // it is written.
@@ -2900,13 +2945,74 @@ private slots:
         QCOMPARE(room.value(QStringLiteral("set")).toString(), QStringLiteral("sf2"));
         QCOMPARE(room.value(QStringLiteral("host")).toString(), QStringLiteral("ann"));
         const QVariantList entries = arcade.requestEntries(QStringLiteral("online")).toList();
-        QCOMPARE(entries.size(), 1);
+        QCOMPARE(entries.size(), 2);
         const QVariantMap entry = entries.first().toMap();
         QCOMPARE(entry.value(QStringLiteral("kind")).toString(), QStringLiteral("room"));
         QCOMPARE(entry.value(QStringLiteral("room")).toInt(), 11);
         QCOMPARE(entry.value(QStringLiteral("game")).toString(), QStringLiteral("sf2"));
         QVERIFY(entry.value(QStringLiteral("name")).toString().endsWith(QStringLiteral(" (ann)")));
         QCOMPARE(entry.value(QStringLiteral("detail")).toString(), QStringLiteral("Hosted by ann in ES • sf2.zip"));
+        // Then the whole lobby, every core's rooms (Lobby.qml).
+        QCOMPARE(entries.last().toMap().value(QStringLiteral("kind")).toString(), QStringLiteral("lobby"));
+        QCOMPARE(entries.last().toMap().value(QStringLiteral("name")).toString(), QStringLiteral("RetroArch Lobby"));
+        // The whole lobby: FinalBurn Neo's rooms first, by title (a game of
+        // the folder by its name there), then the others' by core; each
+        // that can't be joined saying why; the one that can, the room
+        // Online Games has.
+        const QVariantMap whole = arcade.lobby();
+        QCOMPARE(whole.value(QStringLiteral("state")).toString(), QStringLiteral("ready"));
+        const QVariantList lobbyRooms = whole.value(QStringLiteral("rooms")).toList();
+        QStringList order;
+        QHash<int, QVariantMap> byId;
+        for (const QVariant &v : lobbyRooms) {
+            const QVariantMap r = v.toMap();
+            order << QString::number(r.value(QStringLiteral("id")).toInt());
+            byId.insert(r.value(QStringLiteral("id")).toInt(), r);
+        }
+        QCOMPARE(order, QStringList({ "20", "15", "18", "14", "21", "19", "17", "11", "10", "16", "22" }));
+        const auto why = [&byId](int id) { return byId.value(id).value(QStringLiteral("why")).toString(); };
+        QVERIFY(byId.value(11).value(QStringLiteral("joinable")).toBool());
+        QCOMPARE(why(11), QString());
+        QCOMPARE(byId.value(11).value(QStringLiteral("title")).toString(), QStringLiteral("Street Fighter II: The World Warrior"));
+        QCOMPARE(byId.value(11).value(QStringLiteral("set")).toString(), QStringLiteral("sf2"));
+        QCOMPARE(byId.value(11).value(QStringLiteral("country")).toString(), QStringLiteral("es"));
+        QCOMPARE(why(14), QStringLiteral("It asks for a password"));
+        QCOMPARE(why(15), QStringLiteral("Its host's connection takes no players"));
+        QCOMPARE(why(16), QStringLiteral("OSD/OS joins FinalBurn Neo's games alone: this one is Snes9x's"));
+        QCOMPARE(why(10), QStringLiteral("OSD/OS joins FinalBurn Neo's games alone: this one is Beetle PSX HW's"));
+        QCOMPARE(why(17), QStringLiteral("Its host's RetroArch can't be joined from here"));
+        QCOMPARE(why(19), QStringLiteral("The lobby gives no address it can be joined at"));
+        QCOMPARE(why(21), QStringLiteral("The lobby gives no address it can be joined at"));
+        QCOMPARE(why(18), QStringLiteral("kof98 isn't in your games folder"));
+        QCOMPARE(byId.value(18).value(QStringLiteral("title")).toString(), QStringLiteral("kof98.zip"));
+        QVERIFY(byId.value(18).value(QStringLiteral("set")).toString().isEmpty());
+        QCOMPARE(why(20), QStringLiteral("Its game isn't named as a set"));
+        int joinable = 0;
+        for (const QVariantMap &r : std::as_const(byId))
+            joinable += r.value(QStringLiteral("joinable")).toBool() ? 1 : 0;
+        QCOMPARE(joinable, 1);
+        const QVariantMap kart = byId.value(22);
+        QCOMPARE(kart.value(QStringLiteral("title")).toString(), QStringLiteral("Super Mario Kart (USA)"));
+        QCOMPARE(kart.value(QStringLiteral("crc")).toString(), QStringLiteral("82993FA8"));
+        QCOMPARE(kart.value(QStringLiteral("relay")).toString(), QStringLiteral("us-east1"));
+        QCOMPARE(kart.value(QStringLiteral("players")).toInt(), 2);
+        // The minutes since it was hosted, as the lobby says it was.
+        const qint64 since = std::max<qint64>(0, QDateTime::fromString(QStringLiteral("2026-10-20T19:38:57Z"), Qt::ISODate)
+                                                     .secsTo(QDateTime::currentDateTimeUtc()) / 60);
+        QVERIFY2(qAbs(kart.value(QStringLiteral("minutes")).toLongLong() - since) <= 1,
+                 qPrintable(kart.value(QStringLiteral("minutes")).toString()));
+        QCOMPARE(byId.value(11).value(QStringLiteral("minutes")).toInt(), -1);
+        // With Online Play off, the room that could be joined says so.
+        arcade.onSettingChanged(module, QStringLiteral("online_play"), QStringLiteral("Off"));
+        for (const QVariant &v : arcade.lobby().value(QStringLiteral("rooms")).toList()) {
+            const QVariantMap r = v.toMap();
+            if (r.value(QStringLiteral("id")).toInt() == 11) {
+                QVERIFY(!r.value(QStringLiteral("joinable")).toBool());
+                QCOMPARE(r.value(QStringLiteral("why")).toString(),
+                         QStringLiteral("Online Play is off: Settings → Arcade → Online Play"));
+            }
+        }
+        arcade.onSettingChanged(module, QStringLiteral("online_play"), QStringLiteral("On"));
         // The Arcade screen's filter, after All Games.
         const QVariantList filters = arcade.filters();
         QCOMPARE(filters.value(1).toMap().value(QStringLiteral("id")).toString(), QStringLiteral("online"));
