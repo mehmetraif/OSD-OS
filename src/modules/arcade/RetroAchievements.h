@@ -45,6 +45,12 @@ public:
     void setServers(const QUrl &api, const QUrl &media) { m_api = api; m_media = media; }
     // The account's key; "" for none. Another forgets what the last read.
     void setKey(const QString &key);
+    // The key asked about at once, with the Web API's smallest answer (its
+    // consoles), unless an answer already came with it: keyAccepted() or
+    // keyRefused().
+    void checkKey();
+    // An answer came with the key, and none refused it since.
+    bool keyWorks() const { return m_keyAccepted; }
     // The account's user, whose achievements achievements() says were
     // earned; "" for none. Another forgets the achievements read.
     void setUser(const QString &user);
@@ -94,8 +100,10 @@ signals:
     // "failed" (the game couldn't be read); fileName, the file whose game it
     // is.
     void picturesFound(const QString &fileName, const QString &state, const QStringList &paths);
-    // RetroAchievements refused the key (HTTP 401 or 403).
+    // RetroAchievements refused the key (HTTP 401 or 403); or took it, the
+    // first of its answers to the key come.
     void keyRefused();
+    void keyAccepted();
 
 private:
     struct Board {
@@ -143,6 +151,8 @@ private:
     QUrl m_api;
     QUrl m_media;
     QString m_key;
+    bool    m_keyAccepted = false;      // an answer came with it
+    bool    m_keyCheck = false;         // checkKey() asked, to be read first
     QString m_user;
     QNetworkAccessManager *m_nam = nullptr;
     QNetworkReply *m_reply = nullptr;

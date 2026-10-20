@@ -831,6 +831,22 @@ FocusScope {
                 font.family: root.globalFont
                 font.pixelSize: arcadeScreen.textSize
             }
+            // Why none was downloaded: RetroAchievements' pictures come with
+            // the account's Web API key alone (Settings → Arcade →
+            // RetroAchievements Account).
+            Text {
+                readonly property bool noKey: arcadeBackend ? !arcadeBackend.achievementsKey : false
+                readonly property bool refused: arcadeBackend ? arcadeBackend.achievementsKeyRefused : false
+                visible: arcadeScreen.isGame && (noKey || refused)
+                width: parent.width
+                horizontalAlignment: Text.AlignHCenter
+                text: refused ? "Web API Key Refused" : "No Web API Key"
+                elide: Text.ElideRight
+                color: root.primaryColor
+                font.family: root.globalFont
+                font.capitalization: Font.AllUppercase
+                font.pixelSize: arcadeScreen.textSize
+            }
         }
 
         // The credits bought, on a ground of their own so they read over

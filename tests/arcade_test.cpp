@@ -1106,6 +1106,9 @@ private slots:
             return arcade.leaderboard(QLatin1String(set)).value(QStringLiteral("state")).toString();
         };
         QCOMPARE(boardState("sf2"), QStringLiteral("off"));
+        // The key, asked about as it is set, asked of no server.
+        arcade.setAchievementsServers(QUrl(QStringLiteral("http://127.0.0.1:9/API/")),
+                                      QUrl(QStringLiteral("http://127.0.0.1:9/media/")));
         arcade.setAchievementsKey(QStringLiteral(" key1 "));
         QVERIFY(arcade.achievementsKey());
         QCOMPARE(QJsonDocument::fromJson(contents(data.path() + QStringLiteral("/arcade/retroachievements.json")))
@@ -1256,6 +1259,77 @@ private slots:
         QVERIFY(logLines(QStringLiteral("play pacman")).size() == 1);
     }
 
+    // A sign-in checked as it is made: RetroArch, with no picture, sound or
+    // controllers, signs in with the sign-in core and is stopped as it says
+    // how it went. The token it saved is kept and nothing of the check is
+    // left, its config having held the password; a password refused says
+    // why and isn't kept; RetroAchievements not reached leaves the password
+    // for the next game, saying so; signed out while it runs, it is stopped.
+    // Without the core, the next game signs in, as before.
+    void signInChecked() {
+        QTemporaryDir data;
+        QVERIFY(data.isValid());
+        QVERIFY(QDir().mkpath(data.path() + QStringLiteral("/bin")));
+        writeFile(data.path() + QStringLiteral("/bin/retroarch"), fixture("retroarch"));
+        QVERIFY(QFile::setPermissions(data.path() + QStringLiteral("/bin/retroarch"),
+                                      QFile::ReadOwner | QFile::WriteOwner | QFile::ExeOwner));
+        const QString core = data.path() + QStringLiteral("/osdos_signin_libretro.so");
+        writeFile(core);
+        const QString configCopy = data.path() + QStringLiteral("/ra.cfg");
+        qputenv("RA_CONFIG_COPY", configCopy.toUtf8());
+        const auto restore = qScopeGuard([] { qunsetenv("RA_CONFIG_COPY"); });
+        const QString dir = data.path() + QStringLiteral("/arcade/retroarch/sign-in");
+        const QString kept = data.path() + QStringLiteral("/arcade/retroachievements.json");
+
+        ArcadeBackend arcade(data.path(), data.path(), nullptr, nullptr);
+        arcade.setSignInCore(data.path() + QStringLiteral("/none.so"));
+        arcade.signInAchievements(QStringLiteral("player"), QStringLiteral("secret"));
+        QCOMPARE(arcade.achievementsState(), QStringLiteral("pending"));
+        QCOMPARE(arcade.achievementsMessage(), QString());
+
+        arcade.setSignInCore(core);
+        QFile::remove(m_log);
+        arcade.signInAchievements(QStringLiteral(" player "), QStringLiteral("secret"));
+        QCOMPARE(arcade.achievementsState(), QStringLiteral("checking"));
+        QTRY_COMPARE_WITH_TIMEOUT(arcade.achievementsState(), QStringLiteral("signedIn"), 10000);
+        QCOMPARE(logLines(QStringLiteral("retroarch ")).value(0),
+                 QStringLiteral("retroarch -L %1 --config %2/retroarch.cfg --verbose %2/sign-in.osdos").arg(core, dir));
+        QVERIFY(logLines().contains(QStringLiteral("cwd ") + dir));
+        QVERIFY(logLines().contains(QStringLiteral("xdg ") + dir + QStringLiteral("/config")));
+        const QString config = QString::fromUtf8(contents(configCopy));
+        for (const char *line : { "config_save_on_exit = \"true\"", "load_dummy_on_core_shutdown = \"false\"",
+                                  "video_driver = \"null\"", "audio_driver = \"null\"",
+                                  "input_driver = \"null\"", "input_joypad_driver = \"null\"", "cheevos_enable = \"true\"",
+                                  "cheevos_username = \"player\"", "cheevos_password = \"secret\"", "cheevos_token = \"\"",
+                                  "cheevos_hardcore_mode_enable = \"false\"" })
+            QVERIFY2(config.contains(QLatin1String(line)), line);
+        QCOMPARE(QJsonDocument::fromJson(contents(kept)).object().value(QStringLiteral("token")).toString(),
+                 QStringLiteral("tok789"));
+        QVERIFY(!contents(kept).contains("secret"));
+        QVERIFY(!QFileInfo::exists(dir));
+
+        arcade.signInAchievements(QStringLiteral("player"), QStringLiteral("wrong"));
+        QTRY_COMPARE_WITH_TIMEOUT(arcade.achievementsState(), QStringLiteral("failed"), 10000);
+        QCOMPARE(arcade.achievementsMessage(), QStringLiteral("Invalid User/Password combination. Please try again"));
+        QCOMPARE(QJsonDocument::fromJson(contents(kept)).object().value(QStringLiteral("token")).toString(), QString());
+        QVERIFY(!QFileInfo::exists(dir));
+
+        arcade.signInAchievements(QStringLiteral("player"), QStringLiteral("offline"));
+        QTRY_COMPARE_WITH_TIMEOUT(arcade.achievementsState(), QStringLiteral("pending"), 10000);
+        QCOMPARE(arcade.achievementsMessage(), QStringLiteral("No response from server: RetroArch signs in at the next game"));
+        QVERIFY(!QFileInfo::exists(dir));
+
+        arcade.signInAchievements(QStringLiteral("player"), QStringLiteral("silent"));
+        QCOMPARE(arcade.achievementsState(), QStringLiteral("checking"));
+        QTRY_VERIFY_WITH_TIMEOUT(QFileInfo::exists(configCopy) && contents(configCopy).contains("silent"), 10000);
+        arcade.signOutAchievements();
+        QCOMPARE(arcade.achievementsState(), QStringLiteral("none"));
+        QVERIFY(!QFileInfo::exists(dir));
+        // Nothing comes of the RetroArch stopped.
+        QTest::qWait(300);
+        QCOMPARE(arcade.achievementsState(), QStringLiteral("none"));
+    }
+
     // Settings → Arcade → FinalBurn Neo's download from a stand-in server:
     // the core out of its zip, the list of games and the licence put in
     // place once all three are whole; a file the server hasn't, or a list
@@ -1373,6 +1447,7 @@ private slots:
               "{\"Results\": [{\"ID\": 31, \"RankAsc\": false, \"Title\": \"Mission 1\","
               " \"Description\": \"Most points\", \"Format\": \"SCORE\"}]}" },
             { "/API/API_GetLeaderboardEntries.php?i=31&c=3", "{\"Count\": 0, \"Total\": 0, \"Results\": []}" },
+            { "/API/API_GetConsoleIDs.php?", "[{\"ID\": 27, \"Name\": \"Arcade\"}]" },
         };
         QStringList asked;
         QTcpServer server;
@@ -1489,6 +1564,30 @@ private slots:
         QCOMPARE(state(corrected.board(QStringLiteral("sf2.zip"))), QStringLiteral("loading"));
         QVERIFY(readyCorrected.wait(5000));
         QCOMPARE(state(corrected.board(QStringLiteral("sf2.zip"))), QStringLiteral("ready"));
+
+        // A key asked about at once, with the smallest answer, and taken;
+        // asked again, not, as an answer came; another refused. An answer to
+        // anything else takes a key too.
+        QTemporaryDir checked;
+        RetroAchievements checker(checked.path(), api, media);
+        QSignalSpy accepted(&checker, &RetroAchievements::keyAccepted);
+        QSignalSpy refusedKey(&checker, &RetroAchievements::keyRefused);
+        asked.clear();
+        checker.setKey(QStringLiteral("key1"));
+        checker.checkKey();
+        QVERIFY(accepted.wait(5000));
+        QCOMPARE(asked, QStringList({ QStringLiteral("/API/API_GetConsoleIDs.php? y=key1") }));
+        checker.checkKey();
+        QTest::qWait(200);
+        QCOMPARE(asked.size(), 1);
+        checker.setKey(QStringLiteral("bad"));
+        checker.checkKey();
+        QVERIFY(refusedKey.wait(5000));
+        QCOMPARE(accepted.size(), 1);
+        QSignalSpy acceptedAgain(&again, &RetroAchievements::keyAccepted);
+        again.setKey(QStringLiteral("key1"));
+        again.board(QStringLiteral("sf2.zip"));
+        QVERIFY(acceptedAgain.wait(5000));
 
         // No server, and no list kept: the board can't be read. What is
         // logged names what wasn't read, never the key.
@@ -1701,6 +1800,7 @@ private slots:
                 "12": {"ID": 12, "Title": "World Warrior", "Points": 25, "BadgeName": "250336", "DisplayOrder": 2}}})" },
             { "/media/Badge/250336.png", png("badge") },
             { "/media/Badge/250337_lock.png", png("locked") },
+            { "/API/API_GetConsoleIDs.php?", R"([{"ID": 27, "Name": "Arcade"}])" },
         };
         const auto urls = [](const QStringList &files) {
             QStringList list;
@@ -1718,13 +1818,17 @@ private slots:
         QTest::qWait(600);
         QVERIFY(standIn.asked.isEmpty());
 
+        // A key: asked about at once, and taken; nothing else read until a
+        // game's pictures are wanted.
         QSignalSpy changed(&arcade, &ArcadeBackend::picturesChanged);
         arcade.setAchievementsKey(QStringLiteral("key1"));
         QCOMPARE(arcade.gameDetails(QStringLiteral("sf2")).value(QStringLiteral("pictures")),
                  urls({ snap + QStringLiteral("/sf2.png"), snap + QStringLiteral("/sf2_1.png"),
                         snap + QStringLiteral("/sf2_4.PNG") }));
+        QTRY_VERIFY_WITH_TIMEOUT(arcade.achievementsKeyWorks(), 5000);
         QTest::qWait(600);
-        QVERIFY(standIn.asked.isEmpty());
+        QCOMPARE(standIn.asked, QStringList({ QStringLiteral("/API/API_GetConsoleIDs.php?") }));
+        standIn.asked.clear();
         arcade.wantPictures(QStringLiteral("sf2"));
         QTRY_COMPARE_WITH_TIMEOUT(changed.size(), 3, 10000);
         QCOMPARE(changed.last().at(0).toString(), QStringLiteral("sf2"));

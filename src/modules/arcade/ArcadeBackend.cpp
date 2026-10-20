@@ -63,6 +63,11 @@ const QHash<QString, QString> kRelays = {
     { QStringLiteral("Singapore"), QStringLiteral("singapore") },
     { QStringLiteral("Chuncheon"), QStringLiteral("chuncheon") },
 };
+// A sign-in RetroArch hasn't said how it went in this long is stopped (its
+// token read all the same), and one stopped is killed after this.
+constexpr int kSignInTimeoutMs = 20000;
+constexpr int kSignInStopMs = 5000;
+
 // How long the lobby is waited for.
 constexpr int kLobbyTimeoutMs = 15000;
 constexpr qint64 kLobbyMaxBytes = 4 * 1024 * 1024;
@@ -370,11 +375,15 @@ ArcadeBackend::ArcadeBackend(const QString &appRoot, const QString &dataRoot, Ap
         if (!std::exchange(m_raKeyRefused, true))
             emit achievementsChanged();
     });
+    connect(m_retroAchievements, &RetroAchievements::keyAccepted, this, &ArcadeBackend::achievementsChanged);
     // The trophy among the status icons is the account's.
     connect(this, &ArcadeBackend::achievementsChanged, this, &ArcadeBackend::statusIconsChanged);
     // A game's config is written anew for each game: one a game left that the
-    // app didn't see end (it was stopped meanwhile) may hold the password.
+    // app didn't see end (it was stopped meanwhile) may hold the password, as
+    // may a sign-in's.
     QFile::remove(retroarchHome() + QStringLiteral("/retroarch.cfg"));
+    QDir(signInDir()).removeRecursively();
+    m_signInCore = QCoreApplication::applicationDirPath() + QStringLiteral("/osdos_signin_libretro.so");
     m_genresUrl = QUrl(legacy::env("GENRES_URL", kGenresUrl.toString()));
 
     m_scanTimer = new QTimer(this);
@@ -424,6 +433,10 @@ ArcadeBackend::~ArcadeBackend() {
         m_scan->disconnect(this);
         m_scan->kill();
         m_scan->waitForFinished(1000);
+    }
+    if (QProcess *signIn = m_signIn) {
+        stopSignIn();
+        signIn->waitForFinished(1000);
     }
 }
 
@@ -2000,6 +2013,10 @@ bool ArcadeBackend::playFbneo(const QString &name, libretro::Launch::Netplay net
         launch.pads << (guids.at(p).isEmpty() ? QString() : libretro::reservedDevice(guids.at(p), names.value(p)));
     m_raPasswordGiven = false;
     if (m_achievements && !m_raUser.isEmpty()) {
+        // A sign-in still being checked: the game's RetroArch signs in
+        // instead. (Without Online High Scores it goes on beside the game.)
+        if (stopSignIn())
+            emit achievementsChanged();
         launch.achievementsUser = m_raUser;
         launch.achievementsToken = m_raToken;
         if (m_raToken.isEmpty() && !m_raPassword.isEmpty()) {
@@ -2257,6 +2274,8 @@ QString ArcadeBackend::achievementsState() const {
         return QStringLiteral("none");
     if (!m_raToken.isEmpty())
         return QStringLiteral("signedIn");
+    if (m_signIn)
+        return QStringLiteral("checking");
     if (!m_raPassword.isEmpty())
         return QStringLiteral("pending");
     return QStringLiteral("failed");
@@ -2266,16 +2285,19 @@ void ArcadeBackend::signInAchievements(const QString &user, const QString &passw
     const QString name = user.trimmed();
     if (name.isEmpty() || password.isEmpty())
         return;
+    stopSignIn();
     m_raUser = name;
     m_raToken.clear();
     m_raPassword = password;
     m_raFailure.clear();
     m_retroAchievements->setUser(m_raUser);
     saveAchievements();
+    checkSignIn();
     emit achievementsChanged();
 }
 
 void ArcadeBackend::signOutAchievements() {
+    stopSignIn();
     m_raUser.clear();
     m_raToken.clear();
     m_raPassword.clear();
@@ -2285,12 +2307,139 @@ void ArcadeBackend::signOutAchievements() {
     emit achievementsChanged();
 }
 
+void ArcadeBackend::checkSignIn() {
+    const QString program = retroarchPath();
+    if (program.isEmpty() || !QFileInfo(m_signInCore).isFile())
+        return;
+    const QString dir = signInDir();
+    if (!QDir().mkpath(dir))
+        return;
+    // What it keeps there, the password in its config, is no one else's.
+    QFile::setPermissions(dir, QFileDevice::ReadOwner | QFileDevice::WriteOwner | QFileDevice::ExeOwner);
+    libretro::SignIn signIn;
+    signIn.core = m_signInCore;
+    signIn.content = dir + QStringLiteral("/sign-in.osdos");
+    signIn.config = dir + QStringLiteral("/retroarch.cfg");
+    signIn.dir = dir;
+    signIn.user = m_raUser;
+    signIn.password = m_raPassword;
+    if (!writeFileAtomically(signIn.content, QByteArrayLiteral("OSD/OS"), kOwnerOnly)
+        || !writeFileAtomically(signIn.config, libretro::signInConfigText(signIn).toUtf8(), kOwnerOnly))
+        return;
+
+    m_signInResult = libretro::SignInLine::None;
+    m_signInFailure.clear();
+    m_signIn = new QProcess(this);
+    m_signIn->setProgram(program);
+    m_signIn->setArguments(libretro::signInArguments(signIn));
+    m_signIn->setWorkingDirectory(dir);
+    // Its log, on its output and its errors alike; and its own folder kept
+    // with the rest (XDG_CONFIG_HOME), not the user's RetroArch's.
+    m_signIn->setProcessChannelMode(QProcess::MergedChannels);
+    QProcessEnvironment environment = QProcessEnvironment::systemEnvironment();
+    environment.insert(QStringLiteral("XDG_CONFIG_HOME"), dir + QStringLiteral("/config"));
+    m_signIn->setProcessEnvironment(environment);
+    connect(m_signIn, &QProcess::readyReadStandardOutput, this, &ArcadeBackend::readSignIn);
+    connect(m_signIn, &QProcess::finished, this, &ArcadeBackend::signInEnded);
+    connect(m_signIn, &QProcess::errorOccurred, this, [this](QProcess::ProcessError error) {
+        if (error == QProcess::FailedToStart)
+            signInEnded();
+    });
+    // Not said how it went in time: stopped, and what it saved read all the
+    // same; and killed if even that doesn't end it. Once it has said, it is
+    // being stopped already: a second SIGTERM would end it unsaved.
+    QProcess *process = m_signIn;
+    QTimer::singleShot(kSignInTimeoutMs, process, [this, process] {
+        if (m_signInResult != libretro::SignInLine::None)
+            return;
+        process->terminate();
+        QTimer::singleShot(kSignInStopMs, process, &QProcess::kill);
+    });
+    qInfo("[Arcade] RetroArch signs in as %s to check it", qPrintable(m_raUser));
+    m_signIn->start();
+}
+
+void ArcadeBackend::readSignIn() {
+    while (m_signIn && m_signIn->canReadLine()) {
+        const QString line = QString::fromUtf8(m_signIn->readLine());
+        if (m_signInResult != libretro::SignInLine::None)
+            continue;
+        m_signInResult = libretro::readSignInLine(line.trimmed(), &m_signInFailure);
+        // Said: RetroArch ends, saving the token if it has one.
+        if (m_signInResult != libretro::SignInLine::None) {
+            m_signIn->terminate();
+            QTimer::singleShot(kSignInStopMs, m_signIn, &QProcess::kill);
+        }
+    }
+}
+
+void ArcadeBackend::signInEnded() {
+    if (!m_signIn)
+        return;
+    // What it said last, not read yet.
+    readSignIn();
+    const QString token = libretro::savedToken(signInDir() + QStringLiteral("/retroarch.cfg"));
+    // The password went in its folder, the token it was swapped for too.
+    stopSignIn();
+    if (!token.isEmpty()) {
+        qInfo("[Arcade] RetroArch signed in as %s", qPrintable(m_raUser));
+        m_raToken = token;
+        m_raPassword.clear();
+        m_raFailure.clear();
+    } else if (m_signInResult == libretro::SignInLine::Failed) {
+        qInfo("[Arcade] RetroAchievements refused %s: %s", qPrintable(m_raUser), qPrintable(m_signInFailure));
+        m_raPassword.clear();
+        m_raFailure = m_signInFailure;
+    } else {
+        // The password waits for the next game; why it does: RetroAchievements
+        // not reached, a sign-in RetroArch kept no token of, or nothing said
+        // (in time, or at all: RetroArch couldn't start or load the core).
+        qInfo("[Arcade] RetroArch couldn't sign in as %s now: at the next game", qPrintable(m_raUser));
+        m_raFailure = (m_signInResult == libretro::SignInLine::Unreachable
+                           ? (m_signInFailure.isEmpty() ? QStringLiteral("RetroAchievements couldn't be reached")
+                                                        : m_signInFailure)
+                           : m_signInResult == libretro::SignInLine::SignedIn
+                               ? QStringLiteral("RetroArch signed in but kept no token")
+                               : QStringLiteral("The sign-in couldn't be checked now"))
+                      + QStringLiteral(": RetroArch signs in at the next game");
+    }
+    saveAchievements();
+    emit achievementsChanged();
+}
+
+bool ArcadeBackend::stopSignIn() {
+    QProcess *process = std::exchange(m_signIn, nullptr);
+    if (!process)
+        return false;
+    process->disconnect(this);
+    if (process->state() == QProcess::NotRunning) {
+        process->deleteLater();
+    } else {
+        // Gone once it has ended, or once it couldn't start after all.
+        connect(process, &QProcess::finished, process, &QObject::deleteLater);
+        connect(process, &QProcess::errorOccurred, process, &QObject::deleteLater);
+        process->kill();
+    }
+    QDir(signInDir()).removeRecursively();
+    return true;
+}
+
 void ArcadeBackend::setAchievementsKey(const QString &key) {
     m_raKey = key.trimmed();
     m_raKeyRefused = false;
     m_retroAchievements->setKey(m_raKey);
+    m_retroAchievements->checkKey();
     saveAchievements();
     emit achievementsChanged();
+}
+
+void ArcadeBackend::checkAchievementsKey() {
+    if (!m_raKeyRefused)
+        m_retroAchievements->checkKey();
+}
+
+bool ArcadeBackend::achievementsKeyWorks() const {
+    return m_retroAchievements->keyWorks();
 }
 
 QVariantMap ArcadeBackend::leaderboard(const QString &set) {
@@ -2377,7 +2526,8 @@ QStringList ArcadeBackend::statusIcons() const {
     if (m_highScores)
         icons << QStringLiteral("hiscore");
     const QString account = achievementsState();
-    if (m_achievements && (account == QLatin1String("signedIn") || account == QLatin1String("pending")))
+    if (m_achievements && (account == QLatin1String("signedIn") || account == QLatin1String("pending")
+                           || account == QLatin1String("checking")))
         icons << QStringLiteral("trophy");
     if (m_onlinePlay)
         icons << QStringLiteral("globe");

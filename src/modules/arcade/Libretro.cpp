@@ -13,6 +13,7 @@
 #include <QVersionNumber>
 #include <QXmlStreamReader>
 #include <algorithm>
+#include <optional>
 #include <utility>
 
 namespace libretro {
@@ -53,6 +54,25 @@ QString quoted(QString value) {
     value.remove(QLatin1Char('\n'));
     value.remove(QLatin1Char('\r'));
     return QLatin1Char('"') + value + QLatin1Char('"');
+}
+
+// A config's line: "key = "value"".
+QString configLine(const char *key, const QString &value) {
+    return QLatin1String(key) + QStringLiteral(" = ") + quoted(value);
+}
+
+QString onOff(bool value) {
+    return value ? QStringLiteral("true") : QStringLiteral("false");
+}
+
+// RetroArch's "RetroAchievements login failed: <why>": why, or nothing for
+// any other line.
+std::optional<QString> loginFailure(const QString &line) {
+    static const QRegularExpression failed(QStringLiteral("RetroAchievements login failed: (.*)$"));
+    const QRegularExpressionMatch match = failed.match(line);
+    if (!match.hasMatch())
+        return std::nullopt;
+    return match.captured(1).trimmed();
 }
 
 // The lobby's oldest RetroArch the menu lists rooms of.
@@ -193,10 +213,8 @@ QString reservedDevice(const QString &guid, const QString &name) {
 
 QString configText(const Launch &launch) {
     QStringList lines{ QStringLiteral("# Written by OSD/OS for each game it starts: what is changed here is lost at the next.") };
-    const auto set = [&lines](const char *key, const QString &value) {
-        lines << QLatin1String(key) + QStringLiteral(" = ") + quoted(value);
-    };
-    const auto on = [](bool value) { return value ? QStringLiteral("true") : QStringLiteral("false"); };
+    const auto set = [&lines](const char *key, const QString &value) { lines << configLine(key, value); };
+    const auto on = onOff;
     const bool achievements = !launch.achievementsUser.isEmpty()
                               && (!launch.achievementsToken.isEmpty() || !launch.achievementsPassword.isEmpty());
     // The password only until there is a token, which RetroArch swaps it for.
@@ -309,7 +327,6 @@ Run readLog(const QString &path) {
     if (!file.open(QIODevice::ReadOnly | QIODevice::Text))
         return run;
     static const QRegularExpression rom(QStringLiteral("\\[FBNeo\\] ROM at index \\d+ with name (\\S+) and CRC"));
-    static const QRegularExpression login(QStringLiteral("RetroAchievements login failed: (.*)$"));
     QTextStream in(&file);
     while (!in.atEnd()) {
         const QString line = in.readLine();
@@ -324,9 +341,8 @@ Run readLog(const QString &path) {
                 run.missing << missing.captured(1);
             continue;
         }
-        const QRegularExpressionMatch failed = login.match(line);
-        if (failed.hasMatch())
-            run.loginFailure = failed.captured(1).trimmed();
+        if (const std::optional<QString> failure = loginFailure(line))
+            run.loginFailure = *failure;
         if (line.contains(QLatin1String("[ERROR]")))
             run.error = line.section(QLatin1String("[ERROR]"), 1).trimmed();
     }
@@ -355,6 +371,56 @@ QString savedToken(const QString &configPath) {
             return match.captured(1);
     }
     return QString();
+}
+
+QString signInConfigText(const SignIn &signIn) {
+    QStringList lines{ QStringLiteral("# Written by OSD/OS to check a RetroAchievements sign-in, and removed after it.") };
+    const auto set = [&lines](const char *key, const QString &value) { lines << configLine(key, value); };
+    // Saved on exit for the token, as after a game; and ended, not left in
+    // its menu with its dummy core, as the core ends it should nothing else.
+    set("config_save_on_exit", onOff(true));
+    set("load_dummy_on_core_shutdown", onOff(false));
+    // Nothing drawn, heard or read: the menus keep the screen and the pads.
+    set("video_driver", QStringLiteral("null"));
+    set("audio_driver", QStringLiteral("null"));
+    set("audio_enable", onOff(false));
+    set("input_driver", QStringLiteral("null"));
+    set("input_joypad_driver", QStringLiteral("null"));
+    set("menu_driver", QStringLiteral("rgui"));
+    set("pause_nonactive", onOff(false));
+    set("ui_companion_enable", onOff(false));
+    set("system_directory", signIn.dir);
+    set("savefile_directory", signIn.dir);
+    set("savestate_directory", signIn.dir);
+    set("cheevos_enable", onOff(true));
+    set("cheevos_username", signIn.user);
+    set("cheevos_password", signIn.password);
+    set("cheevos_token", QString());
+    set("cheevos_hardcore_mode_enable", onOff(false));
+    return lines.join(QLatin1Char('\n')) + QLatin1Char('\n');
+}
+
+QStringList signInArguments(const SignIn &signIn) {
+    return { QStringLiteral("-L"), signIn.core, QStringLiteral("--config"), signIn.config,
+             QStringLiteral("--verbose"), signIn.content };
+}
+
+SignInLine readSignInLine(const QString &line, QString *failure) {
+    // rcheevos' "<user> logged in successfully" and RetroArch's "RetroAchievements
+    // login failed: <why>", under its [RCHEEVOS] tag; its words for a server
+    // that didn't answer, which leave the password to try at the next game.
+    if (!line.contains(QLatin1String("[RCHEEVOS]")))
+        return SignInLine::None;
+    if (line.contains(QLatin1String(" logged in successfully")))
+        return SignInLine::SignedIn;
+    if (const std::optional<QString> why = loginFailure(line)) {
+        if (failure)
+            *failure = *why;
+        return loginRefused(*why) ? SignInLine::Failed : SignInLine::Unreachable;
+    }
+    if (line.contains(QLatin1String("Unable to communicate with RetroAchievements server")))
+        return SignInLine::Unreachable;
+    return SignInLine::None;
 }
 
 QList<Room> readLobby(const QByteArray &json) {

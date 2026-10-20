@@ -186,8 +186,11 @@ Rectangle {
         property string achievementsMessage: ""
         property bool achievementsKey: false
         property bool achievementsKeyRefused: false
+        property bool achievementsKeyWorks: false
         property var signIns: []
         property string keyGiven: ""
+        property int keyChecks: 0
+        function checkAchievementsKey() { keyChecks++ }
         signal achievementsChanged()
         // Online Play: the sets that can be hosted, the rooms joined, the
         // games hosted and the lobby's reads.
@@ -206,7 +209,12 @@ Rectangle {
         property var boards: ({})
         signal leaderboardReady(string set)
         function leaderboard(set) { return (engineOf(set) === "fbneo" && boards[set]) || { state: "off" } }
-        function setAchievementsKey(key) { keyGiven = key; achievementsKey = key !== ""; achievementsKeyRefused = false }
+        function setAchievementsKey(key) {
+            keyGiven = key
+            achievementsKey = key !== ""
+            achievementsKeyRefused = false
+            achievementsKeyWorks = false
+        }
         function signInAchievements(user, password) {
             signIns = signIns.concat([user + ":" + password])
             achievementsUser = user
@@ -377,8 +385,10 @@ Rectangle {
             arcadeBackend.achievementsMessage = ""
             arcadeBackend.achievementsKey = false
             arcadeBackend.achievementsKeyRefused = false
+            arcadeBackend.achievementsKeyWorks = false
             arcadeBackend.signIns = []
             arcadeBackend.keyGiven = ""
+            arcadeBackend.keyChecks = 0
             arcadeBackend.boards = {}
             arcadeBackend.achievementsData = {}
             arcadeBackend.badgeFiles = {}
@@ -777,11 +787,12 @@ Rectangle {
         }
 
         // The account's page: the user and password typed (the password a
-        // star a letter, both cases kept), Sign In hands them over for the
-        // next game, and Sign Out brings them back.
+        // star a letter, both cases kept), Sign In hands them over, and Sign
+        // Out brings them back; the key asked about as the page opens.
         function test_accountPage() {
             var page = open("Account.qml")
             verify(findText(page, "None") !== null)
+            compare(arcadeBackend.keyChecks, 1)
             keyClick(Qt.Key_Down)
             keyClick(Qt.Key_Down)   // User
             keyClick(Qt.Key_Return)
@@ -818,6 +829,10 @@ Rectangle {
             compare(arcadeBackend.keyGiven, "Ab")
             tryVerify(function() { return findText(page, "Kept", true) !== null }, 1000)
             compare(findText(page, "Ab", true), null)
+            // RetroAchievements took it.
+            arcadeBackend.achievementsKeyWorks = true
+            tryVerify(function() { return findText(page, "Working", true) !== null }, 1000)
+            arcadeBackend.achievementsKeyWorks = false
             compare(page.keys, ["state", "status", "signOut", "key", "forgetKey"])
             arcadeBackend.achievementsKeyRefused = true
             tryVerify(function() { return findText(page, "Refused", true) !== null }, 1000)
@@ -834,6 +849,20 @@ Rectangle {
             keyClick(Qt.Key_Return)
             tryVerify(function() { return page.keys.length === 6 }, 1000)
             compare(page.keys, ["state", "status", "user", "password", "signIn", "key"])
+            // Signed in again, RetroArch signing in at once: the page says
+            // so; refused, it says why, the user kept and the cursor on the
+            // password, to type it again.
+            arcadeBackend.achievementsUser = "Player"
+            arcadeBackend.achievementsState = "checking"
+            tryVerify(function() { return findText(page, "Checking", true) !== null }, 1000)
+            compare(page.keys, ["state", "status", "signOut", "key"])
+            page.typedUser = ""
+            arcadeBackend.achievementsMessage = "Invalid User/Password combination. Please try again"
+            arcadeBackend.achievementsState = "failed"
+            tryVerify(function() { return findText(page, "Not Signed In", true) !== null }, 1000)
+            compare(page.currentKey, "password")
+            compare(page.typedUser, "Player")
+            verify(findText(page, "Invalid User/Password combination") !== null)
         }
 
         // Pictures of the repository's, as a game's: a screenshot (4:3) and
@@ -885,12 +914,18 @@ Rectangle {
             arcadeBackend.gameInfo.sf2.pictures = [screenshot, widePicture, screenshot + "?3"]
             arcadeBackend.picturesChanged("sf2")
             compare(screen.pictures.length, 3)
-            // 1942 has none: which file it would be.
+            // 1942 has none: which file it would be, and why none was
+            // downloaded: no Web API key, or one refused.
             keyClick(Qt.Key_Down)
             compare(screen.currentSet, "1942")
             verify(findText(screen, "No Picture", true) !== null)
             verify(findText(screen, "snap/1942.png", true) !== null)
+            verify(findText(screen, "No Web API Key", true) !== null)
             compare(shownPicture(screen), null)
+            arcadeBackend.achievementsKey = true
+            tryVerify(function() { return findText(screen, "No Web API Key", true) === null }, 1000)
+            arcadeBackend.achievementsKeyRefused = true
+            tryVerify(function() { return findText(screen, "Web API Key Refused", true) !== null }, 1000)
         }
 
         // The status icons at the right of the help line, which makes room
