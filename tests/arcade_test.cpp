@@ -2974,6 +2974,13 @@ private slots:
             QVERIFY2(config.contains(QLatin1String(line)), line);
         QVERIFY(onPads(config));
         QVERIFY(!QFileInfo::exists(remap));
+        // Files missing in a game hosted, which plays online in FinalBurn Neo
+        // alone: nothing said of MAME.
+        const QVariantList missing = ended([&arcade] { return arcade.hostGame(QStringLiteral("mslug")); });
+        QCOMPARE(missing.value(1).toString(), QStringLiteral("failed"));
+        QCOMPARE(missing.value(2).toString(),
+                 QStringLiteral("Missing 201-p1.p1, 201-s1.s1: the set may be for another version of FinalBurn Neo\n"
+                                "Or a BIOS set it needs isn't in the games folder"));
         // A room gone from the lobby, and a game that can't be hosted.
         QVERIFY(!arcade.joinRoom(99));
         QCOMPARE(arcade.lastError(), QStringLiteral("The game is no longer in RetroArch's lobby"));

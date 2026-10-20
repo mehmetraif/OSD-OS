@@ -783,6 +783,7 @@ private:
     QString m_lastError;
     QString m_playing;
     QString m_playingEngine;      // "mame" or "fbneo"
+    bool    m_playingOnline = false;   // FinalBurn Neo's game hosted or joined
     QElapsedTimer m_playClock;    // since the game playing started
     bool    m_played = false;
 };

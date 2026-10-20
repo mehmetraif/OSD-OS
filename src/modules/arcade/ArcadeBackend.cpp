@@ -2310,6 +2310,7 @@ bool ArcadeBackend::playFbneo(const QString &name, libretro::Launch::Netplay net
     }
     m_playing = name;
     m_playingEngine = QStringLiteral("fbneo");
+    m_playingOnline = netplay != libretro::Launch::Netplay::None;
     m_playClock.start();
     if (!m_played) {
         m_played = true;
@@ -2459,8 +2460,9 @@ QString ArcadeBackend::fbneoNotice(int exitCode, const QString &reason, const li
         QString files = run.missing.mid(0, 3).join(QStringLiteral(", "));
         if (run.missing.size() > 3)
             files += QStringLiteral(" and %1 more").arg(run.missing.size() - 3);
-        // One MAME doesn't know has no other engine to play in.
-        if (fbneoOnly(m_playing))
+        // No other engine to play it in: one MAME doesn't know, one played
+        // online, or with no MAME.
+        if (fbneoOnly(m_playing) || m_playingOnline || mamePath().isEmpty())
             return QStringLiteral("Missing %1: the set may be for another version of FinalBurn Neo\n"
                                   "Or a BIOS set it needs isn't in the games folder").arg(files);
         return QStringLiteral("Missing %1: FinalBurn Neo's sets aren't always MAME's\n"
