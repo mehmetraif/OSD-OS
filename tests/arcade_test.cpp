@@ -919,6 +919,12 @@ private slots:
         QVERIFY2(has(QStringLiteral("config_save_on_exit = \"true\"")), qPrintable(config));
         for (const char *line : { "video_driver = \"gl\"", "video_context_driver = \"kms\"", "input_driver = \"udev\"",
                                   "audio_driver = \"alsa\"", "audio_device = \"\"", "input_joypad_driver = \"sdl2\"",
+                                  // RetroArch's Standard Gamepad for every player, its own
+                                  // look-up off: no "not configured" over the game.
+                                  "input_autodetect_enable = \"false\"", "input_player1_b_btn = \"0\"",
+                                  "input_player1_a_btn = \"1\"", "input_player1_start_btn = \"6\"",
+                                  "input_player1_select_btn = \"4\"", "input_player2_up_btn = \"11\"",
+                                  "input_player6_l_x_minus_axis = \"-0\"", "input_player6_r_y_plus_axis = \"-3\"",
                                   "input_quit_gamepad_combo = \"4\"", "quit_press_twice = \"false\"",
                                   "menu_driver = \"rgui\"", "ui_companion_enable = \"false\"",
                                   "system_directory = \"/ra/system\"", "savefile_directory = \"/ra/saves\"",
@@ -929,6 +935,7 @@ private slots:
                                   "cheevos_password = \"secret\"", "cheevos_hardcore_mode_enable = \"true\"" })
             QVERIFY2(has(QLatin1String(line)), line);
         QVERIFY(!config.contains(QStringLiteral("input_player2_reserved_device")));
+        QVERIFY(!config.contains(QStringLiteral("input_player7_")));
         QVERIFY(!config.contains(QStringLiteral("netplay_")));
         // Square pixels and no integer scale: the core's shape.
         QVERIFY(has(QStringLiteral("video_scale_integer = \"false\"")));

@@ -1,4 +1,5 @@
 #include "Libretro.h"
+#include "../../input/ControllerProfile.h"
 #include <QCryptographicHash>
 #include <QDir>
 #include <QFile>
@@ -12,6 +13,7 @@
 #include <QVersionNumber>
 #include <QXmlStreamReader>
 #include <algorithm>
+#include <utility>
 
 namespace libretro {
 
@@ -30,6 +32,19 @@ QString firstFile(const QStringList &candidates) {
     }
     return QString();
 }
+
+// RetroArch's built-in Standard Gamepad (SDL2_DEFAULT_BINDS in its
+// input_autodetect_builtin.c): each RetroPad input on SDL's game controller
+// buttons and axes, a player's binds without "input_playerN_".
+constexpr std::pair<const char *, const char *> kStandardGamepad[] = {
+    { "a_btn", "1" }, { "b_btn", "0" }, { "x_btn", "3" }, { "y_btn", "2" },
+    { "start_btn", "6" }, { "select_btn", "4" },
+    { "up_btn", "11" }, { "down_btn", "12" }, { "left_btn", "13" }, { "right_btn", "14" },
+    { "l_btn", "9" }, { "r_btn", "10" }, { "l2_axis", "+4" }, { "r2_axis", "+5" },
+    { "l3_btn", "7" }, { "r3_btn", "8" },
+    { "l_x_plus_axis", "+0" }, { "l_x_minus_axis", "-0" }, { "l_y_plus_axis", "+1" }, { "l_y_minus_axis", "-1" },
+    { "r_x_plus_axis", "+2" }, { "r_x_minus_axis", "-2" }, { "r_y_plus_axis", "-3" }, { "r_y_minus_axis", "+3" },
+};
 
 // A config's value, in its quotes: RetroArch's parser takes a line's value
 // to the next quote, so none in it, nor a line's end.
@@ -223,10 +238,19 @@ QString configText(const Launch &launch) {
         set("video_scale_integer_axis", QStringLiteral("0"));
         set("video_scale_integer_scaling", QStringLiteral("0"));
     }
-    // Pads as SDL knows them, the menus' own (with the built-in Standard
-    // Gamepad for any RetroArch has no profile of): Debian ships none.
+    // Pads as SDL knows them, the menus' own, each player's buttons those of
+    // RetroArch's built-in Standard Gamepad: the profile it falls back on
+    // for a pad it has none of, Debian shipping none. Written out for every
+    // player, with RetroArch's own look-up off, so that it no longer says
+    // over the game that each pad has no profile ("not configured, using
+    // fallback"); the reservations below still give each player their pad.
     set("input_joypad_driver", QStringLiteral("sdl2"));
-    set("input_autodetect_enable", on(true));
+    set("input_autodetect_enable", on(false));
+    for (int p = 1; p <= controllers::kPlayers; ++p) {
+        const QByteArray player = QByteArray("input_player") + QByteArray::number(p) + '_';
+        for (const auto &[name, value] : kStandardGamepad)
+            set((player + name).constData(), QLatin1String(value));
+    }
     // Coin and Start together, or Esc, at once: MAME's way out.
     set("input_quit_gamepad_combo", QStringLiteral("4"));
     set("input_menu_toggle_gamepad_combo", QStringLiteral("0"));
