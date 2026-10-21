@@ -8,8 +8,9 @@ import QtTest
 // to MAME having the screen, every key kept from the menus meanwhile, and
 // back to the list, or why it didn't play. The Arcade screen: its filters
 // and pages, a game's details and high scores, COIN, select (let go or
-// held) and START, the selected name scrolling, the room of its hint bar
-// and help line, and the credits going in with the game. The module's
+// held) and START, the selected name and a long filter's name scrolling,
+// the room of its hint bar and help line, and the credits going in with
+// the game. The module's
 // router, Root.qml: a game played straight from the list with Start Info
 // Screen off, every key kept from it meanwhile, back on it after, or why it
 // didn't play.
@@ -1850,6 +1851,59 @@ Rectangle {
             verify(name.width < name.implicitWidth)
             wait(2000)
             compare(name.x, 0)
+        }
+
+        // A filter's name too long for the bar scrolls through it, the
+        // page's number keeping its place; the next filter's name starts
+        // from its beginning, and one that fits stands still.
+        function test_screenBarScroll() {
+            arcadeBackend.filterList = arcadeBackend.filterList.concat([
+                { id: "genres/Shooter / Flying Vertical", name: "Shooter / Flying Vertical", sets: ["1942", "zerowing"] },
+                { id: "publishers/Technos Japan Corporation", name: "Technos Japan Corporation", sets: ["tmnt"] }])
+            var screen = openScreen()
+            // The bar's own text, in the bar, which has the name as its text.
+            var bar = findText(screen, "All Games", true)
+            var label = null
+            for (var i = 0; i < bar.children.length && !label; ++i)
+                label = findText(bar.children[i], "All Games", true)
+            verify(label !== null)
+            var page = findText(screen, "1/3", true)
+            verify(page !== null)
+            var pageX = page.mapToItem(screen, 0, 0).x
+            wait(2000)
+            compare(label.x, 0)
+
+            keyClick(Qt.Key_Left)
+            compare(label.text, "Technos Japan Corporation")
+            compare(page.text, "1/1")
+            verify(label.parent.clip)
+            verify(label.parent.width < label.implicitWidth)
+            verify(label.parent.mapToItem(screen, label.parent.width, 0).x < pageX)
+            compare(page.mapToItem(screen, 0, 0).x, pageX)
+            // Cut between two letters, as AppBar's title is.
+            var cell = Qt.createQmlObject('import QtQuick; TextMetrics { text: "M" }', screen)
+            cell.font = label.font
+            var letters = label.parent.width / cell.advanceWidth
+            fuzzyCompare(letters, Math.round(letters), 0.001)
+            cell.destroy()
+            // At its far end, the next name, as long, starts over.
+            var far = label.parent.width - label.implicitWidth
+            tryCompare(label, "x", far, 6000)
+            keyClick(Qt.Key_Left)
+            compare(label.text, "Shooter / Flying Vertical")
+            tryCompare(label, "x", 0, 200)
+            wait(1000)
+            compare(label.x, 0)
+            tryVerify(function() { return label.x < 0 }, 4000)
+
+            // Back to one that fits: still.
+            keyClick(Qt.Key_Right)
+            keyClick(Qt.Key_Right)
+            compare(label.text, "All Games")
+            tryCompare(label, "x", 0, 200)
+            verify(!label.parent.clip)
+            wait(2000)
+            compare(label.x, 0)
         }
 
         // The column's ground, the scheme's background as solid as Info

@@ -591,7 +591,8 @@ function drawKeys(ctx, look, L, ui, now) {
 }
 
 // ui: { filter, selected, wheelTop, credits, since, words (Search's),
-// typing (Search's keys have the keys), keysRow, keysCol }.
+// typing (Search's keys have the keys), keysRow, keysCol }; bar, the bar's
+// name and since when it scrolls, is kept there as it is drawn.
 export function drawArcade(ctx, look, assets, ui, now) {
     moving = false;
     const L = arcadeLayout(look);
@@ -619,16 +620,28 @@ export function drawArcade(ctx, look, assets, ui, now) {
         const rightW = measure(ctx, size, right);
         const arrows = filters.length > 1;
         const arrowW = measure(ctx, size, "◄");
+        // The filter's name in what is left of the bar, cut between two
+        // letters: too long for it, it scrolls through, started over as the
+        // name or the room changes (ArcadeBar's labelClip).
         const label = filter.name.toUpperCase();
-        const labelW = Math.max(0, Math.min(measure(ctx, size, label),
-            w - 2 * pad - (rightW + 2 * gap) - (arrows ? 2 * (arrowW + gap) : 0)));
+        const labelFull = measure(ctx, size, label);
+        const cell = Math.max(1, measure(ctx, size, "M"));
+        const room = w - 2 * pad - (rightW + 2 * gap) - (arrows ? 2 * (arrowW + gap) : 0);
+        const labelW = Math.max(0, Math.min(labelFull, Math.floor(room / cell) * cell));
+        if (!ui.bar || ui.bar.label !== label || ui.bar.width !== labelW)
+            ui.bar = { label, width: labelW, since: now };
         const top = y + (h - lineHeight(size)) / 2;
         let at = x + pad;
         if (arrows) {
             drawText(ctx, "◄", at, top, size, look.surface);
             at += arrowW + gap;
         }
-        drawText(ctx, elided(ctx, size, label, labelW), at, top, size, look.surface);
+        const labelX = at;
+        if (labelFull > labelW)
+            clipped(ctx, labelX, y, labelW, h, () =>
+                drawText(ctx, label, labelX + scrolled(now - ui.bar.since, labelW - labelFull), top, size, look.surface));
+        else
+            drawText(ctx, label, labelX, top, size, look.surface);
         at += labelW + gap;
         if (arrows)
             drawText(ctx, "►", at, top, size, look.surface);
