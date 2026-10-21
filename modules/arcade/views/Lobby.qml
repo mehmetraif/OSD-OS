@@ -208,12 +208,14 @@ FocusScope {
                     description: !fbneo ? "The emulator it is played in: OSD/OS plays FinalBurn Neo's games alone"
                                  : coreHere ? "The emulator it is played in: yours too"
                                  : "The emulator it is played in: FinalBurn Neo, not installed here" })
+        // Its version against yours; a room kept as it left the lobby keeps
+        // the match it had, just its version once yours has been read since.
         if (r.coreVersion)
             made.push({ label: "Core Version", value: r.coreVersion, icons: matchIcons(r.coreMatch),
                         description: r.coreMatch === "same" ? "The same as yours: " + lobby.yourCore
                                      : r.coreMatch === "other" ? "Yours is " + lobby.yourCore
                                                                  + ": another version, the game may fall out of step"
-                                     : !fbneo ? r.core + " " + r.coreVersion
+                                     : !fbneo || lobby.yourCoreState === "read" ? r.core + " " + r.coreVersion
                                      : "Its host's version: " + notKnown(lobby.yourCoreState, "FinalBurn Neo") })
         if (r.subsystem)
             made.push({ label: "Subsystem", value: r.subsystem, description: "The core's subsystem it is played in" })

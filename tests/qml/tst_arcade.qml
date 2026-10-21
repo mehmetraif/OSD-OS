@@ -1463,10 +1463,13 @@ Rectangle {
             compare(line(3), "The emulator it is played in: FinalBurn Neo, not installed here")
             compare(line(4), "Its host's version: FinalBurn Neo is not installed here")
             compare(line(5), "The RetroArch its host plays it in: RetroArch is not installed here")
-            // Yours read, its host's RetroArch not said: nothing to say of it.
+            // Yours read, its host's RetroArch not said: nothing to say of it;
+            // and the core's version of a room matched before yours was read
+            // (one kept as it left the lobby): just its version.
             yours("read", "read", "")
             tryVerify(function() { return line(5) === "The RetroArch its host plays it in" }, 1000)
             compare(page.lines[5].value, "?")
+            compare(line(4), "FinalBurn Neo v1.0.0.03")
         }
 
         // The lobby read again with a room open: the cursor stays on its line,

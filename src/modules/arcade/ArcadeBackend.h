@@ -620,9 +620,9 @@ private:
     QVariantList roomEntries() const;
     // Our own RetroArch's version (`retroarch --version`, RetroArch.app's
     // from its bundle) and FinalBurn Neo core's (a copy of the app run with
-    // --core-info), each read again once its file is another, and once more
-    // after a read that took too long: what the lobby's rooms are matched
-    // against.
+    // --core-info), each read again once its file is another, none given
+    // meanwhile, and once more after a read stopped before it said it: what
+    // the lobby's rooms are matched against.
     void readOwnVersions();
     // program's answer to arguments given to take as it ends, however it
     // does (it couldn't start, or was stopped after a while: timedOut), then

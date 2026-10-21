@@ -3208,20 +3208,25 @@ private slots:
     // Our RetroArch's and core's versions, which the lobby's rooms are
     // matched against: still being read, then read; a read too slow asked
     // once more (a core loads faster the second time), and a file whose read
-    // was too slow twice not asked again; the core not installed.
+    // was too slow twice not asked again; none while a core that changed is
+    // read; one that says its version but doesn't end read all the same; the
+    // core not installed.
     void ownVersions() {
         QTemporaryDir data;
         QVERIFY(data.isValid());
         writeFile(data.path() + QStringLiteral("/bin/retroarch"), fixture("retroarch"));
         writeFile(libretro::downloadedCore(data.path()), "core");
         // The copy of the app that says our core's version: it notes each
-        // time it is asked, and takes its time while slow is there.
+        // time it is asked, takes its time before it says it while slow is
+        // there, and after it while hang is.
         const QString asked = data.path() + QStringLiteral("/asked");
         const QString slow = data.path() + QStringLiteral("/slow");
+        const QString hang = data.path() + QStringLiteral("/hang");
         const QString coreInfo = data.path() + QStringLiteral("/bin/coreinfo");
         writeFile(coreInfo, QStringLiteral("#!/bin/sh\necho >> '%1'\n[ -e '%2' ] && exec sleep 5\n"
-                                           "printf 'name=FinalBurn Neo\\nversion=v1.0.0.03 6e7c2a1\\n'\n")
-                                .arg(asked, slow).toUtf8());
+                                           "printf 'name=FinalBurn Neo\\nversion=v1.0.0.03 6e7c2a1\\n'\n"
+                                           "[ -e '%3' ] && exec sleep 5\nexit 0\n")
+                                .arg(asked, slow, hang).toUtf8());
         for (const char *program : { "/bin/retroarch", "/bin/coreinfo" })
             QVERIFY(QFile::setPermissions(data.path() + QLatin1String(program),
                                           QFile::ReadOwner | QFile::WriteOwner | QFile::ExeOwner));
@@ -3229,7 +3234,7 @@ private slots:
         // No lobby to be reached: ours are what is looked at.
         arcade.setLobbyUrl(QUrl(QStringLiteral("http://127.0.0.1:9/list")));
         arcade.setCoreInfoCommand({ coreInfo, QStringLiteral("--core-info") });
-        arcade.setVersionReadTimeout(300);
+        arcade.setVersionReadTimeout(1000);
         const auto ours = [&arcade](const char *key) { return arcade.lobby().value(QLatin1String(key)).toString(); };
         const auto times = [&asked] {
             QFile file(asked);
@@ -3261,10 +3266,13 @@ private slots:
             QCOMPARE(ours("yourCoreState"), QStringLiteral("missing"));
             QCOMPARE(ours("yourCore"), QString());
         }
-        // Another core, too slow twice: asked once more, then no more.
+        // Another core, too slow twice: none of the one before's version
+        // while it is read; asked once more, then no more.
         writeFile(libretro::downloadedCore(data.path()), "another core");
         writeFile(slow);
         arcade.refreshRooms();
+        QCOMPARE(ours("yourCoreState"), QStringLiteral("reading"));
+        QCOMPARE(ours("yourCore"), QString());
         QTRY_COMPARE_WITH_TIMEOUT(ours("yourCoreState"), QStringLiteral("failed"), 5000);
         QCOMPARE(times(), 3);
         arcade.refreshRooms();
@@ -3275,6 +3283,28 @@ private slots:
         QTest::qWait(300);
         QCOMPARE(times(), 4);
         QCOMPARE(ours("yourCoreState"), QStringLiteral("failed"));
+        // A core that says its version but doesn't end: stopped, read, and
+        // not asked again.
+        QVERIFY(QFile::remove(slow));
+        writeFile(hang);
+        writeFile(libretro::downloadedCore(data.path()), "the third core");
+        arcade.refreshRooms();
+        QTRY_COMPARE_WITH_TIMEOUT(ours("yourCoreState"), QStringLiteral("read"), 5000);
+        QCOMPARE(ours("yourCore"), QStringLiteral("v1.0.0.03 6e7c2a1"));
+        QCOMPARE(times(), 5);
+        arcade.refreshRooms();
+        QTest::qWait(300);
+        QCOMPARE(times(), 5);
+        // Another RetroArch: none of the one before's version while it is
+        // read, then its own.
+        writeFile(data.path() + QStringLiteral("/bin/retroarch"),
+                  "#!/bin/sh\nsleep 0.3\necho 'Version: 1.22.3 (Git 0a1b2c3)'\n");
+        QVERIFY(QFile::setPermissions(data.path() + QStringLiteral("/bin/retroarch"),
+                                      QFile::ReadOwner | QFile::WriteOwner | QFile::ExeOwner));
+        arcade.refreshRooms();
+        QCOMPARE(ours("yourRetroArchState"), QStringLiteral("reading"));
+        QCOMPARE(ours("yourRetroArch"), QString());
+        QTRY_COMPARE_WITH_TIMEOUT(ours("yourRetroArch"), QStringLiteral("1.22.3"), 5000);
     }
 
     // A game started while MAME is asked about the sets stops that MAME and

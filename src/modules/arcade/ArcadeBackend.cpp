@@ -2541,10 +2541,11 @@ void ArcadeBackend::downloadGenres() {
 }
 
 void ArcadeBackend::readOwnVersions() {
-    // A file is done with once its read has answered, or been too slow
-    // twice: asked again, a core loads faster from the cache.
-    const auto doneWith = [this](const QString &stamp, bool timedOut) {
-        if (timedOut && !m_slowVersions.contains(stamp)) {
+    // A file is done with once its read has ended, or been stopped before it
+    // said its version twice (slow): asked again, a core loads faster from
+    // the cache.
+    const auto doneWith = [this](const QString &stamp, bool slow) {
+        if (slow && !m_slowVersions.contains(stamp)) {
             m_slowVersions.insert(stamp);
             return false;
         }
@@ -2562,11 +2563,13 @@ void ArcadeBackend::readOwnVersions() {
             m_retroarchVersion = *version;
             m_retroarchVersionOf = programStamp;
         } else {
+            // The file before's version isn't this one's.
+            m_retroarchVersion.clear();
             m_versionRead = askVersion(program, { QStringLiteral("--version") },
                                        [this, programStamp, doneWith](const QByteArray &output, bool timedOut) {
                 m_versionRead = nullptr;
                 m_retroarchVersion = libretro::readVersion(output);
-                if (doneWith(programStamp, timedOut))
+                if (doneWith(programStamp, timedOut && m_retroarchVersion.isEmpty()))
                     m_retroarchVersionOf = programStamp;
             });
         }
@@ -2580,11 +2583,12 @@ void ArcadeBackend::readOwnVersions() {
             m_coreVersion.clear();
             m_coreVersionOf.clear();
         } else {
+            m_coreVersion.clear();
             m_coreInfoRead = askVersion(m_coreInfoCommand.first(), m_coreInfoCommand.mid(1) << core,
                                         [this, coreStamp, doneWith](const QByteArray &output, bool timedOut) {
                 m_coreInfoRead = nullptr;
                 m_coreVersion = libretro::readCoreInfo(output).version;
-                if (doneWith(coreStamp, timedOut))
+                if (doneWith(coreStamp, timedOut && m_coreVersion.isEmpty()))
                     m_coreVersionOf = coreStamp;
             });
         }
