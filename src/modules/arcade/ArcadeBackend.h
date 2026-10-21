@@ -273,12 +273,13 @@ public:
     // the local network, found by a query broadcast there that each host
     // answers (libretro::readLanAnswer()), of the folder's games FinalBurn
     // Neo plays, without a password: [{ id, set, title, host, detail }], an
-    // id kept while the host answers with the same game. refreshLanRooms()
-    // asks again, once at a time, and listens a second: lanRoomsChanged(),
-    // and the LAN Games folder and filter listed again (entriesReady(),
-    // gamesChanged()) once the rooms, their lines or why there are none are
-    // other than they were. Our versions are read for them as for the
-    // lobby's, and the rooms' lines said again once they are.
+    // id kept while the host answers with the same game, and a room kept
+    // through one query it isn't heard in. refreshLanRooms() asks again, once
+    // at a time, and listens a second: lanRoomsChanged(), and the LAN Games
+    // folder and filter listed again (entriesReady(), gamesChanged()) once
+    // the rooms, their lines or why there are none are other than they were.
+    // Our versions are read for them as for the lobby's, and the rooms' lines
+    // said again once they are. LAN Play turned off forgets the rooms.
     Q_INVOKABLE QVariantList lanRooms() const;
     Q_INVOKABLE void refreshLanRooms();
     // A room joined straight at its host, or a game hosted on the local
@@ -794,10 +795,11 @@ private:
     int m_versionReadMs = 0;
     // LAN Play: the socket the query goes out of and the answers come to,
     // where it goes ("" to broadcast it), the time the answers are listened
-    // for, the rooms heard meanwhile and those of the last query (and the
-    // LAN Games folder's entries as the views were last told of them), why
-    // the network couldn't be asked, whether it has been, and each room's id
-    // by its host and game (those no longer heard forgotten once there are
+    // for, the rooms heard meanwhile and those of the last query (and of
+    // them, by lanKey(), those kept without being heard in it; and the LAN
+    // Games folder's entries as the views were last told of them), why the
+    // network couldn't be asked, whether it has been, and each room's id by
+    // its host and game (those no longer heard forgotten once there are
     // many).
     QUdpSocket *m_lanSocket = nullptr;
     QString m_lanAddress;
@@ -806,6 +808,7 @@ private:
     int     m_lanListenMs = 0;
     QList<libretro::Room> m_lanHeard;
     QList<libretro::Room> m_lanRooms;
+    QSet<QString> m_lanMissed;
     QVariantList m_lanShown;
     QString m_lanFailure;         // the query under way's
     QString m_lanProblem;

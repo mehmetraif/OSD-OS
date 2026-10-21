@@ -8,6 +8,7 @@
 #include <QStringList>
 #include <optional>
 
+class QHostAddress;
 namespace mame { struct Machine; }
 
 // The Arcade module's second engine: RetroArch with the FinalBurn Neo core
@@ -201,6 +202,9 @@ std::optional<Room> readLanAnswer(const QByteArray &packet, const QString &addre
 // Whether an IPv4 address (a number) is one RetroArch answers queries from:
 // 10/8, 172.16/12 or 192.168/16.
 bool isLanAddress(quint32 ipv4);
+// Whether an answer from address is taken: from a host on the local network,
+// as RetroArch takes them (isLanAddress()), or from this machine.
+bool isLanSender(const QHostAddress &address);
 
 // A libretro core as it describes itself (retro_get_system_info): its name
 // and version ("v1.0.0.03 6e7c2a1"), the version the lobby says a room's

@@ -1194,6 +1194,13 @@ private slots:
             QVERIFY2(onLan(address), address);
         for (const char *address : { "172.15.0.1", "172.32.0.1", "192.169.0.1", "11.0.0.1", "127.0.0.1", "100.64.0.1" })
             QVERIFY2(!onLan(address), address);
+        // The answers taken: from those networks' hosts, and this machine;
+        // not from the internet, a carrier's shared addresses, a link-local
+        // one or IPv6.
+        for (const char *address : { "192.168.1.20", "10.0.0.5", "172.16.0.1", "::ffff:192.168.1.20", "127.0.0.1" })
+            QVERIFY2(libretro::isLanSender(QHostAddress(QLatin1String(address))), address);
+        for (const char *address : { "8.8.8.8", "100.64.0.1", "169.254.1.1", "::1", "fe80::1", "fd00::1" })
+            QVERIFY2(!libretro::isLanSender(QHostAddress(QLatin1String(address))), address);
 
         writeFile(dir.path() + QStringLiteral("/missing.log"),
                   "[INFO] RetroArch 1.20.0\n"
@@ -3417,7 +3424,7 @@ private slots:
         QVERIFY(read.wait(5000));
         QCOMPARE(asked, 1);
         QVERIFY(ready.contains(QVariantList{ QStringLiteral("lan") }));
-        QCOMPARE(rooms(), QStringList({ QStringLiteral("1 sf2 ann"), QStringLiteral("5 galaga eve") }));
+        QCOMPARE(rooms(), QStringList({ QStringLiteral("1 sf2 ann"), QStringLiteral("3 galaga eve") }));
         QCOMPARE(detail(0), QStringLiteral("Hosted by ann on this network • sf2.zip"));
         QTRY_COMPARE_WITH_TIMEOUT(detail(1), QStringLiteral("Hosted by eve on this network • galaga.zip • "
                                                             "Its RetroArch is 1.21.0, yours 1.22.2"), 5000);
@@ -3450,11 +3457,11 @@ private slots:
         QCOMPARE(filter.value(QStringLiteral("count")).toInt(), 2);
         const QVariantMap row = arcade.filterGames(QStringLiteral("lan"), 1, 1).value(0).toMap();
         QCOMPARE(row.value(QStringLiteral("set")).toString(), QStringLiteral("galaga"));
-        QCOMPARE(row.value(QStringLiteral("room")).toInt(), 5);
+        QCOMPARE(row.value(QStringLiteral("room")).toInt(), 3);
         QCOMPARE(row.value(QStringLiteral("host")).toString(), QStringLiteral("eve"));
         QVERIFY(row.value(QStringLiteral("lan")).toBool());
         QCOMPARE(row.value(QStringLiteral("detail")).toString(), detail(1));
-        QCOMPARE(arcade.filterIndex(QStringLiteral("lan"), QStringLiteral("galaga"), 5), 1);
+        QCOMPARE(arcade.filterIndex(QStringLiteral("lan"), QStringLiteral("galaga"), 3), 1);
 
         // Asked again, twice while the answers are listened for: asked once.
         // Each room keeps its id while its host plays the same game, the
@@ -3465,7 +3472,18 @@ private slots:
         arcade.refreshLanRooms();
         QVERIFY(read.wait(5000));
         QCOMPARE(asked, 2);
-        QCOMPARE(rooms(), QStringList({ QStringLiteral("1 sf2 ann"), QStringLiteral("5 galaga eve") }));
+        QCOMPARE(rooms(), QStringList({ QStringLiteral("1 sf2 ann"), QStringLiteral("3 galaga eve") }));
+        QCOMPARE(changed.size(), 0);
+        // Eve's answer lost on the way, among more answers of rooms that
+        // aren't listed (with a password) than rooms are kept: her room kept
+        // through that query, and Ann's heard.
+        answers.clear();
+        for (quint32 port = 56000; port < 56000 + 70; ++port)
+            answers << lanAnswer("pat", "sf2", port, 1);
+        answers << ann;
+        arcade.refreshLanRooms();
+        QVERIFY(read.wait(5000));
+        QCOMPARE(rooms(), QStringList({ QStringLiteral("1 sf2 ann"), QStringLiteral("3 galaga eve") }));
         QCOMPARE(changed.size(), 0);
 
         // Joined: RetroArch connects straight to the host, at the port it
@@ -3498,34 +3516,48 @@ private slots:
         answers = { lanAnswer("ann", "mslug", 55435), eve };
         arcade.refreshLanRooms();
         QVERIFY(read.wait(5000));
-        QCOMPARE(rooms(), QStringList({ QStringLiteral("5 galaga eve"), QStringLiteral("6 mslug ann") }));
+        QCOMPARE(rooms(), QStringList({ QStringLiteral("3 galaga eve"), QStringLiteral("4 mslug ann") }));
         QCOMPARE(changed.size(), 1);
-        // No one hosting: said so in the tree, no filter.
+        // LAN Play turned off and on again: none of the rooms heard before
+        // offered until the network has been asked again, each by its id.
+        arcade.onSettingChanged(module, QStringLiteral("lan_play"), QStringLiteral("Off"));
+        arcade.onSettingChanged(module, QStringLiteral("lan_play"), QStringLiteral("On"));
+        QVERIFY(arcade.lanRooms().isEmpty());
+        QVERIFY(!arcade.requestEntries(QStringLiteral("lan")).isValid());
+        QVERIFY(read.wait(5000));
+        QCOMPARE(rooms(), QStringList({ QStringLiteral("3 galaga eve"), QStringLiteral("4 mslug ann") }));
+        // No one hosting: the rooms kept through one query they aren't heard
+        // in, not a second; then said so in the tree, no filter.
+        changed.clear();
         answers.clear();
         arcade.refreshLanRooms();
         QVERIFY(read.wait(5000));
+        QCOMPARE(rooms(), QStringList({ QStringLiteral("3 galaga eve"), QStringLiteral("4 mslug ann") }));
+        QCOMPARE(changed.size(), 0);
+        arcade.refreshLanRooms();
+        QVERIFY(read.wait(5000));
         QVERIFY(arcade.lanRooms().isEmpty());
-        QCOMPARE(changed.size(), 2);
+        QCOMPARE(changed.size(), 1);
         QVariantMap message = arcade.requestEntries(QStringLiteral("lan")).toList().value(0).toMap();
         QCOMPARE(message.value(QStringLiteral("kind")).toString(), QStringLiteral("message"));
         QCOMPARE(message.value(QStringLiteral("name")).toString(), QStringLiteral("No LAN Games"));
         QCOMPARE(message.value(QStringLiteral("detail")).toString(),
                  QStringLiteral("No one on this network hosts a game you have: host one from a game's options"));
         QVERIFY(arcade.filters().value(1).toMap().value(QStringLiteral("id")).toString() != QLatin1String("lan"));
-        // A query that can't be sent: why, where the rooms were.
+        // And back: the room heard before, by its id.
+        answers = { eve };
+        arcade.refreshLanRooms();
+        QVERIFY(read.wait(5000));
+        QCOMPARE(rooms(), QStringList({ QStringLiteral("3 galaga eve") }));
+        // A query that can't be sent: why, where the rooms were, none kept.
         arcade.setLanDiscovery(QStringLiteral("127.0.0.1"), 0);
         arcade.refreshLanRooms();
         QVERIFY(read.wait(5000));
+        QVERIFY(arcade.lanRooms().isEmpty());
         message = arcade.requestEntries(QStringLiteral("lan")).toList().value(0).toMap();
         QCOMPARE(message.value(QStringLiteral("name")).toString(), QStringLiteral("Network Not Reachable"));
         QVERIFY2(message.value(QStringLiteral("detail")).toString().startsWith(QStringLiteral("The local network can't be reached: ")),
                  qPrintable(message.value(QStringLiteral("detail")).toString()));
-        // And back: the room heard before, by its id.
-        arcade.setLanDiscovery(QStringLiteral("127.0.0.1"), hosts.localPort());
-        answers = { eve };
-        arcade.refreshLanRooms();
-        QVERIFY(read.wait(5000));
-        QCOMPARE(rooms(), QStringList({ QStringLiteral("5 galaga eve") }));
 
         // Off again: nothing of it.
         arcade.onSettingChanged(module, QStringLiteral("lan_play"), QStringLiteral("Off"));

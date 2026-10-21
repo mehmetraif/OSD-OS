@@ -1624,7 +1624,14 @@ Rectangle {
             })
             arcadeBackend.lanHostable = ["pacman"]
             var games = open("Games.qml")
+            // The network asked as LAN Games opens, and again while it is
+            // open; not while it is shut.
+            var lanRefresh = findChild(games, "lanRefresh")
+            verify(!lanRefresh.running)
+            compare(arcadeBackend.lanReads, 0)
             keyClick(Qt.Key_Right)
+            tryVerify(function() { return lanRefresh.running }, 1000)
+            tryCompare(arcadeBackend, "lanReads", 1, 1000)
             tryVerify(function() { return findText(games, "Its RetroArch is 1.21.0, yours 1.22.2") !== null }, 1000)
             verify(findText(games, ":JOIN") !== null)
             keyClick(Qt.Key_Right)
@@ -1639,6 +1646,8 @@ Rectangle {
             // Pac-Man, in Favorites: hosted on the network from its options,
             // the last of them; not online, with Online Play off.
             keyClick(Qt.Key_Left)
+            tryVerify(function() { return !lanRefresh.running }, 1000)
+            compare(arcadeBackend.lanReads, 1)
             keyClick(Qt.Key_Down)
             keyClick(Qt.Key_Down)
             keyClick(Qt.Key_Right)
@@ -1666,6 +1675,16 @@ Rectangle {
             moduleRoot.startFilter = "lan"
             var screen = openScreen()
             compare(screen.filterId, "lan")
+            // The network asked as the screen comes up, and again while it is
+            // up; not while a game is played, and at once after.
+            var lanRefresh = findChild(screen, "lanRefresh")
+            verify(lanRefresh.running)
+            tryCompare(arcadeBackend, "lanReads", 1, 1000)
+            arcadeBackend.running = true
+            verify(!lanRefresh.running)
+            arcadeBackend.running = false
+            verify(lanRefresh.running)
+            tryCompare(arcadeBackend, "lanReads", 2, 1000)
             verify(findText(screen, "Street Fighter II (ann)") !== null)
             verify(findText(screen, ":JOIN") !== null)
             compare(screen.about.split("\n")[0], "Hosted by ann on this network • sf2.zip")
@@ -1698,7 +1717,7 @@ Rectangle {
         // A room on the local network joined from the game's screen says
         // whose game it is and joins it at its host; a game hosted there
         // says so and hosts it; and with Start Info Screen off, the router
-        // joins straight from the list.
+        // joins and hosts straight from the list.
         function test_playLan() {
             var play = open("Play.qml", { game: "sf2", title: "Street Fighter II (ann)",
                                           online: { room: 1, host: "ann", lan: true } })
@@ -1724,6 +1743,14 @@ Rectangle {
             compare(arcadeBackend.started, [])
             compare(arcadeBackend.joined, [])
             compare(appCore.added, [["com.osdos.arcade", "recent", "game:sf2"]])
+            arcadeBackend.running = false
+            arcadeBackend.finished(0, "ok", "")
+            compare(router.playing, null)
+            router.playGame({ game: "sf2", title: "Street Fighter II", online: { hosting: true, lan: true } }, {})
+            tryVerify(function() { return arcadeBackend.lanHosted.length === 2 })
+            compare(arcadeBackend.lanHosted, ["sf2", "sf2"])
+            compare(arcadeBackend.hosted, [])
+            compare(arcadeBackend.started, [])
         }
 
         // Select plays the game as it is let go; held, it opens the game's

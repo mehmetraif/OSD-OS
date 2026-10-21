@@ -5,6 +5,7 @@
 #include <QDir>
 #include <QFile>
 #include <QFileInfo>
+#include <QHostAddress>
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
@@ -673,6 +674,12 @@ std::optional<Room> readLanAnswer(const QByteArray &packet, const QString &addre
 bool isLanAddress(quint32 ipv4) {
     return (ipv4 & 0xFF000000) == 0x0A000000 || (ipv4 & 0xFFF00000) == 0xAC100000
            || (ipv4 & 0xFFFF0000) == 0xC0A80000;
+}
+
+bool isLanSender(const QHostAddress &address) {
+    bool ipv4 = false;
+    const quint32 number = address.toIPv4Address(&ipv4);
+    return ipv4 && (isLanAddress(number) || address.isLoopback());
 }
 
 CoreInfo loadCoreInfo(const QString &path, QString *error) {

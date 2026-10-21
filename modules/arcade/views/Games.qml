@@ -14,12 +14,12 @@ import Components
 // folder (ArcadeBackend::rooms()), read again every 20 s while they are
 // shown: select joins one. Its last line, RetroArch Lobby, opens the whole
 // lobby (Lobby.qml). With LAN Play on, LAN Games lists those hosted on the
-// local network (ArcadeBackend::lanRooms()), asked for again every 5 s
-// while they are shown. Coming back from a game restores the tree from
-// the listState handed to navigateTo; a game played from the tree itself
-// (Start Info Screen off) leaves it as it was. Opened with the startup
-// favourite (navParams.startupPlay), it plays that at once, the tree open on
-// it in Favorites.
+// local network (ArcadeBackend::lanRooms()), asked for as they come to be
+// shown and again every 5 s while they are. Coming back from a game
+// restores the tree from the listState handed to navigateTo; a game played
+// from the tree itself (Start Info Screen off) leaves it as it was. Opened
+// with the startup favourite (navParams.startupPlay), it plays that at once,
+// the tree open on it in Favorites.
 FocusScope {
     id: gamesRoot
 
@@ -132,11 +132,14 @@ FocusScope {
         running: tree.folderName === "Online Games" && !!arcadeBackend && !arcadeBackend.running
         onTriggered: arcadeBackend.refreshRooms()
     }
-    // The local network asked again while its rooms are shown: a host is
-    // there as soon as it hosts, and gone as soon as it stops.
+    // The local network asked as its rooms come to be shown, and again while
+    // they are: a host is there as soon as it hosts, and gone once it has
+    // stopped.
     Timer {
+        objectName: "lanRefresh"
         interval: 5000
         repeat: true
+        triggeredOnStart: true
         running: tree.folderName === "LAN Games" && !!arcadeBackend && !arcadeBackend.running
         onTriggered: arcadeBackend.refreshLanRooms()
     }

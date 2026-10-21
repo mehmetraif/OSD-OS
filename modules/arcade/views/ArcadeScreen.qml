@@ -481,12 +481,15 @@ FocusScope {
         running: arcadeScreen.filterId === "online" && !!arcadeBackend && !arcadeBackend.running
         onTriggered: arcadeBackend.refreshRooms()
     }
-    // The local network asked again while the screen is up, so that LAN
-    // Games comes as soon as someone there hosts a game, and goes as they
-    // stop (with LAN Play off, the backend asks nothing).
+    // The local network asked as the screen comes up, and again while it is
+    // up, so that LAN Games comes as soon as someone there hosts a game, and
+    // goes once they have stopped (with LAN Play off, the backend asks
+    // nothing).
     Timer {
+        objectName: "lanRefresh"
         interval: 5000
         repeat: true
+        triggeredOnStart: true
         running: arcadeScreen.visible && !!arcadeBackend && !arcadeBackend.running
         onTriggered: arcadeBackend.refreshLanRooms()
     }

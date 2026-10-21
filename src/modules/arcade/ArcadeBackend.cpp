@@ -310,6 +310,11 @@ QString savePicture(const QString &folder, const QString &name, const QByteArray
 QString lanKey(const libretro::Room &room) {
     return room.joinAddress + QLatin1Char('\n') + room.rom + QLatin1Char('\n') + room.host;
 }
+// Whether one of the rooms is joined at joinAddress: hosted there.
+bool hostedAt(const QList<libretro::Room> &rooms, const QString &joinAddress) {
+    return std::any_of(rooms.cbegin(), rooms.cend(),
+                       [&joinAddress](const libretro::Room &room) { return room.joinAddress == joinAddress; });
+}
 
 // A room's version against ours: "same", "other", or "unknown" where either
 // isn't known. A core's whole, as RetroArch itself matches them when it
@@ -602,6 +607,17 @@ void ArcadeBackend::applySetting(const QString &key, const QVariant &value) {
         m_relay = kRelays.value(value.toString(), QStringLiteral("nyc"));
     } else if (key == QLatin1String("lan_play")) {
         m_lanPlay = value.toString() == QLatin1String("On");
+        // Off: the rooms heard forgotten, so that none of them is offered
+        // once it is on again, before the network has been asked.
+        if (!m_lanPlay) {
+            m_lanListen->stop();
+            m_lanHeard.clear();
+            m_lanRooms.clear();
+            m_lanMissed.clear();
+            m_lanShown.clear();
+            m_lanProblem.clear();
+            m_lanRead = false;
+        }
         emit gamesChanged();
         emit statusIconsChanged();
     } else if (key == QLatin1String("play_at_startup") && m_appCore) {
@@ -2458,7 +2474,7 @@ bool ArcadeBackend::joinLanRoom(int id) {
         return false;
     }
     for (const libretro::Room &room : std::as_const(m_lanRooms)) {
-        if (room.id == id && room.joinable)
+        if (room.id == id)
             return playFbneo(room.game, libretro::Launch::Netplay::Join, room.joinAddress);
     }
     m_lastError = QStringLiteral("The game is no longer hosted on this network");
@@ -2479,9 +2495,9 @@ QVariantList ArcadeBackend::lanRooms() const {
     if (!m_lanPlay || m_lanRooms.isEmpty() || !fbneoReady())
         return list;
     for (const libretro::Room &room : m_lanRooms) {
-        // As rooms(): a game in the folder FinalBurn Neo plays, joined
-        // without a password.
-        if (!room.joinable || room.password || !fbneoHas(room.game))
+        // As rooms(): a game in the folder FinalBurn Neo plays (only rooms
+        // joined without a password are kept: readLanAnswers()).
+        if (!fbneoHas(room.game))
             continue;
         list << QVariantMap{ { QStringLiteral("id"), room.id }, { QStringLiteral("set"), room.game },
                              { QStringLiteral("title"), titleOf(room.game) }, { QStringLiteral("host"), room.host },
@@ -2821,21 +2837,21 @@ void ArcadeBackend::readLanAnswers() {
     while (m_lanSocket->hasPendingDatagrams()) {
         // A byte more than an answer, so that a bigger packet is told apart.
         const QNetworkDatagram datagram = m_lanSocket->receiveDatagram(libretro::kLanAnswerSize + 1);
-        // One that comes once the query's rooms have been made isn't taken.
-        if (!m_lanListen->isActive() || m_lanHeard.size() >= kMostLanRooms)
+        // One that comes once the query's rooms have been made isn't taken,
+        // nor one from outside the local network. Nothing proves where an
+        // answer comes from, and RetroArch takes them as they come too: a room
+        // only ever has RetroArch, once it is chosen, connect to the address
+        // on this network the answer came from, at the port it gave.
+        if (!m_lanListen->isActive() || !libretro::isLanSender(datagram.senderAddress()))
             continue;
-        // From a host on the local network, as RetroArch takes them, or from
-        // this machine.
-        bool ipv4 = false;
-        const quint32 from = datagram.senderAddress().toIPv4Address(&ipv4);
-        if (!ipv4 || !(libretro::isLanAddress(from) || datagram.senderAddress().isLoopback()))
-            continue;
-        std::optional<libretro::Room> room = libretro::readLanAnswer(datagram.data(), QHostAddress(from).toString());
+        const QHostAddress from(datagram.senderAddress().toIPv4Address());
+        std::optional<libretro::Room> room = libretro::readLanAnswer(datagram.data(), from.toString());
+        // Only those that can be listed, so many at most: FinalBurn Neo's,
+        // without a password (RetroArch would ask for it on its own screen).
         // A host once: the query reaches it by more than one broadcast
         // address, and it answers each.
-        if (!room || std::any_of(m_lanHeard.cbegin(), m_lanHeard.cend(), [&room](const libretro::Room &heard) {
-                return heard.joinAddress == room->joinAddress;
-            }))
+        if (!room || !room->joinable || room->password || m_lanHeard.size() >= kMostLanRooms
+            || hostedAt(m_lanHeard, room->joinAddress))
             continue;
         // Its id, the one it had while it was heard with the same game.
         const QString key = lanKey(*room);
@@ -2852,6 +2868,22 @@ void ArcadeBackend::finishLanRead() {
                             : QStringLiteral("The local network can't be reached: ") + m_lanFailure;
     if (!problem.isEmpty() && problem != m_lanProblem)
         qWarning("[Arcade] %s", qPrintable(problem));
+    // A room of the last query not heard in this one kept through it, unless
+    // its host answered with another: a broadcast is sent but once, and it,
+    // or the answer, can be lost on the way. Not through a second, nor a
+    // query that couldn't be sent.
+    QSet<QString> missed;
+    if (m_lanFailure.isEmpty()) {
+        for (const libretro::Room &room : std::as_const(m_lanRooms)) {
+            const QString key = lanKey(room);
+            if (m_lanMissed.contains(key) || m_lanHeard.size() >= kMostLanRooms
+                || hostedAt(m_lanHeard, room.joinAddress))
+                continue;
+            m_lanHeard << room;
+            missed.insert(key);
+        }
+    }
+    m_lanMissed = std::move(missed);
     // In the order they were first heard, whichever answered first now.
     std::sort(m_lanHeard.begin(), m_lanHeard.end(),
               [](const libretro::Room &a, const libretro::Room &b) { return a.id < b.id; });
