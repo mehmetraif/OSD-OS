@@ -132,7 +132,8 @@ jobs:
           find "$APP/Contents/Frameworks" \( -name "*.dylib" -o -name "*.framework" \) \
             -exec codesign --force --options runtime --sign "$IDENTITY" {} \;
           # The libraries others sign that the app loads (libmpv, a libretro
-          # core) are let in: packaging/macos/osdos.entitlements.
+          # core) are let in, and libmpv's LuaJIT compiles its scripts:
+          # packaging/macos/osdos.entitlements.
           codesign --force --deep --options runtime \
             --entitlements "${GITHUB_WORKSPACE}/packaging/macos/osdos.entitlements" \
             --sign "$IDENTITY" "$APP"

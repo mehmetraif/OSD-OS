@@ -9,5 +9,11 @@
 	     version a copy of the app asks it (main.cpp, core-info). -->
 	<key>com.apple.security.cs.disable-library-validation</key>
 	<true/>
+	<!-- That libmpv runs the app's Lua scripts (the OSC, the media keys)
+	     with Homebrew's LuaJIT, whose compiler makes the code it writes
+	     executable, which the hardened runtime refuses otherwise: LuaJIT
+	     then ends the app. -->
+	<key>com.apple.security.cs.allow-unsigned-executable-memory</key>
+	<true/>
 </dict>
 </plist>
