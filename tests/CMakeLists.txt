@@ -211,6 +211,12 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
         target_link_libraries(arcade_test PRIVATE ${MINIZIP_LIBRARY})
     endif()
     add_test(NAME arcade COMMAND arcade_test)
+    # A libretro core that only describes itself, for libretro::loadCoreInfo().
+    enable_language(C)
+    add_library(arcade_test_core MODULE arcade_test_core.c)
+    set_target_properties(arcade_test_core PROPERTIES PREFIX "" AUTOMOC OFF)
+    add_dependencies(arcade_test arcade_test_core)
+    target_compile_definitions(arcade_test PRIVATE TEST_CORE="$<TARGET_FILE:arcade_test_core>")
 
     # A playlist's m3u: owner-only and whole, the one before removed once it
     # is written, and one a full card can't take reported, the one before

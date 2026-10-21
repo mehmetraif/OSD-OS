@@ -12,6 +12,8 @@
 #include <QTimer>
 #include <locale.h>
 #include <csignal>
+#include <cstdio>
+#include <cstring>
 
 #include "AppCore.h"
 #include "modules/local_files/LocalFilesBackend.h"
@@ -25,6 +27,7 @@
 #include "modules/scripts/ScriptsBackend.h"
 #include "modules/web_player/WebPlayerBackend.h"
 #include "modules/arcade/ArcadeBackend.h"
+#include "modules/arcade/Libretro.h"
 #include "modules/highscores/HighScoresBackend.h"
 #include "modules/playlists/PlaylistsBackend.h"
 #include "player/MpvController.h"
@@ -97,6 +100,21 @@ static volatile std::sig_atomic_t g_termSignal = 0;
 extern "C" void osdosHandleTerm(int sig) { g_termSignal = sig; }
 
 int main(int argc, char *argv[]) {
+    // A libretro core's name and version, which the Arcade module asks of a
+    // copy of the app (ArcadeBackend::readOwnVersions()), so that a core that
+    // can't be loaded takes nothing else down with it.
+    if (argc == 3 && std::strcmp(argv[1], "--core-info") == 0) {
+        QString error;
+        const libretro::CoreInfo info = libretro::loadCoreInfo(QString::fromLocal8Bit(argv[2]), &error);
+        if (info.name.isEmpty() && info.version.isEmpty()) {
+            std::fprintf(stderr, "%s\n", qPrintable(error));
+            return 1;
+        }
+        std::printf("name=%s\nversion=%s\n", info.name.toUtf8().constData(), info.version.toUtf8().constData());
+        // Out before the core's own teardown as the copy exits, should that fail.
+        std::fflush(stdout);
+        return 0;
+    }
     // Before any thread exists, Qt's or a libmpv core's: fewer malloc arenas
     // (util/Diagnostics), or every film played inside the window leaves tens
     // of MB behind.

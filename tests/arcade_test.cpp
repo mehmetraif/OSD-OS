@@ -1188,6 +1188,23 @@ private slots:
         QCOMPARE(kept.size(), 1000);
         QCOMPARE(kept.first().id, 1005);
         QCOMPARE(kept.last().id, 6);
+        // A core asked to describe itself; a file that isn't one, why.
+        QString coreError;
+        const libretro::CoreInfo testCore = libretro::loadCoreInfo(QStringLiteral(TEST_CORE), &coreError);
+        QCOMPARE(testCore.name, QStringLiteral("OSD/OS Test Core"));
+        QCOMPARE(testCore.version, QStringLiteral("v1.0.0.03 6e7c2a1"));
+        QVERIFY(libretro::loadCoreInfo(QStringLiteral(TESTS_DIR "/data/arcade/lobby.json"), &coreError).version.isEmpty());
+        QVERIFY(!coreError.isEmpty());
+        // What the copy of the app printed of it, taken as the lobby's names
+        // are; RetroArch's version, as a RetroArch from 1.10 on prints it and
+        // as one before.
+        const libretro::CoreInfo printed = libretro::readCoreInfo("name=FinalBurn Neo\nversion=v1.0.0.03 <6e7c2a1>\n");
+        QCOMPARE(printed.name, QStringLiteral("FinalBurn Neo"));
+        QCOMPARE(printed.version, QStringLiteral("v1.0.0.03 6e7c2a1"));
+        QCOMPARE(libretro::readVersion("RetroArch - Frontend for libretro\nVersion: 1.19.1 (Git 5a4f9b2) Oct 20 2024\n"),
+                 QStringLiteral("1.19.1"));
+        QCOMPARE(libretro::readVersion("RetroArch: Frontend for libretro -- v1.9.0 -- 6f4ae1f --\n"), QStringLiteral("1.9.0"));
+        QVERIFY(libretro::readVersion("sh: retroarch: not found").isEmpty());
 
         // rcheevos' arcade hash: the file's name without its extension, as
         // it is written.
@@ -2879,6 +2896,14 @@ private slots:
 
         ArcadeBackend arcade(data.path(), data.path(), nullptr, nullptr);
         arcade.setLobbyUrl(QUrl(QStringLiteral("http://127.0.0.1:%1/list").arg(server.serverPort())));
+        // The copy of the app that says our core's version (--core-info),
+        // for the core it is given.
+        const QString coreInfo = data.path() + QStringLiteral("/bin/coreinfo");
+        writeFile(coreInfo, "#!/bin/sh\n"
+                            "case \"$2\" in *fbneo_libretro*) printf 'name=FinalBurn Neo\\nversion=v1.0.0.03 6e7c2a1\\n' ;;"
+                            " *) exit 1 ;; esac\n");
+        QVERIFY(QFile::setPermissions(coreInfo, QFile::ReadOwner | QFile::WriteOwner | QFile::ExeOwner));
+        arcade.setCoreInfoCommand({ coreInfo, QStringLiteral("--core-info") });
         refreshed(arcade);
         QTRY_VERIFY_WITH_TIMEOUT(!arcade.filters().isEmpty(), 10000);
         // The Arcade screen's Playable Online: its games, and the count
@@ -2935,7 +2960,8 @@ private slots:
         QSignalSpy roomsRead(&arcade, &ArcadeBackend::roomsChanged);
         QSignalSpy ready(&arcade, &ArcadeBackend::entriesReady);
         QVERIFY(!arcade.requestEntries(QStringLiteral("online")).isValid());
-        QVERIFY(roomsRead.wait(5000));
+        QTRY_VERIFY_WITH_TIMEOUT(ready.contains(QVariantList{ QStringLiteral("online") }), 5000);
+        QVERIFY(!roomsRead.isEmpty());
         QCOMPARE(asked, 1);
         QVERIFY(ready.contains(QVariantList{ QStringLiteral("online") }));
         const QVariantList rooms = arcade.rooms();
@@ -3002,6 +3028,25 @@ private slots:
         QVERIFY2(qAbs(kart.value(QStringLiteral("minutes")).toLongLong() - since) <= 1,
                  qPrintable(kart.value(QStringLiteral("minutes")).toString()));
         QCOMPARE(byId.value(11).value(QStringLiteral("minutes")).toInt(), -1);
+        // Each room matched against our own core's version and RetroArch's,
+        // read as the lobby was: the same, another, or not to be known; none
+        // of another core's.
+        QTRY_COMPARE_WITH_TIMEOUT(arcade.lobby().value(QStringLiteral("yourCore")).toString(),
+                                  QStringLiteral("v1.0.0.03 6e7c2a1"), 5000);
+        QTRY_COMPARE_WITH_TIMEOUT(arcade.lobby().value(QStringLiteral("yourRetroArch")).toString(),
+                                  QStringLiteral("1.22.2"), 5000);
+        QVERIFY(arcade.lobby().value(QStringLiteral("fbneoReady")).toBool());
+        QHash<int, QVariantMap> matched;
+        for (const QVariant &v : arcade.lobby().value(QStringLiteral("rooms")).toList())
+            matched.insert(v.toMap().value(QStringLiteral("id")).toInt(), v.toMap());
+        const auto matches = [&matched](int id) {
+            return matched.value(id).value(QStringLiteral("coreMatch")).toString() + QLatin1Char('/')
+                   + matched.value(id).value(QStringLiteral("retroarchMatch")).toString();
+        };
+        QCOMPARE(matches(11), QStringLiteral("same/other"));
+        QCOMPARE(matches(14), QStringLiteral("other/same"));
+        QCOMPARE(matches(15), QStringLiteral("unknown/same"));
+        QCOMPARE(matches(16), QStringLiteral("/same"));
         // With Online Play off, the room that could be joined says so.
         arcade.onSettingChanged(module, QStringLiteral("online_play"), QStringLiteral("Off"));
         for (const QVariant &v : arcade.lobby().value(QStringLiteral("rooms")).toList()) {

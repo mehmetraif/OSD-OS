@@ -186,6 +186,25 @@ QList<Room> readWholeLobby(const QByteArray &json);
 // Of them, those FinalBurn Neo hosts that can be joined (joinable).
 QList<Room> readLobby(const QByteArray &json);
 
+// A libretro core as it describes itself (retro_get_system_info): its name
+// and version ("v1.0.0.03 6e7c2a1"), the version the lobby says a room's
+// host plays in.
+struct CoreInfo {
+    QString name;
+    QString version;
+};
+// The core at path, loaded in this process and asked to describe itself,
+// nothing else of it run. Empty, with why in error, for a file that isn't
+// one. For a copy of the app run with --core-info <path> (main.cpp), which
+// prints it, so that a core that can't be loaded takes nothing else down.
+CoreInfo loadCoreInfo(const QString &path, QString *error);
+// What that copy printed ("name=…", "version=…" lines), taken as the
+// lobby's names are: no markup and cut short, so the two can be compared.
+CoreInfo readCoreInfo(const QByteArray &output);
+// RetroArch's version as `retroarch --version` prints it ("Version: 1.19.1
+// (Git 5a4f9b2)", before 1.10 "-- v1.9.0 --"); "" for none.
+QString readVersion(const QByteArray &output);
+
 // RetroAchievements' hash of an arcade game (rcheevos' RC_CONSOLE_ARCADE):
 // the MD5 of its file's name without the extension, as it is written.
 QString achievementsHash(const QString &fileName);

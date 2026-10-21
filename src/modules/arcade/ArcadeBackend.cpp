@@ -24,6 +24,7 @@
 #include <QRegularExpression>
 #include <QTimer>
 #include <QUrl>
+#include <QVersionNumber>
 #include <QFuture>
 #include <QtConcurrent/QtConcurrentRun>
 #include <algorithm>
@@ -73,6 +74,9 @@ constexpr int kSignInStopMs = 5000;
 constexpr int kLobbyTimeoutMs = 15000;
 constexpr qint64 kLobbyMaxBytes = 4 * 1024 * 1024;
 constexpr const char *kTooBig = "osdosTooBig";
+// How long our own RetroArch, or the copy of the app asking our core, is
+// given to say its version: a core is tens of megabytes to load on a Pi.
+constexpr int kVersionReadMs = 10000;
 
 // catver.ini, the games' genres, as progettosnaps publishes it with each MAME:
 // downloaded into <data>/arcade when neither folder has one (it may not be
@@ -410,6 +414,7 @@ ArcadeBackend::ArcadeBackend(const QString &appRoot, const QString &dataRoot, Ap
     m_signInCore = QCoreApplication::applicationDirPath() + QStringLiteral("/osdos_signin_libretro.so");
     m_genresUrl = QUrl(legacy::env("GENRES_URL", kGenresUrl.toString()));
     m_lobbyUrl = QUrl(legacy::env("LOBBY_URL", m_lobbyUrl.toString()));
+    m_coreInfoCommand = { QCoreApplication::applicationFilePath(), QStringLiteral("--core-info") };
 
     m_scanTimer = new QTimer(this);
     m_scanTimer->setSingleShot(true);
@@ -480,6 +485,14 @@ ArcadeBackend::~ArcadeBackend() {
     if (QProcess *signIn = m_signIn) {
         stopSignIn();
         signIn->waitForFinished(1000);
+    }
+    // Our versions' reads: nothing of them is wanted any more.
+    for (QProcess *read : { m_versionRead.data(), m_coreInfoRead.data() }) {
+        if (read) {
+            read->disconnect(this);
+            read->kill();
+            read->waitForFinished(1000);
+        }
     }
 }
 
@@ -2364,6 +2377,13 @@ QVariantList ArcadeBackend::rooms() const {
 QVariantMap ArcadeBackend::lobby() const {
     const QDateTime now = QDateTime::currentDateTimeUtc();
     const bool ready = fbneoReady();
+    // A room's version against ours: the same, another, or "unknown" where
+    // either isn't known. RetroArch's by its numbers (1.20 is 1.20.0); a
+    // core's whole, as RetroArch itself matches them when it connects.
+    const auto versionMatch = [](bool known, bool same) {
+        return !known ? QStringLiteral("unknown") : same ? QStringLiteral("same") : QStringLiteral("other");
+    };
+    const QVersionNumber ours = QVersionNumber::fromString(m_retroarchVersion).normalized();
     struct Listed {
         bool fbneo;
         QString core;
@@ -2375,6 +2395,7 @@ QVariantMap ArcadeBackend::lobby() const {
     for (const libretro::Room &room : m_lobby) {
         const bool fbneo = room.core == QLatin1String("FinalBurn Neo");
         const bool have = fbneo && !room.game.isEmpty() && fbneoHas(room.game);
+        const QVersionNumber theirs = QVersionNumber::fromString(room.retroarch).normalized();
         // A game of the folder by its name there; any other as its host has it.
         const QString title = have ? titleOf(room.game) : room.rom.isEmpty() ? QStringLiteral("?") : room.rom;
         // Why it can't be joined from here, as rooms() leaves it out.
@@ -2413,7 +2434,11 @@ QVariantMap ArcadeBackend::lobby() const {
             { QStringLiteral("minutes"), room.created.isValid() ? std::max<qint64>(0, room.created.secsTo(now) / 60) : -1 },
             { QStringLiteral("password"), room.password }, { QStringLiteral("spectatePassword"), room.spectatePassword },
             { QStringLiteral("connectable"), room.connectable }, { QStringLiteral("joinable"), why.isEmpty() },
-            { QStringLiteral("why"), why } };
+            { QStringLiteral("why"), why },
+            { QStringLiteral("coreMatch"), !fbneo ? QString()
+                                                   : versionMatch(!room.coreVersion.isEmpty() && !m_coreVersion.isEmpty(),
+                                                                  room.coreVersion == m_coreVersion) },
+            { QStringLiteral("retroarchMatch"), versionMatch(!theirs.isNull() && !ours.isNull(), theirs == ours) } };
         listed.append({ fbneo, room.core, title, room.id, entry });
     }
     // FinalBurn Neo's first, then by core and title, the newest first.
@@ -2432,10 +2457,15 @@ QVariantMap ArcadeBackend::lobby() const {
     return { { QStringLiteral("state"), !m_roomsRead ? QStringLiteral("loading")
                                         : m_roomsProblem.isEmpty() ? QStringLiteral("ready") : QStringLiteral("failed") },
              { QStringLiteral("problem"), m_roomsProblem },
-             { QStringLiteral("rooms"), rooms } };
+             { QStringLiteral("rooms"), rooms },
+             { QStringLiteral("yourCore"), m_coreVersion }, { QStringLiteral("yourRetroArch"), m_retroarchVersion },
+             { QStringLiteral("fbneoReady"), ready } };
 }
 
 void ArcadeBackend::refreshRooms() {
+    // Ours too, which the rooms are matched against.
+    if (m_onlinePlay)
+        readOwnVersions();
     if (m_lobbyReply || !m_onlinePlay)
         return;
     if (!m_nam)
@@ -2495,6 +2525,65 @@ void ArcadeBackend::downloadGenres() {
         // Read with the folder, now that it is there.
         readAgain();
     });
+}
+
+void ArcadeBackend::readOwnVersions() {
+    const QString program = retroarchPath();
+    const QString programStamp = program.isEmpty() ? QString() : fileStamp(QFileInfo(program));
+    if (programStamp != m_retroarchVersionOf && !m_versionRead) {
+        if (program.isEmpty()) {
+            m_retroarchVersion.clear();
+            m_retroarchVersionOf.clear();
+        } else {
+            m_versionRead = askVersion(program, { QStringLiteral("--version") },
+                                       [this, programStamp](const QByteArray &output) {
+                m_versionRead = nullptr;
+                m_retroarchVersion = libretro::readVersion(output);
+                m_retroarchVersionOf = programStamp;
+            });
+        }
+    }
+    // The core loaded by a copy of the app, not by this one: one that can't
+    // be takes nothing down with it.
+    const QString core = libretro::corePath(m_dataRoot);
+    const QString coreStamp = core.isEmpty() ? QString() : fileStamp(QFileInfo(core));
+    if (coreStamp != m_coreVersionOf && !m_coreInfoRead && !m_coreInfoCommand.isEmpty()) {
+        if (core.isEmpty()) {
+            m_coreVersion.clear();
+            m_coreVersionOf.clear();
+        } else {
+            m_coreInfoRead = askVersion(m_coreInfoCommand.first(), m_coreInfoCommand.mid(1) << core,
+                                        [this, coreStamp](const QByteArray &output) {
+                m_coreInfoRead = nullptr;
+                m_coreVersion = libretro::readCoreInfo(output).version;
+                m_coreVersionOf = coreStamp;
+            });
+        }
+    }
+}
+
+QProcess *ArcadeBackend::askVersion(const QString &program, const QStringList &arguments,
+                                    const std::function<void(const QByteArray &)> &take) {
+    auto *process = new QProcess(this);
+    process->setProcessChannelMode(QProcess::MergedChannels);
+    // Once, whichever way it ends: a file whose answer couldn't be had isn't
+    // asked again until it is another.
+    const auto done = [this, process, take] {
+        if (process->property("answered").toBool())
+            return;
+        process->setProperty("answered", true);
+        take(process->readAll());
+        process->deleteLater();
+        emit roomsChanged();
+    };
+    connect(process, &QProcess::finished, this, done);
+    connect(process, &QProcess::errorOccurred, this, [done](QProcess::ProcessError error) {
+        if (error == QProcess::FailedToStart)
+            done();
+    });
+    QTimer::singleShot(kVersionReadMs, process, [process] { process->kill(); });
+    process->start(program, arguments);
+    return process;
 }
 
 QVariantList ArcadeBackend::roomEntries() const {

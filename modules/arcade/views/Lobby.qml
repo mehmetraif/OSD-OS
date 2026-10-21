@@ -11,9 +11,11 @@ import Components
 // the ROM's CRC, the core and its version, the host's RetroArch and system,
 // who hosts it and where, how it is reached, its passwords, players and
 // spectators, how long ago it was hosted, and whether it can be joined, why
-// not), with Join first for a room of a game in the folder that FinalBurn
-// Neo plays, which joins it as Online Games does. Back goes back to the
-// rooms, then to where the page was opened from.
+// not), the core, its version and RetroArch's marked ok where they are
+// yours and no where not, the help line saying yours; with Join first for a
+// room of a game in the folder that FinalBurn Neo plays, which joins it as
+// Online Games does. Back goes back to the rooms, then to where the page was
+// opened from.
 FocusScope {
     id: lobbyRoot
 
@@ -154,6 +156,14 @@ FocusScope {
         return minutes >= 60 ? Math.floor(minutes / 60) + "H " + (minutes % 60) + "M Ago" : minutes + "M Ago"
     }
     function yesNo(on) { return on ? "Yes" : "No" }
+    // A room's version against yours (the backend's coreMatch,
+    // retroarchMatch): ok for the same, no for another, nothing where
+    // either isn't known.
+    function matchIcons(match) { return match === "same" ? ["ok"] : match === "other" ? ["no"] : [] }
+    // The same, after a room's version on the list's help line.
+    function yours(match, version) {
+        return match === "same" ? " (yours too)" : match === "other" ? " (yours " + version + ")" : ""
+    }
 
     // What the help line says of a room on the list.
     function about(row) {
@@ -161,11 +171,12 @@ FocusScope {
             return lobby.state === "failed" ? lobby.problem || "" : ""
         if (row.type === "section")
             return row.label
-        var parts = [row.core + (row.coreVersion ? " " + row.coreVersion : "")]
+        var parts = [row.core + (row.coreVersion ? " " + row.coreVersion : "") + yours(row.coreMatch, lobby.yourCore)]
         parts.push("ROM " + row.rom + (row.crc ? ", CRC " + row.crc : ""))
         parts.push("Hosted by " + row.host + (row.country ? " in " + row.country.toUpperCase() : ""))
         if (row.retroarch)
-            parts.push("RetroArch " + row.retroarch + (row.frontend ? " on " + row.frontend : ""))
+            parts.push("RetroArch " + row.retroarch + yours(row.retroarchMatch, lobby.yourRetroArch)
+                       + (row.frontend ? " on " + row.frontend : ""))
         parts.push(row.relay !== "" ? "Through the relay " + row.relay : "Straight to the host")
         parts.push(row.joinable ? "Select to join it" : row.why)
         return parts.join("\n")
@@ -175,19 +186,35 @@ FocusScope {
     // line says of it; Join first for one that can be joined.
     function linesOf(r) {
         var made = []
+        var fbneo = r.core === "FinalBurn Neo"
         if (r.joinable)
-            made.push({ type: "join", label: "Join", description: "Play " + r.title + " with " + r.host + ", in FinalBurn Neo" })
+            made.push({ type: "join", label: "Join",
+                        description: "Play " + r.title + " with " + r.host + ", in FinalBurn Neo"
+                                     + (r.coreMatch === "other" ? "\nYour core's version isn't theirs: the game may fall out of step" : "") })
         made.push({ label: "Game", value: r.title, description: r.title })
         if (r.rom !== "" && r.rom !== r.title)
             made.push({ label: "ROM", value: r.rom, description: "The game's file, as its host has it: " + r.rom })
         made.push({ label: "CRC", value: r.crc || "?",
                     description: r.crc ? "The ROM's CRC: a copy of the same ROM has the same one" : "Its host's RetroArch doesn't say" })
-        made.push({ label: "Core", value: r.core, description: "The emulator it is played in" })
+        made.push({ label: "Core", value: r.core, icons: fbneo && lobby.fbneoReady ? ["ok"] : ["no"],
+                    description: !fbneo ? "The emulator it is played in: OSD/OS plays FinalBurn Neo's games alone"
+                                 : lobby.fbneoReady ? "The emulator it is played in: yours too"
+                                 : "The emulator it is played in: FinalBurn Neo, not installed here" })
         if (r.coreVersion)
-            made.push({ label: "Core Version", value: r.coreVersion, description: r.core + " " + r.coreVersion })
+            made.push({ label: "Core Version", value: r.coreVersion, icons: matchIcons(r.coreMatch),
+                        description: r.coreMatch === "same" ? "The same as yours: " + lobby.yourCore
+                                     : r.coreMatch === "other" ? "Yours is " + lobby.yourCore
+                                                                 + ": another version, the game may fall out of step"
+                                     : !fbneo ? r.core + " " + r.coreVersion
+                                     : lobby.fbneoReady ? "Its host's version: yours couldn't be read"
+                                     : "Its host's version: FinalBurn Neo is not installed here" })
         if (r.subsystem)
             made.push({ label: "Subsystem", value: r.subsystem, description: "The core's subsystem it is played in" })
-        made.push({ label: "RetroArch", value: r.retroarch || "?", description: "The RetroArch its host plays it in" })
+        made.push({ label: "RetroArch", value: r.retroarch || "?", icons: matchIcons(r.retroarchMatch),
+                    description: r.retroarchMatch === "same" ? "The same as yours: RetroArch " + lobby.yourRetroArch
+                                 : r.retroarchMatch === "other" ? "Yours is " + lobby.yourRetroArch + ": another version"
+                                 : !lobby.yourRetroArch ? "The RetroArch its host plays it in: yours couldn't be read"
+                                 : "The RetroArch its host plays it in" })
         if (r.frontend)
             made.push({ label: "System", value: r.frontend, description: "What its host plays it on" })
         made.push({ label: "Host", value: r.host, description: "Who hosts it" })
@@ -310,7 +337,7 @@ FocusScope {
             height: root.sh * 0.0583333 //28
             label: modelData.label
             value: modelData.value || ""
-            icons: modelData.type === "join" ? ["play"] : []
+            icons: modelData.type === "join" ? ["play"] : modelData.icons || []
             keepValue: true
             selected: roomLines.currentIndex === index
         }

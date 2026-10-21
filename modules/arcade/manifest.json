@@ -147,7 +147,7 @@
       "type": "module_view",
       "params": { "lobby": true },
       "shown_with": { "key": "online_play", "value": "On" },
-      "description": "Every game hosted in RetroArch's lobby, of every core: its game, ROM and CRC, the core and its version, who hosts it and where, how it is reached\nA room of a game you have that FinalBurn Neo plays can be joined from it"
+      "description": "Every game hosted in RetroArch's lobby, of every core: its game, ROM and CRC, the core and its version, who hosts it and where, how it is reached, and whether its core, version and RetroArch are yours\nA room of a game you have that FinalBurn Neo plays can be joined from it"
     },
     {
       "key": "online_name",

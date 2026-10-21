@@ -5,6 +5,7 @@
 #include <QHash>
 #include <QMap>
 #include <QObject>
+#include <QPointer>
 #include <QProcess>
 #include <QSet>
 #include <QSize>
@@ -226,7 +227,9 @@ public:
     // rooms (lobby.libretro.com) of the folder's games FinalBurn Neo plays,
     // without a password, newest first: [{ id, set, title, host, country }].
     // refreshRooms() reads the lobby again, once at a time: roomsChanged(),
-    // and the Online Games folder and filter listed again, once it has.
+    // and the Online Games folder and filter listed again, once it has. It
+    // reads our own RetroArch's and core's versions too, once for each
+    // (readOwnVersions()), roomsChanged() once each has been read.
     Q_INVOKABLE QVariantList rooms() const;
     Q_INVOKABLE void refreshRooms();
     // The whole lobby as last read, every core's rooms, for the RetroArch
@@ -238,7 +241,11 @@ public:
     // straight), players, spectators, minutes (since it was hosted; -1 for
     // these where the lobby doesn't say), password, spectatePassword,
     // connectable, joinable (from here: one of rooms()), why (it isn't, ""
-    // for one that is) }, FinalBurn Neo's first, then by core and title.
+    // for one that is), coreMatch and retroarchMatch (its core's version and
+    // its RetroArch's against ours: "same", "other", or "unknown" where
+    // either isn't known; coreMatch "" for another core's room) },
+    // FinalBurn Neo's first, then by core and title; and ours, yourCore and
+    // yourRetroArch ("" where not known), with fbneoReady.
     Q_INVOKABLE QVariantMap lobby() const;
     // Settings → Arcade → Online Play is on.
     Q_INVOKABLE bool onlinePlay() const { return m_onlinePlay; }
@@ -253,6 +260,10 @@ public:
     // The lobby's address: lobby.libretro.com's, or a stand-in's (a test's,
     // or OSDOS_LOBBY_URL's).
     void setLobbyUrl(const QUrl &url) { m_lobbyUrl = url; }
+    // What says a core's name and version (libretro::readCoreInfo()), the
+    // core's path given last: a copy of the app run with --core-info, or a
+    // test's stand-in.
+    void setCoreInfoCommand(const QStringList &command) { m_coreInfoCommand = command; }
     // RetroAchievements' Web API and media server: its own, or a stand-in's.
     void setAchievementsServers(const QUrl &api, const QUrl &media);
     // How long Read the Games Again's look through the games for pictures
@@ -602,6 +613,15 @@ private:
     // The Online Games folder's entries: the rooms, or a line saying why
     // there are none.
     QVariantList roomEntries() const;
+    // Our own RetroArch's version (`retroarch --version`) and FinalBurn Neo
+    // core's (a copy of the app run with --core-info), each read again once
+    // its file is another: what the lobby's rooms are matched against.
+    void readOwnVersions();
+    // program's answer to arguments given to take as it ends, however it
+    // does (it couldn't start, or was stopped after a while), then
+    // roomsChanged(); the process, till then.
+    QProcess *askVersion(const QString &program, const QStringList &arguments,
+                         const std::function<void(const QByteArray &)> &take);
     // RetroArch's folder in <data>/arcade, and its config and log there.
     QString retroarchHome() const { return m_home + QStringLiteral("/retroarch"); }
     // What a FinalBurn Neo game's run left: the token RetroArch swapped the
@@ -698,6 +718,16 @@ private:
     QList<libretro::Room> m_lobby;   // every room, m_rooms among them
     QString m_roomsProblem;
     bool    m_roomsRead = false;
+    // Our own RetroArch's and FinalBurn Neo core's versions, which the
+    // lobby's rooms are matched against ("" where not known), each read once
+    // for the file it is of (its fileStamp()), and the reads under way.
+    QString m_retroarchVersion;
+    QString m_retroarchVersionOf;
+    QString m_coreVersion;
+    QString m_coreVersionOf;
+    QPointer<QProcess> m_versionRead;
+    QPointer<QProcess> m_coreInfoRead;
+    QStringList m_coreInfoCommand;
     // catver.ini's download: from where, under way, and when one that failed
     // may be tried again.
     QUrl m_genresUrl;

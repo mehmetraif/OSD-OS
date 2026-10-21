@@ -15,6 +15,14 @@
 # first, as it would save it on exit: signed in for the password "secret",
 # refused for "wrong", RetroAchievements not reached for "offline", nothing
 # for "silent"; and runs until it is stopped.
+#
+# Asked its version, it says it as RetroArch 1.10 on prints it, and does
+# nothing else.
+if [ "$1" = "--version" ]; then
+	echo "RetroArch - Frontend for libretro"
+	echo "Version: 1.22.2 (Git c4f8f5f) Oct 20 2026"
+	exit 0
+fi
 log=""; config=""; content=""; prev=""
 for a in "$@"; do
 	case "$a" in --log-file=*) log="${a#--log-file=}" ;; esac

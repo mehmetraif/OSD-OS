@@ -1308,7 +1308,8 @@ Rectangle {
                                    subsystem: "", retroarch: "1.22.2", frontend: "unix x64", host: host,
                                    country: "", relay: "", players: -1, spectators: -1, minutes: -1,
                                    password: false, spectatePassword: false, connectable: true,
-                                   joinable: false, why: "" }, more || {})
+                                   joinable: false, why: "", coreMatch: core === "FinalBurn Neo" ? "unknown" : "",
+                                   retroarchMatch: "unknown" }, more || {})
         }
 
         // RetroArch's whole lobby: read as the page opens, its rooms under
@@ -1322,15 +1323,16 @@ Rectangle {
             var page = open("Lobby.qml")
             compare(arcadeBackend.roomReads, 1)
             verify(findText(page, "Reading RetroArch's lobby") !== null)
-            arcadeBackend.setLobby({ state: "ready", problem: "", rooms: [
+            arcadeBackend.setLobby({ state: "ready", problem: "", yourCore: "v1.0.0.03", yourRetroArch: "1.19.1",
+                                     fbneoReady: true, rooms: [
                 lobbyRoom(11, "FinalBurn Neo", "Street Fighter II", "ann",
                           { rom: "sf2", set: "sf2", country: "es", coreVersion: "v1.0.0.03", crc: "B62D0BC7",
-                            joinable: true }),
+                            joinable: true, coreMatch: "same", retroarchMatch: "other" }),
                 lobbyRoom(14, "FinalBurn Neo", "Metal Slug", "bob",
                           { rom: "mslug", set: "mslug", password: true, why: "It asks for a password" }),
                 lobbyRoom(16, "Snes9x", "Super Mario Kart PBD Edit", "dee",
                           { crc: "82993FA8", coreVersion: "1.63", country: "gb", relay: "us-east1", players: 2,
-                            spectators: 0, minutes: 75,
+                            spectators: 0, minutes: 75, retroarchMatch: "other",
                             why: "OSD/OS joins FinalBurn Neo's games alone: this one is Snes9x's" })] })
             // Seen once the backend says the lobby was read.
             compare(findText(page, "3 Rooms"), null)
@@ -1341,6 +1343,9 @@ Rectangle {
             // On the first room, which can be joined.
             tryVerify(function() { return findText(page, "Select to join it") !== null }, 1000)
             verify(findText(page, "ROM sf2, CRC B62D0BC7") !== null)
+            // Its core's version yours, its RetroArch not.
+            verify(findText(page, "FinalBurn Neo v1.0.0.03 (yours too)") !== null)
+            verify(findText(page, "RetroArch 1.22.2 (yours 1.19.1)") !== null)
             verify(findText(page, ":OPEN") !== null)
             // Down over the heading, to the Snes9x room.
             keyClick(Qt.Key_Down)
@@ -1357,8 +1362,19 @@ Rectangle {
             verify(findText(page, "82993FA8", true) !== null)
             compare(findText(page, "Join", true), null)
             compare(findText(page, ":JOIN"), null)
+            // Its core not yours, nothing to match its version against, its
+            // RetroArch another than yours.
+            compare(page.lines[2].icons, ["no"])
+            compare(page.lines[3].icons, [])
+            compare(page.lines[4].icons, ["no"])
+            keyClick(Qt.Key_Down)
+            keyClick(Qt.Key_Down)
+            verify(findText(page, "OSD/OS plays FinalBurn Neo's games alone") !== null)
+            keyClick(Qt.Key_Down)
+            keyClick(Qt.Key_Down)
+            verify(findText(page, "Yours is 1.19.1: another version") !== null)
             // Down to how it is reached, then to whether it can be joined.
-            for (var i = 0; i < 8; ++i)
+            for (var i = 0; i < 4; ++i)
                 keyClick(Qt.Key_Down)
             verify(findText(page, "Through the relay us-east1, for") !== null)
             verify(findText(page, "Relay", true) !== null)
@@ -1380,6 +1396,15 @@ Rectangle {
             keyClick(Qt.Key_Return)
             verify(findText(page, "Join", true) !== null)
             verify(findText(page, ":JOIN") !== null)
+            // Its core and its version yours, its RetroArch not.
+            compare(page.lines[4].icons, ["ok"])
+            compare(page.lines[5].icons, ["ok"])
+            compare(page.lines[6].icons, ["no"])
+            for (i = 0; i < 5; ++i)
+                keyClick(Qt.Key_Down)
+            verify(findText(page, "The same as yours: v1.0.0.03") !== null)
+            for (i = 0; i < 5; ++i)
+                keyClick(Qt.Key_Up)
             keyClick(Qt.Key_Return)
             compare(root.navigations.length, 1)
             compare(root.navigations[0].path, "Play.qml")

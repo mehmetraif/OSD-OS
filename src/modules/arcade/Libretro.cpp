@@ -8,6 +8,7 @@
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
+#include <QLibrary>
 #include <QRegularExpression>
 #include <QStandardPaths>
 #include <QTextStream>
@@ -605,6 +606,51 @@ QList<Room> readLobby(const QByteArray &json) {
     rooms.erase(std::remove_if(rooms.begin(), rooms.end(), [](const Room &room) { return !room.joinable; }),
                 rooms.end());
     return rooms;
+}
+
+CoreInfo loadCoreInfo(const QString &path, QString *error) {
+    // As libretro.h declares it (RETRO_API_VERSION 1).
+    struct SystemInfo {
+        const char *library_name;
+        const char *library_version;
+        const char *valid_extensions;
+        bool need_fullpath;
+        bool block_extract;
+    };
+    QLibrary core(path);
+    if (!core.load()) {
+        if (error)
+            *error = core.errorString();
+        return {};
+    }
+    using GetSystemInfo = void (*)(SystemInfo *);
+    const auto getSystemInfo = reinterpret_cast<GetSystemInfo>(core.resolve("retro_get_system_info"));
+    if (!getSystemInfo) {
+        if (error)
+            *error = QStringLiteral("%1 is not a libretro core").arg(path);
+        return {};
+    }
+    SystemInfo info{};
+    getSystemInfo(&info);
+    return { QString::fromUtf8(info.library_name ? info.library_name : ""),
+             QString::fromUtf8(info.library_version ? info.library_version : "") };
+}
+
+CoreInfo readCoreInfo(const QByteArray &output) {
+    CoreInfo info;
+    for (const QByteArray &line : output.split('\n')) {
+        if (line.startsWith("name="))
+            info.name = cleaned(QString::fromUtf8(line.mid(5)), 32);
+        else if (line.startsWith("version="))
+            info.version = cleaned(QString::fromUtf8(line.mid(8)), 32);
+    }
+    return info;
+}
+
+QString readVersion(const QByteArray &output) {
+    static const QRegularExpression version(QStringLiteral("(?:Version: |-- v)(\\d+\\.\\d+(?:\\.\\d+)?)"));
+    const QRegularExpressionMatch match = version.match(QString::fromUtf8(output));
+    return match.hasMatch() ? match.captured(1) : QString();
 }
 
 QString achievementsHash(const QString &fileName) {
