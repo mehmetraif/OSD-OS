@@ -128,8 +128,8 @@ public:
     void setScreen(bool tube, const QSize &size);
 
     // Where the games are: the module's Games Folder, else Games/Arcade in
-    // Local Files' default media folder (on the image, the card's OSD-OS
-    // partition).
+    // the media folder, beside Local Files' Movies (on the image, the card's
+    // OSD-OS partition).
     Q_INVOKABLE QString gamesFolder() const { return m_gamesFolder; }
     // Looks in the folder again (each time the list opens), off the GUI
     // thread, and then asks MAME about any set it hasn't been asked about.

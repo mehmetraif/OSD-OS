@@ -1,0 +1,15 @@
+[Unit]
+Description=Movies folder on the OSD-OS film partition
+# Made on the film partition as it is mounted, so the card has it from its
+# first boot on, for Local Files to open and for a computer to copy films
+# into. The partition is mounted nofail, which holds nothing back for it:
+# OSD/OS may start before it is mounted, and the folder it makes then lies
+# under the mount point. Started by the mount (media-OSD\x2dOS.mount.wants),
+# and only once the partition is there.
+After=media-OSD\x2dOS.mount
+ConditionPathIsMountPoint=/media/OSD-OS
+
+[Service]
+Type=oneshot
+User=@FIRST_USER_NAME@
+ExecStart=/bin/mkdir -p /media/OSD-OS/Movies

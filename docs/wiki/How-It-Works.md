@@ -542,7 +542,7 @@ What OSD/OS reads from its environment. Each `OSDOS_…` name is also read as `M
 | `OSDOS_AUTOSTART` | Set by the autostart service: Quit offers Power Off, Restart and Exit to Terminal |
 | `OSDOS_LAUNCHER_API` | Set by the launcher: what its stop helper can do ([The launcher API](https://github.com/mehmetraif/OSD-OS/wiki/The-OSD-OS-Image#the-launcher-api)) |
 | `OSDOS_BOOT_UNITS_FILE`, `OSDOS_READY_FILE` | The OSD/OS image's boot screen: the services it follows, the file written at the first frame |
-| `OSDOS_MEDIA_DIR` | Local Files' folder while its setting is unset (the image's film partition) |
+| `OSDOS_MEDIA_DIR` | The folder the media go in (the image's film partition): Local Files opens `Movies` there while its setting is unset, the Arcade module `Games/Arcade` while its own is |
 | `OSDOS_DRM_DEVICE`, `OSDOS_DRM_CONNECTOR`, `OSDOS_DRM_MODE` | Set by the launcher on a Pi 5: the output mpv plays on |
 | `OSDOS_EMBEDDED_RENDER` | `sw` keeps Transparent Background's pictures on the CPU; `gpu` takes OpenGL drawn on the CPU too |
 | `OSDOS_UPDATE_FEED_URL` | Where Settings → Update looks for releases |

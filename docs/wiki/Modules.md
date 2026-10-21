@@ -12,7 +12,7 @@ Everything OSD/OS plays comes in through a module, like the inputs on a VHS deck
 
 | Module | What it plays | On at first | What it needs |
 |---|---|---|---|
-| [Local Files](https://github.com/mehmetraif/OSD-OS/wiki/Local-Files) | Films, videos and photos in a folder: the SD card's films partition on the OSD/OS image, a USB drive, a network share | Yes | Nothing more |
+| [Local Files](https://github.com/mehmetraif/OSD-OS/wiki/Local-Files) | Films, videos and photos in a folder: the Movies folder of the SD card's films partition on the OSD/OS image, a USB drive, a network share | Yes | Nothing more |
 | [Playlists](https://github.com/mehmetraif/OSD-OS/wiki/Playlists) | Lists of videos from Local Files, YouTube, Jellyfin and Emby, streamed or downloaded to play offline | Yes | yt-dlp and ffmpeg for offline YouTube videos |
 | [Plex](https://github.com/mehmetraif/OSD-OS/wiki/Plex) | A Plex Media Server's films, series and other videos | No | A Plex account and a server |
 | [Jellyfin](https://github.com/mehmetraif/OSD-OS/wiki/Jellyfin) | A Jellyfin server's libraries | No | A Jellyfin server with Quick Connect |

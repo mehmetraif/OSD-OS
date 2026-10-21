@@ -20,8 +20,8 @@ The module is in [modules/arcade](https://github.com/mehmetraif/OSD-OS/tree/main
 
 1. **MAME.** The OSD/OS image has it: Debian's `mame` package, MAME 0.276 on Raspberry Pi OS (trixie), with its data and plugins (`mame-data`). Elsewhere, install it: `sudo apt install mame` on Raspberry Pi OS or Debian, `brew install mame` on a Mac. A MAME of your own (a newer one, or GroovyMAME for a CRT) goes in the data folder's `bin` as `bin/mame`, where the module looks first, with its own folders (`bgfx`, `plugins`, `hash`…) beside it, or as a link to the program where it is; then `mame` on the `PATH`, then Debian's `/usr/games/mame`.
 2. **The games.** Put the ROM sets in the games folder, one per game, named the way MAME names the game, in lower case: `pacman.zip`, `galaga.zip`, `sf2.zip` (`PACMAN.ZIP` is a different name on a drive that tells upper and lower case apart, as Linux's own do; the card's OSD-OS partition doesn't). A set can be a zip, a 7z or a folder of the game's files. BIOS sets, such as `neogeo.zip` for Neo-Geo games, go beside them or in a `bios` folder there; they aren't listed as games. Samples, the recorded sounds some early games play (Donkey Kong's, Space Invaders'), go in a `samples` folder there, a zip for each game as MAME names it (`dkong.zip`). The folder is:
-   - on the OSD/OS image, `Games/Arcade` on the card's OSD-OS partition (`/media/OSD-OS/Games/Arcade`), which a computer opens too: copy the games onto the card there;
-   - elsewhere, `Games/Arcade` in Local Files' default folder (`media` in the data folder);
+   - on the OSD/OS image, `Games/Arcade` on the card's OSD-OS partition (`/media/OSD-OS/Games/Arcade`), which a computer opens too: copy the games onto the card there, and films into its `Movies` folder, so the two stay apart;
+   - elsewhere, `Games/Arcade` in the data folder's `media` folder, beside Local Files' `Movies` folder;
    - or the folder **Settings → Arcade → Games Folder** names.
 
    The module makes the folder the first time it opens, so it is there to copy into.
@@ -392,7 +392,7 @@ Settings → Arcade, the second row of Settings' first screen. The page is share
 | Setting | Values | Default | What it does | Config key |
 |---|---|---|---|---|
 | Enabled | ON, OFF | OFF | Shows Arcade on the main menu | `modules.com.osdos.arcade.enabled` |
-| Games Folder | Default, or a folder | Default | The folder of ROM sets. Default: `Games/Arcade` in Local Files' default folder, on the OSD/OS image `/media/OSD-OS/Games/Arcade` | `modules.com.osdos.arcade.games_directory` |
+| Games Folder | Default, or a folder | Default | The folder of ROM sets. Default: `Games/Arcade` beside Local Files' `Movies` folder, on the OSD/OS image `/media/OSD-OS/Games/Arcade` | `modules.com.osdos.arcade.games_directory` |
 | Screen | Original, Arcade | Arcade | How the games are listed, from the next time Arcade opens: the tree, or the Arcade screen ([Two screens](#two-screens)) | `modules.com.osdos.arcade.screen` |
 | Start Filter | All Games, then the lists, genres, players, decades and publishers Menu Filters shows | All Games | The filter the Arcade screen opens on ([Filters](#filters)); while it has no games, the first that has. Shown while Screen is Arcade | `modules.com.osdos.arcade.start_filter` |
 | Menu Filters | A page of the filters under their headings, each ON or OFF | All on, the publishers off | The filters ◄ ► goes round on the Arcade screen ([Menu Filters](#menu-filters)). Shown while Screen is Arcade | `modules.com.osdos.arcade.menu_filters` |

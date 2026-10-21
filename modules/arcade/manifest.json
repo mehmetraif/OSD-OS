@@ -16,7 +16,7 @@
       "label": "Games Folder",
       "type": "directory_browser",
       "default": "",
-      "description": "The folder of MAME's ROM sets (a zip each, BIOS sets beside them)\n[DEFAULT] Games/Arcade in Local Files' default folder: on the OSD/OS image, on the card's OSD-OS partition"
+      "description": "The folder of MAME's ROM sets (a zip each, BIOS sets beside them)\n[DEFAULT] Games/Arcade beside Local Files' Movies folder: on the OSD/OS image, on the card's OSD-OS partition"
     },
     {
       "key": "screen",

@@ -42,6 +42,7 @@ ctest --test-dir build-tests --output-on-failure
   - The players: Auto takes the JAMMA board's sticks by their number whatever came first, and Auto's player keeps its own stick beside a chosen one; one pad, one player, unless two of its model are there; six players, the seventh pad none, three of a model as three players; a pad chosen and away leaves its player none; SDL's player index; the players in a program's environment, nothing inherited; kept in `config.json`.
   - A pad's Back button is MAME's coin key, 5, where the item with the focus takes a coin (`takesCoin`, the nearest item round it that says), and Back anywhere else, its release the key's too; its B is Back either way; the coin hint names the pad's Back button (`[COIN]` on the JAMMA board's sticks).
 - **storage_search** (`storage_search_test.cpp`):
+  - The folder Local Files opens by default: Movies in `OSDOS_MEDIA_DIR`, made as it opens; without it, Movies in the data folder's `media`; and Movies again once a folder chosen in Settings is reset.
   - Local Files' search keeps the first 200 matches by name.
   - A search replaced by the next is never reported.
   - The backend can go away while a search runs.
