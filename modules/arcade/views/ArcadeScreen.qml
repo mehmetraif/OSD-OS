@@ -47,7 +47,9 @@ import "Rooms.js" as Rooms
 // shown: ▶ marks one to join and a lock one with a password, the box under
 // the picture says what the lobby says of it and the help line the rest.
 // Select joins one, or opens the room's page (Lobby.qml) where there is
-// nothing to join, as select held does for any.
+// nothing to join, as select held does for any. With LAN Play on, LAN Games
+// is there while no one on the local network hosts a game too, the list
+// saying why (ArcadeBackend::lanStatus()).
 //
 // Opened to adjust it (navParams.adjust, Screen Adjustment's), a frame lies
 // round the area: ▲ ▼ ◄ ► move that side of it out, or in once select has
@@ -280,6 +282,10 @@ FocusScope {
     // against.
     readonly property var lobbyRoom: current && current.lobby ? current.lobby : null
     readonly property var lobbyInfo: (revision, filterId === "lobby" && arcadeBackend ? arcadeBackend.lobby() : ({}))
+    // What LAN Games says while it lists no game (ArcadeBackend::lanStatus()):
+    // there with LAN Play on while no one on the network hosts a game too.
+    readonly property var lanInfo: (revision, filterId === "lan" && count === 0 && arcadeBackend
+                                    ? arcadeBackend.lanStatus() : ({}))
     // Counted up as a game's pictures come in (RetroAchievements'), so its
     // details are read again.
     property int picturesRevision: 0
@@ -1235,11 +1241,13 @@ FocusScope {
     // then those of its details the box has no line for; a room of the
     // local network's who hosts it and its versions against ours first. A
     // room of the whole lobby's what the lobby says of it; Search's, what
-    // to do there; the lobby's why it couldn't be read.
+    // to do there; the lobby's why it couldn't be read, and LAN Games' why
+    // it has no game.
     readonly property string about: lobbyRoom ? Rooms.about(lobbyRoom, lobbyInfo)
         : onSearch ? (typing ? "The games found follow each letter typed: OK goes down to them, back to the list, and ◄ ► past the keys' ends go round the filters"
                              : "► or select to type what to look for: the games found follow each letter")
         : filterId === "lobby" && count === 0 ? lobbyInfo.problem || ""
+        : filterId === "lan" && count === 0 ? lanInfo.detail || ""
         : (current && current.lan && current.detail ? [current.detail] : [])
           .concat([details.name || ""]).concat(detailList.slice(detailRows).map(function(detail) {
               return detail.told
@@ -1260,19 +1268,23 @@ FocusScope {
     }
 
     // In the list's place: on RetroArch Lobby, that the lobby is being read,
-    // can't be reached, or has no room; under Search's own row, that its
-    // words find no game.
+    // can't be reached, or has no room; on LAN Games, that the network is
+    // being asked, can't be, or has no game of ours, or that FinalBurn Neo
+    // isn't installed; under Search's own row, that its words find no game.
     Text {
         readonly property bool lobbyEmpty: arcadeScreen.filterId === "lobby" && arcadeScreen.count === 0
+        readonly property bool lanEmpty: arcadeScreen.filterId === "lan" && arcadeScreen.count === 0
         readonly property bool noneFound: arcadeScreen.filterId === "search" && arcadeScreen.count === 1
         readonly property int rowTop: !noneFound ? arcadeScreen.listTop
                                       : arcadeScreen.wheel ? arcadeScreen.wheelTops[1] || arcadeScreen.listTop
                                       : arcadeScreen.listTop + arcadeScreen.pitch
-        visible: lobbyEmpty || noneFound
+        visible: lobbyEmpty || lanEmpty || noneFound
         x: Math.round((arcadeScreen.areaLeft + 16) * arcadeScreen.u)
         y: Math.round((rowTop + (arcadeScreen.rowHeight - arcadeScreen.nameLines) / 2) * arcadeScreen.v)
         width: Math.round((arcadeScreen.listWidth - 16) * arcadeScreen.u)
-        text: noneFound ? "No Game Found" : Rooms.emptyLine(arcadeScreen.lobbyInfo)
+        text: noneFound ? "No Game Found" : lanEmpty ? arcadeScreen.lanInfo.name || ""
+              : Rooms.emptyLine(arcadeScreen.lobbyInfo)
+        textFormat: Text.PlainText
         wrapMode: Text.WordWrap
         color: root.primaryColor
         font.family: root.globalFont

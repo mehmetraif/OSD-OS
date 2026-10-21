@@ -149,9 +149,10 @@ public:
 
     // The filters with games in them, in the order ◄ ► goes round them:
     // [{ id, name, count }]. id: "all", "online" (Online Games, while
-    // someone hosts one), "lan" (LAN Games, while someone on the local
-    // network does), "lobby" (RetroArch Lobby: every room of it, with Online
-    // Play on, even while it has none), "favorites", "recent",
+    // someone hosts one), "lan" (LAN Games, with LAN Play on, even while no
+    // one on the local network hosts one), "lobby" (RetroArch Lobby: every
+    // room of it, with Online Play on, even while it has none; LAN Games and
+    // it only with a game in the folder), "favorites", "recent",
     // "achievements", "netplay", "genres/<genre>", "players/<n>",
     // "years/<decade>" ("years/unknown"), "makers/<publisher>", "unknown"
     // (Not Recognized), and last "search" (Search: its own row, then the
@@ -293,6 +294,10 @@ public:
     // said again once they are. LAN Play turned off forgets the rooms.
     Q_INVOKABLE QVariantList lanRooms() const;
     Q_INVOKABLE void refreshLanRooms();
+    // What LAN Games says while it lists no game, as { name, detail }:
+    // FinalBurn Neo not installed, the network still being asked, why it
+    // couldn't be, or that no one there hosts a game of the folder's.
+    Q_INVOKABLE QVariantMap lanStatus() const;
     // A room joined straight at its host, or a game hosted on the local
     // network alone (libretro::Launch::Netplay::LanHost), as play() starts a
     // game.

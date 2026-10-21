@@ -244,6 +244,9 @@ Rectangle {
         property int lanReads: 0
         function canHostLan(set) { return lanHostable.indexOf(set) >= 0 }
         function refreshLanRooms() { lanReads++ }
+        // What LAN Games says while it has no game.
+        property var lanState: ({})
+        function lanStatus() { return lanState }
         function joinLanRoom(id) { lanJoined = lanJoined.concat([id]); running = playResult; return playResult }
         function hostLanGame(set) { lanHosted = lanHosted.concat([set]); running = playResult; return playResult }
         // Each game's RetroAchievements leaderboard, by set, as leaderboard()
@@ -447,6 +450,8 @@ Rectangle {
             arcadeBackend.lanJoined = []
             arcadeBackend.lanHosted = []
             arcadeBackend.lanReads = 0
+            arcadeBackend.lanState = { name: "No LAN Games",
+                                       detail: "No one on this network hosts a game you have: host one from a game's options" }
             arcadeBackend.pendingFilters = []
             arcadeBackend.searchWords = ""
             arcadeBackend.searches = []
@@ -1723,6 +1728,34 @@ Rectangle {
             compare(root.navigations[1].params.game, "sf2")
             verify(root.navigations[1].params.online.hosting)
             verify(root.navigations[1].params.online.lan)
+        }
+
+        // LAN Games with no game, there while LAN Play is on: why in the
+        // list's place and on the help line, as the backend says it, and
+        // nothing to select.
+        function test_lanScreenEmpty() {
+            arcadeBackend.filterList = [{ id: "lan", name: "LAN Games", sets: [], rows: [] }]
+                                        .concat(arcadeBackend.filterList)
+            moduleRoot.startFilter = "lan"
+            var screen = openScreen()
+            compare(screen.filterId, "lan")
+            compare(screen.count, 0)
+            verify(findText(screen, "No LAN Games") !== null)
+            verify(findText(screen, "No one on this network hosts a game you have") !== null)
+            // As the backend's word changes and the filters are read again.
+            arcadeBackend.lanState = { name: "FinalBurn Neo Not Installed",
+                                       detail: "LAN games play in FinalBurn Neo: Settings → Arcade → FinalBurn Neo" }
+            arcadeBackend.gamesChanged()
+            verify(findText(screen, "FinalBurn Neo Not Installed") !== null)
+            verify(findText(screen, "LAN games play in FinalBurn Neo") !== null)
+            compare(findText(screen, "No LAN Games"), null)
+            keyPress(Qt.Key_Return)
+            keyRelease(Qt.Key_Return)
+            compare(root.navigations.length, 0)
+            // On to All Games: none of it there.
+            keyClick(Qt.Key_Right)
+            compare(screen.filterId, "all")
+            compare(findText(screen, "FinalBurn Neo Not Installed"), null)
         }
 
         // A room on the local network joined from the game's screen says

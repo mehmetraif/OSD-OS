@@ -1484,9 +1484,11 @@ QVariantList ArcadeBackend::filters() {
     // and the local network asked. The whole lobby with Online Play on and
     // games to play, while it is read and when no one hosts a game too: the
     // screen says so. With none, the screen says why there are none.
+    // LAN Games, with LAN Play on and games to play, also while no one on
+    // the network hosts one: the screen says why (lanStatus()).
     if (const qsizetype online = rooms().size(); online > 0)
         list << filter(QStringLiteral("online"), QStringLiteral("Online Games"), online);
-    if (const qsizetype lan = lanRooms().size(); lan > 0)
+    if (const qsizetype lan = lanRooms().size(); lan > 0 || (m_lanPlay && !scanning() && !index().games.isEmpty()))
         list << filter(QStringLiteral("lan"), QStringLiteral("LAN Games"), lan);
     if (m_onlinePlay && !scanning() && !index().games.isEmpty())
         list << filter(QStringLiteral("lobby"), QStringLiteral("RetroArch Lobby"), m_lobby.size());
@@ -3067,16 +3069,31 @@ QVariantList ArcadeBackend::lanRoomEntries() const {
                                 { QStringLiteral("detail"), room.value(QStringLiteral("detail")) } };
     }
     if (entries.isEmpty()) {
-        const bool failed = !m_lanProblem.isEmpty();
-        entries << QVariantMap{ { QStringLiteral("name"), failed ? QStringLiteral("Network Not Reachable") : QStringLiteral("No LAN Games") },
+        const QVariantMap status = lanStatus();
+        entries << QVariantMap{ { QStringLiteral("name"), status.value(QStringLiteral("name")) },
                                 { QStringLiteral("path"), QStringLiteral("lan/none") },
                                 { QStringLiteral("isFolder"), false },
                                 { QStringLiteral("kind"), QStringLiteral("message") },
-                                { QStringLiteral("detail"), failed ? m_lanProblem
-                                                            : QStringLiteral("No one on this network hosts a game you have: "
-                                                                             "host one from a game's options") } };
+                                { QStringLiteral("detail"), status.value(QStringLiteral("detail")) } };
     }
     return entries;
+}
+
+QVariantMap ArcadeBackend::lanStatus() const {
+    const auto said = [](const QString &name, const QString &detail) {
+        return QVariantMap{ { QStringLiteral("name"), name }, { QStringLiteral("detail"), detail } };
+    };
+    // FinalBurn Neo first: without it no game hosted there is one to join.
+    if (!fbneoReady())
+        return said(QStringLiteral("FinalBurn Neo Not Installed"),
+                    QStringLiteral("LAN games play in FinalBurn Neo: Settings → Arcade → FinalBurn Neo"));
+    if (!m_lanRead)
+        return said(QStringLiteral("Asking the Local Network…"),
+                    QStringLiteral("A game hosted on this network comes here as soon as it is found"));
+    if (!m_lanProblem.isEmpty())
+        return said(QStringLiteral("Network Not Reachable"), m_lanProblem);
+    return said(QStringLiteral("No LAN Games"),
+                QStringLiteral("No one on this network hosts a game you have: host one from a game's options"));
 }
 
 QString ArcadeBackend::nickname(bool lan) const {

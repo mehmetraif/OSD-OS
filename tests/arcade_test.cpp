@@ -3803,6 +3803,16 @@ private slots:
         const auto detail = [&arcade](int at) {
             return arcade.lanRooms().value(at).toMap().value(QStringLiteral("detail")).toString();
         };
+        // The Arcade screen's LAN Games: its count, -1 while it isn't there;
+        // and what it says while it has no game.
+        const auto lanFilter = [&arcade] {
+            for (const QVariant &v : arcade.filters()) {
+                if (v.toMap().value(QStringLiteral("id")).toString() == QLatin1String("lan"))
+                    return v.toMap().value(QStringLiteral("count")).toInt();
+            }
+            return -1;
+        };
+        const auto lanSays = [&arcade] { return arcade.lanStatus().value(QStringLiteral("name")).toString(); };
         const auto ended = [&arcade](const std::function<bool()> &start) {
             QSignalSpy finished(&arcade, &ArcadeBackend::finished);
             if (!start())
@@ -3816,13 +3826,17 @@ private slots:
         // MAME.
         arcade.refreshLanRooms();
         QVERIFY(!names(arcade.requestEntries(QStringLiteral("top"))).contains(QStringLiteral("LAN Games")));
+        QCOMPARE(lanFilter(), -1);
         QVERIFY(!arcade.canHostLan(QStringLiteral("sf2")));
         QVERIFY(!arcade.statusIcons().contains(QStringLiteral("network")));
         QCOMPARE(arcade.engineOf(QStringLiteral("sf2")), QStringLiteral("mame"));
 
-        // On: LAN Games first, the games in FinalBurn Neo, its icon.
+        // On: LAN Games first, the games in FinalBurn Neo, its icon. The
+        // Arcade screen's LAN Games at once, saying the network is asked.
         arcade.onSettingChanged(module, QStringLiteral("lan_play"), QStringLiteral("On"));
         QCOMPARE(names(arcade.requestEntries(QStringLiteral("top"))).value(0), QStringLiteral("LAN Games"));
+        QCOMPARE(lanFilter(), 0);
+        QCOMPARE(lanSays(), QStringLiteral("Asking the Local Network…"));
         QVERIFY(arcade.canHostLan(QStringLiteral("sf2")));
         QVERIFY(!arcade.canHostLan(QStringLiteral("kof98")));
         QCOMPARE(arcade.engineOf(QStringLiteral("sf2")), QStringLiteral("fbneo"));
@@ -3957,8 +3971,10 @@ private slots:
         QCOMPARE(message.value(QStringLiteral("name")).toString(), QStringLiteral("No LAN Games"));
         QCOMPARE(message.value(QStringLiteral("detail")).toString(),
                  QStringLiteral("No one on this network hosts a game you have: host one from a game's options"));
-        for (const QVariant &v : arcade.filters())
-            QVERIFY(v.toMap().value(QStringLiteral("id")).toString() != QLatin1String("lan"));
+        // On the Arcade screen too, LAN Games with no game, saying the same.
+        QCOMPARE(lanFilter(), 0);
+        QCOMPARE(lanSays(), QStringLiteral("No LAN Games"));
+        QCOMPARE(arcade.lanStatus().value(QStringLiteral("detail")), message.value(QStringLiteral("detail")));
         // And back: the room heard before, by its id.
         answers = { eve };
         arcade.refreshLanRooms();
@@ -3973,10 +3989,17 @@ private slots:
         QCOMPARE(message.value(QStringLiteral("name")).toString(), QStringLiteral("Network Not Reachable"));
         QVERIFY2(message.value(QStringLiteral("detail")).toString().startsWith(QStringLiteral("The local network can't be reached: ")),
                  qPrintable(message.value(QStringLiteral("detail")).toString()));
+        QCOMPARE(lanSays(), QStringLiteral("Network Not Reachable"));
+        // FinalBurn Neo gone: that, first.
+        const QString core = libretro::downloadedCore(data.path());
+        QVERIFY(QFile::rename(core, core + QStringLiteral(".away")));
+        QCOMPARE(lanSays(), QStringLiteral("FinalBurn Neo Not Installed"));
+        QVERIFY(QFile::rename(core + QStringLiteral(".away"), core));
 
         // Off again: nothing of it.
         arcade.onSettingChanged(module, QStringLiteral("lan_play"), QStringLiteral("Off"));
         QVERIFY(arcade.lanRooms().isEmpty());
+        QCOMPARE(lanFilter(), -1);
         QVERIFY(!names(arcade.requestEntries(QStringLiteral("top"))).contains(QStringLiteral("LAN Games")));
         QVERIFY(!arcade.statusIcons().contains(QStringLiteral("network")));
         QCOMPARE(arcade.engineOf(QStringLiteral("sf2")), QStringLiteral("mame"));
