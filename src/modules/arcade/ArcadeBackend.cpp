@@ -2381,11 +2381,14 @@ bool ArcadeBackend::playFbneo(const QString &name, libretro::Launch::Netplay net
                                || netplay == libretro::Launch::Netplay::LanJoin);
     launch.relay = m_relay;
     // FinalBurn Neo's remap file: the arcade panels' players on its 6-Button
-    // Panel; none without one, nor online.
+    // Panel; none without one, nor online. One of the user's own stays as
+    // it is, loaded in its place.
     const QString remap = libretro::coreRemapPath(launch.remapDir);
     const QString remapText = libretro::remapText(launch);
     bool written = true;
-    if (remapText.isEmpty())
+    if (!libretro::ownsRemap(remap))
+        qInfo("[Arcade] %s is the user's own: left as it is", qPrintable(remap));
+    else if (remapText.isEmpty())
         QFile::remove(remap);
     else
         written = QDir().mkpath(QFileInfo(remap).path()) && writeFileAtomically(remap, remapText.toUtf8(), kOwnerOnly);

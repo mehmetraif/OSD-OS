@@ -111,6 +111,10 @@ QString coreRemapPath(const QString &remapDir);
 // Panel, its controller type for such a panel, off line; "" for none, when
 // no file is needed.
 QString remapText(const Launch &launch);
+// Whether the remap file at path is OSD/OS's to write over or remove: there
+// is none, or remapText() wrote it. One saved from RetroArch's menu (Save
+// Core Remap File) or put there by hand is the user's, loaded as it is.
+bool ownsRemap(const QString &path);
 
 // What a run's log says (RetroArch's own, -v --log-file).
 struct Run {

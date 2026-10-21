@@ -68,6 +68,9 @@ constexpr std::pair<const char *, const char *> kArcadePanel[] = {
 
 // FinalBurn Neo's name for RetroArch, which names its remap folder and file.
 const QLatin1String kCoreName("FinalBurn Neo");
+// How the remap file OSD/OS writes begins (remapText()), by which it knows
+// the file is its own (ownsRemap()).
+const QLatin1String kOwnRemap("# Written by OSD/OS");
 // FinalBurn Neo's 6-Button Panel, its RETROPAD_6PANEL:
 // RETRO_DEVICE_SUBCLASS(RETRO_DEVICE_ANALOG, 0).
 constexpr int k6ButtonPanel = (1 << 8) | 5;
@@ -429,8 +432,15 @@ QString remapText(const Launch &launch) {
     }
     if (lines.isEmpty())
         return QString();
-    lines.prepend(QStringLiteral("# Written by OSD/OS for each FinalBurn Neo game: what is changed here is lost at the next."));
+    lines.prepend(QString(kOwnRemap) + QLatin1String(" for each FinalBurn Neo game: what is changed here is lost at the next."));
     return lines.join(QLatin1Char('\n')) + QLatin1Char('\n');
+}
+
+bool ownsRemap(const QString &path) {
+    QFile file(path);
+    if (!file.exists())
+        return true;
+    return file.open(QIODevice::ReadOnly) && QString::fromUtf8(file.readLine()).startsWith(kOwnRemap);
 }
 
 QStringList arguments(const Launch &launch) {

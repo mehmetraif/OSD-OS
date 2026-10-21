@@ -1067,6 +1067,14 @@ private slots:
         const QStringList remap = libretro::remapText(launch).split(QLatin1Char('\n'));
         QVERIFY(remap.contains(QStringLiteral("input_libretro_device_p3 = \"261\"")));
         QVERIFY(!remap.filter(QStringLiteral("input_libretro_device_p1")).size());
+        // The file is OSD/OS's while there is none or it wrote it; one saved
+        // from RetroArch's menu, or put there by hand, is the user's.
+        const QString remapFile = libretro::coreRemapPath(dir.path() + QStringLiteral("/remaps"));
+        QVERIFY(libretro::ownsRemap(remapFile));
+        writeFile(remapFile, libretro::remapText(launch).toUtf8());
+        QVERIFY(libretro::ownsRemap(remapFile));
+        writeFile(remapFile, "input_libretro_device_p1 = \"1\"\ninput_remap_port_p1 = \"0\"\n");
+        QVERIFY(!libretro::ownsRemap(remapFile));
         // Online, on the internet or the local network, every player on the
         // host's controller types: no panel.
         for (const auto netplay : { libretro::Launch::Netplay::Join, libretro::Launch::Netplay::Host,
@@ -1535,6 +1543,21 @@ private slots:
                                               QStringLiteral("030000005e0400008e02000014010000") } });
         played(arcade, QStringLiteral("sf2"));
         QVERIFY(!QFileInfo::exists(remap));
+        // One the user saved from RetroArch's menu is theirs: neither removed
+        // without a panel nor written over with one.
+        const QByteArray own("input_libretro_device_p1 = \"1\"\ninput_player1_btn_b = \"8\"\n");
+        writeFile(remap, own);
+        played(arcade, QStringLiteral("sf2"));
+        QCOMPARE(contents(remap), own);
+        controllers::setPlayerEnvironment({ { QStringLiteral("OSDOS_PLAYER1_NAME"), QStringLiteral("OSD/OS JAMMA P1") },
+                                            { QStringLiteral("OSDOS_PLAYER1_GUID"),
+                                              QStringLiteral("06002868010000000100000001000000") } });
+        played(arcade, QStringLiteral("sf2"));
+        QCOMPARE(contents(remap), own);
+        QFile::remove(remap);
+        controllers::setPlayerEnvironment({ { QStringLiteral("OSDOS_PLAYER1_NAME"), QStringLiteral("Xbox 360 Controller") },
+                                            { QStringLiteral("OSDOS_PLAYER1_GUID"),
+                                              QStringLiteral("030000005e0400008e02000014010000") } });
         // RetroAchievements not reached: still signed in, the token kept.
         writeFile(kept, "{\"user\": \"player\", \"token\": \"offline\"}");
         {
@@ -1946,6 +1969,30 @@ private slots:
         QVERIFY(!QFile::exists(core + QStringLiteral(".zip")));
         QCOMPARE(libretro::corePath(data.path()), core);
         QCOMPARE(libretro::datPath(data.path()), libretro::downloadedDat(data.path()));
+
+        // Downloaded again, as an update is: the core, its list and its
+        // licence replaced, and nothing else. The core's options and a game's, the
+        // user's remap files, saves, states, a file of their own beside the
+        // BIOS sets and the RetroAchievements account stay as they were.
+        const QString home = data.path() + QStringLiteral("/arcade/retroarch");
+        const QHash<QString, QByteArray> kept{
+            { home + QStringLiteral("/config/FinalBurn Neo/FinalBurn Neo.opt"), "fbneo-diagnostic-input = \"Start + L + R\"\n" },
+            { home + QStringLiteral("/config/FinalBurn Neo/sf2.cfg"), "video_scale_integer = \"true\"\n" },
+            { home + QStringLiteral("/remaps/FinalBurn Neo/FinalBurn Neo.rmp"), "input_player1_btn_b = \"8\"\n" },
+            { home + QStringLiteral("/remaps/FinalBurn Neo/sf2.rmp"), "input_player1_btn_a = \"0\"\n" },
+            { home + QStringLiteral("/saves/fbneo/sf2.nv"), "nvram" },
+            { home + QStringLiteral("/states/sf2.state1"), "state" },
+            { home + QStringLiteral("/system/fbneo/hiscore.dat"), "sf2:\n" },
+            { data.path() + QStringLiteral("/arcade/retroachievements.json"), "{\"user\": \"player\"}" },
+        };
+        for (auto file = kept.cbegin(); file != kept.cend(); ++file)
+            writeFile(file.key(), file.value());
+        installer.start(source("/core.zip", "/fbneo.dat"));
+        QVERIFY(finished.wait(10000));
+        QCOMPARE(finished.last().at(0).toBool(), true);
+        for (auto file = kept.cbegin(); file != kept.cend(); ++file)
+            QVERIFY2(contents(file.key()) == file.value(), qPrintable(file.key()));
+        QVERIFY(noParts());
 
         // A list the server hasn't, then one that isn't FinalBurn Neo's:
         // why, and what was there stays.
@@ -3227,7 +3274,10 @@ private slots:
                                             { QStringLiteral("OSDOS_PLAYER2_GUID"),
                                               QStringLiteral("06006869010000000200000001000000") } });
         const QString remap = data.path() + QStringLiteral("/arcade/retroarch/remaps/FinalBurn Neo/FinalBurn Neo.rmp");
-        writeFile(remap, "input_libretro_device_p1 = \"261\"\n");
+        libretro::Launch offLine;
+        offLine.panels = { true };
+        const QByteArray leftOver = libretro::remapText(offLine).toUtf8();
+        writeFile(remap, leftOver);
         const auto onPads = [](const QString &config) {
             for (const char *line : { "input_player1_reserved_device = \"0001:0001 OSD/OS JAMMA P1\"",
                                       "input_player1_b_btn = \"0\"", "input_player2_up_btn = \"11\"" }) {
@@ -3261,7 +3311,7 @@ private slots:
         arcade.onSettingChanged(module, QStringLiteral("online_name"), QStringLiteral(" Mehmet "));
         arcade.onSettingChanged(module, QStringLiteral("relay_server"), QStringLiteral("Madrid"));
         QFile::remove(m_log);
-        writeFile(remap, "input_libretro_device_p1 = \"261\"\n");
+        writeFile(remap, leftOver);
         QCOMPARE(ended([&arcade] { return arcade.hostGame(QStringLiteral("sf2")); }).value(1).toString(),
                  QStringLiteral("ok"));
         QVERIFY(logLines(QStringLiteral("retroarch ")).value(0).contains(QStringLiteral(" --host ")));
