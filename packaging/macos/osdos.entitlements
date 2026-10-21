@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<!-- The hardened runtime of a Developer ID build loads only libraries
+	     signed by Apple or by the app's own team; OSD/OS loads libraries
+	     signed by others as it runs: Homebrew's libmpv, to play inside its
+	     window (EmbeddedMpv), and libretro's FinalBurn Neo core, whose
+	     version a copy of the app asks it (main.cpp, core-info). -->
+	<key>com.apple.security.cs.disable-library-validation</key>
+	<true/>
+</dict>
+</plist>

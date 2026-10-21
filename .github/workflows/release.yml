@@ -131,7 +131,11 @@ jobs:
           IDENTITY="Developer ID Application"
           find "$APP/Contents/Frameworks" \( -name "*.dylib" -o -name "*.framework" \) \
             -exec codesign --force --options runtime --sign "$IDENTITY" {} \;
-          codesign --force --deep --options runtime --sign "$IDENTITY" "$APP"
+          # The libraries others sign that the app loads (libmpv, a libretro
+          # core) are let in: packaging/macos/osdos.entitlements.
+          codesign --force --deep --options runtime \
+            --entitlements "${GITHUB_WORKSPACE}/packaging/macos/osdos.entitlements" \
+            --sign "$IDENTITY" "$APP"
           codesign --verify --deep --strict "$APP"
 
       - name: Sign app ad hoc
