@@ -1,0 +1,159 @@
+{
+  "_about": "OSD/OS Setup's settings beside what scripts/build-site.py reads from the app itself (the modules' manifest.json, the display presets, the themes and skins): Settings' own rows (views/Settings.qml), the choices the modules make up as they run (their backends' get_*_options), keys a module keeps without a row, and the system's lists. tests/site/schema.test.mjs checks the rows against Settings.qml and Main.qml. An option is [label, value], or a string that is both. A row's theme_part is one of the theme's parts (Settings' themeParts), legacy the numbers old words stand for, max_length and trim as the app keeps the value. The keyboards are those with Latin letters, in which a user's name and password can be typed at Exit to Terminal.",
+  "app": [
+    {
+      "title": "General Settings",
+      "settings": [
+        { "key": "osd_theme", "label": "Theme", "type": "choice", "options": [["None", ""]], "options_from": "themes", "default": "",
+          "help": "The whole look in one: the color scheme, the skin, the effects and the menu music. [NONE] OSD/OS's own. The rows below left at THEME follow it." },
+        { "key": "color_scheme", "theme_part": true, "label": "Color Scheme", "type": "choice", "default": "",
+          "options": [["Theme", ""], "Video 1", "Late Night", "Synthwave", "Terminal", "T-120", "Amber", "Kinescope", "SMPTE ECR 1-1978"],
+          "help": "The two colors everything is drawn in. [THEME] The theme's, else Video 1." },
+        { "key": "skin", "theme_part": true, "label": "Skin", "type": "choice", "default": "", "options": [["Theme", ""], ["None", "Off"]], "options_from": "skins",
+          "help": "How the window is dressed: its frame, the title and hint bars, the selected line and the icons. [THEME] The theme's, else OSD/OS's own." },
+        { "key": "text_effect", "theme_part": true, "label": "Text Effect", "type": "choice", "default": "",
+          "options": [["Theme", ""], "Off", "Rainbow", "Shimmer", "Glow", "Flicker"],
+          "help": "What the text, the lines and the bars do, on the GPU. [THEME] The theme's, else off." },
+        { "key": "background_effect", "theme_part": true, "label": "Background Effect", "type": "choice", "default": "",
+          "options": [["Theme", ""], "Off", "Matrix", "Fire", "Stars", "Snow", "Checkered Flag", "Plasma"],
+          "help": "What goes on behind the menus, in the window, on the GPU. [THEME] The theme's, else off." },
+        { "key": "selector_effect", "theme_part": true, "label": "Selector Effect", "type": "choice", "default": "",
+          "options": [["Theme", ""], "Off", "Sparkles", "Welding", "Lightning", "Rainbow", "Snow"],
+          "help": "What goes on round the selected line. [THEME] The theme's, else off." },
+        { "key": "screen_effect", "theme_part": true, "label": "Screen Effect", "type": "choice", "default": "",
+          "options": [["Theme", ""], "Off", "Scanlines", "CRT", "VHS"],
+          "help": "A picture tube's or a tape's look over the menus, on the GPU. [THEME] The theme's, else off." },
+        { "key": "transition", "theme_part": true, "label": "Transition", "type": "choice", "default": "",
+          "options": [["Theme", ""], "Off", "Fade", "Cube", "Ripple", "Wave", "Drop"],
+          "help": "How one window gives way to the next. [THEME] The theme's, else off." },
+        { "key": "menu_music", "theme_part": true, "label": "Menu Music", "type": "choice", "default": "",
+          "options": [["Theme", ""], "Off", "File"],
+          "help": "A tune under the menus, never while a video plays. [THEME] The theme's, if it has one. [FILE] A file of your own, below." },
+        { "key": "menu_music_file", "label": "Music File", "type": "text", "default": "", "placeholder": "/media/OSD-OS/Music/menu.mp3",
+          "shown_with": { "key": "menu_music", "value": "File" },
+          "help": "The menu music's file on the device, played over and over: MP3, WAV, OGG, FLAC, Opus, M4A, MIDI, XM, MOD, S3M or IT." },
+        { "key": "menu_music_volume", "label": "Music Volume", "type": "slider", "min": 0, "max": 100, "step": 10, "default": 60,
+          "start_text": "QUIET", "end_text": "LOUD",
+          "shown_unless": { "key": "menu_music", "value": "Off" },
+          "help": "How loud the menu music is." },
+        { "key": "osd_background", "label": "OSD Background", "type": "choice", "default": "Full", "options": ["Full", "Off", "Window"],
+          "help": "What the menus are drawn on. [FULL] The color scheme's background, all over. [OFF] None, the menus on black like a deck's on-screen display. [WINDOW] A framed window of it behind the menus, black around it." },
+        { "key": "osd_frame", "label": "Window Frame", "type": "choice", "default": "On", "options": ["On", "Off", "Shadow"],
+          "shown_with": { "key": "osd_background", "value": "Window" },
+          "help": "The frame of the OSD Background's window. [SHADOW] The line and a shadow below and to the right, like a DOS window's." },
+        { "key": "startup_module", "label": "Start on Module", "type": "choice", "default": "None", "options": [["None", "None"]], "options_from": "modules",
+          "help": "Open straight into a module as OSD/OS starts. The module is turned on with it." },
+        { "key": "boot_colors", "label": "Boot Screen Colors", "type": "choice", "default": "Theme", "options": ["Theme", "Default"],
+          "help": "The colours of the boot screen, with its cassette. [THEME] The theme's or color scheme's. [DEFAULT] White on blue." },
+        { "key": "hint_bar", "label": "Hint Bar", "type": "toggle", "on": "On", "off": "Off", "default": "On",
+          "help": "The key hints on the bar at the foot of every screen." },
+        { "key": "help_line", "label": "Help Line", "type": "toggle", "on": "On", "off": "Off", "default": "On",
+          "help": "The box under a menu with a line about the selected row." },
+        { "key": "status_icons", "label": "Status Icons", "type": "toggle", "on": "On", "off": "Off", "default": "On",
+          "help": "What is on, at the top right of the title bar: Wi-Fi's signal, Bluetooth, and the Arcade's high scores, trophy, globe and network." },
+        { "key": "screensaver_timeout", "label": "Screen Saver", "type": "choice", "default": "OFF",
+          "options": [["Off", "OFF"], ["30 sec", "30"], ["60 sec", "60"], ["120 sec", "120"]],
+          "help": "Prevent CRT burn-in after seconds of inactivity or pause." },
+        { "key": "mouse_pointer", "label": "Mouse Pointer", "type": "choice", "default": "5",
+          "options": [["Off", "off"], ["2 sec", "2"], ["5 sec", "5"], ["10 sec", "10"], ["30 sec", "30"], ["Always", "always"]],
+          "help": "A mouse's pointer shows as it moves, and goes again after these seconds without moving." }
+      ]
+    },
+    {
+      "title": "TV / Movie",
+      "settings": [
+        { "key": "video_scaling", "label": "Scaling", "type": "choice", "default": "Letterbox", "options": ["Letterbox", "14:9", "Pan & Scan", "Anamorphic"],
+          "help": "How a 16:9 picture fills the 4:3 screen, in every module that doesn't set its own. [LETTERBOX] All of it, bars above and below. [14:9] A little of the sides cut. [PAN & SCAN] Fills it, the sides cut. [ANAMORPHIC] Fills it squeezed, for a TV set to 16:9." },
+        { "key": "transparent_background", "label": "Transparent Background", "type": "slider_off", "min": 0, "max": 100, "step": 10, "off": "Off", "default": "Off", "on_default": 40,
+          "start_text": "TRANSPARENT", "end_text": "SOLID", "legacy": { "on": 0, "dim": 60 },
+          "help": "How much of a video shows through the menus when back returns to them and leaves it playing behind. [SOLID] None of it, but it plays on, sound and all. Off: back stops the video, as it always has." },
+        { "key": "video_output_levels", "label": "Video Levels", "type": "choice", "default": "Auto", "options": ["Auto", "Limited", "Full"],
+          "help": "Match the color range your display expects. [LIMITED] If blacks crush. [FULL] If blacks look gray." },
+        { "key": "loading_effect", "label": "Loading Effect", "type": "toggle", "on": "On", "off": "Off", "default": "On",
+          "help": "While a video loads, a tape's noise and tracking bands roll over its counters." },
+        { "key": "loading_colors", "label": "Loading Screen Colors", "type": "choice", "default": "Theme", "options": ["Theme", "Default"],
+          "help": "The colours of the screen a video loads behind. [DEFAULT] White on blue." },
+        { "key": "video_logo", "label": "Channel Logo", "type": "choice", "default": "tr",
+          "options": [["Off", "off"], ["Top Left", "tl"], ["Top Right", "tr"], ["Bottom Left", "bl"], ["Bottom Right", "br"], ["All Corners", "all"]],
+          "help": "A logo in a corner of the picture while a video plays, like a channel's." },
+        { "key": "video_logo_image", "label": "Logo Image", "type": "text", "default": "", "placeholder": "/media/OSD-OS/logo.png",
+          "shown_unless": { "key": "video_logo", "value": "off" },
+          "help": "The channel logo's picture on the device, a PNG with a clear background best. Empty: OSD/OS's." },
+        { "key": "info_screen", "label": "Info Screen", "type": "choice", "default": "3",
+          "options": [["Off", "off"], ["Key", "key"], ["1 sec", "1"], ["2 sec", "2"], ["3 sec", "3"], ["5 sec", "5"]],
+          "help": "A film's details in Netflix, Prime Video and YouTube. [KEY] With right on a film. [SEC] Also on its own once the cursor rests on it." }
+      ]
+    }
+  ],
+  "groups": { "tv": "TV / Movie", "arcade": "Arcade", "": "Modules" },
+  "modules": {
+    "com.osdos.local_files": {
+      "options": {
+        "shuffle_playback": [["Ask", "ask"], ["Always", "yes"], ["Never", "no"]],
+        "resume_playback": [["Ask", "ask"], ["Always", "yes"], ["Never", "no"]],
+        "auto_subtitles": [["Forced Only", "forced"], ["On", "on"], ["Off", "off"]],
+        "sub_lang": "languages",
+        "image_duration": [["5 Seconds", "5"], ["10 Seconds", "10"], ["30 Seconds", "30"], ["60 Seconds", "60"]]
+      }
+    },
+    "com.osdos.nfc_reader": {
+      "options": {
+        "resume_playback": [["Ask", "ask"], ["Always", "yes"], ["Never", "no"]],
+        "auto_subtitles": [["Forced Only", "forced"], ["On", "on"], ["Off", "off"]],
+        "sub_lang": "languages"
+      }
+    },
+    "com.osdos.youtube": {
+      "options": {
+        "audio_language": [["Original", "original"], ["English", "en"], ["Spanish", "es"], ["French", "fr"], ["German", "de"], ["Italian", "it"], ["Portuguese", "pt"], ["Dutch", "nl"], ["Polish", "pl"], ["Russian", "ru"], ["Turkish", "tr"], ["Arabic", "ar"], ["Hindi", "hi"], ["Indonesian", "id"], ["Japanese", "ja"], ["Korean", "ko"], ["Chinese", "zh"]],
+        "subtitle_language": [["English", "en"], ["Spanish", "es"], ["French", "fr"], ["German", "de"], ["Italian", "it"], ["Portuguese", "pt"], ["Dutch", "nl"], ["Polish", "pl"], ["Russian", "ru"], ["Turkish", "tr"], ["Arabic", "ar"], ["Hindi", "hi"], ["Indonesian", "id"], ["Japanese", "ja"], ["Korean", "ko"], ["Chinese", "zh"]]
+      }
+    },
+    "com.osdos.plex": {
+      "options": {
+        "video_quality": [["Direct Play", "auto"], ["8 Mbps (1080p)", "8000"], ["4 Mbps (720p)", "4000"], ["2 Mbps (480p)", "2000"]],
+        "resume_playback": [["Ask", "ask"], ["Always", "yes"]]
+      },
+      "defaults": { "video_quality": "auto" }
+    },
+    "com.osdos.jellyfin": {
+      "options": {
+        "video_quality": [["Direct Play", "auto"], ["480p (NTSC CRT)", "480p"], ["576p (PAL CRT)", "576p"], ["720p", "720p"], ["1080p", "1080p"]],
+        "resume_playback": [["Ask", "ask"], ["Always", "always"]]
+      },
+      "extra": [
+        { "key": "server_url", "label": "Server Address", "type": "text", "default": "", "placeholder": "http://192.168.1.10:8096",
+          "help": "Your Jellyfin server, filled in on the sign-in screen." }
+      ]
+    },
+    "com.osdos.emby": {
+      "options": {
+        "video_quality": [["Direct Play", "auto"], ["480p (NTSC CRT)", "480p"], ["576p (PAL CRT)", "576p"], ["720p", "720p"], ["1080p", "1080p"]],
+        "resume_playback": [["Ask", "ask"], ["Always", "always"]]
+      },
+      "extra": [
+        { "key": "server_url", "label": "Server Address", "type": "text", "default": "", "placeholder": "http://192.168.1.10:8096",
+          "help": "Your Emby server, filled in on the sign-in screen." }
+      ]
+    },
+    "com.osdos.arcade": {
+      "options": {
+        "start_filter": [["All Games", "all"], ["Favorites", "favorites"], ["Recently Played", "recent"], ["RetroAchievements", "achievements"], ["Playable Online", "netplay"]]
+      },
+      "defaults": { "start_filter": "all" },
+      "extra": [
+        { "key": "online_name", "label": "Online Name", "type": "text", "default": "", "placeholder": "Empty: the device's name on the network", "after": "lan_play",
+          "max_length": 32, "trim": true,
+          "shown_with": [{ "key": "online_play", "value": "On" }, { "key": "lan_play", "value": "On" }],
+          "help": "The name the others see, online and on the network. Empty: online, the RetroAchievements account's, else OSD-OS; on the network, this device's name." }
+      ],
+      "retroachievements": true
+    },
+    "com.osdos.weather": {
+      "options": {
+        "displays": [["Current Conditions", "current"], ["Extended Forecast", "extended"], ["Other Locations", "others"], ["Almanac", "almanac"]]
+      }
+    }
+  },
+  "keyboards": [["English (US)", "us"], ["English (UK)", "gb"], ["Turkish (Q)", "tr"], ["German", "de"], ["French", "fr"], ["Spanish", "es"], ["Italian", "it"], ["Portuguese", "pt"], ["Portuguese (Brazil)", "br"], ["Dutch", "nl"], ["Belgian", "be"], ["Swiss", "ch"], ["Swedish", "se"], ["Norwegian", "no"], ["Danish", "dk"], ["Finnish", "fi"], ["Polish", "pl"], ["Czech", "cz"], ["Hungarian", "hu"], ["Japanese", "jp"], ["Korean", "kr"], ["Latin American", "latam"], ["Irish", "ie"], ["Icelandic", "is"], ["Romanian", "ro"], ["Slovak", "sk"], ["Slovenian", "si"], ["Croatian", "hr"], ["Estonian", "ee"], ["Latvian", "lv"], ["Lithuanian", "lt"]]
+}

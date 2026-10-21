@@ -4,8 +4,9 @@
 # Output's next-start socket, Settings → Wi-Fi's country socket, System
 # Information's device name socket and the polkit rule that lets the app's
 # user use NetworkManager (all but the service taken from scripts/install.sh
-# by os/build.sh), and the boot order: the units below hold back until the
-# app is on screen, then start one after another.
+# by os/build.sh), OSD/OS Setup's file applied at start, and the boot order:
+# the units below hold back until the app is on screen, then start one after
+# another.
 
 ETC="${ROOTFS_DIR}/etc"
 LIB="${ROOTFS_DIR}/usr/lib/osdos"
@@ -27,6 +28,16 @@ install -m 644 files/99-osdos-tty.rules "${ETC}/udev/rules.d/"
 install -d "${LIB}"
 install -m 755 files/wait-for-app files/wait-for-display "${LIB}/"
 
+# OSD/OS Setup: the settings made on its page, from osdos-setup.json on the
+# boot partition, applied once as the card starts: OSD/OS's own before the
+# app (osdos-setup-app.service), the rest once it is on screen
+# (osdos-setup.service, SETTINGS on the boot screen below).
+install -m 755 files/osdos-setup "${ROOTFS_DIR}/usr/local/sbin/osdos-setup"
+for unit in osdos-setup-app.service osdos-setup.service; do
+	install -m 644 "files/${unit}" "${ETC}/systemd/system/"
+	sed -i "s/@FIRST_USER_NAME@/${FIRST_USER_NAME}/" "${ETC}/systemd/system/${unit}"
+done
+
 # A Raspberry Pi to JAMMA board's controls (osdos-jamma, in the app's folder):
 # its service, which does nothing without the JAMMA display preset, the kernel
 # modules it reads and plays through, and /dev/uinput for the input group, as
@@ -35,8 +46,11 @@ install -m 644 files/osdos-jamma.service "${ETC}/systemd/system/"
 install -D -m 644 files/osdos-jamma-modules.conf "${ETC}/modules-load.d/osdos-jamma.conf"
 install -m 644 files/99-osdos-uinput.rules "${ETC}/udev/rules.d/"
 
-# unit|LABEL, in start order. The boot screen lists them in this order too.
+# unit|LABEL, in start order. The boot screen lists them in this order too;
+# one marked |optional only once it starts: OSD/OS Setup's, which runs only
+# when the card has a file of it.
 UNITS=(
+	"osdos-setup.service|SETTINGS|optional"
 	"NetworkManager.service|WI-FI"
 	"bluetooth.service|BLUETOOTH"
 	"avahi-daemon.service|LOCAL NETWORK"
@@ -47,9 +61,10 @@ fi
 
 install -d "${ETC}/osdos"
 {
-	echo "# Services OSD/OS's boot screen follows, as unit|LABEL, in start order."
-	echo "# All but the last hold back until the app is on screen (see their"
-	echo "# osdos-defer.conf drop-ins); the last is the network-online check."
+	echo "# Services OSD/OS's boot screen follows, as unit|LABEL, in start order;"
+	echo "# unit|LABEL|optional for one it lists only once it starts. All but the"
+	echo "# last hold back until the app is on screen (see their osdos-defer.conf"
+	echo "# drop-ins); the last is the network-online check."
 	printf '%s\n' "${UNITS[@]}"
 	echo "NetworkManager-wait-online.service|ONLINE"
 } > "${ETC}/osdos/boot-units"

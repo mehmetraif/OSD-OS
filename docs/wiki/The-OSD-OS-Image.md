@@ -63,8 +63,33 @@ Everything else is the same as an app install: the launcher, the in-app updater,
 
 Download `OSD-OS-<version>-raspberry-pi.img.xz` from the [latest release](https://github.com/mehmetraif/OSD-OS/releases/latest) and flash it with Raspberry Pi Imager (**Use custom**). [Installation](https://github.com/mehmetraif/OSD-OS/wiki/Installation) has the steps, and [os/README.md → Flashing](https://github.com/mehmetraif/OSD-OS/blob/main/os/README.md#flashing) the details. Two things to know first:
 
-- **Raspberry Pi Imager 2 offers no OS customisation** (Wi-Fi, a user, SSH, locale, keyboard) for an image chosen with **Use custom**: it can't tell which kind of customisation the image takes. To get it, open the image through a local manifest that gives it `"init_format": "cloudinit-rpi"` ([Imager's notes](https://github.com/raspberrypi/rpi-imager/tree/main/doc/local_json)). Imager 1 seems to apply it, but on trixie its settings never take effect.
-- **Without customisation**, Ethernet needs nothing. For Wi-Fi, edit `network-config` on the card's boot partition before the first boot ([Wi-Fi](https://github.com/mehmetraif/OSD-OS/wiki/The-OSD-OS-Image#wi-fi)).
+- **Raspberry Pi Imager 2 offers no OS customisation** (Wi-Fi, a user, SSH, locale, keyboard) for an image chosen with **Use custom**: it can't tell which kind of customisation the image takes. [OSD/OS Setup](https://github.com/mehmetraif/OSD-OS/wiki/The-OSD-OS-Image#osdos-setup) takes its place. Imager's own customisation needs the image opened through a local manifest that gives it `"init_format": "cloudinit-rpi"` ([Imager's notes](https://github.com/raspberrypi/rpi-imager/tree/main/doc/local_json)). Imager 1 seems to apply it, but on trixie its settings never take effect.
+- **Without either**, Ethernet needs nothing. For Wi-Fi, edit `network-config` on the card's boot partition before the first boot ([Wi-Fi](https://github.com/mehmetraif/OSD-OS/wiki/The-OSD-OS-Image#wi-fi)).
+
+### OSD/OS Setup
+
+[OSD/OS Setup](https://mehmetraif.github.io/OSD-OS/) is a page where what a card starts with is chosen before it goes into the Pi: first what it goes into, a TV or an arcade cabinet, then the display output, the device's name, Wi-Fi and its country, `pi`'s password, SSH and its keys, the time zone, the keyboard, every setting of OSD/OS itself, with the chosen theme's main menu and Arcade screen shown as the app draws them, and the Arcade's RetroAchievements account. A cabinet's file starts on the Arcade screen (Start on Module, the Arcade turned on with it); the page puts the TV / Movie settings out of sight for it and lists the JAMMA outputs first. It runs in the browser, and nothing typed on it leaves the browser. Its file, `osdos-setup.json`, goes on the boot partition (**bootfs**), with the chosen display output's `osdos-display.txt` beside it, which the zip it gives holds both of ([Installation](https://github.com/mehmetraif/OSD-OS/wiki/Installation#osdos-setup-settings-on-the-card-before-the-first-boot) has the steps).
+
+As the Pi starts, `/usr/local/sbin/osdos-setup` applies the file in two stages:
+
+1. **`osdos-setup-app.service`**, after `basic.target` and before OSD/OS (`ConditionPathExists=` the file, or what a start cut short left), takes the file off the boot partition at once, root's alone from then on (`/var/lib/osdos-setup/pending.json`), and sets what OSD/OS reads as it starts: its settings and the RetroAchievements account.
+2. **`osdos-setup.service`**, once OSD/OS is on screen and ahead of NetworkManager, avahi and SSH, sets the rest. The boot screen lists it as **SETTINGS** (a step of `/etc/osdos/boot-units` it shows only on a start that has the file): `[ OK ]` when all of it was set, `[FAIL]` when anything wasn't. Then it writes `osdos-setup.log` on the boot partition: what was done, and why anything wasn't, never a password.
+
+Each part is applied on its own, so that one that can't be applied leaves the rest to go ahead. The same lines go to the journal (`journalctl -u osdos-setup-app -u osdos-setup`).
+
+| Part | How it is applied |
+|---|---|
+| The device's name | `osdos-stop device-name`, as Settings → About → System Information renames it |
+| The Wi-Fi country | `osdos-stop wifi-country`, as Settings → Wi-Fi sets it |
+| Wi-Fi | A NetworkManager connection, `/etc/NetworkManager/system-connections/osdos-setup-<network>-<id>.nmconnection` (root's alone), joined as NetworkManager starts. With its country set, Wi-Fi is switched on in NetworkManager's state too, which an image built without a country starts with it off |
+| `pi`'s password | The SHA-512 crypt hash the page made in the browser (100,000 rounds), with `chpasswd -e`: the password itself is never in the file |
+| SSH | `systemctl enable` and start (or disable and stop) `ssh.service`; the keys added to `pi`'s `~/.ssh/authorized_keys`, each one checked whole; password login on or off in `/etc/ssh/sshd_config.d/00-osdos-setup.conf`, the first of sshd's drop-ins, so that no other undoes it. Password login only with `pi`'s password set in the same file, never over the one an image was built with, which every card of it shares; SSH not turned on without a key or that password to log in with |
+| The time zone and the keyboard | `timedatectl set-timezone`; `raspi-config nonint do_configure_keyboard` |
+| OSD/OS's settings | Merged into `~/.local/share/OSD-OS/config.json`: what the file doesn't name stays as it is |
+| The RetroAchievements account | Handed to OSD/OS in `~/.local/share/OSD-OS/arcade/retroachievements-setup.json` (`pi`'s alone): the Arcade module keeps the Web API key, and RetroArch signs in with the password as Settings' Sign In has it. Started before the network is up, it checks again every 30 seconds, ten times at most and never beside a game, and the file goes once RetroAchievements has answered or a game has had the password. A file for the account signed in already keeps its token. OSD/OS never keeps the password |
+| The display output | `osdos-stop next-start`, as Display Output's At Next Start writes it, a Pi 5's SCART RGB line included; when it changes what the firmware reads, the Pi restarts once. One the Pi the card is in hasn't (chosen for another) is left as it is |
+
+`pi`'s files are read and written by `osdos-setup` run again as `pi`, never by root, so that nothing in `pi`'s folder can point root's reads or writes elsewhere. A file it can't read is deleted, its passwords with it, and the log says why. What a start cut short leaves in `/var/lib/osdos-setup` is applied at the next. The file can go on a card that has already started: it is applied at the next start. Like cloud-init's files beside it, it is read from a partition anyone with the card can write, and until the card takes it, it holds the Wi-Fi and RetroAchievements passwords as typed: keep it to yourself. Set a thing in one place only, on the page or in Imager's customisation: Imager's time zone and keyboard are applied later on the first boot.
 
 ### The first boot
 
@@ -73,7 +98,8 @@ The first boot does a few things once and takes longer:
 1. In the initramfs, the card is split: the system's partition grows to 8 GiB and the rest becomes the film partition, formatted exFAT ([Films on the card](https://github.com/mehmetraif/OSD-OS/wiki/The-OSD-OS-Image#films-on-the-card)). A first boot cut short before the film partition is formatted leaves that to the next boot.
 2. The root file system grows to fill its partition (Raspberry Pi OS's `rpi-resize.service`).
 3. cloud-init applies what Raspberry Pi Imager or `network-config` asked for: a user, Wi-Fi, SSH, the locale. Then `osdos-cloud-init-once.service` switches cloud-init off for good.
-4. OSD/OS starts as on every boot, with the boot screen.
+4. With an `osdos-setup.json` on the boot partition, `osdos-setup-app.service` sets OSD/OS's own settings from it, and `osdos-setup.service` the rest once OSD/OS is on screen, as **SETTINGS** on the boot screen ([OSD/OS Setup](https://github.com/mehmetraif/OSD-OS/wiki/The-OSD-OS-Image#osdos-setup)); the Pi restarts once if the display output changed.
+5. OSD/OS starts as on every boot, with the boot screen.
 
 ## The boot: OSD/OS first
 
@@ -130,16 +156,18 @@ ExecStartPre=+-/usr/lib/osdos/wait-for-app
 The units and their labels are listed in `/etc/osdos/boot-units`, in start order. On an image built without SSH:
 
 ```text
-# Services OSD/OS's boot screen follows, as unit|LABEL, in start order.
-# All but the last hold back until the app is on screen (see their
-# osdos-defer.conf drop-ins); the last is the network-online check.
+# Services OSD/OS's boot screen follows, as unit|LABEL, in start order;
+# unit|LABEL|optional for one it lists only once it starts. All but the
+# last hold back until the app is on screen (see their osdos-defer.conf
+# drop-ins); the last is the network-online check.
+osdos-setup.service|SETTINGS|optional
 NetworkManager.service|WI-FI
 bluetooth.service|BLUETOOTH
 avahi-daemon.service|LOCAL NETWORK
 NetworkManager-wait-online.service|ONLINE
 ```
 
-An image built with `ENABLE_SSH=1` has `ssh.service|SSH` before the last line, and SSH waits too, after avahi-daemon.
+An image built with `ENABLE_SSH=1` has `ssh.service|SSH` before the last line, and SSH waits too, after avahi-daemon. **SETTINGS** is OSD/OS Setup's ([above](https://github.com/mehmetraif/OSD-OS/wiki/The-OSD-OS-Image#osdos-setup)): on a start without its file the unit's condition fails at once, and the boot screen neither lists it nor counts it.
 
 ### The boot screen
 
@@ -153,7 +181,7 @@ The boot screen ([`views/BootScreen.qml`](https://github.com/mehmetraif/OSD-OS/b
 | `[FAIL]` | Failed |
 | `[ -- ]` | Skipped: not installed, masked, or its condition failed (`bluetooth.service` on a board without Bluetooth) |
 
-- **The bar.** A step that has settled (started, failed or skipped) counts whole, one that is starting half. Once all have settled the screen stays at 100% for 1.2 seconds, so the last line can be read, then closes.
+- **The bar.** A step that has settled (started, failed or skipped) counts whole, one that is starting half; an optional one only once it has started, and the bar never goes back. Once all have settled the screen stays at 100% for 1.2 seconds, so the last line can be read, then closes.
 - **It never stays more than a minute**, whatever the services do.
 - **Keys do nothing** while it is up, so none reaches the menu underneath. The one exception is Ctrl+Q on a keyboard, which quits OSD/OS, and on the image that powers the Pi off.
 - **Only during the boot.** At start, `BootProgress` asks `systemctl is-system-running`. Unless systemd says `initializing` or `starting`, there is no boot screen, so OSD/OS started again later (after an update, or Exit to Terminal and back) opens straight on its menu.
@@ -162,7 +190,7 @@ The boot screen ([`views/BootScreen.qml`](https://github.com/mehmetraif/OSD-OS/b
 
 ### Changing what the boot screen shows
 
-- **A label** is the text after the `|` in `/etc/osdos/boot-units`. Change it there (`sudo nano /etc/osdos/boot-units`); it shows from the next boot.
+- **A label** is the text after the `|` in `/etc/osdos/boot-units`. Change it there (`sudo nano /etc/osdos/boot-units`); it shows from the next boot. A third field, `|optional`, lists a step only once its unit starts.
 - **Another service** can be held back and shown too. Give it the same drop-in, after the last held-back unit, and add a line for it before `ONLINE` (16 lines at most). For a service of yours called `example.service`:
 
   ```sh
@@ -198,6 +226,7 @@ The `[boot]` lines read `boot screen up, watching 4 unit(s)`, `first frame … m
 | `NetworkManager.service`, `bluetooth.service`, `avahi-daemon.service`, `ssh.service` (if built with `ENABLE_SSH=1`) | Held back until OSD/OS's first frame, then started in that order |
 | `NetworkManager-wait-online.service` | Gives up after 20 seconds (`NM_ONLINE_TIMEOUT=20`) instead of a minute |
 | `osdos-cloud-init-once.service` | After the first boot, writes `/etc/cloud/cloud-init.disabled`: cloud-init's stages would otherwise delay every boot. Delete that file to have cloud-init run again |
+| `osdos-setup-app.service`, `osdos-setup.service` | Enabled, and run only with an `osdos-setup.json` on the boot partition (or what a start cut short left): OSD/OS Setup's file taken off it and OSD/OS's own settings set before OSD/OS starts, the rest once it is on screen, as SETTINGS on the boot screen ([OSD/OS Setup](https://github.com/mehmetraif/OSD-OS/wiki/The-OSD-OS-Image#osdos-setup)) |
 | `osdos-yt-dlp-update.timer` | Updates yt-dlp two minutes after each boot and once a day ([Updates](https://github.com/mehmetraif/OSD-OS/wiki/The-OSD-OS-Image#updates)) |
 | `osdos-usb-mount@<device>.service` | One per USB drive plugged in ([USB drives](https://github.com/mehmetraif/OSD-OS/wiki/The-OSD-OS-Image#usb-drives)) |
 | `osdos-jamma.service` | Enabled, and does something only with the JAMMA display preset in force: a Raspberry Pi to JAMMA board's joysticks and buttons as two gamepads ([Controls](https://github.com/mehmetraif/OSD-OS/wiki/Controls#a-jamma-cabinet)), as a user of its own (`DynamicUser=yes`) in the `i2c` and `input` groups. Without the preset it exits at once; with it and no board, after 15 seconds |
@@ -658,6 +687,7 @@ Then start OSD/OS again ([Exit to Terminal](https://github.com/mehmetraif/OSD-OS
 | `/etc/systemd/system/osdos-name.socket`, `osdos-name@.service` | Settings → About → System Information's rename ([The device name's socket](https://github.com/mehmetraif/OSD-OS/wiki/The-OSD-OS-Image#the-device-names-socket)) |
 | `/etc/polkit-1/rules.d/50-osdos-networkmanager.rules` | Lets OSD/OS's user scan, join and forget networks and turn Wi-Fi on and off through NetworkManager from its service, which runs outside any login session, where polkit would otherwise ask for a password |
 | `/etc/systemd/system/osdos-cloud-init-once.service` | Turns cloud-init off after the first boot |
+| `/usr/local/sbin/osdos-setup`, `/etc/systemd/system/osdos-setup-app.service`, `osdos-setup.service` | Applies OSD/OS Setup's `osdos-setup.json` from the boot partition ([OSD/OS Setup](https://github.com/mehmetraif/OSD-OS/wiki/The-OSD-OS-Image#osdos-setup)) |
 | `/etc/systemd/system/osdos-jamma.service`, `/etc/modules-load.d/osdos-jamma.conf` | A JAMMA board's controls, and the kernel modules they go through (`i2c-dev`, `uinput`) |
 | `/etc/systemd/system/<unit>.d/osdos-defer.conf` | The held-back services' drop-ins |
 | `/etc/osdos/boot-units` | What the boot screen follows |
@@ -675,6 +705,8 @@ Then start OSD/OS again ([Exit to Terminal](https://github.com/mehmetraif/OSD-OS
 | `/boot/firmware/osdos-jamma.txt` | A JAMMA board's pins, should they differ from the built-in mapping: not there unless you write it ([Controls](https://github.com/mehmetraif/OSD-OS/wiki/Controls#a-jamma-cabinet)) |
 | `/boot/firmware/cmdline.txt` | The kernel's command line |
 | `/boot/firmware/network-config`, `user-data`, `meta-data` | cloud-init's first-boot files |
+| `/boot/firmware/osdos-setup.json`, `osdos-setup.log` | OSD/OS Setup's file, there until the card starts, and what became of it |
+| `/var/lib/osdos-setup/pending.json` | What of OSD/OS Setup's file is still to be set, root's alone, there from the moment the card takes it until the boot screen's SETTINGS is done |
 | `/etc/initramfs-tools/scripts/local-premount/resize_early` | The first boot's card split |
 | `/usr/local/bin/deno` | The JavaScript runtime yt-dlp needs for YouTube |
 | `/usr/games/mame`, `/etc/mame/mame.ini` | MAME, which the Arcade module plays its games in, and MAME's own settings ([Arcade](https://github.com/mehmetraif/OSD-OS/wiki/Arcade)) |
@@ -821,7 +853,7 @@ flowchart TD
 |---|---|---|
 | [`00-packages`](https://github.com/mehmetraif/OSD-OS/tree/main/os/stage-osdos/00-packages) | What `install.sh` installs, without recommends and without `qt6-wayland`, plus alsa-utils: Qt 6, SDL2, pcsclite, mpv and libmpv2, FluidSynth, the TimGM6mb SoundFont and openmpt123 for the menu music, and polkitd, which reads the NetworkManager rule | |
 | [`01-app`](https://github.com/mehmetraif/OSD-OS/tree/main/os/stage-osdos/01-app) | The tarball unpacked into `/opt/osdos`, owned by `pi`; the launcher; the NOTICE | |
-| [`02-system`](https://github.com/mehmetraif/OSD-OS/tree/main/os/stage-osdos/02-system) | The service, the terminal, the stop helper, At Next Start's socket and the Wi-Fi country's, the NetworkManager polkit rule, the cloud-init switch, the tty rule, the JAMMA controls' service, modules and uinput rule, the boot order, the online check's 20 seconds, the Bluetooth unblock, the autologin of a locked user; the `bluetooth` group, the masked getty, the removed timers, cron and Raspberry Pi Connect | |
+| [`02-system`](https://github.com/mehmetraif/OSD-OS/tree/main/os/stage-osdos/02-system) | The service, the terminal, the stop helper, At Next Start's socket and the Wi-Fi country's, the NetworkManager polkit rule, the cloud-init switch, OSD/OS Setup's applier and its service, the tty rule, the JAMMA controls' service, modules and uinput rule, the boot order, the online check's 20 seconds, the Bluetooth unblock, the autologin of a locked user; the `bluetooth` group, the masked getty, the removed timers, cron and Raspberry Pi Connect | |
 | [`03-boot`](https://github.com/mehmetraif/OSD-OS/tree/main/os/stage-osdos/03-boot) | `config.txt`, the display presets and `osdos-display.txt` (from `OSDOS_DISPLAY`), the JAMMA preset's Pi 5 overlay (`osdos-jamma-dpi`, compiled with `device-tree-compiler`), the quiet `cmdline.txt` | |
 | [`04-streaming`](https://github.com/mehmetraif/OSD-OS/tree/main/os/stage-osdos/04-streaming) | `chromium`, `rpi-chromium-mods`, `libwidevinecdm0`, `libgl1-mesa-dri`, `fonts-liberation`, `cage`, `wtype` | `OSDOS_STREAMING=0` |
 | [`05-media`](https://github.com/mehmetraif/OSD-OS/tree/main/os/stage-osdos/05-media) | `exfatprogs`, the `resize_early` override and its initramfs hook, `/media/OSD-OS`, its `fstab` line and `OSDOS_MEDIA_DIR` | `OSDOS_ROOT_SIZE=0` |

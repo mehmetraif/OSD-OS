@@ -1,0 +1,29 @@
+[Unit]
+Description=OSD/OS Setup: the settings from osdos-setup.json on the boot partition
+# The second of OSD/OS Setup's two stages (/usr/local/sbin/osdos-setup), once
+# the app is on screen: its boot screen shows it as SETTINGS, and holds it
+# back until then as it does the services in /etc/osdos/boot-units. The
+# device's name, the Wi-Fi, the password, SSH, the time zone, the keyboard
+# and the display output, from what osdos-setup-app.service took off the
+# boot partition; then osdos-setup.log goes there. Ahead of the services that
+# take the device's name, the Wi-Fi and SSH as they start; after
+# basic.target (the default dependencies), so that D-Bus is there for
+# hostnamectl and timedatectl. It never waits on those it is ahead of: it
+# starts SSH without blocking, and a display output that changes restarts the
+# Pi once it is done.
+After=osdos-setup-app.service
+Before=NetworkManager.service avahi-daemon.service ssh.service
+ConditionPathExists=/var/lib/osdos-setup/pending.json
+RequiresMountsFor=/boot/firmware /home /var/lib
+
+[Service]
+Type=oneshot
+# Active or failed once done, which the boot screen shows as [ OK ] or [FAIL].
+RemainAfterExit=yes
+ExecStart=/usr/local/sbin/osdos-setup --stage system --user @FIRST_USER_NAME@
+StandardOutput=journal
+StandardError=journal
+TimeoutStartSec=5min
+
+[Install]
+WantedBy=multi-user.target

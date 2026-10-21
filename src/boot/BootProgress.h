@@ -22,7 +22,8 @@ class BootProgress : public QObject {
     Q_PROPERTY(bool active READ active NOTIFY activeChanged)
     Q_PROPERTY(qreal progress READ progress NOTIFY progressChanged)
     // [{ unit, label, state }] in list order; state is one of
-    // "pending", "running", "done", "failed", "skipped".
+    // "pending", "running", "done", "failed", "skipped". An optional step
+    // only once it has started.
     Q_PROPERTY(QVariantList steps READ steps NOTIFY stepsChanged)
     // Label of the step currently starting, or "" once every step is settled.
     Q_PROPERTY(QString currentLabel READ currentLabel NOTIFY stepsChanged)
@@ -50,10 +51,14 @@ private:
     struct Step {
         QString unit;
         QString label;
+        // Listed only once it starts: a unit that runs at some starts alone
+        // (OSD/OS Setup's, with its file on the card).
+        bool    optional = false;
         State   state = State::Pending;
     };
 
     bool loadSteps(const QString &path);
+    QStringList showArguments() const;
     void poll();
     void applyUnitStates(const QByteArray &output);
     void applySystemState(const QByteArray &output);
@@ -63,6 +68,11 @@ private:
 
     static QString stateName(State s);
     static bool isSettled(State s) { return s == State::Done || s == State::Failed || s == State::Skipped; }
+    static bool isShown(const Step &step)
+    {
+        return !step.optional || step.state == State::Running || step.state == State::Done
+            || step.state == State::Failed;
+    }
 
     QVector<Step>  m_steps;
     bool           m_active        = false;

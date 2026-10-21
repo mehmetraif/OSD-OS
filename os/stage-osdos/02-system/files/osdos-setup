@@ -1,0 +1,861 @@
+#!/usr/bin/python3 -I
+"""OSD/OS Setup's file, applied as the card starts.
+
+The settings chosen on OSD/OS Setup, the page published from site/, come in
+osdos-setup.json on the boot partition (bootfs). They are applied in two
+stages, each a service of its own:
+
+  --stage app     osdos-setup-app.service, before the app starts. Takes the
+                  file off bootfs at once, root's alone from then on
+                  (/var/lib/osdos-setup/pending.json), and sets what OSD/OS
+                  reads as it starts: its own settings, merged into its
+                  config.json, and the Arcade's RetroAchievements account,
+                  handed to the app, which signs in through RetroArch.
+  --stage system  osdos-setup.service, once the app is on screen, whose boot
+                  screen shows it as SETTINGS. Sets the rest: the device's
+                  name, the Wi-Fi and its country, the app user's password,
+                  SSH, the time zone, the keyboard, and the display output,
+                  last, with a restart when the picture has to change. Then
+                  the pending file goes, and osdos-setup.log on bootfs says
+                  what was done and why anything wasn't, as the journal does;
+                  never a password. It ends in failure when anything wasn't
+                  set, for the boot screen's [FAIL].
+
+Without --stage, both, one after the other. Each part is applied on its own:
+one that can't be leaves the rest to go ahead. A file that can't be read is
+deleted, its passwords with it, and why is said. What a start didn't finish
+(a power cut) is applied at the next.
+
+    osdos-setup --user NAME [--stage app|system] [--root DIR]
+
+--user is the user OSD/OS runs as (osdos.service's). --root puts every path
+under DIR, for the tests (tests/osdos_setup_test.sh), which put stand-ins for
+the commands it runs first on PATH. The app's user's own files (OSD/OS's data
+folder, ~/.ssh) are read and written by this same program run again as that
+user (--user-files), never by root through a path the user could have pointed
+elsewhere.
+"""
+import argparse
+import base64
+import errno
+import json
+import math
+import os
+import re
+import stat
+import subprocess
+import sys
+import tempfile
+import time
+import uuid
+
+SETUP_VERSION = 1
+MAX_SIZE = 1024 * 1024
+# Raspberry Pi OS's own PATH for services, where osdos-stop is too.
+PATH = "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+# The parts the app reads as it starts, set before it does.
+APP_PARTS = ("config", "retroachievements")
+# First of sshd's drop-ins, as sshd keeps the first value it reads: another's
+# PasswordAuthentication (cloud-init's 50-cloud-init.conf) can't undo it.
+SSHD_CONF = "/etc/ssh/sshd_config.d/00-osdos-setup.conf"
+# NetworkManager's own switches, read as it starts. pi-gen leaves Wi-Fi off
+# there on an image built without a country (WirelessEnabled=false), and
+# raspi-config switches it on only with NetworkManager running, which it isn't
+# yet as this runs.
+NM_STATE = "/var/lib/NetworkManager/NetworkManager.state"
+# Under the services' own timeouts (TimeoutStartSec=): a command that hangs
+# fails its part, not the whole stage.
+COMMAND_TIMEOUT = 60
+
+NAME = re.compile(r"[A-Za-z0-9]([A-Za-z0-9-]{0,61}[A-Za-z0-9])?")
+COUNTRY = re.compile(r"[A-Z]{2}")
+PRESET = re.compile(r"[a-z0-9-]{1,40}")
+# A hash chpasswd -e and /etc/shadow take: SHA-512 or SHA-256 crypt (the
+# page's is SHA-512), or yescrypt (Debian's own).
+HASH = re.compile(r"\$[56]\$(rounds=[0-9]{1,9}\$)?[./0-9A-Za-z]{1,16}\$[./0-9A-Za-z]{43,86}"
+                  r"|\$y\$[./0-9A-Za-z]+\$[./0-9A-Za-z]{1,86}\$[./0-9A-Za-z]{43}")
+KEY_TYPE = r"(?:ssh-(?:ed25519|rsa|dss)|ecdsa-sha2-nistp[0-9]+|sk-(?:ssh-ed25519|ecdsa-sha2-nistp256)@openssh\.com)"
+# A public key as the page takes one: its comment printable ASCII alone, so
+# that nothing in it is a line of its own to sshd.
+SSH_KEY = re.compile(KEY_TYPE + r" [A-Za-z0-9+/=]+( [\x20-\x7e]*)?")
+# The parts of each kind of key, its type first, as its blob holds them.
+KEY_PARTS = {"ssh-rsa": 3, "ssh-dss": 5, "ssh-ed25519": 2,
+             "sk-ssh-ed25519@openssh.com": 3, "sk-ecdsa-sha2-nistp256@openssh.com": 4}
+# A line of authorized_keys that logs a key in, options before it or not.
+KEY_LINE = re.compile(r"(?:^|\s)" + KEY_TYPE + r" [A-Za-z0-9+/=]{16,}")
+ZONE = re.compile(r"[A-Za-z0-9_+-]+(/[A-Za-z0-9_+-]+)*")
+LAYOUT = re.compile(r"[a-z]{2,5}")
+RA_KEY = re.compile(r"[A-Za-z0-9]{1,64}")
+# The boards, as the app tells them apart (src/util/Board.cpp: the device
+# tree's model, by the start of its name).
+BOARDS = {"pi5": "Raspberry Pi 5", "pi4": "Raspberry Pi 4", "pi3": "Raspberry Pi 3"}
+
+
+class Setup:
+    def __init__(self, root, user):
+        self.root = root
+        self.user = user
+        self.boot = self.path("/boot/firmware")
+        self.file = os.path.join(self.boot, "osdos-setup.json")
+        self.keep = self.path("/var/lib/osdos-setup")
+        self.pending = os.path.join(self.keep, "pending.json")
+        self.setup = {}
+        self.lines = []
+        self.failed = False
+        self.password_set = False
+        self.restart = False
+
+    def path(self, absolute):
+        return self.root + absolute if self.root else absolute
+
+    def say(self, line):
+        self.lines.append(line)
+        print(line, flush=True)
+
+    def fail(self, line):
+        self.failed = True
+        self.say(line)
+
+    def run(self, args, stdin="", timeout=COMMAND_TIMEOUT):
+        """A command's answer: (exit status, its output). What it says on
+        its errors goes to the journal."""
+        try:
+            done = subprocess.run(args, input=stdin, capture_output=True, text=True, timeout=timeout,
+                                  env={"PATH": os.environ.get("PATH", PATH), "LC_ALL": "C"})
+        except (OSError, subprocess.SubprocessError) as e:
+            print(f"osdos-setup: {args[0]}: {e}", file=sys.stderr, flush=True)
+            return 127, ""
+        if done.stderr.strip():
+            print(done.stderr.strip(), file=sys.stderr, flush=True)
+        return done.returncode, done.stdout
+
+    def ask(self, mode, value):
+        """One of osdos-stop's requests, as the app makes it through its
+        socket: the value on a line, "ok" back or why not."""
+        status, out = self.run(["osdos-stop", mode], value + "\n")
+        answer = out.strip().splitlines()[-1] if out.strip() else ""
+        if status == 0 and answer == "ok":
+            return ""
+        return answer or "osdos-stop didn't answer"
+
+    def step(self, name, part):
+        try:
+            part()
+        except Exception as e:  # noqa: BLE001 (an unforeseen value stops its part only)
+            self.fail(f"{name}: not set: {e}")
+
+    # --- The two stages.
+    def apply(self, stages):
+        if "app" in stages:
+            self.stage_app()
+        if "system" in stages:
+            self.stage_system()
+
+    def stage_app(self):
+        """Off bootfs and into the pending file first, then OSD/OS's own
+        parts, which are taken out of it once set."""
+        if os.path.exists(self.file):
+            try:
+                self.setup = self.read()
+            except ValueError as e:
+                self.setup = {}
+                self.fail(f"osdos-setup.json couldn't be read: {e}: deleted")
+            try:
+                self.save_pending()
+            except OSError as e:
+                # Left where it is for the next start, rather than lost.
+                self.failed = True
+                print(f"osdos-setup: {self.pending} couldn't be written: {e.strerror}", file=sys.stderr, flush=True)
+                return
+            self.remove_file()
+        elif not self.load_pending():
+            return
+        app = {key: self.setup.pop(key) for key in APP_PARTS if key in self.setup}
+        files = {}
+        config = app.get("config")
+        if isinstance(config, dict):
+            config = {k: v for k, v in config.items() if k in ("app", "modules") and isinstance(v, dict)}
+            if config:
+                files["config"] = config
+        account = retroachievements(app.get("retroachievements"))
+        if account:
+            files["retroachievements"] = account
+        if files:
+            self.step("OSD/OS", lambda: self.write_user_files(files, "OSD/OS"))
+        self.save_pending()
+
+    def stage_system(self):
+        if not self.load_pending():
+            return
+        left = [key for key in APP_PARTS if key in self.setup]
+        for key in left:
+            del self.setup[key]
+        if left:
+            # Too late now: the app keeps its settings, and would write them
+            # over these.
+            self.fail("OSD/OS: not set: osdos-setup-app.service didn't run before OSD/OS started")
+        part = lambda key: self.setup.get(key) if isinstance(self.setup.get(key), dict) else {}
+        device, system, wifi = part("device"), part("system"), part("wifi")
+        # The display output last, as it may mean a restart.
+        for name, step in (("Device name", lambda: self.device_name(device)),
+                           ("Wi-Fi", lambda: self.wifi(wifi)),
+                           ("Password", lambda: self.password(system)),
+                           ("SSH", lambda: self.ssh(system)),
+                           ("Time zone", lambda: self.timezone(system)),
+                           ("Keyboard", lambda: self.keyboard(system)),
+                           ("Display output", lambda: self.display(part("display"), device))):
+            self.step(name, step)
+        # Its passwords go with it.
+        try:
+            os.remove(self.pending)
+        except OSError as e:
+            self.fail(f"The settings couldn't be cleared away: {e.strerror}")
+        self.finish()
+
+    def read(self):
+        """The file's settings. ValueError says why they can't be read."""
+        try:
+            with open(self.file, "rb") as f:
+                data = f.read(MAX_SIZE + 1)
+        except OSError as e:
+            raise ValueError(e.strerror or "it couldn't be opened") from e
+        if len(data) > MAX_SIZE:
+            raise ValueError("bigger than a settings file is")
+        try:
+            setup = load_json(data)
+        except Exception as e:  # noqa: BLE001 (not UTF-8, not JSON, nested too deep for it)
+            raise ValueError("not a JSON file") from e
+        if not isinstance(setup, dict) or "osdos_setup" not in setup:
+            raise ValueError("not an OSD/OS Setup file")
+        version = setup["osdos_setup"]
+        if version != SETUP_VERSION:
+            if isinstance(version, int) and not isinstance(version, bool):
+                raise ValueError(f"a file of version {version}, which this OSD/OS doesn't know")
+            raise ValueError("not an OSD/OS Setup file")
+        return setup
+
+    def save_pending(self):
+        """What is left to apply, and what has been said so far, root's alone."""
+        os.makedirs(self.keep, mode=0o700, exist_ok=True)
+        os.chmod(self.keep, 0o700)
+        write_atomically(self.pending, json.dumps({"setup": self.setup, "lines": self.lines,
+                                                   "failed": self.failed}).encode(), 0o600)
+
+    def load_pending(self):
+        """The pending file's settings and lines: False without one."""
+        try:
+            with open(self.pending, "rb") as f:
+                pending = json.loads(f.read().decode("utf-8"))
+        except FileNotFoundError:
+            return False
+        except Exception:  # noqa: BLE001 (root's own file, written whole: only ever damaged)
+            pending = None
+        if not isinstance(pending, dict):
+            self.fail("The settings left from the last start couldn't be read: cleared away")
+            return True
+        self.setup = pending.get("setup") if isinstance(pending.get("setup"), dict) else {}
+        # Said already, in the journal too.
+        self.lines = [line for line in pending.get("lines", []) if isinstance(line, str)]
+        self.failed = self.failed or pending.get("failed") is True
+        return True
+
+    def remove_file(self):
+        try:
+            os.remove(self.file)
+        except OSError as e:
+            self.fail(f"osdos-setup.json couldn't be deleted: {e.strerror}")
+        sync_folder(self.boot)
+
+    # --- The parts, in the order they are applied.
+    def device_name(self, device):
+        name = device.get("name")
+        if name is None:
+            return
+        if not isinstance(name, str) or not NAME.fullmatch(name):
+            self.fail("Device name: not set: not a name the network takes")
+            return
+        why = self.ask("device-name", name)
+        if why:
+            self.fail(f"Device name: not set: {why}")
+        else:
+            self.say(f"Device name: {name}")
+
+    def wifi(self, wifi):
+        country = wifi.get("country")
+        if country is not None:
+            if not isinstance(country, str) or not COUNTRY.fullmatch(country):
+                self.fail("Wi-Fi country: not set: not a country's code")
+            else:
+                why = self.ask("wifi-country", country)
+                if why:
+                    self.fail(f"Wi-Fi country: not set: {why}")
+                else:
+                    self.say(f"Wi-Fi country: {country}")
+                    try:
+                        self.switch_wifi_on()
+                    except OSError as e:
+                        self.fail(f"Wi-Fi: stays off: NetworkManager's state couldn't be written: {e.strerror}")
+        ssid = wifi.get("ssid")
+        if ssid is None:
+            return
+        password = wifi.get("password", "")
+        why = wifi_problem(ssid, password)
+        if why:
+            self.fail(f"Wi-Fi: not saved: {why}")
+            return
+        hidden = wifi.get("hidden") is True
+        try:
+            self.write_root(os.path.join(self.path("/etc/NetworkManager/system-connections"), connection_file(ssid)),
+                            keyfile(ssid, password, hidden), 0o600, folder_mode=0o700)
+        except OSError as e:
+            self.fail(f"Wi-Fi: not saved: {e.strerror}")
+            return
+        name = f"{ssid}{' (hidden)' if hidden else ''}"
+        if self.wifi_off():
+            self.fail(f"Wi-Fi: {name} saved, but Wi-Fi stays off until its country is set")
+        else:
+            self.say(f"Wi-Fi: {name}, joined as the network starts")
+
+    def wifi_off(self):
+        """Whether NetworkManager starts with Wi-Fi switched off."""
+        text = (read_bytes(self.path(NM_STATE)) or b"").decode("utf-8", "replace")
+        return key_file_value(text, "main", "WirelessEnabled") == "false"
+
+    def switch_wifi_on(self):
+        path = self.path(NM_STATE)
+        text = (read_bytes(path) or b"").decode("utf-8", "replace")
+        if key_file_value(text, "main", "WirelessEnabled") not in (None, "true"):
+            self.write_root(path, set_key_file_value(text, "main", "WirelessEnabled", "true"), 0o644)
+
+    def password(self, system):
+        hashed = system.get("password_hash")
+        if hashed is None:
+            return
+        if not isinstance(hashed, str) or not HASH.fullmatch(hashed):
+            self.fail(f"{self.user}'s password: not set: not a password hash")
+            return
+        if self.run(["chpasswd", "-e"], f"{self.user}:{hashed}\n")[0] != 0:
+            self.fail(f"{self.user}'s password: not set: chpasswd couldn't set it")
+            return
+        self.password_set = True
+        self.say(f"{self.user}'s password: set")
+
+    def ssh(self, system):
+        ssh = system.get("ssh")
+        if not isinstance(ssh, dict) or not isinstance(ssh.get("enabled"), bool):
+            return
+        keys = ssh.get("authorized_keys") or []
+        keys = [k.strip() for k in keys if isinstance(k, str)] if isinstance(keys, list) else []
+        bad = [k for k in keys if not public_key(k)]
+        keys = [k for k in keys if k not in bad]
+        if bad:
+            self.fail(f"SSH keys: {len(bad)} not taken: not a public key")
+        # Password login only with a password this file set: never with the
+        # one the card had, which every card of an image built with one shares.
+        wanted = ssh.get("password_login") is not False
+        password_login = wanted and self.password_set
+        # The keys added first, by the app's user, who says how many keys log
+        # in then.
+        have = 0
+        if keys or (ssh["enabled"] and not password_login):
+            said = self.write_user_files({"authorized_keys": keys}, "SSH keys")
+            have = said.get("keys", 0) if said else 0
+        if not ssh["enabled"]:
+            self.run(["systemctl", "disable", "ssh.service"])
+            self.run(["systemctl", "stop", "--no-block", "ssh.service"])
+            self.say("SSH: off")
+            return
+        if not password_login and not have:
+            self.fail("SSH: not turned on: " + (f"password login needs {self.user}'s password, set in the same file, "
+                                                "or else a key" if wanted else "no key to log in with"))
+            return
+        # Said either way, ahead of any other drop-in: one that turns password
+        # login off (pi-gen's PUBKEY_ONLY_SSH) mustn't win over its being on.
+        try:
+            if password_login:
+                self.write_root(self.path(SSHD_CONF), "# OSD/OS Setup: pi's password logs in too.\n"
+                                                      "PasswordAuthentication yes\n", 0o644)
+            else:
+                self.write_root(self.path(SSHD_CONF), "# OSD/OS Setup: only the keys in ~/.ssh/authorized_keys log in.\n"
+                                                      "PasswordAuthentication no\nKbdInteractiveAuthentication no\n", 0o644)
+        except OSError as e:
+            self.fail(f"SSH: not turned on: its password login couldn't be set: {e.strerror}")
+            return
+        # Started once the boot has made its host keys (ssh.service is
+        # ordered after that), and after this.
+        enabled = self.run(["systemctl", "enable", "ssh.service"])[0] == 0
+        self.run(["systemctl", "start", "--no-block", "ssh.service"])
+        if not enabled:
+            self.fail("SSH: not turned on: systemctl couldn't enable it")
+        elif wanted and not password_login:
+            self.fail(f"SSH: on, keys only: password login needs {self.user}'s password, set in the same file")
+        else:
+            self.say("SSH: on, " + ("password login on" if password_login else "keys only"))
+
+    def timezone(self, system):
+        zone = system.get("timezone")
+        if zone is None:
+            return
+        if (not isinstance(zone, str) or not ZONE.fullmatch(zone) or ".." in zone
+                or not os.path.isfile(self.path("/usr/share/zoneinfo/" + zone))):
+            self.fail("Time zone: not set: not a time zone")
+            return
+        if self.run(["timedatectl", "set-timezone", zone])[0] != 0:
+            self.fail("Time zone: not set: timedatectl couldn't set it")
+        else:
+            self.say(f"Time zone: {zone}")
+
+    def keyboard(self, system):
+        layout = system.get("keyboard")
+        if layout is None:
+            return
+        if (not isinstance(layout, str) or not LAYOUT.fullmatch(layout)
+                or not os.path.isfile(self.path("/usr/share/X11/xkb/symbols/" + layout))):
+            self.fail("Keyboard: not set: not a keyboard layout")
+            return
+        if self.run(["raspi-config", "nonint", "do_configure_keyboard", layout])[0] != 0:
+            self.fail("Keyboard: not set: raspi-config couldn't set it")
+        else:
+            self.say(f"Keyboard: {layout}")
+
+    def display(self, display, device):
+        preset = display.get("preset")
+        if preset is None:
+            return
+        if not isinstance(preset, str) or not PRESET.fullmatch(preset) \
+                or not os.path.isfile(os.path.join(self.boot, f"osdos-display-{preset}.txt")):
+            self.fail("Display output: not changed: no such display output")
+            return
+        # One this Pi hasn't (chosen for another): left as it is rather than
+        # leave the screen dark.
+        board, keyboard = self.board()
+        if not board_has(preset, board, keyboard):
+            self.fail(f"Display output: not changed: {preset} isn't an output of this "
+                      + (BOARDS[board] if board else "board"))
+            return
+        # Written by osdos-stop even when its answer is no (its sync failed):
+        # what the files say, whatever it does.
+        watched = [os.path.join(self.boot, "osdos-display.txt"), self.path("/etc/modprobe.d/osdos-display.conf")]
+        before = [read_bytes(p) for p in watched]
+        why = self.ask("next-start", preset)
+        if [read_bytes(p) for p in watched] != before:
+            self.restart = True
+            if why:
+                self.fail(f"Display output: {preset}, from the restart that follows, though osdos-stop said: {why}")
+            else:
+                self.say(f"Display output: {preset}, from the restart that follows")
+        elif why:
+            self.fail(f"Display output: not changed: {why}")
+        else:
+            self.say(f"Display output: {preset}")
+
+    def board(self):
+        """This Pi, as the app tells boards apart (src/util/Board.cpp): its
+        family, or "", and whether it is a keyboard one (400, 500)."""
+        model = read_bytes(self.path("/proc/device-tree/model")) or b""
+        name = model.replace(b"\0", b"").decode("latin-1").strip()
+        family = next((key for key, start in BOARDS.items() if name.startswith(start)), "")
+        return family, name.startswith(("Raspberry Pi 400", "Raspberry Pi 500"))
+
+    # --- The app's user's files.
+    def home(self):
+        try:
+            with open(self.path("/etc/passwd")) as f:
+                for line in f:
+                    fields = line.rstrip("\n").split(":")
+                    if len(fields) >= 7 and fields[0] == self.user:
+                        return self.path(fields[5])
+        except OSError:
+            pass
+        return ""
+
+    def ids(self):
+        with open(self.path("/etc/passwd")) as f:
+            for line in f:
+                fields = line.rstrip("\n").split(":")
+                if len(fields) >= 7 and fields[0] == self.user:
+                    return int(fields[2]), int(fields[3])
+        raise KeyError(self.user)
+
+    def write_user_files(self, files, label):
+        """OSD/OS's settings, the RetroAchievements account or the SSH keys,
+        written by this program again as the app's user: what it said, or
+        None when it couldn't be run."""
+        home = self.home()
+        if not home:
+            self.fail(f"{label}: not set: there is no user {self.user}")
+            return None
+        args = [sys.executable, "-I", os.path.realpath(__file__), "--user-files", "--home", home]
+        try:
+            options = {}
+            if os.geteuid() == 0:
+                uid, gid = self.ids()
+                options = {"user": uid, "group": gid, "extra_groups": []}
+            done = subprocess.run(args, input=json.dumps(files), capture_output=True, text=True,
+                                  timeout=COMMAND_TIMEOUT, env={"PATH": PATH, "HOME": home, "LC_ALL": "C.UTF-8"},
+                                  cwd="/", **options)
+        except subprocess.TimeoutExpired:
+            self.fail(f"{label}: not set: its files took too long to write")
+            return None
+        except (OSError, ValueError, KeyError, subprocess.SubprocessError) as e:
+            self.fail(f"{label}: not set: {e}")
+            return None
+        if done.stderr.strip():
+            print(done.stderr.strip(), file=sys.stderr, flush=True)
+        try:
+            said = json.loads(done.stdout)
+            lines = [str(line) for line in said["lines"]]
+        except (ValueError, KeyError, TypeError):
+            self.fail(f"{label}: not set: its files couldn't be written")
+            return None
+        for line in lines:
+            self.say(line)
+        if said.get("ok") is not True:
+            self.failed = True
+        return said
+
+    def write_root(self, path, text, mode, folder_mode=0o755):
+        os.makedirs(os.path.dirname(path), mode=folder_mode, exist_ok=True)
+        write_atomically(path, text.encode(), mode)
+
+    def finish(self):
+        stamp = time.strftime("%Y-%m-%d %H:%M:%S")
+        log = f"OSD/OS Setup, {stamp}\n" + "".join(line + "\n" for line in self.lines)
+        try:
+            # A FAT file system's, whose files' modes are the mount's.
+            write_atomically(os.path.join(self.boot, "osdos-setup.log"), log.encode())
+        except OSError as e:
+            self.failed = True
+            print(f"osdos-setup: the log couldn't be written: {e.strerror}", file=sys.stderr, flush=True)
+        os.sync()
+        if self.restart:
+            self.run(["systemctl", "--no-block", "reboot"])
+
+
+def wifi_problem(ssid, password):
+    """Why NetworkManager wouldn't take the network, as the page checks it."""
+    if not isinstance(ssid, str) or not 1 <= len(ssid.encode()) <= 32:
+        return "a network's name has 1 to 32 bytes"
+    if not isinstance(password, str):
+        return "not a password"
+    if password == "" or re.fullmatch(r"[0-9a-fA-F]{64}", password):
+        return ""
+    if not 8 <= len(password) <= 63 or not re.fullmatch(r"[\x20-\x7e]+", password):
+        return "a Wi-Fi password is 8 to 63 plain ASCII characters"
+    return ""
+
+
+def board_has(preset, board, keyboard):
+    """Whether a Pi has the output, as Settings → Display Output offers it
+    (DisplayOutput.cpp's boardHas(), and build-site.py's preset_models()):
+    keep the three in step."""
+    if preset == "hdmi":
+        return board in ("pi3", "pi4", "pi5")
+    if preset.startswith("crt-gpio-"):
+        return board == "pi5"
+    if preset.startswith("crt-"):
+        return board in ("pi3", "pi4", "pi5") and not keyboard
+    if preset in ("scart-rgb-ntsc", "scart-rgb-pal"):
+        return board in ("pi4", "pi5")
+    if preset.startswith("scart-rgb-"):
+        return board == "pi4"
+    if preset in ("jamma-480i", "jamma-576i"):
+        return board == "pi4"
+    if preset.startswith("jamma-"):
+        return board in ("pi4", "pi5")
+    return False
+
+
+def public_key(key):
+    """A public key sshd takes: its type, then a blob of that type, whole."""
+    if len(key) > 16384 or not SSH_KEY.fullmatch(key):
+        return False
+    kind, blob = key.split(" ")[:2]
+    try:
+        data = base64.b64decode(blob, validate=True)
+    except ValueError:
+        return False
+    parts = []
+    at = 0
+    while at < len(data):
+        size = int.from_bytes(data[at:at + 4], "big")
+        if at + 4 + size > len(data):
+            return False
+        parts.append(data[at + 4:at + 4 + size])
+        at += 4 + size
+    wanted = KEY_PARTS.get(kind, 3 if kind.startswith("ecdsa-sha2-") else 0)
+    return (len(parts) == wanted and parts[0] == kind.encode()
+            and (kind != "ssh-ed25519" or len(parts[1]) == 32))
+
+
+def key_file_value(text, section, key):
+    """A key's value in a GLib key file's section (NetworkManager's state),
+    or None."""
+    at = None
+    for line in text.splitlines():
+        line = line.strip()
+        if line.startswith("["):
+            at = line[1:-1] if line.endswith("]") else None
+        elif at == section and "=" in line and not line.startswith("#"):
+            name, value = line.split("=", 1)
+            if name.strip() == key:
+                return value.strip()
+    return None
+
+
+def set_key_file_value(text, section, key, value):
+    """The key file with the key set in its section, the rest as it was."""
+    out = []
+    at = None
+    done = False
+    for line in text.splitlines():
+        stripped = line.strip()
+        if stripped.startswith("["):
+            if at == section and not done:
+                out.append(f"{key}={value}")
+                done = True
+            at = stripped[1:-1] if stripped.endswith("]") else None
+        elif at == section and "=" in stripped and stripped.split("=", 1)[0].strip() == key:
+            if not done:
+                out.append(f"{key}={value}")
+                done = True
+            continue
+        out.append(line)
+    if not done:
+        if at != section:
+            out += ([""] if out else []) + [f"[{section}]"]
+        out.append(f"{key}={value}")
+    return "\n".join(out) + "\n"
+
+
+def load_json(data):
+    """JSON as the app reads it (Qt's): UTF-8, a Windows editor's BOM or not,
+    and no number it couldn't hold (NaN, Infinity, 1e400)."""
+    def finite(text):
+        number = float(text)
+        if not math.isfinite(number):
+            raise ValueError("a number JSON can't hold")
+        return number
+
+    def refuse(name):
+        raise ValueError("a number JSON can't hold")
+
+    return json.loads(data.decode("utf-8-sig"), parse_float=finite, parse_constant=refuse)
+
+
+def connection_file(ssid):
+    """The network's connection, one file a network: the same one the next
+    time the same network is set up."""
+    safe = re.sub(r"[^A-Za-z0-9_-]+", "-", ssid).strip("-")[:24] or "network"
+    return f"osdos-setup-{safe}-{uuid.uuid5(uuid.NAMESPACE_URL, 'osdos-setup:' + ssid).hex[:8]}.nmconnection"
+
+
+def keyfile_string(value):
+    """A string as GLib's key files keep it (NetworkManager's keyfiles are)."""
+    return (value.replace("\\", "\\\\").replace(" ", "\\s").replace("\n", "\\n")
+            .replace("\t", "\\t").replace("\r", "\\r"))
+
+
+def keyfile_ssid(ssid):
+    """The network's name as NetworkManager writes it itself: plain ASCII as
+    a string, its semicolons escaped; anything else as its bytes."""
+    if re.fullmatch(r"[\x20-\x7e]+", ssid):
+        return keyfile_string(ssid.replace(";", "\\;"))
+    return "".join(f"{b};" for b in ssid.encode())
+
+
+def keyfile(ssid, password, hidden):
+    """NetworkManager's connection for the network: WPA with the password,
+    or open without one."""
+    text = ("[connection]\n"
+            f"id={keyfile_string(ssid)}\n"
+            f"uuid={uuid.uuid5(uuid.NAMESPACE_URL, 'osdos-setup:' + ssid)}\n"
+            "type=wifi\n"
+            "autoconnect=true\n"
+            "\n[wifi]\n"
+            "mode=infrastructure\n"
+            f"ssid={keyfile_ssid(ssid)}\n")
+    if hidden:
+        text += "hidden=true\n"
+    if password:
+        text += ("\n[wifi-security]\n"
+                 "key-mgmt=wpa-psk\n"
+                 f"psk={keyfile_string(password)}\n")
+    return text + "\n[ipv4]\nmethod=auto\n\n[ipv6]\nmethod=auto\n"
+
+
+def retroachievements(ra):
+    account = {}
+    if not isinstance(ra, dict):
+        return account
+    user, password, key = ra.get("user"), ra.get("password"), ra.get("key")
+    if isinstance(user, str) and isinstance(password, str) and user.strip() and password \
+            and len(user) <= 64 and len(password) <= 256:
+        account["user"] = user.strip()
+        account["password"] = password
+    if isinstance(key, str) and RA_KEY.fullmatch(key.strip()):
+        account["key"] = key.strip()
+    return account
+
+
+def read_bytes(path):
+    try:
+        with open(path, "rb") as f:
+            return f.read()
+    except OSError:
+        return None
+
+
+def sync_folder(folder):
+    try:
+        dir_fd = os.open(folder, os.O_RDONLY | os.O_DIRECTORY)
+        try:
+            os.fsync(dir_fd)
+        finally:
+            os.close(dir_fd)
+    except OSError:
+        pass
+
+
+def write_atomically(path, data, mode=None):
+    """Whole or not at all: a new file beside it, on the card before it is
+    renamed over the old one. One that is a link is replaced, not followed."""
+    folder = os.path.dirname(path)
+    fd, temp = tempfile.mkstemp(dir=folder, prefix=".osdos-setup-")
+    try:
+        with os.fdopen(fd, "wb") as f:
+            if mode is not None:
+                os.fchmod(f.fileno(), mode)
+            f.write(data)
+            f.flush()
+            os.fsync(f.fileno())
+        os.replace(temp, path)
+    except BaseException:
+        try:
+            os.remove(temp)
+        except OSError:
+            pass
+        raise
+    sync_folder(folder)
+
+
+# --- Run as the app's user (--user-files): its own files.
+def merge(into, update):
+    """Objects key by key; anything else replaced. What the file leaves out
+    stays as it is."""
+    out = dict(into)
+    for key, value in update.items():
+        out[key] = merge(out[key], value) if isinstance(value, dict) and isinstance(out.get(key), dict) else value
+    return out
+
+
+def count(values):
+    return sum(count(v) if isinstance(v, dict) else 1 for v in values.values())
+
+
+def read_own(path):
+    """A file of the user's, its bytes as text that writes back the same: ""
+    when there is none, and never a pipe or a device to wait on."""
+    try:
+        fd = os.open(path, os.O_RDONLY | os.O_NONBLOCK)
+    except FileNotFoundError:
+        return ""
+    with os.fdopen(fd, "rb") as f:
+        if not stat.S_ISREG(os.fstat(fd).st_mode):
+            raise OSError(errno.EINVAL, "not a file")
+        return f.read(MAX_SIZE).decode("utf-8", "surrogateescape")
+
+
+def user_files(home, files):
+    """OSD/OS's data folder (~/.local/share/OSD-OS, the app's, src/main.cpp)
+    and ~/.ssh: a line on how each went, whether all did, and with the keys,
+    how many keys log in now."""
+    said = {"lines": [], "ok": True}
+
+    def tell(line, ok=True):
+        said["lines"].append(line)
+        said["ok"] = said["ok"] and ok
+
+    data = os.path.join(home, ".local/share/OSD-OS")
+    config = files.get("config")
+    if config:
+        path = os.path.join(data, "config.json")
+        try:
+            text = read_own(path)
+            current = load_json(text.encode("utf-8", "surrogateescape")) if text else {}
+            if not isinstance(current, dict):
+                raise ValueError
+            os.makedirs(data, mode=0o755, exist_ok=True)
+            mode = os.stat(path).st_mode & 0o777 if os.path.exists(path) else 0o644
+            write_atomically(path, (json.dumps(merge(current, config), indent=4, ensure_ascii=False,
+                                               allow_nan=False) + "\n").encode(), mode)
+            tell(f"OSD/OS settings: {count(config)} set in config.json")
+        except ValueError:
+            tell("OSD/OS settings: not set: config.json couldn't be read, and is left as it is", ok=False)
+        except OSError as e:
+            tell(f"OSD/OS settings: not set: {e.strerror}", ok=False)
+    account = files.get("retroachievements")
+    if account:
+        # The Arcade module takes it as OSD/OS starts (ArcadeBackend): the key
+        # for good, the password for RetroArch to sign in with, then the
+        # file goes.
+        folder = os.path.join(data, "arcade")
+        try:
+            os.makedirs(folder, mode=0o755, exist_ok=True)
+            write_atomically(os.path.join(folder, "retroachievements-setup.json"),
+                             (json.dumps(account) + "\n").encode(), 0o600)
+            parts = []
+            if "user" in account:
+                parts.append(f"{account['user']}, signed in as OSD/OS starts")
+            if "key" in account:
+                parts.append("Web API key kept")
+            tell("RetroAchievements: " + "; ".join(parts))
+        except OSError as e:
+            tell(f"RetroAchievements: not set: {e.strerror}", ok=False)
+    if "authorized_keys" in files:
+        keys = files["authorized_keys"]
+        folder = os.path.join(home, ".ssh")
+        path = os.path.join(folder, "authorized_keys")
+        try:
+            # sshd's lines end at a newline alone.
+            lines = read_own(path).split("\n")
+            if lines[-1] == "":
+                lines.pop()
+            there = {line.strip() for line in lines}
+            new = [k for k in keys if k not in there]
+            if new:
+                os.makedirs(folder, mode=0o700, exist_ok=True)
+                os.chmod(folder, 0o700)
+                write_atomically(path, "".join(line + "\n" for line in lines + new).encode("utf-8", "surrogateescape"),
+                                 0o600)
+            if keys:
+                tell(f"SSH keys: {len(new)} added" + (f", {len(keys) - len(new)} there already" if len(new) < len(keys) else ""))
+            said["keys"] = sum(1 for line in lines + new
+                               if not line.lstrip().startswith("#") and KEY_LINE.search(line))
+        except OSError as e:
+            tell(f"SSH keys: not added: {e.strerror}", ok=False)
+    return said
+
+
+def main():
+    parser = argparse.ArgumentParser(description="Applies OSD/OS Setup's osdos-setup.json from the boot partition.")
+    parser.add_argument("--user", help="the user OSD/OS runs as")
+    parser.add_argument("--stage", choices=("app", "system"),
+                        help="one stage alone: app before OSD/OS starts, system once it is on screen")
+    parser.add_argument("--root", default="", help="every path under this folder (the tests')")
+    parser.add_argument("--user-files", action="store_true", help=argparse.SUPPRESS)
+    parser.add_argument("--home", help=argparse.SUPPRESS)
+    args = parser.parse_args()
+    if args.user_files:
+        os.umask(0o022)
+        print(json.dumps(user_files(args.home, json.loads(sys.stdin.read()))))
+        return
+    if not args.user:
+        parser.error("--user is needed")
+    setup = Setup(args.root.rstrip("/"), args.user)
+    setup.apply((args.stage,) if args.stage else ("app", "system"))
+    sys.exit(1 if setup.failed else 0)
+
+
+if __name__ == "__main__":
+    main()

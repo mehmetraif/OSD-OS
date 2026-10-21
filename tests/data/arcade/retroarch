@@ -14,7 +14,9 @@
 # output what RetroArch's log does as it signs in, its token in the config
 # first, as it would save it on exit: signed in for the password "secret",
 # refused for "wrong", RetroAchievements not reached for "offline", nothing
-# for "silent"; and runs until it is stopped.
+# for "silent", signed in with no token kept for "notoken", and for "later"
+# not reached until $RA_ONLINE is there, then signed in (the network up a
+# while after OSD/OS starts); and runs until it is stopped.
 #
 # Asked its version, it says it as a recent RetroArch prints it, and does
 # nothing else.
@@ -48,6 +50,15 @@ case "$2" in
 		echo "[INFO] [RCHEEVOS]: RetroAchievements login failed: Invalid User/Password combination. Please try again"
 	elif grep -q 'cheevos_password = "offline"' "$config"; then
 		echo "[INFO] [RCHEEVOS]: RetroAchievements login failed: No response from server"
+	elif grep -q 'cheevos_password = "notoken"' "$config"; then
+		echo "[INFO] [RCHEEVOS]: $user logged in successfully"
+	elif grep -q 'cheevos_password = "later"' "$config"; then
+		if [ -n "$RA_ONLINE" ] && [ -e "$RA_ONLINE" ]; then
+			sed -i 's/^cheevos_token = .*/cheevos_token = "tok456"/; s/^cheevos_password = .*/cheevos_password = ""/' "$config"
+			echo "[INFO] [RCHEEVOS]: $user logged in successfully"
+		else
+			echo "[INFO] [RCHEEVOS]: RetroAchievements login failed: No response from server"
+		fi
 	fi
 	echo "[INFO] [RCHEEVOS]: Game not recognized, pausing hardcore"
 	trap 'kill $! 2>/dev/null; exit 0' TERM

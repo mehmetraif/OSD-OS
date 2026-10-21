@@ -1912,6 +1912,288 @@ private slots:
         QCOMPARE(arcade.achievementsState(), QStringLiteral("none"));
     }
 
+    // OSD/OS Setup's account, which osdos-setup leaves for the app as the
+    // card starts: taken once the event loop runs, the key kept and RetroArch
+    // signing in with the password. RetroAchievements not reached at first
+    // (the network not up yet), it is checked again a little later, the file
+    // kept meanwhile; signed in, the file goes, and the password with it. A
+    // password refused takes the file too, as does one RetroAchievements
+    // took though RetroArch kept no token; a sign-in or a sign-out in
+    // Settings takes its place, and its checks don't go on; checks that never
+    // reach RetroAchievements stop after ten, the file left for the next
+    // start; a file without a password brings its key alone, and one for the
+    // account signed in already leaves its token as it is. Without a sign-in
+    // core to check with, the file goes at once.
+    void setupAccount() {
+        QTemporaryDir data;
+        QVERIFY(data.isValid());
+        QVERIFY(QDir().mkpath(data.path() + QStringLiteral("/bin")));
+        QVERIFY(QDir().mkpath(data.path() + QStringLiteral("/arcade")));
+        writeFile(data.path() + QStringLiteral("/bin/retroarch"), fixture("retroarch"));
+        QVERIFY(QFile::setPermissions(data.path() + QStringLiteral("/bin/retroarch"),
+                                      QFile::ReadOwner | QFile::WriteOwner | QFile::ExeOwner));
+        const QString core = data.path() + QStringLiteral("/osdos_signin_libretro.so");
+        writeFile(core);
+        const QString online = data.path() + QStringLiteral("/online");
+        qputenv("RA_CONFIG_COPY", (data.path() + QStringLiteral("/ra.cfg")).toUtf8());
+        qputenv("RA_ONLINE", online.toUtf8());
+        const auto restore = qScopeGuard([] {
+            qunsetenv("RA_CONFIG_COPY");
+            qunsetenv("RA_ONLINE");
+        });
+        const QString setup = data.path() + QStringLiteral("/arcade/retroachievements-setup.json");
+        const QString kept = data.path() + QStringLiteral("/arcade/retroachievements.json");
+        const auto account = [&kept] { return QJsonDocument::fromJson(contents(kept)).object(); };
+        // The servers a stand-in's that never answers, the core a stand-in,
+        // and the checks a twentieth of a second apart, so that a few of
+        // those show none comes after; all before the event loop runs, as
+        // the app has them.
+        const auto prepare = [&](ArcadeBackend &arcade) {
+            arcade.setAchievementsServers(QUrl(QStringLiteral("http://127.0.0.1:9/API/")),
+                                          QUrl(QStringLiteral("http://127.0.0.1:9/")));
+            arcade.setSignInCore(core);
+            arcade.setSetupRetryInterval(50);
+        };
+        const auto checks = [this] { return logLines(QStringLiteral("retroarch ")).size(); };
+
+        writeFile(setup, R"({"user": " player ", "password": "later", "key": "k3y"})");
+        {
+            QFile::remove(m_log);
+            ArcadeBackend arcade(data.path(), data.path(), nullptr, nullptr);
+            prepare(arcade);
+            QCOMPARE(arcade.achievementsState(), QStringLiteral("none"));
+            QTRY_COMPARE_WITH_TIMEOUT(arcade.achievementsState(), QStringLiteral("pending"), 10000);
+            QVERIFY(arcade.achievementsKey());
+            QVERIFY(QFileInfo::exists(setup));
+            QCOMPARE(account().value(QStringLiteral("user")).toString(), QStringLiteral("player"));
+            // Checked again while it waits, and signed in once the network is up.
+            QTRY_VERIFY_WITH_TIMEOUT(checks() >= 2, 10000);
+            writeFile(online);
+            QTRY_COMPARE_WITH_TIMEOUT(arcade.achievementsState(), QStringLiteral("signedIn"), 10000);
+            QVERIFY(!QFileInfo::exists(setup));
+            QCOMPARE(account().value(QStringLiteral("token")).toString(), QStringLiteral("tok456"));
+            QCOMPARE(account().value(QStringLiteral("key")).toString(), QStringLiteral("k3y"));
+            QVERIFY(!contents(kept).contains("later"));
+            QVERIFY(!QFileInfo::exists(data.path() + QStringLiteral("/arcade/retroarch/sign-in")));
+            // Nothing checked after.
+            const int checked = checks();
+            QTest::qWait(250);
+            QCOMPARE(checks(), checked);
+        }
+        QFile::remove(online);
+
+        // Another account's (the one signed in now keeps its token).
+        writeFile(setup, R"({"user": "other", "password": "wrong"})");
+        {
+            ArcadeBackend arcade(data.path(), data.path(), nullptr, nullptr);
+            prepare(arcade);
+            QTRY_COMPARE_WITH_TIMEOUT(arcade.achievementsState(), QStringLiteral("failed"), 10000);
+            QVERIFY(!QFileInfo::exists(setup));
+            QCOMPARE(account().value(QStringLiteral("key")).toString(), QStringLiteral("k3y"));
+        }
+
+        writeFile(setup, R"({"user": "player", "password": "offline"})");
+        {
+            ArcadeBackend arcade(data.path(), data.path(), nullptr, nullptr);
+            prepare(arcade);
+            QTRY_COMPARE_WITH_TIMEOUT(arcade.achievementsState(), QStringLiteral("pending"), 10000);
+            arcade.signInAchievements(QStringLiteral("player"), QStringLiteral("secret"));
+            QVERIFY(!QFileInfo::exists(setup));
+            QTRY_COMPARE_WITH_TIMEOUT(arcade.achievementsState(), QStringLiteral("signedIn"), 10000);
+            // The setup's check due meanwhile no longer is.
+            QTest::qWait(250);
+            QCOMPARE(arcade.achievementsState(), QStringLiteral("signedIn"));
+            QCOMPARE(account().value(QStringLiteral("token")).toString(), QStringLiteral("tok789"));
+        }
+
+        writeFile(setup, R"({"user": "other", "password": "offline"})");
+        {
+            ArcadeBackend arcade(data.path(), data.path(), nullptr, nullptr);
+            prepare(arcade);
+            QTRY_COMPARE_WITH_TIMEOUT(arcade.achievementsState(), QStringLiteral("pending"), 10000);
+            arcade.signOutAchievements();
+            QVERIFY(!QFileInfo::exists(setup));
+            QTest::qWait(250);
+            QCOMPARE(arcade.achievementsState(), QStringLiteral("none"));
+        }
+
+        writeFile(setup, R"({"user": "player", "password": "offline"})");
+        {
+            QFile::remove(m_log);
+            ArcadeBackend arcade(data.path(), data.path(), nullptr, nullptr);
+            prepare(arcade);
+            QTRY_COMPARE_WITH_TIMEOUT(checks(), 10, 20000);
+            QTRY_COMPARE_WITH_TIMEOUT(arcade.achievementsState(), QStringLiteral("pending"), 10000);
+            QTest::qWait(250);
+            QCOMPARE(checks(), 10);
+            QVERIFY(QFileInfo::exists(setup));
+        }
+
+        writeFile(setup, R"({"key": " k4y "})");
+        {
+            QFile::remove(m_log);
+            ArcadeBackend arcade(data.path(), data.path(), nullptr, nullptr);
+            prepare(arcade);
+            QTRY_VERIFY_WITH_TIMEOUT(!QFileInfo::exists(setup), 5000);
+            QCOMPARE(account().value(QStringLiteral("key")).toString(), QStringLiteral("k4y"));
+            QTest::qWait(150);
+            QCOMPARE(checks(), 0);
+        }
+
+        writeFile(setup, R"({"user": "player", "password": "offline"})");
+        {
+            QFile::remove(m_log);
+            ArcadeBackend arcade(data.path(), data.path(), nullptr, nullptr);
+            prepare(arcade);
+            QTRY_COMPARE_WITH_TIMEOUT(arcade.achievementsState(), QStringLiteral("pending"), 10000);
+            arcade.signInAchievements(QStringLiteral("player"), QStringLiteral("offline"));
+            QVERIFY(!QFileInfo::exists(setup));
+            QTRY_COMPARE_WITH_TIMEOUT(arcade.achievementsState(), QStringLiteral("pending"), 10000);
+            const int checked = checks();
+            QTest::qWait(250);
+            QCOMPARE(checks(), checked);
+        }
+
+        writeFile(setup, R"({"user": "player", "password": "notoken"})");
+        {
+            QFile::remove(m_log);
+            ArcadeBackend arcade(data.path(), data.path(), nullptr, nullptr);
+            prepare(arcade);
+            QTRY_VERIFY_WITH_TIMEOUT(!QFileInfo::exists(setup), 10000);
+            QCOMPARE(arcade.achievementsState(), QStringLiteral("pending"));
+            QCOMPARE(arcade.achievementsMessage(),
+                     QStringLiteral("RetroArch signed in but kept no token: RetroArch signs in at the next game"));
+            QTest::qWait(250);
+            QCOMPARE(checks(), 1);
+        }
+
+        writeFile(kept, R"({"user": "Player", "token": "tok999", "key": "k4y"})");
+        writeFile(setup, R"({"user": "player", "password": "again"})");
+        {
+            QFile::remove(m_log);
+            ArcadeBackend arcade(data.path(), data.path(), nullptr, nullptr);
+            prepare(arcade);
+            QTRY_VERIFY_WITH_TIMEOUT(!QFileInfo::exists(setup), 5000);
+            QCOMPARE(arcade.achievementsState(), QStringLiteral("signedIn"));
+            QCOMPARE(account().value(QStringLiteral("token")).toString(), QStringLiteral("tok999"));
+            QTest::qWait(150);
+            QCOMPARE(checks(), 0);
+        }
+
+        QFile::remove(kept);
+        writeFile(setup, R"({"user": "player", "password": "offline"})");
+        {
+            QFile::remove(m_log);
+            ArcadeBackend arcade(data.path(), data.path(), nullptr, nullptr);
+            prepare(arcade);
+            arcade.setSignInCore(data.path() + QStringLiteral("/none.so"));
+            QTRY_VERIFY_WITH_TIMEOUT(!QFileInfo::exists(setup), 5000);
+            QCOMPARE(arcade.achievementsState(), QStringLiteral("pending"));
+            QTest::qWait(150);
+            QCOMPARE(checks(), 0);
+        }
+    }
+
+    // OSD/OS Setup's account still waiting for RetroAchievements as a game
+    // starts: the game's RetroArch has the password, no check of it runs
+    // beside the game, and the file goes as the game ends. A game without
+    // the password (Online High Scores off) has no check beside it either:
+    // one due meanwhile waits for it to end, and runs once it has.
+    void setupAccountBesideAGame() {
+        QTemporaryDir data;
+        QVERIFY(data.isValid());
+        if (!libretro::corePath(data.path()).isEmpty() || !libretro::datPath(data.path()).isEmpty())
+            QSKIP("FinalBurn Neo is installed here");
+        writeFile(data.path() + QStringLiteral("/media/Games/Arcade/sf2.zip"));
+        QVERIFY(QDir().mkpath(data.path() + QStringLiteral("/bin")));
+        QVERIFY(QDir().mkpath(data.path() + QStringLiteral("/arcade")));
+        QVERIFY(QFile::copy(mamePath(), data.path() + QStringLiteral("/bin/mame")));
+        writeFile(data.path() + QStringLiteral("/bin/retroarch"), fixture("retroarch"));
+        for (const char *program : { "/bin/mame", "/bin/retroarch" })
+            QVERIFY(QFile::setPermissions(data.path() + QLatin1String(program),
+                                          QFile::ReadOwner | QFile::WriteOwner | QFile::ExeOwner));
+        const QString configCopy = data.path() + QStringLiteral("/ra.cfg");
+        qputenv("RA_CONFIG_COPY", configCopy.toUtf8());
+        // The game outlasts the checks' interval.
+        qputenv("RA_SECONDS", "1");
+        qputenv("OSDOS_MEDIA_DIR", (data.path() + QStringLiteral("/media")).toUtf8());
+        const auto restore = qScopeGuard([this] {
+            qunsetenv("RA_CONFIG_COPY");
+            qunsetenv("RA_SECONDS");
+            qputenv("OSDOS_MEDIA_DIR", (m_data.path() + QStringLiteral("/media")).toUtf8());
+        });
+        const QString core = data.path() + QStringLiteral("/osdos_signin_libretro.so");
+        writeFile(core);
+        writeFile(libretro::downloadedCore(data.path()));
+        writeFile(libretro::downloadedDat(data.path()), fixture("fbneo-arcade.dat"));
+        const auto prepare = [&core](ArcadeBackend &arcade) {
+            arcade.setAchievementsServers(QUrl(QStringLiteral("http://127.0.0.1:9/API/")),
+                                          QUrl(QStringLiteral("http://127.0.0.1:9/")));
+            arcade.setSignInCore(core);
+            arcade.setSetupRetryInterval(500);
+            arcade.onSettingChanged(QStringLiteral("com.osdos.arcade"), QStringLiteral("online_high_scores"),
+                                    QStringLiteral("RetroAchievements"));
+        };
+        // The games read once before, so that the account's checks have
+        // hardly begun as the game starts.
+        {
+            ArcadeBackend arcade(data.path(), data.path(), nullptr, nullptr);
+            prepare(arcade);
+            refreshed(arcade);
+        }
+        const QString setup = data.path() + QStringLiteral("/arcade/retroachievements-setup.json");
+        writeFile(setup, R"({"user": "player", "password": "offline"})");
+        const auto checks = [this, &core] { return logLines(QStringLiteral("retroarch -L ") + core).size(); };
+        // The game's RetroArch config, written before the game starts.
+        const QString gameConfig = data.path() + QStringLiteral("/arcade/retroarch/retroarch.cfg");
+
+        {
+            QFile::remove(m_log);
+            ArcadeBackend arcade(data.path(), data.path(), nullptr, nullptr);
+            prepare(arcade);
+            refreshed(arcade);
+            QCOMPARE(arcade.engineOf(QStringLiteral("sf2")), QStringLiteral("fbneo"));
+            QTRY_COMPARE_WITH_TIMEOUT(arcade.achievementsState(), QStringLiteral("pending"), 10000);
+            QVERIFY(QFileInfo::exists(setup));
+            QVERIFY2(checks() < 5, "the checks ran out before the game");
+
+            QSignalSpy finished(&arcade, &ArcadeBackend::finished);
+            QVERIFY(arcade.play(QStringLiteral("sf2")));
+            const int checked = checks();
+            QVERIFY(contents(gameConfig).contains("cheevos_password = \"offline\""));
+            QVERIFY(finished.wait(10000));
+            QCOMPARE(checks(), checked);
+            QVERIFY(!QFileInfo::exists(setup));
+            // Nor any after it: the game had the password.
+            QTest::qWait(700);
+            QCOMPARE(checks(), checked);
+        }
+
+        // The same game in FinalBurn Neo with Online High Scores off: its
+        // RetroArch has no password, and the checks due while it plays wait.
+        writeFile(setup, R"({"user": "player", "password": "offline"})");
+        QFile::remove(m_log);
+        ArcadeBackend arcade(data.path(), data.path(), nullptr, nullptr);
+        prepare(arcade);
+        arcade.onSettingChanged(QStringLiteral("com.osdos.arcade"), QStringLiteral("online_high_scores"),
+                                QStringLiteral("Off"));
+        arcade.onSettingChanged(QStringLiteral("com.osdos.arcade"), QStringLiteral("engines"),
+                                QVariantMap{ { QStringLiteral("sf2"), QStringLiteral("fbneo") } });
+        refreshed(arcade);
+        QCOMPARE(arcade.engineOf(QStringLiteral("sf2")), QStringLiteral("fbneo"));
+        QTRY_COMPARE_WITH_TIMEOUT(arcade.achievementsState(), QStringLiteral("pending"), 10000);
+        QVERIFY2(checks() < 5, "the checks ran out before the game");
+
+        QSignalSpy finished(&arcade, &ArcadeBackend::finished);
+        QVERIFY(arcade.play(QStringLiteral("sf2")));
+        const int checked = checks();
+        QVERIFY(!contents(gameConfig).contains("offline"));
+        QVERIFY(finished.wait(10000));
+        QCOMPARE(checks(), checked);
+        QVERIFY(QFileInfo::exists(setup));
+        QTRY_VERIFY_WITH_TIMEOUT(checks() > checked, 5000);
+    }
+
     // Settings → Arcade → FinalBurn Neo's download from a stand-in server:
     // the core out of its zip, the list of games and the licence put in
     // place once all three are whole; a file the server hasn't, or a list

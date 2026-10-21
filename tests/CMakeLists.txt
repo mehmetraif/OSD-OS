@@ -158,6 +158,17 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
     set_tests_properties(display_output_pi5 PROPERTIES
         ENVIRONMENT "OSDOS_BOARD_MODEL=Raspberry Pi 5 Model B Rev 1.0")
 
+    # The OSD/OS image's boot screen (BootProgress) against a stand-in for
+    # systemctl: the services it lists as they start, and OSD/OS Setup's
+    # SETTINGS only once it does.
+    add_executable(boot_progress_test
+        boot_progress_test.cpp
+        ../src/boot/BootProgress.cpp
+        ../src/util/LegacyNames.cpp)
+    target_include_directories(boot_progress_test PRIVATE ../src)
+    target_link_libraries(boot_progress_test PRIVATE Qt6::Core Qt6::Test)
+    add_test(NAME boot_progress COMMAND boot_progress_test)
+
     # Settings → About → System Information (SystemInfo): its rows from what
     # the system says, Linux's files from a stand-in root, the name a network
     # takes of what is typed, and the device renamed through a stand-in for
@@ -227,6 +238,10 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
         target_link_libraries(arcade_test PRIVATE ${MINIZIP_LIBRARY})
     endif()
     add_test(NAME arcade COMMAND arcade_test)
+    # Its stand-ins for MAME and RetroArch run as processes and its timers
+    # for real, test after test: close to a minute in all, the minute CI
+    # gives a test without a timeout of its own.
+    set_tests_properties(arcade PROPERTIES TIMEOUT 180)
     # A libretro core that only describes itself, for libretro::loadCoreInfo().
     enable_language(C)
     add_library(arcade_test_core MODULE arcade_test_core.c)
@@ -278,6 +293,14 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
     add_test(NAME osdos_stop COMMAND bash ${CMAKE_CURRENT_SOURCE_DIR}/osdos_stop_test.sh
                                      ${CMAKE_CURRENT_SOURCE_DIR}/../scripts/install.sh
                                      ${CMAKE_CURRENT_SOURCE_DIR}/../os/stage-osdos/03-boot/files)
+
+    # OSD/OS Setup's file applied as the card starts (osdos-setup, the
+    # image's), on a stand-in card with the image's osdos-stop: a whole file,
+    # the same again, parts it refuses, files it can't read. Needs Python 3.
+    add_test(NAME osdos_setup COMMAND bash ${CMAKE_CURRENT_SOURCE_DIR}/osdos_setup_test.sh
+                                      ${CMAKE_CURRENT_SOURCE_DIR}/../os/stage-osdos/02-system/files/osdos-setup
+                                      ${CMAKE_CURRENT_SOURCE_DIR}/../scripts/install.sh
+                                      ${CMAKE_CURRENT_SOURCE_DIR}/../os/stage-osdos/03-boot/files)
 
     # The launcher (scripts/install.sh) on a stand-in install: a staged update
     # applied, or one cut short by a power cut put right, and a Pi 5 waiting

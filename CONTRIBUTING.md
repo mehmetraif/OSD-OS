@@ -94,6 +94,8 @@ Before opening a PR, please check your change against these:
 - [ ] **Didn't add tracking or analytics.** The only network calls (if needed) are direct to the third-party API the module integrates with.
 - [ ] **Only writes to the local data directory** (`config.json` and module state files) — nothing outside it.
 - [ ] **Browse & hand-off** — heavy lifting (like playback) is handed to a purpose-built tool, not bundled in.
+- [ ] **A new or changed row in Settings** (`views/Settings.qml`) is in `site/schema-extra.json` too, so that [OSD/OS Setup](os/README.md#osdos-setup) offers it (a module's rows come from its `manifest.json` by themselves); `node --test tests/site/*.test.mjs` checks the two agree.
+- [ ] **OSD/OS Setup's live preview keeps up.** A new theme, colour scheme, effect preset or shader is the preview's at the next build, and the same tests check that each shader takes only the uniforms the preview sets it. A change to how the main menu or the Arcade screen is laid out, to the window changes in `Main.qml`, or to `src/fx/SelectorFx.cpp` is made in `site/js/preview/` too.
 
 ## License
 

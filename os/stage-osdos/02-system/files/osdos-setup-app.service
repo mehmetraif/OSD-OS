@@ -1,0 +1,22 @@
+[Unit]
+Description=OSD/OS Setup: OSD/OS's own settings from osdos-setup.json, before it starts
+# The first of OSD/OS Setup's two stages (/usr/local/sbin/osdos-setup). The
+# file made on its page (published from site/) and copied to bootfs is taken
+# off it at once, root's alone from then on (/var/lib/osdos-setup), and what
+# the app reads as it starts is set ahead of it: its settings, and the
+# Arcade's RetroAchievements account. osdos-setup.service sets the rest once
+# the app is on screen. Also run for what a start cut short left there.
+Before=osdos.service
+ConditionPathExists=|/boot/firmware/osdos-setup.json
+ConditionPathExists=|/var/lib/osdos-setup/pending.json
+RequiresMountsFor=/boot/firmware /home /var/lib
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/osdos-setup --stage app --user @FIRST_USER_NAME@
+StandardOutput=journal
+StandardError=journal
+TimeoutStartSec=2min
+
+[Install]
+WantedBy=multi-user.target
