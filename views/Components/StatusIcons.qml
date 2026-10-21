@@ -3,11 +3,12 @@ import QtQuick
 // What is on, the way a phone's status bar shows it (Settings → Status
 // Icons): the deck's pixel symbols (PixelIcon) in a row, as Main.qml's
 // statusIcons lists them: the modules' (the Arcade's HI for Save High
-// Scores, a trophy for RetroAchievements, a globe for Online Play), then
-// Bluetooth's rune while it is on, a dot either side while a device is
-// connected, and Wi-Fi's bars while it is on, their feet alone while it has
-// joined no network. The title bar has them at its right end (AppBar), the
-// Arcade screen at the right of its help line (with none, of its hint bar).
+// Scores, a trophy for RetroAchievements, a globe for Online Play, a network
+// for LAN Play), then Bluetooth's rune while it is on, a dot either side
+// while a device is connected, and Wi-Fi's bars while it is on, their feet
+// alone while it has joined no network. The title bar has them at its right
+// end (AppBar), the Arcade screen at the right of its help line (with none,
+// of its hint bar).
 Row {
     id: iconRow
 

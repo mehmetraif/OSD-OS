@@ -25,6 +25,7 @@ class FbneoInstaller;
 class RetroAchievements;
 class QNetworkAccessManager;
 class QNetworkReply;
+class QUdpSocket;
 class ScriptLauncher;
 class QTimer;
 
@@ -111,7 +112,8 @@ class ArcadeBackend : public QObject {
     // The status icons the module adds (AppCore's statusIcons): "hiscore"
     // while Save High Scores is on, "trophy" while Online High Scores plays
     // with RetroAchievements and its account is signed in (or signs in at
-    // the next game), "globe" while Online Play is on.
+    // the next game), "globe" while Online Play is on, "network" while LAN
+    // Play is.
     Q_PROPERTY(QStringList statusIcons READ statusIcons NOTIFY statusIconsChanged)
 public:
     explicit ArcadeBackend(const QString &appRoot, const QString &dataRoot, AppCore *appCore,
@@ -147,21 +149,25 @@ public:
 
     // The filters with games in them, in the order ◄ ► goes round them:
     // [{ id, name, count }]. id: "all", "online" (Online Games, while
-    // someone hosts one), "favorites", "recent", "achievements", "netplay",
+    // someone hosts one), "lan" (LAN Games, while someone on the local
+    // network does), "favorites", "recent", "achievements", "netplay",
     // "genres/<genre>", "players/<n>", "years/<decade>" ("years/unknown"),
-    // "makers/<publisher>", "unknown" (Not Recognized); all but All Games and
-    // Online Games only while Menu Filters shows them, but Not Recognized in
-    // All Games' place when none of the sets is a game. While MAME is being
-    // asked, only Online Games, Favorites and Recently Played, All Games not
-    // yet: gamesChanged() follows once it has answered.
+    // "makers/<publisher>", "unknown" (Not Recognized); all but All Games,
+    // Online Games and LAN Games only while Menu Filters shows them, but Not
+    // Recognized in All Games' place when none of the sets is a game. While
+    // MAME is being asked, only Online Games, LAN Games, Favorites and
+    // Recently Played, All Games not yet: gamesChanged() follows once it has
+    // answered.
     Q_INVOKABLE QVariantList filters();
     // A page of a filter: its games from first on, count at most, as
-    // { set, name (its title), favorite }; Not Recognized's as { set, name
-    // (its file's), unknown: true }.
+    // { set, name (its title), favorite }; Online Games' and LAN Games' with
+    // the room too, { room (its id), host, lan (LAN Games'), detail (LAN
+    // Games': lanRooms()'s) }; Not Recognized's as { set, name (its file's),
+    // unknown: true }.
     Q_INVOKABLE QVariantList filterGames(const QString &filter, int first, int count);
-    // Where a set is in a filter: -1 when it isn't in it. On Online Games,
-    // where a game is once for each room that hosts it, room's row (a room's
-    // id), else the game's first.
+    // Where a set is in a filter: -1 when it isn't in it. On Online Games
+    // and LAN Games, where a game is once for each room that hosts it,
+    // room's row (a room's id), else the game's first.
     Q_INVOKABLE int filterIndex(const QString &filter, const QString &set, int room = -1);
     // A filter not in filters() that may be in a moment: RetroAchievements
     // while its list of games is still to be read (gamesChanged() follows).
@@ -205,8 +211,8 @@ public:
     Q_INVOKABLE bool play(const QString &name, int credits = 0);
     // The engine a game plays in: "fbneo", RetroArch with the FinalBurn Neo
     // core, for a set FinalBurn Neo has, chosen in its options, or by itself
-    // (Auto) while Online High Scores or Online Play is on, which only it
-    // has, or with no MAME, and always for one MAME doesn't know
+    // (Auto) while Online High Scores, Online Play or LAN Play is on, which
+    // only it has, or with no MAME, and always for one MAME doesn't know
     // (fbneoOnly()); else "mame".
     Q_INVOKABLE QString engineOf(const QString &set) const;
     // A game's choices of engine, for its options: [{ id ("auto", "mame",
@@ -262,6 +268,31 @@ public:
     // The lobby's address: lobby.libretro.com's, or a stand-in's (a test's,
     // or OSDOS_LOBBY_URL's).
     void setLobbyUrl(const QUrl &url) { m_lobbyUrl = url; }
+
+    // LAN Play (Settings → Arcade → LAN Play): the games RetroArch hosts on
+    // the local network, found by a query broadcast there that each host
+    // answers (libretro::readLanAnswer()), of the folder's games FinalBurn
+    // Neo plays, without a password: [{ id, set, title, host, detail }], an
+    // id kept while the host answers with the same game. refreshLanRooms()
+    // asks again, once at a time, and listens a second: lanRoomsChanged(),
+    // and the LAN Games folder and filter listed again (entriesReady(),
+    // gamesChanged()) once the rooms, their lines or why there are none are
+    // other than they were. Our versions are read for them as for the
+    // lobby's, and the rooms' lines said again once they are.
+    Q_INVOKABLE QVariantList lanRooms() const;
+    Q_INVOKABLE void refreshLanRooms();
+    // A room joined straight at its host, or a game hosted on the local
+    // network alone (libretro::Launch::Netplay::LanHost), as play() starts a
+    // game.
+    Q_INVOKABLE bool joinLanRoom(int id);
+    Q_INVOKABLE bool hostLanGame(const QString &set);
+    // canHost() for LAN Play.
+    Q_INVOKABLE bool canHostLan(const QString &set) const;
+    // Where the query goes: broadcast to every network's hosts at
+    // RetroArch's port, or a stand-in's address and port (a test's).
+    void setLanDiscovery(const QString &address, quint16 port);
+    // How long the answers are listened for: a second, or a test's.
+    void setLanListenTime(int ms);
     // What says a core's name and version (libretro::readCoreInfo()), the
     // core's path given last: a copy of the app run with --core-info, or a
     // test's stand-in.
@@ -390,6 +421,7 @@ signals:
     void picturesChanged(const QString &set);
     void statusIconsChanged();
     void roomsChanged();
+    void lanRoomsChanged();
     void fbneoChanged();
     // The download's progress, apart: what the page reads of the rest
     // (fbneoInfo()) isn't read again with each step of it.
@@ -533,6 +565,9 @@ private:
     bool menuShows(const QString &filter) const;
     // A filter's sets, in the order it lists them.
     QStringList filterSets(const QString &filter) const;
+    // A filter's rooms: Online Games' (rooms()) or LAN Games' (lanRooms());
+    // none for any other filter.
+    QVariantList filterRooms(const QString &filter) const;
     // A filter's made from what each game is now: RetroAchievements', the
     // games, by name, that achievements or a leaderboard's scores can be had
     // in, and Playable Online's, those that can be played online; kept until
@@ -618,6 +653,21 @@ private:
     // The Online Games folder's entries: the rooms, or a line saying why
     // there are none.
     QVariantList roomEntries() const;
+    // LAN Play's: the answers taken as they come while the query is
+    // listened for, and the rooms made of them once it has been
+    // (finishLanRead()), or why the network couldn't be asked.
+    void readLanAnswers();
+    void finishLanRead();
+    // The LAN Games folder listed again, and the Arcade screen's filter with
+    // it, once its entries (the rooms, their lines, or why there are none)
+    // are other than they were.
+    void showLanRooms();
+    // The LAN Games folder's entries, as roomEntries().
+    QVariantList lanRoomEntries() const;
+    // What the line under the list says of a room: who hosts it, its file,
+    // and its core's and RetroArch's versions against ours, where both are
+    // known.
+    QString lanDetail(const libretro::Room &room) const;
     // Our own RetroArch's version (`retroarch --version`, RetroArch.app's
     // from its bundle) and FinalBurn Neo core's (a copy of the app run with
     // --core-info), each read again once its file is another, none given
@@ -640,6 +690,9 @@ private:
     // engineOf() with FinalBurn Neo's being ready and MAME's being there
     // asked once for many.
     QString engineFor(const QString &set, bool fbneoUsable, bool haveMame) const;
+    // A setting only FinalBurn Neo serves is on (Online High Scores, Online
+    // Play, LAN Play): Auto then plays a game it has in it.
+    bool fbneoWanted() const { return m_achievements || m_onlinePlay || m_lanPlay; }
     void saveAchievements() const;
     // The sign-in checked at once (libretro::SignIn): RetroArch, with no
     // picture, sound or controllers, signs in with the password and the
@@ -692,6 +745,7 @@ private:
     QVariantMap m_engines;        // set → "mame" or "fbneo", as its options chose
     QString m_onlineName;         // the name online play shows ("" for the account's)
     QString m_relay = QStringLiteral("nyc");   // the relay a hosted game goes through
+    bool    m_lanPlay = false;
 
     // The RetroAchievements account: <data>/arcade/retroachievements.json,
     // owner-only, but the password, which RetroArch has once and swaps.
@@ -738,6 +792,26 @@ private:
     QSet<QString> m_slowVersions;
     QStringList m_coreInfoCommand;
     int m_versionReadMs = 0;
+    // LAN Play: the socket the query goes out of and the answers come to,
+    // where it goes ("" to broadcast it), the time the answers are listened
+    // for, the rooms heard meanwhile and those of the last query (and the
+    // LAN Games folder's entries as the views were last told of them), why
+    // the network couldn't be asked, whether it has been, and each room's id
+    // by its host and game (those no longer heard forgotten once there are
+    // many).
+    QUdpSocket *m_lanSocket = nullptr;
+    QString m_lanAddress;
+    quint16 m_lanPort = libretro::kLanPort;
+    QTimer *m_lanListen = nullptr;
+    int     m_lanListenMs = 0;
+    QList<libretro::Room> m_lanHeard;
+    QList<libretro::Room> m_lanRooms;
+    QVariantList m_lanShown;
+    QString m_lanFailure;         // the query under way's
+    QString m_lanProblem;
+    bool    m_lanRead = false;
+    QHash<QString, int> m_lanIds;
+    int     m_lanNextId = 1;
     // catver.ini's download: from where, under way, and when one that failed
     // may be tried again.
     QUrl m_genresUrl;

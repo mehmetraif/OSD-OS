@@ -331,7 +331,7 @@ FocusScope {
             label: "Status Icons",
             options: ["On", "Off"],
             value: appSettings["status_icons"] === "Off" ? "Off" : "On",
-            description: "What is on, at the top right of the title bar and the bottom right of the Arcade screen: Wi-Fi's signal, Bluetooth, and the Arcade's HI (Save High Scores), trophy (RetroAchievements) and globe (Online Play)\n[OFF] None",
+            description: "What is on, at the top right of the title bar and the bottom right of the Arcade screen: Wi-Fi's signal, Bluetooth, and the Arcade's HI (Save High Scores), trophy (RetroAchievements), globe (Online Play) and network (LAN Play)\n[OFF] None",
             moduleId: ""
         })
 

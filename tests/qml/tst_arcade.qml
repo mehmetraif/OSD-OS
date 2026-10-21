@@ -81,8 +81,10 @@ Rectangle {
         }
         function players(count) { return count > 0 ? count + (count === 1 ? " Player" : " Players") : "" }
         function startGame(set, title, online) {
-            var started = online && online.room !== undefined ? arcadeBackend.joinRoom(online.room)
-                        : online && online.hosting ? arcadeBackend.hostGame(set)
+            var lan = !!online && !!online.lan
+            var started = online && online.room !== undefined
+                          ? (lan ? arcadeBackend.joinLanRoom(online.room) : arcadeBackend.joinRoom(online.room))
+                        : online && online.hosting ? (lan ? arcadeBackend.hostLanGame(set) : arcadeBackend.hostGame(set))
                         : arcadeBackend.play(set, credits)
             if (!started)
                 return false
@@ -214,6 +216,16 @@ Rectangle {
         function setLobby(data) { lobbyStore.data = data }
         property bool online: false
         function onlinePlay() { return online }
+        // LAN Play: the sets that can be hosted on the local network, the
+        // rooms there joined, the games hosted there and the network's reads.
+        property var lanHostable: []
+        property var lanJoined: []
+        property var lanHosted: []
+        property int lanReads: 0
+        function canHostLan(set) { return lanHostable.indexOf(set) >= 0 }
+        function refreshLanRooms() { lanReads++ }
+        function joinLanRoom(id) { lanJoined = lanJoined.concat([id]); running = playResult; return playResult }
+        function hostLanGame(set) { lanHosted = lanHosted.concat([set]); running = playResult; return playResult }
         // Each game's RetroAchievements leaderboard, by set, as leaderboard()
         // gives it ("off" for any other); changed in place, so the screen
         // reads it again only on leaderboardReady().
@@ -412,6 +424,10 @@ Rectangle {
             arcadeBackend.roomReads = 0
             arcadeBackend.lobbyStore = { data: { state: "loading", problem: "", rooms: [] } }
             arcadeBackend.online = false
+            arcadeBackend.lanHostable = []
+            arcadeBackend.lanJoined = []
+            arcadeBackend.lanHosted = []
+            arcadeBackend.lanReads = 0
             arcadeBackend.pendingFilters = []
             arcadeBackend.favorites = ["galaga", "sf2"]
             arcadeBackend.filterList = [
@@ -1592,6 +1608,121 @@ Rectangle {
             router.playGame({ game: "sf2", title: "Street Fighter II (ann)", online: { room: 11, host: "ann" } }, {})
             tryVerify(function() { return arcadeBackend.joined.length === 2 })
             compare(arcadeBackend.started, [])
+            compare(appCore.added, [["com.osdos.arcade", "recent", "game:sf2"]])
+        }
+
+        // LAN Games in the tree: select joins a room at its host on the
+        // local network, the line under the tree saying who hosts it and
+        // their versions against ours; a game's options host it on the
+        // network alone.
+        function test_lanTree() {
+            arcadeBackend.entries = Object.assign({}, arcadeBackend.entries, {
+                "top": [{ name: "LAN Games", path: "lan", isFolder: true }].concat(arcadeBackend.entries.top),
+                "lan": [{ name: "Street Fighter II (ann)", path: "lan:1", isFolder: false, kind: "room", game: "sf2",
+                          room: 1, host: "ann", lan: true,
+                          detail: "Hosted by ann on this network • sf2.zip • Its RetroArch is 1.21.0, yours 1.22.2" }]
+            })
+            arcadeBackend.lanHostable = ["pacman"]
+            var games = open("Games.qml")
+            keyClick(Qt.Key_Right)
+            tryVerify(function() { return findText(games, "Its RetroArch is 1.21.0, yours 1.22.2") !== null }, 1000)
+            verify(findText(games, ":JOIN") !== null)
+            keyClick(Qt.Key_Right)
+            compare(findText(games, "Add to Favorites"), null)
+            keyClick(Qt.Key_Return)
+            compare(root.navigations.length, 1)
+            compare(root.navigations[0].path, "Play.qml")
+            compare(root.navigations[0].params.game, "sf2")
+            compare(root.navigations[0].params.online.room, 1)
+            compare(root.navigations[0].params.online.host, "ann")
+            verify(root.navigations[0].params.online.lan)
+            // Pac-Man, in Favorites: hosted on the network from its options,
+            // the last of them; not online, with Online Play off.
+            keyClick(Qt.Key_Left)
+            keyClick(Qt.Key_Down)
+            keyClick(Qt.Key_Down)
+            keyClick(Qt.Key_Right)
+            keyClick(Qt.Key_Right)
+            tryVerify(function() { return findText(games, "Host LAN Game") !== null }, 1000)
+            compare(findText(games, "Host Online Game"), null)
+            keyClick(Qt.Key_Up)
+            keyClick(Qt.Key_Return)
+            compare(root.navigations.length, 2)
+            compare(root.navigations[1].params.game, "pacman")
+            verify(root.navigations[1].params.online.hosting)
+            verify(root.navigations[1].params.online.lan)
+        }
+
+        // The Arcade screen's LAN Games: the help line saying who hosts the
+        // room first, select joining it at its host; a game's options host
+        // it on the network alone.
+        function test_lanScreen() {
+            arcadeBackend.filterList = [{ id: "lan", name: "LAN Games", sets: ["sf2"],
+                                          rows: [{ set: "sf2", name: "Street Fighter II (ann)", favorite: false, room: 1,
+                                                   host: "ann", lan: true,
+                                                   detail: "Hosted by ann on this network • sf2.zip" }] }]
+                                        .concat(arcadeBackend.filterList)
+            arcadeBackend.lanHostable = ["sf2"]
+            moduleRoot.startFilter = "lan"
+            var screen = openScreen()
+            compare(screen.filterId, "lan")
+            verify(findText(screen, "Street Fighter II (ann)") !== null)
+            verify(findText(screen, ":JOIN") !== null)
+            compare(screen.about.split("\n")[0], "Hosted by ann on this network • sf2.zip")
+            verify(findText(screen, "Hosted by ann on this network") !== null)
+            keyPress(Qt.Key_Return)
+            keyRelease(Qt.Key_Return)
+            compare(root.navigations.length, 1)
+            compare(root.navigations[0].params.game, "sf2")
+            compare(root.navigations[0].params.online.room, 1)
+            compare(root.navigations[0].params.online.host, "ann")
+            verify(root.navigations[0].params.online.lan)
+            // All Games, on the same game: the line its own, and hosted on
+            // the network from its options.
+            keyClick(Qt.Key_Right)
+            compare(screen.filterId, "all")
+            compare(screen.currentSet, "sf2")
+            compare(findText(screen, "Hosted by ann on this network"), null)
+            keyPress(Qt.Key_Return)
+            tryVerify(function() { return findText(screen, "Host LAN Game") !== null }, 1500)
+            keyRelease(Qt.Key_Return)
+            compare(findText(screen, "Host Online Game"), null)
+            keyClick(Qt.Key_Up)
+            keyClick(Qt.Key_Return)
+            compare(root.navigations.length, 2)
+            compare(root.navigations[1].params.game, "sf2")
+            verify(root.navigations[1].params.online.hosting)
+            verify(root.navigations[1].params.online.lan)
+        }
+
+        // A room on the local network joined from the game's screen says
+        // whose game it is and joins it at its host; a game hosted there
+        // says so and hosts it; and with Start Info Screen off, the router
+        // joins straight from the list.
+        function test_playLan() {
+            var play = open("Play.qml", { game: "sf2", title: "Street Fighter II (ann)",
+                                          online: { room: 1, host: "ann", lan: true } })
+            verify(play.fbneo)
+            verify(findText(play, "Joining ann's game on this network") !== null)
+            tryCompare(play, "phase", "running", 3000)
+            compare(arcadeBackend.lanJoined, [1])
+            compare(arcadeBackend.joined, [])
+            arcadeBackend.running = false
+            arcadeBackend.finished(0, "ok", "")
+            play = open("Play.qml", { game: "sf2", title: "Street Fighter II", online: { hosting: true, lan: true } })
+            verify(findText(play, "Hosting on this network: others join from LAN Games") !== null)
+            tryCompare(play, "phase", "running", 3000)
+            compare(arcadeBackend.lanHosted, ["sf2"])
+            compare(arcadeBackend.hosted, [])
+            arcadeBackend.running = false
+            arcadeBackend.finished(0, "ok", "")
+            loader.source = ""
+            appCore.added = []
+            var router = openRoot({ start_info: false })
+            router.playGame({ game: "sf2", title: "Street Fighter II (ann)", online: { room: 1, host: "ann", lan: true } }, {})
+            tryVerify(function() { return arcadeBackend.lanJoined.length === 2 })
+            compare(arcadeBackend.started, [])
+            compare(arcadeBackend.joined, [])
             compare(appCore.added, [["com.osdos.arcade", "recent", "game:sf2"]])
         }
 

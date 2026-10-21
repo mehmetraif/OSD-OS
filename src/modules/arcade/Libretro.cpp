@@ -14,6 +14,7 @@
 #include <QTextStream>
 #include <QVersionNumber>
 #include <QXmlStreamReader>
+#include <QtEndian>
 #include <algorithm>
 #include <optional>
 #include <utility>
@@ -121,6 +122,18 @@ QString cleaned(const QString &text, int length) {
             out += c;
     }
     return out.trimmed().left(length);
+}
+
+// The set a room plays, by its file's name as its host has it: a short name,
+// in lower case, without .zip or .7z; "" for a name that can't be one.
+QString setOf(const QString &name) {
+    static const QRegularExpression set(QStringLiteral("^[a-z0-9_]{1,32}$"));
+    QString game = name.toLower();
+    for (const char *extension : { ".zip", ".7z" }) {
+        if (game.endsWith(QLatin1String(extension)))
+            game.chop(static_cast<int>(qstrlen(extension)));
+    }
+    return set.match(game).hasMatch() ? game : QString();
 }
 
 // The lobby's address for a room, "address|port[|session]" as --connect
@@ -391,6 +404,13 @@ QString configText(const Launch &launch) {
         set("netplay_public_announce", on(true));
         set("netplay_use_mitm_server", on(true));
         set("netplay_mitm_server", launch.relay.isEmpty() ? QStringLiteral("nyc") : launch.relay);
+    } else if (launch.netplay == Launch::Netplay::LanHost) {
+        // On the local network alone, straight: a host that isn't relayed
+        // answers the queries made there (readLanAnswer()). Not in the
+        // lobby, and no port opened on the router for the internet.
+        set("netplay_public_announce", on(false));
+        set("netplay_use_mitm_server", on(false));
+        set("netplay_nat_traversal", on(false));
     }
     return lines.join(QLatin1Char('\n')) + QLatin1Char('\n');
 }
@@ -416,7 +436,7 @@ QStringList arguments(const Launch &launch) {
     // The log only with -v: --log-file alone writes nothing.
     QStringList args{ QStringLiteral("-L"), launch.core, QStringLiteral("--config"), launch.config,
                       QStringLiteral("--verbose"), QStringLiteral("--log-file=") + launch.log };
-    if (launch.netplay == Launch::Netplay::Host)
+    if (launch.netplay == Launch::Netplay::Host || launch.netplay == Launch::Netplay::LanHost)
         args << QStringLiteral("--host");
     else if (launch.netplay == Launch::Netplay::Join)
         args << QStringLiteral("--connect") << launch.joinAddress;
@@ -529,8 +549,6 @@ SignInLine readSignInLine(const QString &line, QString *failure) {
 QList<Room> readWholeLobby(const QByteArray &json) {
     QList<Room> rooms;
     const QJsonArray list = QJsonDocument::fromJson(json).array();
-    // The game as its file is named, the set: a short name, lower case.
-    static const QRegularExpression set(QStringLiteral("^[a-z0-9_]{1,32}$"));
     static const QRegularExpression code(QStringLiteral("^[a-z]{2}$"));
     static const QRegularExpression crc(QStringLiteral("^[0-9A-Fa-f]{8}$"));
     static const QRegularExpression stamp(QStringLiteral("^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}"));
@@ -555,13 +573,7 @@ QList<Room> readWholeLobby(const QByteArray &json) {
         Room room;
         room.id = entry.first;
         room.rom = cleaned(text("game_name"), 64);
-        room.game = text("game_name").toLower();
-        for (const char *extension : { ".zip", ".7z" }) {
-            if (room.game.endsWith(QLatin1String(extension)))
-                room.game.chop(static_cast<int>(qstrlen(extension)));
-        }
-        if (!set.match(room.game).hasMatch())
-            room.game.clear();
+        room.game = setOf(text("game_name"));
         if (crc.match(text("game_crc")).hasMatch())
             room.crc = text("game_crc").toUpper();
         room.core = cleaned(text("core_name"), 32);
@@ -606,6 +618,61 @@ QList<Room> readLobby(const QByteArray &json) {
     rooms.erase(std::remove_if(rooms.begin(), rooms.end(), [](const Room &room) { return !room.joinable; }),
                 rooms.end());
     return rooms;
+}
+
+QByteArray lanQuery() {
+    // Its DISCOVERY_QUERY_MAGIC, sent big-endian.
+    return QByteArrayLiteral("RANQ");
+}
+
+std::optional<Room> readLanAnswer(const QByteArray &packet, const QString &address) {
+    // Its struct ad_packet: "RANS", the game's CRC, the port to join at and
+    // the passwords it asks for (big-endian numbers), then each string in a
+    // field of its own size, ended by a NUL within it: who hosts, the host's
+    // system, the core and its version, RetroArch's version, the game's file
+    // (without its extension) and the subsystem it plays in.
+    if (packet.size() != kLanAnswerSize || !packet.startsWith("RANS"))
+        return std::nullopt;
+    const auto number = [&packet](int at) { return qFromBigEndian<quint32>(packet.constData() + at); };
+    int at = 16;
+    const auto text = [&packet, &at](int size) {
+        QByteArray field = packet.mid(at, size);
+        at += size;
+        if (const qsizetype end = field.indexOf('\0'); end >= 0)
+            field.truncate(end);
+        return QString::fromUtf8(field);
+    };
+    const QString host = text(32);
+    const QString frontend = text(32);
+    const QString core = text(32);
+    const QString coreVersion = text(32);
+    const QString retroarch = text(32);
+    const QString content = text(256);
+    const QString subsystem = text(256);
+    Room room;
+    room.rom = cleaned(content, 64);
+    room.game = setOf(content);
+    if (const quint32 crc = number(4))
+        room.crc = QStringLiteral("%1").arg(crc, 8, 16, QLatin1Char('0')).toUpper();
+    room.core = cleaned(core, 32);
+    room.coreVersion = cleaned(coreVersion, 32);
+    room.subsystem = cleaned(subsystem, 32);
+    if (room.subsystem == QLatin1String("N/A"))
+        room.subsystem.clear();
+    room.retroarch = cleaned(retroarch, 16);
+    room.frontend = cleaned(frontend, 32);
+    room.host = cleaned(host, 32);
+    const quint32 passwords = number(12);
+    room.password = passwords & 1;
+    room.spectatePassword = passwords & 2;
+    room.joinAddress = joinAddressOf(address, static_cast<int>(number(8)), QString());
+    room.joinable = room.core == QLatin1String("FinalBurn Neo") && !room.game.isEmpty() && !room.joinAddress.isEmpty();
+    return room;
+}
+
+bool isLanAddress(quint32 ipv4) {
+    return (ipv4 & 0xFF000000) == 0x0A000000 || (ipv4 & 0xFFF00000) == 0xAC100000
+           || (ipv4 & 0xFFFF0000) == 0xC0A80000;
 }
 
 CoreInfo loadCoreInfo(const QString &path, QString *error) {

@@ -13,7 +13,9 @@ import Components
 // Online Games lists the rooms of RetroArch's lobby that host games of the
 // folder (ArcadeBackend::rooms()), read again every 20 s while they are
 // shown: select joins one. Its last line, RetroArch Lobby, opens the whole
-// lobby (Lobby.qml). Coming back from a game restores the tree from
+// lobby (Lobby.qml). With LAN Play on, LAN Games lists those hosted on the
+// local network (ArcadeBackend::lanRooms()), asked for again every 5 s
+// while they are shown. Coming back from a game restores the tree from
 // the listState handed to navigateTo; a game played from the tree itself
 // (Start Info Screen off) leaves it as it was. Opened with the startup
 // favourite (navParams.startupPlay), it plays that at once, the tree open on
@@ -35,14 +37,15 @@ FocusScope {
 
     focus: true
 
-    // Plays a game, or joins a room of the lobby (item.room) or hosts one
-    // (host); trail is where coming back lands.
-    function play(item, trail, host) {
+    // Plays a game, or joins a room of the lobby or the local network
+    // (item.room, item.lan), or with online ({ hosting: true, lan }) hosts
+    // it; trail is where coming back lands.
+    function play(item, trail, online) {
         var params = { game: item.game, title: item.name }
         if (item.room !== undefined)
-            params.online = { room: item.room, host: item.host }
-        else if (host)
-            params.online = { hosting: true }
+            params.online = { room: item.room, host: item.host, lan: !!item.lan }
+        else if (online)
+            params.online = online
         gamesRoot.navigateTo("Play.qml", params, { trail: trail })
     }
 
@@ -129,6 +132,14 @@ FocusScope {
         running: tree.folderName === "Online Games" && !!arcadeBackend && !arcadeBackend.running
         onTriggered: arcadeBackend.refreshRooms()
     }
+    // The local network asked again while its rooms are shown: a host is
+    // there as soon as it hosts, and gone as soon as it stops.
+    Timer {
+        interval: 5000
+        repeat: true
+        running: tree.folderName === "LAN Games" && !!arcadeBackend && !arcadeBackend.running
+        onTriggered: arcadeBackend.refreshLanRooms()
+    }
 
     Connections {
         target: arcadeBackend
@@ -199,7 +210,7 @@ FocusScope {
 
     // A game's options: its Game Details (Details.qml) first, its engine
     // among them where MAME and FinalBurn Neo both have it, and with Online
-    // Play on, hosting it.
+    // Play or LAN Play on, hosting it.
     property int engineRevision: 0
     readonly property string optionsSet: options.entry && String(options.entry.path).indexOf("game:") === 0
                                          ? String(options.entry.path).substring(5) : ""
@@ -212,15 +223,18 @@ FocusScope {
                       (engines.offered(gamesRoot.optionsSet)
                        ? [{ label: engines.lineFor(gamesRoot.optionsSet), action: "engine" }] : [])
                       .concat(arcadeBackend && arcadeBackend.canHost(gamesRoot.optionsSet)
-                              ? [{ label: "Host Online Game", action: "host" }] : []))
+                              ? [{ label: "Host Online Game", action: "host" }] : [])
+                      .concat(arcadeBackend && arcadeBackend.canHostLan(gamesRoot.optionsSet)
+                              ? [{ label: "Host LAN Game", action: "hostLan" }] : []))
         onActivated: function(action) {
             if (action === "details")
                 gamesRoot.navigateTo("Details.qml", { game: gamesRoot.optionsSet, title: options.entry.name },
                                      { trail: tree.trailState() })
             else if (action === "engine")
                 engines.offer(gamesRoot.optionsSet, options.entry.name)
-            else if (action === "host")
-                gamesRoot.play({ game: gamesRoot.optionsSet, name: options.entry.name }, tree.trailState(), true)
+            else if (action === "host" || action === "hostLan")
+                gamesRoot.play({ game: gamesRoot.optionsSet, name: options.entry.name }, tree.trailState(),
+                               { hosting: true, lan: action === "hostLan" })
         }
         onFavoritesEdited: tree.refresh("favorites")
         onClosed: if (!engines.visible) tree.forceActiveFocus()

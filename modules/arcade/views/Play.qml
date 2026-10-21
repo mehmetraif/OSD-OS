@@ -31,7 +31,8 @@ FocusScope {
     readonly property string game: navParams.game || ""
     readonly property string title: navParams.title || game
     // Online: { room, host }, a room of the lobby joined, or { hosting:
-    // true }, the game hosted; null for a game played here alone.
+    // true }, the game hosted; on the local network with lan: true too; null
+    // for a game played here alone.
     readonly property var online: navParams.online || null
 
     signal navigateTo(string path, var params, var listState)
@@ -247,8 +248,10 @@ FocusScope {
             visible: !!playRoot.online && playRoot.before
             width: parent.width
             text: !playRoot.online ? ""
-                  : playRoot.online.hosting ? "Hosting online: others join from RetroArch's lobby"
-                  : "Joining " + (playRoot.online.host || "a player") + "'s game online"
+                  : playRoot.online.hosting ? (playRoot.online.lan ? "Hosting on this network: others join from LAN Games"
+                                                                   : "Hosting online: others join from RetroArch's lobby")
+                  : "Joining " + (playRoot.online.host || "a player") + "'s game "
+                    + (playRoot.online.lan ? "on this network" : "online")
             textFormat: Text.PlainText
             color: root.primaryColor
             font.family: root.globalFont

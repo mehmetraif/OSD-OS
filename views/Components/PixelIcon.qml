@@ -48,13 +48,15 @@ Canvas {
                     "##.##.##.##", "##.##.##.##"],
         // The status icons' (StatusIcons): Bluetooth's rune, with a dot
         // either side while a device is connected; the Arcade's HI (Save
-        // High Scores), trophy (RetroAchievements) and globe (Online Play).
+        // High Scores), trophy (RetroAchievements), globe (Online Play) and
+        // network, two machines joined to a third (LAN Play).
         "bluetooth":       ["..#..", "..##.", "#.#.#", ".###.", "#.#.#", "..##.", "..#.."],
         "bluetoothLinked": ["....#....", "....##...", "..#.#.#..", "#..###..#", "..#.#.#..", "....##...",
                             "....#...."],
         "hiscore": ["#..#.###", "#..#..#.", "#..#..#.", "####..#.", "#..#..#.", "#..#..#.", "#..#.###"],
         "trophy":  ["#######", "#.###.#", ".#####.", "..###..", "...#...", "..###..", ".#####."],
-        "globe":   ["..###..", ".#.#.#.", "#..#..#", "#######", "#..#..#", ".#.#.#.", "..###.."]
+        "globe":   ["..###..", ".#.#.#.", "#..#..#", "#######", "#..#..#", ".#.#.#.", "..###.."],
+        "network": ["..###..", "..###..", "...#...", ".#####.", ".#...#.", "###.###", "###.###"]
     })
     readonly property var rows: shapes[name] || []
 
