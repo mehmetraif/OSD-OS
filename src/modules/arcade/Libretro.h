@@ -1,10 +1,14 @@
 #pragma once
 #include <QByteArray>
+#include <QDateTime>
 #include <QHash>
 #include <QList>
 #include <QSize>
 #include <QString>
 #include <QStringList>
+#include <optional>
+
+namespace mame { struct Machine; }
 
 // The Arcade module's second engine: RetroArch with the FinalBurn Neo core
 // (FBNeo), for the games it has, where RetroAchievements' high scores and
@@ -36,8 +40,13 @@ QString downloadedLicense(const QString &dataRoot);
 // game's set by its description. Not a BIOS set (neogeo), which games start
 // from but which isn't one. Empty for a file that can't be read. With
 // aspects, the shape of each game's picture on the glass, its width over its
-// height (4:3, 3:4 for a vertical one), where the DAT says (<video>).
-QHash<QString, QString> readDat(const QString &path, QHash<QString, double> *aspects = nullptr);
+// height (4:3, 3:4 for a vertical one), where the DAT says (<video>). With
+// machines, each game as MAME would describe it, for a set MAME doesn't
+// know: its description, year, maker, parent, driver (named as MAME's are:
+// capcom/d_cps1.cpp is capcom/cps1.cpp), whether it works, and a vertical
+// one's rotation (90); no players, which the DAT doesn't say.
+QHash<QString, QString> readDat(const QString &path, QHash<QString, double> *aspects = nullptr,
+                                QHash<QString, mame::Machine> *machines = nullptr);
 
 // The shape of a game's picture in the pixels of a screen of that size and
 // shape (screenAspect, 4:3 for a tube), for RetroArch (Launch::aspect):
@@ -142,21 +151,67 @@ QStringList signInArguments(const SignIn &signIn);
 enum class SignInLine { None, SignedIn, Failed, Unreachable };
 SignInLine readSignInLine(const QString &line, QString *failure);
 
-// A room the netplay lobby lists (lobby.libretro.com/list): a game
-// FinalBurn Neo hosts, joined at joinAddress. What anyone hosting wrote, so
-// taken only as it can be used: a set's name, an address, a port and a
-// session, and the host's name without markup, 32 characters at most.
+// A room the netplay lobby lists (lobby.libretro.com/list), of any core; one
+// FinalBurn Neo hosts is joined at joinAddress. What anyone hosting wrote,
+// so taken only as it can be shown or used: names without markup and cut
+// short, a set's name, a CRC of eight hex digits, an address, a port and a
+// session.
 struct Room {
     int     id = 0;
-    QString game;             // its set: game_name, the file's name in lower case
-    QString host;             // who hosts it
+    QString game;             // its set: game_name, the file's name in lower case; "" for a name that can't be one
+    QString rom;              // game_name as its host has it, its file's name, 64 characters at most
+    QString crc;              // game_crc, in capitals; "" for none
+    QString core;             // core_name: "FinalBurn Neo", "Snes9x"
+    QString coreVersion;
+    QString subsystem;        // the core's subsystem it plays in, "" for none
+    QString retroarch;        // retroarch_version, the host's
+    QString frontend;         // the host's system: "win32 x64", "unix ARMv8"
+    QString host;             // who hosts it, 32 characters at most
     QString country;          // its two letters, "" for none
     QString joinAddress;      // RetroArch's --connect: through the relay when it is relayed
+    QString relay;            // the relay it goes through ("us-east1"), "" for a room reached straight
+    QDateTime created;        // when it was hosted; invalid where the lobby doesn't say
+    int     players = -1;     // playing in it, -1 where the lobby doesn't say
+    int     spectators = -1;
     bool    password = false;
+    bool    spectatePassword = false;
+    bool    connectable = true;   // as RetroArch's menu reads it: unless the lobby says not
+    // One RetroArch joins with FinalBurn Neo: its core, connectable, hosted
+    // in a RetroArch the menu lists rooms of (1.9.1 on), for a set, at an
+    // address.
+    bool    joinable = false;
 };
-// The lobby's rooms FinalBurn Neo hosts that can be joined (connectable),
-// newest first. Empty for an answer that isn't the lobby's.
+// Every room the lobby lists, newest first: the newest thousand of an answer
+// with more. Empty for an answer that isn't the lobby's.
+QList<Room> readWholeLobby(const QByteArray &json);
+// Of them, those FinalBurn Neo hosts that can be joined (joinable).
 QList<Room> readLobby(const QByteArray &json);
+
+// A libretro core as it describes itself (retro_get_system_info): its name
+// and version ("v1.0.0.03 6e7c2a1"), the version the lobby says a room's
+// host plays in.
+struct CoreInfo {
+    QString name;
+    QString version;
+};
+// The core at path, loaded in this process and asked to describe itself, no
+// other function of its called (what it does as it loads, and as the
+// process ends, still runs). Empty, with why in error, for a file that isn't
+// one. For a copy of the app run with --core-info <path> (main.cpp), which
+// prints it, so that a core that can't be loaded takes nothing else down.
+CoreInfo loadCoreInfo(const QString &path, QString *error);
+// What that copy printed ("name=…", "version=…" lines), taken as the
+// lobby's names are: no markup and cut short, so the two can be compared.
+CoreInfo readCoreInfo(const QByteArray &output);
+// RetroArch's version as `retroarch --version` prints it ("Version: 1.19.1
+// (Git 5a4f9b2)", an older one's "-- v1.9.0 --"); "" for none.
+QString readVersion(const QByteArray &output);
+// The version of the Mac app program is the executable of, or a link to
+// (<name>.app/Contents/MacOS/<program>), as its Info.plist gives it
+// (CFBundleShortVersionString, "1.22.2"): RetroArch.app opens as an app
+// before it reads its arguments, so isn't asked. Nothing for a program
+// outside an app; "" for an app whose Info.plist doesn't say.
+std::optional<QString> bundleVersion(const QString &program);
 
 // RetroAchievements' hash of an arcade game (rcheevos' RC_CONSOLE_ARCADE):
 // the MD5 of its file's name without the extension, as it is written.

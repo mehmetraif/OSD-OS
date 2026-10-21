@@ -26,7 +26,8 @@ import Components
 // takesCoin) buys a credit; select, let go, or START (Space, a pad's Start,
 // or 1) plays the game with them (navigateTo Play.qml, which Root.qml plays
 // as Start Info Screen says); select held opens its options (Play, Game
-// Details, its favourite, Play at Startup) and back leaves the module.
+// Details, its favourite, Play at Startup, and with Online Play on,
+// RetroArch Lobby, the whole lobby: Lobby.qml) and back leaves the module.
 // Game Details (Details.qml) says what the game is and lists its
 // achievements on RetroAchievements. Coming back from it or from a game
 // restores the filter, the game and its row on the wheel from the listState
@@ -94,20 +95,69 @@ FocusScope {
     readonly property bool straight: moduleRoot.listStyle === "Straight"
     readonly property bool wheel: moduleRoot.listStyle === "3D Curved"
     // The rows under the bar, as many as fit minPitch lines apart (seven with
-    // both bars, as the design has it; the wheel an odd number, so it has a
-    // middle row), spread over the room.
+    // both bars, as the design has it), spread over the room; the wheel's, as
+    // many as it holds packed as a wheel is (wheelRows()).
     readonly property int listTop: areaTop + 57
+    readonly property int listRoom: listBottom - listTop
     readonly property int rowHeight: 48
     readonly property int minPitch: 54
-    readonly property int rowsFit: Math.floor((listBottom - listTop - rowHeight) / minPitch) + 1
-    readonly property int perPage: wheel && rowsFit % 2 === 0 ? rowsFit - 1 : rowsFit
-    readonly property int pitch: Math.floor((listBottom - listTop - rowHeight) / Math.max(1, perPage - 1))
-    // The wheel's middle row, where a game chosen afresh comes to (a filter,
-    // the screen opened), and how many rows from the game chosen a row is
-    // as far back as the wheel goes: a row more than its ends are from its
-    // middle, so with the game there they aren't quite as far back.
+    readonly property int rowsFit: Math.floor((listRoom - rowHeight) / minPitch) + 1
+    readonly property int perPage: wheel ? wheelRows() : rowsFit
+    readonly property int pitch: Math.floor((listRoom - rowHeight) / Math.max(1, perPage - 1))
+    // The wheel's middle row (of an even number, the lower of the two), where
+    // a game chosen afresh comes to (a filter, the screen opened), and how
+    // many rows from the game chosen a row is as far back as the wheel goes:
+    // a row more than its ends are from its middle, so with the game there
+    // they aren't quite as far back.
     readonly property int middleRow: Math.floor(perPage / 2)
     readonly property int wheelReach: perPage - middleRow
+    // On the wheel, the size of a row so many rows from the game chosen, as
+    // far back as it is (depth, 0 to 1 wheelReach rows from it): 0.7 of a
+    // row as far back as the wheel goes.
+    function wheelSize(distance, reach) {
+        return 1 - 0.3 * Math.min(1, distance / reach)
+    }
+    // The wheel's rows as a wheel seen from the front has them, with the
+    // game chosen in the row selected: each the size it is, the gap to the
+    // next as much smaller, from listTop to listBottom. Their tops, in the
+    // design's lines, and how far minPitch is stretched (k above 1) or
+    // squeezed between them to fill the room.
+    function wheelLayout(rows, selected) {
+        var sizes = []
+        for (var i = 0; i < rows; ++i)
+            sizes.push(wheelSize(Math.abs(i - selected), rows - Math.floor(rows / 2)))
+        var between = 0   // from the first row's middle to the last's, in minPitches
+        for (i = 0; i + 1 < rows; ++i)
+            between += (sizes[i] + sizes[i + 1]) / 2
+        var ends = rowHeight * (sizes[0] + sizes[rows - 1]) / 2
+        var k = between > 0 ? (listRoom - ends) / (minPitch * between) : 1
+        var tops = []
+        var middle = listTop + rowHeight * sizes[0] / 2
+        for (i = 0; i < rows; ++i) {
+            if (i > 0)
+                middle += minPitch * k * (sizes[i - 1] + sizes[i]) / 2
+            tops.push(middle - rowHeight * sizes[i] / 2)
+        }
+        return { k: k, tops: tops }
+    }
+    // As many rows as the wheel holds wherever the game chosen is, its rows
+    // at full size wheelGap lines apart at least.
+    readonly property int wheelGap: 4
+    function wheelRows() {
+        if (listRoom < rowHeight)
+            return 0
+        var rows = 1
+        for (var more = 2; more < 30; ++more) {
+            for (var selected = 0; selected < more; ++selected) {
+                if (wheelLayout(more, selected).k * minPitch < rowHeight + wheelGap)
+                    return rows
+            }
+            rows = more
+        }
+        return rows
+    }
+    // The wheel's rows' tops with the game chosen where it is.
+    readonly property var wheelTops: wheel ? wheelLayout(perPage, selectedRow).tops : []
     // The column right of the list, its share of the area's width, or
     // narrower where the height would leave the box under its picture no
     // line: the picture, 4:3 on the screen (the design's 345 by 259), and
@@ -355,8 +405,9 @@ FocusScope {
         var at = indexOfFilter(wanted)
         filterIndex = Math.max(0, at)
         // One with no games once MAME has answered gives way to the one
-        // shown, which a favourite added later doesn't take the list from.
-        if (at < 0 && !scanning && filterId !== "")
+        // shown, which a favourite added later doesn't take the list from;
+        // not one whose games are still to come (RetroAchievements' list).
+        if (at < 0 && !scanning && filterId !== "" && !arcadeBackend.filterPending(wanted))
             wanted = filterId
         var place = keep !== "" && filterId !== "" ? arcadeBackend.filterIndex(filterId, keep, keepRoom) : -1
         selected = place >= 0 ? place : (standIn ? 0 : Math.max(0, Math.min(selected, count - 1)))
@@ -626,7 +677,9 @@ FocusScope {
             // chosen is.
             readonly property real depth: arcadeScreen.wheel
                                           ? Math.min(1, Math.abs(index - arcadeScreen.selectedRow) / arcadeScreen.wheelReach) : 0
-            readonly property real size: 1 - 0.3 * depth
+            readonly property real size: arcadeScreen.wheel
+                                         ? arcadeScreen.wheelSize(Math.abs(index - arcadeScreen.selectedRow), arcadeScreen.wheelReach)
+                                         : 1
             // The arc the rows' left ends lie on, those at the page's ends (the
             // wheel's) furthest left and those in its middle furthest right;
             // none for Straight. The selected row stands out of the others to
@@ -641,11 +694,11 @@ FocusScope {
             readonly property real gap: Math.round(10 * size * arcadeScreen.u)
             visible: entry !== null
             opacity: 1 - 0.6 * depth
-            // Made smaller from its left end, which keeps to the arc, the
-            // middle of its row.
+            // Made smaller from its left end, which keeps to the arc; on the
+            // wheel, nearer the next row as it is smaller (wheelLayout()).
             x: Math.round(boxLeft * arcadeScreen.u)
-            y: Math.round((arcadeScreen.listTop + index * arcadeScreen.pitch
-                           + arcadeScreen.rowHeight * (1 - size) / 2) * arcadeScreen.v)
+            y: Math.round((arcadeScreen.wheel ? arcadeScreen.wheelTops[index] || 0
+                                              : arcadeScreen.listTop + index * arcadeScreen.pitch) * arcadeScreen.v)
             width: Math.round(boxWidth * size * arcadeScreen.u)
             height: Math.round(arcadeScreen.rowHeight * size * arcadeScreen.v)
 
@@ -1139,8 +1192,8 @@ FocusScope {
     }
 
     // A game's options: Play, Game Details, its favourite, Play at Startup,
-    // its engine where FinalBurn Neo has it, and with Online Play on,
-    // hosting it.
+    // its engine where MAME and FinalBurn Neo both have it, and with Online
+    // Play on, hosting it and RetroArch's whole lobby.
     EntryOptions {
         id: options
         anchors.fill: parent
@@ -1150,7 +1203,9 @@ FocusScope {
                       (engines.offered(arcadeScreen.currentSet)
                        ? [{ label: engines.lineFor(arcadeScreen.currentSet), action: "engine" }] : [])
                       .concat(arcadeBackend && arcadeBackend.canHost(arcadeScreen.currentSet)
-                              ? [{ label: "Host Online Game", action: "host" }] : []))
+                              ? [{ label: "Host Online Game", action: "host" }] : [])
+                      .concat(arcadeBackend && arcadeBackend.onlinePlay()
+                              ? [{ label: "RetroArch Lobby", action: "lobby" }] : []))
         onActivated: function(action) {
             if (action === "play")
                 arcadeScreen.playCurrent()
@@ -1161,6 +1216,10 @@ FocusScope {
             else if (action === "host")
                 arcadeScreen.play(arcadeScreen.currentSet, arcadeScreen.details.name || arcadeScreen.current.name,
                                   arcadeScreen.filterId, { hosting: true })
+            // The whole lobby; coming back lands on the game, as from it.
+            else if (action === "lobby")
+                arcadeScreen.navigateTo("Lobby.qml", {}, { filter: arcadeScreen.filterId, set: arcadeScreen.currentSet,
+                                                           row: arcadeScreen.selectedRow })
         }
         onFavoritesEdited: arcadeScreen.reload()
         onClosed: if (!engines.visible) arcadeScreen.forceActiveFocus()

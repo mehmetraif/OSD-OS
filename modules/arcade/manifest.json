@@ -59,7 +59,7 @@
       "options": ["Straight", "Curved", "3D Curved"],
       "default": "Curved",
       "shown_with": { "key": "screen", "value": "Arcade" },
-      "description": "How the games lie on the Arcade screen\n[STRAIGHT] One under another, a page at a time\n[CURVED] On an arc, a page at a time\n[3D CURVED] On a wheel: the game chosen goes up and down it, furthest out, the others going back and fading the further they are from it, and the wheel turns at its top and bottom rows"
+      "description": "How the games lie on the Arcade screen\n[STRAIGHT] One under another, a page at a time\n[CURVED] On an arc, a page at a time\n[3D CURVED] On a wheel: the game chosen goes up and down it, furthest out, the others going back, nearer each other and fading the further they are from it, and the wheel turns at its top and bottom rows"
     },
     {
       "key": "border",
@@ -131,7 +131,7 @@
       "label": "RetroAchievements Account",
       "type": "module_view",
       "params": { "achievements": true },
-      "description": "The account the scores go to with Online High Scores, and the Web API key the leaderboards, the games' pictures and their achievements are read with\nWith a key, the pictures RetroAchievements has of a game are downloaded as it is shown, into the games folder's snap folder, named after it (sf2_1.png, sf2_2.png…) and never over a file there"
+      "description": "The account the scores go to with Online High Scores, and the Web API key the leaderboards, the games' pictures and their achievements are read with\nWith a key, the pictures RetroAchievements has of a game are downloaded as it is shown, or every game's with Read the Games Again, into the games folder's snap folder, named after it (sf2_1.png, sf2_2.png…) and never over a file there"
     },
     {
       "key": "online_play",
@@ -139,7 +139,15 @@
       "type": "list_single",
       "options": ["Off", "On"],
       "default": "Off",
-      "description": "Playing a game with someone over the internet, in FinalBurn Neo\n[ON] Online Games lists the rooms RetroArch's lobby has of your games, and a game's options can host one"
+      "description": "Playing a game with someone over the internet, in FinalBurn Neo\n[ON] Online Games lists the rooms RetroArch's lobby has of your games, Playable Online the games that can be played online, and a game's options can host one"
+    },
+    {
+      "key": "lobby",
+      "label": "RetroArch Lobby",
+      "type": "module_view",
+      "params": { "lobby": true },
+      "shown_with": { "key": "online_play", "value": "On" },
+      "description": "Every game hosted in RetroArch's lobby, of every core: its game, ROM and CRC, the core and its version, who hosts it and where, how it is reached, and whether its core, version and RetroArch are yours\nA room of a game you have that FinalBurn Neo plays can be joined from it"
     },
     {
       "key": "online_name",
@@ -202,7 +210,7 @@
       "label": "Read the Games Again",
       "type": "action",
       "action_slot": "rescan",
-      "description": "Ask MAME about every game in the folder again"
+      "description": "Ask MAME about every game in the folder again\nWith a Web API key, the pictures RetroAchievements has of every game are then downloaded too, a game a second, in the background"
     }
   ]
 }

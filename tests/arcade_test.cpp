@@ -18,9 +18,12 @@
 #include <QTcpSocket>
 #include <QTemporaryDir>
 #include <QThreadPool>
+#include <QTimer>
 #include <QUrl>
 #include <QUrlQuery>
 #include <QtTest>
+
+#include <functional>
 
 // The Arcade module against a stand-in for MAME (a shell script in the data
 // folder's bin, where the module looks first): the games folder read off the
@@ -189,7 +192,13 @@ exit 0
     struct StandIn {
         QTcpServer server;
         QHash<QByteArray, QByteArray> answers;
+        // Paths answered late, by how many milliseconds.
+        QHash<QByteArray, int> delays;
+        // The Web API keys it takes.
+        QStringList keys{ QStringLiteral("key1") };
         QStringList asked;
+        // Told of each path as it is asked for.
+        std::function<void(const QString &path)> onAsk;
         QUrl api() const { return QUrl(QStringLiteral("http://127.0.0.1:%1/API/").arg(server.serverPort())); }
         QUrl media() const { return QUrl(QStringLiteral("http://127.0.0.1:%1/media/").arg(server.serverPort())); }
     };
@@ -206,15 +215,24 @@ exit 0
                 const bool api = url.path().startsWith(QLatin1String("/API/"));
                 const QByteArray path = (api ? url.path() + QLatin1Char('?') + query.toString() : url.path()).toLatin1();
                 standIn.asked << QString::fromLatin1(path);
+                if (standIn.onAsk)
+                    standIn.onAsk(QString::fromLatin1(path));
                 QByteArray status = "200 OK";
                 QByteArray body = standIn.answers.value(path);
-                if (api && key != QLatin1String("key1"))
+                if (api && !standIn.keys.contains(key))
                     status = "401 Unauthorized", body = "{}";
                 else if (!standIn.answers.contains(path))
                     status = "404 Not Found", body.clear();
-                socket->write("HTTP/1.1 " + status + "\r\nContent-Length: " + QByteArray::number(body.size())
-                              + "\r\nConnection: close\r\n\r\n" + body);
-                socket->disconnectFromHost();
+                const QByteArray answer = "HTTP/1.1 " + status + "\r\nContent-Length: " + QByteArray::number(body.size())
+                                          + "\r\nConnection: close\r\n\r\n" + body;
+                const auto send = [socket, answer] {
+                    socket->write(answer);
+                    socket->disconnectFromHost();
+                };
+                if (const int delay = standIn.delays.value(path); delay > 0)
+                    QTimer::singleShot(delay, socket, send);
+                else
+                    send();
             });
         });
         return true;
@@ -898,16 +916,40 @@ private slots:
         QVERIFY(dir.isValid());
         writeFile(dir.path() + QStringLiteral("/fbneo.dat"), fixture("fbneo-arcade.dat"));
         QHash<QString, double> aspects;
-        const QHash<QString, QString> games = libretro::readDat(dir.path() + QStringLiteral("/fbneo.dat"), &aspects);
-        QCOMPARE(games.size(), 5);
+        QHash<QString, mame::Machine> machines;
+        const QHash<QString, QString> games = libretro::readDat(dir.path() + QStringLiteral("/fbneo.dat"), &aspects,
+                                                                &machines);
+        QCOMPARE(games.size(), 7);
         // The pictures' shapes, where the list says.
         QCOMPARE(aspects.size(), 2);
+        QVERIFY(!aspects.contains(QStringLiteral("1943")));
         QCOMPARE(aspects.value(QStringLiteral("sf2")), 4.0 / 3.0);
         QCOMPARE(aspects.value(QStringLiteral("galaga")), 3.0 / 4.0);
         QCOMPARE(games.value(QStringLiteral("sf2")), QStringLiteral("Street Fighter II - The World Warrior (World 910522)"));
         QVERIFY(games.contains(QStringLiteral("sf2ce")));
         QVERIFY(!games.contains(QStringLiteral("neogeo")));
-        QVERIFY(libretro::readDat(dir.path() + QStringLiteral("/none.dat")).isEmpty());
+        // Each game as MAME would describe it: its year and maker, a clone's
+        // parent, its driver named as MAME's are, whether it works, and a
+        // vertical one's rotation.
+        QCOMPARE(machines.size(), 7);
+        const mame::Machine kof98 = machines.value(QStringLiteral("kof98"));
+        QCOMPARE(kof98.name, QStringLiteral("kof98"));
+        QCOMPARE(kof98.description, QStringLiteral("The King of Fighters '98 - The Slugfest"));
+        QCOMPARE(kof98.year, QStringLiteral("1998"));
+        QCOMPARE(kof98.manufacturer, QStringLiteral("SNK"));
+        QCOMPARE(kof98.sourceFile, QStringLiteral("neogeo.cpp"));
+        QCOMPARE(mame::systemOf(kof98.sourceFile), QStringLiteral("Neo-Geo"));
+        QCOMPARE(kof98.status, QStringLiteral("preliminary"));
+        QVERIFY(kof98.cloneOf.isEmpty());
+        QVERIFY(kof98.isGame());
+        QCOMPARE(machines.value(QStringLiteral("sf2ce")).cloneOf, QStringLiteral("sf2"));
+        QCOMPARE(machines.value(QStringLiteral("sf2ce")).sourceFile, QStringLiteral("capcom/cps1.cpp"));
+        QCOMPARE(machines.value(QStringLiteral("galaga")).rotate, 90);
+        QCOMPARE(machines.value(QStringLiteral("1943")).rotate, 90);
+        QCOMPARE(machines.value(QStringLiteral("sf2")).rotate, 0);
+        QCOMPARE(machines.value(QStringLiteral("sf2")).status, QStringLiteral("good"));
+        QVERIFY(libretro::readDat(dir.path() + QStringLiteral("/none.dat"), nullptr, &machines).isEmpty());
+        QVERIFY(machines.isEmpty());
 
         // A sign-in RetroAchievements turned down, and one that didn't reach it.
         for (const char *refused : { "Invalid user/token combination.", "Invalid token",
@@ -1101,6 +1143,90 @@ private slots:
         QCOMPARE(rooms.at(2).country, QStringLiteral("es"));
         QCOMPARE(rooms.at(2).joinAddress, QStringLiteral("203.0.113.5|55435"));
         QVERIFY(libretro::readLobby("<html>busy</html>").isEmpty());
+        // The whole lobby: every room, newest first, as it can be shown; a
+        // room FinalBurn Neo hosts that can be joined among them.
+        const QList<libretro::Room> whole = libretro::readWholeLobby(lobby);
+        QCOMPARE(whole.size(), 11);
+        const libretro::Room &kart = whole.at(0);
+        QCOMPARE(kart.id, 22);
+        QCOMPARE(kart.rom, QStringLiteral("Super Mario Kart (USA)"));
+        QVERIFY(kart.game.isEmpty());
+        QCOMPARE(kart.crc, QStringLiteral("82993FA8"));
+        QCOMPARE(kart.core, QStringLiteral("Snes9x"));
+        QCOMPARE(kart.coreVersion, QStringLiteral("1.63 fae2fea"));
+        QVERIFY(kart.subsystem.isEmpty());
+        QCOMPARE(kart.retroarch, QStringLiteral("1.22.2"));
+        QCOMPARE(kart.frontend, QStringLiteral("win32 x64"));
+        QCOMPARE(kart.country, QStringLiteral("gb"));
+        QCOMPARE(kart.relay, QStringLiteral("us-east1"));
+        QCOMPARE(kart.players, 2);
+        QCOMPARE(kart.spectators, 1);
+        QVERIFY(kart.spectatePassword);
+        QCOMPARE(kart.created.toUTC().toString(Qt::ISODate), QStringLiteral("2026-10-20T19:38:57Z"));
+        QVERIFY(!kart.joinable);
+        QStringList ids;
+        for (const libretro::Room &room : whole)
+            ids << QString::number(room.id) + (room.joinable ? QStringLiteral("+") : QString());
+        QCOMPARE(ids, QStringList({ "22", "21", "20", "19", "18+", "17", "16", "15", "14+", "11+", "10" }));
+        // What the lobby doesn't say, as such; the relay another runs by its
+        // name; a name that can't be a set's none, the host's name as it is.
+        QCOMPARE(whole.at(9).players, -1);
+        QVERIFY(!whole.at(9).created.isValid());
+        QVERIFY(whole.at(9).relay.isEmpty());
+        QCOMPARE(whole.at(8).relay, QStringLiteral("198.51.100.7"));
+        QVERIFY(whole.at(2).game.isEmpty());
+        QCOMPARE(whole.at(2).rom, QStringLiteral("../../etc/passwd"));
+        QVERIFY(!whole.at(7).connectable);
+        QCOMPARE(whole.at(4).host, QStringLiteral("img src=http://192.0.2.99/a.pngz"));
+        // An answer with more rooms than the lobby ever lists: the newest
+        // thousand.
+        QByteArray crowded = "[";
+        for (int id = 1; id <= 1005; ++id)
+            crowded += (id > 1 ? "," : "") + QByteArray("{\"fields\": {\"id\": ") + QByteArray::number(id) + "}}";
+        crowded += "]";
+        const QList<libretro::Room> kept = libretro::readWholeLobby(crowded);
+        QCOMPARE(kept.size(), 1000);
+        QCOMPARE(kept.first().id, 1005);
+        QCOMPARE(kept.last().id, 6);
+        // A core asked to describe itself; a file that isn't one, why.
+        QString coreError;
+        const libretro::CoreInfo testCore = libretro::loadCoreInfo(QStringLiteral(TEST_CORE), &coreError);
+        QCOMPARE(testCore.name, QStringLiteral("OSD/OS Test Core"));
+        QCOMPARE(testCore.version, QStringLiteral("v1.0.0.03 6e7c2a1"));
+        QVERIFY(libretro::loadCoreInfo(QStringLiteral(TESTS_DIR "/data/arcade/lobby.json"), &coreError).version.isEmpty());
+        QVERIFY(!coreError.isEmpty());
+        // What the copy of the app printed of it, taken as the lobby's names
+        // are; RetroArch's version, as a recent RetroArch prints it and as an
+        // older one did.
+        const libretro::CoreInfo printed = libretro::readCoreInfo("name=FinalBurn Neo\nversion=v1.0.0.03 <6e7c2a1>\n");
+        QCOMPARE(printed.name, QStringLiteral("FinalBurn Neo"));
+        QCOMPARE(printed.version, QStringLiteral("v1.0.0.03 6e7c2a1"));
+        QCOMPARE(libretro::readVersion("RetroArch - Frontend for libretro\nVersion: 1.19.1 (Git 5a4f9b2) Oct 20 2024\n"),
+                 QStringLiteral("1.19.1"));
+        QCOMPARE(libretro::readVersion("RetroArch: Frontend for libretro -- v1.9.0 -- 6f4ae1f --\n"), QStringLiteral("1.9.0"));
+        QVERIFY(libretro::readVersion("sh: retroarch: not found").isEmpty());
+        // RetroArch.app's from its bundle, for a link to its executable too;
+        // nothing for a program outside an app, "" for an Info.plist that
+        // doesn't say (a binary one).
+        QTemporaryDir apps;
+        QVERIFY(apps.isValid());
+        const QString contents = apps.path() + QStringLiteral("/RetroArch.app/Contents");
+        writeFile(contents + QStringLiteral("/MacOS/RetroArch"));
+        writeFile(contents + QStringLiteral("/Info.plist"),
+                  "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<plist version=\"1.0\">\n<dict>\n"
+                  "\t<key>CFBundleName</key>\n\t<string>RetroArch</string>\n"
+                  "\t<key>CFBundleShortVersionString</key>\n\t<string>1.22.2</string>\n"
+                  "\t<key>CFBundleVersion</key>\n\t<string>1</string>\n</dict>\n</plist>\n");
+        QVERIFY(QFile::link(contents + QStringLiteral("/MacOS/RetroArch"), apps.path() + QStringLiteral("/retroarch")));
+        writeFile(apps.path() + QStringLiteral("/bin/retroarch"));
+        const auto bundled = [](const QString &program) {
+            return libretro::bundleVersion(program).value_or(QStringLiteral("(none)"));
+        };
+        QCOMPARE(bundled(contents + QStringLiteral("/MacOS/RetroArch")), QStringLiteral("1.22.2"));
+        QCOMPARE(bundled(apps.path() + QStringLiteral("/retroarch")), QStringLiteral("1.22.2"));
+        QCOMPARE(bundled(apps.path() + QStringLiteral("/bin/retroarch")), QStringLiteral("(none)"));
+        writeFile(contents + QStringLiteral("/Info.plist"), QByteArray("bplist00\xd1\x01\x02", 11));
+        QCOMPARE(bundled(contents + QStringLiteral("/MacOS/RetroArch")), QString());
 
         // rcheevos' arcade hash: the file's name without its extension, as
         // it is written.
@@ -1118,6 +1244,9 @@ private slots:
     void fbneoEngine() {
         QTemporaryDir data;
         QVERIFY(data.isValid());
+        // Without FinalBurn Neo at first: not where one is installed.
+        if (!libretro::corePath(data.path()).isEmpty() || !libretro::datPath(data.path()).isEmpty())
+            QSKIP("FinalBurn Neo is installed here");
         const QString games = data.path() + QStringLiteral("/media/Games/Arcade");
         // kof98 a folder of files, which FinalBurn Neo doesn't open.
         for (const char *set : { "sf2.zip", "mslug.zip", "galaga.zip", "pacman.zip", "bios/neogeo.zip",
@@ -1349,6 +1478,224 @@ private slots:
         QVERIFY(logLines(QStringLiteral("play pacman")).size() == 1);
     }
 
+    // A set MAME doesn't know that FinalBurn Neo's list has is a game all
+    // the same: listed by its description there, under its year and maker,
+    // a clone with its parent's pictures, played in FinalBurn Neo whatever
+    // engine was chosen for it, with no MAME to choose, and on Playable
+    // Online and the RetroAchievements filter while FinalBurn Neo is there.
+    // A vertical one is drawn 3:4 where the list gives no shape, and files
+    // missing are said with nothing of MAME. While MAME is asked about every
+    // set again (Read the Games Again, a restart in the middle of it, an
+    // older games.json), what it said before holds. Not Recognized keeps the
+    // sets neither has, and those FinalBurn Neo has as a folder; without
+    // FinalBurn Neo's list they are all there.
+    void fbneoOnlyGames() {
+        QTemporaryDir data;
+        QVERIFY(data.isValid());
+        // Without FinalBurn Neo at first: not where one is installed.
+        if (!libretro::corePath(data.path()).isEmpty() || !libretro::datPath(data.path()).isEmpty())
+            QSKIP("FinalBurn Neo is installed here");
+        const QString games = data.path() + QStringLiteral("/media/Games/Arcade");
+        // MAME knows sf2 alone; FinalBurn Neo kof98, sf2ce and 1943 too, and
+        // dino, kept as a folder; neither xyzzy.
+        for (const char *set : { "sf2.zip", "kof98.zip", "sf2ce.7z", "1943.zip", "xyzzy.zip", "dino/cde_01.rom" })
+            writeFile(games + QLatin1Char('/') + QLatin1String(set));
+        writeFile(games + QStringLiteral("/snap/sf2.png"), "sf2 snap");
+        QVERIFY(QDir().mkpath(data.path() + QStringLiteral("/bin")));
+        QVERIFY(QFile::copy(mamePath(), data.path() + QStringLiteral("/bin/mame")));
+        writeFile(data.path() + QStringLiteral("/bin/retroarch"), fixture("retroarch"));
+        for (const char *program : { "/bin/mame", "/bin/retroarch" })
+            QVERIFY(QFile::setPermissions(data.path() + QLatin1String(program),
+                                          QFile::ReadOwner | QFile::WriteOwner | QFile::ExeOwner));
+        writeFile(data.path() + QStringLiteral("/gamecontrollerdb.txt"), "# none\n");
+        const QString configCopy = data.path() + QStringLiteral("/ra.cfg");
+        qputenv("RA_CONFIG_COPY", configCopy.toUtf8());
+        qputenv("OSDOS_MEDIA_DIR", (data.path() + QStringLiteral("/media")).toUtf8());
+        const auto restore = qScopeGuard([this] {
+            qunsetenv("RA_CONFIG_COPY");
+            qputenv("OSDOS_MEDIA_DIR", (m_data.path() + QStringLiteral("/media")).toUtf8());
+        });
+        const QString module = QStringLiteral("com.osdos.arcade");
+        const auto setsOf = [](ArcadeBackend &arcade, const QString &filter) {
+            QStringList sets;
+            const QVariantList list = arcade.filterGames(filter, 0, 20);
+            for (const QVariant &v : list)
+                sets << v.toMap().value(QStringLiteral("set")).toString();
+            return sets;
+        };
+        const auto labels = [](const QVariantList &choices) {
+            QStringList list;
+            for (const QVariant &c : choices)
+                list << c.toMap().value(QStringLiteral("label")).toString()
+                            + (c.toMap().value(QStringLiteral("current")).toBool() ? QStringLiteral(" *") : QString());
+            return list;
+        };
+
+        ArcadeBackend arcade(data.path(), data.path(), nullptr, nullptr);
+        refreshed(arcade);
+        // Without FinalBurn Neo's list: MAME's alone.
+        QCOMPARE(setsOf(arcade, QStringLiteral("all")), QStringList({ QStringLiteral("sf2") }));
+        QCOMPARE(setsOf(arcade, QStringLiteral("unknown")),
+                 QStringList({ QStringLiteral("1943"), QStringLiteral("dino"), QStringLiteral("kof98"),
+                               QStringLiteral("sf2ce"), QStringLiteral("xyzzy") }));
+        QCOMPARE(arcade.gameDetails(QStringLiteral("xyzzy")).value(QStringLiteral("detail")).toString(),
+                 QStringLiteral("MAME has no game called xyzzy\nIts set may be for another version of MAME"));
+
+        // With it, the core there too: its games, by their descriptions.
+        writeFile(libretro::downloadedCore(data.path()));
+        writeFile(libretro::downloadedDat(data.path()), fixture("fbneo-arcade.dat"));
+        refreshed(arcade);
+        QVERIFY(arcade.fbneoReady());
+        QCOMPARE(setsOf(arcade, QStringLiteral("all")),
+                 QStringList({ QStringLiteral("1943"), QStringLiteral("sf2ce"), QStringLiteral("sf2"),
+                               QStringLiteral("kof98") }));
+        QCOMPARE(setsOf(arcade, QStringLiteral("unknown")), QStringList({ QStringLiteral("dino"), QStringLiteral("xyzzy") }));
+        QCOMPARE(arcade.gameDetails(QStringLiteral("xyzzy")).value(QStringLiteral("detail")).toString(),
+                 QStringLiteral("Neither MAME nor FinalBurn Neo has a game called xyzzy\n"
+                                "Its set may be for another version of MAME"));
+        QCOMPARE(arcade.gameDetails(QStringLiteral("dino")).value(QStringLiteral("detail")).toString(),
+                 QStringLiteral("MAME has no game called dino\nFinalBurn Neo has it, but plays a zip or a 7z, not a folder"));
+        QCOMPARE(arcade.filterGames(QStringLiteral("all"), 3, 1).value(0).toMap().value(QStringLiteral("name")).toString(),
+                 QStringLiteral("The King of Fighters '98 - The Slugfest"));
+        // What FinalBurn Neo's list says of it: maker, year, system; the
+        // players it doesn't.
+        QVariantMap details = arcade.gameDetails(QStringLiteral("kof98"));
+        QCOMPARE(details.value(QStringLiteral("name")).toString(), QStringLiteral("The King of Fighters '98 - The Slugfest"));
+        QCOMPARE(details.value(QStringLiteral("maker")).toString(), QStringLiteral("SNK"));
+        QCOMPARE(details.value(QStringLiteral("year")).toString(), QStringLiteral("1998"));
+        QCOMPARE(details.value(QStringLiteral("system")).toString(), QStringLiteral("Neo-Geo"));
+        QCOMPARE(details.value(QStringLiteral("players")).toInt(), 0);
+        QVERIFY(!details.value(QStringLiteral("unknown")).toBool());
+        QCOMPARE(details.value(QStringLiteral("engine")).toString(), QStringLiteral("fbneo"));
+        QVERIFY(setsOf(arcade, QStringLiteral("years/1990s")).contains(QStringLiteral("kof98")));
+        QVERIFY(setsOf(arcade, QStringLiteral("makers/SNK")).contains(QStringLiteral("kof98")));
+        // The tree's line of it, as well as FinalBurn Neo plays it.
+        const QVariantList all = arcade.requestEntries(QStringLiteral("all")).toList();
+        const auto entry = std::find_if(all.cbegin(), all.cend(), [](const QVariant &v) {
+            return v.toMap().value(QStringLiteral("game")).toString() == QLatin1String("kof98");
+        });
+        QVERIFY(entry != all.cend());
+        QCOMPARE(entry->toMap().value(QStringLiteral("detail")).toString(),
+                 QStringLiteral("1998\nSNK\nNot working in FinalBurn Neo\nkof98.zip"));
+        // A clone of FinalBurn Neo's: its parent's snap. A vertical game,
+        // as the list says.
+        QCOMPARE(arcade.gameDetails(QStringLiteral("sf2ce")).value(QStringLiteral("pictures")).toStringList(),
+                 QStringList({ QUrl::fromLocalFile(games + QStringLiteral("/snap/sf2.png")).toString() }));
+        QVERIFY(arcade.gameDetails(QStringLiteral("1943")).value(QStringLiteral("vertical")).toBool());
+        QVERIFY(!arcade.gameDetails(QStringLiteral("kof98")).value(QStringLiteral("vertical")).toBool());
+
+        // FinalBurn Neo's whatever engine was chosen, Online High Scores off;
+        // no MAME offered, one chosen before taken for Auto.
+        QCOMPARE(arcade.engineOf(QStringLiteral("kof98")), QStringLiteral("fbneo"));
+        QCOMPARE(arcade.engineOf(QStringLiteral("sf2")), QStringLiteral("mame"));
+        QCOMPARE(labels(arcade.engineChoices(QStringLiteral("kof98"))),
+                 QStringList({ QStringLiteral("Auto (FinalBurn Neo) *"), QStringLiteral("FinalBurn Neo") }));
+        arcade.onSettingChanged(module, QStringLiteral("engines"), QVariantMap{ { QStringLiteral("kof98"), QStringLiteral("mame") } });
+        QCOMPARE(arcade.engineOf(QStringLiteral("kof98")), QStringLiteral("fbneo"));
+        QCOMPARE(labels(arcade.engineChoices(QStringLiteral("kof98"))),
+                 QStringList({ QStringLiteral("Auto (FinalBurn Neo) *"), QStringLiteral("FinalBurn Neo") }));
+        // Read the Games Again: while MAME is asked about every set again
+        // (a_slowlist holding it a moment), what it said before holds, the
+        // game FinalBurn Neo's still, and a set neither has still not
+        // recognized.
+        writeFile(games + QStringLiteral("/a_slowlist.zip"));
+        arcade.rescan();
+        QCOMPARE(arcade.engineOf(QStringLiteral("kof98")), QStringLiteral("fbneo"));
+        QTRY_VERIFY_WITH_TIMEOUT(!arcade.reading() && arcade.scanning(), 5000);
+        QCOMPARE(arcade.engineOf(QStringLiteral("kof98")), QStringLiteral("fbneo"));
+        QCOMPARE(labels(arcade.engineChoices(QStringLiteral("kof98"))),
+                 QStringList({ QStringLiteral("Auto (FinalBurn Neo) *"), QStringLiteral("FinalBurn Neo") }));
+        QVERIFY(arcade.gameDetails(QStringLiteral("xyzzy")).value(QStringLiteral("unknown")).toBool());
+        QTRY_VERIFY_WITH_TIMEOUT(!arcade.scanning(), 10000);
+        // And so after OSD/OS was stopped in the middle of it, with a
+        // games.json of an older version, whose sets are all asked about
+        // again, and asked before games.json was read.
+        {
+            ArcadeBackend stopped(data.path(), data.path(), nullptr, nullptr);
+            refreshed(stopped);
+            stopped.rescan();
+            QTRY_VERIFY_WITH_TIMEOUT(!stopped.reading() && stopped.scanning(), 5000);
+        }
+        const auto engineWhileAsked = [&data](const QString &set, bool readAgain) {
+            ArcadeBackend started(data.path(), data.path(), nullptr, nullptr);
+            if (readAgain)
+                started.rescan();
+            else
+                started.refresh();
+            if (!QTest::qWaitFor([&started] { return !started.reading() && started.scanning(); }, 5000))
+                return QStringLiteral("not asked");
+            const QString engine = started.engineOf(set);
+            if (!QTest::qWaitFor([&started] { return !started.scanning(); }, 10000))
+                return QStringLiteral("not answered");
+            return engine;
+        };
+        const QString kof98 = QStringLiteral("kof98");
+        QCOMPARE(engineWhileAsked(kof98, false), QStringLiteral("fbneo"));
+        const QString cache = data.path() + QStringLiteral("/arcade/games.json");
+        writeFile(cache, R"({"version": 1, "unknown": ["kof98"]})");
+        QCOMPARE(engineWhileAsked(kof98, false), QStringLiteral("fbneo"));
+        // One of another version that kept them apart too.
+        writeFile(cache, R"({"version": 4, "unknownBefore": ["kof98"]})");
+        QCOMPARE(engineWhileAsked(kof98, false), QStringLiteral("fbneo"));
+        // Read the Games Again before the list was ever opened: games.json
+        // read first.
+        QCOMPARE(engineWhileAsked(kof98, true), QStringLiteral("fbneo"));
+        // A set MAME has answered for since it last had none (a list it
+        // didn't finish after that), asked about again: MAME's meanwhile.
+        QJsonObject kept = QJsonDocument::fromJson(contents(cache)).object();
+        QVERIFY(kept.value(QStringLiteral("machines")).toObject().contains(QStringLiteral("sf2")));
+        kept.insert(QStringLiteral("unknownBefore"), QJsonArray({ QStringLiteral("sf2") }));
+        writeFile(cache, QJsonDocument(kept).toJson());
+        QCOMPARE(engineWhileAsked(QStringLiteral("sf2"), true), QStringLiteral("mame"));
+        QFile::remove(games + QStringLiteral("/a_slowlist.zip"));
+        refreshed(arcade);
+        // Playable Online, with Online Play on.
+        arcade.onSettingChanged(module, QStringLiteral("online_play"), QStringLiteral("On"));
+        QVERIFY(setsOf(arcade, QStringLiteral("netplay")).contains(QStringLiteral("kof98")));
+        arcade.onSettingChanged(module, QStringLiteral("online_play"), QStringLiteral("Off"));
+        // Played in RetroArch with FinalBurn Neo.
+        QFile::remove(m_log);
+        const QVariantList end = played(arcade, QStringLiteral("kof98"));
+        QCOMPARE(end.value(1).toString(), QStringLiteral("ok"));
+        QVERIFY2(logLines(QStringLiteral("retroarch ")).value(0).endsWith(games + QStringLiteral("/kof98.zip")),
+                 qPrintable(logLines().join(QLatin1Char('\n'))));
+        QVERIFY(logLines(QStringLiteral("play kof98")).isEmpty());
+        // A vertical one the list gives no shape: 3:4, as narrow on a tube.
+        // Files missing, said with nothing of MAME, which hasn't the game.
+        arcade.setScreen(true, QSize(720, 240));
+        const QVariantList missing = played(arcade, QStringLiteral("1943"));
+        QCOMPARE(missing.value(1).toString(), QStringLiteral("failed"));
+        QCOMPARE(missing.value(2).toString(),
+                 QStringLiteral("Missing bme01.12d: the set may be for another version of FinalBurn Neo\n"
+                                "Or a BIOS set it needs isn't in the games folder"));
+        QVERIFY(QString::fromUtf8(contents(configCopy)).contains(QStringLiteral("video_aspect_ratio = \"1.687500\"")));
+
+        // The RetroAchievements filter, Online High Scores on it and a key
+        // kept: its game, which RetroAchievements has achievements of.
+        StandIn standIn;
+        QVERIFY(serve(standIn));
+        standIn.answers = {
+            { "/API/API_GetGameList.php?i=27&h=1",
+              "[{\"ID\": 1, \"NumAchievements\": 5, \"NumLeaderboards\": 0, \"Hashes\": [\"" + hashOf("kof98") + "\"]}]" },
+            { "/API/API_GetConsoleIDs.php?", R"([{"ID": 27, "Name": "Arcade"}])" },
+        };
+        arcade.setAchievementsServers(standIn.api(), standIn.media());
+        arcade.onSettingChanged(module, QStringLiteral("online_high_scores"), QStringLiteral("RetroAchievements"));
+        arcade.setAchievementsKey(QStringLiteral("key1"));
+        QTRY_COMPARE_WITH_TIMEOUT(setsOf(arcade, QStringLiteral("achievements")), QStringList({ QStringLiteral("kof98") }), 5000);
+
+        // Without the core: listed still, out of the RetroAchievements
+        // filter, and its game says what is missing.
+        QFile::remove(libretro::downloadedCore(data.path()));
+        refreshed(arcade);
+        QVERIFY(!arcade.fbneoReady());
+        QVERIFY(setsOf(arcade, QStringLiteral("all")).contains(QStringLiteral("kof98")));
+        QVERIFY(setsOf(arcade, QStringLiteral("achievements")).isEmpty());
+        QCOMPARE(arcade.engineOf(QStringLiteral("kof98")), QStringLiteral("fbneo"));
+        QVERIFY(!arcade.play(QStringLiteral("kof98")));
+        QCOMPARE(arcade.lastError(), QStringLiteral("FinalBurn Neo is not installed: Settings → Arcade → FinalBurn Neo"));
+    }
+
     // A sign-in checked as it is made: RetroArch, with no picture, sound or
     // controllers, signs in with the sign-in core and is stopped as it says
     // how it went. The token it saved is kept and nothing of the check is
@@ -1518,13 +1865,17 @@ private slots:
         const QByteArray mslug = libretro::achievementsHash(QStringLiteral("mslug.zip")).toLatin1();
         const QByteArray galaga = libretro::achievementsHash(QStringLiteral("galaga.zip")).toLatin1();
         // sf2's game has a board of times first, then one of scores;
-        // galaga's none; mslug's (its hash in capitals) one of points, with
-        // no one on it yet.
+        // galaga's achievements and no board; mslug's (its hash in capitals)
+        // no achievements and a board of points, with no one on it yet;
+        // pacman's neither: a game of RetroAchievements', for its pictures,
+        // with nothing to earn in it.
+        const QByteArray pacman = libretro::achievementsHash(QStringLiteral("pacman.zip")).toLatin1();
         const QHash<QByteArray, QByteArray> answers{
-            { "/API/API_GetGameList.php?i=27&f=1&h=1",
-              "[{\"ID\": 1, \"NumLeaderboards\": 2, \"Hashes\": [\"" + sf2 + "\"]},"
-              " {\"ID\": 2, \"NumLeaderboards\": 0, \"Hashes\": [\"" + galaga + "\"]},"
-              " {\"ID\": 3, \"NumLeaderboards\": 1, \"Hashes\": [\"" + mslug.toUpper() + "\"]}]" },
+            { "/API/API_GetGameList.php?i=27&h=1",
+              "[{\"ID\": 1, \"NumAchievements\": 20, \"NumLeaderboards\": 2, \"Hashes\": [\"" + sf2 + "\"]},"
+              " {\"ID\": 2, \"NumAchievements\": 12, \"NumLeaderboards\": 0, \"Hashes\": [\"" + galaga + "\"]},"
+              " {\"ID\": 3, \"NumAchievements\": 0, \"NumLeaderboards\": 1, \"Hashes\": [\"" + mslug.toUpper() + "\"]},"
+              " {\"ID\": 4, \"NumAchievements\": 0, \"NumLeaderboards\": 0, \"Hashes\": [\"" + pacman + "\"]}]" },
             { "/API/API_GetGameLeaderboards.php?i=1",
               "{\"Count\": 2, \"Results\": [{\"ID\": 11, \"RankAsc\": true, \"Title\": \"Fastest Clear\","
               " \"Description\": \"Fewest seconds\", \"Format\": \"TIME\"}, {\"ID\": 12, \"RankAsc\": false,"
@@ -1583,14 +1934,30 @@ private slots:
                                                       { QStringLiteral("name"), QStringLiteral("Ryu") } }));
         QCOMPARE(entries.at(2).toMap().value(QStringLiteral("rank")).toString(), QStringLiteral("2ND"));
         QCOMPARE(entries.at(2).toMap().value(QStringLiteral("score")).toString(), QStringLiteral("990000"));
-        QCOMPARE(asked, QStringList({ QStringLiteral("/API/API_GetGameList.php?i=27&f=1&h=1 y=key1"),
+        QCOMPARE(asked, QStringList({ QStringLiteral("/API/API_GetGameList.php?i=27&h=1 y=key1"),
                                       QStringLiteral("/API/API_GetGameLeaderboards.php?i=1 y=key1"),
                                       QStringLiteral("/API/API_GetLeaderboardEntries.php?i=12&c=3 y=key1") }));
         QVERIFY(contents(data.path() + QStringLiteral("/retroachievements-games.json")).contains(sf2));
+        QVERIFY(contents(data.path() + QStringLiteral("/retroachievements-games.json")).contains(pacman));
+        // The games with something to earn: those with achievements, or a
+        // leaderboard alone; not one with neither, nor one it hasn't. Every
+        // game it has known, one with neither too.
+        QVERIFY(boards.hasGame(QStringLiteral("sf2.zip")));
+        QVERIFY(boards.hasGame(QStringLiteral("galaga.zip")));
+        QVERIFY(boards.hasGame(QStringLiteral("mslug.zip")));
+        QVERIFY(!boards.hasGame(QStringLiteral("pacman.zip")));
+        QVERIFY(!boards.hasGame(QStringLiteral("dkong.zip")));
+        QVERIFY(boards.knowsGame(QStringLiteral("pacman.zip")));
+        QVERIFY(boards.knowsGame(QStringLiteral("mslug.zip")));
+        QVERIFY(!boards.knowsGame(QStringLiteral("dkong.zip")));
+        // Wanted again while it is fresh: nothing read.
+        asked.clear();
+        boards.wantList();
+        QTest::qWait(600);
+        QVERIFY(asked.isEmpty());
 
         // A game whose leaderboards are none, and one with no one on its
         // board yet: the list isn't read again.
-        asked.clear();
         QCOMPARE(state(boards.board(QStringLiteral("galaga.zip"))), QStringLiteral("loading"));
         QVERIFY(ready.wait(5000));
         QCOMPARE(state(boards.board(QStringLiteral("galaga.zip"))), QStringLiteral("none"));
@@ -1603,12 +1970,21 @@ private slots:
         QCOMPARE(asked, QStringList({ QStringLiteral("/API/API_GetGameLeaderboards.php?i=3 y=key1"),
                                       QStringLiteral("/API/API_GetLeaderboardEntries.php?i=31&c=3 y=key1") }));
 
-        // The list kept read from its file; of two games asked for at once,
-        // only the last is read.
+        // The list kept read from its file, wanted for itself: its games
+        // known at once, nothing read. Of two games asked for at once, only
+        // the last is read.
         asked.clear();
         RetroAchievements again(data.path(), api, media);
         QSignalSpy readyAgain(&again, &RetroAchievements::boardReady);
+        QSignalSpy listAgain(&again, &RetroAchievements::listRead);
         again.setKey(QStringLiteral("key1"));
+        again.wantList();
+        QVERIFY(again.hasGame(QStringLiteral("mslug.zip")));
+        QVERIFY(!again.hasGame(QStringLiteral("pacman.zip")));
+        QVERIFY(again.knowsGame(QStringLiteral("pacman.zip")));
+        QTest::qWait(600);
+        QVERIFY(asked.isEmpty());
+        QVERIFY(listAgain.isEmpty());
         again.board(QStringLiteral("sf2.zip"));
         again.board(QStringLiteral("mslug.zip"));
         QVERIFY(readyAgain.wait(5000));
@@ -1630,8 +2006,73 @@ private slots:
         kept.board(QStringLiteral("sf2.zip"));
         QVERIFY(readyKept.wait(5000));
         QCOMPARE(state(kept.board(QStringLiteral("sf2.zip"))), QStringLiteral("ready"));
-        QCOMPARE(asked.first(), QStringLiteral("/API/API_GetGameList.php?i=27&f=1&h=1 y=key1"));
+        QCOMPARE(asked.first(), QStringLiteral("/API/API_GetGameList.php?i=27&h=1 y=key1"));
         QVERIFY(contents(older.path() + QStringLiteral("/retroachievements-games.json")).contains("\"boards\""));
+
+        // A list kept as 0.0.13 kept it, of the games with achievements
+        // alone: its games known meanwhile, and, wanted, the list read again
+        // with those that have a leaderboard alone.
+        QTemporaryDir oldList;
+        writeFile(oldList.path() + QStringLiteral("/retroachievements-games.json"),
+                  "{\"read\": \"" + QDateTime::currentDateTimeUtc().toString(Qt::ISODate).toLatin1()
+                  + "\", \"games\": {\"" + sf2 + "\": 1}, \"boards\": [1]}");
+        asked.clear();
+        RetroAchievements keptAgain(oldList.path(), api, media);
+        QSignalSpy listRead(&keptAgain, &RetroAchievements::listRead);
+        keptAgain.setKey(QStringLiteral("key1"));
+        keptAgain.wantList();
+        QVERIFY(keptAgain.hasGame(QStringLiteral("sf2.zip")));
+        QVERIFY(!keptAgain.hasGame(QStringLiteral("mslug.zip")));
+        QVERIFY(listRead.wait(5000));
+        QCOMPARE(asked, QStringList({ QStringLiteral("/API/API_GetGameList.php?i=27&h=1 y=key1") }));
+        QVERIFY(keptAgain.hasGame(QStringLiteral("mslug.zip")));
+        QVERIFY(contents(oldList.path() + QStringLiteral("/retroachievements-games.json")).contains("\"achievements\""));
+
+        // A list kept without the games of neither achievements nor
+        // leaderboards: its games as it says meanwhile, mslug's of a
+        // leaderboard alone, and, wanted, the list read again with the rest.
+        QTemporaryDir withoutNeither;
+        writeFile(withoutNeither.path() + QStringLiteral("/retroachievements-games.json"),
+                  "{\"read\": \"" + QDateTime::currentDateTimeUtc().toString(Qt::ISODate).toLatin1()
+                  + "\", \"games\": {\"" + sf2 + "\": 1, \"" + mslug + "\": 3}, \"achievements\": [1], \"boards\": [1, 3]}");
+        asked.clear();
+        RetroAchievements keptThird(withoutNeither.path(), api, media);
+        QSignalSpy thirdRead(&keptThird, &RetroAchievements::listRead);
+        keptThird.setKey(QStringLiteral("key1"));
+        keptThird.wantList();
+        QVERIFY(keptThird.listPending());
+        QVERIFY(keptThird.hasGame(QStringLiteral("mslug.zip")));
+        QCOMPARE(keptThird.achievements(QStringLiteral("mslug.zip")).value(QStringLiteral("state")).toString(),
+                 QStringLiteral("loading"));
+        QVERIFY(!keptThird.knowsGame(QStringLiteral("pacman.zip")));
+        QVERIFY(thirdRead.wait(5000));
+        QCOMPARE(asked.value(0), QStringLiteral("/API/API_GetGameList.php?i=27&h=1 y=key1"));
+        QVERIFY(keptThird.knowsGame(QStringLiteral("pacman.zip")));
+        QVERIFY(!keptThird.listPending());
+        QVERIFY(contents(withoutNeither.path() + QStringLiteral("/retroachievements-games.json")).contains("\"version\":2"));
+
+        // A list kept a week that can't be read again: the one kept used
+        // meanwhile, and not wanted again until it is to be tried again, so
+        // that what waits for it (Read the Games Again's pictures) goes on.
+        QTemporaryDir stale;
+        writeFile(stale.path() + QStringLiteral("/retroachievements-games.json"),
+                  "{\"version\": 2, \"read\": \""
+                  + QDateTime::currentDateTimeUtc().addDays(-8).toString(Qt::ISODate).toLatin1()
+                  + "\", \"games\": {\"" + sf2 + "\": 1}, \"achievements\": [1], \"boards\": [1]}");
+        asked.clear();
+        RetroAchievements keptStale(stale.path(), QUrl(QStringLiteral("http://127.0.0.1:%1/gone/").arg(server.serverPort())),
+                                    media);
+        keptStale.setKey(QStringLiteral("key1"));
+        keptStale.wantList();
+        QVERIFY(keptStale.listPending());
+        QVERIFY(keptStale.hasGame(QStringLiteral("sf2.zip")));
+        QTRY_VERIFY_WITH_TIMEOUT(!keptStale.listPending(), 5000);
+        QCOMPARE(asked, QStringList({ QStringLiteral("/gone/API_GetGameList.php?i=27&h=1 y=key1") }));
+        keptStale.wantList();
+        QVERIFY(!keptStale.listPending());
+        QTest::qWait(600);
+        QCOMPARE(asked.size(), 1);
+        QVERIFY(keptStale.hasGame(QStringLiteral("sf2.zip")));
 
         // A key RetroAchievements refuses.
         QSignalSpy refused(&again, &RetroAchievements::keyRefused);
@@ -1723,11 +2164,13 @@ private slots:
                    "BadgeName": "250337", "DisplayOrder": 1},
             "13": {"ID": 13, "Title": "Bonus Stage", "Description": "Wreck the car", "Points": 10,
                    "BadgeName": "../250338", "DisplayOrder": 2, "DateEarned": "2025-01-02 08:30:00"}}})";
+        // Puck Man's game (Pac-Man's too) has a leaderboard and no
+        // achievements.
         standIn.answers = {
-            { "/API/API_GetGameList.php?i=27&f=1&h=1",
-              "[{\"ID\": 1, \"NumLeaderboards\": 0, \"Hashes\": [\"" + hashOf("sf2") + "\"]},"
-              " {\"ID\": 4, \"NumLeaderboards\": 0, \"Hashes\": [\"" + hashOf("sf2ce") + "\"]},"
-              " {\"ID\": 2, \"NumLeaderboards\": 1, \"Hashes\": [\"" + hashOf("puckman") + "\", \"" + hashOf("pacman") + "\"]}]" },
+            { "/API/API_GetGameList.php?i=27&h=1",
+              "[{\"ID\": 1, \"NumAchievements\": 3, \"NumLeaderboards\": 0, \"Hashes\": [\"" + hashOf("sf2") + "\"]},"
+              " {\"ID\": 4, \"NumAchievements\": 1, \"NumLeaderboards\": 0, \"Hashes\": [\"" + hashOf("sf2ce") + "\"]},"
+              " {\"ID\": 2, \"NumAchievements\": 0, \"NumLeaderboards\": 1, \"Hashes\": [\"" + hashOf("puckman") + "\", \"" + hashOf("pacman") + "\"]}]" },
             { "/API/API_GetGameInfoAndUserProgress.php?g=1&u=Ryu", progress },
             { "/API/API_GetGameExtended.php?i=1", R"({"ID": 1, "Achievements": {"11": {"ID": 11, "Title": "Hadouken",
                                                     "Points": 5, "BadgeName": "250337", "DisplayOrder": 1}}})" },
@@ -1769,15 +2212,16 @@ private slots:
         QCOMPARE(achievements.at(2).toMap().value(QStringLiteral("earned")).toString(), QStringLiteral("2025-01-02"));
         QVERIFY(!achievements.at(2).toMap().value(QStringLiteral("hardcore")).toBool());
         QCOMPARE(achievements.at(2).toMap().value(QStringLiteral("badge")).toString(), QString());
-        QCOMPARE(standIn.asked, QStringList({ QStringLiteral("/API/API_GetGameList.php?i=27&f=1&h=1"),
+        QCOMPARE(standIn.asked, QStringList({ QStringLiteral("/API/API_GetGameList.php?i=27&h=1"),
                                               QStringLiteral("/API/API_GetGameInfoAndUserProgress.php?g=1&u=Ryu") }));
 
-        // A game with none, and one RetroAchievements hasn't: none at once,
-        // nothing asked.
+        // A game with none, one with a leaderboard alone and one
+        // RetroAchievements hasn't: the last two none at once, nothing asked.
         ra.achievements(QStringLiteral("sf2ce.zip"));
         QVERIFY(ready.wait(5000));
         QCOMPARE(state(ra.achievements(QStringLiteral("sf2ce.zip"))), QStringLiteral("none"));
         standIn.asked.clear();
+        QCOMPARE(state(ra.achievements(QStringLiteral("pacman.zip"))), QStringLiteral("none"));
         QCOMPARE(state(ra.achievements(QStringLiteral("galaga.zip"))), QStringLiteral("none"));
         QTest::qWait(600);
         QVERIFY(standIn.asked.isEmpty());
@@ -1799,6 +2243,27 @@ private slots:
         QCOMPARE(read.value(QStringLiteral("achievements")).toList().size(), 1);
         QCOMPARE(standIn.asked.last(), QStringLiteral("/API/API_GetGameExtended.php?i=1"));
 
+        // A list kept as 0.0.13 kept it, of the games with achievements,
+        // that can't be read again: its games' achievements read meanwhile.
+        QTemporaryDir oldList;
+        writeFile(oldList.path() + QStringLiteral("/retroachievements-games.json"),
+                  "{\"read\": \"" + QDateTime::currentDateTimeUtc().toString(Qt::ISODate).toLatin1()
+                  + "\", \"games\": {\"" + hashOf("sf2") + "\": 1}, \"boards\": []}");
+        StandIn noList;
+        QVERIFY(serve(noList));
+        noList.answers = { { "/API/API_GetGameInfoAndUserProgress.php?g=1&u=Ryu", progress } };
+        RetroAchievements kept(oldList.path(), noList.api(), noList.media());
+        QSignalSpy readyKept(&kept, &RetroAchievements::achievementsReady);
+        kept.setKey(QStringLiteral("key1"));
+        kept.setUser(QStringLiteral("Ryu"));
+        QCOMPARE(state(kept.achievements(QStringLiteral("sf2.zip"))), QStringLiteral("loading"));
+        QVERIFY(readyKept.wait(5000));
+        read = kept.achievements(QStringLiteral("sf2.zip"));
+        QCOMPARE(state(read), QStringLiteral("ready"));
+        QCOMPARE(read.value(QStringLiteral("achievements")).toList().size(), 3);
+        QCOMPARE(noList.asked, QStringList({ QStringLiteral("/API/API_GetGameList.php?i=27&h=1"),
+                                             QStringLiteral("/API/API_GetGameInfoAndUserProgress.php?g=1&u=Ryu") }));
+
         // The pictures' paths.
         QSignalSpy found(&ra, &RetroAchievements::picturesFound);
         ra.findPictures({ QStringLiteral("sf2") }, {});
@@ -1817,6 +2282,16 @@ private slots:
         ra.findPictures({ QStringLiteral("galaga") }, {});
         QVERIFY(found.wait(5000));
         QCOMPARE(found.last(), (QVariantList{ QStringLiteral("galaga"), QStringLiteral("unknown"), QStringList() }));
+        // A game's asked for by itself while one shown waits its moment: the
+        // one shown first, neither taking the other's place.
+        found.clear();
+        ra.findPictures({ QStringLiteral("galaga") }, {});
+        ra.findPicturesLater({ QStringLiteral("sf2") }, {});
+        QTRY_COMPARE_WITH_TIMEOUT(found.size(), 2, 5000);
+        QCOMPARE(found.at(0), (QVariantList{ QStringLiteral("galaga"), QStringLiteral("unknown"), QStringList() }));
+        QCOMPARE(found.at(1), (QVariantList{ QStringLiteral("sf2"), QStringLiteral("found"),
+                                             QStringList({ QStringLiteral("/Images/000101.png"),
+                                                           QStringLiteral("/Images/000102.jpg") }) }));
 
         // Files of the media server's.
         const auto download = [&ra](const QString &path) {
@@ -1871,10 +2346,10 @@ private slots:
         StandIn standIn;
         QVERIFY(serve(standIn));
         standIn.answers = {
-            { "/API/API_GetGameList.php?i=27&f=1&h=1",
-              "[{\"ID\": 1, \"NumLeaderboards\": 0, \"Hashes\": [\"" + hashOf("sf2") + "\"]},"
-              " {\"ID\": 2, \"NumLeaderboards\": 0, \"Hashes\": [\"" + hashOf("puckman") + "\", \"" + hashOf("pacman") + "\"]},"
-              " {\"ID\": 3, \"NumLeaderboards\": 0, \"Hashes\": [\"" + hashOf("kinst") + "\"]}]" },
+            { "/API/API_GetGameList.php?i=27&h=1",
+              "[{\"ID\": 1, \"NumAchievements\": 2, \"NumLeaderboards\": 0, \"Hashes\": [\"" + hashOf("sf2") + "\"]},"
+              " {\"ID\": 2, \"NumAchievements\": 4, \"NumLeaderboards\": 0, \"Hashes\": [\"" + hashOf("puckman") + "\", \"" + hashOf("pacman") + "\"]},"
+              " {\"ID\": 3, \"NumAchievements\": 0, \"NumLeaderboards\": 0, \"Hashes\": [\"" + hashOf("kinst") + "\"]}]" },
             { "/API/API_GetGame.php?i=1", R"({"ImageTitle": "/Images/000101.png", "ImageIngame": "/Images/000103.png",
                                             "ImageBoxArt": "/Images/000102.jpg"})" },
             { "/API/API_GetGame.php?i=2", R"({"ImageTitle": "/Images/000201.png", "ImageIngame": "/Images/000002.png",
@@ -1978,7 +2453,8 @@ private slots:
         QVERIFY(standIn.asked.isEmpty());
 
         // A picture that can't be downloaded: those that could be kept, the
-        // game not complete.
+        // game not complete. Its game has neither achievements nor
+        // leaderboards, and its pictures all the same.
         arcade.wantPictures(QStringLiteral("kinst"));
         QTRY_COMPARE_WITH_TIMEOUT(changed.size(), 5, 10000);
         QTRY_VERIFY_WITH_TIMEOUT(standIn.asked.contains(QStringLiteral("/media/Images/000302.png")), 5000);
@@ -2045,6 +2521,305 @@ private slots:
         QCOMPARE(arcade.achievementBadge(QStringLiteral("nosuchset"), 15, QStringLiteral("250336"), true), QString());
         QTest::qWait(300);
         QCOMPARE(standIn.asked.size(), 1);
+    }
+
+    // Read the Games Again with a Web API key: once the games have been read
+    // and MAME has answered, RetroAchievements' pictures of every game it has,
+    // a game at a time, by name, as they are downloaded as a game is shown
+    // (a clone's under its parent's name); none for a game looked for before
+    // (its record) or one RetroAchievements hasn't. A game played meanwhile
+    // holds the next back until it ends. Read again, nothing is asked but for
+    // a game new in the folder, past a clone whose parent's were looked for;
+    // a key changed while a game is read reads it again with the new one.
+    // Nothing without a key.
+    void retroAchievementsPicturesOnRescan() {
+        QTemporaryDir data;
+        QVERIFY(data.isValid());
+        const QString games = data.path() + QStringLiteral("/media/Games/Arcade");
+        const QString snap = games + QStringLiteral("/snap");
+        for (const char *set : { "sf2.zip", "mslug.zip", "galaga.zip", "pacman.zip", "kinst.zip" })
+            writeFile(games + QLatin1Char('/') + QLatin1String(set));
+        // Galaga's looked for before.
+        writeFile(snap + QStringLiteral("/.retroachievements.json"),
+                  R"({"galaga": {"saved": ["/Images/000301.png"], "complete": true}})");
+        QVERIFY(QDir().mkpath(data.path() + QStringLiteral("/bin")));
+        QVERIFY(QFile::copy(mamePath(), data.path() + QStringLiteral("/bin/mame")));
+        QVERIFY(QFile::setPermissions(data.path() + QStringLiteral("/bin/mame"),
+                                      QFile::ReadOwner | QFile::WriteOwner | QFile::ExeOwner));
+        qputenv("OSDOS_MEDIA_DIR", (data.path() + QStringLiteral("/media")).toUtf8());
+        const auto restore = qScopeGuard([this] {
+            qputenv("OSDOS_MEDIA_DIR", (m_data.path() + QStringLiteral("/media")).toUtf8());
+            qunsetenv("MAME_SECONDS");
+        });
+        // Kinst isn't RetroAchievements'; X-Men and Ace come into the folder
+        // later. Metal Slug's game, with neither achievements nor
+        // leaderboards, is answered for slowly, and Ace's.
+        StandIn standIn;
+        QVERIFY(serve(standIn));
+        standIn.keys << QStringLiteral("key2");
+        standIn.answers = {
+            { "/API/API_GetGameList.php?i=27&h=1",
+              "[{\"ID\": 1, \"NumAchievements\": 2, \"NumLeaderboards\": 0, \"Hashes\": [\"" + hashOf("sf2") + "\"]},"
+              " {\"ID\": 2, \"NumAchievements\": 0, \"NumLeaderboards\": 0, \"Hashes\": [\"" + hashOf("mslug") + "\"]},"
+              " {\"ID\": 3, \"NumAchievements\": 4, \"NumLeaderboards\": 0, \"Hashes\": [\"" + hashOf("galaga") + "\"]},"
+              " {\"ID\": 4, \"NumAchievements\": 5, \"NumLeaderboards\": 0, \"Hashes\": [\"" + hashOf("puckman") + "\", \"" + hashOf("pacman") + "\"]},"
+              " {\"ID\": 5, \"NumAchievements\": 6, \"NumLeaderboards\": 0, \"Hashes\": [\"" + hashOf("xmen6p") + "\"]},"
+              " {\"ID\": 6, \"NumAchievements\": 7, \"NumLeaderboards\": 0, \"Hashes\": [\"" + hashOf("acefruit") + "\"]}]" },
+            { "/API/API_GetGame.php?i=1", R"({"ImageTitle": "/Images/000101.png", "ImageBoxArt": "/Images/000102.jpg"})" },
+            { "/API/API_GetGame.php?i=2", R"({"ImageTitle": "/Images/000201.png"})" },
+            { "/API/API_GetGame.php?i=3", R"({"ImageTitle": "/Images/000301.png"})" },
+            { "/API/API_GetGame.php?i=4", R"({"ImageTitle": "/Images/000401.png"})" },
+            { "/API/API_GetGame.php?i=5", R"({"ImageTitle": "/Images/000501.png"})" },
+            { "/API/API_GetGame.php?i=6", R"({"ImageTitle": "/Images/000601.png"})" },
+            { "/media/Images/000101.png", png("sf2 title") },
+            { "/media/Images/000102.jpg", jpeg("sf2 box") },
+            { "/media/Images/000201.png", png("mslug title") },
+            { "/media/Images/000301.png", png("galaga title") },
+            { "/media/Images/000401.png", png("pacman title") },
+            { "/media/Images/000501.png", png("xmen title") },
+            { "/media/Images/000601.png", png("ace title") },
+            { "/API/API_GetConsoleIDs.php?", R"([{"ID": 27, "Name": "Arcade"}])" },
+        };
+        standIn.delays = { { "/API/API_GetGame.php?i=2", 800 }, { "/API/API_GetGame.php?i=6", 800 } };
+        const auto gamesAsked = [&standIn] {
+            QStringList asked;
+            for (const QString &path : std::as_const(standIn.asked)) {
+                if (path.startsWith(QLatin1String("/API/API_GetGame.php")))
+                    asked << path;
+            }
+            return asked;
+        };
+        const auto saved = [snap] {
+            return QDir(snap).entryList({ QStringLiteral("*_*") }, QDir::Files, QDir::Name);
+        };
+
+        ArcadeBackend arcade(data.path(), data.path(), nullptr, nullptr);
+        arcade.setAchievementsServers(standIn.api(), standIn.media());
+        arcade.setPictureSweepInterval(50);
+        refreshed(arcade);
+        // Read again without a key: nothing asked.
+        arcade.rescan();
+        QTRY_VERIFY_WITH_TIMEOUT(!arcade.scanning(), 10000);
+        QTest::qWait(300);
+        QVERIFY(standIn.asked.isEmpty());
+        QVERIFY(!arcade.sweepingPictures());
+        // A key: nothing read but the key until the games are read again.
+        arcade.setAchievementsKey(QStringLiteral("key1"));
+        QTRY_VERIFY_WITH_TIMEOUT(arcade.achievementsKeyWorks(), 5000);
+        QTest::qWait(300);
+        QCOMPARE(standIn.asked, QStringList({ QStringLiteral("/API/API_GetConsoleIDs.php?") }));
+        standIn.asked.clear();
+
+        // Read again: Metal Slug's asked for first, and a game started as it
+        // is; the next not asked for until the game has ended.
+        QStringList askedWhilePlaying;
+        bool started = false;
+        standIn.onAsk = [&arcade, &askedWhilePlaying, &started](const QString &path) {
+            if (path == QLatin1String("/API/API_GetGame.php?i=2") && !std::exchange(started, true)) {
+                QVERIFY(arcade.play(QStringLiteral("galaga")));
+                return;
+            }
+            if (arcade.running() && path.startsWith(QLatin1String("/API/")))
+                askedWhilePlaying << path;
+        };
+        qputenv("MAME_SECONDS", "1.5");
+        QSignalSpy finished(&arcade, &ArcadeBackend::finished);
+        arcade.rescan();
+        QTRY_VERIFY_WITH_TIMEOUT(started, 10000);
+        QVERIFY(finished.wait(10000));
+        QTRY_COMPARE_WITH_TIMEOUT(saved(), QStringList({ QStringLiteral("mslug_1.png"), QStringLiteral("puckman_1.png"),
+                                                         QStringLiteral("sf2_1.png"), QStringLiteral("sf2_2.jpg") }),
+                                  10000);
+        QTRY_VERIFY_WITH_TIMEOUT(!arcade.sweepingPictures(), 5000);
+        standIn.onAsk = nullptr;
+        QVERIFY2(askedWhilePlaying.isEmpty(), qPrintable(askedWhilePlaying.join(QLatin1Char(' '))));
+        QCOMPARE(gamesAsked(), QStringList({ QStringLiteral("/API/API_GetGame.php?i=2"),
+                                             QStringLiteral("/API/API_GetGame.php?i=4"),
+                                             QStringLiteral("/API/API_GetGame.php?i=1") }));
+        QCOMPARE(standIn.asked.count(QStringLiteral("/API/API_GetGameList.php?i=27&h=1")), 1);
+        QCOMPARE(contents(snap + QStringLiteral("/sf2_2.jpg")), jpeg("sf2 box"));
+        QCOMPARE(arcade.gameDetails(QStringLiteral("pacman")).value(QStringLiteral("pictures")).toStringList(),
+                 QStringList({ QUrl::fromLocalFile(snap + QStringLiteral("/puckman_1.png")).toString() }));
+
+        // X-Men in the folder, after Pac-Man, whose parent's pictures are in:
+        // read again, X-Men's alone asked for, and the look ends.
+        writeFile(games + QStringLiteral("/xmen6p.7z"));
+        standIn.asked.clear();
+        arcade.rescan();
+        QTRY_VERIFY_WITH_TIMEOUT(saved().contains(QStringLiteral("xmen6p_1.png")), 10000);
+        QTRY_VERIFY_WITH_TIMEOUT(!arcade.sweepingPictures(), 5000);
+        QCOMPARE(gamesAsked(), QStringList({ QStringLiteral("/API/API_GetGame.php?i=5") }));
+
+        // Ace in the folder, its game slow to answer: the key changed as it
+        // is read, read again with the new one.
+        writeFile(games + QStringLiteral("/acefruit.zip"));
+        standIn.asked.clear();
+        arcade.rescan();
+        QTRY_VERIFY_WITH_TIMEOUT(gamesAsked().contains(QStringLiteral("/API/API_GetGame.php?i=6")), 10000);
+        arcade.setAchievementsKey(QStringLiteral("key2"));
+        QTRY_VERIFY_WITH_TIMEOUT(saved().contains(QStringLiteral("acefruit_1.png")), 10000);
+        QTRY_VERIFY_WITH_TIMEOUT(!arcade.sweepingPictures(), 5000);
+        QCOMPARE(gamesAsked(), QStringList({ QStringLiteral("/API/API_GetGame.php?i=6"),
+                                             QStringLiteral("/API/API_GetGame.php?i=6") }));
+
+        // Read again: every game looked for, nothing asked.
+        standIn.asked.clear();
+        arcade.rescan();
+        QTRY_VERIFY_WITH_TIMEOUT(!arcade.scanning(), 10000);
+        QTRY_VERIFY_WITH_TIMEOUT(!arcade.sweepingPictures(), 5000);
+        QVERIFY(gamesAsked().isEmpty());
+    }
+
+    // The Arcade screen's RetroAchievements filter: with Online High Scores
+    // on RetroAchievements and a key, the games it has achievements or a
+    // leaderboard of, by their own file's hash, that play in FinalBurn Neo;
+    // its list read once, as the filters are asked for, and kept for the
+    // next start. None with Online High Scores off or without the key; a game
+    // moved to MAME leaves it. Menu Filters lists it under Lists, after
+    // Recently Played, and can hide it; Start Filter offers it.
+    void retroAchievementsFilter() {
+        QTemporaryDir data;
+        QVERIFY(data.isValid());
+        const QString games = data.path() + QStringLiteral("/media/Games/Arcade");
+        for (const char *set : { "sf2.zip", "mslug.zip", "galaga.zip", "pacman.zip", "kinst.zip" })
+            writeFile(games + QLatin1Char('/') + QLatin1String(set));
+        QVERIFY(QDir().mkpath(data.path() + QStringLiteral("/bin")));
+        QVERIFY(QFile::copy(mamePath(), data.path() + QStringLiteral("/bin/mame")));
+        writeFile(data.path() + QStringLiteral("/bin/retroarch"), fixture("retroarch"));
+        for (const char *program : { "/bin/mame", "/bin/retroarch" })
+            QVERIFY(QFile::setPermissions(data.path() + QLatin1String(program),
+                                          QFile::ReadOwner | QFile::WriteOwner | QFile::ExeOwner));
+        writeFile(libretro::downloadedCore(data.path()));
+        writeFile(libretro::downloadedDat(data.path()), fixture("fbneo-arcade.dat"));
+        qputenv("OSDOS_MEDIA_DIR", (data.path() + QStringLiteral("/media")).toUtf8());
+        const auto restore = qScopeGuard([this] {
+            qputenv("OSDOS_MEDIA_DIR", (m_data.path() + QStringLiteral("/media")).toUtf8());
+        });
+        // sf2's game has achievements and a leaderboard, mslug's a
+        // leaderboard alone, galaga's neither; pacman's achievements, but
+        // FinalBurn Neo hasn't it; kinst RetroAchievements hasn't.
+        StandIn standIn;
+        QVERIFY(serve(standIn));
+        standIn.answers = {
+            { "/API/API_GetGameList.php?i=27&h=1",
+              "[{\"ID\": 1, \"NumAchievements\": 20, \"NumLeaderboards\": 1, \"Hashes\": [\"" + hashOf("sf2") + "\"]},"
+              " {\"ID\": 2, \"NumAchievements\": 0, \"NumLeaderboards\": 3, \"Hashes\": [\"" + hashOf("mslug") + "\"]},"
+              " {\"ID\": 3, \"NumAchievements\": 0, \"NumLeaderboards\": 0, \"Hashes\": [\"" + hashOf("galaga") + "\"]},"
+              " {\"ID\": 4, \"NumAchievements\": 8, \"NumLeaderboards\": 0, \"Hashes\": [\"" + hashOf("pacman") + "\"]}]" },
+            { "/API/API_GetConsoleIDs.php?", R"([{"ID": 27, "Name": "Arcade"}])" },
+        };
+        const QString module = QStringLiteral("com.osdos.arcade");
+        const QString list = QStringLiteral("/API/API_GetGameList.php?i=27&h=1");
+        const auto filterOf = [](ArcadeBackend &arcade) {
+            const QVariantList filters = arcade.filters();
+            for (const QVariant &v : filters) {
+                if (v.toMap().value(QStringLiteral("id")).toString() == QLatin1String("achievements"))
+                    return v.toMap();
+            }
+            return QVariantMap();
+        };
+        const auto setsOf = [](ArcadeBackend &arcade) {
+            QStringList sets;
+            const QVariantList games = arcade.filterGames(QStringLiteral("achievements"), 0, 10);
+            for (const QVariant &v : games)
+                sets << v.toMap().value(QStringLiteral("set")).toString();
+            return sets;
+        };
+        const auto labels = [](const QVariant &options) {
+            QStringList list;
+            const QVariantList all = options.toList();
+            for (const QVariant &v : all)
+                list << v.toMap().value(QStringLiteral("label")).toString();
+            return list;
+        };
+        {
+            ArcadeBackend arcade(data.path(), data.path(), nullptr, nullptr);
+            arcade.setAchievementsServers(standIn.api(), standIn.media());
+            refreshed(arcade);
+            QTRY_VERIFY_WITH_TIMEOUT(!arcade.filters().isEmpty(), 10000);
+            QVERIFY(arcade.fbneoReady());
+            // Neither Online High Scores on it nor a key: none, nothing asked.
+            QVERIFY(filterOf(arcade).isEmpty());
+            arcade.onSettingChanged(module, QStringLiteral("online_high_scores"), QStringLiteral("RetroAchievements"));
+            QVERIFY(filterOf(arcade).isEmpty());
+            QVERIFY(!arcade.filterPending(QStringLiteral("achievements")));
+            QTest::qWait(600);
+            QVERIFY(standIn.asked.isEmpty());
+
+            // A key: the list read once, the filter waited for meanwhile and
+            // there as it comes.
+            QSignalSpy changed(&arcade, &ArcadeBackend::gamesChanged);
+            arcade.setAchievementsKey(QStringLiteral("key1"));
+            QVERIFY(!changed.isEmpty());
+            QVERIFY(filterOf(arcade).isEmpty());
+            QVERIFY(arcade.filterPending(QStringLiteral("achievements")));
+            QVERIFY(!arcade.filterPending(QStringLiteral("favorites")));
+            QTRY_VERIFY_WITH_TIMEOUT(!filterOf(arcade).isEmpty(), 5000);
+            QVERIFY(!arcade.filterPending(QStringLiteral("achievements")));
+            QCOMPARE(filterOf(arcade).value(QStringLiteral("name")).toString(), QStringLiteral("RetroAchievements"));
+            QCOMPARE(filterOf(arcade).value(QStringLiteral("count")).toInt(), 2);
+            QCOMPARE(setsOf(arcade), QStringList({ QStringLiteral("mslug"), QStringLiteral("sf2") }));
+            QCOMPARE(arcade.filterIndex(QStringLiteral("achievements"), QStringLiteral("sf2")), 1);
+            QCOMPARE(arcade.filterIndex(QStringLiteral("achievements"), QStringLiteral("galaga")), -1);
+            QTest::qWait(600);
+            QCOMPARE(standIn.asked.count(list), 1);
+
+            // A game moved to MAME leaves it, and comes back with Auto.
+            arcade.onSettingChanged(module, QStringLiteral("engines"),
+                                    QVariantMap{ { QStringLiteral("sf2"), QStringLiteral("mame") } });
+            QCOMPARE(setsOf(arcade), QStringList({ QStringLiteral("mslug") }));
+            arcade.onSettingChanged(module, QStringLiteral("engines"), QVariantMap());
+            QCOMPARE(setsOf(arcade).size(), 2);
+
+            // Menu Filters: under Lists, after Recently Played; hidden there,
+            // not among the filters. Start Filter offers it.
+            QSignalSpy options(&arcade, &ArcadeBackend::dynamicOptionsReady);
+            arcade.menuFilterOptions();
+            QTRY_COMPARE_WITH_TIMEOUT(options.size(), 1, 5000);
+            QCOMPARE(options.last().at(0).toString(), QStringLiteral("menu_filters"));
+            QCOMPARE(labels(options.last().at(1)).mid(0, 6),
+                     QStringList({ QStringLiteral("Lists"), QStringLiteral("Favorites"), QStringLiteral("Recently Played"),
+                                   QStringLiteral("RetroAchievements"), QStringLiteral("Playable Online"),
+                                   QStringLiteral("Not Recognized") }));
+            arcade.startFilterOptions();
+            QTRY_COMPARE_WITH_TIMEOUT(options.size(), 2, 5000);
+            QCOMPARE(options.last().at(0).toString(), QStringLiteral("start_filter"));
+            QVERIFY(labels(options.last().at(1)).contains(QStringLiteral("RetroAchievements")));
+            arcade.onSettingChanged(module, QStringLiteral("menu_filters"),
+                                    QVariantMap{ { QStringLiteral("achievements"), false } });
+            QVERIFY(filterOf(arcade).isEmpty());
+            arcade.onSettingChanged(module, QStringLiteral("menu_filters"), QVariantMap());
+            QCOMPARE(filterOf(arcade).value(QStringLiteral("count")).toInt(), 2);
+
+            // Online High Scores off, or no key: none, the games set to
+            // FinalBurn Neo though they are.
+            arcade.onSettingChanged(module, QStringLiteral("engines"),
+                                    QVariantMap{ { QStringLiteral("sf2"), QStringLiteral("fbneo") },
+                                                 { QStringLiteral("mslug"), QStringLiteral("fbneo") } });
+            QCOMPARE(setsOf(arcade).size(), 2);
+            arcade.onSettingChanged(module, QStringLiteral("online_high_scores"), QStringLiteral("Off"));
+            QVERIFY(filterOf(arcade).isEmpty());
+            QVERIFY(!arcade.filterPending(QStringLiteral("achievements")));
+            arcade.onSettingChanged(module, QStringLiteral("online_high_scores"), QStringLiteral("RetroAchievements"));
+            QCOMPARE(filterOf(arcade).value(QStringLiteral("count")).toInt(), 2);
+            arcade.setAchievementsKey(QString());
+            QVERIFY(filterOf(arcade).isEmpty());
+            QVERIFY(!arcade.filterPending(QStringLiteral("achievements")));
+            arcade.setAchievementsKey(QStringLiteral("key1"));
+            QTRY_VERIFY_WITH_TIMEOUT(arcade.achievementsKeyWorks(), 5000);
+        }
+
+        // The next start: the list kept, the filter there at once, nothing
+        // read.
+        standIn.asked.clear();
+        ArcadeBackend again(data.path(), data.path(), nullptr, nullptr);
+        again.setAchievementsServers(standIn.api(), standIn.media());
+        refreshed(again);
+        QTRY_VERIFY_WITH_TIMEOUT(!again.filters().isEmpty(), 10000);
+        again.onSettingChanged(module, QStringLiteral("online_high_scores"), QStringLiteral("RetroAchievements"));
+        QCOMPARE(filterOf(again).value(QStringLiteral("count")).toInt(), 2);
+        QTest::qWait(600);
+        QVERIFY(standIn.asked.isEmpty());
     }
 
     // The status icons the module adds, as its settings and account stand,
@@ -2143,24 +2918,72 @@ private slots:
 
         ArcadeBackend arcade(data.path(), data.path(), nullptr, nullptr);
         arcade.setLobbyUrl(QUrl(QStringLiteral("http://127.0.0.1:%1/list").arg(server.serverPort())));
+        // The copy of the app that says our core's version (--core-info),
+        // for the core it is given.
+        const QString coreInfo = data.path() + QStringLiteral("/bin/coreinfo");
+        writeFile(coreInfo, "#!/bin/sh\n"
+                            "case \"$2\" in *fbneo_libretro*) printf 'name=FinalBurn Neo\\nversion=v1.0.0.03 6e7c2a1\\n' ;;"
+                            " *) exit 1 ;; esac\n");
+        QVERIFY(QFile::setPermissions(coreInfo, QFile::ReadOwner | QFile::WriteOwner | QFile::ExeOwner));
+        arcade.setCoreInfoCommand({ coreInfo, QStringLiteral("--core-info") });
         refreshed(arcade);
-        // Off: no lobby, no folder, nothing to host.
+        QTRY_VERIFY_WITH_TIMEOUT(!arcade.filters().isEmpty(), 10000);
+        // The Arcade screen's Playable Online: its games, and the count
+        // filters() gives it (0 while it isn't among them).
+        const auto playable = [&arcade] {
+            QStringList sets;
+            const QVariantList games = arcade.filterGames(QStringLiteral("netplay"), 0, 10);
+            for (const QVariant &v : games)
+                sets << v.toMap().value(QStringLiteral("set")).toString();
+            return sets;
+        };
+        const auto listed = [&arcade] {
+            const QVariantList filters = arcade.filters();
+            for (const QVariant &v : filters) {
+                const QVariantMap filter = v.toMap();
+                if (filter.value(QStringLiteral("id")).toString() == QLatin1String("netplay")
+                    && filter.value(QStringLiteral("name")).toString() == QLatin1String("Playable Online"))
+                    return filter.value(QStringLiteral("count")).toInt();
+            }
+            return 0;
+        };
+        // Off: no lobby, no folder, nothing to host, no Playable Online.
         QCOMPARE(asked, 0);
         QVERIFY(arcade.rooms().isEmpty());
         QVERIFY(!names(arcade.requestEntries(QStringLiteral("top"))).contains(QStringLiteral("Online Games")));
         QVERIFY(!arcade.canHost(QStringLiteral("sf2")));
+        QVERIFY(playable().isEmpty());
+        QCOMPARE(listed(), 0);
 
         const QString module = QStringLiteral("com.osdos.arcade");
         arcade.onSettingChanged(module, QStringLiteral("online_play"), QStringLiteral("On"));
         QCOMPARE(arcade.engineOf(QStringLiteral("sf2")), QStringLiteral("fbneo"));
         QVERIFY(arcade.canHost(QStringLiteral("sf2")));
         QVERIFY(!arcade.canHost(QStringLiteral("pacman")));
+        // Playable Online: the games that can be hosted, by name, not one
+        // FinalBurn Neo hasn't; one set to MAME too, as online it plays in
+        // FinalBurn Neo. Menu Filters can hide it.
+        QCOMPARE(listed(), 3);
+        QCOMPARE(playable(), QStringList({ QStringLiteral("galaga"), QStringLiteral("mslug"), QStringLiteral("sf2") }));
+        arcade.onSettingChanged(module, QStringLiteral("menu_filters"),
+                                QVariantMap{ { QStringLiteral("netplay"), false } });
+        QCOMPARE(listed(), 0);
+        arcade.onSettingChanged(module, QStringLiteral("menu_filters"), QVariantMap());
+        QCOMPARE(listed(), 3);
+        QCOMPARE(arcade.filterIndex(QStringLiteral("netplay"), QStringLiteral("pacman")), -1);
+        arcade.onSettingChanged(module, QStringLiteral("engines"),
+                                QVariantMap{ { QStringLiteral("sf2"), QStringLiteral("mame") } });
+        QCOMPARE(arcade.engineOf(QStringLiteral("sf2")), QStringLiteral("mame"));
+        QVERIFY(arcade.canHost(QStringLiteral("sf2")));
+        QCOMPARE(playable().size(), 3);
+        arcade.onSettingChanged(module, QStringLiteral("engines"), QVariantMap());
         QCOMPARE(names(arcade.requestEntries(QStringLiteral("top"))).value(0), QStringLiteral("Online Games"));
         // Asked for before the lobby is read: read then, listed once it is.
         QSignalSpy roomsRead(&arcade, &ArcadeBackend::roomsChanged);
         QSignalSpy ready(&arcade, &ArcadeBackend::entriesReady);
         QVERIFY(!arcade.requestEntries(QStringLiteral("online")).isValid());
-        QVERIFY(roomsRead.wait(5000));
+        QTRY_VERIFY_WITH_TIMEOUT(ready.contains(QVariantList{ QStringLiteral("online") }), 5000);
+        QVERIFY(!roomsRead.isEmpty());
         QCOMPARE(asked, 1);
         QVERIFY(ready.contains(QVariantList{ QStringLiteral("online") }));
         const QVariantList rooms = arcade.rooms();
@@ -2170,13 +2993,94 @@ private slots:
         QCOMPARE(room.value(QStringLiteral("set")).toString(), QStringLiteral("sf2"));
         QCOMPARE(room.value(QStringLiteral("host")).toString(), QStringLiteral("ann"));
         const QVariantList entries = arcade.requestEntries(QStringLiteral("online")).toList();
-        QCOMPARE(entries.size(), 1);
+        QCOMPARE(entries.size(), 2);
         const QVariantMap entry = entries.first().toMap();
         QCOMPARE(entry.value(QStringLiteral("kind")).toString(), QStringLiteral("room"));
         QCOMPARE(entry.value(QStringLiteral("room")).toInt(), 11);
         QCOMPARE(entry.value(QStringLiteral("game")).toString(), QStringLiteral("sf2"));
         QVERIFY(entry.value(QStringLiteral("name")).toString().endsWith(QStringLiteral(" (ann)")));
         QCOMPARE(entry.value(QStringLiteral("detail")).toString(), QStringLiteral("Hosted by ann in ES • sf2.zip"));
+        // Then the whole lobby, every core's rooms (Lobby.qml).
+        QCOMPARE(entries.last().toMap().value(QStringLiteral("kind")).toString(), QStringLiteral("lobby"));
+        QCOMPARE(entries.last().toMap().value(QStringLiteral("name")).toString(), QStringLiteral("RetroArch Lobby"));
+        // The whole lobby: FinalBurn Neo's rooms first, by title (a game of
+        // the folder by its name there), then the others' by core; each
+        // that can't be joined saying why; the one that can, the room
+        // Online Games has.
+        const QVariantMap whole = arcade.lobby();
+        QCOMPARE(whole.value(QStringLiteral("state")).toString(), QStringLiteral("ready"));
+        const QVariantList lobbyRooms = whole.value(QStringLiteral("rooms")).toList();
+        QStringList order;
+        QHash<int, QVariantMap> byId;
+        for (const QVariant &v : lobbyRooms) {
+            const QVariantMap r = v.toMap();
+            order << QString::number(r.value(QStringLiteral("id")).toInt());
+            byId.insert(r.value(QStringLiteral("id")).toInt(), r);
+        }
+        QCOMPARE(order, QStringList({ "20", "15", "18", "14", "21", "19", "17", "11", "10", "16", "22" }));
+        const auto why = [&byId](int id) { return byId.value(id).value(QStringLiteral("why")).toString(); };
+        QVERIFY(byId.value(11).value(QStringLiteral("joinable")).toBool());
+        QCOMPARE(why(11), QString());
+        QCOMPARE(byId.value(11).value(QStringLiteral("title")).toString(), QStringLiteral("Street Fighter II: The World Warrior"));
+        QCOMPARE(byId.value(11).value(QStringLiteral("set")).toString(), QStringLiteral("sf2"));
+        QCOMPARE(byId.value(11).value(QStringLiteral("country")).toString(), QStringLiteral("es"));
+        QCOMPARE(why(14), QStringLiteral("It asks for a password"));
+        QCOMPARE(why(15), QStringLiteral("Its host's connection takes no players"));
+        QCOMPARE(why(16), QStringLiteral("OSD/OS joins FinalBurn Neo's games alone: this one is Snes9x's"));
+        QCOMPARE(why(10), QStringLiteral("OSD/OS joins FinalBurn Neo's games alone: this one is Beetle PSX HW's"));
+        QCOMPARE(why(17), QStringLiteral("Its host's RetroArch can't be joined from here"));
+        QCOMPARE(why(19), QStringLiteral("The lobby gives no address it can be joined at"));
+        QCOMPARE(why(21), QStringLiteral("The lobby gives no address it can be joined at"));
+        QCOMPARE(why(18), QStringLiteral("kof98 isn't in your games folder"));
+        QCOMPARE(byId.value(18).value(QStringLiteral("title")).toString(), QStringLiteral("kof98.zip"));
+        QVERIFY(byId.value(18).value(QStringLiteral("set")).toString().isEmpty());
+        QCOMPARE(why(20), QStringLiteral("Its game isn't named as a set"));
+        int joinable = 0;
+        for (const QVariantMap &r : std::as_const(byId))
+            joinable += r.value(QStringLiteral("joinable")).toBool() ? 1 : 0;
+        QCOMPARE(joinable, 1);
+        const QVariantMap kart = byId.value(22);
+        QCOMPARE(kart.value(QStringLiteral("title")).toString(), QStringLiteral("Super Mario Kart (USA)"));
+        QCOMPARE(kart.value(QStringLiteral("crc")).toString(), QStringLiteral("82993FA8"));
+        QCOMPARE(kart.value(QStringLiteral("relay")).toString(), QStringLiteral("us-east1"));
+        QCOMPARE(kart.value(QStringLiteral("players")).toInt(), 2);
+        // The minutes since it was hosted, as the lobby says it was.
+        const qint64 since = std::max<qint64>(0, QDateTime::fromString(QStringLiteral("2026-10-20T19:38:57Z"), Qt::ISODate)
+                                                     .secsTo(QDateTime::currentDateTimeUtc()) / 60);
+        QVERIFY2(qAbs(kart.value(QStringLiteral("minutes")).toLongLong() - since) <= 1,
+                 qPrintable(kart.value(QStringLiteral("minutes")).toString()));
+        QCOMPARE(byId.value(11).value(QStringLiteral("minutes")).toInt(), -1);
+        // Each room matched against our own core's version and RetroArch's,
+        // read as the lobby was: the same, another, or not to be known; none
+        // of another core's.
+        QTRY_COMPARE_WITH_TIMEOUT(arcade.lobby().value(QStringLiteral("yourCore")).toString(),
+                                  QStringLiteral("v1.0.0.03 6e7c2a1"), 5000);
+        QTRY_COMPARE_WITH_TIMEOUT(arcade.lobby().value(QStringLiteral("yourRetroArch")).toString(),
+                                  QStringLiteral("1.22.2"), 5000);
+        QCOMPARE(arcade.lobby().value(QStringLiteral("yourCoreState")).toString(), QStringLiteral("read"));
+        QCOMPARE(arcade.lobby().value(QStringLiteral("yourRetroArchState")).toString(), QStringLiteral("read"));
+        QHash<int, QVariantMap> matched;
+        for (const QVariant &v : arcade.lobby().value(QStringLiteral("rooms")).toList())
+            matched.insert(v.toMap().value(QStringLiteral("id")).toInt(), v.toMap());
+        const auto matches = [&matched](int id) {
+            return matched.value(id).value(QStringLiteral("coreMatch")).toString() + QLatin1Char('/')
+                   + matched.value(id).value(QStringLiteral("retroarchMatch")).toString();
+        };
+        QCOMPARE(matches(11), QStringLiteral("same/other"));
+        QCOMPARE(matches(14), QStringLiteral("other/same"));
+        QCOMPARE(matches(15), QStringLiteral("unknown/same"));
+        QCOMPARE(matches(16), QStringLiteral("/same"));
+        // With Online Play off, the room that could be joined says so.
+        arcade.onSettingChanged(module, QStringLiteral("online_play"), QStringLiteral("Off"));
+        for (const QVariant &v : arcade.lobby().value(QStringLiteral("rooms")).toList()) {
+            const QVariantMap r = v.toMap();
+            if (r.value(QStringLiteral("id")).toInt() == 11) {
+                QVERIFY(!r.value(QStringLiteral("joinable")).toBool());
+                QCOMPARE(r.value(QStringLiteral("why")).toString(),
+                         QStringLiteral("Online Play is off: Settings → Arcade → Online Play"));
+            }
+        }
+        arcade.onSettingChanged(module, QStringLiteral("online_play"), QStringLiteral("On"));
         // The Arcade screen's filter, after All Games.
         const QVariantList filters = arcade.filters();
         QCOMPARE(filters.value(1).toMap().value(QStringLiteral("id")).toString(), QStringLiteral("online"));
@@ -2245,6 +3149,13 @@ private slots:
             QVERIFY2(config.contains(QLatin1String(line)), line);
         QVERIFY(onPads(config));
         QVERIFY(!QFileInfo::exists(remap));
+        // Files missing in a game hosted, which plays online in FinalBurn Neo
+        // alone: nothing said of MAME.
+        const QVariantList missing = ended([&arcade] { return arcade.hostGame(QStringLiteral("mslug")); });
+        QCOMPARE(missing.value(1).toString(), QStringLiteral("failed"));
+        QCOMPARE(missing.value(2).toString(),
+                 QStringLiteral("Missing 201-p1.p1, 201-s1.s1: the set may be for another version of FinalBurn Neo\n"
+                                "Or a BIOS set it needs isn't in the games folder"));
         // A room gone from the lobby, and a game that can't be hosted.
         QVERIFY(!arcade.joinRoom(99));
         QCOMPARE(arcade.lastError(), QStringLiteral("The game is no longer in RetroArch's lobby"));
@@ -2269,6 +3180,131 @@ private slots:
         QCOMPARE(gone.value(QStringLiteral("name")).toString(), QStringLiteral("Lobby Not Reachable"));
         QVERIFY(gone.value(QStringLiteral("detail")).toString().startsWith(QStringLiteral("RetroArch's lobby can't be reached")));
         QCOMPARE(arcade.filters().value(1).toMap().value(QStringLiteral("id")).toString() == QLatin1String("online"), false);
+
+        // FinalBurn Neo's core gone, and back: none can be played online
+        // meanwhile. Its list gone: none either, as the folder is read again.
+        const QString core = libretro::downloadedCore(data.path());
+        QVERIFY(QFile::rename(core, core + QStringLiteral(".away")));
+        refreshed(arcade);
+        QVERIFY(playable().isEmpty());
+        QCOMPARE(listed(), 0);
+        QVERIFY(QFile::rename(core + QStringLiteral(".away"), core));
+        refreshed(arcade);
+        QCOMPARE(listed(), 3);
+        QVERIFY(QFile::remove(libretro::downloadedDat(data.path())));
+        refreshed(arcade);
+        QVERIFY(playable().isEmpty());
+        QCOMPARE(listed(), 0);
+        writeFile(libretro::downloadedDat(data.path()), fixture("fbneo-arcade.dat"));
+        refreshed(arcade);
+        QCOMPARE(listed(), 3);
+
+        // Off again: no Playable Online.
+        arcade.onSettingChanged(module, QStringLiteral("online_play"), QStringLiteral("Off"));
+        QVERIFY(playable().isEmpty());
+        QCOMPARE(listed(), 0);
+    }
+
+    // Our RetroArch's and core's versions, which the lobby's rooms are
+    // matched against: still being read, then read; a read too slow asked
+    // once more (a core loads faster the second time), and a file whose read
+    // was too slow twice not asked again; none while a core that changed is
+    // read; one that says its version but doesn't end read all the same; the
+    // core not installed.
+    void ownVersions() {
+        QTemporaryDir data;
+        QVERIFY(data.isValid());
+        writeFile(data.path() + QStringLiteral("/bin/retroarch"), fixture("retroarch"));
+        writeFile(libretro::downloadedCore(data.path()), "core");
+        // The copy of the app that says our core's version: it notes each
+        // time it is asked, takes its time before it says it while slow is
+        // there, and after it while hang is.
+        const QString asked = data.path() + QStringLiteral("/asked");
+        const QString slow = data.path() + QStringLiteral("/slow");
+        const QString hang = data.path() + QStringLiteral("/hang");
+        const QString coreInfo = data.path() + QStringLiteral("/bin/coreinfo");
+        writeFile(coreInfo, QStringLiteral("#!/bin/sh\necho >> '%1'\n[ -e '%2' ] && exec sleep 5\n"
+                                           "printf 'name=FinalBurn Neo\\nversion=v1.0.0.03 6e7c2a1\\n'\n"
+                                           "[ -e '%3' ] && exec sleep 5\nexit 0\n")
+                                .arg(asked, slow, hang).toUtf8());
+        for (const char *program : { "/bin/retroarch", "/bin/coreinfo" })
+            QVERIFY(QFile::setPermissions(data.path() + QLatin1String(program),
+                                          QFile::ReadOwner | QFile::WriteOwner | QFile::ExeOwner));
+        ArcadeBackend arcade(data.path(), data.path(), nullptr, nullptr);
+        // No lobby to be reached: ours are what is looked at.
+        arcade.setLobbyUrl(QUrl(QStringLiteral("http://127.0.0.1:9/list")));
+        arcade.setCoreInfoCommand({ coreInfo, QStringLiteral("--core-info") });
+        arcade.setVersionReadTimeout(1000);
+        const auto ours = [&arcade](const char *key) { return arcade.lobby().value(QLatin1String(key)).toString(); };
+        const auto times = [&asked] {
+            QFile file(asked);
+            return file.open(QIODevice::ReadOnly) ? file.readAll().count('\n') : 0;
+        };
+
+        // Too slow: still being read, then not; asked once more, read.
+        writeFile(slow);
+        arcade.onSettingChanged(QStringLiteral("com.osdos.arcade"), QStringLiteral("online_play"), QStringLiteral("On"));
+        arcade.refreshRooms();
+        QCOMPARE(ours("yourCoreState"), QStringLiteral("reading"));
+        QTRY_COMPARE_WITH_TIMEOUT(ours("yourCoreState"), QStringLiteral("failed"), 5000);
+        QCOMPARE(times(), 1);
+        QCOMPARE(ours("yourCore"), QString());
+        QTRY_COMPARE_WITH_TIMEOUT(ours("yourRetroArchState"), QStringLiteral("read"), 5000);
+        QCOMPARE(ours("yourRetroArch"), QStringLiteral("1.22.2"));
+        QVERIFY(QFile::remove(slow));
+        arcade.refreshRooms();
+        QTRY_COMPARE_WITH_TIMEOUT(ours("yourCoreState"), QStringLiteral("read"), 5000);
+        QCOMPARE(ours("yourCore"), QStringLiteral("v1.0.0.03 6e7c2a1"));
+        QCOMPARE(times(), 2);
+        // Read: not asked again while the core is the same.
+        arcade.refreshRooms();
+        QTest::qWait(300);
+        QCOMPARE(times(), 2);
+        // No core: not installed, and none of its version kept.
+        QVERIFY(QFile::remove(libretro::downloadedCore(data.path())));
+        if (libretro::corePath(data.path()).isEmpty()) {
+            QCOMPARE(ours("yourCoreState"), QStringLiteral("missing"));
+            QCOMPARE(ours("yourCore"), QString());
+        }
+        // Another core, too slow twice: none of the one before's version
+        // while it is read; asked once more, then no more.
+        writeFile(libretro::downloadedCore(data.path()), "another core");
+        writeFile(slow);
+        arcade.refreshRooms();
+        QCOMPARE(ours("yourCoreState"), QStringLiteral("reading"));
+        QCOMPARE(ours("yourCore"), QString());
+        QTRY_COMPARE_WITH_TIMEOUT(ours("yourCoreState"), QStringLiteral("failed"), 5000);
+        QCOMPARE(times(), 3);
+        arcade.refreshRooms();
+        QCOMPARE(ours("yourCoreState"), QStringLiteral("reading"));
+        QTRY_COMPARE_WITH_TIMEOUT(ours("yourCoreState"), QStringLiteral("failed"), 5000);
+        QCOMPARE(times(), 4);
+        arcade.refreshRooms();
+        QTest::qWait(300);
+        QCOMPARE(times(), 4);
+        QCOMPARE(ours("yourCoreState"), QStringLiteral("failed"));
+        // A core that says its version but doesn't end: stopped, read, and
+        // not asked again.
+        QVERIFY(QFile::remove(slow));
+        writeFile(hang);
+        writeFile(libretro::downloadedCore(data.path()), "the third core");
+        arcade.refreshRooms();
+        QTRY_COMPARE_WITH_TIMEOUT(ours("yourCoreState"), QStringLiteral("read"), 5000);
+        QCOMPARE(ours("yourCore"), QStringLiteral("v1.0.0.03 6e7c2a1"));
+        QCOMPARE(times(), 5);
+        arcade.refreshRooms();
+        QTest::qWait(300);
+        QCOMPARE(times(), 5);
+        // Another RetroArch: none of the one before's version while it is
+        // read, then its own.
+        writeFile(data.path() + QStringLiteral("/bin/retroarch"),
+                  "#!/bin/sh\nsleep 0.3\necho 'Version: 1.22.3 (Git 0a1b2c3)'\n");
+        QVERIFY(QFile::setPermissions(data.path() + QStringLiteral("/bin/retroarch"),
+                                      QFile::ReadOwner | QFile::WriteOwner | QFile::ExeOwner));
+        arcade.refreshRooms();
+        QCOMPARE(ours("yourRetroArchState"), QStringLiteral("reading"));
+        QCOMPARE(ours("yourRetroArch"), QString());
+        QTRY_COMPARE_WITH_TIMEOUT(ours("yourRetroArch"), QStringLiteral("1.22.3"), 5000);
     }
 
     // A game started while MAME is asked about the sets stops that MAME and
@@ -2578,6 +3614,7 @@ private slots:
             ids << v.toMap().value(QStringLiteral("id")).toString();
         QCOMPARE(options.at(0).at(0).toString(), QStringLiteral("start_filter"));
         QCOMPARE(ids, QStringList({ QStringLiteral("all"), QStringLiteral("favorites"), QStringLiteral("recent"),
+                                    QStringLiteral("achievements"), QStringLiteral("netplay"),
                                     QStringLiteral("genres/Beat 'em Up"), QStringLiteral("genres/Fighting"),
                                     QStringLiteral("genres/Maze"), QStringLiteral("genres/Shmup"),
                                     QStringLiteral("players/1"),
@@ -2708,6 +3745,7 @@ private slots:
         }
         QCOMPARE(page, QStringList({
             QStringLiteral("LISTS"), QStringLiteral("favorites=Favorites"), QStringLiteral("recent=Recently Played"),
+            QStringLiteral("achievements=RetroAchievements"), QStringLiteral("netplay=Playable Online"),
             QStringLiteral("unknown=Not Recognized"),
             QStringLiteral("GENRES"), QStringLiteral("genres/Beat 'em Up=Beat 'em Up"),
             QStringLiteral("genres/Fighting=Fighting"), QStringLiteral("genres/Shmup=Shmup"),
@@ -2740,14 +3778,15 @@ private slots:
         options.clear();
         arcade.startFilterOptions();
         QCOMPARE(ids(options.at(0).at(1).toList()), QStringList({
-            QStringLiteral("all"), QStringLiteral("favorites"), QStringLiteral("recent"),
+            QStringLiteral("all"), QStringLiteral("favorites"), QStringLiteral("recent"), QStringLiteral("achievements"),
+            QStringLiteral("netplay"),
             QStringLiteral("genres/Beat 'em Up"), QStringLiteral("genres/Shmup"), QStringLiteral("players/1"),
             QStringLiteral("players/2"), QStringLiteral("players/6"), QStringLiteral("years/1980s"),
             QStringLiteral("years/1990s"), QStringLiteral("makers/Namco") }));
 
-        // A heading's all at once: the players off, Favorites and Recently
-        // Played too.
-        for (const char *id : { "players/1", "players/2", "players/6", "favorites", "recent" })
+        // A heading's all at once: the players off, Favorites, Recently
+        // Played, RetroAchievements and Playable Online too.
+        for (const char *id : { "players/1", "players/2", "players/6", "favorites", "recent", "achievements", "netplay" })
             shown.insert(QLatin1String(id), false);
         core.save_setting(module, QStringLiteral("menu_filters"), shown);
         QCOMPARE(ids(arcade.filters()), QStringList({

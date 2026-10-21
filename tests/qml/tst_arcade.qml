@@ -153,6 +153,9 @@ Rectangle {
             }
             return setsOf(id).indexOf(set)
         }
+        // The filters whose games are still to come.
+        property var pendingFilters: []
+        function filterPending(id) { return pendingFilters.indexOf(id) >= 0 }
         function gameDetails(set) {
             var details = gameInfo[set]
             return details ? Object.assign({}, details, { engine: engineOf(set) }) : ({})
@@ -203,6 +206,14 @@ Rectangle {
         function refreshRooms() { roomReads++ }
         function joinRoom(id) { joined = joined.concat([id]); running = playResult; return playResult }
         function hostGame(set) { hosted = hosted.concat([set]); running = playResult; return playResult }
+        // The whole lobby, as lobby() gives it, kept where a page sees it
+        // change only on roomsChanged(), as with the backend's; and whether
+        // Online Play is on.
+        property var lobbyStore: ({ data: { state: "loading", problem: "", rooms: [] } })
+        function lobby() { return lobbyStore.data }
+        function setLobby(data) { lobbyStore.data = data }
+        property bool online: false
+        function onlinePlay() { return online }
         // Each game's RetroAchievements leaderboard, by set, as leaderboard()
         // gives it ("off" for any other); changed in place, so the screen
         // reads it again only on leaderboardReady().
@@ -399,6 +410,9 @@ Rectangle {
             arcadeBackend.joined = []
             arcadeBackend.hosted = []
             arcadeBackend.roomReads = 0
+            arcadeBackend.lobbyStore = { data: { state: "loading", problem: "", rooms: [] } }
+            arcadeBackend.online = false
+            arcadeBackend.pendingFilters = []
             arcadeBackend.favorites = ["galaga", "sf2"]
             arcadeBackend.filterList = [
                 { id: "all", name: "All Games",
@@ -1288,6 +1302,270 @@ Rectangle {
             compare(screen.current.room, 14)
         }
 
+        // A room of the whole lobby, as lobby() gives it.
+        function lobbyRoom(id, core, title, host, more) {
+            return Object.assign({ id: id, core: core, title: title, rom: title, set: "", crc: "", coreVersion: "",
+                                   subsystem: "", retroarch: "1.22.2", frontend: "unix x64", host: host,
+                                   country: "", relay: "", players: -1, spectators: -1, minutes: -1,
+                                   password: false, spectatePassword: false, connectable: true,
+                                   joinable: false, why: "", coreMatch: core === "FinalBurn Neo" ? "unknown" : "",
+                                   retroarchMatch: "unknown" }, more || {})
+        }
+
+        // RetroArch's whole lobby: read as the page opens, its rooms under
+        // their cores' headings, FinalBurn Neo's first, ▶ on the one to join
+        // and a lock on one with a password, the help line saying what each
+        // is; select opens a room, a line each of what the lobby says of it,
+        // Join first for one that can be joined, which joins it; back to the
+        // rooms on the same room, then out. Coming back from a game joined
+        // lands on its room; a lobby not reached says so.
+        function test_lobby() {
+            var page = open("Lobby.qml")
+            compare(arcadeBackend.roomReads, 1)
+            verify(findText(page, "Reading RetroArch's lobby") !== null)
+            arcadeBackend.setLobby({ state: "ready", problem: "", yourCore: "v1.0.0.03", yourCoreState: "read",
+                                     yourRetroArch: "1.19.1", yourRetroArchState: "read", rooms: [
+                lobbyRoom(11, "FinalBurn Neo", "Street Fighter II", "ann",
+                          { rom: "sf2", set: "sf2", country: "es", coreVersion: "v1.0.0.03", crc: "B62D0BC7",
+                            joinable: true, coreMatch: "same", retroarchMatch: "other" }),
+                lobbyRoom(14, "FinalBurn Neo", "Metal Slug", "bob",
+                          { rom: "mslug", set: "mslug", password: true, why: "It asks for a password" }),
+                lobbyRoom(16, "Snes9x", "Super Mario Kart PBD Edit", "dee",
+                          { crc: "82993FA8", coreVersion: "1.63", country: "gb", relay: "us-east1", players: 2,
+                            spectators: 0, minutes: 75, retroarchMatch: "other",
+                            why: "OSD/OS joins FinalBurn Neo's games alone: this one is Snes9x's" })] })
+            // Seen once the backend says the lobby was read.
+            compare(findText(page, "3 Rooms"), null)
+            arcadeBackend.roomsChanged()
+            tryVerify(function() { return findText(page, "3 Rooms • 2 FinalBurn Neo • 1 To Join") !== null }, 1000)
+            verify(findText(page, "FinalBurn Neo", true) !== null)
+            verify(findText(page, "Snes9x", true) !== null)
+            // On the first room, which can be joined.
+            tryVerify(function() { return findText(page, "Select to join it") !== null }, 1000)
+            verify(findText(page, "ROM sf2, CRC B62D0BC7") !== null)
+            // Its core's version yours, its RetroArch not.
+            verify(findText(page, "FinalBurn Neo v1.0.0.03 (yours too)") !== null)
+            verify(findText(page, "RetroArch 1.22.2 (yours 1.19.1)") !== null)
+            verify(findText(page, ":OPEN") !== null)
+            // Down over the heading, to the Snes9x room.
+            keyClick(Qt.Key_Down)
+            verify(findText(page, "It asks for a password") !== null)
+            keyClick(Qt.Key_Down)
+            verify(findText(page, "ROM Super Mario Kart PBD Edit, CRC 82993FA8") !== null)
+            verify(findText(page, "Through the relay us-east1") !== null)
+            verify(findText(page, "this one is Snes9x's") !== null)
+            // Its lines: what the lobby says of it, nothing to join.
+            keyClick(Qt.Key_Return)
+            verify(findText(page, "Snes9x • Hosted by dee") !== null)
+            verify(findText(page, "Core Version", true) !== null)
+            verify(findText(page, "1.63", true) !== null)
+            verify(findText(page, "82993FA8", true) !== null)
+            compare(findText(page, "Join", true), null)
+            compare(findText(page, ":JOIN"), null)
+            // Its core not yours, nothing to match its version against, its
+            // RetroArch another than yours.
+            compare(page.lines[2].icons, ["no"])
+            compare(page.lines[3].icons, [])
+            compare(page.lines[4].icons, ["no"])
+            keyClick(Qt.Key_Down)
+            keyClick(Qt.Key_Down)
+            verify(findText(page, "OSD/OS plays FinalBurn Neo's games alone") !== null)
+            keyClick(Qt.Key_Down)
+            keyClick(Qt.Key_Down)
+            verify(findText(page, "Yours is 1.19.1: another version") !== null)
+            // Down to how it is reached, then to whether it can be joined.
+            for (var i = 0; i < 4; ++i)
+                keyClick(Qt.Key_Down)
+            verify(findText(page, "Through the relay us-east1, for") !== null)
+            verify(findText(page, "Relay", true) !== null)
+            verify(findText(page, "GB", true) !== null)
+            for (i = 0; i < 5; ++i)
+                keyClick(Qt.Key_Down)
+            verify(findText(page, "1H 15M Ago", true) !== null)
+            verify(findText(page, "this one is Snes9x's") !== null)
+            keyClick(Qt.Key_Return)
+            compare(root.navigations.length, 0)
+            // Back on the rooms, on the same one; up to the first, opened and
+            // joined.
+            keyClick(Qt.Key_Escape)
+            compare(root.backs, 0)
+            verify(findText(page, "3 Rooms") !== null)
+            verify(findText(page, "this one is Snes9x's") !== null)
+            keyClick(Qt.Key_Up)
+            keyClick(Qt.Key_Up)
+            keyClick(Qt.Key_Return)
+            verify(findText(page, "Join", true) !== null)
+            verify(findText(page, ":JOIN") !== null)
+            // Its core and its version yours, its RetroArch not.
+            compare(page.lines[4].icons, ["ok"])
+            compare(page.lines[5].icons, ["ok"])
+            compare(page.lines[6].icons, ["no"])
+            for (i = 0; i < 5; ++i)
+                keyClick(Qt.Key_Down)
+            verify(findText(page, "The same as yours: v1.0.0.03") !== null)
+            for (i = 0; i < 5; ++i)
+                keyClick(Qt.Key_Up)
+            keyClick(Qt.Key_Return)
+            compare(root.navigations.length, 1)
+            compare(root.navigations[0].path, "Play.qml")
+            compare(root.navigations[0].params.game, "sf2")
+            compare(root.navigations[0].params.online.room, 11)
+            compare(root.navigations[0].params.online.host, "ann")
+            compare(root.navigations[0].listState.room, 11)
+            keyClick(Qt.Key_Escape)
+            keyClick(Qt.Key_Escape)
+            compare(root.backs, 1)
+            // Back from a game: on its room.
+            loader.source = ""
+            page = open("Lobby.qml", { navListState: { room: 16 } })
+            tryVerify(function() { return findText(page, "this one is Snes9x's") !== null }, 1000)
+            // Not reached: why.
+            arcadeBackend.setLobby({ state: "failed", problem: "RetroArch's lobby can't be reached: Connection refused",
+                                     rooms: [] })
+            arcadeBackend.roomsChanged()
+            tryVerify(function() { return findText(page, "Lobby Not Reachable") !== null }, 1000)
+            verify(findText(page, "Connection refused") !== null)
+        }
+
+        // A room's core, its version and its RetroArch while yours aren't
+        // known: still being read, they couldn't be, or not installed here.
+        function test_lobbyYours() {
+            var page = open("Lobby.qml")
+            var yours = function(core, retroarch, theirs) {
+                arcadeBackend.setLobby({ state: "ready", problem: "", yourCore: "", yourCoreState: core,
+                                         yourRetroArch: retroarch === "read" ? "1.19.1" : "", yourRetroArchState: retroarch,
+                                         rooms: [
+                    lobbyRoom(11, "FinalBurn Neo", "Street Fighter II", "ann",
+                              { rom: "sf2", set: "sf2", coreVersion: "v1.0.0.03",
+                                retroarch: theirs !== undefined ? theirs : "1.22.2" })] })
+                arcadeBackend.roomsChanged()
+            }
+            var line = function(at) { return page.lines[at].description }
+            yours("reading", "reading")
+            tryVerify(function() { return findText(page, "1 Room • 1 FinalBurn Neo • 0 To Join") !== null }, 1000)
+            // On the room, which opens.
+            tryVerify(function() { return findText(page, "ROM sf2") !== null }, 1000)
+            keyClick(Qt.Key_Return)
+            // Game, ROM, CRC, Core, Core Version, RetroArch.
+            compare(page.lines[3].label, "Core")
+            compare(page.lines[3].icons, ["ok"])
+            compare(page.lines[3].description, "The emulator it is played in: yours too")
+            compare(page.lines[4].icons, [])
+            compare(page.lines[4].description, "Its host's version: yours is still being read")
+            compare(page.lines[5].icons, [])
+            compare(page.lines[5].description, "The RetroArch its host plays it in: yours is still being read")
+            yours("failed", "failed")
+            tryVerify(function() { return line(4) === "Its host's version: yours couldn't be read" }, 1000)
+            compare(page.lines[3].icons, ["ok"])
+            compare(line(5), "The RetroArch its host plays it in: yours couldn't be read")
+            yours("missing", "missing")
+            tryVerify(function() { return page.lines[3].icons[0] === "no" }, 1000)
+            compare(line(3), "The emulator it is played in: FinalBurn Neo, not installed here")
+            compare(line(4), "Its host's version: FinalBurn Neo is not installed here")
+            compare(line(5), "The RetroArch its host plays it in: RetroArch is not installed here")
+            // Yours read, its host's RetroArch not said: nothing to say of it;
+            // and the core's version of a room matched before yours was read
+            // (one kept as it left the lobby): just its version.
+            yours("read", "read", "")
+            tryVerify(function() { return line(5) === "The RetroArch its host plays it in" }, 1000)
+            compare(page.lines[5].value, "?")
+            compare(line(4), "FinalBurn Neo v1.0.0.03")
+        }
+
+        // The lobby read again with a room open: the cursor stays on its line,
+        // Join or not; a room gone, or the lobby not reached, has nothing to
+        // join and says why, and once it is back can be joined again; back on
+        // the rooms, the cursor is on it, though the list lost it a while.
+        function test_lobbyReadAgain() {
+            var sf2 = function(minutes) {
+                return lobbyRoom(11, "FinalBurn Neo", "Street Fighter II", "ann",
+                                 { rom: "sf2", set: "sf2", players: 1, spectators: 0, minutes: minutes, joinable: true })
+            }
+            var mslug = lobbyRoom(14, "FinalBurn Neo", "Metal Slug", "bob",
+                                  { rom: "mslug", set: "mslug", password: true, why: "It asks for a password" })
+            var kart = lobbyRoom(16, "Snes9x", "Super Mario Kart", "dee",
+                                 { why: "OSD/OS joins FinalBurn Neo's games alone: this one is Snes9x's" })
+            var page = open("Lobby.qml")
+            var read = function(state, rooms, problem) {
+                arcadeBackend.setLobby({ state: state, problem: problem || "", rooms: rooms })
+                arcadeBackend.roomsChanged()
+            }
+            read("ready", [mslug, sf2(5), kart])
+            tryVerify(function() { return findText(page, "3 Rooms") !== null }, 1000)
+            // The second room opened, and down to how long ago it was hosted:
+            // Join, Game, ROM, CRC, Core, RetroArch, System, Host, Country,
+            // Connection, Password, Players, Spectators, Hosted.
+            tryVerify(function() { return findText(page, "It asks for a password") !== null }, 1000)
+            keyClick(Qt.Key_Down)
+            verify(findText(page, "Select to join it") !== null)
+            keyClick(Qt.Key_Return)
+            for (var i = 0; i < 13; ++i)
+                keyClick(Qt.Key_Down)
+            verify(findText(page, "How long ago it was hosted") !== null)
+            verify(findText(page, "5M Ago", true) !== null)
+            // Read again a minute on: still there, and select joins nothing.
+            read("ready", [mslug, sf2(6), kart])
+            tryVerify(function() { return findText(page, "6M Ago", true) !== null }, 1000)
+            wait(50)
+            verify(findText(page, "How long ago it was hosted") !== null)
+            keyClick(Qt.Key_Return)
+            compare(root.navigations.length, 0)
+            // Gone from the lobby, the rooms' cursor falling back to another:
+            // no Join, the cursor on its line still, and why on the last line.
+            read("ready", [mslug, kart])
+            tryVerify(function() { return page.lines[0].type !== "join" }, 1000)
+            wait(50)
+            verify(findText(page, "How long ago it was hosted") !== null)
+            keyClick(Qt.Key_Down)
+            verify(findText(page, "It is no longer in RetroArch's lobby") !== null)
+            // The lobby not reached: why.
+            read("failed", [], "RetroArch's lobby can't be reached: Connection refused")
+            tryVerify(function() { return findText(page, "Connection refused") !== null }, 1000)
+            // Back, and to be joined again.
+            read("ready", [mslug, sf2(7), kart])
+            tryVerify(function() { return findText(page, "From here, in FinalBurn Neo") !== null }, 1000)
+            compare(page.lines[0].type, "join")
+            // Back on the rooms: on it, not on the room the list fell back to.
+            keyClick(Qt.Key_Escape)
+            compare(root.backs, 0)
+            verify(findText(page, "Select to join it") !== null)
+        }
+
+        // The lobby from the tree's Online Games, and from a game's options on
+        // the Arcade screen while Online Play is on.
+        function test_lobbyOpened() {
+            arcadeBackend.entries = Object.assign({}, arcadeBackend.entries, {
+                "top": [{ name: "Online Games", path: "online", isFolder: true }].concat(arcadeBackend.entries.top),
+                "online": [{ name: "RetroArch Lobby", path: "lobby", isFolder: false, kind: "lobby",
+                             detail: "Every game hosted in RetroArch's lobby" }]
+            })
+            var games = open("Games.qml")
+            keyClick(Qt.Key_Right)
+            tryVerify(function() { return findText(games, "Every game hosted in RetroArch's lobby") !== null }, 1000)
+            verify(findText(games, ":OPEN") !== null)
+            keyClick(Qt.Key_Return)
+            compare(root.navigations.length, 1)
+            compare(root.navigations[0].path, "Lobby.qml")
+            loader.source = ""
+            // The Arcade screen: not offered with Online Play off.
+            var screen = openScreen()
+            keyPress(Qt.Key_Return)
+            tryVerify(function() { return findText(screen, "Game Details") !== null }, 1500)
+            keyRelease(Qt.Key_Return)
+            compare(findText(screen, "RetroArch Lobby"), null)
+            keyClick(Qt.Key_Escape)
+            loader.source = ""
+            arcadeBackend.online = true
+            screen = openScreen()
+            keyPress(Qt.Key_Return)
+            tryVerify(function() { return findText(screen, "RetroArch Lobby") !== null }, 1500)
+            keyRelease(Qt.Key_Return)
+            keyClick(Qt.Key_Up)
+            keyClick(Qt.Key_Return)
+            compare(root.navigations.length, 2)
+            compare(root.navigations[1].path, "Lobby.qml")
+        }
+
         // A room joined from the game's screen says whose game it is and
         // joins it; a game hosted says so and hosts it; and with Start Info
         // Screen off, the router joins straight from the list.
@@ -1505,80 +1783,96 @@ Rectangle {
         // round from the list's end to its start; ▲ ▼ move it up and down
         // the rows, the wheel turning a row once it would leave them; the
         // rows going back from it, wherever it is, smaller and fainter, as
-        // far back as they go wheelReach rows from it (four of seven). The
-        // bar has the game of so many. Fewer games than rows lie from the
-        // top row down, the others empty; the room of an even number of rows
-        // holds one fewer, for a middle.
+        // far back as they go wheelReach rows from it (five of nine), and
+        // nearer each other as they are smaller, from the list's top to its
+        // foot: nine rows where Curved has seven. The bar has the game of so
+        // many. Fewer games than rows lie from the top row down, the others
+        // empty; without the hint bar, ten rows.
         function test_screenWheel() {
             moduleRoot.listStyle = "3D Curved"
             var screen = openScreen()
             var row = function(number) { var t = findText(screen, number); return t ? t.parent : null }
-            var top = function(r) { return Math.round((screen.listTop + r * screen.pitch) * screen.v) }
+            var top = function(r) { return Math.round(screen.wheelTops[r] * screen.v) }
+            var gap = function(a, b) { return b.y - (a.y + a.height) }
             verify(screen.wheel)
-            compare(screen.perPage, 7)
-            compare(screen.middleRow, 3)
+            compare(screen.rowsFit, 7)
+            compare(screen.perPage, 9)
+            compare(screen.middleRow, 4)
             compare(screen.currentSet, "sf2")
-            compare(screen.selectedRow, 3)
+            compare(screen.selectedRow, 4)
             verify(findText(screen, "1/15") !== null)
-            var rows = ["013", "014", "015", "001", "002", "003", "004"].map(row)
-            compare(rows[3].y, top(3))
-            compare(row("005"), null)
-            compare(rows[3].opacity, 1)
-            for (var i = 0; i < 3; ++i) {
+            var rows = ["012", "013", "014", "015", "001", "002", "003", "004", "005"].map(row)
+            compare(rows[4].y, top(4))
+            compare(row("006"), null)
+            compare(rows[4].opacity, 1)
+            // From the list's top to its foot.
+            compare(rows[0].y, Math.round(screen.listTop * screen.v))
+            fuzzyCompare(rows[8].y + rows[8].height, Math.round(screen.listBottom * screen.v), 1)
+            for (var i = 0; i < 4; ++i) {
                 verify(rows[i].y < rows[i + 1].y)
                 verify(rows[i].opacity < rows[i + 1].opacity)
                 verify(rows[i].height < rows[i + 1].height)
                 verify(rows[i].x + rows[i].width < rows[i + 1].x + rows[i + 1].width)
-                verify(rows[6 - i].opacity < rows[5 - i].opacity)
-                verify(rows[6 - i].x + rows[6 - i].width < rows[5 - i].x + rows[5 - i].width)
+                verify(rows[8 - i].opacity < rows[7 - i].opacity)
+                verify(rows[8 - i].x + rows[8 - i].width < rows[7 - i].x + rows[7 - i].width)
+                // Apart, and nearer the next as they go back.
+                verify(gap(rows[i], rows[i + 1]) >= 1)
+                verify(gap(rows[7 - i], rows[8 - i]) >= 1)
+                verify(gap(rows[i], rows[i + 1]) <= gap(rows[3], rows[4]))
                 // Their left ends on Curved's arc, the ends furthest left.
                 compare(rows[i].x, Math.round((screen.areaLeft + 12
-                                               + Math.round(24 * Math.sin(Math.PI * (i + 0.5) / 7))) * screen.u))
-                compare(rows[6 - i].x, rows[i].x)
+                                               + Math.round(24 * Math.sin(Math.PI * (i + 0.5) / 9))) * screen.u))
+                compare(rows[8 - i].x, rows[i].x)
             }
             verify(rows[0].x < rows[1].x && rows[1].x < rows[2].x)
+            // No two further apart than Curved's rows are.
+            var curvedPitch = Math.floor((screen.listRoom - screen.rowHeight) / (screen.rowsFit - 1))
+            for (i = 0; i < 8; ++i)
+                verify(gap(rows[i], rows[i + 1]) <= Math.ceil((curvedPitch - screen.rowHeight) * screen.v))
             // The game chosen stands out of the arc to the left.
-            compare(rows[3].x, Math.round((screen.areaLeft + 12 + 24 - 16) * screen.u))
+            compare(rows[4].x, Math.round((screen.areaLeft + 12 + 24 - 16) * screen.u))
 
             // Down moves it a row; the wheel stays, and the rows go back from
             // the game chosen now.
             keyClick(Qt.Key_Down)
             compare(screen.currentSet, "1942")
             verify(findText(screen, "2/15") !== null)
-            compare(screen.selectedRow, 4)
-            compare(row("002").y, top(4))
+            compare(screen.selectedRow, 5)
+            compare(row("002").y, top(5))
             compare(row("002").opacity, 1)
             verify(row("001").opacity < 1)
-            verify(row("013").opacity < row("014").opacity)
-            compare(row("005"), null)
+            verify(row("012").opacity < row("013").opacity)
+            compare(row("006"), null)
+            compare(row("012").y, Math.round(screen.listTop * screen.v))
             // To the bottom row, and past it: the wheel turns a row.
+            for (var d = 0; d < 3; ++d)
+                keyClick(Qt.Key_Down)
+            compare(screen.selectedRow, 8)
+            verify(row("012") !== null)
             keyClick(Qt.Key_Down)
-            keyClick(Qt.Key_Down)
-            compare(screen.selectedRow, 6)
-            verify(row("013") !== null)
-            keyClick(Qt.Key_Down)
-            compare(screen.selectedRow, 6)
-            verify(findText(screen, "5/15") !== null)
-            compare(row("013"), null)
-            compare(row("005").y, top(6))
+            compare(screen.selectedRow, 8)
+            verify(findText(screen, "6/15") !== null)
+            compare(row("012"), null)
+            compare(row("006").y, top(8))
+            fuzzyCompare(row("006").y + row("006").height, Math.round(screen.listBottom * screen.v), 1)
             // Up to the top row, the rows under it going back the further
-            // they are, those four rows from it and more as far back as they
+            // they are, those five rows from it and more as far back as they
             // go; and past it, round to the list's end.
-            for (var k = 0; k < 6; ++k)
+            for (var k = 0; k < 8; ++k)
                 keyClick(Qt.Key_Up)
             compare(screen.selectedRow, 0)
-            compare(row("014").y, top(0))
-            var below = ["014", "015", "001", "002", "003", "004", "005"].map(row)
-            for (var j = 0; j < 4; ++j)
+            compare(row("013").y, top(0))
+            var below = ["013", "014", "015", "001", "002", "003", "004", "005", "006"].map(row)
+            for (var j = 0; j < 5; ++j)
                 verify(below[j + 1].opacity < below[j].opacity)
-            compare(below[5].opacity, below[4].opacity)
-            compare(below[6].opacity, below[4].opacity)
-            fuzzyCompare(below[4].opacity, 0.4, 0.001)
+            for (j = 6; j < 9; ++j)
+                compare(below[j].opacity, below[5].opacity)
+            fuzzyCompare(below[5].opacity, 0.4, 0.001)
             keyClick(Qt.Key_Up)
             compare(screen.selectedRow, 0)
-            verify(findText(screen, "13/15") !== null)
-            compare(row("013").y, top(0))
-            compare(row("005"), null)
+            verify(findText(screen, "12/15") !== null)
+            compare(row("012").y, top(0))
+            compare(row("006"), null)
 
             loader.source = ""
             moduleRoot.startFilter = "genres/Fighting"
@@ -1595,7 +1889,7 @@ Rectangle {
             root.hintBar = false
             screen = openScreen()
             compare(screen.rowsFit, 8)
-            compare(screen.perPage, 7)
+            compare(screen.perPage, 10)
         }
 
         // The wheel with as many games as rows turns at its ends as it does
@@ -1605,31 +1899,31 @@ Rectangle {
         // fewer rows (Screen Adjustment) keep it in the last of them.
         function test_screenWheelRows() {
             moduleRoot.listStyle = "3D Curved"
-            arcadeBackend.filterList[0].sets = arcadeBackend.filterList[0].sets.slice(0, 7)
+            arcadeBackend.filterList[0].sets = arcadeBackend.filterList[0].sets.slice(0, 9)
             var screen = openScreen()
-            compare(screen.count, 7)
-            compare(screen.perPage, 7)
-            compare(screen.selectedRow, 3)
-            compare(screen.rows[0].place, 4)
-            for (var i = 0; i < 4; ++i)
-                keyClick(Qt.Key_Down)
-            compare(screen.currentSet, "dkong")
-            compare(screen.selectedRow, 6)
+            compare(screen.count, 9)
+            compare(screen.perPage, 9)
+            compare(screen.selectedRow, 4)
             compare(screen.rows[0].place, 5)
-            for (i = 0; i < 6; ++i)
-                keyClick(Qt.Key_Up)
+            for (var i = 0; i < 5; ++i)
+                keyClick(Qt.Key_Down)
             compare(screen.currentSet, "ffight")
+            compare(screen.selectedRow, 8)
+            compare(screen.rows[0].place, 6)
+            for (i = 0; i < 8; ++i)
+                keyClick(Qt.Key_Up)
+            compare(screen.currentSet, "galaga")
             compare(screen.selectedRow, 0)
             keyClick(Qt.Key_Up)
-            compare(screen.currentSet, "dkong")
+            compare(screen.currentSet, "ffight")
             compare(screen.selectedRow, 0)
-            compare(screen.rows[0].place, 4)
+            compare(screen.rows[0].place, 5)
 
             // Read again, a game more ahead of it.
             arcadeBackend.filterList[0].sets = ["kinst"].concat(arcadeBackend.filterList[0].sets)
             arcadeBackend.gamesChanged()
-            compare(screen.count, 8)
-            compare(screen.currentSet, "dkong")
+            compare(screen.count, 10)
+            compare(screen.currentSet, "ffight")
             compare(screen.selectedRow, 0)
 
             // Its filter gone, its last favourite with it.
@@ -1644,28 +1938,28 @@ Rectangle {
             arcadeBackend.gamesChanged()
             compare(screen.filterId, "all")
             compare(screen.currentSet, "sf2")
-            compare(screen.selectedRow, 3)
+            compare(screen.selectedRow, 4)
 
-            // Played from the sixth row, and back.
+            // Played from the seventh row, and back.
             loader.source = ""
             moduleRoot.startFilter = "all"
             screen = openScreen()
             keyClick(Qt.Key_Down)
             keyClick(Qt.Key_Down)
             compare(screen.currentSet, "1942")
-            compare(screen.selectedRow, 5)
+            compare(screen.selectedRow, 6)
             keyClick(Qt.Key_Space)
             var played = root.navigations[root.navigations.length - 1]
             compare(played.path, "Play.qml")
-            compare(played.listState.row, 5)
+            compare(played.listState.row, 6)
             loader.source = ""
             screen = openScreen({ navListState: played.listState })
             compare(screen.currentSet, "1942")
-            compare(screen.selectedRow, 5)
+            compare(screen.selectedRow, 6)
             moduleRoot.screenAdjustment = { top: -30, bottom: -105, left: 0, right: 0 }
-            compare(screen.perPage, 5)
+            compare(screen.perPage, 6)
             compare(screen.currentSet, "1942")
-            compare(screen.selectedRow, 4)
+            compare(screen.selectedRow, 5)
         }
 
         // Border OFF: no frame round the picture or the box under it, the
@@ -1809,6 +2103,33 @@ Rectangle {
             arcadeBackend.filterList = all
             arcadeBackend.gamesChanged()
             compare(screen.filterId, "genres/Fighting")
+        }
+
+        // One whose games are still to come (RetroAchievements' list being
+        // read) is waited for once MAME has answered too, and opens on its
+        // first game as they come; come without it, it gives way.
+        function test_screenFilterPending() {
+            var all = arcadeBackend.filterList
+            moduleRoot.startFilter = "achievements"
+            arcadeBackend.pendingFilters = ["achievements"]
+            var screen = openScreen()
+            compare(screen.filterId, "all")
+            compare(screen.wanted, "achievements")
+            arcadeBackend.pendingFilters = []
+            arcadeBackend.filterList = all.concat([{ id: "achievements", name: "RetroAchievements",
+                                                     sets: ["mslug", "sf2"] }])
+            arcadeBackend.gamesChanged()
+            compare(screen.filterId, "achievements")
+            compare(screen.currentSet, "mslug")
+            loader.source = ""
+            arcadeBackend.filterList = all
+            arcadeBackend.pendingFilters = ["achievements"]
+            screen = openScreen()
+            compare(screen.filterId, "all")
+            arcadeBackend.pendingFilters = []
+            arcadeBackend.gamesChanged()
+            compare(screen.filterId, "all")
+            compare(screen.wanted, "all")
         }
 
         // Opened while the games are read, the lists stand in for Start
@@ -2056,6 +2377,17 @@ Rectangle {
             verify(screen.adjusting)
             compare(router.screenAdjustment, { top: 6, bottom: -12, left: 0, right: 3 })
             compare([screen.areaLeft, screen.areaTop, screen.areaRight, screen.areaBottom], [120, 84, 843, 633])
+            keyClick(Qt.Key_Escape)
+            compare(root.backs, 1)
+        }
+
+        // Settings → Arcade → RetroArch Lobby opens the lobby's page,
+        // whichever screen lists the games; back from it leaves the module.
+        function test_rootLobby() {
+            appCore.settings = { screen: "Original", online_play: "On" }
+            var router = open("Root.qml", { lobby: true })
+            compare(shownFile(router), "Lobby.qml")
+            verify(findText(shown(router), "Reading RetroArch's lobby") !== null)
             keyClick(Qt.Key_Escape)
             compare(root.backs, 1)
         }

@@ -3,7 +3,8 @@
 # notes its arguments, the folder it runs in and the controller database it is
 # given in $MAME_LOG, copies the config it was started with to $RA_CONFIG_COPY,
 # and logs (--log-file) what RetroArch with FinalBurn Neo would: the game
-# started, but files missing for mslug and a set it doesn't know for galaga,
+# started, but files missing for mslug and 1943 and a set it doesn't know for
+# galaga,
 # a sign-in refused for the password "wrong" or the token "expired", and
 # RetroAchievements not reached for the token "offline". It swaps the password
 # "secret" for a token in the config, as RetroArch saves it on exit, and takes
@@ -14,6 +15,14 @@
 # first, as it would save it on exit: signed in for the password "secret",
 # refused for "wrong", RetroAchievements not reached for "offline", nothing
 # for "silent"; and runs until it is stopped.
+#
+# Asked its version, it says it as a recent RetroArch prints it, and does
+# nothing else.
+if [ "$1" = "--version" ]; then
+	echo "RetroArch - Frontend for libretro"
+	echo "Version: 1.22.2 (Git c4f8f5f) Oct 20 2026"
+	exit 0
+fi
 log=""; config=""; content=""; prev=""
 for a in "$@"; do
 	case "$a" in --log-file=*) log="${a#--log-file=}" ;; esac
@@ -55,6 +64,9 @@ game=$(basename "$content"); game="${game%.*}"
 		echo "[libretro ERROR] [FBNeo] ROM at index 1 with name 201-p1.p1 and CRC 0x12345678 is required"
 		echo "[libretro ERROR] [FBNeo] ROM at index 2 with name 201-s1.s1 and CRC 0x2345678a is required"
 		echo "[libretro ERROR] [FBNeo] None of those archives was found in your paths"
+		;;
+	1943)
+		echo "[libretro ERROR] [FBNeo] ROM at index 0 with name bme01.12d and CRC 0x55fd447e is required"
 		;;
 	galaga) ;;
 	*) echo "[libretro INFO] [FBNeo] Driver successfully started" ;;

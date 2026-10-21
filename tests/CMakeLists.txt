@@ -211,6 +211,12 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
         target_link_libraries(arcade_test PRIVATE ${MINIZIP_LIBRARY})
     endif()
     add_test(NAME arcade COMMAND arcade_test)
+    # A libretro core that only describes itself, for libretro::loadCoreInfo().
+    enable_language(C)
+    add_library(arcade_test_core MODULE arcade_test_core.c)
+    set_target_properties(arcade_test_core PROPERTIES PREFIX "" AUTOMOC OFF)
+    add_dependencies(arcade_test arcade_test_core)
+    target_compile_definitions(arcade_test PRIVATE TEST_CORE="$<TARGET_FILE:arcade_test_core>")
 
     # A playlist's m3u: owner-only and whole, the one before removed once it
     # is written, and one a full card can't take reported, the one before
@@ -362,5 +368,13 @@ if(UNIX)
         add_test(NAME app_module_${folder} COMMAND bash ${smoke} ${folder})
         list(APPEND smoke_tests app_module_${folder})
     endforeach()
+    # And asked a libretro core's name and version, as the Arcade module
+    # asks a copy of it (--core-info), the test core's, which is built with
+    # the arcade test (Linux).
+    if(TARGET arcade_test_core)
+        add_test(NAME app_core_info
+                 COMMAND bash ${CMAKE_CURRENT_SOURCE_DIR}/app_core_info_test.sh ${OSDOS_APP} $<TARGET_FILE:arcade_test_core>)
+        list(APPEND smoke_tests app_core_info)
+    endif()
     set_tests_properties(${smoke_tests} PROPERTIES SKIP_RETURN_CODE 77)
 endif()

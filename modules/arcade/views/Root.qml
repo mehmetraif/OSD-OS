@@ -241,7 +241,7 @@ FocusScope {
         // The startup favourite, when the app opens on one (Main.qml); or
         // one of Settings → Arcade's pages: the Arcade screen to adjust
         // (Screen Adjustment), FinalBurn Neo's, the RetroAchievements
-        // account's, or the online name's.
+        // account's, the online name's, or RetroArch's lobby.
         if (navParams.adjustScreen)
             navigateTo("ArcadeScreen.qml", { adjust: true })
         else if (navParams.fbneo)
@@ -250,6 +250,8 @@ FocusScope {
             navigateTo("Account.qml", {})
         else if (navParams.onlineName)
             navigateTo("OnlineName.qml", {})
+        else if (navParams.lobby)
+            navigateTo("Lobby.qml", {})
         else
             navigateTo(arcadeScreen ? "ArcadeScreen.qml" : "Games.qml", { startupPlay: navParams.startupPlay })
     }
