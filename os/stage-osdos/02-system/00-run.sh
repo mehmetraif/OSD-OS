@@ -1,10 +1,11 @@
 #!/bin/bash -e
 
 # The app's service, its exit-to-terminal shell, its stop helper, Display
-# Output's next-start socket, Settings → Wi-Fi's country socket and the polkit
-# rule that lets the app's user use NetworkManager (all but the service taken
-# from scripts/install.sh by os/build.sh), and the boot order: the units below
-# hold back until the app is on screen, then start one after another.
+# Output's next-start socket, Settings → Wi-Fi's country socket, System
+# Information's device name socket and the polkit rule that lets the app's
+# user use NetworkManager (all but the service taken from scripts/install.sh
+# by os/build.sh), and the boot order: the units below hold back until the
+# app is on screen, then start one after another.
 
 ETC="${ROOTFS_DIR}/etc"
 LIB="${ROOTFS_DIR}/usr/lib/osdos"
@@ -18,6 +19,8 @@ install -m 644 files/osdos-display.socket files/osdos-display@.service "${ETC}/s
 sed -i "s/@OSDOS_GROUP@/${FIRST_USER_NAME}/" "${ETC}/systemd/system/osdos-display.socket"
 install -m 644 files/osdos-wifi.socket files/osdos-wifi@.service "${ETC}/systemd/system/"
 sed -i "s/@OSDOS_GROUP@/${FIRST_USER_NAME}/" "${ETC}/systemd/system/osdos-wifi.socket"
+install -m 644 files/osdos-name.socket files/osdos-name@.service "${ETC}/systemd/system/"
+sed -i "s/@OSDOS_GROUP@/${FIRST_USER_NAME}/" "${ETC}/systemd/system/osdos-name.socket"
 install -D -m 644 files/50-osdos-networkmanager.rules "${ETC}/polkit-1/rules.d/50-osdos-networkmanager.rules"
 sed -i "s/@OSDOS_USER@/${FIRST_USER_NAME}/" "${ETC}/polkit-1/rules.d/50-osdos-networkmanager.rules"
 install -m 644 files/99-osdos-tty.rules "${ETC}/udev/rules.d/"

@@ -177,7 +177,7 @@ Rectangle {
             verify(all.indexOf("Boot Screen Colors") > 0)
             var elsewhere = ["Scaling", "Transparent Background", "Video Levels", "Loading Effect",
                              "Loading Screen Colors", "Channel Logo", "Info Screen", "Local Files", "Plex",
-                             "High Scores"]
+                             "High Scores", "System Information"]
             for (var i = 0; i < elsewhere.length; i++)
                 verify(all.indexOf(elsewhere[i]) < 0, elsewhere[i] + " isn't on the first screen")
             var modules = all.indexOf("# Modules")

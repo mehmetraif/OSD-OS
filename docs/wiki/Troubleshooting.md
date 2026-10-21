@@ -315,6 +315,17 @@ The other ways, as before:
 
 Settings shows the Pi's IP address at the right end of its title bar once there is one. More in [The OSD/OS image → Wi-Fi](https://github.com/mehmetraif/OSD-OS/wiki/The-OSD-OS-Image#wi-fi).
 
+## Two OSD/OS on one network
+
+Every OSD/OS image starts as `osdos`, so two of them on one network share a name: a router lists them alike, `osdos.local` reaches either, and LAN Play's games are hosted by two `osdos`. **Settings → About → System Information** shows each one's name, IP and MAC addresses; select on **Device Name** to give each a name of its own ([Settings → About → System Information](https://github.com/mehmetraif/OSD-OS/wiki/Settings#system-information)), or name each card in Raspberry Pi Imager's customisation as it is written.
+
+| What you see | Cause | Fix |
+|---|---|---|
+| Select on Device Name does nothing, and the hint bar has no RENAME | Not the OSD/OS image, or an image or `install.sh` run from before the version that brought it (launcher level 8) | Run `install.sh` again; elsewhere, `sudo hostnamectl set-hostname <name>` |
+| **Couldn't rename it: osdos-name.socket isn't listening** | The socket isn't enabled | `sudo systemctl enable --now osdos-name.socket` |
+| **Couldn't rename it: …** with another reason | hostnamectl, or `/etc/hosts`, refused it | `journalctl -u 'osdos-name@*' -b` has the stop helper's answer |
+| **Letters, digits and hyphens only, and no hyphen first or last** | A name the network can't take: an apostrophe, a dot, an `&`, an accent | Type it again with letters, digits and hyphens; a space becomes a hyphen |
+
 ## A USB drive doesn't show
 
 Local Files lists a drive as `USB: <label>`, after Recently Watched, Favorites and Search.

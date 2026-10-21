@@ -331,7 +331,7 @@ FocusScope {
             label: "Status Icons",
             options: ["On", "Off"],
             value: appSettings["status_icons"] === "Off" ? "Off" : "On",
-            description: "What is on, at the top right of the title bar and the bottom right of the Arcade screen: Wi-Fi's signal, Bluetooth, and the Arcade's HI (Save High Scores), trophy (RetroAchievements) and globe (Online Play)\n[OFF] None",
+            description: "What is on, at the top right of the title bar and the bottom right of the Arcade screen: Wi-Fi's signal, Bluetooth, and the Arcade's HI (Save High Scores), trophy (RetroAchievements), globe (Online Play) and network (LAN Play)\n[OFF] None",
             moduleId: ""
         })
 
@@ -448,13 +448,15 @@ FocusScope {
             label: "Update",
             moduleId: ""
         })
-        // ABOUT — what OSD/OS is, who makes it, what it is made of and under
-        // which licence (views/About.qml).
+        // ABOUT — this device's System Information, then what OSD/OS is, who
+        // makes it, what it is made of and under which licence
+        // (views/About.qml).
         items.push({
             type: "submenu",
             key: "about",
             label: "About",
-            description: "What OSD/OS is, who makes it, what it is made of and under which license",
+            description: "This device's System Information, its name on the network first; what OSD/OS is, who makes it,"
+                         + " what it is made of and under which license",
             moduleId: ""
         })
         items.push({ type: "quit", label: "Quit" })

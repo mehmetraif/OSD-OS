@@ -446,7 +446,8 @@ FocusScope {
 
     // Plays a game; coming back lands on it in listFilter.
     // A game played, or with online, a room of the lobby joined ({ room,
-    // host }) or one hosted ({ hosting: true }).
+    // host }) or one hosted ({ hosting: true }), of the local network with
+    // lan: true too.
     function play(set, name, listFilter, online) {
         var params = { game: set, title: name }
         var state = { filter: listFilter, set: set, row: selectedRow }
@@ -458,7 +459,7 @@ FocusScope {
     }
     function playCurrent() {
         if (current && current.room !== undefined)
-            play(currentSet, current.name, filterId, { room: current.room, host: current.host })
+            play(currentSet, current.name, filterId, { room: current.room, host: current.host, lan: !!current.lan })
         else if (isGame)
             play(currentSet, details.name || current.name, filterId)
     }
@@ -479,6 +480,18 @@ FocusScope {
         repeat: true
         running: arcadeScreen.filterId === "online" && !!arcadeBackend && !arcadeBackend.running
         onTriggered: arcadeBackend.refreshRooms()
+    }
+    // The local network asked as the screen comes up, and again while it is
+    // up, so that LAN Games comes as soon as someone there hosts a game, and
+    // goes once they have stopped (with LAN Play off, the backend asks
+    // nothing).
+    Timer {
+        objectName: "lanRefresh"
+        interval: 5000
+        repeat: true
+        triggeredOnStart: true
+        running: arcadeScreen.visible && !!arcadeBackend && !arcadeBackend.running
+        onTriggered: arcadeBackend.refreshLanRooms()
     }
 
     // Select plays the game as it is let go, and opens its options once held
@@ -1058,8 +1071,10 @@ FocusScope {
     }
 
     // What the game is, for the help line: its full name as MAME has it,
-    // then those of its details the box has no line for.
-    readonly property string about: [details.name || ""].concat(detailList.slice(detailRows).map(function(detail) {
+    // then those of its details the box has no line for; a room of the
+    // local network's who hosts it and its versions against ours first.
+    readonly property string about: (current && current.lan && current.detail ? [current.detail] : [])
+        .concat([details.name || ""]).concat(detailList.slice(detailRows).map(function(detail) {
         return detail.told
     })).join("\n")
 
@@ -1192,8 +1207,9 @@ FocusScope {
     }
 
     // A game's options: Play, Game Details, its favourite, Play at Startup,
-    // its engine where MAME and FinalBurn Neo both have it, and with Online
-    // Play on, hosting it and RetroArch's whole lobby.
+    // its engine where MAME and FinalBurn Neo both have it, with Online Play
+    // on, hosting it and RetroArch's whole lobby, and with LAN Play on,
+    // hosting it on the local network.
     EntryOptions {
         id: options
         anchors.fill: parent
@@ -1205,7 +1221,9 @@ FocusScope {
                       .concat(arcadeBackend && arcadeBackend.canHost(arcadeScreen.currentSet)
                               ? [{ label: "Host Online Game", action: "host" }] : [])
                       .concat(arcadeBackend && arcadeBackend.onlinePlay()
-                              ? [{ label: "RetroArch Lobby", action: "lobby" }] : []))
+                              ? [{ label: "RetroArch Lobby", action: "lobby" }] : [])
+                      .concat(arcadeBackend && arcadeBackend.canHostLan(arcadeScreen.currentSet)
+                              ? [{ label: "Host LAN Game", action: "hostLan" }] : []))
         onActivated: function(action) {
             if (action === "play")
                 arcadeScreen.playCurrent()
@@ -1213,9 +1231,9 @@ FocusScope {
                 arcadeScreen.openDetails()
             else if (action === "engine")
                 engines.offer(arcadeScreen.currentSet, arcadeScreen.details.name)
-            else if (action === "host")
+            else if (action === "host" || action === "hostLan")
                 arcadeScreen.play(arcadeScreen.currentSet, arcadeScreen.details.name || arcadeScreen.current.name,
-                                  arcadeScreen.filterId, { hosting: true })
+                                  arcadeScreen.filterId, { hosting: true, lan: action === "hostLan" })
             // The whole lobby; coming back lands on the game, as from it.
             else if (action === "lobby")
                 arcadeScreen.navigateTo("Lobby.qml", {}, { filter: arcadeScreen.filterId, set: arcadeScreen.currentSet,

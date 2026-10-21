@@ -166,6 +166,7 @@ With **Status Icons** on, the right end of every title bar shows what is on, the
 | **HI** | Arcade's **Save High Scores** is on ([Arcade](https://github.com/mehmetraif/OSD-OS/wiki/Arcade#high-scores)) |
 | A trophy | Arcade's **Online High Scores** is RetroAchievements and its account is signed in, or signs in at the next game |
 | A globe | Arcade's **Online Play** is on |
+| A network, two machines joined to a third | Arcade's **LAN Play** is on |
 | Bluetooth's rune | Bluetooth is on; with a dot either side while a device is connected |
 | Wi-Fi's bars | Wi-Fi is on: the signal of the network it has joined, or the bars' feet alone while it has joined none |
 
@@ -194,7 +195,7 @@ Every module's first row is **Enabled**. A module that is turned off is left off
 | Module | Module id | On by default | Its rows, in order |
 |---|---|---|---|
 | [Ambient:Mode](https://github.com/mehmetraif/OSD-OS/wiki/Ambient-Mode) | `com.osdos.ambient_mode` | No | Enabled, Media Directory, Auto-Launch Playback, Scaling |
-| [Arcade](https://github.com/mehmetraif/OSD-OS/wiki/Arcade) | `com.osdos.arcade` | No | Enabled, Games Folder, Screen, Play at Startup, Start Info Screen, Save High Scores, Online High Scores (with RetroAchievements, RetroAchievements Account), Online Play (with On, Online Name and Relay Server), FinalBurn Neo, Emulator Video (Screen Shape, Integer Scale, MAME Video), Read the Games Again; with Screen on Arcade, Start Filter, Menu Filters, List Style, Border, Info Background, Screen Adjustment, Hint Bar and Help Line too |
+| [Arcade](https://github.com/mehmetraif/OSD-OS/wiki/Arcade) | `com.osdos.arcade` | No | Enabled, Games Folder, Screen, Play at Startup, Start Info Screen, Save High Scores, Online High Scores (with RetroAchievements, RetroAchievements Account), Online Play (with On, RetroArch Lobby and Relay Server), LAN Play, Online Name (with either on), FinalBurn Neo, Emulator Video (Screen Shape, Integer Scale, MAME Video), Read the Games Again; with Screen on Arcade, Start Filter, Menu Filters, List Style, Border, Info Background, Screen Adjustment, Hint Bar and Help Line too |
 | [Emby](https://github.com/mehmetraif/OSD-OS/wiki/Emby) | `com.osdos.emby` | No | Enabled; once signed in Libraries, Video Quality, Resume Playback, Autoplay Next Episode, Intro Skip, Credit Skip; Scaling; Sign out once signed in |
 | [High Scores](https://github.com/mehmetraif/OSD-OS/wiki/High-Scores) | `com.osdos.highscores` | No | Enabled, on the Arcade page under the **HIGH SCORES** heading |
 | [Jellyfin](https://github.com/mehmetraif/OSD-OS/wiki/Jellyfin) | `com.osdos.jellyfin` | No | Enabled; once signed in Libraries, Video Quality, Resume Playback, Autoplay Next Episode, and Intro Skip and Credit Skip where the server has the Intro Skipper plugin; Scaling; Sign out once signed in |
@@ -239,7 +240,7 @@ Some rows wait for something:
 | Wi-Fi | A page | | The networks within reach, joined with their passwords; one not listed; the networks saved; the country Wi-Fi keeps to the rules of | None: NetworkManager keeps the networks joined |
 | Bluetooth | A page | | Searching for, pairing and connecting keyboards, gamepads and remotes | None: BlueZ keeps the pairings |
 | Update | A page | | Checks for a newer release, downloads it and installs it | None |
-| About | A page | | What OSD/OS is, who makes it, what it is made of, the arcade's free software and sites, and their licenses | None |
+| About | A page | | This device's System Information first: its name, which tells it apart from others on the network, what it is and each network connection's IP and MAC addresses, the name renamed on the OSD/OS image. Then what OSD/OS is, who makes it, what it is made of, the arcade's free software and sites, and their licenses | None: the device's name is the system's hostname |
 | Quit | A question | | Quits OSD/OS, or under the image's service powers off, restarts or drops to a terminal | None |
 
 ### Display Output
@@ -337,12 +338,29 @@ A build made from source (`DEV`) can check but not download, and so can the OSD/
 <table>
 <tr><th width="50%">About</th><th width="50%">The license</th></tr>
 <tr><td><img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/screenshots/about.png" width="100%" alt="About" /></td><td><img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/screenshots/license.png" width="100%" alt="The license" /></td></tr>
-<tr><td>The wordmark, then a line for each part of what OSD/OS is, its detail in the help line.</td><td>Behind the LICENSE line: the notice, then the GNU GPL's text, a page at a time.</td></tr>
+<tr><td>The wordmark, then System Information with this device's name, and a line for each part of what OSD/OS is, its detail in the help line.</td><td>Behind the LICENSE line: the notice, then the GNU GPL's text, a page at a time.</td></tr>
 </table>
 
-About opens on the OSD/OS wordmark and SMART TV FOR CRT. Under it are lines whose help line carries the detail, shown even with Help Line off: **Build** (the commit the build was made from and the day; the version is in the title bar), **Developer**, **Based On** (240-MP), **License** (GNU GPL v3), **Source**, **Written With** (Claude Code), **Artwork** (ChatGPT), **Fonts** (VCR OSD Mono, Unifont), **Built With** (Qt, SDL2, mpv), **Image OS** (Raspberry Pi OS) and **Data** (TMDB, Open-Meteo). Select on License shows the notice the GPL asks for, then the license's text from the `LICENSE` file every build carries, a page at a time with ▲ ▼ ([Credits](https://github.com/mehmetraif/OSD-OS/wiki/Credits)).
+About opens on the OSD/OS wordmark and SMART TV FOR CRT. Its first line, **System Information**, shows this device's name, and select opens its page ([below](#system-information)). Under it are lines whose help line carries the detail, shown even with Help Line off: **Build** (the commit the build was made from and the day; the version is in the title bar), **Developer**, **Based On** (240-MP), **License** (GNU GPL v3), **Source**, **Written With** (Claude Code), **Artwork** (ChatGPT), **Fonts** (VCR OSD Mono, Unifont), **Built With** (Qt, SDL2, mpv), **Image OS** (Raspberry Pi OS) and **Data** (TMDB, Open-Meteo). Select on License shows the notice the GPL asks for, then the license's text from the `LICENSE` file every build carries, a page at a time with ▲ ▼ ([Credits](https://github.com/mehmetraif/OSD-OS/wiki/Credits)).
 
 Under the **ARCADE** heading are the free software the [Arcade](https://github.com/mehmetraif/OSD-OS/wiki/Arcade) and [High Scores](https://github.com/mehmetraif/OSD-OS/wiki/High-Scores) modules play and read with, **MAME**, **RetroArch**, **FinalBurn Neo**, **openhi2txt**, **hi2txt**, **RapidXML** and **minizip, zlib**, and the sites they read from, **RetroAchievements**, **Online Play** (libretro's lobby) and **Genres, Pictures** (Progetto-SNAPS). Select on a software line shows its license the same way: the GNU GPL v3 or v2, RapidXML's or zlib's, which every build carries, and FinalBurn Neo's from the core as it was installed or downloaded (without it, where to download it).
+
+#### System Information
+
+<table>
+<tr><th width="50%">System Information</th><th width="50%">Renaming the device</th></tr>
+<tr><td><img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/screenshots/system-info.png" width="100%" alt="System Information: DEVICE NAME, MODEL, OS, PROCESSOR, MEMORY, STORAGE, MEDIA STORAGE, TEMPERATURE and UP FOR, then under NETWORK each connection's IP and MAC addresses" /></td><td><img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/screenshots/system-info-rename.png" width="100%" alt="The device's new name typed on the on-screen keyboard" /></td></tr>
+<tr><td>The device's name first, and in the title bar, then what it is and each connection's addresses, read again every few seconds.</td><td>On the image, select on the name types a new one: a space becomes a hyphen, and capitals small letters.</td></tr>
+</table>
+
+About's first line, **System Information**, opens a page that tells one OSD/OS from another on the same network, and says what it runs on:
+
+- **Device Name** is the system's hostname: what a router lists the device under, and what the others on the network reach it at, `<name>.local`. LAN Play's games are hosted under it too, unless Arcade → Online Name says another ([Arcade → LAN play](https://github.com/mehmetraif/OSD-OS/wiki/Arcade#lan-play)). Every OSD/OS image starts as `osdos`, unless Raspberry Pi Imager's customisation named it, so give each one a name of its own.
+- **Model** is the board (Raspberry Pi 5 Model B) or the computer, a Pi's revision and serial number in the help line. **OS** is the operating system, OSD/OS's version and the kernel's in the help line; **Processor** its kind and how many cores it has; **Memory** how much there is, how much is free in the help line.
+- **Storage** is what is free on the drive the data folder is on, and **Media Storage** what is free on the films' own drive where it is another, the image's OSD-OS partition. **Temperature** is the processor's, **Up For** the time since the system last started.
+- **Network** lists each of the device's own connections, Ethernet first, then Wi-Fi, not a bridge's or a tunnel's: its **IP** address (the first IPv4 one; every one in the help line), or **Not Connected**, and its **MAC** address, by which a router can keep the same IP address for the device. Two of a kind are **Ethernet** and **Ethernet 2**.
+
+On the OSD/OS image, select on Device Name renames the device on the on-screen keyboard: letters, digits and hyphens, 63 at most, neither end a hyphen. A space or an underscore becomes a hyphen, and capitals small letters. The new name holds at once and after a restart, and the help line says **Now called …**, or why not. The image's stop helper sets it as root (launcher level 8, [The device name's socket](https://github.com/mehmetraif/OSD-OS/wiki/The-OSD-OS-Image#the-device-names-socket)). Elsewhere, rename the computer in its own settings: `sudo hostnamectl set-hostname <name>` on Raspberry Pi OS.
 
 ### Quit
 

@@ -43,6 +43,7 @@
 #include "audio/MenuMusic.h"
 #include "bluetooth/BluetoothManager.h"
 #include "wifi/WifiManager.h"
+#include "system/SystemInfo.h"
 #include "util/ExecPath.h"
 #include "util/DisplayHandoff.h"
 #include "util/OsdIconProvider.h"
@@ -265,6 +266,9 @@ int main(int argc, char *argv[]) {
     MenuMusic           menuMusic(dataRoot);     // Settings → Menu Music, or a theme's
     BluetoothManager    bluetoothManager;  // Settings → Bluetooth (BlueZ on Linux)
     WifiManager         wifiManager;       // Settings → Wi-Fi (NetworkManager on Linux)
+    // Settings → About → System Information, the films' drive Local Files'
+    // folder's.
+    SystemInfo          systemInfo(dataRoot, [&localFiles] { return localFiles.mediaRoot(); });
 
     // Playback follows the UI's display: mpv gets a --fs-screen* arg derived
     // from this on macOS / desktop Linux (no-op at index 0 and on headless).
@@ -322,6 +326,7 @@ int main(int argc, char *argv[]) {
     ctx->setContextProperty("menuMusic",     &menuMusic);
     ctx->setContextProperty("bluetoothManager", &bluetoothManager);
     ctx->setContextProperty("wifiManager", &wifiManager);
+    ctx->setContextProperty("systemInfo", &systemInfo);
     // Whether a child has the screen (Main.qml: root.screenHandedOff).
     ctx->setContextProperty("displayHandoff", &displayHandoff);
     ctx->setContextProperty("screenIsTube", tube);

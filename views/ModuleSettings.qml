@@ -150,7 +150,10 @@ FocusScope {
     // page's own) has a value (manifest "shown_with": { "key", "value" }),
     // such as the Arcade module's rows for its Arcade screen: that row's
     // value as the page shows it, and never while that row is hidden itself.
+    // A list of them offers it while any holds.
     function shownWith(cond, mid, depth) {
+        if (cond.key === undefined)
+            return conditions(cond).some(function(one) { return shownWith(one, mid, depth) })
         mid = mid || ""
         var row = findRow(mid !== "" ? (alsoSchemas[mid] || []) : fullSchema, cond.key)
         depth = depth || 0
@@ -159,6 +162,12 @@ FocusScope {
         if (row.shown_with && !shownWith(row.shown_with, mid, depth + 1))
             return false
         return String(valueOf(mid !== "" ? Object.assign({ _module: mid }, row) : row)) === String(cond.value)
+    }
+
+    // A row's "shown_with" as a list of its conditions: one, or a list of
+    // them, which from the manifest is a sequence rather than a JS Array.
+    function conditions(cond) {
+        return !cond ? [] : cond.key !== undefined ? [cond] : Array.from(cond)
     }
 
     // A row's value as the page shows it: a toggle's "ON" or "OFF", a list's
@@ -200,7 +209,7 @@ FocusScope {
     function rowsFollow(key, mid) {
         var rows = mid ? (alsoSchemas[mid] || []) : menuSchema
         for (var i = 0; i < rows.length; i++) {
-            if (rows[i].shown_with && rows[i].shown_with.key === key) return true
+            if (conditions(rows[i].shown_with).some(function(one) { return one.key === key })) return true
         }
         return false
     }

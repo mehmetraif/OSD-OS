@@ -150,14 +150,6 @@
       "description": "Every game hosted in RetroArch's lobby, of every core: its game, ROM and CRC, the core and its version, who hosts it and where, how it is reached, and whether its core, version and RetroArch are yours\nA room of a game you have that FinalBurn Neo plays can be joined from it"
     },
     {
-      "key": "online_name",
-      "label": "Online Name",
-      "type": "module_view",
-      "params": { "onlineName": true },
-      "shown_with": { "key": "online_play", "value": "On" },
-      "description": "The name the others see\n[DEFAULT] The RetroAchievements account's, else OSD-OS"
-    },
-    {
       "key": "relay_server",
       "label": "Relay Server",
       "type": "list_single",
@@ -165,6 +157,22 @@
       "default": "New York",
       "shown_with": { "key": "online_play", "value": "On" },
       "description": "Where a game you host is relayed from, for players a home router would turn away: the nearest plays smoothest"
+    },
+    {
+      "key": "lan_play",
+      "label": "LAN Play",
+      "type": "list_single",
+      "options": ["Off", "On"],
+      "default": "Off",
+      "description": "Playing a game with someone on the same network, in FinalBurn Neo: straight from one machine to the other, without the internet\n[ON] LAN Games lists the games hosted on the network that you have, and a game's options can host one"
+    },
+    {
+      "key": "online_name",
+      "label": "Online Name",
+      "type": "module_view",
+      "params": { "onlineName": true },
+      "shown_with": [{ "key": "online_play", "value": "On" }, { "key": "lan_play", "value": "On" }],
+      "description": "The name the others see, online and on the network\n[DEFAULT] Online, the RetroAchievements account's, else OSD-OS; on the network, this device's name (Settings → About → System Information)"
     },
     {
       "key": "fbneo",

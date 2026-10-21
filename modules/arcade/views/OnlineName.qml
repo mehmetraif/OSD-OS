@@ -2,9 +2,10 @@ import QtQuick
 import Components
 
 // Settings → Arcade → Online Name: the name the games hosted and joined online
-// show the others (RetroArch's netplay nickname), typed on the on-screen
-// keyboard; "" left as it was. Unset, it is the RetroAchievements account's,
-// else OSD-OS.
+// and on the local network show the others (RetroArch's netplay nickname),
+// typed on the on-screen keyboard; "" left as it was. Unset, it is the
+// RetroAchievements account's, else OSD-OS; on the local network, the
+// device's name (ArcadeBackend::nickname()).
 FocusScope {
     id: nameRoot
 

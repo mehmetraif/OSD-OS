@@ -1,9 +1,8 @@
 #include "WifiManager.h"
 #include "../util/LegacyNames.h"
+#include "../util/RootRequest.h"
 
 #include <QFile>
-#include <QFileInfo>
-#include <QLocalSocket>
 #include <QLocale>
 #include <QRegularExpression>
 #include <QTimeZone>
@@ -332,12 +331,11 @@ WifiManager::WifiManager(const QDBusConnection &bus, QObject *parent)
 #else
     : QObject(parent),
 #endif
-      m_bootDir(legacy::env("BOOT_DIR", QStringLiteral("/boot/firmware"))),
-      m_runDir(legacy::env("RUN_DIR", QStringLiteral("/run"))) {
+      m_bootDir(legacy::env("BOOT_DIR", QStringLiteral("/boot/firmware"))) {
     m_searchTimer.setSingleShot(true);
     m_searchTimer.setInterval(kSearchMs);
     connect(&m_searchTimer, &QTimer::timeout, this, &WifiManager::stopSearch);
-    m_countryAvailable = legacy::envInt("LAUNCHER_API") >= kWifiApi && QFileInfo::exists(socketPath());
+    m_countryAvailable = rootrequest::available(QStringLiteral("wifi"), kWifiApi);
     readCountry();
 
 #ifdef OSDOS_WIFI
@@ -555,50 +553,20 @@ bool WifiManager::setCountry(const QString &code) {
     emit countryChanged();
 
     // osdos-stop wifi-country, as root, behind the socket: the code on a
-    // line, "ok" or why not back. The connections are this object's, so that
-    // none is left to call on it as it goes: its socket goes after them.
-    auto *socket = new QLocalSocket(this);
-    auto reply = std::make_shared<QByteArray>();
-    auto done = std::make_shared<bool>(false);
-    const auto finish = [this, socket, reply, done, code](const QString &failure) {
-        if (*done)
-            return;
-        *done = true;
-        if (socket->isOpen())
-            reply->append(socket->readAll());
-        const QByteArray line = reply->left(reply->indexOf('\n')).trimmed();
-        socket->deleteLater();
+    // line, "ok" or why not back.
+    rootrequest::ask(this, QStringLiteral("wifi"), code.toLatin1(), kCountryTimeoutMs,
+                     [this, code](const rootrequest::Answer &answer) {
         m_countryBusy = false;
         // As the boot partition has it now, whatever the answer.
         readCountry();
         emit countryChanged();
-        if (line == "ok") {
+        if (answer.ok) {
             setMessage(QStringLiteral("Wi-Fi country set to ") + countryName());
         } else {
-            const QString why = line.isEmpty() ? failure : QString::fromUtf8(line);
-            qWarning("[Wi-Fi] The country wasn't set to %s: %s", qPrintable(code), qPrintable(why));
-            setMessage(QStringLiteral("Couldn't set the country: ") + why);
+            qWarning("[Wi-Fi] The country wasn't set to %s: %s", qPrintable(code), qPrintable(answer.why));
+            setMessage(QStringLiteral("Couldn't set the country: ") + answer.why);
         }
-    };
-    connect(socket, &QLocalSocket::connected, this, [socket, code] {
-        socket->write(code.toLatin1() + '\n');
     });
-    connect(socket, &QLocalSocket::readyRead, this, [socket, reply, finish] {
-        reply->append(socket->readAll());
-        if (reply->contains('\n'))
-            finish(QString());
-    });
-    connect(socket, &QLocalSocket::disconnected, this, [finish] {
-        finish(QStringLiteral("no answer"));
-    });
-    connect(socket, &QLocalSocket::errorOccurred, this, [socket, finish](QLocalSocket::LocalSocketError error) {
-        const bool away = error == QLocalSocket::ServerNotFoundError || error == QLocalSocket::ConnectionRefusedError;
-        finish(away ? QStringLiteral("osdos-wifi.socket isn't listening") : socket->errorString());
-    });
-    QTimer::singleShot(kCountryTimeoutMs, this, [finish] {
-        finish(QStringLiteral("no answer in time"));
-    });
-    socket->connectToServer(socketPath());
     return true;
 }
 
@@ -614,10 +582,6 @@ void WifiManager::setMessage(const QString &text) {
         return;
     m_message = text;
     emit messageChanged();
-}
-
-QString WifiManager::socketPath() const {
-    return m_runDir + QStringLiteral("/osdos-wifi.sock");
 }
 
 // The country raspi-config has set: the kernel's regulatory domain on the

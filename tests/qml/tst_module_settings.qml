@@ -7,10 +7,11 @@ import QtTest
 // unset one by its default, coming and going as that row changes with the
 // cursor kept on it, and their values kept while they are hidden; a dynamic
 // row's choices asked for as it comes; a toggle's value as ON or OFF, and a
-// row whose own row is hidden hidden too; a slider and its tape bar; a value
-// that couldn't be saved left as it was. A multiselect_submenu row's page,
-// views/MultiSelectSettings.qml, with its headings. A group's page, with
-// another module's rows under its name, saved in that module.
+// row whose own row is hidden hidden too, and one shown with any of several;
+// a slider and its tape bar; a value that couldn't be saved left as it was. A
+// multiselect_submenu row's page, views/MultiSelectSettings.qml, with its
+// headings. A group's page, with another module's rows under its name, saved
+// in that module.
 Rectangle {
     id: root
     color: surfaceColor
@@ -259,6 +260,44 @@ Rectangle {
             compare(appCore.values.volume, "Low")
             compare(keys(page), ["music", "volume"])
             compare(cursor(page), "volume")
+        }
+
+        // A row shown with a list of rows' values (the Arcade module's
+        // Online Name, with Online Play or LAN Play): offered while any of
+        // them has its value, taken away once none has. The list as a JS
+        // array, and as the app hands a manifest's list over from C++: a
+        // sequence, which isn't one (Array.isArray() says no).
+        function test_shownWithAny_data() {
+            var either = [{ key: "online", value: "On" }, { key: "lan", value: "On" }]
+            return [{ tag: "array", shownWith: either },
+                    { tag: "sequence", shownWith: { length: 2, 0: either[0], 1: either[1] } }]
+        }
+        function test_shownWithAny(data) {
+            appCore.schema = [
+                { key: "online", label: "Online Play", type: "list_single", options: ["Off", "On"], default: "Off" },
+                { key: "lan", label: "LAN Play", type: "list_single", options: ["Off", "On"], default: "Off" },
+                { key: "name", label: "Online Name", type: "list_single", options: ["A", "B"], default: "A",
+                  shown_with: data.shownWith }
+            ]
+            var page = open()
+            compare(keys(page), ["online", "lan"])
+            keyClick(Qt.Key_Down)
+            keyClick(Qt.Key_Right)
+            compare(appCore.values.lan, "On")
+            compare(keys(page), ["online", "lan", "name"])
+            compare(cursor(page), "lan")
+            keyClick(Qt.Key_Up)
+            keyClick(Qt.Key_Right)
+            compare(keys(page), ["online", "lan", "name"])
+            keyClick(Qt.Key_Down)
+            keyClick(Qt.Key_Left)
+            compare(appCore.values.lan, "Off")
+            compare(keys(page), ["online", "lan", "name"])
+            keyClick(Qt.Key_Up)
+            keyClick(Qt.Key_Left)
+            compare(appCore.values.online, "Off")
+            compare(keys(page), ["online", "lan"])
+            compare(cursor(page), "online")
         }
 
         // A slider: its label, and the tape bar between its two ends under

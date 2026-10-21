@@ -205,11 +205,9 @@ private:
 
 private:
     void setMessage(const QString &text);
-    QString socketPath() const;
     void readCountry();
 
     QString m_bootDir;
-    QString m_runDir;
     bool m_available = false;
     bool m_enabled = false;
     QString m_state;

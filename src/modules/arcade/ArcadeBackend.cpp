@@ -4,6 +4,7 @@
 #include "../../audio/AudioOutput.h"
 #include "../../input/ControllerProfile.h"
 #include "../../util/AtomicFile.h"
+#include "../../util/DeviceName.h"
 #include "../../util/DurableFile.h"
 #include "../../util/LegacyNames.h"
 #include "FbneoInstaller.h"
@@ -18,11 +19,15 @@
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QCoreApplication>
+#include <QHostAddress>
 #include <QNetworkAccessManager>
+#include <QNetworkDatagram>
+#include <QNetworkInterface>
 #include <QNetworkReply>
 #include <QNetworkRequest>
 #include <QRegularExpression>
 #include <QTimer>
+#include <QUdpSocket>
 #include <QUrl>
 #include <QVersionNumber>
 #include <QFuture>
@@ -77,6 +82,10 @@ constexpr const char *kTooBig = "osdosTooBig";
 // How long our own RetroArch, or the copy of the app asking our core, is
 // given to say its version: a core is tens of megabytes to load on a Pi.
 constexpr int kVersionReadMs = 10000;
+// LAN Play: how long the hosts on the local network are given to answer a
+// query, and the most rooms taken of the answers.
+constexpr int kLanListenMs = 1000;
+constexpr qsizetype kMostLanRooms = 64;
 
 // catver.ini, the games' genres, as progettosnaps publishes it with each MAME:
 // downloaded into <data>/arcade when neither folder has one (it may not be
@@ -297,6 +306,52 @@ QString savePicture(const QString &folder, const QString &name, const QByteArray
     return QString();
 }
 
+// A room on the local network as its id is kept: where it is joined, its
+// game and who hosts it.
+QString lanKey(const libretro::Room &room) {
+    return room.joinAddress + QLatin1Char('\n') + room.rom + QLatin1Char('\n') + room.host;
+}
+// Whether one of the rooms is joined at joinAddress: hosted there.
+bool hostedAt(const QList<libretro::Room> &rooms, const QString &joinAddress) {
+    return std::any_of(rooms.cbegin(), rooms.cend(),
+                       [&joinAddress](const libretro::Room &room) { return room.joinAddress == joinAddress; });
+}
+
+// A room's version against ours: "same", "other", or "unknown" where either
+// isn't known. A core's whole, as RetroArch itself matches them when it
+// connects; RetroArch's by its numbers (1.20 is 1.20.0).
+QString coreMatch(const QString &theirs, const QString &ours) {
+    return theirs.isEmpty() || ours.isEmpty() ? QStringLiteral("unknown")
+           : theirs == ours                   ? QStringLiteral("same")
+                                              : QStringLiteral("other");
+}
+QString retroarchMatch(const QString &theirs, const QString &ours) {
+    const QVersionNumber a = QVersionNumber::fromString(theirs).normalized();
+    const QVersionNumber b = QVersionNumber::fromString(ours).normalized();
+    return a.isNull() || b.isNull() ? QStringLiteral("unknown") : a == b ? QStringLiteral("same") : QStringLiteral("other");
+}
+
+// Where a query reaches every host of the networks this machine is on: the
+// broadcast the system sends on its main one, and each network's own, which
+// reaches the hosts of another.
+QList<QHostAddress> broadcastAddresses() {
+    QList<QHostAddress> targets{ QHostAddress(QHostAddress::Broadcast) };
+    const QList<QNetworkInterface> interfaces = QNetworkInterface::allInterfaces();
+    for (const QNetworkInterface &interface : interfaces) {
+        const QNetworkInterface::InterfaceFlags flags = interface.flags();
+        if (!flags.testFlag(QNetworkInterface::IsUp) || !flags.testFlag(QNetworkInterface::CanBroadcast)
+            || flags.testFlag(QNetworkInterface::IsLoopBack))
+            continue;
+        const QList<QNetworkAddressEntry> entries = interface.addressEntries();
+        for (const QNetworkAddressEntry &entry : entries) {
+            const QHostAddress broadcast = entry.broadcast();
+            if (broadcast.protocol() == QAbstractSocket::IPv4Protocol && !targets.contains(broadcast))
+                targets << broadcast;
+        }
+    }
+    return targets;
+}
+
 } // namespace
 
 ArcadeBackend::ArcadeBackend(const QString &appRoot, const QString &dataRoot, AppCore *appCore,
@@ -416,6 +471,10 @@ ArcadeBackend::ArcadeBackend(const QString &appRoot, const QString &dataRoot, Ap
     m_lobbyUrl = QUrl(legacy::env("LOBBY_URL", m_lobbyUrl.toString()));
     m_coreInfoCommand = { QCoreApplication::applicationFilePath(), QStringLiteral("--core-info") };
     m_versionReadMs = kVersionReadMs;
+    m_lanListen = new QTimer(this);
+    m_lanListen->setSingleShot(true);
+    m_lanListenMs = kLanListenMs;
+    connect(m_lanListen, &QTimer::timeout, this, &ArcadeBackend::finishLanRead);
 
     m_scanTimer = new QTimer(this);
     m_scanTimer->setSingleShot(true);
@@ -431,7 +490,7 @@ ArcadeBackend::ArcadeBackend(const QString &appRoot, const QString &dataRoot, Ap
     // open (refresh()): with a full set of MAME's games it is megabytes.
     for (const char *key : { "games_directory", "high_scores", "video", "screen_shape", "integer_scale",
                              "menu_filters", "online_high_scores", "online_play", "engines", "online_name",
-                             "relay_server" }) {
+                             "relay_server", "lan_play" }) {
         const QString k = QLatin1String(key);
         applySetting(k, m_appCore ? m_appCore->get_setting(kModuleId, k) : QVariant());
     }
@@ -547,6 +606,21 @@ void ArcadeBackend::applySetting(const QString &key, const QVariant &value) {
         m_onlineName = value.toString().trimmed();
     } else if (key == QLatin1String("relay_server")) {
         m_relay = kRelays.value(value.toString(), QStringLiteral("nyc"));
+    } else if (key == QLatin1String("lan_play")) {
+        m_lanPlay = value.toString() == QLatin1String("On");
+        // Off: the rooms heard forgotten, so that none of them is offered
+        // once it is on again, before the network has been asked.
+        if (!m_lanPlay) {
+            m_lanListen->stop();
+            m_lanHeard.clear();
+            m_lanRooms.clear();
+            m_lanMissed.clear();
+            m_lanShown.clear();
+            m_lanProblem.clear();
+            m_lanRead = false;
+        }
+        emit gamesChanged();
+        emit statusIconsChanged();
     } else if (key == QLatin1String("play_at_startup") && m_appCore) {
         // A favourite's set, or "" for none: the app's startup favourite
         // made it, as a game's options would.
@@ -923,8 +997,10 @@ void ArcadeBackend::refresh() {
     // what it hasn't been (onRead()). A read under way is followed by
     // another, the folder having perhaps changed since it began.
     m_scanAfterRead = true;
-    // The lobby's rooms with the list, for Online Games.
+    // The lobby's rooms with the list, for Online Games, and the local
+    // network's, for LAN Games.
     refreshRooms();
+    refreshLanRooms();
     readAgain();
 }
 
@@ -1264,10 +1340,11 @@ QStringList ArcadeBackend::filterSets(const QString &filter) const {
         }
         return sets;
     }
-    // The rooms of the lobby, a game's as often as it is hosted.
-    if (filter == QLatin1String("online")) {
+    // The rooms of the lobby, or of the local network, a game's as often as
+    // it is hosted.
+    if (filter == QLatin1String("online") || filter == QLatin1String("lan")) {
         QStringList sets;
-        for (const QVariant &room : rooms())
+        for (const QVariant &room : filterRooms(filter))
             sets << room.toMap().value(QStringLiteral("set")).toString();
         return sets;
     }
@@ -1285,13 +1362,20 @@ QStringList ArcadeBackend::filterSets(const QString &filter) const {
     return slash < 0 ? QStringList() : games.places.value(filter.left(slash)).value(filter.mid(slash + 1));
 }
 
+QVariantList ArcadeBackend::filterRooms(const QString &filter) const {
+    return filter == QLatin1String("lan") ? lanRooms() : filter == QLatin1String("online") ? rooms() : QVariantList();
+}
+
 QVariantList ArcadeBackend::filters() {
     QVariantList list;
     if (!scanning() && !index().games.isEmpty())
         list << filter(QStringLiteral("all"), QStringLiteral("All Games"), index().games.size());
-    // While someone hosts one of the games: the lobby is read with the list.
+    // While someone hosts one of the games: the lobby is read with the list,
+    // and the local network asked.
     if (const qsizetype online = rooms().size(); online > 0)
         list << filter(QStringLiteral("online"), QStringLiteral("Online Games"), online);
+    if (const qsizetype lan = lanRooms().size(); lan > 0)
+        list << filter(QStringLiteral("lan"), QStringLiteral("LAN Games"), lan);
     for (const auto &[id, name] : kLists) {
         const qsizetype count = menuShows(QLatin1String(id)) ? filterSets(QLatin1String(id)).size() : 0;
         if (count > 0)
@@ -1319,7 +1403,8 @@ QVariantList ArcadeBackend::filterGames(const QString &filter, int first, int co
                                   : listedSets(QStringLiteral("favorites"));
     const int last = static_cast<int>(std::min<qsizetype>(sets.size(), qsizetype(first) + count));
     // A room: the game, who hosts it, and the room joined.
-    const QVariantList rooms = filter == QLatin1String("online") ? this->rooms() : QVariantList();
+    const bool lan = filter == QLatin1String("lan");
+    const QVariantList rooms = filterRooms(filter);
     for (int i = first; i < last; ++i) {
         const QString &set = sets.at(i);
         if (!rooms.isEmpty()) {
@@ -1329,7 +1414,9 @@ QVariantList ArcadeBackend::filterGames(const QString &filter, int first, int co
                                                                                          room.value(QStringLiteral("host")).toString()) },
                                   { QStringLiteral("favorite"), favorites.contains(set) },
                                   { QStringLiteral("room"), room.value(QStringLiteral("id")) },
-                                  { QStringLiteral("host"), room.value(QStringLiteral("host")) } };
+                                  { QStringLiteral("host"), room.value(QStringLiteral("host")) },
+                                  { QStringLiteral("lan"), lan },
+                                  { QStringLiteral("detail"), room.value(QStringLiteral("detail")) } };
         } else if (unknown) {
             games << QVariantMap{ { QStringLiteral("set"), set }, { QStringLiteral("name"), m_sets.value(set) },
                                   { QStringLiteral("unknown"), true } };
@@ -1342,8 +1429,8 @@ QVariantList ArcadeBackend::filterGames(const QString &filter, int first, int co
 }
 
 int ArcadeBackend::filterIndex(const QString &filter, const QString &set, int room) {
-    if (room >= 0 && filter == QLatin1String("online")) {
-        const QVariantList list = rooms();
+    if (room >= 0) {
+        const QVariantList list = filterRooms(filter);
         for (int i = 0; i < list.size(); ++i) {
             if (list.at(i).toMap().value(QStringLiteral("id")).toInt() == room)
                 return i;
@@ -1803,7 +1890,8 @@ QVariant ArcadeBackend::requestEntries(const QString &path) {
     m_shown.insert(path);
     if (path == QLatin1String("recent") || path == QLatin1String("favorites"))
         return listEntries(path);
-    // The rooms once the lobby has been read (refreshRooms()).
+    // The rooms once the lobby has been read (refreshRooms()), or the local
+    // network asked (refreshLanRooms()).
     if (path == QLatin1String("online")) {
         if (!m_roomsRead) {
             refreshRooms();
@@ -1811,10 +1899,20 @@ QVariant ArcadeBackend::requestEntries(const QString &path) {
         }
         return roomEntries();
     }
-    // Online Games first, with Online Play on.
+    if (path == QLatin1String("lan")) {
+        if (!m_lanRead) {
+            refreshLanRooms();
+            return QVariant();
+        }
+        return lanRoomEntries();
+    }
+    // Online Games and LAN Games first, with Online Play and LAN Play on.
     QVariantList top;
-    if (m_onlinePlay && fbneoReady())
+    const bool fbneo = (m_onlinePlay || m_lanPlay) && fbneoReady();
+    if (m_onlinePlay && fbneo)
         top << folder(QStringLiteral("Online Games"), QStringLiteral("online"));
+    if (m_lanPlay && fbneo)
+        top << folder(QStringLiteral("LAN Games"), QStringLiteral("lan"));
     if (scanning()) {
         // The lists at once; the rest once MAME has said what the sets are.
         if (path == QLatin1String("top"))
@@ -2092,7 +2190,7 @@ QString ArcadeBackend::engineFor(const QString &set, bool fbneoUsable, bool have
     const QString chosen = m_engines.value(set).toString();
     if (chosen == QLatin1String("mame") && haveMame)
         return QStringLiteral("mame");
-    if (fbneo && (chosen == QLatin1String("fbneo") || m_achievements || m_onlinePlay || !haveMame))
+    if (fbneo && (chosen == QLatin1String("fbneo") || fbneoWanted() || !haveMame))
         return QStringLiteral("fbneo");
     return QStringLiteral("mame");
 }
@@ -2150,7 +2248,7 @@ QVariantList ArcadeBackend::engineChoices(const QString &set) const {
                  choice(QStringLiteral("fbneo"), QStringLiteral("FinalBurn Neo")) };
     // Auto as it stands: what the game would play in left to it.
     const bool fbneo = fbneoPlays(set);
-    const bool autoFbneo = fbneo && (m_achievements || m_onlinePlay || mamePath().isEmpty());
+    const bool autoFbneo = fbneo && (fbneoWanted() || mamePath().isEmpty());
     QVariantList choices{ choice(QStringLiteral("auto"),
                                  autoFbneo ? QStringLiteral("Auto (FinalBurn Neo)") : QStringLiteral("Auto (MAME)")),
                           choice(QStringLiteral("mame"), QStringLiteral("MAME")) };
@@ -2279,14 +2377,18 @@ bool ArcadeBackend::playFbneo(const QString &name, libretro::Launch::Netplay net
     }
     launch.netplay = netplay;
     launch.joinAddress = joinAddress;
-    launch.nickname = m_onlineName.isEmpty() ? (m_raUser.isEmpty() ? QStringLiteral("OSD-OS") : m_raUser) : m_onlineName;
+    launch.nickname = nickname(netplay == libretro::Launch::Netplay::LanHost
+                               || netplay == libretro::Launch::Netplay::LanJoin);
     launch.relay = m_relay;
     // FinalBurn Neo's remap file: the arcade panels' players on its 6-Button
-    // Panel; none without one, nor online.
+    // Panel; none without one, nor online. One of the user's own stays as
+    // it is, loaded in its place.
     const QString remap = libretro::coreRemapPath(launch.remapDir);
     const QString remapText = libretro::remapText(launch);
     bool written = true;
-    if (remapText.isEmpty())
+    if (!libretro::ownsRemap(remap))
+        qInfo("[Arcade] %s is the user's own: left as it is", qPrintable(remap));
+    else if (remapText.isEmpty())
         QFile::remove(remap);
     else
         written = QDir().mkpath(QFileInfo(remap).path()) && writeFileAtomically(remap, remapText.toUtf8(), kOwnerOnly);
@@ -2359,6 +2461,56 @@ bool ArcadeBackend::joinRoom(int id) {
     return false;
 }
 
+bool ArcadeBackend::canHostLan(const QString &set) const {
+    return m_lanPlay && fbneoPlays(set);
+}
+
+bool ArcadeBackend::hostLanGame(const QString &set) {
+    if (running()) {
+        m_lastError = QStringLiteral("A game is still running");
+        return false;
+    }
+    return playFbneo(set, libretro::Launch::Netplay::LanHost);
+}
+
+bool ArcadeBackend::joinLanRoom(int id) {
+    if (running()) {
+        m_lastError = QStringLiteral("A game is still running");
+        return false;
+    }
+    for (const libretro::Room &room : std::as_const(m_lanRooms)) {
+        if (room.id == id)
+            return playFbneo(room.game, libretro::Launch::Netplay::LanJoin, room.joinAddress);
+    }
+    m_lastError = QStringLiteral("The game is no longer hosted on this network");
+    return false;
+}
+
+void ArcadeBackend::setLanDiscovery(const QString &address, quint16 port) {
+    m_lanAddress = address;
+    m_lanPort = port;
+}
+
+void ArcadeBackend::setLanListenTime(int ms) {
+    m_lanListenMs = ms;
+}
+
+QVariantList ArcadeBackend::lanRooms() const {
+    QVariantList list;
+    if (!m_lanPlay || m_lanRooms.isEmpty() || !fbneoReady())
+        return list;
+    for (const libretro::Room &room : m_lanRooms) {
+        // As rooms(): a game in the folder FinalBurn Neo plays (only rooms
+        // joined without a password are kept: readLanAnswers()).
+        if (!fbneoHas(room.game))
+            continue;
+        list << QVariantMap{ { QStringLiteral("id"), room.id }, { QStringLiteral("set"), room.game },
+                             { QStringLiteral("title"), titleOf(room.game) }, { QStringLiteral("host"), room.host },
+                             { QStringLiteral("detail"), lanDetail(room) } };
+    }
+    return list;
+}
+
 QVariantList ArcadeBackend::rooms() const {
     QVariantList list;
     if (!m_onlinePlay || !fbneoReady())
@@ -2378,12 +2530,6 @@ QVariantList ArcadeBackend::rooms() const {
 QVariantMap ArcadeBackend::lobby() const {
     const QDateTime now = QDateTime::currentDateTimeUtc();
     const bool ready = fbneoReady();
-    // A room's version against ours: the same, another, or "unknown" where
-    // either isn't known. RetroArch's by its numbers (1.20 is 1.20.0); a
-    // core's whole, as RetroArch itself matches them when it connects.
-    const auto versionMatch = [](bool known, bool same) {
-        return !known ? QStringLiteral("unknown") : same ? QStringLiteral("same") : QStringLiteral("other");
-    };
     // Ours, while its file is here, and whether it is read, still being
     // read, couldn't be, or isn't installed.
     const bool retroarchHere = !retroarchPath().isEmpty();
@@ -2394,7 +2540,6 @@ QVariantMap ArcadeBackend::lobby() const {
         return !here ? QStringLiteral("missing") : !version.isEmpty() ? QStringLiteral("read")
                : reading ? QStringLiteral("reading") : QStringLiteral("failed");
     };
-    const QVersionNumber ours = QVersionNumber::fromString(yourRetroArch).normalized();
     struct Listed {
         bool fbneo;
         QString core;
@@ -2406,7 +2551,6 @@ QVariantMap ArcadeBackend::lobby() const {
     for (const libretro::Room &room : m_lobby) {
         const bool fbneo = room.core == QLatin1String("FinalBurn Neo");
         const bool have = fbneo && !room.game.isEmpty() && fbneoHas(room.game);
-        const QVersionNumber theirs = QVersionNumber::fromString(room.retroarch).normalized();
         // A game of the folder by its name there; any other as its host has it.
         const QString title = have ? titleOf(room.game) : room.rom.isEmpty() ? QStringLiteral("?") : room.rom;
         // Why it can't be joined from here, as rooms() leaves it out.
@@ -2446,10 +2590,8 @@ QVariantMap ArcadeBackend::lobby() const {
             { QStringLiteral("password"), room.password }, { QStringLiteral("spectatePassword"), room.spectatePassword },
             { QStringLiteral("connectable"), room.connectable }, { QStringLiteral("joinable"), why.isEmpty() },
             { QStringLiteral("why"), why },
-            { QStringLiteral("coreMatch"), !fbneo ? QString()
-                                                   : versionMatch(!room.coreVersion.isEmpty() && !yourCore.isEmpty(),
-                                                                  room.coreVersion == yourCore) },
-            { QStringLiteral("retroarchMatch"), versionMatch(!theirs.isNull() && !ours.isNull(), theirs == ours) } };
+            { QStringLiteral("coreMatch"), !fbneo ? QString() : coreMatch(room.coreVersion, yourCore) },
+            { QStringLiteral("retroarchMatch"), retroarchMatch(room.retroarch, yourRetroArch) } };
         listed.append({ fbneo, room.core, title, room.id, entry });
     }
     // FinalBurn Neo's first, then by core and title, the newest first.
@@ -2607,6 +2749,8 @@ QProcess *ArcadeBackend::askVersion(const QString &program, const QStringList &a
         take(process->readAll(), process->property("timedOut").toBool());
         process->deleteLater();
         emit roomsChanged();
+        // LAN Games' lines, which say it against each room's.
+        showLanRooms();
     };
     connect(process, &QProcess::finished, this, done);
     connect(process, &QProcess::errorOccurred, this, [done](QProcess::ProcessError error) {
@@ -2657,6 +2801,174 @@ QVariantList ArcadeBackend::roomEntries() const {
                             { QStringLiteral("detail"), QStringLiteral("Every game hosted in RetroArch's lobby, of every core, "
                                                                        "and what the lobby says of each") } };
     return entries;
+}
+
+void ArcadeBackend::refreshLanRooms() {
+    if (!m_lanPlay)
+        return;
+    // Ours too, which the rooms are matched against.
+    readOwnVersions();
+    // A query out: its answers are still being listened for.
+    if (m_lanListen->isActive())
+        return;
+    if (!m_lanSocket) {
+        m_lanSocket = new QUdpSocket(this);
+        connect(m_lanSocket, &QUdpSocket::readyRead, this, &ArcadeBackend::readLanAnswers);
+    }
+    m_lanFailure.clear();
+    if (m_lanSocket->state() != QAbstractSocket::BoundState
+        && !m_lanSocket->bind(QHostAddress(QHostAddress::AnyIPv4), 0)) {
+        m_lanFailure = m_lanSocket->errorString();
+    } else {
+        // Every host of the networks this machine is on, or a stand-in.
+        const QList<QHostAddress> targets = m_lanAddress.isEmpty() ? broadcastAddresses()
+                                                                   : QList<QHostAddress>{ QHostAddress(m_lanAddress) };
+        bool sent = false;
+        for (const QHostAddress &target : targets) {
+            if (m_lanSocket->writeDatagram(libretro::lanQuery(), target, m_lanPort) >= 0)
+                sent = true;
+            else if (m_lanFailure.isEmpty())
+                m_lanFailure = m_lanSocket->errorString();
+        }
+        if (sent)
+            m_lanFailure.clear();
+    }
+    // The answers listened for; or, sent nowhere, why said the same way, once
+    // this call is done with.
+    m_lanListen->start(m_lanFailure.isEmpty() ? m_lanListenMs : 0);
+}
+
+void ArcadeBackend::readLanAnswers() {
+    while (m_lanSocket->hasPendingDatagrams()) {
+        // A byte more than an answer, so that a bigger packet is told apart.
+        const QNetworkDatagram datagram = m_lanSocket->receiveDatagram(libretro::kLanAnswerSize + 1);
+        // One that comes once the query's rooms have been made isn't taken,
+        // nor one from outside the local network. Nothing proves where an
+        // answer comes from, and RetroArch takes them as they come too: a room
+        // only ever has RetroArch, once it is chosen, connect to the address
+        // on this network the answer came from, at the port it gave.
+        if (!m_lanListen->isActive() || !libretro::isLanSender(datagram.senderAddress()))
+            continue;
+        const QHostAddress from(datagram.senderAddress().toIPv4Address());
+        std::optional<libretro::Room> room = libretro::readLanAnswer(datagram.data(), from.toString());
+        // Only those that can be listed, so many at most: FinalBurn Neo's,
+        // without a password (RetroArch would ask for it on its own screen).
+        // A host once: the query reaches it by more than one broadcast
+        // address, and it answers each.
+        if (!room || !room->joinable || room->password || m_lanHeard.size() >= kMostLanRooms
+            || hostedAt(m_lanHeard, room->joinAddress))
+            continue;
+        // Its id, the one it had while it was heard with the same game.
+        const QString key = lanKey(*room);
+        auto id = m_lanIds.constFind(key);
+        if (id == m_lanIds.constEnd())
+            id = m_lanIds.insert(key, m_lanNextId++);
+        room->id = *id;
+        m_lanHeard << *room;
+    }
+}
+
+void ArcadeBackend::finishLanRead() {
+    const QString problem = m_lanFailure.isEmpty() ? QString()
+                            : QStringLiteral("The local network can't be reached: ") + m_lanFailure;
+    if (!problem.isEmpty() && problem != m_lanProblem)
+        qWarning("[Arcade] %s", qPrintable(problem));
+    // A room of the last query not heard in this one kept through it, unless
+    // its host answered with another: a broadcast is sent but once, and it,
+    // or the answer, can be lost on the way. Not through a second, nor a
+    // query that couldn't be sent.
+    QSet<QString> missed;
+    if (m_lanFailure.isEmpty()) {
+        for (const libretro::Room &room : std::as_const(m_lanRooms)) {
+            const QString key = lanKey(room);
+            if (m_lanMissed.contains(key) || m_lanHeard.size() >= kMostLanRooms
+                || hostedAt(m_lanHeard, room.joinAddress))
+                continue;
+            m_lanHeard << room;
+            missed.insert(key);
+        }
+    }
+    m_lanMissed = std::move(missed);
+    // In the order they were first heard, whichever answered first now.
+    std::sort(m_lanHeard.begin(), m_lanHeard.end(),
+              [](const libretro::Room &a, const libretro::Room &b) { return a.id < b.id; });
+    m_lanRooms = std::exchange(m_lanHeard, {});
+    m_lanProblem = problem;
+    m_lanRead = true;
+    // The ids of rooms no longer heard forgotten, once they are many.
+    if (m_lanIds.size() > 4 * kMostLanRooms) {
+        QHash<QString, int> kept;
+        for (const libretro::Room &room : std::as_const(m_lanRooms))
+            kept.insert(lanKey(room), room.id);
+        m_lanIds = std::move(kept);
+    }
+    emit lanRoomsChanged();
+    showLanRooms();
+}
+
+void ArcadeBackend::showLanRooms() {
+    if (!m_lanPlay || !m_lanRead)
+        return;
+    if (QVariantList shown = lanRoomEntries(); shown != m_lanShown) {
+        m_lanShown = std::move(shown);
+        emit entriesReady(QStringLiteral("lan"));
+        emit gamesChanged();
+    }
+}
+
+QVariantList ArcadeBackend::lanRoomEntries() const {
+    QVariantList entries;
+    for (const QVariant &value : lanRooms()) {
+        const QVariantMap room = value.toMap();
+        const QString host = room.value(QStringLiteral("host")).toString();
+        entries << QVariantMap{ { QStringLiteral("name"), QStringLiteral("%1 (%2)").arg(room.value(QStringLiteral("title")).toString(), host) },
+                                { QStringLiteral("path"), QStringLiteral("lan:%1").arg(room.value(QStringLiteral("id")).toInt()) },
+                                { QStringLiteral("isFolder"), false },
+                                { QStringLiteral("kind"), QStringLiteral("room") },
+                                { QStringLiteral("game"), room.value(QStringLiteral("set")) },
+                                { QStringLiteral("room"), room.value(QStringLiteral("id")) },
+                                { QStringLiteral("host"), host },
+                                { QStringLiteral("lan"), true },
+                                { QStringLiteral("detail"), room.value(QStringLiteral("detail")) } };
+    }
+    if (entries.isEmpty()) {
+        const bool failed = !m_lanProblem.isEmpty();
+        entries << QVariantMap{ { QStringLiteral("name"), failed ? QStringLiteral("Network Not Reachable") : QStringLiteral("No LAN Games") },
+                                { QStringLiteral("path"), QStringLiteral("lan/none") },
+                                { QStringLiteral("isFolder"), false },
+                                { QStringLiteral("kind"), QStringLiteral("message") },
+                                { QStringLiteral("detail"), failed ? m_lanProblem
+                                                            : QStringLiteral("No one on this network hosts a game you have: "
+                                                                             "host one from a game's options") } };
+    }
+    return entries;
+}
+
+QString ArcadeBackend::nickname(bool lan) const {
+    if (!m_onlineName.isEmpty())
+        return m_onlineName;
+    const QString device = lan ? device::name() : QString();
+    if (!device.isEmpty())
+        return device;
+    return m_raUser.isEmpty() ? QStringLiteral("OSD-OS") : m_raUser;
+}
+
+QString ArcadeBackend::lanDetail(const libretro::Room &room) const {
+    // Who hosts it, and where: two cabinets of one name told apart.
+    QStringList parts{ QStringLiteral("Hosted by %1 at %2 on this network")
+                           .arg(room.host.isEmpty() ? QStringLiteral("someone") : room.host,
+                                room.joinAddress.section(QLatin1Char('|'), 0, 0)),
+                       m_sets.value(room.game) };
+    // Its core and RetroArch against ours, as the lobby's rooms are matched.
+    const QString core = coreMatch(room.coreVersion, m_coreVersion);
+    const QString retroarch = retroarchMatch(room.retroarch, m_retroarchVersion);
+    if (core == QLatin1String("other"))
+        parts << QStringLiteral("Its FinalBurn Neo is %1, yours %2").arg(room.coreVersion, m_coreVersion);
+    if (retroarch == QLatin1String("other"))
+        parts << QStringLiteral("Its RetroArch is %1, yours %2").arg(room.retroarch, m_retroarchVersion);
+    if (core == QLatin1String("same") && retroarch == QLatin1String("same"))
+        parts << QStringLiteral("The same FinalBurn Neo and RetroArch as yours");
+    return parts.join(QStringLiteral(" • "));
 }
 
 QString ArcadeBackend::fbneoNotice(int exitCode, const QString &reason, const libretro::Run &run) const {
@@ -2998,6 +3310,8 @@ QStringList ArcadeBackend::statusIcons() const {
         icons << QStringLiteral("trophy");
     if (m_onlinePlay)
         icons << QStringLiteral("globe");
+    if (m_lanPlay)
+        icons << QStringLiteral("network");
     return icons;
 }
 

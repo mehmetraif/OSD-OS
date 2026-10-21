@@ -414,7 +414,7 @@ Installing the dependencies can take a while; over Wi-Fi, about 20 minutes. Then
 | A polkit rule | With a service, a new one or one kept: `/etc/polkit-1/rules.d/50-osdos-networkmanager.rules`, which lets the user the service runs OSD/OS as scan, join and forget networks and turn Wi-Fi on and off through NetworkManager for Settings → Wi-Fi. The service runs outside any login session, where polkit would otherwise ask for a password nobody can type |
 | Unpacks the app | `OSD-OS-<version>-linux-arm64.tar.gz` into `/opt/osdos`, owned by the user OSD/OS runs as, so in-app updates can replace it. It warns when that user still can't write there, as in-app updates then won't apply |
 | The launcher | `/usr/local/bin/osdos`: applies a downloaded update, then starts OSD/OS on Wayland or X11 when there is a desktop, or straight on the screen (Qt's EGLFS) when there isn't, on the right display card (a Pi 5's video card is not always the first) |
-| The service | Only after **y**: `/etc/systemd/system/osdos.service`, its stop helper `/usr/local/bin/osdos-stop`, `osdos-terminal.service` for Exit to Terminal, `osdos-display.socket` with `osdos-display@.service` for Display Output's At Next Start, and `osdos-wifi.socket` with `osdos-wifi@.service` for Settings → Wi-Fi's country. The console login on `tty1` is masked (`getty@tty1`, `autovt@`), so the screen is OSD/OS's. On the OSD/OS image the image's own `osdos.service` is left as it is, and the rest is written afresh |
+| The service | Only after **y**: `/etc/systemd/system/osdos.service`, its stop helper `/usr/local/bin/osdos-stop`, `osdos-terminal.service` for Exit to Terminal, `osdos-display.socket` with `osdos-display@.service` for Display Output's At Next Start, `osdos-wifi.socket` with `osdos-wifi@.service` for Settings → Wi-Fi's country, and `osdos-name.socket` with `osdos-name@.service` for renaming the device in Settings → About → System Information. The console login on `tty1` is masked (`getty@tty1`, `autovt@`), so the screen is OSD/OS's. On the OSD/OS image the image's own `osdos.service` is left as it is, and the rest is written afresh |
 
 #### The autostart service
 
@@ -632,11 +632,12 @@ YouTube's yt-dlp is the exception: on the image it replaces itself with its newe
 **On Raspberry Pi OS,** stop and remove the service (if you installed it), then the app, its launcher and its udev rule, and last your settings if you don't want them back:
 
 ```sh
-sudo systemctl disable --now osdos.service osdos-display.socket osdos-wifi.socket
+sudo systemctl disable --now osdos.service osdos-display.socket osdos-wifi.socket osdos-name.socket
 sudo systemctl unmask getty@tty1.service autovt@.service
 sudo rm -f /etc/systemd/system/osdos.service /etc/systemd/system/osdos-terminal.service /usr/local/bin/osdos-stop
 sudo rm -f /etc/systemd/system/osdos-display.socket /etc/systemd/system/osdos-display@.service
 sudo rm -f /etc/systemd/system/osdos-wifi.socket /etc/systemd/system/osdos-wifi@.service
+sudo rm -f /etc/systemd/system/osdos-name.socket /etc/systemd/system/osdos-name@.service
 sudo rm -f /etc/polkit-1/rules.d/50-osdos-networkmanager.rules
 sudo systemctl daemon-reload
 sudo rm -rf /opt/osdos

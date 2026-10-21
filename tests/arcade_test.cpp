@@ -9,9 +9,11 @@
 #include <QDateTime>
 #include <QDir>
 #include <QFile>
+#include <QHostAddress>
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
+#include <QNetworkDatagram>
 #include <QScopeGuard>
 #include <QSignalSpy>
 #include <QTcpServer>
@@ -19,8 +21,10 @@
 #include <QTemporaryDir>
 #include <QThreadPool>
 #include <QTimer>
+#include <QUdpSocket>
 #include <QUrl>
 #include <QUrlQuery>
+#include <QtEndian>
 #include <QtTest>
 
 #include <functional>
@@ -242,6 +246,32 @@ exit 0
     static QByteArray jpeg(const QByteArray &mark) { return QByteArray("\xff\xd8\xff\xe0", 4) + mark; }
     static QByteArray hashOf(const char *file) { return libretro::achievementsHash(QLatin1String(file)).toLatin1(); }
 
+    // A host's answer to RetroArch's query on the local network, as
+    // RetroArch sends it (its struct ad_packet): "RANS", the game's CRC, the
+    // port to join at and the passwords it asks for, big-endian, then each
+    // string in a field of its own size, ended by a NUL within it.
+    static QByteArray lanAnswer(const QByteArray &host, const QByteArray &content, quint32 port,
+                                quint32 passwords = 0, const QByteArray &retroarch = "1.22.2", quint32 crc = 0,
+                                const QByteArray &core = "FinalBurn Neo") {
+        QByteArray packet("RANS");
+        for (const quint32 number : { crc, port, passwords }) {
+            char bytes[4];
+            qToBigEndian(number, bytes);
+            packet.append(bytes, 4);
+        }
+        const auto field = [&packet](const QByteArray &text, int size) {
+            packet.append(text.left(size - 1).leftJustified(size, '\0'));
+        };
+        field(host, 32);
+        field("unix x64", 32);
+        field(core, 32);
+        field("v1.0.0.03 6e7c2a1", 32);
+        field(retroarch, 32);
+        field(content, 256);
+        field("N/A", 256);
+        return packet;
+    }
+
 private slots:
     void initTestCase() {
         QVERIFY(m_data.isValid());
@@ -257,6 +287,9 @@ private slots:
         qputenv("OSDOS_ASOUND_DIR", (m_data.path() + QStringLiteral("/asound")).toUtf8());
         // No catver.ini downloaded but where a test asks for one.
         qputenv("OSDOS_GENRES_URL", "");
+        // The device's name, an invented one: LAN Play's games are hosted
+        // under it.
+        qputenv("OSDOS_DEVICE_NAME", "garage-cab");
         writeFile(mamePath(), kFakeMame);
         QVERIFY(QFile::setPermissions(mamePath(), QFile::ReadOwner | QFile::WriteOwner | QFile::ExeOwner));
         // MAME's hiscore plugin, where Debian's is beside /usr/games.
@@ -281,6 +314,7 @@ private slots:
         qunsetenv("MAME_LOG");
         qunsetenv("OSDOS_MEDIA_DIR");
         qunsetenv("OSDOS_DRM_DEVICE");
+        qunsetenv("OSDOS_DEVICE_NAME");
     }
 
     void helpers() {
@@ -1033,8 +1067,18 @@ private slots:
         const QStringList remap = libretro::remapText(launch).split(QLatin1Char('\n'));
         QVERIFY(remap.contains(QStringLiteral("input_libretro_device_p3 = \"261\"")));
         QVERIFY(!remap.filter(QStringLiteral("input_libretro_device_p1")).size());
-        // Online, every player on the host's controller types: no panel.
-        for (const auto netplay : { libretro::Launch::Netplay::Join, libretro::Launch::Netplay::Host }) {
+        // The file is OSD/OS's while there is none or it wrote it; one saved
+        // from RetroArch's menu, or put there by hand, is the user's.
+        const QString remapFile = libretro::coreRemapPath(dir.path() + QStringLiteral("/remaps"));
+        QVERIFY(libretro::ownsRemap(remapFile));
+        writeFile(remapFile, libretro::remapText(launch).toUtf8());
+        QVERIFY(libretro::ownsRemap(remapFile));
+        writeFile(remapFile, "input_libretro_device_p1 = \"1\"\ninput_remap_port_p1 = \"0\"\n");
+        QVERIFY(!libretro::ownsRemap(remapFile));
+        // Online, on the internet or the local network, every player on the
+        // host's controller types: no panel.
+        for (const auto netplay : { libretro::Launch::Netplay::Join, libretro::Launch::Netplay::Host,
+                                    libretro::Launch::Netplay::LanJoin, libretro::Launch::Netplay::LanHost }) {
             launch.netplay = netplay;
             const QStringList online = libretro::configText(launch).split(QLatin1Char('\n'));
             QVERIFY(online.contains(QStringLiteral("input_player3_b_btn = \"0\"")));
@@ -1095,6 +1139,92 @@ private slots:
         QCOMPARE(libretro::arguments(launch).mid(6),
                  QStringList({ QStringLiteral("--connect"), QStringLiteral("198.51.100.7|55435|c2Vzc2lvbg=="),
                                QStringLiteral("/games/sf2.zip") }));
+        // LAN Play's join: straight to the host on the local network, as a
+        // lobby's room is joined.
+        launch.netplay = libretro::Launch::Netplay::LanJoin;
+        launch.joinAddress = QStringLiteral("192.168.1.20|55435");
+        QCOMPARE(libretro::arguments(launch).mid(6),
+                 QStringList({ QStringLiteral("--connect"), QStringLiteral("192.168.1.20|55435"),
+                               QStringLiteral("/games/sf2.zip") }));
+        config = libretro::configText(launch);
+        QVERIFY(has(QStringLiteral("netplay_nickname = \"Mehmet\"")));
+        QVERIFY(!config.contains(QStringLiteral("netplay_public_announce")));
+        // LAN Play's host: on the local network alone, straight, where
+        // RetroArch answers the queries made there; not in the lobby, nor
+        // through a port opened on the router.
+        launch.netplay = libretro::Launch::Netplay::LanHost;
+        config = libretro::configText(launch);
+        for (const char *line : { "netplay_nickname = \"Mehmet\"", "netplay_start_as_spectator = \"false\"",
+                                  "netplay_public_announce = \"false\"", "netplay_use_mitm_server = \"false\"",
+                                  "netplay_nat_traversal = \"false\"" })
+            QVERIFY2(has(QLatin1String(line)), line);
+        QVERIFY(!config.contains(QStringLiteral("netplay_mitm_server ")));
+        QCOMPARE(libretro::arguments(launch).mid(6),
+                 QStringList({ QStringLiteral("--host"), QStringLiteral("/games/sf2.zip") }));
+
+        // A host's answer to the query on the local network: its game, who
+        // hosts it, what it plays in, and where it is joined, at the address
+        // it answered from and the port it gives.
+        QCOMPARE(libretro::lanQuery(), QByteArray("RANQ"));
+        const QByteArray answer = lanAnswer("ann", "SF2", 55436, 0, "1.22.2", 0x1a2b3c4d);
+        QCOMPARE(answer.size(), libretro::kLanAnswerSize);
+        std::optional<libretro::Room> lan = libretro::readLanAnswer(answer, QStringLiteral("192.168.1.20"));
+        QVERIFY(lan);
+        QCOMPARE(lan->id, 0);
+        QCOMPARE(lan->game, QStringLiteral("sf2"));
+        QCOMPARE(lan->rom, QStringLiteral("SF2"));
+        QCOMPARE(lan->crc, QStringLiteral("1A2B3C4D"));
+        QCOMPARE(lan->host, QStringLiteral("ann"));
+        QCOMPARE(lan->frontend, QStringLiteral("unix x64"));
+        QCOMPARE(lan->core, QStringLiteral("FinalBurn Neo"));
+        QCOMPARE(lan->coreVersion, QStringLiteral("v1.0.0.03 6e7c2a1"));
+        QCOMPARE(lan->retroarch, QStringLiteral("1.22.2"));
+        QCOMPARE(lan->subsystem, QString());
+        QCOMPARE(lan->joinAddress, QStringLiteral("192.168.1.20|55436"));
+        QVERIFY(!lan->password);
+        QVERIFY(!lan->spectatePassword);
+        QVERIFY(lan->joinable);
+        // A field filled to its end, without its NUL: no more than it.
+        QByteArray full = answer;
+        full.replace(16, 32, QByteArray(32, 'x'));
+        lan = libretro::readLanAnswer(full, QStringLiteral("192.168.1.20"));
+        QCOMPARE(lan->host, QString(32, QLatin1Char('x')));
+        QCOMPARE(lan->frontend, QStringLiteral("unix x64"));
+        // Its passwords; another core's, and a host with no game, not joined;
+        // names without markup; a port that isn't one, no address.
+        lan = libretro::readLanAnswer(lanAnswer("b<o>b\x01", "N/A", 55435, 3, "1.22.2", 0, "Snes9x"),
+                                      QStringLiteral("10.0.0.5"));
+        QCOMPARE(lan->host, QStringLiteral("bob"));
+        QVERIFY(lan->password);
+        QVERIFY(lan->spectatePassword);
+        QCOMPARE(lan->game, QString());
+        QCOMPARE(lan->crc, QString());
+        QVERIFY(!lan->joinable);
+        QVERIFY(!libretro::readLanAnswer(lanAnswer("cy", "sf2", 55435, 0, "1.22.2", 0, "Snes9x"),
+                                         QStringLiteral("10.0.0.5"))->joinable);
+        QVERIFY(!libretro::readLanAnswer(lanAnswer("di", "N/A", 55435), QStringLiteral("10.0.0.5"))->joinable);
+        lan = libretro::readLanAnswer(lanAnswer("eve", "sf2", 0), QStringLiteral("10.0.0.5"));
+        QCOMPARE(lan->joinAddress, QString());
+        QVERIFY(!lan->joinable);
+        // What isn't an answer: another size, or another kind of packet.
+        QVERIFY(!libretro::readLanAnswer(answer.chopped(1), QStringLiteral("192.168.1.20")));
+        QVERIFY(!libretro::readLanAnswer(answer + 'x', QStringLiteral("192.168.1.20")));
+        QVERIFY(!libretro::readLanAnswer("RANQ" + answer.mid(4), QStringLiteral("192.168.1.20")));
+        // The networks RetroArch answers queries from: the private ones.
+        const auto onLan = [](const char *address) {
+            return libretro::isLanAddress(QHostAddress(QLatin1String(address)).toIPv4Address());
+        };
+        for (const char *address : { "10.1.2.3", "172.16.0.1", "172.31.255.254", "192.168.0.10" })
+            QVERIFY2(onLan(address), address);
+        for (const char *address : { "172.15.0.1", "172.32.0.1", "192.169.0.1", "11.0.0.1", "127.0.0.1", "100.64.0.1" })
+            QVERIFY2(!onLan(address), address);
+        // The answers taken: from those networks' hosts, and this machine;
+        // not from the internet, a carrier's shared addresses, a link-local
+        // one or IPv6.
+        for (const char *address : { "192.168.1.20", "10.0.0.5", "172.16.0.1", "::ffff:192.168.1.20", "127.0.0.1" })
+            QVERIFY2(libretro::isLanSender(QHostAddress(QLatin1String(address))), address);
+        for (const char *address : { "8.8.8.8", "100.64.0.1", "169.254.1.1", "::1", "fe80::1", "fd00::1" })
+            QVERIFY2(!libretro::isLanSender(QHostAddress(QLatin1String(address))), address);
 
         writeFile(dir.path() + QStringLiteral("/missing.log"),
                   "[INFO] RetroArch 1.20.0\n"
@@ -1413,6 +1543,21 @@ private slots:
                                               QStringLiteral("030000005e0400008e02000014010000") } });
         played(arcade, QStringLiteral("sf2"));
         QVERIFY(!QFileInfo::exists(remap));
+        // One the user saved from RetroArch's menu is theirs: neither removed
+        // without a panel nor written over with one.
+        const QByteArray own("input_libretro_device_p1 = \"1\"\ninput_player1_btn_b = \"8\"\n");
+        writeFile(remap, own);
+        played(arcade, QStringLiteral("sf2"));
+        QCOMPARE(contents(remap), own);
+        controllers::setPlayerEnvironment({ { QStringLiteral("OSDOS_PLAYER1_NAME"), QStringLiteral("OSD/OS JAMMA P1") },
+                                            { QStringLiteral("OSDOS_PLAYER1_GUID"),
+                                              QStringLiteral("06002868010000000100000001000000") } });
+        played(arcade, QStringLiteral("sf2"));
+        QCOMPARE(contents(remap), own);
+        QFile::remove(remap);
+        controllers::setPlayerEnvironment({ { QStringLiteral("OSDOS_PLAYER1_NAME"), QStringLiteral("Xbox 360 Controller") },
+                                            { QStringLiteral("OSDOS_PLAYER1_GUID"),
+                                              QStringLiteral("030000005e0400008e02000014010000") } });
         // RetroAchievements not reached: still signed in, the token kept.
         writeFile(kept, "{\"user\": \"player\", \"token\": \"offline\"}");
         {
@@ -1824,6 +1969,30 @@ private slots:
         QVERIFY(!QFile::exists(core + QStringLiteral(".zip")));
         QCOMPARE(libretro::corePath(data.path()), core);
         QCOMPARE(libretro::datPath(data.path()), libretro::downloadedDat(data.path()));
+
+        // Downloaded again, as an update is: the core, its list and its
+        // licence replaced, and nothing else. The core's options and a game's, the
+        // user's remap files, saves, states, a file of their own beside the
+        // BIOS sets and the RetroAchievements account stay as they were.
+        const QString home = data.path() + QStringLiteral("/arcade/retroarch");
+        const QHash<QString, QByteArray> kept{
+            { home + QStringLiteral("/config/FinalBurn Neo/FinalBurn Neo.opt"), "fbneo-diagnostic-input = \"Start + L + R\"\n" },
+            { home + QStringLiteral("/config/FinalBurn Neo/sf2.cfg"), "video_scale_integer = \"true\"\n" },
+            { home + QStringLiteral("/remaps/FinalBurn Neo/FinalBurn Neo.rmp"), "input_player1_btn_b = \"8\"\n" },
+            { home + QStringLiteral("/remaps/FinalBurn Neo/sf2.rmp"), "input_player1_btn_a = \"0\"\n" },
+            { home + QStringLiteral("/saves/fbneo/sf2.nv"), "nvram" },
+            { home + QStringLiteral("/states/sf2.state1"), "state" },
+            { home + QStringLiteral("/system/fbneo/hiscore.dat"), "sf2:\n" },
+            { data.path() + QStringLiteral("/arcade/retroachievements.json"), "{\"user\": \"player\"}" },
+        };
+        for (auto file = kept.cbegin(); file != kept.cend(); ++file)
+            writeFile(file.key(), file.value());
+        installer.start(source("/core.zip", "/fbneo.dat"));
+        QVERIFY(finished.wait(10000));
+        QCOMPARE(finished.last().at(0).toBool(), true);
+        for (auto file = kept.cbegin(); file != kept.cend(); ++file)
+            QVERIFY2(contents(file.key()) == file.value(), qPrintable(file.key()));
+        QVERIFY(noParts());
 
         // A list the server hasn't, then one that isn't FinalBurn Neo's:
         // why, and what was there stays.
@@ -3094,10 +3263,10 @@ private slots:
         QCOMPARE(arcade.filterIndex(QStringLiteral("online"), QStringLiteral("sf2"), 99), 0);
         QCOMPARE(arcade.filterIndex(QStringLiteral("online"), QStringLiteral("pacman"), 99), -1);
 
-        // Joined: RetroArch connects to the room, under the default name. The
-        // JAMMA board's sticks play on the host's controller types, as any
-        // pad: no arcade panel, and a remap file left by a game off line
-        // removed.
+        // Joined: RetroArch connects to the room, under the default name, not
+        // the device's, which stays off the internet. The JAMMA board's
+        // sticks play on the host's controller types, as any pad: no arcade
+        // panel, and a remap file left by a game off line removed.
         controllers::setPlayerEnvironment({ { QStringLiteral("OSDOS_PLAYER1_NAME"), QStringLiteral("OSD/OS JAMMA P1") },
                                             { QStringLiteral("OSDOS_PLAYER1_GUID"),
                                               QStringLiteral("06002868010000000100000001000000") },
@@ -3105,7 +3274,10 @@ private slots:
                                             { QStringLiteral("OSDOS_PLAYER2_GUID"),
                                               QStringLiteral("06006869010000000200000001000000") } });
         const QString remap = data.path() + QStringLiteral("/arcade/retroarch/remaps/FinalBurn Neo/FinalBurn Neo.rmp");
-        writeFile(remap, "input_libretro_device_p1 = \"261\"\n");
+        libretro::Launch offLine;
+        offLine.panels = { true };
+        const QByteArray leftOver = libretro::remapText(offLine).toUtf8();
+        writeFile(remap, leftOver);
         const auto onPads = [](const QString &config) {
             for (const char *line : { "input_player1_reserved_device = \"0001:0001 OSD/OS JAMMA P1\"",
                                       "input_player1_b_btn = \"0\"", "input_player2_up_btn = \"11\"" }) {
@@ -3139,7 +3311,7 @@ private slots:
         arcade.onSettingChanged(module, QStringLiteral("online_name"), QStringLiteral(" Mehmet "));
         arcade.onSettingChanged(module, QStringLiteral("relay_server"), QStringLiteral("Madrid"));
         QFile::remove(m_log);
-        writeFile(remap, "input_libretro_device_p1 = \"261\"\n");
+        writeFile(remap, leftOver);
         QCOMPARE(ended([&arcade] { return arcade.hostGame(QStringLiteral("sf2")); }).value(1).toString(),
                  QStringLiteral("ok"));
         QVERIFY(logLines(QStringLiteral("retroarch ")).value(0).contains(QStringLiteral(" --host ")));
@@ -3203,6 +3375,262 @@ private slots:
         arcade.onSettingChanged(module, QStringLiteral("online_play"), QStringLiteral("Off"));
         QVERIFY(playable().isEmpty());
         QCOMPARE(listed(), 0);
+    }
+
+    // LAN Play against a stand-in for the hosts on the local network, which
+    // answer RetroArch's query as RetroArch does: the rooms of the folder's
+    // games FinalBurn Neo plays (not one with a password, one not there,
+    // another core's, nor what isn't an answer), in the tree's LAN Games and
+    // the Arcade screen's filter, each with what its host plays in against
+    // ours, its id kept while it is hosted; a room joined straight at its
+    // host, and a game hosted on the network alone; a network that can't be
+    // asked said so; nothing of it with LAN Play off.
+    void lanPlay() {
+        QTemporaryDir data;
+        QVERIFY(data.isValid());
+        const QString games = data.path() + QStringLiteral("/media/Games/Arcade");
+        for (const char *set : { "sf2.zip", "mslug.zip", "galaga.zip" })
+            writeFile(games + QLatin1Char('/') + QLatin1String(set));
+        QVERIFY(QDir().mkpath(data.path() + QStringLiteral("/bin")));
+        QVERIFY(QFile::copy(mamePath(), data.path() + QStringLiteral("/bin/mame")));
+        writeFile(data.path() + QStringLiteral("/bin/retroarch"), fixture("retroarch"));
+        // The copy of the app that says our core's version, once hold is
+        // gone.
+        const QString hold = data.path() + QStringLiteral("/hold");
+        const QString coreInfo = data.path() + QStringLiteral("/bin/coreinfo");
+        writeFile(coreInfo, QStringLiteral("#!/bin/sh\nwhile [ -e '%1' ]; do sleep 0.05; done\n"
+                                           "printf 'name=FinalBurn Neo\\nversion=v1.0.0.03 6e7c2a1\\n'\n")
+                                .arg(hold).toUtf8());
+        for (const char *program : { "/bin/mame", "/bin/retroarch", "/bin/coreinfo" })
+            QVERIFY(QFile::setPermissions(data.path() + QLatin1String(program),
+                                          QFile::ReadOwner | QFile::WriteOwner | QFile::ExeOwner));
+        writeFile(libretro::downloadedCore(data.path()));
+        writeFile(libretro::downloadedDat(data.path()), fixture("fbneo-arcade.dat"));
+        const QString configCopy = data.path() + QStringLiteral("/ra.cfg");
+        qputenv("RA_CONFIG_COPY", configCopy.toUtf8());
+        qputenv("OSDOS_MEDIA_DIR", (data.path() + QStringLiteral("/media")).toUtf8());
+        const auto restore = qScopeGuard([this] {
+            qunsetenv("RA_CONFIG_COPY");
+            qputenv("OSDOS_MEDIA_DIR", (m_data.path() + QStringLiteral("/media")).toUtf8());
+        });
+        // The hosts: each query from this machine answered with what they
+        // play.
+        QList<QByteArray> answers;
+        int asked = 0;
+        QUdpSocket hosts;
+        QVERIFY(hosts.bind(QHostAddress::LocalHost, 0));
+        connect(&hosts, &QUdpSocket::readyRead, &hosts, [&hosts, &answers, &asked] {
+            while (hosts.hasPendingDatagrams()) {
+                const QNetworkDatagram query = hosts.receiveDatagram();
+                if (query.data() != libretro::lanQuery())
+                    continue;
+                ++asked;
+                for (const QByteArray &answer : std::as_const(answers))
+                    hosts.writeDatagram(answer, query.senderAddress(), query.senderPort());
+            }
+        });
+        const QByteArray ann = lanAnswer("ann", "sf2", 55435);
+        const QByteArray eve = lanAnswer("eve", "galaga", 55436, 0, "1.21.0");
+        answers = { ann, lanAnswer("bob", "mslug", 55437, 1), lanAnswer("cy", "kof98", 55438),
+                    lanAnswer("di", "smw", 55439, 0, "1.22.2", 0, "Snes9x"), QByteArray("RANS, not an answer"),
+                    ann, eve };
+
+        ArcadeBackend arcade(data.path(), data.path(), nullptr, nullptr);
+        arcade.setLanDiscovery(QStringLiteral("127.0.0.1"), hosts.localPort());
+        arcade.setLanListenTime(150);
+        arcade.setCoreInfoCommand({ coreInfo, QStringLiteral("--core-info") });
+        refreshed(arcade);
+        const QString module = QStringLiteral("com.osdos.arcade");
+        // The rooms as "id set host", and a room's line.
+        const auto rooms = [&arcade] {
+            QStringList list;
+            for (const QVariant &v : arcade.lanRooms()) {
+                const QVariantMap room = v.toMap();
+                list << QStringLiteral("%1 %2 %3").arg(room.value(QStringLiteral("id")).toString(),
+                                                       room.value(QStringLiteral("set")).toString(),
+                                                       room.value(QStringLiteral("host")).toString());
+            }
+            return list;
+        };
+        const auto detail = [&arcade](int at) {
+            return arcade.lanRooms().value(at).toMap().value(QStringLiteral("detail")).toString();
+        };
+        const auto ended = [&arcade](const std::function<bool()> &start) {
+            QSignalSpy finished(&arcade, &ArcadeBackend::finished);
+            if (!start())
+                return QVariantList{ -1, QStringLiteral("not started"), arcade.lastError() };
+            if (!finished.wait(10000) && finished.isEmpty())
+                return QVariantList{ -1, QStringLiteral("no end"), QString() };
+            return finished.first();
+        };
+
+        // Off: no folder, nothing to host, no icon; a game left to Auto in
+        // MAME.
+        arcade.refreshLanRooms();
+        QVERIFY(!names(arcade.requestEntries(QStringLiteral("top"))).contains(QStringLiteral("LAN Games")));
+        QVERIFY(!arcade.canHostLan(QStringLiteral("sf2")));
+        QVERIFY(!arcade.statusIcons().contains(QStringLiteral("network")));
+        QCOMPARE(arcade.engineOf(QStringLiteral("sf2")), QStringLiteral("mame"));
+
+        // On: LAN Games first, the games in FinalBurn Neo, its icon.
+        arcade.onSettingChanged(module, QStringLiteral("lan_play"), QStringLiteral("On"));
+        QCOMPARE(names(arcade.requestEntries(QStringLiteral("top"))).value(0), QStringLiteral("LAN Games"));
+        QVERIFY(arcade.canHostLan(QStringLiteral("sf2")));
+        QVERIFY(!arcade.canHostLan(QStringLiteral("kof98")));
+        QCOMPARE(arcade.engineOf(QStringLiteral("sf2")), QStringLiteral("fbneo"));
+        QVERIFY(arcade.statusIcons().contains(QStringLiteral("network")));
+
+        // Asked for before the network has been asked: asked then (and
+        // nothing while it was off), listed once the hosts have answered.
+        // Our core's version not read yet: the lines without it.
+        writeFile(hold);
+        QSignalSpy read(&arcade, &ArcadeBackend::lanRoomsChanged);
+        QSignalSpy ready(&arcade, &ArcadeBackend::entriesReady);
+        QVERIFY(!arcade.requestEntries(QStringLiteral("lan")).isValid());
+        QVERIFY(read.wait(5000));
+        QCOMPARE(asked, 1);
+        QVERIFY(ready.contains(QVariantList{ QStringLiteral("lan") }));
+        QCOMPARE(rooms(), QStringList({ QStringLiteral("1 sf2 ann"), QStringLiteral("3 galaga eve") }));
+        QCOMPARE(detail(0), QStringLiteral("Hosted by ann at 127.0.0.1 on this network • sf2.zip"));
+        QTRY_COMPARE_WITH_TIMEOUT(detail(1), QStringLiteral("Hosted by eve at 127.0.0.1 on this network • galaga.zip • "
+                                                            "Its RetroArch is 1.21.0, yours 1.22.2"), 5000);
+        // Read: the lines say it, in the tree and on the Arcade screen.
+        QSignalSpy changed(&arcade, &ArcadeBackend::gamesChanged);
+        ready.clear();
+        QVERIFY(QFile::remove(hold));
+        QTRY_COMPARE_WITH_TIMEOUT(detail(0), QStringLiteral("Hosted by ann at 127.0.0.1 on this network • sf2.zip • "
+                                                            "The same FinalBurn Neo and RetroArch as yours"), 5000);
+        QCOMPARE(detail(1), QStringLiteral("Hosted by eve at 127.0.0.1 on this network • galaga.zip • Its RetroArch is 1.21.0, yours 1.22.2"));
+        QCOMPARE(changed.size(), 1);
+        QVERIFY(ready.contains(QVariantList{ QStringLiteral("lan") }));
+
+        // In the tree: the rooms, by the game's title and who hosts it.
+        const QVariantList entries = arcade.requestEntries(QStringLiteral("lan")).toList();
+        QCOMPARE(names(entries), QStringList({ QStringLiteral("Street Fighter II: The World Warrior (ann)"),
+                                               QStringLiteral("Galaga (eve)") }));
+        const QVariantMap entry = entries.first().toMap();
+        QCOMPARE(entry.value(QStringLiteral("kind")).toString(), QStringLiteral("room"));
+        QCOMPARE(entry.value(QStringLiteral("path")).toString(), QStringLiteral("lan:1"));
+        QCOMPARE(entry.value(QStringLiteral("game")).toString(), QStringLiteral("sf2"));
+        QCOMPARE(entry.value(QStringLiteral("room")).toInt(), 1);
+        QCOMPARE(entry.value(QStringLiteral("host")).toString(), QStringLiteral("ann"));
+        QVERIFY(entry.value(QStringLiteral("lan")).toBool());
+        QCOMPARE(entry.value(QStringLiteral("detail")).toString(), detail(0));
+        // On the Arcade screen, after All Games; a room's row by its id.
+        const QVariantMap filter = arcade.filters().value(1).toMap();
+        QCOMPARE(filter.value(QStringLiteral("id")).toString(), QStringLiteral("lan"));
+        QCOMPARE(filter.value(QStringLiteral("name")).toString(), QStringLiteral("LAN Games"));
+        QCOMPARE(filter.value(QStringLiteral("count")).toInt(), 2);
+        const QVariantMap row = arcade.filterGames(QStringLiteral("lan"), 1, 1).value(0).toMap();
+        QCOMPARE(row.value(QStringLiteral("set")).toString(), QStringLiteral("galaga"));
+        QCOMPARE(row.value(QStringLiteral("room")).toInt(), 3);
+        QCOMPARE(row.value(QStringLiteral("host")).toString(), QStringLiteral("eve"));
+        QVERIFY(row.value(QStringLiteral("lan")).toBool());
+        QCOMPARE(row.value(QStringLiteral("detail")).toString(), detail(1));
+        QCOMPARE(arcade.filterIndex(QStringLiteral("lan"), QStringLiteral("galaga"), 3), 1);
+
+        // Asked again, twice while the answers are listened for: asked once.
+        // Each room keeps its id while its host plays the same game, the
+        // Arcade screen not told of rooms as they were.
+        changed.clear();
+        answers = { eve, ann };
+        arcade.refreshLanRooms();
+        arcade.refreshLanRooms();
+        QVERIFY(read.wait(5000));
+        QCOMPARE(asked, 2);
+        QCOMPARE(rooms(), QStringList({ QStringLiteral("1 sf2 ann"), QStringLiteral("3 galaga eve") }));
+        QCOMPARE(changed.size(), 0);
+        // Eve's answer lost on the way, among more answers of rooms that
+        // aren't listed (with a password) than rooms are kept: her room kept
+        // through that query, and Ann's heard.
+        answers.clear();
+        for (quint32 port = 56000; port < 56000 + 70; ++port)
+            answers << lanAnswer("pat", "sf2", port, 1);
+        answers << ann;
+        arcade.refreshLanRooms();
+        QVERIFY(read.wait(5000));
+        QCOMPARE(rooms(), QStringList({ QStringLiteral("1 sf2 ann"), QStringLiteral("3 galaga eve") }));
+        QCOMPARE(changed.size(), 0);
+
+        // Joined: RetroArch connects straight to the host, at the port it
+        // gave, under the device's name.
+        QFile::remove(m_log);
+        QCOMPARE(ended([&arcade] { return arcade.joinLanRoom(1); }).value(1).toString(), QStringLiteral("ok"));
+        const QString home = data.path() + QStringLiteral("/arcade/retroarch");
+        QCOMPARE(logLines(QStringLiteral("retroarch ")).value(0),
+                 QStringLiteral("retroarch -L %1 --config %2/retroarch.cfg --verbose --log-file=%2/last.log "
+                                "--connect 127.0.0.1|55435 %3/sf2.zip").arg(libretro::downloadedCore(data.path()), home, games));
+        QString config = QString::fromUtf8(contents(configCopy));
+        QVERIFY2(config.contains(QStringLiteral("netplay_nickname = \"garage-cab\"")), qPrintable(config));
+        QVERIFY(!config.contains(QStringLiteral("netplay_public_announce")));
+        // Hosted: on the network alone, straight, under the online name.
+        arcade.onSettingChanged(module, QStringLiteral("online_name"), QStringLiteral("Mehmet"));
+        QFile::remove(m_log);
+        QCOMPARE(ended([&arcade] { return arcade.hostLanGame(QStringLiteral("sf2")); }).value(1).toString(),
+                 QStringLiteral("ok"));
+        QVERIFY(logLines(QStringLiteral("retroarch ")).value(0).contains(QStringLiteral(" --host ")));
+        config = QString::fromUtf8(contents(configCopy));
+        for (const char *line : { "netplay_nickname = \"Mehmet\"", "netplay_public_announce = \"false\"",
+                                  "netplay_use_mitm_server = \"false\"", "netplay_nat_traversal = \"false\"" })
+            QVERIFY2(config.contains(QLatin1String(line)), line);
+        // A room no longer hosted.
+        QVERIFY(!arcade.joinLanRoom(2));
+        QCOMPARE(arcade.lastError(), QStringLiteral("The game is no longer hosted on this network"));
+
+        // Ann plays another game: another room, the Arcade screen told.
+        changed.clear();
+        answers = { lanAnswer("ann", "mslug", 55435), eve };
+        arcade.refreshLanRooms();
+        QVERIFY(read.wait(5000));
+        QCOMPARE(rooms(), QStringList({ QStringLiteral("3 galaga eve"), QStringLiteral("4 mslug ann") }));
+        QCOMPARE(changed.size(), 1);
+        // LAN Play turned off and on again: none of the rooms heard before
+        // offered until the network has been asked again, each by its id.
+        arcade.onSettingChanged(module, QStringLiteral("lan_play"), QStringLiteral("Off"));
+        arcade.onSettingChanged(module, QStringLiteral("lan_play"), QStringLiteral("On"));
+        QVERIFY(arcade.lanRooms().isEmpty());
+        QVERIFY(!arcade.requestEntries(QStringLiteral("lan")).isValid());
+        QVERIFY(read.wait(5000));
+        QCOMPARE(rooms(), QStringList({ QStringLiteral("3 galaga eve"), QStringLiteral("4 mslug ann") }));
+        // No one hosting: the rooms kept through one query they aren't heard
+        // in, not a second; then said so in the tree, no filter.
+        changed.clear();
+        answers.clear();
+        arcade.refreshLanRooms();
+        QVERIFY(read.wait(5000));
+        QCOMPARE(rooms(), QStringList({ QStringLiteral("3 galaga eve"), QStringLiteral("4 mslug ann") }));
+        QCOMPARE(changed.size(), 0);
+        arcade.refreshLanRooms();
+        QVERIFY(read.wait(5000));
+        QVERIFY(arcade.lanRooms().isEmpty());
+        QCOMPARE(changed.size(), 1);
+        QVariantMap message = arcade.requestEntries(QStringLiteral("lan")).toList().value(0).toMap();
+        QCOMPARE(message.value(QStringLiteral("kind")).toString(), QStringLiteral("message"));
+        QCOMPARE(message.value(QStringLiteral("name")).toString(), QStringLiteral("No LAN Games"));
+        QCOMPARE(message.value(QStringLiteral("detail")).toString(),
+                 QStringLiteral("No one on this network hosts a game you have: host one from a game's options"));
+        QVERIFY(arcade.filters().value(1).toMap().value(QStringLiteral("id")).toString() != QLatin1String("lan"));
+        // And back: the room heard before, by its id.
+        answers = { eve };
+        arcade.refreshLanRooms();
+        QVERIFY(read.wait(5000));
+        QCOMPARE(rooms(), QStringList({ QStringLiteral("3 galaga eve") }));
+        // A query that can't be sent: why, where the rooms were, none kept.
+        arcade.setLanDiscovery(QStringLiteral("127.0.0.1"), 0);
+        arcade.refreshLanRooms();
+        QVERIFY(read.wait(5000));
+        QVERIFY(arcade.lanRooms().isEmpty());
+        message = arcade.requestEntries(QStringLiteral("lan")).toList().value(0).toMap();
+        QCOMPARE(message.value(QStringLiteral("name")).toString(), QStringLiteral("Network Not Reachable"));
+        QVERIFY2(message.value(QStringLiteral("detail")).toString().startsWith(QStringLiteral("The local network can't be reached: ")),
+                 qPrintable(message.value(QStringLiteral("detail")).toString()));
+
+        // Off again: nothing of it.
+        arcade.onSettingChanged(module, QStringLiteral("lan_play"), QStringLiteral("Off"));
+        QVERIFY(arcade.lanRooms().isEmpty());
+        QVERIFY(!names(arcade.requestEntries(QStringLiteral("top"))).contains(QStringLiteral("LAN Games")));
+        QVERIFY(!arcade.statusIcons().contains(QStringLiteral("network")));
+        QCOMPARE(arcade.engineOf(QStringLiteral("sf2")), QStringLiteral("mame"));
     }
 
     // Our RetroArch's and core's versions, which the lobby's rooms are

@@ -8,6 +8,7 @@
 #include <QStringList>
 #include <optional>
 
+class QHostAddress;
 namespace mame { struct Machine; }
 
 // The Arcade module's second engine: RetroArch with the FinalBurn Neo core
@@ -90,9 +91,10 @@ struct Launch {
     QString achievementsUser;
     QString achievementsToken;
     QString achievementsPassword;
-    // Online play: hosting through a relay (netplay_mitm_server), or
-    // joining a room as the lobby lists it.
-    enum class Netplay { None, Host, Join } netplay = Netplay::None;
+    // Online play: hosting through a relay (netplay_mitm_server), hosting
+    // on the local network alone (LanHost, LAN Play), or joining a room as
+    // the lobby gives it (Join) or a host on the local network (LanJoin).
+    enum class Netplay { None, Host, LanHost, Join, LanJoin } netplay = Netplay::None;
     QString nickname;
     QString relay;            // "nyc", "madrid", "saopaulo", "singapore", "chuncheon"
     QString joinAddress;      // RetroArch's --connect: "address|port" or "address|port|session"
@@ -109,6 +111,10 @@ QString coreRemapPath(const QString &remapDir);
 // Panel, its controller type for such a panel, off line; "" for none, when
 // no file is needed.
 QString remapText(const Launch &launch);
+// Whether the remap file at path is OSD/OS's to write over or remove: there
+// is none, or remapText() wrote it. One saved from RetroArch's menu (Save
+// Core Remap File) or put there by hand is the user's, loaded as it is.
+bool ownsRemap(const QString &path);
 
 // What a run's log says (RetroArch's own, -v --log-file).
 struct Run {
@@ -151,11 +157,11 @@ QStringList signInArguments(const SignIn &signIn);
 enum class SignInLine { None, SignedIn, Failed, Unreachable };
 SignInLine readSignInLine(const QString &line, QString *failure);
 
-// A room the netplay lobby lists (lobby.libretro.com/list), of any core; one
-// FinalBurn Neo hosts is joined at joinAddress. What anyone hosting wrote,
-// so taken only as it can be shown or used: names without markup and cut
-// short, a set's name, a CRC of eight hex digits, an address, a port and a
-// session.
+// A room the netplay lobby lists (lobby.libretro.com/list), or a host on the
+// local network answers with (readLanAnswer()), of any core; one FinalBurn
+// Neo hosts is joined at joinAddress. What anyone hosting wrote, so taken
+// only as it can be shown or used: names without markup and cut short, a
+// set's name, a CRC of eight hex digits, an address, a port and a session.
 struct Room {
     int     id = 0;
     QString game;             // its set: game_name, the file's name in lower case; "" for a name that can't be one
@@ -186,6 +192,23 @@ struct Room {
 QList<Room> readWholeLobby(const QByteArray &json);
 // Of them, those FinalBurn Neo hosts that can be joined (joinable).
 QList<Room> readLobby(const QByteArray &json);
+
+// LAN Play, RetroArch's netplay on the local network: a host that isn't
+// relayed answers a query broadcast to its port (lanQuery()) with what it
+// plays, a packet of kLanAnswerSize bytes (RetroArch's struct ad_packet).
+constexpr quint16 kLanPort = 55435;
+constexpr int kLanAnswerSize = 688;
+QByteArray lanQuery();
+// A host's answer, from address, as a room: what it plays, who hosts it, and
+// where it is joined, address and the port it gives; its id 0, joinable as a
+// lobby's room of FinalBurn Neo's is. Nothing for a packet that isn't one.
+std::optional<Room> readLanAnswer(const QByteArray &packet, const QString &address);
+// Whether an IPv4 address (a number) is one RetroArch answers queries from:
+// 10/8, 172.16/12 or 192.168/16.
+bool isLanAddress(quint32 ipv4);
+// Whether an answer from address is taken: from a host on the local network,
+// as RetroArch takes them (isLanAddress()), or from this machine.
+bool isLanSender(const QHostAddress &address);
 
 // A libretro core as it describes itself (retro_get_system_info): its name
 // and version ("v1.0.0.03 6e7c2a1"), the version the lobby says a room's
