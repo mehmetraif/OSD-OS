@@ -1196,8 +1196,8 @@ private slots:
         QVERIFY(libretro::loadCoreInfo(QStringLiteral(TESTS_DIR "/data/arcade/lobby.json"), &coreError).version.isEmpty());
         QVERIFY(!coreError.isEmpty());
         // What the copy of the app printed of it, taken as the lobby's names
-        // are; RetroArch's version, as a RetroArch from 1.10 on prints it and
-        // as one before.
+        // are; RetroArch's version, as a recent RetroArch prints it and as an
+        // older one did.
         const libretro::CoreInfo printed = libretro::readCoreInfo("name=FinalBurn Neo\nversion=v1.0.0.03 <6e7c2a1>\n");
         QCOMPARE(printed.name, QStringLiteral("FinalBurn Neo"));
         QCOMPARE(printed.version, QStringLiteral("v1.0.0.03 6e7c2a1"));
@@ -1205,6 +1205,28 @@ private slots:
                  QStringLiteral("1.19.1"));
         QCOMPARE(libretro::readVersion("RetroArch: Frontend for libretro -- v1.9.0 -- 6f4ae1f --\n"), QStringLiteral("1.9.0"));
         QVERIFY(libretro::readVersion("sh: retroarch: not found").isEmpty());
+        // RetroArch.app's from its bundle, for a link to its executable too;
+        // nothing for a program outside an app, "" for an Info.plist that
+        // doesn't say (a binary one).
+        QTemporaryDir apps;
+        QVERIFY(apps.isValid());
+        const QString contents = apps.path() + QStringLiteral("/RetroArch.app/Contents");
+        writeFile(contents + QStringLiteral("/MacOS/RetroArch"));
+        writeFile(contents + QStringLiteral("/Info.plist"),
+                  "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<plist version=\"1.0\">\n<dict>\n"
+                  "\t<key>CFBundleName</key>\n\t<string>RetroArch</string>\n"
+                  "\t<key>CFBundleShortVersionString</key>\n\t<string>1.22.2</string>\n"
+                  "\t<key>CFBundleVersion</key>\n\t<string>1</string>\n</dict>\n</plist>\n");
+        QVERIFY(QFile::link(contents + QStringLiteral("/MacOS/RetroArch"), apps.path() + QStringLiteral("/retroarch")));
+        writeFile(apps.path() + QStringLiteral("/bin/retroarch"));
+        const auto bundled = [](const QString &program) {
+            return libretro::bundleVersion(program).value_or(QStringLiteral("(none)"));
+        };
+        QCOMPARE(bundled(contents + QStringLiteral("/MacOS/RetroArch")), QStringLiteral("1.22.2"));
+        QCOMPARE(bundled(apps.path() + QStringLiteral("/retroarch")), QStringLiteral("1.22.2"));
+        QCOMPARE(bundled(apps.path() + QStringLiteral("/bin/retroarch")), QStringLiteral("(none)"));
+        writeFile(contents + QStringLiteral("/Info.plist"), QByteArray("bplist00\xd1\x01\x02", 11));
+        QCOMPARE(bundled(contents + QStringLiteral("/MacOS/RetroArch")), QString());
 
         // rcheevos' arcade hash: the file's name without its extension, as
         // it is written.
@@ -3035,7 +3057,8 @@ private slots:
                                   QStringLiteral("v1.0.0.03 6e7c2a1"), 5000);
         QTRY_COMPARE_WITH_TIMEOUT(arcade.lobby().value(QStringLiteral("yourRetroArch")).toString(),
                                   QStringLiteral("1.22.2"), 5000);
-        QVERIFY(arcade.lobby().value(QStringLiteral("fbneoReady")).toBool());
+        QCOMPARE(arcade.lobby().value(QStringLiteral("yourCoreState")).toString(), QStringLiteral("read"));
+        QCOMPARE(arcade.lobby().value(QStringLiteral("yourRetroArchState")).toString(), QStringLiteral("read"));
         QHash<int, QVariantMap> matched;
         for (const QVariant &v : arcade.lobby().value(QStringLiteral("rooms")).toList())
             matched.insert(v.toMap().value(QStringLiteral("id")).toInt(), v.toMap());
@@ -3180,6 +3203,78 @@ private slots:
         arcade.onSettingChanged(module, QStringLiteral("online_play"), QStringLiteral("Off"));
         QVERIFY(playable().isEmpty());
         QCOMPARE(listed(), 0);
+    }
+
+    // Our RetroArch's and core's versions, which the lobby's rooms are
+    // matched against: still being read, then read; a read too slow asked
+    // once more (a core loads faster the second time), and a file whose read
+    // was too slow twice not asked again; the core not installed.
+    void ownVersions() {
+        QTemporaryDir data;
+        QVERIFY(data.isValid());
+        writeFile(data.path() + QStringLiteral("/bin/retroarch"), fixture("retroarch"));
+        writeFile(libretro::downloadedCore(data.path()), "core");
+        // The copy of the app that says our core's version: it notes each
+        // time it is asked, and takes its time while slow is there.
+        const QString asked = data.path() + QStringLiteral("/asked");
+        const QString slow = data.path() + QStringLiteral("/slow");
+        const QString coreInfo = data.path() + QStringLiteral("/bin/coreinfo");
+        writeFile(coreInfo, QStringLiteral("#!/bin/sh\necho >> '%1'\n[ -e '%2' ] && exec sleep 5\n"
+                                           "printf 'name=FinalBurn Neo\\nversion=v1.0.0.03 6e7c2a1\\n'\n")
+                                .arg(asked, slow).toUtf8());
+        for (const char *program : { "/bin/retroarch", "/bin/coreinfo" })
+            QVERIFY(QFile::setPermissions(data.path() + QLatin1String(program),
+                                          QFile::ReadOwner | QFile::WriteOwner | QFile::ExeOwner));
+        ArcadeBackend arcade(data.path(), data.path(), nullptr, nullptr);
+        // No lobby to be reached: ours are what is looked at.
+        arcade.setLobbyUrl(QUrl(QStringLiteral("http://127.0.0.1:9/list")));
+        arcade.setCoreInfoCommand({ coreInfo, QStringLiteral("--core-info") });
+        arcade.setVersionReadTimeout(300);
+        const auto ours = [&arcade](const char *key) { return arcade.lobby().value(QLatin1String(key)).toString(); };
+        const auto times = [&asked] {
+            QFile file(asked);
+            return file.open(QIODevice::ReadOnly) ? file.readAll().count('\n') : 0;
+        };
+
+        // Too slow: still being read, then not; asked once more, read.
+        writeFile(slow);
+        arcade.onSettingChanged(QStringLiteral("com.osdos.arcade"), QStringLiteral("online_play"), QStringLiteral("On"));
+        arcade.refreshRooms();
+        QCOMPARE(ours("yourCoreState"), QStringLiteral("reading"));
+        QTRY_COMPARE_WITH_TIMEOUT(ours("yourCoreState"), QStringLiteral("failed"), 5000);
+        QCOMPARE(times(), 1);
+        QCOMPARE(ours("yourCore"), QString());
+        QTRY_COMPARE_WITH_TIMEOUT(ours("yourRetroArchState"), QStringLiteral("read"), 5000);
+        QCOMPARE(ours("yourRetroArch"), QStringLiteral("1.22.2"));
+        QVERIFY(QFile::remove(slow));
+        arcade.refreshRooms();
+        QTRY_COMPARE_WITH_TIMEOUT(ours("yourCoreState"), QStringLiteral("read"), 5000);
+        QCOMPARE(ours("yourCore"), QStringLiteral("v1.0.0.03 6e7c2a1"));
+        QCOMPARE(times(), 2);
+        // Read: not asked again while the core is the same.
+        arcade.refreshRooms();
+        QTest::qWait(300);
+        QCOMPARE(times(), 2);
+        // No core: not installed, and none of its version kept.
+        QVERIFY(QFile::remove(libretro::downloadedCore(data.path())));
+        if (libretro::corePath(data.path()).isEmpty()) {
+            QCOMPARE(ours("yourCoreState"), QStringLiteral("missing"));
+            QCOMPARE(ours("yourCore"), QString());
+        }
+        // Another core, too slow twice: asked once more, then no more.
+        writeFile(libretro::downloadedCore(data.path()), "another core");
+        writeFile(slow);
+        arcade.refreshRooms();
+        QTRY_COMPARE_WITH_TIMEOUT(ours("yourCoreState"), QStringLiteral("failed"), 5000);
+        QCOMPARE(times(), 3);
+        arcade.refreshRooms();
+        QCOMPARE(ours("yourCoreState"), QStringLiteral("reading"));
+        QTRY_COMPARE_WITH_TIMEOUT(ours("yourCoreState"), QStringLiteral("failed"), 5000);
+        QCOMPARE(times(), 4);
+        arcade.refreshRooms();
+        QTest::qWait(300);
+        QCOMPARE(times(), 4);
+        QCOMPARE(ours("yourCoreState"), QStringLiteral("failed"));
     }
 
     // A game started while MAME is asked about the sets stops that MAME and

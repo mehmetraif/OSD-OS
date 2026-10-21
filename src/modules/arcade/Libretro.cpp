@@ -653,6 +653,21 @@ QString readVersion(const QByteArray &output) {
     return match.hasMatch() ? match.captured(1) : QString();
 }
 
+std::optional<QString> bundleVersion(const QString &program) {
+    const QString folder = QFileInfo(QFileInfo(program).canonicalFilePath()).absolutePath();
+    if (!folder.endsWith(QLatin1String(".app/Contents/MacOS")))
+        return std::nullopt;
+    QFile plist(folder + QStringLiteral("/../Info.plist"));
+    if (!plist.open(QIODevice::ReadOnly))
+        return QString();
+    // An XML property list, as Xcode leaves an app's; a binary one says
+    // nothing.
+    static const QRegularExpression version(
+        QStringLiteral("<key>CFBundleShortVersionString</key>\\s*<string>\\s*(\\d+\\.\\d+(?:\\.\\d+)?)"));
+    const QRegularExpressionMatch match = version.match(QString::fromUtf8(plist.readAll()));
+    return match.hasMatch() ? match.captured(1) : QString();
+}
+
 QString achievementsHash(const QString &fileName) {
     return QString::fromLatin1(QCryptographicHash::hash(QFileInfo(fileName).completeBaseName().toUtf8(),
                                                         QCryptographicHash::Md5).toHex());

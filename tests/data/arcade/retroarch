@@ -16,7 +16,7 @@
 # refused for "wrong", RetroAchievements not reached for "offline", nothing
 # for "silent"; and runs until it is stopped.
 #
-# Asked its version, it says it as RetroArch 1.10 on prints it, and does
+# Asked its version, it says it as a recent RetroArch prints it, and does
 # nothing else.
 if [ "$1" = "--version" ]; then
 	echo "RetroArch - Frontend for libretro"

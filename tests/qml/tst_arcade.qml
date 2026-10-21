@@ -1323,8 +1323,8 @@ Rectangle {
             var page = open("Lobby.qml")
             compare(arcadeBackend.roomReads, 1)
             verify(findText(page, "Reading RetroArch's lobby") !== null)
-            arcadeBackend.setLobby({ state: "ready", problem: "", yourCore: "v1.0.0.03", yourRetroArch: "1.19.1",
-                                     fbneoReady: true, rooms: [
+            arcadeBackend.setLobby({ state: "ready", problem: "", yourCore: "v1.0.0.03", yourCoreState: "read",
+                                     yourRetroArch: "1.19.1", yourRetroArchState: "read", rooms: [
                 lobbyRoom(11, "FinalBurn Neo", "Street Fighter II", "ann",
                           { rom: "sf2", set: "sf2", country: "es", coreVersion: "v1.0.0.03", crc: "B62D0BC7",
                             joinable: true, coreMatch: "same", retroarchMatch: "other" }),
@@ -1425,6 +1425,48 @@ Rectangle {
             arcadeBackend.roomsChanged()
             tryVerify(function() { return findText(page, "Lobby Not Reachable") !== null }, 1000)
             verify(findText(page, "Connection refused") !== null)
+        }
+
+        // A room's core, its version and its RetroArch while yours aren't
+        // known: still being read, they couldn't be, or not installed here.
+        function test_lobbyYours() {
+            var page = open("Lobby.qml")
+            var yours = function(core, retroarch, theirs) {
+                arcadeBackend.setLobby({ state: "ready", problem: "", yourCore: "", yourCoreState: core,
+                                         yourRetroArch: retroarch === "read" ? "1.19.1" : "", yourRetroArchState: retroarch,
+                                         rooms: [
+                    lobbyRoom(11, "FinalBurn Neo", "Street Fighter II", "ann",
+                              { rom: "sf2", set: "sf2", coreVersion: "v1.0.0.03",
+                                retroarch: theirs !== undefined ? theirs : "1.22.2" })] })
+                arcadeBackend.roomsChanged()
+            }
+            var line = function(at) { return page.lines[at].description }
+            yours("reading", "reading")
+            tryVerify(function() { return findText(page, "1 Room • 1 FinalBurn Neo • 0 To Join") !== null }, 1000)
+            // On the room, which opens.
+            tryVerify(function() { return findText(page, "ROM sf2") !== null }, 1000)
+            keyClick(Qt.Key_Return)
+            // Game, ROM, CRC, Core, Core Version, RetroArch.
+            compare(page.lines[3].label, "Core")
+            compare(page.lines[3].icons, ["ok"])
+            compare(page.lines[3].description, "The emulator it is played in: yours too")
+            compare(page.lines[4].icons, [])
+            compare(page.lines[4].description, "Its host's version: yours is still being read")
+            compare(page.lines[5].icons, [])
+            compare(page.lines[5].description, "The RetroArch its host plays it in: yours is still being read")
+            yours("failed", "failed")
+            tryVerify(function() { return line(4) === "Its host's version: yours couldn't be read" }, 1000)
+            compare(page.lines[3].icons, ["ok"])
+            compare(line(5), "The RetroArch its host plays it in: yours couldn't be read")
+            yours("missing", "missing")
+            tryVerify(function() { return page.lines[3].icons[0] === "no" }, 1000)
+            compare(line(3), "The emulator it is played in: FinalBurn Neo, not installed here")
+            compare(line(4), "Its host's version: FinalBurn Neo is not installed here")
+            compare(line(5), "The RetroArch its host plays it in: RetroArch is not installed here")
+            // Yours read, its host's RetroArch not said: nothing to say of it.
+            yours("read", "read", "")
+            tryVerify(function() { return line(5) === "The RetroArch its host plays it in" }, 1000)
+            compare(page.lines[5].value, "?")
         }
 
         // The lobby read again with a room open: the cursor stays on its line,

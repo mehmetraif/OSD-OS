@@ -245,7 +245,9 @@ public:
     // its RetroArch's against ours: "same", "other", or "unknown" where
     // either isn't known; coreMatch "" for another core's room) },
     // FinalBurn Neo's first, then by core and title; and ours, yourCore and
-    // yourRetroArch ("" where not known), with fbneoReady.
+    // yourRetroArch ("" where not known), with yourCoreState and
+    // yourRetroArchState: "read", "reading" (still), "failed" (it couldn't
+    // be), or "missing" (not installed here).
     Q_INVOKABLE QVariantMap lobby() const;
     // Settings → Arcade → Online Play is on.
     Q_INVOKABLE bool onlinePlay() const { return m_onlinePlay; }
@@ -264,6 +266,9 @@ public:
     // core's path given last: a copy of the app run with --core-info, or a
     // test's stand-in.
     void setCoreInfoCommand(const QStringList &command) { m_coreInfoCommand = command; }
+    // How long our RetroArch, or that copy of the app, is given to say its
+    // version: 10 s, or a test's.
+    void setVersionReadTimeout(int ms) { m_versionReadMs = ms; }
     // RetroAchievements' Web API and media server: its own, or a stand-in's.
     void setAchievementsServers(const QUrl &api, const QUrl &media);
     // How long Read the Games Again's look through the games for pictures
@@ -613,15 +618,17 @@ private:
     // The Online Games folder's entries: the rooms, or a line saying why
     // there are none.
     QVariantList roomEntries() const;
-    // Our own RetroArch's version (`retroarch --version`) and FinalBurn Neo
-    // core's (a copy of the app run with --core-info), each read again once
-    // its file is another: what the lobby's rooms are matched against.
+    // Our own RetroArch's version (`retroarch --version`, RetroArch.app's
+    // from its bundle) and FinalBurn Neo core's (a copy of the app run with
+    // --core-info), each read again once its file is another, and once more
+    // after a read that took too long: what the lobby's rooms are matched
+    // against.
     void readOwnVersions();
     // program's answer to arguments given to take as it ends, however it
-    // does (it couldn't start, or was stopped after a while), then
+    // does (it couldn't start, or was stopped after a while: timedOut), then
     // roomsChanged(); the process, till then.
     QProcess *askVersion(const QString &program, const QStringList &arguments,
-                         const std::function<void(const QByteArray &)> &take);
+                         const std::function<void(const QByteArray &output, bool timedOut)> &take);
     // RetroArch's folder in <data>/arcade, and its config and log there.
     QString retroarchHome() const { return m_home + QStringLiteral("/retroarch"); }
     // What a FinalBurn Neo game's run left: the token RetroArch swapped the
@@ -720,14 +727,17 @@ private:
     bool    m_roomsRead = false;
     // Our own RetroArch's and FinalBurn Neo core's versions, which the
     // lobby's rooms are matched against ("" where not known), each read once
-    // for the file it is of (its fileStamp()), and the reads under way.
+    // for the file it is of (its fileStamp()), the reads under way, and the
+    // files a read of took too long once.
     QString m_retroarchVersion;
     QString m_retroarchVersionOf;
     QString m_coreVersion;
     QString m_coreVersionOf;
     QPointer<QProcess> m_versionRead;
     QPointer<QProcess> m_coreInfoRead;
+    QSet<QString> m_slowVersions;
     QStringList m_coreInfoCommand;
+    int m_versionReadMs = 0;
     // catver.ini's download: from where, under way, and when one that failed
     // may be tried again.
     QUrl m_genresUrl;

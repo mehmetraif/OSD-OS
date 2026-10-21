@@ -6,6 +6,7 @@
 #include <QSize>
 #include <QString>
 #include <QStringList>
+#include <optional>
 
 namespace mame { struct Machine; }
 
@@ -193,8 +194,9 @@ struct CoreInfo {
     QString name;
     QString version;
 };
-// The core at path, loaded in this process and asked to describe itself,
-// nothing else of it run. Empty, with why in error, for a file that isn't
+// The core at path, loaded in this process and asked to describe itself, no
+// other function of its called (what it does as it loads, and as the
+// process ends, still runs). Empty, with why in error, for a file that isn't
 // one. For a copy of the app run with --core-info <path> (main.cpp), which
 // prints it, so that a core that can't be loaded takes nothing else down.
 CoreInfo loadCoreInfo(const QString &path, QString *error);
@@ -202,8 +204,14 @@ CoreInfo loadCoreInfo(const QString &path, QString *error);
 // lobby's names are: no markup and cut short, so the two can be compared.
 CoreInfo readCoreInfo(const QByteArray &output);
 // RetroArch's version as `retroarch --version` prints it ("Version: 1.19.1
-// (Git 5a4f9b2)", before 1.10 "-- v1.9.0 --"); "" for none.
+// (Git 5a4f9b2)", an older one's "-- v1.9.0 --"); "" for none.
 QString readVersion(const QByteArray &output);
+// The version of the Mac app program is the executable of, or a link to
+// (<name>.app/Contents/MacOS/<program>), as its Info.plist gives it
+// (CFBundleShortVersionString, "1.22.2"): RetroArch.app opens as an app
+// before it reads its arguments, so isn't asked. Nothing for a program
+// outside an app; "" for an app whose Info.plist doesn't say.
+std::optional<QString> bundleVersion(const QString &program);
 
 // RetroAchievements' hash of an arcade game (rcheevos' RC_CONSOLE_ARCADE):
 // the MD5 of its file's name without the extension, as it is written.

@@ -12,10 +12,10 @@ import Components
 // who hosts it and where, how it is reached, its passwords, players and
 // spectators, how long ago it was hosted, and whether it can be joined, why
 // not), the core, its version and RetroArch's marked ok where they are
-// yours and no where not, the help line saying yours; with Join first for a
-// room of a game in the folder that FinalBurn Neo plays, which joins it as
-// Online Games does. Back goes back to the rooms, then to where the page was
-// opened from.
+// yours and no where not, the help line saying yours or why it isn't known;
+// with Join first for a room of a game in the folder that FinalBurn Neo
+// plays, which joins it as Online Games does. Back goes back to the rooms,
+// then to where the page was opened from.
 FocusScope {
     id: lobbyRoot
 
@@ -164,6 +164,13 @@ FocusScope {
     function yours(match, version) {
         return match === "same" ? " (yours too)" : match === "other" ? " (yours " + version + ")" : ""
     }
+    // Why yours isn't known (the backend's yourCoreState,
+    // yourRetroArchState): program not installed, still being read, or it
+    // couldn't be.
+    function notKnown(state, program) {
+        return state === "missing" ? program + " is not installed here"
+             : state === "reading" ? "yours is still being read" : "yours couldn't be read"
+    }
 
     // What the help line says of a room on the list.
     function about(row) {
@@ -187,6 +194,7 @@ FocusScope {
     function linesOf(r) {
         var made = []
         var fbneo = r.core === "FinalBurn Neo"
+        var coreHere = lobby.yourCoreState !== "missing"
         if (r.joinable)
             made.push({ type: "join", label: "Join",
                         description: "Play " + r.title + " with " + r.host + ", in FinalBurn Neo"
@@ -196,9 +204,9 @@ FocusScope {
             made.push({ label: "ROM", value: r.rom, description: "The game's file, as its host has it: " + r.rom })
         made.push({ label: "CRC", value: r.crc || "?",
                     description: r.crc ? "The ROM's CRC: a copy of the same ROM has the same one" : "Its host's RetroArch doesn't say" })
-        made.push({ label: "Core", value: r.core, icons: fbneo && lobby.fbneoReady ? ["ok"] : ["no"],
+        made.push({ label: "Core", value: r.core, icons: fbneo && coreHere ? ["ok"] : ["no"],
                     description: !fbneo ? "The emulator it is played in: OSD/OS plays FinalBurn Neo's games alone"
-                                 : lobby.fbneoReady ? "The emulator it is played in: yours too"
+                                 : coreHere ? "The emulator it is played in: yours too"
                                  : "The emulator it is played in: FinalBurn Neo, not installed here" })
         if (r.coreVersion)
             made.push({ label: "Core Version", value: r.coreVersion, icons: matchIcons(r.coreMatch),
@@ -206,14 +214,14 @@ FocusScope {
                                      : r.coreMatch === "other" ? "Yours is " + lobby.yourCore
                                                                  + ": another version, the game may fall out of step"
                                      : !fbneo ? r.core + " " + r.coreVersion
-                                     : lobby.fbneoReady ? "Its host's version: yours couldn't be read"
-                                     : "Its host's version: FinalBurn Neo is not installed here" })
+                                     : "Its host's version: " + notKnown(lobby.yourCoreState, "FinalBurn Neo") })
         if (r.subsystem)
             made.push({ label: "Subsystem", value: r.subsystem, description: "The core's subsystem it is played in" })
         made.push({ label: "RetroArch", value: r.retroarch || "?", icons: matchIcons(r.retroarchMatch),
                     description: r.retroarchMatch === "same" ? "The same as yours: RetroArch " + lobby.yourRetroArch
                                  : r.retroarchMatch === "other" ? "Yours is " + lobby.yourRetroArch + ": another version"
-                                 : !lobby.yourRetroArch ? "The RetroArch its host plays it in: yours couldn't be read"
+                                 : lobby.yourRetroArchState !== "read"
+                                   ? "The RetroArch its host plays it in: " + notKnown(lobby.yourRetroArchState, "RetroArch")
                                  : "The RetroArch its host plays it in" })
         if (r.frontend)
             made.push({ label: "System", value: r.frontend, description: "What its host plays it on" })

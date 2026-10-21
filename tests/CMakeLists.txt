@@ -368,5 +368,10 @@ if(UNIX)
         add_test(NAME app_module_${folder} COMMAND bash ${smoke} ${folder})
         list(APPEND smoke_tests app_module_${folder})
     endforeach()
+    # And asked a libretro core's name and version, as the Arcade module
+    # asks a copy of it (--core-info), the test core's.
+    add_test(NAME app_core_info
+             COMMAND bash ${CMAKE_CURRENT_SOURCE_DIR}/app_core_info_test.sh ${OSDOS_APP} $<TARGET_FILE:arcade_test_core>)
+    list(APPEND smoke_tests app_core_info)
     set_tests_properties(${smoke_tests} PROPERTIES SKIP_RETURN_CODE 77)
 endif()
