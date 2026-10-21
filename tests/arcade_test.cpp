@@ -1945,13 +1945,14 @@ private slots:
         const QString kept = data.path() + QStringLiteral("/arcade/retroachievements.json");
         const auto account = [&kept] { return QJsonDocument::fromJson(contents(kept)).object(); };
         // The servers a stand-in's that never answers, the core a stand-in,
-        // and the checks a fifth of a second apart; all before the event
-        // loop runs, as the app has them.
+        // and the checks a twentieth of a second apart, so that a few of
+        // those show none comes after; all before the event loop runs, as
+        // the app has them.
         const auto prepare = [&](ArcadeBackend &arcade) {
             arcade.setAchievementsServers(QUrl(QStringLiteral("http://127.0.0.1:9/API/")),
                                           QUrl(QStringLiteral("http://127.0.0.1:9/")));
             arcade.setSignInCore(core);
-            arcade.setSetupRetryInterval(200);
+            arcade.setSetupRetryInterval(50);
         };
         const auto checks = [this] { return logLines(QStringLiteral("retroarch ")).size(); };
 
@@ -1976,7 +1977,7 @@ private slots:
             QVERIFY(!QFileInfo::exists(data.path() + QStringLiteral("/arcade/retroarch/sign-in")));
             // Nothing checked after.
             const int checked = checks();
-            QTest::qWait(500);
+            QTest::qWait(250);
             QCOMPARE(checks(), checked);
         }
         QFile::remove(online);
@@ -2000,7 +2001,7 @@ private slots:
             QVERIFY(!QFileInfo::exists(setup));
             QTRY_COMPARE_WITH_TIMEOUT(arcade.achievementsState(), QStringLiteral("signedIn"), 10000);
             // The setup's check due meanwhile no longer is.
-            QTest::qWait(500);
+            QTest::qWait(250);
             QCOMPARE(arcade.achievementsState(), QStringLiteral("signedIn"));
             QCOMPARE(account().value(QStringLiteral("token")).toString(), QStringLiteral("tok789"));
         }
@@ -2012,7 +2013,7 @@ private slots:
             QTRY_COMPARE_WITH_TIMEOUT(arcade.achievementsState(), QStringLiteral("pending"), 10000);
             arcade.signOutAchievements();
             QVERIFY(!QFileInfo::exists(setup));
-            QTest::qWait(500);
+            QTest::qWait(250);
             QCOMPARE(arcade.achievementsState(), QStringLiteral("none"));
         }
 
@@ -2023,7 +2024,7 @@ private slots:
             prepare(arcade);
             QTRY_COMPARE_WITH_TIMEOUT(checks(), 10, 20000);
             QTRY_COMPARE_WITH_TIMEOUT(arcade.achievementsState(), QStringLiteral("pending"), 10000);
-            QTest::qWait(600);
+            QTest::qWait(250);
             QCOMPARE(checks(), 10);
             QVERIFY(QFileInfo::exists(setup));
         }
@@ -2035,7 +2036,7 @@ private slots:
             prepare(arcade);
             QTRY_VERIFY_WITH_TIMEOUT(!QFileInfo::exists(setup), 5000);
             QCOMPARE(account().value(QStringLiteral("key")).toString(), QStringLiteral("k4y"));
-            QTest::qWait(300);
+            QTest::qWait(150);
             QCOMPARE(checks(), 0);
         }
 
@@ -2049,7 +2050,7 @@ private slots:
             QVERIFY(!QFileInfo::exists(setup));
             QTRY_COMPARE_WITH_TIMEOUT(arcade.achievementsState(), QStringLiteral("pending"), 10000);
             const int checked = checks();
-            QTest::qWait(600);
+            QTest::qWait(250);
             QCOMPARE(checks(), checked);
         }
 
@@ -2062,7 +2063,7 @@ private slots:
             QCOMPARE(arcade.achievementsState(), QStringLiteral("pending"));
             QCOMPARE(arcade.achievementsMessage(),
                      QStringLiteral("RetroArch signed in but kept no token: RetroArch signs in at the next game"));
-            QTest::qWait(600);
+            QTest::qWait(250);
             QCOMPARE(checks(), 1);
         }
 
@@ -2075,7 +2076,7 @@ private slots:
             QTRY_VERIFY_WITH_TIMEOUT(!QFileInfo::exists(setup), 5000);
             QCOMPARE(arcade.achievementsState(), QStringLiteral("signedIn"));
             QCOMPARE(account().value(QStringLiteral("token")).toString(), QStringLiteral("tok999"));
-            QTest::qWait(300);
+            QTest::qWait(150);
             QCOMPARE(checks(), 0);
         }
 
@@ -2088,7 +2089,7 @@ private slots:
             arcade.setSignInCore(data.path() + QStringLiteral("/none.so"));
             QTRY_VERIFY_WITH_TIMEOUT(!QFileInfo::exists(setup), 5000);
             QCOMPARE(arcade.achievementsState(), QStringLiteral("pending"));
-            QTest::qWait(300);
+            QTest::qWait(150);
             QCOMPARE(checks(), 0);
         }
     }
@@ -2113,8 +2114,8 @@ private slots:
                                           QFile::ReadOwner | QFile::WriteOwner | QFile::ExeOwner));
         const QString configCopy = data.path() + QStringLiteral("/ra.cfg");
         qputenv("RA_CONFIG_COPY", configCopy.toUtf8());
-        // The game outlasts a few of the checks' interval.
-        qputenv("RA_SECONDS", "2");
+        // The game outlasts the checks' interval.
+        qputenv("RA_SECONDS", "1");
         qputenv("OSDOS_MEDIA_DIR", (data.path() + QStringLiteral("/media")).toUtf8());
         const auto restore = qScopeGuard([this] {
             qunsetenv("RA_CONFIG_COPY");
@@ -2164,7 +2165,7 @@ private slots:
             QCOMPARE(checks(), checked);
             QVERIFY(!QFileInfo::exists(setup));
             // Nor any after it: the game had the password.
-            QTest::qWait(1200);
+            QTest::qWait(700);
             QCOMPARE(checks(), checked);
         }
 

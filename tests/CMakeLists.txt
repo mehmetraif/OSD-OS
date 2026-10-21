@@ -238,6 +238,10 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
         target_link_libraries(arcade_test PRIVATE ${MINIZIP_LIBRARY})
     endif()
     add_test(NAME arcade COMMAND arcade_test)
+    # Its stand-ins for MAME and RetroArch run as processes and its timers
+    # for real, test after test: close to a minute in all, the minute CI
+    # gives a test without a timeout of its own.
+    set_tests_properties(arcade PROPERTIES TIMEOUT 180)
     # A libretro core that only describes itself, for libretro::loadCoreInfo().
     enable_language(C)
     add_library(arcade_test_core MODULE arcade_test_core.c)
