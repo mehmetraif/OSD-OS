@@ -1,18 +1,15 @@
 #include "DisplayOutput.h"
 #include "../util/Board.h"
 #include "../util/LegacyNames.h"
+#include "../util/RootRequest.h"
 
 #include <QCoreApplication>
 #include <QFile>
-#include <QFileInfo>
 #include <QJsonDocument>
 #include <QJsonObject>
-#include <QLocalSocket>
 #include <QSaveFile>
-#include <QTimer>
 
 #include <algorithm>
-#include <memory>
 
 namespace {
 
@@ -152,7 +149,7 @@ DisplayOutput::DisplayOutput(const QString &dataRoot, QObject *parent)
     }
     m_available = legacy::envIsSet("AUTOSTART") && launcherApi >= 3 && m_options.size() > 1;
     m_powerOffAvailable = m_available && launcherApi >= kNextStartApi;
-    m_nextStartAvailable = m_powerOffAvailable && QFileInfo::exists(socketPath());
+    m_nextStartAvailable = m_powerOffAvailable && rootrequest::available(QStringLiteral("display"), kNextStartApi);
 
     // What became of the last change.
     const QJsonObject state = QJsonDocument::fromJson(readFile(statePath())).object();
@@ -231,46 +228,11 @@ bool DisplayOutput::applyAtNextStart(const QString &id) {
     emit changed();
 
     // osdos-stop next-start, as root, behind the socket: the name on a line,
-    // "ok" or why not back. The connections are this object's, so that none
-    // is left to call on it as it goes: its socket goes after them.
-    auto *socket = new QLocalSocket(this);
-    auto reply = std::make_shared<QByteArray>();
-    auto sent = std::make_shared<bool>(false);
-    auto done = std::make_shared<bool>(false);
-    const auto finish = [this, socket, reply, sent, done, id](const QString &failure) {
-        if (*done)
-            return;
-        *done = true;
-        if (socket->isOpen())
-            reply->append(socket->readAll());
-        const QByteArray line = reply->left(reply->indexOf('\n')).trimmed();
-        socket->deleteLater();
-        if (line == "ok")
-            nextStartDone(id, true, QString(), false);
-        else
-            nextStartDone(id, false, line.isEmpty() ? failure : QString::fromUtf8(line),
-                          line.isEmpty() && *sent);
-    };
-    connect(socket, &QLocalSocket::connected, this, [socket, sent, id] {
-        socket->write(id.toLatin1() + '\n');
-        *sent = true;
+    // "ok" or why not back.
+    rootrequest::ask(this, QStringLiteral("display"), id.toLatin1(), kNextStartTimeoutMs,
+                     [this, id](const rootrequest::Answer &answer) {
+        nextStartDone(id, answer.ok, answer.why, !answer.answered && answer.sent);
     });
-    connect(socket, &QLocalSocket::readyRead, this, [socket, reply, finish] {
-        reply->append(socket->readAll());
-        if (reply->contains('\n'))
-            finish(QString());
-    });
-    connect(socket, &QLocalSocket::disconnected, this, [finish] {
-        finish(QStringLiteral("no answer"));
-    });
-    connect(socket, &QLocalSocket::errorOccurred, this, [socket, finish](QLocalSocket::LocalSocketError error) {
-        const bool away = error == QLocalSocket::ServerNotFoundError || error == QLocalSocket::ConnectionRefusedError;
-        finish(away ? QStringLiteral("osdos-display.socket isn't listening") : socket->errorString());
-    });
-    QTimer::singleShot(kNextStartTimeoutMs, this, [finish] {
-        finish(QStringLiteral("no answer in time"));
-    });
-    socket->connectToServer(socketPath());
     return true;
 }
 
@@ -353,10 +315,6 @@ QString DisplayOutput::presetPath(const QString &id) const {
 
 QString DisplayOutput::atBootPath() const {
     return m_runDir + QStringLiteral("/osdos-display-boot.txt");
-}
-
-QString DisplayOutput::socketPath() const {
-    return m_runDir + QStringLiteral("/osdos-display.sock");
 }
 
 QString DisplayOutput::statePath() const {

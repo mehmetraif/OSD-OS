@@ -192,7 +192,9 @@ INSTALL_DIR="/opt/osdos"
 #    turn Wi-Fi on and off (50-osdos-networkmanager.rules), and osdos-stop
 #    sets the Wi-Fi country through osdos-wifi.socket, so Settings offers
 #    Wi-Fi.
-export OSDOS_LAUNCHER_API=7
+# 8: osdos-stop also names the device through osdos-name.socket, so Settings
+#    → About → System Information can rename it.
+export OSDOS_LAUNCHER_API=8
 
 # ── Apply a staged in-app update ───────────────────────────────────────────────
 # The app downloads the release tarball to DATA_ROOT/updates and writes
@@ -402,7 +404,14 @@ UNIT
 # Called by osdos.service ExecStopPost. systemd sets $EXIT_STATUS to the app's
 # exit code, or to the signal name if a signal killed it. Called with
 # next-start, by osdos-display.socket instead: Display Output's At Next Start;
-# with wifi-country, by osdos-wifi.socket: Settings → Wi-Fi's country.
+# with wifi-country, by osdos-wifi.socket: Settings → Wi-Fi's country; with
+# device-name, by osdos-name.socket: Settings → About → System Information's
+# Device Name.
+
+# What comes in is read as the C locale reads it, whatever the system's
+# language: under en_GB.UTF-8, Raspberry Pi OS's own, a range such as A-Z
+# takes ç, é and İ too.
+export LC_ALL=C
 
 # Settings → Display Output on the OSD/OS image: the chosen preset (or the one
 # before it, to go back) over osdos-display.txt, which the firmware reads only
@@ -485,10 +494,81 @@ wifi_country() {
     echo ok
 }
 
+# Settings → About → System Information's Device Name: a name on a line from
+# the app, through the socket, and "ok" back, or why not. Only a name the
+# network takes (RFC 1123, as the app has it too: letters, digits and
+# hyphens, 63 at most, neither end a hyphen), never echoed. hostnamectl sets
+# it now and for every start after; the line of /etc/hosts that names this
+# machine (127.0.1.1, as pi-gen and raspi-config write it) names it so too,
+# in place of the old name, its other names and the file's other lines kept
+# (the line added if there is none); and avahi, which answers for
+# <name>.local, starts again under it. What they say goes to the journal,
+# not into the answer.
+device_name() {
+    local name old hosts=/etc/hosts
+    IFS= read -r -t 5 -n 64 name || [ -n "$name" ] || { refuse "no name given"; return; }
+    [[ "$name" =~ ^[A-Za-z0-9]([A-Za-z0-9-]{0,61}[A-Za-z0-9])?$ ]] || { refuse "not a name the network takes"; return; }
+    # The name it has now: /etc/hostname's first line that isn't a comment.
+    old="$(awk '!/^[[:space:]]*(#|$)/ { print $1; exit }' /etc/hostname 2> /dev/null)"
+    [ -e "$hosts" ] || hosts=/dev/null
+    # The new /etc/hosts is written aside first, and put in place once
+    # hostnamectl has the name: should either fail, the old name stays in
+    # both, never one name in one and another in the other. On the line, the
+    # old name and those made of it (<old>.lan) become the new one's in their
+    # places; the new name goes first on a line that had neither.
+    awk -v new="$name" -v old="$old" '
+        $1 == "127.0.1.1" && !named {
+            names = ""
+            comment = ""
+            for (i = 2; i <= NF; i++) {
+                if ($i ~ /^#/) {
+                    for (; i <= NF; i++)
+                        comment = comment " " $i
+                    break
+                }
+                n = $i
+                if (old != "" && tolower(n) == tolower(old))
+                    n = new
+                else if (old != "" && index(tolower(n), tolower(old) ".") == 1)
+                    n = new substr(n, length(old) + 1)
+                if (tolower(n) in seen)
+                    continue
+                seen[tolower(n)] = 1
+                names = names (names == "" ? "" : " ") n
+            }
+            if (!(tolower(new) in seen))
+                names = new (names == "" ? "" : " " names)
+            print "127.0.1.1\t" names comment
+            named = 1
+            next
+        }
+        { print }
+        END { if (!named) print "127.0.1.1\t" new }
+    ' "$hosts" > /etc/hosts.osdos-new || { rm -f /etc/hosts.osdos-new; refuse "/etc/hosts couldn't be written"; return; }
+    if ! hostnamectl set-hostname "$name" < /dev/null >&2; then
+        rm -f /etc/hosts.osdos-new
+        # Some of it may have been set (the running name, not the file's).
+        [ -z "$old" ] || hostnamectl set-hostname "$old" < /dev/null >&2
+        refuse "hostnamectl couldn't set it"
+        return
+    fi
+    if ! mv -f /etc/hosts.osdos-new /etc/hosts; then
+        rm -f /etc/hosts.osdos-new
+        [ -z "$old" ] || hostnamectl set-hostname "$old" < /dev/null >&2
+        refuse "/etc/hosts couldn't be written"
+        return
+    fi
+    systemctl try-restart avahi-daemon.service < /dev/null >&2
+    # On the card before the answer: the root file system only.
+    sync -f /etc/hostname /etc/hosts
+    echo ok
+}
+
 MODE="${1:-}"
 case "$MODE" in
     next-start)   next_start;   exit 0 ;;
     wifi-country) wifi_country; exit 0 ;;
+    device-name)  device_name;  exit 0 ;;
 esac
 
 case "${EXIT_STATUS:-}" in
@@ -581,6 +661,44 @@ PrivateTmp=yes
 ProtectHome=yes
 WIFI_SERVICE
 
+    # Settings → About → System Information's Device Name, while the app
+    # runs: it writes a name to this socket, which only its user may, and
+    # osdos-stop device-name, as root, sets it and answers.
+    sudo tee /etc/systemd/system/osdos-name.socket > /dev/null << 'NAME_SOCKET'
+[Unit]
+Description=OSD/OS device name (Settings → About → System Information)
+
+[Socket]
+ListenStream=/run/osdos-name.sock
+SocketUser=root
+SocketGroup=@OSDOS_GROUP@
+SocketMode=0660
+Accept=yes
+MaxConnections=1
+
+[Install]
+WantedBy=sockets.target
+NAME_SOCKET
+    sudo sed -i "s/@OSDOS_GROUP@/$(id -gn "${SERVICE_USER}")/" /etc/systemd/system/osdos-name.socket
+    sudo tee /etc/systemd/system/osdos-name@.service > /dev/null << 'NAME_SERVICE'
+[Unit]
+Description=OSD/OS device name, one request
+# One unit a request: gone once it has run, however it ended.
+CollectMode=inactive-or-failed
+
+[Service]
+ExecStart=/usr/local/bin/osdos-stop device-name
+StandardInput=socket
+StandardOutput=socket
+StandardError=journal
+NoNewPrivileges=yes
+# hostnamectl and systemctl talk to their daemons over D-Bus, whose socket is
+# a file's: the unit itself has no network of its own.
+PrivateNetwork=yes
+PrivateTmp=yes
+ProtectHome=yes
+NAME_SERVICE
+
     # On-demand login shell for "Exit to Terminal". Not enabled (no boot race with
     # osdos.service); getty@tty1 stays masked. Started only by osdos-stop, or by
     # osdos.service's OnFailure= once the app has failed three times running, and
@@ -604,7 +722,7 @@ TERMINAL_UNIT
     sudo systemctl mask getty@tty1.service autovt@.service
     sudo systemctl daemon-reload
     sudo systemctl enable osdos.service
-    sudo systemctl enable --now osdos-display.socket osdos-wifi.socket
+    sudo systemctl enable --now osdos-display.socket osdos-wifi.socket osdos-name.socket
     echo "Service installed and enabled."
     echo "Start now with: sudo systemctl start osdos"
 fi

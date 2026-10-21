@@ -172,7 +172,7 @@
       "type": "module_view",
       "params": { "onlineName": true },
       "shown_with": [{ "key": "online_play", "value": "On" }, { "key": "lan_play", "value": "On" }],
-      "description": "The name the others see, online and on the network\n[DEFAULT] The RetroAchievements account's, else OSD-OS"
+      "description": "The name the others see, online and on the network\n[DEFAULT] Online, the RetroAchievements account's, else OSD-OS; on the network, this device's name (Settings → About → System Information)"
     },
     {
       "key": "fbneo",

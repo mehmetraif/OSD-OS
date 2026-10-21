@@ -1,17 +1,19 @@
 import QtQuick
 import Components
 
-// ABOUT, from Settings: the wordmark with its tagline, then what OSD/OS is
-// made of, who makes it and under which licence, as menu lines whose help
-// line carries each one's detail (it stays whatever Settings' HELP LINE says:
-// these lines are the page); then, under ARCADE, the free software the games
-// play in and read with, and the sites they are read from. Behind the LICENSE
-// line is the licence itself: the notice the GNU GPL asks an interactive
-// program to show (whose copyright, no warranty, the freedom to pass it on,
-// where the licence is), then the licence's text, the LICENSE file every
-// build carries next to the app (appCore.licenseText()), a page at a time;
-// behind an arcade line, its licence's (assets/licenses, or FinalBurn Neo's
-// as it was installed).
+// ABOUT, from Settings: the wordmark with its tagline, then System
+// Information, this device's name its value, which opens its page
+// (views/SystemInfo.qml; back from it, the cursor on its line again), then
+// what OSD/OS is made of, who makes it and under which licence, as menu lines
+// whose help line carries each one's detail (it stays whatever Settings' HELP
+// LINE says: these lines are the page); then, under ARCADE, the free software
+// the games play in and read with, and the sites they are read from. Behind
+// the LICENSE line is the licence itself: the notice the GNU GPL asks an
+// interactive program to show (whose copyright, no warranty, the freedom to
+// pass it on, where the licence is), then the licence's text, the LICENSE
+// file every build carries next to the app (appCore.licenseText()), a page at
+// a time; behind an arcade line, its licence's (assets/licenses, or FinalBurn
+// Neo's as it was installed).
 FocusScope {
     id: aboutRoot
 
@@ -28,8 +30,18 @@ FocusScope {
     readonly property string upstreamAuthor: "Anthony Caccese"
     readonly property string upstreamUrl: "github.com/anthonycaccese/240-MP"
     readonly property string year: "2026"
+    // Context properties read null while the Loader tears this view down.
+    readonly property string deviceName: systemInfo ? systemInfo.deviceName : ""
 
+    // The lines, which nothing changes while the page is up: a new list
+    // would take the cursor back to the first line, System Information, which
+    // select opens. A description's {select} is the select key's hint, put in
+    // as the help line shows it (keyboard or gamepad).
     readonly property var rows: [
+        { key: "system_info", label: "System Information", page: "views/SystemInfo.qml",
+          description: "This device's name, which tells it apart from others on the network • {select}"
+                       + " What it is: its model, OS, memory, storage and temperature, and each network connection's"
+                       + " IP and MAC addresses" },
         { key: "build", label: "Build", value: root.appBuild,
           description: "Version " + root.appVersion + " • The commit this build was made from, and the day"
                        + " • A VCR-style smart TV experience for CRTs: films, streams and arcade games with high"
@@ -42,7 +54,7 @@ FocusScope {
                        + " • OSD/OS is a modified version of it, from " + aboutRoot.year + ", under the same license" },
         { key: "license", label: "License", value: "GNU GPL v3", license: "LICENSE",
           description: "Free software under the GNU General Public License, version 3: use it, share it and change it, under the same license"
-                       + " • It comes with no warranty • " + root.hints.select + " The notice and the license's text" },
+                       + " • It comes with no warranty • {select} The notice and the license's text" },
         { key: "source", label: "Source", value: aboutRoot.sourceUrl,
           description: "The source code, the releases and the issues • Changes are welcome: see CONTRIBUTING.md there" },
         { key: "code", label: "Written With", value: "Claude Code",
@@ -79,37 +91,37 @@ FocusScope {
           description: "The arcade machine emulator the games play in, by the MAME team, mamedev.org"
                        + " • Free software under the GNU General Public License, version 2 or later"
                        + " • Its hiscore plugin, which keeps the games' high score tables, by borgar (CC0), and its"
-                       + " hiscore.dat by Leezer • " + root.hints.select + " The license's text" },
+                       + " hiscore.dat by Leezer • {select} The license's text" },
         { key: "retroarch", label: "RetroArch", value: "GPL v3", license: "LICENSE",
           licenseName: "GNU General Public License, version 3",
           description: "Plays the games FinalBurn Neo has, with RetroAchievements and online play, by libretro and its"
                        + " contributors, retroarch.com • Free software under the GNU General Public License, version 3,"
-                       + " its rcheevos under the MIT License • " + root.hints.select + " The license's text" },
+                       + " its rcheevos under the MIT License • {select} The license's text" },
         { key: "fbneo", label: "FinalBurn Neo", value: "Non-commercial", license: "fbneo",
           licenseName: "FinalBurn Neo's license",
           description: "The arcade emulator RetroArch plays those games with, as a libretro core, by Team FB Neo,"
                        + " github.com/libretro/FBNeo, from libretro's build server, buildbot.libretro.com"
-                       + " • Free to use and share, never to sell; no ROMs come with it • " + root.hints.select
+                       + " • Free to use and share, never to sell; no ROMs come with it • {select}"
                        + " The license's text" },
         { key: "openhi2txt", label: "openhi2txt", value: "GPL v3", license: "LICENSE",
           licenseName: "GNU General Public License, version 3",
           description: "Reads MAME's high score files into the High Scores tables, by inigomonyota,"
                        + " github.com/inigomonyota/openhi2txt • Free software under the GNU General Public License,"
-                       + " version 3 • " + root.hints.select + " The license's text" },
+                       + " version 3 • {select} The license's text" },
         { key: "hi2txt", label: "hi2txt", value: "GPL v2", license: "assets/licenses/GPL-2.0.txt",
           licenseName: "GNU General Public License, version 2",
           description: "How each game keeps its high score table: hi2txt's game definitions by GreatStone and their"
                        + " contributors, many from HiToText, greatstone.free.fr/hi2txt • Under the GNU General Public"
-                       + " License, version 2 • " + root.hints.select + " The license's text" },
+                       + " License, version 2 • {select} The license's text" },
         { key: "rapidxml", label: "RapidXML", value: "Boost or MIT", license: "assets/licenses/RapidXML.txt",
           licenseName: "Boost Software License 1.0, or the MIT License",
           description: "The XML reader openhi2txt is built with, by Marcin Kalicinski, rapidxml.sourceforge.net"
-                       + " • Under the Boost Software License 1.0 or the MIT License, either • " + root.hints.select
+                       + " • Under the Boost Software License 1.0 or the MIT License, either • {select}"
                        + " The licenses' text" },
         { key: "zlib", label: "minizip, zlib", value: "zlib", license: "assets/licenses/zlib.txt",
           licenseName: "zlib License",
           description: "Open hi2txt's definitions and FinalBurn Neo's download: minizip by Gilles Vollant and zlib by"
-                       + " Jean-loup Gailly and Mark Adler, zlib.net • Under the zlib License • " + root.hints.select
+                       + " Jean-loup Gailly and Mark Adler, zlib.net • Under the zlib License • {select}"
                        + " The license's text" },
         { key: "achievements", label: "RetroAchievements", value: "retroachievements.org",
           description: "Leaderboards and hardcore play for the games FinalBurn Neo plays, with your own account,"
@@ -134,6 +146,18 @@ FocusScope {
         + "This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY;"
         + " without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE."
         + " See the GNU General Public License below for more details, or at gnu.org/licenses/gpl-3.0.html."
+
+    // The device's name read again as the page opens, as System Information
+    // reads it, in case it was changed outside OSD/OS; back from that page, the
+    // cursor on its line again.
+    Component.onCompleted: {
+        if (systemInfo)
+            systemInfo.refresh()
+        if (navListState.currentIndex !== undefined) {
+            list.currentIndex = Math.min(navListState.currentIndex, rows.length - 1)
+            list.show(list.currentIndex)
+        }
+    }
 
     AppBar {
         iconSource: "../../assets/images/logo.svg"
@@ -209,7 +233,9 @@ FocusScope {
             height: root.sh * 0.0583333 //28
             heading: modelData.type === "section"
             label: modelData.label
-            value: modelData.value || ""
+            // The device's name read here, so that a new one doesn't make the
+            // lines anew.
+            value: modelData.key === "system_info" ? aboutRoot.deviceName : (modelData.value || "")
             selected: list.currentIndex === index
             // Read rather than chosen: a value too long for its line (the
             // developer, the source) scrolls through, selected or not.
@@ -218,7 +244,9 @@ FocusScope {
 
         Keys.onReturnPressed: {
             var row = aboutRoot.rows[currentIndex]
-            if (row && row.license)
+            if (row && row.page)
+                aboutRoot.navigateTo(row.page, {}, { currentIndex: currentIndex })
+            else if (row && row.license)
                 licensePage.open(row)
         }
         Keys.onPressed: function(event) {
@@ -233,7 +261,7 @@ FocusScope {
         readonly property var row: aboutRoot.rows[list.currentIndex]
         always: true
         visible: !licensePage.visible
-        text: row && row.description ? row.description : ""
+        text: row && row.description ? row.description.split("{select}").join(root.hints.select) : ""
         anchors.bottom: parent.bottom
         anchors.left: parent.left
         anchors.bottomMargin: root.helpLineMargin
@@ -244,7 +272,8 @@ FocusScope {
         readonly property var row: aboutRoot.rows[list.currentIndex]
         visible: !licensePage.visible
         text: root.hints.back + ":BACK " + root.hints.navigate + ":NAVIGATE"
-              + (row && row.license ? " " + root.hints.select + ":LICENSE" : "")
+              + (row && row.page ? " " + root.hints.select + ":OPEN"
+                 : row && row.license ? " " + root.hints.select + ":LICENSE" : "")
         anchors.bottom: parent.bottom
         anchors.left: parent.left
         anchors.bottomMargin: root.sh * 0.1041667 //50

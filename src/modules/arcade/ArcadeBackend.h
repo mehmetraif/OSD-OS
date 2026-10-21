@@ -665,10 +665,14 @@ private:
     void showLanRooms();
     // The LAN Games folder's entries, as roomEntries().
     QVariantList lanRoomEntries() const;
-    // What the line under the list says of a room: who hosts it, its file,
-    // and its core's and RetroArch's versions against ours, where both are
-    // known.
+    // What the line under the list says of a room: who hosts it and at
+    // which address, its file, and its core's and RetroArch's versions
+    // against ours, where both are known.
     QString lanDetail(const libretro::Room &room) const;
+    // The name the others see in a game: Online Name; else, on the local
+    // network, this device's (two cabinets there told apart by it), online
+    // the RetroAchievements account's, or OSD-OS.
+    QString nickname(bool lan) const;
     // Our own RetroArch's version (`retroarch --version`, RetroArch.app's
     // from its bundle) and FinalBurn Neo core's (a copy of the app run with
     // --core-info), each read again once its file is another, none given
@@ -744,7 +748,7 @@ private:
     bool    m_achievements = false;   // Online High Scores: RetroAchievements
     bool    m_onlinePlay = false;
     QVariantMap m_engines;        // set → "mame" or "fbneo", as its options chose
-    QString m_onlineName;         // the name online play shows ("" for the account's)
+    QString m_onlineName;         // the name the others see ("" for nickname()'s own)
     QString m_relay = QStringLiteral("nyc");   // the relay a hosted game goes through
     bool    m_lanPlay = false;
 

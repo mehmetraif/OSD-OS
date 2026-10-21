@@ -108,7 +108,6 @@ private:
     QString presetMatching(const QByteArray &bytes) const;
     QString presetPath(const QString &id) const;
     QString atBootPath() const;
-    QString socketPath() const;
     QString statePath() const;
     bool writeState(const QVariantMap &state) const;
 

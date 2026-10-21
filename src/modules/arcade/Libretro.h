@@ -93,8 +93,8 @@ struct Launch {
     QString achievementsPassword;
     // Online play: hosting through a relay (netplay_mitm_server), hosting
     // on the local network alone (LanHost, LAN Play), or joining a room as
-    // the lobby or a host on the local network gives it.
-    enum class Netplay { None, Host, LanHost, Join } netplay = Netplay::None;
+    // the lobby gives it (Join) or a host on the local network (LanJoin).
+    enum class Netplay { None, Host, LanHost, Join, LanJoin } netplay = Netplay::None;
     QString nickname;
     QString relay;            // "nyc", "madrid", "saopaulo", "singapore", "chuncheon"
     QString joinAddress;      // RetroArch's --connect: "address|port" or "address|port|session"

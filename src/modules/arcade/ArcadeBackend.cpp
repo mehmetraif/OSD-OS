@@ -4,6 +4,7 @@
 #include "../../audio/AudioOutput.h"
 #include "../../input/ControllerProfile.h"
 #include "../../util/AtomicFile.h"
+#include "../../util/DeviceName.h"
 #include "../../util/DurableFile.h"
 #include "../../util/LegacyNames.h"
 #include "FbneoInstaller.h"
@@ -2376,7 +2377,8 @@ bool ArcadeBackend::playFbneo(const QString &name, libretro::Launch::Netplay net
     }
     launch.netplay = netplay;
     launch.joinAddress = joinAddress;
-    launch.nickname = m_onlineName.isEmpty() ? (m_raUser.isEmpty() ? QStringLiteral("OSD-OS") : m_raUser) : m_onlineName;
+    launch.nickname = nickname(netplay == libretro::Launch::Netplay::LanHost
+                               || netplay == libretro::Launch::Netplay::LanJoin);
     launch.relay = m_relay;
     // FinalBurn Neo's remap file: the arcade panels' players on its 6-Button
     // Panel; none without one, nor online.
@@ -2475,7 +2477,7 @@ bool ArcadeBackend::joinLanRoom(int id) {
     }
     for (const libretro::Room &room : std::as_const(m_lanRooms)) {
         if (room.id == id)
-            return playFbneo(room.game, libretro::Launch::Netplay::Join, room.joinAddress);
+            return playFbneo(room.game, libretro::Launch::Netplay::LanJoin, room.joinAddress);
     }
     m_lastError = QStringLiteral("The game is no longer hosted on this network");
     return false;
@@ -2939,8 +2941,20 @@ QVariantList ArcadeBackend::lanRoomEntries() const {
     return entries;
 }
 
+QString ArcadeBackend::nickname(bool lan) const {
+    if (!m_onlineName.isEmpty())
+        return m_onlineName;
+    const QString device = lan ? device::name() : QString();
+    if (!device.isEmpty())
+        return device;
+    return m_raUser.isEmpty() ? QStringLiteral("OSD-OS") : m_raUser;
+}
+
 QString ArcadeBackend::lanDetail(const libretro::Room &room) const {
-    QStringList parts{ QStringLiteral("Hosted by %1 on this network").arg(room.host.isEmpty() ? QStringLiteral("someone") : room.host),
+    // Who hosts it, and where: two cabinets of one name told apart.
+    QStringList parts{ QStringLiteral("Hosted by %1 at %2 on this network")
+                           .arg(room.host.isEmpty() ? QStringLiteral("someone") : room.host,
+                                room.joinAddress.section(QLatin1Char('|'), 0, 0)),
                        m_sets.value(room.game) };
     // Its core and RetroArch against ours, as the lobby's rooms are matched.
     const QString core = coreMatch(room.coreVersion, m_coreVersion);

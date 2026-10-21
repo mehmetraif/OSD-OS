@@ -145,7 +145,8 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
         display_output_test.cpp
         ../src/display/DisplayOutput.cpp
         ../src/util/Board.cpp
-        ../src/util/LegacyNames.cpp)
+        ../src/util/LegacyNames.cpp
+        ../src/util/RootRequest.cpp)
     target_include_directories(display_output_test PRIVATE ../src)
     target_compile_definitions(display_output_test PRIVATE
         PRESETS_DIR="${CMAKE_CURRENT_SOURCE_DIR}/../os/stage-osdos/03-boot/files"
@@ -156,6 +157,20 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
     add_test(NAME display_output_pi5 COMMAND display_output_test)
     set_tests_properties(display_output_pi5 PROPERTIES
         ENVIRONMENT "OSDOS_BOARD_MODEL=Raspberry Pi 5 Model B Rev 1.0")
+
+    # Settings → About → System Information (SystemInfo): its rows from what
+    # the system says, Linux's files from a stand-in root, the name a network
+    # takes of what is typed, and the device renamed through a stand-in for
+    # osdos-name.socket.
+    add_executable(system_info_test
+        system_info_test.cpp
+        ../src/system/SystemInfo.cpp
+        ../src/util/Board.cpp
+        ../src/util/LegacyNames.cpp
+        ../src/util/RootRequest.cpp)
+    target_include_directories(system_info_test PRIVATE ../src)
+    target_link_libraries(system_info_test PRIVATE Qt6::Core Qt6::Network Qt6::Test)
+    add_test(NAME system_info COMMAND system_info_test)
 
     # Settings → Wi-Fi (WifiManager) against a stand-in for NetworkManager
     # (fake_networkmanager) on a D-Bus of the test's own, and for the country
@@ -169,7 +184,8 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
             wifi_test.cpp
             fake_networkmanager.cpp
             ../src/wifi/WifiManager.cpp
-            ../src/util/LegacyNames.cpp)
+            ../src/util/LegacyNames.cpp
+            ../src/util/RootRequest.cpp)
         target_include_directories(wifi_test PRIVATE ../src)
         target_compile_definitions(wifi_test PRIVATE OSDOS_WIFI=1)
         target_link_libraries(wifi_test PRIVATE Qt6::Core Qt6::DBus Qt6::Network Qt6::Test)
@@ -308,11 +324,18 @@ set_tests_properties(settings_view PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offsc
 add_test(NAME wifi_views COMMAND tree_browser_test -input ${CMAKE_CURRENT_SOURCE_DIR}/qml/tst_wifi.qml
                                  -import ${CMAKE_CURRENT_SOURCE_DIR}/../views)
 set_tests_properties(wifi_views PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen;QT_QUICK_BACKEND=software")
-# About (views/About.qml): OSD/OS's lines and the arcade's, each licence a
-# page of its own, against stand-ins for the licence files.
+# About (views/About.qml): System Information first, the device's name its
+# value, opening its page; OSD/OS's lines and the arcade's, each licence a
+# page of its own, against stand-ins for the licence files and the name.
 add_test(NAME about_view COMMAND tree_browser_test -input ${CMAKE_CURRENT_SOURCE_DIR}/qml/tst_about.qml
                                  -import ${CMAKE_CURRENT_SOURCE_DIR}/../views)
 set_tests_properties(about_view PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen;QT_QUICK_BACKEND=software")
+# About → System Information (views/SystemInfo.qml): its rows, the cursor kept on its
+# line as they are read again, and the device renamed on the keyboard, against
+# a stand-in for SystemInfo.
+add_test(NAME system_info_view COMMAND tree_browser_test -input ${CMAKE_CURRENT_SOURCE_DIR}/qml/tst_system_info.qml
+                                      -import ${CMAKE_CURRENT_SOURCE_DIR}/../views)
+set_tests_properties(system_info_view PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen;QT_QUICK_BACKEND=software")
 # The High Scores module's view (modules/highscores/views/Scores.qml) against
 # a stand-in for HighScoresBackend.
 add_test(NAME highscores_views COMMAND tree_browser_test -input ${CMAKE_CURRENT_SOURCE_DIR}/qml/tst_highscores.qml

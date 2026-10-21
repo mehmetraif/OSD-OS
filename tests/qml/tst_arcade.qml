@@ -1620,7 +1620,7 @@ Rectangle {
                 "top": [{ name: "LAN Games", path: "lan", isFolder: true }].concat(arcadeBackend.entries.top),
                 "lan": [{ name: "Street Fighter II (ann)", path: "lan:1", isFolder: false, kind: "room", game: "sf2",
                           room: 1, host: "ann", lan: true,
-                          detail: "Hosted by ann on this network • sf2.zip • Its RetroArch is 1.21.0, yours 1.22.2" }]
+                          detail: "Hosted by ann at 192.168.1.20 on this network • sf2.zip • Its RetroArch is 1.21.0, yours 1.22.2" }]
             })
             arcadeBackend.lanHostable = ["pacman"]
             var games = open("Games.qml")
@@ -1669,7 +1669,7 @@ Rectangle {
             arcadeBackend.filterList = [{ id: "lan", name: "LAN Games", sets: ["sf2"],
                                           rows: [{ set: "sf2", name: "Street Fighter II (ann)", favorite: false, room: 1,
                                                    host: "ann", lan: true,
-                                                   detail: "Hosted by ann on this network • sf2.zip" }] }]
+                                                   detail: "Hosted by ann at 192.168.1.20 on this network • sf2.zip" }] }]
                                         .concat(arcadeBackend.filterList)
             arcadeBackend.lanHostable = ["sf2"]
             moduleRoot.startFilter = "lan"
@@ -1687,8 +1687,8 @@ Rectangle {
             tryCompare(arcadeBackend, "lanReads", 2, 1000)
             verify(findText(screen, "Street Fighter II (ann)") !== null)
             verify(findText(screen, ":JOIN") !== null)
-            compare(screen.about.split("\n")[0], "Hosted by ann on this network • sf2.zip")
-            verify(findText(screen, "Hosted by ann on this network") !== null)
+            compare(screen.about.split("\n")[0], "Hosted by ann at 192.168.1.20 on this network • sf2.zip")
+            verify(findText(screen, "Hosted by ann at 192.168.1.20 on this network") !== null)
             keyPress(Qt.Key_Return)
             keyRelease(Qt.Key_Return)
             compare(root.navigations.length, 1)
@@ -1701,7 +1701,7 @@ Rectangle {
             keyClick(Qt.Key_Right)
             compare(screen.filterId, "all")
             compare(screen.currentSet, "sf2")
-            compare(findText(screen, "Hosted by ann on this network"), null)
+            compare(findText(screen, "Hosted by ann at 192.168.1.20 on this network"), null)
             keyPress(Qt.Key_Return)
             tryVerify(function() { return findText(screen, "Host LAN Game") !== null }, 1500)
             keyRelease(Qt.Key_Return)

@@ -448,13 +448,15 @@ FocusScope {
             label: "Update",
             moduleId: ""
         })
-        // ABOUT — what OSD/OS is, who makes it, what it is made of and under
-        // which licence (views/About.qml).
+        // ABOUT — this device's System Information, then what OSD/OS is, who
+        // makes it, what it is made of and under which licence
+        // (views/About.qml).
         items.push({
             type: "submenu",
             key: "about",
             label: "About",
-            description: "What OSD/OS is, who makes it, what it is made of and under which license",
+            description: "This device's System Information, its name on the network first; what OSD/OS is, who makes it,"
+                         + " what it is made of and under which license",
             moduleId: ""
         })
         items.push({ type: "quit", label: "Quit" })

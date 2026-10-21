@@ -114,6 +114,8 @@ add_executable(osdos
     src/audio/MenuMusic.cpp
     src/bluetooth/BluetoothManager.cpp
     src/wifi/WifiManager.cpp
+    src/system/SystemInfo.cpp
+    src/util/RootRequest.cpp
     $<$<BOOL:${APPLE}>:src/util/MacosUtils.mm>
 )
 

@@ -203,6 +203,7 @@ The `[boot]` lines read `boot screen up, watching 4 unit(s)`, `first frame … m
 | `osdos-jamma.service` | Enabled, and does something only with the JAMMA display preset in force: a Raspberry Pi to JAMMA board's joysticks and buttons as two gamepads ([Controls](https://github.com/mehmetraif/OSD-OS/wiki/Controls#a-jamma-cabinet)), as a user of its own (`DynamicUser=yes`) in the `i2c` and `input` groups. Without the preset it exits at once; with it and no board, after 15 seconds |
 | `osdos-display.socket` | Enabled: Settings → Display Output's At Next Start, through `osdos-display@.service` ([At Next Start's socket](https://github.com/mehmetraif/OSD-OS/wiki/The-OSD-OS-Image#at-next-starts-socket)) |
 | `osdos-wifi.socket` | Enabled: Settings → Wi-Fi's country, through `osdos-wifi@.service` ([The Wi-Fi country's socket](https://github.com/mehmetraif/OSD-OS/wiki/The-OSD-OS-Image#the-wi-fi-countrys-socket)) |
+| `osdos-name.socket` | Enabled: Settings → About → System Information's rename, through `osdos-name@.service` ([The device name's socket](https://github.com/mehmetraif/OSD-OS/wiki/The-OSD-OS-Image#the-device-names-socket)) |
 | `osdos-terminal.service` | Not enabled. Started only by Exit to Terminal |
 | `getty@tty1.service`, `autovt@.service` | Masked: `tty1` belongs to OSD/OS, and no login prompt appears on the console mpv switches to |
 | `apt-daily.timer`, `apt-daily-upgrade.timer`, `man-db.timer`, `e2scrub_all.timer`, `dpkg-db-backup.timer`, `cron.service` | Disabled. They wake the CPU and the SD card at random times, mid-film included. Updating the system is the image's business, not a timer's |
@@ -408,7 +409,7 @@ Both need `sudo`, so an image built with a password ([The user, its password and
 
 ### The local network
 
-The hostname is `osdos` (`TARGET_HOSTNAME`), unless Raspberry Pi Imager set another. avahi-daemon publishes it on the local network as `osdos.local`. Settings shows the Pi's IPv4 address in its title bar, Ethernet's before Wi-Fi's, read again every five seconds.
+The hostname is `osdos` (`TARGET_HOSTNAME`), unless Raspberry Pi Imager set another; Settings → About → System Information shows it and renames the device ([The device name's socket](https://github.com/mehmetraif/OSD-OS/wiki/The-OSD-OS-Image#the-device-names-socket)). Give each OSD/OS on one network a name of its own. avahi-daemon publishes it on the local network as `osdos.local`. Settings shows the Pi's IPv4 address in its title bar, Ethernet's before Wi-Fi's, read again every five seconds.
 
 ### Bluetooth
 
@@ -519,8 +520,9 @@ The launcher exports `OSDOS_LAUNCHER_API`, and OSD/OS offers only what the launc
 | 5 or more | `osdos-stop` also powers off after a preset on exits 40 to 50, and writes one for the next start through `osdos-display.socket`: Display Output offers Switch and Power Off and At Next Start |
 | 6 or more | `osdos-stop` also writes the JAMMA board's other modes on exits 31 to 38, and powers off after them on 51 to 58: Display Output offers them |
 | 7 or more | NetworkManager lets OSD/OS's user scan, join and forget networks and turn Wi-Fi on and off (the polkit rule `50-osdos-networkmanager.rules`), and `osdos-stop` sets the Wi-Fi country through `osdos-wifi.socket`: Settings offers Wi-Fi |
+| 8 or more | `osdos-stop` also names the device through `osdos-name.socket`: Settings → About → System Information renames it |
 
-The image's launcher is level 7, as `install.sh`'s is.
+The image's launcher is level 8, as `install.sh`'s is.
 
 ### At Next Start's socket
 
@@ -545,6 +547,18 @@ Raspberry Pi OS keeps Wi-Fi off until the country the Pi is used in is set, and 
 
 ```sh
 journalctl -u 'osdos-wifi@*' -b    # what setting the Wi-Fi country did
+```
+
+### The device name's socket
+
+The device's name is its hostname: what a router lists it under, what avahi-daemon publishes as `<name>.local`, and the name LAN Play's games are hosted under. Setting it takes root, so Settings → About → System Information has `osdos-stop` set it, behind a socket, as the Wi-Fi country is ([Settings → About → System Information](https://github.com/mehmetraif/OSD-OS/wiki/Settings#system-information)):
+
+- **`osdos-name.socket`** listens on `/run/osdos-name.sock`, owned by root and OSD/OS's user's group, mode 0660, one connection at a time.
+- **`osdos-name@.service`** runs `osdos-stop device-name` for each request, the socket as its input and output, without a network of its own (`PrivateNetwork=yes`): hostnamectl and systemctl reach their daemons over D-Bus.
+- **`osdos-stop device-name`** reads a line, at most 64 characters, and takes it only as a name the network takes: letters, digits and hyphens, 63 at most, neither end a hyphen, read as the C locale reads them whatever the system's language (under en_GB.UTF-8, a range such as A-Z takes ç and é too). It never repeats it back. It writes a new `/etc/hosts` aside, whose `127.0.1.1` line, as pi-gen and raspi-config keep it, names the device by the new name in place of the old, the names made of the old one (`<old>.lan`) following it, the line's other names and the file's other lines kept (the line added if there is none, the file made if there is none); sets the name with `hostnamectl set-hostname`, which writes `/etc/hostname`; and only then puts the new `/etc/hosts` in place, so that the two never name the device apart: should either step fail, it asks `hostnamectl` for the old name back. It restarts avahi-daemon, so that `<name>.local` follows at once, and flushes both files to the card. Then it answers `ok`; or it answers why not, which it also logs. Either way the request unit ends cleanly and is unloaded (`CollectMode=inactive-or-failed`).
+
+```sh
+journalctl -u 'osdos-name@*' -b    # what renaming the device did
 ```
 
 ### Exit to Terminal
@@ -641,6 +655,7 @@ Then start OSD/OS again ([Exit to Terminal](https://github.com/mehmetraif/OSD-OS
 | `/etc/systemd/system/osdos-terminal.service` | Exit to Terminal's login shell |
 | `/etc/systemd/system/osdos-display.socket`, `osdos-display@.service` | Display Output's At Next Start ([At Next Start's socket](https://github.com/mehmetraif/OSD-OS/wiki/The-OSD-OS-Image#at-next-starts-socket)) |
 | `/etc/systemd/system/osdos-wifi.socket`, `osdos-wifi@.service` | Settings → Wi-Fi's country ([The Wi-Fi country's socket](https://github.com/mehmetraif/OSD-OS/wiki/The-OSD-OS-Image#the-wi-fi-countrys-socket)) |
+| `/etc/systemd/system/osdos-name.socket`, `osdos-name@.service` | Settings → About → System Information's rename ([The device name's socket](https://github.com/mehmetraif/OSD-OS/wiki/The-OSD-OS-Image#the-device-names-socket)) |
 | `/etc/polkit-1/rules.d/50-osdos-networkmanager.rules` | Lets OSD/OS's user scan, join and forget networks and turn Wi-Fi on and off through NetworkManager from its service, which runs outside any login session, where polkit would otherwise ask for a password |
 | `/etc/systemd/system/osdos-cloud-init-once.service` | Turns cloud-init off after the first boot |
 | `/etc/systemd/system/osdos-jamma.service`, `/etc/modules-load.d/osdos-jamma.conf` | A JAMMA board's controls, and the kernel modules they go through (`i2c-dev`, `uinput`) |

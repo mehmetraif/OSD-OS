@@ -439,7 +439,7 @@ QStringList arguments(const Launch &launch) {
                       QStringLiteral("--verbose"), QStringLiteral("--log-file=") + launch.log };
     if (launch.netplay == Launch::Netplay::Host || launch.netplay == Launch::Netplay::LanHost)
         args << QStringLiteral("--host");
-    else if (launch.netplay == Launch::Netplay::Join)
+    else if (launch.netplay == Launch::Netplay::Join || launch.netplay == Launch::Netplay::LanJoin)
         args << QStringLiteral("--connect") << launch.joinAddress;
     args << launch.content;
     return args;

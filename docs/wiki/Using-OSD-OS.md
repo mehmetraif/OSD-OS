@@ -344,7 +344,7 @@ Back on the main menu opens Settings, laid out like a camcorder's menu: a line p
 - **Arcade** opens the Arcade module's settings, with the High Scores module's after them under its own heading.
 - **General Settings**: the look first, Theme, then its parts (Color Scheme, Skin, the effects, Transition, Menu Music), then OSD Background and Window Frame. Then startup (Start on Module, Play at Startup, Boot Screen Colors) and the screen (Hint Bar, Help Line, Screen Saver, Mouse Pointer).
 - **Modules**: a line for each module on neither page, Scripts, for its settings.
-- **Application**: Display Output (on the image), Audio Output (where plain ALSA plays), Controls, Wi-Fi and Bluetooth (on Linux), Update, About and Quit.
+- **Application**: Display Output (on the image), Audio Output (where plain ALSA plays), Controls, Wi-Fi and Bluetooth (on Linux), Update, About (this device's System Information first) and Quit.
 
 <table>
 <tr><th width="50%">A module's settings</th><th width="50%">Picking a folder</th></tr>
@@ -378,14 +378,15 @@ Ctrl+Q (⌘Q on a Mac) quits at once from most screens, without asking: with the
 
 <table>
 <tr><th width="50%">About</th><th width="50%">The license</th></tr>
-<tr><td><img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/screenshots/about.png" width="100%" alt="About: the OSD/OS wordmark and SMART TV FOR CRT, then BUILD, DEVELOPER, BASED ON, LICENSE, SOURCE and WRITTEN WITH lines, and the help line about the selected one" /></td><td><img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/screenshots/license.png" width="100%" alt="The license page: the GPL's notice for OSD/OS, then the license's text" /></td></tr>
-<tr><td>What OSD/OS is, who makes it, what it is made of and under which license, each line's detail in the help line.</td><td>Behind the LICENSE line: the notice, then the GNU GPL's text, a page at a time.</td></tr>
+<tr><td><img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/screenshots/about.png" width="100%" alt="About: the OSD/OS wordmark and SMART TV FOR CRT, then SYSTEM INFORMATION with this device's name, BUILD, DEVELOPER, BASED ON, LICENSE and SOURCE lines, and the help line about the selected one" /></td><td><img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/screenshots/license.png" width="100%" alt="The license page: the GPL's notice for OSD/OS, then the license's text" /></td></tr>
+<tr><td>This device's System Information, then what OSD/OS is, who makes it, what it is made of and under which license, each line's detail in the help line.</td><td>Behind the LICENSE line: the notice, then the GNU GPL's text, a page at a time.</td></tr>
 </table>
 
-Settings → **About** opens on the OSD/OS wordmark and **SMART TV FOR CRT**, then a line each for what OSD/OS is made of, who makes it and under which license; the help line under them gives each line's detail, and stays even with Help Line off.
+Settings → **About** opens on the OSD/OS wordmark and **SMART TV FOR CRT**, then **System Information**, this device's name on its line, and a line each for what OSD/OS is made of, who makes it and under which license; the help line under them gives each line's detail, and stays even with Help Line off.
 
 | Line | Says |
 |---|---|
+| System Information | This device's name. Select opens its page: the name, which tells it apart from others on the network, what the device is and each network connection's IP and MAC addresses; on the OSD/OS image, select on the name renames the device ([Settings → About → System Information](https://github.com/mehmetraif/OSD-OS/wiki/Settings#system-information)) |
 | Build | The commit this build was made from, and the day (the version is in the title bar) |
 | Developer | mehmet raif tasdemir (darkBLACK), who develops OSD/OS |
 | Based On | 240-MP, by Anthony Caccese and its contributors, which OSD/OS is a modified version of |
