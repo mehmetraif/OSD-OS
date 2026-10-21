@@ -31,8 +31,10 @@ Canvas {
                     "####.#.####", "###.###.###", ".#########."],
         "tape":    [".#########.", "###########", "##..###..##", "##..###..##",
                     "##..###..##", "###########", ".#########."],
-        // A favourite, as the Arcade screen marks one.
+        // A favourite, as the Arcade screen marks one; and its Search's own
+        // row, a glass.
         "heart":   [".##.##.", "#######", "#######", ".#####.", "..###..", "...#..."],
+        "search":  [".###...", "#...#..", "#...#..", "#...#..", ".###...", "....##.", ".....##"],
         // A Wi-Fi network's: a password wanted, and the signal in bars, each
         // bar it hasn't left as its foot (signal0: none, no network joined).
         "lock":    [".###.", "#...#", "#...#", "#####", "##.##", "##.##", "#####"],

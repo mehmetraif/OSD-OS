@@ -150,25 +150,38 @@ public:
     // The filters with games in them, in the order ◄ ► goes round them:
     // [{ id, name, count }]. id: "all", "online" (Online Games, while
     // someone hosts one), "lan" (LAN Games, while someone on the local
-    // network does), "favorites", "recent", "achievements", "netplay",
-    // "genres/<genre>", "players/<n>", "years/<decade>" ("years/unknown"),
-    // "makers/<publisher>", "unknown" (Not Recognized); all but All Games,
-    // Online Games and LAN Games only while Menu Filters shows them, but Not
-    // Recognized in All Games' place when none of the sets is a game. While
-    // MAME is being asked, only Online Games, LAN Games, Favorites and
-    // Recently Played, All Games not yet: gamesChanged() follows once it has
-    // answered.
+    // network does), "lobby" (RetroArch Lobby: every room of it, with Online
+    // Play on, even while it has none), "favorites", "recent",
+    // "achievements", "netplay", "genres/<genre>", "players/<n>",
+    // "years/<decade>" ("years/unknown"), "makers/<publisher>", "unknown"
+    // (Not Recognized), and last "search" (Search: its own row, then the
+    // games setSearch()'s words find); all but All Games, Online Games, LAN
+    // Games, RetroArch Lobby and Search only while Menu Filters shows them,
+    // but Not Recognized in All Games' place when none of the sets is a
+    // game. While MAME is being asked, only Online Games, LAN Games while
+    // someone on the network hosts one, Favorites and Recently Played; All
+    // Games, RetroArch Lobby and Search not yet: gamesChanged() follows once
+    // it has answered.
     Q_INVOKABLE QVariantList filters();
     // A page of a filter: its games from first on, count at most, as
     // { set, name (its title), favorite }; Online Games' and LAN Games' with
     // the room too, { room (its id), host, lan (LAN Games'), detail (LAN
-    // Games': lanRooms()'s) }; Not Recognized's as { set, name (its file's),
-    // unknown: true }.
+    // Games': lanRooms()'s) }; RetroArch Lobby's as { set ("" for a game not
+    // in the folder), name (its title and host), favorite, room, host, lobby
+    // (the room as lobby() has it) }; Search's first row as { set: "",
+    // search: true, name (the words, or "Search" for none) }; Not
+    // Recognized's as { set, name (its file's), unknown: true }.
     Q_INVOKABLE QVariantList filterGames(const QString &filter, int first, int count);
-    // Where a set is in a filter: -1 when it isn't in it. On Online Games
-    // and LAN Games, where a game is once for each room that hosts it,
-    // room's row (a room's id), else the game's first.
+    // Where a set is in a filter: -1 when it isn't in it. On Online Games,
+    // LAN Games and RetroArch Lobby, where a game is once for each room that
+    // hosts it, room's row (a room's id), else the game's first.
     Q_INVOKABLE int filterIndex(const QString &filter, const QString &set, int room = -1);
+    // What Search looks for, as it is typed (the Arcade screen's search,
+    // live): how many rows Search has now, its own and the games found,
+    // which filters() and filterGames() then give. Every game while nothing
+    // is typed.
+    Q_INVOKABLE int setSearch(const QString &words);
+    Q_INVOKABLE QString search() const { return m_search; }
     // A filter not in filters() that may be in a moment: RetroAchievements
     // while its list of games is still to be read (gamesChanged() follows).
     Q_INVOKABLE bool filterPending(const QString &filter) const;
@@ -255,8 +268,6 @@ public:
     // yourRetroArchState: "read", "reading" (still), "failed" (it couldn't
     // be), or "missing" (not installed here).
     Q_INVOKABLE QVariantMap lobby() const;
-    // Settings → Arcade → Online Play is on.
-    Q_INVOKABLE bool onlinePlay() const { return m_onlinePlay; }
     // A room joined, or a game hosted through the relay Settings chose, in
     // RetroArch with FinalBurn Neo, as play() starts a game: finished() when
     // it ends; false, with lastError(), when it couldn't be started.
@@ -361,9 +372,10 @@ public:
     // with a Web API key, RetroAchievements' pictures of every game it has
     // downloaded (startPictureSweep()).
     Q_INVOKABLE void rescan();
-    // manifest: start_filter's choices (dynamicOptionsReady): All Games, and
-    // Favorites, Recently Played and the genres, players, decades and
-    // publishers there are, those Menu Filters shows.
+    // manifest: start_filter's choices (dynamicOptionsReady): All Games,
+    // with Online Play on RetroArch Lobby, and Favorites, Recently Played and
+    // the genres, players, decades and publishers there are, those Menu
+    // Filters shows.
     Q_INVOKABLE void startFilterOptions();
     // manifest: menu_filters' (dynamicOptionsReady): under a heading each,
     // the lists, the genres, players, decades and publishers there are, as
@@ -569,9 +581,22 @@ private:
     bool menuShows(const QString &filter) const;
     // A filter's sets, in the order it lists them.
     QStringList filterSets(const QString &filter) const;
-    // A filter's rooms: Online Games' (rooms()) or LAN Games' (lanRooms());
-    // none for any other filter.
+    // A filter's rooms: Online Games' (rooms()), LAN Games' (lanRooms()) or
+    // RetroArch Lobby's (lobby()'s); none for any other filter.
     QVariantList filterRooms(const QString &filter) const;
+    // The games whose names (descriptionOf()) or sets have every one of the
+    // words in them, as searchable() reads both: those whose name starts
+    // with the words, or is the set, first; then those with a word starting
+    // with the first; then the rest, each in the list's order. Every game for
+    // no words.
+    QStringList searchSets(const QString &words) const;
+    // Each game's name and set as a search reads them, by its place in
+    // index().games: made as a search first asks, and again once the index
+    // has been.
+    const QStringList &searchTexts() const;
+    // Search's rows: its own (""), then searchSets(m_search); kept until the
+    // words or the index change.
+    const QStringList &searchRows() const;
     // A filter's made from what each game is now: RetroAchievements', the
     // games, by name, that achievements or a leaderboard's scores can be had
     // in, and Playable Online's, those that can be played online; kept until
@@ -796,6 +821,11 @@ private:
     // madeSets(), by filter, made again once gamesChanged() or invalidate()
     // says the filters may hold other games.
     mutable QHash<QString, QStringList> m_madeSets;
+    // What Search looks for (setSearch()), searchTexts() and searchRows().
+    QString m_search;
+    mutable QStringList m_searchTexts;
+    mutable QStringList m_searchRows;
+    mutable bool m_searchFound = false;
 
     // The netplay lobby: its rooms that can be joined as last read, every
     // room, why it couldn't be read ("" when it was), whether it has been,

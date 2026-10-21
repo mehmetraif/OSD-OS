@@ -139,15 +139,7 @@
       "type": "list_single",
       "options": ["Off", "On"],
       "default": "Off",
-      "description": "Playing a game with someone over the internet, in FinalBurn Neo\n[ON] Online Games lists the rooms RetroArch's lobby has of your games, Playable Online the games that can be played online, and a game's options can host one"
-    },
-    {
-      "key": "lobby",
-      "label": "RetroArch Lobby",
-      "type": "module_view",
-      "params": { "lobby": true },
-      "shown_with": { "key": "online_play", "value": "On" },
-      "description": "Every game hosted in RetroArch's lobby, of every core: its game, ROM and CRC, the core and its version, who hosts it and where, how it is reached, and whether its core, version and RetroArch are yours\nA room of a game you have that FinalBurn Neo plays can be joined from it"
+      "description": "Playing a game with someone over the internet, in FinalBurn Neo\n[ON] Online Games lists the rooms RetroArch's lobby has of your games, RetroArch Lobby every room of it, Playable Online the games that can be played online, and a game's options can host one"
     },
     {
       "key": "relay_server",

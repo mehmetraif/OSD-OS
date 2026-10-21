@@ -199,6 +199,7 @@ FocusScope {
             width: parent.width
             text: playRoot.phase === "error" || playRoot.phase === "failed"
                   ? "Could not play " + playRoot.title : playRoot.title
+            textFormat: Text.PlainText
             color: root.primaryColor
             font.family: root.globalFont
             font.capitalization: Font.AllUppercase
