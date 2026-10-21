@@ -47,10 +47,36 @@ Everything else (the launcher, in-app updates, Exit to Terminal, the data direct
 ## Flashing
 
 1. Download the image from the [latest release](https://github.com/mehmetraif/OSD-OS/releases/latest), `OSD-OS-<version>-raspberry-pi.img.xz` (or take the `.img.xz` out of the zip an OS image workflow run's artifact comes in). In Raspberry Pi Imager, choose **Use custom** and pick it.
-2. Raspberry Pi Imager 2 skips OS customisation for an image chosen with **Use custom**: it can't tell which kind the image takes. For Wi-Fi, a user, SSH, the locale and the keyboard, open the image through a local manifest instead, one that gives it `"init_format": "cloudinit-rpi"` ([Imager's notes on it](https://github.com/raspberrypi/rpi-imager/tree/main/doc/local_json)). Imager 1 seems to apply it, but on Trixie its settings never take effect. Without one, Wi-Fi can be set up by hand: before the first boot, add it to `network-config` on the boot partition, following the example in that file. With Ethernet there is nothing to do.
+2. Raspberry Pi Imager 2 skips OS customisation for an image chosen with **Use custom**: it can't tell which kind the image takes. [OSD/OS Setup](#osdos-setup) takes its place, and does more: the device's name, Wi-Fi, `pi`'s password, SSH, the time zone, the keyboard, the display output and OSD/OS's own settings, chosen on a page and copied to the card as one file. Imager's own customisation is still there through a local manifest, one that gives the image `"init_format": "cloudinit-rpi"` ([Imager's notes on it](https://github.com/raspberrypi/rpi-imager/tree/main/doc/local_json)). Imager 1 seems to apply it, but on Trixie its settings never take effect. Without either, Wi-Fi can be set up by hand: before the first boot, add it to `network-config` on the boot partition, following the example in that file. With Ethernet there is nothing to do.
 3. The image's own user is `pi` (or whatever `FIRST_USER_NAME` was at build time), and the app runs as that user. Logging in is only needed for Exit to Terminal or SSH:
    - If the image was built with a password (`FIRST_USER_PASS`), you can log in as `pi`. The OS image workflow takes it from the repository secret `OS_FIRST_USER_PASS`, if there is one.
-   - If it was built without one, the `pi` account has no password to log in with. Exit to Terminal then logs `pi` in by itself: whoever is at the keyboard could take the card out anyway. That shell has no root, though: `sudo` asks for the password `pi` doesn't have. For `sudo`, build the image with a password. SSH needs an image built with `ENABLE_SSH=1` and a key (`PUBKEY_SSH_FIRST_USER`): a key alone doesn't turn it on. Or Imager's customisation, which can turn SSH on with the user it creates.
+   - If it was built without one, the `pi` account has no password to log in with. Exit to Terminal then logs `pi` in by itself: whoever is at the keyboard could take the card out anyway. That shell has no root, though: `sudo` asks for the password `pi` doesn't have. For `sudo`, give `pi` a password on [OSD/OS Setup](#osdos-setup), or build the image with one. SSH needs an image built with `ENABLE_SSH=1` and a key (`PUBKEY_SSH_FIRST_USER`): a key alone doesn't turn it on. Or OSD/OS Setup, which turns SSH on with a password or keys, or Imager's customisation, which can turn it on with the user it creates.
+
+### OSD/OS Setup
+
+[OSD/OS Setup](https://mehmetraif.github.io/OSD-OS/) is a page, published from `site/` on the repository's GitHub Pages, where what a card starts with is chosen before it goes into the Pi: first what it goes into, a TV or an arcade cabinet, then the display output, the device's name, Wi-Fi and its country, `pi`'s password, SSH and its keys, the time zone, the keyboard, every setting of OSD/OS itself, with the chosen theme's main menu and Arcade screen shown as the app draws them, and the Arcade's RetroAchievements account. It runs in the browser, and nothing typed on it leaves the browser. It gives `osdos-setup.json`, or a zip with it and the chosen display output's `osdos-display.txt`:
+
+1. Flash the image, then take the card out and put it back in: the computer shows the boot partition as **bootfs**.
+2. Copy `osdos-setup.json` there. With a display output chosen, also copy `osdos-display.txt` over the one there, so that a CRT has its picture from the first start.
+3. Start the Pi. `/usr/local/sbin/osdos-setup` applies the file in two stages:
+   - `osdos-setup-app.service`, before the app starts, takes the file off the boot partition at once (root's alone from then on, in `/var/lib/osdos-setup`) and sets what the app reads as it starts: its settings and the RetroAchievements account.
+   - `osdos-setup.service`, once the app is on screen, sets the rest while the boot screen shows **SETTINGS** (`[ OK ]` when all of it was set, `[FAIL]` when anything wasn't), then writes `osdos-setup.log` on the boot partition: what was done, and why anything wasn't. A display output that changes restarts the Pi once.
+
+A cabinet's file (**Arcade Cabinet** on the page) starts on the Arcade screen: its Start on Module is the Arcade, which is turned on with it. The page also puts the TV / Movie settings out of sight (a switch shows them) and lists the JAMMA outputs first.
+
+Each part is applied on its own, and one that can't be leaves the rest to go ahead:
+
+- the device's name, the Wi-Fi country and the display output through the stop helper, as Settings does it (`osdos-stop device-name`, `wifi-country` and `next-start`), the Pi 5's SCART RGB line included; an output the Pi the card is in hasn't (one chosen for another) is left as it is;
+- Wi-Fi as a NetworkManager connection (`/etc/NetworkManager/system-connections/osdos-setup-*.nmconnection`), joined as the network starts. With its country set, Wi-Fi is switched on for NetworkManager too: an image built without a country starts with it off;
+- `pi`'s password as the page hashed it (SHA-512 crypt with 100,000 rounds, worked out in the browser), with `chpasswd -e`;
+- SSH turned on or off with `systemctl`, its keys added to `pi`'s `~/.ssh/authorized_keys`, and password login on or off in `/etc/ssh/sshd_config.d/00-osdos-setup.conf`, the first of sshd's drop-ins. Password login only with `pi`'s password set in the same file, never over the one an image was built with, which every card of it shares; and SSH never without a key or that password to log in with;
+- the time zone with `timedatectl`, the keyboard with `raspi-config`;
+- OSD/OS's settings merged into its `config.json`: what the file doesn't name stays as it is;
+- the RetroAchievements account handed to the app (`~/.local/share/OSD-OS/arcade/retroachievements-setup.json`, `pi`'s alone), which keeps the Web API key and has RetroArch sign in with the password, as Settings' Sign In does, once the network is up. The file goes once RetroAchievements has answered or a game has had the password.
+
+`pi`'s own files are read and written by the applier run again as `pi`, never by root. A file it can't read is deleted, its passwords with it, and the log says why. What a start cut short (a power cut) leaves in `/var/lib/osdos-setup` is applied at the next. A file can go on a card that has already started too: it is applied at the next start. Like the files Raspberry Pi Imager's customisation leaves there, it is read from the boot partition, which anyone with the card can write, and until the card takes it, it holds the Wi-Fi and RetroAchievements passwords as they were typed (`pi`'s only as a hash): keep it to yourself. Set a thing in one place only, here or in Imager's customisation: Imager's time zone and keyboard are applied after these on the first start.
+
+The page's **Import** reads a file it made back, to change it, or OSD/OS's own `config.json` for its settings; what the page doesn't have is left out, and it says what a file sets that gets one into the card (a password, SSH, its keys). The rows it offers come from the app itself (`scripts/build-site.py`: the modules' manifests, the display presets, the themes and skins, and Settings' own rows in `site/schema-extra.json`), and `tests/site` checks them against `views/Settings.qml` and `Main.qml`. Its preview is the main menu and the Arcade screen drawn live as the app lays them out, with the app's own shaders (`shaders/`) running in the browser on WebGL 2. The Setup page workflow (`.github/workflows/pages.yml`) builds, tests and publishes it from `main`.
 
 ### Films on the card
 
@@ -189,9 +215,9 @@ The image lands in `os/work/pi-gen/deploy/`. `os/build.sh` fetches pi-gen at a p
 
 1. **Firmware.** It loads the kernel with no splash and no delay.
 2. **Kernel.** It boots quietly and logs to `tty3`, so `tty1` stays black.
-3. **systemd reaches `basic.target`.** `osdos.service` starts: `wait-for-display` holds it (at most five seconds) until the KMS driver has a display connector, then the launcher runs as in a manual install.
+3. **systemd reaches `basic.target`.** With an `osdos-setup.json` on the boot partition, `osdos-setup-app.service` sets OSD/OS's own settings from it first ([OSD/OS Setup](#osdos-setup)). Then `osdos.service` starts: `wait-for-display` holds it (at most five seconds) until the KMS driver has a display connector, then the launcher runs as in a manual install.
 4. **The first frame is on screen.** The app writes `/run/osdos/ready` (`OSDOS_READY_FILE`).
-5. **The held-back units start.** These are the ones listed in `/etc/osdos/boot-units`. Each has a `osdos-defer.conf` drop-in that runs `/usr/lib/osdos/wait-for-app` before it starts and orders it after the unit before it.
+5. **The held-back units start.** These are the ones listed in `/etc/osdos/boot-units`, the rest of OSD/OS Setup's file first (`osdos-setup.service`, when the card has one). Each has a `osdos-defer.conf` drop-in that runs `/usr/lib/osdos/wait-for-app` before it starts and orders it after the unit before it.
    - `wait-for-app` returns as soon as the ready file exists, or after 20 seconds whatever happens.
    - It returns at once when the app isn't starting this boot at all.
    - It is a wait, not an `After=osdos.service` ordering, on purpose: the worst a wait can cost is its timeout, while an ordering cycle with an early-boot unit could stall the whole boot.
@@ -199,7 +225,7 @@ The image lands in `os/work/pi-gen/deploy/`. `os/build.sh` fetches pi-gen at a p
 
 Outside this image neither environment variable is set, so `BootProgress` does nothing and a normal install is unaffected. It also stays out of the way when the app restarts after the boot has finished.
 
-`/etc/osdos/boot-units` lists `unit|LABEL` pairs. You can change a label there. To hold back another service, give it the same drop-in and add it to the list.
+`/etc/osdos/boot-units` lists `unit|LABEL` pairs, and `unit|LABEL|optional` for a step listed only once its unit starts (OSD/OS Setup's SETTINGS, which on other starts never does). You can change a label there. To hold back another service, give it the same drop-in and add it to the list.
 
 ### Measuring
 

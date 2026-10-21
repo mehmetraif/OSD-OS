@@ -314,7 +314,7 @@ public:
     // (RetroAchievements' own way: a launcher may not), never written but
     // into the config of the RetroArch it goes to, which goes as it ends:
     // at once, with the sign-in core (checkSignIn()), or else at the next
-    // game.
+    // game. OSD/OS Setup's alone is on disk until then (takeSetupAccount()).
     Q_INVOKABLE void signInAchievements(const QString &user, const QString &password);
     Q_INVOKABLE void signOutAchievements();
     // The account's Web API key (RetroAchievements' settings page), for
@@ -326,6 +326,9 @@ public:
     // The sign-in core RetroArch checks a sign-in with: osdos_signin_libretro
     // beside the app, or a stand-in's.
     void setSignInCore(const QString &path) { m_signInCore = path; }
+    // How long after OSD/OS Setup's account couldn't be checked it is
+    // checked again: 30 s, or a test's.
+    void setSetupRetryInterval(int ms) { m_setupRetryMs = ms; }
     // Where catver.ini is downloaded from when neither folder has one
     // (downloadGenres()): progettosnaps' own, OSDOS_GENRES_URL's (none when
     // it is empty), or a stand-in's.
@@ -712,6 +715,23 @@ private:
     // password, if kept, waits for the next game. False when none was under
     // way.
     bool stopSignIn();
+    // signInAchievements()'s sign-in, whoever gave the password.
+    void beginSignIn(const QString &user, const QString &password);
+    // OSD/OS Setup's account (osdos-setup writes it as the card starts):
+    // <data>/arcade/retroachievements-setup.json, owner-only, with the user,
+    // the password and the Web API key. Taken once the event loop runs: the
+    // key kept, and RetroArch signs in with the password as Settings' Sign In
+    // has it. The file goes once RetroAchievements has answered, either way,
+    // or a game has had the password, or Settings signs in or out in its
+    // place; at once for the account signed in already, or with no RetroArch
+    // to sign in with. While RetroAchievements can't be reached (the network
+    // not up yet as OSD/OS starts), the sign-in is checked again a little
+    // later, a few times, never beside a game, and the file stays for the
+    // next start.
+    void takeSetupAccount();
+    void forgetSetupAccount();
+    void retrySetupSignIn();
+    QString setupAccountPath() const { return m_home + QStringLiteral("/retroachievements-setup.json"); }
     QString signInDir() const { return retroarchHome() + QStringLiteral("/sign-in"); }
     // catver.ini into <data>/arcade, for the games' genres, and the folder
     // read again with it; once at a time, and an hour after one that failed.
@@ -761,6 +781,9 @@ private:
     QString m_raPassword;
     QString m_raFailure;
     bool    m_raPasswordGiven = false;   // the game playing was given it
+    bool    m_raFromSetup = false;       // the password is OSD/OS Setup's (takeSetupAccount())
+    int     m_setupChecks = 0;           // its sign-in's checks, started or due
+    int     m_setupRetryMs = 0;
     // The sign-in being checked: RetroArch with the sign-in core, and what it
     // said of the sign-in.
     QProcess *m_signIn = nullptr;

@@ -1,0 +1,370 @@
+/* OSD/OS Setup, in the look of OSD/OS's own menus: Video 1's blue and white,
+   the deck's letters (VCR OSD Mono), a title bar, headings with a rule to the
+   line's end, and lines of label, dots and value. */
+@font-face {
+    font-family: "VCR OSD Mono";
+    src: url("fonts/VCR_OSD_MONO_1.001.ttf") format("truetype");
+    font-display: swap;
+}
+
+:root {
+    --surface: #0110C5;
+    --primary: #FFFFFF;
+    --secondary: #C2BFE4;
+    --tertiary: #8480C9;
+    --accent: #AECFFF;
+    --warn: #FFD900;
+    --error: #FF8A80;
+    --px: 2px;
+    color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+    margin: 0;
+    background: var(--surface);
+    color: var(--primary);
+    font-family: "VCR OSD Mono", ui-monospace, "DejaVu Sans Mono", monospace;
+    font-size: 18px;
+    line-height: 1.35;
+}
+
+a { color: var(--accent); }
+a:focus-visible, button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible,
+summary:focus-visible {
+    outline: var(--px) solid var(--accent);
+    outline-offset: 2px;
+}
+
+main {
+    max-width: 880px;
+    margin: 0 auto;
+    padding: 32px 16px 64px;
+}
+
+/* --- The title bar: the cassette, then the title, as AppBar draws it. --- */
+.appbar {
+    display: flex;
+    align-items: stretch;
+    gap: 6px;
+    height: 44px;
+    margin-bottom: 20px;
+}
+.appbar .icon {
+    width: 64px;
+    background: var(--primary);
+    display: grid;
+    place-items: center;
+}
+.appbar .icon span {
+    width: 44px;
+    height: 24px;
+    background: var(--surface);
+    -webkit-mask: url("img/logo.svg") center / contain no-repeat;
+    mask: url("img/logo.svg") center / contain no-repeat;
+}
+.appbar h1 {
+    flex: 1;
+    margin: 0;
+    background: var(--primary);
+    color: var(--surface);
+    font-size: 26px;
+    font-weight: normal;
+    padding: 0 12px;
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    letter-spacing: 1px;
+}
+.appbar h1 small {
+    font-size: 15px;
+    border-left: var(--px) solid var(--surface);
+    padding-left: 12px;
+}
+
+.intro p { margin: 0 0 10px; }
+.note { color: var(--secondary); }
+
+/* --- The import and export bar. --- */
+.toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin: 18px 0 26px;
+}
+button, .button {
+    font: inherit;
+    font-size: 16px;
+    color: var(--surface);
+    background: var(--primary);
+    border: 0;
+    padding: 6px 12px;
+    cursor: pointer;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+}
+button.secondary {
+    color: var(--primary);
+    background: transparent;
+    border: var(--px) solid var(--primary);
+}
+button:hover { background: var(--accent); color: var(--surface); }
+button:disabled { opacity: 0.5; cursor: default; }
+
+/* --- A section: a heading with a rule to the line's end. --- */
+section { margin: 0 0 30px; }
+section > h2, details > summary {
+    font-size: 22px;
+    font-weight: normal;
+    margin: 0 0 8px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+}
+section > h2::after, details > summary::after {
+    content: "";
+    flex: 1;
+    border-bottom: var(--px) solid var(--primary);
+}
+details > summary {
+    cursor: pointer;
+    list-style: none;
+    font-size: 19px;
+    margin-top: 14px;
+}
+details > summary::-webkit-details-marker { display: none; }
+details > summary::before { content: "►"; font-size: 13px; }
+details[open] > summary::before { content: "▼"; }
+.section-help { color: var(--secondary); margin: 0 0 10px; font-size: 16px; }
+
+/* --- A line: the label, dots, then the value against the line's end. --- */
+.row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-height: 36px;
+    padding: 2px 6px;
+}
+.row > label, .row > .label {
+    text-transform: uppercase;
+    white-space: nowrap;
+}
+.row > .dots {
+    flex: 1;
+    min-width: 16px;
+    align-self: center;
+    border-bottom: var(--px) dotted var(--primary);
+    transform: translateY(4px);
+}
+.row:focus-within {
+    background: var(--primary);
+    color: var(--surface);
+}
+.row:focus-within .dots { border-color: var(--surface); }
+.row.changed > label::before, .row.changed > .label::before {
+    content: "• ";
+    color: var(--accent);
+}
+.row:focus-within.changed > label::before { color: var(--surface); }
+.row .reset {
+    flex: none;
+    width: 30px;
+    font-size: 13px;
+    padding: 2px 0;
+    visibility: hidden;
+}
+.row.changed .reset { visibility: visible; }
+
+.help {
+    color: var(--secondary);
+    font-size: 15px;
+    margin: -2px 6px 8px;
+}
+.help.warn { color: var(--warn); }
+.help.error, .error { color: var(--error); }
+
+input[type="text"], input[type="password"], select, textarea {
+    font: inherit;
+    font-size: 16px;
+    color: var(--surface);
+    background: var(--primary);
+    border: var(--px) solid var(--primary);
+    padding: 4px 8px;
+    max-width: 100%;
+}
+.row input[type="text"], .row input[type="password"] { width: 300px; }
+.row select { max-width: 360px; }
+.row:focus-within input, .row:focus-within select {
+    border-color: var(--surface);
+}
+textarea {
+    width: 100%;
+    min-height: 70px;
+    resize: vertical;
+}
+input[type="checkbox"] {
+    appearance: none;
+    width: 24px;
+    height: 24px;
+    margin: 0;
+    border: var(--px) solid currentColor;
+    background: transparent;
+    display: grid;
+    place-items: center;
+    cursor: pointer;
+}
+input[type="checkbox"]:checked::after {
+    content: "";
+    width: 12px;
+    height: 12px;
+    background: currentColor;
+}
+.toggle { display: inline-flex; align-items: center; gap: 8px; }
+.row .state {
+    min-width: 34px;
+    text-align: right;
+}
+
+/* A password with its show / hide button. */
+.secret {
+    display: flex;
+    gap: 6px;
+    align-items: center;
+}
+.secret button {
+    font-size: 13px;
+    padding: 4px 8px;
+    min-width: 58px;
+}
+
+.status {
+    min-height: 1.4em;
+    margin: -12px 0 18px;
+}
+.status.ok { color: var(--accent); }
+
+.steps { padding-left: 22px; }
+.steps li { margin-bottom: 6px; }
+code {
+    font-family: inherit;
+    color: var(--accent);
+}
+
+footer {
+    margin-top: 40px;
+    color: var(--secondary);
+    font-size: 14px;
+}
+
+@media (max-width: 640px) {
+    html, body { font-size: 16px; }
+    .kinds { grid-template-columns: 1fr; }
+    .row { flex-wrap: wrap; }
+    .row > .dots { display: none; }
+    .row > label, .row > .label { flex: 1; white-space: normal; }
+    /* A line with a field: its label above, the field and ↺ across the line under it. */
+    .row:has(input[type="text"], input[type="password"], select, input[type="range"], .multi) > label { flex-basis: 100%; }
+    .row input[type="text"], .row input[type="password"], .row select { flex: 1; width: auto; min-width: 0; max-width: none; }
+    .row .secret, .row .slider, .row .multi { flex: 1; min-width: 0; }
+    .secret input { flex: 1; }
+    .slider input[type="range"] { flex: 1; width: auto; }
+    .multi { justify-content: flex-start; }
+}
+
+/* --- The parts the form is made of. --- */
+.line { margin: 0 0 2px; }
+.line > .label { display: block; padding: 2px 6px; text-transform: uppercase; }
+h3.subheading {
+    font-size: 17px;
+    font-weight: normal;
+    color: var(--accent);
+    margin: 14px 6px 6px;
+    text-transform: uppercase;
+}
+h3.group {
+    font-size: 19px;
+    font-weight: normal;
+    margin: 26px 0 0;
+    text-transform: uppercase;
+    color: var(--secondary);
+}
+details { margin-bottom: 6px; }
+details > *:not(summary) { margin-left: 18px; }
+.slider { display: inline-flex; align-items: center; gap: 8px; }
+.slider input[type="range"] { width: 180px; accent-color: var(--accent); }
+.multi { display: inline-flex; flex-wrap: wrap; gap: 6px 14px; justify-content: flex-end; }
+.pick { display: inline-flex; align-items: center; gap: 4px; text-transform: uppercase; font-size: 15px; }
+.account { margin-top: 8px; }
+
+/* --- The device: two choices, the one chosen inverted, as a menu's line. --- */
+.kinds {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+}
+.kind {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    padding: 10px 12px;
+    border: var(--px) solid var(--primary);
+    cursor: pointer;
+}
+.kind input {
+    position: absolute;
+    opacity: 0;
+    pointer-events: none;
+}
+.kind.chosen {
+    background: var(--primary);
+    color: var(--surface);
+}
+.kind:focus-within {
+    outline: var(--px) solid var(--accent);
+    outline-offset: 2px;
+}
+.kind-name { font-size: 20px; text-transform: uppercase; letter-spacing: 1px; }
+.kind-about { font-size: 15px; }
+.kind:not(.chosen) .kind-about { color: var(--secondary); }
+
+/* --- The live preview: the app's screens, its pixels kept square. --- */
+.preview { margin: 0 0 18px; }
+.preview .tabs { display: flex; gap: 8px; margin-bottom: 8px; }
+.preview .tab {
+    color: var(--primary);
+    background: transparent;
+    border: var(--px) solid var(--primary);
+}
+.preview .tab.chosen {
+    color: var(--surface);
+    background: var(--primary);
+}
+.preview canvas {
+    display: block;
+    box-sizing: content-box;
+    width: 640px;
+    max-width: calc(100% - 2 * var(--px));
+    height: auto;
+    aspect-ratio: 4 / 3;
+    image-rendering: pixelated;
+    border: var(--px) solid var(--primary);
+}
+.preview canvas:focus-visible { outline: var(--px) solid var(--accent); outline-offset: 2px; }
+.preview figcaption { color: var(--secondary); font-size: 15px; margin-top: 6px; }
+/* A screen with room for both: the form and the preview side by side, the
+   preview kept in sight as the rows are changed. */
+@media (min-width: 1600px) and (min-height: 720px) {
+    main { margin-left: max(0px, calc((100vw - 1572px) / 2)); }
+    .preview {
+        position: fixed;
+        top: 32px;
+        left: calc(max(0px, (100vw - 1572px) / 2) + 16px + 848px + 48px);
+        width: calc(640px + 2 * var(--px));
+        margin: 0;
+    }
+}
+.slider .end { font-size: 12px; }

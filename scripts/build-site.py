@@ -1,0 +1,407 @@
+#!/usr/bin/env python3
+"""Builds OSD/OS Setup, the settings page published on GitHub Pages (site/),
+into a folder: the page's own files, the app's font and logo, the display
+presets, what its live preview draws with (the app's own shaders, shaders/,
+and the skins' pictures), and schema.json, the settings the page offers, read
+from the app as it is: Settings' own rows (site/schema-extra.json), the
+modules' manifests, the presets (os/stage-osdos/03-boot/files, with the names
+Settings → Display Output gives them in src/display/DisplayOutput.cpp), the
+themes and skins (assets/), the looks Main.qml has (its colour schemes and
+effects), the subtitle languages, and the time zone database's countries and
+zones.
+
+  scripts/build-site.py <out-dir>
+
+A folder that is there already is replaced only if it is one this made (its
+.osdos-site) or empty.
+"""
+import json
+import pathlib
+import re
+import shutil
+import sys
+
+ROOT = pathlib.Path(__file__).resolve().parent.parent
+SITE = ROOT / "site"
+PRESETS = ROOT / "os/stage-osdos/03-boot/files"
+SHADERS = ROOT / "shaders"
+ISO3166 = pathlib.Path("/usr/share/zoneinfo/iso3166.tab")
+ZONES = pathlib.Path("/usr/share/zoneinfo/zone.tab")
+MARK = ".osdos-site"
+
+
+def option(o):
+    """An option as [label, value]: a string is both."""
+    return [o, o] if isinstance(o, str) else [o[0], o[1]]
+
+
+def help_text(description):
+    """A manifest's description in one paragraph: its lines, which the app's
+    help line shows one at a time, as sentences."""
+    lines = [" ".join(line.split()) for line in str(description or "").splitlines()]
+    return " ".join(line if line[-1] in ".!?:…" else line + "." for line in lines if line)
+
+
+def languages():
+    """Local Files' and the NFC reader's subtitle languages, as their backends
+    list them: Any first, then each language once."""
+    out, seen = [["Any", "-"]], set()
+    for lang in json.loads((ROOT / "modules/local_files/iso639-1.json").read_text()):
+        if lang["label"] and lang["label"] not in seen:
+            seen.add(lang["label"])
+            out.append([lang["label"], lang["id"]])
+    return out
+
+
+def looks(folder, file_name):
+    """The built-in themes or skins: [name, folder], by name."""
+    out = []
+    for path in sorted((ROOT / "assets" / folder).glob("*/" + file_name)):
+        out.append([json.loads(path.read_text())["name"], path.parent.name])
+    return sorted(out, key=lambda o: o[0].lower())
+
+
+def module_settings(manifest, extra):
+    """A manifest's rows as the page offers them: those whose values are
+    known without the device (submenus' rows flat under the module, as the
+    app keeps them), and the extra ones. Views and actions have none."""
+    options = extra.get("options", {})
+    defaults = extra.get("defaults", {})
+    out = []
+
+    def walk(settings):
+        for s in settings:
+            key, kind = s.get("key"), s.get("type")
+            row = {"key": key, "label": s.get("label", key), "help": help_text(s.get("description"))}
+            if "shown_with" in s:
+                row["shown_with"] = s["shown_with"]
+            if kind == "submenu":
+                out.append({"type": "heading", "label": s.get("label", "")})
+                walk(s.get("settings", []))
+                continue
+            if key == "enabled":
+                continue
+            if kind == "toggle":
+                row.update(type="toggle", on=True, off=False, default=str(s.get("default", "OFF")).upper() == "ON")
+            elif kind == "list_single":
+                known = s.get("options") or options.get(key)
+                if not known:
+                    continue
+                known = languages() if known == "languages" else [option(o) for o in known]
+                default = s.get("default", defaults.get(key, known[0][1]))
+                values = {v.lower(): v for _, v in known}
+                if len(known) == 2 and set(values) == {"on", "off"}:
+                    # Two ways, On and Off: a checkbox, as the app's toggles.
+                    row.update(type="toggle", on=values["on"], off=values["off"], default=default)
+                else:
+                    row.update(type="choice", options=known, default=default)
+            elif kind == "multiselect_submenu":
+                if key not in options:
+                    continue
+                row.update(type="multi", options=[option(o) for o in options[key]], default=True)
+            elif kind == "slider":
+                row.update(type="slider", min=0, max=100, step=s.get("step", 10), default=s.get("default", 0),
+                           start_text=s.get("start_text", ""), end_text=s.get("end_text", ""))
+            elif kind == "directory_browser":
+                row.update(type="text", default=s.get("default", ""), folder=True,
+                           placeholder="Empty: the module's own folder")
+            else:
+                continue
+            out.append(row)
+
+    walk(manifest.get("settings", []))
+    # The rows a module keeps without one of its own, after the row they
+    # belong with, else last.
+    for row in extra.get("extra", []):
+        row = dict(row)
+        after = row.pop("after", None)
+        at = next((i + 1 for i, r in enumerate(out) if after and r.get("key") == after), len(out))
+        out.insert(at, row)
+    return out
+
+
+def modules(extra):
+    groups = extra["groups"]
+    out = []
+    for path in sorted((ROOT / "modules").glob("*/manifest.json")):
+        manifest = json.loads(path.read_text())
+        mid = manifest["id"]
+        enabled = next((s for s in manifest.get("settings", []) if s.get("key") == "enabled"), {})
+        mod_extra = extra["modules"].get(mid, {})
+        group = manifest.get("settings_group", "")
+        out.append({
+            "id": mid,
+            "name": manifest["name"],
+            # The main menu lists the modules in their folders' order.
+            "folder": path.parent.name,
+            "group": groups.get(group, groups[""]),
+            "enabled": str(enabled.get("default", "ON")).upper() != "OFF",
+            "settings": module_settings(manifest, mod_extra),
+            "retroachievements": bool(mod_extra.get("retroachievements")),
+        })
+    order = list(dict.fromkeys(groups.values()))
+    return sorted(out, key=lambda m: (order.index(m["group"]), m["name"].lower()))
+
+
+def preset_models(pid):
+    """The boards a preset is for, as Settings → Display Output offers it
+    (DisplayOutput.cpp's boardHas()): keep the two in step."""
+    if pid == "hdmi":
+        return ["pi3", "pi4", "pi5"]
+    if pid.startswith("crt-gpio-"):
+        return ["pi5"]
+    if pid.startswith("crt-"):
+        return ["pi3", "pi4", "pi5"]
+    if pid in ("scart-rgb-ntsc", "scart-rgb-pal"):
+        return ["pi4", "pi5"]
+    if pid.startswith("scart-rgb-"):
+        return ["pi4"]
+    if pid in ("jamma-480i", "jamma-576i"):
+        return ["pi4"]
+    if pid.startswith("jamma-"):
+        return ["pi4", "pi5"]
+    return []
+
+
+def preset_about(text):
+    """A preset's opening comment, up to where it says how it is chosen."""
+    lines = []
+    for line in text.splitlines():
+        if not line.startswith("#"):
+            break
+        body = line.lstrip("#").strip()
+        if not body or body.startswith("osdos-"):
+            break
+        lines.append(body)
+    about = " ".join(lines)
+    return about.split(" Chosen in Settings")[0].strip()
+
+
+def presets():
+    source = (ROOT / "src/display/DisplayOutput.cpp").read_text()
+    # The warnings said as a preset is chosen: a constant of one or more
+    # string literals.
+    warnings = {name: "".join(re.findall(r'"([^"]*)"', literals))
+                for name, literals in re.findall(r'constexpr const char \*(k\w+) =\s*((?:"[^"]*"\s*)+);', source)}
+    out = []
+    for pid, label, warning in re.findall(
+            r'\{\s*"([a-z0-9-]+)",\s*"([^"]+)",\s*\d+,\s*\d+(?:,\s*(k\w+))?\s*\}', source):
+        path = PRESETS / f"osdos-display-{pid}.txt"
+        if not path.is_file():
+            sys.exit(f"build-site: {path} is missing for the preset {pid}")
+        text = path.read_text()
+        out.append({"id": pid, "label": label, "models": preset_models(pid),
+                    "about": preset_about(text), "warning": warnings.get(warning, "")})
+    files = {p.name for p in PRESETS.glob("osdos-display-*.txt")}
+    named = {f"osdos-display-{p['id']}.txt" for p in out}
+    if files != named:
+        sys.exit(f"build-site: presets without a name in DisplayOutput.cpp: {sorted(files - named)}")
+    return out
+
+
+def countries():
+    if not ISO3166.is_file():
+        sys.exit(f"build-site: {ISO3166} is missing (the tzdata package)")
+    out = []
+    for line in ISO3166.read_text().splitlines():
+        if line and not line.startswith("#"):
+            code, name = line.split("\t", 1)
+            out.append([name, code])
+    return sorted(out)
+
+
+def zones():
+    """The time zones by the names the card has (Debian's tzdata, without
+    tzdata-legacy's older ones a browser may still offer): each country's
+    from zone.tab, and UTC."""
+    if not ZONES.is_file():
+        sys.exit(f"build-site: {ZONES} is missing (the tzdata package)")
+    out = {line.split("\t")[2].strip() for line in ZONES.read_text().splitlines()
+           if line and not line.startswith("#")}
+    return sorted(out) + ["UTC"]
+
+
+def qml_block(source, name):
+    """What a QML property of Main.qml holds between its brackets: an object,
+    `name: ({ … })`, or a list, `name: [ … ]`, its comments left out. A
+    bracket in a string or a comment isn't one."""
+    found = re.search(r"\b" + re.escape(name) + r"\s*:\s*\(?([{\[])", source)
+    if not found:
+        sys.exit(f"build-site: Main.qml has no {name}")
+    opener = found.group(1)
+    closer = "}" if opener == "{" else "]"
+    depth = 0
+    # The block's tokens: a comment, a string, or any one character.
+    token = re.compile(r'//[^\n]*|/\*.*?\*/|"(?:\\.|[^"\\])*"|\'(?:\\.|[^\'\\])*\'|.', re.S)
+    kept = []
+    for match in token.finditer(source, found.start(1)):
+        text = match.group(0)
+        if text.startswith(("//", "/*")):
+            continue
+        if text == opener:
+            depth += 1
+        elif text == closer:
+            depth -= 1
+            if depth == 0:
+                return "".join(kept[1:])
+        kept.append(text)
+    sys.exit(f"build-site: Main.qml's {name} has no end")
+
+
+def skin_part(value, folder, served):
+    """One of a skin's pictures as AppCore's skinImage() reads it: { source,
+    border: [left, top, right, bottom], tile }, its picture copied where the
+    page has it (served: its folder there). As lookFile() takes one: a PNG,
+    GIF or BMP in the look's folder, none out of it, through a link either.
+    None for none."""
+    part = value if isinstance(value, dict) else {"image": value}
+    image = part.get("image")
+    if not isinstance(image, str) or not image:
+        return None
+    home = folder.resolve()
+    path = (folder / image).resolve()
+    if home not in path.parents or not path.is_file() or path.suffix.lower() not in (".png", ".gif", ".bmp"):
+        return None
+    # A whole number of the picture's pixels, as QJsonValue::toInt() takes one.
+    number = lambda v: isinstance(v, (int, float)) and not isinstance(v, bool)
+    side = lambda v: max(0, min(512, int(v))) if float(v).is_integer() else 0
+    border = part.get("border", 0)
+    if number(border):
+        border = [side(border)] * 4
+    elif isinstance(border, list) and len(border) == 4 and all(number(b) for b in border):
+        border = [side(b) for b in border]
+    else:
+        border = [0, 0, 0, 0]
+    tile = part.get("tile") if part.get("tile") in ("stretch", "repeat", "round") else "stretch"
+    return {"source": f"{served}/{path.relative_to(home).as_posix()}", "border": border, "tile": tile,
+            "file": str(path)}
+
+
+def skin_parts(obj, folder, served):
+    """What a skin dresses: a picture of any of the window's parts."""
+    parts = {}
+    for key in ("window", "titleBar", "hintBar", "selection"):
+        if key in obj:
+            part = skin_part(obj[key], folder, served)
+            if part:
+                parts[key] = part
+    return parts
+
+
+def looks_data():
+    """What the live preview draws a look with, as the app has it: Main.qml's
+    colour schemes (the two colours everything is drawn in) and effects (the
+    screen's and the text's knobs, each background's shader, the selectors'
+    and transitions' names and the transitions' shaders), each theme's parts
+    and each skin's pictures, and the shaders' names (shaders/, copied as they
+    are)."""
+    main = (ROOT / "Main.qml").read_text()
+    entries = lambda block: re.findall(r'"([^"]+)"\s*:\s*\{([^{}]*)\}', block)
+    schemes = {}
+    for name, body in entries(qml_block(main, "schemes")):
+        colors = dict(re.findall(r'"(\w+)"\s*:\s*"(#[0-9A-Fa-f]{6})"', body))
+        schemes[name] = {"primary": colors["primary"], "surface": colors["surface"]}
+    knobs = lambda name: {n: {k: float(v) for k, v in re.findall(r'"(\w+)"\s*:\s*([0-9.]+)', body)}
+                          for n, body in entries(qml_block(main, name))}
+    shader = r'"([^"]+)"\s*:\s*(?:\{\s*"shader"\s*:\s*)?builtInShader\("([\w-]+)"\)'
+    skins = {}
+    for path in sorted((ROOT / "assets/skins").glob("*/skin.json")):
+        skins[path.parent.name] = skin_parts(json.loads(path.read_text()), path.parent, f"skins/{path.parent.name}")
+    themes = {}
+    for path in sorted((ROOT / "assets/themes").glob("*/theme.json")):
+        obj = json.loads(path.read_text())
+        theme = {"name": obj.get("name", path.parent.name), "effects": obj.get("effects", {})}
+        if "colors" in obj:
+            theme["colors"] = obj["colors"]
+        if isinstance(obj.get("skin"), str):
+            theme["skin"] = obj["skin"]
+        elif isinstance(obj.get("skin"), dict):
+            theme["skin"] = skin_parts(obj["skin"], path.parent, f"themes/{path.parent.name}")
+        themes[path.parent.name] = theme
+    return {
+        "schemes": schemes,
+        "screen": knobs("screenPresets"),
+        "text": knobs("textPresets"),
+        "background": dict(re.findall(shader, qml_block(main, "backgroundPresets"))),
+        "selector": re.findall(r'"([^"]+)"', qml_block(main, "selectorPresets")),
+        "transition": re.findall(r'"([^"]+)"', qml_block(main, "transitionPresets")),
+        "transitionShaders": dict(re.findall(shader, qml_block(main, "transitionShaders"))),
+        "themes": themes,
+        "skins": skins,
+        "shaders": sorted(p.stem for p in SHADERS.glob("*.frag")),
+    }
+
+
+def schema():
+    extra = json.loads((SITE / "schema-extra.json").read_text())
+    mods = modules(extra)
+    app = json.loads(json.dumps(extra["app"]))
+    for group in app:
+        for row in group["settings"]:
+            source = row.pop("options_from", None)
+            row["options"] = [option(o) for o in row.get("options", [])]
+            if source == "themes":
+                row["options"] += looks("themes", "theme.json")
+            elif source == "skins":
+                row["options"] += looks("skins", "skin.json")
+            elif source == "modules":
+                row["options"] += [[m["name"], m["id"]] for m in mods]
+    return {
+        "app": app,
+        "modules": mods,
+        "presets": presets(),
+        "looks": looks_data(),
+        "countries": countries(),
+        "zones": zones(),
+        "keyboards": extra["keyboards"],
+    }
+
+
+def main():
+    if len(sys.argv) != 2:
+        sys.exit(__doc__)
+    out = pathlib.Path(sys.argv[1])
+    if out.exists():
+        if not (out / MARK).is_file() and any(out.iterdir()):
+            sys.exit(f"build-site: {out} is there and isn't a page this built: not replaced")
+        shutil.rmtree(out)
+    (out / "js").mkdir(parents=True)
+    (out / MARK).write_text("Built by scripts/build-site.py, which replaces this folder.\n")
+    for name in ("index.html", "style.css"):
+        shutil.copy2(SITE / name, out / name)
+    for path in (SITE / "js").rglob("*.mjs"):
+        target = out / "js" / path.relative_to(SITE / "js")
+        target.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(path, target)
+    (out / "fonts").mkdir()
+    shutil.copy2(ROOT / "assets/fonts/VCR_OSD_MONO_1.001.ttf", out / "fonts")
+    shutil.copy2(ROOT / "assets/fonts/LICENSE-vcr-osd-mono.txt", out / "fonts")
+    (out / "img").mkdir()
+    logo = (ROOT / "assets/images/logo.svg").read_text()
+    (out / "img/logo.svg").write_text(logo)
+    # The tab's icon: the cassette cut out of Video 1's blue.
+    (out / "img/icon.svg").write_text(logo.replace("<svg ", '<svg fill="#0110C5" ', 1))
+    (out / "presets").mkdir()
+    for path in PRESETS.glob("osdos-display-*.txt"):
+        shutil.copy2(path, out / "presets" / path.name)
+    (out / "shaders").mkdir()
+    for path in SHADERS.glob("*.frag"):
+        shutil.copy2(path, out / "shaders" / path.name)
+    data = schema()
+    # The skins' pictures, where the page reads them: the file's own path
+    # isn't the page's business.
+    parts = [p for skin in data["looks"]["skins"].values() for p in skin.values()]
+    parts += [p for theme in data["looks"]["themes"].values() if isinstance(theme.get("skin"), dict)
+              for p in theme["skin"].values()]
+    for part in parts:
+        target = out / part["source"]
+        target.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(part.pop("file"), target)
+    (out / "schema.json").write_text(json.dumps(data, indent=1, ensure_ascii=False) + "\n")
+    # Served as it is, not through Jekyll.
+    (out / ".nojekyll").write_text("")
+    print(f"build-site: {out}")
+
+
+if __name__ == "__main__":
+    main()

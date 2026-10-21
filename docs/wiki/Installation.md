@@ -62,7 +62,7 @@ An image from the **OS image** workflow (the Actions tab, for a branch or a pull
 1. Open [Raspberry Pi Imager](https://www.raspberrypi.com/software/), choose your Raspberry Pi, then for the operating system choose **Use custom** and pick the `.img.xz`.
 2. Choose the SD card and write.
 
-**OS customisation.** Raspberry Pi Imager 2 skips OS customisation (Wi-Fi, a user and password, SSH, the hostname, the locale and the keyboard) for an image chosen with **Use custom**: it can't tell which kind of customisation the image takes. Imager 1 seems to apply it, but on Trixie its settings never take effect. Without customisation, the image still works: Ethernet needs nothing, and Wi-Fi can be [set up by hand](https://github.com/mehmetraif/OSD-OS/wiki/Installation#wi-fi-by-hand-network-config). To have the customisation, open the image through a local manifest, as follows.
+**OS customisation.** Raspberry Pi Imager 2 skips OS customisation (Wi-Fi, a user and password, SSH, the hostname, the locale and the keyboard) for an image chosen with **Use custom**: it can't tell which kind of customisation the image takes. Imager 1 seems to apply it, but on Trixie its settings never take effect. Without customisation, the image still works: Ethernet needs nothing, and Wi-Fi can be [set up by hand](https://github.com/mehmetraif/OSD-OS/wiki/Installation#wi-fi-by-hand-network-config). The simplest way to have it all the same is [OSD/OS Setup](https://github.com/mehmetraif/OSD-OS/wiki/Installation#osdos-setup-settings-on-the-card-before-the-first-boot), below, which also chooses the display output and OSD/OS's own settings. Imager's own customisation needs the image opened through a local manifest, as follows.
 
 #### A local manifest, for OS customisation
 
@@ -137,6 +137,32 @@ xz -dc ~/Downloads/OSD-OS-*-raspberry-pi.img.xz | sudo dd of=/dev/sdX bs=4M conv
 
 Replace `/dev/sdX` with the card's device (a whole disk, such as `/dev/sdb` or `/dev/mmcblk0`, not a partition such as `/dev/sdb1`).
 
+### OSD/OS Setup: settings on the card before the first boot
+
+[OSD/OS Setup](https://mehmetraif.github.io/OSD-OS/) is a web page where you choose what the card starts with, before it goes into the Pi. It looks like OSD/OS's own menus, and has:
+
+- **Device:** what the card goes into, a **TV** or an **Arcade Cabinet**. A cabinet starts on the Arcade screen, has the JAMMA outputs first, and puts the TV / Movie settings and modules out of sight (its **TV / Movie Settings** switch shows them);
+- **Raspberry Pi and Display Output:** the Pi the card is for, and its output (HDMI, composite, SCART RGB, a JAMMA cabinet), the ones that Pi has;
+- **Network:** the device's name, the Wi-Fi country, and a Wi-Fi network with its password (hidden or not);
+- **System:** `pi`'s password, SSH on or off with password login or keys only, the time zone and the keyboard;
+- **OSD/OS:** every setting of Settings, the theme and the effects among them, each module on or off with its own settings, and the Arcade's RetroAchievements account (user name, password and Web API key). A live preview shows the main menu or the Arcade screen in the look chosen, at 640×480, as OSD/OS draws it: its own effects running in the browser, and, once it is clicked, the remote's keys working on it.
+
+Each on/off setting is a checkbox, each password field has a **Show** / **Hide** button, and only what you change goes into the file (marked •; ↺ leaves a setting as the card has it). Everything happens in your browser: nothing you type leaves it.
+
+1. Choose your settings, then **Download for the card (zip)**. It holds `osdos-setup.json` and, with a display output chosen, `osdos-display.txt`.
+2. After flashing, take the card out and put it back in: the computer shows the boot partition as a drive called **bootfs**.
+3. Unpack the zip onto **bootfs**, letting `osdos-display.txt` replace the one there, so that a CRT has its picture from the first start.
+4. Put the card in the Pi and switch it on. Before OSD/OS starts, the card takes `osdos-setup.json` off **bootfs** and sets OSD/OS's own settings; the rest it sets once OSD/OS is on screen, as the boot screen's **SETTINGS** line. Then it writes `osdos-setup.log` on **bootfs**, which says what was done and why anything wasn't. If the display output changes, the Pi restarts once to switch to it.
+
+**Export** saves `osdos-setup.json` alone, and **Import** reads it back to change it, or reads OSD/OS's own `config.json` (from `~/.local/share/OSD-OS`) to start from its settings. The file can go on a card that has already been started too: it is applied at the next start.
+
+- The file holds the Wi-Fi and RetroAchievements passwords as you typed them, and `pi`'s password only as a hash: keep it to yourself. It is deleted from the card once it has been applied.
+- The RetroAchievements account is handed to OSD/OS, which signs in through RetroArch once the network is up, as Settings → Arcade → RetroAchievements Account does: OSD/OS never keeps the password.
+- A display output chosen for one Pi is not applied on another kind (made for a Pi 5, the card left in a Pi 4): the card stays on the output it has, and the log says so.
+- Set a thing in one place only, on this page or in Imager's customisation: Imager's time zone and keyboard are applied after these on the first boot.
+
+[The OSD/OS image](https://github.com/mehmetraif/OSD-OS/wiki/The-OSD-OS-Image#osdos-setup) has how each setting is applied.
+
 ### Wi-Fi by hand: network-config
 
 Without Imager's customisation, set up Wi-Fi before the first boot by editing `network-config` on the card's boot partition. After flashing, take the card out and put it back in: the computer shows the boot partition as a drive called **bootfs** (Windows and macOS open it). `network-config` is a [netplan](https://netplan.io/reference)-style file that cloud-init applies on the first boot. As it comes, it holds only comments and commented-out examples. Add these lines at its end, with your network's name, its password and your two-letter country code. They are what Raspberry Pi Imager itself writes there for a Wi-Fi network:
@@ -185,7 +211,7 @@ cp /Volumes/bootfs/osdos-display-crt-pal.txt /Volumes/bootfs/osdos-display.txt  
 | `osdos-display-jamma-240p-native.txt`, `-240p-super.txt`, `-288p.txt`, `-288p-super.txt`, `-25k.txt`, `-31k.txt` | The same board in its other modes: 320×240, 1920×240, 720×288, 1920×288, and a 25 kHz or 31 kHz monitor's (only for such a monitor) | ✓ | ✓ |
 | `osdos-display-jamma-480i.txt`, `osdos-display-jamma-576i.txt` | The same board interlaced, 480i / 576i | ✓ | |
 
-A Pi 5's SCART RGB also needs a line on the system partition (`options drm_rp1_dpi force_csync=1` in `/etc/modprobe.d/osdos-display.conf`), which Windows and macOS can't reach: choose it in Settings → Display Output instead, which writes it. Once running, Settings → Display Output switches outputs, and keeps a new one only when you confirm it on its own screen. [Display Output](https://github.com/mehmetraif/OSD-OS/wiki/Display-Output) has the cables and every detail.
+A Pi 5's SCART RGB also needs a line on the system partition (`options drm_rp1_dpi force_csync=1` in `/etc/modprobe.d/osdos-display.conf`), which Windows and macOS can't reach: choose it on [OSD/OS Setup](https://github.com/mehmetraif/OSD-OS/wiki/Installation#osdos-setup-settings-on-the-card-before-the-first-boot), or in Settings → Display Output, which both write it. Once running, Settings → Display Output switches outputs, and keeps a new one only when you confirm it on its own screen. [Display Output](https://github.com/mehmetraif/OSD-OS/wiki/Display-Output) has the cables and every detail.
 
 ### The first boot
 
@@ -194,11 +220,12 @@ A Pi 5's SCART RGB also needs a line on the system partition (`options drm_rp1_d
 Put the card in the Pi, connect the TV and the keyboard, remote or gamepad, and switch it on. On the first boot:
 
 1. **The card is split.** Before the system starts, the root partition grows to 8 GiB instead of the whole card, and the rest becomes a third partition in exFAT, labelled **OSD-OS**. This happens once, on a freshly flashed card. A card with less than 2 GiB to spare past the system gets no film partition, and the system takes all of it. A first boot cut short after the partition is made but before it is formatted leaves it blank, and the next boot formats it, but only a partition with no file system at all.
-2. **The boot screen.** OSD/OS comes up as soon as the display driver is ready and shows its boot screen: the OSD/OS cassette, its reels turning and its tape winding from one onto the other as the progress bar fills, and a line per service: `[ OK ] WI-FI`, `BLUETOOTH`, `LOCAL NETWORK`, `SSH` (only when the image was built with SSH on) and `ONLINE`, a check that the network is really up, which gives up after 20 seconds without one. The boot screen closes by itself once every service has settled, or after a minute. Keys do nothing while it is up, but Ctrl+Q, which powers the Pi off.
-3. **cloud-init** applies Imager's customisation or your `network-config`, then is switched off for later boots.
-4. **The main menu.** Out of the box it lists **Local Files** and **Playlists**, the two modules that are on by default. Turn the others on in Settings (back, on the main menu); each module's own page says how to set it up ([Modules](https://github.com/mehmetraif/OSD-OS/wiki/Modules)).
+2. **OSD/OS Setup's file**, if you put one on **bootfs**, sets OSD/OS's own settings before it starts ([above](https://github.com/mehmetraif/OSD-OS/wiki/Installation#osdos-setup-settings-on-the-card-before-the-first-boot)), and the rest once the boot screen is up, as its first line, **SETTINGS**. If it changes the display output, the Pi restarts once.
+3. **The boot screen.** OSD/OS comes up as soon as the display driver is ready and shows its boot screen: the OSD/OS cassette, its reels turning and its tape winding from one onto the other as the progress bar fills, and a line per service, `[ OK ]` once it has started: `SETTINGS` (only with OSD/OS Setup's file), `WI-FI`, `BLUETOOTH`, `LOCAL NETWORK`, `SSH` (only when the image was built with SSH on) and `ONLINE`, a check that the network is really up, which gives up after 20 seconds without one. The boot screen closes by itself once every service has settled, or after a minute. Keys do nothing while it is up, but Ctrl+Q, which powers the Pi off.
+4. **cloud-init** applies Imager's customisation or your `network-config`, then is switched off for later boots.
+5. **The main menu.** Out of the box it lists **Local Files** and **Playlists**, the two modules that are on by default (or the ones OSD/OS Setup turned on). Turn the others on in Settings (back, on the main menu); each module's own page says how to set it up ([Modules](https://github.com/mehmetraif/OSD-OS/wiki/Modules)).
 
-Later boots skip the first and third steps. [Using OSD/OS](https://github.com/mehmetraif/OSD-OS/wiki/Using-OSD-OS) goes through every screen from here.
+Later boots skip the first, second and fourth steps. [Using OSD/OS](https://github.com/mehmetraif/OSD-OS/wiki/Using-OSD-OS) goes through every screen from here.
 
 **Films on the card.** Local Files opens the **OSD-OS** partition (`/media/OSD-OS`) until its Media Directory setting names another folder. To fill it from a computer: quit OSD/OS (Settings → Quit → Power Off), take the card out, and copy films onto the drive called **OSD-OS**, in folders if you like. Windows also offers to format the system's partition, which it can't read: always answer **Cancel**, as formatting it erases the system. A USB stick or disk plugged into the Pi shows up in Local Files too, as `USB: <label>`. [The OSD/OS image](https://github.com/mehmetraif/OSD-OS/wiki/The-OSD-OS-Image) and [Local Files](https://github.com/mehmetraif/OSD-OS/wiki/Local-Files) have the details.
 
@@ -207,8 +234,9 @@ Later boots skip the first and third steps. [Using OSD/OS](https://github.com/me
 The image's own user is `pi`, and OSD/OS runs as that user. You only need to log in for **Exit to Terminal** (Settings → Quit) or SSH.
 
 - **The password.** A release image's `pi` gets the password the repository secret `OS_FIRST_USER_PASS` holds, when the release was built with one. An image built without a password has `pi`'s account locked: Exit to Terminal then logs `pi` in by itself (whoever is at the keyboard could take the card out anyway), but that shell has no root, as `sudo` asks for the password `pi` doesn't have. If Exit to Terminal gives you a login prompt instead, the image has a password.
-- **A user of your own.** The user Imager's customisation creates can log in, with a password, and use `sudo`. That is the way to SSH and `sudo` on an image whose `pi` is locked.
-- **SSH** is off on a release image. Turn it on in Imager's customisation (through the [local manifest](https://github.com/mehmetraif/OSD-OS/wiki/Installation#a-local-manifest-for-os-customisation)), or from a shell on the Pi with a user who can use `sudo`:
+- **`pi`'s password on OSD/OS Setup.** [OSD/OS Setup](https://github.com/mehmetraif/OSD-OS/wiki/Installation#osdos-setup-settings-on-the-card-before-the-first-boot) gives `pi` a password of your own, which unlocks a locked `pi`: then `pi` logs in over SSH and uses `sudo` with it.
+- **A user of your own.** The user Imager's customisation creates can log in, with a password, and use `sudo`. That is another way to SSH and `sudo` on an image whose `pi` is locked.
+- **SSH** is off on a release image. Turn it on on OSD/OS Setup (with password login, or with your public keys alone), in Imager's customisation (through the [local manifest](https://github.com/mehmetraif/OSD-OS/wiki/Installation#a-local-manifest-for-os-customisation)), or from a shell on the Pi with a user who can use `sudo`:
 
   ```sh
   sudo systemctl enable --now ssh

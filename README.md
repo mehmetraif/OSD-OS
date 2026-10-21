@@ -48,6 +48,7 @@ The [feature list](https://github.com/mehmetraif/OSD-OS/wiki/Features) has the r
 ## Get it
 
 - **The OSD/OS image**, the whole system for a Raspberry Pi: download `OSD-OS-<version>-raspberry-pi.img.xz` from the [latest release](https://github.com/mehmetraif/OSD-OS/releases/latest) and [flash it](os/README.md#flashing). OSD/OS is on screen from the moment the Pi is switched on, and films go on the card's own partition.
+  - **[OSD/OS Setup](https://mehmetraif.github.io/OSD-OS/)** chooses what the card starts with before it goes into the Pi, for a TV or an arcade cabinet, with a live preview of the look chosen, OSD/OS's own effects running in the browser: the display output, Wi-Fi, the device's name, the user's password, SSH, the time zone, the keyboard, every setting of OSD/OS, and the RetroAchievements account. It gives one file for the card's boot partition, which the card applies as it starts ([how](os/README.md#osdos-setup)).
 - **As an app** on [Raspberry Pi OS](INSTALL.md#on-a-raspberry-pi), [macOS (ARM)](INSTALL.md#on-macos-arm) or [SteamOS and other Linux x86_64](INSTALL.md#on-steamos--linux-x86_64).
 
 Tested on a Raspberry Pi 4 and a Raspberry Pi 5 (8 GB). On another board? Tell us how it went in an [issue](https://github.com/mehmetraif/OSD-OS/issues).

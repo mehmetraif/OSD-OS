@@ -1,3 +1,6 @@
 # rfkill: bluetooth.service's OSD/OS drop-in unblocks Bluetooth with it
 # (00-run.sh). Raspberry Pi OS Lite has it already; named so it stays.
 rfkill
+# python3: osdos-setup, which applies OSD/OS Setup's file (00-run.sh), is
+# written in it. Raspberry Pi OS Lite has it already; named so it stays.
+python3
