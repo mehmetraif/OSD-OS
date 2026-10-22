@@ -52,7 +52,7 @@ OSD/OS reads these. Each is also read under its 240-MP name, `MP240_<NAME>`, whe
 | `OSDOS_AUTOSTART` | The autostart service (`Environment=OSDOS_AUTOSTART=1`) | Set to anything: OSD/OS runs as the system's app. Quit offers Power Off, Restart and Exit to Terminal; Update's Apply & Restart exits for the service to start it again; Display Output can be offered |
 | `OSDOS_LAUNCHER_API` | The launcher, `/usr/local/bin/osdos` (`8`) | What the launcher and its stop helper can do. Set at all, with the app in `/opt/osdos`: in-app updates can be applied. `2` or more: Quit offers Restart. `3` or more: Settings offers Display Output. `4` or more: JAMMA 240p 15 kHz (720x240) among its outputs. `5` or more: Switch and Power Off and At Next Start. `6` or more: the JAMMA board's other modes. `7` or more: Settings → Wi-Fi. `8` or more: System Information renames the device |
 | `OSDOS_DRM_DEVICE`, `OSDOS_DRM_CONNECTOR`, `OSDOS_DRM_MODE` | The launcher, on a Pi 5, from the display preset's `# osdos-output:` and `# osdos-mode:` lines | The output OSD/OS draws on, which mpv plays on too: `--drm-device`, `--drm-connector` and, when set, `--drm-mode` ([Playback and mpv](https://github.com/mehmetraif/OSD-OS/wiki/Playback-and-mpv#per-device-decode-profiles)) |
-| `OSDOS_MEDIA_DIR` | The OSD/OS image: `/media/OSD-OS`, in `/etc/systemd/system/osdos.service.d/osdos-media.conf` | Local Files' folder while its Media Directory is Default; else `media` in the data folder. The Playlists module downloads into a `Playlists` folder there unless its Download Folder names another, and the Arcade module looks for its games in `Games/Arcade` there unless its Games Folder names another |
+| `OSDOS_MEDIA_DIR` | The OSD/OS image: `/media/OSD-OS`, in `/etc/systemd/system/osdos.service.d/osdos-media.conf` | The folder the media go in; else `media` in the data folder. Local Files opens the `Movies` folder there while its Media Directory is Default, and the Playlists module then downloads into a `Playlists` folder in `Movies` unless its Download Folder names another. The Arcade module looks for its games in `Games/Arcade` there unless its Games Folder names another |
 | `OSDOS_BOOT_UNITS_FILE` | The OSD/OS image: `/etc/osdos/boot-units` | The services the boot screen follows, as `unit\|LABEL` lines. Unset, there is no boot screen |
 | `OSDOS_READY_FILE` | The OSD/OS image: `/run/osdos/ready` | Written, with OSD/OS's process id, once its first frame is on screen: the image's held-back services wait for it |
 | `OSDOS_BOOT_DIR` | Nothing; `/boot/firmware` by default | Where Display Output finds `osdos-display.txt` and its presets, and Settings → Wi-Fi the country the kernel started with (`cmdline.txt`) |
@@ -113,7 +113,7 @@ Two Qt variables matter too. OSD/OS sets `QT_QPA_EGLFS_HIDECURSOR=1` for itself 
 ├── soundfonts/                 SoundFonts (.sf2) for MIDI menu music
 ├── bin/yt-dlp                  the yt-dlp OSD/OS and mpv use first
 ├── bin/mame                    you add it, if you like: a MAME of your own, used first
-├── media/                      Local Files' folder when nothing else is named (not on the image)
+├── media/                      Movies/ and Games/Arcade/: Local Files' and the Arcade's folders when nothing else is named (not on the image)
 ├── ambient/                    Ambient:Mode's folder when nothing else is named
 ├── nfc_tags/                   the NFC Reader's card files
 ├── user_scripts/               the Scripts module's folder when nothing else is named
@@ -147,7 +147,7 @@ A file or folder appears only once something needs it. The rest of this section 
 | `soundfonts/` | You | MIDI menu music plays with a SoundFont beside the file of its name, else the first `.sf2` here by name, else the system's ([Menu music](https://github.com/mehmetraif/OSD-OS/wiki/Menu-Music)) |
 | `bin/yt-dlp` | You; on the OSD/OS image a timer, after each boot and once a day | The yt-dlp found first: then one beside the `osdos` binary, then one on `PATH`. mpv's ytdl hook is pointed at the same one |
 | `bin/mame` | You | The MAME the Arcade module finds first: then `mame` on `PATH`, then Debian's `/usr/games/mame` ([Arcade](https://github.com/mehmetraif/OSD-OS/wiki/Arcade#setting-it-up)) |
-| `media/`, `ambient/`, `user_scripts/`, `nfc_tags/` | You, and the modules | The modules' default folders, used while their folder setting is Default. Tapping an unknown card makes a stub file in `nfc_tags/`; a new script gets its `.txt` in `user_scripts/` |
+| `media/`, `ambient/`, `user_scripts/`, `nfc_tags/` | You, and the modules | The modules' default folders (in `media/`, Local Files' `Movies` and the Arcade's `Games/Arcade`), used while their folder setting is Default. Tapping an unknown card makes a stub file in `nfc_tags/`; a new script gets its `.txt` in `user_scripts/` |
 | `arcade/` | The Arcade module, and MAME | `games.json`, what MAME said of each set and which MAME said it; `playtime.json`, how long each game has been played; `coins.lua`, the credits bought on the Arcade screen, for the game being started; `catver.ini`, the games' genres, when it isn't in the games folder (put there, or downloaded by OSD/OS); MAME's settings for each game (`cfg/`), the games' NVRAM (`nvram/`), the hiscore plugin's tables (`hiscore/`), save states, snapshots, input recordings and hard disk diffs (`sta/`, `snap/`, `inp/`, `diff/`), the controller file written before each game (`ctrlr/osdos.cfg`), and RetroAchievements': the account (`retroachievements.json`), its list of arcade games (`retroachievements-games.json`) and the achievements' badges when the games folder's `snap` can't be written (`badges/`) ([Arcade](https://github.com/mehmetraif/OSD-OS/wiki/Arcade#files-it-keeps)) |
 | `highscores/` | The High Scores module | `scores.json`, the tables read of each game's files in `arcade/`, why a file couldn't be read, and the games' names, so a file is read again only once it has changed; `mame/`, links to `arcade/hiscore`, `arcade/nvram` and MAME's `hiscore.dat`, as openhi2txt reads them ([High Scores](https://github.com/mehmetraif/OSD-OS/wiki/High-Scores#files-it-keeps)) |
 | `<service>/browser/` | Chromium, through `web-player.sh` | A browser profile per service, which keeps its sign-in. Sign out deletes it. A run with a Scaling other than Letterbox also leaves `<service>/scaling/` (the small extension that applies it), and a run under `cage` keeps `<service>/wayland` while it lasts |
@@ -213,7 +213,7 @@ The `config.json` of an OSD/OS image on a Pi 4 that has been used for a while: a
         "startup_favorite": {
             "module": "com.osdos.local_files",
             "name": "Rambo Marathon.m3u",
-            "path": "/media/OSD-OS/Rambo Marathon.m3u"
+            "path": "/media/OSD-OS/Movies/Rambo Marathon.m3u"
         },
         "startup_from": "Resume",
         "startup_module": "com.osdos.local_files",
@@ -436,7 +436,7 @@ sudo systemctl start osdos
 
 Once all is well, delete `OSD-OS.old`.
 
-Restore onto the same user's home: the files belong to the user who made them. On the OSD/OS image, the films on the card's OSD-OS partition (`/media/OSD-OS`) are not in the data folder; copy them from a computer as you put them there.
+Restore onto the same user's home: the files belong to the user who made them. On the OSD/OS image, the films and games on the card's OSD-OS partition (`/media/OSD-OS/Movies` and `/media/OSD-OS/Games`) are not in the data folder; copy them from a computer as you put them there.
 
 ## Coming from 240-MP
 

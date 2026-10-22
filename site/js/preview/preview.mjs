@@ -9,8 +9,8 @@
 import { lookOf, rgbOf, ARCADE } from "./look.mjs";
 import { Assets } from "./assets.mjs";
 import { SelectorFx, FRAME } from "./selector.mjs";
-import { SW, SH, PX, drawGround, drawMainMenu, mainMenuTop, drawArcade, ARCADE_FILTERS, arcadeLayout,
-         arcadeSelectedRow, screenMoves } from "./screens.mjs";
+import { SW, SH, PX, drawGround, drawMainMenu, mainMenuTop, drawArcade, ARCADE_FILTERS, arcadeFilter, arcadeLayout,
+         arcadeSelectedRow, screenMoves, KEY_ROWS, lastKeyOf, columnOf } from "./screens.mjs";
 import { Renderer } from "./renderer.mjs";
 
 const TICK = FRAME * 1000;
@@ -75,7 +75,8 @@ export class Preview {
         this.home = "main";
         this.screen = "main";
         this.main = { index: 0, top: 0, since: 0 };
-        this.arcade = { filter: 0, selected: 0, wheelTop: 0, credits: 0, since: 0 };
+        this.arcade = { filter: 0, selected: 0, wheelTop: 0, credits: 0, since: 0,
+                        words: "", typing: false, keysRow: 0, keysCol: 0 };
         this.fxTime = 0;
         this.change = null;
         // Drawn again from scratch at the next frame: the ground and the view.
@@ -150,7 +151,7 @@ export class Preview {
         // The Arcade screen's rows before: a game keeps its row on the wheel
         // as their number changes (ArcadeScreen.qml's onPerPageChanged).
         const before = this.look && arcadeLayout(this.look);
-        const row = before ? arcadeSelectedRow(before, ARCADE_FILTERS[this.arcade.filter], this.arcade) : 0;
+        const row = before ? arcadeSelectedRow(before, arcadeFilter(this.arcade), this.arcade) : 0;
         this.look = lookOf(this.looks, settings);
         const after = arcadeLayout(this.look);
         if (before && after.wheel && (after.perPage !== before.perPage || !before.wheel))
@@ -206,16 +207,105 @@ export class Preview {
 
     // The Arcade module opened: its first filter with games (Start Filter's
     // if it has any), on its first game, in the wheel's middle row; no
-    // credits.
+    // credits, and Search with no words.
     openArcade() {
         const start = ARCADE_FILTERS.findIndex(f => f.id === this.look.arcade.startFilter);
-        this.arcade = { filter: Math.max(0, start), selected: 0, wheelTop: 0, credits: 0, since: performance.now() };
+        this.arcade = { filter: Math.max(0, start), selected: 0, wheelTop: 0, credits: 0, since: performance.now(),
+                        words: "", typing: false, keysRow: 0, keysCol: 0, passing: null };
         this.placeWheel(Math.floor(arcadeLayout(this.look).perPage / 2));
     }
     placeWheel(row) {
         const L = arcadeLayout(this.look);
-        const count = ARCADE_FILTERS[this.arcade.filter].games.length;
+        const count = arcadeFilter(this.arcade).games.length;
         this.arcade.wheelTop = count >= L.perPage ? ((this.arcade.selected - row) % count + count) % count : 0;
+    }
+    // ◄ ►: the next filter round, on the game where it has it; Search on its
+    // own row, at the wheel's top, and on past it with the game ◄ ► came to
+    // it with while still on that row (ArcadeScreen.qml's cycle()).
+    cycle(delta, L) {
+        const a = this.arcade;
+        const current = arcadeFilter(a).games[a.selected];
+        const keep = current && current.search ? a.passing : current;
+        a.filter = (a.filter + delta + ARCADE_FILTERS.length) % ARCADE_FILTERS.length;
+        const filter = arcadeFilter(a);
+        const toSearch = filter.id === "search";
+        a.passing = toSearch ? keep : null;
+        a.selected = toSearch ? 0 : Math.max(0, filter.games.indexOf(keep));
+        this.placeWheel(toSearch ? 0 : Math.floor(L.perPage / 2));
+        a.since = performance.now();
+    }
+    // Search: its keys handed the keys, at the left end of their row, or
+    // with a letter typed on a keyboard (the box then on OK); the list for
+    // what is typed, on Search's own row; OK down to the first game found.
+    enterKeys(typed) {
+        const a = this.arcade;
+        a.typing = true;
+        a.keysCol = 0;
+        if (typed)
+            this.typeIn(typed);
+    }
+    typeIn(typed) {
+        const a = this.arcade;
+        if (a.words.length < 40)
+            this.searchFor(a.words + typed.toUpperCase());
+        a.keysRow = KEY_ROWS.length - 1;
+        a.keysCol = KEY_ROWS[a.keysRow].length - 1;
+    }
+    searchFor(words) {
+        const a = this.arcade;
+        a.words = words;
+        a.selected = 0;
+        this.placeWheel(0);
+        a.since = performance.now();
+    }
+    pressKey(key, L) {
+        const a = this.arcade;
+        if (key === "OK") {
+            a.typing = false;
+            if (arcadeFilter(a).games.length > 1) {
+                a.selected = 1;
+                this.placeWheel(Math.min(1, L.perPage - 1));
+            }
+        } else if (key === "DEL") {
+            this.searchFor(a.words.slice(0, -1));
+        } else if (a.words.length < 40) {
+            this.searchFor(a.words + (key === "SPACE" ? " " : key));
+        }
+    }
+    // Search's keys while they have the keys (OnScreenKeyboard): the arrows
+    // from key to key, ◄ ► pressed at a row's end round the filters (not
+    // while held), select types, back returns to the list.
+    keysKey(e, L) {
+        const a = this.arcade;
+        const last = KEY_ROWS.length - 1;
+        if (e.key === "ArrowUp" || e.key === "ArrowDown") {
+            const down = e.key === "ArrowDown";
+            const col = down && a.keysRow === last - 1 ? lastKeyOf(a.keysCol)
+                      : !down && a.keysRow === last ? columnOf(a.keysCol) : a.keysCol;
+            a.keysRow = (a.keysRow + (down ? 1 : -1) + KEY_ROWS.length) % KEY_ROWS.length;
+            a.keysCol = Math.max(0, Math.min(KEY_ROWS[a.keysRow].length - 1, col));
+        } else if (e.key === "ArrowLeft" || e.key === "ArrowRight") {
+            const step = e.key === "ArrowLeft" ? -1 : 1;
+            if (a.keysCol === (step < 0 ? 0 : KEY_ROWS[a.keysRow].length - 1)) {
+                if (!e.repeat) {
+                    a.typing = false;
+                    this.cycle(step, L);
+                }
+            } else {
+                a.keysCol += step;
+            }
+        } else if (e.key === "Enter") {
+            this.pressKey(KEY_ROWS[a.keysRow][a.keysCol], L);
+        } else if (e.key === "Escape") {
+            a.typing = false;
+        } else if (e.key === "Backspace") {
+            this.pressKey("DEL", L);
+        } else if (e.key.length === 1 && e.key > " ") {
+            this.typeIn(e.key);
+        } else {
+            return false;
+        }
+        return true;
     }
 
     // To the other screen as the app changes windows: the face as it was
@@ -265,25 +355,34 @@ export class Preview {
         } else {
             const a = this.arcade;
             const L = arcadeLayout(this.look);
-            const filter = ARCADE_FILTERS[a.filter];
+            const filter = arcadeFilter(a);
             const count = filter.games.length;
-            if (e.key === "ArrowUp" || e.key === "ArrowDown") {
+            const onSearch = filter.id === "search";
+            if (a.typing) {
+                if (!this.keysKey(e, L))
+                    return;
+            } else if (e.key === "ArrowUp" || e.key === "ArrowDown") {
                 const delta = e.key === "ArrowUp" ? -1 : 1;
                 const row = arcadeSelectedRow(L, filter, a) + delta;
                 if (L.wheel && count >= L.perPage && (row < 0 || row >= L.perPage))
                     a.wheelTop = (a.wheelTop + delta + count) % count;
                 a.selected = (a.selected + delta + count) % count;
                 a.since = now;
+            } else if (e.key === "ArrowRight" && onSearch) {
+                // On Search, its keys lie to the right.
+                this.enterKeys("");
             } else if (e.key === "ArrowLeft" || e.key === "ArrowRight") {
-                const keep = filter.games[a.selected];
-                a.filter = (a.filter + (e.key === "ArrowLeft" ? -1 : 1) + ARCADE_FILTERS.length) % ARCADE_FILTERS.length;
-                a.selected = Math.max(0, ARCADE_FILTERS[a.filter].games.indexOf(keep));
-                this.placeWheel(Math.floor(L.perPage / 2));
-                a.since = now;
+                this.cycle(e.key === "ArrowLeft" ? -1 : 1, L);
+            } else if (e.key === "Enter" && onSearch && filter.games[a.selected].search) {
+                this.enterKeys("");
             } else if (e.key === "5") {
-                a.credits = Math.min(9, a.credits + 1);
+                // A coin, where the credits are shown: not over Search's keys.
+                if (!onSearch)
+                    a.credits = Math.min(9, a.credits + 1);
             } else if (e.key === "Escape" || e.key === "Backspace") {
                 this.go("main");
+            } else if (onSearch && e.key.length === 1 && e.key > " ") {
+                this.enterKeys(e.key);
             } else {
                 return;
             }

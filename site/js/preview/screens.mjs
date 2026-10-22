@@ -94,6 +94,7 @@ const SHAPES = {
     up: ["...#...", "..###..", ".#####.", "#######"],
     down: ["#######", ".#####.", "..###..", "...#..."],
     heart: [".##.##.", "#######", "#######", ".#####.", "..###..", "...#..."],
+    search: [".###...", "#...#..", "#...#..", "#...#..", ".###...", "....##.", ".....##"],
     signal4: [".........##", ".........##", "......##.##", "......##.##", "...##.##.##", "##.##.##.##", "##.##.##.##"],
     hiscore: ["#..#.###", "#..#..#.", "#..#..#.", "####..#.", "#..#..#.", "#..#..#.", "#..#.###"],
     trophy: ["#######", "#.###.#", ".#####.", "..###..", "...#...", "..###..", ".#####."],
@@ -395,9 +396,12 @@ const GAMES = [
     name: description.split(" (")[0].split(" / ")[0].trim(),
 }));
 
+// Search's own row, over the games its words find.
+const SEARCH_ROW = { search: true, set: "", name: "Search" };
+
 // The filters with games, as ArcadeBackend::filters() lists them: All Games,
 // then by players and by decade (genres need catver.ini, publishers are off
-// until Menu Filters turns them on).
+// until Menu Filters turns them on), and Search last.
 export const ARCADE_FILTERS = (() => {
     const byName = [...GAMES].sort((a, b) => a.name.toLowerCase() < b.name.toLowerCase() ? -1 : 1);
     const filters = [{ id: "all", name: "All Games", games: byName }];
@@ -405,8 +409,55 @@ export const ARCADE_FILTERS = (() => {
         filters.push({ id: `players/${n}`, name: n === 1 ? "1 Player" : `${n} Players`, games: byName.filter(g => g.players === n) });
     for (const d of [...new Set(GAMES.map(g => g.year.slice(0, 3) + "0s"))].sort())
         filters.push({ id: `years/${d}`, name: d, games: byName.filter(g => g.year.slice(0, 3) + "0s" === d) });
+    filters.push({ id: "search", name: "Search", games: [SEARCH_ROW, ...byName] });
     return filters;
 })();
+
+// A name, or what is typed, as Search reads it (ArcadeBackend's
+// searchable()): in lower case, without accents, of letters and digits
+// alone, its words a space apart: "Pac-Man" is "pacman".
+const searchable = s => s.normalize("NFKD").toLowerCase().replace(/[^\p{L}\p{N}\s]+/gu, "")
+    .split(/\s+/).filter(Boolean).join(" ");
+// Search's rows (ArcadeBackend::searchSets()): its own, then the games whose
+// name or set has every word typed, those whose name starts with the words
+// (or with them run together: "pac man" is Pac-Man's "pacman") or that are
+// the set first, then those with a word starting with the first, then the
+// rest, each by name.
+function searchGames(words) {
+    const wanted = searchable(words).split(" ").filter(Boolean);
+    const byName = ARCADE_FILTERS[0].games;
+    if (!wanted.length)
+        return [SEARCH_ROW, ...byName];
+    const whole = wanted.join(" ");
+    const joined = wanted.join("");
+    const best = [], next = [], rest = [];
+    for (const game of byName) {
+        const text = searchable(game.description) + " " + searchable(game.set);
+        if (!wanted.every(word => text.includes(word)))
+            continue;
+        (text.startsWith(whole) || text.startsWith(joined) || text.endsWith(" " + whole) ? best
+            : text.startsWith(wanted[0]) || text.includes(" " + wanted[0]) ? next : rest).push(game);
+    }
+    return [SEARCH_ROW, ...best, ...next, ...rest];
+}
+// The filter shown, Search's games as its words find them.
+export function arcadeFilter(ui) {
+    const filter = ARCADE_FILTERS[ui.filter % ARCADE_FILTERS.length];
+    return filter.id === "search" ? { ...filter, games: searchGames(ui.words || "") } : filter;
+}
+
+// Search's keys (Components/OnScreenKeyboard, inline): the line typed over
+// four rows of letters, digits and signs, and SPACE, DEL and OK; down onto
+// the last row from a column of the grid and up from one of its keys.
+export const KEY_ROWS = [
+    ["A", "B", "C", "D", "E", "F", "G", "H", "I", "J"],
+    ["K", "L", "M", "N", "O", "P", "Q", "R", "S", "T"],
+    ["U", "V", "W", "X", "Y", "Z", "0", "1", "2", "3"],
+    ["4", "5", "6", "7", "8", "9", "-", "'", ".", "&"],
+    ["SPACE", "DEL", "OK"],
+];
+export const lastKeyOf = column => Math.floor(column / 4);
+export const columnOf = key => key * 4;
 
 // The Arcade screen's layout, in the design's units (a 960th of the width,
 // a 720th of the height), as ArcadeScreen.qml works it out.
@@ -499,14 +550,57 @@ export function arcadeSelectedRow(L, filter, ui) {
                    : ui.selected - Math.floor(ui.selected / L.perPage) * L.perPage;
 }
 
-// ui: { filter, selected, wheelTop, credits, since }.
+// Search's keys in the picture's frame, in the box's letters or smaller to
+// fit it; the box on a key and the cursor after the line typed while they
+// have the keys (ui.typing).
+function drawKeys(ctx, look, L, ui, now) {
+    const { u, v } = L;
+    const size = Math.min(L.textSize, Math.floor(((L.pictureHeight - 12) * v - 2 * PX - 4) / 8.8));
+    const x = Math.round(L.infoX * u), y = Math.round((L.areaTop + 6) * v);
+    const cellW = Math.floor(Math.round(L.infoWidth * u) / 10), cellH = Math.round(size * 1.4);
+    const lineH = cellH + 2 * PX;
+    frameRect(ctx, x, y, cellW * 10, lineH, look.primary, PX);
+    clipped(ctx, x, y, cellW * 10, lineH, () => {
+        const top = y + (lineH - lineHeight(size)) / 2;
+        const words = (ui.words || "").toUpperCase();
+        const textX = x + SW * 0.0125;
+        drawText(ctx, words, textX, top, size, look.primary);
+        if (ui.typing) {
+            moving = true;
+            const blockW = Math.round(size * 0.55), blockH = Math.round(size * 0.75);
+            if (Math.floor(now / 500) % 2 === 0)
+                fillRect(ctx, textX + measure(ctx, size, words), top + (lineHeight(size) - blockH) / 2, blockW, blockH,
+                         look.primary);
+        }
+    });
+    let rowY = y + lineH + Math.round(size * 0.4);
+    KEY_ROWS.forEach((keys, row) => {
+        const keyW = keys.length === 10 ? cellW : cellW * 10 / keys.length;
+        keys.forEach((key, col) => {
+            const current = ui.typing && ui.keysRow === row && ui.keysCol === col;
+            const keyX = x + col * keyW, textW = measure(ctx, size, key);
+            if (current) {
+                const boxW = textW + 2 * SW * 0.009375;
+                fillRect(ctx, keyX + (keyW - boxW) / 2, rowY, boxW, cellH, look.primary);
+            }
+            drawText(ctx, key, keyX + (keyW - textW) / 2, rowY + (cellH - lineHeight(size)) / 2, size,
+                     current ? look.surface : look.primary);
+        });
+        rowY += cellH;
+    });
+}
+
+// ui: { filter, selected, wheelTop, credits, since, words (Search's),
+// typing (Search's keys have the keys), keysRow, keysCol }; bar, the bar's
+// name and since when it scrolls, is kept there as it is drawn.
 export function drawArcade(ctx, look, assets, ui, now) {
     moving = false;
     const L = arcadeLayout(look);
     const a = look.arcade;
     const { u, v } = L;
     const filters = ARCADE_FILTERS;
-    const filter = filters[ui.filter % filters.length];
+    const filter = arcadeFilter(ui);
+    const onSearch = filter.id === "search";
     const count = filter.games.length;
     const rows = arcadeRows(L, filter, ui);
     const selectedRow = arcadeSelectedRow(L, filter, ui);
@@ -522,20 +616,32 @@ export function drawArcade(ctx, look, assets, ui, now) {
         if (!drawSkin(ctx, look, assets, look.skin.titleBar, x, y, w, h))
             fillRect(ctx, x, y, w, h, look.primary);
         const page = Math.floor(ui.selected / L.perPage), pages = Math.max(1, Math.ceil(count / L.perPage));
-        const right = L.wheel ? `${ui.selected + 1}/${count}` : `${page + 1}/${pages}`;
+        const right = onSearch ? `${count - 1} FOUND` : L.wheel ? `${ui.selected + 1}/${count}` : `${page + 1}/${pages}`;
         const rightW = measure(ctx, size, right);
         const arrows = filters.length > 1;
         const arrowW = measure(ctx, size, "◄");
+        // The filter's name in what is left of the bar, cut between two
+        // letters: too long for it, it scrolls through, started over as the
+        // name or the room changes (ArcadeBar's labelClip).
         const label = filter.name.toUpperCase();
-        const labelW = Math.max(0, Math.min(measure(ctx, size, label),
-            w - 2 * pad - (rightW + 2 * gap) - (arrows ? 2 * (arrowW + gap) : 0)));
+        const labelFull = measure(ctx, size, label);
+        const cell = Math.max(1, measure(ctx, size, "M"));
+        const room = w - 2 * pad - (rightW + 2 * gap) - (arrows ? 2 * (arrowW + gap) : 0);
+        const labelW = Math.max(0, Math.min(labelFull, Math.floor(room / cell) * cell));
+        if (!ui.bar || ui.bar.label !== label || ui.bar.width !== labelW)
+            ui.bar = { label, width: labelW, since: now };
         const top = y + (h - lineHeight(size)) / 2;
         let at = x + pad;
         if (arrows) {
             drawText(ctx, "◄", at, top, size, look.surface);
             at += arrowW + gap;
         }
-        drawText(ctx, elided(ctx, size, label, labelW), at, top, size, look.surface);
+        const labelX = at;
+        if (labelFull > labelW)
+            clipped(ctx, labelX, y, labelW, h, () =>
+                drawText(ctx, label, labelX + scrolled(now - ui.bar.since, labelW - labelFull), top, size, look.surface));
+        else
+            drawText(ctx, label, labelX, top, size, look.surface);
         at += labelW + gap;
         if (arrows)
             drawText(ctx, "►", at, top, size, look.surface);
@@ -567,16 +673,21 @@ export function drawArcade(ctx, look, assets, ui, now) {
         } else {
             frameRect(ctx, x, y, w, h, look.primary, PX);
         }
+        // Search's games counted under its own row, which has none, and its
+        // glass at the right end.
         const numberSize = Math.round(27 * size * v);
-        const number = entry.place + 1;
-        const numberText = ("00" + number).slice(-Math.max(3, String(number).length));
+        const number = entry.place + (onSearch ? 0 : 1);
+        const numberText = entry.game.search ? "" : ("00" + number).slice(-Math.max(3, String(number).length));
         const numberX = x + gap + PX;
-        const numberW = measure(ctx, numberSize, numberText);
+        const numberW = numberText ? measure(ctx, numberSize, numberText) : 0;
         drawText(ctx, numberText, numberX, y + (h - lineHeight(numberSize)) / 2, numberSize, ink);
+        const markX = x + w - iconWidth("search") - gap - PX;
+        if (entry.game.search)
+            drawIcon(ctx, "search", markX, y + (h - iconHeight("search")) / 2, ink);
         const nameSize = Math.round(30 * size * v);
         const nameX = numberX + numberW + gap;
-        const nameW = x + w - gap - PX - nameX;
-        const name = entry.game.name.toUpperCase();
+        const nameW = (entry.game.search ? markX - gap : x + w - gap - PX) - nameX;
+        const name = (entry.game.search ? ui.words || "Search" : entry.game.name).toUpperCase();
         const fullW = measure(ctx, nameSize, name);
         const nameTop = y + (h - lineHeight(nameSize)) / 2;
         clipped(ctx, nameX, y, nameW, h, () => {
@@ -597,7 +708,9 @@ export function drawArcade(ctx, look, assets, ui, now) {
         const w = Math.round(L.columnWidth * u), h = Math.round(L.pictureHeight * v);
         fillRect(ctx, x, y, w, h, ground);
         frameRect(ctx, x, y, w, h, look.primary, frame);
-        if (current) {
+        if (onSearch)
+            drawKeys(ctx, look, L, ui, now);
+        else if (current) {
             const lines = [["No Picture".toUpperCase(), L.nameSize], [`snap/${current.set}.png`, L.textSize]];
             if (!a.webApiKey)
                 lines.push(["No Web API Key".toUpperCase(), L.textSize]);
@@ -611,12 +724,20 @@ export function drawArcade(ctx, look, assets, ui, now) {
                 top += lineHeight(size) + spacing;
             }
         }
-        const credit = `CREDIT ${ui.credits}`;
-        const creditW = measure(ctx, L.textSize, credit) + 2 * Math.round(6 * u);
-        const creditH = lineHeight(L.textSize) + 2 * PX;
-        const cx = x + w - frame - creditW, cy = y + h - frame - creditH;
-        fillRect(ctx, cx, cy, creditW, creditH, look.surface);
-        drawText(ctx, credit, cx + Math.round(6 * u), cy + PX, L.textSize, look.primary);
+        if (!onSearch) {
+            const credit = `CREDIT ${ui.credits}`;
+            const creditW = measure(ctx, L.textSize, credit) + 2 * Math.round(6 * u);
+            const creditH = lineHeight(L.textSize) + 2 * PX;
+            const cx = x + w - frame - creditW, cy = y + h - frame - creditH;
+            fillRect(ctx, cx, cy, creditW, creditH, look.surface);
+            drawText(ctx, credit, cx + Math.round(6 * u), cy + PX, L.textSize, look.primary);
+        }
+    }
+    // Under Search's own row, that its words find no game.
+    if (onSearch && count === 1) {
+        const rowTop = L.wheel ? L.wheelLayout(L.perPage, selectedRow).tops[1] || L.listTop : L.listTop + L.pitch;
+        drawText(ctx, "NO GAME FOUND", Math.round((L.areaLeft + 16) * u),
+                 Math.round((rowTop + (L.rowHeight - 30) / 2) * v), L.nameSize, look.primary);
     }
     {
         const x = Math.round(L.columnX * u), y = Math.round(L.infoTop * v);
@@ -624,21 +745,22 @@ export function drawArcade(ctx, look, assets, ui, now) {
         fillRect(ctx, x, y, w, h, ground);
         frameRect(ctx, x, y, w, h, look.primary, frame);
     }
-    if (current && L.scoreRows > 0) {
+    const game = current && !current.search ? current : null;
+    if (game && L.scoreRows > 0) {
         const x = Math.round(L.infoX * u), y = Math.round(L.scoresTop * v);
         drawText(ctx, "HI-SCORE", x, y, L.textSize, look.primary);
         drawText(ctx, "NO SCORES YET", x, y + Math.round(32 * v), L.textSize, look.primary);
     }
     // The details over the play time, as many as the box has lines for; the
     // help line says the rest.
-    const details = current ? [
-        { label: "Maker", value: current.maker || "?", told: current.maker || "" },
-        { label: "Year", value: current.year || "?", told: current.year || "" },
-        { label: "Players", value: current.players > 0 ? String(current.players) : "?",
-          told: current.players > 0 ? current.players + (current.players === 1 ? " Player" : " Players") : "" },
+    const details = game ? [
+        { label: "Maker", value: game.maker || "?", told: game.maker || "" },
+        { label: "Year", value: game.year || "?", told: game.year || "" },
+        { label: "Players", value: game.players > 0 ? String(game.players) : "?",
+          told: game.players > 0 ? game.players + (game.players === 1 ? " Player" : " Players") : "" },
         { label: "System", value: "?", told: "" },
     ] : [];
-    if (current) {
+    if (game) {
         const pad = SW * 0.009375;
         for (let i = 0; i <= L.detailRows; ++i) {
             const detail = i < L.detailRows ? details[i] : { label: "Play Time", value: "Never" };
@@ -652,7 +774,8 @@ export function drawArcade(ctx, look, assets, ui, now) {
     // The help line and the hint bar, the status icons at the help line's
     // right; with none, at the hint bar's end while the hint line still fits
     // beside them at its smallest; with neither, none.
-    const hintText = "[ESC]:BACK [5]:COIN [ENTER]:PLAY HOLD:OPTIONS";
+    const hintText = ui.typing ? "[ESC]:DONE [▲▼◄►]:MOVE [ENTER]:TYPE"
+        : current && current.search ? "[ESC]:BACK [ENTER]:SEARCH" : "[ESC]:BACK [5]:COIN [ENTER]:PLAY HOLD:OPTIONS";
     const hintWidth = Math.round(L.areaWidth * u);
     const icons = look.statusIcons;
     const iconsW = icons.length ? statusWidth(icons) : 0;
@@ -661,7 +784,10 @@ export function drawArcade(ctx, look, assets, ui, now) {
     const statusRoom = iconsShown ? iconsW + Math.round(12 * u) : 0;
     let help = null;
     if (a.helpLine && current) {
-        const about = [current.description].concat(details.slice(L.detailRows).map(d => d.told)).join("\n");
+        const about = !current.search ? [current.description].concat(details.slice(L.detailRows).map(d => d.told)).join("\n")
+            : ui.typing ? "The games found follow each letter typed: OK goes down to them, back to the list, "
+                          + "and ◄ ► past the keys' ends go round the filters"
+            : "► or select to type what to look for: the games found follow each letter";
         const helpMargin = a.hintBar ? SH * 0.1583333 : SH * 0.1041667;
         const helpH = SH * 0.0583333;
         help = drawHelpLine(ctx, look, about, Math.round(L.areaLeft * u), SH - helpMargin - helpH,

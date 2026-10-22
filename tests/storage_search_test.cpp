@@ -17,6 +17,30 @@
 class StorageSearchTest : public QObject {
     Q_OBJECT
 private slots:
+    // The folder Local Files opens while its setting names none: Movies in
+    // OSDOS_MEDIA_DIR (the image's card partition, where the Arcade's Games
+    // folder is too), made as it is opened; without it, Movies in the data
+    // folder's media.
+    void defaultFolderIsMovies() {
+        QTemporaryDir tmp;
+        const QString media = tmp.path() + "/card";
+        QVERIFY(QDir().mkpath(media + "/Games/Arcade"));
+        qputenv("OSDOS_MEDIA_DIR", media.toUtf8());
+        {
+            LocalFilesBackend backend(tmp.path(), tmp.path(), nullptr);
+            QCOMPARE(backend.mediaRoot(), media + "/Movies");
+            QVERIFY(QFileInfo(media + "/Movies").isDir());
+        }
+        qunsetenv("OSDOS_MEDIA_DIR");
+        LocalFilesBackend backend(tmp.path(), tmp.path(), nullptr);
+        QCOMPARE(backend.mediaRoot(), tmp.path() + "/media/Movies");
+        // A folder chosen in Settings, then the setting reset: Movies again.
+        backend.setMediaRoot(media);
+        QCOMPARE(backend.mediaRoot(), media);
+        backend.setMediaRoot(QString());
+        QCOMPARE(backend.mediaRoot(), tmp.path() + "/media/Movies");
+    }
+
     void asyncFolderEntriesMatchAndRefresh() {
         QTemporaryDir tmp;
         const QString media = tmp.path() + "/media";

@@ -8,7 +8,12 @@ import QtQuick
 //     OnScreenKeyboard { anchors.fill: parent; onAccepted: (text) => … }
 // For a password or a key (caseSensitive), letters in both cases (SHIFT) and
 // the signs one may hold, typed as they are and given back untrimmed; masked
-// shows a star for each.
+// shows a star for each. Inline, it lies in another view's window (the
+// Arcade screen's Search, read as it is typed), which shows it and hands it
+// the keys: only the line typed and the keys, across its own width, in
+// letters of fontSize, the box and the cursor only while it has the keys
+// (live). OK and back leave it to the view, OK taking nothing typed too
+// (allowEmpty), and ◄ ► past the keys' ends go on to the view (pastEnd).
 FocusScope {
     id: osk
 
@@ -18,9 +23,13 @@ FocusScope {
     property bool caseSensitive: false
     property bool masked: false
     property bool shifted: false
+    property bool inline: false
+    property bool allowEmpty: false
 
     signal accepted(string text)
     signal canceled()
+    // Inline: ◄ (-1) or ► (1) pressed at the end of a row of keys.
+    signal pastEnd(int direction)
 
     function open(initial) {
         text = initial || ""
@@ -49,11 +58,14 @@ FocusScope {
     readonly property bool onOk: row === rows.length - 1 && col === okCol
 
     visible: false
+    // The box on its key and the cursor after the line typed.
+    readonly property bool live: !inline || activeFocus
 
     function press(key) {
         if (key === "OK") {
-            if (text.trim() === "") return
-            close()
+            if (text.trim() === "" && !allowEmpty) return
+            if (!inline)
+                close()
             accepted(caseSensitive ? text : text.trim())
         } else if (key === "DEL") {
             text = text.slice(0, -1)
@@ -83,40 +95,64 @@ FocusScope {
         switch (event.key) {
         case Qt.Key_Up:    moveTo(row - 1, row === rows.length - 1 ? columnOf(col) : col); return
         case Qt.Key_Down:  moveTo(row + 1, row === rows.length - 2 ? lastKeyOf(col) : col); return
-        case Qt.Key_Left:  col = (col - 1 + rows[row].length) % rows[row].length; return
-        case Qt.Key_Right: col = (col + 1) % rows[row].length; return
+        // Inline, a key held stops at the row's end, and a press there goes on.
+        case Qt.Key_Left:
+            if (inline && col === 0) {
+                if (!event.isAutoRepeat)
+                    pastEnd(-1)
+            } else {
+                col = (col - 1 + rows[row].length) % rows[row].length
+            }
+            return
+        case Qt.Key_Right:
+            if (inline && col === rows[row].length - 1) {
+                if (!event.isAutoRepeat)
+                    pastEnd(1)
+            } else {
+                col = (col + 1) % rows[row].length
+            }
+            return
         case Qt.Key_Return:
         case Qt.Key_Enter: press(rows[row][col]); return
         case Qt.Key_Escape:
-        case Qt.Key_Back:  close(); canceled(); return
+        case Qt.Key_Back:
+            if (!inline)
+                close()
+            canceled()
+            return
         case Qt.Key_Backspace: press("DEL"); return
         }
-        // Typed on a real keyboard: straight in, and the box goes to OK.
-        var ch = caseSensitive ? event.text : event.text.toUpperCase()
+        typeIn(event.text)
+    }
+    // Typed on a real keyboard: straight in, and the box goes to OK.
+    function typeIn(typed) {
+        var ch = caseSensitive ? typed : typed.toUpperCase()
         if (ch.length === 1 && ch >= " " && text.length < maxLength) {
             text += ch
             moveTo(rows.length - 1, okCol)
         }
     }
 
-    readonly property real cellW: Math.floor(root.sw * 0.75 / 10) //48
-    readonly property real cellH: root.sh * 0.0666667 //32
-    readonly property real fontSize: root.sh * 0.05 //24
+    property real fontSize: root.sh * 0.05 //24
+    readonly property real cellW: inline ? Math.floor(width / 10) : Math.floor(root.sw * 0.75 / 10) //48
+    readonly property real cellH: inline ? Math.round(fontSize * 1.4) : root.sh * 0.0666667 //32
 
     // Everything under the title bar, on the ground every view has (OSD
     // BACKGROUND): a window goes on under it as it was.
     OsdGround {
+        visible: !osk.inline
         y: root.sh * 0.1916667 //92
         width: parent.width
         height: parent.height - y
     }
 
     Column {
-        x: root.sw * 0.125 //80
-        y: root.sh * 0.2083333 //100
-        spacing: root.sh * 0.025 //12
+        x: osk.inline ? 0 : root.sw * 0.125 //80
+        y: osk.inline ? 0 : root.sh * 0.2083333 //100
+        spacing: osk.inline ? Math.round(osk.fontSize * 0.4) : root.sh * 0.025 //12
 
         Text {
+            visible: !osk.inline
             textFormat: Text.PlainText
             text: osk.title
             color: root.primaryColor
@@ -152,7 +188,7 @@ FocusScope {
                     anchors.verticalCenter: typed.verticalCenter
                     color: root.primaryColor
                     antialiasing: false
-                    visible: blink.on
+                    visible: blink.on && osk.live
                 }
             }
             Timer {
@@ -160,7 +196,7 @@ FocusScope {
                 property bool on: true
                 interval: 500
                 repeat: true
-                running: osk.visible
+                running: osk.visible && osk.live
                 onTriggered: on = !on
             }
         }
@@ -186,14 +222,14 @@ FocusScope {
                                 anchors.centerIn: parent
                                 width: keyText.implicitWidth + 2 * root.sw * 0.009375
                                 height: parent.height
-                                visible: parent.current
+                                visible: parent.current && osk.live
                                 skinned: false
                             }
                             Text {
                                 id: keyText
                                 anchors.centerIn: parent
                                 text: modelData
-                                color: parent.current ? root.surfaceColor : root.primaryColor
+                                color: parent.current && osk.live ? root.surfaceColor : root.primaryColor
                                 font.family: root.globalFont
                                 font.pixelSize: osk.fontSize
                             }
@@ -205,6 +241,7 @@ FocusScope {
     }
 
     HintBar {
+        visible: !osk.inline
         text: root.hints.back + ":CANCEL " + root.hints.navigate + ":MOVE " + root.hints.select + ":TYPE"
         anchors.bottom: parent.bottom
         anchors.left: parent.left

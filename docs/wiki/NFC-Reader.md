@@ -94,9 +94,9 @@ Only files ending in `.txt` count. If two files hold the same UID, the one that 
 
 | Second line | Plays |
 |---|---|
-| An absolute path: `/media/OSD-OS/Sci-Fi/Terminator 2 (1991).mp4` | That file, in mpv. On the image, `/media/OSD-OS` is the card's film partition, and USB drives are under `/media/usb/<label>`. |
+| An absolute path: `/media/OSD-OS/Movies/Sci-Fi/Terminator 2 (1991).mp4` | That file, in mpv. On the image, `/media/OSD-OS` is the card's film partition, with the films in its `Movies` folder, and USB drives are under `/media/usb/<label>`. |
 | A relative path: `films/Fireplace.mp4` | That file in OSD/OS's own folder if it is there, otherwise in the data folder. |
-| A playlist file: `/media/OSD-OS/Rambo Marathon.m3u` | The list, in mpv. Resume remembers which video it was on. |
+| A playlist file: `/media/OSD-OS/Movies/Rambo Marathon.m3u` | The list, in mpv. Resume remembers which video it was on. |
 | A stream URL: `http://…` or `https://…` | That stream, in mpv. |
 | A YouTube URL: `https://www.youtube.com/watch?v=Eg8tK1LpLS8` | The video, through yt-dlp, at the module's YouTube Video Resolution. A playlist URL (`https://www.youtube.com/playlist?list=…`) plays the playlist, and resume remembers which video it was on. |
 | A Plex guid: `plex://movie/…`, `plex://show/…`, `plex://season/…`, `plex://episode/…` | Handed to the Plex module, which finds it on your server and plays it. See [Card hand-off](https://github.com/mehmetraif/OSD-OS/wiki/NFC-Reader#card-hand-off-to-another-module). |
@@ -110,7 +110,7 @@ A film on the card's film partition, `Terminator 2 (1991).txt`:
 
 ```text
 04:A2:3B:1C:5D:80:01
-/media/OSD-OS/Sci-Fi/Terminator 2 (1991).mp4
+/media/OSD-OS/Movies/Sci-Fi/Terminator 2 (1991).mp4
 ```
 
 A YouTube video, `Laserdisc An Introduction.txt`:

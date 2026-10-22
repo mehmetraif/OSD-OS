@@ -49,7 +49,7 @@ What changes against flashing Raspberry Pi OS Lite and running `scripts/install.
 | apt, man-db, e2scrub and dpkg-backup timers, cron | Running | Switched off |
 | Raspberry Pi Connect agent | Installed | Removed |
 | cloud-init | Runs at every boot | First boot only |
-| Where films go | `~/.local/share/OSD-OS/media` | The card's own exFAT partition, `/media/OSD-OS` |
+| Where films go | `~/.local/share/OSD-OS/media/Movies` | Movies on the card's own exFAT partition, `/media/OSD-OS/Movies` |
 | USB drives | Not mounted by themselves | Mounted read-only under `/media/usb` as they come |
 | Netflix, Prime Video, YouTube sign-in | Install Chromium, Widevine, cage and wtype yourself | Included |
 | YouTube | Install yt-dlp and Deno yourself | Included; yt-dlp updates itself |
@@ -229,6 +229,7 @@ The `[boot]` lines read `boot screen up, watching 4 unit(s)`, `first frame … m
 | `osdos-setup-app.service`, `osdos-setup.service` | Enabled, and run only with an `osdos-setup.json` on the boot partition (or what a start cut short left): OSD/OS Setup's file taken off it and OSD/OS's own settings set before OSD/OS starts, the rest once it is on screen, as SETTINGS on the boot screen ([OSD/OS Setup](https://github.com/mehmetraif/OSD-OS/wiki/The-OSD-OS-Image#osdos-setup)) |
 | `osdos-yt-dlp-update.timer` | Updates yt-dlp two minutes after each boot and once a day ([Updates](https://github.com/mehmetraif/OSD-OS/wiki/The-OSD-OS-Image#updates)) |
 | `osdos-usb-mount@<device>.service` | One per USB drive plugged in ([USB drives](https://github.com/mehmetraif/OSD-OS/wiki/The-OSD-OS-Image#usb-drives)) |
+| `osdos-media-folders.service` | Started by the film partition's mount (`media-OSD\x2dOS.mount.wants`): makes the **Movies** folder on it, so the card has it from its first boot on. OSD/OS itself may start before the partition is mounted (it is mounted `nofail`, which holds nothing back), and a folder it made then would lie under the mount point |
 | `osdos-jamma.service` | Enabled, and does something only with the JAMMA display preset in force: a Raspberry Pi to JAMMA board's joysticks and buttons as two gamepads ([Controls](https://github.com/mehmetraif/OSD-OS/wiki/Controls#a-jamma-cabinet)), as a user of its own (`DynamicUser=yes`) in the `i2c` and `input` groups. Without the preset it exits at once; with it and no board, after 15 seconds |
 | `osdos-display.socket` | Enabled: Settings → Display Output's At Next Start, through `osdos-display@.service` ([At Next Start's socket](https://github.com/mehmetraif/OSD-OS/wiki/The-OSD-OS-Image#at-next-starts-socket)) |
 | `osdos-wifi.socket` | Enabled: Settings → Wi-Fi's country, through `osdos-wifi@.service` ([The Wi-Fi country's socket](https://github.com/mehmetraif/OSD-OS/wiki/The-OSD-OS-Image#the-wi-fi-countrys-socket)) |
@@ -284,7 +285,7 @@ WantedBy=multi-user.target
 - **`OSDOS_AUTOSTART=1`** tells OSD/OS it runs as the system's own: Quit offers Power Off, Restart and Exit to Terminal, and Settings offers Display Output.
 - **`Restart=on-failure`** starts OSD/OS again five seconds after a crash or an error exit. **`StartLimitBurst=3`** in **`StartLimitIntervalSec=120`** makes the third start in two minutes the last: when that one fails too, the service is failed, and **`OnFailure=`** starts `osdos-terminal.service`, a login prompt on the screen. **`RestartMode=direct`** (systemd 254 or later; the image has 257) keeps the failures before that from bringing the prompt up too: without it, systemd runs `OnFailure=` at every failure, a restart to follow or not. The Pi stays on throughout.
 - **`SuccessExitStatus`** counts Exit to Terminal (10), a restart (12), a display switch (20 to 30, and 40 to 50 with a power-off) and a stop from outside (129, 130, 143) as no failure, so systemd neither starts OSD/OS again over them nor brings up the login prompt. `osdos-stop` acts on them ([Quitting](https://github.com/mehmetraif/OSD-OS/wiki/The-OSD-OS-Image#quitting-restarting-and-exit-to-terminal)).
-- **The drop-in** `/etc/systemd/system/osdos.service.d/osdos-media.conf` adds `Environment=OSDOS_MEDIA_DIR=/media/OSD-OS`: Local Files opens the film partition while its Media Directory setting is unset.
+- **The drop-in** `/etc/systemd/system/osdos.service.d/osdos-media.conf` adds `Environment=OSDOS_MEDIA_DIR=/media/OSD-OS`: Local Files opens the **Movies** folder on the film partition while its Media Directory setting is unset, and the Arcade module its **Games/Arcade** folder while its Games Folder setting is.
 
 ## Nothing between the app and the screen
 
@@ -303,7 +304,7 @@ With **Transparent Background**, mpv runs inside OSD/OS as libmpv instead. OSD/O
 
 ## Films on the card
 
-The card's free space becomes a partition of its own, in exFAT, labelled **OSD-OS**. Windows and macOS read and write exFAT, so films copied onto it from a computer show up in Local Files.
+The card's free space becomes a partition of its own, in exFAT, labelled **OSD-OS**. Windows and macOS read and write exFAT, so films copied into its **Movies** folder from a computer show up in Local Files.
 
 ### How the card is split
 
@@ -342,16 +343,16 @@ LABEL=OSD-OS  /media/OSD-OS  exfat  rw,noexec,nosuid,nodev,nofail,noatime,uid=10
 | `noatime` | No write each time a film is read |
 | `0  2` | Checked at every boot with `fsck.exfat` before it is mounted: switching the Pi off at the wall mid-download can leave it untidy |
 
-The Playlists module writes each downloaded video to the card as it completes, into a **Playlists** folder there (its Download Folder setting can name another).
+The Playlists module writes each downloaded video to the card as it completes, into a **Playlists** folder in **Movies** (its Download Folder setting can name another).
 
 ### Copying films onto it
 
 1. Quit OSD/OS (Settings → Quit → Power Off) and take the card out.
-2. In a computer's card reader the card shows up as two drives, **bootfs** and **OSD-OS**. Copy films onto **OSD-OS**, in folders if you like.
+2. In a computer's card reader the card shows up as two drives, **bootfs** and **OSD-OS**. Copy films into the **Movies** folder on **OSD-OS**, in folders if you like.
 3. Windows also offers to format the system's partition, which it can't read. Always say no (**Cancel**): formatting it erases the system.
-4. Put the card back in the Pi. Local Files opens **OSD-OS** (`/media/OSD-OS`) until its Media Directory setting names another folder ([Local Files](https://github.com/mehmetraif/OSD-OS/wiki/Local-Files)).
+4. Put the card back in the Pi. Local Files opens the **Movies** folder on **OSD-OS** (`/media/OSD-OS/Movies`) until its Media Directory setting names another folder ([Local Files](https://github.com/mehmetraif/OSD-OS/wiki/Local-Files)).
 
-Arcade games go there too: the Arcade module plays the MAME ROM sets in a **Games/Arcade** folder on it, which it makes the first time it opens, or which you can make on the computer. Its Games Folder setting can name another ([Arcade](https://github.com/mehmetraif/OSD-OS/wiki/Arcade#setting-it-up)).
+Arcade games go on it too, beside **Movies**, so they never show among the films: the Arcade module plays the MAME ROM sets in a **Games/Arcade** folder on it, which it makes the first time it opens, or which you can make on the computer. Its Games Folder setting can name another ([Arcade](https://github.com/mehmetraif/OSD-OS/wiki/Arcade#setting-it-up)).
 
 > **Flashing an image again erases the whole card**, the films on OSD-OS included: the new image's first boot formats the partition afresh. Copy the films off first ([Moving to a new image](https://github.com/mehmetraif/OSD-OS/wiki/The-OSD-OS-Image#moving-to-a-new-image)).
 
@@ -697,7 +698,7 @@ Then start OSD/OS again ([Exit to Terminal](https://github.com/mehmetraif/OSD-OS
 | `/run/osdos-display.sock`, `/run/osdos-display-boot.txt` | At Next Start's socket, and the display preset this boot started on once one waits for the next start |
 | `/run/osdos-wifi.sock` | The Wi-Fi country's socket |
 | `/home/pi/.local/share/OSD-OS/` | The data folder: `config.json`, `lists.json`, sign-ins, `bin/yt-dlp`, `updates/` ([Configuration files](https://github.com/mehmetraif/OSD-OS/wiki/Configuration-Files)) |
-| `/media/OSD-OS` | The film partition |
+| `/media/OSD-OS` | The film partition: films in `Movies`, the Arcade module's games in `Games/Arcade` |
 | `/media/usb/<label>` | USB drives, read-only |
 | `/boot/firmware/config.txt` | The firmware's settings, including `osdos-display.txt` |
 | `/boot/firmware/osdos-display.txt`, `osdos-display-*.txt` | The display output in force, and the presets ([Display Output](https://github.com/mehmetraif/OSD-OS/wiki/Display-Output)) |
@@ -856,7 +857,7 @@ flowchart TD
 | [`02-system`](https://github.com/mehmetraif/OSD-OS/tree/main/os/stage-osdos/02-system) | The service, the terminal, the stop helper, At Next Start's socket and the Wi-Fi country's, the NetworkManager polkit rule, the cloud-init switch, OSD/OS Setup's applier and its service, the tty rule, the JAMMA controls' service, modules and uinput rule, the boot order, the online check's 20 seconds, the Bluetooth unblock, the autologin of a locked user; the `bluetooth` group, the masked getty, the removed timers, cron and Raspberry Pi Connect | |
 | [`03-boot`](https://github.com/mehmetraif/OSD-OS/tree/main/os/stage-osdos/03-boot) | `config.txt`, the display presets and `osdos-display.txt` (from `OSDOS_DISPLAY`), the JAMMA preset's Pi 5 overlay (`osdos-jamma-dpi`, compiled with `device-tree-compiler`), the quiet `cmdline.txt` | |
 | [`04-streaming`](https://github.com/mehmetraif/OSD-OS/tree/main/os/stage-osdos/04-streaming) | `chromium`, `rpi-chromium-mods`, `libwidevinecdm0`, `libgl1-mesa-dri`, `fonts-liberation`, `cage`, `wtype` | `OSDOS_STREAMING=0` |
-| [`05-media`](https://github.com/mehmetraif/OSD-OS/tree/main/os/stage-osdos/05-media) | `exfatprogs`, the `resize_early` override and its initramfs hook, `/media/OSD-OS`, its `fstab` line and `OSDOS_MEDIA_DIR` | `OSDOS_ROOT_SIZE=0` |
+| [`05-media`](https://github.com/mehmetraif/OSD-OS/tree/main/os/stage-osdos/05-media) | `exfatprogs`, the `resize_early` override and its initramfs hook, `/media/OSD-OS`, its `fstab` line, `osdos-media-folders.service` and `OSDOS_MEDIA_DIR` | `OSDOS_ROOT_SIZE=0` |
 | [`06-youtube`](https://github.com/mehmetraif/OSD-OS/tree/main/os/stage-osdos/06-youtube) | Python with pycryptodome, requests and brotli; ffmpeg; yt-dlp's nightly build, checked against its SHA-256 sums; Deno, pinned (today `v2.9.7`) with its checksum and licence; the update timer | `OSDOS_YOUTUBE=0` |
 | [`07-usb`](https://github.com/mehmetraif/OSD-OS/tree/main/os/stage-osdos/07-usb) | `ntfs-3g`, the USB rule, unit and script, `/media/usb` | |
 | [`08-arcade`](https://github.com/mehmetraif/OSD-OS/tree/main/os/stage-osdos/08-arcade) | Debian's `mame` and `mame-data`: MAME 0.276 for the Arcade module, with its data and plugins (the hiscore plugin among them), about 450 MB with what they depend on; Debian's `retroarch`, and the FinalBurn Neo core, its list of games and its licence, downloaded as the image is built (libretro's latest nightly build), about 230 MB more | `OSDOS_ARCADE=0` |

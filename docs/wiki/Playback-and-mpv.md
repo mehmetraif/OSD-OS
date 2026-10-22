@@ -147,7 +147,7 @@ What OSD/OS runs to play a film from Local Files on a Pi 4 with the OSD/OS image
   --hwdec=drm-copy,v4l2m2m-copy \
   --no-input-terminal \
   -- \
-  '/media/OSD-OS/Sci-Fi/Terminator 2 (1991).mp4'
+  '/media/OSD-OS/Movies/Sci-Fi/Terminator 2 (1991).mp4'
 ```
 
 | Flags | Why |

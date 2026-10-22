@@ -60,7 +60,7 @@ Each video's line shows its title and, against the right edge, a value:
 | `NOT ALLOWED` | Offline lists | The server doesn't let your user download it |
 | `MISSING` | Both | A Local Files file that isn't there any more (moved, deleted, or on a USB drive that is out), or, on an online list, a Jellyfin or Emby video while you are signed out of that server |
 
-The help line under the list shows the full title of the video under the cursor, and for a failed download the reason after it: `Street Fighter (1994): the server doesn't let this user download it`, `…: no yt-dlp`, `…: signed out`, `…: can't write to /media/OSD-OS/Playlists`, or yt-dlp's own error.
+The help line under the list shows the full title of the video under the cursor, and for a failed download the reason after it: `Street Fighter (1994): the server doesn't let this user download it`, `…: no yt-dlp`, `…: signed out`, `…: can't write to /media/OSD-OS/Movies/Playlists`, or yt-dlp's own error.
 
 Select on a video opens its choices:
 
@@ -213,14 +213,14 @@ flowchart TD
 
 | Local Files' media folder | Default download folder |
 |---|---|
-| On the OSD/OS image, unchanged: `/media/OSD-OS`, the card's OSD-OS partition ([The film partition](https://github.com/mehmetraif/OSD-OS/wiki/Local-Files#the-film-partition-on-the-osdos-image)) | `/media/OSD-OS/Playlists` |
-| Elsewhere, unchanged: `<data folder>/media` | `~/.local/share/OSD-OS/media/Playlists` on Linux, `~/Library/Application Support/OSD-OS/media/Playlists` on a Mac |
-| Set in **Settings → TV / Movie → Local Files → Media Directory** (or by `OSDOS_MEDIA_DIR`, [Local Files](https://github.com/mehmetraif/OSD-OS/wiki/Local-Files#the-media-folder)) | `<that folder>/Playlists` |
+| On the OSD/OS image, unchanged: `/media/OSD-OS/Movies`, the Movies folder on the card's OSD-OS partition ([The film partition](https://github.com/mehmetraif/OSD-OS/wiki/Local-Files#the-film-partition-on-the-osdos-image)) | `/media/OSD-OS/Movies/Playlists` |
+| Elsewhere, unchanged: `<data folder>/media/Movies` | `~/.local/share/OSD-OS/media/Movies/Playlists` on Linux, `~/Library/Application Support/OSD-OS/media/Movies/Playlists` on a Mac |
+| Set in **Settings → TV / Movie → Local Files → Media Directory** (or `Movies` in the folder `OSDOS_MEDIA_DIR` names, [Local Files](https://github.com/mehmetraif/OSD-OS/wiki/Local-Files#the-media-folder)) | `<that folder>/Playlists` |
 
 Inside it each source has a folder of its own, made as needed, and each file carries the video's id in brackets, so two videos of the same name never collide:
 
 ```text
-/media/OSD-OS/Playlists/
+/media/OSD-OS/Movies/Playlists/
 ├── YouTube/
 │   └── Saturday Morning Commercials 1985 [aBcD3fGh1jK].mp4
 ├── Jellyfin/
@@ -246,7 +246,7 @@ yt-dlp \
   -f 'bestvideo[height<=?480][vcodec^=avc1]+bestaudio/bestvideo[height<=?480]+bestaudio/best[height<=?480]/best' \
   --merge-output-format mp4 \
   --newline --no-playlist --no-mtime --windows-filenames \
-  -o '/media/OSD-OS/Playlists/YouTube/%(title).80B [%(id)s].%(ext)s' \
+  -o '/media/OSD-OS/Movies/Playlists/YouTube/%(title).80B [%(id)s].%(ext)s' \
   --print after_move:filepath --no-simulate --progress \
   -- 'https://www.youtube.com/watch?v=aBcD3fGh1jK'
 ```
@@ -365,12 +365,12 @@ A file with one offline and one online playlist, in the form OSD/OS writes it (f
         },
         "jellyfin:5f1c0a8e9b2d4c6f8a1e3b5d7c9f0a2b": {
             "bytes": 734003200,
-            "path": "/media/OSD-OS/Playlists/Jellyfin/Kickboxer (1989) [5f1c0a8e9b2d4c6f8a1e3b5d7c9f0a2b].mkv",
+            "path": "/media/OSD-OS/Movies/Playlists/Jellyfin/Kickboxer (1989) [5f1c0a8e9b2d4c6f8a1e3b5d7c9f0a2b].mkv",
             "state": "done"
         },
         "youtube:aBcD3fGh1jK": {
             "bytes": 48230112,
-            "path": "/media/OSD-OS/Playlists/YouTube/Saturday Morning Commercials 1985 [aBcD3fGh1jK].mp4",
+            "path": "/media/OSD-OS/Movies/Playlists/YouTube/Saturday Morning Commercials 1985 [aBcD3fGh1jK].mp4",
             "state": "done"
         }
     },
@@ -399,10 +399,10 @@ A file with one offline and one online playlist, in the form OSD/OS writes it (f
                 },
                 {
                     "id": "c7e5b3a1-8f6d-4b2e-9a0c-5d4e3f2a1b0c",
-                    "key": "local:/media/OSD-OS/Martial Arts/Bloodsport (1988).mp4",
+                    "key": "local:/media/OSD-OS/Movies/Martial Arts/Bloodsport (1988).mp4",
                     "module": "com.osdos.local_files",
                     "source": {
-                        "path": "/media/OSD-OS/Martial Arts/Bloodsport (1988).mp4"
+                        "path": "/media/OSD-OS/Movies/Martial Arts/Bloodsport (1988).mp4"
                     },
                     "title": "Bloodsport (1988).mp4"
                 },
@@ -429,10 +429,10 @@ A file with one offline and one online playlist, in the form OSD/OS writes it (f
             "items": [
                 {
                     "id": "2c4e6a8b-1d3f-4b5a-9c7e-8f0a2b4c6d8e",
-                    "key": "local:/media/OSD-OS/Martial Arts/Bloodsport (1988).mp4",
+                    "key": "local:/media/OSD-OS/Movies/Martial Arts/Bloodsport (1988).mp4",
                     "module": "com.osdos.local_files",
                     "source": {
-                        "path": "/media/OSD-OS/Martial Arts/Bloodsport (1988).mp4"
+                        "path": "/media/OSD-OS/Movies/Martial Arts/Bloodsport (1988).mp4"
                     },
                     "title": "Bloodsport (1988).mp4"
                 },
@@ -465,7 +465,7 @@ Each time a list starts, it is written into `playlists/<playlist id>-<n>.m3u` in
 ```text
 #EXTM3U
 #EXTINF:-1,Bloodsport (1988).mp4
-/media/OSD-OS/Martial Arts/Bloodsport (1988).mp4
+/media/OSD-OS/Movies/Martial Arts/Bloodsport (1988).mp4
 #EXTINF:-1,Street Fighter (1994)
 http://192.168.1.30:8096/Videos/20733/stream?static=true&api_key=<token>
 ```

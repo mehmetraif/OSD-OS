@@ -67,9 +67,10 @@ public slots:
     void onSettingChanged(const QString &moduleId, const QString &key, const QVariant &value);
 
 private:
-    // The folder when the setting names none: OSDOS_MEDIA_DIR when the system
-    // says where films go (OSD/OS image: the card's film partition), else a
-    // folder in the data folder.
+    // The folder when the setting names none: Movies in OSDOS_MEDIA_DIR when
+    // the system says where media go (OSD/OS image: the card's OSD-OS
+    // partition, the Arcade's Games beside it), else in a folder in the data
+    // folder. setMediaRoot() makes it.
     QString defaultMediaRoot() const;
 
     bool allowedDirectory(const QString &path) const;

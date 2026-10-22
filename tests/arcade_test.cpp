@@ -61,6 +61,7 @@ machine() {
 	xmen6p) echo '<machine name="xmen6p" sourcefile="konami/xmen.cpp" cloneof="xmen"><description>X-Men (6 Players ver EAB)</description><year>1992</year><manufacturer>Konami</manufacturer><display tag="lscreen" rotate="270"/><display tag="rscreen" rotate="0"/><input players="6"/><driver status="imperfect"/></machine>' ;;
 	kinst) echo '<machine name="kinst"><description>Killer Instinct (v1.5d)</description><year>1994</year><manufacturer>Rare / Nintendo</manufacturer><input players="2"/><driver status="good"/></machine>' ;;
 	sf2) echo '<machine name="sf2" sourcefile="capcom/cps1.cpp"><description>Street Fighter II: The World Warrior</description><year>1991</year><manufacturer>Capcom</manufacturer><input players="2"/><driver status="good"/></machine>' ;;
+	mspacman) echo '<machine name="mspacman" sourcefile="pacman/pacman.cpp"><description>Ms. Pac-Man</description><year>1981</year><manufacturer>Midway / General Computer Corporation</manufacturer><input players="2"/><driver status="good"/></machine>' ;;
 	acefruit) echo '<machine name="acefruit"><description>Ace (Cassette)</description><year>1982?</year><manufacturer>unknown</manufacturer><input players="1"/><driver status="preliminary"/></machine>' ;;
 	*) return 1 ;;
 	esac
@@ -1018,6 +1019,7 @@ private slots:
         launch.saveDir = QStringLiteral("/ra/saves");
         launch.stateDir = QStringLiteral("/ra/states");
         launch.configDir = QStringLiteral("/ra/config");
+        launch.infoDir = QStringLiteral("/ra/info");
         launch.pads = { QStringLiteral("045e:028e Xbox 360 Controller"), QString(), QStringLiteral("JAMMA \"P3\"") };
         launch.achievementsUser = QStringLiteral("player");
         launch.achievementsPassword = QStringLiteral("secret");
@@ -1039,8 +1041,20 @@ private slots:
                                   "input_player1_reserved_device = \"045e:028e Xbox 360 Controller\"",
                                   "input_player3_reserved_device = \"JAMMA P3\"",
                                   "cheevos_enable = \"true\"", "cheevos_username = \"player\"", "cheevos_token = \"\"",
-                                  "cheevos_password = \"secret\"", "cheevos_hardcore_mode_enable = \"true\"" })
+                                  "cheevos_password = \"secret\"", "cheevos_hardcore_mode_enable = \"true\"",
+                                  // The core known by its info file: among the cores of
+                                  // its own folder, the file OSD/OS writes read afresh.
+                                  "libretro_directory = \"/cores\"", "libretro_info_path = \"/ra/info\"",
+                                  "core_info_cache_enable = \"false\"" })
             QVERIFY2(has(QLatin1String(line)), line);
+        // That file, by the core's name: its states deterministic, the same
+        // on every machine, without which RetroArch neither hosts nor joins
+        // a game with it.
+        QCOMPARE(libretro::coreInfoPath(QStringLiteral("/ra/info")), QStringLiteral("/ra/info/fbneo_libretro.info"));
+        const QStringList info = libretro::coreInfoText().split(QLatin1Char('\n'));
+        for (const char *line : { "corename = \"FinalBurn Neo\"", "savestate = \"true\"",
+                                  "savestate_features = \"deterministic\"" })
+            QVERIFY2(info.contains(QLatin1String(line)), line);
         QVERIFY(!config.contains(QStringLiteral("input_player2_reserved_device")));
         QVERIFY(!config.contains(QStringLiteral("input_player7_")));
         QVERIFY(!config.contains(QStringLiteral("netplay_")));
@@ -1126,7 +1140,8 @@ private slots:
         QVERIFY(!config.contains(QStringLiteral("video_driver")));
         QVERIFY(!config.contains(QStringLiteral("input_driver ")));
         for (const char *line : { "netplay_nickname = \"Mehmet\"", "netplay_public_announce = \"true\"",
-                                  "netplay_use_mitm_server = \"true\"", "netplay_mitm_server = \"madrid\"" })
+                                  "netplay_use_mitm_server = \"true\"", "netplay_mitm_server = \"madrid\"",
+                                  "libretro_directory = \"/cores\"", "libretro_info_path = \"/ra/info\"" })
             QVERIFY2(has(QLatin1String(line)), line);
 
         QCOMPARE(libretro::arguments(launch),
@@ -1484,6 +1499,10 @@ private slots:
                            .arg(libretro::downloadedCore(data.path()), home, games));
         QVERIFY(logLines().contains(QStringLiteral("cwd ") + home));
         QVERIFY(logLines().contains(QStringLiteral("sdlconfig ") + data.path() + QStringLiteral("/gamecontrollerdb.txt")));
+        // FinalBurn Neo's info file written for it, which has RetroArch take
+        // its states for deterministic, as netplay needs them.
+        QVERIFY(logLines().contains(QStringLiteral("coreinfo deterministic")));
+        QVERIFY(contents(home + QStringLiteral("/info/fbneo_libretro.info")).contains("savestate_features = \"deterministic\""));
         QString config = QString::fromUtf8(contents(configCopy));
         QVERIFY2(config.contains(QStringLiteral("cheevos_password = \"secret\"")), qPrintable(config));
         QVERIFY(config.contains(QStringLiteral("cheevos_username = \"player\"")));
@@ -1616,6 +1635,15 @@ private slots:
         config = QString::fromUtf8(contents(configCopy));
         QVERIFY(!config.contains(QStringLiteral("aspect_ratio_index")));
         QVERIFY(config.contains(QStringLiteral("video_scale_integer = \"false\"")));
+        // FinalBurn Neo's info file that can't be written (a file where its
+        // folder goes): nothing started, as with RetroArch's settings.
+        QVERIFY(QDir(home + QStringLiteral("/info")).removeRecursively());
+        writeFile(home + QStringLiteral("/info"));
+        QFile::remove(m_log);
+        QVERIFY(!arcade.play(QStringLiteral("galaga")));
+        QCOMPARE(arcade.lastError(), QStringLiteral("RetroArch's settings could not be written"));
+        QVERIFY(logLines(QStringLiteral("retroarch ")).isEmpty());
+        QVERIFY(QFile::remove(home + QStringLiteral("/info")));
         // MAME as before for the rest.
         QFile::remove(m_log);
         end = played(arcade, QStringLiteral("pacman"));
@@ -3532,10 +3560,14 @@ private slots:
             }
         }
         arcade.onSettingChanged(module, QStringLiteral("online_play"), QStringLiteral("On"));
-        // The Arcade screen's filter, after All Games.
+        // The Arcade screen's filter, after All Games; then RetroArch Lobby,
+        // every room of the lobby.
         const QVariantList filters = arcade.filters();
         QCOMPARE(filters.value(1).toMap().value(QStringLiteral("id")).toString(), QStringLiteral("online"));
         QCOMPARE(filters.value(1).toMap().value(QStringLiteral("count")).toInt(), 1);
+        QCOMPARE(filters.value(2).toMap().value(QStringLiteral("id")).toString(), QStringLiteral("lobby"));
+        QCOMPARE(filters.value(2).toMap().value(QStringLiteral("name")).toString(), QStringLiteral("RetroArch Lobby"));
+        QCOMPARE(filters.value(2).toMap().value(QStringLiteral("count")).toInt(), 11);
         const QVariantMap row = arcade.filterGames(QStringLiteral("online"), 0, 7).value(0).toMap();
         QCOMPARE(row.value(QStringLiteral("set")).toString(), QStringLiteral("sf2"));
         QCOMPARE(row.value(QStringLiteral("room")).toInt(), 11);
@@ -3544,6 +3576,54 @@ private slots:
         QCOMPARE(arcade.filterIndex(QStringLiteral("online"), QStringLiteral("sf2"), 11), 0);
         QCOMPARE(arcade.filterIndex(QStringLiteral("online"), QStringLiteral("sf2"), 99), 0);
         QCOMPARE(arcade.filterIndex(QStringLiteral("online"), QStringLiteral("pacman"), 99), -1);
+        // RetroArch Lobby's rows: the rooms as lobby() has them, each by the
+        // name the lobby has for its game and its host, the folder's game by
+        // its set, another's with none; a room's row by its id.
+        const QVariantList lobbyRows = arcade.filterGames(QStringLiteral("lobby"), 0, 20);
+        QStringList lobbyOrder;
+        for (const QVariant &v : lobbyRows)
+            lobbyOrder << QString::number(v.toMap().value(QStringLiteral("room")).toInt());
+        QCOMPARE(lobbyOrder, order);
+        const QVariantMap joinRow = lobbyRows.value(lobbyOrder.indexOf(QStringLiteral("11"))).toMap();
+        QCOMPARE(joinRow.value(QStringLiteral("set")).toString(), QStringLiteral("sf2"));
+        QCOMPARE(joinRow.value(QStringLiteral("name")).toString(), QStringLiteral("Street Fighter II: The World Warrior (ann)"));
+        QCOMPARE(joinRow.value(QStringLiteral("host")).toString(), QStringLiteral("ann"));
+        QVERIFY(joinRow.value(QStringLiteral("lobby")).toMap().value(QStringLiteral("joinable")).toBool());
+        const QVariantMap kartRow = lobbyRows.value(lobbyOrder.indexOf(QStringLiteral("22"))).toMap();
+        QCOMPARE(kartRow.value(QStringLiteral("set")).toString(), QString());
+        QVERIFY(kartRow.value(QStringLiteral("name")).toString().startsWith(QStringLiteral("Super Mario Kart (USA) (")));
+        QCOMPARE(kartRow.value(QStringLiteral("lobby")).toMap().value(QStringLiteral("crc")).toString(), QStringLiteral("82993FA8"));
+        QCOMPARE(arcade.filterIndex(QStringLiteral("lobby"), QString(), 22), lobbyOrder.indexOf(QStringLiteral("22")));
+        // One gone: the game's first room; none for one of no game here.
+        QCOMPARE(arcade.filterIndex(QStringLiteral("lobby"), QString(), 99), -1);
+        qsizetype firstSf2 = 0;
+        while (firstSf2 < lobbyRows.size() && lobbyRows.at(firstSf2).toMap().value(QStringLiteral("set")) != QStringLiteral("sf2"))
+            ++firstSf2;
+        QVERIFY(firstSf2 < lobbyOrder.indexOf(QStringLiteral("11")));
+        QCOMPARE(arcade.filterIndex(QStringLiteral("lobby"), QStringLiteral("sf2"), 99), int(firstSf2));
+        // Start Filter can open on it.
+        QSignalSpy startOptions(&arcade, &ArcadeBackend::dynamicOptionsReady);
+        arcade.startFilterOptions();
+        QTRY_COMPARE_WITH_TIMEOUT(startOptions.size(), 1, 5000);
+        QCOMPARE(startOptions.first().at(1).toList().value(1).toMap().value(QStringLiteral("id")).toString(),
+                 QStringLiteral("lobby"));
+        const auto offersLobby = [&startOptions] {
+            for (const QVariant &v : startOptions.last().at(1).toList()) {
+                if (v.toMap().value(QStringLiteral("id")).toString() == QLatin1String("lobby"))
+                    return true;
+            }
+            return false;
+        };
+        // Online Play off: none of it, though the lobby was read, and Start
+        // Filter's choices sent again without it; on, with it.
+        arcade.onSettingChanged(module, QStringLiteral("online_play"), QStringLiteral("Off"));
+        QVERIFY(arcade.filterGames(QStringLiteral("lobby"), 0, 7).isEmpty());
+        QTRY_COMPARE_WITH_TIMEOUT(startOptions.size(), 2, 5000);
+        QCOMPARE(startOptions.last().at(0).toString(), QStringLiteral("start_filter"));
+        QVERIFY(!offersLobby());
+        arcade.onSettingChanged(module, QStringLiteral("online_play"), QStringLiteral("On"));
+        QTRY_COMPARE_WITH_TIMEOUT(startOptions.size(), 3, 5000);
+        QVERIFY(offersLobby());
 
         // Joined: RetroArch connects to the room, under the default name, not
         // the device's, which stays off the internet. The JAMMA board's
@@ -3588,6 +3668,9 @@ private slots:
         QVERIFY(!config.contains(QStringLiteral("netplay_public_announce")));
         QVERIFY(onPads(config));
         QVERIFY(!QFileInfo::exists(remap));
+        // The core's states taken for deterministic: joined, not "Core does
+        // not support netplay".
+        QVERIFY(logLines().contains(QStringLiteral("coreinfo deterministic")));
         // Hosted: announced in the lobby through the relay chosen, under the
         // online name.
         arcade.onSettingChanged(module, QStringLiteral("online_name"), QStringLiteral(" Mehmet "));
@@ -3603,6 +3686,7 @@ private slots:
             QVERIFY2(config.contains(QLatin1String(line)), line);
         QVERIFY(onPads(config));
         QVERIFY(!QFileInfo::exists(remap));
+        QVERIFY(logLines().contains(QStringLiteral("coreinfo deterministic")));
         // Files missing in a game hosted, which plays online in FinalBurn Neo
         // alone: nothing said of MAME.
         const QVariantList missing = ended([&arcade] { return arcade.hostGame(QStringLiteral("mslug")); });
@@ -3633,7 +3717,18 @@ private slots:
         QCOMPARE(gone.value(QStringLiteral("kind")).toString(), QStringLiteral("message"));
         QCOMPARE(gone.value(QStringLiteral("name")).toString(), QStringLiteral("Lobby Not Reachable"));
         QVERIFY(gone.value(QStringLiteral("detail")).toString().startsWith(QStringLiteral("RetroArch's lobby can't be reached")));
-        QCOMPARE(arcade.filters().value(1).toMap().value(QStringLiteral("id")).toString() == QLatin1String("online"), false);
+        // No Online Games then; RetroArch Lobby still there, with no room,
+        // for the screen to say why.
+        const auto filterCount = [&arcade](const QString &id) {
+            for (const QVariant &v : arcade.filters()) {
+                if (v.toMap().value(QStringLiteral("id")).toString() == id)
+                    return v.toMap().value(QStringLiteral("count")).toInt();
+            }
+            return -1;
+        };
+        QCOMPARE(filterCount(QStringLiteral("online")), -1);
+        QCOMPARE(filterCount(QStringLiteral("lobby")), 0);
+        QVERIFY(arcade.filterGames(QStringLiteral("lobby"), 0, 7).isEmpty());
 
         // FinalBurn Neo's core gone, and back: none can be played online
         // meanwhile. Its list gone: none either, as the folder is read again.
@@ -3653,10 +3748,12 @@ private slots:
         refreshed(arcade);
         QCOMPARE(listed(), 3);
 
-        // Off again: no Playable Online.
+        // Off again: no Playable Online, no RetroArch Lobby.
         arcade.onSettingChanged(module, QStringLiteral("online_play"), QStringLiteral("Off"));
         QVERIFY(playable().isEmpty());
         QCOMPARE(listed(), 0);
+        QCOMPARE(filterCount(QStringLiteral("lobby")), -1);
+        QVERIFY(arcade.filterGames(QStringLiteral("lobby"), 0, 7).isEmpty());
     }
 
     // LAN Play against a stand-in for the hosts on the local network, which
@@ -3737,6 +3834,16 @@ private slots:
         const auto detail = [&arcade](int at) {
             return arcade.lanRooms().value(at).toMap().value(QStringLiteral("detail")).toString();
         };
+        // The Arcade screen's LAN Games: its count, -1 while it isn't there;
+        // and what it says while it has no game.
+        const auto lanFilter = [&arcade] {
+            for (const QVariant &v : arcade.filters()) {
+                if (v.toMap().value(QStringLiteral("id")).toString() == QLatin1String("lan"))
+                    return v.toMap().value(QStringLiteral("count")).toInt();
+            }
+            return -1;
+        };
+        const auto lanSays = [&arcade] { return arcade.lanStatus().value(QStringLiteral("name")).toString(); };
         const auto ended = [&arcade](const std::function<bool()> &start) {
             QSignalSpy finished(&arcade, &ArcadeBackend::finished);
             if (!start())
@@ -3750,13 +3857,17 @@ private slots:
         // MAME.
         arcade.refreshLanRooms();
         QVERIFY(!names(arcade.requestEntries(QStringLiteral("top"))).contains(QStringLiteral("LAN Games")));
+        QCOMPARE(lanFilter(), -1);
         QVERIFY(!arcade.canHostLan(QStringLiteral("sf2")));
         QVERIFY(!arcade.statusIcons().contains(QStringLiteral("network")));
         QCOMPARE(arcade.engineOf(QStringLiteral("sf2")), QStringLiteral("mame"));
 
-        // On: LAN Games first, the games in FinalBurn Neo, its icon.
+        // On: LAN Games first, the games in FinalBurn Neo, its icon. The
+        // Arcade screen's LAN Games at once, saying the network is asked.
         arcade.onSettingChanged(module, QStringLiteral("lan_play"), QStringLiteral("On"));
         QCOMPARE(names(arcade.requestEntries(QStringLiteral("top"))).value(0), QStringLiteral("LAN Games"));
+        QCOMPARE(lanFilter(), 0);
+        QCOMPARE(lanSays(), QStringLiteral("Asking the Local Network…"));
         QVERIFY(arcade.canHostLan(QStringLiteral("sf2")));
         QVERIFY(!arcade.canHostLan(QStringLiteral("kof98")));
         QCOMPARE(arcade.engineOf(QStringLiteral("sf2")), QStringLiteral("fbneo"));
@@ -3845,6 +3956,7 @@ private slots:
         QString config = QString::fromUtf8(contents(configCopy));
         QVERIFY2(config.contains(QStringLiteral("netplay_nickname = \"garage-cab\"")), qPrintable(config));
         QVERIFY(!config.contains(QStringLiteral("netplay_public_announce")));
+        QVERIFY(logLines().contains(QStringLiteral("coreinfo deterministic")));
         // Hosted: on the network alone, straight, under the online name.
         arcade.onSettingChanged(module, QStringLiteral("online_name"), QStringLiteral("Mehmet"));
         QFile::remove(m_log);
@@ -3855,6 +3967,7 @@ private slots:
         for (const char *line : { "netplay_nickname = \"Mehmet\"", "netplay_public_announce = \"false\"",
                                   "netplay_use_mitm_server = \"false\"", "netplay_nat_traversal = \"false\"" })
             QVERIFY2(config.contains(QLatin1String(line)), line);
+        QVERIFY(logLines().contains(QStringLiteral("coreinfo deterministic")));
         // A room no longer hosted.
         QVERIFY(!arcade.joinLanRoom(2));
         QCOMPARE(arcade.lastError(), QStringLiteral("The game is no longer hosted on this network"));
@@ -3891,7 +4004,10 @@ private slots:
         QCOMPARE(message.value(QStringLiteral("name")).toString(), QStringLiteral("No LAN Games"));
         QCOMPARE(message.value(QStringLiteral("detail")).toString(),
                  QStringLiteral("No one on this network hosts a game you have: host one from a game's options"));
-        QVERIFY(arcade.filters().value(1).toMap().value(QStringLiteral("id")).toString() != QLatin1String("lan"));
+        // On the Arcade screen too, LAN Games with no game, saying the same.
+        QCOMPARE(lanFilter(), 0);
+        QCOMPARE(lanSays(), QStringLiteral("No LAN Games"));
+        QCOMPARE(arcade.lanStatus().value(QStringLiteral("detail")), message.value(QStringLiteral("detail")));
         // And back: the room heard before, by its id.
         answers = { eve };
         arcade.refreshLanRooms();
@@ -3906,10 +4022,17 @@ private slots:
         QCOMPARE(message.value(QStringLiteral("name")).toString(), QStringLiteral("Network Not Reachable"));
         QVERIFY2(message.value(QStringLiteral("detail")).toString().startsWith(QStringLiteral("The local network can't be reached: ")),
                  qPrintable(message.value(QStringLiteral("detail")).toString()));
+        QCOMPARE(lanSays(), QStringLiteral("Network Not Reachable"));
+        // FinalBurn Neo gone: that, first.
+        const QString core = libretro::downloadedCore(data.path());
+        QVERIFY(QFile::rename(core, core + QStringLiteral(".away")));
+        QCOMPARE(lanSays(), QStringLiteral("FinalBurn Neo Not Installed"));
+        QVERIFY(QFile::rename(core + QStringLiteral(".away"), core));
 
         // Off again: nothing of it.
         arcade.onSettingChanged(module, QStringLiteral("lan_play"), QStringLiteral("Off"));
         QVERIFY(arcade.lanRooms().isEmpty());
+        QCOMPARE(lanFilter(), -1);
         QVERIFY(!names(arcade.requestEntries(QStringLiteral("top"))).contains(QStringLiteral("LAN Games")));
         QVERIFY(!arcade.statusIcons().contains(QStringLiteral("network")));
         QCOMPARE(arcade.engineOf(QStringLiteral("sf2")), QStringLiteral("mame"));
@@ -4116,6 +4239,10 @@ private slots:
                                        .arg(m_data.path()));
         QCOMPARE(problem.size(), 1);
         QVERIFY(arcade.requestEntries(QStringLiteral("top")).toList().isEmpty());
+        // No filter for the Arcade screen, RetroArch Lobby with Online Play on
+        // included: it says why there are no games.
+        arcade.onSettingChanged(QStringLiteral("com.osdos.arcade"), QStringLiteral("online_play"), QStringLiteral("On"));
+        QVERIFY(arcade.filters().isEmpty());
     }
 
     // Without MAME the folder's sets are still listed, by their names, and
@@ -4257,7 +4384,8 @@ private slots:
             QStringLiteral("genres/Shmup Shmup 1"),
             QStringLiteral("players/1 1 Player 1"), QStringLiteral("players/2 2 Players 5"),
             QStringLiteral("players/6 6 Players 1"), QStringLiteral("years/1980s 1980s 3"),
-            QStringLiteral("years/1990s 1990s 4"), QStringLiteral("unknown Not Recognized 2") }));
+            QStringLiteral("years/1990s 1990s 4"), QStringLiteral("unknown Not Recognized 2"),
+            QStringLiteral("search Search 8") }));
 
         // A page: the games' titles, the favourites marked.
         const QVariantList first = arcade.filterGames(QStringLiteral("all"), 0, 3);
@@ -4351,7 +4479,83 @@ private slots:
         QVERIFY(arcade.filterGames(QStringLiteral("all"), 0, 3).isEmpty());
         QTRY_VERIFY_WITH_TIMEOUT(!arcade.scanning(), 10000);
         QVERIFY(!changed.isEmpty());
-        QCOMPARE(arcade.filters().size(), 13);
+        QCOMPARE(arcade.filters().size(), 14);
+    }
+
+    // Search, the Arcade screen's last filter, as its words are typed: its
+    // own row, then the games whose names or sets have every word in them,
+    // case, accents, signs and spaces aside; those whose name starts with
+    // the words, or that are the set typed, first, then those with a word
+    // starting with the first, then the rest, each in the list's order.
+    // Every game for no words. Its own row named after the words. The tree's
+    // Search finds the same, and nothing for no words. A game gone from the
+    // folder isn't found.
+    void search() {
+        ArcadeBackend arcade(m_data.path(), m_data.path(), nullptr, nullptr);
+        refreshed(arcade);
+        const auto found = [&arcade](const QString &words) {
+            const int rows = arcade.setSearch(words);
+            const QVariantList games = arcade.filterGames(QStringLiteral("search"), 0, 100);
+            QStringList sets;
+            for (qsizetype i = 1; i < games.size(); ++i)
+                sets << games.at(i).toMap().value(QStringLiteral("set")).toString();
+            return rows == games.size() ? sets
+                                        : QStringList{ QStringLiteral("%1 rows, %2 listed").arg(rows).arg(games.size()) };
+        };
+        const QStringList every{ QStringLiteral("acefruit"), QStringLiteral("galaga"), QStringLiteral("kinst"),
+                                 QStringLiteral("mslug"), QStringLiteral("pacman"), QStringLiteral("sf2"),
+                                 QStringLiteral("xmen6p") };
+        QCOMPARE(found(QString()), every);
+        QCOMPARE(found(QStringLiteral("!!!")), every);
+        // Its own row first, then the games: named after the words, Search
+        // for none.
+        const auto own = [&arcade] { return arcade.filterGames(QStringLiteral("search"), 0, 1).value(0).toMap(); };
+        QVERIFY(own().value(QStringLiteral("search")).toBool());
+        QCOMPARE(own().value(QStringLiteral("name")).toString(), QStringLiteral("!!!"));
+        arcade.setSearch(QString());
+        QCOMPARE(own().value(QStringLiteral("name")).toString(), QStringLiteral("Search"));
+        // Street Fighter II's name starts with it, Metal Slug has a word that
+        // does, Ace (Cassette), Killer Instinct and X-Men (6 Players) have it
+        // in a word.
+        QCOMPARE(found(QStringLiteral("s")), QStringList({ QStringLiteral("sf2"), QStringLiteral("mslug"),
+                                                           QStringLiteral("acefruit"), QStringLiteral("kinst"),
+                                                           QStringLiteral("xmen6p") }));
+        QCOMPARE(arcade.search(), QStringLiteral("s"));
+        QCOMPARE(arcade.filterIndex(QStringLiteral("search"), QStringLiteral("mslug")), 2);
+        bool listed = false;
+        for (const QVariant &v : arcade.filters()) {
+            const QVariantMap filter = v.toMap();
+            if (filter.value(QStringLiteral("id")).toString() == QLatin1String("search")) {
+                QCOMPARE(filter.value(QStringLiteral("count")).toInt(), 6);
+                listed = true;
+            }
+        }
+        QVERIFY(listed);
+        for (const char *words : { "PAC-MAN", "pac man", "pacman", "Pac" })
+            QCOMPARE(found(QLatin1String(words)), QStringList({ QStringLiteral("pacman") }));
+        QCOMPARE(found(QStringLiteral("fighter street")), QStringList({ QStringLiteral("sf2") }));
+        QCOMPARE(found(QStringLiteral("fighter s")), QStringList({ QStringLiteral("sf2") }));
+        QCOMPARE(found(QStringLiteral("SF2")), QStringList({ QStringLiteral("sf2") }));
+        QCOMPARE(found(QStringLiteral("vehicle 001")), QStringList({ QStringLiteral("mslug") }));
+        QCOMPARE(found(QStringLiteral("Ácé")), QStringList({ QStringLiteral("acefruit") }));
+        QVERIFY(found(QStringLiteral("zzz")).isEmpty());
+        // The tree's.
+        QCOMPARE(names(arcade.requestEntries(QStringLiteral("search/fighter street"))),
+                 QStringList({ QStringLiteral("Street Fighter II: The World Warrior") }));
+        QVERIFY(arcade.requestEntries(QStringLiteral("search/!!!")).toList().isEmpty());
+        // A game gone from the folder: the games as they are now.
+        const auto restore = qScopeGuard([this] { writeFile(m_games + QStringLiteral("/acefruit.zip")); });
+        QVERIFY(QFile::remove(m_games + QStringLiteral("/acefruit.zip")));
+        refreshed(arcade);
+        QCOMPARE(found(QStringLiteral("s")), QStringList({ QStringLiteral("sf2"), QStringLiteral("mslug"),
+                                                           QStringLiteral("kinst"), QStringLiteral("xmen6p") }));
+        // "pac man" run together is Pac-Man's name: it first, then Ms.
+        // Pac-Man, with a word starting with "pac".
+        const auto ms = qScopeGuard([this] { QFile::remove(m_games + QStringLiteral("/mspacman.zip")); });
+        writeFile(m_games + QStringLiteral("/mspacman.zip"));
+        refreshed(arcade);
+        for (const char *words : { "pac man", "pacman" })
+            QCOMPARE(found(QLatin1String(words)), QStringList({ QStringLiteral("pacman"), QStringLiteral("mspacman") }));
     }
 
     // No catver.ini beside the games nor kept: one downloaded into the
@@ -4469,7 +4673,7 @@ private slots:
             QStringLiteral("all"), QStringLiteral("genres/Beat 'em Up"), QStringLiteral("genres/Fighting"),
             QStringLiteral("genres/Shmup"), QStringLiteral("players/1"), QStringLiteral("players/2"),
             QStringLiteral("players/6"), QStringLiteral("years/1980s"), QStringLiteral("years/1990s"),
-            QStringLiteral("unknown") }));
+            QStringLiteral("unknown"), QStringLiteral("search") }));
 
         // A publisher on, a genre and Not Recognized off. Start Filter offers
         // what is shown.
@@ -4483,7 +4687,8 @@ private slots:
         QCOMPARE(ids(arcade.filters()), QStringList({
             QStringLiteral("all"), QStringLiteral("genres/Beat 'em Up"), QStringLiteral("genres/Shmup"),
             QStringLiteral("players/1"), QStringLiteral("players/2"), QStringLiteral("players/6"),
-            QStringLiteral("years/1980s"), QStringLiteral("years/1990s"), QStringLiteral("makers/Namco") }));
+            QStringLiteral("years/1980s"), QStringLiteral("years/1990s"), QStringLiteral("makers/Namco"),
+            QStringLiteral("search") }));
         QCOMPARE(arcade.filterGames(QStringLiteral("makers/Namco"), 0, 10).size(), 2);
         options.clear();
         arcade.startFilterOptions();
@@ -4501,7 +4706,8 @@ private slots:
         core.save_setting(module, QStringLiteral("menu_filters"), shown);
         QCOMPARE(ids(arcade.filters()), QStringList({
             QStringLiteral("all"), QStringLiteral("genres/Beat 'em Up"), QStringLiteral("genres/Shmup"),
-            QStringLiteral("years/1980s"), QStringLiteral("years/1990s"), QStringLiteral("makers/Namco") }));
+            QStringLiteral("years/1980s"), QStringLiteral("years/1990s"), QStringLiteral("makers/Namco"),
+            QStringLiteral("search") }));
         core.add_to_list(module, QStringLiteral("favorites"), { { QStringLiteral("path"), QStringLiteral("game:galaga") } });
         QVERIFY(!ids(arcade.filters()).contains(QStringLiteral("favorites")));
         options.clear();
@@ -4565,6 +4771,9 @@ private slots:
         QCOMPARE(filters.size(), 1);
         QCOMPARE(filters.first().toMap().value(QStringLiteral("id")).toString(), QStringLiteral("unknown"));
         QCOMPARE(filters.first().toMap().value(QStringLiteral("count")).toInt(), 2);
+        // With Online Play on too: no RetroArch Lobby with no game to play.
+        arcade.onSettingChanged(module, QStringLiteral("online_play"), QStringLiteral("On"));
+        QCOMPARE(arcade.filters(), filters);
     }
 
     // The credits bought go in as the game starts, nine at most: MAME runs

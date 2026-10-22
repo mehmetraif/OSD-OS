@@ -8,8 +8,9 @@ import QtTest
 // to MAME having the screen, every key kept from the menus meanwhile, and
 // back to the list, or why it didn't play. The Arcade screen: its filters
 // and pages, a game's details and high scores, COIN, select (let go or
-// held) and START, the selected name scrolling, the room of its hint bar
-// and help line, and the credits going in with the game. The module's
+// held) and START, the selected name and a long filter's name scrolling,
+// the room of its hint bar and help line, and the credits going in with
+// the game. The module's
 // router, Root.qml: a game played straight from the list with Start Info
 // Screen off, every key kept from it meanwhile, back on it after, or why it
 // didn't play.
@@ -134,15 +135,37 @@ Rectangle {
             return filterList.map(function(f) { return { id: f.id, name: f.name, count: f.sets.length } })
         }
         function filterGames(id, first, count) {
-            // A filter's own rows (the lobby's rooms), else its sets'.
+            // A filter's own rows (the lobby's rooms), else its sets', Search's
+            // own row first on it.
             for (var i = 0; i < filterList.length; ++i) {
                 if (filterList[i].id === id && filterList[i].rows)
                     return filterList[i].rows.slice(first, first + count)
             }
             return setsOf(id).slice(first, first + count).map(function(set) {
+                if (id === "search" && set === "")
+                    return { set: "", search: true, name: searchWords !== "" ? searchWords : "Search" }
                 return { set: set, name: gameInfo[set] ? gameInfo[set].title : set,
                          favorite: favorites.indexOf(set) >= 0 }
             })
+        }
+        // Search: the words given, and, on the Search filter of filterList,
+        // its own row and All Games' games whose title or set has them in it.
+        property string searchWords: ""
+        property var searches: []
+        function search() { return searchWords }
+        function setSearch(words) {
+            searchWords = words
+            searches = searches.concat([words])
+            for (var i = 0; i < filterList.length; ++i) {
+                if (filterList[i].id === "search") {
+                    filterList[i].sets = [""].concat(setsOf("all").filter(function(set) {
+                        var title = gameInfo[set] ? gameInfo[set].title : set
+                        return (title + " " + set).toLowerCase().indexOf(words.toLowerCase()) >= 0
+                    }))
+                    return filterList[i].sets.length
+                }
+            }
+            return 0
         }
         // On a filter of rooms, room's row when it is there.
         function filterIndex(id, set, room) {
@@ -214,8 +237,6 @@ Rectangle {
         property var lobbyStore: ({ data: { state: "loading", problem: "", rooms: [] } })
         function lobby() { return lobbyStore.data }
         function setLobby(data) { lobbyStore.data = data }
-        property bool online: false
-        function onlinePlay() { return online }
         // LAN Play: the sets that can be hosted on the local network, the
         // rooms there joined, the games hosted there and the network's reads.
         property var lanHostable: []
@@ -224,6 +245,9 @@ Rectangle {
         property int lanReads: 0
         function canHostLan(set) { return lanHostable.indexOf(set) >= 0 }
         function refreshLanRooms() { lanReads++ }
+        // What LAN Games says while it has no game.
+        property var lanState: ({})
+        function lanStatus() { return lanState }
         function joinLanRoom(id) { lanJoined = lanJoined.concat([id]); running = playResult; return playResult }
         function hostLanGame(set) { lanHosted = lanHosted.concat([set]); running = playResult; return playResult }
         // Each game's RetroAchievements leaderboard, by set, as leaderboard()
@@ -423,12 +447,15 @@ Rectangle {
             arcadeBackend.hosted = []
             arcadeBackend.roomReads = 0
             arcadeBackend.lobbyStore = { data: { state: "loading", problem: "", rooms: [] } }
-            arcadeBackend.online = false
             arcadeBackend.lanHostable = []
             arcadeBackend.lanJoined = []
             arcadeBackend.lanHosted = []
             arcadeBackend.lanReads = 0
+            arcadeBackend.lanState = { name: "No LAN Games",
+                                       detail: "No one on this network hosts a game you have: host one from a game's options" }
             arcadeBackend.pendingFilters = []
+            arcadeBackend.searchWords = ""
+            arcadeBackend.searches = []
             arcadeBackend.favorites = ["galaga", "sf2"]
             arcadeBackend.filterList = [
                 { id: "all", name: "All Games",
@@ -761,6 +788,7 @@ Rectangle {
             keyClick(Qt.Key_5)
             compare(moduleRoot.credits, 0)
             compare(findText(screen, "Credit 0"), null)
+            verify(findText(screen, "[ESC]:BACK [ENTER]:PLAY HOLD:OPTIONS", true) !== null)
             keyPress(Qt.Key_Return)
             tryVerify(function() { return findText(screen, "Engine: Auto (FinalBurn Neo)") !== null }, 1500)
             keyRelease(Qt.Key_Return)
@@ -1547,8 +1575,8 @@ Rectangle {
             verify(findText(page, "Select to join it") !== null)
         }
 
-        // The lobby from the tree's Online Games, and from a game's options on
-        // the Arcade screen while Online Play is on.
+        // The lobby from the tree's Online Games; on the Arcade screen a filter
+        // of its own (test_screenLobby()), not a game's option.
         function test_lobbyOpened() {
             arcadeBackend.entries = Object.assign({}, arcadeBackend.entries, {
                 "top": [{ name: "Online Games", path: "online", isFolder: true }].concat(arcadeBackend.entries.top),
@@ -1563,23 +1591,12 @@ Rectangle {
             compare(root.navigations.length, 1)
             compare(root.navigations[0].path, "Lobby.qml")
             loader.source = ""
-            // The Arcade screen: not offered with Online Play off.
+            // The Arcade screen: not among a game's options.
             var screen = openScreen()
             keyPress(Qt.Key_Return)
             tryVerify(function() { return findText(screen, "Game Details") !== null }, 1500)
             keyRelease(Qt.Key_Return)
             compare(findText(screen, "RetroArch Lobby"), null)
-            keyClick(Qt.Key_Escape)
-            loader.source = ""
-            arcadeBackend.online = true
-            screen = openScreen()
-            keyPress(Qt.Key_Return)
-            tryVerify(function() { return findText(screen, "RetroArch Lobby") !== null }, 1500)
-            keyRelease(Qt.Key_Return)
-            keyClick(Qt.Key_Up)
-            keyClick(Qt.Key_Return)
-            compare(root.navigations.length, 2)
-            compare(root.navigations[1].path, "Lobby.qml")
         }
 
         // A room joined from the game's screen says whose game it is and
@@ -1714,6 +1731,34 @@ Rectangle {
             verify(root.navigations[1].params.online.lan)
         }
 
+        // LAN Games with no game, there while LAN Play is on: why in the
+        // list's place and on the help line, as the backend says it, and
+        // nothing to select.
+        function test_lanScreenEmpty() {
+            arcadeBackend.filterList = [{ id: "lan", name: "LAN Games", sets: [], rows: [] }]
+                                        .concat(arcadeBackend.filterList)
+            moduleRoot.startFilter = "lan"
+            var screen = openScreen()
+            compare(screen.filterId, "lan")
+            compare(screen.count, 0)
+            verify(findText(screen, "No LAN Games") !== null)
+            verify(findText(screen, "No one on this network hosts a game you have") !== null)
+            // As the backend's word changes and the filters are read again.
+            arcadeBackend.lanState = { name: "FinalBurn Neo Not Installed",
+                                       detail: "LAN games play in FinalBurn Neo: Settings → Arcade → FinalBurn Neo" }
+            arcadeBackend.gamesChanged()
+            verify(findText(screen, "FinalBurn Neo Not Installed") !== null)
+            verify(findText(screen, "LAN games play in FinalBurn Neo") !== null)
+            compare(findText(screen, "No LAN Games"), null)
+            keyPress(Qt.Key_Return)
+            keyRelease(Qt.Key_Return)
+            compare(root.navigations.length, 0)
+            // On to All Games: none of it there.
+            keyClick(Qt.Key_Right)
+            compare(screen.filterId, "all")
+            compare(findText(screen, "FinalBurn Neo Not Installed"), null)
+        }
+
         // A room on the local network joined from the game's screen says
         // whose game it is and joins it at its host; a game hosted there
         // says so and hosts it; and with Start Info Screen off, the router
@@ -1806,6 +1851,59 @@ Rectangle {
             verify(name.width < name.implicitWidth)
             wait(2000)
             compare(name.x, 0)
+        }
+
+        // A filter's name too long for the bar scrolls through it, the
+        // page's number keeping its place; the next filter's name starts
+        // from its beginning, and one that fits stands still.
+        function test_screenBarScroll() {
+            arcadeBackend.filterList = arcadeBackend.filterList.concat([
+                { id: "genres/Shooter / Flying Vertical", name: "Shooter / Flying Vertical", sets: ["1942", "zerowing"] },
+                { id: "publishers/Technos Japan Corporation", name: "Technos Japan Corporation", sets: ["tmnt"] }])
+            var screen = openScreen()
+            // The bar's own text, in the bar, which has the name as its text.
+            var bar = findText(screen, "All Games", true)
+            var label = null
+            for (var i = 0; i < bar.children.length && !label; ++i)
+                label = findText(bar.children[i], "All Games", true)
+            verify(label !== null)
+            var page = findText(screen, "1/3", true)
+            verify(page !== null)
+            var pageX = page.mapToItem(screen, 0, 0).x
+            wait(2000)
+            compare(label.x, 0)
+
+            keyClick(Qt.Key_Left)
+            compare(label.text, "Technos Japan Corporation")
+            compare(page.text, "1/1")
+            verify(label.parent.clip)
+            verify(label.parent.width < label.implicitWidth)
+            verify(label.parent.mapToItem(screen, label.parent.width, 0).x < pageX)
+            compare(page.mapToItem(screen, 0, 0).x, pageX)
+            // Cut between two letters, as AppBar's title is.
+            var cell = Qt.createQmlObject('import QtQuick; TextMetrics { text: "M" }', screen)
+            cell.font = label.font
+            var letters = label.parent.width / cell.advanceWidth
+            fuzzyCompare(letters, Math.round(letters), 0.001)
+            cell.destroy()
+            // At its far end, the next name, as long, starts over.
+            var far = label.parent.width - label.implicitWidth
+            tryCompare(label, "x", far, 6000)
+            keyClick(Qt.Key_Left)
+            compare(label.text, "Shooter / Flying Vertical")
+            tryCompare(label, "x", 0, 200)
+            wait(1000)
+            compare(label.x, 0)
+            tryVerify(function() { return label.x < 0 }, 4000)
+
+            // Back to one that fits: still.
+            keyClick(Qt.Key_Right)
+            keyClick(Qt.Key_Right)
+            compare(label.text, "All Games")
+            tryCompare(label, "x", 0, 200)
+            verify(!label.parent.clip)
+            wait(2000)
+            compare(label.x, 0)
         }
 
         // The column's ground, the scheme's background as solid as Info
@@ -2127,7 +2225,7 @@ Rectangle {
                 var found = []
                 for (var i = 0; i < screen.children.length; ++i) {
                     var item = screen.children[i]
-                    if (item.border !== undefined && item.x === Math.round(screen.columnX * screen.u))
+                    if (item.border !== undefined && item.visible && item.x === Math.round(screen.columnX * screen.u))
                         found.push(item.border.width)
                 }
                 return found
@@ -2539,15 +2637,342 @@ Rectangle {
             compare(root.backs, 1)
         }
 
-        // Settings → Arcade → RetroArch Lobby opens the lobby's page,
-        // whichever screen lists the games; back from it leaves the module.
-        function test_rootLobby() {
-            appCore.settings = { screen: "Original", online_play: "On" }
-            var router = open("Root.qml", { lobby: true })
-            compare(shownFile(router), "Lobby.qml")
-            verify(findText(shown(router), "Reading RetroArch's lobby") !== null)
+        // The visible marks at the rows' right ends (PixelIcon's mark): a
+        // favourite's heart, Search's glass, a room's ▶ or lock.
+        function marks(item) {
+            var found = []
+            if (item.mark !== undefined && item.visible && item.mark !== "")
+                found.push(item.mark)
+            for (var i = 0; i < item.children.length; ++i)
+                found = found.concat(marks(item.children[i]))
+            return found
+        }
+
+        // The whole lobby as a filter of the Arcade screen's, as filters()
+        // and filterGames() give it.
+        function lobbyFilter(rooms) {
+            return { id: "lobby", name: "RetroArch Lobby", sets: rooms.map(function(r) { return r.set }),
+                     rows: rooms.map(function(r) {
+                         return { set: r.set, name: r.title + " (" + r.host + ")", favorite: false, room: r.id,
+                                  host: r.host, lobby: r }
+                     }) }
+        }
+
+        // RetroArch Lobby on the Arcade screen, with Online Play on: every
+        // room, ▶ on the one to join and a lock on one with a password, the
+        // box under the picture saying what the lobby says of it, the help
+        // line the rest; select joins one, or with nothing to join opens its
+        // page, as select held does for any; a room of a game not in the
+        // folder has its core in the picture's place; no credits bought for
+        // a room; back from a room's page lands on it, one of a game not in
+        // the folder too, which the cursor keeps to as the lobby is read
+        // again.
+        function test_screenLobby() {
+            var rooms = [
+                lobbyRoom(11, "FinalBurn Neo", "Street Fighter II", "ann",
+                          { rom: "sf2", set: "sf2", country: "es", coreVersion: "v1.0.0.03", joinable: true,
+                            coreMatch: "same", retroarchMatch: "other", players: 1, minutes: 5 }),
+                lobbyRoom(14, "FinalBurn Neo", "Metal Slug", "bob",
+                          { rom: "mslug", set: "mslug", password: true, why: "It asks for a password" }),
+                lobbyRoom(16, "Snes9x", "Super Mario Kart", "dee",
+                          { why: "OSD/OS joins FinalBurn Neo's games alone: this one is Snes9x's" })]
+            arcadeBackend.setLobby({ state: "ready", problem: "", yourCore: "v1.0.0.03", yourCoreState: "read",
+                                     yourRetroArch: "1.19.1", yourRetroArchState: "read", rooms: rooms })
+            arcadeBackend.filterList = arcadeBackend.filterList.concat([lobbyFilter(rooms)])
+            moduleRoot.startFilter = "lobby"
+            var screen = openScreen()
+            compare(screen.filterId, "lobby")
+            verify(findText(screen, "RetroArch Lobby", true) !== null)
+            verify(findText(screen, "Street Fighter II (ann)") !== null)
+            compare(marks(screen), ["play", "lock"])
+            // The room to join: its game's, its lines in the box, the rest on
+            // the help line, no high scores.
+            compare(screen.lobbyRoom.id, 11)
+            verify(screen.isGame)
+            verify(!screen.gameBox)
+            compare(findText(screen, "Hi-Score"), null)
+            compare(screen.roomLines.map(function(line) { return line.label }),
+                    ["Core", "Version", "RetroArch", "Host", "Country", "Connection", "Players", "Hosted"])
+            compare(screen.roomLines[1].icons, ["ok"])
+            compare(screen.roomLines[2].icons, ["no"])
+            verify(screen.roomRows >= 5)
+            verify(findText(screen, "1.22.2", true) !== null)
+            verify(findText(screen, "Select to join it") !== null)
+            verify(findText(screen, "RetroArch 1.22.2 (yours 1.19.1)") !== null)
+            verify(findText(screen, ":JOIN HOLD:DETAILS") !== null)
+            // COIN buys nothing for a room.
+            keyClick(Qt.Key_5)
+            compare(moduleRoot.credits, 0)
+            keyPress(Qt.Key_Return)
+            keyRelease(Qt.Key_Return)
+            compare(root.navigations.length, 1)
+            compare(root.navigations[0].path, "Play.qml")
+            compare(root.navigations[0].params.game, "sf2")
+            compare(root.navigations[0].params.online.room, 11)
+            compare(root.navigations[0].params.online.host, "ann")
+            compare(root.navigations[0].listState.filter, "lobby")
+            compare(root.navigations[0].listState.room, 11)
+            // One with a password: its page, nothing to join.
+            keyClick(Qt.Key_Down)
+            compare(screen.lobbyRoom.id, 14)
+            verify(findText(screen, "It asks for a password") !== null)
+            verify(findText(screen, ":DETAILS") !== null)
+            compare(findText(screen, ":JOIN"), null)
+            keyPress(Qt.Key_Return)
+            keyRelease(Qt.Key_Return)
+            compare(root.navigations.length, 2)
+            compare(root.navigations[1].path, "Lobby.qml")
+            compare(root.navigations[1].params.room, 14)
+            compare(root.navigations[1].listState.room, 14)
+            // Another core's: its core where the picture would be.
+            keyClick(Qt.Key_Down)
+            compare(screen.lobbyRoom.id, 16)
+            verify(!screen.isGame)
+            verify(findText(screen, "this one is Snes9x's") !== null)
+            compare(findText(screen, "No Picture"), null)
+            // Select held, on any: its page.
+            keyClick(Qt.Key_Up)
+            keyClick(Qt.Key_Up)
+            keyPress(Qt.Key_Return)
+            tryVerify(function() { return root.navigations.length === 3 }, 1500)
+            keyRelease(Qt.Key_Return)
+            compare(root.navigations[2].path, "Lobby.qml")
+            compare(root.navigations[2].params.room, 11)
+            compare(root.navigations.length, 3)
+            // Back from a room's page: on it.
+            loader.source = ""
+            screen = openScreen({ navListState: root.navigations[1].listState })
+            compare(screen.filterId, "lobby")
+            compare(screen.lobbyRoom.id, 14)
+            // The cursor kept on one of a game not in the folder as the lobby
+            // is read again; back from its page, on it, and on it still as
+            // the lobby read again puts a room before it.
+            keyClick(Qt.Key_Down)
+            arcadeBackend.gamesChanged()
+            compare(screen.lobbyRoom.id, 16)
+            keyPress(Qt.Key_Return)
+            keyRelease(Qt.Key_Return)
+            compare(root.navigations.length, 4)
+            compare(root.navigations[3].params.room, 16)
+            loader.source = ""
+            screen = openScreen({ navListState: root.navigations[3].listState })
+            compare(screen.lobbyRoom.id, 16)
+            // The rooms changed under the screen, as the backend's do, until
+            // it says so: roomsChanged(), then gamesChanged().
+            var lobby = arcadeBackend.filterList[arcadeBackend.filterList.length - 1]
+            var more = lobbyFilter([lobbyRoom(17, "Genesis Plus GX", "Sonic the Hedgehog", "eve")].concat(rooms))
+            lobby.sets = more.sets
+            lobby.rows = more.rows
+            arcadeBackend.roomsChanged()
+            compare(screen.lobbyRoom.id, 16)
+            arcadeBackend.gamesChanged()
+            compare(screen.selected, 3)
+            compare(screen.lobbyRoom.id, 16)
+        }
+
+        // RetroArch Lobby with no room: being read, not reached and why, or no
+        // one hosting; nothing to join.
+        function test_screenLobbyEmpty() {
+            arcadeBackend.filterList = arcadeBackend.filterList.concat([lobbyFilter([])])
+            moduleRoot.startFilter = "lobby"
+            var screen = openScreen()
+            compare(screen.filterId, "lobby")
+            verify(findText(screen, "Reading RetroArch's lobby…") !== null)
+            arcadeBackend.setLobby({ state: "failed", problem: "RetroArch's lobby can't be reached: Connection refused",
+                                     rooms: [] })
+            arcadeBackend.roomsChanged()
+            tryVerify(function() { return findText(screen, "Lobby Not Reachable") !== null }, 1000)
+            verify(findText(screen, "Connection refused") !== null)
+            arcadeBackend.setLobby({ state: "ready", problem: "", rooms: [] })
+            arcadeBackend.roomsChanged()
+            tryVerify(function() { return findText(screen, "No one is hosting a game") !== null }, 1000)
+            verify(findText(screen, "[ESC]:BACK", true) !== null)
+            keyPress(Qt.Key_Return)
+            keyRelease(Qt.Key_Return)
+            compare(root.navigations.length, 0)
+        }
+
+        // The lobby's page opened on a room (the Arcade screen's): that room's
+        // lines at once, Join joining it, back leaving the page.
+        function test_lobbyRoomPage() {
+            arcadeBackend.setLobby({ state: "ready", problem: "", yourCore: "", yourCoreState: "read",
+                                     yourRetroArch: "1.22.2", yourRetroArchState: "read", rooms: [
+                lobbyRoom(11, "FinalBurn Neo", "Street Fighter II", "ann", { rom: "sf2", set: "sf2", joinable: true }),
+                lobbyRoom(16, "Snes9x", "Super Mario Kart", "dee",
+                          { why: "OSD/OS joins FinalBurn Neo's games alone: this one is Snes9x's" })] })
+            var page = open("Lobby.qml", { room: 16 })
+            compare(page.room.id, 16)
+            verify(findText(page, "Snes9x • Hosted by dee") !== null)
             keyClick(Qt.Key_Escape)
             compare(root.backs, 1)
+            loader.source = ""
+            page = open("Lobby.qml", { room: 11 })
+            compare(page.lines[0].type, "join")
+            keyClick(Qt.Key_Return)
+            compare(root.navigations.length, 1)
+            compare(root.navigations[0].params.online.room, 11)
+        }
+
+        // Search, the last filter: its own row, then the games its words
+        // find, its keys in the picture's frame, with no box on them while
+        // the list has the keys and no credits over them, nor bought there.
+        // ► goes onto them at their left end, as select on its own row does;
+        // the list follows each letter typed, how many it finds in the bar,
+        // none found said so; OK goes down to the first game found, back
+        // returns to the list with the words kept; typing on a keyboard goes
+        // onto the keys with the letter typed. ◄ ► pressed at the keys' ends
+        // go round the filters, ► from Search on to the first, on the game
+        // ◄ ► came to Search with. Coming back from a game found keeps the
+        // words, and its own row keeps the cursor as the games are read
+        // again; the screen opened afresh has none. On the wheel, Search's
+        // row at its top, the first game found under it after OK.
+        function test_screenSearch() {
+            var all = arcadeBackend.filterList[0]
+            arcadeBackend.filterList = arcadeBackend.filterList.concat([
+                { id: "years/1990s", name: "1990s", sets: ["sf2", "ffight", "xmen6p", "dino"] },
+                { id: "search", name: "Search", sets: [""].concat(all.sets) }])
+            var screen = openScreen()
+            compare(arcadeBackend.searches, [""])
+            var keys = findChild(screen, "searchKeys")
+            verify(!keys.visible)
+            // ◄ from All Games round to it, the last.
+            keyClick(Qt.Key_Left)
+            compare(screen.filterId, "search")
+            verify(screen.onSearch)
+            verify(keys.visible)
+            verify(!screen.typing)
+            verify(!keys.live)
+            compare(marks(screen).indexOf("search"), 0)
+            verify(findText(screen, "15 Found", true) !== null)
+            verify(findText(screen, ":SEARCH") !== null)
+            verify(findText(screen, "► or select to type what to look for") !== null)
+            compare(findText(screen, "Credit "), null)
+            // COIN buys nothing where no credit is shown.
+            keyClick(Qt.Key_5)
+            compare(moduleRoot.credits, 0)
+            // ► onto the keys, at the left end of their row.
+            keyClick(Qt.Key_Right)
+            compare(screen.filterId, "search")
+            verify(screen.typing)
+            verify(keys.live)
+            compare(keys.col, 0)
+            verify(!screen.takesCoin)
+            verify(findText(screen, ":DONE") !== null)
+            // A letter at a time.
+            keyClick(Qt.Key_S)
+            compare(arcadeBackend.searchWords, "S")
+            verify(findText(screen, "4 Found", true) !== null)
+            keyClick(Qt.Key_T)
+            verify(findText(screen, "2 Found", true) !== null)
+            keyClick(Qt.Key_R)
+            verify(findText(screen, "1 Found", true) !== null)
+            verify(findText(screen, "STR", true) !== null)
+            verify(findText(screen, "Street Fighter II", true) !== null)
+            keyClick(Qt.Key_X)
+            verify(findText(screen, "0 Found", true) !== null)
+            verify(findText(screen, "No Game Found") !== null)
+            keyClick(Qt.Key_Backspace)
+            verify(findText(screen, "1 Found", true) !== null)
+            compare(findText(screen, "No Game Found"), null)
+            // OK: down to the game found, the keys still there, the box on the
+            // game, no credits over the keys; it plays.
+            keyClick(Qt.Key_Return)
+            verify(!screen.typing)
+            verify(keys.visible)
+            compare(screen.currentSet, "sf2")
+            verify(screen.gameBox)
+            verify(findText(screen, "[ESC]:BACK [ENTER]:PLAY HOLD:OPTIONS", true) !== null)
+            compare(findText(screen, "Credit "), null)
+            keyPress(Qt.Key_Return)
+            keyRelease(Qt.Key_Return)
+            compare(root.navigations.length, 1)
+            compare(root.navigations[0].params.game, "sf2")
+            compare(root.navigations[0].listState.filter, "search")
+            // Back from it: the words kept, on the game.
+            loader.source = ""
+            screen = openScreen({ navListState: root.navigations[0].listState })
+            keys = findChild(screen, "searchKeys")
+            compare(screen.filterId, "search")
+            compare(screen.currentSet, "sf2")
+            compare(arcadeBackend.searches[arcadeBackend.searches.length - 1], "STR")
+            compare(keys.text, "STR")
+            verify(findText(screen, "STR", true) !== null)
+            // Select on its own row: onto the keys; back returns to the list,
+            // the words as typed. The row kept as the games are read again.
+            keyClick(Qt.Key_Up)
+            verify(screen.onSearch)
+            arcadeBackend.gamesChanged()
+            verify(screen.onSearch)
+            keyPress(Qt.Key_Return)
+            keyRelease(Qt.Key_Return)
+            verify(screen.typing)
+            keyClick(Qt.Key_G)
+            compare(arcadeBackend.searchWords, "STRG")
+            keyClick(Qt.Key_Escape)
+            verify(!screen.typing)
+            compare(arcadeBackend.searchWords, "STRG")
+            compare(root.backs, 0)
+            // Typed on a keyboard: onto the keys with it.
+            keyClick(Qt.Key_A)
+            verify(screen.typing)
+            compare(arcadeBackend.searchWords, "STRGA")
+            // ► at the keys' right end: the first filter, the list with the
+            // keys.
+            keys.moveTo(0, 0)
+            for (var i = 0; i < 9; ++i)
+                keyClick(Qt.Key_Right)
+            compare(keys.col, 9)
+            compare(screen.filterId, "search")
+            keyClick(Qt.Key_Right)
+            compare(screen.filterId, "all")
+            verify(!screen.typing)
+            verify(!keys.visible)
+            keyClick(Qt.Key_Down)
+            compare(screen.selected, 1)
+            // ◄ at the keys' left end: the filter before Search, past
+            // Search's own row on the game ◄ ► came to it with (X-Men, the
+            // 1990s' third).
+            for (i = 0; i < 4; ++i)
+                keyClick(Qt.Key_Up)
+            compare(screen.currentSet, "xmen6p")
+            keyClick(Qt.Key_Left)
+            compare(screen.filterId, "search")
+            keyClick(Qt.Key_Right)
+            verify(screen.typing)
+            keyClick(Qt.Key_Left)
+            compare(screen.filterId, "years/1990s")
+            verify(!screen.typing)
+            compare(screen.selected, 2)
+            compare(screen.currentSet, "xmen6p")
+            keyClick(Qt.Key_Right)
+            verify(screen.onSearch)
+            keyClick(Qt.Key_Right)
+            keys.moveTo(0, 0)
+            for (i = 0; i < 10; ++i)
+                keyClick(Qt.Key_Right)
+            compare(screen.filterId, "all")
+            compare(screen.currentSet, "xmen6p")
+            // Afresh: no words.
+            loader.source = ""
+            screen = openScreen()
+            compare(arcadeBackend.searchWords, "")
+            compare(findChild(screen, "searchKeys").text, "")
+            // On 3D Curved's wheel: its row at the top, the first game found
+            // under it after OK, nothing typed.
+            loader.source = ""
+            moduleRoot.listStyle = "3D Curved"
+            screen = openScreen()
+            keys = findChild(screen, "searchKeys")
+            keyClick(Qt.Key_Left)
+            verify(screen.onSearch)
+            compare(screen.selectedRow, 0)
+            verify(screen.count > screen.perPage)
+            keyClick(Qt.Key_Right)
+            keys.moveTo(keys.rows.length - 1, keys.okCol)
+            keyClick(Qt.Key_Return)
+            verify(!screen.typing)
+            compare(screen.selected, 1)
+            compare(screen.selectedRow, 1)
         }
     }
 }

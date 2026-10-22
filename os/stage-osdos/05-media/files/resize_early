@@ -7,11 +7,12 @@
 # set_partuuid takes off afterwards) Raspberry Pi OS grows the root partition
 # to the end of the card. This grows it to ROOT_MIB instead and gives the rest
 # of the card to a partition of its own, with an exFAT filesystem labelled
-# OSD-OS. Windows and macOS open that too, so films copied onto it from a
-# computer show up in Local Files (it is mounted at /media/OSD-OS). With too
-# little left over for films, or ROOT_MIB 0, the root partition takes the
-# whole card, as stock. rpi-resize.service grows the root filesystem to its
-# partition either way.
+# OSD-OS. Windows and macOS open that too, so films copied into its Movies
+# folder from a computer show up in Local Files (it is mounted at
+# /media/OSD-OS, and osdos-media-folders.service makes the folder on it
+# each time it is). With too little left over for films, or ROOT_MIB 0, the
+# root partition takes the whole card, as stock. rpi-resize.service grows the
+# root filesystem to its partition either way.
 #
 # Nothing here may stop the boot: what fails is logged, and the card is left
 # as far as it got.

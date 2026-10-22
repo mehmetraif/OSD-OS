@@ -57,17 +57,16 @@ LocalFilesBackend::LocalFilesBackend(const QString &appRoot, const QString &data
     m_drives = new RemovableDrives(this);
     connect(m_drives, &RemovableDrives::changed, this, &LocalFilesBackend::clearDirectoryCache);
     connect(m_drives, &RemovableDrives::changed, this, &LocalFilesBackend::drivesChanged);
-    m_mediaRoot = defaultMediaRoot();
-    m_drives->setMediaRoot(m_mediaRoot);
-    // Resolve the configured media directory (falls back to the default above).
+    // The configured media directory, else the default, made if it isn't
+    // there (the image's Movies, on a card fresh from its first boot).
+    QString dir;
     QFile f(m_dataRoot + "/config.json");
     if (f.open(QIODevice::ReadOnly)) {
         QJsonObject cfg = QJsonDocument::fromJson(f.readAll()).object();
-        QString dir = cfg["modules"].toObject()["com.osdos.local_files"].toObject()
-                          ["media_directory"].toString();
-        if (!dir.isEmpty())
-            setMediaRoot(dir);
+        dir = cfg["modules"].toObject()["com.osdos.local_files"].toObject()
+                  ["media_directory"].toString();
     }
+    setMediaRoot(dir);
 }
 
 bool LocalFilesBackend::isImage(const QString &path) const {
@@ -253,7 +252,7 @@ QString LocalFilesBackend::mediaRoot() const {
 
 QString LocalFilesBackend::defaultMediaRoot() const {
     const QString dir = legacy::env("MEDIA_DIR");
-    return dir.isEmpty() ? m_dataRoot + QStringLiteral("/media") : dir;
+    return (dir.isEmpty() ? m_dataRoot + QStringLiteral("/media") : dir) + QStringLiteral("/Movies");
 }
 
 void LocalFilesBackend::setMediaRoot(const QString &path) {

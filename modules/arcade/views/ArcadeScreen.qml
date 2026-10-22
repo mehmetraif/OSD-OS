@@ -1,5 +1,6 @@
 import QtQuick
 import Components
+import "Rooms.js" as Rooms
 
 // The Arcade screen (Settings → Arcade → Screen: Arcade), a cabinet's
 // selection screen in place of the original tree (Games.qml). The games of
@@ -26,15 +27,29 @@ import Components
 // takesCoin) buys a credit; select, let go, or START (Space, a pad's Start,
 // or 1) plays the game with them (navigateTo Play.qml, which Root.qml plays
 // as Start Info Screen says); select held opens its options (Play, Game
-// Details, its favourite, Play at Startup, and with Online Play on,
-// RetroArch Lobby, the whole lobby: Lobby.qml) and back leaves the module.
-// Game Details (Details.qml) says what the game is and lists its
-// achievements on RetroAchievements. Coming back from it or from a game
-// restores the filter, the game and its row on the wheel from the listState
-// handed to navigateTo; a game played from the screen itself (Start Info
-// Screen off) leaves it as it was. Opened with the startup favourite
-// (navParams.startupPlay), it plays that as soon as the folder has been
-// read, the screen on it in Favorites.
+// Details, its favourite, Play at Startup, its engine, hosting it) and back
+// leaves the module. Game Details (Details.qml) says what the game is and
+// lists its achievements on RetroAchievements. Coming back from it or from a
+// game restores the filter, the game and its row on the wheel from the
+// listState handed to navigateTo; a game played from the screen itself
+// (Start Info Screen off) leaves it as it was. Opened with the startup
+// favourite (navParams.startupPlay), it plays that as soon as the folder has
+// been read, the screen on it in Favorites.
+//
+// Search, the last filter, lists the games its words find under its own
+// row, its keys in the picture's frame: ► from the list (or select on its
+// own row, or typing on a keyboard) goes onto them, and the list follows
+// each letter typed (searchFor()). OK goes down to the games found, back
+// returns to the list with the words kept, and ◄ ► past the keys' ends go
+// round the filters as from the list, ► on from Search to the first. With
+// Online Play on, RetroArch Lobby lists every room of RetroArch's lobby, of
+// every core (ArcadeBackend::lobby()), read again every 20 s while it is
+// shown: ▶ marks one to join and a lock one with a password, the box under
+// the picture says what the lobby says of it and the help line the rest.
+// Select joins one, or opens the room's page (Lobby.qml) where there is
+// nothing to join, as select held does for any. With LAN Play on, LAN Games
+// is there while no one on the local network hosts a game too, the list
+// saying why (ArcadeBackend::lanStatus()).
 //
 // Opened to adjust it (navParams.adjust, Screen Adjustment's), a frame lies
 // round the area: ▲ ▼ ◄ ► move that side of it out, or in once select has
@@ -58,9 +73,10 @@ FocusScope {
     readonly property bool scanning: arcadeBackend ? arcadeBackend.scanning : false
     readonly property string gamesFolder: arcadeBackend ? arcadeBackend.gamesFolder() : ""
     readonly property var scoresBackend: typeof highScoresBackend !== "undefined" ? highScoresBackend : null
-    // A pad's Back button is COIN here, not while the options are up, nor
-    // while the screen is adjusted (InputManager).
-    readonly property bool takesCoin: !options.visible && !adjusting
+    // A pad's Back button is COIN here, not while the options are up or
+    // Search's keys have the keys, nor while the screen is adjusted
+    // (InputManager).
+    readonly property bool takesCoin: !options.visible && !typing && !adjusting
 
     // The design's units.
     readonly property real u: root.sw / 960
@@ -254,8 +270,22 @@ FocusScope {
         }
         return shown
     }
-    readonly property string currentSet: current ? current.set : ""
-    readonly property bool isGame: !!current && !current.unknown
+    readonly property string currentSet: current && current.set ? current.set : ""
+    // A game of the folder: not Search's own row, nor a room of the lobby of
+    // a game not there.
+    readonly property bool isGame: !!current && !current.unknown && currentSet !== ""
+    // Search's own row, where its words are typed.
+    readonly property bool onSearch: !!current && !!current.search
+    // A room of RetroArch's whole lobby (the RetroArch Lobby filter's), as
+    // lobby() has it; and the lobby as read while it is shown: its state,
+    // why it couldn't be read, and our own versions its rooms are matched
+    // against.
+    readonly property var lobbyRoom: current && current.lobby ? current.lobby : null
+    readonly property var lobbyInfo: (revision, filterId === "lobby" && arcadeBackend ? arcadeBackend.lobby() : ({}))
+    // What LAN Games says while it lists no game (ArcadeBackend::lanStatus()):
+    // there with LAN Play on while no one on the network hosts a game too.
+    readonly property var lanInfo: (revision, filterId === "lan" && count === 0 && arcadeBackend
+                                    ? arcadeBackend.lanStatus() : ({}))
     // Counted up as a game's pictures come in (RetroAchievements'), so its
     // details are read again.
     property int picturesRevision: 0
@@ -265,7 +295,7 @@ FocusScope {
     // every few seconds while it has more than one, from the first as it is
     // chosen, but while a game plays; RetroAchievements' downloaded as it is
     // shown, with a Web API key (wantPictures()).
-    readonly property var pictures: isGame && details.pictures ? details.pictures : []
+    readonly property var pictures: isGame && filterId !== "search" && details.pictures ? details.pictures : []
     property int pictureIndex: 0
     onCurrentSetChanged: {
         pictureIndex = 0
@@ -288,10 +318,13 @@ FocusScope {
     // RetroAchievements has answered, and after the game has been played.
     property int achievementsRevision: 0
     readonly property var achievementCount: (revision, achievementsRevision,
-                                             isGame && arcadeBackend ? arcadeBackend.achievementCount(currentSet) : ({}))
+                                             gameBox && arcadeBackend ? arcadeBackend.achievementCount(currentSet) : ({}))
     // The game plays in FinalBurn Neo, which takes no credits bought here: as
     // its engine says, and a room of the lobby always.
     readonly property bool fbneo: details.engine === "fbneo" || (!!current && current.room !== undefined)
+    // Where COIN buys a credit: on a game MAME plays, where the credits
+    // bought are shown (not over Search's keys).
+    readonly property bool buysCredits: isGame && !fbneo && filterId !== "search"
     // The column's ground, the scheme's background as solid as Settings →
     // Arcade → Info Background says (Root.qml's infoBackground), over Settings'
     // Background Effect. Main.qml names its colours; a color property reads
@@ -307,11 +340,11 @@ FocusScope {
     // RetroAchievements leaderboard's, once it has been read (board: its
     // state, "off" for any other game).
     property int scoresRevision: 0
-    readonly property var board: (scoresRevision, arcadeBackend && isGame
+    readonly property var board: (scoresRevision, arcadeBackend && gameBox
                                                   ? arcadeBackend.leaderboard(currentSet) : ({ state: "off" }))
     readonly property bool onlineScores: !!board.state && board.state !== "off"
     readonly property var scores: (scoresRevision, onlineScores ? (board.entries || [])
-                                                   : scoresBackend && isGame
+                                                   : scoresBackend && gameBox
                                                      ? scoresBackend.topEntries(currentSet, scoreRows) : [])
 
     // Screen Adjustment: whether ▲ ▼ ◄ ► move the sides in rather than out;
@@ -392,12 +425,14 @@ FocusScope {
         if (!arcadeBackend)
             return
         var standIn = filterId !== "" && filterId !== wanted && !browsed
-        var fromCurrent = !landOn && currentSet !== "" && !standIn
-        var keep = landOn || (fromCurrent ? currentSet : (navListState.set || ""))
-        // On Online Games, the room it was on: its game may be hosted twice.
-        var keepRoom = landOn ? -1
-                     : fromCurrent ? (current.room !== undefined ? current.room : -1)
-                     : (navListState.room !== undefined ? navListState.room : -1)
+        // The row kept: the one the cursor is on, else landOn's game or the
+        // one come back to. A game by its set; a room by its id too, as its
+        // game may be hosted twice, or be none of the folder's (RetroArch
+        // Lobby's); Search's own row by its place.
+        var fromCurrent = !landOn && !!current && !standIn
+        var from = landOn ? { set: landOn } : fromCurrent ? current : navListState
+        var keep = from.set || ""
+        var keepRoom = from.room !== undefined ? from.room : -1
         // Where it is: its filter, and its row on the wheel.
         var keptFilter = filterId
         var keptRow = selectedRow
@@ -409,7 +444,8 @@ FocusScope {
         // not one whose games are still to come (RetroAchievements' list).
         if (at < 0 && !scanning && filterId !== "" && !arcadeBackend.filterPending(wanted))
             wanted = filterId
-        var place = keep !== "" && filterId !== "" ? arcadeBackend.filterIndex(filterId, keep, keepRoom) : -1
+        var place = filterId !== "" && (keep !== "" || keepRoom >= 0)
+                    ? arcadeBackend.filterIndex(filterId, keep, keepRoom) : -1
         selected = place >= 0 ? place : (standIn ? 0 : Math.max(0, Math.min(selected, count - 1)))
         // On the wheel, the game kept keeps its row while its filter is the
         // one shown still, and the game come back to after playing it the
@@ -433,15 +469,21 @@ FocusScope {
         selected = (selected + delta + count) % count
     }
 
+    // ◄ ►: the next filter, on the game where it has it; Search on its own
+    // row, at the wheel's top, and on past it with the game ◄ ► came to it
+    // with while the cursor is still on that row (passing).
+    property string passing: ""
     function cycle(delta) {
         if (filters.length < 2)
             return
-        var keep = currentSet
+        var keep = currentSet !== "" ? currentSet : onSearch ? passing : ""
         filterIndex = (filterIndex + delta + filters.length) % filters.length
         wanted = filterId
-        var at = keep !== "" ? arcadeBackend.filterIndex(filterId, keep) : -1
+        var toSearch = filterId === "search"
+        passing = toSearch ? keep : ""
+        var at = keep !== "" && !toSearch ? arcadeBackend.filterIndex(filterId, keep) : -1
         selected = Math.max(0, at)
-        placeWheel(middleRow)
+        placeWheel(toSearch ? 0 : middleRow)
     }
 
     // Plays a game; coming back lands on it in listFilter.
@@ -458,27 +500,91 @@ FocusScope {
         arcadeScreen.navigateTo("Play.qml", params, state)
     }
     function playCurrent() {
-        if (current && current.room !== undefined)
+        if (onSearch)
+            enterKeys("")
+        else if (lobbyRoom && !lobbyRoom.joinable)
+            openRoom()
+        else if (current && current.room !== undefined)
             play(currentSet, current.name, filterId, { room: current.room, host: current.host, lan: !!current.lan })
         else if (isGame)
             play(currentSet, details.name || current.name, filterId)
     }
 
-    function openOptions() {
-        if (isGame && current.room === undefined)
+    // Select held: a game's options; on a room of the lobby, its page; on
+    // Search's own row, its keys.
+    function holdCurrent() {
+        if (lobbyRoom)
+            openRoom()
+        else if (onSearch)
+            enterKeys("")
+        else if (isGame && current.room === undefined)
             options.offer({ name: details.name || current.name, path: "game:" + currentSet, isFolder: false })
     }
+    // A room of the lobby's page, everything the lobby says of it; coming
+    // back lands on it.
+    function openRoom() {
+        navigateTo("Lobby.qml", { room: current.room },
+                   { filter: filterId, set: currentSet, room: current.room, row: selectedRow })
+    }
+
+    // Search's keys, in the picture's frame while Search is shown: as each
+    // letter goes in, the list is what the words find (searchFor()), its own
+    // row showing them. Whether the keys have the keys.
+    readonly property bool typing: searchKeys.activeFocus
+    // Onto the keys: from the list's side, at their left end; typed on a
+    // keyboard, with what was typed.
+    function enterKeys(typed) {
+        if (filterId !== "search")
+            return
+        searchKeys.moveTo(searchKeys.row, 0)
+        searchKeys.forceActiveFocus()
+        if (typed !== "")
+            searchKeys.typeIn(typed)
+    }
+    // Back to the list, the keys' box gone: on OK, down to the first game
+    // found.
+    function leaveKeys(toFound) {
+        searchKeys.focus = false
+        arcadeScreen.forceActiveFocus()
+        if (toFound && count > 1) {
+            selected = 1
+            placeWheel(Math.min(1, perPage - 1))
+        }
+    }
+    // The games the words find: Search's rows counted again, the cursor on
+    // its own row and, on the wheel, that row at the top.
+    function searchFor(words) {
+        var at = indexOfFilter("search")
+        if (!arcadeBackend || at < 0)
+            return
+        var found = arcadeBackend.setSearch(words)
+        var list = filters.slice()
+        list[at] = Object.assign({}, list[at], { count: found })
+        filters = list
+        selected = 0
+        placeWheel(0)
+        revision++
+    }
+    // ◄ ► past the keys' ends: round the filters, as from the list.
+    function keysPastEnd(direction) {
+        leaveKeys(false)
+        cycle(direction)
+    }
+    // Leaving Search any other way, its keys hand the screen its keys back.
+    onFilterIdChanged: if (filterId !== "search" && typing) leaveKeys(false)
     // Its Game Details; coming back lands on it, as from playing it.
     function openDetails() {
         navigateTo("Details.qml", { game: currentSet, title: details.name || current.name },
                    { filter: filterId, set: currentSet, row: selectedRow })
     }
 
-    // The lobby read again while its rooms are the filter shown.
+    // The lobby read again while its rooms are the filter shown, those of
+    // the folder's games or all of them.
     Timer {
         interval: 20000
         repeat: true
-        running: arcadeScreen.filterId === "online" && !!arcadeBackend && !arcadeBackend.running
+        running: (arcadeScreen.filterId === "online" || arcadeScreen.filterId === "lobby")
+                 && !!arcadeBackend && !arcadeBackend.running
         onTriggered: arcadeBackend.refreshRooms()
     }
     // The local network asked as the screen comes up, and again while it is
@@ -502,7 +608,7 @@ FocusScope {
     Timer {
         id: holdTimer
         interval: 800
-        onTriggered: arcadeScreen.adjusting ? arcadeScreen.resetAdjustment() : arcadeScreen.openOptions()
+        onTriggered: arcadeScreen.adjusting ? arcadeScreen.resetAdjustment() : arcadeScreen.holdCurrent()
     }
 
     // The startup favourite, played as if chosen in Favorites. Only as the
@@ -533,6 +639,10 @@ FocusScope {
         // The high scores kept, read before the first game's are asked for.
         if (scoresBackend)
             scoresBackend.refresh()
+        // Search looks for nothing yet, but coming back from a game found.
+        if (arcadeBackend && !navParams.navListState)
+            arcadeBackend.setSearch("")
+        searchKeys.text = arcadeBackend ? arcadeBackend.search() : ""
         reload()
         if (!navParams.navListState && navParams.startupPlay)
             Qt.callLater(playAtStartup, navParams.startupPlay)
@@ -578,6 +688,15 @@ FocusScope {
         }
         // Named after the game or its parent: read again either way.
         function onPicturesChanged() { arcadeScreen.picturesRevision++ }
+        // Our versions the lobby's rooms are matched against, and what the
+        // lobby's read says: the rows and the box read again, the cursor on
+        // the room it was on (reload(), while the rows have it where it was,
+        // before a read that changed the rooms reloads the filters again with
+        // gamesChanged()).
+        function onRoomsChanged() {
+            if (arcadeScreen.filterId === "lobby")
+                arcadeScreen.reload()
+        }
     }
 
     Keys.onPressed: function(event) {
@@ -593,7 +712,7 @@ FocusScope {
         }
         if (event.key === Qt.Key_5) {
             // COIN, for MAME to put in: FinalBurn Neo takes the game's own.
-            if (!event.isAutoRepeat && !arcadeScreen.fbneo)
+            if (!event.isAutoRepeat && arcadeScreen.buysCredits)
                 moduleRoot.addCredit()
         } else if (event.key === Qt.Key_Space || event.key === Qt.Key_1) {
             if (!event.isAutoRepeat)
@@ -605,13 +724,20 @@ FocusScope {
         } else if (event.key === Qt.Key_Left) {
             cycle(-1)
         } else if (event.key === Qt.Key_Right) {
-            cycle(1)
+            // On Search, its keys lie to the right.
+            if (filterId === "search")
+                enterKeys("")
+            else
+                cycle(1)
         } else if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter) {
             if (!event.isAutoRepeat)
                 holdTimer.restart()
         } else if (event.key === Qt.Key_Escape || event.key === Qt.Key_Backspace || event.key === Qt.Key_Back) {
             if (!event.isAutoRepeat)
                 arcadeScreen.goBack()
+        } else if (filterId === "search" && event.text.length === 1 && event.text > " ") {
+            // Typed on a keyboard on Search: onto the keys, with it.
+            enterKeys(event.text)
         } else {
             return
         }
@@ -669,8 +795,11 @@ FocusScope {
         width: Math.round(arcadeScreen.listWidth * arcadeScreen.u)
         text: arcadeScreen.adjusting ? "Screen Adjustment" : arcadeScreen.filter ? arcadeScreen.filter.name : ""
         arrows: !arcadeScreen.adjusting && arcadeScreen.filters.length > 1
-        // The page of so many; on the wheel, the game of so many.
+        // The page of so many; on the wheel, the game of so many; on Search,
+        // how many games its words find, as they are typed.
         rightText: arcadeScreen.adjusting ? ""
+                   : arcadeScreen.filterId === "search" ? (arcadeScreen.count - 1) + " Found"
+                   : arcadeScreen.count === 0 ? ""
                    : arcadeScreen.wheel ? (arcadeScreen.selected + 1) + "/" + arcadeScreen.count
                    : (arcadeScreen.page + 1) + "/" + arcadeScreen.pages
     }
@@ -682,7 +811,8 @@ FocusScope {
             required property int index
             readonly property var entry: arcadeScreen.rows[index] || null
             readonly property var game: entry ? entry.game : ({})
-            readonly property int number: entry ? entry.place + 1 : 0
+            // Search's games counted under its own row, which has none.
+            readonly property int number: entry ? entry.place + (arcadeScreen.filterId === "search" ? 0 : 1) : 0
             readonly property bool isCurrent: !!entry && index === arcadeScreen.selectedRow
             // On the wheel, how far the row is from the game chosen: from 0
             // there to 1 wheelReach rows from it, and no further. It is as
@@ -732,7 +862,7 @@ FocusScope {
                 id: numberText
                 x: row.gap + root.px
                 anchors.verticalCenter: parent.verticalCenter
-                text: ("00" + row.number).slice(-Math.max(3, String(row.number).length))
+                text: row.game.search ? "" : ("00" + row.number).slice(-Math.max(3, String(row.number).length))
                 color: row.ink
                 font.family: root.globalFont
                 font.pixelSize: Math.round(arcadeScreen.textLines * row.size * arcadeScreen.v)
@@ -743,7 +873,7 @@ FocusScope {
             Item {
                 id: nameClip
                 x: numberText.x + numberText.width + row.gap
-                width: (heart.visible ? heart.x - row.gap : row.width - row.gap - root.px) - x
+                width: (markIcon.visible ? markIcon.x - row.gap : row.width - row.gap - root.px) - x
                 height: parent.height
                 clip: true
 
@@ -751,6 +881,7 @@ FocusScope {
                     id: nameText
                     anchors.verticalCenter: parent.verticalCenter
                     width: row.isCurrent ? implicitWidth : Math.min(implicitWidth, nameClip.width)
+                    // Search's own row: what is typed, as it is typed.
                     text: row.game.name || ""
                     textFormat: Text.PlainText
                     elide: Text.ElideRight
@@ -792,10 +923,16 @@ FocusScope {
                     PropertyAction { target: nameText; property: "x"; value: 0 }
                 }
             }
+            // A favourite's heart; Search's glass on its own row; and on a
+            // room of the lobby, ▶ for one to join, a lock for one with a
+            // password.
             PixelIcon {
-                id: heart
-                visible: !!row.game.favorite
-                name: "heart"
+                id: markIcon
+                readonly property string mark: row.game.search ? "search"
+                                               : row.game.lobby ? Rooms.mark(row.game.lobby)
+                                               : row.game.favorite ? "heart" : ""
+                visible: mark !== ""
+                name: mark
                 color: row.ink
                 x: row.width - width - row.gap - root.px
                 anchors.verticalCenter: parent.verticalCenter
@@ -871,16 +1008,22 @@ FocusScope {
         Picture { id: pictureA }
         Picture { id: pictureB }
 
-        // Without one, or with one that can't be shown: which file it would be.
+        // Without one, or with one that can't be shown: which file it would be;
+        // on a room of a game not in the folder, the core it is played in.
+        // None on Search, whose keys are in the frame.
         Column {
             visible: (preview.wanted === "" || preview.shown.status === Image.Error) && arcadeScreen.current !== null
+                     && arcadeScreen.filterId !== "search"
             anchors.centerIn: parent
             width: parent.width - 4 * root.px
             spacing: Math.round(12 * arcadeScreen.v)
             Text {
                 width: parent.width
                 horizontalAlignment: Text.AlignHCenter
-                text: arcadeScreen.isGame ? "No Picture" : "Not Recognized"
+                text: arcadeScreen.isGame ? "No Picture"
+                      : arcadeScreen.lobbyRoom ? arcadeScreen.lobbyRoom.core || "?" : "Not Recognized"
+                textFormat: Text.PlainText
+                elide: Text.ElideRight
                 color: root.primaryColor
                 font.family: root.globalFont
                 font.capitalization: Font.AllUppercase
@@ -915,10 +1058,10 @@ FocusScope {
             }
         }
 
-        // The credits bought, on a ground of their own so they read over
-        // the picture; none for a game FinalBurn Neo plays.
+        // The credits bought, where COIN buys them, on a ground of their own
+        // so they read over the picture.
         Rectangle {
-            visible: !arcadeScreen.fbneo
+            visible: arcadeScreen.buysCredits
             anchors.right: parent.right
             anchors.bottom: parent.bottom
             anchors.margins: arcadeScreen.frame
@@ -952,9 +1095,11 @@ FocusScope {
     }
 
     // The high scores, in the box: a line for each it has room for, kept
-    // from game to game.
+    // from game to game; for a game, not a room of the lobby, whose box
+    // says what the lobby says of it (and whose scores aren't asked for).
+    readonly property bool gameBox: isGame && !lobbyRoom
     Item {
-        visible: arcadeScreen.isGame && arcadeScreen.scoreRows > 0
+        visible: arcadeScreen.gameBox && arcadeScreen.scoreRows > 0
         x: Math.round(arcadeScreen.infoX * arcadeScreen.u)
         y: Math.round(arcadeScreen.scoresTop * arcadeScreen.v)
         width: Math.round(arcadeScreen.infoWidth * arcadeScreen.u)
@@ -1047,36 +1192,66 @@ FocusScope {
                             { label: "System", value: d.system || "?", told: d.system || "" }])
     }
 
+    // A line of the box, across its inside in its letters, the label where
+    // the high scores' are: MenuRow pads its line. A value too long for its
+    // line (Data East Corporation) scrolls through it, as About's lines do:
+    // the box's are read rather than chosen.
+    component BoxLine: MenuRow {
+        alwaysScroll: true
+        x: Math.round(arcadeScreen.infoX * arcadeScreen.u) - pad
+        width: Math.round(arcadeScreen.infoWidth * arcadeScreen.u) + 2 * pad
+        height: arcadeScreen.textSize
+        fontSize: arcadeScreen.textSize
+    }
+
     // The game's details, and how long it has been played, against the box's
-    // foot. The labels where the high scores' are: MenuRow pads its line. A
-    // value too long for its line (Data East Corporation) scrolls through it,
-    // as About's lines do: the box's are read rather than chosen.
+    // foot.
     Repeater {
         model: arcadeScreen.detailRows + 1
-        MenuRow {
+        BoxLine {
             required property int index
             readonly property var detail: index < arcadeScreen.detailRows ? arcadeScreen.detailList[index]
                                           : { label: "Play Time", value: moduleRoot.playTime(arcadeScreen.details.playTime) }
-            alwaysScroll: true
-            visible: arcadeScreen.isGame
-            x: Math.round(arcadeScreen.infoX * arcadeScreen.u) - pad
+            visible: arcadeScreen.gameBox
             y: Math.round((arcadeScreen.playTimeTop - (arcadeScreen.detailRows - index) * arcadeScreen.scorePitch)
                           * arcadeScreen.v)
-            width: Math.round(arcadeScreen.infoWidth * arcadeScreen.u) + 2 * pad
-            height: arcadeScreen.textSize
-            fontSize: arcadeScreen.textSize
             label: detail.label
             value: detail.value
         }
     }
 
+    // A room of the lobby in the box, from its top: its core, its version
+    // and RetroArch's against yours, who hosts it, where, how it is reached
+    // and so on (Rooms.boxLines()), as many lines as the box has room for.
+    readonly property int roomRows: Math.max(0, Math.floor((playTimeTop - scoresTop) / scorePitch) + 1)
+    readonly property var roomLines: lobbyRoom ? Rooms.boxLines(lobbyRoom, lobbyInfo) : []
+    Repeater {
+        model: Math.min(arcadeScreen.roomRows, arcadeScreen.roomLines.length)
+        BoxLine {
+            required property int index
+            readonly property var line: arcadeScreen.roomLines[index] || ({})
+            y: Math.round((arcadeScreen.scoresTop + index * arcadeScreen.scorePitch) * arcadeScreen.v)
+            label: line.label || ""
+            value: line.value || ""
+            icons: line.icons || []
+        }
+    }
+
     // What the game is, for the help line: its full name as MAME has it,
     // then those of its details the box has no line for; a room of the
-    // local network's who hosts it and its versions against ours first.
-    readonly property string about: (current && current.lan && current.detail ? [current.detail] : [])
-        .concat([details.name || ""]).concat(detailList.slice(detailRows).map(function(detail) {
-        return detail.told
-    })).join("\n")
+    // local network's who hosts it and its versions against ours first. A
+    // room of the whole lobby's what the lobby says of it; Search's, what
+    // to do there; the lobby's why it couldn't be read, and LAN Games' why
+    // it has no game.
+    readonly property string about: lobbyRoom ? Rooms.about(lobbyRoom, lobbyInfo)
+        : onSearch ? (typing ? "The games found follow each letter typed: OK goes down to them, back to the list, and ◄ ► past the keys' ends go round the filters"
+                             : "► or select to type what to look for: the games found follow each letter")
+        : filterId === "lobby" && count === 0 ? lobbyInfo.problem || ""
+        : filterId === "lan" && count === 0 ? lanInfo.detail || ""
+        : (current && current.lan && current.detail ? [current.detail] : [])
+          .concat([details.name || ""]).concat(detailList.slice(detailRows).map(function(detail) {
+              return detail.told
+          })).join("\n")
 
     // ---
     // Nothing to list
@@ -1090,6 +1265,58 @@ FocusScope {
         problem: arcadeScreen.problem
         folderReadable: arcadeScreen.folderReadable
         gamesFolder: arcadeScreen.gamesFolder
+    }
+
+    // In the list's place: on RetroArch Lobby, that the lobby is being read,
+    // can't be reached, or has no room; on LAN Games, that the network is
+    // being asked, can't be, or has no game of ours, or that FinalBurn Neo
+    // isn't installed; under Search's own row, that its words find no game.
+    Text {
+        readonly property bool lobbyEmpty: arcadeScreen.filterId === "lobby" && arcadeScreen.count === 0
+        readonly property bool lanEmpty: arcadeScreen.filterId === "lan" && arcadeScreen.count === 0
+        readonly property bool noneFound: arcadeScreen.filterId === "search" && arcadeScreen.count === 1
+        readonly property int rowTop: !noneFound ? arcadeScreen.listTop
+                                      : arcadeScreen.wheel ? arcadeScreen.wheelTops[1] || arcadeScreen.listTop
+                                      : arcadeScreen.listTop + arcadeScreen.pitch
+        visible: lobbyEmpty || lanEmpty || noneFound
+        x: Math.round((arcadeScreen.areaLeft + 16) * arcadeScreen.u)
+        y: Math.round((rowTop + (arcadeScreen.rowHeight - arcadeScreen.nameLines) / 2) * arcadeScreen.v)
+        width: Math.round((arcadeScreen.listWidth - 16) * arcadeScreen.u)
+        text: noneFound ? "No Game Found" : lanEmpty ? arcadeScreen.lanInfo.name || ""
+              : Rooms.emptyLine(arcadeScreen.lobbyInfo)
+        textFormat: Text.PlainText
+        wrapMode: Text.WordWrap
+        color: root.primaryColor
+        font.family: root.globalFont
+        font.capitalization: Font.AllUppercase
+        font.pixelSize: arcadeScreen.nameSize
+    }
+
+    // ---
+    // Search's keys, in the picture's frame while Search is shown
+    // ---
+
+    // In the frame's padding, in the box's letters, or smaller where the
+    // frame is too short for the line typed and the five rows of keys (a
+    // key 1.4 letters high, OnScreenKeyboard's inline layout).
+    readonly property int keysTop: areaTop + infoPadY
+    readonly property int keysHeight: pictureHeight - 2 * infoPadY
+    readonly property int keysFontSize: Math.min(textSize, Math.floor((keysHeight * v - 2 * root.px - 4) / 8.8))
+    OnScreenKeyboard {
+        id: searchKeys
+        objectName: "searchKeys"
+        inline: true
+        allowEmpty: true
+        visible: arcadeScreen.filterId === "search"
+        x: Math.round(arcadeScreen.infoX * arcadeScreen.u)
+        y: Math.round(arcadeScreen.keysTop * arcadeScreen.v)
+        width: Math.round(arcadeScreen.infoWidth * arcadeScreen.u)
+        height: Math.round(arcadeScreen.keysHeight * arcadeScreen.v)
+        fontSize: arcadeScreen.keysFontSize
+        onTextChanged: if (arcadeBackend && text !== arcadeBackend.search()) arcadeScreen.searchFor(text)
+        onAccepted: arcadeScreen.leaveKeys(true)
+        onCanceled: arcadeScreen.leaveKeys(false)
+        onPastEnd: (direction) => arcadeScreen.keysPastEnd(direction)
     }
 
     // ---
@@ -1115,7 +1342,8 @@ FocusScope {
 
     // ▲ ▼ and ◄ ► go without saying, the filter's bar showing ◄ ►, and
     // START with select: the bar has room for four, and with no help line,
-    // for the status icons at its right end.
+    // for the status icons at its right end. COIN only where it buys a
+    // credit (buysCredits).
     HintBar {
         id: hintLine
         visible: !options.visible
@@ -1124,10 +1352,17 @@ FocusScope {
         text: arcadeScreen.adjusting
               ? root.hints.back + ":DONE " + root.hints.arrows + (arcadeScreen.shrinking ? ":SHRINK " : ":EXPAND ")
                 + root.hints.select + (arcadeScreen.shrinking ? ":EXPAND" : ":SHRINK") + " HOLD:RESET"
-              : arcadeScreen.filters.length === 0 ? root.hints.back + ":BACK"
-              : arcadeScreen.current && arcadeScreen.current.room !== undefined
+              : arcadeScreen.typing
+                ? root.hints.back + ":DONE " + root.hints.arrows + ":MOVE " + root.hints.select + ":TYPE"
+              : arcadeScreen.filters.length === 0 || !arcadeScreen.current ? root.hints.back + ":BACK"
+              : arcadeScreen.onSearch ? root.hints.back + ":BACK " + root.hints.select + ":SEARCH"
+              : arcadeScreen.lobbyRoom
+                ? root.hints.back + ":BACK " + root.hints.select
+                  + (arcadeScreen.lobbyRoom.joinable ? ":JOIN HOLD:DETAILS" : ":DETAILS")
+              : arcadeScreen.current.room !== undefined
                 ? root.hints.back + ":BACK " + root.hints.select + ":JOIN"
-              : root.hints.back + ":BACK " + root.hints.coin + ":COIN " + root.hints.select + ":PLAY HOLD:OPTIONS"
+              : root.hints.back + ":BACK " + (arcadeScreen.buysCredits ? root.hints.coin + ":COIN " : "")
+                + root.hints.select + ":PLAY HOLD:OPTIONS"
         anchors.bottom: parent.bottom
         anchors.left: parent.left
         anchors.bottomMargin: root.sh * 0.1041667 + Math.round((645 - arcadeScreen.areaBottom) * arcadeScreen.v) //50
@@ -1208,8 +1443,8 @@ FocusScope {
 
     // A game's options: Play, Game Details, its favourite, Play at Startup,
     // its engine where MAME and FinalBurn Neo both have it, with Online Play
-    // on, hosting it and RetroArch's whole lobby, and with LAN Play on,
-    // hosting it on the local network.
+    // on, hosting it, and with LAN Play on, hosting it on the local network.
+    // RetroArch's whole lobby is a filter of its own.
     EntryOptions {
         id: options
         anchors.fill: parent
@@ -1220,8 +1455,6 @@ FocusScope {
                        ? [{ label: engines.lineFor(arcadeScreen.currentSet), action: "engine" }] : [])
                       .concat(arcadeBackend && arcadeBackend.canHost(arcadeScreen.currentSet)
                               ? [{ label: "Host Online Game", action: "host" }] : [])
-                      .concat(arcadeBackend && arcadeBackend.onlinePlay()
-                              ? [{ label: "RetroArch Lobby", action: "lobby" }] : [])
                       .concat(arcadeBackend && arcadeBackend.canHostLan(arcadeScreen.currentSet)
                               ? [{ label: "Host LAN Game", action: "hostLan" }] : []))
         onActivated: function(action) {
@@ -1234,10 +1467,6 @@ FocusScope {
             else if (action === "host" || action === "hostLan")
                 arcadeScreen.play(arcadeScreen.currentSet, arcadeScreen.details.name || arcadeScreen.current.name,
                                   arcadeScreen.filterId, { hosting: true, lan: action === "hostLan" })
-            // The whole lobby; coming back lands on the game, as from it.
-            else if (action === "lobby")
-                arcadeScreen.navigateTo("Lobby.qml", {}, { filter: arcadeScreen.filterId, set: arcadeScreen.currentSet,
-                                                           row: arcadeScreen.selectedRow })
         }
         onFavoritesEdited: arcadeScreen.reload()
         onClosed: if (!engines.visible) arcadeScreen.forceActiveFocus()

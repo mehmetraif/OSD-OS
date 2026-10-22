@@ -28,8 +28,8 @@ Local Files is on by default. Its code is in [modules/local_files](https://githu
 flowchart TD
     A{"Settings → TV / Movie → Local Files<br>Media Directory set?"} -- yes --> B["That folder"]
     A -- "no (Default)" --> C{"OSDOS_MEDIA_DIR set<br>in the environment?"}
-    C -- yes --> D["That folder<br>(on the OSD/OS image: /media/OSD-OS,<br>the card's film partition)"]
-    C -- no --> E["media in the data folder"]
+    C -- yes --> D["Movies in that folder<br>(on the OSD/OS image: /media/OSD-OS/Movies,<br>on the card's film partition)"]
+    C -- no --> E["Movies in media<br>in the data folder"]
     B --> F["The tree's top level:<br>its folders and files,<br>after the USB drives plugged in"]
     D --> F
     E --> F
@@ -41,12 +41,12 @@ flowchart TD
 
 | Where OSD/OS runs | Default media folder |
 |---|---|
-| The OSD/OS image | `/media/OSD-OS`, the card's own **OSD-OS** partition (see [below](#the-film-partition-on-the-osdos-image)) |
-| Raspberry Pi OS, Linux, SteamOS | `~/.local/share/OSD-OS/media` |
-| macOS | `~/Library/Application Support/OSD-OS/media` |
-| Any of them, with `DATA_ROOT` set | `media` in that folder |
+| The OSD/OS image | `/media/OSD-OS/Movies`, the **Movies** folder on the card's own **OSD-OS** partition (see [below](#the-film-partition-on-the-osdos-image)) |
+| Raspberry Pi OS, Linux, SteamOS | `~/.local/share/OSD-OS/media/Movies` |
+| macOS | `~/Library/Application Support/OSD-OS/media/Movies` |
+| Any of them, with `DATA_ROOT` set | `media/Movies` in that folder |
 
-The image sets the environment variable `OSDOS_MEDIA_DIR=/media/OSD-OS` for the app's service (`/etc/systemd/system/osdos.service.d/osdos-media.conf`); OSD/OS takes it as the default whenever it is set (and `MP240_MEDIA_DIR`, 240-MP's name for it, when it isn't). The folder is created if it isn't there.
+The image sets the environment variable `OSDOS_MEDIA_DIR=/media/OSD-OS` for the app's service (`/etc/systemd/system/osdos.service.d/osdos-media.conf`); OSD/OS takes the **Movies** folder in it as the default whenever it is set (and in `MP240_MEDIA_DIR`, 240-MP's name for it, when it isn't). The Movies folder is created if it isn't there. Films go in Movies, and the [Arcade](https://github.com/mehmetraif/OSD-OS/wiki/Arcade) module's games in `Games/Arcade` beside it, so the games never show among the films.
 
 Selecting **Media Directory** opens the folder picker: the same tree you browse Local Files with, starting from the places there are on the system.
 
@@ -72,9 +72,9 @@ Each folder's first entry is **Use This Folder**, which picks the folder it is i
 On its first boot the [OSD/OS image](https://github.com/mehmetraif/OSD-OS/wiki/The-OSD-OS-Image) keeps 8 GiB of the card for the system and turns the rest into a partition of its own, in exFAT, labelled **OSD-OS**. Windows and macOS read exFAT, so films go onto the card from any computer:
 
 1. Quit OSD/OS (Settings → Quit; on the image, **Power Off**) and take the card out.
-2. Put it in the computer's card reader. It shows up as two drives, **bootfs** and **OSD-OS**. Copy your films onto **OSD-OS**, in folders if you like.
+2. Put it in the computer's card reader. It shows up as two drives, **bootfs** and **OSD-OS**. Copy your films into the **Movies** folder on **OSD-OS**, in folders if you like.
 3. Windows also offers to format the system's partition, which it can't read. Always answer **Cancel**: formatting it erases the system.
-4. Put the card back in the Pi. Local Files opens **OSD-OS** until Media Directory names another folder.
+4. Put the card back in the Pi. Local Files opens the **Movies** folder on **OSD-OS** until Media Directory names another folder.
 
 How it is mounted (`/etc/fstab`): at `/media/OSD-OS`, read-write (the Playlists module downloads offline videos into it), `noexec,nosuid,nodev` (nothing on it can run), owned by the user the app runs as, and checked with `fsck.exfat` at every boot before it is mounted, in case the Pi was switched off at the wall mid-download. A card with less than 2 GiB to spare past the system gets no film partition; `/media/OSD-OS` is then an ordinary folder on the system's partition. The image's [os/README.md](https://github.com/mehmetraif/OSD-OS/blob/main/os/README.md#films-on-the-card) has the details.
 
@@ -304,7 +304,7 @@ Settings → TV / Movie → Local Files.
 | Setting | Values | Default | What it does | Config key |
 |---|---|---|---|---|
 | ENABLED | ON, OFF | ON | Shows Local Files on the main menu | `modules.com.osdos.local_files.enabled` |
-| Media Directory | a folder, or Default | Default | The folder Local Files shows. Default: the card's OSD-OS partition on the image, `media` in the data folder elsewhere | `modules.com.osdos.local_files.media_directory` |
+| Media Directory | a folder, or Default | Default | The folder Local Files shows. Default: the Movies folder on the card's OSD-OS partition on the image, `media/Movies` in the data folder elsewhere | `modules.com.osdos.local_files.media_directory` |
 | Loop Playback | ON, OFF | OFF | Repeats a file, or a playlist from its first entry, until stopped | `modules.com.osdos.local_files.loop_playback` |
 | Shuffle Playback | Ask, Always, Never | Ask | Plays playlists in random order; Ask asks each time a playlist starts | `modules.com.osdos.local_files.shuffle_playback` |
 | Resume Playback | Ask, Always, Never | Ask | Whether a video carries on where it was stopped: asks, always does, or never does | `modules.com.osdos.local_files.resume_playback` |
@@ -347,11 +347,11 @@ All in the data folder, each written whole (a power cut mid-save leaves the old 
 {
     "com.osdos.local_files": {
         "favorites": [
-            { "isFolder": false, "name": "Rambo Marathon.m3u", "path": "/media/OSD-OS/Rambo Marathon.m3u" },
-            { "isFolder": false, "name": "Your Name (2016).mp4", "path": "/media/OSD-OS/Anime/Your Name (2016).mp4" }
+            { "isFolder": false, "name": "Rambo Marathon.m3u", "path": "/media/OSD-OS/Movies/Rambo Marathon.m3u" },
+            { "isFolder": false, "name": "Your Name (2016).mp4", "path": "/media/OSD-OS/Movies/Anime/Your Name (2016).mp4" }
         ],
         "recent": [
-            { "isFolder": false, "name": "Spirited Away (2001).mp4", "path": "/media/OSD-OS/Anime/Spirited Away (2001).mp4" },
+            { "isFolder": false, "name": "Spirited Away (2001).mp4", "path": "/media/OSD-OS/Movies/Anime/Spirited Away (2001).mp4" },
             { "isFolder": false, "name": "Terminator 2 (1991).mp4", "path": "/media/usb/KINGSTON/Sci-Fi/Terminator 2 (1991).mp4" }
         ]
     }
@@ -362,8 +362,8 @@ All in the data folder, each written whole (a power cut mid-save leaves the old 
 
 ```json
 {
-    "/media/OSD-OS/Anime/Spirited Away (2001).mp4": { "plPos": -1, "pos": 4354000 },
-    "/media/OSD-OS/Rambo Marathon.m3u": { "plPos": 2, "pos": 61000 }
+    "/media/OSD-OS/Movies/Anime/Spirited Away (2001).mp4": { "plPos": -1, "pos": 4354000 },
+    "/media/OSD-OS/Movies/Rambo Marathon.m3u": { "plPos": 2, "pos": 61000 }
 }
 ```
 
@@ -374,7 +374,7 @@ The first resumes 1 hour 12 minutes 34 seconds in (`Resume from 1:12:34`, as abo
 ### A media folder laid out for the tree
 
 ```text
-/media/OSD-OS/
+/media/OSD-OS/Movies/
 ├── Action/
 │   ├── Rambo Movies/
 │   │   ├── Rambo - First Blood (1982).mp4
@@ -395,7 +395,7 @@ The first resumes 1 hour 12 minutes 34 seconds in (`Resume from 1:12:34`, as abo
 
 ### An m3u playlist
 
-`/media/OSD-OS/Rambo Marathon.m3u`, mixing relative paths (from the playlist's folder), an absolute path, a still image and a `.ts` recording Local Files wouldn't list on its own:
+`/media/OSD-OS/Movies/Rambo Marathon.m3u`, mixing relative paths (from the playlist's folder), an absolute path, a still image and a `.ts` recording Local Files wouldn't list on its own:
 
 ```text
 #EXTM3U
@@ -406,7 +406,7 @@ Action/Rambo Movies/Rambo - First Blood (1982).mp4
 #EXTINF:-1,Rambo - First Blood Part II (1985)
 Action/Rambo Movies/Rambo - First Blood Part II (1985).mp4
 #EXTINF:-1,Rambo III (1988)
-/media/OSD-OS/Action/Rambo Movies/Rambo III (1988).mp4
+/media/OSD-OS/Movies/Action/Rambo Movies/Rambo III (1988).mp4
 #EXTINF:-1,Rambo (2008), recorded off air
 /media/usb/KINGSTON/Recordings/Rambo (2008).ts
 ```
@@ -416,7 +416,7 @@ Save it as UTF-8 (`.m3u8` is the usual extension for a UTF-8 playlist). The stat
 ### A playlist folder
 
 ```text
-/media/OSD-OS/
+/media/OSD-OS/Movies/
 └── Anime Night.m3u/                      ← a folder
     ├── Anime Night.m3u                   ← the playlist, of the same name
     ├── 01 My Neighbor Totoro (1988).mp4
@@ -442,7 +442,7 @@ The tree lists the folder as the playlist `Anime Night.m3u`; select plays it, �
     "modules": {
         "com.osdos.local_files": {
             "enabled": true,
-            "media_directory": "/media/OSD-OS/Films",
+            "media_directory": "/media/OSD-OS/Cartoons",
             "loop_playback": false,
             "shuffle_playback": "ask",
             "resume_playback": "yes",
@@ -472,7 +472,7 @@ The usual way is ► on the file, **Play at Startup**. By hand, the file must be
         "startup_favorite": {
             "module": "com.osdos.local_files",
             "name": "Rambo Marathon.m3u",
-            "path": "/media/OSD-OS/Rambo Marathon.m3u"
+            "path": "/media/OSD-OS/Movies/Rambo Marathon.m3u"
         },
         "startup_from": "Beginning"
     }
@@ -481,7 +481,7 @@ The usual way is ► on the file, **Play at Startup**. By hand, the file must be
 
 ### Another default folder for a manual install
 
-On Raspberry Pi OS with `scripts/install.sh`, the default is `~/.local/share/OSD-OS/media`. Setting Media Directory is the simple way to change it. To change the default itself, give the service the same variable the image gives it:
+On Raspberry Pi OS with `scripts/install.sh`, the default is `~/.local/share/OSD-OS/media/Movies`. Setting Media Directory is the simple way to change it. To change the default itself, give the service the same variable the image gives it:
 
 ```ini
 # /etc/systemd/system/osdos.service.d/media.conf
@@ -494,7 +494,7 @@ sudo systemctl daemon-reload
 sudo systemctl restart osdos
 ```
 
-Media Directory, once set, still wins over it.
+The default is then `/mnt/films/Movies`, and the Arcade module's `/mnt/films/Games/Arcade`. Media Directory, once set, still wins over it.
 
 ## Tips
 
@@ -510,7 +510,7 @@ Media Directory, once set, still wins over it.
 
 | Problem | What to check |
 |---|---|
-| **No items found** | The media folder is empty, or isn't the one you think: Settings → TV / Movie → Local Files → Media Directory shows the path (Default: see [above](#the-media-folder)). On the image, check the films went onto the **OSD-OS** drive, not **bootfs** |
+| **No items found** | The media folder is empty, or isn't the one you think: Settings → TV / Movie → Local Files → Media Directory shows the path (Default: see [above](#the-media-folder)). On the image, check the films went into the **Movies** folder on the **OSD-OS** drive, not onto **bootfs** |
 | A file isn't listed | Its extension isn't one of [those Local Files plays](#what-it-plays), or its name starts with a dot. Rename it, or list it in an m3u |
 | A USB drive doesn't show | It must be mounted under `/media/` or `/run/media/` (Linux) or `/Volumes/` (Mac), from a `/dev/…` device, and not by `/etc/fstab`. On the image, `journalctl -u 'osdos-usb-mount@*'` says why it wasn't mounted (an encrypted volume, swap or a RAID member is never mounted). A manual Raspberry Pi OS Lite install mounts nothing by itself: mount it under `/media`, or set Media Directory to where it is |
 | A drive mounted elsewhere (`/mnt/…`) isn't a `USB:` row | Only `/media/` and `/run/media/` count. Set Media Directory to it instead |
