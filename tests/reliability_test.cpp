@@ -6,6 +6,9 @@
 #include "util/AtomicFile.h"
 #include "util/DurableFile.h"
 #include "util/AsyncDirectoryCache.h"
+#include <QJsonArray>
+#include <QJsonDocument>
+#include <QJsonObject>
 #include <QNetworkReply>
 #include <QSignalSpy>
 #include <QTcpServer>
@@ -111,6 +114,48 @@ private slots:
         QCoreApplication::setApplicationVersion("v0.1.0-rc.1");
         manager.handleReleaseInfo(R"({"tag_name": "v0.0.9", "assets": []})");
         QCOMPARE(manager.state(), QString("upToDate"));
+        QCoreApplication::setApplicationVersion(running);
+    }
+
+    // The package for this platform is picked by its name's ending, with
+    // the SHA-256 GitHub keeps for it; a release without one is checked by
+    // its size alone.
+    void updateTakesTheAssetsDigest() {
+        QCOMPARE(UpdateManager::assetDigest("sha256:" + QString(64, 'a')), QString(64, 'a'));
+        QCOMPARE(UpdateManager::assetDigest("sha256:" + QString(64, 'A')), QString(64, 'a'));
+        QCOMPARE(UpdateManager::assetDigest("sha256:" + QString(63, 'a')), QString());
+        QCOMPARE(UpdateManager::assetDigest("sha256:" + QString(64, 'g')), QString());
+        QCOMPARE(UpdateManager::assetDigest("sha512:" + QString(64, 'a')), QString());
+        QCOMPARE(UpdateManager::assetDigest(QString(64, 'a')), QString());
+        QCOMPARE(UpdateManager::assetDigest(QString()), QString());
+        QTemporaryDir tmp;
+        UpdateManager manager(tmp.path(), tmp.path());
+        const QString running = QCoreApplication::applicationVersion();
+        QCoreApplication::setApplicationVersion("v0.0.9");
+        const QString sha = QString(64, 'b');
+        // A release as GitHub's API gives it: each package with its digest,
+        // or without one.
+        const auto release = [](const QString &digest) {
+            QJsonArray assets;
+            const auto asset = [&assets, &digest](const QString &name, int size, bool digested) {
+                QJsonObject file{ { "name", name }, { "browser_download_url", "https://x/" + name }, { "size", size } };
+                if (digested)
+                    file.insert("digest", digest);
+                assets.append(file);
+            };
+            asset("install.sh", 10, true);
+            asset("OSD-OS-v0.1.0-linux-arm64.tar.gz", 20, !digest.isEmpty());
+            asset("OSD-OS-v0.1.0-macOS-arm64.dmg", 30, !digest.isEmpty());
+            asset("OSD-OS-linux-x86_64.AppImage", 40, !digest.isEmpty());
+            return QJsonDocument(QJsonObject{ { "tag_name", "v0.1.0" }, { "assets", assets } }).toJson();
+        };
+        manager.handleReleaseInfo(release("sha256:" + sha));
+        QCOMPARE(manager.state(), QString("updateAvailable"));
+        QVERIFY2(manager.m_assetName.startsWith("OSD-OS-"), qPrintable(manager.m_assetName));
+        QCOMPARE(manager.m_expectedSha256, sha);
+        manager.handleReleaseInfo(release(QString()));
+        QCOMPARE(manager.state(), QString("updateAvailable"));
+        QCOMPARE(manager.m_expectedSha256, QString());
         QCoreApplication::setApplicationVersion(running);
     }
 

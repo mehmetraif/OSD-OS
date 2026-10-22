@@ -180,7 +180,7 @@ The run gives the `pi` user the repository secret `OS_FIRST_USER_PASS` as its pa
 
 The app in these images is built as `dev`, which turns its self-update off. That way a branch image can't swap itself for a release that doesn't have its changes.
 
-**With a release:** pushing a version tag (see [BUILDING.md](../BUILDING.md#github-actions)) builds the image from that release's own tarball and attaches it to the release as `OSD-OS-<tag>-raspberry-pi.img.xz`, with its `.info` (the packages on it). The release is published only once the regression tests have passed on the tagged commit. Its app is the release's, and updates itself from later releases.
+**With a release:** pushing a version tag (see [BUILDING.md](../BUILDING.md#github-actions)) builds the image from that release's own tarball and attaches it to the release as `OSD-OS-<tag>-raspberry-pi.img.xz`. The release is published only once the regression tests have passed on the tagged commit. Its app is the release's, and updates itself from later releases.
 
 **Locally:** with Docker on an arm64 Linux host (an x86 host works too, through QEMU emulation, but takes hours), run:
 
@@ -242,7 +242,7 @@ systemd-analyze blame
 [NOTICE](NOTICE), which the image carries as `/usr/share/doc/osdos/NOTICE`, lists what the image is made of and under which licences:
 
 - OSD/OS itself, under GPL-3.0, with its licence at `/opt/osdos/share/osdos/LICENSE` (and in Settings → About), and what is built into it or ships with it for the High Scores module: openhi2txt (GPL-3.0) with RapidXML (Boost or MIT), and hi2txt's game definitions (GPL-2.0, their licence beside them in `/opt/osdos/share/osdos/modules/highscores/data/`).
-- Raspberry Pi OS's and Debian's packages, each with its own licence in `/usr/share/doc/<package>/copyright`. The list of them, with their versions, is the image's `.info` file, which the workflow publishes with the image. Their source is in the Debian and Raspberry Pi archives, and OSD/OS offers the source of the GPL and LGPL software on an image for three years after it is published.
+- Raspberry Pi OS's and Debian's packages, each with its own licence in `/usr/share/doc/<package>/copyright`. The list of them, with their versions, is on the image itself: `dpkg-query -W`. Their source is in the Debian and Raspberry Pi archives, and OSD/OS offers the source of the GPL and LGPL software on an image for three years after it is published.
 - What the stage adds: yt-dlp (public domain), Deno (MIT, its licence in `/usr/local/share/doc/deno/LICENSE.md`, from `stage-osdos/06-youtube/files/deno-LICENSE.md`, which is bumped with `DENO_VERSION`), MAME (GPL-2.0 or later, Debian's `mame` and `mame-data` packages, with their copyright files in `/usr/share/doc`), RetroArch (GPL-3.0, Debian's `retroarch` package), FinalBurn Neo (Team FB Neo's own licence, which lets it be shared with its text but never sold, nor used by a project that asks for donations; its full text in `/usr/local/share/doc/fbneo/license.txt`, with the build's date and CRC beside it in `BUILD`) and Widevine, Google's proprietary module, from Raspberry Pi's archive as Raspberry Pi OS installs it.
 - The notices for the data the modules show (TMDB, Open-Meteo, Wikidata), pi-gen's licence, the Raspberry Pi firmware's licence, which asks to be reproduced with it, and the trademarks: Raspberry Pi is a trademark of Raspberry Pi Ltd, Debian a registered trademark of Software in the Public Interest, Inc., and OSD/OS is endorsed by neither.
 

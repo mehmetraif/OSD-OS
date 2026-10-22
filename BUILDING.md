@@ -494,7 +494,7 @@ These build jobs run in parallel:
 | `build-macos-arm64` | `macos-15` (Apple Silicon) | `OSD-OS-<tag>-macOS-arm64.dmg` |
 | `build-linux-arm64` | `ubuntu-24.04-arm` (native arm64) | `OSD-OS-<tag>-linux-arm64.tar.gz` |
 | `build-linux-x86_64` | `ubuntu-24.04` | `OSD-OS-linux-x86_64.AppImage` (version-less — self-updates in place) |
-| `build-os-image` | `ubuntu-24.04-arm` (after `build-linux-arm64`) | `OSD-OS-<tag>-raspberry-pi.img.xz` and its `.info` |
+| `build-os-image` | `ubuntu-24.04-arm` (after `build-linux-arm64`) | `OSD-OS-<tag>-raspberry-pi.img.xz` |
 
 Beside them, `regression-tests` runs the regression tests on the tagged commit, calling [regression-tests.yml](.github/workflows/regression-tests.yml): on Linux x64 and arm64, and on Raspberry Pi OS.
 
@@ -516,4 +516,4 @@ Go to **Actions** → select the workflow run → each build job has an **Artifa
 
 **After the workflow completes:**
 
-Go to the repository on GitHub → **Releases** → select the release for the tag you set. All build artifacts (the OSD/OS image and its `.info`, the `.dmg`, both Linux packages, `SHA256SUMS`, `install.sh` and `setup-nfc-reader.sh`) are listed under Assets.
+Go to the repository on GitHub → **Releases** → select the release for the tag you set. All build artifacts (the OSD/OS image, the `.dmg`, both Linux packages and `install.sh`) are listed under Assets, each with its SHA-256 digest.

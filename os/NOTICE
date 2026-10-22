@@ -55,8 +55,7 @@ Linux kernel, the firmware, Qt, SDL2, mpv and libmpv, FFmpeg, Chromium,
 Python and everything else. Each package keeps its own copyright and
 licence, in /usr/share/doc/<package>/copyright on the image, and the GNU
 licences many of them use are in /usr/share/common-licenses. Which
-packages, at which versions, is the image's .info file, published with the
-image.
+packages, at which versions, the image says itself: `dpkg-query -W` on it.
 
 Source code. Each package's source, at the version on the image, is in the
 same archives: `apt-get source <package>` once deb-src lines are added to

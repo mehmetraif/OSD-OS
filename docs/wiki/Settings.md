@@ -324,7 +324,7 @@ If BlueZ isn't running, or the computer has no adapter, the page says **No Bluet
 Update compares the installed version with the latest release of [mehmetraif/OSD-OS](https://github.com/mehmetraif/OSD-OS/releases/latest) and shows its notes (▲ ▼ scroll them). Select does the next step, which the hint bar names:
 
 1. **CHECK** asks GitHub for the latest release, and offers it only when its version is newer than the one installed: an older one is never offered (**You're up to date**).
-2. **DOWNLOAD** fetches this platform's file (`-linux-arm64.tar.gz` on a Pi, `-linux-x86_64.AppImage`, `-macOS-arm64.dmg`) into the data folder's `updates`, with a progress bar, and checks it against the release's `SHA256SUMS` when the release has one. Back during a download cancels it.
+2. **DOWNLOAD** fetches this platform's file (`-linux-arm64.tar.gz` on a Pi, `-linux-x86_64.AppImage`, `-macOS-arm64.dmg`) into the data folder's `updates`, with a progress bar, and checks it against the SHA-256 digest GitHub keeps for it. Back during a download cancels it.
 3. **INSTALL** asks **Install update?**:
    - **Apply & Restart** on a Pi under the autostart service: OSD/OS exits, and the launcher swaps the new release into `/opt/osdos` before it starts again.
    - **Quit & Apply on Next Launch** on a Pi run by hand, and on an AppImage: on a Pi the launcher applies it at the next start; an AppImage swaps the new file over itself at once (keeping a `.bak` until the new one starts), then starts it again in a desktop session, or just quits in Steam's Gaming Mode, for Steam to start it.

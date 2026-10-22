@@ -66,7 +66,9 @@ private:
     void evaluateApplyCapability();
     void reconcileStagingDir();
     void handleReleaseInfo(const QByteArray &json);
-    void fetchChecksums(const QString &url);
+    // The hex of a release asset's digest as GitHub gives it ("sha256:<64
+    // hex digits>"), in lower case; "" for none or another kind.
+    static QString assetDigest(const QString &digest);
     void startAssetDownload();
     void finishDownload();
     void applyLinux();
@@ -95,7 +97,7 @@ private:
     QString m_assetName;
     QString m_assetUrl;
     qint64 m_assetSize = 0;
-    QString m_expectedSha256;   // from the release's SHA256SUMS asset, if present
+    QString m_expectedSha256;   // the asset's digest as GitHub keeps it, "" for none
 
     QNetworkReply *m_downloadReply = nullptr;
     QFile m_downloadFile;
