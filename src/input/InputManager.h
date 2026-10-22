@@ -45,7 +45,6 @@ class JammaPins;
 // so the view handles the key alone, as it does from a keyboard.
 class InputManager : public QObject {
     Q_OBJECT
-    Q_PROPERTY(bool gamepadConnected READ gamepadConnected NOTIFY gamepadConnectedChanged)
     Q_PROPERTY(QString lastInputDevice READ lastInputDevice NOTIFY lastInputDeviceChanged)
     Q_PROPERTY(QVariantMap hints READ hints NOTIFY hintsChanged)
     // [{ key, name, kind ("gamepad", "arcade", "keyboard", "remote"), count,
@@ -71,7 +70,6 @@ public:
     // Elsewhere a click does only what it is bound to.
     void setClickActions(bool on) { m_clickActions = on; }
 
-    bool gamepadConnected() const { return !m_controllers.isEmpty(); }
     QString lastInputDevice() const { return m_lastInputDevice; }
     QVariantMap hints() const { return m_hints; }
     QVariantList controllers() const;
@@ -140,7 +138,6 @@ public:
     Q_INVOKABLE void setRemapCapture(bool active);
 
 signals:
-    void gamepadConnectedChanged();
     void lastInputDeviceChanged();
     void hintsChanged();
     // Emitted instead of posting a key event when the Qt window is inactive
@@ -208,9 +205,9 @@ private:
     Action defaultKeyAction(int id) const;
     static QString actionName(Action a);
     static QVariantMap captureOutcome(const QString &outcome, Action does);
-    void saveProfiles();
+    bool saveProfiles();
     void loadPlayers();
-    void savePlayers();
+    bool savePlayers();
     void updatePlayers();
     controllers::Profile &editProfile(const QString &key);
     void noteController(const QString &key);
@@ -232,6 +229,7 @@ private:
     void handleButton(SDL_JoystickID which, Uint8 button, bool pressed);
     void handleAxis(SDL_JoystickID which, Uint8 axis, Sint16 value);
     void pressAction(Action a);
+    void pressFrom(const QString &device, Action a);
     void beginPress(Action a);
     void releaseAction(Action a);
     // An input that can be held down: its controller (a pad's instance,
@@ -267,6 +265,7 @@ private:
     QTimer m_pollTimer;
     QTimer m_repeatDelayTimer;
     QTimer m_repeatTimer;
+    QElapsedTimer m_volumeRepeat;   // since the last volume key sent to mpv
     QFileSystemWatcher m_watcher;
     QDateTime m_cfgLastModified;
 

@@ -8,6 +8,7 @@
 #include "../../util/DurableFile.h"
 #include "../../util/LegacyNames.h"
 #include "FbneoInstaller.h"
+#include "Http.h"
 #include "Libretro.h"
 #include "RetroAchievements.h"
 #include <QDateTime>
@@ -83,7 +84,8 @@ constexpr int kSetupChecks = 10;
 // How long the lobby is waited for.
 constexpr int kLobbyTimeoutMs = 15000;
 constexpr qint64 kLobbyMaxBytes = 4 * 1024 * 1024;
-constexpr const char *kTooBig = "osdosTooBig";
+// How often what MAME has said so far is written to games.json during a scan.
+constexpr int kCacheSaveMs = 30000;
 // How long our own RetroArch, or the copy of the app asking our core, is
 // given to say its version: a core is tens of megabytes to load on a Pi.
 constexpr int kVersionReadMs = 10000;
@@ -168,39 +170,9 @@ bool shownByDefault(const QString &filter) {
     return !filter.startsWith(QLatin1String("makers/"));
 }
 
-// A request of the lobby's or of catver.ini's.
-QNetworkRequest requestFor(const QUrl &url, int timeoutMs) {
-    QNetworkRequest request(url);
-    request.setAttribute(QNetworkRequest::RedirectPolicyAttribute, QNetworkRequest::NoLessSafeRedirectPolicy);
-    request.setHeader(QNetworkRequest::UserAgentHeader,
-                      QStringLiteral("OSD-OS/%1").arg(QCoreApplication::applicationVersion()));
-    request.setTransferTimeout(timeoutMs);
-    return request;
-}
-
-// A reply far bigger than what was asked for isn't it, and isn't read whole:
-// given up on once its size says so (its header, or as much as has come), and
-// marked so (kTooBig).
-void limitReply(QNetworkReply *reply, qint64 limit) {
-    const auto tooBig = [reply, limit](qint64 size) {
-        if (reply->isRunning() && size > limit) {
-            reply->setProperty(kTooBig, true);
-            reply->abort();
-        }
-    };
-    QObject::connect(reply, &QNetworkReply::metaDataChanged, reply, [reply, tooBig] {
-        tooBig(reply->header(QNetworkRequest::ContentLengthHeader).toLongLong());
-    });
-    QObject::connect(reply, &QNetworkReply::downloadProgress, reply, [tooBig](qint64 received, qint64 total) {
-        tooBig(std::max(received, total));
-    });
-}
-
-// A finished reply given up on, or with more than limit to read, which a
-// fast answer reaches before its progress says so.
-bool tooBig(QNetworkReply *reply, qint64 limit) {
-    return reply->property(kTooBig).toBool() || reply->bytesAvailable() > limit;
-}
+using arcadehttp::requestFor;
+using arcadehttp::limitReply;
+using arcadehttp::tooBig;
 
 // A publisher's filter under the company the name is one of, as the filters
 // are made now: "makers/Nintendo of America" → "makers/Nintendo".
@@ -986,8 +958,8 @@ void ArcadeBackend::onRead() {
     // it: unless MAME is being asked already (a game paused it), what it said
     // of every set is forgotten, and it is asked about them all.
     if (std::exchange(m_rescanAfterRead, false) && !scanning()) {
+        // games.json stays as it was until MAME has answered again (rescan()).
         forget();
-        saveCache();
         m_scanAfterRead = true;
     }
     if (std::exchange(m_scanAfterRead, false)) {
@@ -1077,8 +1049,10 @@ void ArcadeBackend::rescan() {
     }
     if (scanning())
         return;
+    // games.json stays as it was until MAME has answered again (the scan
+    // saves as it goes): stopped before then, the next start has what it
+    // said before rather than no games at all.
     forget();
-    saveCache();
     refresh();
 }
 
@@ -1098,23 +1072,41 @@ void ArcadeBackend::forget() {
 // What MAME says of the sets (-listxml), kept in games.json (read with the
 // folder, read()).
 
-void ArcadeBackend::saveCache() const {
-    QJsonObject machines;
-    for (auto it = m_machines.constBegin(); it != m_machines.constEnd(); ++it)
-        machines.insert(it.key(), QJsonObject::fromVariantMap(it.value().toVariant()));
-    const auto sorted = [](const QSet<QString> &sets) {
-        QStringList list(sets.cbegin(), sets.cend());
-        list.sort();
-        return QJsonArray::fromStringList(list);
-    };
-    const QJsonObject cache{ { QStringLiteral("version"), kCacheVersion },
-                             { QStringLiteral("mame"), m_identity },
-                             { QStringLiteral("build"), m_build },
-                             { QStringLiteral("machines"), machines },
-                             { QStringLiteral("unknown"), sorted(m_unknown) },
-                             { QStringLiteral("unknownBefore"), sorted(m_unknownBefore) } };
-    QDir().mkpath(m_home);
-    writeFileAtomically(m_home + QStringLiteral("/games.json"), QJsonDocument(cache).toJson(QJsonDocument::Compact));
+void ArcadeBackend::saveCache() {
+    // Off the app's thread, from a snapshot (the containers are implicitly
+    // shared): tens of thousands of machines made into JSON and flushed to
+    // the card take seconds on a Pi. The machines go in by name in order,
+    // so that each insert into the JSON object appends: in hash order each
+    // one moved every key after it, which was quadratic. One save at a time,
+    // in order (m_pictureSaves is one thread), so the last written is the
+    // newest; the pool waits for the last as the backend goes.
+    m_cacheSaved.start();
+    const QHash<QString, mame::Machine> machines = m_machines;
+    const QSet<QString> unknown = m_unknown;
+    const QSet<QString> unknownBefore = m_unknownBefore;
+    const QString identity = m_identity;
+    const QString build = m_build;
+    const QString home = m_home;
+    m_pictureSaves.start([machines, unknown, unknownBefore, identity, build, home] {
+        QStringList names = machines.keys();
+        names.sort();
+        QJsonObject object;
+        for (const QString &name : std::as_const(names))
+            object.insert(name, QJsonObject::fromVariantMap(machines.value(name).toVariant()));
+        const auto sorted = [](const QSet<QString> &sets) {
+            QStringList list(sets.cbegin(), sets.cend());
+            list.sort();
+            return QJsonArray::fromStringList(list);
+        };
+        const QJsonObject cache{ { QStringLiteral("version"), kCacheVersion },
+                                 { QStringLiteral("mame"), identity },
+                                 { QStringLiteral("build"), build },
+                                 { QStringLiteral("machines"), object },
+                                 { QStringLiteral("unknown"), sorted(unknown) },
+                                 { QStringLiteral("unknownBefore"), sorted(unknownBefore) } };
+        QDir().mkpath(home);
+        writeFileAtomically(home + QStringLiteral("/games.json"), QJsonDocument(cache).toJson(QJsonDocument::Compact));
+    });
 }
 
 void ArcadeBackend::startScan() {
@@ -1217,6 +1209,11 @@ void ArcadeBackend::onScanFinished(int exitCode, QProcess::ExitStatus status) {
         invalidate();
         if (!m_reader.build().isEmpty())
             m_build = m_reader.build();
+        // Kept as it comes, every so often: a session shorter than the whole
+        // scan of a full set (a Pi powered off before the end) keeps what was
+        // answered, instead of asking about every set again next time.
+        if (!m_toAsk.isEmpty() && (!m_cacheSaved.isValid() || m_cacheSaved.elapsed() >= kCacheSaveMs))
+            saveCache();
     } else {
         qWarning("[Arcade] MAME could not list the games (exit %d): %s", exitCode,
                  qPrintable(m_scan->errorString()));
@@ -1707,6 +1704,14 @@ void ArcadeBackend::sweepPictures() {
     m_retroAchievements->wantList();
     if (m_retroAchievements->listPending())
         return;
+    if (!m_retroAchievements->hasList()) {
+        // None could be read (off line, say) and none is kept: nothing to
+        // sweep by. Wanted still, for the next read of the games, rather
+        // than asked for again every second until the app ends.
+        stopPictureSweep();
+        m_sweepWanted = true;
+        return;
+    }
     if (!std::exchange(m_sweepListed, true))
         m_sweep = index().games;
     if (!m_sweepGame.isEmpty()) {
@@ -1853,6 +1858,11 @@ void ArcadeBackend::savePictureRecord() {
     m_pictureSaves.start([file, json] { writeFileAtomically(file, json); });
 }
 
+// What an engine looks for a set as, which a file named in capitals isn't.
+QString ArcadeBackend::looksForLowerCase(const QString &engine, const QString &set) const {
+    return QStringLiteral("%1 looks for %2, in lower case").arg(engine, mameFileName(set));
+}
+
 QString ArcadeBackend::mameFileName(const QString &set) const {
     return m_folders.contains(set) ? set
                                    : set + QLatin1Char('.') + QFileInfo(m_sets.value(set)).suffix().toLower();
@@ -1862,7 +1872,7 @@ QString ArcadeBackend::unknownDetail(const QString &set) const {
     if (!mame::isShortName(set))
         return QStringLiteral("Not the name of a set MAME knows\nA set is named as MAME names its game: pacman.zip");
     if (m_misnamed.contains(set))
-        return QStringLiteral("MAME looks for %1, in lower case\nRename the file to %1").arg(mameFileName(set));
+        return looksForLowerCase(QStringLiteral("MAME"), set) + QStringLiteral("\nRename the file to ") + mameFileName(set);
     // FinalBurn Neo has it, but not as a folder of files.
     if (m_fbneoGames.contains(set))
         return QStringLiteral("MAME has no game called %1\nFinalBurn Neo has it, but plays a zip or a 7z, not a folder").arg(set);
@@ -2198,8 +2208,7 @@ bool ArcadeBackend::play(const QString &name, int credits) {
         return false;
     }
     if (m_misnamed.contains(name)) {
-        m_lastError = QStringLiteral("MAME looks for %1, in lower case: rename the file to %1")
-                          .arg(mameFileName(name));
+        m_lastError = looksForLowerCase(QStringLiteral("MAME"), name) + QStringLiteral(": rename the file to ") + mameFileName(name);
         return false;
     }
 
@@ -2252,7 +2261,6 @@ bool ArcadeBackend::play(const QString &name, int credits) {
             qWarning("[Arcade] The credits could not be written for MAME: the game starts without them");
     }
 
-    const auto machine = m_machines.constFind(name);
     ScriptEntry entry;
     entry.path = program;
     entry.basename = QStringLiteral("mame");
@@ -2418,6 +2426,12 @@ bool ArcadeBackend::fbneoHas(const QString &set) const {
 }
 
 bool ArcadeBackend::playFbneo(const QString &name, libretro::Launch::Netplay netplay, const QString &joinAddress) {
+    // As play() checks before coming here: one game at a time, whether
+    // hosted, joined or played alone.
+    if (running()) {
+        m_lastError = QStringLiteral("A game is still running");
+        return false;
+    }
     const QString program = retroarchPath();
     if (program.isEmpty()) {
         m_lastError = QStringLiteral("RetroArch is not installed");
@@ -2440,8 +2454,7 @@ bool ArcadeBackend::playFbneo(const QString &name, libretro::Launch::Netplay net
         return false;
     }
     if (m_misnamed.contains(name)) {
-        m_lastError = QStringLiteral("FinalBurn Neo looks for %1, in lower case: rename the file to %1")
-                          .arg(mameFileName(name));
+        m_lastError = looksForLowerCase(QStringLiteral("FinalBurn Neo"), name) + QStringLiteral(": rename the file to ") + mameFileName(name);
         return false;
     }
 
@@ -2583,18 +2596,10 @@ bool ArcadeBackend::canHost(const QString &set) const {
 }
 
 bool ArcadeBackend::hostGame(const QString &set) {
-    if (running()) {
-        m_lastError = QStringLiteral("A game is still running");
-        return false;
-    }
     return playFbneo(set, libretro::Launch::Netplay::Host);
 }
 
 bool ArcadeBackend::joinRoom(int id) {
-    if (running()) {
-        m_lastError = QStringLiteral("A game is still running");
-        return false;
-    }
     for (const libretro::Room &room : std::as_const(m_rooms)) {
         if (room.id == id)
             return playFbneo(room.game, libretro::Launch::Netplay::Join, room.joinAddress);
@@ -2608,18 +2613,10 @@ bool ArcadeBackend::canHostLan(const QString &set) const {
 }
 
 bool ArcadeBackend::hostLanGame(const QString &set) {
-    if (running()) {
-        m_lastError = QStringLiteral("A game is still running");
-        return false;
-    }
     return playFbneo(set, libretro::Launch::Netplay::LanHost);
 }
 
 bool ArcadeBackend::joinLanRoom(int id) {
-    if (running()) {
-        m_lastError = QStringLiteral("A game is still running");
-        return false;
-    }
     for (const libretro::Room &room : std::as_const(m_lanRooms)) {
         if (room.id == id)
             return playFbneo(room.game, libretro::Launch::Netplay::LanJoin, room.joinAddress);
@@ -2716,7 +2713,7 @@ QVariantMap ArcadeBackend::lobby() const {
             why = QStringLiteral("FinalBurn Neo plays a game's zip or 7z, not a folder");
         else if (!have)
             why = m_fbneoGames.contains(room.game)
-                      ? QStringLiteral("FinalBurn Neo looks for %1, in lower case").arg(mameFileName(room.game))
+                      ? looksForLowerCase(QStringLiteral("FinalBurn Neo"), room.game)
                       : QStringLiteral("FinalBurn Neo has no game called %1").arg(room.game);
         else if (!m_onlinePlay)
             why = QStringLiteral("Online Play is off: Settings → Arcade → Online Play");
@@ -2907,23 +2904,34 @@ QProcess *ArcadeBackend::askVersion(const QString &program, const QStringList &a
     return process;
 }
 
+// A room's row in the tree, of RetroArch's lobby or of the local network
+// (lan), with what is said of it under its name.
+static QVariantMap roomEntry(const QVariantMap &room, bool lan, const QString &detail) {
+    const QString host = room.value(QStringLiteral("host")).toString();
+    QVariantMap entry{ { QStringLiteral("name"), QStringLiteral("%1 (%2)").arg(room.value(QStringLiteral("title")).toString(), host) },
+                       { QStringLiteral("path"), QStringLiteral("%1:%2").arg(lan ? QStringLiteral("lan") : QStringLiteral("room"))
+                                                                        .arg(room.value(QStringLiteral("id")).toInt()) },
+                       { QStringLiteral("isFolder"), false },
+                       { QStringLiteral("kind"), QStringLiteral("room") },
+                       { QStringLiteral("game"), room.value(QStringLiteral("set")) },
+                       { QStringLiteral("room"), room.value(QStringLiteral("id")) },
+                       { QStringLiteral("host"), host },
+                       { QStringLiteral("detail"), detail } };
+    if (lan)
+        entry.insert(QStringLiteral("lan"), true);
+    return entry;
+}
+
 QVariantList ArcadeBackend::roomEntries() const {
     QVariantList entries;
     for (const QVariant &value : rooms()) {
         const QVariantMap room = value.toMap();
-        const QString host = room.value(QStringLiteral("host")).toString();
         const QString country = room.value(QStringLiteral("country")).toString().toUpper();
-        const QString set = room.value(QStringLiteral("set")).toString();
-        entries << QVariantMap{ { QStringLiteral("name"), QStringLiteral("%1 (%2)").arg(room.value(QStringLiteral("title")).toString(), host) },
-                                { QStringLiteral("path"), QStringLiteral("room:%1").arg(room.value(QStringLiteral("id")).toInt()) },
-                                { QStringLiteral("isFolder"), false },
-                                { QStringLiteral("kind"), QStringLiteral("room") },
-                                { QStringLiteral("game"), set },
-                                { QStringLiteral("room"), room.value(QStringLiteral("id")) },
-                                { QStringLiteral("host"), host },
-                                { QStringLiteral("detail"), QStringLiteral("Hosted by %1%2 • %3")
-                                                                .arg(host, country.isEmpty() ? QString() : QStringLiteral(" in ") + country,
-                                                                     m_sets.value(set)) } };
+        entries << roomEntry(room, false,
+                             QStringLiteral("Hosted by %1%2 • %3")
+                                 .arg(room.value(QStringLiteral("host")).toString(),
+                                      country.isEmpty() ? QString() : QStringLiteral(" in ") + country,
+                                      m_sets.value(room.value(QStringLiteral("set")).toString())));
     }
     if (entries.isEmpty()) {
         const bool failed = !m_roomsProblem.isEmpty();
@@ -3062,16 +3070,7 @@ QVariantList ArcadeBackend::lanRoomEntries() const {
     QVariantList entries;
     for (const QVariant &value : lanRooms()) {
         const QVariantMap room = value.toMap();
-        const QString host = room.value(QStringLiteral("host")).toString();
-        entries << QVariantMap{ { QStringLiteral("name"), QStringLiteral("%1 (%2)").arg(room.value(QStringLiteral("title")).toString(), host) },
-                                { QStringLiteral("path"), QStringLiteral("lan:%1").arg(room.value(QStringLiteral("id")).toInt()) },
-                                { QStringLiteral("isFolder"), false },
-                                { QStringLiteral("kind"), QStringLiteral("room") },
-                                { QStringLiteral("game"), room.value(QStringLiteral("set")) },
-                                { QStringLiteral("room"), room.value(QStringLiteral("id")) },
-                                { QStringLiteral("host"), host },
-                                { QStringLiteral("lan"), true },
-                                { QStringLiteral("detail"), room.value(QStringLiteral("detail")) } };
+        entries << roomEntry(room, true, room.value(QStringLiteral("detail")).toString());
     }
     if (entries.isEmpty()) {
         const QVariantMap status = lanStatus();
@@ -3481,8 +3480,7 @@ QVariantMap ArcadeBackend::achievementCount(const QString &set) {
 }
 
 QString ArcadeBackend::achievementBadge(const QString &set, int id, const QString &name, bool earned) {
-    static const QRegularExpression badgeName(QRegularExpression::anchoredPattern(QStringLiteral("[0-9A-Za-z]{1,32}")));
-    if (id <= 0 || !badgeName.match(name).hasMatch() || !m_sets.contains(set) || isUnrecognized(set))
+    if (id <= 0 || !arcadehttp::isBadgeName(name) || !m_sets.contains(set) || isUnrecognized(set))
         return QString();
     const QString locked = earned ? QString() : QStringLiteral("_lock");
     const QString file = QStringLiteral("achieve_%1_%2%3.png").arg(set).arg(id).arg(locked);

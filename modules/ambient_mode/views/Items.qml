@@ -35,18 +35,27 @@ FocusScope {
     focus: true
 
     function launchPlayer(videoShuffle, audioShuffle) {
+        // The picker as it was, for the way back from the player.
         navigateTo("Player.qml", {
             videoPath:  videoShuffle ? "" : videoFiles[videoIndex].path,
             videoPaths: videoShuffle ? videoFiles.map(function(f) { return f.path }) : [],
             audioPath:  (!audioShuffle && audioIndex > 0) ? audioFiles[audioIndex - 1].path : "",
             audioPaths: audioShuffle ? audioFiles.map(function(f) { return f.path }) : []
-        }, { returnedFromPlayer: true })
+        }, { returnedFromPlayer: true, focusRow: focusRow, videoIndex: videoIndex, audioIndex: audioIndex })
     }
 
     Component.onCompleted: {
         videoFiles = ambientModeBackend.getVideoFiles()
         audioFiles = ambientModeBackend.getAudioFiles()
         autoLaunch = !!appCore.get_setting(moduleRoot.moduleId, "auto_launch")
+        // Back from the player: the picker where it was left, within the
+        // files there are now.
+        if (navListState.videoIndex !== undefined)
+            videoIndex = Math.max(0, Math.min(navListState.videoIndex, videoSlotCount - 1))
+        if (navListState.audioIndex !== undefined)
+            audioIndex = Math.max(0, Math.min(navListState.audioIndex, audioSlotCount - 1))
+        if (navListState.focusRow !== undefined)
+            focusRow = Math.max(0, Math.min(navListState.focusRow, 2))
 
         // Auto-launch only fires when the app boots straight into this module
         // (it's the configured startup module), not when someone navigates here
@@ -324,7 +333,6 @@ FocusScope {
             id: startPlayback
             anchors.top: audioTrackRow.bottom
             anchors.topMargin: root.sh * 0.0583333 //28
-            height: root.sh * 0.35 //56
 
             // PLAY button
             Rectangle {

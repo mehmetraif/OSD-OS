@@ -1,6 +1,7 @@
 #pragma once
 #include <QDateTime>
 #include <QElapsedTimer>
+#include <QElapsedTimer>
 #include <QFutureWatcher>
 #include <QHash>
 #include <QMap>
@@ -508,7 +509,8 @@ private:
     // fn once the folder and games.json have been read: at once when they
     // have, for the settings' choices.
     void afterRead(std::function<void()> fn);
-    void saveCache() const;
+    void saveCache();
+    QString looksForLowerCase(const QString &engine, const QString &set) const;
     // What MAME said of the sets, all forgotten: it is asked again. The sets
     // it had no machine of are kept apart until it has answered for them
     // (m_unknownBefore, mameLacks()).
@@ -893,6 +895,7 @@ private:
     QHash<QString, mame::Machine> m_machines;
     QSet<QString> m_unknown;      // sets MAME has no machine of
     QSet<QString> m_unknownBefore;   // and had none of before it was asked again, till it has answered
+    QElapsedTimer m_cacheSaved;   // since games.json was last written (saveCache())
     QString m_identity;           // mameIdentity() the cache was made with
     QString m_build;              // MAME's build, as it says
     bool    m_cacheLoaded = false;

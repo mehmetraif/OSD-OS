@@ -374,12 +374,16 @@ void HighScoresBackend::refresh() {
     emit readingChanged();
     m_watcher->setFuture(QtConcurrent::run([definitions, root, gamesJson, toRead, sets]() {
         Read read;
-        openhi2txt::ContextOptions options;
-        options.definitionsZip = definitions.toStdString();
-        options.mameRoot = root.toStdString();
-        const openhi2txt::Context context(options);
-        for (const Source &source : toRead)
-            read.games << readGame(context, root, source);
+        // The definitions (a zip of them all) are opened only with files to
+        // read; a change to the games' names alone needs none.
+        if (!toRead.isEmpty()) {
+            openhi2txt::ContextOptions options;
+            options.definitionsZip = definitions.toStdString();
+            options.mameRoot = root.toStdString();
+            const openhi2txt::Context context(options);
+            for (const Source &source : toRead)
+                read.games << readGame(context, root, source);
+        }
         read.names = namesOf(gamesJson, sets);
         return read;
     }));

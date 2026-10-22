@@ -16,23 +16,42 @@
 #include <QQmlContext>
 #include <algorithm>
 
+// A file's JSON read as an object. False when there is no such file, or it
+// isn't a JSON object: `why` then says what is wrong with one that is there
+// (empty for one that isn't, or is empty).
+static bool readJsonObject(const QString &path, QJsonObject *out, QString *why = nullptr) {
+    if (why) why->clear();
+    QFile f(path);
+    if (!f.open(QIODevice::ReadOnly))
+        return false;
+    const QByteArray raw = f.readAll();
+    if (raw.trimmed().isEmpty())
+        return false;
+    QJsonParseError err;
+    const QJsonDocument doc = QJsonDocument::fromJson(raw, &err);
+    if (err.error != QJsonParseError::NoError || !doc.isObject()) {
+        if (why)
+            *why = err.error != QJsonParseError::NoError ? err.errorString()
+                                                         : QStringLiteral("not a JSON object");
+        return false;
+    }
+    *out = doc.object();
+    return true;
+}
+
 AppCore::AppCore(const QString &appRoot, const QString &dataRoot, QObject *parent)
     : QObject(parent), m_appRoot(appRoot), m_dataRoot(dataRoot)
 {
     QDir modulesDir(appRoot + "/modules");
     const QStringList dirs = modulesDir.entryList(QDir::Dirs | QDir::NoDotAndDotDot, QDir::Name);
     for (const QString &folder : dirs) {
-        QString manifestPath = modulesDir.absoluteFilePath(folder + "/manifest.json");
-        QFile f(manifestPath);
-        if (!f.open(QIODevice::ReadOnly)) continue;
-        QJsonParseError err;
-        QJsonDocument doc = QJsonDocument::fromJson(f.readAll(), &err);
-        if (err.error != QJsonParseError::NoError || !doc.isObject()) {
-            qWarning("[AppCore] Bad manifest.json in %s: %s",
-                     qPrintable(folder), qPrintable(err.errorString()));
+        QJsonObject manifest;
+        QString why;
+        if (!readJsonObject(modulesDir.absoluteFilePath(folder + "/manifest.json"), &manifest, &why)) {
+            if (!why.isEmpty())
+                qWarning("[AppCore] Bad manifest.json in %s: %s", qPrintable(folder), qPrintable(why));
             continue;
         }
-        QJsonObject manifest = doc.object();
         QString id       = manifest["id"].toString();
         QString entryQml = manifest["entry_point_qml"].toString();
         if (id.isEmpty() || entryQml.isEmpty()) {
@@ -48,6 +67,14 @@ AppCore::AppCore(const QString &appRoot, const QString &dataRoot, QObject *paren
         m.iconRel  = manifest["icon"].toString();
         m.settings = manifest["settings"].toArray().toVariantList();
         m.settingsGroup = manifest["settings_group"].toString();
+        // On unless the manifest's own "enabled" toggle says OFF.
+        for (const QVariant &sv : std::as_const(m.settings)) {
+            const QVariantMap s = sv.toMap();
+            if (s["key"].toString() == "enabled") {
+                m.enabledByDefault = s["default"].toString().toUpper() != "OFF";
+                break;
+            }
+        }
         m_modules.append(m);
         qDebug("[AppCore] Loaded manifest: %s", qPrintable(id));
     }
@@ -57,15 +84,17 @@ AppCore::AppCore(const QString &appRoot, const QString &dataRoot, QObject *paren
 // Config helpers
 // ---------------------------------------------------------------------------
 
-QJsonObject AppCore::loadConfig() const {
-    QFile f(m_dataRoot + "/config.json");
-    if (f.open(QIODevice::ReadOnly)) {
-        QJsonParseError err;
-        QJsonDocument doc = QJsonDocument::fromJson(f.readAll(), &err);
-        if (err.error == QJsonParseError::NoError && doc.isObject())
-            return doc.object();
-    }
-    // Return a sensible default if the file is missing or corrupt
+QJsonObject AppCore::loadConfig(bool *broken) const {
+    QJsonObject config;
+    QString why;
+    const bool ok = readJsonObject(m_dataRoot + "/config.json", &config, &why);
+    // One that is there but can't be read (a stray comma from editing it by
+    // hand) must not be written over: these defaults would then replace every
+    // setting in it. Readers get the defaults meanwhile; save_setting refuses.
+    if (broken)
+        *broken = !ok && !why.isEmpty();
+    if (ok)
+        return config;
     return QJsonObject{
         {"app", QJsonObject{{"color_scheme","Video 1"}}},
         {"modules", QJsonObject{}}
@@ -78,16 +107,20 @@ bool AppCore::saveConfig(const QJsonObject &config) const {
 }
 
 bool AppCore::isModuleEnabled(const ModuleEntry &m, const QJsonObject &modulesConfig) const {
-    QJsonObject mCfg = modulesConfig[m.id].toObject();
-    bool manifestDefault = true;
-    for (const auto &sv : m.settings) {
-        QVariantMap s = sv.toMap();
-        if (s["key"].toString() == "enabled") {
-            manifestDefault = s["default"].toString().toUpper() != "OFF";
-            break;
-        }
+    const QJsonObject mCfg = modulesConfig[m.id].toObject();
+    return mCfg.contains("enabled") ? mCfg["enabled"].toBool(true) : m.enabledByDefault;
+}
+
+const ModuleEntry *AppCore::findModule(const QString &moduleId) const {
+    for (const ModuleEntry &m : m_modules) {
+        if (m.id == moduleId)
+            return &m;
     }
-    return mCfg.contains("enabled") ? mCfg["enabled"].toBool(true) : manifestDefault;
+    return nullptr;
+}
+
+QString AppCore::entryPointOf(const ModuleEntry &m) {
+    return QStringLiteral("modules/%1/%2").arg(m.folder, m.entryQml);
 }
 
 // ---------------------------------------------------------------------------
@@ -106,7 +139,7 @@ void AppCore::scan_for_modules() {
             continue;
         }
         // entry_point is a path relative to APP_ROOT
-        QString entryPoint = QStringLiteral("modules/%1/%2").arg(m.folder, m.entryQml);
+        const QString entryPoint = entryPointOf(m);
         QVariantMap entry;
         entry["name"]        = m.name;
         entry["entry_point"] = entryPoint;
@@ -135,7 +168,7 @@ void AppCore::scan_for_modules() {
                 continue;
             }
             if (!entry.contains("entry_point"))
-                entry["entry_point"] = QStringLiteral("modules/%1/%2").arg(m.folder, m.entryQml);
+                entry["entry_point"] = entryPointOf(m);
             displayData.append(entry);
             qDebug("[AppCore] Menu entry from %s: %s -> %s", qPrintable(m.id),
                    qPrintable(entry.value("name").toString()),
@@ -188,7 +221,14 @@ bool AppCore::save_setting(const QString &moduleId, const QString &key, const QV
     // QJsonValue::fromVariant() would store as null.
     const QVariant value = rawValue.metaType() == QMetaType::fromType<QJSValue>()
                                ? rawValue.value<QJSValue>().toVariant() : rawValue;
-    QJsonObject config = loadConfig();
+    bool broken = false;
+    QJsonObject config = loadConfig(&broken);
+    if (broken) {
+        qWarning("[AppCore] Setting not saved: config.json is there but isn't valid JSON, "
+                 "and saving %s.%s would write the defaults over it",
+                 qPrintable(moduleId.isEmpty() ? "app" : moduleId), qPrintable(key));
+        return false;
+    }
 
     // Navigate to the target section
     auto getTarget = [&]() -> QJsonObject {
@@ -242,39 +282,26 @@ bool AppCore::save_setting(const QString &moduleId, const QString &key, const QV
 }
 
 QVariant AppCore::get_module_info(const QString &moduleId) {
-    for (const auto &m : m_modules) {
-        if (m.id == moduleId) {
-            QString iconPath = QStringLiteral("%1/modules/%2/%3")
-                                   .arg(m_appRoot, m.folder, m.iconRel);
-            QString iconUrl = QUrl::fromLocalFile(iconPath).toString();
-            return QVariantMap{{"name", m.name}, {"icon", iconUrl}};
-        }
-    }
-    return QVariantMap{};
+    const ModuleEntry *m = findModule(moduleId);
+    if (!m)
+        return QVariantMap{};
+    const QString iconPath = QStringLiteral("%1/modules/%2/%3").arg(m_appRoot, m->folder, m->iconRel);
+    return QVariantMap{{"name", m->name}, {"icon", QUrl::fromLocalFile(iconPath).toString()}};
 }
 
 bool AppCore::is_module_enabled(const QString &moduleId) const {
-    const QJsonObject modulesConfig = loadConfig()["modules"].toObject();
-    for (const auto &m : m_modules) {
-        if (m.id == moduleId) return isModuleEnabled(m, modulesConfig);
-    }
-    return false;
+    const ModuleEntry *m = findModule(moduleId);
+    return m && isModuleEnabled(*m, loadConfig()["modules"].toObject());
 }
 
 QString AppCore::module_entry_point(const QString &moduleId) const {
-    for (const auto &m : m_modules) {
-        if (m.id == moduleId)
-            return QStringLiteral("modules/%1/%2").arg(m.folder, m.entryQml);
-    }
-    return {};
+    const ModuleEntry *m = findModule(moduleId);
+    return m ? entryPointOf(*m) : QString();
 }
 
 QVariant AppCore::get_module_settings_schema(const QString &moduleId) {
-    for (const auto &m : m_modules) {
-        if (m.id == moduleId)
-            return m.settings;
-    }
-    return QVariantList{};
+    const ModuleEntry *m = findModule(moduleId);
+    return m ? QVariant(m->settings) : QVariant(QVariantList{});
 }
 
 void AppCore::invoke_module_action(const QString &moduleId, const QString &slotName) {
@@ -292,10 +319,11 @@ void AppCore::invoke_module_action(const QString &moduleId, const QString &slotN
 
 void AppCore::registerModule(const QString &moduleId, const QString &contextProperty,
                              QObject *backend, QQmlContext *ctx) {
+    // Only a backend there is: the lookups by id dereference what is kept.
+    if (!backend) return;
     m_backends[moduleId] = backend;
     if (ctx)
         ctx->setContextProperty(contextProperty, backend);
-    if (!backend) return;
 
     const QMetaObject *bmo = backend->metaObject();
     const QMetaObject *amo = this->metaObject();
@@ -400,7 +428,7 @@ QVariant AppCore::get_installed_modules() {
     return result;
 }
 
-QVariantMap AppCore::importColorScheme(QJsonObject &obj) const {
+QVariantMap AppCore::importColorScheme(const QJsonObject &obj) const {
     static const QStringList kRequiredKeys = {"primary","secondary","tertiary","surface","accent"};
     static const QRegularExpression kHexColor("^#[0-9A-Fa-f]{6}$");
 
@@ -422,37 +450,26 @@ QVariantMap AppCore::importColorScheme(QJsonObject &obj) const {
 }
 
 QVariantMap AppCore::getCustomColorScheme() const {
-    QFile f(m_dataRoot + "/custom_color_scheme.json");
-    if (!f.exists()) return {};
-    if (!f.open(QIODevice::ReadOnly)) return {};
-
-    QJsonParseError err;
-    QJsonDocument doc = QJsonDocument::fromJson(f.readAll(), &err);
-    if (err.error != QJsonParseError::NoError || !doc.isObject()) {
-        qWarning("[AppCore] custom_color_scheme.json: invalid JSON");
+    QJsonObject obj;
+    QString why;
+    if (!readJsonObject(m_dataRoot + "/custom_color_scheme.json", &obj, &why)) {
+        if (!why.isEmpty())
+            qWarning("[AppCore] custom_color_scheme.json: %s", qPrintable(why));
         return {};
     }
-
-    QJsonObject obj = doc.object();
-    QVariantMap result = this->importColorScheme(obj);
-    return result;
+    return importColorScheme(obj);
 }
 
 QVariantMap AppCore::getCustomColorSchemes() const {
     static const QRegularExpression validThemeName("^[\\w\\d !#-/:-@\\[-_{-~]{3,28}$", QRegularExpression::CaseInsensitiveOption);
 
-    QFile f(m_dataRoot + "/custom_color_schemes.json");
-    if (!f.exists()) return {};
-    if (!f.open(QIODevice::ReadOnly)) return {};
-
-    QJsonParseError err;
-    QJsonDocument doc = QJsonDocument::fromJson(f.readAll(), &err);
-    if (err.error != QJsonParseError::NoError || !doc.isObject()) {
-        qWarning("[AppCore] custom_color_schemes.json: invalid JSON");
+    QJsonObject obj;
+    QString why;
+    if (!readJsonObject(m_dataRoot + "/custom_color_schemes.json", &obj, &why)) {
+        if (!why.isEmpty())
+            qWarning("[AppCore] custom_color_schemes.json: %s", qPrintable(why));
         return {};
     }
-
-    QJsonObject obj = doc.object();
     QVariantMap result;
     for (const QString &theme : obj.keys()) {
         if (!validThemeName.match(theme).hasMatch()) {
@@ -926,15 +943,9 @@ QString AppCore::startupModuleEntryPoint() const {
 }
 
 QString AppCore::moduleEntryPoint(const QString &moduleId) const {
-    QJsonObject modulesConfig = loadConfig()["modules"].toObject();
-    for (const auto &m : m_modules) {
-        // Skip a disabled module so we never auto-launch into one that isn't
-        // present in the module list (e.g. set as startup, then disabled later).
-        if (m.id == moduleId && isModuleEnabled(m, modulesConfig)) {
-            return QStringLiteral("modules/%1/%2").arg(m.folder, m.entryQml);
-        }
-    }
-    return {};
+    // Not a disabled module: never auto-launch into one that isn't in the
+    // module list (set as startup, then disabled later).
+    return is_module_enabled(moduleId) ? module_entry_point(moduleId) : QString();
 }
 
 QString AppCore::moduleIdForSource(const QString &source) const {
@@ -953,11 +964,24 @@ QString AppCore::moduleIdForSource(const QString &source) const {
 // A module's lists: <dataRoot>/lists.json, { "<moduleId>": { "<name>": [entries] } }
 // ---------------------------------------------------------------------------
 
-QJsonObject AppCore::loadLists() const {
-    QFile f(m_dataRoot + QStringLiteral("/lists.json"));
-    if (!f.open(QIODevice::ReadOnly))
-        return {};
-    return QJsonDocument::fromJson(f.readAll()).object();
+QJsonObject AppCore::loadLists(bool *broken) const {
+    QJsonObject lists;
+    QString why;
+    const bool ok = readJsonObject(m_dataRoot + QStringLiteral("/lists.json"), &lists, &why);
+    // As config.json: one there but unreadable is not written over.
+    if (broken)
+        *broken = !ok && !why.isEmpty();
+    return lists;
+}
+
+// The lists as they are, for a change to be saved over them; false, with a
+// line in the log, when the file is there but can't be read.
+bool AppCore::listsToChange(QJsonObject *lists) const {
+    bool broken = false;
+    *lists = loadLists(&broken);
+    if (broken)
+        qWarning("[AppCore] lists.json is there but isn't valid JSON: not written over");
+    return !broken;
 }
 
 void AppCore::saveLists(const QJsonObject &lists) const {
@@ -974,7 +998,9 @@ void AppCore::add_to_list(const QString &moduleId, const QString &name,
     const QString path = entry.value(QStringLiteral("path")).toString();
     if (path.isEmpty())
         return;
-    QJsonObject lists = loadLists();
+    QJsonObject lists;
+    if (!listsToChange(&lists))
+        return;
     QJsonObject module = lists.value(moduleId).toObject();
     QJsonArray kept{ QJsonObject::fromVariantMap(entry) };
     for (const QJsonValue &v : module.value(name).toArray()) {
@@ -989,7 +1015,9 @@ void AppCore::add_to_list(const QString &moduleId, const QString &name,
 }
 
 void AppCore::remove_from_list(const QString &moduleId, const QString &name, const QString &path) {
-    QJsonObject lists = loadLists();
+    QJsonObject lists;
+    if (!listsToChange(&lists))
+        return;
     QJsonObject module = lists.value(moduleId).toObject();
     QJsonArray kept;
     for (const QJsonValue &v : module.value(name).toArray()) {

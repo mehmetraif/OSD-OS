@@ -261,13 +261,11 @@ void UpdateManager::reconcileStagingDir() {
     for (const QString &p : parts)
         dir.remove(p);
 
-    QFile marker(stagedJsonPath());
-    if (!marker.open(QIODevice::ReadOnly)) {
+    const QJsonObject staged = readStaged();
+    if (staged.isEmpty()) {
         clearStagingFiles();   // sweep payloads orphaned by a discarded stage
         return;
     }
-    const QJsonObject staged = QJsonDocument::fromJson(marker.readAll()).object();
-    marker.close();
 
     const QString version = staged.value(QStringLiteral("version")).toString();
     const QString asset   = staged.value(QStringLiteral("asset")).toString();
@@ -421,13 +419,22 @@ void UpdateManager::download() {
     }
     m_hash.reset();
     m_downloadProgress = 0.0;
+    m_downloadError.clear();
+    m_downloadedBytes = 0;
     emit progressChanged();
     setState(QStringLiteral("downloading"));
 
     m_downloadReply = m_nam.get(githubRequest(QUrl(m_assetUrl)));
     connect(m_downloadReply, &QNetworkReply::readyRead, this, [this]() {
         const QByteArray chunk = m_downloadReply->readAll();
-        m_downloadFile.write(chunk);
+        // A chunk the card couldn't take (full) ends the download as a
+        // failure of its own, not as the cancel the abort looks like.
+        if (m_downloadFile.write(chunk) != chunk.size()) {
+            m_downloadError = QStringLiteral("Could not write to the updates folder.");
+            m_downloadReply->abort();
+            return;
+        }
+        m_downloadedBytes += chunk.size();
         m_hash.addData(chunk);
     });
     connect(m_downloadReply, &QNetworkReply::downloadProgress, this,
@@ -458,10 +465,16 @@ void UpdateManager::finishDownload() {
             setState(QStringLiteral("error"), msg);
     };
 
+    if (!m_downloadError.isEmpty())
+        return fail(std::exchange(m_downloadError, QString()));
     if (reply->error() == QNetworkReply::OperationCanceledError)
         return fail(QString());
     if (reply->error() != QNetworkReply::NoError)
         return fail(QStringLiteral("Download failed: %1").arg(reply->errorString()));
+    // What reached the disk is what was hashed, or the hash says nothing
+    // about the file.
+    if (m_downloadFile.size() != m_downloadedBytes)
+        return fail(QStringLiteral("Could not write to the updates folder."));
     if (m_assetSize > 0 && m_downloadFile.size() != m_assetSize)
         return fail(QStringLiteral("Download incomplete — please try again."));
 
@@ -489,17 +502,25 @@ bool UpdateManager::writeStagedMarkers(const QString &sha256Hex) {
         {QStringLiteral("version"), m_latestVersion},
         {QStringLiteral("asset"), m_assetName},
         {QStringLiteral("sha256"), sha256Hex},
-        {QStringLiteral("size"), QString::number(QFileInfo(updatesDir() + QStringLiteral("/") + m_assetName).size())},
+        {QStringLiteral("size"), QFileInfo(updatesDir() + QStringLiteral("/") + m_assetName).size()},
     };
     return writeFileAtomically(stagedJsonPath(), QJsonDocument(staged).toJson());
+}
+
+// staged.json as written above; empty when there is none or it can't be read.
+QJsonObject UpdateManager::readStaged() const {
+    QFile marker(stagedJsonPath());
+    if (!marker.open(QIODevice::ReadOnly))
+        return {};
+    return QJsonDocument::fromJson(marker.readAll()).object();
 }
 
 void UpdateManager::clearStagingFiles() {
     QDir dir(updatesDir());
     if (!m_assetName.isEmpty())
         dir.remove(m_assetName);
-    dir.remove(QStringLiteral("staged.json"));
-    dir.remove(QStringLiteral("staged.sha256"));
+    QFile::remove(stagedJsonPath());
+    QFile::remove(stagedSha256Path());
     // Plus whatever payload an older run left behind
     const QStringList leftovers =
         dir.entryList({QStringLiteral("*.tar.gz"), QStringLiteral("*.dmg"),
@@ -535,12 +556,11 @@ void UpdateManager::applyLinux() {
     // both right after a download and after an app restart. Under autostart,
     // exit 11 makes systemd relaunch immediately; a manual session just quits
     // and the update applies on the next launch.
-    QFile marker(stagedJsonPath());
-    if (!marker.open(QIODevice::ReadOnly)) {
+    const QJsonObject staged = readStaged();
+    if (staged.isEmpty()) {
         setState(QStringLiteral("error"), QStringLiteral("Staged update is missing — please download again."));
         return;
     }
-    const QJsonObject staged = QJsonDocument::fromJson(marker.readAll()).object();
     const QString sha256 = staged.value(QStringLiteral("sha256")).toString();
     const QString asset  = staged.value(QStringLiteral("asset")).toString();
     if (sha256.isEmpty() || asset.isEmpty()) {
@@ -560,26 +580,42 @@ void UpdateManager::applyLinux() {
         QTimer::singleShot(0, qApp, &QCoreApplication::quit);
 }
 
+// The SHA-256 of a file, in hex; empty when it can't be read.
+static QString sha256Of(const QString &path) {
+    QFile f(path);
+    if (!f.open(QIODevice::ReadOnly))
+        return {};
+    QCryptographicHash hash(QCryptographicHash::Sha256);
+    if (!hash.addData(&f))
+        return {};
+    return QString::fromLatin1(hash.result().toHex());
+}
+
 // In-place AppImage self-update. The staged image was SHA-256-verified at
-// download, so it is trusted here. Swapping it over the running $APPIMAGE is safe
+// download, and is checked against that hash again here: what is on the card
+// since is what gets swapped in. Swapping it over the running $APPIMAGE is safe
 // even while executing — the process keeps the old inode (FUSE mount / already
 // extracted) until it exits. The swap runs in-process (not a fire-and-forget
 // helper) so a failure — permissions, cross-filesystem, disk full — can be
 // reported to the UI without quitting. A .bak is kept for cheap local recovery
 // (swept on the next successful start; see the constructor).
 void UpdateManager::applyAppImage() {
-    QFile marker(stagedJsonPath());
-    if (!marker.open(QIODevice::ReadOnly)) {
+    const QJsonObject staged = readStaged();
+    if (staged.isEmpty()) {
         setState(QStringLiteral("error"), QStringLiteral("Staged update is missing — please download again."));
         return;
     }
-    const QJsonObject staged = QJsonDocument::fromJson(marker.readAll()).object();
-    marker.close();
     const QString asset = staged.value(QStringLiteral("asset")).toString();
     const QString stagedPath = updatesDir() + QStringLiteral("/") + asset;
     if (asset.isEmpty() || !QFileInfo::exists(stagedPath)) {
         clearStagingFiles();
         setState(QStringLiteral("error"), QStringLiteral("Staged update is missing — please download again."));
+        return;
+    }
+    const QString sha256 = staged.value(QStringLiteral("sha256")).toString();
+    if (sha256.isEmpty() || sha256Of(stagedPath) != sha256) {
+        clearStagingFiles();
+        setState(QStringLiteral("error"), QStringLiteral("Staged update is invalid — please download again."));
         return;
     }
 

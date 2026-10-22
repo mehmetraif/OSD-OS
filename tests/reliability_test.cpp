@@ -206,10 +206,11 @@ private slots:
     }
 
     // Audio Output's note without a USB sound card to play through: nothing
-    // plugged in, a USB sound device ALSA made no card of (by its product
-    // name, once for its two sound interfaces, a keyboard left out), the
-    // Pi's power having dropped (the firmware's flags, or the hwmon's alarm
-    // where the kernel has no such file); none once ALSA has the card.
+    // plugged in, a USB sound device no driver took (by its product name,
+    // once for its two sound interfaces, a keyboard left out), one the driver
+    // took that ALSA made no card of, the Pi's power having dropped (the
+    // firmware's flags, or the hwmon's alarm where the kernel has no such
+    // file), a USB card with no output; none once ALSA has the card.
     void usbSoundCardNote() {
         QTemporaryDir dir;
         QVERIFY(dir.isValid());
@@ -240,7 +241,15 @@ private slots:
         QVERIFY(write(usb + "/1-1.3:1.1/bInterfaceClass", "01\n"));
         QVERIFY(write(usb + "/1-1.4/product", "Keyboard\n"));
         QVERIFY(write(usb + "/1-1.4:1.0/bInterfaceClass", "03\n"));
-        const QString unmade = "USB Audio Device is plugged in, but the system made no sound card of it to play through";
+        const QString unmade = "USB Audio Device is plugged in, but the USB sound driver (snd-usb-audio) didn't take it";
+        QCOMPARE(note(audio), unmade);
+        // The driver bound to one of its sound interfaces (the kernel's link
+        // to it), and still no card.
+        QVERIFY(QDir().mkpath(dir.path() + "/snd-usb-audio"));
+        QVERIFY(QFile::link(dir.path() + "/snd-usb-audio", usb + "/1-1.3:1.1/driver"));
+        QCOMPARE(note(audio), QString("USB Audio Device is plugged in and the USB sound driver took it, "
+                                      "but ALSA made no card of it to play through"));
+        QVERIFY(QFile::remove(usb + "/1-1.3:1.1/driver"));
         QCOMPARE(note(audio), unmade);
         // Bit 16 of the firmware's get_throttled (hex, as the kernel writes
         // it): under-voltage since boot.
@@ -258,10 +267,14 @@ private slots:
         QVERIFY(write(hwmon + "/hwmon1/in0_lcrit_alarm", "0\n"));
         QCOMPARE(note(audio), unmade);
 
+        // ALSA's card of it with an input alone (a microphone), then with an
+        // output.
         QVERIFY(write(asound + "/cards", " 0 [Headphones     ]: bcm2835_headpho - bcm2835 Headphones\n"
                                          "                      bcm2835 Headphones\n"
                                          " 1 [Device         ]: USB-Audio - USB Audio Device\n"
                                          "                      GeneralPlus USB Audio Device at usb-xhci-hcd.0-1.3, full speed\n"));
+        QVERIFY(QDir().mkpath(asound + "/card1/pcm0c"));
+        QCOMPARE(note(audio), QString("USB Audio Device is plugged in, but it has no output to play through"));
         QVERIFY(QDir().mkpath(asound + "/card1/pcm0p"));
         QCOMPARE(note(audio), QString());
     }

@@ -67,8 +67,9 @@ FocusScope {
         var y = list.contentY
         playlist = playlistsBackend.playlist(playlistId)
         if (!playlist.id) {
-            // Deleted.
-            pageRoot.goBack()
+            // Deleted. A turn later: as the page opens (onCompleted), the
+            // router isn't listening yet.
+            Qt.callLater(pageRoot.goBack)
             return
         }
         progress = ({})
@@ -86,6 +87,8 @@ FocusScope {
 
     Component.onCompleted: {
         reload()
+        if (!playlist.id)
+            return
         if (navListState.currentIndex !== undefined)
             list.currentIndex = Math.min(navListState.currentIndex, rows.length - 1)
         // The list playing behind the menus: on to its player, back from

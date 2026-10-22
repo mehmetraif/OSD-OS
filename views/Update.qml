@@ -8,11 +8,9 @@ import Components
 FocusScope {
     id: updateRoot
 
-    signal navigateTo(string path, var params, var listState)
     signal goBack()
 
     property var navParams: ({})
-    property var navListState: ({})
 
     property bool autostartSession: false
 
@@ -177,13 +175,13 @@ FocusScope {
                 height: root.sh * 0.0291667 //14
                 color: "transparent"
                 border.color: root.tertiaryColor
-                border.width: 1
+                border.width: root.px
                 Rectangle {
                     anchors.top: parent.top
                     anchors.bottom: parent.bottom
                     anchors.left: parent.left
-                    anchors.margins: 2
-                    width: (parent.width - 4) * (updateManager ? updateManager.downloadProgress : 0)
+                    anchors.margins: 2 * root.px
+                    width: (parent.width - 4 * root.px) * (updateManager ? updateManager.downloadProgress : 0)
                     color: root.accentColor
                 }
             }

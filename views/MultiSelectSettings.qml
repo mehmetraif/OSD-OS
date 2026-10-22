@@ -18,6 +18,7 @@ FocusScope {
     property string moduleId: navParams.moduleId || ""
     property string settingKey: navParams.settingKey || ""
     property string settingLabel: navParams.settingLabel || ""
+    property string moduleName: navParams.moduleName || moduleId.split(".").pop().toUpperCase()
 
     property var options: []         // [{id, label, default}], and [{label, heading}]
     property var enabledMap: ({})    // id -> bool, as the page shows them
@@ -56,9 +57,11 @@ FocusScope {
         var kept = Object.assign({}, saved)
         for (var i = 0; i < ids.length; i++)
             shown[ids[i]] = kept[ids[i]] = on
+        // Not saved (the card full): the page shows what is saved.
+        if (!appCore.save_setting(moduleId, settingKey, kept))
+            return
         enabledMap = shown
         saved = kept
-        appCore.save_setting(moduleId, settingKey, kept)
     }
 
     // Receive dynamic options from backend via appCore
@@ -92,7 +95,7 @@ FocusScope {
     AppBar {
         iconSource: "../../assets/images/settings.svg"
         title: "Settings"
-        subtitle: moduleId.split(".").pop().toUpperCase() + " / " + settingLabel
+        subtitle: moduleName + " / " + settingLabel
         anchors.top: parent.top
         anchors.left: parent.left
         anchors.topMargin: root.sh * 0.125 //60

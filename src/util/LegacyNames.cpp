@@ -1,4 +1,5 @@
 #include "LegacyNames.h"
+#include "AtomicFile.h"
 
 #include <QDir>
 #include <QFile>
@@ -6,7 +7,6 @@
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
-#include <QSaveFile>
 #include <QtGlobal>
 
 namespace {
@@ -54,11 +54,7 @@ void migrateFile(const QString &path) {
         return;
     const QJsonDocument out = doc.isArray() ? QJsonDocument(renameIds(doc.array()).toArray())
                                             : QJsonDocument(renameIds(doc.object()).toObject());
-    QSaveFile save(path);
-    if (!save.open(QIODevice::WriteOnly))
-        return;
-    save.write(out.toJson(QJsonDocument::Indented));
-    if (save.commit())
+    if (writeFileAtomically(path, out.toJson(QJsonDocument::Indented)))
         qInfo("[legacy] module ids renamed in %s", qPrintable(path));
 }
 

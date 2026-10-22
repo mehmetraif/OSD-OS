@@ -317,21 +317,28 @@ local function draw_menu()
     mp.set_osd_ass(ww, wh, ass.text)
 end
 
+-- The menu off the screen and its keys given back.
+local function hide_menu()
+    menu_visible = false
+    mp.set_osd_ass(0, 0, "")
+    if update_timer then update_timer:stop() end
+    for _, name in ipairs({ "menu-up", "menu-down", "menu-left", "menu-right",
+                            "menu-enter", "menu-esc", "menu-bs" }) do
+        mp.remove_key_binding(name)
+    end
+end
+
+-- The buttons on the left of the bar, as wide as it is now.
+local function left_buttons()
+    local ww, _ = mp.get_osd_size()
+    local bar_w = math.floor(ww * 0.88) - math.floor(ww * 0.12)
+    return build_left_btns(has_subtitle_tracks(), has_playlist(), bar_w)
+end
+
 local function reset_idle_timer()
     if idle_timer then idle_timer:kill() end
     idle_timer = mp.add_timeout(MENU_TIMEOUT, function()
-        if menu_visible then
-            menu_visible = false
-            mp.set_osd_ass(0, 0, "")
-            if update_timer then update_timer:stop() end
-            mp.remove_key_binding("menu-up")
-            mp.remove_key_binding("menu-down")
-            mp.remove_key_binding("menu-left")
-            mp.remove_key_binding("menu-right")
-            mp.remove_key_binding("menu-enter")
-            mp.remove_key_binding("menu-esc")
-            mp.remove_key_binding("menu-bs")
-        end
+        if menu_visible then hide_menu() end
     end)
 end
 
@@ -346,32 +353,20 @@ local function update_nav(action)
         if focus_row == 0 then
             mp.command("seek -" .. SEEK_SECONDS)
         else
-            local has_sub = has_subtitle_tracks()
-            local has_pl  = has_playlist()
-            local ww, _   = mp.get_osd_size()
-            local bar_w   = math.floor(ww * 0.88) - math.floor(ww * 0.12)
-            local total   = #build_left_btns(has_sub, has_pl, bar_w) + 1
+            local total = #left_buttons() + 1
             focus_btn = focus_btn > 1 and focus_btn - 1 or total
         end
     elseif action == "right" then
         if focus_row == 0 then
             mp.command("seek " .. SEEK_SECONDS)
         else
-            local has_sub = has_subtitle_tracks()
-            local has_pl  = has_playlist()
-            local ww, _   = mp.get_osd_size()
-            local bar_w   = math.floor(ww * 0.88) - math.floor(ww * 0.12)
-            local total   = #build_left_btns(has_sub, has_pl, bar_w) + 1
+            local total = #left_buttons() + 1
             focus_btn = focus_btn < total and focus_btn + 1 or 1
         end
     elseif action == "enter" and focus_row == 1 then
-        local has_sub   = has_subtitle_tracks()
-        local has_pl    = has_playlist()
-        local ww, wh    = mp.get_osd_size()
-        local bar_w     = math.floor(ww * 0.88) - math.floor(ww * 0.12)
-        local btns      = build_left_btns(has_sub, has_pl, bar_w)
-        local total     = #btns + 1
-        local clamped   = math.min(focus_btn, total)
+        local btns    = left_buttons()
+        local total   = #btns + 1
+        local clamped = math.min(focus_btn, total)
         if clamped <= #btns then
             btns[clamped].action()
         else
@@ -384,17 +379,8 @@ end
 
 local function toggle_menu()
     if menu_visible then
-        menu_visible = false
-        mp.set_osd_ass(0, 0, "")
-        if update_timer then update_timer:stop() end
-        if idle_timer   then idle_timer:kill()   end
-        mp.remove_key_binding("menu-up")
-        mp.remove_key_binding("menu-down")
-        mp.remove_key_binding("menu-left")
-        mp.remove_key_binding("menu-right")
-        mp.remove_key_binding("menu-enter")
-        mp.remove_key_binding("menu-esc")
-        mp.remove_key_binding("menu-bs")
+        hide_menu()
+        if idle_timer then idle_timer:kill() end
     else
         -- Tell the volume bar (mpv-media-keys.lua) to stand down — the two OSDs
         -- share the same spot and are mutually exclusive.

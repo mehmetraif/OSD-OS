@@ -26,12 +26,6 @@ FocusScope {
         root.changeWindow(internalLoader, resolved, { "navParams": params || {} })
     }
 
-    function replaceWith(viewPath, params) {
-        var resolved = Qt.resolvedUrl(viewPath)
-        currentParams = params || {}
-        root.changeWindow(internalLoader, resolved, { "navParams": params || {} })
-    }
-
     function navigateBack() {
         if (navStack.length === 0) {
             moduleRoot.goBack()
@@ -58,7 +52,6 @@ FocusScope {
             target: internalLoader.item
             ignoreUnknownSignals: true
             function onNavigateTo(path, params, listState) { moduleRoot.navigateTo(path, params, listState) }
-            function onReplaceWith(path, params) { moduleRoot.replaceWith(path, params) }
             function onGoBack() { moduleRoot.navigateBack() }
         }
     }

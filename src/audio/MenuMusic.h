@@ -69,6 +69,9 @@ private:
     // hold and release in quick turns doesn't start it between them.
     void reconsider();
     void start();
+    bool wantedNow() const;
+    // The volume to mpv, once its socket is there.
+    void sendVolume();
     // mpv playing `file`, looping.
     void play(const QString &file);
     // The source made into a WAV in the cache, then played.

@@ -90,21 +90,10 @@ QStringList YouTubeBackend::cookieArgs() const {
 // Subscriptions file
 // ---------------------------------------------------------------------------
 
-QStringList YouTubeBackend::readSubscriptionIds(QString *error) const {
-    const QString path = m_dataRoot + "/" + kSubscriptionsFileName;
-    if (!QFile::exists(path)) {
-        if (error)
-            *error = QStringLiteral("NO SUBSCRIPTIONS FILE FOUND\n"
-                                    "CREATE YOUTUBE_SUBSCRIPTIONS.TXT IN THE DATA DIRECTORY\n"
-                                    "WITH ONE CHANNEL ID PER LINE");
+QStringList YouTubeBackend::readSubscriptionIds() const {
+    QFile f(m_dataRoot + "/" + kSubscriptionsFileName);
+    if (!f.open(QIODevice::ReadOnly | QIODevice::Text))
         return {};
-    }
-    QFile f(path);
-    if (!f.open(QIODevice::ReadOnly | QIODevice::Text)) {
-        if (error)
-            *error = QStringLiteral("COULD NOT READ YOUTUBE_SUBSCRIPTIONS.TXT");
-        return {};
-    }
     QStringList ids;
     while (!f.atEnd()) {
         QString line = QString::fromUtf8(f.readLine()).trimmed();
@@ -121,53 +110,20 @@ QStringList YouTubeBackend::readSubscriptionIds(QString *error) const {
         if (!line.isEmpty() && !ids.contains(line))
             ids << line;
     }
-    if (ids.isEmpty() && error)
-        *error = QStringLiteral("NO CHANNELS FOUND IN YOUTUBE_SUBSCRIPTIONS.TXT");
     return ids;
 }
 
-QVariantMap YouTubeBackend::check_subscriptions() {
-    QString error;
-    const QStringList ids = readSubscriptionIds(&error);
-    QVariantMap result;
-    result["ok"]           = error.isEmpty();
-    result["error"]        = error;
-    result["fileExists"]   = QFile::exists(m_dataRoot + "/" + kSubscriptionsFileName);
-    result["channelCount"] = ids.size();
-    return result;
-}
-
 // ---------------------------------------------------------------------------
-// Loaders — all route through one cache-fill path so a single in-flight
-// refresh can serve every waiting view.
+// The cache fill: one in-flight refresh serves every path waiting on it.
 // ---------------------------------------------------------------------------
-
-void YouTubeBackend::load_subscriptions_feed(bool forceRefresh) {
-    m_emitFeedWhenDone = true;
-    ensureFresh(forceRefresh);
-}
-
-void YouTubeBackend::load_channels(bool forceRefresh) {
-    m_emitChannelsWhenDone = true;
-    ensureFresh(forceRefresh);
-}
-
-void YouTubeBackend::load_channel_videos(const QString &channelId, bool forceRefresh) {
-    m_emitChannelVideosWhenDone = channelId;
-    ensureFresh(forceRefresh);
-}
 
 void YouTubeBackend::ensureFresh(bool forceRefresh) {
     if (m_pendingChannels > 0)
-        return; // refresh already in flight — the emit flags queue on it
+        return; // refresh already in flight — the waits queue on it
 
-    QString error;
-    const QStringList ids = readSubscriptionIds(&error);
+    const QStringList ids = readSubscriptionIds();
     if (ids.isEmpty()) {
-        m_emitFeedWhenDone     = false;
-        m_emitChannelsWhenDone = false;
-        m_emitChannelVideosWhenDone.clear();
-        emit errorOccurred(error);
+        answerLater(std::exchange(m_channelWaits, {}));
         return;
     }
     m_channelOrder = ids;
@@ -287,10 +243,6 @@ void YouTubeBackend::refreshChannel(const QString &channelId) {
                 const QString path = QStringLiteral("channel/") + channelId;
                 if (m_channelWaits.removeAll(path) > 0)
                     answerLater({ path });
-                if (m_emitChannelVideosWhenDone == channelId) {
-                    m_emitChannelVideosWhenDone.clear();
-                    emit channelVideosLoaded(channelId, videos);
-                }
             }
         }
         // On failure: keep any previously cached videos (stale beats empty);
@@ -303,13 +255,6 @@ void YouTubeBackend::refreshChannel(const QString &channelId) {
 }
 
 void YouTubeBackend::finishAggregate() {
-    const bool    feedWanted     = m_emitFeedWhenDone;
-    const bool    channelsWanted = m_emitChannelsWhenDone;
-    const QString videosWanted   = m_emitChannelVideosWhenDone;
-    m_emitFeedWhenDone     = false;
-    m_emitChannelsWhenDone = false;
-    m_emitChannelVideosWhenDone.clear();
-
     bool anyOk = false;
     for (const QString &id : m_channelOrder)
         anyOk = anyOk || m_channels.value(id).feedOk;
@@ -324,24 +269,6 @@ void YouTubeBackend::finishAggregate() {
         setProblem(QString::fromLatin1(kSubscriptionsProblem));
     }
     answerLater(std::exchange(m_channelWaits, {}));
-
-    if (!anyOk) {
-        emit errorOccurred(QStringLiteral("COULD NOT LOAD SUBSCRIPTIONS\n"
-                                          "CHECK YOUR NETWORK CONNECTION"));
-        return;
-    }
-
-    if (feedWanted)
-        emit subscriptionsFeedLoaded(buildFeed());
-    if (channelsWanted)
-        emit channelsLoaded(buildChannelList());
-    if (!videosWanted.isEmpty()) {
-        const ChannelEntry entry = m_channels.value(videosWanted);
-        if (entry.feedOk)
-            emit channelVideosLoaded(videosWanted, entry.videos);
-        else
-            emit errorOccurred(QStringLiteral("COULD NOT LOAD CHANNEL FEED"));
-    }
 }
 
 QVariantList YouTubeBackend::buildFeed() const {
@@ -396,21 +323,10 @@ static QString playlistIdFromToken(QString token) {
     return token;
 }
 
-QList<YouTubeBackend::PlaylistFileRef> YouTubeBackend::readPlaylistEntries(QString *error) const {
-    const QString path = m_dataRoot + "/" + kPlaylistsFileName;
-    if (!QFile::exists(path)) {
-        if (error)
-            *error = QStringLiteral("NO PLAYLISTS FILE FOUND\n"
-                                    "CREATE YOUTUBE_PLAYLISTS.TXT IN THE DATA DIRECTORY\n"
-                                    "WITH ONE PLAYLIST URL PER LINE");
+QList<YouTubeBackend::PlaylistFileRef> YouTubeBackend::readPlaylistEntries() const {
+    QFile f(m_dataRoot + "/" + kPlaylistsFileName);
+    if (!f.open(QIODevice::ReadOnly | QIODevice::Text))
         return {};
-    }
-    QFile f(path);
-    if (!f.open(QIODevice::ReadOnly | QIODevice::Text)) {
-        if (error)
-            *error = QStringLiteral("COULD NOT READ YOUTUBE_PLAYLISTS.TXT");
-        return {};
-    }
     QList<PlaylistFileRef> refs;
     QStringList seen;
     while (!f.atEnd()) {
@@ -431,48 +347,22 @@ QList<YouTubeBackend::PlaylistFileRef> YouTubeBackend::readPlaylistEntries(QStri
         seen << id;
         refs.append({id, name});
     }
-    if (refs.isEmpty() && error)
-        *error = QStringLiteral("NO PLAYLISTS FOUND IN YOUTUBE_PLAYLISTS.TXT");
     return refs;
 }
 
-QVariantMap YouTubeBackend::check_playlists() {
-    QString error;
-    const QList<PlaylistFileRef> refs = readPlaylistEntries(&error);
-    QVariantMap result;
-    result["ok"]            = error.isEmpty();
-    result["error"]         = error;
-    result["fileExists"]    = QFile::exists(m_dataRoot + "/" + kPlaylistsFileName);
-    result["playlistCount"] = refs.size();
-    return result;
-}
-
 // ---------------------------------------------------------------------------
-// Playlist loaders — yt-dlp --flat-playlist subprocesses feeding the same
+// Playlists — yt-dlp --flat-playlist subprocesses feeding the same
 // cache/queue shape as the RSS channel path. yt-dlp is used (rather than the
 // playlist RSS feed) because the feed stops at 15 entries.
 // ---------------------------------------------------------------------------
 
-void YouTubeBackend::load_playlists(bool forceRefresh) {
-    m_emitPlaylistsWhenDone = true;
-    ensurePlaylistsFresh(forceRefresh);
-}
-
-void YouTubeBackend::load_playlist_videos(const QString &playlistId, bool forceRefresh) {
-    m_emitPlaylistVideosWhenDone = playlistId;
-    ensurePlaylistsFresh(forceRefresh);
-}
-
 void YouTubeBackend::ensurePlaylistsFresh(bool forceRefresh) {
     if (m_pendingPlaylists > 0)
-        return; // refresh already in flight — the emit flags queue on it
+        return; // refresh already in flight — the waits queue on it
 
-    QString error;
-    const QList<PlaylistFileRef> refs = readPlaylistEntries(&error);
+    const QList<PlaylistFileRef> refs = readPlaylistEntries();
     if (refs.isEmpty()) {
-        m_emitPlaylistsWhenDone = false;
-        m_emitPlaylistVideosWhenDone.clear();
-        emit errorOccurred(error);
+        answerLater(std::exchange(m_playlistWaits, {}));
         return;
     }
     m_playlistOrder.clear();
@@ -507,14 +397,52 @@ void YouTubeBackend::ensurePlaylistsFresh(bool forceRefresh) {
     spawnNextPlaylistFetch();
 }
 
+// A video as yt-dlp prints a flat playlist's entries (--print with id, title,
+// channel and uploader, and in a search url and live_status too): what the
+// tree's rows and the player need. Flat entries carry no publish date; the
+// list's order stands in. A playlist's print no url, so none of them is a
+// Short.
+static QVariantMap flatVideo(const QJsonObject &obj) {
+    const QString videoId = obj.value(QLatin1String("id")).toString();
+    QString channel = obj.value(QLatin1String("channel")).toString();
+    if (channel.isEmpty())
+        channel = obj.value(QLatin1String("uploader")).toString();
+    QVariantMap v;
+    v["videoId"]     = videoId;
+    v["title"]       = obj.value(QLatin1String("title")).toString();
+    v["channelId"]   = QString();
+    v["channelName"] = channel;
+    v["publishedAt"] = QString();
+    v["publishedMs"] = qint64(0);
+    v["url"]         = watchUrlFor(videoId);
+    v["isShort"]     = obj.value(QLatin1String("url")).toString().contains(QLatin1String("/shorts/"));
+    return v;
+}
+
+void YouTubeBackend::runYtDlp(const QStringList &args, std::function<void(QProcess *)> done) {
+    auto *proc = new QProcess(this);
+    auto finish = [proc, done = std::move(done)]() {
+        proc->deleteLater();
+        done(proc);
+    };
+    connect(proc, &QProcess::finished, this, finish);
+    // finished() is never emitted when the binary fails to launch
+    connect(proc, &QProcess::errorOccurred, this, [finish](QProcess::ProcessError processError) {
+        if (processError == QProcess::FailedToStart)
+            finish();
+    });
+    QTimer::singleShot(kPlaylistFetchTimeoutMs, proc, [proc]() { proc->kill(); });
+    // The same user-updatable yt-dlp mpv's ytdl_hook will use at playback
+    // time (data-dir drop-in → sibling → PATH), so app and mpv agree.
+    proc->start(ytdlp::locate(m_dataRoot), args);
+}
+
 void YouTubeBackend::spawnNextPlaylistFetch() {
-    const QString bin = ytdlp::locate(m_dataRoot);
     while (m_activePlaylistFetches < kMaxConcurrentPlaylistFetches
            && !m_playlistFetchQueue.isEmpty()) {
         const QString playlistId = m_playlistFetchQueue.takeFirst();
         ++m_activePlaylistFetches;
 
-        auto *proc = new QProcess(this);
         const QStringList args = cookieArgs() + QStringList{
             QStringLiteral("--flat-playlist"),
             QStringLiteral("-I"), QStringLiteral("1:%1").arg(kMaxPlaylistItems),
@@ -526,8 +454,7 @@ void YouTubeBackend::spawnNextPlaylistFetch() {
             QStringLiteral("https://www.youtube.com/playlist?list=") + playlistId,
         };
 
-        auto finish = [this, proc, playlistId]() {
-            proc->deleteLater();
+        runYtDlp(args, [this, playlistId](QProcess *proc) {
             QString      title;
             QVariantList videos;
             const QList<QByteArray> lines = proc->readAllStandardOutput().split('\n');
@@ -545,20 +472,7 @@ void YouTubeBackend::spawnNextPlaylistFetch() {
                 if (videoTitle == QLatin1String("[Private video]")
                     || videoTitle == QLatin1String("[Deleted video]"))
                     continue;
-                QString channel = obj.value(QLatin1String("channel")).toString();
-                if (channel.isEmpty())
-                    channel = obj.value(QLatin1String("uploader")).toString();
-                QVariantMap v;
-                v["videoId"]     = videoId;
-                v["title"]       = videoTitle;
-                v["channelId"]   = QString();
-                v["channelName"] = channel;
-                // Flat entries carry no publish date; playlist order stands in
-                v["publishedAt"] = QString();
-                v["publishedMs"] = qint64(0);
-                v["url"]         = watchUrlFor(videoId);
-                v["isShort"]     = false; // not detectable from flat entries
-                videos.append(v);
+                videos.append(flatVideo(obj));
             }
             // Non-zero exit with parsed entries still counts (partial page
             // failures on huge lists) — same "partial parses kept" stance as RSS.
@@ -582,25 +496,11 @@ void YouTubeBackend::spawnNextPlaylistFetch() {
             } else {
                 spawnNextPlaylistFetch();
             }
-        };
-        connect(proc, &QProcess::finished, this, finish);
-        // finished() is never emitted when the binary fails to launch
-        connect(proc, &QProcess::errorOccurred, this,
-                [finish](QProcess::ProcessError processError) {
-                    if (processError == QProcess::FailedToStart)
-                        finish();
-                });
-        QTimer::singleShot(kPlaylistFetchTimeoutMs, proc, [proc]() { proc->kill(); });
-        proc->start(bin, args);
+        });
     }
 }
 
 void YouTubeBackend::finishPlaylistAggregate() {
-    const bool    listWanted   = m_emitPlaylistsWhenDone;
-    const QString videosWanted = m_emitPlaylistVideosWhenDone;
-    m_emitPlaylistsWhenDone = false;
-    m_emitPlaylistVideosWhenDone.clear();
-
     bool anyOk = false;
     for (const QString &id : m_playlistOrder)
         anyOk = anyOk || m_playlists.value(id).fetchOk;
@@ -618,40 +518,6 @@ void YouTubeBackend::finishPlaylistAggregate() {
     if (!answered.contains(QStringLiteral("playlists")))
         answered << QStringLiteral("playlists");
     answerLater(answered);
-
-    if (!anyOk) {
-        emit errorOccurred(QStringLiteral("COULD NOT LOAD PLAYLISTS\n"
-                                          "CHECK YOUR NETWORK CONNECTION AND THAT\n"
-                                          "YT-DLP IS INSTALLED AND UP TO DATE"));
-        return;
-    }
-
-    if (listWanted)
-        emit playlistsLoaded(buildPlaylistList());
-    if (!videosWanted.isEmpty()) {
-        const PlaylistEntry entry = m_playlists.value(videosWanted);
-        if (entry.fetchOk)
-            emit playlistVideosLoaded(videosWanted, entry.videos);
-        else
-            emit errorOccurred(QStringLiteral("COULD NOT LOAD PLAYLIST"));
-    }
-}
-
-QVariantList YouTubeBackend::buildPlaylistList() const {
-    QVariantList playlists;
-    for (const QString &id : m_playlistOrder) {
-        const PlaylistEntry entry = m_playlists.value(id);
-        QVariantMap p;
-        p["playlistId"] = id;
-        // File-name override wins; fall back to the raw ID so a playlist whose
-        // fetch failed is still visible (same choice as buildChannelList)
-        p["title"]      = !entry.fileName.isEmpty()     ? entry.fileName
-                        : !entry.fetchedTitle.isEmpty() ? entry.fetchedTitle
-                                                        : id;
-        p["videoCount"] = entry.videos.size();
-        playlists << p;
-    }
-    return playlists; // file order — the user's own curation is the sort
 }
 
 // ---------------------------------------------------------------------------
@@ -714,14 +580,17 @@ QString YouTubeBackend::ytdlFormat(const QString &resolution, const QString &cod
     return choices.join(QLatin1Char('/'));
 }
 
+QString YouTubeBackend::ytdlFormat(const QVariantMap &settings) const {
+    return ytdlFormat(settings.value(QStringLiteral("resolution")).toString(),
+                      settings.value(QStringLiteral("codec")).toString(),
+                      settings.value(QStringLiteral("maxFrameRate")).toString(),
+                      settings.value(QStringLiteral("audioLanguage")).toString());
+}
+
 QStringList YouTubeBackend::playbackArgs(const QVariantMap &settings) const {
     QStringList args{
         QStringLiteral("--ytdl=yes"),
-        QStringLiteral("--ytdl-format=")
-            + ytdlFormat(settings.value(QStringLiteral("resolution")).toString(),
-                         settings.value(QStringLiteral("codec")).toString(),
-                         settings.value(QStringLiteral("maxFrameRate")).toString(),
-                         settings.value(QStringLiteral("audioLanguage")).toString())};
+        QStringLiteral("--ytdl-format=") + ytdlFormat(settings)};
 
     // yt-dlp's own options, which mpv's hook passes on: all in one list, since
     // a second --ytdl-raw-options would replace the first.
@@ -771,12 +640,10 @@ QVariantMap YouTubeBackend::playbackSettings() const {
 
 QStringList YouTubeBackend::downloadArgs(bool canMerge) const {
     const QVariantMap s = playbackSettings();
-    const QString resolution = s.value(QStringLiteral("resolution")).toString();
     const QString format = canMerge
-        ? ytdlFormat(resolution, s.value(QStringLiteral("codec")).toString(),
-                     s.value(QStringLiteral("maxFrameRate")).toString(),
-                     s.value(QStringLiteral("audioLanguage")).toString())
-        : QStringLiteral("best[height<=?%1][vcodec^=avc1]/best[height<=?%1]/best").arg(resolutionHeight(resolution));
+        ? ytdlFormat(s)
+        : QStringLiteral("best[height<=?%1][vcodec^=avc1]/best[height<=?%1]/best")
+              .arg(resolutionHeight(s.value(QStringLiteral("resolution")).toString()));
     QStringList args = cookieArgs();
     args << QStringLiteral("-f") << format;
     if (canMerge)
@@ -1139,34 +1006,19 @@ void YouTubeBackend::searchPage(const QString &path) {
         QStringLiteral("ytsearch%1:%2").arg(last).arg(path.section(QLatin1Char('/'), 1)),
     };
 
-    auto *proc = new QProcess(this);
-    auto finish = [this, proc, path, last]() {
-        proc->deleteLater();
+    runYtDlp(args, [this, path, last](QProcess *proc) {
         int found = 0;
         QVariantList videos;
         const QList<QByteArray> lines = proc->readAllStandardOutput().split('\n');
         for (const QByteArray &line : lines) {
             const QJsonObject obj = QJsonDocument::fromJson(line.trimmed()).object();
-            const QString videoId = obj.value(QLatin1String("id")).toString();
-            if (videoId.isEmpty())
+            if (obj.value(QLatin1String("id")).toString().isEmpty())
                 continue;
             ++found;
             // Announced, not on yet: nothing to play.
             if (obj.value(QLatin1String("live_status")).toString() == QLatin1String("is_upcoming"))
                 continue;
-            QString channel = obj.value(QLatin1String("channel")).toString();
-            if (channel.isEmpty())
-                channel = obj.value(QLatin1String("uploader")).toString();
-            QVariantMap v;
-            v["videoId"]     = videoId;
-            v["title"]       = obj.value(QLatin1String("title")).toString();
-            v["channelId"]   = QString();
-            v["channelName"] = channel;
-            v["publishedAt"] = QString();
-            v["publishedMs"] = qint64(0);
-            v["url"]         = watchUrlFor(videoId);
-            v["isShort"]     = obj.value(QLatin1String("url")).toString().contains(QLatin1String("/shorts/"));
-            videos.append(v);
+            videos.append(flatVideo(obj));
         }
         Search &search = m_searches[path];
         search.loading = false;
@@ -1181,16 +1033,7 @@ void YouTubeBackend::searchPage(const QString &path) {
             setProblem(QString::fromLatin1(kSearchProblem));
         }
         emit listingReady(path);
-    };
-    connect(proc, &QProcess::finished, this, finish);
-    // finished() is never emitted when the binary fails to launch
-    connect(proc, &QProcess::errorOccurred, this,
-            [finish](QProcess::ProcessError processError) {
-                if (processError == QProcess::FailedToStart)
-                    finish();
-            });
-    QTimer::singleShot(kPlaylistFetchTimeoutMs, proc, [proc]() { proc->kill(); });
-    proc->start(bin, args);
+    });
 }
 
 QVariantList YouTubeBackend::videoEntries(const QVariantList &videos) const {
@@ -1289,7 +1132,6 @@ void YouTubeBackend::fetchDetails(const QVariantMap &video) {
         return;
     }
     m_fetchingDetails = true;
-    auto *proc = new QProcess(this);
     const QStringList args = cookieArgs() + QStringList{
         QStringLiteral("--skip-download"),
         QStringLiteral("--no-warnings"),
@@ -1299,8 +1141,7 @@ void YouTubeBackend::fetchDetails(const QVariantMap &video) {
         QStringLiteral("--"),
         video.value("url").toString(),
     };
-    auto finish = [this, proc, video]() {
-        proc->deleteLater();
+    runYtDlp(args, [this, video](QProcess *proc) {
         m_fetchingDetails = false;
         const QJsonObject obj = QJsonDocument::fromJson(
             proc->readAllStandardOutput().trimmed().split('\n').value(0)).object();
@@ -1317,13 +1158,5 @@ void YouTubeBackend::fetchDetails(const QVariantMap &video) {
             if (!m_details.contains(next.value("videoId").toString()))
                 fetchDetails(next);
         }
-    };
-    connect(proc, &QProcess::finished, this, finish);
-    connect(proc, &QProcess::errorOccurred, this,
-            [finish](QProcess::ProcessError processError) {
-                if (processError == QProcess::FailedToStart)
-                    finish();
-            });
-    QTimer::singleShot(kPlaylistFetchTimeoutMs, proc, [proc]() { proc->kill(); });
-    proc->start(ytdlp::locate(m_dataRoot), args);
+    });
 }

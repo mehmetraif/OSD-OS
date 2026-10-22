@@ -23,8 +23,6 @@ Item {
 
     implicitHeight: dateRow.height + dataRow.height + (root.sh * 0.012)
 
-    function _pad(n) { return n < 10 ? "0" + n : "" + n }
-
     function _tick() {
         // Shift real UTC by the location's offset. getTimezoneOffset() is in
         // minutes and positive west of UTC, hence the addition.
@@ -44,9 +42,9 @@ Item {
             suffix = h < 12 ? " AM" : " PM"
             h = h % 12
             if (h === 0) h = 12
-            _time = h + ":" + _pad(loc.getMinutes()) + ":" + _pad(loc.getSeconds()) + suffix
+            _time = h + ":" + root.pad(loc.getMinutes()) + ":" + root.pad(loc.getSeconds()) + suffix
         } else {
-            _time = _pad(h) + ":" + _pad(loc.getMinutes()) + ":" + _pad(loc.getSeconds())
+            _time = root.pad(h) + ":" + root.pad(loc.getMinutes()) + ":" + root.pad(loc.getSeconds())
         }
     }
 

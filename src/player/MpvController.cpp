@@ -26,6 +26,7 @@
 #include <QRegularExpression>
 #include <QDebug>
 #include <algorithm>
+#include <climits>
 #include <cmath>
 
 namespace {
@@ -149,24 +150,17 @@ MpvController::MpvController(const QString &appRoot, const QString &dataRoot,
                                                     : "generic");
 
     // Back ends the video (backFromProcess), and opens its player's menu if
-    // it has one. The deck's own menu still takes back first while it is
-    // open (its bindings are forced).
+    // it has one; with Transparent Background it returns to the menus and
+    // leaves the video playing (detachToMenus). Which is decided here, not in
+    // mpv: one file for a process and an embedded session alike. The deck's
+    // own menu still takes back first while it is open (its bindings are
+    // forced).
     QFile f(m_inputConfPath);
     if (f.open(QFile::WriteOnly | QFile::Text)) {
         f.write("ESC script-message osdos-menu\n");
         f.write("BS script-message osdos-menu\n");
         f.write("ENTER cycle pause\n");
         f.close();
-    }
-    // Transparent Background: back returns to the menus and leaves the video
-    // playing (detachToMenus), the deck's menu first here too.
-    m_embeddedInputConfPath = QDir::tempPath() + "/osdos-input-embedded.conf";
-    QFile ef(m_embeddedInputConfPath);
-    if (ef.open(QFile::WriteOnly | QFile::Text)) {
-        ef.write("ESC script-message osdos-menu\n");
-        ef.write("BS script-message osdos-menu\n");
-        ef.write("ENTER cycle pause\n");
-        ef.close();
     }
     // A video left playing behind the menus ends when anything else takes the
     // screen (a takeover script, a web player), or the setting is turned off.
@@ -545,9 +539,11 @@ void MpvController::loadAndPlay(const QString &url, float startSeconds,
     // every word there. Absolute paths or URLs, extraUrls too; mpv options go
     // in extraArgs.
     const QStringList media = QStringList(url) + extraUrls;
+    // The deck's keys, and audio as the clock; ahead of the video arguments,
+    // so a setting's mpv_video_args still has the last word.
+    args << QString("--input-conf=%1").arg(m_inputConfPath)
+         << QStringLiteral("--video-sync=audio");
     if (embedded) {
-        args << QString("--input-conf=%1").arg(m_embeddedInputConfPath)
-             << QStringLiteral("--video-sync=audio");
         appendEmbeddedVideoArgs(args, embeddedPlayer()->gpuAvailable());
         args << QStringLiteral("--") << media;
         // Chosen again while it plays behind the menus: the same session goes
@@ -601,11 +597,7 @@ void MpvController::loadAndPlay(const QString &url, float startSeconds,
     }
     m_ipcWanted = false;
     endEmbedded();
-    m_watchdogTimer->stop();
-    m_connectTimer->stop();
-    m_ipc->abort();
-    m_position    = 0;
-    m_duration    = 0;
+    closeIpc(false, nullptr, nullptr);
     m_playlistPos = -1;
     m_paused      = false;
     m_lastEndFileReason.clear();
@@ -704,6 +696,39 @@ bool MpvController::screenBusy() {
     return false;
 }
 
+// Ends a session that never got going as if mpv had just exited: the screen
+// back first (should it have been handed over, or the process retired for
+// this one have had it), then the report, and only for the launch still
+// current (another may have started since).
+void MpvController::endAtOnce(const QString &reason) {
+    const int serial = m_launchSerial;
+    QTimer::singleShot(0, this, [this, serial, reason]() {
+        handBackScreen([this, serial, reason]() {
+            if (serial == m_launchSerial)
+                emit playbackEnded(0, 0, reason);
+        });
+    });
+}
+
+// Takes the IPC down after a session: no reconnecting, the timers off, what
+// mpv last sent read (drain: readyRead and the end of the process are
+// separate events, so its final end-file may still sit unread), the socket
+// file gone, and the position and duration it got to handed out and zeroed.
+void MpvController::closeIpc(bool drain, int *pos, int *dur) {
+    m_ipcWanted = false;
+    m_reconnecting = false;
+    m_connectTimer->stop();
+    m_watchdogTimer->stop();
+    if (drain && m_ipc->state() == QLocalSocket::ConnectedState)
+        onIpcReadyRead();
+    m_ipc->abort();
+    QFile::remove(m_socketPath);
+    if (pos) *pos = m_position;
+    if (dur) *dur = m_duration;
+    m_position = 0;
+    m_duration = 0;
+}
+
 void MpvController::handBackScreen(std::function<void()> then) {
     if (!m_headlessMode || !m_handoff) {
         m_headlessMode = false;
@@ -729,14 +754,7 @@ void MpvController::startProcess(QStringList args, const QStringList &media) {
     const QString bin = mpvbin::locate();
     if (bin.isEmpty()) {
         qWarning("[MpvController] mpv not found (no bundled sibling, none on PATH)");
-        // With the screen back, if the process retired for this one had it.
-        const int serial = m_launchSerial;
-        QTimer::singleShot(0, this, [this, serial]() {
-            handBackScreen([this, serial]() {
-                if (serial == m_launchSerial)
-                    emit playbackEnded(0, 0, QStringLiteral("stopped"));
-            });
-        });
+        endAtOnce(QStringLiteral("stopped"));
         return;
     }
 
@@ -745,6 +763,19 @@ void MpvController::startProcess(QStringList args, const QStringList &media) {
     connect(m_process,
             QOverload<int, QProcess::ExitStatus>::of(&QProcess::finished),
             this, &MpvController::onProcessFinished);
+    // An mpv that is there but can't run (a wrong architecture, a noexec
+    // mount) never finishes: ended as a missing one is, with the screen back,
+    // or a headless Pi would sit black, its keys going to a player that isn't.
+    connect(m_process, &QProcess::errorOccurred, this, [this, proc = m_process](QProcess::ProcessError error) {
+        if (error != QProcess::FailedToStart || proc != m_process)
+            return;
+        qWarning("[MpvController] mpv could not be started: %s", qPrintable(proc->errorString()));
+        m_ipcWanted = false;
+        m_connectTimer->stop();
+        proc->deleteLater();
+        m_process = nullptr;
+        endAtOnce(QStringLiteral("failed"));
+    });
     // mpv's own output, to the journal: what it plays among it, so without
     // the tokens.
     connect(m_process, &QProcess::readyRead, this, [this]() {
@@ -756,8 +787,12 @@ void MpvController::startProcess(QStringList args, const QStringList &media) {
         options << QStringLiteral("--") << media;
         qDebug("[MpvController] launch: mpv %s", qPrintable(redactSecrets(options.join(QLatin1Char(' ')))));
         m_process->start(bin, options);
-        m_ipcWanted = true;
-        m_connectTimer->start();
+        // A start that failed at once (no process to fork: errorOccurred came
+        // synchronously, and the session is over) has no socket to wait for.
+        if (m_process && m_process->state() != QProcess::NotRunning) {
+            m_ipcWanted = true;
+            m_connectTimer->start();
+        }
     };
 
     m_headlessMode = DisplayHandoff::isHeadless();
@@ -779,8 +814,6 @@ void MpvController::startProcess(QStringList args, const QStringList &media) {
             // real VT — do NOT acquire again, which would overwrite it with the
             // free VT we are currently on. The old mpv was terminated already;
             // just launch the replacement directly.
-            args << QString("--input-conf=%1").arg(m_inputConfPath)
-                 << "--video-sync=audio";
             appendVideoArgs(args);
             args << "--no-input-terminal";
             launch(args);
@@ -805,14 +838,10 @@ void MpvController::startProcess(QStringList args, const QStringList &media) {
             m_headlessMode = false;
             m_process->deleteLater();
             m_process = nullptr;
-            QTimer::singleShot(0, this, [this]() {
-                emit playbackEnded(0, 0, QStringLiteral("failed"));
-            });
+            endAtOnce(QStringLiteral("failed"));
             return;
         }
 
-        args << QString("--input-conf=%1").arg(m_inputConfPath)
-             << "--video-sync=audio";
         appendVideoArgs(args);
         args << "--no-input-terminal";
         launch(args);
@@ -837,9 +866,7 @@ void MpvController::startProcess(QStringList args, const QStringList &media) {
             env.insert("FONTCONFIG_FILE", fcConf);
 #endif
         m_process->setProcessEnvironment(env);
-        args << QString("--input-conf=%1").arg(m_inputConfPath)
-             << "--video-sync=audio"
-             << "--fullscreen" << "--no-native-fs";
+        args << "--fullscreen" << "--no-native-fs";
         // Playback follows the UI's display (app-level "display_index"). Only
         // when a non-default display is configured, so the default command
         // line is untouched. Which form of the option works depends on the
@@ -987,12 +1014,15 @@ void MpvController::onIpcReadyRead() {
         // being followed, unreported, should it be chosen again. Under its
         // player's own menu it is still that player's.
         const bool report = !m_background || m_playerMenu;
+        // In milliseconds, within an int: a corrupt file can claim a length
+        // beyond it, which converted unbounded is undefined (negative on x86).
+        const auto ms = [](double seconds) { return int(qBound(0.0, seconds * 1000.0, double(INT_MAX))); };
         if (name == "time-pos") {
-            m_position = int(val * 1000.0);
+            m_position = ms(val);
             if (report)
                 emit positionChanged(m_position);
         } else if (name == "duration") {
-            m_duration = int(val * 1000.0);
+            m_duration = ms(val);
             if (report)
                 emit durationChanged(m_duration);
         } else if (name == "playlist-pos") {
@@ -1004,8 +1034,6 @@ void MpvController::onIpcReadyRead() {
 }
 
 void MpvController::onProcessFinished() {
-    m_ipcWanted = false;
-    m_reconnecting = false;
     int exitCode = m_process ? m_process->exitCode() : -1;
     if (m_process) {
         const QByteArray remaining = m_process->readAll();
@@ -1014,21 +1042,10 @@ void MpvController::onProcessFinished() {
     }
     if (exitCode != 0)
         qWarning("[MpvController] mpv exited with code %d", exitCode);
-    m_connectTimer->stop();
-    m_watchdogTimer->stop();
-    // Drain any buffered-but-unread IPC data before tearing the socket down.
-    // readyRead and QProcess::finished are independent event-loop signals with
-    // no ordering guarantee, so mpv's final "end-file" event may still be sitting
-    // in the socket buffer here. Flushing it now ensures m_lastEndFileReason is
-    // accurate, so a natural EOF reliably triggers autoplay-next.
-    if (m_ipc->state() == QLocalSocket::ConnectedState)
-        onIpcReadyRead();
-    m_ipc->abort();
-    QFile::remove(m_socketPath);
-    const int pos = m_position;
-    const int dur = m_duration;
-    m_position = 0;
-    m_duration = 0;
+    // Drained: m_lastEndFileReason must be accurate, so a natural EOF reliably
+    // triggers autoplay-next.
+    int pos = 0, dur = 0;
+    closeIpc(true, &pos, &dur);
 
     // Classify why mpv exited, once, so both the headless and desktop paths emit
     // the same playbackEnded reason:
@@ -1368,9 +1385,7 @@ void MpvController::startEmbedded(QStringList args) {
     qDebug("[MpvController] embedded launch: mpv %s", qPrintable(redactSecrets(args.join(QLatin1Char(' ')))));
     if (!embeddedPlayer()->start(args)) {
         qWarning("[MpvController] Cannot start playback: libmpv could not be set up");
-        QTimer::singleShot(0, this, [this]() {
-            emit playbackEnded(0, 0, QStringLiteral("failed"));
-        });
+        endAtOnce(QStringLiteral("failed"));
         return;
     }
     m_sessionArgs = args;
@@ -1399,19 +1414,8 @@ void MpvController::endEmbedded() {
 }
 
 void MpvController::onEmbeddedFinished(const QString &lastEndReason) {
-    m_ipcWanted = false;
-    m_reconnecting = false;
-    m_connectTimer->stop();
-    m_watchdogTimer->stop();
-    // As for a process: the last events may still sit unread on the socket.
-    if (m_ipc->state() == QLocalSocket::ConnectedState)
-        onIpcReadyRead();
-    m_ipc->abort();
-    QFile::remove(m_socketPath);
-    const int pos = m_position;
-    const int dur = m_duration;
-    m_position = 0;
-    m_duration = 0;
+    int pos = 0, dur = 0;
+    closeIpc(true, &pos, &dur);
     m_sessionArgs.clear();
     m_sessionNote.clear();
     const bool wasBackground = m_background;

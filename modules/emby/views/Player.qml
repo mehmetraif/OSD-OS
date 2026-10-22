@@ -6,7 +6,6 @@ FocusScope {
 
     property var navParams: ({})
 
-    signal navigateTo(string path, var params, var listState)
     signal goBack()
     // Emitted when autoplay advances in place, so Root can repoint the BACK
     // target to the now-playing episode's detail instead of the original one.
@@ -14,7 +13,6 @@ FocusScope {
 
     property string streamUrl:      navParams.streamUrl      || ""
     property string itemId:         navParams.itemId         || ""
-    property string seriesId:       navParams.seriesId       || ""
     property string mediaSourceId:  navParams.mediaSourceId  || itemId
     property string itemTitle:      navParams.title          || ""
     property int    viewOffset:     navParams.viewOffset     || 0
@@ -22,8 +20,6 @@ FocusScope {
     // loading screen's counters.
     property int    itemDurationMs: navParams.duration       || 0
     property int    lastStartMs:    0
-    property int    parentIndex:    navParams.parentIndex    || 0
-    property int    index:          navParams.index          || 0
     property var    audioStreams:       navParams.audioStreams     || []
     property var    subtitleStreams:    navParams.subtitleStreams  || []
     property string selectedAudioId:    navParams.selectedAudioId    || ""
@@ -273,11 +269,6 @@ FocusScope {
         embyBackend.report_playback_stopped(itemId, mediaSourceId, msToTicks(pos), failed || false)
     }
 
-    function stopPlayback() {
-        reportStopped(mpvController.position, mpvController.duration, lastKnownPositionMs <= 0)
-        mpvController.stop()
-    }
-
     // Swap the player's context to the next episode in place (no navigation) and
     // begin playing it from the beginning, carrying over the track languages.
     function advanceToEpisode(detail) {
@@ -287,9 +278,6 @@ FocusScope {
         itemDurationMs = detail.duration       || 0
         audioStreams   = detail.audioStreams   || []
         subtitleStreams= detail.subtitleStreams|| []
-        seriesId       = detail.seriesId       || ""
-        parentIndex    = detail.parentIndex    || 0
-        index          = detail.index          || 0
 
         // Fresh-start state for the new episode
         viewOffset           = 0
@@ -460,18 +448,18 @@ FocusScope {
                 doStartPlayback(0)
                 // Fetch segments for intro/outro skip after playback starts, so
                 // the HTTP request doesn't contend with the PlaybackInfo POST.
-                introSkipSetting = appCore.get_setting(moduleRoot.moduleId, "intro_skip") || "Off"
-                outroSkipSetting = appCore.get_setting(moduleRoot.moduleId, "outro_skip") || "Off"
                 if (introSkipSetting !== "Off" || outroSkipSetting !== "Off")
                     embyBackend.fetchSegments(playerRoot.itemId)
                 return
             }
             if (pendingRetryTranscode) {
                 // Fallback transcode after a direct-play failure. The transcode
-                // covers the full timeline from 0, so seek mpv to where we left off.
+                // covers the full timeline from 0, so seek mpv to where we left
+                // off. isTranscoding follows the URL (the server's HLS
+                // manifest): assigned, it would stay true for a next episode
+                // that plays direct.
                 pendingRetryTranscode = false
                 playerRoot.streamUrl = url
-                playerRoot.isTranscoding = true
                 doStartPlayback(lastKnownPositionMs > 0 ? lastKnownPositionMs : viewOffset)
                 return
             }
@@ -589,10 +577,13 @@ FocusScope {
 
     }
 
+    // Where this item has got to, every ten seconds: only while it plays.
+    // Another video left playing behind the menus (Transparent Background)
+    // moves mpvController.position too, and that is not this item's.
     Timer {
         interval: 10000
         repeat:   true
-        running:  true
+        running:  playbackStarted && !waiting
         onTriggered: {
             var pos = mpvController.position
             if (pos > 0) {
@@ -607,18 +598,15 @@ FocusScope {
     Component.onCompleted: {
         initStreamIndices()
         if (streamUrl === "") return
-        var allConfig = appCore.get_settings()
-        var mc = allConfig && allConfig["modules"]
-            ? allConfig["modules"][moduleRoot.moduleId] || {} : {}
-        resumeSetting = mc["resume_playback"] || "ask"
+        var resumeSetting = appCore.get_setting(moduleRoot.moduleId, "resume_playback") || "ask"
         // Match ModuleSettings.qml's reading of a toggle: stored as a real bool
         // once the user touches it, but accept the legacy "ON" string too.
-        var autoplayRaw = mc["autoplay_next_episode"]
+        var autoplayRaw = appCore.get_setting(moduleRoot.moduleId, "autoplay_next_episode")
         autoplayNext = (autoplayRaw === true || autoplayRaw === "ON")
 
         // Hoist skip settings
-        introSkipSetting = mc["intro_skip"] || "Off"
-        outroSkipSetting = mc["outro_skip"] || "Off"
+        introSkipSetting = appCore.get_setting(moduleRoot.moduleId, "intro_skip") || "Off"
+        outroSkipSetting = appCore.get_setting(moduleRoot.moduleId, "outro_skip") || "Off"
 
         // Fetch segments if either skip mode is enabled
         if (introSkipSetting !== "Off" || outroSkipSetting !== "Off")

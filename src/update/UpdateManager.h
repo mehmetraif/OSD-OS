@@ -3,6 +3,7 @@
 #include <QString>
 #include <QFile>
 #include <QCryptographicHash>
+#include <QJsonObject>
 #include <QNetworkAccessManager>
 
 class QNetworkReply;
@@ -75,6 +76,7 @@ private:
     QString stagedJsonPath() const;
     QString stagedSha256Path() const;
     bool writeStagedMarkers(const QString &sha256Hex);
+    QJsonObject readStaged() const;
     void clearStagingFiles();
 
     QNetworkAccessManager m_nam;
@@ -98,4 +100,8 @@ private:
     QNetworkReply *m_downloadReply = nullptr;
     QFile m_downloadFile;
     QCryptographicHash m_hash{QCryptographicHash::Sha256};
+    // Why the download was aborted from here (a chunk that couldn't be
+    // written), and how much of it reached the file.
+    QString m_downloadError;
+    qint64 m_downloadedBytes = 0;
 };

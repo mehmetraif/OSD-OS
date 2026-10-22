@@ -20,7 +20,6 @@ import Components
 FocusScope {
     id: picker
 
-    signal navigateTo(string path, var params, var listState)
     signal goBack()
 
     property var navParams: ({})

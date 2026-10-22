@@ -285,7 +285,9 @@ const UNSAFE = new Set(["__proto__", "constructor", "prototype"]);
 export function getPath(object, path) {
     let at = object;
     for (const key of path) {
-        if (!isPlainObject(at) || UNSAFE.has(key) || !Object.hasOwn(at, key))
+        // hasOwnProperty, not Object.hasOwn: Safari before 15.4 has no
+        // Object.hasOwn, and the page must draw there.
+        if (!isPlainObject(at) || UNSAFE.has(key) || !Object.prototype.hasOwnProperty.call(at, key))
             return undefined;
         at = at[key];
     }
@@ -393,10 +395,12 @@ export function buildSetup(state) {
     }
     if (Object.keys(system).length)
         setup.system = system;
+    // The name and the key with nothing round them, as the card takes them.
     const ra = {};
-    for (const [key, field] of [["user", "raUser"], ["password", "raPassword"], ["key", "raKey"]]) {
-        if (state[field])
-            ra[key] = state[field];
+    for (const [key, field, trim] of [["user", "raUser", true], ["password", "raPassword", false], ["key", "raKey", true]]) {
+        const value = trim ? (state[field] || "").trim() : state[field];
+        if (value)
+            ra[key] = value;
     }
     if (Object.keys(ra).length)
         setup.retroachievements = ra;
@@ -464,8 +468,41 @@ export function readSetup(text) {
     throw new Error("Neither an OSD/OS Setup file nor OSD/OS's config.json");
 }
 
+// The RetroAchievements account as the card takes it (osdos-setup): the user
+// name and the password together, the name and the key with nothing round
+// them, the key letters and digits alone. What isn't so, said.
+export function checkRetroAchievements(user, password, key) {
+    const out = [];
+    const name = (user || "").trim();
+    if ((name || password) && !(name && password))
+        out.push("RetroAchievements: both the user name and the password, to sign in");
+    if (name.length > 64)
+        out.push("RetroAchievements: a user name has 64 letters at most");
+    if ((password || "").length > 256)
+        out.push("RetroAchievements: a password has 256 letters at most");
+    const apiKey = (key || "").trim();
+    if (apiKey && !/^[A-Za-z0-9]{1,64}$/.test(apiKey))
+        out.push("RetroAchievements: a Web API key is letters and digits, 64 at most");
+    return out;
+}
+
+// Whether a value reads as on, whatever row it is from (the live preview's
+// reading): a true, or an on-word in any case, the app's own "On" or an
+// older config.json's "ON".
+export const isOn = value => value === true || String(value).toLowerCase() === "on";
+// Whether a toggle's value reads as on for its row: its on-word, in any
+// case (YouTube's ON), or, for a setting the app stores as a boolean, a true
+// or an older config.json's "ON", in that spelling alone, as ModuleSettings
+// reads it.
+export function toggleOn(row, value) {
+    if (typeof row.on === "string")
+        return String(value).toLowerCase() === row.on.toLowerCase();
+    return row.on === true ? value === true || value === "ON" : value === row.on;
+}
+
 // What of a file read back this page has: a board it knows, an output that
-// board has, and the settings on its form. The rest left out, named.
+// board has, a country, a time zone and a keyboard it offers, and the
+// settings on its form. The rest left out, named.
 export function fitImport(read, schema) {
     const state = { ...read };
     const dropped = [];
@@ -478,6 +515,15 @@ export function fitImport(read, schema) {
         if (!preset || !preset.models.includes(state.model || "pi4")) {
             dropped.push("display.preset");
             delete state.displayPreset;
+        }
+    }
+    // A country, a time zone and a keyboard from the lists the page offers.
+    for (const [field, name, offered] of [["wifiCountry", "wifi.country", schema.countries.map(([, code]) => code)],
+                                          ["timezone", "system.timezone", schema.zones],
+                                          ["keyboard", "system.keyboard", schema.keyboards.map(([, code]) => code)]]) {
+        if (state[field] && !offered.includes(state[field])) {
+            dropped.push(name);
+            delete state[field];
         }
     }
     const config = {};

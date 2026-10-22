@@ -96,10 +96,12 @@ FocusScope {
         function onAuthStateChanged() {
             var state = jellyfinBackend.get_auth_state()
             if (state === "authed") {
-                moduleRoot.navStack = []
+                // Single post-auth funnel for both the password and Quick
+                // Connect sign-ins: persist the server URL the backend
+                // authenticated against.
+                appCore.save_setting(moduleId, "server_url", jellyfinBackend.get_server_url())
                 moduleRoot.replaceWith("Libraries.qml", {})
             } else {
-                moduleRoot.navStack = []
                 moduleRoot.replaceWith("Auth.qml", {})
             }
         }

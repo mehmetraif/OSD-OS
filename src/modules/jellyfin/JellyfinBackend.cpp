@@ -127,6 +127,9 @@ void JellyfinBackend::clearAuthState() {
     m_userName.clear();
     m_serverName.clear();
     m_currentPlaySessionId.clear();
+    // What this server could do says nothing of the next one signed into.
+    m_capabilitiesProbed = false;
+    m_hasCapability = false;
     // Sign out will wipe the auth file as the device is removed from access
     // on the server end as well. This will generate a fresh deviceId so any
     // in-session re-login / QuickConnect creates one that will be synced with the 
@@ -150,10 +153,6 @@ QJsonObject JellyfinBackend::loadConfig() const {
             return doc.object();
     }
     return {};
-}
-
-void JellyfinBackend::saveConfig(const QJsonObject &cfg) const {
-    writeFileAtomically(m_dataRoot + "/config.json", QJsonDocument(cfg).toJson(QJsonDocument::Indented));
 }
 
 QJsonObject JellyfinBackend::moduleConfig() const {
@@ -241,10 +240,17 @@ QNetworkReply *JellyfinBackend::jellyfinPost(const QUrl &url, const QByteArray &
 }
 
 void JellyfinBackend::ignoreSslErrors(QNetworkReply *reply) const {
-    connect(reply, &QNetworkReply::sslErrors, reply, [this, reply](const QList<QSslError> &errors) {
+    // The host read now, as the request is issued: the sslErrors callback fires
+    // later, and logout() clears m_serverUrl the moment it has sent its revoke
+    // request, so reading it then would fail the host match and refuse to relax
+    // a self-signed LAN cert.
+    ignoreSslErrors(reply, QUrl(m_serverUrl).host());
+}
+
+void JellyfinBackend::ignoreSslErrors(QNetworkReply *reply, const QString &serverHost) {
+    connect(reply, &QNetworkReply::sslErrors, reply, [reply, serverHost](const QList<QSslError> &errors) {
         // Only relax for the configured Jellyfin server — typical of self-signed LAN certs
-        QUrl serverUrl(m_serverUrl);
-        if (reply->url().host() != serverUrl.host())
+        if (reply->url().host() != serverHost)
             return;
         QList<QSslError> allowed = expectedLanSslErrors(errors);
         if (!allowed.isEmpty())
@@ -286,7 +292,6 @@ void JellyfinBackend::check_auth() {
         if (status == 401) {
             qWarning("[JellyfinBackend] Token rejected — signing out");
             clearAuthState();
-            emit authRevoked();
             notifyAuthState();
             return;
         }
@@ -304,10 +309,12 @@ void JellyfinBackend::logout() {
     if (has_auth()) {
         QUrl url(m_serverUrl + "/Sessions/Logout");
         auto *reply = m_nam->post(jellyfinRequest(url), QByteArray());
+        // A self-signed LAN server takes the revoke too: the host is read here,
+        // before clearAuthState() forgets it.
+        ignoreSslErrors(reply);
         connect(reply, &QNetworkReply::finished, reply, &QNetworkReply::deleteLater);
     }
     clearAuthState();
-    emit logoutComplete();
     notifyAuthState();
 }
 
@@ -473,14 +480,10 @@ void JellyfinBackend::quick_connect_authenticate(const QString &secret) {
         m_serverName  = m_quickConnectServerUrl; // temp: fetch real name below
         m_quickConnectSecret.clear();
 
-        // Fetch actual server name
+        // Fetch actual server name (through jellyfinGet: a self-signed LAN
+        // server's certificate is taken, as for every other request to it)
         {
-            QUrl infoUrl(m_serverUrl + "/System/Info/Public");
-            QNetworkRequest infoReq(infoUrl);
-            infoReq.setRawHeader("Accept", "application/json");
-            infoReq.setRawHeader("Authorization", authHeaderValue(m_accessToken, m_deviceId).toLatin1());
-            auto *infoReply = m_nam->get(infoReq);
-            connect(infoReply, &QNetworkReply::sslErrors, infoReply, [](const QList<QSslError>&){});
+            auto *infoReply = jellyfinGet(QUrl(m_serverUrl + "/System/Info/Public"));
             connect(infoReply, &QNetworkReply::finished, this, [this, infoReply]() {
                 infoReply->deleteLater();
                 if (infoReply->error() == QNetworkReply::NoError) {
@@ -495,14 +498,8 @@ void JellyfinBackend::quick_connect_authenticate(const QString &secret) {
         }
 
         saveAuthState();
-
-        QJsonObject cfg = loadConfig();
-        QJsonObject modules = cfg["modules"].toObject();
-        QJsonObject modCfg  = modules[kModuleId].toObject();
-        modCfg["server_url"] = m_serverUrl;
-        modules[kModuleId] = modCfg;
-        cfg["modules"] = modules;
-        saveConfig(cfg);
+        // The server's URL goes in the module's settings from the module's
+        // Root.qml, as it hears authStateChanged (get_server_url()).
 
         probeCapabilities();
         notifyAuthState();
@@ -792,39 +789,6 @@ void JellyfinBackend::load_item_detail(const QString &itemId) {
 
         QJsonObject item = QJsonDocument::fromJson(reply->readAll()).object();
         emit itemLoaded(formatItem(item));
-    });
-}
-
-void JellyfinBackend::load_children(const QString &itemId) {
-    if (!has_auth()) {
-        emit errorOccurred("NOT AUTHENTICATED");
-        return;
-    }
-
-    QUrl url(m_serverUrl + "/Users/" + m_userId + "/Items");
-    QUrlQuery q;
-    q.addQueryItem("parentId", itemId);
-    q.addQueryItem("recursive", "false");
-    q.addQueryItem("includeItemTypes", "Season,Episode");
-    q.addQueryItem("limit", "500");
-    q.addQueryItem("fields", "MediaSources,MediaStreams,Overview,Genres,UserData");
-    q.addQueryItem("sortBy", "SortName");
-    q.addQueryItem("sortOrder", "Ascending");
-    url.setQuery(q);
-
-    auto *reply = jellyfinGet(url);
-    connect(reply, &QNetworkReply::finished, this, [this, reply]() {
-        reply->deleteLater();
-        if (reply->error() != QNetworkReply::NoError) {
-            emit errorOccurred("LOAD CHILDREN FAILED: " + reply->errorString());
-            return;
-        }
-
-        QJsonArray items = QJsonDocument::fromJson(reply->readAll()).object()["Items"].toArray();
-        QVariantList result;
-        for (const QJsonValue &v : items)
-            result.append(formatItem(v.toObject()));
-        emit childrenLoaded(result);
     });
 }
 
@@ -1338,53 +1302,44 @@ void JellyfinBackend::load_next_episode(const QString &currentItemId) {
             return;
         }
 
-        // Step 2: fetch all episodes for the series, sorted by air order
-        QUrl epUrl(m_serverUrl + "/Shows/" + seriesId + "/Episodes");
-        QUrlQuery epQ;
-        epQ.addQueryItem("userId", m_userId);
-        epQ.addQueryItem("fields", "MediaSources,MediaStreams,Overview,Genres,UserData");
-        epQ.addQueryItem("enableUserData", "true");
-        epQ.addQueryItem("limit", "500");
-        epQ.addQueryItem("sortBy", "AiredEpisodeOrder");
-        epUrl.setQuery(epQ);
+        // Step 2: the series' episodes from this one on
+        fetchNextEpisode(seriesId, item["Id"].toString(), currentSeason, currentIndex, true);
+    });
+}
 
-        auto *epReply = jellyfinGet(epUrl);
-        connect(epReply, &QNetworkReply::finished, this,
-                [this, epReply, currentIndex, currentSeason]() {
-            epReply->deleteLater();
-            if (epReply->error() != QNetworkReply::NoError) {
-                emit nextEpisodeReady(QVariantMap{});
-                return;
-            }
-            QJsonArray episodes = QJsonDocument::fromJson(epReply->readAll())
-                                      .object()["Items"].toArray();
+// The series' episodes in air order from the current one (startItemId), a
+// page of them: it holds the next whatever the series' length, where a list
+// of the whole series was cut at 500. A server that doesn't skip to the item
+// (its page starts at the first episode) is asked once more for the whole
+// series.
+void JellyfinBackend::fetchNextEpisode(const QString &seriesId, const QString &itemId, int currentSeason,
+                                       int currentIndex, bool fromItem) {
+    QUrl epUrl(m_serverUrl + "/Shows/" + seriesId + "/Episodes");
+    QUrlQuery epQ;
+    epQ.addQueryItem("userId", m_userId);
+    epQ.addQueryItem("fields", "MediaSources,MediaStreams,Overview,Genres,UserData");
+    epQ.addQueryItem("enableUserData", "true");
+    epQ.addQueryItem("sortBy", "AiredEpisodeOrder");
+    if (fromItem)
+        epQ.addQueryItem("startItemId", itemId);
+    epQ.addQueryItem("limit", fromItem ? "50" : "500");
+    epUrl.setQuery(epQ);
 
-            // Find the next episode: smallest (season > currentSeason) or
-            // (same season, episode index > currentIndex).
-            QJsonObject nextEp;
-            int nextSeason = 0;
-            int nextIndex  = 0;
-            for (const auto &ev : episodes) {
-                QJsonObject e = ev.toObject();
-                int s = e["ParentIndexNumber"].toInt();
-                int i = e["IndexNumber"].toInt();
-
-                if (s > currentSeason || (s == currentSeason && i > currentIndex)) {
-                    if (nextEp.isEmpty() || s < nextSeason ||
-                        (s == nextSeason && i < nextIndex)) {
-                        nextEp     = e;
-                        nextSeason = s;
-                        nextIndex  = i;
-                    }
-                }
-            }
-
-            if (nextEp.isEmpty()) {
-                emit nextEpisodeReady(QVariantMap{});
-                return;
-            }
-            emit nextEpisodeReady(formatItem(nextEp));
-        });
+    auto *epReply = jellyfinGet(epUrl);
+    connect(epReply, &QNetworkReply::finished, this,
+            [this, epReply, seriesId, itemId, currentSeason, currentIndex, fromItem]() {
+        epReply->deleteLater();
+        if (epReply->error() != QNetworkReply::NoError) {
+            emit nextEpisodeReady(QVariantMap{});
+            return;
+        }
+        const QJsonArray episodes = QJsonDocument::fromJson(epReply->readAll()).object()["Items"].toArray();
+        if (fromItem && !embyapi::hasItem(episodes, itemId)) {
+            fetchNextEpisode(seriesId, itemId, currentSeason, currentIndex, false);
+            return;
+        }
+        const QJsonObject nextEp = embyapi::nextEpisode(episodes, currentSeason, currentIndex);
+        emit nextEpisodeReady(nextEp.isEmpty() ? QVariantMap{} : formatItem(nextEp));
     });
 }
 

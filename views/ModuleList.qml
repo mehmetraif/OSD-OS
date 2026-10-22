@@ -8,7 +8,7 @@ FocusScope {
     signal goBack()
 
     property var navParams: ({})
-    property var navListState: ({})
+    property var navListState: navParams.navListState || ({})
 
     Component.onCompleted: {
         appCore.scan_for_modules()

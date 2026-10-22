@@ -32,6 +32,9 @@ FocusScope {
     }
 
     Keys.onPressed: function(event) {
+        // Ctrl+Q and the rest go on to Main.qml.
+        if (event.modifiers & Qt.ControlModifier)
+            return
         event.accepted = true
         if (event.key === Qt.Key_Escape || event.key === Qt.Key_Backspace || event.key === Qt.Key_Back) {
             canceled()

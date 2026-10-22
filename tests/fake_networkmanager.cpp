@@ -149,9 +149,6 @@ QVariant plainArgument(const QDBusArgument &arg) {
     case QDBusArgument::VariantType:
         return plain(arg.asVariant());
     case QDBusArgument::ArrayType: {
-        const QString signature = arg.currentSignature();
-        if (signature == QLatin1String("ay") || signature == QLatin1String("as"))
-            return arg.asVariant();
         QVariantList list;
         arg.beginArray();
         while (!arg.atEnd())

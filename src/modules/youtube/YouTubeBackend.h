@@ -8,6 +8,9 @@
 #include <QVariantList>
 #include <QVariantMap>
 #include <QNetworkAccessManager>
+#include <functional>
+
+class QProcess;
 
 class AppCore;
 class DisplayHandoff;
@@ -53,21 +56,6 @@ public:
     // manifest: sign_out (action). Deletes SIGN IN's browser profile, and with
     // it the sign-in yt-dlp reads.
     Q_INVOKABLE void signOut();
-
-    // Synchronous subscriptions-file check for the menu view:
-    // { ok: bool, error: QString, fileExists: bool, channelCount: int }
-    Q_INVOKABLE QVariantMap check_subscriptions();
-
-    Q_INVOKABLE void load_subscriptions_feed(bool forceRefresh = false);
-    Q_INVOKABLE void load_channels(bool forceRefresh = false);
-    Q_INVOKABLE void load_channel_videos(const QString &channelId, bool forceRefresh = false);
-
-    // Synchronous playlists-file check, mirroring check_subscriptions():
-    // { ok: bool, error: QString, fileExists: bool, playlistCount: int }
-    Q_INVOKABLE QVariantMap check_playlists();
-
-    Q_INVOKABLE void load_playlists(bool forceRefresh = false);
-    Q_INVOKABLE void load_playlist_videos(const QString &playlistId, bool forceRefresh = false);
 
     // The yt-dlp format the ADVANCED settings ask for: at most the
     // playback_resolution's height (240p to 2160p, unknown → 480p) and, with
@@ -152,12 +140,6 @@ public:
 
 signals:
     void dynamicOptionsReady(const QString &key, const QVariant &options);
-    void subscriptionsFeedLoaded(const QVariant &videos);
-    void channelsLoaded(const QVariant &channels);
-    void channelVideosLoaded(const QString &channelId, const QVariant &videos);
-    void playlistsLoaded(const QVariant &playlists);
-    void playlistVideosLoaded(const QString &playlistId, const QVariant &videos);
-    void errorOccurred(const QString &message);
     void listingReady(const QString &path);
     void detailsReady(const QString &path, const QVariantMap &details);
     void problemChanged();
@@ -200,7 +182,7 @@ private:
     QVariantList loadWatchLater() const;
     void         saveWatchLater(const QVariantList &list);
 
-    QStringList  readSubscriptionIds(QString *error = nullptr) const;
+    QStringList  readSubscriptionIds() const;
     void         ensureFresh(bool forceRefresh);
     void         refreshChannel(const QString &channelId);
     void         finishAggregate();
@@ -224,11 +206,16 @@ private:
     QString      cookiesFromBrowser() const;
     QStringList  cookieArgs() const;
 
-    QList<PlaylistFileRef> readPlaylistEntries(QString *error = nullptr) const;
+    QList<PlaylistFileRef> readPlaylistEntries() const;
     void         ensurePlaylistsFresh(bool forceRefresh);
     void         spawnNextPlaylistFetch();
     void         finishPlaylistAggregate();
-    QVariantList buildPlaylistList() const;
+    // ytdlFormat() from the ADVANCED settings as playbackSettings() gives them.
+    QString      ytdlFormat(const QVariantMap &settings) const;
+    // Runs yt-dlp with the arguments and hands done the process once it has
+    // ended, however that was: finished, killed at the timeout, or never
+    // started. The process is freed after.
+    void         runYtDlp(const QStringList &args, std::function<void(QProcess *)> done);
 
     QString m_appRoot;
     QString m_dataRoot;
@@ -240,12 +227,6 @@ private:
     QStringList m_channelOrder;               // channel IDs in file order (deduped)
     int m_pendingChannels = 0;
 
-    // Emit-when-done flags: while one refresh is in flight, additional load
-    // calls just queue their result signal on it instead of re-requesting.
-    bool    m_emitFeedWhenDone     = false;
-    bool    m_emitChannelsWhenDone = false;
-    QString m_emitChannelVideosWhenDone;      // channelId, or empty
-
     // Playlist mirror of the channel cache/refresh state, fed by yt-dlp
     // subprocesses instead of RSS requests.
     QHash<QString, PlaylistEntry> m_playlists;
@@ -253,9 +234,6 @@ private:
     QStringList m_playlistFetchQueue;         // stale IDs waiting for a process slot
     int m_pendingPlaylists       = 0;
     int m_activePlaylistFetches  = 0;
-
-    bool    m_emitPlaylistsWhenDone = false;
-    QString m_emitPlaylistVideosWhenDone;     // playlistId, or empty
 
     // The tree's view of the caches: when each last filled (or failed
     // outright), and the paths waiting for that.

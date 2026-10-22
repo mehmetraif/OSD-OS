@@ -5,6 +5,11 @@ on:
     tags:
       - 'v*.*.*'
 
+# The builds read the repository alone; the release job alone writes (its
+# own permissions below).
+permissions:
+  contents: read
+
 jobs:
 
   # ──────────────────────────────────────────────────────────────────────────────
@@ -76,12 +81,14 @@ jobs:
           fi
 
       - name: Configure
+        env:
+          TAG: ${{ github.ref_name }}
         run: |
           cmake -B build \
             -DCMAKE_BUILD_TYPE=Release \
             -DCMAKE_PREFIX_PATH="${QT_ROOT_DIR};${SDL2_PREFIX};${MINIZIP_PREFIX}" \
             -DCMAKE_INSTALL_PREFIX="${GITHUB_WORKSPACE}/install" \
-            -DAPP_VERSION="${{ github.ref_name }}"
+            -DAPP_VERSION="$TAG"
 
       - name: Build
         run: cmake --build build --parallel
@@ -230,11 +237,13 @@ jobs:
             libminizip-dev
 
       - name: Configure
+        env:
+          TAG: ${{ github.ref_name }}
         run: |
           cmake -B build \
             -DCMAKE_BUILD_TYPE=Release \
             -DCMAKE_INSTALL_PREFIX="${GITHUB_WORKSPACE}/install/usr/local" \
-            -DAPP_VERSION="${{ github.ref_name }}"
+            -DAPP_VERSION="$TAG"
 
       - name: Build
         run: cmake --build build --parallel
@@ -243,9 +252,11 @@ jobs:
         run: cmake --install build
 
       - name: Create tarball
+        env:
+          TAG: ${{ github.ref_name }}
         run: |
           cd "${GITHUB_WORKSPACE}/install"
-          tar -czf "${GITHUB_WORKSPACE}/OSD-OS-${{ github.ref_name }}-linux-arm64.tar.gz" .
+          tar -czf "${GITHUB_WORKSPACE}/OSD-OS-${TAG}-linux-arm64.tar.gz" .
 
       - name: Upload artifact
         uses: actions/upload-artifact@v7.0.1
@@ -341,11 +352,13 @@ jobs:
           echo "MPV_BIN=$(scripts/build-mpv.sh)" >> "$GITHUB_ENV"
 
       - name: Configure
+        env:
+          TAG: ${{ github.ref_name }}
         run: |
           cmake -B build \
             -DCMAKE_BUILD_TYPE=Release \
             -DCMAKE_PREFIX_PATH="${QT_ROOT_DIR}" \
-            -DAPP_VERSION="${{ github.ref_name }}"
+            -DAPP_VERSION="$TAG"
 
       - name: Build
         run: cmake --build build --parallel
@@ -400,12 +413,15 @@ jobs:
         env:
           # Optional: without it the first user's password is locked.
           FIRST_USER_PASS: ${{ secrets.OS_FIRST_USER_PASS }}
-        run: os/build.sh "OSD-OS-${{ github.ref_name }}-linux-arm64.tar.gz"
+          TAG: ${{ github.ref_name }}
+        run: os/build.sh "OSD-OS-${TAG}-linux-arm64.tar.gz"
 
       # pi-gen names its output after the build date; the release names it
       # after the tag. Neither name ends like the app's packages, which the
       # in-app updater picks by their endings.
       - name: Name the image
+        env:
+          TAG: ${{ github.ref_name }}
         run: |
           cd os/work/pi-gen/deploy
           images=(./*.img.xz)
@@ -414,8 +430,8 @@ jobs:
             ls -l
             exit 1
           fi
-          mv -v -- "${images[0]}" "OSD-OS-${{ github.ref_name }}-raspberry-pi.img.xz"
-          mv -v -- "${infos[0]}" "OSD-OS-${{ github.ref_name }}-raspberry-pi.info"
+          mv -v -- "${images[0]}" "OSD-OS-${TAG}-raspberry-pi.img.xz"
+          mv -v -- "${infos[0]}" "OSD-OS-${TAG}-raspberry-pi.info"
 
       - name: Upload artifact
         uses: actions/upload-artifact@v7.0.1
@@ -514,20 +530,31 @@ jobs:
           } > release-notes.md
           cat release-notes.md
 
+      # Made as a draft, with every file, and only then published: a release
+      # is the latest the moment it is public, and the app's updater reads
+      # it then (UpdateManager), so a package still uploading, or one that
+      # failed to, must not leave it saying the release has no package.
       - name: Publish
         uses: softprops/action-gh-release@v3
         with:
           tag_name: ${{ github.ref_name }}
           name: "OSD/OS ${{ github.ref_name }}"
-          draft: false
+          draft: true
+          fail_on_unmatched_files: true
           prerelease: ${{ contains(github.ref_name, '-rc') || contains(github.ref_name, '-beta') || contains(github.ref_name, '-alpha') }}
           files: |
-            artifacts/os-image/*.img.xz
-            artifacts/os-image/*.info
-            artifacts/dmg-arm64/*.dmg
             artifacts/tarball-linux-arm64/*.tar.gz
             artifacts/appimage-linux-x86_64/*.AppImage
+            artifacts/dmg-arm64/*.dmg
             artifacts/SHA256SUMS
             scripts/install.sh
             scripts/setup-nfc-reader.sh
+            artifacts/os-image/*.info
+            artifacts/os-image/*.img.xz
           body_path: release-notes.md
+
+      - name: Make the release public
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
+        run: gh release edit "$TAG" --draft=false

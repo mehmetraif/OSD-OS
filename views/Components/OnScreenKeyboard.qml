@@ -55,7 +55,6 @@ FocusScope {
     property int row: 0
     property int col: 0
     readonly property int okCol: rows[rows.length - 1].length - 1
-    readonly property bool onOk: row === rows.length - 1 && col === okCol
 
     visible: false
     // The box on its key and the cursor after the line typed.
@@ -85,16 +84,33 @@ FocusScope {
         var count = rows[rows.length - 1].length
         return count === 3 ? key * 4 : Math.round(key * 10 / count)
     }
+    // The box on row r, column c, within the row.
     function moveTo(r, c) {
         row = (r + rows.length) % rows.length
         col = Math.max(0, Math.min(rows[row].length - 1, c))
     }
+    // A row up or down, round the ends, the column carried over: mapped onto
+    // the last row's keys as the box comes down onto them, and back onto the
+    // grid's columns as it leaves them.
+    function step(delta) {
+        var to = (row + delta + rows.length) % rows.length
+        var last = rows.length - 1
+        var c = col
+        if (to === last && row !== last)
+            c = lastKeyOf(c)
+        else if (row === last && to !== last)
+            c = columnOf(c)
+        moveTo(to, c)
+    }
 
     Keys.onPressed: function(event) {
+        // Ctrl+Q and the rest go on to Main.qml.
+        if (event.modifiers & Qt.ControlModifier)
+            return
         event.accepted = true
         switch (event.key) {
-        case Qt.Key_Up:    moveTo(row - 1, row === rows.length - 1 ? columnOf(col) : col); return
-        case Qt.Key_Down:  moveTo(row + 1, row === rows.length - 2 ? lastKeyOf(col) : col); return
+        case Qt.Key_Up:    step(-1); return
+        case Qt.Key_Down:  step(1); return
         // Inline, a key held stops at the row's end, and a press there goes on.
         case Qt.Key_Left:
             if (inline && col === 0) {
@@ -129,7 +145,8 @@ FocusScope {
         var ch = caseSensitive ? typed : typed.toUpperCase()
         if (ch.length === 1 && ch >= " " && text.length < maxLength) {
             text += ch
-            moveTo(rows.length - 1, okCol)
+            row = rows.length - 1
+            col = okCol
         }
     }
 

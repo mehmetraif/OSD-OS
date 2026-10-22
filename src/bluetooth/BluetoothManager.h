@@ -112,7 +112,6 @@ signals:
 
 #ifdef OSDOS_BLUETOOTH
 private slots:
-    void onServiceRegistered();
     void onServiceUnregistered();
     void onInterfacesAdded(const QDBusMessage &message);
     void onInterfacesRemoved(const QDBusMessage &message);
@@ -152,4 +151,7 @@ private:
     bool m_powerFailed = false;
     QString m_details;
     QTimer m_searchTimer;
+    // A search asked for and not stopped since: what a discovery that starts
+    // late (the adapter was off, BlueZ was slow to confirm) is checked against.
+    bool m_searchWanted = false;
 };

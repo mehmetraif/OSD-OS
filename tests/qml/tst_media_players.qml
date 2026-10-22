@@ -154,7 +154,8 @@ Rectangle {
         function get_auth_state() { return authState }
         function pending_pin_user() { return "" }
         function load_users_from_cache() {}
-        function start_pin_auth() {}
+        function start_pin_auth() { return 1 }
+        function cancel_pin_auth(request) {}
         function get_active_server_name() { return "Server" }
         function get_active_user_name() { return "User" }
         function get_switchable_servers() { return [] }

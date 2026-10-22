@@ -298,7 +298,6 @@ void InputManager::openController(int deviceIndex) {
     qInfo("[input] controller added: %s (%s)", qPrintable(m_pads.value(id).name), qPrintable(m_pads.value(id).key));
     recomputeSuppressedDevices();
     updatePlayers();
-    emit gamepadConnectedChanged();
     emit controllersChanged();
 }
 
@@ -318,7 +317,6 @@ void InputManager::closeController(SDL_JoystickID instanceId) {
         updateHints();
     }
     updatePlayers();
-    emit gamepadConnectedChanged();
     emit controllersChanged();
 }
 
@@ -781,16 +779,22 @@ void InputManager::loadPlayers() {
     }
 }
 
-void InputManager::savePlayers() {
+// Saved, and taken up again through appSettingChanged; one that couldn't be
+// (a full card) is read back as it was, so what the pads do is what the
+// settings say: false then.
+bool InputManager::savePlayers() {
     QVariantMap all;
     for (int p = 0; p < controllers::kPlayers; ++p)
         all.insert(QString::number(p + 1), QVariantMap{ { QStringLiteral("key"), m_playerKeys.value(p) },
                                                         { QStringLiteral("name"), m_playerNames.value(p) } });
     if (m_appCore) {
-        m_appCore->save_setting(QString(), QStringLiteral("players"), all);
-        return;
+        if (m_appCore->save_setting(QString(), QStringLiteral("players"), all))
+            return true;
+        loadPlayers();
+        return false;
     }
     updatePlayers();
+    return true;
 }
 
 void InputManager::setPlayer(int player, const QString &key) {
@@ -941,8 +945,11 @@ void InputManager::loadProfiles() {
 }
 
 // Saved whole, so that a profile with nothing left in it goes from
-// config.json too, and taken up again through appSettingChanged.
-void InputManager::saveProfiles() {
+// config.json too, and taken up again through appSettingChanged. One that
+// couldn't be saved (a full card) is read back as it was: a binding the page
+// reported set would otherwise act until the next start and be gone then.
+// False for that.
+bool InputManager::saveProfiles() {
     QVariantMap all;
     for (auto it = m_profiles.begin(); it != m_profiles.end();) {
         if (it->isEmpty()) {
@@ -953,12 +960,15 @@ void InputManager::saveProfiles() {
         ++it;
     }
     if (m_appCore) {
-        m_appCore->save_setting(QString(), QStringLiteral("controllers"), all);
-        return;
+        if (m_appCore->save_setting(QString(), QStringLiteral("controllers"), all))
+            return true;
+        loadProfiles();
+        return false;
     }
     rebuildPads();
     updateHints();
     emit controllersChanged();
+    return true;
 }
 
 InputManager::Action InputManager::profileAction(const QString &key, const QString &input) const {
@@ -1158,7 +1168,8 @@ QVariantMap InputManager::bindControllerInput(const QString &key, const QString 
         profile.bindings.remove(token);
     else
         profile.bindings.insert(token, action);
-    saveProfiles();
+    if (!saveProfiles())
+        return captureOutcome(QStringLiteral("unsaved"), wanted);
     return captureOutcome(QStringLiteral("set"), wanted);
 }
 
@@ -1354,7 +1365,7 @@ void InputManager::readNode(Node *node) {
             continue;
         m_consumerTaken.pressed(node->key, ev.code, m_clock.elapsed());
         m_heldInputs.insert(button, a);
-        beginPress(a);
+        pressFrom(QStringLiteral("keyboard"), a);
     }
 }
 
@@ -1597,7 +1608,14 @@ void InputManager::handleAxis(SDL_JoystickID which, Uint8 axis, Sint16 value) {
 void InputManager::pressAction(Action a) {
     if (a == Action::None)
         return;
-    setLastInputDevice(QStringLiteral("gamepad"));
+    pressFrom(QStringLiteral("gamepad"), a);
+}
+
+// A press from a device, which the footer's labels then follow: a remote's
+// click or Consumer Control button is a keyboard's kind, not the pad's that
+// was in use before it.
+void InputManager::pressFrom(const QString &device, Action a) {
+    setLastInputDevice(device);
     beginPress(a);
 }
 
@@ -1872,7 +1890,7 @@ bool InputManager::eventFilter(QObject *obj, QEvent *event) {
         if (does != Action::None) {
             if (isPress) {
                 m_heldInputs.insert(button, does);
-                beginPress(does);
+                pressFrom(QStringLiteral("keyboard"), does);
             }
             return true;
         }
@@ -1997,6 +2015,12 @@ bool InputManager::eventFilter(QObject *obj, QEvent *event) {
         if (remapped == Action::None && isRemoteOk(id))
             remapped = Action::Select;
         if (remapped != Action::None && !textInputHasFocus()) {
+            // Once per press, as the keys that stand for these by default
+            // (isOneShotKey): a held key, or a remote's release that comes
+            // late, must not select or go back again and again. A direction
+            // repeats, as a held arrow does.
+            if (ke->isAutoRepeat() && !isDirectional(remapped))
+                return true;
             if (type == QEvent::KeyPress)
                 deliverPress(remapped, ke->isAutoRepeat());
             else
@@ -2013,11 +2037,20 @@ bool InputManager::eventFilter(QObject *obj, QEvent *event) {
     const QString mediaKey = mpvKeyForMediaEvent(ke);
     if (!mediaKey.isEmpty()) {
         if (type == QEvent::KeyPress) {
-            // Volume keys repeat while held; everything else fires once per press.
-            // mediaKey is the single source of truth for which key this is.
+            // A held volume key repeats as the keyboard repeats it (every 80 ms
+            // on the Pi's console), each repeat 5 points in mpv: taken every
+            // 150 ms, so that the whole range takes three seconds, as a TV
+            // remote's does, rather than two. Everything else fires once per
+            // press. mediaKey is the single source of truth for which key
+            // this is.
+            constexpr int kVolumeRepeatMs = 150;
             const bool isVolume = mediaKey.startsWith(QLatin1String("VOLUME"));
-            if (isVolume || !ke->isAutoRepeat())
+            const bool repeatDue = !m_volumeRepeat.isValid() || m_volumeRepeat.elapsed() >= kVolumeRepeatMs;
+            if (!ke->isAutoRepeat() || (isVolume && repeatDue)) {
+                if (isVolume)
+                    m_volumeRepeat.start();
                 emit mpvKeyRequested(mediaKey);
+            }
         }
         return true;
     }
@@ -2062,6 +2095,18 @@ void InputManager::updateHints() {
             for (int b = 0; b < SDL_CONTROLLER_BUTTON_MAX; ++b) {
                 if (buttons.value(b, Action::None) == a) {
                     const QString label = padLabel(m_labelOverrides, style, buttonToken(b), b);
+                    if (!label.isEmpty())
+                        return "[" + label + "]";
+                }
+            }
+            // Bound to an axis alone (a trigger as Select): named as the
+            // pad's page names it.
+            if (known) {
+                for (auto it = pad->axes.cbegin(); it != pad->axes.cend(); ++it) {
+                    const int sign = it->first == a ? -1 : it->second == a ? +1 : 0;
+                    if (sign == 0)
+                        continue;
+                    const QString label = controllers::inputLabel(style, axisToken(it.key(), sign));
                     if (!label.isEmpty())
                         return "[" + label + "]";
                 }

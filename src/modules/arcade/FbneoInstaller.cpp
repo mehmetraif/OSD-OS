@@ -1,4 +1,5 @@
 #include "FbneoInstaller.h"
+#include "Http.h"
 #include "Libretro.h"
 #include <QCoreApplication>
 #include <QDir>
@@ -23,6 +24,10 @@ constexpr int kShares[] = { 58, 40, 2 };
 // A list of fewer games than this isn't FinalBurn Neo's arcade DAT (it has
 // some 8,400).
 constexpr int kLeastGames = 1000;
+// A download given up on once nothing has come for this long, or it is
+// bigger than this (the core is tens of megabytes, the list a few).
+constexpr int kDownloadTimeoutMs = 60000;
+constexpr qint64 kDownloadMaxBytes = 64 * 1024 * 1024;
 
 // Where each download goes until all three are whole: beside where it ends
 // up, with .part after its name.
@@ -123,11 +128,11 @@ void FbneoInstaller::fetch(int index) {
         unpack();
         return;
     }
-    QNetworkRequest request(urls[index]);
-    request.setAttribute(QNetworkRequest::RedirectPolicyAttribute, QNetworkRequest::NoLessSafeRedirectPolicy);
-    request.setHeader(QNetworkRequest::UserAgentHeader,
-                      QStringLiteral("OSD-OS/%1").arg(QCoreApplication::applicationVersion()));
-    m_reply = m_nam->get(request);
+    // Given up on once nothing has come for a minute (a Wi-Fi that dropped:
+    // TCP alone takes a quarter of an hour to say so), and once it is bigger
+    // than any of the three can be, or a server could fill the card.
+    m_reply = m_nam->get(arcadehttp::requestFor(urls[index], kDownloadTimeoutMs));
+    arcadehttp::limitReply(m_reply, kDownloadMaxBytes);
     auto *file = new QFile(partOf(targets[index]), m_reply);
     if (!file->open(QIODevice::WriteOnly | QIODevice::Truncate)) {
         const QString error = QStringLiteral("%1 could not be written: %2").arg(file->fileName(), file->errorString());
@@ -164,7 +169,8 @@ void FbneoInstaller::fetch(int index) {
         if (reply->error() != QNetworkReply::NoError || status != 200 || !flushed) {
             QFile::remove(file->fileName());
             // The server's answer first (Qt takes a 404 for an error too).
-            fail(status != 0 && status != 200                 ? QStringLiteral("%1 answered %2").arg(reply->url().host()).arg(status)
+            fail(arcadehttp::tooBig(reply, kDownloadMaxBytes) ? QStringLiteral("%1 sent more than FinalBurn Neo's files can be").arg(reply->url().host())
+                 : status != 0 && status != 200              ? QStringLiteral("%1 answered %2").arg(reply->url().host()).arg(status)
                  : reply->error() != QNetworkReply::NoError ? reply->errorString()
                                                             : file->errorString());
             return;

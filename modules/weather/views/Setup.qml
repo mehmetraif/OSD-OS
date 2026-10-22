@@ -27,15 +27,17 @@ FocusScope {
     property string detail: {
         switch (reason) {
         case "notfound":
-            return "Please check the wiki for setup instructions"
+            return "Please check the place's name in the location file, see the wiki"
         case "network":
             return "Please check your network connection and try again"
         case "unreadable":
             return "Please check the location file's permissions"
         default:
-            return "Please check the wiki for setup instructions"
+            return "Please write your town, or its latitude and longitude, in the location file, see the wiki"
         }
     }
+    // The file itself, named for the reasons that are about it.
+    readonly property bool namesFile: reason !== "network"
 
     focus: true
 
@@ -81,6 +83,18 @@ FocusScope {
             width: parent.width
             wrapMode: Text.WordWrap
             font.pixelSize: root.sh * 0.0333333
+        }
+
+        // The file's path as it is: a path is case-sensitive.
+        Text {
+            visible: setupRoot.namesFile && setupRoot.locationPath !== ""
+            text: setupRoot.locationPath
+            color: root.tertiaryColor
+            font.family: root.globalFont
+            horizontalAlignment: Text.AlignHCenter
+            width: parent.width
+            wrapMode: Text.WrapAnywhere
+            font.pixelSize: root.sh * 0.0291667 //14
         }
     }
 

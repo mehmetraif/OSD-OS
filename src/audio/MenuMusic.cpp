@@ -60,7 +60,25 @@ MenuMusic::MenuMusic(const QString &dataRoot, QObject *parent) : QObject(parent)
         if (m_ipc.state() == QLocalSocket::UnconnectedState)
             m_ipc.connectToServer(m_socketPath);
     });
-    connect(&m_ipc, &QLocalSocket::connected, &m_connect, &QTimer::stop);
+    connect(&m_ipc, &QLocalSocket::connected, this, [this]() {
+        m_connect.stop();
+        // Set while the socket was still being made (the slider, as the
+        // music came back after a video): told now, or mpv would keep the
+        // volume it started with.
+        sendVolume();
+    });
+}
+
+void MenuMusic::sendVolume() {
+    if (m_ipc.state() != QLocalSocket::ConnectedState)
+        return;
+    const QJsonObject command{ { "command", QJsonArray{ "set_property", "volume", m_volume } } };
+    m_ipc.write(QJsonDocument(command).toJson(QJsonDocument::Compact) + '\n');
+}
+
+// Whether the music should be playing as things now are.
+bool MenuMusic::wantedNow() const {
+    return m_wanted && m_holds.isEmpty() && !m_source.isEmpty() && m_source != m_failed;
 }
 
 MenuMusic::~MenuMusic() {
@@ -85,10 +103,7 @@ void MenuMusic::setVolume(int volume) {
     if (volume == m_volume)
         return;
     m_volume = volume;
-    if (m_ipc.state() == QLocalSocket::ConnectedState) {
-        const QJsonObject command{ { "command", QJsonArray{ "set_property", "volume", m_volume } } };
-        m_ipc.write(QJsonDocument(command).toJson(QJsonDocument::Compact) + '\n');
-    }
+    sendVolume();
     emit volumeChanged();
 }
 
@@ -136,8 +151,7 @@ MenuMusic::Kind MenuMusic::kindOf(const QString &file) {
 }
 
 void MenuMusic::reconsider() {
-    const bool play = m_wanted && m_holds.isEmpty() && !m_source.isEmpty() && m_source != m_failed;
-    if (!play) {
+    if (!wantedNow()) {
         m_startDelay.stop();
         // At once: whatever holds it is about to open the sound card.
         stopNow();
@@ -147,8 +161,7 @@ void MenuMusic::reconsider() {
 }
 
 void MenuMusic::start() {
-    if (playing() || rendering() || !m_wanted || !m_holds.isEmpty() || m_source.isEmpty()
-            || m_source == m_failed)
+    if (playing() || rendering() || !wantedNow())
         return;
     const QString file = path();
     if (!QFileInfo(file).isFile()) {

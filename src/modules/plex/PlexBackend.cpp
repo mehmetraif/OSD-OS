@@ -323,16 +323,14 @@ void PlexBackend::refreshJwt(std::function<void(bool ok)> callback) {
         nonceReply->deleteLater();
         if (nonceReply->error() != QNetworkReply::NoError) {
             qWarning("[PlexBackend] JWT refresh: nonce request failed");
-            m_refreshInFlight = false;
-            callback(false);
+            finishRefresh(false, callback);
             return;
         }
         QString nonce = QJsonDocument::fromJson(nonceReply->readAll())
                         .object()["nonce"].toString();
         if (nonce.isEmpty()) {
             qWarning("[PlexBackend] JWT refresh: empty nonce");
-            m_refreshInFlight = false;
-            callback(false);
+            finishRefresh(false, callback);
             return;
         }
 
@@ -343,8 +341,7 @@ void PlexBackend::refreshJwt(std::function<void(bool ok)> callback) {
         if (!pkey || kid.isEmpty()) {
             qWarning("[PlexBackend] JWT refresh: no private key or key ID");
             if (pkey) EVP_PKEY_free(pkey);
-            m_refreshInFlight = false;
-            callback(false);
+            finishRefresh(false, callback);
             return;
         }
         QString deviceJwt = buildDeviceJwt(pkey, kid, nonce);
@@ -358,18 +355,17 @@ void PlexBackend::refreshJwt(std::function<void(bool ok)> callback) {
             QJsonDocument(body).toJson(QJsonDocument::Compact));
         connect(tokenReply, &QNetworkReply::finished, this, [this, tokenReply, callback]() {
             tokenReply->deleteLater();
-            m_refreshInFlight = false;
             if (tokenReply->error() != QNetworkReply::NoError) {
                 qWarning("[PlexBackend] JWT refresh: token exchange failed: %s",
                          qPrintable(tokenReply->errorString()));
-                callback(false);
+                finishRefresh(false, callback);
                 return;
             }
             QString newJwt = QJsonDocument::fromJson(tokenReply->readAll())
                              .object()["auth_token"].toString();
             if (newJwt.isEmpty()) {
                 qWarning("[PlexBackend] JWT refresh: empty token in response");
-                callback(false);
+                finishRefresh(false, callback);
                 return;
             }
             qint64 exp = jwtExpClaim(newJwt);
@@ -380,7 +376,7 @@ void PlexBackend::refreshJwt(std::function<void(bool ok)> callback) {
             if (!uid.isEmpty()) a["account_user_id"] = uid;
             saveAuth(a);
             qDebug("[PlexBackend] JWT refreshed, exp=%lld", static_cast<long long>(exp));
-            callback(true);
+            finishRefresh(true, callback);
         });
     });
 }
@@ -457,6 +453,12 @@ void PlexBackend::migrateLegacyToken(std::function<void()> callback) {
             // 422 = key already registered (e.g. retried) — still proceed with refresh
             qWarning("[PlexBackend] Migration: JWK registration failed (%d), will retry next launch",
                      status);
+            // The key pair goes with it: checkAndRefreshOnStartup takes a key
+            // file for a migration done, and would never try again.
+            QFile::remove(m_dataRoot + "/plex_key.pem");
+            QJsonObject a = loadAuth();
+            a.remove("jwt_key_id");
+            saveAuth(a);
             callback();
             return;
         }
@@ -470,15 +472,30 @@ void PlexBackend::migrateLegacyToken(std::function<void()> callback) {
 // ---------------------------------------------------------------------------
 
 void PlexBackend::handle498(std::function<void()> retryOp) {
-    if (m_refreshInFlight) {
-        // A refresh is already running; once it finishes it will call the retry
-        // via the original invoker. This call is a no-op to avoid stacking retries.
+    // Every request the server turned away with a 498 while one refresh runs
+    // waits for it (finishRefresh()): two views asking together (a show's
+    // seasons and its extras) both get their answer, not the first alone.
+    m_pendingRetries.append(std::move(retryOp));
+    if (!m_refreshInFlight)
+        refreshJwt([](bool) {});
+}
+
+// A refresh over, whoever started it: its caller told, then every request
+// kept for it retried with the new token, or, with none, the sign-in given
+// up (authRevoked).
+void PlexBackend::finishRefresh(bool ok, const std::function<void(bool)> &callback) {
+    m_refreshInFlight = false;
+    callback(ok);
+    const QList<std::function<void()>> retries = m_pendingRetries;
+    m_pendingRetries.clear();
+    if (retries.isEmpty())
+        return;
+    if (!ok) {
+        emit authRevoked();
         return;
     }
-    refreshJwt([this, retryOp](bool ok) {
-        if (ok) retryOp();
-        else emit authRevoked();
-    });
+    for (const auto &retry : retries)
+        retry();
 }
 
 // ---------------------------------------------------------------------------
@@ -1032,13 +1049,14 @@ void PlexBackend::build_stream_url(const QString &ratingKey,
 void PlexBackend::cancel_stream() {
     ++m_streamRequest;
     ++m_nextRequest;
+    ++m_queueRequest;
 }
 
 // ---------------------------------------------------------------------------
 // PIN auth
 // ---------------------------------------------------------------------------
 
-void PlexBackend::start_pin_auth() {
+int PlexBackend::start_pin_auth() {
     // Generate a fresh ED25519 key pair for this registration
     QString kid = QUuid::createUuid().toString(QUuid::WithoutBraces);
     QByteArray body = generateAndSaveKeyPair(kid);
@@ -1049,9 +1067,12 @@ void PlexBackend::start_pin_auth() {
     saveAuth(auth);
 
     QUrl url(PLEX_TV + "/api/v2/pins");
+    const int request = ++m_pinRequest;
     auto *reply = plexPostJson(url, {}, body);
-    connect(reply, &QNetworkReply::finished, this, [this, reply]() {
+    connect(reply, &QNetworkReply::finished, this, [this, reply, request]() {
         reply->deleteLater();
+        if (request != m_pinRequest)
+            return;    // backed out of the sign-in meanwhile (cancel_pin_auth)
         if (reply->error() != QNetworkReply::NoError) {
             emit errorOccurred("PIN REQUEST FAILED: " + reply->errorString());
             return;
@@ -1062,6 +1083,7 @@ void PlexBackend::start_pin_auth() {
         emit pinReady(code, m_pendingPinId);
         m_pollTimer->start();
     });
+    return request;
 }
 
 void PlexBackend::pollPinTick() {
@@ -1086,6 +1108,14 @@ void PlexBackend::pollPinTick() {
     auto *reply = plexGet(url, {});
     connect(reply, &QNetworkReply::finished, this, [this, reply]() {
         reply->deleteLater();
+        const int status = reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
+        if (status == 404 || status == 410) {
+            // plex.tv forgets a PIN left unclaimed: nothing to poll for any more.
+            m_pollTimer->stop();
+            m_pendingPinId.clear();
+            emit errorOccurred("THE CODE EXPIRED: GO BACK AND TRY AGAIN");
+            return;
+        }
         if (reply->error() != QNetworkReply::NoError) return; // silent — keep polling
         QJsonObject data = QJsonDocument::fromJson(reply->readAll()).object();
         QString token = data["authToken"].toString();
@@ -1101,6 +1131,18 @@ void PlexBackend::pollPinTick() {
         saveAuth(a);
         fetchUsersAndServers(token);
     });
+}
+
+// The sign-in left (back on its screen): the PIN is polled for no longer, and
+// an answer to the PIN asked for, still on its way, is dropped.
+void PlexBackend::cancel_pin_auth(int request) {
+    // A sign-in screen replaced by another: the one going is destroyed after
+    // the new one has asked for its code, and must not take that one with it.
+    if (request != m_pinRequest)
+        return;
+    ++m_pinRequest;
+    m_pollTimer->stop();
+    m_pendingPinId.clear();
 }
 
 // ---------------------------------------------------------------------------
@@ -1327,15 +1369,36 @@ void PlexBackend::load_users_from_cache() {
 
 void PlexBackend::select_user(const QString &userId, const QString &pin) {
     activateUser(userId, pin, [this, userId](const QVariantList &accessibleServers) {
-        QJsonObject cfg = loadConfig();
-        QJsonObject mods = cfg["modules"].toObject();
-        QJsonObject plexCfg = mods["com.osdos.plex"].toObject();
-        plexCfg["current_user_id"] = userId;
-        mods["com.osdos.plex"] = plexCfg;
-        cfg["modules"] = mods;
-        saveConfig(cfg);
+        savePlexSetting("current_user_id", userId);
         emit serversLoaded(accessibleServers);
     });
+}
+
+// The module's settings in config.json (modules.com.osdos.plex): a setting,
+// and one saved.
+QJsonValue PlexBackend::plexSetting(const QString &key) const {
+    return loadConfig()["modules"].toObject()["com.osdos.plex"].toObject()[key];
+}
+
+void PlexBackend::savePlexSetting(const QString &key, const QJsonValue &value) {
+    QJsonObject cfg = loadConfig();
+    QJsonObject mods = cfg["modules"].toObject();
+    QJsonObject plexCfg = mods["com.osdos.plex"].toObject();
+    plexCfg[key] = value;
+    mods["com.osdos.plex"] = plexCfg;
+    cfg["modules"] = mods;
+    saveConfig(cfg);
+}
+
+// The server every request goes to from now on. ratingKeys are server-local,
+// so the years cached for shows go with it: a key would name an unrelated
+// show on the next server.
+void PlexBackend::setActiveServer(const QString &uri, const QString &machineId) {
+    m_showYears.clear();
+    QJsonObject auth = loadAuth();
+    auth["active_server_uri"]        = uri;
+    auth["active_server_machine_id"] = machineId;
+    saveAuth(auth);
 }
 
 // ---------------------------------------------------------------------------
@@ -1351,21 +1414,8 @@ void PlexBackend::select_server(const QString &machineId) {
     }
     if (server.isEmpty()) { emit errorOccurred("SERVER NOT FOUND"); return; }
 
-    // ratingKeys are server-local, so a cached year would be attributed to
-    // whatever unrelated show holds that key on the new server.
-    m_showYears.clear();
-
-    auth["active_server_uri"]        = server["uri"].toString();
-    auth["active_server_machine_id"] = machineId;
-    saveAuth(auth);
-
-    QJsonObject cfg = loadConfig();
-    QJsonObject mods = cfg["modules"].toObject();
-    QJsonObject plexCfg = mods["com.osdos.plex"].toObject();
-    plexCfg["server_machine_id"] = machineId;
-    mods["com.osdos.plex"] = plexCfg;
-    cfg["modules"] = mods;
-    saveConfig(cfg);
+    setActiveServer(server["uri"].toString(), machineId);
+    savePlexSetting("server_machine_id", machineId);
 
     emit authSuccess();
 }
@@ -1971,9 +2021,12 @@ void PlexBackend::load_show_year(const QString &showRatingKey) {
 
 void PlexBackend::load_item_detail(const QString &ratingKey) {
     QString uri = serverUrl(), token = serverToken();
+    const int request = ++m_detailRequest;
     auto *reply = plexGet(QUrl(uri + "/library/metadata/" + ratingKey), token);
-    connect(reply, &QNetworkReply::finished, this, [this, reply, ratingKey]() {
+    connect(reply, &QNetworkReply::finished, this, [this, reply, ratingKey, request]() {
         reply->deleteLater();
+        // Another item asked for since: this one was left.
+        if (request != m_detailRequest) return;
         if (reply->error() != QNetworkReply::NoError) {
             if (reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt() == 498) {
                 handle498([this, ratingKey]{ load_item_detail(ratingKey); }); return;
@@ -1989,9 +2042,12 @@ void PlexBackend::load_item_detail(const QString &ratingKey) {
 
 void PlexBackend::load_children(const QString &ratingKey) {
     QString uri = serverUrl(), token = serverToken();
+    const int request = ++m_childrenRequest;
     auto *reply = plexGet(QUrl(uri + "/library/metadata/" + ratingKey + "/children"), token);
-    connect(reply, &QNetworkReply::finished, this, [this, reply, ratingKey]() {
+    connect(reply, &QNetworkReply::finished, this, [this, reply, ratingKey, request]() {
         reply->deleteLater();
+        // Another item's children asked for since: this one was left.
+        if (request != m_childrenRequest) return;
         if (reply->error() != QNetworkReply::NoError) {
             if (reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt() == 498) {
                 handle498([this, ratingKey]{ load_children(ratingKey); }); return;
@@ -2338,6 +2394,7 @@ static constexpr int kMaxQueueItems = 2000;
 // show whose fetch fails contributes nothing and never stalls the queue:
 // fetchChildren reports an empty list on error rather than not reporting.
 void PlexBackend::expand_queue(const QVariantList &items) {
+    const int request = ++m_queueRequest;
     int showCount = 0;
     for (const auto &v : items) {
         if (v.toMap()["type"].toString() == QLatin1String("show")) showCount++;
@@ -2365,7 +2422,7 @@ void PlexBackend::expand_queue(const QVariantList &items) {
             continue;
         }
         const int idx = i;
-        fetchEpisodePool(key, [this, keySlots, pending, idx](const QVariantList &pool) {
+        fetchEpisodePool(key, [this, keySlots, pending, idx, request](const QVariantList &pool) {
             QStringList episodes;
             for (const auto &v : pool) {
                 const QString epKey = v.toMap()["ratingKey"].toString();
@@ -2375,14 +2432,17 @@ void PlexBackend::expand_queue(const QVariantList &items) {
             if (--(*pending) == 0) {
                 QStringList result;
                 for (const auto &bucket : *keySlots) result.append(bucket);
+                delete keySlots;
+                delete pending;
+                // Given up on (cancel_stream), or another set asked for
+                // since: this one plays nowhere.
+                if (request != m_queueRequest) return;
                 if (result.size() > kMaxQueueItems) {
                     qWarning("[Plex] queue truncated from %lld to %d items",
                              qlonglong(result.size()), kMaxQueueItems);
                     result = result.mid(0, kMaxQueueItems);
                 }
                 emit queueReady(result);
-                delete keySlots;
-                delete pending;
             }
         });
     }
@@ -2548,7 +2608,8 @@ void PlexBackend::request_transcode(const QString &ratingKey, const QString &par
     q.addQueryItem("copyts",      "1");
     q.addQueryItem("directPlay",  "0");
     q.addQueryItem("directStream","0");
-    q.addQueryItem("maxVideoBitrate", quality);
+    // Auto: no cap, the server's own choice (as tune_channel's).
+    if (quality != "auto") q.addQueryItem("maxVideoBitrate", quality);
     q.addQueryItem("subtitleSize","100");
     q.addQueryItem("audioBoost",  "100");
     q.addQueryItem("session",     sessionId);
@@ -2977,19 +3038,10 @@ void PlexBackend::applyCurrentUserSetting() {
             if (sv.toMap()["machineId"].toString() == curMid) { curAccessible = true; break; }
 
         if (!accessibleServers.isEmpty() && !curAccessible) {
-            QVariantMap ns = accessibleServers[0].toMap();
-            QString newMid = ns["machineId"].toString();
-            a["active_server_uri"]        = ns["uri"].toString();
-            a["active_server_machine_id"] = newMid;
-            saveAuth(a);
-
-            QJsonObject cfg = loadConfig();
-            QJsonObject mods = cfg["modules"].toObject();
-            QJsonObject plexCfg = mods["com.osdos.plex"].toObject();
-            plexCfg["server_machine_id"] = newMid;
-            mods["com.osdos.plex"] = plexCfg;
-            cfg["modules"] = mods;
-            saveConfig(cfg);
+            const QVariantMap ns = accessibleServers[0].toMap();
+            const QString newMid = ns["machineId"].toString();
+            setActiveServer(ns["uri"].toString(), newMid);
+            savePlexSetting("server_machine_id", newMid);
         }
 
         QVariantList serverOptions;
@@ -3010,9 +3062,7 @@ void PlexBackend::applyCurrentServerSetting() {
         if (v.toObject()["machineId"].toString() == machineId) { server = v.toObject(); break; }
     }
     if (server.isEmpty()) return;
-    auth["active_server_uri"]        = server["uri"].toString();
-    auth["active_server_machine_id"] = machineId;
-    saveAuth(auth);
+    setActiveServer(server["uri"].toString(), machineId);
 }
 
 // ---------------------------------------------------------------------------
@@ -3025,28 +3075,17 @@ void PlexBackend::applyCurrentServerSetting() {
 void PlexBackend::cancel_pending_pin() {
     m_pendingPinUserId.clear();
 
-    QString activeId = loadAuth()["active_user_id"].toString();
-    QJsonObject cfg = loadConfig();
-    QJsonObject mods = cfg["modules"].toObject();
-    QJsonObject plexCfg = mods["com.osdos.plex"].toObject();
-    if (plexCfg["current_user_id"].toString() == activeId) return;
-
-    plexCfg["current_user_id"] = activeId;
-    mods["com.osdos.plex"] = plexCfg;
-    cfg["modules"] = mods;
-    saveConfig(cfg);
+    const QString activeId = loadAuth()["active_user_id"].toString();
+    if (plexSetting("current_user_id").toString() == activeId) return;
+    savePlexSetting("current_user_id", activeId);
 }
 
 void PlexBackend::reauth_select_user(const QString &userId, const QString &pin) {
     activateUser(userId, pin, [this, userId](const QVariantList &accessibleServers) {
-        QJsonObject a = loadAuth();
-        QJsonObject cfg = loadConfig();
-        QJsonObject mods = cfg["modules"].toObject();
-        QJsonObject plexCfg = mods["com.osdos.plex"].toObject();
-        plexCfg["current_user_id"] = userId;
+        savePlexSetting("current_user_id", userId);
 
         // Apply saved server, falling back to first accessible if current is unreachable
-        QString machineId = plexCfg["server_machine_id"].toString();
+        QString machineId = plexSetting("server_machine_id").toString();
         if (!machineId.isEmpty()) {
             bool found = false;
             for (const auto &sv : accessibleServers)
@@ -3055,21 +3094,15 @@ void PlexBackend::reauth_select_user(const QString &userId, const QString &pin) 
                 machineId = accessibleServers[0].toMap()["machineId"].toString();
         }
         if (!machineId.isEmpty()) {
-            for (const auto &sv : a["servers"].toArray()) {
-                QJsonObject s = sv.toObject();
+            for (const auto &sv : loadAuth()["servers"].toArray()) {
+                const QJsonObject s = sv.toObject();
                 if (s["machineId"].toString() == machineId) {
-                    a["active_server_uri"]        = s["uri"].toString();
-                    a["active_server_machine_id"] = machineId;
-                    plexCfg["server_machine_id"]  = machineId;
+                    setActiveServer(s["uri"].toString(), machineId);
+                    savePlexSetting("server_machine_id", machineId);
                     break;
                 }
             }
-            saveAuth(a);
         }
-
-        mods["com.osdos.plex"] = plexCfg;
-        cfg["modules"] = mods;
-        saveConfig(cfg);
         emit authSuccess();
     });
 }

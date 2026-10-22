@@ -10,6 +10,7 @@
 #include "MediaServer.h"
 #include "ServerDownload.h"
 
+#include <QDateTime>
 #include <QDebug>
 #include <QDir>
 #include <QFile>
@@ -19,7 +20,6 @@
 #include <QProcess>
 #include <QRandomGenerator>
 #include <QRegularExpression>
-#include <QSaveFile>
 #include <QStandardPaths>
 #include <QThread>
 #include <QTimer>
@@ -39,6 +39,24 @@ namespace {
 const QString kModuleId = QStringLiteral("com.osdos.playlists");
 const QString kLocalFiles = QStringLiteral("com.osdos.local_files");
 const QString kYouTube = QStringLiteral("com.osdos.youtube");
+// A server's folder that could not be listed is asked for again this long
+// after.
+constexpr qint64 kListingRetryMs = 15000;
+
+// To yt-dlp and the ffmpeg under it, by their group: killed alone, yt-dlp
+// would leave ffmpeg writing on. An interrupt lets yt-dlp tidy up; the kill
+// ends what ignored it.
+void signalDownload(QProcess *process, bool kill) {
+#ifdef Q_OS_UNIX
+    if (process->processId() > 0) {
+        ::killpg(pid_t(process->processId()), kill ? SIGKILL : SIGINT);
+        return;
+    }
+#else
+    Q_UNUSED(kill)
+#endif
+    process->kill();
+}
 
 // The prefix of an item's key, by module: a server's is its id's last part
 // ("jellyfin:", "emby:").
@@ -95,10 +113,13 @@ PlaylistsBackend::PlaylistsBackend(const QString &dataRoot, AppCore *appCore, Lo
 PlaylistsBackend::~PlaylistsBackend() {
     // A download cut short is begun again next time; its part file stays for
     // yt-dlp to carry on from.
-    if (m_active.process) {
-        m_active.process->disconnect(this);
-        m_active.process->kill();
-        m_active.process->waitForFinished(2000);
+    if (QProcess *process = m_active.process) {
+        process->disconnect(this);
+        signalDownload(process, false);
+        if (!process->waitForFinished(2000)) {
+            signalDownload(process, true);
+            process->waitForFinished(500);
+        }
     }
     if (m_active.download)
         m_active.download->cancel();
@@ -131,13 +152,9 @@ void PlaylistsBackend::save() const {
     root.insert(QStringLiteral("playlists"), playlists);
     root.insert(QStringLiteral("downloads"), downloads);
     QDir().mkpath(m_dataRoot);
-    QSaveFile file(m_dataRoot + QStringLiteral("/playlists.json"));
-    if (!file.open(QIODevice::WriteOnly)) {
-        qWarning("[Playlists] can't write playlists.json");
-        return;
-    }
-    file.write(QJsonDocument(root).toJson());
-    file.commit();
+    // Atomically, as every state file: a card that fills mid-write would
+    // otherwise leave a cut-short file, read as no playlists at all.
+    writeFileAtomically(m_dataRoot + QStringLiteral("/playlists.json"), QJsonDocument(root).toJson());
 }
 
 int PlaylistsBackend::indexOf(const QString &id) const {
@@ -580,6 +597,10 @@ QVariant PlaylistsBackend::serverListing(const QString &moduleId, const QString 
     MediaServer *server = m_servers.value(moduleId);
     if (!server || !server->signedIn())
         return QVariantList();
+    // Refused a moment ago: empty for now, asked again after a while, so the
+    // tree neither keeps the failure for the whole visit nor asks on and on.
+    if (QDateTime::currentMSecsSinceEpoch() - m_listingsFailedAt.value(key, 0) < kListingRetryMs)
+        return QVariantList();
     if (preview || m_listingsPending.contains(key))
         return QVariant();
     m_listingsPending.insert(key);
@@ -592,8 +613,12 @@ QVariant PlaylistsBackend::serverListing(const QString &moduleId, const QString 
         if (epoch != m_listingsEpoch)
             return;
         m_listingsPending.remove(key);
-        if (!ok)
+        if (!ok) {
             qWarning("[Playlists] %s listing %s failed", qPrintable(moduleId), qPrintable(parentId));
+            m_listingsFailedAt.insert(key, QDateTime::currentMSecsSinceEpoch());
+            emit serverListingReady(moduleId, parentId);
+            return;
+        }
         QVariantList out;
         for (const QVariant &v : items) {
             QVariantMap item = v.toMap();
@@ -613,6 +638,7 @@ QVariant PlaylistsBackend::serverListing(const QString &moduleId, const QString 
 void PlaylistsBackend::forgetListings() {
     m_listings.clear();
     m_listingsPending.clear();
+    m_listingsFailedAt.clear();
     ++m_listingsEpoch;
 }
 
@@ -641,6 +667,8 @@ void PlaylistsBackend::dropUnreferenced() {
         if (referencedOffline(key))
             continue;
         cancel(key);
+        // What a failed download left for a retry too: no list wants it now.
+        removePartials(key);
         const QJsonObject download = m_downloads.take(key);
         const QString path = download.value(QStringLiteral("path")).toString();
         if (!path.isEmpty() && QFile::remove(path))
@@ -756,31 +784,32 @@ void PlaylistsBackend::startYouTube(const QString &key, const QJsonObject &item)
     process->setChildProcessModifier([]() { ::setsid(); });
 #endif
     m_active.process = process;
-    connect(process, &QProcess::readyRead, this, [this, process, key]() {
+    // A line of yt-dlp's: its progress, the file it finished (the --print
+    // after_move), or its error.
+    const auto readLine = [this, key](const QString &line) {
         static const QRegularExpression kPercent(QStringLiteral("\\[download\\]\\s+([0-9.]+)%"));
-        while (process->canReadLine()) {
-            const QString line = QString::fromUtf8(process->readLine()).trimmed();
-            const QRegularExpressionMatch m = kPercent.match(line);
-            if (m.hasMatch()) {
-                const int percent = int(m.captured(1).toDouble());
-                if (percent != m_active.percent) {
-                    m_active.percent = percent;
-                    emit downloadProgress(key, percent);
-                }
-            } else if (line.startsWith(QLatin1Char('/')) && QFileInfo::exists(line)) {
-                m_active.finalPath = line;
-            } else if (line.startsWith(QLatin1String("ERROR:"))) {
-                m_active.reason = line.mid(6).trimmed();
+        const QRegularExpressionMatch m = kPercent.match(line);
+        if (m.hasMatch()) {
+            const int percent = int(m.captured(1).toDouble());
+            if (percent != m_active.percent) {
+                m_active.percent = percent;
+                emit downloadProgress(key, percent);
             }
+        } else if (line.startsWith(QLatin1Char('/')) && QFileInfo::exists(line)) {
+            m_active.finalPath = line;
+        } else if (line.startsWith(QLatin1String("ERROR:"))) {
+            m_active.reason = line.mid(6).trimmed();
         }
+    };
+    connect(process, &QProcess::readyRead, this, [process, readLine]() {
+        while (process->canReadLine())
+            readLine(QString::fromUtf8(process->readLine()).trimmed());
     });
-    connect(process, &QProcess::finished, this, [this, process](int code, QProcess::ExitStatus status) {
-        const QString rest = QString::fromUtf8(process->readAll()).trimmed();
-        for (const QString &line : rest.split(QLatin1Char('\n'))) {
-            const QString l = line.trimmed();
-            if (l.startsWith(QLatin1Char('/')) && QFileInfo::exists(l))
-                m_active.finalPath = l;
-        }
+    connect(process, &QProcess::finished, this, [this, process, readLine](int code, QProcess::ExitStatus status) {
+        // What came without a newline at the end.
+        const QString rest = QString::fromUtf8(process->readAll());
+        for (const QString &line : rest.split(QLatin1Char('\n')))
+            readLine(line.trimmed());
         finish(status == QProcess::NormalExit && code == 0 && !m_active.finalPath.isEmpty());
     });
     connect(process, &QProcess::errorOccurred, this, [this](QProcess::ProcessError error) {
@@ -890,21 +919,13 @@ void PlaylistsBackend::cancel(const QString &key) {
         return;
     if (QProcess *process = m_active.process) {
         process->disconnect(this);
-        // yt-dlp and the ffmpeg under it, by their group: an interrupt first,
-        // for yt-dlp to tidy up, and the kill a moment later if it hasn't
-        // gone; the app's thread never waits on it.
-#ifdef Q_OS_UNIX
-        if (process->processId() > 0)
-            ::killpg(pid_t(process->processId()), SIGINT);
-        else
-            process->kill();
-#else
-        process->kill();
-#endif
+        // An interrupt first, for yt-dlp to tidy up, and the kill a moment
+        // later if it hasn't gone; the app's thread never waits on it.
+        signalDownload(process, false);
         connect(process, &QProcess::finished, process, &QObject::deleteLater);
         QTimer::singleShot(2000, process, [process]() {
             if (process->state() != QProcess::NotRunning)
-                process->kill();
+                signalDownload(process, true);
         });
     }
     if (m_active.download)

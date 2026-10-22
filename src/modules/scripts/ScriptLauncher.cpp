@@ -10,6 +10,8 @@
 #include <QProcessEnvironment>
 #include <QTimer>
 #include <QDateTime>
+#include <QElapsedTimer>
+#include <QThread>
 #include <QDebug>
 #include <array>
 #include <cstdio>
@@ -70,21 +72,24 @@ ScriptLauncher::ScriptLauncher(const QString &appRoot, const QString &dataRoot,
     m_killTimer->setSingleShot(true);
     m_killTimer->setInterval(kKillGraceMs);
     connect(m_killTimer, &QTimer::timeout, this, [this] {
-        // Checked against the process GROUP, not just the script: during a group
-        // drain the script itself is already gone but its children are what we are
-        // actually waiting on.
-        if (isBusy()) {
+        // Checked against the process GROUP, not just the script: the script
+        // itself may be gone already (a group drain, or a console run that
+        // left at the SIGTERM) while its children, what the stop is waiting
+        // on, live on.
+        if (groupAlive()) {
             qWarning("[Scripts] '%s' ignored SIGTERM — sending SIGKILL",
                      qPrintable(m_runningBasename));
             killGroup(SIGKILL);
         }
+        // A finished console run kept its group id only for this SIGKILL; a
+        // takeover run's drain still needs it.
+        if (!isBusy()) m_pgid = -1;
     });
 
     m_groupTimer = new QTimer(this);
     m_groupTimer->setInterval(kGroupPollMs);
     connect(m_groupTimer, &QTimer::timeout, this, [this] {
-#ifdef Q_OS_UNIX
-        if (m_pgid > 0 && ::kill(static_cast<pid_t>(-m_pgid), 0) == 0) {
+        if (groupAlive()) {
             // Something the script started is still alive and may still own the
             // display. Warn once, then keep waiting — for a launcher-style script
             // (spawn the real app, exit) this drain IS the whole run, so killing
@@ -101,7 +106,6 @@ ScriptLauncher::ScriptLauncher(const QString &appRoot, const QString &dataRoot,
             }
             return;
         }
-#endif
         m_groupTimer->stop();
         releaseDisplayAndReport();
     });
@@ -131,13 +135,21 @@ ScriptLauncher::ScriptLauncher(const QString &appRoot, const QString &dataRoot,
 }
 
 ScriptLauncher::~ScriptLauncher() {
-    if (m_process && m_process->state() != QProcess::NotRunning) {
-        // Take the whole group down, not just the script: a bare terminate()
-        // would orphan anything it spawned.
+    // Take the whole group down, not just the script: a bare terminate() would
+    // orphan anything it spawned. The group alone during a drain, when the
+    // script is gone but what it started still has the screen: left alive, it
+    // would outlive the app, drawing on the display releaseNow() restores.
+    if (isRunning() || groupAlive()) {
         killGroup(SIGTERM);
-        if (!m_process->waitForFinished(1000)) {
+        QElapsedTimer grace;
+        grace.start();
+        while ((isRunning() || groupAlive()) && grace.elapsed() < 1000) {
+            if (isRunning()) m_process->waitForFinished(50);
+            else             QThread::msleep(50);
+        }
+        if (isRunning() || groupAlive()) {
             killGroup(SIGKILL);
-            m_process->waitForFinished(500);
+            if (isRunning()) m_process->waitForFinished(500);
         }
     }
     // Quitting while a takeover script has the screen would otherwise leave a Pi
@@ -156,7 +168,21 @@ bool ScriptLauncher::drainingGroup() const {
     return m_groupTimer && m_groupTimer->isActive();
 }
 
+bool ScriptLauncher::groupAlive() const {
+#ifdef Q_OS_UNIX
+    return m_pgid > 0 && ::kill(static_cast<pid_t>(-m_pgid), 0) == 0;
+#else
+    return false;
+#endif
+}
+
 void ScriptLauncher::resetForNewRun() {
+    // A stopped run's children still in their SIGTERM grace are not left
+    // behind: what the grace would have done in a moment is done now.
+    if (m_killTimer->isActive()) {
+        m_killTimer->stop();
+        if (groupAlive()) killGroup(SIGKILL);
+    }
     m_lines.clear();
     m_partial.clear();
     m_pendingCr     = false;
@@ -243,14 +269,7 @@ bool ScriptLauncher::start(const ScriptEntry &entry, QString *errorOut) {
     m_process->setWorkingDirectory(entry.workingDirectory.isEmpty() ? fi.absolutePath()
                                                                     : entry.workingDirectory);
 
-    // Only a child that will be handed a controlling terminal gets
-    // ForwardedChannels: in forwarded mode Qt performs no dup2 on 0/1/2 at all,
-    // so the child modifier is unambiguously the last writer regardless of Qt
-    // version. Everywhere else capture the output — it is the only diagnostic a
-    // user gets when a takeover script dies instantly on a headless Pi.
     const bool wantCttyRequested = takeover && entry.meta.tty && vt > 0;
-    m_process->setProcessChannelMode(wantCttyRequested ? QProcess::ForwardedChannels
-                                                       : QProcess::MergedChannels);
 
     QProcessEnvironment env = QProcessEnvironment::systemEnvironment();
     env.insert(QStringLiteral("APP_ROOT"),  m_appRoot);
@@ -300,6 +319,7 @@ bool ScriptLauncher::start(const ScriptEntry &entry, QString *errorOut) {
     // truth: stripping it would break a Wayland-native child with no Xwayland.
     m_process->setProcessEnvironment(env);
 
+    bool wantCtty = wantCttyRequested;
 #ifdef Q_OS_UNIX
     // Probe the VT from the parent, where we can actually report why it failed.
     // /dev/tty2..63 are 0620 root:tty — group WRITE only — so opening one O_RDWR
@@ -307,7 +327,6 @@ bool ScriptLauncher::start(const ScriptEntry &entry, QString *errorOut) {
     // without a controlling terminal (which is how mpv already runs) rather than
     // failing the script.
     std::array<char, 16> devPath{};
-    bool wantCtty = wantCttyRequested;
     if (wantCtty) {
         std::snprintf(devPath.data(), devPath.size(), "/dev/tty%d", vt);
         const int probe = ::open(devPath.data(), O_RDWR | O_NOCTTY);
@@ -320,7 +339,18 @@ bool ScriptLauncher::start(const ScriptEntry &entry, QString *errorOut) {
             ::close(probe);
         }
     }
+#endif
 
+    // Only a child that will be handed a controlling terminal gets
+    // ForwardedChannels: in forwarded mode Qt performs no dup2 on 0/1/2 at all,
+    // so the child modifier is unambiguously the last writer regardless of Qt
+    // version. Everywhere else capture the output — it is the only diagnostic a
+    // user gets when a takeover script dies instantly on a headless Pi. Decided
+    // after the probe: a tty the probe refused is captured like the rest.
+    m_process->setProcessChannelMode(wantCtty ? QProcess::ForwardedChannels
+                                              : QProcess::MergedChannels);
+
+#ifdef Q_OS_UNIX
     // Runs between fork and exec: async-signal-safe calls only, no allocation.
     // setsid() makes the child its own session AND process-group leader, so
     // pgid == pid, killpg() reaches everything it spawns, and (in takeover mode)
@@ -506,8 +536,13 @@ void ScriptLauncher::onErrorOccurred(QProcess::ProcessError error) {
 void ScriptLauncher::finish(int exitCode, const QString &reason) {
     if (m_finished) return;      // both signals can arrive for one run
     m_finished = true;
-    m_killTimer->stop();
     m_startTimer->stop();
+    // The SIGTERM→SIGKILL grace armed by requestStop() stays armed while
+    // anything the script started is still alive: a script that traps TERM
+    // and exits at once would otherwise leave its children to a SIGKILL that
+    // never comes, a drain that never ends, and a stop key that does nothing.
+    const bool killPending = m_stopRequested && m_killTimer->isActive() && groupAlive();
+    if (!killPending) m_killTimer->stop();
 
     // Drain whatever is still buffered: readyRead and finished are independent
     // event-loop signals, so the script's last lines may not have been read yet.
@@ -538,7 +573,8 @@ void ScriptLauncher::finish(int exitCode, const QString &reason) {
         return;
     }
 
-    m_pgid = -1;
+    // The group id is kept only while that SIGKILL is pending.
+    if (!killPending) m_pgid = -1;
     report();
 }
 
@@ -546,8 +582,7 @@ void ScriptLauncher::finish(int exitCode, const QString &reason) {
 // children still hold the screen. Restoring the CRTC underneath them gives a
 // black or torn display, so wait for the whole process group to empty first.
 void ScriptLauncher::startGroupDrain() {
-#ifdef Q_OS_UNIX
-    if (m_pgid > 0 && ::kill(static_cast<pid_t>(-m_pgid), 0) == 0) {
+    if (groupAlive()) {
         m_drainStartMs = QDateTime::currentMSecsSinceEpoch();
         m_warnedDrain  = false;
         m_groupTimer->start();
@@ -556,12 +591,12 @@ void ScriptLauncher::startGroupDrain() {
         emit runningChanged();   // isBusy() is now true again (draining)
         return;
     }
-#endif
     releaseDisplayAndReport();
 }
 
 void ScriptLauncher::releaseDisplayAndReport() {
-    m_pgid = -1;
+    // Kept while a SIGKILL is pending for what the script left behind.
+    if (!m_killTimer->isActive()) m_pgid = -1;
     if (!m_handoff) {           // defensive: nothing to give back
         m_takeoverRun = false;
         report();

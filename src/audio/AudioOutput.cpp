@@ -93,12 +93,18 @@ QString readSmall(const QString &path) {
 }
 
 // The USB devices plugged in that have a sound interface (class 01), by
-// their product names, as the kernel lists them: whether ALSA made a card of
-// them or not.
-QStringList usbSoundDevices() {
+// their product names, as the kernel lists them, whether ALSA made a card of
+// them or not; and whether a driver (the kernel's snd-usb-audio) took one of
+// their sound interfaces, which it does by itself when it is there.
+struct UsbSoundDevice {
+    QString name;
+    bool driven = false;
+};
+QList<UsbSoundDevice> usbSoundDevices() {
     const QDir devices(legacy::env("USB_DEVICES_DIR", QStringLiteral("/sys/bus/usb/devices")));
-    QStringList names;
-    // A device's interfaces are "<device>:<configuration>.<interface>".
+    QList<UsbSoundDevice> found;
+    // A device's interfaces are "<device>:<configuration>.<interface>"; a
+    // driver bound to one is its "driver" link.
     for (const QString &entry : devices.entryList(QDir::Dirs | QDir::NoDotAndDotDot)) {
         if (!entry.contains(QLatin1Char(':'))
             || readSmall(devices.filePath(entry + QStringLiteral("/bInterfaceClass"))) != QLatin1String("01"))
@@ -106,10 +112,15 @@ QStringList usbSoundDevices() {
         const QString device = entry.section(QLatin1Char(':'), 0, 0);
         const QString product = readSmall(devices.filePath(device + QStringLiteral("/product")));
         const QString name = product.isEmpty() ? device : product;
-        if (!names.contains(name))
-            names.append(name);
+        const bool driven = QFileInfo(devices.filePath(entry + QStringLiteral("/driver"))).isSymLink()
+                            || QFileInfo::exists(devices.filePath(entry + QStringLiteral("/driver")));
+        auto it = std::find_if(found.begin(), found.end(), [&name](const UsbSoundDevice &d) { return d.name == name; });
+        if (it == found.end())
+            found.append({ name, driven });
+        else
+            it->driven = it->driven || driven;
     }
-    return names;
+    return found;
 }
 
 // Whether the Pi's power is too low, which can keep USB devices from coming
@@ -182,11 +193,31 @@ QString usbNote(const QList<AlsaCard> &cards) {
     });
     if (usbCard)
         return QString();
-    const QStringList usb = usbSoundDevices();
-    QString note = usb.isEmpty()
-                       ? QStringLiteral("No USB sound card is plugged in, as far as the system can tell")
-                       : usb.join(QStringLiteral(", "))
-                             + QStringLiteral(" is plugged in, but the system made no sound card of it to play through");
+    QString note;
+    // ALSA has a USB card, with nothing to play through: an input alone.
+    const auto inputOnly = std::find_if(cards.cbegin(), cards.cend(), [](const AlsaCard &card) {
+        return !card.playback && card.driver == QLatin1String("USB-Audio");
+    });
+    if (inputOnly != cards.cend()) {
+        note = (inputOnly->shortName.isEmpty() ? inputOnly->id : inputOnly->shortName)
+               + QStringLiteral(" is plugged in, but it has no output to play through");
+    } else {
+        const QList<UsbSoundDevice> usb = usbSoundDevices();
+        QStringList names, driven;
+        for (const UsbSoundDevice &d : usb) {
+            names.append(d.name);
+            if (d.driven)
+                driven.append(d.name);
+        }
+        if (usb.isEmpty())
+            note = QStringLiteral("No USB sound card is plugged in, as far as the system can tell");
+        else if (driven.isEmpty())
+            note = names.join(QStringLiteral(", "))
+                   + QStringLiteral(" is plugged in, but the USB sound driver (snd-usb-audio) didn't take it");
+        else
+            note = driven.join(QStringLiteral(", "))
+                   + QStringLiteral(" is plugged in and the USB sound driver took it, but ALSA made no card of it to play through");
+    }
     const QString low = underVoltage();
     if (!low.isEmpty())
         note += QStringLiteral(". ") + low + QStringLiteral(", which can keep USB devices from working");

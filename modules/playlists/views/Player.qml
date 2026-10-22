@@ -91,7 +91,8 @@ FocusScope {
 
     Component.onCompleted: {
         if (playlistId === "" || !playlistsBackend) {
-            goBack()
+            // A turn later: the router isn't listening yet.
+            Qt.callLater(playerRoot.goBack)
             return
         }
         playlist = playlistsBackend.playlist(playlistId)

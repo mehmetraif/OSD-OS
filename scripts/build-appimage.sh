@@ -61,7 +61,9 @@ fetch_tool() {
     if [ ! -x "$dest" ]; then
         mkdir -p "$TOOLS_DIR"
         log "Downloading $name"
-        curl -fL# "$url" -o "$dest"
+        # Tried again on a passing error (a 5xx, a dropped connection): one
+        # must not fail the release.
+        curl -fL# --retry 3 --retry-all-errors "$url" -o "$dest"
         chmod +x "$dest"
     fi
     echo "$dest"

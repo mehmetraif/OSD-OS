@@ -180,6 +180,7 @@ test("a file read back as the card would read it", () => {
 test("a file of someone else's, as far as this page has it", () => {
     const schema = {
         presets: [{ id: "hdmi", models: ["pi3", "pi4", "pi5"] }, { id: "jamma-480i", models: ["pi4"] }],
+        countries: [["Türkiye", "TR"]], zones: ["Europe/Istanbul", "UTC"], keyboards: [["Turkish (Q)", "tr"]],
         app: [{ title: "General", settings: [{ key: "osd_theme" }, { key: "hint_bar" }] }],
         modules: [{ id: "com.osdos.arcade", settings: [{ key: "lan_play" }, { type: "heading", label: "Look" }] }],
     };
@@ -195,6 +196,40 @@ test("a file of someone else's, as far as this page has it", () => {
     assert.equal(core.fitImport({ model: "pi4", displayPreset: "jamma-480i", config: {} }, schema).state.displayPreset,
                  "jamma-480i");
     assert.deepEqual(core.fitImport({ displayPreset: "../../x/y?", config: {} }, schema).dropped, ["display.preset"]);
+    // A country, a time zone or a keyboard the page doesn't offer.
+    const far = core.fitImport({ wifiCountry: "XX", timezone: "Mars/Olympus_Mons", keyboard: "tr", config: {} }, schema);
+    assert.deepEqual(far.dropped, ["wifi.country", "system.timezone"]);
+    assert.equal(far.state.wifiCountry, undefined);
+    assert.equal(far.state.keyboard, "tr");
+});
+
+test("the RetroAchievements account as the card takes it", () => {
+    const both = "RetroAchievements: both the user name and the password, to sign in";
+    assert.deepEqual(core.checkRetroAchievements("", "", ""), []);
+    assert.deepEqual(core.checkRetroAchievements(" player ", "pw", " abc123 "), []);
+    assert.deepEqual(core.checkRetroAchievements("player", "", ""), [both]);
+    assert.deepEqual(core.checkRetroAchievements("", "pw", ""), [both]);
+    assert.deepEqual(core.checkRetroAchievements("  ", "pw", ""), [both], "a name of spaces is none");
+    assert.equal(core.checkRetroAchievements("x".repeat(65), "pw", "").length, 1);
+    assert.equal(core.checkRetroAchievements("x", "p".repeat(257), "").length, 1);
+    assert.equal(core.checkRetroAchievements("", "", "key-with-dash").length, 1);
+    assert.equal(core.checkRetroAchievements("", "", "k".repeat(65)).length, 1);
+    // The name and the key go in the file with nothing round them.
+    assert.deepEqual(core.buildSetup({ raUser: " player ", raPassword: " pw ", raKey: " abc " }).retroachievements,
+                     { user: "player", password: " pw ", key: "abc" });
+});
+
+test("a toggle's value read as on", () => {
+    const words = { on: "On", off: "Off" }, bool = { on: true, off: false };
+    assert.equal(core.toggleOn(words, "ON"), true, "the on-word in any case");
+    assert.equal(core.toggleOn(words, "off"), false);
+    assert.equal(core.toggleOn(bool, true), true);
+    assert.equal(core.toggleOn(bool, false), false);
+    assert.equal(core.toggleOn(bool, "ON"), true, "an older config.json's ON");
+    assert.equal(core.toggleOn(bool, "On"), false, "which the app takes in that spelling alone");
+    assert.equal(core.isOn("On"), true, "the preview's reading, whatever the row");
+    assert.equal(core.isOn("OFF"), false);
+    assert.equal(core.isOn(undefined), false);
 });
 
 test("OSD/OS's config.json read for its settings, anything else refused", () => {

@@ -54,6 +54,8 @@
 #include "util/MacosUtils.h"
 #endif
 
+// Empty when APP_ROOT names a folder that isn't there: every path under it
+// would then be wrong, and main() says so rather than going on.
 static QString resolveAppRoot() {
     QString envRoot = qEnvironmentVariable("APP_ROOT");
     if (!envRoot.isEmpty())
@@ -77,7 +79,12 @@ static QString resolveAppRoot() {
 static QString resolveDataRoot() {
     QString envRoot = qEnvironmentVariable("DATA_ROOT");
     if (!envRoot.isEmpty()) {
+        // Made, as the default folder is: without it the canonical path would
+        // be empty, and every file of the app's would be looked for in /.
+        QDir().mkpath(envRoot);
         const QString root = QDir(envRoot).canonicalPath();
+        if (root.isEmpty())
+            return root;
         legacy::migrateModuleIds(root);
         return root;
     }
@@ -136,13 +143,11 @@ int main(int argc, char *argv[]) {
     app.setApplicationVersion(QStringLiteral(APP_VERSION));
 
     // Hide cursor — OSD/OS is keyboard/gamepad-only so the cursor serves no
-    // purpose. Hidden on all of Linux: headless EGLFS and desktop compositors
-    // (Steam Deck / RPi desktop) alike, since the app runs fullscreen kiosk-style.
-#ifdef Q_OS_LINUX
+    // purpose. Hidden everywhere: headless EGLFS and desktop compositors
+    // (Steam Deck / RPi desktop / macOS) alike, since the app runs fullscreen
+    // kiosk-style.
     QGuiApplication::setOverrideCursor(Qt::BlankCursor);
-#endif
 #ifdef Q_OS_MAC
-    QGuiApplication::setOverrideCursor(Qt::BlankCursor);
     hideMacOSMenuBar();
 #endif
 
@@ -173,6 +178,12 @@ int main(int argc, char *argv[]) {
 
     const QString appRoot  = resolveAppRoot();
     const QString dataRoot = resolveDataRoot();
+    if (appRoot.isEmpty() || dataRoot.isEmpty()) {
+        qCritical("[main] %s names a folder that doesn't exist: %s",
+                  appRoot.isEmpty() ? "APP_ROOT" : "DATA_ROOT",
+                  qPrintable(qEnvironmentVariable(appRoot.isEmpty() ? "APP_ROOT" : "DATA_ROOT")));
+        return 1;
+    }
     qDebug("[main] appRoot  = %s", qPrintable(appRoot));
     qDebug("[main] dataRoot = %s", qPrintable(dataRoot));
     // A crash writes where it was to the journal and to crash-report.txt in
@@ -295,6 +306,14 @@ int main(int argc, char *argv[]) {
     // as one starts.
     QObject::connect(&mpvController, &MpvController::playbackEnded, &menuMusic,
                      []() { MenuMusic::release(QStringLiteral("video")); });
+    // Ambient Mode's companion audio plays beside its clips, which may go on
+    // behind the menus (Transparent Background) after their view has gone:
+    // it stops with the last clip.
+    QObject::connect(&mpvController, &MpvController::videoActiveChanged, &ambientMode,
+                     [&mpvController, &ambientMode] {
+                         if (!mpvController.videoActive())
+                             ambientMode.stopAudio();
+                     });
 
     // Each module backend is wired in one call: stored for action routing, exposed to QML
     // under its context-property name, and its optional signals/slots connected by

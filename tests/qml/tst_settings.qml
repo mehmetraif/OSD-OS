@@ -47,6 +47,7 @@ Rectangle {
     property bool devBuild: true
     property string appVersion: "1.0.0"
     property bool effectsUsable: true
+    property var allSchemes: ({ "Video 1": {}, "Late Night": {} })
     property var textPresets: ({ "Rainbow": {} })
     property var backgroundPresets: ({ "Matrix": {} })
     property var selectorPresets: ["Sparkles"]

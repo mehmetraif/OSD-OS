@@ -393,8 +393,7 @@ set_tests_properties(controllers PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscre
 # for another), started offscreen: the main menu with every module on it, and
 # each module as the startup module, open without a QML warning, and the app
 # stops on SIGTERM as the service stops it. Skipped without the app, and for a
-# module that needs a QML module of Qt's this Qt doesn't have (QtQuick.Effects
-# before Qt 6.5).
+# module that imports a QML module of Qt's this Qt doesn't have.
 if(UNIX)
     if(APPLE)
         set(osdos_app "${CMAKE_CURRENT_SOURCE_DIR}/../build/osdos.app/Contents/MacOS/osdos")

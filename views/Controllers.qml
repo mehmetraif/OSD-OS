@@ -16,7 +16,7 @@ FocusScope {
     signal goBack()
 
     property var navParams: ({})
-    property var navListState: ({})
+    property var navListState: navParams.navListState || ({})
 
     // Null guards: context properties resolve to null while the view Loader
     // tears down; guarded bindings stay teardown-safe (see Bluetooth.qml).

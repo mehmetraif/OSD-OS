@@ -57,8 +57,8 @@ FocusScope {
                                   || (!!arcadeBackend && game !== "" && arcadeBackend.engineOf(game) === "fbneo")
     readonly property bool before: phase === "opening" || phase === "running"
     // A pad's Back button is COIN before a game from the Arcade screen
-    // (InputManager).
-    readonly property bool takesCoin: arcade && phase === "opening"
+    // (InputManager): one MAME plays, FinalBurn Neo's coins go in the game.
+    readonly property bool takesCoin: arcade && phase === "opening" && !fbneo
     // The finer print: in the Arcade screen's look, no smaller than its own
     // letters (the hint bar's).
     readonly property real smallText: arcade ? root.sh * 0.0375 : root.sh * 0.0291667 //18, or 14
@@ -324,7 +324,7 @@ FocusScope {
     HintBar {
         visible: playRoot.phase !== "running"
         text: playRoot.phase !== "opening" ? root.hints.back + ":BACK"
-              : playRoot.arcade ? root.hints.back + ":CANCEL " + root.hints.coin + ":COIN "
+              : playRoot.arcade ? root.hints.back + ":CANCEL " + (playRoot.fbneo ? "" : root.hints.coin + ":COIN ")
                                   + root.hints.play_pause + ":PLAY"
               : root.hints.back + ":CANCEL"
         anchors.bottom: parent.bottom

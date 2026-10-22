@@ -11,6 +11,7 @@
 #include <memory>
 
 #ifdef OSDOS_WIFI
+#include "../util/DBusCall.h"
 #include <QDBusArgument>
 #include <QDBusConnectionInterface>
 #include <QDBusMetaType>
@@ -129,9 +130,6 @@ QVariant plainArgument(const QDBusArgument &arg) {
     case QDBusArgument::VariantType:
         return plain(arg.asVariant());
     case QDBusArgument::ArrayType: {
-        const QString signature = arg.currentSignature();
-        if (signature == QLatin1String("ay") || signature == QLatin1String("as"))
-            return arg.asVariant();
         QVariantList list;
         arg.beginArray();
         while (!arg.atEnd())
@@ -362,7 +360,7 @@ WifiManager::WifiManager(const QDBusConnection &bus, QObject *parent)
     }
     m_watcher = new QDBusServiceWatcher(kService, m_bus,
         QDBusServiceWatcher::WatchForRegistration | QDBusServiceWatcher::WatchForUnregistration, this);
-    connect(m_watcher, &QDBusServiceWatcher::serviceRegistered, this, &WifiManager::onServiceRegistered);
+    connect(m_watcher, &QDBusServiceWatcher::serviceRegistered, this, &WifiManager::load);
     connect(m_watcher, &QDBusServiceWatcher::serviceUnregistered, this, &WifiManager::onServiceUnregistered);
 
     m_bus.connect(kService, kRootPath, kObjectManager, QStringLiteral("InterfacesAdded"),
@@ -382,7 +380,7 @@ WifiManager::WifiManager(const QDBusConnection &bus, QObject *parent)
     // Otherwise the watcher says when it comes; asking for it before would
     // start it (D-Bus activation).
     if (m_bus.interface() && m_bus.interface()->isServiceRegistered(kService))
-        onServiceRegistered();
+        load();
 #endif
 }
 
@@ -599,10 +597,6 @@ void WifiManager::readCountry() {
 #ifdef OSDOS_WIFI
 
 // --- NetworkManager's objects ---
-
-void WifiManager::onServiceRegistered() {
-    load();
-}
 
 void WifiManager::onServiceUnregistered() {
     stopSearch();
@@ -841,8 +835,7 @@ void WifiManager::merge(const QString &path, const QString &interface, const QVa
                         const QStringList &invalidated) {
     QVariantMap &object = m_objects[path];
     QVariantMap properties = object.value(interface).toMap();
-    for (auto it = changed.cbegin(); it != changed.cend(); ++it)
-        properties.insert(it.key(), it.value());
+    properties.insert(changed);
     for (const QString &key : invalidated)
         properties.remove(key);
     object.insert(interface, properties);
@@ -1043,14 +1036,7 @@ void WifiManager::refresh() {
 void WifiManager::call(const QString &path, const QString &interface, const QString &method,
                        const QVariantList &args, int timeoutMs,
                        std::function<void(const QDBusMessage &reply)> done) {
-    QDBusMessage message = QDBusMessage::createMethodCall(kService, path, interface, method);
-    message.setArguments(args);
-    auto *watcher = new QDBusPendingCallWatcher(m_bus.asyncCall(message, timeoutMs), this);
-    connect(watcher, &QDBusPendingCallWatcher::finished, this, [done](QDBusPendingCallWatcher *w) {
-        w->deleteLater();
-        if (done)
-            done(w->reply());
-    });
+    dbuscall::call(m_bus, kService, path, interface, method, args, timeoutMs, this, std::move(done));
 }
 
 #endif

@@ -24,7 +24,7 @@ Plex is off until you turn it on: **Settings → TV / Movie → Plex → Enabled
 
 1. Open **Plex** from the main menu. It asks plex.tv for a code (**Requesting Pin…**), then shows it: four characters, with **Visit plex.tv/link and enter the code above** and **Waiting…** under it.
 2. On a phone or computer, go to **plex.tv/link**, sign in to your Plex account if asked, and enter the code.
-3. OSD/OS asks plex.tv every 2 seconds whether the code has been entered. As soon as it has, it fetches your Plex Home profiles and your servers.
+3. OSD/OS asks plex.tv every 2 seconds whether the code has been entered. As soon as it has, it fetches your Plex Home profiles and your servers. A code left unentered for long is forgotten by plex.tv: the screen then says **THE CODE EXPIRED: GO BACK AND TRY AGAIN**, and opening Plex again asks for a fresh one.
 4. **Select User** lists the profiles. An account with one profile skips this step. A profile with a PIN asks for it ([below](#profiles)).
 5. **Select Server** lists the servers that profile can use. Choose one.
 6. The home screen opens: the server's name and the profile in the title bar, then Continue Watching and the libraries.

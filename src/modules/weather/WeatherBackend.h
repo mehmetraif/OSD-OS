@@ -94,7 +94,6 @@ signals:
     void musicStateChanged();
     // reason ∈ {missing, unreadable, empty, notfound, network}
     void locationError(const QString &reason);
-    void fetchError(const QString &message);
     void dynamicOptionsReady(const QString &key, const QVariant &options);
 
 public slots:
@@ -154,6 +153,7 @@ private:
     // fires while the Loader's item is still being constructed, so the
     // setSource() that swaps in the setup screen is silently dropped.
     void emitError(const QString &reason);
+    void fetchFailed();
 
     QString m_appRoot;
     QString m_dataRoot;
@@ -170,12 +170,11 @@ private:
 
     // Resolved location, cached for the life of the process. Deliberately not
     // persisted: the project writes config.json only on direct user
-    // interaction, and re-geocoding once per module entry is one small request.
+    // interaction, and re-geocoding once per app start is one small request.
     QString m_locationName;
     double  m_lat = 0.0;
     double  m_lon = 0.0;
     bool    m_resolved = false;
-    QString m_resolvedFrom;
     // Whether the sun is up at the primary location, from Open-Meteo. Cached
     // because the station overlay needs it and an observation cannot supply it.
     bool    m_isDay = true;

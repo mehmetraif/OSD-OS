@@ -10,11 +10,9 @@ import Components
 FocusScope {
     id: bluetoothRoot
 
-    signal navigateTo(string path, var params, var listState)
     signal goBack()
 
     property var navParams: ({})
-    property var navListState: ({})
 
     // Null guards: context properties resolve to null while the view Loader
     // tears down; guarded bindings stay teardown-safe (see Update.qml).
@@ -302,6 +300,9 @@ FocusScope {
         }
 
         Keys.onPressed: function(event) {
+            // Ctrl+Q and the rest go on to Main.qml.
+            if (event.modifiers & Qt.ControlModifier)
+                return
             event.accepted = true
             if (event.key === Qt.Key_Escape || event.key === Qt.Key_Backspace || event.key === Qt.Key_Back
                     || event.key === Qt.Key_Return || event.key === Qt.Key_Enter)
@@ -382,6 +383,7 @@ FocusScope {
             if (bluetoothManager)
                 bluetoothManager.cancelPairing()
         }
-        onVisibleChanged: if (!visible) list.forceActiveFocus()
+        // The keys back to what it came over: a device's options, if open.
+        onVisibleChanged: if (!visible) (options.visible ? options : list).forceActiveFocus()
     }
 }

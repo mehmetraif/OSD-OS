@@ -70,7 +70,7 @@ Every video's mpv listens on a Unix socket, `--input-ipc-server=/tmp/osdos-mpv.s
 
 ### Back, and the end of a video
 
-OSD/OS writes the key bindings each video's mpv gets into the temporary folder as it starts, `osdos-input.conf` for a process and `osdos-input-embedded.conf` for Transparent Background, both the same three lines:
+OSD/OS writes the key bindings each video's mpv gets, a process's and Transparent Background's alike, into the temporary folder as it starts, `osdos-input.conf`, three lines:
 
 ```text
 ESC script-message osdos-menu
@@ -192,7 +192,7 @@ mpv writes its command line into its own log at its verbose level: `grep 'Comman
 - On top come `vo=libmpv`, `idle=once` (it ends when the playlist has played out, as the process would exit) and `input-default-bindings=yes` (libmpv leaves mpv's built-in keys off).
 - An option this libmpv doesn't know is left out with a warning, `[EmbeddedMpv] --name=value: <mpv's error>`, where the mpv program would refuse to start.
 
-In place of the process's own flags it gets `--input-conf=/tmp/osdos-input-embedded.conf`, `--video-sync=audio` and the embedded decoder flags of the [table below](https://github.com/mehmetraif/OSD-OS/wiki/Playback-and-mpv#per-device-decode-profiles). It reads no `mpv.conf` and doesn't use `mpv_video_args`. The socket, the scripts (the deck menu, the logo, the media keys) and `playbackEnded` work as for a process. There is no screen to hand over: OSD/OS keeps it.
+In place of the process's own flags it gets the same `--input-conf`, `--video-sync=audio` and the embedded decoder flags of the [table below](https://github.com/mehmetraif/OSD-OS/wiki/Playback-and-mpv#per-device-decode-profiles). It reads no `mpv.conf` and doesn't use `mpv_video_args`. The socket, the scripts (the deck menu, the logo, the media keys) and `playbackEnded` work as for a process. There is no screen to hand over: OSD/OS keeps it.
 
 ### How the picture is drawn
 

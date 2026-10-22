@@ -1,5 +1,7 @@
 #pragma once
 
+#include <QJsonArray>
+#include <QJsonObject>
 #include <QString>
 #include <QUrl>
 #include <QUrlQuery>
@@ -58,6 +60,37 @@ inline QString streamUrl(const QString &serverUrl, const QString &itemId, const 
     query.addQueryItem(QStringLiteral("api_key"), token);
     url.setQuery(query);
     return url.toString(QUrl::FullyEncoded);
+}
+
+// Whether a server's list (Items[]) has the item.
+inline bool hasItem(const QJsonArray &items, const QString &itemId) {
+    for (const auto &v : items) {
+        if (v.toObject()[QLatin1String("Id")].toString() == itemId)
+            return true;
+    }
+    return false;
+}
+
+// Of a series' episodes, in any order, the one after season/index: the
+// smallest season above it, or the smallest index above it in the same
+// season. Empty for none.
+inline QJsonObject nextEpisode(const QJsonArray &episodes, int season, int index) {
+    QJsonObject next;
+    int nextSeason = 0;
+    int nextIndex = 0;
+    for (const auto &v : episodes) {
+        const QJsonObject e = v.toObject();
+        const int s = e[QLatin1String("ParentIndexNumber")].toInt();
+        const int i = e[QLatin1String("IndexNumber")].toInt();
+        if (s < season || (s == season && i <= index))
+            continue;
+        if (next.isEmpty() || s < nextSeason || (s == nextSeason && i < nextIndex)) {
+            next = e;
+            nextSeason = s;
+            nextIndex = i;
+        }
+    }
+    return next;
 }
 
 } // namespace embyapi

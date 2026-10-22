@@ -99,19 +99,20 @@ local function draw_menu()
     mp.set_osd_ass(ww, wh, ass.text)
 end
 
+-- The menu off the screen: its drawing, its refresh and its keys.
+local function hide_menu()
+    menu_visible = false
+    mp.set_osd_ass(0, 0, "")
+    if update_timer then update_timer:stop() end
+    for _, name in ipairs({ "menu-left", "menu-right", "menu-enter", "menu-esc", "menu-bs" }) do
+        mp.remove_key_binding(name)
+    end
+end
+
 local function reset_idle_timer()
     if idle_timer then idle_timer:kill() end
     idle_timer = mp.add_timeout(MENU_TIMEOUT, function()
-        if menu_visible then
-            menu_visible = false
-            mp.set_osd_ass(0, 0, "")
-            if update_timer then update_timer:stop() end
-            mp.remove_key_binding("menu-left")
-            mp.remove_key_binding("menu-right")
-            mp.remove_key_binding("menu-enter")
-            mp.remove_key_binding("menu-esc")
-            mp.remove_key_binding("menu-bs")
-        end
+        if menu_visible then hide_menu() end
     end)
 end
 
@@ -132,15 +133,8 @@ end
 
 local function toggle_menu()
     if menu_visible then
-        menu_visible = false
-        mp.set_osd_ass(0, 0, "")
-        if update_timer then update_timer:stop() end
-        if idle_timer   then idle_timer:kill()   end
-        mp.remove_key_binding("menu-left")
-        mp.remove_key_binding("menu-right")
-        mp.remove_key_binding("menu-enter")
-        mp.remove_key_binding("menu-esc")
-        mp.remove_key_binding("menu-bs")
+        hide_menu()
+        if idle_timer then idle_timer:kill() end
     else
         menu_visible = true
         draw_menu()

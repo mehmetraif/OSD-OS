@@ -1,5 +1,4 @@
 import QtQuick
-import QtQuick.Effects
 
 // Three-day forecast: centred title, then one column per day.
 //
@@ -33,6 +32,9 @@ Item {
         anchors.topMargin: root.sh * 0.0854167 //41
         anchors.left: parent.left
         anchors.right: parent.right
+        // A Row has no implicit height from anchors alone: the columns get
+        // the space between the title and the bottom of the screen area.
+        height: screen.height - title.height - (root.sh * 0.13125) //64.125
 
         Repeater {
             model: screen.days
@@ -75,31 +77,21 @@ Item {
                 // condition: PARTLY CLOUDY wraps to two lines where RAIN does
                 // not, so that gap differs per column and centring in it would
                 // leave the three icons at different heights.
-                Item {
+                // In the accent colour through the app's icon provider, as
+                // the title bar's icon is (AppBar).
+                Image {
                     id: dayIcon
                     anchors.horizontalCenter: parent.horizontalCenter
                     anchors.bottom: temps.top
                     anchors.bottomMargin: root.sh * 0.045
-                    width:  dayIconImage.width
                     height: screen.iconSize
-                    visible: dayIconImage.source != ""
-
-                    Image {
-                        id: dayIconImage
-                        visible: false
-                        height: parent.height
-                        sourceSize.height: height
-                        fillMode: Image.PreserveAspectFit
-                        source: modelData.iconName
-                            ? "../../assets/images/wx/" + modelData.iconName + ".svg"
-                            : ""
-                    }
-                    MultiEffect {
-                        anchors.fill: dayIconImage
-                        source: dayIconImage
-                        colorization: 1.0
-                        colorizationColor: root.accentColor
-                    }
+                    sourceSize.height: height
+                    fillMode: Image.PreserveAspectFit
+                    visible: source != ""
+                    source: modelData.iconName
+                        ? "image://osdicon/" + root.accentColor.toString().replace("#", "") + "/"
+                          + Qt.resolvedUrl("../../assets/images/wx/" + modelData.iconName + ".svg")
+                        : ""
                 }
 
                 // Anchored to the bottom of the column rather than flowing after
@@ -143,13 +135,5 @@ Item {
                 }
             }
         }
-    }
-
-    // Row has no implicit height from anchors alone; give the columns the space
-    // between the title and the bottom of the screen area.
-    Binding {
-        target: columns
-        property: "height"
-        value: screen.height - title.height - (root.sh * 0.13125) //64.125
     }
 }

@@ -39,19 +39,35 @@ void IdleTracker::setEnabled(bool on)
     }
 }
 
-void IdleTracker::setMpvActive(bool active)
+// A session that owns the screen (mpv, a script, a view of its own) coming
+// or going. Once nothing holds it any more, an active saver is put off at
+// once, so it doesn't flash on the menu afterwards; while another session
+// still holds it, ending one can't unblock the saver.
+void IdleTracker::setBlocker(bool &blocker, bool active, void (IdleTracker::*changed)())
 {
-    if (m_mpvActive == active)
+    if (blocker == active)
         return;
-    m_mpvActive = active;
-    emit mpvActiveChanged();
-
-    // If activation was blocked and nothing holds the screen any more, deactivate
-    // immediately so the screen saver doesn't flash on the menu afterwards.
+    blocker = active;
+    emit (this->*changed)();
     if (!blocked() && m_active) {
         m_active = false;
         emit activeChanged();
     }
+}
+
+void IdleTracker::setMpvActive(bool active)
+{
+    setBlocker(m_mpvActive, active, &IdleTracker::mpvActiveChanged);
+}
+
+void IdleTracker::setScriptActive(bool active)
+{
+    setBlocker(m_scriptActive, active, &IdleTracker::scriptActiveChanged);
+}
+
+void IdleTracker::setViewActive(bool active)
+{
+    setBlocker(m_viewActive, active, &IdleTracker::viewActiveChanged);
 }
 
 void IdleTracker::resetActivity()
@@ -59,11 +75,8 @@ void IdleTracker::resetActivity()
     const bool wasActive = m_active;
     m_idleSeconds = 0;
     m_active = false;
-
-    emit idleSecondsChanged();
     if (wasActive)
         emit activeChanged();
-    emit activityDetected();
 }
 
 bool IdleTracker::eventFilter(QObject *obj, QEvent *event)
@@ -86,38 +99,9 @@ void IdleTracker::tick()
         return;
 
     ++m_idleSeconds;
-    emit idleSecondsChanged();
-
     if (m_idleSeconds >= m_threshold) {
         m_active = true;
         emit activeChanged();
     }
 }
 
-void IdleTracker::setScriptActive(bool active)
-{
-    if (m_scriptActive == active)
-        return;
-    m_scriptActive = active;
-    emit scriptActiveChanged();
-
-    // As in setMpvActive: only clear once nothing owns the screen, so ending one
-    // session can't unblock the saver while the other is still running.
-    if (!blocked() && m_active) {
-        m_active = false;
-        emit activeChanged();
-    }
-}
-
-void IdleTracker::setViewActive(bool active)
-{
-    if (m_viewActive == active)
-        return;
-    m_viewActive = active;
-    emit viewActiveChanged();
-
-    if (!blocked() && m_active) {
-        m_active = false;
-        emit activeChanged();
-    }
-}

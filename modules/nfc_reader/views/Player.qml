@@ -20,7 +20,6 @@ FocusScope {
     property int    savedPositionMs: 0
     property int    savedPlaylistPos: -1
     property int    choiceIndex:     0
-    property string resumeSetting:   "ask"
     property var    ytdlArgs:        []
     property string subtitleMode:    "forced"
     property var    subtitleLangs:   []
@@ -183,7 +182,7 @@ FocusScope {
         var subLangString = appCore.get_setting(moduleRoot.moduleId, "sub_lang") || "-"
         subtitleLangs = (subLangString !== "-") ? [subLangString] : []
 
-        resumeSetting = appCore.get_setting(moduleRoot.moduleId, "resume_playback") || "ask"
+        var resumeSetting = appCore.get_setting(moduleRoot.moduleId, "resume_playback") || "ask"
         if (resumeSetting === "no") {
             play(0, -1)
             return

@@ -119,6 +119,8 @@ public:
     bool knowsGame(const QString &fileName) const { return gameOf(fileName) > 0; }
     // The list wanted is still to be read: a moment from now, or under way.
     bool listPending() const { return m_wantedList; }
+    // A list is kept, read now or before: one to look games up in at all.
+    bool hasList() const { return !m_games.isEmpty(); }
 
 signals:
     void boardReady(const QString &fileName);

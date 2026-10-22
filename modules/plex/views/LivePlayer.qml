@@ -1,4 +1,5 @@
 import QtQuick
+import Components
 
 // Live TV player. A slimmed sibling of Player.qml — live channels have no
 // resume/duration/seek/autoplay-next semantics, so this drops all of that. It
@@ -11,7 +12,6 @@ FocusScope {
 
     property var navParams: ({})
 
-    signal navigateTo(string path, var params)
     signal goBack()
 
     // The channel to watch: { channelId, number, title }.
@@ -53,6 +53,20 @@ FocusScope {
     // mpv has focus and handles these directly. Up/Down drive the OSC here, not
     // channel changes — to switch channels the user exits back to the channel list.
     Keys.onPressed: function(event) {
+        // Ctrl+Q and the rest go on to Main.qml.
+        if (event.modifiers & Qt.ControlModifier)
+            return
+        if (streamUrl === "") {
+            // Still tuning, no mpv to send the keys to: back leaves, the
+            // tuner let go of, instead of waiting out a server that is slow
+            // to answer.
+            if (event.key === Qt.Key_Escape || event.key === Qt.Key_Backspace || event.key === Qt.Key_Back) {
+                teardown()
+                goBack()
+            }
+            event.accepted = true
+            return
+        }
         if (event.key === Qt.Key_Escape || event.key === Qt.Key_Back) {
             // Quit mpv; onPlaybackEnded drives the teardown + goBack.
             mpvController.sendKey("ESC")
@@ -85,6 +99,8 @@ FocusScope {
         target: plexBackend
 
         function onStreamUrlReady(url, plexToken) {
+            // Left while it tuned: the stream is nobody's.
+            if (livePlayerRoot.exiting) return
             livePlayerRoot.streamUrl = url
             livePlayerRoot.plexToken = plexToken
             // Live always transcodes (HLS): no separate audio/sub tracks to pick.
@@ -126,21 +142,17 @@ FocusScope {
 
     Component.onCompleted: tune()
 
-    // Black backdrop + loading text, shown until mpv's window takes over (mirrors
-    // Player.qml).
+    // Black backdrop and the loading screen, shown until mpv's window takes
+    // over (as Player.qml's).
     Rectangle {
         anchors.fill: parent
         color: "black"
 
-        Text {
-            text: "TUNING " + ((livePlayerRoot.channel.number
-                                 ? livePlayerRoot.channel.number + "  " : "")
-                               + (livePlayerRoot.channel.title || "")) + "..."
-            color: "white"
-            font.family: root.globalFont
-            font.capitalization: Font.AllUppercase
-            anchors.centerIn: parent
-            font.pixelSize: root.sh * 0.05 //24
+        LoadingScreen {
+            anchors.fill: parent
+            source: moduleRoot.moduleName
+            title: (livePlayerRoot.channel.number ? livePlayerRoot.channel.number + "  " : "")
+                   + (livePlayerRoot.channel.title || "")
             visible: !livePlayerRoot.playbackStarted
         }
     }

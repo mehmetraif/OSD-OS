@@ -73,10 +73,10 @@ FocusScope {
     readonly property bool scanning: arcadeBackend ? arcadeBackend.scanning : false
     readonly property string gamesFolder: arcadeBackend ? arcadeBackend.gamesFolder() : ""
     readonly property var scoresBackend: typeof highScoresBackend !== "undefined" ? highScoresBackend : null
-    // A pad's Back button is COIN here, not while the options are up or
-    // Search's keys have the keys, nor while the screen is adjusted
-    // (InputManager).
-    readonly property bool takesCoin: !options.visible && !typing && !adjusting
+    // A pad's Back button is COIN here, not while the options or the engine
+    // chooser are up or Search's keys have the keys, nor while the screen
+    // is adjusted (InputManager).
+    readonly property bool takesCoin: !options.visible && !engines.visible && !typing && !adjusting
 
     // The design's units.
     readonly property real u: root.sw / 960
@@ -710,6 +710,9 @@ FocusScope {
             adjustKey(event)
             return
         }
+        // COIN (5) and START (1) first, as a cabinet's buttons come as those
+        // keys: on Search a keyboard's letters go onto the keys, its digits
+        // through the on-screen ones.
         if (event.key === Qt.Key_5) {
             // COIN, for MAME to put in: FinalBurn Neo takes the game's own.
             if (!event.isAutoRepeat && arcadeScreen.buysCredits)
@@ -717,6 +720,9 @@ FocusScope {
         } else if (event.key === Qt.Key_Space || event.key === Qt.Key_1) {
             if (!event.isAutoRepeat)
                 playCurrent()
+        } else if (filterId === "search" && event.text.length === 1 && event.text > " ") {
+            // Typed on a keyboard on Search: onto the keys, with it.
+            enterKeys(event.text)
         } else if (event.key === Qt.Key_Up) {
             move(-1)
         } else if (event.key === Qt.Key_Down) {
@@ -735,9 +741,6 @@ FocusScope {
         } else if (event.key === Qt.Key_Escape || event.key === Qt.Key_Backspace || event.key === Qt.Key_Back) {
             if (!event.isAutoRepeat)
                 arcadeScreen.goBack()
-        } else if (filterId === "search" && event.text.length === 1 && event.text > " ") {
-            // Typed on a keyboard on Search: onto the keys, with it.
-            enterKeys(event.text)
         } else {
             return
         }
@@ -783,7 +786,6 @@ FocusScope {
         event.accepted = true
     }
 
-    // A play time as the column shows it: 1H 23M, 45M; NEVER.
     // ---
     // The list
     // ---
@@ -1361,6 +1363,7 @@ FocusScope {
                   + (arcadeScreen.lobbyRoom.joinable ? ":JOIN HOLD:DETAILS" : ":DETAILS")
               : arcadeScreen.current.room !== undefined
                 ? root.hints.back + ":BACK " + root.hints.select + ":JOIN"
+              : arcadeScreen.current.unknown ? root.hints.back + ":BACK"
               : root.hints.back + ":BACK " + (arcadeScreen.buysCredits ? root.hints.coin + ":COIN " : "")
                 + root.hints.select + ":PLAY HOLD:OPTIONS"
         anchors.bottom: parent.bottom

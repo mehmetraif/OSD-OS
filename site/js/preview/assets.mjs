@@ -4,6 +4,8 @@
 // trimmed to its drawing at the height asked for (OsdIconProvider). Each is
 // read once and kept; until it is in, null, and `changed` is called once it
 // is.
+import { bytesOf } from "./look.mjs";
+
 export class Assets {
     constructor(base, changed) {
         this.base = base;
@@ -39,8 +41,7 @@ export class Assets {
         ctx.drawImage(image, 0, 0);
         const data = ctx.getImageData(0, 0, canvas.width, canvas.height);
         const p = data.data;
-        const parse = hex => { const n = parseInt(hex.slice(1), 16); return [n >> 16 & 255, n >> 8 & 255, n & 255]; };
-        const inkRgb = parse(ink), paperRgb = parse(paper);
+        const inkRgb = bytesOf(ink), paperRgb = bytesOf(paper);
         for (let i = 0; i < p.length; i += 4) {
             if (p[i + 3] < 128) {
                 p[i] = p[i + 1] = p[i + 2] = p[i + 3] = 0;

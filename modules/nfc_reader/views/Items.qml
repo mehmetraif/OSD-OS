@@ -1,5 +1,4 @@
 import QtQuick
-import QtQuick.Effects
 import Components
 
 FocusScope {
@@ -46,19 +45,14 @@ FocusScope {
                 anchors.horizontalCenter: parent.horizontalCenter
                 width: statusIndicatorImage.width
                 height: root.sh * 0.3791667 //182
+                // In the scheme's colour through the app's icon provider, as
+                // the title bar's icon is (AppBar).
                 Image {
-                    visible: false
                     id: statusIndicatorImage
                     height: parent.height
                     sourceSize.height: height
-                    source: "../assets/images/vhs.svg"
-                }
-                MultiEffect {
-                    id: statusIndicatorColor
-                    anchors.fill: statusIndicatorImage
-                    source: statusIndicatorImage
-                    colorization: 1.0
-                    colorizationColor: root.primaryColor
+                    source: "image://osdicon/" + root.primaryColor.toString().replace("#", "") + "/"
+                            + Qt.resolvedUrl("../assets/images/vhs.svg")
                 }
                 // No reader, or a card it doesn't know: the icon is dithered,
                 // the two-colour stand-in for the faded look it used to have.

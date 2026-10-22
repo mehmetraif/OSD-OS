@@ -71,9 +71,6 @@ static QString handoffModuleForRef(const QString &ref) {
         return QStringLiteral("com.osdos.plex");
     return kHandoffModules.value(scheme);
 }
-// Must track the "enabled" toggle's default in modules/nfc_reader/manifest.json,
-// which is what AppCore falls back to when config.json has no value yet.
-static constexpr bool kManifestEnabledDefault = false;
 
 // ---------------------------------------------------------------------------
 // NfcPollWorker — lives on its own QThread; owns the drivers and all device I/O.
@@ -156,23 +153,19 @@ NfcReaderBackend::NfcReaderBackend(const QString &appRoot, const QString &dataRo
     qDebug("[NfcReader] Initializing NFC reader backend");
 
     // Resolve module settings (the tags directory falls back to dataRoot/nfc_tags).
-    m_tagsDir = m_dataRoot + "/" + kTagsDirName;
     // Whether polling runs must match whether AppCore shows the module at all,
-    // so this mirrors AppCore::isModuleEnabled: an unwritten setting means the
-    // manifest default (OFF for this module), and a present-but-not-bool value
-    // means enabled — otherwise a hand-edited config could list the module in
-    // the menu while the reader silently never polls.
-    bool configuredEnabled = kManifestEnabledDefault;
-    QFile f(m_dataRoot + "/config.json");
-    if (f.open(QIODevice::ReadOnly)) {
-        const QJsonObject moduleConfig = QJsonDocument::fromJson(f.readAll()).object()
-            ["modules"].toObject()["com.osdos.nfc_reader"].toObject();
-        const QString dir = moduleConfig["tags_directory"].toString();
+    // so the enabled state is AppCore's own answer (the manifest's default,
+    // OFF, when config.json has none) — otherwise a hand-edited config could
+    // list the module in the menu while the reader silently never polls.
+    // Without an AppCore (the tests) the module is off.
+    m_tagsDir = m_dataRoot + "/" + kTagsDirName;
+    bool configuredEnabled = false;
+    if (m_appCore) {
+        const QString dir = m_appCore->get_setting(QStringLiteral("com.osdos.nfc_reader"),
+                                                   QStringLiteral("tags_directory")).toString();
         if (!dir.isEmpty())
             m_tagsDir = dir;
-
-        if (moduleConfig.contains("enabled"))
-            configuredEnabled = moduleConfig["enabled"].toBool(true);
+        configuredEnabled = m_appCore->is_module_enabled(QStringLiteral("com.osdos.nfc_reader"));
     }
     qDebug("[NfcReader] Tags dir: %s", qPrintable(tagsDirPath()));
 
@@ -192,11 +185,7 @@ NfcReaderBackend::NfcReaderBackend(const QString &appRoot, const QString &dataRo
 
         if (m_readerConnected) {
             qWarning("[NfcReader] Reader polling stalled - marking reader disconnected");
-            m_readerConnected = false;
-            m_readerName.clear();
-            emit readerConnectedChanged();
-            m_lastUid.clear();
-            setCardState("none");
+            setReaderConnected(false, {});
         }
 
         if (stalledMs > kStallRespawnMs) {
@@ -268,16 +257,25 @@ void NfcReaderBackend::stopPolling() {
     m_lastSampleMs = 0;
     m_respawnCount = 0;
 
-    if (m_readerConnected) {
-        m_readerConnected = false;
-        m_readerName.clear();
-        emit readerConnectedChanged();
-    }
+    setReaderConnected(false, {});
     m_lastUid.clear();
     m_playbackActive = false;
     setCardState("none");
 
     qInfo("[NfcReader] Polling disabled");
+}
+
+// The reader as the worker last saw it. Losing it drops the card with it: a
+// card can't still be on a reader that is gone.
+void NfcReaderBackend::setReaderConnected(bool connected, const QString &name) {
+    if (connected == m_readerConnected && name == m_readerName) return;
+    m_readerConnected = connected;
+    m_readerName = name;
+    emit readerConnectedChanged();
+    if (!connected) {
+        m_lastUid.clear();
+        setCardState("none");
+    }
 }
 
 void NfcReaderBackend::startWorker() {
@@ -684,15 +682,7 @@ void NfcReaderBackend::onSampled(bool readerConnected, const QString &uid, const
     m_lastSampleMs = QDateTime::currentMSecsSinceEpoch();
     m_respawnCount = 0;
 
-    if (readerConnected != m_readerConnected || deviceName != m_readerName) {
-        m_readerConnected = readerConnected;
-        m_readerName = deviceName;
-        emit readerConnectedChanged();
-        if (!readerConnected) {
-            m_lastUid.clear();
-            setCardState("none");
-        }
-    }
+    setReaderConnected(readerConnected, deviceName);
     if (!readerConnected) return;
 
     // Card-write capture is handled ahead of the module-active gate below,

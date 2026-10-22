@@ -35,6 +35,15 @@ static const QStringList kSystemFolders = {
     "lost+found", "System Volume Information", "$RECYCLE.BIN"
 };
 
+// Whether a path, relative to the folder it was found under, is one of those
+// folders or lies inside one.
+static bool underSystemFolder(const QString &relative) {
+    const QStringList parts = relative.split(QLatin1Char('/'), Qt::SkipEmptyParts);
+    for (const QString &part : parts)
+        if (kSystemFolders.contains(part, Qt::CaseInsensitive)) return true;
+    return false;
+}
+
 // A search under way (search()): the folder it walks, then the others.
 struct LocalFilesBackend::SearchRun {
     QString path;
@@ -292,7 +301,7 @@ QVariantList LocalFilesBackend::readDirectory(const QString &path) {
     const auto entries = dir.entryInfoList(QDir::Dirs | QDir::Files | QDir::NoDotAndDotDot,
                                             QDir::DirsFirst | QDir::Name);
     for (const QFileInfo &info : entries) {
-        if (info.isDir() && kSystemFolders.contains(info.fileName(), Qt::CaseInsensitive)) continue;
+        if (info.isDir() && underSystemFolder(info.fileName())) continue;
         const auto item = entryFor(path, info.fileName(), info.isDir());
         if (!item.isEmpty()) result.append(item);
     }
@@ -374,6 +383,10 @@ QVariant LocalFilesBackend::search(const QString &path, const QString &words, bo
                             QDirIterator::Subdirectories);
             while (!run->cancelled && it.hasNext()) {
                 it.next();
+                // What browsing hides too: a drive's recycle bin and the
+                // like, and all that is in them.
+                if (underSystemFolder(it.filePath().mid(root.size())))
+                    continue;
                 const QFileInfo info = it.fileInfo();
                 const QString name = info.fileName().toLower();
                 if (terms.isEmpty() || !std::all_of(terms.cbegin(), terms.cend(),

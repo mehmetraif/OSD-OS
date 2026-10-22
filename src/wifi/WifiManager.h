@@ -136,7 +136,6 @@ signals:
 
 #ifdef OSDOS_WIFI
 private slots:
-    void onServiceRegistered();
     void onServiceUnregistered();
     void onInterfacesAdded(const QDBusMessage &message);
     void onInterfacesRemoved(const QDBusMessage &message);

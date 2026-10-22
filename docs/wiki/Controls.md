@@ -21,7 +21,7 @@ All of OSD/OS works with a handful of actions. Every screen reads them as key pr
 
 Apart from typing, Ctrl+Q and the media keys, only these keys do anything in OSD/OS's own screens; a key a screen doesn't use does nothing there. If a remote's button sends none of them, give it an action in [Settings → Controls](https://github.com/mehmetraif/OSD-OS/wiki/Controls#settings--controls).
 
-**Esc, Enter and Space act once a press**, and so do a remote's Back and OK keys: held down, they don't repeat. The arrows, the volume keys and Backspace (which deletes a letter on the on-screen keyboard) still do, and so does every key while a text field has the focus. Holding Back for 2 seconds still closes a sign-in browser. A key whose release reaches the system late, as can happen to a Bluetooth keyboard's first press after it wakes, looks held down, and its repeats took Back a step too far: from the main menu into Settings and straight out again.
+**Esc, Enter and Space act once a press**, and so do a remote's Back and OK keys: held down, they don't repeat. The arrows, Backspace (which deletes a letter on the on-screen keyboard) and the volume keys (a held one climbs 5 points every 150 ms, the whole range in three seconds) still do, and so does every key while a text field has the focus. Holding Back for 2 seconds still closes a sign-in browser. A key whose release reaches the system late, as can happen to a Bluetooth keyboard's first press after it wakes, looks held down, and its repeats took Back a step too far: from the main menu into Settings and straight out again.
 
 ## The keyboard
 

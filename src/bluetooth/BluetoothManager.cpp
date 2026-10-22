@@ -2,6 +2,7 @@
 
 #ifdef OSDOS_BLUETOOTH
 #include "BluetoothAgent.h"
+#include "../util/DBusCall.h"
 
 #include <QDBusArgument>
 #include <QDBusConnection>
@@ -179,7 +180,7 @@ BluetoothManager::BluetoothManager(QObject *parent) : QObject(parent) {
 
     m_watcher = new QDBusServiceWatcher(kBluez, bus(),
         QDBusServiceWatcher::WatchForRegistration | QDBusServiceWatcher::WatchForUnregistration, this);
-    connect(m_watcher, &QDBusServiceWatcher::serviceRegistered, this, &BluetoothManager::onServiceRegistered);
+    connect(m_watcher, &QDBusServiceWatcher::serviceRegistered, this, &BluetoothManager::load);
     connect(m_watcher, &QDBusServiceWatcher::serviceUnregistered, this, &BluetoothManager::onServiceUnregistered);
 
     bus().connect(kBluez, QString(), kObjectManager, QStringLiteral("InterfacesAdded"),
@@ -193,14 +194,14 @@ BluetoothManager::BluetoothManager(QObject *parent) : QObject(parent) {
     // Otherwise the watcher says when it comes; asking for it before would
     // start it (D-Bus activation).
     if (bus().interface() && bus().interface()->isServiceRegistered(kBluez))
-        onServiceRegistered();
+        load();
 #endif
 }
 
 BluetoothManager::~BluetoothManager() {
 #ifdef OSDOS_BLUETOOTH
     // A search left running would go on after the app.
-    if (searching() && m_searchTimer.isActive()) {
+    if (searching()) {
         QDBusMessage stop = QDBusMessage::createMethodCall(kBluez, m_adapterPath, kAdapter,
                                                            QStringLiteral("StopDiscovery"));
         bus().call(stop, QDBus::NoBlock);
@@ -301,8 +302,12 @@ void BluetoothManager::startSearch() {
     if (m_adapterPath.isEmpty())
         return;
     clearMessage();
+    m_searchWanted = true;
     const QString adapter = m_adapterPath;
     auto discover = [this, adapter]() {
+        // Stopped while the adapter was being turned on: not started after all.
+        if (!m_searchWanted)
+            return;
         call(adapter, kAdapter, QStringLiteral("StartDiscovery"), {}, kCallTimeoutMs,
              [this](const QDBusMessage &reply) {
                  if (reply.type() == QDBusMessage::ErrorMessage && !alreadySo(reply)) {
@@ -323,7 +328,9 @@ void BluetoothManager::startSearch() {
 
 void BluetoothManager::stopSearch() {
     m_searchTimer.stop();
+    m_searchWanted = false;
 #ifdef OSDOS_BLUETOOTH
+    // A search BlueZ hasn't confirmed yet is stopped as it is (onPropertiesChanged).
     if (!m_adapterPath.isEmpty() && searching())
         call(m_adapterPath, kAdapter, QStringLiteral("StopDiscovery"), {}, kCallTimeoutMs);
 #endif
@@ -505,33 +512,40 @@ void BluetoothManager::collectDetails() {
 
 // --- What BlueZ asks of the agent ---
 
+// What the pairing screen shows: a code, for a device, to type (pin), to
+// watch being typed (passkey, with how many digits are in) or to compare
+// (confirm).
+static QVariantMap pairingPrompt(const QString &kind, const QString &name, const QString &code,
+                                 int entered = 0) {
+    return { { QStringLiteral("kind"), kind }, { QStringLiteral("name"), name },
+             { QStringLiteral("code"), code }, { QStringLiteral("entered"), entered } };
+}
+
+// A passkey as the other device shows it: six digits.
+static QString passkeyText(uint passkey) {
+    return QStringLiteral("%1").arg(passkey, 6, 10, QLatin1Char('0'));
+}
+
 QString BluetoothManager::agentRequestPinCode(const QString &device) {
     // An older device that takes any code typed on it, then its Enter: six
     // digits, shown to be typed.
-    const QString pin = QStringLiteral("%1").arg(QRandomGenerator::global()->bounded(1000000), 6, 10,
-                                                  QLatin1Char('0'));
-    setPrompt({ { QStringLiteral("kind"), QStringLiteral("pin") }, { QStringLiteral("name"), nameOf(device) },
-                { QStringLiteral("code"), pin }, { QStringLiteral("entered"), 0 } });
+    const QString pin = passkeyText(QRandomGenerator::global()->bounded(1000000));
+    setPrompt(pairingPrompt(QStringLiteral("pin"), nameOf(device), pin));
     return pin;
 }
 
 void BluetoothManager::agentDisplayPinCode(const QString &device, const QString &pinCode) {
-    setPrompt({ { QStringLiteral("kind"), QStringLiteral("pin") }, { QStringLiteral("name"), nameOf(device) },
-                { QStringLiteral("code"), pinCode }, { QStringLiteral("entered"), 0 } });
+    setPrompt(pairingPrompt(QStringLiteral("pin"), nameOf(device), pinCode));
 }
 
 void BluetoothManager::agentDisplayPasskey(const QString &device, uint passkey, int entered) {
-    setPrompt({ { QStringLiteral("kind"), QStringLiteral("passkey") }, { QStringLiteral("name"), nameOf(device) },
-                { QStringLiteral("code"), QStringLiteral("%1").arg(passkey, 6, 10, QLatin1Char('0')) },
-                { QStringLiteral("entered"), entered } });
+    setPrompt(pairingPrompt(QStringLiteral("passkey"), nameOf(device), passkeyText(passkey), entered));
 }
 
 void BluetoothManager::agentRequestConfirmation(const QString &device, uint passkey, const QDBusMessage &call) {
     replyToPending(false);
     m_pendingCall = call;
-    setPrompt({ { QStringLiteral("kind"), QStringLiteral("confirm") }, { QStringLiteral("name"), nameOf(device) },
-                { QStringLiteral("code"), QStringLiteral("%1").arg(passkey, 6, 10, QLatin1Char('0')) },
-                { QStringLiteral("entered"), 0 } });
+    setPrompt(pairingPrompt(QStringLiteral("confirm"), nameOf(device), passkeyText(passkey)));
 }
 
 // Pairing with nothing to show or type, which BlueZ checks with the agent:
@@ -556,10 +570,6 @@ void BluetoothManager::agentCancel() {
 }
 
 // --- BlueZ's objects ---
-
-void BluetoothManager::onServiceRegistered() {
-    load();
-}
 
 void BluetoothManager::onServiceUnregistered() {
     const bool had = !m_adapterPath.isEmpty() || !m_devices.isEmpty();
@@ -623,17 +633,10 @@ void BluetoothManager::registerAgent() {
 }
 
 void BluetoothManager::addObject(const QString &path, const QMap<QString, QVariantMap> &interfaces) {
-    if (interfaces.contains(kAdapter)) {
-        QVariantMap &adapter = m_adapters[path];
-        const QVariantMap added = interfaces.value(kAdapter);
-        for (auto it = added.cbegin(); it != added.cend(); ++it)
-            adapter.insert(it.key(), it.value());
-    }
+    if (interfaces.contains(kAdapter))
+        m_adapters[path].insert(interfaces.value(kAdapter));
     if (interfaces.contains(kDevice)) {
-        QVariantMap &device = m_devices[path];
-        const QVariantMap added = interfaces.value(kDevice);
-        for (auto it = added.cbegin(); it != added.cend(); ++it)
-            device.insert(it.key(), it.value());
+        m_devices[path].insert(interfaces.value(kDevice));
         if (!m_seen.contains(path))
             m_seen.append(path);
     }
@@ -700,14 +703,21 @@ void BluetoothManager::onPropertiesChanged(const QDBusMessage &message) {
 
     if (interface == kAdapter && m_adapters.contains(path)) {
         QVariantMap &adapter = m_adapters[path];
-        for (auto it = changed.cbegin(); it != changed.cend(); ++it)
-            adapter.insert(it.key(), it.value());
+        adapter.insert(changed);
         for (const QString &key : invalidated)
             adapter.remove(key);
         if (path == m_adapterPath) {
-            // Discovery ended by itself, or by another client.
-            if (changed.contains(QStringLiteral("Discovering")) && !changed.value(QStringLiteral("Discovering")).toBool())
-                m_searchTimer.stop();
+            if (changed.contains(QStringLiteral("Discovering"))) {
+                if (!changed.value(QStringLiteral("Discovering")).toBool()) {
+                    // Discovery ended by itself, or by another client.
+                    m_searchTimer.stop();
+                } else if (!m_searchWanted) {
+                    // Confirmed after the search was stopped (Back before
+                    // BlueZ answered): ended now, or it would run on with
+                    // nobody looking.
+                    call(path, kAdapter, QStringLiteral("StopDiscovery"), {}, kCallTimeoutMs);
+                }
+            }
             emit adapterChanged();
         }
     } else if (interface == kDevice && m_devices.contains(path)) {
@@ -811,14 +821,7 @@ QString BluetoothManager::nameOf(const QString &path) const {
 void BluetoothManager::call(const QString &path, const QString &interface, const QString &method,
                             const QVariantList &args, int timeoutMs,
                             std::function<void(const QDBusMessage &reply)> done) {
-    QDBusMessage message = QDBusMessage::createMethodCall(kBluez, path, interface, method);
-    message.setArguments(args);
-    auto *watcher = new QDBusPendingCallWatcher(bus().asyncCall(message, timeoutMs), this);
-    connect(watcher, &QDBusPendingCallWatcher::finished, this, [done](QDBusPendingCallWatcher *w) {
-        w->deleteLater();
-        if (done)
-            done(w->reply());
-    });
+    dbuscall::call(bus(), kBluez, path, interface, method, args, timeoutMs, this, std::move(done));
 }
 
 #endif

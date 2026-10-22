@@ -25,7 +25,9 @@ public:
                                           const QString &sessionId);
 
     // Auth flow
-    Q_INVOKABLE void start_pin_auth();
+    // Asks plex.tv for a sign-in code and polls for it: the request's number,
+    // for cancel_pin_auth.
+    Q_INVOKABLE int  start_pin_auth();
     Q_INVOKABLE void load_users_from_cache();
     // pin is only supplied on a retry, after plex.tv has told us the profile
     // needs one (see userPinRequired). It is never stored.
@@ -35,6 +37,8 @@ public:
     // prompt from (the current_user_id setting); Root.qml drains it on module entry.
     Q_INVOKABLE QString pending_pin_user() const { return m_pendingPinUserId; }
     Q_INVOKABLE void    cancel_pending_pin();
+    // The sign-in left: its PIN polled for no longer.
+    Q_INVOKABLE void    cancel_pin_auth(int request);
     Q_INVOKABLE void select_server(const QString &machineId);
     Q_INVOKABLE void logout();
 
@@ -254,6 +258,14 @@ private:
     // the one the player was waiting for (answerNext()).
     int m_nextRequest = 0;
     void answerNext(int request, const QVariantMap &detail);
+    // The item's detail and the children asked for last (load_item_detail,
+    // load_children): one answering after another was asked for is dropped,
+    // so that the item left for another never shows up in its place.
+    int m_detailRequest = 0;
+    int m_childrenRequest = 0;
+    // The queue expanded last (expand_queue), the same way, forgotten with
+    // cancel_stream: a set given up on never plays in place of the next.
+    int m_queueRequest = 0;
 
     // GETs a few at a time, in order: a collection of shows played as a
     // queue, a shuffle's pool or a hub of seasons asks for every season's
@@ -337,9 +349,17 @@ private:
     void checkAndRefreshOnStartup(std::function<void()> callback);
     void migrateLegacyToken(std::function<void()> callback);
     void refreshJwt(std::function<void(bool ok)> callback);
+    void finishRefresh(bool ok, const std::function<void(bool)> &callback);
 
-    // 498 retry
+    // 498 retry: the request retried once the token is refreshed
     void handle498(std::function<void()> retryOp);
+    QList<std::function<void()>> m_pendingRetries;    // met with a 498 while a refresh runs
+
+    // The module's settings (modules.com.osdos.plex in config.json) and the
+    // server every request goes to
+    QJsonValue plexSetting(const QString &key) const;
+    void savePlexSetting(const QString &key, const QJsonValue &value);
+    void setActiveServer(const QString &uri, const QString &machineId);
 
     // HTTP helper — POST with JSON body
     QNetworkReply* plexPostJson(const QUrl &url, const QString &token, const QByteArray &body);
@@ -349,6 +369,7 @@ private:
     QNetworkAccessManager *m_nam;
     QTimer *m_pollTimer;
     QString m_pendingPinId;
+    int     m_pinRequest = 0;    // start_pin_auth's count: an answer to an earlier one is dropped
     QString m_clientId;          // cached after first load
     bool    m_refreshInFlight  = false;
     bool    m_deviceVerified   = false; // set after first successful plex.tv check per session

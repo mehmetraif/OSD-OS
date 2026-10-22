@@ -8,7 +8,6 @@
 
 class AsyncDirectoryCache;
 class AppCore;
-class QDirIterator;
 class RemovableDrives;
 
 class LocalFilesBackend : public QObject {
@@ -18,7 +17,6 @@ public:
                                QObject *parent = nullptr);
     ~LocalFilesBackend() override;
 
-    Q_INVOKABLE QVariantList getItems(const QString &path);
     // The tree's entries for a folder, as the module's browser shows them:
     // the media folder led by RECENTLY WATCHED, FAVORITES and SEARCH (the
     // tree's own folders, whose paths aren't file paths) and the USB drives
@@ -74,6 +72,8 @@ private:
     QString defaultMediaRoot() const;
 
     bool allowedDirectory(const QString &path) const;
+    // A folder's entries, none for one outside the media folder and the drives.
+    QVariantList getItems(const QString &path);
     static QVariantList readDirectory(const QString &path);
     QVariantList decorateEntries(const QString &path, QVariantList items) const;
     AsyncDirectoryCache *m_directories = nullptr;

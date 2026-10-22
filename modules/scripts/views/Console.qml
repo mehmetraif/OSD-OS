@@ -10,7 +10,6 @@ FocusScope {
     property string basename: navParams.basename || ""
     property string scriptName: navParams.name || ""
 
-    signal navigateTo(string path, var params, var listState)
     signal goBack()
 
     // "" while running, then the finish reason. Kept separate from the backend's
@@ -20,7 +19,6 @@ FocusScope {
     property string startError: ""
 
     readonly property bool running: scriptsBackend.scriptRunning
-    readonly property bool done: finishReason !== "" || startError !== ""
 
     focus: true
 
@@ -102,6 +100,9 @@ FocusScope {
         font.family: root.globalFont
         font.capitalization: Font.AllUppercase
         font.pixelSize: root.sh * 0.0333333 //16
+        // A long error cut short at the window's edge, not run off the screen.
+        width: root.sw * 0.75 //480
+        elide: Text.ElideRight
     }
 
     // Output

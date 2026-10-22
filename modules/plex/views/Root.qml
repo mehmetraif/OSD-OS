@@ -117,16 +117,14 @@ FocusScope {
         if (state === "authed" && pendingPin !== "") {
             navigateTo("ProfilePin.qml", { userId: pendingPin, reauth: true })
         } else if (state === "authed") {
+            // UserSelect reads the users kept itself, given none.
             var autoSignIn = appCore.get_setting(moduleId, "auto_sign_in")
-            if (autoSignIn !== true && autoSignIn !== "ON") {
-                plexBackend.load_users_from_cache()
+            if (autoSignIn !== true && autoSignIn !== "ON")
                 navigateTo("UserSelect.qml", { reauth: true })
-            } else {
+            else
                 navigateTo("Libraries.qml", {})
-            }
         } else if (state === "needs_user") {
             // Have token but no server selected yet — show user list
-            plexBackend.load_users_from_cache()
             navigateTo("UserSelect.qml", {})
         } else {
             navigateTo("PinAuth.qml", {})

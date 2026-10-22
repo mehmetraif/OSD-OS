@@ -236,16 +236,12 @@ FocusScope {
             selected: roomList.currentIndex === index && !heading
         }
 
-        Keys.onReturnPressed: function(event) {
-            if (!event.isAutoRepeat)
-                lobbyRoot.open(lobbyRoot.rows[currentIndex])
-        }
-        Keys.onEnterPressed: function(event) {
-            if (!event.isAutoRepeat)
-                lobbyRoot.open(lobbyRoot.rows[currentIndex])
-        }
         Keys.onPressed: function(event) {
-            if (event.key === Qt.Key_Escape || event.key === Qt.Key_Backspace || event.key === Qt.Key_Back) {
+            if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter) {
+                if (!event.isAutoRepeat)
+                    lobbyRoot.open(lobbyRoot.rows[currentIndex])
+                event.accepted = true
+            } else if (event.key === Qt.Key_Escape || event.key === Qt.Key_Backspace || event.key === Qt.Key_Back) {
                 if (!event.isAutoRepeat)
                     lobbyRoot.goBack()
                 event.accepted = true
@@ -273,16 +269,12 @@ FocusScope {
             selected: roomLines.currentIndex === index
         }
 
-        Keys.onReturnPressed: function(event) {
-            if (!event.isAutoRepeat && (lobbyRoot.lines[currentIndex] || {}).type === "join")
-                lobbyRoot.join()
-        }
-        Keys.onEnterPressed: function(event) {
-            if (!event.isAutoRepeat && (lobbyRoot.lines[currentIndex] || {}).type === "join")
-                lobbyRoot.join()
-        }
         Keys.onPressed: function(event) {
-            if (event.key === Qt.Key_Escape || event.key === Qt.Key_Backspace || event.key === Qt.Key_Back) {
+            if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter) {
+                if (!event.isAutoRepeat && (lobbyRoot.lines[currentIndex] || {}).type === "join")
+                    lobbyRoot.join()
+                event.accepted = true
+            } else if (event.key === Qt.Key_Escape || event.key === Qt.Key_Backspace || event.key === Qt.Key_Back) {
                 if (!event.isAutoRepeat)
                     lobbyRoot.close()
                 event.accepted = true

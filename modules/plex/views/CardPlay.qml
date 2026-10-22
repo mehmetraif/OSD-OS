@@ -146,6 +146,7 @@ FocusScope {
                 partId:             d.partId,
                 sessionId:          cardRoot.sessionId,
                 viewOffset:         d.viewOffset || 0,
+                duration:           d.duration || 0,
                 title:              d.title,
                 audioStreams:       d.audioStreams,
                 subtitleStreams:    d.subtitleStreams,

@@ -1,5 +1,4 @@
 import QtQuick
-import QtQuick.Effects
 
 // One WeatherStar screen: a left-aligned column of fixed text lines.
 //
@@ -34,34 +33,22 @@ Item {
     //
     // Tinted at runtime rather than shipped coloured — the app has a custom
     // colour scheme feature, and a baked-in colour would be wrong the moment
-    // anyone changes theme. Same hidden-Image + MultiEffect pattern as
-    // nfc_reader/views/Items.qml.
-    Item {
+    // anyone changes theme: drawn through the app's icon provider in the
+    // accent colour, as the title bar's icon is (AppBar).
+    Image {
         id: icon
         anchors.right: parent.right
         anchors.verticalCenter: title.verticalCenter
-        width:  iconImage.width
         height: root.sh * 0.11
+        sourceSize.height: height
+        fillMode: Image.PreserveAspectFit
         // An unmapped code gives an empty name; draw nothing rather than a
         // broken-image box.
-        visible: iconImage.source != ""
-
-        Image {
-            id: iconImage
-            visible: false
-            height: parent.height
-            sourceSize.height: height
-            fillMode: Image.PreserveAspectFit
-            source: screen.wx.iconName
-                ? "../../assets/images/wx/" + screen.wx.iconName + ".svg"
-                : ""
-        }
-        MultiEffect {
-            anchors.fill: iconImage
-            source: iconImage
-            colorization: 1.0
-            colorizationColor: root.accentColor
-        }
+        visible: source != ""
+        source: screen.wx.iconName
+            ? "image://osdicon/" + root.accentColor.toString().replace("#", "") + "/"
+              + Qt.resolvedUrl("../../assets/images/wx/" + screen.wx.iconName + ".svg")
+            : ""
     }
 
     Text {
@@ -72,6 +59,10 @@ Item {
         color: root.accentColor
         font.family: root.globalFont
         font.pixelSize: root.sh * 0.0875 //42
+        // A long condition ("THUNDERSTORM HAIL -12°") cut short at the
+        // screen's edge rather than run into the overscan.
+        width: parent.width
+        elide: Text.ElideRight
     }
 
     Column {

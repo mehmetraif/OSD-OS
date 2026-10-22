@@ -334,7 +334,8 @@ Every module has `enabled` (`true` or `false`); while it is missing, the manifes
 - **Read afresh every time.** `appCore.get_setting(moduleId, key)` reads `config.json` from the disk at each call, and `get_settings()` the whole file. A key with one dot reads one level down: `get_setting("", "remote_keymap.back")` is `app.remote_keymap.back`.
 - **Written whole at every change.** `appCore.save_setting(moduleId, key, value)` reads the file, changes the one key (a dotted key one level down, as above) and writes the whole file again. It writes it into a new file beside it, which replaces the old one only once it is complete and on the disk (`writeFileAtomically()`, Qt's `QSaveFile`). A crash, a power cut or a full disk on the way leaves the file as it was, never cut short. `lists.json`, the history files, the sign-ins and `playlists.json` are written the same way.
 - **Then told.** The change is announced (`appSettingChanged` for an app key, `moduleSettingChanged` for a module's), and what follows that setting changes at once: the look, the menus, Audio Output, Controls, a module's folder. A change that couldn't be written (a full or read-only disk) is not announced: `save_setting` returns `false`, nothing changes, and Settings keeps the row on the value saved.
-- **A file that can't be read counts as none.** A `config.json` that is missing, or isn't valid JSON, reads as `{ "app": { "color_scheme": "Video 1" }, "modules": {} }`, and the next change is written over it on that basis: every other setting is lost. That is why the next section matters.
+- **A file that is missing counts as none.** A `config.json` that isn't there reads as `{ "app": { "color_scheme": "Video 1" }, "modules": {} }`, and the first change writes a new file on that basis.
+- **A file that can't be read is left alone.** A `config.json` that is there but isn't valid JSON (a comma lost in editing it by hand) reads as those defaults too, but is never written over: every `save_setting` returns `false` until it is fixed, with a line in the log saying so, so that one slip can't cost every other setting. `lists.json` is kept the same way. That is why the next section matters.
 
 When each part is read:
 
@@ -478,7 +479,7 @@ OSD/OS's temporary files go in the system's temporary folder (`/tmp`, or `$TMPDI
 | File | What it is |
 |---|---|
 | `osdos-mpv.sock` | The IPC socket of the video playing |
-| `osdos-input.conf`, `osdos-input-embedded.conf` | The key bindings each video's mpv gets ([Playback and mpv](https://github.com/mehmetraif/OSD-OS/wiki/Playback-and-mpv#back-and-the-end-of-a-video)) |
+| `osdos-input.conf` | The key bindings each video's mpv gets ([Playback and mpv](https://github.com/mehmetraif/OSD-OS/wiki/Playback-and-mpv#back-and-the-end-of-a-video)) |
 | `osdos-mpv.log` | mpv's log, above |
 | `osdos-mpv-subinfo.json` | Subtitle tracks' names for the deck menu, while a server's sidecar subtitles play |
 | `osdos-logo.bgra` | Settings → TV / Movie → Logo Image's picture, made into mpv's overlay format |
