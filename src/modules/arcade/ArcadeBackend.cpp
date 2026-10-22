@@ -2479,6 +2479,7 @@ bool ArcadeBackend::playFbneo(const QString &name, libretro::Launch::Netplay net
     launch.stateDir = home + QStringLiteral("/states");
     launch.configDir = home + QStringLiteral("/config");
     launch.remapDir = home + QStringLiteral("/remaps");
+    launch.infoDir = home + QStringLiteral("/info");
 #ifdef Q_OS_LINUX
     // A desktop's RetroArch draws in its window; the console's needs KMS.
     launch.console = qEnvironmentVariableIsEmpty("WAYLAND_DISPLAY") && qEnvironmentVariableIsEmpty("DISPLAY");
@@ -2528,6 +2529,10 @@ bool ArcadeBackend::playFbneo(const QString &name, libretro::Launch::Netplay net
         QFile::remove(remap);
     else
         written = QDir().mkpath(QFileInfo(remap).path()) && writeFileAtomically(remap, remapText.toUtf8(), kOwnerOnly);
+    // FinalBurn Neo's info file, without which RetroArch neither hosts nor
+    // joins a game.
+    written = written && QDir().mkpath(launch.infoDir)
+              && writeFileAtomically(libretro::coreInfoPath(launch.infoDir), libretro::coreInfoText().toUtf8(), kOwnerOnly);
     if (!written || !writeFileAtomically(launch.config, libretro::configText(launch).toUtf8(), kOwnerOnly)) {
         m_lastError = QStringLiteral("RetroArch's settings could not be written");
         m_raPasswordGiven = false;

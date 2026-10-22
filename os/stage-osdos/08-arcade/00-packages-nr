@@ -2,8 +2,9 @@
 # among which its plugins (the hiscore plugin, with hiscore.dat, which keeps
 # the games' high scores). About 450 MB with what it depends on. And its second
 # engine, for RetroAchievements' high scores and online play: Debian's
-# RetroArch (GPL-3.0), which brings the core information and assets it reads;
-# FinalBurn Neo, the core it plays the games with, comes in 00-run.sh.
+# RetroArch (GPL-3.0), which brings the assets its menu reads (what it knows of
+# the core OSD/OS writes for each game); FinalBurn Neo, the core it plays the
+# games with, comes in 00-run.sh.
 # os/build.sh skips it all with OSDOS_ARCADE=0; the module then says MAME is
 # not installed.
 mame mame-data retroarch

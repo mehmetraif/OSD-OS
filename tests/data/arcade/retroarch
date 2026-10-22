@@ -1,8 +1,10 @@
 #!/bin/sh
 # RetroArch as far as the Arcade module starts it (tests/arcade_test.cpp): it
-# notes its arguments, the folder it runs in and the controller database it is
-# given in $MAME_LOG, copies the config it was started with to $RA_CONFIG_COPY,
-# and logs (--log-file) what RetroArch with FinalBurn Neo would: the game
+# notes its arguments, the folder it runs in, the controller database it is
+# given and whether it would take the core's states for deterministic, as
+# netplay needs them (coreinfo), in $MAME_LOG, copies the config it was started
+# with to $RA_CONFIG_COPY, and logs (--log-file) what RetroArch with FinalBurn
+# Neo would: the game
 # started, but files missing for mslug and 1943 and a set it doesn't know for
 # galaga,
 # a sign-in refused for the password "wrong" or the token "expired", and
@@ -36,6 +38,17 @@ done
 	echo "cwd $(pwd)"
 	echo "sdlconfig ${SDL_GAMECONTROLLERCONFIG_FILE:-}"
 	echo "xdg ${XDG_CONFIG_HOME:-}"
+	# As RetroArch knows a core: by its info file, looked for by its name
+	# among the cores in libretro_directory.
+	cores=$(sed -n 's/^libretro_directory = "\(.*\)"$/\1/p' "$config")
+	infos=$(sed -n 's/^libretro_info_path = "\(.*\)"$/\1/p' "$config")
+	name=$(basename "$2"); name="${name%.*}"
+	if [ "$(dirname "$2")" = "$cores" ] && grep -qx 'savestate = "true"' "$infos/$name.info" 2>/dev/null \
+		&& grep -qx 'savestate_features = "deterministic"' "$infos/$name.info"; then
+		echo "coreinfo deterministic"
+	else
+		echo "coreinfo none"
+	fi
 } >> "$MAME_LOG"
 cp "$config" "$RA_CONFIG_COPY"
 case "$2" in

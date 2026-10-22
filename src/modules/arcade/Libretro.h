@@ -86,6 +86,8 @@ struct Launch {
     QList<bool> panels;
     // Where RetroArch looks for remap files (coreRemapPath()).
     QString remapDir;
+    // Where it reads the core's info file (coreInfoPath()).
+    QString infoDir;
     // RetroAchievements: the account, signed in with its token, or with its
     // password for RetroArch to swap for one (it saves the token on exit).
     QString achievementsUser;
@@ -115,6 +117,14 @@ QString remapText(const Launch &launch);
 // is none, or remapText() wrote it. One saved from RetroArch's menu (Save
 // Core Remap File) or put there by hand is the user's, loaded as it is.
 bool ownsRemap(const QString &path);
+// FinalBurn Neo's info file, which RetroArch looks for in infoDir by the
+// core's name (fbneo_libretro.info), and the text OSD/OS writes in it before
+// each game: what libretro's own information on the core says that RetroArch
+// acts on, above all that its states come out the same on every machine,
+// without which RetroArch neither hosts nor joins a game with it ("Core does
+// not support netplay").
+QString coreInfoPath(const QString &infoDir);
+QString coreInfoText();
 
 // What a run's log says (RetroArch's own, -v --log-file).
 struct Run {

@@ -1019,6 +1019,7 @@ private slots:
         launch.saveDir = QStringLiteral("/ra/saves");
         launch.stateDir = QStringLiteral("/ra/states");
         launch.configDir = QStringLiteral("/ra/config");
+        launch.infoDir = QStringLiteral("/ra/info");
         launch.pads = { QStringLiteral("045e:028e Xbox 360 Controller"), QString(), QStringLiteral("JAMMA \"P3\"") };
         launch.achievementsUser = QStringLiteral("player");
         launch.achievementsPassword = QStringLiteral("secret");
@@ -1040,8 +1041,20 @@ private slots:
                                   "input_player1_reserved_device = \"045e:028e Xbox 360 Controller\"",
                                   "input_player3_reserved_device = \"JAMMA P3\"",
                                   "cheevos_enable = \"true\"", "cheevos_username = \"player\"", "cheevos_token = \"\"",
-                                  "cheevos_password = \"secret\"", "cheevos_hardcore_mode_enable = \"true\"" })
+                                  "cheevos_password = \"secret\"", "cheevos_hardcore_mode_enable = \"true\"",
+                                  // The core known by its info file: among the cores of
+                                  // its own folder, the file OSD/OS writes read afresh.
+                                  "libretro_directory = \"/cores\"", "libretro_info_path = \"/ra/info\"",
+                                  "core_info_cache_enable = \"false\"" })
             QVERIFY2(has(QLatin1String(line)), line);
+        // That file, by the core's name: its states deterministic, the same
+        // on every machine, without which RetroArch neither hosts nor joins
+        // a game with it.
+        QCOMPARE(libretro::coreInfoPath(QStringLiteral("/ra/info")), QStringLiteral("/ra/info/fbneo_libretro.info"));
+        const QStringList info = libretro::coreInfoText().split(QLatin1Char('\n'));
+        for (const char *line : { "corename = \"FinalBurn Neo\"", "savestate = \"true\"",
+                                  "savestate_features = \"deterministic\"" })
+            QVERIFY2(info.contains(QLatin1String(line)), line);
         QVERIFY(!config.contains(QStringLiteral("input_player2_reserved_device")));
         QVERIFY(!config.contains(QStringLiteral("input_player7_")));
         QVERIFY(!config.contains(QStringLiteral("netplay_")));
@@ -1127,7 +1140,8 @@ private slots:
         QVERIFY(!config.contains(QStringLiteral("video_driver")));
         QVERIFY(!config.contains(QStringLiteral("input_driver ")));
         for (const char *line : { "netplay_nickname = \"Mehmet\"", "netplay_public_announce = \"true\"",
-                                  "netplay_use_mitm_server = \"true\"", "netplay_mitm_server = \"madrid\"" })
+                                  "netplay_use_mitm_server = \"true\"", "netplay_mitm_server = \"madrid\"",
+                                  "libretro_directory = \"/cores\"", "libretro_info_path = \"/ra/info\"" })
             QVERIFY2(has(QLatin1String(line)), line);
 
         QCOMPARE(libretro::arguments(launch),
@@ -1485,6 +1499,10 @@ private slots:
                            .arg(libretro::downloadedCore(data.path()), home, games));
         QVERIFY(logLines().contains(QStringLiteral("cwd ") + home));
         QVERIFY(logLines().contains(QStringLiteral("sdlconfig ") + data.path() + QStringLiteral("/gamecontrollerdb.txt")));
+        // FinalBurn Neo's info file written for it, which has RetroArch take
+        // its states for deterministic, as netplay needs them.
+        QVERIFY(logLines().contains(QStringLiteral("coreinfo deterministic")));
+        QVERIFY(contents(home + QStringLiteral("/info/fbneo_libretro.info")).contains("savestate_features = \"deterministic\""));
         QString config = QString::fromUtf8(contents(configCopy));
         QVERIFY2(config.contains(QStringLiteral("cheevos_password = \"secret\"")), qPrintable(config));
         QVERIFY(config.contains(QStringLiteral("cheevos_username = \"player\"")));
@@ -1617,6 +1635,15 @@ private slots:
         config = QString::fromUtf8(contents(configCopy));
         QVERIFY(!config.contains(QStringLiteral("aspect_ratio_index")));
         QVERIFY(config.contains(QStringLiteral("video_scale_integer = \"false\"")));
+        // FinalBurn Neo's info file that can't be written (a file where its
+        // folder goes): nothing started, as with RetroArch's settings.
+        QVERIFY(QDir(home + QStringLiteral("/info")).removeRecursively());
+        writeFile(home + QStringLiteral("/info"));
+        QFile::remove(m_log);
+        QVERIFY(!arcade.play(QStringLiteral("galaga")));
+        QCOMPARE(arcade.lastError(), QStringLiteral("RetroArch's settings could not be written"));
+        QVERIFY(logLines(QStringLiteral("retroarch ")).isEmpty());
+        QVERIFY(QFile::remove(home + QStringLiteral("/info")));
         // MAME as before for the rest.
         QFile::remove(m_log);
         end = played(arcade, QStringLiteral("pacman"));
@@ -3641,6 +3668,9 @@ private slots:
         QVERIFY(!config.contains(QStringLiteral("netplay_public_announce")));
         QVERIFY(onPads(config));
         QVERIFY(!QFileInfo::exists(remap));
+        // The core's states taken for deterministic: joined, not "Core does
+        // not support netplay".
+        QVERIFY(logLines().contains(QStringLiteral("coreinfo deterministic")));
         // Hosted: announced in the lobby through the relay chosen, under the
         // online name.
         arcade.onSettingChanged(module, QStringLiteral("online_name"), QStringLiteral(" Mehmet "));
@@ -3656,6 +3686,7 @@ private slots:
             QVERIFY2(config.contains(QLatin1String(line)), line);
         QVERIFY(onPads(config));
         QVERIFY(!QFileInfo::exists(remap));
+        QVERIFY(logLines().contains(QStringLiteral("coreinfo deterministic")));
         // Files missing in a game hosted, which plays online in FinalBurn Neo
         // alone: nothing said of MAME.
         const QVariantList missing = ended([&arcade] { return arcade.hostGame(QStringLiteral("mslug")); });
@@ -3925,6 +3956,7 @@ private slots:
         QString config = QString::fromUtf8(contents(configCopy));
         QVERIFY2(config.contains(QStringLiteral("netplay_nickname = \"garage-cab\"")), qPrintable(config));
         QVERIFY(!config.contains(QStringLiteral("netplay_public_announce")));
+        QVERIFY(logLines().contains(QStringLiteral("coreinfo deterministic")));
         // Hosted: on the network alone, straight, under the online name.
         arcade.onSettingChanged(module, QStringLiteral("online_name"), QStringLiteral("Mehmet"));
         QFile::remove(m_log);
@@ -3935,6 +3967,7 @@ private slots:
         for (const char *line : { "netplay_nickname = \"Mehmet\"", "netplay_public_announce = \"false\"",
                                   "netplay_use_mitm_server = \"false\"", "netplay_nat_traversal = \"false\"" })
             QVERIFY2(config.contains(QLatin1String(line)), line);
+        QVERIFY(logLines().contains(QStringLiteral("coreinfo deterministic")));
         // A room no longer hosted.
         QVERIFY(!arcade.joinLanRoom(2));
         QCOMPARE(arcade.lastError(), QStringLiteral("The game is no longer hosted on this network"));

@@ -29,6 +29,9 @@ const QString kCoreFile = QStringLiteral("fbneo_libretro.dylib");
 #else
 const QString kCoreFile = QStringLiteral("fbneo_libretro.so");
 #endif
+// Its info file, named as RetroArch looks for it: the core's, without the
+// extension.
+const QString kCoreInfoFile = QStringLiteral("fbneo_libretro.info");
 
 QString firstFile(const QStringList &candidates) {
     for (const QString &candidate : candidates) {
@@ -325,9 +328,17 @@ QString configText(const Launch &launch) {
         set("audio_driver", QStringLiteral("alsa"));
         // ALSA's default: the card Settings → Audio Output chose (ALSA_CARD).
         set("audio_device", QString());
-        set("libretro_info_path", QStringLiteral("/usr/share/libretro/info"));
         set("assets_directory", QStringLiteral("/usr/share/libretro/assets"));
     }
+    // RetroArch knows a core by its info file, which it looks for by the
+    // name of each core in libretro_directory: a core outside that folder,
+    // or one without its file, is taken for one whose states can't be
+    // relied on, and no game is hosted or joined with it ("Core does not
+    // support netplay"). So the core's own folder, and OSD/OS's file
+    // (coreInfoText()), read afresh each time: no cache keeps an older one.
+    set("libretro_directory", QFileInfo(launch.core).absolutePath());
+    set("libretro_info_path", launch.infoDir);
+    set("core_info_cache_enable", on(false));
     set("audio_enable", on(launch.sound));
     // The picture in its shape on a screen whose pixels aren't square
     // (aspect_ratio_index 20, Config: the ratio as it is).
@@ -441,6 +452,21 @@ bool ownsRemap(const QString &path) {
     if (!file.exists())
         return true;
     return file.open(QIODevice::ReadOnly) && QString::fromUtf8(file.readLine()).startsWith(kOwnRemap);
+}
+
+QString coreInfoPath(const QString &infoDir) {
+    return infoDir + QLatin1Char('/') + kCoreInfoFile;
+}
+
+QString coreInfoText() {
+    // Of libretro's own (libretro-core-info's fbneo_libretro.info), the
+    // core's names and its states: deterministic, the same on every machine,
+    // as netplay needs them (and run-ahead).
+    return QStringLiteral("# Written by OSD/OS for each game it starts: what is changed here is lost at the next.\n"
+                          "display_name = \"Arcade (FinalBurn Neo)\"\n"
+                          "corename = \"FinalBurn Neo\"\n"
+                          "savestate = \"true\"\n"
+                          "savestate_features = \"deterministic\"\n");
 }
 
 QStringList arguments(const Launch &launch) {
