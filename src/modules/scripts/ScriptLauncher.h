@@ -59,6 +59,9 @@ public:
     // Bounded tail of the script's output: at most kMaxLines lines / kMaxBytes
     // bytes, trimmed from the front, so a chatty script can't grow without limit.
     QString outputText() const;
+    // The last run's output forgotten, between runs: for a failure said of a
+    // run that never began, which the last run's output would be shown for.
+    void    clearOutput();
     int     lastExitCode() const { return m_lastExitCode; }
     // The last run ended by a signal (a crash, a kill), lastExitCode() being
     // then the signal's number rather than an exit code.

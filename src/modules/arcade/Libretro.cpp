@@ -413,6 +413,13 @@ QString configText(const Launch &launch) {
     if (launch.netplay != Launch::Netplay::None) {
         set("netplay_nickname", launch.nickname);
         set("netplay_start_as_spectator", on(false));
+        // The game's ports this machine's players take, asked for by number
+        // (its player 1 the first of them); none asked for leaves RetroArch
+        // to its own, one port, the first free.
+        for (int p = 1; p <= kMostPorts; ++p) {
+            const QByteArray key = QByteArray("netplay_request_device_p") + QByteArray::number(p);
+            set(key.constData(), on(launch.ports > 0 && p >= launch.portsFrom && p < launch.portsFrom + launch.ports));
+        }
     }
     if (launch.netplay == Launch::Netplay::Host) {
         // In the lobby, through a relay: a home connection takes no calls.
@@ -716,6 +723,121 @@ bool isLanSender(const QHostAddress &address) {
     bool ipv4 = false;
     const quint32 number = address.toIPv4Address(&ipv4);
     return ipv4 && (isLanAddress(number) || address.isLoopback());
+}
+
+static_assert(kMostPorts == controllers::kPlayers, "a port for each player the menus have a controller for");
+
+namespace {
+// The claims' packets: a query for so many ports, an answer giving the
+// first and how many, and a release, each a line of ASCII with its numbers
+// after it.
+const char kClaimQueryHead[] = "OSDOS PORTS? ";
+const char kClaimAnswerHead[] = "OSDOS PORTS ";
+const char kClaimReleaseText[] = "OSDOS PORTS FREE";
+
+// A number of at most two digits, least to most; nothing for anything else.
+std::optional<int> number(const QByteArray &digits, int least, int most) {
+    if (digits.isEmpty() || digits.size() > 2
+        || !std::all_of(digits.cbegin(), digits.cend(), [](char c) { return c >= '0' && c <= '9'; }))
+        return std::nullopt;
+    const int n = digits.toInt();
+    if (n < least || n > most)
+        return std::nullopt;
+    return n;
+}
+
+// What follows head in packet, split at its spaces; nothing for a packet
+// that doesn't begin with head.
+std::optional<QList<QByteArray>> wordsAfter(const QByteArray &packet, const char *head) {
+    if (!packet.startsWith(head))
+        return std::nullopt;
+    return packet.mid(static_cast<qsizetype>(qstrlen(head))).split(' ');
+}
+} // namespace
+
+int localPorts(const QStringList &guids) {
+    int last = 0;
+    for (int p = 0; p < guids.size() && p < kMostPorts; ++p) {
+        if (!guids.at(p).isEmpty())
+            last = p + 1;
+    }
+    return std::max(1, last);
+}
+
+QByteArray claimQuery(int players) {
+    return QByteArray(kClaimQueryHead) + QByteArray::number(players);
+}
+
+QByteArray claimAnswer(const PortRange &ports) {
+    return QByteArray(kClaimAnswerHead) + QByteArray::number(ports.first) + ' ' + QByteArray::number(ports.players);
+}
+
+QByteArray claimRelease() {
+    return QByteArray(kClaimReleaseText);
+}
+
+std::optional<int> readClaimQuery(const QByteArray &packet) {
+    const std::optional<QList<QByteArray>> words = wordsAfter(packet, kClaimQueryHead);
+    if (!words || words->size() != 1)
+        return std::nullopt;
+    return number(words->first(), 1, kMostPorts);
+}
+
+std::optional<PortRange> readClaimAnswer(const QByteArray &packet) {
+    const std::optional<QList<QByteArray>> words = wordsAfter(packet, kClaimAnswerHead);
+    if (!words || words->size() != 2)
+        return std::nullopt;
+    const std::optional<int> first = number(words->at(0), 0, kMostPorts);
+    const std::optional<int> players = number(words->at(1), 0, kMostPorts);
+    // None as { 0, 0 }; else a run of ports within the six.
+    if (!first || !players || (*first == 0) != (*players == 0) || *first + *players - 1 > kMostPorts)
+        return std::nullopt;
+    return PortRange{ *first, *players };
+}
+
+bool isClaimRelease(const QByteArray &packet) {
+    return packet == kClaimReleaseText;
+}
+
+void PortClaims::reset(int own, int most) {
+    m_most = std::clamp(most, 1, kMostPorts);
+    m_own = std::clamp(own, 0, m_most);
+    m_claims.clear();
+}
+
+bool PortClaims::taken(int port) const {
+    return port <= m_own || std::any_of(m_claims.cbegin(), m_claims.cend(), [port](const Claim &c) {
+        return c.first <= port && port < c.first + c.players;
+    });
+}
+
+PortRange PortClaims::claim(const QString &address, int players) {
+    release(address);
+    if (players < 1)
+        return {};
+    // The first run that takes them all; else the first free port and the
+    // run after it.
+    PortRange some;
+    for (int first = m_own + 1; first <= m_most; ++first) {
+        if (taken(first))
+            continue;
+        int run = 1;
+        while (run < players && first + run <= m_most && !taken(first + run))
+            ++run;
+        if (run == players) {
+            m_claims.append({ address, first, players });
+            return { first, players };
+        }
+        if (some.first == 0)
+            some = { first, run };
+    }
+    if (some.first > 0)
+        m_claims.append({ address, some.first, some.players });
+    return some;
+}
+
+void PortClaims::release(const QString &address) {
+    m_claims.removeIf([&address](const Claim &c) { return c.address == address; });
 }
 
 CoreInfo loadCoreInfo(const QString &path, QString *error) {

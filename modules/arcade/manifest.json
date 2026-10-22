@@ -156,7 +156,7 @@
       "type": "list_single",
       "options": ["Off", "On"],
       "default": "Off",
-      "description": "Playing a game with someone on the same network, in FinalBurn Neo: straight from one machine to the other, without the internet\n[ON] LAN Games lists the games hosted on the network that you have, and a game's options can host one"
+      "description": "Playing a game with someone on the same network, in FinalBurn Neo: straight from one machine to the other, without the internet\n[ON] LAN Games lists the games hosted on the network that you have, and a game's options can host one. Up to six players across the machines: the host's take the first ports, each machine joining the next"
     },
     {
       "key": "online_name",

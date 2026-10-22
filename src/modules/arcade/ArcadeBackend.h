@@ -16,6 +16,7 @@
 #include <QUrl>
 #include <QVariant>
 #include <functional>
+#include <optional>
 #include <utility>
 #include "Libretro.h"
 #include "Mame.h"
@@ -311,6 +312,9 @@ public:
     void setLanDiscovery(const QString &address, quint16 port);
     // How long the answers are listened for: a second, or a test's.
     void setLanListenTime(int ms);
+    // Where a host's OSD/OS gives the machines joining their ports
+    // (libretro::kLanClaimPort), or a test's port.
+    void setLanClaimPort(quint16 port);
     // What says a core's name and version (libretro::readCoreInfo()), the
     // core's path given last: a copy of the app run with --core-info, or a
     // test's stand-in.
@@ -683,9 +687,49 @@ private:
     // Neo's list's, else 3:4 for a vertical one (machineOf()), else 4:3.
     double gameAspect(const QString &set) const;
     // A game started in RetroArch with FinalBurn Neo, the checks play() makes
-    // of every game made: alone, hosted online or joining a room.
+    // of every game made: alone, hosted online or joining a room. Online,
+    // this machine's players take the game's ports: a host's from 1
+    // (hostPorts()); joining on the local network, the ports its host's
+    // OSD/OS gave, portsGiven from portsFrom (0 for none left; -1 for no
+    // answer: from 2 with more than one player, else RetroArch's own, the
+    // first free).
     bool playFbneo(const QString &name, libretro::Launch::Netplay netplay = libretro::Launch::Netplay::None,
-                   const QString &joinAddress = QString());
+                   const QString &joinAddress = QString(), int portsFrom = -1, int portsGiven = 0);
+    // The ports this machine's players take hosting set: up to the last
+    // player with a controller (libretro::localPorts()), but one fewer than
+    // the game plays at once, so that a machine joining has a port; one, for
+    // a game MAME doesn't know the players of (FinalBurn Neo's list doesn't
+    // say). With most, the game's ports: as many as it plays at once, or
+    // libretro::kMostPorts where that isn't known.
+    int hostPorts(const QString &set, int *most = nullptr) const;
+    // A LAN game joined once its host's OSD/OS has said which ports this
+    // machine's players take (libretro::claimQuery() to the host at the
+    // claim port, asked three times at most, a quarter of a second each:
+    // askForPorts(), readPortsAnswer()), or hasn't (startPendingJoin() with
+    // no ports); running() meanwhile. An answer that comes too late, or from
+    // another host, has its ports given back. Not started after all, it is
+    // said so as a game that ended (finished(), failed_to_start, without the
+    // last game's output), the Play screen having been told it started. The
+    // ports are given back to the host's OSD/OS as the game ends
+    // (releaseClaim()).
+    struct PendingJoin {
+        QString game;
+        QString joinAddress;
+        QString host;
+        int players = 1;
+        int asked = 0;
+    };
+    bool askForPorts();
+    void readPortsAnswer();
+    void startPendingJoin(const std::optional<libretro::PortRange> &ports);
+    void releaseClaim(const QString &address);
+    // Hosting on the local network: the ports taken counted (m_claims, this
+    // machine's own first, of the game's most), and each OSD/OS joining
+    // given theirs at the claim port (answerClaims()), until the game ends
+    // (stopClaims()). False without the socket for it.
+    bool startClaims(int own, int most);
+    void answerClaims();
+    void stopClaims();
     // The Online Games folder's entries: the rooms, or a line saying why
     // there are none.
     QVariantList roomEntries() const;
@@ -879,6 +923,17 @@ private:
     bool    m_lanRead = false;
     QHash<QString, int> m_lanIds;
     int     m_lanNextId = 1;
+    // Six players over the network (libretro::PortClaims): hosting, the
+    // socket the machines joining ask for their ports at, and the count of
+    // the ports taken; joining, the host whose OSD/OS gave this machine its
+    // ports, given back as the game ends ("" for none).
+    QUdpSocket *m_claimSocket = nullptr;
+    libretro::PortClaims m_claims;
+    quint16 m_claimPort = libretro::kLanClaimPort;
+    std::optional<PendingJoin> m_pendingJoin;
+    QUdpSocket *m_claimAsk = nullptr;
+    QTimer *m_claimWait = nullptr;
+    QString m_claimedFrom;
     // catver.ini's download: from where, under way, and when one that failed
     // may be tried again.
     QUrl m_genresUrl;

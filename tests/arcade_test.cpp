@@ -1178,6 +1178,106 @@ private slots:
         QCOMPARE(libretro::arguments(launch).mid(6),
                  QStringList({ QStringLiteral("--host"), QStringLiteral("/games/sf2.zip") }));
 
+        // The game's ports this machine's players take, asked for by number:
+        // up to the last player with a controller, one at least; none asked
+        // for leaves RetroArch to its own, each port said so.
+        QCOMPARE(libretro::localPorts({}), 1);
+        QCOMPARE(libretro::localPorts({ QString(), QStringLiteral("0600bbbb") }), 2);
+        QCOMPARE(libretro::localPorts({ QStringLiteral("a"), QString(), QStringLiteral("c"), QString() }), 3);
+        const auto requested = [&config] {
+            QStringList ports;
+            for (int p = 1; p <= libretro::kMostPorts; ++p) {
+                if (config.contains(QStringLiteral("netplay_request_device_p%1 = \"true\"").arg(p)))
+                    ports << QString::number(p);
+            }
+            return ports.join(QLatin1Char(' '));
+        };
+        QVERIFY(has(QStringLiteral("netplay_request_device_p1 = \"false\"")));
+        QVERIFY(has(QStringLiteral("netplay_request_device_p6 = \"false\"")));
+        QVERIFY(!config.contains(QStringLiteral("netplay_request_device_p7")));
+        QCOMPARE(requested(), QString());
+        launch.portsFrom = 3;
+        launch.ports = 2;
+        config = libretro::configText(launch);
+        QCOMPARE(requested(), QStringLiteral("3 4"));
+        launch.portsFrom = 1;
+        launch.ports = 6;
+        config = libretro::configText(launch);
+        QCOMPARE(requested(), QStringLiteral("1 2 3 4 5 6"));
+        launch.netplay = libretro::Launch::Netplay::None;
+        config = libretro::configText(launch);
+        QVERIFY(!config.contains(QStringLiteral("netplay_")));
+        launch.netplay = libretro::Launch::Netplay::LanHost;
+        launch.portsFrom = 0;
+        launch.ports = 0;
+        // What a host's OSD/OS and a joiner's say to each other: a query for
+        // so many ports, the first of them given, a release; nothing else
+        // read.
+        QCOMPARE(libretro::claimQuery(2), QByteArray("OSDOS PORTS? 2"));
+        QCOMPARE(libretro::readClaimQuery(QByteArray("OSDOS PORTS? 2")).value_or(0), 2);
+        QCOMPARE(libretro::readClaimQuery(QByteArray("OSDOS PORTS? 6")).value_or(0), 6);
+        for (const char *packet : { "OSDOS PORTS? 0", "OSDOS PORTS? 7", "OSDOS PORTS? 2x", "OSDOS PORTS? 22",
+                                    "OSDOS PORTS?", "OSDOS PORTS 2", "", "RANQ" })
+            QVERIFY2(!libretro::readClaimQuery(QByteArray(packet)), packet);
+        QCOMPARE(libretro::claimAnswer({ 3, 2 }), QByteArray("OSDOS PORTS 3 2"));
+        QCOMPARE(libretro::claimAnswer({}), QByteArray("OSDOS PORTS 0 0"));
+        const auto range = [](const char *packet) {
+            const std::optional<libretro::PortRange> r = libretro::readClaimAnswer(QByteArray(packet));
+            return r ? QStringLiteral("%1+%2").arg(r->first).arg(r->players) : QStringLiteral("none");
+        };
+        QCOMPARE(range("OSDOS PORTS 3 2"), QStringLiteral("3+2"));
+        QCOMPARE(range("OSDOS PORTS 0 0"), QStringLiteral("0+0"));
+        QCOMPARE(range("OSDOS PORTS 5 2"), QStringLiteral("5+2"));
+        QCOMPARE(range("OSDOS PORTS 1 6"), QStringLiteral("1+6"));
+        for (const char *packet : { "OSDOS PORTS 3", "OSDOS PORTS 6 2", "OSDOS PORTS 7 1", "OSDOS PORTS 3 0",
+                                    "OSDOS PORTS 0 1", "OSDOS PORTS 3 2 1", "OSDOS PORTS? 3 1", "OSDOS PORTS 3  2",
+                                    "OSDOS PORTS 3 2x", "OSDOS PORTS " })
+            QCOMPARE(range(packet), QStringLiteral("none"));
+        QCOMPARE(libretro::claimRelease(), QByteArray("OSDOS PORTS FREE"));
+        QVERIFY(libretro::isClaimRelease(QByteArray("OSDOS PORTS FREE")));
+        QVERIFY(!libretro::isClaimRelease(QByteArray("OSDOS PORTS FREE!")));
+        // The host's count: its own first, then each machine's by its
+        // address, the first run of free ports that takes its players, else
+        // the first free port and what follows it, within the game's ports;
+        // one asking again given its own anew, one leaving giving them up.
+        libretro::PortClaims claims;
+        const auto given = [&claims](const char *address, int players) {
+            const libretro::PortRange r = claims.claim(QLatin1String(address), players);
+            return QStringLiteral("%1+%2").arg(r.first).arg(r.players);
+        };
+        claims.reset(2);
+        QCOMPARE(given("192.168.1.30", 2), QStringLiteral("3+2"));
+        QCOMPARE(given("192.168.1.31", 1), QStringLiteral("5+1"));
+        QCOMPARE(given("192.168.1.32", 2), QStringLiteral("6+1"));
+        QCOMPARE(given("192.168.1.32", 1), QStringLiteral("6+1"));
+        QCOMPARE(given("192.168.1.30", 2), QStringLiteral("3+2"));
+        QCOMPARE(given("192.168.1.30", 3), QStringLiteral("3+2"));
+        QCOMPARE(given("192.168.1.30", 2), QStringLiteral("3+2"));
+        claims.release(QStringLiteral("192.168.1.31"));
+        QCOMPARE(given("192.168.1.33", 1), QStringLiteral("5+1"));
+        claims.release(QStringLiteral("192.168.1.34"));
+        QCOMPARE(given("192.168.1.35", 1), QStringLiteral("0+0"));
+        claims.reset(1);
+        QCOMPARE(given("a", 6), QStringLiteral("2+5"));
+        QCOMPARE(given("b", 1), QStringLiteral("0+0"));
+        QCOMPARE(given("b", 0), QStringLiteral("0+0"));
+        claims.reset(6);
+        QCOMPARE(given("a", 1), QStringLiteral("0+0"));
+        claims.reset(0);
+        QCOMPARE(given("a", 1), QStringLiteral("1+1"));
+        // A two-player game: the host's one port and the joiner's the other,
+        // whatever its players; a four-player one, two each.
+        claims.reset(1, 2);
+        QCOMPARE(given("a", 2), QStringLiteral("2+1"));
+        QCOMPARE(given("b", 1), QStringLiteral("0+0"));
+        claims.reset(1, 4);
+        QCOMPARE(given("a", 2), QStringLiteral("2+2"));
+        QCOMPARE(given("b", 2), QStringLiteral("4+1"));
+        QCOMPARE(claims.most(), 4);
+        claims.reset(3, 2);
+        QCOMPARE(claims.own(), 2);
+        QCOMPARE(given("a", 1), QStringLiteral("0+0"));
+
         // A host's answer to the query on the local network: its game, who
         // hosts it, what it plays in, and where it is joined, at the address
         // it answered from and the port it gives.
@@ -3957,7 +4057,33 @@ private slots:
         QCOMPARE(changed.size(), 0);
 
         // Joined: RetroArch connects straight to the host, at the port it
-        // gave, under the device's name.
+        // gave, under the device's name, this machine's two players on the
+        // ports the host's OSD/OS gives them: asked for at the claim port as
+        // the room is chosen, the game started on the answer, and given back
+        // as it ends.
+        controllers::setPlayerEnvironment({ { QStringLiteral("OSDOS_PLAYER1_GUID"), QStringLiteral("0600aaaa") },
+                                            { QStringLiteral("OSDOS_PLAYER2_GUID"), QStringLiteral("0600bbbb") } });
+        const auto noPlayers = qScopeGuard([] { controllers::setPlayerEnvironment({}); });
+        QUdpSocket claims;
+        QVERIFY(claims.bind(QHostAddress::LocalHost, 0));
+        QList<QByteArray> claimed;
+        connect(&claims, &QUdpSocket::readyRead, &claims, [&claims, &claimed] {
+            while (claims.hasPendingDatagrams()) {
+                const QNetworkDatagram query = claims.receiveDatagram();
+                claimed << query.data();
+                if (libretro::readClaimQuery(query.data()))
+                    claims.writeDatagram(libretro::claimAnswer({ 3, 2 }), query.senderAddress(), query.senderPort());
+            }
+        });
+        arcade.setLanClaimPort(claims.localPort());
+        const auto requested = [](const QString &config) {
+            QStringList ports;
+            for (int p = 1; p <= libretro::kMostPorts; ++p) {
+                if (config.contains(QStringLiteral("netplay_request_device_p%1 = \"true\"").arg(p)))
+                    ports << QString::number(p);
+            }
+            return ports.join(QLatin1Char(' '));
+        };
         QFile::remove(m_log);
         QCOMPARE(ended([&arcade] { return arcade.joinLanRoom(1); }).value(1).toString(), QStringLiteral("ok"));
         const QString home = data.path() + QStringLiteral("/arcade/retroarch");
@@ -3967,18 +4093,58 @@ private slots:
         QString config = QString::fromUtf8(contents(configCopy));
         QVERIFY2(config.contains(QStringLiteral("netplay_nickname = \"garage-cab\"")), qPrintable(config));
         QVERIFY(!config.contains(QStringLiteral("netplay_public_announce")));
+        QCOMPARE(requested(config), QStringLiteral("3 4"));
         QVERIFY(logLines().contains(QStringLiteral("coreinfo deterministic")));
-        // Hosted: on the network alone, straight, under the online name.
-        arcade.onSettingChanged(module, QStringLiteral("online_name"), QStringLiteral("Mehmet"));
+        QTRY_VERIFY(!claimed.isEmpty() && claimed.last() == libretro::claimRelease());
+        QCOMPARE(claimed.first(), libretro::claimQuery(2));
+        QVERIFY(!arcade.running());
+        // A host that doesn't say, RetroArch alone or an older OSD/OS: asked
+        // twice, then joined with the ports from 2.
+        claims.close();
         QFile::remove(m_log);
-        QCOMPARE(ended([&arcade] { return arcade.hostLanGame(QStringLiteral("sf2")); }).value(1).toString(),
-                 QStringLiteral("ok"));
+        QCOMPARE(ended([&arcade] { return arcade.joinLanRoom(1); }).value(1).toString(), QStringLiteral("ok"));
+        config = QString::fromUtf8(contents(configCopy));
+        QCOMPARE(requested(config), QStringLiteral("2 3"));
+        // Hosted: on the network alone, straight, under the online name.
+        // Street Fighter II takes two players: this machine's first on port
+        // 1, whatever its second stick, so that the machine joining has the
+        // other. It asks for its players' ports while the game runs and is
+        // given port 2 alone, whatever its players, its own anew as it asks
+        // again; none once the game is over.
+        arcade.onSettingChanged(module, QStringLiteral("online_name"), QStringLiteral("Mehmet"));
+        quint16 claimPort = 0;
+        {
+            QUdpSocket probe;
+            QVERIFY(probe.bind(QHostAddress::LocalHost, 0));
+            claimPort = probe.localPort();
+        }
+        arcade.setLanClaimPort(claimPort);
+        qputenv("RA_SECONDS", "3");
+        const auto noSeconds = qScopeGuard([] { qunsetenv("RA_SECONDS"); });
+        QFile::remove(m_log);
+        QSignalSpy hostEnded(&arcade, &ArcadeBackend::finished);
+        QVERIFY(arcade.hostLanGame(QStringLiteral("sf2")));
+        QUdpSocket joiner;
+        QVERIFY(joiner.bind(QHostAddress::LocalHost, 0));
+        const auto asking = [&joiner, claimPort](const QByteArray &packet, int mostMs) {
+            joiner.writeDatagram(packet, QHostAddress::LocalHost, claimPort);
+            for (int waited = 0; waited < mostMs && !joiner.hasPendingDatagrams(); waited += 20)
+                QTest::qWait(20);
+            return joiner.hasPendingDatagrams() ? joiner.receiveDatagram().data() : QByteArray("no answer");
+        };
+        QCOMPARE(asking(libretro::claimQuery(2), 2000), libretro::claimAnswer({ 2, 1 }));
+        QCOMPARE(asking(libretro::claimQuery(4), 2000), libretro::claimAnswer({ 2, 1 }));
+        QCOMPARE(asking(libretro::claimQuery(1), 2000), libretro::claimAnswer({ 2, 1 }));
+        QVERIFY(hostEnded.wait(10000) || !hostEnded.isEmpty());
+        QCOMPARE(hostEnded.first().value(1).toString(), QStringLiteral("ok"));
         QVERIFY(logLines(QStringLiteral("retroarch ")).value(0).contains(QStringLiteral(" --host ")));
         config = QString::fromUtf8(contents(configCopy));
         for (const char *line : { "netplay_nickname = \"Mehmet\"", "netplay_public_announce = \"false\"",
                                   "netplay_use_mitm_server = \"false\"", "netplay_nat_traversal = \"false\"" })
             QVERIFY2(config.contains(QLatin1String(line)), line);
+        QCOMPARE(requested(config), QStringLiteral("1"));
         QVERIFY(logLines().contains(QStringLiteral("coreinfo deterministic")));
+        QCOMPARE(asking(libretro::claimQuery(1), 300), QByteArray("no answer"));
         // A room no longer hosted.
         QVERIFY(!arcade.joinLanRoom(2));
         QCOMPARE(arcade.lastError(), QStringLiteral("The game is no longer hosted on this network"));

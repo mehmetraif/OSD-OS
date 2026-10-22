@@ -100,6 +100,11 @@ struct Launch {
     QString nickname;
     QString relay;            // "nyc", "madrid", "saopaulo", "singapore", "chuncheon"
     QString joinAddress;      // RetroArch's --connect: "address|port" or "address|port|session"
+    // The game's ports this machine's players take, portsFrom and as many as
+    // ports (netplay_request_device_pN), its player 1 the first of them; none
+    // (ports 0) leaves RetroArch to its own: one port, the first free.
+    int     portsFrom = 0;
+    int     ports = 0;
 };
 // The retroarch.cfg for a game: everything RetroArch would otherwise take
 // from a desktop's defaults, for a console with the menus' controllers.
@@ -219,6 +224,69 @@ bool isLanAddress(quint32 ipv4);
 // Whether an answer from address is taken: from a host on the local network,
 // as RetroArch takes them (isLanAddress()), or from this machine.
 bool isLanSender(const QHostAddress &address);
+
+// Six players over the network, a host's and each joiner's together.
+// RetroArch gives the machine hosting port 1 and each machine joining one
+// port, the first free, unless a machine asks for its ports by number
+// (Launch::portsFrom): the ports its players drive in order, its player 1
+// the first asked for. So a host asks for ports 1 to its players' count
+// (localPorts(), one fewer than the game plays at once at most, so that a
+// machine joining has a port) and its OSD/OS keeps count of the ports the
+// machines joining take (PortClaims): each OSD/OS joining asks it, at
+// kLanClaimPort, for ports for its players (claimQuery()) and is answered
+// with the first of theirs and how many (claimAnswer()), none when the game
+// has none left; one leaving gives its ports back (claimRelease()). A host
+// that doesn't answer, RetroArch alone or an older OSD/OS, holds port 1: a
+// joiner then asks for ports from 2 with more than one player, else for
+// none.
+constexpr quint16 kLanClaimPort = 55436;
+// The ports a game is played on at most: FinalBurn Neo's six-player games,
+// as many as the players the menus have controllers for.
+constexpr int kMostPorts = 6;
+// How many ports a machine's players take: up to the last player with a
+// controller (the players' GUIDs, controllers::playerGuids()), one at least.
+int localPorts(const QStringList &guids);
+// The ports a machine joining is given: the first and how many; none as
+// { 0, 0 }.
+struct PortRange {
+    int first = 0;
+    int players = 0;
+};
+QByteArray claimQuery(int players);
+QByteArray claimAnswer(const PortRange &ports);
+QByteArray claimRelease();
+// What a packet says: a query for so many ports (1 to kMostPorts), an answer
+// giving the first and how many (within kMostPorts, or none), or a release;
+// nothing for a packet that isn't one.
+std::optional<int> readClaimQuery(const QByteArray &packet);
+std::optional<PortRange> readClaimAnswer(const QByteArray &packet);
+bool isClaimRelease(const QByteArray &packet);
+
+// A host's count of the ports taken: its own, 1 to own, and each joiner's
+// by its address, within the game's ports (most). A joiner is given the
+// first run of free ports that takes all its players, else the first free
+// port and what follows it; one asking again is given its ports anew, and
+// one leaving gives them up.
+class PortClaims {
+public:
+    void reset(int own, int most = kMostPorts);
+    // The joiner's ports, none ({ 0, 0 }) when none is left (or no player).
+    PortRange claim(const QString &address, int players);
+    void release(const QString &address);
+    int own() const { return m_own; }
+    int most() const { return m_most; }
+
+private:
+    struct Claim {
+        QString address;
+        int first = 0;
+        int players = 0;
+    };
+    bool taken(int port) const;
+    int m_own = 0;
+    int m_most = kMostPorts;
+    QList<Claim> m_claims;
+};
 
 // A libretro core as it describes itself (retro_get_system_info): its name
 // and version ("v1.0.0.03 6e7c2a1"), the version the lobby says a room's
