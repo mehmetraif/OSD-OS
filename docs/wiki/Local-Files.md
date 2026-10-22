@@ -177,7 +177,7 @@ During playback, the deck's menu (▲ or ▼) has **<** and **>** buttons for th
 
 ### Hide File Extensions
 
-With **Hide File Extensions** on, the tree shows `Terminator 2 (1991)` rather than `Terminator 2 (1991).mp4`. Folder names are left whole. The player's menu, the resume question and the main menu's row always leave the extension out.
+With **Hide File Extensions** on, as it is unless you turn it off, the tree shows `Terminator 2 (1991)` rather than `Terminator 2 (1991).mp4`. Folder names are left whole. The player's menu, the resume question and the main menu's row always leave the extension out.
 
 ## Options
 
@@ -313,7 +313,7 @@ Settings → TV / Movie → Local Files.
 | Auto Show Subtitles | Forced Only, On, Off | Forced Only | Which subtitles show as a video starts; Forced Only shows them for foreign dialogue only | `modules.com.osdos.local_files.auto_subtitles` |
 | Subtitle Language | Any, or a language | Any | The subtitle language mpv picks first; Any is no preference | `modules.com.osdos.local_files.sub_lang` |
 | Image Duration | 5, 10, 30, 60 Seconds | 5 Seconds | How long a still image is shown before moving on, alone or in a playlist | `modules.com.osdos.local_files.image_duration` |
-| Hide File Extensions | ON, OFF | OFF | Leaves `.mkv` and the like off the names in the tree | `modules.com.osdos.local_files.hide_extensions` |
+| Hide File Extensions | ON, OFF | ON | Leaves `.mkv` and the like off the names in the tree | `modules.com.osdos.local_files.hide_extensions` |
 | Scaling | Default, Letterbox, 14:9, Pan & Scan, Anamorphic | Default | How a 16:9 picture fills the 4:3 screen in this module; Default follows Settings → TV / Movie → Scaling | `modules.com.osdos.local_files.video_scaling` |
 
 ### How the values are saved
@@ -500,7 +500,7 @@ The default is then `/mnt/films/Movies`, and the Arcade module's `/mnt/films/Gam
 
 ## Tips
 
-- **Name files the way you want to read them.** The tree shows names as they are on disk, sorted by name: `S01E01 …` sorts episodes, `Kill Bill Vol 1 (2003)` reads better than `Kill.Bill.Vol.1.2003.720p.BluRay`. Turn on Hide File Extensions to drop `.mp4`.
+- **Name files the way you want to read them.** The tree shows names as they are on disk, sorted by name: `S01E01 …` sorts episodes, `Kill Bill Vol 1 (2003)` reads better than `Kill.Bill.Vol.1.2003.720p.BluRay`. Hide File Extensions, on unless you turn it off, drops the `.mp4`.
 - **Keep a test pattern** in the media folder: it is the quickest way to set up Scaling and Display Output on a CRT ([Display Output](https://github.com/mehmetraif/OSD-OS/wiki/Display-Output)).
 - **Use a playlist as a channel.** An m3u of cartoons and ads, with Shuffle Playback on Always and Loop Playback on, plays like a station that never ends; make it Play at Startup and the TV turns on into it.
 - **A network share** works when the system mounts it: mount it (fstab or autofs) and point Media Directory at it. Search walks it like any folder, which can take a while on a slow share.
