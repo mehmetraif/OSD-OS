@@ -13,11 +13,9 @@ import Components
 FocusScope {
     id: wifiRoot
 
-    signal navigateTo(string path, var params, var listState)
     signal goBack()
 
     property var navParams: ({})
-    property var navListState: ({})
 
     // Null guards: context properties resolve to null while the view Loader
     // tears down; guarded bindings stay teardown-safe (see Update.qml).

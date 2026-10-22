@@ -125,10 +125,8 @@ FocusScope {
         }
     }
 
-    // Under the cursor, or null.
-    function currentItem() { return selectedItem() }
-    // The same, as a property that follows the cursor: for a footer that says
-    // what select will do with it.
+    // Under the cursor, or null: selectedItem(). The same, as a property that
+    // follows the cursor: for a footer that says what select will do with it.
     property var currentEntry: null
 
     // --- Layout ---

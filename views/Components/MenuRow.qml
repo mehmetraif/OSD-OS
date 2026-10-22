@@ -139,7 +139,9 @@ Item {
         // the line's layout has settled, a turn of the event loop later: one
         // started in the middle of it, as a line that scrolls from the start
         // is, would keep a stale distance for good.
-        readonly property bool scrolls: (menuRow.selected || menuRow.alwaysScroll)
+        // Not while the line is hidden (a list under a keyboard or a page):
+        // a scroll going on there would redraw the window every frame.
+        readonly property bool scrolls: menuRow.visible && (menuRow.selected || menuRow.alwaysScroll)
                                         && valueText.implicitWidth > valueClip.width
         readonly property real scrollBy: valueClip.width - valueText.implicitWidth
         onScrollsChanged: Qt.callLater(updateScroll)

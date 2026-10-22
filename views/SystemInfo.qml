@@ -10,11 +10,9 @@ import Components
 FocusScope {
     id: infoRoot
 
-    signal navigateTo(string path, var params, var listState)
     signal goBack()
 
     property var navParams: ({})
-    property var navListState: ({})
 
     // Context properties read null while the Loader tears this view down.
     readonly property var rows: systemInfo ? systemInfo.rows : []
@@ -94,6 +92,9 @@ FocusScope {
         model: infoRoot.shownRows
         visible: !osk.visible
         focus: !osk.visible
+        // Its help line stays, Help Line or not (always): a line more only
+        // with the hint bar off.
+        height: root.sh * 0.4666667 + root.hintRoom //224
 
         delegate: MenuRow {
             width: list.width

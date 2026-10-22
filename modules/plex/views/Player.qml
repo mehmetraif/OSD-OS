@@ -6,7 +6,6 @@ FocusScope {
 
     property var navParams: ({})
 
-    signal navigateTo(string path, var params)
     signal goBack()
     // Emitted when autoplay advances in place, so Root can repoint the BACK
     // target to the now-playing episode's detail instead of the original one.
@@ -29,7 +28,6 @@ FocusScope {
     property int    audioIdx:    0
     property int    subtitleIdx: 0
     property bool   isTranscoding:    navParams.isTranscoding    || false
-    property var    imageSubtitleIds: navParams.imageSubtitleIds || []
     property string selectedAudioId:    navParams.selectedAudioId    || ""
     property string selectedSubtitleId: navParams.selectedSubtitleId || "0"
     // Extras pass false: "next episode" has no meaning for a trailer/clip, so a
@@ -100,11 +98,7 @@ FocusScope {
                 event.accepted = true
             } else if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter) {
                 overlayVisible = false
-                if (choiceIndex === 0) {
-                    beginPlayback(viewOffset)
-                } else {
-                    startFromBeginning()
-                }
+                doStartPlayback(choiceIndex === 0 ? viewOffset : 0)
                 event.accepted = true
             }
         } else if (waiting) {
@@ -157,11 +151,6 @@ FocusScope {
         var pos = lastKnownPositionMs || finalPositionMs
         var dur = lastKnownDurationMs || finalDurationMs
         plexBackend.update_timeline(ratingKey, partKey, "stopped", pos, dur)
-    }
-
-    function stopPlayback() {
-        reportStopped(mpvController.position, mpvController.duration)
-        mpvController.stop()
     }
 
     function initStreamIndices() {
@@ -223,11 +212,8 @@ FocusScope {
         return { urls: allSubUrls, track: subTrack }
     }
 
-    function beginPlayback(offsetMs) {
-        lastStartMs = offsetMs
-        doStartPlayback(offsetMs)
-    }
-
+    // The stream into mpv from offsetMs: the loading screen shows while mpv
+    // spins up (lastStartMs is its counter).
     function doStartPlayback(offsetMs) {
         lastStartMs = offsetMs
         if (isTranscoding) {
@@ -240,12 +226,6 @@ FocusScope {
             mpvController.loadAndPlay(streamUrl, offsetMs / 1000.0,
                                        audioIdx + 1, sub.track, sub.urls, [], false, -1, 0.0, plexToken)
         }
-    }
-
-    function startFromBeginning() {
-        // Transcode already starts at 0, so both paths simply play from the start.
-        // Use beginPlayback so the loading indicator shows while mpv spins up.
-        beginPlayback(0)
     }
 
     Connections {
@@ -268,11 +248,13 @@ FocusScope {
             }
             if (pendingRetryTranscode) {
                 pendingRetryTranscode = false
+                // The transcode's one audio track and burnt-in subtitle, from
+                // 0 (the full timeline): started as a transcode is, mpv seeking
+                // to where the direct play got to, else where it was started.
+                playerRoot.streamUrl = url
+                playerRoot.plexToken = plexToken
                 isTranscoding = true
-                // Fallback transcode was requested at offset 0 (full timeline), so seek
-                // mpv to the resume point — keeps everything before it seekable.
-                var sub = buildSubArgs()
-                mpvController.loadAndPlay(url, viewOffset / 1000.0, audioIdx + 1, sub.track, sub.urls, [], false, -1, 0.0, plexToken)
+                doStartPlayback(lastKnownPositionMs > 0 ? lastKnownPositionMs : lastStartMs)
                 return
             }
         }
@@ -316,18 +298,11 @@ FocusScope {
         subtitleStreams = detail.subtitleStreams || []
         isTranscoding   = detail.forceTranscode  || false
 
-        // Recompute the image-subtitle IDs for THIS episode (stream IDs are
-        // per-file), mirroring Item.qml's build before the initial hand-off.
-        var imageSubs = []
-        for (var k = 0; k < subtitleStreams.length; k++) {
-            if (subtitleStreams[k] && subtitleStreams[k].imageSubtitle)
-                imageSubs.push(subtitleStreams[k].id)
-        }
-        imageSubtitleIds = imageSubs
-
-        // Fresh-start state for the new episode.
+        // Fresh-start state for the new episode: the loading screen again
+        // until its first frame.
         viewOffset           = 0
         stoppedReported      = false
+        playbackStarted      = false
         lastKnownPositionMs  = 0
         lastKnownDurationMs  = 0
         sessionId            = newSessionId()
@@ -460,7 +435,7 @@ FocusScope {
         if (resumeSetting === "ask" && viewOffset > 0) {
             overlayVisible = true
         } else {
-            beginPlayback(viewOffset)
+            doStartPlayback(viewOffset)
         }
     }
 

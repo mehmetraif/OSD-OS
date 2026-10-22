@@ -172,6 +172,7 @@ FocusScope {
                 // A queue always starts its items from the beginning, so no resume
                 // prompt on the first one either — every later item starts at 0 too.
                 viewOffset:         0,
+                duration:           d.duration || 0,
                 title:              d.title,
                 audioStreams:       d.audioStreams,
                 subtitleStreams:    d.subtitleStreams,

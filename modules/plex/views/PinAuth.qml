@@ -6,7 +6,6 @@ FocusScope {
 
     property var navParams: ({})
 
-    signal navigateTo(string path, var params)
     signal replaceWith(string path, var params)
     signal goBack()
 
@@ -61,9 +60,14 @@ FocusScope {
         }
     }
 
+    // This screen's own request, the one it gives up as it goes.
+    property int pinRequest: 0
+
     Component.onCompleted: {
-        plexBackend.start_pin_auth()
+        pinRequest = plexBackend.start_pin_auth()
     }
+    // Backed out: nothing to poll plex.tv for any more.
+    Component.onDestruction: plexBackend.cancel_pin_auth(pinRequest)
 
     focus: true
     Keys.onPressed: function(event) {

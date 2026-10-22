@@ -60,9 +60,13 @@ FocusScope {
         return made
     }
     // The first row that isn't a heading, once there are rows: after the
-    // list has taken them.
+    // list has taken them. Rows made again with the cursor on one (the
+    // game played from here, its achievements read again) keep it there.
     onRowsChanged: Qt.callLater(firstRow)
     function firstRow() {
+        var at = rows[list.currentIndex]
+        if (at && at.type !== "section")
+            return
         list.currentIndex = rows.length > 1 ? 1 : 0
     }
 

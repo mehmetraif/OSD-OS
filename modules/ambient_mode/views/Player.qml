@@ -51,9 +51,12 @@ FocusScope {
         target: mpvController
         // Ambient clips loop, so in practice mpv only exits on a user quit; handle
         // the single playbackEnded signal regardless of reason — stop the companion
-        // audio and return to the menu.
+        // audio and return to the menu. Back with Transparent Background leaves
+        // the clip playing behind the menus: its audio plays on with it, and
+        // stops as the clip ends (main.cpp).
         function onPlaybackEnded(finalPositionMs, finalDurationMs, reason) {
-            ambientModeBackend.stopAudio()
+            if (!mpvController.background)
+                ambientModeBackend.stopAudio()
             goBack()
         }
     }

@@ -85,7 +85,8 @@ FocusScope {
 
     Keys.onUpPressed: {
         if (focusRow === 0) {
-            seasonList.currentIndex = seasons.length-1
+            if (seasons.length === 0) return   // nothing to move focus into
+            seasonList.currentIndex = seasons.length - 1
             focusRow = 1
         } else {
             if (seasons.length === 0) return

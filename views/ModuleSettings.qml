@@ -8,7 +8,7 @@ FocusScope {
     signal goBack()
 
     property var navParams: ({})
-    property var navListState: ({})
+    property var navListState: navParams.navListState || ({})
     property string moduleId: navParams.moduleId || ""
     property string moduleName: ""
     // A submenu row (manifest "type": "submenu", its own rows in "settings")
@@ -335,18 +335,17 @@ FocusScope {
             var updated = Object.assign({}, moduleSettingsRoot.dynamicOptions)
             updated[optionKey(own, key)] = items
             moduleSettingsRoot.dynamicOptions = updated
-            // Capability changes affect schema filtering — rebuild the model so
-            // settings with requires_capability appear/disappear immediately.
-            if (key === "_capabilities")
-                buildModel()
-            else if (rowsFollow(key, own))
+            // The rows made again, the cursor kept on its row, when the
+            // choices decide which are offered: the capabilities
+            // (requires_capability) or a row others follow (shown_with).
+            if (key === "_capabilities" || rowsFollow(key, own))
                 buildModel(currentKey())
             else
                 settingsList.forceLayout()
         }
         function onModuleAuthStateChanged(mid) {
             if (mid !== moduleSettingsRoot.moduleId && moduleSettingsRoot.alsoModules.indexOf(mid) < 0) return
-            buildModel()
+            buildModel(currentKey())
             requestOptions(true)
         }
     }
@@ -387,8 +386,10 @@ FocusScope {
             if (item.type === "toggle") {
                 moduleSettingsRoot.cycleValue(currentIndex, 1)
             } else if (item.type === "multiselect_submenu") {
+                var mid = moduleSettingsRoot.moduleOf(item)
                 moduleSettingsRoot.navigateTo("views/MultiSelectSettings.qml", {
-                    moduleId: moduleSettingsRoot.moduleOf(item),
+                    moduleId: mid,
+                    moduleName: mid === moduleSettingsRoot.moduleId ? moduleName : (moduleNames[mid] || mid),
                     settingKey: item.key,
                     settingLabel: item.label
                 }, { currentIndex: settingsList.currentIndex })

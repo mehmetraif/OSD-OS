@@ -51,23 +51,8 @@ FocusScope {
             var d = extrasRoot.launchingExtra
             if (!d) return
 
-            var subId = "0", subUrl = ""
-            if (d.subtitleStreams) {
-                for (var k = 0; k < d.subtitleStreams.length; k++) {
-                    if (d.subtitleStreams[k].id === d.selectedSubtitleId) {
-                        subId = d.subtitleStreams[k].id
-                        subUrl = d.subtitleStreams[k].subUrl || ""
-                        break
-                    }
-                }
-            }
-            var imageSubs = []
-            if (d.subtitleStreams) {
-                for (var m = 0; m < d.subtitleStreams.length; m++) {
-                    if (d.subtitleStreams[m].imageSubtitle) imageSubs.push(d.subtitleStreams[m].id)
-                }
-            }
-
+            // The server's selections, as CardPlay and QueuePlay pass them:
+            // the Player finds their tracks (initStreamIndices).
             extrasRoot.navigateTo("Player.qml", {
                 streamUrl: url,
                 plexToken: plexToken,
@@ -80,11 +65,9 @@ FocusScope {
                 audioStreams: d.audioStreams || [],
                 subtitleStreams: d.subtitleStreams || [],
                 selectedAudioId: d.selectedAudioId || "",
-                selectedSubtitleId: subId,
-                selectedSubtitleUrl: subUrl,
+                selectedSubtitleId: d.selectedSubtitleId || "0",
                 sessionId: extrasRoot.sessionId,
                 isTranscoding: d.forceTranscode || false,
-                imageSubtitleIds: imageSubs,
                 allowAutoplay: false
             }, { currentIndex: itemList.currentIndex })
         }
@@ -250,9 +233,9 @@ FocusScope {
 
     // Launch overlay — covers the list while Plex prepares the stream so a
     // slow server doesn't make the app look frozen after pressing SELECT.
-    Rectangle {
+    // The loading screen draws its own ground.
+    Item {
         anchors.fill: parent
-        color: root.surfaceColor
         visible: launchingExtra !== null
         z: 100
 

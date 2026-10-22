@@ -13,11 +13,9 @@ import Components
 FocusScope {
     id: remapRoot
 
-    signal navigateTo(string path, var params, var listState)
     signal goBack()
 
     property var navParams: ({})
-    property var navListState: ({})
 
     readonly property var actions: [
         { id: "up",     label: "Up" },
@@ -230,8 +228,11 @@ FocusScope {
         // gamepad produces: let its Back button cancel, and swallow the rest
         // so a pad press can't bind its synthesized key or leak into the list
         // underneath. Autorepeat is ignored: the press that opened this
-        // overlay may still be held when repeat kicks in.
+        // overlay may still be held when repeat kicks in. Ctrl+Q and the
+        // rest go on to Main.qml.
         Keys.onPressed: function(event) {
+            if (event.modifiers & Qt.ControlModifier)
+                return
             if (!event.isAutoRepeat
                     && (event.key === Qt.Key_Escape || event.key === Qt.Key_Backspace || event.key === Qt.Key_Back))
                 remapRoot.cancelCapture()

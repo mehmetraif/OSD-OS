@@ -8,7 +8,7 @@ FocusScope {
     signal goBack()
 
     property var navParams: ({})
-    property var navListState: ({})
+    property var navListState: navParams.navListState || ({})
     // The page: the first screen (""), or TV / Movie's ("tv").
     readonly property string group: navParams.group || ""
 
@@ -119,18 +119,8 @@ FocusScope {
         items.push(lookRow("osd_theme", "Theme", "None", appCore.themes(),
             "The whole look in one: the color scheme, the skin, the effects and the menu music\n[NONE] OSD/OS's own  Choosing one sets each row below back to the theme's  A new one is a folder in the data folder's themes, see the wiki"))
 
-        var colorOpts = ["Video 1","Late Night","Synthwave","Terminal","T-120","Amber","Kinescope","SMPTE ECR 1-1978"]
-        // Adding a new approach to add multiple custom themes at once
-        var cThemes = appCore.getCustomColorSchemes()
-        if (Object.keys(cThemes).length > 0) {
-            for (var cTheme in cThemes) {
-                if (!colorOpts.includes(cTheme) && Object.keys(cThemes[cTheme]).length === 5) colorOpts.push(cTheme)
-            }
-        }
-        // Still support the single-theme approach
-        var custom = appCore.getCustomColorScheme()
-        if (!colorOpts.includes("Custom") && Object.keys(custom).length === 5) colorOpts.push("Custom")
-        items.push(partRow("color_scheme", "Color Scheme", colorOpts, false,
+        // Main.qml's schemes, the custom ones among them (root.allSchemes).
+        items.push(partRow("color_scheme", "Color Scheme", Object.keys(root.allSchemes), false,
             "The two colors everything is drawn in\n[THEME] The theme's, else Video 1  Please see the wiki for details on adding a custom one"))
 
         // Skin — how the window is dressed, apart from the colours: the
@@ -167,7 +157,7 @@ FocusScope {
                 "A picture tube's or a tape's look over the menus, on the GPU\n[THEME] The theme's  [SCANLINES] Dark lines between the picture's  [CRT] A tube's curve, scanlines and glow  [VHS] A tape's color bleed and noise"))
         }
         items.push(partRow("transition", "Transition", root.transitionPresets.filter(root.transitionUsable), true,
-            "How one window gives way to the next\n[THEME] The theme's  [FADE] The old fades away  [CUBE] The window turns over like a cube, the next on a face at random  [CUBE LEFT / RIGHT / UP / DOWN] Always turning that way  [RIPPLE] The old ripples out as the new ripples in  [WAVE] A wave runs out from a corner and dies away, the new one behind it  [DROP] A drop falls in a corner, the new one inside its spreading ring"))
+            "How one window gives way to the next\n[THEME] The theme's  [FADE] The old fades away  [CUBE] The window turns over like a cube, the next on a face at random  [RIPPLE] The old ripples out as the new ripples in  [WAVE] A wave runs out from a corner and dies away, the new one behind it  [DROP] A drop falls in a corner, the new one inside its spreading ring"))
 
         // Menu Music — a tune under the menus (MenuMusic), never while a video
         // plays: the theme's, or a file of the user's own, picked on the file
@@ -272,18 +262,18 @@ FocusScope {
 
         // Startup From — where that favourite begins. Either way it begins
         // without asking: a resume prompt is no question to put to a player
-        // switched on to play. Offered while there is one.
-        if (favName !== "") {
-            items.push({
-                type: "list_single",
-                key: "startup_from",
-                label: "Startup From",
-                options: ["Resume", "Beginning"],
-                value: appSettings["startup_from"] === "Beginning" ? "Beginning" : "Resume",
-                description: "Where the favourite played at startup begins, without asking\n[RESUME] Where it was stopped  [BEGINNING] From the start",
-                moduleId: ""
-            })
-        }
+        // switched on to play. Offered while there is one (shownWith): the
+        // row goes as Play at Startup is set to None.
+        items.push({
+            type: "list_single",
+            key: "startup_from",
+            label: "Startup From",
+            options: ["Resume", "Beginning"],
+            value: appSettings["startup_from"] === "Beginning" ? "Beginning" : "Resume",
+            description: "Where the favourite played at startup begins, without asking\n[RESUME] Where it was stopped  [BEGINNING] From the start",
+            shownWith: { key: "startup_favorite", not: "None" },
+            moduleId: ""
+        })
 
         // BOOT SCREEN COLORS — the boot screen in the colours in force, as
         // the loading screen's are (TV / Movie). Read in Main.qml

@@ -44,6 +44,9 @@ FocusScope {
     visible: false
 
     Keys.onPressed: function(event) {
+        // Ctrl+Q and the rest go on to Main.qml.
+        if (event.modifiers & Qt.ControlModifier)
+            return
         event.accepted = true
         switch (event.key) {
         case Qt.Key_Return:

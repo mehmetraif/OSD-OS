@@ -10,7 +10,8 @@ FocusScope {
     signal navigateTo(string path, var params, var listState)
     signal goBack()
 
-    readonly property var currentScript: scriptList.model[scriptList.currentIndex] || null
+    // None until the list has its model (Component.onCompleted).
+    readonly property var currentScript: scriptList.model ? (scriptList.model[scriptList.currentIndex] || null) : null
 
     property bool confirmVisible: false
     property var  pendingScript: null
@@ -114,10 +115,8 @@ FocusScope {
         anchors.topMargin: root.sh * 0.25 //120
         anchors.leftMargin: root.sw * 0.115625 //74
         width: root.sw * 0.76875 //492
-        // A row more with the hint bar off (Main.qml's hintRoom); the detail
-        // bar under it stays, Help Line or not.
-        height: root.sh * 0.4666667 + root.hintRoom //224
-        keyNavigationEnabled: true
+        // A row more for each bar that is off (Main.qml's helpRoom, hintRoom).
+        height: root.sh * 0.4666667 + root.helpRoom + root.hintRoom //224
         clip: true
         focus: true
 
@@ -201,42 +200,22 @@ FocusScope {
         }
     }
 
-    // --- DETAIL BAR --- the selected script's file and sidecar flags, so what was
-    // parsed out of the .txt is visible without leaving the app.
-    Rectangle {
-        id: detailBackground
+    // The help line: the selected script's file and sidecar flags, so what
+    // was parsed out of the .txt is visible without leaving the app.
+    HelpLine {
         visible: !!itemsRoot.currentScript
-        // Outlined rather than tinted: the OSD keeps to two colours.
-        color: "transparent"
-        border.width: root.px
-        border.color: root.primaryColor
+        text: {
+            var s = itemsRoot.currentScript
+            if (!s) return ""
+            var flags = []
+            if (s.favorite) flags.push("FAVORITE")
+            if (s.confirm)  flags.push("CONFIRM")
+            return [s.basename].concat(flags).join("\n")
+        }
         anchors.bottom: parent.bottom
         anchors.left: parent.left
         anchors.bottomMargin: root.helpLineMargin
         anchors.leftMargin: root.sw * 0.125 //80
-        width: root.sw * 0.75 //480
-        height: root.sh * 0.0583333 //28
-        clip: true
-
-        Text {
-            text: {
-                var s = itemsRoot.currentScript
-                if (!s) return ""
-                var flags = []
-                if (s.favorite) flags.push("FAVORITE")
-                if (s.confirm)  flags.push("CONFIRM")
-                return s.basename + (flags.length > 0 ? "  •  " + flags.join("  •  ") : "")
-            }
-            color: root.primaryColor
-            font.family: root.globalFont
-            font.capitalization: Font.AllUppercase
-            font.pixelSize: root.sh * 0.0291667 //14
-            elide: Text.ElideMiddle
-            anchors.fill: parent
-            anchors.margins: root.sw * 0.0125 //6
-            horizontalAlignment: Text.AlignHCenter
-            verticalAlignment: Text.AlignVCenter
-        }
     }
 
     Component.onCompleted: {
@@ -279,11 +258,11 @@ FocusScope {
         }
     }
 
-    // --- RUN CONFIRMATION OVERLAY --- (sidecar "confirm = yes")
-    Rectangle {
+    // --- RUN CONFIRMATION OVERLAY --- (sidecar "confirm = yes"). The window
+    // draws its own ground (PromptScreen).
+    Item {
         id: confirmOverlay
         anchors.fill: parent
-        color: root.surfaceColor
         visible: itemsRoot.confirmVisible
         focus: itemsRoot.confirmVisible
         // Above the list AND the footer, which is a later sibling and would
@@ -324,11 +303,14 @@ FocusScope {
                 confirmOverlay.dismiss()
             }
         }
+        // A window over the list: every key stops here (► would otherwise
+        // mark the script a favourite under it), but for a chord like Ctrl+Q.
         Keys.onPressed: function(event) {
-            if (event.key === Qt.Key_Escape || event.key === Qt.Key_Backspace || event.key === Qt.Key_Back) {
+            if (event.modifiers & Qt.ControlModifier)
+                return
+            if (event.key === Qt.Key_Escape || event.key === Qt.Key_Backspace || event.key === Qt.Key_Back)
                 confirmOverlay.dismiss()
-                event.accepted = true
-            }
+            event.accepted = true
         }
 
         PromptScreen {

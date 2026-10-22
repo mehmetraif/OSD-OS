@@ -23,11 +23,9 @@ import Components
 FocusScope {
     id: pageRoot
 
-    signal navigateTo(string path, var params, var listState)
     signal goBack()
 
     property var navParams: ({})
-    property var navListState: ({})
 
     readonly property string key: navParams && navParams.key ? navParams.key : ""
     readonly property bool pad: key.indexOf("pad-") === 0
@@ -109,7 +107,8 @@ FocusScope {
         // What came of the press (InputManager::bindControllerInput()): a
         // keyboard's or a remote's Back ends the wait ("cancel"); its Select /
         // OK and the keys the menus use keep what they do ("already"), and so
-        // do a pad's only Select / OK and Back ("only").
+        // do a pad's only Select / OK and Back ("only"). One config.json
+        // couldn't take is as it was ("unsaved").
         function onControllerInputCaptured(key, input, label) {
             if (pageRoot.testing) {
                 if (key === pageRoot.key || pageRoot.sticks[key] !== undefined)
@@ -132,6 +131,8 @@ FocusScope {
                 pageRoot.notice = label + " is its only " + result.label + " button"
             else if (result.outcome === "other")
                 pageRoot.notice = label + " is not one of its extra keys"
+            else if (result.outcome === "unsaved")
+                pageRoot.notice = "Not saved: the settings could not be written"
         }
         function onJammaPinChanged(player, address, pin, pressed, input) {
             if (!pageRoot.testing || !pageRoot.jamma)
@@ -493,8 +494,11 @@ FocusScope {
         // This controller's presses never come here: InputManager reports
         // them through controllerInputCaptured instead. Another's do: its
         // Back cancels, the rest wait. Autorepeat is ignored: the press that
-        // opened this may still be held when repeat kicks in.
+        // opened this may still be held when repeat kicks in. Ctrl+Q and
+        // the rest go on to Main.qml.
         Keys.onPressed: function(event) {
+            if (event.modifiers & Qt.ControlModifier)
+                return
             if (!event.isAutoRepeat
                     && (event.key === Qt.Key_Escape || event.key === Qt.Key_Backspace || event.key === Qt.Key_Back))
                 pageRoot.cancelCapture()
@@ -529,8 +533,11 @@ FocusScope {
         enabled: visible
 
         // As the wait for a press: this controller's presses come through
-        // controllerInputCaptured, another's Back ends it.
+        // controllerInputCaptured, another's Back ends it. Ctrl+Q and the
+        // rest go on to Main.qml.
         Keys.onPressed: function(event) {
+            if (event.modifiers & Qt.ControlModifier)
+                return
             if (event.isAutoRepeat) {
                 event.accepted = true
                 return

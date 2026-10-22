@@ -209,28 +209,13 @@ FocusScope {
         anchors.leftMargin: root.sw * 0.125 //80
     }
 
-    ListView {
+    // The lines in the place every view's list has, ▲ / ▼ while some are
+    // hidden, the cursor round the ends (MenuList's).
+    MenuList {
         id: list
         model: menuRoot.rows
-        anchors.top: parent.top
-        anchors.left: parent.left
-        anchors.topMargin: root.sh * 0.25 //120
-        anchors.leftMargin: root.sw * 0.115625 //74
-        width: root.sw * 0.76875 //492
-        // One line short of the space, so the ▼ fits above the help line; a
-        // line more for each bar that is off (Main.qml's helpRoom, hintRoom).
-        height: root.sh * 0.4666667 + root.helpRoom + root.hintRoom //224
-        clip: true
         focus: true
 
-        Keys.onUpPressed: {
-            currentIndex = currentIndex > 0 ? currentIndex - 1 : count - 1
-            positionViewAtIndex(currentIndex, ListView.Contain)
-        }
-        Keys.onDownPressed: {
-            currentIndex = currentIndex < count - 1 ? currentIndex + 1 : 0
-            positionViewAtIndex(currentIndex, ListView.Contain)
-        }
         Keys.onLeftPressed: {
             var row = menuRoot.rows[currentIndex]
             if (row && row.type !== "action")
@@ -258,12 +243,6 @@ FocusScope {
             value: modelData.type === "action" ? "" : menuRoot.displayValue(modelData)
             selected: list.currentIndex === index
         }
-    }
-
-    // ▲ / ▼ while lines are hidden above or below.
-    ScrollMarks {
-        anchors.fill: list
-        list: list
     }
 
     HelpLine {

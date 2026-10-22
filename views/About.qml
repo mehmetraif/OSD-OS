@@ -21,7 +21,7 @@ FocusScope {
     signal goBack()
 
     property var navParams: ({})
-    property var navListState: ({})
+    property var navListState: navParams.navListState || ({})
 
     // Who makes OSD/OS, and whose work it carries on.
     readonly property string developer: "mehmet raif tasdemir (darkBLACK)"

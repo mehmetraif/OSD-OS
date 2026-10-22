@@ -274,7 +274,8 @@ FocusScope {
 
     Component.onCompleted: {
         if (videoUrl === "") {
-            goBack()
+            // A turn later: the router isn't listening yet.
+            Qt.callLater(playerRoot.goBack)
             return
         }
         readSettings()

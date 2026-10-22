@@ -140,11 +140,6 @@ FocusScope {
         }
     }
 
-    Rectangle {
-        anchors.fill: parent
-        color: root.surfaceColor
-    }
-
     Text {
         anchors.centerIn: parent
         visible: !weatherBackend.hasData

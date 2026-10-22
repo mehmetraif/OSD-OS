@@ -7,7 +7,6 @@ FocusScope {
     property var navParams: ({})
 
     signal navigateTo(string path, var params, var listState)
-    signal replaceWith(string path, var params)
     signal goBack()
 
     property string serverUrl: navParams.serverUrl || ""
@@ -17,21 +16,19 @@ FocusScope {
     property bool failed: false
     property string errorMsg: ""
     property int pollCount: 0
-    property bool polling: false
 
-    // When approved, authenticate and transition to libraries
+    // When approved, authenticate: Root.qml routes to the libraries as the
+    // auth state changes.
     Connections {
         target: jellyfinBackend
 
         function onQuickConnectCodeReady(c, s) {
             qcRoot.code = c
             qcRoot.secret = s
-            qcRoot.polling = true
             pollTimer.restart()
         }
 
         function onQuickConnectApproved() {
-            qcRoot.polling = false
             pollTimer.stop()
             qcRoot.approved = true
             // Exchange the quick connect secret for an access token
@@ -39,18 +36,9 @@ FocusScope {
         }
 
         function onQuickConnectFailed(msg) {
-            qcRoot.polling = false
             pollTimer.stop()
             qcRoot.failed = true
             qcRoot.errorMsg = msg
-        }
-
-        function onAuthStateChanged() {
-            if (jellyfinBackend.get_auth_state() === "authed") {
-                // Save server_url then transition to libraries
-                appCore.save_setting(moduleRoot.moduleId, "server_url", qcRoot.serverUrl)
-                qcRoot.replaceWith("Libraries.qml", {})
-            }
         }
     }
 
@@ -62,7 +50,6 @@ FocusScope {
         }
         // If code/secret already provided from Auth.qml, start polling
         if (qcRoot.code !== "" && qcRoot.secret !== "") {
-            qcRoot.polling = true
             pollTimer.restart()
             return
         }
@@ -91,7 +78,6 @@ FocusScope {
                 jellyfinBackend.quick_connect_poll(qcRoot.secret)
                 // Give up after 60 polls (2 minutes)
                 if (pollCount >= 60) {
-                    polling = false
                     stop()
                     failed = true
                     errorMsg = "CODE EXPIRED"
@@ -163,7 +149,7 @@ FocusScope {
                 font.family: root.globalFont
                 font.pixelSize: root.sh * 0.0333333 //16
                 SequentialAnimation on opacity {
-                    running: waiting
+                    running: !failed && !approved
                     loops: Animation.Infinite
                     NumberAnimation { to: 0.2; duration: 600 }
                     NumberAnimation { to: 1.0; duration: 600 }
@@ -171,10 +157,10 @@ FocusScope {
             }
         }
 
-        // Error state
+        // Error state: a line of the column, across its middle.
         Text {
             visible: failed
-            anchors.centerIn: parent
+            anchors.horizontalCenter: parent.horizontalCenter
             text: qcRoot.errorMsg
             color: root.accentColor
             font.family: root.globalFont

@@ -16,10 +16,9 @@ FocusScope {
 
     property var navParams: ({})
 
-    signal navigateTo(string path, var params)
-    // Success leaves via replaceWith, not navigateTo, so this view drops off the
-    // nav stack once the PIN is accepted — backing out of the library should
-    // return to whatever came before the prompt, never re-ask for the PIN.
+    // Success leaves via replaceWith, so this view drops off the nav stack
+    // once the PIN is accepted — backing out of the library should return to
+    // whatever came before the prompt, never re-ask for the PIN.
     signal replaceWith(string path, var params)
     signal goBack()
 

@@ -131,6 +131,8 @@ FocusScope {
         }
 
         function onItemLoaded(d) {
+            // The item left for this one, answering late: not this screen's.
+            if (d.ratingKey !== detailRoot.item.ratingKey) return
             detailRoot.detail = d
             // The list row may not have carried grandparentRatingKey; the detail does.
             detailRoot.showYearRequest()
@@ -158,15 +160,6 @@ FocusScope {
                 ? d.audioStreams[detailRoot.audioIdx].id : ""
             var subId = d.subtitleStreams && d.subtitleStreams[detailRoot.subtitleIdx]
                 ? d.subtitleStreams[detailRoot.subtitleIdx].id : "0"
-            var subUrl = (d.subtitleStreams && d.subtitleStreams[detailRoot.subtitleIdx])
-                ? (d.subtitleStreams[detailRoot.subtitleIdx].subUrl || "") : ""
-
-            var imageSubs = []
-            if (d.subtitleStreams) {
-                for (var k = 0; k < d.subtitleStreams.length; k++) {
-                    if (d.subtitleStreams[k].imageSubtitle) imageSubs.push(d.subtitleStreams[k].id)
-                }
-            }
 
             detailRoot.navigateTo("Player.qml", {
                 streamUrl: url,
@@ -181,10 +174,8 @@ FocusScope {
                 subtitleStreams: d.subtitleStreams || [],
                 selectedAudioId: audioId,
                 selectedSubtitleId: subId,
-                selectedSubtitleUrl: subUrl,
                 sessionId: detailRoot.sessionId,
-                isTranscoding: d.forceTranscode || false,
-                imageSubtitleIds: imageSubs
+                isTranscoding: d.forceTranscode || false
             }, {})
         }
 
@@ -615,9 +606,9 @@ FocusScope {
 
     // Launch overlay — covers the detail screen while Plex prepares the stream
     // so a slow server doesn't make the app look frozen after pressing PLAY.
-    Rectangle {
+    // The loading screen draws its own ground.
+    Item {
         anchors.fill: parent
-        color: root.surfaceColor
         visible: isLaunching
         z: 100
 

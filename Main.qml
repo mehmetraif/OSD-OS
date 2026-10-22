@@ -627,23 +627,19 @@ Window {
     Component.onCompleted: {
         var cfg = appCore.get_settings()
 
-        var cSchemes = appCore.getCustomColorSchemes()
-        if (Object.keys(cSchemes).length > 0) {
-            var s = Object.assign({}, schemes, root.allSchemes)
-            for (var cScheme in cSchemes) {
-                if (Object.keys(cSchemes[cScheme]).length === 5) {
-                    s[cScheme] = cSchemes[cScheme]
-                }
-            }
-            root.allSchemes = s
+        // The custom schemes after the built-in ones, "Custom" (the single
+        // one) last, over one of that name among them: those whole, with all
+        // five colours.
+        var cSchemes = Object.assign({}, appCore.getCustomColorSchemes())
+        var single = appCore.getCustomColorScheme()
+        if (Object.keys(single).length === 5)
+            cSchemes["Custom"] = single
+        var s = Object.assign({}, schemes)
+        for (var cScheme in cSchemes) {
+            if (Object.keys(cSchemes[cScheme]).length === 5)
+                s[cScheme] = cSchemes[cScheme]
         }
-
-        var custom = appCore.getCustomColorScheme()
-        if (Object.keys(custom).length === 5) {
-            var s = Object.assign({}, schemes, root.allSchemes)
-            s["Custom"] = custom
-            root.allSchemes = s
-        }
+        root.allSchemes = s
 
         var app = cfg.app || {}
         if (app.color_scheme === "Custom" && !root.allSchemes["Custom"]) {
@@ -1133,8 +1129,12 @@ Window {
                         if (root.appNavStack.length === 0) return
                         var prev = root.appNavStack.pop()
                         root.appCurrentParams = prev.params
-                        root.changeWindow(moduleLoader, prev.source,
-                                          { "navParams": prev.params, "navListState": prev.listState || {} })
+                        // Where its list was, in its params as the routers
+                        // hand it back: a module's Root reached here (an NFC
+                        // card's hand-off) has no property of its own for it.
+                        var restored = Object.assign({}, prev.params)
+                        restored.navListState = prev.listState || {}
+                        root.changeWindow(moduleLoader, prev.source, { "navParams": restored })
                     }
 
                 }

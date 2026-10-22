@@ -17,7 +17,6 @@ FocusScope {
     property string basename: navParams.basename || ""
     property string scriptName: navParams.name || ""
 
-    signal navigateTo(string path, var params, var listState)
     signal goBack()
 
     property string finishReason: ""
@@ -137,6 +136,9 @@ FocusScope {
         font.family: root.globalFont
         font.capitalization: Font.AllUppercase
         font.pixelSize: root.sh * 0.0333333 //16
+        // A long error cut short at the window's edge, not run off the screen.
+        width: root.sw * 0.75 //480
+        elide: Text.ElideRight
     }
 
     // Warn when the sidecar asked for takeover but we ran in console mode instead.
@@ -196,7 +198,7 @@ FocusScope {
         }
     }
 
-    Text {
+    HintBar {
         // No back/stop hint while a real takeover run is busy: there is nothing
         // the key would do. Downgraded runs kept the screen, so STOP still applies.
         text: {
@@ -210,23 +212,21 @@ FocusScope {
                 parts.push(root.hints.navigate + ":SCROLL")
             return parts.join(" ")
         }
-        color: root.tertiaryColor
-        font.family: root.globalFont
         anchors.bottom: parent.bottom
         anchors.left: parent.left
         anchors.bottomMargin: root.sh * 0.1041667 //50
         anchors.leftMargin: root.sw * 0.125 //80
-        font.pixelSize: root.sh * 0.0333333 //16
     }
 
     // The hand-off screen. Opaque black over everything above, because on a
     // headless Pi this is the frame that FREEZES on the display for as long as
-    // the script runs (see Component.onCompleted). It hides again the moment 
-    // the run ends
+    // the script runs (see Component.onCompleted). It hides again the moment
+    // the run ends; a downgraded run never handed the display over, so it
+    // shows its output and its STOP key instead.
     Rectangle {
         anchors.fill: parent
         z: 200
-        visible: !takeoverRoot.done
+        visible: !takeoverRoot.done && !takeoverRoot.downgraded
         color: "black"
 
         Column {

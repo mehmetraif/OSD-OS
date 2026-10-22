@@ -80,7 +80,6 @@ FocusScope {
                 boxsetRoot.replaceCurrent("Items.qml", {
                     mode: "static",
                     items: boxsetRoot.sortCollectionItems(cats[0].items),
-                    title: cats[0].label,
                     libraryName: boxsetRoot.item.title || boxsetRoot.libraryName
                 })
                 return
@@ -122,7 +121,6 @@ FocusScope {
         boxsetRoot.navigateTo("Items.qml", {
             mode: "static",
             items: boxsetRoot.sortCollectionItems(cat.items),
-            title: cat.label,
             libraryName: boxsetRoot.item.title || boxsetRoot.libraryName
         }, { currentIndex: categoryList.currentIndex })
     }
@@ -157,6 +155,9 @@ FocusScope {
         color: root.tertiaryColor
         font.family: root.globalFont
         anchors.centerIn: parent
+        // As wide as the list: a server's long error wraps instead of
+        // running off the screen.
+        width: root.sw * 0.76875 //492
         wrapMode: Text.WordWrap
         horizontalAlignment: Text.AlignHCenter
         font.pixelSize: root.sh * 0.05 //24

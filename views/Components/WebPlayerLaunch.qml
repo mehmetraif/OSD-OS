@@ -33,7 +33,6 @@ FocusScope {
     // A word on signing in, under how to come back (YouTube's on its account).
     property string signInNote: ""
 
-    signal navigateTo(string path, var params, var listState)
     signal goBack()
 
     focus: true

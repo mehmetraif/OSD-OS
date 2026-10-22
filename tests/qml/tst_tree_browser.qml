@@ -105,10 +105,10 @@ Rectangle {
             verify(browser.openFolder())
             compare(browser.trailState()[1].path, "/projects")
             browser.move(1)
-            compare(browser.currentItem().path, "/projects/tests")
+            compare(browser.selectedItem().path, "/projects/tests")
             verify(browser.closeFolder())
             verify(browser.openFolder())
-            compare(browser.currentItem().path, "/projects/tests")
+            compare(browser.selectedItem().path, "/projects/tests")
         }
         function test_virtualRowsAndHiddenActions() {
             var list = [{ name: "USE THIS FOLDER", path: "/action", branchHidden: true }]
@@ -123,14 +123,14 @@ Rectangle {
         function test_closedFolderShrinksBeforeReopening() {
             verify(browser.openFolder())
             browser.move(6)
-            compare(browser.currentItem().path, "/projects/LICENSE")
+            compare(browser.selectedItem().path, "/projects/LICENSE")
             verify(browser.closeFolder())
             // Another app removed the later entries while the folder was closed.
             root.entries["/projects"] = root.entries["/projects"].slice(0, 2)
             browser.refresh("/projects")
             compare(block("/projects").offset, 1)
             verify(browser.openFolder())
-            compare(browser.currentItem().path, "/projects/tests")
+            compare(browser.selectedItem().path, "/projects/tests")
         }
         function test_hintBarRoom() {
             // With the hint bar off, the area reaches the content box's foot:

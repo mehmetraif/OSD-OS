@@ -14,6 +14,8 @@ FocusScope {
     property var libraries: []
     property string serverName: ""
     property string userName: ""
+    // Why there is no list: the server couldn't be read.
+    property string errorMessage: ""
 
     Connections {
         target: embyBackend
@@ -21,6 +23,7 @@ FocusScope {
         function onLibrariesLoaded(items) {
             // The backend prepends Continue Watching / Up Next (only when they
             // have content), so render the list as given.
+            browseRoot.errorMessage = ""
             browseRoot.libraries = items
             if (items.length > 0) {
                 var restore = (navListState.currentIndex !== undefined) ? navListState.currentIndex : 0
@@ -31,6 +34,8 @@ FocusScope {
 
         function onErrorOccurred(msg) {
             console.log("[Emby Library] Error: " + msg)
+            if (browseRoot.libraries.length === 0)
+                browseRoot.errorMessage = msg
         }
     }
 
@@ -57,13 +62,16 @@ FocusScope {
         anchors.leftMargin: root.sw * 0.125 //80
     }
 
-    // Loading Indicator
+    // Loading Indicator, or why there is no list.
     Text {
         visible: libraries.length === 0
-        text: "LOADING..."
+        text: browseRoot.errorMessage !== "" ? browseRoot.errorMessage : "LOADING..."
         color: root.tertiaryColor
         font.family: root.globalFont
         anchors.centerIn: parent
+        width: root.sw * 0.76875 //492
+        wrapMode: Text.WordWrap
+        horizontalAlignment: Text.AlignHCenter
         font.pixelSize: root.sh * 0.05 //24
     }
 
@@ -100,7 +108,6 @@ FocusScope {
             if (lib.key === "continue_watching") {
                 browseRoot.navigateTo("Items.qml", {
                     mode: "resume",
-                    title: "CONTINUE WATCHING",
                     libraryName: "CONTINUE WATCHING"
                 }, { currentIndex: libraryList.currentIndex })
                 return
@@ -109,7 +116,6 @@ FocusScope {
             if (lib.key === "up_next") {
                 browseRoot.navigateTo("Items.qml", {
                     mode: "up_next",
-                    title: "NEXT UP",
                     libraryName: "NEXT UP"
                 }, { currentIndex: libraryList.currentIndex })
                 return
@@ -121,7 +127,6 @@ FocusScope {
             if (collectionType === "boxsets") {
                 browseRoot.navigateTo("Items.qml", {
                     parentId: lib.itemId,
-                    title: lib.title,
                     libraryName: lib.title,
                     mode: "boxset"
                 }, { currentIndex: libraryList.currentIndex })
@@ -133,7 +138,6 @@ FocusScope {
             if (collectionType === "homevideos") {
                 browseRoot.navigateTo("Items.qml", {
                     parentId: lib.itemId,
-                    title: lib.title,
                     libraryName: lib.title,
                     mode: "folder"
                 }, { currentIndex: libraryList.currentIndex })
@@ -146,7 +150,6 @@ FocusScope {
             else if (collectionType === "tvshows") includeTypes = "Series"
             browseRoot.navigateTo("Items.qml", {
                 parentId: lib.itemId,
-                title: lib.title,
                 libraryName: lib.title,
                 includeTypes: includeTypes
             }, { currentIndex: libraryList.currentIndex })

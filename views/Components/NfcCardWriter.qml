@@ -115,32 +115,38 @@ FocusScope {
         }
     }
 
+    // Torn down while open (the host's view left): a card tapped is for
+    // the reader's own screen again, not a writer that is gone.
+    Component.onDestruction: {
+        if (visible && typeof nfcReaderBackend !== "undefined")
+            nfcReaderBackend.setCardCapture(false)
+    }
+
+    // A window over the host's view: every key stops here (the host's
+    // list must not move under it), but for a chord like Ctrl+Q.
     Keys.onPressed: function(event) {
+        if (event.modifiers & Qt.ControlModifier)
+            return
+        event.accepted = true
+        var enter = event.key === Qt.Key_Return || event.key === Qt.Key_Enter
         if (event.key === Qt.Key_Escape || event.key === Qt.Key_Backspace || event.key === Qt.Key_Back) {
             close()
-            event.accepted = true
             return
         }
         if (phase === "done" || phase === "failed") {
-            if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter) {
+            if (enter)
                 close()
-                event.accepted = true
-            }
             return
         }
         if (phase === "armed") return   // nothing to choose until a card arrives
 
         var list = choices()
-        if (event.key === Qt.Key_Up) {
+        if (event.key === Qt.Key_Up)
             choiceIndex = (choiceIndex - 1 + list.length) % list.length
-            event.accepted = true
-        } else if (event.key === Qt.Key_Down) {
+        else if (event.key === Qt.Key_Down)
             choiceIndex = (choiceIndex + 1) % list.length
-            event.accepted = true
-        } else if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter) {
+        else if (enter)
             activate()
-            event.accepted = true
-        }
     }
 
     Item {

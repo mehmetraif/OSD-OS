@@ -22,12 +22,15 @@ FocusScope {
     property var switchableServers: []
     property bool canSwitchServer: switchableServers.length > 1
     property string errorMsg: ""
+    // The server has answered: none listed is none, not LOADING.
+    property bool loaded: false
 
     Connections {
         target: plexBackend
 
         function onLibrariesLoaded(items) {
             browseRoot.errorMsg = ""
+            browseRoot.loaded = true
             browseRoot.libraries = items
             if (items.length > 0) {
                 var restore = (navListState.currentIndex !== undefined) ? navListState.currentIndex : 0
@@ -87,7 +90,7 @@ FocusScope {
     // Loading Indicator
     Text {
         visible: libraries.length === 0 && browseRoot.errorMsg === ""
-        text: "LOADING..."
+        text: browseRoot.loaded ? "NO LIBRARIES" : "LOADING..."
         color: root.tertiaryColor
         font.family: root.globalFont
         anchors.centerIn: parent

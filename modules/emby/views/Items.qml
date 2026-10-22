@@ -21,9 +21,9 @@ FocusScope {
     property bool isLoading: false
     property string errorMessage: ""
 
-    // A–Z letter-jump panel — only for the alphabetized full-library list
-    // ("browse"); resume/up_next are not alpha-sorted.
-    property bool showLetterNav: mode === "browse" || mode === "folder"
+    // A–Z letter-jump panel — only for the alphabetized lists ("browse", a
+    // folder's, a box set's); resume/up_next are not alpha-sorted.
+    property bool showLetterNav: mode === "browse" || mode === "folder" || mode === "boxset"
     property bool letterNavActive: false
     property var letterIndex: []
 
@@ -106,6 +106,8 @@ FocusScope {
             if (itemListRoot.mode !== "boxset") return
             itemListRoot.isLoading = false
             itemListRoot.items = loadedItems
+            if (itemListRoot.showLetterNav)
+                itemListRoot.letterIndex = itemListRoot.buildLetterIndex(loadedItems)
             if (loadedItems.length > 0) {
                 var restore = (navListState.currentIndex !== undefined) ? navListState.currentIndex : 0
                 itemList.currentIndex = Math.min(restore, loadedItems.length - 1)
@@ -215,6 +217,9 @@ FocusScope {
         color: root.tertiaryColor
         font.family: root.globalFont
         anchors.centerIn: parent
+        // As wide as the list: a server's long error wraps instead of
+        // running off the screen.
+        width: root.sw * 0.76875 //492
         wrapMode: Text.WordWrap
         horizontalAlignment: Text.AlignHCenter
         font.pixelSize: root.sh * 0.05 //24

@@ -54,17 +54,6 @@ FocusScope {
         return id ? parseInt(id) : -1
     }
 
-    function selectedAudioIndex() {
-        if (!detail || !detail.audioStreams || detail.audioStreams.length === 0) return -1
-        return audioIdx
-    }
-
-    function selectedSubtitleIndex() {
-        if (subtitleIdx === 0) return -1
-        if (!detail || !detail.subtitleStreams || detail.subtitleStreams.length === 0) return -1
-        return subtitleIdx - 1
-    }
-
     // Persisted selection so onItemLoaded doesn't wipe it
     property bool hasRestoredState: false
     // Set true when the user manually changes a track via arrow keys, so the
@@ -81,6 +70,8 @@ FocusScope {
         target: jellyfinBackend
 
         function onItemLoaded(d) {
+            // The item left for this one, answering late: not this screen's.
+            if (d.itemId !== detailRoot.item.itemId) return
             detailRoot.detail = d
             // Fetch server-side preferences on first load
             if (!serverPrefsLoaded) {
@@ -91,6 +82,11 @@ FocusScope {
             if (!hasRestoredState) {
                 detailRoot.audioIdx = 0
                 detailRoot.subtitleIdx = 0
+            } else {
+                // Restored from the Player, which may have autoplayed into an
+                // episode with fewer tracks: within this item's.
+                detailRoot.audioIdx = Math.min(detailRoot.audioIdx, Math.max(0, (d.audioStreams || []).length - 1))
+                detailRoot.subtitleIdx = Math.min(detailRoot.subtitleIdx, (d.subtitleStreams || []).length)
             }
             detailRoot.userChangedTracks = false
         }
@@ -115,7 +111,6 @@ FocusScope {
             detailRoot.navigateTo("Player.qml", {
                 streamUrl: url,
                 itemId: d.itemId,
-                seriesId: d.seriesId || "",
                 mediaSourceId: d.mediaSourceId || d.itemId,
                 title: d.title,
                 viewOffset: d.viewOffset || 0,
@@ -123,9 +118,7 @@ FocusScope {
                 audioStreams: d.audioStreams || [],
                 subtitleStreams: d.subtitleStreams || [],
                 selectedAudioId: detailRoot.selectedAudioId(),
-                selectedSubtitleId: detailRoot.selectedSubtitleId(),
-                parentIndex: d.parentIndex || 0,
-                index: d.index || 0
+                selectedSubtitleId: detailRoot.selectedSubtitleId()
             }, { subtitleIdx: subtitleIdx, audioIdx: audioIdx })
         }
 
