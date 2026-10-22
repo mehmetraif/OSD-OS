@@ -84,7 +84,7 @@ sudo apt-get install -y \
   build-essential cmake pkgconf \
   qt6-base-dev qt6-declarative-dev \
   qml6-module-qtquick qml6-module-qtquick-controls \
-  qml6-module-qtquick-window qml6-module-qtquick-effects \
+  qml6-module-qtquick-window \
   libqt6svg6 qt6-svg-dev qt6-svg-plugins qt6-wayland \
   qt6-shadertools-dev \
   libdrm-dev libxkbcommon-dev libssl-dev \
@@ -92,7 +92,7 @@ sudo apt-get install -y \
   mpv
 ```
 
-This is [BUILDING.md](https://github.com/mehmetraif/OSD-OS/blob/main/BUILDING.md#raspberry-pi-os-arm64)'s list less `libpcsclite-dev`, `libmpv-dev` and `libminizip-dev`, which are optional (below). `pkgconf` is there for CMake to find libdrm (the CI job on Raspberry Pi OS installs it), and `qml6-module-qtquick-effects` for the Weather and NFC Reader screens, which import it (`install.sh` installs it). The optional parts:
+This is [BUILDING.md](https://github.com/mehmetraif/OSD-OS/blob/main/BUILDING.md#raspberry-pi-os-arm64)'s list less `libpcsclite-dev`, `libmpv-dev` and `libminizip-dev`, which are optional (below). `pkgconf` is there for CMake to find libdrm (the CI job on Raspberry Pi OS installs it). The optional parts:
 
 | Package | Adds |
 |---|---|
@@ -126,7 +126,7 @@ APP_ROOT=$(pwd) QT_QPA_PLATFORM=eglfs ./build/osdos  # Raspberry Pi OS Lite, no 
 Apt's Qt is found without `CMAKE_PREFIX_PATH`. Without a desktop, Qt draws straight to the screen through KMS/DRM (EGLFS):
 
 - **Stop the service first** if OSD/OS is installed with autostart: `sudo systemctl stop osdos`. Two programs can't both hold the screen.
-- **On a Pi 5**, run your build through `scripts/rpi-run-local.sh` (`OSDOS_BIN=/path/to/osdos` for another binary). Like the installed launcher, it points EGLFS at the card with a connected display, where a Pi 5's render-only GPU node would otherwise come first. Unlike the launcher, it doesn't read the output a display preset names (`# osdos-output:`), so it takes the first connected one. Run it from the Pi's own console, not over SSH.
+- **On a Pi 5**, run your build through `scripts/rpi-run-local.sh` (`OSDOS_BIN=/path/to/osdos` for another binary). It runs it as the installed launcher runs the app, with the launcher's own display set-up taken from `scripts/install.sh`: EGLFS pointed at the card with a display, where a Pi 5's render-only GPU node would otherwise come first, on the output and in the mode the image's display preset names (`# osdos-output:`). Run it from the Pi's own console, not over SSH.
 
 ## Debian or Ubuntu on a PC (x86_64)
 
@@ -148,7 +148,7 @@ APP_ROOT=$(pwd) ./build/osdos
 
 Two things to know about Ubuntu 24.04:
 
-- **Its Qt is 6.4**, the oldest the project builds with (CI builds and tests on it). QtQuick.Effects came with Qt 6.5, so on 6.4 the Weather and NFC Reader screens don't load: the log says `module "QtQuick.Effects" is not installed`. A Qt from the installer doesn't have this gap.
+- **Its Qt is 6.4**, the oldest the project builds with (CI builds and tests on it).
 - **Its mpv is 0.37**, one release too old: OSD/OS asks mpv for forced subtitles only (`--subs-with-matching-audio=forced`), which came in 0.38, and mpv 0.37 refuses to start with it. Build a newer one with `scripts/build-mpv.sh` ([below](#the-appimage-and-mpv-038)). OSD/OS takes an `mpv` beside its own binary before the one on the `PATH`:
 
   ```sh
@@ -232,7 +232,7 @@ They take under a minute; `ctest --test-dir build-tests -R looks` runs one by na
 | `looks` | Themes and skins read from the app's folder and the data folder's: listed by name, each once, the data folder's in place of the app's; a skin's pictures and icons read from its own folder only; a theme's colours, skin, effects and music read, what can't be used left empty; an id is a folder's name, never a path |
 | `playback_retire` (Linux) | One video handed over to the next, against a stand-in for mpv: the app goes on while the old player quits, of several asked for in a row only the last plays, a stop while waiting starts nothing, a player that ignores being told to quit is killed a second later, and the menu music is gone before a video's player starts |
 | `menu_music` (Linux) | The menu music, against stand-ins for mpv, FluidSynth and openmpt123: it plays when wanted and stops when not, a hold stops it before `hold()` returns, a file mpv can't play isn't tried again, a MIDI file is made into a WAV with the right SoundFont, a tracker's module goes to openmpt123 when mpv can't play it |
-| `app_main_menu`, `app_module_<folder>` | The app itself, started offscreen with the network out of reach: the main menu with every module on it, and each module as the startup module, opens without a QML warning, and SIGTERM stops the app cleanly. A module that needs a QML module the Qt in use doesn't have (QtQuick.Effects before Qt 6.5) is skipped |
+| `app_main_menu`, `app_module_<folder>` | The app itself, started offscreen with the network out of reach: the main menu with every module on it, and each module as the startup module, opens without a QML warning, and SIGTERM stops the app cleanly. A module that imports a QML module the Qt in use doesn't have is skipped |
 
 [tests/README.md](https://github.com/mehmetraif/OSD-OS/blob/main/tests/README.md) has each test's cases, and the checks that want a Raspberry Pi: the screen changing hands between the app and mpv, power cuts while saving, menu music on the sound card in use. A test of your own goes in `tests/CMakeLists.txt` with the sources it needs; [Writing a module](https://github.com/mehmetraif/OSD-OS/wiki/Writing-a-Module#a-test-in-tests) shows one.
 

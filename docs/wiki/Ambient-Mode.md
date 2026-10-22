@@ -68,7 +68,7 @@ During playback:
 | Pause | Enter or Space | A or Start | Pauses the clip (the music goes on). |
 | Stop | Esc | B | Ends playback, and the music, and returns to the Ambient:Mode screen. |
 
-With **Transparent Background** (Settings → TV / Movie), back returns to the Ambient:Mode screen with the clip playing on behind the menus, while your music stops. START takes it back to full screen and starts the music again; play/pause on the main menu stops the clip ([Using OSD/OS](https://github.com/mehmetraif/OSD-OS/wiki/Using-OSD-OS)).
+With **Transparent Background** (Settings → TV / Movie), back returns to the Ambient:Mode screen with the clip playing on behind the menus, your music with it, until the clip is closed or another video starts. START takes it back to full screen and starts the music afresh; play/pause on the main menu stops the clip ([Using OSD/OS](https://github.com/mehmetraif/OSD-OS/wiki/Using-OSD-OS)).
 
 ## Music playlists
 

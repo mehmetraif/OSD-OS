@@ -436,7 +436,7 @@ Installing the dependencies can take a while; over Wi-Fi, about 20 minutes. Then
 |---|---|
 | Finds the release | The latest release's tag from GitHub's API, or the tag you gave it |
 | Replaces 240-MP | An install from OSD/OS's days as 240-MP (`/opt/240mp`, `240mp.service`) is removed, so the two never fight over the screen. OSD/OS moves 240-MP's data folder over to its own on its first start |
-| Installs packages | `libqt6quick6 libqt6qml6 libqt6opengl6 libqt6network6 libqt6svg6 qt6-svg-plugins qt6-wayland qml6-module-qtquick qml6-module-qtquick-controls qml6-module-qtquick-window qml6-module-qtquick-effects libsdl2-2.0-0 libpcsclite1 libmpv2 mpv fluidsynth timgm6mb-soundfont openmpt123 polkitd` |
+| Installs packages | `libqt6quick6 libqt6qml6 libqt6opengl6 libqt6network6 libqt6svg6 qt6-svg-plugins qt6-wayland qml6-module-qtquick qml6-module-qtquick-controls qml6-module-qtquick-window libsdl2-2.0-0 libpcsclite1 libmpv2 mpv fluidsynth timgm6mb-soundfont openmpt123 polkitd` |
 | A udev rule | `/etc/udev/rules.d/99-osdos-tty.rules`: lets the `tty` group open `/dev/tty0`, for handing the screen to mpv and back |
 | The `bluetooth` group | Adds the user OSD/OS runs as, so Settings → Bluetooth can talk to BlueZ |
 | A polkit rule | With a service, a new one or one kept: `/etc/polkit-1/rules.d/50-osdos-networkmanager.rules`, which lets the user the service runs OSD/OS as scan, join and forget networks and turn Wi-Fi on and off through NetworkManager for Settings → Wi-Fi. The service runs outside any login session, where polkit would otherwise ask for a password nobody can type |
