@@ -6,7 +6,8 @@
 // it takes the remote's keys: ▲ ▼ to move, ◄ ► the Arcade screen's filters,
 // select on ARCADE to open it, back to leave it, 5 for a coin. One element,
 // kept as the page draws its form again; update() gives it the settings.
-import { lookOf, rgbOf, ARCADE } from "./look.mjs";
+import { lookOf, rgbOf, bytesOf, ARCADE, SCREEN_KNOBS, TEXT_KNOBS } from "./look.mjs";
+import { el } from "../dom.mjs";
 import { Assets } from "./assets.mjs";
 import { SelectorFx, FRAME } from "./selector.mjs";
 import { SW, SH, PX, drawGround, drawMainMenu, mainMenuTop, drawArcade, ARCADE_FILTERS, arcadeFilter, arcadeLayout,
@@ -21,8 +22,6 @@ const EASINGS = {
     Drop: t => 1 - (1 - t) * (1 - t),
     other: t => t < 0.5 ? 2 * t * t : 1 - 2 * (1 - t) * (1 - t),
 };
-const SHADED_KNOBS = ["scanlines", "curvature", "glow", "bleed", "noise", "vignette"];
-
 // One face of the cube as it turns (Main.qml's cubeMatrix()), column after
 // column as WebGL takes a matrix.
 function cubeMatrix(isNew, progress, direction) {
@@ -50,22 +49,8 @@ function cubeMatrix(isNew, progress, direction) {
             out[col * 4 + row] = rows[row][col];
     return out;
 }
-// A colour's channels, 0 to 255, as SelectorFx takes its ink and paper.
-const bytesOf = hex => { const n = parseInt(hex.slice(1), 16); return [n >> 16 & 255, n >> 8 & 255, n & 255]; };
 // Whether a face is turned towards the eye (Main.qml's facing()).
 const facing = (isNew, progress) => (isNew ? Math.sin : Math.cos)(progress * Math.PI / 2) * (2 * 2.5 + 1) > 1;
-
-function el(tag, attrs = {}, ...children) {
-    const node = document.createElement(tag);
-    for (const [key, value] of Object.entries(attrs)) {
-        if (key === "class") node.className = value;
-        else if (key === "text") node.textContent = value;
-        else if (key.startsWith("on")) node.addEventListener(key.slice(2), value);
-        else node.setAttribute(key, value);
-    }
-    node.append(...children);
-    return node;
-}
 
 export class Preview {
     // looks: schema.json's; base: where the page's files are.
@@ -212,7 +197,7 @@ export class Preview {
         const start = ARCADE_FILTERS.findIndex(f => f.id === this.look.arcade.startFilter);
         this.arcade = { filter: Math.max(0, start), selected: 0, wheelTop: 0, credits: 0, since: performance.now(),
                         words: "", typing: false, keysRow: 0, keysCol: 0, passing: null };
-        this.placeWheel(Math.floor(arcadeLayout(this.look).perPage / 2));
+        this.placeWheel(arcadeLayout(this.look).middleRow);
     }
     placeWheel(row) {
         const L = arcadeLayout(this.look);
@@ -231,7 +216,7 @@ export class Preview {
         const toSearch = filter.id === "search";
         a.passing = toSearch ? keep : null;
         a.selected = toSearch ? 0 : Math.max(0, filter.games.indexOf(keep));
-        this.placeWheel(toSearch ? 0 : Math.floor(L.perPage / 2));
+        this.placeWheel(toSearch ? 0 : L.middleRow);
         a.since = performance.now();
     }
     // Search: its keys handed the keys, at the left end of their row, or
@@ -413,6 +398,9 @@ export class Preview {
         while (now - this.lastTick >= TICK) {
             this.lastTick += TICK;
             ticked = true;
+            // Without WebGL 2 there are no effects and no selectors to move.
+            if (this.flat)
+                continue;
             if (this.moving())
                 this.fxTime = (this.fxTime + FRAME) % 3600;
             // A selector's new frame, the last one it clears too.
@@ -420,7 +408,8 @@ export class Preview {
                 selected = (fx.kind ? fx.tick(this.box) : fx.stop()) || selected;
         }
         // Drawn again while anything on it moves, or once anything changed.
-        if (!this.lost && (this.dirty || this.change || (ticked && (this.moving() || selected || this.screenMoving))))
+        const effects = !this.flat && this.moving();
+        if (!this.lost && (this.dirty || this.change || (ticked && (effects || selected || this.screenMoving))))
             this.draw(now);
     }
 
@@ -432,7 +421,7 @@ export class Preview {
     }
     shaded() {
         const look = this.look;
-        return SHADED_KNOBS.some(k => look.screen[k] > 0) || ["rainbow", "shimmer", "flicker", "glow"].some(k => look.text[k] > 0);
+        return SCREEN_KNOBS.some(k => look.screen[k] > 0) || TEXT_KNOBS.some(k => look.text[k] > 0);
     }
 
     draw(now) {

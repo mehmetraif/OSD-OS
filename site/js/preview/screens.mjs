@@ -7,6 +7,8 @@
 // the QML puts it, in the scheme's two colours and the deck's letters; the
 // skins' pictures in those colours, nine-sliced on art pixels. The effects
 // are the app's own shaders, run over these by the preview (renderer.mjs).
+import { bytesOf } from "./look.mjs";
+
 export const SW = 640, SH = 480;
 export const PX = Math.max(1, Math.floor(SH / 240));
 
@@ -39,10 +41,7 @@ function frameRect(ctx, x, y, w, h, color, width) {
     fillRect(ctx, x, y + width, width, h - 2 * width, color);
     fillRect(ctx, x + w - width, y + width, width, h - 2 * width, color);
 }
-function rgba(hex, alpha) {
-    const n = parseInt(hex.slice(1), 16);
-    return `rgba(${n >> 16 & 255},${n >> 8 & 255},${n & 255},${alpha})`;
-}
+const rgba = (hex, alpha) => `rgba(${bytesOf(hex).join(",")},${alpha})`;
 
 // --- Letters: a Text's line, its box `top` after its top padding.
 const lineHeight = size => ascentOf(size) + descentOf(size);

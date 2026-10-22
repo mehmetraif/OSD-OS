@@ -43,7 +43,6 @@ export class Renderer {
         this.gl = gl;
         this.width = width;
         this.height = height;
-        this.errors = [];
         this.quad = gl.createBuffer();
         gl.bindBuffer(gl.ARRAY_BUFFER, this.quad);
         gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([0, 0, 1, 0, 0, 1, 1, 1]), gl.STATIC_DRAW);
@@ -63,7 +62,9 @@ export class Renderer {
         gl.shaderSource(shader, source);
         gl.compileShader(shader);
         if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) {
-            this.errors.push(`${name}: ${gl.getShaderInfoLog(shader)}`);
+            // The page goes without that effect, as the app does; the console
+            // says why.
+            console.warn(`${name}: ${gl.getShaderInfoLog(shader)}`);
             return null;
         }
         return shader;
@@ -80,7 +81,7 @@ export class Renderer {
         gl.bindAttribLocation(program, 0, "corner");
         gl.linkProgram(program);
         if (!gl.getProgramParameter(program, gl.LINK_STATUS)) {
-            this.errors.push(`${name}: ${gl.getProgramInfoLog(program)}`);
+            console.warn(`${name}: ${gl.getProgramInfoLog(program)}`);
             return null;
         }
         const uniforms = new Map();
@@ -99,13 +100,6 @@ export class Renderer {
         if (!this.programs.has(name))
             this.programs.set(name, this.link(name, fromQt(this.sources[name])));
         return this.programs.get(name);
-    }
-
-    // Every shader the page has, made now: what wouldn't be, said.
-    compileAll() {
-        for (const name of Object.keys(this.sources))
-            this.shader(name);
-        return this.errors;
     }
 
     texture(filter) {

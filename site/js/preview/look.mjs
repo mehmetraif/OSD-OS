@@ -7,10 +7,12 @@
 // the page holds, each row's default where it is unset.
 //   settings = { app: { key: value }, modules: [{ id, name, folder, enabled,
 //                values: { key: value } }], wifi, account, key }
+import { isOn as on } from "../core.mjs";
+
 export const ARCADE = "com.osdos.arcade";
 
-const SCREEN_KNOBS = ["scanlines", "curvature", "glow", "bleed", "noise", "vignette"];
-const TEXT_KNOBS = ["rainbow", "shimmer", "flicker", "glow"];
+export const SCREEN_KNOBS = ["scanlines", "curvature", "glow", "bleed", "noise", "vignette"];
+export const TEXT_KNOBS = ["rainbow", "shimmer", "flicker", "glow"];
 
 // One effect in force, as effectOf() and nameOf() have it: Settings' row
 // unless it is THEME (""), else the theme's; a preset's name read from the
@@ -29,18 +31,14 @@ function nameOf(setting, fromTheme, names) {
 // them: the cube.
 const cubeOf = name => /^Cube (Left|Right|Up|Down)$/.test(name) ? "Cube" : name;
 
-// A colour's parts, 0 to 1.
-export function rgbOf(hex) {
-    const n = parseInt(String(hex).replace("#", ""), 16);
-    return [(n >> 16 & 255) / 255, (n >> 8 & 255) / 255, (n & 255) / 255];
-}
+// A colour's channels, 0 to 255, and its parts, 0 to 1.
+export const bytesOf = hex => { const n = parseInt(String(hex).replace("#", ""), 16); return [n >> 16 & 255, n >> 8 & 255, n & 255]; };
+export const rgbOf = hex => bytesOf(hex).map(c => c / 255);
 // The lighter of two colours, by how bright the eye finds them.
 function lighterOf(a, b) {
     const luma = c => { const [r, g, bl] = rgbOf(c); return 0.2126 * r + 0.7152 * g + 0.0722 * bl; };
     return luma(a) >= luma(b) ? a : b;
 }
-
-const on = value => value === true || String(value).toLowerCase() === "on";
 
 export function lookOf(looks, settings) {
     const app = settings.app;

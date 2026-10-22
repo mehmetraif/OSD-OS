@@ -31,7 +31,10 @@ function qmlNames(source, name) {
         return [...list[1].matchAll(/"([^"]+)"/g)].map(m => m[1]);
     const object = source.match(new RegExp(`${name}\\s*:\\s*\\(\\{([\\s\\S]*?)\\}\\)`));
     assert.ok(object, `${name} in the QML`);
-    return [...object[1].matchAll(/^\s*"([^"]+)"\s*:/gm)].map(m => m[1]);
+    // The keys at the block's own depth: a scheme's colours lie deeper.
+    const keys = [...object[1].matchAll(/^( *)"([^"]+)"\s*:/gm)].map(m => [m[1].length, m[2]]);
+    const depth = Math.min(...keys.map(([d]) => d));
+    return keys.filter(([d]) => d === depth).map(([, key]) => key);
 }
 
 test("the page's files are all there", () => {
@@ -171,7 +174,9 @@ test("the looks offered are the app's", () => {
     assert.deepEqual(offered("screen_effect"), qmlNames(mainQml, "screenPresets").sort());
     assert.deepEqual(offered("selector_effect"), qmlNames(mainQml, "selectorPresets").sort());
     assert.deepEqual(offered("transition"), qmlNames(mainQml, "transitionPresets").sort());
-    assert.deepEqual(offered("color_scheme"), qmlNames(settingsQml, "colorOpts").sort());
+    // Settings offers Main.qml's schemes (root.allSchemes), as the page does.
+    assert.deepEqual(offered("color_scheme"), qmlNames(mainQml, "schemes").sort());
+    assert.match(settingsQml, /partRow\("color_scheme",[^)]*root\.allSchemes/);
     const folders = dir => readdirSync(join(root, "assets", dir), { withFileTypes: true })
         .filter(e => e.isDirectory() && existsSync(join(root, "assets", dir, e.name, `${dir.slice(0, -1)}.json`)))
         .map(e => e.name).sort();

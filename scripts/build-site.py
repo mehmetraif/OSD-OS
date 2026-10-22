@@ -20,6 +20,7 @@ import pathlib
 import re
 import shutil
 import sys
+import unicodedata
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 SITE = ROOT / "site"
@@ -207,7 +208,9 @@ def countries():
         if line and not line.startswith("#"):
             code, name = line.split("\t", 1)
             out.append([name, code])
-    return sorted(out)
+    # By the name as it reads, its accents aside: Åland Islands among the A's,
+    # not after Zimbabwe.
+    return sorted(out, key=lambda o: unicodedata.normalize("NFKD", o[0]).encode("ascii", "ignore").lower())
 
 
 def zones():

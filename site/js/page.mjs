@@ -3,6 +3,7 @@
 // (core.mjs makes it). Only what is changed goes into the file, marked • on
 // its line; ↺ takes a line out again.
 import * as core from "./core.mjs";
+import { el } from "./dom.mjs";
 import { Preview } from "./preview/preview.mjs";
 
 let schema = null;
@@ -28,29 +29,12 @@ function fresh() {
     };
 }
 
-// The rows a theme gives (Settings' themeParts): THEME while there is a
-// theme, set back to it as one is chosen.
-const THEME_PARTS = ["color_scheme", "skin", "text_effect", "background_effect", "selector_effect",
-                     "screen_effect", "transition", "menu_music"];
+// The rows a theme gives (Settings' themeParts, marked theme_part in the
+// schema): THEME while there is a theme, set back to it as one is chosen.
+let THEME_PARTS = [];
 const TV_GROUP = "TV / Movie";
 
 // --- Small builders.
-function el(tag, attrs = {}, ...children) {
-    const node = document.createElement(tag);
-    for (const [key, value] of Object.entries(attrs)) {
-        if (key === "class") node.className = value;
-        else if (key === "text") node.textContent = value;
-        else if (key.startsWith("on")) node.addEventListener(key.slice(2), value);
-        else if (value === true) node.setAttribute(key, "");
-        else if (value !== false && value !== null && value !== undefined) node.setAttribute(key, value);
-    }
-    for (const child of children.flat()) {
-        if (child !== null && child !== undefined)
-            node.append(child);
-    }
-    return node;
-}
-
 // A line: the label, dots, then its control against the line's end, and its
 // help under it. `changed` marks it as in the file, with ↺ to take it out (a
 // line without one keeps its room, so that every control ends alike).
@@ -194,8 +178,8 @@ function displayOutput() {
     if (state.kind === "arcade")
         offered = [...offered.filter(p => p.id.startsWith("jamma-")), ...offered.filter(p => !p.id.startsWith("jamma-"))];
     const chosen = schema.presets.find(p => p.id === state.displayPreset);
-    const help = chosen ? [chosen.about, chosen.warning].filter(Boolean).join(" ")
-               : "Leave as it is: a new card starts on HDMI.";
+    // Its warning once, as the paragraph under the line.
+    const help = chosen ? chosen.about : "Leave as it is: a new card starts on HDMI.";
     return section("Display Output", "The picture's way out of the Pi, read as the Pi powers on: for a CRT or a JAMMA cabinet, the one it needs.",
         line("Output", select(offered.map(p => [p.label, p.id]), state.displayPreset, value => {
             state.displayPreset = value;
@@ -210,7 +194,7 @@ function displayOutput() {
 function network() {
     const name = state.deviceName ? core.hostnameFor(state.deviceName) : null;
     return section("Network", "The device's name tells it apart from others on the network (Settings → About → System Information shows it). Wi-Fi joins a network at start; Ethernet needs nothing.",
-        line("Device Name", text(state.deviceName, value => { state.deviceName = value; refreshHelp("device-name-help", deviceNameHelp()); markChanged("device-name", !!value); },
+        line("Device Name", text(state.deviceName, value => { state.deviceName = value; refreshDeviceNameHelp(); markChanged("device-name", !!value); },
                                  { id: "device-name", placeholder: "osdos" }),
              { changed: !!state.deviceName, onReset: () => { state.deviceName = ""; render(); } }),
         el("p", { class: "help" + (name && name.why ? " error" : ""), id: "device-name-help", text: deviceNameHelp() }),
@@ -236,11 +220,11 @@ function deviceNameHelp() {
     return name.why || `On the network as ${name.name} (${name.name}.local).`;
 }
 
-function refreshHelp(id, message) {
-    const node = document.getElementById(id);
+function refreshDeviceNameHelp() {
+    const node = document.getElementById("device-name-help");
     if (!node)
         return;
-    node.textContent = message;
+    node.textContent = deviceNameHelp();
     node.classList.toggle("error", !!state.deviceName && !!core.hostnameFor(state.deviceName).why);
 }
 
@@ -348,9 +332,7 @@ function settingLine(scope, row) {
     let control;
     switch (row.type) {
     case "toggle": {
-        // The app's toggles take their words in any case (YouTube's ON).
-        const on = typeof row.on === "string" ? String(value).toLowerCase() === row.on.toLowerCase() : value === row.on;
-        control = toggle(on, checked => setValue(scope, row.key, checked ? row.on : row.off), { id });
+        control = toggle(core.toggleOn(row, value), checked => setValue(scope, row.key, checked ? row.on : row.off), { id });
         break;
     }
     case "choice": {
@@ -426,12 +408,18 @@ function retroAchievements() {
 
 const startupModule = () => core.getPath(state.config, ["app", "startup_module"]);
 
+// Whether a module is on as the file would leave it: as set, else as its
+// manifest has it, and on with the module OSD/OS starts on.
+function moduleEnabled(module) {
+    const set = core.getPath(state.config, ["modules", module.id, "enabled"]);
+    return set === undefined ? module.enabled || startupModule() === module.id : set;
+}
+
 function moduleBlock(module) {
     const scope = ["modules", module.id];
     const enabledSet = core.getPath(state.config, [...scope, "enabled"]);
-    // The module OSD/OS starts on is on with it.
     const startsOn = startupModule() === module.id;
-    const enabled = enabledSet === undefined ? module.enabled || startsOn : enabledSet;
+    const enabled = moduleEnabled(module);
     const open = openModules.has(module.id);
     const details = el("details", { open: open || null },
         el("summary", { text: `${module.name} ${enabled ? "· ON" : "· OFF"}` }),
@@ -458,12 +446,11 @@ function previewSettings() {
     }));
     return {
         app: values(["app"], schema.app.flatMap(group => group.settings)),
-        modules: schema.modules.map(module => {
-            const enabledSet = core.getPath(state.config, ["modules", module.id, "enabled"]);
-            return { id: module.id, name: module.name, folder: module.folder,
-                     enabled: enabledSet === undefined ? module.enabled || startupModule() === module.id : enabledSet,
-                     values: values(["modules", module.id], module.settings) };
-        }),
+        modules: schema.modules.map(module => ({
+            id: module.id, name: module.name, folder: module.folder,
+            enabled: moduleEnabled(module),
+            values: values(["modules", module.id], module.settings),
+        })),
         wifi: !!state.wifiSsid,
         account: !!(state.raUser && state.raPassword),
         key: !!state.raKey,
@@ -541,8 +528,7 @@ function problems() {
                 out.push(`SSH Keys: not a whole public key: ${key.slice(0, 32)}…`);
         }
     }
-    if ((state.raUser || state.raPassword) && !(state.raUser && state.raPassword))
-        out.push("RetroAchievements: both the user name and the password, to sign in");
+    out.push(...core.checkRetroAchievements(state.raUser, state.raPassword, state.raKey));
     const startup = startupModule();
     if (startup && startup !== "None" && core.getPath(state.config, ["modules", startup, "enabled"]) === false) {
         const module = schema.modules.find(m => m.id === startup);
@@ -664,6 +650,7 @@ async function start() {
         document.getElementById("loading").textContent = "The settings couldn't be loaded: " + e.message;
         return;
     }
+    THEME_PARTS = schema.app.flatMap(group => group.settings).filter(row => row.theme_part).map(row => row.key);
     preview = new Preview(schema.looks);
     const picker = document.getElementById("import-file");
     document.getElementById("import").addEventListener("click", () => picker.click());
