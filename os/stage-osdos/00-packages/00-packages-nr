@@ -3,7 +3,6 @@
 # and friends.
 libqt6quick6 libqt6qml6 libqt6opengl6 libqt6network6 libqt6svg6 qt6-svg-plugins
 qml6-module-qtquick qml6-module-qtquick-controls qml6-module-qtquick-window
-qml6-module-qtquick-effects
 libsdl2-2.0-0 libpcsclite1
 mpv
 libmpv2

@@ -244,9 +244,13 @@ fi
 
 if command -v pcsc_scan >/dev/null 2>&1; then
     sleep 1
-    if sudo pcsc_scan -n 2>&1 | head -5 | grep -qi "reader"; then
+    # -r lists the readers and exits, where -n waits for a reader for good;
+    # bounded all the same, and only the readers' own lines ("0: ACS …")
+    # count: the banner says "reader" with none plugged in.
+    READERS=$(sudo timeout 5 pcsc_scan -r 2>&1 | grep -E '^ *[0-9]+: ' || true)
+    if [[ -n $READERS ]]; then
         echo "  ✓ PC/SC reader detected:"
-        sudo pcsc_scan -n 2>&1 | head -5 | sed 's/^/    /'
+        echo "$READERS" | sed 's/^/    /'
         FOUND=1
     else
         echo "  · no PC/SC reader found"

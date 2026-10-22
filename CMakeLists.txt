@@ -295,9 +295,14 @@ if(APPLE)
         "${CMAKE_SOURCE_DIR}/views"
         "${CMAKE_SOURCE_DIR}/modules"
         "${CMAKE_SOURCE_DIR}/assets"
-        "${CMAKE_SOURCE_DIR}/scripts"
         DESTINATION "osdos.app/Contents/Resources"
         COMPONENT Runtime)
+    # Of scripts/, what the app runs: mpv's Lua scripts and the web player's
+    # browser launcher; not the build and release tooling beside them.
+    install(DIRECTORY "${CMAKE_SOURCE_DIR}/scripts"
+        DESTINATION "osdos.app/Contents/Resources"
+        COMPONENT Runtime
+        FILES_MATCHING PATTERN "*.lua" PATTERN "web-player.sh")
 
     # Icon lives under packaging/macos (not assets/) so it ships alongside the
     # other macOS packaging inputs; installed at the same relative path so it
@@ -333,24 +338,12 @@ else()
         "${CMAKE_SOURCE_DIR}/views"
         "${CMAKE_SOURCE_DIR}/modules"
         "${CMAKE_SOURCE_DIR}/assets"
-        "${CMAKE_SOURCE_DIR}/scripts"
         DESTINATION "${CMAKE_INSTALL_DATADIR}/osdos"
         COMPONENT Runtime)
+    # Of scripts/, what the app runs: mpv's Lua scripts and the web player's
+    # browser launcher; not the build and release tooling beside them.
+    install(DIRECTORY "${CMAKE_SOURCE_DIR}/scripts"
+        DESTINATION "${CMAKE_INSTALL_DATADIR}/osdos"
+        COMPONENT Runtime
+        FILES_MATCHING PATTERN "*.lua" PATTERN "web-player.sh")
 endif()
-
-# ── CPack ──────────────────────────────────────────────────────────────────────
-set(CPACK_PACKAGE_NAME "OSD-OS")
-set(CPACK_PACKAGE_VERSION "${PROJECT_VERSION}")
-set(CPACK_PACKAGE_DESCRIPTION_SUMMARY "OSD/OS Media Player")
-set(CPACK_PACKAGE_VENDOR "OSD-OS")
-
-if(APPLE)
-    set(CPACK_GENERATOR "DragNDrop")
-    set(CPACK_DMG_VOLUME_NAME "OSD-OS")
-    set(CPACK_DMG_FORMAT "UDZO")
-else()
-    set(CPACK_GENERATOR "TGZ")
-    set(CPACK_PACKAGING_INSTALL_PREFIX "/usr/local")
-endif()
-
-include(CPack)

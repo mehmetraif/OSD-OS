@@ -63,7 +63,6 @@ sudo apt-get install -y \
     qml6-module-qtquick \
     qml6-module-qtquick-controls \
     qml6-module-qtquick-window \
-    qml6-module-qtquick-effects \
     libsdl2-2.0-0 \
     libpcsclite1 \
     libmpv2 \
@@ -153,12 +152,24 @@ curl -fsSL -o "${TMP_DIR}/${TARBALL}" "${DOWNLOAD_URL}"
 
 # ── Extract to install directory ───────────────────────────────────────────────
 # Tarball structure: usr/local/bin/osdos + usr/local/share/osdos/...
-# We strip the usr/local prefix and place files directly in $INSTALL_DIR.
+# We strip the usr/local prefix and place files directly in $INSTALL_DIR:
+# extracted whole beside it first, then each top-level folder (bin, share)
+# swapped in for the one there, as the launcher applies an in-app update, so
+# that a file a release dropped (a module's folder) doesn't live on under the
+# new release.
 echo "Extracting to ${INSTALL_DIR}..."
-sudo mkdir -p "${INSTALL_DIR}"
+NEW_DIR="${INSTALL_DIR}.new"
+sudo rm -rf "${NEW_DIR}"
+sudo mkdir -p "${NEW_DIR}" "${INSTALL_DIR}"
 sudo tar -xzf "${TMP_DIR}/${TARBALL}" \
     --strip-components=3 \
-    -C "${INSTALL_DIR}"
+    -C "${NEW_DIR}"
+for d in "${NEW_DIR}"/*; do
+    name=$(basename "$d")
+    sudo rm -rf "${INSTALL_DIR:?}/${name}"
+    sudo mv "$d" "${INSTALL_DIR}/${name}"
+done
+sudo rm -rf "${NEW_DIR}"
 
 # Owned by the running user so the launcher can swap in staged in-app updates.
 sudo chown -R "${OWNER_USER}:" "${INSTALL_DIR}"
@@ -257,6 +268,10 @@ if [ -f "$UPDATES_DIR/staged.sha256" ] && [ -w "$INSTALL_DIR" ]; then
     fi
 fi
 
+# ── Display ───────────────────────────────────────────────────────────────────
+# From DISPLAY_BEGIN to DISPLAY_END is what scripts/rpi-run-local.sh takes, as
+# it stands, to run a build of your own the way this launcher runs the app.
+# DISPLAY_BEGIN
 if [ -n "${WAYLAND_DISPLAY:-}" ]; then
     QT_QPA_PLATFORM="${QT_QPA_PLATFORM:-wayland}"
 elif [ -n "${DISPLAY:-}" ]; then
@@ -339,6 +354,7 @@ fi
 
 export QT_QPA_PLATFORM
 export QML2_IMPORT_PATH="/usr/lib/aarch64-linux-gnu/qt6/qml"
+# DISPLAY_END
 
 exec "${INSTALL_DIR}/bin/osdos" "$@"
 LAUNCHER_SCRIPT

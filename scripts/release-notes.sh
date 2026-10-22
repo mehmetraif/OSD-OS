@@ -18,7 +18,18 @@
 set -euo pipefail
 
 tag=${1:?usage: release-notes.sh <tag> [<previous tag>]}
-previous=${2:-$(git describe --tags --abbrev=0 "${tag}^" 2>/dev/null || true)}
+# The release before: for a release proper, the one before it that was one
+# too (its release candidates' notes are in its own), for a candidate the
+# tag before, whatever it was.
+if [ -n "${2:-}" ]; then
+    previous=$2
+else
+    case $tag in
+        *-rc*|*-beta*|*-alpha*) previous=$(git describe --tags --abbrev=0 "${tag}^" 2>/dev/null || true) ;;
+        *) previous=$(git describe --tags --abbrev=0 --exclude '*-rc*' --exclude '*-beta*' --exclude '*-alpha*' \
+                      "${tag}^" 2>/dev/null || true) ;;
+    esac
+fi
 range=${previous:+${previous}..}${tag}
 
 # The commits, oldest first: each one's hash, subject, and the commit it

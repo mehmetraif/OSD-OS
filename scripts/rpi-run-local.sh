@@ -1,9 +1,14 @@
 #!/usr/bin/env bash
 # ──────────────────────────────────────────────────────────────────────────────
-# Run a locally-built OSD/OS binary with the same display environment the
-# installed launcher sets up. Use this to test a dev build on real hardware —
-# notably the Pi 5, whose EGLFS display-card selection lives in that launcher and
-# is otherwise missing when you run ./build/osdos directly.
+# Run a build of your own the way the installed launcher (/usr/local/bin/osdos,
+# scripts/install.sh's LAUNCHER_SCRIPT) runs the installed app: on the display
+# server there is, else on EGLFS pointed at the DRM card with a display (on a
+# Pi 5 the GPU's render-only node comes first and makes Qt fail), on the output
+# and in the mode the OSD/OS image's display preset names. The launcher's
+# display part is taken from install.sh as it stands (DISPLAY_BEGIN to
+# DISPLAY_END), so the two can't drift apart: the system's Qt QML modules
+# (QML2_IMPORT_PATH) come with it, over any of your own. Its staged in-app
+# update is the installed app's and is left out.
 #
 # Usage (from anywhere):
 #   scripts/rpi-run-local.sh                       # runs ./build/osdos from the repo
@@ -12,9 +17,6 @@
 # Headless (RPi Lite / EGLFS): run from the Pi's console VT, not over SSH, and
 # stop the autostart service first so it isn't holding the display:
 #   sudo systemctl stop osdos
-#
-# NOTE: the display-platform + KMS-card detection below is kept in sync with the
-# launcher heredoc in scripts/install.sh — change both together.
 # ──────────────────────────────────────────────────────────────────────────────
 set -euo pipefail
 
@@ -31,44 +33,21 @@ fi
 
 export APP_ROOT="${APP_ROOT:-${REPO_ROOT}}"
 
-if [ -n "${WAYLAND_DISPLAY:-}" ]; then
-    export QT_QPA_PLATFORM="${QT_QPA_PLATFORM:-wayland}"
-elif [ -n "${DISPLAY:-}" ]; then
-    export QT_QPA_PLATFORM="${QT_QPA_PLATFORM:-xcb}"
-else
-    # No display server — EGLFS for headless/kiosk mode (RPi Lite).
-    export QT_QPA_PLATFORM="${QT_QPA_PLATFORM:-eglfs}"
-    export QT_QPA_EGLFS_ALWAYS_SET_MODE=1
-    export QT_QPA_EGLFS_KMS_ATOMIC=1
-
-    # Point Qt EGLFS at the DRM card that has a real display pipeline. Render-only
-    # nodes (v3d) have no connector dirs under /sys/class/drm and make Qt fail. On
-    # Pi3B+/Pi4 the display card is card0 (auto-pick works); on Pi5 the v3d render
-    # node often enumerates first, so we select the right card explicitly. Prefer a
-    # connected connector; fall back to the first card with any connector.
-    KMS_CARD=""
-    for s in /sys/class/drm/card*-*/status; do
-        [ -e "$s" ] || continue
-        if [ "$(cat "$s")" = "connected" ]; then
-            n=$(basename "$(dirname "$s")"); KMS_CARD="${n%%-*}"; break
-        fi
-    done
-    if [ -z "$KMS_CARD" ]; then
-        for d in /sys/class/drm/card*-*; do
-            [ -e "$d" ] || continue
-            n=$(basename "$d"); KMS_CARD="${n%%-*}"; break
-        done
-    fi
-    if [ -n "$KMS_CARD" ] && [ -e "/dev/dri/$KMS_CARD" ]; then
-        KMS_CONF="${XDG_RUNTIME_DIR:-/tmp}/osdos-kms.json"
-        printf '{ "device": "/dev/dri/%s" }\n' "$KMS_CARD" > "$KMS_CONF"
-        export QT_QPA_EGLFS_KMS_CONFIG="$KMS_CONF"
-    fi
+# The launcher's display part, then the binary in the launcher's place. The
+# script deletes itself as the last thing before the app takes its place.
+RUN_SCRIPT="$(mktemp "${TMPDIR:-/tmp}/osdos-run.XXXXXX")"
+{
+    echo '#!/usr/bin/env bash'
+    awk -v marker=LAUNCHER_SCRIPT '
+        $0 ~ "<< .?" marker ".?$" { on = 1; next }
+        on && $0 == marker        { exit }
+        on                        { print }
+    ' "${SCRIPT_DIR}/install.sh" | sed -n '/^# DISPLAY_BEGIN$/,/^# DISPLAY_END$/p'
+    printf 'rm -f %q\nexec %q "$@"\n' "$RUN_SCRIPT" "$BIN"
+} > "$RUN_SCRIPT"
+if ! grep -q '^# DISPLAY_END$' "$RUN_SCRIPT"; then
+    rm -f "$RUN_SCRIPT"
+    echo "Error: the launcher's display part (DISPLAY_BEGIN to DISPLAY_END) not found in ${SCRIPT_DIR}/install.sh" >&2
+    exit 1
 fi
-
-# System Qt6 QML modules (matches the installed launcher); only if present.
-if [ -d /usr/lib/aarch64-linux-gnu/qt6/qml ]; then
-    export QML2_IMPORT_PATH="${QML2_IMPORT_PATH:-/usr/lib/aarch64-linux-gnu/qt6/qml}"
-fi
-
-exec "$BIN" "$@"
+exec bash "$RUN_SCRIPT" "$@"

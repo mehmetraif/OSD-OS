@@ -116,6 +116,18 @@ rm -rf "$T/sys/class/drm/card2-DPI-1"
 check "a Pi 5 whose preset's output never comes takes the display connected" "" "$(run | cut -d' ' -f2)"
 check "...and says why" "1" "$(grep -c "DPI output never appeared" "$T/stderr")"
 
+# scripts/rpi-run-local.sh runs a build of your own with the launcher's
+# display part, from the same install.sh: on a display server (DISPLAY set)
+# the build gets xcb, the repository as its root, and its arguments.
+RUN_LOCAL="$(dirname "$INSTALL_SH")/rpi-run-local.sh"
+REPO="$(cd "$(dirname "$INSTALL_SH")/.." && pwd)"
+printf '#!/bin/sh\necho "${QT_QPA_PLATFORM:-} ${APP_ROOT:-} $*"\n' > "$T/mybuild"
+chmod +x "$T/mybuild"
+check "rpi-run-local.sh runs the build as the launcher would" "xcb $REPO --fullscreen x" \
+      "$(DISPLAY=:9 WAYLAND_DISPLAY= QT_QPA_PLATFORM= APP_ROOT= OSDOS_BIN="$T/mybuild" TMPDIR="$T" \
+         bash "$RUN_LOCAL" --fullscreen x 2>&1)"
+check "...and leaves no script behind" "0" "$(ls "$T" | grep -c '^osdos-run\.')"
+
 if [ "$failures" -gt 0 ]; then
     echo "$failures check(s) failed"
     exit 1

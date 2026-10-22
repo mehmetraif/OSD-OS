@@ -9,8 +9,7 @@
 # nothing leaves the machine.
 #   app_smoke_test.sh <osdos> <repository> <Qt's QML folder> [module folder]
 # Skipped (77) without the app, which is built apart from the tests (build/),
-# and for a module that needs a QML module of Qt's this Qt doesn't have:
-# QtQuick.Effects came with Qt 6.5, after Ubuntu 24.04's 6.4.
+# and for a module that imports a QML module of Qt's this Qt doesn't have.
 set -u
 
 APP="$1" QML="$3" FOLDER="${4:-}"
