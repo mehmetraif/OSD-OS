@@ -37,8 +37,10 @@ public:
     // The script itself has exited but something it started is still alive, so the
     // display has not been handed back yet.
     bool    drainingGroup() const;
-    // Either of the above: this run is not finished with the screen.
-    bool    isBusy() const { return isRunning() || drainingGroup(); }
+    // Any of these: this run is not finished with the screen. A takeover run
+    // stays busy through the deferred hand-back after its drain, so a start()
+    // in that window cannot be reported finished by the run before it.
+    bool    isBusy() const { return isRunning() || drainingGroup() || m_takeoverRun; }
     QString runningName() const     { return m_runningName; }
     QString runningBasename() const { return m_runningBasename; }
     // True when the requested takeover was downgraded to console because the
@@ -53,8 +55,6 @@ public:
 
     // SIGTERM the process group, then SIGKILL if it hasn't gone after a grace period.
     void requestStop();
-    // SIGKILL the group immediately (no grace) — for the Phase 6 escape hatch.
-    void forceStop();
 
     // Bounded tail of the script's output: at most kMaxLines lines / kMaxBytes
     // bytes, trimmed from the front, so a chatty script can't grow without limit.
@@ -88,6 +88,9 @@ private:
     void pushLine();
     void trimOutput();
     void scheduleOutputChanged();
+    // Something in the script's process group is still alive (the script
+    // itself, or what it started).
+    bool groupAlive() const;
     void killGroup(int sig);
     // Idempotent: QProcess::finished and errorOccurred can both arrive for one run.
     void finish(int exitCode, const QString &reason);

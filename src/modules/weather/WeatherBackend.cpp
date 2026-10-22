@@ -434,6 +434,25 @@ QString cardinal(double degrees) {
     return QString::fromLatin1(points[idx]);
 }
 
+// The display's values, from a model that already answers in the chosen units
+// and from a station that always reports metric (converted by localTemp and
+// localSpeed first).
+QString formatDegrees(double v) { return QString::number(qRound(v)) + QStringLiteral("°"); }
+QString formatPercent(double v) { return QString::number(qRound(v)) + QStringLiteral("%"); }
+QString formatPressure(double hPa, bool us) {
+    return us ? QString::number(hPa * 0.0295299830714, 'f', 2)
+              : QString::number(hPa, 'f', 1) + QStringLiteral(" MB");
+}
+QString formatWind(double directionDeg, double speed) {
+    return QStringLiteral("%1 %2").arg(cardinal(directionDeg)).arg(qRound(speed));
+}
+QString formatVisibility(double metres, bool us) {
+    return us ? QString::number(qRound(metres / 1609.344)) + QStringLiteral(" MI.")
+              : QString::number(qRound(metres / 1000.0))   + QStringLiteral(" KM");
+}
+double localTemp(double celsius, bool us) { return us ? celsius * 9.0 / 5.0 + 32.0 : celsius; }
+double localSpeed(double kmh, bool us)    { return us ? kmh / 1.609344 : kmh; }
+
 } // namespace
 
 WeatherBackend::WeatherBackend(const QString &appRoot, const QString &dataRoot,
@@ -514,6 +533,14 @@ void WeatherBackend::getDisplays() {
 
 void WeatherBackend::emitError(const QString &reason) {
     QTimer::singleShot(0, this, [this, reason]() { emit locationError(reason); });
+}
+
+// A forecast that could not be fetched. With nothing on the screen yet that
+// is the setup screen's "can't reach" case, as a failed geocode is — the
+// module would otherwise sit on LOADING until the next refresh, ten minutes
+// on. Once there is data, the last forecast stays up and the refresh retries.
+void WeatherBackend::fetchFailed() {
+    if (!m_hasData) emitError(QStringLiteral("network"));
 }
 
 // ── Lifecycle ────────────────────────────────────────────────────────────────
@@ -743,7 +770,6 @@ void WeatherBackend::resolveLocation() {
         m_lat = lat;
         m_lon = lon;
         m_resolved = true;
-        m_resolvedFrom = primary;
         qInfo("[Weather] using explicit coordinates -> %s (%.4f, %.4f)",
               qPrintable(m_locationName), m_lat, m_lon);
         fetchWeather();
@@ -761,7 +787,6 @@ void WeatherBackend::resolveLocation() {
         m_lat = la;
         m_lon = lo;
         m_resolved = true;
-        m_resolvedFrom = primary;
         qInfo("[Weather] resolved \"%s\" -> %s (%.4f, %.4f)",
               qPrintable(primary), qPrintable(m_locationName), m_lat, m_lon);
         fetchWeather();
@@ -919,14 +944,15 @@ void WeatherBackend::fetchWeather() {
         if (requestGeneration != m_weatherRequestGeneration) return;
         if (reply->error() != QNetworkReply::NoError) {
             qWarning("[Weather] fetch failed: %s", qPrintable(reply->errorString()));
-            emit fetchError(reply->errorString());
+            fetchFailed();
             return;
         }
 
         const QJsonObject root = QJsonDocument::fromJson(reply->readAll()).object();
         const QJsonObject cur  = root["current"].toObject();
         if (cur.isEmpty()) {
-            emit fetchError(QStringLiteral("empty response"));
+            qWarning("[Weather] fetch failed: empty response");
+            fetchFailed();
             return;
         }
 
@@ -949,18 +975,12 @@ void WeatherBackend::fetchWeather() {
         // mapping from the code has a single field to read.
         m["conditionCode"] = code;
         m["iconName"]      = iconForCode(code, m_isDay);
-        m["temperature"] = QString::number(qRound(cur["temperature_2m"].toDouble())) + QStringLiteral("°");
-        m["humidity"]    = QString::number(qRound(cur["relative_humidity_2m"].toDouble())) + QStringLiteral("%");
-        m["dewPoint"]    = QString::number(qRound(cur["dew_point_2m"].toDouble())) + QStringLiteral("°");
-        m["pressure"]    = us
-            ? QString::number(cur["pressure_msl"].toDouble() * 0.0295299830714, 'f', 2)
-            : QString::number(cur["pressure_msl"].toDouble(), 'f', 1) + QStringLiteral(" MB");
-        m["wind"] = QStringLiteral("%1 %2")
-                        .arg(cardinal(cur["wind_direction_10m"].toDouble()))
-                        .arg(qRound(windSpeed));
-        m["visibility"] = us
-            ? QString::number(qRound(visMetres / 1609.344)) + QStringLiteral(" MI.")
-            : QString::number(qRound(visMetres / 1000.0))   + QStringLiteral(" KM");
+        m["temperature"] = formatDegrees(cur["temperature_2m"].toDouble());
+        m["humidity"]    = formatPercent(cur["relative_humidity_2m"].toDouble());
+        m["dewPoint"]    = formatDegrees(cur["dew_point_2m"].toDouble());
+        m["pressure"]    = formatPressure(cur["pressure_msl"].toDouble(), us);
+        m["wind"]        = formatWind(cur["wind_direction_10m"].toDouble(), windSpeed);
+        m["visibility"]  = formatVisibility(visMetres, us);
 
         m_current = m;
         // m_current has just been rebuilt from scratch, so any station values
@@ -1132,12 +1152,8 @@ void WeatherBackend::applyObservation() {
     const bool us = useUsUnits();
     // NWS always answers in metric — degC, km/h, metres, Pa — so this converts
     // independently of the unit parameters sent to Open-Meteo.
-    const auto toF   = [](double c)  { return c * 9.0 / 5.0 + 32.0; };
     const auto has   = [this](const char *k) { return m_obs.value(QLatin1String(k)).isValid(); };
     const auto num   = [this](const char *k) { return m_obs.value(QLatin1String(k)).toDouble(); };
-    const auto temp  = [&](double c) {
-        return QString::number(qRound(us ? toF(c) : c)) + QStringLiteral("°");
-    };
 
     if (has("conditionCode")) {
         const int code = m_obs["conditionCode"].toInt();
@@ -1145,30 +1161,15 @@ void WeatherBackend::applyObservation() {
         m_current["conditionCode"] = code;
         m_current["iconName"]      = iconForCode(code, m_isDay);
     }
-    if (has("temperature")) m_current["temperature"] = temp(num("temperature"));
-    if (has("dewPoint"))    m_current["dewPoint"]    = temp(num("dewPoint"));
-    if (has("humidity"))
-        m_current["humidity"] = QString::number(qRound(num("humidity"))) + QStringLiteral("%");
-    if (has("pressure")) {
-        const double hPa = num("pressure") / 100.0;   // NWS reports pascals
-        m_current["pressure"] = us
-            ? QString::number(hPa * 0.0295299830714, 'f', 2)
-            : QString::number(hPa, 'f', 1) + QStringLiteral(" MB");
-    }
+    if (has("temperature")) m_current["temperature"] = formatDegrees(localTemp(num("temperature"), us));
+    if (has("dewPoint"))    m_current["dewPoint"]    = formatDegrees(localTemp(num("dewPoint"), us));
+    if (has("humidity"))    m_current["humidity"]    = formatPercent(num("humidity"));
+    if (has("pressure"))    m_current["pressure"]    = formatPressure(num("pressure") / 100.0, us); // pascals
     // Direction is null when the wind is calm or variable, and a bearing is the
     // half of this line that can't be omitted — leave the model's value.
-    if (has("windDir") && has("windSpeed")) {
-        const double kmh = num("windSpeed");
-        m_current["wind"] = QStringLiteral("%1 %2")
-                                .arg(cardinal(num("windDir")))
-                                .arg(qRound(us ? kmh / 1.609344 : kmh));
-    }
-    if (has("visibility")) {
-        const double m = num("visibility");
-        m_current["visibility"] = us
-            ? QString::number(qRound(m / 1609.344)) + QStringLiteral(" MI.")
-            : QString::number(qRound(m / 1000.0))   + QStringLiteral(" KM");
-    }
+    if (has("windDir") && has("windSpeed"))
+        m_current["wind"] = formatWind(num("windDir"), localSpeed(num("windSpeed"), us));
+    if (has("visibility")) m_current["visibility"] = formatVisibility(num("visibility"), us);
 }
 
 void WeatherBackend::buildForecast(const QJsonObject &daily) {
@@ -1344,6 +1345,10 @@ QString WeatherBackend::tempUnitLabel() const {
 // coordinates and answers with an array in the same order — so the whole table
 // is a single round trip no matter how many places are listed.
 void WeatherBackend::fetchOthers() {
+    // Not while extras are still being geocoded: their slots are empty, and a
+    // request now would ask for the weather at 0°, 0° in each one's place.
+    // The last geocode to land fetches.
+    if (m_pendingOthers > 0) return;
     const quint64 requestGeneration = ++m_otherRequestGeneration;
     if (m_otherPoints.isEmpty()) {
         m_otherLocations.clear();
@@ -1363,13 +1368,11 @@ void WeatherBackend::fetchOthers() {
     QUrlQuery q;
     q.addQueryItem(QStringLiteral("latitude"),  lats.join(QLatin1Char(',')));
     q.addQueryItem(QStringLiteral("longitude"), lons.join(QLatin1Char(',')));
+    // The table shows each place's condition and temperature only.
     q.addQueryItem(QStringLiteral("current"),
-                   QStringLiteral("temperature_2m,weather_code,wind_speed_10m,"
-                                  "wind_direction_10m,is_day"));
+                   QStringLiteral("temperature_2m,weather_code,is_day"));
     q.addQueryItem(QStringLiteral("temperature_unit"),
                    us ? QStringLiteral("fahrenheit") : QStringLiteral("celsius"));
-    q.addQueryItem(QStringLiteral("wind_speed_unit"),
-                   us ? QStringLiteral("mph") : QStringLiteral("kmh"));
     url.setQuery(q);
 
     QNetworkReply *reply = m_nam->get(QNetworkRequest(url));
@@ -1397,7 +1400,6 @@ void WeatherBackend::fetchOthers() {
         for (int i = 0; i < entries.size() && i < m_otherPoints.size(); ++i) {
             const QJsonObject cur = entries.at(i).toObject()["current"].toObject();
             if (cur.isEmpty()) continue;
-            const double speed = cur["wind_speed_10m"].toDouble();
             // Each city has its own daylight — Tokyo can be mid-morning while
             // the primary location is in the small hours. Kept for the station
             // overlay, which has no daylight of its own to report.
@@ -1408,13 +1410,6 @@ void WeatherBackend::fetchOthers() {
                 { "name", m_otherPoints.at(i).toMap()["name"] },
                 { "temp", QString::number(qRound(cur["temperature_2m"].toDouble())) },
                 { "condition", conditionShortForCode(cur["weather_code"].toInt(), isDay) },
-                // The original showed CALM rather than a direction with no
-                // speed behind it.
-                { "wind", qRound(speed) == 0
-                      ? QStringLiteral("CALM")
-                      : QStringLiteral("%1 %2")
-                            .arg(cardinal(cur["wind_direction_10m"].toDouble()))
-                            .arg(qRound(speed)) },
             });
         }
         m_otherLocations = rows;
@@ -1498,19 +1493,8 @@ void WeatherBackend::applyOtherObservations() {
         // whether the sun is up.
         r["condition"] = conditionShortForCode(obs["conditionCode"].toInt(),
                                                m_otherIsDay.value(i, true));
-        if (obs["temperature"].isValid()) {
-            const double c = obs["temperature"].toDouble();
-            r["temp"] = QString::number(qRound(us ? c * 9.0 / 5.0 + 32.0 : c));
-        }
-        if (obs["windDir"].isValid() && obs["windSpeed"].isValid()) {
-            const double kmh   = obs["windSpeed"].toDouble();
-            const int    speed = qRound(us ? kmh / 1.609344 : kmh);
-            // The original showed CALM rather than a direction with no speed
-            // behind it.
-            r["wind"] = speed == 0
-                ? QStringLiteral("CALM")
-                : QStringLiteral("%1 %2").arg(cardinal(obs["windDir"].toDouble())).arg(speed);
-        }
+        if (obs["temperature"].isValid())
+            r["temp"] = QString::number(qRound(localTemp(obs["temperature"].toDouble(), us)));
         m_otherLocations[row] = r;
     }
 }

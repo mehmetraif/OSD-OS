@@ -22,6 +22,8 @@ public:
     Q_INVOKABLE bool has_auth() const;
     Q_INVOKABLE QString get_server_name();
     Q_INVOKABLE QString get_user_name();
+    // The server signed in to (Root.qml keeps it in the module's settings).
+    Q_INVOKABLE QString get_server_url() const { return m_serverUrl; }
     Q_INVOKABLE void check_auth();
     Q_INVOKABLE void logout();
 
@@ -35,7 +37,6 @@ public:
     Q_INVOKABLE void load_libraries();
     Q_INVOKABLE void load_items(const QString &parentId, const QString &includeTypes, const QString &sortBy);
     Q_INVOKABLE void load_item_detail(const QString &itemId);
-    Q_INVOKABLE void load_children(const QString &itemId);
     Q_INVOKABLE void load_boxset_children(const QString &parentId);
     Q_INVOKABLE void load_folder_children(const QString &parentId);
     Q_INVOKABLE void load_seasons(const QString &seriesId);
@@ -91,7 +92,6 @@ signals:
     void librariesLoaded(const QVariant &libraries);
     void itemsLoaded(const QVariant &items);
     void itemLoaded(const QVariant &detail);
-    void childrenLoaded(const QVariant &children);
     void boxsetChildrenLoaded(const QVariant &children);
     void folderChildrenLoaded(const QVariant &children);
     void seasonsLoaded(const QVariant &seasons);
@@ -104,8 +104,6 @@ signals:
     void dynamicOptionsReady(const QString &key, const QVariant &options);
     void segmentsReady(const QString &itemId, const QVariantList &segments);
     void errorOccurred(const QString &message);
-    void logoutComplete();
-    void authRevoked();
 
     // Quick Connect signals
     void quickConnectCodeReady(const QString &code, const QString &secret);
@@ -182,14 +180,19 @@ private:
     static QVariantMap formatItem(const QJsonObject &item, const QString &serverUrl);
     QVariantMap formatItem(const QJsonObject &item) const { return formatItem(item, m_serverUrl); }
 
+    // A self-signed LAN server's certificate taken for a reply to the
+    // configured server (its host read as the request is issued), or to
+    // serverHost.
     void ignoreSslErrors(QNetworkReply *reply) const;
+    static void ignoreSslErrors(QNetworkReply *reply, const QString &serverHost);
 
     void loadAuthState();
     void saveAuthState();
     void clearAuthState();
+    void fetchNextEpisode(const QString &seriesId, const QString &itemId, int currentSeason, int currentIndex,
+                          bool fromItem);
 
     QJsonObject loadConfig() const;
-    void saveConfig(const QJsonObject &cfg) const;
 
     int videoQualityBitrate() const;
     int videoQualityMaxHeight() const;

@@ -21,6 +21,8 @@ struct ModuleEntry {
     QString iconRel;     // relative to module folder, e.g. "assets/images/logo.svg"
     QVariantList settings;
     QString settingsGroup; // "tv", "arcade" or "": where Settings lists its page
+    // What its "enabled" toggle defaults to in the manifest (true without one).
+    bool enabledByDefault = true;
 };
 
 class AsyncDirectoryCache;
@@ -172,11 +174,18 @@ private slots:
 
 private:
     AsyncDirectoryCache *m_directoryCache = nullptr;
-    QJsonObject loadConfig() const;
+    // The config, or the defaults for one missing or unreadable; `broken`
+    // tells those apart (true: there, but not valid JSON).
+    QJsonObject loadConfig(bool *broken = nullptr) const;
     // False when it couldn't be written (the reason is in the log).
     bool saveConfig(const QJsonObject &config) const;
-    QJsonObject loadLists() const;
+    QJsonObject loadLists(bool *broken = nullptr) const;
+    bool listsToChange(QJsonObject *lists) const;
     void saveLists(const QJsonObject &lists) const;
+    // The module with this id, or null.
+    const ModuleEntry *findModule(const QString &moduleId) const;
+    // APP_ROOT-relative QML entry point of a module ("modules/plex/views/Root.qml").
+    static QString entryPointOf(const ModuleEntry &m);
     QString moduleIdForBackend(QObject *backend) const;
     // Extra top-level menu rows a module's backend wants to contribute. Probed,
     // not connected — see the comment at the call site in scan_for_modules.
@@ -184,7 +193,7 @@ private:
     // Resolve a module's enabled state: config override if present, else the
     // manifest default (an "enabled" setting whose default is "OFF"), else true.
     bool isModuleEnabled(const ModuleEntry &m, const QJsonObject &modulesConfig) const;
-    QVariantMap importColorScheme(QJsonObject &obj) const;
+    QVariantMap importColorScheme(const QJsonObject &obj) const;
     // The folder of the skin or the theme (kind: "skin", "theme") with this
     // id whose skin.json or theme.json reads, the data folder's before the
     // app's, and that JSON; empty when there is none (or the id isn't a

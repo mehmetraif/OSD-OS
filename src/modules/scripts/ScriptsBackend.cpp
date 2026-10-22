@@ -249,24 +249,6 @@ QVariantList ScriptsBackend::getScripts() {
     return out;
 }
 
-QString ScriptsBackend::resolveScript(const QString &basename) {
-    if (basename.isEmpty()) return {};
-    if (m_scripts.isEmpty()) scanScriptsDir();
-    for (const ScriptEntry &e : m_scripts) {
-        if (e.basename == basename)
-            return e.path;
-    }
-    // Might have been added since the last scan.
-    scanScriptsDir();
-    for (const ScriptEntry &e : m_scripts) {
-        if (e.basename == basename)
-            return e.path;
-    }
-    qWarning("[Scripts] No script named '%s' in %s",
-             qPrintable(basename), qPrintable(m_scriptsDir));
-    return {};
-}
-
 void ScriptsBackend::getStartupScriptOptions() {
     scanScriptsDir();
 

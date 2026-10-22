@@ -56,20 +56,11 @@ public:
                             DisplayHandoff *handoff = nullptr,
                             QObject *parent = nullptr);
 
-    // Resolved scripts directory (never empty — an unset setting means the
-    // dataRoot default, per the directory_browser contract).
-    Q_INVOKABLE QString scriptsDir() const { return m_scriptsDir; }
-
     // Rescans the directory and returns one map per script:
     //   { name, path, basename, mode, favorite, confirm }
     // Rescanning on every call is deliberate: re-entering the view picks up
     // sidecar edits with no explicit refresh.
     Q_INVOKABLE QVariantList getScripts();
-
-    // basename ("foo.sh") -> absolute path, or empty if it no longer exists.
-    // Settings store basenames so that changing scripts_directory can't leave a
-    // stale absolute path behind.
-    Q_INVOKABLE QString resolveScript(const QString &basename);
 
     // manifest: startup_script (list_single, options_source "dynamic")
     Q_INVOKABLE void getStartupScriptOptions();

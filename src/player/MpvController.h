@@ -229,6 +229,11 @@ private:
     // The screen back from the mpv process that had it, then `then`. Headless,
     // after DisplayHandoff's settle delay, as when a process ends; else at once.
     void handBackScreen(std::function<void()> then);
+    // A session that never got going ends as one that just did: the screen
+    // back, then playbackEnded(0, 0, reason) for the launch still current.
+    void endAtOnce(const QString &reason);
+    // The IPC down after a session, the position and duration it got to out.
+    void closeIpc(bool drain, int *pos, int *dur);
     // Transparent Background is on, and libmpv is there to play inside the app.
     bool transparentBackground() const;
     // The decode and drawing flags for a session played inside the app, as
@@ -293,7 +298,6 @@ private:
     bool            m_launchPending = false;
     int             m_pendingStartMs = 0;
     QSize           m_videoTargetSize { 640, 480 };
-    QString         m_embeddedInputConfPath;
     DisplayHandoff *m_handoff      = nullptr;
     VideoProfile  m_videoProfile  = VideoProfile::Generic;
     QProcess     *m_process        = nullptr;
@@ -328,7 +332,6 @@ private:
     QString       m_displayScreenName;
     bool          m_tubeScreen   = false;   // see setScreen()
     QSize         m_screenSize;             // in pixels; see setScreen()
-    int           m_previousVt   = -1;
     bool          m_hasMpvOscScript     = false;
     bool          m_hasAmbientOscScript = false;
     bool          m_hasMediaKeysScript  = false;

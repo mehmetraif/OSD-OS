@@ -627,6 +627,36 @@ private slots:
         QCOMPARE(keysOf(keys), QStringList({ "DOWN" }));
     }
 
+    // A held volume key, which the keyboard repeats every 80 ms or so, goes
+    // to mpv every 150 ms (the whole range in three seconds); a press goes at
+    // once, and any other media key once per press, however long it is held.
+    void heldVolumeKey() {
+        AppCore core(m_app.path(), m_data.path());
+        InputManager im(m_data.path(), &core);
+        QSignalSpy keys(&im, &InputManager::mpvKeyRequested);
+        QWindow window;
+        const auto press = [&window](int qtKey, bool repeat) {
+            QKeyEvent event(QEvent::KeyPress, qtKey, Qt::NoModifier, QString(), repeat);
+            QCoreApplication::sendEvent(&window, &event);
+        };
+        press(Qt::Key_VolumeUp, false);
+        for (int i = 0; i < 5; ++i)
+            press(Qt::Key_VolumeUp, true);
+        QCOMPARE(keysOf(keys), QStringList({ "VOLUME_UP" }));
+        QTest::qWait(170);
+        press(Qt::Key_VolumeUp, true);
+        press(Qt::Key_VolumeUp, true);
+        QCOMPARE(keysOf(keys), QStringList({ "VOLUME_UP", "VOLUME_UP" }));
+        // Let go and pressed again, at once.
+        press(Qt::Key_VolumeDown, false);
+        QCOMPARE(keysOf(keys), QStringList({ "VOLUME_UP", "VOLUME_UP", "VOLUME_DOWN" }));
+        press(Qt::Key_MediaNext, false);
+        press(Qt::Key_MediaNext, true);
+        QTest::qWait(170);
+        press(Qt::Key_MediaNext, true);
+        QCOMPARE(keysOf(keys).count("NEXT"), 1);
+    }
+
     // A remote's OK, however it comes, is Select / OK: keypad Enter, which
     // most views don't take, and the Select and OK keys (Qt::Key_Select from
     // Qt's own evdev keymap; from libinput's, which has no symbol for them, a

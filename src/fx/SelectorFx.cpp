@@ -40,7 +40,9 @@ float noise1(float x) {
     return hash1(i) + (hash1(i + 1) - hash1(i)) * s;
 }
 float hash3(int x, int y, int z) {
-    return hash1(x * 73856093 ^ y * 19349663 ^ z * 83492791);
+    // Unsigned: the products overflow (a column past 30, a frame past 50), and
+    // wrap only as unsigned; the same bits as the preview's Math.imul.
+    return hash1(int(quint32(x) * 73856093u ^ quint32(y) * 19349663u ^ quint32(z) * 83492791u));
 }
 } // namespace
 

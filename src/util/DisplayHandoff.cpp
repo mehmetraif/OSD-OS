@@ -93,6 +93,10 @@ int DisplayHandoff::acquire(const QString &owner) {
     m_qtDrmFd    = -1;
 
 #ifdef Q_OS_LINUX
+    // This hand-off's own saved state, or none: the last one's could be left
+    // valid (its restore skipped for a DRM master still held), and a takeover
+    // would then be allowed that cannot be restored.
+    m_savedDrm = {};
     // VT switch first — suspends Qt's render thread via the kernel's VT switch
     // signal before DRM master is dropped, which is what keeps the
     // "Failed to commit atomic request (code=-13)" (EACCES) noise down. Expect a

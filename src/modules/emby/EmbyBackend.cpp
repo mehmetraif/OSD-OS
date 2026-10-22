@@ -254,7 +254,10 @@ void EmbyBackend::ignoreSslErrors(QNetworkReply *reply) const {
     // sslErrors callback fires later, and logout() clears m_serverUrl the moment
     // it kicks off its device-deauth/logout requests, so reading it live would
     // fail the host match and refuse to relax self-signed LAN certs.
-    const QString serverHost = QUrl(m_serverUrl).host();
+    ignoreSslErrors(reply, QUrl(m_serverUrl).host());
+}
+
+void EmbyBackend::ignoreSslErrors(QNetworkReply *reply, const QString &serverHost) {
     connect(reply, &QNetworkReply::sslErrors, reply, [reply, serverHost](const QList<QSslError> &errors) {
         // Only relax for the configured Emby server — typical of self-signed LAN certs
         if (reply->url().host() != serverHost)
@@ -299,7 +302,6 @@ void EmbyBackend::check_auth() {
         if (status == 401) {
             qWarning("[EmbyBackend] Token rejected — signing out");
             clearAuthState();
-            emit authRevoked();
             notifyAuthState();
             return;
         }
@@ -325,22 +327,25 @@ void EmbyBackend::logout() {
         { QUrlQuery dq; dq.addQueryItem("Id", m_deviceId); devUrl.setQuery(dq); }
         const QNetworkRequest deviceReq = embyRequest(devUrl);
         const QNetworkRequest logoutReq = embyRequest(QUrl(m_serverUrl + "/Sessions/Logout"));
+        // The revoke goes out once the deauth has answered, after
+        // clearAuthState() below has forgotten the server: its host for a
+        // self-signed LAN cert is kept here.
+        const QString serverHost = QUrl(m_serverUrl).host();
 
         // Deauth the device first, then revoke the token — the other order would
         // 401 the delete.
         auto *devReply = m_nam->deleteResource(deviceReq);
         ignoreSslErrors(devReply);
-        connect(devReply, &QNetworkReply::finished, this, [this, devReply, logoutReq]() {
+        connect(devReply, &QNetworkReply::finished, this, [this, devReply, logoutReq, serverHost]() {
             devReply->deleteLater();
             if (devReply->error() != QNetworkReply::NoError)
                 qWarning("[Emby] device deauth failed: %s", qPrintable(devReply->errorString()));
             auto *reply = m_nam->post(logoutReq, QByteArray());
-            ignoreSslErrors(reply);
+            ignoreSslErrors(reply, serverHost);
             connect(reply, &QNetworkReply::finished, reply, &QNetworkReply::deleteLater);
         });
     }
     clearAuthState();
-    emit logoutComplete();
     notifyAuthState();
 }
 
@@ -937,39 +942,6 @@ void EmbyBackend::load_item_detail(const QString &itemId) {
     });
 }
 
-void EmbyBackend::load_children(const QString &itemId) {
-    if (!has_auth()) {
-        emit errorOccurred("NOT AUTHENTICATED");
-        return;
-    }
-
-    QUrl url(m_serverUrl + "/Users/" + m_userId + "/Items");
-    QUrlQuery q;
-    q.addQueryItem("parentId", itemId);
-    q.addQueryItem("recursive", "false");
-    q.addQueryItem("includeItemTypes", "Season,Episode");
-    q.addQueryItem("limit", "500");
-    q.addQueryItem("fields", "MediaSources,MediaStreams,Overview,Genres,UserData");
-    q.addQueryItem("sortBy", "SortName");
-    q.addQueryItem("sortOrder", "Ascending");
-    url.setQuery(q);
-
-    auto *reply = embyGet(url);
-    connect(reply, &QNetworkReply::finished, this, [this, reply]() {
-        reply->deleteLater();
-        if (reply->error() != QNetworkReply::NoError) {
-            emit errorOccurred("LOAD CHILDREN FAILED: " + reply->errorString());
-            return;
-        }
-
-        QJsonArray items = QJsonDocument::fromJson(reply->readAll()).object()["Items"].toArray();
-        QVariantList result;
-        for (const QJsonValue &v : items)
-            result.append(formatItem(v.toObject()));
-        emit childrenLoaded(result);
-    });
-}
-
 void EmbyBackend::load_boxset_children(const QString &parentId) {
     if (!has_auth()) {
         emit errorOccurred("NOT AUTHENTICATED");
@@ -986,7 +958,8 @@ void EmbyBackend::load_boxset_children(const QString &parentId) {
     QUrlQuery q;
     q.addQueryItem("parentId", parentId);
     q.addQueryItem("recursive", "false");
-    q.addQueryItem("fields", "Overview,Genres,UserData,ChildCount,ReleaseDate,PremiereDate");
+    // SortName for the A–Z panel's letters (formatItem's titleSort).
+    q.addQueryItem("fields", "Overview,Genres,UserData,ChildCount,ReleaseDate,PremiereDate,SortName");
     q.addQueryItem("sortBy", "SortName");
     q.addQueryItem("sortOrder", "Ascending");
     url.setQuery(q);
@@ -1585,53 +1558,43 @@ void EmbyBackend::load_next_episode(const QString &currentItemId) {
             return;
         }
 
-        // Step 2: fetch all episodes for the series. No sortBy — see load_episodes;
-        // the scan below picks by season/index number, so order doesn't matter here.
-        QUrl epUrl(m_serverUrl + "/Shows/" + seriesId + "/Episodes");
-        QUrlQuery epQ;
-        epQ.addQueryItem("userId", m_userId);
-        epQ.addQueryItem("fields", "MediaSources,MediaStreams,Overview,Genres,UserData");
-        epQ.addQueryItem("enableUserData", "true");
-        epQ.addQueryItem("limit", "500");
-        epUrl.setQuery(epQ);
+        // Step 2: the series' episodes from this one on
+        fetchNextEpisode(seriesId, item["Id"].toString(), currentSeason, currentIndex, true);
+    });
+}
 
-        auto *epReply = embyGet(epUrl);
-        connect(epReply, &QNetworkReply::finished, this,
-                [this, epReply, currentIndex, currentSeason]() {
-            epReply->deleteLater();
-            if (epReply->error() != QNetworkReply::NoError) {
-                emit nextEpisodeReady(QVariantMap{});
-                return;
-            }
-            QJsonArray episodes = QJsonDocument::fromJson(epReply->readAll())
-                                      .object()["Items"].toArray();
+// The series' episodes from the current one (startItemId), a page of them:
+// it holds the next whatever the series' length, where a list of the whole
+// series was cut at 500. No sortBy (see load_episodes): Emby lists them in
+// their order natively. A server that doesn't skip to the item (its page
+// starts at the first episode) is asked once more for the whole series.
+void EmbyBackend::fetchNextEpisode(const QString &seriesId, const QString &itemId, int currentSeason,
+                                   int currentIndex, bool fromItem) {
+    QUrl epUrl(m_serverUrl + "/Shows/" + seriesId + "/Episodes");
+    QUrlQuery epQ;
+    epQ.addQueryItem("userId", m_userId);
+    epQ.addQueryItem("fields", "MediaSources,MediaStreams,Overview,Genres,UserData");
+    epQ.addQueryItem("enableUserData", "true");
+    if (fromItem)
+        epQ.addQueryItem("startItemId", itemId);
+    epQ.addQueryItem("limit", fromItem ? "50" : "500");
+    epUrl.setQuery(epQ);
 
-            // Find the next episode: smallest (season > currentSeason) or
-            // (same season, episode index > currentIndex).
-            QJsonObject nextEp;
-            int nextSeason = 0;
-            int nextIndex  = 0;
-            for (const auto &ev : episodes) {
-                QJsonObject e = ev.toObject();
-                int s = e["ParentIndexNumber"].toInt();
-                int i = e["IndexNumber"].toInt();
-
-                if (s > currentSeason || (s == currentSeason && i > currentIndex)) {
-                    if (nextEp.isEmpty() || s < nextSeason ||
-                        (s == nextSeason && i < nextIndex)) {
-                        nextEp     = e;
-                        nextSeason = s;
-                        nextIndex  = i;
-                    }
-                }
-            }
-
-            if (nextEp.isEmpty()) {
-                emit nextEpisodeReady(QVariantMap{});
-                return;
-            }
-            emit nextEpisodeReady(formatItem(nextEp));
-        });
+    auto *epReply = embyGet(epUrl);
+    connect(epReply, &QNetworkReply::finished, this,
+            [this, epReply, seriesId, itemId, currentSeason, currentIndex, fromItem]() {
+        epReply->deleteLater();
+        if (epReply->error() != QNetworkReply::NoError) {
+            emit nextEpisodeReady(QVariantMap{});
+            return;
+        }
+        const QJsonArray episodes = QJsonDocument::fromJson(epReply->readAll()).object()["Items"].toArray();
+        if (fromItem && !embyapi::hasItem(episodes, itemId)) {
+            fetchNextEpisode(seriesId, itemId, currentSeason, currentIndex, false);
+            return;
+        }
+        const QJsonObject nextEp = embyapi::nextEpisode(episodes, currentSeason, currentIndex);
+        emit nextEpisodeReady(nextEp.isEmpty() ? QVariantMap{} : formatItem(nextEp));
     });
 }
 

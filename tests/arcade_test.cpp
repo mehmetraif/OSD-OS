@@ -577,7 +577,8 @@ private slots:
                  QStringLiteral("MAME has no game called notagame\nIts set may be for another version of MAME"));
         QCOMPARE(unknown.last().toMap().value(QStringLiteral("detail")).toString(),
                  QStringLiteral("Not the name of a set MAME knows\nA set is named as MAME names its game: pacman.zip"));
-        QVERIFY(QFileInfo::exists(m_data.path() + QStringLiteral("/arcade/games.json")));
+        // Written off the GUI thread: a moment after the scan ended.
+        QTRY_VERIFY_WITH_TIMEOUT(QFileInfo::exists(m_data.path() + QStringLiteral("/arcade/games.json")), 5000);
     }
 
     // What MAME said is kept: asked again only about a set new in the
@@ -1780,15 +1781,26 @@ private slots:
                  QStringList({ QStringLiteral("Auto (FinalBurn Neo) *"), QStringLiteral("FinalBurn Neo") }));
         QVERIFY(arcade.gameDetails(QStringLiteral("xyzzy")).value(QStringLiteral("unknown")).toBool());
         QTRY_VERIFY_WITH_TIMEOUT(!arcade.scanning(), 10000);
-        // And so after OSD/OS was stopped in the middle of it, with a
-        // games.json of an older version, whose sets are all asked about
-        // again, and asked before games.json was read.
+        // OSD/OS stopped in the middle of it: games.json stays as MAME last
+        // answered (what it is asked again goes in as it answers), so the
+        // next start has every game without asking, kof98 FinalBurn Neo's.
         {
             ArcadeBackend stopped(data.path(), data.path(), nullptr, nullptr);
             refreshed(stopped);
             stopped.rescan();
             QTRY_VERIFY_WITH_TIMEOUT(!stopped.reading() && stopped.scanning(), 5000);
         }
+        {
+            QFile::remove(m_log);
+            ArcadeBackend started(data.path(), data.path(), nullptr, nullptr);
+            refreshed(started);
+            QCOMPARE(started.engineOf(QStringLiteral("kof98")), QStringLiteral("fbneo"));
+            QCOMPARE(started.engineOf(QStringLiteral("sf2")), QStringLiteral("mame"));
+            QVERIFY(!started.gameDetails(QStringLiteral("sf2")).value(QStringLiteral("unknown")).toBool());
+            QVERIFY(logLines(QStringLiteral("listxml")).isEmpty());
+        }
+        // And so with a games.json of an older version, whose sets are all
+        // asked about again, and asked before games.json was read.
         const auto engineWhileAsked = [&data](const QString &set, bool readAgain) {
             ArcadeBackend started(data.path(), data.path(), nullptr, nullptr);
             if (readAgain)
@@ -1803,7 +1815,6 @@ private slots:
             return engine;
         };
         const QString kof98 = QStringLiteral("kof98");
-        QCOMPARE(engineWhileAsked(kof98, false), QStringLiteral("fbneo"));
         const QString cache = data.path() + QStringLiteral("/arcade/games.json");
         writeFile(cache, R"({"version": 1, "unknown": ["kof98"]})");
         QCOMPARE(engineWhileAsked(kof98, false), QStringLiteral("fbneo"));

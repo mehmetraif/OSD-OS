@@ -171,6 +171,7 @@ private:
     void setPollingEnabled(bool enabled);
     void startPolling();
     void stopPolling();
+    void setReaderConnected(bool connected, const QString &name);
     void startWorker();
     void abandonWorker(int waitMs);
     void setCardState(const QString &state, const QString &uid = {}, const QString &title = {});

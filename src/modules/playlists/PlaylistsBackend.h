@@ -166,9 +166,11 @@ private:
     // Numbers each prepare()'s m3u.
     int m_serial = 0;
 
-    // serverListing()'s, by "<moduleId>|<parentId>", and those on their way.
+    // serverListing()'s, by "<moduleId>|<parentId>", those on their way, and
+    // when those that failed did.
     QHash<QString, QVariantList> m_listings;
     QSet<QString> m_listingsPending;
+    QHash<QString, qint64> m_listingsFailedAt;
     int m_listingsEpoch = 0;
 
     QStringList m_queue;

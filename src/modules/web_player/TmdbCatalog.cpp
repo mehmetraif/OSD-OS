@@ -316,13 +316,19 @@ void TmdbCatalog::search(const QString &path, const QString &words) {
                 // Keep the matches the service carries here, in TMDB's order.
                 auto carried = std::make_shared<QVector<bool>>(candidates.size(), false);
                 auto pending = std::make_shared<int>(candidates.size());
+                auto failed  = std::make_shared<bool>(false);
                 for (int i = 0; i < candidates.size(); ++i) {
                     const QVariantMap c = candidates.at(i).toMap();
                     get(QStringLiteral("/%1/%2/watch/providers")
                             .arg(c.value(QStringLiteral("mediaType")).toString())
                             .arg(c.value(QStringLiteral("tmdbId")).toInt()),
                         {},
-                        [this, candidates, carried, pending, finish, i](const QVariantMap &providers) {
+                        [this, path, candidates, carried, pending, failed, finish, i](const QVariantMap &providers) {
+                            // An answer always carries the title's id: nothing
+                            // at all is a request that failed, and a search
+                            // short of that title must not be kept.
+                            if (providers.isEmpty())
+                                *failed = true;
                             const QVariantMap here = providers.value(QStringLiteral("results")).toMap()
                                                          .value(m_region).toMap();
                             for (const QVariant &p : here.value(QStringLiteral("flatrate")).toList()) {
@@ -331,6 +337,12 @@ void TmdbCatalog::search(const QString &path, const QString &words) {
                             }
                             if (--*pending > 0)
                                 return;
+                            if (*failed) {
+                                m_searching.removeAll(path);
+                                m_failedAt.insert(path, QDateTime::currentMSecsSinceEpoch());
+                                emit listingReady(path);
+                                return;
+                            }
                             QVariantList titles;
                             for (int k = 0; k < candidates.size(); ++k) {
                                 if ((*carried)[k])

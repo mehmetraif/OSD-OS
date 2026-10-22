@@ -14,8 +14,6 @@ class IdleTracker : public QObject {
     Q_OBJECT
     // True when idle time has exceeded the threshold.
     Q_PROPERTY(bool active READ isActive NOTIFY activeChanged)
-    // Current consecutive idle seconds since last activity.
-    Q_PROPERTY(int idleSeconds READ idleSeconds NOTIFY idleSecondsChanged)
     // Idle threshold in seconds before active becomes true.
     Q_PROPERTY(int threshold READ threshold WRITE setThreshold NOTIFY thresholdChanged)
     // Master switch — when false the timer never fires active.
@@ -36,7 +34,6 @@ public:
     explicit IdleTracker(int thresholdSec = 60, QObject *parent = nullptr);
 
     bool isActive()      const { return m_active;       }
-    int  idleSeconds()   const { return m_idleSeconds;  }
     int  threshold()     const { return m_threshold;    }
     bool isEnabled()     const { return m_enabled;      }
     bool isMpvActive()    const { return m_mpvActive;    }
@@ -55,14 +52,11 @@ public:
 
 signals:
     void activeChanged();
-    void idleSecondsChanged();
     void thresholdChanged();
     void enabledChanged();
     void mpvActiveChanged();
     void scriptActiveChanged();
     void viewActiveChanged();
-    // Emitted on every call to resetActivity (including from the event filter).
-    void activityDetected();
 
 protected:
     bool eventFilter(QObject *obj, QEvent *event) override;
@@ -73,6 +67,7 @@ private slots:
 private:
     // Any external session that owns the screen suppresses the saver.
     bool blocked() const { return m_mpvActive || m_scriptActive || m_viewActive; }
+    void setBlocker(bool &blocker, bool active, void (IdleTracker::*changed)());
 
     QTimer m_timer;
     int    m_threshold;

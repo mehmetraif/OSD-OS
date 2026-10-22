@@ -1,4 +1,5 @@
 #include "RetroAchievements.h"
+#include "Http.h"
 #include "Libretro.h"
 #include "../highscores/ScoreTable.h"
 #include "../../util/AtomicFile.h"
@@ -54,36 +55,15 @@ QString listFile(const QString &home) {
 
 // A request of the Web API's or the media server's.
 QNetworkRequest requestFor(const QUrl &url) {
-    QNetworkRequest request(url);
-    request.setAttribute(QNetworkRequest::RedirectPolicyAttribute, QNetworkRequest::NoLessSafeRedirectPolicy);
-    request.setHeader(QNetworkRequest::UserAgentHeader,
-                      QStringLiteral("OSD-OS/%1").arg(QCoreApplication::applicationVersion()));
-    request.setTransferTimeout(kTimeoutMs);
-    return request;
+    return arcadehttp::requestFor(url, kTimeoutMs);
 }
 
-// A reply given up on once it is bigger than limit: as its header says so,
-// or as more than that comes.
-void limitReply(QNetworkReply *reply, qint64 limit) {
-    QObject::connect(reply, &QNetworkReply::metaDataChanged, reply, [reply, limit] {
-        if (reply->header(QNetworkRequest::ContentLengthHeader).toLongLong() > limit)
-            reply->abort();
-    });
-    QObject::connect(reply, &QNetworkReply::downloadProgress, reply, [reply, limit](qint64 received, qint64) {
-        if (received > limit)
-            reply->abort();
-    });
-}
+using arcadehttp::limitReply;
+using arcadehttp::isBadgeName;
 
 // A picture: a PNG or a JPEG, as its first bytes say.
 bool isPicture(const QByteArray &data) {
     return data.startsWith("\x89PNG\r\n\x1a\n") || data.startsWith("\xff\xd8\xff");
-}
-
-// A badge's name as RetroAchievements gives it, and as it goes in a path.
-bool isBadgeName(const QString &name) {
-    static const QRegularExpression valid(QRegularExpression::anchoredPattern(QStringLiteral("[0-9A-Za-z]{1,32}")));
-    return valid.match(name).hasMatch();
 }
 
 } // namespace

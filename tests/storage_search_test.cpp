@@ -81,6 +81,31 @@ private slots:
                      QString("Movie%1.mp4").arg(i, 4, 10, QLatin1Char('0')));
     }
 
+    // A drive's recycle bin, lost+found and the like are hidden from the
+    // browser; a search must not list what is in them either.
+    void searchSkipsSystemFolders() {
+        QTemporaryDir tmp;
+        QVERIFY(tmp.isValid());
+        const QString media = tmp.path() + "/media";
+        QVERIFY(QDir().mkpath(media + "/$RECYCLE.BIN/S-1-5-21/Holiday 2019"));
+        QVERIFY(QDir().mkpath(media + "/lost+found"));
+        QVERIFY(QDir().mkpath(media + "/Films"));
+        QVERIFY(writeFileAtomically(media + "/$RECYCLE.BIN/S-1-5-21/Holiday 2019/Clip.mp4", "film"));
+        QVERIFY(writeFileAtomically(media + "/lost+found/Clip.mp4", "film"));
+        QVERIFY(writeFileAtomically(media + "/Films/Clip.mp4", "film"));
+        LocalFilesBackend backend(tmp.path(), tmp.path(), nullptr);
+        backend.setMediaRoot(media);
+        QSignalSpy ready(&backend, &LocalFilesBackend::searchReady);
+        QVERIFY(!backend.search("search/clip", "clip").isValid());
+        QTRY_COMPARE_WITH_TIMEOUT(ready.count(), 1, 10000);
+        const QVariantList results = backend.search("search/clip", "clip").toList();
+        QCOMPARE(results.size(), 1);
+        QCOMPARE(results.first().toMap().value("path").toString(), media + "/Films/Clip.mp4");
+        QVERIFY(!backend.search("search/holiday", "holiday").isValid());
+        QTRY_COMPARE_WITH_TIMEOUT(ready.count(), 2, 10000);
+        QVERIFY(backend.search("search/holiday", "holiday").toList().isEmpty());
+    }
+
     void supersededSearchDoesNotPublish() {
         QTemporaryDir tmp;
         QVERIFY(tmp.isValid());
@@ -129,6 +154,38 @@ private slots:
         LocalFilesBackend backend(tmp.path(), tmp.path(), &restored);
         QCOMPARE(backend.getSavedPosition("film.mp4").value("pos").toInt(), 12345);
         QVERIFY(backend.getSavedPosition("other.mp4").isEmpty());
+    }
+
+    // config.json edited by hand and left unreadable (a stray comma) is not
+    // written over: a save would put the defaults in place of every setting
+    // in it. The lists the same way. An empty file is as none.
+    void unreadableConfigIsNotWrittenOver() {
+        QTemporaryDir tmp;
+        QVERIFY(tmp.isValid());
+        const QString config = tmp.path() + "/config.json";
+        const QByteArray broken = "{\"app\": {\"color_scheme\": \"Video 2\",}}";
+        QVERIFY(writeFileAtomically(config, broken));
+        AppCore core(tmp.path(), tmp.path());
+        QSignalSpy app(&core, &AppCore::appSettingChanged);
+        QVERIFY(!core.save_setting("", "color_scheme", "Video 3"));
+        QCOMPARE(app.count(), 0);
+        QFile left(config);
+        QVERIFY(left.open(QIODevice::ReadOnly));
+        QCOMPARE(left.readAll(), broken);
+        QVERIFY(writeFileAtomically(config, "{\"app\": {\"color_scheme\": \"Video 2\"}}"));
+        QVERIFY(core.save_setting("", "color_scheme", "Video 3"));
+        QCOMPARE(core.get_setting("", "color_scheme").toString(), QString("Video 3"));
+
+        const QString lists = tmp.path() + "/lists.json";
+        const QByteArray brokenLists = "{\"com.osdos.local_files\": {\"favorites\": [}";
+        QVERIFY(writeFileAtomically(lists, brokenLists));
+        core.add_to_list("com.osdos.local_files", "favorites", {{"path", "/a.mp4"}});
+        QFile leftLists(lists);
+        QVERIFY(leftLists.open(QIODevice::ReadOnly));
+        QCOMPARE(leftLists.readAll(), brokenLists);
+        QVERIFY(writeFileAtomically(lists, ""));
+        core.add_to_list("com.osdos.local_files", "favorites", {{"path", "/a.mp4"}});
+        QVERIFY(core.list_contains("com.osdos.local_files", "favorites", "/a.mp4"));
     }
 
     void failedReplacementPreservesExistingFiles() {

@@ -43,9 +43,6 @@ public:
 
 public slots:
     void run() {
-        // Cancelled before it got going.
-        if (m_aborted)
-            return;
         m_nam = new QNetworkAccessManager(this);
         m_reply = m_nam->get(m_request);
         // Lets the socket hold the server back while the card catches up.
@@ -73,7 +70,6 @@ public slots:
     void abort() {
         if (m_completed) return;
         m_completed = true;
-        m_aborted = true;
         if (m_reply) {
             m_reply->disconnect(this);
             m_reply->abort();
@@ -137,7 +133,6 @@ private:
     QString m_writeError;
     QNetworkAccessManager *m_nam = nullptr;
     QNetworkReply *m_reply = nullptr;
-    bool m_aborted = false;
     bool m_completed = false;
 };
 
@@ -164,13 +159,19 @@ ServerDownload *ServerDownload::start(const QNetworkRequest &request, const QStr
     connect(thread, &QThread::started, worker, &Worker::run);
     connect(thread, &QThread::finished, worker, &QObject::deleteLater);
     connect(thread, &QThread::finished, thread, &QObject::deleteLater);
-    connect(worker, &Worker::done, thread, &QThread::quit, Qt::DirectConnection);
     connect(worker, &Worker::progress, download, &ServerDownload::progress);
     connect(worker, &Worker::done, download, [download](bool ok, const QString &finalPath, const QString &reason) {
         if (!download->m_cancelled)
             emit download->finished(ok, finalPath, reason);
+        // Nothing left to abort: the thread is quit (below) only once this
+        // has run, so a cancel() can never reach a worker being freed.
+        download->m_worker = nullptr;
         download->deleteLater();
     });
+    // Queued, to the app's thread (the QThread object's), and after the
+    // handler above: the worker is freed as its thread ends, and until then
+    // cancel() may still post to it.
+    connect(worker, &Worker::done, thread, &QThread::quit, Qt::QueuedConnection);
     thread->start();
     return download;
 }
