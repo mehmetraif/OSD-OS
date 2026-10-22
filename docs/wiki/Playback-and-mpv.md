@@ -105,6 +105,7 @@ On a display without a server, the signal comes once the screen is OSD/OS's agai
 | Select | Enter | A | Pauses and plays |
 | Play/pause | Space | Start | Pauses and plays |
 | Back | Esc, Backspace | B, or the pad's Back/Select button | The video's menu, or back to the module (above) |
+| Next or previous film | Page Up, Page Down (a remote's Channel + / −) | | Local Files: the folder's next or previous film; a playlist (Local Files' or Playlists'): its next or previous video, round the end |
 | Media keys | Volume, Mute, Play/Pause, Stop, Fast Forward, Rewind, Next, Previous | | Volume up or down by 5, with a VOLUME bar; mute; play/pause; stop; 30 seconds on; 10 seconds back; the next or the previous chapter |
 
 <img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/screenshots/playback-menu.png" width="100%" alt="The deck menu: AUDIO and CROP lines at the top, the times and the position bar, then the AUDIO, CROP and STOP buttons" />

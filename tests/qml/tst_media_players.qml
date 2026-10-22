@@ -8,7 +8,8 @@ import QtTest
 // waiting for one lead back to the detail screen, not a black screen with no
 // mpv to take a key; a detail screen plays only the stream it asked for; a
 // launch given up drops its stream; signing out leaves no view signed out of
-// for back to return to.
+// for back to return to. And Local Files' player: a remote's channel or page
+// keys step through the folder's films.
 Rectangle {
     id: root
     color: surfaceColor
@@ -35,6 +36,8 @@ Rectangle {
     property bool hintBar: true
     property bool helpLine: true
     property var statusIcons: []
+    property var takeBackNote: ({})
+    property bool videoBehind: false
     readonly property real hintRoom: 0
     readonly property real helpRoom: 0
     readonly property real helpLineMargin: sh * 0.1583333
@@ -85,21 +88,70 @@ Rectangle {
         }
         function get_module_info(id) { return { name: moduleRoot.moduleName, icon: "" } }
         function is_module_enabled(id) { return false }
+        // The video's menu (PlayerMenu): the module's rows, none here.
+        function get_module_settings_schema(id) { return [] }
+        function invoke_module_action(id, slot) {}
+        function save_setting(id, key, value) {}
+        signal dynamicOptionsReady(string moduleId, string key, var items)
+        // The lists a module keeps (RECENTLY WATCHED).
+        property var lists: ({})
+        function add_to_list(moduleId, list, entry, max) {
+            var l = lists
+            l[list] = (l[list] || []).concat([entry])
+            lists = l
+        }
+        function list_contains(moduleId, list, path) { return false }
     }
 
-    // MpvController: what was started and the keys sent to mpv.
+    // LocalFilesBackend as its player uses it: a folder's entries, which
+    // files are images or playlists, and the positions saved.
+    QtObject {
+        id: localFilesBackend
+        property var folder: []          // /films' entries
+        property var positions: ({})     // path → { pos, plPos }
+        signal dynamicOptionsReady(string key, var options)
+        function entries(path) { return path === "/films" ? folder : [] }
+        function isImage(path) { return /\.(jpg|png)$/.test(path) }
+        function isPlaylist(path) { return /\.m3u$/.test(path) }
+        function playlistContainsImages(path) { return false }
+        function getSavedPosition(path) { return positions[path] || {} }
+        function savePosition(path, pos, plPos) {
+            var p = positions
+            p[path] = { pos: pos, plPos: plPos }
+            positions = p
+        }
+        function clearPosition(path) {
+            var p = positions
+            delete p[path]
+            positions = p
+        }
+    }
+
+    // MpvController: what was started (each file and where from, in
+    // seconds) and the keys sent to mpv.
     QtObject {
         id: mpvController
         property int position: 0
         property int duration: 0
         property bool videoActive: false
         property int loads: 0
+        property var urls: []
+        property var starts: []
         property var keys: []
         signal playbackEnded(int finalPositionMs, int finalDurationMs, string reason)
+        signal playlistPosChanged(int pos)
+        signal playerMenuRequested()
         signal skipRequested()
         signal subtitleCycleRequested()
         signal audioCycleRequested()
-        function loadAndPlay() { loads++ }
+        function loadAndPlay(url, startSeconds) {
+            loads++
+            urls = urls.concat([url])
+            starts = starts.concat([startSeconds || 0])
+        }
+        function noteSession(note) {}
+        function closePlayerMenu() {}
+        function setVideoProperty(name, value) {}
         function sendKey(key) { keys = keys.concat([key]) }
         function stop() {}
         function seekTo(ms) {}
@@ -186,6 +238,20 @@ Rectangle {
     ServerBackend { id: jellyfinBackend }
     ServerBackend { id: embyBackend }
 
+    // PlaylistsBackend as its player uses it: a list, the m3u written for
+    // it, and where it stopped.
+    QtObject {
+        id: playlistsBackend
+        function playlist(id) { return { id: id, name: "Night", kind: "online", items: [{ id: "v1" }, { id: "v2" }] } }
+        function prepare(id, fromItemId) {
+            return { file: "/data/" + id + ".m3u", count: 2, youtube: false, images: false,
+                     startIndex: -1, resumeIndex: 0, resumeMs: 0 }
+        }
+        function savedPositionMs(id) { return 0 }
+        function savePosition(id, pos, plPos) {}
+        function clearPosition(id) {}
+    }
+
     Loader {
         id: loader
         anchors.fill: parent
@@ -208,8 +274,13 @@ Rectangle {
             root.navigations = []
             root.backs = 0
             appCore.settings = {}
+            appCore.lists = {}
             mpvController.loads = 0
+            mpvController.urls = []
+            mpvController.starts = []
             mpvController.keys = []
+            localFilesBackend.folder = []
+            localFilesBackend.positions = {}
             plexBackend.cancels = 0
             plexBackend.transcodes = 0
             plexBackend.nextAsks = 0
@@ -415,6 +486,77 @@ Rectangle {
             compare(mpvController.keys.length, 0)
             compare(backend.cancels, 1)
             compare(backend.stops, stops + 1)
+        }
+
+        // Local Files: Page Up or Channel + plays the folder's next film,
+        // Page Down or Channel − the previous one, round the folder's end,
+        // its images, playlists, folders and the tree's own entries passed
+        // over; the film left is saved where it got to, the next one goes on
+        // RECENTLY WATCHED and starts where it was left without asking,
+        // unless Resume Playback is Never. Under the video's menu the keys do
+        // nothing. A playlist steps through its own entries, in mpv.
+        function test_localFilesStepsThroughTheFolder() {
+            localFilesBackend.folder = [{ name: "A.mkv", path: "/films/A.mkv", isFolder: false },
+                                        { name: "B.mkv", path: "/films/B.mkv", isFolder: false },
+                                        { name: "C.mkv", path: "/films/C.mkv", isFolder: false },
+                                        { name: "cover.jpg", path: "/films/cover.jpg", isFolder: false },
+                                        { name: "list.m3u", path: "/films/list.m3u", isFolder: false },
+                                        { name: "More", path: "/films/More", isFolder: true },
+                                        { name: "Search", path: "search", isFolder: false }]
+            localFilesBackend.positions = { "/films/C.mkv": { pos: 90000, plPos: -1 } }
+            appCore.settings = { resume_playback: "ask", shuffle_playback: "no" }
+            var player = open("local_files", "Player.qml", { filePath: "/films/B.mkv", title: "B.mkv" })
+            compare(mpvController.urls, ["/films/B.mkv"])
+            player.lastKnownPositionMs = 120000
+            player.lastKnownDurationMs = 600000
+
+            // (The channel keys take the same branch; QTest can't send them.)
+            keyClick(Qt.Key_PageUp)
+            compare(mpvController.urls, ["/films/B.mkv", "/films/C.mkv"])
+            compare(mpvController.starts[1], 90)
+            compare(localFilesBackend.positions["/films/B.mkv"].pos, 120000)
+            compare(appCore.lists.recent[0].path, "/films/C.mkv")
+            compare(player.filePath, "/films/C.mkv")
+            compare(player.itemTitle, "C.mkv")
+            compare(player.lastKnownPositionMs, 0)
+            verify(!player.overlayVisible)
+            keyClick(Qt.Key_PageUp)
+            compare(mpvController.urls[2], "/films/A.mkv")
+            keyClick(Qt.Key_PageDown)
+            compare(mpvController.urls[3], "/films/C.mkv")
+            keyClick(Qt.Key_PageDown)
+            compare(mpvController.urls[4], "/films/B.mkv")
+            compare(mpvController.starts[4], 120)
+            // Under the video's menu: nothing.
+            player.openMenu()
+            keyClick(Qt.Key_PageUp)
+            compare(mpvController.urls.length, 5)
+            keyClick(Qt.Key_Escape)
+
+            // Never resuming, the next film starts from its beginning.
+            appCore.settings = { resume_playback: "no", shuffle_playback: "no" }
+            open("local_files", "Player.qml", { filePath: "/films/B.mkv", title: "B.mkv" })
+            var n = mpvController.urls.length
+            keyClick(Qt.Key_PageUp)
+            compare(mpvController.urls[n], "/films/C.mkv")
+            compare(mpvController.starts[n], 0)
+
+            // A playlist steps through its own entries, in mpv.
+            open("local_files", "Player.qml", { filePath: "/films/list.m3u", title: "list.m3u" })
+            n = mpvController.urls.length
+            keyClick(Qt.Key_PageUp)
+            keyClick(Qt.Key_PageDown)
+            compare(mpvController.urls.length, n)
+            compare(mpvController.keys, ["CHANNEL_UP", "CHANNEL_DOWN"])
+        }
+
+        // The Playlists module's player: the same keys step through the list,
+        // in mpv.
+        function test_playlistsPlayerStepsThroughTheList() {
+            open("playlists", "Player.qml", { playlistId: "p1", name: "Night", startMs: 0, plPos: 0 })
+            keyClick(Qt.Key_PageUp)
+            keyClick(Qt.Key_PageDown)
+            compare(mpvController.keys, ["CHANNEL_UP", "CHANNEL_DOWN"])
         }
     }
 }

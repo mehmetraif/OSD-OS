@@ -51,6 +51,7 @@ The keys go to whichever window has the keyboard. On the Raspberry Pi (and with 
 | ◄ ► | Jump 5 seconds back or forward (mpv's own keys) | On the position bar: jump 10 seconds. On the buttons: move between them |
 | Select | Pause / play | Press the button: SKIP, AUDIO, SUBTITLE, CROP, the playlist's < and >, STOP |
 | Play/pause | Pause / play | Pause / play |
+| Page Up / Page Down, or a remote's Channel + / − | In Local Files, the folder's next or previous film, round the folder's end; in a playlist (Local Files' or Playlists'), its next or previous video, round its end | The same |
 | Back | Leave the video, or open its menu ([Back during a video](https://github.com/mehmetraif/OSD-OS/wiki/Using-OSD-OS#back-during-a-video)) | Close the deck's menu |
 
 The deck's menu also closes by itself after 5 seconds without a key. A gamepad's buttons do the same as the keys they stand for.
@@ -231,7 +232,7 @@ It plays nothing, and prints each pin as it changes, with what the mapping makes
 ## Remotes
 
 - **Remotes that type keys.** Most USB remotes, and the 2.4 GHz ones with a USB dongle, present themselves as a keyboard: their arrows, OK and Back arrive as keys, and work as the keyboard's do. An OK that arrives as keypad Enter, or as a Select or OK key, is Select / OK as Enter is. Bluetooth remotes are paired in [Settings → Bluetooth](https://github.com/mehmetraif/OSD-OS/wiki/Controls#bluetooth) and then work the same way. What a button sends depends on the remote: if one does nothing, give it an action in Settings → Controls, on the remote's own page or under All Keyboards & Remotes.
-- **Consumer Control buttons.** Some remotes send their extra buttons (Home, Back, Menu, the colored buttons, zoom, the media buttons) from a second device of their own, named "Consumer Control", beside the keyboard one. On Linux OSD/OS reads every such device itself, as it comes and goes: its OK and Select buttons are Select / OK, and its other buttons do what you give them in Settings → Controls, on the remote's own page or under All Keyboards & Remotes.
+- **Consumer Control buttons.** Some remotes send their extra buttons (Home, Back, Menu, the colored buttons, zoom, the media buttons) from a second device of their own, named "Consumer Control", beside the keyboard one. On Linux OSD/OS reads every such device itself, as it comes and goes: its OK and Select buttons are Select / OK, its Channel + / − (or Page Up / Down) buttons step through a folder's films or a playlist during a video ([During playback](https://github.com/mehmetraif/OSD-OS/wiki/Controls#during-playback)), and its other buttons do what you give them in Settings → Controls, on the remote's own page or under All Keyboards & Remotes.
 - **Air mice.** Some remotes are a mouse as well, their OK a left click while their pointer is on. Without a desktop, as on the OSD/OS image, a left click is Select / OK and a right click Back, so such a remote works as it comes. (On many, a button of their own turns the pointer off, and OK then arrives as a key.) With a desktop, a click does only what you give it in Settings → Controls → All Keyboards & Remotes.
 - **Media keys** (volume, play/pause, stop, skipping) that a remote sends as keys go to mpv, as a keyboard's do ([During playback](https://github.com/mehmetraif/OSD-OS/wiki/Controls#during-playback)).
 

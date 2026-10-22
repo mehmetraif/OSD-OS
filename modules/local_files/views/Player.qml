@@ -209,7 +209,81 @@ FocusScope {
             } else if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter) {
                 mpvController.sendKey("ENTER")
                 event.accepted = true
+            } else if (event.key === Qt.Key_PageUp || event.key === Qt.Key_ChannelUp) {
+                // A TV remote's channel keys, or its page keys: the folder's
+                // next or previous film, once per press however long it is
+                // held, and not under the video's menu (which passes on the
+                // keys it doesn't take).
+                if (!event.isAutoRepeat && !playerMenu.visible)
+                    stepFilm(1)
+                event.accepted = true
+            } else if (event.key === Qt.Key_PageDown || event.key === Qt.Key_ChannelDown) {
+                if (!event.isAutoRepeat && !playerMenu.visible)
+                    stepFilm(-1)
+                event.accepted = true
             }
+        }
+    }
+
+    // The folder's next (1) or previous (-1) film, as a TV's programme keys
+    // change the channel: round the folder's end, this one saved where it got
+    // to, the next one where it was left, without asking (Resume Playback's
+    // Never apart), and on RECENTLY WATCHED as the tree puts it. A playlist
+    // steps through its own entries, in mpv (mpv-media-keys.lua, round the
+    // list's end); an image on its own isn't stepped from.
+    function stepFilm(delta) {
+        if (isPlaylist(filePath)) {
+            mpvController.sendKey(delta > 0 ? "CHANNEL_UP" : "CHANNEL_DOWN")
+            return
+        }
+        if (isImage(filePath))
+            return
+        var folder = filePath.substring(0, filePath.lastIndexOf("/"))
+        var films = localFilesBackend.entries(folder).filter(function(e) {
+            return !e.isFolder && e.path.substring(0, folder.length + 1) === folder + "/"
+                   && !isImage(e.path) && !isPlaylist(e.path)
+        })
+        var at = -1
+        for (var i = 0; i < films.length; ++i) {
+            if (films[i].path === filePath)
+                at = i
+        }
+        if (at < 0 || films.length < 2)
+            return
+        var next = films[(at + delta + films.length) % films.length]
+        rememberPosition(lastKnownPositionMs, lastKnownDurationMs, lastKnownPlaylistPos, "stopped")
+        appCore.add_to_list(moduleRoot.moduleId, "recent",
+                            { name: next.name, path: next.path, isFolder: false }, 30)
+        filePath = next.path
+        itemTitle = next.name
+        lastKnownPositionMs  = 0
+        lastKnownDurationMs  = 0
+        lastKnownPlaylistPos = -1
+        imageContent = false
+        var held = resumeSetting === "no" ? ({}) : localFilesBackend.getSavedPosition(filePath)
+        play(held.pos || 0, -1, false)
+    }
+
+    // Where the file got to, kept for Resume, or forgotten once it is as good
+    // as watched. A playlist's per-item duration can't tell "finished the
+    // list" from "finished one video of it", but the exit reason can: mpv
+    // only ends with "eof" when the final item played to its end (a quit
+    // mid-list leaves a trailing quit/stop end-file event). A completed
+    // playlist clears its resume point like a completed single video;
+    // anything else saves item + timecode. A single file: cleared near its
+    // end, saved otherwise. Images carry no resume position, so they never
+    // write history.
+    function rememberPosition(pos, dur, plPos, reason) {
+        if (isPlaylist(filePath)) {
+            if (reason === "eof")
+                localFilesBackend.clearPosition(filePath)
+            else if (pos > 0 || plPos >= 0)
+                localFilesBackend.savePosition(filePath, pos, plPos)
+        } else if (!isImage(filePath)) {
+            if (dur > 0 && pos >= dur * 0.95)
+                localFilesBackend.clearPosition(filePath)
+            else if (pos > 5000)
+                localFilesBackend.savePosition(filePath, pos, -1)
         }
     }
 
@@ -242,29 +316,9 @@ FocusScope {
         // playbackEnded signal here is what keeps the app from freezing on a natural
         // end-of-file (the original bug was a missing per-reason handler).
         function onPlaybackEnded(finalPositionMs, finalDurationMs, reason) {
-            var pos   = lastKnownPositionMs  || finalPositionMs
-            var dur   = lastKnownDurationMs  || finalDurationMs
-            var plPos = lastKnownPlaylistPos
-
-            if (isPlaylist(filePath)) {
-                // The per-item duration can't tell "finished the list" from
-                // "finished one video of it", but the exit reason can: mpv only
-                // ends with "eof" when the final item played to its end (a quit
-                // mid-list leaves a trailing quit/stop end-file event). A
-                // completed playlist clears its resume point like a completed
-                // single video; anything else saves item + timecode.
-                if (reason === "eof")
-                    localFilesBackend.clearPosition(filePath)
-                else if (pos > 0 || plPos >= 0)
-                    localFilesBackend.savePosition(filePath, pos, plPos)
-            } else if (!isImage(filePath)) {
-                // Single file: clear if near completion, save otherwise.
-                // Images carry no resume position, so they never write history.
-                if (dur > 0 && pos >= dur * 0.95)
-                    localFilesBackend.clearPosition(filePath)
-                else if (pos > 5000)
-                    localFilesBackend.savePosition(filePath, pos, -1)
-            }
+            rememberPosition(lastKnownPositionMs || finalPositionMs,
+                             lastKnownDurationMs || finalDurationMs,
+                             lastKnownPlaylistPos, reason)
             // Back during an mpv process, which has the screen while it
             // plays: the video ended for this menu, and starts again where
             // it was as the menu closes (backToVideo).

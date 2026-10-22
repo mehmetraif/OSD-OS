@@ -21,7 +21,9 @@
 #include <functional>
 #include <memory>
 #ifdef Q_OS_LINUX
-#include <linux/input-event-codes.h>
+#include <fcntl.h>
+#include <linux/input.h>
+#include <unistd.h>
 #endif
 
 // Settings → Controls, each controller apart. First what needs no device
@@ -745,6 +747,122 @@ private slots:
         click(Qt::LeftButton);
         QCOMPARE(keysOf(keys), QStringList({ "DOWN" }));
     }
+
+#ifdef Q_OS_LINUX
+    // A remote's Consumer Control button that no action takes goes to the
+    // views as the key it is where they act on one (Channel + / −, Page Up
+    // and Down), once per press however long it is held, with its release;
+    // Qt's own copy of the press, where its keymap has one (a key of 0 known
+    // by its scan code), goes no further. A button the views don't know does
+    // nothing, and one bound to an action acts as before.
+    void remoteChannelKeys() {
+        AppCore core(m_app.path(), m_data.path());
+        InputManager im(m_data.path(), &core);
+        QSignalSpy keys(&im, &InputManager::mpvKeyRequested);
+        QQuickWindow window;
+        im.setTargetWindow(&window);
+        struct KeyLog : QObject {
+            QList<QPair<int, bool>> keys;   // the key, pressed or let go
+            bool eventFilter(QObject *, QEvent *event) override {
+                if (event->type() == QEvent::KeyPress || event->type() == QEvent::KeyRelease)
+                    keys << qMakePair(static_cast<QKeyEvent *>(event)->key(), event->type() == QEvent::KeyPress);
+                return false;
+            }
+        } log;
+        window.installEventFilter(&log);
+        // The node: a pipe written as the kernel writes a remote's node.
+        int fds[2];
+        QVERIFY(::pipe2(fds, O_NONBLOCK | O_CLOEXEC) == 0);
+        im.adoptNodeForTest(fds[0], "Remote Consumer Control");
+        const auto button = [&fds](int code, int value) {
+            struct input_event ev = {};
+            ev.type = EV_KEY;
+            ev.code = code;
+            ev.value = value;
+            return ::write(fds[1], &ev, sizeof(ev)) == ssize_t(sizeof(ev));
+        };
+
+        QVERIFY(button(KEY_CHANNELUP, 1));
+        QTRY_COMPARE(log.keys.size(), 1);
+        QCOMPARE(log.keys.at(0), qMakePair(int(Qt::Key_ChannelUp), true));
+        // Qt's copy of the press, by its scan code (the code plus 8).
+        QKeyEvent copy(QEvent::KeyPress, 0, Qt::NoModifier, KEY_CHANNELUP + 8, 0, 0);
+        QCoreApplication::sendEvent(&window, &copy);
+        QCOMPARE(log.keys.size(), 1);
+        QVERIFY(button(KEY_CHANNELUP, 0));
+        QTRY_COMPARE(log.keys.size(), 2);
+        QCOMPARE(log.keys.at(1), qMakePair(int(Qt::Key_ChannelUp), false));
+
+        // Held: the kernel's repeats are no presses.
+        QVERIFY(button(KEY_PAGEDOWN, 1));
+        QVERIFY(button(KEY_PAGEDOWN, 2));
+        QVERIFY(button(KEY_PAGEDOWN, 2));
+        QVERIFY(button(KEY_PAGEDOWN, 0));
+        QTRY_COMPARE(log.keys.size(), 4);
+        QCOMPARE(log.keys.at(2), qMakePair(int(Qt::Key_PageDown), true));
+        QCOMPARE(log.keys.at(3), qMakePair(int(Qt::Key_PageDown), false));
+
+        // A button the views don't know, then one bound to Down: the first
+        // does nothing, the second is Down (to mpv, as the window isn't
+        // active here), not Channel −.
+        QVERIFY(button(KEY_RED, 1));
+        QVERIFY(button(KEY_RED, 0));
+        core.save_setting(QString(), "remote_keymap.down", 0x02000000 + KEY_CHANNELDOWN);
+        QVERIFY(button(KEY_CHANNELDOWN, 1));
+        QTRY_COMPARE(keysOf(keys), QStringList({ "DOWN" }));
+        QVERIFY(button(KEY_CHANNELDOWN, 0));
+        QTest::qWait(50);
+        QCOMPARE(log.keys.size(), 4);
+
+        // The remote goes (its node's end) with a button held: let go.
+        QVERIFY(button(KEY_PAGEUP, 1));
+        QTRY_COMPARE(log.keys.size(), 5);
+        ::close(fds[1]);
+        QTRY_COMPARE(log.keys.size(), 6);
+        QCOMPARE(log.keys.at(5), qMakePair(int(Qt::Key_PageUp), false));
+        QTRY_VERIFY(entry(im, "Remote Consumer Control").value("present").toBool() == false);
+    }
+
+    // The same keys from a remote's keyboard node reach Qt itself, as a key
+    // of 0 known by its scan code (libinput's keymap has no symbol for the
+    // channel keys): delivered as the keys they are, held as held, and let
+    // go; any other unknown key goes on as it is.
+    void remoteChannelKeysFromAKeyboard() {
+        AppCore core(m_app.path(), m_data.path());
+        InputManager im(m_data.path(), &core);
+        QQuickWindow window;
+        im.setTargetWindow(&window);
+        struct KeyLog : QObject {
+            QList<QPair<int, bool>> keys;
+            bool eventFilter(QObject *, QEvent *event) override {
+                if (event->type() == QEvent::KeyPress || event->type() == QEvent::KeyRelease)
+                    keys << qMakePair(static_cast<QKeyEvent *>(event)->key(), event->type() == QEvent::KeyPress);
+                return false;
+            }
+        } log;
+        window.installEventFilter(&log);
+        const auto key = [&window](QEvent::Type type, int code, bool repeat = false) {
+            QKeyEvent event(type, 0, Qt::NoModifier, code + 8, 0, 0, QString(), repeat);
+            QCoreApplication::sendEvent(&window, &event);
+        };
+        key(QEvent::KeyPress, KEY_CHANNELUP);
+        key(QEvent::KeyPress, KEY_CHANNELUP, true);
+        key(QEvent::KeyRelease, KEY_CHANNELUP);
+        key(QEvent::KeyPress, KEY_CHANNELDOWN);
+        key(QEvent::KeyRelease, KEY_CHANNELDOWN);
+        QTRY_COMPARE(log.keys.size(), 5);
+        QCOMPARE(log.keys.at(0), qMakePair(int(Qt::Key_ChannelUp), true));
+        QCOMPARE(log.keys.at(1), qMakePair(int(Qt::Key_ChannelUp), true));
+        QCOMPARE(log.keys.at(2), qMakePair(int(Qt::Key_ChannelUp), false));
+        QCOMPARE(log.keys.at(3), qMakePair(int(Qt::Key_ChannelDown), true));
+        QCOMPARE(log.keys.at(4), qMakePair(int(Qt::Key_ChannelDown), false));
+        // A key of 0 the views don't know goes on as it is.
+        key(QEvent::KeyPress, KEY_RED);
+        QTest::qWait(20);
+        QCOMPARE(log.keys.size(), 6);
+        QCOMPARE(log.keys.at(5), qMakePair(0, true));
+    }
+#endif
 
     // A key that stands for an action is let go as the action's key too, as
     // the Arcade screen plays its game once select is let go: keypad Enter as
