@@ -1,14 +1,17 @@
 #!/usr/bin/env python3
-"""Builds OSD/OS Setup, the settings page published on GitHub Pages (site/),
-into a folder: the page's own files, the app's font and logo, the display
-presets, what its live preview draws with (the app's own shaders, shaders/,
-and the skins' pictures), and schema.json, the settings the page offers, read
-from the app as it is: Settings' own rows (site/schema-extra.json), the
-modules' manifests, the presets (os/stage-osdos/03-boot/files, with the names
-Settings → Display Output gives them in src/display/DisplayOutput.cpp), the
-themes and skins (assets/), the looks Main.qml has (its colour schemes and
-effects), the subtitle languages, and the time zone database's countries and
-zones.
+"""Builds OSD/OS's website, published on GitHub Pages (site/), into a folder:
+the landing page at its root (site/index.html, with the theme recordings,
+the photo and the logo from docs/images and the stills from site/assets, and
+themes.json, the themes with their colours and pictures), and OSD/OS Setup,
+the settings page, under setup/ (site/setup/): its own files, the app's font
+and logo, the display presets, what its live preview draws with (the app's
+own shaders, shaders/, and the skins' pictures), and schema.json, the
+settings the page offers, read from the app as it is: Settings' own rows
+(site/setup/schema-extra.json), the modules' manifests, the presets
+(os/stage-osdos/03-boot/files, with the names Settings → Display Output gives
+them in src/display/DisplayOutput.cpp), the themes and skins (assets/), the
+looks Main.qml has (its colour schemes and effects), the subtitle languages,
+and the time zone database's countries and zones.
 
   scripts/build-site.py <out-dir>
 
@@ -24,11 +27,34 @@ import unicodedata
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 SITE = ROOT / "site"
+SETUP = SITE / "setup"
+IMAGES = ROOT / "docs/images"
 PRESETS = ROOT / "os/stage-osdos/03-boot/files"
 SHADERS = ROOT / "shaders"
 ISO3166 = pathlib.Path("/usr/share/zoneinfo/iso3166.tab")
 ZONES = pathlib.Path("/usr/share/zoneinfo/zone.tab")
 MARK = ".osdos-site"
+
+# The landing page's line on each theme, after the wiki's Themes page: what
+# its recording shows, read out for the picture.
+THEME_ABOUT = {
+    "arcade": "Synthwave's colours, a starfield, text running through the rainbow and a pixel rainbow "
+              "dripping from under the selected line",
+    "demoscene": "gold on purple, a starfield, glowing text and sparkles, windows turning like a demo's "
+                 "cube, and a tracker's music",
+    "green-screen": "a phosphor green of its own, DOS windows, a glowing tube and glowing text; windows "
+                    "come in on a wave from a corner",
+    "inferno": "amber on brown, pixel flames burning up from the window's foot and a welder's sparks "
+               "bursting from the selected line",
+    "late-show": "Late Night's white on black in DOS windows, with a tape's colour bleed and noise and "
+                 "text flickering like a neon sign",
+    "matrix": "green on black, Matrix rain behind the menus, glowing text and lightning crackling out "
+              "of the selected line; windows ripple",
+    "trinitron": "Video 1's blue in rounded windows on a tube's curved face, with scanlines and glow; "
+                 "windows turn over like a cube",
+    "winter": "ice on night blue, snow falling, a glint sweeping across the text and sparkles flying "
+              "off the selected line; windows spread from a drop",
+}
 
 
 def option(o):
@@ -335,8 +361,50 @@ def looks_data():
     }
 
 
+def landing_themes(looks):
+    """themes.json, the landing page's theme previews: each theme the app has,
+    by its folder, with its name, its line, its two colours (its own, or its
+    colour scheme's; the default scheme's without either) and its pictures, a
+    still from site/assets and the recording docs/images holds of it. A theme
+    without both pictures isn't shown."""
+    out = []
+    for folder, theme in looks["themes"].items():
+        still = SITE / "assets" / f"theme-{folder}.png"
+        recording = IMAGES / f"theme-{folder}.gif"
+        if not still.is_file() or not recording.is_file():
+            continue
+        colors = theme.get("colors")
+        if isinstance(colors, str):
+            colors = looks["schemes"].get(colors)
+        if not isinstance(colors, dict):
+            colors = looks["schemes"].get("Video 1") or next(iter(looks["schemes"].values()))
+        out.append({"id": folder, "name": theme["name"],
+                    "about": THEME_ABOUT.get(folder, "its own colours, effects and music"),
+                    "primary": colors["primary"], "surface": colors["surface"],
+                    "still": f"assets/{still.name}", "recording": f"assets/{recording.name}"})
+    return out
+
+
+def copy_fonts(folder):
+    """The deck's letters, with their licence, where a page's style.css
+    reads them."""
+    (folder / "fonts").mkdir()
+    shutil.copy2(ROOT / "assets/fonts/VCR_OSD_MONO_1.001.ttf", folder / "fonts")
+    shutil.copy2(ROOT / "assets/fonts/LICENSE-vcr-osd-mono.txt", folder / "fonts")
+
+
+def write_icons(folder, logo=True):
+    """The tab's icon, the cassette cut out of Video 1's blue, and the app's
+    logo where the page draws it (Setup's title bar)."""
+    (folder / "img").mkdir()
+    cassette = (ROOT / "assets/images/logo.svg").read_text()
+    if logo:
+        (folder / "img/logo.svg").write_text(cassette)
+    (folder / "img/icon.svg").write_text(cassette.replace("<svg ", '<svg fill="#0110C5" ', 1))
+
+
 def schema():
-    extra = json.loads((SITE / "schema-extra.json").read_text())
+    extra = json.loads((SETUP / "schema-extra.json").read_text())
     mods = modules(extra)
     app = json.loads(json.dumps(extra["app"]))
     for group in app:
@@ -368,39 +436,53 @@ def main():
         if not (out / MARK).is_file() and any(out.iterdir()):
             sys.exit(f"build-site: {out} is there and isn't a page this built: not replaced")
         shutil.rmtree(out)
-    (out / "js").mkdir(parents=True)
+    out.mkdir(parents=True)
     (out / MARK).write_text("Built by scripts/build-site.py, which replaces this folder.\n")
+    data = schema()
+
+    # The landing page, at the root: its own files, the app's font and icon,
+    # its pictures and its themes.
     for name in ("index.html", "style.css"):
         shutil.copy2(SITE / name, out / name)
-    for path in (SITE / "js").rglob("*.mjs"):
-        target = out / "js" / path.relative_to(SITE / "js")
+    (out / "js").mkdir()
+    shutil.copy2(SITE / "js/home.js", out / "js")
+    copy_fonts(out)
+    write_icons(out, logo=False)
+    (out / "assets").mkdir()
+    for path in sorted((SITE / "assets").glob("*.png")) + sorted(IMAGES.glob("theme-*.gif")):
+        shutil.copy2(path, out / "assets" / path.name)
+    for name in ("default-look.gif", "osdos-on-a-crt.jpg", "osdos-logo.svg"):
+        shutil.copy2(IMAGES / name, out / "assets" / name)
+    (out / "themes.json").write_text(json.dumps(landing_themes(data["looks"]), indent=1, ensure_ascii=False) + "\n")
+
+    # OSD/OS Setup, under setup/: its own files, the app's font and logo, the
+    # display presets, what its live preview draws with, and schema.json.
+    setup = out / "setup"
+    (setup / "js").mkdir(parents=True)
+    for name in ("index.html", "style.css"):
+        shutil.copy2(SETUP / name, setup / name)
+    for path in (SETUP / "js").rglob("*.mjs"):
+        target = setup / "js" / path.relative_to(SETUP / "js")
         target.parent.mkdir(parents=True, exist_ok=True)
         shutil.copy2(path, target)
-    (out / "fonts").mkdir()
-    shutil.copy2(ROOT / "assets/fonts/VCR_OSD_MONO_1.001.ttf", out / "fonts")
-    shutil.copy2(ROOT / "assets/fonts/LICENSE-vcr-osd-mono.txt", out / "fonts")
-    (out / "img").mkdir()
-    logo = (ROOT / "assets/images/logo.svg").read_text()
-    (out / "img/logo.svg").write_text(logo)
-    # The tab's icon: the cassette cut out of Video 1's blue.
-    (out / "img/icon.svg").write_text(logo.replace("<svg ", '<svg fill="#0110C5" ', 1))
-    (out / "presets").mkdir()
+    copy_fonts(setup)
+    write_icons(setup)
+    (setup / "presets").mkdir()
     for path in PRESETS.glob("osdos-display-*.txt"):
-        shutil.copy2(path, out / "presets" / path.name)
-    (out / "shaders").mkdir()
+        shutil.copy2(path, setup / "presets" / path.name)
+    (setup / "shaders").mkdir()
     for path in SHADERS.glob("*.frag"):
-        shutil.copy2(path, out / "shaders" / path.name)
-    data = schema()
+        shutil.copy2(path, setup / "shaders" / path.name)
     # The skins' pictures, where the page reads them: the file's own path
     # isn't the page's business.
     parts = [p for skin in data["looks"]["skins"].values() for p in skin.values()]
     parts += [p for theme in data["looks"]["themes"].values() if isinstance(theme.get("skin"), dict)
               for p in theme["skin"].values()]
     for part in parts:
-        target = out / part["source"]
+        target = setup / part["source"]
         target.parent.mkdir(parents=True, exist_ok=True)
         shutil.copy2(part.pop("file"), target)
-    (out / "schema.json").write_text(json.dumps(data, indent=1, ensure_ascii=False) + "\n")
+    (setup / "schema.json").write_text(json.dumps(data, indent=1, ensure_ascii=False) + "\n")
     # Served as it is, not through Jekyll.
     (out / ".nojekyll").write_text("")
     print(f"build-site: {out}")

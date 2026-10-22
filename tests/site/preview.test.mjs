@@ -1,5 +1,5 @@
 // OSD/OS Setup's live preview against the app: each of the app's shaders made
-// WebGL's (site/js/preview/glsl.mjs) taking only what the preview sets it, a
+// WebGL's (site/setup/js/preview/glsl.mjs) taking only what the preview sets it, a
 // look worked out from the settings as Main.qml works it out (look.mjs), and
 // the selector effects (selector.mjs) drawn as src/fx/SelectorFx.cpp draws
 // them.
@@ -11,15 +11,15 @@ import { mkdtempSync, readFileSync, readdirSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { fromQt, uniformsOf } from "../../site/js/preview/glsl.mjs";
-import { lookOf, ARCADE } from "../../site/js/preview/look.mjs";
-import { SelectorFx } from "../../site/js/preview/selector.mjs";
+import { fromQt, uniformsOf } from "../../site/setup/js/preview/glsl.mjs";
+import { lookOf, ARCADE } from "../../site/setup/js/preview/look.mjs";
+import { SelectorFx } from "../../site/setup/js/preview/selector.mjs";
 
 const root = fileURLToPath(new URL("../..", import.meta.url));
 const out = mkdtempSync(join(tmpdir(), "osdos-preview-"));
 after(() => rmSync(out, { recursive: true, force: true }));
 execFileSync("python3", ["-I", join(root, "scripts/build-site.py"), out], { stdio: "ignore" });
-const looks = JSON.parse(readFileSync(join(out, "schema.json"), "utf8")).looks;
+const looks = JSON.parse(readFileSync(join(out, "setup/schema.json"), "utf8")).looks;
 
 // What preview.mjs sets each kind of the app's shaders, by the names Main.qml
 // sets them by: a shader taking anything else would go without it.

@@ -1,370 +1,631 @@
-/* OSD/OS Setup, in the look of OSD/OS's own menus: Video 1's blue and white,
-   the deck's letters (VCR OSD Mono), a title bar, headings with a rule to the
-   line's end, and lines of label, dots and value. */
+/* OSD/OS's landing page, in the app's own look: Video 1's blue, white
+   letters, double rules and hard shadows. Headings, labels and buttons are
+   in VCR OSD Mono, the deck's letters; running text in the system's own
+   face, which reads better small. Nothing here is smaller than 12 px. */
+
 @font-face {
     font-family: "VCR OSD Mono";
     src: url("fonts/VCR_OSD_MONO_1.001.ttf") format("truetype");
+    font-weight: 400;
+    font-style: normal;
     font-display: swap;
 }
 
 :root {
-    --surface: #0110C5;
-    --primary: #FFFFFF;
-    --secondary: #C2BFE4;
-    --tertiary: #8480C9;
-    --accent: #AECFFF;
-    --warn: #FFD900;
-    --error: #FF8A80;
-    --px: 2px;
-    color-scheme: dark;
+    --bg: #0110c5;
+    --surface: #030b89;
+    --shadow: #000675;
+    --shadow-deep: #000451;
+    --line: #99a5f6;
+    --ink: #ffffff;
+    --muted: #d0d6ff;
+    --deck: "VCR OSD Mono", "Courier New", monospace;
+    --text: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
 }
 
 * { box-sizing: border-box; }
 
-html, body {
+html {
+    scroll-behavior: smooth;
+    scroll-padding-top: 100px;
+}
+
+body {
     margin: 0;
-    background: var(--surface);
-    color: var(--primary);
-    font-family: "VCR OSD Mono", ui-monospace, "DejaVu Sans Mono", monospace;
-    font-size: 18px;
-    line-height: 1.35;
+    background: var(--bg);
+    color: var(--ink);
+    font-family: var(--text);
+    -webkit-font-smoothing: antialiased;
 }
 
-a { color: var(--accent); }
-a:focus-visible, button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible,
-summary:focus-visible {
-    outline: var(--px) solid var(--accent);
-    outline-offset: 2px;
+a { color: inherit; text-decoration: none; }
+button { font: inherit; color: inherit; cursor: pointer; }
+a, button, summary { -webkit-tap-highlight-color: transparent; }
+a:focus-visible, button:focus-visible, summary:focus-visible {
+    outline: 3px solid var(--ink);
+    outline-offset: 4px;
+}
+img { display: block; max-width: 100%; }
+p { font-size: 16px; line-height: 1.65; color: var(--muted); }
+h1, h2, h3 { font-family: var(--deck); font-weight: 400; letter-spacing: 0; margin: 0; }
+[hidden] { display: none !important; }
+
+.icon-defs { position: absolute; width: 0; height: 0; overflow: hidden; }
+.pixel-icon {
+    display: inline-block;
+    width: 16px;
+    height: 16px;
+    fill: currentColor;
+    vertical-align: -2px;
+    flex-shrink: 0;
+    shape-rendering: crispEdges;
 }
 
-main {
-    max-width: 880px;
-    margin: 0 auto;
-    padding: 32px 16px 64px;
+.skip {
+    position: absolute;
+    top: -80px;
+    left: 16px;
+    padding: 14px;
+    background: var(--ink);
+    color: var(--bg);
+    font-family: var(--deck);
+    z-index: 10;
+}
+.skip:focus { top: 12px; }
+
+.wrap {
+    width: min(1240px, calc(100% - 80px));
+    margin: auto;
 }
 
-/* --- The title bar: the cassette, then the title, as AppBar draws it. --- */
-.appbar {
-    display: flex;
-    align-items: stretch;
-    gap: 6px;
-    height: 44px;
-    margin-bottom: 20px;
-}
-.appbar .icon {
-    width: 64px;
-    background: var(--primary);
-    display: grid;
-    place-items: center;
-}
-.appbar .icon span {
-    width: 44px;
-    height: 24px;
-    background: var(--surface);
-    -webkit-mask: url("img/logo.svg") center / contain no-repeat;
-    mask: url("img/logo.svg") center / contain no-repeat;
-}
-.appbar h1 {
-    flex: 1;
-    margin: 0;
-    background: var(--primary);
-    color: var(--surface);
-    font-size: 26px;
-    font-weight: normal;
-    padding: 0 12px;
+/* --- The bar on top. */
+.header {
+    max-width: 1400px;
+    margin: auto;
+    min-height: 92px;
+    padding: 12px 36px;
     display: flex;
     align-items: center;
-    gap: 14px;
-    letter-spacing: 1px;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 16px 28px;
+    border-bottom: 3px double var(--ink);
 }
-.appbar h1 small {
-    font-size: 15px;
-    border-left: var(--px) solid var(--surface);
-    padding-left: 12px;
-}
-
-.intro p { margin: 0 0 10px; }
-.note { color: var(--secondary); }
-
-/* --- The import and export bar. --- */
-.toolbar {
+.wordmark img { height: 60px; width: 176px; object-fit: contain; }
+.header nav {
     display: flex;
     flex-wrap: wrap;
-    gap: 10px;
-    margin: 18px 0 26px;
-}
-button, .button {
-    font: inherit;
+    gap: 8px 22px;
+    font-family: var(--deck);
     font-size: 16px;
-    color: var(--surface);
-    background: var(--primary);
-    border: 0;
-    padding: 6px 12px;
-    cursor: pointer;
     text-transform: uppercase;
-    letter-spacing: 1px;
 }
-button.secondary {
-    color: var(--primary);
-    background: transparent;
-    border: var(--px) solid var(--primary);
+.header nav a { padding: 4px 6px; }
+.header nav a:hover, .footer-links a:hover { background: var(--ink); color: var(--bg); }
+.nav-setup {
+    font-family: var(--deck);
+    font-size: 16px;
+    text-transform: uppercase;
+    border: 2px solid var(--ink);
+    padding: 12px 14px;
+    box-shadow: 4px 4px 0 var(--shadow);
+    white-space: nowrap;
 }
-button:hover { background: var(--accent); color: var(--surface); }
-button:disabled { opacity: 0.5; cursor: default; }
+.nav-setup:hover { background: var(--ink); color: var(--bg); }
 
-/* --- A section: a heading with a rule to the line's end. --- */
-section { margin: 0 0 30px; }
-section > h2, details > summary {
-    font-size: 22px;
-    font-weight: normal;
-    margin: 0 0 8px;
-    display: flex;
+/* --- Labels in the deck's letters. */
+.eyebrow, .section-label, .micro, .mini-label, .small-title, .tags {
+    font-family: var(--deck);
+    font-size: 14px;
+    line-height: 1.5;
+    color: var(--ink);
+    margin: 0;
+}
+.eyebrow { display: flex; align-items: center; gap: 10px; }
+.led {
+    display: inline-block;
+    width: 8px;
+    height: 8px;
+    background: currentColor;
+    flex-shrink: 0;
+}
+.section-label {
+    display: table;
+    background: var(--ink);
+    color: var(--bg);
+    padding: 7px 10px;
+    margin-bottom: 27px;
+    font-size: 15px;
+}
+
+/* --- The opening. */
+.hero {
+    padding-top: 48px;
+    padding-bottom: 48px;
+    display: grid;
+    grid-template-columns: 0.95fr 1.05fr;
     align-items: center;
-    gap: 12px;
+    gap: 35px;
+}
+h1 {
+    font-size: clamp(42px, 5.25vw, 76px);
+    line-height: 1.08;
+    margin: 27px 0;
+    text-shadow: 3px 3px 0 var(--shadow);
+}
+h1 em { font-style: normal; }
+.hero-copy p { font-size: 18px; max-width: 460px; margin: 25px 0; }
+.actions { display: flex; align-items: center; gap: 22px; flex-wrap: wrap; }
+.button {
+    display: inline-flex;
+    align-items: center;
+    gap: 20px;
+    font-family: var(--deck);
+    font-size: 18px;
     text-transform: uppercase;
-    letter-spacing: 1px;
+    padding: 15px 19px;
+    border: 2px solid var(--ink);
+    box-shadow: 5px 5px 0 var(--shadow);
 }
-section > h2::after, details > summary::after {
-    content: "";
-    flex: 1;
-    border-bottom: var(--px) solid var(--primary);
+.primary { background: var(--ink); color: var(--bg); }
+.primary:hover { background: #d3d8ff; }
+.text-link {
+    display: inline-block;
+    font-family: var(--deck);
+    font-size: 15px;
+    text-transform: uppercase;
+    border-bottom: 1px solid #bfc8ff;
+    padding-bottom: 7px;
 }
-details > summary {
-    cursor: pointer;
-    list-style: none;
-    font-size: 19px;
-    margin-top: 14px;
-}
-details > summary::-webkit-details-marker { display: none; }
-details > summary::before { content: "►"; font-size: 13px; }
-details[open] > summary::before { content: "▼"; }
-.section-help { color: var(--secondary); margin: 0 0 10px; font-size: 16px; }
+.text-link:hover { border-bottom-color: var(--ink); }
+.micro { font-size: 12px; margin-top: 24px; }
+.micro span { padding-inline: 5px; }
 
-/* --- A line: the label, dots, then the value against the line's end. --- */
-.row {
+.hero-photo {
+    margin: 0;
+    position: relative;
+    align-self: stretch;
+    min-height: 440px;
+    border: 4px double var(--ink);
+    box-shadow: 8px 8px 0 var(--shadow);
+    background: #000;
+}
+.hero-photo > img {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+.hero-photo::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(0deg, #000b, transparent 25%, transparent 80%, #0007);
+    pointer-events: none;
+}
+.photo-label, .hero-photo figcaption {
+    position: absolute;
+    z-index: 1;
+    font-family: var(--deck);
+    font-size: 12px;
+    color: var(--ink);
+    margin: 0;
+}
+.photo-label {
+    top: 12px;
+    left: 12px;
     display: flex;
     align-items: center;
     gap: 8px;
-    min-height: 36px;
-    padding: 2px 6px;
+    background: var(--bg);
+    padding: 9px;
 }
-.row > label, .row > .label {
-    text-transform: uppercase;
-    white-space: nowrap;
-}
-.row > .dots {
-    flex: 1;
-    min-width: 16px;
-    align-self: center;
-    border-bottom: var(--px) dotted var(--primary);
-    transform: translateY(4px);
-}
-.row:focus-within {
-    background: var(--primary);
-    color: var(--surface);
-}
-.row:focus-within .dots { border-color: var(--surface); }
-.row.changed > label::before, .row.changed > .label::before {
-    content: "• ";
-    color: var(--accent);
-}
-.row:focus-within.changed > label::before { color: var(--surface); }
-.row .reset {
-    flex: none;
-    width: 30px;
-    font-size: 13px;
-    padding: 2px 0;
-    visibility: hidden;
-}
-.row.changed .reset { visibility: visible; }
+.hero-photo figcaption { bottom: 17px; left: 15px; }
 
-.help {
-    color: var(--secondary);
-    font-size: 15px;
-    margin: -2px 6px 8px;
-}
-.help.warn { color: var(--warn); }
-.help.error, .error { color: var(--error); }
-
-input[type="text"], input[type="password"], select, textarea {
-    font: inherit;
-    font-size: 16px;
-    color: var(--surface);
-    background: var(--primary);
-    border: var(--px) solid var(--primary);
-    padding: 4px 8px;
-    max-width: 100%;
-}
-.row input[type="text"], .row input[type="password"] { width: 300px; }
-.row select { max-width: 360px; }
-.row:focus-within input, .row:focus-within select {
-    border-color: var(--surface);
-}
-textarea {
-    width: 100%;
-    min-height: 70px;
-    resize: vertical;
-}
-input[type="checkbox"] {
-    appearance: none;
-    width: 24px;
-    height: 24px;
+/* --- The strip of words. */
+.signal-strip {
+    list-style: none;
     margin: 0;
-    border: var(--px) solid currentColor;
-    background: transparent;
-    display: grid;
-    place-items: center;
-    cursor: pointer;
+    padding: 17px 35px;
+    display: flex;
+    justify-content: space-around;
+    flex-wrap: wrap;
+    gap: 12px 24px;
+    background: var(--ink);
+    color: var(--bg);
+    font-family: var(--deck);
+    font-size: 15px;
 }
-input[type="checkbox"]:checked::after {
+.signal-strip li::before {
     content: "";
-    width: 12px;
-    height: 12px;
+    display: inline-block;
+    width: 6px;
+    height: 6px;
     background: currentColor;
-}
-.toggle { display: inline-flex; align-items: center; gap: 8px; }
-.row .state {
-    min-width: 34px;
-    text-align: right;
+    margin-right: 12px;
+    vertical-align: 2px;
 }
 
-/* A password with its show / hide button. */
-.secret {
+/* --- Sections. */
+.intro-section, .hardware-section, .faq-section { padding-block: 64px; }
+.section-intro {
     display: flex;
-    gap: 6px;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: 35px;
+    margin-bottom: 35px;
+}
+h2 {
+    font-size: clamp(30px, 3.2vw, 46px);
+    line-height: 1.15;
+    text-transform: uppercase;
+}
+h3 { font-size: 23px; line-height: 1.2; text-transform: uppercase; }
+.section-intro > p { max-width: 390px; margin: 0 0 3px; }
+
+/* The experience: the screen and the three points. */
+.experience-grid {
+    display: grid;
+    grid-template-columns: 1.05fr 1fr;
+    gap: 44px;
     align-items: center;
 }
-.secret button {
-    font-size: 13px;
-    padding: 4px 8px;
-    min-width: 58px;
+.screen-demo {
+    margin: 0;
+    padding: 13px;
+    background: var(--bg);
+    border: 4px double var(--ink);
+    box-shadow: 7px 7px 0 var(--shadow);
 }
-
-.status {
-    min-height: 1.4em;
-    margin: -12px 0 18px;
-}
-.status.ok { color: var(--accent); }
-
-.steps { padding-left: 22px; }
-.steps li { margin-bottom: 6px; }
-code {
-    font-family: inherit;
-    color: var(--accent);
-}
-
-footer {
-    margin-top: 40px;
-    color: var(--secondary);
-    font-size: 14px;
-}
-
-@media (max-width: 640px) {
-    html, body { font-size: 16px; }
-    .kinds { grid-template-columns: 1fr; }
-    .row { flex-wrap: wrap; }
-    .row > .dots { display: none; }
-    .row > label, .row > .label { flex: 1; white-space: normal; }
-    /* A line with a field: its label above, the field and ↺ across the line under it. */
-    .row:has(input[type="text"], input[type="password"], select, input[type="range"], .multi) > label { flex-basis: 100%; }
-    .row input[type="text"], .row input[type="password"], .row select { flex: 1; width: auto; min-width: 0; max-width: none; }
-    .row .secret, .row .slider, .row .multi { flex: 1; min-width: 0; }
-    .secret input { flex: 1; }
-    .slider input[type="range"] { flex: 1; width: auto; }
-    .multi { justify-content: flex-start; }
-}
-
-/* --- The parts the form is made of. --- */
-.line { margin: 0 0 2px; }
-.line > .label { display: block; padding: 2px 6px; text-transform: uppercase; }
-h3.subheading {
-    font-size: 17px;
-    font-weight: normal;
-    color: var(--accent);
-    margin: 14px 6px 6px;
-    text-transform: uppercase;
-}
-h3.group {
-    font-size: 19px;
-    font-weight: normal;
-    margin: 26px 0 0;
-    text-transform: uppercase;
-    color: var(--secondary);
-}
-details { margin-bottom: 6px; }
-details > *:not(summary) { margin-left: 18px; }
-.slider { display: inline-flex; align-items: center; gap: 8px; }
-.slider input[type="range"] { width: 180px; accent-color: var(--accent); }
-.multi { display: inline-flex; flex-wrap: wrap; gap: 6px 14px; justify-content: flex-end; }
-.pick { display: inline-flex; align-items: center; gap: 4px; text-transform: uppercase; font-size: 15px; }
-.account { margin-top: 8px; }
-
-/* --- The device: two choices, the one chosen inverted, as a menu's line. --- */
-.kinds {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 12px;
-}
-.kind {
-    position: relative;
+.deck-label, .deck-footer {
     display: flex;
-    flex-direction: column;
-    gap: 6px;
-    padding: 10px 12px;
-    border: var(--px) solid var(--primary);
-    cursor: pointer;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+    font-family: var(--deck);
+    font-size: 12px;
+    color: var(--ink);
+    margin: 0;
 }
-.kind input {
-    position: absolute;
-    opacity: 0;
-    pointer-events: none;
-}
-.kind.chosen {
-    background: var(--primary);
-    color: var(--surface);
-}
-.kind:focus-within {
-    outline: var(--px) solid var(--accent);
-    outline-offset: 2px;
-}
-.kind-name { font-size: 20px; text-transform: uppercase; letter-spacing: 1px; }
-.kind-about { font-size: 15px; }
-.kind:not(.chosen) .kind-about { color: var(--secondary); }
-
-/* --- The live preview: the app's screens, its pixels kept square. --- */
-.preview { margin: 0 0 18px; }
-.preview .tabs { display: flex; gap: 8px; margin-bottom: 8px; }
-.preview .tab {
-    color: var(--primary);
-    background: transparent;
-    border: var(--px) solid var(--primary);
-}
-.preview .tab.chosen {
-    color: var(--surface);
-    background: var(--primary);
-}
-.preview canvas {
-    display: block;
-    box-sizing: content-box;
-    width: 640px;
-    max-width: calc(100% - 2 * var(--px));
+.deck-label { border-bottom: 2px solid var(--ink); padding-bottom: 11px; margin-bottom: 10px; }
+.deck-footer { padding-top: 12px; }
+.deck-footer .pixel-icon { width: 12px; height: 12px; }
+.screen-demo img, .theme-monitor img {
+    width: 100%;
     height: auto;
     aspect-ratio: 4 / 3;
+    object-fit: contain;
+    background: #000;
+    /* The recordings are the app's own 320×240 and 640×480 frames: shown
+       larger, their pixels stay pixels. */
     image-rendering: pixelated;
-    border: var(--px) solid var(--primary);
 }
-.preview canvas:focus-visible { outline: var(--px) solid var(--accent); outline-offset: 2px; }
-.preview figcaption { color: var(--secondary); font-size: 15px; margin-top: 6px; }
-/* A screen with room for both: the form and the preview side by side, the
-   preview kept in sight as the rows are changed. */
-@media (min-width: 1600px) and (min-height: 720px) {
-    main { margin-left: max(0px, calc((100vw - 1572px) / 2)); }
-    .preview {
-        position: fixed;
-        top: 32px;
-        left: calc(max(0px, (100vw - 1572px) / 2) + 16px + 848px + 48px);
-        width: calc(640px + 2 * var(--px));
-        margin: 0;
-    }
+.feature-list article {
+    display: flex;
+    gap: 22px;
+    padding-block: 23px;
+    border-bottom: 1px dashed var(--line);
 }
-.slider .end { font-size: 12px; }
+.feature-list article:first-child { padding-top: 0; }
+.feature-list article:last-child { border: 0; padding-bottom: 0; }
+.feature-num { font-family: var(--deck); font-size: 17px; margin-top: 3px; }
+.feature-list p { margin: 12px 0; }
+.tags { font-size: 12px; }
+
+/* The themes. */
+.themes-section {
+    background: var(--surface);
+    border-block: 3px double var(--ink);
+    padding-block: 64px;
+}
+.theme-workbench {
+    display: grid;
+    grid-template-columns: 0.72fr 1fr;
+    gap: 50px;
+    align-items: center;
+}
+.small-title { margin-bottom: 19px; }
+.theme-buttons {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 9px;
+    margin-bottom: 30px;
+}
+.theme-buttons button {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    text-align: left;
+    background: transparent;
+    border: 1px solid #c1c7ff;
+    padding: 13px 10px;
+    font-family: var(--deck);
+    font-size: 15px;
+    text-transform: uppercase;
+}
+/* The theme's two colours: its letters on its ground. */
+.theme-buttons button::before {
+    content: "";
+    width: 14px;
+    height: 10px;
+    flex-shrink: 0;
+    background: var(--swatch-paper, var(--bg));
+    border: 2px solid var(--swatch-ink, var(--ink));
+    box-sizing: border-box;
+}
+.theme-buttons button[aria-pressed="true"] {
+    background: var(--ink);
+    border-color: var(--ink);
+    color: var(--bg);
+    box-shadow: 3px 3px 0 var(--shadow-deep);
+}
+.theme-buttons button:hover { background: var(--ink); color: var(--bg); }
+.theme-monitor {
+    margin: 0;
+    border: 4px double var(--ink);
+    background: var(--bg);
+    padding: 12px;
+    box-shadow: 7px 7px 0 var(--shadow-deep);
+}
+.monitor-top {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding-bottom: 13px;
+    font-family: var(--deck);
+    font-size: 12px;
+}
+.monitor-top .led { width: 6px; height: 6px; margin-right: 5px; }
+.monitor-top button {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: none;
+    border: 0;
+    padding: 4px 0;
+    font-family: var(--deck);
+    font-size: 12px;
+    text-transform: uppercase;
+}
+.monitor-top button .pixel-icon { width: 12px; height: 12px; }
+.theme-monitor figcaption {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 10px;
+    padding-top: 13px;
+    font-family: var(--deck);
+}
+.theme-monitor figcaption span:first-child { font-size: 18px; text-transform: uppercase; }
+.theme-monitor figcaption span:last-child { font-size: 12px; }
+
+/* The hardware. */
+.hardware-tabs { display: flex; border-bottom: 2px solid var(--ink); }
+.hardware-tabs button {
+    flex: 1;
+    text-align: left;
+    background: none;
+    border: 1px solid var(--ink);
+    border-bottom: 0;
+    padding: 16px;
+    font-family: var(--deck);
+    font-size: 16px;
+    text-transform: uppercase;
+}
+.hardware-tabs button[aria-selected="true"] { background: var(--ink); color: var(--bg); }
+.hardware-panel {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 60px;
+    padding: 34px;
+    background: var(--bg);
+    border: 2px solid var(--ink);
+    border-top: 0;
+    box-shadow: 7px 7px 0 var(--shadow);
+}
+.mini-label { font-size: 12px; }
+.hardware-panel h3 { font-size: 30px; margin: 19px 0 15px; }
+.hardware-panel p { max-width: 380px; margin-bottom: 24px; }
+dl { margin: 0; }
+dl > div { padding: 15px 0; border-bottom: 1px dashed var(--line); }
+dl > div:first-child { padding-top: 0; }
+dt {
+    font-family: var(--deck);
+    font-size: 12px;
+    color: #c2cbff;
+    text-transform: uppercase;
+    margin-bottom: 9px;
+}
+dd { margin: 0; font-size: 16px; line-height: 1.5; }
+.hardware-note { font-size: 13px; margin-top: 22px; }
+
+/* The three steps. */
+.setup-section {
+    background: var(--surface);
+    border-block: 3px double var(--ink);
+    padding-block: 64px;
+}
+.steps { display: grid; grid-template-columns: repeat(3, 1fr); gap: 30px; }
+.steps article {
+    display: flex;
+    flex-direction: column;
+    padding: 23px;
+    background: var(--bg);
+    border: 2px solid var(--ink);
+    box-shadow: 5px 5px 0 var(--shadow-deep);
+}
+.step-number { font-family: var(--deck); font-size: 22px; margin-bottom: 23px; }
+.steps h3 { font-size: 25px; }
+.steps p { margin: 15px 0 25px; }
+.steps a {
+    display: flex;
+    justify-content: space-between;
+    gap: 10px;
+    margin-top: auto;
+    padding-bottom: 12px;
+    border-bottom: 1px solid var(--ink);
+    font-family: var(--deck);
+    font-size: 15px;
+    text-transform: uppercase;
+}
+.steps a:hover { text-decoration: underline; }
+.setup-note { display: flex; align-items: center; gap: 12px; margin-top: 39px; }
+.setup-note p { font-size: 14px; margin: 0; }
+.setup-note a { text-decoration: underline; }
+
+/* The questions. */
+.faq-section { display: grid; grid-template-columns: 0.8fr 1.2fr; gap: 55px; }
+.faq details { border-bottom: 1px solid var(--ink); }
+.faq summary {
+    display: flex;
+    justify-content: space-between;
+    gap: 20px;
+    padding: 20px 0;
+    list-style: none;
+    cursor: pointer;
+    font-family: var(--deck);
+    font-size: 17px;
+    line-height: 1.4;
+    text-transform: uppercase;
+}
+.faq summary::-webkit-details-marker { display: none; }
+.faq-sign { position: relative; flex-shrink: 0; }
+.faq details[open] .faq-sign svg { visibility: hidden; }
+.faq details[open] .faq-sign::after {
+    content: "";
+    position: absolute;
+    left: 0;
+    top: 7px;
+    width: 16px;
+    height: 2px;
+    background: currentColor;
+}
+.faq p { margin: 0 25px 24px 0; }
+.faq p a { text-decoration: underline; }
+
+/* The closing. */
+.closing {
+    position: relative;
+    overflow: hidden;
+    padding: 40px;
+    background: var(--bg);
+    border: 4px double var(--ink);
+    box-shadow: 8px 8px 0 var(--shadow);
+}
+.closing h2 { font-size: clamp(36px, 4.5vw, 60px); margin: 23px 0 30px; }
+.color-bars {
+    position: absolute;
+    right: 40px;
+    bottom: 40px;
+    width: 170px;
+    height: 110px;
+    display: flex;
+    border: 2px solid var(--ink);
+}
+.color-bars i { flex: 1; background: #fff; }
+.color-bars i:nth-child(2) { background: #ffff00; }
+.color-bars i:nth-child(3) { background: #00ffff; }
+.color-bars i:nth-child(4) { background: #00ff00; }
+.color-bars i:nth-child(5) { background: #ff00ff; }
+.color-bars i:nth-child(6) { background: #ff0000; }
+
+/* The foot. */
+.footer {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    gap: 30px;
+    padding-top: 45px;
+    padding-bottom: 30px;
+}
+.footer p { font-size: 13px; line-height: 1.7; }
+.footer-links {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px 22px;
+    align-items: flex-start;
+    padding-top: 8px;
+    font-family: var(--deck);
+    font-size: 14px;
+    text-transform: uppercase;
+}
+.footer-links a { padding: 4px 6px; }
+.footer .legal {
+    flex-basis: 100%;
+    margin: 0;
+    padding-top: 22px;
+    border-top: 1px solid var(--line);
+    font-size: 12px;
+}
+
+/* --- Narrower screens. */
+@media (max-width: 1050px) {
+    .header { padding-inline: 24px; }
+    .header nav { font-size: 14px; gap: 8px 16px; }
+    .wrap { width: calc(100% - 48px); }
+    .hero { gap: 25px; }
+    .hero-photo { min-height: 410px; }
+    h1 { font-size: clamp(40px, 5.3vw, 60px); }
+    .hero-copy p { font-size: 16px; }
+    .signal-strip { font-size: 13px; }
+    .theme-workbench { gap: 30px; }
+    .theme-buttons button { font-size: 13px; }
+    .hardware-panel { gap: 30px; }
+    .steps { gap: 18px; }
+    .steps article { padding: 18px; }
+    .steps h3 { font-size: 23px; }
+    .color-bars { width: 110px; height: 80px; }
+}
+
+@media (max-width: 720px) {
+    html { scroll-padding-top: 20px; }
+    .header { padding: 12px 16px; gap: 10px 16px; }
+    .wordmark img { width: 143px; height: 49px; }
+    .header nav { order: 3; flex-basis: 100%; font-size: 13px; }
+    .nav-setup { font-size: 13px; padding: 10px; box-shadow: 3px 3px 0 var(--shadow); }
+    .wrap { width: calc(100% - 32px); }
+    .hero { padding-block: 33px; gap: 30px; grid-template-columns: 1fr; }
+    .eyebrow { font-size: 12px; }
+    h1 { font-size: clamp(36px, 9.6vw, 60px); line-height: 1.1; margin-block: 24px; }
+    .hero-copy p { font-size: 17px; max-width: 450px; }
+    .button { font-size: 16px; padding: 14px; gap: 14px; }
+    .text-link { font-size: 13px; }
+    .actions { gap: 20px; }
+    .hero-photo { min-height: 290px; aspect-ratio: 1.2; box-shadow: 5px 5px 0 var(--shadow); }
+    .signal-strip { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; padding: 19px 18px; font-size: 12px; }
+    .signal-strip li::before { margin-right: 8px; }
+    .intro-section, .hardware-section, .faq-section, .themes-section, .setup-section { padding-block: 42px; }
+    .section-label { font-size: 13px; margin-bottom: 22px; }
+    .section-intro { display: block; margin-bottom: 28px; }
+    .section-intro > p { margin-top: 20px; max-width: 440px; }
+    h2 { font-size: 30px; line-height: 1.2; }
+    .experience-grid, .theme-workbench, .hardware-panel, .faq-section { grid-template-columns: 1fr; }
+    .experience-grid { gap: 30px; }
+    .feature-list article { gap: 16px; }
+    .feature-list h3 { font-size: 22px; }
+    .theme-buttons { grid-template-columns: repeat(2, 1fr); gap: 7px; margin-bottom: 20px; }
+    .theme-buttons button { font-size: 12px; padding: 12px 8px; gap: 8px; }
+    .theme-monitor { padding: 9px; }
+    .hardware-tabs button { font-size: 12px; padding: 12px 6px; line-height: 1.5; }
+    .hardware-panel { padding: 25px 19px; gap: 24px; }
+    .hardware-panel h3 { font-size: 26px; }
+    .steps { grid-template-columns: 1fr; gap: 22px; }
+    .steps article { padding: 22px; }
+    .step-number { margin-bottom: 18px; }
+    .setup-note { align-items: flex-start; }
+    .setup-note .led { margin-top: 6px; }
+    .faq-section { gap: 20px; }
+    .faq summary { font-size: 15px; }
+    .closing { padding: 28px 20px 100px; }
+    .closing h2 { font-size: 32px; }
+    .closing .eyebrow { font-size: 12px; }
+    .color-bars { right: 25px; bottom: 23px; width: 100px; height: 40px; }
+    .footer { padding-top: 35px; gap: 20px; }
+    .footer-links { gap: 6px 14px; font-size: 13px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    html { scroll-behavior: auto; }
+}

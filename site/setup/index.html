@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>OSD/OS Setup</title>
+<meta name="description" content="OSD/OS's settings chosen before the card goes into the Pi: the display output, Wi-Fi, the device's name, the system and every setting of OSD/OS itself, in one file the card applies as it starts.">
+<link rel="icon" href="img/icon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="style.css">
+<script type="module" src="js/page.mjs"></script>
+</head>
+<body>
+<main>
+  <header class="appbar">
+    <div class="icon" aria-hidden="true"><span></span></div>
+    <h1>OSD/OS SETUP <small>SETTINGS FOR THE CARD</small></h1>
+    <a class="home" href="../" aria-label="OSD/OS, the website">◄<span> OSD/OS</span></a>
+  </header>
+
+  <section class="intro">
+    <p>Choose OSD/OS's settings here before the card goes into the Pi: first what it goes into, a TV or an
+      arcade cabinet, then the display output, Wi-Fi and the device's name, the system, and every setting of
+      OSD/OS itself, with its look shown as it draws it. <strong>Download</strong> puts them in one file,
+      <code>osdos-setup.json</code>; copy it to the card's boot partition (the drive called
+      <strong>bootfs</strong>), and OSD/OS applies it all as it starts, then deletes the file.</p>
+    <p class="note">Nothing you type leaves this page: the file is made in your browser. Only what you change
+      goes into it (marked •); the rest stays as the card has it. <strong>Import</strong> reads a file made
+      here back, or OSD/OS's own <code>config.json</code>, to change it.</p>
+  </section>
+
+  <div class="toolbar" role="toolbar" aria-label="Import and export">
+    <button type="button" id="import" class="secondary">Import</button>
+    <input type="file" id="import-file" accept=".json,application/json" hidden>
+    <button type="button" id="export">Export osdos-setup.json</button>
+    <button type="button" id="download-zip">Download for the card (zip)</button>
+    <button type="button" id="reset-all" class="secondary">Start again</button>
+  </div>
+  <p class="status" id="status" role="status" aria-live="polite"></p>
+
+  <div id="form">
+    <p class="note" id="loading">Loading the settings…</p>
+  </div>
+
+  <section id="finish">
+    <h2>On the card</h2>
+    <ol class="steps">
+      <li>Write the OSD/OS image to the card (Raspberry Pi Imager, <strong>Use custom</strong>).</li>
+      <li>Take the card out and put it back in: the computer shows its boot partition as <strong>bootfs</strong>.</li>
+      <li>Copy <code>osdos-setup.json</code> there. With a display output chosen, also copy
+        <code>osdos-display.txt</code> over the one there, so that a CRT has its picture from the first start
+        (the zip holds both).</li>
+      <li>Put the card in the Pi and switch it on. OSD/OS takes the file off the card at once, sets its own
+        settings before it starts, and the rest while its boot screen shows <strong>SETTINGS</strong>; it
+        restarts once if the display output needs it. <code>osdos-setup.log</code> on <strong>bootfs</strong>
+        says what was done, and why anything wasn't.</li>
+    </ol>
+    <p class="note">The file can go on a card that has already started too: OSD/OS applies it at the next
+      start. It holds the Wi-Fi and RetroAchievements passwords as you typed them, and pi's password only as
+      a hash: keep it to yourself.</p>
+  </section>
+
+  <footer>
+    OSD/OS is free software under the GNU GPL v3:
+    <a href="https://github.com/mehmetraif/OSD-OS">github.com/mehmetraif/OSD-OS</a>.
+    The page and the file stay on your computer.
+  </footer>
+</main>
+</body>
+</html>

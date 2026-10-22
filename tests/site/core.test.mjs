@@ -1,4 +1,4 @@
-// OSD/OS Setup's workings (site/js/core.mjs), under Node's own test runner:
+// OSD/OS Setup's workings (site/setup/js/core.mjs), under Node's own test runner:
 // pi's password hashed as openssl passwd -6 hashes it, the device's name, the
 // Wi-Fi, SSH keys and the password checked as the card checks them, the
 // setup file made and read back, a file of someone else's taken only as far
@@ -12,7 +12,7 @@ import { execFileSync } from "node:child_process";
 import { mkdtempSync, writeFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import * as core from "../../site/js/core.mjs";
+import * as core from "../../site/setup/js/core.mjs";
 
 test("pi's password as openssl passwd -6 hashes it", async () => {
     const openssl = (salt, password) => execFileSync("openssl", ["passwd", "-6", "-salt", salt, password]).toString().trim();
