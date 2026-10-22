@@ -131,7 +131,7 @@ Where the list stopped is kept by video, not by place: moving videos round doesn
 
 **What plays.** Each time a list starts, OSD/OS writes the videos that can play right now into an m3u playlist ([below](#the-m3u-it-writes)) and hands it to mpv. What can't play is left out: a Local Files file that is missing, a Jellyfin or Emby video while you are signed out, and on an offline list anything not downloaded yet. So an offline list plays what is on the device, and the rest joins as its downloads finish.
 
-**During a video.** ▲ or ▼ opens the deck's menu, which in a list of more than one video has **<** and **>** buttons for the previous and next video, beside AUDIO, SUBTITLE, CROP and STOP ([Playback and mpv](https://github.com/mehmetraif/OSD-OS/wiki/Playback-and-mpv)).
+**During a video.** ▲ or ▼ opens the deck's menu, which in a list of more than one video has **<** and **>** buttons for the previous and next video (Page Up and Page Down, or a remote's Channel + and −, do the same, round the list's end), beside AUDIO, SUBTITLE, CROP and STOP ([Playback and mpv](https://github.com/mehmetraif/OSD-OS/wiki/Playback-and-mpv)).
 
 **Looping.** With **Loop Playback** on, the list starts again from its first video when it ends, until you stop it (mpv's `--loop-playlist=inf`).
 

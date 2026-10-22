@@ -253,6 +253,8 @@ The audio track is mpv's choice (the file's default, or an `alang=` line in your
 
 The deck's menu has the position bar (◄ ► seek 10 seconds while it is selected), then **AUDIO**, **SUBTITLE** (when the file has subtitles), **CROP** (the four Scalings in turn), **<** **>** (in a playlist) and **STOP**. It hides itself after 5 seconds. [Playback and mpv](https://github.com/mehmetraif/OSD-OS/wiki/Playback-and-mpv) has the rest of what the keys do during a video.
 
+**Page Up** and **Page Down** (a TV remote's Channel + and − keys) play the folder's next or previous film, round the folder's end, as a TV's programme keys go round its channels: the film left is saved where it got to, and the next one goes on RECENTLY WATCHED and carries on where it was left, without asking (unless Resume Playback is Never). Under the video's menu the keys do nothing. In a playlist they go to its next or previous video, round the list's end. An image on its own isn't stepped from.
+
 ### Still images
 
 A still image is shown for **Image Duration** (5, 10, 30 or 60 seconds; mpv's `--image-display-duration`), then mpv moves on: to the playlist's next entry, or, for an image chosen on its own, back to the tree. An animated GIF plays as a clip. A playlist of images is a slideshow; Shuffle Playback shuffles it and Loop Playback runs it round for good. For image content OSD/OS also loads `scripts/mpv-slideshow-redraw.lua`, without which mpv drawing straight to a Pi's screen (`--vo=drm`) wouldn't redraw between two pictures of the same size. A still image never moves mpv's clock, so the loading screen is taken down as soon as an image is handed to mpv.

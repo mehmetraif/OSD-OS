@@ -1,8 +1,9 @@
 // OSD/OS Setup's settings against the app's own: schema.json as
 // scripts/build-site.py makes it, each row one the app has, offering the
-// values the app takes, the page's files all there (the live preview's, the
-// app's shaders and the skins' pictures among them), the looks the preview
-// draws as Main.qml has them, and the time zones the card has.
+// values the app takes, the website's files all there (the landing page's
+// pictures and themes, and Setup's live preview, the app's shaders and the
+// skins' pictures among them), the looks the preview draws as Main.qml has
+// them, and the time zones the card has.
 //   node --test tests/site/*.test.mjs
 import { test, after } from "node:test";
 import assert from "node:assert/strict";
@@ -16,7 +17,8 @@ const root = fileURLToPath(new URL("../..", import.meta.url));
 const out = mkdtempSync(join(tmpdir(), "osdos-site-"));
 after(() => rmSync(out, { recursive: true, force: true }));
 execFileSync("python3", ["-I", join(root, "scripts/build-site.py"), out], { stdio: "ignore" });
-const schema = JSON.parse(readFileSync(join(out, "schema.json"), "utf8"));
+const setup = join(out, "setup");
+const schema = JSON.parse(readFileSync(join(setup, "schema.json"), "utf8"));
 const read = path => readFileSync(join(root, path), "utf8");
 const settingsQml = read("views/Settings.qml");
 const mainQml = read("Main.qml");
@@ -37,22 +39,63 @@ function qmlNames(source, name) {
     return keys.filter(([d]) => d === depth).map(([, key]) => key);
 }
 
-test("the page's files are all there", () => {
-    for (const file of ["index.html", "style.css", "js/core.mjs", "js/page.mjs", "schema.json", ".nojekyll",
-                        "fonts/VCR_OSD_MONO_1.001.ttf", "fonts/LICENSE-vcr-osd-mono.txt", "img/logo.svg", "img/icon.svg"])
+// Every file a page's HTML and CSS name, there beside it (a recording the
+// script swaps in too); a link to another page or a fragment isn't a file.
+function filesNamed(folder, html, css) {
+    const named = [];
+    for (const [, path] of readFileSync(join(folder, html), "utf8").matchAll(/(?:href|src|data-recording)="([^":#]+)"/g))
+        named.push([html, path]);
+    for (const [, path] of readFileSync(join(folder, css), "utf8").matchAll(/url\("([^"]+)"\)/g))
+        named.push([css, path]);
+    return named;
+}
+
+test("the website's files are all there", () => {
+    // The landing page, at the root.
+    for (const file of ["index.html", "style.css", "js/home.js", "themes.json", ".nojekyll",
+                        "fonts/VCR_OSD_MONO_1.001.ttf", "fonts/LICENSE-vcr-osd-mono.txt", "img/icon.svg"])
         assert.ok(existsSync(join(out, file)), file);
-    for (const file of readdirSync(join(root, "site/js/preview")))
-        assert.ok(existsSync(join(out, "js/preview", file)), `js/preview/${file}`);
-    const html = readFileSync(join(out, "index.html"), "utf8");
-    for (const [, path] of html.matchAll(/(?:href|src)="([^":#]+)"/g))
-        assert.ok(existsSync(join(out, path)), `index.html's ${path}`);
+    for (const [file, path] of filesNamed(out, "index.html", "style.css"))
+        assert.ok(existsSync(join(out, path)), `${file}'s ${path}`);
+    const landing = readFileSync(join(out, "index.html"), "utf8");
+    assert.ok(landing.includes('href="setup/"'), "the landing page leads to Setup");
+    // Nothing of the page from elsewhere: no script, style, font or picture
+    // off the site.
+    const loads = [...landing.matchAll(/<(?:script|img)\b[^>]*\bsrc="([^"]+)"|<link\b[^>]*\brel="(?:stylesheet|icon|preload)"[^>]*\bhref="([^"]+)"/g)]
+        .map(m => m[1] || m[2]);
+    assert.ok(loads.length >= 4 && loads.every(u => !/^(?:https?:)?\/\//.test(u)), `nothing loaded from elsewhere: ${loads.join(" ")}`);
+    assert.ok(!/url\(["']?(?:https?:)?\/\//.test(readFileSync(join(out, "style.css"), "utf8")), "no style from elsewhere");
+    execFileSync("node", ["--check", join(out, "js/home.js")], { stdio: "ignore" });
+    // OSD/OS Setup, under setup/.
+    for (const file of ["index.html", "style.css", "js/core.mjs", "js/page.mjs", "schema.json",
+                        "fonts/VCR_OSD_MONO_1.001.ttf", "fonts/LICENSE-vcr-osd-mono.txt", "img/logo.svg", "img/icon.svg"])
+        assert.ok(existsSync(join(setup, file)), `setup/${file}`);
+    for (const file of readdirSync(join(root, "site/setup/js/preview")))
+        assert.ok(existsSync(join(setup, "js/preview", file)), `setup/js/preview/${file}`);
+    for (const [file, path] of filesNamed(setup, "index.html", "style.css"))
+        assert.ok(existsSync(join(setup, path)), `setup/${file}'s ${path}`);
+    assert.ok(readFileSync(join(setup, "index.html"), "utf8").includes('href="../"'), "Setup leads back to the landing page");
     // Every module the page's scripts import, where they import it from.
     for (const dir of ["js", "js/preview"]) {
-        for (const file of readdirSync(join(out, dir)).filter(f => f.endsWith(".mjs"))) {
-            const source = readFileSync(join(out, dir, file), "utf8");
+        for (const file of readdirSync(join(setup, dir)).filter(f => f.endsWith(".mjs"))) {
+            const source = readFileSync(join(setup, dir, file), "utf8");
             for (const [, path] of source.matchAll(/^import [^;]* from "(\.[^"]+)";/gm))
-                assert.ok(existsSync(join(out, dir, path)), `${dir}/${file}'s ${path}`);
+                assert.ok(existsSync(join(setup, dir, path)), `setup/${dir}/${file}'s ${path}`);
         }
+    }
+});
+
+test("the landing page's themes are the app's, each with its colours and pictures", () => {
+    const themes = JSON.parse(readFileSync(join(out, "themes.json"), "utf8"));
+    const offered = valuesOf(appRows.find(r => r.key === "osd_theme")).filter(v => v !== "" && v !== "Off").sort();
+    assert.deepEqual(themes.map(t => t.id).sort(), offered);
+    for (const theme of themes) {
+        assert.equal(theme.name, schema.looks.themes[theme.id].name);
+        assert.ok(theme.about.length > 0, `${theme.id}'s line`);
+        assert.match(theme.primary, /^#[0-9A-Fa-f]{6}$/, theme.id);
+        assert.match(theme.surface, /^#[0-9A-Fa-f]{6}$/, theme.id);
+        for (const file of [theme.still, theme.recording])
+            assert.ok(existsSync(join(out, file)), `${theme.id}'s ${file}`);
     }
 });
 
@@ -60,7 +103,7 @@ test("the live preview draws with the app's own shaders, as they are", () => {
     const frags = readdirSync(join(root, "shaders")).filter(f => f.endsWith(".frag"));
     assert.deepEqual(schema.looks.shaders, frags.map(f => f.slice(0, -5)).sort());
     for (const file of frags)
-        assert.equal(readFileSync(join(out, "shaders", file), "utf8"), read(`shaders/${file}`), file);
+        assert.equal(readFileSync(join(setup, "shaders", file), "utf8"), read(`shaders/${file}`), file);
     // Each background's and window change's shader, by the names Main.qml
     // gives them.
     for (const name of [...Object.values(schema.looks.background), ...Object.values(schema.looks.transitionShaders)])
@@ -89,7 +132,7 @@ test("the looks the preview draws are Main.qml's, each theme's and each skin's",
     assert.ok(skins.length > 0);
     for (const skin of skins) {
         for (const part of Object.values(skin)) {
-            assert.ok(existsSync(join(out, part.source)), part.source);
+            assert.ok(existsSync(join(setup, part.source)), part.source);
             assert.equal(part.border.length, 4);
             assert.ok(!("file" in part), "no path of the build's own");
         }
@@ -224,7 +267,7 @@ test("defaults are among the values, and rows show with rows that are there", ()
 test("every display output is a preset the zip can carry, on the boards Settings offers it", () => {
     assert.ok(schema.presets.length > 10);
     for (const preset of schema.presets) {
-        assert.ok(existsSync(join(out, "presets", `osdos-display-${preset.id}.txt`)), preset.id);
+        assert.ok(existsSync(join(setup, "presets", `osdos-display-${preset.id}.txt`)), preset.id);
         assert.ok(preset.models.length > 0 && preset.models.every(m => ["pi3", "pi4", "pi5"].includes(m)), preset.id);
     }
     assert.deepEqual(schema.presets.find(p => p.id === "hdmi").models, ["pi3", "pi4", "pi5"]);

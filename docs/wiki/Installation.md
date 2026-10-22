@@ -139,7 +139,7 @@ Replace `/dev/sdX` with the card's device (a whole disk, such as `/dev/sdb` or `
 
 ### OSD/OS Setup: settings on the card before the first boot
 
-[OSD/OS Setup](https://mehmetraif.github.io/OSD-OS/) is a web page where you choose what the card starts with, before it goes into the Pi. It looks like OSD/OS's own menus, and has:
+[OSD/OS Setup](https://mehmetraif.github.io/OSD-OS/setup/) is a web page where you choose what the card starts with, before it goes into the Pi. It looks like OSD/OS's own menus, and has:
 
 - **Device:** what the card goes into, a **TV** or an **Arcade Cabinet**. A cabinet starts on the Arcade screen, has the JAMMA outputs first, and puts the TV / Movie settings and modules out of sight (its **TV / Movie Settings** switch shows them);
 - **Raspberry Pi and Display Output:** the Pi the card is for, and its output (HDMI, composite, SCART RGB, a JAMMA cabinet), the ones that Pi has;

@@ -23,6 +23,10 @@ add_test(NAME reliability COMMAND reliability_test)
 find_program(LUA_EXECUTABLE NAMES lua5.4 lua REQUIRED)
 add_test(NAME osc_controls COMMAND ${LUA_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/osc_test.lua
                                   ${CMAKE_CURRENT_SOURCE_DIR}/../scripts/mpv-osc.lua)
+# The media-key script: the volume bar, and a remote's channel keys through
+# a playlist.
+add_test(NAME media_keys COMMAND ${LUA_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/media_keys_test.lua
+                                ${CMAKE_CURRENT_SOURCE_DIR}/../scripts/mpv-media-keys.lua)
 add_executable(storage_search_test
     storage_search_test.cpp
     ../src/AppCore.cpp
@@ -365,8 +369,8 @@ add_test(NAME highscores_views COMMAND tree_browser_test -input ${CMAKE_CURRENT_
                                        -import ${CMAKE_CURRENT_SOURCE_DIR}/../views)
 set_tests_properties(highscores_views PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen;QT_QUICK_BACKEND=software")
 # The media server modules' players, detail screens and routers (Plex,
-# Jellyfin, Emby) against stand-ins for their backends and MpvController, and
-# for the app's VhsNoise (stubs).
+# Jellyfin, Emby) and Local Files' player against stand-ins for their
+# backends and MpvController, and for the app's VhsNoise (stubs).
 add_test(NAME media_players_views COMMAND tree_browser_test -input ${CMAKE_CURRENT_SOURCE_DIR}/qml/tst_media_players.qml
                                           -import ${CMAKE_CURRENT_SOURCE_DIR}/../views
                                           -import ${CMAKE_CURRENT_SOURCE_DIR}/stubs)

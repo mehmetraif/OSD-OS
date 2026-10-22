@@ -132,3 +132,16 @@ mp.add_forced_key_binding("REWIND",  "mk-rewind",  function() seek_with_menu("no
 
 mp.add_forced_key_binding("NEXT", "mk-next", function() seek_with_menu("no-osd add chapter 1") end)
 mp.add_forced_key_binding("PREV", "mk-prev", function() seek_with_menu("no-osd add chapter -1") end)
+
+-- A TV remote's channel keys, or its page keys, in a playlist (OSD/OS sends
+-- them as these while a list plays): the next or the previous entry, round
+-- the list's end, as a TV's programme keys go round its channels.
+local function step_playlist(delta)
+    local count = mp.get_property_number("playlist-count", 0) or 0
+    if count < 2 then return end
+    local pos = mp.get_property_number("playlist-pos", 0) or 0
+    mp.set_property_number("playlist-pos", (pos + delta) % count)
+end
+
+mp.add_forced_key_binding("CHANNEL_UP",   "mk-channel-up",   function() step_playlist(1)  end)
+mp.add_forced_key_binding("CHANNEL_DOWN", "mk-channel-down", function() step_playlist(-1) end)

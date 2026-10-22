@@ -241,8 +241,14 @@ FocusScope {
             keys[Qt.Key_Up] = "UP"; keys[Qt.Key_Down] = "DOWN"; keys[Qt.Key_Left] = "LEFT"
             keys[Qt.Key_Right] = "RIGHT"; keys[Qt.Key_Space] = "SPACE"
             keys[Qt.Key_Return] = "ENTER"; keys[Qt.Key_Enter] = "ENTER"
+            // A TV remote's channel keys, or its page keys: the list's next
+            // or previous video (mpv-media-keys.lua, round the list's end),
+            // once per press however long the key is held.
+            keys[Qt.Key_PageUp] = "CHANNEL_UP"; keys[Qt.Key_ChannelUp] = "CHANNEL_UP"
+            keys[Qt.Key_PageDown] = "CHANNEL_DOWN"; keys[Qt.Key_ChannelDown] = "CHANNEL_DOWN"
             if (keys[event.key] !== undefined) {
-                mpvController.sendKey(keys[event.key])
+                if (!(event.isAutoRepeat && keys[event.key].startsWith("CHANNEL")))
+                    mpvController.sendKey(keys[event.key])
                 event.accepted = true
             }
         }

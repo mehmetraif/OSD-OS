@@ -2,7 +2,7 @@
 
 ## On a Raspberry Pi
 
-The simplest way is the **OSD/OS image**: download `OSD-OS-<version>-raspberry-pi.img.xz` from the [latest release](https://github.com/mehmetraif/OSD-OS/releases/latest), flash it ([os/README.md](os/README.md#flashing)) and the Pi boots straight into OSD/OS. [OSD/OS Setup](https://mehmetraif.github.io/OSD-OS/) chooses its Wi-Fi, display output, password, SSH and settings before the first start, in one file for the card's boot partition ([os/README.md → OSD/OS Setup](os/README.md#osdos-setup)).
+The simplest way is the **OSD/OS image**: download `OSD-OS-<version>-raspberry-pi.img.xz` from the [latest release](https://github.com/mehmetraif/OSD-OS/releases/latest), flash it ([os/README.md](os/README.md#flashing)) and the Pi boots straight into OSD/OS. [OSD/OS Setup](https://mehmetraif.github.io/OSD-OS/setup/) chooses its Wi-Fi, display output, password, SSH and settings before the first start, in one file for the card's boot partition ([os/README.md → OSD/OS Setup](os/README.md#osdos-setup)).
 
 The following steps will instead set up an SD card for your Raspberry Pi with the latest version of OSD/OS (and optionally set it up to autostart after boot).  
 

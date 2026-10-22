@@ -64,6 +64,11 @@ public:
     ~InputManager() override;
 
     void setTargetWindow(QQuickWindow *window);
+#ifdef Q_OS_LINUX
+    // A remote's node of the tests' own: a descriptor written as the kernel
+    // writes /dev/input's nodes (input_event), read as they are.
+    void adoptNodeForTest(int fd, const QString &name);
+#endif
     // On the console (EGLFS, main.cpp): a mouse's left and right buttons are
     // Select / OK and Back where nothing else is bound to them, as an
     // air-mouse remote's OK is a left click while its pointer is on.
@@ -218,9 +223,12 @@ private:
 #ifdef Q_OS_LINUX
     struct Node;
     void watchNodes();
+    void addNode(int fd, const QString &path, const QString &name, const QString &key,
+                 controllers::NodeKind kind);
     void readNode(Node *node);
     void drainNodes();
     void closeNode(Node *node);
+    static int qtKeyForEvdev(int linuxCode);
 #endif
     static QString evdevKeyName(int linuxCode);
     static QString mouseButtonName(int qtButton);
@@ -322,6 +330,9 @@ private:
     QHash<HeldInput, Action> m_heldInputs;
     // Back buttons held down as the coin key: their release is its release.
     QSet<HeldInput> m_coinInputs;
+    // A remote's buttons held down that went to the views as keys of their
+    // own (readNode()): their release is the key's.
+    QHash<HeldInput, int> m_postedKeys;
     // Keys whose press a wait for a press took (Qt::Key): swallowed until let
     // go, as their repeats would act as what they were just given.
     QSet<int> m_capturedKeys;
@@ -331,9 +342,10 @@ private:
 #ifdef Q_OS_LINUX
     // A keyboard's or a remote's /dev/input node. A Consumer Control node's
     // buttons are acted on from here when they do something (keyActionOn()),
-    // or reported to a wait, and Qt's copy of such a press, where Qt has one,
-    // is dropped (m_consumerTaken); any other node's keys reach Qt, and their
-    // nodes only say whose they are (m_keySources).
+    // reported to a wait, or posted to the views as the keys they are where
+    // the views act on them (qtKeyForEvdev()), and Qt's copy of such a press,
+    // where Qt has one, is dropped (m_consumerTaken); any other node's keys
+    // reach Qt, and their nodes only say whose they are (m_keySources).
     struct Node {
         int fd = -1;
         QSocketNotifier *notifier = nullptr;

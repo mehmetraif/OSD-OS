@@ -1229,10 +1229,13 @@ void InputManager::watchNodes() {
 }
 
 void InputManager::scanNodes() {
-    // Gone: unplugged (the device answers ENODEV), or its node removed.
+    // Gone: unplugged (the device answers ENODEV), or its node removed. A
+    // node of the tests' own (adoptNodeForTest) goes as its pipe closes.
     const QList<Node *> open = m_nodes;
     bool changed = false;
     for (Node *node : open) {
+        if (!node->path.startsWith(QLatin1String("/dev/")))
+            continue;
         struct input_id id;
         if (::ioctl(node->fd, EVIOCGID, &id) < 0 || !QFileInfo::exists(node->path)) {
             closeNode(node);
@@ -1277,24 +1280,9 @@ void InputManager::scanNodes() {
             ::close(fd);
             continue;
         }
-        Node *node = new Node;
-        node->fd = fd;
-        node->path = path;
-        node->key = controllers::evdevKey(id.bustype, id.vendor, id.product);
-        node->name = QString::fromUtf8(name).trimmed();
-        node->kind = kind;
-        node->consumer = node->name.contains(QStringLiteral("Consumer Control"), Qt::CaseInsensitive);
-        node->notifier = new QSocketNotifier(fd, QSocketNotifier::Read, this);
-        connect(node->notifier, &QSocketNotifier::activated, this, [this, node] { readNode(node); });
-        m_nodes.append(node);
-        // As the list names a device of several nodes: by its shortest name.
-        const auto seen = m_seenAs.constFind(node->key);
-        if (seen == m_seenAs.cend() || node->name.size() < seen->name.size())
-            m_seenAs.insert(node->key, { node->name, kind == controllers::NodeKind::Keyboard ? QStringLiteral("keyboard")
-                                                                                              : QStringLiteral("remote") });
+        addNode(fd, path, QString::fromUtf8(name).trimmed(),
+                controllers::evdevKey(id.bustype, id.vendor, id.product), kind);
         changed = true;
-        qInfo("[input] %s: %s (%s, %s)", kind == controllers::NodeKind::Keyboard ? "keyboard" : "remote",
-              name, qPrintable(path), qPrintable(node->key));
     }
 
     if (!denied)
@@ -1305,6 +1293,35 @@ void InputManager::scanNodes() {
     }
     if (changed)
         emit controllersChanged();
+}
+
+// A node opened: read as its events come (readNode()), and listed under its
+// device.
+void InputManager::addNode(int fd, const QString &path, const QString &name, const QString &key,
+                           controllers::NodeKind kind) {
+    Node *node = new Node;
+    node->fd = fd;
+    node->path = path;
+    node->key = key;
+    node->name = name;
+    node->kind = kind;
+    node->consumer = node->name.contains(QStringLiteral("Consumer Control"), Qt::CaseInsensitive);
+    node->notifier = new QSocketNotifier(fd, QSocketNotifier::Read, this);
+    connect(node->notifier, &QSocketNotifier::activated, this, [this, node] { readNode(node); });
+    m_nodes.append(node);
+    // As the list names a device of several nodes: by its shortest name.
+    const auto seen = m_seenAs.constFind(node->key);
+    if (seen == m_seenAs.cend() || node->name.size() < seen->name.size())
+        m_seenAs.insert(node->key, { node->name, kind == controllers::NodeKind::Keyboard ? QStringLiteral("keyboard")
+                                                                                          : QStringLiteral("remote") });
+    qInfo("[input] %s: %s (%s, %s)", kind == controllers::NodeKind::Keyboard ? "keyboard" : "remote",
+          qPrintable(name), qPrintable(path), qPrintable(node->key));
+}
+
+void InputManager::adoptNodeForTest(int fd, const QString &name) {
+    addNode(fd, QStringLiteral("test:") + name, name, QStringLiteral("test-") + name,
+            controllers::NodeKind::Remote);
+    emit controllersChanged();
 }
 
 void InputManager::readNode(Node *node) {
@@ -1334,10 +1351,13 @@ void InputManager::readNode(Node *node) {
             continue;
         }
 
-        // Let go: it ends what its press began, captured or bound anew since.
+        // Let go: it ends what its press began, captured or bound anew since,
+        // or the key its press went to the views as.
         const HeldInput button{ node->path, ev.code };
         if (ev.value == 0) {
             releaseAction(m_heldInputs.take(button));
+            if (const int qtKey = m_postedKeys.take(button))
+                postKey(qtKey, QEvent::KeyRelease, false);
             continue;
         }
         const int extendedId = kEvdevKeyBase + ev.code;
@@ -1361,11 +1381,38 @@ void InputManager::readNode(Node *node) {
         }
 
         const Action a = keyActionOn(node->key, extendedId);
-        if (a == Action::None)
+        if (a == Action::None) {
+            // A button no action takes goes to the views as the key it is,
+            // where they act on one (the channel keys, which Qt's keymap has
+            // no key for): once per press, with its release, and Qt's copy,
+            // where it has one, goes no further.
+            const int qtKey = qtKeyForEvdev(ev.code);
+            if (qtKey) {
+                m_consumerTaken.pressed(node->key, ev.code, m_clock.elapsed());
+                m_postedKeys.insert(button, qtKey);
+                postKey(qtKey, QEvent::KeyPress, false);
+            }
             continue;
+        }
         m_consumerTaken.pressed(node->key, ev.code, m_clock.elapsed());
         m_heldInputs.insert(button, a);
         pressFrom(QStringLiteral("keyboard"), a);
+    }
+}
+
+// The key a button is to the views, where they act on it and nothing in
+// Settings → Controls takes it: a TV remote's channel keys and page keys,
+// which step through a folder's films during a video. For a Consumer
+// Control node's button (readNode()), and for a key of a keyboard node that
+// Qt has no symbol for (eventFilter(): libinput's keymap has none for the
+// channel keys).
+int InputManager::qtKeyForEvdev(int linuxCode) {
+    switch (linuxCode) {
+    case KEY_CHANNELUP:   return Qt::Key_ChannelUp;
+    case KEY_CHANNELDOWN: return Qt::Key_ChannelDown;
+    case KEY_PAGEUP:      return Qt::Key_PageUp;
+    case KEY_PAGEDOWN:    return Qt::Key_PageDown;
+    default:              return 0;
     }
 }
 
@@ -1440,6 +1487,8 @@ QString InputManager::evdevKeyName(int linuxCode) {
     case KEY_MUTE:        return QStringLiteral("Mute");
     case KEY_CHANNELUP:   return QStringLiteral("Channel Up");
     case KEY_CHANNELDOWN: return QStringLiteral("Channel Down");
+    case KEY_PAGEUP:      return QStringLiteral("Page Up");
+    case KEY_PAGEDOWN:    return QStringLiteral("Page Down");
     case KEY_BUTTONCONFIG:return QStringLiteral("Tools");
     case KEY_CONFIG:      return QStringLiteral("Config");
     case KEY_SELECT:      return QStringLiteral("Select");
@@ -1697,6 +1746,14 @@ void InputManager::releaseHeld(const QString &source) {
         if (it->first == source) {
             it = m_coinInputs.erase(it);
             postKey(Qt::Key_5, QEvent::KeyRelease, false);
+        } else {
+            ++it;
+        }
+    }
+    for (auto it = m_postedKeys.begin(); it != m_postedKeys.end();) {
+        if (it.key().first == source) {
+            postKey(it.value(), QEvent::KeyRelease, false);
+            it = m_postedKeys.erase(it);
         } else {
             ++it;
         }
@@ -2028,6 +2085,19 @@ bool InputManager::eventFilter(QObject *obj, QEvent *event) {
             return true;
         }
     }
+
+#ifdef Q_OS_LINUX
+    // A key libinput's keymap has no symbol for, known by its scan code (the
+    // code plus 8): a remote's channel keys from its keyboard node, delivered
+    // as the keys they are where the views act on them (a Consumer Control
+    // node's come through readNode()).
+    if (!synthetic && ke->key() == 0) {
+        if (const int qtKey = qtKeyForEvdev(int(ke->nativeScanCode()) - 8)) {
+            postKey(qtKey, type, ke->isAutoRepeat());
+            return true;
+        }
+    }
+#endif
 
     // HID media keys drive mpv directly over IPC (sendKey no-ops when mpv isn't
     // running, so they're harmless while browsing). Volume keys repeat while
