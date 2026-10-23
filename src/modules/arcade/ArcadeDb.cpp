@@ -64,9 +64,13 @@ void ArcadeDb::next() {
         reply->deleteLater();
         m_reply = nullptr;
         const int status = reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
-        const QByteArray json = reply->error() == QNetworkReply::NoError ? reply->readAll() : QByteArray();
-        const QJsonObject answer = QJsonDocument::fromJson(json).object();
-        if (reply->error() != QNetworkReply::NoError || arcadehttp::tooBig(reply, kMaxAnswer) || !answer.contains(QLatin1String("result"))) {
+        // Its size before it is read (read, nothing is left to measure).
+        const bool tooBig = arcadehttp::tooBig(reply, kMaxAnswer);
+        const QByteArray json = reply->error() == QNetworkReply::NoError && !tooBig ? reply->readAll() : QByteArray();
+        // The service's answer is a list of games; anything else (an error of
+        // its own, a page) is no answer about the sets.
+        const QJsonValue result = QJsonDocument::fromJson(json).object().value(QLatin1String("result"));
+        if (reply->error() != QNetworkReply::NoError || tooBig || !result.isArray()) {
             // Too many requests: held off for as long as it says.
             int hold = 0;
             if (arcadehttp::asksForAPause(status)) {
@@ -82,17 +86,35 @@ void ArcadeDb::next() {
         // What it has of each set asked about, by the set's name; a set it
         // doesn't know is answered without pictures.
         QHash<QString, QJsonObject> games;
-        for (const QJsonValue &value : answer.value(QLatin1String("result")).toArray()) {
+        for (const QJsonValue &value : result.toArray()) {
             const QJsonObject game = value.toObject();
             games.insert(game.value(QLatin1String("game_name")).toString().toLower(), game);
         }
         for (const QString &set : sets) {
             const QJsonObject game = games.value(set.toLower());
-            const auto address = [this, &game](const char *key) {
-                const QUrl url(game.value(QLatin1String(key)).toString());
-                return isOurs(url) ? url.toString() : QString();
+            // Pictures elsewhere than the service's own server aren't
+            // downloaded; a set with those alone isn't one without pictures
+            // (which would be left for two months) but one that couldn't be
+            // asked about, to be asked about again.
+            bool elsewhere = false;
+            const auto address = [this, &game, &elsewhere](const char *key) {
+                const QString given = game.value(QLatin1String(key)).toString();
+                if (given.isEmpty())
+                    return QString();
+                const QUrl url(given);
+                if (isOurs(url))
+                    return url.toString();
+                elsewhere = true;
+                return QString();
             };
-            emit found(set, address("url_image_ingame"), address("url_image_title"));
+            const QString ingame = address("url_image_ingame");
+            const QString title = address("url_image_title");
+            if (elsewhere && ingame.isEmpty() && title.isEmpty()) {
+                qWarning("[Arcade] ArcadeDB's pictures of %s are on another server", qPrintable(set));
+                emit failed({ set }, 0);
+            } else {
+                emit found(set, ingame, title);
+            }
         }
         next();
     });

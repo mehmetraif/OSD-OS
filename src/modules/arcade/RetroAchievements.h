@@ -86,9 +86,9 @@ public:
     // after it has too goes by that file, the pictures being that game's):
     // its title screen, a screenshot of it in play and its box art, as paths
     // on the media server ("/Images/012345.png"), its placeholders left out.
-    // picturesFound() once read, but for a file in looked (its pictures
-    // looked for before), which is left as it is. Only the last asked for is
-    // read, a moment after it was.
+    // picturesFound() once read; for a file in looked (its pictures looked
+    // for before) at once, "looked", nothing read. Only the last asked for
+    // is read, a moment after it was.
     void findPictures(const QStringList &games, const QStringList &looked);
     // The same for a game asked for by itself rather than shown (Read the
     // Games Again's): read once nothing else is wanted, at once rather than
@@ -132,7 +132,8 @@ signals:
     void boardReady(const QString &fileName);
     void achievementsReady(const QString &fileName);
     // state: "found" (paths; none for a game without pictures), "unknown"
-    // (none of the games is RetroAchievements'; fileName, the first) or
+    // (none of the games is RetroAchievements'; fileName, the first),
+    // "looked" (its pictures were looked for before: nothing read) or
     // "failed" (the game couldn't be read); fileName, the file whose game it
     // is.
     void picturesFound(const QString &fileName, const QString &state, const QStringList &paths);

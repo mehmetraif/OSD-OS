@@ -3126,9 +3126,11 @@ private slots:
         QVERIFY(found.wait(5000));
         QCOMPARE(found.last(), (QVariantList{ QStringLiteral("puckman"), QStringLiteral("found"),
                                               QStringList({ QStringLiteral("/Images/000201.png") }) }));
+        // Looked for before: said so at once, nothing asked.
         standIn.asked.clear();
         ra.findPictures({ QStringLiteral("pacman"), QStringLiteral("puckman") }, { QStringLiteral("puckman") });
-        QVERIFY(!found.wait(800));
+        QVERIFY(found.wait(5000));
+        QCOMPARE(found.last(), (QVariantList{ QStringLiteral("puckman"), QStringLiteral("looked"), QStringList() }));
         QVERIFY(standIn.asked.isEmpty());
         ra.findPictures({ QStringLiteral("galaga") }, {});
         QVERIFY(found.wait(5000));
@@ -3652,17 +3654,21 @@ private slots:
         QTRY_VERIFY_WITH_TIMEOUT(!arcade.sweepingPictures(), 5000);
         QVERIFY2(standIn.asked.isEmpty(), qPrintable(standIn.asked.join(QLatin1Char(' '))));
 
-        // Metal Slug comes into the folder and is shown: RetroAchievements
-        // doesn't know it, so ArcadeDB is asked about it by itself, and its
-        // pictures come in as the game's (picturesChanged).
+        // Metal Slug and Ms. Pac-Man come into the folder; Ms. Pac-Man is
+        // shown, then Metal Slug in the same moment: RetroAchievements knows
+        // neither, so ArcadeDB is asked, by itself, about the game still shown
+        // alone, and its pictures come in as the game's (picturesChanged).
         writeFile(games + QStringLiteral("/mslug.zip"));
+        writeFile(games + QStringLiteral("/mspacman.zip"));
         refreshed(arcade);
         standIn.asked.clear();
         QSignalSpy changed(&arcade, &ArcadeBackend::picturesChanged);
+        arcade.wantPictures(QStringLiteral("mspacman"));
         arcade.wantPictures(QStringLiteral("mslug"));
         QTRY_VERIFY_WITH_TIMEOUT(changed.size() >= 2, 5000);
         QCOMPARE(asked("/service_scraper.php?").size(), 1);
         QVERIFY(asked("/service_scraper.php?").first().contains(QLatin1String("game_name=mslug")));
+        QVERIFY(!asked("/service_scraper.php?").first().contains(QLatin1String("mspacman")));
         QCOMPARE(arcade.gameDetails(QStringLiteral("mslug")).value(QStringLiteral("pictures")).toStringList(),
                  urls({ snap + QStringLiteral("/mslug.png"), titles + QStringLiteral("/mslug.png") }));
         // Shown again: nothing more asked.
@@ -3673,11 +3679,9 @@ private slots:
         QVERIFY(standIn.asked.isEmpty());
 
         // Pictures From RetroAchievements alone: ArcadeDB isn't asked about a
-        // game new in the folder (one RetroAchievements hasn't); Off: neither
-        // is.
+        // game still without a picture (one RetroAchievements hasn't); Off:
+        // neither is.
         const QString module = QStringLiteral("com.osdos.arcade");
-        writeFile(games + QStringLiteral("/mspacman.zip"));
-        refreshed(arcade);
         arcade.onSettingChanged(module, QStringLiteral("pictures_source"), QStringLiteral("RetroAchievements"));
         standIn.asked.clear();
         arcade.wantPictures(QStringLiteral("mspacman"));
@@ -3694,6 +3698,73 @@ private slots:
         QCOMPARE(asked("/service_scraper.php?").size(), 1);
         QVERIFY(asked("/service_scraper.php?").first().contains(QLatin1String("mspacman")));
         QVERIFY(asked("/API/API_GetGame.php").isEmpty());
+
+        // An answer that isn't the service's list of games: nothing is noted
+        // of the set, which is asked about again later, not left for months.
+        writeFile(games + QStringLiteral("/xmen6p.zip"));
+        refreshed(arcade);
+        standIn.answers.insert("/service_scraper.php", R"({"result": false})");
+        standIn.asked.clear();
+        arcade.wantPictures(QStringLiteral("xmen6p"));
+        QTRY_VERIFY_WITH_TIMEOUT(!asked("/service_scraper.php?").isEmpty(), 5000);
+        QTest::qWait(300);
+        QVERIFY(!record().contains(QStringLiteral("xmen6p")));
+    }
+
+    // The key changed while RetroAchievements asks for a pause: the request
+    // waiting out the pause was the old key's and isn't asked again; what is
+    // wanted is read with the new key as it is asked for.
+    void retroAchievementsKeyChangedInPause() {
+        QTemporaryDir data;
+        QVERIFY(data.isValid());
+        const QString games = data.path() + QStringLiteral("/media/Games/Arcade");
+        const QString snap = games + QStringLiteral("/snap");
+        writeFile(games + QStringLiteral("/sf2.zip"));
+        QVERIFY(QDir().mkpath(data.path() + QStringLiteral("/bin")));
+        QVERIFY(QFile::copy(mamePath(), data.path() + QStringLiteral("/bin/mame")));
+        QVERIFY(QFile::setPermissions(data.path() + QStringLiteral("/bin/mame"),
+                                      QFile::ReadOwner | QFile::WriteOwner | QFile::ExeOwner));
+        qputenv("OSDOS_MEDIA_DIR", (data.path() + QStringLiteral("/media")).toUtf8());
+        const auto restore = qScopeGuard([this] {
+            qputenv("OSDOS_MEDIA_DIR", (m_data.path() + QStringLiteral("/media")).toUtf8());
+        });
+        StandIn standIn;
+        QVERIFY(serve(standIn));
+        standIn.keys << QStringLiteral("key2");
+        standIn.answers = {
+            { "/API/API_GetGameList.php?i=27&h=1",
+              "[{\"ID\": 1, \"NumAchievements\": 2, \"NumLeaderboards\": 0, \"Hashes\": [\"" + hashOf("sf2") + "\"]}]" },
+            { "/API/API_GetGame.php?i=1", R"({"ImageTitle": "/Images/000101.png"})" },
+            { "/media/Images/000101.png", png("sf2 title") },
+            { "/API/API_GetConsoleIDs.php?", R"([{"ID": 27, "Name": "Arcade"}])" },
+        };
+        // The game's first ask: too many requests, two seconds' pause.
+        standIn.statuses = { { "/API/API_GetGame.php?i=1", "429 Too Many Requests\r\nRetry-After: 2" } };
+        standIn.failTimes = { { "/API/API_GetGame.php?i=1", 1 } };
+
+        ArcadeBackend arcade(data.path(), data.path(), nullptr, nullptr);
+        arcade.setAchievementsServers(standIn.api(), standIn.media());
+        arcade.setPictureServer(standIn.service());
+        arcade.onSettingChanged(QStringLiteral("com.osdos.arcade"), QStringLiteral("pictures_source"),
+                                QStringLiteral("RetroAchievements"));
+        arcade.setAchievementsKey(QStringLiteral("key1"));
+        refreshed(arcade);
+        QTRY_VERIFY_WITH_TIMEOUT(arcade.achievementsKeyWorks(), 5000);
+        arcade.wantPictures(QStringLiteral("sf2"));
+        QTRY_COMPARE_WITH_TIMEOUT(standIn.asked.count(QStringLiteral("/API/API_GetGame.php?i=1")), 1, 5000);
+        // Another key in the pause: checked at once; the paused request isn't
+        // asked again once the pause is over.
+        arcade.setAchievementsKey(QStringLiteral("key2"));
+        QTRY_VERIFY_WITH_TIMEOUT(arcade.achievementsKeyWorks(), 5000);
+        QTest::qWait(2500);
+        QCOMPARE(standIn.asked.count(QStringLiteral("/API/API_GetGame.php?i=1")), 1);
+        QVERIFY(!QFile::exists(snap + QStringLiteral("/sf2_1.png")));
+        // The game shown again: read with the new key, its picture saved.
+        QSignalSpy changed(&arcade, &ArcadeBackend::picturesChanged);
+        arcade.wantPictures(QStringLiteral("sf2"));
+        QTRY_VERIFY_WITH_TIMEOUT(changed.size() >= 1, 10000);
+        QCOMPARE(standIn.asked.count(QStringLiteral("/API/API_GetGame.php?i=1")), 2);
+        QCOMPARE(contents(snap + QStringLiteral("/sf2_1.png")), png("sf2 title"));
     }
 
     // RetroAchievements asking for a pause (HTTP 429) isn't a refused key: the
@@ -3806,9 +3877,15 @@ private slots:
         arcade.onSettingChanged(QStringLiteral("com.osdos.arcade"), QStringLiteral("pictures_source"),
                                 QStringLiteral("RetroAchievements"));
         arcade.setAchievementsKey(QStringLiteral("key1"));
-        // The games read: the look goes on by itself, and ends with a picture
-        // it couldn't have, to be tried again.
-        refreshed(arcade);
+        // The games read: the look goes on by itself (Download Pictures asked
+        // meanwhile is wanted all the same, and says so at once), and ends
+        // with a picture it couldn't have, to be tried again.
+        arcade.refresh();
+        QSignalSpy progressChanged(&arcade, &ArcadeBackend::picturesProgressChanged);
+        arcade.downloadPictures();
+        QCOMPARE(progressChanged.size(), 1);
+        QVERIFY(arcade.picturesProgress().value(QStringLiteral("active")).toBool());
+        QTRY_VERIFY_WITH_TIMEOUT(!arcade.scanning(), 10000);
         QTRY_VERIFY_WITH_TIMEOUT(standIn.asked.contains(QStringLiteral("/API/API_GetGame.php?i=1")), 10000);
         QTRY_VERIFY_WITH_TIMEOUT(arcade.picturesProgress().value(QStringLiteral("again")).toBool(), 10000);
         QCOMPARE(arcade.picturesProgress().value(QStringLiteral("failed")).toInt(), 1);
@@ -5539,11 +5616,21 @@ private slots:
             }
             return 0;
         };
+        // The tree's lists, by their games' sets.
+        const auto treeSets = [&arcade](const char *path) {
+            QStringList list;
+            for (const QVariant &v : arcade.requestEntries(QLatin1String(path)).toList())
+                list << v.toMap().value(QStringLiteral("game")).toString();
+            return list;
+        };
         // Off: the bootleg and the hack are games like the others, by name.
         QCOMPARE(sets("all"), QStringList({ QStringLiteral("galaga"), QStringLiteral("pacman"), QStringLiteral("pacmanf"),
                                             QStringLiteral("sf2"), QStringLiteral("sf2b") }));
         QCOMPARE(sets("favorites"), QStringList({ QStringLiteral("galaga"), QStringLiteral("sf2b") }));
         QCOMPARE(sets("recent"), QStringList({ QStringLiteral("pacmanf") }));
+        // The tree's Favorites as they were added, the latest first.
+        QCOMPARE(treeSets("favorites"), QStringList({ QStringLiteral("galaga"), QStringLiteral("sf2b") }));
+        QCOMPARE(treeSets("recent"), QStringList({ QStringLiteral("pacmanf") }));
         QCOMPARE(sets("makers/Namco"), QStringList({ QStringLiteral("galaga"), QStringLiteral("pacman"), QStringLiteral("pacmanf") }));
         QCOMPARE(count("unknown"), 1);
 
@@ -5557,6 +5644,8 @@ private slots:
         QCOMPARE(sets("favorites"), QStringList({ QStringLiteral("galaga") }));
         QVERIFY(sets("recent").isEmpty());
         QCOMPARE(count("recent"), 0);
+        QCOMPARE(treeSets("favorites"), QStringList({ QStringLiteral("galaga") }));
+        QVERIFY(treeSets("recent").isEmpty());
         QCOMPARE(sets("makers/Namco"), QStringList({ QStringLiteral("galaga"), QStringLiteral("pacman") }));
         QCOMPARE(count("unknown"), 1);
         QCOMPARE(arcade.gameDetails(QStringLiteral("sf2b")).value(QStringLiteral("name")).toString(),

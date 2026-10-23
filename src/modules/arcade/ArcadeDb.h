@@ -53,8 +53,10 @@ signals:
     // and of its title screen, "" for one it hasn't (both "" for a set it
     // doesn't know).
     void found(const QString &set, const QString &ingame, const QString &title);
-    // The sets of a request the service couldn't answer, and how long to
-    // wait before asking again (0 for no more than usual).
+    // The sets of a request the service couldn't answer (or answered with
+    // anything but its list of games), and a set whose pictures it keeps on
+    // another server, which isn't downloaded from; and how long to wait
+    // before asking again (0 for no more than usual).
     void failed(const QStringList &sets, int holdSeconds);
 
 private:

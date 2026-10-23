@@ -35,6 +35,7 @@
 #include <QFuture>
 #include <QtConcurrent/QtConcurrentRun>
 #include <algorithm>
+#include <limits>
 #include <utility>
 
 namespace {
@@ -260,8 +261,12 @@ QString firstShot(const QString &folder) {
     return shots.isEmpty() ? QString() : dir.filePath(shots.first());
 }
 
-// How long after a game's pictures couldn't be had they are asked for again.
-constexpr qint64 kPicturesRetrySeconds = 600;
+// How long after the game shown was ArcadeDB is asked about it: the games a
+// list is scrolled through aren't (as RetroAchievements' findPictures()
+// waits); and how long after a record changed it is written, with every
+// change made meanwhile.
+constexpr int kSnapAskDelayMs = 400;
+constexpr int kRecordSaveDelayMs = 2000;
 // The look through every game for pictures: at most a game's asked for a
 // second, as RetroAchievements asks of those who read its Web API (a batch
 // of ArcadeDB's in a step too), and how many looks in a row are made while
@@ -533,10 +538,10 @@ ArcadeBackend::ArcadeBackend(const QString &appRoot, const QString &dataRoot, Ap
     m_sweepTimer->setTimerType(Qt::PreciseTimer);
     m_sweepTimer->setInterval(kSweepStepMs);
     connect(m_sweepTimer, &QTimer::timeout, this, &ArcadeBackend::sweepPictures);
-    // After a look that couldn't have every picture: another, ten minutes on.
+    // After a look that couldn't have every picture: another, ten minutes on
+    // (or once the last game's retry is due, finishPictureSweep()).
     m_sweepAgain = new QTimer(this);
     m_sweepAgain->setSingleShot(true);
-    m_sweepAgain->setInterval(static_cast<int>(kPicturesRetrySeconds * 1000));
     connect(m_sweepAgain, &QTimer::timeout, this, [this] {
         if (m_reading || scanning())
             m_sweepWanted = true;
@@ -546,10 +551,20 @@ ArcadeBackend::ArcadeBackend(const QString &appRoot, const QString &dataRoot, Ap
     // A look cut short (the power went, the app was closed) goes on at the
     // next start, once the games have been read.
     m_sweepWanted = QFile::exists(sweepMarker());
-    // progetto-SNAPS' pictures, through ArcadeDB.
+    // progetto-SNAPS' pictures, through ArcadeDB: the game shown asked about
+    // a moment after it was shown.
     m_arcadeDb = new ArcadeDb(ArcadeDb::kService, this);
     connect(m_arcadeDb, &ArcadeDb::found, this, &ArcadeBackend::onSnapsFound);
     connect(m_arcadeDb, &ArcadeDb::failed, this, &ArcadeBackend::onSnapsFailed);
+    m_snapAsk = new QTimer(this);
+    m_snapAsk->setSingleShot(true);
+    m_snapAsk->setInterval(kSnapAskDelayMs);
+    connect(m_snapAsk, &QTimer::timeout, this, &ArcadeBackend::askSnaps);
+    // The pictures' records, written a moment after they change.
+    m_recordSave = new QTimer(this);
+    m_recordSave->setSingleShot(true);
+    m_recordSave->setInterval(kRecordSaveDelayMs);
+    connect(m_recordSave, &QTimer::timeout, this, &ArcadeBackend::flushRecords);
     // Its list of games read again: the RetroAchievements filter's games, and
     // the games it had none of, which it may have now.
     connect(m_retroAchievements, &RetroAchievements::listRead, this, [this] {
@@ -646,6 +661,8 @@ ArcadeBackend::ArcadeBackend(const QString &appRoot, const QString &dataRoot, Ap
 }
 
 ArcadeBackend::~ArcadeBackend() {
+    // The pictures' records as they stand (m_pictureSaves waits for them).
+    flushRecords();
     // The read keeps nothing of this object's: it may finish on its own.
     m_watcher->disconnect(this);
     if (m_scan) {
@@ -1187,6 +1204,7 @@ void ArcadeBackend::rescan() {
     m_sweepAgain->stop();
     m_sweepPasses = 0;
     m_sweepWanted = true;
+    emit picturesProgressChanged();
     // Asked while the folder is read, or before games.json has been, whose
     // sets MAME has no machine of are to be kept apart as it is asked
     // again: once it has been (onRead()).
@@ -1851,7 +1869,23 @@ void ArcadeBackend::wantSnaps(const QString &set) {
     loadSnapRecord();
     if (snapsLooked(set))
         return;
-    m_snapJobs.insert(set, { 0, false, snapFolder() });
+    // A moment on, should it still be shown: a list scrolled through asks
+    // about none of the games passed.
+    m_snapAskSet = set;
+    m_snapAsk->start();
+}
+
+void ArcadeBackend::askSnaps() {
+    const QString set = std::exchange(m_snapAskSet, QString());
+    // Still a game without a picture, and not asked about meanwhile (the
+    // look through every game may have).
+    if (set.isEmpty() || !m_picturesSnaps || !m_sets.contains(set) || isUnrecognized(set) || !snapWritable()
+        || !picturesOf(set).isEmpty())
+        return;
+    loadSnapRecord();
+    if (snapsLooked(set))
+        return;
+    m_snapJobs.insert(set, { 0, false, snapFolder(), false });
     m_arcadeDb->lookUp({ set });
 }
 
@@ -1897,14 +1931,17 @@ void ArcadeBackend::onSnapsFound(const QString &set, const QString &ingame, cons
 
 void ArcadeBackend::onSnapsFailed(const QStringList &sets, int holdSeconds) {
     // Tried again later: after the pause ArcadeDB asked for, at least ten
-    // minutes on.
+    // minutes on. Counted against the look through every game only where it
+    // asked, not for a game shown meanwhile.
     const QDateTime again = pictureRetryTime(holdSeconds);
     for (const QString &set : sets) {
-        if (m_snapJobs.remove(set) > 0) {
-            m_snapsRetry.insert(set, again);
-            if (m_sweepTimer->isActive())
-                ++m_sweepFailed;
-        }
+        const auto job = m_snapJobs.constFind(set);
+        if (job == m_snapJobs.constEnd())
+            continue;
+        if (job->sweep && m_sweepTimer->isActive())
+            ++m_sweepFailed;
+        m_snapJobs.erase(job);
+        m_snapsRetry.insert(set, again);
     }
     emit picturesProgressChanged();
 }
@@ -1951,7 +1988,7 @@ void ArcadeBackend::finishSnap(const QString &set, bool saved) {
     if (job->failed) {
         // Tried again in ten minutes.
         m_snapsRetry.insert(set, pictureRetryTime());
-        if (m_sweepTimer->isActive())
+        if (job->sweep && m_sweepTimer->isActive())
             ++m_sweepFailed;
     } else if (job->folder == m_snapRecordFolder) {
         m_snapRecord.insert(set, { QDateTime::currentDateTimeUtc(), true });
@@ -1965,6 +2002,8 @@ void ArcadeBackend::loadSnapRecord() {
     const QString folder = snapFolder();
     if (folder == m_snapRecordFolder)
         return;
+    // The last folder's record written before it is let go of.
+    flushRecords();
     m_snapRecordFolder = folder;
     m_snapRecord.clear();
     QFile file(folder + QStringLiteral("/.arcadedb.json"));
@@ -1979,15 +2018,47 @@ void ArcadeBackend::loadSnapRecord() {
 }
 
 void ArcadeBackend::saveSnapRecord() {
-    QJsonObject kept;
-    for (auto it = m_snapRecord.constBegin(); it != m_snapRecord.constEnd(); ++it) {
-        kept.insert(it.key(), QJsonObject{ { QStringLiteral("looked"), it->looked.toString(Qt::ISODate) },
-                                           { QStringLiteral("had"), it->had } });
+    m_snapRecordDirty = true;
+    if (!m_recordSave->isActive())
+        m_recordSave->start();
+}
+
+void ArcadeBackend::flushRecords() {
+    m_recordSave->stop();
+    // Each record beside its pictures, after the ones it notes (the same
+    // queue), the JSON made off the GUI thread from a copy, its sets in
+    // order (a QJsonObject keeps its keys sorted: inserted in order, none is
+    // moved).
+    if (std::exchange(m_snapRecordDirty, false) && !m_snapRecordFolder.isEmpty()) {
+        const QString file = m_snapRecordFolder + QStringLiteral("/.arcadedb.json");
+        const QHash<QString, SnapRecord> record = m_snapRecord;
+        m_pictureSaves.start([file, record] {
+            QStringList sets = record.keys();
+            std::sort(sets.begin(), sets.end());
+            QJsonObject kept;
+            for (const QString &set : std::as_const(sets)) {
+                const SnapRecord &noted = record[set];
+                kept.insert(set, QJsonObject{ { QStringLiteral("looked"), noted.looked.toString(Qt::ISODate) },
+                                              { QStringLiteral("had"), noted.had } });
+            }
+            writeFileAtomically(file, QJsonDocument(kept).toJson(QJsonDocument::Compact));
+        });
     }
-    // Beside the pictures, after the one it notes, off the GUI thread.
-    const QString file = m_snapRecordFolder + QStringLiteral("/.arcadedb.json");
-    const QByteArray json = QJsonDocument(kept).toJson(QJsonDocument::Compact);
-    m_pictureSaves.start([file, json] { writeFileAtomically(file, json); });
+    if (std::exchange(m_pictureRecordDirty, false) && !m_pictureRecordFolder.isEmpty()) {
+        const QString file = m_pictureRecordFolder + QStringLiteral("/.retroachievements.json");
+        const QHash<QString, PictureRecord> record = m_pictureRecord;
+        m_pictureSaves.start([file, record] {
+            QStringList names = record.keys();
+            std::sort(names.begin(), names.end());
+            QJsonObject kept;
+            for (const QString &name : std::as_const(names)) {
+                const PictureRecord &noted = record[name];
+                kept.insert(name, QJsonObject{ { QStringLiteral("saved"), QJsonArray::fromStringList(noted.saved) },
+                                               { QStringLiteral("complete"), noted.complete } });
+            }
+            writeFileAtomically(file, QJsonDocument(kept).toJson(QJsonDocument::Compact));
+        });
+    }
 }
 
 QStringList ArcadeBackend::picturesLooked(const QStringList &names) const {
@@ -2007,13 +2078,14 @@ void ArcadeBackend::setPictureSweepInterval(int ms) {
 }
 
 void ArcadeBackend::setPictureRetryInterval(int ms) {
-    m_sweepAgain->setInterval(ms);
+    m_pictureRetryMs = ms;
 }
 
 QDateTime ArcadeBackend::pictureRetryTime(qint64 atLeastSeconds) const {
     // The next look's games are due by the time it is made: a look that
-    // couldn't have every picture waits as long as each game does.
-    return QDateTime::currentDateTimeUtc().addMSecs(std::max<qint64>(m_sweepAgain->interval(), atLeastSeconds * 1000));
+    // couldn't have every picture waits as long as each game does
+    // (finishPictureSweep()).
+    return QDateTime::currentDateTimeUtc().addMSecs(std::max<qint64>(m_pictureRetryMs, atLeastSeconds * 1000));
 }
 
 bool ArcadeBackend::sweepingPictures() const {
@@ -2147,7 +2219,7 @@ void ArcadeBackend::sweepPictures() {
             batch << set;
     }
     for (const QString &set : std::as_const(batch))
-        m_snapJobs.insert(set, { 0, false, snapFolder() });
+        m_snapJobs.insert(set, { 0, false, snapFolder(), true });
     if (!batch.isEmpty()) {
         m_sweepSnapsAsked += static_cast<int>(batch.size());
         m_arcadeDb->lookUp(batch);
@@ -2175,9 +2247,19 @@ void ArcadeBackend::finishPictureSweep() {
     m_sweepSnaps.clear();
     m_sweepGame.clear();
     if (m_sweepFailed > 0 && ++m_sweepPasses < kSweepPasses) {
-        // Those tried again once their retry is due.
+        // Those tried again once the last of their retries is due: ten
+        // minutes on, or later where a server asked for a longer pause,
+        // rather than a look that finds them all still waiting and ends.
+        const QDateTime now = QDateTime::currentDateTimeUtc();
+        qint64 wait = m_pictureRetryMs;
+        for (const QHash<QString, QDateTime> *retries : { &m_snapsRetry, &m_picturesRetry }) {
+            for (const QDateTime &due : *retries) {
+                if (due > now)
+                    wait = std::max(wait, now.msecsTo(due) + 1000);
+            }
+        }
         m_sweepResult = QStringLiteral("%1 Not Downloaded, Trying Again").arg(m_sweepFailed);
-        m_sweepAgain->start();
+        m_sweepAgain->start(static_cast<int>(std::min<qint64>(wait, std::numeric_limits<int>::max())));
     } else {
         m_sweepResult = m_sweepFailed > 0 ? QStringLiteral("%1 Not Downloaded").arg(m_sweepFailed)
                                           : QStringLiteral("Done");
@@ -2192,6 +2274,9 @@ void ArcadeBackend::stopPictureSweep() {
     m_sweep.clear();
     m_sweepSnaps.clear();
     m_sweepGame.clear();
+    // Nothing under way to count: the frame says so.
+    m_sweepDone = 0;
+    m_sweepTotal = 0;
     emit picturesProgressChanged();
 }
 
@@ -2199,7 +2284,9 @@ void ArcadeBackend::downloadPictures() {
     m_sweepPasses = 0;
     m_sweepAgain->stop();
     if (m_reading || scanning()) {
+        // Once the games have been read (emitShown()): wanted, and said so.
         m_sweepWanted = true;
+        emit picturesProgressChanged();
         return;
     }
     startPictureSweep();
@@ -2252,6 +2339,12 @@ void ArcadeBackend::snapsAfter(const QString &name) {
 void ArcadeBackend::onPicturesFound(const QString &name, const QString &state, const QStringList &paths) {
     if (state == QLatin1String("unknown")) {
         m_noPictures.insert(name);
+        snapsAfter(name);
+        return;
+    }
+    // Nothing read, its pictures looked for before: only progetto-SNAPS'
+    // turn for the game shown, should it still be without any.
+    if (state == QLatin1String("looked")) {
         snapsAfter(name);
         return;
     }
@@ -2342,6 +2435,8 @@ void ArcadeBackend::loadPictureRecord() {
     const QString folder = snapFolder();
     if (folder == m_pictureRecordFolder)
         return;
+    // The last folder's record written before it is let go of.
+    flushRecords();
     m_pictureRecordFolder = folder;
     m_pictureRecord.clear();
     QFile file(folder + QStringLiteral("/.retroachievements.json"));
@@ -2359,16 +2454,9 @@ void ArcadeBackend::loadPictureRecord() {
 }
 
 void ArcadeBackend::savePictureRecord() {
-    QJsonObject kept;
-    for (auto it = m_pictureRecord.constBegin(); it != m_pictureRecord.constEnd(); ++it) {
-        kept.insert(it.key(), QJsonObject{ { QStringLiteral("saved"), QJsonArray::fromStringList(it->saved) },
-                                           { QStringLiteral("complete"), it->complete } });
-    }
-    // Written beside the pictures, after the one it names, off the GUI
-    // thread.
-    const QString file = m_pictureRecordFolder + QStringLiteral("/.retroachievements.json");
-    const QByteArray json = QJsonDocument(kept).toJson(QJsonDocument::Compact);
-    m_pictureSaves.start([file, json] { writeFileAtomically(file, json); });
+    m_pictureRecordDirty = true;
+    if (!m_recordSave->isActive())
+        m_recordSave->start();
 }
 
 // What an engine looks for a set as, which a file named in capitals isn't.
@@ -2541,8 +2629,10 @@ QVariantList ArcadeBackend::listEntries(const QString &list) const {
     QVariantList entries;
     const QStringList sets = listedSets(list);
     for (const QString &set : sets) {
-        // Those still in the folder, as MAME says they are now.
-        if (m_sets.contains(set))
+        // Those still in the folder, as MAME says they are now, and games as
+        // the Arcade screen's lists have them (not a bootleg Hide Hacks and
+        // Bootlegs leaves out).
+        if (isGame(set))
             entries << gameEntry(set);
     }
     return entries;

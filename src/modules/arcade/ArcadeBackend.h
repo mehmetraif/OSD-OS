@@ -727,6 +727,9 @@ private:
     // minutes later, and one ArcadeDB turned away (too many requests) once
     // the pause it asked for is over.
     void wantSnaps(const QString &set);
+    // m_snapAsk's: the set shown asked about, should it still be without a
+    // picture.
+    void askSnaps();
     void snapsAfter(const QString &name);
     bool snapsLooked(const QString &set) const;
     void onSnapsFound(const QString &set, const QString &ingame, const QString &title);
@@ -735,6 +738,10 @@ private:
     void finishSnap(const QString &set, bool saved);
     void loadSnapRecord();
     void saveSnapRecord();
+    // The records that changed, written off the GUI thread: a moment after
+    // the change (m_recordSave), before the snap folder changes, and as the
+    // backend ends.
+    void flushRecords();
     // A picture of RetroAchievements' downloaded for a game, or not (data
     // empty): saved off the GUI thread as <name>_<n> in the snap folder, n
     // the first number no picture of that name has there, so that a file
@@ -1107,6 +1114,7 @@ private:
         int pending = 0;
         bool failed = false;
         QString folder;
+        bool sweep = false;   // asked about by the look through every game, not shown
     };
     ArcadeDb *m_arcadeDb = nullptr;
     QHash<QString, SnapRecord> m_snapRecord;
@@ -1114,6 +1122,16 @@ private:
     QHash<QString, SnapJob> m_snapJobs;
     QHash<QString, QDateTime> m_snapsRetry;
     QString m_snapsAfter;
+    // The set shown that ArcadeDB is asked about a moment after it was shown
+    // (askSnaps()): a list scrolled through asks about none of the games
+    // passed, as RetroAchievements' findPictures() does.
+    QTimer *m_snapAsk = nullptr;
+    QString m_snapAskSet;
+    // The records written a moment after they changed, both in one go
+    // (flushRecords()), rather than at every set that comes in.
+    QTimer *m_recordSave = nullptr;
+    bool m_snapRecordDirty = false;
+    bool m_pictureRecordDirty = false;
     QList<std::tuple<QString, QString, bool>> m_namedDuringRead;   // set, file, a title screen
     // The look through the games for pictures: wanted once the games have
     // been read (again), the pass it is on, the sets still to look at in
@@ -1139,6 +1157,7 @@ private:
     QString m_sweepResult;
     QTimer *m_sweepTimer = nullptr;
     QTimer *m_sweepAgain = nullptr;
+    int m_pictureRetryMs = 10 * 60 * 1000;   // how long before a failed game is tried again (a test's)
     // The achievements' badges being downloaded, by file, and when one that
     // couldn't be may be again.
     QSet<QString> m_badgesWanted;

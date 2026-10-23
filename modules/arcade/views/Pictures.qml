@@ -16,11 +16,13 @@ FocusScope {
 
     focus: true
 
-    readonly property var progress: arcadeBackend ? arcadeBackend.picturesProgress : ({})
+    readonly property var progress: (arcadeBackend && arcadeBackend.picturesProgress) || ({})
     readonly property bool active: !!progress.active
-    // Read again as the look goes on, and as the folder is read again.
+    // Read again as the folder is read again, as a picture comes in and as
+    // the look ends: not at each of its steps, as it goes through every game.
     property int revision: 0
-    readonly property var info: (revision, progress, arcadeBackend ? arcadeBackend.picturesInfo() : ({}))
+    readonly property var info: (revision, arcadeBackend ? arcadeBackend.picturesInfo() : ({}))
+    onActiveChanged: revision++
 
     readonly property var keys: ["games", "achievements", "snaps", "download"]
 

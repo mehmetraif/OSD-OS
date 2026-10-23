@@ -376,7 +376,11 @@ void RetroAchievements::readWanted() {
     }
     if (game <= 0) {
         emit picturesFound(games.first(), QStringLiteral("unknown"), {});
-    } else if (!looked.contains(chosen)) {
+    } else if (looked.contains(chosen)) {
+        // Nothing to read: its pictures were looked for before. Said so, as
+        // what waits for the answer (progetto-SNAPS' turn) would wait on.
+        emit picturesFound(chosen, QStringLiteral("looked"), {});
+    } else {
         if (!shown) {
             m_laterRead = games;
             m_laterReadLooked = looked;
@@ -702,10 +706,10 @@ void RetroAchievements::get(const QString &endpoint, const QList<std::pair<QStri
             qWarning("[Arcade] RetroAchievements asks for a pause (HTTP %d): %s is asked again in %d s",
                      status, qPrintable(endpoint), pause);
             QTimer::singleShot(pause * 1000, this, [this, endpoint, query, answer, tried] {
-                m_pausedRequest = false;
-                // Not with a key gone meanwhile: what was wanted has been
-                // failed (setKey()).
-                if (m_key.isEmpty())
+                // Not once the key has changed meanwhile: what was wanted has
+                // been asked again with the new one, or failed without one
+                // (setKey()), and this request was the old key's.
+                if (!std::exchange(m_pausedRequest, false) || m_key.isEmpty())
                     return;
                 get(endpoint, query, answer, tried + 1);
             });
