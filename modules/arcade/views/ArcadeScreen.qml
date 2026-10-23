@@ -1453,13 +1453,15 @@ FocusScope {
         anchors.fill: parent
         moduleId: moduleRoot.moduleId
         firstChoices: [{ label: "Play", action: "play" }, { label: "Game Details", action: "details" }]
-        moreChoices: (arcadeScreen.revision,
-                      (engines.offered(arcadeScreen.currentSet)
-                       ? [{ label: engines.lineFor(arcadeScreen.currentSet), action: "engine" }] : [])
-                      .concat(arcadeBackend && arcadeBackend.canHost(arcadeScreen.currentSet)
-                              ? [{ label: "Host Online Game", action: "host" }] : [])
-                      .concat(arcadeBackend && arcadeBackend.canHostLan(arcadeScreen.currentSet)
-                              ? [{ label: "Host LAN Game", action: "hostLan" }] : []))
+        // Made as the options open, not for every game the cursor passes.
+        moreChoices: !options.visible ? []
+                     : (arcadeScreen.revision,
+                        (engines.offered(arcadeScreen.currentSet)
+                         ? [{ label: engines.lineFor(arcadeScreen.currentSet), action: "engine" }] : [])
+                        .concat(arcadeBackend && arcadeBackend.canHost(arcadeScreen.currentSet)
+                                ? [{ label: "Host Online Game", action: "host" }] : [])
+                        .concat(arcadeBackend && arcadeBackend.canHostLan(arcadeScreen.currentSet)
+                                ? [{ label: "Host LAN Game", action: "hostLan" }] : []))
         onActivated: function(action) {
             if (action === "play")
                 arcadeScreen.playCurrent()

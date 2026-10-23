@@ -84,11 +84,15 @@ Item {
 
     // The leader: one square dot in each cell between the label and the value,
     // level with the middle of the capitals. Drawn rather than typed, since the
-    // font has no middle dot of its own.
+    // font has no middle dot of its own. A dot for every cell of the line,
+    // shown or not: a count that followed the label and the value would have
+    // every dot made again as either changed (a value's trailing dots, a
+    // line read anew with each cursor move).
     Repeater {
-        model: menuRow.hasEnd ? Math.max(0, menuRow.valueCell - menuRow.labelCells) : 0
+        model: Math.max(0, menuRow.lineCells)
         Rectangle {
-            x: Math.round(menuRow.pad + (menuRow.labelCells + index + 0.5) * menuRow.cell - width / 2)
+            visible: menuRow.hasEnd && index >= menuRow.labelCells && index < menuRow.valueCell
+            x: Math.round(menuRow.pad + (index + 0.5) * menuRow.cell - width / 2)
             y: Math.round(labelText.y + labelText.baselineOffset - menuRow.capMiddle - height / 2)
             width: root.px
             height: root.px

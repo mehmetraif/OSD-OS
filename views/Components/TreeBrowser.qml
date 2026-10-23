@@ -535,10 +535,11 @@ FocusScope {
         return { first: first, rows: block.rows.slice(first, Math.max(first, last)) }
     }
 
+    // The branches hidden at once, and kept as they are until the new ones
+    // take their place (layoutBranches()): emptied here, every block would
+    // be made twice over at each resting place.
     function clearBranches() {
         branched = false
-        blocks = []
-        wires = []
     }
 
     function move(delta) {

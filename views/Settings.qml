@@ -732,11 +732,11 @@ FocusScope {
         anchors.leftMargin: root.sw * 0.125 //80
     }
 
-    // IP address
+    // IP address, on the first page's bar alone.
     property string ipAddress: ""
     Timer {
         interval: 5000
-        running: true
+        running: settingsRoot.group === ""
         repeat: true
         triggeredOnStart: true
         onTriggered: settingsRoot.ipAddress = appCore.localIpAddress()

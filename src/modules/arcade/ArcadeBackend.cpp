@@ -2256,8 +2256,10 @@ bool ArcadeBackend::play(const QString &name, int credits) {
     QList<QStringList> arcade;
     for (const controllers::ArcadeBinds &binds : controllers::playerArcade())
         arcade << binds.mame;
-    if (!writeFileAtomically(m_home + QStringLiteral("/ctrlr/osdos.cfg"),
-                             mame::controllerConfig(controllers::playerGuids(), arcade).toUtf8())) {
+    // The files made for each game (this one, the credits' script, FinalBurn
+    // Neo's below) are written in place, without a wait for the card each.
+    if (!writeFileAnew(m_home + QStringLiteral("/ctrlr/osdos.cfg"),
+                       mame::controllerConfig(controllers::playerGuids(), arcade).toUtf8())) {
         m_lastError = QStringLiteral("MAME's controller file could not be written");
         return false;
     }
@@ -2296,7 +2298,7 @@ bool ArcadeBackend::play(const QString &name, int credits) {
     // Without the script the game still starts, with no credits.
     if (credits > 0) {
         const QString coins = m_home + QStringLiteral("/coins.lua");
-        if (writeFileAtomically(coins, mame::coinScript(std::min(credits, kMaxCredits)).toUtf8()))
+        if (writeFileAnew(coins, mame::coinScript(std::min(credits, kMaxCredits)).toUtf8()))
             args << QStringLiteral("-autoboot_script") << coins;
         else
             qWarning("[Arcade] The credits could not be written for MAME: the game starts without them");
@@ -2620,12 +2622,12 @@ bool ArcadeBackend::playFbneo(const QString &name, libretro::Launch::Netplay net
     else if (remapText.isEmpty())
         QFile::remove(remap);
     else
-        written = QDir().mkpath(QFileInfo(remap).path()) && writeFileAtomically(remap, remapText.toUtf8(), kOwnerOnly);
+        written = QDir().mkpath(QFileInfo(remap).path()) && writeFileAnew(remap, remapText.toUtf8(), kOwnerOnly);
     // FinalBurn Neo's info file, without which RetroArch neither hosts nor
     // joins a game.
     written = written && QDir().mkpath(launch.infoDir)
-              && writeFileAtomically(libretro::coreInfoPath(launch.infoDir), libretro::coreInfoText().toUtf8(), kOwnerOnly);
-    if (!written || !writeFileAtomically(launch.config, libretro::configText(launch).toUtf8(), kOwnerOnly)) {
+              && writeFileAnew(libretro::coreInfoPath(launch.infoDir), libretro::coreInfoText().toUtf8(), kOwnerOnly);
+    if (!written || !writeFileAnew(launch.config, libretro::configText(launch).toUtf8(), kOwnerOnly)) {
         m_lastError = QStringLiteral("RetroArch's settings could not be written");
         m_raPasswordGiven = false;
         stopClaims();
@@ -2965,6 +2967,15 @@ void ArcadeBackend::refreshRooms() {
         QNetworkReply *reply = std::exchange(m_lobbyReply, nullptr);
         reply->deleteLater();
         m_roomsRead = true;
+        // What the Online Games folder and filter show of a room.
+        const auto shown = [](const QList<libretro::Room> &rooms) {
+            QStringList keys;
+            for (const libretro::Room &room : rooms)
+                keys << QString::number(room.id) + room.game + room.host + room.country + (room.password ? "p" : "");
+            return keys;
+        };
+        const QStringList before = shown(m_rooms);
+        const QString problemBefore = m_roomsProblem;
         const bool big = tooBig(reply, kLobbyMaxBytes);
         if (reply->error() == QNetworkReply::NoError && !big) {
             m_lobby = libretro::readWholeLobby(reply->readAll());
@@ -2982,9 +2993,14 @@ void ArcadeBackend::refreshRooms() {
             qWarning("[Arcade] %s", qPrintable(m_roomsProblem));
         }
         emit roomsChanged();
-        // The Online Games folder, and the Arcade screen's filter.
-        emit entriesReady(QStringLiteral("online"));
-        emit gamesChanged();
+        // The Online Games folder, and the Arcade screen's filter: read again
+        // only for rooms that came or went, not at every read of a lobby as
+        // it was (one every twenty seconds while it is shown), which would
+        // have the screen's filters made again each time.
+        if (shown(m_rooms) != before || m_roomsProblem != problemBefore) {
+            emit entriesReady(QStringLiteral("online"));
+            emit gamesChanged();
+        }
     });
 }
 
@@ -3003,15 +3019,25 @@ void ArcadeBackend::downloadGenres() {
         const bool big = tooBig(reply, kGenresMaxBytes);
         const QByteArray data = reply->error() == QNetworkReply::NoError && !big ? reply->readAll() : QByteArray();
         // catver.ini by its section of genres, else not taken.
-        if (!data.contains("[Category]") || !QDir().mkpath(m_home)
-            || !writeFileAtomically(m_home + QStringLiteral("/catver.ini"), data)) {
+        if (!data.contains("[Category]")) {
             qWarning("[Arcade] catver.ini couldn't be downloaded (%s): no genres for now",
                      qPrintable(big ? QStringLiteral("too big") : reply->errorString()));
             m_genresRetry = QDateTime::currentDateTimeUtc().addSecs(kGenresRetrySeconds);
             return;
         }
-        // Read with the folder, now that it is there.
-        readAgain();
+        // Megabytes, written to the card off the GUI thread (as the pictures
+        // are), then read with the folder, now that it is there.
+        const QString home = m_home;
+        QtConcurrent::run(&m_pictureSaves, [home, data] {
+            return QDir().mkpath(home) && writeFileAtomically(home + QStringLiteral("/catver.ini"), data);
+        }).then(this, [this](bool written) {
+            if (!written) {
+                qWarning("[Arcade] catver.ini couldn't be written: no genres for now");
+                m_genresRetry = QDateTime::currentDateTimeUtc().addSecs(kGenresRetrySeconds);
+                return;
+            }
+            readAgain();
+        });
     });
 }
 

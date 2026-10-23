@@ -203,6 +203,7 @@ private:
     QHash<QString, Board> m_boards;     // by the game's file
     QHash<QString, Progress> m_progress;    // by the game's file
     QHash<QString, int> m_games;        // a hash → its game's id
+    mutable QHash<QString, int> m_gameIds;  // a file → its game's id, as gameOf() found it in m_games
     QSet<int> m_achievementGames;       // the games with achievements
     QSet<int> m_boardGames;             // the games with leaderboards
     QDateTime m_listRead;               // when the list was read

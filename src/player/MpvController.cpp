@@ -336,9 +336,26 @@ QStringList MpvController::sessionArgs(const QString &url, float startSeconds,
                 if (m_tubeScreen && !output.isEmpty())
                     pixelAspect = (4.0 / 3) * output.height() / output.width();
             }
-            if (!image.isEmpty()
-                && !writeLogoOverlay(image, m_logoOverlayPath, output.height(), pixelAspect, &logoWidth, &logoHeight))
-                logoWidth = logoHeight = 0;
+            if (!image.isEmpty()) {
+                // Made once for a picture at a size, and kept for the
+                // sessions after at it: reading and scaling it is work the
+                // player waits on at every start.
+                const QFileInfo info(image);
+                const QString madeFor = image + QLatin1Char('|') + QString::number(info.size()) + QLatin1Char('|')
+                                        + QString::number(info.lastModified().toMSecsSinceEpoch()) + QLatin1Char('|')
+                                        + QString::number(output.height()) + QLatin1Char('|') + QString::number(pixelAspect);
+                if (madeFor == m_logoOverlayFor && QFile::exists(m_logoOverlayPath)) {
+                    logoWidth = m_logoOverlayWidth;
+                    logoHeight = m_logoOverlayHeight;
+                } else if (writeLogoOverlay(image, m_logoOverlayPath, output.height(), pixelAspect, &logoWidth, &logoHeight)) {
+                    m_logoOverlayFor = madeFor;
+                    m_logoOverlayWidth = logoWidth;
+                    m_logoOverlayHeight = logoHeight;
+                } else {
+                    logoWidth = logoHeight = 0;
+                    m_logoOverlayFor.clear();
+                }
+            }
         }
     }
 

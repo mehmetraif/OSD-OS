@@ -188,7 +188,10 @@ FocusScope {
             Text {
                 id: outputText
                 width: outputFlick.width
-                text: scriptsBackend.consoleOutput
+                // Nothing of this view reaches the screen while the script has
+                // it: its output is laid out once it is done, not ten times a
+                // second meanwhile, on the thread the script's game shares.
+                text: takeoverRoot.done || takeoverRoot.downgraded ? scriptsBackend.consoleOutput : ""
                 textFormat: Text.PlainText
                 color: root.primaryColor
                 font.family: root.globalFont

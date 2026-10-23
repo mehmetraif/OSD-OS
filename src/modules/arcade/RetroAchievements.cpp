@@ -221,6 +221,7 @@ void RetroAchievements::loadList() {
         return;
     const QJsonObject kept = QJsonDocument::fromJson(file.readAll()).object();
     const QJsonObject games = kept.value(QStringLiteral("games")).toObject();
+    m_gameIds.clear();
     for (auto it = games.constBegin(); it != games.constEnd(); ++it)
         m_games.insert(it.key(), it.value().toInt());
     const QJsonValue boards = kept.value(QStringLiteral("boards"));
@@ -252,7 +253,14 @@ void RetroAchievements::loadList() {
 }
 
 int RetroAchievements::gameOf(const QString &fileName) const {
-    return m_games.value(libretro::achievementsHash(fileName));
+    // The hash is MD5 work, and the Arcade screen's filter asks of every
+    // game in the folder at once: kept by file, until the list changes.
+    const auto known = m_gameIds.constFind(fileName);
+    if (known != m_gameIds.constEnd())
+        return *known;
+    const int game = m_games.value(libretro::achievementsHash(fileName));
+    m_gameIds.insert(fileName, game);
+    return game;
 }
 
 bool RetroAchievements::hasGame(const QString &fileName) const {
@@ -398,6 +406,7 @@ void RetroAchievements::readList() {
                     }
                 }
                 m_games = found;
+                m_gameIds.clear();
                 m_achievementGames = achievements;
                 m_boardGames = boards;
                 m_listRead = now;

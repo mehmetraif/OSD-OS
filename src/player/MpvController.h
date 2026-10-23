@@ -318,8 +318,13 @@ private:
     QString       m_inputConfPath;
     QString       m_logFilePath;
     QString       m_subInfoPath;       // JSON map: external sub URL -> friendly name (for the OSC)
-    // Settings → TV / Movie → Logo Image read as mpv's raw overlay (mpv-logo.lua)
+    // Settings → TV / Movie → Logo Image read as mpv's raw overlay (mpv-logo.lua):
+    // the file, the picture and size it was last made from (made again for
+    // another), and the overlay's size.
     QString       m_logoOverlayPath;
+    QString       m_logoOverlayFor;
+    int           m_logoOverlayWidth = 0;
+    int           m_logoOverlayHeight = 0;
     QString       m_lastEndFileReason;  // mpv end-file "reason" for the current session
     // Set when this session passed --start; cleared once mpv has applied it. See
     // onIpcReadyRead's playback-restart handling for why the option can't just stay set.

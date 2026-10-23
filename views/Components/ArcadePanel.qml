@@ -26,9 +26,15 @@ Canvas {
     onPlayerChanged: requestPaint()
     onInkChanged: requestPaint()
     onCellChanged: requestPaint()
+    // A canvas paints whether or not it is shown: one in a hidden prompt
+    // (the capture's, the test's) is drawn once that opens, not at every
+    // press meanwhile.
+    onVisibleChanged: if (visible) requestPaint()
 
     // The ink a row at a time, each run of it in one rectangle.
     onPaint: {
+        if (!visible)
+            return
         var ctx = getContext("2d")
         ctx.reset()
         var art = Art.draw(lit || [], player)

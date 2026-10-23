@@ -115,6 +115,10 @@ private:
     QHash<QString, QString> m_names;
     QString m_identity;      // definitionsIdentity() the games were read with
     QString m_readIdentity;  // the one the read running uses
+    // definitionsIdentity() as last worked out, and the files' sizes and
+    // dates it was worked out from.
+    mutable QString m_definitionsStamp;
+    mutable QString m_definitionsIdentity;
     QString m_namesFrom;     // gamesJsonIdentity() the names were taken from
     bool m_loaded = false;
     bool m_reading = false;
