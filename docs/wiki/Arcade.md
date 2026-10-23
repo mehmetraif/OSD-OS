@@ -178,6 +178,8 @@ On a CRT, move each side to where the tube's edge cuts the picture off (its over
 | **Not Recognized** | The files neither MAME nor FinalBurn Neo plays, as under the tree's Not Recognized ([above](#the-original-screen)) |
 | **Search** | Last: its own row, then the games its words find, as they are typed (every game while none are), with the keys to type them in the picture's frame ([below](#search)) |
 
+**Settings → Arcade → Hide Hacks and Bootlegs** leaves the sets that are a bootleg or a hack of a game, rather than its maker's own release, off every filter and list, on both screens: a set is one when MAME (or FinalBurn Neo's list, for a set MAME doesn't know) says so in the parentheses of its name (`Galaga (bootleg)`, `Pac-Man (Midway, speedup hack)`, `Puckman (Japan set 1, Probably Bootleg)`) or as its maker (`bootleg`, `bootleg (Playmark)`, `hack`). They are hidden, not gone: Favorites and Recently Played keep them for when it is off again, a card that names one still plays it, and the filters' counts are of the games shown.
+
 **Settings → Arcade → Start Filter** is the one the screen opens on: All Games, with Online Play on RetroArch Lobby, or one of the lists, genres, numbers of players, decades and publishers that Menu Filters shows. One that has no games then (Favorites before any is added), or that Menu Filters no longer shows, opens on All Games. RetroAchievements is waited for while its list of games is read (the first time, and a week on): the screen shows All Games meanwhile and moves to it as the list comes. Back from a game, the screen is on its filter and on the game again.
 
 ### Search
@@ -407,6 +409,7 @@ Settings → Arcade, the second row of Settings' first screen. The page is share
 |---|---|---|---|---|
 | Enabled | ON, OFF | OFF | Shows Arcade on the main menu | `modules.com.osdos.arcade.enabled` |
 | Games Folder | Default, or a folder | Default | The folder of ROM sets. Default: `Games/Arcade` beside Local Files' `Movies` folder, on the OSD/OS image `/media/OSD-OS/Games/Arcade` | `modules.com.osdos.arcade.games_directory` |
+| Hide Hacks and Bootlegs | ON, OFF | OFF | Leaves the sets that are a bootleg or a hack of a game, as MAME names them, off every list and filter, Favorites and Recently Played too ([Filters](#filters)) | `modules.com.osdos.arcade.hide_bootlegs` |
 | Screen | Original, Arcade | Arcade | How the games are listed, from the next time Arcade opens: the tree, or the Arcade screen ([Two screens](#two-screens)) | `modules.com.osdos.arcade.screen` |
 | Start Filter | All Games, then the lists, genres, players, decades and publishers Menu Filters shows | All Games | The filter the Arcade screen opens on ([Filters](#filters)); while it has no games, the first that has. Shown while Screen is Arcade | `modules.com.osdos.arcade.start_filter` |
 | Menu Filters | A page of the filters under their headings, each ON or OFF | All on, the publishers off | The filters ◄ ► goes round on the Arcade screen ([Menu Filters](#menu-filters)). Shown while Screen is Arcade | `modules.com.osdos.arcade.menu_filters` |

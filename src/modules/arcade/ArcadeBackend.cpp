@@ -595,9 +595,9 @@ ArcadeBackend::ArcadeBackend(const QString &appRoot, const QString &dataRoot, Ap
 
     // The module's settings as they stand. games.json waits for the list to
     // open (refresh()): with a full set of MAME's games it is megabytes.
-    for (const char *key : { "games_directory", "high_scores", "video", "screen_shape", "integer_scale",
-                             "menu_filters", "online_high_scores", "online_play", "engines", "online_name",
-                             "relay_server", "lan_play", "pictures_source" }) {
+    for (const char *key : { "games_directory", "hide_bootlegs", "high_scores", "video", "screen_shape",
+                             "integer_scale", "menu_filters", "online_high_scores", "online_play", "engines",
+                             "online_name", "relay_server", "lan_play", "pictures_source" }) {
         const QString k = QLatin1String(key);
         applySetting(k, m_appCore ? m_appCore->get_setting(kModuleId, k) : QVariant());
     }
@@ -681,6 +681,12 @@ void ArcadeBackend::onSettingChanged(const QString &moduleId, const QString &key
 void ArcadeBackend::applySetting(const QString &key, const QVariant &value) {
     if (key == QLatin1String("games_directory")) {
         setGamesFolder(value.toString());
+    } else if (key == QLatin1String("hide_bootlegs")) {
+        // The lists made again without the bootlegs and hacks, or with them
+        // back (isGame()).
+        m_hideBootlegs = isOn(value, false);
+        invalidate();
+        emit gamesChanged();
     } else if (key == QLatin1String("high_scores")) {
         m_highScores = isOn(value, true);
         emit statusIconsChanged();
@@ -1419,7 +1425,11 @@ bool ArcadeBackend::isGame(const QString &set) const {
     // One MAME wasn't asked about (there is none) and FinalBurn Neo hasn't is
     // listed by its name.
     const mame::Machine *machine = machineOf(set);
-    return !machine || machine->isGame();
+    if (!machine)
+        return true;
+    // Hide Hacks and Bootlegs: the makers' own releases alone, whichever of
+    // MAME and FinalBurn Neo's list describes the set.
+    return machine->isGame() && !(m_hideBootlegs && mame::isBootlegOrHack(*machine));
 }
 
 const mame::Machine *ArcadeBackend::machineOf(const QString &set) const {

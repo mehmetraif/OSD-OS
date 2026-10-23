@@ -585,7 +585,8 @@ private:
     bool fbneoOnly(const QString &set) const;
     // A set listed as a game: in the folder, a name MAME opens, and one of
     // its games (or one it wasn't asked about) or FinalBurn Neo's, not a BIOS
-    // or a device.
+    // or a device; with Hide Hacks and Bootlegs on, not a bootleg or a hack
+    // either (mame::isBootlegOrHack()).
     bool isGame(const QString &set) const;
     // What MAME said of a set's machine; for a set it hasn't (it doesn't know
     // it, or there is none to ask), FinalBurn Neo's list's, should it have
@@ -598,10 +599,11 @@ private:
     QString titleOf(const QString &set) const;
 
     // The folder's games (not BIOS sets, devices or sets under Not
-    // Recognized) by name, the genres, players, decades and makers they are
-    // under, and the sets under Not Recognized: made again only once the
-    // folder or what MAME says of it has changed (invalidate()), as a full
-    // set of MAME's games is tens of thousands.
+    // Recognized, nor the bootlegs and hacks Hide Hacks and Bootlegs leaves
+    // out) by name, the genres, players, decades and makers they are under,
+    // and the sets under Not Recognized: made again only once the folder,
+    // what MAME says of it or that setting has changed (invalidate()), as a
+    // full set of MAME's games is tens of thousands.
     struct Index {
         QStringList games;
         QHash<QString, QMap<QString, QStringList>> places;   // kind → place → its games
@@ -919,6 +921,7 @@ private:
 
     // Settings.
     QString m_gamesFolder;
+    bool    m_hideBootlegs = false;   // Hide Hacks and Bootlegs
     bool    m_highScores = true;
     QString m_video;              // "" for MAME's own (mame.ini's)
     QString m_screenShape;        // Emulator Video: "4:3", "16:9", "Square Pixels"; "" for Auto

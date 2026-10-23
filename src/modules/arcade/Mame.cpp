@@ -379,6 +379,23 @@ QString titleOf(const QString &description) {
     return title.isEmpty() ? description.trimmed() : title;
 }
 
+bool isBootlegOrHack(const Machine &machine) {
+    // The words whole, in either case: not Hackney's or a hacker's game.
+    static const QRegularExpression word(QStringLiteral("\\b(bootlegs?|hacks?|hacked)\\b"),
+                                         QRegularExpression::CaseInsensitiveOption);
+    if (word.match(machine.manufacturer).hasMatch())
+        return true;
+    // Only what tells the set apart, in parentheses: a game named after one
+    // is its maker's own.
+    static const QRegularExpression inParentheses(QStringLiteral("\\(([^)]*)\\)"));
+    auto parts = inParentheses.globalMatch(machine.description);
+    while (parts.hasNext()) {
+        if (word.match(parts.next().captured(1)).hasMatch())
+            return true;
+    }
+    return false;
+}
+
 QString systemOf(const QString &sourceFile) {
     // The boards most of MAME's games are on, as their makers named them.
     static const QHash<QString, QString> kBoards = {

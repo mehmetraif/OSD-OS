@@ -62,6 +62,8 @@ machine() {
 	xmen6p) echo '<machine name="xmen6p" sourcefile="konami/xmen.cpp" cloneof="xmen"><description>X-Men (6 Players ver EAB)</description><year>1992</year><manufacturer>Konami</manufacturer><display tag="lscreen" rotate="270"/><display tag="rscreen" rotate="0"/><input players="6"/><driver status="imperfect"/></machine>' ;;
 	kinst) echo '<machine name="kinst"><description>Killer Instinct (v1.5d)</description><year>1994</year><manufacturer>Rare / Nintendo</manufacturer><input players="2"/><driver status="good"/></machine>' ;;
 	sf2) echo '<machine name="sf2" sourcefile="capcom/cps1.cpp"><description>Street Fighter II: The World Warrior</description><year>1991</year><manufacturer>Capcom</manufacturer><input players="2"/><driver status="good"/></machine>' ;;
+	sf2b) echo '<machine name="sf2b" sourcefile="capcom/cps1.cpp" cloneof="sf2" romof="sf2"><description>Street Fighter II: The World Warrior (bootleg, set 1)</description><year>1991</year><manufacturer>bootleg</manufacturer><input players="2"/><driver status="good"/></machine>' ;;
+	pacmanf) echo '<machine name="pacmanf" sourcefile="pacman/pacman.cpp" cloneof="puckman" romof="puckman"><description>Pac-Man (Midway, speedup hack)</description><year>1980</year><manufacturer>Namco (Midway license)</manufacturer><input players="2"/><driver status="good"/></machine>' ;;
 	mspacman) echo '<machine name="mspacman" sourcefile="pacman/pacman.cpp"><description>Ms. Pac-Man</description><year>1981</year><manufacturer>Midway / General Computer Corporation</manufacturer><input players="2"/><driver status="good"/></machine>' ;;
 	acefruit) echo '<machine name="acefruit"><description>Ace (Cassette)</description><year>1982?</year><manufacturer>unknown</manufacturer><input players="1"/><driver status="preliminary"/></machine>' ;;
 	*) return 1 ;;
@@ -363,6 +365,25 @@ private slots:
         QCOMPARE(mame::makerOf(QStringLiteral("<unknown>")), QString());
         QCOMPARE(mame::makerOf(QStringLiteral("unknown")), QString());
         QCOMPARE(mame::makerOf(QStringLiteral("bootleg")), QStringLiteral("bootleg"));
+        // A bootleg or a hack: said in the name's parentheses or by the
+        // maker, in either case; not a game named after one.
+        const auto unofficial = [](const char *description, const char *manufacturer) {
+            mame::Machine machine;
+            machine.description = QLatin1String(description);
+            machine.manufacturer = QLatin1String(manufacturer);
+            return mame::isBootlegOrHack(machine);
+        };
+        QVERIFY(unofficial("Galaga (bootleg)", "bootleg"));
+        QVERIFY(unofficial("Ms. Pac-Man (bootleg, set 1)", "bootleg"));
+        QVERIFY(unofficial("Pac-Man (Midway, speedup hack)", "Namco (Midway license)"));
+        QVERIFY(unofficial("Puckman (Japan set 1, Probably Bootleg)", "Namco"));
+        QVERIFY(unofficial("Mortal Kombat (Yawdim bootleg, set 1)", "bootleg (Yawdim)"));
+        QVERIFY(unofficial("Pac-Man (Hearts)", "hack"));
+        QVERIFY(unofficial("Street Fighter II' (Rainbow set 1)", "bootleg / hack"));
+        QVERIFY(!unofficial("Galaga (Namco rev. B)", "Namco"));
+        QVERIFY(!unofficial("Pac-Man (Midway)", "Namco (Midway license)"));
+        QVERIFY(!unofficial("Hack Attack (US)", "Hackers Entertainment"));
+        QVERIFY(!unofficial("Bootleg Sam", "Shackled Games"));
         // A company under its own name, whichever of its arms, mergers and
         // legal forms made the game.
         QCOMPARE(mame::makerOf(QStringLiteral("Nintendo of America")), QStringLiteral("Nintendo"));
@@ -5431,6 +5452,79 @@ private slots:
         refreshed(arcade);
         QTest::qWait(300);
         QCOMPARE(standIn.asked.size(), 1);
+    }
+
+    // Settings → Arcade → Hide Hacks and Bootlegs: the sets MAME calls a
+    // bootleg or a hack, in their name's parentheses or as their maker, leave
+    // every list and filter, Favorites and Recently Played too, as it is
+    // turned on, and are back as it is turned off; Not Recognized is as it
+    // was, and a hidden set keeps its details.
+    void hidesBootlegs() {
+        QTemporaryDir data;
+        QVERIFY(data.isValid());
+        const QString games = data.path() + QStringLiteral("/media/Games/Arcade");
+        for (const char *set : { "sf2.zip", "sf2b.zip", "pacman.zip", "pacmanf.zip", "galaga.zip", "notagame.zip" })
+            writeFile(games + QLatin1Char('/') + QLatin1String(set));
+        QVERIFY(QDir().mkpath(data.path() + QStringLiteral("/bin")));
+        QVERIFY(QFile::copy(mamePath(), data.path() + QStringLiteral("/bin/mame")));
+        QVERIFY(QFile::setPermissions(data.path() + QStringLiteral("/bin/mame"),
+                                      QFile::ReadOwner | QFile::WriteOwner | QFile::ExeOwner));
+        qputenv("OSDOS_MEDIA_DIR", (data.path() + QStringLiteral("/media")).toUtf8());
+        const auto restore = qScopeGuard([this] {
+            qputenv("OSDOS_MEDIA_DIR", (m_data.path() + QStringLiteral("/media")).toUtf8());
+        });
+        const QString module = QStringLiteral("com.osdos.arcade");
+        AppCore core(data.path(), data.path());
+        core.add_to_list(module, QStringLiteral("favorites"), { { QStringLiteral("path"), QStringLiteral("game:sf2b") } });
+        core.add_to_list(module, QStringLiteral("favorites"), { { QStringLiteral("path"), QStringLiteral("game:galaga") } });
+        core.add_to_list(module, QStringLiteral("recent"), { { QStringLiteral("path"), QStringLiteral("game:pacmanf") } });
+
+        ArcadeBackend arcade(data.path(), data.path(), &core, nullptr);
+        connect(&core, &AppCore::moduleSettingChanged, &arcade, &ArcadeBackend::onSettingChanged);
+        refreshed(arcade);
+        const auto sets = [&arcade](const char *filter) {
+            QStringList list;
+            for (const QVariant &v : arcade.filterGames(QLatin1String(filter), 0, 50))
+                list << v.toMap().value(QStringLiteral("set")).toString();
+            return list;
+        };
+        const auto count = [&arcade](const char *id) {
+            for (const QVariant &v : arcade.filters()) {
+                if (v.toMap().value(QStringLiteral("id")).toString() == QLatin1String(id))
+                    return v.toMap().value(QStringLiteral("count")).toInt();
+            }
+            return 0;
+        };
+        // Off: the bootleg and the hack are games like the others, by name.
+        QCOMPARE(sets("all"), QStringList({ QStringLiteral("galaga"), QStringLiteral("pacman"), QStringLiteral("pacmanf"),
+                                            QStringLiteral("sf2"), QStringLiteral("sf2b") }));
+        QCOMPARE(sets("favorites"), QStringList({ QStringLiteral("galaga"), QStringLiteral("sf2b") }));
+        QCOMPARE(sets("recent"), QStringList({ QStringLiteral("pacmanf") }));
+        QCOMPARE(sets("makers/Namco"), QStringList({ QStringLiteral("galaga"), QStringLiteral("pacman"), QStringLiteral("pacmanf") }));
+        QCOMPARE(count("unknown"), 1);
+
+        // On: gone from every list and filter at once, Not Recognized as it
+        // was; what the set is can still be asked.
+        QSignalSpy changed(&arcade, &ArcadeBackend::gamesChanged);
+        core.save_setting(module, QStringLiteral("hide_bootlegs"), QStringLiteral("ON"));
+        QCOMPARE(changed.size(), 1);
+        QCOMPARE(sets("all"), QStringList({ QStringLiteral("galaga"), QStringLiteral("pacman"), QStringLiteral("sf2") }));
+        QCOMPARE(count("all"), 3);
+        QCOMPARE(sets("favorites"), QStringList({ QStringLiteral("galaga") }));
+        QVERIFY(sets("recent").isEmpty());
+        QCOMPARE(count("recent"), 0);
+        QCOMPARE(sets("makers/Namco"), QStringList({ QStringLiteral("galaga"), QStringLiteral("pacman") }));
+        QCOMPARE(count("unknown"), 1);
+        QCOMPARE(arcade.gameDetails(QStringLiteral("sf2b")).value(QStringLiteral("name")).toString(),
+                 QStringLiteral("Street Fighter II: The World Warrior (bootleg, set 1)"));
+
+        // Off again: back where they were.
+        core.save_setting(module, QStringLiteral("hide_bootlegs"), QStringLiteral("OFF"));
+        QCOMPARE(changed.size(), 2);
+        QCOMPARE(sets("all").size(), 5);
+        QCOMPARE(sets("favorites"), QStringList({ QStringLiteral("galaga"), QStringLiteral("sf2b") }));
+        QCOMPARE(sets("recent"), QStringList({ QStringLiteral("pacmanf") }));
+        QCOMPARE(sets("makers/Namco").size(), 3);
     }
 
     // Settings → Arcade → Menu Filters: its page, the lists and the places

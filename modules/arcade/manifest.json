@@ -19,6 +19,13 @@
       "description": "The folder of MAME's ROM sets (a zip each, BIOS sets beside them)\n[DEFAULT] Games/Arcade beside Local Files' Movies folder: on the OSD/OS image, on the card's OSD-OS partition"
     },
     {
+      "key": "hide_bootlegs",
+      "label": "Hide Hacks and Bootlegs",
+      "type": "toggle",
+      "default": "OFF",
+      "description": "The sets that are a bootleg or a hack of a game rather than its maker's own release, as MAME names them: bootleg or hack in the parentheses of the name, or as the maker\n[ON] Left off every list and filter, Favorites and Recently Played too, until it is off again"
+    },
+    {
       "key": "screen",
       "label": "Screen",
       "type": "list_single",
