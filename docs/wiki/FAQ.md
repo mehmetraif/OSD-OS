@@ -7,7 +7,7 @@
     - Those are feature rich, run on a great many devices and have big, supportive teams behind them. OSD/OS is a small project for a niche: old TVs, a remote and a VCR's look.
     - If that is what you are after, OSD/OS is a lot of fun and you are welcome to try it. Otherwise, the well known distros are the better door.
 - Will this work on other Raspberry Pi models? (like the 5, 2 zero, etc...)
-    - OSD/OS is tested on a Raspberry Pi 4 and a Raspberry Pi 5 (8 GB). A Pi 5 boots differently and has no AV jack (composite comes from its TV pads, sound over HDMI or a USB card); OSD/OS knows both, and [Supported hardware](https://github.com/mehmetraif/OSD-OS/wiki/Installation#supported-hardware) says what changes. A Pi 3B or 3B+ works too, with the caveats listed there.
+    - OSD/OS is tested on a Raspberry Pi 4 and a Raspberry Pi 5 (8 GB): the Pi 4 as a TV, the Pi 5 in a JAMMA arcade cabinet, and LAN Play between the two. A Pi 5 boots differently and has no AV jack (composite comes from its TV pads, sound over HDMI or a USB card); OSD/OS knows both, and [Supported hardware](https://github.com/mehmetraif/OSD-OS/wiki/Installation#supported-hardware) says what changes. A Pi 3B or 3B+ works too, with the caveats listed there.
     - On any other model the short answer is "we don't know": please try it and tell us in an [issue](https://github.com/mehmetraif/OSD-OS/issues) whether it works.
 - Where does the name "OSD/OS" come from?
     - OSD is the on-screen display: the menu a VCR or a TV draws over the picture, which is all this app ever shows. OS because on a Raspberry Pi it can be the whole system ([The OSD/OS image](https://github.com/mehmetraif/OSD-OS/wiki/The-OSD-OS-Image)).

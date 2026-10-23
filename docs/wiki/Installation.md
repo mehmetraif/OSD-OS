@@ -678,7 +678,7 @@ Stopping the service from outside leaves the Pi on. The packages `install.sh` in
 
 ## Supported hardware
 
-OSD/OS is tested on a **Raspberry Pi 4**. Its owner also tests it on a **Raspberry Pi 5 (8 GB)**. Nothing else has been tested with OSD/OS so far: on another board, please tell us how it went in an [issue](https://github.com/mehmetraif/OSD-OS/issues).
+OSD/OS is tested on a **Raspberry Pi 4** and a **Raspberry Pi 5 (8 GB)**: the Pi 4 as a TV, the Pi 5 in a JAMMA arcade cabinet, and LAN Play between the two. Nothing else has been tested with OSD/OS so far: on another board, please tell us how it went in an [issue](https://github.com/mehmetraif/OSD-OS/issues).
 
 OSD/OS reads the board's model (`/proc/device-tree/model`) and sets itself up for its family: the mpv flags it plays videos with, and the outputs Settings → Display Output offers.
 

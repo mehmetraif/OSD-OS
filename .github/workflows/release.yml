@@ -499,7 +499,7 @@ jobs:
             bash scripts/release-notes.sh "$TAG"
             echo "## The OSD/OS image (Raspberry Pi)"
             echo
-            echo "\`OSD-OS-${TAG}-raspberry-pi.img.xz\` is the whole system: flash it with Raspberry Pi Imager (**Use custom**), put the card in the Pi, and it boots straight into OSD/OS. Raspberry Pi OS Lite (64-bit), based on Debian 13 trixie, with OSD/OS on top; tested on the Raspberry Pi 4. How to flash it, and set up Wi-Fi and a user: ${REPO}/blob/${TAG}/os/README.md#flashing. What it is made of, under which licences: ${REPO}/blob/${TAG}/os/NOTICE."
+            echo "\`OSD-OS-${TAG}-raspberry-pi.img.xz\` is the whole system: flash it with Raspberry Pi Imager (**Use custom**), put the card in the Pi, and it boots straight into OSD/OS. Raspberry Pi OS Lite (64-bit), based on Debian 13 trixie, with OSD/OS on top. How to flash it, and set up Wi-Fi and a user: ${REPO}/blob/${TAG}/os/README.md#flashing. What it is made of, under which licences: ${REPO}/blob/${TAG}/os/NOTICE."
             echo
             echo "## The app"
             echo
@@ -510,7 +510,7 @@ jobs:
             fi
             echo "- Steam Deck / Linux (x86_64): download \`OSD-OS-linux-x86_64.AppImage\`, make it executable (\`chmod +x\`) and run it: ${REPO}/blob/${TAG}/INSTALL.md#on-steamos--linux-x86_64"
             echo
-            echo "Tested on a Raspberry Pi 4 and a Raspberry Pi 5 (8 GB)."
+            echo "Tested on a Raspberry Pi 4 and a Raspberry Pi 5 (8 GB): the Pi 4 as a TV, the Pi 5 in a JAMMA arcade cabinet, and LAN Play between the two."
             echo
             echo "## Updating"
             echo
