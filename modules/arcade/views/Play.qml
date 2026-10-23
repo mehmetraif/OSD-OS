@@ -91,8 +91,12 @@ FocusScope {
         }
         var players = inputManager ? inputManager.players : []
         var key = players.length > 0 ? players[0].playing : ""
-        // Online every player has a pad's own binds (Libretro's withArcade()).
-        if (key && online)
+        // Online, a pad's Arcade Buttons play only on the panel layout, a
+        // host's own choice (ArcadeBackend::onlineLayout()): a game joined
+        // learns its host's as it starts, so its pad's own binds are
+        // assumed here.
+        var padsOwn = !!online && !(online.hosting && arcadeBackend && arcadeBackend.onlineLayout(true) === "panel")
+        if (key && padsOwn)
             exitKeys = inputManager.buttonLabel(key, "back") + " + " + inputManager.buttonLabel(key, "start")
         else if (key)
             exitKeys = inputManager.arcadeLabel(key, "coin") + " + " + inputManager.arcadeLabel(key, "start")

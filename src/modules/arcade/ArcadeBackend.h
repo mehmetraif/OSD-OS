@@ -308,6 +308,12 @@ public:
     Q_INVOKABLE bool hostLanGame(const QString &set);
     // canHost() for LAN Play.
     Q_INVOKABLE bool canHostLan(const QString &set) const;
+    // The controller types a game hosted from here plays with online,
+    // "panel" (FinalBurn Neo's 6-Button Panel on every port, with an arcade
+    // panel's players among this machine's) or "classic" (RetroArch's own):
+    // libretro::hostLayout(). A game joined is "classic" until its host
+    // says, which comes with the ports, after the Play screen.
+    Q_INVOKABLE QString onlineLayout(bool hosting) const;
     // Where the query goes: broadcast to every network's hosts at
     // RetroArch's port, or a stand-in's address and port (a test's).
     void setLanDiscovery(const QString &address, quint16 port);
@@ -693,15 +699,17 @@ private:
     // (hostPorts()); joining on the local network, the ports its host's
     // OSD/OS gave, portsGiven from portsFrom (0 for none left; -1 for no
     // answer: from 2 with more than one player, else RetroArch's own, the
-    // first free).
+    // first free), on the layout it said (libretro::Launch::layout; a host
+    // chooses its own by its players, libretro::hostLayout()).
     bool playFbneo(const QString &name, libretro::Launch::Netplay netplay = libretro::Launch::Netplay::None,
-                   const QString &joinAddress = QString(), int portsFrom = -1, int portsGiven = 0);
+                   const QString &joinAddress = QString(), int portsFrom = -1, int portsGiven = 0,
+                   libretro::Launch::Layout layout = libretro::Launch::Layout::Classic);
     // The ports this machine's players take hosting set: up to the last
     // player with a controller (libretro::localPorts()), but one fewer than
-    // the game plays at once, so that a machine joining has a port; one, for
-    // a game MAME doesn't know the players of (FinalBurn Neo's list doesn't
-    // say). With most, the game's ports: as many as it plays at once, or
-    // libretro::kMostPorts where that isn't known.
+    // the game plays at once, so that a machine joining has a port. With
+    // most, the game's ports: as many as it plays at once, or
+    // libretro::kMostPorts for a game MAME doesn't know the players of
+    // (FinalBurn Neo's list doesn't say), taken for one of six.
     int hostPorts(const QString &set, int *most = nullptr) const;
     // A LAN game joined once its host's OSD/OS has said which ports this
     // machine's players take (libretro::claimQuery() to the host at the
@@ -719,6 +727,8 @@ private:
         QString host;
         int players = 1;
         int asked = 0;
+        // The host's layout, as it said before the ports (Classic until it does).
+        libretro::Launch::Layout layout = libretro::Launch::Layout::Classic;
     };
     bool askForPorts();
     void readPortsAnswer();
@@ -726,9 +736,9 @@ private:
     void releaseClaim(const QString &address);
     // Hosting on the local network: the ports taken counted (m_claims, this
     // machine's own first, of the game's most), and each OSD/OS joining
-    // given theirs at the claim port (answerClaims()), until the game ends
-    // (stopClaims()). False without the socket for it.
-    bool startClaims(int own, int most);
+    // told the layout and given theirs at the claim port (answerClaims()),
+    // until the game ends (stopClaims()). False without the socket for it.
+    bool startClaims(int own, int most, libretro::Launch::Layout layout);
     void answerClaims();
     void stopClaims();
     // The Online Games folder's entries: the rooms, or a line saying why
@@ -930,6 +940,7 @@ private:
     // ports, given back as the game ends ("" for none).
     QUdpSocket *m_claimSocket = nullptr;
     libretro::PortClaims m_claims;
+    libretro::Launch::Layout m_claimLayout = libretro::Launch::Layout::Classic;
     quint16 m_claimPort = libretro::kLanClaimPort;
     std::optional<PendingJoin> m_pendingJoin;
     QUdpSocket *m_claimAsk = nullptr;

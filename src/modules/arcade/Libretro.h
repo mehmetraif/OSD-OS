@@ -111,7 +111,23 @@ struct Launch {
     // (ports 0) leaves RetroArch to its own: one port, the first free.
     int     portsFrom = 0;
     int     ports = 0;
+    // Online, the controller types every port plays with. RetroArch gives
+    // every machine the host's, port by port, and a machine's players find
+    // their pads only among ports of one kind (its pad n drives the n-th of
+    // its ports of that kind), so a host sets one kind for all six: Classic,
+    // RetroArch's own, as a plain RetroArch host has them; or Panel, FinalBurn
+    // Neo's 6-Button Panel, a host with an arcade panel's players
+    // (hostLayout()), which its OSD/OS tells the machines joining before
+    // their ports (claimLayout()). The binds follow it: a panel's player on
+    // kArcadePanel under Panel, on kArcadePanelClassic under Classic; a pad's
+    // Arcade Buttons under Panel alone. Off line each player has their own
+    // (onPanel()), whatever this says.
+    enum class Layout { Classic, Panel } layout = Layout::Classic;
 };
+// The layout a host plays its online games with: Panel where one of its
+// players is on an arcade panel (panels) or has Arcade Buttons (arcade), else
+// Classic.
+Launch::Layout hostLayout(const QList<bool> &panels, const QList<QStringList> &arcade);
 // The retroarch.cfg for a game: everything RetroArch would otherwise take
 // from a desktop's defaults, for a console with the menus' controllers.
 QString configText(const Launch &launch);
@@ -120,9 +136,11 @@ QStringList arguments(const Launch &launch);
 // The remap file RetroArch loads with FinalBurn Neo from remapDir: the
 // core's own, by its name.
 QString coreRemapPath(const QString &remapDir);
-// Its text: each player on an arcade panel, or with Arcade Buttons, on
-// FinalBurn Neo's 6-Button Panel, its controller type for such a panel, off
-// line; "" for none, when no file is needed.
+// Its text: off line, each player on an arcade panel, or with Arcade Buttons,
+// on FinalBurn Neo's 6-Button Panel, its controller type for such a panel;
+// hosting on the Panel layout, every port on it, the machines joining taking
+// the host's types; "" for none, when no file is needed (joining: the host's
+// types come with the connection).
 QString remapText(const Launch &launch);
 // Whether the remap file at path is OSD/OS's to write over or remove: there
 // is none, or remapText() wrote it. One saved from RetroArch's menu (Save
@@ -244,7 +262,9 @@ bool isLanSender(const QHostAddress &address);
 // has none left; one leaving gives its ports back (claimRelease()). A host
 // that doesn't answer, RetroArch alone or an older OSD/OS, holds port 1: a
 // joiner then asks for ports from 2 with more than one player, else for
-// none.
+// none. Before the ports, a host says the layout it plays with
+// (claimLayout(), Launch::layout), which an older OSD/OS doesn't: Classic
+// then.
 constexpr quint16 kLanClaimPort = 55436;
 // The ports a game is played on at most: FinalBurn Neo's six-player games,
 // as many as the players the menus have controllers for.
@@ -261,12 +281,14 @@ struct PortRange {
 QByteArray claimQuery(int players);
 QByteArray claimAnswer(const PortRange &ports);
 QByteArray claimRelease();
+QByteArray claimLayout(Launch::Layout layout);
 // What a packet says: a query for so many ports (1 to kMostPorts), an answer
-// giving the first and how many (within kMostPorts, or none), or a release;
-// nothing for a packet that isn't one.
+// giving the first and how many (within kMostPorts, or none), a release, or
+// the host's layout; nothing for a packet that isn't one.
 std::optional<int> readClaimQuery(const QByteArray &packet);
 std::optional<PortRange> readClaimAnswer(const QByteArray &packet);
 bool isClaimRelease(const QByteArray &packet);
+std::optional<Launch::Layout> readClaimLayout(const QByteArray &packet);
 
 // A host's count of the ports taken: its own, 1 to own, and each joiner's
 // by its address, within the game's ports (most). A joiner is given the

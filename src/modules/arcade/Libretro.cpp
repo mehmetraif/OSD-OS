@@ -71,6 +71,23 @@ constexpr std::pair<const char *, const char *> kArcadePanel[] = {
     { "l_x_plus_axis", "+0" }, { "l_x_minus_axis", "-0" }, { "l_y_plus_axis", "+1" }, { "l_y_minus_axis", "-1" },
 };
 
+// The same panel under RetroArch's Classic controller types (online, from a
+// host without a panel, or one that isn't OSD/OS): FinalBurn Neo then reads
+// a game's buttons 1 to 6 on B, A, Y, X, R and L (its FIRE01 to FIRE06: the
+// first column's bottom and top, the second's, then the third's bottom, R,
+// and top, L), 7 and 8 on R2 and L2 as the panel does. So numbered, the
+// cabinet's buttons play a game's buttons by number; a fighter's punches
+// and kicks, which Classic lays over a pad's two rows, aren't the panel's
+// rows, which only the 6-Button Panel has.
+constexpr std::pair<const char *, const char *> kArcadePanelClassic[] = {
+    { "b_btn", "0" }, { "a_btn", "1" }, { "y_btn", "2" }, { "x_btn", "3" },
+    { "r_btn", "9" }, { "l_btn", "10" },
+    { "start_btn", "6" }, { "select_btn", "4" },
+    { "up_axis", "-1" }, { "down_axis", "+1" }, { "left_axis", "-0" }, { "right_axis", "+0" },
+    { "r2_axis", "+4" }, { "l2_axis", "+5" },
+    { "l_x_plus_axis", "+0" }, { "l_x_minus_axis", "-0" }, { "l_y_plus_axis", "+1" }, { "l_y_minus_axis", "-1" },
+};
+
 // A pad's left stick as the joystick beside its D-pad, as a panel's is, for
 // a player whose Arcade Buttons put it on the 6-Button Panel.
 constexpr std::pair<const char *, const char *> kStickAsJoystick[] = {
@@ -92,18 +109,24 @@ constexpr int k6ButtonPanel = (1 << 8) | 5;
 // L2).
 const char *const kArcadeSlots[controllers::kArcadeInputs] = { "y", "x", "l", "b", "a", "r", "r2", "l2", "select", "start" };
 
+// Whether the players' own layouts play, the 6-Button Panel's rows: off line,
+// and online on the Panel layout, where every port has that type. Online on
+// Classic, RetroArch gives every player the host's Classic types, on which a
+// panel's binds would scatter its buttons.
+bool panelsPlay(const Launch &launch) {
+    return launch.netplay == Launch::Netplay::None || launch.layout == Launch::Layout::Panel;
+}
+
 // Whether player p (from 0) has Arcade Buttons of their own to play with:
-// off line only, as a panel.
+// where the panels play, as one.
 bool withArcade(const Launch &launch, int p) {
-    return launch.netplay == Launch::Netplay::None && !launch.arcade.value(p).isEmpty();
+    return panelsPlay(launch) && !launch.arcade.value(p).isEmpty();
 }
 
 // Whether player p (from 0) plays on an arcade panel's layout, a JAMMA
-// stick's or their Arcade Buttons': off line only. Online, RetroArch gives
-// every player the host's controller types, on which a panel's binds would
-// scatter its buttons.
+// stick's or their Arcade Buttons'.
 bool onPanel(const Launch &launch, int p) {
-    return launch.netplay == Launch::Netplay::None && (launch.panels.value(p) || withArcade(launch, p));
+    return panelsPlay(launch) && (launch.panels.value(p) || withArcade(launch, p));
 }
 
 // A player's binds with their Arcade Buttons (withArcade()): each on its slot
@@ -417,7 +440,8 @@ QString configText(const Launch &launch) {
     // over the game that each pad has no profile ("not configured, using
     // fallback"); the reservations below still give each player their pad.
     // A player on an arcade panel has its two rows instead (kArcadePanel),
-    // and one with Arcade Buttons those, off line (onPanel()).
+    // and one with Arcade Buttons those, where the panels play (onPanel());
+    // a panel under Classic types its buttons by number (kArcadePanelClassic).
     set("input_joypad_driver", QStringLiteral("sdl2"));
     set("input_autodetect_enable", on(false));
     for (int p = 1; p <= controllers::kPlayers; ++p) {
@@ -426,9 +450,11 @@ QString configText(const Launch &launch) {
             for (const auto &[name, value] : list)
                 binds.append({ QByteArray(name), QString::fromLatin1(value) });
         };
-        const bool panel = launch.netplay == Launch::Netplay::None && launch.panels.value(p - 1);
-        if (panel)
+        const bool panel = launch.panels.value(p - 1);
+        if (panel && panelsPlay(launch))
             add(kArcadePanel);
+        else if (panel)
+            add(kArcadePanelClassic);
         else
             add(kStandardGamepad);
         if (withArcade(launch, p - 1)) {
@@ -507,10 +533,24 @@ QString coreRemapPath(const QString &remapDir) {
 
 QString remapText(const Launch &launch) {
     QStringList lines;
-    for (int p = 0; p < launch.panels.size() && p < controllers::kPlayers; ++p) {
-        if (onPanel(launch, p))
-            lines << configLine(QByteArray("input_libretro_device_p" + QByteArray::number(p + 1)).constData(),
-                                QString::number(k6ButtonPanel));
+    const auto port = [&lines](int p) {
+        lines << configLine(QByteArray("input_libretro_device_p" + QByteArray::number(p)).constData(),
+                            QString::number(k6ButtonPanel));
+    };
+    const bool hosting = launch.netplay == Launch::Netplay::Host || launch.netplay == Launch::Netplay::LanHost;
+    if (hosting) {
+        // RetroArch gives the machines joining the host's types, and a
+        // machine's players find their pads only among ports of one kind:
+        // every port the panel's, or none.
+        if (launch.layout == Launch::Layout::Panel) {
+            for (int p = 1; p <= kMostPorts; ++p)
+                port(p);
+        }
+    } else if (launch.netplay == Launch::Netplay::None) {
+        for (int p = 0; p < launch.panels.size() && p < controllers::kPlayers; ++p) {
+            if (onPanel(launch, p))
+                port(p + 1);
+        }
     }
     if (lines.isEmpty())
         return QString();
@@ -798,6 +838,9 @@ namespace {
 const char kClaimQueryHead[] = "OSDOS PORTS? ";
 const char kClaimAnswerHead[] = "OSDOS PORTS ";
 const char kClaimReleaseText[] = "OSDOS PORTS FREE";
+const char kClaimLayoutHead[] = "OSDOS LAYOUT ";
+const char kLayoutPanel[] = "panel";
+const char kLayoutClassic[] = "classic";
 
 // A number of at most two digits, least to most; nothing for anything else.
 std::optional<int> number(const QByteArray &digits, int least, int most) {
@@ -861,6 +904,29 @@ std::optional<PortRange> readClaimAnswer(const QByteArray &packet) {
 
 bool isClaimRelease(const QByteArray &packet) {
     return packet == kClaimReleaseText;
+}
+
+QByteArray claimLayout(Launch::Layout layout) {
+    return QByteArray(kClaimLayoutHead) + (layout == Launch::Layout::Panel ? kLayoutPanel : kLayoutClassic);
+}
+
+std::optional<Launch::Layout> readClaimLayout(const QByteArray &packet) {
+    const std::optional<QList<QByteArray>> words = wordsAfter(packet, kClaimLayoutHead);
+    if (!words || words->size() != 1)
+        return std::nullopt;
+    if (words->first() == kLayoutPanel)
+        return Launch::Layout::Panel;
+    if (words->first() == kLayoutClassic)
+        return Launch::Layout::Classic;
+    return std::nullopt;
+}
+
+Launch::Layout hostLayout(const QList<bool> &panels, const QList<QStringList> &arcade) {
+    for (int p = 0; p < kMostPorts; ++p) {
+        if (panels.value(p) || !arcade.value(p).isEmpty())
+            return Launch::Layout::Panel;
+    }
+    return Launch::Layout::Classic;
 }
 
 void PortClaims::reset(int own, int most) {
