@@ -2,15 +2,16 @@
 
 // The Arcade Buttons page's drawing (ArcadePanel.qml): a two-player arcade
 // cabinet's control panel, with a little of the cabinet above and below it,
-// in two-colour isometric pixel art. On the panel's top each player has a
-// ball-top stick and six buttons in two rows of three that follow the
-// fingers (the first column nearer the player, the second the farthest),
-// player 1 on the left and player 2 on the right; on its front, below a
-// chrome strip, three round buttons: 1P START, COIN and 2P START. Behind it
-// rises the foot of the monitor, its bezel with two speakers and the
-// screen's lines; under it the cabinet's front goes down past the top of the
-// coin door. The cabinet fades out above and below. One player's side can
-// be lit: a button, COIN or that player's START.
+// in two-colour isometric pixel art. The panel's top rises towards the back:
+// on it each player has a ball-top stick and six buttons in two rows of
+// three that follow the fingers (the first column nearer the player, the
+// second the farthest), player 1 on the left and player 2 on the right. Its
+// front leans back as it goes down: on it, below a chrome strip, three round
+// buttons, 1P START, COIN and 2P START. Behind the panel the monitor leans
+// back, its bezel with two speakers and the foot of the screen; under it the
+// cabinet's front, leaning back too, goes down past the top of the coin door.
+// The cabinet fades out above and below. One player's side can be lit: a
+// button, COIN or that player's START.
 //
 // draw() lays it out on a grid of cells, one art pixel each: 0 for none
 // (the ground the host draws on shows), 1 for ink, 2 for the ground drawn
@@ -19,38 +20,45 @@
 // (from above) has more of it.
 
 // The grid.
-var width = 99
-var height = 99
+var width = 103
+var height = 105
 
 // Isometric 2:1: along the panel (u, the players' left to right) a cell
 // down for every two right, into it (v, away from the players) a cell up for
 // every two right, z straight up, all in cells. Origin: the panel top's
 // front left corner.
 var originX = 0
-var originY = 32
+var originY = 38
 
 function project(u, v, z) {
     return { x: originX + 2 * u + 2 * v, y: originY + u - v - (z || 0) }
 }
 
-// The panel: its length and depth, the height of its front, and how far
-// down the front the chrome strip along its top is.
+// The panel: its length and depth; its top rises towards the back (slope
+// cells up for every unit back); its front goes down frontHeight cells and
+// leans back as it goes, its foot frontLean units further back than its
+// top; the chrome strip along its top, how far down.
 var panelLength = 38
 var panelDepth = 11
-var frontHeight = 12
+var slope = 0.55
+var frontHeight = 15
+var frontLean = 2.5
 var strip = 2
-// The cabinet round it, as much as shows: how high above the panel's top,
-// how low under its front, and how far back the front under the panel is.
-var above = 22
-var below = 22
-var recess = 2
+// The cabinet round it, as much as shows: the monitor's bezel, leaning back
+// (lean units at its top) up from the top's back edge, how high; and the
+// front under the panel, leaning back too (belowLean units at its foot) down
+// from the panel front's foot, how low.
+var above = 20
+var lean = 3.5
+var below = 20
+var belowLean = 2.5
 
 // Where things stand on the top (u, v), from the left end of each player's
 // half of it. The buttons' columns follow the fingers: the first a little
 // nearer the player, the second the farthest, the third a little nearer
 // again.
 var playerLength = panelLength / 2
-var stick = { u: 3.5, v: 5.6 }
+var stick = { u: 3.5, v: 5.0 }
 var columns = [8.1, 12.5, 16.9]
 var bend = [-0.9, 0, -0.4]
 var rows = [7.6, 3.5]        // the top row (1 2 3), the bottom (4 5 6)
@@ -75,40 +83,6 @@ var button = {
           ".#######.",
           "..#####.."]
 }
-// A round button on the front, which faces the players: a disc in its
-// plane, leaning with it, its shine at the top left, lit (ink, the shine
-// cut out) or not.
-var frontButton = {
-    anchor: { x: 3, y: 4 },
-    off: [".###...",
-          "#ooo#..",
-          "#o#oo#.",
-          "#o#oo#.",
-          "#ooooo#",
-          ".#oooo#",
-          ".#oooo#",
-          "..#ooo#",
-          "...###."],
-    on:  [".###...",
-          "#####..",
-          "##o###.",
-          "##o###.",
-          "#######",
-          ".######",
-          ".######",
-          "..#####",
-          "...###."]
-}
-// A speaker's grille in the bezel, which faces the players too.
-var speaker = {
-    anchor: { x: 2, y: 2 },
-    lines: [".##..",
-            "#o#o#",
-            "#o#o#",
-            "#o#o#",
-            "..##."]
-}
-
 // The ball: lit from the top left, its shine in a dither that thins away
 // from it.
 function ballSprite(d) {
@@ -139,16 +113,12 @@ function ballSprite(d) {
 }
 var ballDiameter = 9
 var ball = ballSprite(ballDiameter)
-var shaftHeight = 6
+var shaftHeight = 5
 
 // Where player 1's or 2's button stands, "1" to "6" from 0.
 function buttonAt(player, index) {
     var column = index % 3
     return { u: (player - 1) * playerLength + columns[column], v: rows[index < 3 ? 0 : 1] + bend[column] }
-}
-// Where one of the front's buttons is on the grid: "start1", "coin", "start2".
-function frontAt(name) {
-    return project(front[name] * panelLength, 0, -(strip + frontHeight) / 2)
 }
 
 // The cells, and for each of the cabinet's the height it stands at (NaN for
@@ -266,21 +236,28 @@ function ellipse(cx, cy, rx, ry) {
         }
     }
 }
-// The panel's corners at height z, from the front left round to the back
-// left.
-function corners(z) {
-    return [project(0, 0, z), project(panelLength, 0, z), project(panelLength, panelDepth, z), project(0, panelDepth, z)]
-}
-// An upright rectangle across the cabinet, v in from its front, u0 to u1
-// along it and z0 to z1 up it, as a shape; its cells' heights (heightAt).
-function upright(v, u0, u1, z0, z1) {
-    var shape = polygon([project(u0, v, z0), project(u1, v, z0), project(u1, v, z1), project(u0, v, z1)])
-    shape.heightAt = function(x, y) {
-        var u = (x - originX) / 2 - v
-        return originY + u - v - y
+// A flat face of the cabinet or the panel across it: from its left end's
+// point p0 (u 0, v, z) along the cabinet (u) and up or down it by dir, t from
+// 0 to 1. at(u, t): where a point of it is on the grid; quad(): a part of
+// it as a shape; heightAt(x, y): the height (z) of the point of it a cell
+// shows.
+function Plane(p0, dir) {
+    var s0 = project(0, p0.v, p0.z)
+    var sx = 2 * dir.v, sy = -dir.v - dir.z
+    var det = 2 * sy - sx
+    this.at = function(u, t) { return project(u, p0.v + t * dir.v, p0.z + t * dir.z) }
+    this.t = function(x, y) { return (2 * (y - s0.y) - (x - s0.x)) / det }
+    this.heightAt = function(x, y) { return p0.z + this.t(x, y) * dir.z }.bind(this)
+    this.quad = function(u0, u1, t0, t1) {
+        return polygon([this.at(u0, t0), this.at(u1, t0), this.at(u1, t1), this.at(u0, t1)])
     }
-    return shape
+    // A unit up or down it, in the cabinet's units: a cell up is shorter
+    // than one along (tall of them to a unit).
+    this.length = Math.sqrt(dir.v * dir.v + dir.z * dir.z / (tall * tall))
+    this.det = det
+    this.sx = sx
 }
+var tall = 2.45
 
 // Two-colour shading: ink on a share of the cells, in an even pattern.
 function ground() { return 2 }
@@ -293,7 +270,7 @@ function scanlines(x, y) { return y % 2 === 0 && x % 2 === 0 ? 1 : 2 }
 // A stick (a Sanwa JLF with its ball top): the dust washer round the
 // shaft, the shaft, the ball.
 function drawStick(grid, at) {
-    var c = project(at.u, at.v, 0)
+    var c = onTop(at)
     var washer = ellipse(c.x, c.y, 4.2, 2.1)
     grid.paint(washer, half)
     grid.edge(washer)
@@ -306,54 +283,120 @@ function drawStick(grid, at) {
     grid.sprite(ball, { x: Math.floor(ballDiameter / 2), y: ballDiameter - 1 }, c.x, c.y - shaftHeight + 2)
 }
 
+// The panel's faces and the cabinet's: the top, rising towards the back;
+// the front, leaning back as it goes down; the monitor's bezel, leaning back
+// up from the top's back edge; the cabinet's front, leaning back down from
+// the panel front's foot.
+var deck = new Plane({ v: 0, z: 0 }, { v: panelDepth, z: slope * panelDepth })
+var face = new Plane({ v: 0, z: 0 }, { v: frontLean, z: -frontHeight })
+var bezel = new Plane({ v: panelDepth, z: slope * panelDepth }, { v: lean, z: above })
+var low = new Plane({ v: frontLean, z: -frontHeight }, { v: belowLean, z: -below })
+// Where a thing on the top stands, raised with it.
+function onTop(at) {
+    return project(at.u, at.v, slope * at.v)
+}
+// The front's buttons, halfway down it from the strip.
+var frontT = (strip / frontHeight + 1) / 2
+function frontAt(name) {
+    return face.at(front[name] * panelLength, frontT)
+}
+
+// A disc on one of the planes, r units across its middle, as a sprite:
+// its outline in ink, ground in it but for a spot at the top left (its
+// shine; none for a speaker's grille, which has every other column in ink),
+// or ink in it but for the spot when it is lit.
+function discSprite(plane, r, lit, grille) {
+    var cells = {}, left = Infinity, right = -Infinity, topRow = Infinity, bottom = -Infinity
+    var place = function(dx, dy) {
+        var dt = (2 * dy - dx) / plane.det
+        return { u: (dx - plane.sx * dt) / 2, t: dt * plane.length }
+    }
+    var inside = function(dx, dy) {
+        var p = place(dx, dy)
+        return p.u * p.u + p.t * p.t <= r * r
+    }
+    for (var dy = -12; dy <= 12; dy++) {
+        for (var dx = -16; dx <= 16; dx++) {
+            if (!inside(dx, dy))
+                continue
+            var p = place(dx, dy), ch
+            var su = p.u + 0.4 * r, st = p.t + 0.35 * r * (plane.det > 0 ? 1 : -1)
+            var spot = !grille && su * su + st * st <= 0.12 * r * r
+            if (!inside(dx - 1, dy) || !inside(dx + 1, dy) || !inside(dx, dy - 1) || !inside(dx, dy + 1))
+                ch = "#"
+            else if (grille)
+                ch = (dx & 1) ? "#" : "o"
+            else
+                ch = lit !== spot ? "#" : "o"
+            cells[dx + "," + dy] = ch
+            left = Math.min(left, dx); right = Math.max(right, dx)
+            topRow = Math.min(topRow, dy); bottom = Math.max(bottom, dy)
+        }
+    }
+    var lines = []
+    for (var y = topRow; y <= bottom; y++) {
+        var line = ""
+        for (var x = left; x <= right; x++)
+            line += cells[x + "," + y] || "."
+        lines.push(line)
+    }
+    return { lines: lines, anchor: { x: -left, y: -topRow } }
+}
+var frontRadius = 2.0
+var frontOff = discSprite(face, frontRadius, false)
+var frontOn = discSprite(face, frontRadius, true)
+var speakerDisc = discSprite(bezel, 1.1, false, true)
+
 // What shows of the cabinet behind and under the panel, each face filled
-// and outlined: the monitor's bezel, upright behind the panel, with two
-// speakers and the foot of the screen, its lines and a glint on its glass;
-// and the front under the panel, set back from it, with the top of the coin
-// door, its two coin entries (a bright plate each with the slot in it, the
-// coin return under it).
+// and outlined: the monitor's bezel, with two speakers and the foot of the
+// screen, its lines and a glint on its glass; and the cabinet's front under
+// the panel, down past the top of the coin door with its two coin entries
+// (a bright plate each with the slot in it, the coin return under it).
 function drawCabinet(grid) {
-    var L = panelLength, D = panelDepth, H = frontHeight, R = recess
+    var L = panelLength
     var draw = function(shape, fill) {
         grid.paint(shape, fill)
         grid.edge(shape)
     }
+    // t up the bezel and down the front for so many cells up or down.
+    var up = function(cells) { return cells / above }
+    var down = function(cells) { return cells / below }
 
-    var bezel = upright(D, 0, L, 0, above)
-    draw(bezel, ground)
-    draw(upright(D, 3, L - 3, 6, above), ground)
-    var glass = polygon([project(5, D, 7), project(L - 5, D, 7), project(L - 4, D, 9.5), project(L - 4, D, above),
-                         project(4, D, above), project(4, D, 9.5)])
-    draw(glass, scanlines)
-    grid.line(project(6, D, 9), project(9, D, 13), 1)
-    grid.line(project(6, D, 12), project(7, D, 14), 1)
+    var whole = bezel.quad(0, L, 0, 1)
+    draw(whole, ground)
+    draw(bezel.quad(3, L - 3, up(6), 1), ground)
+    draw(polygon([bezel.at(5, up(7)), bezel.at(L - 5, up(7)), bezel.at(L - 4, up(9.5)), bezel.at(L - 4, 1),
+                  bezel.at(4, 1), bezel.at(4, up(9.5))]), scanlines)
+    grid.line(bezel.at(6, up(9)), bezel.at(9, up(13)), 1)
+    grid.line(bezel.at(6, up(12)), bezel.at(7, up(14)), 1)
     var speakers = [6, L - 6]
     for (var i = 0; i < speakers.length; i++) {
-        var c = project(speakers[i], D, 3.5)
-        grid.sprite(speaker.lines, speaker.anchor, c.x, c.y)
+        var c = bezel.at(speakers[i], up(3))
+        grid.sprite(speakerDisc.lines, speakerDisc.anchor, c.x, c.y)
     }
-    grid.tag(bezel, bezel.heightAt)
+    grid.tag(whole, bezel.heightAt)
 
-    var low = upright(R, 0, L, -H - below, -H)
-    draw(low, sixteenth)
-    draw(upright(R, L / 2 - 7, L / 2 + 7, -H - below, -H - 4.5), ground)
+    var front = low.quad(0, L, 0, 1)
+    draw(front, sixteenth)
+    draw(low.quad(L / 2 - 7, L / 2 + 7, down(4.5), 1), ground)
     var entries = [L / 2 - 3.5, L / 2 + 1.5]
     for (var j = 0; j < entries.length; j++) {
         var e = entries[j]
-        draw(upright(R, e, e + 2, -H - 11, -H - 6), ink)
-        grid.line(project(e + 1, R, -H - 7), project(e + 1, R, -H - 9.5), 2)
-        var r = project(e + 1, R, -H - 13)
+        draw(low.quad(e, e + 2, down(6), down(11)), ink)
+        grid.line(low.at(e + 1, down(7)), low.at(e + 1, down(9.5)), 2)
+        var r = low.at(e + 1, down(13))
         var rx = Math.round(r.x), ry = Math.round(r.y)
         grid.set(rx, ry, 1); grid.set(rx + 1, ry, 1); grid.set(rx, ry + 1, 1); grid.set(rx + 1, ry + 1, 1)
     }
-    grid.tag(low, low.heightAt)
+    grid.tag(front, low.heightAt)
 }
 
-// The cabinet fades out up the bezel and down the front: the higher (or
+// The cabinet fades out up the bezel and down its front: the higher (or
 // lower) one of its cells, the likelier it is gone, in an even pattern.
 function fade(grid) {
     var bayer = [[0, 8, 2, 10], [12, 4, 14, 6], [3, 11, 1, 9], [15, 7, 13, 5]]
-    var from = 12, top = above, to = -frontHeight - 12, bottom = -frontHeight - below
+    var base = slope * panelDepth
+    var from = base + 10, top = base + above, to = -frontHeight - 10, bottom = -frontHeight - below
     for (var y = 0; y < grid.h; y++) {
         for (var x = 0; x < grid.w; x++) {
             var z = grid.height[y * grid.w + x]
@@ -374,20 +417,21 @@ function draw(lit, player) {
         on[lit[i]] = true
     var side = player === 2 ? 2 : 1
     var grid = new Grid(width, height)
+    var L = panelLength, D = panelDepth
     drawCabinet(grid)
 
-    // The panel's front and right end, in shade, the strip along the front's
-    // top and round the end; the top over them.
-    var top = corners(0), foot = corners(-frontHeight), band = corners(-strip)
-    for (var s = 0; s < 2; s++) {
-        var face = polygon([top[s], top[s + 1], foot[s + 1], foot[s]])
-        grid.paint(face, ground)
-        grid.edge(face)
-        grid.line(band[s], band[s + 1], 1)
-    }
-    var deck = polygon(top)
-    grid.paint(deck, sixteenth)
-    grid.edge(deck)
+    // The panel's front, in shade, with the strip along its top; its right
+    // end, the top's back edge down to the front's foot; the top over them.
+    var front = face.quad(0, L, 0, 1)
+    grid.paint(front, ground)
+    grid.edge(front)
+    grid.line(face.at(0, strip / frontHeight), face.at(L, strip / frontHeight), 1)
+    var end = polygon([face.at(L, 0), deck.at(L, 1), project(L, D, -frontHeight), face.at(L, 1)])
+    grid.paint(end, ground)
+    grid.edge(end)
+    var topFace = deck.quad(0, L, 0, 1)
+    grid.paint(topFace, sixteenth)
+    grid.edge(topFace)
 
     // The front's buttons: 1P START, COIN, 2P START.
     var start = side === 2 ? "start2" : "start1"
@@ -395,8 +439,8 @@ function draw(lit, player) {
     for (var f = 0; f < fronts.length; f++) {
         var name = fronts[f]
         var c = frontAt(name)
-        var lightIt = name === "coin" ? on["coin"] : name === start && on["start"]
-        grid.sprite(lightIt ? frontButton.on : frontButton.off, frontButton.anchor, c.x, c.y)
+        var sprite = (name === "coin" ? on["coin"] : name === start && on["start"]) ? frontOn : frontOff
+        grid.sprite(sprite.lines, sprite.anchor, c.x, c.y)
     }
 
     // What stands on the top, from the back: whatever is higher up the
@@ -411,7 +455,7 @@ function draw(lit, player) {
                     var at = buttonAt(player, index)
                     var lightIt = player === side && on[String(index + 1)]
                     things.push({ at: at, draw: function() {
-                        var c = project(at.u, at.v, 0)
+                        var c = onTop(at)
                         grid.sprite(lightIt ? button.on : button.off, button.anchor, c.x, c.y)
                     } })
                 })(b)
@@ -425,19 +469,17 @@ function draw(lit, player) {
 
     // The focus frame round each lit one.
     var gap = 1
-    var framed = function(sprite, c) {
-        var left = Math.round(c.x) - sprite.anchor.x, top = Math.round(c.y) - sprite.anchor.y
-        grid.frame(left - gap, top - gap, left + sprite.off[0].length - 1 + gap, top + sprite.off.length - 1 + gap)
+    var framed = function(lines, anchor, c) {
+        var left = Math.round(c.x) - anchor.x, top = Math.round(c.y) - anchor.y
+        grid.frame(left - gap, top - gap, left + lines[0].length - 1 + gap, top + lines.length - 1 + gap)
     }
     for (var n = 0; n < 6; n++) {
-        if (on[String(n + 1)]) {
-            var at = buttonAt(side, n)
-            framed(button, project(at.u, at.v, 0))
-        }
+        if (on[String(n + 1)])
+            framed(button.off, button.anchor, onTop(buttonAt(side, n)))
     }
     if (on["coin"])
-        framed(frontButton, frontAt("coin"))
+        framed(frontOff.lines, frontOff.anchor, frontAt("coin"))
     if (on["start"])
-        framed(frontButton, frontAt(start))
+        framed(frontOff.lines, frontOff.anchor, frontAt(start))
     return { width: width, height: height, cells: grid.cells }
 }
