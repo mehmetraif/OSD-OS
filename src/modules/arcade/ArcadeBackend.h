@@ -251,7 +251,8 @@ public:
     // refreshRooms() reads the lobby again, once at a time: roomsChanged(),
     // and the Online Games folder and filter listed again, once it has. It
     // reads our own RetroArch's and core's versions too, once for each
-    // (readOwnVersions()), roomsChanged() once each has been read.
+    // (readOwnVersions()), roomsChanged() once each has been read. Turned
+    // off, Online Play forgets the lobby and stops a read under way.
     Q_INVOKABLE QVariantList rooms() const;
     Q_INVOKABLE void refreshRooms();
     // The whole lobby as last read, every core's rooms, for the RetroArch

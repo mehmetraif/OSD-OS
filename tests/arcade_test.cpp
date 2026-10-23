@@ -14,6 +14,7 @@
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QNetworkDatagram>
+#include <QPointer>
 #include <QScopeGuard>
 #include <QSignalSpy>
 #include <QTcpServer>
@@ -3489,20 +3490,29 @@ private slots:
             controllers::setPlayerEnvironment({});
         });
         const QByteArray lobby = fixture("lobby.json");
-        // big: an answer far bigger than a list of rooms.
+        // big: an answer far bigger than a list of rooms. hold: the request
+        // kept unanswered (held) until answer() is called for it.
         bool big = false;
+        bool hold = false;
+        QPointer<QTcpSocket> held;
         int asked = 0;
+        const auto answer = [&lobby, &big](QTcpSocket *socket) {
+            const QByteArray body = big ? QByteArray(5 * 1024 * 1024, ' ') : lobby;
+            socket->write("HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: "
+                          + QByteArray::number(body.size()) + "\r\nConnection: close\r\n\r\n" + body);
+            socket->disconnectFromHost();
+        };
         QTcpServer server;
         QVERIFY(server.listen(QHostAddress::LocalHost));
-        connect(&server, &QTcpServer::newConnection, &server, [&server, &lobby, &asked, &big] {
+        connect(&server, &QTcpServer::newConnection, &server, [&server, &asked, &hold, &held, &answer] {
             QTcpSocket *socket = server.nextPendingConnection();
-            connect(socket, &QTcpSocket::readyRead, socket, [socket, &lobby, &asked, &big] {
+            connect(socket, &QTcpSocket::readyRead, socket, [socket, &asked, &hold, &held, &answer] {
                 socket->readAll();
                 ++asked;
-                const QByteArray body = big ? QByteArray(5 * 1024 * 1024, ' ') : lobby;
-                socket->write("HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: "
-                              + QByteArray::number(body.size()) + "\r\nConnection: close\r\n\r\n" + body);
-                socket->disconnectFromHost();
+                if (hold)
+                    held = socket;
+                else
+                    answer(socket);
             });
         });
 
@@ -3660,17 +3670,29 @@ private slots:
         QCOMPARE(matches(14), QStringLiteral("other/same"));
         QCOMPARE(matches(15), QStringLiteral("unknown/same"));
         QCOMPARE(matches(16), QStringLiteral("/same"));
-        // With Online Play off, the room that could be joined says so.
+        // Online Play turned off while the lobby is read: the lobby
+        // forgotten, and the read stopped, so that its answer, however late,
+        // neither offers its rooms nor builds the screens anew. On again, the
+        // lobby is read before a room is offered.
+        hold = true;
+        arcade.refreshRooms();
+        QTRY_VERIFY_WITH_TIMEOUT(held, 5000);
         arcade.onSettingChanged(module, QStringLiteral("online_play"), QStringLiteral("Off"));
-        for (const QVariant &v : arcade.lobby().value(QStringLiteral("rooms")).toList()) {
-            const QVariantMap r = v.toMap();
-            if (r.value(QStringLiteral("id")).toInt() == 11) {
-                QVERIFY(!r.value(QStringLiteral("joinable")).toBool());
-                QCOMPARE(r.value(QStringLiteral("why")).toString(),
-                         QStringLiteral("Online Play is off: Settings → Arcade → Online Play"));
-            }
-        }
+        QSignalSpy afterOff(&arcade, &ArcadeBackend::gamesChanged);
+        const qsizetype readBefore = roomsRead.size();
+        QVERIFY(held);
+        answer(held);
+        QTest::qWait(500);
+        QCOMPARE(roomsRead.size(), readBefore);
+        QVERIFY(afterOff.isEmpty());
+        QVERIFY(arcade.rooms().isEmpty());
+        QCOMPARE(arcade.lobby().value(QStringLiteral("state")).toString(), QStringLiteral("loading"));
+        QVERIFY(arcade.lobby().value(QStringLiteral("rooms")).toList().isEmpty());
+        hold = false;
         arcade.onSettingChanged(module, QStringLiteral("online_play"), QStringLiteral("On"));
+        QVERIFY(!arcade.requestEntries(QStringLiteral("online")).isValid());
+        QVERIFY(roomsRead.wait(5000));
+        QCOMPARE(arcade.rooms().size(), 1);
         // The Arcade screen's filter, after All Games; then RetroArch Lobby,
         // every room of the lobby.
         const QVariantList filters = arcade.filters();
@@ -3725,8 +3747,8 @@ private slots:
             }
             return false;
         };
-        // Online Play off: none of it, though the lobby was read, and Start
-        // Filter's choices sent again without it; on, with it.
+        // Online Play off: none of it, and Start Filter's choices sent again
+        // without it; on, with it, once the lobby is read again.
         arcade.onSettingChanged(module, QStringLiteral("online_play"), QStringLiteral("Off"));
         QVERIFY(arcade.filterGames(QStringLiteral("lobby"), 0, 7).isEmpty());
         QTRY_COMPARE_WITH_TIMEOUT(startOptions.size(), 2, 5000);
@@ -3735,6 +3757,9 @@ private slots:
         arcade.onSettingChanged(module, QStringLiteral("online_play"), QStringLiteral("On"));
         QTRY_COMPARE_WITH_TIMEOUT(startOptions.size(), 3, 5000);
         QVERIFY(offersLobby());
+        arcade.refreshRooms();
+        QVERIFY(roomsRead.wait(5000));
+        QCOMPARE(arcade.rooms().size(), 1);
 
         // Joined: RetroArch connects to the room, under the default name, not
         // the device's, which stays off the internet. The JAMMA board's

@@ -626,6 +626,21 @@ void ArcadeBackend::applySetting(const QString &key, const QVariant &value) {
         emit statusIconsChanged();
     } else if (key == QLatin1String("online_play")) {
         m_onlinePlay = value.toString() == QLatin1String("On");
+        // Off: the lobby forgotten, and a read under way stopped, so that its
+        // answer, however late, neither offers its rooms nor builds the
+        // screens anew, and on again the lobby is read before a room is
+        // offered, as LAN Play's are.
+        if (!m_onlinePlay) {
+            if (QNetworkReply *reply = std::exchange(m_lobbyReply, nullptr)) {
+                reply->disconnect(this);
+                reply->abort();
+                reply->deleteLater();
+            }
+            m_rooms.clear();
+            m_lobby.clear();
+            m_roomsProblem.clear();
+            m_roomsRead = false;
+        }
         emit gamesChanged();
         emit statusIconsChanged();
     } else if (key == QLatin1String("engines")) {
@@ -2880,8 +2895,6 @@ QVariantMap ArcadeBackend::lobby() const {
             why = m_fbneoGames.contains(room.game)
                       ? looksForLowerCase(QStringLiteral("FinalBurn Neo"), room.game)
                       : QStringLiteral("FinalBurn Neo has no game called %1").arg(room.game);
-        else if (!m_onlinePlay)
-            why = QStringLiteral("Online Play is off: Settings → Arcade → Online Play");
         const QVariantMap entry{
             { QStringLiteral("id"), room.id }, { QStringLiteral("title"), title }, { QStringLiteral("rom"), room.rom },
             { QStringLiteral("set"), have ? room.game : QString() }, { QStringLiteral("crc"), room.crc },
