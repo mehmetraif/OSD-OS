@@ -301,7 +301,7 @@ On the JAMMA board that is the cabinet's own layout for both players, with the k
 
 Two pads of the same model have the same GUID, so MAME can't tell them apart: the lower-numbered player of the two has its number, and the other takes the place MAME's own order gives it. The JAMMA board's two sticks are told apart. Keyboards play too, with MAME's keys (5 coin, 1 start, the arrows and Ctrl, Alt, Space for player 1).
 
-Six-player games, such as X-Men (6 Players), take six controllers: the JAMMA board's two sticks and four pads over USB or Bluetooth (Settings → Controls lists a player for each pad connected).
+Six-player games, such as X-Men (6 Players), take six controllers: the JAMMA board's two sticks and four pads over USB or Bluetooth (Settings → Controls lists all six players, each to be given a pad).
 
 ## High scores
 

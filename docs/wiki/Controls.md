@@ -2,7 +2,7 @@
 
 Every way to drive OSD/OS: a keyboard, a remote, a gamepad, a mouse. This page lists what each key and button does, on the menus and during a video; how gamepads and remotes reach OSD/OS; how Settings → Controls sets each controller apart, with its own buttons and button labels, chooses the pads of players 1 to 6, and gives every keyboard and remote one more key for an action; remapping every gamepad in `input.cfg`; the hints at the foot of the screen; and pairing Bluetooth devices in Settings → Bluetooth.
 
-<img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/screenshots/controls.png" width="100%" alt="Settings → Controls: ALL KEYBOARDS & REMOTES; PLAYERS: PLAYER 1 8BITDO PRO 2, PLAYER 2 AUTO (OSD/OS JAMMA P2); CONNECTED: 8BITDO PRO 2 P1 GAMEPAD ◄, DUALSENSE WIRELESS CONT… GAMEPAD, OSD/OS JAMMA P1 ARCADE" />
+<img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/screenshots/controls.png" width="100%" alt="Settings → Controls: ALL KEYBOARDS & REMOTES; PLAYERS: PLAYER 1 AUTO (OSD/OS JAMMA P1), PLAYER 2 AUTO (XBOX WIRELESS CO…), PLAYER 3 to PLAYER 6 AUTO" />
 
 ## The actions
 
@@ -260,7 +260,7 @@ Settings → **Controls** lists every controller connected, each with a page of 
 
 <img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/screenshots/controller-players.png" width="100%" alt="PLAYER 1: WHICH PAD IS PLAYER 1, then AUTO (selected), 8BITDO PRO 2, DUALSENSE WIRELESS CONTROLLER, OSD/OS JAMMA P1, OSD/OS JAMMA P2" />
 
-**Player 1** to **Player 6** say which pad each player has in games: the [Arcade](https://github.com/mehmetraif/OSD-OS/wiki/Arcade#players-and-buttons) module's, where player 1's pad is MAME's joystick 1, player 2's its joystick 2 and so on, and any game or emulator a [script](https://github.com/mehmetraif/OSD-OS/wiki/Scripts#what-a-script-receives) starts. There are lines for two players, and one more for each pad connected beyond two, up to six: the JAMMA board's two sticks and four pads over USB or Bluetooth, as many as MAME's six-player games take. A player whose pad was chosen keeps its line while the pad is away. Select on one lists the pads connected, Auto first; ◄ ► go through the same list in place. Keyboards and remotes aren't players. The menus go on taking every controller, players or not.
+**Player 1** to **Player 6** say which pad each player has in games: the [Arcade](https://github.com/mehmetraif/OSD-OS/wiki/Arcade#players-and-buttons) module's, where player 1's pad is MAME's joystick 1, player 2's its joystick 2 and so on, and any game or emulator a [script](https://github.com/mehmetraif/OSD-OS/wiki/Scripts#what-a-script-receives) starts. There is a line for each of the six, whatever is connected now, so a pad can be chosen for a player before a game: the JAMMA board's two sticks and four pads over USB or Bluetooth, as many as MAME's six-player games take. A player whose pad was chosen keeps it while the pad is away. Select on one lists the pads connected, Auto first; ◄ ► go through the same list in place. Keyboards and remotes aren't players. The menus go on taking every controller, players or not.
 
 - **Auto**, the default, takes the JAMMA board's stick of the player's number (`OSD/OS JAMMA P1` for player 1, `P2` for player 2), else the first pad left, in the order the pads came: players 3 to 6 take the pads after the sticks. The line reads `AUTO (<pad>)`.
 - **A pad chosen** is that player's wherever it is plugged in. While it is away its player has no pad, rather than another's, and the line reads `<pad> (AWAY)`.

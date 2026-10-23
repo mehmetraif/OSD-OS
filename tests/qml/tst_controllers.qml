@@ -219,26 +219,28 @@ Rectangle {
         function test_list() {
             var page = open("Controllers.qml")
             var labels = page.rows.map(function(r) { return r.label })
-            // A player for each of the three pads.
-            compare(labels, ["All Keyboards & Remotes", "Players", "Player 1", "Player 2", "Player 3", "Connected",
+            // All six players, whatever is connected: a pad can be chosen
+            // for one before it is plugged in.
+            compare(labels, ["All Keyboards & Remotes", "Players", "Player 1", "Player 2", "Player 3", "Player 4",
+                             "Player 5", "Player 6", "Connected",
                              "8BitDo Pro 2 x2", "OSD/OS JAMMA P1", "Logitech K400", "G20S PRO",
                              "Not Connected", "DualSense"])
+            compare(page.rows[5].value, "Auto")
             // The pads that play say so.
-            compare(page.rows[6].value, "P2+P3 Gamepad")
-            compare(page.rows[7].value, "P1 Arcade")
-            compare(page.rows[8].value, "Keyboard")
-            compare(page.rows[9].value, "Remote")
-            compare(page.rows[11].value, "Gamepad")
+            compare(page.rows[9].value, "P2+P3 Gamepad")
+            compare(page.rows[10].value, "P1 Arcade")
+            compare(page.rows[11].value, "Keyboard")
+            compare(page.rows[12].value, "Remote")
+            compare(page.rows[14].value, "Gamepad")
 
             // The one used last is marked.
             inputManager.activeController = root.keyboardKey
-            compare(page.rows[8].value, "Keyboard ◄")
-            compare(page.rows[6].value, "P2+P3 Gamepad")
+            compare(page.rows[11].value, "Keyboard ◄")
+            compare(page.rows[9].value, "P2+P3 Gamepad")
 
             // The cursor skips the headings; select opens the page.
-            keyClick(Qt.Key_Down)   // Player 1
-            keyClick(Qt.Key_Down)   // Player 2
-            keyClick(Qt.Key_Down)   // Player 3
+            for (var p = 0; p < 6; p++)
+                keyClick(Qt.Key_Down)   // Players 1 to 6
             keyClick(Qt.Key_Down)   // the 8BitDo
             keyClick(Qt.Key_Return)
             compare(root.navigations.length, 1)
@@ -246,16 +248,16 @@ Rectangle {
             compare(root.navigations[0].params.key, root.padKey)
 
             // A controller going: the cursor stays on its own line, and the
-            // player there was a pad for goes.
+            // players' lines stay.
             keyClick(Qt.Key_Down)
             keyClick(Qt.Key_Down)   // the keyboard
             inputManager.controllers = inputManager.controllers.filter(function(c) { return c.key !== root.jammaKey })
-            compare(page.rows.filter(function(r) { return r.type === "player" }).length, 2)
+            compare(page.rows.filter(function(r) { return r.type === "player" }).length, 6)
             keyClick(Qt.Key_Return)
             compare(root.navigations[1].params.key, root.keyboardKey)
 
             // The shared keys' page, and back.
-            for (var i = 0; i < 4; i++)
+            for (var i = 0; i < 8; i++)
                 keyClick(Qt.Key_Up)
             keyClick(Qt.Key_Return)
             compare(root.navigations[2].path, "views/RemapControls.qml")
@@ -276,11 +278,10 @@ Rectangle {
             inputManager.players = root.withAuto([])
             var page = open("Controllers.qml")
             compare(page.rows.map(function(r) { return r.type }),
-                    ["shared", "section", "player", "player", "section", "note"])
+                    ["shared", "section", "player", "player", "player", "player", "player", "player", "section", "note"])
             compare(page.rows[2].value, "Auto")
-            keyClick(Qt.Key_Down)
-            keyClick(Qt.Key_Down)
-            keyClick(Qt.Key_Down)   // the note can't be chosen: back round to the first line
+            for (var i = 0; i < 7; i++)
+                keyClick(Qt.Key_Down)   // the six players; the note can't be chosen: back round to the first line
             keyClick(Qt.Key_Return)
             compare(root.navigations[0].path, "views/RemapControls.qml")
         }
@@ -330,15 +331,15 @@ Rectangle {
                 { player: 2, key: "", name: "OSD/OS JAMMA P1", playing: root.jammaKey, connected: true }
             ])
             compare(page.rows[2].value, "DualSense (Away)")
-            compare(page.rows[7].value, "P2 Arcade")
+            compare(page.rows[10].value, "P2 Arcade")
 
             // Players 3 to 6 have no JAMMA stick of their number; one chosen
-            // beyond the pads there keeps its line.
+            // with its pad away says so.
             verify(page.rows[4].description.indexOf("JAMMA") < 0)
             var players = root.withAuto([])
             players[4] = { player: 5, key: root.awayKey, name: "DualSense", playing: "", connected: false }
             inputManager.players = players
-            compare(page.rows.filter(function(r) { return r.type === "player" }).length, 5)
+            compare(page.rows.filter(function(r) { return r.type === "player" }).length, 6)
             compare(page.rows[6].value, "DualSense (Away)")
         }
 
