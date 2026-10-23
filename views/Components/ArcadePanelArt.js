@@ -7,11 +7,12 @@
 // three that follow the fingers (the first column nearer the player, the
 // second the farthest), player 1 on the left and player 2 on the right. Its
 // front leans back as it goes down: on it, below a chrome strip, three round
-// buttons, 1P START, COIN and 2P START. Its right end is shaded in a dither.
-// Behind the panel the monitor leans back, its bezel round the foot of the
-// screen; under it the cabinet's front goes straight down past the top of the
-// coin door. The cabinet fades out above and below. One player's side can be
-// lit: a button, COIN or that player's START.
+// buttons, 1P START, COIN and 2P START. Behind the panel the monitor leans
+// back, its bezel round the foot of the screen; under it the cabinet's front
+// goes straight down past the top of the coin door. The cabinet's right side,
+// from the panel's end down, is shaded in a dither. The cabinet fades out
+// above and below. One player's side can be lit: a button, COIN or that
+// player's START.
 //
 // draw() lays it out on a grid of cells, one art pixel each: 0 for none
 // (the ground the host draws on shows), 1 for ink, 2 for the ground drawn
@@ -409,14 +410,19 @@ function draw(lit, player) {
     var L = panelLength, D = panelDepth
     drawCabinet(grid)
 
-    // The panel's front, in shade, with the strip along its top; its right
-    // end, the top's back edge down to the front's foot, in a dither and no
-    // outline; the top over them.
+    // The panel's front, in shade, with the strip along its top; the
+    // cabinet's right side, from the top's back edge down past the panel
+    // front's foot to the cabinet front's, in a dither and no outline, fading
+    // out below with the front (a cell's height: of the point of the side it
+    // shows); the top over them.
     var front = face.quad(0, L, 0, 1)
     grid.paint(front, ground)
     grid.edge(front)
     grid.line(face.at(0, strip / frontHeight), face.at(L, strip / frontHeight), 1)
-    grid.paint(polygon([face.at(L, 0), deck.at(L, 1), project(L, D, -frontHeight), face.at(L, 1)]), half)
+    var flank = polygon([face.at(L, 0), deck.at(L, 1), project(L, D, -frontHeight - below), low.at(L, 1), face.at(L, 1)])
+    var corner = project(L, 0, 0)
+    grid.paint(flank, half)
+    grid.tag(flank, function(x, y) { return corner.y - (x - corner.x) / 2 - y })
     var topFace = deck.quad(0, L, 0, 1)
     grid.paint(topFace, sixteenth)
     grid.edge(topFace)
