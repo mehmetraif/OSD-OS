@@ -8,6 +8,8 @@
 
 **Made for CRTs, arcade cabinets too.** OSD/OS is developed for tubes first: composite, SCART RGB or HDMI from Settings, and menus, films and games kept in their shapes on a CRT's non-square pixels. With Crown Arcade's Raspberry Pi to JAMMA board it runs an arcade cabinet's own monitor, in each mode one may take from 15 kHz to 31 kHz, and the cabinet's sticks and buttons drive it. Its arcade keeps each game's high scores and goes online too: achievements and leaderboards on RetroAchievements, and netplay, playing others over the internet through RetroArch's lobby, or on the same network, straight from one machine to the other.
 
+OSD/OS grew out of [240-MP](https://github.com/anthonycaccese/240-MP), Anthony Caccese's VCR-style frontend for CRTs, and is a modified version of it under the same license, the GNU GPL v3. Its credits, 240-MP's contributors among them, are under [Credits and license](#credits-and-license).
+
 <p align="center"><img src="docs/images/default-look.gif" width="640" alt="OSD/OS as it comes, in two colors: the main menu, Local Files' tree, the Arcade screen's games on a 3D wheel, its filters and the games others host online, and Settings" /></p>
 
 Out of the box it is plain on purpose, as above: two colors, and nothing moving but the cursor. If you want more, a theme changes the whole look at once, with effects, transitions between windows and music of its own, from a tube's curved glass to Matrix rain and a fire in the window. Eight come with it, here each on the Arcade screen and in Local Files' tree:
@@ -51,7 +53,7 @@ The [feature list](https://github.com/mehmetraif/OSD-OS/wiki/Features) has the r
   - **[OSD/OS Setup](https://mehmetraif.github.io/OSD-OS/setup/)** chooses what the card starts with before it goes into the Pi, for a TV or an arcade cabinet, with a live preview of the look chosen, OSD/OS's own effects running in the browser: the display output, Wi-Fi, the device's name, the user's password, SSH, the time zone, the keyboard, every setting of OSD/OS, and the RetroAchievements account. It gives one file for the card's boot partition, which the card applies as it starts ([how](os/README.md#osdos-setup)).
 - **As an app** on [Raspberry Pi OS](INSTALL.md#on-a-raspberry-pi), [macOS (ARM)](INSTALL.md#on-macos-arm) or [SteamOS and other Linux x86_64](INSTALL.md#on-steamos--linux-x86_64).
 
-Tested on a Raspberry Pi 4 and a Raspberry Pi 5 (8 GB). On another board? Tell us how it went in an [issue](https://github.com/mehmetraif/OSD-OS/issues).
+Tested on a Raspberry Pi 4 and a Raspberry Pi 5 (8 GB): the Pi 4 as a TV, the Pi 5 in a JAMMA arcade cabinet, and LAN Play between the two. On another board? Tell us how it went in an [issue](https://github.com/mehmetraif/OSD-OS/issues).
 
 ## Learn more
 
