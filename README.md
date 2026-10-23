@@ -60,8 +60,14 @@ Tested on a Raspberry Pi 4 and a Raspberry Pi 5 (8 GB). On another board? Tell u
 - **[The screen tour](docs/TOUR.md)**: every screen, module by module.
 - **For developers**: [how it works](https://github.com/mehmetraif/OSD-OS/wiki/How-It-Works), [writing a module](https://github.com/mehmetraif/OSD-OS/wiki/Writing-a-Module), [building](BUILDING.md), [architecture](ARCHITECTURE.md) and [contributing](CONTRIBUTING.md).
 
+## Contributors
+
+- **mehmet raif tasdemir (darkBLACK)**, [@mehmetraif](https://github.com/mehmetraif), develops OSD/OS and tries it on a Raspberry Pi 4 and a Raspberry Pi 5, on CRT TVs and a JAMMA cabinet.
+- **Claude**, Anthropic's AI model, wrote most of OSD/OS's changes to 240-MP through [Claude Code](https://www.anthropic.com/claude-code): the code, the tests and the documentation.
+- **Cursor Agent**, the coding agent of [Cursor](https://cursor.com), reviewed OSD/OS's code for its reliability and performance on the Raspberry Pi, and fixes across the app followed from what it found.
+
 ## Credits and license
 
-OSD/OS is developed by mehmet raif tasdemir (darkBLACK). It is a modified version of [240-MP](https://github.com/anthonycaccese/240-MP) by Anthony Caccese and its contributors, the app it all started from. Its changes were written with [Claude Code](https://www.anthropic.com/claude-code), and its logos and the boot screen's cassette were made with [ChatGPT](https://chatgpt.com). Everyone else it stands on is in the [credits](https://github.com/mehmetraif/OSD-OS/wiki/Credits), and in Settings → About on the device.
+OSD/OS is a modified version of [240-MP](https://github.com/anthonycaccese/240-MP) by Anthony Caccese and [its contributors](https://github.com/anthonycaccese/240-MP/graphs/contributors), the app it all started from. Its logos and the boot screen's cassette were made with [ChatGPT](https://chatgpt.com). Everyone else it stands on is in the [credits](https://github.com/mehmetraif/OSD-OS/wiki/Credits), and in Settings → About on the device.
 
 OSD/OS is free software under the [GNU General Public License v3.0](LICENSE). 240-MP is Copyright (C) 2026 Anthony Caccese and the 240-MP contributors; the modifications, from 2026 on, are Copyright (C) 2026 mehmet raif tasdemir (darkBLACK). The OSD/OS image's other software, each under its own licence, is listed in [os/NOTICE](os/NOTICE). Raspberry Pi, Netflix, Prime Video, YouTube, Plex, Jellyfin and Emby are their owners' trademarks; OSD/OS is not affiliated with or endorsed by any of them.
