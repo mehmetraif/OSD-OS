@@ -49,6 +49,20 @@ inline bool tooBig(QNetworkReply *reply, qint64 limit) {
     return reply->property(kTooBig).toBool() || reply->bytesAvailable() > limit;
 }
 
+// A server's answer that there were too many requests (HTTP 429), or that
+// it is busy (503): nothing more is asked of it for a while.
+inline bool asksForAPause(int status) {
+    return status == 429 || status == 503;
+}
+
+// How long such an answer says to wait (Retry-After, in seconds, an hour at
+// most), else fallbackSeconds.
+inline int pauseAsked(QNetworkReply *reply, int fallbackSeconds) {
+    bool ok = false;
+    const int seconds = reply->rawHeader("Retry-After").trimmed().toInt(&ok);
+    return ok && seconds > 0 ? std::min(seconds, 3600) : fallbackSeconds;
+}
+
 // A badge's name as RetroAchievements gives it, and as it goes in a path.
 inline bool isBadgeName(const QString &name) {
     static const QRegularExpression valid(QRegularExpression::anchoredPattern(QStringLiteral("[0-9A-Za-z]{1,32}")));

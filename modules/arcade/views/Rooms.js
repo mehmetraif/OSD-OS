@@ -1,9 +1,11 @@
 .pragma library
 
-// What the RetroArch Lobby page (Lobby.qml) and the Arcade screen's RetroArch
-// Lobby filter say of a room of RetroArch's whole lobby: a room as
-// ArcadeBackend::lobby() has it, with lobby its read (yourCore,
-// yourRetroArch and their states).
+// What the RetroArch Lobby page (Lobby.qml) and the Arcade screen's filters
+// of rooms (RetroArch Lobby, Online Games and LAN Games) say of a room: a
+// room as ArcadeBackend::lobby() has it (an Online Games row carries the
+// same, as its info; a LAN Games row's info is what its host answered with,
+// as lanRooms() has it, with its address and the game's file), with lobby
+// its read (yourCore, yourRetroArch and their states).
 
 // How long ago a room was hosted: "5M Ago", "1H 20M Ago".
 function ago(minutes) {
@@ -96,10 +98,6 @@ function linesOf(r, lobby) {
     return made
 }
 
-// The lines the Arcade screen's box has room for, in this order: the core,
-// its version and RetroArch's against yours, who hosts it, where, how it is
-// reached, how many play and how long ago it was hosted. The help line has
-// the rest.
 // What marks a room in a list: ▶ one to join, a lock one with a password,
 // nothing any other.
 function mark(r) { return r.joinable ? "play" : r.password ? "lock" : "" }
@@ -111,10 +109,41 @@ function emptyLine(lobby) {
          : lobby.state === "ready" ? "No one is hosting a game" : "Reading RetroArch's lobby…"
 }
 
-var kBoxLines = ["Core", "Core Version", "RetroArch", "Host", "Country", "Connection", "Players", "Hosted"]
-function boxLines(r, lobby) {
-    return linesOf(r, lobby).filter(function(line) { return kBoxLines.indexOf(line.label) >= 0 })
-        .map(function(line) {
+// The Arcade screen's box on a room, which has the picture's frame's room
+// too: a line each of what is said of the room, from the box's top. A room
+// of RetroArch's lobby (kind "lobby"), or one of Online Games' ("online",
+// the same room as rooms() has it), has the room page's lines (linesOf(),
+// but Join, and Core Version as Version, for the box's width): its game,
+// ROM and CRC, its core, version and RetroArch against yours, its system,
+// who hosts it and where, how it is reached, its passwords, how many play
+// and watch, how long ago it was hosted, and whether it can be joined. One
+// of the local network's ("lan") has what its host answered with: the game
+// and its file in the folder, who hosts it and at which address, its core,
+// version and RetroArch against yours, its system, its passwords, that it
+// is reached over the local network, and the ROM's CRC and the core's
+// subsystem where the host says. The screen shows as many as the box has
+// room for; the help line has the rest.
+function roomLines(r, lobby, kind) {
+    if (kind !== "lan") {
+        return linesOf(r, lobby).filter(function(line) { return line.type !== "join" }).map(function(line) {
             return line.label === "Core Version" ? Object.assign({}, line, { label: "Version" }) : line
         })
+    }
+    var made = [{ label: "Game", value: r.title }, { label: "File", value: r.file || "?" },
+                { label: "Host", value: r.host }, { label: "Address", value: r.address || "?" },
+                { label: "Core", value: r.core, icons: lobby.yourCoreState !== "missing" ? ["ok"] : ["no"] }]
+    if (r.coreVersion)
+        made.push({ label: "Version", value: r.coreVersion, icons: matchIcons(r.coreMatch) })
+    made.push({ label: "RetroArch", value: r.retroarch || "?", icons: matchIcons(r.retroarchMatch) })
+    if (r.frontend)
+        made.push({ label: "System", value: r.frontend })
+    made.push({ label: "Password", value: yesNo(r.password) })
+    if (r.spectatePassword)
+        made.push({ label: "Watch Password", value: "Yes" })
+    made.push({ label: "Connection", value: "LAN" })
+    if (r.crc)
+        made.push({ label: "CRC", value: r.crc })
+    if (r.subsystem)
+        made.push({ label: "Subsystem", value: r.subsystem })
+    return made
 }

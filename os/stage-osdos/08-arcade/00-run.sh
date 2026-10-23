@@ -16,11 +16,19 @@ FBNEO=https://raw.githubusercontent.com/libretro/FBNeo/master
 DOWNLOADS=$(mktemp -d)
 trap 'rm -rf "${DOWNLOADS}"' EXIT
 
-curl -fsSL --retry 3 -o "${DOWNLOADS}/fbneo.zip" "${BUILDBOT}/fbneo_libretro.so.zip"
-curl -fsSL --retry 3 -o "${DOWNLOADS}/index" "${BUILDBOT}/.index-extended"
-curl -fsSL --retry 3 -o "${DOWNLOADS}/fbneo-arcade.dat" \
+# A download tried again on any failure, a connection the server reset among
+# them (curl's --retry alone tries again after a timeout or a 5xx), and named
+# when it fails for good: the build server drops a connection now and then.
+fetch() {
+	curl -fsSL --retry 5 --retry-all-errors --retry-delay 3 -o "$1" "$2" \
+		|| { echo "Could not download $2" >&2; exit 1; }
+}
+
+fetch "${DOWNLOADS}/fbneo.zip" "${BUILDBOT}/fbneo_libretro.so.zip"
+fetch "${DOWNLOADS}/index" "${BUILDBOT}/.index-extended"
+fetch "${DOWNLOADS}/fbneo-arcade.dat" \
 	"${FBNEO}/dats/FinalBurn%20Neo%20(ClrMame%20Pro%20XML%2C%20Arcade%20only).dat"
-curl -fsSL --retry 3 -o "${DOWNLOADS}/license.txt" "${FBNEO}/src/license.txt"
+fetch "${DOWNLOADS}/license.txt" "${FBNEO}/src/license.txt"
 # bsdtar checks each file's CRC as it unpacks it.
 bsdtar -xf "${DOWNLOADS}/fbneo.zip" -C "${DOWNLOADS}" fbneo_libretro.so
 # The list with its games in it, not a page of an error.

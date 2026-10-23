@@ -272,9 +272,18 @@ void HighScoresBackend::prepareRoot() const {
 }
 
 QString HighScoresBackend::definitionsIdentity() const {
+    // By what the files hold, so an update that brings the same definitions
+    // reads nothing again; digested (a megabyte of them) only when a file's
+    // size or date has changed since the last asking, as this is asked at
+    // every refresh (the Arcade screen opening, each game's end).
     const QString dat = m_home + QStringLiteral("/mame/plugins/hiscore/hiscore.dat");
-    return QString::number(kCacheVersion) + QLatin1Char('|') + digestOf(m_definitions) + QLatin1Char('|')
-           + digestOf(dat);
+    const QString stamp = identityOf(m_definitions) + QLatin1Char('|') + identityOf(dat);
+    if (stamp != m_definitionsStamp) {
+        m_definitionsStamp = stamp;
+        m_definitionsIdentity = QString::number(kCacheVersion) + QLatin1Char('|') + digestOf(m_definitions)
+                                + QLatin1Char('|') + digestOf(dat);
+    }
+    return m_definitionsIdentity;
 }
 
 QString HighScoresBackend::gamesJsonIdentity() const {

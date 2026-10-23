@@ -6,6 +6,7 @@
 // left as the next is asked for; and how a tube's shape, whose pixels aren't
 // square, reaches mpv.
 #include "player/MpvController.h"
+#include "player/EmbeddedMpv.h"
 #include "player/VideoSurface.h"
 #include "audio/MenuMusic.h"
 #include "AppCore.h"
@@ -257,6 +258,99 @@ private slots:
         QCOMPARE(on43(1920, 240), QSize(640, 480));
         QCOMPARE(on43(320, 240), QSize(320, 240));
         QCOMPARE(VideoSurface::drawingSize(QSize(1920, 1080), 1), QSize(1920, 1080));
+    }
+
+    // Back from the player's view used to go to mpv as a key and come back
+    // over the control connection as osdos-menu; it is acted on here now,
+    // at once, unless mpv's own deck menu or screen saver is up, which say
+    // so and take it. Without the connection it comes all the same.
+    void backActsAtOnce() {
+        QSignalSpy ended(m_mpv, &MpvController::playbackEnded);
+        play("A");
+        QTRY_VERIFY_WITH_TIMEOUT(happened("start A"), 5000);
+        QLocalServer control;
+        const QString path = m_dir.path() + QStringLiteral("/osdos-mpv.sock");
+        QLocalServer::removeServer(path);
+        QVERIFY(control.listen(path));
+        QTRY_VERIFY_WITH_TIMEOUT(control.hasPendingConnections(), 5000);
+        QScopedPointer<QLocalSocket> socket(control.nextPendingConnection());
+        QByteArray commands;
+        connect(socket.data(), &QLocalSocket::readyRead, this, [&]() { commands += socket->readAll(); });
+        // The deck's menu up: back goes to mpv, whose menu closes on it.
+        socket->write("{\"event\":\"client-message\",\"args\":[\"osdos-osd-menu\",\"shown\"]}\n");
+        socket->flush();
+        QTest::qWait(250);
+        m_mpv->sendKey(QStringLiteral("ESC"));
+        QTRY_VERIFY_WITH_TIMEOUT(commands.contains("keypress"), 3000);
+        QVERIFY(commands.contains("ESC"));
+        QVERIFY(!commands.contains("quit"));
+        commands.clear();
+        // The menu gone: back acts here, telling the process to quit.
+        socket->write("{\"event\":\"client-message\",\"args\":[\"osdos-osd-menu\",\"hidden\"]}\n");
+        socket->flush();
+        QTest::qWait(250);
+        m_mpv->sendKey(QStringLiteral("BS"));
+        QTRY_VERIFY_WITH_TIMEOUT(commands.contains("quit"), 3000);
+        QVERIFY(!commands.contains("keypress"));
+        QCOMPARE(ended.count(), 0);  // the stand-in takes no quit: still playing
+        // Without the connection (none made yet, or being made again), back
+        // ends the process all the same, and its player, with a menu of its
+        // own, is told the video ended for it.
+        socket.reset();
+        control.close();
+        QLocalServer::removeServer(path);
+        play("B");
+        QTRY_VERIFY_WITH_TIMEOUT(happened("start B"), 5000);
+        m_mpv->noteSession({{QStringLiteral("module"), QStringLiteral("com.osdos.local_files")},
+                            {QStringLiteral("title"), QStringLiteral("B")}, {QStringLiteral("menu"), true}});
+        m_mpv->sendKey(QStringLiteral("ESC"));
+        QTRY_VERIFY_WITH_TIMEOUT(happened("exit B"), 5000);
+        QTRY_COMPARE_WITH_TIMEOUT(ended.count(), 1, 3000);
+        QCOMPARE(ended.first().at(2).toString(), QStringLiteral("menu"));
+    }
+
+    // Transparent Background: back leaves the video playing behind the
+    // menus at once, without a word to mpv and back; and a picture no one
+    // sees (its surface hidden behind a solid ground) is drawn a few pixels
+    // wide until it shows again.
+    void backLeavesAnEmbeddedVideoBehindTheMenus() {
+        if (!EmbeddedMpv::available())
+            QSKIP("libmpv isn't installed here");
+        QTemporaryDir data;
+        QVERIFY(data.isValid());
+        AppCore core(data.path(), data.path());
+        QVERIFY(core.save_setting(QString(), QStringLiteral("transparent_background"), QStringLiteral("40")));
+        delete m_mpv;
+        m_mpv = new MpvController(m_dir.path(), data.path(), &core);
+        const auto end = qScopeGuard([this] { delete m_mpv; m_mpv = nullptr; });
+        QSignalSpy ended(m_mpv, &MpvController::playbackEnded);
+        QSignalSpy background(m_mpv, &MpvController::backgroundChanged);
+        // A picture mpv makes itself, without a file or sound.
+        m_mpv->loadAndPlay(QStringLiteral("av://lavfi:color=c=gray:s=64x48:r=10"), 0, -1, -1, {}, {}, false, -1, 0,
+                           QString(), true);
+        QTRY_VERIFY_WITH_TIMEOUT(m_mpv->videoActive(), 10000);
+        QTRY_VERIFY_WITH_TIMEOUT(!m_mpv->videoFrame().isNull(), 10000);
+        QCOMPARE(m_mpv->videoFrame().size(), QSize(640, 480));
+        QVERIFY(!m_mpv->background());
+        m_mpv->sendKey(QStringLiteral("ESC"));
+        // Before any event is handled.
+        QVERIFY(m_mpv->background());
+        QCOMPARE(background.count(), 1);
+        QCOMPARE(ended.count(), 1);
+        QCOMPARE(ended.first().at(2).toString(), QStringLiteral("stopped"));
+        QVERIFY(m_mpv->videoActive());
+        // Hidden: the pictures a few pixels wide; shown: whole again.
+        m_mpv->setVideoShown(false);
+        QTRY_COMPARE_WITH_TIMEOUT(m_mpv->videoFrame().size(), QSize(16, 16), 5000);
+        m_mpv->setVideoShown(true);
+        QTRY_COMPARE_WITH_TIMEOUT(m_mpv->videoFrame().size(), QSize(640, 480), 5000);
+        // Behind the menus back does nothing more, and STOP ends it without
+        // a word: its module took it as stopped already.
+        m_mpv->sendKey(QStringLiteral("BS"));
+        QCOMPARE(ended.count(), 1);
+        m_mpv->stopBackground();
+        QTRY_VERIFY_WITH_TIMEOUT(!m_mpv->videoActive(), 5000);
+        QCOMPARE(ended.count(), 1);
     }
 
     // The app goes on while the old player quits, and the new one starts

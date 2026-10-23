@@ -40,6 +40,11 @@ constexpr qint64 kOldListSeconds = 3600;
 constexpr int kWaitMs = 400;
 constexpr int kEntries = 3;
 constexpr int kTimeoutMs = 20000;
+// After an answer that there were too many requests (429) or that the
+// server is busy (503): how long nothing is asked unless the answer says,
+// and how many times one request is asked again so.
+constexpr int kPauseSeconds = 60;
+constexpr int kMostTries = 3;
 // The most an answer of the Web API may be (the list of games, the biggest,
 // is some hundreds of kilobytes), and a file of the media server's: a badge,
 // 64 pixels square, or a picture.
@@ -106,6 +111,11 @@ void RetroAchievements::setKey(const QString &key) {
         m_reply->setProperty(kAgain, true);
         m_reply->abort();
     }
+    // A request waiting out a pause was asked with the other key: it is
+    // asked again with this one, as the wanted it serves is (the timer finds
+    // m_pausedRequest false and asks nothing).
+    if (std::exchange(m_pausedRequest, false))
+        readWanted();
 }
 
 void RetroAchievements::checkKey() {
@@ -221,6 +231,7 @@ void RetroAchievements::loadList() {
         return;
     const QJsonObject kept = QJsonDocument::fromJson(file.readAll()).object();
     const QJsonObject games = kept.value(QStringLiteral("games")).toObject();
+    m_gameIds.clear();
     for (auto it = games.constBegin(); it != games.constEnd(); ++it)
         m_games.insert(it.key(), it.value().toInt());
     const QJsonValue boards = kept.value(QStringLiteral("boards"));
@@ -252,7 +263,14 @@ void RetroAchievements::loadList() {
 }
 
 int RetroAchievements::gameOf(const QString &fileName) const {
-    return m_games.value(libretro::achievementsHash(fileName));
+    // The hash is MD5 work, and the Arcade screen's filter asks of every
+    // game in the folder at once: kept by file, until the list changes.
+    const auto known = m_gameIds.constFind(fileName);
+    if (known != m_gameIds.constEnd())
+        return *known;
+    const int game = m_games.value(libretro::achievementsHash(fileName));
+    m_gameIds.insert(fileName, game);
+    return game;
 }
 
 bool RetroAchievements::hasGame(const QString &fileName) const {
@@ -284,8 +302,14 @@ void RetroAchievements::failWanted() {
         emit picturesFound(later.first(), QStringLiteral("failed"), {});
 }
 
+bool RetroAchievements::pausing() const {
+    return m_pausedUntil.isValid() && m_pausedUntil > QDateTime::currentDateTimeUtc();
+}
+
 void RetroAchievements::readWanted() {
-    if (m_reply || m_key.isEmpty())
+    // Nothing while a request is being asked again after a pause either: it
+    // comes first, and what is wanted after it.
+    if (m_reply || m_key.isEmpty() || m_pausedRequest)
         return;
     // The key asked about first, unless an answer came with it meanwhile:
     // get() says how it went.
@@ -352,7 +376,11 @@ void RetroAchievements::readWanted() {
     }
     if (game <= 0) {
         emit picturesFound(games.first(), QStringLiteral("unknown"), {});
-    } else if (!looked.contains(chosen)) {
+    } else if (looked.contains(chosen)) {
+        // Nothing to read: its pictures were looked for before. Said so, as
+        // what waits for the answer (progetto-SNAPS' turn) would wait on.
+        emit picturesFound(chosen, QStringLiteral("looked"), {});
+    } else {
         if (!shown) {
             m_laterRead = games;
             m_laterReadLooked = looked;
@@ -398,6 +426,7 @@ void RetroAchievements::readList() {
                     }
                 }
                 m_games = found;
+                m_gameIds.clear();
                 m_achievementGames = achievements;
                 m_boardGames = boards;
                 m_listRead = now;
@@ -592,6 +621,12 @@ void RetroAchievements::media(const QString &path, const std::function<void(cons
 void RetroAchievements::nextMedia() {
     if (m_mediaReply || m_mediaQueue.isEmpty())
         return;
+    if (pausing()) {
+        // The next file once the pause is over.
+        QTimer::singleShot(static_cast<int>(std::max<qint64>(1, QDateTime::currentDateTimeUtc().msecsTo(m_pausedUntil))),
+                           this, &RetroAchievements::nextMedia);
+        return;
+    }
     const Media next = m_mediaQueue.takeFirst();
     const qint64 limit = next.path.startsWith(QLatin1String("/Badge/")) ? kMaxBadge : kMaxPicture;
     // Relative to the server's address, its path without the first /.
@@ -602,6 +637,19 @@ void RetroAchievements::nextMedia() {
         reply->deleteLater();
         m_mediaReply = nullptr;
         const int status = reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
+        // Too many requests: a pause, and the file asked for again after it,
+        // a few times.
+        if (arcadehttp::asksForAPause(status) && next.tried + 1 < kMostTries) {
+            const int pause = arcadehttp::pauseAsked(reply, kPauseSeconds);
+            m_pausedUntil = QDateTime::currentDateTimeUtc().addSecs(pause);
+            qWarning("[Arcade] RetroAchievements' media server asks for a pause (HTTP %d): %s is asked for again in %d s",
+                     status, qPrintable(next.path), pause);
+            Media again = next;
+            ++again.tried;
+            m_mediaQueue.prepend(again);
+            nextMedia();
+            return;
+        }
         QByteArray data;
         if (reply->error() == QNetworkReply::NoError)
             data = reply->readAll();
@@ -616,7 +664,7 @@ void RetroAchievements::nextMedia() {
 }
 
 void RetroAchievements::get(const QString &endpoint, const QList<std::pair<QString, QString>> &query,
-                            const Answer &answer) {
+                            const Answer &answer, int tried) {
     QUrl url = m_api.resolved(QUrl(endpoint));
     QUrlQuery items;
     items.addQueryItem(QStringLiteral("y"), m_key);
@@ -626,7 +674,7 @@ void RetroAchievements::get(const QString &endpoint, const QList<std::pair<QStri
     m_reply = m_nam->get(requestFor(url));
     QNetworkReply *reply = m_reply;
     limitReply(reply, kMaxAnswer);
-    connect(reply, &QNetworkReply::finished, this, [this, reply, endpoint, answer] {
+    connect(reply, &QNetworkReply::finished, this, [this, reply, endpoint, query, answer, tried] {
         reply->deleteLater();
         m_reply = nullptr;
         // Stopped for another key: what is wanted read with it. A read that
@@ -636,14 +684,37 @@ void RetroAchievements::get(const QString &endpoint, const QList<std::pair<QStri
             return;
         }
         const int status = reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
-        if (status == 401 || status == 403) {
-            qWarning("[Arcade] RetroAchievements refused the Web API key");
+        const QByteArray json = reply->error() == QNetworkReply::NoError || status == 403 ? reply->readAll() : QByteArray();
+        // The key refused: RetroAchievements answers 401 to a key it doesn't
+        // know, and 403, in its own words (JSON), to one it won't serve. A
+        // 403 in anything else is the server's guard turning the request
+        // away (an HTML page), which another try may pass: no fault of the
+        // key's.
+        if (status == 401 || (status == 403 && QJsonDocument::fromJson(json).isObject())) {
+            qWarning("[Arcade] RetroAchievements refused the Web API key (HTTP %d)", status);
             m_keyAccepted = false;
             emit keyRefused();
             answer(QByteArray(), false);
             return;
         }
-        const QByteArray json = reply->error() == QNetworkReply::NoError ? reply->readAll() : QByteArray();
+        // Too many requests: a pause, nothing asked meanwhile, and this one
+        // asked again after it, a few times, before it counts as failed.
+        if (arcadehttp::asksForAPause(status) && tried + 1 < kMostTries) {
+            const int pause = arcadehttp::pauseAsked(reply, kPauseSeconds);
+            m_pausedUntil = QDateTime::currentDateTimeUtc().addSecs(pause);
+            m_pausedRequest = true;
+            qWarning("[Arcade] RetroAchievements asks for a pause (HTTP %d): %s is asked again in %d s",
+                     status, qPrintable(endpoint), pause);
+            QTimer::singleShot(pause * 1000, this, [this, endpoint, query, answer, tried] {
+                // Not once the key has changed meanwhile: what was wanted has
+                // been asked again with the new one, or failed without one
+                // (setKey()), and this request was the old key's.
+                if (!std::exchange(m_pausedRequest, false) || m_key.isEmpty())
+                    return;
+                get(endpoint, query, answer, tried + 1);
+            });
+            return;
+        }
         if (reply->error() != QNetworkReply::NoError || json.size() > kMaxAnswer) {
             // Not errorString(): it names the URL, the key in it.
             qWarning("[Arcade] RetroAchievements' %s could not be read (HTTP %d, error %d)",

@@ -103,6 +103,10 @@ local DISMISS_KEYS = {
 activate = function()
     if ss_active then return end
     ss_active = true
+    -- OSD/OS is told (osdos-screensaver shown / hidden): while the saver is
+    -- up, back wakes the screen here, as any key does, rather than leaving
+    -- the video.
+    mp.commandv("script-message", "osdos-screensaver", "shown")
 
     local ww, wh = mp.get_osd_size()
     if ww == 0 then ww = 640 end
@@ -136,6 +140,7 @@ dismiss = function()
     if not ss_active then return end
     ss_active = false
     paused_sec = 0
+    mp.commandv("script-message", "osdos-screensaver", "hidden")
 
     overlay:remove()
     anim_timer:kill()

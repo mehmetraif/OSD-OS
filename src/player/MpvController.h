@@ -64,6 +64,9 @@ public:
                                   const QStringList &extraUrls = {});
     Q_INVOKABLE void stop();
     Q_INVOKABLE void seekTo(int positionMs);
+    // A key for mpv, as its keypress command takes it ("UP", "ENTER"). Back,
+    // "ESC" or "BS", is acted on here instead (backKey()) unless mpv's own
+    // deck menu or screen saver is up, which take it first.
     Q_INVOKABLE void sendKey(const QString &key);
     Q_INVOKABLE void showOsdSkipPrompt();
     Q_INVOKABLE void clearOsdPrompt();
@@ -146,6 +149,9 @@ public:
     bool videoOnGpu() const;
     EmbeddedMpv::GpuFrame videoGpuFrame();
     void setVideoTargetSize(const QSize &size);
+    // Whether the VideoSurface is on screen: hidden (behind a solid ground),
+    // the session's pictures are drawn small, for no one (EmbeddedMpv::setShown).
+    void setVideoShown(bool shown);
 
     // Which display fullscreen playback should open on, matching the UI's
     // app-level "display_index" (index into QGuiApplication::screens(), plus
@@ -251,6 +257,9 @@ private:
     // Back during a session in an mpv process: it ends, its player's menu
     // opening in its place if it has one.
     void backFromProcess();
+    // Back from the player's view (sendKey "ESC" or "BS"): to mpv while its
+    // deck menu or screen saver is up, which take it; else acted on here.
+    void backKey(const QString &key);
     // The session behind the menus chosen again: full screen, where it is.
     void reattach(float startSeconds);
     VideoProfile detectVideoProfile() const;
@@ -292,6 +301,14 @@ private:
     bool            m_playerMenu   = false;
     // The process is quitting for its player's menu (backFromProcess).
     bool            m_menuOnExit   = false;
+    // mpv's deck menu (mpv-osc.lua) or screen saver (mpv-screensaver.lua) is
+    // up over the picture: each says so as it shows and hides
+    // (script-message osdos-osd-menu / osdos-screensaver, shown or hidden),
+    // and takes back itself meanwhile (backKey()).
+    bool            m_oscMenuShown = false;
+    bool            m_saverShown   = false;
+    // The VideoSurface is on screen (setVideoShown).
+    bool            m_videoShown   = true;
     // loadAndPlay() starts its session a tick later (see there): the
     // session asked for last, and whether one is on its way, starting where.
     int             m_launchSerial = 0;
@@ -308,6 +325,9 @@ private:
     bool          m_ipcWanted     = false;
     // The control connection went while wanted, and is being made again.
     bool          m_reconnecting  = false;
+    // Commands asked while the connection is wanted but not there yet (a
+    // session's first moments, a break): sent as it comes (sendCommand()).
+    QList<QJsonArray> m_commandsWaiting;
     QTimer       *m_connectTimer   = nullptr;
     QTimer       *m_watchdogTimer  = nullptr;
     qint64        m_lastIpcEventMs = 0;
@@ -318,8 +338,13 @@ private:
     QString       m_inputConfPath;
     QString       m_logFilePath;
     QString       m_subInfoPath;       // JSON map: external sub URL -> friendly name (for the OSC)
-    // Settings → TV / Movie → Logo Image read as mpv's raw overlay (mpv-logo.lua)
+    // Settings → TV / Movie → Logo Image read as mpv's raw overlay (mpv-logo.lua):
+    // the file, the picture and size it was last made from (made again for
+    // another), and the overlay's size.
     QString       m_logoOverlayPath;
+    QString       m_logoOverlayFor;
+    int           m_logoOverlayWidth = 0;
+    int           m_logoOverlayHeight = 0;
     QString       m_lastEndFileReason;  // mpv end-file "reason" for the current session
     // Set when this session passed --start; cleared once mpv has applied it. See
     // onIpcReadyRead's playback-restart handling for why the option can't just stay set.

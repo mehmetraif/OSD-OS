@@ -16,7 +16,12 @@ Canvas {
     antialiasing: false
     smooth: false
 
+    // A canvas paints whether or not it is shown, and this one is a square
+    // per art pixel over a whole list: painted once it is shown, not while a
+    // screen that may never show it is made.
     onPaint: {
+        if (!visible)
+            return
         var ctx = getContext("2d")
         ctx.reset()
         ctx.fillStyle = dither.color
@@ -26,6 +31,7 @@ Canvas {
             for (var x = (y + phase) % 2; x < cols; x += 2)
                 ctx.fillRect(x * pixel, y * pixel, pixel, pixel)
     }
+    onVisibleChanged: if (visible) requestPaint()
     onWidthChanged: requestPaint()
     onHeightChanged: requestPaint()
     onColorChanged: requestPaint()

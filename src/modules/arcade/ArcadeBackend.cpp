@@ -7,6 +7,7 @@
 #include "../../util/DeviceName.h"
 #include "../../util/DurableFile.h"
 #include "../../util/LegacyNames.h"
+#include "ArcadeDb.h"
 #include "FbneoInstaller.h"
 #include "Http.h"
 #include "Libretro.h"
@@ -34,6 +35,7 @@
 #include <QFuture>
 #include <QtConcurrent/QtConcurrentRun>
 #include <algorithm>
+#include <limits>
 #include <utility>
 
 namespace {
@@ -55,8 +57,11 @@ constexpr int kBatch = 300;
 // A batch MAME hasn't answered in this long is given up on.
 constexpr int kScanTimeoutMs = 120000;
 
-// MAME's exit codes (src/emu/main.h).
+// MAME's exit codes (src/emu/main.h): those of a game MAME never ran. Not
+// 3, its fatal error, which a game may hit after an hour of play.
+constexpr int kFailedValidity = 1;
 constexpr int kMissingFiles = 2;
+constexpr int kDeviceError = 4;
 constexpr int kNoSuchSystem = 5;
 constexpr int kInvalidConfig = 6;
 
@@ -97,6 +102,9 @@ constexpr qsizetype kMostLanRooms = 64;
 // on the local network, each time it is asked, and how many times at most.
 constexpr int kClaimWaitMs = 250;
 constexpr int kClaimAskings = 3;
+// How long ports that came without the host's layout wait for it (a datagram
+// of its own, sent before them: lost, or an older OSD/OS's, which says none).
+constexpr int kLayoutWaitMs = 150;
 
 // catver.ini, the games' genres, as progettosnaps publishes it with each MAME:
 // downloaded into <data>/arcade when neither folder has one (it may not be
@@ -109,8 +117,10 @@ constexpr qint64 kGenresMaxBytes = 16 * 1024 * 1024;
 constexpr qint64 kGenresRetrySeconds = 3600;
 
 // Folders beside the games that aren't games: the BIOS sets' (on MAME's
-// rompath too), the samples' (its samplepath) and the games' pictures.
-const QStringList kNotSets = { QStringLiteral("bios"), QStringLiteral("samples"), QStringLiteral("snap") };
+// rompath too), the samples' (its samplepath) and the games' pictures, the
+// screenshots and the title screens.
+const QStringList kNotSets = { QStringLiteral("bios"), QStringLiteral("samples"), QStringLiteral("snap"),
+                               QStringLiteral("titles") };
 
 // The folders MAME writes what it keeps of the games in, by the option that
 // names each: all in <data>/arcade, whatever MAME's own settings say.
@@ -251,11 +261,21 @@ QString firstShot(const QString &folder) {
     return shots.isEmpty() ? QString() : dir.filePath(shots.first());
 }
 
-// How long after a game's pictures couldn't be had they are asked for again.
-constexpr qint64 kPicturesRetrySeconds = 600;
-// Read the Games Again's pictures: at most a game's asked for a second, as
-// RetroAchievements asks of those who read its Web API.
+// How long after the game shown was ArcadeDB is asked about it: the games a
+// list is scrolled through aren't (as RetroAchievements' findPictures()
+// waits); and how long after a record changed it is written, with every
+// change made meanwhile.
+constexpr int kSnapAskDelayMs = 400;
+constexpr int kRecordSaveDelayMs = 2000;
+// The look through every game for pictures: at most a game's asked for a
+// second, as RetroAchievements asks of those who read its Web API (a batch
+// of ArcadeDB's in a step too), and how many looks in a row are made while
+// some game's pictures couldn't be had.
 constexpr int kSweepStepMs = 1000;
+constexpr int kSweepPasses = 3;
+// How long a set ArcadeDB had no pictures of is left before it is asked
+// about again: its pictures follow MAME's releases, a few a year.
+constexpr qint64 kSnapsAgainSeconds = 60 * 24 * 3600;
 
 // The order a set's numbered pictures go round in: by their number, a .png
 // before a .jpg of the same.
@@ -320,6 +340,39 @@ QString savePicture(const QString &folder, const QString &name, const QByteArray
         return file.fileName();
     }
     return QString();
+}
+
+// A picture saved in folder as <stem>.png (or .jpg, as data is), the way the
+// picture packs for MAME name them, unless a picture of that name is there
+// already (.png or .jpg, in either case), the user's own or one saved before,
+// which is kept as it is and is the answer. Flushed to the card with its
+// folder. Its path, "" when it couldn't be saved.
+QString saveNamedPicture(const QString &folder, const QString &stem, const QByteArray &data) {
+    if (!QDir().mkpath(folder))
+        return QString();
+    const QString base = folder + QLatin1Char('/') + stem;
+    for (const char *ending : { ".png", ".jpg", ".PNG", ".JPG" }) {
+        if (QFile::exists(base + QLatin1String(ending)))
+            return base + QLatin1String(ending);
+    }
+    const QString suffix = data.startsWith("\x89PNG") ? QStringLiteral("png") : QStringLiteral("jpg");
+    QFile file(base + QLatin1Char('.') + suffix);
+    if (!file.open(QIODevice::WriteOnly | QIODevice::NewOnly)) {
+        // Made meanwhile: it is the picture.
+        if (file.exists())
+            return file.fileName();
+        qWarning("[Arcade] A picture could not be saved in %s: %s", qPrintable(folder), qPrintable(file.errorString()));
+        return QString();
+    }
+    const bool written = file.write(data) == data.size() && file.flush();
+    file.close();
+    if (!written || !syncPath(file.fileName()).isEmpty()) {
+        qWarning("[Arcade] A picture could not be saved in %s", qPrintable(folder));
+        file.remove();
+        return QString();
+    }
+    syncPath(folder, true);
+    return file.fileName();
 }
 
 // A room on the local network as its id is kept: where it is joined, its
@@ -412,10 +465,12 @@ ArcadeBackend::ArcadeBackend(const QString &appRoot, const QString &dataRoot, Ap
         } else {
             notice = noticeFor(exitCode, reason);
             // The time it ran counts as played, unless MAME refused the game
-            // (files missing, no such game, its settings wrong) or never ran.
+            // (files missing, no such game, its settings wrong, a device it
+            // couldn't have, a check it failed) or never ran.
             refused = reason == QLatin1String("failed_to_start")
                       || (reason == QLatin1String("failed") && !m_launcher->lastRunCrashed()
-                          && (exitCode == kMissingFiles || exitCode == kNoSuchSystem
+                          && (exitCode == kFailedValidity || exitCode == kMissingFiles
+                              || exitCode == kDeviceError || exitCode == kNoSuchSystem
                               || exitCode == kInvalidConfig));
         }
         if (!notice.isEmpty())
@@ -483,6 +538,34 @@ ArcadeBackend::ArcadeBackend(const QString &appRoot, const QString &dataRoot, Ap
     m_sweepTimer->setTimerType(Qt::PreciseTimer);
     m_sweepTimer->setInterval(kSweepStepMs);
     connect(m_sweepTimer, &QTimer::timeout, this, &ArcadeBackend::sweepPictures);
+    // After a look that couldn't have every picture: another, ten minutes on
+    // (or once the last game's retry is due, finishPictureSweep()).
+    m_sweepAgain = new QTimer(this);
+    m_sweepAgain->setSingleShot(true);
+    connect(m_sweepAgain, &QTimer::timeout, this, [this] {
+        if (m_reading || scanning())
+            m_sweepWanted = true;
+        else
+            startPictureSweep();
+    });
+    // A look cut short (the power went, the app was closed) goes on at the
+    // next start, once the games have been read.
+    m_sweepWanted = QFile::exists(sweepMarker());
+    // progetto-SNAPS' pictures, through ArcadeDB (OSDOS_ARCADEDB_URL names
+    // another service; "" none, in tests): the game shown asked about a
+    // moment after it was shown.
+    m_arcadeDb = new ArcadeDb(QUrl(legacy::env("ARCADEDB_URL", ArcadeDb::kService.toString())), this);
+    connect(m_arcadeDb, &ArcadeDb::found, this, &ArcadeBackend::onSnapsFound);
+    connect(m_arcadeDb, &ArcadeDb::failed, this, &ArcadeBackend::onSnapsFailed);
+    m_snapAsk = new QTimer(this);
+    m_snapAsk->setSingleShot(true);
+    m_snapAsk->setInterval(kSnapAskDelayMs);
+    connect(m_snapAsk, &QTimer::timeout, this, &ArcadeBackend::askSnaps);
+    // The pictures' records, written a moment after they change.
+    m_recordSave = new QTimer(this);
+    m_recordSave->setSingleShot(true);
+    m_recordSave->setInterval(kRecordSaveDelayMs);
+    connect(m_recordSave, &QTimer::timeout, this, &ArcadeBackend::flushRecords);
     // Its list of games read again: the RetroAchievements filter's games, and
     // the games it had none of, which it may have now.
     connect(m_retroAchievements, &RetroAchievements::listRead, this, [this] {
@@ -493,7 +576,12 @@ ArcadeBackend::ArcadeBackend(const QString &appRoot, const QString &dataRoot, Ap
         if (!std::exchange(m_raKeyRefused, true))
             emit achievementsChanged();
     });
-    connect(m_retroAchievements, &RetroAchievements::keyAccepted, this, &ArcadeBackend::achievementsChanged);
+    // An answer that came with the key: one refused before (a guard's page
+    // taken for a refusal, or the account put right) is good again.
+    connect(m_retroAchievements, &RetroAchievements::keyAccepted, this, [this] {
+        m_raKeyRefused = false;
+        emit achievementsChanged();
+    });
     // The trophy among the status icons is the account's.
     connect(this, &ArcadeBackend::achievementsChanged, this, &ArcadeBackend::statusIconsChanged);
     // A game's config is written anew for each game: one a game left that the
@@ -523,9 +611,9 @@ ArcadeBackend::ArcadeBackend(const QString &appRoot, const QString &dataRoot, Ap
 
     // The module's settings as they stand. games.json waits for the list to
     // open (refresh()): with a full set of MAME's games it is megabytes.
-    for (const char *key : { "games_directory", "high_scores", "video", "screen_shape", "integer_scale",
-                             "menu_filters", "online_high_scores", "online_play", "engines", "online_name",
-                             "relay_server", "lan_play" }) {
+    for (const char *key : { "games_directory", "hide_bootlegs", "high_scores", "video", "screen_shape",
+                             "integer_scale", "menu_filters", "online_high_scores", "online_play", "engines",
+                             "online_name", "relay_server", "lan_play", "pictures_source" }) {
         const QString k = QLatin1String(key);
         applySetting(k, m_appCore ? m_appCore->get_setting(kModuleId, k) : QVariant());
     }
@@ -574,6 +662,8 @@ ArcadeBackend::ArcadeBackend(const QString &appRoot, const QString &dataRoot, Ap
 }
 
 ArcadeBackend::~ArcadeBackend() {
+    // The pictures' records as they stand (m_pictureSaves waits for them).
+    flushRecords();
     // The read keeps nothing of this object's: it may finish on its own.
     m_watcher->disconnect(this);
     if (m_scan) {
@@ -609,6 +699,12 @@ void ArcadeBackend::onSettingChanged(const QString &moduleId, const QString &key
 void ArcadeBackend::applySetting(const QString &key, const QVariant &value) {
     if (key == QLatin1String("games_directory")) {
         setGamesFolder(value.toString());
+    } else if (key == QLatin1String("hide_bootlegs")) {
+        // The lists made again without the bootlegs and hacks, or with them
+        // back (isGame()).
+        m_hideBootlegs = isOn(value, false);
+        invalidate();
+        emit gamesChanged();
     } else if (key == QLatin1String("high_scores")) {
         m_highScores = isOn(value, true);
         emit statusIconsChanged();
@@ -665,6 +761,12 @@ void ArcadeBackend::applySetting(const QString &key, const QVariant &value) {
         m_onlineName = value.toString().trimmed();
     } else if (key == QLatin1String("relay_server")) {
         m_relay = kRelays.value(value.toString(), QStringLiteral("nyc"));
+    } else if (key == QLatin1String("pictures_source")) {
+        // Both unless it says one, or none.
+        const QString source = value.toString();
+        m_picturesAchievements = source != QLatin1String("progetto-SNAPS") && source != QLatin1String("Off");
+        m_picturesSnaps = source != QLatin1String("RetroAchievements") && source != QLatin1String("Off");
+        emit picturesProgressChanged();
     } else if (key == QLatin1String("lan_play")) {
         m_lanPlay = value.toString() == QLatin1String("On");
         // Off: the rooms heard forgotten, so that none of them is offered
@@ -915,6 +1017,25 @@ ArcadeBackend::Read ArcadeBackend::read(const QString &folder, const QString &ho
     }
     for (QStringList &pictures : read.numbered)
         std::sort(pictures.begin(), pictures.end(), beforeInTurn);
+    // The title screens, in the games folder's titles, named by set as the
+    // Titles pack for MAME has them: the exact name first, then a .png.
+    QHash<QString, int> titleRanks;
+    QDirIterator titles(folder + QLatin1Char('/') + read.otherFolders.value(QStringLiteral("titles"), QStringLiteral("titles")),
+                        QDir::Files);
+    while (titles.hasNext()) {
+        titles.next();
+        const QFileInfo info = titles.fileInfo();
+        const QString suffix = info.suffix().toLower();
+        if (suffix != QLatin1String("png") && suffix != QLatin1String("jpg"))
+            continue;
+        const QString set = info.completeBaseName().toLower();
+        const int rank = (info.fileName() == set + QLatin1Char('.') + suffix ? 2 : 0)
+                         + (suffix == QLatin1String("png") ? 1 : 0);
+        if (rank > titleRanks.value(set, -1)) {
+            titleRanks.insert(set, rank);
+            read.titles.insert(set, info.filePath());
+        }
+    }
     QDirIterator shots(home + QStringLiteral("/snap"), QDir::Dirs | QDir::NoDotAndDotDot);
     while (shots.hasNext()) {
         shots.next();
@@ -980,6 +1101,7 @@ void ArcadeBackend::onRead() {
     }
     m_snaps = std::move(read.snaps);
     m_numbered = std::move(read.numbered);
+    m_titles = std::move(read.titles);
     m_shots = std::move(read.shots);
     // Pictures saved while the folder was read, which it may not have seen.
     for (auto it = m_savedDuringRead.constBegin(); it != m_savedDuringRead.constEnd(); ++it) {
@@ -987,6 +1109,12 @@ void ArcadeBackend::onRead() {
             addNumbered(m_numbered, it.key(), picture);
     }
     m_savedDuringRead.clear();
+    for (const auto &[set, file, title] : std::as_const(m_namedDuringRead)) {
+        QHash<QString, QString> &pictures = title ? m_titles : m_snaps;
+        if (!pictures.contains(set))
+            pictures.insert(set, file);
+    }
+    m_namedDuringRead.clear();
     m_reading = false;
     // Games and no catver.ini for their genres: one downloaded.
     if (m_genresFrom.isEmpty() && !m_sets.isEmpty())
@@ -1074,7 +1202,10 @@ void ArcadeBackend::rescan() {
     // Every game's pictures too, once the games have been read again
     // (emitShown()): a look under way starts anew then.
     stopPictureSweep();
+    m_sweepAgain->stop();
+    m_sweepPasses = 0;
     m_sweepWanted = true;
+    emit picturesProgressChanged();
     // Asked while the folder is read, or before games.json has been, whose
     // sets MAME has no machine of are to be kept apart as it is asked
     // again: once it has been (onRead()).
@@ -1313,7 +1444,11 @@ bool ArcadeBackend::isGame(const QString &set) const {
     // One MAME wasn't asked about (there is none) and FinalBurn Neo hasn't is
     // listed by its name.
     const mame::Machine *machine = machineOf(set);
-    return !machine || machine->isGame();
+    if (!machine)
+        return true;
+    // Hide Hacks and Bootlegs: the makers' own releases alone, whichever of
+    // MAME and FinalBurn Neo's list describes the set.
+    return machine->isGame() && !(m_hideBootlegs && mame::isBootlegOrHack(*machine));
 }
 
 const mame::Machine *ArcadeBackend::machineOf(const QString &set) const {
@@ -1558,9 +1693,9 @@ QVariantList ArcadeBackend::filterGames(const QString &filter, int first, int co
                                   : filter == QLatin1String("favorites") ? sets
                                   : listedSets(QStringLiteral("favorites"));
     const int last = static_cast<int>(std::min<qsizetype>(sets.size(), qsizetype(first) + count));
-    // A room: the game, who hosts it, and the room joined; of the whole
-    // lobby, the room too, which may be another core's game, by the name
-    // its host gave it.
+    // A room: the game, who hosts it, and the room joined, with what is said
+    // of it for the box (info); of the whole lobby, the room too, which may
+    // be another core's game, by the name its host gave it.
     const bool lan = filter == QLatin1String("lan");
     const bool lobby = filter == QLatin1String("lobby");
     for (int i = first; i < last; ++i) {
@@ -1579,6 +1714,7 @@ QVariantList ArcadeBackend::filterGames(const QString &filter, int first, int co
             } else {
                 row.insert(QStringLiteral("lan"), lan);
                 row.insert(QStringLiteral("detail"), room.value(QStringLiteral("detail")));
+                row.insert(QStringLiteral("info"), room.value(QStringLiteral("info")));
             }
             games << row;
         } else if (filter == QLatin1String("search") && i == 0) {
@@ -1657,6 +1793,14 @@ QStringList ArcadeBackend::picturesOf(const QString &set) const {
             pictures << parentSnap;
         pictures << m_numbered.value(sets.at(1));
     }
+    // Its title screen, else its parent's; then MAME's own snapshot.
+    for (const QString &s : sets) {
+        const QString title = m_titles.value(s);
+        if (!title.isEmpty()) {
+            pictures << title;
+            break;
+        }
+    }
     for (const QString &s : sets) {
         const QString shot = m_shots.value(s);
         if (!shot.isEmpty()) {
@@ -1676,23 +1820,246 @@ QString ArcadeBackend::snapFolder() const {
     return m_gamesFolder + QLatin1Char('/') + m_otherFolders.value(QStringLiteral("snap"), QStringLiteral("snap"));
 }
 
+QString ArcadeBackend::titlesFolder() const {
+    if (m_gamesFolder.isEmpty() || !m_folderReadable || !m_listed)
+        return QString();
+    return m_gamesFolder + QLatin1Char('/') + m_otherFolders.value(QStringLiteral("titles"), QStringLiteral("titles"));
+}
+
 bool ArcadeBackend::snapWritable() const {
     const QString folder = snapFolder();
     return !folder.isEmpty() && QFileInfo(QFileInfo::exists(folder) ? folder : m_gamesFolder).isWritable();
 }
 
 void ArcadeBackend::wantPictures(const QString &set) {
-    if (m_raKey.isEmpty() || m_raKeyRefused || !m_sets.contains(set) || isUnrecognized(set) || snapFolder().isEmpty()
-        || m_noPictures.contains(set))
-        return;
-    // The set's game, else its parent's.
-    const QStringList names = setAndParent(set);
-    loadPictureRecord();
-    const QStringList looked = picturesLooked(names);
     // None for a folder they can't be saved in (a read-only USB drive's).
-    if (looked.size() == names.size() || !snapWritable())
+    if (!m_sets.contains(set) || isUnrecognized(set) || snapFolder().isEmpty() || !snapWritable())
         return;
-    m_retroAchievements->findPictures(names, looked);
+    // RetroAchievements' first: the set's game, else its parent's.
+    bool waiting = false;
+    if (m_picturesAchievements && !m_raKey.isEmpty() && !m_raKeyRefused && !m_noPictures.contains(set)) {
+        const QStringList names = setAndParent(set);
+        loadPictureRecord();
+        const QStringList looked = picturesLooked(names);
+        if (looked.size() < names.size()) {
+            m_retroAchievements->findPictures(names, looked);
+            waiting = true;
+        } else {
+            // Being downloaded: its pictures may be in in a moment.
+            waiting = std::any_of(names.cbegin(), names.cend(), [this](const QString &name) {
+                return m_pictureJobs.contains(name);
+            });
+        }
+    }
+    // progetto-SNAPS' for a game still without any, once RetroAchievements
+    // has answered for it (onPicturesFound(), finishPicture()).
+    if (!m_picturesSnaps)
+        return;
+    if (waiting)
+        m_snapsAfter = set;
+    else
+        wantSnaps(set);
+}
+
+void ArcadeBackend::wantSnaps(const QString &set) {
+    if (!m_picturesSnaps || !m_sets.contains(set) || isUnrecognized(set) || !snapWritable())
+        return;
+    // A picture of any kind, its own or its parent's, is enough.
+    if (!picturesOf(set).isEmpty())
+        return;
+    loadSnapRecord();
+    if (snapsLooked(set))
+        return;
+    // A moment on, should it still be shown: a list scrolled through asks
+    // about none of the games passed.
+    m_snapAskSet = set;
+    m_snapAsk->start();
+}
+
+void ArcadeBackend::askSnaps() {
+    const QString set = std::exchange(m_snapAskSet, QString());
+    // Still a game without a picture, and not asked about meanwhile (the
+    // look through every game may have).
+    if (set.isEmpty() || !m_picturesSnaps || !m_sets.contains(set) || isUnrecognized(set) || !snapWritable()
+        || !picturesOf(set).isEmpty())
+        return;
+    loadSnapRecord();
+    if (snapsLooked(set))
+        return;
+    m_snapJobs.insert(set, { 0, false, snapFolder(), false });
+    m_arcadeDb->lookUp({ set });
+}
+
+bool ArcadeBackend::snapsLooked(const QString &set) const {
+    if (m_snapJobs.contains(set))
+        return true;
+    const QDateTime now = QDateTime::currentDateTimeUtc();
+    const auto retry = m_snapsRetry.constFind(set);
+    if (retry != m_snapsRetry.constEnd() && *retry > now)
+        return true;
+    const auto record = m_snapRecord.constFind(set);
+    if (record == m_snapRecord.constEnd())
+        return false;
+    return record->had || (record->looked.isValid() && record->looked.secsTo(now) < kSnapsAgainSeconds);
+}
+
+void ArcadeBackend::onSnapsFound(const QString &set, const QString &ingame, const QString &title) {
+    auto job = m_snapJobs.find(set);
+    if (job == m_snapJobs.end())
+        return;
+    loadSnapRecord();
+    const QString folder = job->folder;
+    if (ingame.isEmpty() && title.isEmpty()) {
+        // None: noted, so that it isn't asked about again for a while.
+        if (folder == m_snapRecordFolder) {
+            m_snapRecord.insert(set, { QDateTime::currentDateTimeUtc(), false });
+            saveSnapRecord();
+        }
+        m_snapJobs.erase(job);
+        return;
+    }
+    int pending = 0;
+    if (!ingame.isEmpty()) {
+        ++pending;
+        m_arcadeDb->media(QUrl(ingame), [this, set](const QByteArray &data) { onSnapDownloaded(set, false, data); });
+    }
+    if (!title.isEmpty()) {
+        ++pending;
+        m_arcadeDb->media(QUrl(title), [this, set](const QByteArray &data) { onSnapDownloaded(set, true, data); });
+    }
+    job->pending = pending;
+}
+
+void ArcadeBackend::onSnapsFailed(const QStringList &sets, int holdSeconds) {
+    // Tried again later: after the pause ArcadeDB asked for, at least ten
+    // minutes on. Counted against the look through every game only where it
+    // asked, not for a game shown meanwhile.
+    const QDateTime again = pictureRetryTime(holdSeconds);
+    for (const QString &set : sets) {
+        const auto job = m_snapJobs.constFind(set);
+        if (job == m_snapJobs.constEnd())
+            continue;
+        if (job->sweep && m_sweepTimer->isActive())
+            ++m_sweepFailed;
+        m_snapJobs.erase(job);
+        m_snapsRetry.insert(set, again);
+    }
+    emit picturesProgressChanged();
+}
+
+void ArcadeBackend::onSnapDownloaded(const QString &set, bool title, const QByteArray &data) {
+    const auto job = m_snapJobs.constFind(set);
+    if (job == m_snapJobs.constEnd())
+        return;
+    if (data.isEmpty()) {
+        finishSnap(set, false);
+        return;
+    }
+    // Into the folders it was asked for, whatever the games folder is now:
+    // the title screen beside the snap folder, in titles.
+    const QString folder = title ? QFileInfo(job->folder).path() + QLatin1Char('/')
+                                       + m_otherFolders.value(QStringLiteral("titles"), QStringLiteral("titles"))
+                                 : job->folder;
+    const QString snapFolderThen = job->folder;
+    QtConcurrent::run(&m_pictureSaves, saveNamedPicture, folder, set, data)
+        .then(this, [this, set, title, snapFolderThen](const QString &file) {
+            if (file.isEmpty()) {
+                finishSnap(set, false);
+                return;
+            }
+            if (snapFolderThen == snapFolder()) {
+                QHash<QString, QString> &pictures = title ? m_titles : m_snaps;
+                if (!pictures.contains(set))
+                    pictures.insert(set, file);
+                if (m_reading)
+                    m_namedDuringRead.append({ set, file, title });
+            }
+            finishSnap(set, true);
+            emit picturesChanged(set);
+        });
+}
+
+void ArcadeBackend::finishSnap(const QString &set, bool saved) {
+    auto job = m_snapJobs.find(set);
+    if (job == m_snapJobs.end())
+        return;
+    job->failed = job->failed || !saved;
+    if (--job->pending > 0)
+        return;
+    if (job->failed) {
+        // Tried again in ten minutes.
+        m_snapsRetry.insert(set, pictureRetryTime());
+        if (job->sweep && m_sweepTimer->isActive())
+            ++m_sweepFailed;
+    } else if (job->folder == m_snapRecordFolder) {
+        m_snapRecord.insert(set, { QDateTime::currentDateTimeUtc(), true });
+        saveSnapRecord();
+    }
+    m_snapJobs.erase(job);
+    emit picturesProgressChanged();
+}
+
+void ArcadeBackend::loadSnapRecord() {
+    const QString folder = snapFolder();
+    if (folder == m_snapRecordFolder)
+        return;
+    // The last folder's record written before it is let go of.
+    flushRecords();
+    m_snapRecordFolder = folder;
+    m_snapRecord.clear();
+    QFile file(folder + QStringLiteral("/.arcadedb.json"));
+    if (folder.isEmpty() || !file.open(QIODevice::ReadOnly))
+        return;
+    const QJsonObject kept = QJsonDocument::fromJson(file.readAll()).object();
+    for (auto it = kept.constBegin(); it != kept.constEnd(); ++it) {
+        const QJsonObject set = it.value().toObject();
+        m_snapRecord.insert(it.key(), { QDateTime::fromString(set.value(QStringLiteral("looked")).toString(), Qt::ISODate),
+                                        set.value(QStringLiteral("had")).toBool() });
+    }
+}
+
+void ArcadeBackend::saveSnapRecord() {
+    m_snapRecordDirty = true;
+    if (!m_recordSave->isActive())
+        m_recordSave->start();
+}
+
+void ArcadeBackend::flushRecords() {
+    m_recordSave->stop();
+    // Each record beside its pictures, after the ones it notes (the same
+    // queue), the JSON made off the GUI thread from a copy, its sets in
+    // order (a QJsonObject keeps its keys sorted: inserted in order, none is
+    // moved).
+    if (std::exchange(m_snapRecordDirty, false) && !m_snapRecordFolder.isEmpty()) {
+        const QString file = m_snapRecordFolder + QStringLiteral("/.arcadedb.json");
+        const QHash<QString, SnapRecord> record = m_snapRecord;
+        m_pictureSaves.start([file, record] {
+            QStringList sets = record.keys();
+            std::sort(sets.begin(), sets.end());
+            QJsonObject kept;
+            for (const QString &set : std::as_const(sets)) {
+                const SnapRecord &noted = record[set];
+                kept.insert(set, QJsonObject{ { QStringLiteral("looked"), noted.looked.toString(Qt::ISODate) },
+                                              { QStringLiteral("had"), noted.had } });
+            }
+            writeFileAtomically(file, QJsonDocument(kept).toJson(QJsonDocument::Compact));
+        });
+    }
+    if (std::exchange(m_pictureRecordDirty, false) && !m_pictureRecordFolder.isEmpty()) {
+        const QString file = m_pictureRecordFolder + QStringLiteral("/.retroachievements.json");
+        const QHash<QString, PictureRecord> record = m_pictureRecord;
+        m_pictureSaves.start([file, record] {
+            QStringList names = record.keys();
+            std::sort(names.begin(), names.end());
+            QJsonObject kept;
+            for (const QString &name : std::as_const(names)) {
+                const PictureRecord &noted = record[name];
+                kept.insert(name, QJsonObject{ { QStringLiteral("saved"), QJsonArray::fromStringList(noted.saved) },
+                                               { QStringLiteral("complete"), noted.complete } });
+            }
+            writeFileAtomically(file, QJsonDocument(kept).toJson(QJsonDocument::Compact));
+        });
+    }
 }
 
 QStringList ArcadeBackend::picturesLooked(const QStringList &names) const {
@@ -1711,87 +2078,282 @@ void ArcadeBackend::setPictureSweepInterval(int ms) {
     m_sweepTimer->setInterval(ms);
 }
 
+void ArcadeBackend::setPictureRetryInterval(int ms) {
+    m_pictureRetryMs = ms;
+}
+
+QDateTime ArcadeBackend::pictureRetryTime(qint64 atLeastSeconds) const {
+    // The next look's games are due by the time it is made: a look that
+    // couldn't have every picture waits as long as each game does
+    // (finishPictureSweep()).
+    return QDateTime::currentDateTimeUtc().addMSecs(std::max<qint64>(m_pictureRetryMs, atLeastSeconds * 1000));
+}
+
 bool ArcadeBackend::sweepingPictures() const {
     return m_sweepTimer->isActive();
 }
 
+QString ArcadeBackend::sweepMarker() const {
+    return m_home + QStringLiteral("/pictures-wanted");
+}
+
 void ArcadeBackend::startPictureSweep() {
     m_sweepWanted = false;
-    if (m_raKey.isEmpty() || m_raKeyRefused || !snapWritable())
+    m_sweepAgain->stop();
+    const bool achievements = m_picturesAchievements && !m_raKey.isEmpty() && !m_raKeyRefused;
+    if (!snapWritable() || (!achievements && !m_picturesSnaps)) {
+        QFile::remove(sweepMarker());
+        emit picturesProgressChanged();
         return;
+    }
+    // Kept until a look ends with every picture had: a look cut short goes
+    // on at the next start.
+    QDir().mkpath(m_home);
+    writeFileAnew(sweepMarker(), QByteArray("wanted\n"));
+    m_sweepPass = achievements ? SweepPass::Achievements : SweepPass::Snaps;
     m_sweepListed = false;
+    m_sweepSnapsListed = false;
+    m_sweep.clear();
+    m_sweepSnaps.clear();
     m_sweepGame.clear();
+    m_sweepDone = 0;
+    m_sweepTotal = 0;
     m_sweepAsked = 0;
+    m_sweepSnapsAsked = 0;
+    m_sweepFailed = 0;
+    m_sweepResult.clear();
     m_sweepTimer->start();
+    emit picturesProgressChanged();
 }
 
 void ArcadeBackend::sweepPictures() {
-    if (m_raKey.isEmpty() || m_raKeyRefused) {
-        stopPictureSweep();
-        return;
-    }
     if (running() || scanning())
         return;
     if (!snapWritable()) {
         stopPictureSweep();
         return;
     }
-    // RetroAchievements' list of games in first: the one kept, or one a week
-    // old read again.
-    m_retroAchievements->wantList();
-    if (m_retroAchievements->listPending())
-        return;
-    if (!m_retroAchievements->hasList()) {
-        // None could be read (off line, say) and none is kept: nothing to
-        // sweep by. Wanted still, for the next read of the games, rather
-        // than asked for again every second until the app ends.
-        stopPictureSweep();
-        m_sweepWanted = true;
-        return;
-    }
-    if (!std::exchange(m_sweepListed, true))
-        m_sweep = index().games;
-    if (!m_sweepGame.isEmpty()) {
-        const bool saving = std::any_of(m_sweepGame.cbegin(), m_sweepGame.cend(),
-                                        [this](const QString &name) { return m_pictureJobs.contains(name); });
-        if (m_retroAchievements->laterPending() || saving)
+    if (m_sweepPass == SweepPass::Achievements) {
+        // The source gone meanwhile (its key, its setting): the next pass.
+        if (!m_picturesAchievements || m_raKey.isEmpty() || m_raKeyRefused) {
+            nextSweepPass();
             return;
-        m_sweepGame.clear();
-    }
-    loadPictureRecord();
-    while (!m_sweep.isEmpty()) {
-        const QString set = m_sweep.takeFirst();
-        if (!m_sets.contains(set) || isUnrecognized(set) || m_noPictures.contains(set))
-            continue;
-        const QStringList names = setAndParent(set);
-        const QStringList looked = picturesLooked(names);
-        const bool known = std::any_of(names.cbegin(), names.cend(), [this](const QString &name) {
-            return m_retroAchievements->knowsGame(name);
-        });
-        if (!known || looked.size() == names.size())
-            continue;
-        m_sweepGame = names;
-        ++m_sweepAsked;
-        m_retroAchievements->findPicturesLater(names, looked);
+        }
+        // RetroAchievements' list of games in first: the one kept, or one a
+        // week old read again.
+        if (!m_retroAchievements->hasList() && !m_retroAchievements->listPending()
+            && m_retroAchievements->listFailed()) {
+            // None could be read (off line, say) and none is kept: nothing to
+            // sweep by. Wanted still, for the next read of the games, rather
+            // than asked for again every second until the app ends (asking,
+            // wantList(), would have it pending again at once).
+            stopPictureSweep();
+            m_sweepWanted = true;
+            return;
+        }
+        m_retroAchievements->wantList();
+        if (m_retroAchievements->listPending() || !m_retroAchievements->hasList())
+            return;
+        if (!std::exchange(m_sweepListed, true)) {
+            m_sweep = index().games;
+            m_sweepTotal = static_cast<int>(m_sweep.size());
+            m_sweepDone = 0;
+        }
+        if (!m_sweepGame.isEmpty()) {
+            const bool saving = std::any_of(m_sweepGame.cbegin(), m_sweepGame.cend(),
+                                            [this](const QString &name) { return m_pictureJobs.contains(name); });
+            if (m_retroAchievements->laterPending() || saving)
+                return;
+            m_sweepGame.clear();
+        }
+        loadPictureRecord();
+        while (!m_sweep.isEmpty()) {
+            const QString set = m_sweep.takeFirst();
+            ++m_sweepDone;
+            if (!m_sets.contains(set) || isUnrecognized(set) || m_noPictures.contains(set))
+                continue;
+            const QStringList names = setAndParent(set);
+            const QStringList looked = picturesLooked(names);
+            const bool known = std::any_of(names.cbegin(), names.cend(), [this](const QString &name) {
+                return m_retroAchievements->knowsGame(name);
+            });
+            if (!known || looked.size() == names.size())
+                continue;
+            m_sweepGame = names;
+            ++m_sweepAsked;
+            m_retroAchievements->findPicturesLater(names, looked);
+            emit picturesProgressChanged();
+            return;
+        }
+        nextSweepPass();
         return;
     }
-    qInfo("[Arcade] RetroAchievements' pictures looked for: %d games asked about", m_sweepAsked);
-    stopPictureSweep();
+    // progetto-SNAPS', through ArcadeDB, for the games still without any
+    // picture: a batch asked about, its pictures saved, then the next.
+    if (!m_picturesSnaps) {
+        finishPictureSweep();
+        return;
+    }
+    if (!std::exchange(m_sweepSnapsListed, true)) {
+        m_sweepSnaps.clear();
+        loadSnapRecord();
+        for (const QString &set : index().games) {
+            if (picturesOf(set).isEmpty() && !snapsLooked(set))
+                m_sweepSnaps << set;
+        }
+        m_sweepTotal = static_cast<int>(m_sweepSnaps.size());
+        m_sweepDone = 0;
+        emit picturesProgressChanged();
+    }
+    if (m_arcadeDb->busy() || !m_snapJobs.isEmpty())
+        return;
+    if (m_sweepSnaps.isEmpty()) {
+        finishPictureSweep();
+        return;
+    }
+    QStringList batch;
+    while (batch.size() < ArcadeDb::kMostAsked && !m_sweepSnaps.isEmpty()) {
+        const QString set = m_sweepSnaps.takeFirst();
+        ++m_sweepDone;
+        // Had meanwhile (shown, and asked about then).
+        if (picturesOf(set).isEmpty() && !snapsLooked(set))
+            batch << set;
+    }
+    for (const QString &set : std::as_const(batch))
+        m_snapJobs.insert(set, { 0, false, snapFolder(), true });
+    if (!batch.isEmpty()) {
+        m_sweepSnapsAsked += static_cast<int>(batch.size());
+        m_arcadeDb->lookUp(batch);
+    }
+    emit picturesProgressChanged();
+}
+
+void ArcadeBackend::nextSweepPass() {
+    if (m_sweepPass == SweepPass::Achievements) {
+        m_sweepPass = SweepPass::Snaps;
+        m_sweep.clear();
+        m_sweepGame.clear();
+        emit picturesProgressChanged();
+        return;
+    }
+    finishPictureSweep();
+}
+
+void ArcadeBackend::finishPictureSweep() {
+    qInfo("[Arcade] Pictures looked for: %d games asked of RetroAchievements, %d of ArcadeDB, %d whose pictures "
+          "couldn't be had",
+          m_sweepAsked, m_sweepSnapsAsked, m_sweepFailed);
+    m_sweepTimer->stop();
+    m_sweep.clear();
+    m_sweepSnaps.clear();
+    m_sweepGame.clear();
+    if (m_sweepFailed > 0 && ++m_sweepPasses < kSweepPasses) {
+        // Those tried again once the last of their retries is due: ten
+        // minutes on, or later where a server asked for a longer pause,
+        // rather than a look that finds them all still waiting and ends.
+        const QDateTime now = QDateTime::currentDateTimeUtc();
+        qint64 wait = m_pictureRetryMs;
+        for (const QHash<QString, QDateTime> *retries : { &m_snapsRetry, &m_picturesRetry }) {
+            for (const QDateTime &due : *retries) {
+                if (due > now)
+                    wait = std::max(wait, now.msecsTo(due) + 1000);
+            }
+        }
+        m_sweepResult = QStringLiteral("%1 Not Downloaded, Trying Again").arg(m_sweepFailed);
+        m_sweepAgain->start(static_cast<int>(std::min<qint64>(wait, std::numeric_limits<int>::max())));
+    } else {
+        m_sweepResult = m_sweepFailed > 0 ? QStringLiteral("%1 Not Downloaded").arg(m_sweepFailed)
+                                          : QStringLiteral("Done");
+        m_sweepPasses = 0;
+        QFile::remove(sweepMarker());
+    }
+    emit picturesProgressChanged();
 }
 
 void ArcadeBackend::stopPictureSweep() {
     m_sweepTimer->stop();
     m_sweep.clear();
+    m_sweepSnaps.clear();
     m_sweepGame.clear();
+    // Nothing under way to count: the frame says so.
+    m_sweepDone = 0;
+    m_sweepTotal = 0;
+    emit picturesProgressChanged();
+}
+
+void ArcadeBackend::downloadPictures() {
+    m_sweepPasses = 0;
+    m_sweepAgain->stop();
+    if (m_reading || scanning()) {
+        // Once the games have been read (emitShown()): wanted, and said so.
+        m_sweepWanted = true;
+        emit picturesProgressChanged();
+        return;
+    }
+    startPictureSweep();
+}
+
+QVariantMap ArcadeBackend::picturesProgress() const {
+    const bool active = m_sweepTimer->isActive() || m_sweepAgain->isActive() || m_sweepWanted;
+    return { { QStringLiteral("active"), active },
+             { QStringLiteral("source"), m_sweepPass == SweepPass::Achievements ? QStringLiteral("RetroAchievements")
+                                                                                 : QStringLiteral("progetto-SNAPS") },
+             { QStringLiteral("done"), m_sweepDone },
+             { QStringLiteral("total"), m_sweepTotal },
+             { QStringLiteral("asked"), m_sweepAsked + m_sweepSnapsAsked },
+             { QStringLiteral("failed"), m_sweepFailed },
+             { QStringLiteral("again"), m_sweepAgain->isActive() },
+             { QStringLiteral("result"), m_sweepResult } };
+}
+
+QVariantMap ArcadeBackend::picturesInfo() const {
+    int withPictures = 0;
+    const QStringList &games = index().games;
+    for (const QString &set : games) {
+        if (!picturesOf(set).isEmpty())
+            ++withPictures;
+    }
+    return { { QStringLiteral("games"), static_cast<int>(games.size()) },
+             { QStringLiteral("withPictures"), withPictures },
+             { QStringLiteral("achievements"), m_picturesAchievements },
+             { QStringLiteral("snaps"), m_picturesSnaps },
+             { QStringLiteral("key"), m_raKey.isEmpty() ? QStringLiteral("none")
+                                      : m_raKeyRefused ? QStringLiteral("refused")
+                                      : m_retroAchievements->keyWorks() ? QStringLiteral("works") : QStringLiteral("given") },
+             { QStringLiteral("writable"), snapWritable() },
+             { QStringLiteral("snapFolder"), snapFolder() },
+             { QStringLiteral("titlesFolder"), titlesFolder() } };
+}
+
+void ArcadeBackend::setPictureServer(const QUrl &arcadeDb) {
+    m_arcadeDb->setService(arcadeDb);
+}
+
+// The set shown waits for RetroAchievements' answer about name (its own or
+// its parent's) before progetto-SNAPS' are asked for.
+void ArcadeBackend::snapsAfter(const QString &name) {
+    if (m_snapsAfter.isEmpty() || !setAndParent(m_snapsAfter).contains(name))
+        return;
+    wantSnaps(std::exchange(m_snapsAfter, QString()));
 }
 
 void ArcadeBackend::onPicturesFound(const QString &name, const QString &state, const QStringList &paths) {
     if (state == QLatin1String("unknown")) {
         m_noPictures.insert(name);
+        snapsAfter(name);
+        return;
+    }
+    // Nothing read, its pictures looked for before: only progetto-SNAPS'
+    // turn for the game shown, should it still be without any.
+    if (state == QLatin1String("looked")) {
+        snapsAfter(name);
         return;
     }
     if (state != QLatin1String("found")) {
-        m_picturesRetry.insert(name, QDateTime::currentDateTimeUtc().addSecs(kPicturesRetrySeconds));
+        m_picturesRetry.insert(name, pictureRetryTime());
+        if (m_sweepTimer->isActive() && m_sweepGame.contains(name))
+            ++m_sweepFailed;
+        snapsAfter(name);
         return;
     }
     loadPictureRecord();
@@ -1806,6 +2368,7 @@ void ArcadeBackend::onPicturesFound(const QString &name, const QString &state, c
     if (wanted.isEmpty()) {
         record.complete = true;
         savePictureRecord();
+        snapsAfter(name);
         return;
     }
     m_pictureJobs.insert(name, { static_cast<int>(wanted.size()), false, m_pictureRecordFolder });
@@ -1849,23 +2412,32 @@ void ArcadeBackend::finishPicture(const QString &name, bool saved) {
         return;
     job->failed = job->failed || !saved;
     const bool recorded = job->folder == m_pictureRecordFolder;
+    bool done = false;
     if (--job->pending <= 0) {
         // All in, or those that weren't tried again in ten minutes.
-        if (job->failed)
-            m_picturesRetry.insert(name, QDateTime::currentDateTimeUtc().addSecs(kPicturesRetrySeconds));
-        else if (recorded)
+        if (job->failed) {
+            m_picturesRetry.insert(name, pictureRetryTime());
+            if (m_sweepTimer->isActive() && m_sweepGame.contains(name))
+                ++m_sweepFailed;
+        } else if (recorded) {
             m_pictureRecord[name].complete = true;
+        }
         m_pictureJobs.erase(job);
+        done = true;
     }
     // The record as it now stands, unless nothing came into it.
     if (saved && recorded)
         savePictureRecord();
+    if (done)
+        snapsAfter(name);
 }
 
 void ArcadeBackend::loadPictureRecord() {
     const QString folder = snapFolder();
     if (folder == m_pictureRecordFolder)
         return;
+    // The last folder's record written before it is let go of.
+    flushRecords();
     m_pictureRecordFolder = folder;
     m_pictureRecord.clear();
     QFile file(folder + QStringLiteral("/.retroachievements.json"));
@@ -1883,16 +2455,9 @@ void ArcadeBackend::loadPictureRecord() {
 }
 
 void ArcadeBackend::savePictureRecord() {
-    QJsonObject kept;
-    for (auto it = m_pictureRecord.constBegin(); it != m_pictureRecord.constEnd(); ++it) {
-        kept.insert(it.key(), QJsonObject{ { QStringLiteral("saved"), QJsonArray::fromStringList(it->saved) },
-                                           { QStringLiteral("complete"), it->complete } });
-    }
-    // Written beside the pictures, after the one it names, off the GUI
-    // thread.
-    const QString file = m_pictureRecordFolder + QStringLiteral("/.retroachievements.json");
-    const QByteArray json = QJsonDocument(kept).toJson(QJsonDocument::Compact);
-    m_pictureSaves.start([file, json] { writeFileAtomically(file, json); });
+    m_pictureRecordDirty = true;
+    if (!m_recordSave->isActive())
+        m_recordSave->start();
 }
 
 // What an engine looks for a set as, which a file named in capitals isn't.
@@ -2065,8 +2630,10 @@ QVariantList ArcadeBackend::listEntries(const QString &list) const {
     QVariantList entries;
     const QStringList sets = listedSets(list);
     for (const QString &set : sets) {
-        // Those still in the folder, as MAME says they are now.
-        if (m_sets.contains(set))
+        // Those still in the folder, as MAME says they are now, and games as
+        // the Arcade screen's lists have them (not a bootleg Hide Hacks and
+        // Bootlegs leaves out).
+        if (isGame(set))
             entries << gameEntry(set);
     }
     return entries;
@@ -2256,8 +2823,11 @@ bool ArcadeBackend::play(const QString &name, int credits) {
     QList<QStringList> arcade;
     for (const controllers::ArcadeBinds &binds : controllers::playerArcade())
         arcade << binds.mame;
-    if (!writeFileAtomically(m_home + QStringLiteral("/ctrlr/osdos.cfg"),
-                             mame::controllerConfig(controllers::playerGuids(), arcade).toUtf8())) {
+    // The files made for each game (this one, the credits' script, FinalBurn
+    // Neo's info and config below) are written in place, without a wait for
+    // the card each.
+    if (!writeFileAnew(m_home + QStringLiteral("/ctrlr/osdos.cfg"),
+                       mame::controllerConfig(controllers::playerGuids(), arcade).toUtf8())) {
         m_lastError = QStringLiteral("MAME's controller file could not be written");
         return false;
     }
@@ -2296,7 +2866,7 @@ bool ArcadeBackend::play(const QString &name, int credits) {
     // Without the script the game still starts, with no credits.
     if (credits > 0) {
         const QString coins = m_home + QStringLiteral("/coins.lua");
-        if (writeFileAtomically(coins, mame::coinScript(std::min(credits, kMaxCredits)).toUtf8()))
+        if (writeFileAnew(coins, mame::coinScript(std::min(credits, kMaxCredits)).toUtf8()))
             args << QStringLiteral("-autoboot_script") << coins;
         else
             qWarning("[Arcade] The credits could not be written for MAME: the game starts without them");
@@ -2469,16 +3039,38 @@ bool ArcadeBackend::fbneoHas(const QString &set) const {
 
 int ArcadeBackend::hostPorts(const QString &set, int *most) const {
     const mame::Machine *machine = machineOf(set);
-    const int players = machine ? std::min(machine->players, libretro::kMostPorts) : 0;
+    // As many as the game plays at once. A game whose players aren't known
+    // (a set MAME doesn't know: FinalBurn Neo's list doesn't say) may play
+    // two or six: the host keeps port 1 alone, so that a machine joining has
+    // port 2 whichever it is (a second stick of the host's would take it, and
+    // in a two-player game the machine joining would then drive no one), and
+    // the machines joining may take ports up to six.
+    const int players = machine && machine->players > 0 ? std::min(machine->players, libretro::kMostPorts) : 0;
     if (most)
-        *most = players >= 2 ? players : libretro::kMostPorts;
+        *most = players > 0 ? players : libretro::kMostPorts;
     if (players < 2)
         return 1;
     return std::clamp(libretro::localPorts(controllers::playerGuids()), 1, players - 1);
 }
 
+QString ArcadeBackend::onlineLayout(bool hosting) const {
+    if (!hosting)
+        return QStringLiteral("classic");
+    QList<bool> panels;
+    const QStringList guids = controllers::playerGuids();
+    const QStringList names = controllers::playerNames();
+    const QList<controllers::ArcadeBinds> arcade = controllers::playerArcade();
+    QList<QStringList> binds;
+    for (int p = 0; p < guids.size(); ++p) {
+        panels << (!guids.at(p).isEmpty() && controllers::isJammaStick(names.value(p)));
+        binds << (guids.at(p).isEmpty() ? QStringList() : arcade.value(p).retroarch);
+    }
+    return libretro::hostLayout(panels, binds) == libretro::Launch::Layout::Panel ? QStringLiteral("panel")
+                                                                                   : QStringLiteral("classic");
+}
+
 bool ArcadeBackend::playFbneo(const QString &name, libretro::Launch::Netplay netplay, const QString &joinAddress,
-                              int portsFrom, int portsGiven) {
+                              int portsFrom, int portsGiven, libretro::Launch::Layout layout) {
     // As play() checks before coming here: one game at a time, whether
     // hosted, joined or played alone.
     if (running()) {
@@ -2585,6 +3177,15 @@ bool ArcadeBackend::playFbneo(const QString &name, libretro::Launch::Netplay net
     launch.nickname = nickname(netplay == libretro::Launch::Netplay::LanHost
                                || netplay == libretro::Launch::Netplay::LanJoin);
     launch.relay = m_relay;
+    using Netplay = libretro::Launch::Netplay;
+    const bool hosting = netplay == Netplay::Host || netplay == Netplay::LanHost;
+    // The controller types every port plays with online: a host's own
+    // choice, by its players (the panel's, with a stick or Arcade Buttons
+    // among them), told to the machines joining on the local network with
+    // their ports; a machine joining takes what it was told, Classic from
+    // a host that said nothing (RetroArch alone, an older OSD/OS, or a room
+    // of the lobby).
+    launch.layout = hosting ? libretro::hostLayout(launch.panels, launch.arcade) : layout;
     // The game's ports this machine's players take: a host's from 1
     // (hostPorts()); joining on the local network, those its host's OSD/OS
     // gave, or, with no answer, from 2, where more than one player is to
@@ -2593,8 +3194,7 @@ bool ArcadeBackend::playFbneo(const QString &name, libretro::Launch::Netplay net
     int most = libretro::kMostPorts;
     const int own = hostPorts(name, &most);
     const int ports = libretro::localPorts(guids);
-    using Netplay = libretro::Launch::Netplay;
-    if (netplay == Netplay::Host || netplay == Netplay::LanHost) {
+    if (hosting) {
         launch.portsFrom = 1;
         launch.ports = own;
     } else if (netplay == Netplay::LanJoin && portsFrom > 0) {
@@ -2607,7 +3207,7 @@ bool ArcadeBackend::playFbneo(const QString &name, libretro::Launch::Netplay net
     // Hosting on the local network: the machines joining given their ports
     // from now on. Without the socket for it this machine keeps to port 1,
     // so that a machine joining, unanswered, finds port 2 free.
-    if (netplay == Netplay::LanHost && !startClaims(launch.ports, most))
+    if (netplay == Netplay::LanHost && !startClaims(launch.ports, most, launch.layout))
         launch.ports = 1;
     // FinalBurn Neo's remap file: the arcade panels' players, and those with
     // Arcade Buttons, on its 6-Button Panel; none without one, nor online.
@@ -2620,12 +3220,15 @@ bool ArcadeBackend::playFbneo(const QString &name, libretro::Launch::Netplay net
     else if (remapText.isEmpty())
         QFile::remove(remap);
     else
+        // Whole, not in place as the other files: one cut short (the power
+        // gone mid-write) would pass for the user's own (ownsRemap()) and
+        // never be written again.
         written = QDir().mkpath(QFileInfo(remap).path()) && writeFileAtomically(remap, remapText.toUtf8(), kOwnerOnly);
     // FinalBurn Neo's info file, without which RetroArch neither hosts nor
     // joins a game.
     written = written && QDir().mkpath(launch.infoDir)
-              && writeFileAtomically(libretro::coreInfoPath(launch.infoDir), libretro::coreInfoText().toUtf8(), kOwnerOnly);
-    if (!written || !writeFileAtomically(launch.config, libretro::configText(launch).toUtf8(), kOwnerOnly)) {
+              && writeFileAnew(libretro::coreInfoPath(launch.infoDir), libretro::coreInfoText().toUtf8(), kOwnerOnly);
+    if (!written || !writeFileAnew(launch.config, libretro::configText(launch).toUtf8(), kOwnerOnly)) {
         m_lastError = QStringLiteral("RetroArch's settings could not be written");
         m_raPasswordGiven = false;
         stopClaims();
@@ -2721,9 +3324,18 @@ bool ArcadeBackend::askForPorts() {
         connect(m_claimAsk, &QUdpSocket::readyRead, this, &ArcadeBackend::readPortsAnswer);
         m_claimWait = new QTimer(this);
         m_claimWait->setSingleShot(true);
-        // Not answered: asked again, then joined without an answer.
+        // Not answered: asked again, then joined without an answer. Ports
+        // answered without the layout, which hasn't come after them either:
+        // joined on the Classic layout.
         connect(m_claimWait, &QTimer::timeout, this, [this] {
-            if (m_pendingJoin && !askForPorts())
+            if (!m_pendingJoin)
+                return;
+            if (const std::optional<libretro::PortRange> ports = m_pendingJoin->ports) {
+                qInfo("[Arcade] %s said nothing of its layout: the Classic one", qPrintable(m_pendingJoin->host));
+                startPendingJoin(ports);
+                return;
+            }
+            if (!askForPorts())
                 startPendingJoin(std::nullopt);
         });
     }
@@ -2738,23 +3350,48 @@ bool ArcadeBackend::askForPorts() {
 }
 
 void ArcadeBackend::readPortsAnswer() {
+    // The host's layout and its ports have both come: the game starts.
+    const auto start = [this](const libretro::PortRange &ports) {
+        m_claimWait->stop();
+        qInfo("[Arcade] %s gives this machine's %d player(s) %d port(s) from %d, on the %s layout",
+              qPrintable(m_pendingJoin->host), m_pendingJoin->players, ports.players, ports.first,
+              m_pendingJoin->layout == libretro::Launch::Layout::Panel ? "panel" : "classic");
+        startPendingJoin(ports);
+    };
     while (m_claimAsk->hasPendingDatagrams()) {
         const QNetworkDatagram answer = m_claimAsk->receiveDatagram(64);
+        const QHostAddress from(answer.senderAddress().toIPv4Address());
+        const bool fromHost = m_pendingJoin && from == QHostAddress(m_pendingJoin->host);
+        // The host's layout comes ahead of the ports (an older OSD/OS says
+        // none: Classic), each a datagram of its own: ports that come first
+        // wait a moment for it.
+        if (const std::optional<libretro::Launch::Layout> layout = libretro::readClaimLayout(answer.data())) {
+            if (!fromHost)
+                continue;
+            m_pendingJoin->layout = *layout;
+            m_pendingJoin->layoutSaid = true;
+            if (const std::optional<libretro::PortRange> waiting = m_pendingJoin->ports) {
+                start(*waiting);
+                return;
+            }
+            continue;
+        }
         const std::optional<libretro::PortRange> ports = libretro::readClaimAnswer(answer.data());
         if (!ports)
             continue;
-        const QHostAddress from(answer.senderAddress().toIPv4Address());
         // One that comes too late, or from another host: its ports given
         // back.
-        if (!m_pendingJoin || from != QHostAddress(m_pendingJoin->host)) {
+        if (!fromHost) {
             if (ports->first > 0)
                 releaseClaim(from.toString());
             continue;
         }
-        m_claimWait->stop();
-        qInfo("[Arcade] %s gives this machine's %d player(s) %d port(s) from %d", qPrintable(m_pendingJoin->host),
-              m_pendingJoin->players, ports->players, ports->first);
-        startPendingJoin(*ports);
+        if (!m_pendingJoin->layoutSaid) {
+            m_pendingJoin->ports = ports;
+            m_claimWait->start(kLayoutWaitMs);
+            continue;
+        }
+        start(*ports);
         return;
     }
 }
@@ -2764,7 +3401,8 @@ void ArcadeBackend::startPendingJoin(const std::optional<libretro::PortRange> &p
     if (!ports)
         qInfo("[Arcade] %s doesn't say which ports are taken: RetroArch is asked for them", qPrintable(join.host));
     const int first = ports ? ports->first : -1;
-    if (playFbneo(join.game, libretro::Launch::Netplay::LanJoin, join.joinAddress, first, ports ? ports->players : 0)) {
+    if (playFbneo(join.game, libretro::Launch::Netplay::LanJoin, join.joinAddress, first, ports ? ports->players : 0,
+                  ports ? join.layout : libretro::Launch::Layout::Classic)) {
         m_claimedFrom = first > 0 ? join.host : QString();
         return;
     }
@@ -2781,9 +3419,10 @@ void ArcadeBackend::releaseClaim(const QString &address) {
     socket.writeDatagram(libretro::claimRelease(), QHostAddress(address), m_claimPort);
 }
 
-bool ArcadeBackend::startClaims(int own, int most) {
+bool ArcadeBackend::startClaims(int own, int most, libretro::Launch::Layout layout) {
     stopClaims();
     m_claims.reset(own, most);
+    m_claimLayout = layout;
     m_claimSocket = new QUdpSocket(this);
     if (!m_claimSocket->bind(QHostAddress(QHostAddress::AnyIPv4), m_claimPort)) {
         qWarning("[Arcade] The machines joining can't be given their ports: %s", qPrintable(m_claimSocket->errorString()));
@@ -2802,7 +3441,12 @@ void ArcadeBackend::answerClaims() {
             continue;
         const QString from = QHostAddress(packet.senderAddress().toIPv4Address()).toString();
         if (const std::optional<int> players = libretro::readClaimQuery(packet.data())) {
+            // The layout first, the ports after: a joiner starts its game on
+            // the ports, and takes the layout with them; an older one reads
+            // the ports alone.
             const libretro::PortRange ports = m_claims.claim(from, *players);
+            m_claimSocket->writeDatagram(libretro::claimLayout(m_claimLayout), packet.senderAddress(),
+                                         packet.senderPort());
             m_claimSocket->writeDatagram(libretro::claimAnswer(ports), packet.senderAddress(), packet.senderPort());
             qInfo("[Arcade] %s joins with %d player(s): %d port(s) from %d", qPrintable(from), *players, ports.players,
                   ports.first);
@@ -2834,14 +3478,22 @@ QVariantList ArcadeBackend::lanRooms() const {
     QVariantList list;
     if (!m_lanPlay || m_lanRooms.isEmpty() || !fbneoReady())
         return list;
+    const QDateTime now = QDateTime::currentDateTimeUtc();
     for (const libretro::Room &room : m_lanRooms) {
         // As rooms(): a game in the folder FinalBurn Neo plays (only rooms
         // joined without a password are kept: readLanAnswers()).
         if (!fbneoHas(room.game))
             continue;
+        // What its host answered with, as the lobby's rooms are told of
+        // (FinalBurn Neo is ready, so ours are what is known of them), and
+        // where it is joined: its host's address on this network, and the
+        // game's file in the folder.
+        QVariantMap info = roomInfo(room, now, true, m_coreVersion, m_retroarchVersion);
+        info.insert(QStringLiteral("address"), room.joinAddress.section(QLatin1Char('|'), 0, 0));
+        info.insert(QStringLiteral("file"), m_sets.value(room.game));
         list << QVariantMap{ { QStringLiteral("id"), room.id }, { QStringLiteral("set"), room.game },
                              { QStringLiteral("title"), titleOf(room.game) }, { QStringLiteral("host"), room.host },
-                             { QStringLiteral("detail"), lanDetail(room) } };
+                             { QStringLiteral("detail"), lanDetail(room) }, { QStringLiteral("info"), info } };
     }
     return list;
 }
@@ -2850,16 +3502,64 @@ QVariantList ArcadeBackend::rooms() const {
     QVariantList list;
     if (!m_onlinePlay || !fbneoReady())
         return list;
+    const QDateTime now = QDateTime::currentDateTimeUtc();
     for (const libretro::Room &room : m_rooms) {
         // A game in the folder FinalBurn Neo plays, joined without a
-        // password (RetroArch would ask for one on its own screen).
+        // password (RetroArch would ask for one on its own screen); with
+        // what the lobby says of it, as lobby() has it (FinalBurn Neo is
+        // ready, so ours are what is known of them).
         if (room.password || !fbneoHas(room.game))
             continue;
         list << QVariantMap{ { QStringLiteral("id"), room.id }, { QStringLiteral("set"), room.game },
                              { QStringLiteral("title"), titleOf(room.game) },
-                             { QStringLiteral("host"), room.host }, { QStringLiteral("country"), room.country } };
+                             { QStringLiteral("host"), room.host }, { QStringLiteral("country"), room.country },
+                             { QStringLiteral("info"), roomInfo(room, now, true, m_coreVersion, m_retroarchVersion) } };
     }
     return list;
+}
+
+QVariantMap ArcadeBackend::roomInfo(const libretro::Room &room, const QDateTime &now, bool ready,
+                                    const QString &yourCore, const QString &yourRetroArch) const {
+    const bool fbneo = room.core == QLatin1String("FinalBurn Neo");
+    const bool have = fbneo && !room.game.isEmpty() && fbneoHas(room.game);
+    // A game of the folder by its name there; any other as its host has it.
+    const QString title = have ? titleOf(room.game) : room.rom.isEmpty() ? QStringLiteral("?") : room.rom;
+    // Why it can't be joined from here, as rooms() leaves it out.
+    QString why;
+    if (!fbneo)
+        why = QStringLiteral("OSD/OS joins FinalBurn Neo's games alone: this one is %1's")
+                  .arg(room.core.isEmpty() ? QStringLiteral("another core") : room.core);
+    else if (!room.connectable)
+        why = QStringLiteral("Its host's connection takes no players");
+    else if (room.password)
+        why = QStringLiteral("It asks for a password");
+    else if (!room.joinable)
+        why = room.game.isEmpty() ? QStringLiteral("Its game isn't named as a set")
+              : room.joinAddress.isEmpty() ? QStringLiteral("The lobby gives no address it can be joined at")
+                                           : QStringLiteral("Its host's RetroArch can't be joined from here");
+    else if (!ready)
+        why = QStringLiteral("FinalBurn Neo is not installed: Settings → Arcade → FinalBurn Neo");
+    else if (!m_sets.contains(room.game))
+        why = QStringLiteral("%1 isn't in your games folder").arg(room.game);
+    else if (m_folders.contains(room.game))
+        why = QStringLiteral("FinalBurn Neo plays a game's zip or 7z, not a folder");
+    else if (!have)
+        why = m_fbneoGames.contains(room.game)
+                  ? looksForLowerCase(QStringLiteral("FinalBurn Neo"), room.game)
+                  : QStringLiteral("FinalBurn Neo has no game called %1").arg(room.game);
+    return { { QStringLiteral("id"), room.id }, { QStringLiteral("title"), title }, { QStringLiteral("rom"), room.rom },
+             { QStringLiteral("set"), have ? room.game : QString() }, { QStringLiteral("crc"), room.crc },
+             { QStringLiteral("core"), room.core }, { QStringLiteral("coreVersion"), room.coreVersion },
+             { QStringLiteral("subsystem"), room.subsystem }, { QStringLiteral("retroarch"), room.retroarch },
+             { QStringLiteral("frontend"), room.frontend }, { QStringLiteral("host"), room.host },
+             { QStringLiteral("country"), room.country }, { QStringLiteral("relay"), room.relay },
+             { QStringLiteral("players"), room.players }, { QStringLiteral("spectators"), room.spectators },
+             { QStringLiteral("minutes"), room.created.isValid() ? std::max<qint64>(0, room.created.secsTo(now) / 60) : -1 },
+             { QStringLiteral("password"), room.password }, { QStringLiteral("spectatePassword"), room.spectatePassword },
+             { QStringLiteral("connectable"), room.connectable }, { QStringLiteral("joinable"), why.isEmpty() },
+             { QStringLiteral("why"), why },
+             { QStringLiteral("coreMatch"), !fbneo ? QString() : coreMatch(room.coreVersion, yourCore) },
+             { QStringLiteral("retroarchMatch"), retroarchMatch(room.retroarch, yourRetroArch) } };
 }
 
 QVariantMap ArcadeBackend::lobby() const {
@@ -2884,48 +3584,11 @@ QVariantMap ArcadeBackend::lobby() const {
     };
     QList<Listed> listed;
     for (const libretro::Room &room : m_lobby) {
-        const bool fbneo = room.core == QLatin1String("FinalBurn Neo");
-        const bool have = fbneo && !room.game.isEmpty() && fbneoHas(room.game);
-        // A game of the folder by its name there; any other as its host has it.
-        const QString title = have ? titleOf(room.game) : room.rom.isEmpty() ? QStringLiteral("?") : room.rom;
-        // Why it can't be joined from here, as rooms() leaves it out.
-        QString why;
-        if (!fbneo)
-            why = QStringLiteral("OSD/OS joins FinalBurn Neo's games alone: this one is %1's")
-                      .arg(room.core.isEmpty() ? QStringLiteral("another core") : room.core);
-        else if (!room.connectable)
-            why = QStringLiteral("Its host's connection takes no players");
-        else if (room.password)
-            why = QStringLiteral("It asks for a password");
-        else if (!room.joinable)
-            why = room.game.isEmpty() ? QStringLiteral("Its game isn't named as a set")
-                  : room.joinAddress.isEmpty() ? QStringLiteral("The lobby gives no address it can be joined at")
-                                               : QStringLiteral("Its host's RetroArch can't be joined from here");
-        else if (!ready)
-            why = QStringLiteral("FinalBurn Neo is not installed: Settings → Arcade → FinalBurn Neo");
-        else if (!m_sets.contains(room.game))
-            why = QStringLiteral("%1 isn't in your games folder").arg(room.game);
-        else if (m_folders.contains(room.game))
-            why = QStringLiteral("FinalBurn Neo plays a game's zip or 7z, not a folder");
-        else if (!have)
-            why = m_fbneoGames.contains(room.game)
-                      ? looksForLowerCase(QStringLiteral("FinalBurn Neo"), room.game)
-                      : QStringLiteral("FinalBurn Neo has no game called %1").arg(room.game);
-        const QVariantMap entry{
-            { QStringLiteral("id"), room.id }, { QStringLiteral("title"), title }, { QStringLiteral("rom"), room.rom },
-            { QStringLiteral("set"), have ? room.game : QString() }, { QStringLiteral("crc"), room.crc },
-            { QStringLiteral("core"), room.core }, { QStringLiteral("coreVersion"), room.coreVersion },
-            { QStringLiteral("subsystem"), room.subsystem }, { QStringLiteral("retroarch"), room.retroarch },
-            { QStringLiteral("frontend"), room.frontend }, { QStringLiteral("host"), room.host },
-            { QStringLiteral("country"), room.country }, { QStringLiteral("relay"), room.relay },
-            { QStringLiteral("players"), room.players }, { QStringLiteral("spectators"), room.spectators },
-            { QStringLiteral("minutes"), room.created.isValid() ? std::max<qint64>(0, room.created.secsTo(now) / 60) : -1 },
-            { QStringLiteral("password"), room.password }, { QStringLiteral("spectatePassword"), room.spectatePassword },
-            { QStringLiteral("connectable"), room.connectable }, { QStringLiteral("joinable"), why.isEmpty() },
-            { QStringLiteral("why"), why },
-            { QStringLiteral("coreMatch"), !fbneo ? QString() : coreMatch(room.coreVersion, yourCore) },
-            { QStringLiteral("retroarchMatch"), retroarchMatch(room.retroarch, yourRetroArch) } };
-        listed.append({ fbneo, room.core, title, room.id, entry });
+        // What is said of it (roomInfo()), under its title: a game of the
+        // folder by its name there; any other as its host has it.
+        QVariantMap entry = roomInfo(room, now, ready, yourCore, yourRetroArch);
+        listed.append({ room.core == QLatin1String("FinalBurn Neo"), room.core,
+                        entry.value(QStringLiteral("title")).toString(), room.id, std::move(entry) });
     }
     // FinalBurn Neo's first, then by core and title, the newest first.
     std::sort(listed.begin(), listed.end(), [](const Listed &a, const Listed &b) {
@@ -2965,6 +3628,15 @@ void ArcadeBackend::refreshRooms() {
         QNetworkReply *reply = std::exchange(m_lobbyReply, nullptr);
         reply->deleteLater();
         m_roomsRead = true;
+        // What the Online Games folder and filter show of a room.
+        const auto shown = [](const QList<libretro::Room> &rooms) {
+            QStringList keys;
+            for (const libretro::Room &room : rooms)
+                keys << QString::number(room.id) + room.game + room.host + room.country + (room.password ? "p" : "");
+            return keys;
+        };
+        const QStringList before = shown(m_rooms);
+        const QString problemBefore = m_roomsProblem;
         const bool big = tooBig(reply, kLobbyMaxBytes);
         if (reply->error() == QNetworkReply::NoError && !big) {
             m_lobby = libretro::readWholeLobby(reply->readAll());
@@ -2982,9 +3654,14 @@ void ArcadeBackend::refreshRooms() {
             qWarning("[Arcade] %s", qPrintable(m_roomsProblem));
         }
         emit roomsChanged();
-        // The Online Games folder, and the Arcade screen's filter.
-        emit entriesReady(QStringLiteral("online"));
-        emit gamesChanged();
+        // The Online Games folder, and the Arcade screen's filter: read again
+        // only for rooms that came or went, not at every read of a lobby as
+        // it was (one every twenty seconds while it is shown), which would
+        // have the screen's filters made again each time.
+        if (shown(m_rooms) != before || m_roomsProblem != problemBefore) {
+            emit entriesReady(QStringLiteral("online"));
+            emit gamesChanged();
+        }
     });
 }
 
@@ -3003,15 +3680,25 @@ void ArcadeBackend::downloadGenres() {
         const bool big = tooBig(reply, kGenresMaxBytes);
         const QByteArray data = reply->error() == QNetworkReply::NoError && !big ? reply->readAll() : QByteArray();
         // catver.ini by its section of genres, else not taken.
-        if (!data.contains("[Category]") || !QDir().mkpath(m_home)
-            || !writeFileAtomically(m_home + QStringLiteral("/catver.ini"), data)) {
+        if (!data.contains("[Category]")) {
             qWarning("[Arcade] catver.ini couldn't be downloaded (%s): no genres for now",
                      qPrintable(big ? QStringLiteral("too big") : reply->errorString()));
             m_genresRetry = QDateTime::currentDateTimeUtc().addSecs(kGenresRetrySeconds);
             return;
         }
-        // Read with the folder, now that it is there.
-        readAgain();
+        // Megabytes, written to the card off the GUI thread (as the pictures
+        // are), then read with the folder, now that it is there.
+        const QString home = m_home;
+        QtConcurrent::run(&m_pictureSaves, [home, data] {
+            return QDir().mkpath(home) && writeFileAtomically(home + QStringLiteral("/catver.ini"), data);
+        }).then(this, [this](bool written) {
+            if (!written) {
+                qWarning("[Arcade] catver.ini couldn't be written: no genres for now");
+                m_genresRetry = QDateTime::currentDateTimeUtc().addSecs(kGenresRetrySeconds);
+                return;
+            }
+            readAgain();
+        });
     });
 }
 
@@ -3740,6 +4427,15 @@ void ArcadeBackend::saveAchievements() const {
 
 void ArcadeBackend::takeAchievements(const libretro::Run &run) {
     const QString config = retroarchHome() + QStringLiteral("/retroarch.cfg");
+    // A RetroArch that never ran (it couldn't be started, or left no log)
+    // saw neither the password nor the token: nothing became of them, and
+    // the password stays for the next game, no game's any more (OSD/OS
+    // Setup's sign-in may try it meanwhile, retrySetupSignIn()).
+    if (!run.logged) {
+        m_raPasswordGiven = false;
+        QFile::remove(config);
+        return;
+    }
     bool changed = false;
     if (std::exchange(m_raPasswordGiven, false)) {
         // RetroArch saved its config on exit, the token in it if it signed

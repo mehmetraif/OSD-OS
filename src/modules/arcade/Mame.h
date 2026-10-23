@@ -102,6 +102,12 @@ QString decadeOf(const QString &year);
 // A game's title, its description without what tells its versions apart:
 // "Galaga (Namco rev. B)" → "Galaga", "Truxton / Tatsujin" → "Truxton".
 QString titleOf(const QString &description);
+// Whether a machine is a bootleg or a hack of a game rather than its maker's
+// own release, as MAME names them: its description says so in parentheses
+// ("Galaga (bootleg)", "Pac-Man (Midway, speedup hack)", "Puckman (Japan
+// set 1, Probably Bootleg)"), or its maker does ("bootleg", "bootleg
+// (Playmark)", "hack").
+bool isBootlegOrHack(const Machine &machine);
 // The board or system a driver is for, as the Arcade screen names it, from
 // its source file: "capcom/cps1.cpp" → "CPS-1", "neogeo/neogeo.cpp" →
 // "Neo-Geo"; any other, the driver's own name: "nintendo/dkong.cpp" →

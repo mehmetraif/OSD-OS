@@ -17,11 +17,13 @@
 #include <QVariant>
 #include <functional>
 #include <optional>
+#include <tuple>
 #include <utility>
 #include "Libretro.h"
 #include "Mame.h"
 
 class AppCore;
+class ArcadeDb;
 class DisplayHandoff;
 class FbneoInstaller;
 class RetroAchievements;
@@ -111,6 +113,14 @@ class ArcadeBackend : public QObject {
     Q_PROPERTY(bool fbneoDownloading READ fbneoDownloading NOTIFY fbneoChanged)
     Q_PROPERTY(int fbneoProgress READ fbneoProgress NOTIFY fbneoProgressChanged)
     Q_PROPERTY(QString fbneoMessage READ fbneoMessage NOTIFY fbneoChanged)
+    // The look through every game for pictures (downloadPictures(), Read
+    // the Games Again): { active (under way, or waiting to go on), source
+    // ("RetroAchievements" or "progetto-SNAPS", the pass it is on), done and
+    // total (the games looked at of this pass's), asked (games asked about
+    // so far), failed (games whose pictures couldn't be had), again (waiting
+    // to try those again), result (how the last look ended, "" for none
+    // yet) }.
+    Q_PROPERTY(QVariantMap picturesProgress READ picturesProgress NOTIFY picturesProgressChanged)
     // The status icons the module adds (AppCore's statusIcons): "hiscore"
     // while Save High Scores is on, "trophy" while Online High Scores plays
     // with RetroAchievements and its account is signed in (or signs in at
@@ -169,8 +179,10 @@ public:
     // A page of a filter: its games from first on, count at most, as
     // { set, name (its title), favorite }; Online Games' and LAN Games' with
     // the room too, { room (its id), host, lan (LAN Games'), detail (LAN
-    // Games': lanRooms()'s) }; RetroArch Lobby's as { set ("" for a game not
-    // in the folder), name (its title and host), favorite, room, host, lobby
+    // Games': lanRooms()'s), info (what is said of the room, for the Arcade
+    // screen's box: rooms()'s or lanRooms()'s) }; RetroArch Lobby's as
+    // { set ("" for a game not in the folder), name (its title and host),
+    // favorite, room, host, lobby
     // (the room as lobby() has it) }; Search's first row as { set: "",
     // search: true, name (the words, or "Search" for none) }; Not
     // Recognized's as { set, name (its file's), unknown: true }.
@@ -195,13 +207,26 @@ public:
     // { set, name (its file's), unknown: true, detail (why, and what to do, a
     // line each) }; {} for a set not in the folder.
     Q_INVOKABLE QVariantMap gameDetails(const QString &set);
-    // The pictures RetroAchievements has of a set's game, or its parent's,
-    // downloaded into the snap folder with a Web API key kept, as the game
-    // is shown (the Arcade screen, Game Details): once, unless they have
-    // been, are being, RetroAchievements has none this run, a try failed
-    // less than ten minutes ago or the folder can't be written.
+    // A set's pictures downloaded as the game is shown (the Arcade screen,
+    // Game Details), as Settings → Arcade → Pictures From allows: those
+    // RetroAchievements has of its game, or its parent's, with a Web API key
+    // kept, into the snap folder (once, unless they have been, are being,
+    // RetroAchievements has none this run, a try failed less than ten
+    // minutes ago or the folder can't be written); then, for a game still
+    // without any picture, progetto-SNAPS' through ArcadeDB (wantSnaps()).
     // picturesChanged() as each is in.
     Q_INVOKABLE void wantPictures(const QString &set);
+    // What Settings → Arcade → Game Pictures shows: { games (the folder's),
+    // withPictures (those with a picture of any kind), achievements and
+    // snaps (whether Pictures From has each source on), key ("none",
+    // "refused", "works" or "given": the Web API key's state), writable (the
+    // snap folder can be written in), snapFolder, titlesFolder }.
+    Q_INVOKABLE QVariantMap picturesInfo() const;
+    QVariantMap picturesProgress() const;
+    // manifest: download_pictures (action), and the Game Pictures page's
+    // Download Pictures: every game's pictures looked for, from the sources
+    // Pictures From allows (startPictureSweep()); one under way starts anew.
+    Q_INVOKABLE void downloadPictures();
     // A game's achievements on RetroAchievements, for its Game Details
     // (Details.qml), as RetroAchievements::achievements() reads them with
     // the Web API key and the account's user: { state, achievements,
@@ -247,7 +272,9 @@ public:
 
     // Online Play (Settings → Arcade → Online Play): the netplay lobby's
     // rooms (lobby.libretro.com) of the folder's games FinalBurn Neo plays,
-    // without a password, newest first: [{ id, set, title, host, country }].
+    // without a password, newest first: [{ id, set, title, host, country,
+    // info (the room as lobby() has it, matched against ours, for the
+    // Arcade screen's box) }].
     // refreshRooms() reads the lobby again, once at a time: roomsChanged(),
     // and the Online Games folder and filter listed again, once it has. It
     // reads our own RetroArch's and core's versions too, once for each
@@ -287,7 +314,10 @@ public:
     // LAN Play (Settings → Arcade → LAN Play): the games RetroArch hosts on
     // the local network, found by a query broadcast there that each host
     // answers (libretro::readLanAnswer()), of the folder's games FinalBurn
-    // Neo plays, without a password: [{ id, set, title, host, detail }], an
+    // Neo plays, without a password: [{ id, set, title, host, detail, info
+    // (what the host answered with, as lobby() has a room, matched against
+    // ours, with address, the host's on this network, and file, the game's
+    // in the folder: the Arcade screen's box) }], an
     // id kept while the host answers with the same game, and a room kept
     // through one query it isn't heard in. refreshLanRooms() asks again, once
     // at a time, and listens a second: lanRoomsChanged(), and the LAN Games
@@ -308,6 +338,12 @@ public:
     Q_INVOKABLE bool hostLanGame(const QString &set);
     // canHost() for LAN Play.
     Q_INVOKABLE bool canHostLan(const QString &set) const;
+    // The controller types a game hosted from here plays with online,
+    // "panel" (FinalBurn Neo's 6-Button Panel on every port, with an arcade
+    // panel's players among this machine's) or "classic" (RetroArch's own):
+    // libretro::hostLayout(). A game joined is "classic" until its host
+    // says, which comes with the ports, after the Play screen.
+    Q_INVOKABLE QString onlineLayout(bool hosting) const;
     // Where the query goes: broadcast to every network's hosts at
     // RetroArch's port, or a stand-in's address and port (a test's).
     void setLanDiscovery(const QString &address, quint16 port);
@@ -325,9 +361,15 @@ public:
     void setVersionReadTimeout(int ms) { m_versionReadMs = ms; }
     // RetroAchievements' Web API and media server: its own, or a stand-in's.
     void setAchievementsServers(const QUrl &api, const QUrl &media);
-    // How long Read the Games Again's look through the games for pictures
-    // waits between two games (sweepPictures()): a second, or a test's.
+    // ArcadeDB's scraper service, progetto-SNAPS' pictures' way here: its
+    // own, or a stand-in's.
+    void setPictureServer(const QUrl &arcadeDb);
+    // How long the look through the games for pictures waits between two
+    // steps (sweepPictures()): a second, or a test's; and how long after a
+    // look that couldn't have every picture the next is made: ten minutes,
+    // or a test's.
     void setPictureSweepInterval(int ms);
+    void setPictureRetryInterval(int ms);
     // Whether that look is under way.
     bool sweepingPictures() const;
 
@@ -379,9 +421,8 @@ public:
     // What MAME printed in the last game's run.
     Q_INVOKABLE QString output() const;
 
-    // manifest: rescan (action): MAME asked about every set again; then,
-    // with a Web API key, RetroAchievements' pictures of every game it has
-    // downloaded (startPictureSweep()).
+    // manifest: rescan (action): MAME asked about every set again; then
+    // every game's pictures looked for (startPictureSweep()).
     Q_INVOKABLE void rescan();
     // manifest: start_filter's choices (dynamicOptionsReady): All Games,
     // with Online Play on RetroArch Lobby, and Favorites, Recently Played and
@@ -443,9 +484,11 @@ signals:
     void leaderboardReady(const QString &set);
     void gameAchievementsReady(const QString &set);
     void badgesReady();
-    // A game's pictures have changed: one of RetroAchievements' is in. set:
-    // the one it is named after, the game's or its parent's.
+    // A game's pictures have changed: one of RetroAchievements' or
+    // progetto-SNAPS' is in. set: the one it is named after, the game's or
+    // its parent's.
     void picturesChanged(const QString &set);
+    void picturesProgressChanged();
     void statusIconsChanged();
     void roomsChanged();
     void lanRoomsChanged();
@@ -488,10 +531,11 @@ private:
         QString genresFrom;
         QHash<QString, QString> genres;
         // The pictures: the games folder's snap by set, those numbered after
-        // a set in it (<set>_1.png…) in turn, and the first MAME took of each
-        // game.
+        // a set in it (<set>_1.png…) in turn, its titles folder's by set,
+        // and the first MAME took of each game.
         QHash<QString, QString> snaps;
         QHash<QString, QStringList> numbered;
+        QHash<QString, QString> titles;
         QHash<QString, QString> shots;
         // FinalBurn Neo's list of games, when it wasn't the one read before
         // (fbneoRead).
@@ -548,7 +592,8 @@ private:
     bool fbneoOnly(const QString &set) const;
     // A set listed as a game: in the folder, a name MAME opens, and one of
     // its games (or one it wasn't asked about) or FinalBurn Neo's, not a BIOS
-    // or a device.
+    // or a device; with Hide Hacks and Bootlegs on, not a bootleg or a hack
+    // either (mame::isBootlegOrHack()).
     bool isGame(const QString &set) const;
     // What MAME said of a set's machine; for a set it hasn't (it doesn't know
     // it, or there is none to ask), FinalBurn Neo's list's, should it have
@@ -561,10 +606,11 @@ private:
     QString titleOf(const QString &set) const;
 
     // The folder's games (not BIOS sets, devices or sets under Not
-    // Recognized) by name, the genres, players, decades and makers they are
-    // under, and the sets under Not Recognized: made again only once the
-    // folder or what MAME says of it has changed (invalidate()), as a full
-    // set of MAME's games is tens of thousands.
+    // Recognized, nor the bootlegs and hacks Hide Hacks and Bootlegs leaves
+    // out) by name, the genres, players, decades and makers they are under,
+    // and the sets under Not Recognized: made again only once the folder,
+    // what MAME says of it or that setting has changed (invalidate()), as a
+    // full set of MAME's games is tens of thousands.
     struct Index {
         QStringList games;
         QHash<QString, QMap<QString, QStringList>> places;   // kind → place → its games
@@ -620,14 +666,17 @@ private:
     QStringList setAndParent(const QString &set) const;
     // A game's pictures, as file URLs, in the order the Arcade screen shows
     // them: the games folder's snap of it, those numbered after it there
-    // (RetroAchievements' among them), then the first snapshot MAME took of
-    // it; a clone's own, else its parent's. As read with the folder
-    // (m_snaps, m_numbered, m_shots), till the list opens again, and those
-    // downloaded since.
+    // (RetroAchievements' among them), its title screen in the titles
+    // folder, then the first snapshot MAME took of it; a clone's own, else
+    // its parent's. As read with the folder (m_snaps, m_numbered, m_titles,
+    // m_shots), till the list opens again, and those downloaded since.
     QStringList picturesOf(const QString &set) const;
     // The folder pictures are kept in: the games folder's snap folder, as it
     // is named there, else snap; "" while there is no games folder to read.
+    // And the title screens' beside it, titles, as the picture packs for
+    // MAME lay them out.
     QString snapFolder() const;
+    QString titlesFolder() const;
     // Whether it can be written in (or, while there is none, the games
     // folder): not a read-only USB drive's.
     bool snapWritable() const;
@@ -636,20 +685,63 @@ private:
     // been looked for: all in, being downloaded, or tried less than ten
     // minutes ago. The record read first (loadPictureRecord()).
     QStringList picturesLooked(const QStringList &names) const;
-    // Read the Games Again's, once the folder has been read and MAME has
-    // answered (emitShown()): every game of the folder's, by name, its
-    // pictures downloaded as they would be as it is shown, a game at a time
-    // (sweepPictures(), every m_sweepTimer's interval): not beside a game
-    // being played, nor while the folder is read or MAME asked, nor before
-    // RetroAchievements' list of games is in; those looked for before and
-    // those RetroAchievements hasn't passed over; a game's asked for once
-    // nothing else is (findPicturesLater()), and done with (laterPending())
-    // and its pictures saved before the next's. With the key gone or
-    // refused, or the folder that can't be written, it stops; Read the Games
-    // Again asked again starts it anew.
+    // When a game whose pictures couldn't be had is asked about again: as
+    // long on as the next look waits (setPictureRetryInterval()), ten
+    // minutes, or the pause a server asked for where that is longer.
+    QDateTime pictureRetryTime(qint64 atLeastSeconds = 0) const;
+    // The look through every game for pictures: Download Pictures', Read
+    // the Games Again's once the folder has been read and MAME has answered
+    // (emitShown()), and the next start's for one cut short (its marker,
+    // sweepMarker(), stays until a look ends with every picture had). In
+    // two passes, a step every m_sweepTimer's interval, neither beside a
+    // game being played nor while the folder is read or MAME asked:
+    // - RetroAchievements', with its key: every game of the folder's, by
+    //   name, its pictures downloaded as they would be as it is shown, a
+    //   game at a time, not before RetroAchievements' list of games is in;
+    //   those looked for before and those RetroAchievements hasn't passed
+    //   over; a game's asked for once nothing else is (findPicturesLater()),
+    //   and done with (laterPending()) and its pictures saved before the
+    //   next's;
+    // - progetto-SNAPS', through ArcadeDB: the games still without any
+    //   picture, kMostAsked at a time, each batch's pictures saved before
+    //   the next is asked about.
+    // A game whose pictures couldn't be had is tried again in a look ten
+    // minutes later, up to kSweepPasses looks in a row. With the folder
+    // unwritable it stops, and a source gone (its key, its setting) passes
+    // to the next pass; Download Pictures or Read the Games Again asked
+    // again starts it anew.
     void startPictureSweep();
     void sweepPictures();
     void stopPictureSweep();
+    // The pass done: the next, or the look ended.
+    void nextSweepPass();
+    void finishPictureSweep();
+    QString sweepMarker() const;
+    // progetto-SNAPS' pictures of a game without any (picturesOf()), through
+    // ArcadeDB, as Pictures From allows: its screenshot in play saved as
+    // snap/<set>.png, its title screen as titles/<set>.png, the way the
+    // picture packs for MAME lay them out, never over a file there. Asked
+    // about once: what ArcadeDB has of each set is noted in the snap
+    // folder's .arcadedb.json (one it has no pictures of is asked about
+    // again after kSnapsAgainSeconds), a try that failed is made again ten
+    // minutes later, and one ArcadeDB turned away (too many requests) once
+    // the pause it asked for is over.
+    void wantSnaps(const QString &set);
+    // m_snapAsk's: the set shown asked about, should it still be without a
+    // picture.
+    void askSnaps();
+    void snapsAfter(const QString &name);
+    bool snapsLooked(const QString &set) const;
+    void onSnapsFound(const QString &set, const QString &ingame, const QString &title);
+    void onSnapsFailed(const QStringList &sets, int holdSeconds);
+    void onSnapDownloaded(const QString &set, bool title, const QByteArray &data);
+    void finishSnap(const QString &set, bool saved);
+    void loadSnapRecord();
+    void saveSnapRecord();
+    // The records that changed, written off the GUI thread: a moment after
+    // the change (m_recordSave), before the snap folder changes, and as the
+    // backend ends.
+    void flushRecords();
     // A picture of RetroAchievements' downloaded for a game, or not (data
     // empty): saved off the GUI thread as <name>_<n> in the snap folder, n
     // the first number no picture of that name has there, so that a file
@@ -693,15 +785,17 @@ private:
     // (hostPorts()); joining on the local network, the ports its host's
     // OSD/OS gave, portsGiven from portsFrom (0 for none left; -1 for no
     // answer: from 2 with more than one player, else RetroArch's own, the
-    // first free).
+    // first free), on the layout it said (libretro::Launch::layout; a host
+    // chooses its own by its players, libretro::hostLayout()).
     bool playFbneo(const QString &name, libretro::Launch::Netplay netplay = libretro::Launch::Netplay::None,
-                   const QString &joinAddress = QString(), int portsFrom = -1, int portsGiven = 0);
+                   const QString &joinAddress = QString(), int portsFrom = -1, int portsGiven = 0,
+                   libretro::Launch::Layout layout = libretro::Launch::Layout::Classic);
     // The ports this machine's players take hosting set: up to the last
     // player with a controller (libretro::localPorts()), but one fewer than
-    // the game plays at once, so that a machine joining has a port; one, for
-    // a game MAME doesn't know the players of (FinalBurn Neo's list doesn't
-    // say). With most, the game's ports: as many as it plays at once, or
-    // libretro::kMostPorts where that isn't known.
+    // the game plays at once, so that a machine joining has a port. With
+    // most, the game's ports: as many as it plays at once, or
+    // libretro::kMostPorts for a game MAME doesn't know the players of
+    // (FinalBurn Neo's list doesn't say), taken for one of six.
     int hostPorts(const QString &set, int *most = nullptr) const;
     // A LAN game joined once its host's OSD/OS has said which ports this
     // machine's players take (libretro::claimQuery() to the host at the
@@ -719,6 +813,12 @@ private:
         QString host;
         int players = 1;
         int asked = 0;
+        // The host's layout, as it said before the ports (Classic until it
+        // does), and whether it has; the ports that came before it did,
+        // waiting a moment for it (readPortsAnswer()).
+        libretro::Launch::Layout layout = libretro::Launch::Layout::Classic;
+        bool layoutSaid = false;
+        std::optional<libretro::PortRange> ports;
     };
     bool askForPorts();
     void readPortsAnswer();
@@ -726,9 +826,9 @@ private:
     void releaseClaim(const QString &address);
     // Hosting on the local network: the ports taken counted (m_claims, this
     // machine's own first, of the game's most), and each OSD/OS joining
-    // given theirs at the claim port (answerClaims()), until the game ends
-    // (stopClaims()). False without the socket for it.
-    bool startClaims(int own, int most);
+    // told the layout and given theirs at the claim port (answerClaims()),
+    // until the game ends (stopClaims()). False without the socket for it.
+    bool startClaims(int own, int most, libretro::Launch::Layout layout);
     void answerClaims();
     void stopClaims();
     // The Online Games folder's entries: the rooms, or a line saying why
@@ -749,6 +849,15 @@ private:
     // which address, its file, and its core's and RetroArch's versions
     // against ours, where both are known.
     QString lanDetail(const libretro::Room &room) const;
+    // What is said of a room, the lobby's or one the local network answered
+    // with, for the RetroArch Lobby page and the Arcade screen's box:
+    // lobby()'s entry for it (its title, ROM, set, CRC, core and versions,
+    // host, how it is reached, when it was hosted as of now, whether it can
+    // be joined from here and why not), its core's version and RetroArch's
+    // matched against ours as given (yourCore and yourRetroArch, "" where
+    // not known), FinalBurn Neo ready or not.
+    QVariantMap roomInfo(const libretro::Room &room, const QDateTime &now, bool ready,
+                         const QString &yourCore, const QString &yourRetroArch) const;
     // The name the others see in a game: Online Name; else, on the local
     // network, this device's (two cabinets there told apart by it), online
     // the RetroAchievements account's, or OSD-OS.
@@ -835,6 +944,7 @@ private:
 
     // Settings.
     QString m_gamesFolder;
+    bool    m_hideBootlegs = false;   // Hide Hacks and Bootlegs
     bool    m_highScores = true;
     QString m_video;              // "" for MAME's own (mame.ini's)
     QString m_screenShape;        // Emulator Video: "4:3", "16:9", "Square Pixels"; "" for Auto
@@ -930,6 +1040,7 @@ private:
     // ports, given back as the game ends ("" for none).
     QUdpSocket *m_claimSocket = nullptr;
     libretro::PortClaims m_claims;
+    libretro::Launch::Layout m_claimLayout = libretro::Launch::Layout::Classic;
     quint16 m_claimPort = libretro::kLanClaimPort;
     std::optional<PendingJoin> m_pendingJoin;
     QUdpSocket *m_claimAsk = nullptr;
@@ -959,7 +1070,12 @@ private:
     QString m_genresFrom;         // the catver.ini read: its path, size and time
     QHash<QString, QString> m_snaps;    // set → its picture in the games folder's snap
     QHash<QString, QStringList> m_numbered;   // set → the pictures numbered after it there, in turn
+    QHash<QString, QString> m_titles;   // set → its title screen in the games folder's titles
     QHash<QString, QString> m_shots;    // set → the first snapshot MAME took of it
+    // Settings → Arcade → Pictures From: which sources a game's pictures
+    // come from.
+    bool m_picturesAchievements = true;
+    bool m_picturesSnaps = true;
     // RetroAchievements' pictures: what was downloaded of each game into the
     // snap folder whose record is read (the pictures' paths on its media
     // server, and whether all of them are in), the downloads under way (how
@@ -982,16 +1098,66 @@ private:
     QSet<QString> m_noPictures;
     QHash<QString, QDateTime> m_picturesRetry;
     QHash<QString, QStringList> m_savedDuringRead;
-    // Read the Games Again's look through the games for pictures: wanted
-    // once the games have been read again, the sets still to look at (taken
-    // as the first step can go: m_sweepListed), the game asked for (its set
-    // and parent), and how many games were asked for.
+    // progetto-SNAPS' pictures through ArcadeDB: what it has of each set in
+    // the snap folder whose record is read (when it was asked, and whether
+    // it had pictures, all of them saved), the sets asked about or being
+    // downloaded (how many pictures to come, whether one failed, and the
+    // folder they go in), when a set whose pictures couldn't be had may be
+    // tried again, the set shown that waits for RetroAchievements' answer
+    // before ArcadeDB is asked, and the pictures saved while the folder was
+    // read, which that read may not have seen.
+    struct SnapRecord {
+        QDateTime looked;
+        bool had = false;
+    };
+    struct SnapJob {
+        int pending = 0;
+        bool failed = false;
+        QString folder;
+        bool sweep = false;   // asked about by the look through every game, not shown
+    };
+    ArcadeDb *m_arcadeDb = nullptr;
+    QHash<QString, SnapRecord> m_snapRecord;
+    QString m_snapRecordFolder;
+    QHash<QString, SnapJob> m_snapJobs;
+    QHash<QString, QDateTime> m_snapsRetry;
+    QString m_snapsAfter;
+    // The set shown that ArcadeDB is asked about a moment after it was shown
+    // (askSnaps()): a list scrolled through asks about none of the games
+    // passed, as RetroAchievements' findPictures() does.
+    QTimer *m_snapAsk = nullptr;
+    QString m_snapAskSet;
+    // The records written a moment after they changed, both in one go
+    // (flushRecords()), rather than at every set that comes in.
+    QTimer *m_recordSave = nullptr;
+    bool m_snapRecordDirty = false;
+    bool m_pictureRecordDirty = false;
+    QList<std::tuple<QString, QString, bool>> m_namedDuringRead;   // set, file, a title screen
+    // The look through the games for pictures: wanted once the games have
+    // been read (again), the pass it is on, the sets still to look at in
+    // each (taken as a pass's first step can go: m_sweepListed,
+    // m_sweepSnapsListed), the game asked of RetroAchievements (its set and
+    // parent), how many games each pass has looked at of how many, how many
+    // were asked about and failed, how many looks in a row have been made
+    // (the next after failures, m_sweepAgain), and how the last ended.
+    enum class SweepPass { Achievements, Snaps };
     bool m_sweepWanted = false;
+    SweepPass m_sweepPass = SweepPass::Achievements;
     bool m_sweepListed = false;
+    bool m_sweepSnapsListed = false;
     QStringList m_sweep;
+    QStringList m_sweepSnaps;
     QStringList m_sweepGame;
+    int m_sweepDone = 0;
+    int m_sweepTotal = 0;
     int m_sweepAsked = 0;
+    int m_sweepSnapsAsked = 0;
+    int m_sweepFailed = 0;
+    int m_sweepPasses = 0;
+    QString m_sweepResult;
     QTimer *m_sweepTimer = nullptr;
+    QTimer *m_sweepAgain = nullptr;
+    int m_pictureRetryMs = 10 * 60 * 1000;   // how long before a failed game is tried again (a test's)
     // The achievements' badges being downloaded, by file, and when one that
     // couldn't be may be again.
     QSet<QString> m_badgesWanted;

@@ -207,6 +207,19 @@ Rectangle {
         // fbneo's own change signal stands for the backend's fbneoChanged().
         property int downloads: 0
         function fbneoInfo() { return fbneo }
+        // The Game Pictures page, and the look through every game for them
+        // (picturesProgress, as the backend's property).
+        property var picturesProgress: ({ active: false })
+        // What picturesInfo() answers (not "pictures": picturesChanged is a
+        // game's signal above).
+        property var pictureInfo: ({ games: 0, withPictures: 0, achievements: true, snaps: true, key: "none", writable: true })
+        property int pictureDownloads: 0
+        function picturesInfo() { return pictureInfo }
+        function downloadPictures() {
+            pictureDownloads++
+            picturesProgress = { active: true, source: "RetroAchievements", done: 0, total: 0, asked: 0, failed: 0,
+                                 again: false, result: "" }
+        }
         function fbneoLicenseText() { return "You may freely use, modify, and distribute FB Neo." }
         function downloadFbneo() { downloads++; fbneoDownloading = true; fbneoProgress = 40; fbneoChanged() }
         property string achievementsUser: ""
@@ -853,6 +866,44 @@ Rectangle {
             compare(root.backs, 1)
         }
 
+        // The Game Pictures page: the games with a picture of all, each
+        // source as Pictures From and the key have it, and Download Pictures
+        // starting the look, whose way the row shows as it goes and how it
+        // ended; back closes the page.
+        function test_picturesPage() {
+            arcadeBackend.pictureInfo = { games: 120, withPictures: 45, achievements: true, snaps: true, key: "none",
+                                          writable: true }
+            var page = open("Pictures.qml")
+            verify(findText(page, "45/120") !== null)
+            verify(findText(page, "No Web API Key") !== null)
+            compare(page.keys, ["games", "achievements", "snaps", "download"])
+            keyClick(Qt.Key_Down)
+            keyClick(Qt.Key_Down)
+            keyClick(Qt.Key_Down)
+            keyClick(Qt.Key_Return)
+            compare(arcadeBackend.pictureDownloads, 1)
+            tryVerify(function() { return findText(page, "Starting") !== null }, 1000)
+            arcadeBackend.picturesProgress = { active: true, source: "progetto-SNAPS", done: 12, total: 40, asked: 12,
+                                               failed: 0, again: false, result: "" }
+            tryVerify(function() { return findText(page, "progetto-SNAPS 12/40") !== null }, 1000)
+            // Select while it goes on starts nothing anew.
+            keyClick(Qt.Key_Return)
+            compare(arcadeBackend.pictureDownloads, 1)
+            arcadeBackend.picturesProgress = { active: true, again: true, failed: 3, result: "" }
+            tryVerify(function() { return findText(page, "Trying Again Soon") !== null }, 1000)
+            arcadeBackend.picturesProgress = { active: false, result: "3 Not Downloaded" }
+            tryVerify(function() { return findText(page, "3 Not Downloaded") !== null }, 1000)
+            arcadeBackend.pictureInfo = { games: 120, withPictures: 117, achievements: true, snaps: false, key: "refused",
+                                          writable: true }
+            arcadeBackend.gamesChanged()
+            tryVerify(function() { return findText(page, "117/120") !== null }, 1000)
+            verify(findText(page, "Key Refused") !== null)
+            verify(findText(page, "Off") !== null)
+            compare(root.backs, 0)
+            keyClick(Qt.Key_Escape)
+            compare(root.backs, 1)
+        }
+
         // The account's page: the user and password typed (the password a
         // star a letter, both cases kept), Sign In hands them over, and Sign
         // Out brings them back; the key asked about as the page opens.
@@ -1208,35 +1259,58 @@ Rectangle {
 
         // A game FinalBurn Neo plays with a leaderboard to show: its top
         // three under RA Hi-Score, the users' names wider than initials;
-        // while it is read and for a game RetroAchievements hasn't, the box
-        // says so; another game's leaderboard read changes nothing; the High
-        // Scores module's table for a game MAME plays.
+        // while it is read, and for a game RetroAchievements has no
+        // leaderboard of or one that couldn't be read, this machine's own
+        // table under Hi-Score, and without one the box says so; another
+        // game's leaderboard read changes nothing; the High Scores module's
+        // table for a game MAME plays.
         function test_screenLeaderboard() {
             arcadeBackend.fbneoSets = ["sf2"]
             arcadeBackend.boards = { sf2: { state: "loading" } }
             var screen = openScreen()
             compare(screen.currentSet, "sf2")
-            verify(findText(screen, "RA Hi-Score", true) !== null)
-            verify(findText(screen, "Reading…", true) !== null)
-            compare(findText(screen, "110,000"), null)
+            // Read: the machine's own meanwhile.
+            verify(findText(screen, "Hi-Score", true) !== null)
+            compare(findText(screen, "RA Hi-Score", true), null)
+            verify(findText(screen, "110,000", true) !== null)
+            compare(findText(screen, "Reading…", true), null)
             arcadeBackend.boards.sf2 = { state: "ready", title: "High Score", entries: [
                 { rank: "1ST", score: "1,234,560", name: "Mehmet" }, { rank: "2ND", score: "990,000", name: "Player2" },
                 { rank: "3RD", score: "12,000", name: "abc" }] }
             arcadeBackend.leaderboardReady("1942")
-            verify(findText(screen, "Reading…", true) !== null)
+            verify(findText(screen, "110,000", true) !== null)
             arcadeBackend.leaderboardReady("sf2")
             tryVerify(function() { return findText(screen, "1,234,560", true) !== null }, 1000)
-            compare(findText(screen, "Reading…", true), null)
+            verify(findText(screen, "RA Hi-Score", true) !== null)
+            compare(findText(screen, "110,000", true), null)
             var name = findText(screen, "Mehmet", true)
             verify(name !== null)
             compare(name.width, Math.round(100 * screen.u))
             verify(findText(screen, "3RD", true) !== null)
+            // No leaderboard, or none to be read: the machine's own again.
             arcadeBackend.boards.sf2 = { state: "none" }
             arcadeBackend.leaderboardReady("sf2")
-            tryVerify(function() { return findText(screen, "No Leaderboard", true) !== null }, 1000)
+            tryVerify(function() { return findText(screen, "110,000", true) !== null }, 1000)
+            compare(findText(screen, "No Leaderboard", true), null)
+            compare(findText(screen, "RA Hi-Score", true), null)
+            arcadeBackend.boards.sf2 = { state: "failed" }
+            arcadeBackend.leaderboardReady("sf2")
+            verify(findText(screen, "110,000", true) !== null)
+            compare(findText(screen, "Not Reachable", true), null)
+            // Without a table of its own, the box says what the leaderboard
+            // is up to.
+            var tables = highScoresBackend.tables
+            highScoresBackend.tables = {}
+            arcadeBackend.boards.sf2 = { state: "loading" }
+            arcadeBackend.leaderboardReady("sf2")
+            tryVerify(function() { return findText(screen, "Reading…", true) !== null }, 1000)
             arcadeBackend.boards.sf2 = { state: "failed" }
             arcadeBackend.leaderboardReady("sf2")
             tryVerify(function() { return findText(screen, "Not Reachable", true) !== null }, 1000)
+            arcadeBackend.boards.sf2 = { state: "none" }
+            arcadeBackend.leaderboardReady("sf2")
+            tryVerify(function() { return findText(screen, "No Scores Yet", true) !== null }, 1000)
+            highScoresBackend.tables = tables
             // A game MAME plays: this machine's own table.
             arcadeBackend.boards = { sf2: { state: "ready", title: "High Score", entries: [] } }
             arcadeBackend.engines = { sf2: "mame" }
@@ -1326,21 +1400,66 @@ Rectangle {
 
         // Two rooms of one game: the cursor keeps to its room as the lobby is
         // read again, and a room joined comes back to it. A room takes no
-        // credits bought on the screen: FinalBurn Neo plays it.
+        // credits bought on the screen: FinalBurn Neo plays it. It has no
+        // picture: the box, in the frame's place from the column's top, says
+        // what the lobby says of it, as RetroArch Lobby's does, with no high
+        // scores, and the help line says the rest; its marks follow our
+        // versions as they are read (roomsChanged()); select held opens
+        // nothing.
         function test_onlineRooms() {
+            var bob = lobbyRoom(14, "FinalBurn Neo", "Street Fighter II", "bob",
+                                { rom: "sf2", set: "sf2", country: "us", coreVersion: "v1.0.0.03", joinable: true,
+                                  coreMatch: "same", retroarchMatch: "same", relay: "us-east1", players: 1, minutes: 12 })
+            var ann = lobbyRoom(11, "FinalBurn Neo", "Street Fighter II", "ann",
+                                { rom: "sf2", set: "sf2", country: "es", joinable: true, retroarchMatch: "other" })
+            arcadeBackend.setLobby({ state: "ready", problem: "", yourCore: "v1.0.0.03", yourCoreState: "read",
+                                     yourRetroArch: "1.22.2", yourRetroArchState: "read", rooms: [ann, bob] })
             arcadeBackend.filterList = [{ id: "online", name: "Online Games", sets: ["sf2", "sf2"],
-                                          rows: [{ set: "sf2", name: "Street Fighter II (bob)", favorite: false,
-                                                   room: 14, host: "bob" },
-                                                 { set: "sf2", name: "Street Fighter II (ann)", favorite: false,
-                                                   room: 11, host: "ann" }] }].concat(arcadeBackend.filterList)
+                                          rows: [onlineRow(bob), onlineRow(ann)] }].concat(arcadeBackend.filterList)
             moduleRoot.startFilter = "online"
             var screen = openScreen()
             compare(screen.current.room, 14)
             verify(screen.fbneo)
+            verify(screen.onRoom)
+            verify(!screen.gameBox)
+            verify(!findChild(screen, "preview").visible)
+            var box = findChild(screen, "infoBox")
+            compare(box.y, Math.round(screen.areaTop * screen.v))
+            compare(box.y + box.height, Math.round(screen.listBottom * screen.v))
+            compare(findText(screen, "Hi-Score"), null)
+            compare(screen.roomLines.map(function(line) { return line.label }),
+                    ["Game", "ROM", "CRC", "Core", "Version", "RetroArch", "System", "Host", "Country", "Connection",
+                     "Password", "Players", "Hosted", "Can Join"])
+            compare(roomLineLabels(screen), screen.roomLines.map(function(line) { return line.label }))
+            compare(screen.roomLines[4].icons, ["ok"])
+            compare(screen.roomLines[5].icons, ["ok"])
+            verify(findText(screen, "bob", true) !== null)
+            verify(findText(screen, "Relay", true) !== null)
+            verify(findText(screen, "12M Ago", true) !== null)
+            verify(findText(screen, "Through the relay us-east1") !== null)
+            verify(findText(screen, "Select to join it") !== null)
+            verify(findText(screen, ":JOIN") !== null)
+            compare(findText(screen, "HOLD:"), null)
             keyClick(Qt.Key_Down)
             compare(screen.current.room, 11)
+            compare(screen.roomLines[4].label, "RetroArch")
+            compare(screen.roomLines[4].icons, ["no"])
+            verify(findText(screen, "Straight to the host") !== null)
+            // Ours read since, as the lobby says it: the marks follow.
+            var same = lobbyRoom(11, "FinalBurn Neo", "Street Fighter II", "ann",
+                                 { rom: "sf2", set: "sf2", country: "es", joinable: true, retroarchMatch: "same" })
+            arcadeBackend.filterList[0].rows = [onlineRow(bob), onlineRow(same)]
+            arcadeBackend.roomsChanged()
+            compare(screen.current.room, 11)
+            compare(screen.roomLines[4].icons, ["ok"])
             arcadeBackend.gamesChanged()
             compare(screen.current.room, 11)
+            // Select held: no options, and no page.
+            keyPress(Qt.Key_Return)
+            wait(1000)
+            keyRelease(Qt.Key_Return)
+            compare(root.navigations.length, 0)
+            compare(findText(screen, "Game Details"), null)
             keyPress(Qt.Key_Return)
             keyRelease(Qt.Key_Return)
             compare(root.navigations[0].params.online.room, 11)
@@ -1363,6 +1482,20 @@ Rectangle {
                                    password: false, spectatePassword: false, connectable: true,
                                    joinable: false, why: "", coreMatch: core === "FinalBurn Neo" ? "unknown" : "",
                                    retroarchMatch: "unknown" }, more || {})
+        }
+        // A room of Online Games', as filterGames() gives it: its game and
+        // who hosts it, with the room as lobby() has it (info).
+        function onlineRow(r) {
+            return { set: r.set, name: r.title + " (" + r.host + ")", favorite: false, room: r.id, host: r.host, info: r }
+        }
+        // A room of the local network's, as lanRooms() has it (a LAN Games
+        // row's info): what its host answered with, matched against ours, and
+        // where it is joined, its address on this network and the game's
+        // file.
+        function lanRoom(id, title, host, more) {
+            return lobbyRoom(id, "FinalBurn Neo", title, host,
+                             Object.assign({ rom: "sf2", set: "sf2", joinable: true, address: "192.168.1.20",
+                                             file: "sf2.zip", frontend: "unix ARMv8" }, more || {}))
         }
 
         // RetroArch's whole lobby: read as the page opens, its rooms under
@@ -1692,14 +1825,19 @@ Rectangle {
             verify(root.navigations[1].params.online.lan)
         }
 
-        // The Arcade screen's LAN Games: the help line saying who hosts the
-        // room first, select joining it at its host; a game's options host
-        // it on the network alone.
+        // The Arcade screen's LAN Games: no picture, the box in the frame's
+        // place saying what the host answered with, its core and RetroArch
+        // against ours, the help line saying who hosts the room first, select
+        // joining it at its host; a game's options host it on the network
+        // alone.
         function test_lanScreen() {
             arcadeBackend.filterList = [{ id: "lan", name: "LAN Games", sets: ["sf2"],
                                           rows: [{ set: "sf2", name: "Street Fighter II (ann)", favorite: false, room: 1,
                                                    host: "ann", lan: true,
-                                                   detail: "Hosted by ann at 192.168.1.20 on this network • sf2.zip" }] }]
+                                                   detail: "Hosted by ann at 192.168.1.20 on this network • sf2.zip",
+                                                   info: lanRoom(1, "Street Fighter II", "ann",
+                                                                 { coreVersion: "v1.0.0.03", coreMatch: "same",
+                                                                   retroarch: "1.21.0", retroarchMatch: "other" }) }] }]
                                         .concat(arcadeBackend.filterList)
             arcadeBackend.lanHostable = ["sf2"]
             moduleRoot.startFilter = "lan"
@@ -1717,7 +1855,30 @@ Rectangle {
             tryCompare(arcadeBackend, "lanReads", 2, 1000)
             verify(findText(screen, "Street Fighter II (ann)") !== null)
             verify(findText(screen, ":JOIN") !== null)
-            compare(screen.about.split("\n")[0], "Hosted by ann at 192.168.1.20 on this network • sf2.zip")
+            // No picture: the box, in the frame's place from the column's
+            // top, says what the host answered with, its core and RetroArch
+            // against ours; the help line says who hosts it first, then the
+            // game's full name and what it is.
+            verify(screen.onRoom)
+            verify(!screen.gameBox)
+            verify(!findChild(screen, "preview").visible)
+            var box = findChild(screen, "infoBox")
+            compare(box.y, Math.round(screen.areaTop * screen.v))
+            compare(findText(screen, "Hi-Score"), null)
+            compare(screen.roomLines.map(function(line) { return line.label }),
+                    ["Game", "File", "Host", "Address", "Core", "Version", "RetroArch", "System", "Password", "Connection"])
+            compare(roomLineLabels(screen), screen.roomLines.map(function(line) { return line.label }))
+            compare(screen.roomLines[4].icons, ["ok"])
+            compare(screen.roomLines[5].icons, ["ok"])
+            compare(screen.roomLines[6].icons, ["no"])
+            compare(screen.roomLines[9].value, "LAN")
+            verify(findText(screen, "192.168.1.20", true) !== null)
+            verify(findText(screen, "sf2.zip", true) !== null)
+            verify(findText(screen, "1.21.0", true) !== null)
+            verify(findText(screen, "unix ARMv8", true) !== null)
+            compare(screen.about.split("\n"),
+                    ["Hosted by ann at 192.168.1.20 on this network • sf2.zip",
+                     "Street Fighter II: The World Warrior (World 910522)", "Capcom", "1991", "2 Players", "CPS-1"])
             verify(findText(screen, "Hosted by ann at 192.168.1.20 on this network") !== null)
             keyPress(Qt.Key_Return)
             keyRelease(Qt.Key_Return)
@@ -1726,12 +1887,17 @@ Rectangle {
             compare(root.navigations[0].params.online.room, 1)
             compare(root.navigations[0].params.online.host, "ann")
             verify(root.navigations[0].params.online.lan)
-            // All Games, on the same game: the line its own, and hosted on
-            // the network from its options.
+            // All Games, on the same game: the line its own, the picture's
+            // frame back with the box under it and the game's scores in it,
+            // and hosted on the network from its options.
             keyClick(Qt.Key_Right)
             compare(screen.filterId, "all")
             compare(screen.currentSet, "sf2")
             compare(findText(screen, "Hosted by ann at 192.168.1.20 on this network"), null)
+            verify(!screen.onRoom)
+            verify(findChild(screen, "preview").visible)
+            compare(box.y, Math.round(screen.infoTop * screen.v))
+            verify(findText(screen, "Hi-Score") !== null)
             keyPress(Qt.Key_Return)
             tryVerify(function() { return findText(screen, "Host LAN Game") !== null }, 1500)
             keyRelease(Qt.Key_Return)
@@ -2660,6 +2826,15 @@ Rectangle {
                 found = found.concat(marks(item.children[i]))
             return found
         }
+        // The labels of the lines the box shows of a room, from its top.
+        function roomLineLabels(item) {
+            var found = []
+            if (item.objectName === "roomLine" && item.visible)
+                found.push(item.label)
+            for (var i = 0; i < item.children.length; ++i)
+                found = found.concat(roomLineLabels(item.children[i]))
+            return found
+        }
 
         // The whole lobby as a filter of the Arcade screen's, as filters()
         // and filterGames() give it.
@@ -2672,14 +2847,14 @@ Rectangle {
         }
 
         // RetroArch Lobby on the Arcade screen, with Online Play on: every
-        // room, ▶ on the one to join and a lock on one with a password, the
-        // box under the picture saying what the lobby says of it, the help
-        // line the rest; select joins one, or with nothing to join opens its
-        // page, as select held does for any; a room of a game not in the
-        // folder has its core in the picture's place; no credits bought for
-        // a room; back from a room's page lands on it, one of a game not in
-        // the folder too, which the cursor keeps to as the lobby is read
-        // again.
+        // room, ▶ on the one to join and a lock on one with a password; no
+        // room has a picture, the box in the frame's place, from the
+        // column's top, saying what the lobby says of it, the room page's
+        // lines, the help line the rest; select joins one, or with nothing
+        // to join opens its page, as select held does for any; no credits
+        // bought for a room; back from a room's page lands on it, one of a
+        // game not in the folder too, which the cursor keeps to as the
+        // lobby is read again.
         function test_screenLobby() {
             var rooms = [
                 lobbyRoom(11, "FinalBurn Neo", "Street Fighter II", "ann",
@@ -2698,18 +2873,31 @@ Rectangle {
             verify(findText(screen, "RetroArch Lobby", true) !== null)
             verify(findText(screen, "Street Fighter II (ann)") !== null)
             compare(marks(screen), ["play", "lock"])
-            // The room to join: its game's, its lines in the box, the rest on
-            // the help line, no high scores.
+            // The room to join: its game's, with no picture; the box, in the
+            // frame's place from the column's top, has the room page's lines,
+            // every one, the rest is on the help line, and no high scores.
             compare(screen.lobbyRoom.id, 11)
             verify(screen.isGame)
+            verify(screen.onRoom)
             verify(!screen.gameBox)
+            verify(!findChild(screen, "preview").visible)
+            var box = findChild(screen, "infoBox")
+            compare(box.y, Math.round(screen.areaTop * screen.v))
+            compare(box.y + box.height, Math.round(screen.listBottom * screen.v))
             compare(findText(screen, "Hi-Score"), null)
             compare(screen.roomLines.map(function(line) { return line.label }),
-                    ["Core", "Version", "RetroArch", "Host", "Country", "Connection", "Players", "Hosted"])
-            compare(screen.roomLines[1].icons, ["ok"])
-            compare(screen.roomLines[2].icons, ["no"])
-            verify(screen.roomRows >= 5)
+                    ["Game", "ROM", "CRC", "Core", "Version", "RetroArch", "System", "Host", "Country", "Connection",
+                     "Password", "Players", "Hosted", "Can Join"])
+            compare(screen.roomRows, 15)
+            compare(roomLineLabels(screen), screen.roomLines.map(function(line) { return line.label }))
+            compare(screen.roomLines[3].icons, ["ok"])
+            compare(screen.roomLines[4].icons, ["ok"])
+            compare(screen.roomLines[5].icons, ["no"])
+            verify(findText(screen, "Street Fighter II", true) !== null)
             verify(findText(screen, "1.22.2", true) !== null)
+            verify(findText(screen, "ES", true) !== null)
+            verify(findText(screen, "Direct", true) !== null)
+            verify(findText(screen, "5M Ago", true) !== null)
             verify(findText(screen, "Select to join it") !== null)
             verify(findText(screen, "RetroArch 1.22.2 (yours 1.19.1)") !== null)
             verify(findText(screen, ":JOIN HOLD:DETAILS") !== null)
@@ -2737,12 +2925,23 @@ Rectangle {
             compare(root.navigations[1].path, "Lobby.qml")
             compare(root.navigations[1].params.room, 14)
             compare(root.navigations[1].listState.room, 14)
-            // Another core's: its core where the picture would be.
+            // Another core's, of no game of the folder: no picture either,
+            // the box saying its game as its host has it, its core, marked as
+            // not yours, and that it can't be joined.
             keyClick(Qt.Key_Down)
             compare(screen.lobbyRoom.id, 16)
             verify(!screen.isGame)
-            verify(findText(screen, "this one is Snes9x's") !== null)
+            verify(screen.onRoom)
+            verify(!findChild(screen, "preview").visible)
             compare(findText(screen, "No Picture"), null)
+            compare(findText(screen, "Not Recognized"), null)
+            compare(screen.roomLines[0].value, "Super Mario Kart")
+            compare(screen.roomLines[2].label, "Core")
+            compare(screen.roomLines[2].value, "Snes9x")
+            compare(screen.roomLines[2].icons, ["no"])
+            compare(screen.roomLines[screen.roomLines.length - 1].label, "Can Join")
+            compare(screen.roomLines[screen.roomLines.length - 1].value, "No")
+            verify(findText(screen, "this one is Snes9x's") !== null)
             // Select held, on any: its page.
             keyClick(Qt.Key_Up)
             keyClick(Qt.Key_Up)
@@ -2803,6 +3002,36 @@ Rectangle {
             keyPress(Qt.Key_Return)
             keyRelease(Qt.Key_Return)
             compare(root.navigations.length, 0)
+        }
+
+        // A room's lines as the box has room for them, from its top: fewer
+        // in a shorter area, more with the hint bar and the help line off,
+        // every one once they all fit.
+        function test_screenRoomRows() {
+            var rooms = [lobbyRoom(11, "FinalBurn Neo", "Street Fighter II", "ann",
+                                   { rom: "sf2", set: "sf2", country: "es", coreVersion: "v1.0.0.03", joinable: true,
+                                     coreMatch: "same", retroarchMatch: "other", crc: "1A2B3C4D", subsystem: "neogeo",
+                                     spectatePassword: true, players: 1, spectators: 0, minutes: 5 })]
+            arcadeBackend.setLobby({ state: "ready", problem: "", yourCore: "v1.0.0.03", yourCoreState: "read",
+                                     yourRetroArch: "1.19.1", yourRetroArchState: "read", rooms: rooms })
+            arcadeBackend.filterList = arcadeBackend.filterList.concat([lobbyFilter(rooms)])
+            moduleRoot.startFilter = "lobby"
+            moduleRoot.screenAdjustment = { top: -135, bottom: 0, left: 0, right: 0 }
+            var screen = openScreen()
+            compare(screen.lobbyRoom.id, 11)
+            compare(screen.roomLines.length, 17)
+            compare(screen.roomRows, 10)
+            compare(roomLineLabels(screen),
+                    ["Game", "ROM", "CRC", "Core", "Version", "Subsystem", "RetroArch", "System", "Host", "Country"])
+            root.hintBar = false
+            root.helpLine = false
+            compare(screen.roomRows, 14)
+            compare(roomLineLabels(screen).length, 14)
+            moduleRoot.screenAdjustment = { top: 0, bottom: 0, left: 0, right: 0 }
+            compare(screen.roomRows, 18)
+            compare(roomLineLabels(screen),
+                    ["Game", "ROM", "CRC", "Core", "Version", "Subsystem", "RetroArch", "System", "Host", "Country",
+                     "Connection", "Password", "Watch Password", "Players", "Spectators", "Hosted", "Can Join"])
         }
 
         // The lobby's page opened on a room (the Arcade screen's): that room's

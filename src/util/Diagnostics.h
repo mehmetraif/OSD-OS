@@ -19,8 +19,11 @@ void installCrashHandlers(const QString &dataRoot);
 // with the memory, and where every other thread is to the report; and again
 // once it answers. Still not answering at abortMs
 // (0: never), the process exits with kStallExitCode, and the service starts
-// the app again: a frozen menu comes back by itself. Started once the event
-// loop runs; stopped before the app's own shutdown, which may take a while.
+// the app again: a frozen menu comes back by itself. Short of a freeze, a
+// main thread away for 400 ms or more between two beats (the menus
+// answering late) is noted in the journal with the memory, once in ten
+// seconds at most. Started once the event loop runs; stopped before the
+// app's own shutdown, which may take a while.
 constexpr int kStallExitCode = 70;
 void startStallWatchdog(const QString &dataRoot, int reportMs, int abortMs);
 void stopStallWatchdog();

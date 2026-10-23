@@ -2,6 +2,7 @@
 
 #include <QByteArray>
 #include <QDebug>
+#include <QFile>
 #include <QFileDevice>
 #include <QSaveFile>
 #include <QString>
@@ -27,6 +28,24 @@ inline bool writeFileAtomically(const QString &path, const QByteArray &data,
                          && file.write(data) == data.size()
                          && file.flush()
                          && file.commit();
+    if (!written)
+        qWarning("[AtomicFile] Could not write %s: %s", qPrintable(path), qPrintable(file.errorString()));
+    return written;
+}
+
+// Writes a file made anew before each use and read by nothing until this has
+// returned: a game's settings, written for it as it starts and again for the
+// next. In place, without QSaveFile's wait for the card (commit() syncs the
+// file to it: tens to hundreds of milliseconds each on an SD card, between
+// the player's press and the game). A power cut mid-write leaves it cut
+// short, to be written anew at the next start. `permissions` as above.
+inline bool writeFileAnew(const QString &path, const QByteArray &data,
+                          QFileDevice::Permissions permissions = {}) {
+    QFile file(path);
+    const bool written = file.open(QIODevice::WriteOnly | QIODevice::Truncate)
+                         && (!permissions || file.setPermissions(permissions))
+                         && file.write(data) == data.size()
+                         && file.flush();
     if (!written)
         qWarning("[AtomicFile] Could not write %s: %s", qPrintable(path), qPrintable(file.errorString()));
     return written;

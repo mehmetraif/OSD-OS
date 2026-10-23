@@ -63,6 +63,12 @@ function updateMotionButton() {
                            pixelIcon(paused ? "play" : "pause"));
 }
 
+// The page's own blinking (the headline's cursor, PRESS START) rests along
+// with the recordings.
+function updateStill() {
+    document.documentElement.classList.toggle("still", paused);
+}
+
 function updateTheme() {
     if (!current)
         return;
@@ -101,9 +107,11 @@ if (tour) {
 }
 
 updateMotionButton();
+updateStill();
 motion.addEventListener("click", () => {
     paused = !paused;
     updateMotionButton();
+    updateStill();
     updateTheme();
     updateTour();
 });

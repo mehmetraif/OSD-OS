@@ -317,9 +317,15 @@ if [ -f "$UPDATES_DIR/staged.sha256" ] && [ -w "$INSTALL_DIR" ]; then
             rm -rf "$INSTALL_DIR/.new" "$INSTALL_DIR/.discard"
             rm -f "$UPDATES_DIR/$STAGED_TARBALL" "$UPDATES_DIR/staged.sha256" "$UPDATES_DIR/staged.json"
         else
-            # Bad extract: keep the old tree; .failed stops a retry every boot.
+            # Bad extract: keep the old tree, and nothing staged. A tarball
+            # that doesn't extract is of no use again, so it goes with its
+            # staged.json: with that left, the app would offer an Install
+            # that applies nothing, until the next boot discarded the stage
+            # (above). The app offers the update again, downloaded afresh;
+            # .failed says what became of this one.
             rm -rf "$INSTALL_DIR/.new" "$INSTALL_DIR/.old"
             mv -f "$UPDATES_DIR/staged.sha256" "$UPDATES_DIR/staged.sha256.failed" 2>/dev/null
+            rm -f "$UPDATES_DIR/$STAGED_TARBALL" "$UPDATES_DIR/staged.json"
         fi
     else
         # Corrupt/partial stage — discard; the app re-offers the update.

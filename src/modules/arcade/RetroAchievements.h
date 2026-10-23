@@ -86,9 +86,9 @@ public:
     // after it has too goes by that file, the pictures being that game's):
     // its title screen, a screenshot of it in play and its box art, as paths
     // on the media server ("/Images/012345.png"), its placeholders left out.
-    // picturesFound() once read, but for a file in looked (its pictures
-    // looked for before), which is left as it is. Only the last asked for is
-    // read, a moment after it was.
+    // picturesFound() once read; for a file in looked (its pictures looked
+    // for before) at once, "looked", nothing read. Only the last asked for
+    // is read, a moment after it was.
     void findPictures(const QStringList &games, const QStringList &looked);
     // The same for a game asked for by itself rather than shown (Read the
     // Games Again's): read once nothing else is wanted, at once rather than
@@ -121,17 +121,26 @@ public:
     bool listPending() const { return m_wantedList; }
     // A list is kept, read now or before: one to look games up in at all.
     bool hasList() const { return !m_games.isEmpty(); }
+    // None is kept, and the last read of one failed (off line, say): the
+    // next is a while off (readList()), and nothing wanted meanwhile can be
+    // found.
+    bool listFailed() const {
+        return m_games.isEmpty() && m_listRetry.isValid() && m_listRetry > QDateTime::currentDateTimeUtc();
+    }
 
 signals:
     void boardReady(const QString &fileName);
     void achievementsReady(const QString &fileName);
     // state: "found" (paths; none for a game without pictures), "unknown"
-    // (none of the games is RetroAchievements'; fileName, the first) or
+    // (none of the games is RetroAchievements'; fileName, the first),
+    // "looked" (its pictures were looked for before: nothing read) or
     // "failed" (the game couldn't be read); fileName, the file whose game it
     // is.
     void picturesFound(const QString &fileName, const QString &state, const QStringList &paths);
-    // RetroAchievements refused the key (HTTP 401 or 403); or took it, the
-    // first of its answers to the key come.
+    // RetroAchievements refused the key (HTTP 401, or a 403 in its own
+    // words; not its guard's 403 page, nor a 429 asking for a pause, after
+    // which the request is asked again); or took it, the first of its
+    // answers to the key come.
     void keyRefused();
     void keyAccepted();
     // The list of games was read: which games RetroAchievements has may have
@@ -153,6 +162,7 @@ private:
     struct Media {
         QString path;
         std::function<void(const QByteArray &)> done;
+        int tried = 0;   // how many times the server asked for a pause over it
     };
     using Answer = std::function<void(const QByteArray &json, bool ok)>;
 
@@ -170,7 +180,12 @@ private:
     void readAchievements(const QString &fileName, int game);
     // later: findPicturesLater()'s game (m_laterRead).
     void readPictures(const QString &fileName, int game, bool later);
-    void get(const QString &endpoint, const QList<std::pair<QString, QString>> &query, const Answer &answer);
+    // tried: how many times the server has asked for a pause over this
+    // request, which is asked again after each, kMostTries at most.
+    void get(const QString &endpoint, const QList<std::pair<QString, QString>> &query, const Answer &answer,
+             int tried = 0);
+    // A pause the server asked for (429, 503) is still on.
+    bool pausing() const;
     // A game's board read (or not): kept, and the next game asked for read.
     void done(const QString &fileName, const Board &board);
     void doneAchievements(const QString &fileName, const Progress &progress);
@@ -203,6 +218,7 @@ private:
     QHash<QString, Board> m_boards;     // by the game's file
     QHash<QString, Progress> m_progress;    // by the game's file
     QHash<QString, int> m_games;        // a hash → its game's id
+    mutable QHash<QString, int> m_gameIds;  // a file → its game's id, as gameOf() found it in m_games
     QSet<int> m_achievementGames;       // the games with achievements
     QSet<int> m_boardGames;             // the games with leaderboards
     QDateTime m_listRead;               // when the list was read
@@ -211,4 +227,8 @@ private:
     // The media server's files to download, and the one under way.
     QList<Media> m_mediaQueue;
     QNetworkReply *m_mediaReply = nullptr;
+    // A pause the Web API or the media server asked for: until when, and
+    // whether a request of the Web API's waits it out to be asked again.
+    QDateTime m_pausedUntil;
+    bool m_pausedRequest = false;
 };

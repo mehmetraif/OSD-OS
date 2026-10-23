@@ -92,13 +92,20 @@ bool startsWithWords(const QString &name, const QString &words) {
 // The company a maker's name is one of: "Nintendo of America" and "Nintendo"
 // are Nintendo, "SNK Playmore" SNK, "Taito America Corporation" Taito.
 QString companyOf(QString maker) {
+    // Each ending with the space before it, made once: this is asked of
+    // every game as the list is indexed.
+    static const QStringList endings = [] {
+        QStringList list;
+        for (const char *ending : kCompanyEndings)
+            list << QLatin1Char(' ') + QLatin1String(ending);
+        return list;
+    }();
     for (bool shorter = true; shorter;) {
         shorter = false;
         maker = maker.trimmed();
         while (maker.endsWith(QLatin1Char(',')) || maker.endsWith(QLatin1Char('&')))
             maker = maker.chopped(1).trimmed();
-        for (const char *ending : kCompanyEndings) {
-            const QString end = QLatin1Char(' ') + QLatin1String(ending);
+        for (const QString &end : endings) {
             // Never the whole name: "Universal" stays Universal.
             if (maker.size() > end.size() && maker.endsWith(end, Qt::CaseInsensitive)) {
                 maker.chop(end.size());
@@ -327,6 +334,12 @@ bool isShortName(const QString &name) {
 }
 
 QString makerOf(const QString &manufacturer) {
+    // A full set names a few thousand makers over tens of thousands of
+    // games: each worked out once, on the thread asking.
+    thread_local QHash<QString, QString> known;
+    const auto found = known.constFind(manufacturer);
+    if (found != known.constEnd())
+        return *found;
     QString maker = manufacturer.trimmed();
     // "Namco (Midway license)": the maker, without whom it was made for.
     const int paren = maker.indexOf(QLatin1String(" ("));
@@ -338,9 +351,11 @@ QString makerOf(const QString &manufacturer) {
         maker.truncate(slash);
     maker = maker.trimmed();
     // MAME's "<unknown>", and the odd game's "unknown".
-    if (maker.startsWith(QLatin1Char('<')) || maker.compare(QLatin1String("unknown"), Qt::CaseInsensitive) == 0)
-        return QString();
-    return companyOf(maker);
+    const QString company = maker.startsWith(QLatin1Char('<'))
+                            || maker.compare(QLatin1String("unknown"), Qt::CaseInsensitive) == 0
+                            ? QString() : companyOf(maker);
+    known.insert(manufacturer, company);
+    return company;
 }
 
 QString decadeOf(const QString &year) {
@@ -362,6 +377,23 @@ QString titleOf(const QString &description) {
         title.truncate(slash);
     title = title.trimmed();
     return title.isEmpty() ? description.trimmed() : title;
+}
+
+bool isBootlegOrHack(const Machine &machine) {
+    // The words whole, in either case: not Hackney's or a hacker's game.
+    static const QRegularExpression word(QStringLiteral("\\b(bootlegs?|hacks?|hacked)\\b"),
+                                         QRegularExpression::CaseInsensitiveOption);
+    if (word.match(machine.manufacturer).hasMatch())
+        return true;
+    // Only what tells the set apart, in parentheses: a game named after one
+    // is its maker's own.
+    static const QRegularExpression inParentheses(QStringLiteral("\\(([^)]*)\\)"));
+    auto parts = inParentheses.globalMatch(machine.description);
+    while (parts.hasNext()) {
+        if (word.match(parts.next().captured(1)).hasMatch())
+            return true;
+    }
+    return false;
 }
 
 QString systemOf(const QString &sourceFile) {

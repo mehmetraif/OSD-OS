@@ -44,12 +44,15 @@ import "Rooms.js" as Rooms
 // round the filters as from the list, ► on from Search to the first. With
 // Online Play on, RetroArch Lobby lists every room of RetroArch's lobby, of
 // every core (ArcadeBackend::lobby()), read again every 20 s while it is
-// shown: ▶ marks one to join and a lock one with a password, the box under
-// the picture says what the lobby says of it and the help line the rest.
-// Select joins one, or opens the room's page (Lobby.qml) where there is
-// nothing to join, as select held does for any. With LAN Play on, LAN Games
-// is there while no one on the local network hosts a game too, the list
-// saying why (ArcadeBackend::lanStatus()).
+// shown: ▶ marks one to join and a lock one with a password. Select joins
+// one, or opens the room's page (Lobby.qml) where there is nothing to join,
+// as select held does for any. With LAN Play on, LAN Games is there while
+// no one on the local network hosts a game too, the list saying why
+// (ArcadeBackend::lanStatus()). On a room, Online Games', LAN Games' or
+// RetroArch Lobby's, the picture's frame gives way to the box, which takes
+// the whole column and says what the lobby, or the host on the local
+// network, says of the room (Rooms.roomLines()), a line each as far as it
+// has room, the help line the rest.
 //
 // Opened to adjust it (navParams.adjust, Screen Adjustment's), a frame lies
 // round the area: ▲ ▼ ◄ ► move that side of it out, or in once select has
@@ -190,6 +193,12 @@ FocusScope {
     readonly property int pictureHeight: Math.round(columnWidth / pictureAspect)
     readonly property int listWidth: columnX - 20 - areaLeft
     readonly property int infoTop: areaTop + pictureHeight + infoGap
+    // On a room (onRoom) the box has the whole column, from the area's top,
+    // where the picture's frame gives way to it, down to the list's foot:
+    // what is said of the room takes the frame's room, and its lines start
+    // at the box's top (roomTop).
+    readonly property int boxTop: onRoom ? areaTop : infoTop
+    readonly property int roomTop: areaTop + infoPadY
     // The box's inside, across: where its lines start, and their width.
     readonly property int infoX: columnX + infoPadX
     readonly property int infoWidth: columnWidth - 2 * infoPadX
@@ -277,11 +286,20 @@ FocusScope {
     // Search's own row, where its words are typed.
     readonly property bool onSearch: !!current && !!current.search
     // A room of RetroArch's whole lobby (the RetroArch Lobby filter's), as
-    // lobby() has it; and the lobby as read while it is shown: its state,
-    // why it couldn't be read, and our own versions its rooms are matched
-    // against.
+    // lobby() has it. A room of any filter of rooms (Online Games', LAN
+    // Games' or RetroArch Lobby's: onRoom), and what is said of it, for the
+    // box (roomInfo): the lobby's room, or the row's info, what the lobby or
+    // the host on the local network says of it (ArcadeBackend::rooms(),
+    // lanRooms()); and which kind it is, for its lines. And the lobby as
+    // read while a filter of rooms is shown: its state, why it couldn't be
+    // read, and our own versions its rooms, and the local network's, are
+    // matched against.
     readonly property var lobbyRoom: current && current.lobby ? current.lobby : null
-    readonly property var lobbyInfo: (revision, filterId === "lobby" && arcadeBackend ? arcadeBackend.lobby() : ({}))
+    readonly property bool onRoom: !!current && current.room !== undefined
+    readonly property var roomInfo: !current ? null : current.lobby ? current.lobby : current.info ? current.info : null
+    readonly property string roomKind: lobbyRoom ? "lobby" : current && current.lan ? "lan" : "online"
+    readonly property bool roomFilter: filterId === "online" || filterId === "lan" || filterId === "lobby"
+    readonly property var lobbyInfo: (revision, roomFilter && arcadeBackend ? arcadeBackend.lobby() : ({}))
     // What LAN Games says while it lists no game (ArcadeBackend::lanStatus()):
     // there with LAN Play on while no one on the network hosts a game too.
     readonly property var lanInfo: (revision, filterId === "lan" && count === 0 && arcadeBackend
@@ -294,8 +312,9 @@ FocusScope {
     // The game's pictures (ArcadeBackend::picturesOf), one after another
     // every few seconds while it has more than one, from the first as it is
     // chosen, but while a game plays; RetroAchievements' downloaded as it is
-    // shown, with a Web API key (wantPictures()).
-    readonly property var pictures: isGame && filterId !== "search" && details.pictures ? details.pictures : []
+    // shown, with a Web API key (wantPictures()). None on a room, where the
+    // box has the frame's room: none is shown, so none is asked for.
+    readonly property var pictures: isGame && !onRoom && filterId !== "search" && details.pictures ? details.pictures : []
     property int pictureIndex: 0
     onCurrentSetChanged: {
         pictureIndex = 0
@@ -303,7 +322,7 @@ FocusScope {
             pictureTurn.restart()
     }
     onDetailsChanged: {
-        if (isGame && arcadeBackend)
+        if (isGame && !onRoom && arcadeBackend)
             arcadeBackend.wantPictures(currentSet)
     }
     Timer {
@@ -338,14 +357,17 @@ FocusScope {
     // read MAME's files (a game just played), or for a game FinalBurn Neo
     // plays with Online High Scores on and a Web API key kept, its
     // RetroAchievements leaderboard's, once it has been read (board: its
-    // state, "off" for any other game).
+    // state, "off" for any other game). This machine's own table for a game
+    // RetroAchievements has no leaderboard of, and while a leaderboard is
+    // read or can't be: the box is never empty for want of a leaderboard
+    // while the machine has scores of its own.
     property int scoresRevision: 0
     readonly property var board: (scoresRevision, arcadeBackend && gameBox
                                                   ? arcadeBackend.leaderboard(currentSet) : ({ state: "off" }))
-    readonly property bool onlineScores: !!board.state && board.state !== "off"
-    readonly property var scores: (scoresRevision, onlineScores ? (board.entries || [])
-                                                   : scoresBackend && gameBox
-                                                     ? scoresBackend.topEntries(currentSet, scoreRows) : [])
+    readonly property bool onlineScores: board.state === "ready"
+    readonly property var localScores: (scoresRevision, scoresBackend && gameBox
+                                                        ? scoresBackend.topEntries(currentSet, scoreRows) : [])
+    readonly property var scores: onlineScores ? (board.entries || []) : localScores
 
     // Screen Adjustment: whether ▲ ▼ ◄ ► move the sides in rather than out;
     // how far a press moves one, up to the screen's edge; and the least room
@@ -688,13 +710,13 @@ FocusScope {
         }
         // Named after the game or its parent: read again either way.
         function onPicturesChanged() { arcadeScreen.picturesRevision++ }
-        // Our versions the lobby's rooms are matched against, and what the
-        // lobby's read says: the rows and the box read again, the cursor on
-        // the room it was on (reload(), while the rows have it where it was,
-        // before a read that changed the rooms reloads the filters again with
-        // gamesChanged()).
+        // Our versions the rooms are matched against, and what the lobby's
+        // read says: the rows and the box read again, on any filter of
+        // rooms, the cursor on the room it was on (reload(), while the rows
+        // have it where it was, before a read that changed the rooms reloads
+        // the filters again with gamesChanged()).
         function onRoomsChanged() {
-            if (arcadeScreen.filterId === "lobby")
+            if (arcadeScreen.roomFilter)
                 arcadeScreen.reload()
         }
     }
@@ -944,12 +966,15 @@ FocusScope {
 
     // ---
     // The column: the picture, and the box of the high scores, the game's
-    // details and the play time
+    // details and the play time; on a room, the box alone, of what is said
+    // of the room
     // ---
 
+    // The picture's frame; not on a room, where the box takes its place.
     Rectangle {
         id: preview
-        visible: arcadeScreen.filters.length > 0
+        objectName: "preview"
+        visible: arcadeScreen.filters.length > 0 && !arcadeScreen.onRoom
         x: Math.round(arcadeScreen.columnX * arcadeScreen.u)
         y: Math.round(arcadeScreen.areaTop * arcadeScreen.v)
         width: Math.round(arcadeScreen.columnWidth * arcadeScreen.u)
@@ -1011,8 +1036,8 @@ FocusScope {
         Picture { id: pictureB }
 
         // Without one, or with one that can't be shown: which file it would be;
-        // on a room of a game not in the folder, the core it is played in.
-        // None on Search, whose keys are in the frame.
+        // for a set that isn't a game, that it isn't recognized. None on
+        // Search, whose keys are in the frame.
         Column {
             visible: (preview.wanted === "" || preview.shown.status === Image.Error) && arcadeScreen.current !== null
                      && arcadeScreen.filterId !== "search"
@@ -1022,8 +1047,7 @@ FocusScope {
             Text {
                 width: parent.width
                 horizontalAlignment: Text.AlignHCenter
-                text: arcadeScreen.isGame ? "No Picture"
-                      : arcadeScreen.lobbyRoom ? arcadeScreen.lobbyRoom.core || "?" : "Not Recognized"
+                text: arcadeScreen.isGame ? "No Picture" : "Not Recognized"
                 textFormat: Text.PlainText
                 elide: Text.ElideRight
                 color: root.primaryColor
@@ -1044,14 +1068,18 @@ FocusScope {
             }
             // Why none was downloaded: RetroAchievements' pictures come with
             // the account's Web API key alone (Settings → Arcade →
-            // RetroAchievements Account).
+            // RetroAchievements Account); or that every game's are being
+            // looked for (Download Pictures), and how far that has got.
             Text {
                 readonly property bool noKey: arcadeBackend ? !arcadeBackend.achievementsKey : false
                 readonly property bool refused: arcadeBackend ? arcadeBackend.achievementsKeyRefused : false
-                visible: arcadeScreen.isGame && (noKey || refused)
+                readonly property var progress: (arcadeBackend && arcadeBackend.picturesProgress) || ({})
+                readonly property bool looking: !!progress.active && !progress.again && progress.total > 0
+                visible: arcadeScreen.isGame && (looking || noKey || refused)
                 width: parent.width
                 horizontalAlignment: Text.AlignHCenter
-                text: refused ? "Web API Key Refused" : "No Web API Key"
+                text: looking ? "Downloading " + Math.min(progress.done, progress.total) + "/" + progress.total
+                      : refused ? "Web API Key Refused" : "No Web API Key"
                 elide: Text.ElideRight
                 color: root.primaryColor
                 font.family: root.globalFont
@@ -1083,11 +1111,13 @@ FocusScope {
         }
     }
 
-    // The box under the picture, framed as the picture is.
+    // The box under the picture, framed as the picture is; on a room, the
+    // whole column, from its top.
     Rectangle {
+        objectName: "infoBox"
         visible: arcadeScreen.filters.length > 0
         x: Math.round(arcadeScreen.columnX * arcadeScreen.u)
-        y: Math.round(arcadeScreen.infoTop * arcadeScreen.v)
+        y: Math.round(arcadeScreen.boxTop * arcadeScreen.v)
         width: Math.round(arcadeScreen.columnWidth * arcadeScreen.u)
         height: Math.round(arcadeScreen.listBottom * arcadeScreen.v) - y
         color: arcadeScreen.ground
@@ -1097,9 +1127,9 @@ FocusScope {
     }
 
     // The high scores, in the box: a line for each it has room for, kept
-    // from game to game; for a game, not a room of the lobby, whose box
-    // says what the lobby says of it (and whose scores aren't asked for).
-    readonly property bool gameBox: isGame && !lobbyRoom
+    // from game to game; for a game, not a room, whose box says what is said
+    // of the room (and whose scores aren't asked for).
+    readonly property bool gameBox: isGame && !onRoom
     Item {
         visible: arcadeScreen.gameBox && arcadeScreen.scoreRows > 0
         x: Math.round(arcadeScreen.infoX * arcadeScreen.u)
@@ -1155,12 +1185,13 @@ FocusScope {
                 }
             }
         }
+        // Without any: that the leaderboard is still being read, or couldn't
+        // be; else that there are none yet, RetroAchievements' or this
+        // machine's.
         Text {
             visible: arcadeScreen.scores.length === 0
             y: Math.round(arcadeScreen.scoreFirst * arcadeScreen.v)
-            text: !arcadeScreen.onlineScores ? "No Scores Yet"
-                  : arcadeScreen.board.state === "loading" ? "Reading…"
-                  : arcadeScreen.board.state === "none" ? "No Leaderboard"
+            text: arcadeScreen.board.state === "loading" ? "Reading…"
                   : arcadeScreen.board.state === "failed" ? "Not Reachable" : "No Scores Yet"
             color: root.primaryColor
             font.family: root.globalFont
@@ -1222,17 +1253,20 @@ FocusScope {
         }
     }
 
-    // A room of the lobby in the box, from its top: its core, its version
-    // and RetroArch's against yours, who hosts it, where, how it is reached
-    // and so on (Rooms.boxLines()), as many lines as the box has room for.
-    readonly property int roomRows: Math.max(0, Math.floor((playTimeTop - scoresTop) / scorePitch) + 1)
-    readonly property var roomLines: lobbyRoom ? Rooms.boxLines(lobbyRoom, lobbyInfo) : []
+    // A room in the box, from its top: what the lobby, or its host on the
+    // local network, says of it (Rooms.roomLines(): its game and file, its
+    // core and RetroArch against yours, who hosts it and where, how it is
+    // reached and so on), a line each, as many as the box has room for; the
+    // help line has the rest.
+    readonly property int roomRows: Math.max(0, Math.floor((playTimeTop - roomTop) / scorePitch) + 1)
+    readonly property var roomLines: roomInfo ? Rooms.roomLines(roomInfo, lobbyInfo, roomKind) : []
     Repeater {
         model: Math.min(arcadeScreen.roomRows, arcadeScreen.roomLines.length)
         BoxLine {
             required property int index
+            objectName: "roomLine"
             readonly property var line: arcadeScreen.roomLines[index] || ({})
-            y: Math.round((arcadeScreen.scoresTop + index * arcadeScreen.scorePitch) * arcadeScreen.v)
+            y: Math.round((arcadeScreen.roomTop + index * arcadeScreen.scorePitch) * arcadeScreen.v)
             label: line.label || ""
             value: line.value || ""
             icons: line.icons || []
@@ -1240,18 +1274,19 @@ FocusScope {
     }
 
     // What the game is, for the help line: its full name as MAME has it,
-    // then those of its details the box has no line for; a room of the
+    // then those of its details the box has no line for, every one on a
+    // room, whose box says what is said of the room instead; a room of the
     // local network's who hosts it and its versions against ours first. A
-    // room of the whole lobby's what the lobby says of it; Search's, what
-    // to do there; the lobby's why it couldn't be read, and LAN Games' why
-    // it has no game.
-    readonly property string about: lobbyRoom ? Rooms.about(lobbyRoom, lobbyInfo)
+    // room of the lobby's, RetroArch Lobby's or Online Games', what the
+    // lobby says of it (Rooms.about()); Search's, what to do there; the
+    // lobby's why it couldn't be read, and LAN Games' why it has no game.
+    readonly property string about: roomInfo && roomKind !== "lan" ? Rooms.about(roomInfo, lobbyInfo)
         : onSearch ? (typing ? "The games found follow each letter typed: OK goes down to them, back to the list, and ◄ ► past the keys' ends go round the filters"
                              : "► or select to type what to look for: the games found follow each letter")
         : filterId === "lobby" && count === 0 ? lobbyInfo.problem || ""
         : filterId === "lan" && count === 0 ? lanInfo.detail || ""
         : (current && current.lan && current.detail ? [current.detail] : [])
-          .concat([details.name || ""]).concat(detailList.slice(detailRows).map(function(detail) {
+          .concat([details.name || ""]).concat(detailList.slice(onRoom ? 0 : detailRows).map(function(detail) {
               return detail.told
           })).join("\n")
 
@@ -1453,13 +1488,15 @@ FocusScope {
         anchors.fill: parent
         moduleId: moduleRoot.moduleId
         firstChoices: [{ label: "Play", action: "play" }, { label: "Game Details", action: "details" }]
-        moreChoices: (arcadeScreen.revision,
-                      (engines.offered(arcadeScreen.currentSet)
-                       ? [{ label: engines.lineFor(arcadeScreen.currentSet), action: "engine" }] : [])
-                      .concat(arcadeBackend && arcadeBackend.canHost(arcadeScreen.currentSet)
-                              ? [{ label: "Host Online Game", action: "host" }] : [])
-                      .concat(arcadeBackend && arcadeBackend.canHostLan(arcadeScreen.currentSet)
-                              ? [{ label: "Host LAN Game", action: "hostLan" }] : []))
+        // Made as the options open, not for every game the cursor passes.
+        moreChoices: !options.visible ? []
+                     : (arcadeScreen.revision,
+                        (engines.offered(arcadeScreen.currentSet)
+                         ? [{ label: engines.lineFor(arcadeScreen.currentSet), action: "engine" }] : [])
+                        .concat(arcadeBackend && arcadeBackend.canHost(arcadeScreen.currentSet)
+                                ? [{ label: "Host Online Game", action: "host" }] : [])
+                        .concat(arcadeBackend && arcadeBackend.canHostLan(arcadeScreen.currentSet)
+                                ? [{ label: "Host LAN Game", action: "hostLan" }] : []))
         onActivated: function(action) {
             if (action === "play")
                 arcadeScreen.playCurrent()
