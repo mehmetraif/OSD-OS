@@ -21,11 +21,19 @@ DENO_SHA256=c832298b1ad4422481334855f6003e0f54145762c5a134f20a489511d2f65bbf
 DOWNLOADS=$(mktemp -d)
 trap 'rm -rf "${DOWNLOADS}"' EXIT
 
-curl -fsSL --retry 3 -o "${DOWNLOADS}/yt-dlp" "${YTDLP_URL}/yt-dlp"
-curl -fsSL --retry 3 -o "${DOWNLOADS}/SHA2-256SUMS" "${YTDLP_URL}/SHA2-256SUMS"
+# A download tried again on any failure, a connection reset among them (curl's
+# --retry alone tries again after a timeout or a 5xx), and named when it fails
+# for good.
+fetch() {
+	curl -fsSL --retry 5 --retry-all-errors --retry-delay 3 -o "$1" "$2" \
+		|| { echo "Could not download $2" >&2; exit 1; }
+}
+
+fetch "${DOWNLOADS}/yt-dlp" "${YTDLP_URL}/yt-dlp"
+fetch "${DOWNLOADS}/SHA2-256SUMS" "${YTDLP_URL}/SHA2-256SUMS"
 ( cd "${DOWNLOADS}" && grep ' yt-dlp$' SHA2-256SUMS | sha256sum -c - )
 
-curl -fsSL --retry 3 -o "${DOWNLOADS}/deno.zip" \
+fetch "${DOWNLOADS}/deno.zip" \
 	"https://github.com/denoland/deno/releases/download/${DENO_VERSION}/deno-aarch64-unknown-linux-gnu.zip"
 echo "${DENO_SHA256}  ${DOWNLOADS}/deno.zip" | sha256sum -c -
 bsdtar -xf "${DOWNLOADS}/deno.zip" -C "${DOWNLOADS}" deno
