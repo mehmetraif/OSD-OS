@@ -148,6 +148,21 @@ on_exit 59
 check "exit 59 is no preset's: nothing written" jamma-31k "$(in_force)"
 check "exit 59 is no preset's: nothing asked" "" "$(asked)"
 new_boot
+
+# A preset that can't be written: the output as it was and why in the
+# journal, and the reboot or the power-off all the same, since only that
+# brings the app back.
+mv "$T/boot/osdos-display-crt-pal.txt" "$T/crt-pal.txt"
+on_exit 22 2> "$T/stderr"
+check "exit 22 without its preset writes nothing" jamma-31k "$(in_force)"
+check "...reboots all the same" reboot "$(asked)"
+check "...and says why in the journal" 1 "$(grep -c "the crt-pal display preset couldn't be written" "$T/stderr")"
+new_boot
+on_exit 42 2> "$T/stderr"
+check "exit 42 without its preset powers off all the same" poweroff "$(asked)"
+check "...and says why in the journal" 1 "$(grep -c "the crt-pal display preset couldn't be written" "$T/stderr")"
+mv "$T/crt-pal.txt" "$T/boot/osdos-display-crt-pal.txt"
+new_boot
 on_exit 20
 
 # At Next Start, while the app runs: no reboot, no power-off.

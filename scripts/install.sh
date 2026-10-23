@@ -14,39 +14,34 @@ LAUNCHER="/usr/local/bin/osdos"
 SYSTEMD_SERVICE="/etc/systemd/system/osdos.service"
 
 # ── Resolve version ────────────────────────────────────────────────────────────
+# The release as GitHub's API has it, the latest or the tag named: its tag, and
+# the SHA-256 GitHub keeps for the tarball ("sha256:<hex>"), which the download
+# is checked against, as the in-app updater checks its own.
 VERSION="${1:-latest}"
 if [ "$VERSION" = "latest" ]; then
-    echo "Fetching latest release tag..."
-    VERSION=$(curl -fsSL \
-        "https://api.github.com/repos/${REPO}/releases/latest" \
-        | python3 -c "import sys, json; print(json.load(sys.stdin)['tag_name'])")
+    echo "Fetching the latest release..."
+    RELEASE_URL="https://api.github.com/repos/${REPO}/releases/latest"
+else
+    RELEASE_URL="https://api.github.com/repos/${REPO}/releases/tags/${VERSION}"
 fi
+RELEASE_JSON=$(curl -fsSL "${RELEASE_URL}") \
+    || { echo "Error: couldn't read the OSD/OS release ${VERSION} from GitHub." >&2; exit 1; }
+VERSION=$(printf '%s' "${RELEASE_JSON}" | python3 -c "import sys, json; print(json.load(sys.stdin)['tag_name'])")
 echo "Installing OSD/OS ${VERSION}"
 
 TARBALL="OSD-OS-${VERSION}-linux-arm64.tar.gz"
 DOWNLOAD_URL="https://github.com/${REPO}/releases/download/${VERSION}/${TARBALL}"
+DIGEST=$(printf '%s' "${RELEASE_JSON}" | python3 -c "
+import sys, json
+for asset in json.load(sys.stdin).get('assets', []):
+    if asset.get('name') == sys.argv[1]:
+        print(asset.get('digest') or '')" "${TARBALL}")
 
 # ── Verify architecture ────────────────────────────────────────────────────────
 ARCH=$(uname -m)
 if [ "$ARCH" != "aarch64" ]; then
     echo "Error: this installer is for arm64 (aarch64). Detected: $ARCH"
     exit 1
-fi
-
-# ── An install from 240-MP's days ─────────────────────────────────────────────
-# OSD/OS was 240-MP. An install of that (240-MP's own installer) ran
-# /opt/240mp through 240mp.service: its service and what it put around the
-# system go, so the two never fight over the screen. The app moves its data
-# folder (~/.local/share/240-MP) over to its own on its first start.
-if [ -e /etc/systemd/system/240mp.service ] || [ -d /opt/240mp ] || [ -e /usr/local/bin/240mp ]; then
-    echo "Removing the 240-MP install this replaces..."
-    if [ -e /etc/systemd/system/240mp.service ]; then
-        sudo systemctl disable --now 240mp.service 2> /dev/null || true
-        sudo rm -f /etc/systemd/system/240mp.service /etc/systemd/system/240mp-terminal.service
-        sudo systemctl daemon-reload
-    fi
-    sudo rm -f /usr/local/bin/240mp /usr/local/bin/240mp-stop /etc/udev/rules.d/99-240mp-tty.rules
-    sudo rm -rf /opt/240mp
 fi
 
 # ── Install runtime dependencies ──────────────────────────────────────────────
@@ -107,7 +102,13 @@ else
         echo "The autostart service already installed is kept; it runs the app as ${SERVICE_USER}."
     fi
 fi
-OWNER_USER="${SERVICE_USER:-$USER}"
+# Without a service, the user installing: run as "sudo bash install.sh", the
+# one who ran sudo, not root.
+OWNER_USER="${SERVICE_USER:-${SUDO_USER:-${USER:-$(id -un)}}}"
+if ! id -u "${OWNER_USER}" > /dev/null 2>&1; then
+    echo "Error: there is no user named ${OWNER_USER} on this system." >&2
+    exit 1
+fi
 
 # Settings → Bluetooth talks to BlueZ as the user the app runs as, which
 # BlueZ's D-Bus policy lets in through the bluetooth group.
@@ -144,37 +145,95 @@ POLKIT_RULE
 fi
 
 # ── Download tarball ───────────────────────────────────────────────────────────
+# The app, stopped below for the release's swap, starts again as the script
+# ends, however it ends: on the new release, or on the one before.
 echo "Downloading ${TARBALL}..."
 TMP_DIR=$(mktemp -d)
-trap 'rm -rf "$TMP_DIR"' EXIT
+APP_WAS_RUNNING=""
+trap 'rm -rf "$TMP_DIR"; if [ -n "$APP_WAS_RUNNING" ]; then sudo systemctl start osdos.service; fi' EXIT
 
 curl -fsSL -o "${TMP_DIR}/${TARBALL}" "${DOWNLOAD_URL}"
+# Checked against the SHA-256 GitHub keeps for it before anything changes; a
+# release with none is taken as it came.
+case "${DIGEST}" in
+    sha256:*)
+        if ! echo "${DIGEST#sha256:}  ${TMP_DIR}/${TARBALL}" | sha256sum -c --status -; then
+            echo "Error: ${TARBALL} doesn't match the SHA-256 GitHub keeps for it; nothing was installed." >&2
+            exit 1
+        fi
+        ;;
+esac
 
-# ── Extract to install directory ───────────────────────────────────────────────
-# Tarball structure: usr/local/bin/osdos + usr/local/share/osdos/...
-# We strip the usr/local prefix and place files directly in $INSTALL_DIR:
-# extracted whole beside it first, then each top-level folder (bin, share)
-# swapped in for the one there, as the launcher applies an in-app update, so
-# that a file a release dropped (a module's folder) doesn't live on under the
-# new release.
+# ── Put the release in place ───────────────────────────────────────────────────
+# The tarball holds ./usr/local/bin/osdos and ./usr/local/share/osdos/...; with
+# the usr/local prefix stripped, it goes straight into $INSTALL_DIR the way the
+# launcher applies an in-app update: extracted whole into .new and written to
+# the card, then each top-level folder (bin, share) swapped in for the one
+# there, which waits in .old until the swap is done. A Pi switched off
+# meanwhile starts on the release before, which the launcher puts back whole
+# from .old, never on half of each; and a file a release dropped (a module's
+# folder) doesn't live on under the new one. The app, if it runs, stops for the
+# swap rather than run on as half of each.
 echo "Extracting to ${INSTALL_DIR}..."
-NEW_DIR="${INSTALL_DIR}.new"
-sudo rm -rf "${NEW_DIR}"
-sudo mkdir -p "${NEW_DIR}" "${INSTALL_DIR}"
-sudo tar -xzf "${TMP_DIR}/${TARBALL}" \
-    --strip-components=3 \
-    -C "${NEW_DIR}"
-for d in "${NEW_DIR}"/*; do
+if [ -f "${SYSTEMD_SERVICE}" ]; then
+    if systemctl is-active --quiet osdos.service; then
+        APP_WAS_RUNNING=1
+    fi
+    sudo systemctl stop osdos.service
+fi
+sudo mkdir -p "${INSTALL_DIR}"
+# A swap cut short before and not put right since: the release before back
+# whole from .old first, as the launcher does.
+if [ -d "${INSTALL_DIR}/.old" ]; then
+    for d in "${INSTALL_DIR}"/.old/*; do
+        [ -e "$d" ] || continue
+        name=$(basename "$d")
+        sudo rm -rf "${INSTALL_DIR:?}/${name}"
+        sudo mv "$d" "${INSTALL_DIR}/${name}"
+    done
+fi
+sudo rm -rf "${INSTALL_DIR}/.new" "${INSTALL_DIR}/.old" "${INSTALL_DIR}/.discard"
+sudo mkdir "${INSTALL_DIR}/.new" "${INSTALL_DIR}/.old"
+sudo tar -xzf "${TMP_DIR}/${TARBALL}" --strip-components=3 --no-same-owner -C "${INSTALL_DIR}/.new"
+if [ ! -x "${INSTALL_DIR}/.new/bin/osdos" ]; then
+    sudo rm -rf "${INSTALL_DIR}/.new" "${INSTALL_DIR}/.old"
+    echo "Error: ${TARBALL} has no bin/osdos; nothing was installed." >&2
+    exit 1
+fi
+# All of it the user's the app runs as, the release there and the swap's
+# folders too: the launcher swaps in staged in-app updates without root, and
+# puts the release before back should the swap below be cut short.
+sudo chown -R "${OWNER_USER}:" "${INSTALL_DIR}"
+sync -f "${INSTALL_DIR}" 2> /dev/null || sync
+for d in "${INSTALL_DIR}"/.new/*; do
     name=$(basename "$d")
-    sudo rm -rf "${INSTALL_DIR:?}/${name}"
+    if [ -e "${INSTALL_DIR}/${name}" ]; then
+        sudo mv "${INSTALL_DIR}/${name}" "${INSTALL_DIR}/.old/${name}"
+    fi
     sudo mv "$d" "${INSTALL_DIR}/${name}"
 done
-sudo rm -rf "${NEW_DIR}"
-
-# Owned by the running user so the launcher can swap in staged in-app updates.
-sudo chown -R "${OWNER_USER}:" "${INSTALL_DIR}"
+sudo mv "${INSTALL_DIR}/.old" "${INSTALL_DIR}/.discard"
+sync -f "${INSTALL_DIR}" 2> /dev/null || sync
+sudo rm -rf "${INSTALL_DIR}/.new" "${INSTALL_DIR}/.discard"
 if ! sudo -u "${OWNER_USER}" test -w "${INSTALL_DIR}"; then
     echo "Warning: ${OWNER_USER} can't write ${INSTALL_DIR}, so in-app updates won't apply." >&2
+fi
+
+# ── An install from 240-MP's days ─────────────────────────────────────────────
+# OSD/OS was 240-MP. An install of that (240-MP's own installer) ran
+# /opt/240mp through 240mp.service: its service and what it put around the
+# system go, so the two never fight over the screen; only now, with OSD/OS in
+# place, so that a download that fails leaves it as it was. The app moves its
+# data folder (~/.local/share/240-MP) over to its own on its first start.
+if [ -e /etc/systemd/system/240mp.service ] || [ -d /opt/240mp ] || [ -e /usr/local/bin/240mp ]; then
+    echo "Removing the 240-MP install this replaces..."
+    if [ -e /etc/systemd/system/240mp.service ]; then
+        sudo systemctl disable --now 240mp.service 2> /dev/null || true
+        sudo rm -f /etc/systemd/system/240mp.service /etc/systemd/system/240mp-terminal.service
+        sudo systemctl daemon-reload
+    fi
+    sudo rm -f /usr/local/bin/240mp /usr/local/bin/240mp-stop /etc/udev/rules.d/99-240mp-tty.rules
+    sudo rm -rf /opt/240mp
 fi
 
 # ── Create launcher ────────────────────────────────────────────────────────────
@@ -362,9 +421,13 @@ LAUNCHER_SCRIPT
 sudo chmod +x "${LAUNCHER}"
 
 # ── Optional: systemd autostart ───────────────────────────────────────────────
-if [[ "${AUTOSTART_REPLY}" =~ ^[Yy]$ ]]; then
-    if [ -z "${IMAGE_SERVICE}" ]; then
-        sudo tee "${SYSTEMD_SERVICE}" > /dev/null << UNIT
+# The service is written when it is asked for, never over the OSD/OS image's
+# own. The helpers around it (osdos-stop, the sockets the app asks root
+# through, the exit-to-terminal unit) are brought up to date for whichever
+# service there is, one kept from an install before too: the launcher above
+# offers the app everything they do (OSDOS_LAUNCHER_API).
+if [[ "${AUTOSTART_REPLY}" =~ ^[Yy]$ ]] && [ -z "${IMAGE_SERVICE}" ]; then
+    sudo tee "${SYSTEMD_SERVICE}" > /dev/null << UNIT
 [Unit]
 Description=OSD/OS Media Player
 After=multi-user.target sound.target
@@ -395,8 +458,9 @@ StandardError=journal
 [Install]
 WantedBy=multi-user.target
 UNIT
-    fi
+fi
 
+if [ -n "${SERVICE_USER}" ]; then
     # ExecStopPost helper: the user's Quit → Power Off (exit 0) powers the Pi off;
     # exit 10 means the user chose "Exit to Terminal", so instead spawn a login
     # shell on tty1 (see views/Settings.qml). Exit 12 is the quit menu's
@@ -464,6 +528,15 @@ DISPLAY_PRESETS=(hdmi crt-ntsc crt-pal crt-gpio-ntsc crt-gpio-pal
                  scart-rgb-ntsc scart-rgb-pal scart-rgb-240p scart-rgb-288p previous
                  jamma-240p jamma-240p-native jamma-240p-super jamma-288p jamma-288p-super
                  jamma-480i jamma-576i jamma-25k jamma-31k)
+
+# A switch the app has ended for: the preset written, or why not in the
+# journal. The Pi restarts or goes off either way, since only that brings the
+# app back: on the output it had, should the preset not be written, where the
+# app says it is still on it.
+switch_output() {
+    display_output "$1" \
+        || echo "osdos-stop: the $1 display preset couldn't be written; the output stays as it was" >&2
+}
 
 # At Next Start: a preset's name on a line from the app, through the socket,
 # and "ok" back, or why not. Written now, for the firmware to read the next
@@ -592,9 +665,9 @@ case "${EXIT_STATUS:-}" in
     10) systemctl start osdos-terminal.service ;;
     11) : ;;  # in-app update restart — Restart=on-failure brings the app back up
     12) systemctl reboot ;;  # the quit menu's Restart
-    2[0-9]|3[0-8]) display_output "${DISPLAY_PRESETS[EXIT_STATUS - 20]}"; systemctl reboot ;;
+    2[0-9]|3[0-8]) switch_output "${DISPLAY_PRESETS[EXIT_STATUS - 20]}"; systemctl reboot ;;
     # The same, then off: on the new output the next time the Pi is switched on.
-    4[0-9]|5[0-8]) display_output "${DISPLAY_PRESETS[EXIT_STATUS - 40]}"; systemctl poweroff ;;
+    4[0-9]|5[0-8]) switch_output "${DISPLAY_PRESETS[EXIT_STATUS - 40]}"; systemctl poweroff ;;
     # Anything else leaves the Pi on: a stop from outside (129, 130, 143, or the
     # signal itself), and a crash or an error exit, after which systemd starts
     # the app again (Restart=on-failure), or brings up a login prompt.
@@ -735,14 +808,25 @@ KillMode=process
 Restart=no
 TERMINAL_UNIT
 
-    sudo systemctl mask getty@tty1.service autovt@.service
     sudo systemctl daemon-reload
-    sudo systemctl enable osdos.service
     sudo systemctl enable --now osdos-display.socket osdos-wifi.socket osdos-name.socket
-    echo "Service installed and enabled."
-    echo "Start now with: sudo systemctl start osdos"
+    # A service kept as it was stays enabled or not, as it was left, and the
+    # login on tty1 with it.
+    if [[ "${AUTOSTART_REPLY}" =~ ^[Yy]$ ]]; then
+        sudo systemctl mask getty@tty1.service autovt@.service
+        sudo systemctl enable osdos.service
+        echo "Service installed and enabled."
+    else
+        echo "The autostart service's helpers are brought up to date."
+    fi
+    if [ -z "${APP_WAS_RUNNING}" ]; then
+        echo "Start now with: sudo systemctl start osdos"
+    fi
 fi
 
 echo ""
 echo "OSD/OS ${VERSION} installed successfully."
+if [ -n "${APP_WAS_RUNNING}" ]; then
+    echo "OSD/OS starts again on it."
+fi
 echo "Run: osdos"

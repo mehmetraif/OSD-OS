@@ -97,6 +97,60 @@ mkdir -p "$APP/.discard/share/osdos"
 check "a swap finished but not cleared runs the new release" "2/2" "$(run | cut -d' ' -f1)"
 check "...and clears it" "0" "$(leftovers)"
 
+# The installer's own swap (its "Put the release in place" block), as it runs
+# there, with stand-ins for sudo and systemctl and a service installed: the
+# release put in place whole, the app stopped for it; cut short where a power
+# cut could leave it, after which the launcher starts the release before
+# whole; and over a swap cut short before, the new release all the same.
+awk '/^# ── Put the release in place/ { on = 1; next }
+     on && /^# ── /                   { exit }
+     on                               { print }' "$INSTALL_SH" > "$T/put.sh"
+grep -q -- '--strip-components=3' "$T/put.sh" \
+    || { echo "FAIL: the installer's swap not found in $INSTALL_SH"; exit 1; }
+touch "$T/osdos.service"
+# The release put in place, the script ended (a power cut) as it would move
+# the path given: how it exited.
+put_release() {  # version [path]
+    local src="$T/src-$1"
+    rm -rf "$src" "$T/download"
+    release_tree "$src/usr/local" "$1"
+    mkdir -p "$T/download"
+    tar -czf "$T/download/OSD-OS-$1.tar.gz" -C "$src" .
+    : > "$T/systemctl"
+    {
+        echo 'set -euo pipefail'
+        printf 'INSTALL_DIR=%q TMP_DIR=%q TARBALL=%q SYSTEMD_SERVICE=%q OWNER_USER=%q CUT=%q APP_WAS_RUNNING=\n' \
+            "$APP" "$T/download" "OSD-OS-$1.tar.gz" "$T/osdos.service" "$(id -un)" "${2:-}"
+        printf 'systemctl() { echo "$*" >> %q; }\n' "$T/systemctl"
+        echo 'sudo() { if [ "$1" = -u ]; then shift 2; fi; "$@"; }'
+        echo 'mv() { if [ "$1" = "$CUT" ]; then exit 3; fi; command mv "$@"; }'
+        cat "$T/put.sh"
+    } > "$T/put-run.sh"
+    bash "$T/put-run.sh" > /dev/null 2>&1
+    echo $?
+}
+rm -rf "$UPDATES"
+install_release 1
+check "the installer puts a release in place" "0" "$(put_release 2)"
+check "...whole" "2/2" "$(run | cut -d' ' -f1)"
+check "...leaving no swap folders" "0" "$(leftovers)"
+check "...the app stopped for the swap" "1" "$(grep -c '^stop osdos.service$' "$T/systemctl")"
+for cut in bin .new/bin share .new/share .old; do
+    install_release 1
+    put_release 2 "$APP/$cut" > /dev/null
+    check "the installer's swap cut short as it moves $cut runs the release before whole" "1/1" "$(run | cut -d' ' -f1)"
+    check "...leaving no swap folders" "0" "$(leftovers)"
+done
+install_release 1
+put_release 2 "$APP/.new/share" > /dev/null
+check "the installer over a swap cut short puts the new release in place" "0" "$(put_release 3)"
+check "...whole" "3/3" "$(run | cut -d' ' -f1)"
+install_release 1
+put_release 2 "$APP/.new/share" > /dev/null
+put_release 3 "$APP/.new/share" > /dev/null
+check "cut short again over it, the release before both runs whole" "1/1" "$(run | cut -d' ' -f1)"
+check "...leaving no swap folders" "0" "$(leftovers)"
+
 # A Pi 5 on a preset naming the DPI output, HDMI connected too: the DPI
 # output is waited for as it registers late, and taken.
 install_release 1

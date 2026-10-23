@@ -2,9 +2,9 @@
 # The installer's choice of the user OSD/OS runs as (scripts/install.sh, its
 # "Choose install owner" block), run with the script's own shell options
 # against a stand-in service file and image marker, its questions answered on
-# standard input: no service yet, one installed before (its user offered, and
-# kept when it isn't installed again), and the OSD/OS image's own, which asks
-# nothing.
+# standard input: no service yet (run as the user, or under sudo), one
+# installed before (its user offered, and kept when it isn't installed again),
+# and the OSD/OS image's own, which asks nothing.
 #   installer_test.sh <scripts/install.sh>
 set -u
 
@@ -33,15 +33,22 @@ check() {  # what, expected, actual
     fi
 }
 
-# The block with these answers, run by the user "me": its last line
-# (answer|service user|owner|image), or how it exited.
+# The block with these answers, run by the user "me", or by "me" under sudo
+# (root, SUDO_USER=me): its last line (answer|service user|owner|image), or
+# how it exited.
 choose() {  # answers, as printf's %b takes them
     local out
-    out=$(printf '%b' "$1" | USER=me bash "$T/owner.sh" 2>&1) || { echo "exited $?"; return; }
+    out=$(printf '%b' "$1" | env -u SUDO_USER USER=me bash "$T/owner.sh" 2>&1) || { echo "exited $?"; return; }
+    echo "${out##*$'\n'}"
+}
+choose_under_sudo() {  # answers
+    local out
+    out=$(printf '%b' "$1" | env USER=root SUDO_USER=me bash "$T/owner.sh" 2>&1) || { echo "exited $?"; return; }
     echo "${out##*$'\n'}"
 }
 
 check "no service yet, autostart declined: the files go to the user installing" "n||me|" "$(choose 'n\n')"
+check "...under sudo, to the user who ran it, not root" "n||me|" "$(choose_under_sudo 'n\n')"
 check "no service yet, autostart chosen: pi offered" "y|pi|pi|" "$(choose 'y\n\n')"
 check "no service yet, autostart chosen with a user" "y|kiosk|kiosk|" "$(choose 'y\nkiosk\n')"
 

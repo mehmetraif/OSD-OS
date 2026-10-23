@@ -270,7 +270,7 @@ At this point you can type `osdos` at any time to start up the app.  And if you 
     bash <(curl -fsSL https://github.com/mehmetraif/OSD-OS/releases/latest/download/install.sh)
     ```
 3) When it asks to "`Install systemd autostart service? [y/N]`"
-    - If you already have autostart set up please answer `Y`, which brings the service and its helpers up to date (the next prompt offers the user the service already runs as). Answering `N` keeps your existing service as it is, and the app files still go to its user, which in-app updates rely on
+    - If you already have autostart set up please answer `Y`, which brings the service and its helpers up to date (the next prompt offers the user the service already runs as). Answering `N` keeps your existing service as it is and brings its helpers up to date, and the app files still go to its user, which in-app updates rely on
     - If you don't have autostart installed and want to keep it that way just answer `N`
     - And if you want to turn on autostart please answer `Y`
     - On the OSD/OS image you won't be asked: the script keeps the image's own service as it is and just brings the app and its helpers up to date

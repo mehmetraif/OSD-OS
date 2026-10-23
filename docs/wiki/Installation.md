@@ -420,7 +420,7 @@ bash install.sh "$TAG"
 
 It asks two questions:
 
-- `Install systemd autostart service? [y/N]`: **y** makes the Pi start OSD/OS at every boot, an appliance as close to the image as an install gets. **N** (the default) installs the app only; a service installed before is kept as it is, with the user it runs as.
+- `Install systemd autostart service? [y/N]`: **y** makes the Pi start OSD/OS at every boot, an appliance as close to the image as an install gets. **N** (the default) installs the app only; a service installed before is kept as it is, with the user it runs as, and what goes with it is brought up to date.
 - `Run service as user [default: pi]:` (only after **y**): the user OSD/OS runs as. Give your own user's name if it isn't `pi`. With a service installed before, the default offered is the user it runs as.
 
 On the OSD/OS image it asks neither: it keeps the image's own service, and the user it runs as, and brings what goes with it up to date (the stop helper, the Exit to Terminal unit, At Next Start's socket).
@@ -431,15 +431,15 @@ Installing the dependencies can take a while; over Wi-Fi, about 20 minutes. Then
 
 | Step | What |
 |---|---|
-| Finds the release | The latest release's tag from GitHub's API, or the tag you gave it |
-| Replaces 240-MP | An install from OSD/OS's days as 240-MP (`/opt/240mp`, `240mp.service`) is removed, so the two never fight over the screen. OSD/OS moves 240-MP's data folder over to its own on its first start |
+| Finds the release | The latest release from GitHub's API, or the one whose tag you gave it: its tag, and the SHA-256 GitHub keeps for its tarball |
 | Installs packages | `libqt6quick6 libqt6qml6 libqt6opengl6 libqt6network6 libqt6svg6 qt6-svg-plugins qt6-wayland qml6-module-qtquick qml6-module-qtquick-controls qml6-module-qtquick-window libsdl2-2.0-0 libpcsclite1 libmpv2 mpv fluidsynth timgm6mb-soundfont openmpt123 polkitd` |
 | A udev rule | `/etc/udev/rules.d/99-osdos-tty.rules`: lets the `tty` group open `/dev/tty0`, for handing the screen to mpv and back |
 | The `bluetooth` group | Adds the user OSD/OS runs as, so Settings → Bluetooth can talk to BlueZ |
 | A polkit rule | With a service, a new one or one kept: `/etc/polkit-1/rules.d/50-osdos-networkmanager.rules`, which lets the user the service runs OSD/OS as scan, join and forget networks and turn Wi-Fi on and off through NetworkManager for Settings → Wi-Fi. The service runs outside any login session, where polkit would otherwise ask for a password nobody can type |
-| Unpacks the app | `OSD-OS-<version>-linux-arm64.tar.gz` into `/opt/osdos`, owned by the user OSD/OS runs as, so in-app updates can replace it. It warns when that user still can't write there, as in-app updates then won't apply |
+| Puts the app in place | `OSD-OS-<version>-linux-arm64.tar.gz`, checked against the SHA-256 GitHub keeps for it, into `/opt/osdos` the way the launcher applies an in-app update: unpacked whole into `/opt/osdos/.new` first, then `bin` and `share` swapped in through `/opt/osdos/.old`, so that a Pi switched off meanwhile starts on the release before, which the launcher puts back whole. OSD/OS, if it is running, stops for the swap and starts again as the script ends. All of it is owned by the user OSD/OS runs as (run as `sudo bash install.sh`, the user who ran sudo), so in-app updates can replace it; it warns when that user still can't write there, as in-app updates then won't apply |
+| Replaces 240-MP | An install from OSD/OS's days as 240-MP (`/opt/240mp`, `240mp.service`) is removed once OSD/OS is in place, so the two never fight over the screen and a download that fails leaves it as it was. OSD/OS moves 240-MP's data folder over to its own on its first start |
 | The launcher | `/usr/local/bin/osdos`: applies a downloaded update, then starts OSD/OS on Wayland or X11 when there is a desktop, or straight on the screen (Qt's EGLFS) when there isn't, on the right display card (a Pi 5's video card is not always the first) |
-| The service | Only after **y**: `/etc/systemd/system/osdos.service`, its stop helper `/usr/local/bin/osdos-stop`, `osdos-terminal.service` for Exit to Terminal, `osdos-display.socket` with `osdos-display@.service` for Display Output's At Next Start, `osdos-wifi.socket` with `osdos-wifi@.service` for Settings → Wi-Fi's country, and `osdos-name.socket` with `osdos-name@.service` for renaming the device in Settings → About → System Information. The console login on `tty1` is masked (`getty@tty1`, `autovt@`), so the screen is OSD/OS's. On the OSD/OS image the image's own `osdos.service` is left as it is, and the rest is written afresh |
+| The service | After **y**: `/etc/systemd/system/osdos.service`. With any service, a new one or one kept, what goes with it: its stop helper `/usr/local/bin/osdos-stop`, `osdos-terminal.service` for Exit to Terminal, `osdos-display.socket` with `osdos-display@.service` for Display Output's At Next Start, `osdos-wifi.socket` with `osdos-wifi@.service` for Settings → Wi-Fi's country, and `osdos-name.socket` with `osdos-name@.service` for renaming the device in Settings → About → System Information. After **y**, and on the OSD/OS image, the console login on `tty1` is masked (`getty@tty1`, `autovt@`), so the screen is OSD/OS's. The OSD/OS image's own `osdos.service`, and one kept with **N**, is left as it is, enabled or not; one kept with **N** leaves the login on `tty1` as it is too. The rest is written afresh |
 
 #### The autostart service
 
@@ -636,7 +636,7 @@ On Raspberry Pi OS, running the installer again also updates OSD/OS, keeping you
 bash <(curl -fsSL https://github.com/mehmetraif/OSD-OS/releases/latest/download/install.sh)
 ```
 
-If the service is installed, answer **y** to the autostart question: the service and its helpers are written afresh, with the user it runs as offered as the default. **N** keeps the service as it is, and its user; either way the app's files go to that user, which in-app updates need. Without a service, **N** keeps going without one. On the OSD/OS image there is no question: the image's own service stays as it is, and what goes with it is brought up to date. Then `sudo reboot`.
+If the service is installed, answer **y** to the autostart question: the service and its helpers are written afresh, with the user it runs as offered as the default. **N** keeps the service as it is, and its user, and brings what goes with it up to date; either way the app's files go to that user, which in-app updates need. OSD/OS, if it is running, stops while the new release goes in and starts again on it. Without a service, **N** keeps going without one. On the OSD/OS image there is no question: the image's own service stays as it is, and what goes with it is brought up to date. Then `sudo reboot`.
 
 ### Updating Raspberry Pi OS on the image
 
