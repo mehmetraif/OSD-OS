@@ -105,7 +105,30 @@ main {
     .appbar .repo { display: none; }
 }
 
+/* --- The opening: what the page does in a line, the three steps with their
+   pixel icons, then the details. --- */
+.icon-defs { position: absolute; width: 0; height: 0; overflow: hidden; }
+.pixel-icon { fill: currentColor; shape-rendering: crispEdges; }
 .intro p { margin: 0 0 10px; }
+.intro .lead { font-size: 20px; margin-bottom: 16px; }
+.howto {
+    list-style: none;
+    margin: 0 0 18px;
+    padding: 0;
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 10px;
+}
+.howto li {
+    display: flex;
+    gap: 12px;
+    align-items: flex-start;
+    padding: 12px;
+    border: var(--px) solid var(--primary);
+}
+.howto .pixel-icon { flex: none; width: 32px; height: 32px; }
+.howto .step { display: block; margin-bottom: 4px; text-transform: uppercase; letter-spacing: 1px; }
+.howto .what { display: block; font-size: 15px; line-height: 1.35; color: var(--secondary); }
 .note { color: var(--secondary); }
 
 /* --- The import and export bar. --- */
@@ -268,8 +291,22 @@ input[type="checkbox"]:checked::after {
 }
 .status.ok { color: var(--accent); }
 
+/* --- On the card: the steps, and the card as it ends up, in letters. --- */
+.finish {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: 6px 32px;
+    align-items: start;
+}
 .steps { padding-left: 22px; }
 .steps li { margin-bottom: 6px; }
+.card-art {
+    margin: 2px 0 0;
+    font-size: 15px;
+    line-height: 1.2;
+    color: var(--primary);
+    overflow: hidden;
+}
 code {
     font-family: inherit;
     color: var(--accent);
@@ -283,7 +320,9 @@ footer {
 
 @media (max-width: 640px) {
     html, body { font-size: 16px; }
-    .kinds { grid-template-columns: 1fr; }
+    .intro .lead { font-size: 18px; }
+    .howto, .finish, .kinds { grid-template-columns: 1fr; }
+    .card-art { font-size: 14px; }
     .row { flex-wrap: wrap; }
     .row > .dots { display: none; }
     .row > label, .row > .label { flex: 1; white-space: normal; }

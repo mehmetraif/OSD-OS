@@ -10,6 +10,14 @@
 <script type="module" src="js/page.mjs"></script>
 </head>
 <body>
+<svg xmlns="http://www.w3.org/2000/svg" class="icon-defs" aria-hidden="true">
+  <defs>
+    <!-- Pixel art for the three steps, on a 16 x 16 grid: a menu with its selected line, a download, a card. -->
+    <symbol id="pix-choose" viewBox="0 0 16 16"><path d="M1 1h14v2h-14zM1 3h1v12h-1zM14 3h1v12h-1zM4 5h6v1h-6zM3 7h10v1h-10zM3 8h1v2h-1zM9 8h4v2h-4zM4 9h5v1h-5zM4 11h7v1h-7zM2 14h12v1h-12z"/></symbol>
+    <symbol id="pix-download" viewBox="0 0 16 16"><path d="M7 1h2v10h-2zM3 6h4v1h-4zM9 6h4v1h-4zM4 7h3v1h-3zM9 7h3v1h-3zM5 8h2v1h-2zM9 8h2v1h-2zM6 9h1v1h-1zM9 9h1v1h-1zM1 11h1v4h-1zM14 11h1v4h-1zM2 14h12v1h-12z"/></symbol>
+    <symbol id="pix-sd" viewBox="0 0 16 16"><path d="M5 1h8v1h-8zM4 2h1v1h-1zM12 2h1v12h-1zM3 3h1v11h-1zM5 5h6v1h-6zM5 7h6v1h-6zM5 11h1v3h-1zM7 11h1v3h-1zM9 11h1v3h-1zM4 13h1v1h-1zM6 13h1v1h-1zM8 13h1v1h-1zM10 13h2v1h-2z"/></symbol>
+  </defs>
+</svg>
 <main>
   <header class="appbar">
     <div class="icon" aria-hidden="true"><span></span></div>
@@ -19,11 +27,30 @@
   </header>
 
   <section class="intro">
-    <p>Choose OSD/OS's settings here before the card goes into the Pi: first what it goes into, a TV or an
-      arcade cabinet, then the display output, Wi-Fi and the device's name, the system, and every setting of
-      OSD/OS itself, with its look shown as it draws it. <strong>Download</strong> puts them in one file,
-      <code>osdos-setup.json</code>; copy it to the card's boot partition (the drive called
-      <strong>bootfs</strong>), and OSD/OS applies it all as it starts, then deletes the file.</p>
+    <p class="lead">Choose OSD/OS's settings in your browser before the card goes into the Pi: they go onto the
+      card as one file, and OSD/OS applies them as it starts.</p>
+    <ol class="howto" aria-label="How it works, in three steps">
+      <li>
+        <svg class="pixel-icon" aria-hidden="true"><use href="#pix-choose"/></svg>
+        <div><span class="step">1. Choose</span><span class="what">The device, the Pi and its display output,
+          Wi-Fi, the system, and OSD/OS's own settings, with its look drawn live.</span></div>
+      </li>
+      <li>
+        <svg class="pixel-icon" aria-hidden="true"><use href="#pix-download"/></svg>
+        <div><span class="step">2. Download</span><span class="what">One file, <code>osdos-setup.json</code>.
+          The zip adds the display output's <code>osdos-display.txt</code>.</span></div>
+      </li>
+      <li>
+        <svg class="pixel-icon" aria-hidden="true"><use href="#pix-sd"/></svg>
+        <div><span class="step">3. Copy to bootfs</span><span class="what">Onto the flashed card's boot
+          partition. OSD/OS applies it all as the Pi starts, then deletes the file.</span></div>
+      </li>
+    </ol>
+    <p>What the card goes into comes first, a TV or an arcade cabinet; then the display output, Wi-Fi and the
+      device's name, the system, and every setting of OSD/OS itself, with its look shown as it draws it.
+      <strong>Download</strong> puts them in one file, <code>osdos-setup.json</code>; copy it to the card's
+      boot partition (the drive called <strong>bootfs</strong>), and OSD/OS applies it all as it starts, then
+      deletes the file.</p>
     <p class="note">Nothing you type leaves this page: the file is made in your browser. Only what you change
       goes into it (marked •); the rest stays as the card has it. <strong>Import</strong> reads a file made
       here back, or OSD/OS's own <code>config.json</code>, to change it.</p>
@@ -44,17 +71,26 @@
 
   <section id="finish">
     <h2>On the card</h2>
-    <ol class="steps">
-      <li>Write the OSD/OS image to the card (Raspberry Pi Imager, <strong>Use custom</strong>).</li>
-      <li>Take the card out and put it back in: the computer shows its boot partition as <strong>bootfs</strong>.</li>
-      <li>Copy <code>osdos-setup.json</code> there. With a display output chosen, also copy
-        <code>osdos-display.txt</code> over the one there, so that a CRT has its picture from the first start
-        (the zip holds both).</li>
-      <li>Put the card in the Pi and switch it on. OSD/OS takes the file off the card at once, sets its own
-        settings before it starts, and the rest while its boot screen shows <strong>SETTINGS</strong>; it
-        restarts once if the display output needs it. <code>osdos-setup.log</code> on <strong>bootfs</strong>
-        says what was done, and why anything wasn't.</li>
-    </ol>
+    <div class="finish">
+      <ol class="steps">
+        <li>Write the OSD/OS image to the card (Raspberry Pi Imager, <strong>Use custom</strong>).</li>
+        <li>Take the card out and put it back in: the computer shows its boot partition as <strong>bootfs</strong>.</li>
+        <li>Copy <code>osdos-setup.json</code> there. With a display output chosen, also copy
+          <code>osdos-display.txt</code> over the one there, so that a CRT has its picture from the first start
+          (the zip holds both).</li>
+        <li>Put the card in the Pi and switch it on. OSD/OS takes the file off the card at once, sets its own
+          settings before it starts, and the rest while its boot screen shows <strong>SETTINGS</strong>; it
+          restarts once if the display output needs it. <code>osdos-setup.log</code> on <strong>bootfs</strong>
+          says what was done, and why anything wasn't.</li>
+      </ol>
+      <pre class="card-art" role="img" aria-label="The card's bootfs drive, with osdos-setup.json and osdos-display.txt on it">      ____________________
+     /  bootfs           |
+    /                    |
+   |  osdos-setup.json   |
+   |  osdos-display.txt  |
+   |                     |
+   |_|_|_|_|_|_|_|_|_|___|</pre>
+    </div>
     <p class="note">The file can go on a card that has already started too: OSD/OS applies it at the next
       start. It holds the Wi-Fi and RetroAchievements passwords as you typed them, and pi's password only as
       a hash: keep it to yourself.</p>
