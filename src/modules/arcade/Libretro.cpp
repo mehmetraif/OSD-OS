@@ -55,17 +55,18 @@ constexpr std::pair<const char *, const char *> kStandardGamepad[] = {
 };
 
 // An arcade panel's, a JAMMA board's stick as SDL maps osdos-jamma's pad
-// (buttons 1 to 6 on A, B, X, Y and the shoulders, Coin on Back, the
-// joystick on the left stick's axes): the cabinet's two rows of buttons, 1
-// to 3 above and 4 to 6 below, where FinalBurn Neo's 6-Button Panel has
-// them (Y X L above, B A R below), and the joystick on the D-pad too, where
-// the games read their directions.
+// (buttons 1 to 6 on A, B, X, Y and the shoulders, 7 and 8 on the
+// triggers, Coin on Back, the joystick on the left stick's axes): the
+// cabinet's two rows of buttons, 1 to 3 above and 4 to 6 below, where
+// FinalBurn Neo's 6-Button Panel has them (Y X L above, B A R below), 7 and
+// 8 where it reads them (R2, then L2), and the joystick on the D-pad too,
+// where the games read their directions.
 constexpr std::pair<const char *, const char *> kArcadePanel[] = {
     { "y_btn", "0" }, { "x_btn", "1" }, { "l_btn", "2" },
     { "b_btn", "3" }, { "a_btn", "9" }, { "r_btn", "10" },
     { "start_btn", "6" }, { "select_btn", "4" },
     { "up_axis", "-1" }, { "down_axis", "+1" }, { "left_axis", "-0" }, { "right_axis", "+0" },
-    { "l2_axis", "+4" }, { "r2_axis", "+5" },
+    { "r2_axis", "+4" }, { "l2_axis", "+5" },
     { "l_x_plus_axis", "+0" }, { "l_x_minus_axis", "-0" }, { "l_y_plus_axis", "+1" }, { "l_y_minus_axis", "-1" },
 };
 

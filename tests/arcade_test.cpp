@@ -1062,15 +1062,17 @@ private slots:
         QVERIFY(!config.contains(QStringLiteral("netplay_")));
         // A player on an arcade panel, a JAMMA board's stick: the cabinet's
         // two rows as FinalBurn Neo's 6-Button Panel has them (Y X L above,
-        // B A R below), the joystick on the D-pad, and that controller type
-        // in FinalBurn Neo's remap file, loaded without a word; the other
-        // players as before.
+        // B A R below), its 7 and 8 (the pad's triggers) where the panel
+        // reads them (R2, L2), the joystick on the D-pad, and that controller
+        // type in FinalBurn Neo's remap file, loaded without a word; the
+        // other players as before.
         launch.panels = { false, false, true };
         launch.remapDir = QStringLiteral("/ra/remaps");
         config = libretro::configText(launch);
         for (const char *line : { "input_player3_y_btn = \"0\"", "input_player3_x_btn = \"1\"", "input_player3_l_btn = \"2\"",
                                   "input_player3_b_btn = \"3\"", "input_player3_a_btn = \"9\"", "input_player3_r_btn = \"10\"",
                                   "input_player3_select_btn = \"4\"", "input_player3_start_btn = \"6\"",
+                                  "input_player3_r2_axis = \"+4\"", "input_player3_l2_axis = \"+5\"",
                                   "input_player3_up_axis = \"-1\"", "input_player3_down_axis = \"+1\"",
                                   "input_player3_left_axis = \"-0\"", "input_player3_right_axis = \"+0\"",
                                   "input_player1_b_btn = \"0\"", "input_player1_up_btn = \"11\"",
