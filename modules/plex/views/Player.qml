@@ -412,10 +412,13 @@ FocusScope {
         }
     }
 
+    // Where this item has got to, every ten seconds: only while it plays.
+    // Another video left playing behind the menus (Transparent Background)
+    // moves mpvController.position too, and that is not this item's.
     Timer {
         interval: 10000
         repeat:   true
-        running:  true
+        running:  playbackStarted && !waiting
         onTriggered: {
             if (trackProgress && mpvController.position > 0)
                 plexBackend.update_timeline(ratingKey, partKey, "playing",
