@@ -4328,15 +4328,26 @@ private slots:
         QUdpSocket claims;
         QVERIFY(claims.bind(QHostAddress::LocalHost, 0));
         QList<QByteArray> claimed;
-        connect(&claims, &QUdpSocket::readyRead, &claims, [&claims, &claimed] {
+        // How the stand-in host answers: the layout then the ports, as OSD/OS
+        // does; the ports first and the layout a moment later (the two are
+        // datagrams of their own); or the ports alone, as an older OSD/OS.
+        enum { LayoutThenPorts, PortsThenLayout, PortsAlone } answering = LayoutThenPorts;
+        connect(&claims, &QUdpSocket::readyRead, &claims, [&claims, &claimed, &answering] {
             while (claims.hasPendingDatagrams()) {
                 const QNetworkDatagram query = claims.receiveDatagram();
                 claimed << query.data();
-                if (libretro::readClaimQuery(query.data())) {
-                    claims.writeDatagram(libretro::claimLayout(libretro::Launch::Layout::Panel), query.senderAddress(),
-                                         query.senderPort());
-                    claims.writeDatagram(libretro::claimAnswer({ 3, 2 }), query.senderAddress(), query.senderPort());
-                }
+                if (!libretro::readClaimQuery(query.data()))
+                    continue;
+                const QHostAddress to = query.senderAddress();
+                const quint16 port = query.senderPort();
+                const auto layout = [&claims, to, port] {
+                    claims.writeDatagram(libretro::claimLayout(libretro::Launch::Layout::Panel), to, port);
+                };
+                if (answering == LayoutThenPorts)
+                    layout();
+                claims.writeDatagram(libretro::claimAnswer({ 3, 2 }), to, port);
+                if (answering == PortsThenLayout)
+                    QTimer::singleShot(50, &claims, layout);
             }
         });
         arcade.setLanClaimPort(claims.localPort());
@@ -4366,6 +4377,25 @@ private slots:
         QTRY_VERIFY(!claimed.isEmpty() && claimed.last() == libretro::claimRelease());
         QCOMPARE(claimed.first(), libretro::claimQuery(2));
         QVERIFY(!arcade.running());
+        // The ports before the layout: the game waits a moment for it, and
+        // starts on the panel's layout as before.
+        answering = PortsThenLayout;
+        QFile::remove(m_log);
+        QCOMPARE(ended([&arcade] { return arcade.joinLanRoom(1); }).value(1).toString(), QStringLiteral("ok"));
+        config = QString::fromUtf8(contents(configCopy));
+        QCOMPARE(requested(config), QStringLiteral("3 4"));
+        QVERIFY2(config.contains(QStringLiteral("input_player1_y_btn = \"0\"")), qPrintable(config));
+        QTRY_VERIFY(!claimed.isEmpty() && claimed.last() == libretro::claimRelease());
+        // The ports alone, from an older OSD/OS: joined with them a moment
+        // later, on the Classic layout.
+        answering = PortsAlone;
+        QFile::remove(m_log);
+        QCOMPARE(ended([&arcade] { return arcade.joinLanRoom(1); }).value(1).toString(), QStringLiteral("ok"));
+        config = QString::fromUtf8(contents(configCopy));
+        QCOMPARE(requested(config), QStringLiteral("3 4"));
+        QVERIFY2(config.contains(QStringLiteral("input_player1_b_btn = \"0\"")), qPrintable(config));
+        QVERIFY(config.contains(QStringLiteral("input_player1_y_btn = \"2\"")));
+        QTRY_VERIFY(!claimed.isEmpty() && claimed.last() == libretro::claimRelease());
         // A host that doesn't say, RetroArch alone or an older OSD/OS: asked
         // twice, then joined with the ports from 2, on the Classic layout,
         // the stick's buttons by number.

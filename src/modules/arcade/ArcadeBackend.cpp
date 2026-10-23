@@ -55,10 +55,10 @@ constexpr int kBatch = 300;
 // A batch MAME hasn't answered in this long is given up on.
 constexpr int kScanTimeoutMs = 120000;
 
-// MAME's exit codes (src/emu/main.h): those of a game MAME never ran.
+// MAME's exit codes (src/emu/main.h): those of a game MAME never ran. Not
+// 3, its fatal error, which a game may hit after an hour of play.
 constexpr int kFailedValidity = 1;
 constexpr int kMissingFiles = 2;
-constexpr int kFatalError = 3;
 constexpr int kDeviceError = 4;
 constexpr int kNoSuchSystem = 5;
 constexpr int kInvalidConfig = 6;
@@ -100,6 +100,9 @@ constexpr qsizetype kMostLanRooms = 64;
 // on the local network, each time it is asked, and how many times at most.
 constexpr int kClaimWaitMs = 250;
 constexpr int kClaimAskings = 3;
+// How long ports that came without the host's layout wait for it (a datagram
+// of its own, sent before them: lost, or an older OSD/OS's, which says none).
+constexpr int kLayoutWaitMs = 150;
 
 // catver.ini, the games' genres, as progettosnaps publishes it with each MAME:
 // downloaded into <data>/arcade when neither folder has one (it may not be
@@ -415,11 +418,11 @@ ArcadeBackend::ArcadeBackend(const QString &appRoot, const QString &dataRoot, Ap
         } else {
             notice = noticeFor(exitCode, reason);
             // The time it ran counts as played, unless MAME refused the game
-            // (files missing, no such game, its settings wrong, its screen or
-            // sound not to be had) or never ran.
+            // (files missing, no such game, its settings wrong, a device it
+            // couldn't have, a check it failed) or never ran.
             refused = reason == QLatin1String("failed_to_start")
                       || (reason == QLatin1String("failed") && !m_launcher->lastRunCrashed()
-                          && (exitCode == kFailedValidity || exitCode == kMissingFiles || exitCode == kFatalError
+                          && (exitCode == kFailedValidity || exitCode == kMissingFiles
                               || exitCode == kDeviceError || exitCode == kNoSuchSystem
                               || exitCode == kInvalidConfig));
         }
@@ -2264,7 +2267,8 @@ bool ArcadeBackend::play(const QString &name, int credits) {
     for (const controllers::ArcadeBinds &binds : controllers::playerArcade())
         arcade << binds.mame;
     // The files made for each game (this one, the credits' script, FinalBurn
-    // Neo's below) are written in place, without a wait for the card each.
+    // Neo's info and config below) are written in place, without a wait for
+    // the card each.
     if (!writeFileAnew(m_home + QStringLiteral("/ctrlr/osdos.cfg"),
                        mame::controllerConfig(controllers::playerGuids(), arcade).toUtf8())) {
         m_lastError = QStringLiteral("MAME's controller file could not be written");
@@ -2479,13 +2483,14 @@ bool ArcadeBackend::fbneoHas(const QString &set) const {
 int ArcadeBackend::hostPorts(const QString &set, int *most) const {
     const mame::Machine *machine = machineOf(set);
     // As many as the game plays at once. A game whose players aren't known
-    // (a set MAME doesn't know: FinalBurn Neo's list doesn't say) is taken
-    // for one of six, so that a host's second stick, and the machines
-    // joining, have ports.
-    const int players = machine && machine->players > 0 ? std::min(machine->players, libretro::kMostPorts)
-                                                        : libretro::kMostPorts;
+    // (a set MAME doesn't know: FinalBurn Neo's list doesn't say) may play
+    // two or six: the host keeps port 1 alone, so that a machine joining has
+    // port 2 whichever it is (a second stick of the host's would take it, and
+    // in a two-player game the machine joining would then drive no one), and
+    // the machines joining may take ports up to six.
+    const int players = machine && machine->players > 0 ? std::min(machine->players, libretro::kMostPorts) : 0;
     if (most)
-        *most = players;
+        *most = players > 0 ? players : libretro::kMostPorts;
     if (players < 2)
         return 1;
     return std::clamp(libretro::localPorts(controllers::playerGuids()), 1, players - 1);
@@ -2658,7 +2663,10 @@ bool ArcadeBackend::playFbneo(const QString &name, libretro::Launch::Netplay net
     else if (remapText.isEmpty())
         QFile::remove(remap);
     else
-        written = QDir().mkpath(QFileInfo(remap).path()) && writeFileAnew(remap, remapText.toUtf8(), kOwnerOnly);
+        // Whole, not in place as the other files: one cut short (the power
+        // gone mid-write) would pass for the user's own (ownsRemap()) and
+        // never be written again.
+        written = QDir().mkpath(QFileInfo(remap).path()) && writeFileAtomically(remap, remapText.toUtf8(), kOwnerOnly);
     // FinalBurn Neo's info file, without which RetroArch neither hosts nor
     // joins a game.
     written = written && QDir().mkpath(launch.infoDir)
@@ -2759,9 +2767,18 @@ bool ArcadeBackend::askForPorts() {
         connect(m_claimAsk, &QUdpSocket::readyRead, this, &ArcadeBackend::readPortsAnswer);
         m_claimWait = new QTimer(this);
         m_claimWait->setSingleShot(true);
-        // Not answered: asked again, then joined without an answer.
+        // Not answered: asked again, then joined without an answer. Ports
+        // answered without the layout, which hasn't come after them either:
+        // joined on the Classic layout.
         connect(m_claimWait, &QTimer::timeout, this, [this] {
-            if (m_pendingJoin && !askForPorts())
+            if (!m_pendingJoin)
+                return;
+            if (const std::optional<libretro::PortRange> ports = m_pendingJoin->ports) {
+                qInfo("[Arcade] %s said nothing of its layout: the Classic one", qPrintable(m_pendingJoin->host));
+                startPendingJoin(ports);
+                return;
+            }
+            if (!askForPorts())
                 startPendingJoin(std::nullopt);
         });
     }
@@ -2776,15 +2793,30 @@ bool ArcadeBackend::askForPorts() {
 }
 
 void ArcadeBackend::readPortsAnswer() {
+    // The host's layout and its ports have both come: the game starts.
+    const auto start = [this](const libretro::PortRange &ports) {
+        m_claimWait->stop();
+        qInfo("[Arcade] %s gives this machine's %d player(s) %d port(s) from %d, on the %s layout",
+              qPrintable(m_pendingJoin->host), m_pendingJoin->players, ports.players, ports.first,
+              m_pendingJoin->layout == libretro::Launch::Layout::Panel ? "panel" : "classic");
+        startPendingJoin(ports);
+    };
     while (m_claimAsk->hasPendingDatagrams()) {
         const QNetworkDatagram answer = m_claimAsk->receiveDatagram(64);
         const QHostAddress from(answer.senderAddress().toIPv4Address());
         const bool fromHost = m_pendingJoin && from == QHostAddress(m_pendingJoin->host);
         // The host's layout comes ahead of the ports (an older OSD/OS says
-        // none: Classic).
+        // none: Classic), each a datagram of its own: ports that come first
+        // wait a moment for it.
         if (const std::optional<libretro::Launch::Layout> layout = libretro::readClaimLayout(answer.data())) {
-            if (fromHost)
-                m_pendingJoin->layout = *layout;
+            if (!fromHost)
+                continue;
+            m_pendingJoin->layout = *layout;
+            m_pendingJoin->layoutSaid = true;
+            if (const std::optional<libretro::PortRange> waiting = m_pendingJoin->ports) {
+                start(*waiting);
+                return;
+            }
             continue;
         }
         const std::optional<libretro::PortRange> ports = libretro::readClaimAnswer(answer.data());
@@ -2797,11 +2829,12 @@ void ArcadeBackend::readPortsAnswer() {
                 releaseClaim(from.toString());
             continue;
         }
-        m_claimWait->stop();
-        qInfo("[Arcade] %s gives this machine's %d player(s) %d port(s) from %d, on the %s layout",
-              qPrintable(m_pendingJoin->host), m_pendingJoin->players, ports->players, ports->first,
-              m_pendingJoin->layout == libretro::Launch::Layout::Panel ? "panel" : "classic");
-        startPendingJoin(*ports);
+        if (!m_pendingJoin->layoutSaid) {
+            m_pendingJoin->ports = ports;
+            m_claimWait->start(kLayoutWaitMs);
+            continue;
+        }
+        start(*ports);
         return;
     }
 }
@@ -3820,8 +3853,10 @@ void ArcadeBackend::takeAchievements(const libretro::Run &run) {
     const QString config = retroarchHome() + QStringLiteral("/retroarch.cfg");
     // A RetroArch that never ran (it couldn't be started, or left no log)
     // saw neither the password nor the token: nothing became of them, and
-    // the password stays for the next game.
+    // the password stays for the next game, no game's any more (OSD/OS
+    // Setup's sign-in may try it meanwhile, retrySetupSignIn()).
     if (!run.logged) {
+        m_raPasswordGiven = false;
         QFile::remove(config);
         return;
     }

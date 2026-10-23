@@ -727,8 +727,12 @@ private:
         QString host;
         int players = 1;
         int asked = 0;
-        // The host's layout, as it said before the ports (Classic until it does).
+        // The host's layout, as it said before the ports (Classic until it
+        // does), and whether it has; the ports that came before it did,
+        // waiting a moment for it (readPortsAnswer()).
         libretro::Launch::Layout layout = libretro::Launch::Layout::Classic;
+        bool layoutSaid = false;
+        std::optional<libretro::PortRange> ports;
     };
     bool askForPorts();
     void readPortsAnswer();

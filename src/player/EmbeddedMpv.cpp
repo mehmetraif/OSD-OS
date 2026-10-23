@@ -276,6 +276,9 @@ public:
             return false;
         }
         m_drawn = false;
+        // This session's pictures measured afresh (noteDrawTime()).
+        m_drawMs = -1;
+        m_slowPictures = 0;
         api().renderSetUpdateCallback(m_render, &GpuRenderer::onUpdate, this);
         return true;
     }
@@ -323,10 +326,10 @@ private:
     // The newest picture and the two the scene graph took last are taken, so
     // one is always free.
     static constexpr int kBuffers = 4;
-    // A picture taking this long, on average, for this long, is too long:
-    // see noteDrawTime().
+    // A picture taking this long, on average, for this many pictures in a
+    // row, is too long: see noteDrawTime().
     static constexpr double kSlowMs = 12.0;
-    static constexpr int kSlowForMs = 2000;
+    static constexpr int kSlowPictures = 48;
     static constexpr int kCheapest = 2;
 
     static void *procAddress(void *context, const char *name) {
@@ -427,24 +430,22 @@ private:
     // draw (a 1080p or 4K one brought down to a CRT's lines with the
     // downscaler widened to the scale, hundreds of fetches a pixel) keeps
     // their frames waiting behind it, and the menus answer late. Pictures
-    // taking kSlowMs or more each, on average, for kSlowForMs (a session's
-    // first few compile mpv's shaders, and pass) turn the scaling down a
-    // step (cheaperScaling()), kCheapest steps at most, and the sessions
-    // after start at that step: the GPU that was too slow for a picture is
-    // the same for the next.
+    // taking kSlowMs or more each, on average, for kSlowPictures in a row
+    // (two seconds of a film; counted in pictures, not time, so a pause or
+    // the gap to the next session counts for nothing, and measured afresh
+    // for each session, whose first few pictures compile mpv's shaders and
+    // pass) turn the scaling down a step (cheaperScaling()), kCheapest steps
+    // at most, and the sessions after start at that step: the GPU that was
+    // too slow for a picture is the same for the next.
     void noteDrawTime(double ms) {
         m_drawMs = m_drawMs < 0 ? ms : m_drawMs * 0.875 + ms * 0.125;
         if (m_drawMs < kSlowMs || m_cheaper >= kCheapest) {
-            m_slowSince.invalidate();
+            m_slowPictures = 0;
             return;
         }
-        if (!m_slowSince.isValid()) {
-            m_slowSince.start();
+        if (++m_slowPictures < kSlowPictures)
             return;
-        }
-        if (m_slowSince.elapsed() < kSlowForMs)
-            return;
-        m_slowSince.invalidate();
+        m_slowPictures = 0;
         const int level = ++m_cheaper;
         const double took = m_drawMs;
         // Measured afresh at the new step.
@@ -464,10 +465,10 @@ private:
     std::atomic<bool> m_scheduled { false };
     std::atomic<bool> m_redraw { false };
     bool m_drawn = false;
-    // A picture's draw time, averaged over the last few; how long it has been
-    // over kSlowMs; the steps taken.
+    // A picture's draw time, averaged over the last few; how many pictures in
+    // a row it has been over kSlowMs; the steps taken.
     double m_drawMs = -1;
-    QElapsedTimer m_slowSince;
+    int m_slowPictures = 0;
     std::atomic<int> m_cheaper { 0 };
 };
 
