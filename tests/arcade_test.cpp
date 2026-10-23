@@ -319,8 +319,11 @@ private slots:
                   "                      bcm2835 Headphones\n");
         QVERIFY(QDir().mkpath(m_data.path() + QStringLiteral("/asound/card0/pcm0p")));
         qputenv("OSDOS_ASOUND_DIR", (m_data.path() + QStringLiteral("/asound")).toUtf8());
-        // No catver.ini downloaded but where a test asks for one.
+        // No catver.ini downloaded but where a test asks for one, and no
+        // ArcadeDB asked about the games' pictures but a stand-in a test
+        // names (setPictureServer()): a test machine may be on line.
         qputenv("OSDOS_GENRES_URL", "");
+        qputenv("OSDOS_ARCADEDB_URL", "");
         // The device's name, an invented one: LAN Play's games are hosted
         // under it.
         qputenv("OSDOS_DEVICE_NAME", "garage-cab");
@@ -345,6 +348,7 @@ private slots:
     void cleanupTestCase() {
         qunsetenv("OSDOS_ASOUND_DIR");
         qunsetenv("OSDOS_GENRES_URL");
+        qunsetenv("OSDOS_ARCADEDB_URL");
         qunsetenv("MAME_LOG");
         qunsetenv("OSDOS_MEDIA_DIR");
         qunsetenv("OSDOS_DRM_DEVICE");
@@ -3230,6 +3234,9 @@ private slots:
         AppCore core(m_data.path(), m_data.path());
         ArcadeBackend arcade(m_data.path(), m_data.path(), &core, nullptr);
         arcade.setAchievementsServers(standIn.api(), standIn.media());
+        // RetroAchievements' pictures alone: none of progetto-SNAPS' here.
+        arcade.onSettingChanged(QStringLiteral("com.osdos.arcade"), QStringLiteral("pictures_source"),
+                                QStringLiteral("RetroAchievements"));
         refreshed(arcade);
         // No key: nothing asked.
         arcade.wantPictures(QStringLiteral("sf2"));
@@ -3449,6 +3456,9 @@ private slots:
         ArcadeBackend arcade(data.path(), data.path(), nullptr, nullptr);
         arcade.setAchievementsServers(standIn.api(), standIn.media());
         arcade.setPictureSweepInterval(50);
+        // RetroAchievements' pictures alone: none of progetto-SNAPS' here.
+        arcade.onSettingChanged(QStringLiteral("com.osdos.arcade"), QStringLiteral("pictures_source"),
+                                QStringLiteral("RetroAchievements"));
         refreshed(arcade);
         // Read again without a key: nothing asked.
         arcade.rescan();

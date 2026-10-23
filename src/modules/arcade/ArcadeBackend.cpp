@@ -551,9 +551,10 @@ ArcadeBackend::ArcadeBackend(const QString &appRoot, const QString &dataRoot, Ap
     // A look cut short (the power went, the app was closed) goes on at the
     // next start, once the games have been read.
     m_sweepWanted = QFile::exists(sweepMarker());
-    // progetto-SNAPS' pictures, through ArcadeDB: the game shown asked about
-    // a moment after it was shown.
-    m_arcadeDb = new ArcadeDb(ArcadeDb::kService, this);
+    // progetto-SNAPS' pictures, through ArcadeDB (OSDOS_ARCADEDB_URL names
+    // another service; "" none, in tests): the game shown asked about a
+    // moment after it was shown.
+    m_arcadeDb = new ArcadeDb(QUrl(legacy::env("ARCADEDB_URL", ArcadeDb::kService.toString())), this);
     connect(m_arcadeDb, &ArcadeDb::found, this, &ArcadeBackend::onSnapsFound);
     connect(m_arcadeDb, &ArcadeDb::failed, this, &ArcadeBackend::onSnapsFailed);
     m_snapAsk = new QTimer(this);

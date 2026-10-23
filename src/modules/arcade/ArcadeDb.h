@@ -30,7 +30,8 @@ public:
 
     explicit ArcadeDb(const QUrl &service, QObject *parent = nullptr);
 
-    // The service's address: a stand-in's.
+    // The service's address: a stand-in's. Without one (an empty address),
+    // nothing is asked: every lookUp() fails at once.
     void setService(const QUrl &service) { m_service = service; }
 
     // Asks about sets (kMostAsked at most; more are asked about in turn),

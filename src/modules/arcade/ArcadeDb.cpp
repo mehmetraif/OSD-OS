@@ -35,6 +35,12 @@ ArcadeDb::ArcadeDb(const QUrl &service, QObject *parent)
 }
 
 void ArcadeDb::lookUp(const QStringList &sets) {
+    // No service to ask (OSDOS_ARCADEDB_URL empty): every look fails, as one
+    // the service couldn't answer.
+    if (!m_service.isValid() || m_service.host().isEmpty()) {
+        QTimer::singleShot(0, this, [this, sets] { emit failed(sets, 0); });
+        return;
+    }
     for (qsizetype first = 0; first < sets.size(); first += kMostAsked)
         m_queue.append(sets.mid(first, kMostAsked));
     next();
