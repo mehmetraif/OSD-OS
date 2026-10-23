@@ -84,6 +84,10 @@ ctest --test-dir build-tests --output-on-failure
 - **playlists** (`playlists_test.cpp`, Linux only). A playlist's m3u (`PlaylistsBackend::prepare`).
   - Owner-only and whole, `#EXTM3U` then each video's `#EXTINF` and path; played again, a new one, the one before gone.
   - One a full card can't take (a file size limit, which holds for root too) says why and plays nothing, and the one before stays.
+- **youtube** (`youtube_test.cpp`, Linux only). YouTube's subscriptions against a stand-in for its feeds (`YouTubeBackend::setFeedUrl`), each request held until the test answers it.
+  - Ten channels are asked for four at a time, the next as each feed lands, never more than four at once.
+  - A channel opened meanwhile is asked for next, ahead of those still waiting, and answered as its own feed lands, before the subscriptions are.
+  - Once every feed has landed, the subscriptions list every channel's videos.
 - **menu_music** (`menu_music_test.cpp`, Linux only). The menu music against stand-ins for mpv, FluidSynth and openmpt123: shell scripts first on `PATH` that write down what they were asked.
   - Wanted, with a file, it plays a moment later; unwanted, it stops.
   - A hold stops it before `hold()` returns, so the sound card is free; it plays again once nothing holds it, and two holds keep it off until both let go.

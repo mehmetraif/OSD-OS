@@ -4,6 +4,7 @@
 #include <QString>
 #include <QStringList>
 #include <QHash>
+#include <QUrl>
 #include <QVariant>
 #include <QVariantList>
 #include <QVariantMap>
@@ -20,7 +21,8 @@ class WebPlayerBackend;
 //
 // The user lists channel IDs (one per line) in <dataRoot>/youtube_subscriptions.txt.
 // Video lists come from each channel's official RSS feed (titles, exact publish
-// dates, channel name — ~15 newest videos), fetched unauthenticated. Results are
+// dates, channel name — ~15 newest videos), fetched unauthenticated, four at a
+// time (the channel opened first). Results are
 // cached in memory per channel for the session (kCacheTtlMs TTL), so the first
 // entry into Subscriptions or Channels fills the cache for every other view.
 //
@@ -137,6 +139,8 @@ public:
     // description).
     Q_INVOKABLE void     loadDetails(const QVariantMap &video);
     QString problem() const { return m_problem; }
+    // The channels' feeds' address: YouTube's, or a stand-in's (a test's).
+    void setFeedUrl(const QUrl &url) { m_feedUrl = url; }
 
 signals:
     void dynamicOptionsReady(const QString &key, const QVariant &options);
@@ -184,6 +188,7 @@ private:
 
     QStringList  readSubscriptionIds() const;
     void         ensureFresh(bool forceRefresh);
+    void         spawnNextChannelFetch();
     void         refreshChannel(const QString &channelId);
     void         finishAggregate();
     QVariantList buildFeed() const;
@@ -225,7 +230,10 @@ private:
 
     QHash<QString, ChannelEntry> m_channels;  // in-memory session cache
     QStringList m_channelOrder;               // channel IDs in file order (deduped)
-    int m_pendingChannels = 0;
+    QStringList m_channelFetchQueue;          // stale IDs waiting for a request slot
+    int m_pendingChannels      = 0;
+    int m_activeChannelFetches = 0;
+    QUrl m_feedUrl{ QStringLiteral("https://www.youtube.com/feeds/videos.xml") };
 
     // Playlist mirror of the channel cache/refresh state, fed by yt-dlp
     // subprocesses instead of RSS requests.
@@ -254,6 +262,9 @@ private:
     static constexpr int    kMaxHistoryItems = 100;
     static constexpr int    kMaxPlaylistItems = 500;             // caps infinite Mix/Radio lists
     static constexpr int    kMaxConcurrentPlaylistFetches = 2;   // yt-dlp is heavy on the Pi
+    // Feeds asked for at once: hundreds of subscriptions at a time would
+    // run into YouTube's limits.
+    static constexpr int    kMaxConcurrentChannelFetches = 4;
     static constexpr int    kPlaylistFetchTimeoutMs = 60000;
     static constexpr int    kSearchPageSize  = 20;
     // A source that failed outright is shown empty this long before the tree
