@@ -1,13 +1,13 @@
 .pragma library
 
-// The Arcade Buttons page's drawing (ArcadePanel.qml): an arcade stick in
-// two-colour isometric pixel art, after Sega's Dreamcast Arcade Stick. A box
-// with a plate set in its top: on the plate a Japanese ball-top stick (a
-// Sanwa JLF's) on the left, six snap-in buttons (Sanwa OBSF-30s) in Sega's
-// layout on the right, two rows of three that follow the fingers (the first
-// column nearer the player, the second the farthest), and a memory card's
-// window behind them; COIN and START, two small buttons, at the back right.
-// Any of them can be lit: a button, COIN or START.
+// The Arcade Buttons page's drawing (ArcadePanel.qml): an arcade stick's top
+// panel, alone, in two-colour isometric pixel art, after Sega's Dreamcast
+// Arcade Stick. On it a Japanese ball-top stick (a Sanwa JLF's) on the left,
+// six snap-in buttons (Sanwa OBSF-30s) in Sega's layout on the right, two
+// rows of three that follow the fingers (the first column nearer the player,
+// the second the farthest), and a memory card's window behind them; COIN and
+// START, two small buttons, at the back right. Any of them can be lit: a
+// button, COIN or START.
 //
 // draw() lays it out on a grid of cells, one art pixel each: 0 for none
 // (the ground the host draws on shows), 1 for ink, 2 for the ground drawn
@@ -16,29 +16,26 @@
 // (from the top left) has more of it.
 
 // The grid.
-var width = 104
-var height = 72
+var width = 100
+var height = 57
 
 // Isometric 2:1: along the stick (u, the player's left to right) a cell
 // down for every two right, into it (v, away from the player) a cell up for
-// every two right, z straight up, all in cells. Origin: the top's front left
-// corner.
-var originX = 1
-var originY = 29
+// every two right, z straight up, all in cells. Origin: the panel's front
+// left corner.
+var originX = -1
+var originY = 27
 
 function project(u, v, z) {
     return { x: originX + 2 * u + 2 * v, y: originY + u - v - (z || 0) }
 }
 
-// The box: its length, depth and height, its corners rounded off; the plate
-// set in its top, the rim round it (left and right, front, back).
-var boxLength = 30
-var boxDepth = 21
-var boxHeight = 8
+// The panel: its length and depth, its corners rounded off.
+var panelLength = 30
+var panelDepth = 21
 var corner = 1.2
-var plate = { left: 1.6, right: 1.6, front: 3.4, back: 1.6 }
 
-// Where things stand on the top (u, v). The buttons' columns follow the
+// Where things stand on it (u, v). The buttons' columns follow the
 // fingers: the first a little nearer the player, the second the farthest,
 // the third a little nearer again.
 var stick = { u: 7, v: 11.5 }
@@ -220,7 +217,7 @@ function ellipse(cx, cy, rx, ry) {
         }
     }
 }
-// A rectangle on the top, (u0, v0) to (u1, v1), its corners cut by c: the
+// A rectangle on the panel, (u0, v0) to (u1, v1), its corners cut by c: the
 // points round it from the front left, at height z.
 function outline(u0, v0, u1, v1, c, z) {
     return [project(u0 + c, v0, z), project(u1 - c, v0, z), project(u1, v0 + c, z), project(u1, v1 - c, z),
@@ -230,7 +227,6 @@ function outline(u0, v0, u1, v1, c, z) {
 // Two-colour shading: ink on a share of the cells, in an even pattern.
 function ground() { return 2 }
 function half(x, y) { return (x + y) % 2 === 0 ? 1 : 2 }
-function quarter(x, y) { return x % 2 === 0 && y % 2 === 0 ? 1 : 2 }
 function sixteenth(x, y) { return x % 4 === 0 && y % 4 === 0 ? 1 : 2 }
 
 // The stick (Sanwa JLF with its ball top): the dust washer round the shaft,
@@ -267,36 +263,13 @@ function draw(lit) {
     for (var i = 0; lit && i < lit.length; i++)
         on[lit[i]] = true
     var grid = new Grid(width, height)
-    var L = boxLength, D = boxDepth, H = boxHeight
+    var L = panelLength, D = panelDepth
 
-    // The box's sides that face the viewer: the front and the rounded
-    // corner in the light, the right end in less.
-    var top = outline(0, 0, L, D, corner, 0)
-    var bottom = outline(0, 0, L, D, corner, -H)
-    var sides = [[0, 1, half], [1, 2, half], [2, 3, quarter]]
-    for (var s = 0; s < sides.length; s++) {
-        var a = sides[s][0], b = sides[s][1]
-        var side = polygon([top[a], top[b], bottom[b], bottom[a]])
-        grid.paint(side, sides[s][2])
-        grid.edge(side)
-    }
-    // The front's lip, and the notch in its foot.
-    grid.line(project(corner, 0, -2.5), project(L - corner, 0, -2.5), 1)
-    var notch = [project(L / 2 - 2.5, 0, -H), project(L / 2, 0, -H + 3.5), project(L / 2 + 2.5, 0, -H)]
-    grid.paint(polygon(notch), ground)
-    grid.line(notch[0], notch[1], 1)
-    grid.line(notch[1], notch[2], 1)
-
-    // The top: the rim, the plate set in it with its screws, the memory
-    // card's window.
-    var deck = polygon(top)
-    grid.paint(deck, ground)
-    grid.edge(deck)
-    var face = polygon(outline(plate.left, plate.front, L - plate.right, D - plate.back, corner * 0.6, 0))
-    grid.paint(face, sixteenth)
-    grid.edge(face)
-    var screws = [[plate.left + 1.1, plate.front + 1.1], [L - plate.right - 1.1, plate.front + 1.1],
-                  [plate.left + 1.1, D - plate.back - 1.1]]
+    // The panel, its screws, the memory card's window.
+    var panel = polygon(outline(0, 0, L, D, corner, 0))
+    grid.paint(panel, sixteenth)
+    grid.edge(panel)
+    var screws = [[1.1, 1.1], [L - 1.1, 1.1], [1.1, D - 1.1], [L - 1.1, D - 1.1]]
     for (var w = 0; w < screws.length; w++) {
         var sc = project(screws[w][0], screws[w][1], 0)
         grid.set(Math.round(sc.x), Math.round(sc.y), 1)

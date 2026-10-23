@@ -1,11 +1,11 @@
 import QtQuick
 import "ArcadePanelArt.js" as Art
 
-// An arcade stick after Sega's Dreamcast Arcade Stick, drawn in the theme's
-// two colours: a ball-top stick, Sega's six buttons in two rows of three,
-// and COIN and START at the back (ArcadePanelArt.js draws it). lit: the
-// inputs shown lit, "1" to "6", "coin" and "start" (Arcade Buttons' names);
-// Button 7 and 8 aren't on it.
+// An arcade stick's top panel after Sega's Dreamcast Arcade Stick, drawn in
+// the theme's two colours: a ball-top stick, Sega's six buttons in two rows
+// of three, and COIN and START at the back (ArcadePanelArt.js draws it).
+// lit: the inputs shown lit, "1" to "6", "coin" and "start" (Arcade Buttons'
+// names); Button 7 and 8 aren't on it.
 //
 // Each of the drawing's cells is cell screen pixels square, so it keeps its
 // pixels whole: root.px, a 240-line picture's pixel, by default.
