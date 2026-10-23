@@ -1,12 +1,12 @@
 import QtQuick
 import "ArcadePanelArt.js" as Art
 
-// A two-player cabinet's control panel after a Stella International
-// cabinet's, drawn in the theme's two colours: each player's ball-top stick
-// and six buttons in two rows of three, and 1P START, COIN and 2P START on
-// its front (ArcadePanelArt.js draws it). lit: the inputs shown lit, "1" to
-// "6", "coin" and "start" (Arcade Buttons' names), on player's side: 2 the
-// right, else the left. Button 7 and 8 aren't on it.
+// A two-player arcade cabinet's control panel, with a little of the cabinet
+// above and below it, drawn in the theme's two colours: each player's
+// ball-top stick and six buttons in two rows of three, and 1P START, COIN
+// and 2P START on its front (ArcadePanelArt.js draws it). lit: the inputs
+// shown lit, "1" to "6", "coin" and "start" (Arcade Buttons' names), on
+// player's side: 2 the right, else the left. Button 7 and 8 aren't on it.
 //
 // Each of the drawing's cells is cell screen pixels square, so it keeps its
 // pixels whole: root.px, a 240-line picture's pixel, by default.
