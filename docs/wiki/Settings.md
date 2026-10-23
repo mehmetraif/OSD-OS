@@ -261,11 +261,12 @@ The row needs the OSD/OS image's presets beside `config.txt`, the app started by
 
 ### Controls
 
-<img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/screenshots/controls.png" width="100%" alt="Controls: ALL KEYBOARDS & REMOTES; PLAYERS: PLAYER 1 8BITDO PRO 2, PLAYER 2 AUTO (OSD/OS JAMMA P2); CONNECTED: 8BITDO PRO 2 P1 GAMEPAD ◄, DUALSENSE WIRELESS CONT… GAMEPAD, OSD/OS JAMMA P1 ARCADE" />
+<img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/screenshots/controls.png" width="100%" alt="Controls: ALL KEYBOARDS & REMOTES; PLAYERS: PLAYER 1 AUTO (OSD/OS JAMMA P1), PLAYER 2 AUTO (XBOX WIRELESS CO…), PLAYER 3 to PLAYER 6 AUTO" />
 
-Controls lists every controller connected: each gamepad (the JAMMA board's two sticks among them, as `ARCADE`) and, on Linux, each keyboard and remote, with **◄** on the one used last. Controllers away with settings of their own follow under **Not Connected**. Above them, **Player 1** to **Player 6** choose the pad each player has in games, from the pads connected, or Auto (the JAMMA board's stick of that number, else the pads in the order they came): two lines, and one more for each pad connected beyond two. Select on a controller opens its page:
+Controls lists every controller connected: each gamepad (the JAMMA board's two sticks among them, as `ARCADE`) and, on Linux, each keyboard and remote, with **◄** on the one used last. Controllers away with settings of their own follow under **Not Connected**. Above them, **Player 1** to **Player 6** choose the pad each player has in games, from the pads connected, or Auto (the JAMMA board's stick of that number, else the pads in the order they came): all six lines, whatever is connected. Select on a controller opens its page:
 
 - **Button Labels** (a pad's): Auto, Xbox, PlayStation, Nintendo or Arcade, what its buttons are called on its page and in the hints.
+- **Arcade Buttons** (a pad's): which of its buttons is each of an arcade cabinet's, Button 1 to 8, Coin and Start, in the Arcade module's games: a layout (Default, Fighting 6, Neo Geo 4) or each set by a press, with a cabinet's control panel drawn beside them ([Controls → Arcade Buttons](https://github.com/mehmetraif/OSD-OS/wiki/Controls#arcade-buttons)).
 - **Up**, **Down**, **Left**, **Right**, **Select / OK**, **Back**, **Play / Pause**: what does each on it. Select, then press a button on that controller: on a pad that button does the action from then on; on a keyboard or remote the key is one more for it, on that one only. Another controller's Back cancels, and so does whatever does Back on a keyboard or remote; the wait ends by itself after 10 seconds. A pad keeps one Select / OK, one Back, one Up and one Down, and a keyboard's or remote's keys for Select / OK, Up and Down and the keys the menus use keep what they do: the help line says why nothing changed.
 - **Clear a Button** (a pad's) or **Remove a Key**, and **Reset to Defaults**.
 
@@ -324,7 +325,7 @@ If BlueZ isn't running, or the computer has no adapter, the page says **No Bluet
 Update compares the installed version with the latest release of [mehmetraif/OSD-OS](https://github.com/mehmetraif/OSD-OS/releases/latest) and shows its notes (▲ ▼ scroll them). Select does the next step, which the hint bar names:
 
 1. **CHECK** asks GitHub for the latest release, and offers it only when its version is newer than the one installed: an older one is never offered (**You're up to date**).
-2. **DOWNLOAD** fetches this platform's file (`-linux-arm64.tar.gz` on a Pi, `-linux-x86_64.AppImage`, `-macOS-arm64.dmg`) into the data folder's `updates`, with a progress bar, and checks it against the release's `SHA256SUMS` when the release has one. Back during a download cancels it.
+2. **DOWNLOAD** fetches this platform's file (`-linux-arm64.tar.gz` on a Pi, `-linux-x86_64.AppImage`, `-macOS-arm64.dmg`) into the data folder's `updates`, with a progress bar, and checks it against the SHA-256 digest GitHub keeps for it. Back during a download cancels it.
 3. **INSTALL** asks **Install update?**:
    - **Apply & Restart** on a Pi under the autostart service: OSD/OS exits, and the launcher swaps the new release into `/opt/osdos` before it starts again.
    - **Quit & Apply on Next Launch** on a Pi run by hand, and on an AppImage: on a Pi the launcher applies it at the next start; an AppImage swaps the new file over itself at once (keeping a `.bak` until the new one starts), then starts it again in a desktop session, or just quits in Steam's Gaming Mode, for Steam to start it.

@@ -28,15 +28,17 @@
 
 // Settings → Controls, each controller apart. First what needs no device
 // (ControllerProfile): what a pad's buttons are called in each label style,
-// a profile as config.json keeps it, which /dev/input nodes are keyboards and
+// a profile as config.json keeps it (its Arcade Buttons too, and what MAME
+// and RetroArch call each input), which /dev/input nodes are keyboards and
 // remotes, and whose a key is. Then InputManager with pads SDL makes up (its
 // virtual joysticks): each pad's own map over the shared one (the defaults
 // and input.cfg), its presses reported instead of acting while its page waits
-// for one, its labels in the hints, a model of pad plugged in twice, the JAMMA
-// board's sticks and their button test (both taken at once, with the board's
-// pins from a stand-in osdos-jamma), the players' pads, and all of it kept in
-// config.json for the next start; and a pad's Back button as MAME's coin key
-// where the focus takes a coin.
+// for one, its labels in the hints, its Arcade Buttons and what its player's
+// games get of them, a model of pad plugged in twice, the JAMMA board's
+// sticks and their button test (both taken at once, with the board's pins
+// from a stand-in osdos-jamma), the players' pads, and all of it kept in
+// config.json for the next start; and a pad's Back button, or its Arcade
+// Buttons' Coin, as MAME's coin key where the focus takes a coin.
 class ControllersTest : public QObject {
     Q_OBJECT
 
@@ -249,6 +251,114 @@ private slots:
         QCOMPARE(controllers::evdevKey(0x5, 0x45e, 0x2fd), QString("kbd-0005-045e-02fd"));
     }
 
+    // A pad's Arcade Buttons as config.json keeps them, and as MAME and
+    // RetroArch name each of its inputs.
+    void arcadeAsKept() {
+        using namespace controllers;
+        QCOMPARE(arcadeLayouts(), QStringList({ "default", "fighting6", "neogeo4", "custom" }));
+        QCOMPARE(arcadeLayoutTitle("fighting6"), QString("Fighting 6"));
+        QCOMPARE(arcadeLayoutTitle(""), QString("Default"));
+        QCOMPARE(arcadeInputName(kArcadeCoin), QString("coin"));
+        QCOMPARE(arcadeInputLabel(2), QString("Button 3"));
+        QCOMPARE(arcadeInputLabel(kArcadeStart), QString("Start"));
+        // A button, a trigger pressed, the right stick pushed; never the
+        // D-pad or the left stick, the games' joystick, nor Guide, MAME's
+        // menu.
+        for (const char *token : { "a", "back", "paddle2", "lefttrigger+", "rightx-", "righty+" })
+            QVERIFY2(isArcadeToken(token), token);
+        for (const char *token : { "dpup", "leftx-", "lefty+", "lefttrigger", "lefttrigger-", "guide", "bogus", "" })
+            QVERIFY2(!isArcadeToken(token), token);
+
+        // A preset with no inputs given has the preset's; Default is none.
+        Profile p = Profile::fromVariant(QVariantMap{ { "arcade", QVariantMap{ { "layout", "Fighting6" } } } });
+        QCOMPARE(p.arcadeLayout, QString("fighting6"));
+        QCOMPARE(p.arcade, arcadeLayoutInputs("fighting6"));
+        QVERIFY(!p.isEmpty());
+        QVERIFY(Profile::fromVariant(QVariantMap{ { "arcade", QVariantMap{ { "layout", "default" } } } }).isEmpty());
+        // Set by hand: an input it can't be, or one another has (the first
+        // keeps it), is none; one without a Coin or a Start is none at all.
+        QVariantMap inputs{ { "1", "x" }, { "2", "dpup" }, { "3", "X" }, { "4", "rightx-" },
+                            { "coin", "back" }, { "start", "start" } };
+        p = Profile::fromVariant(QVariantMap{ { "arcade", QVariantMap{ { "layout", "custom" }, { "inputs", inputs } } } });
+        QCOMPARE(p.arcadeLayout, QString("custom"));
+        QCOMPARE(p.arcade, QStringList({ "x", "", "", "rightx-", "", "", "", "", "back", "start" }));
+        const QVariantMap kept = p.toVariant().value("arcade").toMap();
+        QCOMPARE(kept.value("layout").toString(), QString("custom"));
+        QCOMPARE(kept.value("inputs").toMap().value("4").toString(), QString("rightx-"));
+        QCOMPARE(kept.value("inputs").toMap().value("2").toString(), QString());
+        QCOMPARE(Profile::fromVariant(p.toVariant()).arcade, p.arcade);
+        inputs.remove("coin");
+        p = Profile::fromVariant(QVariantMap{ { "arcade", QVariantMap{ { "layout", "custom" }, { "inputs", inputs } } } });
+        QVERIFY(p.arcadeLayout.isEmpty() && p.arcade.isEmpty());
+        QVERIFY(!Profile().toVariant().contains("arcade"));
+
+        // MAME numbers a pad's buttons in its order, the triggers among them
+        // only where they are buttons; Back and Start are SELECT and START,
+        // an analog trigger pressed is its slider, negative.
+        PadShape xbox;
+        for (const char *input : { "a", "b", "x", "y", "back", "guide", "start", "leftstick", "rightstick",
+                                   "leftshoulder", "rightshoulder", "leftx", "lefty", "rightx", "righty",
+                                   "lefttrigger", "righttrigger" })
+            xbox.inputs.insert(input);
+        QCOMPARE(mameInput(xbox, "a"), QString("BUTTON1"));
+        QCOMPARE(mameInput(xbox, "rightshoulder"), QString("BUTTON6"));
+        QCOMPARE(mameInput(xbox, "leftstick"), QString("BUTTON7"));
+        QCOMPARE(mameInput(xbox, "guide"), QString("BUTTON9"));
+        QCOMPARE(mameInput(xbox, "back"), QString("SELECT"));
+        QCOMPARE(mameInput(xbox, "start"), QString("START"));
+        QCOMPARE(mameInput(xbox, "lefttrigger+"), QString("SLIDER1_NEG_SWITCH"));
+        QCOMPARE(mameInput(xbox, "righttrigger+"), QString("SLIDER2_NEG_SWITCH"));
+        QCOMPARE(mameInput(xbox, "rightx-"), QString("ZAXIS_NEG_SWITCH"));
+        QCOMPARE(mameInput(xbox, "righty+"), QString("RZAXIS_POS_SWITCH"));
+        QCOMPARE(mameInput(xbox, "paddle1"), QString());
+        QCOMPARE(mameInput(xbox, ""), QString());
+        // Triggers that are buttons (a JAMMA stick's, a Switch Pro's).
+        PadShape stick = xbox;
+        stick.buttonTriggers = { "lefttrigger", "righttrigger" };
+        QCOMPARE(mameInput(stick, "lefttrigger+"), QString("BUTTON7"));
+        QCOMPARE(mameInput(stick, "righttrigger+"), QString("BUTTON8"));
+        QCOMPARE(mameInput(stick, "leftstick"), QString("BUTTON9"));
+        QVERIFY(stick.has("lefttrigger+"));
+        QVERIFY(!stick.has("paddle1"));
+        // A pad with fewer buttons: those it has, numbered on.
+        PadShape small;
+        for (const char *input : { "a", "b", "back", "start", "leftshoulder" })
+            small.inputs.insert(input);
+        QCOMPARE(mameInput(small, "a"), QString("BUTTON1"));
+        QCOMPARE(mameInput(small, "b"), QString("BUTTON2"));
+        QCOMPARE(mameInput(small, "leftshoulder"), QString("BUTTON3"));
+        QCOMPARE(mameInput(small, "x"), QString());
+        QCOMPARE(mameInput(small, "lefttrigger+"), QString());
+
+        // As they act on a pad: a Coin or a Start it hasn't is its own Back
+        // or Start, which a button that had it gives up, or where the other
+        // of the two has that, the other's own; one of the two never takes
+        // the other's.
+        const QStringList away{ "a", "b", "paddle1", "", "", "", "", "back", "touchpad", "start" };
+        QCOMPARE(arcadeActing(away, small),
+                 QStringList({ "a", "b", "paddle1", "", "", "", "", "", "back", "start" }));
+        QCOMPARE(arcadeActing(away, xbox), arcadeActing(away, small));
+        const QStringList swapped{ "a", "", "", "", "", "", "", "", "start", "back" };
+        QCOMPARE(arcadeActing(swapped, small), swapped);
+        QCOMPARE(arcadeActing({ "a", "", "", "", "", "", "", "", "start", "paddle1" }, small), swapped);
+        QCOMPARE(arcadeActing({ "start", "", "", "", "", "", "", "", "paddle1", "back" }, small),
+                 QStringList({ "", "", "", "", "", "", "", "", "start", "back" }));
+        PadShape noBack = small;
+        noBack.inputs.remove("back");
+        QCOMPARE(arcadeActing(away, noBack), away);
+        QCOMPARE(arcadeActing(arcadeDefaultInputs(), small), arcadeDefaultInputs());
+
+        // RetroArch's: SDL's button numbers, an axis pushed.
+        QCOMPARE(retroarchBind("a"), QString("0"));
+        QCOMPARE(retroarchBind("back"), QString("4"));
+        QCOMPARE(retroarchBind("rightshoulder"), QString("10"));
+        QCOMPARE(retroarchBind("paddle1"), QString("16"));
+        QCOMPARE(retroarchBind("lefttrigger+"), QString("+4"));
+        QCOMPARE(retroarchBind("rightx-"), QString("-2"));
+        QCOMPARE(retroarchBind("dpup"), QString());
+        QCOMPARE(retroarchBind(""), QString());
+    }
+
     void nodeKinds() {
 #ifdef Q_OS_LINUX
         using controllers::classifyNode;
@@ -415,6 +525,172 @@ private slots:
         im->resetController(key);
         QVERIFY(entry(*im, "OSD/OS Test Pad").isEmpty());
         QVERIFY(!savedControllers().contains(key));
+    }
+
+    // A pad's Arcade Buttons: Default, a preset, set by hand (one input, one
+    // of them; never the joystick; Coin and Start never none), all ten at
+    // once, what its player's games get by what the pad has, kept for the
+    // next start, Default again, Reset to Defaults, and a pad away.
+    void arcadeButtons() {
+        AppCore core(m_app.path(), m_data.path());
+        auto im = std::make_unique<InputManager>(m_data.path(), &core);
+        VirtualPad pad;
+        QVERIFY(pad.attach("OSD/OS Test Pad"));
+        QTRY_VERIFY(entry(*im, "OSD/OS Test Pad").value("present").toBool());
+        const QString key = entry(*im, "OSD/OS Test Pad").value("key").toString();
+        const auto values = [&im, &key] {
+            QStringList list;
+            for (const QVariant &v : im->arcadePage(key).value("rows").toList())
+                list << v.toMap().value("value").toString();
+            return list;
+        };
+        const auto listed = [](const QVariantList &list, const char *field) {
+            QStringList out;
+            for (const QVariant &v : list)
+                out << v.toMap().value(field).toString();
+            return out;
+        };
+
+        // Default: MAME's and FinalBurn Neo's own, Back and Start their Coin
+        // and Start; nothing of its for the games.
+        QVariantMap page = im->arcadePage(key);
+        QCOMPARE(page.value("layout").toString(), QString("default"));
+        QCOMPARE(page.value("layoutTitle").toString(), QString("Default"));
+        QVERIFY(page.value("present").toBool());
+        QCOMPARE(im->controllerPage(key).value("arcade").toString(), QString("Default"));
+        QCOMPARE(values(), QStringList({ "Auto", "Auto", "Auto", "Auto", "Auto", "Auto", "Auto", "Auto", "BACK", "START" }));
+        QCOMPARE(listed(page.value("layouts").toList(), "title"),
+                 QStringList({ "Default", "Fighting 6", "Neo Geo 4", "Custom" }));
+        // Every input it has that can be one: all but a touchpad, which SDL
+        // gives no pad it makes up.
+        QStringList has = controllers::arcadeTokens();
+        has.removeAll("touchpad");
+        QCOMPARE(listed(page.value("choices").toList(), "token"), has);
+        QVERIFY(controllers::playerArcade().value(0).isEmpty());
+        QCOMPARE(im->arcadeLabel(key, "coin"), QString("BACK"));
+        QCOMPARE(im->arcadeLabel("kbd-0003-046d-c31c", "coin"), QString());
+
+        // Fighting 6: the punches over the kicks. Player 1's games get them
+        // as MAME and RetroArch name them, by what the pad has: its
+        // triggers are axes.
+        im->setArcadeLayout(key, "fighting6");
+        QCOMPARE(values(), QStringList({ "X", "Y", "RB", "A", "B", "RT", "LB", "LT", "BACK", "START" }));
+        QCOMPARE(im->controllerPage(key).value("arcade").toString(), QString("Fighting 6"));
+        const controllers::ArcadeBinds binds = controllers::playerArcade().value(0);
+        QCOMPARE(binds.mame, QStringList({ "BUTTON3", "BUTTON4", "BUTTON6", "BUTTON1", "BUTTON2", "SLIDER2_NEG_SWITCH",
+                                           "BUTTON5", "SLIDER1_NEG_SWITCH", "SELECT", "START" }));
+        QCOMPARE(binds.retroarch, QStringList({ "2", "3", "10", "0", "1", "+5", "9", "+4", "4", "6" }));
+
+        // Set by hand: Custom, an input another had swapped with it.
+        QVariantMap result = im->setArcadeInput(key, "1", "a");
+        QCOMPARE(outcome(result), QString("swapped"));
+        QCOMPARE(result.value("label").toString(), QString("A"));
+        QCOMPARE(result.value("other").toString(), QString("Button 4"));
+        QCOMPARE(im->arcadePage(key).value("layout").toString(), QString("custom"));
+        QCOMPARE(values().mid(0, 4), QStringList({ "A", "Y", "RB", "X" }));
+        QCOMPARE(outcome(im->setArcadeInput(key, "1", "a")), QString("already"));
+        // Never the joystick; Coin and Start never none, nor left none by a
+        // swap.
+        QCOMPARE(outcome(im->setArcadeInput(key, "2", "dpup")), QString("joystick"));
+        QCOMPARE(outcome(im->setArcadeInput(key, "2", "leftx-")), QString("joystick"));
+        QCOMPARE(outcome(im->setArcadeInput(key, "2", "guide")), QString("menu"));
+        QCOMPARE(outcome(im->setArcadeInput(key, "8", "")), QString("set"));
+        QCOMPARE(values().at(7), QString("None"));
+        QVERIFY(im->setArcadeInput(key, "coin", "").isEmpty());
+        QVERIFY(im->setArcadeInput(key, "9", "a").isEmpty());
+        result = im->setArcadeInput(key, "8", "back");
+        QCOMPARE(outcome(result), QString("kept"));
+        QCOMPARE(result.value("other").toString(), QString("Coin"));
+        // The right stick pushed can be one, Coin even.
+        QCOMPARE(outcome(im->setArcadeInput(key, "coin", "rightx-")), QString("set"));
+        QCOMPARE(im->arcadeLabel(key, "coin"), QString("R STICK ◄"));
+        QCOMPARE(controllers::playerArcade().value(0).mame.value(controllers::kArcadeCoin), QString("ZAXIS_NEG_SWITCH"));
+        QCOMPARE(controllers::playerArcade().value(0).retroarch.value(controllers::kArcadeCoin), QString("-2"));
+
+        // All ten at once: different ones of its, Coin and Start among them.
+        const QStringList all{ "a", "b", "x", "y", "leftshoulder", "rightshoulder", "", "", "back", "start" };
+        QCOMPARE(im->setArcadeInputs(key, all), QString("set"));
+        QCOMPARE(values(), QStringList({ "A", "B", "X", "Y", "LB", "RB", "None", "None", "BACK", "START" }));
+        QCOMPARE(im->setArcadeInputs(key, { "a", "a", "", "", "", "", "", "", "back", "start" }), QString());
+        QCOMPARE(im->setArcadeInputs(key, { "a", "b", "", "", "", "", "", "", "", "start" }), QString());
+        QCOMPARE(im->setArcadeInputs(key, { "dpup", "b", "", "", "", "", "", "", "back", "start" }), QString());
+        QCOMPARE(im->setArcadeInputs(key, all.mid(0, 9)), QString());
+        QCOMPARE(values().at(0), QString("A"));
+
+        // Kept in config.json, for the next start.
+        const QJsonObject saved = savedControllers().value(key).toObject().value("arcade").toObject();
+        QCOMPARE(saved.value("layout").toString(), QString("custom"));
+        QCOMPARE(saved.value("inputs").toObject().value("5").toString(), QString("leftshoulder"));
+        QCOMPARE(saved.value("inputs").toObject().value("7").toString(), QString());
+        QCOMPARE(saved.value("inputs").toObject().value("coin").toString(), QString("back"));
+        im.reset();
+        im = std::make_unique<InputManager>(m_data.path(), &core);
+        VirtualPad again;
+        QVERIFY(again.attach("OSD/OS Test Pad"));
+        QTRY_VERIFY(entry(*im, "OSD/OS Test Pad").value("present").toBool());
+        QCOMPARE(values(), QStringList({ "A", "B", "X", "Y", "LB", "RB", "None", "None", "BACK", "START" }));
+        QTRY_COMPARE(controllers::playerArcade().value(0).mame.value(4), QString("BUTTON5"));
+
+        // Default again: nothing for the games, nothing kept; Reset to
+        // Defaults forgets a layout too.
+        im->setArcadeLayout(key, "default");
+        QVERIFY(controllers::playerArcade().value(0).isEmpty());
+        QVERIFY(!savedControllers().value(key).toObject().contains("arcade"));
+        im->setArcadeLayout(key, "bogus");
+        QCOMPARE(im->arcadePage(key).value("layout").toString(), QString("default"));
+        im->setArcadeLayout(key, "neogeo4");
+        QCOMPARE(values().mid(0, 4), QStringList({ "A", "B", "X", "Y" }));
+        im->resetController(key);
+        QCOMPARE(im->arcadePage(key).value("layout").toString(), QString("default"));
+        QVERIFY(controllers::playerArcade().value(0).isEmpty());
+
+        // Custom from Default starts from the pad's own; and a pad away is
+        // set as one that has every input.
+        im->setArcadeLayout(key, "custom");
+        QCOMPARE(values(), QStringList({ "A", "B", "X", "Y", "LB", "RB", "LT", "RT", "BACK", "START" }));
+        im->resetController(key);
+        again.detach();
+        QTRY_VERIFY(entry(*im, "OSD/OS Test Pad").isEmpty());
+        page = im->arcadePage(key);
+        QVERIFY(!page.value("present").toBool());
+        QCOMPARE(page.value("name").toString(), QString("OSD/OS Test Pad"));
+        QCOMPARE(page.value("choices").toList().size(), controllers::arcadeTokens().size());
+        QCOMPARE(outcome(im->setArcadeInput(key, "1", "paddle1")), QString("set"));
+        QCOMPARE(values().at(0), QString("PADDLE1"));
+        QVERIFY(!entry(*im, "OSD/OS Test Pad").value("present").toBool());
+        QVERIFY(im->arcadePage("kbd-0003-046d-c31c").isEmpty());
+
+        // Coin set to an input it turns out not to have (a touchpad): back,
+        // its own Back is Coin, which Button 8 gives up.
+        QCOMPARE(outcome(im->setArcadeInput(key, "coin", "touchpad")), QString("set"));
+        QCOMPARE(outcome(im->setArcadeInput(key, "8", "back")), QString("set"));
+        QCOMPARE(values().mid(7), QStringList({ "BACK", "TOUCHPAD", "START" }));
+        VirtualPad third;
+        QVERIFY(third.attach("OSD/OS Test Pad"));
+        QTRY_VERIFY(entry(*im, "OSD/OS Test Pad").value("present").toBool());
+        QCOMPARE(values().mid(7), QStringList({ "None", "BACK", "START" }));
+        QCOMPARE(im->arcadeLabel(key, "coin"), QString("BACK"));
+        QTRY_COMPARE(controllers::playerArcade().value(0).mame.value(controllers::kArcadeCoin), QString("SELECT"));
+        QCOMPARE(controllers::playerArcade().value(0).mame.value(7), QString());
+        QCOMPARE(controllers::playerArcade().value(0).retroarch.value(controllers::kArcadeCoin), QString("4"));
+        QCOMPARE(controllers::playerArcade().value(0).mame.value(0), QString("BUTTON9"));
+
+        // A line on an input the pad hasn't has none to give: Coin keeps its
+        // Back, and a button that had the input pressed is left none.
+        QCOMPARE(outcome(im->setArcadeInput(key, "7", "touchpad")), QString("set"));
+        QCOMPARE(values().mid(6), QStringList({ "None", "None", "BACK", "START" }));
+        result = im->setArcadeInput(key, "7", "back");
+        QCOMPARE(outcome(result), QString("kept"));
+        QCOMPARE(result.value("other").toString(), QString("Coin"));
+        QCOMPARE(values().mid(6), QStringList({ "None", "None", "BACK", "START" }));
+        result = im->setArcadeInput(key, "7", "b");
+        QCOMPARE(outcome(result), QString("swapped"));
+        QCOMPARE(result.value("other").toString(), QString("Button 2"));
+        QCOMPARE(values().mid(0, 3), QStringList({ "PADDLE1", "None", "X" }));
+        QCOMPARE(values().at(6), QString("B"));
+        const QJsonObject inputs = savedControllers().value(key).toObject().value("arcade").toObject().value("inputs").toObject();
+        QCOMPARE(inputs.value("2").toString(), QString());
+        QCOMPARE(inputs.value("7").toString(), QString("b"));
     }
 
     // input.cfg is every pad's map, a pad's own over it.
@@ -1313,7 +1589,8 @@ private slots:
     // A pad's Back button is MAME's coin key, 5, where the item with the
     // focus takes a coin (takesCoin: the nearest item round it that says),
     // and Back anywhere else; its B is Back either way. The hints name the
-    // pad's Back button for the coin.
+    // pad's Back button for the coin; its Arcade Buttons' Coin takes Back's
+    // place.
     void coinButton() {
         AppCore core(m_app.path(), m_data.path());
         InputManager im(m_data.path(), &core);
@@ -1369,6 +1646,26 @@ private slots:
         // The screen stops taking one: Back.
         screen.setProperty("takesCoin", false);
         QCOMPARE(press(SDL_CONTROLLER_BUTTON_BACK), int(Qt::Key_Escape));
+
+        // Its Arcade Buttons' Coin is the coin there instead, a button or a
+        // trigger pressed, and the hints name it; Back is Back again.
+        screen.setProperty("takesCoin", true);
+        const QString key = entry(im, "OSD/OS JAMMA P1").value("key").toString();
+        QCOMPARE(outcome(im.setArcadeInput(key, "coin", "rightshoulder")), QString("swapped"));
+        QCOMPARE(press(SDL_CONTROLLER_BUTTON_RIGHTSHOULDER), int(Qt::Key_5));
+        QCOMPARE(press(SDL_CONTROLLER_BUTTON_BACK), int(Qt::Key_Escape));
+        QCOMPARE(im.hints().value("coin").toString(), QString("[6]"));
+        QCOMPARE(outcome(im.setArcadeInput(key, "coin", "lefttrigger+")), QString("swapped"));
+        catcher.pressed.clear();
+        catcher.released.clear();
+        // A trigger's travel is the whole of its axis: let go, its least.
+        pad.axis(SDL_CONTROLLER_AXIS_TRIGGERLEFT, 30000);
+        QVERIFY(QTest::qWaitFor([&] { return !catcher.pressed.isEmpty(); }, 1000));
+        QCOMPARE(catcher.pressed, QList<int>({ int(Qt::Key_5) }));
+        pad.axis(SDL_CONTROLLER_AXIS_TRIGGERLEFT, -32768);
+        QVERIFY(QTest::qWaitFor([&] { return !catcher.released.isEmpty(); }, 1000));
+        QCOMPARE(catcher.released, QList<int>({ int(Qt::Key_5) }));
+        QCOMPARE(im.hints().value("coin").toString(), QString("[7]"));
         window.removeEventFilter(&catcher);
         im.setTargetWindow(nullptr);
     }

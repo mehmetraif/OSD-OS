@@ -176,6 +176,16 @@ bool ScriptLauncher::groupAlive() const {
 #endif
 }
 
+void ScriptLauncher::clearOutput() {
+    if (isBusy())
+        return;
+    m_lines.clear();
+    m_partial.clear();
+    m_pendingCr = false;
+    m_bytes     = 0;
+    emit outputChanged();
+}
+
 void ScriptLauncher::resetForNewRun() {
     // A stopped run's children still in their SIGTERM grace are not left
     // behind: what the grace would have done in a moment is done now.

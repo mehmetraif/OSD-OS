@@ -14,6 +14,7 @@
 #include <QStorageInfo>
 #include <QSysInfo>
 #include <QTimer>
+#include <algorithm>
 
 namespace {
 
@@ -351,48 +352,33 @@ void UpdateManager::handleReleaseInfo(const QByteArray &json) {
     m_assetUrl.clear();
     m_assetSize = 0;
     m_expectedSha256.clear();
-    QString checksumsUrl;
     const QJsonArray assets = release.value(QStringLiteral("assets")).toArray();
     for (const QJsonValue &v : assets) {
         const QJsonObject asset = v.toObject();
         const QString name = asset.value(QStringLiteral("name")).toString();
-        if (name.endsWith(assetSuffix())) {
-            m_assetName = name;
-            m_assetUrl = asset.value(QStringLiteral("browser_download_url")).toString();
-            m_assetSize = asset.value(QStringLiteral("size")).toVariant().toLongLong();
-        } else if (name == QStringLiteral("SHA256SUMS")) {
-            checksumsUrl = asset.value(QStringLiteral("browser_download_url")).toString();
-        }
+        if (!name.endsWith(assetSuffix()))
+            continue;
+        m_assetName = name;
+        m_assetUrl = asset.value(QStringLiteral("browser_download_url")).toString();
+        m_assetSize = asset.value(QStringLiteral("size")).toVariant().toLongLong();
+        // The file's SHA-256 as GitHub keeps it with the release
+        // ("sha256:<hex>"); a release without one is checked by size alone.
+        m_expectedSha256 = assetDigest(asset.value(QStringLiteral("digest")).toString());
     }
     if (m_assetUrl.isEmpty()) {
         setState(QStringLiteral("error"),
                  QStringLiteral("Release %1 has no package for this platform.").arg(tag));
         return;
     }
-
-    if (!checksumsUrl.isEmpty())
-        fetchChecksums(checksumsUrl);   // sets updateAvailable when done
-    else
-        setState(QStringLiteral("updateAvailable"));
+    setState(QStringLiteral("updateAvailable"));
 }
 
-// Releases published before the checksums step (or a fetch hiccup) degrade to
-// size-only verification rather than blocking the update.
-void UpdateManager::fetchChecksums(const QString &url) {
-    QNetworkReply *reply = m_nam.get(githubRequest(QUrl(url)));
-    connect(reply, &QNetworkReply::finished, this, [this, reply]() {
-        reply->deleteLater();
-        if (reply->error() == QNetworkReply::NoError) {
-            const QString sums = QString::fromUtf8(reply->readAll());
-            for (const QString &line : sums.split(QLatin1Char('\n'))) {
-                if (line.endsWith(m_assetName)) {
-                    m_expectedSha256 = line.section(QLatin1Char(' '), 0, 0).trimmed();
-                    break;
-                }
-            }
-        }
-        setState(QStringLiteral("updateAvailable"));
+QString UpdateManager::assetDigest(const QString &digest) {
+    const QString hex = digest.startsWith(QStringLiteral("sha256:")) ? digest.mid(7).trimmed().toLower() : QString();
+    const bool sha256 = hex.size() == 64 && std::all_of(hex.cbegin(), hex.cend(), [](QChar c) {
+        return (c >= QLatin1Char('0') && c <= QLatin1Char('9')) || (c >= QLatin1Char('a') && c <= QLatin1Char('f'));
     });
+    return sha256 ? hex : QString();
 }
 
 void UpdateManager::download() {

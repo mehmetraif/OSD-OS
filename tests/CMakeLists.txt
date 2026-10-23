@@ -279,6 +279,28 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
         Qt6::Core Qt6::Network Qt6::Qml Qt6::Test ${Libdrm_LIBRARIES})
     add_test(NAME playlists COMMAND playlists_test)
 
+    # YouTube's subscriptions read from a stand-in for its feeds: four at a
+    # time, the channel opened first. Linux only, as the playlists test, for
+    # the sign-in browser the backend holds.
+    add_executable(youtube_test
+        youtube_test.cpp
+        ../src/modules/youtube/YouTubeBackend.cpp
+        ../src/modules/web_player/WebPlayerBackend.cpp
+        ../src/modules/web_player/TmdbCatalog.cpp
+        ../src/modules/scripts/ScriptLauncher.cpp
+        ../src/input/ControllerProfile.cpp
+        ../src/audio/AudioOutput.cpp
+        ../src/audio/MenuMusic.cpp
+        ../src/util/DisplayHandoff.cpp
+        ../src/util/MpvLocator.cpp
+        ../src/util/YtDlpLocator.cpp
+        ../src/AppCore.cpp
+        ../src/util/LegacyNames.cpp)
+    target_include_directories(youtube_test PRIVATE ../src ${Libdrm_INCLUDE_DIRS})
+    target_link_libraries(youtube_test PRIVATE
+        Qt6::Core Qt6::Network Qt6::Qml Qt6::Test ${Libdrm_LIBRARIES})
+    add_test(NAME youtube COMMAND youtube_test)
+
     # A Raspberry Pi to JAMMA board's pins as gamepad events (osdos-jamma).
     # Linux only, as uinput's codes are.
     add_executable(jamma_test jamma_test.cpp ../src/jamma/JammaPanel.cpp)
@@ -324,8 +346,8 @@ target_link_libraries(tree_browser_test PRIVATE Qt6::QuickTest Qt6::Quick)
 add_test(NAME tree_browser COMMAND tree_browser_test -input ${CMAKE_CURRENT_SOURCE_DIR}/qml/tst_tree_browser.qml)
 set_tests_properties(tree_browser PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen;QT_QUICK_BACKEND=software")
 # Settings → Controls' pages (views/Controllers.qml, ControllerSettings.qml,
-# RemapControls.qml) against a stand-in for InputManager, with the same QML
-# test runner.
+# ArcadeButtons.qml, RemapControls.qml) against a stand-in for InputManager,
+# with the same QML test runner.
 add_test(NAME controls_views COMMAND tree_browser_test -input ${CMAKE_CURRENT_SOURCE_DIR}/qml/tst_controllers.qml
                                      -import ${CMAKE_CURRENT_SOURCE_DIR}/../views)
 set_tests_properties(controls_views PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen;QT_QUICK_BACKEND=software")
@@ -376,9 +398,10 @@ add_test(NAME media_players_views COMMAND tree_browser_test -input ${CMAKE_CURRE
                                           -import ${CMAKE_CURRENT_SOURCE_DIR}/stubs)
 set_tests_properties(media_players_views PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen;QT_QUICK_BACKEND=software")
 
-# Settings → Controls, each controller apart: the labels, the profiles and
-# whose a key is (ControllerProfile), and InputManager with pads SDL makes up
-# (its virtual joysticks), its settings kept in config.json (AppCore).
+# Settings → Controls, each controller apart: the labels, the profiles, a
+# pad's Arcade Buttons as MAME and RetroArch name them and whose a key is
+# (ControllerProfile), and InputManager with pads SDL makes up (its virtual
+# joysticks), its settings kept in config.json (AppCore).
 find_package(SDL2 CONFIG REQUIRED)
 add_executable(controllers_test
     controllers_test.cpp

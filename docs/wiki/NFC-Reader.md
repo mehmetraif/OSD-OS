@@ -43,10 +43,10 @@ Run the setup script once, as the user OSD/OS runs as (it uses `sudo` itself). F
 bash scripts/setup-nfc-reader.sh
 ```
 
-or without one, from the latest release:
+or without one, from the repository:
 
 ```sh
-bash <(curl -fsSL https://github.com/mehmetraif/OSD-OS/releases/latest/download/setup-nfc-reader.sh)
+bash <(curl -fsSL https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/scripts/setup-nfc-reader.sh)
 ```
 
 [scripts/setup-nfc-reader.sh](https://github.com/mehmetraif/OSD-OS/blob/main/scripts/setup-nfc-reader.sh) does two independent things:
@@ -66,7 +66,7 @@ SKIP_PN532=1 bash scripts/setup-nfc-reader.sh  # PC/SC only
 
 ### The OSD/OS image
 
-The image doesn't run the script, and doesn't install `pcscd`. A PN532 appears as `/dev/ttyUSB0` (or `/dev/ttyACM0`), which the `dialout` group may open. If the module keeps saying **Reader not connected** with a PN532 plugged in, or you want a PC/SC reader, run the script over SSH. Logged in as another user, give it `pi`, the user the app runs as on the image: `bash <(curl -fsSL https://github.com/mehmetraif/OSD-OS/releases/latest/download/setup-nfc-reader.sh) pi`.
+The image doesn't run the script, and doesn't install `pcscd`. A PN532 appears as `/dev/ttyUSB0` (or `/dev/ttyACM0`), which the `dialout` group may open. If the module keeps saying **Reader not connected** with a PN532 plugged in, or you want a PC/SC reader, run the script over SSH. Logged in as another user, give it `pi`, the user the app runs as on the image: `bash <(curl -fsSL https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/scripts/setup-nfc-reader.sh) pi`.
 
 ### macOS
 

@@ -141,9 +141,18 @@ void YouTubeBackend::ensureFresh(bool forceRefresh) {
         finishAggregate(); // everything fresh — serve from cache
         return;
     }
-    m_pendingChannels = stale.size();
-    for (const QString &id : stale)
-        refreshChannel(id);
+    m_pendingChannels   = stale.size();
+    m_channelFetchQueue = stale;
+    spawnNextChannelFetch();
+}
+
+// The feeds a few at a time (kMaxConcurrentChannelFetches), the next asked
+// for as each lands.
+void YouTubeBackend::spawnNextChannelFetch() {
+    while (m_activeChannelFetches < kMaxConcurrentChannelFetches && !m_channelFetchQueue.isEmpty()) {
+        ++m_activeChannelFetches;
+        refreshChannel(m_channelFetchQueue.takeFirst());
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -219,7 +228,7 @@ static bool parseRssFeed(const QByteArray &data, const QString &channelId,
 }
 
 void YouTubeBackend::refreshChannel(const QString &channelId) {
-    QUrl rssUrl(QStringLiteral("https://www.youtube.com/feeds/videos.xml"));
+    QUrl rssUrl(m_feedUrl);
     rssUrl.setQuery(QStringLiteral("channel_id=") + channelId);
     QNetworkReply *reply = m_nam.get(makeRequest(rssUrl));
     connect(reply, &QNetworkReply::finished, this, [this, reply, channelId]() {
@@ -247,9 +256,14 @@ void YouTubeBackend::refreshChannel(const QString &channelId) {
         }
         // On failure: keep any previously cached videos (stale beats empty);
         // fetchedMs stays old so the next load retries this channel.
+        --m_activeChannelFetches;
         if (--m_pendingChannels <= 0) {
-            m_pendingChannels = 0;
+            m_pendingChannels      = 0;
+            m_activeChannelFetches = 0;
+            m_channelFetchQueue.clear();
             finishAggregate();
+        } else {
+            spawnNextChannelFetch();
         }
     });
 }
@@ -907,6 +921,12 @@ QVariant YouTubeBackend::channelListing(const QString &path) {
         if (!m_channelWaits.contains(path))
             m_channelWaits << path;
         ensureFresh(false);
+        // The channel opened is asked for next, ahead of those still waiting.
+        if (path.startsWith(QLatin1String("channel/"))) {
+            const QString id = path.section(QLatin1Char('/'), 1);
+            if (m_channelFetchQueue.removeOne(id))
+                m_channelFetchQueue.prepend(id);
+        }
         return QVariant();
     }
     if (path == QLatin1String("subscriptions"))

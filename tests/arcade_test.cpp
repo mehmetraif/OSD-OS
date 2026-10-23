@@ -14,6 +14,7 @@
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QNetworkDatagram>
+#include <QPointer>
 #include <QScopeGuard>
 #include <QSignalSpy>
 #include <QTcpServer>
@@ -92,6 +93,7 @@ esac
 	echo "play $*"
 	echo "cwd $(pwd)"
 	echo "kms ${SDL_KMSDRM_DEVICE_INDEX:-}"
+	echo "labels ${SDL_GAMECONTROLLER_USE_BUTTON_LABELS:-}"
 } >> "$MAME_LOG"
 prev=""
 for a in "$@"; do
@@ -384,6 +386,54 @@ private slots:
                                              " OR JOYCODE_2_SELECT JOYCODE_2_START<")));
         QVERIFY(!mame::controllerConfig({}).contains(QStringLiteral("mapdevice")));
         QVERIFY(mame::controllerConfig({}).contains(QStringLiteral(">KEYCODE_ESC OR JOYCODE_1_SELECT JOYCODE_1_START<")));
+        // A player's Arcade Buttons: their buttons, coin and start in every
+        // game, MAME's keys for them still beside them (players 1 to 4
+        // have some), NONE for one with neither; and their Coin and Start
+        // the way out. A player with none, or without a controller, keeps
+        // MAME's own.
+        const QStringList own{ QStringLiteral("BUTTON3"), QStringLiteral("BUTTON4"), QStringLiteral("BUTTON6"),
+                               QStringLiteral("BUTTON1"), QStringLiteral("BUTTON2"), QStringLiteral("SLIDER2_NEG_SWITCH"),
+                               QString(), QStringLiteral("ZAXIS_NEG_SWITCH"), QStringLiteral("BUTTON5"),
+                               QStringLiteral("START") };
+        const QString mapped = mame::controllerConfig({ QStringLiteral("aaaa"), QStringLiteral("bbbb"), QString(),
+                                                        QString(), QStringLiteral("eeee") },
+                                                      { own, {}, own, {}, own });
+        const auto sequence = [&mapped](const QString &port) {
+            const QRegularExpression re(QStringLiteral("<port type=\"%1\">\\s*<newseq type=\"standard\">([^<]*)</newseq>").arg(port));
+            const QRegularExpressionMatch m = re.match(mapped);
+            return m.hasMatch() ? m.captured(1) : QStringLiteral("<no port>");
+        };
+        QCOMPARE(sequence(QStringLiteral("P1_BUTTON1")),
+                 QStringLiteral("KEYCODE_LCONTROL OR MOUSECODE_1_BUTTON1 OR GUNCODE_1_BUTTON1 OR JOYCODE_1_BUTTON3"));
+        QCOMPARE(sequence(QStringLiteral("P1_BUTTON6")), QStringLiteral("KEYCODE_X OR JOYCODE_1_SLIDER2_NEG_SWITCH"));
+        QCOMPARE(sequence(QStringLiteral("P1_BUTTON7")), QStringLiteral("KEYCODE_C"));
+        QCOMPARE(sequence(QStringLiteral("P1_BUTTON8")), QStringLiteral("KEYCODE_V OR JOYCODE_1_ZAXIS_NEG_SWITCH"));
+        QCOMPARE(sequence(QStringLiteral("COIN1")), QStringLiteral("KEYCODE_5 OR JOYCODE_1_BUTTON5"));
+        QCOMPARE(sequence(QStringLiteral("START1")), QStringLiteral("KEYCODE_1 OR JOYCODE_1_START"));
+        QCOMPARE(sequence(QStringLiteral("P2_BUTTON1")), QStringLiteral("<no port>"));
+        QCOMPARE(sequence(QStringLiteral("P3_BUTTON1")), QStringLiteral("<no port>"));
+        QCOMPARE(sequence(QStringLiteral("P5_BUTTON1")), QStringLiteral("JOYCODE_5_BUTTON3"));
+        QCOMPARE(sequence(QStringLiteral("P5_BUTTON7")), QStringLiteral("NONE"));
+        QCOMPARE(sequence(QStringLiteral("COIN5")), QStringLiteral("JOYCODE_5_BUTTON5"));
+        QCOMPARE(sequence(QStringLiteral("START5")), QStringLiteral("JOYCODE_5_START"));
+        QVERIFY(mapped.contains(QStringLiteral(">KEYCODE_ESC OR JOYCODE_1_BUTTON5 JOYCODE_1_START"
+                                               " OR JOYCODE_2_SELECT JOYCODE_2_START"
+                                               " OR JOYCODE_5_BUTTON5 JOYCODE_5_START<")));
+        // MAME's keys elsewhere: player 2's, 3's and 4's.
+        const QString others = mame::controllerConfig({ QStringLiteral("aaaa"), QStringLiteral("bbbb"),
+                                                        QStringLiteral("cccc"), QStringLiteral("dddd") },
+                                                      { {}, own, own, own });
+        QVERIFY(others.contains(QStringLiteral(">KEYCODE_A OR MOUSECODE_2_BUTTON1 OR GUNCODE_2_BUTTON1 OR JOYCODE_2_BUTTON3<")));
+        QVERIFY(others.contains(QStringLiteral(">KEYCODE_E OR JOYCODE_2_BUTTON2<")));
+        QVERIFY(others.contains(QStringLiteral(">JOYCODE_2_SLIDER2_NEG_SWITCH<")));
+        QVERIFY(others.contains(QStringLiteral(">KEYCODE_ENTER OR JOYCODE_3_BUTTON6<")));
+        QVERIFY(others.contains(QStringLiteral(">KEYCODE_0PAD OR JOYCODE_4_BUTTON3<")));
+        QVERIFY(others.contains(QStringLiteral(">KEYCODE_8 OR JOYCODE_4_BUTTON5<")));
+        QVERIFY(others.contains(QStringLiteral(">KEYCODE_ESC OR JOYCODE_1_SELECT JOYCODE_1_START")));
+        // No controller for player 1: MAME's first joystick's own way out.
+        QVERIFY(mame::controllerConfig({ QString() }, { own })
+                    .contains(QStringLiteral(">KEYCODE_ESC OR JOYCODE_1_SELECT JOYCODE_1_START<")));
+        QVERIFY(!mame::controllerConfig({ QString() }, { own }).contains(QStringLiteral("P1_BUTTON1")));
 
         // Only what MAME can't go without: not an optional file, nor one
         // with no good dump known.
@@ -737,8 +787,30 @@ private slots:
         QVERIFY(log.contains(QStringLiteral("<mapdevice device=\"0600bbbb\" controller=\"JOYCODE_2\" />")));
         QVERIFY(!log.contains(QStringLiteral("JOYCODE_3\"")));
         QVERIFY(log.contains(QStringLiteral("KEYCODE_ESC OR JOYCODE_1_SELECT JOYCODE_1_START")));
+        QVERIFY(!log.contains(QStringLiteral("P1_BUTTON1")));
+        // A pad's buttons by their places, as the menus have them.
+        QCOMPARE(logLines(QStringLiteral("labels")), QStringList({ QStringLiteral("labels 0") }));
         QVERIFY(QFileInfo(home + QStringLiteral("/cfg")).isDir());
         QVERIFY(QFileInfo(home + QStringLiteral("/nvram")).isDir());
+
+        // Player 2's Arcade Buttons, as InputManager gives them: theirs in
+        // the game, and their Coin and Start the way out.
+        QStringList own(controllers::kArcadeInputs, QString());
+        own[0] = QStringLiteral("BUTTON3");
+        own[controllers::kArcadeCoin] = QStringLiteral("BUTTON6");
+        own[controllers::kArcadeStart] = QStringLiteral("START");
+        controllers::setPlayerArcade({ {}, { own, {} } });
+        const auto noArcade = qScopeGuard([] { controllers::setPlayerArcade({}); });
+        QFile::remove(m_log);
+        QCOMPARE(played(arcade, QStringLiteral("pacman")).at(1).toString(), QStringLiteral("ok"));
+        const QString withArcade = logLines().join(QLatin1Char('\n'));
+        QVERIFY(withArcade.contains(QStringLiteral("<newseq type=\"standard\">KEYCODE_A OR MOUSECODE_2_BUTTON1"
+                                                   " OR GUNCODE_2_BUTTON1 OR JOYCODE_2_BUTTON3</newseq>")));
+        QVERIFY(withArcade.contains(QStringLiteral("<newseq type=\"standard\">KEYCODE_6 OR JOYCODE_2_BUTTON6</newseq>")));
+        QVERIFY(withArcade.contains(QStringLiteral("KEYCODE_ESC OR JOYCODE_1_SELECT JOYCODE_1_START"
+                                                   " OR JOYCODE_2_BUTTON6 JOYCODE_2_START OR JOYCODE_3_SELECT JOYCODE_3_START")));
+        QVERIFY(!withArcade.contains(QStringLiteral("P1_BUTTON1")));
+        controllers::setPlayerArcade({});
 
         // The module's settings: MAME's picture drawn another way, and no
         // high scores kept; and no players.
@@ -1061,15 +1133,17 @@ private slots:
         QVERIFY(!config.contains(QStringLiteral("netplay_")));
         // A player on an arcade panel, a JAMMA board's stick: the cabinet's
         // two rows as FinalBurn Neo's 6-Button Panel has them (Y X L above,
-        // B A R below), the joystick on the D-pad, and that controller type
-        // in FinalBurn Neo's remap file, loaded without a word; the other
-        // players as before.
+        // B A R below), its 7 and 8 (the pad's triggers) where the panel
+        // reads them (R2, L2), the joystick on the D-pad, and that controller
+        // type in FinalBurn Neo's remap file, loaded without a word; the
+        // other players as before.
         launch.panels = { false, false, true };
         launch.remapDir = QStringLiteral("/ra/remaps");
         config = libretro::configText(launch);
         for (const char *line : { "input_player3_y_btn = \"0\"", "input_player3_x_btn = \"1\"", "input_player3_l_btn = \"2\"",
                                   "input_player3_b_btn = \"3\"", "input_player3_a_btn = \"9\"", "input_player3_r_btn = \"10\"",
                                   "input_player3_select_btn = \"4\"", "input_player3_start_btn = \"6\"",
+                                  "input_player3_r2_axis = \"+4\"", "input_player3_l2_axis = \"+5\"",
                                   "input_player3_up_axis = \"-1\"", "input_player3_down_axis = \"+1\"",
                                   "input_player3_left_axis = \"-0\"", "input_player3_right_axis = \"+0\"",
                                   "input_player1_b_btn = \"0\"", "input_player1_up_btn = \"11\"",
@@ -1102,6 +1176,54 @@ private slots:
             QCOMPARE(libretro::remapText(launch), QString());
         }
         launch.netplay = libretro::Launch::Netplay::None;
+        // A player with Arcade Buttons, off line: each on the 6-Button
+        // Panel's button for it (1 2 3 on Y X L, 4 5 6 on B A R, 7 on R2 and
+        // 8 on L2, Coin and Start on Select and Start), a button's
+        // number or an axis pushed and "nul" the other, each written once;
+        // any other of the player's binds on an input those take let go; the
+        // left stick a joystick beside the D-pad; and that player on the
+        // panel in the remap file. A JAMMA stick's own over its panel's.
+        // Online, as before.
+        const auto binds = [](std::initializer_list<const char *> list) {
+            QStringList out;
+            for (const char *b : list)
+                out << QLatin1String(b);
+            return out;
+        };
+        launch.arcade = { {}, binds({ "2", "3", "10", "0", "1", "+5", "7", "-2", "4", "6" }) };
+        config = libretro::configText(launch);
+        for (const char *line : { "input_player2_y_btn = \"2\"", "input_player2_y_axis = \"nul\"",
+                                  "input_player2_x_btn = \"3\"", "input_player2_l_btn = \"10\"",
+                                  "input_player2_b_btn = \"0\"", "input_player2_a_btn = \"1\"",
+                                  "input_player2_r_btn = \"nul\"", "input_player2_r_axis = \"+5\"",
+                                  "input_player2_r2_btn = \"7\"", "input_player2_r2_axis = \"nul\"",
+                                  "input_player2_l2_btn = \"nul\"", "input_player2_l2_axis = \"-2\"",
+                                  "input_player2_select_btn = \"4\"", "input_player2_start_btn = \"6\"",
+                                  "input_player2_l3_btn = \"nul\"", "input_player2_r_x_minus_axis = \"nul\"",
+                                  "input_player2_r3_btn = \"8\"", "input_player2_up_btn = \"11\"",
+                                  "input_player2_up_axis = \"-1\"", "input_player2_right_axis = \"+0\"",
+                                  "input_player1_b_btn = \"0\"", "input_player1_l_btn = \"9\"",
+                                  "input_player3_y_btn = \"0\"" })
+            QVERIFY2(has(QLatin1String(line)), line);
+        QCOMPARE(config.count(QStringLiteral("input_player2_l2_axis =")), 1);
+        QCOMPARE(config.count(QStringLiteral("input_player2_y_btn =")), 1);
+        QVERIFY(!config.contains(QStringLiteral("input_player1_up_axis")));
+        QCOMPARE(libretro::remapText(launch).split(QLatin1Char('\n')).filter(QStringLiteral("input_libretro_device_p")),
+                 QStringList({ QStringLiteral("input_libretro_device_p2 = \"261\""),
+                               QStringLiteral("input_libretro_device_p3 = \"261\"") }));
+        launch.arcade = { {}, {}, binds({ "1", "0", "2", "3", "9", "10", "+4", "+5", "4", "6" }) };
+        config = libretro::configText(launch);
+        for (const char *line : { "input_player3_y_btn = \"1\"", "input_player3_x_btn = \"0\"",
+                                  "input_player3_up_axis = \"-1\"", "input_player2_l_btn = \"9\"" })
+            QVERIFY2(has(QLatin1String(line)), line);
+        launch.arcade = { {}, binds({ "2", "3", "10", "0", "1", "+5", "7", "-2", "4", "6" }) };
+        launch.netplay = libretro::Launch::Netplay::Join;
+        config = libretro::configText(launch);
+        QVERIFY(has(QStringLiteral("input_player2_l_btn = \"9\"")));
+        QVERIFY(has(QStringLiteral("input_player2_l3_btn = \"7\"")));
+        QCOMPARE(libretro::remapText(launch), QString());
+        launch.netplay = libretro::Launch::Netplay::None;
+        launch.arcade.clear();
         launch.panels.clear();
         QCOMPARE(libretro::remapText(launch), QString());
         // Square pixels and no integer scale: the core's shape.
@@ -1177,6 +1299,106 @@ private slots:
         QVERIFY(!config.contains(QStringLiteral("netplay_mitm_server ")));
         QCOMPARE(libretro::arguments(launch).mid(6),
                  QStringList({ QStringLiteral("--host"), QStringLiteral("/games/sf2.zip") }));
+
+        // The game's ports this machine's players take, asked for by number:
+        // up to the last player with a controller, one at least; none asked
+        // for leaves RetroArch to its own, each port said so.
+        QCOMPARE(libretro::localPorts({}), 1);
+        QCOMPARE(libretro::localPorts({ QString(), QStringLiteral("0600bbbb") }), 2);
+        QCOMPARE(libretro::localPorts({ QStringLiteral("a"), QString(), QStringLiteral("c"), QString() }), 3);
+        const auto requested = [&config] {
+            QStringList ports;
+            for (int p = 1; p <= libretro::kMostPorts; ++p) {
+                if (config.contains(QStringLiteral("netplay_request_device_p%1 = \"true\"").arg(p)))
+                    ports << QString::number(p);
+            }
+            return ports.join(QLatin1Char(' '));
+        };
+        QVERIFY(has(QStringLiteral("netplay_request_device_p1 = \"false\"")));
+        QVERIFY(has(QStringLiteral("netplay_request_device_p6 = \"false\"")));
+        QVERIFY(!config.contains(QStringLiteral("netplay_request_device_p7")));
+        QCOMPARE(requested(), QString());
+        launch.portsFrom = 3;
+        launch.ports = 2;
+        config = libretro::configText(launch);
+        QCOMPARE(requested(), QStringLiteral("3 4"));
+        launch.portsFrom = 1;
+        launch.ports = 6;
+        config = libretro::configText(launch);
+        QCOMPARE(requested(), QStringLiteral("1 2 3 4 5 6"));
+        launch.netplay = libretro::Launch::Netplay::None;
+        config = libretro::configText(launch);
+        QVERIFY(!config.contains(QStringLiteral("netplay_")));
+        launch.netplay = libretro::Launch::Netplay::LanHost;
+        launch.portsFrom = 0;
+        launch.ports = 0;
+        // What a host's OSD/OS and a joiner's say to each other: a query for
+        // so many ports, the first of them given, a release; nothing else
+        // read.
+        QCOMPARE(libretro::claimQuery(2), QByteArray("OSDOS PORTS? 2"));
+        QCOMPARE(libretro::readClaimQuery(QByteArray("OSDOS PORTS? 2")).value_or(0), 2);
+        QCOMPARE(libretro::readClaimQuery(QByteArray("OSDOS PORTS? 6")).value_or(0), 6);
+        for (const char *packet : { "OSDOS PORTS? 0", "OSDOS PORTS? 7", "OSDOS PORTS? 2x", "OSDOS PORTS? 22",
+                                    "OSDOS PORTS?", "OSDOS PORTS 2", "", "RANQ" })
+            QVERIFY2(!libretro::readClaimQuery(QByteArray(packet)), packet);
+        QCOMPARE(libretro::claimAnswer({ 3, 2 }), QByteArray("OSDOS PORTS 3 2"));
+        QCOMPARE(libretro::claimAnswer({}), QByteArray("OSDOS PORTS 0 0"));
+        const auto range = [](const char *packet) {
+            const std::optional<libretro::PortRange> r = libretro::readClaimAnswer(QByteArray(packet));
+            return r ? QStringLiteral("%1+%2").arg(r->first).arg(r->players) : QStringLiteral("none");
+        };
+        QCOMPARE(range("OSDOS PORTS 3 2"), QStringLiteral("3+2"));
+        QCOMPARE(range("OSDOS PORTS 0 0"), QStringLiteral("0+0"));
+        QCOMPARE(range("OSDOS PORTS 5 2"), QStringLiteral("5+2"));
+        QCOMPARE(range("OSDOS PORTS 1 6"), QStringLiteral("1+6"));
+        for (const char *packet : { "OSDOS PORTS 3", "OSDOS PORTS 6 2", "OSDOS PORTS 7 1", "OSDOS PORTS 3 0",
+                                    "OSDOS PORTS 0 1", "OSDOS PORTS 3 2 1", "OSDOS PORTS? 3 1", "OSDOS PORTS 3  2",
+                                    "OSDOS PORTS 3 2x", "OSDOS PORTS " })
+            QCOMPARE(range(packet), QStringLiteral("none"));
+        QCOMPARE(libretro::claimRelease(), QByteArray("OSDOS PORTS FREE"));
+        QVERIFY(libretro::isClaimRelease(QByteArray("OSDOS PORTS FREE")));
+        QVERIFY(!libretro::isClaimRelease(QByteArray("OSDOS PORTS FREE!")));
+        // The host's count: its own first, then each machine's by its
+        // address, the first run of free ports that takes its players, else
+        // the first free port and what follows it, within the game's ports;
+        // one asking again given its own anew, one leaving giving them up.
+        libretro::PortClaims claims;
+        const auto given = [&claims](const char *address, int players) {
+            const libretro::PortRange r = claims.claim(QLatin1String(address), players);
+            return QStringLiteral("%1+%2").arg(r.first).arg(r.players);
+        };
+        claims.reset(2);
+        QCOMPARE(given("192.168.1.30", 2), QStringLiteral("3+2"));
+        QCOMPARE(given("192.168.1.31", 1), QStringLiteral("5+1"));
+        QCOMPARE(given("192.168.1.32", 2), QStringLiteral("6+1"));
+        QCOMPARE(given("192.168.1.32", 1), QStringLiteral("6+1"));
+        QCOMPARE(given("192.168.1.30", 2), QStringLiteral("3+2"));
+        QCOMPARE(given("192.168.1.30", 3), QStringLiteral("3+2"));
+        QCOMPARE(given("192.168.1.30", 2), QStringLiteral("3+2"));
+        claims.release(QStringLiteral("192.168.1.31"));
+        QCOMPARE(given("192.168.1.33", 1), QStringLiteral("5+1"));
+        claims.release(QStringLiteral("192.168.1.34"));
+        QCOMPARE(given("192.168.1.35", 1), QStringLiteral("0+0"));
+        claims.reset(1);
+        QCOMPARE(given("a", 6), QStringLiteral("2+5"));
+        QCOMPARE(given("b", 1), QStringLiteral("0+0"));
+        QCOMPARE(given("b", 0), QStringLiteral("0+0"));
+        claims.reset(6);
+        QCOMPARE(given("a", 1), QStringLiteral("0+0"));
+        claims.reset(0);
+        QCOMPARE(given("a", 1), QStringLiteral("1+1"));
+        // A two-player game: the host's one port and the joiner's the other,
+        // whatever its players; a four-player one, two each.
+        claims.reset(1, 2);
+        QCOMPARE(given("a", 2), QStringLiteral("2+1"));
+        QCOMPARE(given("b", 1), QStringLiteral("0+0"));
+        claims.reset(1, 4);
+        QCOMPARE(given("a", 2), QStringLiteral("2+2"));
+        QCOMPARE(given("b", 2), QStringLiteral("4+1"));
+        QCOMPARE(claims.most(), 4);
+        claims.reset(3, 2);
+        QCOMPARE(claims.own(), 2);
+        QCOMPARE(given("a", 1), QStringLiteral("0+0"));
 
         // A host's answer to the query on the local network: its game, who
         // hosts it, what it plays in, and where it is joined, at the address
@@ -1500,6 +1722,8 @@ private slots:
                            .arg(libretro::downloadedCore(data.path()), home, games));
         QVERIFY(logLines().contains(QStringLiteral("cwd ") + home));
         QVERIFY(logLines().contains(QStringLiteral("sdlconfig ") + data.path() + QStringLiteral("/gamecontrollerdb.txt")));
+        // A pad's buttons by their places, as the menus have them.
+        QVERIFY(logLines().contains(QStringLiteral("sdllabels 0")));
         // FinalBurn Neo's info file written for it, which has RetroArch take
         // its states for deterministic, as netplay needs them.
         QVERIFY(logLines().contains(QStringLiteral("coreinfo deterministic")));
@@ -1561,6 +1785,25 @@ private slots:
         controllers::setPlayerEnvironment({ { QStringLiteral("OSDOS_PLAYER1_NAME"), QStringLiteral("Xbox 360 Controller") },
                                             { QStringLiteral("OSDOS_PLAYER1_GUID"),
                                               QStringLiteral("030000005e0400008e02000014010000") } });
+        played(arcade, QStringLiteral("sf2"));
+        QVERIFY(!QFileInfo::exists(remap));
+        // The gamepad with Arcade Buttons: theirs on the 6-Button Panel,
+        // through the remap file too.
+        const QStringList fighting{ QStringLiteral("2"), QStringLiteral("3"), QStringLiteral("10"), QStringLiteral("0"),
+                                    QStringLiteral("1"), QStringLiteral("+5"), QStringLiteral("9"), QStringLiteral("+4"),
+                                    QStringLiteral("4"), QStringLiteral("6") };
+        controllers::setPlayerArcade({ { QStringList(controllers::kArcadeInputs, QStringLiteral("BUTTON1")), fighting } });
+        const auto noArcade = qScopeGuard([] { controllers::setPlayerArcade({}); });
+        played(arcade, QStringLiteral("sf2"));
+        config = QString::fromUtf8(contents(configCopy));
+        for (const char *line : { "input_player1_y_btn = \"2\"", "input_player1_l_btn = \"10\"",
+                                  "input_player1_r_axis = \"+5\"", "input_player1_r_btn = \"nul\"",
+                                  "input_player1_r2_btn = \"9\"", "input_player1_l2_axis = \"+4\"",
+                                  "input_player1_up_axis = \"-1\"" })
+            QVERIFY2(config.contains(QLatin1String(line)), line);
+        QCOMPARE(QString::fromUtf8(contents(remap)).split(QLatin1Char('\n')).filter(QStringLiteral("input_libretro_device_p")),
+                 QStringList({ QStringLiteral("input_libretro_device_p1 = \"261\"") }));
+        controllers::setPlayerArcade({});
         played(arcade, QStringLiteral("sf2"));
         QVERIFY(!QFileInfo::exists(remap));
         // One the user saved from RetroArch's menu is theirs: neither removed
@@ -3389,20 +3632,29 @@ private slots:
             controllers::setPlayerEnvironment({});
         });
         const QByteArray lobby = fixture("lobby.json");
-        // big: an answer far bigger than a list of rooms.
+        // big: an answer far bigger than a list of rooms. hold: the request
+        // kept unanswered (held) until answer() is called for it.
         bool big = false;
+        bool hold = false;
+        QPointer<QTcpSocket> held;
         int asked = 0;
+        const auto answer = [&lobby, &big](QTcpSocket *socket) {
+            const QByteArray body = big ? QByteArray(5 * 1024 * 1024, ' ') : lobby;
+            socket->write("HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: "
+                          + QByteArray::number(body.size()) + "\r\nConnection: close\r\n\r\n" + body);
+            socket->disconnectFromHost();
+        };
         QTcpServer server;
         QVERIFY(server.listen(QHostAddress::LocalHost));
-        connect(&server, &QTcpServer::newConnection, &server, [&server, &lobby, &asked, &big] {
+        connect(&server, &QTcpServer::newConnection, &server, [&server, &asked, &hold, &held, &answer] {
             QTcpSocket *socket = server.nextPendingConnection();
-            connect(socket, &QTcpSocket::readyRead, socket, [socket, &lobby, &asked, &big] {
+            connect(socket, &QTcpSocket::readyRead, socket, [socket, &asked, &hold, &held, &answer] {
                 socket->readAll();
                 ++asked;
-                const QByteArray body = big ? QByteArray(5 * 1024 * 1024, ' ') : lobby;
-                socket->write("HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: "
-                              + QByteArray::number(body.size()) + "\r\nConnection: close\r\n\r\n" + body);
-                socket->disconnectFromHost();
+                if (hold)
+                    held = socket;
+                else
+                    answer(socket);
             });
         });
 
@@ -3560,17 +3812,29 @@ private slots:
         QCOMPARE(matches(14), QStringLiteral("other/same"));
         QCOMPARE(matches(15), QStringLiteral("unknown/same"));
         QCOMPARE(matches(16), QStringLiteral("/same"));
-        // With Online Play off, the room that could be joined says so.
+        // Online Play turned off while the lobby is read: the lobby
+        // forgotten, and the read stopped, so that its answer, however late,
+        // neither offers its rooms nor builds the screens anew. On again, the
+        // lobby is read before a room is offered.
+        hold = true;
+        arcade.refreshRooms();
+        QTRY_VERIFY_WITH_TIMEOUT(held, 5000);
         arcade.onSettingChanged(module, QStringLiteral("online_play"), QStringLiteral("Off"));
-        for (const QVariant &v : arcade.lobby().value(QStringLiteral("rooms")).toList()) {
-            const QVariantMap r = v.toMap();
-            if (r.value(QStringLiteral("id")).toInt() == 11) {
-                QVERIFY(!r.value(QStringLiteral("joinable")).toBool());
-                QCOMPARE(r.value(QStringLiteral("why")).toString(),
-                         QStringLiteral("Online Play is off: Settings → Arcade → Online Play"));
-            }
-        }
+        QSignalSpy afterOff(&arcade, &ArcadeBackend::gamesChanged);
+        const qsizetype readBefore = roomsRead.size();
+        QVERIFY(held);
+        answer(held);
+        QTest::qWait(500);
+        QCOMPARE(roomsRead.size(), readBefore);
+        QVERIFY(afterOff.isEmpty());
+        QVERIFY(arcade.rooms().isEmpty());
+        QCOMPARE(arcade.lobby().value(QStringLiteral("state")).toString(), QStringLiteral("loading"));
+        QVERIFY(arcade.lobby().value(QStringLiteral("rooms")).toList().isEmpty());
+        hold = false;
         arcade.onSettingChanged(module, QStringLiteral("online_play"), QStringLiteral("On"));
+        QVERIFY(!arcade.requestEntries(QStringLiteral("online")).isValid());
+        QVERIFY(roomsRead.wait(5000));
+        QCOMPARE(arcade.rooms().size(), 1);
         // The Arcade screen's filter, after All Games; then RetroArch Lobby,
         // every room of the lobby.
         const QVariantList filters = arcade.filters();
@@ -3625,8 +3889,8 @@ private slots:
             }
             return false;
         };
-        // Online Play off: none of it, though the lobby was read, and Start
-        // Filter's choices sent again without it; on, with it.
+        // Online Play off: none of it, and Start Filter's choices sent again
+        // without it; on, with it, once the lobby is read again.
         arcade.onSettingChanged(module, QStringLiteral("online_play"), QStringLiteral("Off"));
         QVERIFY(arcade.filterGames(QStringLiteral("lobby"), 0, 7).isEmpty());
         QTRY_COMPARE_WITH_TIMEOUT(startOptions.size(), 2, 5000);
@@ -3635,6 +3899,9 @@ private slots:
         arcade.onSettingChanged(module, QStringLiteral("online_play"), QStringLiteral("On"));
         QTRY_COMPARE_WITH_TIMEOUT(startOptions.size(), 3, 5000);
         QVERIFY(offersLobby());
+        arcade.refreshRooms();
+        QVERIFY(roomsRead.wait(5000));
+        QCOMPARE(arcade.rooms().size(), 1);
 
         // Joined: RetroArch connects to the room, under the default name, not
         // the device's, which stays off the internet. The JAMMA board's
@@ -3957,7 +4224,33 @@ private slots:
         QCOMPARE(changed.size(), 0);
 
         // Joined: RetroArch connects straight to the host, at the port it
-        // gave, under the device's name.
+        // gave, under the device's name, this machine's two players on the
+        // ports the host's OSD/OS gives them: asked for at the claim port as
+        // the room is chosen, the game started on the answer, and given back
+        // as it ends.
+        controllers::setPlayerEnvironment({ { QStringLiteral("OSDOS_PLAYER1_GUID"), QStringLiteral("0600aaaa") },
+                                            { QStringLiteral("OSDOS_PLAYER2_GUID"), QStringLiteral("0600bbbb") } });
+        const auto noPlayers = qScopeGuard([] { controllers::setPlayerEnvironment({}); });
+        QUdpSocket claims;
+        QVERIFY(claims.bind(QHostAddress::LocalHost, 0));
+        QList<QByteArray> claimed;
+        connect(&claims, &QUdpSocket::readyRead, &claims, [&claims, &claimed] {
+            while (claims.hasPendingDatagrams()) {
+                const QNetworkDatagram query = claims.receiveDatagram();
+                claimed << query.data();
+                if (libretro::readClaimQuery(query.data()))
+                    claims.writeDatagram(libretro::claimAnswer({ 3, 2 }), query.senderAddress(), query.senderPort());
+            }
+        });
+        arcade.setLanClaimPort(claims.localPort());
+        const auto requested = [](const QString &config) {
+            QStringList ports;
+            for (int p = 1; p <= libretro::kMostPorts; ++p) {
+                if (config.contains(QStringLiteral("netplay_request_device_p%1 = \"true\"").arg(p)))
+                    ports << QString::number(p);
+            }
+            return ports.join(QLatin1Char(' '));
+        };
         QFile::remove(m_log);
         QCOMPARE(ended([&arcade] { return arcade.joinLanRoom(1); }).value(1).toString(), QStringLiteral("ok"));
         const QString home = data.path() + QStringLiteral("/arcade/retroarch");
@@ -3967,18 +4260,58 @@ private slots:
         QString config = QString::fromUtf8(contents(configCopy));
         QVERIFY2(config.contains(QStringLiteral("netplay_nickname = \"garage-cab\"")), qPrintable(config));
         QVERIFY(!config.contains(QStringLiteral("netplay_public_announce")));
+        QCOMPARE(requested(config), QStringLiteral("3 4"));
         QVERIFY(logLines().contains(QStringLiteral("coreinfo deterministic")));
-        // Hosted: on the network alone, straight, under the online name.
-        arcade.onSettingChanged(module, QStringLiteral("online_name"), QStringLiteral("Mehmet"));
+        QTRY_VERIFY(!claimed.isEmpty() && claimed.last() == libretro::claimRelease());
+        QCOMPARE(claimed.first(), libretro::claimQuery(2));
+        QVERIFY(!arcade.running());
+        // A host that doesn't say, RetroArch alone or an older OSD/OS: asked
+        // twice, then joined with the ports from 2.
+        claims.close();
         QFile::remove(m_log);
-        QCOMPARE(ended([&arcade] { return arcade.hostLanGame(QStringLiteral("sf2")); }).value(1).toString(),
-                 QStringLiteral("ok"));
+        QCOMPARE(ended([&arcade] { return arcade.joinLanRoom(1); }).value(1).toString(), QStringLiteral("ok"));
+        config = QString::fromUtf8(contents(configCopy));
+        QCOMPARE(requested(config), QStringLiteral("2 3"));
+        // Hosted: on the network alone, straight, under the online name.
+        // Street Fighter II takes two players: this machine's first on port
+        // 1, whatever its second stick, so that the machine joining has the
+        // other. It asks for its players' ports while the game runs and is
+        // given port 2 alone, whatever its players, its own anew as it asks
+        // again; none once the game is over.
+        arcade.onSettingChanged(module, QStringLiteral("online_name"), QStringLiteral("Mehmet"));
+        quint16 claimPort = 0;
+        {
+            QUdpSocket probe;
+            QVERIFY(probe.bind(QHostAddress::LocalHost, 0));
+            claimPort = probe.localPort();
+        }
+        arcade.setLanClaimPort(claimPort);
+        qputenv("RA_SECONDS", "3");
+        const auto noSeconds = qScopeGuard([] { qunsetenv("RA_SECONDS"); });
+        QFile::remove(m_log);
+        QSignalSpy hostEnded(&arcade, &ArcadeBackend::finished);
+        QVERIFY(arcade.hostLanGame(QStringLiteral("sf2")));
+        QUdpSocket joiner;
+        QVERIFY(joiner.bind(QHostAddress::LocalHost, 0));
+        const auto asking = [&joiner, claimPort](const QByteArray &packet, int mostMs) {
+            joiner.writeDatagram(packet, QHostAddress::LocalHost, claimPort);
+            for (int waited = 0; waited < mostMs && !joiner.hasPendingDatagrams(); waited += 20)
+                QTest::qWait(20);
+            return joiner.hasPendingDatagrams() ? joiner.receiveDatagram().data() : QByteArray("no answer");
+        };
+        QCOMPARE(asking(libretro::claimQuery(2), 2000), libretro::claimAnswer({ 2, 1 }));
+        QCOMPARE(asking(libretro::claimQuery(4), 2000), libretro::claimAnswer({ 2, 1 }));
+        QCOMPARE(asking(libretro::claimQuery(1), 2000), libretro::claimAnswer({ 2, 1 }));
+        QVERIFY(hostEnded.wait(10000) || !hostEnded.isEmpty());
+        QCOMPARE(hostEnded.first().value(1).toString(), QStringLiteral("ok"));
         QVERIFY(logLines(QStringLiteral("retroarch ")).value(0).contains(QStringLiteral(" --host ")));
         config = QString::fromUtf8(contents(configCopy));
         for (const char *line : { "netplay_nickname = \"Mehmet\"", "netplay_public_announce = \"false\"",
                                   "netplay_use_mitm_server = \"false\"", "netplay_nat_traversal = \"false\"" })
             QVERIFY2(config.contains(QLatin1String(line)), line);
+        QCOMPARE(requested(config), QStringLiteral("1"));
         QVERIFY(logLines().contains(QStringLiteral("coreinfo deterministic")));
+        QCOMPARE(asking(libretro::claimQuery(1), 300), QByteArray("no answer"));
         // A room no longer hosted.
         QVERIFY(!arcade.joinLanRoom(2));
         QCOMPARE(arcade.lastError(), QStringLiteral("The game is no longer hosted on this network"));

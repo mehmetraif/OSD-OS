@@ -265,9 +265,9 @@ Any tag matching `v*.*.*` starts `release.yml`; one containing `-rc`, `-beta` or
 | `build-macos-arm64` | `macos-15` | `OSD-OS-<tag>-macOS-arm64.dmg`: Qt 6.7 with Qt Shader Tools, SDL2 2.32.10 built from source and bundled, Homebrew's minizip linked in, `macdeployqt`. With the secrets `APPLE_CERT_P12_BASE64`, `APPLE_CERT_PASSWORD`, `APPLE_ID`, `APPLE_APP_PASSWORD` and `APPLE_TEAM_ID` it is signed with the Developer ID and notarized; without them (a fork) signed ad hoc, and the release notes say how to open it the first time. mpv isn't bundled |
 | `build-linux-arm64` | `ubuntu-24.04-arm` | `OSD-OS-<tag>-linux-arm64.tar.gz`, apt's Qt, for Raspberry Pi OS: `install.sh` installs it and the packages it needs |
 | `build-linux-x86_64` | `ubuntu-24.04` | `OSD-OS-linux-x86_64.AppImage`, with mpv 0.40 built by `scripts/build-mpv.sh`. Its name has no version, as it updates itself in place |
-| `build-os-image` | `ubuntu-24.04-arm` | `OSD-OS-<tag>-raspberry-pi.img.xz` and its `.info` (the packages on it), from the release's own tarball |
+| `build-os-image` | `ubuntu-24.04-arm` | `OSD-OS-<tag>-raspberry-pi.img.xz`, from the release's own tarball |
 
-The last job, `release`, waits for the builds and the regression tests: a tag whose tests fail has its builds made, but no release published. It writes `SHA256SUMS` (which the in-app updater checks downloads against) and release notes with absolute links, and publishes the release with every file, `install.sh` and `setup-nfc-reader.sh` among them. While the workflow runs, each job's file can be downloaded from its run's **Artifacts**.
+The last job, `release`, waits for the builds and the regression tests: a tag whose tests fail has its builds made, but no release published. It writes release notes with absolute links and publishes the release with the four packages and `install.sh`; GitHub keeps each file's SHA-256 digest with it, which the in-app updater checks a download against. While the workflow runs, each job's file can be downloaded from its run's **Artifacts**.
 
 ## Building the OSD/OS image
 

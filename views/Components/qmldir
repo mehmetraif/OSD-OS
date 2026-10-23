@@ -7,6 +7,7 @@ HintBar HintBar.qml
 OsdTapeBar OsdTapeBar.qml
 OsdTicks OsdTicks.qml
 PixelIcon PixelIcon.qml
+ArcadePanel ArcadePanel.qml
 Dither Dither.qml
 MenuRow MenuRow.qml
 HelpLine HelpLine.qml

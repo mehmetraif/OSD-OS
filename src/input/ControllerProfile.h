@@ -49,6 +49,67 @@ QString legacyJammaKey(const QString &sdlGuid, const QString &name);
 enum class NodeKind { None, Keyboard, Remote };
 NodeKind classifyNode(const QSet<int> &keys);
 
+// Settings → Controls → a pad → Arcade Buttons: which of its inputs is each
+// of a cabinet's, Button 1 to 8, Coin and Start (kArcadeInputs, in that
+// order), the same in MAME and FinalBurn Neo. An input is input.cfg's token:
+// a button ("x", "rightshoulder"), a trigger pressed ("righttrigger+"), or
+// the right stick pushed ("rightx-", an N64 pad's C buttons); "" for none.
+// The D-pad and the left stick are the joystick, never one of them.
+constexpr int kArcadeInputs = 10;
+constexpr int kArcadeCoin = 8;
+constexpr int kArcadeStart = 9;
+// config.json's name of each ("1" to "8", "coin", "start"), and the page's
+// ("Button 1", "Coin").
+QString arcadeInputName(int index);
+QString arcadeInputLabel(int index);
+// Every input that can be one of them, in the order the page offers them:
+// the buttons as MAME numbers them, Back and Start, then the rest.
+QStringList arcadeTokens();
+bool isArcadeToken(const QString &token);
+// LAYOUT's choices, in its order: "default", none of OSD/OS's (MAME and
+// FinalBurn Neo each lay a pad's buttons out their own way); "fighting6", a
+// fighter's punches over its kicks where a pad has them (X Y RB over A B
+// RT); "neogeo4", a Neo Geo's A B C D on A B X Y, as MAME numbers a pad's
+// buttons; and "custom", set button by button. Their titles, and a layout's
+// inputs (kArcadeInputs tokens; none for default and custom).
+QStringList arcadeLayouts();
+QString arcadeLayoutTitle(const QString &layout);
+QStringList arcadeLayoutInputs(const QString &layout);
+// Where a layout set by hand starts from: A, B, X, Y, the shoulders and the
+// triggers Button 1 to 8, Back and Start Coin and Start. A JAMMA board's
+// stick has these under Default too: its pins' buttons 1 to 8, COIN and
+// START, as osdos-jamma gives them.
+QStringList arcadeDefaultInputs();
+
+// What a pad has, as MAME's game controller support (its sdlgame joystick
+// provider) sees it through SDL: its inputs SDL binds (tokens without a
+// sign: "a", "lefttrigger", "rightx"), and the triggers it counts among the
+// buttons (bound to a button, or a pad whose triggers are buttons: a Switch
+// Pro's, Joy-Cons').
+struct PadShape {
+    QSet<QString> inputs;
+    QSet<QString> buttonTriggers;
+    // Whether it has a token's input ("lefttrigger+": its left trigger).
+    bool has(const QString &token) const;
+};
+// MAME's name for a pad's input, for its controller file (JOYCODE_<n>_<name>):
+// the buttons it numbers, BUTTON1 on, in its order (A, B, X, Y, the
+// shoulders, the triggers that are buttons, the sticks' clicks, the paddles,
+// Guide, Misc, the touchpad); Back and Start SELECT and START; a trigger that
+// is an axis pressed (SLIDER1, SLIDER2, negative as MAME has triggers); the
+// right stick's ZAXIS and RZAXIS pushed. "" for an input the pad hasn't.
+QString mameInput(const PadShape &shape, const QString &token);
+// RetroArch's bind for it, as SDL's game controller has the pad
+// (input_playerN_*_btn, _axis): a button's number ("2"), an axis pushed
+// ("+5", "-2"); "" for none.
+QString retroarchBind(const QString &token);
+// A pad's Arcade Buttons (kArcadeInputs tokens) as they act on a pad with
+// this shape: a Coin or a Start it hasn't (set while it was away) is its
+// own Back or Start, or the other's where the other of the two has its own,
+// which a button that had it gives up, so that a game can always be paid
+// for and left; the rest as they are.
+QStringList arcadeActing(QStringList inputs, const PadShape &shape);
+
 // A controller's own settings. bindings: an input to an action ("up", "down",
 // "left", "right", "select", "back", "play_pause", or "none" to take its
 // action away). A pad's inputs are input.cfg's tokens; a keyboard's or a
@@ -61,8 +122,13 @@ struct Profile {
     QString kind;
     LabelStyle labels = LabelStyle::Auto;
     QHash<QString, QString> bindings;
+    // Its Arcade Buttons: a layout of arcadeLayouts() but "default" ("" for
+    // that), and with one its kArcadeInputs tokens, Coin's and Start's never
+    // "".
+    QString arcadeLayout;
+    QStringList arcade;
 
-    bool isEmpty() const { return labels == LabelStyle::Auto && bindings.isEmpty(); }
+    bool isEmpty() const { return labels == LabelStyle::Auto && bindings.isEmpty() && arcadeLayout.isEmpty(); }
     static Profile fromVariant(const QVariant &value);
     QVariantMap toVariant() const;
 };
@@ -85,6 +151,18 @@ QStringList playerGuids();
 // And its name, as SDL has it: with the GUID, the controller RetroArch keeps
 // for the player.
 QStringList playerNames();
+// Each player's Arcade Buttons as the engines take them, kArcadeInputs
+// entries each, mameInput()'s and retroarchBind()'s names: empty for a
+// player whose pad has no layout of its own. InputManager keeps them as it
+// keeps the players' environment; the Arcade module writes them for each
+// game. kPlayers entries.
+struct ArcadeBinds {
+    QStringList mame;
+    QStringList retroarch;
+    bool isEmpty() const { return mame.isEmpty(); }
+};
+void setPlayerArcade(const QList<ArcadeBinds> &players);
+QList<ArcadeBinds> playerArcade();
 
 // Which keyboard or remote a key came from. Qt doesn't say; the nodes, read
 // beside it, do: each press noted as it comes, then taken by the key event

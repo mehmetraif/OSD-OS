@@ -23,21 +23,18 @@ All the files are on the [latest release](https://github.com/mehmetraif/OSD-OS/r
 | File | What it is |
 |---|---|
 | `OSD-OS-<version>-raspberry-pi.img.xz` | The OSD/OS image, to flash to an SD card |
-| `OSD-OS-<version>-raspberry-pi.info` | The list of packages on the image, with their versions |
 | `OSD-OS-<version>-linux-arm64.tar.gz` | The app for Raspberry Pi OS, as `install.sh` installs it |
 | `OSD-OS-<version>-macOS-arm64.dmg` | The app for Apple Silicon Macs |
 | `OSD-OS-linux-x86_64.AppImage` | The app for SteamOS and other x86_64 Linux. No version in its name: it updates itself in place |
-| `SHA256SUMS` | The SHA-256 checksum of the image, the `.dmg`, the `.tar.gz` and the AppImage |
 | `install.sh` | The installer for Raspberry Pi OS |
-| `setup-nfc-reader.sh` | Sets up access to an NFC reader ([NFC Reader](https://github.com/mehmetraif/OSD-OS/wiki/NFC-Reader)) |
 
-To check a download, run this in the folder you downloaded it to (`shasum -a 256 -c` in place of `sha256sum -c` on a Mac):
+Each file's SHA-256 digest is shown beside it on the release page. To check a download, run this in the folder you downloaded it to (`shasum -a 256` in place of `sha256sum` on a Mac) and compare what it prints with the digest shown:
 
 ```sh
-grep raspberry-pi.img.xz SHA256SUMS | sha256sum -c
+sha256sum OSD-OS-<version>-raspberry-pi.img.xz
 ```
 
-It prints the file's name and `OK`.
+The script that sets up an NFC reader is in the repository ([NFC Reader](https://github.com/mehmetraif/OSD-OS/wiki/NFC-Reader)).
 
 ## The OSD/OS image
 
@@ -607,14 +604,14 @@ stateDiagram-v2
     Check --> UpToDate: the latest release is not newer than the installed version
     Check --> Available: a newer release
     Available --> Downloading: select (DOWNLOAD)
-    Downloading --> Ready: the file matches SHA256SUMS
+    Downloading --> Ready: the file matches its digest
     Downloading --> Available: back cancels it
     Ready --> Install: select (INSTALL), then the apply choice
     Ready --> Available: Discard Update
 ```
 
 - **CHECK** asks GitHub for the latest release, and offers it only when it is newer than the installed version (**You're up to date** otherwise). Versions are compared by their numbers, so `v0.10.0` comes after `v0.9.0`, and a pre-release before its release (`v0.2.0-rc.1` before `v0.2.0`): an older release is never offered. Pre-releases (tags with `-rc`, `-beta` or `-alpha`) are never the latest, so they are never offered.
-- **DOWNLOAD** fetches the file for this system (the `.tar.gz` on a Raspberry Pi, the `.dmg` on a Mac, the AppImage on x86_64 Linux) into the data folder's `updates` folder, and checks it against the release's `SHA256SUMS`. It needs three times the file's size free. Back during the download cancels it.
+- **DOWNLOAD** fetches the file for this system (the `.tar.gz` on a Raspberry Pi, the `.dmg` on a Mac, the AppImage on x86_64 Linux) into the data folder's `updates` folder, and checks it against the SHA-256 digest GitHub keeps for it. It needs three times the file's size free. Back during the download cancels it.
 - **INSTALL** asks **Install update?** A downloaded update does nothing until you choose to apply it; back, or **Discard Update**, leaves the installed version as it is. A download that is no longer newer than the version running when OSD/OS next starts (a newer one installed with `install.sh` meanwhile, say) is deleted then.
 
 What applying does depends on the system:

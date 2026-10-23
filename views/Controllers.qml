@@ -5,7 +5,7 @@ import Components
 // (ControllerSettings.qml): a gamepad, the JAMMA board's sticks, and on Linux
 // each keyboard and remote apart. First the extra keys every keyboard and
 // remote shares (RemapControls.qml), then which pad each player has (PLAYERS,
-// up to six, chosen from the pads connected, or Auto); last, under NOT
+// all six, chosen from the pads connected, or Auto); last, under NOT
 // CONNECTED, those away with settings of their own. The line of the
 // controller used last is marked ◄, so a button pressed on one shows which
 // line it is, and a pad that plays says so (P1, P2…).
@@ -122,19 +122,9 @@ FocusScope {
         var present = controllers.filter(function(c) { return c.present })
         var away = controllers.filter(function(c) { return !c.present })
         items.push({ type: "section", label: "Players" })
-        // Two players, and one more for each pad connected beyond two, up to
-        // six; a player with a pad chosen keeps its line while it is away.
-        var pads = 0
-        for (var m = 0; m < present.length; m++) {
-            if (present[m].kind === "gamepad" || present[m].kind === "arcade")
-                pads += present[m].count
-        }
-        var shown = Math.max(2, pads)
-        for (var q = 0; q < players.length; q++) {
-            if (players[q].key !== "")
-                shown = Math.max(shown, players[q].player)
-        }
-        for (var n = 0; n < players.length && players[n].player <= shown; n++) {
+        // All six, whatever is connected now: a cabinet's two sticks and four
+        // pads over USB or Bluetooth, each chosen before it is plugged in.
+        for (var n = 0; n < players.length; n++) {
             var p = players[n]
             items.push({ type: "player", player: p.player, label: "Player " + p.player, value: playerValue(p),
                          description: "The pad player " + p.player + " has in games. Select, or ◄ ►, to choose it. Auto takes "

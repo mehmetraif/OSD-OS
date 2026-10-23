@@ -11,6 +11,7 @@
 #include <QJsonObject>
 #include <QLibrary>
 #include <QRegularExpression>
+#include <QSet>
 #include <QStandardPaths>
 #include <QTextStream>
 #include <QVersionNumber>
@@ -55,18 +56,25 @@ constexpr std::pair<const char *, const char *> kStandardGamepad[] = {
 };
 
 // An arcade panel's, a JAMMA board's stick as SDL maps osdos-jamma's pad
-// (buttons 1 to 6 on A, B, X, Y and the shoulders, Coin on Back, the
-// joystick on the left stick's axes): the cabinet's two rows of buttons, 1
-// to 3 above and 4 to 6 below, where FinalBurn Neo's 6-Button Panel has
-// them (Y X L above, B A R below), and the joystick on the D-pad too, where
-// the games read their directions.
+// (buttons 1 to 6 on A, B, X, Y and the shoulders, 7 and 8 on the
+// triggers, Coin on Back, the joystick on the left stick's axes): the
+// cabinet's two rows of buttons, 1 to 3 above and 4 to 6 below, where
+// FinalBurn Neo's 6-Button Panel has them (Y X L above, B A R below), 7 and
+// 8 where it reads them (R2, then L2), and the joystick on the D-pad too,
+// where the games read their directions.
 constexpr std::pair<const char *, const char *> kArcadePanel[] = {
     { "y_btn", "0" }, { "x_btn", "1" }, { "l_btn", "2" },
     { "b_btn", "3" }, { "a_btn", "9" }, { "r_btn", "10" },
     { "start_btn", "6" }, { "select_btn", "4" },
     { "up_axis", "-1" }, { "down_axis", "+1" }, { "left_axis", "-0" }, { "right_axis", "+0" },
-    { "l2_axis", "+4" }, { "r2_axis", "+5" },
+    { "r2_axis", "+4" }, { "l2_axis", "+5" },
     { "l_x_plus_axis", "+0" }, { "l_x_minus_axis", "-0" }, { "l_y_plus_axis", "+1" }, { "l_y_minus_axis", "-1" },
+};
+
+// A pad's left stick as the joystick beside its D-pad, as a panel's is, for
+// a player whose Arcade Buttons put it on the 6-Button Panel.
+constexpr std::pair<const char *, const char *> kStickAsJoystick[] = {
+    { "up_axis", "-1" }, { "down_axis", "+1" }, { "left_axis", "-0" }, { "right_axis", "+0" },
 };
 
 // FinalBurn Neo's name for RetroArch, which names its remap folder and file.
@@ -78,11 +86,58 @@ const QLatin1String kOwnRemap("# Written by OSD/OS");
 // RETRO_DEVICE_SUBCLASS(RETRO_DEVICE_ANALOG, 0).
 constexpr int k6ButtonPanel = (1 << 8) | 5;
 
-// Whether player p (from 0) plays on an arcade panel's layout: off line
-// only. Online, RetroArch gives every player the host's controller types,
-// on which a panel's binds would scatter its buttons.
+// Where a player's Arcade Buttons go, Button 1 to 8, Coin and Start: on the
+// RetroPad's buttons FinalBurn Neo's 6-Button Panel reads as Button 1 to 8
+// (Y X L above, B A R below, as kArcadePanel has a cabinet's; 7 on R2, 8 on
+// L2).
+const char *const kArcadeSlots[controllers::kArcadeInputs] = { "y", "x", "l", "b", "a", "r", "r2", "l2", "select", "start" };
+
+// Whether player p (from 0) has Arcade Buttons of their own to play with:
+// off line only, as a panel.
+bool withArcade(const Launch &launch, int p) {
+    return launch.netplay == Launch::Netplay::None && !launch.arcade.value(p).isEmpty();
+}
+
+// Whether player p (from 0) plays on an arcade panel's layout, a JAMMA
+// stick's or their Arcade Buttons': off line only. Online, RetroArch gives
+// every player the host's controller types, on which a panel's binds would
+// scatter its buttons.
 bool onPanel(const Launch &launch, int p) {
-    return launch.netplay == Launch::Netplay::None && launch.panels.value(p);
+    return launch.netplay == Launch::Netplay::None && (launch.panels.value(p) || withArcade(launch, p));
+}
+
+// A player's binds with their Arcade Buttons (withArcade()): each on its slot
+// (kArcadeSlots), a button's number or an axis pushed ("nul" the other, and
+// both for none), over the binds the player has else, of which any other on
+// one of the pad's inputs those take is let go: one input, one of the game's.
+QList<std::pair<QByteArray, QString>> arcadeBinds(QList<std::pair<QByteArray, QString>> binds, const QStringList &arcade) {
+    const QLatin1String nul("nul");
+    QSet<QString> taken;
+    for (const QString &bind : arcade) {
+        if (!bind.isEmpty())
+            taken.insert(bind);
+    }
+    for (auto &[name, value] : binds) {
+        if (taken.contains(value))
+            value = nul;
+    }
+    for (int i = 0; i < controllers::kArcadeInputs; ++i) {
+        const QString bind = arcade.value(i);
+        const bool axis = bind.startsWith(QLatin1Char('+')) || bind.startsWith(QLatin1Char('-'));
+        const QByteArray slot(kArcadeSlots[i]);
+        const std::pair<QByteArray, QString> own[] = {
+            { slot + "_btn", !bind.isEmpty() && !axis ? bind : QString(nul) },
+            { slot + "_axis", axis ? bind : QString(nul) },
+        };
+        for (const auto &one : own) {
+            const auto it = std::find_if(binds.begin(), binds.end(), [&one](const auto &b) { return b.first == one.first; });
+            if (it != binds.end())
+                it->second = one.second;
+            else
+                binds.append(one);
+        }
+    }
+    return binds;
 }
 
 // A config's value, in its quotes: RetroArch's parser takes a line's value
@@ -362,19 +417,28 @@ QString configText(const Launch &launch) {
     // over the game that each pad has no profile ("not configured, using
     // fallback"); the reservations below still give each player their pad.
     // A player on an arcade panel has its two rows instead (kArcadePanel),
-    // off line (onPanel()).
+    // and one with Arcade Buttons those, off line (onPanel()).
     set("input_joypad_driver", QStringLiteral("sdl2"));
     set("input_autodetect_enable", on(false));
     for (int p = 1; p <= controllers::kPlayers; ++p) {
-        const QByteArray player = QByteArray("input_player") + QByteArray::number(p) + '_';
-        const auto bind = [&set, &player](const auto &binds) {
-            for (const auto &[name, value] : binds)
-                set((player + name).constData(), QLatin1String(value));
+        QList<std::pair<QByteArray, QString>> binds;
+        const auto add = [&binds](const auto &list) {
+            for (const auto &[name, value] : list)
+                binds.append({ QByteArray(name), QString::fromLatin1(value) });
         };
-        if (onPanel(launch, p - 1))
-            bind(kArcadePanel);
+        const bool panel = launch.netplay == Launch::Netplay::None && launch.panels.value(p - 1);
+        if (panel)
+            add(kArcadePanel);
         else
-            bind(kStandardGamepad);
+            add(kStandardGamepad);
+        if (withArcade(launch, p - 1)) {
+            if (!panel)
+                add(kStickAsJoystick);
+            binds = arcadeBinds(binds, launch.arcade.value(p - 1));
+        }
+        const QByteArray player = QByteArray("input_player") + QByteArray::number(p) + '_';
+        for (const auto &[name, value] : std::as_const(binds))
+            set((player + name).constData(), value);
     }
     // FinalBurn Neo's remap file, written with this config (remapText()):
     // loaded without a word over the game, and never written back.
@@ -413,6 +477,13 @@ QString configText(const Launch &launch) {
     if (launch.netplay != Launch::Netplay::None) {
         set("netplay_nickname", launch.nickname);
         set("netplay_start_as_spectator", on(false));
+        // The game's ports this machine's players take, asked for by number
+        // (its player 1 the first of them); none asked for leaves RetroArch
+        // to its own, one port, the first free.
+        for (int p = 1; p <= kMostPorts; ++p) {
+            const QByteArray key = QByteArray("netplay_request_device_p") + QByteArray::number(p);
+            set(key.constData(), on(launch.ports > 0 && p >= launch.portsFrom && p < launch.portsFrom + launch.ports));
+        }
     }
     if (launch.netplay == Launch::Netplay::Host) {
         // In the lobby, through a relay: a home connection takes no calls.
@@ -716,6 +787,121 @@ bool isLanSender(const QHostAddress &address) {
     bool ipv4 = false;
     const quint32 number = address.toIPv4Address(&ipv4);
     return ipv4 && (isLanAddress(number) || address.isLoopback());
+}
+
+static_assert(kMostPorts == controllers::kPlayers, "a port for each player the menus have a controller for");
+
+namespace {
+// The claims' packets: a query for so many ports, an answer giving the
+// first and how many, and a release, each a line of ASCII with its numbers
+// after it.
+const char kClaimQueryHead[] = "OSDOS PORTS? ";
+const char kClaimAnswerHead[] = "OSDOS PORTS ";
+const char kClaimReleaseText[] = "OSDOS PORTS FREE";
+
+// A number of at most two digits, least to most; nothing for anything else.
+std::optional<int> number(const QByteArray &digits, int least, int most) {
+    if (digits.isEmpty() || digits.size() > 2
+        || !std::all_of(digits.cbegin(), digits.cend(), [](char c) { return c >= '0' && c <= '9'; }))
+        return std::nullopt;
+    const int n = digits.toInt();
+    if (n < least || n > most)
+        return std::nullopt;
+    return n;
+}
+
+// What follows head in packet, split at its spaces; nothing for a packet
+// that doesn't begin with head.
+std::optional<QList<QByteArray>> wordsAfter(const QByteArray &packet, const char *head) {
+    if (!packet.startsWith(head))
+        return std::nullopt;
+    return packet.mid(static_cast<qsizetype>(qstrlen(head))).split(' ');
+}
+} // namespace
+
+int localPorts(const QStringList &guids) {
+    int last = 0;
+    for (int p = 0; p < guids.size() && p < kMostPorts; ++p) {
+        if (!guids.at(p).isEmpty())
+            last = p + 1;
+    }
+    return std::max(1, last);
+}
+
+QByteArray claimQuery(int players) {
+    return QByteArray(kClaimQueryHead) + QByteArray::number(players);
+}
+
+QByteArray claimAnswer(const PortRange &ports) {
+    return QByteArray(kClaimAnswerHead) + QByteArray::number(ports.first) + ' ' + QByteArray::number(ports.players);
+}
+
+QByteArray claimRelease() {
+    return QByteArray(kClaimReleaseText);
+}
+
+std::optional<int> readClaimQuery(const QByteArray &packet) {
+    const std::optional<QList<QByteArray>> words = wordsAfter(packet, kClaimQueryHead);
+    if (!words || words->size() != 1)
+        return std::nullopt;
+    return number(words->first(), 1, kMostPorts);
+}
+
+std::optional<PortRange> readClaimAnswer(const QByteArray &packet) {
+    const std::optional<QList<QByteArray>> words = wordsAfter(packet, kClaimAnswerHead);
+    if (!words || words->size() != 2)
+        return std::nullopt;
+    const std::optional<int> first = number(words->at(0), 0, kMostPorts);
+    const std::optional<int> players = number(words->at(1), 0, kMostPorts);
+    // None as { 0, 0 }; else a run of ports within the six.
+    if (!first || !players || (*first == 0) != (*players == 0) || *first + *players - 1 > kMostPorts)
+        return std::nullopt;
+    return PortRange{ *first, *players };
+}
+
+bool isClaimRelease(const QByteArray &packet) {
+    return packet == kClaimReleaseText;
+}
+
+void PortClaims::reset(int own, int most) {
+    m_most = std::clamp(most, 1, kMostPorts);
+    m_own = std::clamp(own, 0, m_most);
+    m_claims.clear();
+}
+
+bool PortClaims::taken(int port) const {
+    return port <= m_own || std::any_of(m_claims.cbegin(), m_claims.cend(), [port](const Claim &c) {
+        return c.first <= port && port < c.first + c.players;
+    });
+}
+
+PortRange PortClaims::claim(const QString &address, int players) {
+    release(address);
+    if (players < 1)
+        return {};
+    // The first run that takes them all; else the first free port and the
+    // run after it.
+    PortRange some;
+    for (int first = m_own + 1; first <= m_most; ++first) {
+        if (taken(first))
+            continue;
+        int run = 1;
+        while (run < players && first + run <= m_most && !taken(first + run))
+            ++run;
+        if (run == players) {
+            m_claims.append({ address, first, players });
+            return { first, players };
+        }
+        if (some.first == 0)
+            some = { first, run };
+    }
+    if (some.first > 0)
+        m_claims.append({ address, some.first, some.players });
+    return some;
+}
+
+void PortClaims::release(const QString &address) {
+    m_claims.removeIf([&address](const Claim &c) { return c.address == address; });
 }
 
 CoreInfo loadCoreInfo(const QString &path, QString *error) {

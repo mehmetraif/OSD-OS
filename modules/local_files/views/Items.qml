@@ -17,9 +17,12 @@ FocusScope {
     // Context properties read null while the module's Loader tears this view
     // down, hence the guards.
     readonly property string rootPath: navParams.folderPath || (localFilesBackend ? localFilesBackend.mediaRoot() : "")
+    // On unless Hide File Extensions was turned off (the manifest's default
+    // is ON, which get_setting doesn't know: a setting never saved reads as
+    // nothing).
     readonly property bool hideExtensions: {
-        var v = appCore ? appCore.get_setting(moduleRoot.moduleId, "hide_extensions") : false
-        return v === true || v === "ON"
+        var v = appCore ? appCore.get_setting(moduleRoot.moduleId, "hide_extensions") : true
+        return v === undefined || v === null || v === true || v === "ON"
     }
 
     signal navigateTo(string path, var params, var listState)

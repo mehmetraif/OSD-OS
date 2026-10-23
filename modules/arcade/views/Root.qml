@@ -69,7 +69,9 @@ FocusScope {
     // the lobby ({ room }) or hosts the game ({ hosting: true }) instead, of
     // the local network with lan too. False, with arcadeBackend.lastError(),
     // when it couldn't be started: a game that never started, or was
-    // canceled before, isn't put there.
+    // canceled before, isn't put there (a LAN game joined is, as its host is
+    // asked for the ports: it starts on the answer, or is said to have
+    // ended).
     function startGame(set, title, online) {
         if (!arcadeBackend)
             return false
