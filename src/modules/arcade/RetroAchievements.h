@@ -136,8 +136,10 @@ signals:
     // "failed" (the game couldn't be read); fileName, the file whose game it
     // is.
     void picturesFound(const QString &fileName, const QString &state, const QStringList &paths);
-    // RetroAchievements refused the key (HTTP 401 or 403); or took it, the
-    // first of its answers to the key come.
+    // RetroAchievements refused the key (HTTP 401, or a 403 in its own
+    // words; not its guard's 403 page, nor a 429 asking for a pause, after
+    // which the request is asked again); or took it, the first of its
+    // answers to the key come.
     void keyRefused();
     void keyAccepted();
     // The list of games was read: which games RetroAchievements has may have
@@ -159,6 +161,7 @@ private:
     struct Media {
         QString path;
         std::function<void(const QByteArray &)> done;
+        int tried = 0;   // how many times the server asked for a pause over it
     };
     using Answer = std::function<void(const QByteArray &json, bool ok)>;
 
@@ -176,7 +179,12 @@ private:
     void readAchievements(const QString &fileName, int game);
     // later: findPicturesLater()'s game (m_laterRead).
     void readPictures(const QString &fileName, int game, bool later);
-    void get(const QString &endpoint, const QList<std::pair<QString, QString>> &query, const Answer &answer);
+    // tried: how many times the server has asked for a pause over this
+    // request, which is asked again after each, kMostTries at most.
+    void get(const QString &endpoint, const QList<std::pair<QString, QString>> &query, const Answer &answer,
+             int tried = 0);
+    // A pause the server asked for (429, 503) is still on.
+    bool pausing() const;
     // A game's board read (or not): kept, and the next game asked for read.
     void done(const QString &fileName, const Board &board);
     void doneAchievements(const QString &fileName, const Progress &progress);
@@ -218,4 +226,8 @@ private:
     // The media server's files to download, and the one under way.
     QList<Media> m_mediaQueue;
     QNetworkReply *m_mediaReply = nullptr;
+    // A pause the Web API or the media server asked for: until when, and
+    // whether a request of the Web API's waits it out to be asked again.
+    QDateTime m_pausedUntil;
+    bool m_pausedRequest = false;
 };

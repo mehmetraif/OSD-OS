@@ -501,7 +501,12 @@ ArcadeBackend::ArcadeBackend(const QString &appRoot, const QString &dataRoot, Ap
         if (!std::exchange(m_raKeyRefused, true))
             emit achievementsChanged();
     });
-    connect(m_retroAchievements, &RetroAchievements::keyAccepted, this, &ArcadeBackend::achievementsChanged);
+    // An answer that came with the key: one refused before (a guard's page
+    // taken for a refusal, or the account put right) is good again.
+    connect(m_retroAchievements, &RetroAchievements::keyAccepted, this, [this] {
+        m_raKeyRefused = false;
+        emit achievementsChanged();
+    });
     // The trophy among the status icons is the account's.
     connect(this, &ArcadeBackend::achievementsChanged, this, &ArcadeBackend::statusIconsChanged);
     // A game's config is written anew for each game: one a game left that the
