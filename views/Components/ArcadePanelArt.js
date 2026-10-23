@@ -8,10 +8,10 @@
 // second the farthest), player 1 on the left and player 2 on the right. Its
 // front leans back as it goes down: on it, below a chrome strip, three round
 // buttons, 1P START, COIN and 2P START. Behind the panel the monitor leans
-// back, its bezel with two speakers and the foot of the screen; under it the
-// cabinet's front, leaning back too, goes down past the top of the coin door.
-// The cabinet fades out above and below. One player's side can be lit: a
-// button, COIN or that player's START.
+// back, its bezel round the foot of the screen; under it the cabinet's front,
+// leaning back too, goes down past the top of the coin door. The cabinet
+// fades out above and below. One player's side can be lit: a button, COIN or
+// that player's START.
 //
 // draw() lays it out on a grid of cells, one art pixel each: 0 for none
 // (the ground the host draws on shows), 1 for ink, 2 for the ground drawn
@@ -303,9 +303,8 @@ function frontAt(name) {
 
 // A disc on one of the planes, r units across its middle, as a sprite:
 // its outline in ink, ground in it but for a spot at the top left (its
-// shine; none for a speaker's grille, which has every other column in ink),
-// or ink in it but for the spot when it is lit.
-function discSprite(plane, r, lit, grille) {
+// shine), or ink in it but for the spot when it is lit.
+function discSprite(plane, r, lit) {
     var cells = {}, left = Infinity, right = -Infinity, topRow = Infinity, bottom = -Infinity
     var place = function(dx, dy) {
         var dt = (2 * dy - dx) / plane.det
@@ -321,11 +320,9 @@ function discSprite(plane, r, lit, grille) {
                 continue
             var p = place(dx, dy), ch
             var su = p.u + 0.4 * r, st = p.t + 0.35 * r * (plane.det > 0 ? 1 : -1)
-            var spot = !grille && su * su + st * st <= 0.12 * r * r
+            var spot = su * su + st * st <= 0.12 * r * r
             if (!inside(dx - 1, dy) || !inside(dx + 1, dy) || !inside(dx, dy - 1) || !inside(dx, dy + 1))
                 ch = "#"
-            else if (grille)
-                ch = (dx & 1) ? "#" : "o"
             else
                 ch = lit !== spot ? "#" : "o"
             cells[dx + "," + dy] = ch
@@ -345,13 +342,12 @@ function discSprite(plane, r, lit, grille) {
 var frontRadius = 2.0
 var frontOff = discSprite(face, frontRadius, false)
 var frontOn = discSprite(face, frontRadius, true)
-var speakerDisc = discSprite(bezel, 1.1, false, true)
 
 // What shows of the cabinet behind and under the panel, each face filled
-// and outlined: the monitor's bezel, with two speakers and the foot of the
-// screen, its lines and a glint on its glass; and the cabinet's front under
-// the panel, down past the top of the coin door with its two coin entries
-// (a bright plate each with the slot in it, the coin return under it).
+// and outlined: the monitor's bezel round the foot of the screen, its lines
+// and a glint on its glass; and the cabinet's front under the panel, down
+// past the top of the coin door with its two coin entries (a bright plate
+// each with the slot in it, the coin return under it).
 function drawCabinet(grid) {
     var L = panelLength
     var draw = function(shape, fill) {
@@ -369,11 +365,6 @@ function drawCabinet(grid) {
                   bezel.at(4, 1), bezel.at(4, up(9.5))]), scanlines)
     grid.line(bezel.at(6, up(9)), bezel.at(9, up(13)), 1)
     grid.line(bezel.at(6, up(12)), bezel.at(7, up(14)), 1)
-    var speakers = [6, L - 6]
-    for (var i = 0; i < speakers.length; i++) {
-        var c = bezel.at(speakers[i], up(3))
-        grid.sprite(speakerDisc.lines, speakerDisc.anchor, c.x, c.y)
-    }
     grid.tag(whole, bezel.heightAt)
 
     var front = low.quad(0, L, 0, 1)
