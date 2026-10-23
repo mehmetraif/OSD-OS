@@ -179,8 +179,10 @@ public:
     // A page of a filter: its games from first on, count at most, as
     // { set, name (its title), favorite }; Online Games' and LAN Games' with
     // the room too, { room (its id), host, lan (LAN Games'), detail (LAN
-    // Games': lanRooms()'s) }; RetroArch Lobby's as { set ("" for a game not
-    // in the folder), name (its title and host), favorite, room, host, lobby
+    // Games': lanRooms()'s), info (what is said of the room, for the Arcade
+    // screen's box: rooms()'s or lanRooms()'s) }; RetroArch Lobby's as
+    // { set ("" for a game not in the folder), name (its title and host),
+    // favorite, room, host, lobby
     // (the room as lobby() has it) }; Search's first row as { set: "",
     // search: true, name (the words, or "Search" for none) }; Not
     // Recognized's as { set, name (its file's), unknown: true }.
@@ -270,7 +272,9 @@ public:
 
     // Online Play (Settings → Arcade → Online Play): the netplay lobby's
     // rooms (lobby.libretro.com) of the folder's games FinalBurn Neo plays,
-    // without a password, newest first: [{ id, set, title, host, country }].
+    // without a password, newest first: [{ id, set, title, host, country,
+    // info (the room as lobby() has it, matched against ours, for the
+    // Arcade screen's box) }].
     // refreshRooms() reads the lobby again, once at a time: roomsChanged(),
     // and the Online Games folder and filter listed again, once it has. It
     // reads our own RetroArch's and core's versions too, once for each
@@ -310,7 +314,10 @@ public:
     // LAN Play (Settings → Arcade → LAN Play): the games RetroArch hosts on
     // the local network, found by a query broadcast there that each host
     // answers (libretro::readLanAnswer()), of the folder's games FinalBurn
-    // Neo plays, without a password: [{ id, set, title, host, detail }], an
+    // Neo plays, without a password: [{ id, set, title, host, detail, info
+    // (what the host answered with, as lobby() has a room, matched against
+    // ours, with address, the host's on this network, and file, the game's
+    // in the folder: the Arcade screen's box) }], an
     // id kept while the host answers with the same game, and a room kept
     // through one query it isn't heard in. refreshLanRooms() asks again, once
     // at a time, and listens a second: lanRoomsChanged(), and the LAN Games
@@ -835,6 +842,15 @@ private:
     // which address, its file, and its core's and RetroArch's versions
     // against ours, where both are known.
     QString lanDetail(const libretro::Room &room) const;
+    // What is said of a room, the lobby's or one the local network answered
+    // with, for the RetroArch Lobby page and the Arcade screen's box:
+    // lobby()'s entry for it (its title, ROM, set, CRC, core and versions,
+    // host, how it is reached, when it was hosted as of now, whether it can
+    // be joined from here and why not), its core's version and RetroArch's
+    // matched against ours as given (yourCore and yourRetroArch, "" where
+    // not known), FinalBurn Neo ready or not.
+    QVariantMap roomInfo(const libretro::Room &room, const QDateTime &now, bool ready,
+                         const QString &yourCore, const QString &yourRetroArch) const;
     // The name the others see in a game: Online Name; else, on the local
     // network, this device's (two cabinets there told apart by it), online
     // the RetroAchievements account's, or OSD-OS.

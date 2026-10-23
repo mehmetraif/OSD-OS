@@ -4153,6 +4153,18 @@ private slots:
         QCOMPARE(room.value(QStringLiteral("id")).toInt(), 11);
         QCOMPARE(room.value(QStringLiteral("set")).toString(), QStringLiteral("sf2"));
         QCOMPARE(room.value(QStringLiteral("host")).toString(), QStringLiteral("ann"));
+        // With what the lobby says of it, as lobby() has it, for the Arcade
+        // screen's box.
+        const QVariantMap said = room.value(QStringLiteral("info")).toMap();
+        QCOMPARE(said.value(QStringLiteral("id")).toInt(), 11);
+        QCOMPARE(said.value(QStringLiteral("title")).toString(), QStringLiteral("Street Fighter II: The World Warrior"));
+        QCOMPARE(said.value(QStringLiteral("rom")).toString(), QStringLiteral("SF2"));
+        QCOMPARE(said.value(QStringLiteral("set")).toString(), QStringLiteral("sf2"));
+        QCOMPARE(said.value(QStringLiteral("host")).toString(), QStringLiteral("ann"));
+        QCOMPARE(said.value(QStringLiteral("country")).toString(), QStringLiteral("es"));
+        QCOMPARE(said.value(QStringLiteral("retroarch")).toString(), QStringLiteral("1.20.0"));
+        QCOMPARE(said.value(QStringLiteral("relay")).toString(), QString());
+        QVERIFY(said.value(QStringLiteral("joinable")).toBool());
         const QVariantList entries = arcade.requestEntries(QStringLiteral("online")).toList();
         QCOMPARE(entries.size(), 2);
         const QVariantMap entry = entries.first().toMap();
@@ -4266,6 +4278,12 @@ private slots:
         QCOMPARE(row.value(QStringLiteral("set")).toString(), QStringLiteral("sf2"));
         QCOMPARE(row.value(QStringLiteral("room")).toInt(), 11);
         QCOMPARE(row.value(QStringLiteral("host")).toString(), QStringLiteral("ann"));
+        // With the room as the whole lobby has it, matched against ours, for
+        // the screen's box.
+        const QVariantMap rowInfo = row.value(QStringLiteral("info")).toMap();
+        QCOMPARE(rowInfo.value(QStringLiteral("coreMatch")).toString(), QStringLiteral("same"));
+        QCOMPARE(rowInfo.value(QStringLiteral("retroarchMatch")).toString(), QStringLiteral("other"));
+        QCOMPARE(rowInfo, matched.value(11));
         // A room's row, by its id; one gone, the game's first.
         QCOMPARE(arcade.filterIndex(QStringLiteral("online"), QStringLiteral("sf2"), 11), 0);
         QCOMPARE(arcade.filterIndex(QStringLiteral("online"), QStringLiteral("sf2"), 99), 0);
@@ -4639,6 +4657,32 @@ private slots:
         QCOMPARE(row.value(QStringLiteral("host")).toString(), QStringLiteral("eve"));
         QVERIFY(row.value(QStringLiteral("lan")).toBool());
         QCOMPARE(row.value(QStringLiteral("detail")).toString(), detail(1));
+        // With what its host answered with, as the lobby's rooms are told of
+        // and matched against ours, and where it is joined: its address on
+        // this network, and the game's file, for the screen's box.
+        const QVariantMap info = row.value(QStringLiteral("info")).toMap();
+        QCOMPARE(info, arcade.lanRooms().value(1).toMap().value(QStringLiteral("info")).toMap());
+        QCOMPARE(info.value(QStringLiteral("id")).toInt(), 3);
+        QCOMPARE(info.value(QStringLiteral("title")).toString(), QStringLiteral("Galaga"));
+        QCOMPARE(info.value(QStringLiteral("set")).toString(), QStringLiteral("galaga"));
+        QCOMPARE(info.value(QStringLiteral("rom")).toString(), QStringLiteral("galaga"));
+        QCOMPARE(info.value(QStringLiteral("file")).toString(), QStringLiteral("galaga.zip"));
+        QCOMPARE(info.value(QStringLiteral("address")).toString(), QStringLiteral("127.0.0.1"));
+        QCOMPARE(info.value(QStringLiteral("host")).toString(), QStringLiteral("eve"));
+        QCOMPARE(info.value(QStringLiteral("core")).toString(), QStringLiteral("FinalBurn Neo"));
+        QCOMPARE(info.value(QStringLiteral("coreVersion")).toString(), QStringLiteral("v1.0.0.03 6e7c2a1"));
+        QCOMPARE(info.value(QStringLiteral("coreMatch")).toString(), QStringLiteral("same"));
+        QCOMPARE(info.value(QStringLiteral("retroarch")).toString(), QStringLiteral("1.21.0"));
+        QCOMPARE(info.value(QStringLiteral("retroarchMatch")).toString(), QStringLiteral("other"));
+        QCOMPARE(info.value(QStringLiteral("frontend")).toString(), QStringLiteral("unix x64"));
+        QCOMPARE(info.value(QStringLiteral("crc")).toString(), QString());
+        QCOMPARE(info.value(QStringLiteral("subsystem")).toString(), QString());
+        QCOMPARE(info.value(QStringLiteral("relay")).toString(), QString());
+        QCOMPARE(info.value(QStringLiteral("minutes")).toInt(), -1);
+        QCOMPARE(info.value(QStringLiteral("players")).toInt(), -1);
+        QVERIFY(!info.value(QStringLiteral("password")).toBool());
+        QVERIFY(info.value(QStringLiteral("joinable")).toBool());
+        QCOMPARE(info.value(QStringLiteral("why")).toString(), QString());
         QCOMPARE(arcade.filterIndex(QStringLiteral("lan"), QStringLiteral("galaga"), 3), 1);
 
         // Asked again, twice while the answers are listened for: asked once.
