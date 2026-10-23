@@ -937,12 +937,16 @@ Window {
     // Its picture is never touched by an effect: it lies outside the screen's
     // layer below, over the menus while it plays full screen, under them while
     // it plays on behind them. On a tube, drawn in the stage's square pixels
-    // and stretched as the menus are.
+    // and stretched as the menus are. Behind a ground that hides all of it
+    // (SOLID, the ground all over the screen) it isn't drawn at all, and the
+    // session draws its pictures small meanwhile (VideoSurface): the video
+    // plays on, sound and all, for nothing on the screen.
     VideoSurface {
         anchors.fill: parent
         controller: mpvController
         pixelAspect: root.width > 0 ? root.sw / root.width : 1
         visible: root.videoActive
+                 && (!root.videoBehind || root.backdropSolidity < 100 || root.osdBackground === "Window")
         z: root.videoBehind ? -1 : 1
     }
 

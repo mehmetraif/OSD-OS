@@ -32,6 +32,12 @@ struct mpv_render_context;
 // builds) and turns it into options and a playlist. It ends when mpv quits,
 // or its playlist has played out: finished(lastEndReason), with the reason the
 // last file ended ("eof", "quit", "stop", "error", "redirect").
+//
+// The GPU draws the menus too. Pictures that take long to draw (a 4K film
+// brought down to a CRT's lines) hold their frames up, so the GPU renderer
+// times each one and, when they take too long for a while, turns mpv's
+// scaling down a step, twice at most, saying so in the journal; the sessions
+// after start at that step (GpuRenderer::noteDrawTime()).
 class EmbeddedMpv : public QObject {
     Q_OBJECT
 public:
@@ -70,6 +76,11 @@ public:
 
     // The picture's size in device pixels; it is drawn again at a new size.
     void setTargetSize(const QSize &size);
+    // Whether the picture is on screen. Hidden (the VideoSurface behind a
+    // solid ground, say), each picture is drawn a few pixels wide, so that
+    // neither mpv's renderer nor the GPU works for no one, while mpv plays
+    // on; shown again, the latest is drawn whole at once.
+    void setShown(bool shown);
     // The newest picture, or a null image before the first.
     QImage frame() const;
     // The newest picture drawn on the GPU, none before the first. Asked on
@@ -88,6 +99,9 @@ private:
     static void onWakeup(void *self);
     void drainEvents();
     void teardown();
+    // On the GUI thread, from the GPU renderer: the scaling turned down to
+    // its level-th step, the pictures having taken tookMs each.
+    void drawCheaper(int level, double tookMs);
     // The GPU's thread and context, made by the first gpuAvailable() and
     // kept to the end: false, with none, where sessions aren't drawn there.
     bool setUpGpu();
@@ -117,6 +131,10 @@ private:
     mutable QMutex m_frameLock;
     QImage         m_frame;
     QSize          m_targetSize { 640, 480 };
+    bool           m_shown = true;
+    // The size the renderers draw at: m_targetSize, or a few pixels while
+    // the picture is hidden. Under m_frameLock.
+    QSize drawSize() const;
     // Under m_frameLock: the GPU's newest picture and its texture's place,
     // and the places of the two the scene graph took last, kept as they are.
     GpuFrame m_gpuPublished;

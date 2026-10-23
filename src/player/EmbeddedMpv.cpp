@@ -3,6 +3,7 @@
 #include "../util/LegacyNames.h"
 #include <QCoreApplication>
 #include <QDebug>
+#include <QElapsedTimer>
 #include <QLibrary>
 #include <QMap>
 #include <QMutexLocker>
@@ -136,6 +137,18 @@ QString copyBackModes(const QString &hwdec) {
     return modes.join(QLatin1Char(','));
 }
 
+// The scaling turned down a step, for pictures that take too long to draw
+// (GpuRenderer::noteDrawTime()): first the downscaler no wider than the
+// picture's pixels, where correct-downscaling widens it by the scale (a 4K
+// picture brought down to 480 lines: forty times the fetches a pixel), and
+// no pass through linear light; then bilinear scaling with no dithering,
+// mpv's cheapest. Each is an option mpv takes while it plays.
+std::vector<std::pair<const char *, const char *>> cheaperScaling(int level) {
+    if (level <= 1)
+        return { { "correct-downscaling", "no" }, { "linear-downscaling", "no" } };
+    return { { "dscale", "bilinear" }, { "scale", "bilinear" }, { "cscale", "bilinear" }, { "dither", "no" } };
+}
+
 } // namespace
 
 // Draws the pictures, on a thread of its own: the software renderer converts
@@ -173,7 +186,7 @@ private:
         QSize size;
         {
             QMutexLocker lock(&m_owner->m_frameLock);
-            size = m_owner->m_targetSize;
+            size = m_owner->drawSize();
         }
         if (size.isEmpty())
             return;
@@ -297,6 +310,10 @@ public:
 
     static void onUpdate(void *self) { static_cast<GpuRenderer *>(self)->schedule(); }
 
+    // How many steps the scaling has been turned down (noteDrawTime()), for
+    // the sessions after to start that way. From any thread.
+    int cheaper() const { return m_cheaper; }
+
 private:
     struct Buffer {
         GLuint texture = 0;
@@ -306,6 +323,11 @@ private:
     // The newest picture and the two the scene graph took last are taken, so
     // one is always free.
     static constexpr int kBuffers = 4;
+    // A picture taking this long, on average, for this long, is too long:
+    // see noteDrawTime().
+    static constexpr double kSlowMs = 12.0;
+    static constexpr int kSlowForMs = 2000;
+    static constexpr int kCheapest = 2;
 
     static void *procAddress(void *context, const char *name) {
         return reinterpret_cast<void *>(static_cast<QOpenGLContext *>(context)->getProcAddress(name));
@@ -355,7 +377,7 @@ private:
         int taken[3];
         {
             QMutexLocker lock(&m_owner->m_frameLock);
-            size = m_owner->m_targetSize;
+            size = m_owner->drawSize();
             taken[0] = m_owner->m_gpuPublishedIndex;
             taken[1] = m_owner->m_gpuShownIndex;
             taken[2] = m_owner->m_gpuPreviousIndex;
@@ -386,9 +408,12 @@ private:
             { MPV_RENDER_PARAM_FLIP_Y, &flipY },
             { MPV_RENDER_PARAM_INVALID, nullptr },
         };
+        QElapsedTimer clock;
+        clock.start();
         if (api().renderRender(m_render, params) < 0)
             return;
         m_gl->glFinish();
+        noteDrawTime(clock.nsecsElapsed() / 1e6);
         m_drawn = true;
         {
             QMutexLocker lock(&m_owner->m_frameLock);
@@ -396,6 +421,36 @@ private:
             m_owner->m_gpuPublished = { b.texture, size, ++m_serial };
         }
         emit m_owner->frameReady();
+    }
+
+    // The GPU is the menus' as much as mpv's: a picture that takes long to
+    // draw (a 1080p or 4K one brought down to a CRT's lines with the
+    // downscaler widened to the scale, hundreds of fetches a pixel) keeps
+    // their frames waiting behind it, and the menus answer late. Pictures
+    // taking kSlowMs or more each, on average, for kSlowForMs (a session's
+    // first few compile mpv's shaders, and pass) turn the scaling down a
+    // step (cheaperScaling()), kCheapest steps at most, and the sessions
+    // after start at that step: the GPU that was too slow for a picture is
+    // the same for the next.
+    void noteDrawTime(double ms) {
+        m_drawMs = m_drawMs < 0 ? ms : m_drawMs * 0.875 + ms * 0.125;
+        if (m_drawMs < kSlowMs || m_cheaper >= kCheapest) {
+            m_slowSince.invalidate();
+            return;
+        }
+        if (!m_slowSince.isValid()) {
+            m_slowSince.start();
+            return;
+        }
+        if (m_slowSince.elapsed() < kSlowForMs)
+            return;
+        m_slowSince.invalidate();
+        const int level = ++m_cheaper;
+        const double took = m_drawMs;
+        // Measured afresh at the new step.
+        m_drawMs = -1;
+        QMetaObject::invokeMethod(m_owner, [owner = m_owner, level, took] { owner->drawCheaper(level, took); },
+                                  Qt::QueuedConnection);
     }
 
     EmbeddedMpv *m_owner;
@@ -409,6 +464,11 @@ private:
     std::atomic<bool> m_scheduled { false };
     std::atomic<bool> m_redraw { false };
     bool m_drawn = false;
+    // A picture's draw time, averaged over the last few; how long it has been
+    // over kSlowMs; the steps taken.
+    double m_drawMs = -1;
+    QElapsedTimer m_slowSince;
+    std::atomic<int> m_cheaper { 0 };
 };
 
 bool EmbeddedMpv::available() {
@@ -592,6 +652,14 @@ bool EmbeddedMpv::start(const QStringList &args) {
     }
     for (auto it = lists.cbegin(); it != lists.cend(); ++it)
         setList(it.key(), it.value());
+    // The scaling as the sessions before left it: turned down where their
+    // pictures took too long to draw (GpuRenderer::noteDrawTime()).
+    if (m_gpuRenderer) {
+        for (int level = 1; level <= m_gpuRenderer->cheaper(); ++level) {
+            for (const auto &[name, value] : cheaperScaling(level))
+                set(QLatin1String(name), QLatin1String(value));
+        }
+    }
 
     if (a.initialize(mpv) < 0) {
         qWarning("[EmbeddedMpv] mpv_initialize failed");
@@ -677,6 +745,18 @@ void EmbeddedMpv::quit() {
     api().command(m_mpv, cmd);
 }
 
+void EmbeddedMpv::drawCheaper(int level, double tookMs) {
+    if (!m_mpv || !m_gpu)
+        return;
+    qWarning("[EmbeddedMpv] the pictures took %.0f ms each to draw, the menus' frames waiting behind them: %s",
+             tookMs, level <= 1 ? "the downscaler is no wider than the picture's pixels now"
+                                : "the picture is scaled bilinearly now, without dithering");
+    for (const auto &[name, value] : cheaperScaling(level)) {
+        const char *cmd[] = { "set", name, value, nullptr };
+        api().command(m_mpv, cmd);
+    }
+}
+
 void EmbeddedMpv::setTargetSize(const QSize &size) {
     {
         QMutexLocker lock(&m_frameLock);
@@ -688,6 +768,27 @@ void EmbeddedMpv::setTargetSize(const QSize &size) {
         m_renderer->schedule(true);
     if (m_gpu)
         m_gpuRenderer->schedule(true);
+}
+
+void EmbeddedMpv::setShown(bool shown) {
+    {
+        QMutexLocker lock(&m_frameLock);
+        if (shown == m_shown)
+            return;
+        m_shown = shown;
+    }
+    // Shown again: the latest picture whole, before the next comes.
+    if (m_renderer)
+        m_renderer->schedule(true);
+    if (m_gpu)
+        m_gpuRenderer->schedule(true);
+}
+
+QSize EmbeddedMpv::drawSize() const {
+    // mpv still converts and scales each picture, but into a few pixels:
+    // the decoder's frames are taken as they come, and the picture is there
+    // to be drawn whole again at once.
+    return m_shown ? m_targetSize : QSize(16, 16);
 }
 
 QImage EmbeddedMpv::frame() const {
@@ -799,10 +900,16 @@ EmbeddedMpv::~EmbeddedMpv() = default;
 bool EmbeddedMpv::start(const QStringList &) { return false; }
 void EmbeddedMpv::stop() {}
 void EmbeddedMpv::quit() {}
+void EmbeddedMpv::drawCheaper(int, double) {}
 void EmbeddedMpv::setTargetSize(const QSize &size) {
     QMutexLocker lock(&m_frameLock);
     m_targetSize = size;
 }
+void EmbeddedMpv::setShown(bool shown) {
+    QMutexLocker lock(&m_frameLock);
+    m_shown = shown;
+}
+QSize EmbeddedMpv::drawSize() const { return m_targetSize; }
 QImage EmbeddedMpv::frame() const { return {}; }
 EmbeddedMpv::GpuFrame EmbeddedMpv::gpuFrame() { return {}; }
 bool EmbeddedMpv::gpuAvailable() { return false; }

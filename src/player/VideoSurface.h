@@ -46,6 +46,11 @@ protected:
 
 private:
     void reportSize();
+    // A new picture: drawn while this item is on screen; hidden (behind a
+    // solid ground), nothing is drawn for it, and the controller is told, so
+    // that the pictures are drawn small meanwhile (EmbeddedMpv::setShown).
+    void onFrame();
+    void reportShown();
 
     QPointer<MpvController> m_controller;
     qreal m_pixelAspect = 1;

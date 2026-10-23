@@ -36,6 +36,8 @@ namespace {
 // (screenBusy) if even that hasn't ended it a few seconds on.
 constexpr int kRetireKillMs   = 1000;
 constexpr int kRetireGiveUpMs = 5000;
+// Commands kept for the player's control connection to come (sendCommand()).
+constexpr int kMostCommandsWaiting = 32;
 
 // A channel logo of the user's own (Settings → TV / Movie → Logo Image), read
 // for mpv-logo.lua to lay over the picture with mpv's overlay-add: at the
@@ -194,6 +196,10 @@ MpvController::MpvController(const QString &appRoot, const QString &dataRoot,
         sendCommand({"observe_property", 2, "duration"});
         sendCommand({"observe_property", 3, "playlist-pos"});
         sendCommand({"observe_property", 4, "pause"});
+        // What was asked before the connection came, in its order.
+        const QList<QJsonArray> waiting = std::exchange(m_commandsWaiting, {});
+        for (const QJsonArray &command : waiting)
+            sendCommand(command);
     });
     connect(m_ipc, &QLocalSocket::readyRead, this, &MpvController::onIpcReadyRead);
 
@@ -544,6 +550,9 @@ void MpvController::loadAndPlay(const QString &url, float startSeconds,
         emit leftNoteChanged();
     }
     m_menuOnExit = false;
+    // The new session's mpv has neither up yet.
+    m_oscMenuShown = false;
+    m_saverShown = false;
     // Transparent Background plays inside the app's own window, where the
     // menus can lie over the picture.
     const bool embedded = transparentBackground();
@@ -734,6 +743,7 @@ void MpvController::endAtOnce(const QString &reason) {
 void MpvController::closeIpc(bool drain, int *pos, int *dur) {
     m_ipcWanted = false;
     m_reconnecting = false;
+    m_commandsWaiting.clear();
     m_connectTimer->stop();
     m_watchdogTimer->stop();
     if (drain && m_ipc->state() == QLocalSocket::ConnectedState)
@@ -955,7 +965,38 @@ void MpvController::seekTo(int positionMs) {
 }
 
 void MpvController::sendKey(const QString &key) {
+    if (key == QLatin1String("ESC") || key == QLatin1String("BS")) {
+        backKey(key);
+        return;
+    }
     sendCommand({"keypress", key});
+}
+
+// Back used to go to mpv as any key, whose input.conf maps it to osdos-menu,
+// which came back over the control connection to detachToMenus() or
+// backFromProcess(): a round trip through mpv's input queue and the socket,
+// and nothing at all while the connection was down or being made again. The
+// deck's own menu and the screen saver still take it while they are up
+// (their bindings are forced, and they say when they show); otherwise it is
+// acted on here, at once. A keyboard's own Esc to an mpv process still comes
+// the old way.
+void MpvController::backKey(const QString &key) {
+    if ((m_oscMenuShown || m_saverShown) && m_ipc->state() == QLocalSocket::ConnectedState) {
+        sendCommand({"keypress", key});
+        return;
+    }
+    if (videoActive()) {
+        // Behind the menus, or under its player's menu, nothing is left to
+        // do for it.
+        if (!m_background)
+            detachToMenus();
+        return;
+    }
+    if ((m_process && m_process->state() != QProcess::NotRunning) || m_launchPending) {
+        backFromProcess();
+        return;
+    }
+    qWarning("[MpvController] back with nothing playing, dropped");
 }
 
 void MpvController::showOsdSkipPrompt() {
@@ -1012,6 +1053,10 @@ void MpvController::onIpcReadyRead() {
                         emit subtitleCycleRequested();
                     else if (msg == "cycle-audio")
                         emit audioCycleRequested();
+                    else if (msg == "osdos-osd-menu")
+                        m_oscMenuShown = args.size() > 1 && args[1].toString() == QLatin1String("shown");
+                    else if (msg == "osdos-screensaver")
+                        m_saverShown = args.size() > 1 && args[1].toString() == QLatin1String("shown");
                 }
             }
             continue;
@@ -1063,6 +1108,8 @@ void MpvController::onProcessFinished() {
     // triggers autoplay-next.
     int pos = 0, dur = 0;
     closeIpc(true, &pos, &dur);
+    m_oscMenuShown = false;
+    m_saverShown = false;
 
     // Classify why mpv exited, once, so both the headless and desktop paths emit
     // the same playbackEnded reason:
@@ -1090,6 +1137,14 @@ void MpvController::onProcessFinished() {
 
 void MpvController::sendCommand(const QJsonArray &args) {
     if (m_ipc->state() != QLocalSocket::ConnectedState) {
+        // A session's connection takes a moment to come (and comes again
+        // after a break): what is asked meanwhile waits for it, rather than
+        // being lost, a few dozen commands at most. With no session wanted
+        // there is nothing to wait for.
+        if (m_ipcWanted && m_commandsWaiting.size() < kMostCommandsWaiting) {
+            m_commandsWaiting << args;
+            return;
+        }
         qWarning("[MpvController] IPC not connected, dropping: %s",
                  QJsonDocument(QJsonObject{{"command", args}}).toJson(QJsonDocument::Compact).constData());
         return;
@@ -1315,6 +1370,12 @@ void MpvController::setVideoTargetSize(const QSize &size) {
         m_embedded->setTargetSize(size);
 }
 
+void MpvController::setVideoShown(bool shown) {
+    m_videoShown = shown;
+    if (m_embedded)
+        m_embedded->setShown(shown);
+}
+
 void MpvController::stopBackground() {
     if (m_background)
         stop();
@@ -1382,6 +1443,7 @@ EmbeddedMpv *MpvController::embeddedPlayer() {
     if (!m_embedded) {
         m_embedded = new EmbeddedMpv(this);
         m_embedded->setTargetSize(m_videoTargetSize);
+        m_embedded->setShown(m_videoShown);
         connect(m_embedded, &EmbeddedMpv::frameReady, this, &MpvController::videoFrameReady);
         connect(m_embedded, &EmbeddedMpv::finished, this, &MpvController::onEmbeddedFinished);
     }
@@ -1415,8 +1477,14 @@ void MpvController::endEmbedded() {
     if (!m_embedded || !m_embedded->running())
         return;
     m_embedded->stop();
+    // Its control connection with it: left, it would be made again, to a
+    // socket of a session that is over.
+    int pos = 0, dur = 0;
+    closeIpc(false, &pos, &dur);
     m_sessionArgs.clear();
     m_sessionNote.clear();
+    m_oscMenuShown = false;
+    m_saverShown = false;
     const bool wasMenu = m_playerMenu;
     m_playerMenu = false;
     if (m_background) {
@@ -1427,7 +1495,7 @@ void MpvController::endEmbedded() {
     // Its player had its menu open over it (something else took the screen):
     // for it, playback stopped.
     if (wasMenu)
-        emit playbackEnded(m_position, m_duration, QStringLiteral("stopped"));
+        emit playbackEnded(pos, dur, QStringLiteral("stopped"));
 }
 
 void MpvController::onEmbeddedFinished(const QString &lastEndReason) {
@@ -1435,6 +1503,8 @@ void MpvController::onEmbeddedFinished(const QString &lastEndReason) {
     closeIpc(true, &pos, &dur);
     m_sessionArgs.clear();
     m_sessionNote.clear();
+    m_oscMenuShown = false;
+    m_saverShown = false;
     const bool wasBackground = m_background;
     const bool wasMenu = m_playerMenu;
     m_playerMenu = false;

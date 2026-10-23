@@ -180,6 +180,12 @@ extern "C" void onCrash(int sig) {
 // last freeze reported over.
 std::atomic<long long> g_beat { 0 };
 std::atomic<long long> g_longestGap { 0 };
+// How often it beats; how long it may be away between two beats before the
+// journal is told, and how long between two such lines at least.
+constexpr int kBeatMs = 250;
+constexpr long long kAwayMs = 400;
+constexpr long long kAwaySayMs = 10000;
+long long g_lastAwaySaid = 0;
 std::atomic<bool> g_watching { false };
 std::thread *g_watcher = nullptr;
 QTimer *g_beatTimer = nullptr;
@@ -417,12 +423,21 @@ void startStallWatchdog(const QString &dataRoot, int reportMs, int abortMs) {
     sigaction(probeSignal(), &action, nullptr);
     g_beat = nowMs();
     g_beatTimer = new QTimer(QCoreApplication::instance());
-    g_beatTimer->setInterval(250);
+    g_beatTimer->setInterval(kBeatMs);
     QObject::connect(g_beatTimer, &QTimer::timeout, [] {
         const long long now = nowMs();
         const long long gap = now - g_beat.exchange(now);
         if (gap > g_longestGap.load())
             g_longestGap = gap;
+        // Away for a while, though not stuck: the menus answered late. Said
+        // in the journal with the memory, once in a while, so that a Pi
+        // whose menus lag shows when and for how long.
+        if (gap - kBeatMs >= kAwayMs && now - g_lastAwaySaid >= kAwaySayMs) {
+            g_lastAwaySaid = now;
+            char memory[160];
+            formatMemory(readMemory(), memory, sizeof memory);
+            qWarning("[watchdog] The main thread was away for %lld ms (%s)", gap - kBeatMs, memory);
+        }
     });
     g_beatTimer->start();
     g_watcher = new std::thread(watch, reportMs, abortMs);

@@ -20,10 +20,21 @@ void VideoSurface::setController(QObject *controller) {
         disconnect(m_controller, nullptr, this, nullptr);
     m_controller = mpv;
     if (m_controller)
-        connect(m_controller, &MpvController::videoFrameReady, this, &QQuickItem::update);
+        connect(m_controller, &MpvController::videoFrameReady, this, &VideoSurface::onFrame);
     reportSize();
+    reportShown();
     update();
     emit controllerChanged();
+}
+
+void VideoSurface::onFrame() {
+    if (isVisible())
+        update();
+}
+
+void VideoSurface::reportShown() {
+    if (m_controller)
+        m_controller->setVideoShown(isVisible());
 }
 
 void VideoSurface::setPixelAspect(qreal aspect) {
@@ -90,6 +101,12 @@ void VideoSurface::itemChange(ItemChange change, const ItemChangeData &value) {
     QQuickItem::itemChange(change, value);
     if (change == ItemSceneChange || change == ItemDevicePixelRatioHasChanged)
         reportSize();
+    if (change == ItemVisibleHasChanged) {
+        reportShown();
+        // Shown again: the latest picture, drawn whole for it.
+        if (value.boolValue)
+            update();
+    }
 }
 
 void VideoSurface::reportSize() {

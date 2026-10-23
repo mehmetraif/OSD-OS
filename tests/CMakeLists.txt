@@ -120,6 +120,15 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
     target_include_directories(playback_retire_test PRIVATE ../src ${Libdrm_INCLUDE_DIRS})
     target_link_libraries(playback_retire_test PRIVATE
         Qt6::Core Qt6::Gui Qt6::Quick Qt6::Qml Qt6::Network Qt6::Test ${Libdrm_LIBRARIES})
+    # libmpv's headers where there are any (as the app's own build takes
+    # them), so that a video played inside the window (EmbeddedMpv) is tested
+    # too; without them, or without libmpv itself at run time, that test is
+    # skipped.
+    pkg_check_modules(MPV QUIET mpv)
+    if(MPV_FOUND)
+        target_compile_definitions(playback_retire_test PRIVATE OSDOS_EMBEDDED_MPV=1)
+        target_include_directories(playback_retire_test PRIVATE ${MPV_INCLUDEDIR})
+    endif()
     add_test(NAME playback_retire COMMAND playback_retire_test)
 
     # The menu music, against a stand-in for mpv: it plays in the menus, and

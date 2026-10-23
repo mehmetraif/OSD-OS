@@ -317,9 +317,12 @@ local function draw_menu()
     mp.set_osd_ass(ww, wh, ass.text)
 end
 
--- The menu off the screen and its keys given back.
+-- The menu off the screen and its keys given back. OSD/OS is told each way
+-- (osdos-osd-menu shown / hidden): while the menu is up, back closes it
+-- here; otherwise OSD/OS acts on back itself, at once.
 local function hide_menu()
     menu_visible = false
+    mp.commandv("script-message", "osdos-osd-menu", "hidden")
     mp.set_osd_ass(0, 0, "")
     if update_timer then update_timer:stop() end
     for _, name in ipairs({ "menu-up", "menu-down", "menu-left", "menu-right",
@@ -386,6 +389,7 @@ local function toggle_menu()
         -- share the same spot and are mutually exclusive.
         mp.commandv("script-message", "osdos-osd-volume-hide")
         menu_visible = true
+        mp.commandv("script-message", "osdos-osd-menu", "shown")
         focus_row    = 1
         draw_menu()
         update_timer = mp.add_periodic_timer(0.5, draw_menu)

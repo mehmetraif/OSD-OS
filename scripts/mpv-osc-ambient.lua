@@ -99,9 +99,13 @@ local function draw_menu()
     mp.set_osd_ass(ww, wh, ass.text)
 end
 
--- The menu off the screen: its drawing, its refresh and its keys.
+-- The menu off the screen: its drawing, its refresh and its keys. OSD/OS is
+-- told each way (osdos-osd-menu shown / hidden, as mpv-osc.lua tells it):
+-- while the menu is up, back closes it here; otherwise OSD/OS acts on back
+-- itself, at once.
 local function hide_menu()
     menu_visible = false
+    mp.commandv("script-message", "osdos-osd-menu", "hidden")
     mp.set_osd_ass(0, 0, "")
     if update_timer then update_timer:stop() end
     for _, name in ipairs({ "menu-left", "menu-right", "menu-enter", "menu-esc", "menu-bs" }) do
@@ -137,6 +141,7 @@ local function toggle_menu()
         if idle_timer then idle_timer:kill() end
     else
         menu_visible = true
+        mp.commandv("script-message", "osdos-osd-menu", "shown")
         draw_menu()
         update_timer = mp.add_periodic_timer(0.5, draw_menu)
         reset_idle_timer()
