@@ -55,8 +55,11 @@ constexpr int kBatch = 300;
 // A batch MAME hasn't answered in this long is given up on.
 constexpr int kScanTimeoutMs = 120000;
 
-// MAME's exit codes (src/emu/main.h).
+// MAME's exit codes (src/emu/main.h): those of a game MAME never ran.
+constexpr int kFailedValidity = 1;
 constexpr int kMissingFiles = 2;
+constexpr int kFatalError = 3;
+constexpr int kDeviceError = 4;
 constexpr int kNoSuchSystem = 5;
 constexpr int kInvalidConfig = 6;
 
@@ -412,10 +415,12 @@ ArcadeBackend::ArcadeBackend(const QString &appRoot, const QString &dataRoot, Ap
         } else {
             notice = noticeFor(exitCode, reason);
             // The time it ran counts as played, unless MAME refused the game
-            // (files missing, no such game, its settings wrong) or never ran.
+            // (files missing, no such game, its settings wrong, its screen or
+            // sound not to be had) or never ran.
             refused = reason == QLatin1String("failed_to_start")
                       || (reason == QLatin1String("failed") && !m_launcher->lastRunCrashed()
-                          && (exitCode == kMissingFiles || exitCode == kNoSuchSystem
+                          && (exitCode == kFailedValidity || exitCode == kMissingFiles || exitCode == kFatalError
+                              || exitCode == kDeviceError || exitCode == kNoSuchSystem
                               || exitCode == kInvalidConfig));
         }
         if (!notice.isEmpty())
@@ -1738,17 +1743,19 @@ void ArcadeBackend::sweepPictures() {
     }
     // RetroAchievements' list of games in first: the one kept, or one a week
     // old read again.
-    m_retroAchievements->wantList();
-    if (m_retroAchievements->listPending())
-        return;
-    if (!m_retroAchievements->hasList()) {
+    if (!m_retroAchievements->hasList() && !m_retroAchievements->listPending()
+        && m_retroAchievements->listFailed()) {
         // None could be read (off line, say) and none is kept: nothing to
         // sweep by. Wanted still, for the next read of the games, rather
-        // than asked for again every second until the app ends.
+        // than asked for again every second until the app ends (asking,
+        // wantList(), would have it pending again at once).
         stopPictureSweep();
         m_sweepWanted = true;
         return;
     }
+    m_retroAchievements->wantList();
+    if (m_retroAchievements->listPending() || !m_retroAchievements->hasList())
+        return;
     if (!std::exchange(m_sweepListed, true))
         m_sweep = index().games;
     if (!m_sweepGame.isEmpty()) {
@@ -3811,6 +3818,13 @@ void ArcadeBackend::saveAchievements() const {
 
 void ArcadeBackend::takeAchievements(const libretro::Run &run) {
     const QString config = retroarchHome() + QStringLiteral("/retroarch.cfg");
+    // A RetroArch that never ran (it couldn't be started, or left no log)
+    // saw neither the password nor the token: nothing became of them, and
+    // the password stays for the next game.
+    if (!run.logged) {
+        QFile::remove(config);
+        return;
+    }
     bool changed = false;
     if (std::exchange(m_raPasswordGiven, false)) {
         // RetroArch saved its config on exit, the token in it if it signed

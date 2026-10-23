@@ -121,6 +121,12 @@ public:
     bool listPending() const { return m_wantedList; }
     // A list is kept, read now or before: one to look games up in at all.
     bool hasList() const { return !m_games.isEmpty(); }
+    // None is kept, and the last read of one failed (off line, say): the
+    // next is a while off (readList()), and nothing wanted meanwhile can be
+    // found.
+    bool listFailed() const {
+        return m_games.isEmpty() && m_listRetry.isValid() && m_listRetry > QDateTime::currentDateTimeUtc();
+    }
 
 signals:
     void boardReady(const QString &fileName);
