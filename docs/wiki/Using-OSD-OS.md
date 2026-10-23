@@ -393,7 +393,6 @@ Settings → **About** opens on the OSD/OS wordmark and **SMART TV FOR CRT**, th
 | License | GNU GPL v3. Select opens the license |
 | Source | Where the source, the releases and the issues are |
 | Written With | Claude Code, which OSD/OS's changes were written with |
-| Reviewed With | Cursor, whose coding agent reviewed OSD/OS's code for its reliability and performance |
 | Artwork | ChatGPT, which the logos and the boot screen's cassette were made with |
 | Fonts | VCR OSD Mono and GNU Unifont |
 | Built With | Qt, SDL2 and mpv, with their licenses, and what else the image carries |

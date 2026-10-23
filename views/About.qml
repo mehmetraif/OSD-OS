@@ -60,9 +60,6 @@ FocusScope {
         { key: "code", label: "Written With", value: "Claude Code",
           description: "OSD/OS's changes to 240-MP were written with Claude Code, Anthropic's coding agent,"
                        + " as a large part of 240-MP's own code was" },
-        { key: "review", label: "Reviewed With", value: "Cursor",
-          description: "OSD/OS's code was reviewed with Cursor's coding agent for its reliability and performance"
-                       + " on the Raspberry Pi, and fixes across the app followed from what it found" },
         { key: "artwork", label: "Artwork", value: "ChatGPT",
           description: "The OSD/OS logo, the channel logo over the picture and the boot screen's cassette"
                        + " were made with ChatGPT, OpenAI's assistant" },

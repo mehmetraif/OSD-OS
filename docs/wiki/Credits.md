@@ -1,18 +1,12 @@
 # Credits and license
 
-## Contributors
-
-- **mehmet raif tasdemir (darkBLACK)**, [github.com/mehmetraif](https://github.com/mehmetraif), develops OSD/OS and tries it on a Raspberry Pi 4 and a Raspberry Pi 5, on CRT TVs and a JAMMA cabinet.
-- **Claude**, Anthropic's AI model, wrote most of OSD/OS's changes to 240-MP through [Claude Code](https://www.anthropic.com/claude-code), Anthropic's coding agent: the code, the tests and the documentation.
-- **Cursor Agent**, the coding agent of [Cursor](https://cursor.com), reviewed OSD/OS's code for its reliability and performance on the Raspberry Pi, and fixes across the app followed from what it found.
-
-## Credits
-
 Settings → About lists these credits on the device.
 
-- OSD/OS is a modified version of [240-MP](https://github.com/anthonycaccese/240-MP) by Anthony Caccese and [its contributors](https://github.com/anthonycaccese/240-MP/graphs/contributors): the app it all started from.
+- OSD/OS is developed by mehmet raif tasdemir (darkBLACK), [github.com/mehmetraif](https://github.com/mehmetraif).
+- It is a modified version of [240-MP](https://github.com/anthonycaccese/240-MP) by Anthony Caccese and its contributors: the app it all started from.
+- OSD/OS's changes to 240-MP were written with [Claude Code](https://www.anthropic.com/claude-code), Anthropic's coding agent.
 - The OSD/OS logo, the channel logo over the picture and the boot screen's cassette were made with [ChatGPT](https://chatgpt.com), OpenAI's assistant.
-- Claude Code wrote a large part of 240-MP too. In Anthony's words, from its README: "Because this is a hobby project (and a fairly niche use case), I am using [Claude Code](https://www.anthropic.com/product/claude-code) to build a large part of the backend C++ code and structure the modules. If you have concerns with that, I am glad to talk through it. Also, please feel free to fork this repo, update any aspects and tailor things to your own use case; that's why the source is fully open and available."
+- 240-MP was made the same way. In Anthony's words, from its README: "Because this is a hobby project (and a fairly niche use case), I am using [Claude Code](https://www.anthropic.com/product/claude-code) to build a large part of the backend C++ code and structure the modules. If you have concerns with that, I am glad to talk through it. Also, please feel free to fork this repo, update any aspects and tailor things to your own use case; that's why the source is fully open and available."
 - The `VCR OSD Mono` font was created by Riciery Santos Leal (a.k.a. mrmanet) https://www.dafont.com/vcr-osd-mono.font
 - The `Unifont` font (used as a fallback for characters that VCR OSD Mono does not cover) is GNU Unifont by Roman Czyborra, Paul Hardy, et al., licensed under the SIL Open Font License v1.1. https://unifoundry.com/unifont/ — license text: [assets/fonts/LICENSE-unifont.txt](https://github.com/mehmetraif/OSD-OS/blob/main/assets/fonts/LICENSE-unifont.txt)
 - Thank you to Plex, Jellyfin, Emby and Open-Meteo for providing open and free apis to enable building modules for each, and to [TMDB](https://www.themoviedb.org), [JustWatch](https://www.justwatch.com) and [Wikidata](https://www.wikidata.org) for the catalogues behind Netflix and Prime Video. This product uses the TMDB API but is not endorsed or certified by TMDB. Weather data by [Open-Meteo.com](https://open-meteo.com), under [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/).
