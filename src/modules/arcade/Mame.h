@@ -132,7 +132,12 @@ QString coinScript(int coins);
 // (mapdevice; a GUID a second player shares, two pads of one model, is left
 // to MAME's order), and Coin and Start together on any player's, or Esc, to
 // leave the game, MAME's own way out, so it saves what it keeps on the way.
-QString controllerConfig(const QStringList &playerGuids);
+// arcade: each player's Arcade Buttons as MAME names its joystick's inputs
+// (controllers::ArcadeBinds::mame: Button 1 to 8, Coin and Start; "" for
+// none), empty for a player who has none: that player's buttons, coin and
+// start are those, beside MAME's keys for them, and Coin and Start the way
+// out.
+QString controllerConfig(const QStringList &playerGuids, const QList<QStringList> &arcade = {});
 
 // What a game that couldn't start lacked, from MAME's output: the files it
 // couldn't find, and the sets it looked for them in (its own, its parent's,

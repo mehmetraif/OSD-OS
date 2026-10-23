@@ -38,11 +38,17 @@ class JammaPins;
 // from its /dev/input nodes beside Qt, which tells whose a key is, for its
 // own extra keys. config.json's app.controllers.<key> holds them.
 //
-// A pad's Back button is MAME's coin (COIN on the JAMMA board's sticks).
-// Where the item with the focus takes a coin (a takesCoin property true on
-// it, or on the nearest item round it that has one: the Arcade module's
-// Arcade screen), that button is MAME's coin key, 5, instead of its action,
-// so the view handles the key alone, as it does from a keyboard.
+// A pad's Back button is MAME's coin (COIN on the JAMMA board's sticks), or
+// the input its Arcade Buttons make Coin. Where the item with the focus takes
+// a coin (a takesCoin property true on it, or on the nearest item round it
+// that has one: the Arcade module's Arcade screen), that input is MAME's coin
+// key, 5, instead of its action, so the view handles the key alone, as it
+// does from a keyboard.
+//
+// A pad's Arcade Buttons (Settings → Controls → a pad → Arcade Buttons) are
+// which of its inputs is each of a cabinet's, Button 1 to 8, Coin and Start,
+// in every game: kept in its profile, and given to the Arcade module for
+// each player as MAME and RetroArch name them (controllers::playerArcade()).
 class InputManager : public QObject {
     Q_OBJECT
     Q_PROPERTY(QString lastInputDevice READ lastInputDevice NOTIFY lastInputDeviceChanged)
@@ -82,10 +88,11 @@ public:
     QVariantList players() const;
 
     // One controller's page: { key, name, kind, present, labels, labelsInUse,
-    // jamma, rows }; labels the style chosen ("auto"...), labelsInUse the one
-    // shown (a pad's, by its title); jamma the JAMMA board's player (1, 2)
-    // for its sticks, else 0; rows [{ action, label, value }], value what
-    // fires the action on it.
+    // jamma, arcade, rows }; labels the style chosen ("auto"...), labelsInUse
+    // the one shown (a pad's, by its title); jamma the JAMMA board's player
+    // (1, 2) for its sticks, else 0; arcade its Arcade Buttons' layout, by
+    // its title ("Default"; "" for a controller that isn't a pad); rows
+    // [{ action, label, value }], value what fires the action on it.
     Q_INVOKABLE QVariantMap controllerPage(const QString &key) const;
     // The next input of the controller with this key is reported through
     // controllerInputCaptured() instead of acting; "" ends it, and so do 12
@@ -114,6 +121,44 @@ public:
     // A pad's button labels: "auto", "xbox", "playstation", "nintendo", "arcade".
     Q_INVOKABLE void setControllerLabels(const QString &key, const QString &style);
     Q_INVOKABLE void resetController(const QString &key);
+    // A pad's Arcade Buttons page: { key, name, present, jamma, layout,
+    // layoutTitle, layouts [{ layout, title }], rows [{ input, label, token,
+    // value }], choices [{ token, label }] }. layout "default", "fighting6",
+    // "neogeo4" or "custom"; a row's input "1" to "8", "coin" or "start", its
+    // token the pad's input that is it, as it acts on a pad connected
+    // (arcadeInputsOf()) ("" for none; under Default the one a layout of its
+    // own starts from), and value that as the pad's labels call it, "None"
+    // for none or one a pad connected hasn't. Under Default
+    // the rows are the pad's own: a JAMMA stick's pins' buttons; another
+    // pad's buttons "Auto", MAME and FinalBurn Neo laying them out their own
+    // ways. choices: the inputs it has that can be one (every one for a pad
+    // away), in controllers::arcadeTokens()' order.
+    Q_INVOKABLE QVariantMap arcadePage(const QString &key) const;
+    // One of arcadePage()'s layouts: a preset's inputs, Custom's from those
+    // there are (the default ones from Default), Default none.
+    Q_INVOKABLE void setArcadeLayout(const QString &key, const QString &layout);
+    // One of its Arcade Buttons ("1" to "8", "coin", "start") made an input
+    // of the pad (controllerInputCaptured()'s token), "" for none, which
+    // Coin and Start never are; the layout is Custom then. Returns
+    // { outcome, label, other }: "set"; "swapped" for an input another of
+    // them had, which takes this one's in its place, none for one the pad
+    // hasn't (other: that one's label, "Button 3"); "kept" for Coin's or
+    // Start's when this one has none to give it (other: "Coin"); "already";
+    // "joystick" for the D-pad's and the left stick's, the games' joystick;
+    // "menu" for Guide, MAME's menu; "unsaved". label: what the input is
+    // called.
+    Q_INVOKABLE QVariantMap setArcadeInput(const QString &key, const QString &input, const QString &token);
+    // All ten at once (Set All Buttons), in kArcadeInputs' order: "set",
+    // "unsaved", or "" for a list that isn't ten different ones of the pad's
+    // ("" for none), Coin and Start among them.
+    Q_INVOKABLE QString setArcadeInputs(const QString &key, const QStringList &tokens);
+    // What one of its Arcade Buttons is on a pad, as its labels call it and
+    // as it acts on a pad connected (controllers::arcadeActing()): under
+    // Default Coin and Start its own Back and Start, a JAMMA stick's buttons
+    // its pins'. "" for none, for one a pad connected hasn't, for another
+    // pad's buttons under Default (the emulators' to number), and for a
+    // controller that isn't a pad.
+    Q_INVOKABLE QString arcadeLabel(const QString &key, const QString &input) const;
     // A player's controller: a connected pad's key, or "" for Auto. A pad is
     // one player at a time, unless two of its model are connected.
     Q_INVOKABLE void setPlayer(int player, const QString &key);
@@ -202,6 +247,8 @@ private:
     struct Pad;
     Pad padFor(const QString &key, const QString &name, int sdlType) const;
     Pad padOf(const QString &key, const QString &name) const;
+    // What a pad's input is called on it (buttonLabel()).
+    QString padInputLabel(const Pad &pad, const QString &token) const;
     static int jammaPlayer(const Pad &pad);
     static bool parsePadInput(const QString &token, int *button, int *axis, int *sign);
     static Action padInputAction(const Pad &pad, const QString &input);
@@ -215,6 +262,18 @@ private:
     bool savePlayers();
     void updatePlayers();
     controllers::Profile &editProfile(const QString &key);
+    // A pad's Arcade Buttons as they are now, kArcadeInputs tokens: its
+    // layout's, or with none the pad's own (arcadeDefaultInputs()); on a pad
+    // connected, as they act on it (controllers::arcadeActing()).
+    QStringList arcadeInputsOf(const QString &key) const;
+    // A pad's controller while it is connected, else null.
+    SDL_GameController *padController(const QString &key) const;
+    bool saveArcade(const QString &key, const QString &layout, const QStringList &inputs);
+    static bool needsInput(int index);
+    // What a connected pad has, as MAME sees it (controllers::PadShape).
+    static controllers::PadShape padShape(SDL_GameController *gc);
+    // Each player's Arcade Buttons, for the games (controllers::setPlayerArcade()).
+    void publishArcade();
     void noteController(const QString &key);
     Action profileAction(const QString &key, const QString &input) const;
     bool capturing(const QString &key) const;
@@ -289,6 +348,10 @@ private:
         QHash<int, Action> buttons;
         QHash<int, QPair<Action, Action>> axes;
         controllers::LabelStyle labels = controllers::LabelStyle::Xbox;   // never Auto
+        // Its input that is MAME's coin (input.cfg's token), its Arcade
+        // Buttons' Coin as it acts on the pad (controllers::arcadeActing()):
+        // Back unless they say.
+        QString coin = QStringLiteral("back");
     };
     QHash<SDL_JoystickID, Pad> m_pads;
     QHash<qint64, int> m_axisState;                  // (pad, axis) → engaged direction: -1 / 0 / +1
@@ -328,7 +391,8 @@ private:
     // input does by then (a page has bound it anew, or waits for a press of
     // its controller's), and a controller that goes lets go of what it held.
     QHash<HeldInput, Action> m_heldInputs;
-    // Back buttons held down as the coin key: their release is its release.
+    // Coin inputs (Back, or the Arcade Buttons' Coin) held down as the coin
+    // key: their release is its release.
     QSet<HeldInput> m_coinInputs;
     // A remote's buttons held down that went to the views as keys of their
     // own (readNode()): their release is the key's.

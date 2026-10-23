@@ -23,8 +23,8 @@ import "Rooms.js" as Rooms
 //
 // ▲ ▼ choose a game, from page to page (the wheel a row at a time) and
 // round; ◄ ► go round the filters, keeping the game where the next filter
-// has it. COIN (MAME's 5, which a pad's Back button, MAME's coin, is here:
-// takesCoin) buys a credit; select, let go, or START (Space, a pad's Start,
+// has it. COIN (MAME's 5, which a pad's Coin, its Back unless its Arcade
+// Buttons say, is here: takesCoin) buys a credit; select, let go, or START (Space, a pad's Start,
 // or 1) plays the game with them (navigateTo Play.qml, which Root.qml plays
 // as Start Info Screen says); select held opens its options (Play, Game
 // Details, its favourite, Play at Startup, its engine, hosting it) and back
@@ -73,9 +73,9 @@ FocusScope {
     readonly property bool scanning: arcadeBackend ? arcadeBackend.scanning : false
     readonly property string gamesFolder: arcadeBackend ? arcadeBackend.gamesFolder() : ""
     readonly property var scoresBackend: typeof highScoresBackend !== "undefined" ? highScoresBackend : null
-    // A pad's Back button is COIN here, not while the options or the engine
-    // chooser are up or Search's keys have the keys, nor while the screen
-    // is adjusted (InputManager).
+    // A pad's Coin (its Back unless its Arcade Buttons say) is COIN here, not
+    // while the options or the engine chooser are up or Search's keys have
+    // the keys, nor while the screen is adjusted (InputManager).
     readonly property bool takesCoin: !options.visible && !engines.visible && !typing && !adjusting
 
     // The design's units.

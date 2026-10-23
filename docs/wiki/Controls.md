@@ -145,7 +145,7 @@ On the OSD/OS image, with a Raspberry Pi to JAMMA board in RGB-Pi's layout and o
 - **Where they come from.** The board reads the joysticks and buttons through two MCP23017 port expanders on the Pi's I2C bus, player 1's at address 0x20 and player 2's at 0x21. `osdos-jamma.service` (`/opt/osdos/bin/osdos-jamma`) reads both every 2 ms and plays what changes on the two pads.
 - **What they are.** OSD/OS and any emulator take them as any other gamepad: the joystick a stick that is either all the way over or in the middle, as RGB-Pi's own driver has it, the buttons gamepad buttons. MAME takes the stick as its joystick. Each has a vendor and a product of its own (1, and the player's number), so that SDL, and RetroArch through it, tells the two apart; after an update to such an osdos-jamma, restart the cabinet once, and their settings follow them.
 - **Two controllers.** Settings → Controls lists them apart, each with its own page, its buttons named as the cabinet numbers them: 1 to 8, COIN and START, the stick JOYSTICK ([Button Labels](https://github.com/mehmetraif/OSD-OS/wiki/Controls#button-labels): Arcade).
-- **In the Arcade module.** Buttons 1 to 6, COIN and START are MAME's buttons 1 to 6, coin and start, for both players, and COIN and START together on any player's controller leave a game ([Arcade](https://github.com/mehmetraif/OSD-OS/wiki/Arcade#players-and-buttons)). In FinalBurn Neo they are its 6-Button Panel: 1 to 3 the top row, 4 to 6 the bottom one, 7 and 8 where the panel reads them; in an online game, as any pad's buttons ([Arcade → FinalBurn Neo](https://github.com/mehmetraif/OSD-OS/wiki/Arcade#finalburn-neo)). On the Arcade screen, COIN puts a credit in and START (or button 1) plays the game, as on a cabinet's own selection screen ([The Arcade screen](https://github.com/mehmetraif/OSD-OS/wiki/Arcade#the-arcade-screen)).
+- **In the Arcade module.** Buttons 1 to 6, COIN and START are MAME's buttons 1 to 6, coin and start, for both players (each stick's **Arcade Buttons** can lay them out otherwise: [Arcade Buttons](https://github.com/mehmetraif/OSD-OS/wiki/Controls#arcade-buttons)), and COIN and START together on any player's controller leave a game ([Arcade](https://github.com/mehmetraif/OSD-OS/wiki/Arcade#players-and-buttons)). In FinalBurn Neo they are its 6-Button Panel: 1 to 3 the top row, 4 to 6 the bottom one, 7 and 8 where the panel reads them; in an online game, as any pad's buttons ([Arcade → FinalBurn Neo](https://github.com/mehmetraif/OSD-OS/wiki/Arcade#finalburn-neo)). On the Arcade screen, COIN puts a credit in and START (or button 1) plays the game, as on a cabinet's own selection screen ([The Arcade screen](https://github.com/mehmetraif/OSD-OS/wiki/Arcade#the-arcade-screen)).
 - **Bounce.** A switch's bounce in the 5 ms after it closes or opens is let go by.
 - **Six buttons on the edge.** A cabinet with buttons 4 to 6 on the JAMMA edge, pins 27 and e among them (CHAMMA), needs the board's JP1 and JP2 on CHAMMA ([Display Output → A Raspberry Pi to JAMMA board](https://github.com/mehmetraif/OSD-OS/wiki/Display-Output#a-raspberry-pi-to-jamma-board)).
 
@@ -273,7 +273,7 @@ Settings → **Controls** lists every controller connected, each with a page of 
 
 <table>
 <tr><th width="50%">A pad's page</th><th width="50%">Waiting for a press</th></tr>
-<tr><td><img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/screenshots/controller-page.png" width="100%" alt="OSD/OS JAMMA P1's page: BUTTON LABELS AUTO (ARCADE), TEST BUTTONS, then BUTTONS: UP D-PAD ▲, JOYSTICK ▲; DOWN D-PAD ▼, JOYSTICK ▼; LEFT 5, D-PAD ◄, JOYSTICK ◄; RIGHT 6, D-PAD ►, JOYSTICK ►; SELECT / OK 1. The hints read [2]:BACK and [1]:SET" /></td><td><img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/screenshots/controller-capture.png" width="100%" alt="NEW BUTTON: PRESS A BUTTON ON OSD/OS JAMMA P1 FOR [SELECT / OK], CANCELS IN 9" /></td></tr>
+<tr><td><img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/screenshots/controller-page.png" width="100%" alt="OSD/OS JAMMA P1's page: BUTTON LABELS AUTO (ARCADE), TEST BUTTONS, ARCADE BUTTONS DEFAULT, then BUTTONS: UP D-PAD ▲, JOYSTICK ▲; DOWN D-PAD ▼, JOYSTICK ▼; LEFT 5, D-PAD ◄, JOYSTICK ◄; RIGHT 6, D-PAD ►, JOYSTICK ►. The hints read [2]:BACK and [1]:SET" /></td><td><img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/screenshots/controller-capture.png" width="100%" alt="NEW BUTTON: PRESS A BUTTON ON OSD/OS JAMMA P1 FOR [SELECT / OK], CANCELS IN 9" /></td></tr>
 <tr><td>The JAMMA board's first stick, its buttons named as the cabinet numbers them. Each action lists every button and stick direction that does it.</td><td>Select on an action waits for a press on that controller, and only that one.</td></tr>
 </table>
 
@@ -281,9 +281,10 @@ Settings → **Controls** lists every controller connected, each with a page of 
 |---|---|---|
 | **Button Labels** | What its buttons are called, here and in the hints: Auto, Xbox, PlayStation, Nintendo or Arcade ([below](https://github.com/mehmetraif/OSD-OS/wiki/Controls#button-labels)). ◄ ► or select go round them | (none) |
 | **Test Buttons** / **Test Keys** | Select, then press its buttons and move its sticks: each press shows what it is called, the last at the top, and does nothing else. On the JAMMA board's sticks it tests both players' controls, on a grid of the edge connector's pins, each press with its pin on the board, and a keyboard's N changes the layout that names them ([A JAMMA cabinet](https://github.com/mehmetraif/OSD-OS/wiki/Controls#a-jamma-cabinet)) | Select, then press its keys: each shows what it is called. Whatever does Back on it ends the test |
+| **Arcade Buttons** | Which of its buttons is each of an arcade cabinet's, Button 1 to 8, Coin and Start, in the Arcade module's games: the line reads its layout, Default, Fighting 6, Neo Geo 4 or Custom. Select opens its page ([below](https://github.com/mehmetraif/OSD-OS/wiki/Controls#arcade-buttons)) | (none) |
 | **Up**, **Down**, **Left**, **Right**, **Select / OK**, **Back**, **Play / Pause** | The buttons and stick directions that do it, by their labels (`D-PAD ▲, L STICK ▲`), or `NONE`. Select, then press a button on the pad: it does this from now on | `DEFAULT`, or `DEFAULT + ` its extra keys. Select, then press a key on it: one more key for the action, on this one only |
 | **Clear a Button** / **Remove a Key** | Select, then press a button: it does nothing from now on (not its only Select / OK or Back) | Select, then press one of its extra keys: it is taken away (not one that does Select / OK or Back) |
-| **Reset to Defaults** | Its buttons as every pad has them, and Auto labels | No extra keys of its own. A controller away has nothing left, and its line goes |
+| **Reset to Defaults** | Its buttons as every pad has them, Auto labels and Default Arcade Buttons | No extra keys of its own. A controller away has nothing left, and its line goes |
 
 - **Testing its buttons.** The test takes only that controller's presses (on the JAMMA board, both sticks'), and ends 10 seconds after the last one (`ENDS IN 9` on a pad, `[ESC]:END (9)` on a keyboard), or with another controller's Back. Each press starts the 10 seconds again. The last six presses are kept, five shown (six with the Hint Bar off).
 - **Waiting for a press.** The screen says "Press a button on <name> for [Select / OK]", and takes only that controller's presses: every other goes on as usual, and **its Back cancels**. The wait also ends on its own after 10 seconds (`CANCELS IN 9` on a pad, `[ESC]:CANCEL (9)` on a keyboard): a pad can't cancel it itself, as every button of it is one to set. On a keyboard or a remote, whatever does Back on it cancels too, as on All Keyboards & Remotes: Esc, Backspace, a Back key, or a button given Back. A key held on through the wait does nothing until it is let go.
@@ -309,6 +310,52 @@ What a pad's buttons are called, on its page and in the hints at the foot of the
 The d-pad is `D-PAD ▲ ▼ ◄ ►` on all of them, the sticks `L STICK` and `R STICK` with their direction (Arcade's left stick `JOYSTICK`), and the stick buttons `LS`, `RS` (PlayStation's `L3`, `R3`). The font has no ✕ ○ □ △, so PlayStation's are spelled as the hints always have.
 
 **Auto**, the default, names a pad as it says it is: PlayStation's labels on a PlayStation pad, Nintendo's on a Switch pad, Arcade's on the JAMMA board's sticks, Xbox's on any other. A pad that says it is the wrong thing, as many Nintendo-style pads in X-input mode do, gets its right names here. A `label` line in `input.cfg` still wins, on every pad.
+
+### Arcade Buttons
+
+<table>
+<tr><th width="50%">A pad's Arcade Buttons</th><th width="50%">Set All Buttons</th></tr>
+<tr><td><img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/screenshots/arcade-buttons.png" width="100%" alt="ARCADE BUTTONS, XBOX WIRELESS CONTROLLER: LAYOUT FIGHTING 6, SET ALL BUTTONS, TEST BUTTONS, then BUTTONS: BUTTON 1 X (selected), BUTTON 2 Y, BUTTON 3 RB, BUTTON 4 A. Beside them an arcade stick in two colours after Sega's Dreamcast Arcade Stick, a ball-top stick, six buttons in two rows and two small ones at the back, the top row's first lit and framed" /></td><td><img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/screenshots/arcade-buttons-set-all.png" width="100%" alt="SET ALL BUTTONS (3/10): PRESS THE BUTTON ON XBOX WIRELESS CONTROLLER FOR [BUTTON 3], OR WAIT IF IT HAS NONE; the stick, small, with Button 3 lit; the presses so far: BUTTON 2: Y, BUTTON 1: X. NONE IN 4" /></td></tr>
+<tr><td>Fighting 6 on an Xbox pad: a fighter's punches on X, Y and RB, its kicks on A, B and RT. The stick lights the line's button.</td><td>Set All takes the buttons from presses in turn, the stick lighting the one it asks for, and keeps none of them until the last.</td></tr>
+</table>
+
+A pad's own page has **Arcade Buttons**: which of its buttons is each of an arcade cabinet's, **Button 1** to **Button 8**, **Coin** and **Start**. The [Arcade](https://github.com/mehmetraif/OSD-OS/wiki/Arcade#players-and-buttons) module gives each player's to MAME and FinalBurn Neo alike as a game starts, so that a game's button 1 is the same button in both, and on any pad. The joystick is always the D-pad and the left stick.
+
+Beside the lines is an arcade stick drawn in the theme's two colours, after Sega's Dreamcast Arcade Stick: a box with a plate set in its top, on it a Japanese ball-top stick (a Sanwa JLF's) and six snap-in buttons (Sanwa OBSF-30s) in Sega's layout, two rows of three that follow the fingers, a memory card's window behind them, and two small buttons at the back right, **Coin** and **Start**. The line's input is lit and framed on it; Button 7 and 8 aren't on a six-button stick. Set All lights the one it asks for, and Test Buttons the one the last press is, on a smaller stick (none on a 240-line picture, which has no room for it).
+
+| Row | What it does |
+|---|---|
+| **Layout** | Where its buttons come from: **Default**, **Fighting 6**, **Neo Geo 4** or **Custom** (below). ◄ ► or select go round them |
+| **Set All Buttons** | Select, then press its buttons in turn: Buttons 1 to 6, Coin, Start, then Buttons 7 and 8. Buttons 2 to 8 are each waited for 5 seconds and left none on a pad with fewer buttons; Button 1, Coin and Start for 10. Its layout is then Custom |
+| **Test Buttons** | Select, then press its buttons: each press shows which of the cabinet's it is (`X → BUTTON 1`, `→ NONE` for none of them), the D-pad's and the left stick's `→ JOYSTICK`, Guide's `→ MAME'S MENU`; under Default a pad's buttons show by their names alone, as the emulators number them. It does nothing else, and ends 10 seconds after the last press, or with another controller's Back |
+| **Button 1** to **Button 8**, **Coin**, **Start** | The button each is on this pad, or `NONE`. Select, then press the button on the pad; or ◄ ► go round the inputs the pad has that no other line has. Either makes the layout Custom |
+
+The layouts, by an Xbox pad's labels (the page names a pad's buttons by its own):
+
+| Layout | Buttons 1 to 8 | Coin, Start |
+|---|---|---|
+| **Default** | None of its own (`AUTO`): MAME and FinalBurn Neo number a pad's buttons their own ways, as OSD/OS always left them. On the JAMMA board's sticks, the pins' buttons in their order, 1 to 8 | BACK, START |
+| **Fighting 6** | A six-button cabinet's two rows: punches 1, 2, 3 on X, Y, RB, kicks 4, 5, 6 on A, B, RT; 7 and 8 on LB and LT | BACK, START |
+| **Neo Geo 4** | A Neo Geo's A, B, C, D on A, B, X, Y; 5 to 8 on LB, RB, LT, RT | BACK, START |
+| **Custom** | As they are set here | As they are set here |
+
+- **One button, one input.** A button pressed for an input another has swaps the two (`A is Button 1 now, and X is Button 4`); the other is left None when the line had an input the pad hasn't. Coin and Start always have a button: neither can be None, nor give its button to an input that has none (`BACK stays Coin: Coin and Start always have a button`).
+- **What can be one**: the face buttons, the shoulders and triggers, Back, Start, the stick buttons, Misc, the paddles and the touchpad, and the right stick pushed one way, of those the pad has; one it hasn't reads `NONE`. Not Guide, which shows MAME's menu (`GUIDE shows MAME's menu, not a button`). A D-pad or left-stick press is the joystick's, not taken (`D-PAD ▲ is the joystick, not a button`).
+- **Set All Buttons** keeps nothing until its last press. Another controller's Back, or 10 seconds without a press for Button 1, Coin or Start, ends it with everything as it was (`No press for Coin: nothing changed`). Buttons 2 to 8 wait 5 seconds each (`NONE IN 4`) and are left none, for a pad with fewer buttons. A button pressed for an earlier input is asked for again (`X is Button 1 already`). The last three presses show under the question.
+- **A Coin or a Start it hasn't**, set while it was away, is its own Back or Start once it is connected, the button that had that giving it up, or the other's own where the other of the two has its own, so that a game can always be paid for and left. The page shows them as they act.
+- **Waiting for a press**, as on the pad's page, takes only that pad's presses, and ends on its own after 10 seconds or with another controller's Back.
+- **A pad away** shows its Arcade Buttons, and its layout and ◄ ► can still change them; Set All, a press and the test wait until it is back.
+- **In the games**, a player whose pad has a layout of its own plays with it: in MAME, its Buttons 1 to 8, Coin and Start are that player's (MAME's own keys for them stay beside them, for players 1 to 4); in FinalBurn Neo, played off line, its buttons are the game's on FinalBurn Neo's 6-Button Panel, Buttons 1 to 6 in their rows, 7 and 8 where the panel reads them, and the left stick a joystick beside the D-pad. Coin and Start together leave a game. Online, every player plays on their pad's own buttons, and Back and Start leave. Under Default each emulator lays the pad out as before ([Arcade → Players and buttons](https://github.com/mehmetraif/OSD-OS/wiki/Arcade#players-and-buttons)).
+- **On the Arcade screen**, a pad's Coin puts a credit in, and the hints name it; the screen before a game names the way back by player 1's Coin and Start (`RB + START`), online by their Back and Start ([The Arcade screen](https://github.com/mehmetraif/OSD-OS/wiki/Arcade#the-arcade-screen)).
+- **Saved** in `config.json` as `app.controllers.<key>.arcade`, each input by `input.cfg`'s names (`""` for none); Default isn't written, and Reset to Defaults on the pad's page goes back to it:
+
+```json
+"arcade": {
+  "layout": "fighting6",
+  "inputs": { "1": "x", "2": "y", "3": "rightshoulder", "4": "a", "5": "b", "6": "righttrigger+",
+              "7": "leftshoulder", "8": "lefttrigger+", "coin": "back", "start": "start" }
+}
+```
 
 ### All Keyboards & Remotes: one more key per action
 
@@ -361,7 +408,7 @@ In `config.json`, under `app.controllers`, by the controller's key:
 | A gamepad | `pad-` and SDL's GUID for it, in lower case | Its inputs by `input.cfg`'s names (`a`, `dpup`, `leftx-`, `lefttrigger+`), each with an action, or `none` |
 | A keyboard or a remote | `kbd-` and its connection, maker and product in hex: `kbd-0005-046d-b342` is a Bluetooth (`0005`) Logitech (`046d`) K380 (`b342`) | Its extra keys, by the numbers All Keyboards & Remotes saves them as, each with an action |
 
-Beside `bindings`, `labels` (`auto`, `xbox`, `playstation`, `nintendo` or `arcade`), and `name` and `kind`, as it was last seen, for its line while it is away. A controller with nothing of its own isn't written. A pad's key is in the log as it comes: `[input] controller added: Xbox Wireless Controller (pad-…)`.
+Beside `bindings`, `labels` (`auto`, `xbox`, `playstation`, `nintendo` or `arcade`), a pad's `arcade` ([Arcade Buttons](https://github.com/mehmetraif/OSD-OS/wiki/Controls#arcade-buttons)), and `name` and `kind`, as it was last seen, for its line while it is away. A controller with nothing of its own isn't written. A pad's key is in the log as it comes: `[input] controller added: Xbox Wireless Controller (pad-…)`.
 
 ```json
 {
@@ -390,6 +437,7 @@ The pages save these as you choose, and OSD/OS takes them up at once. A change m
 |---|---|---|---|---|
 | Player 1 to Player 6 | Auto, or a pad connected | Auto | The pad that player has in games | `app.players.1` to `app.players.6`: `{ "key", "name" }` |
 | A pad's Button Labels | Auto, Xbox, PlayStation, Nintendo, Arcade | Auto | What its buttons are called | `app.controllers.<key>.labels` |
+| A pad's Arcade Buttons | Default, Fighting 6, Neo Geo 4, Custom; each input one of its buttons | Default | Which of its buttons is each of a cabinet's in the Arcade module's games | `app.controllers.<key>.arcade` |
 | A controller's Up, Down, Left, Right, Select / OK, Back, Play / Pause | A pad's buttons; a keyboard's DEFAULT + its keys | As every pad, or keyboard, has them | Which of its buttons do the action | `app.controllers.<key>.bindings` |
 | All Keyboards & Remotes → Up, Down, Left, Right, Select / OK, Back | DEFAULT, or DEFAULT + a button | DEFAULT | One more button for that action | `app.remote_keymap.up`, `.down`, `.left`, `.right`, `.select`, `.back` |
 

@@ -368,6 +368,19 @@ QList<QHostAddress> broadcastAddresses() {
     return targets;
 }
 
+// The pads as the menus know them, for a game's SDL (MAME's, RetroArch's):
+// the controller database OSD/OS reads, and a pad's buttons by their places,
+// as InputManager has them, so that each of a player's Arcade Buttons is the
+// same button in the game.
+QList<QPair<QString, QString>> padEnvironment(const QString &dataRoot) {
+    QList<QPair<QString, QString>> environment{
+        { QStringLiteral("SDL_GAMECONTROLLER_USE_BUTTON_LABELS"), QStringLiteral("0") } };
+    const QString mappings = dataRoot + QStringLiteral("/gamecontrollerdb.txt");
+    if (QFileInfo::exists(mappings))
+        environment << qMakePair(QStringLiteral("SDL_GAMECONTROLLERCONFIG_FILE"), mappings);
+    return environment;
+}
+
 } // namespace
 
 ArcadeBackend::ArcadeBackend(const QString &appRoot, const QString &dataRoot, AppCore *appCore,
@@ -2236,11 +2249,15 @@ bool ArcadeBackend::play(const QString &name, int credits) {
         return false;
     }
 
-    // MAME's keeping, and the players as Settings → Controls has them now.
+    // MAME's keeping, and the players as Settings → Controls has them now,
+    // with their Arcade Buttons.
     for (const char *dir : { "cfg", "nvram", "ctrlr" })
         QDir().mkpath(m_home + QLatin1Char('/') + QLatin1String(dir));
+    QList<QStringList> arcade;
+    for (const controllers::ArcadeBinds &binds : controllers::playerArcade())
+        arcade << binds.mame;
     if (!writeFileAtomically(m_home + QStringLiteral("/ctrlr/osdos.cfg"),
-                             mame::controllerConfig(controllers::playerGuids()).toUtf8())) {
+                             mame::controllerConfig(controllers::playerGuids(), arcade).toUtf8())) {
         m_lastError = QStringLiteral("MAME's controller file could not be written");
         return false;
     }
@@ -2296,6 +2313,7 @@ bool ArcadeBackend::play(const QString &name, int credits) {
     // What it writes goes to <data>/arcade either way (kOutputs).
     const QString own = ownFolder();
     entry.workingDirectory = own.isEmpty() ? m_home : own;
+    entry.environment = padEnvironment(m_dataRoot);
 
     // MAME asked about the sets meanwhile would share the machine with the
     // game: it is stopped, and asked again once the game has ended.
@@ -2543,9 +2561,11 @@ bool ArcadeBackend::playFbneo(const QString &name, libretro::Launch::Netplay net
     launch.integerScale = integerScale();
     const QStringList guids = controllers::playerGuids();
     const QStringList names = controllers::playerNames();
+    const QList<controllers::ArcadeBinds> arcade = controllers::playerArcade();
     for (int p = 0; p < guids.size(); ++p) {
         launch.pads << (guids.at(p).isEmpty() ? QString() : libretro::reservedDevice(guids.at(p), names.value(p)));
         launch.panels << (!guids.at(p).isEmpty() && controllers::isJammaStick(names.value(p)));
+        launch.arcade << (guids.at(p).isEmpty() ? QStringList() : arcade.value(p).retroarch);
     }
     m_raPasswordGiven = false;
     if (m_achievements && !m_raUser.isEmpty()) {
@@ -2589,9 +2609,9 @@ bool ArcadeBackend::playFbneo(const QString &name, libretro::Launch::Netplay net
     // so that a machine joining, unanswered, finds port 2 free.
     if (netplay == Netplay::LanHost && !startClaims(launch.ports, most))
         launch.ports = 1;
-    // FinalBurn Neo's remap file: the arcade panels' players on its 6-Button
-    // Panel; none without one, nor online. One of the user's own stays as
-    // it is, loaded in its place.
+    // FinalBurn Neo's remap file: the arcade panels' players, and those with
+    // Arcade Buttons, on its 6-Button Panel; none without one, nor online.
+    // One of the user's own stays as it is, loaded in its place.
     const QString remap = libretro::coreRemapPath(launch.remapDir);
     const QString remapText = libretro::remapText(launch);
     bool written = true;
@@ -2621,11 +2641,7 @@ bool ArcadeBackend::playFbneo(const QString &name, libretro::Launch::Netplay net
     entry.meta.mode = QStringLiteral("takeover");
     entry.argv = libretro::arguments(launch);
     entry.workingDirectory = home;
-    // The pads the menus know of the controller database OSD/OS reads, for
-    // RetroArch's SDL too.
-    const QString mappings = m_dataRoot + QStringLiteral("/gamecontrollerdb.txt");
-    if (QFileInfo::exists(mappings))
-        entry.environment << qMakePair(QStringLiteral("SDL_GAMECONTROLLERCONFIG_FILE"), mappings);
+    entry.environment = padEnvironment(m_dataRoot);
 
     // As for MAME: the batch MAME is asked meanwhile shares the machine.
     pauseScan();

@@ -3,7 +3,8 @@ import Components
 
 // One controller's page, from Settings → Controls (Controllers.qml): which of
 // its buttons does what, set by pressing them on it, and for a pad what its
-// buttons are called (BUTTON LABELS, here and in the hints).
+// buttons are called (BUTTON LABELS, here and in the hints) and which of them
+// is each of a cabinet's in the games (ARCADE BUTTONS, ArcadeButtons.qml).
 //
 // A pad's button set here does that action instead of the one the shared map
 // (the defaults, input.cfg) gives it, on this pad (this model) only; CLEAR A
@@ -23,6 +24,7 @@ import Components
 FocusScope {
     id: pageRoot
 
+    signal navigateTo(string path, var params, var listState)
     signal goBack()
 
     property var navParams: ({})
@@ -89,7 +91,10 @@ FocusScope {
     Component.onCompleted: {
         manager = inputManager
         refresh()
-        list.currentIndex = selectableFrom(0, 1)
+        // Back from its Arcade Buttons: on that line.
+        var state = navParams.navListState || {}
+        list.currentIndex = selectable(rows[state.currentIndex]) ? state.currentIndex : selectableFrom(0, 1)
+        list.positionViewAtIndex(list.currentIndex, ListView.Contain)
         list.forceActiveFocus()
     }
     // Leaving the page while it waits for a press: the controller acts again
@@ -186,6 +191,9 @@ FocusScope {
                                 : jamma ? "Press the board's controls, both players', to see each one's pin on the board and what OSD/OS sees"
                                 : pad ? "Press its buttons to see what each one is called"
                                 : "Press its keys to see what each one is called" })
+        if (pad)
+            items.push({ type: "arcade", label: "Arcade Buttons", value: page.arcade || "Default",
+                         description: "Which of its buttons is each of a cabinet's in the games: Button 1 to 8, Coin and Start" })
         items.push({ type: "section", label: pad ? "Buttons" : "Keys" })
         var r = page.rows || []
         for (var i = 0; i < r.length; i++)
@@ -198,7 +206,7 @@ FocusScope {
                                 : pad ? "Select, then press a button on it that should do nothing"
                                 : "Select, then press an extra key on it to take it away" })
         items.push({ type: "reset", label: "Reset to Defaults",
-                     description: pad ? "Its buttons and labels as on every pad" : "No extra keys of its own" })
+                     description: pad ? "Its buttons, labels and Arcade Buttons as on every pad" : "No extra keys of its own" })
 
         var at = list.currentIndex
         rows = items
@@ -354,6 +362,8 @@ FocusScope {
             return
         if (row.type === "labels") {
             cycleLabels(1)
+        } else if (row.type === "arcade") {
+            navigateTo("views/ArcadeButtons.qml", { key: key }, { currentIndex: list.currentIndex })
         } else if (row.type === "test") {
             startTest()
         } else if (row.type === "action") {
@@ -476,7 +486,8 @@ FocusScope {
         visible: !pageRoot.capturing && !pageRoot.testing
         text: root.hints.back + ":BACK " + root.hints.navigate + ":NAVIGATE "
               + (currentRow && currentRow.type === "labels" ? root.hints.change + ":CHANGE " : "")
-              + root.hints.select + (currentRow && currentRow.type === "test" ? ":TEST" : ":SET")
+              + root.hints.select + (currentRow && currentRow.type === "test" ? ":TEST"
+                                     : currentRow && currentRow.type === "arcade" ? ":OPEN" : ":SET")
         anchors.bottom: parent.bottom
         anchors.left: parent.left
         anchors.bottomMargin: root.sh * 0.1041667 //50

@@ -15,9 +15,9 @@ import Components
 //
 // From the Arcade screen (ArcadeScreen.qml) it has that screen's bar, says
 // how many credits go in, and takes COIN (another credit: MAME's 5, which a
-// pad's Back button is meanwhile) and START or select (the game at once)
-// before MAME starts; the credits go in with the game (ArcadeBackend::play),
-// and are spent.
+// pad's Coin, its Back unless its Arcade Buttons say, is meanwhile) and
+// START or select (the game at once) before MAME starts; the credits go in
+// with the game (ArcadeBackend::play), and are spent.
 //
 // The way back is MAME's own, Coin and Start together on any player's
 // controller or Esc on a keyboard (the controller file ArcadeBackend writes),
@@ -45,9 +45,9 @@ FocusScope {
     property string phase: "opening"
     property string message: ""
     property string output: ""
-    // Player 1's Coin and Start as their controller's labels name them
-    // ("COIN + START" on a JAMMA stick, "BACK + START" on an Xbox pad); ""
-    // with no controller.
+    // Player 1's Coin and Start, their Arcade Buttons' off line, as their
+    // controller's labels name them ("COIN + START" on a JAMMA stick, "BACK +
+    // START" on an Xbox pad); "" with no controller.
     property string exitKeys: ""
     // Played from the Arcade screen rather than the original tree.
     readonly property bool arcade: moduleRoot.arcadeScreen
@@ -56,8 +56,9 @@ FocusScope {
     readonly property bool fbneo: !!online
                                   || (!!arcadeBackend && game !== "" && arcadeBackend.engineOf(game) === "fbneo")
     readonly property bool before: phase === "opening" || phase === "running"
-    // A pad's Back button is COIN before a game from the Arcade screen
-    // (InputManager): one MAME plays, FinalBurn Neo's coins go in the game.
+    // A pad's Coin (its Back unless its Arcade Buttons say) is COIN before a
+    // game from the Arcade screen (InputManager): one MAME plays, FinalBurn
+    // Neo's coins go in the game.
     readonly property bool takesCoin: arcade && phase === "opening" && !fbneo
     // The finer print: in the Arcade screen's look, no smaller than its own
     // letters (the hint bar's).
@@ -90,8 +91,11 @@ FocusScope {
         }
         var players = inputManager ? inputManager.players : []
         var key = players.length > 0 ? players[0].playing : ""
-        if (key)
+        // Online every player has a pad's own binds (Libretro's withArcade()).
+        if (key && online)
             exitKeys = inputManager.buttonLabel(key, "back") + " + " + inputManager.buttonLabel(key, "start")
+        else if (key)
+            exitKeys = inputManager.arcadeLabel(key, "coin") + " + " + inputManager.arcadeLabel(key, "start")
     }
 
     // Long enough to read how to come back: from the Arcade screen every

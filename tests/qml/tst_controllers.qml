@@ -1,14 +1,17 @@
 import QtQuick
 import QtTest
+import "../../views/Components/ArcadePanelArt.js" as Art
 
-// Settings → Controls' pages, views/Controllers.qml, ControllerSettings.qml
-// and RemapControls.qml, against a stand-in for InputManager: the list of
-// controllers (connected, away, the one used last, the players' pads chosen
-// from those connected), a controller's page (its labels, a press waited for
-// and set or kept, cancelled by another controller's Back or by the wait
-// running out, a button cleared, the defaults, its buttons tested, the JAMMA
-// board's two sticks together with their pins), and All Keyboards & Remotes'
-// wait for a press.
+// Settings → Controls' pages, views/Controllers.qml, ControllerSettings.qml,
+// ArcadeButtons.qml and RemapControls.qml, against a stand-in for
+// InputManager: the list of controllers (connected, away, the one used last,
+// the players' pads chosen from those connected), a controller's page (its
+// labels, a press waited for and set or kept, cancelled by another
+// controller's Back or by the wait running out, a button cleared, the
+// defaults, its buttons tested, the JAMMA board's two sticks together with
+// their pins), a pad's Arcade Buttons (the layout, a line set by a press or
+// with ◄ ►, all of them in turn, their test, a pad away, the arcade stick
+// drawn beside them), and All Keyboards & Remotes' wait for a press.
 Rectangle {
     id: root
     color: surfaceColor
@@ -91,6 +94,31 @@ Rectangle {
             controllersChanged()
         }
         function resetController(key) { calls = calls.concat([["reset", key]]) }
+        // A pad's Arcade Buttons: its page, a layout chosen (taken at once),
+        // and what a press or a choice makes of one of them, as InputManager
+        // decides it ("<input> <token>"); any other is set.
+        property var arcadePages: ({})
+        property var arcadeOutcomes: ({})
+        function arcadePage(key) { return arcadePages[key] || ({}) }
+        function setArcadeLayout(key, layout) {
+            calls = calls.concat([["arcadeLayout", key, layout]])
+            var p = arcadePages
+            p[key].layout = layout
+            p[key].layoutTitle = p[key].layouts.filter(function(l) { return l.layout === layout })[0].title
+            arcadePages = p
+            controllersChanged()
+        }
+        function setArcadeInput(key, input, token) {
+            calls = calls.concat([["arcadeInput", key, input, token]])
+            controllersChanged()
+            var labels = { x: "X", a: "A", leftstick: "LS", rightstick: "RS", "": "None" }
+            return arcadeOutcomes[input + " " + token]
+                   || { outcome: "set", label: labels[token] !== undefined ? labels[token] : token, other: "" }
+        }
+        function setArcadeInputs(key, tokens) {
+            calls = calls.concat([["arcadeInputs", key, tokens]])
+            return "set"
+        }
         function setPlayer(player, key) {
             calls = calls.concat([["player", player, key]])
             var list = players.slice()
@@ -133,6 +161,27 @@ Rectangle {
         return all
     }
 
+    // A pad's Arcade Buttons page: its layout, the ten lines' inputs and what
+    // they show, the inputs it has.
+    function arcadePage(layout, tokens, values, present) {
+        var inputs = ["1", "2", "3", "4", "5", "6", "7", "8", "coin", "start"]
+        var labels = ["Button 1", "Button 2", "Button 3", "Button 4", "Button 5", "Button 6", "Button 7", "Button 8",
+                      "Coin", "Start"]
+        var rows = []
+        for (var i = 0; i < inputs.length; i++)
+            rows.push({ input: inputs[i], label: labels[i], token: tokens[i], value: values[i] })
+        var choices = [["a", "A"], ["b", "B"], ["x", "X"], ["y", "Y"], ["leftshoulder", "LB"], ["rightshoulder", "RB"],
+                       ["lefttrigger+", "LT"], ["righttrigger+", "RT"], ["back", "BACK"], ["start", "START"],
+                       ["leftstick", "LS"], ["rightstick", "RS"]]
+        return { key: root.padKey, name: "8BitDo Pro 2", present: present !== false, jamma: 0, layout: layout,
+                 layoutTitle: { "default": "Default", fighting6: "Fighting 6", neogeo4: "Neo Geo 4", custom: "Custom" }[layout],
+                 layouts: [{ layout: "default", title: "Default" }, { layout: "fighting6", title: "Fighting 6" },
+                           { layout: "neogeo4", title: "Neo Geo 4" }, { layout: "custom", title: "Custom" }],
+                 rows: rows, choices: choices.map(function(c) { return { token: c[0], label: c[1] } }) }
+    }
+    readonly property var padInputs: ["a", "b", "x", "y", "leftshoulder", "rightshoulder", "lefttrigger+", "righttrigger+",
+                                      "back", "start"]
+
     function rows(values) {
         var actions = ["up", "down", "left", "right", "select", "back", "play_pause"]
         var labels = ["Up", "Down", "Left", "Right", "Select / OK", "Back", "Play / Pause"]
@@ -172,7 +221,7 @@ Rectangle {
             ]
             inputManager.pages = {
                 "pad-0300aaaa": { key: root.padKey, name: "8BitDo Pro 2", kind: "gamepad", present: true,
-                                  labels: "auto", labelsInUse: "Xbox",
+                                  labels: "auto", labelsInUse: "Xbox", arcade: "Fighting 6",
                                   rows: root.rows(["D-PAD ▲, L STICK ▲", "D-PAD ▼, L STICK ▼", "LB, D-PAD ◄, L STICK ◄",
                                                    "RB, D-PAD ►, L STICK ►", "A", "B, BACK", "START"]) },
                 "kbd-0003-046d-c31c": { key: root.keyboardKey, name: "Logitech K400", kind: "keyboard", present: true,
@@ -198,6 +247,11 @@ Rectangle {
             inputManager.watchingPins = false
             idleTracker.resets = 0
             inputManager.outcomes = {}
+            inputManager.arcadePages = {
+                "pad-0300aaaa": root.arcadePage("default", root.padInputs,
+                                                ["Auto", "Auto", "Auto", "Auto", "Auto", "Auto", "Auto", "Auto", "BACK", "START"])
+            }
+            inputManager.arcadeOutcomes = {}
             inputManager.remapCapture = false
             appCore.settings = {}
             root.navigations = []
@@ -346,10 +400,11 @@ Rectangle {
         function test_padPage() {
             var page = open("ControllerSettings.qml", { key: root.padKey })
             compare(page.rows.map(function(r) { return r.type }),
-                    ["labels", "test", "section", "action", "action", "action", "action", "action", "action", "action",
-                     "clear", "reset"])
+                    ["labels", "test", "arcade", "section", "action", "action", "action", "action", "action", "action",
+                     "action", "clear", "reset"])
             compare(page.rows[0].value, "Auto (Xbox)")
-            compare(page.rows[7].value, "A")
+            compare(page.rows[2].value, "Fighting 6")
+            compare(page.rows[8].value, "A")
 
             // The labels: ◄ ► and select go round them.
             keyClick(Qt.Key_Right)
@@ -361,6 +416,7 @@ Rectangle {
 
             // UP: a press on the pad is waited for, then set.
             keyClick(Qt.Key_Down)   // TEST BUTTONS
+            keyClick(Qt.Key_Down)   // ARCADE BUTTONS
             keyClick(Qt.Key_Down)
             keyClick(Qt.Key_Return)
             compare(inputManager.capturing, root.padKey)
@@ -708,11 +764,13 @@ Rectangle {
             keyClick(Qt.Key_Return)
             verify(!page.testing)
             compare(page.notice, "Connect it first")
+            keyClick(Qt.Key_Down)   // ARCADE BUTTONS
             keyClick(Qt.Key_Down)
             keyClick(Qt.Key_Return)
             verify(!page.capturing)
             compare(inputManager.capturing, "")
             compare(page.notice, "Connect it first")
+            keyClick(Qt.Key_Up)
             keyClick(Qt.Key_Up)
             keyClick(Qt.Key_Up)
             keyClick(Qt.Key_Right)
@@ -723,6 +781,345 @@ Rectangle {
             compare(inputManager.calls[1], ["reset", root.awayKey])
             compare(root.backs, 1)
             compare(page.name, "DualSense")
+        }
+
+        // ARCADE BUTTONS opens the pad's own page, and back from it the
+        // cursor is on its line.
+        function test_arcadeRow() {
+            var page = open("ControllerSettings.qml", { key: root.padKey })
+            compare(page.rows[2].label, "Arcade Buttons")
+            keyClick(Qt.Key_Down)
+            keyClick(Qt.Key_Down)
+            keyClick(Qt.Key_Return)
+            compare(root.navigations.length, 1)
+            compare(root.navigations[0].path, "views/ArcadeButtons.qml")
+            compare(root.navigations[0].params.key, root.padKey)
+            compare(root.navigations[0].listState.currentIndex, 2)
+            loader.source = ""
+            open("ControllerSettings.qml", { key: root.padKey, navListState: { currentIndex: 2 } })
+            keyClick(Qt.Key_Return)
+            compare(root.navigations.length, 2)
+            compare(root.navigations[1].path, "views/ArcadeButtons.qml")
+        }
+
+        // A pad's Arcade Buttons: its layout, a line set by a press (and
+        // what InputManager made of it), or with ◄ ► among the inputs no
+        // other line has (Coin and Start never none).
+        function test_arcadePage() {
+            var page = open("ArcadeButtons.qml", { key: root.padKey })
+            compare(page.rows.map(function(r) { return r.type }),
+                    ["layout", "setall", "test", "section", "input", "input", "input", "input", "input", "input",
+                     "input", "input", "input", "input"])
+            compare(page.rows[0].value, "Default")
+            compare(page.rows[4].value, "Auto")
+            compare(page.rows[12].label, "Coin")
+            compare(page.rows[12].value, "BACK")
+            // Under Default another pad's buttons are the emulators'.
+            verify(page.rows[0].description.indexOf("their own ways") >= 0)
+
+            // The layout: ◄ ► and select go round them.
+            keyClick(Qt.Key_Right)
+            compare(inputManager.calls[0], ["arcadeLayout", root.padKey, "fighting6"])
+            compare(page.rows[0].value, "Fighting 6")
+            keyClick(Qt.Key_Left)
+            keyClick(Qt.Key_Left)
+            compare(inputManager.calls[2], ["arcadeLayout", root.padKey, "custom"])
+            keyClick(Qt.Key_Return)
+            compare(inputManager.calls[3], ["arcadeLayout", root.padKey, "default"])
+
+            // The arcade stick beside the lines lights the line's input.
+            compare(page.lit, [])
+            keyClick(Qt.Key_Down)   // SET ALL BUTTONS
+            keyClick(Qt.Key_Down)   // TEST BUTTONS
+            keyClick(Qt.Key_Down)   // BUTTON 1, past the heading
+            compare(page.lit, ["1"])
+
+            // BUTTON 1: a press on the pad is waited for, then set; the
+            // wait's panel lights it.
+            compare(page.rows[4].label, "Button 1")
+            keyClick(Qt.Key_Return)
+            verify(page.capturing)
+            compare(inputManager.capturing, root.padKey)
+            compare(findChild(page, "capturePanel").lit, ["1"])
+            var prompt = findChild(page, "capturePrompt")
+            compare(prompt.title, "Button 1")
+            compare(prompt.message, "Press the button on 8BitDo Pro 2 for [Button 1]")
+            compare(prompt.hint, "CANCELS IN 10")
+            // Another controller's press is not this; this pad's is.
+            inputManager.controllerInputCaptured(root.keyboardKey, "79", "O")
+            verify(page.capturing)
+            inputManager.controllerInputCaptured(root.padKey, "x", "X")
+            verify(!page.capturing)
+            compare(inputManager.capturing, "")
+            compare(inputManager.calls[inputManager.calls.length - 1], ["arcadeInput", root.padKey, "1", "x"])
+            compare(page.notice, "X is Button 1 now")
+            // Swapped with the line that had it, kept for Coin, the joystick,
+            // Guide, what it is already.
+            inputManager.arcadePages[root.padKey].rows[3].value = "X"
+            inputManager.arcadeOutcomes["1 a"] = { outcome: "swapped", label: "A", other: "Button 4" }
+            inputManager.arcadeOutcomes["1 back"] = { outcome: "kept", label: "BACK", other: "Coin" }
+            inputManager.arcadeOutcomes["1 dpup"] = { outcome: "joystick", label: "D-PAD ▲", other: "" }
+            inputManager.arcadeOutcomes["1 guide"] = { outcome: "menu", label: "GUIDE", other: "" }
+            inputManager.arcadeOutcomes["1 b"] = { outcome: "already", label: "B", other: "" }
+            var tries = [["a", "A", "A is Button 1 now, and X is Button 4"],
+                         ["back", "BACK", "BACK stays Coin: Coin and Start always have a button"],
+                         ["dpup", "D-PAD ▲", "D-PAD ▲ is the joystick, not a button"],
+                         ["guide", "GUIDE", "GUIDE shows MAME's menu, not a button"],
+                         ["b", "B", "B is Button 1 already"]]
+            for (var i = 0; i < tries.length; i++) {
+                keyClick(Qt.Key_Return)
+                inputManager.controllerInputCaptured(root.padKey, tries[i][0], tries[i][1])
+                compare(page.notice, tries[i][2])
+            }
+            // Another controller's Back cancels; so does the wait.
+            keyClick(Qt.Key_Return)
+            var before = inputManager.calls.length
+            keyClick(Qt.Key_Escape)
+            verify(!page.capturing)
+            compare(inputManager.calls.length, before)
+            compare(root.backs, 0)
+            keyClick(Qt.Key_Return)
+            page.secondsLeft = 1
+            tryVerify(function() { return !page.capturing }, 2500)
+            compare(inputManager.capturing, "")
+
+            // ◄ ►: the inputs no other line has, then none.
+            keyClick(Qt.Key_Right)
+            compare(inputManager.calls[inputManager.calls.length - 1], ["arcadeInput", root.padKey, "1", "leftstick"])
+            compare(page.notice, "LS is Button 1 now")
+            keyClick(Qt.Key_Left)
+            compare(inputManager.calls[inputManager.calls.length - 1], ["arcadeInput", root.padKey, "1", ""])
+            compare(page.notice, "Button 1 is None now")
+            // Coin's: never none, round to the last.
+            for (i = 0; i < 8; i++)
+                keyClick(Qt.Key_Down)
+            compare(page.rows[12].label, "Coin")
+            compare(page.lit, ["coin"])
+            keyClick(Qt.Key_Left)
+            compare(inputManager.calls[inputManager.calls.length - 1], ["arcadeInput", root.padKey, "coin", "rightstick"])
+
+            // Leaving the page while it waits lets the pad act again.
+            keyClick(Qt.Key_Return)
+            compare(inputManager.capturing, root.padKey)
+            loader.source = ""
+            compare(inputManager.capturing, "")
+        }
+
+        // SET ALL BUTTONS: 1 to 6, Coin, Start, 7 and 8, Button 2 to 8 left
+        // none when their shorter wait runs out (a pad may have fewer); the
+        // joystick, Guide and a button pressed already are told so and
+        // waited past; all ten set at the end, or none. Each step's wait is
+        // counted from a whole second. The screen saver waits meanwhile: the
+        // presses come as no keys.
+        function test_arcadeSetAll() {
+            var page = open("ArcadeButtons.qml", { key: root.padKey })
+            keyClick(Qt.Key_Down)
+            compare(page.rows[1].type, "setall")
+            keyClick(Qt.Key_Return)
+            verify(page.settingAll)
+            var prompt = findChild(page, "capturePrompt")
+            compare(prompt.title, "Set All Buttons (1/10)")
+            compare(prompt.message, "Press the button on 8BitDo Pro 2 for [Button 1]")
+            compare(prompt.hint, "CANCELS IN 10")
+            var panel = findChild(page, "capturePanel")
+            compare(panel.lit, ["1"])
+            wait(800)
+            inputManager.controllerInputCaptured(root.padKey, "x", "X")
+            compare(panel.lit, ["2"])
+            compare(prompt.message, "Press the button on 8BitDo Pro 2 for [Button 2], or wait if it has none")
+            compare(prompt.hint, "NONE IN 5")
+            wait(500)
+            compare(prompt.hint, "NONE IN 5")
+            var presses = [["y", "Y"], ["rightshoulder", "RB"], ["a", "A"], ["b", "B"],
+                           ["righttrigger+", "RT"], ["back", "BACK"]]
+            for (var i = 0; i < presses.length; i++)
+                inputManager.controllerInputCaptured(root.padKey, presses[i][0], presses[i][1])
+            compare(prompt.title, "Set All Buttons (8/10)")
+            compare(prompt.message, "Press the button on 8BitDo Pro 2 for [Start]")
+            compare(panel.lit, ["start"])
+            compare(prompt.hint, "CANCELS IN 10")
+            inputManager.controllerInputCaptured(root.padKey, "start", "START")
+            compare(prompt.title, "Set All Buttons (9/10)")
+            compare(prompt.message, "Press the button on 8BitDo Pro 2 for [Button 7], or wait if it has none")
+            compare(prompt.choices, ["Start: START", "Coin: BACK", "Button 6: RT"])
+            compare(prompt.hint, "NONE IN 5")
+            inputManager.controllerInputCaptured(root.padKey, "dpup", "D-PAD ▲")
+            compare(prompt.message, "D-PAD ▲ is the joystick: press a button\n"
+                                    + "Press the button on 8BitDo Pro 2 for [Button 7], or wait if it has none")
+            inputManager.controllerInputCaptured(root.padKey, "guide", "GUIDE")
+            compare(prompt.message, "GUIDE shows MAME's menu: press another button\n"
+                                    + "Press the button on 8BitDo Pro 2 for [Button 7], or wait if it has none")
+            compare(prompt.title, "Set All Buttons (9/10)")
+            inputManager.controllerInputCaptured(root.padKey, "x", "X")
+            verify(prompt.message.indexOf("X is Button 1 already") === 0)
+            compare(prompt.title, "Set All Buttons (9/10)")
+            inputManager.controllerInputCaptured(root.padKey, "leftshoulder", "LB")
+            compare(prompt.title, "Set All Buttons (10/10)")
+            compare(inputManager.calls.filter(function(c) { return c[0] === "arcadeInputs" }), [])
+            // Button 8's wait runs out: none.
+            page.secondsLeft = 1
+            tryVerify(function() { return !page.settingAll }, 2500)
+            verify(idleTracker.resets > 0)
+            compare(inputManager.calls[inputManager.calls.length - 1],
+                    ["arcadeInputs", root.padKey, ["x", "y", "rightshoulder", "a", "b", "righttrigger+", "leftshoulder", "",
+                                                   "back", "start"]])
+            compare(page.notice, "Set: its layout is Custom now")
+            compare(inputManager.capturing, "")
+
+            // A pad of two buttons: 3 to 6 run out, none; Coin, which must
+            // have one, ends it, nothing set. So does another controller's
+            // Back.
+            keyClick(Qt.Key_Return)
+            inputManager.controllerInputCaptured(root.padKey, "a", "A")
+            inputManager.controllerInputCaptured(root.padKey, "b", "B")
+            for (i = 3; i <= 6; i++) {
+                compare(prompt.title, "Set All Buttons (" + i + "/10)")
+                page.secondsLeft = 1
+                tryCompare(prompt, "title", "Set All Buttons (" + (i + 1) + "/10)", 2500)
+            }
+            compare(prompt.message, "Press the button on 8BitDo Pro 2 for [Coin]")
+            compare(prompt.choices, ["Button 6: None", "Button 5: None", "Button 4: None"])
+            compare(prompt.hint, "CANCELS IN 10")
+            page.secondsLeft = 1
+            tryVerify(function() { return !page.settingAll }, 2500)
+            compare(page.notice, "No press for Coin: nothing changed")
+            keyClick(Qt.Key_Return)
+            verify(page.settingAll)
+            keyClick(Qt.Key_Escape)
+            verify(!page.settingAll)
+            compare(page.notice, "Nothing changed")
+            compare(inputManager.calls.filter(function(c) { return c[0] === "arcadeInputs" }).length, 1)
+            compare(root.backs, 0)
+            // Button 1 must have one too.
+            keyClick(Qt.Key_Return)
+            page.secondsLeft = 1
+            tryVerify(function() { return !page.settingAll }, 2500)
+            compare(page.notice, "No press for Button 1: nothing changed")
+        }
+
+        // TEST BUTTONS: which of the cabinet's each press is; under Default
+        // a pad's buttons are the emulators', its Back and Start Coin and
+        // Start.
+        function test_arcadeTest() {
+            var page = open("ArcadeButtons.qml", { key: root.padKey })
+            keyClick(Qt.Key_Down)
+            keyClick(Qt.Key_Down)
+            keyClick(Qt.Key_Return)
+            verify(page.testing)
+            compare(inputManager.capturing, root.padKey)
+            var prompt = findChild(page, "testPrompt")
+            var panel = findChild(page, "testPanel")
+            compare(panel.lit, [])
+            inputManager.controllerInputCaptured(root.padKey, "a", "A")
+            compare(panel.lit, [])
+            inputManager.controllerInputCaptured(root.padKey, "back", "BACK")
+            compare(panel.lit, ["coin"])
+            inputManager.controllerInputCaptured(root.padKey, "dpup", "D-PAD ▲")
+            compare(panel.lit, [])
+            compare(prompt.choices, ["D-PAD ▲ → Joystick", "BACK → Coin", "A"])
+            inputManager.controllerInputCaptured(root.padKey, "guide", "GUIDE")
+            compare(panel.lit, [])
+            compare(prompt.choices[0], "GUIDE → MAME's Menu")
+            keyClick(Qt.Key_Escape)
+            verify(!page.testing)
+            compare(inputManager.capturing, "")
+
+            // A layout of its own: each its line, or none.
+            inputManager.setArcadeLayout(root.padKey, "fighting6")
+            var p = inputManager.arcadePages
+            p[root.padKey].rows[0].token = "x"
+            p[root.padKey].rows[3].token = "a"
+            inputManager.arcadePages = p
+            page.refresh()
+            keyClick(Qt.Key_Return)
+            inputManager.controllerInputCaptured(root.padKey, "x", "X")
+            compare(panel.lit, ["1"])
+            inputManager.controllerInputCaptured(root.padKey, "leftstick", "LS")
+            compare(panel.lit, [])
+            compare(prompt.choices, ["LS → None", "X → Button 1"])
+            page.secondsLeft = 1
+            tryVerify(function() { return !page.testing }, 2500)
+        }
+
+        // The arcade stick's drawing: each of the cabinet's inputs on it
+        // lights some of its cells, in a place of its own; Button 7 and 8,
+        // which a six-button stick hasn't, none.
+        function test_arcadePanelArt() {
+            var plain = Art.draw([])
+            compare(plain.cells.length, Art.width * Art.height)
+            var changed = function(lit) {
+                var art = Art.draw(lit), cells = []
+                for (var i = 0; i < art.cells.length; i++) {
+                    if (art.cells[i] !== plain.cells[i])
+                        cells.push(i)
+                }
+                return cells
+            }
+            var seen = {}
+            var inputs = ["1", "2", "3", "4", "5", "6", "coin", "start"]
+            for (var n = 0; n < inputs.length; n++) {
+                var cells = changed([inputs[n]])
+                verify(cells.length > 20, inputs[n])
+                verify(!seen[cells[0] + ":" + cells[cells.length - 1]], inputs[n])
+                seen[cells[0] + ":" + cells[cells.length - 1]] = true
+            }
+            compare(changed(["7"]).length, 0)
+            compare(changed(["8", ""]).length, 0)
+            // Ink only where it was drawn: 0 none, 1 ink, 2 ground.
+            for (var c = 0; c < plain.cells.length; c++)
+                verify(plain.cells[c] <= 2)
+        }
+
+        // A pad away: its buttons and their test wait for it to be back; its
+        // layout and ◄ ► don't. One that goes while a press is waited for, or
+        // while it is tested, ends that, and the list has the keys again.
+        function test_arcadeAway() {
+            inputManager.arcadePages[root.padKey].present = false
+            var page = open("ArcadeButtons.qml", { key: root.padKey })
+            compare(page.rows[1].description, "Connect it to set its buttons")
+            compare(page.rows[2].description, "Connect it to test its buttons")
+            keyClick(Qt.Key_Right)
+            compare(inputManager.calls[inputManager.calls.length - 1], ["arcadeLayout", root.padKey, "fighting6"])
+            keyClick(Qt.Key_Down)
+            keyClick(Qt.Key_Return)
+            verify(!page.settingAll)
+            compare(page.notice, "Connect it first")
+            keyClick(Qt.Key_Down)
+            keyClick(Qt.Key_Return)
+            verify(!page.testing)
+            compare(page.notice, "Connect it first")
+            keyClick(Qt.Key_Down)
+            keyClick(Qt.Key_Return)
+            verify(!page.capturing)
+            compare(inputManager.capturing, "")
+            compare(page.notice, "Connect it first")
+            keyClick(Qt.Key_Right)
+            compare(inputManager.calls[inputManager.calls.length - 1], ["arcadeInput", root.padKey, "1", "leftstick"])
+
+            // Back, then gone again while a press is waited for, and while
+            // its buttons are tested.
+            var setPresent = function(present) {
+                var p = inputManager.arcadePages
+                p[root.padKey].present = present
+                inputManager.arcadePages = p
+                inputManager.controllersChanged()
+            }
+            setPresent(true)
+            keyClick(Qt.Key_Return)
+            verify(page.capturing)
+            compare(inputManager.capturing, root.padKey)
+            setPresent(false)
+            verify(!page.capturing)
+            compare(inputManager.capturing, "")
+            keyClick(Qt.Key_Up)     // TEST BUTTONS, past the heading
+            setPresent(true)
+            keyClick(Qt.Key_Return)
+            verify(page.testing)
+            setPresent(false)
+            verify(!page.testing)
+            compare(inputManager.capturing, "")
+            keyClick(Qt.Key_Escape)
+            compare(root.backs, 1)
         }
     }
 }

@@ -84,6 +84,12 @@ struct Launch {
     // the cabinet's rows of buttons as FinalBurn Neo's 6-Button Panel has
     // them (configText()'s binds, remapText()'s device), off line only.
     QList<bool> panels;
+    // Each player's Arcade Buttons as RetroArch binds them
+    // (controllers::ArcadeBinds::retroarch: Button 1 to 8, Coin and Start,
+    // "" for none), empty for a player who has none: off line, on FinalBurn
+    // Neo's 6-Button Panel where it has Button 1 to 6, in place of a panel's
+    // or the Standard Gamepad's.
+    QList<QStringList> arcade;
     // Where RetroArch looks for remap files (coreRemapPath()).
     QString remapDir;
     // Where it reads the core's info file (coreInfoPath()).
@@ -114,9 +120,9 @@ QStringList arguments(const Launch &launch);
 // The remap file RetroArch loads with FinalBurn Neo from remapDir: the
 // core's own, by its name.
 QString coreRemapPath(const QString &remapDir);
-// Its text: each player on an arcade panel on FinalBurn Neo's 6-Button
-// Panel, its controller type for such a panel, off line; "" for none, when
-// no file is needed.
+// Its text: each player on an arcade panel, or with Arcade Buttons, on
+// FinalBurn Neo's 6-Button Panel, its controller type for such a panel, off
+// line; "" for none, when no file is needed.
 QString remapText(const Launch &launch);
 // Whether the remap file at path is OSD/OS's to write over or remove: there
 // is none, or remapText() wrote it. One saved from RetroArch's menu (Save

@@ -75,7 +75,191 @@ QList<QPair<QString, QString>> &playerVariables() {
     return variables;
 }
 
+QList<ArcadeBinds> &playerArcadeBinds() {
+    static QList<ArcadeBinds> binds;
+    return binds;
+}
+
+const char *const kArcadeNames[kArcadeInputs] = { "1", "2", "3", "4", "5", "6", "7", "8", "coin", "start" };
+
+struct Layout {
+    const char *name;
+    const char *title;
+    const char *inputs[kArcadeInputs];   // none for default and custom
+};
+const Layout kLayouts[] = {
+    { "default",   "Default",    {} },
+    { "fighting6", "Fighting 6", { "x", "y", "rightshoulder", "a", "b", "righttrigger+",
+                                   "leftshoulder", "lefttrigger+", "back", "start" } },
+    { "neogeo4",   "Neo Geo 4",  { "a", "b", "x", "y", "leftshoulder", "rightshoulder",
+                                   "lefttrigger+", "righttrigger+", "back", "start" } },
+    { "custom",    "Custom",     {} },
+};
+
+// SDL's game controller buttons by input.cfg's token, as RetroArch binds
+// them (SDL_GameControllerButton): the D-pad's are the joystick's.
+struct Button {
+    const char *token;
+    int sdl;
+};
+const Button kButtons[] = {
+    { "a", 0 }, { "b", 1 }, { "x", 2 }, { "y", 3 }, { "back", 4 }, { "guide", 5 }, { "start", 6 },
+    { "leftstick", 7 }, { "rightstick", 8 }, { "leftshoulder", 9 }, { "rightshoulder", 10 },
+    { "misc1", 15 }, { "paddle1", 16 }, { "paddle2", 17 }, { "paddle3", 18 }, { "paddle4", 19 },
+    { "touchpad", 20 },
+};
+// And the axes that can be a button, pushed: the triggers pressed, the right
+// stick either way (SDL_GameControllerAxis, its sign).
+struct Axis {
+    const char *token;
+    const char *bind;
+    const char *mame;
+};
+const Axis kAxes[] = {
+    { "lefttrigger+",  "+4", "SLIDER1_NEG_SWITCH" },
+    { "righttrigger+", "+5", "SLIDER2_NEG_SWITCH" },
+    { "rightx+",       "+2", "ZAXIS_POS_SWITCH" },
+    { "rightx-",       "-2", "ZAXIS_NEG_SWITCH" },
+    { "righty+",       "+3", "RZAXIS_POS_SWITCH" },
+    { "righty-",       "-3", "RZAXIS_NEG_SWITCH" },
+};
+
+// The buttons MAME's sdlgame numbers, in its order (its generalbuttons).
+const char *const kMameNumbered[] = {
+    "a", "b", "x", "y", "leftshoulder", "rightshoulder", "lefttrigger", "righttrigger",
+    "leftstick", "rightstick", "paddle1", "paddle2", "paddle3", "paddle4", "guide", "misc1", "touchpad",
+};
+
+// kButtons' and kAxes' tokens in the order the page offers them. Not Guide,
+// which shows MAME's menu.
+const char *const kArcadeTokens[] = {
+    "a", "b", "x", "y", "leftshoulder", "rightshoulder", "lefttrigger+", "righttrigger+", "back", "start",
+    "leftstick", "rightstick", "misc1", "paddle1", "paddle2", "paddle3", "paddle4", "touchpad",
+    "rightx-", "rightx+", "righty-", "righty+",
+};
+
+QString withoutSign(const QString &token) {
+    return token.endsWith(QLatin1Char('+')) || token.endsWith(QLatin1Char('-')) ? token.chopped(1) : token;
+}
+
 } // namespace
+
+QString arcadeInputName(int index) {
+    return index >= 0 && index < kArcadeInputs ? QLatin1String(kArcadeNames[index]) : QString();
+}
+
+QString arcadeInputLabel(int index) {
+    if (index == kArcadeCoin)
+        return QStringLiteral("Coin");
+    if (index == kArcadeStart)
+        return QStringLiteral("Start");
+    return index >= 0 && index < kArcadeInputs ? QStringLiteral("Button %1").arg(index + 1) : QString();
+}
+
+QStringList arcadeTokens() {
+    QStringList tokens;
+    for (const char *token : kArcadeTokens)
+        tokens << QLatin1String(token);
+    return tokens;
+}
+
+bool isArcadeToken(const QString &token) {
+    return std::any_of(std::begin(kArcadeTokens), std::end(kArcadeTokens),
+                       [&token](const char *t) { return token == QLatin1String(t); });
+}
+
+bool PadShape::has(const QString &token) const {
+    return inputs.contains(withoutSign(token));
+}
+
+QStringList arcadeLayouts() {
+    QStringList names;
+    for (const Layout &l : kLayouts)
+        names << QLatin1String(l.name);
+    return names;
+}
+
+QString arcadeLayoutTitle(const QString &layout) {
+    for (const Layout &l : kLayouts) {
+        if (layout == QLatin1String(l.name))
+            return QLatin1String(l.title);
+    }
+    return QLatin1String(kLayouts[0].title);
+}
+
+QStringList arcadeLayoutInputs(const QString &layout) {
+    for (const Layout &l : kLayouts) {
+        if (layout != QLatin1String(l.name) || !l.inputs[0])
+            continue;
+        QStringList inputs;
+        for (const char *token : l.inputs)
+            inputs << QLatin1String(token);
+        return inputs;
+    }
+    return {};
+}
+
+QStringList arcadeDefaultInputs() {
+    return arcadeLayoutInputs(QStringLiteral("neogeo4"));
+}
+
+QStringList arcadeActing(QStringList inputs, const PadShape &shape) {
+    // Coin's own and Start's, then the other's.
+    const QLatin1String back("back"), start("start");
+    const std::pair<int, std::pair<QLatin1String, QLatin1String>> own[] = { { kArcadeCoin, { back, start } },
+                                                                            { kArcadeStart, { start, back } } };
+    for (const auto &[index, tokens] : own) {
+        if (index >= inputs.size() || shape.has(inputs.at(index)))
+            continue;
+        for (const QLatin1String &token : { tokens.first, tokens.second }) {
+            const int other = int(inputs.indexOf(token));
+            if (!shape.has(token) || other == kArcadeCoin || other == kArcadeStart)
+                continue;
+            if (other >= 0)
+                inputs[other] = QString();
+            inputs[index] = token;
+            break;
+        }
+    }
+    return inputs;
+}
+
+QString mameInput(const PadShape &shape, const QString &token) {
+    if (!shape.has(token))
+        return QString();
+    const QString name = withoutSign(token);
+    int number = 0;
+    for (const char *numbered : kMameNumbered) {
+        const QLatin1String button(numbered);
+        const bool trigger = button.endsWith(QLatin1String("trigger"));
+        if (!shape.inputs.contains(button) || (trigger && !shape.buttonTriggers.contains(button)))
+            continue;
+        ++number;
+        if (name == button)
+            return trigger && !token.endsWith(QLatin1Char('+')) ? QString() : QStringLiteral("BUTTON%1").arg(number);
+    }
+    if (token == QLatin1String("back"))
+        return QStringLiteral("SELECT");
+    if (token == QLatin1String("start"))
+        return QStringLiteral("START");
+    for (const Axis &a : kAxes) {
+        if (token == QLatin1String(a.token))
+            return QLatin1String(a.mame);
+    }
+    return QString();
+}
+
+QString retroarchBind(const QString &token) {
+    for (const Button &b : kButtons) {
+        if (token == QLatin1String(b.token))
+            return QString::number(b.sdl);
+    }
+    for (const Axis &a : kAxes) {
+        if (token == QLatin1String(a.token))
+            return QLatin1String(a.bind);
+    }
+    return QString();
+}
 
 LabelStyle labelStyleFromName(const QString &name) {
     for (const Style &s : kStyles) {
@@ -206,6 +390,25 @@ Profile Profile::fromVariant(const QVariant &value) {
         if (!it.key().isEmpty() && knownAction(action))
             p.bindings.insert(it.key().toLower(), action);
     }
+    // Its Arcade Buttons: each input one only (the first that has it, of a
+    // file edited by hand), and none the page couldn't have set: none at
+    // all without a Coin and a Start.
+    const QVariantMap arcade = map.value(QStringLiteral("arcade")).toMap();
+    const QString layout = arcade.value(QStringLiteral("layout")).toString().toLower();
+    if (layout != QLatin1String("default") && arcadeLayouts().contains(layout)) {
+        const QVariantMap inputs = arcade.value(QStringLiteral("inputs")).toMap();
+        p.arcade = inputs.isEmpty() ? arcadeLayoutInputs(layout) : QStringList();
+        if (p.arcade.isEmpty()) {
+            for (int i = 0; i < kArcadeInputs; ++i) {
+                const QString token = inputs.value(arcadeInputName(i)).toString().toLower();
+                p.arcade << (isArcadeToken(token) && !p.arcade.contains(token) ? token : QString());
+            }
+        }
+        if (p.arcade.value(kArcadeCoin).isEmpty() || p.arcade.value(kArcadeStart).isEmpty())
+            p.arcade.clear();
+        else
+            p.arcadeLayout = layout;
+    }
     return p;
 }
 
@@ -213,10 +416,18 @@ QVariantMap Profile::toVariant() const {
     QVariantMap bindingsMap;
     for (auto it = bindings.cbegin(); it != bindings.cend(); ++it)
         bindingsMap.insert(it.key(), it.value());
-    return QVariantMap{ { QStringLiteral("name"), name },
-                        { QStringLiteral("kind"), kind },
-                        { QStringLiteral("labels"), labelStyleName(labels) },
-                        { QStringLiteral("bindings"), bindingsMap } };
+    QVariantMap map{ { QStringLiteral("name"), name },
+                     { QStringLiteral("kind"), kind },
+                     { QStringLiteral("labels"), labelStyleName(labels) },
+                     { QStringLiteral("bindings"), bindingsMap } };
+    if (!arcadeLayout.isEmpty()) {
+        QVariantMap inputs;
+        for (int i = 0; i < kArcadeInputs; ++i)
+            inputs.insert(arcadeInputName(i), arcade.value(i));
+        map.insert(QStringLiteral("arcade"), QVariantMap{ { QStringLiteral("layout"), arcadeLayout },
+                                                          { QStringLiteral("inputs"), inputs } });
+    }
+    return map;
 }
 
 QStringList actionNames() {
@@ -277,6 +488,16 @@ QStringList playerGuids() {
 
 QStringList playerNames() {
     return playerValues("_NAME");
+}
+
+void setPlayerArcade(const QList<ArcadeBinds> &players) {
+    playerArcadeBinds() = players;
+}
+
+QList<ArcadeBinds> playerArcade() {
+    QList<ArcadeBinds> binds = playerArcadeBinds();
+    binds.resize(kPlayers);
+    return binds;
 }
 
 void KeySources::pressed(const QString &device, int code, qint64 ms) {

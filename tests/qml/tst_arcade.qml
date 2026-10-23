@@ -315,13 +315,19 @@ Rectangle {
         }
     }
 
-    // InputManager: player 1's pad, a JAMMA stick, and its buttons' labels.
+    // InputManager: player 1's pad, a JAMMA stick, its buttons' labels and
+    // its Arcade Buttons' (Coin arcadeCoin's).
     QtObject {
         id: inputManager
         property var players: [{ player: 1, key: "", name: "OSD/OS JAMMA P1", playing: "pad-0600aaaa", connected: true }]
+        property string arcadeCoin: "COIN"
         function buttonLabel(key, token) {
             if (key !== "pad-0600aaaa") return ""
             return token === "back" ? "COIN" : token === "start" ? "START" : ""
+        }
+        function arcadeLabel(key, input) {
+            if (key !== "pad-0600aaaa") return ""
+            return input === "coin" ? arcadeCoin : input === "start" ? "START" : ""
         }
     }
 
@@ -408,6 +414,7 @@ Rectangle {
                         root.game("pacman", "Pac-Man (Midway)", "1980\nNamco\n2 players\npacman.zip")]
             }
             inputManager.players = [{ player: 1, key: "", name: "OSD/OS JAMMA P1", playing: "pad-0600aaaa", connected: true }]
+            inputManager.arcadeCoin = "COIN"
             moduleRoot.screen = "Original"
             root.hintBar = true
             root.helpLine = true
@@ -604,9 +611,11 @@ Rectangle {
         // from the menus until the game ends, then back to the list.
         function test_play() {
             arcadeBackend.played = false
+            inputManager.arcadeCoin = "6"
             var play = open("Play.qml", { game: "galaga", title: "Galaga (Namco rev. B)" })
-            compare(play.exitKeys, "COIN + START")
-            verify(findText(play, "Press COIN + START together") !== null)
+            // Off line, its Arcade Buttons' Coin and Start.
+            compare(play.exitKeys, "6 + START")
+            verify(findText(play, "Press 6 + START together") !== null)
             compare(play.phase, "opening")
             // The first game this run waits for that to be read.
             wait(500)
@@ -1603,10 +1612,14 @@ Rectangle {
         // joins it; a game hosted says so and hosts it; and with Start Info
         // Screen off, the router joins straight from the list.
         function test_playOnline() {
-            // Online, FinalBurn Neo plays it, whatever its engine.
+            // Online, FinalBurn Neo plays it, whatever its engine, and the
+            // way back is the pad's own Back and Start: no player has their
+            // Arcade Buttons there.
             arcadeBackend.engines = { sf2: "mame" }
+            inputManager.arcadeCoin = "6"
             var play = open("Play.qml", { game: "sf2", title: "Street Fighter II (ann)", online: { room: 11, host: "ann" } })
             verify(play.fbneo)
+            compare(play.exitKeys, "COIN + START")
             verify(findText(play, "Joining ann's game online") !== null)
             tryCompare(play, "phase", "running", 3000)
             compare(arcadeBackend.joined, [11])

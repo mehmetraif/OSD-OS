@@ -1,4 +1,5 @@
 #include "Mame.h"
+#include "../../input/ControllerProfile.h"
 #include <QDir>
 #include <QFile>
 #include <QFileInfo>
@@ -14,6 +15,51 @@ namespace {
 // checks most boards run (Galaga's RAM and ROM test, the Neo-Geo BIOS's), in
 // the game's own time, so a game MAME warns about first waits for it.
 constexpr int kCoinDelaySeconds = 5;
+
+// MAME's own keys (and mouse and gun buttons) for players 1 to 4's buttons 1
+// to 8, coin and start, its inpttype.ipp's: kept beside a pad's Arcade
+// Buttons, which take the place of MAME's whole sequence. Players 5 and 6
+// have none.
+const char *const kKeyButtons[4][8] = {
+    { "KEYCODE_LCONTROL OR MOUSECODE_1_BUTTON1 OR GUNCODE_1_BUTTON1",
+      "KEYCODE_LALT OR MOUSECODE_1_BUTTON3 OR GUNCODE_1_BUTTON2",
+      "KEYCODE_SPACE OR MOUSECODE_1_BUTTON2", "KEYCODE_LSHIFT", "KEYCODE_Z", "KEYCODE_X", "KEYCODE_C", "KEYCODE_V" },
+    { "KEYCODE_A OR MOUSECODE_2_BUTTON1 OR GUNCODE_2_BUTTON1",
+      "KEYCODE_S OR MOUSECODE_2_BUTTON3 OR GUNCODE_2_BUTTON2",
+      "KEYCODE_Q OR MOUSECODE_2_BUTTON2", "KEYCODE_W", "KEYCODE_E", nullptr, nullptr, nullptr },
+    { "KEYCODE_RCONTROL OR GUNCODE_3_BUTTON1", "KEYCODE_RSHIFT OR GUNCODE_3_BUTTON2", "KEYCODE_ENTER",
+      nullptr, nullptr, nullptr, nullptr, nullptr },
+    { "KEYCODE_0PAD", "KEYCODE_DELPAD", "KEYCODE_ENTERPAD", nullptr, nullptr, nullptr, nullptr, nullptr },
+};
+const char *const kKeyCoins[4] = { "KEYCODE_5", "KEYCODE_6", "KEYCODE_7", "KEYCODE_8" };
+const char *const kKeyStarts[4] = { "KEYCODE_1", "KEYCODE_2", "KEYCODE_3", "KEYCODE_4" };
+
+// One of a player's Arcade Buttons (from 0) as its port in a MAME config:
+// <port type="P1_BUTTON3">, with MAME's keys for it and the joystick's input.
+QString arcadePort(int player, int input, const QString &joystickInput) {
+    const bool keys = player < 4;
+    QString type;
+    const char *key = nullptr;
+    if (input == controllers::kArcadeCoin) {
+        type = QStringLiteral("COIN%1").arg(player + 1);
+        key = keys ? kKeyCoins[player] : nullptr;
+    } else if (input == controllers::kArcadeStart) {
+        type = QStringLiteral("START%1").arg(player + 1);
+        key = keys ? kKeyStarts[player] : nullptr;
+    } else {
+        type = QStringLiteral("P%1_BUTTON%2").arg(player + 1).arg(input + 1);
+        key = keys ? kKeyButtons[player][input] : nullptr;
+    }
+    QStringList seq;
+    if (key)
+        seq << QLatin1String(key);
+    if (!joystickInput.isEmpty())
+        seq << QStringLiteral("JOYCODE_%1_%2").arg(player + 1).arg(joystickInput);
+    return QStringLiteral("            <port type=\"%1\">\n"
+                          "                <newseq type=\"standard\">%2</newseq>\n"
+                          "            </port>\n")
+        .arg(type, seq.isEmpty() ? QStringLiteral("NONE") : seq.join(QStringLiteral(" OR ")));
+}
 
 // The words that end a company's name without telling it apart from the
 // company itself: where its arm was ("Nintendo of America", "Data East USA",
@@ -550,19 +596,34 @@ QString coinScript(int coins) {
         .arg(coins).arg(kCoinDelaySeconds);
 }
 
-QString controllerConfig(const QStringList &playerGuids) {
+QString controllerConfig(const QStringList &playerGuids, const QList<QStringList> &arcade) {
     QString maps;
+    QString ports;
+    // A player's Coin and Start: their controller's Arcade Buttons', else
+    // its own.
+    const auto coinAndStart = [&playerGuids, &arcade](int p) {
+        const QStringList inputs = arcade.value(p);
+        const QString coin = inputs.value(controllers::kArcadeCoin);
+        const QString start = inputs.value(controllers::kArcadeStart);
+        const bool theirs = !playerGuids.value(p).trimmed().isEmpty() && !coin.isEmpty() && !start.isEmpty();
+        return QStringLiteral(" OR JOYCODE_%1_%2 JOYCODE_%1_%3")
+            .arg(p + 1)
+            .arg(theirs ? coin : QStringLiteral("SELECT"), theirs ? start : QStringLiteral("START"));
+    };
     // Coin and Start on every player's controller, as player 1's may be the
     // one unplugged; on MAME's first joystick always, player 1's when no
     // controller is set.
-    QString leave = QStringLiteral("KEYCODE_ESC OR JOYCODE_1_SELECT JOYCODE_1_START");
+    QString leave = QStringLiteral("KEYCODE_ESC") + coinAndStart(0);
     QSet<QString> mapped;
     for (int p = 0; p < playerGuids.size(); ++p) {
         const QString guid = playerGuids.at(p).trimmed();
         if (guid.isEmpty())
             continue;
         if (p > 0)
-            leave += QStringLiteral(" OR JOYCODE_%1_SELECT JOYCODE_%1_START").arg(p + 1);
+            leave += coinAndStart(p);
+        const QStringList inputs = arcade.value(p);
+        for (int i = 0; i < inputs.size() && i < controllers::kArcadeInputs; ++i)
+            ports += arcadePort(p, i, inputs.at(i));
         // MAME keeps one line per device: a second player on a pad of the
         // same model goes where MAME's order puts it.
         if (mapped.contains(guid))
@@ -573,19 +634,21 @@ QString controllerConfig(const QStringList &playerGuids) {
     }
     return QStringLiteral(
                "<?xml version=\"1.0\"?>\n"
-               "<!-- Written by OSD/OS as each game starts: the players of Settings -> Controls,\n"
-               "     and Coin and Start together on any player's controller, or Esc, to leave the game. -->\n"
+               "<!-- Written by OSD/OS as each game starts: the players of Settings -> Controls, their\n"
+               "     Arcade Buttons, and Coin and Start together on any player's controller, or Esc,\n"
+               "     to leave the game. -->\n"
                "<mameconfig version=\"10\">\n"
                "    <system name=\"default\">\n"
                "        <input>\n"
                "%1"
+               "%2"
                "            <port type=\"UI_CANCEL\">\n"
-               "                <newseq type=\"standard\">%2</newseq>\n"
+               "                <newseq type=\"standard\">%3</newseq>\n"
                "            </port>\n"
                "        </input>\n"
                "    </system>\n"
                "</mameconfig>\n")
-        .arg(maps, leave);
+        .arg(maps, ports, leave);
 }
 
 Missing missingFiles(const QString &output) {

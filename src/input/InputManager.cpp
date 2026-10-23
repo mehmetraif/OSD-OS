@@ -446,8 +446,12 @@ void InputManager::rebuildPad(SDL_JoystickID id) {
     if (!name || !*name)
         name = SDL_GameControllerName(gc);
     const int type = SDL_GameControllerGetType(gc);
-    const Pad pad = padFor(controllers::padKey(QString::fromLatin1(guid)),
-                           name && *name ? QString::fromUtf8(name) : QStringLiteral("Gamepad"), type);
+    Pad pad = padFor(controllers::padKey(QString::fromLatin1(guid)),
+                     name && *name ? QString::fromUtf8(name) : QStringLiteral("Gamepad"), type);
+    // Its Arcade Buttons' Coin, by what it has.
+    const controllers::Profile profile = m_profiles.value(pad.key);
+    if (!profile.arcadeLayout.isEmpty())
+        pad.coin = controllers::arcadeActing(profile.arcade, padShape(gc)).value(controllers::kArcadeCoin);
     m_pads.insert(id, pad);
     m_seenAs.insert(pad.key, { pad.name, pad.arcade ? QStringLiteral("arcade") : QStringLiteral("gamepad"), type });
 }
@@ -755,6 +759,7 @@ void InputManager::onAppSettingChanged(const QString &key, const QString &value)
     if (key == QLatin1String("controllers") || key.startsWith(QStringLiteral("controllers."))) {
         loadProfiles();
         rebuildPads();
+        publishArcade();
         updateHints();
         emit controllersChanged();
     }
@@ -910,6 +915,7 @@ void InputManager::updatePlayers() {
     controllers::setPlayerEnvironment(variables);
 
     m_playerPads = playing;
+    publishArcade();
     emit playersChanged();
 }
 
@@ -966,6 +972,7 @@ bool InputManager::saveProfiles() {
         return false;
     }
     rebuildPads();
+    publishArcade();
     updateHints();
     emit controllersChanged();
     return true;
@@ -1103,6 +1110,7 @@ QVariantMap InputManager::controllerPage(const QString &key) const {
                         { QStringLiteral("labels"), controllers::labelStyleName(profile.labels) },
                         { QStringLiteral("labelsInUse"), isPad ? controllers::labelStyleTitle(pad.labels) : QString() },
                         { QStringLiteral("jamma"), isPad ? jammaPlayer(pad) : 0 },
+                        { QStringLiteral("arcade"), isPad ? controllers::arcadeLayoutTitle(profile.arcadeLayout) : QString() },
                         { QStringLiteral("rows"), rows } };
 }
 
@@ -1185,6 +1193,210 @@ void InputManager::resetController(const QString &key) {
         return;
     m_profiles.remove(key);
     saveProfiles();
+}
+
+// ── Arcade Buttons ────────────────────────────────────────────────────────────
+
+QStringList InputManager::arcadeInputsOf(const QString &key) const {
+    const controllers::Profile profile = m_profiles.value(key);
+    const QStringList inputs = profile.arcadeLayout.isEmpty() ? controllers::arcadeDefaultInputs() : profile.arcade;
+    SDL_GameController *gc = padController(key);
+    return gc ? controllers::arcadeActing(inputs, padShape(gc)) : inputs;
+}
+
+SDL_GameController *InputManager::padController(const QString &key) const {
+    const auto live = std::find_if(m_pads.cbegin(), m_pads.cend(), [&key](const Pad &p) { return p.key == key; });
+    return live != m_pads.cend() ? m_controllers.value(live.key(), nullptr) : nullptr;
+}
+
+bool InputManager::saveArcade(const QString &key, const QString &layout, const QStringList &inputs) {
+    controllers::Profile &profile = editProfile(key);
+    profile.arcadeLayout = layout;
+    profile.arcade = layout.isEmpty() ? QStringList() : inputs;
+    return saveProfiles();
+}
+
+QVariantMap InputManager::arcadePage(const QString &key) const {
+    if (!key.startsWith(QLatin1String("pad-")))
+        return {};
+    const QVariantMap controller = controllerPage(key);
+    const QString name = controller.value(QStringLiteral("name")).toString();
+    const Pad pad = padOf(key, name);
+    const int jamma = jammaPlayer(pad);
+    const QString layout = m_profiles.value(key).arcadeLayout;
+
+    QVariantList layouts;
+    for (const QString &l : controllers::arcadeLayouts())
+        layouts << QVariantMap{ { QStringLiteral("layout"), l }, { QStringLiteral("title"), controllers::arcadeLayoutTitle(l) } };
+
+    // What a pad connected has; one away may have any of them.
+    SDL_GameController *gc = padController(key);
+    const controllers::PadShape shape = padShape(gc);
+
+    // Under Default MAME and FinalBurn Neo each number another pad's buttons
+    // their own way: only its Back and Start are Coin and Start in both.
+    const QStringList inputs = arcadeInputsOf(key);
+    QVariantList rows;
+    for (int i = 0; i < controllers::kArcadeInputs; ++i) {
+        const bool theirs = layout.isEmpty() && !jamma && i < controllers::kArcadeCoin;
+        const QString token = inputs.value(i);
+        rows << QVariantMap{ { QStringLiteral("input"), controllers::arcadeInputName(i) },
+                             { QStringLiteral("label"), controllers::arcadeInputLabel(i) },
+                             { QStringLiteral("token"), token },
+                             { QStringLiteral("value"), theirs ? QStringLiteral("Auto")
+                                                        : token.isEmpty() || (gc && !shape.has(token)) ? QStringLiteral("None")
+                                                        : padInputLabel(pad, token) } };
+    }
+
+    QVariantList choices;
+    for (const QString &token : controllers::arcadeTokens()) {
+        if (!gc || shape.has(token))
+            choices << QVariantMap{ { QStringLiteral("token"), token }, { QStringLiteral("label"), padInputLabel(pad, token) } };
+    }
+
+    return QVariantMap{ { QStringLiteral("key"), key }, { QStringLiteral("name"), name },
+                        { QStringLiteral("present"), controller.value(QStringLiteral("present")) },
+                        { QStringLiteral("jamma"), jamma },
+                        { QStringLiteral("layout"), layout.isEmpty() ? QStringLiteral("default") : layout },
+                        { QStringLiteral("layoutTitle"), controllers::arcadeLayoutTitle(layout) },
+                        { QStringLiteral("layouts"), layouts },
+                        { QStringLiteral("rows"), rows },
+                        { QStringLiteral("choices"), choices } };
+}
+
+void InputManager::setArcadeLayout(const QString &key, const QString &layout) {
+    if (!key.startsWith(QLatin1String("pad-")) || !controllers::arcadeLayouts().contains(layout))
+        return;
+    if (layout == QLatin1String("default"))
+        saveArcade(key, QString(), {});
+    else if (layout == QLatin1String("custom"))
+        saveArcade(key, layout, arcadeInputsOf(key));
+    else
+        saveArcade(key, layout, controllers::arcadeLayoutInputs(layout));
+}
+
+QVariantMap InputManager::setArcadeInput(const QString &key, const QString &input, const QString &token) {
+    int index = -1;
+    for (int i = 0; i < controllers::kArcadeInputs && index < 0; ++i) {
+        if (input == controllers::arcadeInputName(i))
+            index = i;
+    }
+    const QString wanted = token.toLower();
+    if (!key.startsWith(QLatin1String("pad-")) || index < 0 || (wanted.isEmpty() && needsInput(index)))
+        return {};
+    const QString label = wanted.isEmpty() ? QStringLiteral("None") : padInputLabel(padOf(key, m_seenAs.value(key).name), wanted);
+    const auto outcome = [&label](const QString &outcome, const QString &other = QString()) {
+        return QVariantMap{ { QStringLiteral("outcome"), outcome }, { QStringLiteral("label"), label },
+                            { QStringLiteral("other"), other } };
+    };
+    // Guide shows MAME's menu.
+    if (wanted == QLatin1String("guide"))
+        return outcome(QStringLiteral("menu"));
+    if (!wanted.isEmpty() && !controllers::isArcadeToken(wanted))
+        return outcome(QStringLiteral("joystick"));
+    QStringList inputs = arcadeInputsOf(key);
+    // Set under Default, it is a layout of its own, the pad's own inputs as
+    // it starts from.
+    if (!m_profiles.value(key).arcadeLayout.isEmpty() && inputs.value(index) == wanted)
+        return outcome(QStringLiteral("already"));
+    // One input, one of them: the one that had it takes this one's, none for
+    // one the pad hasn't, unless that would leave Coin or Start none.
+    const int other = wanted.isEmpty() ? -1 : inputs.indexOf(wanted);
+    SDL_GameController *gc = padController(key);
+    const QString own = gc && !padShape(gc).has(inputs.at(index)) ? QString() : inputs.at(index);
+    if (other >= 0 && other != index && needsInput(other) && own.isEmpty())
+        return outcome(QStringLiteral("kept"), controllers::arcadeInputLabel(other));
+    if (other >= 0 && other != index)
+        inputs[other] = own;
+    inputs[index] = wanted;
+    if (!saveArcade(key, QStringLiteral("custom"), inputs))
+        return outcome(QStringLiteral("unsaved"));
+    return other >= 0 && other != index ? outcome(QStringLiteral("swapped"), controllers::arcadeInputLabel(other))
+                                        : outcome(QStringLiteral("set"));
+}
+
+QString InputManager::setArcadeInputs(const QString &key, const QStringList &tokens) {
+    if (!key.startsWith(QLatin1String("pad-")) || tokens.size() != controllers::kArcadeInputs)
+        return QString();
+    QStringList inputs;
+    for (const QString &t : tokens) {
+        const QString token = t.toLower();
+        if (token.isEmpty() ? needsInput(int(inputs.size()))
+                            : !controllers::isArcadeToken(token) || inputs.contains(token))
+            return QString();
+        inputs << token;
+    }
+    return saveArcade(key, QStringLiteral("custom"), inputs) ? QStringLiteral("set") : QStringLiteral("unsaved");
+}
+
+// Coin and Start: a game can't be played without them.
+bool InputManager::needsInput(int index) {
+    return index == controllers::kArcadeCoin || index == controllers::kArcadeStart;
+}
+
+QString InputManager::arcadeLabel(const QString &key, const QString &input) const {
+    if (!key.startsWith(QLatin1String("pad-")))
+        return QString();
+    const Pad pad = padOf(key, m_seenAs.value(key).name);
+    for (int i = 0; i < controllers::kArcadeInputs; ++i) {
+        if (input != controllers::arcadeInputName(i))
+            continue;
+        // Under Default another pad's buttons are the emulators' to number.
+        if (m_profiles.value(key).arcadeLayout.isEmpty() && !jammaPlayer(pad) && i < controllers::kArcadeCoin)
+            return QString();
+        const QString token = arcadeInputsOf(key).value(i);
+        SDL_GameController *gc = padController(key);
+        return token.isEmpty() || (gc && !padShape(gc).has(token)) ? QString() : padInputLabel(pad, token);
+    }
+    return QString();
+}
+
+controllers::PadShape InputManager::padShape(SDL_GameController *gc) {
+    controllers::PadShape shape;
+    if (!gc)
+        return shape;
+    for (int b = 0; b < SDL_CONTROLLER_BUTTON_MAX; ++b) {
+        if (SDL_GameControllerHasButton(gc, SDL_GameControllerButton(b)))
+            shape.inputs.insert(buttonToken(b));
+    }
+    // MAME takes a Switch Pro Controller's triggers, and a pair of Joy-Cons',
+    // for buttons, as they are.
+    bool digitalTriggers = SDL_GameControllerGetType(gc) == SDL_CONTROLLER_TYPE_NINTENDO_SWITCH_PRO;
+#if SDL_VERSION_ATLEAST(2, 24, 0)
+    digitalTriggers = digitalTriggers || SDL_GameControllerGetType(gc) == SDL_CONTROLLER_TYPE_NINTENDO_SWITCH_JOYCON_PAIR;
+#endif
+    for (int a = 0; a < SDL_CONTROLLER_AXIS_MAX; ++a) {
+        const auto axis = SDL_GameControllerAxis(a);
+        if (!SDL_GameControllerHasAxis(gc, axis))
+            continue;
+        const QString name = QString::fromLatin1(SDL_GameControllerGetStringForAxis(axis));
+        shape.inputs.insert(name);
+        const bool trigger = axis == SDL_CONTROLLER_AXIS_TRIGGERLEFT || axis == SDL_CONTROLLER_AXIS_TRIGGERRIGHT;
+        if (trigger && (digitalTriggers || SDL_GameControllerGetBindForAxis(gc, axis).bindType == SDL_CONTROLLER_BINDTYPE_BUTTON))
+            shape.buttonTriggers.insert(name);
+    }
+    return shape;
+}
+
+// Each player's pad's Arcade Buttons, by what that pad has: none for a
+// player without a pad, or whose pad has no layout of its own.
+void InputManager::publishArcade() {
+    QList<controllers::ArcadeBinds> players;
+    for (int p = 0; p < controllers::kPlayers; ++p) {
+        controllers::ArcadeBinds binds;
+        const SDL_JoystickID id = m_playerPads.value(p, -1);
+        SDL_GameController *gc = m_controllers.value(id, nullptr);
+        const controllers::Profile profile = m_profiles.value(m_pads.value(id).key);
+        if (gc && !profile.arcadeLayout.isEmpty()) {
+            const controllers::PadShape shape = padShape(gc);
+            for (const QString &token : controllers::arcadeActing(profile.arcade, shape)) {
+                binds.mame << controllers::mameInput(shape, token);
+                binds.retroarch << (shape.has(token) ? controllers::retroarchBind(token) : QString());
+            }
+        }
+        players << binds;
+    }
+    controllers::setPlayerArcade(players);
 }
 
 void InputManager::setRemapCapture(bool active) {
@@ -1582,7 +1794,7 @@ void InputManager::handleButton(SDL_JoystickID which, Uint8 button, bool pressed
     }
     // MAME's coin, where the focus takes one: its key, whatever the button
     // is bound to.
-    if (button == SDL_CONTROLLER_BUTTON_BACK && takesCoin()) {
+    if (!pad->coin.isEmpty() && buttonToken(button) == pad->coin && takesCoin()) {
         noteActiveController(which);
         setLastInputDevice(QStringLiteral("gamepad"));
         m_coinInputs.insert(input);
@@ -1605,6 +1817,7 @@ void InputManager::handleAxis(SDL_JoystickID which, Uint8 axis, Sint16 value) {
         return;
     const QString key = pad->key;
     const controllers::LabelStyle labels = pad->labels;
+    const QString coin = pad->coin;
     const QPair<Action, Action> actions = pad->axes.value(axis, { Action::None, Action::None });
     const HeldInput input{ padSource(which), SDL_CONTROLLER_BUTTON_MAX + axis };
 
@@ -1632,18 +1845,31 @@ void InputManager::handleAxis(SDL_JoystickID which, Uint8 axis, Sint16 value) {
     // stick jitter must not steal label ownership from the pad in use. A
     // release lets go of what the engage began, as a button's does.
     if (old != 0) {
-        const Action released = m_heldInputs.take(input);
-        if (released != Action::None) {
-            noteActiveController(which);
-            releaseAction(released);
+        if (m_coinInputs.remove(input)) {
+            postKey(Qt::Key_5, QEvent::KeyRelease, false);
+        } else {
+            const Action released = m_heldInputs.take(input);
+            if (released != Action::None) {
+                noteActiveController(which);
+                releaseAction(released);
+            }
         }
     }
     if (now == 0)
         return;
     noteController(key);
+    const QString token = axisToken(axis, now);
     if (capturing(key)) {
-        const QString token = axisToken(axis, now);
         emit controllerInputCaptured(key, token, controllers::inputLabel(labels, token));
+        return;
+    }
+    // The coin on a trigger or the right stick (its Arcade Buttons'), as a
+    // button's.
+    if (!coin.isEmpty() && token == coin && takesCoin()) {
+        noteActiveController(which);
+        setLastInputDevice(QStringLiteral("gamepad"));
+        m_coinInputs.insert(input);
+        postKey(Qt::Key_5, QEvent::KeyPress, false);
         return;
     }
     const Action pressed = now < 0 ? actions.first : actions.second;
@@ -1861,7 +2087,10 @@ bool InputManager::isDirectional(Action a) {
 QString InputManager::buttonLabel(const QString &key, const QString &token) const {
     if (!key.startsWith(QLatin1String("pad-")))
         return QString();
-    const Pad pad = padOf(key, m_seenAs.value(key).name);
+    return padInputLabel(padOf(key, m_seenAs.value(key).name), token);
+}
+
+QString InputManager::padInputLabel(const Pad &pad, const QString &token) const {
     int button = -1, axis = -1, sign = 0;
     if (parsePadInput(token, &button, &axis, &sign) && sign == 0)
         return padLabel(m_labelOverrides, pad.labels, token, button);
@@ -2151,7 +2380,7 @@ void InputManager::updateHints() {
     h["select"]     = QStringLiteral("[ENTER]");
     h["play_pause"] = QStringLiteral("[SPACE]");
     // MAME's coin, where the focus takes one (takesCoin()): its key, or a
-    // pad's Back button.
+    // pad's Back button (its Arcade Buttons' Coin).
     h["coin"]       = QStringLiteral("[5]");
 
     if (m_lastInputDevice == QStringLiteral("gamepad")) {
@@ -2186,8 +2415,9 @@ void InputManager::updateHints() {
         const QString back = buttonLabel(Action::Back);
         const QString select = buttonLabel(Action::Select);
         const QString playPause = buttonLabel(Action::PlayPause);
-        const QString coin = padLabel(m_labelOverrides, style, buttonToken(SDL_CONTROLLER_BUTTON_BACK),
-                                      SDL_CONTROLLER_BUTTON_BACK);
+        const QString coin = known ? padInputLabel(*pad, pad->coin)
+                                   : padLabel(m_labelOverrides, style, buttonToken(SDL_CONTROLLER_BUTTON_BACK),
+                                              SDL_CONTROLLER_BUTTON_BACK);
         if (!back.isEmpty())      h["back"]       = back;
         if (!select.isEmpty())    h["select"]     = select;
         if (!playPause.isEmpty()) h["play_pause"] = playPause;
