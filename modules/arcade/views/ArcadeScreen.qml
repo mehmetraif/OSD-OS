@@ -338,14 +338,17 @@ FocusScope {
     // read MAME's files (a game just played), or for a game FinalBurn Neo
     // plays with Online High Scores on and a Web API key kept, its
     // RetroAchievements leaderboard's, once it has been read (board: its
-    // state, "off" for any other game).
+    // state, "off" for any other game). This machine's own table for a game
+    // RetroAchievements has no leaderboard of, and while a leaderboard is
+    // read or can't be: the box is never empty for want of a leaderboard
+    // while the machine has scores of its own.
     property int scoresRevision: 0
     readonly property var board: (scoresRevision, arcadeBackend && gameBox
                                                   ? arcadeBackend.leaderboard(currentSet) : ({ state: "off" }))
-    readonly property bool onlineScores: !!board.state && board.state !== "off"
-    readonly property var scores: (scoresRevision, onlineScores ? (board.entries || [])
-                                                   : scoresBackend && gameBox
-                                                     ? scoresBackend.topEntries(currentSet, scoreRows) : [])
+    readonly property bool onlineScores: board.state === "ready"
+    readonly property var localScores: (scoresRevision, scoresBackend && gameBox
+                                                        ? scoresBackend.topEntries(currentSet, scoreRows) : [])
+    readonly property var scores: onlineScores ? (board.entries || []) : localScores
 
     // Screen Adjustment: whether ▲ ▼ ◄ ► move the sides in rather than out;
     // how far a press moves one, up to the screen's edge; and the least room
@@ -1155,12 +1158,13 @@ FocusScope {
                 }
             }
         }
+        // Without any: that the leaderboard is still being read, or couldn't
+        // be; else that there are none yet, RetroAchievements' or this
+        // machine's.
         Text {
             visible: arcadeScreen.scores.length === 0
             y: Math.round(arcadeScreen.scoreFirst * arcadeScreen.v)
-            text: !arcadeScreen.onlineScores ? "No Scores Yet"
-                  : arcadeScreen.board.state === "loading" ? "Reading…"
-                  : arcadeScreen.board.state === "none" ? "No Leaderboard"
+            text: arcadeScreen.board.state === "loading" ? "Reading…"
                   : arcadeScreen.board.state === "failed" ? "Not Reachable" : "No Scores Yet"
             color: root.primaryColor
             font.family: root.globalFont

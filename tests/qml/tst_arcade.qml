@@ -1208,35 +1208,58 @@ Rectangle {
 
         // A game FinalBurn Neo plays with a leaderboard to show: its top
         // three under RA Hi-Score, the users' names wider than initials;
-        // while it is read and for a game RetroAchievements hasn't, the box
-        // says so; another game's leaderboard read changes nothing; the High
-        // Scores module's table for a game MAME plays.
+        // while it is read, and for a game RetroAchievements has no
+        // leaderboard of or one that couldn't be read, this machine's own
+        // table under Hi-Score, and without one the box says so; another
+        // game's leaderboard read changes nothing; the High Scores module's
+        // table for a game MAME plays.
         function test_screenLeaderboard() {
             arcadeBackend.fbneoSets = ["sf2"]
             arcadeBackend.boards = { sf2: { state: "loading" } }
             var screen = openScreen()
             compare(screen.currentSet, "sf2")
-            verify(findText(screen, "RA Hi-Score", true) !== null)
-            verify(findText(screen, "Reading…", true) !== null)
-            compare(findText(screen, "110,000"), null)
+            // Read: the machine's own meanwhile.
+            verify(findText(screen, "Hi-Score", true) !== null)
+            compare(findText(screen, "RA Hi-Score", true), null)
+            verify(findText(screen, "110,000", true) !== null)
+            compare(findText(screen, "Reading…", true), null)
             arcadeBackend.boards.sf2 = { state: "ready", title: "High Score", entries: [
                 { rank: "1ST", score: "1,234,560", name: "Mehmet" }, { rank: "2ND", score: "990,000", name: "Player2" },
                 { rank: "3RD", score: "12,000", name: "abc" }] }
             arcadeBackend.leaderboardReady("1942")
-            verify(findText(screen, "Reading…", true) !== null)
+            verify(findText(screen, "110,000", true) !== null)
             arcadeBackend.leaderboardReady("sf2")
             tryVerify(function() { return findText(screen, "1,234,560", true) !== null }, 1000)
-            compare(findText(screen, "Reading…", true), null)
+            verify(findText(screen, "RA Hi-Score", true) !== null)
+            compare(findText(screen, "110,000", true), null)
             var name = findText(screen, "Mehmet", true)
             verify(name !== null)
             compare(name.width, Math.round(100 * screen.u))
             verify(findText(screen, "3RD", true) !== null)
+            // No leaderboard, or none to be read: the machine's own again.
             arcadeBackend.boards.sf2 = { state: "none" }
             arcadeBackend.leaderboardReady("sf2")
-            tryVerify(function() { return findText(screen, "No Leaderboard", true) !== null }, 1000)
+            tryVerify(function() { return findText(screen, "110,000", true) !== null }, 1000)
+            compare(findText(screen, "No Leaderboard", true), null)
+            compare(findText(screen, "RA Hi-Score", true), null)
+            arcadeBackend.boards.sf2 = { state: "failed" }
+            arcadeBackend.leaderboardReady("sf2")
+            verify(findText(screen, "110,000", true) !== null)
+            compare(findText(screen, "Not Reachable", true), null)
+            // Without a table of its own, the box says what the leaderboard
+            // is up to.
+            var tables = highScoresBackend.tables
+            highScoresBackend.tables = {}
+            arcadeBackend.boards.sf2 = { state: "loading" }
+            arcadeBackend.leaderboardReady("sf2")
+            tryVerify(function() { return findText(screen, "Reading…", true) !== null }, 1000)
             arcadeBackend.boards.sf2 = { state: "failed" }
             arcadeBackend.leaderboardReady("sf2")
             tryVerify(function() { return findText(screen, "Not Reachable", true) !== null }, 1000)
+            arcadeBackend.boards.sf2 = { state: "none" }
+            arcadeBackend.leaderboardReady("sf2")
+            tryVerify(function() { return findText(screen, "No Scores Yet", true) !== null }, 1000)
+            highScoresBackend.tables = tables
             // A game MAME plays: this machine's own table.
             arcadeBackend.boards = { sf2: { state: "ready", title: "High Score", entries: [] } }
             arcadeBackend.engines = { sf2: "mame" }
