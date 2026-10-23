@@ -15,10 +15,10 @@ import Components
 // own takes one press, or ◄ ► goes round the inputs the pad has left. The
 // D-pad and the left stick are the games' joystick, never a button. TEST
 // BUTTONS shows what each press is. Beside the lines, and in the waits for a
-// press, an arcade stick's drawing (ArcadePanel) lights the one a line, a
-// step or a press is. Kept in config.json, app.controllers.<key>.arcade,
-// through inputManager, which gives each player's to MAME and RetroArch as a
-// game starts.
+// press, a two-player cabinet's control panel (ArcadePanel) lights the one a
+// line, a step or a press is, on the side of the player the pad plays as.
+// Kept in config.json, app.controllers.<key>.arcade, through inputManager,
+// which gives each player's to MAME and RetroArch as a game starts.
 FocusScope {
     id: pageRoot
 
@@ -66,12 +66,14 @@ FocusScope {
     property var presses: []
     property string pressed: ""
 
-    // What the stick's drawing lights: the line's input, the one a press is
+    // What the control panel lights: the line's input, the one a press is
     // waited for, or the one the last test press is.
     readonly property var lit: testing ? (pressed !== "" ? [pressed] : [])
                              : capturing ? [captureInput]
                              : rows[list.currentIndex] && rows[list.currentIndex].type === "input"
                                ? [rows[list.currentIndex].input] : []
+    // On whose side of it (playerSide()): 2 the right, 1 the left.
+    property int player: 1
 
     // InputManager as the page opened, for its end: the context property may
     // read null while the view Loader tears down.
@@ -92,6 +94,7 @@ FocusScope {
     Connections {
         target: inputManager
         function onControllersChanged() { pageRoot.refresh() }
+        function onPlayersChanged() { pageRoot.player = pageRoot.playerSide() }
         function onControllerInputCaptured(key, input, label) {
             if (key !== pageRoot.key)
                 return
@@ -110,6 +113,7 @@ FocusScope {
         page = inputManager.arcadePage(key)
         if (page.name)
             name = page.name
+        player = playerSide()
         if ((capturing || settingAll) && !present)
             cancelCapture()
         if (testing && !present)
@@ -133,6 +137,18 @@ FocusScope {
         var at = list.currentIndex
         rows = items
         list.currentIndex = at >= 0 && at < items.length && selectable(items[at]) ? at : selectableFrom(0, 1)
+    }
+
+    // 2 for a pad that plays as player 2, or is chosen for player 2 while
+    // away; 1 for one that plays as another. One that plays as no one goes by
+    // the JAMMA board's stick it is: its second, 2.
+    function playerSide() {
+        var players = inputManager ? inputManager.players || [] : []
+        for (var i = 0; i < players.length; i++) {
+            if (players[i].playing === key || (players[i].key === key && !players[i].playing))
+                return players[i].player === 2 ? 2 : 1
+        }
+        return jamma === 2 ? 2 : 1
     }
 
     // The layout's own words, by what its buttons are on this pad.
@@ -466,7 +482,7 @@ FocusScope {
         anchors.left: parent.left
         anchors.topMargin: root.sh * 0.25 //120
         anchors.leftMargin: root.sw * 0.115625 //74
-        // Up to the stick's drawing.
+        // Up to the control panel's drawing.
         width: panel.x - x - root.sw * 0.0125 //8
         // One line short of the space, so the ▼ fits above the help line; a
         // line more for each bar that is off (Main.qml's helpRoom, hintRoom).
@@ -515,11 +531,12 @@ FocusScope {
         }
     }
 
-    // The arcade stick, the line's input lit, at the content's right, level
+    // The control panel, the line's input lit, at the content's right, level
     // with the list.
     ArcadePanel {
         id: panel
         lit: pageRoot.lit
+        player: pageRoot.player
         visible: !pageRoot.capturing && !pageRoot.testing
         x: root.sw * 0.884375 - width //566
         anchors.verticalCenter: list.verticalCenter
@@ -601,6 +618,7 @@ FocusScope {
                 cell: Math.floor(root.px / 2)
                 visible: cell > 0
                 lit: pageRoot.lit
+                player: pageRoot.player
                 anchors.horizontalCenter: parent.horizontalCenter
             }
         }
@@ -642,6 +660,7 @@ FocusScope {
                 cell: Math.floor(root.px / 2)
                 visible: cell > 0
                 lit: pageRoot.lit
+                player: pageRoot.player
                 anchors.horizontalCenter: parent.horizontalCenter
             }
         }

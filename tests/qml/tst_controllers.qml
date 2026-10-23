@@ -10,7 +10,7 @@ import "../../views/Components/ArcadePanelArt.js" as Art
 // controller's Back or by the wait running out, a button cleared, the
 // defaults, its buttons tested, the JAMMA board's two sticks together with
 // their pins), a pad's Arcade Buttons (the layout, a line set by a press or
-// with ◄ ►, all of them in turn, their test, a pad away, the arcade stick
+// with ◄ ►, all of them in turn, their test, a pad away, the control panel
 // drawn beside them), and All Keyboards & Remotes' wait for a press.
 Rectangle {
     id: root
@@ -827,12 +827,25 @@ Rectangle {
             keyClick(Qt.Key_Return)
             compare(inputManager.calls[3], ["arcadeLayout", root.padKey, "default"])
 
-            // The arcade stick beside the lines lights the line's input.
+            // The control panel beside the lines lights the line's input, on
+            // the right while the pad plays as player 2 (or is chosen for
+            // player 2 while away), on the left while it plays as another or
+            // as no one.
             compare(page.lit, [])
             keyClick(Qt.Key_Down)   // SET ALL BUTTONS
             keyClick(Qt.Key_Down)   // TEST BUTTONS
             keyClick(Qt.Key_Down)   // BUTTON 1, past the heading
             compare(page.lit, ["1"])
+            compare(page.player, 2)
+            inputManager.players = root.withAuto([
+                { player: 1, key: root.padKey, name: "8BitDo Pro 2", playing: root.padKey, connected: true }])
+            compare(page.player, 1)
+            inputManager.players = root.withAuto([])
+            compare(page.player, 1)
+            inputManager.players = root.withAuto([
+                { player: 1, key: "", name: "OSD/OS JAMMA P1", playing: root.jammaKey, connected: true },
+                { player: 2, key: root.padKey, name: "8BitDo Pro 2", playing: "", connected: false }])
+            compare(page.player, 2)
 
             // BUTTON 1: a press on the pad is waited for, then set; the
             // wait's panel lights it.
@@ -841,6 +854,7 @@ Rectangle {
             verify(page.capturing)
             compare(inputManager.capturing, root.padKey)
             compare(findChild(page, "capturePanel").lit, ["1"])
+            compare(findChild(page, "capturePanel").player, 2)
             var prompt = findChild(page, "capturePrompt")
             compare(prompt.title, "Button 1")
             compare(prompt.message, "Press the button on 8BitDo Pro 2 for [Button 1]")
@@ -1041,30 +1055,39 @@ Rectangle {
             tryVerify(function() { return !page.testing }, 2500)
         }
 
-        // The arcade stick's drawing: each of the cabinet's inputs on it
-        // lights some of its cells, in a place of its own; Button 7 and 8,
-        // which a six-button stick hasn't, none.
+        // The control panel's drawing: each of the cabinet's inputs on it
+        // lights some of its cells, in a place of its own on each player's
+        // side, but COIN, the one both have; Button 7 and 8, which a
+        // six-button panel hasn't, none.
         function test_arcadePanelArt() {
-            var plain = Art.draw([])
+            var plain = Art.draw([], 1)
             compare(plain.cells.length, Art.width * Art.height)
-            var changed = function(lit) {
-                var art = Art.draw(lit), cells = []
+            var changed = function(lit, player) {
+                var art = Art.draw(lit, player), cells = []
                 for (var i = 0; i < art.cells.length; i++) {
                     if (art.cells[i] !== plain.cells[i])
                         cells.push(i)
                 }
                 return cells
             }
+            // Nothing lit, both sides alike.
+            compare(changed([], 2).length, 0)
             var seen = {}
             var inputs = ["1", "2", "3", "4", "5", "6", "coin", "start"]
-            for (var n = 0; n < inputs.length; n++) {
-                var cells = changed([inputs[n]])
-                verify(cells.length > 20, inputs[n])
-                verify(!seen[cells[0] + ":" + cells[cells.length - 1]], inputs[n])
-                seen[cells[0] + ":" + cells[cells.length - 1]] = true
+            for (var player = 1; player <= 2; player++) {
+                for (var n = 0; n < inputs.length; n++) {
+                    var cells = changed([inputs[n]], player)
+                    verify(cells.length > 20, inputs[n] + " " + player)
+                    var place = cells[0] + ":" + cells[cells.length - 1]
+                    if (player === 2 && inputs[n] === "coin")
+                        verify(seen[place], "coin")
+                    else
+                        verify(!seen[place], inputs[n] + " " + player)
+                    seen[place] = true
+                }
             }
-            compare(changed(["7"]).length, 0)
-            compare(changed(["8", ""]).length, 0)
+            compare(changed(["7"], 1).length, 0)
+            compare(changed(["8", ""], 2).length, 0)
             // Ink only where it was drawn: 0 none, 1 ink, 2 ground.
             for (var c = 0; c < plain.cells.length; c++)
                 verify(plain.cells[c] <= 2)

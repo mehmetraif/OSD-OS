@@ -1,84 +1,95 @@
 .pragma library
 
-// The Arcade Buttons page's drawing (ArcadePanel.qml): an arcade stick's top
-// panel, alone, in two-colour isometric pixel art, after Sega's Dreamcast
-// Arcade Stick. On it a Japanese ball-top stick (a Sanwa JLF's) on the left,
-// six snap-in buttons (Sanwa OBSF-30s) in Sega's layout on the right, two
-// rows of three that follow the fingers (the first column nearer the player,
-// the second the farthest), and a memory card's window behind them; COIN and
-// START, two small buttons, at the back right. Any of them can be lit: a
-// button, COIN or START.
+// The Arcade Buttons page's drawing (ArcadePanel.qml): a two-player arcade
+// cabinet's control panel, after a Stella International cabinet's, in
+// two-colour isometric pixel art. On its top each player has a ball-top
+// stick and six buttons in two rows of three that follow the fingers (the
+// first column nearer the player, the second the farthest), player 1 on the
+// left and player 2 on the right; on its front, below a chrome strip, three
+// round buttons: 1P START, COIN and 2P START. One player's side can be lit:
+// a button, COIN or that player's START.
 //
 // draw() lays it out on a grid of cells, one art pixel each: 0 for none
 // (the ground the host draws on shows), 1 for ink, 2 for the ground drawn
 // over something behind. The host paints the ink in its text colour, so the
 // drawing takes the theme's two colours. Ink is light: what faces the light
-// (from the top left) has more of it.
+// (from above) has more of it.
 
 // The grid.
-var width = 100
-var height = 57
+var width = 103
+var height = 65
 
-// Isometric 2:1: along the stick (u, the player's left to right) a cell
-// down for every two right, into it (v, away from the player) a cell up for
-// every two right, z straight up, all in cells. Origin: the panel's front
-// left corner.
-var originX = -1
-var originY = 27
+// Isometric 2:1: along the panel (u, the players' left to right) a cell
+// down for every two right, into it (v, away from the players) a cell up for
+// every two right, z straight up, all in cells. Origin: the top's front left
+// corner.
+var originX = 0
+var originY = 14
 
 function project(u, v, z) {
     return { x: originX + 2 * u + 2 * v, y: originY + u - v - (z || 0) }
 }
 
-// The panel: its length and depth, its corners rounded off.
-var panelLength = 30
-var panelDepth = 21
-var corner = 1.2
+// The panel: its length and depth, the height of its front, and how far
+// down the front the chrome strip along its top is.
+var panelLength = 39
+var panelDepth = 12
+var frontHeight = 12
+var strip = 2
 
-// Where things stand on it (u, v). The buttons' columns follow the
-// fingers: the first a little nearer the player, the second the farthest,
-// the third a little nearer again.
-var stick = { u: 7, v: 11.5 }
-var columns = [14.8, 20.5, 26.2]
-var bend = [-1.5, 0, -0.6]
-var rows = [13.8, 7.8]        // the top row (1 2 3), the bottom (4 5 6)
-var coin = { u: 23.4, v: 18.3 }
-var start = { u: 26.8, v: 18.3 }
-var memoryCard = { u: 10, v: 18.1, length: 5, depth: 2.6 }
+// Where things stand on the top (u, v), from the left end of each player's
+// half of it. The buttons' columns follow the fingers: the first a little
+// nearer the player, the second the farthest, the third a little nearer
+// again.
+var playerLength = panelLength / 2
+var stick = { u: 3.6, v: 6.1 }
+var columns = [8.3, 12.8, 17.3]
+var bend = [-0.9, 0, -0.4]
+var rows = [8.2, 3.9]        // the top row (1 2 3), the bottom (4 5 6)
+// The front's buttons, along it, halfway down from the strip.
+var front = { start1: 0.16, coin: 0.5, start2: 0.84 }
 
 // The sprites: "#" ink, "o" ground, "." nothing; each with the cell it
 // stands on (its anchor). A button's plunger, a short cylinder with the
-// shine on its top, lit (ink, its shine cut out) or not; COIN's and START's,
-// smaller.
+// shine on its top, lit (ink, its shine cut out) or not.
 var button = {
-    anchor: { x: 5, y: 4 },
-    off: ["...#####...",
-          ".##ooooo##.",
-          "#oo##ooooo#",
-          "##ooooooo##",
-          "#o#######o#",
-          ".##ooooo##.",
-          "...#####..."],
-    on:  ["...#####...",
-          ".#########.",
-          "##oo#######",
-          "#o#######o#",
-          "##ooooooo##",
-          ".#########.",
-          "...#####..."]
+    anchor: { x: 4, y: 3 },
+    off: ["..#####..",
+          ".#o##oo#.",
+          "#ooooooo#",
+          "#o#####o#",
+          ".#ooooo#.",
+          "..#####.."],
+    on:  ["..#####..",
+          ".##oo###.",
+          "#########",
+          "##ooooo##",
+          ".#######.",
+          "..#####.."]
 }
-var smallButton = {
-    anchor: { x: 3, y: 3 },
-    off: ["..###..",
-          "##ooo##",
-          "#o###o#",
+// A round button on the front, which faces the players: a disc in its
+// plane, leaning with it, its shine at the top left, lit (ink, the shine
+// cut out) or not.
+var frontButton = {
+    anchor: { x: 3, y: 4 },
+    off: [".###...",
+          "#ooo#..",
+          "#o#oo#.",
+          "#o#oo#.",
           "#ooooo#",
-          ".#####."],
-    on:  ["..###..",
-          "##o####",
-          "##ooo##",
+          ".#oooo#",
+          ".#oooo#",
+          "..#ooo#",
+          "...###."],
+    on:  [".###...",
+          "#####..",
+          "##o###.",
+          "##o###.",
           "#######",
-          ".#####."]
+          ".######",
+          ".######",
+          "..#####",
+          "...###."]
 }
 
 // The ball: lit from the top left, its shine in a dither that thins away
@@ -109,14 +120,18 @@ function ballSprite(d) {
     }
     return lines
 }
-var ballDiameter = 15
+var ballDiameter = 9
 var ball = ballSprite(ballDiameter)
-var shaftHeight = 10
+var shaftHeight = 6
 
-// Where each of the cabinet's buttons stands, "1" to "6" from 0.
-function buttonAt(index) {
+// Where player 1's or 2's button stands, "1" to "6" from 0.
+function buttonAt(player, index) {
     var column = index % 3
-    return { u: columns[column], v: rows[index < 3 ? 0 : 1] + bend[column] }
+    return { u: (player - 1) * playerLength + columns[column], v: rows[index < 3 ? 0 : 1] + bend[column] }
+}
+// Where one of the front's buttons is on the grid: "start1", "coin", "start2".
+function frontAt(name) {
+    return project(front[name] * panelLength, 0, -(strip + frontHeight) / 2)
 }
 
 function Grid(w, h) {
@@ -168,7 +183,7 @@ Grid.prototype.line = function(a, b, value) {
 // Corners round a box (left, top, right, bottom), as a camera's focus
 // frame: what is lit is marked so beside the rest.
 Grid.prototype.frame = function(l, t, r, b) {
-    var arm = 3
+    var arm = 2
     for (var i = 0; i < arm; i++) {
         this.set(l + i, t, 1); this.set(l, t + i, 1)
         this.set(r - i, t, 1); this.set(r, t + i, 1)
@@ -217,11 +232,10 @@ function ellipse(cx, cy, rx, ry) {
         }
     }
 }
-// A rectangle on the panel, (u0, v0) to (u1, v1), its corners cut by c: the
-// points round it from the front left, at height z.
-function outline(u0, v0, u1, v1, c, z) {
-    return [project(u0 + c, v0, z), project(u1 - c, v0, z), project(u1, v0 + c, z), project(u1, v1 - c, z),
-            project(u1 - c, v1, z), project(u0 + c, v1, z), project(u0, v1 - c, z), project(u0, v0 + c, z)]
+// The panel's corners at height z, from the front left round to the back
+// left.
+function corners(z) {
+    return [project(0, 0, z), project(panelLength, 0, z), project(panelLength, panelDepth, z), project(0, panelDepth, z)]
 }
 
 // Two-colour shading: ink on a share of the cells, in an even pattern.
@@ -229,14 +243,14 @@ function ground() { return 2 }
 function half(x, y) { return (x + y) % 2 === 0 ? 1 : 2 }
 function sixteenth(x, y) { return x % 4 === 0 && y % 4 === 0 ? 1 : 2 }
 
-// The stick (Sanwa JLF with its ball top): the dust washer round the shaft,
-// the shaft, the ball.
-function drawStick(grid) {
-    var c = project(stick.u, stick.v, 0)
-    var washer = ellipse(c.x, c.y, 6.5, 3.2)
+// A stick (a Sanwa JLF with its ball top): the dust washer round the
+// shaft, the shaft, the ball.
+function drawStick(grid, at) {
+    var c = project(at.u, at.v, 0)
+    var washer = ellipse(c.x, c.y, 4.2, 2.1)
     grid.paint(washer, half)
     grid.edge(washer)
-    var hole = ellipse(c.x, c.y, 2.5, 1.2)
+    var hole = ellipse(c.x, c.y, 1.6, 0.8)
     grid.paint(hole, ground)
     for (var z = 0; z < shaftHeight; z++) {
         grid.set(Math.round(c.x) - 1, Math.round(c.y) - z, 1)
@@ -245,74 +259,76 @@ function drawStick(grid) {
     grid.sprite(ball, { x: Math.floor(ballDiameter / 2), y: ballDiameter - 1 }, c.x, c.y - shaftHeight + 2)
 }
 
-// The memory card's window behind the buttons: its frame, and the card's
-// slot along its front.
-function drawMemoryCard(grid) {
-    var m = memoryCard
-    var u0 = m.u - m.length / 2, u1 = m.u + m.length / 2, v0 = m.v - m.depth / 2, v1 = m.v + m.depth / 2
-    var corners = [project(u0, v0, 0), project(u1, v0, 0), project(u1, v1, 0), project(u0, v1, 0)]
-    grid.paint(polygon(corners), ground)
-    for (var i = 0; i < 4; i++)
-        grid.line(corners[i], corners[(i + 1) % 4], 1)
-    grid.line(project(u0 + 1, v0 + 1, 0), project(u1 - 1, v0 + 1, 0), 1)
-}
-
-// lit: the inputs to light, by their names ("1" to "6", "coin", "start").
-function draw(lit) {
+// lit: the inputs to light, by their names ("1" to "6", "coin", "start"),
+// on player's side: 2 the right, else the left.
+function draw(lit, player) {
     var on = {}
     for (var i = 0; lit && i < lit.length; i++)
         on[lit[i]] = true
+    var side = player === 2 ? 2 : 1
     var grid = new Grid(width, height)
-    var L = panelLength, D = panelDepth
 
-    // The panel, its screws, the memory card's window.
-    var panel = polygon(outline(0, 0, L, D, corner, 0))
-    grid.paint(panel, sixteenth)
-    grid.edge(panel)
-    var screws = [[1.1, 1.1], [L - 1.1, 1.1], [1.1, D - 1.1], [L - 1.1, D - 1.1]]
-    for (var w = 0; w < screws.length; w++) {
-        var sc = project(screws[w][0], screws[w][1], 0)
-        grid.set(Math.round(sc.x), Math.round(sc.y), 1)
-        grid.set(Math.round(sc.x) + 1, Math.round(sc.y), 1)
+    // The front and the right end, in shade, the strip along the front's
+    // top and round the end; the top over them.
+    var top = corners(0), foot = corners(-frontHeight), band = corners(-strip)
+    for (var s = 0; s < 2; s++) {
+        var face = polygon([top[s], top[s + 1], foot[s + 1], foot[s]])
+        grid.paint(face, ground)
+        grid.edge(face)
+        grid.line(band[s], band[s + 1], 1)
     }
-    drawMemoryCard(grid)
+    var deck = polygon(top)
+    grid.paint(deck, sixteenth)
+    grid.edge(deck)
 
-    // What stands on it, from the back: whatever is higher up the screen is
-    // farther away.
-    var small = function(name, at) {
-        return { at: at, draw: function() {
-            var c = project(at.u, at.v, 0)
-            grid.sprite(on[name] ? smallButton.on : smallButton.off, smallButton.anchor, c.x, c.y)
-        } }
+    // The front's buttons: 1P START, COIN, 2P START.
+    var start = side === 2 ? "start2" : "start1"
+    var fronts = ["start1", "coin", "start2"]
+    for (var f = 0; f < fronts.length; f++) {
+        var name = fronts[f]
+        var c = frontAt(name)
+        var lightIt = name === "coin" ? on["coin"] : name === start && on["start"]
+        grid.sprite(lightIt ? frontButton.on : frontButton.off, frontButton.anchor, c.x, c.y)
     }
-    var things = [{ at: stick, draw: function() { drawStick(grid) } }, small("coin", coin), small("start", start)]
-    for (var b = 0; b < 6; b++) {
-        (function(index) {
-            var at = buttonAt(index)
-            things.push({ at: at, draw: function() {
-                var c = project(at.u, at.v, 0)
-                grid.sprite(on[String(index + 1)] ? button.on : button.off, button.anchor, c.x, c.y)
-            } })
-        })(b)
+
+    // What stands on the top, from the back: whatever is higher up the
+    // screen is farther away.
+    var things = []
+    for (var p = 1; p <= 2; p++) {
+        (function(player) {
+            var at = { u: (player - 1) * playerLength + stick.u, v: stick.v }
+            things.push({ at: at, draw: function() { drawStick(grid, at) } })
+            for (var b = 0; b < 6; b++) {
+                (function(index) {
+                    var at = buttonAt(player, index)
+                    var lightIt = player === side && on[String(index + 1)]
+                    things.push({ at: at, draw: function() {
+                        var c = project(at.u, at.v, 0)
+                        grid.sprite(lightIt ? button.on : button.off, button.anchor, c.x, c.y)
+                    } })
+                })(b)
+            }
+        })(p)
     }
     things.sort(function(a, b) { return (a.at.u - a.at.v) - (b.at.u - b.at.v) })
     for (var t = 0; t < things.length; t++)
         things[t].draw()
 
     // The focus frame round each lit one.
-    var gap = 2
-    var framed = function(sprite, at) {
-        var c = project(at.u, at.v, 0)
+    var gap = 1
+    var framed = function(sprite, c) {
         var left = Math.round(c.x) - sprite.anchor.x, top = Math.round(c.y) - sprite.anchor.y
         grid.frame(left - gap, top - gap, left + sprite.off[0].length - 1 + gap, top + sprite.off.length - 1 + gap)
     }
     for (var n = 0; n < 6; n++) {
-        if (on[String(n + 1)])
-            framed(button, buttonAt(n))
+        if (on[String(n + 1)]) {
+            var at = buttonAt(side, n)
+            framed(button, project(at.u, at.v, 0))
+        }
     }
     if (on["coin"])
-        framed(smallButton, coin)
+        framed(frontButton, frontAt("coin"))
     if (on["start"])
-        framed(smallButton, start)
+        framed(frontButton, frontAt(start))
     return { width: width, height: height, cells: grid.cells }
 }
