@@ -8,6 +8,8 @@
 
 **Made for CRTs, arcade cabinets too.** OSD/OS is developed for tubes first: composite, SCART RGB or HDMI from Settings, and menus, films and games kept in their shapes on a CRT's non-square pixels. With Crown Arcade's Raspberry Pi to JAMMA board it runs an arcade cabinet's own monitor, in each mode one may take from 15 kHz to 31 kHz, and the cabinet's sticks and buttons drive it. Its arcade keeps each game's high scores and goes online too: achievements and leaderboards on RetroAchievements, and netplay, playing others over the internet through RetroArch's lobby, or on the same network, straight from one machine to the other.
 
+OSD/OS grew out of [240-MP](https://github.com/anthonycaccese/240-MP), Anthony Caccese's VCR-style frontend for CRTs, and is a modified version of it under the same license, the GNU GPL v3. Its credits, 240-MP's contributors among them, are under [Credits and license](#credits-and-license).
+
 <p align="center"><img src="docs/images/default-look.gif" width="640" alt="OSD/OS as it comes, in two colors: the main menu, Local Files' tree, the Arcade screen's games on a 3D wheel, its filters and the games others host online, and Settings" /></p>
 
 Out of the box it is plain on purpose, as above: two colors, and nothing moving but the cursor. If you want more, a theme changes the whole look at once, with effects, transitions between windows and music of its own, from a tube's curved glass to Matrix rain and a fire in the window. Eight come with it, here each on the Arcade screen and in Local Files' tree:
