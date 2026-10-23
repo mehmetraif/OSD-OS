@@ -1047,14 +1047,18 @@ FocusScope {
             }
             // Why none was downloaded: RetroAchievements' pictures come with
             // the account's Web API key alone (Settings → Arcade →
-            // RetroAchievements Account).
+            // RetroAchievements Account); or that every game's are being
+            // looked for (Download Pictures), and how far that has got.
             Text {
                 readonly property bool noKey: arcadeBackend ? !arcadeBackend.achievementsKey : false
                 readonly property bool refused: arcadeBackend ? arcadeBackend.achievementsKeyRefused : false
-                visible: arcadeScreen.isGame && (noKey || refused)
+                readonly property var progress: (arcadeBackend && arcadeBackend.picturesProgress) || ({})
+                readonly property bool looking: !!progress.active && !progress.again && progress.total > 0
+                visible: arcadeScreen.isGame && (looking || noKey || refused)
                 width: parent.width
                 horizontalAlignment: Text.AlignHCenter
-                text: refused ? "Web API Key Refused" : "No Web API Key"
+                text: looking ? "Downloading " + Math.min(progress.done, progress.total) + "/" + progress.total
+                      : refused ? "Web API Key Refused" : "No Web API Key"
                 elide: Text.ElideRight
                 color: root.primaryColor
                 font.family: root.globalFont

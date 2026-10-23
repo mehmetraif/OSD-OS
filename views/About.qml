@@ -130,8 +130,9 @@ FocusScope {
           description: "The online games to join, from libretro's lobby, which also lists the games you host, and"
                        + " libretro's relay servers, which carry a hosted game through when Relay Server is set" },
         { key: "snaps", label: "Genres, Pictures", value: "progettosnaps.net",
-          description: "Genres from catver.ini and the games' pictures from the Snapshots pack, both from"
-                       + " Progetto-SNAPS, progettosnaps.net, put in the games folder" }
+          description: "Genres from catver.ini and the games' pictures from the Snapshots and Titles packs, both from"
+                       + " Progetto-SNAPS, progettosnaps.net, put in the games folder or downloaded game by game"
+                       + " through ArcadeDB, adb.arcadeitalia.net • The pictures are free to use under fair use" }
     ]
 
     // The notice at the head of the licence page: the GPL's own, for this

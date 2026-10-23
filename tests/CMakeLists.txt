@@ -232,6 +232,7 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
         ../src/modules/arcade/Libretro.cpp
         ../src/modules/arcade/FbneoInstaller.cpp
         ../src/modules/arcade/RetroAchievements.cpp
+        ../src/modules/arcade/ArcadeDb.cpp
         ../src/modules/scripts/ScriptLauncher.cpp
         ../src/input/ControllerProfile.cpp
         ../src/audio/AudioOutput.cpp

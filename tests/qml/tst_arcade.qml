@@ -207,6 +207,19 @@ Rectangle {
         // fbneo's own change signal stands for the backend's fbneoChanged().
         property int downloads: 0
         function fbneoInfo() { return fbneo }
+        // The Game Pictures page, and the look through every game for them
+        // (picturesProgress, as the backend's property).
+        property var picturesProgress: ({ active: false })
+        // What picturesInfo() answers (not "pictures": picturesChanged is a
+        // game's signal above).
+        property var pictureInfo: ({ games: 0, withPictures: 0, achievements: true, snaps: true, key: "none", writable: true })
+        property int pictureDownloads: 0
+        function picturesInfo() { return pictureInfo }
+        function downloadPictures() {
+            pictureDownloads++
+            picturesProgress = { active: true, source: "RetroAchievements", done: 0, total: 0, asked: 0, failed: 0,
+                                 again: false, result: "" }
+        }
         function fbneoLicenseText() { return "You may freely use, modify, and distribute FB Neo." }
         function downloadFbneo() { downloads++; fbneoDownloading = true; fbneoProgress = 40; fbneoChanged() }
         property string achievementsUser: ""
@@ -848,6 +861,44 @@ Rectangle {
             verify(findText(page, "Download Again") !== null)
             compare(page.keys, ["retroarch", "core", "games", "download"])
             compare(findText(page, "freely use, modify"), null)
+            compare(root.backs, 0)
+            keyClick(Qt.Key_Escape)
+            compare(root.backs, 1)
+        }
+
+        // The Game Pictures page: the games with a picture of all, each
+        // source as Pictures From and the key have it, and Download Pictures
+        // starting the look, whose way the row shows as it goes and how it
+        // ended; back closes the page.
+        function test_picturesPage() {
+            arcadeBackend.pictureInfo = { games: 120, withPictures: 45, achievements: true, snaps: true, key: "none",
+                                          writable: true }
+            var page = open("Pictures.qml")
+            verify(findText(page, "45/120") !== null)
+            verify(findText(page, "No Web API Key") !== null)
+            compare(page.keys, ["games", "achievements", "snaps", "download"])
+            keyClick(Qt.Key_Down)
+            keyClick(Qt.Key_Down)
+            keyClick(Qt.Key_Down)
+            keyClick(Qt.Key_Return)
+            compare(arcadeBackend.pictureDownloads, 1)
+            tryVerify(function() { return findText(page, "Starting") !== null }, 1000)
+            arcadeBackend.picturesProgress = { active: true, source: "progetto-SNAPS", done: 12, total: 40, asked: 12,
+                                               failed: 0, again: false, result: "" }
+            tryVerify(function() { return findText(page, "progetto-SNAPS 12/40") !== null }, 1000)
+            // Select while it goes on starts nothing anew.
+            keyClick(Qt.Key_Return)
+            compare(arcadeBackend.pictureDownloads, 1)
+            arcadeBackend.picturesProgress = { active: true, again: true, failed: 3, result: "" }
+            tryVerify(function() { return findText(page, "Trying Again Soon") !== null }, 1000)
+            arcadeBackend.picturesProgress = { active: false, result: "3 Not Downloaded" }
+            tryVerify(function() { return findText(page, "3 Not Downloaded") !== null }, 1000)
+            arcadeBackend.pictureInfo = { games: 120, withPictures: 117, achievements: true, snaps: false, key: "refused",
+                                          writable: true }
+            arcadeBackend.gamesChanged()
+            tryVerify(function() { return findText(page, "117/120") !== null }, 1000)
+            verify(findText(page, "Key Refused") !== null)
+            verify(findText(page, "Off") !== null)
             compare(root.backs, 0)
             keyClick(Qt.Key_Escape)
             compare(root.backs, 1)

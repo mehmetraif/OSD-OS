@@ -201,6 +201,13 @@ exit 0
         QHash<QByteArray, QByteArray> answers;
         // Paths answered late, by how many milliseconds.
         QHash<QByteArray, int> delays;
+        // Paths answered with another status first: its line, with any
+        // headers of its own after \r\n, and the body that goes with it ({}
+        // unless statusBodies says), as many times as failTimes says (every
+        // time for a path it leaves out).
+        QHash<QByteArray, QByteArray> statuses;
+        QHash<QByteArray, QByteArray> statusBodies;
+        QHash<QByteArray, int> failTimes;
         // The Web API keys it takes.
         QStringList keys{ QStringLiteral("key1") };
         QStringList asked;
@@ -208,6 +215,10 @@ exit 0
         std::function<void(const QString &path)> onAsk;
         QUrl api() const { return QUrl(QStringLiteral("http://127.0.0.1:%1/API/").arg(server.serverPort())); }
         QUrl media() const { return QUrl(QStringLiteral("http://127.0.0.1:%1/media/").arg(server.serverPort())); }
+        // ArcadeDB's scraper service, which the same stand-in plays.
+        QUrl service() const {
+            return QUrl(QStringLiteral("http://127.0.0.1:%1/service_scraper.php").arg(server.serverPort()));
+        }
     };
     static bool serve(StandIn &standIn) {
         if (!standIn.server.listen(QHostAddress::LocalHost))
@@ -220,15 +231,33 @@ exit 0
                 const QString key = query.queryItemValue(QStringLiteral("y"));
                 query.removeQueryItem(QStringLiteral("y"));
                 const bool api = url.path().startsWith(QLatin1String("/API/"));
-                const QByteArray path = (api ? url.path() + QLatin1Char('?') + query.toString() : url.path()).toLatin1();
+                // The Web API's and the scraper service's are told apart by
+                // their queries; the scraper's may be answered for its path
+                // alone, whatever it asks about.
+                const bool withQuery = api || url.path() == QLatin1String("/service_scraper.php");
+                const QByteArray path = (withQuery ? url.path() + QLatin1Char('?') + query.toString() : url.path()).toLatin1();
+                const QByteArray bare = url.path().toLatin1();
                 standIn.asked << QString::fromLatin1(path);
                 if (standIn.onAsk)
                     standIn.onAsk(QString::fromLatin1(path));
                 QByteArray status = "200 OK";
-                QByteArray body = standIn.answers.value(path);
+                const bool known = standIn.answers.contains(path) || (!api && standIn.answers.contains(bare));
+                QByteArray body = standIn.answers.contains(path) ? standIn.answers.value(path) : standIn.answers.value(bare);
+                const auto failing = [&standIn](const QByteArray &p) {
+                    if (!standIn.statuses.contains(p))
+                        return false;
+                    if (!standIn.failTimes.contains(p))
+                        return true;
+                    if (standIn.failTimes[p] <= 0)
+                        return false;
+                    --standIn.failTimes[p];
+                    return true;
+                };
                 if (api && !standIn.keys.contains(key))
                     status = "401 Unauthorized", body = "{}";
-                else if (!standIn.answers.contains(path))
+                else if (failing(path))
+                    status = standIn.statuses.value(path), body = standIn.statusBodies.value(path, "{}");
+                else if (!known)
                     status = "404 Not Found", body.clear();
                 const QByteArray answer = "HTTP/1.1 " + status + "\r\nContent-Length: " + QByteArray::number(body.size())
                                           + "\r\nConnection: close\r\n\r\n" + body;
@@ -3469,6 +3498,307 @@ private slots:
         QTRY_VERIFY_WITH_TIMEOUT(!arcade.scanning(), 10000);
         QTRY_VERIFY_WITH_TIMEOUT(!arcade.sweepingPictures(), 5000);
         QVERIFY(gamesAsked().isEmpty());
+    }
+
+    // progetto-SNAPS' pictures through ArcadeDB, for the games still without
+    // any once RetroAchievements has been asked: Download Pictures goes
+    // through the folder, RetroAchievements' pass first, then asks ArcadeDB
+    // about the games with no picture in one request, saves each game's
+    // screenshot as snap/<set>.png and its title screen as titles/<set>.png,
+    // never over a file there, and notes in .arcadedb.json what ArcadeDB had
+    // of each set, so that none is asked about again; a game shown is asked
+    // about by itself, after RetroAchievements; Pictures From can keep
+    // either source out; the look's marker goes once every picture is had.
+    void picturesFromArcadeDb() {
+        QTemporaryDir data;
+        QVERIFY(data.isValid());
+        const QString games = data.path() + QStringLiteral("/media/Games/Arcade");
+        const QString snap = games + QStringLiteral("/snap");
+        const QString titles = games + QStringLiteral("/titles");
+        for (const char *set : { "sf2.zip", "galaga.zip", "kinst.zip", "pacman.zip" })
+            writeFile(games + QLatin1Char('/') + QLatin1String(set));
+        // Pac-Man's own snap is there already: ArcadeDB isn't asked about it.
+        writeFile(snap + QStringLiteral("/pacman.png"), png("pacman mine"));
+        QVERIFY(QDir().mkpath(data.path() + QStringLiteral("/bin")));
+        QVERIFY(QFile::copy(mamePath(), data.path() + QStringLiteral("/bin/mame")));
+        QVERIFY(QFile::setPermissions(data.path() + QStringLiteral("/bin/mame"),
+                                      QFile::ReadOwner | QFile::WriteOwner | QFile::ExeOwner));
+        qputenv("OSDOS_MEDIA_DIR", (data.path() + QStringLiteral("/media")).toUtf8());
+        const auto restore = qScopeGuard([this] {
+            qputenv("OSDOS_MEDIA_DIR", (m_data.path() + QStringLiteral("/media")).toUtf8());
+        });
+        // RetroAchievements has Street Fighter II alone; ArcadeDB has Galaga's
+        // two pictures and Metal Slug's, and nothing of Killer Instinct.
+        StandIn standIn;
+        QVERIFY(serve(standIn));
+        const QString base = standIn.service().toString().section(QLatin1Char('/'), 0, 2);
+        const auto adbGame = [&base](const char *set) {
+            return QStringLiteral("{\"game_name\": \"%1\", \"title\": \"%1\", \"url_image_ingame\": \"%2/media/adb/%1_ingame.png\","
+                                  " \"url_image_title\": \"%2/media/adb/%1_title.png\"}")
+                .arg(QLatin1String(set), base);
+        };
+        standIn.answers = {
+            { "/API/API_GetGameList.php?i=27&h=1",
+              "[{\"ID\": 1, \"NumAchievements\": 2, \"NumLeaderboards\": 0, \"Hashes\": [\"" + hashOf("sf2") + "\"]}]" },
+            { "/API/API_GetGame.php?i=1", R"({"ImageTitle": "/Images/000101.png"})" },
+            { "/media/Images/000101.png", png("sf2 title") },
+            { "/API/API_GetConsoleIDs.php?", R"([{"ID": 27, "Name": "Arcade"}])" },
+            // Answered for its path alone, whatever it asks about.
+            { "/service_scraper.php", ("{\"release\": \"0.289\", \"result\": [" + adbGame("galaga") + ", " + adbGame("mslug")
+                                       + ", {\"game_name\": \"othergame\", \"url_image_ingame\": \"https://elsewhere.example/x.png\"}]}")
+                                          .toUtf8() },
+            { "/media/adb/galaga_ingame.png", png("galaga in play") },
+            { "/media/adb/galaga_title.png", png("galaga title") },
+            { "/media/adb/mslug_ingame.png", png("mslug in play") },
+            { "/media/adb/mslug_title.png", png("mslug title") },
+        };
+        const auto asked = [&standIn](const char *prefix) {
+            QStringList found;
+            for (const QString &path : std::as_const(standIn.asked)) {
+                if (path.startsWith(QLatin1String(prefix)))
+                    found << path;
+            }
+            return found;
+        };
+        const auto files = [](const QString &folder) {
+            return QDir(folder).entryList({ QStringLiteral("*.png") }, QDir::Files, QDir::Name);
+        };
+        const auto record = [snap] {
+            QFile file(snap + QStringLiteral("/.arcadedb.json"));
+            return file.open(QIODevice::ReadOnly) ? QJsonDocument::fromJson(file.readAll()).object() : QJsonObject();
+        };
+        const auto urls = [](const QStringList &paths) {
+            QStringList list;
+            for (const QString &path : paths)
+                list << QUrl::fromLocalFile(path).toString();
+            return list;
+        };
+
+        ArcadeBackend arcade(data.path(), data.path(), nullptr, nullptr);
+        arcade.setAchievementsServers(standIn.api(), standIn.media());
+        arcade.setPictureServer(standIn.service());
+        arcade.setPictureSweepInterval(50);
+        arcade.setAchievementsKey(QStringLiteral("key1"));
+        refreshed(arcade);
+        QTRY_VERIFY_WITH_TIMEOUT(arcade.achievementsKeyWorks(), 5000);
+        standIn.asked.clear();
+
+        // Download Pictures: RetroAchievements' pass saves Street Fighter II's;
+        // ArcadeDB is asked about Galaga and Killer Instinct in one request
+        // (not Street Fighter II, which has its picture by then, nor Pac-Man,
+        // which has its own), and Galaga's two pictures are saved where the
+        // packs put them. The marker stands while it goes on.
+        arcade.downloadPictures();
+        QTRY_VERIFY_WITH_TIMEOUT(arcade.sweepingPictures(), 5000);
+        QVERIFY(QFile::exists(data.path() + QStringLiteral("/arcade/pictures-wanted")));
+        QTRY_VERIFY_WITH_TIMEOUT(!arcade.sweepingPictures(), 15000);
+        QCOMPARE(files(snap), QStringList({ QStringLiteral("galaga.png"), QStringLiteral("pacman.png"), QStringLiteral("sf2_1.png") }));
+        QCOMPARE(files(titles), QStringList({ QStringLiteral("galaga.png") }));
+        QCOMPARE(contents(snap + QStringLiteral("/galaga.png")), png("galaga in play"));
+        QCOMPARE(contents(titles + QStringLiteral("/galaga.png")), png("galaga title"));
+        const QStringList queries = asked("/service_scraper.php?");
+        QCOMPARE(queries.size(), 1);
+        QVERIFY2(queries.first().contains(QLatin1String("galaga")) && queries.first().contains(QLatin1String("kinst"))
+                     && !queries.first().contains(QLatin1String("sf2")) && !queries.first().contains(QLatin1String("pacman")),
+                 qPrintable(queries.first()));
+        QVERIFY(queries.first().contains(QLatin1String("use_parent=1")));
+        QCOMPARE(asked("/API/API_GetGame.php").size(), 1);
+        QCOMPARE(arcade.gameDetails(QStringLiteral("galaga")).value(QStringLiteral("pictures")).toStringList(),
+                 urls({ snap + QStringLiteral("/galaga.png"), titles + QStringLiteral("/galaga.png") }));
+        QCOMPARE(arcade.gameDetails(QStringLiteral("pacman")).value(QStringLiteral("pictures")).toStringList(),
+                 urls({ snap + QStringLiteral("/pacman.png") }));
+        // What ArcadeDB had of each, noted (the record is written off the GUI
+        // thread, Galaga's after Killer Instinct's); the marker gone, every
+        // picture had.
+        QTRY_VERIFY_WITH_TIMEOUT(record().value(QStringLiteral("galaga")).toObject().value(QStringLiteral("had")).toBool(),
+                                 5000);
+        QVERIFY(record().contains(QStringLiteral("kinst")));
+        QCOMPARE(record().value(QStringLiteral("kinst")).toObject().value(QStringLiteral("had")).toBool(), false);
+        QVERIFY(!record().contains(QStringLiteral("pacman")));
+        QVERIFY(!QFile::exists(data.path() + QStringLiteral("/arcade/pictures-wanted")));
+        const QVariantMap progress = arcade.picturesProgress();
+        QCOMPARE(progress.value(QStringLiteral("active")).toBool(), false);
+        QCOMPARE(progress.value(QStringLiteral("result")).toString(), QStringLiteral("Done"));
+        QCOMPARE(progress.value(QStringLiteral("failed")).toInt(), 0);
+        const QVariantMap info = arcade.picturesInfo();
+        QCOMPARE(info.value(QStringLiteral("games")).toInt(), 4);
+        QCOMPARE(info.value(QStringLiteral("withPictures")).toInt(), 3);
+        QCOMPARE(info.value(QStringLiteral("key")).toString(), QStringLiteral("works"));
+
+        // Again: nothing asked of either, every set noted or with pictures.
+        standIn.asked.clear();
+        arcade.downloadPictures();
+        QTRY_VERIFY_WITH_TIMEOUT(!arcade.sweepingPictures(), 5000);
+        QVERIFY2(standIn.asked.isEmpty(), qPrintable(standIn.asked.join(QLatin1Char(' '))));
+
+        // Metal Slug comes into the folder and is shown: RetroAchievements
+        // doesn't know it, so ArcadeDB is asked about it by itself, and its
+        // pictures come in as the game's (picturesChanged).
+        writeFile(games + QStringLiteral("/mslug.zip"));
+        refreshed(arcade);
+        standIn.asked.clear();
+        QSignalSpy changed(&arcade, &ArcadeBackend::picturesChanged);
+        arcade.wantPictures(QStringLiteral("mslug"));
+        QTRY_VERIFY_WITH_TIMEOUT(changed.size() >= 2, 5000);
+        QCOMPARE(asked("/service_scraper.php?").size(), 1);
+        QVERIFY(asked("/service_scraper.php?").first().contains(QLatin1String("game_name=mslug")));
+        QCOMPARE(arcade.gameDetails(QStringLiteral("mslug")).value(QStringLiteral("pictures")).toStringList(),
+                 urls({ snap + QStringLiteral("/mslug.png"), titles + QStringLiteral("/mslug.png") }));
+        // Shown again: nothing more asked.
+        standIn.asked.clear();
+        arcade.wantPictures(QStringLiteral("mslug"));
+        arcade.wantPictures(QStringLiteral("kinst"));
+        QTest::qWait(200);
+        QVERIFY(standIn.asked.isEmpty());
+
+        // Pictures From RetroAchievements alone: ArcadeDB isn't asked about a
+        // game new in the folder (one RetroAchievements hasn't); Off: neither
+        // is.
+        const QString module = QStringLiteral("com.osdos.arcade");
+        writeFile(games + QStringLiteral("/mspacman.zip"));
+        refreshed(arcade);
+        arcade.onSettingChanged(module, QStringLiteral("pictures_source"), QStringLiteral("RetroAchievements"));
+        standIn.asked.clear();
+        arcade.wantPictures(QStringLiteral("mspacman"));
+        QTest::qWait(300);
+        QVERIFY(asked("/service_scraper.php?").isEmpty());
+        arcade.onSettingChanged(module, QStringLiteral("pictures_source"), QStringLiteral("Off"));
+        arcade.downloadPictures();
+        QTest::qWait(300);
+        QVERIFY(!arcade.sweepingPictures());
+        QVERIFY(standIn.asked.isEmpty());
+        arcade.onSettingChanged(module, QStringLiteral("pictures_source"), QStringLiteral("progetto-SNAPS"));
+        arcade.downloadPictures();
+        QTRY_VERIFY_WITH_TIMEOUT(!arcade.sweepingPictures(), 5000);
+        QCOMPARE(asked("/service_scraper.php?").size(), 1);
+        QVERIFY(asked("/service_scraper.php?").first().contains(QLatin1String("mspacman")));
+        QVERIFY(asked("/API/API_GetGame.php").isEmpty());
+    }
+
+    // RetroAchievements asking for a pause (HTTP 429) isn't a refused key: the
+    // request is asked again after the pause and the pictures come; nor is
+    // its guard's 403 page; a 401, and a 403 in its own words, is.
+    void retroAchievementsPause() {
+        QTemporaryDir data;
+        QVERIFY(data.isValid());
+        const QString games = data.path() + QStringLiteral("/media/Games/Arcade");
+        const QString snap = games + QStringLiteral("/snap");
+        writeFile(games + QStringLiteral("/sf2.zip"));
+        QVERIFY(QDir().mkpath(data.path() + QStringLiteral("/bin")));
+        QVERIFY(QFile::copy(mamePath(), data.path() + QStringLiteral("/bin/mame")));
+        QVERIFY(QFile::setPermissions(data.path() + QStringLiteral("/bin/mame"),
+                                      QFile::ReadOwner | QFile::WriteOwner | QFile::ExeOwner));
+        qputenv("OSDOS_MEDIA_DIR", (data.path() + QStringLiteral("/media")).toUtf8());
+        const auto restore = qScopeGuard([this] {
+            qputenv("OSDOS_MEDIA_DIR", (m_data.path() + QStringLiteral("/media")).toUtf8());
+        });
+        StandIn standIn;
+        QVERIFY(serve(standIn));
+        standIn.keys << QStringLiteral("key2") << QStringLiteral("key3");
+        standIn.answers = {
+            { "/API/API_GetGameList.php?i=27&h=1",
+              "[{\"ID\": 1, \"NumAchievements\": 2, \"NumLeaderboards\": 0, \"Hashes\": [\"" + hashOf("sf2") + "\"]}]" },
+            { "/API/API_GetGame.php?i=1", R"({"ImageTitle": "/Images/000101.png"})" },
+            { "/media/Images/000101.png", png("sf2 title") },
+            { "/API/API_GetConsoleIDs.php?", R"([{"ID": 27, "Name": "Arcade"}])" },
+        };
+        // The game's first ask and the picture's first download: too many
+        // requests, a second's pause each.
+        standIn.statuses = { { "/API/API_GetGame.php?i=1", "429 Too Many Requests\r\nRetry-After: 1" },
+                             { "/media/Images/000101.png", "429 Too Many Requests\r\nRetry-After: 1" } };
+        standIn.failTimes = { { "/API/API_GetGame.php?i=1", 1 }, { "/media/Images/000101.png", 1 } };
+
+        ArcadeBackend arcade(data.path(), data.path(), nullptr, nullptr);
+        arcade.setAchievementsServers(standIn.api(), standIn.media());
+        arcade.setPictureServer(standIn.service());
+        arcade.onSettingChanged(QStringLiteral("com.osdos.arcade"), QStringLiteral("pictures_source"),
+                                QStringLiteral("RetroAchievements"));
+        arcade.setAchievementsKey(QStringLiteral("key1"));
+        refreshed(arcade);
+        QTRY_VERIFY_WITH_TIMEOUT(arcade.achievementsKeyWorks(), 5000);
+        QSignalSpy changed(&arcade, &ArcadeBackend::picturesChanged);
+        arcade.wantPictures(QStringLiteral("sf2"));
+        QTRY_VERIFY_WITH_TIMEOUT(changed.size() >= 1, 10000);
+        QVERIFY(!arcade.achievementsKeyRefused());
+        QCOMPARE(standIn.asked.count(QStringLiteral("/API/API_GetGame.php?i=1")), 2);
+        QCOMPARE(standIn.asked.count(QStringLiteral("/media/Images/000101.png")), 2);
+        QCOMPARE(contents(snap + QStringLiteral("/sf2_1.png")), png("sf2 title"));
+
+        // The guard's page in a 403: no fault of the key's, which still works
+        // once an answer comes with it.
+        standIn.statuses = { { "/API/API_GetConsoleIDs.php?", "403 Forbidden" } };
+        standIn.statusBodies = { { "/API/API_GetConsoleIDs.php?", "<html><body>Checking your browser</body></html>" } };
+        standIn.failTimes = { { "/API/API_GetConsoleIDs.php?", 1 } };
+        arcade.setAchievementsKey(QStringLiteral("key2"));
+        QTest::qWait(500);
+        QVERIFY(!arcade.achievementsKeyRefused());
+        QVERIFY(!arcade.achievementsKeyWorks());
+        arcade.checkAchievementsKey();
+        QTRY_VERIFY_WITH_TIMEOUT(arcade.achievementsKeyWorks(), 5000);
+        // RetroAchievements' own 403: refused; so is a key it doesn't know.
+        standIn.statuses = { { "/API/API_GetConsoleIDs.php?", "403 Forbidden" } };
+        standIn.statusBodies = { { "/API/API_GetConsoleIDs.php?", R"({"message": "This action is unauthorized."})" } };
+        standIn.failTimes.clear();
+        arcade.setAchievementsKey(QStringLiteral("key3"));
+        QTRY_VERIFY_WITH_TIMEOUT(arcade.achievementsKeyRefused(), 5000);
+        standIn.statuses.clear();
+        standIn.statusBodies.clear();
+        arcade.setAchievementsKey(QStringLiteral("nokey"));
+        QTRY_VERIFY_WITH_TIMEOUT(arcade.achievementsKeyRefused(), 5000);
+    }
+
+    // A look for pictures that couldn't have every one is made again later,
+    // and one cut short goes on at the next start: the marker left in the
+    // data folder starts it once the games are read.
+    void pictureSweepTriesAgain() {
+        QTemporaryDir data;
+        QVERIFY(data.isValid());
+        const QString games = data.path() + QStringLiteral("/media/Games/Arcade");
+        const QString snap = games + QStringLiteral("/snap");
+        writeFile(games + QStringLiteral("/sf2.zip"));
+        writeFile(games + QStringLiteral("/galaga.zip"));
+        QVERIFY(QDir().mkpath(data.path() + QStringLiteral("/bin")));
+        QVERIFY(QFile::copy(mamePath(), data.path() + QStringLiteral("/bin/mame")));
+        QVERIFY(QFile::setPermissions(data.path() + QStringLiteral("/bin/mame"),
+                                      QFile::ReadOwner | QFile::WriteOwner | QFile::ExeOwner));
+        qputenv("OSDOS_MEDIA_DIR", (data.path() + QStringLiteral("/media")).toUtf8());
+        const auto restore = qScopeGuard([this] {
+            qputenv("OSDOS_MEDIA_DIR", (m_data.path() + QStringLiteral("/media")).toUtf8());
+        });
+        StandIn standIn;
+        QVERIFY(serve(standIn));
+        // Street Fighter II's picture can't be downloaded at first.
+        standIn.answers = {
+            { "/API/API_GetGameList.php?i=27&h=1",
+              "[{\"ID\": 1, \"NumAchievements\": 2, \"NumLeaderboards\": 0, \"Hashes\": [\"" + hashOf("sf2") + "\"]}]" },
+            { "/API/API_GetGame.php?i=1", R"({"ImageTitle": "/Images/000101.png"})" },
+            { "/API/API_GetConsoleIDs.php?", R"([{"ID": 27, "Name": "Arcade"}])" },
+        };
+        // A look left wanting by the last run.
+        writeFile(data.path() + QStringLiteral("/arcade/pictures-wanted"), "wanted\n");
+
+        ArcadeBackend arcade(data.path(), data.path(), nullptr, nullptr);
+        arcade.setAchievementsServers(standIn.api(), standIn.media());
+        arcade.setPictureServer(standIn.service());
+        arcade.setPictureSweepInterval(50);
+        arcade.setPictureRetryInterval(500);
+        arcade.onSettingChanged(QStringLiteral("com.osdos.arcade"), QStringLiteral("pictures_source"),
+                                QStringLiteral("RetroAchievements"));
+        arcade.setAchievementsKey(QStringLiteral("key1"));
+        // The games read: the look goes on by itself, and ends with a picture
+        // it couldn't have, to be tried again.
+        refreshed(arcade);
+        QTRY_VERIFY_WITH_TIMEOUT(standIn.asked.contains(QStringLiteral("/API/API_GetGame.php?i=1")), 10000);
+        QTRY_VERIFY_WITH_TIMEOUT(arcade.picturesProgress().value(QStringLiteral("again")).toBool(), 10000);
+        QCOMPARE(arcade.picturesProgress().value(QStringLiteral("failed")).toInt(), 1);
+        QVERIFY(QFile::exists(data.path() + QStringLiteral("/arcade/pictures-wanted")));
+        // Had by the next look, which passes the game whose pictures are in
+        // (the retry's ten minutes are a test's half second).
+        standIn.answers.insert("/media/Images/000101.png", png("sf2 title"));
+        QTRY_VERIFY_WITH_TIMEOUT(QFile::exists(snap + QStringLiteral("/sf2_1.png")), 15000);
+        QTRY_VERIFY_WITH_TIMEOUT(!QFile::exists(data.path() + QStringLiteral("/arcade/pictures-wanted")), 10000);
+        QCOMPARE(arcade.picturesProgress().value(QStringLiteral("result")).toString(), QStringLiteral("Done"));
+        QVERIFY(!arcade.picturesProgress().value(QStringLiteral("active")).toBool());
     }
 
     // The Arcade screen's RetroAchievements filter: with Online High Scores

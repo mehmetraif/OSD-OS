@@ -86,6 +86,7 @@ add_executable(osdos
     src/modules/arcade/Libretro.cpp
     src/modules/arcade/FbneoInstaller.cpp
     src/modules/arcade/RetroAchievements.cpp
+    src/modules/arcade/ArcadeDb.cpp
     src/modules/highscores/HighScoresBackend.cpp
     src/modules/highscores/ScoreTable.cpp
     src/modules/web_player/WebPlayerBackend.cpp
