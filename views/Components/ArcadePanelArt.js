@@ -7,11 +7,11 @@
 // three that follow the fingers (the first column nearer the player, the
 // second the farthest), player 1 on the left and player 2 on the right. Its
 // front leans back as it goes down: on it, below a chrome strip, three round
-// buttons, 1P START, COIN and 2P START. Behind the panel the monitor leans
-// back, its bezel round the foot of the screen; under it the cabinet's front,
-// leaning back too, goes down past the top of the coin door. The cabinet
-// fades out above and below. One player's side can be lit: a button, COIN or
-// that player's START.
+// buttons, 1P START, COIN and 2P START. Its right end is shaded in a dither.
+// Behind the panel the monitor leans back, its bezel round the foot of the
+// screen; under it the cabinet's front goes straight down past the top of the
+// coin door. The cabinet fades out above and below. One player's side can be
+// lit: a button, COIN or that player's START.
 //
 // draw() lays it out on a grid of cells, one art pixel each: 0 for none
 // (the ground the host draws on shows), 1 for ink, 2 for the ground drawn
@@ -21,7 +21,7 @@
 
 // The grid.
 var width = 103
-var height = 105
+var height = 107
 
 // Isometric 2:1: along the panel (u, the players' left to right) a cell
 // down for every two right, into it (v, away from the players) a cell up for
@@ -46,12 +46,10 @@ var frontLean = 2.5
 var strip = 2
 // The cabinet round it, as much as shows: the monitor's bezel, leaning back
 // (lean units at its top) up from the top's back edge, how high; and the
-// front under the panel, leaning back too (belowLean units at its foot) down
-// from the panel front's foot, how low.
+// front under the panel, straight down from the panel front's foot, how low.
 var above = 20
 var lean = 3.5
 var below = 20
-var belowLean = 2.5
 
 // Where things stand on the top (u, v), from the left end of each player's
 // half of it. The buttons' columns follow the fingers: the first a little
@@ -285,12 +283,12 @@ function drawStick(grid, at) {
 
 // The panel's faces and the cabinet's: the top, rising towards the back;
 // the front, leaning back as it goes down; the monitor's bezel, leaning back
-// up from the top's back edge; the cabinet's front, leaning back down from
-// the panel front's foot.
+// up from the top's back edge; the cabinet's front, straight down from the
+// panel front's foot.
 var deck = new Plane({ v: 0, z: 0 }, { v: panelDepth, z: slope * panelDepth })
 var face = new Plane({ v: 0, z: 0 }, { v: frontLean, z: -frontHeight })
 var bezel = new Plane({ v: panelDepth, z: slope * panelDepth }, { v: lean, z: above })
-var low = new Plane({ v: frontLean, z: -frontHeight }, { v: belowLean, z: -below })
+var low = new Plane({ v: frontLean, z: -frontHeight }, { v: 0, z: -below })
 // Where a thing on the top stands, raised with it.
 function onTop(at) {
     return project(at.u, at.v, slope * at.v)
@@ -412,14 +410,13 @@ function draw(lit, player) {
     drawCabinet(grid)
 
     // The panel's front, in shade, with the strip along its top; its right
-    // end, the top's back edge down to the front's foot; the top over them.
+    // end, the top's back edge down to the front's foot, in a dither and no
+    // outline; the top over them.
     var front = face.quad(0, L, 0, 1)
     grid.paint(front, ground)
     grid.edge(front)
     grid.line(face.at(0, strip / frontHeight), face.at(L, strip / frontHeight), 1)
-    var end = polygon([face.at(L, 0), deck.at(L, 1), project(L, D, -frontHeight), face.at(L, 1)])
-    grid.paint(end, ground)
-    grid.edge(end)
+    grid.paint(polygon([face.at(L, 0), deck.at(L, 1), project(L, D, -frontHeight), face.at(L, 1)]), half)
     var topFace = deck.quad(0, L, 0, 1)
     grid.paint(topFace, sixteenth)
     grid.edge(topFace)
