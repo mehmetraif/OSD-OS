@@ -9,8 +9,9 @@
 // front leans back as it goes down: on it, below a chrome strip, three round
 // buttons, 1P START, COIN and 2P START. Behind the panel the monitor leans
 // back, its bezel round the foot of the screen; under it the cabinet's front,
-// leaning back too, goes down past the top of the coin door. One player's
-// side can be lit: a button, COIN or that player's START.
+// leaning back too, goes down past the top of the coin door. The cabinet
+// fades out above and below. One player's side can be lit: a button, COIN or
+// that player's START.
 //
 // draw() lays it out on a grid of cells, one art pixel each: 0 for none
 // (the ground the host draws on shows), 1 for ink, 2 for the ground drawn
@@ -20,14 +21,14 @@
 
 // The grid.
 var width = 103
-var height = 95
+var height = 105
 
 // Isometric 2:1: along the panel (u, the players' left to right) a cell
 // down for every two right, into it (v, away from the players) a cell up for
 // every two right, z straight up, all in cells. Origin: the panel top's
 // front left corner.
 var originX = 0
-var originY = 33
+var originY = 38
 
 function project(u, v, z) {
     return { x: originX + 2 * u + 2 * v, y: originY + u - v - (z || 0) }
@@ -47,10 +48,10 @@ var strip = 2
 // (lean units at its top) up from the top's back edge, how high; and the
 // front under the panel, leaning back too (belowLean units at its foot) down
 // from the panel front's foot, how low.
-var above = 14
-var lean = 2.5
-var below = 14
-var belowLean = 1.75
+var above = 20
+var lean = 3.5
+var below = 20
+var belowLean = 2.5
 
 // Where things stand on the top (u, v), from the left end of each player's
 // half of it. The buttons' columns follow the fingers: the first a little
@@ -120,15 +121,20 @@ function buttonAt(player, index) {
     return { u: (player - 1) * playerLength + columns[column], v: rows[index < 3 ? 0 : 1] + bend[column] }
 }
 
-// The cells.
+// The cells, and for each of the cabinet's the height it stands at (NaN for
+// the rest), which its fade goes by.
 function Grid(w, h) {
     this.w = w
     this.h = h
     this.cells = new Uint8Array(w * h)
+    this.height = new Float32Array(w * h).fill(NaN)
 }
+// A cell drawn over is no longer the cabinet's.
 Grid.prototype.set = function(x, y, value) {
-    if (x >= 0 && y >= 0 && x < this.w && y < this.h)
+    if (x >= 0 && y >= 0 && x < this.w && y < this.h) {
         this.cells[y * this.w + x] = value
+        this.height[y * this.w + x] = NaN
+    }
 }
 Grid.prototype.get = function(x, y) {
     return x >= 0 && y >= 0 && x < this.w && y < this.h ? this.cells[y * this.w + x] : 0
@@ -152,6 +158,17 @@ Grid.prototype.edge = function(shape) {
         var cx = x + 0.5, cy = y + 0.5
         return !inside(cx - 1, cy) || !inside(cx + 1, cy) || !inside(cx, cy - 1) || !inside(cx, cy + 1) ? 1 : this.get(x, y)
     }.bind(this))
+}
+// The cells of a shape as the cabinet's, at the heights heightAt(x, y)
+// gives, whatever is drawn in them.
+Grid.prototype.tag = function(shape, heightAt) {
+    var box = shape.box
+    for (var y = Math.max(0, Math.floor(box[1])); y <= Math.min(this.h - 1, Math.ceil(box[3])); y++) {
+        for (var x = Math.max(0, Math.floor(box[0])); x <= Math.min(this.w - 1, Math.ceil(box[2])); x++) {
+            if (shape.inside(x + 0.5, y + 0.5))
+                this.height[y * this.w + x] = heightAt(x + 0.5, y + 0.5)
+        }
+    }
 }
 Grid.prototype.line = function(a, b, value) {
     var x0 = Math.round(a.x), y0 = Math.round(a.y), x1 = Math.round(b.x), y1 = Math.round(b.y)
@@ -222,11 +239,15 @@ function ellipse(cx, cy, rx, ry) {
 // A flat face of the cabinet or the panel across it: from its left end's
 // point p0 (u 0, v, z) along the cabinet (u) and up or down it by dir, t from
 // 0 to 1. at(u, t): where a point of it is on the grid; quad(): a part of
-// it as a shape.
+// it as a shape; heightAt(x, y): the height (z) of the point of it a cell
+// shows.
 function Plane(p0, dir) {
+    var s0 = project(0, p0.v, p0.z)
     var sx = 2 * dir.v, sy = -dir.v - dir.z
     var det = 2 * sy - sx
     this.at = function(u, t) { return project(u, p0.v + t * dir.v, p0.z + t * dir.z) }
+    this.t = function(x, y) { return (2 * (y - s0.y) - (x - s0.x)) / det }
+    this.heightAt = function(x, y) { return p0.z + this.t(x, y) * dir.z }.bind(this)
     this.quad = function(u0, u1, t0, t1) {
         return polygon([this.at(u0, t0), this.at(u1, t0), this.at(u1, t1), this.at(u0, t1)])
     }
@@ -243,6 +264,8 @@ function ground() { return 2 }
 function ink() { return 1 }
 function half(x, y) { return (x + y) % 2 === 0 ? 1 : 2 }
 function sixteenth(x, y) { return x % 4 === 0 && y % 4 === 0 ? 1 : 2 }
+// A lit screen's lines: every other row, every other cell of it.
+function scanlines(x, y) { return y % 2 === 0 && x % 2 === 0 ? 1 : 2 }
 
 // A stick (a Sanwa JLF with its ball top): the dust washer round the
 // shaft, the shaft, the ball.
@@ -321,10 +344,10 @@ var frontOff = discSprite(face, frontRadius, false)
 var frontOn = discSprite(face, frontRadius, true)
 
 // What shows of the cabinet behind and under the panel, each face filled
-// and outlined: the monitor's bezel round the foot of the screen, a glint on
-// its glass; and the cabinet's front under the panel, down past the top of
-// the coin door with its two coin entries (a bright plate each with the slot
-// in it, the coin return under it).
+// and outlined: the monitor's bezel round the foot of the screen, its lines
+// and a glint on its glass; and the cabinet's front under the panel, down
+// past the top of the coin door with its two coin entries (a bright plate
+// each with the slot in it, the coin return under it).
 function drawCabinet(grid) {
     var L = panelLength
     var draw = function(shape, fill) {
@@ -335,14 +358,17 @@ function drawCabinet(grid) {
     var up = function(cells) { return cells / above }
     var down = function(cells) { return cells / below }
 
-    draw(bezel.quad(0, L, 0, 1), ground)
+    var whole = bezel.quad(0, L, 0, 1)
+    draw(whole, ground)
     draw(bezel.quad(3, L - 3, up(6), 1), ground)
     draw(polygon([bezel.at(5, up(7)), bezel.at(L - 5, up(7)), bezel.at(L - 4, up(9.5)), bezel.at(L - 4, 1),
-                  bezel.at(4, 1), bezel.at(4, up(9.5))]), ground)
+                  bezel.at(4, 1), bezel.at(4, up(9.5))]), scanlines)
     grid.line(bezel.at(6, up(9)), bezel.at(9, up(13)), 1)
     grid.line(bezel.at(6, up(12)), bezel.at(7, up(14)), 1)
+    grid.tag(whole, bezel.heightAt)
 
-    draw(low.quad(0, L, 0, 1), ground)
+    var front = low.quad(0, L, 0, 1)
+    draw(front, sixteenth)
     draw(low.quad(L / 2 - 7, L / 2 + 7, down(4.5), 1), ground)
     var entries = [L / 2 - 3.5, L / 2 + 1.5]
     for (var j = 0; j < entries.length; j++) {
@@ -352,6 +378,25 @@ function drawCabinet(grid) {
         var r = low.at(e + 1, down(13))
         var rx = Math.round(r.x), ry = Math.round(r.y)
         grid.set(rx, ry, 1); grid.set(rx + 1, ry, 1); grid.set(rx, ry + 1, 1); grid.set(rx + 1, ry + 1, 1)
+    }
+    grid.tag(front, low.heightAt)
+}
+
+// The cabinet fades out up the bezel and down its front: the higher (or
+// lower) one of its cells, the likelier it is gone, in an even pattern.
+function fade(grid) {
+    var bayer = [[0, 8, 2, 10], [12, 4, 14, 6], [3, 11, 1, 9], [15, 7, 13, 5]]
+    var base = slope * panelDepth
+    var from = base + 10, top = base + above, to = -frontHeight - 10, bottom = -frontHeight - below
+    for (var y = 0; y < grid.h; y++) {
+        for (var x = 0; x < grid.w; x++) {
+            var z = grid.height[y * grid.w + x]
+            if (isNaN(z))
+                continue
+            var keep = z > from ? (top - z) / (top - from) : z < to ? (z - bottom) / (to - bottom) : 1
+            if (bayer[y % 4][x % 4] >= keep * 16)
+                grid.cells[y * grid.w + x] = 0
+        }
     }
 }
 
@@ -363,15 +408,18 @@ function draw(lit, player) {
         on[lit[i]] = true
     var side = player === 2 ? 2 : 1
     var grid = new Grid(width, height)
-    var L = panelLength
+    var L = panelLength, D = panelDepth
     drawCabinet(grid)
 
-    // The panel's front, in shade, with the strip along its top; the top
-    // over it.
+    // The panel's front, in shade, with the strip along its top; its right
+    // end, the top's back edge down to the front's foot; the top over them.
     var front = face.quad(0, L, 0, 1)
     grid.paint(front, ground)
     grid.edge(front)
     grid.line(face.at(0, strip / frontHeight), face.at(L, strip / frontHeight), 1)
+    var end = polygon([face.at(L, 0), deck.at(L, 1), project(L, D, -frontHeight), face.at(L, 1)])
+    grid.paint(end, ground)
+    grid.edge(end)
     var topFace = deck.quad(0, L, 0, 1)
     grid.paint(topFace, sixteenth)
     grid.edge(topFace)
@@ -408,6 +456,7 @@ function draw(lit, player) {
     things.sort(function(a, b) { return (a.at.u - a.at.v) - (b.at.u - b.at.v) })
     for (var t = 0; t < things.length; t++)
         things[t].draw()
+    fade(grid)
 
     // The focus frame round each lit one.
     var gap = 1
