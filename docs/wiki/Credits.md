@@ -4,7 +4,7 @@
 
 - **mehmet raif tasdemir (darkBLACK)**, [github.com/mehmetraif](https://github.com/mehmetraif), develops OSD/OS and tries it on a Raspberry Pi 4 and a Raspberry Pi 5, on CRT TVs and a JAMMA cabinet.
 - **Claude**, Anthropic's AI model, wrote most of OSD/OS's changes to 240-MP through [Claude Code](https://www.anthropic.com/claude-code), Anthropic's coding agent: the code, the tests and the documentation.
-- **Cursor Agent**, the coding agent of [Cursor](https://cursor.com), reviewed OSD/OS's code for its reliability and performance on the Raspberry Pi ([its review of 22 October 2026](https://github.com/mehmetraif/OSD-OS/blob/main/docs/reviews/2026-10-22-follow-up-review.md)), and fixes across the app followed from what it found.
+- **Cursor Agent**, the coding agent of [Cursor](https://cursor.com), reviewed OSD/OS's code for its reliability and performance on the Raspberry Pi, and fixes across the app followed from what it found.
 
 ## Credits
 
