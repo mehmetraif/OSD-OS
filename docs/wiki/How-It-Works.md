@@ -47,7 +47,7 @@ The rest of this page follows that picture from the top.
 | | What | Where |
 |---|---|---|
 | **`APP_ROOT`** | `Main.qml`, `views/`, `modules/`, `assets/`, `scripts/`, `LICENSE` | `$APP_ROOT` if set; inside a macOS bundle, its `Contents/Resources`; else `../share/osdos` beside the binary when it exists (`/opt/osdos/share/osdos` on a Pi); else the binary's parent folder |
-| **`DATA_ROOT`** | Settings, lists, sign-ins, browser profiles, staged updates, a yt-dlp of its own | `$DATA_ROOT` if set (an existing folder); else `~/.local/share/OSD-OS` on Linux, `~/Library/Application Support/OSD-OS` on macOS |
+| **`DATA_ROOT`** | Settings, lists, sign-ins, browser profiles, staged updates, a yt-dlp of its own | `$DATA_ROOT` if set (an existing folder); else `~/.local/share/OSD-OS` on Linux, `~/Library/Application Support/OSD-OS` on macOS, `%APPDATA%\OSD-OS` on Windows |
 
 Run from a source tree, `APP_ROOT=$(pwd) ./build/osdos` points the app at the checkout. OSD/OS was 240-MP: at start, a `240-MP` data folder beside the new one is moved over when the new one is missing or empty, and module ids in its JSON files are renamed (`com.240mp.x` to `com.osdos.x`). Every `OSDOS_…` environment variable is also read under its old `MP240_…` name ([`src/util/LegacyNames`](https://github.com/mehmetraif/OSD-OS/blob/main/src/util/LegacyNames.cpp)).
 

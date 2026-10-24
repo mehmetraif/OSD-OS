@@ -1,6 +1,6 @@
 # Building OSD/OS
 
-If you are interested in building your own version of OSD/OS and adding things to it then this page should hopefully cover what you would need to get an environment set up.  I've included details for macOS on ARM (where I primarily build) and Raspberry Pi OS.  And if you create a feature you would like to contribute back to this repo please open a PR, I'd be glad to talk through it.
+If you are interested in building your own version of OSD/OS and adding things to it then this page should hopefully cover what you would need to get an environment set up.  I've included details for macOS on ARM (where I primarily build), Raspberry Pi OS, Linux x86_64 and Windows.  And if you create a feature you would like to contribute back to this repo please open a PR, I'd be glad to talk through it.
 
 ## macOS (ARM)
 
@@ -311,6 +311,60 @@ Configuration lives at `~/.local/share/OSD-OS/` (same as the Pi). See [INSTALL.m
 
 `yt-dlp` is deliberately **not** bundled (it needs to be updatable independently of app releases). For the YouTube module on an immutable distro, drop a copy at `~/.local/share/OSD-OS/bin/yt-dlp` (`chmod +x`, update with `yt-dlp -U`); the app resolves it there first, then a `yt-dlp` sibling of the binary, then `PATH`, and hands the chosen path to mpv's ytdl hook via `--script-opts=ytdl_hook-ytdl_path=…` so both use the same copy. See the wiki's [YouTube](https://github.com/mehmetraif/OSD-OS/wiki/YouTube#how-osdos-finds-yt-dlp) page.
 
+## Windows (x64)
+
+A first build, for Windows 10 and 11 on x64: the menus, films from Local Files and the media servers, YouTube, the Arcade module with Windows builds of MAME and RetroArch, RetroAchievements, netplay and High Scores. What is the Pi's or a Linux desktop's is left out, as on macOS: Display Output, Audio Output's cards (the default device plays), Bluetooth and Wi-Fi (Windows' own settings), the JAMMA helper, Scripts, the NFC reader, the updater's install (it names a newer version, to download by hand) and, for now, Transparent Background. Nothing of it has been tried on a PC yet beyond the build: the **Windows build** workflow ([windows.yml](.github/workflows/windows.yml)) builds it on every pull request that touches the sources and uploads `osdos-windows-x64`, a copy to try.
+
+### Prerequisites (one-time)
+
+- **Visual Studio 2022 Build Tools** with the *Desktop development with C++* workload (MSVC, the Windows SDK, CMake and Ninja).
+- **Qt 6.8** for MSVC 2022 64-bit from the Qt installer, with **Qt Shader Tools** (the effects' shaders; optional, as on macOS).
+- **vcpkg** for SDL2, OpenSSL and minizip (with zlib):
+
+```bat
+git clone https://github.com/microsoft/vcpkg C:\vcpkg
+C:\vcpkg\bootstrap-vcpkg.bat
+C:\vcpkg\vcpkg install sdl2 openssl minizip --triplet x64-windows
+```
+
+- **mpv** (required for playback): a build from [mpv.io](https://mpv.io/installation/) (shinchiro's), its folder put beside `osdos.exe` as `mpv\`, or `mpv.exe` beside the app or on the `PATH`.
+- **MAME** and **RetroArch** for Windows (optional, the Arcade module): `mame.exe` and RetroArch's folder on the `PATH`. Settings → Arcade → FinalBurn Neo downloads the Windows core.
+- **yt-dlp** and **Deno** (optional, YouTube): `yt-dlp.exe` and `deno.exe` on the `PATH`.
+
+### Build
+
+In a *x64 Native Tools Command Prompt for VS 2022* (or after `vcvars64.bat`):
+
+```bat
+cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Release ^
+  -DCMAKE_TOOLCHAIN_FILE=C:\vcpkg\scripts\buildsystems\vcpkg.cmake -DVCPKG_TARGET_TRIPLET=x64-windows ^
+  -DCMAKE_PREFIX_PATH=C:\Qt\6.8.3\msvc2022_64 -DCMAKE_INSTALL_PREFIX=%CD%\install
+cmake --build build --parallel
+cmake --install build
+C:\Qt\6.8.3\msvc2022_64\bin\windeployqt.exe --release --qmldir . install\bin\osdos.exe
+copy build\*.dll install\bin\
+copy C:\vcpkg\installed\x64-windows\bin\libssl*.dll install\bin\
+```
+
+(`6.8.3` stands for the Qt version installed.) vcpkg puts the libraries the app links beside the built binary (SDL2, OpenSSL's libcrypto, minizip, zlib); `windeployqt` adds Qt's libraries, plugins and QML modules; libssl is what Qt's TLS plugin opens at run time. The install's layout is the Linux one, `bin\` and `share\osdos\`, which the app finds from its own folder.
+
+### Run
+
+```bat
+install\bin\osdos.exe
+```
+
+or, from the source tree, `set APP_ROOT=%CD%` then `build\osdos.exe` (with Qt's `bin` on the `PATH`).
+
+### Configuration
+
+```
+%APPDATA%\OSD-OS\
+  config.json       ← app and module settings
+  lists.json        ← the modules' favorites and recently watched
+  input.cfg         ← optional gamepad mapping overrides
+```
+
 ## Gamepad input (input.cfg)
 
 USB game controllers should work out of the box as SDL's built-in controller database normalizes most pads (Xbox, PlayStation, 8BitDo, NES-style clones etc...) to a standard layout. OSD/OS maps that stanard layout to its navigation actions:
@@ -465,7 +519,7 @@ Set them inline, e.g. `QML_IMPORT_TRACE=1 APP_ROOT=$(pwd) ./build/osdos`.
 
 ## GitHub Actions
 
-Besides the release workflow below, four run on their own: **Website** ([pages.yml](.github/workflows/pages.yml)) builds the website (`scripts/build-site.py`: the landing page, and [OSD/OS Setup](os/README.md#osdos-setup) under `setup/`), tests it (`node --test tests/site/*.test.mjs`) and publishes it on the repository's GitHub Pages from `main`, and only builds and tests it for a pull request or another branch (Pages is turned on once, in the repository's **Settings → Pages**, with **GitHub Actions** as its source); **Regression tests** ([regression-tests.yml](.github/workflows/regression-tests.yml)) builds the app and runs the tests in `tests/` on Linux x64 and arm64 for every pull request, and every push to `main`, that touches the app or its tests (its C++, QML, assets, shaders and scripts; see [tests/README.md](tests/README.md)), and once more on Raspberry Pi OS: a Debian 13 "trixie" container with Raspberry Pi's archive added as pi-gen adds it for the OS image, on arm64 (other workflows can call it too, `workflow_call`, and the release workflow does); **OS image** ([os-image.yml](.github/workflows/os-image.yml)) builds the OSD/OS image for a pull request that touches it; and **Wiki** ([wiki.yml](.github/workflows/wiki.yml)) publishes `docs/wiki` to the [GitHub wiki](https://github.com/mehmetraif/OSD-OS/wiki) whenever it changes on `main`, replacing what the wiki had (GitHub makes a wiki's repository only once its first page is saved in the web interface, so that is done once first).
+Besides the release workflow below, five run on their own: **Website** ([pages.yml](.github/workflows/pages.yml)) builds the website (`scripts/build-site.py`: the landing page, and [OSD/OS Setup](os/README.md#osdos-setup) under `setup/`), tests it (`node --test tests/site/*.test.mjs`) and publishes it on the repository's GitHub Pages from `main`, and only builds and tests it for a pull request or another branch (Pages is turned on once, in the repository's **Settings → Pages**, with **GitHub Actions** as its source); **Regression tests** ([regression-tests.yml](.github/workflows/regression-tests.yml)) builds the app and runs the tests in `tests/` on Linux x64 and arm64 for every pull request, and every push to `main`, that touches the app or its tests (its C++, QML, assets, shaders and scripts; see [tests/README.md](tests/README.md)), and once more on Raspberry Pi OS: a Debian 13 "trixie" container with Raspberry Pi's archive added as pi-gen adds it for the OS image, on arm64 (other workflows can call it too, `workflow_call`, and the release workflow does); **OS image** ([os-image.yml](.github/workflows/os-image.yml)) builds the OSD/OS image for a pull request that touches it; **Windows build** ([windows.yml](.github/workflows/windows.yml)) builds the app for Windows x64 on `windows-2022` (Qt 6.8 from the Qt CDN, SDL2, OpenSSL and minizip from vcpkg, kept between runs), installs it, runs `windeployqt` and uploads the whole as the artifact `osdos-windows-x64` for a pull request that touches the sources (see [Windows](#windows-x64)); and **Wiki** ([wiki.yml](.github/workflows/wiki.yml)) publishes `docs/wiki` to the [GitHub wiki](https://github.com/mehmetraif/OSD-OS/wiki) whenever it changes on `main`, replacing what the wiki had (GitHub makes a wiki's repository only once its first page is saved in the web interface, so that is done once first).
 
 ### How to trigger a build
 
