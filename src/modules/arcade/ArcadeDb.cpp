@@ -60,7 +60,6 @@ void ArcadeDb::next() {
     QUrlQuery query;
     query.addQueryItem(QStringLiteral("ajax"), QStringLiteral("query_mame"));
     query.addQueryItem(QStringLiteral("game_name"), sets.join(QLatin1Char(';')));
-    query.addQueryItem(QStringLiteral("use_parent"), QStringLiteral("1"));
     query.addQueryItem(QStringLiteral("lang"), QStringLiteral("en"));
     url.setQuery(query);
     m_reply = m_nam->get(arcadehttp::requestFor(url, kTimeoutMs));

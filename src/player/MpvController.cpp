@@ -138,7 +138,13 @@ MpvController::MpvController(const QString &appRoot, const QString &dataRoot,
     , m_handoff(handoff)
     , m_appRoot(appRoot)
     , m_dataRoot(dataRoot)
+#ifdef Q_OS_WIN
+    // mpv's control connection on Windows is a named pipe, which QLocalSocket
+    // opens by the same name.
+    , m_socketPath(QStringLiteral("\\\\.\\pipe\\osdos-mpv-") + QString::number(QCoreApplication::applicationPid()))
+#else
     , m_socketPath(QDir::tempPath() + "/osdos-mpv.sock")
+#endif
     , m_inputConfPath(QDir::tempPath() + "/osdos-input.conf")
     , m_logFilePath(QDir::tempPath() + "/osdos-mpv.log")
     , m_subInfoPath(QDir::tempPath() + "/osdos-mpv-subinfo.json")
@@ -827,7 +833,7 @@ void MpvController::startProcess(QStringList args, const QStringList &media) {
         {
             QProcessEnvironment env = QProcessEnvironment::systemEnvironment();
             env.insert("APP_ROOT", m_appRoot);
-#ifdef Q_OS_LINUX
+#if defined(Q_OS_UNIX) && !defined(Q_OS_DARWIN)
             const QString fcConf = fcoverride::write(m_appRoot + "/assets/fonts");
             if (!fcConf.isEmpty())
                 env.insert("FONTCONFIG_FILE", fcConf);
@@ -887,7 +893,8 @@ void MpvController::startProcess(QStringList args, const QStringList &media) {
         env.insert("APP_ROOT", m_appRoot);
         if (!qEnvironmentVariable("DISPLAY").trimmed().isEmpty())
             env.remove("WAYLAND_DISPLAY");
-#ifdef Q_OS_LINUX
+#if defined(Q_OS_UNIX) && !defined(Q_OS_DARWIN)
+        // Linux and the BSDs: mpv's OSD in the app's VCR font, through fontconfig.
         const QString fcConf = fcoverride::write(m_appRoot + "/assets/fonts");
         if (!fcConf.isEmpty())
             env.insert("FONTCONFIG_FILE", fcConf);
@@ -1231,6 +1238,12 @@ void MpvController::appendVideoArgs(QStringList &args) const {
 #if defined(Q_OS_MACOS)
         // Apple Silicon: enable VideoToolbox HW decode (mpv's default is none).
         args << "--hwdec=videotoolbox";
+#elif defined(Q_OS_WIN)
+        // Windows: the GPU's decoder (D3D11) where mpv finds it safe.
+        args << "--hwdec=auto-safe";
+#elif defined(Q_OS_BSD4)
+        // The BSDs: VA-API through Mesa where there is one, as mpv finds it safe.
+        args << "--hwdec=auto-safe";
 #elif defined(Q_OS_LINUX)
         // Desktop compositor (SteamDeck gamescope / KDE, x86_64 Intel/AMD): mpv
         // sets no hwdec by default, so decode falls back to software. This is an
@@ -1426,6 +1439,11 @@ void MpvController::appendEmbeddedVideoArgs(QStringList &args, bool gpu) const {
 #if defined(Q_OS_MACOS)
         args << QStringLiteral("--hwdec=videotoolbox-copy")
              << QString("--osd-fonts-dir=%1").arg(m_appRoot + "/assets/fonts");
+#elif defined(Q_OS_WIN)
+        args << QStringLiteral("--hwdec=auto-copy-safe")
+             << QString("--osd-fonts-dir=%1").arg(m_appRoot + "/assets/fonts");
+#elif defined(Q_OS_BSD4)
+        args << QStringLiteral("--hwdec=auto-copy-safe");
 #elif defined(Q_OS_LINUX)
         args << (gpu ? QStringLiteral("--hwdec=nvdec,vaapi-copy,nvdec-copy,no")
                      : QStringLiteral("--hwdec=vaapi-copy,nvdec-copy,no"));
@@ -1451,7 +1469,7 @@ EmbeddedMpv *MpvController::embeddedPlayer() {
 }
 
 void MpvController::startEmbedded(QStringList args) {
-#ifdef Q_OS_LINUX
+#if defined(Q_OS_UNIX) && !defined(Q_OS_DARWIN)
     // mpv draws its OSD (the deck's menu) in the app's VCR font: libass finds
     // it through fontconfig, set up as for an mpv process of its own. Only
     // fontconfig set up afterwards reads this; Qt's own already is.

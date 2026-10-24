@@ -91,9 +91,10 @@ public:
 
     // True when at least one reader driver is compiled in. The PN532 serial
     // driver links nothing, so this is really "is this a platform we support"
-    // — unlike pcscAvailable(), which depends on libpcsclite being found.
+    // (Linux, macOS and the BSDs) — unlike pcscAvailable(), which depends on
+    // libpcsclite being found.
     bool available() const {
-#if defined(Q_OS_LINUX) || defined(Q_OS_MAC)
+#if defined(Q_OS_LINUX) || defined(Q_OS_BSD4)
         return true;
 #else
         return false;

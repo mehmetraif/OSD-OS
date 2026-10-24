@@ -84,6 +84,12 @@ FocusScope {
             open(rows.find(function(row) { return row.type !== "section" && row.id === roomId }))
     }
     onRowsChanged: {
+        // Not once the Loader has let the view go (out of its parent, deleted
+        // when the event loop gets to it): the lobby's signals still reach it
+        // there, and a call deferred from here would run on lists already
+        // destroyed, a crash on OpenBSD.
+        if (!lobbyRoot.parent)
+            return
         // The room open as the lobby has it now, or, gone from it or the
         // lobby not read, kept as it was with nothing to join; the cursor on
         // the line it was on, which the list's new lines took back to the
@@ -106,8 +112,11 @@ FocusScope {
         Qt.callLater(placeCursor)
     }
 
-    // The cursor on the room it was on, else the first room.
+    // The cursor on the room it was on, else the first room. Deferred calls
+    // (Qt.callLater) may come once the view is let go: nothing to place then.
     function placeCursor() {
+        if (!lobbyRoot.parent)
+            return
         for (var i = 0; i < rows.length; ++i) {
             if (rows[i].type !== "section" && rows[i].id === roomId) {
                 roomList.currentIndex = i
@@ -124,7 +133,7 @@ FocusScope {
     // The cursor on the room's line called label, else on the line at, or
     // the last.
     function keepLine(label, at) {
-        if (!room)
+        if (!room || !lobbyRoot.parent)
             return
         var i = 0
         while (i < lines.length && lines[i].label !== label)
@@ -173,12 +182,20 @@ FocusScope {
         interval: 20000
         repeat: true
         running: !!arcadeBackend && !arcadeBackend.running
-        onTriggered: arcadeBackend.refreshRooms()
+        onTriggered: {
+            if (lobbyRoot.parent)
+                arcadeBackend.refreshRooms()
+        }
     }
     Connections {
         target: arcadeBackend
         ignoreUnknownSignals: true
-        function onRoomsChanged() { lobbyRoot.revision++ }
+        // A view let go by its Loader still hears the lobby until it is
+        // deleted: it reads nothing more.
+        function onRoomsChanged() {
+            if (lobbyRoot.parent)
+                lobbyRoot.revision++
+        }
     }
 
     AppBar {

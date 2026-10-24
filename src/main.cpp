@@ -155,7 +155,9 @@ int main(int argc, char *argv[]) {
 
     std::signal(SIGTERM, osdosHandleTerm);
     std::signal(SIGINT,  osdosHandleTerm);
+#ifdef SIGHUP // not on Windows
     std::signal(SIGHUP,  osdosHandleTerm);
+#endif
     QTimer termPoll;
     termPoll.setInterval(100);
     QObject::connect(&termPoll, &QTimer::timeout, &app, [&app]() {
@@ -419,10 +421,11 @@ int main(int argc, char *argv[]) {
         win->winId(); // ensure native NSWindow is created
         forceWindowFullScreenOnScreen(reinterpret_cast<void *>(win->winId()), displayIndex);
     }
-#elif defined(Q_OS_LINUX)
-    // Desktop Linux (Steam Deck desktop mode, generic x86_64) only: EGLFS has
-    // a single screen so displayIndex is already clamped to 0 there, but gate
-    // on the platform name anyway so this can never disturb the Pi path.
+#elif defined(Q_OS_UNIX)
+    // Desktop Linux (Steam Deck desktop mode, generic x86_64) and the BSDs'
+    // desktops only: EGLFS has a single screen so displayIndex is already
+    // clamped to 0 there, but gate on the platform name anyway so this can
+    // never disturb the Pi path.
     // Wayland ignores setGeometry (clients can't self-position); re-issuing
     // FullScreen after setScreen makes QtWayland send
     // xdg_toplevel.set_fullscreen(output) for the target.  On xcb the geometry

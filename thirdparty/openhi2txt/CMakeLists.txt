@@ -7,6 +7,9 @@ project(openhi2txt
 
 option(OPENHI2TXT_BUILD_CLI "Build the openhi2txt command-line executable" ON)
 option(BUILD_TESTING "Build the openhi2txt test executables" ON)
+# OSD/OS: on Windows too, the zlib and minizip CMake finds (vcpkg's), rather
+# than the static ones expected under thirdparty/zlib-static.
+option(OPENHI2TXT_SYSTEM_ZLIB "Link the system's zlib and minizip on Windows as well" OFF)
 
 if(BUILD_TESTING)
     enable_testing()
@@ -71,7 +74,7 @@ set(OPENHI2TXT_BUNDLED_ZLIB_INCLUDE "${OPENHI2TXT_BUNDLED_ZLIB_DIR}/include")
 set(OPENHI2TXT_BUNDLED_ZLIB_LIB "${OPENHI2TXT_BUNDLED_ZLIB_DIR}/lib/msvc-x64-md/zs.lib")
 set(OPENHI2TXT_BUNDLED_MINIZIP_LIB "${OPENHI2TXT_BUNDLED_ZLIB_DIR}/lib/msvc-x64-md/minizip.lib")
 
-if(WIN32 AND MSVC)
+if(WIN32 AND MSVC AND NOT OPENHI2TXT_SYSTEM_ZLIB)
     if(NOT EXISTS "${OPENHI2TXT_BUNDLED_ZLIB_INCLUDE}/zlib.h"
             OR NOT EXISTS "${OPENHI2TXT_BUNDLED_ZLIB_INCLUDE}/minizip/unzip.h"
             OR NOT EXISTS "${OPENHI2TXT_BUNDLED_ZLIB_LIB}"

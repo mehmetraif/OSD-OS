@@ -1,0 +1,85 @@
+name: OpenBSD build
+
+# Builds the app on OpenBSD (amd64), runs the regression tests there and
+# uploads the install tree as an artifact, osdos-openbsd-amd64: the app and
+# its files as the install rules lay them out (bin/, share/osdos/), to run
+# with the system's Qt, SDL2 and mpv packages. GitHub has no OpenBSD runners:
+# the job starts an OpenBSD virtual machine on a Linux runner, with the
+# repository copied into it and what it builds copied back.
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'src/**'
+      - 'shaders/**'
+      - 'thirdparty/**'
+      - 'cmake/**'
+      - 'tests/**'
+      - 'CMakeLists.txt'
+      - '.github/workflows/openbsd.yml'
+  pull_request:
+    paths:
+      - 'src/**'
+      - 'shaders/**'
+      - 'thirdparty/**'
+      - 'cmake/**'
+      - 'tests/**'
+      - 'CMakeLists.txt'
+      - '.github/workflows/openbsd.yml'
+
+# A newer push cancels the run before it: a run takes about ten minutes, and
+# only the newest commit's result matters.
+concurrency:
+  group: openbsd-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-openbsd-amd64:
+    name: OpenBSD amd64
+    runs-on: ubuntu-latest
+    timeout-minutes: 150
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7.0.1
+
+      # The packages: Qt 6 with its QML, SVG and shader tools, SDL2
+      # (gamepads), minizip (High Scores' tables, FinalBurn Neo's download),
+      # and what the tests run with (bash, Lua). The TLS library is the
+      # system's LibreSSL; pkg-config is in the base system.
+      - name: Build and test in an OpenBSD VM
+        uses: vmactions/openbsd-vm@v1
+        with:
+          release: "8.0"
+          mem: 6144
+          sync: rsync
+          copyback: true
+          prepare: |
+            pkg_add -I cmake ninja bash lua%5.4 \
+              qt6-qtbase qt6-qtdeclarative qt6-qtsvg qt6-qtshadertools sdl2 minizip
+          run: |
+            set -e
+            ulimit -d unlimited 2> /dev/null || true
+            uname -a
+            cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_PREFIX_PATH=/usr/local \
+              -DCMAKE_INSTALL_PREFIX="$PWD/install" -DAPP_VERSION=dev
+            cmake --build build --parallel
+            cmake --install build
+            cmake -S tests -B build-tests -G Ninja -DCMAKE_PREFIX_PATH=/usr/local
+            cmake --build build-tests --parallel
+            status=0
+            QT_QPA_PLATFORM=offscreen ctest --test-dir build-tests --output-on-failure --timeout 300 || status=$?
+            # A handler or a deferred call that ran on a view its Loader had
+            # let go: a warning on Linux, a crash on OpenBSD, so any is listed.
+            grep -n "invalid context\|delayed function evaluation" build-tests/Testing/Temporary/LastTest.log || true
+            [ "$status" -eq 0 ]
+            tar -C install -czf osdos-openbsd-amd64.tar.gz bin share
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v7.0.1
+        with:
+          name: osdos-openbsd-amd64
+          path: osdos-openbsd-amd64.tar.gz
+          if-no-files-found: error

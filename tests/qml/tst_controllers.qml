@@ -72,7 +72,12 @@ Rectangle {
         signal auxButtonPressed(int extendedKeyId)
         signal jammaPinChanged(int player, string address, string pin, bool pressed, string input)
         signal jammaPinsFailed(string reason)
-        function controllerPage(key) { return pages[key] || ({}) }
+        // A page as InputManager's QVariantMaps reach QML: a copy on each
+        // call. A var property given the same object again emits no change
+        // signal from Qt 6.10 on, and a page's bindings would keep what its
+        // contents were.
+        function copyOf(map) { return JSON.parse(JSON.stringify(map || {})) }
+        function controllerPage(key) { return copyOf(pages[key]) }
         function captureController(key) { capturing = key }
         function captureControllers(keys) { capturing = keys.join(",") }
         function watchJammaPins(on) { watchingPins = on }
@@ -99,7 +104,7 @@ Rectangle {
         // decides it ("<input> <token>"); any other is set.
         property var arcadePages: ({})
         property var arcadeOutcomes: ({})
-        function arcadePage(key) { return arcadePages[key] || ({}) }
+        function arcadePage(key) { return copyOf(arcadePages[key]) }
         function setArcadeLayout(key, layout) {
             calls = calls.concat([["arcadeLayout", key, layout]])
             var p = arcadePages

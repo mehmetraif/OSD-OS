@@ -5,7 +5,8 @@
 
 #include <cstdint>
 
-// PC/SC (pcsc-lite on Linux, PCSC.framework on macOS) reader driver.
+// PC/SC (pcsc-lite on Linux and the BSDs, PCSC.framework on macOS) reader
+// driver.
 //
 // Reads the card UID with the FF CA 00 00 00 "Get Data" pseudo-APDU, which is
 // PC/SC-standard rather than vendor-specific, so this works with any CCID
@@ -28,7 +29,7 @@ public:
     static bool compiledIn();
 
 private:
-#if defined(OSDOS_NFC_PCSC_AVAILABLE) && (defined(Q_OS_LINUX) || defined(Q_OS_MAC))
+#if defined(OSDOS_NFC_PCSC_AVAILABLE) && defined(Q_OS_UNIX)
     QString findReader();
     bool cardPresent(const QString &readerName);
     QString readCardUid(const QString &readerName);

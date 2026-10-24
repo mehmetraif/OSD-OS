@@ -1,6 +1,6 @@
 # Building OSD/OS
 
-If you are interested in building your own version of OSD/OS and adding things to it then this page should hopefully cover what you would need to get an environment set up.  I've included details for macOS on ARM (where I primarily build) and Raspberry Pi OS.  And if you create a feature you would like to contribute back to this repo please open a PR, I'd be glad to talk through it.
+If you are interested in building your own version of OSD/OS and adding things to it then this page should hopefully cover what you would need to get an environment set up.  I've included details for macOS on ARM (where I primarily build), Raspberry Pi OS, Linux x86_64 and Windows.  And if you create a feature you would like to contribute back to this repo please open a PR, I'd be glad to talk through it.
 
 ## macOS (ARM)
 
@@ -311,6 +311,114 @@ Configuration lives at `~/.local/share/OSD-OS/` (same as the Pi). See [INSTALL.m
 
 `yt-dlp` is deliberately **not** bundled (it needs to be updatable independently of app releases). For the YouTube module on an immutable distro, drop a copy at `~/.local/share/OSD-OS/bin/yt-dlp` (`chmod +x`, update with `yt-dlp -U`); the app resolves it there first, then a `yt-dlp` sibling of the binary, then `PATH`, and hands the chosen path to mpv's ytdl hook via `--script-opts=ytdl_hook-ytdl_path=…` so both use the same copy. See the wiki's [YouTube](https://github.com/mehmetraif/OSD-OS/wiki/YouTube#how-osdos-finds-yt-dlp) page.
 
+## Windows (x64)
+
+A first build, for Windows 11 on x64: the menus, films from Local Files and the media servers, YouTube, the Arcade module with Windows builds of MAME and RetroArch, RetroAchievements, netplay and High Scores. What is the Pi's or a Linux desktop's is left out, as on macOS: Display Output, Audio Output's cards (the default device plays), Bluetooth and Wi-Fi (Windows' own settings), the JAMMA helper, Scripts, the NFC reader, the updater's install (it names a newer version, to download by hand) and, for now, Transparent Background. Nothing of it has been tried on a PC yet beyond the build: the **Windows build** workflow ([windows.yml](.github/workflows/windows.yml)) builds it on every pull request that touches the sources and uploads `osdos-windows-x64`, a copy to try.
+
+### Prerequisites (one-time)
+
+- **Visual Studio 2022 Build Tools** with the *Desktop development with C++* workload (MSVC, the Windows SDK, CMake and Ninja).
+- **Qt 6.8** for MSVC 2022 64-bit from the Qt installer, with **Qt Shader Tools** (the effects' shaders; optional, as on macOS).
+- **vcpkg** for SDL2, OpenSSL and minizip (with zlib):
+
+```bat
+git clone https://github.com/microsoft/vcpkg C:\vcpkg
+C:\vcpkg\bootstrap-vcpkg.bat
+C:\vcpkg\vcpkg install sdl2 openssl minizip --triplet x64-windows
+```
+
+- **mpv** (required for playback): a build from [mpv.io](https://mpv.io/installation/) (shinchiro's), its folder put beside `osdos.exe` as `mpv\`, or `mpv.exe` beside the app or on the `PATH`.
+- **MAME** and **RetroArch** for Windows (optional, the Arcade module): `mame.exe` and RetroArch's folder on the `PATH`. Settings → Arcade → FinalBurn Neo downloads the Windows core.
+- **yt-dlp** and **Deno** (optional, YouTube): `yt-dlp.exe` and `deno.exe` on the `PATH`.
+
+### Build
+
+In a *x64 Native Tools Command Prompt for VS 2022* (or after `vcvars64.bat`):
+
+```bat
+cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Release ^
+  -DCMAKE_TOOLCHAIN_FILE=C:\vcpkg\scripts\buildsystems\vcpkg.cmake -DVCPKG_TARGET_TRIPLET=x64-windows ^
+  -DCMAKE_PREFIX_PATH=C:\Qt\6.8.3\msvc2022_64 -DCMAKE_INSTALL_PREFIX=%CD%\install
+cmake --build build --parallel
+cmake --install build
+C:\Qt\6.8.3\msvc2022_64\bin\windeployqt.exe --release --qmldir . install\bin\osdos.exe
+copy build\*.dll install\bin\
+copy C:\vcpkg\installed\x64-windows\bin\libssl*.dll install\bin\
+```
+
+(`6.8.3` stands for the Qt version installed.) vcpkg puts the libraries the app links beside the built binary (SDL2, OpenSSL's libcrypto, minizip, zlib); `windeployqt` adds Qt's libraries, plugins and QML modules; libssl is what Qt's TLS plugin opens at run time. The install's layout is the Linux one, `bin\` and `share\osdos\`, which the app finds from its own folder.
+
+### Run
+
+```bat
+install\bin\osdos.exe
+```
+
+or, from the source tree, `set APP_ROOT=%CD%` then `build\osdos.exe` (with Qt's `bin` on the `PATH`). The build is a console program for now: a console window opens with the app and shows its log.
+
+### Configuration
+
+```
+%APPDATA%\OSD-OS\
+  config.json       ← app and module settings
+  lists.json        ← the modules' favorites and recently watched
+  input.cfg         ← optional gamepad mapping overrides
+```
+
+## FreeBSD and OpenBSD (amd64)
+
+A first build for the BSDs, a desktop app as on a Mac: the menus, films from Local Files and the media servers, YouTube, the Arcade module with the system's MAME package (FinalBurn Neo's download has no BSD build, so RetroArch, and with it RetroAchievements and netplay, waits for one), High Scores, Transparent Background with the system's libmpv, and the NFC Reader (a PN532 on a USB serial port, `cuaU*`, or a PC/SC reader with `pcsc-lite` installed). What is the Pi's or a Linux desktop's is left out, as on macOS: Display Output, Audio Output's cards (the default device plays), Bluetooth and Wi-Fi (the system's own tools), the JAMMA helper and the updater's install (it names a newer version, to download by hand). Netflix and Prime Video are not there either: no browser on the BSDs has Widevine. Nothing of it has been tried on a BSD machine yet beyond the build and the regression tests: the **FreeBSD build** and **OpenBSD build** workflows ([freebsd.yml](.github/workflows/freebsd.yml), [openbsd.yml](.github/workflows/openbsd.yml)) build it in a FreeBSD 15.1 or an OpenBSD 8.0 virtual machine on every pull request that touches the sources or the tests, run the tests there with the systems' Qt 6.11 and upload `osdos-freebsd-amd64` and `osdos-openbsd-amd64`: the install tree, `bin/` and `share/osdos/`, as a tarball to run with the system's Qt 6, SDL2 and mpv packages.
+
+### Prerequisites (one-time)
+
+FreeBSD, as root (OpenSSL is the base system's):
+
+```sh
+pkg install cmake-core ninja pkgconf qt6-base qt6-declarative qt6-svg qt6-shadertools sdl2 minizip mpv
+```
+
+OpenBSD, as root (pkg-config and LibreSSL are the base system's):
+
+```sh
+pkg_add cmake ninja qt6-qtbase qt6-qtdeclarative qt6-qtsvg qt6-qtshadertools sdl2 minizip mpv
+```
+
+- **mpv** plays every video, and its libmpv is Transparent Background's: CMake finds the headers through pkg-config, and the app opens the library from `/usr/local/lib` at run time.
+- Optional: `pcsc-lite` for PC/SC NFC readers (CMake finds it through pkg-config), the system's `mame` package for the Arcade module, `yt-dlp` (and Deno, where the system has a package) for YouTube.
+- For the regression tests: `bash`, Lua 5.4 (`lua54` on FreeBSD, `lua%5.4` on OpenBSD) and, on FreeBSD, the `dejavu` fonts the view tests draw their text with.
+
+### Build
+
+```sh
+cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_PREFIX_PATH=/usr/local \
+  -DCMAKE_INSTALL_PREFIX="$PWD/install"
+cmake --build build --parallel
+cmake --install build
+```
+
+### Run
+
+```sh
+install/bin/osdos
+```
+
+or, from the source tree, `APP_ROOT=$(pwd) ./build/osdos`. The install is laid out as on Linux, `bin/` and `share/osdos/`, which the app finds from its own folder. The regression tests build and run as on Linux ([tests/README.md](tests/README.md)):
+
+```sh
+cmake -S tests -B build-tests -G Ninja -DCMAKE_PREFIX_PATH=/usr/local
+cmake --build build-tests --parallel
+QT_QPA_PLATFORM=offscreen ctest --test-dir build-tests --output-on-failure
+```
+
+### Configuration
+
+```
+~/.local/share/OSD-OS/
+  config.json       ← app and module settings
+  lists.json        ← the modules' favorites and recently watched
+  input.cfg         ← optional gamepad mapping overrides
+```
+
 ## Gamepad input (input.cfg)
 
 USB game controllers should work out of the box as SDL's built-in controller database normalizes most pads (Xbox, PlayStation, 8BitDo, NES-style clones etc...) to a standard layout. OSD/OS maps that stanard layout to its navigation actions:
@@ -465,7 +573,7 @@ Set them inline, e.g. `QML_IMPORT_TRACE=1 APP_ROOT=$(pwd) ./build/osdos`.
 
 ## GitHub Actions
 
-Besides the release workflow below, four run on their own: **Website** ([pages.yml](.github/workflows/pages.yml)) builds the website (`scripts/build-site.py`: the landing page, and [OSD/OS Setup](os/README.md#osdos-setup) under `setup/`), tests it (`node --test tests/site/*.test.mjs`) and publishes it on the repository's GitHub Pages from `main`, and only builds and tests it for a pull request or another branch (Pages is turned on once, in the repository's **Settings → Pages**, with **GitHub Actions** as its source); **Regression tests** ([regression-tests.yml](.github/workflows/regression-tests.yml)) builds the app and runs the tests in `tests/` on Linux x64 and arm64 for every pull request, and every push to `main`, that touches the app or its tests (its C++, QML, assets, shaders and scripts; see [tests/README.md](tests/README.md)), and once more on Raspberry Pi OS: a Debian 13 "trixie" container with Raspberry Pi's archive added as pi-gen adds it for the OS image, on arm64 (other workflows can call it too, `workflow_call`, and the release workflow does); **OS image** ([os-image.yml](.github/workflows/os-image.yml)) builds the OSD/OS image for a pull request that touches it; and **Wiki** ([wiki.yml](.github/workflows/wiki.yml)) publishes `docs/wiki` to the [GitHub wiki](https://github.com/mehmetraif/OSD-OS/wiki) whenever it changes on `main`, replacing what the wiki had (GitHub makes a wiki's repository only once its first page is saved in the web interface, so that is done once first).
+Besides the release workflow below, seven run on their own: **Website** ([pages.yml](.github/workflows/pages.yml)) builds the website (`scripts/build-site.py`: the landing page, and [OSD/OS Setup](os/README.md#osdos-setup) under `setup/`), tests it (`node --test tests/site/*.test.mjs`) and publishes it on the repository's GitHub Pages from `main`, and only builds and tests it for a pull request or another branch (Pages is turned on once, in the repository's **Settings → Pages**, with **GitHub Actions** as its source); **Regression tests** ([regression-tests.yml](.github/workflows/regression-tests.yml)) builds the app and runs the tests in `tests/` on Linux x64 and arm64 for every pull request, and every push to `main`, that touches the app or its tests (its C++, QML, assets, shaders and scripts; see [tests/README.md](tests/README.md)), and once more on Raspberry Pi OS: a Debian 13 "trixie" container with Raspberry Pi's archive added as pi-gen adds it for the OS image, on arm64 (other workflows can call it too, `workflow_call`, and the release workflow does); **OS image** ([os-image.yml](.github/workflows/os-image.yml)) builds the OSD/OS image for a pull request that touches it; **Windows build** ([windows.yml](.github/workflows/windows.yml)) builds the app for Windows x64 on `windows-2022` (Qt 6.8 from the Qt CDN, SDL2, OpenSSL and minizip from vcpkg, kept between runs), installs it, runs `windeployqt` and uploads the whole as the artifact `osdos-windows-x64` for a pull request that touches the sources (see [Windows](#windows-x64)); **FreeBSD build** ([freebsd.yml](.github/workflows/freebsd.yml)) and **OpenBSD build** ([openbsd.yml](.github/workflows/openbsd.yml)) build the app in a FreeBSD 15.1 or an OpenBSD 8.0 virtual machine on a Linux runner ([vmactions](https://github.com/vmactions)), with the system's Qt 6, SDL2 and minizip packages, run the regression tests there and upload the install tree as `osdos-freebsd-amd64` or `osdos-openbsd-amd64`, for a pull request that touches the sources or the tests (see [FreeBSD and OpenBSD](#freebsd-and-openbsd-amd64)); and **Wiki** ([wiki.yml](.github/workflows/wiki.yml)) publishes `docs/wiki` to the [GitHub wiki](https://github.com/mehmetraif/OSD-OS/wiki) whenever it changes on `main`, replacing what the wiki had (GitHub makes a wiki's repository only once its first page is saved in the web interface, so that is done once first).
 
 ### How to trigger a build
 
@@ -506,7 +614,7 @@ Linux x86_64 job: installs Qt via the Qt CDN, builds the app, builds **mpv 0.40 
 
 OS image job: once the arm64 tarball is built, builds the OSD/OS image from it with pi-gen ([os/README.md](os/README.md#building)), as the OS image workflow does, the first user's password from the secret `OS_FIRST_USER_PASS` if there is one (else the account is locked).
 
-A final `release` job waits for all four builds and the regression tests, then creates a GitHub Release, a draft until every artifact is attached (including `install.sh`) and public then, so nobody sees a release short of a file, with notes written for the tag, their links absolute. A tag whose regression tests fail is not published: its builds are still made, and stay in the run's artifacts. The notes open with what the release brings since the previous tag, written by `scripts/release-notes.sh` from the commits' subject lines (merges left out): `feat:` commits under **What's New**, `fix:` commits under **Bug Fixes**, and every other commit under **Changelog**. A commit without a conventional-commit type goes under Bug Fixes when its subject starts with "Fix", under What's New when it starts with "Add", and under Changelog otherwise. Run the script locally to preview a release's notes: `scripts/release-notes.sh v1.2.0` (or `scripts/release-notes.sh <tag> <previous tag>`).
+A final `release` job waits for all four builds and the regression tests, then creates a GitHub Release, a draft until every artifact is attached (including `install.sh`) and public then, so nobody sees a release short of a file, with notes written for the tag, their links absolute. A tag whose regression tests fail is not published: its builds are still made, and stay in the run's artifacts. The notes open with what the release brings since the previous tag, written by `scripts/release-notes.sh` from the commits' subject lines (merges left out): `feat:` commits under **What's New**, `fix:` commits under **Bug Fixes**, and every other commit under **Changelog**. A commit without a conventional-commit type goes under Bug Fixes when its subject starts with "Fix", under What's New when it starts with "Add", and under Changelog otherwise. Run the script locally to preview a release's notes: `scripts/release-notes.sh v1.2.0` (or `scripts/release-notes.sh <tag> <previous tag>`). The notes end with a **Downloads** table: each file by the system it is for, what it is, and how it is installed and updated. The job then labels each file for the release page's Assets list (the GitHub API's asset label, shown in place of the file name): the file's name, the system it is for and what it is. The names themselves never change, since every installed app's updater and `install.sh` look the files up by them.
 
 ### Output
 
@@ -516,4 +624,4 @@ Go to **Actions** → select the workflow run → each build job has an **Artifa
 
 **After the workflow completes:**
 
-Go to the repository on GitHub → **Releases** → select the release for the tag you set. All build artifacts (the OSD/OS image, the `.dmg`, both Linux packages and `install.sh`) are listed under Assets, each with its SHA-256 digest.
+Go to the repository on GitHub → **Releases** → select the release for the tag you set. All build artifacts (the OSD/OS image, the `.dmg`, both Linux packages and `install.sh`) are listed under Assets, each labelled with the system it is for, and each with its SHA-256 digest.

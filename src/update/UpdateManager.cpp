@@ -37,6 +37,19 @@ QString assetSuffix() {
 #endif
 }
 
+// The system, for the message that says no package is built for it yet.
+QString systemName() {
+#if defined(Q_OS_WIN)
+    return QStringLiteral("Windows");
+#elif defined(Q_OS_FREEBSD)
+    return QStringLiteral("FreeBSD");
+#elif defined(Q_OS_OPENBSD)
+    return QStringLiteral("OpenBSD");
+#else
+    return QSysInfo::prettyProductName();
+#endif
+}
+
 // "Apply & Restart" under the autostart service: osdos-stop (scripts/install.sh)
 // treats exit 11 as a no-op so Restart=on-failure relaunches through the
 // launcher, which applies the staged tarball. Sibling of Qt.exit(10) ("Exit to
@@ -339,7 +352,14 @@ void UpdateManager::handleReleaseInfo(const QByteArray &json) {
         return;
     }
 
-#ifndef Q_OS_MAC
+#if defined(Q_OS_WIN) || (defined(Q_OS_BSD4) && !defined(Q_OS_DARWIN))
+    // No package for Windows or the BSDs among the release's assets yet: the
+    // newer version is named, to be downloaded by hand.
+    setState(QStringLiteral("error"),
+             QStringLiteral("%1 is out. No update package for %2 yet: download it from "
+                            "github.com/mehmetraif/OSD-OS/releases.").arg(tag, systemName()));
+    return;
+#elif !defined(Q_OS_MAC)
     const QString arch = QSysInfo::currentCpuArchitecture();
     if (arch != QStringLiteral("arm64") && arch != QStringLiteral("x86_64")) {
         setState(QStringLiteral("error"),
@@ -677,6 +697,9 @@ void UpdateManager::applyMacos() {
         return;
     }
 
+    // No "/*" in the script, even inside this raw string: MSVC's preprocessor
+    // takes it for a comment's start while skipping this block, and reads to
+    // the end of the file for its close.
     static const char kHelper[] = R"HELPER(#!/bin/bash
 # apply-macos.sh <pid> <dmg> <bundle> — spawned detached by OSD/OS before it quits.
 exec >>"$(dirname "$0")/apply.log" 2>&1
@@ -685,7 +708,7 @@ PID="$1"; DMG="$2"; BUNDLE="$3"
 for i in $(seq 1 150); do kill -0 "$PID" 2>/dev/null || break; sleep 0.2; done
 MOUNT=$(hdiutil attach -nobrowse -readonly "$DMG" | awk -F'\t' '/\/Volumes\//{print $NF; exit}')
 [ -d "$MOUNT" ] || { echo "mount failed"; open "$DMG"; exit 1; }
-SRC=$(/bin/ls -d "$MOUNT"/*.app 2>/dev/null | head -1)
+SRC=$(/bin/ls -d "$MOUNT/"*.app 2>/dev/null | head -1)
 OK=0
 if [ -d "$SRC" ]; then
     rm -rf "$BUNDLE.new"

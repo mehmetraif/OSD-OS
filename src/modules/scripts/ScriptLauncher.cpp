@@ -14,14 +14,19 @@
 #include <QThread>
 #include <QDebug>
 #include <array>
+#include <csignal>   // SIGTERM, on Windows too
 #include <cstdio>
 #include <cstring>
 
 #ifdef Q_OS_UNIX
 #include <unistd.h>
-#include <signal.h>
 #include <fcntl.h>
 #include <sys/ioctl.h>
+#endif
+#ifndef SIGKILL
+// Windows has no SIGKILL: here the number only tells killGroup() a kill from
+// a terminate, and SIGTERM it has.
+#define SIGKILL 9
 #endif
 
 #ifdef Q_OS_LINUX

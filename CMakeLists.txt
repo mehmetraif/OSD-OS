@@ -28,13 +28,23 @@ endif()
 
 include(GNUInstallDirs)
 
+# The systems the app builds on: Linux (the Pi's, and any desktop), macOS,
+# Windows (x64, MSVC), and the BSDs (FreeBSD, OpenBSD), which take a
+# desktop's paths. What only one of them has is chosen by these, not by "not
+# the other".
+if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+    set(OSDOS_LINUX ON)
+else()
+    set(OSDOS_LINUX OFF)
+endif()
+
 find_package(Qt6 REQUIRED COMPONENTS Core Concurrent Gui Quick Qml Network Svg)
 find_package(OpenSSL REQUIRED)
 find_package(SDL2 CONFIG REQUIRED) # gamepad input (InputManager)
 
 # libdrm is used on Linux/RPi to save and restore the KMS CRTC state
 # around mpv playback so Qt EGLFS can resume cleanly after mpv exits.
-if(NOT APPLE)
+if(OSDOS_LINUX)
     find_package(PkgConfig REQUIRED)
     pkg_check_modules(Libdrm REQUIRED libdrm)
 endif()
@@ -43,14 +53,18 @@ endif()
 # a PN532 over USB serial through plain termios, so readers still work without
 # it — which is what makes the NFC module usable on immutable distros where
 # pcscd cannot be installed. macOS ships PCSC.framework with the OS; Linux needs
-# libpcsclite-dev.
+# libpcsclite-dev, the BSDs the pcsc-lite package. Not on Windows yet (its
+# winscard differs in its types), where the module says it is not there.
 if(APPLE)
     find_library(PCSC_LIBRARIES PCSC)
     if(PCSC_LIBRARIES)
         set(PCSC_FOUND TRUE)
     endif()
-else()
-    pkg_check_modules(PCSC IMPORTED_TARGET libpcsclite)
+elseif(UNIX)
+    find_package(PkgConfig QUIET)
+    if(PKG_CONFIG_FOUND)
+        pkg_check_modules(PCSC IMPORTED_TARGET libpcsclite)
+    endif()
 endif()
 if(NOT PCSC_FOUND)
     message(STATUS "PC/SC not found — NFC reader module will build with PN532 USB serial support only")
@@ -122,6 +136,16 @@ add_executable(osdos
 
 target_compile_definitions(osdos PRIVATE APP_VERSION="${APP_VERSION}" APP_BUILD="${APP_BUILD}")
 
+# MSVC: the standard's C++ (Qt 6 asks for both flags), sources in UTF-8, and
+# windows.h without its min/max macros and the rarely needed parts. SDL's header
+# renames main() to SDL_main on Windows, for its own SDL2main library to call
+# from a WinMain of its own; the app keeps its main (SDL_MAIN_HANDLED) and
+# tells SDL so before SDL_Init (InputManager).
+if(MSVC)
+    target_compile_options(osdos PRIVATE /permissive- /Zc:__cplusplus /utf-8)
+    target_compile_definitions(osdos PRIVATE NOMINMAX WIN32_LEAN_AND_MEAN _CRT_SECURE_NO_WARNINGS SDL_MAIN_HANDLED)
+endif()
+
 # The app's own functions in its dynamic symbol table (-rdynamic), so that
 # a crash or a stall report's backtrace names them (util/Diagnostics).
 if(UNIX AND NOT APPLE)
@@ -138,7 +162,7 @@ target_link_libraries(osdos PRIVATE
     Qt6::Svg
     OpenSSL::Crypto
     SDL2::SDL2
-    $<$<NOT:$<BOOL:${APPLE}>>:${Libdrm_LIBRARIES}>
+    $<$<BOOL:${OSDOS_LINUX}>:${Libdrm_LIBRARIES}>
 )
 
 if(APPLE)
@@ -154,7 +178,7 @@ if(PCSC_FOUND)
     endif()
 endif()
 
-if(NOT APPLE)
+if(OSDOS_LINUX)
     target_include_directories(osdos PRIVATE ${Libdrm_INCLUDE_DIRS})
 endif()
 
@@ -202,9 +226,9 @@ else()
 endif()
 
 # BlueZ and NetworkManager over D-Bus for Settings → Bluetooth and Wi-Fi
-# (src/bluetooth, src/wifi). Linux only: a Mac pairs devices and joins
+# (src/bluetooth, src/wifi). Linux only: a Mac or a PC pairs devices and joins
 # networks in its own settings. Without Qt D-Bus the rows are left out.
-if(NOT APPLE)
+if(OSDOS_LINUX)
     find_package(Qt6 QUIET COMPONENTS DBus)
 endif()
 if(Qt6DBus_FOUND)

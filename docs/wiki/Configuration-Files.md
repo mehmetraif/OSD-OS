@@ -9,6 +9,8 @@ Everything OSD/OS keeps lives in one folder of its own, the **data folder**: the
 | The OSD/OS image | `/home/pi/.local/share/OSD-OS/` (the image's first user, `pi` unless it was built with another) |
 | Raspberry Pi OS, other Linux, SteamOS (the AppImage) | `~/.local/share/OSD-OS/`, or `$XDG_DATA_HOME/OSD-OS/` when `XDG_DATA_HOME` is set |
 | macOS | `~/Library/Application Support/OSD-OS/` |
+| Windows (a build from source) | `%APPDATA%\OSD-OS\`, that is `C:\Users\<you>\AppData\Roaming\OSD-OS\` |
+| FreeBSD, OpenBSD (a build from source) | `~/.local/share/OSD-OS/`, as on Linux |
 
 - OSD/OS creates it at its first start. Updating, reinstalling or removing the app leaves what is in it as it is: an update keeps every setting, and a new install finds the old ones.
 - It belongs to the user OSD/OS runs as. Under the autostart service (`install.sh`'s and the image's) that is the service's user, so the folder is in that user's home, not root's.

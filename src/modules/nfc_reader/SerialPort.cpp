@@ -11,6 +11,20 @@
 #include <cerrno>
 #include <cstring>
 
+#ifdef Q_OS_WIN
+
+// No serial PN532 on Windows yet (NfcReaderBackend::available() says the
+// module is not there): the port never opens, and no candidate is listed.
+SerialPort::~SerialPort() { close(); }
+bool SerialPort::open(const QString &, int) { return false; }
+void SerialPort::close() { m_fd = -1; m_path.clear(); }
+bool SerialPort::write(const QByteArray &) { return false; }
+QByteArray SerialPort::read(int, int) { return {}; }
+void SerialPort::flushInput() {}
+QList<SerialPortInfo> SerialPort::enumerateCandidates() { return {}; }
+
+#else
+
 #include <fcntl.h>
 #include <poll.h>
 #include <termios.h>
@@ -248,24 +262,30 @@ QList<SerialPortInfo> SerialPort::enumerateCandidates() {
     return found;
 }
 
-#elif defined(Q_OS_MAC)
+#elif defined(Q_OS_BSD4)
 
 QList<SerialPortInfo> SerialPort::enumerateCandidates() {
     QList<SerialPortInfo> found;
 
-    // /dev/cu.* rather than /dev/tty.*: the callout device does not block on
-    // DCD, which the dial-in device does.
+    // The callout device (/dev/cu.*, /dev/cuaU*) rather than the dial-in one
+    // (/dev/tty.*, /dev/ttyU*): it does not block on DCD.
     //
-    // macOS exposes no VID:PID without shelling out to ioreg, so candidacy is
-    // decided by the node name, which encodes the driver that claimed the
-    // device. That is a coarser filter than Linux's, but the prefixes below are
-    // all USB-serial bridges.
+    // Neither macOS nor the BSDs expose a VID:PID without shelling out (ioreg,
+    // usbconfig), so candidacy is decided by the node name, which encodes the
+    // driver that claimed the device. That is a coarser filter than Linux's,
+    // but the names below are all USB-serial bridges'.
+#ifdef Q_OS_DARWIN
     static const QStringList kPatterns = {
         "cu.usbserial*",       // FTDI and generic bridges
         "cu.wchusbserial*",    // WinChipHead CH340/CH341
         "cu.SLAB_USBtoUART*",  // Silicon Labs CP210x
         "cu.usbmodem*",        // CDC-ACM
     };
+#else
+    // FreeBSD's and OpenBSD's USB serial drivers (uftdi, uplcom, uslcom,
+    // uchcom, umodem) all make a cuaU<n> node.
+    static const QStringList kPatterns = { "cuaU*" };
+#endif
 
     const QDir dev("/dev");
     for (const QString &pattern : kPatterns) {
@@ -301,3 +321,5 @@ QList<SerialPortInfo> SerialPort::enumerateCandidates() {
 }
 
 #endif
+
+#endif // !Q_OS_WIN

@@ -75,6 +75,9 @@ FbneoInstaller::Source FbneoInstaller::defaultSource() {
     if (arch == QLatin1String("arm64") || arch == QLatin1String("x86_64"))
         source.core = QUrl(QStringLiteral("https://buildbot.libretro.com/nightly/apple/osx/%1/latest/fbneo_libretro.dylib.zip")
                                .arg(arch));
+#elif defined(Q_OS_WIN)
+    if (arch == QLatin1String("x86_64"))
+        source.core = QUrl(QStringLiteral("https://buildbot.libretro.com/nightly/windows/x86_64/latest/fbneo_libretro.dll.zip"));
 #elif defined(Q_OS_LINUX)
     const QString machine = arch == QLatin1String("arm64") ? QStringLiteral("aarch64") : arch;
     if (machine == QLatin1String("aarch64") || machine == QLatin1String("x86_64"))
