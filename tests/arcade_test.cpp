@@ -3,6 +3,7 @@
 #include "modules/arcade/ArcadeBackend.h"
 #include "modules/arcade/FbneoInstaller.h"
 #include "modules/arcade/Libretro.h"
+#include "modules/arcade/RetroArchInstaller.h"
 #include "modules/arcade/Mame.h"
 #include "modules/arcade/RetroAchievements.h"
 
@@ -2706,6 +2707,127 @@ private slots:
         // A machine libretro builds none for.
         installer.start(FbneoInstaller::Source{ QUrl(), QUrl(base), QUrl(base) });
         QCOMPARE(finished.last().at(1).toString().left(40), QStringLiteral("libretro builds no FinalBurn Neo for thi"));
+    }
+
+    // Settings → Arcade → FinalBurn Neo's download of RetroArch itself
+    // (Windows) from a stand-in for libretro's build server: the newest
+    // version its list names, the archive unpacked and RetroArch-Win64 put
+    // in place, over one downloaded before; a list that can't be read
+    // leaves the version known; an archive the server hasn't, one that
+    // isn't a 7z and one without retroarch.exe leave what was there, and
+    // nothing of the download behind.
+    void retroarchDownload() {
+        QTemporaryDir data;
+        QVERIFY(data.isValid());
+        const QByteArray index = "<html><a href=\"/stable/1.9.1/\">1.9.1/</a> <a href=\"/stable/1.22.2/\">1.22.2/</a>"
+                                 " <a href=\"/stable/1.22.0/\">1.22.0/</a></html>";
+        QHash<QByteArray, QByteArray> files{ { "/stable/", index },
+                                             { "/stable/1.22.2/windows/x86_64/RetroArch.7z", fixture("retroarch.7z") },
+                                             { "/stable/1.21.0/windows/x86_64/RetroArch.7z", fixture("retroarch.7z") },
+                                             { "/other.7z", fixture("other.7z") },
+                                             { "/license.txt", "You may freely use FB Neo.\n" } };
+        QList<QByteArray> asked;
+        QTcpServer server;
+        QVERIFY(server.listen(QHostAddress::LocalHost));
+        connect(&server, &QTcpServer::newConnection, &server, [&server, &files, &asked] {
+            QTcpSocket *socket = server.nextPendingConnection();
+            connect(socket, &QTcpSocket::readyRead, socket, [socket, &files, &asked] {
+                const QByteArray request = socket->readAll();
+                const QByteArray path = request.split(' ').value(1).split('?').first();
+                asked.append(path);
+                if (files.contains(path)) {
+                    socket->write("HTTP/1.1 200 OK\r\nContent-Length: " + QByteArray::number(files.value(path).size())
+                                  + "\r\nConnection: close\r\n\r\n" + files.value(path));
+                } else {
+                    socket->write("HTTP/1.1 404 Not Found\r\nContent-Length: 0\r\nConnection: close\r\n\r\n");
+                }
+                socket->disconnectFromHost();
+            });
+        });
+        const QString base = QStringLiteral("http://127.0.0.1:%1").arg(server.serverPort());
+        const auto source = [&base](const char *versions, const char *archive, const char *fallback) {
+            return RetroArchInstaller::Source{ versions ? QUrl(base + QLatin1String(versions)) : QUrl(),
+                                               base + QLatin1String(archive), QLatin1String(fallback) };
+        };
+        const QString program = libretro::downloadedRetroArch(data.path());
+        const QString home = QFileInfo(program).absolutePath();
+        // What a download leaves behind: its archive and its folder, and the
+        // RetroArch set aside for it.
+        const auto leftovers = [&data] {
+            QStringList found;
+            QDirIterator parts(data.path(), { QStringLiteral("*.part"), QStringLiteral("*.old") },
+                               QDir::Files | QDir::Dirs | QDir::NoDotAndDotDot, QDirIterator::Subdirectories);
+            while (parts.hasNext())
+                found.append(parts.next());
+            return found;
+        };
+
+        RetroArchInstaller installer(data.path());
+        QSignalSpy finished(&installer, &RetroArchInstaller::finished);
+        QSignalSpy progressed(&installer, &RetroArchInstaller::progressChanged);
+        installer.start(source("/stable/", "/stable/%1/windows/x86_64/RetroArch.7z", "1.21.0"));
+        QVERIFY(installer.running());
+        QVERIFY(finished.wait(10000));
+        QCOMPARE(finished.first().at(1).toString(), QString());
+        QCOMPARE(finished.first().at(0).toBool(), true);
+        QVERIFY(!installer.running());
+        QCOMPARE(installer.progress(), 100);
+        QVERIFY(progressed.count() >= 3);
+        QVERIFY(contents(program).startsWith("MZ a stand-in for RetroArch for Windows"));
+        QCOMPARE(contents(home + QStringLiteral("/retroarch.cfg")), QByteArray("# RetroArch's own settings, as it comes\n"));
+        QCOMPARE(contents(home + QStringLiteral("/assets/readme.txt")), QByteArray("the assets' readme\n"));
+        QVERIFY(QFileInfo::exists(home + QStringLiteral("/assets/empty.txt")));
+        QCOMPARE(leftovers(), QStringList());
+        // The newest version the list names, not the one known.
+        QVERIFY(asked.contains("/stable/1.22.2/windows/x86_64/RetroArch.7z"));
+        QVERIFY(!asked.contains("/stable/1.21.0/windows/x86_64/RetroArch.7z"));
+
+        // Again, over the one before, the version known with no list to
+        // read: the new program is in place, and a file of the user's own in
+        // the folder goes with the old one.
+        writeFile(home + QStringLiteral("/mine.txt"), "mine");
+        writeFile(program, "the one before");
+        installer.start(source(nullptr, "/stable/%1/windows/x86_64/RetroArch.7z", "1.21.0"));
+        QVERIFY(finished.wait(10000));
+        QCOMPARE(finished.last().at(1).toString(), QString());
+        QVERIFY(contents(program).startsWith("MZ a stand-in for RetroArch for Windows"));
+        QVERIFY(!QFileInfo::exists(home + QStringLiteral("/mine.txt")));
+        QVERIFY(asked.contains("/stable/1.21.0/windows/x86_64/RetroArch.7z"));
+        QCOMPARE(leftovers(), QStringList());
+
+        // A list that can't be had: the version known.
+        asked.clear();
+        installer.start(source("/gone/", "/stable/%1/windows/x86_64/RetroArch.7z", "1.22.2"));
+        QVERIFY(finished.wait(10000));
+        QCOMPARE(finished.last().at(1).toString(), QString());
+        QCOMPARE(asked, QList<QByteArray>({ "/gone/", "/stable/1.22.2/windows/x86_64/RetroArch.7z" }));
+
+        // An archive the server hasn't, one that isn't a 7z, one without
+        // retroarch.exe: why, the one before stays, nothing is left behind.
+        writeFile(program, "the one before");
+        installer.start(source("/stable/", "/stable/%1/linux/x86_64/RetroArch.7z", "1.22.2"));
+        QVERIFY(finished.wait(10000));
+        QCOMPARE(finished.last().at(0).toBool(), false);
+        QCOMPARE(finished.last().at(1).toString(), QStringLiteral("127.0.0.1 answered 404"));
+        QCOMPARE(contents(program), QByteArray("the one before"));
+        QCOMPARE(leftovers(), QStringList());
+        installer.start(source(nullptr, "/license.txt?v=%1", "1.22.2"));
+        QVERIFY(finished.wait(10000));
+        QCOMPARE(finished.last().at(1).toString(), QStringLiteral("The file is not a 7z archive"));
+        installer.start(source(nullptr, "/other.7z?v=%1", "1.22.2"));
+        QVERIFY(finished.wait(10000));
+        QCOMPARE(finished.last().at(1).toString(), QStringLiteral("The download has no retroarch.exe"));
+        QCOMPARE(contents(program), QByteArray("the one before"));
+        QCOMPARE(leftovers(), QStringList());
+        // A machine libretro builds none for.
+        installer.start(RetroArchInstaller::Source{ QUrl(), QString(), QStringLiteral("1.22.2") });
+        QCOMPARE(finished.last().at(1).toString().left(38), QStringLiteral("libretro builds no RetroArch for this "));
+
+        // The newest of the versions a page links to, by number.
+        QCOMPARE(RetroArchInstaller::newestVersion(index), QStringLiteral("1.22.2"));
+        QCOMPARE(RetroArchInstaller::newestVersion("<a href=\"1.10.0/\">x</a> <a href=\"1.9.3/\">y</a>"),
+                 QStringLiteral("1.10.0"));
+        QCOMPARE(RetroArchInstaller::newestVersion("<a href=\"nightly/\">x</a>"), QString());
     }
 
     // The Arcade screen's leaderboards from a stand-in for RetroAchievements'

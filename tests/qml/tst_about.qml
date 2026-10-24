@@ -232,8 +232,8 @@ Rectangle {
             var at = labels.indexOf("# Arcade")
             verify(at > labels.indexOf("Data"))
             compare(labels.slice(at + 1), ["MAME", "RetroArch", "FinalBurn Neo", "openhi2txt", "hi2txt", "RapidXML",
-                                           "minizip, zlib", "RetroAchievements", "Online Play", "progetto-SNAPS",
-                                           "ArcadeDB"])
+                                           "minizip, zlib", "LZMA SDK", "RetroAchievements", "Online Play",
+                                           "progetto-SNAPS", "ArcadeDB"])
             downTo(page, "Data")
             keyClick(Qt.Key_Down)
             compare(cursor(page), "MAME")

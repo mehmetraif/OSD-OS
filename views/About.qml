@@ -128,6 +128,11 @@ FocusScope {
           description: "Open hi2txt's definitions and FinalBurn Neo's download: minizip by Gilles Vollant and zlib by"
                        + " Jean-loup Gailly and Mark Adler, zlib.net • Under the zlib License • {select}"
                        + " The license's text" },
+        { key: "lzma", label: "LZMA SDK", value: "Public domain", license: "assets/licenses/LZMA-SDK.txt",
+          licenseName: "The LZMA SDK's notice",
+          description: "Unpacks the RetroArch for Windows downloaded from libretro's build server, a 7z archive: the"
+                       + " LZMA SDK's decoder by Igor Pavlov, 7-zip.org/sdk.html • In the public domain • {select}"
+                       + " The notice's text" },
         { key: "achievements", label: "RetroAchievements", value: "retroachievements.org",
           description: "Leaderboards and hardcore play for the games FinalBurn Neo plays, with your own account,"
                        + " read through its Web API, and the games' pictures and the achievements' badges from its"

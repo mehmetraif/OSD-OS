@@ -26,6 +26,7 @@ class AppCore;
 class ArcadeDb;
 class DisplayHandoff;
 class FbneoInstaller;
+class RetroArchInstaller;
 class RetroAchievements;
 class QNetworkAccessManager;
 class QNetworkReply;
@@ -113,6 +114,11 @@ class ArcadeBackend : public QObject {
     Q_PROPERTY(bool fbneoDownloading READ fbneoDownloading NOTIFY fbneoChanged)
     Q_PROPERTY(int fbneoProgress READ fbneoProgress NOTIFY fbneoProgressChanged)
     Q_PROPERTY(QString fbneoMessage READ fbneoMessage NOTIFY fbneoChanged)
+    // The same page's download of RetroArch itself (downloadRetroArch(), on
+    // Windows): the same three.
+    Q_PROPERTY(bool retroarchDownloading READ retroarchDownloading NOTIFY fbneoChanged)
+    Q_PROPERTY(int retroarchProgress READ retroarchProgress NOTIFY fbneoProgressChanged)
+    Q_PROPERTY(QString retroarchMessage READ retroarchMessage NOTIFY fbneoChanged)
     // The look through every game for pictures (downloadPictures(), Read
     // the Games Again): { active (under way, or waiting to go on), source
     // ("RetroAchievements" or "progetto-SNAPS", the pass it is on), done and
@@ -409,7 +415,9 @@ public:
     // yyyy-MM-dd), downloaded (the core is the one downloadFbneo() put
     // there), games (how many its list has), license (its file, "" for
     // none), canDownload (libretro builds it for this machine, and this
-    // build can unpack it) }.
+    // build can unpack it), canDownloadRetroarch (libretro builds RetroArch
+    // itself for this machine: 64-bit Windows), retroarchDownloaded (the
+    // RetroArch found is the one downloadRetroArch() put there) }.
     Q_INVOKABLE QVariantMap fbneoInfo() const;
     // The licence's text (fbneoInfo().license), "" for none.
     Q_INVOKABLE QString fbneoLicenseText() const;
@@ -417,6 +425,11 @@ public:
     // fbneoProgressChanged() as it goes, fbneoChanged() as it starts and
     // ends, and the list read again once it is in.
     Q_INVOKABLE void downloadFbneo();
+    // Downloads RetroArch itself, libretro's build for Windows, into
+    // <data>/arcade/retroarch (RetroArchInstaller), over one downloaded
+    // before; the same signals, and the list read again once it is in, as
+    // FinalBurn Neo's games play now.
+    Q_INVOKABLE void downloadRetroArch();
     Q_INVOKABLE QString lastError() const { return m_lastError; }
     // What MAME printed in the last game's run.
     Q_INVOKABLE QString output() const;
@@ -465,6 +478,9 @@ public:
     bool    fbneoDownloading() const;
     int     fbneoProgress() const;
     QString fbneoMessage() const { return m_fbneoMessage; }
+    bool    retroarchDownloading() const;
+    int     retroarchProgress() const;
+    QString retroarchMessage() const { return m_retroarchMessage; }
     QStringList statusIcons() const;
 
 public slots:
@@ -979,6 +995,7 @@ private:
     QString m_signInCore;
 
     FbneoInstaller *m_installer = nullptr;
+    RetroArchInstaller *m_retroarchInstaller = nullptr;
     RetroAchievements *m_retroAchievements = nullptr;
     // madeSets(), by filter, made again once gamesChanged() or invalidate()
     // says the filters may hold other games.
@@ -1052,6 +1069,7 @@ private:
     QNetworkReply *m_genresReply = nullptr;
     QDateTime m_genresRetry;
     QString m_fbneoMessage;
+    QString m_retroarchMessage;
 
     // The folder's sets, and what MAME said of every set it was asked about.
     QHash<QString, QString> m_sets;

@@ -205,6 +205,11 @@ Rectangle {
         property bool fbneoDownloading: false
         property int fbneoProgress: 0
         property string fbneoMessage: ""
+        // RetroArch's own download, on Windows.
+        property bool retroarchDownloading: false
+        property int retroarchProgress: 0
+        property string retroarchMessage: ""
+        property int retroarchDownloads: 0
         // fbneo's own change signal stands for the backend's fbneoChanged().
         property int downloads: 0
         function fbneoInfo() { return fbneo }
@@ -223,6 +228,9 @@ Rectangle {
         }
         function fbneoLicenseText() { return "You may freely use, modify, and distribute FB Neo." }
         function downloadFbneo() { downloads++; fbneoDownloading = true; fbneoProgress = 40; fbneoChanged() }
+        function downloadRetroArch() {
+            retroarchDownloads++; retroarchDownloading = true; retroarchProgress = 35; fbneoChanged()
+        }
         property string achievementsUser: ""
         property string achievementsState: "none"
         property string achievementsMessage: ""
@@ -445,11 +453,16 @@ Rectangle {
             arcadeBackend.engines = {}
             arcadeBackend.engineChoicesMade = []
             arcadeBackend.fbneo = { retroarch: "/usr/bin/retroarch", core: "", coreDate: "", downloaded: false,
-                                    games: 0, license: "", canDownload: true }
+                                    games: 0, license: "", canDownload: true, canDownloadRetroarch: false,
+                                    retroarchDownloaded: false }
             arcadeBackend.fbneoDownloading = false
             arcadeBackend.fbneoProgress = 0
             arcadeBackend.fbneoMessage = ""
             arcadeBackend.downloads = 0
+            arcadeBackend.retroarchDownloading = false
+            arcadeBackend.retroarchProgress = 0
+            arcadeBackend.retroarchMessage = ""
+            arcadeBackend.retroarchDownloads = 0
             arcadeBackend.achievementsUser = ""
             arcadeBackend.achievementsState = "none"
             arcadeBackend.achievementsMessage = ""
@@ -936,6 +949,46 @@ Rectangle {
             verify(findText(page, "Download Again") !== null)
             compare(page.keys, ["retroarch", "core", "games", "download"])
             compare(findText(page, "freely use, modify"), null)
+
+            // On Windows without RetroArch: Download RetroArch under
+            // RetroArch's line, select starting it and the line saying how
+            // far it is, or why it failed; once it is in, the line says
+            // Downloaded and offers it again; one found elsewhere has no
+            // line for it.
+            var keysAre = function(keys) { return JSON.stringify(page.keys) === JSON.stringify(keys) }
+            arcadeBackend.fbneo = { retroarch: "", core: "", coreDate: "", downloaded: false, games: 0, license: "",
+                                    canDownload: true, canDownloadRetroarch: true, retroarchDownloaded: false }
+            arcadeBackend.fbneoChanged()
+            tryVerify(function() { return keysAre(["retroarch", "retroarch_download", "core", "games", "download"]) }, 1000)
+            verify(findText(page, "Download RetroArch") !== null)
+            // The cursor stayed on Download: up to the new line.
+            keyClick(Qt.Key_Up)
+            keyClick(Qt.Key_Up)
+            keyClick(Qt.Key_Up)
+            keyClick(Qt.Key_Return)
+            compare(arcadeBackend.retroarchDownloads, 1)
+            tryVerify(function() { return findText(page, "35%") !== null }, 1000)
+            keyClick(Qt.Key_Return)
+            compare(arcadeBackend.retroarchDownloads, 1)
+            arcadeBackend.retroarchDownloading = false
+            arcadeBackend.retroarchMessage = "127.0.0.1 answered 404"
+            arcadeBackend.fbneoChanged()
+            tryVerify(function() { return findText(page, "Failed") !== null }, 1000)
+            verify(findText(page, "answered 404") !== null)
+            arcadeBackend.retroarchMessage = ""
+            arcadeBackend.fbneo = { retroarch: "C:/Users/me/AppData/Roaming/OSD-OS/arcade/retroarch/RetroArch-Win64/retroarch.exe",
+                                    core: "", coreDate: "", downloaded: false, games: 0, license: "",
+                                    canDownload: true, canDownloadRetroarch: true, retroarchDownloaded: true }
+            arcadeBackend.fbneoChanged()
+            tryVerify(function() { return findText(page, "Download RetroArch Again") !== null }, 1000)
+            verify(findText(page, "Downloaded") !== null)
+            arcadeBackend.fbneo = { retroarch: "C:/RetroArch-Win64/retroarch.exe", core: "", coreDate: "", downloaded: false,
+                                    games: 0, license: "", canDownload: true, canDownloadRetroarch: true,
+                                    retroarchDownloaded: false }
+            arcadeBackend.fbneoChanged()
+            tryVerify(function() { return keysAre(["retroarch", "core", "games", "download"]) }, 1000)
+            verify(findText(page, "Installed") !== null)
+
             compare(root.backs, 0)
             keyClick(Qt.Key_Escape)
             compare(root.backs, 1)

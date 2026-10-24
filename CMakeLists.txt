@@ -99,6 +99,7 @@ add_executable(osdos
     src/modules/arcade/Mame.cpp
     src/modules/arcade/Libretro.cpp
     src/modules/arcade/FbneoInstaller.cpp
+    src/modules/arcade/RetroArchInstaller.cpp
     src/modules/arcade/RetroAchievements.cpp
     src/modules/arcade/ArcadeDb.cpp
     src/modules/highscores/HighScoresBackend.cpp
@@ -112,6 +113,7 @@ add_executable(osdos
     src/fx/SelectorFx.cpp
     src/util/YtDlpLocator.cpp
     src/util/MpvLocator.cpp
+    src/util/SevenZip.cpp
     src/util/ExecPath.cpp
     src/util/DisplayHandoff.cpp
     src/util/OsdIconProvider.cpp
@@ -252,6 +254,11 @@ if(OPENHI2TXT_FOUND)
 else()
     message(STATUS "minizip not found — High Scores will show no tables")
 endif()
+
+# The LZMA SDK's 7z decoder (thirdparty/lzma), built in: the Arcade module
+# unpacks the RetroArch for Windows it downloads with it (src/util/SevenZip).
+include(cmake/lzma.cmake)
+target_link_libraries(osdos PRIVATE osdos_lzma)
 
 target_include_directories(osdos PRIVATE
     src
