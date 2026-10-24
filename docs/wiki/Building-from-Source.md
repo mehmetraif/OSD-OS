@@ -1,6 +1,6 @@
 # Building from source
 
-How to build OSD/OS yourself, on a Mac, on Raspberry Pi OS, on Debian or Ubuntu and on Windows, with the exact commands; what each optional part adds; how to run your build and its regression tests; and how the project's own builds are made: the CI workflows, releases, the AppImage and the OSD/OS image. [BUILDING.md](https://github.com/mehmetraif/OSD-OS/blob/main/BUILDING.md) has the long story behind each step, linked below where it matters.
+How to build OSD/OS yourself, on a Mac, on Raspberry Pi OS, on Debian or Ubuntu, on Windows and on FreeBSD or OpenBSD, with the exact commands; what each optional part adds; how to run your build and its regression tests; and how the project's own builds are made: the CI workflows, releases, the AppImage and the OSD/OS image. [BUILDING.md](https://github.com/mehmetraif/OSD-OS/blob/main/BUILDING.md) has the long story behind each step, linked below where it matters.
 
 ## What it takes
 
@@ -14,7 +14,7 @@ OSD/OS is one C++17 program (Qt 6 and QML) built with CMake 3.21 or newer. CMake
 | libdrm, through pkg-config (Linux) | Giving the screen to mpv and taking it back on a Pi (`DisplayHandoff`) | The configure fails |
 | Qt Shader Tools | The effects' shaders, compiled into the binary ([below](#qt-shader-tools)) | `Qt Shader Tools not found — the shader effects will be unavailable` |
 | libmpv's headers, through pkg-config | Transparent Background: video inside the app's window | `libmpv headers not found — Transparent Background will be unavailable` |
-| PC/SC (`libpcsclite`, Linux; macOS has it; not looked for on Windows, whose build has no NFC Reader) | ACR122U and other PC/SC NFC readers | `PC/SC not found — NFC reader module will build with PN532 USB serial support only` |
+| PC/SC (`libpcsclite`, Linux; `pcsc-lite` on the BSDs; macOS has it; not looked for on Windows, whose build has no NFC Reader) | ACR122U and other PC/SC NFC readers | `PC/SC not found — NFC reader module will build with PN532 USB serial support only` |
 | Qt D-Bus (Linux) | Settings → Bluetooth and Wi-Fi, through BlueZ and NetworkManager | `Qt D-Bus not found — Settings → Bluetooth and Wi-Fi will be unavailable` |
 | zlib and minizip | The High Scores module's tables, read by openhi2txt (`thirdparty/openhi2txt`, built with the app) | `minizip not found — High Scores will show no tables` |
 | git | The commit in Settings → About → Build | The build has the day alone |
@@ -185,7 +185,26 @@ copy C:\vcpkg\installed\x64-windows\bin\libssl*.dll install\bin\
 install\bin\osdos.exe
 ```
 
-vcpkg puts the libraries the app links beside the built binary (SDL2, OpenSSL's libcrypto, minizip, zlib), `windeployqt` adds Qt's libraries, plugins and QML modules, and libssl is what Qt's TLS plugin opens at run time. The install is laid out as on Linux, `bin\` and `share\osdos\`, which the app finds from its own folder; the data folder is `%APPDATA%\OSD-OS\`. More in [BUILDING.md → Windows (x64)](https://github.com/mehmetraif/OSD-OS/blob/main/BUILDING.md#windows-x64).
+vcpkg puts the libraries the app links beside the built binary (SDL2, OpenSSL's libcrypto, minizip, zlib), `windeployqt` adds Qt's libraries, plugins and QML modules, and libssl is what Qt's TLS plugin opens at run time. The install is laid out as on Linux, `bin\` and `share\osdos\`, which the app finds from its own folder; the data folder is `%APPDATA%\OSD-OS\`. The build is a console program for now: a console window opens with the app and shows its log. More in [BUILDING.md → Windows (x64)](https://github.com/mehmetraif/OSD-OS/blob/main/BUILDING.md#windows-x64).
+
+## FreeBSD and OpenBSD (amd64)
+
+A first build for the BSDs, a desktop app as on a Mac, that has not run on a BSD machine yet beyond being built and tested: the **FreeBSD build** and **OpenBSD build** workflows build it in a virtual machine on every pull request that touches the sources or the tests, run the regression tests there and upload `osdos-freebsd-amd64` and `osdos-openbsd-amd64`, each the install tree as a tarball ([below](#continuous-integration)). The menus, Local Files and the media servers, YouTube, the Arcade module with the system's MAME, High Scores, Transparent Background with the system's libmpv and the NFC Reader (a PN532 on `cuaU*`, or a PC/SC reader with `pcsc-lite`) are in it. What is the Pi's or a Linux desktop's is left out, as on a Mac: Display Output, Audio Output's cards (the default device plays), Bluetooth and Wi-Fi (the system's own tools), the JAMMA helper and the updater's install (it names a newer version, to download by hand); Netflix and Prime Video too, since no browser on the BSDs has Widevine; and FinalBurn Neo's download has no BSD build, so RetroArch, RetroAchievements and netplay wait for one.
+
+- **FreeBSD**, as root: `pkg install cmake-core ninja pkgconf qt6-base qt6-declarative qt6-svg qt6-shadertools sdl2 minizip mpv` (OpenSSL is the base system's).
+- **OpenBSD**, as root: `pkg_add cmake ninja qt6-qtbase qt6-qtdeclarative qt6-qtsvg qt6-qtshadertools sdl2 minizip mpv` (pkg-config and LibreSSL are the base system's).
+- Optional: `pcsc-lite` for PC/SC NFC readers, `mame` for the Arcade module, `yt-dlp` for YouTube; for the regression tests `bash`, Lua 5.4 (`lua54`, `lua%5.4`) and, on FreeBSD, the `dejavu` fonts the view tests draw with.
+
+Build and run:
+
+```sh
+cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_PREFIX_PATH=/usr/local -DCMAKE_INSTALL_PREFIX="$PWD/install"
+cmake --build build --parallel
+cmake --install build
+install/bin/osdos
+```
+
+The install is laid out as on Linux, `bin/` and `share/osdos/`, which the app finds from its own folder; the data folder is `~/.local/share/OSD-OS/`, as on Linux. The tests build and run as on Linux, with `-DCMAKE_PREFIX_PATH=/usr/local` ([below](#the-regression-tests)). More in [BUILDING.md → FreeBSD and OpenBSD](https://github.com/mehmetraif/OSD-OS/blob/main/BUILDING.md#freebsd-and-openbsd-amd64).
 
 ## Qt Shader Tools
 
@@ -213,7 +232,7 @@ APP_ROOT=$(pwd) ./build/osdos
   DATA_ROOT=~/osdos-test-data APP_ROOT=$(pwd) ./build/osdos
   ```
 
-  Without it, the build uses the usual data folder: `~/.local/share/OSD-OS/` on Linux, `~/Library/Application Support/OSD-OS/` on a Mac, `%APPDATA%\OSD-OS\` on Windows ([Configuration files](https://github.com/mehmetraif/OSD-OS/wiki/Configuration-Files)).
+  Without it, the build uses the usual data folder: `~/.local/share/OSD-OS/` on Linux and the BSDs, `~/Library/Application Support/OSD-OS/` on a Mac, `%APPDATA%\OSD-OS\` on Windows ([Configuration files](https://github.com/mehmetraif/OSD-OS/wiki/Configuration-Files)).
 - **The log** prints in the terminal. A build configured without `-DCMAKE_BUILD_TYPE=Release`, as above, keeps OSD/OS's debug lines, which a Release build strips (`-DQT_NO_DEBUG_OUTPUT`): the modules loaded, every setting saved, each video's mpv command line ([Troubleshooting](https://github.com/mehmetraif/OSD-OS/wiki/Troubleshooting#what-a-build-from-source-adds)).
 - **The version** of a local build is `dev` (CMake's `APP_VERSION`; CI passes the tag), which Settings → About shows in its title bar; Settings' own title bar shows a release's version only. A `dev` build's Update screen doesn't download releases: `Dev build — self-update is disabled.`
 - **Another screen.** On a Mac or a Linux desktop, `display_index` under `"app"` in `config.json` opens OSD/OS on another display; the log lists each display's index at start ([BUILDING.md → Choosing the display](https://github.com/mehmetraif/OSD-OS/blob/main/BUILDING.md#choosing-the-display-display_index)).
@@ -270,13 +289,14 @@ They take under a minute; `ctest --test-dir build-tests -R looks` runs one by na
 
 ## Continuous integration
 
-Five workflows in [`.github/workflows`](https://github.com/mehmetraif/OSD-OS/tree/main/.github/workflows):
+Seven workflows in [`.github/workflows`](https://github.com/mehmetraif/OSD-OS/tree/main/.github/workflows):
 
 | Workflow | Runs on | What it does |
 |---|---|---|
 | [`regression-tests.yml`](https://github.com/mehmetraif/OSD-OS/blob/main/.github/workflows/regression-tests.yml) | Every pull request, and every push to `main`, that touches `src/`, `views/`, `modules/`, `scripts/`, `tests/`, `thirdparty/`, `cmake/`, `CMakeLists.txt` or the workflow; and every release, whose workflow calls it (`workflow_call`) | Builds the app (Release) and the tests, and runs the tests, in two jobs. **Linux**: Ubuntu 24.04 on x64 and on arm64, with apt's Qt 6.4, the oldest the releases are built with. **Raspberry Pi OS (trixie, arm64)**: a `debian:trixie` container with Raspberry Pi's archive added as pi-gen adds it for the image, at the commit `os/build.sh` pins, so with the Pi's own Qt (6.8) and mpv (0.40); there the tests run as an ordinary user, as OSD/OS runs on the Pi |
 | [`os-image.yml`](https://github.com/mehmetraif/OSD-OS/blob/main/.github/workflows/os-image.yml) | By hand (Actions → OS image → Run workflow), and pull requests that touch `os/`, `src/boot/`, `views/BootScreen.qml`, `views/Components/VhsCassette.qml`, `scripts/install.sh` or the workflow | Builds the app for arm64 as a `dev` tarball, then the OSD/OS image from it with pi-gen, on GitHub's arm64 runners. The image is the run's `osdos-image` artifact, kept 30 days; pi-gen's logs are kept when it fails |
 | [`windows.yml`](https://github.com/mehmetraif/OSD-OS/blob/main/.github/workflows/windows.yml) | Every pull request, and every push to `main`, that touches `src/`, `shaders/`, `thirdparty/`, `cmake/`, `CMakeLists.txt` or the workflow; and by hand | Builds the app for Windows x64 on `windows-2022` with MSVC, Qt 6.8 and vcpkg's SDL2, OpenSSL and minizip, installs it, runs `windeployqt` and uploads the whole as `osdos-windows-x64`: the app with every library beside it, and its files under `share\osdos` ([above](#windows-x64)). No release package yet: the build is the proof that the sources compile there, and a copy to try |
+| [`freebsd.yml`](https://github.com/mehmetraif/OSD-OS/blob/main/.github/workflows/freebsd.yml) and [`openbsd.yml`](https://github.com/mehmetraif/OSD-OS/blob/main/.github/workflows/openbsd.yml) | Every pull request, and every push to `main`, that touches `src/`, `shaders/`, `thirdparty/`, `cmake/`, `tests/`, `CMakeLists.txt` or the workflow; and by hand | Build the app in a FreeBSD 15.1 or an OpenBSD 8.0 virtual machine on a Linux runner ([vmactions](https://github.com/vmactions)), with the system's Qt 6, SDL2 and minizip packages, run the regression tests there, and upload the install tree as `osdos-freebsd-amd64` or `osdos-openbsd-amd64`, a tarball of `bin/` and `share/osdos/` to run with the system's Qt 6, SDL2 and mpv packages ([above](#freebsd-and-openbsd-amd64)). No release package yet, as for Windows |
 | [`release.yml`](https://github.com/mehmetraif/OSD-OS/blob/main/.github/workflows/release.yml) | A pushed tag matching `v*.*.*` | Builds a release, runs the regression tests on its commit, and publishes it once they pass ([below](#making-a-release)) |
 | [`wiki.yml`](https://github.com/mehmetraif/OSD-OS/blob/main/.github/workflows/wiki.yml) | A push to `main` that touches `docs/wiki/` or the workflow, and by hand | Publishes `docs/wiki` to the [wiki](https://github.com/mehmetraif/OSD-OS/wiki), page for page, replacing what the wiki had. GitHub makes a wiki's repository only once its first page is saved in the web interface, so that was done once |
 

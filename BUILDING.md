@@ -354,12 +354,66 @@ copy C:\vcpkg\installed\x64-windows\bin\libssl*.dll install\bin\
 install\bin\osdos.exe
 ```
 
-or, from the source tree, `set APP_ROOT=%CD%` then `build\osdos.exe` (with Qt's `bin` on the `PATH`).
+or, from the source tree, `set APP_ROOT=%CD%` then `build\osdos.exe` (with Qt's `bin` on the `PATH`). The build is a console program for now: a console window opens with the app and shows its log.
 
 ### Configuration
 
 ```
 %APPDATA%\OSD-OS\
+  config.json       ← app and module settings
+  lists.json        ← the modules' favorites and recently watched
+  input.cfg         ← optional gamepad mapping overrides
+```
+
+## FreeBSD and OpenBSD (amd64)
+
+A first build for the BSDs, a desktop app as on a Mac: the menus, films from Local Files and the media servers, YouTube, the Arcade module with the system's MAME package (FinalBurn Neo's download has no BSD build, so RetroArch, and with it RetroAchievements and netplay, waits for one), High Scores, Transparent Background with the system's libmpv, and the NFC Reader (a PN532 on a USB serial port, `cuaU*`, or a PC/SC reader with `pcsc-lite` installed). What is the Pi's or a Linux desktop's is left out, as on macOS: Display Output, Audio Output's cards (the default device plays), Bluetooth and Wi-Fi (the system's own tools), the JAMMA helper and the updater's install (it names a newer version, to download by hand). Netflix and Prime Video are not there either: no browser on the BSDs has Widevine. Nothing of it has been tried on a BSD machine yet beyond the build and the regression tests: the **FreeBSD build** and **OpenBSD build** workflows ([freebsd.yml](.github/workflows/freebsd.yml), [openbsd.yml](.github/workflows/openbsd.yml)) build it in a FreeBSD 15.1 or an OpenBSD 8.0 virtual machine on every pull request that touches the sources or the tests, run the tests there with the systems' Qt 6.11 and upload `osdos-freebsd-amd64` and `osdos-openbsd-amd64`: the install tree, `bin/` and `share/osdos/`, as a tarball to run with the system's Qt 6, SDL2 and mpv packages.
+
+### Prerequisites (one-time)
+
+FreeBSD, as root (OpenSSL is the base system's):
+
+```sh
+pkg install cmake-core ninja pkgconf qt6-base qt6-declarative qt6-svg qt6-shadertools sdl2 minizip mpv
+```
+
+OpenBSD, as root (pkg-config and LibreSSL are the base system's):
+
+```sh
+pkg_add cmake ninja qt6-qtbase qt6-qtdeclarative qt6-qtsvg qt6-qtshadertools sdl2 minizip mpv
+```
+
+- **mpv** plays every video, and its libmpv is Transparent Background's: CMake finds the headers through pkg-config, and the app opens the library from `/usr/local/lib` at run time.
+- Optional: `pcsc-lite` for PC/SC NFC readers (CMake finds it through pkg-config), the system's `mame` package for the Arcade module, `yt-dlp` (and Deno, where the system has a package) for YouTube.
+- For the regression tests: `bash`, Lua 5.4 (`lua54` on FreeBSD, `lua%5.4` on OpenBSD) and, on FreeBSD, the `dejavu` fonts the view tests draw their text with.
+
+### Build
+
+```sh
+cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_PREFIX_PATH=/usr/local \
+  -DCMAKE_INSTALL_PREFIX="$PWD/install"
+cmake --build build --parallel
+cmake --install build
+```
+
+### Run
+
+```sh
+install/bin/osdos
+```
+
+or, from the source tree, `APP_ROOT=$(pwd) ./build/osdos`. The install is laid out as on Linux, `bin/` and `share/osdos/`, which the app finds from its own folder. The regression tests build and run as on Linux ([tests/README.md](tests/README.md)):
+
+```sh
+cmake -S tests -B build-tests -G Ninja -DCMAKE_PREFIX_PATH=/usr/local
+cmake --build build-tests --parallel
+QT_QPA_PLATFORM=offscreen ctest --test-dir build-tests --output-on-failure
+```
+
+### Configuration
+
+```
+~/.local/share/OSD-OS/
   config.json       ← app and module settings
   lists.json        ← the modules' favorites and recently watched
   input.cfg         ← optional gamepad mapping overrides
@@ -519,7 +573,7 @@ Set them inline, e.g. `QML_IMPORT_TRACE=1 APP_ROOT=$(pwd) ./build/osdos`.
 
 ## GitHub Actions
 
-Besides the release workflow below, five run on their own: **Website** ([pages.yml](.github/workflows/pages.yml)) builds the website (`scripts/build-site.py`: the landing page, and [OSD/OS Setup](os/README.md#osdos-setup) under `setup/`), tests it (`node --test tests/site/*.test.mjs`) and publishes it on the repository's GitHub Pages from `main`, and only builds and tests it for a pull request or another branch (Pages is turned on once, in the repository's **Settings → Pages**, with **GitHub Actions** as its source); **Regression tests** ([regression-tests.yml](.github/workflows/regression-tests.yml)) builds the app and runs the tests in `tests/` on Linux x64 and arm64 for every pull request, and every push to `main`, that touches the app or its tests (its C++, QML, assets, shaders and scripts; see [tests/README.md](tests/README.md)), and once more on Raspberry Pi OS: a Debian 13 "trixie" container with Raspberry Pi's archive added as pi-gen adds it for the OS image, on arm64 (other workflows can call it too, `workflow_call`, and the release workflow does); **OS image** ([os-image.yml](.github/workflows/os-image.yml)) builds the OSD/OS image for a pull request that touches it; **Windows build** ([windows.yml](.github/workflows/windows.yml)) builds the app for Windows x64 on `windows-2022` (Qt 6.8 from the Qt CDN, SDL2, OpenSSL and minizip from vcpkg, kept between runs), installs it, runs `windeployqt` and uploads the whole as the artifact `osdos-windows-x64` for a pull request that touches the sources (see [Windows](#windows-x64)); and **Wiki** ([wiki.yml](.github/workflows/wiki.yml)) publishes `docs/wiki` to the [GitHub wiki](https://github.com/mehmetraif/OSD-OS/wiki) whenever it changes on `main`, replacing what the wiki had (GitHub makes a wiki's repository only once its first page is saved in the web interface, so that is done once first).
+Besides the release workflow below, seven run on their own: **Website** ([pages.yml](.github/workflows/pages.yml)) builds the website (`scripts/build-site.py`: the landing page, and [OSD/OS Setup](os/README.md#osdos-setup) under `setup/`), tests it (`node --test tests/site/*.test.mjs`) and publishes it on the repository's GitHub Pages from `main`, and only builds and tests it for a pull request or another branch (Pages is turned on once, in the repository's **Settings → Pages**, with **GitHub Actions** as its source); **Regression tests** ([regression-tests.yml](.github/workflows/regression-tests.yml)) builds the app and runs the tests in `tests/` on Linux x64 and arm64 for every pull request, and every push to `main`, that touches the app or its tests (its C++, QML, assets, shaders and scripts; see [tests/README.md](tests/README.md)), and once more on Raspberry Pi OS: a Debian 13 "trixie" container with Raspberry Pi's archive added as pi-gen adds it for the OS image, on arm64 (other workflows can call it too, `workflow_call`, and the release workflow does); **OS image** ([os-image.yml](.github/workflows/os-image.yml)) builds the OSD/OS image for a pull request that touches it; **Windows build** ([windows.yml](.github/workflows/windows.yml)) builds the app for Windows x64 on `windows-2022` (Qt 6.8 from the Qt CDN, SDL2, OpenSSL and minizip from vcpkg, kept between runs), installs it, runs `windeployqt` and uploads the whole as the artifact `osdos-windows-x64` for a pull request that touches the sources (see [Windows](#windows-x64)); **FreeBSD build** ([freebsd.yml](.github/workflows/freebsd.yml)) and **OpenBSD build** ([openbsd.yml](.github/workflows/openbsd.yml)) build the app in a FreeBSD 15.1 or an OpenBSD 8.0 virtual machine on a Linux runner ([vmactions](https://github.com/vmactions)), with the system's Qt 6, SDL2 and minizip packages, run the regression tests there and upload the install tree as `osdos-freebsd-amd64` or `osdos-openbsd-amd64`, for a pull request that touches the sources or the tests (see [FreeBSD and OpenBSD](#freebsd-and-openbsd-amd64)); and **Wiki** ([wiki.yml](.github/workflows/wiki.yml)) publishes `docs/wiki` to the [GitHub wiki](https://github.com/mehmetraif/OSD-OS/wiki) whenever it changes on `main`, replacing what the wiki had (GitHub makes a wiki's repository only once its first page is saved in the web interface, so that is done once first).
 
 ### How to trigger a build
 
