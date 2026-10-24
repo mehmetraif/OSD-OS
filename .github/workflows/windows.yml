@@ -55,24 +55,26 @@ jobs:
       # SDL2 (gamepads), OpenSSL (the updater's digests, Qt's TLS) and minizip
       # with zlib (High Scores' definitions, FinalBurn Neo's download) from
       # vcpkg, as the runner has it; what it built is kept between runs of
-      # the same runner image.
+      # the same runner image. Under a name of its own: the MSVC environment
+      # step sets VCPKG_ROOT to Visual Studio's own copy of vcpkg, which has
+      # nothing installed.
       - name: Find vcpkg
         shell: pwsh
         run: |
-          "VCPKG_ROOT=$env:VCPKG_INSTALLATION_ROOT" >> $env:GITHUB_ENV
+          "OSDOS_VCPKG=$env:VCPKG_INSTALLATION_ROOT" >> $env:GITHUB_ENV
           "RUNNER_IMAGE=$env:ImageVersion" >> $env:GITHUB_ENV
 
       - name: Restore vcpkg packages
         id: vcpkg-cache
         uses: actions/cache/restore@v4
         with:
-          path: ${{ env.VCPKG_ROOT }}\installed
+          path: ${{ env.OSDOS_VCPKG }}\installed
           key: vcpkg-x64-windows-${{ env.RUNNER_IMAGE }}-sdl2-openssl-minizip
 
       - name: Install SDL2, OpenSSL and minizip
         shell: pwsh
         run: |
-          & "$env:VCPKG_ROOT\vcpkg.exe" install sdl2 openssl minizip --triplet x64-windows
+          & "$env:OSDOS_VCPKG\vcpkg.exe" install sdl2 openssl minizip --triplet x64-windows
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
       # Saved as soon as they are built, not at the job's end: a run cancelled
@@ -81,7 +83,7 @@ jobs:
         if: steps.vcpkg-cache.outputs.cache-hit != 'true'
         uses: actions/cache/save@v4
         with:
-          path: ${{ env.VCPKG_ROOT }}\installed
+          path: ${{ env.OSDOS_VCPKG }}\installed
           key: vcpkg-x64-windows-${{ env.RUNNER_IMAGE }}-sdl2-openssl-minizip
 
       - name: MSVC environment
@@ -94,7 +96,7 @@ jobs:
         run: |
           cmake -B build -G Ninja `
             -DCMAKE_BUILD_TYPE=Release `
-            -DCMAKE_TOOLCHAIN_FILE="$env:VCPKG_ROOT/scripts/buildsystems/vcpkg.cmake" `
+            -DCMAKE_TOOLCHAIN_FILE="$env:OSDOS_VCPKG/scripts/buildsystems/vcpkg.cmake" `
             -DVCPKG_TARGET_TRIPLET=x64-windows `
             -DCMAKE_PREFIX_PATH="$env:QT_ROOT_DIR" `
             -DCMAKE_INSTALL_PREFIX="$env:GITHUB_WORKSPACE/install" `
@@ -123,8 +125,8 @@ jobs:
           & "$env:QT_ROOT_DIR\bin\windeployqt.exe" --release --qmldir "$env:GITHUB_WORKSPACE" "$env:GITHUB_WORKSPACE\install\bin\osdos.exe"
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           Copy-Item "$env:GITHUB_WORKSPACE\build\*.dll" "$env:GITHUB_WORKSPACE\install\bin\"
-          Copy-Item "$env:VCPKG_ROOT\installed\x64-windows\bin\libssl*.dll" "$env:GITHUB_WORKSPACE\install\bin\"
-          Copy-Item "$env:VCPKG_ROOT\installed\x64-windows\bin\libcrypto*.dll" "$env:GITHUB_WORKSPACE\install\bin\"
+          Copy-Item "$env:OSDOS_VCPKG\installed\x64-windows\bin\libssl*.dll" "$env:GITHUB_WORKSPACE\install\bin\"
+          Copy-Item "$env:OSDOS_VCPKG\installed\x64-windows\bin\libcrypto*.dll" "$env:GITHUB_WORKSPACE\install\bin\"
           Get-ChildItem "$env:GITHUB_WORKSPACE\install\bin" -Filter *.dll | Select-Object -ExpandProperty Name
 
       - name: Upload artifact
