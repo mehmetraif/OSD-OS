@@ -15,6 +15,7 @@ Everything is done with a handful of actions:
 | Back | Esc, Backspace or Right Shift | B or Back | One step back. On the main menu it opens Settings |
 | ► on an entry | ► | D-pad right | A video's options, or its info screen |
 | Play/pause | Space | Start | Pauses a video; stops one playing behind the menus |
+| The mouse | Left click, right click, the wheel | | Over a menu the selection follows the pointer; a left click selects, a right click goes back, the wheel moves up and down |
 
 The bar at the foot of every screen (the hint bar) says which keys do what there, as `[ESC]:BACK [▲▼]:NAVIGATE [ENTER]:SELECT`, and switches to the gamepad's buttons once you press one. A ▲ above a list or a ▼ below it means there are more lines that way. A line too long for the screen scrolls through while the cursor is on it.
 
@@ -329,7 +330,7 @@ Both can go once the keys are second nature; the keys work as they always do.
 
 ## The mouse pointer
 
-A mouse, or a keyboard's touchpad, shows OSD/OS's own pointer, drawn in its pixels and colors, while it moves, and hides it again after a few seconds still. The menus still go by keys: the pointer shows where the mouse is, and a click isn't on what it is over. Without a desktop, as on the OSD/OS image, a left click is Select / OK and a right click Back, as an air-mouse remote's OK is a left click; with a desktop a click does nothing unless you have made a mouse button one of the actions in Settings → Controls → All Keyboards & Remotes ([Controls](https://github.com/mehmetraif/OSD-OS/wiki/Controls#the-mouse)).
+A mouse, or a keyboard's touchpad, shows OSD/OS's own pointer, drawn in its pixels and colors, while it moves, and hides it again after a few seconds still. The menus take the mouse as they take the keys: over a menu or the Arcade screen's list the selection follows the pointer, a left click is Select / OK, a right click Back and the wheel ▲ ▼, on the OSD/OS image and on a desktop alike (an air-mouse remote's OK is a left click). In a file tree the wheel moves the cursor, a row a notch, and a click opens what it is on; the on-screen keyboard still goes by the keys. A mouse button made one of the actions in Settings → Controls → All Keyboards & Remotes does that instead ([Controls](https://github.com/mehmetraif/OSD-OS/wiki/Controls#the-mouse)).
 
 | Setting | Values | Default | What it does | Config key |
 |---|---|---|---|---|

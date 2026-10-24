@@ -83,5 +83,7 @@ FocusScope {
         choices: overlayRoot.choices
         currentIndex: overlayRoot.choiceIndex
         hint: overlayRoot.hintText
+        // The answer under the mouse becomes the cursor's.
+        onHovered: function(index) { overlayRoot.choiceIndex = index }
     }
 }

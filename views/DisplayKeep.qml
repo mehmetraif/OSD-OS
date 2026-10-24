@@ -71,6 +71,7 @@ FocusScope {
                  : root.displayNoticeDetail
         choices: keepRoot.asking ? ["Keep", "Switch Back"] : []
         currentIndex: keepRoot.choiceIndex
+        onHovered: function(index) { keepRoot.choiceIndex = index }
         hint: keepRoot.asking ? root.hints.navigate + ":NAVIGATE " + root.hints.select + ":SELECT"
                               : root.hints.select + ":OK"
     }

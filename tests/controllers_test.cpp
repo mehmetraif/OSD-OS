@@ -938,11 +938,11 @@ private slots:
     // A remote's OK, however it comes, is Select / OK: keypad Enter, which
     // most views don't take, and the Select and OK keys (Qt::Key_Select from
     // Qt's own evdev keymap; from libinput's, which has no symbol for them, a
-    // key of 0 known by its scan code), once per press. On the console a
-    // mouse's left and right buttons are Select / OK and Back, as an air-mouse
-    // remote's OK is a left click while its pointer is on; elsewhere, and
-    // once a click is bound to something else, a click does what it is bound
-    // to.
+    // key of 0 known by its scan code), once per press. A mouse's left and
+    // right buttons are Select / OK and Back, as an air-mouse remote's OK is a
+    // left click while its pointer is on, and its wheel Up and Down a notch at
+    // a time; once a click is bound to something else, it does what it is
+    // bound to.
     void remoteOk() {
         AppCore core(m_app.path(), m_data.path());
         InputManager im(m_data.path(), &core);
@@ -965,6 +965,11 @@ private slots:
             QMouseEvent release(QEvent::MouseButtonRelease, QPointF(1, 1), QPointF(1, 1), button, Qt::NoButton,
                                 Qt::NoModifier);
             QCoreApplication::sendEvent(&window, &release);
+        };
+        const auto wheel = [&window](int turn) {
+            QWheelEvent notch(QPointF(1, 1), QPointF(1, 1), QPoint(), QPoint(0, turn), Qt::NoButton, Qt::NoModifier,
+                              Qt::NoScrollPhase, false);
+            QCoreApplication::sendEvent(&window, &notch);
         };
         const int leftClick = 0x03000000 + int(Qt::LeftButton);
         const int rightClick = 0x03000000 + int(Qt::RightButton);
@@ -1002,14 +1007,8 @@ private slots:
         QCOMPARE(keysOf(keys), QStringList());
 #endif
 
-        // With a desktop a click is nothing until it is bound.
-        click(Qt::LeftButton);
-        click(Qt::RightButton);
-        QCOMPARE(keysOf(keys), QStringList());
-        QCOMPARE(outcome(im.keyCapture(QString(), rightClick, "up")), QString("set"));
-
-        // On the console: Select / OK and Back, the middle button nothing.
-        im.setClickActions(true);
+        // A mouse: left and right are Select / OK and Back, the middle button
+        // nothing.
         click(Qt::LeftButton);
         click(Qt::RightButton);
         click(Qt::MiddleButton);
@@ -1017,6 +1016,17 @@ private slots:
         // A wait for a press keeps them: the right one ends it, as Back does.
         QCOMPARE(outcome(im.keyCapture(QString(), leftClick, "back")), QString("already"));
         QCOMPARE(outcome(im.keyCapture(QString(), rightClick, "up")), QString("cancel"));
+        // The wheel: a notch down is Down, a notch up Up, however it comes in
+        // (a wheel that turns in half notches makes one of every two); never
+        // while a press is waited for.
+        keys.clear();
+        wheel(-120);
+        wheel(60);
+        wheel(60);
+        im.setRemapCapture(true);
+        wheel(120);
+        im.setRemapCapture(false);
+        QCOMPARE(keysOf(keys), QStringList({ "DOWN", "UP" }));
         // Bound to something else, the click does that.
         core.save_setting(QString(), "remote_keymap.down", leftClick);
         keys.clear();

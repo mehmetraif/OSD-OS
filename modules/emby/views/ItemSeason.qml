@@ -67,6 +67,13 @@ FocusScope {
         seasonRoot.navigateTo("Item.qml", { item: target, libraryName: libraryName }, {})
     }
 
+    // The episode under the mouse becomes the cursor's (Main.qml's
+    // followPointer()).
+    function hoverRow(index) {
+        episodeList.currentIndex = index
+        focusRow = 1
+    }
+
     Keys.onUpPressed: {
         if (focusRow === 0) {
             if (episodes.length === 0) return   // nothing to move focus into

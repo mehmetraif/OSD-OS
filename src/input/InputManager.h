@@ -75,12 +75,6 @@ public:
     // writes /dev/input's nodes (input_event), read as they are.
     void adoptNodeForTest(int fd, const QString &name);
 #endif
-    // On the console (EGLFS, main.cpp): a mouse's left and right buttons are
-    // Select / OK and Back where nothing else is bound to them, as an
-    // air-mouse remote's OK is a left click while its pointer is on.
-    // Elsewhere a click does only what it is bound to.
-    void setClickActions(bool on) { m_clickActions = on; }
-
     QString lastInputDevice() const { return m_lastInputDevice; }
     QVariantMap hints() const { return m_hints; }
     QVariantList controllers() const;
@@ -401,7 +395,7 @@ private:
     // go, as their repeats would act as what they were just given.
     QSet<int> m_capturedKeys;
     bool m_remapCapture = false;                     // see setRemapCapture()
-    bool m_clickActions = false;                     // see setClickActions()
+    int  m_wheelTurn = 0;                            // the mouse wheel's turn short of a notch (eventFilter())
 
 #ifdef Q_OS_LINUX
     // A keyboard's or a remote's /dev/input node. A Consumer Control node's

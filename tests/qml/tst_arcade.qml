@@ -1,5 +1,6 @@
 import QtQuick
 import QtTest
+import "../../views/Components/Hover.js" as Hover
 
 // The Arcade module's views, modules/arcade/views/Games.qml (the original
 // screen), ArcadeScreen.qml and Play.qml, against a stand-in for
@@ -770,6 +771,55 @@ Rectangle {
             compare(screen.currentSet, "xmen6p")
             keyClick(Qt.Key_Left)
             compare(screen.filterId, "players/6")
+        }
+
+        // The mouse over a row chooses its game, as ▲ ▼ do (Main.qml's
+        // pointer, through Hover.js): on the arc, and on the wheel, where
+        // the game comes to the row and the wheel stays; between the rows,
+        // over the bar, under the options or while the screen is adjusted,
+        // nothing changes.
+        function test_screenHover() {
+            var screen = openScreen()
+            var rowOf = function(number) { return findText(screen, number).parent }
+            var middle = function(item) { return item.mapToItem(root, item.width / 2, item.height / 2) }
+            var hover = function(p) { Hover.follow(root, root.Window.activeFocusItem, p.x, p.y) }
+            hover(middle(rowOf("003")))
+            compare(screen.selected, 2)
+            compare(screen.currentSet, "avsp")
+            verify(screen.browsed)
+            hover(middle(rowOf("003")))
+            compare(screen.selected, 2)
+            var two = rowOf("002"), three = rowOf("003")
+            hover(two.mapToItem(root, two.width / 2, two.height + (three.y - two.y - two.height) / 2))
+            compare(screen.selected, 2)
+            hover(middle(findText(screen, "All Games")))
+            compare(screen.selected, 2)
+            // The options over the list: their answers follow the mouse, the
+            // list doesn't.
+            keyPress(Qt.Key_Return)
+            tryVerify(function() { return findText(screen, "Game Details", true) !== null }, 1500)
+            keyRelease(Qt.Key_Return)
+            hover(middle(rowOf("001")))
+            compare(screen.selected, 2)
+            var details = findText(screen, "Game Details", true)
+            hover(middle(details))
+            compare(details.color, root.surfaceColor)
+            keyClick(Qt.Key_Escape)
+            // Adjusting the screen.
+            loader.source = ""
+            screen = openScreen({ adjust: true })
+            hover(middle(rowOf("003")))
+            compare(screen.selected, 0)
+            // The wheel.
+            loader.source = ""
+            moduleRoot.listStyle = "3D Curved"
+            screen = openScreen()
+            compare(screen.selectedRow, 4)
+            var top = screen.wheelTop
+            hover(middle(rowOf("003")))
+            compare(screen.currentSet, "avsp")
+            compare(screen.selectedRow, 6)
+            compare(screen.wheelTop, top)
         }
 
         // COIN (MAME's 5, which a pad's Back button is here: takesCoin) buys
