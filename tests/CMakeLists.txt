@@ -20,7 +20,7 @@ target_include_directories(reliability_test PRIVATE ../src)
 target_compile_definitions(reliability_test PRIVATE APP_VERSION="test")
 target_link_libraries(reliability_test PRIVATE Qt6::Core Qt6::Network Qt6::Qml Qt6::Test)
 add_test(NAME reliability COMMAND reliability_test)
-find_program(LUA_EXECUTABLE NAMES lua5.4 lua REQUIRED)
+find_program(LUA_EXECUTABLE NAMES lua5.4 lua54 lua REQUIRED)   # lua54: the BSDs' packages
 add_test(NAME osc_controls COMMAND ${LUA_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/osc_test.lua
                                   ${CMAKE_CURRENT_SOURCE_DIR}/../scripts/mpv-osc.lua)
 # The media-key script: the volume bar, and a remote's channel keys through

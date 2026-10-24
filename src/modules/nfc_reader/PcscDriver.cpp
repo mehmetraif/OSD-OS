@@ -5,7 +5,7 @@
 
 #include <cstring>
 
-#if defined(OSDOS_NFC_PCSC_AVAILABLE) && (defined(Q_OS_LINUX) || defined(Q_OS_MAC))
+#if defined(OSDOS_NFC_PCSC_AVAILABLE) && defined(Q_OS_UNIX)
 #include <PCSC/winscard.h>
 // Not pulled in by winscard.h on macOS; provides the DWORD/LONG typedefs that
 // keep the SCard* calls portable (pcsclite widens them to long on 64-bit Linux).

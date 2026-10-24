@@ -15,6 +15,7 @@ QString write(const QString &fontsDir) {
         "<fontconfig>\n"
         "  <dir>%1</dir>\n"
         "  <include ignore_missing=\"yes\">/etc/fonts/fonts.conf</include>\n"
+        "  <include ignore_missing=\"yes\">/usr/local/etc/fonts/fonts.conf</include>\n"   // FreeBSD's
         "</fontconfig>\n"
     ).arg(fontsDir.toHtmlEscaped()).toUtf8());   // an & or < in the path is XML's
     return path;

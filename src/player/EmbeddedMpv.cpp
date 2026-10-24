@@ -3,6 +3,7 @@
 #include "../util/LegacyNames.h"
 #include <QCoreApplication>
 #include <QDebug>
+#include <QDir>
 #include <QElapsedTimer>
 #include <QLibrary>
 #include <QMap>
@@ -62,6 +63,17 @@ QStringList libraryCandidates() {
     // Beside the app, as mpv's own builds name it, or on the PATH.
     return { appDir + QStringLiteral("/libmpv-2.dll"), appDir + QStringLiteral("/mpv/libmpv-2.dll"),
              QStringLiteral("libmpv-2.dll"), QStringLiteral("mpv-2.dll") };
+#elif defined(Q_OS_BSD4)
+    // The package's library, in /usr/local/lib, which the loader doesn't look
+    // in by itself on OpenBSD, and which OpenBSD numbers in its own way
+    // (libmpv.so.3.0 for libmpv 2): the newest of what is there, then the
+    // soname mpv's own build gives it.
+    const QDir lib(QStringLiteral("/usr/local/lib"));
+    QStringList candidates;
+    const QStringList names = lib.entryList({ QStringLiteral("libmpv.so.*") }, QDir::Files, QDir::Name | QDir::Reversed);
+    for (const QString &name : names)
+        candidates << lib.filePath(name);
+    return candidates << QStringLiteral("libmpv.so.2");
 #else
     // A copy bundled beside the binary (the AppImage's lib/) first.
     return { appDir + QStringLiteral("/../lib/libmpv.so.2"),

@@ -28,9 +28,10 @@ endif()
 
 include(GNUInstallDirs)
 
-# The three systems the app builds on: Linux (the Pi's, and any desktop),
-# macOS, and Windows (x64, MSVC). What only one of them has is chosen by
-# these, not by "not the other".
+# The systems the app builds on: Linux (the Pi's, and any desktop), macOS,
+# Windows (x64, MSVC), and the BSDs (FreeBSD, OpenBSD), which take a
+# desktop's paths. What only one of them has is chosen by these, not by "not
+# the other".
 if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
     set(OSDOS_LINUX ON)
 else()
@@ -52,15 +53,18 @@ endif()
 # a PN532 over USB serial through plain termios, so readers still work without
 # it — which is what makes the NFC module usable on immutable distros where
 # pcscd cannot be installed. macOS ships PCSC.framework with the OS; Linux needs
-# libpcsclite-dev. Not on Windows yet (its winscard differs in its types), where
-# the module says it is not there.
+# libpcsclite-dev, the BSDs the pcsc-lite package. Not on Windows yet (its
+# winscard differs in its types), where the module says it is not there.
 if(APPLE)
     find_library(PCSC_LIBRARIES PCSC)
     if(PCSC_LIBRARIES)
         set(PCSC_FOUND TRUE)
     endif()
-elseif(OSDOS_LINUX)
-    pkg_check_modules(PCSC IMPORTED_TARGET libpcsclite)
+elseif(UNIX)
+    find_package(PkgConfig QUIET)
+    if(PKG_CONFIG_FOUND)
+        pkg_check_modules(PCSC IMPORTED_TARGET libpcsclite)
+    endif()
 endif()
 if(NOT PCSC_FOUND)
     message(STATUS "PC/SC not found — NFC reader module will build with PN532 USB serial support only")

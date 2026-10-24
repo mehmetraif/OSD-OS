@@ -12,7 +12,7 @@
 
 #ifdef Q_OS_LINUX
 #include <fcntl.h>
-#elif defined(Q_OS_MACOS) || defined(Q_OS_WIN)
+#else
 #include <QStorageInfo>
 #endif
 #ifdef Q_OS_UNIX
@@ -107,8 +107,9 @@ RemovableDrives::RemovableDrives(QObject *parent) : QObject(parent) {
     // ejected; the settle gives the mount its moment.
     m_watcher = new QFileSystemWatcher(QStringList(QStringLiteral("/Volumes")), this);
     connect(m_watcher, &QFileSystemWatcher::directoryChanged, m_settle, qOverload<>(&QTimer::start));
-#elif defined(Q_OS_WIN)
-    // Nothing says when a drive comes or goes: the volumes are looked at
+#elif defined(Q_OS_WIN) || defined(Q_OS_BSD4)
+    // Nothing says when a drive comes or goes (on the BSDs, a mount under
+    // /media or /mnt, by hand or by automount): the volumes are looked at
     // every few seconds instead.
     auto *poll = new QTimer(this);
     poll->setInterval(3000);
@@ -183,6 +184,16 @@ QList<RemovableDrives::Drive> RemovableDrives::scan() const {
         if (name.isEmpty())
             name = point.left(2);
         found.append({ name, point });
+    }
+#elif defined(Q_OS_BSD4)
+    // What is mounted from a device under /media (FreeBSD's automount) or
+    // /mnt (a mount by hand), by its folder's name.
+    const QList<QStorageInfo> volumes = QStorageInfo::mountedVolumes();
+    for (const QStorageInfo &volume : volumes) {
+        const QString point = QDir::cleanPath(volume.rootPath());
+        if (volume.isValid() && volume.isReady() && volume.device().startsWith("/dev/")
+                && (point.startsWith(QLatin1String("/media/")) || point.startsWith(QLatin1String("/mnt/"))))
+            found.append({ QFileInfo(point).fileName(), point });
     }
 #endif
     QList<Drive> drives;

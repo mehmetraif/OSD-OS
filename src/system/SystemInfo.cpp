@@ -18,10 +18,20 @@
 
 #include <algorithm>
 
-#ifdef Q_OS_MACOS
+#if defined(Q_OS_MACOS) || defined(Q_OS_FREEBSD) || defined(Q_OS_OPENBSD)
+#include <sys/types.h>
+#include <sys/param.h>
 #include <sys/sysctl.h>
 #include <sys/time.h>
 #include <ctime>
+#include <initializer_list>
+#endif
+#ifdef Q_OS_FREEBSD
+#include <kenv.h>
+#endif
+#ifdef Q_OS_OPENBSD
+#include <uvm/uvm_param.h>   // VM_UVMEXP
+#include <uvm/uvmexp.h>
 #endif
 #ifdef Q_OS_WIN
 #include <QSettings>
@@ -74,7 +84,7 @@ QString cpuName(const QString &cpuinfo) {
     return match.hasMatch() ? kArmCores.value(match.captured(1).toLower()) : QString();
 }
 
-#ifdef Q_OS_MACOS
+#if defined(Q_OS_MACOS) || defined(Q_OS_FREEBSD)
 QString sysctlText(const char *name) {
     size_t size = 0;
     if (sysctlbyname(name, nullptr, &size, nullptr, 0) != 0 || size == 0)
@@ -88,6 +98,35 @@ template <typename T>
 bool sysctlValue(const char *name, T *value) {
     size_t size = sizeof(T);
     return sysctlbyname(name, value, &size, nullptr, 0) == 0 && size == sizeof(T);
+}
+#elif defined(Q_OS_OPENBSD)
+// OpenBSD's sysctl knows no names, only a MIB.
+QString sysctlText(std::initializer_list<int> mib) {
+    int name[CTL_MAXNAME] = {};
+    std::copy(mib.begin(), mib.end(), name);
+    size_t size = 0;
+    if (sysctl(name, u_int(mib.size()), nullptr, &size, nullptr, 0) != 0 || size == 0)
+        return QString();
+    QByteArray buffer(qsizetype(size), '\0');
+    if (sysctl(name, u_int(mib.size()), buffer.data(), &size, nullptr, 0) != 0)
+        return QString();
+    return QString::fromUtf8(buffer.constData()).trimmed();
+}
+template <typename T>
+bool sysctlValue(std::initializer_list<int> mib, T *value) {
+    int name[CTL_MAXNAME] = {};
+    std::copy(mib.begin(), mib.end(), name);
+    size_t size = sizeof(T);
+    return sysctl(name, u_int(mib.size()), value, &size, nullptr, 0) == 0 && size == sizeof(T);
+}
+#endif
+#ifdef Q_OS_FREEBSD
+// The kernel's environment: what the firmware says of the machine.
+QString kenvText(const char *name) {
+    char buffer[256] = {};
+    if (kenv(KENV_GET, name, buffer, sizeof buffer - 1) < 0)
+        return QString();
+    return QString::fromLatin1(buffer).trimmed();
 }
 #endif
 
@@ -173,6 +212,23 @@ void SystemInfo::readFixed(Facts *facts) {
     quint64 memory = 0;
     if (sysctlValue("hw.memsize", &memory))
         facts->memoryTotal = qint64(memory);
+#elif defined(Q_OS_FREEBSD)
+    if (facts->model.isEmpty()) {
+        // The PC as its firmware names it.
+        facts->model = (kenvText("smbios.system.maker") + QLatin1Char(' ') + kenvText("smbios.system.product")).simplified();
+        facts->serial = kenvText("smbios.system.serial");
+    }
+    facts->cpu = sysctlText("hw.model");
+    unsigned long memory = 0;
+    if (sysctlValue("hw.physmem", &memory))
+        facts->memoryTotal = qint64(memory);
+#elif defined(Q_OS_OPENBSD)
+    if (facts->model.isEmpty())
+        facts->model = (sysctlText({ CTL_HW, HW_VENDOR }) + QLatin1Char(' ') + sysctlText({ CTL_HW, HW_PRODUCT })).simplified();
+    facts->cpu = sysctlText({ CTL_HW, HW_MODEL });
+    int64_t memory = 0;
+    if (sysctlValue({ CTL_HW, HW_PHYSMEM64 }, &memory))
+        facts->memoryTotal = qint64(memory);
 #else
     if (facts->model.isEmpty()) {
         // A PC's, as its firmware names it.
@@ -220,6 +276,28 @@ void SystemInfo::readChanging(Facts *facts, const QString &dataRoot, const QStri
     timeval boot {};
     if (sysctlValue("kern.boottime", &boot) && boot.tv_sec > 0)
         facts->uptime = qint64(std::time(nullptr)) - qint64(boot.tv_sec);
+#elif defined(Q_OS_FREEBSD)
+    timeval boot {};
+    if (sysctlValue("kern.boottime", &boot) && boot.tv_sec > 0)
+        facts->uptime = qint64(std::time(nullptr)) - qint64(boot.tv_sec);
+    // The pages free, and the inactive ones the kernel gives up at once.
+    unsigned int freePages = 0, inactivePages = 0;
+    int pageSize = 0;
+    if (sysctlValue("vm.stats.vm.v_free_count", &freePages) && sysctlValue("hw.pagesize", &pageSize)) {
+        sysctlValue("vm.stats.vm.v_inactive_count", &inactivePages);
+        facts->memoryFree = (qint64(freePages) + qint64(inactivePages)) * pageSize;
+    }
+    // The processor's, in tenths of a kelvin (coretemp, amdtemp).
+    int kelvinTenths = 0;
+    if (sysctlValue("dev.cpu.0.temperature", &kelvinTenths) && kelvinTenths > 0)
+        facts->temperature = kelvinTenths / 10.0 - 273.15;
+#elif defined(Q_OS_OPENBSD)
+    timeval boot {};
+    if (sysctlValue({ CTL_KERN, KERN_BOOTTIME }, &boot) && boot.tv_sec > 0)
+        facts->uptime = qint64(std::time(nullptr)) - qint64(boot.tv_sec);
+    struct uvmexp vm {};
+    if (sysctlValue({ CTL_VM, VM_UVMEXP }, &vm))
+        facts->memoryFree = qint64(vm.free) * vm.pagesize;
 #else
     facts->memoryFree = meminfoBytes(QString::fromUtf8(systemFile(QStringLiteral("/proc/meminfo"))),
                                      QStringLiteral("MemAvailable"));

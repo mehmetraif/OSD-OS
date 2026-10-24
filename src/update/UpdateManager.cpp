@@ -37,6 +37,19 @@ QString assetSuffix() {
 #endif
 }
 
+// The system, for the message that says no package is built for it yet.
+QString systemName() {
+#if defined(Q_OS_WIN)
+    return QStringLiteral("Windows");
+#elif defined(Q_OS_FREEBSD)
+    return QStringLiteral("FreeBSD");
+#elif defined(Q_OS_OPENBSD)
+    return QStringLiteral("OpenBSD");
+#else
+    return QSysInfo::prettyProductName();
+#endif
+}
+
 // "Apply & Restart" under the autostart service: osdos-stop (scripts/install.sh)
 // treats exit 11 as a no-op so Restart=on-failure relaunches through the
 // launcher, which applies the staged tarball. Sibling of Qt.exit(10) ("Exit to
@@ -339,12 +352,12 @@ void UpdateManager::handleReleaseInfo(const QByteArray &json) {
         return;
     }
 
-#ifdef Q_OS_WIN
-    // No Windows package among the release's assets yet: the newer version
-    // is named, to be downloaded by hand.
+#if defined(Q_OS_WIN) || (defined(Q_OS_BSD4) && !defined(Q_OS_DARWIN))
+    // No package for Windows or the BSDs among the release's assets yet: the
+    // newer version is named, to be downloaded by hand.
     setState(QStringLiteral("error"),
-             QStringLiteral("%1 is out. No update package for Windows yet: download it from "
-                            "github.com/mehmetraif/OSD-OS/releases.").arg(tag));
+             QStringLiteral("%1 is out. No update package for %2 yet: download it from "
+                            "github.com/mehmetraif/OSD-OS/releases.").arg(tag, systemName()));
     return;
 #elif !defined(Q_OS_MAC)
     const QString arch = QSysInfo::currentCpuArchitecture();
