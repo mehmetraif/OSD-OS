@@ -296,10 +296,14 @@ FocusScope {
             font.pixelSize: root.sh * 0.0375 //18
             wrapMode: Text.WrapAtWordBoundaryOrAnywhere
         }
+        // How to put the engine on, for this system (AppCore::installHint()),
+        // under "MAME is not installed" or "RetroArch is not installed".
         Text {
-            visible: playRoot.phase === "error" && playRoot.message === "MAME is not installed"
+            readonly property string program: playRoot.message === "MAME is not installed" ? "mame"
+                                              : playRoot.message === "RetroArch is not installed" ? "retroarch" : ""
+            visible: playRoot.phase === "error" && program !== ""
             width: parent.width
-            text: "On Raspberry Pi OS: sudo apt install mame"
+            text: program !== "" ? appCore.installHint(program) : ""
             color: root.primaryColor
             font.family: root.globalFont
             font.pixelSize: playRoot.smallText

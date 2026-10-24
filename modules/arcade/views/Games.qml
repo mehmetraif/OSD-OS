@@ -29,6 +29,10 @@ FocusScope {
     // down, hence the guards.
     readonly property string gamesFolder: arcadeBackend ? arcadeBackend.gamesFolder() : ""
     readonly property string problem: arcadeBackend ? arcadeBackend.problem : ""
+    // For the help line: with how to put MAME on, for this system
+    // (AppCore::installHint()), where that is what stands in the way.
+    readonly property string problemLine: problem === "MAME is not installed"
+                                          ? problem + ". " + appCore.installHint("mame") : problem
     readonly property bool folderReadable: arcadeBackend ? arcadeBackend.folderReadable : true
     readonly property bool scanning: arcadeBackend ? arcadeBackend.scanning : false
 
@@ -165,7 +169,7 @@ FocusScope {
         id: infoLine
         visible: !tree.rootEmpty && !osk.visible && !options.visible
         readonly property var entry: tree.currentEntry
-        text: gamesRoot.problem !== "" ? gamesRoot.problem
+        text: gamesRoot.problem !== "" ? gamesRoot.problemLine
               : entry && (entry.game || entry.kind === "unknown" || entry.kind === "message" || entry.kind === "lobby")
                 ? entry.detail
               : entry && entry.kind === "search" ? "Find a game by its name"

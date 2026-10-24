@@ -386,6 +386,8 @@ Rectangle {
             return true
         }
         function is_module_enabled(id) { return false }
+        // How to put a program on, for the system (util/InstallHint.h).
+        function installHint(program) { return "On Test OS: install " + program }
     }
 
     Loader {
@@ -554,26 +556,38 @@ Rectangle {
             compare(nav.listState.trail[nav.listState.trail.length - 1].path, "all")
         }
 
-        // What stands in the way comes first in the line under the tree.
+        // What stands in the way comes first in the line under the tree,
+        // with how to put MAME on for this system, on both screens.
         function test_problem() {
             arcadeBackend.problem = "MAME is not installed"
             var games = open("Games.qml")
-            verify(findText(games, "MAME is not installed") !== null)
+            verify(findText(games, "MAME is not installed. On Test OS: install mame") !== null)
+            loader.source = ""
+            var screen = openScreen()
+            verify(findText(screen, "MAME is not installed. On Test OS: install mame") !== null)
+            loader.source = ""
+            arcadeBackend.problem = "MAME could not list the games"
+            games = open("Games.qml")
+            verify(findText(games, "MAME could not list the games", true) !== null)
         }
 
         // An empty folder says where the games go; what stands in the way of
-        // the list comes first, and a folder that can't be read is all.
+        // the list comes first (how to put MAME on under it), and a folder
+        // that can't be read is all.
         function test_empty() {
             arcadeBackend.entries = { "top": [] }
             var games = open("Games.qml")
             tryVerify(function() { return findText(games, "No games found") !== null })
             verify(findText(games, "Put MAME's ROM sets") !== null)
+            compare(findText(games, "On Test OS"), null)
             arcadeBackend.problem = "MAME is not installed"
-            verify(findText(games, "MAME is not installed") !== null)
+            verify(findText(games, "MAME is not installed", true) !== null)
+            verify(findText(games, "On Test OS: install mame", true) !== null)
             verify(findText(games, "Put MAME's ROM sets") !== null)
             arcadeBackend.problem = "The games folder can't be read: /media/usb/MAME"
             arcadeBackend.folderReadable = false
             verify(findText(games, "The games folder can't be read") !== null)
+            compare(findText(games, "On Test OS"), null)
             compare(findText(games, "Put MAME's ROM sets"), null)
         }
 
@@ -668,15 +682,26 @@ Rectangle {
             compare(root.backs, 1)
         }
 
-        // One that never started, and how to put MAME on.
+        // One that never started, and how to put MAME, or RetroArch, on for
+        // this system; nothing under another reason.
         function test_error() {
             arcadeBackend.playResult = false
             arcadeBackend.error = "MAME is not installed"
             var play = open("Play.qml", { game: "galaga", title: "Galaga" })
             tryCompare(play, "phase", "error")
-            verify(findText(play, "sudo apt install mame") !== null)
+            verify(findText(play, "On Test OS: install mame", true) !== null)
             keyClick(Qt.Key_Escape)
             compare(root.backs, 1)
+            loader.source = ""
+            arcadeBackend.error = "RetroArch is not installed"
+            play = open("Play.qml", { game: "sf2", title: "Street Fighter II" })
+            tryCompare(play, "phase", "error")
+            verify(findText(play, "On Test OS: install retroarch", true) !== null)
+            loader.source = ""
+            arcadeBackend.error = "A game is still running"
+            play = open("Play.qml", { game: "sf2", title: "Street Fighter II" })
+            tryCompare(play, "phase", "error")
+            compare(findText(play, "On Test OS"), null)
         }
 
         // Back before MAME starts starts nothing.
@@ -2688,7 +2713,7 @@ Rectangle {
             var play = open("Play.qml", { game: "galaga", title: "Galaga", error: "MAME is not installed" })
             compare(play.phase, "error")
             verify(findText(play, "Could not play Galaga") !== null)
-            verify(findText(play, "sudo apt install mame") !== null)
+            verify(findText(play, "On Test OS: install mame", true) !== null)
             compare(findText(play, "Press COIN + START together"), null)
             loader.source = ""
             play = open("Play.qml", { game: "mslug", title: "Metal Slug", failed: true,
@@ -2822,7 +2847,7 @@ Rectangle {
             tryVerify(function() { return shown(router).phase === "error" })
             play = shown(router)
             compare(router.playing, null)
-            verify(findText(play, "sudo apt install mame") !== null)
+            verify(findText(play, "On Test OS: install mame", true) !== null)
             // On Recently Played: the game MAME started, not the one it
             // couldn't.
             compare(appCore.added, [["com.osdos.arcade", "recent", "game:1942"]])

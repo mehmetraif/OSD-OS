@@ -1,6 +1,7 @@
 #include "AppCore.h"
 #include "util/AtomicFile.h"
 #include "util/AsyncDirectoryCache.h"
+#include "util/InstallHint.h"
 #include <QDir>
 #include <QFile>
 #include <QFileInfo>
@@ -896,6 +897,10 @@ QString AppCore::licenseText(const QString &file) const {
             paragraphs << p;
     }
     return paragraphs.join(QStringLiteral("\n\n"));
+}
+
+QString AppCore::installHint(const QString &program) const {
+    return installhint::forProgram(program);
 }
 
 QString AppCore::localIpAddress() const {

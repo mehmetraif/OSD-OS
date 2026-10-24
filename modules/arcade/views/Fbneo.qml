@@ -63,7 +63,7 @@ FocusScope {
         switch (key) {
         case "retroarch":
             return info.retroarch ? info.retroarch
-                                  : "The emulator FinalBurn Neo plays in: on Raspberry Pi OS, sudo apt install retroarch"
+                                  : "The emulator FinalBurn Neo plays in. " + appCore.installHint("retroarch")
         case "core":
             return (info.core ? info.core : "Its core for RetroArch, with its list of games")
                    + " • Free to use and share, never to sell; its license is in Settings → About"

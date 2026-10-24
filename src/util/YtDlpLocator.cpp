@@ -6,18 +6,24 @@
 namespace ytdlp {
 
 QString locate(const QString &dataRoot) {
+    // yt-dlp.exe on Windows, where a program is named by its extension.
+#ifdef Q_OS_WIN
+    const QString name = QStringLiteral("yt-dlp.exe");
+#else
+    const QString name = QStringLiteral("yt-dlp");
+#endif
     // 1. User-updatable drop-in under the data dir. Preferred so the user can
     //    update one file with `yt-dlp -U` decoupled from app releases, even when
     //    it isn't on the global PATH (the SteamOS story).
     if (!dataRoot.isEmpty()) {
-        const QFileInfo dropIn(dataRoot + QStringLiteral("/bin/yt-dlp"));
+        const QFileInfo dropIn(dataRoot + QStringLiteral("/bin/") + name);
         if (dropIn.isExecutable())
             return dropIn.absoluteFilePath();
     }
 
     // 2. Sibling of the app binary — mirrors how MpvController finds bundled mpv.
     //    Harmless when absent (yt-dlp is not bundled today).
-    const QFileInfo sibling(QCoreApplication::applicationDirPath() + QStringLiteral("/yt-dlp"));
+    const QFileInfo sibling(QCoreApplication::applicationDirPath() + QLatin1Char('/') + name);
     if (sibling.isExecutable())
         return sibling.absoluteFilePath();
 

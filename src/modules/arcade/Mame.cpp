@@ -1,5 +1,6 @@
 #include "Mame.h"
 #include "../../input/ControllerProfile.h"
+#include <QCoreApplication>
 #include <QDir>
 #include <QFile>
 #include <QFileInfo>
@@ -124,15 +125,37 @@ QString companyOf(QString maker) {
 } // namespace
 
 QString programPath(const QString &dataRoot) {
-    const QFileInfo dropIn(dataRoot + QStringLiteral("/bin/mame"));
+#ifdef Q_OS_WIN
+    const QString exe = QStringLiteral("mame.exe");
+#else
+    const QString exe = QStringLiteral("mame");
+#endif
+    const QFileInfo dropIn(dataRoot + QStringLiteral("/bin/") + exe);
     if (dropIn.isFile() && dropIn.isExecutable())
         return dropIn.absoluteFilePath();
     const QString onPath = QStandardPaths::findExecutable(QStringLiteral("mame"));
     if (!onPath.isEmpty())
         return onPath;
-    const QFileInfo debian(QStringLiteral("/usr/games/mame"));
-    if (debian.isFile() && debian.isExecutable())
-        return debian.absoluteFilePath();
+    QStringList places;
+#ifdef Q_OS_WIN
+    // MAME's own folder, unpacked beside OSD/OS, or where its builds are
+    // commonly unpacked.
+    const QString appDir = QCoreApplication::applicationDirPath();
+    places << appDir + QStringLiteral("/mame.exe") << appDir + QStringLiteral("/MAME/mame.exe")
+           << appDir + QStringLiteral("/mame/mame.exe") << QStringLiteral("C:/mame/mame.exe")
+           << QStringLiteral("C:/MAME/mame.exe")
+           << qEnvironmentVariable("ProgramFiles") + QStringLiteral("/MAME/mame.exe");
+#else
+    // Debian's; the BSDs' packages and Homebrew's, off a PATH that doesn't
+    // reach them.
+    places << QStringLiteral("/usr/games/mame") << QStringLiteral("/usr/local/bin/mame")
+           << QStringLiteral("/opt/homebrew/bin/mame");
+#endif
+    for (const QString &place : std::as_const(places)) {
+        const QFileInfo program(place);
+        if (program.isFile() && program.isExecutable())
+            return program.absoluteFilePath();
+    }
     return QString();
 }
 

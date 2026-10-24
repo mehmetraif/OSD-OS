@@ -36,6 +36,17 @@ Column {
         wrapMode: Text.WrapAtWordBoundaryOrAnywhere
         font.pixelSize: root.sh * 0.0375 //18
     }
+    // How to put MAME on, for this system (AppCore::installHint()).
+    Text {
+        visible: !noGames.reading && noGames.problem === "MAME is not installed"
+        width: parent.width
+        text: visible ? appCore.installHint("mame") : ""
+        color: root.tertiaryColor
+        font.family: root.globalFont
+        horizontalAlignment: Text.AlignHCenter
+        wrapMode: Text.WordWrap
+        font.pixelSize: root.sh * 0.0333333 //16
+    }
     Text {
         visible: !noGames.reading && noGames.folderReadable
         width: parent.width

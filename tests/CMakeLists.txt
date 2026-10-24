@@ -20,6 +20,12 @@ target_include_directories(reliability_test PRIVATE ../src)
 target_compile_definitions(reliability_test PRIVATE APP_VERSION="test")
 target_link_libraries(reliability_test PRIVATE Qt6::Core Qt6::Network Qt6::Qml Qt6::Test)
 add_test(NAME reliability COMMAND reliability_test)
+# What a view says under "… is not installed", for the system OSD/OS runs
+# on (util/InstallHint.h).
+add_executable(install_hint_test install_hint_test.cpp)
+target_include_directories(install_hint_test PRIVATE ../src)
+target_link_libraries(install_hint_test PRIVATE Qt6::Core Qt6::Test)
+add_test(NAME install_hint COMMAND install_hint_test)
 find_program(LUA_EXECUTABLE NAMES lua5.4 lua54 lua REQUIRED)   # lua54: the BSDs' packages
 add_test(NAME osc_controls COMMAND ${LUA_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/osc_test.lua
                                   ${CMAKE_CURRENT_SOURCE_DIR}/../scripts/mpv-osc.lua)

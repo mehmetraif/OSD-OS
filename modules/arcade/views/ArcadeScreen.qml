@@ -72,6 +72,10 @@ FocusScope {
     // Context properties read null while the module's Loader tears this view
     // down, hence the guards.
     readonly property string problem: arcadeBackend ? arcadeBackend.problem : ""
+    // For the help line: with how to put MAME on, for this system
+    // (AppCore::installHint()), where that is what stands in the way.
+    readonly property string problemLine: problem === "MAME is not installed"
+                                          ? problem + ". " + appCore.installHint("mame") : problem
     readonly property bool folderReadable: arcadeBackend ? arcadeBackend.folderReadable : true
     readonly property bool scanning: arcadeBackend ? arcadeBackend.scanning : false
     readonly property string gamesFolder: arcadeBackend ? arcadeBackend.gamesFolder() : ""
@@ -1392,7 +1396,7 @@ FocusScope {
         visible: (arcadeScreen.adjusting || arcadeScreen.filters.length > 0) && !options.visible
         width: Math.round(arcadeScreen.areaWidth * arcadeScreen.u) - (root.helpLine ? arcadeScreen.statusRoom : 0)
         text: arcadeScreen.adjusting ? "The frame's sides go to the screen's edges: ▲ ▼ ◄ ► move each, and the list holds as many games as fit"
-              : arcadeScreen.problem !== "" ? arcadeScreen.problem
+              : arcadeScreen.problem !== "" ? arcadeScreen.problemLine
               : arcadeScreen.scanning ? "Reading the games…"
               : arcadeScreen.details.unknown ? arcadeScreen.details.detail
               : arcadeScreen.about
