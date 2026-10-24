@@ -1,6 +1,6 @@
 name: Windows build
 
-# Builds the app for Windows (x64, MSVC 2022) and uploads it as an artifact,
+# Builds the app for Windows 11 (x64, MSVC 2022) and uploads it as an artifact,
 # osdos-windows-x64: the app with Qt (windeployqt), SDL2, OpenSSL, minizip
 # and zlib beside it, and the app's files as the install rules lay them out
 # (bin/, share/osdos/). mpv is not in it: mpv.exe goes beside the app or on
@@ -62,8 +62,9 @@ jobs:
           "VCPKG_ROOT=$env:VCPKG_INSTALLATION_ROOT" >> $env:GITHUB_ENV
           "RUNNER_IMAGE=$env:ImageVersion" >> $env:GITHUB_ENV
 
-      - name: Cache vcpkg packages
-        uses: actions/cache@v4
+      - name: Restore vcpkg packages
+        id: vcpkg-cache
+        uses: actions/cache/restore@v4
         with:
           path: ${{ env.VCPKG_ROOT }}\installed
           key: vcpkg-x64-windows-${{ env.RUNNER_IMAGE }}-sdl2-openssl-minizip
@@ -73,6 +74,15 @@ jobs:
         run: |
           & "$env:VCPKG_ROOT\vcpkg.exe" install sdl2 openssl minizip --triplet x64-windows
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      # Saved as soon as they are built, not at the job's end: a run cancelled
+      # by a newer push while the app builds keeps the ten minutes vcpkg took.
+      - name: Save vcpkg packages
+        if: steps.vcpkg-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: ${{ env.VCPKG_ROOT }}\installed
+          key: vcpkg-x64-windows-${{ env.RUNNER_IMAGE }}-sdl2-openssl-minizip
 
       - name: MSVC environment
         uses: ilammy/msvc-dev-cmd@v1

@@ -313,7 +313,7 @@ Configuration lives at `~/.local/share/OSD-OS/` (same as the Pi). See [INSTALL.m
 
 ## Windows (x64)
 
-A first build, for Windows 10 and 11 on x64: the menus, films from Local Files and the media servers, YouTube, the Arcade module with Windows builds of MAME and RetroArch, RetroAchievements, netplay and High Scores. What is the Pi's or a Linux desktop's is left out, as on macOS: Display Output, Audio Output's cards (the default device plays), Bluetooth and Wi-Fi (Windows' own settings), the JAMMA helper, Scripts, the NFC reader, the updater's install (it names a newer version, to download by hand) and, for now, Transparent Background. Nothing of it has been tried on a PC yet beyond the build: the **Windows build** workflow ([windows.yml](.github/workflows/windows.yml)) builds it on every pull request that touches the sources and uploads `osdos-windows-x64`, a copy to try.
+A first build, for Windows 11 on x64: the menus, films from Local Files and the media servers, YouTube, the Arcade module with Windows builds of MAME and RetroArch, RetroAchievements, netplay and High Scores. What is the Pi's or a Linux desktop's is left out, as on macOS: Display Output, Audio Output's cards (the default device plays), Bluetooth and Wi-Fi (Windows' own settings), the JAMMA helper, Scripts, the NFC reader, the updater's install (it names a newer version, to download by hand) and, for now, Transparent Background. Nothing of it has been tried on a PC yet beyond the build: the **Windows build** workflow ([windows.yml](.github/workflows/windows.yml)) builds it on every pull request that touches the sources and uploads `osdos-windows-x64`, a copy to try.
 
 ### Prerequisites (one-time)
 
