@@ -150,12 +150,20 @@ private slots:
             return QJsonDocument(QJsonObject{ { "tag_name", "v0.1.0" }, { "assets", assets } }).toJson();
         };
         manager.handleReleaseInfo(release("sha256:" + sha));
+#if defined(Q_OS_WIN) || (defined(Q_OS_BSD4) && !defined(Q_OS_DARWIN))
+        // No package for Windows or the BSDs among a release's files: none is
+        // picked, and the newer version is named for a download by hand.
+        QCOMPARE(manager.state(), QString("error"));
+        QVERIFY2(manager.errorMessage().contains("v0.1.0"), qPrintable(manager.errorMessage()));
+        QVERIFY(manager.m_assetName.isEmpty());
+#else
         QCOMPARE(manager.state(), QString("updateAvailable"));
         QVERIFY2(manager.m_assetName.startsWith("OSD-OS-"), qPrintable(manager.m_assetName));
         QCOMPARE(manager.m_expectedSha256, sha);
         manager.handleReleaseInfo(release(QString()));
         QCOMPARE(manager.state(), QString("updateAvailable"));
         QCOMPARE(manager.m_expectedSha256, QString());
+#endif
         QCoreApplication::setApplicationVersion(running);
     }
 
@@ -163,7 +171,11 @@ private slots:
 #ifdef Q_OS_UNIX
         QTemporaryDir tmp;
         QVERIFY(!syncPath(tmp.path() + "/missing").isEmpty());
-        QVERIFY(!syncPath("/dev/null").isEmpty()); // fsync returns EINVAL
+#ifdef Q_OS_LINUX
+        // Linux's fsync refuses a device node (EINVAL); FreeBSD's and
+        // OpenBSD's take one as synced.
+        QVERIFY(!syncPath("/dev/null").isEmpty());
+#endif
         const QString path = tmp.path() + "/ok";
         QVERIFY(writeFileAtomically(path, "ok"));
         QVERIFY(syncPath(path).isEmpty());

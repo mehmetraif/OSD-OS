@@ -29,11 +29,11 @@ on:
       - 'CMakeLists.txt'
       - '.github/workflows/openbsd.yml'
 
-# A run takes the better part of an hour: a newer push waits for the one
-# running rather than cancelling it, and only the newest waits.
+# A newer push cancels the run before it: a run takes about ten minutes, and
+# only the newest commit's result matters.
 concurrency:
   group: openbsd-${{ github.ref }}
-  cancel-in-progress: false
+  cancel-in-progress: true
 
 jobs:
   build-openbsd-amd64:

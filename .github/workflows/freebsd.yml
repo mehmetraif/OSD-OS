@@ -29,11 +29,11 @@ on:
       - 'CMakeLists.txt'
       - '.github/workflows/freebsd.yml'
 
-# A run takes the better part of an hour: a newer push waits for the one
-# running rather than cancelling it, and only the newest waits.
+# A newer push cancels the run before it: a run takes about ten minutes, and
+# only the newest commit's result matters.
 concurrency:
   group: freebsd-${{ github.ref }}
-  cancel-in-progress: false
+  cancel-in-progress: true
 
 jobs:
   build-freebsd-amd64:
@@ -50,7 +50,9 @@ jobs:
 
       # The packages: Qt 6 with its QML, SVG and shader tools, SDL2
       # (gamepads), minizip (High Scores' tables, FinalBurn Neo's download),
-      # and what the tests run with (bash, Lua). OpenSSL is the system's.
+      # and what the tests run with: bash, Lua, and the DejaVu fonts, since
+      # the view tests lay their text out in the system's monospace font and
+      # the image has no font for Qt to draw it with. OpenSSL is the system's.
       - name: Build and test in a FreeBSD VM
         uses: vmactions/freebsd-vm@v1
         with:
@@ -59,7 +61,7 @@ jobs:
           sync: rsync
           copyback: true
           prepare: |
-            env ASSUME_ALWAYS_YES=yes pkg install -y cmake-core ninja pkgconf bash lua54 \
+            env ASSUME_ALWAYS_YES=yes pkg install -y cmake-core ninja pkgconf bash lua54 dejavu \
               qt6-base qt6-declarative qt6-svg qt6-shadertools sdl2 minizip
           run: |
             set -e
