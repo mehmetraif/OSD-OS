@@ -28,7 +28,7 @@ All the files are on the [latest release](https://github.com/mehmetraif/OSD-OS/r
 | `OSD-OS-linux-x86_64.AppImage` | The app for SteamOS and other x86_64 Linux. No version in its name: it updates itself in place |
 | `install.sh` | The installer for Raspberry Pi OS |
 
-Each file's SHA-256 digest is shown beside it on the release page. To check a download, run this in the folder you downloaded it to (`shasum -a 256` in place of `sha256sum` on a Mac) and compare what it prints with the digest shown:
+On the release page, each file's line under Assets names the system it is for and what it is, and shows its SHA-256 digest. To check a download, run this in the folder you downloaded it to (`shasum -a 256` in place of `sha256sum` on a Mac) and compare what it prints with the digest shown:
 
 ```sh
 sha256sum OSD-OS-<version>-raspberry-pi.img.xz
