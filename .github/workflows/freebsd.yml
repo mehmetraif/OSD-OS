@@ -29,9 +29,11 @@ on:
       - 'CMakeLists.txt'
       - '.github/workflows/freebsd.yml'
 
+# A run takes the better part of an hour: a newer push waits for the one
+# running rather than cancelling it, and only the newest waits.
 concurrency:
   group: freebsd-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 jobs:
   build-freebsd-amd64:

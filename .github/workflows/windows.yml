@@ -62,14 +62,17 @@ jobs:
         shell: pwsh
         run: |
           "OSDOS_VCPKG=$env:VCPKG_INSTALLATION_ROOT" >> $env:GITHUB_ENV
-          "RUNNER_IMAGE=$env:ImageVersion" >> $env:GITHUB_ENV
 
+      # Under one key whatever the runner image's version: vcpkg takes the
+      # packages a cache holds as installed, and an image rolled out across
+      # the runners would otherwise build them again on every other run. The
+      # key's number is bumped by hand for newer packages.
       - name: Restore vcpkg packages
         id: vcpkg-cache
         uses: actions/cache/restore@v4
         with:
           path: ${{ env.OSDOS_VCPKG }}\installed
-          key: vcpkg-x64-windows-${{ env.RUNNER_IMAGE }}-sdl2-openssl-minizip
+          key: vcpkg-x64-windows-sdl2-openssl-minizip-1
 
       - name: Install SDL2, OpenSSL and minizip
         shell: pwsh
@@ -84,7 +87,7 @@ jobs:
         uses: actions/cache/save@v4
         with:
           path: ${{ env.OSDOS_VCPKG }}\installed
-          key: vcpkg-x64-windows-${{ env.RUNNER_IMAGE }}-sdl2-openssl-minizip
+          key: vcpkg-x64-windows-sdl2-openssl-minizip-1
 
       - name: MSVC environment
         uses: ilammy/msvc-dev-cmd@v1
