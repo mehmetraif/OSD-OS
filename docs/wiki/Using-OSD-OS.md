@@ -406,9 +406,10 @@ Settings → **About** opens on the OSD/OS wordmark and **SMART TV FOR CRT**, th
 | hi2txt | How each game keeps its high score table, GPL v2. Select opens the license |
 | RapidXML | The XML reader openhi2txt is built with, Boost or MIT. Select opens the licenses |
 | minizip, zlib | What opens hi2txt's definitions and FinalBurn Neo's download, zlib License. Select opens the license |
-| RetroAchievements | Leaderboards and hardcore play, with your own account |
+| RetroAchievements | Leaderboards and hardcore play, with your own account, and the games' pictures and the achievements' badges |
 | Online Play | libretro's lobby and relay servers |
-| Genres, Pictures | catver.ini and the Snapshots pack, from Progetto-SNAPS |
+| progetto-SNAPS | The Snapshots and Titles packs and catver.ini, by AntoPISA, in the games folder or downloaded |
+| ArcadeDB | Arcade Database by motoschifo, whose scraper service gives progetto-SNAPS' pictures game by game |
 
 Select on **License** shows the notice the GNU GPL asks an interactive program to show (whose copyright it is, that it comes with no warranty, that you may pass it on under the license), then the license's full text, from the `LICENSE` file every build carries. ▲ ▼ turn a page at a time; back returns to the lines. Select on an arcade line with a license shows that one the same way, under its name. [Credits](https://github.com/mehmetraif/OSD-OS/wiki/Credits) has the same on the web.
 

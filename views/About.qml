@@ -125,14 +125,22 @@ FocusScope {
                        + " The license's text" },
         { key: "achievements", label: "RetroAchievements", value: "retroachievements.org",
           description: "Leaderboards and hardcore play for the games FinalBurn Neo plays, with your own account,"
-                       + " read through its Web API • OSD/OS is not affiliated with RetroAchievements" },
+                       + " read through its Web API, and the games' pictures and the achievements' badges from its"
+                       + " media server • OSD/OS is not affiliated with RetroAchievements" },
         { key: "lobby", label: "Online Play", value: "lobby.libretro.com",
           description: "The online games to join, from libretro's lobby, which also lists the games you host, and"
                        + " libretro's relay servers, which carry a hosted game through when Relay Server is set" },
-        { key: "snaps", label: "Genres, Pictures", value: "progettosnaps.net",
-          description: "Genres from catver.ini and the games' pictures from the Snapshots and Titles packs, both from"
-                       + " Progetto-SNAPS, progettosnaps.net, put in the games folder or downloaded game by game"
-                       + " through ArcadeDB, adb.arcadeitalia.net • The pictures are free to use under fair use" }
+        { key: "snaps", label: "progetto-SNAPS", value: "progettosnaps.net",
+          description: "The games' pictures, the Snapshots and Titles packs, and their genres, catver.ini, by AntoPISA,"
+                       + " progettosnaps.net: put in the games folder, or downloaded, the pictures game by game through"
+                       + " ArcadeDB and catver.ini from AntoPISA's MAME_SupportFiles on GitHub • Screenshots are free"
+                       + " to use under fair use; their copyright is held by the companies that developed and"
+                       + " published the games" },
+        { key: "arcadedb", label: "ArcadeDB", value: "adb.arcadeitalia.net",
+          description: "Arcade Database by motoschifo, adb.arcadeitalia.net, whose scraper service gives progetto-SNAPS'"
+                       + " pictures of a set on request, as Pictures From allows, one request at a time • Names and"
+                       + " images for informational purposes only, under fair use; all copyrights and trademarks"
+                       + " belong to their holders" }
     ]
 
     // The notice at the head of the licence page: the GPL's own, for this
