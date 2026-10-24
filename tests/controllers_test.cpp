@@ -1163,7 +1163,6 @@ private slots:
         window.requestActivate();
         QTRY_VERIFY(window.isActive());
         im.setTargetWindow(&window);
-        im.setClickActions(true);
         core.save_setting(QString(), "remote_keymap.down", int(Qt::Key_F7));
         // The keys as the window gets them, pressed and let go.
         struct Catcher : QObject {
