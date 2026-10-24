@@ -14,12 +14,12 @@
 #include <QThread>
 #include <QDebug>
 #include <array>
+#include <csignal>   // SIGTERM, on Windows too
 #include <cstdio>
 #include <cstring>
 
 #ifdef Q_OS_UNIX
 #include <unistd.h>
-#include <signal.h>
 #include <fcntl.h>
 #include <sys/ioctl.h>
 #endif

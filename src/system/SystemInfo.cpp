@@ -328,35 +328,35 @@ void SystemInfo::readChanging(Facts *facts, const QString &dataRoot, const QStri
     }
 
     const QList<QNetworkInterface> interfaces = QNetworkInterface::allInterfaces();
-    for (const QNetworkInterface &interface : interfaces) {
-        const QNetworkInterface::InterfaceFlags flags = interface.flags();
+    for (const QNetworkInterface &iface : interfaces) {
+        const QNetworkInterface::InterfaceFlags flags = iface.flags();
         if (flags.testFlag(QNetworkInterface::IsLoopBack))
             continue;
-        const QString name = interface.name();
+        const QString name = iface.name();
 #if defined(Q_OS_LINUX)
         // A device's own, not a bridge's, a tunnel's or a container's.
         const QString sys = QStringLiteral("/sys/class/net/") + name;
         if (!QFileInfo::exists(systemPath(sys + QStringLiteral("/device"))))
             continue;
-        const bool wifi = interface.type() == QNetworkInterface::Wifi
+        const bool wifi = iface.type() == QNetworkInterface::Wifi
                           || QFileInfo::exists(systemPath(sys + QStringLiteral("/wireless")))
                           || QFileInfo::exists(systemPath(sys + QStringLiteral("/phy80211")));
 #elif defined(Q_OS_MACOS)
         // en0, en1: the Mac's own, not its tunnels' and bridges'.
         if (!name.startsWith(QLatin1String("en")))
             continue;
-        const bool wifi = interface.type() == QNetworkInterface::Wifi;
+        const bool wifi = iface.type() == QNetworkInterface::Wifi;
 #else
-        const bool wifi = interface.type() == QNetworkInterface::Wifi;
-        if (!wifi && interface.type() != QNetworkInterface::Ethernet)
+        const bool wifi = iface.type() == QNetworkInterface::Wifi;
+        if (!wifi && iface.type() != QNetworkInterface::Ethernet)
             continue;
 #endif
         Connection connection;
         connection.name = name;
         connection.wifi = wifi;
-        connection.mac = interface.hardwareAddress();
+        connection.mac = iface.hardwareAddress();
         if (flags.testFlag(QNetworkInterface::IsUp) && flags.testFlag(QNetworkInterface::IsRunning)) {
-            const QList<QNetworkAddressEntry> entries = interface.addressEntries();
+            const QList<QNetworkAddressEntry> entries = iface.addressEntries();
             for (const QNetworkAddressEntry &entry : entries) {
                 const QHostAddress ip = entry.ip();
                 if (ip.protocol() == QAbstractSocket::IPv4Protocol)
