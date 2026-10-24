@@ -40,9 +40,6 @@ jobs:
     name: FreeBSD amd64
     runs-on: ubuntu-latest
     timeout-minutes: 150
-    # Still being brought up: a failure here is the job's, not yet the pull
-    # request's.
-    continue-on-error: true
 
     steps:
       - name: Checkout
