@@ -191,13 +191,15 @@ Item {
         }
     }
 
-    // The ◄ of a value that changes, against the value's first cell, as the
-    // ► at the line's end stands against its last.
+    // The ◄ of a value that changes, at the start of the cell before the
+    // value's: the rest of the cell between it and the value, as much as lies
+    // between the value and the ► at the line's end, which the ► leaves at the
+    // start of its cell.
     PixelIcon {
         visible: menuRow.changes
         name: "left"
         color: menuRow.ink
-        x: Math.round(menuRow.pad + menuRow.valueCell * menuRow.cell - width)
+        x: Math.round(menuRow.pad + (menuRow.valueCell - 1) * menuRow.cell)
         y: Math.round(labelText.y + labelText.baselineOffset - menuRow.capMiddle - height / 2)
     }
 
