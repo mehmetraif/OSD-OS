@@ -250,19 +250,23 @@ FocusScope {
             // The device's name read here, so that a new one doesn't make the
             // lines anew.
             value: modelData.key === "system_info" ? aboutRoot.deviceName : (modelData.value || "")
+            // A line that leads to a page, or a licence's text, ends in a ►.
+            opens: !!(modelData.page || modelData.license)
             selected: list.currentIndex === index
             // Read rather than chosen: a value too long for its line (the
             // developer, the source) scrolls through, selected or not.
             alwaysScroll: true
         }
 
-        Keys.onReturnPressed: {
-            var row = aboutRoot.rows[currentIndex]
+        // The page a line leads to, or the licence it holds; select or ►.
+        function openRow(row) {
             if (row && row.page)
                 aboutRoot.navigateTo(row.page, {}, { currentIndex: currentIndex })
             else if (row && row.license)
                 licensePage.open(row)
         }
+        Keys.onReturnPressed: openRow(aboutRoot.rows[currentIndex])
+        Keys.onRightPressed: openRow(aboutRoot.rows[currentIndex])
         Keys.onPressed: function(event) {
             if (event.key === Qt.Key_Escape || event.key === Qt.Key_Backspace || event.key === Qt.Key_Back) {
                 aboutRoot.goBack()

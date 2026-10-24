@@ -11,7 +11,7 @@ All of OSD/OS works with a handful of actions. Every screen reads them as key pr
 | Action | Keyboard | Gamepad (by default) | Remote | What it does |
 |---|---|---|---|---|
 | **Up**, **Down** | ▲ ▼ | D-pad, left stick | Its arrows | Move through a list. During a video: open the deck's menu |
-| **Left**, **Right** | ◄ ► | D-pad, left stick, LB / RB (the shoulder buttons) | Its arrows | Change a setting. In a tree: up a level, open a folder. During a video: jump back and forward |
+| **Left**, **Right** | ◄ ► | D-pad, left stick, LB / RB (the shoulder buttons) | Its arrows | Change a setting (one shown between ◄ and ►); ► opens a menu line that ends in ►. In a tree: up a level, open a folder. During a video: jump back and forward |
 | **► on an entry** | ► | D-pad right, RB | Its right arrow | A video's options, or its info screen |
 | **Select** | Enter | A (the bottom face button) | OK | Open, play, choose. During a video: pause |
 | **Back** | Esc, Backspace or Right Shift | B (the right face button), or Back (the small Back / Select / View / Share button) | Back, when it sends Esc, Backspace or the Back key | One step back. On the main menu: Settings. During a video: leave it, or open its menu |
@@ -248,7 +248,7 @@ Settings → **Controls** lists every controller connected, each with a page of 
 |---|---|
 | **All Keyboards & Remotes** | One more key, remote button or mouse button for each of six actions, on all of them ([below](https://github.com/mehmetraif/OSD-OS/wiki/Controls#all-keyboards--remotes-one-more-key-per-action)) |
 | **Players** · **Player 1**, **Player 2**… | The pad each player has in games, up to six, chosen from the pads connected, or Auto ([below](https://github.com/mehmetraif/OSD-OS/wiki/Controls#players)) |
-| **Connected** | Each controller there now, pads first, then keyboards, then remotes: its name, and `GAMEPAD`, `ARCADE` (the JAMMA board's sticks), `KEYBOARD` or `REMOTE`, after `P1`, `P2`… for a pad that plays (`P2+P3` for two of a model). Two of the same pad make one line, `x2`. **◄** marks the one used last, so a button pressed on a controller shows which line is its own (one that does nothing there, such as Y, shows it without moving the cursor) |
+| **Connected** | Each controller there now, pads first, then keyboards, then remotes: its name, and `GAMEPAD`, `ARCADE` (the JAMMA board's sticks), `KEYBOARD` or `REMOTE`, after `P1`, `P2`… for a pad that plays (`P2+P3` for two of a model). Two of the same pad make one line, `x2`. A **●** before the line's ► marks the one used last, so a button pressed on a controller shows which line is its own (one that does nothing there, such as Y, shows it without moving the cursor) |
 | **Not Connected** | Controllers away that have settings of their own, kept for when they are back. Their pages show them; Reset to Defaults forgets them |
 
 **What a controller is:**

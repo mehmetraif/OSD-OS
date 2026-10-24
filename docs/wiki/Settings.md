@@ -6,13 +6,13 @@ Settings is OSD/OS's own menu: the look, the menus, playback, startup, the outpu
 
 ## Getting around
 
-Back on the main menu opens Settings (the hint bar there says `[ESC]:SETTINGS`). Each row reads like a camcorder's menu, `LABEL······VALUE`. The first screen opens with two rows that lead to a page each, **TV / Movie** and **Arcade**; under them come three headings drawn as a rule, **GENERAL SETTINGS**, **MODULES** and **APPLICATION**.
+Back on the main menu opens Settings (the hint bar there says `[ESC]:SETTINGS`). Each row reads like a camcorder's menu, `LABEL······VALUE`. A row that leads to another screen ends in a ► (`TV / MOVIE······►`), and ► opens it as select does; a row whose value ◄ ► change shows it between the two (`THEME······◄ NONE ►`); a slider has the two arrows beyond its bar's ends. The first screen opens with two rows that lead to a page each, **TV / Movie** and **Arcade**; under them come three headings drawn as a rule, **GENERAL SETTINGS**, **MODULES** and **APPLICATION**.
 
 | Action | Keyboard | Gamepad | What it does in Settings |
 |---|---|---|---|
 | ▲ ▼ | Up, Down | D-pad, left stick | Moves to the row above or below. Past the last row the cursor goes round to the first |
-| ◄ ► | Left, Right | D-pad, left stick, LB, RB | Changes the value, round from the last choice to the first. A slider moves by 10 |
-| Select | Enter | A | Opens a page (TV / Movie, Arcade, a module's settings, Controls, Wi-Fi, Bluetooth, Update, About), the list of Display Output, the file browser of Music File and Logo Image, or the Quit question. On Transparent Background it turns the setting on or off |
+| ◄ ► | Left, Right | D-pad, left stick, LB, RB | Changes the value, round from the last choice to the first. A slider moves by 10. On a row that ends in ►, ► opens it as select does |
+| Select | Enter | A | Opens a page (TV / Movie, Arcade, a module's settings, Controls, Wi-Fi, Bluetooth, Update, About), the list of Display Output, the file browser of Music File and Logo Image, or the Quit question: the rows that end in ►. On Transparent Background it turns the setting on or off |
 | Back | Esc, Backspace | B, or the pad's Back/Select button | Back to the main menu; from a page, back to the row that opened it |
 
 - **A change is saved at once.** Settings calls `appCore.save_setting("", key, value)`, on TV / Movie's page as on the first screen, which writes the value into `config.json` under `app.<key>` ([Configuration files](https://github.com/mehmetraif/OSD-OS/wiki/Configuration-Files#configjson)). Most rows take effect at once. The rows mpv is started with (Scaling, Video Levels, Channel Logo, Logo Image, Screen Saver during a video) apply from the next video. A value that can't be saved (a full or read-only disk) isn't applied, here or on a module's page: the row stays on the value saved, and the log says `[AppCore] Setting not saved: …`.
@@ -215,12 +215,12 @@ Each module's page on this wiki explains its rows. Every module that plays video
 
 | Kind (`type` in the manifest) | How the row looks | ◄ ► | Select | Saved in `modules.<id>` as |
 |---|---|---|---|---|
-| `toggle` | `LABEL······ON` | Flips it | Flips it | `true` or `false`; unset, the manifest's `default` (`"ON"` or `"OFF"`) |
-| `list_single` | `LABEL······VALUE` | Steps through the choices, round | Nothing | The choice's text for a fixed list (`"Pan & Scan"`); for a list the module supplies (`"options_source": "dynamic"`), the choice's id (`"ask"`, `"forced"`) |
-| `multiselect_submenu` | `LABEL` | Nothing | Opens a page of `NAME······ON` lines, one per choice, under headings when the module groups them; ◄, ► or select flips one, and on a heading turns all of its group on, or off once they all are on | An object under the key, `{ "<id>": true, "<id>": false }`, saved whole at every change; a choice not in it is on (Plex's Libraries: every library shows until you turn it off), unless the module makes it off until turned on (Arcade's Menu Filters' publishers) |
-| `submenu` | `LABEL` | Nothing | Opens a page of its own rows, titled `MODULE / LABEL` (YouTube's Advanced) | Nothing itself; its rows' keys stay flat under the module |
-| `directory_browser` | `LABEL······/PATH`, or `DEFAULT` | Nothing | Opens the folder picker: **Default Folder** first, then the places, and **Use This Folder** at the top of every folder | The folder's path; `""` for the module's own |
-| `slider` | `LABEL`, and under it the deck's tape bar between its two ends' names | Moves the ▼ a step toward either end | Nothing | A number from 0 to 100; unset, the manifest's `default` (Arcade's Info Background) |
+| `toggle` | `LABEL······◄ ON ►` | Flips it | Flips it | `true` or `false`; unset, the manifest's `default` (`"ON"` or `"OFF"`) |
+| `list_single` | `LABEL······◄ VALUE ►` | Steps through the choices, round | Nothing | The choice's text for a fixed list (`"Pan & Scan"`); for a list the module supplies (`"options_source": "dynamic"`), the choice's id (`"ask"`, `"forced"`) |
+| `multiselect_submenu` | `LABEL······►` | ► opens it | Opens a page of `NAME······◄ ON ►` lines, one per choice, under headings when the module groups them; ◄, ► or select flips one, and on a heading turns all of its group on, or off once they all are on | An object under the key, `{ "<id>": true, "<id>": false }`, saved whole at every change; a choice not in it is on (Plex's Libraries: every library shows until you turn it off), unless the module makes it off until turned on (Arcade's Menu Filters' publishers) |
+| `submenu` | `LABEL······►` | ► opens it | Opens a page of its own rows, titled `MODULE / LABEL` (YouTube's Advanced) | Nothing itself; its rows' keys stay flat under the module |
+| `directory_browser` | `LABEL······/PATH ►`, or `DEFAULT ►` | ► opens it | Opens the folder picker: **Default Folder** first, then the places, and **Use This Folder** at the top of every folder | The folder's path; `""` for the module's own |
+| `slider` | `LABEL`, and under it the deck's tape bar between its two ends' names, a ◄ and a ► beyond its ends | Moves the ▼ a step toward either end | Nothing | A number from 0 to 100; unset, the manifest's `default` (Arcade's Info Background) |
 | `action` | `LABEL` | Nothing | Runs it at once: Sign out, Delete Watch Later, Rescan Scripts | Nothing |
 | `module_view` | `LABEL` | Nothing | Opens the module on one of its own screens, enabled or not: Sign in for Netflix, Prime Video and YouTube, Arcade's Screen Adjustment | Nothing |
 

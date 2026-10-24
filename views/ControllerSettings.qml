@@ -443,6 +443,8 @@ FocusScope {
             var row = pageRoot.rows[currentIndex]
             if (row && row.type === "labels")
                 pageRoot.cycleLabels(1)
+            else if (row && row.type === "arcade")
+                pageRoot.activate(row)
         }
         Keys.onReturnPressed: pageRoot.activate(pageRoot.rows[currentIndex])
         Keys.onEnterPressed: pageRoot.activate(pageRoot.rows[currentIndex])
@@ -453,13 +455,16 @@ FocusScope {
             }
         }
 
-        // "SELECT / OK······A, START", "BUTTONS ─────".
+        // "SELECT / OK······A, START", "BUTTONS ─────"; the labels, which ◄ ►
+        // go round, between ◄ and ►, and Arcade Buttons, a page, ending in ►.
         delegate: MenuRow {
             width: list.width
             height: root.sh * 0.0583333 //28
             heading: modelData.type === "section"
             label: modelData.label || ""
             value: modelData.value || ""
+            opens: modelData.type === "arcade"
+            changes: modelData.type === "labels"
             keepValue: modelData.type === "action"
             selected: list.currentIndex === index && pageRoot.selectable(modelData)
         }

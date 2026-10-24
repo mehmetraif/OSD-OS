@@ -102,7 +102,7 @@ FocusScope {
         anchors.leftMargin: root.sw * 0.125 //80
     }
 
-    // "NAME······ON", a heading "GENRES ─────" over its choices. A name too
+    // "NAME····◄ ON ►", a heading "GENRES ─────" over its choices. A name too
     // long for its line is cut short rather than its ON or OFF.
     MenuList {
         id: optionsList
@@ -117,6 +117,7 @@ FocusScope {
             label: modelData.label || ""
             heading: !!modelData.heading
             value: modelData.heading ? "" : (multiSelectRoot.enabledMap[modelData.id] ? "ON" : "OFF")
+            changes: !modelData.heading
             keepValue: true
             selected: optionsList.currentIndex === index
         }

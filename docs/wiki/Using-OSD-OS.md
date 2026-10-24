@@ -10,7 +10,7 @@ Everything is done with a handful of actions:
 
 | Action | Keyboard | Gamepad | What it does |
 |---|---|---|---|
-| The arrows | ▲ ▼ ◄ ► | D-pad, left stick | ▲ ▼ move through a list. ◄ ► change a setting's value, and in a tree go up a level or open one |
+| The arrows | ▲ ▼ ◄ ► | D-pad, left stick | ▲ ▼ move through a list. ◄ ► change a setting's value (one shown between ◄ and ►), ► opens a row that ends in ►, and in a tree they go up a level or open one |
 | Select | Enter | A | Opens, plays, chooses |
 | Back | Esc, Backspace or Right Shift | B or Back | One step back. On the main menu it opens Settings |
 | ► on an entry | ► | D-pad right | A video's options, or its info screen |
@@ -337,9 +337,9 @@ A mouse, or a keyboard's touchpad, shows OSD/OS's own pointer, drawn in its pixe
 
 ## Settings
 
-Back on the main menu opens Settings, laid out like a camcorder's menu: a line per setting, its value at the end (`COLOR SCHEME······VIDEO 1`). A release's version is in the title bar, and the IP address at its right.
+Back on the main menu opens Settings, laid out like a camcorder's menu: a line per setting, its value at the end between the arrows that change it (`COLOR SCHEME······◄ VIDEO 1 ►`), and a ► at the end of a line that leads somewhere (`TV / MOVIE······►`). A release's version is in the title bar, and the IP address at its right.
 
-- ▲ ▼ move, skipping the headings, round from the bottom to the top. ◄ ► change the value, saved at once. Select opens a line that leads somewhere (TV / Movie, Arcade, a module's settings, Wi-Fi, Bluetooth, Update, a file or folder picker) and turns a slider on or off. Back from a page returns to the line it was opened from.
+- ▲ ▼ move, skipping the headings, round from the bottom to the top. ◄ ► change the value, saved at once. Select, or ►, opens a line that ends in ► (TV / Movie, Arcade, a module's settings, Wi-Fi, Bluetooth, Update, a file or folder picker), and select turns a slider on or off. Back from a page returns to the line it was opened from.
 - **TV / Movie** opens the videos' page: Scaling, Transparent Background, Video Levels, Loading Effect, Loading Screen Colors, Channel Logo and Info Screen, then under **Modules** a line per video module (and Weather), for its settings, its **Enabled** row among them.
 - **Arcade** opens the Arcade module's settings, with the High Scores module's after them under its own heading.
 - **General Settings**: the look first, Theme, then its parts (Color Scheme, Skin, the effects, Transition, Menu Music), then OSD Background and Window Frame. Then startup (Start on Module, Play at Startup, Boot Screen Colors) and the screen (Hint Bar, Help Line, Screen Saver, Mouse Pointer).

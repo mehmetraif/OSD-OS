@@ -212,6 +212,20 @@ Rectangle {
         function onGoBack() { root.backs++ }
     }
 
+    // The MenuRow drawn for a page's line at index: its list's delegate.
+    function menuRow(item, index) {
+        if (item.itemAtIndex !== undefined) {
+            var d = item.itemAtIndex(index)
+            return d && d.opens !== undefined ? d : null
+        }
+        for (var i = 0; i < item.children.length; i++) {
+            var found = menuRow(item.children[i], index)
+            if (found)
+                return found
+        }
+        return null
+    }
+
     TestCase {
         name: "ControlsPages"
         when: windowShown
@@ -292,9 +306,12 @@ Rectangle {
             compare(page.rows[12].value, "Remote")
             compare(page.rows[14].value, "Gamepad")
 
-            // The one used last is marked.
+            // The one used last is marked (a ● on its line), its value as
+            // it is.
             inputManager.activeController = root.keyboardKey
-            compare(page.rows[11].value, "Keyboard ◄")
+            compare(page.rows[11].value, "Keyboard")
+            verify(page.rows[11].last)
+            verify(!page.rows[9].last)
             compare(page.rows[9].value, "P2+P3 Gamepad")
 
             // The cursor skips the headings; select opens the page.
@@ -322,6 +339,31 @@ Rectangle {
             compare(root.navigations[2].path, "views/RemapControls.qml")
             keyClick(Qt.Key_Escape)
             compare(root.backs, 1)
+        }
+
+        // The lines that lead to a page end in a ► (the shared keys', a
+        // controller's), a player's pad stands between ◄ and ►, and ► opens
+        // the pages select does.
+        function test_rightOpens() {
+            var page = open("Controllers.qml")
+            verify(page.opens(page.rows[0]))
+            verify(!page.opens(page.rows[2]))
+            verify(page.opens(page.rows[9]))
+            var shared = root.menuRow(page, 0)
+            verify(shared.opens && !shared.changes)
+            var player = root.menuRow(page, 2)
+            verify(player.changes && !player.opens)
+            var heading = root.menuRow(page, 1)
+            verify(!heading.opens && !heading.changes)
+            keyClick(Qt.Key_Right)
+            compare(root.navigations.length, 1)
+            compare(root.navigations[0].path, "views/RemapControls.qml")
+            for (var p = 0; p < 7; p++)
+                keyClick(Qt.Key_Down)   // Players 1 to 6, then the 8BitDo
+            keyClick(Qt.Key_Right)
+            compare(root.navigations.length, 2)
+            compare(root.navigations[1].path, "views/ControllerSettings.qml")
+            compare(root.navigations[1].params.key, root.padKey)
         }
 
         function test_listBackOnItsLine() {
@@ -801,10 +843,18 @@ Rectangle {
             compare(root.navigations[0].params.key, root.padKey)
             compare(root.navigations[0].listState.currentIndex, 2)
             loader.source = ""
-            open("ControllerSettings.qml", { key: root.padKey, navListState: { currentIndex: 2 } })
+            page = open("ControllerSettings.qml", { key: root.padKey, navListState: { currentIndex: 2 } })
             keyClick(Qt.Key_Return)
             compare(root.navigations.length, 2)
             compare(root.navigations[1].path, "views/ArcadeButtons.qml")
+            // Its line ends in a ►, which opens it too; the labels' line, which
+            // ◄ ► go round, has its value between ◄ and ►.
+            verify(root.menuRow(page, 2).opens)
+            verify(root.menuRow(page, 0).changes)
+            verify(!root.menuRow(page, 0).opens)
+            keyClick(Qt.Key_Right)
+            compare(root.navigations.length, 3)
+            compare(root.navigations[2].path, "views/ArcadeButtons.qml")
         }
 
         // A pad's Arcade Buttons: its layout, a line set by a press (and
