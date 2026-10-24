@@ -391,6 +391,7 @@ Settings → **About** opens on the OSD/OS wordmark and **SMART TV FOR CRT**, th
 | Developer | mehmet raif tasdemir (darkBLACK), who develops OSD/OS |
 | Based On | 240-MP, by Anthony Caccese and its contributors, which OSD/OS is a modified version of |
 | License | GNU GPL v3. Select opens the license |
+| Website | osdos.tv: what OSD/OS is, the latest release and OSD/OS Setup, which writes a card's first settings |
 | Source | Where the source, the releases and the issues are |
 | Written With | Claude Code, which OSD/OS's changes were written with |
 | Artwork | ChatGPT, which the logos and the boot screen's cassette were made with |

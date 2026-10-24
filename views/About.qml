@@ -26,6 +26,7 @@ FocusScope {
     // Who makes OSD/OS, and whose work it carries on.
     readonly property string developer: "mehmet raif tasdemir (darkBLACK)"
     readonly property string developerUrl: "github.com/mehmetraif"
+    readonly property string websiteUrl: "osdos.tv"
     readonly property string sourceUrl: "github.com/mehmetraif/OSD-OS"
     readonly property string upstreamAuthor: "Anthony Caccese"
     readonly property string upstreamUrl: "github.com/anthonycaccese/240-MP"
@@ -55,6 +56,10 @@ FocusScope {
         { key: "license", label: "License", value: "GNU GPL v3", license: "LICENSE",
           description: "Free software under the GNU General Public License, version 3: use it, share it and change it, under the same license"
                        + " • It comes with no warranty • {select} The notice and the license's text" },
+        { key: "website", label: "Website", value: aboutRoot.websiteUrl,
+          description: "OSD/OS's website: what it is and how it is set up, the latest release to download, and"
+                       + " OSD/OS Setup, " + aboutRoot.websiteUrl + "/setup, which writes a card's first settings"
+                       + " before it goes into the Pi" },
         { key: "source", label: "Source", value: aboutRoot.sourceUrl,
           description: "The source code, the releases and the issues • Changes are welcome: see CONTRIBUTING.md there" },
         { key: "code", label: "Written With", value: "Claude Code",
