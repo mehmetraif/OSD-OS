@@ -15,9 +15,9 @@ class QNetworkReply;
 // play and the title screen of nearly every set MAME has, by the set's name,
 // the two pictures the picture packs for MAME (progetto-SNAPS' Snapshots and
 // Titles) hold. Its scraper service (service_scraper.php, query_mame) says of
-// each set asked about whether it has them and where they are, a clone
-// without pictures of its own given its parent's (use_parent); the pictures
-// come from the addresses it gives, on its own server alone. One request is
+// each set asked about whether it has them and where they are (a clone's own
+// alone: the service's sixth release dropped use_parent); the pictures come
+// from the addresses it gives, on its own server alone. One request is
 // under way at a time, as the service asks of those who read it, and after an
 // answer that there were too many (HTTP 429, or 503) nothing is asked until
 // the moment it names (Retry-After), or a minute.

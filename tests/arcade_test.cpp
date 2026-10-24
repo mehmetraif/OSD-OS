@@ -3634,7 +3634,8 @@ private slots:
         QVERIFY2(queries.first().contains(QLatin1String("galaga")) && queries.first().contains(QLatin1String("kinst"))
                      && !queries.first().contains(QLatin1String("sf2")) && !queries.first().contains(QLatin1String("pacman")),
                  qPrintable(queries.first()));
-        QVERIFY(queries.first().contains(QLatin1String("use_parent=1")));
+        // The service's sixth release dropped use_parent: not sent.
+        QVERIFY(!queries.first().contains(QLatin1String("use_parent")));
         QCOMPARE(asked("/API/API_GetGame.php").size(), 1);
         QCOMPARE(arcade.gameDetails(QStringLiteral("galaga")).value(QStringLiteral("pictures")).toStringList(),
                  urls({ snap + QStringLiteral("/galaga.png"), titles + QStringLiteral("/galaga.png") }));
