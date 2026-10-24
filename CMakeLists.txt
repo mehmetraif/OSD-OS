@@ -137,10 +137,13 @@ add_executable(osdos
 target_compile_definitions(osdos PRIVATE APP_VERSION="${APP_VERSION}" APP_BUILD="${APP_BUILD}")
 
 # MSVC: the standard's C++ (Qt 6 asks for both flags), sources in UTF-8, and
-# windows.h without its min/max macros and the rarely needed parts.
+# windows.h without its min/max macros and the rarely needed parts. SDL's header
+# renames main() to SDL_main on Windows, for its own SDL2main library to call
+# from a WinMain of its own; the app keeps its main (SDL_MAIN_HANDLED) and
+# tells SDL so before SDL_Init (InputManager).
 if(MSVC)
     target_compile_options(osdos PRIVATE /permissive- /Zc:__cplusplus /utf-8)
-    target_compile_definitions(osdos PRIVATE NOMINMAX WIN32_LEAN_AND_MEAN _CRT_SECURE_NO_WARNINGS)
+    target_compile_definitions(osdos PRIVATE NOMINMAX WIN32_LEAN_AND_MEAN _CRT_SECURE_NO_WARNINGS SDL_MAIN_HANDLED)
 endif()
 
 # The app's own functions in its dynamic symbol table (-rdynamic), so that

@@ -243,6 +243,10 @@ void InputManager::initSdl() {
     // label-based there): "a" always means the SOUTH position, on every pad.
     SDL_SetHint(SDL_HINT_GAMECONTROLLER_USE_BUTTON_LABELS, "0");
 
+#ifdef Q_OS_WIN
+    // The app's main() is its own, not SDL2main's (SDL_MAIN_HANDLED).
+    SDL_SetMainReady();
+#endif
     // Game-controller subsystem only: no video, so this works headless (EGLFS).
     if (SDL_Init(SDL_INIT_GAMECONTROLLER) != 0) {
         qWarning("[input] SDL init failed: %s — gamepad support disabled", SDL_GetError());
