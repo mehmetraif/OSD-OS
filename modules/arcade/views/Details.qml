@@ -62,8 +62,16 @@ FocusScope {
     // The first row that isn't a heading, once there are rows: after the
     // list has taken them. Rows made again with the cursor on one (the
     // game played from here, its achievements read again) keep it there.
-    onRowsChanged: Qt.callLater(firstRow)
+    // Not once the Loader has let the view go (out of its parent, deleted
+    // when the event loop gets to it): a call deferred then would run on a
+    // list already destroyed.
+    onRowsChanged: {
+        if (detailsRoot.parent)
+            Qt.callLater(firstRow)
+    }
     function firstRow() {
+        if (!detailsRoot.parent)
+            return
         var at = rows[list.currentIndex]
         if (at && at.type !== "section")
             return
