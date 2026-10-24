@@ -12,11 +12,14 @@
 
 #ifdef Q_OS_LINUX
 #include <fcntl.h>
-#elif defined(Q_OS_MACOS)
+#elif defined(Q_OS_MACOS) || defined(Q_OS_WIN)
 #include <QStorageInfo>
 #endif
 #ifdef Q_OS_UNIX
 #include <unistd.h>
+#endif
+#ifdef Q_OS_WIN
+#include <windows.h>
 #endif
 
 namespace {
@@ -104,6 +107,13 @@ RemovableDrives::RemovableDrives(QObject *parent) : QObject(parent) {
     // ejected; the settle gives the mount its moment.
     m_watcher = new QFileSystemWatcher(QStringList(QStringLiteral("/Volumes")), this);
     connect(m_watcher, &QFileSystemWatcher::directoryChanged, m_settle, qOverload<>(&QTimer::start));
+#elif defined(Q_OS_WIN)
+    // Nothing says when a drive comes or goes: the volumes are looked at
+    // every few seconds instead.
+    auto *poll = new QTimer(this);
+    poll->setInterval(3000);
+    connect(poll, &QTimer::timeout, this, &RemovableDrives::rescan);
+    poll->start();
 #endif
     m_drives = scan();
 }
@@ -157,6 +167,22 @@ QList<RemovableDrives::Drive> RemovableDrives::scan() const {
         if (volume.isValid() && volume.isReady() && point.startsWith(QLatin1String("/Volumes/"))
                 && volume.device().startsWith("/dev/"))
             found.append({ QFileInfo(point).fileName(), point });
+    }
+#elif defined(Q_OS_WIN)
+    // The removable drives (USB sticks, card readers) among the volumes, by
+    // their label, else their letter.
+    const QList<QStorageInfo> volumes = QStorageInfo::mountedVolumes();
+    for (const QStorageInfo &volume : volumes) {
+        if (!volume.isValid() || !volume.isReady())
+            continue;
+        const QString root = QDir::toNativeSeparators(volume.rootPath()); // "E:\"
+        if (::GetDriveTypeW(reinterpret_cast<const wchar_t *>(root.utf16())) != DRIVE_REMOVABLE)
+            continue;
+        const QString point = QDir::cleanPath(volume.rootPath());         // "E:/"
+        QString name = volume.name().trimmed();
+        if (name.isEmpty())
+            name = point.left(2);
+        found.append({ name, point });
     }
 #endif
     QList<Drive> drives;

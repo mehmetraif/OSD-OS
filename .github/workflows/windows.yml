@@ -1,0 +1,125 @@
+name: Windows build
+
+# Builds the app for Windows (x64, MSVC 2022) and uploads it as an artifact,
+# osdos-windows-x64: the app with Qt (windeployqt), SDL2, OpenSSL, minizip
+# and zlib beside it, and the app's files as the install rules lay them out
+# (bin/, share/osdos/). mpv is not in it: mpv.exe goes beside the app or on
+# the PATH. No release package yet: the build is the proof that the sources
+# compile there, and a copy to try.
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'src/**'
+      - 'shaders/**'
+      - 'thirdparty/**'
+      - 'cmake/**'
+      - 'CMakeLists.txt'
+      - '.github/workflows/windows.yml'
+  pull_request:
+    paths:
+      - 'src/**'
+      - 'shaders/**'
+      - 'thirdparty/**'
+      - 'cmake/**'
+      - 'CMakeLists.txt'
+      - '.github/workflows/windows.yml'
+
+concurrency:
+  group: windows-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-windows-x64:
+    name: Windows x64
+    runs-on: windows-2022
+    timeout-minutes: 90
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7.0.1
+
+      - name: Install Qt 6
+        uses: jurplel/install-qt-action@v4
+        with:
+          version: '6.8.*'
+          host: windows
+          target: desktop
+          arch: win64_msvc2022_64
+          # Compiles the screen's effects (shaders/) into the app.
+          modules: 'qtshadertools'
+          cache: true
+
+      # SDL2 (gamepads), OpenSSL (the updater's digests, Qt's TLS) and minizip
+      # with zlib (High Scores' definitions, FinalBurn Neo's download) from
+      # vcpkg, as the runner has it; what it built is kept between runs of
+      # the same runner image.
+      - name: Find vcpkg
+        shell: pwsh
+        run: |
+          "VCPKG_ROOT=$env:VCPKG_INSTALLATION_ROOT" >> $env:GITHUB_ENV
+          "RUNNER_IMAGE=$env:ImageVersion" >> $env:GITHUB_ENV
+
+      - name: Cache vcpkg packages
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.VCPKG_ROOT }}\installed
+          key: vcpkg-x64-windows-${{ env.RUNNER_IMAGE }}-sdl2-openssl-minizip
+
+      - name: Install SDL2, OpenSSL and minizip
+        shell: pwsh
+        run: |
+          & "$env:VCPKG_ROOT\vcpkg.exe" install sdl2 openssl minizip --triplet x64-windows
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: MSVC environment
+        uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: x64
+
+      - name: Configure
+        shell: pwsh
+        run: |
+          cmake -B build -G Ninja `
+            -DCMAKE_BUILD_TYPE=Release `
+            -DCMAKE_TOOLCHAIN_FILE="$env:VCPKG_ROOT/scripts/buildsystems/vcpkg.cmake" `
+            -DVCPKG_TARGET_TRIPLET=x64-windows `
+            -DCMAKE_PREFIX_PATH="$env:QT_ROOT_DIR" `
+            -DCMAKE_INSTALL_PREFIX="$env:GITHUB_WORKSPACE/install" `
+            -DAPP_VERSION="${{ github.ref_type == 'tag' && github.ref_name || 'dev' }}"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Build
+        shell: pwsh
+        run: |
+          cmake --build build --parallel
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Install
+        shell: pwsh
+        run: |
+          cmake --install build
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      # Qt's libraries, plugins and QML modules beside the app, by what the
+      # app and its QML import; then the libraries vcpkg put beside the
+      # built binary (SDL2, OpenSSL's libcrypto, minizip, zlib), and
+      # OpenSSL's libssl, which only Qt's TLS plugin asks for at run time.
+      - name: Deploy Qt and the libraries
+        shell: pwsh
+        run: |
+          & "$env:QT_ROOT_DIR\bin\windeployqt.exe" --release --qmldir "$env:GITHUB_WORKSPACE" "$env:GITHUB_WORKSPACE\install\bin\osdos.exe"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          Copy-Item "$env:GITHUB_WORKSPACE\build\*.dll" "$env:GITHUB_WORKSPACE\install\bin\"
+          Copy-Item "$env:VCPKG_ROOT\installed\x64-windows\bin\libssl*.dll" "$env:GITHUB_WORKSPACE\install\bin\"
+          Copy-Item "$env:VCPKG_ROOT\installed\x64-windows\bin\libcrypto*.dll" "$env:GITHUB_WORKSPACE\install\bin\"
+          Get-ChildItem "$env:GITHUB_WORKSPACE\install\bin" -Filter *.dll | Select-Object -ExpandProperty Name
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v7.0.1
+        with:
+          name: osdos-windows-x64
+          path: install
+          if-no-files-found: error

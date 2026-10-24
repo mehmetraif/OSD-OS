@@ -155,7 +155,9 @@ int main(int argc, char *argv[]) {
 
     std::signal(SIGTERM, osdosHandleTerm);
     std::signal(SIGINT,  osdosHandleTerm);
+#ifdef SIGHUP // not on Windows
     std::signal(SIGHUP,  osdosHandleTerm);
+#endif
     QTimer termPoll;
     termPoll.setInterval(100);
     QObject::connect(&termPoll, &QTimer::timeout, &app, [&app]() {

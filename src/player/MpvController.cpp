@@ -138,7 +138,13 @@ MpvController::MpvController(const QString &appRoot, const QString &dataRoot,
     , m_handoff(handoff)
     , m_appRoot(appRoot)
     , m_dataRoot(dataRoot)
+#ifdef Q_OS_WIN
+    // mpv's control connection on Windows is a named pipe, which QLocalSocket
+    // opens by the same name.
+    , m_socketPath(QStringLiteral("\\\\.\\pipe\\osdos-mpv-") + QString::number(QCoreApplication::applicationPid()))
+#else
     , m_socketPath(QDir::tempPath() + "/osdos-mpv.sock")
+#endif
     , m_inputConfPath(QDir::tempPath() + "/osdos-input.conf")
     , m_logFilePath(QDir::tempPath() + "/osdos-mpv.log")
     , m_subInfoPath(QDir::tempPath() + "/osdos-mpv-subinfo.json")
@@ -1231,6 +1237,9 @@ void MpvController::appendVideoArgs(QStringList &args) const {
 #if defined(Q_OS_MACOS)
         // Apple Silicon: enable VideoToolbox HW decode (mpv's default is none).
         args << "--hwdec=videotoolbox";
+#elif defined(Q_OS_WIN)
+        // Windows: the GPU's decoder (D3D11) where mpv finds it safe.
+        args << "--hwdec=auto-safe";
 #elif defined(Q_OS_LINUX)
         // Desktop compositor (SteamDeck gamescope / KDE, x86_64 Intel/AMD): mpv
         // sets no hwdec by default, so decode falls back to software. This is an
@@ -1425,6 +1434,9 @@ void MpvController::appendEmbeddedVideoArgs(QStringList &args, bool gpu) const {
     case VideoProfile::Generic:
 #if defined(Q_OS_MACOS)
         args << QStringLiteral("--hwdec=videotoolbox-copy")
+             << QString("--osd-fonts-dir=%1").arg(m_appRoot + "/assets/fonts");
+#elif defined(Q_OS_WIN)
+        args << QStringLiteral("--hwdec=auto-copy-safe")
              << QString("--osd-fonts-dir=%1").arg(m_appRoot + "/assets/fonts");
 #elif defined(Q_OS_LINUX)
         args << (gpu ? QStringLiteral("--hwdec=nvdec,vaapi-copy,nvdec-copy,no")

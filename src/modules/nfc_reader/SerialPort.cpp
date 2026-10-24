@@ -11,6 +11,20 @@
 #include <cerrno>
 #include <cstring>
 
+#ifdef Q_OS_WIN
+
+// No serial PN532 on Windows yet (NfcReaderBackend::available() says the
+// module is not there): the port never opens, and no candidate is listed.
+SerialPort::~SerialPort() { close(); }
+bool SerialPort::open(const QString &, int) { return false; }
+void SerialPort::close() { m_fd = -1; m_path.clear(); }
+bool SerialPort::write(const QByteArray &) { return false; }
+QByteArray SerialPort::read(int, int) { return {}; }
+void SerialPort::flushInput() {}
+QList<SerialPortInfo> SerialPort::enumerateCandidates() { return {}; }
+
+#else
+
 #include <fcntl.h>
 #include <poll.h>
 #include <termios.h>
@@ -301,3 +315,5 @@ QList<SerialPortInfo> SerialPort::enumerateCandidates() {
 }
 
 #endif
+
+#endif // !Q_OS_WIN

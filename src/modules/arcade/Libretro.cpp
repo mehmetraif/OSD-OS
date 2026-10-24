@@ -25,8 +25,10 @@ namespace libretro {
 
 namespace {
 
-#ifdef Q_OS_MACOS
+#if defined(Q_OS_MACOS)
 const QString kCoreFile = QStringLiteral("fbneo_libretro.dylib");
+#elif defined(Q_OS_WIN)
+const QString kCoreFile = QStringLiteral("fbneo_libretro.dll");
 #else
 const QString kCoreFile = QStringLiteral("fbneo_libretro.so");
 #endif

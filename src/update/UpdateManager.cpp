@@ -339,7 +339,14 @@ void UpdateManager::handleReleaseInfo(const QByteArray &json) {
         return;
     }
 
-#ifndef Q_OS_MAC
+#ifdef Q_OS_WIN
+    // No Windows package among the release's assets yet: the newer version
+    // is named, to be downloaded by hand.
+    setState(QStringLiteral("error"),
+             QStringLiteral("%1 is out. No update package for Windows yet: download it from "
+                            "github.com/mehmetraif/OSD-OS/releases.").arg(tag));
+    return;
+#elif !defined(Q_OS_MAC)
     const QString arch = QSysInfo::currentCpuArchitecture();
     if (arch != QStringLiteral("arm64") && arch != QStringLiteral("x86_64")) {
         setState(QStringLiteral("error"),

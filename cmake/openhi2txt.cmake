@@ -25,6 +25,9 @@ function(osdos_add_openhi2txt)
     set(OPENHI2TXT_BUILD_CLI OFF)
     set(BUILD_TESTING OFF)
     set(CMAKE_AUTOMOC OFF)
+    # On Windows too, the zlib and minizip found above (vcpkg's), not the
+    # static ones openhi2txt's own tree expects under thirdparty/zlib-static.
+    set(OPENHI2TXT_SYSTEM_ZLIB ON)
     add_subdirectory("${CMAKE_CURRENT_FUNCTION_LIST_DIR}/../thirdparty/openhi2txt"
                      "${CMAKE_BINARY_DIR}/openhi2txt" EXCLUDE_FROM_ALL)
 endfunction()

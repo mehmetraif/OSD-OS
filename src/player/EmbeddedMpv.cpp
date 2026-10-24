@@ -58,6 +58,10 @@ QStringList libraryCandidates() {
              QStringLiteral("/opt/homebrew/lib/libmpv.2.dylib"),
              QStringLiteral("/usr/local/lib/libmpv.2.dylib"),
              QStringLiteral("libmpv.2.dylib") };
+#elif defined(Q_OS_WIN)
+    // Beside the app, as mpv's own builds name it, or on the PATH.
+    return { appDir + QStringLiteral("/libmpv-2.dll"), appDir + QStringLiteral("/mpv/libmpv-2.dll"),
+             QStringLiteral("libmpv-2.dll"), QStringLiteral("mpv-2.dll") };
 #else
     // A copy bundled beside the binary (the AppImage's lib/) first.
     return { appDir + QStringLiteral("/../lib/libmpv.so.2"),

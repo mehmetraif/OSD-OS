@@ -23,6 +23,10 @@
 #include <sys/time.h>
 #include <ctime>
 #endif
+#ifdef Q_OS_WIN
+#include <QSettings>
+#include <windows.h>
+#endif
 
 namespace {
 
@@ -147,7 +151,22 @@ void SystemInfo::readFixed(Facts *facts) {
     facts->arch = QSysInfo::currentCpuArchitecture();
     facts->cores = QThread::idealThreadCount();
     facts->model = board::model();
-#ifdef Q_OS_MACOS
+#if defined(Q_OS_WIN)
+    // The PC as its firmware names it, and its processor, from the registry.
+    if (facts->model.isEmpty()) {
+        const QSettings bios(QStringLiteral("HKEY_LOCAL_MACHINE\\HARDWARE\\DESCRIPTION\\System\\BIOS"),
+                             QSettings::NativeFormat);
+        facts->model = (bios.value(QStringLiteral("SystemManufacturer")).toString() + QLatin1Char(' ')
+                        + bios.value(QStringLiteral("SystemProductName")).toString()).simplified();
+    }
+    const QSettings processor(QStringLiteral("HKEY_LOCAL_MACHINE\\HARDWARE\\DESCRIPTION\\System\\CentralProcessor\\0"),
+                              QSettings::NativeFormat);
+    facts->cpu = processor.value(QStringLiteral("ProcessorNameString")).toString().simplified();
+    MEMORYSTATUSEX memory {};
+    memory.dwLength = sizeof(memory);
+    if (GlobalMemoryStatusEx(&memory))
+        facts->memoryTotal = qint64(memory.ullTotalPhys);
+#elif defined(Q_OS_MACOS)
     if (facts->model.isEmpty())
         facts->model = sysctlText("hw.model");
     facts->cpu = sysctlText("machdep.cpu.brand_string");
@@ -191,7 +210,13 @@ void SystemInfo::readFixed(Facts *facts) {
 
 void SystemInfo::readChanging(Facts *facts, const QString &dataRoot, const QString &mediaRoot) {
     facts->name = device::name();
-#ifdef Q_OS_MACOS
+#if defined(Q_OS_WIN)
+    MEMORYSTATUSEX memory {};
+    memory.dwLength = sizeof(memory);
+    if (GlobalMemoryStatusEx(&memory))
+        facts->memoryFree = qint64(memory.ullAvailPhys);
+    facts->uptime = qint64(GetTickCount64() / 1000);
+#elif defined(Q_OS_MACOS)
     timeval boot {};
     if (sysctlValue("kern.boottime", &boot) && boot.tv_sec > 0)
         facts->uptime = qint64(std::time(nullptr)) - qint64(boot.tv_sec);
