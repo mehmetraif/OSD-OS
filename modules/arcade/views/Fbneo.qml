@@ -78,10 +78,11 @@ FocusScope {
                                   : "The emulator FinalBurn Neo plays in. " + appCore.installHint("retroarch")
         case "retroarch_download":
             return retroarchFailure !== "" ? retroarchFailure
-                 : info.retroarch ? "The latest RetroArch for Windows from libretro's build server, in place of the one"
-                                    + " downloaded before, with whatever was put in its folder (some 200 MB)"
-                                  : "The latest RetroArch for Windows from libretro's build server, into OSD/OS's own"
-                                    + " folder (some 200 MB)"
+                 : info.retroarch ? "RetroArch " + info.retroarchDownloadVersion + " for Windows from libretro's build"
+                                    + " server, the OSD/OS image's version, in place of the one downloaded before, with"
+                                    + " whatever was put in its folder (some 200 MB)"
+                                  : "RetroArch " + info.retroarchDownloadVersion + " for Windows from libretro's build"
+                                    + " server, the OSD/OS image's version, into OSD/OS's own folder (some 200 MB)"
         case "core":
             return (info.core ? info.core : "Its core for RetroArch, with its list of games")
                    + " • Free to use and share, never to sell; its license is in Settings → About"

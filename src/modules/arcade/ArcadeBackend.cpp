@@ -4158,6 +4158,7 @@ QVariantMap ArcadeBackend::fbneoInfo() const {
                                           : QFileInfo::exists(imageLicense) ? imageLicense : QString() },
              { QStringLiteral("canDownload"), unpacks && !FbneoInstaller::defaultSource().core.isEmpty() },
              { QStringLiteral("canDownloadRetroarch"), ProgramInstaller::retroarch(m_dataRoot).available },
+             { QStringLiteral("retroarchDownloadVersion"), ProgramInstaller::retroarch(m_dataRoot).version },
              { QStringLiteral("retroarchDownloaded"), !retroarchPath().isEmpty()
                                                       && retroarchPath() == libretro::downloadedRetroArch(m_dataRoot) } };
 }
@@ -4205,6 +4206,7 @@ QVariantMap ArcadeBackend::mameInfo() const {
     return { { QStringLiteral("mame"), program },
              { QStringLiteral("downloaded"), !program.isEmpty() && program == mame::downloadedMame(m_dataRoot) },
              { QStringLiteral("canDownload"), ProgramInstaller::mame(m_dataRoot).available },
+             { QStringLiteral("downloadVersion"), ProgramInstaller::mame(m_dataRoot).version },
              { QStringLiteral("plugins"), !plugins.isEmpty() },
              { QStringLiteral("pluginsFolder"), plugins } };
 }

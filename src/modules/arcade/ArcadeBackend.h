@@ -440,7 +440,7 @@ public:
     // canDownload (mamedev builds it for this machine: 64-bit Windows),
     // plugins (its hiscore plugin is beside it), pluginsFolder (where) }.
     Q_INVOKABLE QVariantMap mameInfo() const;
-    // Downloads MAME, mamedev's latest release for Windows, into
+    // Downloads MAME for Windows, the version the OSD/OS image has, into
     // <data>/arcade/mame (ProgramInstaller), over one downloaded before;
     // mameProgressChanged() as it goes, mameChanged() as it starts and
     // ends, and the games read again once it is in.

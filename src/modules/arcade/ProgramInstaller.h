@@ -3,36 +3,28 @@
 #include <QObject>
 #include <QString>
 #include <QUrl>
-#include <functional>
 
 class QNetworkAccessManager;
 class QNetworkReply;
 
 // A program for Windows, where no package manager brings it, downloaded as
-// a 7z archive and unpacked into <data>/arcade: RetroArch, libretro's latest
-// stable build from its build server (Settings → Arcade → FinalBurn Neo),
-// and MAME, mamedev's latest release from GitHub, a self-extracting archive
-// (Settings → Arcade → MAME). The archive's URL is read from the server's
-// index (the build server's list of versions, GitHub's release), else the
-// one known is taken; the archive is downloaded as a .part file and unpacked
-// beside it (SevenZip), and the folder the program came out in is moved into
-// place once it is whole, over one downloaded before. Nothing is in place
-// before all of it is.
+// a 7z archive and unpacked into <data>/arcade: RetroArch (Settings → Arcade
+// → FinalBurn Neo), from libretro's build server, and MAME (Settings → Arcade
+// → MAME), from mamedev's releases on GitHub, a self-extracting archive. Each
+// is the version the OSD/OS image has, Debian trixie's (kRetroArchVersion,
+// kMameVersion), so that a PC plays with a Pi on the same programs: the same
+// sets, and the same RetroArch over the network. The archive is downloaded as
+// a .part file and unpacked beside it (SevenZip), and the folder the program
+// came out in is moved into place once it is whole, over one downloaded
+// before. Nothing is in place before all of it is.
 class ProgramInstaller : public QObject {
     Q_OBJECT
 public:
     struct Source {
         QString name;              // "RetroArch", "MAME": for the messages
+        QString version;           // the one downloaded: "1.20.0", "0.276"
         bool    available = false; // built for this machine: 64-bit Windows
-        // Where the archive's URL is read from; none to take fallback as it
-        // is. GitHub's API is asked as it wants (github).
-        QUrl    index;
-        bool    github = false;
-        // The archive's URL from the index's answer; an empty URL for none.
-        std::function<QUrl(const QByteArray &index)> pick;
-        // The archive known, taken when the index can't be read or names
-        // none.
-        QUrl    fallback;
+        QUrl    archive;           // the archive, a 7z or a self-extracting one
         // What the archive must hold, at its top or one folder down.
         QString program;
         // The folder it ends up as: <data>/arcade/retroarch/RetroArch-Win64.
@@ -41,12 +33,6 @@ public:
     // libretro's RetroArch and mamedev's MAME, for a 64-bit Windows.
     static Source retroarch(const QString &dataRoot);
     static Source mame(const QString &dataRoot);
-    // The newest version a page of libretro's build server links to (1.22.2
-    // over 1.9.1), "" for none.
-    static QString newestVersion(const QByteArray &page);
-    // The 64-bit Windows build among a GitHub release's assets
-    // (mame0289b_64bit.exe), an empty URL for none.
-    static QUrl mameWindowsAsset(const QByteArray &release);
 
     explicit ProgramInstaller(QObject *parent = nullptr);
 
@@ -61,7 +47,6 @@ signals:
     void finished(bool ok, const QString &message);
 
 private:
-    void fetchIndex();
     void fetchArchive(const QUrl &url);
     void unpack();
     void setProgress(int progress);

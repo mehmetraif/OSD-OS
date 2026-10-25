@@ -4,9 +4,9 @@ import Components
 // Settings → Arcade → MAME: the arcade machine emulator the games play in,
 // whether it is there and where, whether its hiscore plugin is beside it,
 // and on Windows, where no package manager brings it, its download
-// (ArcadeBackend::downloadMame()): mamedev's latest release for 64-bit
-// Windows into OSD/OS's own folder, under MAME's line while there is none,
-// or the one downloaded is the one found.
+// (ArcadeBackend::downloadMame()): mamedev's release for 64-bit Windows of
+// the version the OSD/OS image has, into OSD/OS's own folder, under MAME's
+// line while there is none, or the one downloaded is the one found.
 FocusScope {
     id: mameRoot
 
@@ -65,10 +65,12 @@ FocusScope {
                              : "The arcade machine emulator the games play in. " + appCore.installHint("mame")
         case "download":
             return failure !== "" ? failure
-                 : info.mame ? "The latest MAME for 64-bit Windows from mamedev's releases, in place of the one downloaded"
-                               + " before, with whatever was put in its folder (some 100 MB to download)"
-                             : "The latest MAME for 64-bit Windows from mamedev's releases, into OSD/OS's own folder"
-                               + " (some 100 MB to download, half a gigabyte unpacked)"
+                 : info.mame ? "MAME " + info.downloadVersion + " for 64-bit Windows from mamedev's releases, the OSD/OS"
+                               + " image's version, in place of the one downloaded before, with whatever was put in its"
+                               + " folder (some 100 MB to download)"
+                             : "MAME " + info.downloadVersion + " for 64-bit Windows from mamedev's releases, the OSD/OS"
+                               + " image's version, into OSD/OS's own folder (some 100 MB to download, half a gigabyte"
+                               + " unpacked)"
         case "plugin":
             return info.plugins ? "MAME's hiscore plugin keeps each game's high score table, for the High Scores module and"
                                   + " the Arcade screen: " + info.pluginsFolder

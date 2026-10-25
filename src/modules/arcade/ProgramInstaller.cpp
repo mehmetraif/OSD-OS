@@ -6,30 +6,28 @@
 #include <QDir>
 #include <QFile>
 #include <QFileInfo>
-#include <QJsonArray>
-#include <QJsonDocument>
-#include <QJsonObject>
 #include <QNetworkAccessManager>
 #include <QNetworkReply>
 #include <QNetworkRequest>
 #include <QPromise>
-#include <QRegularExpression>
 #include <QSysInfo>
 #include <QtConcurrent/QtConcurrentRun>
 #include <algorithm>
 
 namespace {
 
-// The progress each step reaches: the index read, the archive downloaded,
-// then unpacked.
-constexpr int kIndexDone = 1;
+// The versions the OSD/OS image has, Debian trixie's mame and retroarch
+// (os/stage-osdos/08-arcade): the same on every machine, for the sets the
+// games are made of and for playing together over the network.
+constexpr const char *kRetroArchVersion = "1.20.0";
+constexpr const char *kMameVersion = "0.276";
+
+// The progress the download reaches, the unpacking after it.
 constexpr int kDownloadDone = 90;
 // A download given up on once nothing has come for this long, and the
-// archive once it is bigger than this (RetroArch's some 200 MB, MAME's 100,
-// as of 2026) or the index than this.
+// archive once it is bigger than this (RetroArch's some 200 MB, MAME's 100).
 constexpr int kDownloadTimeoutMs = 60000;
 constexpr qint64 kArchiveMaxBytes = 512 * 1024 * 1024;
-constexpr qint64 kIndexMaxBytes = 1024 * 1024;
 // The archive unpacked is refused beyond this (some 540 MB for RetroArch,
 // 500 for MAME), as is a solid block of it the SDK would have to hold in
 // memory whole (380 MB, the bigger of RetroArch's two).
@@ -48,64 +46,32 @@ bool windows64() {
 } // namespace
 
 ProgramInstaller::Source ProgramInstaller::retroarch(const QString &dataRoot) {
+    // The build server keeps every stable version's Windows build:
+    // stable/<version>/windows/x86_64/RetroArch.7z, RetroArch-Win64 in it.
     Source source;
     source.name = QStringLiteral("RetroArch");
+    source.version = QLatin1String(kRetroArchVersion);
     source.available = windows64();
-    source.index = QUrl(QStringLiteral("https://buildbot.libretro.com/stable/"));
-    source.pick = [](const QByteArray &page) {
-        const QString version = newestVersion(page);
-        return version.isEmpty()
-                   ? QUrl()
-                   : QUrl(QStringLiteral("https://buildbot.libretro.com/stable/%1/windows/x86_64/RetroArch.7z").arg(version));
-    };
-    source.fallback = QUrl(QStringLiteral("https://buildbot.libretro.com/stable/1.22.2/windows/x86_64/RetroArch.7z"));
+    source.archive = QUrl(QStringLiteral("https://buildbot.libretro.com/stable/%1/windows/x86_64/RetroArch.7z")
+                              .arg(source.version));
     source.program = QStringLiteral("retroarch.exe");
     source.target = QFileInfo(libretro::downloadedRetroArch(dataRoot)).absolutePath();
     return source;
 }
 
 ProgramInstaller::Source ProgramInstaller::mame(const QString &dataRoot) {
+    // mamedev's release mame0276 has mame0276b_64bit.exe, the 64-bit Windows
+    // build, a self-extracting archive with mame.exe at its top, beside the
+    // sources (mame0276s.exe) and the ARM build.
     Source source;
     source.name = QStringLiteral("MAME");
+    source.version = QLatin1String(kMameVersion);
     source.available = windows64();
-    source.index = QUrl(QStringLiteral("https://api.github.com/repos/mamedev/mame/releases/latest"));
-    source.github = true;
-    source.pick = &mameWindowsAsset;
-    source.fallback = QUrl(QStringLiteral("https://github.com/mamedev/mame/releases/download/mame0289/mame0289b_64bit.exe"));
+    const QString tag = QStringLiteral("mame") + QString(source.version).remove(QLatin1Char('.'));
+    source.archive = QUrl(QStringLiteral("https://github.com/mamedev/mame/releases/download/%1/%1b_64bit.exe").arg(tag));
     source.program = QStringLiteral("mame.exe");
     source.target = QFileInfo(mame::downloadedMame(dataRoot)).absolutePath();
     return source;
-}
-
-QString ProgramInstaller::newestVersion(const QByteArray &page) {
-    // The server's index links each version's folder: href="/stable/1.22.2/"
-    // or href="1.22.2/".
-    static const QRegularExpression link(QStringLiteral("href=\"(?:[^\"]*/)?(\\d+)\\.(\\d+)\\.(\\d+)/\""));
-    QString newest;
-    QList<int> newestParts;
-    auto match = link.globalMatch(QString::fromUtf8(page));
-    while (match.hasNext()) {
-        const QRegularExpressionMatch m = match.next();
-        const QList<int> parts{ m.captured(1).toInt(), m.captured(2).toInt(), m.captured(3).toInt() };
-        if (newest.isEmpty() || std::lexicographical_compare(newestParts.cbegin(), newestParts.cend(), parts.cbegin(), parts.cend())) {
-            newest = QStringLiteral("%1.%2.%3").arg(parts[0]).arg(parts[1]).arg(parts[2]);
-            newestParts = parts;
-        }
-    }
-    return newest;
-}
-
-QUrl ProgramInstaller::mameWindowsAsset(const QByteArray &release) {
-    // The release's assets: mame0289b_64bit.exe is the 64-bit Windows
-    // build, beside the sources (mame0289s.exe) and the ARM one.
-    static const QRegularExpression windows64(QRegularExpression::anchoredPattern(QStringLiteral("mame\\d+b_64bit\\.exe")));
-    const QJsonArray assets = QJsonDocument::fromJson(release).object().value(QLatin1String("assets")).toArray();
-    for (const QJsonValue &asset : assets) {
-        const QJsonObject object = asset.toObject();
-        if (windows64.match(object.value(QLatin1String("name")).toString()).hasMatch())
-            return QUrl(object.value(QLatin1String("browser_download_url")).toString());
-    }
-    return QUrl();
 }
 
 ProgramInstaller::ProgramInstaller(QObject *parent)
@@ -145,33 +111,7 @@ void ProgramInstaller::start(const Source &source) {
     m_progress = 0;
     emit progressChanged();
     QDir().mkpath(QFileInfo(archivePart()).absolutePath());
-    if (m_source.index.isEmpty())
-        fetchArchive(m_source.fallback);
-    else
-        fetchIndex();
-}
-
-void ProgramInstaller::fetchIndex() {
-    QNetworkRequest request = arcadehttp::requestFor(m_source.index, kDownloadTimeoutMs);
-    if (m_source.github) {
-        request.setRawHeader("Accept", "application/vnd.github+json");
-        request.setRawHeader("X-GitHub-Api-Version", "2022-11-28");
-    }
-    m_reply = m_nam->get(request);
-    arcadehttp::limitReply(m_reply, kIndexMaxBytes);
-    connect(m_reply, &QNetworkReply::finished, this, [this] {
-        QNetworkReply *reply = std::exchange(m_reply, nullptr);
-        reply->deleteLater();
-        if (!m_running)
-            return;
-        const int status = reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
-        // An index that can't be had, or names no archive, leaves the one
-        // known: the archive's download says whether it is still there.
-        const QUrl picked = reply->error() == QNetworkReply::NoError && status == 200 && m_source.pick
-                                ? m_source.pick(reply->readAll()) : QUrl();
-        setProgress(kIndexDone);
-        fetchArchive(picked.isEmpty() ? m_source.fallback : picked);
-    });
+    fetchArchive(m_source.archive);
 }
 
 void ProgramInstaller::fetchArchive(const QUrl &url) {
@@ -196,7 +136,7 @@ void ProgramInstaller::fetchArchive(const QUrl &url) {
     });
     connect(m_reply, &QNetworkReply::downloadProgress, this, [this](qint64 received, qint64 total) {
         if (total > 0)
-            setProgress(kIndexDone + int((kDownloadDone - kIndexDone) * received / total));
+            setProgress(int(kDownloadDone * received / total));
     });
     connect(m_reply, &QNetworkReply::finished, this, [this, file] {
         QNetworkReply *reply = std::exchange(m_reply, nullptr);
