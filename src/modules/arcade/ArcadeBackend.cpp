@@ -441,9 +441,14 @@ QList<QPair<QString, QString>> padEnvironment(const QString &dataRoot) {
     const QString mappings = dataRoot + QStringLiteral("/gamecontrollerdb.txt");
     if (QFileInfo::exists(mappings))
         environment << qMakePair(QStringLiteral("SDL_GAMECONTROLLERCONFIG_FILE"), mappings);
-    const QStringList pads = controllers::padMappings();
-    if (!pads.isEmpty())
-        environment << qMakePair(QStringLiteral("SDL_GAMECONTROLLERCONFIG"), pads.join(QLatin1Char('\n')));
+    // After any mappings OSD/OS's own environment carries, which its SDL
+    // read too, so a pad plugged in during the game has them as well.
+    QStringList lines = controllers::padMappings();
+    const QString own = qEnvironmentVariable("SDL_GAMECONTROLLERCONFIG");
+    if (!own.isEmpty())
+        lines.prepend(own);
+    if (!lines.isEmpty())
+        environment << qMakePair(QStringLiteral("SDL_GAMECONTROLLERCONFIG"), lines.join(QLatin1Char('\n')));
     return environment;
 }
 

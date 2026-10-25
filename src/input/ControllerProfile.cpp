@@ -520,7 +520,9 @@ QString mappingWithoutCrc(const QString &mapping) {
     if (mapping.size() < 33 || mapping.at(32) != QLatin1Char(','))
         return mapping;
     for (int i = 0; i < 32; ++i) {
-        if (!std::isxdigit(mapping.at(i).toLatin1()))
+        // As an unsigned char: a Latin-1 letter above 0x7f is negative as
+        // a char, which isxdigit() doesn't take.
+        if (!std::isxdigit(static_cast<unsigned char>(mapping.at(i).toLatin1())))
             return mapping;
     }
     QString out = mapping;

@@ -12,7 +12,7 @@
 #include <QPromise>
 #include <QSysInfo>
 #include <QtConcurrent/QtConcurrentRun>
-#include <algorithm>
+#include <utility>
 
 namespace {
 
@@ -135,8 +135,10 @@ void ProgramInstaller::fetchArchive(const QUrl &url) {
             m_reply->abort();
     });
     connect(m_reply, &QNetworkReply::downloadProgress, this, [this](qint64 received, qint64 total) {
+        // No further than the download's share, should a server send more
+        // than it said.
         if (total > 0)
-            setProgress(int(kDownloadDone * received / total));
+            setProgress(int(kDownloadDone * qMin(received, total) / total));
     });
     connect(m_reply, &QNetworkReply::finished, this, [this, file] {
         QNetworkReply *reply = std::exchange(m_reply, nullptr);

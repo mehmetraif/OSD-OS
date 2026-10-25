@@ -463,7 +463,7 @@ Rectangle {
             arcadeBackend.engineChoicesMade = []
             arcadeBackend.fbneo = { retroarch: "/usr/bin/retroarch", core: "", coreDate: "", downloaded: false,
                                     games: 0, license: "", canDownload: true, canDownloadRetroarch: false,
-                                    retroarchDownloaded: false }
+                                    retroarchDownloadVersion: "1.20.0", retroarchDownloaded: false }
             arcadeBackend.fbneoDownloading = false
             arcadeBackend.fbneoProgress = 0
             arcadeBackend.fbneoMessage = ""
@@ -615,7 +615,8 @@ Rectangle {
             // On a system that can download MAME (Windows): the screen says
             // select does, select starts it, and the line follows it.
             compare(findText(games, "DOWNLOAD MAME"), null)
-            arcadeBackend.mame = { mame: "", downloaded: false, canDownload: true, plugins: false, pluginsFolder: "" }
+            arcadeBackend.mame = { mame: "", downloaded: false, canDownload: true, downloadVersion: "0.276",
+                                   plugins: false, pluginsFolder: "" }
             tryVerify(function() { return findText(games, "DOWNLOAD MAME") !== null }, 1000)
             keyClick(Qt.Key_Return)
             compare(arcadeBackend.mameDownloads, 1)
@@ -971,7 +972,8 @@ Rectangle {
             arcadeBackend.fbneoDownloading = false
             arcadeBackend.fbneo = { retroarch: "/usr/bin/retroarch", core: "/data/arcade/retroarch/cores/fbneo_libretro.so",
                                     coreDate: "2026-10-17", downloaded: true, games: 9123,
-                                    license: "/data/arcade/retroarch/fbneo-license.txt", canDownload: true }
+                                    license: "/data/arcade/retroarch/fbneo-license.txt", canDownload: true,
+                                    retroarchDownloadVersion: "1.20.0" }
             arcadeBackend.fbneoChanged()
             tryVerify(function() { return findText(page, "Downloaded 2026-10-17") !== null }, 1000)
             verify(findText(page, "9123") !== null)
@@ -986,7 +988,8 @@ Rectangle {
             // line for it.
             var keysAre = function(keys) { return JSON.stringify(page.keys) === JSON.stringify(keys) }
             arcadeBackend.fbneo = { retroarch: "", core: "", coreDate: "", downloaded: false, games: 0, license: "",
-                                    canDownload: true, canDownloadRetroarch: true, retroarchDownloaded: false }
+                                    canDownload: true, canDownloadRetroarch: true, retroarchDownloadVersion: "1.20.0",
+                                    retroarchDownloaded: false }
             arcadeBackend.fbneoChanged()
             tryVerify(function() { return keysAre(["retroarch", "retroarch_download", "core", "games", "download"]) }, 1000)
             verify(findText(page, "Download RetroArch") !== null)
@@ -1007,13 +1010,14 @@ Rectangle {
             arcadeBackend.retroarchMessage = ""
             arcadeBackend.fbneo = { retroarch: "C:/Users/me/AppData/Roaming/OSD-OS/arcade/retroarch/RetroArch-Win64/retroarch.exe",
                                     core: "", coreDate: "", downloaded: false, games: 0, license: "",
-                                    canDownload: true, canDownloadRetroarch: true, retroarchDownloaded: true }
+                                    canDownload: true, canDownloadRetroarch: true, retroarchDownloadVersion: "1.20.0",
+                                    retroarchDownloaded: true }
             arcadeBackend.fbneoChanged()
             tryVerify(function() { return findText(page, "Download RetroArch Again") !== null }, 1000)
             verify(findText(page, "Downloaded") !== null)
             arcadeBackend.fbneo = { retroarch: "C:/RetroArch-Win64/retroarch.exe", core: "", coreDate: "", downloaded: false,
                                     games: 0, license: "", canDownload: true, canDownloadRetroarch: true,
-                                    retroarchDownloaded: false }
+                                    retroarchDownloadVersion: "1.20.0", retroarchDownloaded: false }
             arcadeBackend.fbneoChanged()
             tryVerify(function() { return keysAre(["retroarch", "core", "games", "download"]) }, 1000)
             verify(findText(page, "Installed") !== null)
@@ -1034,7 +1038,8 @@ Rectangle {
             verify(findText(page, "Hiscore Plugin") !== null)
             compare(page.keys, ["mame", "plugin"])
             verify(findText(page, "/usr/games/mame") !== null)
-            arcadeBackend.mame = { mame: "", downloaded: false, canDownload: true, plugins: false, pluginsFolder: "" }
+            arcadeBackend.mame = { mame: "", downloaded: false, canDownload: true, downloadVersion: "0.276",
+                                   plugins: false, pluginsFolder: "" }
             tryVerify(function() { return JSON.stringify(page.keys) === JSON.stringify(["mame", "download"]) }, 1000)
             verify(findText(page, "Not Installed") !== null)
             verify(findText(page, "On Test OS: install mame") !== null)
@@ -1052,13 +1057,13 @@ Rectangle {
             verify(findText(page, "answered 404") !== null)
             arcadeBackend.mameMessage = ""
             arcadeBackend.mame = { mame: "C:/Users/me/AppData/Roaming/OSD-OS/arcade/mame/mame.exe", downloaded: true,
-                                   canDownload: true, plugins: true,
+                                   canDownload: true, downloadVersion: "0.276", plugins: true,
                                    pluginsFolder: "C:/Users/me/AppData/Roaming/OSD-OS/arcade/mame/plugins" }
             tryVerify(function() { return findText(page, "Download MAME Again") !== null }, 1000)
             verify(findText(page, "Downloaded", true) !== null)
             compare(page.keys, ["mame", "download", "plugin"])
-            arcadeBackend.mame = { mame: "C:/MAME/mame.exe", downloaded: false, canDownload: true, plugins: false,
-                                   pluginsFolder: "" }
+            arcadeBackend.mame = { mame: "C:/MAME/mame.exe", downloaded: false, canDownload: true, downloadVersion: "0.276",
+                                   plugins: false, pluginsFolder: "" }
             tryVerify(function() { return JSON.stringify(page.keys) === JSON.stringify(["mame", "plugin"]) }, 1000)
             verify(findText(page, "Not Found") !== null)
             compare(root.backs, 0)
@@ -2690,7 +2695,8 @@ Rectangle {
             // screen says select does, and select starts it once.
             arcadeBackend.problem = "MAME is not installed"
             compare(findText(screen, "DOWNLOAD MAME"), null)
-            arcadeBackend.mame = { mame: "", downloaded: false, canDownload: true, plugins: false, pluginsFolder: "" }
+            arcadeBackend.mame = { mame: "", downloaded: false, canDownload: true, downloadVersion: "0.276",
+                                   plugins: false, pluginsFolder: "" }
             tryVerify(function() { return findText(screen, "DOWNLOAD MAME") !== null }, 1000)
             keyClick(Qt.Key_Return)
             compare(arcadeBackend.mameDownloads, 1)

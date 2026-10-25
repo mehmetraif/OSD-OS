@@ -421,8 +421,9 @@ public:
     // there), games (how many its list has), license (its file, "" for
     // none), canDownload (libretro builds it for this machine, and this
     // build can unpack it), canDownloadRetroarch (libretro builds RetroArch
-    // itself for this machine: 64-bit Windows), retroarchDownloaded (the
-    // RetroArch found is the one downloadRetroArch() put there) }.
+    // itself for this machine: 64-bit Windows), retroarchDownloadVersion
+    // (the one downloadRetroArch() fetches, the OSD/OS image's),
+    // retroarchDownloaded (the RetroArch found is the one it put there) }.
     Q_INVOKABLE QVariantMap fbneoInfo() const;
     // The licence's text (fbneoInfo().license), "" for none.
     Q_INVOKABLE QString fbneoLicenseText() const;
@@ -438,6 +439,7 @@ public:
     // MAME's page (Settings → Arcade → MAME): { mame (its program, "" for
     // none), downloaded (it is the one downloadMame() put there),
     // canDownload (mamedev builds it for this machine: 64-bit Windows),
+    // downloadVersion (the one downloadMame() fetches, the OSD/OS image's),
     // plugins (its hiscore plugin is beside it), pluginsFolder (where) }.
     Q_INVOKABLE QVariantMap mameInfo() const;
     // Downloads MAME for Windows, the version the OSD/OS image has, into
