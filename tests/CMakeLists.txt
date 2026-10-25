@@ -15,6 +15,7 @@ add_executable(reliability_test
     ../src/audio/AudioOutput.cpp
     ../src/audio/MenuMusic.cpp
     ../src/util/LegacyNames.cpp
+    ../src/util/LogFile.cpp
     ../src/util/MpvLocator.cpp)
 target_include_directories(reliability_test PRIVATE ../src)
 target_compile_definitions(reliability_test PRIVATE APP_VERSION="test")

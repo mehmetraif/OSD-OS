@@ -354,7 +354,7 @@ copy C:\vcpkg\installed\x64-windows\bin\libssl*.dll install\osdos\
 install\osdos\osdos.exe
 ```
 
-or, from the source tree, `set APP_ROOT=%CD%` then `build\osdos.exe` (with Qt's `bin` on the `PATH`). The build is a console program for now: a console window opens with the app and shows its log.
+or, from the source tree, `set APP_ROOT=%CD%` then `build\osdos.exe` (with Qt's `bin` on the `PATH`). The build is a windowed program, which no console opens with: it writes its log to `osdos.log` in the data folder (`%APPDATA%\OSD-OS\`), the run before's kept as `osdos-previous.log`, and to the console it was started from, if any (`util/LogFile`).
 
 ### Configuration
 

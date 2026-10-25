@@ -6,6 +6,7 @@
 #include "util/AtomicFile.h"
 #include "util/DurableFile.h"
 #include "util/AsyncDirectoryCache.h"
+#include "util/LogFile.h"
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
@@ -170,6 +171,39 @@ private slots:
         QCOMPARE(manager.m_expectedSha256, QString());
 #endif
         QCoreApplication::setApplicationVersion(running);
+    }
+
+    // The log the Windows build keeps in the data folder (util/LogFile): what
+    // was logged before the folder was known, then the rest, each line on
+    // disk as it comes; the run before's kept beside it.
+    void logFileKeepsTheRunBefore() {
+        QTemporaryDir tmp;
+        const auto read = [&tmp](const QString &name) {
+            QFile file(tmp.path() + QLatin1Char('/') + name);
+            return file.open(QIODevice::ReadOnly) ? file.readAll() : QByteArray();
+        };
+        logfile::begin();
+        qInfo("[test] before the folder was known");
+        logfile::open(tmp.path());
+        qInfo("[test] the first run");
+        const QByteArray first = read(QStringLiteral("osdos.log"));
+        QVERIFY2(first.contains("[test] before the folder was known"), first.constData());
+        QVERIFY2(first.contains("[test] the first run"), first.constData());
+        QVERIFY(first.indexOf("before the folder") < first.indexOf("the first run"));
+        logfile::end();
+
+        logfile::begin();
+        logfile::open(tmp.path());
+        qInfo("[test] the second run");
+        logfile::end();
+        const QByteArray second = read(QStringLiteral("osdos.log"));
+        QVERIFY2(second.contains("[test] the second run"), second.constData());
+        QVERIFY(!second.contains("[test] the first run"));
+        QVERIFY(read(QStringLiteral("osdos-previous.log")).contains("[test] the first run"));
+
+        // After end(), the test's own handler again: nothing more written.
+        qInfo("[test] after the end");
+        QVERIFY(!read(QStringLiteral("osdos.log")).contains("after the end"));
     }
 
     void durableWriteErrorsAreReported() {

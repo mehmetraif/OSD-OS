@@ -397,7 +397,7 @@ For Windows 11 on x64, OSD/OS comes as a zip: one folder, `osdos`, with `osdos.e
 1. Download `OSD-OS-<version>-windows-x64.zip` from the [latest release](https://github.com/mehmetraif/OSD-OS/releases/latest).
 2. Unzip it where you want to keep OSD/OS, for example in `C:\Games`. It unpacks to one folder, `osdos`.
 3. Download a Windows build of mpv from [mpv.io](https://mpv.io/installation/) and put its folder inside `osdos` as `mpv`, or `mpv.exe` beside `osdos.exe`; mpv anywhere on the `PATH` works too.
-4. Double-click `osdos.exe`. Windows may stop the first start of a program it doesn't know yet (**Windows protected your PC**): choose **More info**, then **Run anyway**. A console window opens beside OSD/OS and shows its log; closing it closes OSD/OS too.
+4. Double-click `osdos.exe`. Windows may stop the first start of a program it doesn't know yet (**Windows protected your PC**): choose **More info**, then **Run anyway**.
 
 ### Post Install
 
@@ -417,6 +417,10 @@ For Windows 11 on x64, OSD/OS comes as a zip: one folder, `osdos`, with `osdos.e
 **A window on the desktop**
 
 - Settings → **Window Mode** shows OSD/OS in a window on the desktop instead of the whole screen; F11 or Alt+Enter switches at any time.
+
+**The log**
+
+- OSD/OS opens no console window. It writes its log to `%APPDATA%\OSD-OS\osdos.log`, the run before's kept as `osdos-previous.log`; started from a Command Prompt or PowerShell, it writes it there as well.
 
 ### Update
 

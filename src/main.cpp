@@ -51,6 +51,7 @@
 #include "util/OsdSkinProvider.h"
 #include "util/LegacyNames.h"
 #include "util/Diagnostics.h"
+#include "util/LogFile.h"
 #ifdef Q_OS_MAC
 #include "util/MacosUtils.h"
 #endif
@@ -117,6 +118,12 @@ static volatile std::sig_atomic_t g_termSignal = 0;
 extern "C" void osdosHandleTerm(int sig) { g_termSignal = sig; }
 
 int main(int argc, char *argv[]) {
+#ifdef Q_OS_WIN
+    // A windowed program, which no console opens with: what it logs goes to
+    // osdos.log in the data folder, and to the console it was started from,
+    // if any (util/LogFile).
+    logfile::begin();
+#endif
     // A libretro core's name and version, which the Arcade module asks of a
     // copy of the app (ArcadeBackend::readOwnVersions()), so that a core that
     // can't be loaded takes nothing else down with it.
@@ -195,6 +202,9 @@ int main(int argc, char *argv[]) {
                   qPrintable(qEnvironmentVariable(appRoot.isEmpty() ? "APP_ROOT" : "DATA_ROOT")));
         return 1;
     }
+#ifdef Q_OS_WIN
+    logfile::open(dataRoot);
+#endif
     qDebug("[main] appRoot  = %s", qPrintable(appRoot));
     qDebug("[main] dataRoot = %s", qPrintable(dataRoot));
     // A crash writes where it was to the journal and to crash-report.txt in

@@ -13,6 +13,7 @@ OSD/OS writes what it has to say to its standard output and standard error, one 
 | A build from source | The terminal it runs in | `APP_ROOT=$(pwd) ./build/osdos` |
 | The Mac app opened from the Finder | macOS's log | Console.app, or run `/Applications/osdos.app/Contents/MacOS/osdos` in Terminal |
 | The AppImage | The terminal it was started from | `./OSD-OS-linux-x86_64.AppImage` |
+| Windows | `osdos.log` in the data folder, the run before's in `osdos-previous.log`; and the console it was started from, if any | Open `%APPDATA%\OSD-OS\osdos.log` in Notepad, or start `osdos.exe` from a Command Prompt |
 
 On the image, the user OSD/OS runs as (`pi`) is in the `adm` group, so `journalctl` needs no `sudo`.
 
