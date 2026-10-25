@@ -3275,6 +3275,20 @@ bool ArcadeBackend::playFbneo(const QString &name, libretro::Launch::Netplay net
     // joins a game.
     written = written && QDir().mkpath(launch.infoDir)
               && writeFileAnew(libretro::coreInfoPath(launch.infoDir), libretro::coreInfoText().toUtf8(), kOwnerOnly);
+    // RetroAchievements' hardcore mode, the one whose scores the leaderboards
+    // take, runs only while no core option it disallows is set, and FinalBurn
+    // Neo's default allows patched sets, over which RetroArch would pause it
+    // ("Setting not allowed: fbneo-allow-patched-romsets=enabled"). The
+    // core's options are given the value hardcore wants, the rest kept, and
+    // written only when that changes them.
+    if (written && !launch.achievementsUser.isEmpty()) {
+        const QString options = libretro::coreOptionsPath(launch.configDir);
+        QFile file(options);
+        const QString before = file.open(QIODevice::ReadOnly) ? QString::fromUtf8(file.readAll()) : QString();
+        const QString after = libretro::withHardcoreOptions(before);
+        if (after != before)
+            written = QDir().mkpath(QFileInfo(options).path()) && writeFileAtomically(options, after.toUtf8(), kOwnerOnly);
+    }
     if (!written || !writeFileAnew(launch.config, libretro::configText(launch).toUtf8(), kOwnerOnly)) {
         m_lastError = QStringLiteral("RetroArch's settings could not be written");
         m_raPasswordGiven = false;

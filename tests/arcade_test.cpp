@@ -1194,6 +1194,22 @@ private slots:
         for (const char *line : { "corename = \"FinalBurn Neo\"", "savestate = \"true\"",
                                   "savestate_features = \"deterministic\"" })
             QVERIFY2(info.contains(QLatin1String(line)), line);
+        // The core's options file, where RetroArch keeps FinalBurn Neo's, and
+        // the option hardcore wants in it: patched sets disallowed, which the
+        // core's default allows; the rest of the file as it is, and the text
+        // as it was when nothing is to change.
+        QCOMPARE(libretro::coreOptionsPath(QStringLiteral("/ra/config")),
+                 QStringLiteral("/ra/config/FinalBurn Neo/FinalBurn Neo.opt"));
+        QCOMPARE(libretro::withHardcoreOptions(QString()), QStringLiteral("fbneo-allow-patched-romsets = \"disabled\"\n"));
+        QCOMPARE(libretro::withHardcoreOptions(QStringLiteral("fbneo-cpu-speed-adjust = \"100\"\n"
+                                                              "fbneo-allow-patched-romsets = \"enabled\"\n"
+                                                              "fbneo-diagnostic-input = \"Start + L + R\"")),
+                 QStringLiteral("fbneo-cpu-speed-adjust = \"100\"\n"
+                                "fbneo-allow-patched-romsets = \"disabled\"\n"
+                                "fbneo-diagnostic-input = \"Start + L + R\"\n"));
+        const QString allowedOptions = QStringLiteral("fbneo-allow-patched-romsets-x = \"enabled\"\n"
+                                                      "fbneo-allow-patched-romsets = \"disabled\"\n");
+        QCOMPARE(libretro::withHardcoreOptions(allowedOptions), allowedOptions);
         QVERIFY(!config.contains(QStringLiteral("input_player2_reserved_device")));
         QVERIFY(!config.contains(QStringLiteral("input_player5_select = ")));
         QVERIFY(!config.contains(QStringLiteral("input_player7_")));
@@ -1906,9 +1922,16 @@ private slots:
         // JAMMA 240p: Street Fighter II's 4:3 as wide as the screen's
         // pixels are narrow, its lines whole.
         arcade.setScreen(true, QSize(720, 240));
+        // The core's options as the user left them, patched sets allowed as
+        // FinalBurn Neo's default has it, over which RetroArch would pause
+        // hardcore: the game given them with patched sets disallowed, the
+        // rest as it was.
+        const QString home = data.path() + QStringLiteral("/arcade/retroarch");
+        const QString options = home + QStringLiteral("/config/FinalBurn Neo/FinalBurn Neo.opt");
+        writeFile(options, "fbneo-cpu-speed-adjust = \"100\"\nfbneo-allow-patched-romsets = \"enabled\"\n");
         QVariantList end = played(arcade, QStringLiteral("sf2"));
         QCOMPARE(end.value(1).toString(), QStringLiteral("ok"));
-        const QString home = data.path() + QStringLiteral("/arcade/retroarch");
+        QCOMPARE(contents(options), QByteArray("fbneo-cpu-speed-adjust = \"100\"\nfbneo-allow-patched-romsets = \"disabled\"\n"));
         const QString line = logLines(QStringLiteral("retroarch ")).value(0);
         QCOMPARE(line, QStringLiteral("retroarch -L %1 --config %2/retroarch.cfg --verbose --log-file=%2/last.log %3/sf2.zip")
                            .arg(libretro::downloadedCore(data.path()), home, games));

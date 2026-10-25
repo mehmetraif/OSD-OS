@@ -606,6 +606,41 @@ bool ownsRemap(const QString &path) {
     return file.open(QIODevice::ReadOnly) && QString::fromUtf8(file.readLine()).startsWith(kOwnRemap);
 }
 
+QString coreOptionsPath(const QString &configDir) {
+    return configDir + QLatin1Char('/') + kCoreName + QLatin1Char('/') + kCoreName + QStringLiteral(".opt");
+}
+
+QString withHardcoreOptions(const QString &text) {
+    // Of the core options RetroArch's hardcore mode disallows for FinalBurn
+    // Neo (cheevos.c), the one its defaults set: patched sets allowed. A
+    // cheat turned on is disallowed too, but none is unless the user turns
+    // it on, and RetroArch says so on its screen then.
+    static const struct { const char *key; const char *value; } wanted[] = {
+        { "fbneo-allow-patched-romsets", "disabled" },
+    };
+    QString out = text;
+    if (!out.isEmpty() && !out.endsWith(QLatin1Char('\n')))
+        out += QLatin1Char('\n');
+    // The last line is the "" after the final newline: a line added goes
+    // before it, so the file still ends in one.
+    QStringList lines = out.split(QLatin1Char('\n'));
+    for (const auto &option : wanted) {
+        const QLatin1String key(option.key);
+        const QString line = configLine(option.key, QLatin1String(option.value));
+        bool found = false;
+        for (QString &existing : lines) {
+            const QString trimmed = existing.trimmed();
+            if (!trimmed.startsWith(key) || !trimmed.mid(key.size()).trimmed().startsWith(QLatin1Char('=')))
+                continue;
+            existing = line;
+            found = true;
+        }
+        if (!found)
+            lines.insert(lines.size() - 1, line);
+    }
+    return lines.join(QLatin1Char('\n'));
+}
+
 QString coreInfoPath(const QString &infoDir) {
     return infoDir + QLatin1Char('/') + kCoreInfoFile;
 }

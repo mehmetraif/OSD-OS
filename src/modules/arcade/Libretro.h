@@ -156,6 +156,16 @@ QString remapText(const Launch &launch);
 // is none, or remapText() wrote it. One saved from RetroArch's menu (Save
 // Core Remap File) or put there by hand is the user's, loaded as it is.
 bool ownsRemap(const QString &path);
+// FinalBurn Neo's core options file in configDir, where RetroArch keeps a
+// core's options (<core name>/<core name>.opt, global_core_options off), and
+// its text with the option RetroAchievements' hardcore mode wants: RetroArch
+// pauses hardcore while a core option it disallows is set ("Hardcore paused.
+// Setting not allowed: fbneo-allow-patched-romsets=enabled"), and FinalBurn
+// Neo's default allows patched sets. withHardcoreOptions() sets that line, or
+// adds it, and leaves the rest of the text as it is: the same text back when
+// nothing is to change.
+QString coreOptionsPath(const QString &configDir);
+QString withHardcoreOptions(const QString &text);
 // FinalBurn Neo's info file, which RetroArch looks for in infoDir by the
 // core's name (fbneo_libretro.info), and the text OSD/OS writes in it before
 // each game: what libretro's own information on the core says that RetroArch
