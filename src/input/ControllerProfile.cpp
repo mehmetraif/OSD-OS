@@ -3,6 +3,7 @@
 #include <QProcessEnvironment>
 
 #include <algorithm>
+#include <cctype>
 
 #ifdef Q_OS_LINUX
 #include <linux/input-event-codes.h>
@@ -78,6 +79,11 @@ QList<QPair<QString, QString>> &playerVariables() {
 QList<ArcadeBinds> &playerArcadeBinds() {
     static QList<ArcadeBinds> binds;
     return binds;
+}
+
+QStringList &padMappingsKept() {
+    static QStringList mappings;
+    return mappings;
 }
 
 const char *const kArcadeNames[kArcadeInputs] = { "1", "2", "3", "4", "5", "6", "7", "8", "coin", "start" };
@@ -498,6 +504,28 @@ QList<ArcadeBinds> playerArcade() {
     QList<ArcadeBinds> binds = playerArcadeBinds();
     binds.resize(kPlayers);
     return binds;
+}
+
+void setPadMappings(const QStringList &mappings) {
+    padMappingsKept() = mappings;
+}
+
+QStringList padMappings() {
+    return padMappingsKept();
+}
+
+QString mappingWithoutCrc(const QString &mapping) {
+    // "0300a1b25e040000e002000003090000,Xbox 360 Controller,a:b0,...": the
+    // GUID's 32 hex digits, then the name; the CRC is the fifth to eighth.
+    if (mapping.size() < 33 || mapping.at(32) != QLatin1Char(','))
+        return mapping;
+    for (int i = 0; i < 32; ++i) {
+        if (!std::isxdigit(mapping.at(i).toLatin1()))
+            return mapping;
+    }
+    QString out = mapping;
+    out.replace(4, 4, QStringLiteral("0000"));
+    return out;
 }
 
 void KeySources::pressed(const QString &device, int code, qint64 ms) {

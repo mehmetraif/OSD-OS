@@ -429,15 +429,21 @@ QList<QHostAddress> broadcastAddresses() {
 }
 
 // The pads as the menus know them, for a game's SDL (MAME's, RetroArch's):
-// the controller database OSD/OS reads, and a pad's buttons by their places,
-// as InputManager has them, so that each of a player's Arcade Buttons is the
-// same button in the game.
+// the controller database OSD/OS reads, a pad's buttons by their places, as
+// InputManager has them, and every pad's mapping as OSD/OS's own SDL has it
+// (controllers::padMappings()), so that the game's SDL, of another version or
+// on another system, with another database, knows each pad as the menus do
+// and numbers its buttons as the binds written for it do: each of a player's
+// Arcade Buttons is the same button in the game.
 QList<QPair<QString, QString>> padEnvironment(const QString &dataRoot) {
     QList<QPair<QString, QString>> environment{
         { QStringLiteral("SDL_GAMECONTROLLER_USE_BUTTON_LABELS"), QStringLiteral("0") } };
     const QString mappings = dataRoot + QStringLiteral("/gamecontrollerdb.txt");
     if (QFileInfo::exists(mappings))
         environment << qMakePair(QStringLiteral("SDL_GAMECONTROLLERCONFIG_FILE"), mappings);
+    const QStringList pads = controllers::padMappings();
+    if (!pads.isEmpty())
+        environment << qMakePair(QStringLiteral("SDL_GAMECONTROLLERCONFIG"), pads.join(QLatin1Char('\n')));
     return environment;
 }
 

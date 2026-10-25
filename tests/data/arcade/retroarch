@@ -41,6 +41,7 @@ done
 	echo "cwd $(pwd)"
 	echo "sdlconfig ${SDL_GAMECONTROLLERCONFIG_FILE:-}"
 	echo "sdllabels ${SDL_GAMECONTROLLER_USE_BUTTON_LABELS:-}"
+	echo "sdlmappings ${SDL_GAMECONTROLLERCONFIG:-}"
 	echo "xdg ${XDG_CONFIG_HOME:-}"
 	# As RetroArch knows a core: by its info file, looked for by its name
 	# among the cores in libretro_directory.

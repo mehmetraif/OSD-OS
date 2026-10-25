@@ -919,6 +919,16 @@ void InputManager::updatePlayers() {
 #endif
     }
     controllers::setPlayerEnvironment(variables);
+    // Every pad's mapping as this SDL has it, for the emulators' SDL.
+    QStringList mappings;
+    for (SDL_GameController *gc : std::as_const(m_controllers)) {
+        if (char *mapping = SDL_GameControllerMapping(gc)) {
+            mappings << controllers::mappingWithoutCrc(QString::fromUtf8(mapping));
+            SDL_free(mapping);
+        }
+    }
+    mappings.sort();
+    controllers::setPadMappings(mappings);
 
     m_playerPads = playing;
     publishArcade();

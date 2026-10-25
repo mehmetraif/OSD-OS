@@ -151,6 +151,19 @@ QStringList playerGuids();
 // And its name, as SDL has it: with the GUID, the controller RetroArch keeps
 // for the player.
 QStringList playerNames();
+// SDL's mapping of each controller connected, as OSD/OS's own SDL has it (its
+// GUID, its name, its buttons and axes), the GUID's CRC zeroed so that an SDL
+// of another version takes it too: what the Arcade module gives MAME and
+// RetroArch in their environment (SDL_GAMECONTROLLERCONFIG), so that their
+// SDL, of another version or on another system, knows every pad as the menus
+// do and numbers its buttons as the binds written for it do. InputManager
+// keeps them as the pads come and go.
+void setPadMappings(const QStringList &mappings);
+QStringList padMappings();
+// A mapping with its GUID's CRC zeroed (SDL's, of the pad's name, the GUID's
+// third and fourth bytes): SDL matches a mapping without one whether or not
+// its own GUIDs carry it. Anything that isn't a mapping is left as it is.
+QString mappingWithoutCrc(const QString &mapping);
 // Each player's Arcade Buttons as the engines take them, kArcadeInputs
 // entries each, mameInput()'s and retroarchBind()'s names: empty for a
 // player whose pad has no layout of its own. InputManager keeps them as it

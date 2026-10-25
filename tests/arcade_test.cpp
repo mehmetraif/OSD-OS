@@ -97,6 +97,7 @@ esac
 	echo "cwd $(pwd)"
 	echo "kms ${SDL_KMSDRM_DEVICE_INDEX:-}"
 	echo "labels ${SDL_GAMECONTROLLER_USE_BUTTON_LABELS:-}"
+	echo "mappings ${SDL_GAMECONTROLLERCONFIG:-}"
 } >> "$MAME_LOG"
 prev=""
 for a in "$@"; do
@@ -820,6 +821,9 @@ private slots:
                                             { QStringLiteral("OSDOS_PLAYER3_GUID"), QStringLiteral("0600aaaa") } });
         qputenv("OSDOS_DRM_DEVICE", "/dev/dri/card1");
         QVERIFY(!arcade.played());
+        // Every pad's mapping as OSD/OS's SDL has it goes to MAME's.
+        controllers::setPadMappings({ QStringLiteral("03000000000000000000000000000000,Pad One,a:b0,b:b1") });
+        const auto noMappings = qScopeGuard([] { controllers::setPadMappings({}); });
         QCOMPARE(played(arcade, QStringLiteral("pacman")),
                  QVariantList({ 0, QStringLiteral("ok"), QString() }));
         qunsetenv("OSDOS_DRM_DEVICE");
@@ -845,6 +849,8 @@ private slots:
         QVERIFY(!log.contains(QStringLiteral("P1_BUTTON1")));
         // A pad's buttons by their places, as the menus have them.
         QCOMPARE(logLines(QStringLiteral("labels")), QStringList({ QStringLiteral("labels 0") }));
+        QCOMPARE(logLines(QStringLiteral("mappings")),
+                 QStringList({ QStringLiteral("mappings 03000000000000000000000000000000,Pad One,a:b0,b:b1") }));
         QVERIFY(QFileInfo(home + QStringLiteral("/cfg")).isDir());
         QVERIFY(QFileInfo(home + QStringLiteral("/nvram")).isDir());
 
@@ -1893,6 +1899,10 @@ private slots:
         QCOMPARE(QFile::permissions(kept) & (QFile::ReadGroup | QFile::ReadOther), QFileDevice::Permissions());
 
         QFile::remove(m_log);
+        // Every pad's mapping as OSD/OS's SDL has it goes to RetroArch's.
+        controllers::setPadMappings({ QStringLiteral("03000000000000000000000000000000,Pad One,a:b0,b:b1"),
+                                      QStringLiteral("030000005e040000e002000003090000,Pad Two,a:b0") });
+        const auto noMappings = qScopeGuard([] { controllers::setPadMappings({}); });
         // JAMMA 240p: Street Fighter II's 4:3 as wide as the screen's
         // pixels are narrow, its lines whole.
         arcade.setScreen(true, QSize(720, 240));
@@ -1906,6 +1916,8 @@ private slots:
         QVERIFY(logLines().contains(QStringLiteral("sdlconfig ") + data.path() + QStringLiteral("/gamecontrollerdb.txt")));
         // A pad's buttons by their places, as the menus have them.
         QVERIFY(logLines().contains(QStringLiteral("sdllabels 0")));
+        QVERIFY(logLines().contains(QStringLiteral("sdlmappings 03000000000000000000000000000000,Pad One,a:b0,b:b1")));
+        QVERIFY(logLines().contains(QStringLiteral("030000005e040000e002000003090000,Pad Two,a:b0")));
         // FinalBurn Neo's info file written for it, which has RetroArch take
         // its states for deterministic, as netplay needs them.
         QVERIFY(logLines().contains(QStringLiteral("coreinfo deterministic")));
