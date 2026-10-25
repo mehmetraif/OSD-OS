@@ -24,10 +24,13 @@ const QString kDefaultFeedUrl =
 // Release asset this build looks for. On Linux the artifact depends on CPU arch:
 // arm64 (Raspberry Pi) ships a tarball the launcher swaps into /opt; x86_64
 // (SteamDeck / Intel/AMD desktop) ships a self-contained AppImage. Computed at
-// runtime because a single Linux binary could run on either arch.
+// runtime because a single Linux binary could run on either arch. Windows'
+// is the app's one folder zipped, which is named rather than put in place.
 QString assetSuffix() {
 #if defined(Q_OS_MAC)
     return QStringLiteral("-macOS-arm64.dmg");
+#elif defined(Q_OS_WIN)
+    return QStringLiteral("-windows-x64.zip");
 #elif defined(Q_OS_LINUX)
     return QSysInfo::currentCpuArchitecture() == QStringLiteral("arm64")
                ? QStringLiteral("-linux-arm64.tar.gz")
@@ -39,9 +42,7 @@ QString assetSuffix() {
 
 // The system, for the message that says no package is built for it yet.
 QString systemName() {
-#if defined(Q_OS_WIN)
-    return QStringLiteral("Windows");
-#elif defined(Q_OS_FREEBSD)
+#if defined(Q_OS_FREEBSD)
     return QStringLiteral("FreeBSD");
 #elif defined(Q_OS_OPENBSD)
     return QStringLiteral("OpenBSD");
@@ -352,14 +353,14 @@ void UpdateManager::handleReleaseInfo(const QByteArray &json) {
         return;
     }
 
-#if defined(Q_OS_WIN) || (defined(Q_OS_BSD4) && !defined(Q_OS_DARWIN))
-    // No package for Windows or the BSDs among the release's assets yet: the
-    // newer version is named, to be downloaded by hand.
+#if defined(Q_OS_BSD4) && !defined(Q_OS_DARWIN)
+    // No package for the BSDs among the release's assets yet: the newer
+    // version is named, to be downloaded by hand.
     setState(QStringLiteral("error"),
              QStringLiteral("%1 is out. No update package for %2 yet: download it from "
                             "github.com/mehmetraif/OSD-OS/releases.").arg(tag, systemName()));
     return;
-#elif !defined(Q_OS_MAC)
+#elif !defined(Q_OS_MAC) && !defined(Q_OS_WIN)
     const QString arch = QSysInfo::currentCpuArchitecture();
     if (arch != QStringLiteral("arm64") && arch != QStringLiteral("x86_64")) {
         setState(QStringLiteral("error"),
@@ -390,6 +391,21 @@ void UpdateManager::handleReleaseInfo(const QByteArray &json) {
                  QStringLiteral("Release %1 has no package for this platform.").arg(tag));
         return;
     }
+#if defined(Q_OS_WIN)
+    // Windows' package is not put in place here: the file is named, for its
+    // osdos folder to take this one's place by hand. The settings are apart,
+    // in %APPDATA%\OSD-OS, and stay.
+    const QString file = m_assetName;
+    m_assetName.clear();
+    m_assetUrl.clear();
+    m_assetSize = 0;
+    m_expectedSha256.clear();
+    setState(QStringLiteral("error"),
+             QStringLiteral("%1 is out: download %2 from github.com/mehmetraif/OSD-OS/releases and put "
+                            "its osdos folder in place of this one. Your settings stay as they are.")
+                 .arg(tag, file));
+    return;
+#endif
     setState(QStringLiteral("updateAvailable"));
 }
 

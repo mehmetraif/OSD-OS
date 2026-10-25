@@ -5,11 +5,12 @@ name: Windows build
 # SDL2, OpenSSL, minizip and zlib beside it, and the app's own files (Main.qml,
 # views/, modules/, assets/, scripts/, LICENSE) in the same folder, as the
 # install rules lay them out on Windows; unpacked anywhere, osdos.exe runs
-# from it. mpv is not in it: mpv.exe goes beside the app or on the PATH. No
-# release package yet: the build is the proof that the sources compile there,
-# and a copy to try.
+# from it. mpv is not in it: mpv.exe goes beside the app or on the PATH. The
+# release workflow calls it for a tag, and publishes the folder zipped as
+# OSD-OS-<tag>-windows-x64.zip (release.yml).
 
 on:
+  workflow_call:
   workflow_dispatch:
   push:
     branches: [main]

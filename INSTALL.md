@@ -381,3 +381,52 @@ The AppImage carries its own copy of the Wayland client libraries and uses them 
 
 - Delete the `.AppImage` file (and remove it from Steam if you added it as a non-Steam game)
 - Remove the configuration files in `~/.local/share/OSD-OS/`
+
+## On Windows (x64)
+
+For Windows 11 on x64, OSD/OS comes as a zip: one folder, `osdos`, with `osdos.exe`, Qt and the libraries it needs, and OSD/OS's own files. Nothing is installed: the folder runs from wherever you put it.
+
+### Requirements
+
+- Windows 11 on an x64 PC
+- Internet access
+- mpv, which plays the videos (step 3)
+
+### Steps
+
+1. Download `OSD-OS-<version>-windows-x64.zip` from the [latest release](https://github.com/mehmetraif/OSD-OS/releases/latest).
+2. Unzip it where you want to keep OSD/OS, for example in `C:\Games`. It unpacks to one folder, `osdos`.
+3. Download a Windows build of mpv from [mpv.io](https://mpv.io/installation/) and put its folder inside `osdos` as `mpv`, or `mpv.exe` beside `osdos.exe`; mpv anywhere on the `PATH` works too.
+4. Double-click `osdos.exe`. Windows may stop the first start of a program it doesn't know yet (**Windows protected your PC**): choose **More info**, then **Run anyway**. A console window opens beside OSD/OS and shows its log; closing it closes OSD/OS too.
+
+### Post Install
+
+**Modules**
+
+- The Local Files and Playlists modules will be enabled by default and you can open settings to enable any other modules you would like to display.
+- Please see the [Modules](https://github.com/mehmetraif/OSD-OS/wiki/Modules) pages in the wiki for details on any additional set up that may be needed for the modules you'd like to use.
+
+**Arcade**
+
+- Settings → Arcade → **MAME** downloads MAME, and Settings → Arcade → **FinalBurn Neo** downloads RetroArch and the FinalBurn Neo core. Both are the versions the OSD/OS image has, so a PC plays online and over the local network with a Pi.
+
+**YouTube**
+
+- Put `yt-dlp.exe` in the data folder's `bin` folder (`%APPDATA%\OSD-OS\bin\`), beside `osdos.exe` or on the `PATH`, and `deno.exe` on the `PATH`.
+
+**A window on the desktop**
+
+- Settings → **Window Mode** shows OSD/OS in a window on the desktop instead of the whole screen; F11 or Alt+Enter switches at any time.
+
+### Update
+
+Settings → Update says when a newer version is out and names its zip, but on Windows it doesn't put the new version in place itself:
+
+1. Download the new `OSD-OS-<version>-windows-x64.zip` from the [latest release](https://github.com/mehmetraif/OSD-OS/releases/latest).
+2. Close OSD/OS, delete the old `osdos` folder and unzip the new one in its place. *Your settings are in `%APPDATA%\OSD-OS\`, apart from the app, and stay as they are, as do the MAME and RetroArch it downloaded.*
+3. If mpv was inside the old folder, put it in the new one again.
+
+### Uninstall
+
+- Delete the `osdos` folder
+- Delete `%APPDATA%\OSD-OS\`: your settings, and the MAME and RetroArch OSD/OS downloaded

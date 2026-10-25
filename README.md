@@ -49,7 +49,7 @@ The [feature list](https://github.com/mehmetraif/OSD-OS/wiki/Features) has the r
 
 - **The OSD/OS image**, the whole system for a Raspberry Pi: download `OSD-OS-<version>-raspberry-pi.img.xz` from the [latest release](https://github.com/mehmetraif/OSD-OS/releases/latest) and [flash it](os/README.md#flashing). OSD/OS is on screen from the moment the Pi is switched on, and films go in the Movies folder on the card's own partition.
   - **[OSD/OS Setup](https://osdos.tv/setup/)** chooses what the card starts with before it goes into the Pi, for a TV or an arcade cabinet, with a live preview of the look chosen, OSD/OS's own effects running in the browser: the display output, Wi-Fi, the device's name, the user's password, SSH, the time zone, the keyboard, every setting of OSD/OS, and the RetroAchievements account. It gives one file for the card's boot partition, which the card applies as it starts ([how](os/README.md#osdos-setup)).
-- **As an app** on [Raspberry Pi OS](INSTALL.md#on-a-raspberry-pi), [macOS (ARM)](INSTALL.md#on-macos-arm) or [SteamOS and other Linux x86_64](INSTALL.md#on-steamos--linux-x86_64).
+- **As an app** on [Raspberry Pi OS](INSTALL.md#on-a-raspberry-pi), [macOS (ARM)](INSTALL.md#on-macos-arm), [SteamOS and other Linux x86_64](INSTALL.md#on-steamos--linux-x86_64) or [Windows 11 (x64)](INSTALL.md#on-windows-x64).
 
 Tested on a Raspberry Pi 4 and a Raspberry Pi 5 (8 GB): the Pi 4 as a TV, the Pi 5 in a JAMMA arcade cabinet, and LAN Play between the two. On another board? Tell us how it went in an [issue](https://github.com/mehmetraif/OSD-OS/issues).
 

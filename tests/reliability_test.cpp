@@ -147,14 +147,19 @@ private slots:
             asset("OSD-OS-v0.1.0-linux-arm64.tar.gz", 20, !digest.isEmpty());
             asset("OSD-OS-v0.1.0-macOS-arm64.dmg", 30, !digest.isEmpty());
             asset("OSD-OS-linux-x86_64.AppImage", 40, !digest.isEmpty());
+            asset("OSD-OS-v0.1.0-windows-x64.zip", 50, !digest.isEmpty());
             return QJsonDocument(QJsonObject{ { "tag_name", "v0.1.0" }, { "assets", assets } }).toJson();
         };
         manager.handleReleaseInfo(release("sha256:" + sha));
 #if defined(Q_OS_WIN) || (defined(Q_OS_BSD4) && !defined(Q_OS_DARWIN))
-        // No package for Windows or the BSDs among a release's files: none is
-        // picked, and the newer version is named for a download by hand.
+        // Windows' zip is named for a download by hand, not taken; the BSDs
+        // have no package among a release's files, and the newer version is
+        // named.
         QCOMPARE(manager.state(), QString("error"));
         QVERIFY2(manager.errorMessage().contains("v0.1.0"), qPrintable(manager.errorMessage()));
+#if defined(Q_OS_WIN)
+        QVERIFY2(manager.errorMessage().contains("OSD-OS-v0.1.0-windows-x64.zip"), qPrintable(manager.errorMessage()));
+#endif
         QVERIFY(manager.m_assetName.isEmpty());
 #else
         QCOMPARE(manager.state(), QString("updateAvailable"));
