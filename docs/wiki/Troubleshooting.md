@@ -258,6 +258,9 @@ The Arcade module lists the ROM sets in its games folder as MAME names them, and
 | `MAME stopped: …` about OpenGL, video or a window | MAME couldn't draw the way it was asked | Try another **Video** in Settings → Arcade |
 | `MAME closed unexpectedly` | MAME crashed | Try another **Video** in Settings → Arcade |
 | Coin and Start don't bring you back | They count together, on one player's controller | Press them together on a controller Settings → Controls → Players gives a player, or Esc on a keyboard |
+| `Could not join the game: Failed to connect to host …` as a LAN or online game starts | RetroArch couldn't reach the host and would have played the game alone, so OSD/OS stopped it | Check the host still hosts the game, and that its firewall lets RetroArch's port through (on Windows, let RetroArch through Windows Defender Firewall); other lines name another core or RetroArch on the host, or a host with no port left ([Arcade → LAN play](https://github.com/mehmetraif/OSD-OS/wiki/Arcade#lan-play)) |
+| `Could not host the game: Failed to bind port …` | Another RetroArch, or another program, holds the port | Close it, or wait for the other game to end |
+| A keyboard's 5 and 1 do nothing in a FinalBurn Neo game | An older OSD/OS left RetroArch's own Right Shift and Enter as a keyboard's coin and start | Update OSD/OS: 5 and 1 are player 1's coin and start, 6 and 2 player 2's, as in MAME |
 
 The log has the module's lines, and MAME's runs as the Scripts module's launcher logs them: `journalctl -u osdos -b | grep -E 'Arcade|Scripts'`. More in [Arcade → Troubleshooting](https://github.com/mehmetraif/OSD-OS/wiki/Arcade#troubleshooting).
 

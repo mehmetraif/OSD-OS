@@ -10,7 +10,10 @@
 # a sign-in refused for the password "wrong" or the token "expired", and
 # RetroAchievements not reached for the token "offline". It swaps the password
 # "secret" for a token in the config, as RetroArch saves it on exit, and takes
-# $RA_SECONDS to end.
+# $RA_SECONDS to end. With $RA_NETPLAY_FAILS set, hosting (--host) or joining
+# (--connect), it logs what RetroArch does as netplay fails, the port not
+# bound or the host not reached, and plays on until it is stopped, as
+# RetroArch would.
 #
 # Started with OSD/OS's sign-in core, to check a sign-in, it says on its
 # output what RetroArch's log does as it signs in, its token in the config
@@ -102,7 +105,25 @@ game=$(basename "$content"); game="${game%.*}"
 		&& echo "[INFO] [RCHEEVOS]: RetroAchievements login failed: Invalid token"
 	grep -q 'cheevos_token = "offline"' "$config" \
 		&& echo "[INFO] [RCHEEVOS]: RetroAchievements login failed: No response from server"
+	# Netplay failing: RetroArch's own lines for it, then the game alone.
+	if [ -n "${RA_NETPLAY_FAILS:-}" ]; then
+		case " $* " in
+		*" --host "*)
+			echo "[ERROR] [Netplay] Failed to bind port 55435."
+			echo "[ERROR] [Netplay] Failed to bind port 55435."
+			echo "[ERROR] [Netplay] Failed to set up netplay sockets."
+			;;
+		*" --connect "*) echo "[ERROR] [Netplay] Failed to connect to host 127.0.0.1 on port 55435." ;;
+		esac
+		echo "[ERROR] [Netplay] Failed to initialize netplay."
+	fi
 } > "$log"
+if [ -n "${RA_NETPLAY_FAILS:-}" ]; then
+	trap 'kill $! 2>/dev/null; exit 0' TERM
+	sleep 30 &
+	wait
+	exit 0
+fi
 [ -n "$RA_SECONDS" ] && sleep "$RA_SECONDS"
 if grep -q 'cheevos_password = "secret"' "$config"; then
 	sed -i 's/^cheevos_token = .*/cheevos_token = "tok123"/; s/^cheevos_password = .*/cheevos_password = ""/' "$config"

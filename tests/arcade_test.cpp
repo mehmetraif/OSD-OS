@@ -1163,6 +1163,11 @@ private slots:
                                   "input_player1_select_btn = \"4\"", "input_player2_up_btn = \"11\"",
                                   "input_player6_l_x_minus_axis = \"-0\"", "input_player6_r_y_plus_axis = \"-3\"",
                                   "input_quit_gamepad_combo = \"4\"", "quit_press_twice = \"false\"",
+                                  // A keyboard's coin and start as MAME has them, in
+                                  // place of RetroArch's Right Shift and Enter.
+                                  "input_player1_select = \"num5\"", "input_player1_start = \"num1\"",
+                                  "input_player2_select = \"num6\"", "input_player2_start = \"num2\"",
+                                  "input_player4_select = \"num8\"", "input_player4_start = \"num4\"",
                                   "menu_driver = \"rgui\"", "ui_companion_enable = \"false\"",
                                   "system_directory = \"/ra/system\"", "savefile_directory = \"/ra/saves\"",
                                   "input_player1_device_reservation_type = \"2\"",
@@ -1184,6 +1189,7 @@ private slots:
                                   "savestate_features = \"deterministic\"" })
             QVERIFY2(info.contains(QLatin1String(line)), line);
         QVERIFY(!config.contains(QStringLiteral("input_player2_reserved_device")));
+        QVERIFY(!config.contains(QStringLiteral("input_player5_select = ")));
         QVERIFY(!config.contains(QStringLiteral("input_player7_")));
         QVERIFY(!config.contains(QStringLiteral("netplay_")));
         // A player on an arcade panel, a JAMMA board's stick: the cabinet's
@@ -1605,6 +1611,59 @@ private slots:
         QVERIFY(run.started);
         QVERIFY(run.missing.isEmpty());
         QVERIFY(!libretro::readLog(dir.path() + QStringLiteral("/none.log")).logged);
+        // Over the network, the first netplay error RetroArch plays on alone
+        // after, its full stop dropped, passing over what lets the game go
+        // on (a warning, input out of order); the last error line as before.
+        writeFile(dir.path() + QStringLiteral("/joining.log"),
+                  "[INFO] [Netplay] Connecting to netplay host 192.168.1.20:55435.\n"
+                  "[WARN] [Netplay] WARNING: A netplay peer is running a different version of RetroArch. If problems occur, use the same version.\n"
+                  "[ERROR] [Netplay] Netplay input out of order.\n"
+                  "[ERROR] [Netplay] Failed to connect to host 192.168.1.20 on port 55435.\n"
+                  "[ERROR] [Netplay] Failed to initialize netplay.\n"
+                  "[libretro INFO] [FBNeo] Driver successfully started\n");
+        run = libretro::readLog(dir.path() + QStringLiteral("/joining.log"));
+        QVERIFY(run.started);
+        QCOMPARE(run.netplayFailure, QStringLiteral("Failed to connect to host 192.168.1.20 on port 55435"));
+        QCOMPARE(run.error, QStringLiteral("[Netplay] Failed to initialize netplay."));
+        // A host turns clients away and plays on, and misses its port over
+        // IPv6 before it binds it over IPv4: not a failure of its own, as a
+        // port it couldn't bind at all is, the most telling line of the
+        // start that failed.
+        writeFile(dir.path() + QStringLiteral("/hosting.log"),
+                  "[ERROR] [Netplay] Failed to bind port 55435.\n"
+                  "[ERROR] [Netplay] Failed to receive header from client.\n"
+                  "[ERROR] [Netplay] A netplay peer is running a different core. Cannot connect.\n"
+                  "[libretro INFO] [FBNeo] Driver successfully started\n");
+        QVERIFY(libretro::readLog(dir.path() + QStringLiteral("/hosting.log"), true).netplayFailure.isEmpty());
+        writeFile(dir.path() + QStringLiteral("/port.log"),
+                  "[ERROR] [Netplay] Failed to bind port 55435.\n"
+                  "[ERROR] [Netplay] Failed to bind port 55435.\n"
+                  "[ERROR] [Netplay] Failed to set up netplay sockets.\n"
+                  "[ERROR] [Netplay] Failed to initialize netplay.\n");
+        QCOMPARE(libretro::readLog(dir.path() + QStringLiteral("/port.log"), true).netplayFailure,
+                 QStringLiteral("Failed to bind port 55435"));
+        // The lines themselves: a netplay error's words, and what ends the
+        // game of them, joining (the host turned this machine away, or
+        // dropped it) and hosting (a start that failed, by its most telling
+        // line).
+        const QString refused = QStringLiteral("A netplay peer is running a different core. Cannot connect");
+        QCOMPARE(libretro::netplayError(QStringLiteral("[ERROR] [Netplay] %1.").arg(refused)).value_or(QString()), refused);
+        QVERIFY(!libretro::netplayError(QStringLiteral("[ERROR] [Content]: Something went wrong.")));
+        QVERIFY(!libretro::netplayError(QStringLiteral("[INFO] [Netplay] Failed to initialize netplay.")));
+        QCOMPARE(libretro::netplayFailure({ refused }, false), refused);
+        QVERIFY(libretro::netplayFailure({ refused }, true).isEmpty());
+        const QString ping = QStringLiteral("Your ping is too high for this host");
+        QCOMPARE(libretro::netplayFailure({ ping, QStringLiteral("Failed to initialize netplay") }, false), ping);
+        QVERIFY(libretro::netplayFailure({ QStringLiteral("Failed to set up netplay sockets") }, true).isEmpty());
+        QCOMPARE(libretro::netplayFailure({ QStringLiteral("Failed to set up netplay sockets"),
+                                            QStringLiteral("Failed to initialize netplay") }, true),
+                 QStringLiteral("Failed to set up netplay sockets"));
+        QCOMPARE(libretro::netplayFailure({ QStringLiteral("Failed to connect to relay server 1.2.3.4 on port 55435"),
+                                            QStringLiteral("Failed to set up netplay sockets"),
+                                            QStringLiteral("Failed to initialize netplay") }, true),
+                 QStringLiteral("Failed to connect to relay server 1.2.3.4 on port 55435"));
+        QCOMPARE(libretro::netplayFailure({ QStringLiteral("Failed to initialize netplay") }, false),
+                 QStringLiteral("Failed to initialize netplay"));
 
         writeFile(dir.path() + QStringLiteral("/saved.cfg"),
                   "cheevos_enable = \"true\"\ncheevos_password = \"\"\ncheevos_token = \"tok456\"\n");
@@ -5137,6 +5196,19 @@ private slots:
         QVERIFY2(config.contains(QStringLiteral("input_player1_b_btn = \"0\"")), qPrintable(config));
         QVERIFY(config.contains(QStringLiteral("input_player1_y_btn = \"2\"")));
         QTRY_VERIFY(!claimed.isEmpty() && claimed.last() == libretro::claimRelease());
+        // RetroArch that can't reach the host says so and plays the game
+        // alone: stopped as its log says so, the ports given back, and the
+        // end says why.
+        qputenv("RA_NETPLAY_FAILS", "1");
+        QFile::remove(m_log);
+        const QVariantList alone = ended([&arcade] { return arcade.joinLanRoom(1); });
+        qunsetenv("RA_NETPLAY_FAILS");
+        QCOMPARE(alone.value(1).toString(), QStringLiteral("failed"));
+        QCOMPARE(alone.value(2).toString(),
+                 QStringLiteral("Could not join the game: Failed to connect to host 127.0.0.1 on port 55435\n"
+                                "The host didn't answer: its game may have ended, or a firewall there keeps the port closed"));
+        QTRY_VERIFY(!claimed.isEmpty() && claimed.last() == libretro::claimRelease());
+        QVERIFY(!arcade.running());
         // A host that doesn't say, RetroArch alone or an older OSD/OS: asked
         // twice, then joined with the ports from 2, on the Classic layout,
         // the stick's buttons by number.
@@ -5199,6 +5271,18 @@ private slots:
             QVERIFY2(config.contains(QLatin1String(line)), line);
         QCOMPARE(requested(config), QStringLiteral("1"));
         QVERIFY(logLines().contains(QStringLiteral("coreinfo deterministic")));
+        QCOMPARE(asking(libretro::claimQuery(1), 300), QByteArray("no answer"));
+        // Hosting with the port taken: RetroArch says so and plays alone;
+        // stopped as its log says so, no ports given meanwhile, and the end
+        // says why.
+        qputenv("RA_NETPLAY_FAILS", "1");
+        QFile::remove(m_log);
+        hostEnded.clear();
+        QVERIFY(arcade.hostLanGame(QStringLiteral("sf2")));
+        QVERIFY(hostEnded.wait(10000) || !hostEnded.isEmpty());
+        qunsetenv("RA_NETPLAY_FAILS");
+        QCOMPARE(hostEnded.first().value(1).toString(), QStringLiteral("failed"));
+        QCOMPARE(hostEnded.first().value(2).toString(), QStringLiteral("Could not host the game: Failed to bind port 55435"));
         QCOMPARE(asking(libretro::claimQuery(1), 300), QByteArray("no answer"));
         // A room no longer hosted.
         QVERIFY(!arcade.joinLanRoom(2));

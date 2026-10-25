@@ -106,6 +106,12 @@ constexpr int kClaimAskings = 3;
 // How long ports that came without the host's layout wait for it (a datagram
 // of its own, sent before them: lost, or an older OSD/OS's, which says none).
 constexpr int kLayoutWaitMs = 150;
+// Over the network, how often RetroArch's log is read as the game starts, and
+// for how long: a host it can't reach it gives up on after 10 s, and the
+// handshake takes a moment after; what fails later (a peer leaving) isn't a
+// start that failed.
+constexpr int kNetplayWatchMs = 500;
+constexpr int kNetplayWatchFor = 60000;
 
 // catver.ini, the games' genres, as progettosnaps publishes it with each MAME:
 // downloaded into <data>/arcade when neither folder has one (it may not be
@@ -452,17 +458,25 @@ ArcadeBackend::ArcadeBackend(const QString &appRoot, const QString &dataRoot, Ap
         QString reason = launcherReason;
         QString notice;
         bool refused = false;
+        m_netplayWatch->stop();
         if (m_playingEngine == QLatin1String("fbneo")) {
-            const libretro::Run run = libretro::readLog(retroarchHome() + QStringLiteral("/last.log"));
+            const libretro::Run run = libretro::readLog(retroarchHome() + QStringLiteral("/last.log"),
+                                                        libretro::hosts(m_playingNetplay));
             takeAchievements(run);
             // FinalBurn Neo shows its own error for a game it can't start,
             // and RetroArch goes on: a game is one it started, as its log
-            // says (a log there to say so).
-            if (reason == QLatin1String("ok") && run.logged && !run.started)
+            // says (a log there to say so). Over the network, one RetroArch
+            // couldn't host or join and went on with alone (stopped by
+            // watchNetplay(), or played out) isn't the game asked for.
+            const bool alone = m_playingNetplay != libretro::Launch::Netplay::None && !run.netplayFailure.isEmpty();
+            if ((reason == QLatin1String("ok") && run.logged && !run.started)
+                || (alone && reason != QLatin1String("failed_to_start")))
                 reason = QStringLiteral("failed");
             notice = fbneoNotice(exitCode, reason, run);
+            // Stopped by watchNetplay(), RetroArch may die of the signal,
+            // which the launcher counts a crash: not a game played either.
             refused = reason == QLatin1String("failed_to_start")
-                      || (reason == QLatin1String("failed") && !m_launcher->lastRunCrashed() && !run.started);
+                      || (reason == QLatin1String("failed") && (alone || (!m_launcher->lastRunCrashed() && !run.started)));
         } else {
             notice = noticeFor(exitCode, reason);
             // The time it ran counts as played, unless MAME refused the game
@@ -500,6 +514,9 @@ ArcadeBackend::ArcadeBackend(const QString &appRoot, const QString &dataRoot, Ap
         if (!m_scan && !m_toAsk.isEmpty())
             scanNext();
     });
+    m_netplayWatch = new QTimer(this);
+    m_netplayWatch->setInterval(kNetplayWatchMs);
+    connect(m_netplayWatch, &QTimer::timeout, this, &ArcadeBackend::watchNetplay);
 
     m_watcher = new QFutureWatcher<Read>(this);
     connect(m_watcher, &QFutureWatcherBase::finished, this, &ArcadeBackend::onRead);
@@ -3286,8 +3303,16 @@ bool ArcadeBackend::playFbneo(const QString &name, libretro::Launch::Netplay net
     }
     m_playing = name;
     m_playingEngine = QStringLiteral("fbneo");
-    m_playingOnline = netplay != libretro::Launch::Netplay::None;
+    m_playingNetplay = netplay;
     m_playClock.start();
+    // Over the network: RetroArch's log watched for the failure it would
+    // play on alone after.
+    if (netplay != libretro::Launch::Netplay::None) {
+        m_netplayLogRead = 0;
+        m_netplayLogTail.clear();
+        m_netplayErrors.clear();
+        m_netplayWatch->start();
+    }
     if (!m_played) {
         m_played = true;
         emit playedChanged();
@@ -4032,11 +4057,59 @@ QString ArcadeBackend::lanDetail(const libretro::Room &room) const {
     return parts.join(QStringLiteral(" • "));
 }
 
+void ArcadeBackend::watchNetplay() {
+    // RetroArch that can't host or join (the host not reached, the handshake
+    // refused, its port taken) says so once on its screen and plays the game
+    // alone, as if nothing had been asked; its log says so too, a line at a
+    // time as it goes. The log is read as it grows while the game starts,
+    // and the game stopped at the first such line: the end then says why
+    // (fbneoNotice()).
+    if (m_playClock.elapsed() > kNetplayWatchFor || !m_launcher->isBusy()) {
+        m_netplayWatch->stop();
+        return;
+    }
+    QFile log(retroarchHome() + QStringLiteral("/last.log"));
+    if (!log.open(QIODevice::ReadOnly) || log.size() <= m_netplayLogRead || !log.seek(m_netplayLogRead))
+        return;
+    m_netplayLogTail += log.readAll();
+    m_netplayLogRead = log.pos();
+    // Whole lines: the last may be half written.
+    const qsizetype end = m_netplayLogTail.lastIndexOf('\n');
+    if (end < 0)
+        return;
+    const QList<QByteArray> lines = m_netplayLogTail.left(end).split('\n');
+    m_netplayLogTail.remove(0, end + 1);
+    const bool hosting = libretro::hosts(m_playingNetplay);
+    for (const QByteArray &line : lines) {
+        const std::optional<QString> error = libretro::netplayError(QString::fromUtf8(line));
+        if (!error)
+            continue;
+        m_netplayErrors << *error;
+        const QString failure = libretro::netplayFailure(m_netplayErrors, hosting);
+        if (failure.isEmpty())
+            continue;
+        qWarning("[Arcade] %s: RetroArch plays on alone, \"%s\": stopped", qPrintable(m_playing), qPrintable(failure));
+        m_netplayWatch->stop();
+        m_launcher->requestStop();
+        return;
+    }
+}
+
 QString ArcadeBackend::fbneoNotice(int exitCode, const QString &reason, const libretro::Run &run) const {
     if (reason == QLatin1String("ok"))
         return QString();
     if (reason == QLatin1String("failed_to_start"))
         return QStringLiteral("RetroArch did not start");
+    // Over the network, the game RetroArch couldn't set up and went on with
+    // alone: why, in its words.
+    if (m_playingNetplay != libretro::Launch::Netplay::None && !run.netplayFailure.isEmpty()) {
+        QString notice = QStringLiteral("Could not %1 the game: %2")
+                             .arg(libretro::hosts(m_playingNetplay) ? QStringLiteral("host") : QStringLiteral("join"),
+                                  run.netplayFailure);
+        if (run.netplayFailure.startsWith(QLatin1String("Failed to connect to host")))
+            notice += QStringLiteral("\nThe host didn't answer: its game may have ended, or a firewall there keeps the port closed");
+        return notice;
+    }
     if (reason == QLatin1String("stopped"))
         return QStringLiteral("The game was stopped");
     if (m_launcher->lastRunCrashed())
@@ -4047,7 +4120,7 @@ QString ArcadeBackend::fbneoNotice(int exitCode, const QString &reason, const li
             files += QStringLiteral(" and %1 more").arg(run.missing.size() - 3);
         // No other engine to play it in: one MAME doesn't know, one played
         // online, or with no MAME.
-        if (fbneoOnly(m_playing) || m_playingOnline || mamePath().isEmpty())
+        if (fbneoOnly(m_playing) || m_playingNetplay != libretro::Launch::Netplay::None || mamePath().isEmpty())
             return QStringLiteral("Missing %1: the set may be for another version of FinalBurn Neo\n"
                                   "Or a BIOS set it needs isn't in the games folder").arg(files);
         return QStringLiteral("Missing %1: FinalBurn Neo's sets aren't always MAME's\n"

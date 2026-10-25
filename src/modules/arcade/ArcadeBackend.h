@@ -868,6 +868,10 @@ private:
     bool startClaims(int own, int most, libretro::Launch::Layout layout);
     void answerClaims();
     void stopClaims();
+    // Over the network, RetroArch's log read every so often as the game
+    // starts: at the netplay error it would play on alone after, the game is
+    // stopped, and the end says why (fbneoNotice()).
+    void watchNetplay();
     // The Online Games folder's entries: the rooms, or a line saying why
     // there are none.
     QVariantList roomEntries() const;
@@ -1244,7 +1248,14 @@ private:
     QString m_lastError;
     QString m_playing;
     QString m_playingEngine;      // "mame" or "fbneo"
-    bool    m_playingOnline = false;   // FinalBurn Neo's game hosted or joined
+    libretro::Launch::Netplay m_playingNetplay = libretro::Launch::Netplay::None;   // FinalBurn Neo's, hosted or joined
+    // Over the network, RetroArch's log read as it grows while the game
+    // starts (watchNetplay()): how far, the line cut off at its end, and its
+    // netplay errors so far.
+    QTimer     *m_netplayWatch = nullptr;
+    qint64      m_netplayLogRead = 0;
+    QByteArray  m_netplayLogTail;
+    QStringList m_netplayErrors;
     QElapsedTimer m_playClock;    // since the game playing started
     bool    m_played = false;
 };
