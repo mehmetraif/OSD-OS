@@ -343,7 +343,7 @@ Back on the main menu opens Settings, laid out like a camcorder's menu: a line p
 - ▲ ▼ move, skipping the headings, round from the bottom to the top. ◄ ► change the value, saved at once. Select, or ►, opens a line that ends in ► (TV / Movie, Arcade, a module's settings, Wi-Fi, Bluetooth, Update, a file or folder picker), and select turns a slider on or off. Back from a page returns to the line it was opened from.
 - **TV / Movie** opens the videos' page: Scaling, Transparent Background, Video Levels, Loading Effect, Loading Screen Colors, Channel Logo and Info Screen, then under **Modules** a line per video module (and Weather), for its settings, its **Enabled** row among them.
 - **Arcade** opens the Arcade module's settings, with the High Scores module's after them under its own heading.
-- **General Settings**: the look first, Theme, then its parts (Color Scheme, Skin, the effects, Transition, Menu Music), then OSD Background and Window Frame. Then startup (Start on Module, Play at Startup, Boot Screen Colors) and the screen (Hint Bar, Help Line, Screen Saver, Mouse Pointer).
+- **General Settings**: the look first, Theme, then its parts (Color Scheme, Skin, the effects, Transition, Menu Music), then OSD Background and Window Frame. Then startup (Start on Module, Play at Startup, Boot Screen Colors) and the screen (Hint Bar, Help Line, Screen Saver, Mouse Pointer, and on a PC's desktop Window Mode, the menus in a window, F11).
 - **Modules**: a line for each module on neither page, Scripts, for its settings.
 - **Application**: Display Output (on the image), Audio Output (where plain ALSA plays), Controls, Wi-Fi and Bluetooth (on Linux), Update, About (this device's System Information first) and Quit.
 
@@ -408,7 +408,7 @@ Settings → **About** opens on the OSD/OS wordmark and **SMART TV FOR CRT**, th
 | hi2txt | How each game keeps its high score table, GPL v2. Select opens the license |
 | RapidXML | The XML reader openhi2txt is built with, Boost or MIT. Select opens the licenses |
 | minizip, zlib | What opens hi2txt's definitions and FinalBurn Neo's download, zlib License. Select opens the license |
-| LZMA SDK | What unpacks the RetroArch for Windows the FinalBurn Neo page downloads, public domain. Select opens its note |
+| LZMA SDK | What unpacks the MAME and RetroArch for Windows the MAME and FinalBurn Neo pages download, public domain. Select opens its note |
 | RetroAchievements | Leaderboards and hardcore play, with your own account, and the games' pictures and the achievements' badges |
 | Online Play | libretro's lobby and relay servers |
 | progetto-SNAPS | The Snapshots and Titles packs and catver.ini, by AntoPISA, in the games folder or downloaded |

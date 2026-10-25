@@ -3,7 +3,7 @@
 #include "modules/arcade/ArcadeBackend.h"
 #include "modules/arcade/FbneoInstaller.h"
 #include "modules/arcade/Libretro.h"
-#include "modules/arcade/RetroArchInstaller.h"
+#include "modules/arcade/ProgramInstaller.h"
 #include "modules/arcade/Mame.h"
 #include "modules/arcade/RetroAchievements.h"
 
@@ -97,6 +97,7 @@ esac
 	echo "cwd $(pwd)"
 	echo "kms ${SDL_KMSDRM_DEVICE_INDEX:-}"
 	echo "labels ${SDL_GAMECONTROLLER_USE_BUTTON_LABELS:-}"
+	echo "mappings ${SDL_GAMECONTROLLERCONFIG:-}"
 } >> "$MAME_LOG"
 prev=""
 for a in "$@"; do
@@ -820,6 +821,9 @@ private slots:
                                             { QStringLiteral("OSDOS_PLAYER3_GUID"), QStringLiteral("0600aaaa") } });
         qputenv("OSDOS_DRM_DEVICE", "/dev/dri/card1");
         QVERIFY(!arcade.played());
+        // Every pad's mapping as OSD/OS's SDL has it goes to MAME's.
+        controllers::setPadMappings({ QStringLiteral("03000000000000000000000000000000,Pad One,a:b0,b:b1") });
+        const auto noMappings = qScopeGuard([] { controllers::setPadMappings({}); });
         QCOMPARE(played(arcade, QStringLiteral("pacman")),
                  QVariantList({ 0, QStringLiteral("ok"), QString() }));
         qunsetenv("OSDOS_DRM_DEVICE");
@@ -845,6 +849,8 @@ private slots:
         QVERIFY(!log.contains(QStringLiteral("P1_BUTTON1")));
         // A pad's buttons by their places, as the menus have them.
         QCOMPARE(logLines(QStringLiteral("labels")), QStringList({ QStringLiteral("labels 0") }));
+        QCOMPARE(logLines(QStringLiteral("mappings")),
+                 QStringList({ QStringLiteral("mappings 03000000000000000000000000000000,Pad One,a:b0,b:b1") }));
         QVERIFY(QFileInfo(home + QStringLiteral("/cfg")).isDir());
         QVERIFY(QFileInfo(home + QStringLiteral("/nvram")).isDir());
 
@@ -1163,6 +1169,11 @@ private slots:
                                   "input_player1_select_btn = \"4\"", "input_player2_up_btn = \"11\"",
                                   "input_player6_l_x_minus_axis = \"-0\"", "input_player6_r_y_plus_axis = \"-3\"",
                                   "input_quit_gamepad_combo = \"4\"", "quit_press_twice = \"false\"",
+                                  // A keyboard's coin and start as MAME has them, in
+                                  // place of RetroArch's Right Shift and Enter.
+                                  "input_player1_select = \"num5\"", "input_player1_start = \"num1\"",
+                                  "input_player2_select = \"num6\"", "input_player2_start = \"num2\"",
+                                  "input_player4_select = \"num8\"", "input_player4_start = \"num4\"",
                                   "menu_driver = \"rgui\"", "ui_companion_enable = \"false\"",
                                   "system_directory = \"/ra/system\"", "savefile_directory = \"/ra/saves\"",
                                   "input_player1_device_reservation_type = \"2\"",
@@ -1183,7 +1194,24 @@ private slots:
         for (const char *line : { "corename = \"FinalBurn Neo\"", "savestate = \"true\"",
                                   "savestate_features = \"deterministic\"" })
             QVERIFY2(info.contains(QLatin1String(line)), line);
+        // The core's options file, where RetroArch keeps FinalBurn Neo's, and
+        // the option hardcore wants in it: patched sets disallowed, which the
+        // core's default allows; the rest of the file as it is, and the text
+        // as it was when nothing is to change.
+        QCOMPARE(libretro::coreOptionsPath(QStringLiteral("/ra/config")),
+                 QStringLiteral("/ra/config/FinalBurn Neo/FinalBurn Neo.opt"));
+        QCOMPARE(libretro::withHardcoreOptions(QString()), QStringLiteral("fbneo-allow-patched-romsets = \"disabled\"\n"));
+        QCOMPARE(libretro::withHardcoreOptions(QStringLiteral("fbneo-cpu-speed-adjust = \"100\"\n"
+                                                              "fbneo-allow-patched-romsets = \"enabled\"\n"
+                                                              "fbneo-diagnostic-input = \"Start + L + R\"")),
+                 QStringLiteral("fbneo-cpu-speed-adjust = \"100\"\n"
+                                "fbneo-allow-patched-romsets = \"disabled\"\n"
+                                "fbneo-diagnostic-input = \"Start + L + R\"\n"));
+        const QString allowedOptions = QStringLiteral("fbneo-allow-patched-romsets-x = \"enabled\"\n"
+                                                      "fbneo-allow-patched-romsets = \"disabled\"\n");
+        QCOMPARE(libretro::withHardcoreOptions(allowedOptions), allowedOptions);
         QVERIFY(!config.contains(QStringLiteral("input_player2_reserved_device")));
+        QVERIFY(!config.contains(QStringLiteral("input_player5_select = ")));
         QVERIFY(!config.contains(QStringLiteral("input_player7_")));
         QVERIFY(!config.contains(QStringLiteral("netplay_")));
         // A player on an arcade panel, a JAMMA board's stick: the cabinet's
@@ -1605,6 +1633,59 @@ private slots:
         QVERIFY(run.started);
         QVERIFY(run.missing.isEmpty());
         QVERIFY(!libretro::readLog(dir.path() + QStringLiteral("/none.log")).logged);
+        // Over the network, the first netplay error RetroArch plays on alone
+        // after, its full stop dropped, passing over what lets the game go
+        // on (a warning, input out of order); the last error line as before.
+        writeFile(dir.path() + QStringLiteral("/joining.log"),
+                  "[INFO] [Netplay] Connecting to netplay host 192.168.1.20:55435.\n"
+                  "[WARN] [Netplay] WARNING: A netplay peer is running a different version of RetroArch. If problems occur, use the same version.\n"
+                  "[ERROR] [Netplay] Netplay input out of order.\n"
+                  "[ERROR] [Netplay] Failed to connect to host 192.168.1.20 on port 55435.\n"
+                  "[ERROR] [Netplay] Failed to initialize netplay.\n"
+                  "[libretro INFO] [FBNeo] Driver successfully started\n");
+        run = libretro::readLog(dir.path() + QStringLiteral("/joining.log"));
+        QVERIFY(run.started);
+        QCOMPARE(run.netplayFailure, QStringLiteral("Failed to connect to host 192.168.1.20 on port 55435"));
+        QCOMPARE(run.error, QStringLiteral("[Netplay] Failed to initialize netplay."));
+        // A host turns clients away and plays on, and misses its port over
+        // IPv6 before it binds it over IPv4: not a failure of its own, as a
+        // port it couldn't bind at all is, the most telling line of the
+        // start that failed.
+        writeFile(dir.path() + QStringLiteral("/hosting.log"),
+                  "[ERROR] [Netplay] Failed to bind port 55435.\n"
+                  "[ERROR] [Netplay] Failed to receive header from client.\n"
+                  "[ERROR] [Netplay] A netplay peer is running a different core. Cannot connect.\n"
+                  "[libretro INFO] [FBNeo] Driver successfully started\n");
+        QVERIFY(libretro::readLog(dir.path() + QStringLiteral("/hosting.log"), true).netplayFailure.isEmpty());
+        writeFile(dir.path() + QStringLiteral("/port.log"),
+                  "[ERROR] [Netplay] Failed to bind port 55435.\n"
+                  "[ERROR] [Netplay] Failed to bind port 55435.\n"
+                  "[ERROR] [Netplay] Failed to set up netplay sockets.\n"
+                  "[ERROR] [Netplay] Failed to initialize netplay.\n");
+        QCOMPARE(libretro::readLog(dir.path() + QStringLiteral("/port.log"), true).netplayFailure,
+                 QStringLiteral("Failed to bind port 55435"));
+        // The lines themselves: a netplay error's words, and what ends the
+        // game of them, joining (the host turned this machine away, or
+        // dropped it) and hosting (a start that failed, by its most telling
+        // line).
+        const QString refused = QStringLiteral("A netplay peer is running a different core. Cannot connect");
+        QCOMPARE(libretro::netplayError(QStringLiteral("[ERROR] [Netplay] %1.").arg(refused)).value_or(QString()), refused);
+        QVERIFY(!libretro::netplayError(QStringLiteral("[ERROR] [Content]: Something went wrong.")));
+        QVERIFY(!libretro::netplayError(QStringLiteral("[INFO] [Netplay] Failed to initialize netplay.")));
+        QCOMPARE(libretro::netplayFailure({ refused }, false), refused);
+        QVERIFY(libretro::netplayFailure({ refused }, true).isEmpty());
+        const QString ping = QStringLiteral("Your ping is too high for this host");
+        QCOMPARE(libretro::netplayFailure({ ping, QStringLiteral("Failed to initialize netplay") }, false), ping);
+        QVERIFY(libretro::netplayFailure({ QStringLiteral("Failed to set up netplay sockets") }, true).isEmpty());
+        QCOMPARE(libretro::netplayFailure({ QStringLiteral("Failed to set up netplay sockets"),
+                                            QStringLiteral("Failed to initialize netplay") }, true),
+                 QStringLiteral("Failed to set up netplay sockets"));
+        QCOMPARE(libretro::netplayFailure({ QStringLiteral("Failed to connect to relay server 1.2.3.4 on port 55435"),
+                                            QStringLiteral("Failed to set up netplay sockets"),
+                                            QStringLiteral("Failed to initialize netplay") }, true),
+                 QStringLiteral("Failed to connect to relay server 1.2.3.4 on port 55435"));
+        QCOMPARE(libretro::netplayFailure({ QStringLiteral("Failed to initialize netplay") }, false),
+                 QStringLiteral("Failed to initialize netplay"));
 
         writeFile(dir.path() + QStringLiteral("/saved.cfg"),
                   "cheevos_enable = \"true\"\ncheevos_password = \"\"\ncheevos_token = \"tok456\"\n");
@@ -1834,12 +1915,23 @@ private slots:
         QCOMPARE(QFile::permissions(kept) & (QFile::ReadGroup | QFile::ReadOther), QFileDevice::Permissions());
 
         QFile::remove(m_log);
+        // Every pad's mapping as OSD/OS's SDL has it goes to RetroArch's.
+        controllers::setPadMappings({ QStringLiteral("03000000000000000000000000000000,Pad One,a:b0,b:b1"),
+                                      QStringLiteral("030000005e040000e002000003090000,Pad Two,a:b0") });
+        const auto noMappings = qScopeGuard([] { controllers::setPadMappings({}); });
         // JAMMA 240p: Street Fighter II's 4:3 as wide as the screen's
         // pixels are narrow, its lines whole.
         arcade.setScreen(true, QSize(720, 240));
+        // The core's options as the user left them, patched sets allowed as
+        // FinalBurn Neo's default has it, over which RetroArch would pause
+        // hardcore: the game given them with patched sets disallowed, the
+        // rest as it was.
+        const QString home = data.path() + QStringLiteral("/arcade/retroarch");
+        const QString options = home + QStringLiteral("/config/FinalBurn Neo/FinalBurn Neo.opt");
+        writeFile(options, "fbneo-cpu-speed-adjust = \"100\"\nfbneo-allow-patched-romsets = \"enabled\"\n");
         QVariantList end = played(arcade, QStringLiteral("sf2"));
         QCOMPARE(end.value(1).toString(), QStringLiteral("ok"));
-        const QString home = data.path() + QStringLiteral("/arcade/retroarch");
+        QCOMPARE(contents(options), QByteArray("fbneo-cpu-speed-adjust = \"100\"\nfbneo-allow-patched-romsets = \"disabled\"\n"));
         const QString line = logLines(QStringLiteral("retroarch ")).value(0);
         QCOMPARE(line, QStringLiteral("retroarch -L %1 --config %2/retroarch.cfg --verbose --log-file=%2/last.log %3/sf2.zip")
                            .arg(libretro::downloadedCore(data.path()), home, games));
@@ -1847,6 +1939,8 @@ private slots:
         QVERIFY(logLines().contains(QStringLiteral("sdlconfig ") + data.path() + QStringLiteral("/gamecontrollerdb.txt")));
         // A pad's buttons by their places, as the menus have them.
         QVERIFY(logLines().contains(QStringLiteral("sdllabels 0")));
+        QVERIFY(logLines().contains(QStringLiteral("sdlmappings 03000000000000000000000000000000,Pad One,a:b0,b:b1")));
+        QVERIFY(logLines().contains(QStringLiteral("030000005e040000e002000003090000,Pad Two,a:b0")));
         // FinalBurn Neo's info file written for it, which has RetroArch take
         // its states for deterministic, as netplay needs them.
         QVERIFY(logLines().contains(QStringLiteral("coreinfo deterministic")));
@@ -2710,20 +2804,15 @@ private slots:
     }
 
     // Settings → Arcade → FinalBurn Neo's download of RetroArch itself
-    // (Windows) from a stand-in for libretro's build server: the newest
-    // version its list names, the archive unpacked and RetroArch-Win64 put
-    // in place, over one downloaded before; a list that can't be read
-    // leaves the version known; an archive the server hasn't, one that
-    // isn't a 7z and one without retroarch.exe leave what was there, and
-    // nothing of the download behind.
+    // (Windows) from a stand-in for libretro's build server: the version the
+    // OSD/OS image has, its archive unpacked and RetroArch-Win64 put in
+    // place, over one downloaded before; an archive the server hasn't, one
+    // that isn't a 7z and one without retroarch.exe leave what was there,
+    // and nothing of the download behind.
     void retroarchDownload() {
         QTemporaryDir data;
         QVERIFY(data.isValid());
-        const QByteArray index = "<html><a href=\"/stable/1.9.1/\">1.9.1/</a> <a href=\"/stable/1.22.2/\">1.22.2/</a>"
-                                 " <a href=\"/stable/1.22.0/\">1.22.0/</a></html>";
-        QHash<QByteArray, QByteArray> files{ { "/stable/", index },
-                                             { "/stable/1.22.2/windows/x86_64/RetroArch.7z", fixture("retroarch.7z") },
-                                             { "/stable/1.21.0/windows/x86_64/RetroArch.7z", fixture("retroarch.7z") },
+        QHash<QByteArray, QByteArray> files{ { "/stable/1.20.0/windows/x86_64/RetroArch.7z", fixture("retroarch.7z") },
                                              { "/other.7z", fixture("other.7z") },
                                              { "/license.txt", "You may freely use FB Neo.\n" } };
         QList<QByteArray> asked;
@@ -2745,9 +2834,13 @@ private slots:
             });
         });
         const QString base = QStringLiteral("http://127.0.0.1:%1").arg(server.serverPort());
-        const auto source = [&base](const char *versions, const char *archive, const char *fallback) {
-            return RetroArchInstaller::Source{ versions ? QUrl(base + QLatin1String(versions)) : QUrl(),
-                                               base + QLatin1String(archive), QLatin1String(fallback) };
+        // libretro's source as on a 64-bit Windows, its archive on the
+        // stand-in.
+        const auto source = [&base, &data](const char *archive) {
+            ProgramInstaller::Source s = ProgramInstaller::retroarch(data.path());
+            s.available = true;
+            s.archive = QUrl(base + QLatin1String(archive));
+            return s;
         };
         const QString program = libretro::downloadedRetroArch(data.path());
         const QString home = QFileInfo(program).absolutePath();
@@ -2762,10 +2855,10 @@ private slots:
             return found;
         };
 
-        RetroArchInstaller installer(data.path());
-        QSignalSpy finished(&installer, &RetroArchInstaller::finished);
-        QSignalSpy progressed(&installer, &RetroArchInstaller::progressChanged);
-        installer.start(source("/stable/", "/stable/%1/windows/x86_64/RetroArch.7z", "1.21.0"));
+        ProgramInstaller installer;
+        QSignalSpy finished(&installer, &ProgramInstaller::finished);
+        QSignalSpy progressed(&installer, &ProgramInstaller::progressChanged);
+        installer.start(source("/stable/1.20.0/windows/x86_64/RetroArch.7z"));
         QVERIFY(installer.running());
         QVERIFY(finished.wait(10000));
         QCOMPARE(finished.first().at(1).toString(), QString());
@@ -2778,56 +2871,157 @@ private slots:
         QCOMPARE(contents(home + QStringLiteral("/assets/readme.txt")), QByteArray("the assets' readme\n"));
         QVERIFY(QFileInfo::exists(home + QStringLiteral("/assets/empty.txt")));
         QCOMPARE(leftovers(), QStringList());
-        // The newest version the list names, not the one known.
-        QVERIFY(asked.contains("/stable/1.22.2/windows/x86_64/RetroArch.7z"));
-        QVERIFY(!asked.contains("/stable/1.21.0/windows/x86_64/RetroArch.7z"));
+        // The archive alone is asked for: no list of versions to read first.
+        QCOMPARE(asked, QList<QByteArray>({ "/stable/1.20.0/windows/x86_64/RetroArch.7z" }));
 
-        // Again, over the one before, the version known with no list to
-        // read: the new program is in place, and a file of the user's own in
-        // the folder goes with the old one.
+        // Again, over the one before: the new program is in place, and a
+        // file of the user's own in the folder goes with the old one.
         writeFile(home + QStringLiteral("/mine.txt"), "mine");
         writeFile(program, "the one before");
-        installer.start(source(nullptr, "/stable/%1/windows/x86_64/RetroArch.7z", "1.21.0"));
+        installer.start(source("/stable/1.20.0/windows/x86_64/RetroArch.7z"));
         QVERIFY(finished.wait(10000));
         QCOMPARE(finished.last().at(1).toString(), QString());
         QVERIFY(contents(program).startsWith("MZ a stand-in for RetroArch for Windows"));
         QVERIFY(!QFileInfo::exists(home + QStringLiteral("/mine.txt")));
-        QVERIFY(asked.contains("/stable/1.21.0/windows/x86_64/RetroArch.7z"));
         QCOMPARE(leftovers(), QStringList());
-
-        // A list that can't be had: the version known.
-        asked.clear();
-        installer.start(source("/gone/", "/stable/%1/windows/x86_64/RetroArch.7z", "1.22.2"));
-        QVERIFY(finished.wait(10000));
-        QCOMPARE(finished.last().at(1).toString(), QString());
-        QCOMPARE(asked, QList<QByteArray>({ "/gone/", "/stable/1.22.2/windows/x86_64/RetroArch.7z" }));
 
         // An archive the server hasn't, one that isn't a 7z, one without
         // retroarch.exe: why, the one before stays, nothing is left behind.
         writeFile(program, "the one before");
-        installer.start(source("/stable/", "/stable/%1/linux/x86_64/RetroArch.7z", "1.22.2"));
+        installer.start(source("/stable/1.20.0/linux/x86_64/RetroArch.7z"));
         QVERIFY(finished.wait(10000));
         QCOMPARE(finished.last().at(0).toBool(), false);
         QCOMPARE(finished.last().at(1).toString(), QStringLiteral("127.0.0.1 answered 404"));
         QCOMPARE(contents(program), QByteArray("the one before"));
         QCOMPARE(leftovers(), QStringList());
-        installer.start(source(nullptr, "/license.txt?v=%1", "1.22.2"));
+        installer.start(source("/license.txt"));
         QVERIFY(finished.wait(10000));
         QCOMPARE(finished.last().at(1).toString(), QStringLiteral("The file is not a 7z archive"));
-        installer.start(source(nullptr, "/other.7z?v=%1", "1.22.2"));
+        installer.start(source("/other.7z"));
         QVERIFY(finished.wait(10000));
         QCOMPARE(finished.last().at(1).toString(), QStringLiteral("The download has no retroarch.exe"));
         QCOMPARE(contents(program), QByteArray("the one before"));
         QCOMPARE(leftovers(), QStringList());
-        // A machine libretro builds none for.
-        installer.start(RetroArchInstaller::Source{ QUrl(), QString(), QStringLiteral("1.22.2") });
-        QCOMPARE(finished.last().at(1).toString().left(38), QStringLiteral("libretro builds no RetroArch for this "));
+        // A machine libretro builds none for: this one, as the source stands.
+        installer.start(ProgramInstaller::retroarch(data.path()));
+        QVERIFY2(finished.last().at(1).toString().startsWith(QStringLiteral("There is no RetroArch build for this machine")),
+                 qPrintable(finished.last().at(1).toString()));
 
-        // The newest of the versions a page links to, by number.
-        QCOMPARE(RetroArchInstaller::newestVersion(index), QStringLiteral("1.22.2"));
-        QCOMPARE(RetroArchInstaller::newestVersion("<a href=\"1.10.0/\">x</a> <a href=\"1.9.3/\">y</a>"),
-                 QStringLiteral("1.10.0"));
-        QCOMPARE(RetroArchInstaller::newestVersion("<a href=\"nightly/\">x</a>"), QString());
+        // The source as it stands: the RetroArch the OSD/OS image has,
+        // Debian trixie's 1.20.0, from the build server's stable builds, so
+        // that a PC and a Pi play together on the same RetroArch.
+        const ProgramInstaller::Source pinned = ProgramInstaller::retroarch(data.path());
+        QCOMPARE(pinned.name, QStringLiteral("RetroArch"));
+        QCOMPARE(pinned.version, QStringLiteral("1.20.0"));
+        QCOMPARE(pinned.archive, QUrl(QStringLiteral("https://buildbot.libretro.com/stable/1.20.0/windows/x86_64/RetroArch.7z")));
+        QCOMPARE(pinned.program, QStringLiteral("retroarch.exe"));
+        QCOMPARE(pinned.target, home);
+    }
+
+    // Settings → Arcade → MAME's download (Windows) from a stand-in for
+    // GitHub: the release of the version the OSD/OS image has, its 64-bit
+    // Windows build a self-extracting archive with mame.exe at its top,
+    // unpacked and put in place as <data>/arcade/mame with its plugins
+    // beside it, over one downloaded before; an archive the server hasn't,
+    // and one that isn't an archive, leaving what was there.
+    void mameDownload() {
+        QTemporaryDir data;
+        QVERIFY(data.isValid());
+        QHash<QByteArray, QByteArray> files{ { "/mamedev/mame/releases/download/mame0276/mame0276b_64bit.exe", fixture("mame-sfx.bin") },
+                                             { "/license.txt", "You may freely use FB Neo.\n" } };
+        QList<QByteArray> asked;
+        QTcpServer server;
+        QVERIFY(server.listen(QHostAddress::LocalHost));
+        connect(&server, &QTcpServer::newConnection, &server, [&server, &files, &asked] {
+            QTcpSocket *socket = server.nextPendingConnection();
+            connect(socket, &QTcpSocket::readyRead, socket, [socket, &files, &asked] {
+                const QByteArray request = socket->readAll();
+                const QByteArray path = request.split(' ').value(1).split('?').first();
+                asked.append(path);
+                if (files.contains(path)) {
+                    socket->write("HTTP/1.1 200 OK\r\nContent-Length: " + QByteArray::number(files.value(path).size())
+                                  + "\r\nConnection: close\r\n\r\n" + files.value(path));
+                } else {
+                    socket->write("HTTP/1.1 404 Not Found\r\nContent-Length: 0\r\nConnection: close\r\n\r\n");
+                }
+                socket->disconnectFromHost();
+            });
+        });
+        const QString base = QStringLiteral("http://127.0.0.1:%1").arg(server.serverPort());
+        // mamedev's source as on a 64-bit Windows, its archive on the
+        // stand-in.
+        const auto source = [&base, &data](const char *archive) {
+            ProgramInstaller::Source s = ProgramInstaller::mame(data.path());
+            s.available = true;
+            s.archive = QUrl(base + QLatin1String(archive));
+            return s;
+        };
+        const QString program = mame::downloadedMame(data.path());
+        const QString home = QFileInfo(program).absolutePath();
+        const auto leftovers = [&data] {
+            QStringList found;
+            QDirIterator parts(data.path(), { QStringLiteral("*.part"), QStringLiteral("*.old") },
+                               QDir::Files | QDir::Dirs | QDir::NoDotAndDotDot, QDirIterator::Subdirectories);
+            while (parts.hasNext())
+                found.append(parts.next());
+            return found;
+        };
+
+        ProgramInstaller installer;
+        QSignalSpy finished(&installer, &ProgramInstaller::finished);
+        installer.start(source("/mamedev/mame/releases/download/mame0276/mame0276b_64bit.exe"));
+        QVERIFY(installer.running());
+        QVERIFY(finished.wait(10000));
+        QCOMPARE(finished.first().at(1).toString(), QString());
+        QCOMPARE(finished.first().at(0).toBool(), true);
+        QCOMPARE(installer.progress(), 100);
+        QVERIFY(contents(program).startsWith("MZ a stand-in for MAME for Windows"));
+        QCOMPARE(contents(home + QStringLiteral("/plugins/hiscore/init.lua")), QByteArray("-- the hiscore plugin\n"));
+        QVERIFY(QFileInfo::exists(home + QStringLiteral("/bgfx/shaders/readme.txt")));
+        QCOMPARE(mame::pluginsFolder(program), QDir::cleanPath(home + QStringLiteral("/plugins")));
+        QCOMPARE(leftovers(), QStringList());
+        // The archive alone is asked for: no release to read first.
+        QCOMPARE(asked, QList<QByteArray>({ "/mamedev/mame/releases/download/mame0276/mame0276b_64bit.exe" }));
+
+        // Again, over the one before: a file of the user's own in its
+        // folder goes with it.
+        writeFile(home + QStringLiteral("/mine.txt"), "mine");
+        writeFile(program, "the one before");
+        installer.start(source("/mamedev/mame/releases/download/mame0276/mame0276b_64bit.exe"));
+        QVERIFY(finished.wait(10000));
+        QCOMPARE(finished.last().at(1).toString(), QString());
+        QVERIFY(contents(program).startsWith("MZ a stand-in for MAME for Windows"));
+        QVERIFY(!QFileInfo::exists(home + QStringLiteral("/mine.txt")));
+        QCOMPARE(leftovers(), QStringList());
+
+        // An archive the server hasn't, and one that isn't an archive: why,
+        // the one before stays, nothing is left behind.
+        writeFile(program, "the one before");
+        installer.start(source("/mamedev/mame/releases/download/mame0276/mame0276b_arm64.exe"));
+        QVERIFY(finished.wait(10000));
+        QCOMPARE(finished.last().at(0).toBool(), false);
+        QCOMPARE(finished.last().at(1).toString(), QStringLiteral("127.0.0.1 answered 404"));
+        QCOMPARE(contents(program), QByteArray("the one before"));
+        QCOMPARE(leftovers(), QStringList());
+        installer.start(source("/license.txt"));
+        QVERIFY(finished.wait(10000));
+        QCOMPARE(finished.last().at(0).toBool(), false);
+        QCOMPARE(finished.last().at(1).toString(), QStringLiteral("The file is not a 7z archive"));
+        QCOMPARE(contents(program), QByteArray("the one before"));
+        QCOMPARE(leftovers(), QStringList());
+        // A machine mamedev builds none for: this one, as the source stands.
+        installer.start(ProgramInstaller::mame(data.path()));
+        QVERIFY(finished.last().at(1).toString().startsWith(QStringLiteral("There is no MAME build for this machine")));
+
+        // The source as it stands: the MAME the OSD/OS image has, Debian
+        // trixie's 0.276, from mamedev's releases, so that a PC and a Pi
+        // play the same sets.
+        const ProgramInstaller::Source pinned = ProgramInstaller::mame(data.path());
+        QCOMPARE(pinned.name, QStringLiteral("MAME"));
+        QCOMPARE(pinned.version, QStringLiteral("0.276"));
+        QCOMPARE(pinned.archive, QUrl(QStringLiteral("https://github.com/mamedev/mame/releases/download/mame0276/mame0276b_64bit.exe")));
+        QCOMPARE(pinned.program, QStringLiteral("mame.exe"));
+        QCOMPARE(pinned.target, home);
     }
 
     // The Arcade screen's leaderboards from a stand-in for RetroAchievements'
@@ -3670,7 +3864,9 @@ private slots:
         const QString games = data.path() + QStringLiteral("/media/Games/Arcade");
         const QString snap = games + QStringLiteral("/snap");
         const QString titles = games + QStringLiteral("/titles");
-        for (const char *set : { "sf2.zip", "galaga.zip", "kinst.zip", "pacman.zip" })
+        // Street Fighter II's bootleg is a clone of it: its parent's pictures
+        // are its own.
+        for (const char *set : { "sf2.zip", "sf2b.zip", "galaga.zip", "kinst.zip", "pacman.zip" })
             writeFile(games + QLatin1Char('/') + QLatin1String(set));
         // Pac-Man's own snap is there already: ArcadeDB isn't asked about it.
         writeFile(snap + QStringLiteral("/pacman.png"), png("pacman mine"));
@@ -3738,11 +3934,13 @@ private slots:
         QTRY_VERIFY_WITH_TIMEOUT(arcade.achievementsKeyWorks(), 5000);
         standIn.asked.clear();
 
-        // Download Pictures: RetroAchievements' pass saves Street Fighter II's;
-        // ArcadeDB is asked about Galaga and Killer Instinct in one request
-        // (not Street Fighter II, which has its picture by then, nor Pac-Man,
-        // which has its own), and Galaga's two pictures are saved where the
-        // packs put them. The marker stands while it goes on.
+        // Download Pictures: RetroAchievements' pass saves Street Fighter II's,
+        // and passes its bootleg, whose game is its parent's, looked for by
+        // then, with no second spent asking after it; ArcadeDB is asked
+        // about Galaga and Killer Instinct in one request (not Street
+        // Fighter II or its bootleg, which have their picture by then, nor
+        // Pac-Man, which has its own), and Galaga's two pictures are saved
+        // where the packs put them. The marker stands while it goes on.
         arcade.downloadPictures();
         QTRY_VERIFY_WITH_TIMEOUT(arcade.sweepingPictures(), 5000);
         QVERIFY(QFile::exists(data.path() + QStringLiteral("/arcade/pictures-wanted")));
@@ -3776,16 +3974,21 @@ private slots:
         QCOMPARE(progress.value(QStringLiteral("active")).toBool(), false);
         QCOMPARE(progress.value(QStringLiteral("result")).toString(), QStringLiteral("Done"));
         QCOMPARE(progress.value(QStringLiteral("failed")).toInt(), 0);
+        // Street Fighter II asked of RetroAchievements, Galaga and Killer
+        // Instinct of ArcadeDB: not the bootleg.
+        QCOMPARE(progress.value(QStringLiteral("asked")).toInt(), 3);
         const QVariantMap info = arcade.picturesInfo();
-        QCOMPARE(info.value(QStringLiteral("games")).toInt(), 4);
-        QCOMPARE(info.value(QStringLiteral("withPictures")).toInt(), 3);
+        QCOMPARE(info.value(QStringLiteral("games")).toInt(), 5);
+        QCOMPARE(info.value(QStringLiteral("withPictures")).toInt(), 4);
         QCOMPARE(info.value(QStringLiteral("key")).toString(), QStringLiteral("works"));
 
-        // Again: nothing asked of either, every set noted or with pictures.
+        // Again: nothing asked of either, every set noted or with pictures,
+        // and none counted as asked after, the bootleg among them.
         standIn.asked.clear();
         arcade.downloadPictures();
         QTRY_VERIFY_WITH_TIMEOUT(!arcade.sweepingPictures(), 5000);
         QVERIFY2(standIn.asked.isEmpty(), qPrintable(standIn.asked.join(QLatin1Char(' '))));
+        QCOMPARE(arcade.picturesProgress().value(QStringLiteral("asked")).toInt(), 0);
 
         // Metal Slug and Ms. Pac-Man come into the folder; Ms. Pac-Man is
         // shown, then Metal Slug in the same moment: RetroAchievements knows
@@ -4476,14 +4679,27 @@ private slots:
         QVERIFY(!arcade.requestEntries(QStringLiteral("online")).isValid());
         QVERIFY(roomsRead.wait(5000));
         QCOMPARE(arcade.rooms().size(), 1);
-        // The Arcade screen's filter, after All Games; then RetroArch Lobby,
-        // every room of the lobby.
+        // The Arcade screen's filters: All Games, Favorites and Recently
+        // Played with no game on them, then Online Games with its room, then
+        // RetroArch Lobby, every room of the lobby.
         const QVariantList filters = arcade.filters();
-        QCOMPARE(filters.value(1).toMap().value(QStringLiteral("id")).toString(), QStringLiteral("online"));
-        QCOMPARE(filters.value(1).toMap().value(QStringLiteral("count")).toInt(), 1);
-        QCOMPARE(filters.value(2).toMap().value(QStringLiteral("id")).toString(), QStringLiteral("lobby"));
-        QCOMPARE(filters.value(2).toMap().value(QStringLiteral("name")).toString(), QStringLiteral("RetroArch Lobby"));
-        QCOMPARE(filters.value(2).toMap().value(QStringLiteral("count")).toInt(), 11);
+        QStringList filterOrder;
+        for (const QVariant &v : filters)
+            filterOrder << v.toMap().value(QStringLiteral("id")).toString();
+        QCOMPARE(filterOrder.mid(0, 5), QStringList({ QStringLiteral("all"), QStringLiteral("favorites"),
+                                                      QStringLiteral("recent"), QStringLiteral("online"),
+                                                      QStringLiteral("lobby") }));
+        QCOMPARE(filters.value(1).toMap().value(QStringLiteral("count")).toInt(), 0);
+        QCOMPARE(filters.value(3).toMap().value(QStringLiteral("name")).toString(), QStringLiteral("Online Games"));
+        QCOMPARE(filters.value(3).toMap().value(QStringLiteral("count")).toInt(), 1);
+        QCOMPARE(filters.value(4).toMap().value(QStringLiteral("name")).toString(), QStringLiteral("RetroArch Lobby"));
+        QCOMPARE(filters.value(4).toMap().value(QStringLiteral("count")).toInt(), 11);
+        QCOMPARE(arcade.filterStatus(QStringLiteral("favorites")).value(QStringLiteral("name")).toString(),
+                 QStringLiteral("No Favorites"));
+        QCOMPARE(arcade.filterStatus(QStringLiteral("recent")).value(QStringLiteral("name")).toString(),
+                 QStringLiteral("No Games Played Yet"));
+        QVERIFY(arcade.filterStatus(QStringLiteral("all")).isEmpty());
+        QVERIFY(arcade.filterStatus(QStringLiteral("lobby")).isEmpty());
         const QVariantMap row = arcade.filterGames(QStringLiteral("online"), 0, 7).value(0).toMap();
         QCOMPARE(row.value(QStringLiteral("set")).toString(), QStringLiteral("sf2"));
         QCOMPARE(row.value(QStringLiteral("room")).toInt(), 11);
@@ -4523,12 +4739,16 @@ private slots:
             ++firstSf2;
         QVERIFY(firstSf2 < lobbyOrder.indexOf(QStringLiteral("11")));
         QCOMPARE(arcade.filterIndex(QStringLiteral("lobby"), QStringLiteral("sf2"), 99), int(firstSf2));
-        // Start Filter can open on it.
+        // Start Filter can open on Online Games and on it, offered in the
+        // screen's order.
         QSignalSpy startOptions(&arcade, &ArcadeBackend::dynamicOptionsReady);
         arcade.startFilterOptions();
         QTRY_COMPARE_WITH_TIMEOUT(startOptions.size(), 1, 5000);
-        QCOMPARE(startOptions.first().at(1).toList().value(1).toMap().value(QStringLiteral("id")).toString(),
-                 QStringLiteral("lobby"));
+        QStringList startIds;
+        for (const QVariant &v : startOptions.first().at(1).toList())
+            startIds << v.toMap().value(QStringLiteral("id")).toString();
+        QCOMPARE(startIds.mid(0, 5), QStringList({ QStringLiteral("all"), QStringLiteral("favorites"), QStringLiteral("recent"),
+                                                   QStringLiteral("online"), QStringLiteral("lobby") }));
         const auto offersLobby = [&startOptions] {
             for (const QVariant &v : startOptions.last().at(1).toList()) {
                 if (v.toMap().value(QStringLiteral("id")).toString() == QLatin1String("lobby"))
@@ -4664,8 +4884,8 @@ private slots:
         QCOMPARE(gone.value(QStringLiteral("kind")).toString(), QStringLiteral("message"));
         QCOMPARE(gone.value(QStringLiteral("name")).toString(), QStringLiteral("Lobby Not Reachable"));
         QVERIFY(gone.value(QStringLiteral("detail")).toString().startsWith(QStringLiteral("RetroArch's lobby can't be reached")));
-        // No Online Games then; RetroArch Lobby still there, with no room,
-        // for the screen to say why.
+        // Online Games and RetroArch Lobby still there, with no room, for the
+        // screen to say why: Online Games as the tree's line says it.
         const auto filterCount = [&arcade](const QString &id) {
             for (const QVariant &v : arcade.filters()) {
                 if (v.toMap().value(QStringLiteral("id")).toString() == id)
@@ -4673,9 +4893,13 @@ private slots:
             }
             return -1;
         };
-        QCOMPARE(filterCount(QStringLiteral("online")), -1);
+        QCOMPARE(filterCount(QStringLiteral("online")), 0);
         QCOMPARE(filterCount(QStringLiteral("lobby")), 0);
         QVERIFY(arcade.filterGames(QStringLiteral("lobby"), 0, 7).isEmpty());
+        QVERIFY(arcade.filterGames(QStringLiteral("online"), 0, 7).isEmpty());
+        const QVariantMap onlineSays = arcade.filterStatus(QStringLiteral("online"));
+        QCOMPARE(onlineSays.value(QStringLiteral("name")).toString(), QStringLiteral("Lobby Not Reachable"));
+        QCOMPARE(onlineSays.value(QStringLiteral("detail")).toString(), gone.value(QStringLiteral("detail")).toString());
 
         // FinalBurn Neo's core gone, and back: none can be played online
         // meanwhile. Its list gone: none either, as the folder is read again.
@@ -4695,10 +4919,11 @@ private slots:
         refreshed(arcade);
         QCOMPARE(listed(), 3);
 
-        // Off again: no Playable Online, no RetroArch Lobby.
+        // Off again: no Playable Online, no Online Games, no RetroArch Lobby.
         arcade.onSettingChanged(module, QStringLiteral("online_play"), QStringLiteral("Off"));
         QVERIFY(playable().isEmpty());
         QCOMPARE(listed(), 0);
+        QCOMPARE(filterCount(QStringLiteral("online")), -1);
         QCOMPARE(filterCount(QStringLiteral("lobby")), -1);
         QVERIFY(arcade.filterGames(QStringLiteral("lobby"), 0, 7).isEmpty());
     }
@@ -4856,11 +5081,13 @@ private slots:
         QCOMPARE(entry.value(QStringLiteral("host")).toString(), QStringLiteral("ann"));
         QVERIFY(entry.value(QStringLiteral("lan")).toBool());
         QCOMPARE(entry.value(QStringLiteral("detail")).toString(), detail(0));
-        // On the Arcade screen, after All Games; a room's row by its id.
-        const QVariantMap filter = arcade.filters().value(1).toMap();
+        // On the Arcade screen, after All Games and the two lists; a room's
+        // row by its id.
+        const QVariantMap filter = arcade.filters().value(3).toMap();
         QCOMPARE(filter.value(QStringLiteral("id")).toString(), QStringLiteral("lan"));
         QCOMPARE(filter.value(QStringLiteral("name")).toString(), QStringLiteral("LAN Games"));
         QCOMPARE(filter.value(QStringLiteral("count")).toInt(), 2);
+        QCOMPARE(arcade.filterStatus(QStringLiteral("lan")), arcade.lanStatus());
         const QVariantMap row = arcade.filterGames(QStringLiteral("lan"), 1, 1).value(0).toMap();
         QCOMPARE(row.value(QStringLiteral("set")).toString(), QStringLiteral("galaga"));
         QCOMPARE(row.value(QStringLiteral("room")).toInt(), 3);
@@ -5001,6 +5228,19 @@ private slots:
         QVERIFY2(config.contains(QStringLiteral("input_player1_b_btn = \"0\"")), qPrintable(config));
         QVERIFY(config.contains(QStringLiteral("input_player1_y_btn = \"2\"")));
         QTRY_VERIFY(!claimed.isEmpty() && claimed.last() == libretro::claimRelease());
+        // RetroArch that can't reach the host says so and plays the game
+        // alone: stopped as its log says so, the ports given back, and the
+        // end says why.
+        qputenv("RA_NETPLAY_FAILS", "1");
+        QFile::remove(m_log);
+        const QVariantList alone = ended([&arcade] { return arcade.joinLanRoom(1); });
+        qunsetenv("RA_NETPLAY_FAILS");
+        QCOMPARE(alone.value(1).toString(), QStringLiteral("failed"));
+        QCOMPARE(alone.value(2).toString(),
+                 QStringLiteral("Could not join the game: Failed to connect to host 127.0.0.1 on port 55435\n"
+                                "The host didn't answer: its game may have ended, or a firewall there keeps the port closed"));
+        QTRY_VERIFY(!claimed.isEmpty() && claimed.last() == libretro::claimRelease());
+        QVERIFY(!arcade.running());
         // A host that doesn't say, RetroArch alone or an older OSD/OS: asked
         // twice, then joined with the ports from 2, on the Classic layout,
         // the stick's buttons by number.
@@ -5063,6 +5303,18 @@ private slots:
             QVERIFY2(config.contains(QLatin1String(line)), line);
         QCOMPARE(requested(config), QStringLiteral("1"));
         QVERIFY(logLines().contains(QStringLiteral("coreinfo deterministic")));
+        QCOMPARE(asking(libretro::claimQuery(1), 300), QByteArray("no answer"));
+        // Hosting with the port taken: RetroArch says so and plays alone;
+        // stopped as its log says so, no ports given meanwhile, and the end
+        // says why.
+        qputenv("RA_NETPLAY_FAILS", "1");
+        QFile::remove(m_log);
+        hostEnded.clear();
+        QVERIFY(arcade.hostLanGame(QStringLiteral("sf2")));
+        QVERIFY(hostEnded.wait(10000) || !hostEnded.isEmpty());
+        qunsetenv("RA_NETPLAY_FAILS");
+        QCOMPARE(hostEnded.first().value(1).toString(), QStringLiteral("failed"));
+        QCOMPARE(hostEnded.first().value(2).toString(), QStringLiteral("Could not host the game: Failed to bind port 55435"));
         QCOMPARE(asking(libretro::claimQuery(1), 300), QByteArray("no answer"));
         // A room no longer hosted.
         QVERIFY(!arcade.joinLanRoom(2));
@@ -5358,6 +5610,44 @@ private slots:
         QCOMPARE(names(arcade.requestEntries(QStringLiteral("all"))), QStringList({ QStringLiteral("pacman") }));
         QVERIFY(!arcade.play(QStringLiteral("pacman")));
         QCOMPARE(arcade.lastError(), QStringLiteral("MAME is not installed"));
+
+        // With FinalBurn Neo: a game it has plays in it, left to Auto; MAME
+        // chosen for it is MAME all the same, the game saying MAME is not
+        // installed rather than playing in FinalBurn Neo against the
+        // choice, and the choice saying so too.
+        if (!libretro::corePath(data.path()).isEmpty() || !libretro::datPath(data.path()).isEmpty())
+            QSKIP("FinalBurn Neo is installed here");
+        writeFile(arcade.gamesFolder() + QStringLiteral("/sf2.zip"));
+        writeFile(data.path() + QStringLiteral("/bin/retroarch"), fixture("retroarch"));
+        QVERIFY(QFile::setPermissions(data.path() + QStringLiteral("/bin/retroarch"),
+                                      QFile::ReadOwner | QFile::WriteOwner | QFile::ExeOwner));
+        writeFile(libretro::downloadedCore(data.path()));
+        writeFile(libretro::downloadedDat(data.path()), fixture("fbneo-arcade.dat"));
+        refreshed(arcade);
+        QVERIFY(arcade.fbneoReady());
+        QCOMPARE(arcade.engineOf(QStringLiteral("sf2")), QStringLiteral("fbneo"));
+        const auto labels = [](const QVariantList &choices) {
+            QStringList list;
+            for (const QVariant &c : choices)
+                list << c.toMap().value(QStringLiteral("label")).toString()
+                            + (c.toMap().value(QStringLiteral("current")).toBool() ? QStringLiteral(" *") : QString());
+            return list;
+        };
+        QCOMPARE(labels(arcade.engineChoices(QStringLiteral("sf2"))),
+                 QStringList({ QStringLiteral("Auto (FinalBurn Neo) *"), QStringLiteral("MAME (Not Installed)"),
+                               QStringLiteral("FinalBurn Neo") }));
+        arcade.onSettingChanged(QStringLiteral("com.osdos.arcade"), QStringLiteral("engines"),
+                                QVariantMap{ { QStringLiteral("sf2"), QStringLiteral("mame") } });
+        QCOMPARE(arcade.engineOf(QStringLiteral("sf2")), QStringLiteral("mame"));
+        QCOMPARE(labels(arcade.engineChoices(QStringLiteral("sf2"))),
+                 QStringList({ QStringLiteral("Auto (FinalBurn Neo)"), QStringLiteral("MAME (Not Installed) *"),
+                               QStringLiteral("FinalBurn Neo") }));
+        QVERIFY(!arcade.play(QStringLiteral("sf2")));
+        QCOMPARE(arcade.lastError(), QStringLiteral("MAME is not installed"));
+        // FinalBurn Neo chosen for one it hasn't falls to MAME, which says so.
+        arcade.onSettingChanged(QStringLiteral("com.osdos.arcade"), QStringLiteral("engines"),
+                                QVariantMap{ { QStringLiteral("pacman"), QStringLiteral("fbneo") } });
+        QCOMPARE(arcade.engineOf(QStringLiteral("pacman")), QStringLiteral("mame"));
     }
     // ── The Arcade screen ────────────────────────────────────────────────
 
@@ -5506,6 +5796,17 @@ private slots:
         QCOMPARE(arcade.filterIndex(QStringLiteral("all"), QStringLiteral("pacman")), 4);
         QCOMPARE(arcade.filterIndex(QStringLiteral("genres/Fighting"), QStringLiteral("sf2")), 1);
         QCOMPARE(arcade.filterIndex(QStringLiteral("favorites"), QStringLiteral("pacman")), -1);
+
+        // What a list says with no game on it, for the screen; the others say
+        // nothing of their own.
+        QCOMPARE(arcade.filterStatus(QStringLiteral("favorites")),
+                 QVariantMap({ { QStringLiteral("name"), QStringLiteral("No Favorites") },
+                               { QStringLiteral("detail"),
+                                 QStringLiteral("Hold select on a game and choose Add to Favorites: it comes here") } }));
+        QCOMPARE(arcade.filterStatus(QStringLiteral("recent")).value(QStringLiteral("name")).toString(),
+                 QStringLiteral("No Games Played Yet"));
+        QVERIFY(arcade.filterStatus(QStringLiteral("all")).isEmpty());
+        QVERIFY(arcade.filterStatus(QStringLiteral("genres/Fighting")).isEmpty());
 
         // What a game is.
         const QVariantMap sf2 = arcade.gameDetails(QStringLiteral("sf2"));
@@ -5850,8 +6151,10 @@ private slots:
             QStringLiteral("PUBLISHERS"), QStringLiteral("makers/Capcom=Capcom off"), QStringLiteral("makers/Konami=Konami off"),
             QStringLiteral("makers/Namco=Namco off"), QStringLiteral("makers/Nazca=Nazca off"),
             QStringLiteral("makers/Rare=Rare off") }));
+        // Favorites and Recently Played with no game on them yet.
         QCOMPARE(ids(arcade.filters()), QStringList({
-            QStringLiteral("all"), QStringLiteral("genres/Beat 'em Up"), QStringLiteral("genres/Fighting"),
+            QStringLiteral("all"), QStringLiteral("favorites"), QStringLiteral("recent"),
+            QStringLiteral("genres/Beat 'em Up"), QStringLiteral("genres/Fighting"),
             QStringLiteral("genres/Shmup"), QStringLiteral("players/1"), QStringLiteral("players/2"),
             QStringLiteral("players/6"), QStringLiteral("years/1980s"), QStringLiteral("years/1990s"),
             QStringLiteral("unknown"), QStringLiteral("search") }));
@@ -5866,7 +6169,8 @@ private slots:
         core.save_setting(module, QStringLiteral("menu_filters"), shown);
         QCOMPARE(changed.size(), 2);
         QCOMPARE(ids(arcade.filters()), QStringList({
-            QStringLiteral("all"), QStringLiteral("genres/Beat 'em Up"), QStringLiteral("genres/Shmup"),
+            QStringLiteral("all"), QStringLiteral("favorites"), QStringLiteral("recent"),
+            QStringLiteral("genres/Beat 'em Up"), QStringLiteral("genres/Shmup"),
             QStringLiteral("players/1"), QStringLiteral("players/2"), QStringLiteral("players/6"),
             QStringLiteral("years/1980s"), QStringLiteral("years/1990s"), QStringLiteral("makers/Namco"),
             QStringLiteral("search") }));
@@ -5881,7 +6185,8 @@ private slots:
             QStringLiteral("years/1990s"), QStringLiteral("makers/Namco") }));
 
         // A heading's all at once: the players off, Favorites, Recently
-        // Played, RetroAchievements and Playable Online too.
+        // Played, RetroAchievements and Playable Online too, Favorites off
+        // with a game on it as without.
         for (const char *id : { "players/1", "players/2", "players/6", "favorites", "recent", "achievements", "netplay" })
             shown.insert(QLatin1String(id), false);
         core.save_setting(module, QStringLiteral("menu_filters"), shown);

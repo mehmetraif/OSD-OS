@@ -138,10 +138,11 @@ QString programPath(const QString &dataRoot) {
         return onPath;
     QStringList places;
 #ifdef Q_OS_WIN
-    // MAME's own folder, unpacked beside OSD/OS, or where its builds are
-    // commonly unpacked.
+    // The one Settings → Arcade → MAME downloaded, MAME's own folder
+    // unpacked beside OSD/OS, or where its builds are commonly unpacked.
     const QString appDir = QCoreApplication::applicationDirPath();
-    places << appDir + QStringLiteral("/mame.exe") << appDir + QStringLiteral("/MAME/mame.exe")
+    places << downloadedMame(dataRoot)
+           << appDir + QStringLiteral("/mame.exe") << appDir + QStringLiteral("/MAME/mame.exe")
            << appDir + QStringLiteral("/mame/mame.exe") << QStringLiteral("C:/mame/mame.exe")
            << QStringLiteral("C:/MAME/mame.exe")
            << qEnvironmentVariable("ProgramFiles") + QStringLiteral("/MAME/mame.exe");
@@ -157,6 +158,10 @@ QString programPath(const QString &dataRoot) {
             return program.absoluteFilePath();
     }
     return QString();
+}
+
+QString downloadedMame(const QString &dataRoot) {
+    return dataRoot + QStringLiteral("/arcade/mame/mame.exe");
 }
 
 QString pluginsFolder(const QString &program) {

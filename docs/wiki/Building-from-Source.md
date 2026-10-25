@@ -157,7 +157,7 @@ Two things to know about Ubuntu 24.04:
 
 ## Windows (x64)
 
-A first build, for Windows 11 on x64, that has not run on a PC yet beyond being built: the **Windows build** workflow builds it on every pull request that touches the sources and uploads `osdos-windows-x64`, a copy to try ([below](#continuous-integration)). The menus, Local Files and the media servers, YouTube, the Arcade module with Windows builds of MAME and RetroArch, RetroAchievements, netplay and High Scores are in it. What is the Pi's or a Linux desktop's is left out, as on a Mac: Display Output, Audio Output's cards (the default device plays), Bluetooth and Wi-Fi (Windows' own settings), the JAMMA helper, Scripts, the NFC Reader, the updater's install (it names a newer version, to download by hand) and, for now, Transparent Background (CMake looks for libmpv's headers through pkg-config, and the Windows build has no libmpv).
+A first build, for Windows 11 on x64, that has not run on a PC yet beyond being built: the **Windows build** workflow builds it on every pull request that touches the sources and uploads `osdos-windows-x64`, a copy to try ([below](#continuous-integration)). The menus, Local Files and the media servers, YouTube, the Arcade module with Windows builds of MAME and RetroArch, RetroAchievements, netplay and High Scores are in it. What is the Pi's or a Linux desktop's is left out, as on a Mac: Display Output, Audio Output's cards (the default device plays), Bluetooth and Wi-Fi (Windows' own settings), the JAMMA helper, Scripts, the NFC Reader, the updater's install (it names a newer version, to download by hand) and, for now, Transparent Background (CMake looks for libmpv's headers through pkg-config, and the Windows build has no libmpv). Settings → **Window Mode** (F11, or Alt+Enter) puts the menus in a window on the desktop, 960×720 to start with, in place of the whole screen, on Windows as on a Linux desktop.
 
 - **Visual Studio 2022 Build Tools** with the *Desktop development with C++* workload (MSVC, the Windows SDK, CMake and Ninja).
 - **Qt 6.8** for MSVC 2022 64-bit, with Qt Shader Tools: from Qt's installer, or `aqt install-qt windows desktop 6.8.3 win64_msvc2022_64 -m qtshadertools -O C:\Qt`.
@@ -179,13 +179,13 @@ cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Release ^
   -DCMAKE_PREFIX_PATH=C:\Qt\6.8.3\msvc2022_64 -DCMAKE_INSTALL_PREFIX=%CD%\install
 cmake --build build --parallel
 cmake --install build
-C:\Qt\6.8.3\msvc2022_64\bin\windeployqt.exe --release --qmldir . install\bin\osdos.exe
-copy build\*.dll install\bin\
-copy C:\vcpkg\installed\x64-windows\bin\libssl*.dll install\bin\
-install\bin\osdos.exe
+C:\Qt\6.8.3\msvc2022_64\bin\windeployqt.exe --release --qmldir . install\osdos\osdos.exe
+copy build\*.dll install\osdos\
+copy C:\vcpkg\installed\x64-windows\bin\libssl*.dll install\osdos\
+install\osdos\osdos.exe
 ```
 
-vcpkg puts the libraries the app links beside the built binary (SDL2, OpenSSL's libcrypto, minizip, zlib), `windeployqt` adds Qt's libraries, plugins and QML modules, and libssl is what Qt's TLS plugin opens at run time. The install is laid out as on Linux, `bin\` and `share\osdos\`, which the app finds from its own folder; the data folder is `%APPDATA%\OSD-OS\`. The LZMA SDK's 7z decoder (`thirdparty/lzma`, public domain) is built into the app on every system, for the RetroArch for Windows that Settings → Arcade → FinalBurn Neo downloads as a 7z archive: no package is needed for it. The build is a console program for now: a console window opens with the app and shows its log. More in [BUILDING.md → Windows (x64)](https://github.com/mehmetraif/OSD-OS/blob/main/BUILDING.md#windows-x64).
+vcpkg puts the libraries the app links beside the built binary (SDL2, OpenSSL's libcrypto, minizip, zlib), `windeployqt` adds Qt's libraries, plugins and QML modules, and libssl is what Qt's TLS plugin opens at run time. The install is one folder, `install\osdos\`, with `osdos.exe`, the libraries and the app's own files (`Main.qml`, `views\`, `modules\`, `assets\`, `scripts\`, `LICENSE`) together, as a Windows program is unpacked and run: the app takes the folder `Main.qml` is in beside its binary as its own, so the folder goes anywhere whole, and the `osdos-windows-x64` artifact is that folder zipped. The data folder is `%APPDATA%\OSD-OS\`. The LZMA SDK's 7z decoder (`thirdparty/lzma`, public domain) is built into the app on every system, for the MAME and RetroArch for Windows that Settings → Arcade → MAME and → FinalBurn Neo download as 7z archives (MAME's a self-extracting one): no package is needed for it. The build is a console program for now: a console window opens with the app and shows its log. More in [BUILDING.md → Windows (x64)](https://github.com/mehmetraif/OSD-OS/blob/main/BUILDING.md#windows-x64).
 
 ## FreeBSD and OpenBSD (amd64)
 

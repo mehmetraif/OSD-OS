@@ -35,11 +35,28 @@ FocusScope {
                                           ? problem + ". " + appCore.installHint("mame") : problem
     readonly property bool folderReadable: arcadeBackend ? arcadeBackend.folderReadable : true
     readonly property bool scanning: arcadeBackend ? arcadeBackend.scanning : false
+    // MAME downloaded from here where it is what is missing and the system
+    // can (Windows): read again as a download starts and ends.
+    property int mameRevision: 0
+    readonly property bool canDownloadMame: (mameRevision, problem === "MAME is not installed" && !!arcadeBackend
+                                             && arcadeBackend.mameInfo().canDownload)
+    readonly property bool downloadingMame: arcadeBackend ? arcadeBackend.mameDownloading : false
 
     signal navigateTo(string path, var params, var listState)
     signal goBack()
 
     focus: true
+
+    // With nothing listed the tree is hidden, still with the keys: back it
+    // hands on (leaveRequested), select it leaves to this scope, which
+    // downloads MAME where that is what is missing and the system can.
+    Keys.onPressed: function(event) {
+        if (!tree.rootEmpty || (event.key !== Qt.Key_Return && event.key !== Qt.Key_Enter))
+            return
+        if (!event.isAutoRepeat && canDownloadMame && !downloadingMame)
+            arcadeBackend.downloadMame()
+        event.accepted = true
+    }
 
     // Plays a game, or joins a room of the lobby or the local network
     // (item.room, item.lan), or with online ({ hosting: true, lan }) hosts
@@ -96,6 +113,10 @@ FocusScope {
         problem: gamesRoot.problem
         folderReadable: gamesRoot.folderReadable
         gamesFolder: gamesRoot.gamesFolder
+        canDownload: gamesRoot.canDownloadMame
+        downloading: gamesRoot.downloadingMame
+        progress: arcadeBackend ? arcadeBackend.mameProgress : 0
+        failure: arcadeBackend ? arcadeBackend.mameMessage : ""
     }
 
     TreeBrowser {
@@ -150,9 +171,11 @@ FocusScope {
 
     Connections {
         target: arcadeBackend
+        ignoreUnknownSignals: true
         function onEntriesReady(path) { tree.refresh(path, true) }
         // A game played from the tree, now on Recently Played.
         function onFinished() { tree.refresh("recent", true) }
+        function onMameChanged() { gamesRoot.mameRevision++ }
         function onReadingChanged() {
             var entry = gamesRoot.startupEntry
             if (entry && !arcadeBackend.reading) {

@@ -328,7 +328,7 @@ C:\vcpkg\vcpkg install sdl2 openssl minizip --triplet x64-windows
 ```
 
 - **mpv** (required for playback): a build from [mpv.io](https://mpv.io/installation/) (shinchiro's), its folder put beside `osdos.exe` as `mpv\`, or `mpv.exe` beside the app or on the `PATH`.
-- **MAME** and **RetroArch** for Windows (optional, the Arcade module): `mame.exe` and RetroArch's folder on the `PATH`. Settings → Arcade → FinalBurn Neo downloads the Windows core.
+- **MAME** and **RetroArch** for Windows (optional, the Arcade module): `mame.exe` and RetroArch's folder on the `PATH`, or downloaded from the app: Settings → Arcade → MAME downloads mamedev's 64-bit build, Settings → Arcade → FinalBurn Neo downloads libretro's RetroArch and the Windows core.
 - **yt-dlp** and **Deno** (optional, YouTube): `yt-dlp.exe` and `deno.exe` on the `PATH`.
 
 ### Build
@@ -341,17 +341,17 @@ cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Release ^
   -DCMAKE_PREFIX_PATH=C:\Qt\6.8.3\msvc2022_64 -DCMAKE_INSTALL_PREFIX=%CD%\install
 cmake --build build --parallel
 cmake --install build
-C:\Qt\6.8.3\msvc2022_64\bin\windeployqt.exe --release --qmldir . install\bin\osdos.exe
-copy build\*.dll install\bin\
-copy C:\vcpkg\installed\x64-windows\bin\libssl*.dll install\bin\
+C:\Qt\6.8.3\msvc2022_64\bin\windeployqt.exe --release --qmldir . install\osdos\osdos.exe
+copy build\*.dll install\osdos\
+copy C:\vcpkg\installed\x64-windows\bin\libssl*.dll install\osdos\
 ```
 
-(`6.8.3` stands for the Qt version installed.) vcpkg puts the libraries the app links beside the built binary (SDL2, OpenSSL's libcrypto, minizip, zlib); `windeployqt` adds Qt's libraries, plugins and QML modules; libssl is what Qt's TLS plugin opens at run time. The install's layout is the Linux one, `bin\` and `share\osdos\`, which the app finds from its own folder. The LZMA SDK's 7z decoder (`thirdparty/lzma`, public domain) is built in on every system (`cmake/lzma.cmake`, the static library `osdos_lzma`), for the RetroArch for Windows that Settings → Arcade → FinalBurn Neo downloads as a 7z archive; it needs no package.
+(`6.8.3` stands for the Qt version installed.) vcpkg puts the libraries the app links beside the built binary (SDL2, OpenSSL's libcrypto, minizip, zlib); `windeployqt` adds Qt's libraries, plugins and QML modules; libssl is what Qt's TLS plugin opens at run time. The install is one folder, `install\osdos\`: `osdos.exe`, the libraries, Qt's plugins and QML modules, and the app's own files (`Main.qml`, `views\`, `modules\`, `assets\`, `scripts\`, `LICENSE`) together in it, as a Windows program is unpacked and run. The app takes the folder `Main.qml` is in beside its binary as its `APP_ROOT`, so the folder can be moved or unzipped anywhere whole; the `osdos-windows-x64` artifact is that folder. The LZMA SDK's 7z decoder (`thirdparty/lzma`, public domain) is built in on every system (`cmake/lzma.cmake`, the static library `osdos_lzma`), for the MAME and RetroArch for Windows that Settings → Arcade → MAME and → FinalBurn Neo download as 7z archives (MAME's a self-extracting one); it needs no package.
 
 ### Run
 
 ```bat
-install\bin\osdos.exe
+install\osdos\osdos.exe
 ```
 
 or, from the source tree, `set APP_ROOT=%CD%` then `build\osdos.exe` (with Qt's `bin` on the `PATH`). The build is a console program for now: a console window opens with the app and shows its log.

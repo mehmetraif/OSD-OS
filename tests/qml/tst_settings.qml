@@ -212,6 +212,21 @@ Rectangle {
             compare(cursor(page), "TV / Movie")
         }
 
+        // Window Mode is offered where the menus can be a window, on a
+        // desktop, and nowhere else: not on the offscreen platform the tests
+        // run on, as not on the Pi's console.
+        function test_windowModeRow() {
+            var page = open()
+            var all = lines(page)
+            compare(all.indexOf("Window Mode") >= 0, page.desktopWindow)
+            compare(page.desktopWindow, Qt.platform.os === "windows" || Qt.platform.pluginName === "xcb"
+                                        || Qt.platform.pluginName === "wayland")
+            if (page.desktopWindow) {
+                compare(row(page, "Window Mode").options, ["Off", "On"])
+                compare(row(page, "Window Mode").value, "Off")
+            }
+        }
+
         // TV / Movie's page: the videos' rows, then the video modules with
         // settings; nothing of the look or the application.
         function test_tvPage() {

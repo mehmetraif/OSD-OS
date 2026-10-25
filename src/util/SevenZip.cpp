@@ -4,12 +4,13 @@
 #include <QFileInfo>
 #include <QScopeGuard>
 #include <QVarLengthArray>
+#include <cstddef>
+#include <type_traits>
 
 // The LZMA SDK's 7z decoder (thirdparty/lzma): C, with its own guards.
 #include "7z.h"
 #include "7zAlloc.h"
 #include "7zCrc.h"
-#include "7zFile.h"
 
 namespace sevenzip {
 
@@ -18,6 +19,21 @@ namespace {
 // The SDK reads the archive through a buffer of this size, as its own 7zdec
 // does.
 constexpr size_t kInputBufSize = size_t(1) << 18;
+// A self-extracting archive is a program with the archive appended (7-Zip's
+// SFX): its stub is a few hundred kilobytes, so the archive is looked for in
+// the first 32 MB. The start header, signature first.
+constexpr qint64 kStubSearchBytes = qint64(32) << 20;
+constexpr int kStartHeaderSize = 32;
+const QByteArray kSignature("7z\xBC\xAF\x27\x1C", 6);
+
+// The CRC tables, once for the process.
+void prepareCrc() {
+    static const bool tables = [] {
+        CrcGenerateTable();
+        return true;
+    }();
+    Q_UNUSED(tables)
+}
 
 // What a result of the SDK's says went wrong, for the user.
 QString describe(SRes res) {
@@ -40,35 +56,109 @@ QString describe(SRes res) {
     }
 }
 
+// Where the archive begins in the file: at its start, or behind a
+// self-extractor's stub, at the first signature with a start header behind
+// it whose CRC holds (the stub's own code may carry the signature too). A
+// file that begins with the signature is an archive from its start, whatever
+// its header's CRC: the SDK says then that it is damaged, not that it is no
+// archive. -1 for a file that holds none.
+qint64 archiveStart(QFile &file) {
+    const auto startsAt = [](const QByteArray &bytes, qsizetype at) {
+        if (at + kStartHeaderSize > bytes.size())
+            return false;
+        const uchar *header = reinterpret_cast<const uchar *>(bytes.constData() + at);
+        const quint32 crc = quint32(header[8]) | quint32(header[9]) << 8 | quint32(header[10]) << 16
+                            | quint32(header[11]) << 24;
+        return header[6] == 0 && CrcCalc(header + 12, 20) == crc;
+    };
+    if (!file.seek(0))
+        return -1;
+    QByteArray head = file.read(kSignature.size());
+    if (head.startsWith(kSignature))
+        return 0;
+    if (!file.seek(0))
+        return -1;
+    head = file.read(kStubSearchBytes);
+    for (qsizetype at = head.indexOf(kSignature); at >= 0; at = head.indexOf(kSignature, at + 1)) {
+        if (startsAt(head, at))
+            return at;
+    }
+    return -1;
+}
+
+// The archive as the SDK reads it, through a seekable stream over the file
+// from where the archive begins (base). Standard layout with the SDK's
+// table first, so the stream pointer the SDK hands back is this.
+struct FileStream {
+    ISeekInStream vt;
+    QFile *file;
+    qint64 base;
+    qint64 size;
+    qint64 pos;
+};
+static_assert(std::is_standard_layout_v<FileStream> && offsetof(FileStream, vt) == 0);
+
+FileStream *streamOf(ISeekInStreamPtr p) {
+    return reinterpret_cast<FileStream *>(const_cast<ISeekInStream *>(p));
+}
+
+SRes streamRead(ISeekInStreamPtr p, void *buf, size_t *size) {
+    FileStream *stream = streamOf(p);
+    if (*size == 0)
+        return SZ_OK;
+    const qint64 room = qMin(qint64(*size), stream->size - stream->pos);
+    const qint64 got = room > 0 ? stream->file->read(static_cast<char *>(buf), room) : 0;
+    if (got < 0) {
+        *size = 0;
+        return SZ_ERROR_READ;
+    }
+    *size = size_t(got);
+    stream->pos += got;
+    return SZ_OK;
+}
+
+SRes streamSeek(ISeekInStreamPtr p, Int64 *pos, ESzSeek origin) {
+    FileStream *stream = streamOf(p);
+    const qint64 target = origin == SZ_SEEK_SET ? qint64(*pos)
+                        : origin == SZ_SEEK_CUR ? stream->pos + qint64(*pos)
+                                                : stream->size + qint64(*pos);
+    if (target < 0)
+        return SZ_ERROR_PARAM;
+    if (!stream->file->seek(stream->base + target))
+        return SZ_ERROR_READ;
+    stream->pos = target;
+    *pos = target;
+    return SZ_OK;
+}
+
 // An archive open for reading, with the SDK's state around it, let go of as
 // it goes out of scope.
 struct Archive {
-    CFileInStream stream{};
+    QFile file;
+    FileStream stream{};
     CLookToRead2 look{};
     CSzArEx db{};
     ISzAlloc alloc = { SzAlloc, SzFree };
     ISzAlloc allocTemp = { SzAlloc, SzFree };
-    bool fileOpen = false;
     bool dbInit = false;
 
     // Opens it and reads its table of files: "" once read, else why not.
     QString open(const QString &path) {
-        // The CRC tables, once for the process.
-        static const bool tables = [] {
-            CrcGenerateTable();
-            return true;
-        }();
-        Q_UNUSED(tables)
-#ifdef Q_OS_WIN
-        const WRes opened = InFile_OpenW(&stream.file, reinterpret_cast<const wchar_t *>(path.utf16()));
-#else
-        const WRes opened = InFile_Open(&stream.file, QFile::encodeName(path).constData());
-#endif
-        if (opened != 0)
+        prepareCrc();
+        file.setFileName(path);
+        if (!file.open(QIODevice::ReadOnly))
             return QStringLiteral("%1 could not be opened").arg(path);
-        fileOpen = true;
-        FileInStream_CreateVTable(&stream);
-        stream.wres = 0;
+        const qint64 base = archiveStart(file);
+        if (base < 0)
+            return describe(SZ_ERROR_NO_ARCHIVE);
+        stream.vt.Read = streamRead;
+        stream.vt.Seek = streamSeek;
+        stream.file = &file;
+        stream.base = base;
+        stream.size = file.size() - base;
+        stream.pos = 0;
+        if (!file.seek(base))
+            return describe(SZ_ERROR_READ);
         LookToRead2_CreateVTable(&look, False);
         look.buf = static_cast<Byte *>(ISzAlloc_Alloc(&alloc, kInputBufSize));
         if (!look.buf)
@@ -87,8 +177,6 @@ struct Archive {
             SzArEx_Free(&db, &alloc);
         if (look.buf)
             ISzAlloc_Free(&alloc, look.buf);
-        if (fileOpen)
-            File_Close(&stream.file);
     }
 
     // An entry's name as the archive has it.

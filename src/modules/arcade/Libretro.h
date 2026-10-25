@@ -130,6 +130,10 @@ struct Launch {
     // (onPanel()), whatever this says.
     enum class Layout { Classic, Panel } layout = Layout::Classic;
 };
+// Whether a game is hosted (Host, LanHost), rather than joined or played alone.
+constexpr bool hosts(Launch::Netplay netplay) {
+    return netplay == Launch::Netplay::Host || netplay == Launch::Netplay::LanHost;
+}
 // The layout a host plays its online games with: Panel where one of its
 // players is on an arcade panel (panels) or has Arcade Buttons (arcade), else
 // Classic.
@@ -152,6 +156,16 @@ QString remapText(const Launch &launch);
 // is none, or remapText() wrote it. One saved from RetroArch's menu (Save
 // Core Remap File) or put there by hand is the user's, loaded as it is.
 bool ownsRemap(const QString &path);
+// FinalBurn Neo's core options file in configDir, where RetroArch keeps a
+// core's options (<core name>/<core name>.opt, global_core_options off), and
+// its text with the option RetroAchievements' hardcore mode wants: RetroArch
+// pauses hardcore while a core option it disallows is set ("Hardcore paused.
+// Setting not allowed: fbneo-allow-patched-romsets=enabled"), and FinalBurn
+// Neo's default allows patched sets. withHardcoreOptions() sets that line, or
+// adds it, and leaves the rest of the text as it is: the same text back when
+// nothing is to change.
+QString coreOptionsPath(const QString &configDir);
+QString withHardcoreOptions(const QString &text);
 // FinalBurn Neo's info file, which RetroArch looks for in infoDir by the
 // core's name (fbneo_libretro.info), and the text OSD/OS writes in it before
 // each game: what libretro's own information on the core says that RetroArch
@@ -161,15 +175,33 @@ bool ownsRemap(const QString &path);
 QString coreInfoPath(const QString &infoDir);
 QString coreInfoText();
 
-// What a run's log says (RetroArch's own, -v --log-file).
+// What a run's log says (RetroArch's own, -v --log-file). Over the network,
+// hosting or joining (hosting says which), netplayFailure is why RetroArch
+// couldn't, after which it played the game alone (netplayFailure()).
 struct Run {
     bool logged = false;          // there was a log to read
     bool started = false;         // FinalBurn Neo started the game
     QStringList missing;          // files it needed and found none of
     QString loginFailure;         // why RetroAchievements didn't take the account
+    QString netplayFailure;       // why it couldn't host or join the game
     QString error;                // RetroArch's last error line
 };
-Run readLog(const QString &path);
+Run readLog(const QString &path, bool hosting = false);
+// A line of the log that is one of RetroArch's netplay errors ("[ERROR]
+// [Netplay] ..."): what it says, its full stop dropped; nothing for any other
+// line.
+std::optional<QString> netplayError(const QString &line);
+// Of a run's netplay errors so far, in order (netplayError()), why RetroArch
+// couldn't host or join the game, after which it says so once on its screen
+// and plays on alone; "" while nothing has ended the game. Joining, the host
+// not reached or the handshake refused (another core, an old RetroArch, the
+// host full, the password, a ban, what the host sent not received) ends it by
+// itself. Hosting, only "Failed to initialize netplay" does, which every start
+// that fails ends in, and the failure is the most telling line before it (the
+// port, the sockets, the relay, the core): a port missed over IPv6 is logged
+// too, and then bound over IPv4. A warning (versions, CRCs), a client a host
+// turns away, input out of order and a peer that leaves let the game go on.
+QString netplayFailure(const QStringList &errors, bool hosting);
 // Whether a sign-in failure (Run::loginFailure) is RetroAchievements turning
 // the account down, a password or a token it doesn't take, rather than not
 // being reached ("No response from server"), which leaves a token as it is.

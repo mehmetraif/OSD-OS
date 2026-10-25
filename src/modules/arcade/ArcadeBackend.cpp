@@ -9,7 +9,7 @@
 #include "../../util/LegacyNames.h"
 #include "ArcadeDb.h"
 #include "FbneoInstaller.h"
-#include "RetroArchInstaller.h"
+#include "ProgramInstaller.h"
 #include "Http.h"
 #include "Libretro.h"
 #include "RetroAchievements.h"
@@ -106,6 +106,12 @@ constexpr int kClaimAskings = 3;
 // How long ports that came without the host's layout wait for it (a datagram
 // of its own, sent before them: lost, or an older OSD/OS's, which says none).
 constexpr int kLayoutWaitMs = 150;
+// Over the network, how often RetroArch's log is read as the game starts, and
+// for how long: a host it can't reach it gives up on after 10 s, and the
+// handshake takes a moment after; what fails later (a peer leaving) isn't a
+// start that failed.
+constexpr int kNetplayWatchMs = 500;
+constexpr int kNetplayWatchFor = 60000;
 
 // catver.ini, the games' genres, as progettosnaps publishes it with each MAME:
 // downloaded into <data>/arcade when neither folder has one (it may not be
@@ -148,6 +154,18 @@ constexpr std::pair<const char *, const char *> kLists[] = {
     { "netplay", "Playable Online" },
 };
 constexpr std::pair<const char *, const char *> kUnknown = { "unknown", "Not Recognized" };
+// The lists kept here, Favorites and Recently Played, which the Arcade
+// screen has with or without a game on them; the others are made of what
+// RetroAchievements and FinalBurn Neo have, and come with a game on them.
+bool ownList(QLatin1String id) {
+    return id == QLatin1String("favorites") || id == QLatin1String("recent");
+}
+
+// What a filter says in its list's place while it has no game: its line,
+// and the detail for the help line.
+QVariantMap filterSays(const QString &name, const QString &detail) {
+    return { { QStringLiteral("name"), name }, { QStringLiteral("detail"), detail } };
+}
 
 // A kind's places in the order they are listed, with what each is called:
 // players by number, decades in order with the years unknown last, the rest
@@ -423,15 +441,26 @@ QList<QHostAddress> broadcastAddresses() {
 }
 
 // The pads as the menus know them, for a game's SDL (MAME's, RetroArch's):
-// the controller database OSD/OS reads, and a pad's buttons by their places,
-// as InputManager has them, so that each of a player's Arcade Buttons is the
-// same button in the game.
+// the controller database OSD/OS reads, a pad's buttons by their places, as
+// InputManager has them, and every pad's mapping as OSD/OS's own SDL has it
+// (controllers::padMappings()), so that the game's SDL, of another version or
+// on another system, with another database, knows each pad as the menus do
+// and numbers its buttons as the binds written for it do: each of a player's
+// Arcade Buttons is the same button in the game.
 QList<QPair<QString, QString>> padEnvironment(const QString &dataRoot) {
     QList<QPair<QString, QString>> environment{
         { QStringLiteral("SDL_GAMECONTROLLER_USE_BUTTON_LABELS"), QStringLiteral("0") } };
     const QString mappings = dataRoot + QStringLiteral("/gamecontrollerdb.txt");
     if (QFileInfo::exists(mappings))
         environment << qMakePair(QStringLiteral("SDL_GAMECONTROLLERCONFIG_FILE"), mappings);
+    // After any mappings OSD/OS's own environment carries, which its SDL
+    // read too, so a pad plugged in during the game has them as well.
+    QStringList lines = controllers::padMappings();
+    const QString own = qEnvironmentVariable("SDL_GAMECONTROLLERCONFIG");
+    if (!own.isEmpty())
+        lines.prepend(own);
+    if (!lines.isEmpty())
+        environment << qMakePair(QStringLiteral("SDL_GAMECONTROLLERCONFIG"), lines.join(QLatin1Char('\n')));
     return environment;
 }
 
@@ -452,17 +481,25 @@ ArcadeBackend::ArcadeBackend(const QString &appRoot, const QString &dataRoot, Ap
         QString reason = launcherReason;
         QString notice;
         bool refused = false;
+        m_netplayWatch->stop();
         if (m_playingEngine == QLatin1String("fbneo")) {
-            const libretro::Run run = libretro::readLog(retroarchHome() + QStringLiteral("/last.log"));
+            const libretro::Run run = libretro::readLog(retroarchHome() + QStringLiteral("/last.log"),
+                                                        libretro::hosts(m_playingNetplay));
             takeAchievements(run);
             // FinalBurn Neo shows its own error for a game it can't start,
             // and RetroArch goes on: a game is one it started, as its log
-            // says (a log there to say so).
-            if (reason == QLatin1String("ok") && run.logged && !run.started)
+            // says (a log there to say so). Over the network, one RetroArch
+            // couldn't host or join and went on with alone (stopped by
+            // watchNetplay(), or played out) isn't the game asked for.
+            const bool alone = m_playingNetplay != libretro::Launch::Netplay::None && !run.netplayFailure.isEmpty();
+            if ((reason == QLatin1String("ok") && run.logged && !run.started)
+                || (alone && reason != QLatin1String("failed_to_start")))
                 reason = QStringLiteral("failed");
             notice = fbneoNotice(exitCode, reason, run);
+            // Stopped by watchNetplay(), RetroArch may die of the signal,
+            // which the launcher counts a crash: not a game played either.
             refused = reason == QLatin1String("failed_to_start")
-                      || (reason == QLatin1String("failed") && !m_launcher->lastRunCrashed() && !run.started);
+                      || (reason == QLatin1String("failed") && (alone || (!m_launcher->lastRunCrashed() && !run.started)));
         } else {
             notice = noticeFor(exitCode, reason);
             // The time it ran counts as played, unless MAME refused the game
@@ -500,6 +537,9 @@ ArcadeBackend::ArcadeBackend(const QString &appRoot, const QString &dataRoot, Ap
         if (!m_scan && !m_toAsk.isEmpty())
             scanNext();
     });
+    m_netplayWatch = new QTimer(this);
+    m_netplayWatch->setInterval(kNetplayWatchMs);
+    connect(m_netplayWatch, &QTimer::timeout, this, &ArcadeBackend::watchNetplay);
 
     m_watcher = new QFutureWatcher<Read>(this);
     connect(m_watcher, &QFutureWatcherBase::finished, this, &ArcadeBackend::onRead);
@@ -514,15 +554,28 @@ ArcadeBackend::ArcadeBackend(const QString &appRoot, const QString &dataRoot, Ap
             refresh();
         emit fbneoChanged();
     });
-    m_retroarchInstaller = new RetroArchInstaller(m_dataRoot, this);
-    connect(m_retroarchInstaller, &RetroArchInstaller::progressChanged, this, &ArcadeBackend::fbneoProgressChanged);
-    connect(m_retroarchInstaller, &RetroArchInstaller::finished, this, [this](bool ok, const QString &message) {
+    m_retroarchInstaller = new ProgramInstaller(this);
+    connect(m_retroarchInstaller, &ProgramInstaller::progressChanged, this, &ArcadeBackend::fbneoProgressChanged);
+    connect(m_retroarchInstaller, &ProgramInstaller::finished, this, [this](bool ok, const QString &message) {
         m_retroarchMessage = message;
         // The games read again with RetroArch there: FinalBurn Neo's play
         // now, and its version is asked as they are listed.
         if (ok)
             refresh();
         emit fbneoChanged();
+    });
+    m_mameInstaller = new ProgramInstaller(this);
+    connect(m_mameInstaller, &ProgramInstaller::progressChanged, this, &ArcadeBackend::mameProgressChanged);
+    connect(m_mameInstaller, &ProgramInstaller::finished, this, [this](bool ok, const QString &message) {
+        m_mameMessage = message;
+        // The games read again with MAME there, which is asked about every
+        // set, as it is another MAME. A batch stopped for a download that
+        // failed is asked again (downloadMame()).
+        if (ok)
+            refresh();
+        else if (!m_scan && !m_toAsk.isEmpty() && !m_launcher->isBusy())
+            scanNext();
+        emit mameChanged();
     });
 
     // The RetroAchievements account, without its password, which is kept
@@ -701,9 +754,10 @@ void ArcadeBackend::onSettingChanged(const QString &moduleId, const QString &key
     if (moduleId != kModuleId)
         return;
     applySetting(key, value);
-    // Start Filter offers RetroArch Lobby while Online Play is on: its
-    // choices again, for the Settings page that has both.
-    if (key == QLatin1String("online_play"))
+    // Start Filter offers Online Games and RetroArch Lobby while Online Play
+    // is on, and LAN Games while LAN Play is: its choices again, for the
+    // Settings page that has them all.
+    if (key == QLatin1String("online_play") || key == QLatin1String("lan_play"))
         startFilterOptions();
 }
 
@@ -1658,23 +1712,38 @@ QVariantList ArcadeBackend::filterRooms(const QString &filter) const {
 
 QVariantList ArcadeBackend::filters() {
     QVariantList list;
-    if (!scanning() && !index().games.isEmpty())
+    // The games read, and some among the sets: All Games first. While MAME
+    // is asked, or with none, only what has a game on it already, and with
+    // nothing the screen says why there are no games.
+    const bool haveGames = !scanning() && !index().games.isEmpty();
+    if (haveGames)
         list << filter(QStringLiteral("all"), QStringLiteral("All Games"), index().games.size());
-    // While someone hosts one of the games: the lobby is read with the list,
-    // and the local network asked. The whole lobby with Online Play on and
-    // games to play, while it is read and when no one hosts a game too: the
-    // screen says so. With none, the screen says why there are none.
-    // LAN Games, with LAN Play on and games to play, also while no one on
-    // the network hosts one: the screen says why (lanStatus()).
-    if (const qsizetype online = rooms().size(); online > 0)
-        list << filter(QStringLiteral("online"), QStringLiteral("Online Games"), online);
-    if (const qsizetype lan = lanRooms().size(); lan > 0 || (m_lanPlay && !scanning() && !index().games.isEmpty()))
-        list << filter(QStringLiteral("lan"), QStringLiteral("LAN Games"), lan);
-    if (m_onlinePlay && !scanning() && !index().games.isEmpty())
-        list << filter(QStringLiteral("lobby"), QStringLiteral("RetroArch Lobby"), m_lobby.size());
+    // Favorites and Recently Played, while Menu Filters shows them, with or
+    // without a game on them: the screen says so (filterStatus()).
     for (const auto &[id, name] : kLists) {
-        const qsizetype count = menuShows(QLatin1String(id)) ? filterSets(QLatin1String(id)).size() : 0;
-        if (count > 0)
+        if (!ownList(QLatin1String(id)) || !menuShows(QLatin1String(id)))
+            continue;
+        const qsizetype count = filterSets(QLatin1String(id)).size();
+        if (count > 0 || haveGames)
+            list << filter(QLatin1String(id), QLatin1String(name), count);
+    }
+    // LAN Games with LAN Play on, Online Games and the whole lobby with
+    // Online Play on, whether or not anyone hosts a game: the screen says why
+    // there is none (lanStatus(), filterStatus(), the lobby's state). A game
+    // hosted on the network or in the lobby, which is read with the list,
+    // is there while MAME is still asked too.
+    if (const qsizetype lan = lanRooms().size(); lan > 0 || (m_lanPlay && haveGames))
+        list << filter(QStringLiteral("lan"), QStringLiteral("LAN Games"), lan);
+    if (const qsizetype online = rooms().size(); online > 0 || (m_onlinePlay && haveGames))
+        list << filter(QStringLiteral("online"), QStringLiteral("Online Games"), online);
+    if (m_onlinePlay && haveGames)
+        list << filter(QStringLiteral("lobby"), QStringLiteral("RetroArch Lobby"), m_lobby.size());
+    // RetroAchievements and Playable Online, made of what RetroAchievements
+    // and FinalBurn Neo have: with a game on them.
+    for (const auto &[id, name] : kLists) {
+        if (ownList(QLatin1String(id)) || !menuShows(QLatin1String(id)))
+            continue;
+        if (const qsizetype count = filterSets(QLatin1String(id)).size(); count > 0)
             list << filter(QLatin1String(id), QLatin1String(name), count);
     }
     if (scanning())
@@ -2183,12 +2252,15 @@ void ArcadeBackend::sweepPictures() {
             ++m_sweepDone;
             if (!m_sets.contains(set) || isUnrecognized(set) || m_noPictures.contains(set))
                 continue;
+            // The game RetroAchievements reads for the set, its own or its
+            // parent's (pictureGame()): none it knows, or one looked for
+            // already (a clone's parent's pictures are its too, and a look
+            // cut short had most of them in), and the set is passed at once,
+            // with no second spent asking after it.
             const QStringList names = setAndParent(set);
+            const QString game = m_retroAchievements->pictureGame(names);
             const QStringList looked = picturesLooked(names);
-            const bool known = std::any_of(names.cbegin(), names.cend(), [this](const QString &name) {
-                return m_retroAchievements->knowsGame(name);
-            });
-            if (!known || looked.size() == names.size())
+            if (game.isEmpty() || looked.contains(game))
                 continue;
             m_sweepGame = names;
             ++m_sweepAsked;
@@ -2512,17 +2584,27 @@ void ArcadeBackend::startFilterOptions() {
     // Once the folder and games.json have been read (Settings opened before
     // the list ever was): the filters are made of them.
     afterRead([this] {
+        // In the order the screen goes round them (filters()): All Games;
         // Favorites and Recently Played whether or not they hold a game yet;
-        // with Online Play on, RetroArch's lobby, which may have no room.
-        QVariantList options{ QVariantMap{ { QStringLiteral("id"), QStringLiteral("all") },
-                                           { QStringLiteral("label"), QStringLiteral("All Games") } } };
-        if (m_onlinePlay)
-            options << QVariantMap{ { QStringLiteral("id"), QStringLiteral("lobby") },
-                                    { QStringLiteral("label"), QStringLiteral("RetroArch Lobby") } };
-        for (const auto &[id, label] : kLists) {
-            if (menuShows(QLatin1String(id)))
-                options << QVariantMap{ { QStringLiteral("id"), QLatin1String(id) },
-                                        { QStringLiteral("label"), QLatin1String(label) } };
+        // with LAN Play on LAN Games, and with Online Play on Online Games
+        // and RetroArch's lobby, which may have no room; the lists made of
+        // what RetroAchievements and FinalBurn Neo have; then the places.
+        const auto option = [](const QString &id, const QString &label) {
+            return QVariantMap{ { QStringLiteral("id"), id }, { QStringLiteral("label"), label } };
+        };
+        QVariantList options{ option(QStringLiteral("all"), QStringLiteral("All Games")) };
+        for (const bool own : { true, false }) {
+            if (!own) {
+                if (m_lanPlay)
+                    options << option(QStringLiteral("lan"), QStringLiteral("LAN Games"));
+                if (m_onlinePlay)
+                    options << option(QStringLiteral("online"), QStringLiteral("Online Games"))
+                            << option(QStringLiteral("lobby"), QStringLiteral("RetroArch Lobby"));
+            }
+            for (const auto &[id, label] : kLists) {
+                if (ownList(QLatin1String(id)) == own && menuShows(QLatin1String(id)))
+                    options << option(QLatin1String(id), QLatin1String(label));
+            }
         }
         const QVariantList places = placeFilters();
         for (const QVariant &v : places) {
@@ -2955,7 +3037,11 @@ QString ArcadeBackend::engineFor(const QString &set, bool fbneoUsable, bool have
         return QStringLiteral("fbneo");
     const bool fbneo = fbneoUsable && fbneoHas(set);
     const QString chosen = m_engines.value(set).toString();
-    if (chosen == QLatin1String("mame") && haveMame)
+    // MAME chosen is MAME, with none installed too: the game then says so
+    // (play()), rather than playing in FinalBurn Neo against the choice.
+    // FinalBurn Neo chosen without it falls to MAME, which says what is
+    // missing of FinalBurn Neo's.
+    if (chosen == QLatin1String("mame"))
         return QStringLiteral("mame");
     if (fbneo && (chosen == QLatin1String("fbneo") || fbneoWanted() || !haveMame))
         return QStringLiteral("fbneo");
@@ -3013,12 +3099,15 @@ QVariantList ArcadeBackend::engineChoices(const QString &set) const {
     if (only)
         return { choice(QStringLiteral("auto"), QStringLiteral("Auto (FinalBurn Neo)")),
                  choice(QStringLiteral("fbneo"), QStringLiteral("FinalBurn Neo")) };
-    // Auto as it stands: what the game would play in left to it.
+    // Auto as it stands: what the game would play in left to it. MAME with
+    // none installed says so, as choosing it has the game say so too.
     const bool fbneo = fbneoPlays(set);
-    const bool autoFbneo = fbneo && (fbneoWanted() || mamePath().isEmpty());
+    const bool haveMame = !mamePath().isEmpty();
+    const bool autoFbneo = fbneo && (fbneoWanted() || !haveMame);
     QVariantList choices{ choice(QStringLiteral("auto"),
                                  autoFbneo ? QStringLiteral("Auto (FinalBurn Neo)") : QStringLiteral("Auto (MAME)")),
-                          choice(QStringLiteral("mame"), QStringLiteral("MAME")) };
+                          choice(QStringLiteral("mame"),
+                                 haveMame ? QStringLiteral("MAME") : QStringLiteral("MAME (Not Installed)")) };
     if (fbneo)
         choices << choice(QStringLiteral("fbneo"), QStringLiteral("FinalBurn Neo"));
     return choices;
@@ -3134,7 +3223,20 @@ bool ArcadeBackend::playFbneo(const QString &name, libretro::Launch::Netplay net
         QDirIterator sets(bios, { QStringLiteral("*.zip"), QStringLiteral("*.7z") }, QDir::Files);
         while (sets.hasNext()) {
             sets.next();
-            QFile::link(sets.filePath(), fbneo + QLatin1Char('/') + sets.fileName());
+            const QString target = fbneo + QLatin1Char('/') + sets.fileName();
+#ifdef Q_OS_WIN
+            // Windows makes no symbolic link without a privilege (QFile::link
+            // makes a shortcut there, which FinalBurn Neo can't open): a copy
+            // of the set, made anew once the set has changed.
+            const QFileInfo have(target);
+            const QFileInfo set = sets.fileInfo();
+            if (!have.exists() || have.size() != set.size() || have.lastModified() < set.lastModified()) {
+                QFile::remove(target);
+                QFile::copy(set.filePath(), target);
+            }
+#else
+            QFile::link(sets.filePath(), target);
+#endif
         }
     }
 
@@ -3239,6 +3341,20 @@ bool ArcadeBackend::playFbneo(const QString &name, libretro::Launch::Netplay net
     // joins a game.
     written = written && QDir().mkpath(launch.infoDir)
               && writeFileAnew(libretro::coreInfoPath(launch.infoDir), libretro::coreInfoText().toUtf8(), kOwnerOnly);
+    // RetroAchievements' hardcore mode, the one whose scores the leaderboards
+    // take, runs only while no core option it disallows is set, and FinalBurn
+    // Neo's default allows patched sets, over which RetroArch would pause it
+    // ("Setting not allowed: fbneo-allow-patched-romsets=enabled"). The
+    // core's options are given the value hardcore wants, the rest kept, and
+    // written only when that changes them.
+    if (written && !launch.achievementsUser.isEmpty()) {
+        const QString options = libretro::coreOptionsPath(launch.configDir);
+        QFile file(options);
+        const QString before = file.open(QIODevice::ReadOnly) ? QString::fromUtf8(file.readAll()) : QString();
+        const QString after = libretro::withHardcoreOptions(before);
+        if (after != before)
+            written = QDir().mkpath(QFileInfo(options).path()) && writeFileAtomically(options, after.toUtf8(), kOwnerOnly);
+    }
     if (!written || !writeFileAnew(launch.config, libretro::configText(launch).toUtf8(), kOwnerOnly)) {
         m_lastError = QStringLiteral("RetroArch's settings could not be written");
         m_raPasswordGiven = false;
@@ -3273,8 +3389,16 @@ bool ArcadeBackend::playFbneo(const QString &name, libretro::Launch::Netplay net
     }
     m_playing = name;
     m_playingEngine = QStringLiteral("fbneo");
-    m_playingOnline = netplay != libretro::Launch::Netplay::None;
+    m_playingNetplay = netplay;
     m_playClock.start();
+    // Over the network: RetroArch's log watched for the failure it would
+    // play on alone after.
+    if (netplay != libretro::Launch::Netplay::None) {
+        m_netplayLogRead = 0;
+        m_netplayLogTail.clear();
+        m_netplayErrors.clear();
+        m_netplayWatch->start();
+    }
     if (!m_played) {
         m_played = true;
         emit playedChanged();
@@ -3976,20 +4100,42 @@ QVariantList ArcadeBackend::lanRoomEntries() const {
 }
 
 QVariantMap ArcadeBackend::lanStatus() const {
-    const auto said = [](const QString &name, const QString &detail) {
-        return QVariantMap{ { QStringLiteral("name"), name }, { QStringLiteral("detail"), detail } };
-    };
     // FinalBurn Neo first: without it no game hosted there is one to join.
     if (!fbneoReady())
-        return said(QStringLiteral("FinalBurn Neo Not Installed"),
-                    QStringLiteral("LAN games play in FinalBurn Neo: Settings → Arcade → FinalBurn Neo"));
+        return filterSays(QStringLiteral("FinalBurn Neo Not Installed"),
+                          QStringLiteral("LAN games play in FinalBurn Neo: Settings → Arcade → FinalBurn Neo"));
     if (!m_lanRead)
-        return said(QStringLiteral("Asking the Local Network…"),
-                    QStringLiteral("A game hosted on this network comes here as soon as it is found"));
+        return filterSays(QStringLiteral("Asking the Local Network…"),
+                          QStringLiteral("A game hosted on this network comes here as soon as it is found"));
     if (!m_lanProblem.isEmpty())
-        return said(QStringLiteral("Network Not Reachable"), m_lanProblem);
-    return said(QStringLiteral("No LAN Games"),
-                QStringLiteral("No one on this network hosts a game you have: host one from a game's options"));
+        return filterSays(QStringLiteral("Network Not Reachable"), m_lanProblem);
+    return filterSays(QStringLiteral("No LAN Games"),
+                      QStringLiteral("No one on this network hosts a game you have: host one from a game's options"));
+}
+
+QVariantMap ArcadeBackend::filterStatus(const QString &filter) const {
+    if (filter == QLatin1String("lan"))
+        return lanStatus();
+    if (filter == QLatin1String("online")) {
+        // As the tree's Online Games says it (roomEntries()).
+        if (!fbneoReady())
+            return filterSays(QStringLiteral("FinalBurn Neo Not Installed"),
+                              QStringLiteral("Online games play in FinalBurn Neo: Settings → Arcade → FinalBurn Neo"));
+        if (!m_roomsRead)
+            return filterSays(QStringLiteral("Reading RetroArch's Lobby…"),
+                              QStringLiteral("A game hosted there that you have comes here as soon as it is found"));
+        if (!m_roomsProblem.isEmpty())
+            return filterSays(QStringLiteral("Lobby Not Reachable"), m_roomsProblem);
+        return filterSays(QStringLiteral("No Games Online"),
+                          QStringLiteral("No one in RetroArch's lobby hosts a game you have: host one from a game's options"));
+    }
+    if (filter == QLatin1String("favorites"))
+        return filterSays(QStringLiteral("No Favorites"),
+                          QStringLiteral("Hold select on a game and choose Add to Favorites: it comes here"));
+    if (filter == QLatin1String("recent"))
+        return filterSays(QStringLiteral("No Games Played Yet"),
+                          QStringLiteral("The games played last come here, the latest first"));
+    return QVariantMap();
 }
 
 QString ArcadeBackend::nickname(bool lan) const {
@@ -4019,11 +4165,59 @@ QString ArcadeBackend::lanDetail(const libretro::Room &room) const {
     return parts.join(QStringLiteral(" • "));
 }
 
+void ArcadeBackend::watchNetplay() {
+    // RetroArch that can't host or join (the host not reached, the handshake
+    // refused, its port taken) says so once on its screen and plays the game
+    // alone, as if nothing had been asked; its log says so too, a line at a
+    // time as it goes. The log is read as it grows while the game starts,
+    // and the game stopped at the first such line: the end then says why
+    // (fbneoNotice()).
+    if (m_playClock.elapsed() > kNetplayWatchFor || !m_launcher->isBusy()) {
+        m_netplayWatch->stop();
+        return;
+    }
+    QFile log(retroarchHome() + QStringLiteral("/last.log"));
+    if (!log.open(QIODevice::ReadOnly) || log.size() <= m_netplayLogRead || !log.seek(m_netplayLogRead))
+        return;
+    m_netplayLogTail += log.readAll();
+    m_netplayLogRead = log.pos();
+    // Whole lines: the last may be half written.
+    const qsizetype end = m_netplayLogTail.lastIndexOf('\n');
+    if (end < 0)
+        return;
+    const QList<QByteArray> lines = m_netplayLogTail.left(end).split('\n');
+    m_netplayLogTail.remove(0, end + 1);
+    const bool hosting = libretro::hosts(m_playingNetplay);
+    for (const QByteArray &line : lines) {
+        const std::optional<QString> error = libretro::netplayError(QString::fromUtf8(line));
+        if (!error)
+            continue;
+        m_netplayErrors << *error;
+        const QString failure = libretro::netplayFailure(m_netplayErrors, hosting);
+        if (failure.isEmpty())
+            continue;
+        qWarning("[Arcade] %s: RetroArch plays on alone, \"%s\": stopped", qPrintable(m_playing), qPrintable(failure));
+        m_netplayWatch->stop();
+        m_launcher->requestStop();
+        return;
+    }
+}
+
 QString ArcadeBackend::fbneoNotice(int exitCode, const QString &reason, const libretro::Run &run) const {
     if (reason == QLatin1String("ok"))
         return QString();
     if (reason == QLatin1String("failed_to_start"))
         return QStringLiteral("RetroArch did not start");
+    // Over the network, the game RetroArch couldn't set up and went on with
+    // alone: why, in its words.
+    if (m_playingNetplay != libretro::Launch::Netplay::None && !run.netplayFailure.isEmpty()) {
+        QString notice = QStringLiteral("Could not %1 the game: %2")
+                             .arg(libretro::hosts(m_playingNetplay) ? QStringLiteral("host") : QStringLiteral("join"),
+                                  run.netplayFailure);
+        if (run.netplayFailure.startsWith(QLatin1String("Failed to connect to host")))
+            notice += QStringLiteral("\nThe host didn't answer: its game may have ended, or a firewall there keeps the port closed");
+        return notice;
+    }
     if (reason == QLatin1String("stopped"))
         return QStringLiteral("The game was stopped");
     if (m_launcher->lastRunCrashed())
@@ -4034,7 +4228,7 @@ QString ArcadeBackend::fbneoNotice(int exitCode, const QString &reason, const li
             files += QStringLiteral(" and %1 more").arg(run.missing.size() - 3);
         // No other engine to play it in: one MAME doesn't know, one played
         // online, or with no MAME.
-        if (fbneoOnly(m_playing) || m_playingOnline || mamePath().isEmpty())
+        if (fbneoOnly(m_playing) || m_playingNetplay != libretro::Launch::Netplay::None || mamePath().isEmpty())
             return QStringLiteral("Missing %1: the set may be for another version of FinalBurn Neo\n"
                                   "Or a BIOS set it needs isn't in the games folder").arg(files);
         return QStringLiteral("Missing %1: FinalBurn Neo's sets aren't always MAME's\n"
@@ -4065,7 +4259,8 @@ QVariantMap ArcadeBackend::fbneoInfo() const {
              { QStringLiteral("license"), QFileInfo::exists(license) ? license
                                           : QFileInfo::exists(imageLicense) ? imageLicense : QString() },
              { QStringLiteral("canDownload"), unpacks && !FbneoInstaller::defaultSource().core.isEmpty() },
-             { QStringLiteral("canDownloadRetroarch"), !RetroArchInstaller::defaultSource().archive.isEmpty() },
+             { QStringLiteral("canDownloadRetroarch"), ProgramInstaller::retroarch(m_dataRoot).available },
+             { QStringLiteral("retroarchDownloadVersion"), ProgramInstaller::retroarch(m_dataRoot).version },
              { QStringLiteral("retroarchDownloaded"), !retroarchPath().isEmpty()
                                                       && retroarchPath() == libretro::downloadedRetroArch(m_dataRoot) } };
 }
@@ -4095,7 +4290,7 @@ void ArcadeBackend::downloadRetroArch() {
     if (m_retroarchInstaller->running())
         return;
     m_retroarchMessage.clear();
-    m_retroarchInstaller->start(RetroArchInstaller::defaultSource());
+    m_retroarchInstaller->start(ProgramInstaller::retroarch(m_dataRoot));
     emit fbneoChanged();
 }
 
@@ -4105,6 +4300,41 @@ bool ArcadeBackend::retroarchDownloading() const {
 
 int ArcadeBackend::retroarchProgress() const {
     return m_retroarchInstaller->progress();
+}
+
+QVariantMap ArcadeBackend::mameInfo() const {
+    const QString program = mamePath();
+    const QString plugins = pluginsPath();
+    return { { QStringLiteral("mame"), program },
+             { QStringLiteral("downloaded"), !program.isEmpty() && program == mame::downloadedMame(m_dataRoot) },
+             { QStringLiteral("canDownload"), ProgramInstaller::mame(m_dataRoot).available },
+             { QStringLiteral("downloadVersion"), ProgramInstaller::mame(m_dataRoot).version },
+             { QStringLiteral("plugins"), !plugins.isEmpty() },
+             { QStringLiteral("pluginsFolder"), plugins } };
+}
+
+void ArcadeBackend::downloadMame() {
+    // Not beside a game, which may be playing in the MAME to be replaced.
+    if (m_mameInstaller->running() || m_launcher->isBusy())
+        return;
+    m_mameMessage.clear();
+    const ProgramInstaller::Source source = ProgramInstaller::mame(m_dataRoot);
+    // Nor beside a batch MAME is asked about, which would be running from
+    // the folder the download puts its MAME in: stopped, as for a game
+    // starting, and asked again should the download fail. A download that
+    // succeeds reads every set anew (the installer's finished()).
+    if (source.available)
+        pauseScan();
+    m_mameInstaller->start(source);
+    emit mameChanged();
+}
+
+bool ArcadeBackend::mameDownloading() const {
+    return m_mameInstaller->running();
+}
+
+int ArcadeBackend::mameProgress() const {
+    return m_mameInstaller->progress();
 }
 
 QString ArcadeBackend::achievementsMessage() const {

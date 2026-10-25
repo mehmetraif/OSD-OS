@@ -3,6 +3,7 @@
 #include <QQmlContext>
 #include <QUrl>
 #include <QDir>
+#include <QFileInfo>
 #include <QStandardPaths>
 #include <QCursor>
 #include <QDebug>
@@ -66,10 +67,18 @@ static QString resolveAppRoot() {
     if (QCoreApplication::applicationFilePath().contains(".app/Contents/MacOS/"))
         return QDir(appDir + "/../Resources").canonicalPath();
 
+    // The app's own files beside the binary: the Windows build's one folder,
+    // osdos\, with osdos.exe, Main.qml, views\, modules\ and the rest in it,
+    // which goes anywhere whole.
+    if (QFileInfo::exists(appDir + "/Main.qml"))
+        return QDir(appDir).canonicalPath();
+
+    // The FHS layout: bin/ and share/osdos/ (/opt/osdos on a Pi).
     QDir fhsData(appDir + "/../share/osdos");
     if (fhsData.exists())
         return fhsData.canonicalPath();
 
+    // A build tree in the repository (build/osdos).
     return QDir(appDir + "/..").canonicalPath();
 }
 

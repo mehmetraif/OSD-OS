@@ -55,7 +55,10 @@ jobs:
       matrix:
         runner: [ubuntu-24.04, ubuntu-24.04-arm]
     runs-on: ${{ matrix.runner }}
-    timeout-minutes: 20
+    # A run takes about ten minutes, but Ubuntu's mirror for the runners
+    # has served the packages at under 200 kB/s, which took 18 of them
+    # alone. A test that hangs is stopped by ctest's own --timeout below.
+    timeout-minutes: 40
     steps:
       - name: Checkout
         uses: actions/checkout@v7.0.1

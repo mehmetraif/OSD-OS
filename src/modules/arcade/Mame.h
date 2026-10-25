@@ -14,8 +14,15 @@ namespace mame {
 
 // MAME's program: <data>/bin/mame (one of the user's own, as yt-dlp's
 // drop-in is), else mame on the PATH, else Debian's /usr/games/mame, which a
-// systemd service's PATH leaves out. "" for none.
+// systemd service's PATH leaves out, the BSDs' and Homebrew's; on Windows
+// the one Settings → Arcade → MAME downloaded (downloadedMame()), a MAME
+// folder beside OSD/OS, or where its builds are commonly unpacked. "" for
+// none.
 QString programPath(const QString &dataRoot);
+// Where Settings → Arcade → MAME puts mamedev's build on Windows:
+// <data>/arcade/mame/mame.exe, its own folders (plugins, hash, bgfx…)
+// beside it as the build has them.
+QString downloadedMame(const QString &dataRoot);
 // The plugins folder of that MAME, with the hiscore plugin in it: beside the
 // program as installed (Debian's /usr/games/../share/games/mame/plugins,
 // Homebrew's bin/../share/mame/plugins, or a plugins folder of its own),

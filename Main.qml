@@ -6,6 +6,59 @@ import "views/Components/Hover.js" as Hover
 
 Window {
     id: root
+    // Settings → Window Mode (app.window_mode, Off): the menus in a window on
+    // the desktop in place of the whole screen, 960×720 (4:3) in the middle
+    // of the screen the first time, then where the desktop last had it,
+    // moved and sized as any window; F11 or Alt+Enter switches. Only where
+    // there is a desktop to be a window on: Windows, and a Linux or BSD
+    // desktop (xcb, wayland). The Pi's console has no windows, and a Mac
+    // keeps its own fullscreen below.
+    readonly property bool canWindow: Qt.platform.os === "windows" || Qt.platform.pluginName === "xcb"
+                                      || Qt.platform.pluginName === "wayland"
+    property bool windowed: false
+    // The window's place and size under Window Mode: 960×720 in the middle
+    // of the screen's free area the first time, then where the desktop last
+    // had it. setWindowed() alone touches the window for it, in an order
+    // the desktop takes: out of full screen first, since a desktop puts
+    // back what it kept from entering it (Windows the frameless style and
+    // the screen's size), then the frame, then the place and size; into it
+    // the other way round. The full-screen bindings (Screen.*) are put back
+    // as it leaves Window Mode, so a screen change still moves it.
+    property int windowX: 0
+    property int windowY: 0
+    property int windowW: 960
+    property int windowH: 720
+    property bool windowPlaced: false
+    function setWindowed(on) {
+        if (on === windowed)
+            return
+        if (on) {
+            if (!windowPlaced) {
+                windowX = Screen.virtualX + Math.round((Screen.desktopAvailableWidth - windowW) / 2)
+                windowY = Screen.virtualY + Math.round((Screen.desktopAvailableHeight - windowH) / 2)
+                windowPlaced = true
+            }
+            windowed = true
+            visibility = Window.Windowed
+            flags = Qt.Window
+            x = windowX
+            y = windowY
+            width = windowW
+            height = windowH
+        } else {
+            windowX = x
+            windowY = y
+            windowW = width
+            windowH = height
+            windowed = false
+            flags = Qt.FramelessWindowHint | Qt.Window
+            x = Qt.binding(function() { return Screen.virtualX })
+            y = Qt.binding(function() { return Screen.virtualY })
+            width = Qt.binding(function() { return Screen.width })
+            height = Qt.binding(function() { return Screen.height })
+            visibility = Window.FullScreen
+        }
+    }
     flags: Qt.FramelessWindowHint | Qt.Window
     title: "OSD/OS"
     x:      Qt.platform.os === "osx" ? macScreenX      : Screen.virtualX
@@ -19,7 +72,8 @@ Window {
     // Steam Deck, labwc on the Pi) is covered rather than left stacked on top;
     // the Screen.* bindings track the window's screen, so they follow the
     // display_index move main.cpp performs after load. Headless EGLFS is
-    // already fullscreen, so this is a no-op there.
+    // already fullscreen, so this is a no-op there. Under Window Mode the
+    // window is a window, framed, where the desktop puts it (setWindowed()).
     visibility: Qt.platform.os === "osx" ? Window.AutomaticVisibility
                                          : Window.FullScreen
     visible: true
@@ -608,6 +662,8 @@ Window {
                 root.statusIconsSetting = value !== "Off"
             } else if (key === "osd_background") {
                 root.osdBackground = root.osdBackgroundOf(value)
+            } else if (key === "window_mode") {
+                root.setWindowed(root.canWindow && value === "On")
             } else if (key === "mouse_pointer") {
                 root.pointerSetting = String(value)
                 if (root.pointerShown)
@@ -623,6 +679,15 @@ Window {
                 }
             }
         }
+    }
+
+    // Window Mode switched from the keyboard, where there is a desktop: the
+    // setting changes, and the window with it (onAppSettingChanged).
+    Shortcut {
+        enabled: root.canWindow
+        sequences: ["F11", "Alt+Return"]
+        context: Qt.ApplicationShortcut
+        onActivated: appCore.save_setting("", "window_mode", root.windowed ? "Off" : "On")
     }
 
     Component.onCompleted: {
@@ -668,6 +733,7 @@ Window {
         root.helpLineSetting = !(cfg.app && cfg.app.help_line === "Off")
         root.statusIconsSetting = !(cfg.app && cfg.app.status_icons === "Off")
         root.osdBackground = root.osdBackgroundOf(cfg.app && cfg.app.osd_background)
+        root.setWindowed(root.canWindow && !!(cfg.app && cfg.app.window_mode === "On"))
 
         // Screensaver: the tracker starts disabled; this is the single place the
         // saved setting is applied (live changes land in onAppSettingChanged above,

@@ -19,6 +19,7 @@
 #include <QXmlStreamReader>
 #include <QtEndian>
 #include <algorithm>
+#include <iterator>
 #include <optional>
 #include <utility>
 
@@ -497,6 +498,15 @@ QString configText(const Launch &launch) {
         for (const auto &[name, value] : std::as_const(binds))
             set((player + name).constData(), value);
     }
+    // A keyboard's coin and start as MAME has them, and as the Arcade screen
+    // takes COIN: 5 and 1 for player 1, 6 and 2 for player 2, 7 and 3, 8 and
+    // 4. FinalBurn Neo's coin is the RetroPad's Select, which RetroArch puts
+    // on Right Shift alone, and its start Enter, for player 1 only.
+    for (int p = 1; p <= 4; ++p) {
+        const QByteArray player = QByteArray("input_player") + QByteArray::number(p) + '_';
+        set((player + "select").constData(), QStringLiteral("num%1").arg(p + 4));
+        set((player + "start").constData(), QStringLiteral("num%1").arg(p));
+    }
     // FinalBurn Neo's remap file, written with this config (remapText()):
     // loaded without a word over the game, and never written back.
     set("input_remapping_directory", launch.remapDir);
@@ -596,6 +606,41 @@ bool ownsRemap(const QString &path) {
     return file.open(QIODevice::ReadOnly) && QString::fromUtf8(file.readLine()).startsWith(kOwnRemap);
 }
 
+QString coreOptionsPath(const QString &configDir) {
+    return configDir + QLatin1Char('/') + kCoreName + QLatin1Char('/') + kCoreName + QStringLiteral(".opt");
+}
+
+QString withHardcoreOptions(const QString &text) {
+    // Of the core options RetroArch's hardcore mode disallows for FinalBurn
+    // Neo (cheevos.c), the one its defaults set: patched sets allowed. A
+    // cheat turned on is disallowed too, but none is unless the user turns
+    // it on, and RetroArch says so on its screen then.
+    static const struct { const char *key; const char *value; } wanted[] = {
+        { "fbneo-allow-patched-romsets", "disabled" },
+    };
+    QString out = text;
+    if (!out.isEmpty() && !out.endsWith(QLatin1Char('\n')))
+        out += QLatin1Char('\n');
+    // The last line is the "" after the final newline: a line added goes
+    // before it, so the file still ends in one.
+    QStringList lines = out.split(QLatin1Char('\n'));
+    for (const auto &option : wanted) {
+        const QLatin1String key(option.key);
+        const QString line = configLine(option.key, QLatin1String(option.value));
+        bool found = false;
+        for (QString &existing : lines) {
+            const QString trimmed = existing.trimmed();
+            if (!trimmed.startsWith(key) || !trimmed.mid(key.size()).trimmed().startsWith(QLatin1Char('=')))
+                continue;
+            existing = line;
+            found = true;
+        }
+        if (!found)
+            lines.insert(lines.size() - 1, line);
+    }
+    return lines.join(QLatin1Char('\n'));
+}
+
 QString coreInfoPath(const QString &infoDir) {
     return infoDir + QLatin1Char('/') + kCoreInfoFile;
 }
@@ -612,23 +657,74 @@ QString coreInfoText() {
 }
 
 QStringList arguments(const Launch &launch) {
-    // The log only with -v: --log-file alone writes nothing.
-    QStringList args{ QStringLiteral("-L"), launch.core, QStringLiteral("--config"), launch.config,
-                      QStringLiteral("--verbose"), QStringLiteral("--log-file=") + launch.log };
-    if (launch.netplay == Launch::Netplay::Host || launch.netplay == Launch::Netplay::LanHost)
+    // The log only with -v: --log-file alone writes nothing. The paths in
+    // the system's own separators: FinalBurn Neo finds the set's folder by
+    // cutting the content's path at the last of them (its extract_directory,
+    // PATH_DEFAULT_SLASH_C), a backslash on Windows, so a path given with
+    // slashes there had it look in RetroArch's own folder ("None of those
+    // archives was found in your paths").
+    const auto native = [](const QString &path) { return QDir::toNativeSeparators(path); };
+    QStringList args{ QStringLiteral("-L"), native(launch.core), QStringLiteral("--config"), native(launch.config),
+                      QStringLiteral("--verbose"), QStringLiteral("--log-file=") + native(launch.log) };
+    if (hosts(launch.netplay))
         args << QStringLiteral("--host");
     else if (launch.netplay == Launch::Netplay::Join || launch.netplay == Launch::Netplay::LanJoin)
         args << QStringLiteral("--connect") << launch.joinAddress;
-    args << launch.content;
+    args << native(launch.content);
     return args;
 }
 
-Run readLog(const QString &path) {
+std::optional<QString> netplayError(const QString &line) {
+    static const QRegularExpression error(QStringLiteral("\\[ERROR\\] \\[Netplay\\] (.*)$"));
+    const QRegularExpressionMatch match = error.match(line);
+    if (!match.hasMatch())
+        return std::nullopt;
+    QString why = match.captured(1).trimmed();
+    if (why.endsWith(QLatin1Char('.')))
+        why.chop(1);
+    return why;
+}
+
+QString netplayFailure(const QStringList &errors, bool hosting) {
+    // netplay_frontend.c: a start that fails ends in init_netplay()'s
+    // "Failed to initialize netplay", after the lines that say what did. A
+    // host tries its port over IPv6, then IPv4, each miss logged ("Failed
+    // to bind port"), so a miss alone ends nothing. Its other errors, a
+    // client's wrong messages or a stall, leave the game on.
+    static const auto among = [](const QString &why, const auto &ends) {
+        return std::any_of(std::begin(ends), std::end(ends),
+                           [&why](const char *end) { return why.contains(QLatin1String(end)); });
+    };
+    // What went wrong as netplay was set up, hosting or joining: the port,
+    // the address, the relay, a core without the states it needs; the
+    // sockets line follows the one that says why.
+    static const char *const setup[] = { "Failed to bind port", "Failed to set a hosting address", "Failed to resolve host",
+                                         "Failed to connect to relay server", "Failed to create a tunnel session",
+                                         "Core does not support netplay", "Failed to set up netplay sockets" };
+    // Joining alone: the host, reached or not, turns this machine away. A
+    // host logs the same of a client it turns away, and plays on.
+    static const char *const refused[] = { "Failed to connect to host", "Cannot connect", "Netplay host full",
+                                           "banned from this host", "not running RetroArch", "Incorrect password",
+                                           "too high for this host", "Failed to receive", "does not support netplay between" };
+    QString telling;
+    for (const QString &why : errors) {
+        if (!hosting && among(why, refused))
+            return why;
+        if (why.contains(QLatin1String("Failed to initialize netplay")))
+            return telling.isEmpty() ? why : telling;
+        if (among(why, setup) && (telling.isEmpty() || !why.contains(QLatin1String("Failed to set up netplay sockets"))))
+            telling = why;
+    }
+    return QString();
+}
+
+Run readLog(const QString &path, bool hosting) {
     Run run;
     QFile file(path);
     if (!file.open(QIODevice::ReadOnly | QIODevice::Text))
         return run;
     static const QRegularExpression rom(QStringLiteral("\\[FBNeo\\] ROM at index \\d+ with name (\\S+) and CRC"));
+    QStringList netplayErrors;
     QTextStream in(&file);
     while (!in.atEnd()) {
         const QString line = in.readLine();
@@ -645,9 +741,12 @@ Run readLog(const QString &path) {
         }
         if (const std::optional<QString> failure = loginFailure(line))
             run.loginFailure = *failure;
+        if (const std::optional<QString> error = netplayError(line))
+            netplayErrors << *error;
         if (line.contains(QLatin1String("[ERROR]")))
             run.error = line.section(QLatin1String("[ERROR]"), 1).trimmed();
     }
+    run.netplayFailure = netplayFailure(netplayErrors, hosting);
     return run;
 }
 

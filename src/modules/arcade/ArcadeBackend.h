@@ -26,7 +26,7 @@ class AppCore;
 class ArcadeDb;
 class DisplayHandoff;
 class FbneoInstaller;
-class RetroArchInstaller;
+class ProgramInstaller;
 class RetroAchievements;
 class QNetworkAccessManager;
 class QNetworkReply;
@@ -119,6 +119,11 @@ class ArcadeBackend : public QObject {
     Q_PROPERTY(bool retroarchDownloading READ retroarchDownloading NOTIFY fbneoChanged)
     Q_PROPERTY(int retroarchProgress READ retroarchProgress NOTIFY fbneoProgressChanged)
     Q_PROPERTY(QString retroarchMessage READ retroarchMessage NOTIFY fbneoChanged)
+    // Settings → Arcade → MAME's download of MAME (downloadMame(), on
+    // Windows), the same three again.
+    Q_PROPERTY(bool mameDownloading READ mameDownloading NOTIFY mameChanged)
+    Q_PROPERTY(int mameProgress READ mameProgress NOTIFY mameProgressChanged)
+    Q_PROPERTY(QString mameMessage READ mameMessage NOTIFY mameChanged)
     // The look through every game for pictures (downloadPictures(), Read
     // the Games Again): { active (under way, or waiting to go on), source
     // ("RetroAchievements" or "progetto-SNAPS", the pass it is on), done and
@@ -165,22 +170,26 @@ public:
     // answered.
     Q_INVOKABLE QVariant requestEntries(const QString &path);
 
-    // The filters with games in them, in the order ◄ ► goes round them:
-    // [{ id, name, count }]. id: "all", "online" (Online Games, while
-    // someone hosts one), "lan" (LAN Games, with LAN Play on, even while no
-    // one on the local network hosts one), "lobby" (RetroArch Lobby: every
-    // room of it, with Online Play on, even while it has none; LAN Games and
-    // it only with a game in the folder), "favorites", "recent",
-    // "achievements", "netplay", "genres/<genre>", "players/<n>",
-    // "years/<decade>" ("years/unknown"), "makers/<publisher>", "unknown"
-    // (Not Recognized), and last "search" (Search: its own row, then the
-    // games setSearch()'s words find); all but All Games, Online Games, LAN
-    // Games, RetroArch Lobby and Search only while Menu Filters shows them,
-    // but Not Recognized in All Games' place when none of the sets is a
-    // game. While MAME is being asked, only Online Games, LAN Games while
-    // someone on the network hosts one, Favorites and Recently Played; All
-    // Games, RetroArch Lobby and Search not yet: gamesChanged() follows once
-    // it has answered.
+    // The Arcade screen's filters, in the order ◄ ► goes round them:
+    // [{ id, name, count }]. id: "all" (All Games, with a game in the
+    // folder), "favorites" and "recent" (Favorites and Recently Played, with
+    // or without a game on them: the screen says so, filterStatus()), "lan"
+    // (LAN Games, with LAN Play on, even while no one on the local network
+    // hosts a game), "online" (Online Games, with Online Play on, even
+    // while no one in the lobby hosts a game of the folder's), "lobby"
+    // (RetroArch Lobby: every room of it, with Online Play on, even while it
+    // has none), "achievements" and "netplay" (RetroAchievements and
+    // Playable Online, with a game on them), "genres/<genre>",
+    // "players/<n>", "years/<decade>" ("years/unknown"),
+    // "makers/<publisher>", "unknown" (Not Recognized), and last "search"
+    // (Search: its own row, then the games setSearch()'s words find); all
+    // but All Games, the filters of rooms and Search only while Menu Filters
+    // shows them, but Not Recognized in All Games' place when none of the
+    // sets is a game. The lists and the filters of rooms come with a game in
+    // the folder: with none the screen says why there are no games. While
+    // MAME is being asked, only Favorites and Recently Played with a game on
+    // them, and LAN Games and Online Games while someone hosts one; the rest
+    // once it has answered: gamesChanged() follows.
     Q_INVOKABLE QVariantList filters();
     // A page of a filter: its games from first on, count at most, as
     // { set, name (its title), favorite }; Online Games' and LAN Games' with
@@ -337,6 +346,14 @@ public:
     // FinalBurn Neo not installed, the network still being asked, why it
     // couldn't be, or that no one there hosts a game of the folder's.
     Q_INVOKABLE QVariantMap lanStatus() const;
+    // What a filter says in its list's place while it has no game, as
+    // { name, detail } (the detail for the help line; {} for a filter that
+    // says nothing): LAN Games as lanStatus(); Online Games that FinalBurn
+    // Neo isn't installed, the lobby is still being read, why it couldn't
+    // be, or that no one there hosts a game of the folder's; Favorites and
+    // Recently Played that nothing is on them yet, and how a game comes to
+    // be.
+    Q_INVOKABLE QVariantMap filterStatus(const QString &filter) const;
     // A room joined straight at its host, or a game hosted on the local
     // network alone (libretro::Launch::Netplay::LanHost), as play() starts a
     // game.
@@ -416,8 +433,9 @@ public:
     // there), games (how many its list has), license (its file, "" for
     // none), canDownload (libretro builds it for this machine, and this
     // build can unpack it), canDownloadRetroarch (libretro builds RetroArch
-    // itself for this machine: 64-bit Windows), retroarchDownloaded (the
-    // RetroArch found is the one downloadRetroArch() put there) }.
+    // itself for this machine: 64-bit Windows), retroarchDownloadVersion
+    // (the one downloadRetroArch() fetches, the OSD/OS image's),
+    // retroarchDownloaded (the RetroArch found is the one it put there) }.
     Q_INVOKABLE QVariantMap fbneoInfo() const;
     // The licence's text (fbneoInfo().license), "" for none.
     Q_INVOKABLE QString fbneoLicenseText() const;
@@ -426,10 +444,21 @@ public:
     // ends, and the list read again once it is in.
     Q_INVOKABLE void downloadFbneo();
     // Downloads RetroArch itself, libretro's build for Windows, into
-    // <data>/arcade/retroarch (RetroArchInstaller), over one downloaded
+    // <data>/arcade/retroarch (ProgramInstaller), over one downloaded
     // before; the same signals, and the list read again once it is in, as
     // FinalBurn Neo's games play now.
     Q_INVOKABLE void downloadRetroArch();
+    // MAME's page (Settings → Arcade → MAME): { mame (its program, "" for
+    // none), downloaded (it is the one downloadMame() put there),
+    // canDownload (mamedev builds it for this machine: 64-bit Windows),
+    // downloadVersion (the one downloadMame() fetches, the OSD/OS image's),
+    // plugins (its hiscore plugin is beside it), pluginsFolder (where) }.
+    Q_INVOKABLE QVariantMap mameInfo() const;
+    // Downloads MAME for Windows, the version the OSD/OS image has, into
+    // <data>/arcade/mame (ProgramInstaller), over one downloaded before;
+    // mameProgressChanged() as it goes, mameChanged() as it starts and
+    // ends, and the games read again once it is in.
+    Q_INVOKABLE void downloadMame();
     Q_INVOKABLE QString lastError() const { return m_lastError; }
     // What MAME printed in the last game's run.
     Q_INVOKABLE QString output() const;
@@ -481,6 +510,9 @@ public:
     bool    retroarchDownloading() const;
     int     retroarchProgress() const;
     QString retroarchMessage() const { return m_retroarchMessage; }
+    bool    mameDownloading() const;
+    int     mameProgress() const;
+    QString mameMessage() const { return m_mameMessage; }
     QStringList statusIcons() const;
 
 public slots:
@@ -512,6 +544,9 @@ signals:
     // The download's progress, apart: what the page reads of the rest
     // (fbneoInfo()) isn't read again with each step of it.
     void fbneoProgressChanged();
+    // MAME's page the same way (mameInfo(), downloadMame()).
+    void mameChanged();
+    void mameProgressChanged();
     // reason: "ok", "failed", "stopped" or "failed_to_start" (ScriptLauncher's);
     // notice: what to tell the player when it isn't "ok", else "".
     void finished(int exitCode, const QString &reason, const QString &notice);
@@ -847,6 +882,10 @@ private:
     bool startClaims(int own, int most, libretro::Launch::Layout layout);
     void answerClaims();
     void stopClaims();
+    // Over the network, RetroArch's log read every so often as the game
+    // starts: at the netplay error it would play on alone after, the game is
+    // stopped, and the end says why (fbneoNotice()).
+    void watchNetplay();
     // The Online Games folder's entries: the rooms, or a line saying why
     // there are none.
     QVariantList roomEntries() const;
@@ -995,7 +1034,8 @@ private:
     QString m_signInCore;
 
     FbneoInstaller *m_installer = nullptr;
-    RetroArchInstaller *m_retroarchInstaller = nullptr;
+    ProgramInstaller *m_retroarchInstaller = nullptr;
+    ProgramInstaller *m_mameInstaller = nullptr;
     RetroAchievements *m_retroAchievements = nullptr;
     // madeSets(), by filter, made again once gamesChanged() or invalidate()
     // says the filters may hold other games.
@@ -1070,6 +1110,7 @@ private:
     QDateTime m_genresRetry;
     QString m_fbneoMessage;
     QString m_retroarchMessage;
+    QString m_mameMessage;
 
     // The folder's sets, and what MAME said of every set it was asked about.
     QHash<QString, QString> m_sets;
@@ -1221,7 +1262,14 @@ private:
     QString m_lastError;
     QString m_playing;
     QString m_playingEngine;      // "mame" or "fbneo"
-    bool    m_playingOnline = false;   // FinalBurn Neo's game hosted or joined
+    libretro::Launch::Netplay m_playingNetplay = libretro::Launch::Netplay::None;   // FinalBurn Neo's, hosted or joined
+    // Over the network, RetroArch's log read as it grows while the game
+    // starts (watchNetplay()): how far, the line cut off at its end, and its
+    // netplay errors so far.
+    QTimer     *m_netplayWatch = nullptr;
+    qint64      m_netplayLogRead = 0;
+    QByteArray  m_netplayLogTail;
+    QStringList m_netplayErrors;
     QElapsedTimer m_playClock;    // since the game playing started
     bool    m_played = false;
 };

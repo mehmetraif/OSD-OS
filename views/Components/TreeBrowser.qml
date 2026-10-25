@@ -14,7 +14,8 @@ import QtQuick
 // left (or back) returns to its parent. Select on anything else is the host's
 // to handle (activated), right on it too (previewRequested with preview on,
 // for its info: the tree's last layer; optionsRequested otherwise), and so is
-// back at the top (leaveRequested). With previewDelay set, resting the cursor
+// back at the top (leaveRequested). Select with nothing under the cursor is
+// not taken, so a host's own Keys see it. With previewDelay set, resting the cursor
 // on it that long asks for its info too. It draws only the tree, in the area
 // between a view's title bar and its footer.
 //
@@ -678,6 +679,11 @@ FocusScope {
             break
         case Qt.Key_Return:
         case Qt.Key_Enter:
+            // With nothing under the cursor (an empty folder, or an empty
+            // tree, hidden but still focused) select is left to the host's
+            // own keys: the Arcade module's games tree downloads MAME on it.
+            if (!selectedItem())
+                return
             if (!openFolder()) activate()
             break
         case Qt.Key_Escape:

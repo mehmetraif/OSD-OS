@@ -3,7 +3,9 @@ import QtQuick
 // The Arcade module's screens with nothing to list: no games, what stands in
 // the way of the list (ArcadeBackend's problem), and where the games go,
 // unless that is the folder that can't be read; while MAME is being asked
-// about them (reading), that it is.
+// about them (reading), that it is. Where MAME is what is missing and the
+// system can download it (canDownload: Windows), that select does, how far
+// the download is, or why it failed; the screen's own keys start it.
 Column {
     id: noGames
 
@@ -11,6 +13,10 @@ Column {
     property bool folderReadable: true
     property string gamesFolder: ""
     property bool reading: false
+    property bool canDownload: false
+    property bool downloading: false
+    property int progress: 0
+    property string failure: ""
 
     anchors.centerIn: parent
     width: root.sw * 0.75 //480
@@ -46,6 +52,20 @@ Column {
         horizontalAlignment: Text.AlignHCenter
         wrapMode: Text.WordWrap
         font.pixelSize: root.sh * 0.0333333 //16
+    }
+    // Or downloaded from here: select starts it, and the line follows it.
+    Text {
+        visible: !noGames.reading && noGames.problem === "MAME is not installed" && (noGames.canDownload || noGames.downloading)
+        width: parent.width
+        text: noGames.downloading ? "Downloading MAME… " + noGames.progress + "%"
+              : noGames.failure !== "" ? "The download failed: " + noGames.failure + " • " + root.hints.select + ": TRY AGAIN"
+              : root.hints.select + ": DOWNLOAD MAME"
+        color: root.secondaryColor
+        font.family: root.globalFont
+        font.capitalization: Font.AllUppercase
+        horizontalAlignment: Text.AlignHCenter
+        wrapMode: Text.WrapAtWordBoundaryOrAnywhere
+        font.pixelSize: root.sh * 0.0375 //18
     }
     Text {
         visible: !noGames.reading && noGames.folderReadable

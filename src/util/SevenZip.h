@@ -4,10 +4,12 @@
 #include <functional>
 
 // A 7z archive's files, taken out with the LZMA SDK's decoder
-// (thirdparty/lzma, built in by cmake/lzma.cmake): what RetroArch's build
-// for Windows comes as (RetroArchInstaller). It decodes what 7-Zip makes by
-// default, LZMA, LZMA2 and PPMd behind the BCJ, BCJ2 and other filters, not
-// an encrypted archive, nor one in a method the SDK's 7z decoder leaves out
+// (thirdparty/lzma, built in by cmake/lzma.cmake): what RetroArch's and
+// MAME's builds for Windows come as (ProgramInstaller), MAME's as a
+// self-extracting one, a program with the archive appended, which is read
+// from where the archive begins. It decodes what 7-Zip makes by default,
+// LZMA, LZMA2 and PPMd behind the BCJ, BCJ2 and other filters, not an
+// encrypted archive, nor one in a method the SDK's 7z decoder leaves out
 // (Deflate, BZip2, Zstandard).
 namespace sevenzip {
 

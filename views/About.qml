@@ -130,7 +130,7 @@ FocusScope {
                        + " The license's text" },
         { key: "lzma", label: "LZMA SDK", value: "Public domain", license: "assets/licenses/LZMA-SDK.txt",
           licenseName: "The LZMA SDK's notice",
-          description: "Unpacks the RetroArch for Windows downloaded from libretro's build server, a 7z archive: the"
+          description: "Unpacks the MAME and RetroArch for Windows downloaded from their releases, 7z archives: the"
                        + " LZMA SDK's decoder by Igor Pavlov, 7-zip.org/sdk.html • In the public domain • {select}"
                        + " The notice's text" },
         { key: "achievements", label: "RetroAchievements", value: "retroachievements.org",

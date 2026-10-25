@@ -273,6 +273,19 @@ int RetroAchievements::gameOf(const QString &fileName) const {
     return game;
 }
 
+QString RetroAchievements::pictureGame(const QStringList &fileNames) const {
+    int game = 0;
+    QString chosen;
+    for (const QString &fileName : fileNames) {
+        const int id = gameOf(fileName);
+        if (id > 0 && (game == 0 || id == game)) {
+            game = id;
+            chosen = fileName;
+        }
+    }
+    return chosen;
+}
+
 bool RetroAchievements::hasGame(const QString &fileName) const {
     const int game = gameOf(fileName);
     return m_achievementGames.contains(game) || m_boardGames.contains(game);
@@ -365,16 +378,9 @@ void RetroAchievements::readWanted() {
     const bool shown = !m_wantedPictures.isEmpty();
     const QStringList games = std::exchange(shown ? m_wantedPictures : m_laterPictures, QStringList());
     const QStringList looked = std::exchange(shown ? m_lookedPictures : m_laterLooked, QStringList());
-    int game = 0;
-    QString chosen;
-    for (const QString &fileName : games) {
-        const int id = gameOf(fileName);
-        if (id > 0 && (game == 0 || id == game)) {
-            game = id;
-            chosen = fileName;
-        }
-    }
-    if (game <= 0) {
+    // The game read: the set's own, else its parent's (pictureGame()).
+    const QString chosen = pictureGame(games);
+    if (chosen.isEmpty()) {
         emit picturesFound(games.first(), QStringLiteral("unknown"), {});
     } else if (looked.contains(chosen)) {
         // Nothing to read: its pictures were looked for before. Said so, as
@@ -385,7 +391,7 @@ void RetroAchievements::readWanted() {
             m_laterRead = games;
             m_laterReadLooked = looked;
         }
-        readPictures(chosen, game, !shown);
+        readPictures(chosen, gameOf(chosen), !shown);
     }
     // Nothing read: the next wanted.
     if (!m_reply)

@@ -1292,6 +1292,18 @@ private slots:
         QCOMPARE(env.value("OSDOS_PLAYER1_NAME"), QString("OSD/OS JAMMA P1"));
         QCOMPARE(env.value("OSDOS_PLAYER2_NAME"), QString("OSD/OS Pad A"));
         QCOMPARE(controllers::padKey(env.value("OSDOS_PLAYER2_GUID")), keyA);
+        // Every pad's mapping as SDL has it, its GUID's CRC zeroed, for the
+        // emulators' SDL.
+        const QStringList mappings = controllers::padMappings();
+        QCOMPARE(mappings.size(), 4);
+        for (const QString &mapping : mappings) {
+            QCOMPARE(mapping.mid(4, 4), QString("0000"));
+            QVERIFY2(mapping.mid(32).startsWith(QLatin1String(",OSD/OS ")), qPrintable(mapping));
+        }
+        QCOMPARE(mappings.filter(QStringLiteral(",OSD/OS Pad A,")).size(), 1);
+        QCOMPARE(controllers::mappingWithoutCrc(QStringLiteral("0300a1b25e040000e002000003090000,Xbox,a:b0")),
+                 QStringLiteral("030000005e040000e002000003090000,Xbox,a:b0"));
+        QCOMPARE(controllers::mappingWithoutCrc(QStringLiteral("not a mapping")), QStringLiteral("not a mapping"));
         QVERIFY(env.value("OSDOS_PLAYER2_DEVICE") != QString("inherited"));
 
         // A pad chosen and away: its player has none until it is back.
