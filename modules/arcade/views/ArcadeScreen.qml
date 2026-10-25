@@ -23,7 +23,7 @@ import "Rooms.js" as Rooms
 //
 // ▲ ▼ choose a game, from page to page (the wheel a row at a time) and
 // round, as does the mouse over one of the rows (hoverAt()); ◄ ► go round
-// the filters, keeping the game where the next filter has it. COIN (MAME's 5, which a pad's Coin, its Back unless its Arcade
+// the filters, each opening on its first game, at the top of the list. COIN (MAME's 5, which a pad's Coin, its Back unless its Arcade
 // Buttons say, is here: takesCoin) buys a credit; select, let go, or START (Space, a pad's Start,
 // or 1) plays the game with them (navigateTo Play.qml, which Root.qml plays
 // as Start Info Screen says); select held opens its options (Play, Game
@@ -46,9 +46,10 @@ import "Rooms.js" as Rooms
 // every core (ArcadeBackend::lobby()), read again every 20 s while it is
 // shown: ▶ marks one to join and a lock one with a password. Select joins
 // one, or opens the room's page (Lobby.qml) where there is nothing to join,
-// as select held does for any. With LAN Play on, LAN Games is there while
-// no one on the local network hosts a game too, the list saying why
-// (ArcadeBackend::lanStatus()). On a room, Online Games', LAN Games' or
+// as select held does for any. LAN Games and Online Games are there while
+// no one hosts a game too, and Favorites and Recently Played with no game
+// on them, the list saying why (ArcadeBackend::filterStatus()). On a room,
+// Online Games', LAN Games' or
 // RetroArch Lobby's, the picture's frame gives way to the box, which takes
 // the whole column and says what the lobby, or the host on the local
 // network, says of the room (Rooms.roomLines()), a line each as far as it
@@ -310,10 +311,12 @@ FocusScope {
     readonly property string roomKind: lobbyRoom ? "lobby" : current && current.lan ? "lan" : "online"
     readonly property bool roomFilter: filterId === "online" || filterId === "lan" || filterId === "lobby"
     readonly property var lobbyInfo: (revision, roomFilter && arcadeBackend ? arcadeBackend.lobby() : ({}))
-    // What LAN Games says while it lists no game (ArcadeBackend::lanStatus()):
-    // there with LAN Play on while no one on the network hosts a game too.
-    readonly property var lanInfo: (revision, filterId === "lan" && count === 0 && arcadeBackend
-                                    ? arcadeBackend.lanStatus() : ({}))
+    // What a filter says while it lists nothing (ArcadeBackend::filterStatus()):
+    // LAN Games and Online Games while no one hosts a game, Favorites and
+    // Recently Played with no game on them yet; RetroArch Lobby has the
+    // lobby's own state for it (lobbyInfo).
+    readonly property var emptyInfo: (revision, filterId !== "" && count === 0 && arcadeBackend
+                                      ? arcadeBackend.filterStatus(filterId) : ({}))
     // Counted up as a game's pictures come in (RetroAchievements'), so its
     // details are read again.
     property int picturesRevision: 0
@@ -451,7 +454,7 @@ FocusScope {
     // one's place while that one has no games yet (the folder read, MAME
     // asked) hands its game on only once ▲ ▼ have moved in it (browsed):
     // else the wanted one opens as the screen would have, on the game it was
-    // left on or its first.
+    // left on or its first, at the top of the list.
     property bool browsed: false
     function reload(landOn) {
         if (!arcadeBackend)
@@ -481,9 +484,12 @@ FocusScope {
         selected = place >= 0 ? place : (standIn ? 0 : Math.max(0, Math.min(selected, count - 1)))
         // On the wheel, the game kept keeps its row while its filter is the
         // one shown still, and the game come back to after playing it the
-        // row it was played from; any other comes to the middle row.
+        // row it was played from; a game landed on, or one kept as its
+        // filter went, comes to the middle row, and the screen opened afresh
+        // has the first game in the top row, as a filter ◄ ► came to does.
         var row = fromCurrent ? (filterId === keptFilter ? keptRow : middleRow)
-                : !landOn && navListState.row !== undefined ? navListState.row : middleRow
+                : landOn ? middleRow
+                : navListState.row !== undefined ? navListState.row : 0
         placeWheel(Math.min(row, perPage - 1))
         revision++
     }
@@ -525,21 +531,15 @@ FocusScope {
         }
     }
 
-    // ◄ ►: the next filter, on the game where it has it; Search on its own
-    // row, at the wheel's top, and on past it with the game ◄ ► came to it
-    // with while the cursor is still on that row (passing).
-    property string passing: ""
+    // ◄ ►: the next filter, on its first game, at the top of the list (on
+    // the wheel, in its top row); Search on its own row.
     function cycle(delta) {
         if (filters.length < 2)
             return
-        var keep = currentSet !== "" ? currentSet : onSearch ? passing : ""
         filterIndex = (filterIndex + delta + filters.length) % filters.length
         wanted = filterId
-        var toSearch = filterId === "search"
-        passing = toSearch ? keep : ""
-        var at = keep !== "" && !toSearch ? arcadeBackend.filterIndex(filterId, keep) : -1
-        selected = Math.max(0, at)
-        placeWheel(toSearch ? 0 : middleRow)
+        selected = 0
+        placeWheel(0)
     }
 
     // Plays a game; coming back lands on it in listFilter.
@@ -1327,7 +1327,7 @@ FocusScope {
         : onSearch ? (typing ? "The games found follow each letter typed: OK goes down to them, back to the list, and ◄ ► past the keys' ends go round the filters"
                              : "► or select to type what to look for: the games found follow each letter")
         : filterId === "lobby" && count === 0 ? lobbyInfo.problem || ""
-        : filterId === "lan" && count === 0 ? lanInfo.detail || ""
+        : count === 0 && emptyInfo.detail ? emptyInfo.detail
         : (current && current.lan && current.detail ? [current.detail] : [])
           .concat([details.name || ""]).concat(detailList.slice(onRoom ? 0 : detailRows).map(function(detail) {
               return detail.told
@@ -1352,22 +1352,25 @@ FocusScope {
     }
 
     // In the list's place: on RetroArch Lobby, that the lobby is being read,
-    // can't be reached, or has no room; on LAN Games, that the network is
-    // being asked, can't be, or has no game of ours, or that FinalBurn Neo
-    // isn't installed; under Search's own row, that its words find no game.
+    // can't be reached, or has no room; on any other filter with nothing on
+    // it, what the backend says of it (emptyInfo: on LAN Games and Online
+    // Games, that the network or the lobby is being asked, can't be, or has
+    // no game of ours, or that FinalBurn Neo isn't installed; on Favorites
+    // and Recently Played, that no game is on them yet); under Search's own
+    // row, that its words find no game.
     Text {
         readonly property bool lobbyEmpty: arcadeScreen.filterId === "lobby" && arcadeScreen.count === 0
-        readonly property bool lanEmpty: arcadeScreen.filterId === "lan" && arcadeScreen.count === 0
+        readonly property bool saysWhy: arcadeScreen.count === 0 && !!arcadeScreen.emptyInfo.name
         readonly property bool noneFound: arcadeScreen.filterId === "search" && arcadeScreen.count === 1
         readonly property int rowTop: !noneFound ? arcadeScreen.listTop
                                       : arcadeScreen.wheel ? arcadeScreen.wheelTops[1] || arcadeScreen.listTop
                                       : arcadeScreen.listTop + arcadeScreen.pitch
-        visible: lobbyEmpty || lanEmpty || noneFound
+        visible: lobbyEmpty || saysWhy || noneFound
         x: Math.round((arcadeScreen.areaLeft + 16) * arcadeScreen.u)
         y: Math.round((rowTop + (arcadeScreen.rowHeight - arcadeScreen.nameLines) / 2) * arcadeScreen.v)
         width: Math.round((arcadeScreen.listWidth - 16) * arcadeScreen.u)
-        text: noneFound ? "No Game Found" : lanEmpty ? arcadeScreen.lanInfo.name || ""
-              : Rooms.emptyLine(arcadeScreen.lobbyInfo)
+        text: noneFound ? "No Game Found" : lobbyEmpty ? Rooms.emptyLine(arcadeScreen.lobbyInfo)
+              : arcadeScreen.emptyInfo.name || ""
         textFormat: Text.PlainText
         wrapMode: Text.WordWrap
         color: root.primaryColor

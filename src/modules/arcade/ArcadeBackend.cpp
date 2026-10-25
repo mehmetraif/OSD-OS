@@ -154,6 +154,18 @@ constexpr std::pair<const char *, const char *> kLists[] = {
     { "netplay", "Playable Online" },
 };
 constexpr std::pair<const char *, const char *> kUnknown = { "unknown", "Not Recognized" };
+// The lists kept here, Favorites and Recently Played, which the Arcade
+// screen has with or without a game on them; the others are made of what
+// RetroAchievements and FinalBurn Neo have, and come with a game on them.
+bool ownList(QLatin1String id) {
+    return id == QLatin1String("favorites") || id == QLatin1String("recent");
+}
+
+// What a filter says in its list's place while it has no game: its line,
+// and the detail for the help line.
+QVariantMap filterSays(const QString &name, const QString &detail) {
+    return { { QStringLiteral("name"), name }, { QStringLiteral("detail"), detail } };
+}
 
 // A kind's places in the order they are listed, with what each is called:
 // players by number, decades in order with the years unknown last, the rest
@@ -742,9 +754,10 @@ void ArcadeBackend::onSettingChanged(const QString &moduleId, const QString &key
     if (moduleId != kModuleId)
         return;
     applySetting(key, value);
-    // Start Filter offers RetroArch Lobby while Online Play is on: its
-    // choices again, for the Settings page that has both.
-    if (key == QLatin1String("online_play"))
+    // Start Filter offers Online Games and RetroArch Lobby while Online Play
+    // is on, and LAN Games while LAN Play is: its choices again, for the
+    // Settings page that has them all.
+    if (key == QLatin1String("online_play") || key == QLatin1String("lan_play"))
         startFilterOptions();
 }
 
@@ -1699,23 +1712,38 @@ QVariantList ArcadeBackend::filterRooms(const QString &filter) const {
 
 QVariantList ArcadeBackend::filters() {
     QVariantList list;
-    if (!scanning() && !index().games.isEmpty())
+    // The games read, and some among the sets: All Games first. While MAME
+    // is asked, or with none, only what has a game on it already, and with
+    // nothing the screen says why there are no games.
+    const bool haveGames = !scanning() && !index().games.isEmpty();
+    if (haveGames)
         list << filter(QStringLiteral("all"), QStringLiteral("All Games"), index().games.size());
-    // While someone hosts one of the games: the lobby is read with the list,
-    // and the local network asked. The whole lobby with Online Play on and
-    // games to play, while it is read and when no one hosts a game too: the
-    // screen says so. With none, the screen says why there are none.
-    // LAN Games, with LAN Play on and games to play, also while no one on
-    // the network hosts one: the screen says why (lanStatus()).
-    if (const qsizetype online = rooms().size(); online > 0)
-        list << filter(QStringLiteral("online"), QStringLiteral("Online Games"), online);
-    if (const qsizetype lan = lanRooms().size(); lan > 0 || (m_lanPlay && !scanning() && !index().games.isEmpty()))
-        list << filter(QStringLiteral("lan"), QStringLiteral("LAN Games"), lan);
-    if (m_onlinePlay && !scanning() && !index().games.isEmpty())
-        list << filter(QStringLiteral("lobby"), QStringLiteral("RetroArch Lobby"), m_lobby.size());
+    // Favorites and Recently Played, while Menu Filters shows them, with or
+    // without a game on them: the screen says so (filterStatus()).
     for (const auto &[id, name] : kLists) {
-        const qsizetype count = menuShows(QLatin1String(id)) ? filterSets(QLatin1String(id)).size() : 0;
-        if (count > 0)
+        if (!ownList(QLatin1String(id)) || !menuShows(QLatin1String(id)))
+            continue;
+        const qsizetype count = filterSets(QLatin1String(id)).size();
+        if (count > 0 || haveGames)
+            list << filter(QLatin1String(id), QLatin1String(name), count);
+    }
+    // LAN Games with LAN Play on, Online Games and the whole lobby with
+    // Online Play on, whether or not anyone hosts a game: the screen says why
+    // there is none (lanStatus(), filterStatus(), the lobby's state). A game
+    // hosted on the network or in the lobby, which is read with the list,
+    // is there while MAME is still asked too.
+    if (const qsizetype lan = lanRooms().size(); lan > 0 || (m_lanPlay && haveGames))
+        list << filter(QStringLiteral("lan"), QStringLiteral("LAN Games"), lan);
+    if (const qsizetype online = rooms().size(); online > 0 || (m_onlinePlay && haveGames))
+        list << filter(QStringLiteral("online"), QStringLiteral("Online Games"), online);
+    if (m_onlinePlay && haveGames)
+        list << filter(QStringLiteral("lobby"), QStringLiteral("RetroArch Lobby"), m_lobby.size());
+    // RetroAchievements and Playable Online, made of what RetroAchievements
+    // and FinalBurn Neo have: with a game on them.
+    for (const auto &[id, name] : kLists) {
+        if (ownList(QLatin1String(id)) || !menuShows(QLatin1String(id)))
+            continue;
+        if (const qsizetype count = filterSets(QLatin1String(id)).size(); count > 0)
             list << filter(QLatin1String(id), QLatin1String(name), count);
     }
     if (scanning())
@@ -2224,7 +2252,13 @@ void ArcadeBackend::sweepPictures() {
             ++m_sweepDone;
             if (!m_sets.contains(set) || isUnrecognized(set) || m_noPictures.contains(set))
                 continue;
+            // The game RetroAchievements reads for the set, its own or its
+            // parent's (pictureGame()): none it knows, or one looked for
+            // already (a clone's parent's pictures are its too, and a look
+            // cut short had most of them in), and the set is passed at once,
+            // with no second spent asking after it.
             const QStringList names = setAndParent(set);
+            const QString game = m_retroAchievements->pictureGame(names);
             const QStringList looked = picturesLooked(names);
             if (game.isEmpty() || looked.contains(game))
                 continue;
@@ -2249,13 +2283,7 @@ void ArcadeBackend::sweepPictures() {
         for (const QString &set : index().games) {
             if (picturesOf(set).isEmpty() && !snapsLooked(set))
                 m_sweepSnaps << set;
-            // The game RetroAchievements reads for the set, its own or its
-            // parent's (pictureGame()): none it knows, or one looked for
-            // already (a clone's parent's pictures are its too, and a look
-            // cut short had most of them in), and the set is passed at once,
-            // with no second spent asking after it.
         }
-            const QString game = m_retroAchievements->pictureGame(names);
         m_sweepTotal = static_cast<int>(m_sweepSnaps.size());
         m_sweepDone = 0;
         emit picturesProgressChanged();
@@ -2556,17 +2584,27 @@ void ArcadeBackend::startFilterOptions() {
     // Once the folder and games.json have been read (Settings opened before
     // the list ever was): the filters are made of them.
     afterRead([this] {
+        // In the order the screen goes round them (filters()): All Games;
         // Favorites and Recently Played whether or not they hold a game yet;
-        // with Online Play on, RetroArch's lobby, which may have no room.
-        QVariantList options{ QVariantMap{ { QStringLiteral("id"), QStringLiteral("all") },
-                                           { QStringLiteral("label"), QStringLiteral("All Games") } } };
-        if (m_onlinePlay)
-            options << QVariantMap{ { QStringLiteral("id"), QStringLiteral("lobby") },
-                                    { QStringLiteral("label"), QStringLiteral("RetroArch Lobby") } };
-        for (const auto &[id, label] : kLists) {
-            if (menuShows(QLatin1String(id)))
-                options << QVariantMap{ { QStringLiteral("id"), QLatin1String(id) },
-                                        { QStringLiteral("label"), QLatin1String(label) } };
+        // with LAN Play on LAN Games, and with Online Play on Online Games
+        // and RetroArch's lobby, which may have no room; the lists made of
+        // what RetroAchievements and FinalBurn Neo have; then the places.
+        const auto option = [](const QString &id, const QString &label) {
+            return QVariantMap{ { QStringLiteral("id"), id }, { QStringLiteral("label"), label } };
+        };
+        QVariantList options{ option(QStringLiteral("all"), QStringLiteral("All Games")) };
+        for (const bool own : { true, false }) {
+            if (!own) {
+                if (m_lanPlay)
+                    options << option(QStringLiteral("lan"), QStringLiteral("LAN Games"));
+                if (m_onlinePlay)
+                    options << option(QStringLiteral("online"), QStringLiteral("Online Games"))
+                            << option(QStringLiteral("lobby"), QStringLiteral("RetroArch Lobby"));
+            }
+            for (const auto &[id, label] : kLists) {
+                if (ownList(QLatin1String(id)) == own && menuShows(QLatin1String(id)))
+                    options << option(QLatin1String(id), QLatin1String(label));
+            }
         }
         const QVariantList places = placeFilters();
         for (const QVariant &v : places) {
@@ -4062,20 +4100,42 @@ QVariantList ArcadeBackend::lanRoomEntries() const {
 }
 
 QVariantMap ArcadeBackend::lanStatus() const {
-    const auto said = [](const QString &name, const QString &detail) {
-        return QVariantMap{ { QStringLiteral("name"), name }, { QStringLiteral("detail"), detail } };
-    };
     // FinalBurn Neo first: without it no game hosted there is one to join.
     if (!fbneoReady())
-        return said(QStringLiteral("FinalBurn Neo Not Installed"),
-                    QStringLiteral("LAN games play in FinalBurn Neo: Settings → Arcade → FinalBurn Neo"));
+        return filterSays(QStringLiteral("FinalBurn Neo Not Installed"),
+                          QStringLiteral("LAN games play in FinalBurn Neo: Settings → Arcade → FinalBurn Neo"));
     if (!m_lanRead)
-        return said(QStringLiteral("Asking the Local Network…"),
-                    QStringLiteral("A game hosted on this network comes here as soon as it is found"));
+        return filterSays(QStringLiteral("Asking the Local Network…"),
+                          QStringLiteral("A game hosted on this network comes here as soon as it is found"));
     if (!m_lanProblem.isEmpty())
-        return said(QStringLiteral("Network Not Reachable"), m_lanProblem);
-    return said(QStringLiteral("No LAN Games"),
-                QStringLiteral("No one on this network hosts a game you have: host one from a game's options"));
+        return filterSays(QStringLiteral("Network Not Reachable"), m_lanProblem);
+    return filterSays(QStringLiteral("No LAN Games"),
+                      QStringLiteral("No one on this network hosts a game you have: host one from a game's options"));
+}
+
+QVariantMap ArcadeBackend::filterStatus(const QString &filter) const {
+    if (filter == QLatin1String("lan"))
+        return lanStatus();
+    if (filter == QLatin1String("online")) {
+        // As the tree's Online Games says it (roomEntries()).
+        if (!fbneoReady())
+            return filterSays(QStringLiteral("FinalBurn Neo Not Installed"),
+                              QStringLiteral("Online games play in FinalBurn Neo: Settings → Arcade → FinalBurn Neo"));
+        if (!m_roomsRead)
+            return filterSays(QStringLiteral("Reading RetroArch's Lobby…"),
+                              QStringLiteral("A game hosted there that you have comes here as soon as it is found"));
+        if (!m_roomsProblem.isEmpty())
+            return filterSays(QStringLiteral("Lobby Not Reachable"), m_roomsProblem);
+        return filterSays(QStringLiteral("No Games Online"),
+                          QStringLiteral("No one in RetroArch's lobby hosts a game you have: host one from a game's options"));
+    }
+    if (filter == QLatin1String("favorites"))
+        return filterSays(QStringLiteral("No Favorites"),
+                          QStringLiteral("Hold select on a game and choose Add to Favorites: it comes here"));
+    if (filter == QLatin1String("recent"))
+        return filterSays(QStringLiteral("No Games Played Yet"),
+                          QStringLiteral("The games played last come here, the latest first"));
+    return QVariantMap();
 }
 
 QString ArcadeBackend::nickname(bool lan) const {

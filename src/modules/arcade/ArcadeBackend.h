@@ -170,22 +170,26 @@ public:
     // answered.
     Q_INVOKABLE QVariant requestEntries(const QString &path);
 
-    // The filters with games in them, in the order ◄ ► goes round them:
-    // [{ id, name, count }]. id: "all", "online" (Online Games, while
-    // someone hosts one), "lan" (LAN Games, with LAN Play on, even while no
-    // one on the local network hosts one), "lobby" (RetroArch Lobby: every
-    // room of it, with Online Play on, even while it has none; LAN Games and
-    // it only with a game in the folder), "favorites", "recent",
-    // "achievements", "netplay", "genres/<genre>", "players/<n>",
-    // "years/<decade>" ("years/unknown"), "makers/<publisher>", "unknown"
-    // (Not Recognized), and last "search" (Search: its own row, then the
-    // games setSearch()'s words find); all but All Games, Online Games, LAN
-    // Games, RetroArch Lobby and Search only while Menu Filters shows them,
-    // but Not Recognized in All Games' place when none of the sets is a
-    // game. While MAME is being asked, only Online Games, LAN Games while
-    // someone on the network hosts one, Favorites and Recently Played; All
-    // Games, RetroArch Lobby and Search not yet: gamesChanged() follows once
-    // it has answered.
+    // The Arcade screen's filters, in the order ◄ ► goes round them:
+    // [{ id, name, count }]. id: "all" (All Games, with a game in the
+    // folder), "favorites" and "recent" (Favorites and Recently Played, with
+    // or without a game on them: the screen says so, filterStatus()), "lan"
+    // (LAN Games, with LAN Play on, even while no one on the local network
+    // hosts a game), "online" (Online Games, with Online Play on, even
+    // while no one in the lobby hosts a game of the folder's), "lobby"
+    // (RetroArch Lobby: every room of it, with Online Play on, even while it
+    // has none), "achievements" and "netplay" (RetroAchievements and
+    // Playable Online, with a game on them), "genres/<genre>",
+    // "players/<n>", "years/<decade>" ("years/unknown"),
+    // "makers/<publisher>", "unknown" (Not Recognized), and last "search"
+    // (Search: its own row, then the games setSearch()'s words find); all
+    // but All Games, the filters of rooms and Search only while Menu Filters
+    // shows them, but Not Recognized in All Games' place when none of the
+    // sets is a game. The lists and the filters of rooms come with a game in
+    // the folder: with none the screen says why there are no games. While
+    // MAME is being asked, only Favorites and Recently Played with a game on
+    // them, and LAN Games and Online Games while someone hosts one; the rest
+    // once it has answered: gamesChanged() follows.
     Q_INVOKABLE QVariantList filters();
     // A page of a filter: its games from first on, count at most, as
     // { set, name (its title), favorite }; Online Games' and LAN Games' with
@@ -342,6 +346,14 @@ public:
     // FinalBurn Neo not installed, the network still being asked, why it
     // couldn't be, or that no one there hosts a game of the folder's.
     Q_INVOKABLE QVariantMap lanStatus() const;
+    // What a filter says in its list's place while it has no game, as
+    // { name, detail } (the detail for the help line; {} for a filter that
+    // says nothing): LAN Games as lanStatus(); Online Games that FinalBurn
+    // Neo isn't installed, the lobby is still being read, why it couldn't
+    // be, or that no one there hosts a game of the folder's; Favorites and
+    // Recently Played that nothing is on them yet, and how a game comes to
+    // be.
+    Q_INVOKABLE QVariantMap filterStatus(const QString &filter) const;
     // A room joined straight at its host, or a game hosted on the local
     // network alone (libretro::Launch::Netplay::LanHost), as play() starts a
     // game.

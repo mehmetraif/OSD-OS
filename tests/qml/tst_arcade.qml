@@ -276,9 +276,12 @@ Rectangle {
         property int lanReads: 0
         function canHostLan(set) { return lanHostable.indexOf(set) >= 0 }
         function refreshLanRooms() { lanReads++ }
-        // What LAN Games says while it has no game.
+        // What LAN Games says while it has no game, and what any other filter
+        // says with nothing on it (filterStatus(): LAN Games as lanStatus()).
         property var lanState: ({})
+        property var filterStates: ({})
         function lanStatus() { return lanState }
+        function filterStatus(id) { return id === "lan" ? lanState : (filterStates[id] || {}) }
         function joinLanRoom(id) { lanJoined = lanJoined.concat([id]); running = playResult; return playResult }
         function hostLanGame(set) { lanHosted = lanHosted.concat([set]); running = playResult; return playResult }
         // Each game's RetroAchievements leaderboard, by set, as leaderboard()
@@ -504,6 +507,7 @@ Rectangle {
             arcadeBackend.lanReads = 0
             arcadeBackend.lanState = { name: "No LAN Games",
                                        detail: "No one on this network hosts a game you have: host one from a game's options" }
+            arcadeBackend.filterStates = {}
             arcadeBackend.pendingFilters = []
             arcadeBackend.searchWords = ""
             arcadeBackend.searches = []
@@ -805,7 +809,8 @@ Rectangle {
         }
 
         // ▲ ▼ from game to game and page to page, round; ◄ ► round the
-        // filters, the game kept where the next has it.
+        // filters, each opening on its first game, whether or not the next
+        // has the game left.
         function test_screenMove() {
             var screen = openScreen()
             keyClick(Qt.Key_Up)
@@ -819,26 +824,30 @@ Rectangle {
                 keyClick(Qt.Key_Down)
             compare(screen.page, 1)
             compare(screen.currentSet, "rtype")
-            // Not in Favorites: its first.
+            // Favorites' first.
             keyClick(Qt.Key_Right)
             compare(screen.filterId, "favorites")
             compare(screen.currentSet, "galaga")
+            compare(screen.page, 0)
             keyClick(Qt.Key_Down)
             compare(screen.currentSet, "sf2")
-            // In Fighting too: kept.
+            // Fighting has Street Fighter II too: its first all the same.
             keyClick(Qt.Key_Right)
             compare(screen.filterId, "genres/Fighting")
-            compare(screen.currentSet, "sf2")
+            compare(screen.currentSet, "kinst")
+            compare(screen.selected, 0)
             verify(findText(screen, "Fighting") !== null)
-            // Not in 6 Players: its first, kept round in All Games.
             keyClick(Qt.Key_Right)
             compare(screen.filterId, "players/6")
             compare(screen.currentSet, "xmen6p")
+            // Round to All Games, on its first, from its last page.
             keyClick(Qt.Key_Right)
             compare(screen.filterId, "all")
-            compare(screen.currentSet, "xmen6p")
+            compare(screen.currentSet, "sf2")
+            compare(screen.page, 0)
             keyClick(Qt.Key_Left)
             compare(screen.filterId, "players/6")
+            compare(screen.currentSet, "xmen6p")
         }
 
         // The mouse over a row chooses its game, as ▲ ▼ do (Main.qml's
@@ -878,15 +887,15 @@ Rectangle {
             screen = openScreen({ adjust: true })
             hover(middle(rowOf("003")))
             compare(screen.selected, 0)
-            // The wheel.
+            // The wheel, opened with the first game in its top row.
             loader.source = ""
             moduleRoot.listStyle = "3D Curved"
             screen = openScreen()
-            compare(screen.selectedRow, 4)
+            compare(screen.selectedRow, 0)
             var top = screen.wheelTop
             hover(middle(rowOf("003")))
             compare(screen.currentSet, "avsp")
-            compare(screen.selectedRow, 6)
+            compare(screen.selectedRow, 2)
             compare(screen.wheelTop, top)
         }
 
@@ -1589,7 +1598,8 @@ Rectangle {
             keyRelease(Qt.Key_Return)
             compare(findText(screen, "Add to Favorites"), null)
             compare(root.navigations.length, 1)
-            // All Games, on the same game: hosted from its options.
+            // All Games, on its first game, Street Fighter II again: hosted
+            // from its options.
             keyClick(Qt.Key_Right)
             compare(screen.filterId, "all")
             compare(screen.currentSet, "sf2")
@@ -2092,9 +2102,9 @@ Rectangle {
             compare(root.navigations[0].params.online.room, 1)
             compare(root.navigations[0].params.online.host, "ann")
             verify(root.navigations[0].params.online.lan)
-            // All Games, on the same game: the line its own, the picture's
-            // frame back with the box under it and the game's scores in it,
-            // and hosted on the network from its options.
+            // All Games, on its first game, Street Fighter II again: the line
+            // its own, the picture's frame back with the box under it and the
+            // game's scores in it, and hosted on the network from its options.
             keyClick(Qt.Key_Right)
             compare(screen.filterId, "all")
             compare(screen.currentSet, "sf2")
@@ -2419,15 +2429,15 @@ Rectangle {
             verify(row("004").x > row("002").x)
         }
 
-        // 3D Curved: a wheel opening with the game chosen in its middle row,
-        // round from the list's end to its start; ▲ ▼ move it up and down
-        // the rows, the wheel turning a row once it would leave them; the
-        // rows going back from it, wherever it is, smaller and fainter, as
-        // far back as they go wheelReach rows from it (five of nine), and
-        // nearer each other as they are smaller, from the list's top to its
-        // foot: nine rows where Curved has seven. The bar has the game of so
-        // many. Fewer games than rows lie from the top row down, the others
-        // empty; without the hint bar, ten rows.
+        // 3D Curved: a wheel opening with the first game in its top row, the
+        // list from there down; ▲ ▼ move the game chosen up and down the
+        // rows, the wheel turning a row once it would leave them, round from
+        // the list's end to its start; the rows going back from it, wherever
+        // it is, smaller and fainter, as far back as they go wheelReach rows
+        // from it (five of nine), and nearer each other as they are smaller,
+        // from the list's top to its foot: nine rows where Curved has seven.
+        // The bar has the game of so many. Fewer games than rows lie from the
+        // top row down, the others empty; without the hint bar, ten rows.
         function test_screenWheel() {
             moduleRoot.listStyle = "3D Curved"
             var screen = openScreen()
@@ -2439,11 +2449,21 @@ Rectangle {
             compare(screen.perPage, 9)
             compare(screen.middleRow, 4)
             compare(screen.currentSet, "sf2")
-            compare(screen.selectedRow, 4)
+            compare(screen.selectedRow, 0)
             verify(findText(screen, "1/15") !== null)
-            var rows = ["012", "013", "014", "015", "001", "002", "003", "004", "005"].map(row)
+            compare(row("001").y, top(0))
+            compare(row("001").opacity, 1)
+            compare(row("010"), null)
+            // The game in the middle row (the wheel still): the rows go back
+            // from it both ways.
+            for (var m = 0; m < 4; ++m)
+                keyClick(Qt.Key_Down)
+            compare(screen.currentSet, "dkong")
+            compare(screen.selectedRow, 4)
+            verify(findText(screen, "5/15") !== null)
+            var rows = ["001", "002", "003", "004", "005", "006", "007", "008", "009"].map(row)
             compare(rows[4].y, top(4))
-            compare(row("006"), null)
+            compare(row("010"), null)
             compare(rows[4].opacity, 1)
             // From the list's top to its foot.
             compare(rows[0].y, Math.round(screen.listTop * screen.v))
@@ -2475,34 +2495,35 @@ Rectangle {
             // Down moves it a row; the wheel stays, and the rows go back from
             // the game chosen now.
             keyClick(Qt.Key_Down)
-            compare(screen.currentSet, "1942")
-            verify(findText(screen, "2/15") !== null)
+            compare(screen.currentSet, "ffight")
+            verify(findText(screen, "6/15") !== null)
             compare(screen.selectedRow, 5)
-            compare(row("002").y, top(5))
-            compare(row("002").opacity, 1)
-            verify(row("001").opacity < 1)
-            verify(row("012").opacity < row("013").opacity)
-            compare(row("006"), null)
-            compare(row("012").y, Math.round(screen.listTop * screen.v))
+            compare(row("006").y, top(5))
+            compare(row("006").opacity, 1)
+            verify(row("005").opacity < 1)
+            verify(row("001").opacity < row("002").opacity)
+            compare(row("010"), null)
+            compare(row("001").y, Math.round(screen.listTop * screen.v))
             // To the bottom row, and past it: the wheel turns a row.
             for (var d = 0; d < 3; ++d)
                 keyClick(Qt.Key_Down)
             compare(screen.selectedRow, 8)
-            verify(row("012") !== null)
+            verify(row("001") !== null)
             keyClick(Qt.Key_Down)
             compare(screen.selectedRow, 8)
-            verify(findText(screen, "6/15") !== null)
-            compare(row("012"), null)
-            compare(row("006").y, top(8))
-            fuzzyCompare(row("006").y + row("006").height, Math.round(screen.listBottom * screen.v), 1)
+            verify(findText(screen, "10/15") !== null)
+            compare(row("001"), null)
+            compare(row("010").y, top(8))
+            fuzzyCompare(row("010").y + row("010").height, Math.round(screen.listBottom * screen.v), 1)
             // Up to the top row, the rows under it going back the further
             // they are, those five rows from it and more as far back as they
-            // go; and past it, round to the list's end.
+            // go; past it, the wheel turns back a row, and past the first
+            // game, round to the list's end.
             for (var k = 0; k < 8; ++k)
                 keyClick(Qt.Key_Up)
             compare(screen.selectedRow, 0)
-            compare(row("013").y, top(0))
-            var below = ["013", "014", "015", "001", "002", "003", "004", "005", "006"].map(row)
+            compare(row("002").y, top(0))
+            var below = ["002", "003", "004", "005", "006", "007", "008", "009", "010"].map(row)
             for (var j = 0; j < 5; ++j)
                 verify(below[j + 1].opacity < below[j].opacity)
             for (j = 6; j < 9; ++j)
@@ -2510,9 +2531,14 @@ Rectangle {
             fuzzyCompare(below[5].opacity, 0.4, 0.001)
             keyClick(Qt.Key_Up)
             compare(screen.selectedRow, 0)
-            verify(findText(screen, "12/15") !== null)
-            compare(row("012").y, top(0))
-            compare(row("006"), null)
+            verify(findText(screen, "1/15") !== null)
+            compare(row("001").y, top(0))
+            compare(row("010"), null)
+            keyClick(Qt.Key_Up)
+            compare(screen.selectedRow, 0)
+            verify(findText(screen, "15/15") !== null)
+            compare(row("015").y, top(0))
+            compare(row("009"), null)
 
             loader.source = ""
             moduleRoot.startFilter = "genres/Fighting"
@@ -2543,27 +2569,32 @@ Rectangle {
             var screen = openScreen()
             compare(screen.count, 9)
             compare(screen.perPage, 9)
-            compare(screen.selectedRow, 4)
-            compare(screen.rows[0].place, 5)
-            for (var i = 0; i < 5; ++i)
+            compare(screen.selectedRow, 0)
+            compare(screen.rows[0].place, 0)
+            for (var i = 0; i < 8; ++i)
                 keyClick(Qt.Key_Down)
-            compare(screen.currentSet, "ffight")
+            compare(screen.currentSet, "mslug")
             compare(screen.selectedRow, 8)
-            compare(screen.rows[0].place, 6)
+            compare(screen.rows[0].place, 0)
+            // Past the bottom row: the wheel turns, round to the first game.
+            keyClick(Qt.Key_Down)
+            compare(screen.currentSet, "sf2")
+            compare(screen.selectedRow, 8)
+            compare(screen.rows[0].place, 1)
             for (i = 0; i < 8; ++i)
                 keyClick(Qt.Key_Up)
-            compare(screen.currentSet, "galaga")
+            compare(screen.currentSet, "1942")
             compare(screen.selectedRow, 0)
             keyClick(Qt.Key_Up)
-            compare(screen.currentSet, "ffight")
+            compare(screen.currentSet, "sf2")
             compare(screen.selectedRow, 0)
-            compare(screen.rows[0].place, 5)
+            compare(screen.rows[0].place, 0)
 
             // Read again, a game more ahead of it.
             arcadeBackend.filterList[0].sets = ["kinst"].concat(arcadeBackend.filterList[0].sets)
             arcadeBackend.gamesChanged()
             compare(screen.count, 10)
-            compare(screen.currentSet, "ffight")
+            compare(screen.currentSet, "sf2")
             compare(screen.selectedRow, 0)
 
             // Its filter gone, its last favourite with it.
@@ -2580,26 +2611,65 @@ Rectangle {
             compare(screen.currentSet, "sf2")
             compare(screen.selectedRow, 4)
 
-            // Played from the seventh row, and back.
+            // Played from the eighth row, and back.
             loader.source = ""
             moduleRoot.startFilter = "all"
             screen = openScreen()
-            keyClick(Qt.Key_Down)
-            keyClick(Qt.Key_Down)
-            compare(screen.currentSet, "1942")
-            compare(screen.selectedRow, 6)
+            for (i = 0; i < 7; ++i)
+                keyClick(Qt.Key_Down)
+            compare(screen.currentSet, "galaga")
+            compare(screen.selectedRow, 7)
             keyClick(Qt.Key_Space)
             var played = root.navigations[root.navigations.length - 1]
             compare(played.path, "Play.qml")
-            compare(played.listState.row, 6)
+            compare(played.listState.row, 7)
             loader.source = ""
             screen = openScreen({ navListState: played.listState })
-            compare(screen.currentSet, "1942")
-            compare(screen.selectedRow, 6)
+            compare(screen.currentSet, "galaga")
+            compare(screen.selectedRow, 7)
             moduleRoot.screenAdjustment = { top: -30, bottom: -105, left: 0, right: 0 }
             compare(screen.perPage, 6)
-            compare(screen.currentSet, "1942")
+            compare(screen.currentSet, "galaga")
             compare(screen.selectedRow, 5)
+        }
+
+        // Favorites with no game on it, and Online Games with no one hosting
+        // one: there all the same, each saying why in the list's place and on
+        // the help line, as the backend says it (filterStatus()), and nothing
+        // to select; ◄ ► on to the next filter, on its first game.
+        function test_screenEmptyLists() {
+            arcadeBackend.filterList = [arcadeBackend.filterList[0],
+                                        { id: "favorites", name: "Favorites", sets: [] },
+                                        { id: "online", name: "Online Games", sets: [], rows: [] }]
+            arcadeBackend.filterStates = {
+                favorites: { name: "No Favorites", detail: "Hold select on a game and choose Add to Favorites: it comes here" },
+                online: { name: "No Games Online",
+                          detail: "No one in RetroArch's lobby hosts a game you have: host one from a game's options" }
+            }
+            moduleRoot.startFilter = "favorites"
+            var screen = openScreen()
+            compare(screen.filterId, "favorites")
+            compare(screen.count, 0)
+            verify(findText(screen, "No Favorites") !== null)
+            verify(findText(screen, "Hold select on a game and choose Add to Favorites") !== null)
+            keyPress(Qt.Key_Return)
+            keyRelease(Qt.Key_Return)
+            compare(root.navigations.length, 0)
+            keyClick(Qt.Key_Right)
+            compare(screen.filterId, "online")
+            compare(screen.count, 0)
+            verify(findText(screen, "No Games Online") !== null)
+            verify(findText(screen, "No one in RetroArch's lobby hosts a game you have") !== null)
+            compare(findText(screen, "No Favorites"), null)
+            // What the backend says changes with the lobby's read.
+            arcadeBackend.filterStates.online = { name: "Lobby Not Reachable", detail: "RetroArch's lobby can't be reached" }
+            arcadeBackend.gamesChanged()
+            verify(findText(screen, "Lobby Not Reachable") !== null)
+            compare(findText(screen, "No Games Online"), null)
+            keyClick(Qt.Key_Right)
+            compare(screen.filterId, "all")
+            compare(screen.selected, 0)
+            compare(findText(screen, "Lobby Not Reachable"), null)
         }
 
         // Border OFF: no frame round the picture or the box under it, the
@@ -3392,9 +3462,8 @@ Rectangle {
             verify(!keys.visible)
             keyClick(Qt.Key_Down)
             compare(screen.selected, 1)
-            // ◄ at the keys' left end: the filter before Search, past
-            // Search's own row on the game ◄ ► came to it with (X-Men, the
-            // 1990s' third).
+            // ◄ at the keys' left end: the filter before Search, on its first
+            // game, as ◄ ► open every filter.
             for (i = 0; i < 4; ++i)
                 keyClick(Qt.Key_Up)
             compare(screen.currentSet, "xmen6p")
@@ -3405,8 +3474,8 @@ Rectangle {
             keyClick(Qt.Key_Left)
             compare(screen.filterId, "years/1990s")
             verify(!screen.typing)
-            compare(screen.selected, 2)
-            compare(screen.currentSet, "xmen6p")
+            compare(screen.selected, 0)
+            compare(screen.currentSet, "sf2")
             keyClick(Qt.Key_Right)
             verify(screen.onSearch)
             keyClick(Qt.Key_Right)
@@ -3414,7 +3483,8 @@ Rectangle {
             for (i = 0; i < 10; ++i)
                 keyClick(Qt.Key_Right)
             compare(screen.filterId, "all")
-            compare(screen.currentSet, "xmen6p")
+            compare(screen.selected, 0)
+            compare(screen.currentSet, "sf2")
             // Afresh: no words.
             loader.source = ""
             screen = openScreen()

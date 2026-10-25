@@ -95,7 +95,7 @@ With **Settings → Arcade → Screen** on **Arcade**, Arcade opens on a cabinet
 | Key | Pad (the JAMMA board's names) | Keyboard | What it does |
 |---|---|---|---|
 | ▲ ▼ | Joystick, D-pad | Arrows | The game before or after, from page to page, and round from the last to the first |
-| ◄ ► | Joystick, D-pad | Arrows | The filter before or after, staying on the same game where that filter has it |
+| ◄ ► | Joystick, D-pad | Arrows | The filter before or after, on its first game |
 | COIN | **COIN** (Back, Select, -) | **5** | Puts a credit in, up to 9: they go in with the next game played |
 | Select | Button 1 (A) | **Enter** | Plays the game, with the credits, as you let it go |
 | Select, held | Button 1 (A), held | **Enter**, held | The game's options, once it has been held most of a second: **Play**, **Game Details**, **Add to Favorites** or **Remove from Favorites**, **Play at Startup** ([above](#a-games-options)). Letting it go then plays nothing |
@@ -161,16 +161,16 @@ On a CRT, move each side to where the tube's edge cuts the picture off (its over
 
 ### Filters
 
-◄ ► go round the filters that have games and that Menu Filters shows ([below](#menu-filters)), in this order:
+◄ ► go round the filters Menu Filters shows ([below](#menu-filters)), each opening on its first game, in this order:
 
 | Filter | What it holds |
 |---|---|
 | **All Games** | Every game, by name. Always there: in a folder with no set MAME or FinalBurn Neo plays, Not Recognized is there in its place |
-| **Online Games** | With **Online Play** on, while someone hosts one of your games in RetroArch's lobby: each, with who hosts it; the box on the right, in the picture's place, says what the lobby says of it, and select joins it ([Online play](#online-play)) |
+| **Favorites** | The games put on Favorites, by name; there before any is, saying so, and how one comes to be |
+| **Recently Played** | The games played last, latest first (up to 30); there before any has been played, saying so |
 | **LAN Games** | With **LAN Play** on: the games someone on your local network hosts that you have, each with who hosts it; the box on the right, in the picture's place, says what their machine answered with, whether their FinalBurn Neo and RetroArch are yours among it, which the help line says first too, and select joins it. While it lists none, it says why: the network is still being asked, can't be reached, no one there hosts a game you have, or FinalBurn Neo isn't installed ([LAN play](#lan-play)) |
+| **Online Games** | With **Online Play** on: the games others host in RetroArch's lobby that you have, each with who hosts it; the box on the right, in the picture's place, says what the lobby says of it, and select joins it. While it lists none, it says why: the lobby is still being read, can't be reached, no one there hosts a game you have, or FinalBurn Neo isn't installed ([Online play](#online-play)) |
 | **RetroArch Lobby** | With **Online Play** on and games in the folder: every game hosted in RetroArch's lobby, of every core, with who hosts it, the box on the right saying what the lobby says of it; there while no one hosts a game, or the lobby can't be reached, to say so ([Online play](#online-play)) |
-| **Favorites** | The games put on Favorites, by name |
-| **Recently Played** | The games played last, latest first (up to 30) |
 | **RetroAchievements** | With **Online High Scores** on RetroAchievements and a Web API key: the games you can earn achievements or a leaderboard's scores in, by name. A game is on it when RetroAchievements has achievements or a leaderboard for its set, as its site lists each set by its MD5 (of the file's name: a clone needs its own), and it plays in FinalBurn Neo, so a game set to MAME in its options leaves it ([FinalBurn Neo](#finalburn-neo)) |
 | **Playable Online** | With **Online Play** on and FinalBurn Neo installed: the games you can play with others through RetroArch, by name: those FinalBurn Neo has, which you can host from a game's options or join when someone hosts them. A game set to MAME in its options is on it too, as a game played online always plays in FinalBurn Neo ([Online play](#online-play)) |
 | A genre (**Beat 'em Up**, **Fighting**, **Shmup**, **Run and Gun**…) | The games of that genre, by catver.ini ([below](#genres)) |
@@ -182,7 +182,7 @@ On a CRT, move each side to where the tube's edge cuts the picture off (its over
 
 **Settings → Arcade → Hide Hacks and Bootlegs** leaves the sets that are a bootleg or a hack of a game, rather than its maker's own release, off every filter and list, on both screens: a set is one when MAME (or FinalBurn Neo's list, for a set MAME doesn't know) says so in the parentheses of its name (`Galaga (bootleg)`, `Pac-Man (Midway, speedup hack)`, `Puckman (Japan set 1, Probably Bootleg)`) or as its maker (`bootleg`, `bootleg (Playmark)`, `hack`). They are hidden, not gone: Favorites and Recently Played keep them for when it is off again, a card that names one still plays it, and the filters' counts are of the games shown.
 
-**Settings → Arcade → Start Filter** is the one the screen opens on: All Games, with Online Play on RetroArch Lobby, or one of the lists, genres, numbers of players, decades and publishers that Menu Filters shows. One that has no games then (Favorites before any is added), or that Menu Filters no longer shows, opens on All Games. RetroAchievements is waited for while its list of games is read (the first time, and a week on): the screen shows All Games meanwhile and moves to it as the list comes. Back from a game, the screen is on its filter and on the game again.
+**Settings → Arcade → Start Filter** is the one the screen opens on: All Games, Favorites, Recently Played, with LAN Play on LAN Games, with Online Play on Online Games and RetroArch Lobby, or one of the other lists, genres, numbers of players, decades and publishers that Menu Filters shows, in the order the screen goes round them. One that isn't there then (a genre no game has, one Menu Filters no longer shows) opens on All Games. RetroAchievements is waited for while its list of games is read (the first time, and a week on): the screen shows All Games meanwhile and moves to it as the list comes. Every filter opens on its first game, at the top of its list; back from a game, the screen is on its filter and on the game again.
 
 ### Search
 
@@ -192,7 +192,7 @@ Search finds a game by its name as it is typed. It is the last filter, and while
 - Each letter narrows the list at once, and the bar says how many games are found. The list holds the games whose name or set has every word typed in it, in any order, capitals, accents and signs aside: `pacman` finds Pac-Man, `fighter street` Street Fighter II, `sf2` the set sf2.
 - The best come first: the games whose name starts with what is typed, its words run together too (`pac man` puts Pac-Man before Ms. Pac-Man), or whose set it is; then those with a word starting with its first word; then the rest, each by name.
 - **OK** goes down to the first game found, which plays as from any filter. Back returns to the list with the words kept.
-- **►** pressed on a key at the right end of its row goes on to the next filter, round to All Games, and **◄** on a key at the left end to the filter before Search, as from the list. Holding the arrow stops at the end of the row. Gone past Search from its own row, the screen is on the game it was on before Search, where the next filter has it.
+- **►** pressed on a key at the right end of its row goes on to the next filter, round to All Games, and **◄** on a key at the left end to the filter before Search, as from the list, each on its first game. Holding the arrow stops at the end of the row.
 - COIN buys no credit while Search is shown, as the credits aren't shown over the keys, and the hint bar leaves it out.
 - Back from a game found, the screen is on it with the same words. The next time Arcade opens, Search has none.
 
@@ -423,7 +423,7 @@ Settings → Arcade, the second row of Settings' first screen. The page is share
 | Games Folder | Default, or a folder | Default | The folder of ROM sets. Default: `Games/Arcade` beside Local Files' `Movies` folder, on the OSD/OS image `/media/OSD-OS/Games/Arcade` | `modules.com.osdos.arcade.games_directory` |
 | Hide Hacks and Bootlegs | ON, OFF | OFF | Leaves the sets that are a bootleg or a hack of a game, as MAME names them, off every list and filter, Favorites and Recently Played too ([Filters](#filters)) | `modules.com.osdos.arcade.hide_bootlegs` |
 | Screen | Original, Arcade | Arcade | How the games are listed, from the next time Arcade opens: the tree, or the Arcade screen ([Two screens](#two-screens)) | `modules.com.osdos.arcade.screen` |
-| Start Filter | All Games, then the lists, genres, players, decades and publishers Menu Filters shows | All Games | The filter the Arcade screen opens on ([Filters](#filters)); while it has no games, the first that has. Shown while Screen is Arcade | `modules.com.osdos.arcade.start_filter` |
+| Start Filter | All Games, Favorites, Recently Played, LAN Games (with LAN Play on), Online Games and RetroArch Lobby (with Online Play on), then the other lists, genres, players, decades and publishers Menu Filters shows | All Games | The filter the Arcade screen opens on ([Filters](#filters)); while it isn't there, the first that is. Shown while Screen is Arcade | `modules.com.osdos.arcade.start_filter` |
 | Menu Filters | A page of the filters under their headings, each ON or OFF | All on, the publishers off | The filters ◄ ► goes round on the Arcade screen ([Menu Filters](#menu-filters)). Shown while Screen is Arcade | `modules.com.osdos.arcade.menu_filters` |
 | Play at Startup | None, then the favorites | None | A favorite game started straight after the boot screen, as a game's options set it ([A game's options](#a-games-options)). One for the whole app: choosing a game replaces another module's | `modules.com.osdos.arcade.play_at_startup` |
 | List Style | Straight, Curved, 3D Curved | Curved | How the Arcade screen's games lie: one under another, on an arc, or on a wheel the game chosen goes up and down ([List Style](#list-style)). Shown while Screen is Arcade | `modules.com.osdos.arcade.list_style` |
@@ -457,7 +457,7 @@ Settings → Arcade, the second row of Settings' first screen. The page is share
 | `enabled`, `border`, `hint_bar`, `help_line`, `start_info`, `high_scores` | `true` or `false` |
 | `games_directory` | `""` for the default, else the folder's full path |
 | `screen` | `"Original"` or `"Arcade"` |
-| `start_filter` | The filter's id: `"all"`, `"favorites"`, `"recent"`, `"achievements"` (RetroAchievements), `"netplay"` (Playable Online), `"genres/<genre>"` (`"genres/Fighting"`), `"players/<n>"` (`"players/2"`), `"years/<decade>"` (`"years/1980s"`, `"years/unknown"`) or `"makers/<publisher>"` (`"makers/Capcom"`) |
+| `start_filter` | The filter's id: `"all"`, `"favorites"`, `"recent"`, `"lan"` (LAN Games), `"online"` (Online Games), `"lobby"` (RetroArch Lobby), `"achievements"` (RetroAchievements), `"netplay"` (Playable Online), `"genres/<genre>"` (`"genres/Fighting"`), `"players/<n>"` (`"players/2"`), `"years/<decade>"` (`"years/1980s"`, `"years/unknown"`) or `"makers/<publisher>"` (`"makers/Capcom"`) |
 | `menu_filters` | The filters turned on or off, by id: `{ "genres/Puzzle": false, "makers/Capcom": true }`, `"achievements"` for RetroAchievements, `"netplay"` for Playable Online and `"unknown"` for Not Recognized. One not in it is on, but a publisher's |
 | `play_at_startup` | The game's set (`"galaga"`), `""` for None; the app's own `startup_favorite` holds the same game, and either changes the other |
 | `list_style` | `"Straight"`, `"Curved"` or `"3D Curved"` |
