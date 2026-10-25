@@ -1,11 +1,13 @@
 name: Windows build
 
 # Builds the app for Windows 11 (x64, MSVC 2022) and uploads it as an artifact,
-# osdos-windows-x64: the app with Qt (windeployqt), SDL2, OpenSSL, minizip
-# and zlib beside it, and the app's files as the install rules lay them out
-# (bin/, share/osdos/). mpv is not in it: mpv.exe goes beside the app or on
-# the PATH. No release package yet: the build is the proof that the sources
-# compile there, and a copy to try.
+# osdos-windows-x64: one folder, osdos/, with osdos.exe, Qt (windeployqt),
+# SDL2, OpenSSL, minizip and zlib beside it, and the app's own files (Main.qml,
+# views/, modules/, assets/, scripts/, LICENSE) in the same folder, as the
+# install rules lay them out on Windows; unpacked anywhere, osdos.exe runs
+# from it. mpv is not in it: mpv.exe goes beside the app or on the PATH. No
+# release package yet: the build is the proof that the sources compile there,
+# and a copy to try.
 
 on:
   workflow_dispatch:
@@ -122,16 +124,20 @@ jobs:
       # app and its QML import; then the libraries vcpkg put beside the
       # built binary (SDL2, OpenSSL's libcrypto, minizip, zlib), and
       # OpenSSL's libssl, which only Qt's TLS plugin asks for at run time.
+      # All into install\osdos\, the one folder the install rules made,
+      # beside osdos.exe and the app's own files.
       - name: Deploy Qt and the libraries
         shell: pwsh
         run: |
-          & "$env:QT_ROOT_DIR\bin\windeployqt.exe" --release --qmldir "$env:GITHUB_WORKSPACE" "$env:GITHUB_WORKSPACE\install\bin\osdos.exe"
+          & "$env:QT_ROOT_DIR\bin\windeployqt.exe" --release --qmldir "$env:GITHUB_WORKSPACE" "$env:GITHUB_WORKSPACE\install\osdos\osdos.exe"
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          Copy-Item "$env:GITHUB_WORKSPACE\build\*.dll" "$env:GITHUB_WORKSPACE\install\bin\"
-          Copy-Item "$env:OSDOS_VCPKG\installed\x64-windows\bin\libssl*.dll" "$env:GITHUB_WORKSPACE\install\bin\"
-          Copy-Item "$env:OSDOS_VCPKG\installed\x64-windows\bin\libcrypto*.dll" "$env:GITHUB_WORKSPACE\install\bin\"
-          Get-ChildItem "$env:GITHUB_WORKSPACE\install\bin" -Filter *.dll | Select-Object -ExpandProperty Name
+          Copy-Item "$env:GITHUB_WORKSPACE\build\*.dll" "$env:GITHUB_WORKSPACE\install\osdos\"
+          Copy-Item "$env:OSDOS_VCPKG\installed\x64-windows\bin\libssl*.dll" "$env:GITHUB_WORKSPACE\install\osdos\"
+          Copy-Item "$env:OSDOS_VCPKG\installed\x64-windows\bin\libcrypto*.dll" "$env:GITHUB_WORKSPACE\install\osdos\"
+          Get-ChildItem "$env:GITHUB_WORKSPACE\install\osdos" | Select-Object -ExpandProperty Name
 
+      # The install folder whole, so the zip unpacks to the one folder,
+      # osdos\, with everything in it.
       - name: Upload artifact
         uses: actions/upload-artifact@v7.0.1
         with:

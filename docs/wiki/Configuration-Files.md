@@ -22,7 +22,7 @@ Everything OSD/OS keeps lives in one folder of its own, the **data folder**: the
 
 | Variable | What it names | Without it |
 |---|---|---|
-| `APP_ROOT` | OSD/OS's own files: `Main.qml`, `views/`, `modules/`, `assets/`, `scripts/` (mpv's Lua scripts) and `LICENSE`. OSD/OS hands it on to mpv and to scripts | Inside a Mac app, its `Contents/Resources`; else `share/osdos` beside the binary's folder when there is one (`/opt/osdos/share/osdos` for `/opt/osdos/bin/osdos`, `usr/share/osdos` in the AppImage); else the folder above the binary's |
+| `APP_ROOT` | OSD/OS's own files: `Main.qml`, `views/`, `modules/`, `assets/`, `scripts/` (mpv's Lua scripts) and `LICENSE`. OSD/OS hands it on to mpv and to scripts | Inside a Mac app, its `Contents/Resources`; else the binary's own folder when `Main.qml` is in it (the Windows build's `osdos\` folder, with `osdos.exe` and the files together); else `share/osdos` beside the binary's folder when there is one (`/opt/osdos/share/osdos` for `/opt/osdos/bin/osdos`, `usr/share/osdos` in the AppImage); else the folder above the binary's |
 | `DATA_ROOT` | The data folder | The folder for the system, in the table above |
 
 Both must name a folder that exists. OSD/OS creates the default data folder, but not one named by `DATA_ROOT`: create it first.

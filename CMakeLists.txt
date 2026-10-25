@@ -347,35 +347,49 @@ if(APPLE)
     # macdeployqt is NOT run here — it requires Qt frameworks to be present and
     # is environment-specific. Run it manually in CI after cmake --install.
 else()
+    # Where the app and its files go. On Windows one folder, osdos/, with
+    # osdos.exe and the app's own files together, as a Windows program is
+    # unpacked and run (windows.yml puts Qt and the libraries beside them):
+    # the app takes the folder with Main.qml beside its binary as its
+    # APP_ROOT (resolveAppRoot()). Elsewhere the FHS layout, bin/ and
+    # share/osdos/, which it finds from bin/.
+    if(WIN32)
+        set(OSDOS_INSTALL_BINDIR "osdos")
+        set(OSDOS_INSTALL_DATADIR "osdos")
+    else()
+        set(OSDOS_INSTALL_BINDIR "${CMAKE_INSTALL_BINDIR}")
+        set(OSDOS_INSTALL_DATADIR "${CMAKE_INSTALL_DATADIR}/osdos")
+    endif()
+
     install(TARGETS osdos
-        RUNTIME DESTINATION "${CMAKE_INSTALL_BINDIR}"
+        RUNTIME DESTINATION "${OSDOS_INSTALL_BINDIR}"
         COMPONENT Runtime)
     if(TARGET osdos-jamma)
         install(TARGETS osdos-jamma
-            RUNTIME DESTINATION "${CMAKE_INSTALL_BINDIR}"
+            RUNTIME DESTINATION "${OSDOS_INSTALL_BINDIR}"
             COMPONENT Runtime)
     endif()
     if(TARGET osdos_signin_libretro)
         install(TARGETS osdos_signin_libretro
-            LIBRARY DESTINATION "${CMAKE_INSTALL_BINDIR}"
+            LIBRARY DESTINATION "${OSDOS_INSTALL_BINDIR}"
             COMPONENT Runtime)
     endif()
 
     # LICENSE goes with every copy, as the GPL asks; Settings → About shows it.
     install(FILES "${CMAKE_SOURCE_DIR}/Main.qml" "${CMAKE_SOURCE_DIR}/LICENSE"
-        DESTINATION "${CMAKE_INSTALL_DATADIR}/osdos"
+        DESTINATION "${OSDOS_INSTALL_DATADIR}"
         COMPONENT Runtime)
 
     install(DIRECTORY
         "${CMAKE_SOURCE_DIR}/views"
         "${CMAKE_SOURCE_DIR}/modules"
         "${CMAKE_SOURCE_DIR}/assets"
-        DESTINATION "${CMAKE_INSTALL_DATADIR}/osdos"
+        DESTINATION "${OSDOS_INSTALL_DATADIR}"
         COMPONENT Runtime)
     # Of scripts/, what the app runs: mpv's Lua scripts and the web player's
     # browser launcher; not the build and release tooling beside them.
     install(DIRECTORY "${CMAKE_SOURCE_DIR}/scripts"
-        DESTINATION "${CMAKE_INSTALL_DATADIR}/osdos"
+        DESTINATION "${OSDOS_INSTALL_DATADIR}"
         COMPONENT Runtime
         FILES_MATCHING PATTERN "*.lua" PATTERN "web-player.sh")
 endif()
