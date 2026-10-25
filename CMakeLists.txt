@@ -120,6 +120,7 @@ add_executable(osdos
     src/util/OsdSkinProvider.cpp
     src/util/FontconfigOverride.cpp
     src/util/Diagnostics.cpp
+    src/util/LogFile.cpp
     src/input/InputManager.cpp
     src/input/ControllerProfile.cpp
     src/input/IdleTracker.cpp
@@ -146,6 +147,16 @@ target_compile_definitions(osdos PRIVATE APP_VERSION="${APP_VERSION}" APP_BUILD=
 if(MSVC)
     target_compile_options(osdos PRIVATE /permissive- /Zc:__cplusplus /utf-8)
     target_compile_definitions(osdos PRIVATE NOMINMAX WIN32_LEAN_AND_MEAN _CRT_SECURE_NO_WARNINGS SDL_MAIN_HANDLED)
+endif()
+
+# Windows: a windowed program (the GUI subsystem), which no console opens
+# with. Qt's entry point gives it the WinMain that calls main(); what it logs
+# goes to osdos.log in the data folder, and to the console it was started
+# from, if any (util/LogFile). Programs it starts (MAME, yt-dlp) open no
+# console of their own either: Qt starts them without one when the app has
+# none.
+if(WIN32)
+    set_target_properties(osdos PROPERTIES WIN32_EXECUTABLE TRUE)
 endif()
 
 # The app's own functions in its dynamic symbol table (-rdynamic), so that

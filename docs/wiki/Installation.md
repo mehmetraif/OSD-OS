@@ -1,20 +1,20 @@
 # Installation
 
-Everything it takes to get OSD/OS running: the OSD/OS image, which makes a Raspberry Pi boot straight into OSD/OS, and OSD/OS as an app on Raspberry Pi OS, on an Apple Silicon Mac, and on SteamOS or another x86_64 Linux. It also covers updating, uninstalling, and which hardware OSD/OS has been tried on.
+Everything it takes to get OSD/OS running: the OSD/OS image, which makes a Raspberry Pi boot straight into OSD/OS, and OSD/OS as an app on Raspberry Pi OS, on an Apple Silicon Mac, on SteamOS or another x86_64 Linux, and on Windows 11. It also covers updating, uninstalling, and which hardware OSD/OS has been tried on.
 
 <img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/images/osdos-on-a-crt.jpg" width="100%" alt="OSD/OS's Settings on a Sony CRT" />
 
 ## Which way to choose
 
-| | The OSD/OS image | App on Raspberry Pi OS | App on macOS | App on SteamOS / Linux x86_64 |
-|---|---|---|---|---|
-| Runs on | Raspberry Pi 4 or 5 ([Supported hardware](https://github.com/mehmetraif/OSD-OS/wiki/Installation#supported-hardware)) | Raspberry Pi OS Trixie, 64-bit | Apple Silicon Macs | x86_64 Linux with X11 or XWayland, glibc 2.39 or newer |
-| You download | `OSD-OS-<version>-raspberry-pi.img.xz` | `install.sh`, which fetches `OSD-OS-<version>-linux-arm64.tar.gz` | `OSD-OS-<version>-macOS-arm64.dmg` | `OSD-OS-linux-x86_64.AppImage` |
-| Starts | At power-on, before the rest of the system | At boot (with the autostart service), or with `osdos` | Like any app | Like any app, or from Steam |
-| mpv | On the image | Installed by `install.sh` | `brew install mpv` | Inside the AppImage |
-| Transparent Background | Yes | Yes (`libmpv2`) | Yes (Homebrew's libmpv) | No |
-| Settings → Display Output | Yes | No | No | No |
-| What YouTube, Netflix, Prime Video and Arcade run | On the image (yt-dlp, Deno, Chromium with Widevine, MAME) | Installed by hand ([below](https://github.com/mehmetraif/OSD-OS/wiki/Installation#optional-extras)) | See [YouTube](https://github.com/mehmetraif/OSD-OS/wiki/YouTube), [Netflix and Prime Video](https://github.com/mehmetraif/OSD-OS/wiki/Netflix-and-Prime-Video) and [Arcade](https://github.com/mehmetraif/OSD-OS/wiki/Arcade) | See the same pages |
+| | The OSD/OS image | App on Raspberry Pi OS | App on macOS | App on SteamOS / Linux x86_64 | App on Windows |
+|---|---|---|---|---|---|
+| Runs on | Raspberry Pi 4 or 5 ([Supported hardware](https://github.com/mehmetraif/OSD-OS/wiki/Installation#supported-hardware)) | Raspberry Pi OS Trixie, 64-bit | Apple Silicon Macs | x86_64 Linux with X11 or XWayland, glibc 2.39 or newer | Windows 11 on x64 |
+| You download | `OSD-OS-<version>-raspberry-pi.img.xz` | `install.sh`, which fetches `OSD-OS-<version>-linux-arm64.tar.gz` | `OSD-OS-<version>-macOS-arm64.dmg` | `OSD-OS-linux-x86_64.AppImage` | `OSD-OS-<version>-windows-x64.zip` |
+| Starts | At power-on, before the rest of the system | At boot (with the autostart service), or with `osdos` | Like any app | Like any app, or from Steam | `osdos.exe`, from its folder |
+| mpv | On the image | Installed by `install.sh` | `brew install mpv` | A Windows build from [mpv.io](https://mpv.io/installation/), beside it |
+| Transparent Background | Yes | Yes (`libmpv2`) | Yes (Homebrew's libmpv) | No | No |
+| Settings → Display Output | Yes | No | No | No | No |
+| What YouTube, Netflix, Prime Video and Arcade run | On the image (yt-dlp, Deno, Chromium with Widevine, MAME) | Installed by hand ([below](https://github.com/mehmetraif/OSD-OS/wiki/Installation#optional-extras)) | See [YouTube](https://github.com/mehmetraif/OSD-OS/wiki/YouTube), [Netflix and Prime Video](https://github.com/mehmetraif/OSD-OS/wiki/Netflix-and-Prime-Video) and [Arcade](https://github.com/mehmetraif/OSD-OS/wiki/Arcade) | See the same pages | MAME and RetroArch downloaded from Settings → Arcade; yt-dlp by hand; no Netflix or Prime Video ([below](https://github.com/mehmetraif/OSD-OS/wiki/Installation#on-windows-x64)) |
 
 The OSD/OS image is the simplest way, and the only one where OSD/OS is the whole system. The app installs keep the system you already have.
 
@@ -26,6 +26,7 @@ All the files are on the [latest release](https://github.com/mehmetraif/OSD-OS/r
 | `OSD-OS-<version>-linux-arm64.tar.gz` | The app for Raspberry Pi OS, as `install.sh` installs it |
 | `OSD-OS-<version>-macOS-arm64.dmg` | The app for Apple Silicon Macs |
 | `OSD-OS-linux-x86_64.AppImage` | The app for SteamOS and other x86_64 Linux. No version in its name: it updates itself in place |
+| `OSD-OS-<version>-windows-x64.zip` | The app for Windows 11 on x64: one folder, `osdos`, unzipped anywhere |
 | `install.sh` | The installer for Raspberry Pi OS |
 
 On the release page, each file's line under Assets names the system it is for and what it is, and shows its SHA-256 digest. To check a download, run this in the folder you downloaded it to (`shasum -a 256` in place of `sha256sum` on a Mac) and compare what it prints with the digest shown:
@@ -579,6 +580,24 @@ On the AppImage:
 - Gamepads work through Steam Input too: when Steam's virtual gamepad is present, OSD/OS listens to it alone, so that no press arrives twice ([Controls](https://github.com/mehmetraif/OSD-OS/wiki/Controls#gamepads)).
 - `display_index` chooses the display, as on a Mac (above).
 
+## On Windows (x64)
+
+On Windows 11 on x64, OSD/OS comes as a zip: one folder, `osdos`, with `osdos.exe`, Qt and the libraries it needs, and OSD/OS's own files. Nothing is installed: the folder runs from wherever you put it.
+
+1. Download `OSD-OS-<version>-windows-x64.zip` from the [latest release](https://github.com/mehmetraif/OSD-OS/releases/latest).
+2. Unzip it where you want to keep OSD/OS, for example in `C:\Games`. It unpacks to one folder, `osdos`.
+3. Download a Windows build of mpv from [mpv.io](https://mpv.io/installation/), which plays the videos, and put its folder inside `osdos` as `mpv`, or `mpv.exe` beside `osdos.exe`; mpv anywhere on the `PATH` works too.
+4. Double-click `osdos.exe`. Windows may stop the first start of a program it doesn't know yet (**Windows protected your PC**): choose **More info**, then **Run anyway**.
+
+On Windows:
+
+- The data folder, with your settings, is `%APPDATA%\OSD-OS\`, apart from the app.
+- OSD/OS opens no console window. Its log is `osdos.log` in the data folder, the run before's kept as `osdos-previous.log`; started from a Command Prompt or PowerShell, it writes the log there as well ([Troubleshooting](https://github.com/mehmetraif/OSD-OS/wiki/Troubleshooting#where-the-log-is)).
+- **Arcade.** Settings → Arcade → **MAME** downloads MAME, and Settings → Arcade → **FinalBurn Neo** downloads RetroArch and the FinalBurn Neo core, the versions the OSD/OS image has, so a PC plays online and over the local network with a Pi ([Arcade](https://github.com/mehmetraif/OSD-OS/wiki/Arcade)).
+- **YouTube.** Put `yt-dlp.exe` in the data folder's `bin` folder (`%APPDATA%\OSD-OS\bin\`), beside `osdos.exe` or on the `PATH`, and `deno.exe` on the `PATH`.
+- **Window Mode.** Settings → Window Mode shows OSD/OS in a window on the desktop instead of the whole screen; F11 or Alt+Enter switches at any time.
+- Netflix and Prime Video, Transparent Background, Display Output, Audio Output's cards, Bluetooth and Wi-Fi are not offered: pair gamepads and choose the sound device in Windows' own settings.
+
 ## The data folder
 
 Wherever OSD/OS runs, it keeps your settings apart from the app, so reinstalling or updating never loses them:
@@ -587,6 +606,7 @@ Wherever OSD/OS runs, it keeps your settings apart from the app, so reinstalling
 |---|---|
 | Raspberry Pi (the image and `install.sh`), SteamOS, Linux | `~/.local/share/OSD-OS/`, in the home of the user OSD/OS runs as (`$XDG_DATA_HOME/OSD-OS` when `XDG_DATA_HOME` is set) |
 | macOS | `~/Library/Application Support/OSD-OS/` |
+| Windows | `%APPDATA%\OSD-OS\`, that is `C:\Users\<you>\AppData\Roaming\OSD-OS\` |
 
 It holds `config.json` (the settings), `lists.json` (each module's Recently Watched and Favorites), sign-ins, and the folders the modules use. The environment variable `DATA_ROOT`, set to an existing folder, puts it elsewhere; on a Raspberry Pi, set it where the launcher can see it too (in the service), or it won't find downloaded updates. [Configuration files](https://github.com/mehmetraif/OSD-OS/wiki/Configuration-Files) describes every file.
 
@@ -611,7 +631,7 @@ stateDiagram-v2
 ```
 
 - **CHECK** asks GitHub for the latest release, and offers it only when it is newer than the installed version (**You're up to date** otherwise). Versions are compared by their numbers, so `v0.10.0` comes after `v0.9.0`, and a pre-release before its release (`v0.2.0-rc.1` before `v0.2.0`): an older release is never offered. Pre-releases (tags with `-rc`, `-beta` or `-alpha`) are never the latest, so they are never offered.
-- **DOWNLOAD** fetches the file for this system (the `.tar.gz` on a Raspberry Pi, the `.dmg` on a Mac, the AppImage on x86_64 Linux) into the data folder's `updates` folder, and checks it against the SHA-256 digest GitHub keeps for it. It needs three times the file's size free. Back during the download cancels it.
+- **DOWNLOAD** fetches the file for this system (the `.tar.gz` on a Raspberry Pi, the `.dmg` on a Mac, the AppImage on x86_64 Linux; on Windows the page names the new zip instead, below) into the data folder's `updates` folder, and checks it against the SHA-256 digest GitHub keeps for it. It needs three times the file's size free. Back during the download cancels it.
 - **INSTALL** asks **Install update?** A downloaded update does nothing until you choose to apply it; back, or **Discard Update**, leaves the installed version as it is. A download that is no longer newer than the version running when OSD/OS next starts (a newer one installed with `install.sh` meanwhile, say) is deleted then.
 
 What applying does depends on the system:
@@ -622,6 +642,7 @@ What applying does depends on the system:
 | `install.sh` without the service | **Quit & Apply on Next Launch** | OSD/OS quits; the launcher applies the update the next time you run `osdos` |
 | macOS, the app in `/Applications` | **Apply & Relaunch** | The new app replaces the old one in `/Applications` and opens |
 | macOS, the app anywhere else | **Quit & Open Disk Image** | OSD/OS quits and opens the downloaded `.dmg`, to drag the app into place yourself |
+| Windows | None | The page names the new version's zip: download it, close OSD/OS, and put the zip's `osdos` folder in place of the old one. The settings, in `%APPDATA%\OSD-OS\`, stay; put mpv back in the new folder if it was inside the old one |
 | The AppImage | **Quit & Apply on Next Launch** | The new AppImage replaces the old one in place, keeping a `.bak` of the old one until the new one starts; in Desktop Mode it then starts again by itself, in Gaming Mode it quits and you start it from Steam (the path is the same, so the shortcut still works) |
 
 On a Raspberry Pi the launcher unpacks the new version beside the old one, makes sure it is on the card, then swaps the two in with renames. Should the power go in the middle, the next start puts the version before back whole from what it kept of it, and applies the update again, which stays downloaded until a swap has finished: the Pi starts on one version or the other, never on a file half written.
@@ -676,6 +697,8 @@ Stopping the service from outside leaves the Pi on. The packages `install.sh` in
 
 **The AppImage:** delete `OSD-OS-linux-x86_64.AppImage` (and remove it from Steam if you added it), and delete `~/.local/share/OSD-OS/`.
 
+**On Windows,** delete the `osdos` folder, and `%APPDATA%\OSD-OS\` with your settings and the MAME and RetroArch OSD/OS downloaded.
+
 ## Supported hardware
 
 OSD/OS is tested on a **Raspberry Pi 4** and a **Raspberry Pi 5 (8 GB)**: the Pi 4 as a TV, the Pi 5 in a JAMMA arcade cabinet, and LAN Play between the two. Nothing else has been tested with OSD/OS so far: on another board, please tell us how it went in an [issue](https://github.com/mehmetraif/OSD-OS/issues).
@@ -707,7 +730,7 @@ Of the outputs, only the Pi 4's HDMI and composite have been tried on a TV. The 
 - **Raspberry Pi 3B / 3B+.** OSD/OS keeps the settings 240-MP's author used on a Pi 3. Its mpv flags send the video straight to a hardware overlay, which keeps 1080p H.264 smooth but can't crop: Settings → TV / Movie → **1080p Playback** (shown on a Pi 3 only) trades that the other way, and [Playback and mpv](https://github.com/mehmetraif/OSD-OS/wiki/Playback-and-mpv) shows how to set the flags yourself (`mpv_video_args`). Some USB flash drives hang a Pi 3 booting from USB: if it won't start from one, try an SD card first.
 - **Raspberry Pi 400 / 500** are read as a Pi 4 and a Pi 5, without the AV jack or TV pads they don't have.
 - **Boards without a 64-bit Raspberry Pi OS** (the Pi 1 and the first Pi Zero, for example) can't run OSD/OS: the image and the app are 64-bit (arm64), and `install.sh` stops on anything else.
-- **Other computers:** an Apple Silicon Mac, or an x86_64 Linux machine with the AppImage (above).
+- **Other computers:** an Apple Silicon Mac, an x86_64 Linux machine with the AppImage, or a Windows 11 PC (above).
 
 ## See also
 

@@ -382,6 +382,14 @@ jobs:
           if-no-files-found: error
 
   # ──────────────────────────────────────────────────────────────────────────────
+  # Windows 11 (x64): the Windows build workflow, called for the tag. Its
+  # artifact is the one folder, osdos\, which the release job zips.
+  # ──────────────────────────────────────────────────────────────────────────────
+  build-windows-x64:
+    name: Windows x64
+    uses: ./.github/workflows/windows.yml
+
+  # ──────────────────────────────────────────────────────────────────────────────
   # The OSD/OS image for the Raspberry Pi (os/README.md): Raspberry Pi OS Lite
   # with this release's arm64 tarball and os/stage-osdos, built by pi-gen on
   # the native arm64 runner, as the OS image workflow builds it.
@@ -462,7 +470,7 @@ jobs:
   # ──────────────────────────────────────────────────────────────────────────────
   release:
     name: Publish Release
-    needs: [build-macos-arm64, build-linux-arm64, build-linux-x86_64, build-os-image, regression-tests]
+    needs: [build-macos-arm64, build-linux-arm64, build-linux-x86_64, build-windows-x64, build-os-image, regression-tests]
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -479,6 +487,16 @@ jobs:
         uses: actions/download-artifact@v8.0.1
         with:
           path: artifacts
+
+      # The Windows build's one folder zipped whole, so that the zip unpacks
+      # to osdos\ alone, which runs from wherever it is put.
+      - name: Zip the Windows build
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          cd artifacts/osdos-windows-x64
+          test -f osdos/osdos.exe
+          zip -q -r -9 "../OSD-OS-${TAG}-windows-x64.zip" osdos
 
       # No checksum file: GitHub keeps each file's SHA-256 digest with the
       # release, shown on its page and given by its API, which the in-app
@@ -506,12 +524,13 @@ jobs:
             echo "| **Raspberry Pi OS (arm64)** you set up yourself | \`install.sh\`, \`OSD-OS-${TAG}-linux-arm64.tar.gz\` | The installer, and the app alone, which it installs with its service | \`bash <(curl -fsSL ${REPO}/releases/latest/download/install.sh)\`: ${REPO}/blob/${TAG}/INSTALL.md#on-a-raspberry-pi. Updates: Settings → Update, or ${REPO}/blob/${TAG}/INSTALL.md#update |"
             echo "| **Steam Deck, Linux PCs (x86_64)** | \`OSD-OS-linux-x86_64.AppImage\` | The app with Qt, SDL2 and mpv inside; nothing to install | Make it executable (\`chmod +x\`) and run it: ${REPO}/blob/${TAG}/INSTALL.md#on-steamos--linux-x86_64. Updates: Settings → Update swaps it in place, or the latest AppImage over your copy |"
             echo "| **macOS on Apple Silicon** | \`OSD-OS-${TAG}-macOS-arm64.dmg\` | osdos.app in a disk image | Open it and move osdos.app to your Applications folder. Updates: Settings → Update, or the next \`.dmg\` the same way |"
+            echo "| **Windows 11 (x64)** | \`OSD-OS-${TAG}-windows-x64.zip\` | The app in one folder, \`osdos\`, with Qt and its libraries beside \`osdos.exe\`; mpv is not inside | Unzip it anywhere, put mpv beside it and run \`osdos.exe\`: ${REPO}/blob/${TAG}/INSTALL.md#on-windows-x64. Updates: Settings → Update names the new zip, whose \`osdos\` folder takes the old one's place |"
             echo
             if [ "$NOTARIZED" != "true" ]; then
               echo "The macOS build is not notarized, so macOS refuses to open it the first time: then go to System Settings → Privacy & Security and choose **Open Anyway** (or run \`xattr -dr com.apple.quarantine /Applications/osdos.app\` before opening it)."
               echo
             fi
-            echo "Tested on a Raspberry Pi 4 and a Raspberry Pi 5 (8 GB): the Pi 4 as a TV, the Pi 5 in a JAMMA arcade cabinet, and LAN Play between the two. Each file's SHA-256 digest is beside it under Assets."
+            echo "Tested on a Raspberry Pi 4 and a Raspberry Pi 5 (8 GB): the Pi 4 as a TV, the Pi 5 in a JAMMA arcade cabinet, and LAN Play between the two; the Windows build on a Windows 11 PC. Each file's SHA-256 digest is beside it under Assets."
           } > release-notes.md
           cat release-notes.md
 
@@ -532,6 +551,7 @@ jobs:
             artifacts/tarball-linux-arm64/*.tar.gz
             artifacts/appimage-linux-x86_64/*.AppImage
             artifacts/dmg-arm64/*.dmg
+            artifacts/OSD-OS-*-windows-x64.zip
             scripts/install.sh
             artifacts/os-image/*.img.xz
           body_path: release-notes.md
@@ -553,6 +573,7 @@ jobs:
               install.sh)            echo "$1 · Raspberry Pi OS (arm64) · installs the app and its service on a Pi you set up yourself" ;;
               *-linux-x86_64.AppImage) echo "$1 · Steam Deck and Linux PCs (x86_64) · the app with everything inside, nothing to install" ;;
               *-macOS-arm64.dmg)     echo "$1 · macOS on Apple Silicon · osdos.app, for your Applications folder" ;;
+              *-windows-x64.zip)     echo "$1 · Windows 11 (x64) · the app in one folder, osdos, unzipped anywhere" ;;
               *)                     echo "" ;;
             esac
           }

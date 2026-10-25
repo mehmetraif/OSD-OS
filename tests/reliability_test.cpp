@@ -6,6 +6,7 @@
 #include "util/AtomicFile.h"
 #include "util/DurableFile.h"
 #include "util/AsyncDirectoryCache.h"
+#include "util/LogFile.h"
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
@@ -147,14 +148,19 @@ private slots:
             asset("OSD-OS-v0.1.0-linux-arm64.tar.gz", 20, !digest.isEmpty());
             asset("OSD-OS-v0.1.0-macOS-arm64.dmg", 30, !digest.isEmpty());
             asset("OSD-OS-linux-x86_64.AppImage", 40, !digest.isEmpty());
+            asset("OSD-OS-v0.1.0-windows-x64.zip", 50, !digest.isEmpty());
             return QJsonDocument(QJsonObject{ { "tag_name", "v0.1.0" }, { "assets", assets } }).toJson();
         };
         manager.handleReleaseInfo(release("sha256:" + sha));
 #if defined(Q_OS_WIN) || (defined(Q_OS_BSD4) && !defined(Q_OS_DARWIN))
-        // No package for Windows or the BSDs among a release's files: none is
-        // picked, and the newer version is named for a download by hand.
+        // Windows' zip is named for a download by hand, not taken; the BSDs
+        // have no package among a release's files, and the newer version is
+        // named.
         QCOMPARE(manager.state(), QString("error"));
         QVERIFY2(manager.errorMessage().contains("v0.1.0"), qPrintable(manager.errorMessage()));
+#if defined(Q_OS_WIN)
+        QVERIFY2(manager.errorMessage().contains("OSD-OS-v0.1.0-windows-x64.zip"), qPrintable(manager.errorMessage()));
+#endif
         QVERIFY(manager.m_assetName.isEmpty());
 #else
         QCOMPARE(manager.state(), QString("updateAvailable"));
@@ -165,6 +171,39 @@ private slots:
         QCOMPARE(manager.m_expectedSha256, QString());
 #endif
         QCoreApplication::setApplicationVersion(running);
+    }
+
+    // The log the Windows build keeps in the data folder (util/LogFile): what
+    // was logged before the folder was known, then the rest, each line on
+    // disk as it comes; the run before's kept beside it.
+    void logFileKeepsTheRunBefore() {
+        QTemporaryDir tmp;
+        const auto read = [&tmp](const QString &name) {
+            QFile file(tmp.path() + QLatin1Char('/') + name);
+            return file.open(QIODevice::ReadOnly) ? file.readAll() : QByteArray();
+        };
+        logfile::begin();
+        qInfo("[test] before the folder was known");
+        logfile::open(tmp.path());
+        qInfo("[test] the first run");
+        const QByteArray first = read(QStringLiteral("osdos.log"));
+        QVERIFY2(first.contains("[test] before the folder was known"), first.constData());
+        QVERIFY2(first.contains("[test] the first run"), first.constData());
+        QVERIFY(first.indexOf("before the folder") < first.indexOf("the first run"));
+        logfile::end();
+
+        logfile::begin();
+        logfile::open(tmp.path());
+        qInfo("[test] the second run");
+        logfile::end();
+        const QByteArray second = read(QStringLiteral("osdos.log"));
+        QVERIFY2(second.contains("[test] the second run"), second.constData());
+        QVERIFY(!second.contains("[test] the first run"));
+        QVERIFY(read(QStringLiteral("osdos-previous.log")).contains("[test] the first run"));
+
+        // After end(), the test's own handler again: nothing more written.
+        qInfo("[test] after the end");
+        QVERIFY(!read(QStringLiteral("osdos.log")).contains("after the end"));
     }
 
     void durableWriteErrorsAreReported() {

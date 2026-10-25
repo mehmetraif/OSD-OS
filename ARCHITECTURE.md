@@ -49,6 +49,7 @@ osd-os/
     util/
       AtomicFile.h                  # writeFileAtomically(): a state file written whole, never cut short
       Diagnostics.h/.cpp            # crash and stall reports, memory in the log, malloc kept from hoarding
+      LogFile.h/.cpp                # Windows: the log in osdos.log in the data folder, the app being a windowed program
       FileNames.h                   # safeFileName(): a name every filesystem takes (exFAT's rules)
       SslErrors.h                   # expectedLanSslErrors(): a LAN server's own certificate
       EmbyApi.h                     # the Emby API's URLs that Jellyfin shares (browse, download, stream)
