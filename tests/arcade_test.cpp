@@ -5577,6 +5577,44 @@ private slots:
         QCOMPARE(names(arcade.requestEntries(QStringLiteral("all"))), QStringList({ QStringLiteral("pacman") }));
         QVERIFY(!arcade.play(QStringLiteral("pacman")));
         QCOMPARE(arcade.lastError(), QStringLiteral("MAME is not installed"));
+
+        // With FinalBurn Neo: a game it has plays in it, left to Auto; MAME
+        // chosen for it is MAME all the same, the game saying MAME is not
+        // installed rather than playing in FinalBurn Neo against the
+        // choice, and the choice saying so too.
+        if (!libretro::corePath(data.path()).isEmpty() || !libretro::datPath(data.path()).isEmpty())
+            QSKIP("FinalBurn Neo is installed here");
+        writeFile(arcade.gamesFolder() + QStringLiteral("/sf2.zip"));
+        writeFile(data.path() + QStringLiteral("/bin/retroarch"), fixture("retroarch"));
+        QVERIFY(QFile::setPermissions(data.path() + QStringLiteral("/bin/retroarch"),
+                                      QFile::ReadOwner | QFile::WriteOwner | QFile::ExeOwner));
+        writeFile(libretro::downloadedCore(data.path()));
+        writeFile(libretro::downloadedDat(data.path()), fixture("fbneo-arcade.dat"));
+        refreshed(arcade);
+        QVERIFY(arcade.fbneoReady());
+        QCOMPARE(arcade.engineOf(QStringLiteral("sf2")), QStringLiteral("fbneo"));
+        const auto labels = [](const QVariantList &choices) {
+            QStringList list;
+            for (const QVariant &c : choices)
+                list << c.toMap().value(QStringLiteral("label")).toString()
+                            + (c.toMap().value(QStringLiteral("current")).toBool() ? QStringLiteral(" *") : QString());
+            return list;
+        };
+        QCOMPARE(labels(arcade.engineChoices(QStringLiteral("sf2"))),
+                 QStringList({ QStringLiteral("Auto (FinalBurn Neo) *"), QStringLiteral("MAME (Not Installed)"),
+                               QStringLiteral("FinalBurn Neo") }));
+        arcade.onSettingChanged(QStringLiteral("com.osdos.arcade"), QStringLiteral("engines"),
+                                QVariantMap{ { QStringLiteral("sf2"), QStringLiteral("mame") } });
+        QCOMPARE(arcade.engineOf(QStringLiteral("sf2")), QStringLiteral("mame"));
+        QCOMPARE(labels(arcade.engineChoices(QStringLiteral("sf2"))),
+                 QStringList({ QStringLiteral("Auto (FinalBurn Neo)"), QStringLiteral("MAME (Not Installed) *"),
+                               QStringLiteral("FinalBurn Neo") }));
+        QVERIFY(!arcade.play(QStringLiteral("sf2")));
+        QCOMPARE(arcade.lastError(), QStringLiteral("MAME is not installed"));
+        // FinalBurn Neo chosen for one it hasn't falls to MAME, which says so.
+        arcade.onSettingChanged(QStringLiteral("com.osdos.arcade"), QStringLiteral("engines"),
+                                QVariantMap{ { QStringLiteral("pacman"), QStringLiteral("fbneo") } });
+        QCOMPARE(arcade.engineOf(QStringLiteral("pacman")), QStringLiteral("mame"));
     }
     // ── The Arcade screen ────────────────────────────────────────────────
 

@@ -2996,7 +2996,11 @@ QString ArcadeBackend::engineFor(const QString &set, bool fbneoUsable, bool have
         return QStringLiteral("fbneo");
     const bool fbneo = fbneoUsable && fbneoHas(set);
     const QString chosen = m_engines.value(set).toString();
-    if (chosen == QLatin1String("mame") && haveMame)
+    // MAME chosen is MAME, with none installed too: the game then says so
+    // (play()), rather than playing in FinalBurn Neo against the choice.
+    // FinalBurn Neo chosen without it falls to MAME, which says what is
+    // missing of FinalBurn Neo's.
+    if (chosen == QLatin1String("mame"))
         return QStringLiteral("mame");
     if (fbneo && (chosen == QLatin1String("fbneo") || fbneoWanted() || !haveMame))
         return QStringLiteral("fbneo");
@@ -3054,12 +3058,15 @@ QVariantList ArcadeBackend::engineChoices(const QString &set) const {
     if (only)
         return { choice(QStringLiteral("auto"), QStringLiteral("Auto (FinalBurn Neo)")),
                  choice(QStringLiteral("fbneo"), QStringLiteral("FinalBurn Neo")) };
-    // Auto as it stands: what the game would play in left to it.
+    // Auto as it stands: what the game would play in left to it. MAME with
+    // none installed says so, as choosing it has the game say so too.
     const bool fbneo = fbneoPlays(set);
-    const bool autoFbneo = fbneo && (fbneoWanted() || mamePath().isEmpty());
+    const bool haveMame = !mamePath().isEmpty();
+    const bool autoFbneo = fbneo && (fbneoWanted() || !haveMame);
     QVariantList choices{ choice(QStringLiteral("auto"),
                                  autoFbneo ? QStringLiteral("Auto (FinalBurn Neo)") : QStringLiteral("Auto (MAME)")),
-                          choice(QStringLiteral("mame"), QStringLiteral("MAME")) };
+                          choice(QStringLiteral("mame"),
+                                 haveMame ? QStringLiteral("MAME") : QStringLiteral("MAME (Not Installed)")) };
     if (fbneo)
         choices << choice(QStringLiteral("fbneo"), QStringLiteral("FinalBurn Neo"));
     return choices;

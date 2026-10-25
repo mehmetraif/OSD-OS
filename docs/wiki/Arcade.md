@@ -69,7 +69,7 @@ Right on a game opens its options:
 |---|---|
 | **Game Details** | What the game is, and its achievements on RetroAchievements, those you have earned and those you haven't ([Game Details](#game-details)) |
 | **Add to Favorites** / **Remove from Favorites** | Puts it on Favorites, or takes it off |
-| **Engine** | Shown for a game both MAME and FinalBurn Neo have, as `Engine: Auto (MAME)`: which emulator plays it. **Auto**, MAME, unless Online High Scores, Online Play or LAN Play is on, which only FinalBurn Neo has ([FinalBurn Neo](#finalburn-neo)); **MAME**; or **FinalBurn Neo** |
+| **Engine** | Shown for a game both MAME and FinalBurn Neo have, as `Engine: Auto (MAME)`: which emulator plays it. **Auto**, MAME, unless Online High Scores, Online Play or LAN Play is on, which only FinalBurn Neo has ([FinalBurn Neo](#finalburn-neo)); **MAME** (`MAME (Not Installed)` where there is none: the game then says so rather than playing in FinalBurn Neo); or **FinalBurn Neo**. A game hosted or joined over the network or on the local network plays in FinalBurn Neo whatever this says: MAME has no netplay |
 | **Host Online Game** | With **Online Play** on, for a game FinalBurn Neo has: starts it for others to join from RetroArch's lobby ([Online play](#online-play)) |
 | **Host LAN Game** | With **LAN Play** on, for a game FinalBurn Neo has: starts it for others on your local network to join ([LAN play](#lan-play)) |
 | **Play at Startup** / **Don't Play at Startup** | Starts it after the boot screen every time OSD/OS starts, as soon as the games folder has been read, ahead of Settings → Start on Module: a cabinet that boots into its game. It goes on Favorites too. There is one for the whole app, as in [Local Files](https://github.com/mehmetraif/OSD-OS/wiki/Local-Files): choosing another replaces it. **Settings → Arcade → Play at Startup** shows it, and chooses it among the favorites too |
@@ -339,8 +339,10 @@ FinalBurn Neo is an arcade emulator of its own, played here in RetroArch as a li
 | Engine | The game plays in |
 |---|---|
 | **Auto** | FinalBurn Neo while **Online High Scores** is **RetroAchievements**, or **Online Play** or **LAN Play** is on (or with no MAME installed), for a game it has; MAME otherwise. The option names the one it picks: `Auto (FinalBurn Neo)` |
-| **MAME** | MAME, always |
-| **FinalBurn Neo** | FinalBurn Neo, always |
+| **MAME** | MAME, always: with none installed the game says `MAME is not installed` rather than playing in FinalBurn Neo, and the option reads `MAME (Not Installed)` |
+| **FinalBurn Neo** | FinalBurn Neo; MAME where FinalBurn Neo isn't installed or hasn't the set, saying what is missing |
+
+A game hosted or joined over the network or on the local network plays in FinalBurn Neo whatever its Engine says: MAME has no netplay ([Online play](#online-play), [LAN play](#lan-play)).
 
 The Arcade screen's box and the screen before a game say nothing different; the credits do: COIN buys none for a FinalBurn Neo game, as nothing puts them in for it, and the hint bar leaves it out: insert a coin in the game itself.
 
