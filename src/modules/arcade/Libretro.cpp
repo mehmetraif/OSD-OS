@@ -657,14 +657,20 @@ QString coreInfoText() {
 }
 
 QStringList arguments(const Launch &launch) {
-    // The log only with -v: --log-file alone writes nothing.
-    QStringList args{ QStringLiteral("-L"), launch.core, QStringLiteral("--config"), launch.config,
-                      QStringLiteral("--verbose"), QStringLiteral("--log-file=") + launch.log };
+    // The log only with -v: --log-file alone writes nothing. The paths in
+    // the system's own separators: FinalBurn Neo finds the set's folder by
+    // cutting the content's path at the last of them (its extract_directory,
+    // PATH_DEFAULT_SLASH_C), a backslash on Windows, so a path given with
+    // slashes there had it look in RetroArch's own folder ("None of those
+    // archives was found in your paths").
+    const auto native = [](const QString &path) { return QDir::toNativeSeparators(path); };
+    QStringList args{ QStringLiteral("-L"), native(launch.core), QStringLiteral("--config"), native(launch.config),
+                      QStringLiteral("--verbose"), QStringLiteral("--log-file=") + native(launch.log) };
     if (hosts(launch.netplay))
         args << QStringLiteral("--host");
     else if (launch.netplay == Launch::Netplay::Join || launch.netplay == Launch::Netplay::LanJoin)
         args << QStringLiteral("--connect") << launch.joinAddress;
-    args << launch.content;
+    args << native(launch.content);
     return args;
 }
 

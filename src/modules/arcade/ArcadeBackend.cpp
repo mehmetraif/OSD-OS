@@ -3175,7 +3175,20 @@ bool ArcadeBackend::playFbneo(const QString &name, libretro::Launch::Netplay net
         QDirIterator sets(bios, { QStringLiteral("*.zip"), QStringLiteral("*.7z") }, QDir::Files);
         while (sets.hasNext()) {
             sets.next();
-            QFile::link(sets.filePath(), fbneo + QLatin1Char('/') + sets.fileName());
+            const QString target = fbneo + QLatin1Char('/') + sets.fileName();
+#ifdef Q_OS_WIN
+            // Windows makes no symbolic link without a privilege (QFile::link
+            // makes a shortcut there, which FinalBurn Neo can't open): a copy
+            // of the set, made anew once the set has changed.
+            const QFileInfo have(target);
+            const QFileInfo set = sets.fileInfo();
+            if (!have.exists() || have.size() != set.size() || have.lastModified() < set.lastModified()) {
+                QFile::remove(target);
+                QFile::copy(set.filePath(), target);
+            }
+#else
+            QFile::link(sets.filePath(), target);
+#endif
         }
     }
 
