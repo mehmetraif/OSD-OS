@@ -11,9 +11,14 @@
 #include <QSaveFile>
 #include <QSysInfo>
 #include <QtConcurrent/QtConcurrentRun>
+#include <cerrno>
 #include <cstdio>
+#include <system_error>
 #ifdef OSDOS_MINIZIP
 #include <minizip/unzip.h>
+#endif
+#ifdef Q_OS_WIN
+#include <windows.h>
 #endif
 
 namespace {
@@ -33,6 +38,25 @@ constexpr qint64 kDownloadMaxBytes = 64 * 1024 * 1024;
 // up, with .part after its name.
 QString partOf(const QString &path) {
     return path + QStringLiteral(".part");
+}
+
+// A download over the file before it, whole: "" once it is, else why not.
+// rename() does that on POSIX; Windows' refuses a file that exists (so a
+// second download would end here), and MoveFileEx replaces it.
+QString putInPlace(const QString &from, const QString &to) {
+#ifdef Q_OS_WIN
+    const QString source = QDir::toNativeSeparators(from);
+    const QString target = QDir::toNativeSeparators(to);
+    if (MoveFileExW(reinterpret_cast<const wchar_t *>(source.utf16()), reinterpret_cast<const wchar_t *>(target.utf16()),
+                    MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH))
+        return QString();
+    const std::string why = std::error_code(int(GetLastError()), std::system_category()).message();
+#else
+    if (std::rename(QFile::encodeName(from).constData(), QFile::encodeName(to).constData()) == 0)
+        return QString();
+    const std::string why = std::error_code(errno, std::generic_category()).message();
+#endif
+    return QString::fromLocal8Bit(why.c_str());
 }
 
 // The core out of its zip, into place: "" once it is, else why not.
@@ -202,12 +226,12 @@ void FbneoInstaller::unpack() {
             cleanUp();
             return error;
         }
-        // Over the ones before (rename() replaces a file whole), then the
-        // zip goes.
+        // Over the ones before, whole, then the zip goes.
         for (const QString &path : { dat, license }) {
-            if (std::rename(QFile::encodeName(partOf(path)).constData(), QFile::encodeName(path).constData()) != 0) {
+            const QString why = putInPlace(partOf(path), path);
+            if (!why.isEmpty()) {
                 cleanUp();
-                return QStringLiteral("%1 could not be put in place").arg(path);
+                return QStringLiteral("%1 could not be put in place: %2").arg(path, why);
             }
         }
         cleanUp();
