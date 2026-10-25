@@ -9,7 +9,7 @@
 #include "../../util/LegacyNames.h"
 #include "ArcadeDb.h"
 #include "FbneoInstaller.h"
-#include "RetroArchInstaller.h"
+#include "ProgramInstaller.h"
 #include "Http.h"
 #include "Libretro.h"
 #include "RetroAchievements.h"
@@ -514,15 +514,28 @@ ArcadeBackend::ArcadeBackend(const QString &appRoot, const QString &dataRoot, Ap
             refresh();
         emit fbneoChanged();
     });
-    m_retroarchInstaller = new RetroArchInstaller(m_dataRoot, this);
-    connect(m_retroarchInstaller, &RetroArchInstaller::progressChanged, this, &ArcadeBackend::fbneoProgressChanged);
-    connect(m_retroarchInstaller, &RetroArchInstaller::finished, this, [this](bool ok, const QString &message) {
+    m_retroarchInstaller = new ProgramInstaller(this);
+    connect(m_retroarchInstaller, &ProgramInstaller::progressChanged, this, &ArcadeBackend::fbneoProgressChanged);
+    connect(m_retroarchInstaller, &ProgramInstaller::finished, this, [this](bool ok, const QString &message) {
         m_retroarchMessage = message;
         // The games read again with RetroArch there: FinalBurn Neo's play
         // now, and its version is asked as they are listed.
         if (ok)
             refresh();
         emit fbneoChanged();
+    });
+    m_mameInstaller = new ProgramInstaller(this);
+    connect(m_mameInstaller, &ProgramInstaller::progressChanged, this, &ArcadeBackend::mameProgressChanged);
+    connect(m_mameInstaller, &ProgramInstaller::finished, this, [this](bool ok, const QString &message) {
+        m_mameMessage = message;
+        // The games read again with MAME there, which is asked about every
+        // set, as it is another MAME. A batch stopped for a download that
+        // failed is asked again (downloadMame()).
+        if (ok)
+            refresh();
+        else if (!m_scan && !m_toAsk.isEmpty() && !m_launcher->isBusy())
+            scanNext();
+        emit mameChanged();
     });
 
     // The RetroAchievements account, without its password, which is kept
@@ -4065,7 +4078,7 @@ QVariantMap ArcadeBackend::fbneoInfo() const {
              { QStringLiteral("license"), QFileInfo::exists(license) ? license
                                           : QFileInfo::exists(imageLicense) ? imageLicense : QString() },
              { QStringLiteral("canDownload"), unpacks && !FbneoInstaller::defaultSource().core.isEmpty() },
-             { QStringLiteral("canDownloadRetroarch"), !RetroArchInstaller::defaultSource().archive.isEmpty() },
+             { QStringLiteral("canDownloadRetroarch"), ProgramInstaller::retroarch(m_dataRoot).available },
              { QStringLiteral("retroarchDownloaded"), !retroarchPath().isEmpty()
                                                       && retroarchPath() == libretro::downloadedRetroArch(m_dataRoot) } };
 }
@@ -4095,7 +4108,7 @@ void ArcadeBackend::downloadRetroArch() {
     if (m_retroarchInstaller->running())
         return;
     m_retroarchMessage.clear();
-    m_retroarchInstaller->start(RetroArchInstaller::defaultSource());
+    m_retroarchInstaller->start(ProgramInstaller::retroarch(m_dataRoot));
     emit fbneoChanged();
 }
 
@@ -4105,6 +4118,40 @@ bool ArcadeBackend::retroarchDownloading() const {
 
 int ArcadeBackend::retroarchProgress() const {
     return m_retroarchInstaller->progress();
+}
+
+QVariantMap ArcadeBackend::mameInfo() const {
+    const QString program = mamePath();
+    const QString plugins = pluginsPath();
+    return { { QStringLiteral("mame"), program },
+             { QStringLiteral("downloaded"), !program.isEmpty() && program == mame::downloadedMame(m_dataRoot) },
+             { QStringLiteral("canDownload"), ProgramInstaller::mame(m_dataRoot).available },
+             { QStringLiteral("plugins"), !plugins.isEmpty() },
+             { QStringLiteral("pluginsFolder"), plugins } };
+}
+
+void ArcadeBackend::downloadMame() {
+    // Not beside a game, which may be playing in the MAME to be replaced.
+    if (m_mameInstaller->running() || m_launcher->isBusy())
+        return;
+    m_mameMessage.clear();
+    const ProgramInstaller::Source source = ProgramInstaller::mame(m_dataRoot);
+    // Nor beside a batch MAME is asked about, which would be running from
+    // the folder the download puts its MAME in: stopped, as for a game
+    // starting, and asked again should the download fail. A download that
+    // succeeds reads every set anew (the installer's finished()).
+    if (source.available)
+        pauseScan();
+    m_mameInstaller->start(source);
+    emit mameChanged();
+}
+
+bool ArcadeBackend::mameDownloading() const {
+    return m_mameInstaller->running();
+}
+
+int ArcadeBackend::mameProgress() const {
+    return m_mameInstaller->progress();
 }
 
 QString ArcadeBackend::achievementsMessage() const {

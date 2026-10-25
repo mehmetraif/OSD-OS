@@ -22,6 +22,15 @@ Rectangle {
     function folder(name, path) { return { name: name, path: path, isFolder: true } }
     function file(name, path) { return { name: name, path: path, isFolder: false } }
     property var entries: ({})
+    // A host's own keys, for the select the tree leaves (nothing under the
+    // cursor).
+    property int selectsLeft: 0
+    Keys.onPressed: function(event) {
+        if (event.key === Qt.Key_Return) {
+            root.selectsLeft++
+            event.accepted = true
+        }
+    }
     Components.TreeBrowser {
         id: browser
         anchors.fill: parent
@@ -29,6 +38,7 @@ Rectangle {
         expandedFolderPreviews: true
         fetch: function(path, preview) { return root.entries[path] === undefined ? [] : root.entries[path] }
     }
+    SignalSpy { id: activatedSpy; target: browser; signalName: "activated" }
     TestCase {
         name: "ExpandedFolderTree"
         when: windowShown
@@ -156,6 +166,37 @@ Rectangle {
             verify(browser.blocks.length > 1)
             for (var i = 0; i < browser.blocks.length; i++)
                 compare(!!browser.blocks[i].faint, browser.blocks[i].path !== "/projects")
+        }
+        // Select on a folder opens it and on a file is the tree's activated;
+        // with nothing under the cursor (an empty folder, an empty tree) it
+        // is left to the host's own keys.
+        function test_selectOnNothingIsTheHosts() {
+            browser.forceActiveFocus()
+            root.selectsLeft = 0
+            activatedSpy.clear()
+            keyClick(Qt.Key_Return)
+            compare(browser.trailState()[1].path, "/projects")
+            compare(root.selectsLeft, 0)
+            browser.move(2)
+            compare(browser.selectedItem().path, "/projects/README")
+            keyClick(Qt.Key_Return)
+            compare(activatedSpy.count, 1)
+            compare(root.selectsLeft, 0)
+            verify(browser.closeFolder())
+            browser.move(2)
+            compare(browser.selectedItem().path, "/empty")
+            verify(browser.openFolder())
+            compare(browser.selectedItem(), null)
+            keyClick(Qt.Key_Return)
+            compare(activatedSpy.count, 1)
+            compare(root.selectsLeft, 1)
+            while (browser.closeFolder()) {}
+            root.entries["/"] = []
+            browser.refresh("/")
+            tryVerify(function() { return browser.rootEmpty })
+            keyClick(Qt.Key_Return)
+            compare(activatedSpy.count, 1)
+            compare(root.selectsLeft, 2)
         }
         function test_referencePreview() {
             wait(250)

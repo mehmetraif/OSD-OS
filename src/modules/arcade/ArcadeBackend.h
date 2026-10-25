@@ -26,7 +26,7 @@ class AppCore;
 class ArcadeDb;
 class DisplayHandoff;
 class FbneoInstaller;
-class RetroArchInstaller;
+class ProgramInstaller;
 class RetroAchievements;
 class QNetworkAccessManager;
 class QNetworkReply;
@@ -119,6 +119,11 @@ class ArcadeBackend : public QObject {
     Q_PROPERTY(bool retroarchDownloading READ retroarchDownloading NOTIFY fbneoChanged)
     Q_PROPERTY(int retroarchProgress READ retroarchProgress NOTIFY fbneoProgressChanged)
     Q_PROPERTY(QString retroarchMessage READ retroarchMessage NOTIFY fbneoChanged)
+    // Settings → Arcade → MAME's download of MAME (downloadMame(), on
+    // Windows), the same three again.
+    Q_PROPERTY(bool mameDownloading READ mameDownloading NOTIFY mameChanged)
+    Q_PROPERTY(int mameProgress READ mameProgress NOTIFY mameProgressChanged)
+    Q_PROPERTY(QString mameMessage READ mameMessage NOTIFY mameChanged)
     // The look through every game for pictures (downloadPictures(), Read
     // the Games Again): { active (under way, or waiting to go on), source
     // ("RetroAchievements" or "progetto-SNAPS", the pass it is on), done and
@@ -426,10 +431,20 @@ public:
     // ends, and the list read again once it is in.
     Q_INVOKABLE void downloadFbneo();
     // Downloads RetroArch itself, libretro's build for Windows, into
-    // <data>/arcade/retroarch (RetroArchInstaller), over one downloaded
+    // <data>/arcade/retroarch (ProgramInstaller), over one downloaded
     // before; the same signals, and the list read again once it is in, as
     // FinalBurn Neo's games play now.
     Q_INVOKABLE void downloadRetroArch();
+    // MAME's page (Settings → Arcade → MAME): { mame (its program, "" for
+    // none), downloaded (it is the one downloadMame() put there),
+    // canDownload (mamedev builds it for this machine: 64-bit Windows),
+    // plugins (its hiscore plugin is beside it), pluginsFolder (where) }.
+    Q_INVOKABLE QVariantMap mameInfo() const;
+    // Downloads MAME, mamedev's latest release for Windows, into
+    // <data>/arcade/mame (ProgramInstaller), over one downloaded before;
+    // mameProgressChanged() as it goes, mameChanged() as it starts and
+    // ends, and the games read again once it is in.
+    Q_INVOKABLE void downloadMame();
     Q_INVOKABLE QString lastError() const { return m_lastError; }
     // What MAME printed in the last game's run.
     Q_INVOKABLE QString output() const;
@@ -481,6 +496,9 @@ public:
     bool    retroarchDownloading() const;
     int     retroarchProgress() const;
     QString retroarchMessage() const { return m_retroarchMessage; }
+    bool    mameDownloading() const;
+    int     mameProgress() const;
+    QString mameMessage() const { return m_mameMessage; }
     QStringList statusIcons() const;
 
 public slots:
@@ -512,6 +530,9 @@ signals:
     // The download's progress, apart: what the page reads of the rest
     // (fbneoInfo()) isn't read again with each step of it.
     void fbneoProgressChanged();
+    // MAME's page the same way (mameInfo(), downloadMame()).
+    void mameChanged();
+    void mameProgressChanged();
     // reason: "ok", "failed", "stopped" or "failed_to_start" (ScriptLauncher's);
     // notice: what to tell the player when it isn't "ok", else "".
     void finished(int exitCode, const QString &reason, const QString &notice);
@@ -995,7 +1016,8 @@ private:
     QString m_signInCore;
 
     FbneoInstaller *m_installer = nullptr;
-    RetroArchInstaller *m_retroarchInstaller = nullptr;
+    ProgramInstaller *m_retroarchInstaller = nullptr;
+    ProgramInstaller *m_mameInstaller = nullptr;
     RetroAchievements *m_retroAchievements = nullptr;
     // madeSets(), by filter, made again once gamesChanged() or invalidate()
     // says the filters may hold other games.
@@ -1070,6 +1092,7 @@ private:
     QDateTime m_genresRetry;
     QString m_fbneoMessage;
     QString m_retroarchMessage;
+    QString m_mameMessage;
 
     // The folder's sets, and what MAME said of every set it was asked about.
     QHash<QString, QString> m_sets;

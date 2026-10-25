@@ -9,9 +9,10 @@
 // archives made with py7zr (data/arcade): a stand-in for RetroArch's build
 // for Windows (retroarch.7z: RetroArch-Win64/retroarch.exe behind the BCJ
 // filter and LZMA2, a config, a folder with a file and an empty one),
-// one with nothing of RetroArch's (other.7z), and one whose first entry is
-// named to leave the folder (escapes.7z, written with a plain header and
-// the name changed in it).
+// one with nothing of RetroArch's (other.7z), one for MAME's self-extracting
+// release (mame-sfx.bin: a stub, then the archive with mame.exe at its top),
+// and one whose first entry is named to leave the folder (escapes.7z,
+// written with a plain header and the name changed in it).
 class SevenZipTest : public QObject {
     Q_OBJECT
 
@@ -139,6 +140,51 @@ private slots:
         flipFile.close();
         QCOMPARE(sevenzip::extract(flip, dir.path() + QStringLiteral("/flip"), kPlenty, kPlenty),
                  QStringLiteral("The 7z archive is damaged"));
+
+        // A byte of the start header itself: still an archive from its
+        // start, damaged, not a file that holds none.
+        QByteArray header = whole;
+        header[20] = char(~header[20]);
+        const QString head = dir.path() + QStringLiteral("/header.7z");
+        QFile headFile(head);
+        QVERIFY(headFile.open(QIODevice::WriteOnly));
+        headFile.write(header);
+        headFile.close();
+        QVERIFY(sevenzip::list(head, &error).isEmpty());
+        QCOMPARE(error, QStringLiteral("The 7z archive is damaged"));
+    }
+
+    // MAME's release is a self-extracting archive, a program's stub with the
+    // archive behind it (mame-sfx.bin, the stub carrying a decoy signature
+    // of its own): read from where the archive begins. The stub alone, cut
+    // before the archive, is none.
+    void selfExtracting() {
+        QString error;
+        QCOMPARE(sevenzip::list(fixture("mame-sfx.bin"), &error),
+                 QStringList({ QStringLiteral("mame.exe"), QStringLiteral("plugins/hiscore/init.lua"),
+                               QStringLiteral("plugins/hiscore/plugin.json"), QStringLiteral("bgfx/shaders/readme.txt"),
+                               QStringLiteral("hash/readme.txt") }));
+        QVERIFY(error.isEmpty());
+        QTemporaryDir dir;
+        QVERIFY(dir.isValid());
+        const QString folder = dir.path() + QStringLiteral("/mame");
+        QCOMPARE(sevenzip::extract(fixture("mame-sfx.bin"), folder, kPlenty, kPlenty), QString());
+        QByteArray mame("MZ a stand-in for MAME for Windows\n");
+        for (int round = 0; round < 32; ++round) {
+            for (int value = 0; value < 256; ++value)
+                mame.append(char(value));
+        }
+        QCOMPARE(contents(folder + QStringLiteral("/mame.exe")), mame);
+        QCOMPARE(contents(folder + QStringLiteral("/plugins/hiscore/init.lua")), QByteArray("-- the hiscore plugin\n"));
+        QCOMPARE(contents(folder + QStringLiteral("/hash/readme.txt")), QByteArray("<softwarelists/>\n"));
+        const QByteArray whole = contents(fixture("mame-sfx.bin"));
+        const QString stub = dir.path() + QStringLiteral("/stub.bin");
+        QFile stubFile(stub);
+        QVERIFY(stubFile.open(QIODevice::WriteOnly));
+        stubFile.write(whole.left(1600));
+        stubFile.close();
+        QVERIFY(sevenzip::list(stub, &error).isEmpty());
+        QCOMPARE(error, QStringLiteral("The file is not a 7z archive"));
     }
 
     // An entry named to leave the folder is skipped; the rest come out.

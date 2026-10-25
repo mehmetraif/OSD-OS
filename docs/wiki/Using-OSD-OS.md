@@ -408,7 +408,7 @@ Settings → **About** opens on the OSD/OS wordmark and **SMART TV FOR CRT**, th
 | hi2txt | How each game keeps its high score table, GPL v2. Select opens the license |
 | RapidXML | The XML reader openhi2txt is built with, Boost or MIT. Select opens the licenses |
 | minizip, zlib | What opens hi2txt's definitions and FinalBurn Neo's download, zlib License. Select opens the license |
-| LZMA SDK | What unpacks the RetroArch for Windows the FinalBurn Neo page downloads, public domain. Select opens its note |
+| LZMA SDK | What unpacks the MAME and RetroArch for Windows the MAME and FinalBurn Neo pages download, public domain. Select opens its note |
 | RetroAchievements | Leaderboards and hardcore play, with your own account, and the games' pictures and the achievements' badges |
 | Online Play | libretro's lobby and relay servers |
 | progetto-SNAPS | The Snapshots and Titles packs and catver.ini, by AntoPISA, in the games folder or downloaded |

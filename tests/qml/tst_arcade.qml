@@ -210,6 +210,15 @@ Rectangle {
         property int retroarchProgress: 0
         property string retroarchMessage: ""
         property int retroarchDownloads: 0
+        // MAME's page, and its download on Windows: mame's own change
+        // signal stands for the backend's mameChanged().
+        property var mame: ({})
+        property bool mameDownloading: false
+        property int mameProgress: 0
+        property string mameMessage: ""
+        property int mameDownloads: 0
+        function mameInfo() { return mame }
+        function downloadMame() { mameDownloads++; mameDownloading = true; mameProgress = 20; mameChanged() }
         // fbneo's own change signal stands for the backend's fbneoChanged().
         property int downloads: 0
         function fbneoInfo() { return fbneo }
@@ -463,6 +472,12 @@ Rectangle {
             arcadeBackend.retroarchProgress = 0
             arcadeBackend.retroarchMessage = ""
             arcadeBackend.retroarchDownloads = 0
+            arcadeBackend.mame = { mame: "/usr/games/mame", downloaded: false, canDownload: false, plugins: true,
+                                   pluginsFolder: "/usr/share/games/mame/plugins" }
+            arcadeBackend.mameDownloading = false
+            arcadeBackend.mameProgress = 0
+            arcadeBackend.mameMessage = ""
+            arcadeBackend.mameDownloads = 0
             arcadeBackend.achievementsUser = ""
             arcadeBackend.achievementsState = "none"
             arcadeBackend.achievementsMessage = ""
@@ -597,6 +612,20 @@ Rectangle {
             verify(findText(games, "MAME is not installed", true) !== null)
             verify(findText(games, "On Test OS: install mame", true) !== null)
             verify(findText(games, "Put MAME's ROM sets") !== null)
+            // On a system that can download MAME (Windows): the screen says
+            // select does, select starts it, and the line follows it.
+            compare(findText(games, "DOWNLOAD MAME"), null)
+            arcadeBackend.mame = { mame: "", downloaded: false, canDownload: true, plugins: false, pluginsFolder: "" }
+            tryVerify(function() { return findText(games, "DOWNLOAD MAME") !== null }, 1000)
+            keyClick(Qt.Key_Return)
+            compare(arcadeBackend.mameDownloads, 1)
+            tryVerify(function() { return findText(games, "Downloading MAME… 20%") !== null }, 1000)
+            keyClick(Qt.Key_Return)
+            compare(arcadeBackend.mameDownloads, 1)
+            arcadeBackend.mameDownloading = false
+            arcadeBackend.mameMessage = "github.com answered 404"
+            tryVerify(function() { return findText(games, "The download failed: github.com answered 404") !== null }, 1000)
+            arcadeBackend.mameMessage = ""
             arcadeBackend.problem = "The games folder can't be read: /media/usb/MAME"
             arcadeBackend.folderReadable = false
             verify(findText(games, "The games folder can't be read") !== null)
@@ -989,6 +1018,49 @@ Rectangle {
             tryVerify(function() { return keysAre(["retroarch", "core", "games", "download"]) }, 1000)
             verify(findText(page, "Installed") !== null)
 
+            compare(root.backs, 0)
+            keyClick(Qt.Key_Escape)
+            compare(root.backs, 1)
+        }
+
+        // The MAME page: what is installed and where, its hiscore plugin;
+        // on a Windows without MAME, Download MAME under MAME's line, select
+        // starting it and the line saying how far it is, or why it failed;
+        // once it is in, Downloaded and Download MAME Again; one installed
+        // elsewhere, no such line.
+        function test_mamePage() {
+            var page = open("Mame.qml")
+            verify(findText(page, "Installed", true) !== null)
+            verify(findText(page, "Hiscore Plugin") !== null)
+            compare(page.keys, ["mame", "plugin"])
+            verify(findText(page, "/usr/games/mame") !== null)
+            arcadeBackend.mame = { mame: "", downloaded: false, canDownload: true, plugins: false, pluginsFolder: "" }
+            tryVerify(function() { return JSON.stringify(page.keys) === JSON.stringify(["mame", "download"]) }, 1000)
+            verify(findText(page, "Not Installed") !== null)
+            verify(findText(page, "On Test OS: install mame") !== null)
+            keyClick(Qt.Key_Down)
+            verify(findText(page, "half a gigabyte unpacked") !== null)
+            keyClick(Qt.Key_Return)
+            compare(arcadeBackend.mameDownloads, 1)
+            tryVerify(function() { return findText(page, "20%") !== null }, 1000)
+            keyClick(Qt.Key_Return)
+            compare(arcadeBackend.mameDownloads, 1)
+            arcadeBackend.mameDownloading = false
+            arcadeBackend.mameMessage = "github.com answered 404"
+            arcadeBackend.mameChanged()
+            tryVerify(function() { return findText(page, "Failed") !== null }, 1000)
+            verify(findText(page, "answered 404") !== null)
+            arcadeBackend.mameMessage = ""
+            arcadeBackend.mame = { mame: "C:/Users/me/AppData/Roaming/OSD-OS/arcade/mame/mame.exe", downloaded: true,
+                                   canDownload: true, plugins: true,
+                                   pluginsFolder: "C:/Users/me/AppData/Roaming/OSD-OS/arcade/mame/plugins" }
+            tryVerify(function() { return findText(page, "Download MAME Again") !== null }, 1000)
+            verify(findText(page, "Downloaded", true) !== null)
+            compare(page.keys, ["mame", "download", "plugin"])
+            arcadeBackend.mame = { mame: "C:/MAME/mame.exe", downloaded: false, canDownload: true, plugins: false,
+                                   pluginsFolder: "" }
+            tryVerify(function() { return JSON.stringify(page.keys) === JSON.stringify(["mame", "plugin"]) }, 1000)
+            verify(findText(page, "Not Found") !== null)
             compare(root.backs, 0)
             keyClick(Qt.Key_Escape)
             compare(root.backs, 1)
@@ -2614,6 +2686,21 @@ Rectangle {
             var screen = openScreen()
             verify(findText(screen, "No games found") !== null)
             verify(findText(screen, "Put MAME's ROM sets") !== null)
+            // MAME missing on a system that can download it (Windows): the
+            // screen says select does, and select starts it once.
+            arcadeBackend.problem = "MAME is not installed"
+            compare(findText(screen, "DOWNLOAD MAME"), null)
+            arcadeBackend.mame = { mame: "", downloaded: false, canDownload: true, plugins: false, pluginsFolder: "" }
+            tryVerify(function() { return findText(screen, "DOWNLOAD MAME") !== null }, 1000)
+            keyClick(Qt.Key_Return)
+            compare(arcadeBackend.mameDownloads, 1)
+            tryVerify(function() { return findText(screen, "Downloading MAME… 20%") !== null }, 1000)
+            keyClick(Qt.Key_Return)
+            compare(arcadeBackend.mameDownloads, 1)
+            arcadeBackend.mameDownloading = false
+            arcadeBackend.problem = ""
+            arcadeBackend.mame = { mame: "/usr/games/mame", downloaded: false, canDownload: false, plugins: true,
+                                   pluginsFolder: "/usr/share/games/mame/plugins" }
             arcadeBackend.scanning = true
             verify(findText(screen, "Reading the games") !== null)
             compare(findText(screen, "Put MAME's ROM sets"), null)

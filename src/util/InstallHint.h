@@ -120,7 +120,8 @@ inline QString forProgram(const QString &program, const System &on) {
     QString what;
     if (installer == QLatin1String("windows")) {
         if (program == QLatin1String("mame"))
-            what = QStringLiteral("download MAME from mamedev.org and unpack it beside OSD/OS as a folder named MAME");
+            what = QStringLiteral("Settings → Arcade → MAME downloads it, or unpack MAME from mamedev.org beside OSD/OS "
+                                  "as a folder named MAME");
         else if (program == QLatin1String("retroarch"))
             what = QStringLiteral("Settings → Arcade → FinalBurn Neo downloads RetroArch, or unpack RetroArch from "
                                   "retroarch.com beside OSD/OS as a folder named RetroArch");

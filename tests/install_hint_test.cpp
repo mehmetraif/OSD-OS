@@ -104,7 +104,7 @@ private slots:
                  QStringLiteral("On Void: install mame with the distribution's package manager"));
 
         const installhint::System windows{ QStringLiteral("Windows"), QStringLiteral("windows") };
-        QVERIFY(forProgram(QStringLiteral("mame"), windows).startsWith(QStringLiteral("On Windows: download MAME from mamedev.org")));
+        QVERIFY(forProgram(QStringLiteral("mame"), windows).startsWith(QStringLiteral("On Windows: Settings → Arcade → MAME downloads it")));
         QVERIFY(forProgram(QStringLiteral("retroarch"), windows)
                     .startsWith(QStringLiteral("On Windows: Settings → Arcade → FinalBurn Neo downloads RetroArch")));
         QVERIFY(forProgram(QStringLiteral("yt-dlp"), windows).contains(QStringLiteral("yt-dlp.exe")));

@@ -248,7 +248,7 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
         ../src/modules/arcade/Mame.cpp
         ../src/modules/arcade/Libretro.cpp
         ../src/modules/arcade/FbneoInstaller.cpp
-        ../src/modules/arcade/RetroArchInstaller.cpp
+        ../src/modules/arcade/ProgramInstaller.cpp
         ../src/modules/arcade/RetroAchievements.cpp
         ../src/modules/arcade/ArcadeDb.cpp
         ../src/modules/scripts/ScriptLauncher.cpp

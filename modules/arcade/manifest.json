@@ -189,6 +189,13 @@
       "description": "The name the others see, online and on the network\n[DEFAULT] Online, the RetroAchievements account's, else OSD-OS; on the network, this device's name (Settings → About → System Information)"
     },
     {
+      "key": "mame",
+      "label": "MAME",
+      "type": "module_view",
+      "params": { "mame": true },
+      "description": "The arcade machine emulator the games play in: whether it is installed and where, its hiscore plugin, and on Windows its download"
+    },
+    {
       "key": "fbneo",
       "label": "FinalBurn Neo",
       "type": "module_view",

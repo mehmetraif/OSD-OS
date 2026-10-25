@@ -76,6 +76,12 @@ FocusScope {
     // (AppCore::installHint()), where that is what stands in the way.
     readonly property string problemLine: problem === "MAME is not installed"
                                           ? problem + ". " + appCore.installHint("mame") : problem
+    // MAME downloaded from here where it is what is missing and the system
+    // can (Windows): read again as a download starts and ends.
+    property int mameRevision: 0
+    readonly property bool canDownloadMame: (mameRevision, problem === "MAME is not installed" && !!arcadeBackend
+                                             && arcadeBackend.mameInfo().canDownload)
+    readonly property bool downloadingMame: arcadeBackend ? arcadeBackend.mameDownloading : false
     readonly property bool folderReadable: arcadeBackend ? arcadeBackend.folderReadable : true
     readonly property bool scanning: arcadeBackend ? arcadeBackend.scanning : false
     readonly property string gamesFolder: arcadeBackend ? arcadeBackend.gamesFolder() : ""
@@ -550,6 +556,13 @@ FocusScope {
         arcadeScreen.navigateTo("Play.qml", params, state)
     }
     function playCurrent() {
+        // Nothing to play: select downloads MAME where it is what is
+        // missing and the system can.
+        if (filters.length === 0) {
+            if (canDownloadMame && !downloadingMame)
+                arcadeBackend.downloadMame()
+            return
+        }
         if (onSearch)
             enterKeys("")
         else if (lobbyRoom && !lobbyRoom.joinable)
@@ -701,6 +714,7 @@ FocusScope {
     Connections {
         target: arcadeBackend
         function onGamesChanged() { arcadeScreen.reload() }
+        function onMameChanged() { arcadeScreen.mameRevision++ }
         function onReadingChanged() {
             var entry = arcadeScreen.startupEntry
             if (entry && !arcadeBackend.reading) {
@@ -1331,6 +1345,10 @@ FocusScope {
         problem: arcadeScreen.problem
         folderReadable: arcadeScreen.folderReadable
         gamesFolder: arcadeScreen.gamesFolder
+        canDownload: arcadeScreen.canDownloadMame
+        downloading: arcadeScreen.downloadingMame
+        progress: arcadeBackend ? arcadeBackend.mameProgress : 0
+        failure: arcadeBackend ? arcadeBackend.mameMessage : ""
     }
 
     // In the list's place: on RetroArch Lobby, that the lobby is being read,

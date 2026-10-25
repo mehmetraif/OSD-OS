@@ -3,7 +3,7 @@
 #include "modules/arcade/ArcadeBackend.h"
 #include "modules/arcade/FbneoInstaller.h"
 #include "modules/arcade/Libretro.h"
-#include "modules/arcade/RetroArchInstaller.h"
+#include "modules/arcade/ProgramInstaller.h"
 #include "modules/arcade/Mame.h"
 #include "modules/arcade/RetroAchievements.h"
 
@@ -2745,9 +2745,20 @@ private slots:
             });
         });
         const QString base = QStringLiteral("http://127.0.0.1:%1").arg(server.serverPort());
-        const auto source = [&base](const char *versions, const char *archive, const char *fallback) {
-            return RetroArchInstaller::Source{ versions ? QUrl(base + QLatin1String(versions)) : QUrl(),
-                                               base + QLatin1String(archive), QLatin1String(fallback) };
+        // libretro's source as on a 64-bit Windows, on the stand-in: the
+        // archive's URL with the version in it, the one known when the
+        // list isn't had.
+        const auto source = [&base, &data](const char *versions, const char *archive, const char *fallback) {
+            ProgramInstaller::Source s = ProgramInstaller::retroarch(data.path());
+            s.available = true;
+            s.index = versions ? QUrl(base + QLatin1String(versions)) : QUrl();
+            const QString pattern = base + QLatin1String(archive);
+            s.pick = [pattern](const QByteArray &page) {
+                const QString version = ProgramInstaller::newestVersion(page);
+                return version.isEmpty() ? QUrl() : QUrl(pattern.arg(version));
+            };
+            s.fallback = QUrl(pattern.arg(QLatin1String(fallback)));
+            return s;
         };
         const QString program = libretro::downloadedRetroArch(data.path());
         const QString home = QFileInfo(program).absolutePath();
@@ -2762,9 +2773,9 @@ private slots:
             return found;
         };
 
-        RetroArchInstaller installer(data.path());
-        QSignalSpy finished(&installer, &RetroArchInstaller::finished);
-        QSignalSpy progressed(&installer, &RetroArchInstaller::progressChanged);
+        ProgramInstaller installer;
+        QSignalSpy finished(&installer, &ProgramInstaller::finished);
+        QSignalSpy progressed(&installer, &ProgramInstaller::progressChanged);
         installer.start(source("/stable/", "/stable/%1/windows/x86_64/RetroArch.7z", "1.21.0"));
         QVERIFY(installer.running());
         QVERIFY(finished.wait(10000));
@@ -2819,15 +2830,140 @@ private slots:
         QCOMPARE(finished.last().at(1).toString(), QStringLiteral("The download has no retroarch.exe"));
         QCOMPARE(contents(program), QByteArray("the one before"));
         QCOMPARE(leftovers(), QStringList());
-        // A machine libretro builds none for.
-        installer.start(RetroArchInstaller::Source{ QUrl(), QString(), QStringLiteral("1.22.2") });
-        QCOMPARE(finished.last().at(1).toString().left(38), QStringLiteral("libretro builds no RetroArch for this "));
+        // A machine libretro builds none for: this one, as the source stands.
+        installer.start(ProgramInstaller::retroarch(data.path()));
+        QVERIFY2(finished.last().at(1).toString().startsWith(QStringLiteral("There is no RetroArch build for this machine")),
+                 qPrintable(finished.last().at(1).toString()));
 
         // The newest of the versions a page links to, by number.
-        QCOMPARE(RetroArchInstaller::newestVersion(index), QStringLiteral("1.22.2"));
-        QCOMPARE(RetroArchInstaller::newestVersion("<a href=\"1.10.0/\">x</a> <a href=\"1.9.3/\">y</a>"),
+        QCOMPARE(ProgramInstaller::newestVersion(index), QStringLiteral("1.22.2"));
+        QCOMPARE(ProgramInstaller::newestVersion("<a href=\"1.10.0/\">x</a> <a href=\"1.9.3/\">y</a>"),
                  QStringLiteral("1.10.0"));
-        QCOMPARE(RetroArchInstaller::newestVersion("<a href=\"nightly/\">x</a>"), QString());
+        QCOMPARE(ProgramInstaller::newestVersion("<a href=\"nightly/\">x</a>"), QString());
+    }
+
+    // Settings → Arcade → MAME's download (Windows) from a stand-in for
+    // GitHub: the 64-bit Windows build among the latest release's assets, a
+    // self-extracting archive with mame.exe at its top, unpacked and put in
+    // place as <data>/arcade/mame with its plugins beside it, over one
+    // downloaded before; a release that can't be read, or names no such
+    // build, taking the one known; an asset that isn't an archive leaving
+    // what was there.
+    void mameDownload() {
+        QTemporaryDir data;
+        QVERIFY(data.isValid());
+        QHash<QByteArray, QByteArray> files;
+        QList<QByteArray> asked;
+        QTcpServer server;
+        QVERIFY(server.listen(QHostAddress::LocalHost));
+        connect(&server, &QTcpServer::newConnection, &server, [&server, &files, &asked] {
+            QTcpSocket *socket = server.nextPendingConnection();
+            connect(socket, &QTcpSocket::readyRead, socket, [socket, &files, &asked] {
+                const QByteArray request = socket->readAll();
+                const QByteArray path = request.split(' ').value(1).split('?').first();
+                asked.append(path);
+                if (files.contains(path)) {
+                    socket->write("HTTP/1.1 200 OK\r\nContent-Length: " + QByteArray::number(files.value(path).size())
+                                  + "\r\nConnection: close\r\n\r\n" + files.value(path));
+                } else {
+                    socket->write("HTTP/1.1 404 Not Found\r\nContent-Length: 0\r\nConnection: close\r\n\r\n");
+                }
+                socket->disconnectFromHost();
+            });
+        });
+        const QString base = QStringLiteral("http://127.0.0.1:%1").arg(server.serverPort());
+        const QByteArray release = QStringLiteral(
+            "{\"tag_name\": \"mame0289\", \"assets\": ["
+            "{\"name\": \"mame0289s.exe\", \"browser_download_url\": \"%1/mamedev/mame/releases/download/mame0289/mame0289s.exe\"},"
+            "{\"name\": \"mame0289b_arm64.exe\", \"browser_download_url\": \"%1/mamedev/mame/releases/download/mame0289/mame0289b_arm64.exe\"},"
+            "{\"name\": \"mame0289b_64bit.exe\", \"browser_download_url\": \"%1/mamedev/mame/releases/download/mame0289/mame0289b_64bit.exe\"}]}")
+            .arg(base).toUtf8();
+        const QByteArray sourcesOnly = "{\"tag_name\": \"mame0290\", \"assets\": [{\"name\": \"mame0290s.exe\", \"browser_download_url\": \"x\"}]}";
+        files = { { "/repos/mamedev/mame/releases/latest", release },
+                  { "/repos/old/releases/latest", sourcesOnly },
+                  { "/mamedev/mame/releases/download/mame0289/mame0289b_64bit.exe", fixture("mame-sfx.bin") },
+                  { "/known/mame0288b_64bit.exe", fixture("mame-sfx.bin") },
+                  { "/license.txt", "You may freely use FB Neo.\n" } };
+        // mamedev's source as on a 64-bit Windows, on the stand-in.
+        const auto source = [&base, &data](const char *index, const char *fallback) {
+            ProgramInstaller::Source s = ProgramInstaller::mame(data.path());
+            s.available = true;
+            s.index = index ? QUrl(base + QLatin1String(index)) : QUrl();
+            s.fallback = QUrl(base + QLatin1String(fallback));
+            return s;
+        };
+        const QString program = mame::downloadedMame(data.path());
+        const QString home = QFileInfo(program).absolutePath();
+        const auto leftovers = [&data] {
+            QStringList found;
+            QDirIterator parts(data.path(), { QStringLiteral("*.part"), QStringLiteral("*.old") },
+                               QDir::Files | QDir::Dirs | QDir::NoDotAndDotDot, QDirIterator::Subdirectories);
+            while (parts.hasNext())
+                found.append(parts.next());
+            return found;
+        };
+
+        ProgramInstaller installer;
+        QSignalSpy finished(&installer, &ProgramInstaller::finished);
+        installer.start(source("/repos/mamedev/mame/releases/latest", "/known/mame0288b_64bit.exe"));
+        QVERIFY(installer.running());
+        QVERIFY(finished.wait(10000));
+        QCOMPARE(finished.first().at(1).toString(), QString());
+        QCOMPARE(finished.first().at(0).toBool(), true);
+        QCOMPARE(installer.progress(), 100);
+        QVERIFY(contents(program).startsWith("MZ a stand-in for MAME for Windows"));
+        QCOMPARE(contents(home + QStringLiteral("/plugins/hiscore/init.lua")), QByteArray("-- the hiscore plugin\n"));
+        QVERIFY(QFileInfo::exists(home + QStringLiteral("/bgfx/shaders/readme.txt")));
+        QCOMPARE(mame::pluginsFolder(program), QDir::cleanPath(home + QStringLiteral("/plugins")));
+        QCOMPARE(leftovers(), QStringList());
+        // The 64-bit Windows build, not the sources or the ARM one, and not
+        // the one known.
+        QVERIFY(asked.contains("/mamedev/mame/releases/download/mame0289/mame0289b_64bit.exe"));
+        QVERIFY(!asked.contains("/mamedev/mame/releases/download/mame0289/mame0289s.exe"));
+        QVERIFY(!asked.contains("/known/mame0288b_64bit.exe"));
+
+        // Again, over the one before: a file of the user's own in its
+        // folder goes with it.
+        writeFile(home + QStringLiteral("/mine.txt"), "mine");
+        writeFile(program, "the one before");
+        installer.start(source("/repos/mamedev/mame/releases/latest", "/known/mame0288b_64bit.exe"));
+        QVERIFY(finished.wait(10000));
+        QCOMPARE(finished.last().at(1).toString(), QString());
+        QVERIFY(contents(program).startsWith("MZ a stand-in for MAME for Windows"));
+        QVERIFY(!QFileInfo::exists(home + QStringLiteral("/mine.txt")));
+        QCOMPARE(leftovers(), QStringList());
+
+        // A release that can't be had, and one that names no 64-bit Windows
+        // build: the one known.
+        asked.clear();
+        installer.start(source("/gone", "/known/mame0288b_64bit.exe"));
+        QVERIFY(finished.wait(10000));
+        QCOMPARE(finished.last().at(1).toString(), QString());
+        QCOMPARE(asked, QList<QByteArray>({ "/gone", "/known/mame0288b_64bit.exe" }));
+        asked.clear();
+        installer.start(source("/repos/old/releases/latest", "/known/mame0288b_64bit.exe"));
+        QVERIFY(finished.wait(10000));
+        QCOMPARE(finished.last().at(1).toString(), QString());
+        QCOMPARE(asked, QList<QByteArray>({ "/repos/old/releases/latest", "/known/mame0288b_64bit.exe" }));
+
+        // An asset that isn't an archive: why, the one before stays, nothing
+        // is left behind.
+        writeFile(program, "the one before");
+        installer.start(source(nullptr, "/license.txt"));
+        QVERIFY(finished.wait(10000));
+        QCOMPARE(finished.last().at(0).toBool(), false);
+        QCOMPARE(finished.last().at(1).toString(), QStringLiteral("The file is not a 7z archive"));
+        QCOMPARE(contents(program), QByteArray("the one before"));
+        QCOMPARE(leftovers(), QStringList());
+        // A machine mamedev builds none for: this one, as the source stands.
+        installer.start(ProgramInstaller::mame(data.path()));
+        QVERIFY(finished.last().at(1).toString().startsWith(QStringLiteral("There is no MAME build for this machine")));
+
+        // The 64-bit Windows build among a release's assets.
+        QCOMPARE(ProgramInstaller::mameWindowsAsset(release),
+                 QUrl(base + QStringLiteral("/mamedev/mame/releases/download/mame0289/mame0289b_64bit.exe")));
+        QCOMPARE(ProgramInstaller::mameWindowsAsset(sourcesOnly), QUrl());
+        QCOMPARE(ProgramInstaller::mameWindowsAsset("<html>not json</html>"), QUrl());
     }
 
     // The Arcade screen's leaderboards from a stand-in for RetroAchievements'

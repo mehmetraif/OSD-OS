@@ -1,6 +1,6 @@
 The LZMA SDK (7-zip.org/sdk.html), version 25.01: its 7z decoder in C,
-which unpacks the RetroArch for Windows that Settings -> Arcade ->
-FinalBurn Neo downloads. The SDK's own note:
+which unpacks the MAME and RetroArch for Windows that Settings -> Arcade
+-> MAME and -> FinalBurn Neo download. The SDK's own note:
 
 LZMA SDK is written and placed in the public domain by Igor Pavlov.
 
