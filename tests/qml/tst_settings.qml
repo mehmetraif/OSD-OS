@@ -1,6 +1,7 @@
 import QtQuick
 import QtTest
 import "../../views/Components" as Components
+import "../../views/Components/Hover.js" as Hover
 
 // Settings, views/Settings.qml, against stand-ins for AppCore and the rest it
 // reads: the first screen opens on TV / Movie's and Arcade's pages, then the
@@ -165,6 +166,28 @@ Rectangle {
             }
             return ""
         }
+        // The MenuRow drawn for the line at index: the list's delegate, or
+        // the one in it (a slider's line has its bar beside it).
+        function menuRow(item, index) {
+            if (item.itemAtIndex !== undefined) {
+                var d = item.itemAtIndex(index)
+                if (!d)
+                    return null
+                if (d.opens !== undefined)
+                    return d
+                for (var j = 0; j < d.children.length; j++) {
+                    if (d.children[j].opens !== undefined)
+                        return d.children[j]
+                }
+                return null
+            }
+            for (var i = 0; i < item.children.length; i++) {
+                var found = menuRow(item.children[i], index)
+                if (found)
+                    return found
+            }
+            return null
+        }
 
         // The first screen: TV / Movie and Arcade at the top, the general
         // settings under their heading, the modules of no group (with
@@ -229,6 +252,105 @@ Rectangle {
             // Down from Arcade steps over the heading, onto Theme.
             keyClick(Qt.Key_Down)
             compare(cursor(loader.item), "Theme")
+        }
+
+        // A line that leads on (TV / Movie, Arcade, a module's, Quit) ends in
+        // a ►, and ► opens it as select does; a list's choice stands between
+        // the ◄ and ► that change it, and ► changes it, opening nothing; a
+        // heading has neither.
+        function test_marks() {
+            var page = open()
+            var tv = menuRow(page, 0)
+            verify(tv !== null)
+            verify(tv.opens)
+            verify(!tv.changes)
+            var heading = menuRow(page, 2)
+            verify(!heading.opens)
+            verify(!heading.changes)
+            var theme = menuRow(page, 3)
+            verify(theme.changes)
+            verify(!theme.opens)
+            keyClick(Qt.Key_Right)
+            compare(root.navigations.length, 1)
+            compare(root.navigations[0].path, "views/Settings.qml")
+            compare(root.navigations[0].params.group, "tv")
+            keyClick(Qt.Key_Down)
+            keyClick(Qt.Key_Right)
+            compare(root.navigations.length, 2)
+            compare(root.navigations[1].path, "views/ModuleSettings.qml")
+            keyClick(Qt.Key_Down)
+            keyClick(Qt.Key_Down)
+            compare(cursor(page), "Color Scheme")
+            verify(menuRow(page, 4).changes)
+            var before = row(page, "Color Scheme").value
+            keyClick(Qt.Key_Right)
+            compare(root.navigations.length, 2)
+            verify(row(page, "Color Scheme").value !== before)
+            // TV / Movie's page: a slider's line has no ◄ ► of its own (its
+            // bar has them), a list's does.
+            loader.source = ""
+            page = open({ group: "tv" })
+            verify(menuRow(page, 0).changes)        // Scaling
+            verify(!menuRow(page, 1).changes)       // Transparent Background
+            verify(!menuRow(page, 1).opens)
+        }
+
+        // The list of answers the question shown has (PromptScreen's), or null.
+        function answers(item) {
+            if (!item.visible)
+                return null
+            if (typeof item.keep === "function" && typeof item.indexAt === "function")
+                return item
+            for (var i = 0; i < item.children.length; i++) {
+                var found = answers(item.children[i])
+                if (found)
+                    return found
+            }
+            return null
+        }
+
+        // The mouse over a line puts the cursor on it, as Main.qml's pointer
+        // asks through Hover.js; a heading is passed over, the title bar
+        // moves nothing. A question's answers follow it too, the list under
+        // the question left as it is.
+        function test_hover() {
+            var page = open()
+            var list = null
+            for (var i = 0; i < page.children.length && !list; i++) {
+                if (page.children[i].currentIndex !== undefined && page.children[i].model !== undefined)
+                    list = page.children[i]
+            }
+            verify(list !== null)
+            // The lines are laid out again as the cursor moves (the help line
+            // under them): a moment for that, as a mouse takes between rows.
+            var hover = function(p) { Hover.follow(root, root.Window.activeFocusItem, p.x, p.y); waitForRendering(page) }
+            var middle = function(item) { verify(item !== null); return item.mapToItem(root, item.width / 2, item.height / 2) }
+            compare(cursor(page), "TV / Movie")
+            hover(middle(list.itemAtIndex(3)))
+            compare(cursor(page), "Theme")
+            hover(middle(list.itemAtIndex(2)))
+            compare(cursor(page), "Theme")
+            hover(middle(list.itemAtIndex(1)))
+            compare(cursor(page), "Arcade")
+            hover(Qt.point(root.width / 2, 10))
+            compare(cursor(page), "Arcade")
+            // Really quit?
+            keyClick(Qt.Key_Up)
+            keyClick(Qt.Key_Up)
+            compare(cursor(page), "Quit")
+            keyClick(Qt.Key_Return)
+            var yesNo = answers(page)
+            verify(yesNo !== null)
+            compare(yesNo.count, 2)
+            verify(yesNo.itemAtIndex(0).current)
+            hover(middle(yesNo.itemAtIndex(1)))
+            verify(yesNo.itemAtIndex(1).current)
+            verify(!yesNo.itemAtIndex(0).current)
+            hover(middle(list.itemAtIndex(list.count - 2)))   // About, under the question
+            compare(cursor(page), "Quit")
+            verify(yesNo.itemAtIndex(1).current)
+            keyClick(Qt.Key_Escape)
+            compare(root.navigations.length, 0)
         }
 
         // Wi-Fi among the general settings once NetworkManager can be asked

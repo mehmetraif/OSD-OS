@@ -88,6 +88,12 @@ FocusScope {
                 listRoot.open(row.id)
             }
         }
+        // ► opens a playlist's page as select does.
+        Keys.onRightPressed: {
+            var row = listRoot.rows[currentIndex]
+            if (row && row.type === "playlist")
+                listRoot.open(row.id)
+        }
         Keys.onPressed: function(event) {
             if (event.key === Qt.Key_Escape || event.key === Qt.Key_Backspace || event.key === Qt.Key_Back) {
                 listRoot.goBack()
@@ -95,6 +101,7 @@ FocusScope {
             }
         }
 
+        // A playlist's line leads to its page: it ends in a ►.
         delegate: MenuRow {
             width: list.width
             height: root.sh * 0.0583333 //28
@@ -102,6 +109,7 @@ FocusScope {
             keepValue: modelData.type === "playlist"
             label: modelData.label || ""
             value: modelData.value || ""
+            opens: modelData.type === "playlist"
             selected: list.currentIndex === index
         }
     }

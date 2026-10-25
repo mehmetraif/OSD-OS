@@ -563,8 +563,10 @@ QString InputManager::actionName(Action a) {
 }
 
 // What a key does when nothing is bound to it (by keyId()): the views' own
-// keys, a remote's OK and Select keys (isRemoteOk()), and on the console a
-// mouse's left and right buttons (setClickActions()).
+// keys, a remote's OK and Select keys (isRemoteOk()), and a mouse's left and
+// right buttons, Select / OK and Back: an air-mouse remote's OK is a left
+// click while its pointer is on, and on a desktop a mouse works the menus
+// the same way, the selection following its pointer (Main.qml).
 InputManager::Action InputManager::defaultKeyAction(int id) const {
     switch (id) {
     case Qt::Key_Up:        return Action::Up;
@@ -582,8 +584,8 @@ InputManager::Action InputManager::defaultKeyAction(int id) const {
     case kEvdevKeyBase + KEY_OK:
     case kEvdevKeyBase + KEY_SELECT: return Action::Select;
 #endif
-    case kMouseButtonBase + int(Qt::LeftButton):  return m_clickActions ? Action::Select : Action::None;
-    case kMouseButtonBase + int(Qt::RightButton): return m_clickActions ? Action::Back : Action::None;
+    case kMouseButtonBase + int(Qt::LeftButton):  return Action::Select;
+    case kMouseButtonBase + int(Qt::RightButton): return Action::Back;
     default:                return Action::None;
     }
 }
@@ -2147,14 +2149,32 @@ QString InputManager::mpvKeyForMediaEvent(const QKeyEvent *ke) {
 bool InputManager::eventFilter(QObject *obj, QEvent *event) {
     const QEvent::Type type = event->type();
 
+    // The mouse wheel: each notch up or down is Up or Down, pressed and let go
+    // as a key is. Taken at the window, which Qt Quick would hand it on from
+    // to the items under the pointer; none of them scrolls by the wheel.
+    if (type == QEvent::Wheel) {
+        if (!obj || !obj->isWindowType())
+            return false;
+        if (m_remapCapture)
+            return true;
+        m_wheelTurn += static_cast<QWheelEvent *>(event)->angleDelta().y();
+        while (qAbs(m_wheelTurn) >= 120) {
+            const Action a = m_wheelTurn > 0 ? Action::Up : Action::Down;
+            m_wheelTurn += a == Action::Up ? -120 : 120;
+            pressFrom(QStringLiteral("keyboard"), a);
+            releaseAction(a);
+        }
+        return true;
+    }
+
     // Some remotes wire their center/OK button as a literal mouse click (see
     // scanNodes()'s comment for the sibling-devices story): an air mouse's OK
     // is a left click while its pointer is on.
     // Qt still delivers that as an ordinary QMouseEvent regardless of what
     // libinput thinks the device is, so no raw evdev reader is needed here,
     // just the same remap table and capture signal as everything else, and
-    // on the console left and right as Select / OK and Back where nothing
-    // else is bound to them (setClickActions()).
+    // left and right as Select / OK and Back where nothing else is bound to
+    // them (defaultKeyAction()), on a desktop as on the console.
     if (type == QEvent::MouseButtonPress || type == QEvent::MouseButtonDblClick
         || type == QEvent::MouseButtonRelease) {
         const auto *me = static_cast<QMouseEvent *>(event);

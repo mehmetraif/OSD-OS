@@ -81,6 +81,13 @@ FocusScope {
         return ""
     }
 
+    // The episode under the mouse becomes the cursor's (Main.qml's
+    // followPointer()).
+    function hoverRow(index) {
+        episodeList.currentIndex = index
+        focusRow = 2
+    }
+
     Keys.onUpPressed: {
         if (focusRow === 2) {
             if (episodeList.currentIndex > 0) {

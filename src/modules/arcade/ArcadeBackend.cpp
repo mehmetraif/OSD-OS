@@ -9,6 +9,7 @@
 #include "../../util/LegacyNames.h"
 #include "ArcadeDb.h"
 #include "FbneoInstaller.h"
+#include "RetroArchInstaller.h"
 #include "Http.h"
 #include "Libretro.h"
 #include "RetroAchievements.h"
@@ -509,6 +510,16 @@ ArcadeBackend::ArcadeBackend(const QString &appRoot, const QString &dataRoot, Ap
     connect(m_installer, &FbneoInstaller::finished, this, [this](bool ok, const QString &message) {
         m_fbneoMessage = message;
         // Its list read with the folder, now that it has changed.
+        if (ok)
+            refresh();
+        emit fbneoChanged();
+    });
+    m_retroarchInstaller = new RetroArchInstaller(m_dataRoot, this);
+    connect(m_retroarchInstaller, &RetroArchInstaller::progressChanged, this, &ArcadeBackend::fbneoProgressChanged);
+    connect(m_retroarchInstaller, &RetroArchInstaller::finished, this, [this](bool ok, const QString &message) {
+        m_retroarchMessage = message;
+        // The games read again with RetroArch there: FinalBurn Neo's play
+        // now, and its version is asked as they are listed.
         if (ok)
             refresh();
         emit fbneoChanged();
@@ -4053,7 +4064,10 @@ QVariantMap ArcadeBackend::fbneoInfo() const {
              { QStringLiteral("games"), static_cast<int>(m_fbneoGames.size()) },
              { QStringLiteral("license"), QFileInfo::exists(license) ? license
                                           : QFileInfo::exists(imageLicense) ? imageLicense : QString() },
-             { QStringLiteral("canDownload"), unpacks && !FbneoInstaller::defaultSource().core.isEmpty() } };
+             { QStringLiteral("canDownload"), unpacks && !FbneoInstaller::defaultSource().core.isEmpty() },
+             { QStringLiteral("canDownloadRetroarch"), !RetroArchInstaller::defaultSource().archive.isEmpty() },
+             { QStringLiteral("retroarchDownloaded"), !retroarchPath().isEmpty()
+                                                      && retroarchPath() == libretro::downloadedRetroArch(m_dataRoot) } };
 }
 
 QString ArcadeBackend::fbneoLicenseText() const {
@@ -4075,6 +4089,22 @@ bool ArcadeBackend::fbneoDownloading() const {
 
 int ArcadeBackend::fbneoProgress() const {
     return m_installer->progress();
+}
+
+void ArcadeBackend::downloadRetroArch() {
+    if (m_retroarchInstaller->running())
+        return;
+    m_retroarchMessage.clear();
+    m_retroarchInstaller->start(RetroArchInstaller::defaultSource());
+    emit fbneoChanged();
+}
+
+bool ArcadeBackend::retroarchDownloading() const {
+    return m_retroarchInstaller->running();
+}
+
+int ArcadeBackend::retroarchProgress() const {
+    return m_retroarchInstaller->progress();
 }
 
 QString ArcadeBackend::achievementsMessage() const {

@@ -128,6 +128,11 @@ FocusScope {
           description: "Open hi2txt's definitions and FinalBurn Neo's download: minizip by Gilles Vollant and zlib by"
                        + " Jean-loup Gailly and Mark Adler, zlib.net • Under the zlib License • {select}"
                        + " The license's text" },
+        { key: "lzma", label: "LZMA SDK", value: "Public domain", license: "assets/licenses/LZMA-SDK.txt",
+          licenseName: "The LZMA SDK's notice",
+          description: "Unpacks the RetroArch for Windows downloaded from libretro's build server, a 7z archive: the"
+                       + " LZMA SDK's decoder by Igor Pavlov, 7-zip.org/sdk.html • In the public domain • {select}"
+                       + " The notice's text" },
         { key: "achievements", label: "RetroAchievements", value: "retroachievements.org",
           description: "Leaderboards and hardcore play for the games FinalBurn Neo plays, with your own account,"
                        + " read through its Web API, and the games' pictures and the achievements' badges from its"
@@ -250,19 +255,23 @@ FocusScope {
             // The device's name read here, so that a new one doesn't make the
             // lines anew.
             value: modelData.key === "system_info" ? aboutRoot.deviceName : (modelData.value || "")
+            // A line that leads to a page, or a licence's text, ends in a ►.
+            opens: !!(modelData.page || modelData.license)
             selected: list.currentIndex === index
             // Read rather than chosen: a value too long for its line (the
             // developer, the source) scrolls through, selected or not.
             alwaysScroll: true
         }
 
-        Keys.onReturnPressed: {
-            var row = aboutRoot.rows[currentIndex]
+        // The page a line leads to, or the licence it holds; select or ►.
+        function openRow(row) {
             if (row && row.page)
                 aboutRoot.navigateTo(row.page, {}, { currentIndex: currentIndex })
             else if (row && row.license)
                 licensePage.open(row)
         }
+        Keys.onReturnPressed: openRow(aboutRoot.rows[currentIndex])
+        Keys.onRightPressed: openRow(aboutRoot.rows[currentIndex])
         Keys.onPressed: function(event) {
             if (event.key === Qt.Key_Escape || event.key === Qt.Key_Backspace || event.key === Qt.Key_Back) {
                 aboutRoot.goBack()

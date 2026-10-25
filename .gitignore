@@ -16,3 +16,6 @@ Thumbs.db
 /.appimage-tools
 /.mpv-build
 /*.AppImage
+
+# Written by tests/qml/tst_tree_browser.qml where it is run.
+/tree-browser-preview.png

@@ -239,6 +239,7 @@ FocusScope {
                 lobbyRoot.roomId = row.id
         }
 
+        // A room's line leads to its page: it ends in a ►, after its mark.
         delegate: MenuRow {
             required property var modelData
             required property int index
@@ -249,12 +250,14 @@ FocusScope {
             label: heading ? modelData.label : modelData.title
             value: heading ? "" : modelData.host
             icons: mark !== "" ? [mark] : []
+            opens: !heading
             keepValue: true
             selected: roomList.currentIndex === index && !heading
         }
 
+        // Select or ► opens the room.
         Keys.onPressed: function(event) {
-            if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter) {
+            if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter || event.key === Qt.Key_Right) {
                 if (!event.isAutoRepeat)
                     lobbyRoot.open(lobbyRoot.rows[currentIndex])
                 event.accepted = true

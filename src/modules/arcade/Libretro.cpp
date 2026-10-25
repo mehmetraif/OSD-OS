@@ -1,6 +1,7 @@
 #include "Libretro.h"
 #include "Mame.h"
 #include "../../input/ControllerProfile.h"
+#include <QCoreApplication>
 #include <QCryptographicHash>
 #include <QDir>
 #include <QFile>
@@ -248,18 +249,46 @@ QString relayName(const QString &server) {
 } // namespace
 
 QString programPath(const QString &dataRoot) {
-    const QFileInfo dropIn(dataRoot + QStringLiteral("/bin/retroarch"));
+#ifdef Q_OS_WIN
+    const QString exe = QStringLiteral("retroarch.exe");
+#else
+    const QString exe = QStringLiteral("retroarch");
+#endif
+    const QFileInfo dropIn(dataRoot + QStringLiteral("/bin/") + exe);
     if (dropIn.isFile() && dropIn.isExecutable())
         return dropIn.absoluteFilePath();
     const QString onPath = QStandardPaths::findExecutable(QStringLiteral("retroarch"));
     if (!onPath.isEmpty())
         return onPath;
-    for (const char *candidate : { "/usr/bin/retroarch", "/Applications/RetroArch.app/Contents/MacOS/RetroArch" }) {
-        const QFileInfo program{ QString::fromLatin1(candidate) };
+    QStringList places;
+#ifdef Q_OS_WIN
+    // The one Settings → Arcade → FinalBurn Neo downloaded, RetroArch's own
+    // folder unpacked beside OSD/OS, or where its builds and installers
+    // commonly put it.
+    const QString appDir = QCoreApplication::applicationDirPath();
+    places << downloadedRetroArch(dataRoot)
+           << appDir + QStringLiteral("/retroarch.exe") << appDir + QStringLiteral("/RetroArch/retroarch.exe")
+           << appDir + QStringLiteral("/RetroArch-Win64/retroarch.exe")
+           << QStringLiteral("C:/RetroArch-Win64/retroarch.exe") << QStringLiteral("C:/RetroArch/retroarch.exe")
+           << qEnvironmentVariable("ProgramFiles") + QStringLiteral("/RetroArch/retroarch.exe")
+           << qEnvironmentVariable("ProgramFiles(x86)") + QStringLiteral("/Steam/steamapps/common/RetroArch/retroarch.exe");
+#else
+    // Debian's; the BSDs' packages, off a PATH that doesn't reach them; the
+    // Mac's RetroArch.app, for everyone or for the user.
+    places << QStringLiteral("/usr/bin/retroarch") << QStringLiteral("/usr/local/bin/retroarch")
+           << QStringLiteral("/Applications/RetroArch.app/Contents/MacOS/RetroArch")
+           << QDir::homePath() + QStringLiteral("/Applications/RetroArch.app/Contents/MacOS/RetroArch");
+#endif
+    for (const QString &place : std::as_const(places)) {
+        const QFileInfo program(place);
         if (program.isFile() && program.isExecutable())
             return program.absoluteFilePath();
     }
     return QString();
+}
+
+QString downloadedRetroArch(const QString &dataRoot) {
+    return dataRoot + QStringLiteral("/arcade/retroarch/RetroArch-Win64/retroarch.exe");
 }
 
 QString downloadedCore(const QString &dataRoot) {

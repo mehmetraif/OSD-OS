@@ -20,6 +20,23 @@ target_include_directories(reliability_test PRIVATE ../src)
 target_compile_definitions(reliability_test PRIVATE APP_VERSION="test")
 target_link_libraries(reliability_test PRIVATE Qt6::Core Qt6::Network Qt6::Qml Qt6::Test)
 add_test(NAME reliability COMMAND reliability_test)
+# What a view says under "… is not installed", for the system OSD/OS runs
+# on (util/InstallHint.h).
+add_executable(install_hint_test install_hint_test.cpp)
+target_include_directories(install_hint_test PRIVATE ../src)
+target_link_libraries(install_hint_test PRIVATE Qt6::Core Qt6::Test)
+add_test(NAME install_hint COMMAND install_hint_test)
+
+# The 7z extractor (the LZMA SDK's decoder, built in as in the app) on
+# archives made with py7zr (data/arcade/*.7z): what is in them, taken out
+# whole with its folders, the limits on their size, a damaged one, and an
+# entry named to leave the folder, which is skipped.
+include(${CMAKE_CURRENT_SOURCE_DIR}/../cmake/lzma.cmake)
+add_executable(sevenzip_test sevenzip_test.cpp ../src/util/SevenZip.cpp)
+target_include_directories(sevenzip_test PRIVATE ../src)
+target_compile_definitions(sevenzip_test PRIVATE TESTS_DIR="${CMAKE_CURRENT_SOURCE_DIR}")
+target_link_libraries(sevenzip_test PRIVATE Qt6::Core Qt6::Test osdos_lzma)
+add_test(NAME sevenzip COMMAND sevenzip_test)
 find_program(LUA_EXECUTABLE NAMES lua5.4 lua54 lua REQUIRED)   # lua54: the BSDs' packages
 add_test(NAME osc_controls COMMAND ${LUA_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/osc_test.lua
                                   ${CMAKE_CURRENT_SOURCE_DIR}/../scripts/mpv-osc.lua)
@@ -231,6 +248,7 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
         ../src/modules/arcade/Mame.cpp
         ../src/modules/arcade/Libretro.cpp
         ../src/modules/arcade/FbneoInstaller.cpp
+        ../src/modules/arcade/RetroArchInstaller.cpp
         ../src/modules/arcade/RetroAchievements.cpp
         ../src/modules/arcade/ArcadeDb.cpp
         ../src/modules/scripts/ScriptLauncher.cpp
@@ -239,12 +257,13 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
         ../src/audio/MenuMusic.cpp
         ../src/util/DisplayHandoff.cpp
         ../src/util/MpvLocator.cpp
+        ../src/util/SevenZip.cpp
         ../src/AppCore.cpp
         ../src/util/LegacyNames.cpp)
     target_include_directories(arcade_test PRIVATE ../src ${Libdrm_INCLUDE_DIRS})
     target_compile_definitions(arcade_test PRIVATE TESTS_DIR="${CMAKE_CURRENT_SOURCE_DIR}")
     target_link_libraries(arcade_test PRIVATE
-        Qt6::Core Qt6::Network Qt6::Qml Qt6::Test ${Libdrm_LIBRARIES})
+        Qt6::Core Qt6::Network Qt6::Qml Qt6::Test ${Libdrm_LIBRARIES} osdos_lzma)
     # FinalBurn Neo's download unpacks its core with minizip, where there is one.
     if(OPENHI2TXT_FOUND)
         target_compile_definitions(arcade_test PRIVATE OSDOS_MINIZIP=1)

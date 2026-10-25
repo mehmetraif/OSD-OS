@@ -127,8 +127,21 @@ FocusScope {
         function toggleOrder() {
             playlistsBackend.setOrder(pageRoot.playlistId, pageRoot.playlist.order === "shuffle" ? "inorder" : "shuffle")
         }
+        // Add Videos' page: select or ► on its line.
+        function addVideos() {
+            pageRoot.navigateTo("AddVideos.qml", { playlistId: pageRoot.playlistId,
+                                                   playlistName: pageRoot.playlist.name,
+                                                   kind: pageRoot.playlist.kind },
+                                { currentIndex: list.currentIndex })
+        }
         Keys.onLeftPressed: { if (pageRoot.currentRow && pageRoot.currentRow.type === "order") toggleOrder() }
-        Keys.onRightPressed: { if (pageRoot.currentRow && pageRoot.currentRow.type === "order") toggleOrder() }
+        Keys.onRightPressed: {
+            var row = pageRoot.currentRow
+            if (row && row.type === "order")
+                toggleOrder()
+            else if (row && row.type === "add")
+                addVideos()
+        }
         Keys.onReturnPressed: {
             var row = pageRoot.currentRow
             if (!row)
@@ -141,10 +154,7 @@ FocusScope {
                 toggleOrder()
                 break
             case "add":
-                pageRoot.navigateTo("AddVideos.qml", { playlistId: pageRoot.playlistId,
-                                                       playlistName: pageRoot.playlist.name,
-                                                       kind: pageRoot.playlist.kind },
-                                    { currentIndex: list.currentIndex })
+                addVideos()
                 break
             case "rename":
                 osk.open(pageRoot.playlist.name || "")
@@ -168,6 +178,8 @@ FocusScope {
             }
         }
 
+        // The order, which ◄ ► switch, between ◄ and ►; Add Videos, a page,
+        // ending in ►.
         delegate: MenuRow {
             width: list.width
             height: root.sh * 0.0583333 //28
@@ -176,6 +188,8 @@ FocusScope {
             keepValue: modelData.type === "item"
             label: modelData.label || ""
             value: modelData.type === "item" ? pageRoot.itemValue(modelData.item) : (modelData.value || "")
+            opens: modelData.type === "add"
+            changes: modelData.type === "order"
             selected: list.currentIndex === index
         }
     }

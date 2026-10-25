@@ -318,6 +318,7 @@ FocusScope {
             message: itemsRoot.pendingScript ? itemsRoot.pendingScript.name : ""
             choices: confirmOverlay.choices
             currentIndex: confirmOverlay.choiceIndex
+            onHovered: function(index) { confirmOverlay.choiceIndex = index }
         }
     }
 

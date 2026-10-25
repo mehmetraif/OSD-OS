@@ -235,12 +235,14 @@ FocusScope {
             }
         }
 
-        // Lines read like a camcorder's menu: "SPEED······1X".
+        // Lines read like a camcorder's menu, a setting's value between the ◄
+        // and ► that change it: "SPEED······◄ 1X ►".
         delegate: MenuRow {
             width: list.width
             height: root.sh * 0.0583333 //28
             label: modelData.label || ""
             value: modelData.type === "action" ? "" : menuRoot.displayValue(modelData)
+            changes: modelData.type !== "action"
             selected: list.currentIndex === index
         }
     }

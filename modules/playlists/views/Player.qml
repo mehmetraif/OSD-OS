@@ -352,5 +352,6 @@ FocusScope {
         message: playerRoot.playlist.name || ""
         choices: playerRoot.choices
         currentIndex: choiceIndex
+        onHovered: function(index) { choiceIndex = index }
     }
 }

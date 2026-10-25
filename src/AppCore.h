@@ -114,6 +114,12 @@ public:
     // others), its paragraphs each on one line so a view wraps them to its
     // width; "" when the file is missing or isn't the app's.
     Q_INVOKABLE QString licenseText(const QString &file = QString()) const;
+    // What to do about a program OSD/OS can't find, on this system, for a
+    // view to put under its "… is not installed" (util/InstallHint.h): "On
+    // Raspberry Pi OS: sudo apt install mame". The program by name: "mame",
+    // "retroarch", "yt-dlp", "mpv", "browser" (the web player's) or "cage"
+    // (its screen without a desktop); "" where there is nothing to say.
+    Q_INVOKABLE QString installHint(const QString &program) const;
     Q_INVOKABLE QString startupModuleEntryPoint() const;
     // The QML entry point of an enabled module ("modules/<folder>/<entry>"),
     // as startupModuleEntryPoint() gives the startup module's; "" for an

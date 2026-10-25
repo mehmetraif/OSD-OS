@@ -141,10 +141,11 @@ FocusScope {
                                  .map(function(p) { return "P" + p.player })
             items.push({ type: "controller", key: c.key,
                          label: c.name + (c.count > 1 ? " x" + c.count : ""),
-                         value: (playing.length > 0 ? playing.join("+") + " " : "")
-                                + kindTitle(c.kind) + (c.key === active ? " ◄" : ""),
+                         value: (playing.length > 0 ? playing.join("+") + " " : "") + kindTitle(c.kind),
+                         // Marked with a ● on its line.
+                         last: c.key === active,
                          description: "Its own buttons" + (c.kind === "gamepad" || c.kind === "arcade" ? " and labels" : "")
-                                      + ". ◄ marks the one used last: press a button on a controller to find it" })
+                                      + ". A dot marks the one used last: press a button on a controller to find it" })
         }
         if (away.length > 0) {
             items.push({ type: "section", label: "Not Connected" })
@@ -182,6 +183,12 @@ FocusScope {
                 return i
         }
         return 0
+    }
+
+    // A line that leads to a page: the shared keys', a controller's. ► opens
+    // it too, and its line ends in a ►.
+    function opens(row) {
+        return !!row && (row.type === "shared" || row.type === "controller")
     }
 
     function activate(row) {
@@ -240,6 +247,8 @@ FocusScope {
             var row = controllersRoot.rows[currentIndex]
             if (row && row.type === "player")
                 controllersRoot.cyclePlayer(row, 1)
+            else if (controllersRoot.opens(row))
+                controllersRoot.activate(row)
         }
         Keys.onReturnPressed: controllersRoot.activate(controllersRoot.rows[currentIndex])
         Keys.onEnterPressed: controllersRoot.activate(controllersRoot.rows[currentIndex])
@@ -250,14 +259,18 @@ FocusScope {
             }
         }
 
-        // Lines read like a camcorder's menu: "8BITDO PRO 2······GAMEPAD", and
-        // the groups' headings like Settings': "CONNECTED ─────".
+        // Lines read like a camcorder's menu: "8BITDO PRO 2······GAMEPAD ►",
+        // the one used last with a ● before the ►, a player's pad between ◄
+        // and ►, and the groups' headings like Settings': "CONNECTED ─────".
         delegate: MenuRow {
             width: list.width
             height: root.sh * 0.0583333 //28
             heading: modelData.type === "section"
             label: modelData.label || ""
             value: modelData.value || ""
+            icons: modelData.last ? ["rec"] : []
+            opens: controllersRoot.opens(modelData)
+            changes: modelData.type === "player"
             // A long name is cut short, not what it is; a player's pad, the
             // other way round.
             keepValue: modelData.type === "controller"

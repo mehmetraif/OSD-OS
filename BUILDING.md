@@ -346,7 +346,7 @@ copy build\*.dll install\bin\
 copy C:\vcpkg\installed\x64-windows\bin\libssl*.dll install\bin\
 ```
 
-(`6.8.3` stands for the Qt version installed.) vcpkg puts the libraries the app links beside the built binary (SDL2, OpenSSL's libcrypto, minizip, zlib); `windeployqt` adds Qt's libraries, plugins and QML modules; libssl is what Qt's TLS plugin opens at run time. The install's layout is the Linux one, `bin\` and `share\osdos\`, which the app finds from its own folder.
+(`6.8.3` stands for the Qt version installed.) vcpkg puts the libraries the app links beside the built binary (SDL2, OpenSSL's libcrypto, minizip, zlib); `windeployqt` adds Qt's libraries, plugins and QML modules; libssl is what Qt's TLS plugin opens at run time. The install's layout is the Linux one, `bin\` and `share\osdos\`, which the app finds from its own folder. The LZMA SDK's 7z decoder (`thirdparty/lzma`, public domain) is built in on every system (`cmake/lzma.cmake`, the static library `osdos_lzma`), for the RetroArch for Windows that Settings → Arcade → FinalBurn Neo downloads as a 7z archive; it needs no package.
 
 ### Run
 

@@ -53,6 +53,7 @@ FocusScope {
         message: (promptRoot.prompt && promptRoot.prompt.name) || ""
         choices: promptRoot.kind === "confirm" ? ["Yes", "No"] : []
         currentIndex: promptRoot.choiceIndex
+        onHovered: function(index) { promptRoot.choiceIndex = index }
         hint: promptRoot.kind === "confirm"
               ? root.hints.back + ":CANCEL " + root.hints.navigate + ":NAVIGATE " + root.hints.select + ":SELECT"
               : root.hints.back + ":CANCEL"

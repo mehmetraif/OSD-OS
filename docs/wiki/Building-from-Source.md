@@ -185,7 +185,7 @@ copy C:\vcpkg\installed\x64-windows\bin\libssl*.dll install\bin\
 install\bin\osdos.exe
 ```
 
-vcpkg puts the libraries the app links beside the built binary (SDL2, OpenSSL's libcrypto, minizip, zlib), `windeployqt` adds Qt's libraries, plugins and QML modules, and libssl is what Qt's TLS plugin opens at run time. The install is laid out as on Linux, `bin\` and `share\osdos\`, which the app finds from its own folder; the data folder is `%APPDATA%\OSD-OS\`. The build is a console program for now: a console window opens with the app and shows its log. More in [BUILDING.md → Windows (x64)](https://github.com/mehmetraif/OSD-OS/blob/main/BUILDING.md#windows-x64).
+vcpkg puts the libraries the app links beside the built binary (SDL2, OpenSSL's libcrypto, minizip, zlib), `windeployqt` adds Qt's libraries, plugins and QML modules, and libssl is what Qt's TLS plugin opens at run time. The install is laid out as on Linux, `bin\` and `share\osdos\`, which the app finds from its own folder; the data folder is `%APPDATA%\OSD-OS\`. The LZMA SDK's 7z decoder (`thirdparty/lzma`, public domain) is built into the app on every system, for the RetroArch for Windows that Settings → Arcade → FinalBurn Neo downloads as a 7z archive: no package is needed for it. The build is a console program for now: a console window opens with the app and shows its log. More in [BUILDING.md → Windows (x64)](https://github.com/mehmetraif/OSD-OS/blob/main/BUILDING.md#windows-x64).
 
 ## FreeBSD and OpenBSD (amd64)
 

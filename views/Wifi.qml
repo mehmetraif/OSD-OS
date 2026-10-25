@@ -493,6 +493,7 @@ FocusScope {
             message: "The country the Pi is used in: Wi-Fi keeps to its rules"
             choices: countries.entries.map(function(c) { return { label: c.name, action: c.code } })
             currentIndex: countries.index
+            onHovered: function(index) { countries.index = index }
             hint: root.hints.back + ":BACK " + root.hints.navigate + ":NAVIGATE " + root.hints.change + ":LETTER "
                   + root.hints.select + ":SELECT"
         }

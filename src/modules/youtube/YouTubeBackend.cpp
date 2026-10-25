@@ -3,6 +3,7 @@
 #include "../../AppCore.h"
 #include "../web_player/WebPlayerBackend.h"
 #include "../../util/AtomicFile.h"
+#include "../../util/InstallHint.h"
 #include "../../util/YtDlpLocator.h"
 
 #include <QDateTime>
@@ -32,7 +33,10 @@ static const char *kPlaylistsProblem     = "Could not load the playlists: check 
                                            " and that yt-dlp is installed";
 static const char *kSearchProblem        = "Could not search YouTube: check the network,"
                                            " and that yt-dlp is up to date";
-static const char *kNoYtDlpProblem       = "Searching needs yt-dlp, which is not installed";
+// With how to put yt-dlp on, for this system (util/InstallHint.h).
+static QString noYtDlpProblem() {
+    return QStringLiteral("Searching needs yt-dlp, which is not installed. ") + installhint::forProgram(QStringLiteral("yt-dlp"));
+}
 
 static QString watchUrlFor(const QString &videoId) {
     return QStringLiteral("https://www.youtube.com/watch?v=") + videoId;
@@ -988,8 +992,8 @@ QVariant YouTubeBackend::searchListing(const QString &path) {
         return entries;
     }
     if (QDateTime::currentMSecsSinceEpoch() - search.failedMs < kRetryAfterMs) {
-        setProblem(QString::fromLatin1(ytdlp::locate(m_dataRoot).isEmpty() ? kNoYtDlpProblem
-                                                                           : kSearchProblem));
+        setProblem(ytdlp::locate(m_dataRoot).isEmpty() ? noYtDlpProblem()
+                                                       : QString::fromLatin1(kSearchProblem));
         return QVariantList();
     }
     searchPage(path);
@@ -1009,7 +1013,7 @@ void YouTubeBackend::searchPage(const QString &path) {
     const QString bin = ytdlp::locate(m_dataRoot);
     if (bin.isEmpty()) {
         search.failedMs = QDateTime::currentMSecsSinceEpoch();
-        setProblem(QString::fromLatin1(kNoYtDlpProblem));
+        setProblem(noYtDlpProblem());
         answerLater({ path });
         return;
     }

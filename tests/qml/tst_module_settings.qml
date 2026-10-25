@@ -68,10 +68,20 @@ Rectangle {
         function get_module_settings_schema(id) { return id === "com.osdos.other" ? otherSchema : schema }
     }
 
+    // The pages the view opens (navigateTo), as the router would.
+    property var navigations: []
+
     Loader {
         id: loader
         anchors.fill: parent
         focus: true
+    }
+    Connections {
+        target: loader.item
+        ignoreUnknownSignals: true
+        function onNavigateTo(path, params, listState) {
+            root.navigations = root.navigations.concat([{ path: path, params: params }])
+        }
     }
 
     TestCase {
@@ -97,6 +107,7 @@ Rectangle {
             appCore.otherValues = {}
             appCore.otherSchema = []
             appCore.saveFails = false
+            root.navigations = []
         }
         function cleanup() {
             loader.source = ""
@@ -135,6 +146,66 @@ Rectangle {
                     return list.currentIndex
             }
             return -1
+        }
+        // The MenuRow drawn for the line at index: the list's delegate, or
+        // the one in it (a slider's line has its bar beside it).
+        function menuRow(item, index) {
+            if (item.itemAtIndex !== undefined) {
+                var d = item.itemAtIndex(index)
+                if (!d)
+                    return null
+                if (d.opens !== undefined)
+                    return d
+                for (var j = 0; j < d.children.length; j++) {
+                    if (d.children[j].opens !== undefined)
+                        return d.children[j]
+                }
+                return null
+            }
+            for (var i = 0; i < item.children.length; i++) {
+                var found = menuRow(item.children[i], index)
+                if (found)
+                    return found
+            }
+            return null
+        }
+
+        // A toggle's and a list's value stand between the ◄ and ► that
+        // change them; a submenu's line ends in a ►, and ► opens it as select
+        // does; a slider's line has neither (its bar has the arrows).
+        function test_marks() {
+            appCore.values = { screen: "Arcade" }
+            appCore.schema = arcadeRows.concat([
+                { key: "solidity", label: "Info Background", type: "slider", default: 60 }
+            ])
+            var page = open()
+            compare(keys(page), ["enabled", "screen", "start_filter", "look", "video", "solidity"])
+            var enabled = menuRow(page, 0)
+            verify(enabled.changes)
+            verify(!enabled.opens)
+            verify(menuRow(page, 1).changes)
+            var look = menuRow(page, 3)
+            verify(look.opens)
+            verify(!look.changes)
+            var slider = menuRow(page, 5)
+            verify(!slider.changes)
+            verify(!slider.opens)
+            keyClick(Qt.Key_Down)
+            keyClick(Qt.Key_Down)
+            keyClick(Qt.Key_Down)
+            compare(cursor(page), "look")
+            keyClick(Qt.Key_Right)
+            compare(root.navigations.length, 1)
+            compare(root.navigations[0].path, "views/ModuleSettings.qml")
+            compare(root.navigations[0].params.submenu, "look")
+            // ► on the toggle flips it, opening nothing.
+            keyClick(Qt.Key_Up)
+            keyClick(Qt.Key_Up)
+            keyClick(Qt.Key_Up)
+            compare(cursor(page), "enabled")
+            keyClick(Qt.Key_Right)
+            compare(appCore.values.enabled, true)
+            compare(root.navigations.length, 1)
         }
 
         // A group's page: the other module's rows after the test's, under its

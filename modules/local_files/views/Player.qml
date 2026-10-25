@@ -479,6 +479,7 @@ FocusScope {
         message: itemTitle.replace(/\.[^.\/]+$/, "")
         choices: playerRoot.choices
         currentIndex: choiceIndex
+        onHovered: function(index) { choiceIndex = index }
     }
 
     function isPlaylist(path) {

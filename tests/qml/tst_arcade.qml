@@ -1,5 +1,6 @@
 import QtQuick
 import QtTest
+import "../../views/Components/Hover.js" as Hover
 
 // The Arcade module's views, modules/arcade/views/Games.qml (the original
 // screen), ArcadeScreen.qml and Play.qml, against a stand-in for
@@ -204,6 +205,11 @@ Rectangle {
         property bool fbneoDownloading: false
         property int fbneoProgress: 0
         property string fbneoMessage: ""
+        // RetroArch's own download, on Windows.
+        property bool retroarchDownloading: false
+        property int retroarchProgress: 0
+        property string retroarchMessage: ""
+        property int retroarchDownloads: 0
         // fbneo's own change signal stands for the backend's fbneoChanged().
         property int downloads: 0
         function fbneoInfo() { return fbneo }
@@ -222,6 +228,9 @@ Rectangle {
         }
         function fbneoLicenseText() { return "You may freely use, modify, and distribute FB Neo." }
         function downloadFbneo() { downloads++; fbneoDownloading = true; fbneoProgress = 40; fbneoChanged() }
+        function downloadRetroArch() {
+            retroarchDownloads++; retroarchDownloading = true; retroarchProgress = 35; fbneoChanged()
+        }
         property string achievementsUser: ""
         property string achievementsState: "none"
         property string achievementsMessage: ""
@@ -385,6 +394,8 @@ Rectangle {
             return true
         }
         function is_module_enabled(id) { return false }
+        // How to put a program on, for the system (util/InstallHint.h).
+        function installHint(program) { return "On Test OS: install " + program }
     }
 
     Loader {
@@ -442,11 +453,16 @@ Rectangle {
             arcadeBackend.engines = {}
             arcadeBackend.engineChoicesMade = []
             arcadeBackend.fbneo = { retroarch: "/usr/bin/retroarch", core: "", coreDate: "", downloaded: false,
-                                    games: 0, license: "", canDownload: true }
+                                    games: 0, license: "", canDownload: true, canDownloadRetroarch: false,
+                                    retroarchDownloaded: false }
             arcadeBackend.fbneoDownloading = false
             arcadeBackend.fbneoProgress = 0
             arcadeBackend.fbneoMessage = ""
             arcadeBackend.downloads = 0
+            arcadeBackend.retroarchDownloading = false
+            arcadeBackend.retroarchProgress = 0
+            arcadeBackend.retroarchMessage = ""
+            arcadeBackend.retroarchDownloads = 0
             arcadeBackend.achievementsUser = ""
             arcadeBackend.achievementsState = "none"
             arcadeBackend.achievementsMessage = ""
@@ -553,26 +569,38 @@ Rectangle {
             compare(nav.listState.trail[nav.listState.trail.length - 1].path, "all")
         }
 
-        // What stands in the way comes first in the line under the tree.
+        // What stands in the way comes first in the line under the tree,
+        // with how to put MAME on for this system, on both screens.
         function test_problem() {
             arcadeBackend.problem = "MAME is not installed"
             var games = open("Games.qml")
-            verify(findText(games, "MAME is not installed") !== null)
+            verify(findText(games, "MAME is not installed. On Test OS: install mame") !== null)
+            loader.source = ""
+            var screen = openScreen()
+            verify(findText(screen, "MAME is not installed. On Test OS: install mame") !== null)
+            loader.source = ""
+            arcadeBackend.problem = "MAME could not list the games"
+            games = open("Games.qml")
+            verify(findText(games, "MAME could not list the games", true) !== null)
         }
 
         // An empty folder says where the games go; what stands in the way of
-        // the list comes first, and a folder that can't be read is all.
+        // the list comes first (how to put MAME on under it), and a folder
+        // that can't be read is all.
         function test_empty() {
             arcadeBackend.entries = { "top": [] }
             var games = open("Games.qml")
             tryVerify(function() { return findText(games, "No games found") !== null })
             verify(findText(games, "Put MAME's ROM sets") !== null)
+            compare(findText(games, "On Test OS"), null)
             arcadeBackend.problem = "MAME is not installed"
-            verify(findText(games, "MAME is not installed") !== null)
+            verify(findText(games, "MAME is not installed", true) !== null)
+            verify(findText(games, "On Test OS: install mame", true) !== null)
             verify(findText(games, "Put MAME's ROM sets") !== null)
             arcadeBackend.problem = "The games folder can't be read: /media/usb/MAME"
             arcadeBackend.folderReadable = false
             verify(findText(games, "The games folder can't be read") !== null)
+            compare(findText(games, "On Test OS"), null)
             compare(findText(games, "Put MAME's ROM sets"), null)
         }
 
@@ -667,15 +695,26 @@ Rectangle {
             compare(root.backs, 1)
         }
 
-        // One that never started, and how to put MAME on.
+        // One that never started, and how to put MAME, or RetroArch, on for
+        // this system; nothing under another reason.
         function test_error() {
             arcadeBackend.playResult = false
             arcadeBackend.error = "MAME is not installed"
             var play = open("Play.qml", { game: "galaga", title: "Galaga" })
             tryCompare(play, "phase", "error")
-            verify(findText(play, "sudo apt install mame") !== null)
+            verify(findText(play, "On Test OS: install mame", true) !== null)
             keyClick(Qt.Key_Escape)
             compare(root.backs, 1)
+            loader.source = ""
+            arcadeBackend.error = "RetroArch is not installed"
+            play = open("Play.qml", { game: "sf2", title: "Street Fighter II" })
+            tryCompare(play, "phase", "error")
+            verify(findText(play, "On Test OS: install retroarch", true) !== null)
+            loader.source = ""
+            arcadeBackend.error = "A game is still running"
+            play = open("Play.qml", { game: "sf2", title: "Street Fighter II" })
+            tryCompare(play, "phase", "error")
+            compare(findText(play, "On Test OS"), null)
         }
 
         // Back before MAME starts starts nothing.
@@ -772,6 +811,55 @@ Rectangle {
             compare(screen.filterId, "players/6")
         }
 
+        // The mouse over a row chooses its game, as ▲ ▼ do (Main.qml's
+        // pointer, through Hover.js): on the arc, and on the wheel, where
+        // the game comes to the row and the wheel stays; between the rows,
+        // over the bar, under the options or while the screen is adjusted,
+        // nothing changes.
+        function test_screenHover() {
+            var screen = openScreen()
+            var rowOf = function(number) { return findText(screen, number).parent }
+            var middle = function(item) { return item.mapToItem(root, item.width / 2, item.height / 2) }
+            var hover = function(p) { Hover.follow(root, root.Window.activeFocusItem, p.x, p.y) }
+            hover(middle(rowOf("003")))
+            compare(screen.selected, 2)
+            compare(screen.currentSet, "avsp")
+            verify(screen.browsed)
+            hover(middle(rowOf("003")))
+            compare(screen.selected, 2)
+            var two = rowOf("002"), three = rowOf("003")
+            hover(two.mapToItem(root, two.width / 2, two.height + (three.y - two.y - two.height) / 2))
+            compare(screen.selected, 2)
+            hover(middle(findText(screen, "All Games")))
+            compare(screen.selected, 2)
+            // The options over the list: their answers follow the mouse, the
+            // list doesn't.
+            keyPress(Qt.Key_Return)
+            tryVerify(function() { return findText(screen, "Game Details", true) !== null }, 1500)
+            keyRelease(Qt.Key_Return)
+            hover(middle(rowOf("001")))
+            compare(screen.selected, 2)
+            var details = findText(screen, "Game Details", true)
+            hover(middle(details))
+            compare(details.color, root.surfaceColor)
+            keyClick(Qt.Key_Escape)
+            // Adjusting the screen.
+            loader.source = ""
+            screen = openScreen({ adjust: true })
+            hover(middle(rowOf("003")))
+            compare(screen.selected, 0)
+            // The wheel.
+            loader.source = ""
+            moduleRoot.listStyle = "3D Curved"
+            screen = openScreen()
+            compare(screen.selectedRow, 4)
+            var top = screen.wheelTop
+            hover(middle(rowOf("003")))
+            compare(screen.currentSet, "avsp")
+            compare(screen.selectedRow, 6)
+            compare(screen.wheelTop, top)
+        }
+
         // COIN (MAME's 5, which a pad's Back button is here: takesCoin) buys
         // a credit, nine at most, and doesn't leave; START plays the game,
         // from where the list is; back leaves.
@@ -861,6 +949,46 @@ Rectangle {
             verify(findText(page, "Download Again") !== null)
             compare(page.keys, ["retroarch", "core", "games", "download"])
             compare(findText(page, "freely use, modify"), null)
+
+            // On Windows without RetroArch: Download RetroArch under
+            // RetroArch's line, select starting it and the line saying how
+            // far it is, or why it failed; once it is in, the line says
+            // Downloaded and offers it again; one found elsewhere has no
+            // line for it.
+            var keysAre = function(keys) { return JSON.stringify(page.keys) === JSON.stringify(keys) }
+            arcadeBackend.fbneo = { retroarch: "", core: "", coreDate: "", downloaded: false, games: 0, license: "",
+                                    canDownload: true, canDownloadRetroarch: true, retroarchDownloaded: false }
+            arcadeBackend.fbneoChanged()
+            tryVerify(function() { return keysAre(["retroarch", "retroarch_download", "core", "games", "download"]) }, 1000)
+            verify(findText(page, "Download RetroArch") !== null)
+            // The cursor stayed on Download: up to the new line.
+            keyClick(Qt.Key_Up)
+            keyClick(Qt.Key_Up)
+            keyClick(Qt.Key_Up)
+            keyClick(Qt.Key_Return)
+            compare(arcadeBackend.retroarchDownloads, 1)
+            tryVerify(function() { return findText(page, "35%") !== null }, 1000)
+            keyClick(Qt.Key_Return)
+            compare(arcadeBackend.retroarchDownloads, 1)
+            arcadeBackend.retroarchDownloading = false
+            arcadeBackend.retroarchMessage = "127.0.0.1 answered 404"
+            arcadeBackend.fbneoChanged()
+            tryVerify(function() { return findText(page, "Failed") !== null }, 1000)
+            verify(findText(page, "answered 404") !== null)
+            arcadeBackend.retroarchMessage = ""
+            arcadeBackend.fbneo = { retroarch: "C:/Users/me/AppData/Roaming/OSD-OS/arcade/retroarch/RetroArch-Win64/retroarch.exe",
+                                    core: "", coreDate: "", downloaded: false, games: 0, license: "",
+                                    canDownload: true, canDownloadRetroarch: true, retroarchDownloaded: true }
+            arcadeBackend.fbneoChanged()
+            tryVerify(function() { return findText(page, "Download RetroArch Again") !== null }, 1000)
+            verify(findText(page, "Downloaded") !== null)
+            arcadeBackend.fbneo = { retroarch: "C:/RetroArch-Win64/retroarch.exe", core: "", coreDate: "", downloaded: false,
+                                    games: 0, license: "", canDownload: true, canDownloadRetroarch: true,
+                                    retroarchDownloaded: false }
+            arcadeBackend.fbneoChanged()
+            tryVerify(function() { return keysAre(["retroarch", "core", "games", "download"]) }, 1000)
+            verify(findText(page, "Installed") !== null)
+
             compare(root.backs, 0)
             keyClick(Qt.Key_Escape)
             compare(root.backs, 1)
@@ -2638,7 +2766,7 @@ Rectangle {
             var play = open("Play.qml", { game: "galaga", title: "Galaga", error: "MAME is not installed" })
             compare(play.phase, "error")
             verify(findText(play, "Could not play Galaga") !== null)
-            verify(findText(play, "sudo apt install mame") !== null)
+            verify(findText(play, "On Test OS: install mame", true) !== null)
             compare(findText(play, "Press COIN + START together"), null)
             loader.source = ""
             play = open("Play.qml", { game: "mslug", title: "Metal Slug", failed: true,
@@ -2772,7 +2900,7 @@ Rectangle {
             tryVerify(function() { return shown(router).phase === "error" })
             play = shown(router)
             compare(router.playing, null)
-            verify(findText(play, "sudo apt install mame") !== null)
+            verify(findText(play, "On Test OS: install mame", true) !== null)
             // On Recently Played: the game MAME started, not the one it
             // couldn't.
             compare(appCore.added, [["com.osdos.arcade", "recent", "game:1942"]])

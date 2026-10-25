@@ -171,6 +171,28 @@ Rectangle {
             compare(root.navigations.length, 1)
         }
 
+        // A line that leads to a page, or holds a licence, ends in a ►, and ►
+        // opens it as select does; a line read and nothing more has none.
+        function test_rightOpens() {
+            var page = open()
+            var list = childOf(childOf(childOf(page, "shownTop"), "topCut"), "highlightMoveDuration")
+            verify(list.itemAtIndex(0).opens)       // System Information
+            verify(!list.itemAtIndex(1).opens)      // Build
+            verify(!list.itemAtIndex(0).changes)
+            keyClick(Qt.Key_Right)
+            compare(root.navigations.length, 1)
+            compare(root.navigations[0].path, "views/SystemInfo.qml")
+            keyClick(Qt.Key_Down)
+            keyClick(Qt.Key_Right)
+            compare(root.navigations.length, 1)
+            downTo(page, "License")
+            verify(list.itemAtIndex(list.currentIndex).opens)
+            keyClick(Qt.Key_Right)
+            tryVerify(function() { return findText(page, "This program is free software") !== null }, 1000)
+            keyClick(Qt.Key_Escape)
+            compare(findText(page, "This program is free software"), null)
+        }
+
         // Back from System Information, on its line again, wherever the list
         // was; a new name on its line in place, the cursor where it is.
         function test_backFromSystemInfo() {
@@ -210,8 +232,8 @@ Rectangle {
             var at = labels.indexOf("# Arcade")
             verify(at > labels.indexOf("Data"))
             compare(labels.slice(at + 1), ["MAME", "RetroArch", "FinalBurn Neo", "openhi2txt", "hi2txt", "RapidXML",
-                                           "minizip, zlib", "RetroAchievements", "Online Play", "progetto-SNAPS",
-                                           "ArcadeDB"])
+                                           "minizip, zlib", "LZMA SDK", "RetroAchievements", "Online Play",
+                                           "progetto-SNAPS", "ArcadeDB"])
             downTo(page, "Data")
             keyClick(Qt.Key_Down)
             compare(cursor(page), "MAME")

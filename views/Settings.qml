@@ -825,25 +825,16 @@ FocusScope {
                 settingsRoot.themeChosen()
         }
 
-        Keys.onLeftPressed: {
-            var row = settingsItems[currentIndex]
-            if (row && row.type === "slider")
-                moveSlider(-1)
-            else if (row && row.type === "list_single")
-                cycleList(-1)
+        // A line select leads on from, to another screen: a page's, Display
+        // Output's list, a file's picker, Quit's question. ► opens it too,
+        // and its line ends in a ►.
+        function opens(row) {
+            return !!row && (row.type === "submenu" || row.type === "display_output"
+                             || row.type === "file" || row.type === "quit")
         }
 
-        Keys.onRightPressed: {
-            var row = settingsItems[currentIndex]
-            if (row && row.type === "slider")
-                moveSlider(1)
-            else if (row && row.type === "list_single")
-                cycleList(1)
-        }
-
-        Keys.onReturnPressed: {
-            var row = settingsItems[currentIndex]
-            if (row && row.type === "submenu") {
+        function openRow(row) {
+            if (row.type === "submenu") {
                 if (row.key === "software_update")
                     settingsRoot.navigateTo("views/Update.qml", {}, { currentIndex: settingsList.currentIndex })
                 else if (row.key === "remap_controls")
@@ -859,19 +850,43 @@ FocusScope {
                 else
                     settingsRoot.navigateTo("views/ModuleSettings.qml", { moduleId: row.moduleId, alsoModules: row.alsoModules || [] },
                                             { currentIndex: settingsList.currentIndex })
-            } else if (row && row.type === "display_output") {
+            } else if (row.type === "display_output") {
                 settingsRoot.openOutputs()
-            } else if (row && row.type === "file") {
+            } else if (row.type === "file") {
                 // Picked on the file picker, which saves it and comes back.
                 settingsRoot.navigateTo("views/FilePicker.qml",
                                         Object.assign({ moduleId: row.moduleId, settingKey: row.key,
                                                         currentPath: row.path, label: row.label }, row.picker),
                                         { currentIndex: settingsList.currentIndex })
-            } else if (row && row.type === "quit") {
+            } else if (row.type === "quit") {
                 quitPrompt.open()
-            } else if (row && row.type === "slider" && row.on !== undefined) {
-                toggleSlider()
             }
+        }
+
+        Keys.onLeftPressed: {
+            var row = settingsItems[currentIndex]
+            if (row && row.type === "slider")
+                moveSlider(-1)
+            else if (row && row.type === "list_single")
+                cycleList(-1)
+        }
+
+        Keys.onRightPressed: {
+            var row = settingsItems[currentIndex]
+            if (row && row.type === "slider")
+                moveSlider(1)
+            else if (row && row.type === "list_single")
+                cycleList(1)
+            else if (opens(row))
+                openRow(row)
+        }
+
+        Keys.onReturnPressed: {
+            var row = settingsItems[currentIndex]
+            if (opens(row))
+                openRow(row)
+            else if (row && row.type === "slider" && row.on !== undefined)
+                toggleSlider()
         }
 
         Keys.onPressed: function(event) {
@@ -898,6 +913,8 @@ FocusScope {
 
             // A line laid out like a camcorder's menu, "DISPLAY······ON", or a
             // section's heading, as large as the lines under it: "MODULES ─────".
+            // A line that leads to a page ends in a ►; a list's choice, which
+            // ◄ ► change, stands between a ◄ and a ►.
             MenuRow {
                 width: parent.width
                 height: rowItem.lineHeight
@@ -907,12 +924,14 @@ FocusScope {
                        || rowItem.row.type === "file"
                        ? (rowItem.row.value || "")
                      : rowItem.slider && rowItem.row.on !== undefined ? (rowItem.row.on ? "On" : "Off") : ""
+                opens: settingsList.opens(rowItem.row)
+                changes: rowItem.row.type === "list_single"
                 selected: settingsList.currentIndex === index
             }
 
             // A slider's setting, as the deck's tape bar shows how far the
-            // tape is: ◄ ► move the ▼ between the two ends. Off, its lines
-            // stay, empty.
+            // tape is: ◄ ► move the ▼ between the two ends, and stand beyond
+            // them. Off, its lines stay, empty.
             Loader {
                 id: tape
                 active: rowItem.slider
@@ -921,6 +940,7 @@ FocusScope {
                 y: rowItem.lineHeight + Math.round((rowItem.barLines * rowItem.lineHeight - height) / 2)
                 width: parent.width - 2 * x
                 sourceComponent: OsdTapeBar {
+                    changes: true
                     fontSize: root.sh * 0.0333333 //16
                     value: rowItem.row.value / 100
                     startText: rowItem.row.startText

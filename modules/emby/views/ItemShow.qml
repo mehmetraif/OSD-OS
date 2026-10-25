@@ -83,6 +83,13 @@ FocusScope {
 
     focus: true
 
+    // The season under the mouse becomes the cursor's (Main.qml's
+    // followPointer()).
+    function hoverRow(index) {
+        seasonList.currentIndex = index
+        focusRow = 1
+    }
+
     Keys.onUpPressed: {
         if (focusRow === 0) {
             if (seasons.length === 0) return   // nothing to move focus into

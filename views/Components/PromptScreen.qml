@@ -7,8 +7,10 @@ import QtQuick
 // answers. However few lines it has, the bars stay where they are.
 //
 // It only draws: the host keeps its keys and the cursor (currentIndex), and
-// shows it (visible). Items declared inside it go under the message, above the
-// answers (BluetoothPrompt's code); they centre themselves across its width.
+// shows it (visible); it tells the host which answer the mouse is over
+// (hovered), for the cursor to follow. Items declared inside it go under the
+// message, above the answers (BluetoothPrompt's code); they centre themselves
+// across its width.
 //
 //     PromptScreen {
 //         visible: overlayVisible
@@ -16,6 +18,7 @@ import QtQuick
 //         message: itemTitle
 //         choices: ["Resume from 0:23", "Start from the beginning"]
 //         currentIndex: choiceIndex
+//         onHovered: function(index) { choiceIndex = index }
 //     }
 Item {
     id: prompt
@@ -30,6 +33,13 @@ Item {
     // The answers: labels, or maps with a label ({ label, action }).
     property var choices: []
     property int currentIndex: 0
+    // The answer the mouse is over (Main.qml's followPointer()): the host
+    // moves its cursor there (onHovered), as it does for ▲ ▼.
+    signal hovered(int index)
+    function hoverRow(index) {
+        if (index >= 0 && index < choices.length)
+            hovered(index)
+    }
     // More answers than this show a window of them that follows the cursor,
     // with ▲ / ▼ while some are hidden above or below it; one more with
     // Settings' Hint Bar off, in its room.

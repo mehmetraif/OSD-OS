@@ -5,8 +5,10 @@ import QtQuick
 // the value against the line's right end. Everything sits on the font's
 // character grid, one dot per cell, so the dots meet the value exactly. The
 // selected line is a solid bar with its text in the background colour. A line
-// without a value (a submenu) is just its label, and a heading over a group of
-// lines is its label with a rule on to the line's end.
+// that leads to another screen ends in a ► ("MODULES······►"), a line whose
+// value ◄ ► change on the line itself has it between the two ("SPEED····◄ 1X
+// ►"), a line with neither (an action) is just its label, and a heading over
+// a group of lines is its label with a rule on to the line's end.
 Item {
     id: menuRow
 
@@ -16,6 +18,13 @@ Item {
     property bool selected: false
     // A group's heading rather than a line: "MODULES ─────".
     property bool heading: false
+    // A line select leads on from, to another screen (a page, a list of
+    // choices): a ► at the line's end, after the icons, the dots run on to
+    // it. The views open such a line with ► too.
+    property bool opens: false
+    // A line whose value ◄ ► change on the line itself (a list's choice, a
+    // toggle): the value between a ◄ and a ►, the ► at the line's end.
+    property bool changes: false
     // A line whose value matters more than its label (a playlist's video and
     // where its download is): the label is cut short with "…" instead, two
     // dots before the value, so the value always shows whole.
@@ -43,11 +52,18 @@ Item {
     // icons. One too long for the line starts two dots after the label
     // instead, and is cut short there.
     readonly property int lineCells: Math.floor((width - 2 * pad) / cell)
-    readonly property int iconCells: icons.length > 0 ? Math.ceil(iconRow.width / cell - 0.01) + 1 : 0
+    // What stands at the line's end: the icons, then the ► of a line that
+    // opens or whose value changes. The icons keep a cell before them; a ►
+    // alone takes its own cell, against the value, as the ◄ does.
+    readonly property var endIcons: opens || changes ? icons.concat(["play"]) : icons
+    readonly property int iconCells: endIcons.length > 0
+                                     ? Math.ceil(iconRow.width / cell - 0.01) + (icons.length > 0 ? 1 : 0) : 0
     readonly property int endCell: lineCells - iconCells
-    readonly property bool hasEnd: value !== "" || icons.length > 0
+    readonly property bool hasEnd: value !== "" || endIcons.length > 0
     readonly property int valueCells: Math.ceil(valueText.implicitWidth / cell - 0.01)
-    readonly property int valueCell: Math.max(labelCells + 2, endCell - valueCells)
+    // The ◄ before a value that changes: the cell before the value's.
+    readonly property int leadCells: changes ? 1 : 0
+    readonly property int valueCell: Math.max(labelCells + 2 + leadCells, endCell - valueCells)
     // How far above the baseline the middle of a capital is: VCR OSD Mono's
     // capitals stand from 100 to 1500 of its 2048 units, and its hyphen sits
     // at their middle, 800.
@@ -71,7 +87,8 @@ Item {
         x: menuRow.pad
         anchors.verticalCenter: parent.verticalCenter
         width: menuRow.keepValue && menuRow.hasEnd
-               ? Math.min(implicitWidth, Math.max(1, menuRow.endCell - menuRow.valueCells - 2) * menuRow.cell)
+               ? Math.min(implicitWidth,
+                          Math.max(1, menuRow.endCell - menuRow.valueCells - menuRow.leadCells - 2) * menuRow.cell)
                : implicitWidth
         elide: Text.ElideRight
         textFormat: Text.PlainText
@@ -91,7 +108,7 @@ Item {
     Repeater {
         model: Math.max(0, menuRow.lineCells)
         Rectangle {
-            visible: menuRow.hasEnd && index >= menuRow.labelCells && index < menuRow.valueCell
+            visible: menuRow.hasEnd && index >= menuRow.labelCells && index < menuRow.valueCell - menuRow.leadCells
             x: Math.round(menuRow.pad + (index + 0.5) * menuRow.cell - width / 2)
             y: Math.round(labelText.y + labelText.baselineOffset - menuRow.capMiddle - height / 2)
             width: root.px
@@ -174,17 +191,29 @@ Item {
         }
     }
 
-    // The icons, against the line's end, their middles level with the
-    // capitals' as the dots are.
+    // The ◄ of a value that changes, at the start of the cell before the
+    // value's: the rest of the cell between it and the value, as much as lies
+    // between the value and the ► at the line's end, which the ► leaves at the
+    // start of its cell.
+    PixelIcon {
+        visible: menuRow.changes
+        name: "left"
+        color: menuRow.ink
+        x: Math.round(menuRow.pad + (menuRow.valueCell - 1) * menuRow.cell)
+        y: Math.round(labelText.y + labelText.baselineOffset - menuRow.capMiddle - height / 2)
+    }
+
+    // The icons, and the ► of a line that opens or changes, against the
+    // line's end, their middles level with the capitals' as the dots are.
     Row {
         id: iconRow
-        visible: menuRow.icons.length > 0
+        visible: menuRow.endIcons.length > 0
         x: Math.round(menuRow.pad + menuRow.lineCells * menuRow.cell - width)
         y: Math.round(labelText.y + labelText.baselineOffset - menuRow.capMiddle - height / 2)
         spacing: menuRow.cell
 
         Repeater {
-            model: menuRow.icons
+            model: menuRow.endIcons
             PixelIcon {
                 required property string modelData
                 name: modelData

@@ -8,7 +8,9 @@ import QtQuick
 // right, on a dotted line to a few of its own entries, and the folder under the
 // cursor branches once more, from each folder in it.
 //
-// Up/down move within the current folder, right (or select) opens a folder,
+// Up/down move within the current folder (the mouse's wheel too; the cursor's
+// row stays on the spine, so the pointer over a row doesn't move it, as it
+// does in a menu: Hover.js), right (or select) opens a folder,
 // left (or back) returns to its parent. Select on anything else is the host's
 // to handle (activated), right on it too (previewRequested with preview on,
 // for its info: the tree's last layer; optionsRequested otherwise), and so is

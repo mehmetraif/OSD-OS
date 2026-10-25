@@ -467,5 +467,6 @@ FocusScope {
             "Start from the beginning"
         ]
         currentIndex: choiceIndex
+        onHovered: function(index) { choiceIndex = index }
     }
 }

@@ -22,8 +22,8 @@ import "Rooms.js" as Rooms
 // each side of, which then holds as many games and lines as fit.
 //
 // ▲ ▼ choose a game, from page to page (the wheel a row at a time) and
-// round; ◄ ► go round the filters, keeping the game where the next filter
-// has it. COIN (MAME's 5, which a pad's Coin, its Back unless its Arcade
+// round, as does the mouse over one of the rows (hoverAt()); ◄ ► go round
+// the filters, keeping the game where the next filter has it. COIN (MAME's 5, which a pad's Coin, its Back unless its Arcade
 // Buttons say, is here: takesCoin) buys a credit; select, let go, or START (Space, a pad's Start,
 // or 1) plays the game with them (navigateTo Play.qml, which Root.qml plays
 // as Start Info Screen says); select held opens its options (Play, Game
@@ -72,6 +72,10 @@ FocusScope {
     // Context properties read null while the module's Loader tears this view
     // down, hence the guards.
     readonly property string problem: arcadeBackend ? arcadeBackend.problem : ""
+    // For the help line: with how to put MAME on, for this system
+    // (AppCore::installHint()), where that is what stands in the way.
+    readonly property string problemLine: problem === "MAME is not installed"
+                                          ? problem + ". " + appCore.installHint("mame") : problem
     readonly property bool folderReadable: arcadeBackend ? arcadeBackend.folderReadable : true
     readonly property bool scanning: arcadeBackend ? arcadeBackend.scanning : false
     readonly property string gamesFolder: arcadeBackend ? arcadeBackend.gamesFolder() : ""
@@ -491,6 +495,30 @@ FocusScope {
         selected = (selected + delta + count) % count
     }
 
+    // The row under the mouse becomes the game chosen (Main.qml's
+    // followPointer(); x, y in the screen's coordinates), while the list has
+    // the keys: not under the options or the engines, on Search's keys or
+    // while the screen is adjusted. On the wheel the game comes to that row,
+    // the wheel still, as ▲ ▼ bring one; its rows move a little as the game
+    // chosen changes (wheelLayout()), so only the middle half of a row
+    // counts there, where the pointer stays in the row it chose.
+    function hoverAt(x, y) {
+        if (typing || adjusting || options.visible || engines.visible)
+            return
+        for (var i = 0; i < gameRows.count; ++i) {
+            var row = gameRows.itemAt(i)
+            var inset = wheel ? row.height / 4 : 0
+            if (!row || !row.entry || x < row.x || x >= row.x + row.width
+                    || y < row.y + inset || y >= row.y + row.height - inset)
+                continue
+            if (row.entry.place !== selected) {
+                browsed = true
+                selected = row.entry.place
+            }
+            return
+        }
+    }
+
     // ◄ ►: the next filter, on the game where it has it; Search on its own
     // row, at the wheel's top, and on past it with the game ◄ ► came to it
     // with while the cursor is still on that row (passing).
@@ -829,6 +857,7 @@ FocusScope {
     }
 
     Repeater {
+        id: gameRows
         model: arcadeScreen.perPage
         Item {
             id: row
@@ -1367,7 +1396,7 @@ FocusScope {
         visible: (arcadeScreen.adjusting || arcadeScreen.filters.length > 0) && !options.visible
         width: Math.round(arcadeScreen.areaWidth * arcadeScreen.u) - (root.helpLine ? arcadeScreen.statusRoom : 0)
         text: arcadeScreen.adjusting ? "The frame's sides go to the screen's edges: ▲ ▼ ◄ ► move each, and the list holds as many games as fit"
-              : arcadeScreen.problem !== "" ? arcadeScreen.problem
+              : arcadeScreen.problem !== "" ? arcadeScreen.problemLine
               : arcadeScreen.scanning ? "Reading the games…"
               : arcadeScreen.details.unknown ? arcadeScreen.details.detail
               : arcadeScreen.about

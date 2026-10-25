@@ -10,11 +10,12 @@ Everything is done with a handful of actions:
 
 | Action | Keyboard | Gamepad | What it does |
 |---|---|---|---|
-| The arrows | ▲ ▼ ◄ ► | D-pad, left stick | ▲ ▼ move through a list. ◄ ► change a setting's value, and in a tree go up a level or open one |
+| The arrows | ▲ ▼ ◄ ► | D-pad, left stick | ▲ ▼ move through a list. ◄ ► change a setting's value (one shown between ◄ and ►), ► opens a row that ends in ►, and in a tree they go up a level or open one |
 | Select | Enter | A | Opens, plays, chooses |
 | Back | Esc, Backspace or Right Shift | B or Back | One step back. On the main menu it opens Settings |
 | ► on an entry | ► | D-pad right | A video's options, or its info screen |
 | Play/pause | Space | Start | Pauses a video; stops one playing behind the menus |
+| The mouse | Left click, right click, the wheel | | Over a menu the selection follows the pointer; a left click selects, a right click goes back, the wheel moves up and down |
 
 The bar at the foot of every screen (the hint bar) says which keys do what there, as `[ESC]:BACK [▲▼]:NAVIGATE [ENTER]:SELECT`, and switches to the gamepad's buttons once you press one. A ▲ above a list or a ▼ below it means there are more lines that way. A line too long for the screen scrolls through while the cursor is on it.
 
@@ -329,7 +330,7 @@ Both can go once the keys are second nature; the keys work as they always do.
 
 ## The mouse pointer
 
-A mouse, or a keyboard's touchpad, shows OSD/OS's own pointer, drawn in its pixels and colors, while it moves, and hides it again after a few seconds still. The menus still go by keys: the pointer shows where the mouse is, and a click isn't on what it is over. Without a desktop, as on the OSD/OS image, a left click is Select / OK and a right click Back, as an air-mouse remote's OK is a left click; with a desktop a click does nothing unless you have made a mouse button one of the actions in Settings → Controls → All Keyboards & Remotes ([Controls](https://github.com/mehmetraif/OSD-OS/wiki/Controls#the-mouse)).
+A mouse, or a keyboard's touchpad, shows OSD/OS's own pointer, drawn in its pixels and colors, while it moves, and hides it again after a few seconds still. The menus take the mouse as they take the keys: over a menu or the Arcade screen's list the selection follows the pointer, a left click is Select / OK, a right click Back and the wheel ▲ ▼, on the OSD/OS image and on a desktop alike (an air-mouse remote's OK is a left click). In a file tree the wheel moves the cursor, a row a notch, and a click opens what it is on; the on-screen keyboard still goes by the keys. A mouse button made one of the actions in Settings → Controls → All Keyboards & Remotes does that instead ([Controls](https://github.com/mehmetraif/OSD-OS/wiki/Controls#the-mouse)).
 
 | Setting | Values | Default | What it does | Config key |
 |---|---|---|---|---|
@@ -337,9 +338,9 @@ A mouse, or a keyboard's touchpad, shows OSD/OS's own pointer, drawn in its pixe
 
 ## Settings
 
-Back on the main menu opens Settings, laid out like a camcorder's menu: a line per setting, its value at the end (`COLOR SCHEME······VIDEO 1`). A release's version is in the title bar, and the IP address at its right.
+Back on the main menu opens Settings, laid out like a camcorder's menu: a line per setting, its value at the end between the arrows that change it (`COLOR SCHEME······◄ VIDEO 1 ►`), and a ► at the end of a line that leads somewhere (`TV / MOVIE······►`). A release's version is in the title bar, and the IP address at its right.
 
-- ▲ ▼ move, skipping the headings, round from the bottom to the top. ◄ ► change the value, saved at once. Select opens a line that leads somewhere (TV / Movie, Arcade, a module's settings, Wi-Fi, Bluetooth, Update, a file or folder picker) and turns a slider on or off. Back from a page returns to the line it was opened from.
+- ▲ ▼ move, skipping the headings, round from the bottom to the top. ◄ ► change the value, saved at once. Select, or ►, opens a line that ends in ► (TV / Movie, Arcade, a module's settings, Wi-Fi, Bluetooth, Update, a file or folder picker), and select turns a slider on or off. Back from a page returns to the line it was opened from.
 - **TV / Movie** opens the videos' page: Scaling, Transparent Background, Video Levels, Loading Effect, Loading Screen Colors, Channel Logo and Info Screen, then under **Modules** a line per video module (and Weather), for its settings, its **Enabled** row among them.
 - **Arcade** opens the Arcade module's settings, with the High Scores module's after them under its own heading.
 - **General Settings**: the look first, Theme, then its parts (Color Scheme, Skin, the effects, Transition, Menu Music), then OSD Background and Window Frame. Then startup (Start on Module, Play at Startup, Boot Screen Colors) and the screen (Hint Bar, Help Line, Screen Saver, Mouse Pointer).
@@ -407,6 +408,7 @@ Settings → **About** opens on the OSD/OS wordmark and **SMART TV FOR CRT**, th
 | hi2txt | How each game keeps its high score table, GPL v2. Select opens the license |
 | RapidXML | The XML reader openhi2txt is built with, Boost or MIT. Select opens the licenses |
 | minizip, zlib | What opens hi2txt's definitions and FinalBurn Neo's download, zlib License. Select opens the license |
+| LZMA SDK | What unpacks the RetroArch for Windows the FinalBurn Neo page downloads, public domain. Select opens its note |
 | RetroAchievements | Leaderboards and hardcore play, with your own account, and the games' pictures and the achievements' badges |
 | Online Play | libretro's lobby and relay servers |
 | progetto-SNAPS | The Snapshots and Titles packs and catver.ini, by AntoPISA, in the games folder or downloaded |

@@ -326,6 +326,18 @@ FocusScope {
         }
     }
 
+    // A line select leads on from, to a page of its own: a submenu's rows, a
+    // multi-select's choices, the module's own view, the folder picker. ►
+    // opens it too, and its line ends in a ►.
+    function opens(item) {
+        return !!item && (item.type === "submenu" || item.type === "multiselect_submenu"
+                          || item.type === "module_view" || item.type === "directory_browser")
+    }
+    // A line whose value ◄ ► change on it: between a ◄ and a ►.
+    function changes(item) {
+        return !!item && (item.type === "toggle" || item.type === "list_single")
+    }
+
     // Forward dynamicOptionsReady from appCore into our local cache
     Connections {
         target: appCore
@@ -373,19 +385,9 @@ FocusScope {
         model: schemaItems
         focus: true
 
-        Keys.onLeftPressed: {
-            moduleSettingsRoot.cycleValue(currentIndex, -1)
-        }
-        Keys.onRightPressed: {
-            moduleSettingsRoot.cycleValue(currentIndex, 1)
-        }
-
-        Keys.onReturnPressed: {
-            var item = schemaItems[currentIndex]
-            if (!item) return
-            if (item.type === "toggle") {
-                moduleSettingsRoot.cycleValue(currentIndex, 1)
-            } else if (item.type === "multiselect_submenu") {
+        // The page a line leads to (opens).
+        function openRow(item) {
+            if (item.type === "multiselect_submenu") {
                 var mid = moduleSettingsRoot.moduleOf(item)
                 moduleSettingsRoot.navigateTo("views/MultiSelectSettings.qml", {
                     moduleId: mid,
@@ -405,8 +407,6 @@ FocusScope {
                 moduleSettingsRoot.navigateTo(appCore.module_entry_point(moduleSettingsRoot.moduleOf(item)),
                                               item.params || {},
                                               { currentIndex: settingsList.currentIndex })
-            } else if (item.type === "action") {
-                appCore.invoke_module_action(moduleSettingsRoot.moduleOf(item), item.action_slot)
             } else if (item.type === "directory_browser") {
                 // Picked on the file picker's tree; "" is the module's own.
                 moduleSettingsRoot.navigateTo("views/FilePicker.qml", {
@@ -419,6 +419,28 @@ FocusScope {
             }
         }
 
+        Keys.onLeftPressed: {
+            moduleSettingsRoot.cycleValue(currentIndex, -1)
+        }
+        Keys.onRightPressed: {
+            var item = schemaItems[currentIndex]
+            if (moduleSettingsRoot.opens(item))
+                openRow(item)
+            else
+                moduleSettingsRoot.cycleValue(currentIndex, 1)
+        }
+
+        Keys.onReturnPressed: {
+            var item = schemaItems[currentIndex]
+            if (!item) return
+            if (item.type === "toggle")
+                moduleSettingsRoot.cycleValue(currentIndex, 1)
+            else if (moduleSettingsRoot.opens(item))
+                openRow(item)
+            else if (item.type === "action")
+                appCore.invoke_module_action(moduleSettingsRoot.moduleOf(item), item.action_slot)
+        }
+
         Keys.onPressed: function(event) {
             if (event.key === Qt.Key_Escape || event.key === Qt.Key_Backspace || event.key === Qt.Key_Back) {
                 moduleSettingsRoot.goBack()
@@ -427,10 +449,12 @@ FocusScope {
         }
 
         // Lines read like a camcorder's menu: "DISPLAY······ON", another
-        // module's under its name as a heading ("HIGH SCORES ─────"). A
-        // slider ("type": "slider") is its label, and the deck's tape bar in
-        // whole lines under it, as in Settings: ◄ ► move the ▼ between its
-        // ends ("start_text", "end_text"), a "step" at a time.
+        // module's under its name as a heading ("HIGH SCORES ─────"). A line
+        // that leads to a page ends in a ►; a toggle's or a list's value,
+        // which ◄ ► change, stands between a ◄ and a ►. A slider ("type":
+        // "slider") is its label, and the deck's tape bar in whole lines
+        // under it, as in Settings: ◄ ► move the ▼ between its ends
+        // ("start_text", "end_text"), a "step" at a time.
         delegate: Item {
             id: rowItem
             required property var modelData
@@ -448,6 +472,8 @@ FocusScope {
                 label: rowItem.modelData.label || ""
                 value: moduleSettingsRoot.hasValue(rowItem.modelData)
                     ? moduleSettingsRoot.currentDisplayValue(rowItem.modelData) : ""
+                opens: moduleSettingsRoot.opens(rowItem.modelData)
+                changes: moduleSettingsRoot.changes(rowItem.modelData)
                 selected: settingsList.currentIndex === rowItem.index
             }
             Loader {
@@ -457,6 +483,7 @@ FocusScope {
                 y: rowItem.lineHeight + Math.round((rowItem.barLines * rowItem.lineHeight - height) / 2)
                 width: parent.width - 2 * x
                 sourceComponent: OsdTapeBar {
+                    changes: true
                     fontSize: root.sh * 0.0333333 //16
                     value: moduleSettingsRoot.valueOf(rowItem.modelData) / 100
                     startText: rowItem.modelData.start_text || ""

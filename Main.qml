@@ -2,6 +2,7 @@ import QtQuick
 import QtQuick.Window
 import OSDOS.Video
 import Components
+import "views/Components/Hover.js" as Hover
 
 Window {
     id: root
@@ -1326,9 +1327,19 @@ Window {
     // again after Settings' MOUSE POINTER seconds without moving
     // (app.mouse_pointer: "off", "always" or seconds; 5 when unset). Moving
     // the mouse counts as being there, for the screen saver too. The menus
-    // themselves go by keys.
+    // take the mouse as they take the keys: the selection follows the
+    // pointer over a list (followPointer(), Hover.js), and InputManager makes
+    // a left click Select, a right click Back and the wheel ▲ ▼.
     property string pointerSetting: "5"
     property bool pointerShown: false
+
+    // The selection follows the mouse (Hover.js), given the pointer's place
+    // on the stage: the row under it becomes the current one of the list the
+    // keys go to, as the keys would make it.
+    function followPointer(x, y) {
+        var at = screen.mapFromItem(null, x, y)
+        Hover.follow(screen, root.activeFocusItem, at.x, at.y)
+    }
 
     MouseArea {
         anchors.fill: parent
@@ -1345,6 +1356,7 @@ Window {
             pointerTimer.restart()
             idleTracker.resetActivity()
             root.dismissScreenSaver()
+            root.followPointer(mouse.x, mouse.y)
         }
     }
 

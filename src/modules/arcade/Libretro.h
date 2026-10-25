@@ -19,8 +19,14 @@ namespace libretro {
 
 // RetroArch's program: <data>/bin/retroarch (one of the user's own, as
 // MAME's drop-in is), else retroarch on the PATH, else Debian's
-// /usr/bin/retroarch or the Mac's RetroArch.app. "" for none.
+// /usr/bin/retroarch, the BSDs' /usr/local/bin/retroarch or the Mac's
+// RetroArch.app; on Windows the one Settings → Arcade → FinalBurn Neo
+// downloaded (downloadedRetroArch()), a RetroArch folder beside OSD/OS, or
+// where its builds and installers commonly put it. "" for none.
 QString programPath(const QString &dataRoot);
+// Where Settings → Arcade → FinalBurn Neo puts RetroArch on Windows:
+// <data>/arcade/retroarch/RetroArch-Win64/retroarch.exe.
+QString downloadedRetroArch(const QString &dataRoot);
 
 // The FinalBurn Neo core: the one Settings → Arcade → FinalBurn Neo
 // downloaded (<data>/arcade/retroarch/cores), else the OSD/OS image's

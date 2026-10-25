@@ -520,13 +520,15 @@ FocusScope {
             }
         }
 
-        // "BUTTON 1··········X", "BUTTONS ─────".
+        // "BUTTON 1······◄ X ►", "BUTTONS ─────": the layout and the inputs,
+        // which ◄ ► go round, between ◄ and ►.
         delegate: MenuRow {
             width: list.width
             height: root.sh * 0.0583333 //28
             heading: modelData.type === "section"
             label: modelData.label || ""
             value: modelData.value || ""
+            changes: modelData.type === "layout" || modelData.type === "input"
             selected: list.currentIndex === index && pageRoot.selectable(modelData)
         }
     }

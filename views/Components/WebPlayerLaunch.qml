@@ -302,10 +302,14 @@ FocusScope {
             font.pixelSize: root.sh * 0.0375 //18
             wrapMode: Text.WordWrap
         }
+        // How to put the browser on, or its screen without a desktop (cage),
+        // for this system (AppCore::installHint()).
         Text {
-            visible: launchRoot.phase === "error"
+            readonly property string hint: launchRoot.phase === "error"
+                ? appCore.installHint(launchRoot.message === "cage is not installed" ? "cage" : "browser") : ""
+            visible: hint !== ""
             width: parent.width
-            text: "On Raspberry Pi OS: sudo apt install chromium libwidevinecdm0 cage wtype"
+            text: hint
             color: root.primaryColor
             font.family: root.globalFont
             font.pixelSize: root.sh * 0.0291667 //14
