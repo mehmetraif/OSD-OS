@@ -2226,10 +2226,7 @@ void ArcadeBackend::sweepPictures() {
                 continue;
             const QStringList names = setAndParent(set);
             const QStringList looked = picturesLooked(names);
-            const bool known = std::any_of(names.cbegin(), names.cend(), [this](const QString &name) {
-                return m_retroAchievements->knowsGame(name);
-            });
-            if (!known || looked.size() == names.size())
+            if (game.isEmpty() || looked.contains(game))
                 continue;
             m_sweepGame = names;
             ++m_sweepAsked;
@@ -2252,7 +2249,13 @@ void ArcadeBackend::sweepPictures() {
         for (const QString &set : index().games) {
             if (picturesOf(set).isEmpty() && !snapsLooked(set))
                 m_sweepSnaps << set;
+            // The game RetroAchievements reads for the set, its own or its
+            // parent's (pictureGame()): none it knows, or one looked for
+            // already (a clone's parent's pictures are its too, and a look
+            // cut short had most of them in), and the set is passed at once,
+            // with no second spent asking after it.
         }
+            const QString game = m_retroAchievements->pictureGame(names);
         m_sweepTotal = static_cast<int>(m_sweepSnaps.size());
         m_sweepDone = 0;
         emit picturesProgressChanged();

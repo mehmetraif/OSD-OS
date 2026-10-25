@@ -117,6 +117,11 @@ public:
     bool hasGame(const QString &fileName) const;
     // Whether it has the game at all, one with neither too: its pictures.
     bool knowsGame(const QString &fileName) const { return gameOf(fileName) > 0; }
+    // The file whose game is read for a set's pictures, of its own and its
+    // parent's (findPictures()'s games, the set's first): the last of them
+    // with the first game known among them, so a clone's parent's where
+    // both are one game there; "" when it knows none of them.
+    QString pictureGame(const QStringList &fileNames) const;
     // The list wanted is still to be read: a moment from now, or under way.
     bool listPending() const { return m_wantedList; }
     // A list is kept, read now or before: one to look games up in at all.

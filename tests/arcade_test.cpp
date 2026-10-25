@@ -3864,7 +3864,9 @@ private slots:
         const QString games = data.path() + QStringLiteral("/media/Games/Arcade");
         const QString snap = games + QStringLiteral("/snap");
         const QString titles = games + QStringLiteral("/titles");
-        for (const char *set : { "sf2.zip", "galaga.zip", "kinst.zip", "pacman.zip" })
+        // Street Fighter II's bootleg is a clone of it: its parent's pictures
+        // are its own.
+        for (const char *set : { "sf2.zip", "sf2b.zip", "galaga.zip", "kinst.zip", "pacman.zip" })
             writeFile(games + QLatin1Char('/') + QLatin1String(set));
         // Pac-Man's own snap is there already: ArcadeDB isn't asked about it.
         writeFile(snap + QStringLiteral("/pacman.png"), png("pacman mine"));
@@ -3932,11 +3934,13 @@ private slots:
         QTRY_VERIFY_WITH_TIMEOUT(arcade.achievementsKeyWorks(), 5000);
         standIn.asked.clear();
 
-        // Download Pictures: RetroAchievements' pass saves Street Fighter II's;
-        // ArcadeDB is asked about Galaga and Killer Instinct in one request
-        // (not Street Fighter II, which has its picture by then, nor Pac-Man,
-        // which has its own), and Galaga's two pictures are saved where the
-        // packs put them. The marker stands while it goes on.
+        // Download Pictures: RetroAchievements' pass saves Street Fighter II's,
+        // and passes its bootleg, whose game is its parent's, looked for by
+        // then, with no second spent asking after it; ArcadeDB is asked
+        // about Galaga and Killer Instinct in one request (not Street
+        // Fighter II or its bootleg, which have their picture by then, nor
+        // Pac-Man, which has its own), and Galaga's two pictures are saved
+        // where the packs put them. The marker stands while it goes on.
         arcade.downloadPictures();
         QTRY_VERIFY_WITH_TIMEOUT(arcade.sweepingPictures(), 5000);
         QVERIFY(QFile::exists(data.path() + QStringLiteral("/arcade/pictures-wanted")));
@@ -3970,16 +3974,21 @@ private slots:
         QCOMPARE(progress.value(QStringLiteral("active")).toBool(), false);
         QCOMPARE(progress.value(QStringLiteral("result")).toString(), QStringLiteral("Done"));
         QCOMPARE(progress.value(QStringLiteral("failed")).toInt(), 0);
+        // Street Fighter II asked of RetroAchievements, Galaga and Killer
+        // Instinct of ArcadeDB: not the bootleg.
+        QCOMPARE(progress.value(QStringLiteral("asked")).toInt(), 3);
         const QVariantMap info = arcade.picturesInfo();
-        QCOMPARE(info.value(QStringLiteral("games")).toInt(), 4);
-        QCOMPARE(info.value(QStringLiteral("withPictures")).toInt(), 3);
+        QCOMPARE(info.value(QStringLiteral("games")).toInt(), 5);
+        QCOMPARE(info.value(QStringLiteral("withPictures")).toInt(), 4);
         QCOMPARE(info.value(QStringLiteral("key")).toString(), QStringLiteral("works"));
 
-        // Again: nothing asked of either, every set noted or with pictures.
+        // Again: nothing asked of either, every set noted or with pictures,
+        // and none counted as asked after, the bootleg among them.
         standIn.asked.clear();
         arcade.downloadPictures();
         QTRY_VERIFY_WITH_TIMEOUT(!arcade.sweepingPictures(), 5000);
         QVERIFY2(standIn.asked.isEmpty(), qPrintable(standIn.asked.join(QLatin1Char(' '))));
+        QCOMPARE(arcade.picturesProgress().value(QStringLiteral("asked")).toInt(), 0);
 
         // Metal Slug and Ms. Pac-Man come into the folder; Ms. Pac-Man is
         // shown, then Metal Slug in the same moment: RetroAchievements knows
