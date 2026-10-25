@@ -18,6 +18,9 @@ FocusScope {
     // no Window Mode row.
     readonly property bool desktopWindow: Qt.platform.os === "windows" || Qt.platform.pluginName === "xcb"
                                           || Qt.platform.pluginName === "wayland"
+    // Where there is a clipboard to paste OSD/OS Setup's settings from: a
+    // computer's, not the Pi's own console.
+    readonly property bool canPaste: Qt.platform.pluginName !== "eglfs" && Qt.platform.pluginName !== "linuxfb"
     property var installedModules: []
 
     // Flat model: mix of section headers and rows
@@ -451,6 +454,18 @@ FocusScope {
                 moduleId: ""
             })
         }
+        // PASTE OSD/OS SETUP — the settings copied on OSD/OS Setup's page,
+        // set at once (pasteSetup(), AppCore::applySetupText()).
+        if (settingsRoot.canPaste) {
+            items.push({
+                type: "paste_setup",
+                label: "Paste OSD/OS Setup",
+                description: "The settings copied on OSD/OS Setup's page (osdos.tv/setup, Copy for a computer), set here at once:"
+                             + " OSD/OS's own and the RetroAchievements account. The device's name, Wi-Fi and the"
+                             + " rest are set on an OSD/OS card alone",
+                moduleId: ""
+            })
+        }
         items.push({
             type: "submenu",
             key: "software_update",
@@ -715,6 +730,26 @@ FocusScope {
         return settingsItems[idx].type !== "section" && rowShown(idx)
     }
 
+    // Paste OSD/OS Setup: the clipboard's text, through a box no one sees
+    // (QML reads the clipboard only so), set at once; then what became of
+    // it, over the rows as they are now.
+    property var pasted: ({})
+    function pasteSetup() {
+        clipboardBox.text = ""
+        clipboardBox.paste()
+        pasted = appCore.applySetupText(clipboardBox.text)
+        // Its passwords not kept about.
+        clipboardBox.text = ""
+        buildModel(settingsList.currentIndex)
+        pastedNotice.open()
+    }
+
+    TextEdit {
+        id: clipboardBox
+        visible: false
+        textFormat: TextEdit.PlainText
+    }
+
     // The outputs, the cursor on the one in force.
     function openOutputs() {
         outputPrompt.open()
@@ -849,7 +884,7 @@ FocusScope {
         // and its line ends in a ►.
         function opens(row) {
             return !!row && (row.type === "submenu" || row.type === "display_output"
-                             || row.type === "file" || row.type === "quit")
+                             || row.type === "file" || row.type === "quit" || row.type === "paste_setup")
         }
 
         function openRow(row) {
@@ -879,6 +914,8 @@ FocusScope {
                                         { currentIndex: settingsList.currentIndex })
             } else if (row.type === "quit") {
                 quitPrompt.open()
+            } else if (row.type === "paste_setup") {
+                settingsRoot.pasteSetup()
             }
         }
 
@@ -1092,6 +1129,16 @@ FocusScope {
             settingsRoot.outputFailure = reason
             outputFailed.open()
         }
+    }
+
+    ChoiceOverlay {
+        id: pastedNotice
+        anchors.fill: parent
+        promptKind: "notice"
+        promptText: settingsRoot.pasted.title || ""
+        subtitleText: settingsRoot.pasted.detail || ""
+        choices: []
+        onClosed: settingsList.forceActiveFocus()
     }
 
     ChoiceOverlay {

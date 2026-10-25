@@ -2,6 +2,7 @@
 #include "util/AtomicFile.h"
 #include "util/AsyncDirectoryCache.h"
 #include "util/InstallHint.h"
+#include "util/SetupFile.h"
 #include <QDir>
 #include <QFile>
 #include <QFileInfo>
@@ -280,6 +281,104 @@ bool AppCore::save_setting(const QString &moduleId, const QString &key, const QV
     if (!moduleId.isEmpty() && key == QLatin1String("enabled"))
         updateStatusIcons();
     return true;
+}
+
+void AppCore::setSetupNotice(const QString &title, const QString &detail) {
+    if (title == m_setupNotice && detail == m_setupNoticeDetail)
+        return;
+    m_setupNotice = title;
+    m_setupNoticeDetail = detail;
+    emit setupNoticeChanged();
+}
+
+void AppCore::dismissSetupNotice() {
+    setSetupNotice(QString(), QString());
+}
+
+QVariantMap AppCore::applySetupText(const QString &text) {
+    const auto notice = [](bool ok, const QString &title, const QStringList &lines) {
+        return QVariantMap{ { QStringLiteral("ok"), ok }, { QStringLiteral("title"), title },
+                            { QStringLiteral("detail"), lines.join(QLatin1Char('\n')) } };
+    };
+    if (text.trimmed().isEmpty())
+        return notice(false, QStringLiteral("Nothing to paste"),
+                      { QStringLiteral("There is no text to paste: copy the settings on OSD/OS Setup's page first (osdos.tv/setup, Copy for a computer)") });
+    setupfile::Setup setup;
+    QString why;
+    if (!setupfile::parse(text.toUtf8(), &setup, &why))
+        return notice(false, QStringLiteral("Not pasted"), { QStringLiteral("What was pasted is ") + why });
+    QStringList lines;
+    bool ok = true;
+    int applied = 0;
+    if (!setup.config.isEmpty()) {
+        bool broken = false;
+        const QJsonObject config = loadConfig(&broken);
+        const QJsonObject after = setupfile::merged(config, setup.config);
+        if (broken) {
+            lines << QStringLiteral("OSD/OS settings: not set: config.json couldn't be read, and is left as it is");
+            ok = false;
+        } else if (!saveConfig(after)) {
+            lines << QStringLiteral("OSD/OS settings: not set: config.json couldn't be written");
+            ok = false;
+        } else {
+            lines << setupfile::settingsLine(setupfile::count(setup.config));
+            ++applied;
+            tellChanges(config, after);
+        }
+    }
+    if (!setup.account.isEmpty()) {
+        if (setupfile::writeAccount(setup.account, m_dataRoot, &why)) {
+            lines << setupfile::accountLine(setup.account);
+            ++applied;
+            emit setupAccountWritten();
+        } else {
+            lines << QStringLiteral("RetroAchievements: not set: ") + why;
+            ok = false;
+        }
+    }
+    if (!setup.cardOnly.isEmpty())
+        lines << setupfile::cardOnlyLine(setup.cardOnly);
+    if (lines.isEmpty())
+        lines << QStringLiteral("Nothing in it to set");
+    for (const QString &line : std::as_const(lines))
+        qInfo("[Setup] Pasted: %s", qPrintable(line));
+    if (applied == 0)
+        return notice(false, ok ? QStringLiteral("Nothing set from OSD/OS Setup") : QStringLiteral("Not pasted"), lines);
+    return notice(ok, ok ? QStringLiteral("OSD/OS Setup pasted") : QStringLiteral("OSD/OS Setup partly pasted"), lines);
+}
+
+void AppCore::tellChanges(const QJsonObject &before, const QJsonObject &after) {
+    const QJsonObject appBefore = before.value(QLatin1String("app")).toObject();
+    const QJsonObject appAfter = after.value(QLatin1String("app")).toObject();
+    for (auto it = appAfter.begin(); it != appAfter.end(); ++it) {
+        if (appBefore.value(it.key()) != it.value())
+            emit appSettingChanged(it.key(), it.value().toVariant().toString());
+    }
+    bool turned = false;
+    const QJsonObject modulesBefore = before.value(QLatin1String("modules")).toObject();
+    const QJsonObject modulesAfter = after.value(QLatin1String("modules")).toObject();
+    for (auto module = modulesAfter.begin(); module != modulesAfter.end(); ++module) {
+        const QJsonObject was = modulesBefore.value(module.key()).toObject();
+        const QJsonObject now = module.value().toObject();
+        for (auto it = now.begin(); it != now.end(); ++it) {
+            if (was.value(it.key()) == it.value())
+                continue;
+            if (it.value().isObject()) {
+                const QJsonObject wasValues = was.value(it.key()).toObject();
+                const QJsonObject values = it.value().toObject();
+                for (auto value = values.begin(); value != values.end(); ++value) {
+                    if (wasValues.value(value.key()) != value.value())
+                        emit moduleSettingChanged(module.key(), it.key() + QLatin1Char('.') + value.key(),
+                                                  value.value().toVariant());
+                }
+            } else {
+                emit moduleSettingChanged(module.key(), it.key(), it.value().toVariant());
+            }
+            turned = turned || it.key() == QLatin1String("enabled");
+        }
+    }
+    if (turned)
+        updateStatusIcons();
 }
 
 QVariant AppCore::get_module_info(const QString &moduleId) {

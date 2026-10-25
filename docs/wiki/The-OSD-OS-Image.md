@@ -91,6 +91,8 @@ Each part is applied on its own, so that one that can't be applied leaves the re
 
 `pi`'s files are read and written by `osdos-setup` run again as `pi`, never by root, so that nothing in `pi`'s folder can point root's reads or writes elsewhere. A file it can't read is deleted, its passwords with it, and the log says why. What a start cut short leaves in `/var/lib/osdos-setup` is applied at the next. The file can go on a card that has already started: it is applied at the next start. Like cloud-init's files beside it, it is read from a partition anyone with the card can write, and until the card takes it, it holds the Wi-Fi and RetroAchievements passwords as typed: keep it to yourself. Set a thing in one place only, on the page or in Imager's customisation: Imager's time zone and keyboard are applied later on the first boot.
 
+OSD/OS on a computer takes the page's settings too, only its own and the RetroAchievements account: pasted in Settings, or from `osdos-setup.json` in its data folder at the next start ([Installation](https://github.com/mehmetraif/OSD-OS/wiki/Installation#osdos-setup-on-a-computer)).
+
 ### The first boot
 
 The first boot does a few things once and takes longer:

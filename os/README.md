@@ -78,6 +78,8 @@ Each part is applied on its own, and one that can't be leaves the rest to go ahe
 
 The page's **Import** reads a file it made back, to change it, or OSD/OS's own `config.json` for its settings; what the page doesn't have is left out, and it says what a file sets that gets one into the card (a password, SSH, its keys). The rows it offers come from the app itself (`scripts/build-site.py`: the modules' manifests, the display presets, the themes and skins, and Settings' own rows in `site/setup/schema-extra.json`), and `tests/site` checks them against `views/Settings.qml` and `Main.qml`. Its preview is the main menu and the Arcade screen drawn live as the app lays them out, with the app's own shaders (`shaders/`) running in the browser on WebGL 2. The website workflow (`.github/workflows/pages.yml`) builds, tests and publishes it from `main`, with the landing page.
 
+OSD/OS on a computer (Windows, a Mac, the AppImage, Raspberry Pi OS with `install.sh`, a BSD) takes the page's settings too, its own and the RetroAchievements account: pasted in Settings (**Copy for a computer** on the page, then Settings → Paste OSD/OS Setup), or from `osdos-setup.json` in its data folder or beside it at the next start ([INSTALL.md](../INSTALL.md)). The rest is a card's alone.
+
 ### Films on the card
 
 The first boot splits the card: the system keeps 8 GiB (`OSDOS_ROOT_SIZE`), and the rest becomes a partition of its own in exFAT, labelled **OSD-OS**. Windows and macOS open exFAT, so:

@@ -108,6 +108,7 @@ Two Qt variables matter too. OSD/OS sets `QT_QPA_EGLFS_HIDECURSOR=1` for itself 
 ├── input.cfg                   you write it, if you like: gamepad buttons
 ├── gamecontrollerdb.txt        you add it, if you like: SDL mappings for unusual pads
 ├── display-output.json         a Display Output switch under way (the image)
+├── osdos-setup.json            you put it, if you like: OSD/OS Setup's settings, set at the next start
 ├── crash-report.txt            where the latest crash happened (Linux)
 ├── stall-report.txt            where the latest freeze happened (Linux)
 ├── themes/                     your themes, a folder each
@@ -144,6 +145,7 @@ A file or folder appears only once something needs it. The rest of this section 
 | `custom_color_schemes.json`, `custom_color_scheme.json` | You | Color schemes of your own ([below](https://github.com/mehmetraif/OSD-OS/wiki/Configuration-Files#custom-color-schemes)) |
 | `input.cfg`, `gamecontrollerdb.txt` | You | Gamepad remapping, read again as soon as it changes, and extra SDL controller mappings, read at start ([Controls](https://github.com/mehmetraif/OSD-OS/wiki/Controls)) |
 | `display-output.json` | Settings → Display Output | `{ "from", "to" }` while a new output waits to be kept, `{ "reverted" }` after one wasn't. Deleted once the output is kept, or once OSD/OS has said what became of it |
+| `osdos-setup.json` | You, from [OSD/OS Setup](https://osdos.tv/setup/) | Settings chosen on the page: at the next start OSD/OS deletes it, merges its `config` into `config.json` and hands its RetroAchievements account to the Arcade module, then says what it set. One beside the app (`osdos.exe`'s folder, the folder `osdos.app` is in, the AppImage's) is taken the same way ([Installation](https://github.com/mehmetraif/OSD-OS/wiki/Installation#osdos-setup-on-a-computer)) |
 | `crash-report.txt`, `stall-report.txt` | OSD/OS on Linux: at a crash, and when its screens stop answering for 5 seconds | The latest crash or freeze only: when, the memory, and where the app was ([Troubleshooting](https://github.com/mehmetraif/OSD-OS/wiki/Troubleshooting#when-it-crashes-or-freezes-the-reports)) |
 | `themes/`, `skins/` | You | A theme or skin of the same folder name as one of OSD/OS's replaces it ([Themes](https://github.com/mehmetraif/OSD-OS/wiki/Themes), [Skins](https://github.com/mehmetraif/OSD-OS/wiki/Skins)). A `theme.json` of window pictures only in `themes/` is read as a skin |
 | `soundfonts/` | You | MIDI menu music plays with a SoundFont beside the file of its name, else the first `.sf2` here by name, else the system's ([Menu music](https://github.com/mehmetraif/OSD-OS/wiki/Menu-Music)) |
@@ -372,6 +374,8 @@ Stop OSD/OS first, edit, check the JSON, then start it again.
 
    An error names the line and the column. `python3` is on Raspberry Pi OS and the OSD/OS image.
 4. **Start OSD/OS**: `sudo systemctl start osdos`, or `osdos` by hand.
+
+Settings chosen on [OSD/OS Setup](https://osdos.tv/setup/) need no editing: Settings → Paste OSD/OS Setup sets them while OSD/OS runs, and its `osdos-setup.json` in the data folder sets them at the next start ([Installation](https://github.com/mehmetraif/OSD-OS/wiki/Installation#osdos-setup-on-a-computer)).
 
 The files you write for a module (`tmdb_api_key.txt`, `youtube_subscriptions.txt`, `weather_location.txt`) are read when the module needs them, not only at start, so they can be written while OSD/OS runs; open the module again to see the change. `input.cfg` takes effect as soon as it is saved.
 

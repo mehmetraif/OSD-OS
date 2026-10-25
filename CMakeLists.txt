@@ -121,6 +121,7 @@ add_executable(osdos
     src/util/FontconfigOverride.cpp
     src/util/Diagnostics.cpp
     src/util/LogFile.cpp
+    src/util/SetupFile.cpp
     src/input/InputManager.cpp
     src/input/ControllerProfile.cpp
     src/input/IdleTracker.cpp

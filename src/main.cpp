@@ -52,6 +52,7 @@
 #include "util/LegacyNames.h"
 #include "util/Diagnostics.h"
 #include "util/LogFile.h"
+#include "util/SetupFile.h"
 #ifdef Q_OS_MAC
 #include "util/MacosUtils.h"
 #endif
@@ -211,6 +212,12 @@ int main(int argc, char *argv[]) {
     // the data folder, which outlives a reboot where the Pi's journal doesn't.
     diagnostics::installCrashHandlers(dataRoot);
 
+    // OSD/OS Setup's file, put in the data folder or beside the app (a card's
+    // is applied before the app starts, by the image's osdos-setup): taken
+    // now, before anything reads config.json, and what became of it said
+    // once the app is up (views/SetupNotice.qml).
+    const setupfile::Result setup = setupfile::applyAtStart(dataRoot);
+
     // Log every attached display so a user can discover which index is their
     // target (e.g. a CRT) and set the app-level "display_index" in config.json
     // accordingly. Name is the localized display name on macOS, the RandR
@@ -227,6 +234,7 @@ int main(int argc, char *argv[]) {
     QQmlApplicationEngine engine;
 
     AppCore             appCore(appRoot, dataRoot);
+    appCore.setSetupNotice(setupfile::noticeTitle(setup), setup.lines.join(QLatin1Char('\n')));
 
     // Which physical display the UI launches on. App-level "display_index"
     // (0 = primary screen, the previous hardcoded behaviour). Lets the UI open
@@ -263,6 +271,8 @@ int main(int argc, char *argv[]) {
     ScriptsBackend      scriptsBackend(appRoot, dataRoot, &displayHandoff);
     // The games in MAME, which takes the screen as a script does.
     ArcadeBackend       arcadeBackend(appRoot, dataRoot, &appCore, &displayHandoff);
+    // A RetroAchievements account pasted from OSD/OS Setup, taken at once.
+    QObject::connect(&appCore, &AppCore::setupAccountWritten, &arcadeBackend, &ArcadeBackend::takeSetupAccount);
     // Its Recently Played is the Arcade module's.
     HighScoresBackend   highScoresBackend(appRoot, dataRoot, [&arcadeBackend] { return arcadeBackend.recentSets(); });
     // The streaming services opened as their own web players. TMDB's

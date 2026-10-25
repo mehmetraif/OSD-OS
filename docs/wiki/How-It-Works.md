@@ -180,10 +180,10 @@ function navigateBack() {
 
 - **Back from a module's first view** empties its stack: `Root.qml` emits `goBack()`, and `Main.qml` pops its own stack, back to the main menu. Back on the main menu opens Settings.
 - **`replaceWith(path, params)`** loads a view without stacking the one before, for a step that shouldn't come back (a sign-in done, a card resolved into its player).
-- **`root.changeWindow(loader, source, properties)`** is how every view changes, the app's and each module's. It plays Settings → Transition: the old window is caught as a picture (`lastFace`), then it fades, turns like a cube, ripples, rides a wave or spreads from a drop. It changes at once, with no transition, into or out of a video's views, while the effects rest, under the boot screen or the display question, and for the very first view:
+- **`root.changeWindow(loader, source, properties)`** is how every view changes, the app's and each module's. It plays Settings → Transition: the old window is caught as a picture (`lastFace`), then it fades, turns like a cube, ripples, rides a wave or spreads from a drop. It changes at once, with no transition, into or out of a video's views, while the effects rest, under the boot screen, the display question or OSD/OS Setup's notice, and for the very first view:
 
 ```qml
-if (transition === "" || windowChange.changing || effectsRest || bootActive || displayHolding
+if (transition === "" || windowChange.changing || effectsRest || bootActive || startupHolding
         || from === "" || playbackView.test(from) || playbackView.test(to)) {
     showView(loader, source, properties)
     return
