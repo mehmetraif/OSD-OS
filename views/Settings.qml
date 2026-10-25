@@ -13,6 +13,11 @@ FocusScope {
     readonly property string group: navParams.group || ""
 
     property var appSettings: ({})
+    // Where the menus can be a window on a desktop (Main.qml's canWindow):
+    // Windows, and a Linux or BSD desktop. The Pi's console and a Mac have
+    // no Window Mode row.
+    readonly property bool desktopWindow: Qt.platform.os === "windows" || Qt.platform.pluginName === "xcb"
+                                          || Qt.platform.pluginName === "wayland"
     property var installedModules: []
 
     // Flat model: mix of section headers and rows
@@ -352,6 +357,20 @@ FocusScope {
             description: "A mouse's pointer shows as it moves, and goes again after these seconds without moving\n[OFF] Never shown  [ALWAYS] Stays on screen",
             moduleId: ""
         })
+
+        // WINDOW MODE — Main.qml: the menus in a window on the desktop in
+        // place of the whole screen, where there is a desktop (desktopWindow).
+        if (settingsRoot.desktopWindow) {
+            items.push({
+                type: "list_single",
+                key: "window_mode",
+                label: "Window Mode",
+                options: ["Off", "On"],
+                value: appSettings["window_mode"] === "On" ? "On" : "Off",
+                description: "The menus in a window on the desktop instead of the whole screen: 960×720 to start with, moved and sized as any window. F11 or Alt+Enter switches at any time",
+                moduleId: ""
+            })
+        }
 
         // MODULES section — the modules of no group with settings
         moduleRows(items, groupModules(""))

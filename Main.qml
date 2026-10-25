@@ -6,12 +6,45 @@ import "views/Components/Hover.js" as Hover
 
 Window {
     id: root
-    flags: Qt.FramelessWindowHint | Qt.Window
+    // Settings → Window Mode (app.window_mode, Off): the menus in a window on
+    // the desktop in place of the whole screen, 960×720 (4:3) in the middle
+    // of the screen the first time, then where the desktop last had it,
+    // moved and sized as any window; F11 or Alt+Enter switches. Only where
+    // there is a desktop to be a window on: Windows, and a Linux or BSD
+    // desktop (xcb, wayland). The Pi's console has no windows, and a Mac
+    // keeps its own fullscreen below.
+    readonly property bool canWindow: Qt.platform.os === "windows" || Qt.platform.pluginName === "xcb"
+                                      || Qt.platform.pluginName === "wayland"
+    property bool windowed: false
+    // The window's place and size under Window Mode. They change only as
+    // the mode is switched (setWindowed), so the bindings below leave the
+    // window where the desktop puts it meanwhile, through a screen change.
+    property int windowX: 0
+    property int windowY: 0
+    property int windowW: 960
+    property int windowH: 720
+    property bool windowPlaced: false
+    function setWindowed(on) {
+        if (on === windowed)
+            return
+        if (on && !windowPlaced) {
+            windowX = Screen.virtualX + Math.round((Screen.width - windowW) / 2)
+            windowY = Screen.virtualY + Math.round((Screen.height - windowH) / 2)
+            windowPlaced = true
+        } else if (!on) {
+            windowX = x
+            windowY = y
+            windowW = width
+            windowH = height
+        }
+        windowed = on
+    }
+    flags: windowed ? Qt.Window : (Qt.FramelessWindowHint | Qt.Window)
     title: "OSD/OS"
-    x:      Qt.platform.os === "osx" ? macScreenX      : Screen.virtualX
-    y:      Qt.platform.os === "osx" ? macScreenY      : Screen.virtualY
-    width:  Qt.platform.os === "osx" ? macScreenWidth  : Screen.width
-    height: Qt.platform.os === "osx" ? macScreenHeight : Screen.height
+    x:      Qt.platform.os === "osx" ? macScreenX      : windowed ? windowX : Screen.virtualX
+    y:      Qt.platform.os === "osx" ? macScreenY      : windowed ? windowY : Screen.virtualY
+    width:  Qt.platform.os === "osx" ? macScreenWidth  : windowed ? windowW : Screen.width
+    height: Qt.platform.os === "osx" ? macScreenHeight : windowed ? windowH : Screen.height
     // macOS uses manual geometry (the target display chosen by the app-level
     // "display_index" setting, resolved in main.cpp) + a native fullscreen
     // call to keep the mpv-over-window layering intact. Everywhere else,
@@ -19,9 +52,10 @@ Window {
     // Steam Deck, labwc on the Pi) is covered rather than left stacked on top;
     // the Screen.* bindings track the window's screen, so they follow the
     // display_index move main.cpp performs after load. Headless EGLFS is
-    // already fullscreen, so this is a no-op there.
+    // already fullscreen, so this is a no-op there. Under Window Mode the
+    // window is a window, framed, where the desktop puts it.
     visibility: Qt.platform.os === "osx" ? Window.AutomaticVisibility
-                                         : Window.FullScreen
+                                         : windowed ? Window.Windowed : Window.FullScreen
     visible: true
     // Under everything: what OSD BACKGROUND puts around its window (black
     // but for FULL). OsdGround draws the ground itself, over it.
@@ -608,6 +642,8 @@ Window {
                 root.statusIconsSetting = value !== "Off"
             } else if (key === "osd_background") {
                 root.osdBackground = root.osdBackgroundOf(value)
+            } else if (key === "window_mode") {
+                root.setWindowed(root.canWindow && value === "On")
             } else if (key === "mouse_pointer") {
                 root.pointerSetting = String(value)
                 if (root.pointerShown)
@@ -623,6 +659,15 @@ Window {
                 }
             }
         }
+    }
+
+    // Window Mode switched from the keyboard, where there is a desktop: the
+    // setting changes, and the window with it (onAppSettingChanged).
+    Shortcut {
+        enabled: root.canWindow
+        sequences: ["F11", "Alt+Return"]
+        context: Qt.ApplicationShortcut
+        onActivated: appCore.save_setting("", "window_mode", root.windowed ? "Off" : "On")
     }
 
     Component.onCompleted: {
@@ -668,6 +713,7 @@ Window {
         root.helpLineSetting = !(cfg.app && cfg.app.help_line === "Off")
         root.statusIconsSetting = !(cfg.app && cfg.app.status_icons === "Off")
         root.osdBackground = root.osdBackgroundOf(cfg.app && cfg.app.osd_background)
+        root.setWindowed(root.canWindow && !!(cfg.app && cfg.app.window_mode === "On"))
 
         // Screensaver: the tracker starts disabled; this is the single place the
         // saved setting is applied (live changes land in onAppSettingChanged above,

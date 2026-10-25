@@ -295,6 +295,7 @@ Every key Settings writes, with the row it belongs to. The values and defaults a
 | `video_logo_image` | Logo Image | string: a full path, `""` for OSD/OS's logo |
 | `screensaver_timeout` | Screen Saver | string: `"OFF"`, `"30"`, `"60"`, `"120"` |
 | `mouse_pointer` | Mouse Pointer | string: `"off"`, `"2"`, `"5"`, `"10"`, `"30"`, `"always"` |
+| `window_mode` | Window Mode | string: `"Off"` or `"On"`; heeded on Windows and on a Linux or BSD desktop only |
 | `info_screen` | Info Screen | string: `"off"`, `"key"`, `"1"`, `"2"`, `"3"`, `"5"` |
 | `audio_output` | Audio Output | object `{ "card", "name" }` (the card's ALSA id and its name), or `""` for Auto |
 | `remote_keymap` | Controls → All Keyboards & Remotes | object: `up`, `down`, `left`, `right`, `select`, `back`, each a key's number, `0` for none |
@@ -343,7 +344,7 @@ When each part is read:
 
 | What | When it is read |
 |---|---|
-| The look (Theme and its parts, menu music), OSD Background, Window Frame, Transparent Background's solidity, Loading Effect, Loading Screen Colors, Boot Screen Colors, Hint Bar, Help Line, Mouse Pointer, Screen Saver | At start, then at each change made in Settings |
+| The look (Theme and its parts, menu music), OSD Background, Window Frame, Transparent Background's solidity, Loading Effect, Loading Screen Colors, Boot Screen Colors, Hint Bar, Help Line, Mouse Pointer, Window Mode, Screen Saver | At start, then at each change made in Settings |
 | `display_index` | At start |
 | Audio Output, Controls' buttons and button labels | At start, then at each change made in Settings |
 | The modules' folders (Media Directory, Tags Directory, Scripts Directory, Ambient:Mode's, Arcade's Games Folder) | At start, then at each change made in their settings |
