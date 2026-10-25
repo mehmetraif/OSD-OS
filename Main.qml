@@ -16,9 +16,14 @@ Window {
     readonly property bool canWindow: Qt.platform.os === "windows" || Qt.platform.pluginName === "xcb"
                                       || Qt.platform.pluginName === "wayland"
     property bool windowed: false
-    // The window's place and size under Window Mode. They change only as
-    // the mode is switched (setWindowed), so the bindings below leave the
-    // window where the desktop puts it meanwhile, through a screen change.
+    // The window's place and size under Window Mode: 960×720 in the middle
+    // of the screen's free area the first time, then where the desktop last
+    // had it. setWindowed() alone touches the window for it, in an order
+    // the desktop takes: out of full screen first, since a desktop puts
+    // back what it kept from entering it (Windows the frameless style and
+    // the screen's size), then the frame, then the place and size; into it
+    // the other way round. The full-screen bindings (Screen.*) are put back
+    // as it leaves Window Mode, so a screen change still moves it.
     property int windowX: 0
     property int windowY: 0
     property int windowW: 960
@@ -27,24 +32,39 @@ Window {
     function setWindowed(on) {
         if (on === windowed)
             return
-        if (on && !windowPlaced) {
-            windowX = Screen.virtualX + Math.round((Screen.width - windowW) / 2)
-            windowY = Screen.virtualY + Math.round((Screen.height - windowH) / 2)
-            windowPlaced = true
-        } else if (!on) {
+        if (on) {
+            if (!windowPlaced) {
+                windowX = Screen.virtualX + Math.round((Screen.desktopAvailableWidth - windowW) / 2)
+                windowY = Screen.virtualY + Math.round((Screen.desktopAvailableHeight - windowH) / 2)
+                windowPlaced = true
+            }
+            windowed = true
+            visibility = Window.Windowed
+            flags = Qt.Window
+            x = windowX
+            y = windowY
+            width = windowW
+            height = windowH
+        } else {
             windowX = x
             windowY = y
             windowW = width
             windowH = height
+            windowed = false
+            flags = Qt.FramelessWindowHint | Qt.Window
+            x = Qt.binding(function() { return Screen.virtualX })
+            y = Qt.binding(function() { return Screen.virtualY })
+            width = Qt.binding(function() { return Screen.width })
+            height = Qt.binding(function() { return Screen.height })
+            visibility = Window.FullScreen
         }
-        windowed = on
     }
-    flags: windowed ? Qt.Window : (Qt.FramelessWindowHint | Qt.Window)
+    flags: Qt.FramelessWindowHint | Qt.Window
     title: "OSD/OS"
-    x:      Qt.platform.os === "osx" ? macScreenX      : windowed ? windowX : Screen.virtualX
-    y:      Qt.platform.os === "osx" ? macScreenY      : windowed ? windowY : Screen.virtualY
-    width:  Qt.platform.os === "osx" ? macScreenWidth  : windowed ? windowW : Screen.width
-    height: Qt.platform.os === "osx" ? macScreenHeight : windowed ? windowH : Screen.height
+    x:      Qt.platform.os === "osx" ? macScreenX      : Screen.virtualX
+    y:      Qt.platform.os === "osx" ? macScreenY      : Screen.virtualY
+    width:  Qt.platform.os === "osx" ? macScreenWidth  : Screen.width
+    height: Qt.platform.os === "osx" ? macScreenHeight : Screen.height
     // macOS uses manual geometry (the target display chosen by the app-level
     // "display_index" setting, resolved in main.cpp) + a native fullscreen
     // call to keep the mpv-over-window layering intact. Everywhere else,
@@ -53,9 +73,9 @@ Window {
     // the Screen.* bindings track the window's screen, so they follow the
     // display_index move main.cpp performs after load. Headless EGLFS is
     // already fullscreen, so this is a no-op there. Under Window Mode the
-    // window is a window, framed, where the desktop puts it.
+    // window is a window, framed, where the desktop puts it (setWindowed()).
     visibility: Qt.platform.os === "osx" ? Window.AutomaticVisibility
-                                         : windowed ? Window.Windowed : Window.FullScreen
+                                         : Window.FullScreen
     visible: true
     // Under everything: what OSD BACKGROUND puts around its window (black
     // but for FULL). OsdGround draws the ground itself, over it.

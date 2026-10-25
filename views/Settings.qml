@@ -1065,6 +1065,20 @@ FocusScope {
         onClosed: settingsList.forceActiveFocus()
     }
 
+    // Window Mode switched from the keyboard (F11) while the page is open:
+    // its row made again, where the page didn't make the change itself.
+    Connections {
+        target: appCore
+        ignoreUnknownSignals: true
+        function onAppSettingChanged(key, value) {
+            if (key !== "window_mode" || !settingsRoot.desktopWindow)
+                return
+            var shown = settingsRoot.settingsItems.filter(function(r) { return r.key === "window_mode" })[0]
+            if (shown && shown.value !== (value === "On" ? "On" : "Off"))
+                settingsRoot.buildModel(settingsList.currentIndex)
+        }
+    }
+
     // At Next Start's answer: the row as it is now, or why it didn't happen.
     Connections {
         target: displayOutput
