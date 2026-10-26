@@ -62,7 +62,7 @@ h1, h2, h3 { font-family: var(--deck); font-weight: 400; letter-spacing: 0; marg
 }
 /* The pixel art is drawn at a whole number of pixels a cell, so that every
    cell stays a square: the 16-cell icons at 16 or 32 px, the 48 x 32 scenes
-   at 4 or 3 px a cell. */
+   at 4 or 3 px a cell, and the BSD tab's finer 98 x 52 scene at 3 or 2. */
 .pixel-icon.big { width: 32px; height: 32px; }
 .pixel-scene {
     display: block;
@@ -72,6 +72,7 @@ h1, h2, h3 { font-family: var(--deck); font-weight: 400; letter-spacing: 0; marg
     fill: currentColor;
     shape-rendering: crispEdges;
 }
+.pixel-scene.fine { width: 294px; height: 156px; }
 /* The notice under a scene that draws someone else's mascot. */
 .hardware-panel .art-credit { max-width: 380px; margin: 10px 0 0; font-size: 12px; line-height: 1.5; color: var(--muted); }
 
@@ -774,6 +775,7 @@ dd { margin: 0; font-size: 16px; line-height: 1.5; }
     .hardware-tabs button { font-size: 14px; padding: 14px 10px; gap: 8px; }
     .hardware-panel { gap: 30px; }
     .pixel-scene { width: 144px; height: 96px; }
+    .pixel-scene.fine { width: 196px; height: 104px; }
     .needs { grid-template-columns: 1fr; gap: 18px; padding: 20px; }
     .needs ul { grid-template-columns: 1fr 1fr; }
     .steps { gap: 18px; }
