@@ -3294,8 +3294,10 @@ bool ArcadeBackend::playFbneo(const QString &name, libretro::Launch::Netplay net
     const QStringList guids = controllers::playerGuids();
     const QStringList names = controllers::playerNames();
     const QList<controllers::ArcadeBinds> arcade = controllers::playerArcade();
+    launch.padsByVendor = libretro::kPadsByVendor;
     for (int p = 0; p < guids.size(); ++p) {
-        launch.pads << (guids.at(p).isEmpty() ? QString() : libretro::reservedDevice(guids.at(p), names.value(p)));
+        launch.pads << (guids.at(p).isEmpty() ? QString()
+                                              : libretro::reservedDevice(guids.at(p), names.value(p), launch.padsByVendor));
         launch.panels << (!guids.at(p).isEmpty() && controllers::isJammaStick(names.value(p)));
         launch.arcade << (guids.at(p).isEmpty() ? QStringList() : arcade.value(p).retroarch);
     }

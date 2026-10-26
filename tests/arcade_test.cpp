@@ -162,6 +162,14 @@ exit 0
         return f.open(QIODevice::ReadOnly) ? f.readAll() : QByteArray();
     }
 
+    // A player's pad in RetroArch's config as this system's RetroArch is
+    // given it: by its vendor and product where RetroArch reads them
+    // (libretro::kPadsByVendor, Linux), else by its name.
+    static QString reservedLine(int player, const QString &vendorAndName) {
+        const QString device = libretro::kPadsByVendor ? vendorAndName : vendorAndName.section(QLatin1Char(' '), 1);
+        return QStringLiteral("input_player%1_reserved_device = \"%2\"").arg(player).arg(device);
+    }
+
     QStringList logLines() const {
         QFile f(m_log);
         if (!f.open(QIODevice::ReadOnly))
@@ -1135,17 +1143,30 @@ private slots:
         // A USB pad's vendor and product (SDL's GUID, little-endian), as
         // RetroArch's menu writes them; a device without them by its name.
         QCOMPARE(libretro::reservedDevice(QStringLiteral("030000005e0400008e02000014010000"),
-                                          QStringLiteral("Xbox 360 Controller")),
+                                          QStringLiteral("Xbox 360 Controller"), true),
                  QStringLiteral("045e:028e Xbox 360 Controller"));
-        QCOMPARE(libretro::reservedDevice(QStringLiteral("05000000546f6f6c6b697420506164"), QStringLiteral("Toolkit Pad")),
+        QCOMPARE(libretro::reservedDevice(QStringLiteral("05000000546f6f6c6b697420506164"), QStringLiteral("Toolkit Pad"), true),
                  QStringLiteral("Toolkit Pad"));
-        QCOMPARE(libretro::reservedDevice(QStringLiteral("19000000000000000000000000000000"), QStringLiteral("JAMMA P1")),
+        QCOMPARE(libretro::reservedDevice(QStringLiteral("19000000000000000000000000000000"), QStringLiteral("JAMMA P1"), true),
                  QStringLiteral("JAMMA P1"));
         // The JAMMA board's sticks by the vendor and the product osdos-jamma
         // gives them, the player's number.
         QCOMPARE(libretro::reservedDevice(QStringLiteral("06006869010000000200000001000000"),
-                                          QStringLiteral("OSD/OS JAMMA P2")),
+                                          QStringLiteral("OSD/OS JAMMA P2"), true),
                  QStringLiteral("0001:0002 OSD/OS JAMMA P2"));
+        // Where RetroArch reads no vendor or product (Windows, macOS, the
+        // BSDs), by the name its SDL gives the pad: its mapping's, which
+        // OSD/OS hands it, whatever the GUID's checksum; else its own.
+        {
+            controllers::setPadMappings({ QStringLiteral("030000005e040000130b000009057200,Xbox Series X Controller,a:b0") });
+            const auto noMappings = qScopeGuard([] { controllers::setPadMappings({}); });
+            QCOMPARE(libretro::reservedDevice(QStringLiteral("03001e8f5e040000130b000009057200"),
+                                              QStringLiteral("Controller (Xbox One For Windows)"), false),
+                     QStringLiteral("Xbox Series X Controller"));
+            QCOMPARE(libretro::reservedDevice(QStringLiteral("030000005e0400008e02000014010000"),
+                                              QStringLiteral("Xbox 360 Controller"), false),
+                     QStringLiteral("Xbox 360 Controller"));
+        }
 
         libretro::Launch launch;
         launch.core = QStringLiteral("/cores/fbneo_libretro.so");
@@ -1193,6 +1214,12 @@ private slots:
                                   "libretro_directory = \"/cores\"", "libretro_info_path = \"/ra/info\"",
                                   "core_info_cache_enable = \"false\"" })
             QVERIFY2(has(QLatin1String(line)), line);
+        // Where RetroArch knows pads by name alone, each player's is only
+        // preferred: a pad it names otherwise keeps the port it comes on.
+        launch.padsByVendor = false;
+        QVERIFY(libretro::configText(launch).split(QLatin1Char('\n'))
+                    .contains(QStringLiteral("input_player1_device_reservation_type = \"1\"")));
+        launch.padsByVendor = true;
         // That file, by the core's name: its states deterministic, the same
         // on every machine, without which RetroArch neither hosts nor joins
         // a game with it.
@@ -1957,7 +1984,7 @@ private slots:
         QVERIFY2(config.contains(QStringLiteral("cheevos_password = \"secret\"")), qPrintable(config));
         QVERIFY(config.contains(QStringLiteral("cheevos_username = \"player\"")));
         QVERIFY(config.contains(QStringLiteral("config_save_on_exit = \"true\"")));
-        QVERIFY(config.contains(QStringLiteral("input_player1_reserved_device = \"045e:028e Xbox 360 Controller\"")));
+        QVERIFY(config.contains(reservedLine(1, QStringLiteral("045e:028e Xbox 360 Controller"))));
         QVERIFY(config.contains(QStringLiteral("system_directory = \"%1/system\"").arg(home)));
         QVERIFY(config.contains(QStringLiteral("aspect_ratio_index = \"20\"")));
         QVERIFY(config.contains(QStringLiteral("video_aspect_ratio = \"3.000000\"")));
@@ -1999,9 +2026,9 @@ private slots:
                                               QStringLiteral("06006869010000000200000001000000") } });
         played(arcade, QStringLiteral("sf2"));
         config = QString::fromUtf8(contents(configCopy));
-        for (const char *line : { "input_player1_reserved_device = \"0001:0001 OSD/OS JAMMA P1\"",
-                                  "input_player2_reserved_device = \"0001:0002 OSD/OS JAMMA P2\"",
-                                  "input_player1_y_btn = \"0\"", "input_player2_b_btn = \"3\"",
+        QVERIFY(config.contains(reservedLine(1, QStringLiteral("0001:0001 OSD/OS JAMMA P1"))));
+        QVERIFY(config.contains(reservedLine(2, QStringLiteral("0001:0002 OSD/OS JAMMA P2"))));
+        for (const char *line : { "input_player1_y_btn = \"0\"", "input_player2_b_btn = \"3\"",
                                   "input_player3_b_btn = \"0\"" })
             QVERIFY2(config.contains(QLatin1String(line)), line);
         QCOMPARE(QString::fromUtf8(contents(remap)).split(QLatin1Char('\n')).filter(QStringLiteral("input_libretro_device_p")),
@@ -4806,21 +4833,22 @@ private slots:
             }
             return true;
         };
-        const auto onClassic = [&binds](const QString &config) {
-            return binds(config, { "input_player1_reserved_device = \"0001:0001 OSD/OS JAMMA P1\"",
-                                   "input_player1_b_btn = \"0\"", "input_player1_y_btn = \"2\"",
-                                   "input_player1_l_btn = \"10\"", "input_player1_up_axis = \"-1\"",
-                                   "input_player2_b_btn = \"0\"" },
-                         { "input_player1_up_btn", "input_player2_up_btn" });
+        const QString stick = reservedLine(1, QStringLiteral("0001:0001 OSD/OS JAMMA P1"));
+        const auto onClassic = [&binds, &stick](const QString &config) {
+            return config.contains(stick)
+                   && binds(config, { "input_player1_b_btn = \"0\"", "input_player1_y_btn = \"2\"",
+                                      "input_player1_l_btn = \"10\"", "input_player1_up_axis = \"-1\"",
+                                      "input_player2_b_btn = \"0\"" },
+                            { "input_player1_up_btn", "input_player2_up_btn" });
         };
         // Hosting from the cabinet, the panel's layout: every port a 6-Button
         // Panel, the sticks bound to it.
-        const auto onPanel = [&binds](const QString &config) {
-            return binds(config, { "input_player1_reserved_device = \"0001:0001 OSD/OS JAMMA P1\"",
-                                   "input_player1_y_btn = \"0\"", "input_player1_l_btn = \"2\"",
-                                   "input_player1_b_btn = \"3\"", "input_player1_up_axis = \"-1\"",
-                                   "input_player2_y_btn = \"0\"" },
-                         { "input_player1_up_btn", "input_player2_up_btn" });
+        const auto onPanel = [&binds, &stick](const QString &config) {
+            return config.contains(stick)
+                   && binds(config, { "input_player1_y_btn = \"0\"", "input_player1_l_btn = \"2\"",
+                                      "input_player1_b_btn = \"3\"", "input_player1_up_axis = \"-1\"",
+                                      "input_player2_y_btn = \"0\"" },
+                            { "input_player1_up_btn", "input_player2_up_btn" });
         };
         const auto ended = [&arcade](const std::function<bool()> &start) {
             QSignalSpy finished(&arcade, &ArcadeBackend::finished);
