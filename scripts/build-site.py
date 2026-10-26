@@ -2,7 +2,9 @@
 """Builds OSD/OS's website, published on GitHub Pages (site/), into a folder:
 the landing page at its root (site/index.html, with the theme recordings,
 the photo and the logo from docs/images and the stills from site/assets, and
-themes.json, the themes with their colours and pictures), and OSD/OS Setup,
+themes.json, the themes with their colours and pictures; its download buttons
+lead to the latest release's files, given GitHub's record of the release),
+and OSD/OS Setup,
 the settings page, under setup/ (site/setup/): its own files, the app's font
 and logo, the display presets, what its live preview draws with (the app's
 own shaders, shaders/, and the skins' pictures), and schema.json, the
@@ -13,10 +15,12 @@ them in src/display/DisplayOutput.cpp), the themes and skins (assets/), the
 looks Main.qml has (its colour schemes and effects), the subtitle languages,
 and the time zone database's countries and zones.
 
-  scripts/build-site.py <out-dir>
+  scripts/build-site.py <out-dir> [release.json]
 
-A folder that is there already is replaced only if it is one this made (its
-.osdos-site) or empty.
+release.json is the latest release as GitHub's API gives it
+(repos/<owner>/<repo>/releases/latest); without it, or for a file the release
+hasn't, a download button leads to the releases page. A folder that is there
+already is replaced only if it is one this made (its .osdos-site) or empty.
 """
 import json
 import pathlib
@@ -404,6 +408,39 @@ def write_icons(folder, logo=True):
         shutil.copy2(ROOT / f"assets/images/app-icon/{size}.png", folder / f"img/icon-{size}.png")
 
 
+def file_size(size):
+    """A file's size as the release page gives it, in MB or GB of 1024."""
+    mb = size / 1024 ** 2
+    if mb >= 1024:
+        return f"{mb / 1024:.2f} GB"
+    return f"{mb:.1f} MB" if mb < 100 else f"{mb:.0f} MB"
+
+
+def link_downloads(html, release):
+    """The landing page's download buttons led to their files in the release
+    (GitHub's record of it, or None): each link and each line under one is
+    marked with the end of its file's name (data-asset), as the release
+    workflow names the files and the app's updater finds them. A link gets
+    the file's address, the line its name and size; a file the release
+    hasn't keeps the HTML's own, the releases page."""
+    assets = (release or {}).get("assets", [])
+
+    def asset(suffix):
+        return next((a for a in assets if a["name"].endswith(suffix)), None)
+
+    def link(m):
+        found = asset(m.group(4))
+        return m.group(1) + (found["browser_download_url"] if found else m.group(2)) + m.group(3)
+
+    def line(m):
+        found = asset(m.group(2))
+        text = f'{found["name"]} · {file_size(found["size"])}' if found else m.group(3)
+        return m.group(1) + text + m.group(4)
+
+    html = re.sub(r'(<a\b[^>]*?\bhref=")([^"]*)("[^>]*?\bdata-asset="([^"]+)")', link, html)
+    return re.sub(r'(<span class="download-meta" data-asset="([^"]+)">)([^<]*)(</span>)', line, html)
+
+
 def schema():
     extra = json.loads((SETUP / "schema-extra.json").read_text())
     mods = modules(extra)
@@ -430,9 +467,10 @@ def schema():
 
 
 def main():
-    if len(sys.argv) != 2:
+    if len(sys.argv) not in (2, 3):
         sys.exit(__doc__)
     out = pathlib.Path(sys.argv[1])
+    release = json.loads(pathlib.Path(sys.argv[2]).read_text()) if len(sys.argv) == 3 else None
     if out.exists():
         if not (out / MARK).is_file() and any(out.iterdir()):
             sys.exit(f"build-site: {out} is there and isn't a page this built: not replaced")
@@ -441,10 +479,11 @@ def main():
     (out / MARK).write_text("Built by scripts/build-site.py, which replaces this folder.\n")
     data = schema()
 
-    # The landing page, at the root: its own files, the app's font and icon,
-    # its pictures and its themes.
-    for name in ("index.html", "style.css"):
-        shutil.copy2(SITE / name, out / name)
+    # The landing page, at the root: its own files, its downloads led to the
+    # release's, the app's font and icon, its pictures and its themes.
+    landing = link_downloads((SITE / "index.html").read_text(encoding="utf-8"), release)
+    (out / "index.html").write_text(landing, encoding="utf-8")
+    shutil.copy2(SITE / "style.css", out / "style.css")
     (out / "js").mkdir()
     shutil.copy2(SITE / "js/home.js", out / "js")
     copy_fonts(out)

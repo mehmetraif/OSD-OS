@@ -3,10 +3,11 @@ name: Website
 # Builds OSD/OS's website (site/, scripts/build-site.py): the landing page
 # and, under setup/, OSD/OS Setup, the page that makes a card's
 # osdos-setup.json. Tests it (tests/site), and publishes it on the
-# repository's GitHub Pages from main alone. A pull request that touches it,
-# or a run started by hand on another branch, is built and tested only. Pages
-# has to be turned on once, in the repository's Settings → Pages, with GitHub
-# Actions as its source.
+# repository's GitHub Pages from main alone, and again after each release,
+# whose files the landing page's download buttons lead to. A pull request that
+# touches it, or a run started by hand on another branch, is built and tested
+# only. Pages has to be turned on once, in the repository's Settings → Pages,
+# with GitHub Actions as its source.
 
 on:
   push:
@@ -53,6 +54,10 @@ on:
       - 'assets/images/logo.svg'
       - '.github/workflows/pages.yml'
   workflow_dispatch:
+  # A release published: the download buttons lead to its files.
+  workflow_run:
+    workflows: [Release]
+    types: [completed]
 
 permissions:
   contents: read
@@ -64,6 +69,8 @@ concurrency:
 
 jobs:
   build:
+    # After a release only once it is published: a failed one published none.
+    if: github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success'
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
@@ -73,8 +80,17 @@ jobs:
         uses: actions/setup-node@v7.1.0
         with:
           node-version: 22
+      # The latest release, as GitHub keeps it, for the download buttons;
+      # without one, or an answer, they lead to the releases page.
+      - name: The latest release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh api "repos/${GITHUB_REPOSITORY}/releases/latest" > "$RUNNER_TEMP/release.json" || rm -f "$RUNNER_TEMP/release.json"
       - name: Build the website
-        run: python3 scripts/build-site.py _site
+        run: |
+          release=()
+          [ -s "$RUNNER_TEMP/release.json" ] && release=("$RUNNER_TEMP/release.json")
+          python3 scripts/build-site.py _site "${release[@]}"
       - name: Test the website
         run: node --test tests/site/*.test.mjs
       # Without its dotfiles, the build's mark and .nojekyll: a site

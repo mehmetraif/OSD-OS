@@ -199,9 +199,16 @@
     <div class="hardware-panel" role="tabpanel" id="panel-tv" aria-labelledby="tab-tv" tabindex="0">
       <div>
         <p class="mini-label">THE DEDICATED SETUP</p>
+        <p class="badge tested">TESTED ON A PI 4 AND A PI 5</p>
         <h3>A small Pi.<br>A proper TV experience.</h3>
         <p>Write the OSD/OS image to an SD card and connect the Raspberry Pi to the TV. It boots straight into OSD/OS, ready for a remote, a keyboard or a gamepad.</p>
-        <a class="text-link" href="https://github.com/mehmetraif/OSD-OS/wiki/Display-Output">Read the display guide <svg class="pixel-icon" aria-hidden="true"><use href="#icon-external"/></svg></a>
+        <div class="downloads">
+          <a class="download" href="https://github.com/mehmetraif/OSD-OS/releases/latest" data-asset="-raspberry-pi.img.xz"><svg class="pixel-icon" aria-hidden="true"><use href="#icon-down"/></svg><span><b>The OSD/OS image</b><span class="download-meta" data-asset="-raspberry-pi.img.xz">For a Raspberry Pi 4 or 5, in the latest release</span></span></a>
+        </div>
+        <div class="panel-links">
+          <a class="text-link" href="setup/">Prepare the card in Setup</a>
+          <a class="text-link" href="https://github.com/mehmetraif/OSD-OS/wiki/Display-Output">Read the display guide <svg class="pixel-icon" aria-hidden="true"><use href="#icon-external"/></svg></a>
+        </div>
         <svg class="pixel-scene" aria-hidden="true"><use href="#scene-tv"/></svg>
       </div>
       <dl>
@@ -214,9 +221,16 @@
     <div class="hardware-panel" role="tabpanel" id="panel-arcade" aria-labelledby="tab-arcade" tabindex="0" hidden>
       <div>
         <p class="mini-label">THE CABINET SETUP</p>
+        <p class="badge tested">TESTED IN A JAMMA CABINET</p>
         <h3>The original monitor.<br>A new game night.</h3>
         <p>A Raspberry Pi to JAMMA board puts OSD/OS in a cabinet: browse the games with the cabinet's sticks and buttons, start straight on the Arcade screen, and play on the monitor it came with.</p>
-        <a class="text-link" href="https://github.com/mehmetraif/OSD-OS/wiki/Arcade">Read the arcade guide <svg class="pixel-icon" aria-hidden="true"><use href="#icon-external"/></svg></a>
+        <div class="downloads">
+          <a class="download" href="https://github.com/mehmetraif/OSD-OS/releases/latest" data-asset="-raspberry-pi.img.xz"><svg class="pixel-icon" aria-hidden="true"><use href="#icon-down"/></svg><span><b>The OSD/OS image</b><span class="download-meta" data-asset="-raspberry-pi.img.xz">For a Raspberry Pi 4 or 5, in the latest release</span></span></a>
+        </div>
+        <div class="panel-links">
+          <a class="text-link" href="setup/?device=arcade">Prepare the card for a cabinet</a>
+          <a class="text-link" href="https://github.com/mehmetraif/OSD-OS/wiki/Arcade">Read the arcade guide <svg class="pixel-icon" aria-hidden="true"><use href="#icon-external"/></svg></a>
+        </div>
         <svg class="pixel-scene" aria-hidden="true"><use href="#scene-cabinet"/></svg>
       </div>
       <dl>
@@ -229,8 +243,13 @@
     <div class="hardware-panel" role="tabpanel" id="panel-desktop" aria-labelledby="tab-desktop" tabindex="0" hidden>
       <div>
         <p class="mini-label">THE APP SETUP</p>
+        <p class="badge">BUILT BY CI</p>
         <h3>Your computer.<br>Another way to play.</h3>
         <p>Run OSD/OS as an app on Raspberry Pi OS, on an Apple Silicon Mac, or on SteamOS and other Linux x86_64 systems. Try the interface before building a machine for it.</p>
+        <div class="downloads">
+          <a class="download" href="https://github.com/mehmetraif/OSD-OS/releases/latest" data-asset="-macOS-arm64.dmg"><svg class="pixel-icon" aria-hidden="true"><use href="#icon-down"/></svg><span><b>macOS</b><span class="download-meta" data-asset="-macOS-arm64.dmg">Apple Silicon, in the latest release</span></span></a>
+          <a class="download" href="https://github.com/mehmetraif/OSD-OS/releases/latest" data-asset="-linux-x86_64.AppImage"><svg class="pixel-icon" aria-hidden="true"><use href="#icon-down"/></svg><span><b>Linux AppImage</b><span class="download-meta" data-asset="-linux-x86_64.AppImage">x86_64, in the latest release</span></span></a>
+        </div>
         <a class="text-link" href="https://github.com/mehmetraif/OSD-OS/blob/main/INSTALL.md">See the install options <svg class="pixel-icon" aria-hidden="true"><use href="#icon-external"/></svg></a>
         <svg class="pixel-scene" aria-hidden="true"><use href="#scene-desktop"/></svg>
       </div>
@@ -239,13 +258,18 @@
         <div><dt>Linux</dt><dd>SteamOS and other x86_64 systems, as an AppImage</dd></div>
         <div><dt>Raspberry Pi OS</dt><dd>As an app, with one installer script</dd></div>
         <div><dt>Playback</dt><dd>mpv: in the AppImage, installed by the Pi script, <code>brew install mpv</code> on a Mac</dd></div>
+        <div><dt>Status</dt><dd>Built for every release; on Linux, the app's tests run on every change</dd></div>
       </dl>
     </div>
     <div class="hardware-panel" role="tabpanel" id="panel-windows" aria-labelledby="tab-windows" tabindex="0" hidden>
       <div>
         <p class="mini-label">THE PC SETUP</p>
+        <p class="badge tested">TESTED ON A WINDOWS 11 PC</p>
         <h3>Your PC.<br>Unzip and play.</h3>
         <p>Unzip OSD/OS on a Windows 11 PC and run <code>osdos.exe</code>: nothing to install. MAME, and RetroArch with FinalBurn Neo, download from its own Settings in the versions the Pi image has, so a PC plays online and over the local network with a Pi.</p>
+        <div class="downloads">
+          <a class="download" href="https://github.com/mehmetraif/OSD-OS/releases/latest" data-asset="-windows-x64.zip"><svg class="pixel-icon" aria-hidden="true"><use href="#icon-down"/></svg><span><b>Windows</b><span class="download-meta" data-asset="-windows-x64.zip">Windows 11 on x64, in the latest release</span></span></a>
+        </div>
         <a class="text-link" href="https://github.com/mehmetraif/OSD-OS/blob/main/INSTALL.md#on-windows-x64">See the Windows install <svg class="pixel-icon" aria-hidden="true"><use href="#icon-external"/></svg></a>
         <svg class="pixel-scene" aria-hidden="true"><use href="#scene-pc"/></svg>
       </div>
@@ -259,8 +283,13 @@
     <div class="hardware-panel" role="tabpanel" id="panel-bsd" aria-labelledby="tab-bsd" tabindex="0" hidden>
       <div>
         <p class="mini-label">THE BSD SETUP</p>
+        <p class="badge">TESTED IN A VIRTUAL MACHINE</p>
         <h3>FreeBSD or OpenBSD.<br>One package.</h3>
         <p>Install OSD/OS on FreeBSD or OpenBSD as a package of the system's, with its own Qt 6, SDL2 and mpv packages, and run it as a desktop app: the menus, films and media servers, YouTube, and the arcade with the system's MAME, or FinalBurn Neo in its RetroArch.</p>
+        <div class="downloads">
+          <a class="download" href="https://github.com/mehmetraif/OSD-OS/releases/latest" data-asset="-freebsd-amd64.pkg"><svg class="pixel-icon" aria-hidden="true"><use href="#icon-down"/></svg><span><b>FreeBSD package</b><span class="download-meta" data-asset="-freebsd-amd64.pkg">FreeBSD 15 on amd64, in the latest release</span></span></a>
+          <a class="download" href="https://github.com/mehmetraif/OSD-OS/releases/latest" data-asset="-openbsd-amd64.tgz"><svg class="pixel-icon" aria-hidden="true"><use href="#icon-down"/></svg><span><b>OpenBSD package</b><span class="download-meta" data-asset="-openbsd-amd64.tgz">OpenBSD 8.0 on amd64, in the latest release</span></span></a>
+        </div>
         <a class="text-link" href="https://github.com/mehmetraif/OSD-OS/blob/main/INSTALL.md#on-freebsd-amd64">See the BSD install <svg class="pixel-icon" aria-hidden="true"><use href="#icon-external"/></svg></a>
         <svg class="pixel-scene" aria-hidden="true"><use href="#scene-terminal"/></svg>
       </div>
@@ -272,6 +301,7 @@
       </dl>
     </div>
     <p class="hardware-note">* Which outputs a Pi has depends on the model and the adapter. Check the display guide before choosing a mode.</p>
+    <p class="hardware-note">A filled label: tried on real hardware. An outlined one: built and tested by machine. Every file, with its SHA-256 digest and the release notes, is in <a href="https://github.com/mehmetraif/OSD-OS/releases/latest">the latest release</a>.</p>
   </section>
 
   <section class="setup-section" id="get-started">
@@ -286,7 +316,7 @@
           <div class="step-head"><span class="step-number">01</span><svg class="pixel-icon big" aria-hidden="true"><use href="#pix-sd"/></svg></div>
           <h3>Get the image.</h3>
           <p>Download the Raspberry Pi image from the latest release and write it to an SD card with Raspberry Pi Imager's "Use custom" option.</p>
-          <a href="https://github.com/mehmetraif/OSD-OS/releases/latest">Download OSD/OS <svg class="pixel-icon" aria-hidden="true"><use href="#icon-external"/></svg></a>
+          <a href="https://github.com/mehmetraif/OSD-OS/releases/latest" data-asset="-raspberry-pi.img.xz">Download the image <svg class="pixel-icon" aria-hidden="true"><use href="#icon-down"/></svg></a>
         </article>
         <article>
           <div class="step-head"><span class="step-number">02</span><svg class="pixel-icon big" aria-hidden="true"><use href="#pix-sliders"/></svg></div>
@@ -341,7 +371,7 @@
     <p class="eyebrow">THE PICTURE IS JUST GETTING STARTED.</p>
     <h2>Good screens<br>deserve an encore.</h2>
     <div class="actions">
-      <a class="button primary" href="https://github.com/mehmetraif/OSD-OS/releases/latest">Get OSD/OS <svg class="pixel-icon" aria-hidden="true"><use href="#icon-external"/></svg></a>
+      <a class="button primary" href="#hardware">Get OSD/OS <svg class="pixel-icon" aria-hidden="true"><use href="#icon-up"/></svg></a>
       <a class="text-link" href="https://github.com/mehmetraif/OSD-OS/issues">Help make it better <svg class="pixel-icon" aria-hidden="true"><use href="#icon-external"/></svg></a>
     </div>
     <pre class="marquee" aria-hidden="true">+----------------------------+

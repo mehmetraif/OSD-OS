@@ -40,10 +40,11 @@ function qmlNames(source, name) {
 }
 
 // Every file a page's HTML and CSS name, there beside it (a recording the
-// script swaps in too); a link to another page or a fragment isn't a file.
+// script swaps in too); a link to another page or a fragment isn't a file,
+// and a query is the page's own (setup/?device=arcade).
 function filesNamed(folder, html, css) {
     const named = [];
-    for (const [, path] of readFileSync(join(folder, html), "utf8").matchAll(/(?:href|src|data-recording)="([^":#]+)"/g))
+    for (const [, path] of readFileSync(join(folder, html), "utf8").matchAll(/(?:href|src|data-recording)="([^":#?]+)(?:\?[^":#]*)?"/g))
         named.push([html, path]);
     for (const [, path] of readFileSync(join(folder, css), "utf8").matchAll(/url\("([^"]+)"\)/g))
         named.push([css, path]);
