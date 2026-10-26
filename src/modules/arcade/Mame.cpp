@@ -4,9 +4,13 @@
 #include <QDir>
 #include <QFile>
 #include <QFileInfo>
+#include <QJsonArray>
+#include <QJsonDocument>
+#include <QJsonObject>
 #include <QRegularExpression>
 #include <QSet>
 #include <QStandardPaths>
+#include <algorithm>
 
 namespace mame {
 
@@ -422,6 +426,57 @@ bool isBootlegOrHack(const Machine &machine) {
             return true;
     }
     return false;
+}
+
+Regions Regions::read(const QString &path) {
+    Regions table;
+    QFile file(path);
+    if (!file.open(QIODevice::ReadOnly))
+        return table;
+    const QJsonArray regions = QJsonDocument::fromJson(file.readAll()).object().value(QStringLiteral("regions")).toArray();
+    QStringList words;
+    for (const QJsonValue &value : regions) {
+        const QJsonObject region = value.toObject();
+        Region entry{ region.value(QStringLiteral("id")).toString(), region.value(QStringLiteral("name")).toString(),
+                      region.value(QStringLiteral("part")).toString() };
+        if (entry.id.isEmpty() || entry.name.isEmpty())
+            continue;
+        const QJsonArray named = region.value(QStringLiteral("words")).toArray();
+        for (const QJsonValue &w : named) {
+            const QString word = w.toString();
+            if (word.isEmpty() || table.m_byWord.contains(word))
+                continue;
+            table.m_byWord.insert(word, table.m_regions.size());
+            words << QRegularExpression::escape(word);
+        }
+        table.m_regions << entry;
+    }
+    // Whole words, as the names write them: not the US of USA, nor the
+    // India of Indiana.
+    if (!words.isEmpty())
+        table.m_words.setPattern(QStringLiteral("\\b(?:%1)\\b").arg(words.join(QLatin1Char('|'))));
+    return table;
+}
+
+QStringList Regions::of(const QString &description) const {
+    if (m_byWord.isEmpty())
+        return {};
+    QList<int> found;
+    static const QRegularExpression inParentheses(QStringLiteral("\\(([^)]*)\\)"));
+    auto parts = inParentheses.globalMatch(description);
+    while (parts.hasNext()) {
+        auto words = m_words.globalMatch(parts.next().captured(1));
+        while (words.hasNext()) {
+            const int region = m_byWord.value(words.next().captured(0), -1);
+            if (region >= 0 && !found.contains(region))
+                found << region;
+        }
+    }
+    std::sort(found.begin(), found.end());
+    QStringList ids;
+    for (const int region : std::as_const(found))
+        ids << m_regions.at(region).id;
+    return ids;
 }
 
 QString systemOf(const QString &sourceFile) {
