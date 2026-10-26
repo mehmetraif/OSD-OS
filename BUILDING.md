@@ -354,7 +354,7 @@ copy C:\vcpkg\installed\x64-windows\bin\libssl*.dll install\osdos\
 install\osdos\osdos.exe
 ```
 
-or, from the source tree, `set APP_ROOT=%CD%` then `build\osdos.exe` (with Qt's `bin` on the `PATH`). The build is a windowed program, which no console opens with: it writes its log to `osdos.log` in the data folder (`%APPDATA%\OSD-OS\`), the run before's kept as `osdos-previous.log`, and to the console it was started from, if any (`util/LogFile`).
+or, from the source tree, `set APP_ROOT=%CD%` then `build\osdos.exe` (with Qt's `bin` on the `PATH`). The build is a windowed program, which no console opens with: it writes its log to `osdos.log` in the data folder (`%APPDATA%\OSD-OS\`), the run before's kept as `osdos-previous.log`, and to the console it was started from, if any (`util/LogFile`). `osdos.exe` carries OSD/OS's icon, `packaging/windows/osdos.ico`, as its `IDI_ICON1` resource: Explorer shows it, and Qt gives it to the app's window, in the title bar and on the taskbar. The icon holds the sizes Windows asks for, 16 to 256 pixels; up to 48 they are drawn pixel by pixel, so that the frame and the stripes stay sharp, and above that they are the picture itself, scaled down.
 
 ### Configuration
 

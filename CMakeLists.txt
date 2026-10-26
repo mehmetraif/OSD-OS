@@ -160,6 +160,19 @@ if(WIN32)
     set_target_properties(osdos PROPERTIES WIN32_EXECUTABLE TRUE)
 endif()
 
+# Windows: osdos.exe's icon, packaging/windows/osdos.ico, as its IDI_ICON1
+# resource. Explorer shows it, and Qt gives it to the app's windows (title
+# bar, taskbar): it takes the executable's IDI_ICON1 for them. The resource
+# script names the icon by its full path, for the resource compiler to find
+# it from the build folder, and is compiled again when the icon changes.
+if(WIN32)
+    set(OSDOS_ICON "${CMAKE_SOURCE_DIR}/packaging/windows/osdos.ico")
+    file(CONFIGURE OUTPUT "${CMAKE_BINARY_DIR}/osdos.rc"
+        CONTENT "IDI_ICON1 ICON \"@OSDOS_ICON@\"\n" @ONLY)
+    target_sources(osdos PRIVATE "${CMAKE_BINARY_DIR}/osdos.rc")
+    set_source_files_properties("${CMAKE_BINARY_DIR}/osdos.rc" PROPERTIES OBJECT_DEPENDS "${OSDOS_ICON}")
+endif()
+
 # The app's own functions in its dynamic symbol table (-rdynamic), so that
 # a crash or a stall report's backtrace names them (util/Diagnostics).
 if(UNIX AND NOT APPLE)
