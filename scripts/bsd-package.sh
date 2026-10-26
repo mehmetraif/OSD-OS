@@ -124,11 +124,12 @@ OpenBSD)
         find . \( -type f -o -type l \) | sed 's|^\./||'
     } | LC_ALL=C sort) > "$work/plist"
     # The name: stem OSD-OS, the version, and the system and machine as its
-    # flavours, which is the file's name too.
+    # flavours, which is the file's name too. pkg_create writes the file its
+    # argument names, the package's name that without .tgz.
     name=OSD-OS-$version-openbsd-$machine
     (cd "$work" && pkg_create -A "$machine" -B "$root" -p "$prefix" -f "$work/plist" \
         -D COMMENT="$comment" -D FULLPKGPATH=multimedia/osdos -D HOMEPAGE=https://osdos.tv \
-        -D MAINTAINER=https://github.com/mehmetraif/OSD-OS -d "$work/desc" "${depends[@]}" "$name")
+        -D MAINTAINER=https://github.com/mehmetraif/OSD-OS -d "$work/desc" "${depends[@]}" "$name.tgz")
     out=$folder/$name.tgz
     mv "$work/$name.tgz" "$out"
     ;;
