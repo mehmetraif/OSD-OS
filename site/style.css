@@ -768,7 +768,7 @@ dd { margin: 0; font-size: 16px; line-height: 1.5; }
     .signal-strip { font-size: 13px; }
     .theme-workbench { gap: 30px; }
     .theme-buttons button { font-size: 13px; }
-    /* Smaller, so that the five tabs fit side by side down to 721 px. */
+    /* Smaller, so that the six tabs fit side by side down to 851 px. */
     .hardware-tabs button { font-size: 14px; padding: 14px 10px; gap: 8px; }
     .hardware-panel { gap: 30px; }
     .pixel-scene { width: 144px; height: 96px; }
@@ -787,6 +787,13 @@ dd { margin: 0; font-size: 16px; line-height: 1.5; }
     /* Its shape from the ratio alone: a minimum height would be carried
        through the ratio into a minimum width, wider than a small phone. */
     .hero-photo { min-height: 0; aspect-ratio: 1.2; }
+}
+
+/* The hardware tabs: the number and the icon on one line, the name under
+   them. */
+@media (max-width: 850px) {
+    .hardware-tabs button { flex-wrap: wrap; gap: 4px 8px; padding: 12px 8px; line-height: 1.5; }
+    .hardware-tabs button span:last-child { flex-basis: 100%; }
 }
 
 @media (max-width: 720px) {
@@ -825,9 +832,7 @@ dd { margin: 0; font-size: 16px; line-height: 1.5; }
     .theme-buttons { grid-template-columns: repeat(2, 1fr); gap: 7px; margin-bottom: 20px; }
     .theme-buttons button { font-size: 12px; padding: 12px 8px; gap: 8px; }
     .theme-monitor { padding: 9px; }
-    /* The number and the icon on one line, the name under them. */
-    .hardware-tabs button { flex-wrap: wrap; gap: 4px 8px; font-size: 12px; padding: 12px 6px; line-height: 1.5; }
-    .hardware-tabs button span:last-child { flex-basis: 100%; }
+    .hardware-tabs button { font-size: 12px; padding: 12px 6px; }
     .hardware-panel { padding: 25px 19px; gap: 24px; }
     .hardware-panel h3 { font-size: 26px; }
     .steps { grid-template-columns: 1fr; gap: 22px; }
@@ -849,6 +854,8 @@ dd { margin: 0; font-size: 16px; line-height: 1.5; }
 
 @media (max-width: 480px) {
     .needs ul { grid-template-columns: 1fr; }
+    /* The six hardware tabs in two rows of three. */
+    .hardware-tabs { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); }
 }
 
 @media (prefers-reduced-motion: reduce) {
