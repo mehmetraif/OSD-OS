@@ -394,13 +394,14 @@ def copy_fonts(folder):
 
 
 def write_icons(folder, logo=True):
-    """The tab's icon, the cassette cut out of Video 1's blue, and the app's
-    logo where the page draws it (Setup's title bar)."""
+    """The tab's icon, OSD/OS's own, in the sizes a browser picks from (the
+    app's window's, assets/images/app-icon), and the app's logo where the
+    page draws it (Setup's title bar)."""
     (folder / "img").mkdir()
-    cassette = (ROOT / "assets/images/logo.svg").read_text()
     if logo:
-        (folder / "img/logo.svg").write_text(cassette)
-    (folder / "img/icon.svg").write_text(cassette.replace("<svg ", '<svg fill="#0110C5" ', 1))
+        (folder / "img/logo.svg").write_text((ROOT / "assets/images/logo.svg").read_text())
+    for size in (16, 32, 48, 256):
+        shutil.copy2(ROOT / f"assets/images/app-icon/{size}.png", folder / f"img/icon-{size}.png")
 
 
 def schema():

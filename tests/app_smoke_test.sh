@@ -50,7 +50,8 @@ fi
 
 # Qt's own QML modules the screen imports, each looked for in Qt's QML folder.
 if [ -f "$QML/QtQuick/qmldir" ]; then
-    for module in $(grep -rhoE '^import Qt[A-Za-z0-9.]*' --include='*.qml' "${SOURCES[@]}" | cut -d' ' -f2 | sort -u); do
+    # find picks the QML files: the BSDs' grep has no --include after the pattern.
+    for module in $(find "${SOURCES[@]}" -name '*.qml' -exec grep -hoE '^import Qt[A-Za-z0-9.]*' {} + | cut -d' ' -f2 | sort -u); do
         [ -f "$QML/${module//.//}/qmldir" ] \
             || { echo "SKIP: $WHAT needs $module, which this Qt doesn't have ($QML)"; exit 77; }
     done

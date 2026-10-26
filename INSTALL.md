@@ -452,3 +452,99 @@ Settings → Update says when a newer version is out and names its zip, but on W
 
 - Delete the `osdos` folder
 - Delete `%APPDATA%\OSD-OS\`: your settings, and the MAME and RetroArch OSD/OS downloaded
+
+## On FreeBSD (amd64)
+
+For FreeBSD 15 on an amd64 PC, OSD/OS comes as a FreeBSD package, `OSD-OS-<version>-freebsd-amd64.pkg`: the app, and FinalBurn Neo's core for the Arcade module, built for FreeBSD from its source, as libretro has no FreeBSD build of it. Qt 6, SDL2 and mpv are FreeBSD's own packages. OSD/OS runs on your desktop, X11 or Wayland, on the whole screen or in a window. *The package is built, installed and started in a FreeBSD virtual machine for every release; it hasn't been tried on a FreeBSD computer yet.*
+
+### Requirements
+
+- FreeBSD 15 on an amd64 PC, with a desktop
+- Internet access
+
+### Steps
+
+1. Download `OSD-OS-<version>-freebsd-amd64.pkg` from the [latest release](https://github.com/mehmetraif/OSD-OS/releases/latest).
+2. As root, install the packages it needs, then OSD/OS:
+    ```sh
+    pkg install -y qt6-base qt6-declarative qt6-svg sdl2 minizip mpv
+    pkg add OSD-OS-<version>-freebsd-amd64.pkg
+    ```
+3. Start it from your desktop's terminal: `osdos`.
+
+### Post Install
+
+**Arcade**
+
+- MAME and RetroArch are FreeBSD's packages: `pkg install mame retroarch` as root. FinalBurn Neo's core comes with OSD/OS; Settings → Arcade → FinalBurn Neo shows it, with the games it knows. With RetroArch there, FinalBurn Neo's games play with RetroAchievements and online play, as on the other systems.
+
+**YouTube**
+
+- `pkg install yt-dlp` as root.
+
+**Settings from OSD/OS Setup**
+
+- Choose the settings on [OSD/OS Setup](https://osdos.tv/setup/), press **Copy for a computer** there, then Settings → **Paste OSD/OS Setup** in OSD/OS; or save the page's `osdos-setup.json` in `~/.local/share/OSD-OS/`, which OSD/OS applies at its next start.
+
+**What a FreeBSD PC doesn't have**
+
+- What is the Pi's stays the Pi's, as on a Mac: Display Output, Audio Output's cards (the default device plays), Bluetooth and Wi-Fi (the system's own tools) and the JAMMA board. Netflix and Prime Video aren't there: no browser on FreeBSD has the Widevine they need.
+
+### Update
+
+Settings → Update says when a newer version is out and names its package. Download it from the [latest release](https://github.com/mehmetraif/OSD-OS/releases/latest) and add it as root, which puts it in the place of the version installed: `pkg add OSD-OS-<version>-freebsd-amd64.pkg`. *Your settings are in `~/.local/share/OSD-OS/` and stay as they are.*
+
+### Uninstall
+
+- `pkg delete osdos` as root
+- Delete `~/.local/share/OSD-OS/`: your settings
+
+## On OpenBSD (amd64)
+
+For OpenBSD 8.0 on an amd64 PC, OSD/OS comes as an OpenBSD package, `OSD-OS-<number>-openbsd-amd64.tgz`: the app, and FinalBurn Neo's core for the Arcade module, built for OpenBSD from its source, as neither libretro nor OpenBSD's packages have one. Qt 6, SDL2 and mpv are OpenBSD's own packages, which come with it. OSD/OS runs on your desktop, on the whole screen or in a window. *The package is built, installed and started in an OpenBSD virtual machine for every release; it hasn't been tried on an OpenBSD computer yet.*
+
+Unlike the release's other files, it is named by the release's number without its `v`: `OSD-OS-0.0.24-openbsd-amd64.tgz` for v0.0.24. `pkg_add` takes a package's name from its file's, so keep the name the file is downloaded with, or `pkg_add` refuses it. On the system the package is called `OSD-OS`.
+
+The package is made for one release of OpenBSD, 8.0 for now: OpenBSD's libraries change from one release to the next, so a newer OpenBSD needs the OSD/OS package built for it.
+
+### Requirements
+
+- OpenBSD 8.0 on an amd64 PC, with a desktop
+- Internet access
+
+### Steps
+
+1. Download `OSD-OS-<number>-openbsd-amd64.tgz` from the [latest release](https://github.com/mehmetraif/OSD-OS/releases/latest).
+2. As root, add it: the packages it needs come with it from your mirror.
+    ```sh
+    pkg_add -D unsigned OSD-OS-<number>-openbsd-amd64.tgz
+    ```
+    *`-D unsigned` because the package isn't signed with OpenBSD's key, which signs OpenBSD's own packages alone.*
+3. Start it from your desktop's terminal: `osdos`.
+
+### Post Install
+
+**Arcade**
+
+- MAME and RetroArch are OpenBSD's packages: `pkg_add mame retroarch` as root. FinalBurn Neo's core comes with OSD/OS; Settings → Arcade → FinalBurn Neo shows it, with the games it knows. With RetroArch there, FinalBurn Neo's games play with RetroAchievements and online play, as on the other systems.
+
+**YouTube**
+
+- `pkg_add yt-dlp` as root.
+
+**Settings from OSD/OS Setup**
+
+- Choose the settings on [OSD/OS Setup](https://osdos.tv/setup/), press **Copy for a computer** there, then Settings → **Paste OSD/OS Setup** in OSD/OS; or save the page's `osdos-setup.json` in `~/.local/share/OSD-OS/`, which OSD/OS applies at its next start.
+
+**What an OpenBSD PC doesn't have**
+
+- What is the Pi's stays the Pi's, as on a Mac: Display Output, Audio Output's cards (the default device plays, through sndio), Bluetooth and Wi-Fi (the system's own tools) and the JAMMA board. Netflix and Prime Video aren't there: no browser on OpenBSD has the Widevine they need.
+
+### Update
+
+Settings → Update says when a newer version is out and names its package. Download it from the [latest release](https://github.com/mehmetraif/OSD-OS/releases/latest) and add it as root, which updates the version installed: `pkg_add -D unsigned OSD-OS-<number>-openbsd-amd64.tgz`. *Your settings are in `~/.local/share/OSD-OS/` and stay as they are.*
+
+### Uninstall
+
+- `pkg_delete OSD-OS` as root
+- Delete `~/.local/share/OSD-OS/`: your settings

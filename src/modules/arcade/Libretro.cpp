@@ -46,6 +46,12 @@ QString firstFile(const QStringList &candidates) {
     return QString();
 }
 
+// The prefix the app is installed under: the folder above its own
+// (/usr/local for /usr/local/bin/osdos).
+QString packagePrefix() {
+    return QDir::cleanPath(QCoreApplication::applicationDirPath() + QStringLiteral("/.."));
+}
+
 // RetroArch's built-in Standard Gamepad (SDL2_DEFAULT_BINDS in its
 // input_autodetect_builtin.c): each RetroPad input on SDL's game controller
 // buttons and axes, a player's binds without "input_playerN_".
@@ -307,9 +313,22 @@ QString downloadedLicense(const QString &dataRoot) {
     return dataRoot + QStringLiteral("/arcade/retroarch/fbneo-license.txt");
 }
 
+QString packagedCore() {
+    return packagePrefix() + QStringLiteral("/lib/osdos/") + kCoreFile;
+}
+
+QString packagedDat() {
+    return packagePrefix() + QStringLiteral("/share/osdos/fbneo/fbneo-arcade.dat");
+}
+
+QString packagedLicense() {
+    return packagePrefix() + QStringLiteral("/share/osdos/fbneo/license.txt");
+}
+
 QString corePath(const QString &dataRoot) {
     const QString home = QDir::homePath();
     return firstFile({ downloadedCore(dataRoot),
+                       packagedCore(),
                        QStringLiteral("/usr/local/lib/libretro/") + kCoreFile,
                        QStringLiteral("/usr/lib/aarch64-linux-gnu/libretro/") + kCoreFile,
                        QStringLiteral("/usr/lib/x86_64-linux-gnu/libretro/") + kCoreFile,
@@ -320,6 +339,7 @@ QString corePath(const QString &dataRoot) {
 
 QString datPath(const QString &dataRoot) {
     return firstFile({ downloadedDat(dataRoot),
+                       packagedDat(),
                        QStringLiteral("/usr/local/share/libretro/fbneo/fbneo-arcade.dat") });
 }
 

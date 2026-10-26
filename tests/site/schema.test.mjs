@@ -53,7 +53,7 @@ function filesNamed(folder, html, css) {
 test("the website's files are all there", () => {
     // The landing page, at the root.
     for (const file of ["index.html", "style.css", "js/home.js", "themes.json", ".nojekyll",
-                        "fonts/VCR_OSD_MONO_1.001.ttf", "fonts/LICENSE-vcr-osd-mono.txt", "img/icon.svg"])
+                        "fonts/VCR_OSD_MONO_1.001.ttf", "fonts/LICENSE-vcr-osd-mono.txt", "img/icon-16.png", "img/icon-32.png"])
         assert.ok(existsSync(join(out, file)), file);
     for (const [file, path] of filesNamed(out, "index.html", "style.css"))
         assert.ok(existsSync(join(out, path)), `${file}'s ${path}`);
@@ -68,7 +68,7 @@ test("the website's files are all there", () => {
     execFileSync("node", ["--check", join(out, "js/home.js")], { stdio: "ignore" });
     // OSD/OS Setup, under setup/.
     for (const file of ["index.html", "style.css", "js/core.mjs", "js/page.mjs", "schema.json",
-                        "fonts/VCR_OSD_MONO_1.001.ttf", "fonts/LICENSE-vcr-osd-mono.txt", "img/logo.svg", "img/icon.svg"])
+                        "fonts/VCR_OSD_MONO_1.001.ttf", "fonts/LICENSE-vcr-osd-mono.txt", "img/logo.svg", "img/icon-16.png", "img/icon-32.png"])
         assert.ok(existsSync(join(setup, file)), `setup/${file}`);
     for (const file of readdirSync(join(root, "site/setup/js/preview")))
         assert.ok(existsSync(join(setup, "js/preview", file)), `setup/js/preview/${file}`);

@@ -1,4 +1,5 @@
 #include <QGuiApplication>
+#include <QIcon>
 #include <QQmlApplicationEngine>
 #include <QQmlContext>
 #include <QUrl>
@@ -208,6 +209,17 @@ int main(int argc, char *argv[]) {
 #endif
     qDebug("[main] appRoot  = %s", qPrintable(appRoot));
     qDebug("[main] dataRoot = %s", qPrintable(dataRoot));
+
+#if !defined(Q_OS_WIN) && !defined(Q_OS_MACOS)
+    // OSD/OS's icon on its window, where the desktop shows one (title bar,
+    // taskbar, window switcher): each of its sizes, the small ones drawn
+    // pixel by pixel. Windows takes osdos.exe's own (CMakeLists.txt), the
+    // Mac's Dock the bundle's, and the image's screen shows no window.
+    QIcon windowIcon;
+    for (int size : {16, 20, 24, 32, 40, 48, 64, 128, 256})
+        windowIcon.addFile(appRoot + QStringLiteral("/assets/images/app-icon/%1.png").arg(size), QSize(size, size));
+    app.setWindowIcon(windowIcon);
+#endif
     // A crash writes where it was to the journal and to crash-report.txt in
     // the data folder, which outlives a reboot where the Pi's journal doesn't.
     diagnostics::installCrashHandlers(dataRoot);

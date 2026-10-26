@@ -160,6 +160,19 @@ if(WIN32)
     set_target_properties(osdos PROPERTIES WIN32_EXECUTABLE TRUE)
 endif()
 
+# Windows: osdos.exe's icon, packaging/windows/osdos.ico, as its IDI_ICON1
+# resource. Explorer shows it, and Qt gives it to the app's windows (title
+# bar, taskbar): it takes the executable's IDI_ICON1 for them. The resource
+# script names the icon by its full path, for the resource compiler to find
+# it from the build folder, and is compiled again when the icon changes.
+if(WIN32)
+    set(OSDOS_ICON "${CMAKE_SOURCE_DIR}/packaging/windows/osdos.ico")
+    file(CONFIGURE OUTPUT "${CMAKE_BINARY_DIR}/osdos.rc"
+        CONTENT "IDI_ICON1 ICON \"@OSDOS_ICON@\"\n" @ONLY)
+    target_sources(osdos PRIVATE "${CMAKE_BINARY_DIR}/osdos.rc")
+    set_source_files_properties("${CMAKE_BINARY_DIR}/osdos.rc" PROPERTIES OBJECT_DEPENDS "${OSDOS_ICON}")
+endif()
+
 # The app's own functions in its dynamic symbol table (-rdynamic), so that
 # a crash or a stall report's backtrace names them (util/Diagnostics).
 if(UNIX AND NOT APPLE)
@@ -282,11 +295,14 @@ target_include_directories(osdos PRIVATE
 if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
     add_executable(osdos-jamma src/jamma/main.cpp src/jamma/JammaPanel.cpp)
     set_target_properties(osdos-jamma PROPERTIES AUTOMOC OFF)
+endif()
 
-    # osdos_signin_libretro: a libretro core that plays nothing, for RetroArch
-    # to sign in to RetroAchievements with as the account is typed in
-    # (libretro::SignIn), beside the app, which finds it there. Linux only:
-    # elsewhere the sign-in waits for the next game, as before.
+# osdos_signin_libretro: a libretro core that plays nothing, for RetroArch to
+# sign in to RetroAchievements with as the account is typed in
+# (libretro::SignIn), beside the app, which finds it there. Where the app
+# plays in the system's RetroArch, Linux and the BSDs: elsewhere the sign-in
+# waits for the next game, as before.
+if(CMAKE_SYSTEM_NAME MATCHES "^(Linux|FreeBSD|OpenBSD)$")
     enable_language(C)
     add_library(osdos_signin_libretro MODULE src/modules/arcade/signin/osdos_signin_libretro.c)
     set_target_properties(osdos_signin_libretro PROPERTIES

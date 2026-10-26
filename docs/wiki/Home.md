@@ -8,7 +8,7 @@ OSD/OS makes a TV, preferably a CRT, a smart TV with the look of a VCR. On a Ras
 
 | Page | What is in it |
 |---|---|
-| [Installation](https://github.com/mehmetraif/OSD-OS/wiki/Installation) | The OSD/OS image for a Raspberry Pi, or OSD/OS as an app on Raspberry Pi OS, macOS and SteamOS; updating; supported hardware |
+| [Installation](https://github.com/mehmetraif/OSD-OS/wiki/Installation) | The OSD/OS image for a Raspberry Pi, or OSD/OS as an app on Raspberry Pi OS, macOS, SteamOS, Windows, FreeBSD and OpenBSD; updating; supported hardware |
 | [Using OSD/OS](https://github.com/mehmetraif/OSD-OS/wiki/Using-OSD-OS) | Every screen: the main menu, the tree, search, info screens, options, playing a video, the menus over a video, quitting |
 | [Controls](https://github.com/mehmetraif/OSD-OS/wiki/Controls) | Keyboards, remotes, gamepads and the mouse; remapping buttons; pairing Bluetooth devices |
 | [Features](https://github.com/mehmetraif/OSD-OS/wiki/Features) | Everything it does, at a glance |

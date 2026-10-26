@@ -14,7 +14,10 @@
 <meta property="og:image" content="https://osdos.tv/assets/osdos-on-a-crt.jpg">
 <meta property="og:image:alt" content="OSD/OS's settings on a Sony CRT television">
 <meta name="twitter:card" content="summary_large_image">
-<link rel="icon" href="img/icon.svg" type="image/svg+xml">
+<link rel="icon" href="img/icon-16.png" sizes="16x16" type="image/png">
+<link rel="icon" href="img/icon-32.png" sizes="32x32" type="image/png">
+<link rel="icon" href="img/icon-48.png" sizes="48x48" type="image/png">
+<link rel="icon" href="img/icon-256.png" sizes="256x256" type="image/png">
 <link rel="preload" href="fonts/VCR_OSD_MONO_1.001.ttf" as="font" type="font/ttf" crossorigin>
 <link rel="stylesheet" href="style.css">
 <script src="js/home.js" defer></script>
@@ -256,16 +259,16 @@
     <div class="hardware-panel" role="tabpanel" id="panel-bsd" aria-labelledby="tab-bsd" tabindex="0" hidden>
       <div>
         <p class="mini-label">THE BSD SETUP</p>
-        <h3>FreeBSD or OpenBSD.<br>Built from source.</h3>
-        <p>Build OSD/OS on FreeBSD or OpenBSD with the system's own Qt 6, SDL2 and mpv packages, and run it as a desktop app: the menus, films and media servers, YouTube, and the arcade with the system's MAME.</p>
-        <a class="text-link" href="https://github.com/mehmetraif/OSD-OS/blob/main/BUILDING.md#freebsd-and-openbsd-amd64">See the BSD build <svg class="pixel-icon" aria-hidden="true"><use href="#icon-external"/></svg></a>
+        <h3>FreeBSD or OpenBSD.<br>One package.</h3>
+        <p>Install OSD/OS on FreeBSD or OpenBSD as a package of the system's, with its own Qt 6, SDL2 and mpv packages, and run it as a desktop app: the menus, films and media servers, YouTube, and the arcade with the system's MAME, or FinalBurn Neo in its RetroArch.</p>
+        <a class="text-link" href="https://github.com/mehmetraif/OSD-OS/blob/main/INSTALL.md#on-freebsd-amd64">See the BSD install <svg class="pixel-icon" aria-hidden="true"><use href="#icon-external"/></svg></a>
         <svg class="pixel-scene" aria-hidden="true"><use href="#scene-terminal"/></svg>
       </div>
       <dl>
-        <div><dt>Systems</dt><dd>FreeBSD and OpenBSD on amd64, built from source</dd></div>
-        <div><dt>Packages</dt><dd>Qt 6, SDL2, minizip and mpv, with <code>pkg</code> or <code>pkg_add</code></dd></div>
-        <div><dt>Arcade</dt><dd>MAME from the system's packages. FinalBurn Neo, and with it online play and RetroAchievements, waits for a BSD build</dd></div>
-        <div><dt>Status</dt><dd>Built and tested in a virtual machine on every change; not yet tried on a BSD computer</dd></div>
+        <div><dt>Systems</dt><dd>FreeBSD 15 and OpenBSD 8.0 on amd64</dd></div>
+        <div><dt>Packages</dt><dd>A <code>.pkg</code> for <code>pkg add</code>, a <code>.tgz</code> for <code>pkg_add</code>, in every release</dd></div>
+        <div><dt>Arcade</dt><dd>MAME and RetroArch from the system's packages. FinalBurn Neo comes with OSD/OS, built from its source, with online play and RetroAchievements</dd></div>
+        <div><dt>Status</dt><dd>Built, installed and started in a virtual machine on every change; not yet tried on a BSD computer</dd></div>
       </dl>
     </div>
     <p class="hardware-note">* Which outputs a Pi has depends on the model and the adapter. Check the display guide before choosing a mode.</p>

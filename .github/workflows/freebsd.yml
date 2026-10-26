@@ -1,13 +1,22 @@
 name: FreeBSD build
 
 # Builds the app on FreeBSD (amd64), runs the regression tests there and
-# uploads the install tree as an artifact, osdos-freebsd-amd64: the app and
-# its files as the install rules lay them out (bin/, share/osdos/), to run
-# with the system's Qt, SDL2 and mpv packages. GitHub has no FreeBSD runners:
-# the job starts a FreeBSD virtual machine on a Linux runner, with the
-# repository copied into it and what it builds copied back.
+# makes OSD/OS's FreeBSD package (scripts/bsd-package.sh), with FinalBurn
+# Neo's core built from its source (scripts/build-fbneo.sh), for want of a
+# FreeBSD build of libretro's. The package is then installed in the same
+# machine as a user installs it, the core loaded from it and the app started
+# from it, and removed again. It is uploaded as the artifact
+# osdos-freebsd-amd64; the release workflow calls this one for the tag and
+# publishes it. GitHub has no FreeBSD runners: the job starts a FreeBSD
+# virtual machine on a Linux runner, with the repository copied into it and
+# what it builds copied back.
 
 on:
+  workflow_call:
+    outputs:
+      release:
+        description: The FreeBSD release the package is built on, and for
+        value: ${{ jobs.build-freebsd-amd64.outputs.release }}
   workflow_dispatch:
   push:
     branches: [main]
@@ -18,6 +27,8 @@ on:
       - 'cmake/**'
       - 'tests/**'
       - 'CMakeLists.txt'
+      - 'scripts/build-fbneo.sh'
+      - 'scripts/bsd-package.sh'
       - '.github/workflows/freebsd.yml'
   pull_request:
     paths:
@@ -27,13 +38,26 @@ on:
       - 'cmake/**'
       - 'tests/**'
       - 'CMakeLists.txt'
+      - 'scripts/build-fbneo.sh'
+      - 'scripts/bsd-package.sh'
       - '.github/workflows/freebsd.yml'
 
-# A newer push cancels the run before it: a run takes about ten minutes, and
-# only the newest commit's result matters.
+# A newer push cancels the run before it: only the newest commit's result
+# matters.
 concurrency:
   group: freebsd-${{ github.ref }}
   cancel-in-progress: true
+
+env:
+  # The FreeBSD the package is built on, and for: FreeBSD's packages are
+  # made for one major version.
+  FREEBSD_RELEASE: "15.1"
+  # FinalBurn Neo's commit the core is built from, and its date (yymmdd),
+  # which the core's version is made of.
+  FBNEO_COMMIT: 2b0c1c0679df115cada7df9199ea2762222e58fd
+  FBNEO_DATE: "261021"
+  # The tag for a release, else dev (a package of version 0.0.0).
+  VERSION: ${{ github.ref_type == 'tag' && github.ref_name || 'dev' }}
 
 jobs:
   build-freebsd-amd64:
@@ -41,34 +65,55 @@ jobs:
     # The virtual machine's host named, as the other workflows' are:
     # ubuntu-latest moves to a newer Ubuntu under the jobs.
     runs-on: ubuntu-24.04
-    timeout-minutes: 150
+    timeout-minutes: 180
+    outputs:
+      release: ${{ steps.release.outputs.release }}
 
     steps:
       - name: Checkout
         uses: actions/checkout@v7.0.1
 
+      - name: The release built for
+        id: release
+        run: echo "release=$FREEBSD_RELEASE" >> "$GITHUB_OUTPUT"
+
+      # FinalBurn Neo's core takes longer to build than the app: kept from a
+      # run before for the same commit, release and script.
+      - name: Restore FinalBurn Neo's core
+        id: fbneo
+        uses: actions/cache/restore@v6.1.0
+        with:
+          path: fbneo
+          key: fbneo-freebsd-${{ env.FREEBSD_RELEASE }}-${{ env.FBNEO_COMMIT }}-${{ hashFiles('scripts/build-fbneo.sh') }}
+
+      - name: Download FinalBurn Neo's source
+        if: steps.fbneo.outputs.cache-hit != 'true'
+        run: curl -fsSL --retry 3 -o fbneo-src.tar.gz "https://github.com/libretro/FBNeo/archive/${FBNEO_COMMIT}.tar.gz"
+
       # The packages: Qt 6 with its QML, SVG and shader tools, SDL2
       # (gamepads), minizip (High Scores' tables, FinalBurn Neo's download),
-      # and what the tests run with: bash, Lua, and the DejaVu fonts, since
-      # the view tests lay their text out in the system's monospace font and
-      # the image has no font for Qt to draw it with. OpenSSL is the system's.
-      - name: Build and test in a FreeBSD VM
+      # mpv (the package depends on it), GNU make for FinalBurn Neo, and what
+      # the tests run with: bash, Lua, and the DejaVu fonts, since the view
+      # tests lay their text out in the system's monospace font and the image
+      # has no font for Qt to draw it with. OpenSSL is the system's.
+      - name: Build, test and package in a FreeBSD VM
         uses: vmactions/freebsd-vm@v1
         with:
-          release: "15.1"
+          release: ${{ env.FREEBSD_RELEASE }}
+          envs: 'FBNEO_COMMIT FBNEO_DATE VERSION'
           mem: 6144
           sync: rsync
           copyback: true
           prepare: |
-            env ASSUME_ALWAYS_YES=yes pkg install -y cmake-core ninja pkgconf bash lua54 dejavu \
-              qt6-base qt6-declarative qt6-svg qt6-shadertools sdl2 minizip
+            env ASSUME_ALWAYS_YES=yes pkg install -y cmake-core ninja pkgconf bash lua54 dejavu gmake \
+              qt6-base qt6-declarative qt6-svg qt6-shadertools sdl2 minizip mpv
           run: |
             set -e
             uname -a
             cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_PREFIX_PATH=/usr/local \
-              -DCMAKE_INSTALL_PREFIX="$PWD/install" -DAPP_VERSION=dev
+              -DCMAKE_INSTALL_PREFIX=/usr/local -DAPP_VERSION="$VERSION"
             cmake --build build --parallel
-            cmake --install build
+            DESTDIR="$PWD/stage" cmake --install build
             cmake -S tests -B build-tests -G Ninja -DCMAKE_PREFIX_PATH=/usr/local
             cmake --build build-tests --parallel
             status=0
@@ -77,11 +122,43 @@ jobs:
             # let go: a warning on Linux, a crash on OpenBSD, so any is listed.
             grep -n "invalid context\|delayed function evaluation" build-tests/Testing/Temporary/LastTest.log || true
             [ "$status" -eq 0 ]
-            tar -C install -czf osdos-freebsd-amd64.tar.gz bin share
+            # The core's BUILD note is the last thing the script writes.
+            if [ ! -f fbneo/share/osdos/fbneo/BUILD ]; then
+              mkdir -p fbneo-src
+              tar -xzf fbneo-src.tar.gz -C fbneo-src --strip-components 1
+              bash scripts/build-fbneo.sh fbneo-src fbneo
+            fi
+            tar -C fbneo -cf - . | tar -C stage/usr/local -xf -
+            bash scripts/bsd-package.sh stage "$VERSION" .
+            package=$(ls OSD-OS-*-freebsd-amd64.pkg)
+            # Installed as a user installs it, with mpv, which none of the
+            # program's libraries brings, taken away first.
+            pkg delete -y mpv
+            if pkg install -y "./$package"; then
+              echo "pkg install brought the package and what it needs"
+            else
+              echo "pkg install can't take the file: its packages first, then pkg add"
+              pkg install -y mpv
+              pkg add "./$package"
+            fi
+            pkg info osdos
+            /usr/local/bin/osdos --core-info /usr/local/lib/osdos/fbneo_libretro.so
+            bash tests/app_smoke_test.sh /usr/local/bin/osdos /usr/local/share/osdos /usr/local/lib/qt6/qml
+            pkg delete -y osdos
+            [ ! -e /usr/local/bin/osdos ] && [ ! -e /usr/local/lib/osdos ] && [ ! -e /usr/local/share/osdos ]
+
+      # Kept once it is built, whether or not the package after it is made,
+      # so that a run after a failed one doesn't build it again.
+      - name: Keep FinalBurn Neo's core
+        if: always() && steps.fbneo.outputs.cache-hit != 'true' && hashFiles('fbneo/share/osdos/fbneo/BUILD') != ''
+        uses: actions/cache/save@v6.1.0
+        with:
+          path: fbneo
+          key: ${{ steps.fbneo.outputs.cache-primary-key }}
 
       - name: Upload artifact
         uses: actions/upload-artifact@v7.0.1
         with:
           name: osdos-freebsd-amd64
-          path: osdos-freebsd-amd64.tar.gz
+          path: OSD-OS-*-freebsd-amd64.pkg
           if-no-files-found: error
