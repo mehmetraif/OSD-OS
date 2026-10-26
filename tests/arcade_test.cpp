@@ -64,6 +64,9 @@ machine() {
 	kinst) echo '<machine name="kinst"><description>Killer Instinct (v1.5d)</description><year>1994</year><manufacturer>Rare / Nintendo</manufacturer><input players="2"/><driver status="good"/></machine>' ;;
 	sf2) echo '<machine name="sf2" sourcefile="capcom/cps1.cpp"><description>Street Fighter II: The World Warrior</description><year>1991</year><manufacturer>Capcom</manufacturer><input players="2"/><driver status="good"/></machine>' ;;
 	sf2b) echo '<machine name="sf2b" sourcefile="capcom/cps1.cpp" cloneof="sf2" romof="sf2"><description>Street Fighter II: The World Warrior (bootleg, set 1)</description><year>1991</year><manufacturer>bootleg</manufacturer><input players="2"/><driver status="good"/></machine>' ;;
+	sf2ua) echo '<machine name="sf2ua" sourcefile="capcom/cps1.cpp" cloneof="sf2" romof="sf2"><description>Street Fighter II: The World Warrior (USA 910206)</description><year>1991</year><manufacturer>Capcom</manufacturer><input players="2"/><driver status="good"/></machine>' ;;
+	sf2j) echo '<machine name="sf2j" sourcefile="capcom/cps1.cpp" cloneof="sf2" romof="sf2"><description>Street Fighter II: The World Warrior (Japan 911210)</description><year>1991</year><manufacturer>Capcom</manufacturer><input players="2"/><driver status="good"/></machine>' ;;
+	s1945) echo '<machine name="s1945" sourcefile="psikyo/psikyo.cpp"><description>Strikers 1945 (Japan / World)</description><year>1995</year><manufacturer>Psikyo</manufacturer><input players="2"/><driver status="good"/></machine>' ;;
 	pacmanf) echo '<machine name="pacmanf" sourcefile="pacman/pacman.cpp" cloneof="puckman" romof="puckman"><description>Pac-Man (Midway, speedup hack)</description><year>1980</year><manufacturer>Namco (Midway license)</manufacturer><input players="2"/><driver status="good"/></machine>' ;;
 	mspacman) echo '<machine name="mspacman" sourcefile="pacman/pacman.cpp"><description>Ms. Pac-Man</description><year>1981</year><manufacturer>Midway / General Computer Corporation</manufacturer><input players="2"/><driver status="good"/></machine>' ;;
 	acefruit) echo '<machine name="acefruit"><description>Ace (Cassette)</description><year>1982?</year><manufacturer>unknown</manufacturer><input players="1"/><driver status="preliminary"/></machine>' ;;
@@ -6097,6 +6100,137 @@ private slots:
         QCOMPARE(sets("favorites"), QStringList({ QStringLiteral("galaga"), QStringLiteral("sf2b") }));
         QCOMPARE(sets("recent"), QStringList({ QStringLiteral("pacmanf") }));
         QCOMPARE(sets("makers/Namco").size(), 3);
+    }
+
+    // Settings → Arcade → Regions' choices and the regions a set's name gives
+    // in its parentheses, as MAME and FinalBurn Neo write them: several in
+    // one name, a country as its region, and none in a title, a maker, a
+    // version or a longer word. OSD/OS Setup offers the same choices.
+    void regionsOfNames() {
+        QStringList ids, names;
+        for (const mame::Region &region : mame::regions()) {
+            ids << region.id;
+            names << region.name;
+        }
+        QCOMPARE(names, QStringList({ "World", "USA", "Europe", "Asia", "Japan", "Korea", "China", "Hong Kong",
+                                      "Taiwan", "Hispanic", "Brazil", "Oceania" }));
+        const auto of = [](const char *name) { return mame::regionsOf(QString::fromUtf8(name)); };
+        QCOMPARE(of("Street Fighter II: The World Warrior (USA 910206)"), QStringList({ "usa" }));
+        QCOMPARE(of("Street Fighter II: The World Warrior (910522 World)"), QStringList({ "world" }));
+        QCOMPARE(of("Donkey Kong (US set 1)"), QStringList({ "usa" }));
+        QCOMPARE(of("Street Fighter Alpha 3 (Euro 980904)"), QStringList({ "europe" }));
+        QCOMPARE(of("Raiden II (Germany)"), QStringList({ "europe" }));
+        QCOMPARE(of("Marvel Vs. Capcom (Hong Kong 980123)"), QStringList({ "hong_kong" }));
+        QCOMPARE(of("Cool Boarders Arcade Jam (Export)"), QStringList({ "world" }));
+        QCOMPARE(of("Strikers 1945 (Japan / World)"), QStringList({ "world", "japan" }));
+        QCOMPARE(of("Aero Fighters (World / USA + Canada / Korea / Hong Kong / Taiwan) (newer hardware)"),
+                 QStringList({ "world", "usa", "korea", "hong_kong", "taiwan" }));
+        QVERIFY(of("Street Fighter II: The World Warrior").isEmpty());
+        QVERIFY(of("Galaga (Namco rev. B)").isEmpty());
+        QVERIFY(of("Ms. Pac-Man").isEmpty());
+        QVERIFY(of("Mortal Kombat II (rev L3.1, European)").isEmpty());
+        QVERIFY(of("Racing Game (Russian, Indiana rev 2)").isEmpty());
+
+        QFile setup(QStringLiteral(TESTS_DIR "/../site/setup/schema-extra.json"));
+        QVERIFY(setup.open(QIODevice::ReadOnly));
+        QStringList offered;
+        const QJsonArray choices = QJsonDocument::fromJson(setup.readAll()).object()
+                                       .value(QStringLiteral("modules")).toObject()
+                                       .value(QStringLiteral("com.osdos.arcade")).toObject()
+                                       .value(QStringLiteral("options")).toObject()
+                                       .value(QStringLiteral("regions")).toArray();
+        for (const QJsonValue &choice : choices)
+            offered << choice.toArray().at(1).toString();
+        QCOMPARE(offered, ids);
+    }
+
+    // Settings → Arcade → Regions: every region on its page whatever the
+    // folder holds. A region turned off (the row saved whole, as its page
+    // saves it) leaves every list and filter, Favorites and Recently Played
+    // too; a set of several regions goes once they all are off, one whose
+    // name gives none never. As the module starts, what was saved holds.
+    void hidesRegions() {
+        QTemporaryDir data;
+        QVERIFY(data.isValid());
+        const QString games = data.path() + QStringLiteral("/media/Games/Arcade");
+        for (const char *set : { "sf2.zip", "sf2ua.zip", "sf2j.zip", "s1945.zip", "galaga.zip" })
+            writeFile(games + QLatin1Char('/') + QLatin1String(set));
+        QVERIFY(QDir().mkpath(data.path() + QStringLiteral("/bin")));
+        QVERIFY(QFile::copy(mamePath(), data.path() + QStringLiteral("/bin/mame")));
+        QVERIFY(QFile::setPermissions(data.path() + QStringLiteral("/bin/mame"),
+                                      QFile::ReadOwner | QFile::WriteOwner | QFile::ExeOwner));
+        qputenv("OSDOS_MEDIA_DIR", (data.path() + QStringLiteral("/media")).toUtf8());
+        const auto restore = qScopeGuard([this] {
+            qputenv("OSDOS_MEDIA_DIR", (m_data.path() + QStringLiteral("/media")).toUtf8());
+        });
+        const QString module = QStringLiteral("com.osdos.arcade");
+        AppCore core(data.path(), data.path());
+        core.add_to_list(module, QStringLiteral("favorites"), { { QStringLiteral("path"), QStringLiteral("game:sf2j") } });
+        core.add_to_list(module, QStringLiteral("recent"), { { QStringLiteral("path"), QStringLiteral("game:s1945") } });
+
+        ArcadeBackend arcade(data.path(), data.path(), &core, nullptr);
+        connect(&core, &AppCore::moduleSettingChanged, &arcade, &ArcadeBackend::onSettingChanged);
+        QSignalSpy options(&arcade, &ArcadeBackend::dynamicOptionsReady);
+        arcade.regionOptions();
+        QCOMPARE(options.size(), 1);
+        QCOMPARE(options.first().at(0).toString(), QStringLiteral("regions"));
+        QCOMPARE(options.first().at(1).toList().size(), mame::regions().size());
+        QCOMPARE(options.first().at(1).toList().at(4).toMap(),
+                 QVariantMap({ { QStringLiteral("id"), QStringLiteral("japan") }, { QStringLiteral("label"), QStringLiteral("Japan") } }));
+        refreshed(arcade);
+        const auto setsOf = [](ArcadeBackend &backend, const char *filter) {
+            QStringList list;
+            for (const QVariant &v : backend.filterGames(QLatin1String(filter), 0, 50))
+                list << v.toMap().value(QStringLiteral("set")).toString();
+            return list;
+        };
+        const auto sets = [&](const char *filter) { return setsOf(arcade, filter); };
+        const auto treeSets = [&arcade](const char *path) {
+            QStringList list;
+            for (const QVariant &v : arcade.requestEntries(QLatin1String(path)).toList())
+                list << v.toMap().value(QStringLiteral("game")).toString();
+            return list;
+        };
+        // All on: every game, by name.
+        const QStringList all{ QStringLiteral("galaga"), QStringLiteral("sf2"), QStringLiteral("sf2j"),
+                               QStringLiteral("sf2ua"), QStringLiteral("s1945") };
+        QCOMPARE(sets("all"), all);
+        QCOMPARE(sets("favorites"), QStringList({ QStringLiteral("sf2j") }));
+        QCOMPARE(sets("recent"), QStringList({ QStringLiteral("s1945") }));
+
+        // Japan off: its Street Fighter II gone, Favorites with it; Strikers
+        // 1945 is World's too.
+        QSignalSpy changed(&arcade, &ArcadeBackend::gamesChanged);
+        core.save_setting(module, QStringLiteral("regions"), QVariantMap{ { QStringLiteral("japan"), false } });
+        QCOMPARE(changed.size(), 1);
+        QCOMPARE(sets("all"), QStringList({ QStringLiteral("galaga"), QStringLiteral("sf2"), QStringLiteral("sf2ua"),
+                                            QStringLiteral("s1945") }));
+        QVERIFY(sets("favorites").isEmpty());
+        QVERIFY(treeSets("favorites").isEmpty());
+        QCOMPARE(sets("recent"), QStringList({ QStringLiteral("s1945") }));
+        QCOMPARE(sets("makers/Capcom"), QStringList({ QStringLiteral("sf2"), QStringLiteral("sf2ua") }));
+
+        // World off as well: Strikers 1945 goes; Street Fighter II, whose
+        // name gives none, and Galaga stay.
+        core.save_setting(module, QStringLiteral("regions"),
+                          QVariantMap{ { QStringLiteral("japan"), false }, { QStringLiteral("world"), false } });
+        QCOMPARE(changed.size(), 2);
+        QCOMPARE(sets("all"), QStringList({ QStringLiteral("galaga"), QStringLiteral("sf2"), QStringLiteral("sf2ua") }));
+        QVERIFY(sets("recent").isEmpty());
+        QVERIFY(treeSets("recent").isEmpty());
+
+        // As the module starts again, what was saved holds.
+        ArcadeBackend again(data.path(), data.path(), &core, nullptr);
+        refreshed(again);
+        QCOMPARE(setsOf(again, "all"), QStringList({ QStringLiteral("galaga"), QStringLiteral("sf2"), QStringLiteral("sf2ua") }));
+
+        // Both on again: back where they were.
+        core.save_setting(module, QStringLiteral("regions"),
+                          QVariantMap{ { QStringLiteral("japan"), true }, { QStringLiteral("world"), true } });
+        QCOMPARE(changed.size(), 3);
+        QCOMPARE(sets("all"), all);
+        QCOMPARE(sets("favorites"), QStringList({ QStringLiteral("sf2j") }));
+        QCOMPARE(treeSets("recent"), QStringList({ QStringLiteral("s1945") }));
     }
 
     // Settings → Arcade → Menu Filters: its page, the lists and the places

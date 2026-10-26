@@ -115,6 +115,23 @@ QString titleOf(const QString &description);
 // set 1, Probably Bootleg)"), or its maker does ("bootleg", "bootleg
 // (Playmark)", "hack").
 bool isBootlegOrHack(const Machine &machine);
+// A region arcade sets' names give, as Settings → Arcade → Regions lists it.
+struct Region {
+    QString     id;      // as the setting keeps it: "usa"
+    QString     name;    // as Settings shows it: "USA"
+    QStringList words;   // as the names write it: "USA", "US"
+};
+// Every region a set's name may give, in Regions' order: World, USA,
+// Europe, Asia, Japan, Korea, China, Hong Kong, Taiwan, Hispanic, Brazil and
+// Oceania. A country with few sets of its own counts as its region: Germany,
+// Italy or UK as Europe, Canada as USA.
+const QList<Region> &regions();
+// The ids of the regions a set's name gives in its parentheses, as MAME and
+// FinalBurn Neo write them, in regions()' order: "(USA 910206)" → usa,
+// "(910522 World)" → world, "(Japan / World)" → world, japan; none for a
+// name without one ("Galaga (Namco rev. B)"). A title's words don't count
+// (Street Fighter II: The World Warrior).
+QStringList regionsOf(const QString &description);
 // The board or system a driver is for, as the Arcade screen names it, from
 // its source file: "capcom/cps1.cpp" → "CPS-1", "neogeo/neogeo.cpp" →
 // "Neo-Geo"; any other, the driver's own name: "nintendo/dkong.cpp" →
