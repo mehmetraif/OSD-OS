@@ -37,12 +37,29 @@ class AppCore : public QObject {
     // statusIcons property (a QStringList of PixelIcon's names, with a
     // notify signal), in the modules' order.
     Q_PROPERTY(QStringList statusIcons READ statusIcons NOTIFY statusIconsChanged)
+    // What became of OSD/OS Setup's file as the app started (main.cpp,
+    // setupfile::applyAtStart()): the notice's title and its lines, shown
+    // once the app is up (views/SetupNotice.qml) until dismissed; empty
+    // without a file.
+    Q_PROPERTY(QString setupNotice READ setupNotice NOTIFY setupNoticeChanged)
+    Q_PROPERTY(QString setupNoticeDetail READ setupNoticeDetail NOTIFY setupNoticeChanged)
 public:
     explicit AppCore(const QString &appRoot, const QString &dataRoot, QObject *parent = nullptr);
 
     QString appVersion() const { return QCoreApplication::applicationVersion(); }
     QString appBuild() const { return QStringLiteral(APP_BUILD); }
     QStringList statusIcons() const { return m_statusIcons; }
+    QString setupNotice() const { return m_setupNotice; }
+    QString setupNoticeDetail() const { return m_setupNoticeDetail; }
+    void setSetupNotice(const QString &title, const QString &detail);
+    Q_INVOKABLE void dismissSetupNotice();
+    // Settings → Paste OSD/OS Setup: the text copied on OSD/OS Setup's page
+    // (its Copy), as its file, applied at once: the settings merged into
+    // config.json, each change told as Settings tells one (appSettingChanged,
+    // moduleSettingChanged), and the RetroAchievements account handed to
+    // the Arcade module (setupAccountWritten). What a card alone sets is
+    // named, not set. { ok, title, detail }: the notice to show.
+    Q_INVOKABLE QVariantMap applySetupText(const QString &text);
 
     // True when launched by the autostart systemd service (which injects OSDOS_AUTOSTART=1).
     // Gates the quit overlay's "Exit to Terminal" option, which only makes sense on a
@@ -163,6 +180,11 @@ signals:
     void modulesLoaded(const QVariantList &modules);
     void appSettingChanged(const QString &key, const QString &value);
     void moduleSettingChanged(const QString &moduleId, const QString &key, const QVariant &value);
+    void setupNoticeChanged();
+    // OSD/OS Setup's RetroAchievements account written while the app runs
+    // (applySetupText()): the Arcade module takes it at once, as it does a
+    // card's as it starts (ArcadeBackend::takeSetupAccount()).
+    void setupAccountWritten();
     void dynamicOptionsReady(const QString &moduleId, const QString &key, const QVariant &options);
     void moduleAuthStateChanged(const QString &moduleId);
     // A module's status icons changed, or a module was turned on or off.
@@ -208,10 +230,17 @@ private:
     // The skins or the themes there are, id → its JSON, the first found of
     // each id.
     QMap<QString, QJsonObject> looks(const QString &kind) const;
+    // Each value of `after` that `before` didn't have, told as save_setting
+    // tells a setting it saved: an app's, a module's (a value of values by
+    // its dotted keys, as Settings saves those), the status icons again for
+    // a module turned on or off.
+    void tellChanges(const QJsonObject &before, const QJsonObject &after);
 
     QString m_appRoot;
     QString m_dataRoot;
     QList<ModuleEntry> m_modules;
     QMap<QString, QObject*> m_backends;
     QStringList m_statusIcons;
+    QString m_setupNotice;
+    QString m_setupNoticeDetail;
 };

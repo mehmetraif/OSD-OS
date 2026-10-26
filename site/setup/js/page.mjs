@@ -595,6 +595,27 @@ async function downloadZip() {
     say(`Saved osdos-setup.zip: ${files.map(f => f.name).join(" and ")}. Unpack it onto bootfs.`, true);
 }
 
+// The same file on the clipboard, for OSD/OS on a computer (Settings → Paste
+// OSD/OS Setup). The clipboard is handed its text as a promise in the click
+// itself, which Safari asks for, while pi's password may still be hashing.
+async function copySetup() {
+    const made = setupFile();
+    const blob = made.then(setup => setup ? new Blob([JSON.stringify(setup, null, 2) + "\n"], { type: "text/plain" })
+                                          : Promise.reject(new Error("problems() said why")));
+    blob.catch(() => {});
+    try {
+        if (typeof ClipboardItem === "function" && navigator.clipboard.write)
+            await navigator.clipboard.write([new ClipboardItem({ "text/plain": blob })]);
+        else
+            await navigator.clipboard.writeText(await (await blob).text());
+    } catch {
+        if (await made)
+            say("The browser didn't let the page copy: export osdos-setup.json and put it in OSD/OS's data folder instead.");
+        return;
+    }
+    say(`Copied: ${counted(await made)}. In OSD/OS on a computer, Settings → Paste OSD/OS Setup sets it.`, true);
+}
+
 // What a file read in brings that gets a card in: said, so that one from
 // someone else isn't taken on trust.
 function carried(read) {
@@ -661,6 +682,7 @@ async function start() {
     });
     document.getElementById("export").addEventListener("click", exportFile);
     document.getElementById("download-zip").addEventListener("click", downloadZip);
+    document.getElementById("copy").addEventListener("click", copySetup);
     document.getElementById("reset-all").addEventListener("click", () => {
         state = fresh();
         openModules.clear();

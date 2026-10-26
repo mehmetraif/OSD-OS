@@ -345,7 +345,7 @@ Back on the main menu opens Settings, laid out like a camcorder's menu: a line p
 - **Arcade** opens the Arcade module's settings, with the High Scores module's after them under its own heading.
 - **General Settings**: the look first, Theme, then its parts (Color Scheme, Skin, the effects, Transition, Menu Music), then OSD Background and Window Frame. Then startup (Start on Module, Play at Startup, Boot Screen Colors) and the screen (Hint Bar, Help Line, Screen Saver, Mouse Pointer, and on a PC's desktop Window Mode, the menus in a window, F11).
 - **Modules**: a line for each module on neither page, Scripts, for its settings.
-- **Application**: Display Output (on the image), Audio Output (where plain ALSA plays), Controls, Wi-Fi and Bluetooth (on Linux), Update, About (this device's System Information first) and Quit.
+- **Application**: Display Output (on the image), Audio Output (where plain ALSA plays), Controls, Wi-Fi and Bluetooth (on Linux), Paste OSD/OS Setup (on a computer: the settings copied on [OSD/OS Setup](https://osdos.tv/setup/), set at once), Update, About (this device's System Information first) and Quit.
 
 <table>
 <tr><th width="50%">A module's settings</th><th width="50%">Picking a folder</th></tr>

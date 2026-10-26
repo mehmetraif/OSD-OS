@@ -240,6 +240,7 @@ Some rows wait for something:
 | Controls | A page | | Each controller connected, with its own buttons and a pad's button labels; the pads of players 1 to 6; and one more key for each action on every keyboard and remote | `app.controllers.<key>`, `app.players`, `app.remote_keymap.<action>` |
 | Wi-Fi | A page | | The networks within reach, joined with their passwords; one not listed; the networks saved; the country Wi-Fi keeps to the rules of | None: NetworkManager keeps the networks joined |
 | Bluetooth | A page | | Searching for, pairing and connecting keyboards, gamepads and remotes | None: BlueZ keeps the pairings |
+| Paste OSD/OS Setup | An action | | Sets at once the settings copied on [OSD/OS Setup](https://osdos.tv/setup/) (**Copy for a computer**): OSD/OS's own and the RetroAchievements account. Where there is a clipboard: not on the OSD/OS image, whose card takes the page's file instead | Those it sets ([below](#paste-osdos-setup)) |
 | Update | A page | | Checks for a newer release, downloads it and installs it | None |
 | About | A page | | This device's System Information first: its name, which tells it apart from others on the network, what it is and each network connection's IP and MAC addresses, the name renamed on the OSD/OS image. Then what OSD/OS is, who makes it, what it is made of, the arcade's free software and sites, and their licenses | None: the device's name is the system's hostname |
 | Quit | A question | | Quits OSD/OS, or under the image's service powers off, restarts or drops to a terminal | None |
@@ -318,6 +319,12 @@ The page talks to BlueZ, Linux's Bluetooth service, as the user OSD/OS runs as (
 - Leaving the page stops a search and cancels a pairing.
 
 If BlueZ isn't running, or the computer has no adapter, the page says **No Bluetooth**. On a Mac, pair devices in the Mac's own Bluetooth settings.
+
+### Paste OSD/OS Setup
+
+On [OSD/OS Setup](https://osdos.tv/setup/), choose the settings, then **Copy for a computer**; select on this row takes them from the clipboard and sets them at once, as the card does as it starts: OSD/OS's own settings, merged into `config.json`, each changed one taking effect as if chosen in Settings, and the RetroAchievements account, which the Arcade module signs in with through RetroArch. A window says what was set, and names what the settings hold that only an OSD/OS card sets (the device's name, the display output, Wi-Fi, the password, SSH, the time zone, the keyboard), which stays as it is. Text that isn't OSD/OS Setup's settings changes nothing, and the window says why.
+
+The page's file does the same at the next start, put in the data folder or beside the app ([Installation](https://github.com/mehmetraif/OSD-OS/wiki/Installation#osdos-setup-on-a-computer)).
 
 ### Update
 

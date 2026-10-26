@@ -70,16 +70,18 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v7.0.1
       - name: Node
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v7.1.0
         with:
           node-version: 22
       - name: Build the website
         run: python3 scripts/build-site.py _site
       - name: Test the website
         run: node --test tests/site/*.test.mjs
+      # Without its dotfiles, the build's mark and .nojekyll: a site
+      # published from a workflow isn't built with Jekyll.
       - name: Upload the website
         if: github.ref == 'refs/heads/main'
-        uses: actions/upload-pages-artifact@v3
+        uses: actions/upload-pages-artifact@v5.0.0
         with:
           path: _site
 
@@ -96,4 +98,4 @@ jobs:
     steps:
       - name: Publish
         id: deployment
-        uses: actions/deploy-pages@v4
+        uses: actions/deploy-pages@v5.0.1

@@ -38,7 +38,9 @@ concurrency:
 jobs:
   build-freebsd-amd64:
     name: FreeBSD amd64
-    runs-on: ubuntu-latest
+    # The virtual machine's host named, as the other workflows' are:
+    # ubuntu-latest moves to a newer Ubuntu under the jobs.
+    runs-on: ubuntu-24.04
     timeout-minutes: 150
 
     steps:

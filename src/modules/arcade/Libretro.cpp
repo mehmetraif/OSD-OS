@@ -92,8 +92,11 @@ constexpr std::pair<const char *, const char *> kArcadePanelClassic[] = {
     { "l_x_plus_axis", "+0" }, { "l_x_minus_axis", "-0" }, { "l_y_plus_axis", "+1" }, { "l_y_minus_axis", "-1" },
 };
 
-// A pad's left stick as the joystick beside its D-pad, as a panel's is, for
-// a player whose Arcade Buttons put it on the 6-Button Panel.
+// A pad's left stick as the joystick beside its D-pad, as a panel's is: the
+// stick's directions pressed as the D-pad's. Off line FinalBurn Neo reads
+// the stick itself, but online RetroArch sends only the buttons of a port
+// the host has as a plain RetroPad (every port but the 6-Button Panel's), so
+// a stick reaches the game only as these.
 constexpr std::pair<const char *, const char *> kStickAsJoystick[] = {
     { "up_axis", "-1" }, { "down_axis", "+1" }, { "left_axis", "-0" }, { "right_axis", "+0" },
 };
@@ -471,9 +474,10 @@ QString configText(const Launch &launch) {
     // player, with RetroArch's own look-up off, so that it no longer says
     // over the game that each pad has no profile ("not configured, using
     // fallback"); the reservations below still give each player their pad.
-    // A player on an arcade panel has its two rows instead (kArcadePanel),
-    // and one with Arcade Buttons those, where the panels play (onPanel());
-    // a panel under Classic types its buttons by number (kArcadePanelClassic).
+    // A pad's left stick is its joystick too (kStickAsJoystick). A player on
+    // an arcade panel has its two rows instead (kArcadePanel), and one with
+    // Arcade Buttons those, where the panels play (onPanel()); a panel under
+    // Classic types its buttons by number (kArcadePanelClassic).
     set("input_joypad_driver", QStringLiteral("sdl2"));
     set("input_autodetect_enable", on(false));
     for (int p = 1; p <= controllers::kPlayers; ++p) {
@@ -487,13 +491,12 @@ QString configText(const Launch &launch) {
             add(kArcadePanel);
         else if (panel)
             add(kArcadePanelClassic);
-        else
+        else {
             add(kStandardGamepad);
-        if (withArcade(launch, p - 1)) {
-            if (!panel)
-                add(kStickAsJoystick);
-            binds = arcadeBinds(binds, launch.arcade.value(p - 1));
+            add(kStickAsJoystick);
         }
+        if (withArcade(launch, p - 1))
+            binds = arcadeBinds(binds, launch.arcade.value(p - 1));
         const QByteArray player = QByteArray("input_player") + QByteArray::number(p) + '_';
         for (const auto &[name, value] : std::as_const(binds))
             set((player + name).constData(), value);

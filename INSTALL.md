@@ -322,6 +322,12 @@ If you don't have a Raspberry Pi and would like to try OSD/OS, I also provide a 
 - The Local Files and Playlists modules will be enabled by default and you can open settings to enable any other modules you would like to display. 
 - Please see the [Modules](https://github.com/mehmetraif/OSD-OS/wiki/Modules) pages in the wiki for details on any additional set up that may be needed for the modules you'd like to use.
 
+**Settings from OSD/OS Setup**
+
+- Choose the settings on [OSD/OS Setup](https://osdos.tv/setup/), press **Copy for a computer** there, then Settings → **Paste OSD/OS Setup** in OSD/OS: its own settings and the RetroAchievements account are set at once.
+- Or save the page's `osdos-setup.json` in `~/Library/Application Support/OSD-OS/`, or in the folder `osdos.app` is in: OSD/OS applies it at its next start, says what it set, and deletes the file, which holds the account's password.
+- The device's name, the display output, Wi-Fi and the system's settings are set on an OSD/OS card alone, and left as they are on a Mac.
+
 ### Update
 
 **From within the app (recommended):** go to `Settings → Update`, check for updates, download, and choose Apply & Relaunch — the app will swap itself in `/Applications` and reopen on the new version. Your settings will be retained.
@@ -368,6 +374,12 @@ The AppImage carries its own copy of the Wayland client libraries and uses them 
 - In Desktop Mode, open **Steam → Games → Add a Non-Steam Game to My Library**, click **Browse**, and select the AppImage (`OSD-OS-linux-x86_64.AppImage`).
 - When in Gaming Mode it will appear in your library under "Non Steam Games".
 - There is a set of artwork available [here](https://github.com/anthonycaccese/240-MP/discussions/249#discussioncomment-18115953) that can be used for Gaming Mode grid display.
+
+**Settings from OSD/OS Setup**
+
+- Choose the settings on [OSD/OS Setup](https://osdos.tv/setup/), press **Copy for a computer** there, then Settings → **Paste OSD/OS Setup** in OSD/OS: its own settings and the RetroAchievements account are set at once.
+- Or save the page's `osdos-setup.json` in `~/.local/share/OSD-OS/`, or beside the AppImage: OSD/OS applies it at its next start, says what it set, and deletes the file, which holds the account's password.
+- The device's name, the display output, Wi-Fi and the system's settings are set on an OSD/OS card alone, and left as they are on a computer.
 
 ### Update
 
@@ -417,6 +429,12 @@ For Windows 11 on x64, OSD/OS comes as a zip: one folder, `osdos`, with `osdos.e
 **A window on the desktop**
 
 - Settings → **Window Mode** shows OSD/OS in a window on the desktop instead of the whole screen; F11 or Alt+Enter switches at any time.
+
+**Settings from OSD/OS Setup**
+
+- Choose the settings on [OSD/OS Setup](https://osdos.tv/setup/), press **Copy for a computer** there, then Settings → **Paste OSD/OS Setup** in OSD/OS: its own settings and the RetroAchievements account are set at once.
+- Or save the page's `osdos-setup.json` in `%APPDATA%\OSD-OS\`, or in the `osdos` folder beside `osdos.exe`: OSD/OS applies it at its next start, says what it set, and deletes the file, which holds the account's password.
+- The device's name, the display output, Wi-Fi and the system's settings are set on an OSD/OS card alone, and left as they are on a PC.
 
 **The log**
 

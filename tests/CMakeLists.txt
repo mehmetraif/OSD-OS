@@ -12,6 +12,7 @@ add_executable(reliability_test
     ../src/modules/weather/WeatherBackend.cpp
     ../src/update/UpdateManager.cpp
     ../src/AppCore.cpp
+    ../src/util/SetupFile.cpp
     ../src/audio/AudioOutput.cpp
     ../src/audio/MenuMusic.cpp
     ../src/util/LegacyNames.cpp
@@ -48,6 +49,7 @@ add_test(NAME media_keys COMMAND ${LUA_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/m
 add_executable(storage_search_test
     storage_search_test.cpp
     ../src/AppCore.cpp
+    ../src/util/SetupFile.cpp
     ../src/util/LegacyNames.cpp
     ../src/modules/local_files/LocalFilesBackend.cpp
     ../src/modules/local_files/RemovableDrives.cpp)
@@ -60,6 +62,7 @@ add_test(NAME storage_search COMMAND storage_search_test)
 add_executable(looks_test
     looks_test.cpp
     ../src/AppCore.cpp
+    ../src/util/SetupFile.cpp
     ../src/util/LegacyNames.cpp)
 target_include_directories(looks_test PRIVATE ../src)
 target_link_libraries(looks_test PRIVATE Qt6::Core Qt6::Network Qt6::Qml Qt6::Test)
@@ -88,6 +91,7 @@ add_executable(nfc_cards_test
     ../src/modules/nfc_reader/Pn532SerialDriver.cpp
     ../src/modules/nfc_reader/SerialPort.cpp
     ../src/AppCore.cpp
+    ../src/util/SetupFile.cpp
     ../src/util/LegacyNames.cpp)
 target_include_directories(nfc_cards_test PRIVATE ../src)
 target_link_libraries(nfc_cards_test PRIVATE Qt6::Core Qt6::Network Qt6::Qml Qt6::Test)
@@ -126,6 +130,7 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
         ../src/player/VideoSurface.cpp
         ../src/util/Diagnostics.cpp
         ../src/AppCore.cpp
+        ../src/util/SetupFile.cpp
         ../src/audio/AudioOutput.cpp
         ../src/util/Board.cpp
         ../src/util/DisplayHandoff.cpp
@@ -156,6 +161,7 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
         ../src/audio/MenuMusic.cpp
         ../src/audio/AudioOutput.cpp
         ../src/AppCore.cpp
+        ../src/util/SetupFile.cpp
         ../src/util/LegacyNames.cpp
         ../src/util/MpvLocator.cpp)
     target_include_directories(menu_music_test PRIVATE ../src)
@@ -260,6 +266,7 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
         ../src/util/MpvLocator.cpp
         ../src/util/SevenZip.cpp
         ../src/AppCore.cpp
+        ../src/util/SetupFile.cpp
         ../src/util/LegacyNames.cpp)
     target_include_directories(arcade_test PRIVATE ../src ${Libdrm_INCLUDE_DIRS})
     target_compile_definitions(arcade_test PRIVATE TESTS_DIR="${CMAKE_CURRENT_SOURCE_DIR}")
@@ -303,6 +310,7 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
         ../src/util/MpvLocator.cpp
         ../src/util/YtDlpLocator.cpp
         ../src/AppCore.cpp
+        ../src/util/SetupFile.cpp
         ../src/util/LegacyNames.cpp)
     target_include_directories(playlists_test PRIVATE ../src ${Libdrm_INCLUDE_DIRS})
     target_link_libraries(playlists_test PRIVATE
@@ -325,6 +333,7 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
         ../src/util/MpvLocator.cpp
         ../src/util/YtDlpLocator.cpp
         ../src/AppCore.cpp
+        ../src/util/SetupFile.cpp
         ../src/util/LegacyNames.cpp)
     target_include_directories(youtube_test PRIVATE ../src ${Libdrm_INCLUDE_DIRS})
     target_link_libraries(youtube_test PRIVATE
@@ -439,6 +448,7 @@ add_executable(controllers_test
     ../src/input/ControllerProfile.cpp
     ../src/input/JammaPins.cpp
     ../src/AppCore.cpp
+    ../src/util/SetupFile.cpp
     ../src/util/LegacyNames.cpp)
 target_include_directories(controllers_test PRIVATE ../src)
 target_link_libraries(controllers_test PRIVATE
@@ -447,9 +457,10 @@ add_test(NAME controllers COMMAND controllers_test)
 set_tests_properties(controllers PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
 
 # The app itself (the build in build/, made apart from the tests; OSDOS_APP
-# for another), started offscreen: the main menu with every module on it, and
-# each module as the startup module, open without a QML warning, and the app
-# stops on SIGTERM as the service stops it. Skipped without the app, and for a
+# for another), started offscreen: the main menu with every module on it,
+# each module as the startup module, and OSD/OS Setup's notice for a file in
+# the data folder open without a QML warning, and the app stops on SIGTERM as
+# the service stops it. Skipped without the app, and for a
 # module that imports a QML module of Qt's this Qt doesn't have.
 if(UNIX)
     if(APPLE)
@@ -462,7 +473,9 @@ if(UNIX)
     set(qt_qml "${QT6_INSTALL_PREFIX}/${QT6_INSTALL_QML}")
     set(smoke ${CMAKE_CURRENT_SOURCE_DIR}/app_smoke_test.sh ${OSDOS_APP} ${osdos_root} ${qt_qml})
     add_test(NAME app_main_menu COMMAND bash ${smoke})
-    set(smoke_tests app_main_menu)
+    # OSD/OS Setup's file in the data folder, taken as the app starts.
+    add_test(NAME app_setup_file COMMAND bash ${smoke} --setup)
+    set(smoke_tests app_main_menu app_setup_file)
     file(GLOB manifests CONFIGURE_DEPENDS ${osdos_root}/modules/*/manifest.json)
     foreach(manifest ${manifests})
         get_filename_component(folder ${manifest} DIRECTORY)

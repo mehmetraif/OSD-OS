@@ -159,7 +159,7 @@ Each on/off setting is a checkbox, each password field has a **Show** / **Hide**
 - A display output chosen for one Pi is not applied on another kind (made for a Pi 5, the card left in a Pi 4): the card stays on the output it has, and the log says so.
 - Set a thing in one place only, on this page or in Imager's customisation: Imager's time zone and keyboard are applied after these on the first boot.
 
-[The OSD/OS image](https://github.com/mehmetraif/OSD-OS/wiki/The-OSD-OS-Image#osdos-setup) has how each setting is applied.
+[The OSD/OS image](https://github.com/mehmetraif/OSD-OS/wiki/The-OSD-OS-Image#osdos-setup) has how each setting is applied. OSD/OS on a computer takes its own settings from the page too ([below](#osdos-setup-on-a-computer)).
 
 ### Wi-Fi by hand: network-config
 
@@ -531,6 +531,7 @@ OSD/OS runs on Apple Silicon Macs (not Intel ones), full screen. It plays videos
 On a Mac:
 
 - The data folder, with your settings, is `~/Library/Application Support/OSD-OS/`.
+- **OSD/OS Setup.** Settings → Paste OSD/OS Setup, or its file in the data folder or in the folder `osdos.app` is in ([OSD/OS Setup on a computer](#osdos-setup-on-a-computer)).
 - There is no Settings → Bluetooth: pair keyboards, remotes and gamepads in macOS's own Bluetooth settings. Settings → Display Output and Audio Output are not offered either.
 - With several displays, OSD/OS opens on the main one. To open it on another (a CRT through an adapter, say), find the display's number in the log (`[main] display index 1: …`) and set `display_index` in `config.json`, then start it again; videos follow it:
 
@@ -576,6 +577,7 @@ OSD/OS hands the same copy to mpv. For a JavaScript runtime for it, see yt-dlp's
 On the AppImage:
 
 - The data folder is `~/.local/share/OSD-OS/`, as on the Pi.
+- **OSD/OS Setup.** Settings → Paste OSD/OS Setup, or its file in the data folder or beside the AppImage ([OSD/OS Setup on a computer](#osdos-setup-on-a-computer)).
 - **Transparent Background is not offered**: the AppImage is built without libmpv, which it needs.
 - Gamepads work through Steam Input too: when Steam's virtual gamepad is present, OSD/OS listens to it alone, so that no press arrives twice ([Controls](https://github.com/mehmetraif/OSD-OS/wiki/Controls#gamepads)).
 - `display_index` chooses the display, as on a Mac (above).
@@ -596,7 +598,17 @@ On Windows:
 - **Arcade.** Settings → Arcade → **MAME** downloads MAME, and Settings → Arcade → **FinalBurn Neo** downloads RetroArch and the FinalBurn Neo core, the versions the OSD/OS image has, so a PC plays online and over the local network with a Pi ([Arcade](https://github.com/mehmetraif/OSD-OS/wiki/Arcade)).
 - **YouTube.** Put `yt-dlp.exe` in the data folder's `bin` folder (`%APPDATA%\OSD-OS\bin\`), beside `osdos.exe` or on the `PATH`, and `deno.exe` on the `PATH`.
 - **Window Mode.** Settings → Window Mode shows OSD/OS in a window on the desktop instead of the whole screen; F11 or Alt+Enter switches at any time.
+- **OSD/OS Setup.** Settings → Paste OSD/OS Setup, or its file in the data folder or beside `osdos.exe` ([below](#osdos-setup-on-a-computer)).
 - Netflix and Prime Video, Transparent Background, Display Output, Audio Output's cards, Bluetooth and Wi-Fi are not offered: pair gamepads and choose the sound device in Windows' own settings.
+
+## OSD/OS Setup on a computer
+
+The settings chosen on [OSD/OS Setup](https://osdos.tv/setup/) work on a computer too: on Windows, a Mac, the AppImage, Raspberry Pi OS with `install.sh`, or a BSD. There OSD/OS takes two parts of them: its own settings (every setting of Settings, the theme and the effects among them, and each module on or off with its own settings) and the Arcade's RetroAchievements account. The device's name, the display output, Wi-Fi, `pi`'s password, SSH, the time zone and the keyboard are set on an OSD/OS card alone; OSD/OS names any of them the settings hold, and leaves them as they are.
+
+- **Copy and paste.** On the page, choose **Copy for a computer**; then in OSD/OS, Settings → **Paste OSD/OS Setup**. The settings are set at once, and a window says what was set. The row is offered where there is a desktop to copy on, so not on a Pi without one, such as the OSD/OS image, whose card takes the file instead.
+- **The file.** Export `osdos-setup.json` and put it in the data folder ([below](#the-data-folder)), or beside the app: in the `osdos` folder beside `osdos.exe` on Windows, in the folder `osdos.app` is in on a Mac, or beside the AppImage. OSD/OS takes it as it starts, before anything else: it deletes the file first, as it holds the RetroAchievements password and would otherwise be applied at every start, then sets what it can, and a window says what was set until select or back closes it. A file that can't be deleted isn't applied, and the window says so.
+
+The account goes to the Arcade module, which signs in through RetroArch, as Settings → Arcade → RetroAchievements Account does, and keeps the token it gets, never the password.
 
 ## The data folder
 

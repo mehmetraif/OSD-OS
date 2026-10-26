@@ -7,6 +7,7 @@
 #include "util/DurableFile.h"
 #include "util/AsyncDirectoryCache.h"
 #include "util/LogFile.h"
+#include "util/SetupFile.h"
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
@@ -373,6 +374,156 @@ private slots:
         QCOMPARE(note(audio), QString("USB Audio Device is plugged in, but it has no output to play through"));
         QVERIFY(QDir().mkpath(asound + "/card1/pcm0p"));
         QCOMPARE(note(audio), QString());
+    }
+
+    // What of a text OSD/OS Setup's file is (setupfile::parse()), checked as
+    // the card's applier checks it, and its settings merged key by key.
+    void setupFileChecked() {
+        setupfile::Setup setup;
+        QString why;
+        QVERIFY(!setupfile::parse("not json", &setup, &why));
+        QCOMPARE(why, QString("not JSON"));
+        QVERIFY(!setupfile::parse("[1]", &setup, &why));
+        QCOMPARE(why, QString("not OSD/OS Setup's settings"));
+        QVERIFY(!setupfile::parse(R"({"osdos_setup": true})", &setup, &why));
+        QCOMPARE(why, QString("not OSD/OS Setup's settings"));
+        QVERIFY(!setupfile::parse(R"({"osdos_setup": 2})", &setup, &why));
+        QCOMPARE(why, QString("of version 2, which this OSD/OS doesn't know"));
+        QVERIFY(!setupfile::parse(R"({"osdos_setup": 1, "config": {"app": {"volume": 1e400}}})", &setup, &why));
+        QVERIFY2(why.startsWith("not JSON"), qPrintable(why));
+        QVERIFY(!setupfile::parse(QByteArray(1024 * 1024 + 1, ' '), &setup, &why));
+        QCOMPARE(why, QString("bigger than a settings file is"));
+        // A user without a password and a key of more than letters and
+        // digits are left out, as are config's parts that aren't objects
+        // and the parts a computer has no use for.
+        QVERIFY(setupfile::parse(R"({"osdos_setup": 1, "retroachievements": {"user": "a", "key": "no key!"},
+                                     "config": {"app": "x", "modules": {"m": {"k": 1}}, "lists": {}},
+                                     "display": {"preset": "jamma"}, "system": {"password_hash": "$6$x$y",
+                                     "keyboard": "tr"}})", &setup, &why));
+        QVERIFY(setup.account.isEmpty());
+        QCOMPARE(setup.config.keys(), QStringList({ "modules" }));
+        QCOMPARE(setup.cardOnly, QStringList({ "the display output", "the password", "the keyboard" }));
+        // Objects key by key, anything else in place of what was there.
+        const QJsonObject into = QJsonDocument::fromJson(R"({"a": {"x": 1, "y": [1]}, "b": 2})").object();
+        const QJsonObject update = QJsonDocument::fromJson(R"({"a": {"y": [2], "z": {"q": 1}}, "b": {"c": 3}})").object();
+        QCOMPARE(setupfile::merged(into, update),
+                 QJsonDocument::fromJson(R"({"a": {"x": 1, "y": [2], "z": {"q": 1}}, "b": {"c": 3}})").object());
+        QCOMPARE(setupfile::count(update), 3);
+    }
+
+    // OSD/OS Setup's file in the data folder as the app starts
+    // (setupfile::applyAtStart()): taken off the disk first, its settings
+    // merged into config.json, the RetroAchievements account handed on,
+    // owner-only, and what a card alone sets named. One that isn't such a
+    // file goes all the same, with whatever passwords it had; a config.json
+    // that can't be read is left as it is.
+    void setupFileTakenAsTheAppStarts() {
+        QTemporaryDir dir;
+        const QString data = dir.path();
+        const QString setupPath = data + "/osdos-setup.json";
+        const auto write = [](const QString &path, const QByteArray &bytes) {
+            QFile file(path);
+            return file.open(QIODevice::WriteOnly) && file.write(bytes) == bytes.size();
+        };
+        QVERIFY(write(data + "/config.json", R"({"app": {"color_scheme": "Video 1", "subtitles": {"lang": "en"}},
+                                                 "modules": {"plex": {"server": "a"}}})"));
+        // With a Windows editor's BOM.
+        QVERIFY(write(setupPath, "\xEF\xBB\xBF" R"({"osdos_setup": 1,
+            "device": {"name": "arcade-1", "kind": "arcade"},
+            "wifi": {"country": "TR", "ssid": "home", "password": "secret"},
+            "system": {"timezone": "Europe/Istanbul", "ssh": {"enabled": false}},
+            "retroachievements": {"user": " player ", "password": "pw", "key": "ABC123"},
+            "config": {"app": {"osd_theme": "Arcade", "subtitles": {"size": "Large"}},
+                       "modules": {"arcade": {"engine": "MAME"}}, "other": {"x": 1}}})"));
+        QCOMPARE(setupfile::places(data).first(), QDir::cleanPath(setupPath));
+        const setupfile::Result result = setupfile::applyAtStart(data);
+        QVERIFY2(result.ok, qPrintable(result.lines.join('\n')));
+        QCOMPARE(result.applied, 2);
+        QVERIFY(!QFile::exists(setupPath));
+        QCOMPARE(result.lines.first(), QString("From osdos-setup.json in the data folder"));
+        const QJsonObject config = QJsonDocument::fromJson(contents(data + "/config.json")).object();
+        const QJsonObject app = config["app"].toObject();
+        QCOMPARE(app["color_scheme"].toString(), QString("Video 1"));
+        QCOMPARE(app["osd_theme"].toString(), QString("Arcade"));
+        QCOMPARE(app["subtitles"].toObject()["lang"].toString(), QString("en"));
+        QCOMPARE(app["subtitles"].toObject()["size"].toString(), QString("Large"));
+        QCOMPARE(config["modules"].toObject()["plex"].toObject()["server"].toString(), QString("a"));
+        QCOMPARE(config["modules"].toObject()["arcade"].toObject()["engine"].toString(), QString("MAME"));
+        QVERIFY(!config.contains("other"));
+        const QString accountPath = data + "/arcade/retroachievements-setup.json";
+        const QJsonObject account = QJsonDocument::fromJson(contents(accountPath)).object();
+        QCOMPARE(account["user"].toString(), QString("player"));
+        QCOMPARE(account["password"].toString(), QString("pw"));
+        QCOMPARE(account["key"].toString(), QString("ABC123"));
+#ifdef Q_OS_UNIX
+        QCOMPARE(QFile::permissions(accountPath) & (QFileDevice::ReadGroup | QFileDevice::ReadOther),
+                 QFileDevice::Permissions());
+#endif
+        QCOMPARE(result.lines.mid(1), QStringList({
+            "OSD/OS settings: 3 set",
+            "RetroAchievements: player, signed in with the password; Web API key kept",
+            "Not set here: the device's name, Wi-Fi, SSH and the time zone, which an OSD/OS card alone sets" }));
+        QCOMPARE(setupfile::noticeTitle(result), QString("OSD/OS Setup applied"));
+        // None there: nothing to say.
+        QVERIFY(setupfile::applyAtStart(data).lines.isEmpty());
+        QCOMPARE(setupfile::noticeTitle(setupfile::Result()), QString());
+
+        QVERIFY(write(setupPath, R"({"wifi": {"password": "secret"}})"));
+        setupfile::Result refused = setupfile::applyAtStart(data);
+        QVERIFY(!refused.ok);
+        QVERIFY(!QFile::exists(setupPath));
+        QVERIFY2(refused.lines.first().endsWith("deleted, not applied: not OSD/OS Setup's settings"),
+                 qPrintable(refused.lines.first()));
+        QCOMPARE(setupfile::noticeTitle(refused), QString("OSD/OS Setup not applied"));
+        QVERIFY(write(data + "/config.json", "{\"app\": {"));
+        QVERIFY(write(setupPath, R"({"osdos_setup": 1, "config": {"app": {"osd_theme": "VHS"}},
+                                     "retroachievements": {"key": "K1"}})"));
+        refused = setupfile::applyAtStart(data);
+        QVERIFY(!refused.ok);
+        QCOMPARE(refused.applied, 1);
+        QCOMPARE(contents(data + "/config.json"), QByteArray("{\"app\": {"));
+        QCOMPARE(setupfile::noticeTitle(refused), QString("OSD/OS Setup partly applied"));
+    }
+
+    // Settings → Paste OSD/OS Setup (AppCore::applySetupText()): the
+    // settings set at once, each one that changed told as Settings tells it
+    // (a value of values by its dotted keys), the account handed to the
+    // Arcade module, and the notice saying so.
+    void setupTextPastedAtOnce() {
+        QTemporaryDir dir;
+        AppCore core(dir.path(), dir.path());
+        QVERIFY(core.save_setting("", "osd_theme", "VHS"));
+        QVERIFY(core.save_setting("plex", "libraries.a", "On"));
+        QSignalSpy app(&core, &AppCore::appSettingChanged);
+        QSignalSpy module(&core, &AppCore::moduleSettingChanged);
+        QSignalSpy account(&core, &AppCore::setupAccountWritten);
+        QVariantMap notice = core.applySetupText(R"({"osdos_setup": 1,
+            "config": {"app": {"osd_theme": "VHS", "window_mode": "On"},
+                       "modules": {"plex": {"libraries": {"a": "On", "b": "Off"}}, "arcade": {"enabled": false}}},
+            "retroachievements": {"key": "K1"}, "display": {"preset": "jamma"}})");
+        QVERIFY(notice["ok"].toBool());
+        QCOMPARE(notice["title"].toString(), QString("OSD/OS Setup pasted"));
+        QCOMPARE(notice["detail"].toString(), QString("OSD/OS settings: 5 set\nRetroAchievements: Web API key kept\n"
+                                                      "Not set here: the display output, which an OSD/OS card alone sets"));
+        QCOMPARE(app.count(), 1);
+        QCOMPARE(app.at(0), QVariantList({ "window_mode", "On" }));
+        QCOMPARE(module.count(), 2);
+        QCOMPARE(module.at(0), QVariantList({ "arcade", "enabled", false }));
+        QCOMPARE(module.at(1), QVariantList({ "plex", "libraries.b", "Off" }));
+        QCOMPARE(account.count(), 1);
+        QCOMPARE(core.get_setting("plex", "libraries.a").toString(), QString("On"));
+        QCOMPARE(core.get_setting("plex", "libraries.b").toString(), QString("Off"));
+        QCOMPARE(QJsonDocument::fromJson(contents(dir.path() + "/arcade/retroachievements-setup.json")).object()["key"]
+                     .toString(), QString("K1"));
+        notice = core.applySetupText("  \n");
+        QCOMPARE(notice["title"].toString(), QString("Nothing to paste"));
+        notice = core.applySetupText("{\"x\": 1}");
+        QVERIFY(!notice["ok"].toBool());
+        QCOMPARE(notice["title"].toString(), QString("Not pasted"));
+        QCOMPARE(notice["detail"].toString(), QString("What was pasted is not OSD/OS Setup's settings"));
+        notice = core.applySetupText(R"({"osdos_setup": 1, "wifi": {"ssid": "home"}})");
+        QCOMPARE(notice["title"].toString(), QString("Nothing set from OSD/OS Setup"));
+        QCOMPARE(app.count(), 1);
     }
 };
 QTEST_GUILESS_MAIN(ReliabilityTest)

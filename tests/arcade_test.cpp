@@ -1168,6 +1168,10 @@ private slots:
                                   "input_player1_a_btn = \"1\"", "input_player1_start_btn = \"6\"",
                                   "input_player1_select_btn = \"4\"", "input_player2_up_btn = \"11\"",
                                   "input_player6_l_x_minus_axis = \"-0\"", "input_player6_r_y_plus_axis = \"-3\"",
+                                  // The left stick a joystick beside the D-pad, as
+                                  // its directions: online, the stick goes as these.
+                                  "input_player1_up_axis = \"-1\"", "input_player1_down_axis = \"+1\"",
+                                  "input_player1_left_axis = \"-0\"", "input_player6_right_axis = \"+0\"",
                                   "input_quit_gamepad_combo = \"4\"", "quit_press_twice = \"false\"",
                                   // A keyboard's coin and start as MAME has them, in
                                   // place of RetroArch's Right Shift and Enter.
@@ -1325,7 +1329,8 @@ private slots:
             QVERIFY2(has(QLatin1String(line)), line);
         QCOMPARE(config.count(QStringLiteral("input_player2_l2_axis =")), 1);
         QCOMPARE(config.count(QStringLiteral("input_player2_y_btn =")), 1);
-        QVERIFY(!config.contains(QStringLiteral("input_player1_up_axis")));
+        QCOMPARE(config.count(QStringLiteral("input_player2_up_axis =")), 1);
+        QVERIFY(has(QStringLiteral("input_player1_up_axis = \"-1\"")));
         QCOMPARE(libretro::remapText(launch).split(QLatin1Char('\n')).filter(QStringLiteral("input_libretro_device_p")),
                  QStringList({ QStringLiteral("input_libretro_device_p2 = \"261\""),
                                QStringLiteral("input_libretro_device_p3 = \"261\"") }));

@@ -50,7 +50,8 @@
       device's name, the system, and every setting of OSD/OS itself, with its look shown as it draws it.
       <strong>Download</strong> puts them in one file, <code>osdos-setup.json</code>; copy it to the card's
       boot partition (the drive called <strong>bootfs</strong>), and OSD/OS applies it all as it starts, then
-      deletes the file.</p>
+      deletes the file. OSD/OS on a computer takes its own settings from it too (<a href="#computer">On a
+      computer</a>).</p>
     <p class="note">Nothing you type leaves this page: the file is made in your browser. Only what you change
       goes into it (marked •); the rest stays as the card has it. <strong>Import</strong> reads a file made
       here back, or OSD/OS's own <code>config.json</code>, to change it.</p>
@@ -61,6 +62,7 @@
     <input type="file" id="import-file" accept=".json,application/json" hidden>
     <button type="button" id="export">Export osdos-setup.json</button>
     <button type="button" id="download-zip">Download for the card (zip)</button>
+    <button type="button" id="copy">Copy for a computer</button>
     <button type="button" id="reset-all" class="secondary">Start again</button>
   </div>
   <p class="status" id="status" role="status" aria-live="polite"></p>
@@ -94,6 +96,22 @@
     <p class="note">The file can go on a card that has already started too: OSD/OS applies it at the next
       start. It holds the Wi-Fi and RetroAchievements passwords as you typed them, and pi's password only as
       a hash: keep it to yourself.</p>
+  </section>
+
+  <section id="computer">
+    <h2>On a computer</h2>
+    <p>OSD/OS on Windows, macOS, Linux or a BSD takes two parts of the same settings: its own, and the
+      RetroAchievements account. The device's name, the display output, Wi-Fi and the system are set on a card
+      alone.</p>
+    <ul class="steps">
+      <li><strong>Copy for a computer</strong>, then in OSD/OS, Settings → <strong>Paste OSD/OS Setup</strong>:
+        they are set at once.</li>
+      <li>Or put <code>osdos-setup.json</code> in OSD/OS's data folder, or beside the app: OSD/OS applies it as
+        it starts, says what it set, and deletes the file. The data folder is <code>%APPDATA%\OSD-OS</code> on
+        Windows, <code>~/Library/Application Support/OSD-OS</code> on macOS and <code>~/.local/share/OSD-OS</code>
+        on Linux and the BSDs. Beside the app is the <code>osdos</code> folder with <code>osdos.exe</code>, the
+        folder <code>osdos.app</code> is in, or the AppImage's.</li>
+    </ul>
   </section>
 
   <footer>

@@ -477,7 +477,7 @@ Window {
         var from = String(loader.source), to = String(source)
         if (windowChange.capturing)
             windowCaught(true)
-        if (transition === "" || windowChange.changing || effectsRest || bootActive || displayHolding
+        if (transition === "" || windowChange.changing || effectsRest || bootActive || startupHolding
                 || from === "" || playbackView.test(from) || playbackView.test(to)) {
             showView(loader, source, properties)
             return
@@ -524,7 +524,7 @@ Window {
         property: "wanted"
         when: !!menuMusic
         value: root.music !== "" && !root.effectsRest && !root.bootActive && !root.screenSaverActive
-               && !root.displayHolding
+               && !root.startupHolding
     }
     // Settings' OSD BACKGROUND (app.osd_background), what the menus are drawn
     // on (Components/OsdGround): "Full", the default, the scheme's background
@@ -793,7 +793,7 @@ Window {
     // The startup module waits for the boot screen: most modules need the
     // network the boot screen is waiting on.
     onBootActiveChanged: {
-        if (bootActive || displayHolding) return
+        if (bootActive || startupHolding) return
         if (moduleLoader.item) moduleLoader.item.forceActiveFocus()
         openStartupModule()
     }
@@ -806,11 +806,20 @@ Window {
     readonly property string displayCurrentLabel:   displayOutput ? displayOutput.currentLabel : ""
     readonly property string displayPreviousLabel:  displayOutput ? displayOutput.previousLabel : ""
     // On a new output, the window asking to keep it (views/DisplayKeep.qml)
-    // comes first, over the boot screen; the startup module waits for it, a
-    // favourite played at startup with it.
+    // comes first, over the boot screen.
     readonly property bool   displayHolding: displayConfirmPending || displayNotice !== ""
-    onDisplayHoldingChanged: {
-        if (displayHolding) return
+
+    // --- OSD/OS SETUP (src/util/SetupFile) ---
+    // What became of OSD/OS Setup's file, taken as the app started: a notice
+    // after the display output's window (views/SetupNotice.qml).
+    readonly property string setupNotice:       appCore ? appCore.setupNotice : ""
+    readonly property string setupNoticeDetail: appCore ? appCore.setupNoticeDetail : ""
+    // Either window first: the startup module waits for them, a favourite
+    // played at startup with it.
+    readonly property bool   startupHolding: displayHolding || setupNotice !== ""
+    onStartupHoldingChanged: {
+        // Gone with appCore as the app shuts down: nothing to open then.
+        if (startupHolding || !appCore) return
         if (bootActive) {
             if (bootScreenLoader.item) bootScreenLoader.item.forceActiveFocus()
             return
@@ -842,7 +851,7 @@ Window {
     // it straight away (navParams.startupPlay), as long as it is still one of
     // that module's favourites.
     function openStartupModule() {
-        if (root._startupNavigated || root.displayHolding) return
+        if (root._startupNavigated || root.startupHolding) return
         root._startupNavigated = true
         var params = { fromAppStartup: true }
         var entryPoint = ""
@@ -1179,8 +1188,8 @@ Window {
                 onLoaded: {
                     // While the boot screen is up it keeps the focus; QML gives no
                     // order between this and its own onLoaded, so don't race it. Nor
-                    // the window asking to keep a new display output.
-                    if (root.bootActive || root.displayHolding)
+                    // the window asking to keep a new display output, nor Setup's.
+                    if (root.bootActive || root.startupHolding)
                         return
                     item.forceActiveFocus()
                     root.openStartupModule()
@@ -1296,7 +1305,7 @@ Window {
             z: 9000
             active: root.bootActive
             source: "views/BootScreen.qml"
-            onLoaded: if (!root.displayHolding) item.forceActiveFocus()
+            onLoaded: if (!root.startupHolding) item.forceActiveFocus()
         }
 
         // Above the boot screen: on a new display output, keep it or go back.
@@ -1306,6 +1315,16 @@ Window {
             z: 9500
             active: root.displayHolding
             source: "views/DisplayKeep.qml"
+            onLoaded: item.forceActiveFocus()
+        }
+
+        // Then what became of OSD/OS Setup's file, once that window is done.
+        Loader {
+            id: setupNoticeLoader
+            anchors.fill: parent
+            z: 9400
+            active: root.setupNotice !== "" && !root.displayHolding
+            source: "views/SetupNotice.qml"
             onLoaded: item.forceActiveFocus()
         }
 

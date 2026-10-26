@@ -72,7 +72,7 @@ jobs:
       # key's number is bumped by hand for newer packages.
       - name: Restore vcpkg packages
         id: vcpkg-cache
-        uses: actions/cache/restore@v4
+        uses: actions/cache/restore@v6.1.0
         with:
           path: ${{ env.OSDOS_VCPKG }}\installed
           key: vcpkg-x64-windows-sdl2-openssl-minizip-1
@@ -87,15 +87,27 @@ jobs:
       # by a newer push while the app builds keeps the ten minutes vcpkg took.
       - name: Save vcpkg packages
         if: steps.vcpkg-cache.outputs.cache-hit != 'true'
-        uses: actions/cache/save@v4
+        uses: actions/cache/save@v6.1.0
         with:
           path: ${{ env.OSDOS_VCPKG }}\installed
           key: vcpkg-x64-windows-sdl2-openssl-minizip-1
 
+      # Visual Studio's x64 compiler for Ninja, set up as its Developer
+      # PowerShell sets it up (vcvars), and what that changes in the
+      # environment handed to the steps after this one.
       - name: MSVC environment
-        uses: ilammy/msvc-dev-cmd@v1
-        with:
-          arch: x64
+        shell: pwsh
+        run: |
+          $vs = & "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe" -latest -products * `
+            -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath
+          if (-not $vs) { throw 'No Visual Studio with the x64 C++ tools' }
+          $before = @{}
+          Get-ChildItem env: | ForEach-Object { $before[$_.Name] = $_.Value }
+          Import-Module "$vs\Common7\Tools\Microsoft.VisualStudio.DevShell.dll"
+          Enter-VsDevShell -VsInstallPath $vs -SkipAutomaticLocation -DevCmdArguments '-arch=x64 -host_arch=x64 -no_logo'
+          Get-ChildItem env: | Where-Object { $before[$_.Name] -cne $_.Value } |
+            ForEach-Object { "$($_.Name)=$($_.Value)" } | Add-Content -Path $env:GITHUB_ENV -Encoding utf8
+          (Get-Command cl.exe).Source
 
       - name: Configure
         shell: pwsh

@@ -88,6 +88,18 @@ Rectangle {
             values = v
             return true
         }
+        // Paste OSD/OS Setup: what was pasted, and a setting it sets.
+        property string pasted: ""
+        function applySetupText(text) {
+            pasted = text
+            save_setting("", "screensaver_timeout", "OFF")
+            return { ok: true, title: "OSD/OS Setup pasted", detail: "OSD/OS settings: 1 set" }
+        }
+    }
+    // Where the test copies what is pasted from.
+    TextEdit {
+        id: clipboardSource
+        visible: false
     }
     QtObject {
         id: mpvController
@@ -135,6 +147,7 @@ Rectangle {
 
         function init() {
             appCore.values = {}
+            appCore.pasted = ""
             root.navigations = []
             wifiManager.supported = false
         }
@@ -225,6 +238,46 @@ Rectangle {
                 compare(row(page, "Window Mode").options, ["Off", "On"])
                 compare(row(page, "Window Mode").value, "Off")
             }
+        }
+
+        // Paste OSD/OS Setup, where there is a clipboard to paste from (not
+        // the Pi's own console), before Update: select hands the clipboard's
+        // text to AppCore, the notice it answers with shows over the rows,
+        // made again as they are now, and back closes it.
+        function test_pasteSetup() {
+            var page = open()
+            var all = lines(page)
+            compare(page.canPaste, Qt.platform.pluginName !== "eglfs" && Qt.platform.pluginName !== "linuxfb")
+            compare(all.indexOf("Paste OSD/OS Setup") >= 0, page.canPaste)
+            if (!page.canPaste)
+                return
+            verify(all.indexOf("Paste OSD/OS Setup") > all.indexOf("# Application"))
+            compare(all.indexOf("Paste OSD/OS Setup") + 1, all.indexOf("Update"))
+            var text = '{"osdos_setup": 1, "config": {"app": {"screensaver_timeout": "OFF"}}}'
+            clipboardSource.text = text
+            clipboardSource.selectAll()
+            clipboardSource.copy()
+            var list = null
+            for (var i = 0; i < page.children.length; i++) {
+                if (page.children[i].currentIndex !== undefined && page.children[i].model !== undefined)
+                    list = page.children[i]
+            }
+            list.currentIndex = all.indexOf("Paste OSD/OS Setup")
+            verify(list.opens(row(page, "Paste OSD/OS Setup")), "its line ends in a ►")
+            keyClick(Qt.Key_Return)
+            compare(appCore.pasted, text)
+            compare(page.pasted.title, "OSD/OS Setup pasted")
+            compare(page.appSettings.screensaver_timeout, "OFF")
+            var notice = null
+            for (var j = 0; j < page.children.length; j++) {
+                if (page.children[j].promptText === "OSD/OS Setup pasted")
+                    notice = page.children[j]
+            }
+            verify(notice !== null && notice.visible, "the notice is shown")
+            compare(notice.subtitleText, "OSD/OS settings: 1 set")
+            keyClick(Qt.Key_Escape)
+            verify(!notice.visible, "back closes it")
+            compare(cursor(page), "Paste OSD/OS Setup")
         }
 
         // TV / Movie's page: the videos' rows, then the video modules with

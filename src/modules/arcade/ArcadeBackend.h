@@ -517,6 +517,20 @@ public:
 
 public slots:
     void onSettingChanged(const QString &moduleId, const QString &key, const QVariant &value);
+    // OSD/OS Setup's account: <data>/arcade/retroachievements-setup.json,
+    // owner-only, with the user, the password and the Web API key, written
+    // by a card's osdos-setup as it starts, or by the app (src/util/
+    // SetupFile) from a file beside it or pasted into Settings. Taken once
+    // the event loop runs, and again at once for one pasted: the key kept,
+    // and RetroArch signs in with the password as Settings' Sign In has it.
+    // The file goes once RetroAchievements has answered, either way, or a
+    // game has had the password, or Settings signs in or out in its place;
+    // at once for the account signed in already, or with no RetroArch to
+    // sign in with. While RetroAchievements can't be reached (the network
+    // not up yet as OSD/OS starts), the sign-in is checked again a little
+    // later, a few times, never beside a game, and the file stays for the
+    // next start.
+    void takeSetupAccount();
 
 signals:
     void entriesReady(const QString &path);
@@ -958,18 +972,7 @@ private:
     bool stopSignIn();
     // signInAchievements()'s sign-in, whoever gave the password.
     void beginSignIn(const QString &user, const QString &password);
-    // OSD/OS Setup's account (osdos-setup writes it as the card starts):
-    // <data>/arcade/retroachievements-setup.json, owner-only, with the user,
-    // the password and the Web API key. Taken once the event loop runs: the
-    // key kept, and RetroArch signs in with the password as Settings' Sign In
-    // has it. The file goes once RetroAchievements has answered, either way,
-    // or a game has had the password, or Settings signs in or out in its
-    // place; at once for the account signed in already, or with no RetroArch
-    // to sign in with. While RetroAchievements can't be reached (the network
-    // not up yet as OSD/OS starts), the sign-in is checked again a little
-    // later, a few times, never beside a game, and the file stays for the
-    // next start.
-    void takeSetupAccount();
+    // takeSetupAccount()'s file gone, with the password.
     void forgetSetupAccount();
     void retrySetupSignIn();
     QString setupAccountPath() const { return m_home + QStringLiteral("/retroachievements-setup.json"); }

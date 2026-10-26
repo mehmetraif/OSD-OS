@@ -6,8 +6,10 @@
 # more for what that screen's first view prints, then stops the app as
 # systemd does (SIGTERM). What the app prints once it says it is shutting
 # down is its teardown's and doesn't count. Every proxy is a dead port, so
-# nothing leaves the machine.
-#   app_smoke_test.sh <osdos> <repository> <Qt's QML folder> [module folder]
+# nothing leaves the machine. With --setup, an OSD/OS Setup file in the data
+# folder instead: the app takes it as it starts, says what became of it
+# (views/SetupNotice.qml), and its setting is in config.json, the file gone.
+#   app_smoke_test.sh <osdos> <repository> <Qt's QML folder> [module folder | --setup]
 # Skipped (77) without the app, which is built apart from the tests (build/),
 # and for a module that imports a QML module of Qt's this Qt doesn't have.
 set -u
@@ -21,7 +23,12 @@ ROOT="$(cd "$2" && pwd)"
 id() {  # a module's id, from its manifest
     sed -n 's/^ *"id": *"\([^"]*\)".*/\1/p' "$1" | head -n 1
 }
-if [ -n "$FOLDER" ]; then
+if [ "$FOLDER" = "--setup" ]; then
+    WHAT="OSD/OS Setup's notice"
+    VIEW="views/SetupNotice.qml"
+    SOURCES=("$ROOT/Main.qml" "$ROOT/views")
+    CONFIG='{"app": {"color_scheme": "Video 1"}, "modules": {}}'
+elif [ -n "$FOLDER" ]; then
     MANIFEST="$ROOT/modules/$FOLDER/manifest.json"
     ID=$(id "$MANIFEST")
     ENTRY=$(sed -n 's/^ *"entry_point_qml": *"\([^"]*\)".*/\1/p' "$MANIFEST" | head -n 1)
@@ -55,6 +62,9 @@ trap '[ -n "$pid" ] && kill -KILL "$pid" 2> /dev/null; rm -rf "$T"' EXIT
 mkdir -p "$T/data" "$T/home" "$T/media"
 mkdir -m 700 "$T/run"
 printf '%s\n' "$CONFIG" > "$T/data/config.json"
+[ "$FOLDER" = "--setup" ] && printf '%s\n' \
+    '{"osdos_setup": 1, "config": {"app": {"hint_bar": "Off"}}, "wifi": {"ssid": "home", "password": "x"}}' \
+    > "$T/data/osdos-setup.json"
 DEAD=http://127.0.0.1:9
 ( cd "$T" && exec env -i PATH="$PATH" HOME="$T/home" LANG="${LANG:-C.UTF-8}" \
       APP_ROOT="$ROOT" DATA_ROOT="$T/data" OSDOS_MEDIA_DIR="$T/media" XDG_RUNTIME_DIR="$T/run" \
@@ -104,6 +114,17 @@ fi
 # 128 + the signal, as the service's stop helper (osdos-stop) expects it.
 if [ "$status" -ne 143 ]; then
     echo "FAIL: the app exited with $status on SIGTERM, not 143"; report; failed=1
+fi
+if [ "$FOLDER" = "--setup" ]; then
+    if [ -e "$T/data/osdos-setup.json" ]; then
+        echo "FAIL: osdos-setup.json is still in the data folder"; failed=1
+    fi
+    if ! grep -q '"hint_bar": "Off"' "$T/data/config.json"; then
+        echo "FAIL: config.json hasn't the file's setting:"; cat "$T/data/config.json"; failed=1
+    fi
+    if ! grep -qF '[Setup] OSD/OS settings: 1 set' "$T/log"; then
+        echo "FAIL: the app didn't say what it set from the file"; report; failed=1
+    fi
 fi
 [ "$failed" -eq 0 ] && echo "PASS: $WHAT opened without a QML warning, and the app stopped cleanly"
 exit "$failed"
