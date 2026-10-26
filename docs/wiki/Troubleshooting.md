@@ -477,8 +477,8 @@ Every setting is in `config.json` in the data folder, under `"app"` for OSD/OS's
 | The OSD/OS image | `/home/pi/.local/share/OSD-OS/` |
 | Raspberry Pi OS, other Linux, the AppImage | `~/.local/share/OSD-OS/` (`$XDG_DATA_HOME/OSD-OS/` when it is set) |
 | macOS | `~/Library/Application Support/OSD-OS/` |
-| Windows (a build from source) | `%APPDATA%\OSD-OS\` |
-| FreeBSD, OpenBSD (a build from source) | `~/.local/share/OSD-OS/` |
+| Windows | `%APPDATA%\OSD-OS\` |
+| FreeBSD, OpenBSD (the package, or a build from source) | `~/.local/share/OSD-OS/` |
 | Any, with `DATA_ROOT` set | That folder |
 
 To start from the defaults, quit OSD/OS (it reads `config.json` as it starts and writes it at every change), move the file aside, and start it again:

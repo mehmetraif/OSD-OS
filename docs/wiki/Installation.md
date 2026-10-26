@@ -1,20 +1,20 @@
 # Installation
 
-Everything it takes to get OSD/OS running: the OSD/OS image, which makes a Raspberry Pi boot straight into OSD/OS, and OSD/OS as an app on Raspberry Pi OS, on an Apple Silicon Mac, on SteamOS or another x86_64 Linux, and on Windows 11. It also covers updating, uninstalling, and which hardware OSD/OS has been tried on.
+Everything it takes to get OSD/OS running: the OSD/OS image, which makes a Raspberry Pi boot straight into OSD/OS, and OSD/OS as an app on Raspberry Pi OS, on an Apple Silicon Mac, on SteamOS or another x86_64 Linux, on Windows 11, and on FreeBSD or OpenBSD. It also covers updating, uninstalling, and which hardware OSD/OS has been tried on.
 
 <img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/images/osdos-on-a-crt.jpg" width="100%" alt="OSD/OS's Settings on a Sony CRT" />
 
 ## Which way to choose
 
-| | The OSD/OS image | App on Raspberry Pi OS | App on macOS | App on SteamOS / Linux x86_64 | App on Windows |
-|---|---|---|---|---|---|
-| Runs on | Raspberry Pi 4 or 5 ([Supported hardware](https://github.com/mehmetraif/OSD-OS/wiki/Installation#supported-hardware)) | Raspberry Pi OS Trixie, 64-bit | Apple Silicon Macs | x86_64 Linux with X11 or XWayland, glibc 2.39 or newer | Windows 11 on x64 |
-| You download | `OSD-OS-<version>-raspberry-pi.img.xz` | `install.sh`, which fetches `OSD-OS-<version>-linux-arm64.tar.gz` | `OSD-OS-<version>-macOS-arm64.dmg` | `OSD-OS-linux-x86_64.AppImage` | `OSD-OS-<version>-windows-x64.zip` |
-| Starts | At power-on, before the rest of the system | At boot (with the autostart service), or with `osdos` | Like any app | Like any app, or from Steam | `osdos.exe`, from its folder |
-| mpv | On the image | Installed by `install.sh` | `brew install mpv` | A Windows build from [mpv.io](https://mpv.io/installation/), beside it |
-| Transparent Background | Yes | Yes (`libmpv2`) | Yes (Homebrew's libmpv) | No | No |
-| Settings → Display Output | Yes | No | No | No | No |
-| What YouTube, Netflix, Prime Video and Arcade run | On the image (yt-dlp, Deno, Chromium with Widevine, MAME) | Installed by hand ([below](https://github.com/mehmetraif/OSD-OS/wiki/Installation#optional-extras)) | See [YouTube](https://github.com/mehmetraif/OSD-OS/wiki/YouTube), [Netflix and Prime Video](https://github.com/mehmetraif/OSD-OS/wiki/Netflix-and-Prime-Video) and [Arcade](https://github.com/mehmetraif/OSD-OS/wiki/Arcade) | See the same pages | MAME and RetroArch downloaded from Settings → Arcade; yt-dlp by hand; no Netflix or Prime Video ([below](https://github.com/mehmetraif/OSD-OS/wiki/Installation#on-windows-x64)) |
+| | The OSD/OS image | App on Raspberry Pi OS | App on macOS | App on SteamOS / Linux x86_64 | App on Windows | App on FreeBSD / OpenBSD |
+|---|---|---|---|---|---|---|
+| Runs on | Raspberry Pi 4 or 5 ([Supported hardware](https://github.com/mehmetraif/OSD-OS/wiki/Installation#supported-hardware)) | Raspberry Pi OS Trixie, 64-bit | Apple Silicon Macs | x86_64 Linux with X11 or XWayland, glibc 2.39 or newer | Windows 11 on x64 | FreeBSD 15 or OpenBSD 8.0 on amd64, with a desktop |
+| You download | `OSD-OS-<version>-raspberry-pi.img.xz` | `install.sh`, which fetches `OSD-OS-<version>-linux-arm64.tar.gz` | `OSD-OS-<version>-macOS-arm64.dmg` | `OSD-OS-linux-x86_64.AppImage` | `OSD-OS-<version>-windows-x64.zip` | `OSD-OS-<version>-freebsd-amd64.pkg` or `OSD-OS-<number>-openbsd-amd64.tgz` |
+| Starts | At power-on, before the rest of the system | At boot (with the autostart service), or with `osdos` | Like any app | Like any app, or from Steam | `osdos.exe`, from its folder | With `osdos`, from the desktop's terminal |
+| mpv | On the image | Installed by `install.sh` | `brew install mpv` | In the AppImage | A Windows build from [mpv.io](https://mpv.io/installation/), beside it | The system's package |
+| Transparent Background | Yes | Yes (`libmpv2`) | Yes (Homebrew's libmpv) | No | No | Yes (the system's libmpv) |
+| Settings → Display Output | Yes | No | No | No | No | No |
+| What YouTube, Netflix, Prime Video and Arcade run | On the image (yt-dlp, Deno, Chromium with Widevine, MAME) | Installed by hand ([below](https://github.com/mehmetraif/OSD-OS/wiki/Installation#optional-extras)) | See [YouTube](https://github.com/mehmetraif/OSD-OS/wiki/YouTube), [Netflix and Prime Video](https://github.com/mehmetraif/OSD-OS/wiki/Netflix-and-Prime-Video) and [Arcade](https://github.com/mehmetraif/OSD-OS/wiki/Arcade) | See the same pages | MAME and RetroArch downloaded from Settings → Arcade; yt-dlp by hand; no Netflix or Prime Video ([below](https://github.com/mehmetraif/OSD-OS/wiki/Installation#on-windows-x64)) | FinalBurn Neo's core in the package; MAME, RetroArch and yt-dlp from the system's packages; no Netflix or Prime Video ([below](https://github.com/mehmetraif/OSD-OS/wiki/Installation#on-freebsd-or-openbsd-amd64)) |
 
 The OSD/OS image is the simplest way, and the only one where OSD/OS is the whole system. The app installs keep the system you already have.
 
@@ -23,7 +23,9 @@ All the files are on the [latest release](https://github.com/mehmetraif/OSD-OS/r
 | File | What it is |
 |---|---|
 | `install.sh` | The installer for Raspberry Pi OS |
+| `OSD-OS-<number>-openbsd-amd64.tgz` | The app for OpenBSD 8.0 on amd64, as an OpenBSD package, with FinalBurn Neo's core. Named by the release's number without its `v` (`OSD-OS-0.0.24-openbsd-amd64.tgz`), as `pkg_add` takes a package's name from its file's |
 | `OSD-OS-linux-x86_64.AppImage` | The app for SteamOS and other x86_64 Linux. No version in its name: it updates itself in place |
+| `OSD-OS-<version>-freebsd-amd64.pkg` | The app for FreeBSD 15 on amd64, as a FreeBSD package, with FinalBurn Neo's core |
 | `OSD-OS-<version>-linux-arm64.tar.gz` | The app for Raspberry Pi OS, as `install.sh` installs it |
 | `OSD-OS-<version>-macOS-arm64.dmg` | The app for Apple Silicon Macs |
 | `OSD-OS-<version>-raspberry-pi.img.xz` | The OSD/OS image, to flash to an SD card |
@@ -601,6 +603,31 @@ On Windows:
 - **OSD/OS Setup.** Settings → Paste OSD/OS Setup, or its file in the data folder or beside `osdos.exe` ([below](#osdos-setup-on-a-computer)).
 - Netflix and Prime Video, Transparent Background, Display Output, Audio Output's cards, Bluetooth and Wi-Fi are not offered: pair gamepads and choose the sound device in Windows' own settings.
 
+## On FreeBSD or OpenBSD (amd64)
+
+On FreeBSD 15 and OpenBSD 8.0 on an amd64 PC with a desktop, OSD/OS comes as a package of the system's: the app, and FinalBurn Neo's libretro core for the Arcade module, built for the system from FinalBurn Neo's source, as libretro builds none for either and OpenBSD's packages have none. Qt 6, SDL2 and mpv are the system's own packages. The packages are built, installed and started in a virtual machine of each system's for every release; they haven't been tried on a BSD computer yet.
+
+- **FreeBSD**, as root: the packages it needs, then the app.
+    ```sh
+    pkg install -y qt6-base qt6-declarative qt6-svg sdl2 minizip mpv
+    pkg add OSD-OS-<version>-freebsd-amd64.pkg
+    ```
+- **OpenBSD**, as root: the packages it needs come with it from the mirror. `-D unsigned`, as the package isn't signed with OpenBSD's key, which signs OpenBSD's own packages alone. The file is named by the release's number without its `v` (`OSD-OS-0.0.24-openbsd-amd64.tgz`), as `pkg_add` takes a package's name from its file's: keep the name it is downloaded with. On the system the package is called `OSD-OS`. An OpenBSD package is made for one release of OpenBSD, 8.0 for now: a newer OpenBSD needs the OSD/OS package built for it.
+    ```sh
+    pkg_add -D unsigned OSD-OS-<number>-openbsd-amd64.tgz
+    ```
+
+Then start it from the desktop's terminal: `osdos`. On the BSDs:
+
+- The data folder, with your settings, is `~/.local/share/OSD-OS/`, as on Linux.
+- **Arcade.** MAME and RetroArch are the system's packages: `pkg install mame retroarch` (FreeBSD) or `pkg_add mame retroarch` (OpenBSD), as root. FinalBurn Neo's core comes with OSD/OS, in `/usr/local/lib/osdos/`, apart from any core of the system's; Settings → Arcade → FinalBurn Neo shows it, with the games it knows. With RetroArch there, its games play with RetroAchievements and online play, as on the other systems ([Arcade](https://github.com/mehmetraif/OSD-OS/wiki/Arcade)).
+- **YouTube.** `pkg install yt-dlp` or `pkg_add yt-dlp`.
+- **Window Mode.** Settings → Window Mode shows OSD/OS in a window on the desktop instead of the whole screen; F11 or Alt+Enter switches at any time.
+- **OSD/OS Setup.** Settings → Paste OSD/OS Setup, or its file in the data folder ([below](#osdos-setup-on-a-computer)).
+- Netflix and Prime Video (no browser on the BSDs has Widevine), Display Output, Audio Output's cards (the default device plays), Bluetooth and Wi-Fi are not offered: the system's own tools do those.
+
+[INSTALL.md](https://github.com/mehmetraif/OSD-OS/blob/main/INSTALL.md#on-freebsd-amd64) has each system's steps in full.
+
 ## OSD/OS Setup on a computer
 
 The settings chosen on [OSD/OS Setup](https://osdos.tv/setup/) work on a computer too: on Windows, a Mac, the AppImage, Raspberry Pi OS with `install.sh`, or a BSD. There OSD/OS takes two parts of them: its own settings (every setting of Settings, the theme and the effects among them, and each module on or off with its own settings) and the Arcade's RetroAchievements account. The device's name, the display output, Wi-Fi, `pi`'s password, SSH, the time zone and the keyboard are set on an OSD/OS card alone; OSD/OS names any of them the settings hold, and leaves them as they are.
@@ -616,7 +643,7 @@ Wherever OSD/OS runs, it keeps your settings apart from the app, so reinstalling
 
 | System | Data folder |
 |---|---|
-| Raspberry Pi (the image and `install.sh`), SteamOS, Linux | `~/.local/share/OSD-OS/`, in the home of the user OSD/OS runs as (`$XDG_DATA_HOME/OSD-OS` when `XDG_DATA_HOME` is set) |
+| Raspberry Pi (the image and `install.sh`), SteamOS, Linux, FreeBSD, OpenBSD | `~/.local/share/OSD-OS/`, in the home of the user OSD/OS runs as (`$XDG_DATA_HOME/OSD-OS` when `XDG_DATA_HOME` is set) |
 | macOS | `~/Library/Application Support/OSD-OS/` |
 | Windows | `%APPDATA%\OSD-OS\`, that is `C:\Users\<you>\AppData\Roaming\OSD-OS\` |
 
@@ -655,6 +682,7 @@ What applying does depends on the system:
 | macOS, the app in `/Applications` | **Apply & Relaunch** | The new app replaces the old one in `/Applications` and opens |
 | macOS, the app anywhere else | **Quit & Open Disk Image** | OSD/OS quits and opens the downloaded `.dmg`, to drag the app into place yourself |
 | Windows | None | The page names the new version's zip: download it, close OSD/OS, and put the zip's `osdos` folder in place of the old one. The settings, in `%APPDATA%\OSD-OS\`, stay; put mpv back in the new folder if it was inside the old one |
+| FreeBSD, OpenBSD | None | The page names the new version's package and the command that installs it: download it and, as root, `pkg add OSD-OS-<version>-freebsd-amd64.pkg` or `pkg_add -D unsigned OSD-OS-<number>-openbsd-amd64.tgz`, which puts it in the place of the version installed. The settings, in `~/.local/share/OSD-OS/`, stay |
 | The AppImage | **Quit & Apply on Next Launch** | The new AppImage replaces the old one in place, keeping a `.bak` of the old one until the new one starts; in Desktop Mode it then starts again by itself, in Gaming Mode it quits and you start it from Steam (the path is the same, so the shortcut still works) |
 
 On a Raspberry Pi the launcher unpacks the new version beside the old one, makes sure it is on the card, then swaps the two in with renames. Should the power go in the middle, the next start puts the version before back whole from what it kept of it, and applies the update again, which stays downloaded until a swap has finished: the Pi starts on one version or the other, never on a file half written.
@@ -710,6 +738,8 @@ Stopping the service from outside leaves the Pi on. The packages `install.sh` in
 **The AppImage:** delete `OSD-OS-linux-x86_64.AppImage` (and remove it from Steam if you added it), and delete `~/.local/share/OSD-OS/`.
 
 **On Windows,** delete the `osdos` folder, and `%APPDATA%\OSD-OS\` with your settings and the MAME and RetroArch OSD/OS downloaded.
+
+**On FreeBSD or OpenBSD,** remove the package as root, `pkg delete osdos` or `pkg_delete OSD-OS`, and delete `~/.local/share/OSD-OS/`. The system's packages it needed stay: on FreeBSD, `pkg delete` the ones installed for it if nothing else uses them; on OpenBSD, `pkg_delete -a` removes those that came with it and nothing else uses.
 
 ## Supported hardware
 
