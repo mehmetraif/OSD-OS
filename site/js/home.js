@@ -1,6 +1,6 @@
 // OSD/OS's landing page: the theme previews (a still in the HTML, the
 // recording swapped in once it is loaded, unless the visitor asked for less
-// motion), the hardware tabs, and their terminal commands' Copy buttons. The
+// motion), the tabs, and the terminal commands' Copy buttons. The
 // themes come from themes.json, which scripts/build-site.py writes from the
 // app's own themes: each with its name, its two colours and its pictures.
 
@@ -140,32 +140,35 @@ fetch("themes.json")
         updateTour();
     });
 
-// --- The hardware tabs: one panel shown, the arrows and Home/End moving
-// between the tabs as a tablist takes them.
-const tabs = [...document.querySelectorAll("[role=tab]")];
-function selectTab(tab) {
-    for (const t of tabs) {
-        const on = t === tab;
-        t.setAttribute("aria-selected", String(on));
-        t.tabIndex = on ? 0 : -1;
-        document.getElementById(t.getAttribute("aria-controls")).hidden = !on;
-    }
-}
-tabs.forEach((tab, i) => {
-    tab.addEventListener("click", () => selectTab(tab));
-    tab.addEventListener("keydown", event => {
-        let n;
-        if (event.key === "ArrowRight") n = (i + 1) % tabs.length;
-        else if (event.key === "ArrowLeft") n = (i + tabs.length - 1) % tabs.length;
-        else if (event.key === "Home") n = 0;
-        else if (event.key === "End") n = tabs.length - 1;
-        if (n === undefined)
-            return;
-        event.preventDefault();
-        selectTab(tabs[n]);
-        tabs[n].focus();
+// --- The tabs, the terminal commands' at the top and the hardware's: in
+// each list one panel shown, the arrows and Home/End moving between its
+// tabs as a tablist takes them.
+for (const list of document.querySelectorAll("[role=tablist]")) {
+    const tabs = [...list.querySelectorAll("[role=tab]")];
+    const selectTab = tab => {
+        for (const t of tabs) {
+            const on = t === tab;
+            t.setAttribute("aria-selected", String(on));
+            t.tabIndex = on ? 0 : -1;
+            document.getElementById(t.getAttribute("aria-controls")).hidden = !on;
+        }
+    };
+    tabs.forEach((tab, i) => {
+        tab.addEventListener("click", () => selectTab(tab));
+        tab.addEventListener("keydown", event => {
+            let n;
+            if (event.key === "ArrowRight") n = (i + 1) % tabs.length;
+            else if (event.key === "ArrowLeft") n = (i + tabs.length - 1) % tabs.length;
+            else if (event.key === "Home") n = 0;
+            else if (event.key === "End") n = tabs.length - 1;
+            if (n === undefined)
+                return;
+            event.preventDefault();
+            selectTab(tabs[n]);
+            tabs[n].focus();
+        });
     });
-});
+}
 
 // --- The terminal commands: each word kept whole, so that a command goes on
 // to a second line only between its words. Copy puts one on the clipboard

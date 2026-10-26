@@ -74,6 +74,36 @@
       <p class="eyebrow"><span class="led"></span> SMART TV FOR CRT &nbsp;/&nbsp; VIDEO 1</p>
       <h1>A NEW LIFE<br>FOR YOUR<br><em>OLD SCREEN.</em><span class="cursor" aria-hidden="true"></span></h1>
       <p>Films, streams and arcade classics on a Raspberry Pi that boots straight into its menus, drawn like a VCR's on-screen display. For the CRT in your living room, the monitor in your arcade cabinet or any HDMI screen.</p>
+      <div class="install">
+        <div class="install-tabs" role="tablist" aria-label="Get OSD/OS from a terminal">
+          <button type="button" role="tab" id="get-pi" aria-selected="true" aria-controls="get-pi-panel">Pi image</button>
+          <button type="button" role="tab" id="get-unix" aria-selected="false" aria-controls="get-unix-panel" tabindex="-1">Mac · Linux</button>
+          <button type="button" role="tab" id="get-windows" aria-selected="false" aria-controls="get-windows-panel" tabindex="-1">Windows</button>
+          <button type="button" role="tab" id="get-freebsd" aria-selected="false" aria-controls="get-freebsd-panel" tabindex="-1">FreeBSD</button>
+          <button type="button" role="tab" id="get-openbsd" aria-selected="false" aria-controls="get-openbsd-panel" tabindex="-1">OpenBSD</button>
+        </div>
+        <div class="install-panel" role="tabpanel" id="get-pi-panel" aria-labelledby="get-pi">
+          <div class="command"><code data-prompt="$">curl -fsSL https://osdos.tv/get.sh | sh -s -- image</code><button type="button" class="copy" aria-live="polite" hidden>Copy</button></div>
+          <div class="command"><code data-prompt="PS&gt;">iex "&amp; { $(irm https://osdos.tv/get.ps1) } image"</code><button type="button" class="copy" aria-live="polite" hidden>Copy</button></div>
+          <p class="install-note">The OSD/OS image for a Raspberry Pi 4 or 5, from a Mac or Linux, or Windows' PowerShell. It lands in the current folder, checked against the SHA-256 GitHub keeps for it.</p>
+        </div>
+        <div class="install-panel" role="tabpanel" id="get-unix-panel" aria-labelledby="get-unix" hidden>
+          <div class="command"><code data-prompt="$">curl -fsSL https://osdos.tv/get.sh | sh</code><button type="button" class="copy" aria-live="polite" hidden>Copy</button></div>
+          <p class="install-note">The DMG on a Mac, the AppImage on Linux, the installer on Raspberry Pi OS, checked against the SHA-256 GitHub keeps for it.</p>
+        </div>
+        <div class="install-panel" role="tabpanel" id="get-windows-panel" aria-labelledby="get-windows" hidden>
+          <div class="command"><code data-prompt="PS&gt;">irm https://osdos.tv/get.ps1 | iex</code><button type="button" class="copy" aria-live="polite" hidden>Copy</button></div>
+          <p class="install-note">In PowerShell: the zip, checked against the SHA-256 GitHub keeps for it and unzipped into an osdos folder.</p>
+        </div>
+        <div class="install-panel" role="tabpanel" id="get-freebsd-panel" aria-labelledby="get-freebsd" hidden>
+          <div class="command"><code data-prompt="$">fetch -qo - https://osdos.tv/get.sh | sh</code><button type="button" class="copy" aria-live="polite" hidden>Copy</button></div>
+          <p class="install-note">The FreeBSD package, checked against the SHA-256 GitHub keeps for it, and the commands that add it.</p>
+        </div>
+        <div class="install-panel" role="tabpanel" id="get-openbsd-panel" aria-labelledby="get-openbsd" hidden>
+          <div class="command"><code data-prompt="$">ftp -MVo - https://osdos.tv/get.sh | sh</code><button type="button" class="copy" aria-live="polite" hidden>Copy</button></div>
+          <p class="install-note">The OpenBSD package, checked against the SHA-256 GitHub keeps for it, and the command that adds it.</p>
+        </div>
+      </div>
       <div class="actions">
         <a class="button primary" href="#get-started">Get OSD/OS <svg class="pixel-icon" aria-hidden="true"><use href="#icon-down"/></svg></a>
         <a class="text-link" href="https://github.com/mehmetraif/OSD-OS">Explore the source <svg class="pixel-icon" aria-hidden="true"><use href="#icon-external"/></svg></a>

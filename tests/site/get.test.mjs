@@ -405,23 +405,26 @@ test("get.ps1 in plain ASCII", () => {
 
 // --- On the website
 
-// Every command the landing page gives, as it reads there, the site's
-// address the stand-in's: each downloads the file it says, on the system
-// its label names.
+// Every command the landing page gives, at its top and in the hardware
+// tabs, as it reads there, the site's address the stand-in's: each
+// downloads the file it says, on the system it is for.
 test("the landing page's terminal commands download what they say", async t => {
     const page = readFileSync(join(root, "site/index.html"), "utf8");
-    const commands = [...page.matchAll(/<span class="command-on">([^<]+)<\/span><code>([^<]+)<\/code>/g)]
-        .map(([, on, code]) => ({ on, code: code.replaceAll("&amp;", "&") }));
-    assert.ok(commands.length >= 8, `the commands: ${commands.length}`);
+    const commands = [...new Set([...page.matchAll(
+        /<div class="command">(?:<span class="command-on">[^<]*<\/span>)?<code[^>]*>([^<]+)<\/code>/g)]
+        .map(([, code]) => code.replaceAll("&amp;", "&")))];
+    assert.deepEqual(commands.map(c => c.split(" ")[0]).sort(), ["curl", "curl", "fetch", "ftp", "iex", "irm"],
+                     commands.join("\n"));
     const systems = {
-        "macOS · Linux": { os: "Linux", arch: "x86_64", file: "OSD-OS-linux-x86_64.AppImage" },
-        FreeBSD: { os: "FreeBSD", arch: "amd64", tools: ["fetch", "sha256"], file: "OSD-OS-v9.8.7-freebsd-amd64.pkg" },
-        OpenBSD: { os: "OpenBSD", arch: "amd64", tools: ["ftp", "sha256"], file: "OSD-OS-9.8.7-openbsd-amd64.tgz" },
+        curl: { os: "Linux", arch: "x86_64", file: "OSD-OS-linux-x86_64.AppImage" },
+        fetch: { os: "FreeBSD", arch: "amd64", tools: ["fetch", "sha256"], file: "OSD-OS-v9.8.7-freebsd-amd64.pkg" },
+        ftp: { os: "OpenBSD", arch: "amd64", tools: ["ftp", "sha256"], file: "OSD-OS-9.8.7-openbsd-amd64.tgz" },
     };
-    for (const { on, code } of commands) {
+    for (const code of commands) {
         const command = code.replaceAll("https://osdos.tv", base);
         const image = /\bimage"?$/.test(code);
-        if (on === "PowerShell") {
+        const program = code.split(" ")[0];
+        if (program === "irm" || program === "iex") {
             if (!pwsh) {
                 t.diagnostic(`no PowerShell here for: ${code}`);
                 continue;
@@ -432,8 +435,7 @@ test("the landing page's terminal commands download what they say", async t => {
                                                    : ["OSD-OS-v9.8.7-windows-x64.zip", "osdos"], code);
             continue;
         }
-        assert.ok(systems[on], `a system for ${on}`);
-        const { file, ...system } = systems[on];
+        const { file, ...system } = systems[program];
         const result = await getSh({ ...system, command });
         downloaded(result, image ? "OSD-OS-v9.8.7-raspberry-pi.img.xz" : file, "Next:");
     }
