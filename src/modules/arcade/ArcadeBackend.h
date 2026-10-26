@@ -477,10 +477,6 @@ public:
     // heading: true }. A publisher's is off until turned on: a full set has
     // hundreds.
     Q_INVOKABLE void menuFilterOptions();
-    // manifest: regions' (dynamicOptionsReady): every region a set's name
-    // may give (mame::regions()), whatever the folder holds, as { id,
-    // label }. Each is on until turned off.
-    Q_INVOKABLE void regionOptions();
     // manifest: play_at_startup's: None and the favorites.
     Q_INVOKABLE void startupGameOptions();
 
@@ -662,8 +658,7 @@ private:
     // A set listed as a game: in the folder, a name MAME opens, and one of
     // its games (or one it wasn't asked about) or FinalBurn Neo's, not a BIOS
     // or a device; with Hide Hacks and Bootlegs on, not a bootleg or a hack
-    // either (mame::isBootlegOrHack()); and not a set whose regions
-    // (mame::regionsOf()) Regions has all turned off.
+    // either (mame::isBootlegOrHack()).
     bool isGame(const QString &set) const;
     // What MAME said of a set's machine; for a set it hasn't (it doesn't know
     // it, or there is none to ask), FinalBurn Neo's list's, should it have
@@ -676,11 +671,11 @@ private:
     QString titleOf(const QString &set) const;
 
     // The folder's games (not BIOS sets, devices or sets under Not
-    // Recognized, nor the sets Hide Hacks and Bootlegs and Regions leave
+    // Recognized, nor the bootlegs and hacks Hide Hacks and Bootlegs leaves
     // out) by name, the genres, players, decades and makers they are under,
     // and the sets under Not Recognized: made again only once the folder,
-    // what MAME says of it or one of those settings has changed
-    // (invalidate()), as a full set of MAME's games is tens of thousands.
+    // what MAME says of it or that setting has changed (invalidate()), as a
+    // full set of MAME's games is tens of thousands.
     struct Index {
         QStringList games;
         QHash<QString, QMap<QString, QStringList>> places;   // kind → place → its games
@@ -1008,7 +1003,6 @@ private:
     // Settings.
     QString m_gamesFolder;
     bool    m_hideBootlegs = false;   // Hide Hacks and Bootlegs
-    QSet<QString> m_hiddenRegions;    // Regions: the ids turned off
     bool    m_highScores = true;
     QString m_video;              // "" for MAME's own (mame.ini's)
     QString m_screenShape;        // Emulator Video: "4:3", "16:9", "Square Pixels"; "" for Auto

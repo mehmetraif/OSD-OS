@@ -675,7 +675,7 @@ ArcadeBackend::ArcadeBackend(const QString &appRoot, const QString &dataRoot, Ap
 
     // The module's settings as they stand. games.json waits for the list to
     // open (refresh()): with a full set of MAME's games it is megabytes.
-    for (const char *key : { "games_directory", "hide_bootlegs", "regions", "high_scores", "video", "screen_shape",
+    for (const char *key : { "games_directory", "hide_bootlegs", "high_scores", "video", "screen_shape",
                              "integer_scale", "menu_filters", "online_high_scores", "online_play", "engines",
                              "online_name", "relay_server", "lan_play", "pictures_source" }) {
         const QString k = QLatin1String(key);
@@ -768,17 +768,6 @@ void ArcadeBackend::applySetting(const QString &key, const QVariant &value) {
         // The lists made again without the bootlegs and hacks, or with them
         // back (isGame()).
         m_hideBootlegs = isOn(value, false);
-        invalidate();
-        emit gamesChanged();
-    } else if (key == QLatin1String("regions")) {
-        // Saved whole at every change ({ id: true or false }): the lists made
-        // again without the regions turned off, or with them back.
-        m_hiddenRegions.clear();
-        const QVariantMap regions = value.toMap();
-        for (auto it = regions.constBegin(); it != regions.constEnd(); ++it) {
-            if (!it.value().toBool())
-                m_hiddenRegions.insert(it.key());
-        }
         invalidate();
         emit gamesChanged();
     } else if (key == QLatin1String("high_scores")) {
@@ -1524,16 +1513,7 @@ bool ArcadeBackend::isGame(const QString &set) const {
         return true;
     // Hide Hacks and Bootlegs: the makers' own releases alone, whichever of
     // MAME and FinalBurn Neo's list describes the set.
-    if (!machine->isGame() || (m_hideBootlegs && mame::isBootlegOrHack(*machine)))
-        return false;
-    // Regions: a set of several ("(Japan / World)") goes once they all are
-    // off, one whose name gives none never.
-    if (m_hiddenRegions.isEmpty())
-        return true;
-    const QStringList regions = mame::regionsOf(machine->description);
-    return regions.isEmpty() || !std::all_of(regions.cbegin(), regions.cend(), [this](const QString &region) {
-        return m_hiddenRegions.contains(region);
-    });
+    return machine->isGame() && !(m_hideBootlegs && mame::isBootlegOrHack(*machine));
 }
 
 const mame::Machine *ArcadeBackend::machineOf(const QString &set) const {
@@ -2663,13 +2643,6 @@ void ArcadeBackend::menuFilterOptions() {
     });
 }
 
-void ArcadeBackend::regionOptions() {
-    QVariantList options;
-    for (const mame::Region &region : mame::regions())
-        options << QVariantMap{ { QStringLiteral("id"), region.id }, { QStringLiteral("label"), region.name } };
-    emit dynamicOptionsReady(QStringLiteral("regions"), options);
-}
-
 void ArcadeBackend::startupGameOptions() {
     // The favorites, by their titles as they were put there: the app's
     // startup favourite is one of them.
@@ -2752,7 +2725,7 @@ QVariantList ArcadeBackend::listEntries(const QString &list) const {
     for (const QString &set : sets) {
         // Those still in the folder, as MAME says they are now, and games as
         // the Arcade screen's lists have them (not a bootleg Hide Hacks and
-        // Bootlegs leaves out, nor a set Regions does).
+        // Bootlegs leaves out).
         if (isGame(set))
             entries << gameEntry(set);
     }

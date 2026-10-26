@@ -138,8 +138,7 @@
     },
     "com.osdos.arcade": {
       "options": {
-        "start_filter": [["All Games", "all"], ["Favorites", "favorites"], ["Recently Played", "recent"], ["RetroAchievements", "achievements"], ["Playable Online", "netplay"]],
-        "regions": [["World", "world"], ["USA", "usa"], ["Japan", "japan"], ["Europe", "europe"], ["Asia", "asia"], ["Korea", "korea"], ["China", "china"], ["Taiwan", "taiwan"], ["Brazil", "brazil"], ["Other", "other"]]
+        "start_filter": [["All Games", "all"], ["Favorites", "favorites"], ["Recently Played", "recent"], ["RetroAchievements", "achievements"], ["Playable Online", "netplay"]]
       },
       "defaults": { "start_filter": "all" },
       "extra": [
