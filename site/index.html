@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>OSD/OS — Smart TV for CRT</title>
-<meta name="description" content="OSD/OS gives an old screen a new life: films, streams and arcade games with the look of a VCR, on a Raspberry Pi, or as an app on macOS, Windows, Linux and the BSDs.">
+<meta name="description" content="OSD/OS gives an old screen a new life: films, streams and arcade games with the look of a VCR, on a Raspberry Pi, or as an app on the BSDs, Linux and the Steam Deck, macOS and Windows.">
 <meta name="theme-color" content="#0110c5">
 <link rel="canonical" href="https://osdos.tv/">
 <meta property="og:type" content="website">
@@ -43,12 +43,14 @@
     <symbol id="pix-laptop" viewBox="0 0 16 16"><path d="M2 1h12v1h-12zM2 2h1v11h-1zM13 2h1v11h-1zM4 3h5v1h-5zM4 5h7v1h-7zM4 7h4v1h-4zM3 9h10v3h-10zM1 10h1v3h-1zM14 10h1v3h-1zM0 11h1v2h-1zM15 11h1v2h-1zM3 12h3v1h-3zM10 12h3v1h-3z"/></symbol>
     <symbol id="pix-cabinet" viewBox="0 0 16 16"><path d="M3 0h10v3h-10zM3 3h1v12h-1zM12 3h1v12h-1zM5 4h4v1h-4zM5 6h3v2h-3zM4 7h1v4h-1zM8 7h4v1h-4zM2 8h1v2h-1zM6 8h3v3h-3zM10 8h1v3h-1zM13 8h1v2h-1zM5 9h1v2h-1zM9 9h1v2h-1zM11 9h1v2h-1zM6 12h4v1h-4zM4 14h8v1h-8z"/></symbol>
     <symbol id="pix-window" viewBox="0 0 16 16"><path d="M1 1h14v1h-14zM1 2h9v1h-9zM11 2h1v1h-1zM13 2h2v1h-2zM1 3h14v1h-14zM1 4h1v1h-1zM14 4h1v1h-1zM1 5h1v1h-1zM14 5h1v1h-1zM1 6h1v1h-1zM3 6h6v1h-6zM14 6h1v1h-1zM1 7h1v1h-1zM14 7h1v1h-1zM1 8h1v1h-1zM3 8h8v1h-8zM14 8h1v1h-1zM1 9h1v1h-1zM14 9h1v1h-1zM1 10h1v1h-1zM3 10h4v1h-4zM14 10h1v1h-1zM1 11h1v1h-1zM14 11h1v1h-1zM1 12h14v1h-14z"/></symbol>
-    <symbol id="pix-terminal" viewBox="0 0 16 16"><path d="M1 1h14v1h-14zM1 2h1v1h-1zM14 2h1v1h-1zM1 3h1v1h-1zM3 3h1v1h-1zM14 3h1v1h-1zM1 4h1v1h-1zM4 4h1v1h-1zM14 4h1v1h-1zM1 5h1v1h-1zM5 5h1v1h-1zM14 5h1v1h-1zM1 6h1v1h-1zM4 6h1v1h-1zM14 6h1v1h-1zM1 7h1v1h-1zM3 7h1v1h-1zM7 7h4v1h-4zM14 7h1v1h-1zM1 8h1v1h-1zM14 8h1v1h-1zM1 9h1v1h-1zM14 9h1v1h-1zM1 10h14v1h-14zM6 11h4v1h-4zM4 12h8v1h-8z"/></symbol>
+    <symbol id="pix-beastie" viewBox="0 0 16 16"><path d="M2 0h1v1h-1zM13 0h1v1h-1zM1 1h2v1h-2zM13 1h2v1h-2zM0 2h2v2h-2zM14 2h2v2h-2zM1 4h3v1h-3zM5 4h6v1h-6zM12 4h3v1h-3zM3 5h2v1h-2zM11 5h2v1h-2zM2 6h1v2h-1zM13 6h1v2h-1zM4 7h3v1h-3zM9 7h3v1h-3zM1 8h1v4h-1zM4 8h2v2h-2zM9 8h2v2h-2zM14 8h1v4h-1zM4 10h3v1h-3zM9 10h3v1h-3zM2 12h1v2h-1zM5 12h1v1h-1zM10 12h1v1h-1zM13 12h1v2h-1zM6 13h4v1h-4zM3 14h2v1h-2zM11 14h2v1h-2zM5 15h6v1h-6z"/></symbol>
+    <symbol id="pix-handheld" viewBox="0 0 16 16"><path d="M1 3h14v1h-14zM0 4h1v9h-1zM15 4h1v9h-1zM4 5h8v1h-8zM2 6h1v1h-1zM4 6h1v4h-1zM11 6h1v4h-1zM13 6h1v1h-1zM6 7h4v1h-4zM2 9h1v1h-1zM13 9h1v1h-1zM4 10h8v1h-8zM4 12h8v1h-8zM1 13h3v1h-3zM12 13h3v1h-3z"/></symbol>
     <symbol id="scene-tv" viewBox="0 0 48 32"><path d="M2 5h30v2h-30zM2 7h2v20h-2zM25 7h7v2h-7zM5 8h19v2h-19zM25 9h2v18h-2zM29 9h3v9h-3zM27 11h2v2h-2zM6 12h10v2h-10zM27 15h2v3h-2zM7 16h12v1h-12zM7 18h8v1h-8zM28 18h1v12h-1zM30 18h2v9h-2zM27 19h1v1h-1zM29 19h1v1h-1zM6 21h17v1h-17zM27 21h1v1h-1zM29 21h1v1h-1zM35 21h12v1h-12zM35 22h1v8h-1zM46 22h1v8h-1zM4 23h21v4h-21zM27 23h1v7h-1zM29 23h1v4h-1zM37 23h1v1h-1zM39 23h1v4h-1zM41 23h1v1h-1zM43 23h1v1h-1zM45 23h1v2h-1zM47 23h1v2h-1zM38 24h1v3h-1zM40 24h1v3h-1zM32 25h3v1h-3zM45 26h1v4h-1zM47 26h1v2h-1zM5 27h3v3h-3zM26 27h1v3h-1zM36 28h9v2h-9zM1 29h4v1h-4zM8 29h18v1h-18zM29 29h6v1h-6z"/></symbol>
     <symbol id="scene-cabinet" viewBox="0 0 48 32"><path d="M14 0h20v1h-20zM14 1h3v4h-3zM20 1h1v4h-1zM24 1h1v4h-1zM28 1h1v4h-1zM31 1h3v4h-3zM17 3h3v2h-3zM21 3h3v2h-3zM25 3h3v2h-3zM29 3h2v2h-2zM14 5h1v27h-1zM33 5h1v27h-1zM16 6h16v2h-16zM17 10h9v2h-9zM17 13h14v1h-14zM15 15h18v2h-18zM13 16h1v4h-1zM34 16h1v4h-1zM12 17h1v3h-1zM15 17h3v4h-3zM20 17h5v4h-5zM27 17h2v4h-2zM31 17h2v4h-2zM35 17h1v3h-1zM18 19h2v2h-2zM25 19h2v2h-2zM29 19h2v2h-2zM15 21h1v11h-1zM32 21h1v11h-1zM21 23h6v1h-6zM21 24h1v4h-1zM26 24h1v4h-1zM23 25h2v1h-2zM22 27h4v1h-4zM16 29h16v3h-16zM4 31h10v1h-10zM34 31h10v1h-10z"/></symbol>
     <symbol id="scene-desktop" viewBox="0 0 48 32"><path d="M10 5h28v1h-28zM10 6h1v20h-1zM37 6h1v19h-1zM12 7h24v2h-24zM13 11h13v2h-13zM14 15h15v1h-15zM14 17h11v1h-11zM13 20h22v1h-22zM11 22h26v3h-26zM9 23h1v2h-1zM38 23h1v3h-1zM4 24h5v1h-5zM39 24h5v1h-5zM4 25h3v4h-3zM8 25h1v1h-1zM12 25h1v1h-1zM14 25h1v1h-1zM16 25h1v1h-1zM18 25h1v1h-1zM20 25h1v1h-1zM22 25h1v1h-1zM24 25h1v1h-1zM26 25h1v1h-1zM28 25h1v1h-1zM30 25h1v1h-1zM32 25h1v1h-1zM34 25h1v1h-1zM36 25h1v1h-1zM40 25h4v4h-4zM7 26h1v3h-1zM9 26h1v3h-1zM11 26h1v3h-1zM13 26h1v3h-1zM15 26h1v3h-1zM17 26h1v3h-1zM19 26h1v3h-1zM21 26h1v3h-1zM23 26h1v3h-1zM25 26h1v3h-1zM27 26h1v3h-1zM29 26h1v3h-1zM31 26h1v3h-1zM33 26h1v3h-1zM35 26h1v3h-1zM37 26h1v3h-1zM39 26h1v3h-1zM8 27h1v2h-1zM10 27h1v2h-1zM12 27h1v2h-1zM14 27h1v2h-1zM16 27h1v2h-1zM18 27h1v2h-1zM20 27h1v2h-1zM22 27h1v2h-1zM24 27h1v2h-1zM26 27h1v2h-1zM28 27h1v2h-1zM30 27h1v2h-1zM32 27h1v2h-1zM34 27h1v2h-1zM36 27h1v2h-1zM38 27h1v2h-1zM2 28h2v1h-2zM44 28h2v1h-2z"/></symbol>
     <symbol id="scene-pc" viewBox="0 0 48 32"><path d="M4 3h28v1h-28zM4 4h1v1h-1zM31 4h1v1h-1zM35 4h9v1h-9zM4 5h1v1h-1zM31 5h1v1h-1zM35 5h1v1h-1zM43 5h1v1h-1zM4 6h1v1h-1zM6 6h2v1h-2zM11 6h11v1h-11zM23 6h1v1h-1zM25 6h1v1h-1zM31 6h1v1h-1zM35 6h1v1h-1zM43 6h1v1h-1zM4 7h1v1h-1zM6 7h2v1h-2zM11 7h15v1h-15zM31 7h1v1h-1zM35 7h1v1h-1zM37 7h5v1h-5zM43 7h1v1h-1zM4 8h1v1h-1zM11 8h1v1h-1zM25 8h1v1h-1zM31 8h1v1h-1zM35 8h1v1h-1zM43 8h1v1h-1zM4 9h1v1h-1zM11 9h1v1h-1zM25 9h1v1h-1zM31 9h1v1h-1zM35 9h1v1h-1zM37 9h5v1h-5zM43 9h1v1h-1zM4 10h1v1h-1zM6 10h2v1h-2zM11 10h1v1h-1zM13 10h9v1h-9zM25 10h1v1h-1zM31 10h1v1h-1zM35 10h1v1h-1zM43 10h1v1h-1zM4 11h1v1h-1zM6 11h2v1h-2zM11 11h1v1h-1zM25 11h1v1h-1zM31 11h1v1h-1zM35 11h1v1h-1zM43 11h1v1h-1zM4 12h1v1h-1zM11 12h1v1h-1zM13 12h6v1h-6zM25 12h1v1h-1zM31 12h1v1h-1zM35 12h1v1h-1zM43 12h1v1h-1zM4 13h1v1h-1zM11 13h1v1h-1zM25 13h1v1h-1zM31 13h1v1h-1zM35 13h1v1h-1zM43 13h1v1h-1zM4 14h1v1h-1zM6 14h2v1h-2zM11 14h15v1h-15zM31 14h1v1h-1zM35 14h1v1h-1zM43 14h1v1h-1zM4 15h1v1h-1zM6 15h2v1h-2zM31 15h1v1h-1zM35 15h1v1h-1zM43 15h1v1h-1zM4 16h1v1h-1zM31 16h1v1h-1zM35 16h1v1h-1zM43 16h1v1h-1zM4 17h1v1h-1zM31 17h1v1h-1zM35 17h1v1h-1zM43 17h1v1h-1zM4 18h28v1h-28zM35 18h1v1h-1zM43 18h1v1h-1zM4 19h1v1h-1zM6 19h2v1h-2zM10 19h3v1h-3zM14 19h3v1h-3zM31 19h1v1h-1zM35 19h1v1h-1zM43 19h1v1h-1zM4 20h1v1h-1zM6 20h2v1h-2zM10 20h3v1h-3zM14 20h3v1h-3zM31 20h1v1h-1zM35 20h1v1h-1zM43 20h1v1h-1zM4 21h28v1h-28zM35 21h1v1h-1zM39 21h1v1h-1zM43 21h1v1h-1zM16 22h4v1h-4zM35 22h1v1h-1zM39 22h1v1h-1zM43 22h1v1h-1zM16 23h4v1h-4zM35 23h1v1h-1zM43 23h1v1h-1zM12 24h12v1h-12zM35 24h1v1h-1zM43 24h1v1h-1zM35 25h9v1h-9zM37 26h1v1h-1zM4 27h28v1h-28zM36 27h3v1h-3zM4 28h1v1h-1zM6 28h1v1h-1zM8 28h1v1h-1zM10 28h1v1h-1zM12 28h1v1h-1zM14 28h1v1h-1zM16 28h1v1h-1zM18 28h1v1h-1zM20 28h1v1h-1zM22 28h1v1h-1zM24 28h1v1h-1zM26 28h1v1h-1zM28 28h1v1h-1zM31 28h1v1h-1zM36 28h3v1h-3zM4 29h1v1h-1zM7 29h1v1h-1zM9 29h1v1h-1zM11 29h1v1h-1zM13 29h1v1h-1zM15 29h1v1h-1zM17 29h1v1h-1zM19 29h1v1h-1zM21 29h1v1h-1zM23 29h1v1h-1zM25 29h1v1h-1zM27 29h1v1h-1zM29 29h1v1h-1zM31 29h1v1h-1zM36 29h3v1h-3zM1 30h2v1h-2zM4 30h28v1h-28zM36 30h3v1h-3zM45 30h2v1h-2z"/></symbol>
-    <symbol id="scene-terminal" viewBox="0 0 48 32"><path d="M4 3h28v1h-28zM35 3h10v1h-10zM4 4h1v1h-1zM31 4h1v1h-1zM35 4h1v1h-1zM44 4h1v1h-1zM4 5h1v1h-1zM7 5h1v1h-1zM31 5h1v1h-1zM35 5h1v1h-1zM37 5h1v1h-1zM39 5h4v1h-4zM44 5h1v1h-1zM4 6h1v1h-1zM8 6h1v1h-1zM10 6h12v1h-12zM31 6h1v1h-1zM35 6h1v1h-1zM44 6h1v1h-1zM4 7h1v1h-1zM7 7h1v1h-1zM31 7h1v1h-1zM35 7h1v1h-1zM39 7h4v1h-4zM44 7h1v1h-1zM4 8h1v1h-1zM31 8h1v1h-1zM35 8h1v1h-1zM44 8h1v1h-1zM4 9h1v1h-1zM7 9h19v1h-19zM31 9h1v1h-1zM35 9h1v1h-1zM44 9h1v1h-1zM4 10h1v1h-1zM31 10h1v1h-1zM35 10h10v1h-10zM4 11h1v1h-1zM7 11h15v1h-15zM31 11h1v1h-1zM35 11h1v1h-1zM44 11h1v1h-1zM4 12h1v1h-1zM31 12h1v1h-1zM35 12h1v1h-1zM37 12h1v1h-1zM39 12h4v1h-4zM44 12h1v1h-1zM4 13h1v1h-1zM7 13h1v1h-1zM31 13h1v1h-1zM35 13h1v1h-1zM44 13h1v1h-1zM4 14h1v1h-1zM8 14h1v1h-1zM10 14h7v1h-7zM31 14h1v1h-1zM35 14h1v1h-1zM39 14h4v1h-4zM44 14h1v1h-1zM4 15h1v1h-1zM7 15h1v1h-1zM31 15h1v1h-1zM35 15h1v1h-1zM44 15h1v1h-1zM4 16h1v1h-1zM31 16h1v1h-1zM35 16h1v1h-1zM44 16h1v1h-1zM4 17h1v1h-1zM7 17h1v1h-1zM10 17h2v1h-2zM31 17h1v1h-1zM35 17h10v1h-10zM4 18h1v1h-1zM8 18h1v1h-1zM10 18h2v1h-2zM31 18h1v1h-1zM35 18h1v1h-1zM44 18h1v1h-1zM4 19h1v1h-1zM7 19h1v1h-1zM10 19h2v1h-2zM31 19h1v1h-1zM35 19h1v1h-1zM37 19h1v1h-1zM39 19h4v1h-4zM44 19h1v1h-1zM4 20h1v1h-1zM31 20h1v1h-1zM35 20h1v1h-1zM44 20h1v1h-1zM4 21h28v1h-28zM35 21h1v1h-1zM39 21h4v1h-4zM44 21h1v1h-1zM16 22h4v1h-4zM35 22h1v1h-1zM44 22h1v1h-1zM16 23h4v1h-4zM35 23h1v1h-1zM44 23h1v1h-1zM12 24h12v1h-12zM35 24h1v1h-1zM44 24h1v1h-1zM35 25h10v1h-10zM4 27h28v1h-28zM4 28h1v1h-1zM6 28h1v1h-1zM8 28h1v1h-1zM10 28h1v1h-1zM12 28h1v1h-1zM14 28h1v1h-1zM16 28h1v1h-1zM18 28h1v1h-1zM20 28h1v1h-1zM22 28h1v1h-1zM24 28h1v1h-1zM26 28h1v1h-1zM28 28h1v1h-1zM31 28h1v1h-1zM4 29h1v1h-1zM7 29h1v1h-1zM9 29h1v1h-1zM11 29h1v1h-1zM13 29h1v1h-1zM15 29h1v1h-1zM17 29h1v1h-1zM19 29h1v1h-1zM21 29h1v1h-1zM23 29h1v1h-1zM25 29h1v1h-1zM27 29h1v1h-1zM29 29h1v1h-1zM31 29h1v1h-1zM1 30h2v1h-2zM4 30h28v1h-28zM45 30h2v1h-2z"/></symbol>
+    <symbol id="scene-bsd" viewBox="0 0 98 52"><path d="M10 0h1v1h-1zM22 0h2v1h-2zM38 0h1v1h-1zM9 1h2v1h-2zM21 1h2v1h-2zM38 1h2v1h-2zM4 2h1v1h-1zM8 2h4v2h-4zM15 2h1v1h-1zM20 2h2v1h-2zM39 2h2v1h-2zM4 3h2v1h-2zM14 3h2v1h-2zM19 3h3v1h-3zM39 3h3v2h-3zM3 4h4v2h-4zM9 4h2v9h-2zM13 4h4v2h-4zM18 4h4v1h-4zM18 5h5v1h-5zM38 5h4v1h-4zM4 6h2v7h-2zM14 6h2v7h-2zM18 6h6v1h-6zM28 6h7v1h-7zM37 6h5v1h-5zM18 7h7v1h-7zM26 7h2v1h-2zM35 7h2v1h-2zM38 7h4v1h-4zM19 8h7v1h-7zM37 8h1v1h-1zM39 8h2v1h-2zM20 9h6v1h-6zM38 9h1v1h-1zM20 10h5v1h-5zM39 10h1v1h-1zM23 11h1v1h-1zM29 11h3v1h-3zM37 11h4v1h-4zM21 12h2v1h-2zM28 12h5v1h-5zM36 12h5v1h-5zM4 13h12v1h-12zM20 13h2v2h-2zM27 13h6v1h-6zM36 13h6v1h-6zM5 14h10v1h-10zM27 14h4v1h-4zM32 14h2v1h-2zM36 14h3v1h-3zM40 14h2v1h-2zM53 14h2v1h-2zM9 15h2v8h-2zM19 15h2v4h-2zM27 15h3v4h-3zM31 15h1v1h-1zM33 15h1v4h-1zM36 15h2v2h-2zM39 15h1v1h-1zM41 15h1v2h-1zM52 15h1v1h-1zM55 15h1v1h-1zM51 16h1v2h-1zM54 16h1v1h-1zM56 16h1v2h-1zM78 16h1v4h-1zM36 17h3v1h-3zM40 17h2v1h-2zM37 18h4v1h-4zM52 18h1v1h-1zM55 18h1v1h-1zM70 18h1v2h-1zM81 18h1v3h-1zM20 19h2v2h-2zM28 19h3v1h-3zM32 19h1v1h-1zM40 19h1v2h-1zM53 19h2v1h-2zM28 20h4v1h-4zM34 20h5v1h-5zM65 20h1v1h-1zM71 20h1v1h-1zM73 20h7v1h-7zM86 20h1v1h-1zM21 21h2v1h-2zM26 21h1v1h-1zM33 21h2v1h-2zM36 21h4v1h-4zM58 21h2v1h-2zM66 21h1v1h-1zM70 21h3v1h-3zM80 21h3v1h-3zM85 21h1v1h-1zM22 22h2v1h-2zM25 22h1v1h-1zM33 22h7v1h-7zM57 22h1v2h-1zM60 22h1v2h-1zM67 22h1v1h-1zM69 22h1v1h-1zM83 22h2v1h-2zM23 23h2v1h-2zM34 23h5v1h-5zM67 23h2v1h-2zM83 23h3v1h-3zM8 24h6v1h-6zM25 24h1v1h-1zM36 24h1v1h-1zM58 24h2v1h-2zM66 24h1v1h-1zM84 24h3v1h-3zM90 24h1v1h-1zM7 25h4v1h-4zM12 25h3v1h-3zM32 25h4v1h-4zM65 25h1v2h-1zM85 25h3v1h-3zM89 25h1v1h-1zM7 26h5v1h-5zM14 26h1v1h-1zM22 26h3v1h-3zM30 26h3v1h-3zM67 26h5v1h-5zM86 26h3v1h-3zM7 27h6v1h-6zM15 27h11v1h-11zM31 27h3v1h-3zM64 27h1v1h-1zM66 27h7v1h-7zM79 27h1v2h-1zM87 27h2v1h-2zM7 28h5v1h-5zM16 28h6v1h-6zM32 28h3v1h-3zM46 28h2v1h-2zM56 28h1v1h-1zM63 28h1v3h-1zM65 28h3v1h-3zM70 28h4v1h-4zM88 28h2v3h-2zM95 28h1v1h-1zM8 29h5v1h-5zM33 29h3v1h-3zM43 29h1v1h-1zM45 29h4v1h-4zM65 29h2v3h-2zM69 29h1v1h-1zM71 29h3v3h-3zM83 29h1v1h-1zM93 29h5v1h-5zM22 30h2v1h-2zM33 30h2v2h-2zM36 30h1v1h-1zM43 30h6v1h-6zM82 30h2v1h-2zM92 30h2v1h-2zM96 30h2v2h-2zM9 31h2v15h-2zM21 31h2v2h-2zM37 31h1v1h-1zM43 31h5v1h-5zM60 31h3v1h-3zM89 31h3v1h-3zM34 32h2v5h-2zM37 32h2v1h-2zM44 32h3v1h-3zM59 32h5v2h-5zM65 32h3v1h-3zM70 32h4v1h-4zM89 32h2v1h-2zM94 32h4v1h-4zM20 33h2v5h-2zM38 33h1v1h-1zM40 33h2v1h-2zM44 33h2v1h-2zM66 33h7v1h-7zM89 33h4v1h-4zM96 33h2v2h-2zM39 34h2v1h-2zM43 34h1v1h-1zM60 34h4v1h-4zM67 34h5v1h-5zM84 34h2v1h-2zM89 34h2v2h-2zM39 35h1v1h-1zM41 35h4v1h-4zM62 35h3v1h-3zM76 35h1v1h-1zM94 35h4v1h-4zM40 36h4v1h-4zM60 36h5v1h-5zM89 36h4v1h-4zM96 36h2v1h-2zM3 37h1v1h-1zM33 37h4v1h-4zM40 37h3v1h-3zM59 37h5v2h-5zM79 37h1v1h-1zM89 37h2v1h-2zM94 37h4v1h-4zM2 38h3v2h-3zM21 38h2v1h-2zM32 38h3v1h-3zM37 38h3v1h-3zM66 38h3v1h-3zM80 38h1v2h-1zM88 38h2v1h-2zM96 38h2v2h-2zM22 39h3v1h-3zM31 39h3v1h-3zM60 39h5v1h-5zM67 39h1v1h-1zM88 39h4v1h-4zM1 40h5v1h-5zM21 40h12v1h-12zM63 40h2v1h-2zM71 40h1v1h-1zM79 40h1v1h-1zM88 40h2v1h-2zM91 40h5v1h-5zM0 41h7v2h-7zM21 41h2v1h-2zM27 41h2v4h-2zM31 41h2v6h-2zM64 41h2v1h-2zM87 41h2v1h-2zM93 41h2v1h-2zM20 42h3v1h-3zM64 42h3v1h-3zM76 42h1v2h-1zM86 42h3v1h-3zM0 43h1v1h-1zM3 43h2v1h-2zM6 43h1v1h-1zM19 43h3v1h-3zM63 43h1v1h-1zM65 43h3v1h-3zM85 43h3v1h-3zM4 44h2v1h-2zM18 44h3v1h-3zM62 44h1v1h-1zM66 44h3v1h-3zM84 44h3v1h-3zM88 44h2v1h-2zM5 45h2v1h-2zM16 45h3v1h-3zM26 45h2v2h-2zM67 45h3v1h-3zM83 45h3v1h-3zM90 45h1v1h-1zM6 46h5v1h-5zM13 46h5v1h-5zM19 46h3v1h-3zM34 46h2v1h-2zM66 46h1v1h-1zM68 46h5v1h-5zM80 46h5v1h-5zM7 47h8v1h-8zM18 47h3v1h-3zM23 47h3v1h-3zM30 47h2v1h-2zM33 47h5v1h-5zM65 47h1v2h-1zM70 47h13v1h-13zM84 47h1v3h-1zM8 48h5v1h-5zM18 48h2v1h-2zM21 48h6v1h-6zM30 48h9v1h-9zM73 48h7v1h-7zM9 49h2v2h-2zM17 49h11v1h-11zM30 49h10v3h-10zM71 49h1v1h-1zM74 49h1v2h-1zM78 49h1v2h-1zM17 50h2v1h-2zM20 50h9v1h-9zM3 51h1v1h-1zM5 51h4v1h-4zM13 51h1v1h-1zM15 51h1v1h-1zM17 51h12v1h-12zM42 51h2v1h-2zM46 51h1v1h-1zM61 51h1v1h-1zM63 51h2v1h-2zM66 51h2v1h-2zM70 51h1v1h-1zM82 51h1v1h-1zM85 51h3v1h-3zM90 51h1v1h-1zM93 51h1v1h-1z"/></symbol>
+    <symbol id="scene-handheld" viewBox="0 0 48 32"><path d="M3 8h42v1h-42zM2 9h1v1h-1zM45 9h1v1h-1zM1 10h1v16h-1zM10 10h3v1h-3zM15 10h18v1h-18zM35 10h3v1h-3zM46 10h1v16h-1zM9 11h1v3h-1zM13 11h1v3h-1zM15 11h1v9h-1zM32 11h1v9h-1zM34 11h1v3h-1zM38 11h1v3h-1zM5 12h1v2h-1zM11 12h1v1h-1zM17 12h14v2h-14zM36 12h1v1h-1zM42 12h1v1h-1zM3 14h5v1h-5zM10 14h3v1h-3zM35 14h3v1h-3zM40 14h1v1h-1zM44 14h1v1h-1zM5 15h1v2h-1zM18 15h10v1h-10zM42 16h1v1h-1zM9 17h5v1h-5zM18 17h7v1h-7zM34 17h5v1h-5zM9 18h1v3h-1zM13 18h1v3h-1zM34 18h1v3h-1zM38 18h1v3h-1zM15 20h18v1h-18zM9 21h5v1h-5zM34 21h5v1h-5zM13 23h22v1h-22zM12 24h1v2h-1zM35 24h1v2h-1zM2 26h1v1h-1zM11 26h1v1h-1zM36 26h1v1h-1zM45 26h1v1h-1zM3 27h8v1h-8zM37 27h8v1h-8z"/></symbol>
   </defs>
 </svg>
 <a class="skip" href="#main">Skip to content</a>
@@ -59,6 +61,7 @@
   </a>
   <nav aria-label="Sections">
     <a href="#experience">Experience</a>
+    <a href="#arcade">Arcade</a>
     <a href="#themes">Themes</a>
     <a href="#hardware">Hardware</a>
     <a href="#get-started">Get started</a>
@@ -73,11 +76,42 @@
       <p class="eyebrow"><span class="led"></span> SMART TV FOR CRT &nbsp;/&nbsp; VIDEO 1</p>
       <h1>A NEW LIFE<br>FOR YOUR<br><em>OLD SCREEN.</em><span class="cursor" aria-hidden="true"></span></h1>
       <p>Films, streams and arcade classics on a Raspberry Pi that boots straight into its menus, drawn like a VCR's on-screen display. For the CRT in your living room, the monitor in your arcade cabinet or any HDMI screen.</p>
+      <div class="install">
+        <div class="install-tabs" role="tablist" aria-label="Get OSD/OS from a terminal">
+          <button type="button" role="tab" id="get-pi" aria-selected="true" aria-controls="get-pi-panel">Pi image</button>
+          <button type="button" role="tab" id="get-bsd" aria-selected="false" aria-controls="get-bsd-panel" tabindex="-1">BSD</button>
+          <button type="button" role="tab" id="get-linux" aria-selected="false" aria-controls="get-linux-panel" tabindex="-1">Linux</button>
+          <button type="button" role="tab" id="get-mac" aria-selected="false" aria-controls="get-mac-panel" tabindex="-1">macOS</button>
+          <button type="button" role="tab" id="get-windows" aria-selected="false" aria-controls="get-windows-panel" tabindex="-1">Windows</button>
+        </div>
+        <div class="install-panel" role="tabpanel" id="get-pi-panel" aria-labelledby="get-pi">
+          <div class="command"><code data-prompt="$">curl -fsSL https://osdos.tv/get.sh | sh -s -- image</code><button type="button" class="copy" aria-live="polite" hidden>Copy</button></div>
+          <div class="command"><code data-prompt="PS&gt;">iex "&amp; { $(irm https://osdos.tv/get.ps1) } image"</code><button type="button" class="copy" aria-live="polite" hidden>Copy</button></div>
+          <p class="install-note">The OSD/OS image for a Raspberry Pi 4 or 5, from a Mac or Linux, or Windows' PowerShell. It lands in the current folder, checked against the SHA-256 GitHub keeps for it.</p>
+        </div>
+        <div class="install-panel" role="tabpanel" id="get-bsd-panel" aria-labelledby="get-bsd" hidden>
+          <div class="command"><code data-prompt="freebsd$">fetch -qo - https://osdos.tv/get.sh | sh</code><button type="button" class="copy" aria-live="polite" hidden>Copy</button></div>
+          <div class="command"><code data-prompt="openbsd$">ftp -MVo - https://osdos.tv/get.sh | sh</code><button type="button" class="copy" aria-live="polite" hidden>Copy</button></div>
+          <p class="install-note">The package for FreeBSD or OpenBSD, checked against the SHA-256 GitHub keeps for it, and the command that adds it.</p>
+        </div>
+        <div class="install-panel" role="tabpanel" id="get-linux-panel" aria-labelledby="get-linux" hidden>
+          <div class="command"><code data-prompt="$">curl -fsSL https://osdos.tv/get.sh | sh</code><button type="button" class="copy" aria-live="polite" hidden>Copy</button></div>
+          <p class="install-note">The AppImage on a Steam Deck or another Linux x86_64, the installer on Raspberry Pi OS, checked against the SHA-256 GitHub keeps for it.</p>
+        </div>
+        <div class="install-panel" role="tabpanel" id="get-mac-panel" aria-labelledby="get-mac" hidden>
+          <div class="command"><code data-prompt="$">curl -fsSL https://osdos.tv/get.sh | sh</code><button type="button" class="copy" aria-live="polite" hidden>Copy</button></div>
+          <p class="install-note">The DMG for an Apple Silicon Mac, checked against the SHA-256 GitHub keeps for it.</p>
+        </div>
+        <div class="install-panel" role="tabpanel" id="get-windows-panel" aria-labelledby="get-windows" hidden>
+          <div class="command"><code data-prompt="PS&gt;">irm https://osdos.tv/get.ps1 | iex</code><button type="button" class="copy" aria-live="polite" hidden>Copy</button></div>
+          <p class="install-note">In PowerShell: the zip, checked against the SHA-256 GitHub keeps for it and unzipped into an osdos folder.</p>
+        </div>
+      </div>
       <div class="actions">
         <a class="button primary" href="#get-started">Get OSD/OS <svg class="pixel-icon" aria-hidden="true"><use href="#icon-down"/></svg></a>
         <a class="text-link" href="https://github.com/mehmetraif/OSD-OS">Explore the source <svg class="pixel-icon" aria-hidden="true"><use href="#icon-external"/></svg></a>
       </div>
-      <p class="micro">FREE &amp; OPEN SOURCE <span>•</span> RASPBERRY&nbsp;PI&nbsp;· MAC&nbsp;· WINDOWS&nbsp;· LINUX&nbsp;· BSD</p>
+      <p class="micro">FREE &amp; OPEN SOURCE <span>•</span> RASPBERRY&nbsp;PI&nbsp;· BSD&nbsp;· LINUX&nbsp;· STEAM&nbsp;DECK&nbsp;· MACOS&nbsp;· WINDOWS</p>
     </div>
     <figure class="hero-photo">
       <img src="assets/osdos-on-a-crt.jpg" alt="OSD/OS's settings on a Sony CRT television" width="1200" height="900" fetchpriority="high">
@@ -89,7 +123,7 @@
       <ul role="list">
         <li>
           <svg class="pixel-icon big" aria-hidden="true"><use href="#pix-pi"/></svg>
-          <div><b>A Raspberry Pi</b><span>A Pi 4 or a Pi 5. Or no Pi at all: the app runs on a Mac, a Windows or Linux PC, FreeBSD or OpenBSD.</span></div>
+          <div><b>A Raspberry Pi</b><span>A Pi 4 or a Pi 5. Or no Pi at all: the app runs on FreeBSD or OpenBSD, a Linux PC, a Steam Deck, a Mac or a Windows PC.</span></div>
         </li>
         <li>
           <svg class="pixel-icon big" aria-hidden="true"><use href="#pix-crt"/></svg>
@@ -158,9 +192,59 @@
     </div>
   </section>
 
+  <section class="arcade-section wrap" id="arcade">
+    <p class="section-label">02 / ONE MORE CREDIT</p>
+    <div class="section-intro">
+      <h2>Insert coin.<br>The rest is ready.</h2>
+      <p>MAME and FinalBurn Neo play the games. OSD/OS keeps what goes around them: the pictures, the scores, the achievements and the people to play with.</p>
+    </div>
+    <div class="experience-grid flip">
+      <figure class="screen-demo">
+        <div class="deck-label"><span>OSD/OS</span><span>INPUT 02 · ARCADE</span></div>
+        <img src="assets/arcade-screen.png" alt="The Arcade screen: Beat 'em Up, 4 of 9, its games on a 3D wheel, Final Fight selected and a favorite; beside it its picture, its top three high scores, its maker, Capcom, and 1 h 31 min played" loading="lazy" width="640" height="480">
+        <figcaption class="deck-footer"><span>COIN · START · PLAY</span><span>CREDIT 02</span></figcaption>
+      </figure>
+      <div class="feature-list">
+        <article>
+          <span class="feature-num">01</span>
+          <div>
+            <h3>Pick a game.</h3>
+            <p>Your sets on a wheel, each with its picture, maker and time played. Filters go round with left and right: favorites, recently played, genres, makers, the games with achievements, the ones playable online, and a search.</p>
+            <p class="tags">MAME / FINALBURN NEO / FILTERS</p>
+          </div>
+        </article>
+        <article>
+          <span class="feature-num">02</span>
+          <div>
+            <h3>Coin. Start.</h3>
+            <p>On the cabinet's own sticks and buttons or on any gamepad, for up to six players. Your credits go in as the game starts, and Coin and Start together bring you back.</p>
+            <p class="tags">JAMMA / GAMEPADS / KEYBOARD</p>
+          </div>
+        </article>
+        <article>
+          <span class="feature-num">03</span>
+          <div>
+            <h3>Keep the score.</h3>
+            <p>Each game's top three beside it: its RetroAchievements leaderboard once you sign in, or the machine's own high-score table. A game's details list its achievements, earned and not, with their badges.</p>
+            <p class="tags">HIGH SCORES / RETROACHIEVEMENTS</p>
+          </div>
+        </article>
+        <article>
+          <span class="feature-num">04</span>
+          <div>
+            <h3>Play together.</h3>
+            <p>Join a game others host in RetroArch's lobby, or host your own. LAN Play does the same on your own network, without the internet: a Pi with a Pi, or with a PC.</p>
+            <p class="tags">NETPLAY / LAN PLAY</p>
+          </div>
+        </article>
+        <a class="text-link" href="https://github.com/mehmetraif/OSD-OS/wiki/Arcade">Read the arcade guide <svg class="pixel-icon" aria-hidden="true"><use href="#icon-external"/></svg></a>
+      </div>
+    </div>
+  </section>
+
   <section class="themes-section" id="themes">
     <div class="wrap">
-      <p class="section-label">02 / MAKE IT YOURS</p>
+      <p class="section-label">03 / MAKE IT YOURS</p>
       <div class="section-intro">
         <h2>Same OS.<br>Different after-hours.</h2>
         <p>Keep the original two-colour look, or change the mood with a theme: colours, effects, transitions and menu music, together.</p>
@@ -184,7 +268,7 @@
   </section>
 
   <section class="hardware-section wrap" id="hardware">
-    <p class="section-label">03 / FIND YOUR CONNECTION</p>
+    <p class="section-label">04 / FIND YOUR CONNECTION</p>
     <div class="section-intro">
       <h2>From the living room<br>to the arcade floor.</h2>
       <p>A Raspberry Pi image for a machine of its own. An app for the computer you already have. Choose your starting point.</p>
@@ -192,16 +276,30 @@
     <div class="hardware-tabs" role="tablist" aria-label="Where OSD/OS runs">
       <button type="button" role="tab" id="tab-tv" aria-selected="true" aria-controls="panel-tv"><span class="tab-num">01</span><svg class="pixel-icon" aria-hidden="true"><use href="#pix-crt"/></svg><span>CRT television</span></button>
       <button type="button" role="tab" id="tab-arcade" aria-selected="false" aria-controls="panel-arcade" tabindex="-1"><span class="tab-num">02</span><svg class="pixel-icon" aria-hidden="true"><use href="#pix-cabinet"/></svg><span>Arcade cabinet</span></button>
-      <button type="button" role="tab" id="tab-desktop" aria-selected="false" aria-controls="panel-desktop" tabindex="-1"><span class="tab-num">03</span><svg class="pixel-icon" aria-hidden="true"><use href="#pix-laptop"/></svg><span>Mac / Linux</span></button>
-      <button type="button" role="tab" id="tab-windows" aria-selected="false" aria-controls="panel-windows" tabindex="-1"><span class="tab-num">04</span><svg class="pixel-icon" aria-hidden="true"><use href="#pix-window"/></svg><span>Windows</span></button>
-      <button type="button" role="tab" id="tab-bsd" aria-selected="false" aria-controls="panel-bsd" tabindex="-1"><span class="tab-num">05</span><svg class="pixel-icon" aria-hidden="true"><use href="#pix-terminal"/></svg><span>BSD</span></button>
+      <button type="button" role="tab" id="tab-bsd" aria-selected="false" aria-controls="panel-bsd" tabindex="-1"><span class="tab-num">03</span><svg class="pixel-icon" aria-hidden="true"><use href="#pix-beastie"/></svg><span>BSD</span></button>
+      <button type="button" role="tab" id="tab-linux" aria-selected="false" aria-controls="panel-linux" tabindex="-1"><span class="tab-num">04</span><svg class="pixel-icon" aria-hidden="true"><use href="#pix-handheld"/></svg><span>Linux / Steam&nbsp;Deck</span></button>
+      <button type="button" role="tab" id="tab-mac" aria-selected="false" aria-controls="panel-mac" tabindex="-1"><span class="tab-num">05</span><svg class="pixel-icon" aria-hidden="true"><use href="#pix-laptop"/></svg><span>macOS</span></button>
+      <button type="button" role="tab" id="tab-windows" aria-selected="false" aria-controls="panel-windows" tabindex="-1"><span class="tab-num">06</span><svg class="pixel-icon" aria-hidden="true"><use href="#pix-window"/></svg><span>Windows</span></button>
     </div>
     <div class="hardware-panel" role="tabpanel" id="panel-tv" aria-labelledby="tab-tv" tabindex="0">
       <div>
         <p class="mini-label">THE DEDICATED SETUP</p>
+        <p class="badge tested">TESTED ON A PI 4 AND A PI 5</p>
         <h3>A small Pi.<br>A proper TV experience.</h3>
         <p>Write the OSD/OS image to an SD card and connect the Raspberry Pi to the TV. It boots straight into OSD/OS, ready for a remote, a keyboard or a gamepad.</p>
-        <a class="text-link" href="https://github.com/mehmetraif/OSD-OS/wiki/Display-Output">Read the display guide <svg class="pixel-icon" aria-hidden="true"><use href="#icon-external"/></svg></a>
+        <div class="downloads">
+          <a class="download" href="https://github.com/mehmetraif/OSD-OS/releases/latest" data-asset="-raspberry-pi.img.xz"><svg class="pixel-icon" aria-hidden="true"><use href="#icon-down"/></svg><span><b>The OSD/OS image</b><span class="download-meta" data-asset="-raspberry-pi.img.xz">For a Raspberry Pi 4 or 5, in the latest release</span></span></a>
+        </div>
+        <div class="terminal">
+          <p class="terminal-label">OR FROM A TERMINAL</p>
+          <div class="command"><span class="command-on">macOS · Linux</span><code>curl -fsSL https://osdos.tv/get.sh | sh -s -- image</code><button type="button" class="copy" aria-live="polite" hidden>Copy</button></div>
+          <div class="command"><span class="command-on">PowerShell</span><code>iex "&amp; { $(irm https://osdos.tv/get.ps1) } image"</code><button type="button" class="copy" aria-live="polite" hidden>Copy</button></div>
+          <p class="terminal-note">Downloads the image into the current folder and checks it against the SHA-256 GitHub keeps for it.</p>
+        </div>
+        <div class="panel-links">
+          <a class="text-link" href="setup/">Prepare the card in Setup</a>
+          <a class="text-link" href="https://github.com/mehmetraif/OSD-OS/wiki/Display-Output">Read the display guide <svg class="pixel-icon" aria-hidden="true"><use href="#icon-external"/></svg></a>
+        </div>
         <svg class="pixel-scene" aria-hidden="true"><use href="#scene-tv"/></svg>
       </div>
       <dl>
@@ -214,9 +312,22 @@
     <div class="hardware-panel" role="tabpanel" id="panel-arcade" aria-labelledby="tab-arcade" tabindex="0" hidden>
       <div>
         <p class="mini-label">THE CABINET SETUP</p>
+        <p class="badge tested">TESTED IN A JAMMA CABINET</p>
         <h3>The original monitor.<br>A new game night.</h3>
         <p>A Raspberry Pi to JAMMA board puts OSD/OS in a cabinet: browse the games with the cabinet's sticks and buttons, start straight on the Arcade screen, and play on the monitor it came with.</p>
-        <a class="text-link" href="https://github.com/mehmetraif/OSD-OS/wiki/Arcade">Read the arcade guide <svg class="pixel-icon" aria-hidden="true"><use href="#icon-external"/></svg></a>
+        <div class="downloads">
+          <a class="download" href="https://github.com/mehmetraif/OSD-OS/releases/latest" data-asset="-raspberry-pi.img.xz"><svg class="pixel-icon" aria-hidden="true"><use href="#icon-down"/></svg><span><b>The OSD/OS image</b><span class="download-meta" data-asset="-raspberry-pi.img.xz">For a Raspberry Pi 4 or 5, in the latest release</span></span></a>
+        </div>
+        <div class="terminal">
+          <p class="terminal-label">OR FROM A TERMINAL</p>
+          <div class="command"><span class="command-on">macOS · Linux</span><code>curl -fsSL https://osdos.tv/get.sh | sh -s -- image</code><button type="button" class="copy" aria-live="polite" hidden>Copy</button></div>
+          <div class="command"><span class="command-on">PowerShell</span><code>iex "&amp; { $(irm https://osdos.tv/get.ps1) } image"</code><button type="button" class="copy" aria-live="polite" hidden>Copy</button></div>
+          <p class="terminal-note">Downloads the image into the current folder and checks it against the SHA-256 GitHub keeps for it.</p>
+        </div>
+        <div class="panel-links">
+          <a class="text-link" href="setup/?device=arcade">Prepare the card for a cabinet</a>
+          <a class="text-link" href="https://github.com/mehmetraif/OSD-OS/wiki/Arcade">Read the arcade guide <svg class="pixel-icon" aria-hidden="true"><use href="#icon-external"/></svg></a>
+        </div>
         <svg class="pixel-scene" aria-hidden="true"><use href="#scene-cabinet"/></svg>
       </div>
       <dl>
@@ -226,26 +337,96 @@
         <div><dt>Compatibility</dt><dd>480i and 576i modes on a Pi 4. Match the mode to the monitor.</dd></div>
       </dl>
     </div>
-    <div class="hardware-panel" role="tabpanel" id="panel-desktop" aria-labelledby="tab-desktop" tabindex="0" hidden>
+    <div class="hardware-panel" role="tabpanel" id="panel-bsd" aria-labelledby="tab-bsd" tabindex="0" hidden>
       <div>
-        <p class="mini-label">THE APP SETUP</p>
-        <h3>Your computer.<br>Another way to play.</h3>
-        <p>Run OSD/OS as an app on Raspberry Pi OS, on an Apple Silicon Mac, or on SteamOS and other Linux x86_64 systems. Try the interface before building a machine for it.</p>
-        <a class="text-link" href="https://github.com/mehmetraif/OSD-OS/blob/main/INSTALL.md">See the install options <svg class="pixel-icon" aria-hidden="true"><use href="#icon-external"/></svg></a>
+        <p class="mini-label">THE BSD SETUP</p>
+        <p class="badge">TESTED IN A VIRTUAL MACHINE</p>
+        <h3>FreeBSD or OpenBSD.<br>One package.</h3>
+        <p>Install OSD/OS on FreeBSD or OpenBSD as a package of the system's, with its own Qt 6, SDL2 and mpv packages, and run it as a desktop app: the menus, films and media servers, YouTube, and the arcade with the system's MAME, or FinalBurn Neo in its RetroArch.</p>
+        <div class="downloads">
+          <a class="download" href="https://github.com/mehmetraif/OSD-OS/releases/latest" data-asset="-freebsd-amd64.pkg"><svg class="pixel-icon" aria-hidden="true"><use href="#icon-down"/></svg><span><b>FreeBSD package</b><span class="download-meta" data-asset="-freebsd-amd64.pkg">FreeBSD 15 on amd64, in the latest release</span></span></a>
+          <a class="download" href="https://github.com/mehmetraif/OSD-OS/releases/latest" data-asset="-openbsd-amd64.tgz"><svg class="pixel-icon" aria-hidden="true"><use href="#icon-down"/></svg><span><b>OpenBSD package</b><span class="download-meta" data-asset="-openbsd-amd64.tgz">OpenBSD 8.0 on amd64, in the latest release</span></span></a>
+        </div>
+        <div class="terminal">
+          <p class="terminal-label">OR FROM A TERMINAL</p>
+          <div class="command"><span class="command-on">FreeBSD</span><code>fetch -qo - https://osdos.tv/get.sh | sh</code><button type="button" class="copy" aria-live="polite" hidden>Copy</button></div>
+          <div class="command"><span class="command-on">OpenBSD</span><code>ftp -MVo - https://osdos.tv/get.sh | sh</code><button type="button" class="copy" aria-live="polite" hidden>Copy</button></div>
+          <p class="terminal-note">Downloads the system's package, checks it against the SHA-256 GitHub keeps for it, and gives the command that adds it as root.</p>
+        </div>
+        <a class="text-link" href="https://github.com/mehmetraif/OSD-OS/blob/main/INSTALL.md#on-freebsd-amd64">See the BSD install <svg class="pixel-icon" aria-hidden="true"><use href="#icon-external"/></svg></a>
+        <svg class="pixel-scene fine" aria-hidden="true"><use href="#scene-bsd"/></svg>
+        <p class="art-credit">BSD Daemon Copyright 1988 by Marshall Kirk McKusick. All Rights Reserved. Puffy is OpenBSD's mascot. Both drawn here in pixels.</p>
+      </div>
+      <dl>
+        <div><dt>Systems</dt><dd>FreeBSD 15 and OpenBSD 8.0 on amd64</dd></div>
+        <div><dt>Packages</dt><dd>A <code>.pkg</code> for <code>pkg add</code>, a <code>.tgz</code> for <code>pkg_add</code>, in every release</dd></div>
+        <div><dt>Arcade</dt><dd>MAME and RetroArch from the system's packages. FinalBurn Neo comes with OSD/OS, built from its source, with online play and RetroAchievements</dd></div>
+        <div><dt>Status</dt><dd>Built, installed and started in a virtual machine on every change; not yet tried on a BSD computer</dd></div>
+      </dl>
+    </div>
+    <div class="hardware-panel" role="tabpanel" id="panel-linux" aria-labelledby="tab-linux" tabindex="0" hidden>
+      <div>
+        <p class="mini-label">THE LINUX SETUP</p>
+        <p class="badge">TESTED BY CI</p>
+        <h3>A Steam Deck or a Linux PC.<br>One file.</h3>
+        <p>Run OSD/OS on a Steam Deck or another Linux x86_64 computer from one AppImage, with Qt, SDL2 and mpv inside: nothing to install, not even on SteamOS's read-only system. Added to Steam as a non-Steam game, it starts from Gaming Mode and plays with the Deck's own controls.</p>
+        <div class="downloads">
+          <a class="download" href="https://github.com/mehmetraif/OSD-OS/releases/latest" data-asset="-linux-x86_64.AppImage"><svg class="pixel-icon" aria-hidden="true"><use href="#icon-down"/></svg><span><b>Linux AppImage</b><span class="download-meta" data-asset="-linux-x86_64.AppImage">Steam Deck and Linux x86_64, in the latest release</span></span></a>
+        </div>
+        <div class="terminal">
+          <p class="terminal-label">OR FROM A TERMINAL</p>
+          <div class="command"><span class="command-on">Linux · Steam Deck</span><code>curl -fsSL https://osdos.tv/get.sh | sh</code><button type="button" class="copy" aria-live="polite" hidden>Copy</button></div>
+          <p class="terminal-note">Downloads the AppImage, or the installer on Raspberry Pi OS, checks it against the SHA-256 GitHub keeps for it, and says what comes next. On a Steam Deck, in Desktop Mode's Konsole.</p>
+        </div>
+        <a class="text-link" href="https://github.com/mehmetraif/OSD-OS/blob/main/INSTALL.md#on-steamos--linux-x86_64">See the Linux and Steam Deck install <svg class="pixel-icon" aria-hidden="true"><use href="#icon-external"/></svg></a>
+        <svg class="pixel-scene" aria-hidden="true"><use href="#scene-handheld"/></svg>
+      </div>
+      <dl>
+        <div><dt>Steam Deck</dt><dd>Set up in Desktop Mode, played from Gaming Mode as a non-Steam game</dd></div>
+        <div><dt>Linux</dt><dd>x86_64 with glibc 2.39 or newer, as an AppImage</dd></div>
+        <div><dt>Raspberry Pi OS</dt><dd>As an app, with one installer script</dd></div>
+        <div><dt>Playback</dt><dd>mpv: inside the AppImage, installed by the Pi script</dd></div>
+        <div><dt>Status</dt><dd>Built for every release; the app's tests run on Linux on every change</dd></div>
+      </dl>
+    </div>
+    <div class="hardware-panel" role="tabpanel" id="panel-mac" aria-labelledby="tab-mac" tabindex="0" hidden>
+      <div>
+        <p class="mini-label">THE MAC SETUP</p>
+        <p class="badge">BUILT BY CI</p>
+        <h3>Your Mac.<br>Another way to play.</h3>
+        <p>Run OSD/OS as an app on an Apple Silicon Mac: drag it from the DMG into Applications, and add mpv with Homebrew. Try the interface before building a machine for it.</p>
+        <div class="downloads">
+          <a class="download" href="https://github.com/mehmetraif/OSD-OS/releases/latest" data-asset="-macOS-arm64.dmg"><svg class="pixel-icon" aria-hidden="true"><use href="#icon-down"/></svg><span><b>macOS</b><span class="download-meta" data-asset="-macOS-arm64.dmg">Apple Silicon, in the latest release</span></span></a>
+        </div>
+        <div class="terminal">
+          <p class="terminal-label">OR FROM A TERMINAL</p>
+          <div class="command"><span class="command-on">macOS</span><code>curl -fsSL https://osdos.tv/get.sh | sh</code><button type="button" class="copy" aria-live="polite" hidden>Copy</button></div>
+          <p class="terminal-note">Downloads the DMG, checks it against the SHA-256 GitHub keeps for it, and says what comes next.</p>
+        </div>
+        <a class="text-link" href="https://github.com/mehmetraif/OSD-OS/blob/main/INSTALL.md#on-macos-arm">See the Mac install <svg class="pixel-icon" aria-hidden="true"><use href="#icon-external"/></svg></a>
         <svg class="pixel-scene" aria-hidden="true"><use href="#scene-desktop"/></svg>
       </div>
       <dl>
         <div><dt>macOS</dt><dd>Apple Silicon, as a DMG</dd></div>
-        <div><dt>Linux</dt><dd>SteamOS and other x86_64 systems, as an AppImage</dd></div>
-        <div><dt>Raspberry Pi OS</dt><dd>As an app, with one installer script</dd></div>
-        <div><dt>Playback</dt><dd>mpv: in the AppImage, installed by the Pi script, <code>brew install mpv</code> on a Mac</dd></div>
+        <div><dt>Playback</dt><dd>mpv, with <code>brew install mpv</code></dd></div>
+        <div><dt>First open</dt><dd>If macOS can't check the app, Open Anyway under Privacy &amp; Security</dd></div>
+        <div><dt>Status</dt><dd>Built for every release</dd></div>
       </dl>
     </div>
     <div class="hardware-panel" role="tabpanel" id="panel-windows" aria-labelledby="tab-windows" tabindex="0" hidden>
       <div>
         <p class="mini-label">THE PC SETUP</p>
+        <p class="badge tested">TESTED ON A WINDOWS 11 PC</p>
         <h3>Your PC.<br>Unzip and play.</h3>
         <p>Unzip OSD/OS on a Windows 11 PC and run <code>osdos.exe</code>: nothing to install. MAME, and RetroArch with FinalBurn Neo, download from its own Settings in the versions the Pi image has, so a PC plays online and over the local network with a Pi.</p>
+        <div class="downloads">
+          <a class="download" href="https://github.com/mehmetraif/OSD-OS/releases/latest" data-asset="-windows-x64.zip"><svg class="pixel-icon" aria-hidden="true"><use href="#icon-down"/></svg><span><b>Windows</b><span class="download-meta" data-asset="-windows-x64.zip">Windows 11 on x64, in the latest release</span></span></a>
+        </div>
+        <div class="terminal">
+          <p class="terminal-label">OR FROM A TERMINAL</p>
+          <div class="command"><span class="command-on">PowerShell</span><code>irm https://osdos.tv/get.ps1 | iex</code><button type="button" class="copy" aria-live="polite" hidden>Copy</button></div>
+          <p class="terminal-note">Downloads the zip, checks it against the SHA-256 GitHub keeps for it, and unzips it into an osdos folder.</p>
+        </div>
         <a class="text-link" href="https://github.com/mehmetraif/OSD-OS/blob/main/INSTALL.md#on-windows-x64">See the Windows install <svg class="pixel-icon" aria-hidden="true"><use href="#icon-external"/></svg></a>
         <svg class="pixel-scene" aria-hidden="true"><use href="#scene-pc"/></svg>
       </div>
@@ -256,27 +437,13 @@
         <div><dt>On the desktop</dt><dd>Full screen, or in a window with Window Mode (F11)</dd></div>
       </dl>
     </div>
-    <div class="hardware-panel" role="tabpanel" id="panel-bsd" aria-labelledby="tab-bsd" tabindex="0" hidden>
-      <div>
-        <p class="mini-label">THE BSD SETUP</p>
-        <h3>FreeBSD or OpenBSD.<br>One package.</h3>
-        <p>Install OSD/OS on FreeBSD or OpenBSD as a package of the system's, with its own Qt 6, SDL2 and mpv packages, and run it as a desktop app: the menus, films and media servers, YouTube, and the arcade with the system's MAME, or FinalBurn Neo in its RetroArch.</p>
-        <a class="text-link" href="https://github.com/mehmetraif/OSD-OS/blob/main/INSTALL.md#on-freebsd-amd64">See the BSD install <svg class="pixel-icon" aria-hidden="true"><use href="#icon-external"/></svg></a>
-        <svg class="pixel-scene" aria-hidden="true"><use href="#scene-terminal"/></svg>
-      </div>
-      <dl>
-        <div><dt>Systems</dt><dd>FreeBSD 15 and OpenBSD 8.0 on amd64</dd></div>
-        <div><dt>Packages</dt><dd>A <code>.pkg</code> for <code>pkg add</code>, a <code>.tgz</code> for <code>pkg_add</code>, in every release</dd></div>
-        <div><dt>Arcade</dt><dd>MAME and RetroArch from the system's packages. FinalBurn Neo comes with OSD/OS, built from its source, with online play and RetroAchievements</dd></div>
-        <div><dt>Status</dt><dd>Built, installed and started in a virtual machine on every change; not yet tried on a BSD computer</dd></div>
-      </dl>
-    </div>
     <p class="hardware-note">* Which outputs a Pi has depends on the model and the adapter. Check the display guide before choosing a mode.</p>
+    <p class="hardware-note">A filled label: tried on real hardware. An outlined one: built and tested by machine. Every file, with its SHA-256 digest and the release notes, is in <a href="https://github.com/mehmetraif/OSD-OS/releases/latest">the latest release</a>.</p>
   </section>
 
   <section class="setup-section" id="get-started">
     <div class="wrap">
-      <p class="section-label">04 / PRESS PLAY</p>
+      <p class="section-label">05 / PRESS PLAY</p>
       <div class="section-intro">
         <h2>Your next evening,<br>in three steps.</h2>
         <p>Prepare everything on your computer. Then let the little screen take over.</p>
@@ -286,7 +453,7 @@
           <div class="step-head"><span class="step-number">01</span><svg class="pixel-icon big" aria-hidden="true"><use href="#pix-sd"/></svg></div>
           <h3>Get the image.</h3>
           <p>Download the Raspberry Pi image from the latest release and write it to an SD card with Raspberry Pi Imager's "Use custom" option.</p>
-          <a href="https://github.com/mehmetraif/OSD-OS/releases/latest">Download OSD/OS <svg class="pixel-icon" aria-hidden="true"><use href="#icon-external"/></svg></a>
+          <a href="https://github.com/mehmetraif/OSD-OS/releases/latest" data-asset="-raspberry-pi.img.xz">Download the image <svg class="pixel-icon" aria-hidden="true"><use href="#icon-down"/></svg></a>
         </article>
         <article>
           <div class="step-head"><span class="step-number">02</span><svg class="pixel-icon big" aria-hidden="true"><use href="#pix-sliders"/></svg></div>
@@ -316,7 +483,7 @@
     <div class="faq">
       <details>
         <summary>Do I need a CRT?<span class="faq-sign" aria-hidden="true"><svg class="pixel-icon"><use href="#icon-plus"/></svg></span></summary>
-        <p>No. OSD/OS is made for CRTs first, but it draws just as well on an HDMI screen, and it runs as an app on a Mac, a Windows or Linux PC, FreeBSD or OpenBSD.</p>
+        <p>No. OSD/OS is made for CRTs first, but it draws just as well on an HDMI screen, and it runs as an app on FreeBSD or OpenBSD, a Linux PC, a Steam Deck, a Mac or a Windows PC.</p>
       </details>
       <details>
         <summary>Which Raspberry Pi is supported?<span class="faq-sign" aria-hidden="true"><svg class="pixel-icon"><use href="#icon-plus"/></svg></span></summary>
@@ -341,7 +508,7 @@
     <p class="eyebrow">THE PICTURE IS JUST GETTING STARTED.</p>
     <h2>Good screens<br>deserve an encore.</h2>
     <div class="actions">
-      <a class="button primary" href="https://github.com/mehmetraif/OSD-OS/releases/latest">Get OSD/OS <svg class="pixel-icon" aria-hidden="true"><use href="#icon-external"/></svg></a>
+      <a class="button primary" href="#hardware">Get OSD/OS <svg class="pixel-icon" aria-hidden="true"><use href="#icon-up"/></svg></a>
       <a class="text-link" href="https://github.com/mehmetraif/OSD-OS/issues">Help make it better <svg class="pixel-icon" aria-hidden="true"><use href="#icon-external"/></svg></a>
     </div>
     <pre class="marquee" aria-hidden="true">+----------------------------+

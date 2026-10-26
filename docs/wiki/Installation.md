@@ -37,6 +37,8 @@ The release page lists them under Assets by their file names, in this order, the
 sha256sum OSD-OS-<version>-raspberry-pi.img.xz
 ```
 
+Or let a terminal download the file and check it. `curl -fsSL https://osdos.tv/get.sh | sh` downloads the file for the computer it runs on into the current folder: the DMG on an Apple Silicon Mac, the AppImage on Linux x86_64, `install.sh` on Raspberry Pi OS, the package on FreeBSD and OpenBSD, where `fetch -qo -` and `ftp -MVo -` take `curl -fsSL`'s place. With `sh -s -- image` at its end it downloads the OSD/OS image, on any of them. In Windows PowerShell, `irm https://osdos.tv/get.ps1 | iex` downloads the zip and unzips it into an `osdos` folder there, and `iex "& { $(irm https://osdos.tv/get.ps1) } image"` the image. Each checks the file against the SHA-256 GitHub keeps for it, deletes it if the two don't match, keeps a file already there that matches, installs nothing, and says what comes next. The [website](https://osdos.tv/) gives each system's command at its top.
+
 The script that sets up an NFC reader is in the repository ([NFC Reader](https://github.com/mehmetraif/OSD-OS/wiki/NFC-Reader)).
 
 ## The OSD/OS image
@@ -53,7 +55,7 @@ The OSD/OS image is Raspberry Pi OS Lite (64-bit), based on Debian 13 "trixie" a
 
 ### Download
 
-Download `OSD-OS-<version>-raspberry-pi.img.xz` from the [latest release](https://github.com/mehmetraif/OSD-OS/releases/latest) (`OSD-OS-v0.0.2-raspberry-pi.img.xz`, for example). There is no need to unpack it: Raspberry Pi Imager and balenaEtcher read `.img.xz` as it is.
+Download `OSD-OS-<version>-raspberry-pi.img.xz` from the [latest release](https://github.com/mehmetraif/OSD-OS/releases/latest) (`OSD-OS-v0.0.2-raspberry-pi.img.xz`, for example). There is no need to unpack it: Raspberry Pi Imager and balenaEtcher read `.img.xz` as it is. From a terminal, `curl -fsSL https://osdos.tv/get.sh | sh -s -- image` downloads it into the current folder and checks it against the SHA-256 GitHub keeps for it (`iex "& { $(irm https://osdos.tv/get.ps1) } image"` in Windows PowerShell).
 
 An image from the **OS image** workflow (the Actions tab, for a branch or a pull request) comes as a zip, the run's `osdos-image` artifact: take the `.img.xz` out of it. Its app is built as `dev`, which turns in-app updates off, so that a branch image never replaces itself with a release that lacks its changes. A release's image updates itself from later releases.
 
@@ -512,7 +514,7 @@ osdos
 
 OSD/OS runs on Apple Silicon Macs (not Intel ones), full screen. It plays videos with Homebrew's mpv, which you install yourself.
 
-1. Download `OSD-OS-<version>-macOS-arm64.dmg` from the [latest release](https://github.com/mehmetraif/OSD-OS/releases/latest).
+1. Download `OSD-OS-<version>-macOS-arm64.dmg` from the [latest release](https://github.com/mehmetraif/OSD-OS/releases/latest). Or in Terminal: `curl -fsSL https://osdos.tv/get.sh | sh` downloads it into the current folder and checks it against the SHA-256 GitHub keeps for it.
 2. Open it and drag **osdos.app** onto the **Applications** folder beside it.
 3. Install mpv with [Homebrew](https://brew.sh), and the optional extras you want:
 
@@ -554,7 +556,7 @@ On SteamOS (a Steam Deck) and other x86_64 Linux, OSD/OS comes as an AppImage: a
 It needs a graphical session, X11, or Wayland with XWayland (the AppImage carries Qt's X11 platform plugin only), and a recent system: it is built on Ubuntu 24.04, so it needs glibc 2.39 or newer (a current Steam Deck and current distributions; not Ubuntu 22.04, Debian 12 or an older SteamOS). It carries spare Wayland client libraries for X11-only systems that have none, such as Batocera, and uses them only when the system lacks its own.
 
 1. On SteamOS, switch to **Desktop Mode** first.
-2. Download `OSD-OS-linux-x86_64.AppImage` from the [latest release](https://github.com/mehmetraif/OSD-OS/releases/latest).
+2. Download `OSD-OS-linux-x86_64.AppImage` from the [latest release](https://github.com/mehmetraif/OSD-OS/releases/latest). Or from a terminal: `curl -fsSL https://osdos.tv/get.sh | sh` downloads it into the current folder, checks it against the SHA-256 GitHub keeps for it and makes it executable, which is step 3.
 3. Make it executable: in the file manager, right-click it → **Properties → Permissions** → tick **Is executable**, or from a terminal:
 
    ```sh
@@ -588,7 +590,7 @@ On the AppImage:
 
 On Windows 11 on x64, OSD/OS comes as a zip: one folder, `osdos`, with `osdos.exe`, Qt and the libraries it needs, and OSD/OS's own files. Nothing is installed: the folder runs from wherever you put it.
 
-1. Download `OSD-OS-<version>-windows-x64.zip` from the [latest release](https://github.com/mehmetraif/OSD-OS/releases/latest).
+1. Download `OSD-OS-<version>-windows-x64.zip` from the [latest release](https://github.com/mehmetraif/OSD-OS/releases/latest). Or in PowerShell: `irm https://osdos.tv/get.ps1 | iex` downloads it into the current folder, checks it against the SHA-256 GitHub keeps for it and unzips it there, which is step 2.
 2. Unzip it where you want to keep OSD/OS, for example in `C:\Games`. It unpacks to one folder, `osdos`.
 3. Download a Windows build of mpv from [mpv.io](https://mpv.io/installation/), which plays the videos, and put its folder inside `osdos` as `mpv`, or `mpv.exe` beside `osdos.exe`; mpv anywhere on the `PATH` works too.
 4. Double-click `osdos.exe`. Windows may stop the first start of a program it doesn't know yet (**Windows protected your PC**): choose **More info**, then **Run anyway**.
@@ -606,6 +608,8 @@ On Windows:
 ## On FreeBSD or OpenBSD (amd64)
 
 On FreeBSD 15 and OpenBSD 8.0 on an amd64 PC with a desktop, OSD/OS comes as a package of the system's: the app, and FinalBurn Neo's libretro core for the Arcade module, built for the system from FinalBurn Neo's source, as libretro builds none for either and OpenBSD's packages have none. Qt 6, SDL2 and mpv are the system's own packages. The packages are built, installed and started in a virtual machine of each system's for every release; they haven't been tried on a BSD computer yet.
+
+Download the package from the [latest release](https://github.com/mehmetraif/OSD-OS/releases/latest), or from a terminal: `fetch -qo - https://osdos.tv/get.sh | sh` on FreeBSD and `ftp -MVo - https://osdos.tv/get.sh | sh` on OpenBSD download it into the current folder, check it against the SHA-256 GitHub keeps for it and give the commands below. Then:
 
 - **FreeBSD**, as root: the packages it needs, then the app.
     ```sh

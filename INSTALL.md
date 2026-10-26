@@ -2,7 +2,7 @@
 
 ## On a Raspberry Pi
 
-The simplest way is the **OSD/OS image**: download `OSD-OS-<version>-raspberry-pi.img.xz` from the [latest release](https://github.com/mehmetraif/OSD-OS/releases/latest), flash it ([os/README.md](os/README.md#flashing)) and the Pi boots straight into OSD/OS. [OSD/OS Setup](https://osdos.tv/setup/) chooses its Wi-Fi, display output, password, SSH and settings before the first start, in one file for the card's boot partition ([os/README.md → OSD/OS Setup](os/README.md#osdos-setup)).
+The simplest way is the **OSD/OS image**: download `OSD-OS-<version>-raspberry-pi.img.xz` from the [latest release](https://github.com/mehmetraif/OSD-OS/releases/latest), flash it ([os/README.md](os/README.md#flashing)) and the Pi boots straight into OSD/OS. From a terminal, `curl -fsSL https://osdos.tv/get.sh | sh -s -- image` downloads it into the current folder and checks it against the SHA-256 GitHub keeps for it (`iex "& { $(irm https://osdos.tv/get.ps1) } image"` in Windows PowerShell). [OSD/OS Setup](https://osdos.tv/setup/) chooses its Wi-Fi, display output, password, SSH and settings before the first start, in one file for the card's boot partition ([os/README.md → OSD/OS Setup](os/README.md#osdos-setup)).
 
 The following steps will instead set up an SD card for your Raspberry Pi with the latest version of OSD/OS (and optionally set it up to autostart after boot).  
 
@@ -310,7 +310,7 @@ If you don't have a Raspberry Pi and would like to try OSD/OS, I also provide a 
 
 ### Steps
 
-1. Download the DMG archive from the latest release
+1. Download the DMG archive from the latest release. Or in Terminal: `curl -fsSL https://osdos.tv/get.sh | sh` downloads it into the current folder and checks it against the SHA-256 GitHub keeps for it.
 2. Mount it and move the osdos.app into your Applications folder
 3. Make sure you have mpv installed (OSD/OS requires MPV for playback): `brew install mpv`. For menu music in MIDI or a tracker's XM, MOD, S3M or IT, also `brew install fluid-synth libopenmpt`, with a General MIDI SoundFont (`.sf2`) in the data folder's `soundfonts` (`~/Library/Application Support/OSD-OS/soundfonts/`).
 4. Double click the app (`osdos.app`) and it should open full screen. If macOS refuses to open it because it can't check it (a release that isn't notarized; its notes say so), go to System Settings → Privacy & Security and choose **Open Anyway**, or run `xattr -dr com.apple.quarantine /Applications/osdos.app` and open it again. You need to do this only the first time you open it.
@@ -357,7 +357,7 @@ The AppImage carries its own copy of the Wayland client libraries and uses them 
 
 > **Note for SteamOS**: please switch to Desktop Mode for the following steps
 
-1. Download `OSD-OS-linux-x86_64.AppImage` from the [latest release](https://github.com/mehmetraif/OSD-OS/releases/latest).
+1. Download `OSD-OS-linux-x86_64.AppImage` from the [latest release](https://github.com/mehmetraif/OSD-OS/releases/latest). Or from a terminal: `curl -fsSL https://osdos.tv/get.sh | sh` downloads it into the current folder, checks it against the SHA-256 GitHub keeps for it and makes it executable, which is step 2.
 2. In your file manager, right-click the file → **Properties → Permissions** → tick *Is executable* (or run `chmod +x` on it from terminal).
 3. Double-click to launch. The Local Files and Playlists modules are enabled by default; open Settings to enable others (see the [Modules](https://github.com/mehmetraif/OSD-OS/wiki/Modules) pages in the wiki for details on each).
 
@@ -406,7 +406,7 @@ For Windows 11 on x64, OSD/OS comes as a zip: one folder, `osdos`, with `osdos.e
 
 ### Steps
 
-1. Download `OSD-OS-<version>-windows-x64.zip` from the [latest release](https://github.com/mehmetraif/OSD-OS/releases/latest).
+1. Download `OSD-OS-<version>-windows-x64.zip` from the [latest release](https://github.com/mehmetraif/OSD-OS/releases/latest). Or in PowerShell: `irm https://osdos.tv/get.ps1 | iex` downloads it into the current folder, checks it against the SHA-256 GitHub keeps for it and unzips it there, which is step 2.
 2. Unzip it where you want to keep OSD/OS, for example in `C:\Games`. It unpacks to one folder, `osdos`.
 3. Download a Windows build of mpv from [mpv.io](https://mpv.io/installation/) and put its folder inside `osdos` as `mpv`, or `mpv.exe` beside `osdos.exe`; mpv anywhere on the `PATH` works too.
 4. Double-click `osdos.exe`. Windows may stop the first start of a program it doesn't know yet (**Windows protected your PC**): choose **More info**, then **Run anyway**.
@@ -464,7 +464,7 @@ For FreeBSD 15 on an amd64 PC, OSD/OS comes as a FreeBSD package, `OSD-OS-<versi
 
 ### Steps
 
-1. Download `OSD-OS-<version>-freebsd-amd64.pkg` from the [latest release](https://github.com/mehmetraif/OSD-OS/releases/latest).
+1. Download `OSD-OS-<version>-freebsd-amd64.pkg` from the [latest release](https://github.com/mehmetraif/OSD-OS/releases/latest). Or from a terminal: `fetch -qo - https://osdos.tv/get.sh | sh` downloads it into the current folder, checks it against the SHA-256 GitHub keeps for it and gives the commands of step 2.
 2. As root, install the packages it needs, then OSD/OS:
     ```sh
     pkg install -y qt6-base qt6-declarative qt6-svg sdl2 minizip mpv
@@ -514,7 +514,7 @@ The package is made for one release of OpenBSD, 8.0 for now: OpenBSD's libraries
 
 ### Steps
 
-1. Download `OSD-OS-<number>-openbsd-amd64.tgz` from the [latest release](https://github.com/mehmetraif/OSD-OS/releases/latest).
+1. Download `OSD-OS-<number>-openbsd-amd64.tgz` from the [latest release](https://github.com/mehmetraif/OSD-OS/releases/latest). Or from a terminal: `ftp -MVo - https://osdos.tv/get.sh | sh` downloads it into the current folder under the name it has, checks it against the SHA-256 GitHub keeps for it and gives the command of step 2.
 2. As root, add it: the packages it needs come with it from your mirror.
     ```sh
     pkg_add -D unsigned OSD-OS-<number>-openbsd-amd64.tgz

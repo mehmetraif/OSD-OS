@@ -690,7 +690,12 @@ async function start() {
         say("");
         render();
     });
-    render();
+    // The landing page's cabinet tab opens the page for a cabinet
+    // (?device=arcade); setKind() draws the form.
+    if (new URLSearchParams(location.search).get("device") === "arcade")
+        setKind("arcade");
+    else
+        render();
 }
 
 start();

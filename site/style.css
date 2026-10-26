@@ -62,7 +62,7 @@ h1, h2, h3 { font-family: var(--deck); font-weight: 400; letter-spacing: 0; marg
 }
 /* The pixel art is drawn at a whole number of pixels a cell, so that every
    cell stays a square: the 16-cell icons at 16 or 32 px, the 48 x 32 scenes
-   at 4 or 3 px a cell. */
+   at 4 or 3 px a cell, and the BSD tab's finer 98 x 52 scene at 3 or 2. */
 .pixel-icon.big { width: 32px; height: 32px; }
 .pixel-scene {
     display: block;
@@ -72,6 +72,9 @@ h1, h2, h3 { font-family: var(--deck); font-weight: 400; letter-spacing: 0; marg
     fill: currentColor;
     shape-rendering: crispEdges;
 }
+.pixel-scene.fine { width: 294px; height: 156px; }
+/* The notice under a scene that draws someone else's mascot. */
+.hardware-panel .art-credit { max-width: 380px; margin: 10px 0 0; font-size: 12px; line-height: 1.5; color: var(--muted); }
 
 .skip {
     position: absolute;
@@ -205,6 +208,26 @@ h1 em { font-style: normal; }
 .text-link:hover { border-bottom-color: var(--ink); }
 .micro { font-size: 12px; margin-top: 24px; }
 .micro span { padding-inline: 5px; }
+/* The terminal commands at the top, a tab for each system: the hardware
+   tabs' command boxes (.command, below), each command after its shell's
+   prompt, which isn't copied, and beside its Copy button. */
+.install { max-width: 560px; margin: 25px 0 28px; }
+.install-tabs { display: flex; flex-wrap: wrap; border: 1px solid var(--line); border-bottom: 0; }
+.install-tabs button {
+    padding: 8px 12px;
+    background: none;
+    border: 0;
+    border-right: 1px solid var(--line);
+    font-family: var(--deck);
+    font-size: 12px;
+    text-transform: uppercase;
+    color: #c2cbff;
+}
+.install-tabs button[aria-selected="true"] { background: var(--ink); color: var(--bg); }
+.install .command code { order: 0; flex: 1; border-top: 0; }
+.install .command code::before { content: attr(data-prompt) " "; color: #c2cbff; user-select: none; }
+.install .command + .command { margin-top: 0; border-top: 0; }
+.hero-copy .install-note { max-width: none; margin: 10px 0 0; font-size: 13px; line-height: 1.5; }
 
 /* What it takes: the four things, each with its icon, across the hero's
    foot. */
@@ -315,7 +338,7 @@ h1 em { font-style: normal; }
 }
 
 /* --- Sections. */
-.intro-section, .hardware-section, .faq-section { padding-block: 64px; }
+.intro-section, .arcade-section, .hardware-section, .faq-section { padding-block: 64px; }
 .section-intro {
     display: flex;
     align-items: flex-end;
@@ -375,10 +398,15 @@ h3 { font-size: 23px; line-height: 1.2; text-transform: uppercase; }
     border-bottom: 1px dashed var(--line);
 }
 .feature-list article:first-child { padding-top: 0; }
-.feature-list article:last-child { border: 0; padding-bottom: 0; }
+.feature-list article:last-of-type { border: 0; padding-bottom: 0; }
 .feature-num { font-family: var(--deck); font-size: 17px; margin-top: 3px; }
 .feature-list p { margin: 12px 0; }
 .tags { font-size: 12px; }
+
+/* The arcade: the same screen and points, the screen on the right. */
+.experience-grid.flip { grid-template-columns: 1fr 1.05fr; }
+.flip .screen-demo { order: 2; }
+.arcade-section .feature-list .text-link { margin-top: 26px; }
 
 /* The themes. */
 .themes-section {
@@ -487,7 +515,7 @@ h3 { font-size: 23px; line-height: 1.2; text-transform: uppercase; }
 .hardware-tabs button[aria-selected="true"] { background: var(--ink); color: var(--bg); }
 .hardware-panel {
     display: grid;
-    grid-template-columns: 1fr 1fr;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
     gap: 60px;
     padding: 34px;
     background: var(--bg);
@@ -510,6 +538,92 @@ dt {
 }
 dd { margin: 0; font-size: 16px; line-height: 1.5; }
 .hardware-note { font-size: 13px; margin-top: 22px; }
+.hardware-note + .hardware-note { margin-top: 8px; }
+.hardware-note a { text-decoration: underline; }
+/* How far a system has been tried: on real hardware (filled), or by
+   machine alone, built and tested in CI or a virtual machine (outlined). */
+.hardware-panel .badge {
+    display: inline-block;
+    max-width: none;
+    margin: 14px 0 0;
+    padding: 4px 8px;
+    border: 1px solid var(--ink);
+    font-family: var(--deck);
+    font-size: 12px;
+    line-height: 1.4;
+    color: var(--ink);
+}
+.hardware-panel .badge.tested { background: var(--ink); color: var(--bg); }
+/* A system's files in the latest release: what each is, and under it the
+   file's name and size, which scripts/build-site.py fills in from the
+   release (the release page's link without it). */
+.downloads { display: flex; flex-wrap: wrap; gap: 14px; margin-bottom: 26px; }
+.download {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    max-width: 100%;
+    padding: 12px 16px;
+    background: var(--ink);
+    color: var(--bg);
+    border: 2px solid var(--ink);
+    box-shadow: 5px 5px 0 var(--shadow);
+}
+.download:hover { background: #d3d8ff; }
+.download b {
+    display: block;
+    font-family: var(--deck);
+    font-weight: 400;
+    font-size: 16px;
+    text-transform: uppercase;
+}
+.download-meta { display: block; margin-top: 3px; font-size: 12px; line-height: 1.4; overflow-wrap: anywhere; }
+.panel-links { display: flex; flex-wrap: wrap; gap: 14px 26px; }
+/* The same files from a terminal (site/get.sh, site/get.ps1): each command
+   in a box of its own, under the system it is for and a button that copies
+   it, which the page's script shows. A command longer than its line goes on
+   to the next between its words, which the script keeps whole: a break at a
+   hyphen would read as two commands. */
+.terminal { margin-bottom: 26px; }
+.hardware-panel .terminal-label { max-width: none; margin: 0 0 10px; font-family: var(--deck); font-size: 12px; color: var(--ink); }
+.hardware-panel .terminal-note { max-width: none; margin: 10px 0 0; font-size: 13px; line-height: 1.5; text-wrap: pretty; }
+.command {
+    display: flex;
+    flex-wrap: wrap;
+    background: var(--shadow-deep);
+    border: 1px solid var(--line);
+}
+.command + .command { margin-top: 8px; }
+.command-on {
+    flex: 1;
+    padding: 6px 12px;
+    font-family: var(--deck);
+    font-size: 12px;
+    text-transform: uppercase;
+    color: #c2cbff;
+}
+.command code {
+    order: 1;
+    flex-basis: 100%;
+    min-width: 0;
+    padding: 10px 12px;
+    border-top: 1px solid var(--line);
+    font-family: ui-monospace, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
+    font-size: 13px;
+    line-height: 1.4;
+    overflow-wrap: anywhere;
+}
+.command code span { white-space: nowrap; }
+.command .copy {
+    padding: 0 12px;
+    background: none;
+    border: 0;
+    border-left: 1px solid var(--line);
+    font-family: var(--deck);
+    font-size: 12px;
+    text-transform: uppercase;
+}
+.command .copy:hover { background: var(--ink); color: var(--bg); }
 
 /* The three steps. */
 .setup-section {
@@ -657,14 +771,33 @@ dd { margin: 0; font-size: 16px; line-height: 1.5; }
     .signal-strip { font-size: 13px; }
     .theme-workbench { gap: 30px; }
     .theme-buttons button { font-size: 13px; }
+    /* Smaller, so that the six tabs fit side by side down to 851 px. */
+    .hardware-tabs button { font-size: 14px; padding: 14px 10px; gap: 8px; }
     .hardware-panel { gap: 30px; }
     .pixel-scene { width: 144px; height: 96px; }
+    .pixel-scene.fine { width: 196px; height: 104px; }
     .needs { grid-template-columns: 1fr; gap: 18px; padding: 20px; }
     .needs ul { grid-template-columns: 1fr 1fr; }
     .steps { gap: 18px; }
     .steps article { padding: 18px; }
     .steps h3 { font-size: 23px; }
     .color-bars { width: 110px; height: 80px; }
+}
+
+/* The opening in one column, the photo under the words, where two columns
+   would leave the terminal's tabs too little room for one row. */
+@media (max-width: 960px) {
+    .hero { grid-template-columns: 1fr; }
+    /* Its shape from the ratio alone: a minimum height would be carried
+       through the ratio into a minimum width, wider than a small phone. */
+    .hero-photo { min-height: 0; aspect-ratio: 1.2; }
+}
+
+/* The hardware tabs: the number and the icon on one line, the name under
+   them. */
+@media (max-width: 850px) {
+    .hardware-tabs button { flex-wrap: wrap; gap: 4px 8px; padding: 12px 8px; line-height: 1.5; }
+    .hardware-tabs button span:last-child { flex-basis: 100%; }
 }
 
 @media (max-width: 720px) {
@@ -674,31 +807,36 @@ dd { margin: 0; font-size: 16px; line-height: 1.5; }
     .header nav { order: 3; flex-basis: 100%; font-size: 13px; }
     .nav-setup { font-size: 13px; padding: 10px; box-shadow: 3px 3px 0 var(--shadow); }
     .wrap { width: calc(100% - 32px); }
-    .hero { padding-block: 33px; gap: 30px; grid-template-columns: 1fr; }
+    .hero { padding-block: 33px; gap: 30px; }
     .eyebrow { font-size: 12px; }
     h1 { font-size: clamp(36px, 9.6vw, 60px); line-height: 1.1; margin-block: 24px; }
     .hero-copy p { font-size: 17px; max-width: 450px; }
+    /* The tabs fill their row, each its own cell, and so does a second row
+       on the narrowest phones. */
+    .install-tabs { border-right: 0; }
+    .install-tabs button { flex: 1 1 auto; padding: 7px 6px; font-size: 11px; border-bottom: 1px solid var(--line); margin-bottom: -1px; }
     .button { font-size: 16px; padding: 14px; gap: 14px; }
     .text-link { font-size: 13px; }
     .actions { gap: 20px; }
-    .hero-photo { min-height: 290px; aspect-ratio: 1.2; box-shadow: 5px 5px 0 var(--shadow); }
+    .hero-photo { box-shadow: 5px 5px 0 var(--shadow); }
     .signal-strip { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; padding: 19px 18px; font-size: 12px; }
     .signal-strip li::before { margin-right: 8px; }
-    .intro-section, .hardware-section, .faq-section, .themes-section, .setup-section { padding-block: 42px; }
+    .intro-section, .arcade-section, .hardware-section, .faq-section, .themes-section, .setup-section { padding-block: 42px; }
     .section-label { font-size: 13px; margin-bottom: 22px; }
     .section-intro { display: block; margin-bottom: 28px; }
     .section-intro > p { margin-top: 20px; max-width: 440px; }
     h2 { font-size: 30px; line-height: 1.2; }
-    .experience-grid, .theme-workbench, .hardware-panel, .faq-section { grid-template-columns: 1fr; }
+    .experience-grid, .experience-grid.flip, .theme-workbench, .faq-section { grid-template-columns: 1fr; }
+    .hardware-panel { grid-template-columns: minmax(0, 1fr); }
+    .flip .screen-demo { order: 0; }
+    .download { padding: 11px 13px; gap: 12px; }
     .experience-grid { gap: 30px; }
     .feature-list article { gap: 16px; }
     .feature-list h3 { font-size: 22px; }
     .theme-buttons { grid-template-columns: repeat(2, 1fr); gap: 7px; margin-bottom: 20px; }
     .theme-buttons button { font-size: 12px; padding: 12px 8px; gap: 8px; }
     .theme-monitor { padding: 9px; }
-    /* The number and the icon on one line, the name under them. */
-    .hardware-tabs button { flex-wrap: wrap; gap: 4px 8px; font-size: 12px; padding: 12px 6px; line-height: 1.5; }
-    .hardware-tabs button span:last-child { flex-basis: 100%; }
+    .hardware-tabs button { font-size: 12px; padding: 12px 6px; }
     .hardware-panel { padding: 25px 19px; gap: 24px; }
     .hardware-panel h3 { font-size: 26px; }
     .steps { grid-template-columns: 1fr; gap: 22px; }
@@ -720,6 +858,8 @@ dd { margin: 0; font-size: 16px; line-height: 1.5; }
 
 @media (max-width: 480px) {
     .needs ul { grid-template-columns: 1fr; }
+    /* The six hardware tabs in two rows of three. */
+    .hardware-tabs { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); }
 }
 
 @media (prefers-reduced-motion: reduce) {
