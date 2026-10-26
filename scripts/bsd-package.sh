@@ -39,7 +39,8 @@ case $tag in
     *) version=0.0.0 ;;
 esac
 
-comment="VCR-style TV and arcade front end for films, streams and games"
+# One line, 60 characters at most: pkg_create refuses a longer COMMENT.
+comment="VCR-style front end for films, streams and arcade games"
 desc="OSD/OS turns a computer into a VCR-style smart TV for CRT and flat
 screens: films from local files and Plex, Jellyfin or Emby servers, YouTube,
 and arcade games through MAME or FinalBurn Neo with high scores,
@@ -124,7 +125,7 @@ OpenBSD)
     name=OSD-OS-$version-openbsd-$machine
     (cd "$work" && pkg_create -A "$machine" -B "$root" -p "$prefix" -f "$work/plist" \
         -D COMMENT="$comment" -D FULLPKGPATH=multimedia/osdos -D HOMEPAGE=https://osdos.tv \
-        -d "-$desc" "${depends[@]}" "$name")
+        -D MAINTAINER=https://github.com/mehmetraif/OSD-OS -d "-$desc" "${depends[@]}" "$name")
     out=$folder/$name.tgz
     mv "$work/$name.tgz" "$out"
     ;;
@@ -133,4 +134,6 @@ OpenBSD)
     exit 1
     ;;
 esac
-echo "$out: osdos $version, $(du -k "$out" | cut -f1) KB"
+# The file's own size: du counts the disk blocks written so far, which ZFS
+# (FreeBSD's) reports late for a file just made.
+echo "$out: osdos $version, $(( $(wc -c < "$out") / 1024 )) KB"

@@ -56,4 +56,6 @@ install -m 644 "$dat" "$prefix/share/osdos/fbneo/fbneo-arcade.dat"
 install -m 644 "$src/src/license.txt" "$prefix/share/osdos/fbneo/license.txt"
 printf 'FinalBurn Neo %s (%s), built from https://github.com/libretro/FBNeo/tree/%s\n' \
     "${commit:0:7}" "$date" "$commit" > "$prefix/share/osdos/fbneo/BUILD"
-echo "FinalBurn Neo ${commit:0:7}: $games games, $(du -k "$prefix/lib/osdos/fbneo_libretro.so" | cut -f1) KB"
+# The file's own size: du counts the disk blocks written so far, which ZFS
+# (FreeBSD's) reports late for a file just made.
+echo "FinalBurn Neo ${commit:0:7}: $games games, $(( $(wc -c < "$prefix/lib/osdos/fbneo_libretro.so") / 1024 )) KB"
