@@ -40,14 +40,20 @@ QString assetSuffix() {
 #endif
 }
 
-// The system, for the message that says no package is built for it yet.
-QString systemName() {
+// How a BSD takes a newer release: its package among the release's files,
+// installed with the system's own tool, which the app doesn't run itself.
+// The packages are amd64's; another machine builds the app from its source.
+QString bsdUpdateHint(const QString &tag) {
+    const QString releases = QStringLiteral("github.com/mehmetraif/OSD-OS/releases");
+    if (QSysInfo::currentCpuArchitecture() != QStringLiteral("x86_64"))
+        return QStringLiteral("build it from its source, %1").arg(releases);
 #if defined(Q_OS_FREEBSD)
-    return QStringLiteral("FreeBSD");
+    return QStringLiteral("install OSD-OS-%1-freebsd-amd64.pkg from %2 with pkg add, as root").arg(tag, releases);
 #elif defined(Q_OS_OPENBSD)
-    return QStringLiteral("OpenBSD");
+    return QStringLiteral("install OSD-OS-%1-openbsd-amd64.tgz from %2 with pkg_add -D unsigned, as root")
+        .arg(tag, releases);
 #else
-    return QSysInfo::prettyProductName();
+    return QStringLiteral("build it from its source, %1").arg(releases);
 #endif
 }
 
@@ -354,11 +360,9 @@ void UpdateManager::handleReleaseInfo(const QByteArray &json) {
     }
 
 #if defined(Q_OS_BSD4) && !defined(Q_OS_DARWIN)
-    // No package for the BSDs among the release's assets yet: the newer
-    // version is named, to be downloaded by hand.
-    setState(QStringLiteral("error"),
-             QStringLiteral("%1 is out. No update package for %2 yet: download it from "
-                            "github.com/mehmetraif/OSD-OS/releases.").arg(tag, systemName()));
+    // A BSD's package is the system's to install: the newer version is
+    // named, with its package and the command that installs it.
+    setState(QStringLiteral("error"), QStringLiteral("%1 is out: %2.").arg(tag, bsdUpdateHint(tag)));
     return;
 #elif !defined(Q_OS_MAC) && !defined(Q_OS_WIN)
     const QString arch = QSysInfo::currentCpuArchitecture();

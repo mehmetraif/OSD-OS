@@ -282,11 +282,14 @@ target_include_directories(osdos PRIVATE
 if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
     add_executable(osdos-jamma src/jamma/main.cpp src/jamma/JammaPanel.cpp)
     set_target_properties(osdos-jamma PROPERTIES AUTOMOC OFF)
+endif()
 
-    # osdos_signin_libretro: a libretro core that plays nothing, for RetroArch
-    # to sign in to RetroAchievements with as the account is typed in
-    # (libretro::SignIn), beside the app, which finds it there. Linux only:
-    # elsewhere the sign-in waits for the next game, as before.
+# osdos_signin_libretro: a libretro core that plays nothing, for RetroArch to
+# sign in to RetroAchievements with as the account is typed in
+# (libretro::SignIn), beside the app, which finds it there. Where the app
+# plays in the system's RetroArch, Linux and the BSDs: elsewhere the sign-in
+# waits for the next game, as before.
+if(CMAKE_SYSTEM_NAME MATCHES "^(Linux|FreeBSD|OpenBSD)$")
     enable_language(C)
     add_library(osdos_signin_libretro MODULE src/modules/arcade/signin/osdos_signin_libretro.c)
     set_target_properties(osdos_signin_libretro PROPERTIES

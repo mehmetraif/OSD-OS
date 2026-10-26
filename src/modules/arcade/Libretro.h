@@ -29,12 +29,12 @@ QString programPath(const QString &dataRoot);
 QString downloadedRetroArch(const QString &dataRoot);
 
 // The FinalBurn Neo core: the one Settings → Arcade → FinalBurn Neo
-// downloaded (<data>/arcade/retroarch/cores), else the OSD/OS image's
-// (/usr/local/lib/libretro), else one installed for the system's or the
-// user's RetroArch. "" for none.
+// downloaded (<data>/arcade/retroarch/cores), else the one OSD/OS's package
+// brought (packagedCore()), else the OSD/OS image's (/usr/local/lib/libretro),
+// else one installed for the system's or the user's RetroArch. "" for none.
 QString corePath(const QString &dataRoot);
-// FinalBurn Neo's list of its arcade games (its DAT), downloaded or the
-// image's, as corePath() looks; "" for none.
+// FinalBurn Neo's list of its arcade games (its DAT), downloaded, the
+// package's or the image's, as corePath() looks; "" for none.
 QString datPath(const QString &dataRoot);
 // Where Settings → Arcade → FinalBurn Neo puts the core, its list and its
 // licence: <data>/arcade/retroarch/cores/fbneo_libretro.so (.dylib on a
@@ -42,6 +42,14 @@ QString datPath(const QString &dataRoot);
 QString downloadedCore(const QString &dataRoot);
 QString downloadedDat(const QString &dataRoot);
 QString downloadedLicense(const QString &dataRoot);
+// Where OSD/OS's FreeBSD and OpenBSD packages put the core they bring, built
+// from FinalBurn Neo's source for want of a build of libretro's
+// (scripts/build-fbneo.sh), with its list and licence: under the app's own
+// prefix, <prefix>/lib/osdos/ and <prefix>/share/osdos/fbneo/, the prefix
+// being the folder above the app's (/usr/local).
+QString packagedCore();
+QString packagedDat();
+QString packagedLicense();
 
 // FinalBurn Neo's arcade games, from its DAT (ClrMame Pro's XML): each
 // game's set by its description. Not a BIOS set (neogeo), which games start

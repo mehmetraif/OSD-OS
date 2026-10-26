@@ -390,6 +390,20 @@ jobs:
     uses: ./.github/workflows/windows.yml
 
   # ──────────────────────────────────────────────────────────────────────────────
+  # FreeBSD and OpenBSD (amd64): their build workflows, called for the tag,
+  # each a package of its system's with FinalBurn Neo's core built from its
+  # source, installed and started in its machine before it is uploaded. Each
+  # says the release it is built for, which the notes name.
+  # ──────────────────────────────────────────────────────────────────────────────
+  build-freebsd-amd64:
+    name: FreeBSD amd64
+    uses: ./.github/workflows/freebsd.yml
+
+  build-openbsd-amd64:
+    name: OpenBSD amd64
+    uses: ./.github/workflows/openbsd.yml
+
+  # ──────────────────────────────────────────────────────────────────────────────
   # The OSD/OS image for the Raspberry Pi (os/README.md): Raspberry Pi OS Lite
   # with this release's arm64 tarball and os/stage-osdos, built by pi-gen on
   # the native arm64 runner, as the OS image workflow builds it.
@@ -470,7 +484,8 @@ jobs:
   # ──────────────────────────────────────────────────────────────────────────────
   release:
     name: Publish Release
-    needs: [build-macos-arm64, build-linux-arm64, build-linux-x86_64, build-windows-x64, build-os-image, regression-tests]
+    needs: [build-macos-arm64, build-linux-arm64, build-linux-x86_64, build-windows-x64, build-freebsd-amd64,
+            build-openbsd-amd64, build-os-image, regression-tests]
     # Named, as the builds' runners are: ubuntu-latest moves to a newer
     # Ubuntu under the jobs.
     runs-on: ubuntu-24.04
@@ -519,6 +534,8 @@ jobs:
         env:
           TAG: ${{ github.ref_name }}
           NOTARIZED: ${{ needs.build-macos-arm64.outputs.notarized }}
+          FREEBSD: ${{ needs.build-freebsd-amd64.outputs.release }}
+          OPENBSD: ${{ needs.build-openbsd-amd64.outputs.release }}
           REPO: ${{ github.server_url }}/${{ github.repository }}
         run: |
           {
@@ -529,8 +546,10 @@ jobs:
             echo "|---|---|---|---|"
             echo "| **Raspberry Pi OS (arm64)** you set up yourself | \`install.sh\` | The installer, which installs the app, \`OSD-OS-${TAG}-linux-arm64.tar.gz\`, with its service | \`bash <(curl -fsSL ${REPO}/releases/latest/download/install.sh)\`: ${REPO}/blob/${TAG}/INSTALL.md#on-a-raspberry-pi. Updates: Settings → Update, or the same command again: ${REPO}/blob/${TAG}/INSTALL.md#update |"
             echo "| **Steam Deck, Linux PCs (x86_64)** | \`OSD-OS-linux-x86_64.AppImage\` | The app with Qt, SDL2 and mpv inside; nothing to install | Make it executable (\`chmod +x\`) and run it: ${REPO}/blob/${TAG}/INSTALL.md#on-steamos--linux-x86_64. Updates: Settings → Update swaps it in place, or the latest AppImage over your copy |"
+            echo "| **FreeBSD ${FREEBSD%%.*} (amd64)** | \`OSD-OS-${TAG}-freebsd-amd64.pkg\` | A FreeBSD package: the app, with FinalBurn Neo's core built for FreeBSD; Qt 6, SDL2 and mpv are FreeBSD's own packages | As root, its packages, then the app: \`pkg install -y qt6-base qt6-declarative qt6-svg sdl2 minizip mpv\` and \`pkg add OSD-OS-${TAG}-freebsd-amd64.pkg\`: ${REPO}/blob/${TAG}/INSTALL.md#on-freebsd-amd64. Updates: the next release's package the same way |"
             echo "| **Raspberry Pi OS (arm64)** you set up yourself | \`OSD-OS-${TAG}-linux-arm64.tar.gz\` | The app alone, which \`install.sh\` and the updater install | Nothing to download by hand: \`install.sh\` fetches it, and Settings → Update fetches the next one |"
             echo "| **macOS on Apple Silicon** | \`OSD-OS-${TAG}-macOS-arm64.dmg\` | osdos.app in a disk image | Open it and move osdos.app to your Applications folder. Updates: Settings → Update, or the next \`.dmg\` the same way |"
+            echo "| **OpenBSD ${OPENBSD} (amd64)** | \`OSD-OS-${TAG}-openbsd-amd64.tgz\` | An OpenBSD package: the app, with FinalBurn Neo's core built for OpenBSD; Qt 6, SDL2 and mpv are OpenBSD's own packages, which come with it | As root: \`pkg_add -D unsigned OSD-OS-${TAG}-openbsd-amd64.tgz\` (the package isn't signed with OpenBSD's key): ${REPO}/blob/${TAG}/INSTALL.md#on-openbsd-amd64. Updates: the next release's package the same way |"
             echo "| **Raspberry Pi 4 and 5** | \`OSD-OS-${TAG}-raspberry-pi.img.xz\` | The whole system: Raspberry Pi OS Lite (64-bit, Debian 13 trixie) with OSD/OS on top. The Pi boots straight into OSD/OS. What it is made of, under which licences: ${REPO}/blob/${TAG}/os/NOTICE | Flash it with Raspberry Pi Imager (**Use custom**): ${REPO}/blob/${TAG}/os/README.md#flashing. Updates: Settings → Update in the app |"
             echo "| **Windows 11 (x64)** | \`OSD-OS-${TAG}-windows-x64.zip\` | The app in one folder, \`osdos\`, with Qt and its libraries beside \`osdos.exe\`; mpv is not inside | Unzip it anywhere, put mpv beside it and run \`osdos.exe\`: ${REPO}/blob/${TAG}/INSTALL.md#on-windows-x64. Updates: Settings → Update names the new zip, whose \`osdos\` folder takes the old one's place |"
             echo
@@ -538,6 +557,8 @@ jobs:
               echo "The macOS build is not notarized, so macOS refuses to open it the first time: then go to System Settings → Privacy & Security and choose **Open Anyway** (or run \`xattr -dr com.apple.quarantine /Applications/osdos.app\` before opening it)."
               echo
             fi
+            echo "On FreeBSD and OpenBSD, the Arcade module plays in the system's own MAME and RetroArch packages, installed apart (\`mame\`, \`retroarch\`). The packages are built, installed and started in FreeBSD and OpenBSD virtual machines; they haven't been tried on a BSD computer yet."
+            echo
             echo "Tested on a Raspberry Pi 4 and a Raspberry Pi 5 (8 GB): the Pi 4 as a TV, the Pi 5 in a JAMMA arcade cabinet, and LAN Play between the two; the Windows build on a Windows 11 PC. Each file's SHA-256 digest is beside it under Assets."
           } > release-notes.md
           cat release-notes.md
@@ -559,6 +580,8 @@ jobs:
             artifacts/appimage-linux-x86_64/*.AppImage
             artifacts/dmg-arm64/*.dmg
             artifacts/OSD-OS-*-windows-x64.zip
+            artifacts/osdos-freebsd-amd64/*.pkg
+            artifacts/osdos-openbsd-amd64/*.tgz
             scripts/install.sh
             artifacts/os-image/*.img.xz
           body_path: release-notes.md

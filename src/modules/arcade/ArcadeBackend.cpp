@@ -4243,7 +4243,11 @@ QString ArcadeBackend::fbneoNotice(int exitCode, const QString &reason, const li
 
 QVariantMap ArcadeBackend::fbneoInfo() const {
     const QString core = libretro::corePath(m_dataRoot);
-    const QString license = libretro::downloadedLicense(m_dataRoot);
+    // The licence of the core found: the one downloaded with it, the
+    // package's, or the OSD/OS image's.
+    QString license = libretro::downloadedLicense(m_dataRoot);
+    if (!QFileInfo::exists(license))
+        license = libretro::packagedLicense();
     const QString imageLicense = QStringLiteral("/usr/local/share/doc/fbneo/license.txt");
 #ifdef OSDOS_MINIZIP
     const bool unpacks = true;
