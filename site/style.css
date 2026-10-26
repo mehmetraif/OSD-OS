@@ -788,9 +788,14 @@ dd { margin: 0; font-size: 16px; line-height: 1.5; }
    would leave the terminal's tabs too little room for one row. */
 @media (max-width: 960px) {
     .hero { grid-template-columns: 1fr; }
-    /* Its shape from the ratio alone: a minimum height would be carried
-       through the ratio into a minimum width, wider than a small phone. */
-    .hero-photo { min-height: 0; aspect-ratio: 1.2; }
+    /* The photo's frame as wide as the column and as tall as the picture in
+       it, the picture in the flow at a ratio of 1.2: no minimum height, and
+       the frame neither given a ratio of its own nor stretched to its row.
+       Recent versions of Safari size a grid item with a ratio and nothing in
+       the flow to nothing, and earlier ones keep a stretched one at its old
+       height as the page's width changes. */
+    .hero-photo { min-height: 0; align-self: start; }
+    .hero-photo > img { position: static; display: block; height: auto; aspect-ratio: 1.2; }
 }
 
 /* The hardware tabs: the number and the icon on one line, the name under
