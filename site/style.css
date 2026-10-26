@@ -315,7 +315,7 @@ h1 em { font-style: normal; }
 }
 
 /* --- Sections. */
-.intro-section, .hardware-section, .faq-section { padding-block: 64px; }
+.intro-section, .arcade-section, .hardware-section, .faq-section { padding-block: 64px; }
 .section-intro {
     display: flex;
     align-items: flex-end;
@@ -375,10 +375,15 @@ h3 { font-size: 23px; line-height: 1.2; text-transform: uppercase; }
     border-bottom: 1px dashed var(--line);
 }
 .feature-list article:first-child { padding-top: 0; }
-.feature-list article:last-child { border: 0; padding-bottom: 0; }
+.feature-list article:last-of-type { border: 0; padding-bottom: 0; }
 .feature-num { font-family: var(--deck); font-size: 17px; margin-top: 3px; }
 .feature-list p { margin: 12px 0; }
 .tags { font-size: 12px; }
+
+/* The arcade: the same screen and points, the screen on the right. */
+.experience-grid.flip { grid-template-columns: 1fr 1.05fr; }
+.flip .screen-demo { order: 2; }
+.arcade-section .feature-list .text-link { margin-top: 26px; }
 
 /* The themes. */
 .themes-section {
@@ -725,12 +730,13 @@ dd { margin: 0; font-size: 16px; line-height: 1.5; }
     .hero-photo { min-height: 290px; aspect-ratio: 1.2; box-shadow: 5px 5px 0 var(--shadow); }
     .signal-strip { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; padding: 19px 18px; font-size: 12px; }
     .signal-strip li::before { margin-right: 8px; }
-    .intro-section, .hardware-section, .faq-section, .themes-section, .setup-section { padding-block: 42px; }
+    .intro-section, .arcade-section, .hardware-section, .faq-section, .themes-section, .setup-section { padding-block: 42px; }
     .section-label { font-size: 13px; margin-bottom: 22px; }
     .section-intro { display: block; margin-bottom: 28px; }
     .section-intro > p { margin-top: 20px; max-width: 440px; }
     h2 { font-size: 30px; line-height: 1.2; }
-    .experience-grid, .theme-workbench, .hardware-panel, .faq-section { grid-template-columns: 1fr; }
+    .experience-grid, .experience-grid.flip, .theme-workbench, .hardware-panel, .faq-section { grid-template-columns: 1fr; }
+    .flip .screen-demo { order: 0; }
     .download { padding: 11px 13px; gap: 12px; }
     .experience-grid { gap: 30px; }
     .feature-list article { gap: 16px; }

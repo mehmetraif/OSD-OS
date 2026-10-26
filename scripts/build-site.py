@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 """Builds OSD/OS's website, published on GitHub Pages (site/), into a folder:
 the landing page at its root (site/index.html, with the theme recordings,
-the photo and the logo from docs/images and the stills from site/assets, and
-themes.json, the themes with their colours and pictures; its download buttons
-lead to the latest release's files, given GitHub's record of the release),
-and OSD/OS Setup,
+the photo and the logo from docs/images, the Arcade screen from
+docs/screenshots and the stills from site/assets, and themes.json, the themes
+with their colours and pictures; its download buttons lead to the latest
+release's files, given GitHub's record of the release), and OSD/OS Setup,
 the settings page, under setup/ (site/setup/): its own files, the app's font
 and logo, the display presets, what its live preview draws with (the app's
 own shaders, shaders/, and the skins' pictures), and schema.json, the
@@ -33,6 +33,7 @@ ROOT = pathlib.Path(__file__).resolve().parent.parent
 SITE = ROOT / "site"
 SETUP = SITE / "setup"
 IMAGES = ROOT / "docs/images"
+SCREENSHOTS = ROOT / "docs/screenshots"
 PRESETS = ROOT / "os/stage-osdos/03-boot/files"
 SHADERS = ROOT / "shaders"
 ISO3166 = pathlib.Path("/usr/share/zoneinfo/iso3166.tab")
@@ -493,6 +494,7 @@ def main():
         shutil.copy2(path, out / "assets" / path.name)
     for name in ("default-look.gif", "osdos-on-a-crt.jpg", "osdos-logo.svg"):
         shutil.copy2(IMAGES / name, out / "assets" / name)
+    shutil.copy2(SCREENSHOTS / "arcade-list-3d-curved.png", out / "assets/arcade-screen.png")
     (out / "themes.json").write_text(json.dumps(landing_themes(data["looks"]), indent=1, ensure_ascii=False) + "\n")
 
     # OSD/OS Setup, under setup/: its own files, the app's font and logo, the
