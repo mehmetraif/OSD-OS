@@ -1,0 +1,199 @@
+diff --git a/src/burn/devices/epic12.cpp b/src/burn/devices/epic12.cpp
+index b018515..c2f5160 100644
+--- a/src/burn/devices/epic12.cpp
++++ b/src/burn/devices/epic12.cpp
+@@ -422,6 +422,13 @@ void epic12_reset()
+ 	m_blit_delay_ns = 0;
+ 	m_blit_idle_op_bytes = 0;
+ 
++	// OSD/OS's LAN build: the video memory starts empty at every reset, as it
++	// does at power on, once a blit still drawing in its thread is done. Two
++	// machines reset together over the network then fill it alike, as it isn't
++	// in netplay's states (epic12_scan()).
++	thready.notify_wait();
++	memset(m_bitmaps, 0, m_gfx_size * 4);
++
+ 	thready.reset();
+ }
+ 
+@@ -1267,7 +1274,12 @@ void epic12_scan(INT32 nAction, INT32 *pnMin)
+ 	SCAN_VAR(m_blit_delay_ns);
+ 	SCAN_VAR(m_blit_idle_op_bytes);
+ 
+-	if (~nAction & ACB_RUNAHEAD) {
++	// OSD/OS's LAN build: nor in netplay's (ACB_NET_OPT), of which RetroArch
++	// keeps a ring of over a hundred, a frame each, 128 MiB apiece with it.
++	// The game's CPU never reads it back (epic12_blitter_read()), and the
++	// blitter's timing is the operations', not their pixels', so the game
++	// runs alike without it; the picture is drawn again as the game goes on.
++	if (!(nAction & (ACB_RUNAHEAD | ACB_NET_OPT))) {
+ 		ScanVar(m_bitmaps, m_gfx_size * 4, "epic12 vram");
+ 	}
+ 	thready.scan();
+diff --git a/src/burn/drv/cave/d_cv1k.cpp b/src/burn/drv/cave/d_cv1k.cpp
+index f3714ae..b48ba75 100644
+--- a/src/burn/drv/cave/d_cv1k.cpp
++++ b/src/burn/drv/cave/d_cv1k.cpp
+@@ -44,6 +44,16 @@ static INT32 nPrevBurnCPUSpeedAdjust;
+ static UINT8 nPrevCPUTenth;
+ static INT32 speedhack_burn; // 10ms @ cpu clock, calculated in DrvFrame
+ 
++// OSD/OS's LAN build: from power on, the machine waits in its reset with its
++// video memory empty until player 2 presses something. That memory isn't in
++// netplay's states (epic12_scan()), so a machine joining a game already under
++// way would draw from what it holds of its own: waiting until both machines
++// are in it, the game starts on each at the same frame and fills it alike.
++// nCv1kLanLateJoin: this machine joined one already started (libretro.cpp
++// says so on screen).
++INT32 nCv1kLanWaiting = 0;
++INT32 nCv1kLanLateJoin = 0;
++
+ static struct BurnInputInfo Cv1kInputList[] = {
+ 	{"P1 Coin",			BIT_DIGITAL,	DrvJoy1 + 2,	"p1 coin"	},
+ 	{"P1 Start",		BIT_DIGITAL,	DrvJoy1 + 4,	"p1 start"	},
+@@ -529,6 +539,10 @@ static INT32 DrvInit()
+ 	ymz770_set_buffered(Sh3TotalCycles, SH3_CLOCK);
+ 	DrvDoReset();
+ 
++	nCv1kLanWaiting = 1;
++	nCv1kLanLateJoin = 0;
++	bprintf(PRINT_UI, _T("OSD/OS LAN: waiting for player 2 to start the game\n"));
++
+ 	return 0;
+ }
+ 
+@@ -546,6 +560,9 @@ static INT32 DrvExit()
+ 
+ 	is_type_d = 0;
+ 
++	nCv1kLanWaiting = 0;
++	nCv1kLanLateJoin = 0;
++
+ 	return 0;
+ }
+ 
+@@ -610,6 +627,31 @@ static INT32 DrvFrame()
+ 		hold_coin.checklow(1, DrvInputs[0], 1<<3, 2);
+ 	}
+ 
++	// OSD/OS's LAN build: while it waits (nCv1kLanWaiting) nothing runs, the
++	// screen is black and silent. Player 2's first button, coin or start starts
++	// the game from its reset, which empties the video memory again for a
++	// rollback that replays this frame.
++	if (nCv1kLanWaiting) {
++		UINT8 player2 = DrvJoy1[3] | DrvJoy1[5];
++		for (INT32 i = 0; i < 8; i++) {
++			player2 |= DrvJoy4[i];
++		}
++
++		if (!player2) {
++			if (pBurnSoundOut) {
++				memset(pBurnSoundOut, 0, nBurnSoundLen * 2 * sizeof(INT16));
++			}
++			if (pBurnDraw) {
++				BurnDrvRedraw();
++			}
++			return 0;
++		}
++
++		nCv1kLanWaiting = 0;
++		bprintf(PRINT_UI, _T("OSD/OS LAN: player 2 starts the game at frame %d\n"), nCurrentFrame);
++		DrvDoReset();
++	}
++
+ 	Sh3NewFrame();
+ 
+ 	INT32 nInterleave = 240;
+@@ -666,6 +708,14 @@ static INT32 DrvScan(INT32 nAction, INT32 *pnMin)
+ 		SCAN_VAR(nExtraCycles);
+ 
+ 		hold_coin.scan();
++
++		// OSD/OS's LAN build: a netplay state of a game started, loaded while
++		// this machine still waits, is that of a game it joins late.
++		INT32 waiting = nCv1kLanWaiting;
++		SCAN_VAR(nCv1kLanWaiting);
++		if ((nAction & ACB_WRITE) && (nAction & ACB_NET_OPT) && waiting && !nCv1kLanWaiting) {
++			nCv1kLanLateJoin = 1;
++		}
+ 	}
+ 
+ 	serflash_scan(nAction, pnMin); // writes back to flash (hiscores ddpdfk, etc) here
+diff --git a/src/burner/libretro/Makefile.cv1k b/src/burner/libretro/Makefile.cv1k
+new file mode 100644
+index 0000000..5b9259a
+--- /dev/null
++++ b/src/burner/libretro/Makefile.cv1k
+@@ -0,0 +1,19 @@
++# Drivers, cpus and devices for cv1k subset (Cave CV1000), OSD/OS's LAN build
++SOURCES_CXX += $(SH4_CPU_DIR)/sh4.cpp \
++	$(FBNEO_BURN_DEVICES_DIR)/epic12.cpp \
++	$(FBNEO_BURN_DEVICES_DIR)/rtc9701.cpp \
++	$(FBNEO_BURN_DEVICES_DIR)/serflash.cpp \
++	$(FBNEO_BURN_SND_DIR)/mpeg_audio.cpp \
++	$(FBNEO_BURN_SND_DIR)/ymz770.cpp \
++	$(FBNEO_BURN_DIR)/burn_bitmap.cpp \
++	$(FBNEO_BURN_DIR)/burn_led.cpp \
++	$(FBNEO_BURN_DIR)/burn_pal.cpp \
++	$(FBNEO_BURN_DIR)/burn_sha1.cpp \
++	$(FBNEO_BURN_DIR)/burn_shift.cpp \
++	$(FBNEO_BURN_DIR)/tilemap_generic.cpp \
++	$(FBNEO_BURN_DIR)/tiles_generic.cpp \
++	$(FBNEO_BURN_DEVICES_DIR)/joyprocess.cpp \
++	$(CAVE_DIR)/d_cv1k.cpp
++
++CFLAGS += -DSUBSET=\"$(SUBSET)\" -DSUPPORT_SPLIT_DRIVER
++CXXFLAGS += -DSUBSET=\"$(SUBSET)\" -DSUPPORT_SPLIT_DRIVER
+diff --git a/src/burner/libretro/libretro.cpp b/src/burner/libretro/libretro.cpp
+index 9e89835..1ed7bcd 100644
+--- a/src/burner/libretro/libretro.cpp
++++ b/src/burner/libretro/libretro.cpp
+@@ -1366,6 +1366,39 @@ static void VideoBufferInit()
+ 		memset(pVidImage, 0, nSize);
+ }
+ 
++// OSD/OS's LAN build: on screen, what the CV1000 driver waits for, and why its
++// picture may be wrong on a machine that joined a game already started
++// (d_cv1k.cpp).
++extern INT32 nCv1kLanWaiting;
++extern INT32 nCv1kLanLateJoin;
++
++static void Cv1kLanNotices()
++{
++	static UINT32 nNextWaitingNotice = 0;
++	const char *text = NULL;
++	unsigned ms = 5000;
++
++	if (nCv1kLanLateJoin) {
++		nCv1kLanLateJoin = 0;
++		text = "This game started before you joined, so its picture may be wrong. Ask the host to host it again.";
++		ms = 10000;
++		log_cb(RETRO_LOG_WARN, "[FBNeo] OSD/OS LAN: joined a CV1000 game already started\n");
++	} else if (nCv1kLanWaiting && (nCurrentFrame >= nNextWaitingNotice || nCurrentFrame + 300 < nNextWaitingNotice)) {
++		nNextWaitingNotice = nCurrentFrame + 300;
++		text = "Waiting for player 2: the game starts when player 2 presses a button.";
++	}
++	if (!text)
++		return;
++
++	if (libretro_msg_interface_version >= 1) {
++		struct retro_message_ext msg = { text, ms, 1, RETRO_LOG_INFO, RETRO_MESSAGE_TARGET_OSD, RETRO_MESSAGE_TYPE_NOTIFICATION, -1 };
++		environ_cb(RETRO_ENVIRONMENT_SET_MESSAGE_EXT, &msg);
++	} else {
++		struct retro_message msg = { text, ms * 60 / 1000 };
++		environ_cb(RETRO_ENVIRONMENT_SET_MESSAGE, &msg);
++	}
++}
++
+ void retro_run()
+ {
+ 	bool bEnableVideo  = true;
+@@ -1479,6 +1512,8 @@ void retro_run()
+ 
+ 	ForceFrameStep();
+ 
++	Cv1kLanNotices();
++
+ 	if (bPresentAudio)
+ 	{
+ 		if (bLowPassFilterEnabled)

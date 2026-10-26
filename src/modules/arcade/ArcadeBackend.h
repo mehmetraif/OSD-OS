@@ -857,10 +857,17 @@ private:
     // OSD/OS gave, portsGiven from portsFrom (0 for none left; -1 for no
     // answer: from 2 with more than one player, else RetroArch's own, the
     // first free), on the layout it said (libretro::Launch::layout; a host
-    // chooses its own by its players, libretro::hostLayout()).
+    // chooses its own by its players, libretro::hostLayout()). On the local
+    // network, a CV1000 game (playsOnLanCore()) is hosted with OSD/OS's own
+    // core for it (libretro::lanCorePath()), and a room is joined with the
+    // core it is hosted with: lanCore, that one.
     bool playFbneo(const QString &name, libretro::Launch::Netplay netplay = libretro::Launch::Netplay::None,
                    const QString &joinAddress = QString(), int portsFrom = -1, int portsGiven = 0,
-                   libretro::Launch::Layout layout = libretro::Launch::Layout::Classic);
+                   libretro::Launch::Layout layout = libretro::Launch::Layout::Classic, bool lanCore = false);
+    // Whether a set is one of Cave's CV1000 board's (FinalBurn Neo's
+    // cave/d_cv1k.cpp), whose games are hosted on the local network with
+    // OSD/OS's own core (libretro::lanCorePath()).
+    bool playsOnLanCore(const QString &set) const;
     // How many players set plays at once, as MAME says (up to
     // libretro::kMostPorts); 0 for a game MAME doesn't know.
     int gamePlayers(const QString &set) const;
@@ -893,6 +900,8 @@ private:
         libretro::Launch::Layout layout = libretro::Launch::Layout::Classic;
         bool layoutSaid = false;
         std::optional<libretro::PortRange> ports;
+        // Hosted with OSD/OS's own core for CV1000 games (libretro::kLanCoreName).
+        bool lanCore = false;
     };
     bool askForPorts();
     void readPortsAnswer();
@@ -1077,8 +1086,13 @@ private:
     QString m_retroarchVersionOf;
     QString m_coreVersion;
     QString m_coreVersionOf;
+    // OSD/OS's own core for CV1000 games, which LAN Games' rooms of it are
+    // matched against (libretro::lanCorePath()).
+    QString m_lanCoreVersion;
+    QString m_lanCoreVersionOf;
     QPointer<QProcess> m_versionRead;
     QPointer<QProcess> m_coreInfoRead;
+    QPointer<QProcess> m_lanCoreInfoRead;
     QSet<QString> m_slowVersions;
     QStringList m_coreInfoCommand;
     int m_versionReadMs = 0;
