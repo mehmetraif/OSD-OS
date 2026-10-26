@@ -156,6 +156,8 @@ ctest --test-dir build-tests --output-on-failure
 - **release_notes** (`release_notes_test.sh`, Linux only). A release's notes (`scripts/release-notes.sh`) on a made-up git history with tags.
   - The commits since the previous tag, by subject: `feat:` and "Add…" under What's New, `fix:` and "Fix…" under Bug Fixes, the rest under Changelog; a merge commit left out, a subject listed once, its `<` and `>` escaped.
   - The previous tag found by itself or given; the first release lists the whole history; a section with nothing in it is left out; no tag is an error.
+- **release_downloads** (`release_downloads_test.sh`, Linux only). The Downloads table the release workflow writes at the end of a release's notes (`.github/workflows/release.yml`).
+  - A row per file, each file the Publish step uploads in one row and nothing else, the rows in the order the release page lists the files under Assets: by name, case-blind, as GitHub sorts them. Two rows swapped are caught.
 - **jamma** (`jamma_test.cpp`, Linux only). A Raspberry Pi to JAMMA board's pins as gamepad events (`src/jamma`, `osdos-jamma`).
   - The built-in mapping is the layout Crown Arcade's board is wired in (`mk_arcade_joystick_rpi`'s): the joystick, Start and Coin, then the buttons in their order from GPA6, on both expanders.
   - A mapping file moves pins and takes them out; its bad lines are named and change nothing.

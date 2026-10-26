@@ -506,10 +506,15 @@ jobs:
 
       # The notes: what the release brings since the previous tag, under What's
       # New, Changelog and Bug Fixes (scripts/release-notes.sh, from the
-      # commits' subjects), then a Downloads table, each file by the system
-      # it is for, with how it is installed and updated, with absolute links
-      # (a release's body doesn't resolve the repository's relative ones),
-      # and a word on a DMG that isn't notarized.
+      # commits' subjects), then a Downloads table, a row per file with the
+      # system it is for and how it is installed and updated, with absolute
+      # links (a release's body doesn't resolve the repository's relative
+      # ones), and a word on a DMG that isn't notarized. The rows go in the
+      # order the release page lists the files under Assets, so that the two
+      # read alike: GitHub sorts them by name, case-blind, whatever order
+      # they are uploaded in, and offers no other order. install.sh comes
+      # first, then the version-less AppImage, then the others by the system
+      # in their names, the same order for every tag.
       - name: Write release notes
         env:
           TAG: ${{ github.ref_name }}
@@ -522,10 +527,11 @@ jobs:
             echo
             echo "| System | File | What it is | Install and update |"
             echo "|---|---|---|---|"
-            echo "| **Raspberry Pi 4 and 5** | \`OSD-OS-${TAG}-raspberry-pi.img.xz\` | The whole system: Raspberry Pi OS Lite (64-bit, Debian 13 trixie) with OSD/OS on top. The Pi boots straight into OSD/OS. What it is made of, under which licences: ${REPO}/blob/${TAG}/os/NOTICE | Flash it with Raspberry Pi Imager (**Use custom**): ${REPO}/blob/${TAG}/os/README.md#flashing. Updates: Settings → Update in the app |"
-            echo "| **Raspberry Pi OS (arm64)** you set up yourself | \`install.sh\`, \`OSD-OS-${TAG}-linux-arm64.tar.gz\` | The installer, and the app alone, which it installs with its service | \`bash <(curl -fsSL ${REPO}/releases/latest/download/install.sh)\`: ${REPO}/blob/${TAG}/INSTALL.md#on-a-raspberry-pi. Updates: Settings → Update, or ${REPO}/blob/${TAG}/INSTALL.md#update |"
+            echo "| **Raspberry Pi OS (arm64)** you set up yourself | \`install.sh\` | The installer, which installs the app, \`OSD-OS-${TAG}-linux-arm64.tar.gz\`, with its service | \`bash <(curl -fsSL ${REPO}/releases/latest/download/install.sh)\`: ${REPO}/blob/${TAG}/INSTALL.md#on-a-raspberry-pi. Updates: Settings → Update, or the same command again: ${REPO}/blob/${TAG}/INSTALL.md#update |"
             echo "| **Steam Deck, Linux PCs (x86_64)** | \`OSD-OS-linux-x86_64.AppImage\` | The app with Qt, SDL2 and mpv inside; nothing to install | Make it executable (\`chmod +x\`) and run it: ${REPO}/blob/${TAG}/INSTALL.md#on-steamos--linux-x86_64. Updates: Settings → Update swaps it in place, or the latest AppImage over your copy |"
+            echo "| **Raspberry Pi OS (arm64)** you set up yourself | \`OSD-OS-${TAG}-linux-arm64.tar.gz\` | The app alone, which \`install.sh\` and the updater install | Nothing to download by hand: \`install.sh\` fetches it, and Settings → Update fetches the next one |"
             echo "| **macOS on Apple Silicon** | \`OSD-OS-${TAG}-macOS-arm64.dmg\` | osdos.app in a disk image | Open it and move osdos.app to your Applications folder. Updates: Settings → Update, or the next \`.dmg\` the same way |"
+            echo "| **Raspberry Pi 4 and 5** | \`OSD-OS-${TAG}-raspberry-pi.img.xz\` | The whole system: Raspberry Pi OS Lite (64-bit, Debian 13 trixie) with OSD/OS on top. The Pi boots straight into OSD/OS. What it is made of, under which licences: ${REPO}/blob/${TAG}/os/NOTICE | Flash it with Raspberry Pi Imager (**Use custom**): ${REPO}/blob/${TAG}/os/README.md#flashing. Updates: Settings → Update in the app |"
             echo "| **Windows 11 (x64)** | \`OSD-OS-${TAG}-windows-x64.zip\` | The app in one folder, \`osdos\`, with Qt and its libraries beside \`osdos.exe\`; mpv is not inside | Unzip it anywhere, put mpv beside it and run \`osdos.exe\`: ${REPO}/blob/${TAG}/INSTALL.md#on-windows-x64. Updates: Settings → Update names the new zip, whose \`osdos\` folder takes the old one's place |"
             echo
             if [ "$NOTARIZED" != "true" ]; then
@@ -541,7 +547,6 @@ jobs:
       # it then (UpdateManager), so a package still uploading, or one that
       # failed to, must not leave it saying the release has no package.
       - name: Publish
-        id: publish
         uses: softprops/action-gh-release@v3
         with:
           tag_name: ${{ github.ref_name }}
@@ -558,36 +563,26 @@ jobs:
             artifacts/os-image/*.img.xz
           body_path: release-notes.md
 
-      # Each file's label, which the release page shows in place of its name
-      # under Assets: the name, the system it is for and what it is. The names
-      # themselves stay as they are, since every installed app's updater and
-      # install.sh look the files up by them (UpdateManager::assetSuffix).
-      - name: Name each file's system
-        env:
-          GH_TOKEN: ${{ github.token }}
-          TAG: ${{ github.ref_name }}
-          RELEASE_ID: ${{ steps.publish.outputs.id }}
-        run: |
-          label_of() {
-            case "$1" in
-              *-raspberry-pi.img.xz) echo "$1 · Raspberry Pi 4 and 5 · the whole system, flashed to a card with Raspberry Pi Imager" ;;
-              *-linux-arm64.tar.gz)  echo "$1 · Raspberry Pi OS (arm64) · the app alone, which install.sh and the updater install" ;;
-              install.sh)            echo "$1 · Raspberry Pi OS (arm64) · installs the app and its service on a Pi you set up yourself" ;;
-              *-linux-x86_64.AppImage) echo "$1 · Steam Deck and Linux PCs (x86_64) · the app with everything inside, nothing to install" ;;
-              *-macOS-arm64.dmg)     echo "$1 · macOS on Apple Silicon · osdos.app, for your Applications folder" ;;
-              *-windows-x64.zip)     echo "$1 · Windows 11 (x64) · the app in one folder, osdos, unzipped anywhere" ;;
-              *)                     echo "" ;;
-            esac
-          }
-          gh api "repos/${GITHUB_REPOSITORY}/releases/${RELEASE_ID}" --jq '.assets[] | "\(.id) \(.name)"' |
-          while read -r id name; do
-            label=$(label_of "$name")
-            [ -n "$label" ] || continue
-            gh api -X PATCH "repos/${GITHUB_REPOSITORY}/releases/assets/${id}" -f label="$label" --jq '.label'
-          done
-
       - name: Make the release public
         env:
           GH_TOKEN: ${{ github.token }}
           TAG: ${{ github.ref_name }}
         run: gh release edit "$TAG" --draft=false
+
+      # Every file shows under Assets by its own name, the one the notes'
+      # Downloads table gives it: nothing labels the files. Releases v0.0.20
+      # to v0.0.23 labelled theirs with the system and what each file is,
+      # which the release page showed in place of the name; those labels are
+      # set back to the names here, at the first release that runs this, and
+      # the step finds nothing to do after that. It changes only how the page
+      # shows the files, never their names, so it never holds a release back.
+      - name: Every release's files under their own names
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh api --paginate "repos/${GITHUB_REPOSITORY}/releases?per_page=100" \
+              --jq '.[].assets[] | select((.label // "") != "" and .label != .name) | "\(.id) \(.name)"' |
+          while read -r id name; do
+            gh api -X PATCH "repos/${GITHUB_REPOSITORY}/releases/assets/${id}" -f label="$name" --jq '.name'
+          done

@@ -352,6 +352,11 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
     add_test(NAME release_notes COMMAND bash ${CMAKE_CURRENT_SOURCE_DIR}/release_notes_test.sh
                                         ${CMAKE_CURRENT_SOURCE_DIR}/../scripts/release-notes.sh)
 
+    # The Downloads table at the end of the notes (.github/workflows/release.yml):
+    # a row per file published, in the order the release page lists the files.
+    add_test(NAME release_downloads COMMAND bash ${CMAKE_CURRENT_SOURCE_DIR}/release_downloads_test.sh
+                                            ${CMAKE_CURRENT_SOURCE_DIR}/../.github/workflows/release.yml)
+
     # The image's stop helper, osdos-stop (scripts/install.sh), on a stand-in
     # boot partition: the display presets it writes, and At Next Start's and
     # the Wi-Fi country's requests, good and bad.
