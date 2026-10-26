@@ -424,6 +424,67 @@ bool isBootlegOrHack(const Machine &machine) {
     return false;
 }
 
+const QList<Region> &regions() {
+    // Each region's words as MAME's arcade sets write them, "|" between;
+    // Others', the regions the others don't name.
+    static const QList<Region> kRegions = [] {
+        const char *const kTable[][3] = {
+            { "world", "World", "World|Export" },
+            { "usa", "USA", "USA|US|North America|Canada" },
+            { "europe", "Europe", "Europe|Euro|UK|Germany|France|Italy|Spain|Portugal|Holland|Netherlands|Belgium|"
+                                  "Austria|Switzerland|Sweden|Norway|Denmark|Finland|Greece|Poland|Hungary|Czech|Russia" },
+            { "asia", "Asia", "Asia" },
+            { "japan", "Japan", "Japan" },
+            { "korea", "Korea", "Korea" },
+            { "china", "China", "China" },
+            { "hong_kong", "Hong Kong", "Hong Kong" },
+            { "taiwan", "Taiwan", "Taiwan" },
+            { "hispanic", "Hispanic", "Hispanic|Latin America|Mexico|Argentina" },
+            { "brazil", "Brazil", "Brazil" },
+            { "oceania", "Oceania", "Oceania|Australia|New Zealand" },
+            { "others", "Others", "Israel|Middle East" },
+        };
+        QList<Region> list;
+        for (const auto &row : kTable)
+            list << Region{ QLatin1String(row[0]), QLatin1String(row[1]), QString::fromLatin1(row[2]).split(QLatin1Char('|')) };
+        return list;
+    }();
+    return kRegions;
+}
+
+QStringList regionsOf(const QString &description) {
+    // Any region's word, whole: not the US of USA, nor the Euro of European.
+    struct Words { QHash<QString, int> region; QRegularExpression any; };
+    static const Words words = [] {
+        Words all;
+        QStringList pattern;
+        for (int i = 0; i < regions().size(); ++i) {
+            for (const QString &word : regions().at(i).words) {
+                all.region.insert(word, i);
+                pattern << QRegularExpression::escape(word);
+            }
+        }
+        all.any.setPattern(QStringLiteral("\\b(?:%1)\\b").arg(pattern.join(QLatin1Char('|'))));
+        return all;
+    }();
+    // Only what tells the set apart, in parentheses, as isBootlegOrHack()
+    // reads it.
+    static const QRegularExpression inParentheses(QStringLiteral("\\(([^)]*)\\)"));
+    QList<bool> given(regions().size(), false);
+    auto parts = inParentheses.globalMatch(description);
+    while (parts.hasNext()) {
+        auto found = words.any.globalMatch(parts.next().captured(1));
+        while (found.hasNext())
+            given[words.region.value(found.next().captured(0))] = true;
+    }
+    QStringList ids;
+    for (int i = 0; i < given.size(); ++i) {
+        if (given.at(i))
+            ids << regions().at(i).id;
+    }
+    return ids;
+}
+
 QString systemOf(const QString &sourceFile) {
     // The boards most of MAME's games are on, as their makers named them.
     static const QHash<QString, QString> kBoards = {
