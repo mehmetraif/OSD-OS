@@ -4,10 +4,12 @@ name: Windows build
 # osdos-windows-x64: one folder, osdos/, with osdos.exe, Qt (windeployqt),
 # SDL2, OpenSSL, minizip and zlib beside it, and the app's own files (Main.qml,
 # views/, modules/, assets/, scripts/, LICENSE) in the same folder, as the
-# install rules lay them out on Windows; unpacked anywhere, osdos.exe runs
-# from it. mpv is not in it: mpv.exe goes beside the app or on the PATH. The
-# release workflow calls it for a tag, and publishes the folder zipped as
-# OSD-OS-<tag>-windows-x64.zip (release.yml).
+# install rules lay them out on Windows, with OSD/OS's FinalBurn Neo core for
+# CV1000 games on the local network and FinalBurn Neo's licence
+# (fbneo_cv1k_libretro.dll, fbneo-license.txt; .github/actions/fbneo-lan-core);
+# unpacked anywhere, osdos.exe runs from it. mpv is not in it: mpv.exe goes
+# beside the app or on the PATH. The release workflow calls it for a tag, and
+# publishes the folder zipped as OSD-OS-<tag>-windows-x64.zip (release.yml).
 
 on:
   workflow_call:
@@ -20,6 +22,10 @@ on:
       - 'thirdparty/**'
       - 'cmake/**'
       - 'CMakeLists.txt'
+      - 'scripts/build-fbneo-lan.sh'
+      - 'scripts/fbneo-lan.patch'
+      - 'scripts/fbneo-lan.env'
+      - '.github/actions/fbneo-lan-core/**'
       - '.github/workflows/windows.yml'
   pull_request:
     paths:
@@ -28,6 +34,10 @@ on:
       - 'thirdparty/**'
       - 'cmake/**'
       - 'CMakeLists.txt'
+      - 'scripts/build-fbneo-lan.sh'
+      - 'scripts/fbneo-lan.patch'
+      - 'scripts/fbneo-lan.env'
+      - '.github/actions/fbneo-lan-core/**'
       - '.github/workflows/windows.yml'
 
 concurrency:
@@ -91,6 +101,16 @@ jobs:
         with:
           path: ${{ env.OSDOS_VCPKG }}\installed
           key: vcpkg-x64-windows-sdl2-openssl-minizip-1
+
+      # OSD/OS's FinalBurn Neo core for CV1000 games on the local network,
+      # beside osdos.exe in the install, where the app looks for it
+      # (libretro::lanCorePath()). Built with MSYS2's MinGW-w64 before the
+      # MSVC environment below, which is no business of its compilers'.
+      - name: CV1000 LAN core
+        uses: ./.github/actions/fbneo-lan-core
+        with:
+          core-dir: install/osdos
+          license: install/osdos/fbneo-license.txt
 
       # Visual Studio's x64 compiler for Ninja, set up as its Developer
       # PowerShell sets it up (vcvars), and what that changes in the

@@ -3,9 +3,10 @@ name: FreeBSD build
 # Builds the app on FreeBSD (amd64), runs the regression tests there and
 # makes OSD/OS's FreeBSD package (scripts/bsd-package.sh), with FinalBurn
 # Neo's core built from its source (scripts/build-fbneo.sh), for want of a
-# FreeBSD build of libretro's. The package is then installed in the same
-# machine as a user installs it, the core loaded from it and the app started
-# from it, and removed again. It is uploaded as the artifact
+# FreeBSD build of libretro's, and OSD/OS's own for CV1000 games on the local
+# network (scripts/build-fbneo-lan.sh). The package is then installed in the
+# same machine as a user installs it, the cores loaded from it and the app
+# started from it, and removed again. It is uploaded as the artifact
 # osdos-freebsd-amd64; the release workflow calls this one for the tag and
 # publishes it. GitHub has no FreeBSD runners: the job starts a FreeBSD
 # virtual machine on a Linux runner, with the repository copied into it and
@@ -28,6 +29,9 @@ on:
       - 'tests/**'
       - 'CMakeLists.txt'
       - 'scripts/build-fbneo.sh'
+      - 'scripts/build-fbneo-lan.sh'
+      - 'scripts/fbneo-lan.patch'
+      - 'scripts/fbneo-lan.env'
       - 'scripts/bsd-package.sh'
       - '.github/workflows/freebsd.yml'
   pull_request:
@@ -39,6 +43,9 @@ on:
       - 'tests/**'
       - 'CMakeLists.txt'
       - 'scripts/build-fbneo.sh'
+      - 'scripts/build-fbneo-lan.sh'
+      - 'scripts/fbneo-lan.patch'
+      - 'scripts/fbneo-lan.env'
       - 'scripts/bsd-package.sh'
       - '.github/workflows/freebsd.yml'
 
@@ -78,24 +85,30 @@ jobs:
         run: echo "release=$FREEBSD_RELEASE" >> "$GITHUB_OUTPUT"
 
       # FinalBurn Neo's core takes longer to build than the app: kept from a
-      # run before for the same commit, release and script.
+      # run before for the same commit, release and scripts, with the CV1000
+      # LAN core beside it.
       - name: Restore FinalBurn Neo's core
         id: fbneo
         uses: actions/cache/restore@v6.1.0
         with:
           path: fbneo
-          key: fbneo-freebsd-${{ env.FREEBSD_RELEASE }}-${{ env.FBNEO_COMMIT }}-${{ hashFiles('scripts/build-fbneo.sh') }}
+          key: fbneo-freebsd-${{ env.FREEBSD_RELEASE }}-${{ env.FBNEO_COMMIT }}-${{ hashFiles('scripts/build-fbneo.sh', 'scripts/build-fbneo-lan.sh', 'scripts/fbneo-lan.patch', 'scripts/fbneo-lan.env') }}
 
+      # And the commit the CV1000 LAN core is built from (scripts/fbneo-lan.env).
       - name: Download FinalBurn Neo's source
         if: steps.fbneo.outputs.cache-hit != 'true'
-        run: curl -fsSL --retry 3 -o fbneo-src.tar.gz "https://github.com/libretro/FBNeo/archive/${FBNEO_COMMIT}.tar.gz"
+        run: |
+          curl -fsSL --retry 3 -o fbneo-src.tar.gz "https://github.com/libretro/FBNeo/archive/${FBNEO_COMMIT}.tar.gz"
+          . scripts/fbneo-lan.env
+          curl -fsSL --retry 3 -o fbneo-lan-src.tar.gz "https://github.com/libretro/FBNeo/archive/${FBNEO_LAN_COMMIT}.tar.gz"
 
       # The packages: Qt 6 with its QML, SVG and shader tools, SDL2
       # (gamepads), minizip (High Scores' tables, FinalBurn Neo's download),
-      # mpv (the package depends on it), GNU make for FinalBurn Neo, and what
-      # the tests run with: bash, Lua, and the DejaVu fonts, since the view
-      # tests lay their text out in the system's monospace font and the image
-      # has no font for Qt to draw it with. OpenSSL is the system's.
+      # mpv (the package depends on it), GNU make for FinalBurn Neo and Perl
+      # for the CV1000 LAN core's list of games, and what the tests run with:
+      # bash, Lua, and the DejaVu fonts, since the view tests lay their text
+      # out in the system's monospace font and the image has no font for Qt
+      # to draw it with. OpenSSL is the system's.
       - name: Build, test and package in a FreeBSD VM
         uses: vmactions/freebsd-vm@v1
         with:
@@ -105,7 +118,7 @@ jobs:
           sync: rsync
           copyback: true
           prepare: |
-            env ASSUME_ALWAYS_YES=yes pkg install -y cmake-core ninja pkgconf bash lua54 dejavu gmake \
+            env ASSUME_ALWAYS_YES=yes pkg install -y cmake-core ninja pkgconf bash lua54 dejavu gmake perl5 \
               qt6-base qt6-declarative qt6-svg qt6-shadertools sdl2 minizip mpv
           run: |
             set -e
@@ -122,10 +135,14 @@ jobs:
             # let go: a warning on Linux, a crash on OpenBSD, so any is listed.
             grep -n "invalid context\|delayed function evaluation" build-tests/Testing/Temporary/LastTest.log || true
             [ "$status" -eq 0 ]
-            # The core's BUILD note is the last thing the script writes.
+            # The core's BUILD note is the last thing the scripts write. The
+            # CV1000 LAN core from a source of its own, which its patch goes
+            # in.
             if [ ! -f fbneo/share/osdos/fbneo/BUILD ]; then
-              mkdir -p fbneo-src
+              mkdir -p fbneo-src fbneo-lan-src
               tar -xzf fbneo-src.tar.gz -C fbneo-src --strip-components 1
+              tar -xzf fbneo-lan-src.tar.gz -C fbneo-lan-src --strip-components 1
+              bash scripts/build-fbneo-lan.sh fbneo-lan-src fbneo/lib/osdos fbneo/share/osdos/fbneo/license.txt
               bash scripts/build-fbneo.sh fbneo-src fbneo
             fi
             tar -C fbneo -cf - . | tar -C stage/usr/local -xf -
@@ -143,6 +160,9 @@ jobs:
             fi
             pkg info osdos
             /usr/local/bin/osdos --core-info /usr/local/lib/osdos/fbneo_libretro.so
+            lan=$(/usr/local/bin/osdos --core-info /usr/local/lib/osdos/fbneo_cv1k_libretro.so)
+            echo "$lan"
+            echo "$lan" | grep -qx 'name=FinalBurn Neo (cv1k subset)'
             bash tests/app_smoke_test.sh /usr/local/bin/osdos /usr/local/share/osdos /usr/local/lib/qt6/qml
             pkg delete -y osdos
             [ ! -e /usr/local/bin/osdos ] && [ ! -e /usr/local/lib/osdos ] && [ ! -e /usr/local/share/osdos ]

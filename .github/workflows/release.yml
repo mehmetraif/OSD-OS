@@ -138,11 +138,22 @@ jobs:
           APP="${GITHUB_WORKSPACE}/install/osdos.app"
           "${QT_ROOT_DIR}/bin/macdeployqt" "$APP" -qmldir="${GITHUB_WORKSPACE}" -verbose=2
 
+      # OSD/OS's FinalBurn Neo core for CV1000 games on the local network, in
+      # the bundle's Frameworks, where the app looks for it
+      # (libretro::lanCorePath()) and the signing below takes it in, and
+      # FinalBurn Neo's licence in Resources.
+      - name: CV1000 LAN core
+        uses: ./.github/actions/fbneo-lan-core
+        with:
+          core-dir: install/osdos.app/Contents/Frameworks
+          license: install/osdos.app/Contents/Resources/fbneo-license.txt
+
       - name: Verify bundled libraries
         run: |
           APP="${GITHUB_WORKSPACE}/install/osdos.app"
           FW="$APP/Contents/Frameworks"
           test -f "$FW/libSDL2-2.0.0.dylib" || { echo "SDL2 not bundled"; exit 1; }
+          test -f "$FW/fbneo_cv1k_libretro.dylib" || { echo "CV1000 LAN core not bundled"; exit 1; }
           ! ls "$FW" | grep -qi sdl3 || { echo "SDL3 leaked into bundle"; exit 1; }
           # minizip too, had the app been linked with its dynamic library
           # rather than the static one (cmake/openhi2txt.cmake).
@@ -288,6 +299,15 @@ jobs:
       - name: Install
         run: cmake --install build
 
+      # OSD/OS's FinalBurn Neo core for CV1000 games on the local network,
+      # under the prefix, where the app looks for it
+      # (libretro::lanCorePath()), with FinalBurn Neo's licence.
+      - name: CV1000 LAN core
+        uses: ./.github/actions/fbneo-lan-core
+        with:
+          core-dir: install/usr/local/lib/osdos
+          license: install/usr/local/share/osdos/fbneo/license.txt
+
       - name: Create tarball
         env:
           TAG: ${{ github.ref_name }}
@@ -400,6 +420,15 @@ jobs:
       - name: Build
         run: cmake --build build --parallel
 
+      # OSD/OS's FinalBurn Neo core for CV1000 games on the local network,
+      # with FinalBurn Neo's licence, laid out as a prefix that the AppImage's
+      # script puts in its usr/ (FBNEO_LAN_PREFIX).
+      - name: CV1000 LAN core
+        uses: ./.github/actions/fbneo-lan-core
+        with:
+          core-dir: fbneo-lan-prefix/lib/osdos
+          license: fbneo-lan-prefix/share/osdos/fbneo/license.txt
+
       - name: Build AppImage
         env:
           # Extract-and-run the linuxdeploy/appimagetool AppImages instead of
@@ -407,6 +436,7 @@ jobs:
           APPIMAGE_EXTRACT_AND_RUN: '1'
           QMAKE: ${{ env.QT_ROOT_DIR }}/bin/qmake
           VERSION: ${{ github.ref_name }}
+          FBNEO_LAN_PREFIX: ${{ github.workspace }}/fbneo-lan-prefix
           # MPV_BIN was exported by the "Build mpv" step above.
         run: scripts/build-appimage.sh
 

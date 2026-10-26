@@ -2,7 +2,9 @@
 # OSD/OS as a package of the BSD it is built on: a FreeBSD package (.pkg,
 # pkg-create(8)) or an OpenBSD one (.tgz, pkg_create(1)), made from an
 # install staged as it lies under /usr/local (DESTDIR=<root> cmake --install
-# build, with FinalBurn Neo's core beside it, scripts/build-fbneo.sh).
+# build, with FinalBurn Neo's core beside it, scripts/build-fbneo.sh, and
+# OSD/OS's own for CV1000 games on the local network,
+# scripts/build-fbneo-lan.sh).
 #
 #   scripts/bsd-package.sh <root> <version> <folder>
 #
@@ -45,8 +47,9 @@ desc="OSD/OS turns a computer into a VCR-style smart TV for CRT and flat
 screens: films from local files and Plex, Jellyfin or Emby servers, YouTube,
 and arcade games through MAME or FinalBurn Neo with high scores,
 RetroAchievements and online play. This package brings FinalBurn Neo's
-libretro core, built from its source; RetroArch and MAME are the system's
-own packages.
+libretro core, built from its source, and OSD/OS's own build of it for
+CV1000 games on the local network; RetroArch and MAME are the system's own
+packages.
 https://osdos.tv"
 
 # The libraries the program links, by their files (ldd's lines differ

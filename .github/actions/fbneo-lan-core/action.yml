@@ -1,0 +1,105 @@
+name: FinalBurn Neo CV1000 LAN core
+description: >
+  OSD/OS's FinalBurn Neo core for CV1000 games on the local network
+  (scripts/build-fbneo-lan.sh), built from the commit scripts/fbneo-lan.env
+  names or kept from an earlier run, loaded once to check that it names itself
+  as RetroArch matches it, and put where the package has it, with FinalBurn
+  Neo's licence. Run from the repository's root, after the checkout.
+
+inputs:
+  core-dir:
+    description: The folder the core goes in
+    required: true
+  license:
+    description: The file FinalBurn Neo's licence goes in
+    required: true
+
+runs:
+  using: composite
+  steps:
+    # The runner's image as well as its system and processor: a core built
+    # on a newer Linux than a package's asks for a newer glibc.
+    - name: The runner's image
+      id: image
+      shell: bash
+      run: echo "image=${ImageOS:-$RUNNER_OS}" >> "$GITHUB_OUTPUT"
+
+    # Kept from a run before for the same commit, patch and script.
+    - name: Restore the CV1000 LAN core
+      id: cache
+      uses: actions/cache/restore@v6.1.0
+      with:
+        path: fbneo-lan
+        key: fbneo-lan-${{ steps.image.outputs.image }}-${{ runner.arch }}-${{ hashFiles('scripts/fbneo-lan.env', 'scripts/build-fbneo-lan.sh', 'scripts/fbneo-lan.patch') }}
+
+    # Without the source's project files for IDEs, whose symbolic links
+    # Windows can't make.
+    - name: Download FinalBurn Neo's source
+      if: steps.cache.outputs.cache-hit != 'true'
+      shell: bash
+      run: |
+        . scripts/fbneo-lan.env
+        curl -fsSL --retry 3 -o fbneo-lan-src.tar.gz "https://github.com/libretro/FBNeo/archive/${FBNEO_LAN_COMMIT}.tar.gz"
+        mkdir -p fbneo-lan-src
+        tar -xzf fbneo-lan-src.tar.gz -C fbneo-lan-src --strip-components 1 --exclude='*/projectfiles'
+        rm fbneo-lan-src.tar.gz
+
+    # On Windows MSYS2's MinGW-w64, which FinalBurn Neo's makefile builds a
+    # DLL with (its MSVC builds are UWP's).
+    - name: MSYS2
+      if: steps.cache.outputs.cache-hit != 'true' && runner.os == 'Windows'
+      uses: msys2/setup-msys2@v2
+      with:
+        msystem: MINGW64
+        install: mingw-w64-x86_64-gcc make perl patch
+
+    - name: Build the CV1000 LAN core
+      if: steps.cache.outputs.cache-hit != 'true' && runner.os != 'Windows'
+      shell: bash
+      run: bash scripts/build-fbneo-lan.sh fbneo-lan-src fbneo-lan fbneo-lan/license.txt
+
+    - name: Build the CV1000 LAN core (MinGW-w64)
+      if: steps.cache.outputs.cache-hit != 'true' && runner.os == 'Windows'
+      shell: msys2 {0}
+      run: bash scripts/build-fbneo-lan.sh fbneo-lan-src fbneo-lan fbneo-lan/license.txt
+
+    - name: Keep the CV1000 LAN core
+      if: steps.cache.outputs.cache-hit != 'true'
+      uses: actions/cache/save@v6.1.0
+      with:
+        path: fbneo-lan
+        key: ${{ steps.cache.outputs.cache-primary-key }}
+
+    # Loaded as RetroArch loads it, on its own: a DLL that needs one of
+    # MinGW's beside it doesn't load. Its name is the one RetroArch matches
+    # the machines' cores by, and the app the rooms of it.
+    - name: Check the CV1000 LAN core
+      shell: bash
+      run: |
+        python=$(command -v python || command -v python3)
+        "$python" - fbneo-lan/fbneo_cv1k_libretro.* <<'EOF'
+        import ctypes, os, sys
+
+        class Info(ctypes.Structure):
+            _fields_ = [("library_name", ctypes.c_char_p), ("library_version", ctypes.c_char_p),
+                        ("valid_extensions", ctypes.c_char_p), ("need_fullpath", ctypes.c_bool),
+                        ("block_extract", ctypes.c_bool)]
+
+        core = ctypes.CDLL(os.path.abspath(sys.argv[1]))
+        core.retro_api_version.restype = ctypes.c_uint
+        info = Info()
+        core.retro_get_system_info(ctypes.byref(info))
+        name, version = info.library_name.decode(), info.library_version.decode()
+        print(f"{os.path.basename(sys.argv[1])}: {name} {version}, libretro API {core.retro_api_version()}")
+        sys.exit(0 if name == "FinalBurn Neo (cv1k subset)" and version.endswith("-lan") else 1)
+        EOF
+
+    - name: Put the CV1000 LAN core in place
+      shell: bash
+      env:
+        CORE_DIR: ${{ inputs.core-dir }}
+        LICENSE_FILE: ${{ inputs.license }}
+      run: |
+        mkdir -p "$CORE_DIR" "$(dirname "$LICENSE_FILE")"
+        cp fbneo-lan/fbneo_cv1k_libretro.* "$CORE_DIR/"
+        cp fbneo-lan/license.txt "$LICENSE_FILE"
