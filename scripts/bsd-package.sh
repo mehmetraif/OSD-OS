@@ -114,6 +114,9 @@ OpenBSD)
     done < <(sort -u <<< "$packages")
     work=$(mktemp -d)
     trap 'rm -rf "$work"' EXIT
+    # The description in a file: pkg_create takes it from the argument
+    # itself (-d -text) only when it is one line.
+    printf '%s\n' "$desc" > "$work/desc"
     # The folders that are the package's own, then every file, each folder
     # before what is in it.
     (cd "$root$prefix" && {
@@ -125,7 +128,7 @@ OpenBSD)
     name=OSD-OS-$version-openbsd-$machine
     (cd "$work" && pkg_create -A "$machine" -B "$root" -p "$prefix" -f "$work/plist" \
         -D COMMENT="$comment" -D FULLPKGPATH=multimedia/osdos -D HOMEPAGE=https://osdos.tv \
-        -D MAINTAINER=https://github.com/mehmetraif/OSD-OS -d "-$desc" "${depends[@]}" "$name")
+        -D MAINTAINER=https://github.com/mehmetraif/OSD-OS -d "$work/desc" "${depends[@]}" "$name")
     out=$folder/$name.tgz
     mv "$work/$name.tgz" "$out"
     ;;
