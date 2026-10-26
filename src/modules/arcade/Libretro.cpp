@@ -1087,7 +1087,15 @@ std::optional<Launch::Layout> readClaimLayout(const QByteArray &packet) {
     return std::nullopt;
 }
 
-Launch::Layout hostLayout(const QList<bool> &panels, const QList<QStringList> &arcade) {
+Launch::Layout hostLayout(const QList<bool> &panels, const QList<QStringList> &arcade, int players) {
+    // One machine takes one port fewer than the game's players at most (a
+    // host leaves the machines joining one, and they find its own taken): up
+    // to four players, three at most, as the panel's layout takes; five or
+    // six may be four of one machine. A game whose players aren't known
+    // keeps the panel: the host takes port 1 alone, and a machine joining is
+    // given three ports at most (PortClaims::each()).
+    if (players > kPanelPorts + 1)
+        return Launch::Layout::Classic;
     for (int p = 0; p < kMostPorts; ++p) {
         if (panels.value(p) || !arcade.value(p).isEmpty())
             return Launch::Layout::Panel;
@@ -1095,9 +1103,10 @@ Launch::Layout hostLayout(const QList<bool> &panels, const QList<QStringList> &a
     return Launch::Layout::Classic;
 }
 
-void PortClaims::reset(int own, int most) {
+void PortClaims::reset(int own, int most, int each) {
     m_most = std::clamp(most, 1, kMostPorts);
     m_own = std::clamp(own, 0, m_most);
+    m_each = std::clamp(each, 1, kMostPorts);
     m_claims.clear();
 }
 
@@ -1111,6 +1120,7 @@ PortRange PortClaims::claim(const QString &address, int players) {
     release(address);
     if (players < 1)
         return {};
+    players = std::min(players, m_each);
     // The first run that takes them all; else the first free port and the
     // run after it.
     PortRange some;

@@ -92,10 +92,11 @@ FocusScope {
         var players = inputManager ? inputManager.players : []
         var key = players.length > 0 ? players[0].playing : ""
         // Online, a pad's Arcade Buttons play only on the panel layout, a
-        // host's own choice (ArcadeBackend::onlineLayout()): a game joined
-        // learns its host's as it starts, so its pad's own binds are
-        // assumed here.
-        var padsOwn = !!online && !(online.hosting && arcadeBackend && arcadeBackend.onlineLayout(true) === "panel")
+        // host's own choice by its players and the game's
+        // (ArcadeBackend::onlineLayout()): a game joined learns its host's
+        // as it starts, so its pad's own binds are assumed here.
+        var padsOwn = !!online && !(online.hosting && arcadeBackend
+                                    && arcadeBackend.onlineLayout(playRoot.game, true) === "panel")
         if (key && padsOwn)
             exitKeys = inputManager.buttonLabel(key, "back") + " + " + inputManager.buttonLabel(key, "start")
         else if (key)

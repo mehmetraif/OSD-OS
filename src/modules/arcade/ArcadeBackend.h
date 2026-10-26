@@ -361,12 +361,13 @@ public:
     Q_INVOKABLE bool hostLanGame(const QString &set);
     // canHost() for LAN Play.
     Q_INVOKABLE bool canHostLan(const QString &set) const;
-    // The controller types a game hosted from here plays with online,
-    // "panel" (FinalBurn Neo's 6-Button Panel on every port, with an arcade
-    // panel's players among this machine's) or "classic" (RetroArch's own):
-    // libretro::hostLayout(). A game joined is "classic" until its host
-    // says, which comes with the ports, after the Play screen.
-    Q_INVOKABLE QString onlineLayout(bool hosting) const;
+    // The controller types set plays with online hosted from here, "panel"
+    // (FinalBurn Neo's 6-Button Panel on every port, with an arcade panel's
+    // players among this machine's, in a game of up to four players) or
+    // "classic" (RetroArch's own): libretro::hostLayout(). A game joined is
+    // "classic" until its host says, which comes with the ports, after the
+    // Play screen.
+    Q_INVOKABLE QString onlineLayout(const QString &set, bool hosting) const;
     // Where the query goes: broadcast to every network's hosts at
     // RetroArch's port, or a stand-in's address and port (a test's).
     void setLanDiscovery(const QString &address, quint16 port);
@@ -860,6 +861,9 @@ private:
     bool playFbneo(const QString &name, libretro::Launch::Netplay netplay = libretro::Launch::Netplay::None,
                    const QString &joinAddress = QString(), int portsFrom = -1, int portsGiven = 0,
                    libretro::Launch::Layout layout = libretro::Launch::Layout::Classic);
+    // How many players set plays at once, as MAME says (up to
+    // libretro::kMostPorts); 0 for a game MAME doesn't know.
+    int gamePlayers(const QString &set) const;
     // The ports this machine's players take hosting set: up to the last
     // player with a controller (libretro::localPorts()), but one fewer than
     // the game plays at once, so that a machine joining has a port. With
