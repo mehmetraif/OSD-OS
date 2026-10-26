@@ -25,12 +25,14 @@ check() {
 }
 
 # Each row's file, for a made-up tag: the File cell of every row the step
-# echoes, which must name one file and nothing else.
+# echoes, which must name one file and nothing else. OpenBSD's package is the
+# name its build hands on, the tag's version without the v
+# (scripts/bsd-package.sh).
 row_files() {
     local cell
-    # shellcheck disable=SC2016  # the workflow's own ${TAG}, as written
+    # shellcheck disable=SC2016  # the workflow's own ${TAG} and ${OPENBSD_PACKAGE}, as written
     grep -E '^ +echo "\| \*\*' "$1" | awk -F' [|] ' '{ print $2 }' |
-        sed -e 's/\\`/`/g' -e 's/\${TAG}/v1.2.3/g' |
+        sed -e 's/\\`/`/g' -e 's/\${TAG}/v1.2.3/g' -e 's/\${OPENBSD_PACKAGE}/OSD-OS-1.2.3-openbsd-amd64.tgz/g' |
         while IFS= read -r cell; do
             [[ $cell =~ ^\`([^\`]+)\`$ ]] || { echo "not one file: $cell" >&2; return 1; }
             echo "${BASH_REMATCH[1]}"

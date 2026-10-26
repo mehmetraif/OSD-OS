@@ -4,25 +4,33 @@
 # install staged as it lies under /usr/local (DESTDIR=<root> cmake --install
 # build, with FinalBurn Neo's core beside it, scripts/build-fbneo.sh).
 #
-#   scripts/bsd-package.sh <root> <version> <package file>
+#   scripts/bsd-package.sh <root> <version> <folder>
 #
 # <version> is the release's tag (v0.0.24, v0.0.24-rc1) or anything else for
-# a build that isn't one (0.0.0). The packages it depends on are the ones
-# the program's own libraries come from, at the versions the system has
-# where it is built (Qt keeps a program built with one version working with
-# the ones after), and two it uses without linking them: mpv, which plays
-# every video and whose libmpv Transparent Background opens, and Qt's SVG
-# module, whose plugin draws the icons. RetroArch and MAME stay optional, as
-# on every system: the app says how to install them where they're needed.
+# a build that isn't one (0.0.0). The package goes in <folder>, named as the
+# release names it, and the last line says which: on FreeBSD
+# OSD-OS-<tag>-freebsd-amd64.pkg, as the release's other files are named; on
+# OpenBSD OSD-OS-<version>-openbsd-amd64.tgz (OSD-OS-0.0.24-openbsd-amd64.tgz),
+# the package's own name, since pkg_add takes a package's name from its
+# file's and refuses one whose name inside differs, and an OpenBSD package's
+# version is the part of its name that starts with a digit. The packages it
+# depends on are the ones the program's own libraries come from, at the
+# versions the system has where it is built (Qt keeps a program built with
+# one version working with the ones after), and two it uses without linking
+# them: mpv, which plays every video and whose libmpv Transparent Background
+# opens, and Qt's SVG module, whose plugin draws the icons. RetroArch and
+# MAME stay optional, as on every system: the app says how to install them
+# where they're needed.
 set -euo pipefail
 
-usage="usage: bsd-package.sh <root> <version> <package file>"
+usage="usage: bsd-package.sh <root> <version> <folder>"
 root=$(cd "${1:?$usage}" && pwd)
 tag=${2:?$usage}
-out=${3:?$usage}
+folder=$(cd "${3:?$usage}" && pwd)
 prefix=/usr/local
 program=$root$prefix/bin/osdos
 [ -x "$program" ] || { echo "no program at $program" >&2; exit 1; }
+machine=$(uname -m)
 
 # 0.0.24 for v0.0.24, 0.0.24rc1 for v0.0.24-rc1 (both systems read the rc as
 # coming before the release), 0.0.0 for a build that isn't a release.
@@ -84,6 +92,7 @@ FreeBSD)
         find share/osdos lib/osdos -type d | sed 's|^|@dir |'
     } | LC_ALL=C sort) > "$work/plist"
     pkg create -M "$work/manifest" -p "$work/plist" -r "$root" -o "$work"
+    out=$folder/OSD-OS-$tag-freebsd-$machine.pkg
     mv "$work"/osdos-*.pkg "$out"
     ;;
 OpenBSD)
@@ -110,10 +119,14 @@ OpenBSD)
         find share/osdos lib/osdos -type d | sed 's|$|/|'
         find . \( -type f -o -type l \) | sed 's|^\./||'
     } | LC_ALL=C sort) > "$work/plist"
-    (cd "$work" && pkg_create -B "$root" -p "$prefix" -f "$work/plist" \
+    # The name: stem OSD-OS, the version, and the system and machine as its
+    # flavours, which is the file's name too.
+    name=OSD-OS-$version-openbsd-$machine
+    (cd "$work" && pkg_create -A "$machine" -B "$root" -p "$prefix" -f "$work/plist" \
         -D COMMENT="$comment" -D FULLPKGPATH=multimedia/osdos -D HOMEPAGE=https://osdos.tv \
-        -d "-$desc" "${depends[@]}" "osdos-$version")
-    mv "$work/osdos-$version.tgz" "$out"
+        -d "-$desc" "${depends[@]}" "$name")
+    out=$folder/$name.tgz
+    mv "$work/$name.tgz" "$out"
     ;;
 *)
     echo "not a BSD: $(uname -s)" >&2

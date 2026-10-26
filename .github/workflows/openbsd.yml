@@ -17,6 +17,9 @@ on:
       release:
         description: The OpenBSD release the package is built on, and for
         value: ${{ jobs.build-openbsd-amd64.outputs.release }}
+      package:
+        description: The package's file name (OSD-OS-<version>-openbsd-amd64.tgz)
+        value: ${{ jobs.build-openbsd-amd64.outputs.package }}
   workflow_dispatch:
   push:
     branches: [main]
@@ -68,6 +71,7 @@ jobs:
     timeout-minutes: 180
     outputs:
       release: ${{ steps.release.outputs.release }}
+      package: ${{ steps.package.outputs.package }}
 
     steps:
       - name: Checkout
@@ -124,28 +128,39 @@ jobs:
             # let go: a warning on Linux, a crash on OpenBSD, so any is listed.
             grep -n "invalid context\|delayed function evaluation" build-tests/Testing/Temporary/LastTest.log || true
             [ "$status" -eq 0 ]
-            if [ ! -f fbneo/lib/osdos/fbneo_libretro.so ]; then
+            # The core's BUILD note is the last thing the script writes.
+            if [ ! -f fbneo/share/osdos/fbneo/BUILD ]; then
               mkdir -p fbneo-src
               tar -xzf fbneo-src.tar.gz -C fbneo-src -s '|^[^/]*/||'
               bash scripts/build-fbneo.sh fbneo-src fbneo
             fi
             tar -C fbneo -cf - . | tar -C stage/usr/local -xf -
-            package="OSD-OS-$VERSION-openbsd-amd64.tgz"
-            bash scripts/bsd-package.sh stage "$VERSION" "$package"
+            bash scripts/bsd-package.sh stage "$VERSION" .
+            package=$(ls OSD-OS-*-openbsd-amd64.tgz)
             # Installed as a user installs it, with mpv, which none of the
             # program's libraries brings, taken away first: pkg_add fetches
             # what the package needs from the mirror. The package isn't
-            # signed with OpenBSD's key (-D unsigned).
+            # signed with OpenBSD's key (-D unsigned). Its stem is OSD-OS.
             pkg_delete mpv
             pkg_add -I -D unsigned "./$package"
-            pkg_info osdos
+            pkg_info OSD-OS
             /usr/local/bin/osdos --core-info /usr/local/lib/osdos/fbneo_libretro.so
             bash tests/app_smoke_test.sh /usr/local/bin/osdos /usr/local/share/osdos /usr/local/lib/qt6/qml
-            pkg_delete osdos
+            pkg_delete OSD-OS
             [ ! -e /usr/local/bin/osdos ] && [ ! -e /usr/local/lib/osdos ] && [ ! -e /usr/local/share/osdos ]
 
+      # The package's file, named by its version (pkg_add takes a package's
+      # name from its file's), for the release's Downloads table.
+      - name: The package made
+        id: package
+        run: |
+          package=$(ls OSD-OS-*-openbsd-amd64.tgz)
+          echo "package=$package" >> "$GITHUB_OUTPUT"
+
+      # Kept once it is built, whether or not the package after it is made,
+      # so that a run after a failed one doesn't build it again.
       - name: Keep FinalBurn Neo's core
-        if: steps.fbneo.outputs.cache-hit != 'true'
+        if: always() && steps.fbneo.outputs.cache-hit != 'true' && hashFiles('fbneo/share/osdos/fbneo/BUILD') != ''
         uses: actions/cache/save@v6.1.0
         with:
           path: fbneo

@@ -25,7 +25,9 @@ const QString kDefaultFeedUrl =
 // arm64 (Raspberry Pi) ships a tarball the launcher swaps into /opt; x86_64
 // (SteamDeck / Intel/AMD desktop) ships a self-contained AppImage. Computed at
 // runtime because a single Linux binary could run on either arch. Windows'
-// is the app's one folder zipped, which is named rather than put in place.
+// is the app's one folder zipped, and a BSD's a package of the system's, for
+// amd64 alone, which are named rather than put in place. None (empty) for a
+// machine the release has nothing for.
 QString assetSuffix() {
 #if defined(Q_OS_MAC)
     return QStringLiteral("-macOS-arm64.dmg");
@@ -35,27 +37,37 @@ QString assetSuffix() {
     return QSysInfo::currentCpuArchitecture() == QStringLiteral("arm64")
                ? QStringLiteral("-linux-arm64.tar.gz")
                : QStringLiteral("-linux-x86_64.AppImage");
+#elif defined(Q_OS_FREEBSD) || defined(Q_OS_OPENBSD)
+    if (QSysInfo::currentCpuArchitecture() != QStringLiteral("x86_64"))
+        return QString();
+#if defined(Q_OS_FREEBSD)
+    return QStringLiteral("-freebsd-amd64.pkg");
+#else
+    return QStringLiteral("-openbsd-amd64.tgz");
+#endif
 #else
     return QString();
 #endif
 }
 
-// How a BSD takes a newer release: its package among the release's files,
-// installed with the system's own tool, which the app doesn't run itself.
-// The packages are amd64's; another machine builds the app from its source.
-QString bsdUpdateHint(const QString &tag) {
+#if defined(Q_OS_WIN) || (defined(Q_OS_BSD4) && !defined(Q_OS_DARWIN))
+// What to do with a newer release's file the app doesn't put in place
+// itself: Windows' osdos folder takes this one's place by hand, and a BSD's
+// package is installed with the system's own tool, as root. The settings are
+// apart, and stay.
+QString installByHand(const QString &tag, const QString &file) {
     const QString releases = QStringLiteral("github.com/mehmetraif/OSD-OS/releases");
-    if (QSysInfo::currentCpuArchitecture() != QStringLiteral("x86_64"))
-        return QStringLiteral("build it from its source, %1").arg(releases);
-#if defined(Q_OS_FREEBSD)
-    return QStringLiteral("install OSD-OS-%1-freebsd-amd64.pkg from %2 with pkg add, as root").arg(tag, releases);
+#if defined(Q_OS_WIN)
+    return QStringLiteral("%1 is out: download %2 from %3 and put its osdos folder in place of this one. "
+                          "Your settings stay as they are.")
+        .arg(tag, file, releases);
 #elif defined(Q_OS_OPENBSD)
-    return QStringLiteral("install OSD-OS-%1-openbsd-amd64.tgz from %2 with pkg_add -D unsigned, as root")
-        .arg(tag, releases);
+    return QStringLiteral("%1 is out: install %2 from %3 with pkg_add -D unsigned, as root.").arg(tag, file, releases);
 #else
-    return QStringLiteral("build it from its source, %1").arg(releases);
+    return QStringLiteral("%1 is out: install %2 from %3 with pkg add, as root.").arg(tag, file, releases);
 #endif
 }
+#endif
 
 // "Apply & Restart" under the autostart service: osdos-stop (scripts/install.sh)
 // treats exit 11 as a no-op so Restart=on-failure relaunches through the
@@ -359,11 +371,16 @@ void UpdateManager::handleReleaseInfo(const QByteArray &json) {
         return;
     }
 
+    const QString suffix = assetSuffix();
 #if defined(Q_OS_BSD4) && !defined(Q_OS_DARWIN)
-    // A BSD's package is the system's to install: the newer version is
-    // named, with its package and the command that installs it.
-    setState(QStringLiteral("error"), QStringLiteral("%1 is out: %2.").arg(tag, bsdUpdateHint(tag)));
-    return;
+    // The BSDs' packages are amd64's: another machine builds the app from
+    // its source.
+    if (suffix.isEmpty()) {
+        setState(QStringLiteral("error"),
+                 QStringLiteral("%1 is out: build it from its source, github.com/mehmetraif/OSD-OS/releases.")
+                     .arg(tag));
+        return;
+    }
 #elif !defined(Q_OS_MAC) && !defined(Q_OS_WIN)
     const QString arch = QSysInfo::currentCpuArchitecture();
     if (arch != QStringLiteral("arm64") && arch != QStringLiteral("x86_64")) {
@@ -381,7 +398,7 @@ void UpdateManager::handleReleaseInfo(const QByteArray &json) {
     for (const QJsonValue &v : assets) {
         const QJsonObject asset = v.toObject();
         const QString name = asset.value(QStringLiteral("name")).toString();
-        if (!name.endsWith(assetSuffix()))
+        if (!name.endsWith(suffix))
             continue;
         m_assetName = name;
         m_assetUrl = asset.value(QStringLiteral("browser_download_url")).toString();
@@ -395,19 +412,16 @@ void UpdateManager::handleReleaseInfo(const QByteArray &json) {
                  QStringLiteral("Release %1 has no package for this platform.").arg(tag));
         return;
     }
-#if defined(Q_OS_WIN)
-    // Windows' package is not put in place here: the file is named, for its
-    // osdos folder to take this one's place by hand. The settings are apart,
-    // in %APPDATA%\OSD-OS, and stay.
+#if defined(Q_OS_WIN) || (defined(Q_OS_BSD4) && !defined(Q_OS_DARWIN))
+    // Windows' and a BSD's packages are not put in place here: the file is
+    // named, with what to do with it (installByHand()). The settings are
+    // apart, in the data folder, and stay.
     const QString file = m_assetName;
     m_assetName.clear();
     m_assetUrl.clear();
     m_assetSize = 0;
     m_expectedSha256.clear();
-    setState(QStringLiteral("error"),
-             QStringLiteral("%1 is out: download %2 from github.com/mehmetraif/OSD-OS/releases and put "
-                            "its osdos folder in place of this one. Your settings stay as they are.")
-                 .arg(tag, file));
+    setState(QStringLiteral("error"), installByHand(tag, file));
     return;
 #endif
     setState(QStringLiteral("updateAvailable"));
