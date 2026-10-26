@@ -3378,6 +3378,9 @@ bool ArcadeBackend::playFbneo(const QString &name, libretro::Launch::Netplay net
         const QString options = libretro::coreOptionsPath(launch.configDir);
         QFile file(options);
         const QString before = file.open(QIODevice::ReadOnly) ? QString::fromUtf8(file.readAll()) : QString();
+        // Closed before it is replaced: Windows renames no file over one
+        // still open (QSaveFile's commit), and the game would not start.
+        file.close();
         const QString after = libretro::withHardcoreOptions(before);
         if (after != before)
             written = QDir().mkpath(QFileInfo(options).path()) && writeFileAtomically(options, after.toUtf8(), kOwnerOnly);

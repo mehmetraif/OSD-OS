@@ -15,8 +15,10 @@
 // read for none at all: the next save would write the defaults over every
 // setting. `permissions`, when given, are set before anything is written
 // (owner-only, for a token or a key); otherwise the file keeps those of the
-// one it replaces. False, with the reason in the log, when it couldn't be
-// written: the file is then as it was.
+// one it replaces. Not while the app has the file open (a QFile it was just
+// read through): Windows renames no file over one still open. False, with
+// the reason in the log, when it couldn't be written: the file is then as it
+// was.
 inline bool writeFileAtomically(const QString &path, const QByteArray &data,
                                 QFileDevice::Permissions permissions = {}) {
     QSaveFile file(path);
