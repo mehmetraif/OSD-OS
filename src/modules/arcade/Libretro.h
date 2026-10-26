@@ -70,10 +70,24 @@ QHash<QString, QString> readDat(const QString &path, QHash<QString, double> *asp
 // one 1.6875). 0 for no size.
 double viewportAspect(double gameAspect, const QSize &screen, double screenAspect);
 
-// The device RetroArch keeps for a player (input_playerN_reserved_device):
-// "vvvv:pppp Name", the vendor and product its SDL GUID holds, as
-// RetroArch's own menu writes it; "" for a GUID without them.
-QString reservedDevice(const QString &guid, const QString &name);
+// Whether RetroArch knows a pad by its vendor and product on this system.
+// Its SDL2 joypad driver reads them out of SDL's GUID on Linux alone: on
+// Windows it takes the GUID's bus and checksum for them, elsewhere nothing,
+// so a pad kept for a player by them is never found, and RetroArch gives it
+// the first port kept for no one (a lone pad plays as player 2).
+#ifdef Q_OS_LINUX
+inline constexpr bool kPadsByVendor = true;
+#else
+inline constexpr bool kPadsByVendor = false;
+#endif
+
+// The device RetroArch keeps for a player (input_playerN_reserved_device).
+// byVendor (kPadsByVendor): "vvvv:pppp Name", the vendor and product its
+// SDL GUID holds, as RetroArch's own menu writes it, or the name alone for
+// a GUID without them. Otherwise the name RetroArch's SDL gives the pad:
+// its mapping's among those OSD/OS hands it (controllers::padMappings()),
+// whatever the GUID's checksum, else name.
+QString reservedDevice(const QString &guid, const QString &name, bool byVendor);
 
 // What a game is started with.
 struct Launch {
@@ -93,7 +107,12 @@ struct Launch {
     double  aspect = 0;
     bool    integerScale = false;
     // Each player's controller, as reservedDevice() makes it: "" for none.
+    // Kept for its player where RetroArch knows pads by vendor and product
+    // (padsByVendor, kPadsByVendor); where it knows them by name, only
+    // preferred, so that one it names otherwise plays on the port it comes
+    // on rather than being moved off it.
     QStringList pads;
+    bool padsByVendor = true;
     // Which players' controllers are arcade panels, a JAMMA board's sticks:
     // the cabinet's rows of buttons as FinalBurn Neo's 6-Button Panel has
     // them (configText()'s binds, remapText()'s device), off line only.

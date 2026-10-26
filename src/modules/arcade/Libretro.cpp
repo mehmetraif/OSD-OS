@@ -422,7 +422,17 @@ double viewportAspect(double gameAspect, const QSize &screen, double screenAspec
     return gameAspect * screen.width() / screen.height() / screenAspect;
 }
 
-QString reservedDevice(const QString &guid, const QString &name) {
+QString reservedDevice(const QString &guid, const QString &name, bool byVendor) {
+    if (!byVendor) {
+        // The mappings are kept without the GUID's checksum (mappingWithoutCrc()).
+        const QString key = controllers::mappingWithoutCrc(guid + QLatin1Char(','));
+        for (const QString &mapping : controllers::padMappings()) {
+            const QString mapped = mapping.section(QLatin1Char(','), 1, 1);
+            if (mapping.startsWith(key) && !mapped.isEmpty())
+                return mapped;
+        }
+        return name;
+    }
     // SDL's GUID of a USB or Bluetooth pad: its bus, then its vendor and its
     // product, each two bytes little-endian with two of zeros after; any
     // other kind of device has none, and is kept by its name.
@@ -542,11 +552,14 @@ QString configText(const Launch &launch) {
     set("input_menu_toggle_gamepad_combo", QStringLiteral("0"));
     set("input_exit_emulator", QStringLiteral("escape"));
     set("quit_press_twice", on(false));
+    // Each player's pad kept for them (2), or only preferred (1) where
+    // RetroArch knows pads by name.
     for (int p = 0; p < launch.pads.size(); ++p) {
         if (launch.pads.at(p).isEmpty())
             continue;
         const QByteArray player = QByteArray("input_player") + QByteArray::number(p + 1);
-        set((player + "_device_reservation_type").constData(), QStringLiteral("2"));
+        set((player + "_device_reservation_type").constData(),
+            launch.padsByVendor ? QStringLiteral("2") : QStringLiteral("1"));
         set((player + "_reserved_device").constData(), launch.pads.at(p));
     }
     set("system_directory", launch.systemDir);

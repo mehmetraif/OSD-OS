@@ -40,6 +40,127 @@
         return (Get-FileHash -LiteralPath $Path -Algorithm SHA256).Hash.ToLowerInvariant()
     }
 
+    # $Url into the file $Path, $Total bytes, with get.sh's tape counter drawn
+    # over itself in the console as it comes in,
+    #   > PLAY [####....] 048%  REMAIN 0:46  537/1137 MB
+    # in the deck's marks where the console's font has them (Windows
+    # Terminal's, or another's that names itself in TERM_PROGRAM; the old
+    # console's may not). Waited on a quarter of a second at a time, so that
+    # Ctrl+C stops it at once.
+    function Save-Download([string]$Url, [string]$Path, [long]$Total) {
+        Add-Type -AssemblyName System.Net.Http
+        $inv = [Globalization.CultureInfo]::InvariantCulture
+        $shown = $Total -gt 0 -and $Host.Name -eq 'ConsoleHost' -and -not [Console]::IsOutputRedirected
+        $marks = '>', '#', '.', '[', ']'
+        if ($env:WT_SESSION -or $env:TERM_PROGRAM) {
+            $marks = @(0x25B6, 0x25A0, 0x25A1, 0x2595, 0x258F | ForEach-Object { [string][char]$_ })
+        }
+        $cols = 80
+        try {
+            if ([Console]::WindowWidth -gt 0) {
+                $cols = [Console]::WindowWidth
+            }
+        } catch {
+            # No console to measure.
+        }
+        function Get-Megabytes([long]$Bytes) {
+            $format = '{0:0}'
+            if ($Total -lt 100MB) {
+                $format = '{0:0.0}'
+            }
+            return [string]::Format($inv, $format, $Bytes / 1MB)
+        }
+        # As get.sh lays it out: the bar 10 to 30 marks long, the same all
+        # through the download, in what the console leaves it short of its
+        # last column; on a narrow one the sizes go first, then the time left.
+        $draw = {
+            param([long]$Got)
+            if ($Got -gt $Total) {
+                $Got = $Total
+            }
+            $seconds = $clock.Elapsed.TotalSeconds
+            $left = '--:--'
+            if ($Got -gt 0 -and $seconds -ge 1) {
+                $s = [long][Math]::Floor($seconds * ($Total - $Got) / $Got + 0.5)
+                if ($s -lt 3600) {
+                    $left = [string]::Format($inv, '{0}:{1:00}', [long][Math]::Floor($s / 60), $s % 60)
+                } elseif ($s -lt 360000) {
+                    $left = [string]::Format($inv, '{0}:{1:00}:{2:00}', [long][Math]::Floor($s / 3600),
+                                             [long][Math]::Floor($s / 60) % 60, $s % 60)
+                }
+            }
+            $left = "  REMAIN $left"
+            $sizes = "  $(Get-Megabytes $Got)/$(Get-Megabytes $Total) MB"
+            $room = $cols - 18
+            $widest = "  $(Get-Megabytes $Total)/$(Get-Megabytes $Total) MB".Length
+            if ($room - 17 - $widest -ge 10) {
+                $cells = $room - 17 - $widest
+            } elseif ($room - 17 -ge 10) {
+                $cells = $room - 17
+                $sizes = ''
+            } else {
+                $cells = $room
+                $left = ''
+                $sizes = ''
+            }
+            $cells = [Math]::Max(10, [Math]::Min(30, $cells))
+            $filled = [int][Math]::Floor($Got * $cells / $Total)
+            $bar = $marks[1] * $filled + $marks[2] * ($cells - $filled)
+            $percent = [string]::Format($inv, '{0:000}', [long][Math]::Floor($Got * 100 / $Total))
+            $Host.UI.Write("`r$($marks[0]) PLAY $($marks[3])$bar$($marks[4]) $percent%$left$sizes   ")
+        }
+
+        $client = New-Object Net.Http.HttpClient
+        $client.Timeout = [Threading.Timeout]::InfiniteTimeSpan
+        [void]$client.DefaultRequestHeaders.UserAgent.TryParseAdd('osdos-get.ps1')
+        $stop = New-Object Threading.CancellationTokenSource
+        $response = $null
+        $file = $null
+        $copy = $null
+        $drawn = $false
+        try {
+            $asked = $client.GetAsync($Url, [Net.Http.HttpCompletionOption]::ResponseHeadersRead, $stop.Token)
+            while (-not $asked.Wait(250)) {
+            }
+            $response = $asked.Result
+            [void]$response.EnsureSuccessStatusCode()
+            $from = $response.Content.ReadAsStreamAsync().Result
+            $file = [IO.File]::Create($Path)
+            $clock = [Diagnostics.Stopwatch]::StartNew()
+            $copy = $from.CopyToAsync($file, 81920, $stop.Token)
+            while (-not $copy.Wait(250)) {
+                if ($shown) {
+                    & $draw $file.Position
+                    $drawn = $true
+                }
+            }
+            if ($shown) {
+                & $draw $Total
+                $drawn = $true
+            }
+        } finally {
+            # Stopped, if it isn't done: Ctrl+C, or an error.
+            $stop.Cancel()
+            if ($response) {
+                $response.Dispose()
+            }
+            if ($copy) {
+                try {
+                    [void]$copy.Wait(5000)
+                } catch {
+                    # It ended as it was stopped.
+                }
+            }
+            if ($file) {
+                $file.Dispose()
+            }
+            $client.Dispose()
+            if ($drawn) {
+                $Host.UI.WriteLine()
+            }
+        }
+    }
+
     try {
         switch ($What) {
             'app' { $suffix = '-windows-x64.zip'; $kind = 'app for Windows' }
@@ -96,9 +217,14 @@
             $part = "$file.part"
             try {
                 try {
-                    Invoke-WebRequest -UseBasicParsing -Uri $asset.browser_download_url -OutFile $part
+                    Save-Download $asset.browser_download_url $part $asset.size
                 } catch {
-                    throw "the download of $name didn't finish. ($($_.Exception.Message))"
+                    # What went wrong, from under .NET's wrappers.
+                    $why = $_.Exception
+                    while ($why.InnerException) {
+                        $why = $why.InnerException
+                    }
+                    throw "the download of $name didn't finish. ($($why.Message))"
                 }
                 if ($hex) {
                     if ((Get-Sha256 $part) -ne $hex) {
