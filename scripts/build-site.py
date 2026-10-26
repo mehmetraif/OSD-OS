@@ -4,7 +4,8 @@ the landing page at its root (site/index.html, with the theme recordings,
 the photo and the logo from docs/images, the Arcade screen from
 docs/screenshots and the stills from site/assets, and themes.json, the themes
 with their colours and pictures; its download buttons lead to the latest
-release's files, given GitHub's record of the release), and OSD/OS Setup,
+release's files, given GitHub's record of the release), the terminal
+downloads beside it (site/get.sh and site/get.ps1), and OSD/OS Setup,
 the settings page, under setup/ (site/setup/): its own files, the app's font
 and logo, the display presets, what its live preview draws with (the app's
 own shaders, shaders/, and the skins' pictures), and schema.json, the
@@ -485,6 +486,10 @@ def main():
     landing = link_downloads((SITE / "index.html").read_text(encoding="utf-8"), release)
     (out / "index.html").write_text(landing, encoding="utf-8")
     shutil.copy2(SITE / "style.css", out / "style.css")
+    # The terminal downloads the landing page gives, served from the root:
+    # curl -fsSL https://osdos.tv/get.sh | sh, irm https://osdos.tv/get.ps1 | iex.
+    for name in ("get.sh", "get.ps1"):
+        shutil.copy2(SITE / name, out / name)
     (out / "js").mkdir()
     shutil.copy2(SITE / "js/home.js", out / "js")
     copy_fonts(out)

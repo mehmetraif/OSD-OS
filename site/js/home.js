@@ -1,8 +1,8 @@
 // OSD/OS's landing page: the theme previews (a still in the HTML, the
 // recording swapped in once it is loaded, unless the visitor asked for less
-// motion), and the hardware tabs. The themes come from themes.json, which
-// scripts/build-site.py writes from the app's own themes: each with its
-// name, its two colours and its pictures.
+// motion), the hardware tabs, and their terminal commands' Copy buttons. The
+// themes come from themes.json, which scripts/build-site.py writes from the
+// app's own themes: each with its name, its two colours and its pictures.
 
 function pixelIcon(name) {
     const ns = "http://www.w3.org/2000/svg";
@@ -166,3 +166,30 @@ tabs.forEach((tab, i) => {
         tabs[n].focus();
     });
 });
+
+// --- The terminal commands: each word kept whole, so that a command goes on
+// to a second line only between its words. Copy puts one on the clipboard
+// or, where the browser won't let the page, selects it to be copied by hand.
+for (const code of document.querySelectorAll(".command code")) {
+    code.replaceChildren(...code.textContent.split(" ").flatMap((word, i) => {
+        const whole = document.createElement("span");
+        whole.textContent = word;
+        return i ? [" ", whole] : [whole];
+    }));
+}
+for (const button of document.querySelectorAll(".command .copy")) {
+    const command = button.parentElement.querySelector("code");
+    let timer;
+    button.hidden = false;
+    button.addEventListener("click", async () => {
+        try {
+            await navigator.clipboard.writeText(command.textContent);
+            button.textContent = "Copied";
+        } catch {
+            getSelection().selectAllChildren(command);
+            button.textContent = "Selected";
+        }
+        clearTimeout(timer);
+        timer = setTimeout(() => { button.textContent = "Copy"; }, 2000);
+    });
+}

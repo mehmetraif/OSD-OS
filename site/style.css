@@ -492,7 +492,7 @@ h3 { font-size: 23px; line-height: 1.2; text-transform: uppercase; }
 .hardware-tabs button[aria-selected="true"] { background: var(--ink); color: var(--bg); }
 .hardware-panel {
     display: grid;
-    grid-template-columns: 1fr 1fr;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
     gap: 60px;
     padding: 34px;
     background: var(--bg);
@@ -556,6 +556,51 @@ dd { margin: 0; font-size: 16px; line-height: 1.5; }
 }
 .download-meta { display: block; margin-top: 3px; font-size: 12px; line-height: 1.4; overflow-wrap: anywhere; }
 .panel-links { display: flex; flex-wrap: wrap; gap: 14px 26px; }
+/* The same files from a terminal (site/get.sh, site/get.ps1): each command
+   in a box of its own, under the system it is for and a button that copies
+   it, which the page's script shows. A command longer than its line goes on
+   to the next between its words, which the script keeps whole: a break at a
+   hyphen would read as two commands. */
+.terminal { margin-bottom: 26px; }
+.hardware-panel .terminal-label { max-width: none; margin: 0 0 10px; font-family: var(--deck); font-size: 12px; color: var(--ink); }
+.hardware-panel .terminal-note { max-width: none; margin: 10px 0 0; font-size: 13px; line-height: 1.5; text-wrap: pretty; }
+.command {
+    display: flex;
+    flex-wrap: wrap;
+    background: var(--shadow-deep);
+    border: 1px solid var(--line);
+}
+.command + .command { margin-top: 8px; }
+.command-on {
+    flex: 1;
+    padding: 6px 12px;
+    font-family: var(--deck);
+    font-size: 12px;
+    text-transform: uppercase;
+    color: #c2cbff;
+}
+.command code {
+    order: 1;
+    flex-basis: 100%;
+    min-width: 0;
+    padding: 10px 12px;
+    border-top: 1px solid var(--line);
+    font-family: ui-monospace, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
+    font-size: 13px;
+    line-height: 1.4;
+    overflow-wrap: anywhere;
+}
+.command code span { white-space: nowrap; }
+.command .copy {
+    padding: 0 12px;
+    background: none;
+    border: 0;
+    border-left: 1px solid var(--line);
+    font-family: var(--deck);
+    font-size: 12px;
+    text-transform: uppercase;
+}
+.command .copy:hover { background: var(--ink); color: var(--bg); }
 
 /* The three steps. */
 .setup-section {
@@ -735,7 +780,8 @@ dd { margin: 0; font-size: 16px; line-height: 1.5; }
     .section-intro { display: block; margin-bottom: 28px; }
     .section-intro > p { margin-top: 20px; max-width: 440px; }
     h2 { font-size: 30px; line-height: 1.2; }
-    .experience-grid, .experience-grid.flip, .theme-workbench, .hardware-panel, .faq-section { grid-template-columns: 1fr; }
+    .experience-grid, .experience-grid.flip, .theme-workbench, .faq-section { grid-template-columns: 1fr; }
+    .hardware-panel { grid-template-columns: minmax(0, 1fr); }
     .flip .screen-demo { order: 0; }
     .download { padding: 11px 13px; gap: 12px; }
     .experience-grid { gap: 30px; }
