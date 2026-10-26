@@ -182,7 +182,7 @@ The run gives the `pi` user the repository secret `OS_FIRST_USER_PASS` as its pa
 
 The app in these images is built as `dev`, which turns its self-update off. That way a branch image can't swap itself for a release that doesn't have its changes.
 
-**With a release:** pushing a version tag (see [BUILDING.md](../BUILDING.md#github-actions)) builds the image from that release's own tarball and attaches it to the release as `OSD-OS-<tag>-raspberry-pi.img.xz`. The release is published only once the regression tests have passed on the tagged commit. Its app is the release's, and updates itself from later releases.
+**With a release:** a version tag, pushed or made by publishing a release on GitHub's Releases page (see [BUILDING.md](../BUILDING.md#github-actions)), builds the image from that release's own tarball and attaches it to the release as `OSD-OS-<tag>-raspberry-pi.img.xz`, the last of its files, as it is built last. The release is published only once the regression tests have passed on the tagged commit and every file is attached; one published on the Releases page is a draft again until then. Its app is the release's, and updates itself from later releases.
 
 **Locally:** with Docker on an arm64 Linux host (an x86 host works too, through QEMU emulation, but takes hours), run:
 

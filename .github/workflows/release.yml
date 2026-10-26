@@ -13,6 +13,43 @@ permissions:
 jobs:
 
   # ──────────────────────────────────────────────────────────────────────────────
+  # A release published on GitHub's Releases page, held as a draft
+  # ──────────────────────────────────────────────────────────────────────────────
+  # A release is made by pushing its tag, or on GitHub's Releases page, where
+  # Publish release makes the tag, which starts this workflow, and makes the
+  # release public, and the latest, at once: with none of its files for the
+  # twenty minutes the builds take, and the OSD/OS image, built last and the
+  # largest, attached last. Meanwhile a Pi's updater (UpdateManager) reads it as
+  # a release with no package for it. Such a release goes back to a draft as
+  # the workflow starts, and the release job publishes it once every file is
+  # attached, as it does a pushed tag's.
+  hold-release:
+    name: Release held as a draft
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      # Never holds the release back: the release job publishes it all the same.
+      - name: A published release back to a draft
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          # GitHub finds a release by its tag only once it is published: a
+          # draft, or no release at all, is Not Found.
+          if gh api "repos/${GH_REPO}/releases/tags/${TAG}" --silent 2> "$RUNNER_TEMP/release-by-tag"; then
+            gh release edit "$TAG" --draft=true
+            echo "The release for $TAG was public without its files: a draft until the release job publishes it with them."
+          elif grep -q 'HTTP 404' "$RUNNER_TEMP/release-by-tag"; then
+            echo "No release published for $TAG: the release job makes it, a draft until its files are attached."
+          else
+            cat "$RUNNER_TEMP/release-by-tag" >&2
+            exit 1
+          fi
+
+  # ──────────────────────────────────────────────────────────────────────────────
   # macOS arm64 (Apple Silicon)
   # ──────────────────────────────────────────────────────────────────────────────
   build-macos-arm64:
@@ -484,8 +521,8 @@ jobs:
   # ──────────────────────────────────────────────────────────────────────────────
   release:
     name: Publish Release
-    needs: [build-macos-arm64, build-linux-arm64, build-linux-x86_64, build-windows-x64, build-freebsd-amd64,
-            build-openbsd-amd64, build-os-image, regression-tests]
+    needs: [hold-release, build-macos-arm64, build-linux-arm64, build-linux-x86_64, build-windows-x64,
+            build-freebsd-amd64, build-openbsd-amd64, build-os-image, regression-tests]
     # Named, as the builds' runners are: ubuntu-latest moves to a newer
     # Ubuntu under the jobs.
     runs-on: ubuntu-24.04
@@ -570,7 +607,9 @@ jobs:
       # Made as a draft, with every file, and only then published: a release
       # is the latest the moment it is public, and the app's updater reads
       # it then (UpdateManager), so a package still uploading, or one that
-      # failed to, must not leave it saying the release has no package.
+      # failed to, must not leave it saying the release has no package. A
+      # release published on the Releases page is a draft again by now
+      # (hold-release), and the action keeps a release's draft state.
       - name: Publish
         uses: softprops/action-gh-release@v3
         with:
