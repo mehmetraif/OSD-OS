@@ -72,6 +72,8 @@ h1, h2, h3 { font-family: var(--deck); font-weight: 400; letter-spacing: 0; marg
     fill: currentColor;
     shape-rendering: crispEdges;
 }
+/* The notice under a scene that draws someone else's mascot. */
+.hardware-panel .art-credit { max-width: 380px; margin: 10px 0 0; font-size: 12px; line-height: 1.5; color: var(--muted); }
 
 .skip {
     position: absolute;
