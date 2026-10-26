@@ -26,6 +26,14 @@
       "description": "The sets that are a bootleg or a hack of a game rather than its maker's own release, as MAME names them: bootleg or hack in the parentheses of the name, or as the maker\n[ON] Left off every list and filter, Favorites and Recently Played too, until it is off again"
     },
     {
+      "key": "regions",
+      "label": "Regions",
+      "type": "multiselect_submenu",
+      "options_source": "dynamic",
+      "options_slot": "regionOptions",
+      "description": "The region in the parentheses of a set's name, as MAME writes it: (World), (USA), (Japan), (Euro), (Asia)…; Germany, Italy or UK counts as Europe, Canada as USA, and a region the list doesn't name (Hong Kong, Hispanic, Oceania…) as Other\n[OFF] The region's sets left off every list and filter, Favorites and Recently Played too; a set of several regions once they all are off"
+    },
+    {
       "key": "screen",
       "label": "Screen",
       "type": "list_single",
