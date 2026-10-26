@@ -1244,10 +1244,55 @@ private slots:
         const QString allowedOptions = QStringLiteral("fbneo-allow-patched-romsets-x = \"enabled\"\n"
                                                       "fbneo-allow-patched-romsets = \"disabled\"\n");
         QCOMPARE(libretro::withHardcoreOptions(allowedOptions), allowedOptions);
+        // Over the network, the options both machines play with alike, in a
+        // file of OSD/OS's own: every option that changes how a game runs at
+        // FinalBurn Neo's default, high scores and patched sets off, whatever
+        // the user's own say; the game's DIP switches, cheats, IPS patches
+        // and ROM data left out, so at their defaults; of the user's, the
+        // picture's alone.
+        QCOMPARE(libretro::netplayOptionsPath(QStringLiteral("/ra/config")), QStringLiteral("/ra/config/netplay-options.cfg"));
+        const QString alike = libretro::netplayOptionsText(QString());
+        QVERIFY(alike.startsWith(QStringLiteral("# Written by OSD/OS")));
+        QVERIFY(alike.endsWith(QLatin1Char('\n')));
+        for (const char *line : { "fbneo-cpu-speed-adjust = \"100%\"", "fbneo-force-60hz = \"disabled\"",
+                                  "fbneo-frameskip-type = \"disabled\"", "fbneo-fixed-frameskip = \"0\"",
+                                  "fbneo-samplerate = \"48000\"", "fbneo-socd = \"3\"",
+                                  "fbneo-diagnostic-input = \"Hold Start\"", "fbneo-hiscores = \"disabled\"",
+                                  "fbneo-allow-patched-romsets = \"disabled\"", "fbneo-neogeo-mode = \"DIPSWITCH\"",
+                                  "fbneo-memcard-mode = \"disabled\"", "fbneo-cyclone = \"disabled\"",
+                                  "fbneo-analog-speed = \"100%\"" })
+            QVERIFY2(alike.split(QLatin1Char('\n')).contains(QLatin1String(line)), line);
+        const QString own = QStringLiteral("fbneo-cpu-speed-adjust = \"150%\"\n"
+                                           "fbneo-vertical-mode = \"enabled\"\n"
+                                           "  fbneo-vertical-mode = \"TATE\"\n"
+                                           "fbneo-neogeo-mode = \"UNIBIOS\"\n"
+                                           "fbneo-hiscores = \"enabled\"\n"
+                                           "fbneo-allow-depth-32 = \"disabled\"\n"
+                                           "fbneo-dipswitch-sf2-Difficulty = \"8 (Hardest)\"\n"
+                                           "fbneo-cheat-3-sf2-Infinite_Energy = \"1 - Enabled\"\n"
+                                           "fbneo-ips-sf2-0 = \"enabled\"\n"
+                                           "fbneo-romdata-sf2-0 = \"enabled\"\n"
+                                           "fbneo-debug-dip-1-1 = \"enabled\"\n"
+                                           "fbneo-option-of-a-later-core = \"on\"");
+        const QString theirs = libretro::netplayOptionsText(own);
+        const QStringList theirLines = theirs.split(QLatin1Char('\n'));
+        QVERIFY2(theirLines.contains(QStringLiteral("fbneo-vertical-mode = \"TATE\"")), qPrintable(theirs));
+        QVERIFY(theirLines.contains(QStringLiteral("fbneo-allow-depth-32 = \"disabled\"")));
+        QCOMPARE(theirs.count(QStringLiteral("fbneo-vertical-mode")), 1);
+        for (const char *word : { "150%", "UNIBIOS", "dipswitch", "cheat", "ips-", "romdata", "debug", "later-core" })
+            QVERIFY2(!theirs.contains(QLatin1String(word)), word);
+        // The same lines for how the game runs, whatever this machine's.
+        QStringList running = theirLines;
+        running.removeAll(QStringLiteral("fbneo-vertical-mode = \"TATE\""));
+        running.removeAll(QStringLiteral("fbneo-allow-depth-32 = \"disabled\""));
+        QCOMPARE(running, alike.split(QLatin1Char('\n')));
         QVERIFY(!config.contains(QStringLiteral("input_player2_reserved_device")));
         QVERIFY(!config.contains(QStringLiteral("input_player5_select = ")));
         QVERIFY(!config.contains(QStringLiteral("input_player7_")));
         QVERIFY(!config.contains(QStringLiteral("netplay_")));
+        // Off line, the user's own core options, as RetroArch keeps them.
+        for (const char *key : { "global_core_options", "core_options_path", "game_specific_options" })
+            QVERIFY2(!config.contains(QLatin1String(key)), key);
         // A player on an arcade panel, a JAMMA board's stick: the cabinet's
         // two rows as FinalBurn Neo's 6-Button Panel has them (Y X L above,
         // B A R below), its 7 and 8 (the pad's triggers) where the panel
@@ -1429,6 +1474,11 @@ private slots:
         for (const char *line : { "netplay_nickname = \"Mehmet\"", "netplay_public_announce = \"true\"",
                                   "netplay_use_mitm_server = \"true\"", "netplay_mitm_server = \"madrid\"",
                                   "libretro_directory = \"/cores\"", "libretro_info_path = \"/ra/info\"" })
+            QVERIFY2(has(QLatin1String(line)), line);
+        // The core's options from OSD/OS's file for the network alone, no
+        // game's own over them.
+        for (const char *line : { "global_core_options = \"true\"", "core_options_path = \"/ra/config/netplay-options.cfg\"",
+                                  "game_specific_options = \"false\"" })
             QVERIFY2(has(QLatin1String(line)), line);
 
         QCOMPARE(libretro::arguments(launch),
@@ -4880,13 +4930,33 @@ private slots:
                 return QVariantList{ -1, QStringLiteral("no end"), QString() };
             return finished.first();
         };
+        // The user's own core options: a faster CPU and a harder game here,
+        // a picture turned for a cabinet's screen on its side.
+        const QString home = data.path() + QStringLiteral("/arcade/retroarch");
+        const QString ownOptions = home + QStringLiteral("/config/FinalBurn Neo/FinalBurn Neo.opt");
+        const QByteArray own("fbneo-cpu-speed-adjust = \"150%\"\n"
+                             "fbneo-vertical-mode = \"TATE\"\n"
+                             "fbneo-dipswitch-sf2-Difficulty = \"8 (Hardest)\"\n");
+        writeFile(ownOptions, own);
         QFile::remove(m_log);
         QCOMPARE(ended([&arcade] { return arcade.joinRoom(11); }).value(1).toString(), QStringLiteral("ok"));
-        const QString home = data.path() + QStringLiteral("/arcade/retroarch");
         QCOMPARE(logLines(QStringLiteral("retroarch ")).value(0),
                  QStringLiteral("retroarch -L %1 --config %2/retroarch.cfg --verbose --log-file=%2/last.log "
                                 "--connect 203.0.113.5|55435 %3/sf2.zip").arg(libretro::downloadedCore(data.path()), home, games));
         QString config = QString::fromUtf8(contents(configCopy));
+        // Joined with the options every machine plays with alike, from
+        // OSD/OS's own file: the CPU at its speed, the game's DIP switches at
+        // their defaults, the picture as this machine has it; the user's
+        // own file as it was.
+        const QString netplayOptions = home + QStringLiteral("/config/netplay-options.cfg");
+        QVERIFY2(config.contains(QStringLiteral("core_options_path = \"%1\"").arg(netplayOptions)), qPrintable(config));
+        QVERIFY(config.contains(QStringLiteral("global_core_options = \"true\"")));
+        const QString alike = QString::fromUtf8(contents(netplayOptions));
+        QCOMPARE(alike, libretro::netplayOptionsText(QString::fromUtf8(own)));
+        QVERIFY(alike.contains(QStringLiteral("fbneo-cpu-speed-adjust = \"100%\"")));
+        QVERIFY(alike.contains(QStringLiteral("fbneo-vertical-mode = \"TATE\"")));
+        QVERIFY(!alike.contains(QStringLiteral("dipswitch")));
+        QCOMPARE(contents(ownOptions), own);
         QVERIFY2(config.contains(QStringLiteral("netplay_nickname = \"OSD-OS\"")), qPrintable(config));
         QVERIFY(config.contains(QStringLiteral("netplay_start_as_spectator = \"false\"")));
         QVERIFY(!config.contains(QStringLiteral("netplay_public_announce")));

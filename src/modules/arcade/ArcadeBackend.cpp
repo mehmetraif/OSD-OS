@@ -3380,13 +3380,25 @@ bool ArcadeBackend::playFbneo(const QString &name, libretro::Launch::Netplay net
     // joins a game.
     written = written && QDir().mkpath(launch.infoDir)
               && writeFileAnew(libretro::coreInfoPath(launch.infoDir), libretro::coreInfoText().toUtf8(), kOwnerOnly);
-    // RetroAchievements' hardcore mode, the one whose scores the leaderboards
-    // take, runs only while no core option it disallows is set, and FinalBurn
-    // Neo's default allows patched sets, over which RetroArch would pause it
-    // ("Setting not allowed: fbneo-allow-patched-romsets=enabled"). The
-    // core's options are given the value hardcore wants, the rest kept, and
-    // written only when that changes them.
-    if (written && !launch.achievementsUser.isEmpty()) {
+    // Over the network, the core's options both machines play with alike, in
+    // OSD/OS's own file, which RetroArch reads in place of the user's
+    // (libretro::netplayOptionsText()): of theirs, only the picture's, and
+    // their file left as it is.
+    if (written && netplay != Netplay::None) {
+        QFile file(libretro::coreOptionsPath(launch.configDir));
+        const QString userOptions = file.open(QIODevice::ReadOnly) ? QString::fromUtf8(file.readAll()) : QString();
+        file.close();
+        written = QDir().mkpath(launch.configDir)
+                  && writeFileAnew(libretro::netplayOptionsPath(launch.configDir),
+                                   libretro::netplayOptionsText(userOptions).toUtf8(), kOwnerOnly);
+    } else if (written && !launch.achievementsUser.isEmpty()) {
+        // RetroAchievements' hardcore mode, the one whose scores the
+        // leaderboards take, runs only while no core option it disallows is
+        // set, and FinalBurn Neo's default allows patched sets, over which
+        // RetroArch would pause it ("Setting not allowed:
+        // fbneo-allow-patched-romsets=enabled"). The core's options are given
+        // the value hardcore wants, the rest kept, and written only when that
+        // changes them. (Over the network the options it reads have it.)
         const QString options = libretro::coreOptionsPath(launch.configDir);
         QFile file(options);
         const QString before = file.open(QIODevice::ReadOnly) ? QString::fromUtf8(file.readAll()) : QString();

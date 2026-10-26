@@ -6,6 +6,7 @@
 #include <QDir>
 #include <QFile>
 #include <QFileInfo>
+#include <QHash>
 #include <QHostAddress>
 #include <QJsonArray>
 #include <QJsonDocument>
@@ -578,6 +579,12 @@ QString configText(const Launch &launch) {
     }
 
     if (launch.netplay != Launch::Netplay::None) {
+        // The core's options both machines play with alike, from OSD/OS's
+        // own file alone (netplayOptionsText()): not this machine's, nor a
+        // game's or a folder's own over them.
+        set("global_core_options", on(true));
+        set("core_options_path", netplayOptionsPath(launch.configDir));
+        set("game_specific_options", on(false));
         set("netplay_nickname", launch.nickname);
         set("netplay_start_as_spectator", on(false));
         // The game's ports this machine's players take, asked for by number
@@ -675,6 +682,59 @@ QString withHardcoreOptions(const QString &text) {
             lines.insert(lines.size() - 1, line);
     }
     return lines.join(QLatin1Char('\n'));
+}
+
+QString netplayOptionsPath(const QString &configDir) {
+    return configDir + QStringLiteral("/netplay-options.cfg");
+}
+
+QString netplayOptionsText(const QString &userOptions) {
+    // FinalBurn Neo's defaults (its libretro retro_common.cpp) for each of
+    // its options that changes how a game runs, high scores and patched sets
+    // aside. A plain RetroArch's host plays with these unless its user
+    // changed them; FinalBurn Neo turns its high scores off over the network
+    // anyway.
+    static const struct { const char *key; const char *value; } alike[] = {
+        { "fbneo-force-60hz", "disabled" },
+        { "fbneo-resolution", "640x480" },
+        { "fbneo-fixed-frameskip", "0" },
+        { "fbneo-frameskip-type", "disabled" },
+        { "fbneo-frameskip-manual-threshold", "33" },
+        { "fbneo-cpu-speed-adjust", "100%" },
+        { "fbneo-diagnostic-input", "Hold Start" },
+        { "fbneo-hiscores", "disabled" },
+        { "fbneo-allow-patched-romsets", "disabled" },
+        { "fbneo-samplerate", "48000" },
+        { "fbneo-sample-interpolation", "4-point 3rd order" },
+        { "fbneo-fm-interpolation", "4-point 3rd order" },
+        { "fbneo-lowpass-filter", "disabled" },
+        { "fbneo-analog-speed", "100%" },
+        { "fbneo-socd", "3" },
+        { "fbneo-cyclone", "disabled" },
+        { "fbneo-neogeo-mode", "DIPSWITCH" },
+        { "fbneo-memcard-mode", "disabled" },
+    };
+    static const char *const picture[] = {
+        "fbneo-allow-depth-32",
+        "fbneo-vertical-mode",
+        "fbneo-lightgun-crosshair-emulation",
+    };
+    static const QRegularExpression option(QStringLiteral("^\\s*([^\\s=]+)\\s*=\\s*\"([^\"]*)\""));
+    QHash<QString, QString> user;
+    for (const QString &line : userOptions.split(QLatin1Char('\n'))) {
+        const QRegularExpressionMatch match = option.match(line);
+        if (match.hasMatch())
+            user.insert(match.captured(1), match.captured(2));
+    }
+    QStringList lines{ QStringLiteral("# Written by OSD/OS for each game played over the network: what is changed here is lost at the next.") };
+    for (const char *key : picture) {
+        const auto value = user.constFind(QLatin1String(key));
+        if (value != user.cend())
+            lines << configLine(key, *value);
+    }
+    for (const auto &[key, value] : alike)
+        lines << configLine(key, QLatin1String(value));
+    return lines.join(QLatin1Char('\n')) + QLatin1Char('\n');
 }
 
 QString coreInfoPath(const QString &infoDir) {

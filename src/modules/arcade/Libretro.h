@@ -195,6 +195,21 @@ bool ownsRemap(const QString &path);
 // nothing is to change.
 QString coreOptionsPath(const QString &configDir);
 QString withHardcoreOptions(const QString &text);
+// Over the network, the core's options both machines play with alike, in a
+// file of OSD/OS's own in configDir that RetroArch reads in place of the
+// user's (configText(): global_core_options on, core_options_path,
+// game_specific_options off), written anew before each such game: every
+// option that changes how a game runs at FinalBurn Neo's own default, as a
+// plain RetroArch has them (the CPUs' speed, the frame rate, frame skip, the
+// sound's rate and filters, SOCD, the Neo Geo's mode and memory card, the
+// diagnostic input), but high scores and patched sets off, whose files no
+// two machines share; the game's DIP switches, cheats, IPS patches and ROM
+// data not written, so at their defaults. Of the user's own options
+// (userOptions, the text of their file, coreOptionsPath()), only those that
+// change nothing but this machine's picture: vertical mode, 32-bit colour and
+// the light gun's crosshair.
+QString netplayOptionsPath(const QString &configDir);
+QString netplayOptionsText(const QString &userOptions);
 // FinalBurn Neo's info file, which RetroArch looks for in infoDir by the
 // core's name (fbneo_libretro.info), and the text OSD/OS writes in it before
 // each game: what libretro's own information on the core says that RetroArch
