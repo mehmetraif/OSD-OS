@@ -22,14 +22,14 @@ All the files are on the [latest release](https://github.com/mehmetraif/OSD-OS/r
 
 | File | What it is |
 |---|---|
-| `OSD-OS-<version>-raspberry-pi.img.xz` | The OSD/OS image, to flash to an SD card |
+| `install.sh` | The installer for Raspberry Pi OS |
+| `OSD-OS-linux-x86_64.AppImage` | The app for SteamOS and other x86_64 Linux. No version in its name: it updates itself in place |
 | `OSD-OS-<version>-linux-arm64.tar.gz` | The app for Raspberry Pi OS, as `install.sh` installs it |
 | `OSD-OS-<version>-macOS-arm64.dmg` | The app for Apple Silicon Macs |
-| `OSD-OS-linux-x86_64.AppImage` | The app for SteamOS and other x86_64 Linux. No version in its name: it updates itself in place |
+| `OSD-OS-<version>-raspberry-pi.img.xz` | The OSD/OS image, to flash to an SD card |
 | `OSD-OS-<version>-windows-x64.zip` | The app for Windows 11 on x64: one folder, `osdos`, unzipped anywhere |
-| `install.sh` | The installer for Raspberry Pi OS |
 
-On the release page, each file's line under Assets names the system it is for and what it is, and shows its SHA-256 digest. To check a download, run this in the folder you downloaded it to (`shasum -a 256` in place of `sha256sum` on a Mac) and compare what it prints with the digest shown:
+The release page lists them under Assets by their file names, in this order, the order of the Downloads table in the release's notes, each with its SHA-256 digest. To check a download, run this in the folder you downloaded it to (`shasum -a 256` in place of `sha256sum` on a Mac) and compare what it prints with the digest shown:
 
 ```sh
 sha256sum OSD-OS-<version>-raspberry-pi.img.xz
