@@ -4,7 +4,7 @@
 
 # OSD/OS
 
-**Smart TV for CRT.** OSD/OS makes a TV, preferably a CRT, a smart TV with the look of a VCR. Flash it to an SD card, plug the Raspberry Pi into the TV, and it starts straight into OSD/OS: nothing to log in to, no desktop. Every screen is drawn like a VCR's on-screen display, in two colors and large type, and works with the arrows, select and back on a remote, a keyboard or a gamepad.
+**Smart TV for CRT.** OSD/OS makes a TV, preferably a CRT, a smart TV with the look of a VCR. Flash it to an SD card, plug the Raspberry Pi into the TV, and it starts straight into OSD/OS: nothing to log in to, no desktop. Every screen is drawn like a VCR's on-screen display, in two colors and large type, and works with the arrows, select and back on a remote, a keyboard or a gamepad. Without a Pi, it runs as an app on a Mac, a Windows or Linux PC, FreeBSD or OpenBSD.
 
 **Made for CRTs, arcade cabinets too.** OSD/OS is developed for tubes first: composite, SCART RGB or HDMI from Settings, and menus, films and games kept in their shapes on a CRT's non-square pixels. With Crown Arcade's Raspberry Pi to JAMMA board it runs an arcade cabinet's own monitor, in each mode one may take from 15 kHz to 31 kHz, and the cabinet's sticks and buttons drive it. Its arcade keeps each game's high scores and goes online too: achievements and leaderboards on RetroAchievements, and netplay, playing others over the internet through RetroArch's lobby, or on the same network, straight from one machine to the other.
 
