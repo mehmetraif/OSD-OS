@@ -161,10 +161,12 @@ struct Launch {
 constexpr bool hosts(Launch::Netplay netplay) {
     return netplay == Launch::Netplay::Host || netplay == Launch::Netplay::LanHost;
 }
-// The layout a host plays its online games with: Panel where one of its
-// players is on an arcade panel (panels) or has Arcade Buttons (arcade), else
-// Classic.
-Launch::Layout hostLayout(const QList<bool> &panels, const QList<QStringList> &arcade);
+// The layout a host plays an online game with: Panel where one of its
+// players is on an arcade panel (panels) or has Arcade Buttons (arcade),
+// unless the game plays five or six players at once (players; 0 where not
+// known), where one machine may bring more than the Panel layout's ports
+// (kPanelPorts): Classic then, as without a panel.
+Launch::Layout hostLayout(const QList<bool> &panels, const QList<QStringList> &arcade, int players);
 // The retroarch.cfg for a game: everything RetroArch would otherwise take
 // from a desktop's defaults, for a console with the menus' controllers.
 QString configText(const Launch &launch);
@@ -334,6 +336,21 @@ constexpr quint16 kLanClaimPort = 55436;
 // The ports a game is played on at most: FinalBurn Neo's six-player games,
 // as many as the players the menus have controllers for.
 constexpr int kMostPorts = 6;
+// The ports one machine's players take at most on the Panel layout.
+// RetroArch 1.20 sends a machine's input for a frame in one packet of 16
+// words, 4 of them its header, and a 6-Button Panel's port takes 3 (its
+// buttons and two sticks, an analog device's), a Classic port 1: a fourth
+// panel port's input is left out, the packet comes short, and the host
+// drops the machine ("NETPLAY_CMD_INPUT received an unexpected payload
+// size"), after which each plays on alone, deaf to the other. A game of at
+// most four players never needs more of one machine (hostPorts() leaves the
+// others one port at least); one of five or six is played on Classic
+// (hostLayout()).
+constexpr int kPanelPorts = 3;
+// The ports one machine's players take at most on a layout.
+constexpr int mostPortsOn(Launch::Layout layout) {
+    return layout == Launch::Layout::Panel ? kPanelPorts : kMostPorts;
+}
 // How many ports a machine's players take: up to the last player with a
 // controller (the players' GUIDs, controllers::playerGuids()), one at least.
 int localPorts(const QStringList &guids);
@@ -356,18 +373,20 @@ bool isClaimRelease(const QByteArray &packet);
 std::optional<Launch::Layout> readClaimLayout(const QByteArray &packet);
 
 // A host's count of the ports taken: its own, 1 to own, and each joiner's
-// by its address, within the game's ports (most). A joiner is given the
-// first run of free ports that takes all its players, else the first free
-// port and what follows it; one asking again is given its ports anew, and
-// one leaving gives them up.
+// by its address, within the game's ports (most), each joiner's players no
+// more than each (mostPortsOn() the layout). A joiner is given the first run
+// of free ports that takes all its players, else the first free port and
+// what follows it; one asking again is given its ports anew, and one leaving
+// gives them up.
 class PortClaims {
 public:
-    void reset(int own, int most = kMostPorts);
+    void reset(int own, int most = kMostPorts, int each = kMostPorts);
     // The joiner's ports, none ({ 0, 0 }) when none is left (or no player).
     PortRange claim(const QString &address, int players);
     void release(const QString &address);
     int own() const { return m_own; }
     int most() const { return m_most; }
+    int each() const { return m_each; }
 
 private:
     struct Claim {
@@ -378,6 +397,7 @@ private:
     bool taken(int port) const;
     int m_own = 0;
     int m_most = kMostPorts;
+    int m_each = kMostPorts;
     QList<Claim> m_claims;
 };
 

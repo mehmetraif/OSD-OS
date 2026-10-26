@@ -3164,15 +3164,19 @@ bool ArcadeBackend::fbneoHas(const QString &set) const {
     return m_fbneoGames.contains(set) && m_sets.contains(set) && !m_folders.contains(set) && !m_misnamed.contains(set);
 }
 
-int ArcadeBackend::hostPorts(const QString &set, int *most) const {
+int ArcadeBackend::gamePlayers(const QString &set) const {
     const mame::Machine *machine = machineOf(set);
+    return machine && machine->players > 0 ? std::min(machine->players, libretro::kMostPorts) : 0;
+}
+
+int ArcadeBackend::hostPorts(const QString &set, int *most) const {
     // As many as the game plays at once. A game whose players aren't known
     // (a set MAME doesn't know: FinalBurn Neo's list doesn't say) may play
     // two or six: the host keeps port 1 alone, so that a machine joining has
     // port 2 whichever it is (a second stick of the host's would take it, and
     // in a two-player game the machine joining would then drive no one), and
     // the machines joining may take ports up to six.
-    const int players = machine && machine->players > 0 ? std::min(machine->players, libretro::kMostPorts) : 0;
+    const int players = gamePlayers(set);
     if (most)
         *most = players > 0 ? players : libretro::kMostPorts;
     if (players < 2)
@@ -3180,7 +3184,7 @@ int ArcadeBackend::hostPorts(const QString &set, int *most) const {
     return std::clamp(libretro::localPorts(controllers::playerGuids()), 1, players - 1);
 }
 
-QString ArcadeBackend::onlineLayout(bool hosting) const {
+QString ArcadeBackend::onlineLayout(const QString &set, bool hosting) const {
     if (!hosting)
         return QStringLiteral("classic");
     QList<bool> panels;
@@ -3192,8 +3196,9 @@ QString ArcadeBackend::onlineLayout(bool hosting) const {
         panels << (!guids.at(p).isEmpty() && controllers::isJammaStick(names.value(p)));
         binds << (guids.at(p).isEmpty() ? QStringList() : arcade.value(p).retroarch);
     }
-    return libretro::hostLayout(panels, binds) == libretro::Launch::Layout::Panel ? QStringLiteral("panel")
-                                                                                   : QStringLiteral("classic");
+    return libretro::hostLayout(panels, binds, gamePlayers(set)) == libretro::Launch::Layout::Panel
+               ? QStringLiteral("panel")
+               : QStringLiteral("classic");
 }
 
 bool ArcadeBackend::playFbneo(const QString &name, libretro::Launch::Netplay netplay, const QString &joinAddress,
@@ -3323,11 +3328,12 @@ bool ArcadeBackend::playFbneo(const QString &name, libretro::Launch::Netplay net
     const bool hosting = netplay == Netplay::Host || netplay == Netplay::LanHost;
     // The controller types every port plays with online: a host's own
     // choice, by its players (the panel's, with a stick or Arcade Buttons
-    // among them), told to the machines joining on the local network with
-    // their ports; a machine joining takes what it was told, Classic from
-    // a host that said nothing (RetroArch alone, an older OSD/OS, or a room
-    // of the lobby).
-    launch.layout = hosting ? libretro::hostLayout(launch.panels, launch.arcade) : layout;
+    // among them) and the game's (Classic for five or six players, where one
+    // machine may bring more than the panel's three ports), told to the
+    // machines joining on the local network with their ports; a machine
+    // joining takes what it was told, Classic from a host that said nothing
+    // (RetroArch alone, an older OSD/OS, or a room of the lobby).
+    launch.layout = hosting ? libretro::hostLayout(launch.panels, launch.arcade, gamePlayers(name)) : layout;
     // The game's ports this machine's players take: a host's from 1
     // (hostPorts()); joining on the local network, those its host's OSD/OS
     // gave, or, with no answer, from 2, where more than one player is to
@@ -3346,6 +3352,10 @@ bool ArcadeBackend::playFbneo(const QString &name, libretro::Launch::Netplay net
         launch.portsFrom = 2;
         launch.ports = ports;
     }
+    // No more than RetroArch sends one machine's input for on the layout
+    // (libretro::kPanelPorts on the panel's), whatever a host gave: one
+    // more, and the host would drop this machine.
+    launch.ports = std::min(launch.ports, libretro::mostPortsOn(launch.layout));
     // Hosting on the local network: the machines joining given their ports
     // from now on. Without the socket for it this machine keeps to port 1,
     // so that a machine joining, unanswered, finds port 2 free.
@@ -3588,7 +3598,7 @@ void ArcadeBackend::releaseClaim(const QString &address) {
 
 bool ArcadeBackend::startClaims(int own, int most, libretro::Launch::Layout layout) {
     stopClaims();
-    m_claims.reset(own, most);
+    m_claims.reset(own, most, libretro::mostPortsOn(layout));
     m_claimLayout = layout;
     m_claimSocket = new QUdpSocket(this);
     if (!m_claimSocket->bind(QHostAddress(QHostAddress::AnyIPv4), m_claimPort)) {
