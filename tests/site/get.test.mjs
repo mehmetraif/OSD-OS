@@ -2,8 +2,9 @@
 // a stand-in for GitHub: a local server answering with a release's record and
 // its files. get.sh runs as each system it knows (uname stood in for), under
 // each POSIX shell here, with each awk, and with each tool it may download
-// and check with, FreeBSD's and OpenBSD's stood in for; get.ps1 runs where
-// PowerShell is installed. Neither reaches anything but 127.0.0.1.
+// and check with, FreeBSD's and OpenBSD's stood in for, and on a terminal, a
+// pty of Python's; get.ps1 runs where PowerShell is installed. Neither
+// reaches anything but 127.0.0.1.
 //   node --test tests/site/*.test.mjs
 import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
@@ -48,12 +49,13 @@ function run(file, args, options) {
     });
 }
 
-// The release: each file some bytes of its own, the zip the one folder the
-// Windows build unpacks to.
+// The release: each file some bytes of its own, the image 3 MB of them for the
+// counter a terminal shows as it comes in, the zip the one folder the Windows
+// build unpacks to.
 const TAG = "v9.8.7";
 const sha256 = data => createHash("sha256").update(data).digest("hex");
 const files = {
-    "OSD-OS-v9.8.7-raspberry-pi.img.xz": randomBytes(3000),
+    "OSD-OS-v9.8.7-raspberry-pi.img.xz": randomBytes(3 * 1048576),
     "OSD-OS-v9.8.7-macOS-arm64.dmg": randomBytes(2000),
     "OSD-OS-linux-x86_64.AppImage": randomBytes(2000),
     "install.sh": Buffer.from("#!/usr/bin/env bash\necho OSD/OS installer\n"),
@@ -94,17 +96,19 @@ function record(base, variant) {
                   : variant === "bad-digest" ? `sha256:${"1".repeat(64)}`
                   : `sha256:${sha256(data)}`,
             download_count: 0,
-            browser_download_url: `${base}/download/${TAG}/${name}`,
+            browser_download_url: `${base}/${["slow", "stall", "lost"].includes(variant) ? variant : "download"}/${TAG}/${name}`,
         })),
     };
 }
 
 let base;
 const hits = {};
+// How each slow download ended: "finished", or "stopped" by the downloader.
+const ends = [];
 const server = createServer((request, response) => {
     const path = decodeURIComponent(new URL(request.url, "http://x").pathname);
     let m;
-    if ((m = path.match(/^\/release\/(pretty|compact|broken|bad-digest|no-digest|no-bsd|no-windows)$/))) {
+    if ((m = path.match(/^\/release\/(pretty|compact|broken|bad-digest|no-digest|no-bsd|no-windows|slow|stall|lost)$/))) {
         const r = record(base, m[1]);
         response.setHeader("Content-Type", "application/json; charset=utf-8");
         return response.end(m[1] === "compact" ? JSON.stringify(r) : m[1] === "broken" ? JSON.stringify(r).slice(0, 900)
@@ -114,6 +118,30 @@ const server = createServer((request, response) => {
         hits[m[1]] = (hits[m[1]] || 0) + 1;
         response.setHeader("Content-Type", "application/octet-stream");
         return response.end(files[m[1]]);
+    }
+    // Slowly, in six parts a quarter of a second apart, for a terminal's
+    // counter to show the file coming in; stalled, half of it and then nothing
+    // until the downloader goes.
+    if ((m = path.match(/^\/(slow|stall)\/v9\.8\.7\/(.+)$/)) && files[m[2]]) {
+        const data = files[m[2]];
+        const size = Math.ceil(data.length / 6);
+        const stall = m[1] === "stall";
+        let parts = 0;
+        let timer;
+        response.setHeader("Content-Type", "application/octet-stream");
+        response.setHeader("Content-Length", data.length);
+        response.on("close", () => {
+            clearTimeout(timer);
+            ends.push(response.writableFinished ? "finished" : "stopped");
+        });
+        const next = () => {
+            const part = data.subarray(parts * size, ++parts * size);
+            if (parts === 6)
+                return response.end(part);
+            response.write(part);
+            timer = setTimeout(next, stall && parts === 3 ? 60000 : 250);
+        };
+        return next();
     }
     if (path === "/get.sh") {
         response.setHeader("Content-Type", "application/x-sh");
@@ -145,7 +173,7 @@ if (which("busybox"))
     awks.push(`#!/bin/sh\nexec ${which("busybox")} awk "$@"\n`);
 
 const REAL = Object.fromEntries(["curl", "wget", "sha256sum", "shasum", "openssl", "mv", "rm", "chmod", "printf",
-                                 "test", "["].map(name => [name, which(name)]));
+                                 "test", "[", "ls", "date", "sleep", "stty", "kill"].map(name => [name, which(name)]));
 
 // A folder for PATH with these programs alone: the system's own, or a
 // stand-in script.
@@ -173,21 +201,63 @@ const STAND_INS = {
     sha256: `#!/bin/sh\n[ "$1 $#" = "-q 2" ] || exit 64\nset -- $(${REAL.sha256sum} "$2")\necho "$1"\n`,
 };
 
+// A program on a terminal COLS wide, a pty of Python's, with the environment
+// ENV (JSON) as it stands, and Ctrl-C typed once PATTERN shows ("-" for
+// never): what the terminal showed, read until no process has it any more,
+// and the program's exit code.
+const python = which("python3");
+const PTY = `
+import fcntl, json, os, pty, select, struct, sys, termios
+cols, pattern, env, *argv = sys.argv[1:]
+pid, fd = pty.fork()
+if pid == 0:
+    fcntl.ioctl(0, termios.TIOCSWINSZ, struct.pack("HHHH", 24, int(cols), 0, 0))
+    os.execve(argv[0], argv, json.loads(env))
+out = b""
+typed = pattern == "-"
+while True:
+    if select.select([fd], [], [], 0.05)[0]:
+        try:
+            data = os.read(fd, 65536)
+        except OSError:
+            data = b""
+        if not data:
+            break
+        out += data
+        if not typed and pattern.encode() in out:
+            os.write(fd, b"\\x03")
+            typed = True
+_, status = os.waitpid(pid, 0)
+sys.stdout.buffer.write(out)
+sys.exit(os.WEXITSTATUS(status) if os.WIFEXITED(status) else 128 + os.WTERMSIG(status))
+`;
+
 // get.sh as this system, in a folder of its own: its exit code, what it
-// said, and the folder.
+// said, and the folder. With terminal, on a terminal cols wide (80 if not
+// said), all it said there in stdout, with env's variables, and Ctrl-C typed
+// once interrupt shows.
 async function getSh({ os = "Linux", arch = "x86_64", arm64, args = [], shell = shells[0], awk = awks[0],
-                       tools = ["curl", "sha256sum"], variant = "pretty", dir, command }) {
+                       tools = ["curl", "sha256sum"], variant = "pretty", dir, command, terminal }) {
     dir ??= mkdtempSync(join(work, "run-"));
     const programs = { awk, mv: REAL.mv, rm: REAL.rm, chmod: REAL.chmod, printf: REAL.printf, test: REAL.test,
                        "[": REAL["["], uname: STAND_INS.uname, sysctl: STAND_INS.sysctl, sh: shell[0] };
     for (const tool of tools)
         programs[tool] = STAND_INS[tool] ?? REAL[tool];
+    // What the counter takes on a terminal: kill too, a builtin in each
+    // shell but posh.
+    if (terminal)
+        for (const name of ["ls", "date", "sleep", "stty", "kill"])
+            programs[name] = REAL[name];
     const env = { PATH: bin(programs), HOME: home, OSDOS_RELEASE_URL: `${base}/release/${variant}`,
-                  UNAME_S: os, UNAME_M: arch, SYSCTL_ARM64: arm64 ?? "", LANG: "C.UTF-8" };
+                  UNAME_S: os, UNAME_M: arch, SYSCTL_ARM64: arm64 ?? "", LANG: "C.UTF-8", ...terminal?.env };
     if (process.env.LD_LIBRARY_PATH)
         env.LD_LIBRARY_PATH = process.env.LD_LIBRARY_PATH;
     const [program, ...before] = shell;
-    const result = await run(program, [...before, ...(command ? ["-c", command] : [GET_SH, ...args])], { cwd: dir, env });
+    const argv = [...before, ...(command ? ["-c", command] : [GET_SH, ...args])];
+    const result = terminal
+        ? await run(python, ["-I", "-c", PTY, String(terminal.cols ?? 80), terminal.interrupt ?? "-", JSON.stringify(env),
+                             program, ...argv], { cwd: dir })
+        : await run(program, argv, { cwd: dir, env });
     return { ...result, dir, listing: readdirSync(dir).sort() };
 }
 
@@ -285,11 +355,12 @@ test("get.sh deletes a file that doesn't match its digest, and keeps one GitHub 
     assert.deepEqual(none.listing, ["OSD-OS-linux-x86_64.AppImage"]);
 });
 
-test("get.sh says so when the release has no file for the system, or GitHub no release", async () => {
+test("get.sh says so when the release has no file for the system, GitHub no release, or the file doesn't come", async () => {
     const missing = await getSh({ os: "FreeBSD", arch: "amd64", tools: ["fetch", "sha256"], variant: "no-bsd" });
     assert.equal(missing.code, 1);
     assert.match(missing.stderr, /OSD\/OS v9\.8\.7 has no FreeBSD package\./);
-    for (const [variant, says] of [["broken", /isn't a release's record/], ["gone", /didn't answer/]]) {
+    for (const [variant, says] of [["broken", /isn't a release's record/], ["gone", /didn't answer/],
+                                   ["lost", /the download of OSD-OS-linux-x86_64\.AppImage didn't finish\./]]) {
         const result = await getSh({ variant });
         assert.equal(result.code, 1, variant);
         assert.match(result.stderr, says);
@@ -328,6 +399,74 @@ test("get.sh passes shellcheck and every shell's parser, in plain ASCII", async 
     assert.equal(checked.code, 0, checked.stdout);
 });
 
+// --- get.sh on a terminal
+
+// The tape counter's frames, as the terminal showed them, each over the one
+// before.
+const frames = output => output.split(/[\r\n]/).filter(line => line.includes(" PLAY "));
+const TAPE = /^▶ PLAY ▕([■□]{30})▏ (\d{3})%  REMAIN (?:--:--|\d+:\d\d)  \d\.\d\/3\.0 MB {3}$/;
+const noPty = !python && "no python3 here";
+async function until(done) {
+    for (const start = Date.now(); !done() && Date.now() - start < 5000;)
+        await new Promise(resolve => setTimeout(resolve, 50));
+}
+
+for (const shell of shells) {
+    const name = shell.join(" ").split("/").pop();
+    test(`get.sh on a terminal under ${name}: the tape counter as the file comes in, then the file checked`, { skip: noPty }, async () => {
+        const result = await getSh({ shell, args: ["image"], variant: "slow", terminal: {} });
+        downloaded(result, "OSD-OS-v9.8.7-raspberry-pi.img.xz", "Raspberry Pi Imager");
+        const drawn = frames(result.stdout);
+        const shown = drawn.map(frame => {
+            const looks = frame.match(TAPE);
+            assert.ok(looks, JSON.stringify(frame));
+            assert.ok([...frame].length < 80, `within the terminal's 80 columns: ${frame}`);
+            return { percent: +looks[2], marks: looks[1].split("■").length - 1 };
+        });
+        for (let i = 1; i < shown.length; i++)
+            assert.ok(shown[i].percent >= shown[i - 1].percent && shown[i].marks >= shown[i - 1].marks,
+                      `never back: ${drawn.join("\n")}`);
+        assert.ok(shown.some(({ percent }) => percent > 0 && percent < 100), `under way: ${drawn.join("\n")}`);
+        assert.match(drawn.at(-1), /▕■{30}▏ 100%  REMAIN 0:00  3\.0\/3\.0 MB/);
+        assert.match(result.stdout, /3\.0\/3\.0 MB {3}\r\nChecked:/, "its line ended under it");
+    });
+
+    test(`get.sh on a terminal under ${name}: Ctrl-C stops the download there, and leaves nothing`, { skip: noPty }, async () => {
+        const before = ends.length;
+        const result = await getSh({ shell, args: ["image"], variant: "stall", terminal: { interrupt: "050%" } });
+        assert.equal(result.code, 130, result.stdout);
+        assert.deepEqual(result.listing, [], "neither the file nor its .part");
+        assert.match(result.stdout, /050%.*\^C.*\r\n$/s, "its line ended under it");
+        assert.doesNotMatch(result.stdout, /100%/);
+        // The downloader went with it at once, the file half sent.
+        await until(() => ends.length > before);
+        assert.deepEqual(ends.slice(before), ["stopped"]);
+    });
+}
+
+test("get.sh's tape counter with each awk, in ASCII off a UTF-8 locale and on Linux's console, and on narrow terminals", { skip: noPty }, async () => {
+    for (const awk of awks) {
+        const result = await getSh({ awk, args: ["image"], variant: "slow", terminal: {} });
+        assert.equal(result.code, 0, `${awk}: ${result.stdout}`);
+        assert.match(frames(result.stdout).at(-1), TAPE, awk);
+    }
+    for (const env of [{ LANG: "C" }, { TERM: "linux" }]) {
+        const result = await getSh({ args: ["image"], variant: "slow", terminal: { env } });
+        assert.equal(result.code, 0, result.stdout);
+        assert.match(frames(result.stdout).at(-1), /^> PLAY \[#{30}\] 100%  REMAIN 0:00  3\.0\/3\.0 MB {3}$/,
+                     JSON.stringify(env));
+    }
+    // The sizes give way first, then the time left.
+    for (const [cols, looks] of [[60, /^▶ PLAY ▕■{13}▏ 100%  REMAIN 0:00  3\.0\/3\.0 MB {3}$/],
+                                 [50, /^▶ PLAY ▕■{15}▏ 100%  REMAIN 0:00 {3}$/],
+                                 [40, /^▶ PLAY ▕■{22}▏ 100% {3}$/]]) {
+        const result = await getSh({ args: ["image"], variant: "slow", terminal: { cols } });
+        const drawn = frames(result.stdout);
+        assert.match(drawn.at(-1), looks, `${cols} columns`);
+        assert.ok(drawn.every(frame => [...frame].length < cols), `${cols} columns: ${drawn.join("\n")}`);
+    }
+});
+
 test("get.sh's next steps are INSTALL.md's", () => {
     const script = readFileSync(GET_SH, "utf8");
     const install = readFileSync(join(root, "INSTALL.md"), "utf8");
@@ -348,12 +487,18 @@ test("get.sh's next steps are INSTALL.md's", () => {
 
 const pwsh = which("pwsh");
 
-async function getPs1(command, { variant = "pretty", dir } = {}) {
+// get.ps1 by command, in a folder of its own; with terminal, on one, as
+// getSh() has it.
+async function getPs1(command, { variant = "pretty", dir, terminal } = {}) {
     dir ??= mkdtempSync(join(work, "ps-"));
     const env = { PATH: process.env.PATH, HOME: home, OSDOS_RELEASE_URL: `${base}/release/${variant}`,
-                  POWERSHELL_TELEMETRY_OPTOUT: "1", DOTNET_CLI_TELEMETRY_OPTOUT: "1", POWERSHELL_UPDATECHECK: "Off" };
-    const result = await run(pwsh, ["-NoProfile", "-NonInteractive", "-Command", command.replaceAll("BASE", base)],
-                             { cwd: dir, env });
+                  POWERSHELL_TELEMETRY_OPTOUT: "1", DOTNET_CLI_TELEMETRY_OPTOUT: "1", POWERSHELL_UPDATECHECK: "Off",
+                  ...(terminal && { TERM: "xterm-256color", ...terminal.env }) };
+    const argv = ["-NoProfile", "-NonInteractive", "-Command", command.replaceAll("BASE", base)];
+    const result = terminal
+        ? await run(python, ["-I", "-c", PTY, String(terminal.cols ?? 80), terminal.interrupt ?? "-", JSON.stringify(env),
+                             pwsh, ...argv], { cwd: dir })
+        : await run(pwsh, argv, { cwd: dir, env });
     return { ...result, dir, listing: readdirSync(dir).sort() };
 }
 
@@ -393,10 +538,44 @@ test("get.ps1 deletes a file that doesn't match its digest, and says what went w
     assert.deepEqual(bad.listing, [], "neither the zip, its .part nor osdos");
     for (const [command, variant, says] of [["irm BASE/get.ps1 | iex", "gone", /Error: GitHub didn't answer/],
                                             ["irm BASE/get.ps1 | iex", "no-windows", /Error: OSD\/OS v9\.8\.7 has no app for Windows\./],
-                                            ["& ([scriptblock]::Create((irm BASE/get.ps1))) everything", "pretty", /Error: get\.ps1 downloads/]]) {
+                                            ["& ([scriptblock]::Create((irm BASE/get.ps1))) everything", "pretty", /Error: get\.ps1 downloads/],
+                                            // What went wrong, from under .NET's wrappers.
+                                            ["irm BASE/get.ps1 | iex", "lost", /Error: the download of .+ didn't finish\. \(.+ 404 \(Not Found\)\.\)/]]) {
         const result = await getPs1(command, { variant });
         assert.match(result.stdout, says, result.stdout);
+        assert.deepEqual(result.listing, [], variant);
     }
+});
+
+// The image, the 3 MB file, on a terminal.
+const IMAGE = "& ([scriptblock]::Create((irm BASE/get.ps1))) image";
+
+test("get.ps1 on a terminal: the tape counter as the file comes in, in the deck's marks in Windows Terminal", { skip: (!pwsh && "no PowerShell here") || noPty }, async () => {
+    for (const [env, looks] of [[{}, /^> PLAY \[[#.]{30}\] \d{3}%  REMAIN (?:--:--|\d+:\d\d)  \d\.\d\/3\.0 MB {3}$/],
+                                [{ WT_SESSION: "1" }, TAPE]]) {
+        const result = await getPs1(IMAGE, { variant: "slow", terminal: { env } });
+        assert.doesNotMatch(result.stdout, /Error:/, result.stdout);
+        assert.deepEqual(result.listing, ["OSD-OS-v9.8.7-raspberry-pi.img.xz"]);
+        assert.ok(readFileSync(join(result.dir, "OSD-OS-v9.8.7-raspberry-pi.img.xz")).equals(files["OSD-OS-v9.8.7-raspberry-pi.img.xz"]));
+        const drawn = frames(result.stdout);
+        assert.ok(drawn.length >= 3, result.stdout);
+        for (const frame of drawn) {
+            assert.match(frame, looks, JSON.stringify(env));
+            assert.ok([...frame].length < 80, `within the terminal's 80 columns: ${frame}`);
+        }
+        assert.match(drawn.at(-1), / 100%  REMAIN 0:00  3\.0\/3\.0 MB {3}$/);
+        assert.match(result.stdout, /3\.0\/3\.0 MB {3}\r\n/, "its line ended under it");
+    }
+});
+
+test("get.ps1 on a terminal: Ctrl+C stops the download there, and leaves nothing", { skip: (!pwsh && "no PowerShell here") || noPty }, async () => {
+    const before = ends.length;
+    const result = await getPs1(IMAGE, { variant: "stall", terminal: { interrupt: "050%" } });
+    assert.deepEqual(result.listing, [], "neither the image nor its .part");
+    assert.match(result.stdout, /050%.*\^C.*\r\n/s, "its line ended under it");
+    assert.doesNotMatch(result.stdout, /100%|Checked|Error:/);
+    await until(() => ends.length > before);
+    assert.deepEqual(ends.slice(before), ["stopped"]);
 });
 
 test("get.ps1 in plain ASCII", () => {

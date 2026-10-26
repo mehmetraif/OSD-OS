@@ -47,8 +47,105 @@ pick_downloader() {
     die "get.sh downloads with curl, wget, fetch or OpenBSD's ftp, and none of them is here."
 }
 
+# $1 into the file $2, saying nothing, in place of the shell it runs in: it
+# is called in a subshell, ( ) or &, whose PID is then the downloader's.
+download_quietly() {
+    case $tool in
+        curl)  exec curl -fsSL -o "$2" "$1" ;;
+        wget)  exec wget -q -O "$2" "$1" ;;
+        fetch) exec fetch -qo "$2" "$1" ;;
+        ftp)   exec ftp -MVo "$2" "$1" ;;
+    esac
+}
+
+# The tape counter's marks: the deck's in a UTF-8 locale, written as their
+# bytes (the script is plain ASCII), and ASCII's in any other, or on Linux's
+# own console, whose fonts may have no such glyphs. Its width: the
+# terminal's, or 80.
+tape_marks() {
+    tape_play='>' tape_full='#' tape_empty='.' tape_open='[' tape_shut=']'
+    case ${LC_ALL:-${LC_CTYPE:-${LANG:-}}} in
+        *[Uu][Tt][Ff]-8*|*[Uu][Tt][Ff]8*)
+            if [ "${TERM:-}" != linux ]; then
+                tape_play=$(printf '\342\226\266') tape_full=$(printf '\342\226\240')
+                tape_empty=$(printf '\342\226\241') tape_open=$(printf '\342\226\225')
+                tape_shut=$(printf '\342\226\217')
+            fi ;;
+    esac
+    tape_cols=$(stty size <&2 2> /dev/null | awk '{ print $2 }')
+    [ "$tape_cols" -gt 0 ] 2> /dev/null || tape_cols=80
+}
+
+# A download's tape counter, drawn over itself on standard error as the
+# deck's display has it, in tape_marks' marks:
+#   > PLAY [####....] 048%  REMAIN 0:46  537/1137 MB
+# $1 bytes of $2, $3 seconds since it started: the time left once a second
+# has gone by.
+tape() {
+    awk -v got="$1" -v total="$2" -v secs="$3" -v cols="$tape_cols" -v play="$tape_play" \
+        -v full="$tape_full" -v empty="$tape_empty" -v open="$tape_open" -v shut="$tape_shut" '
+        function clock(s) {
+            s = int(s + 0.5)
+            if (s >= 360000)
+                return "--:--"
+            if (s >= 3600)
+                return sprintf("%d:%02d:%02d", int(s / 3600), int(s / 60) % 60, s % 60)
+            return sprintf("%d:%02d", int(s / 60), s % 60)
+        }
+        function mb(n) {
+            return sprintf(total < 104857600 ? "%.1f" : "%.0f", n / 1048576)
+        }
+        BEGIN {
+            got += 0
+            total += 0
+            if (got > total)
+                got = total
+            left = "  REMAIN " ((got > 0 && secs >= 1) ? clock(secs * (total - got) / got) : "--:--")
+            sizes = "  " mb(got) "/" mb(total) " MB"
+            # The bar 10 to 30 marks long, the same all through the download:
+            # what the terminal leaves it short of its last column, past the
+            # marks around it, the percentage, the time left and the sizes at
+            # their longest, and three spaces that wipe what a longer line
+            # left. On a narrow one the sizes go first, then the time left.
+            room = cols - 18
+            widest = length("  " mb(total) "/" mb(total) " MB")
+            if (room - 17 - widest >= 10)
+                cells = room - 17 - widest
+            else if (room - 17 >= 10) {
+                cells = room - 17
+                sizes = ""
+            } else {
+                cells = room
+                left = sizes = ""
+            }
+            if (cells > 30)
+                cells = 30
+            if (cells < 10)
+                cells = 10
+            filled = int(got * cells / total)
+            bar = ""
+            for (i = 0; i < cells; i++)
+                bar = bar (i < filled ? full : empty)
+            printf "\r%s PLAY %s%s%s %03d%%%s%s   ", play, open, bar, shut, int(got * 100 / total), left, sizes
+        }' >&2
+}
+
+# A file's size in bytes, nothing while there is no file. From ls, whose
+# long listing has it everywhere: busybox's wc -c reads the whole file to
+# count it. The name is get.sh's own plain one.
+# shellcheck disable=SC2012
+file_size() {
+    ls -ln "$1" 2> /dev/null | awk '{ print $5 }'
+}
+
+# The time in seconds, 0 where date can't tell it.
+now() {
+    date +%s 2> /dev/null || printf '0\n'
+}
+
 # $1 to standard output, quietly; or with $2, into that file, with its
-# progress on a terminal.
+# progress on a terminal: with its size, $3, OSD/OS's tape counter, else the
+# downloader's own.
 download() {
     if [ $# -eq 1 ]; then
         case $tool in
@@ -57,6 +154,24 @@ download() {
             fetch) fetch -qo - "$1" ;;
             ftp)   ftp -MVo - "$1" ;;
         esac
+    elif [ -t 2 ] && [ "${3:-0}" -gt 0 ] 2> /dev/null; then
+        tape_marks
+        # The download in the background, the counter drawn as its file
+        # grows. A shell starts it with Ctrl-C ignored: main's EXIT trap,
+        # which a Ctrl-C runs, stops it.
+        download_quietly "$1" "$2" &
+        downloading=$!
+        started=$(now)
+        while kill -0 "$downloading" 2> /dev/null; do
+            tape "$(file_size "$2")" "$3" $(($(now) - started))
+            sleep 0.5 2> /dev/null || sleep 1
+        done
+        finished=0
+        wait "$downloading" || finished=$?
+        downloading=
+        [ "$finished" -ne 0 ] || tape "$3" "$3" $(($(now) - started))
+        printf '\n' >&2
+        return "$finished"
     elif [ -t 2 ]; then
         case $tool in
             curl)  curl -fL --progress-bar -o "$2" "$1" ;;
@@ -68,13 +183,21 @@ download() {
             ftp)   ftp -o "$2" "$1" ;;
         esac
     else
-        case $tool in
-            curl)  curl -fsSL -o "$2" "$1" ;;
-            wget)  wget -q -O "$2" "$1" ;;
-            fetch) fetch -qo "$2" "$1" ;;
-            ftp)   ftp -MVo "$2" "$1" ;;
-        esac
+        (download_quietly "$1" "$2")
     fi
+}
+
+# On the way out before the download is in place: the downloader stopped if
+# it is still at it, the line under its counter ended, and its file deleted.
+# The exit code stays get.sh's own (mksh would give the trap's).
+leave() {
+    code=$?
+    if [ -n "${downloading:-}" ]; then
+        kill "$downloading" 2> /dev/null || :
+        printf '\n' >&2
+    fi
+    rm -f "$part"
+    exit "$code"
 }
 
 # A file's SHA-256, by whichever tool this system has; nothing without one.
@@ -265,11 +388,11 @@ EOF
         # Into a file of its own until it is checked: a download cut short or
         # gone wrong never stands under the file's name.
         part=$name.part
-        trap 'rm -f "$part"' EXIT
+        trap leave EXIT
         trap 'exit 129' HUP
         trap 'exit 130' INT
         trap 'exit 143' TERM
-        download "$url" "$part" || die "the download of $name didn't finish."
+        download "$url" "$part" "$size" || die "the download of $name didn't finish."
         if [ -n "$hex" ]; then
             [ "$(sha256_of "$part")" = "$hex" ] \
                 || die "$name doesn't match the SHA-256 GitHub keeps for it, so it is deleted again."
