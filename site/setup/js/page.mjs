@@ -355,14 +355,10 @@ function settingLine(scope, row) {
     }
     case "multi": {
         const current = core.isPlainObject(value) ? value : {};
-        // Choices under headings ({ heading }, Arcade's regions under their
-        // parts of the world) go on lines of their own under the label.
-        const grouped = row.options.some(option => !Array.isArray(option));
-        control = el("span", { class: grouped ? "multi grouped" : "multi", id },
-            row.options.map(option => !Array.isArray(option) ? el("span", { class: "group", text: option.heading })
-                : el("label", { class: "pick" },
-                    checkbox(current[option[1]] !== false, checked => setValue(scope, row.key, { ...current, [option[1]]: checked })),
-                    " " + option[0])));
+        control = el("span", { class: "multi", id },
+            row.options.map(([label, v]) => el("label", { class: "pick" },
+                checkbox(current[v] !== false, checked => setValue(scope, row.key, { ...current, [v]: checked })),
+                " " + label)));
         break;
     }
     default:

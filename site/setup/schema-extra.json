@@ -1,5 +1,5 @@
 {
-  "_about": "OSD/OS Setup's settings beside what scripts/build-site.py reads from the app itself (the modules' manifest.json, the display presets, the themes and skins): Settings' own rows (views/Settings.qml), the choices the modules make up as they run (their backends' get_*_options), keys a module keeps without a row, and the system's lists. tests/site/schema.test.mjs checks the rows against Settings.qml and Main.qml. An option is [label, value], or a string that is both; a module's options may instead be named, \"languages\" for the subtitle languages Local Files lists, \"regions\" for Arcade's regions (modules/arcade/regions.json) under their parts of the world. A row's theme_part is one of the theme's parts (Settings' themeParts), legacy the numbers old words stand for, max_length and trim as the app keeps the value. The keyboards are those with Latin letters, in which a user's name and password can be typed at Exit to Terminal.",
+  "_about": "OSD/OS Setup's settings beside what scripts/build-site.py reads from the app itself (the modules' manifest.json, the display presets, the themes and skins): Settings' own rows (views/Settings.qml), the choices the modules make up as they run (their backends' get_*_options), keys a module keeps without a row, and the system's lists. tests/site/schema.test.mjs checks the rows against Settings.qml and Main.qml. An option is [label, value], or a string that is both. A row's theme_part is one of the theme's parts (Settings' themeParts), legacy the numbers old words stand for, max_length and trim as the app keeps the value. The keyboards are those with Latin letters, in which a user's name and password can be typed at Exit to Terminal.",
   "app": [
     {
       "title": "General Settings",
@@ -138,8 +138,7 @@
     },
     "com.osdos.arcade": {
       "options": {
-        "start_filter": [["All Games", "all"], ["Favorites", "favorites"], ["Recently Played", "recent"], ["RetroAchievements", "achievements"], ["Playable Online", "netplay"]],
-        "regions": "regions"
+        "start_filter": [["All Games", "all"], ["Favorites", "favorites"], ["Recently Played", "recent"], ["RetroAchievements", "achievements"], ["Playable Online", "netplay"]]
       },
       "defaults": { "start_filter": "all" },
       "extra": [

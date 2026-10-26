@@ -333,8 +333,6 @@ footer {
     .secret input { flex: 1; }
     .slider input[type="range"] { flex: 1; width: auto; }
     .multi { justify-content: flex-start; }
-    /* Choices under headings have lines of their own: ↺ beside the label. */
-    .row:has(.multi.grouped) > label { flex-basis: auto; }
 }
 
 /* --- The parts the form is made of. --- */
@@ -360,12 +358,6 @@ details > *:not(summary) { margin-left: 18px; }
 .slider input[type="range"] { width: 180px; accent-color: var(--accent); }
 .multi { display: inline-flex; flex-wrap: wrap; gap: 6px 14px; justify-content: flex-end; }
 .pick { display: inline-flex; align-items: center; gap: 4px; text-transform: uppercase; font-size: 15px; }
-/* Choices under headings: on lines of their own under the label and ↺, each
-   heading on a line of its own. */
-.row:has(.multi.grouped) { flex-wrap: wrap; }
-.row .multi.grouped { order: 1; flex-basis: 100%; justify-content: flex-start; padding: 0 0 6px 18px; }
-.multi .group { flex-basis: 100%; margin-top: 4px; color: var(--secondary); font-size: 14px; text-transform: uppercase; }
-.row:focus-within .multi .group { color: var(--surface); }
 .account { margin-top: 8px; }
 
 /* --- The device: two choices, the one chosen inverted, as a menu's line. --- */

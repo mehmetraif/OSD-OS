@@ -2,7 +2,6 @@
 #include <QByteArray>
 #include <QHash>
 #include <QList>
-#include <QRegularExpression>
 #include <QString>
 #include <QStringList>
 #include <QVariantMap>
@@ -116,35 +115,6 @@ QString titleOf(const QString &description);
 // set 1, Probably Bootleg)"), or its maker does ("bootleg", "bootleg
 // (Playmark)", "hack").
 bool isBootlegOrHack(const Machine &machine);
-
-// The regions a set's name gives in its parentheses, as MAME and FinalBurn
-// Neo write them ("Street Fighter II: The World Warrior (USA 910206)",
-// "(910522 World)", "Strikers 1945 (Japan / World)"), from the table in
-// modules/arcade/regions.json, for Settings → Arcade → Regions.
-class Regions {
-public:
-    struct Region {
-        QString id;     // as the setting keeps it: "usa"
-        QString name;   // as Settings shows it: "USA"
-        QString part;   // the part of the world it is listed under: "Americas"; "" for World
-    };
-    // The table in that file, in its order; none for a file that can't be
-    // read.
-    static Regions read(const QString &path);
-    const QList<Region> &all() const { return m_regions; }
-    // The ids of the regions a name gives, in the table's order, each once:
-    // "(USA 910206)" → usa, "(Japan / World)" → world, japan; none for a
-    // name that gives none ("Galaga (Namco rev. B)", "Ms. Pac-Man"). Only
-    // its parentheses count: a game's title may hold a region's word
-    // (Street Fighter II: The World Warrior).
-    QStringList of(const QString &description) const;
-
-private:
-    QList<Region>       m_regions;
-    QHash<QString, int> m_byWord;   // a word, the region it names
-    QRegularExpression  m_words;    // any of them, whole
-};
-
 // The board or system a driver is for, as the Arcade screen names it, from
 // its source file: "capcom/cps1.cpp" → "CPS-1", "neogeo/neogeo.cpp" →
 // "Neo-Geo"; any other, the driver's own name: "nintendo/dkong.cpp" →

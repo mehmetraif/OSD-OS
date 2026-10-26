@@ -86,19 +86,6 @@ def languages():
     return out
 
 
-def regions():
-    """Arcade's regions (modules/arcade/regions.json) as Settings → Arcade →
-    Regions lists them: World first, then each part of the world's under a
-    heading, {"heading": part}."""
-    out, part = [], ""
-    for region in json.loads((ROOT / "modules/arcade/regions.json").read_text())["regions"]:
-        if region.get("part", "") not in ("", part):
-            part = region["part"]
-            out.append({"heading": part})
-        out.append([region["name"], region["id"]])
-    return out
-
-
 def looks(folder, file_name):
     """The built-in themes or skins: [name, folder], by name."""
     out = []
@@ -144,8 +131,7 @@ def module_settings(manifest, extra):
             elif kind == "multiselect_submenu":
                 if key not in options:
                     continue
-                known = regions() if options[key] == "regions" else [option(o) for o in options[key]]
-                row.update(type="multi", options=known, default=True)
+                row.update(type="multi", options=[option(o) for o in options[key]], default=True)
             elif kind == "slider":
                 row.update(type="slider", min=0, max=100, step=s.get("step", 10), default=s.get("default", 0),
                            start_text=s.get("start_text", ""), end_text=s.get("end_text", ""))

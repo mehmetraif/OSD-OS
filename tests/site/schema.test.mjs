@@ -250,27 +250,6 @@ test("each module's rows are its manifest's, with values it takes", () => {
         assert.ok(manifests.has(id), `Start on Module's ${id}`);
 });
 
-test("Arcade's Regions offers every region the app reads, under its part of the world", () => {
-    const table = JSON.parse(read("modules/arcade/regions.json")).regions;
-    const row = schema.modules.find(m => m.id === "com.osdos.arcade").settings.find(r => r.key === "regions");
-    assert.equal(row.type, "multi");
-    // World first, then a heading before each part's regions, as Settings
-    // → Arcade → Regions lists them.
-    const expected = [];
-    let part = "";
-    for (const region of table) {
-        if ((region.part || "") !== "" && region.part !== part)
-            expected.push({ heading: (part = region.part) });
-        expected.push([region.name, region.id]);
-    }
-    assert.deepEqual(row.options, expected);
-    assert.deepEqual(row.options[0], ["World", "world"]);
-    assert.ok(expected.some(o => o.heading === "Asia") && expected.some(o => o[1] === "japan"));
-    // Each id once: the setting keeps one value an id.
-    const ids = table.map(r => r.id);
-    assert.equal(new Set(ids).size, ids.length);
-});
-
 test("defaults are among the values, and rows show with rows that are there", () => {
     const scopes = [["app", appRows], ...schema.modules.map(m => [m.id, m.settings])];
     for (const [scope, rows] of scopes) {
