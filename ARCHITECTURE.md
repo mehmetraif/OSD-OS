@@ -97,6 +97,7 @@ osd-os/
   assets/
     themes/                         # Settings → Theme's own themes (Trinitron … Demoscene): theme.json and its music
     skins/                          # Settings → Skin's own skins (DOS, Rounded): skin.json and two-colour pictures
+    images/app-icon/                # OSD/OS's icon, 16 to 256 px: its window's where a desktop shows one (main.cpp); packaging/windows/osdos.ico holds the same sizes for osdos.exe
   shaders/                          # compiled into the app (Qt Shader Tools)
     effects.frag                    # the screen and text effects, one pass over the menus
     bg-matrix.frag, bg-fire.frag, … # the background effects
