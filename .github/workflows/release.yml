@@ -541,7 +541,6 @@ jobs:
       # it then (UpdateManager), so a package still uploading, or one that
       # failed to, must not leave it saying the release has no package.
       - name: Publish
-        id: publish
         uses: softprops/action-gh-release@v3
         with:
           tag_name: ${{ github.ref_name }}
@@ -558,36 +557,26 @@ jobs:
             artifacts/os-image/*.img.xz
           body_path: release-notes.md
 
-      # Each file's label, which the release page shows in place of its name
-      # under Assets: the name, the system it is for and what it is. The names
-      # themselves stay as they are, since every installed app's updater and
-      # install.sh look the files up by them (UpdateManager::assetSuffix).
-      - name: Name each file's system
-        env:
-          GH_TOKEN: ${{ github.token }}
-          TAG: ${{ github.ref_name }}
-          RELEASE_ID: ${{ steps.publish.outputs.id }}
-        run: |
-          label_of() {
-            case "$1" in
-              *-raspberry-pi.img.xz) echo "$1 · Raspberry Pi 4 and 5 · the whole system, flashed to a card with Raspberry Pi Imager" ;;
-              *-linux-arm64.tar.gz)  echo "$1 · Raspberry Pi OS (arm64) · the app alone, which install.sh and the updater install" ;;
-              install.sh)            echo "$1 · Raspberry Pi OS (arm64) · installs the app and its service on a Pi you set up yourself" ;;
-              *-linux-x86_64.AppImage) echo "$1 · Steam Deck and Linux PCs (x86_64) · the app with everything inside, nothing to install" ;;
-              *-macOS-arm64.dmg)     echo "$1 · macOS on Apple Silicon · osdos.app, for your Applications folder" ;;
-              *-windows-x64.zip)     echo "$1 · Windows 11 (x64) · the app in one folder, osdos, unzipped anywhere" ;;
-              *)                     echo "" ;;
-            esac
-          }
-          gh api "repos/${GITHUB_REPOSITORY}/releases/${RELEASE_ID}" --jq '.assets[] | "\(.id) \(.name)"' |
-          while read -r id name; do
-            label=$(label_of "$name")
-            [ -n "$label" ] || continue
-            gh api -X PATCH "repos/${GITHUB_REPOSITORY}/releases/assets/${id}" -f label="$label" --jq '.label'
-          done
-
       - name: Make the release public
         env:
           GH_TOKEN: ${{ github.token }}
           TAG: ${{ github.ref_name }}
         run: gh release edit "$TAG" --draft=false
+
+      # Every file shows under Assets by its own name, the one the notes'
+      # Downloads table gives it: nothing labels the files. Releases v0.0.20
+      # to v0.0.23 labelled theirs with the system and what each file is,
+      # which the release page showed in place of the name; those labels are
+      # set back to the names here, at the first release that runs this, and
+      # the step finds nothing to do after that. It changes only how the page
+      # shows the files, never their names, so it never holds a release back.
+      - name: Every release's files under their own names
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh api --paginate "repos/${GITHUB_REPOSITORY}/releases?per_page=100" \
+              --jq '.[].assets[] | select((.label // "") != "" and .label != .name) | "\(.id) \(.name)"' |
+          while read -r id name; do
+            gh api -X PATCH "repos/${GITHUB_REPOSITORY}/releases/assets/${id}" -f label="$name" --jq '.name'
+          done

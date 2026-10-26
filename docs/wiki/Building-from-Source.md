@@ -320,7 +320,7 @@ Any tag matching `v*.*.*` starts `release.yml`; one containing `-rc`, `-beta` or
 | `build-linux-x86_64` | `ubuntu-24.04` | `OSD-OS-linux-x86_64.AppImage`, with mpv 0.40 built by `scripts/build-mpv.sh`. Its name has no version, as it updates itself in place |
 | `build-os-image` | `ubuntu-24.04-arm` | `OSD-OS-<tag>-raspberry-pi.img.xz`, from the release's own tarball |
 
-The last job, `release`, waits for the builds and the regression tests: a tag whose tests fail has its builds made, but no release published. It writes release notes with absolute links, ending with a Downloads table (each file by the system it is for, what it is, and how it is installed and updated), publishes the release with the four packages and `install.sh`, and labels each file for the Assets list with its name, its system and what it is; GitHub keeps each file's SHA-256 digest with it, which the in-app updater checks a download against. While the workflow runs, each job's file can be downloaded from its run's **Artifacts**.
+The last job, `release`, waits for the builds and the regression tests: a tag whose tests fail has its builds made, but no release published. It writes release notes with absolute links, ending with a Downloads table (each file by the system it is for, what it is, and how it is installed and updated), publishes the release with the four packages and `install.sh`, each listed under Assets by its own file name, as the Downloads table names it; GitHub keeps each file's SHA-256 digest with it, which the in-app updater checks a download against. While the workflow runs, each job's file can be downloaded from its run's **Artifacts**.
 
 ## Building the OSD/OS image
 
