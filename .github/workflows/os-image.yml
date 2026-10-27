@@ -68,6 +68,13 @@ jobs:
       - name: Install
         run: cmake --install build
 
+      # As the release workflow's Linux arm64 job has it.
+      - name: CV1000 LAN core
+        uses: ./.github/actions/fbneo-lan-core
+        with:
+          core-dir: install/usr/local/lib/osdos
+          license: install/usr/local/share/osdos/fbneo/license.txt
+
       - name: Create tarball
         run: |
           cd "${GITHUB_WORKSPACE}/install"

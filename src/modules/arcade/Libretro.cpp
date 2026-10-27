@@ -6,6 +6,7 @@
 #include <QDir>
 #include <QFile>
 #include <QFileInfo>
+#include <QHash>
 #include <QHostAddress>
 #include <QJsonArray>
 #include <QJsonDocument>
@@ -29,14 +30,18 @@ namespace {
 
 #if defined(Q_OS_MACOS)
 const QString kCoreFile = QStringLiteral("fbneo_libretro.dylib");
+const QString kLanCoreFile = QStringLiteral("fbneo_cv1k_libretro.dylib");
 #elif defined(Q_OS_WIN)
 const QString kCoreFile = QStringLiteral("fbneo_libretro.dll");
+const QString kLanCoreFile = QStringLiteral("fbneo_cv1k_libretro.dll");
 #else
 const QString kCoreFile = QStringLiteral("fbneo_libretro.so");
+const QString kLanCoreFile = QStringLiteral("fbneo_cv1k_libretro.so");
 #endif
-// Its info file, named as RetroArch looks for it: the core's, without the
-// extension.
+// Their info files, named as RetroArch looks for them: the core's, without
+// the extension.
 const QString kCoreInfoFile = QStringLiteral("fbneo_libretro.info");
+const QString kLanCoreInfoFile = QStringLiteral("fbneo_cv1k_libretro.info");
 
 QString firstFile(const QStringList &candidates) {
     for (const QString &candidate : candidates) {
@@ -322,7 +327,25 @@ QString packagedDat() {
 }
 
 QString packagedLicense() {
+#if defined(Q_OS_MACOS)
+    return packagePrefix() + QStringLiteral("/Resources/fbneo-license.txt");
+#elif defined(Q_OS_WIN)
+    return QCoreApplication::applicationDirPath() + QStringLiteral("/fbneo-license.txt");
+#else
     return packagePrefix() + QStringLiteral("/share/osdos/fbneo/license.txt");
+#endif
+}
+
+QString lanCorePath(const QString &dataRoot) {
+#if defined(Q_OS_MACOS)
+    // In the bundle's Frameworks, where its signing takes a library in.
+    const QString own = packagePrefix() + QStringLiteral("/Frameworks/");
+#elif defined(Q_OS_WIN)
+    const QString own = QCoreApplication::applicationDirPath() + QLatin1Char('/');
+#else
+    const QString own = packagePrefix() + QStringLiteral("/lib/osdos/");
+#endif
+    return firstFile({ QFileInfo(downloadedCore(dataRoot)).path() + QLatin1Char('/') + kLanCoreFile, own + kLanCoreFile });
 }
 
 QString corePath(const QString &dataRoot) {
@@ -578,6 +601,12 @@ QString configText(const Launch &launch) {
     }
 
     if (launch.netplay != Launch::Netplay::None) {
+        // The core's options both machines play with alike, from OSD/OS's
+        // own file alone (netplayOptionsText()): not this machine's, nor a
+        // game's or a folder's own over them.
+        set("global_core_options", on(true));
+        set("core_options_path", netplayOptionsPath(launch.configDir));
+        set("game_specific_options", on(false));
         set("netplay_nickname", launch.nickname);
         set("netplay_start_as_spectator", on(false));
         // The game's ports this machine's players take, asked for by number
@@ -604,8 +633,9 @@ QString configText(const Launch &launch) {
     return lines.join(QLatin1Char('\n')) + QLatin1Char('\n');
 }
 
-QString coreRemapPath(const QString &remapDir) {
-    return remapDir + QLatin1Char('/') + kCoreName + QLatin1Char('/') + kCoreName + QStringLiteral(".rmp");
+QString coreRemapPath(const QString &remapDir, bool lanCore) {
+    const QLatin1String name = lanCore ? kLanCoreName : kCoreName;
+    return remapDir + QLatin1Char('/') + name + QLatin1Char('/') + name + QStringLiteral(".rmp");
 }
 
 QString remapText(const Launch &launch) {
@@ -677,19 +707,73 @@ QString withHardcoreOptions(const QString &text) {
     return lines.join(QLatin1Char('\n'));
 }
 
-QString coreInfoPath(const QString &infoDir) {
-    return infoDir + QLatin1Char('/') + kCoreInfoFile;
+QString netplayOptionsPath(const QString &configDir) {
+    return configDir + QStringLiteral("/netplay-options.cfg");
 }
 
-QString coreInfoText() {
+QString netplayOptionsText(const QString &userOptions) {
+    // FinalBurn Neo's defaults (its libretro retro_common.cpp) for each of
+    // its options that changes how a game runs, high scores and patched sets
+    // aside. A plain RetroArch's host plays with these unless its user
+    // changed them; FinalBurn Neo turns its high scores off over the network
+    // anyway.
+    static const struct { const char *key; const char *value; } alike[] = {
+        { "fbneo-force-60hz", "disabled" },
+        { "fbneo-resolution", "640x480" },
+        { "fbneo-fixed-frameskip", "0" },
+        { "fbneo-frameskip-type", "disabled" },
+        { "fbneo-frameskip-manual-threshold", "33" },
+        { "fbneo-cpu-speed-adjust", "100%" },
+        { "fbneo-diagnostic-input", "Hold Start" },
+        { "fbneo-hiscores", "disabled" },
+        { "fbneo-allow-patched-romsets", "disabled" },
+        { "fbneo-samplerate", "48000" },
+        { "fbneo-sample-interpolation", "4-point 3rd order" },
+        { "fbneo-fm-interpolation", "4-point 3rd order" },
+        { "fbneo-lowpass-filter", "disabled" },
+        { "fbneo-analog-speed", "100%" },
+        { "fbneo-socd", "3" },
+        { "fbneo-cyclone", "disabled" },
+        { "fbneo-neogeo-mode", "DIPSWITCH" },
+        { "fbneo-memcard-mode", "disabled" },
+    };
+    static const char *const picture[] = {
+        "fbneo-allow-depth-32",
+        "fbneo-vertical-mode",
+        "fbneo-lightgun-crosshair-emulation",
+    };
+    static const QRegularExpression option(QStringLiteral("^\\s*([^\\s=]+)\\s*=\\s*\"([^\"]*)\""));
+    QHash<QString, QString> user;
+    for (const QString &line : userOptions.split(QLatin1Char('\n'))) {
+        const QRegularExpressionMatch match = option.match(line);
+        if (match.hasMatch())
+            user.insert(match.captured(1), match.captured(2));
+    }
+    QStringList lines{ QStringLiteral("# Written by OSD/OS for each game played over the network: what is changed here is lost at the next.") };
+    for (const char *key : picture) {
+        const auto value = user.constFind(QLatin1String(key));
+        if (value != user.cend())
+            lines << configLine(key, *value);
+    }
+    for (const auto &[key, value] : alike)
+        lines << configLine(key, QLatin1String(value));
+    return lines.join(QLatin1Char('\n')) + QLatin1Char('\n');
+}
+
+QString coreInfoPath(const QString &infoDir, bool lanCore) {
+    return infoDir + QLatin1Char('/') + (lanCore ? kLanCoreInfoFile : kCoreInfoFile);
+}
+
+QString coreInfoText(bool lanCore) {
     // Of libretro's own (libretro-core-info's fbneo_libretro.info), the
     // core's names and its states: deterministic, the same on every machine,
     // as netplay needs them (and run-ahead).
     return QStringLiteral("# Written by OSD/OS for each game it starts: what is changed here is lost at the next.\n"
                           "display_name = \"Arcade (FinalBurn Neo)\"\n"
-                          "corename = \"FinalBurn Neo\"\n"
+                          "corename = \"%1\"\n"
                           "savestate = \"true\"\n"
-                          "savestate_features = \"deterministic\"\n");
+                          "savestate_features = \"deterministic\"\n")
+        .arg(lanCore ? kLanCoreName : kCoreName);
 }
 
 QStringList arguments(const Launch &launch) {
@@ -980,7 +1064,9 @@ std::optional<Room> readLanAnswer(const QByteArray &packet, const QString &addre
     room.password = passwords & 1;
     room.spectatePassword = passwords & 2;
     room.joinAddress = joinAddressOf(address, static_cast<int>(number(8)), QString());
-    room.joinable = room.core == QLatin1String("FinalBurn Neo") && !room.game.isEmpty() && !room.joinAddress.isEmpty();
+    // FinalBurn Neo, or OSD/OS's own for a CV1000 game (lanCorePath()).
+    room.joinable = (room.core == kCoreName || room.core == kLanCoreName) && !room.game.isEmpty()
+                    && !room.joinAddress.isEmpty();
     return room;
 }
 

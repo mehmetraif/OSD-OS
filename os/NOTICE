@@ -40,6 +40,15 @@ It reads them through hi2txt's game definitions
 contributors, under the GPL-2.0: data the module reads, with the licence's
 text beside them in /opt/osdos/share/osdos/modules/highscores/data/.
 
+The Arcade module plays Cave's CV1000 games on the local network with
+OSD/OS's own build of FinalBurn Neo (https://github.com/libretro/FBNeo),
+/opt/osdos/lib/osdos/fbneo_cv1k_libretro.so: FinalBurn Neo's libretro core
+of that board's driver alone, built from the commit scripts/fbneo-lan.env
+names in OSD/OS's source, with OSD/OS's changes to it, which are public
+there, in scripts/fbneo-lan.patch, as FinalBurn Neo's licence asks. It is
+Team FB Neo's, under that licence (section 3), whose full text is beside
+it in /opt/osdos/share/osdos/fbneo/license.txt. No ROM images come with it.
+
 OSD/OS's changes to 240-MP were written with Claude Code (Anthropic). The
 OSD/OS logo, the channel logo and the boot screen's cassette were made with
 ChatGPT (OpenAI).

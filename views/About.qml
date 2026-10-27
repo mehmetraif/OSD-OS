@@ -106,6 +106,8 @@ FocusScope {
           licenseName: "FinalBurn Neo's license",
           description: "The arcade emulator RetroArch plays those games with, as a libretro core, by Team FB Neo,"
                        + " github.com/libretro/FBNeo, from libretro's build server, buildbot.libretro.com"
+                       + " • OSD/OS's own build of it for Cave's CV1000 games on the local network comes with OSD/OS,"
+                       + " with its license, its changes public in OSD/OS's source (scripts/fbneo-lan.patch)"
                        + " • Free to use and share, never to sell; no ROMs come with it • {select}"
                        + " The license's text" },
         { key: "openhi2txt", label: "openhi2txt", value: "GPL v3", license: "LICENSE",

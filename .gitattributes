@@ -1,0 +1,7 @@
+# Shell scripts, and the patch and settings one reads, keep LF line endings
+# in every checkout, Windows' too, where Git turns text to CRLF by default:
+# bash takes a CR for part of the line. The Windows build runs
+# scripts/build-fbneo-lan.sh.
+*.sh text eol=lf
+scripts/fbneo-lan.env text eol=lf
+scripts/fbneo-lan.patch text eol=lf

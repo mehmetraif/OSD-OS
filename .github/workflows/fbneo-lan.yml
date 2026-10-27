@@ -1,0 +1,70 @@
+name: CV1000 LAN core
+
+# Builds OSD/OS's FinalBurn Neo core for CV1000 games on the local network
+# (scripts/build-fbneo-lan.sh, through .github/actions/fbneo-lan-core) on each
+# runner a package of the release builds it on: Linux x86_64 (the AppImage)
+# and arm64 (the tarball and the OSD/OS image), macOS on Apple Silicon and
+# Windows x64. The BSDs' build it in their machines (freebsd.yml,
+# openbsd.yml). A change to the core is built here before a release does, as
+# the release's own jobs run for a tag alone, and each core built is kept in
+# the cache they take it from. Each is uploaded as an artifact,
+# fbneo-lan-<system>, with FinalBurn Neo's licence, to try in
+# <data>/arcade/retroarch/cores.
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'scripts/build-fbneo-lan.sh'
+      - 'scripts/fbneo-lan.patch'
+      - 'scripts/fbneo-lan.env'
+      - '.github/actions/fbneo-lan-core/**'
+      - '.github/workflows/fbneo-lan.yml'
+  pull_request:
+    paths:
+      - 'scripts/build-fbneo-lan.sh'
+      - 'scripts/fbneo-lan.patch'
+      - 'scripts/fbneo-lan.env'
+      - '.github/actions/fbneo-lan-core/**'
+      - '.github/workflows/fbneo-lan.yml'
+
+permissions:
+  contents: read
+
+# A newer push cancels the run before it: only the newest commit's result
+# matters.
+concurrency:
+  group: fbneo-lan-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: ${{ matrix.name }}
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { name: Linux x86_64, runner: ubuntu-24.04, system: linux-x86_64 }
+          - { name: Linux arm64, runner: ubuntu-24.04-arm, system: linux-arm64 }
+          - { name: macOS arm64, runner: macos-15, system: macos-arm64 }
+          - { name: Windows x64, runner: windows-2022, system: windows-x64 }
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7.0.1
+
+      - name: CV1000 LAN core
+        uses: ./.github/actions/fbneo-lan-core
+        with:
+          core-dir: out
+          license: out/fbneo-license.txt
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v7.0.1
+        with:
+          name: fbneo-lan-${{ matrix.system }}
+          path: out
+          if-no-files-found: error

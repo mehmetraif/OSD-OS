@@ -168,7 +168,7 @@ esac
 # The tarball holds ./usr/local/bin/osdos and ./usr/local/share/osdos/...; with
 # the usr/local prefix stripped, it goes straight into $INSTALL_DIR the way the
 # launcher applies an in-app update: extracted whole into .new and written to
-# the card, then each top-level folder (bin, share) swapped in for the one
+# the card, then each top-level folder (bin, lib, share) swapped in for the one
 # there, which waits in .old until the swap is done. A Pi switched off
 # meanwhile starts on the release before, which the launcher puts back whole
 # from .old, never on half of each; and a file a release dropped (a module's
@@ -297,7 +297,7 @@ if [ -f "$UPDATES_DIR/staged.sha256" ] && [ -w "$INSTALL_DIR" ]; then
         STAGED_TARBALL=$(awk '{print $2}' "$UPDATES_DIR/staged.sha256")
         rm -rf "$INSTALL_DIR/.new" "$INSTALL_DIR/.old"
         mkdir -p "$INSTALL_DIR/.new" "$INSTALL_DIR/.old"
-        # Extract fully, then swap top-level dirs (bin, share) via rename —
+        # Extract fully, then swap top-level dirs (bin, lib, share) via rename —
         # shrinks the power-loss window from the whole extraction to two mv's,
         # and drops files that no longer exist in the new release. The new
         # files are on the card before any rename names them, and the renames

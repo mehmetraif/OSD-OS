@@ -740,7 +740,7 @@ ArcadeBackend::~ArcadeBackend() {
         signIn->waitForFinished(1000);
     }
     // Our versions' reads: nothing of them is wanted any more.
-    for (QProcess *read : { m_versionRead.data(), m_coreInfoRead.data() }) {
+    for (QProcess *read : { m_versionRead.data(), m_coreInfoRead.data(), m_lanCoreInfoRead.data() }) {
         if (read) {
             read->disconnect(this);
             read->kill();
@@ -3202,7 +3202,8 @@ QString ArcadeBackend::onlineLayout(const QString &set, bool hosting) const {
 }
 
 bool ArcadeBackend::playFbneo(const QString &name, libretro::Launch::Netplay netplay, const QString &joinAddress,
-                              int portsFrom, int portsGiven, libretro::Launch::Layout layout) {
+                              int portsFrom, int portsGiven, libretro::Launch::Layout layout, bool lanCore) {
+    using Netplay = libretro::Launch::Netplay;
     // As play() checks before coming here: one game at a time, whether
     // hosted, joined or played alone.
     if (running()) {
@@ -3214,9 +3215,16 @@ bool ArcadeBackend::playFbneo(const QString &name, libretro::Launch::Netplay net
         m_lastError = QStringLiteral("RetroArch is not installed");
         return false;
     }
-    const QString core = libretro::corePath(m_dataRoot);
+    // A CV1000 game hosted on the local network, or a room hosted so: on
+    // OSD/OS's own core for them, with which neither machine keeps the
+    // board's 128 MiB of video memory in each of the states netplay keeps a
+    // ring of, more than a Raspberry Pi has room for with libretro's.
+    lanCore = netplay == Netplay::LanHost ? playsOnLanCore(name) : netplay == Netplay::LanJoin && lanCore;
+    const QString core = lanCore ? libretro::lanCorePath(m_dataRoot) : libretro::corePath(m_dataRoot);
     if (core.isEmpty()) {
-        m_lastError = QStringLiteral("FinalBurn Neo is not installed: Settings → Arcade → FinalBurn Neo");
+        m_lastError = lanCore ? QStringLiteral("This OSD/OS has no core of its own for CV1000 games on the local network: "
+                                               "OSD/OS's packages bring it")
+                              : QStringLiteral("FinalBurn Neo is not installed: Settings → Arcade → FinalBurn Neo");
         return false;
     }
     if (!m_fbneoGames.contains(name)) {
@@ -3324,7 +3332,6 @@ bool ArcadeBackend::playFbneo(const QString &name, libretro::Launch::Netplay net
     launch.nickname = nickname(netplay == libretro::Launch::Netplay::LanHost
                                || netplay == libretro::Launch::Netplay::LanJoin);
     launch.relay = m_relay;
-    using Netplay = libretro::Launch::Netplay;
     const bool hosting = netplay == Netplay::Host || netplay == Netplay::LanHost;
     // The controller types every port plays with online: a host's own
     // choice, by its players (the panel's, with a stick or Arcade Buttons
@@ -3364,7 +3371,7 @@ bool ArcadeBackend::playFbneo(const QString &name, libretro::Launch::Netplay net
     // FinalBurn Neo's remap file: the arcade panels' players, and those with
     // Arcade Buttons, on its 6-Button Panel; none without one, nor online.
     // One of the user's own stays as it is, loaded in its place.
-    const QString remap = libretro::coreRemapPath(launch.remapDir);
+    const QString remap = libretro::coreRemapPath(launch.remapDir, lanCore);
     const QString remapText = libretro::remapText(launch);
     bool written = true;
     if (!libretro::ownsRemap(remap))
@@ -3379,14 +3386,27 @@ bool ArcadeBackend::playFbneo(const QString &name, libretro::Launch::Netplay net
     // FinalBurn Neo's info file, without which RetroArch neither hosts nor
     // joins a game.
     written = written && QDir().mkpath(launch.infoDir)
-              && writeFileAnew(libretro::coreInfoPath(launch.infoDir), libretro::coreInfoText().toUtf8(), kOwnerOnly);
-    // RetroAchievements' hardcore mode, the one whose scores the leaderboards
-    // take, runs only while no core option it disallows is set, and FinalBurn
-    // Neo's default allows patched sets, over which RetroArch would pause it
-    // ("Setting not allowed: fbneo-allow-patched-romsets=enabled"). The
-    // core's options are given the value hardcore wants, the rest kept, and
-    // written only when that changes them.
-    if (written && !launch.achievementsUser.isEmpty()) {
+              && writeFileAnew(libretro::coreInfoPath(launch.infoDir, lanCore), libretro::coreInfoText(lanCore).toUtf8(),
+                               kOwnerOnly);
+    // Over the network, the core's options both machines play with alike, in
+    // OSD/OS's own file, which RetroArch reads in place of the user's
+    // (libretro::netplayOptionsText()): of theirs, only the picture's, and
+    // their file left as it is.
+    if (written && netplay != Netplay::None) {
+        QFile file(libretro::coreOptionsPath(launch.configDir));
+        const QString userOptions = file.open(QIODevice::ReadOnly) ? QString::fromUtf8(file.readAll()) : QString();
+        file.close();
+        written = QDir().mkpath(launch.configDir)
+                  && writeFileAnew(libretro::netplayOptionsPath(launch.configDir),
+                                   libretro::netplayOptionsText(userOptions).toUtf8(), kOwnerOnly);
+    } else if (written && !launch.achievementsUser.isEmpty()) {
+        // RetroAchievements' hardcore mode, the one whose scores the
+        // leaderboards take, runs only while no core option it disallows is
+        // set, and FinalBurn Neo's default allows patched sets, over which
+        // RetroArch would pause it ("Setting not allowed:
+        // fbneo-allow-patched-romsets=enabled"). The core's options are given
+        // the value hardcore wants, the rest kept, and written only when that
+        // changes them. (Over the network the options it reads have it.)
         const QString options = libretro::coreOptionsPath(launch.configDir);
         QFile file(options);
         const QString before = file.open(QIODevice::ReadOnly) ? QString::fromUtf8(file.readAll()) : QString();
@@ -3448,6 +3468,10 @@ bool ArcadeBackend::playFbneo(const QString &name, libretro::Launch::Netplay net
     return true;
 }
 
+bool ArcadeBackend::playsOnLanCore(const QString &set) const {
+    return m_fbneoMachines.value(set).sourceFile == QLatin1String("cave/cv1k.cpp");
+}
+
 bool ArcadeBackend::canHost(const QString &set) const {
     return m_onlinePlay && fbneoPlays(set);
 }
@@ -3486,10 +3510,12 @@ bool ArcadeBackend::joinLanRoom(int id) {
         // asked at all is joined at once, on RetroArch's own terms.
         m_pendingJoin = PendingJoin{ room.game, room.joinAddress, room.joinAddress.section(QLatin1Char('|'), 0, 0),
                                      libretro::localPorts(controllers::playerGuids()), 0 };
+        m_pendingJoin->lanCore = room.core == libretro::kLanCoreName;
         if (askForPorts())
             return true;
         const PendingJoin join = *std::exchange(m_pendingJoin, std::nullopt);
-        return playFbneo(join.game, libretro::Launch::Netplay::LanJoin, join.joinAddress, -1);
+        return playFbneo(join.game, libretro::Launch::Netplay::LanJoin, join.joinAddress, -1, 0,
+                         libretro::Launch::Layout::Classic, join.lanCore);
     }
     m_lastError = QStringLiteral("The game is no longer hosted on this network");
     return false;
@@ -3579,7 +3605,7 @@ void ArcadeBackend::startPendingJoin(const std::optional<libretro::PortRange> &p
         qInfo("[Arcade] %s doesn't say which ports are taken: RetroArch is asked for them", qPrintable(join.host));
     const int first = ports ? ports->first : -1;
     if (playFbneo(join.game, libretro::Launch::Netplay::LanJoin, join.joinAddress, first, ports ? ports->players : 0,
-                  ports ? join.layout : libretro::Launch::Layout::Classic)) {
+                  ports ? join.layout : libretro::Launch::Layout::Classic, join.lanCore)) {
         m_claimedFrom = first > 0 ? join.host : QString();
         return;
     }
@@ -3662,10 +3688,14 @@ QVariantList ArcadeBackend::lanRooms() const {
         if (!fbneoHas(room.game))
             continue;
         // What its host answered with, as the lobby's rooms are told of
-        // (FinalBurn Neo is ready, so ours are what is known of them), and
-        // where it is joined: its host's address on this network, and the
-        // game's file in the folder.
-        QVariantMap info = roomInfo(room, now, true, m_coreVersion, m_retroarchVersion);
+        // (FinalBurn Neo is ready, so ours are what is known of them; a room
+        // of OSD/OS's own core for CV1000 games, against that core, and
+        // whether it is here, coreHere), and where it is joined: its host's
+        // address on this network, and the game's file in the folder.
+        const bool lanCore = room.core == libretro::kLanCoreName;
+        const bool coreHere = !lanCore || !libretro::lanCorePath(m_dataRoot).isEmpty();
+        QVariantMap info = roomInfo(room, now, coreHere, lanCore ? m_lanCoreVersion : m_coreVersion, m_retroarchVersion);
+        info.insert(QStringLiteral("coreHere"), coreHere);
         info.insert(QStringLiteral("address"), room.joinAddress.section(QLatin1Char('|'), 0, 0));
         info.insert(QStringLiteral("file"), m_sets.value(room.game));
         list << QVariantMap{ { QStringLiteral("id"), room.id }, { QStringLiteral("set"), room.game },
@@ -3697,7 +3727,10 @@ QVariantList ArcadeBackend::rooms() const {
 
 QVariantMap ArcadeBackend::roomInfo(const libretro::Room &room, const QDateTime &now, bool ready,
                                     const QString &yourCore, const QString &yourRetroArch) const {
-    const bool fbneo = room.core == QLatin1String("FinalBurn Neo");
+    // FinalBurn Neo's, or OSD/OS's own core's for a CV1000 game, hosted on
+    // the local network (libretro::lanCorePath()).
+    const bool lanCore = room.core == libretro::kLanCoreName;
+    const bool fbneo = lanCore || room.core == QLatin1String("FinalBurn Neo");
     const bool have = fbneo && !room.game.isEmpty() && fbneoHas(room.game);
     // A game of the folder by its name there; any other as its host has it.
     const QString title = have ? titleOf(room.game) : room.rom.isEmpty() ? QStringLiteral("?") : room.rom;
@@ -3715,7 +3748,9 @@ QVariantMap ArcadeBackend::roomInfo(const libretro::Room &room, const QDateTime 
               : room.joinAddress.isEmpty() ? QStringLiteral("The lobby gives no address it can be joined at")
                                            : QStringLiteral("Its host's RetroArch can't be joined from here");
     else if (!ready)
-        why = QStringLiteral("FinalBurn Neo is not installed: Settings → Arcade → FinalBurn Neo");
+        why = lanCore ? QStringLiteral("This OSD/OS has no core of its own for CV1000 games on the local network: "
+                                       "OSD/OS's packages bring it")
+                      : QStringLiteral("FinalBurn Neo is not installed: Settings → Arcade → FinalBurn Neo");
     else if (!m_sets.contains(room.game))
         why = QStringLiteral("%1 isn't in your games folder").arg(room.game);
     else if (m_folders.contains(room.game))
@@ -3929,6 +3964,24 @@ void ArcadeBackend::readOwnVersions() {
                 m_coreVersion = libretro::readCoreInfo(output).version;
                 if (doneWith(coreStamp, timedOut && m_coreVersion.isEmpty()))
                     m_coreVersionOf = coreStamp;
+            });
+        }
+    }
+    // As the core, OSD/OS's own for CV1000 games, which LAN Games' rooms of
+    // it are matched against.
+    const QString lanCore = m_lanPlay ? libretro::lanCorePath(m_dataRoot) : QString();
+    const QString lanCoreStamp = lanCore.isEmpty() ? QString() : fileStamp(QFileInfo(lanCore));
+    if (lanCoreStamp != m_lanCoreVersionOf && !m_lanCoreInfoRead && !m_coreInfoCommand.isEmpty()) {
+        m_lanCoreVersion.clear();
+        if (lanCore.isEmpty()) {
+            m_lanCoreVersionOf.clear();
+        } else {
+            m_lanCoreInfoRead = askVersion(m_coreInfoCommand.first(), m_coreInfoCommand.mid(1) << lanCore,
+                                           [this, lanCoreStamp, doneWith](const QByteArray &output, bool timedOut) {
+                m_lanCoreInfoRead = nullptr;
+                m_lanCoreVersion = libretro::readCoreInfo(output).version;
+                if (doneWith(lanCoreStamp, timedOut && m_lanCoreVersion.isEmpty()))
+                    m_lanCoreVersionOf = lanCoreStamp;
             });
         }
     }
@@ -4195,11 +4248,13 @@ QString ArcadeBackend::lanDetail(const libretro::Room &room) const {
                            .arg(room.host.isEmpty() ? QStringLiteral("someone") : room.host,
                                 room.joinAddress.section(QLatin1Char('|'), 0, 0)),
                        m_sets.value(room.game) };
-    // Its core and RetroArch against ours, as the lobby's rooms are matched.
-    const QString core = coreMatch(room.coreVersion, m_coreVersion);
+    // Its core and RetroArch against ours, as the lobby's rooms are matched
+    // (a room of OSD/OS's own core for CV1000 games against that core).
+    const QString &yourCore = room.core == libretro::kLanCoreName ? m_lanCoreVersion : m_coreVersion;
+    const QString core = coreMatch(room.coreVersion, yourCore);
     const QString retroarch = retroarchMatch(room.retroarch, m_retroarchVersion);
     if (core == QLatin1String("other"))
-        parts << QStringLiteral("Its FinalBurn Neo is %1, yours %2").arg(room.coreVersion, m_coreVersion);
+        parts << QStringLiteral("Its FinalBurn Neo is %1, yours %2").arg(room.coreVersion, yourCore);
     if (retroarch == QLatin1String("other"))
         parts << QStringLiteral("Its RetroArch is %1, yours %2").arg(room.retroarch, m_retroarchVersion);
     if (core == QLatin1String("same") && retroarch == QLatin1String("same"))

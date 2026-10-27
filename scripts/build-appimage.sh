@@ -19,6 +19,11 @@
 #   MPV_BIN        mpv to bundle                          (default: $(command -v mpv))
 #   QMAKE          qmake for linuxdeploy-plugin-qt        (default: auto-detect)
 #   CMAKE_PREFIX_PATH  passed through to cmake --configure (find Qt)
+#   FBNEO_LAN_PREFIX   a prefix with OSD/OS's FinalBurn Neo core for CV1000 games
+#                  on the local network and FinalBurn Neo's licence
+#                  (lib/osdos/, share/osdos/fbneo/: scripts/build-fbneo-lan.sh),
+#                  copied into the AppDir's usr/ (default: none, the AppImage
+#                  without it)
 #
 # Requires: cmake, a C++ toolchain, mpv (to bundle), and network access on first
 # run to fetch linuxdeploy + linuxdeploy-plugin-qt + appimagetool (cached under
@@ -94,6 +99,11 @@ fi
 log "Installing into $APPDIR"
 rm -rf "$APPDIR"
 DESTDIR="$SRC_ROOT/$APPDIR" cmake --install "$BUILD_DIR" --prefix /usr
+# The CV1000 LAN core under the same prefix, usr/lib/osdos/, where the app
+# looks for it (libretro::lanCorePath()).
+if [ -n "${FBNEO_LAN_PREFIX:-}" ]; then
+    cp -R "$FBNEO_LAN_PREFIX/." "$APPDIR/usr/"
+fi
 
 # ── 4. Bundle mpv ─────────────────────────────────────────────────────────────
 # Stock SteamOS has no system mpv, so ship our own next to the app binary

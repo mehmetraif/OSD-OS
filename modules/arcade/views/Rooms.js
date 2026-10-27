@@ -121,8 +121,9 @@ function emptyLine(lobby) {
 // and its file in the folder, who hosts it and at which address, its core,
 // version and RetroArch against yours, its system, its passwords, that it
 // is reached over the local network, and the ROM's CRC and the core's
-// subsystem where the host says. The screen shows as many as the box has
-// room for; the help line has the rest.
+// subsystem where the host says; its core marked as missing here where it
+// is (coreHere false: OSD/OS's own for CV1000 games). The screen shows as
+// many as the box has room for; the help line has the rest.
 function roomLines(r, lobby, kind) {
     if (kind !== "lan") {
         return linesOf(r, lobby).filter(function(line) { return line.type !== "join" }).map(function(line) {
@@ -131,7 +132,8 @@ function roomLines(r, lobby, kind) {
     }
     var made = [{ label: "Game", value: r.title }, { label: "File", value: r.file || "?" },
                 { label: "Host", value: r.host }, { label: "Address", value: r.address || "?" },
-                { label: "Core", value: r.core, icons: lobby.yourCoreState !== "missing" ? ["ok"] : ["no"] }]
+                { label: "Core", value: r.core,
+                  icons: r.coreHere !== false && lobby.yourCoreState !== "missing" ? ["ok"] : ["no"] }]
     if (r.coreVersion)
         made.push({ label: "Version", value: r.coreVersion, icons: matchIcons(r.coreMatch) })
     made.push({ label: "RetroArch", value: r.retroarch || "?", icons: matchIcons(r.retroarchMatch) })
