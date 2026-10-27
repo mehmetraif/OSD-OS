@@ -194,6 +194,12 @@ struct Launch {
     // Arcade Buttons under Panel alone. Off line each player has their own
     // (onPanel()), whatever this says.
     enum class Layout { Classic, Panel } layout = Layout::Classic;
+    // On the local network, the game at its own rate on every machine, its
+    // frames as the sound card takes its sound, not as the screen takes
+    // them (configText()). A host's OSD/OS plays so, and says so to the OSD/OS
+    // machines joining it (claimPace()), which then do too. Online, where
+    // the other machines are anyone's RetroArch, each plays as theirs do.
+    bool gameRate = false;
 };
 // Whether a game is hosted (Host, LanHost), rather than joined or played alone.
 constexpr bool hosts(Launch::Netplay netplay) {
@@ -413,7 +419,10 @@ bool isLanSender(const QHostAddress &address);
 // joiner then asks for ports from 2 with more than one player, else for
 // none. Before the ports, a host says the layout it plays with
 // (claimLayout(), Launch::layout), which an older OSD/OS doesn't: Classic
-// then.
+// then. Before the layout, it says that it plays at the game's own rate
+// (claimPace(), Launch::gameRate), and a joiner then plays so too; joining an
+// older OSD/OS, which says nothing of it, or RetroArch alone, it plays at its
+// screen's rate, as they do.
 constexpr quint16 kLanClaimPort = 55436;
 // The ports a game is played on at most: FinalBurn Neo's six-player games,
 // as many as the players the menus have controllers for.
@@ -446,13 +455,16 @@ QByteArray claimQuery(int players);
 QByteArray claimAnswer(const PortRange &ports);
 QByteArray claimRelease();
 QByteArray claimLayout(Launch::Layout layout);
+QByteArray claimPace();
 // What a packet says: a query for so many ports (1 to kMostPorts), an answer
-// giving the first and how many (within kMostPorts, or none), a release, or
-// the host's layout; nothing for a packet that isn't one.
+// giving the first and how many (within kMostPorts, or none), a release, the
+// host's layout, or that it plays at the game's own rate; nothing for a
+// packet that isn't one.
 std::optional<int> readClaimQuery(const QByteArray &packet);
 std::optional<PortRange> readClaimAnswer(const QByteArray &packet);
 bool isClaimRelease(const QByteArray &packet);
 std::optional<Launch::Layout> readClaimLayout(const QByteArray &packet);
+bool isClaimPace(const QByteArray &packet);
 
 // A host's count of the ports taken: its own, 1 to own, and each joiner's
 // by its address, within the game's ports (most), each joiner's players no

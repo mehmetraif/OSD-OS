@@ -870,10 +870,13 @@ private:
     // chooses its own by its players, libretro::hostLayout()). On the local
     // network, a CV1000 game (playsOnLanCore()) is hosted with OSD/OS's own
     // core for it (libretro::lanCorePath()), and a room is joined with the
-    // core it is hosted with: lanCore, that one.
+    // core it is hosted with: lanCore, that one. A game hosted there plays at
+    // its own rate (libretro::Launch::gameRate), and a room joined so where
+    // its host's OSD/OS said it plays so: gameRate.
     bool playFbneo(const QString &name, libretro::Launch::Netplay netplay = libretro::Launch::Netplay::None,
                    const QString &joinAddress = QString(), int portsFrom = -1, int portsGiven = 0,
-                   libretro::Launch::Layout layout = libretro::Launch::Layout::Classic, bool lanCore = false);
+                   libretro::Launch::Layout layout = libretro::Launch::Layout::Classic, bool lanCore = false,
+                   bool gameRate = false);
     // Whether a set is one of Cave's CV1000 board's (FinalBurn Neo's
     // cave/d_cv1k.cpp), whose games are hosted on the local network with
     // OSD/OS's own core (libretro::lanCorePath()).
@@ -916,6 +919,9 @@ private:
         std::optional<libretro::PortRange> ports;
         // Hosted with OSD/OS's own core for CV1000 games (libretro::kLanCoreName).
         bool lanCore = false;
+        // The host plays at the game's own rate, as it said before its layout
+        // (libretro::claimPace()).
+        bool gameRate = false;
     };
     bool askForPorts();
     void readPortsAnswer();
@@ -923,8 +929,9 @@ private:
     void releaseClaim(const QString &address);
     // Hosting on the local network: the ports taken counted (m_claims, this
     // machine's own first, of the game's most), and each OSD/OS joining
-    // told the layout and given theirs at the claim port (answerClaims()),
-    // until the game ends (stopClaims()). False without the socket for it.
+    // told that the game plays at its own rate and the layout, and given
+    // theirs at the claim port (answerClaims()), until the game ends
+    // (stopClaims()). False without the socket for it.
     bool startClaims(int own, int most, libretro::Launch::Layout layout);
     void answerClaims();
     void stopClaims();
