@@ -319,12 +319,22 @@ public:
     // it ends; false, with lastError(), when it couldn't be started.
     Q_INVOKABLE bool joinRoom(int id);
     Q_INVOKABLE bool hostGame(const QString &set);
-    // Whether a game can be hosted: Online Play on, FinalBurn Neo there, and
-    // the set its, a zip or a 7z.
+    // Whether a game can be hosted: Online Play on, FinalBurn Neo there, the
+    // set its, a zip or a 7z, and this machine's memory enough for
+    // RetroArch's states of it (setMemory()).
     Q_INVOKABLE bool canHost(const QString &set) const;
     // The lobby's address: lobby.libretro.com's, or a stand-in's (a test's,
     // or OSDOS_LOBBY_URL's).
     void setLobbyUrl(const QUrl &url) { m_lobbyUrl = url; }
+    // This machine's memory in bytes (SystemInfo::memoryTotal(); -1 where it
+    // isn't known). A game is hosted, or a room of it joined, online or on
+    // the local network only where it has the memory RetroArch's states of
+    // it need on the core it plays on (libretro::netplayMemory()): Akai
+    // Katana's online, 10 GB to join and 18.8 GB to host, and on the local
+    // network, on OSD/OS's own core, 2 and 3.1 GB. Playable Online, Online
+    // Games and LAN Games leave out the others, the lobby says why of a room
+    // of one, and starting one says why.
+    void setMemory(qint64 bytes);
 
     // LAN Play (Settings → Arcade → LAN Play): the games RetroArch hosts on
     // the local network, found by a query broadcast there that each host
@@ -868,6 +878,10 @@ private:
     // cave/d_cv1k.cpp), whose games are hosted on the local network with
     // OSD/OS's own core (libretro::lanCorePath()).
     bool playsOnLanCore(const QString &set) const;
+    // Why set can't be hosted (hosting) or joined over the network on this
+    // machine, on OSD/OS's own core for CV1000 games (lanCore) or on
+    // FinalBurn Neo's: the memory it needs (setMemory()); "" where it can.
+    QString netplayTooBig(const QString &set, bool lanCore, bool hosting) const;
     // How many players set plays at once, as MAME says (up to
     // libretro::kMostPorts); 0 for a game MAME doesn't know.
     int gamePlayers(const QString &set) const;
@@ -1090,6 +1104,7 @@ private:
     // matched against (libretro::lanCorePath()).
     QString m_lanCoreVersion;
     QString m_lanCoreVersionOf;
+    qint64 m_memory = -1;  // setMemory()
     QPointer<QProcess> m_versionRead;
     QPointer<QProcess> m_coreInfoRead;
     QPointer<QProcess> m_lanCoreInfoRead;

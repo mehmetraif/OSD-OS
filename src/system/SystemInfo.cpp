@@ -185,11 +185,31 @@ SystemInfo::Facts SystemInfo::read(const QString &dataRoot, const QString &media
     return facts;
 }
 
+qint64 SystemInfo::memoryTotal() {
+#if defined(Q_OS_WIN)
+    MEMORYSTATUSEX memory {};
+    memory.dwLength = sizeof(memory);
+    return GlobalMemoryStatusEx(&memory) ? qint64(memory.ullTotalPhys) : -1;
+#elif defined(Q_OS_MACOS)
+    quint64 memory = 0;
+    return sysctlValue("hw.memsize", &memory) ? qint64(memory) : -1;
+#elif defined(Q_OS_FREEBSD)
+    unsigned long memory = 0;
+    return sysctlValue("hw.physmem", &memory) ? qint64(memory) : -1;
+#elif defined(Q_OS_OPENBSD)
+    int64_t memory = 0;
+    return sysctlValue({ CTL_HW, HW_PHYSMEM64 }, &memory) ? qint64(memory) : -1;
+#else
+    return meminfoBytes(QString::fromUtf8(systemFile(QStringLiteral("/proc/meminfo"))), QStringLiteral("MemTotal"));
+#endif
+}
+
 void SystemInfo::readFixed(Facts *facts) {
     facts->version = QCoreApplication::applicationVersion();
     facts->arch = QSysInfo::currentCpuArchitecture();
     facts->cores = QThread::idealThreadCount();
     facts->model = board::model();
+    facts->memoryTotal = memoryTotal();
 #if defined(Q_OS_WIN)
     // The PC as its firmware names it, and its processor, from the registry.
     if (facts->model.isEmpty()) {
@@ -201,17 +221,10 @@ void SystemInfo::readFixed(Facts *facts) {
     const QSettings processor(QStringLiteral("HKEY_LOCAL_MACHINE\\HARDWARE\\DESCRIPTION\\System\\CentralProcessor\\0"),
                               QSettings::NativeFormat);
     facts->cpu = processor.value(QStringLiteral("ProcessorNameString")).toString().simplified();
-    MEMORYSTATUSEX memory {};
-    memory.dwLength = sizeof(memory);
-    if (GlobalMemoryStatusEx(&memory))
-        facts->memoryTotal = qint64(memory.ullTotalPhys);
 #elif defined(Q_OS_MACOS)
     if (facts->model.isEmpty())
         facts->model = sysctlText("hw.model");
     facts->cpu = sysctlText("machdep.cpu.brand_string");
-    quint64 memory = 0;
-    if (sysctlValue("hw.memsize", &memory))
-        facts->memoryTotal = qint64(memory);
 #elif defined(Q_OS_FREEBSD)
     if (facts->model.isEmpty()) {
         // The PC as its firmware names it.
@@ -219,16 +232,10 @@ void SystemInfo::readFixed(Facts *facts) {
         facts->serial = kenvText("smbios.system.serial");
     }
     facts->cpu = sysctlText("hw.model");
-    unsigned long memory = 0;
-    if (sysctlValue("hw.physmem", &memory))
-        facts->memoryTotal = qint64(memory);
 #elif defined(Q_OS_OPENBSD)
     if (facts->model.isEmpty())
         facts->model = (sysctlText({ CTL_HW, HW_VENDOR }) + QLatin1Char(' ') + sysctlText({ CTL_HW, HW_PRODUCT })).simplified();
     facts->cpu = sysctlText({ CTL_HW, HW_MODEL });
-    int64_t memory = 0;
-    if (sysctlValue({ CTL_HW, HW_PHYSMEM64 }, &memory))
-        facts->memoryTotal = qint64(memory);
 #else
     if (facts->model.isEmpty()) {
         // A PC's, as its firmware names it.
@@ -238,8 +245,6 @@ void SystemInfo::readFixed(Facts *facts) {
     }
     facts->serial = systemText(QStringLiteral("/proc/device-tree/serial-number"));
     facts->cpu = cpuName(QString::fromUtf8(systemFile(QStringLiteral("/proc/cpuinfo"))));
-    facts->memoryTotal = meminfoBytes(QString::fromUtf8(systemFile(QStringLiteral("/proc/meminfo"))),
-                                      QStringLiteral("MemTotal"));
     // The OS and its kernel from the files QSysInfo reads them from, so
     // that a stand-in can name them.
     static const QRegularExpression pretty(QStringLiteral("^PRETTY_NAME=\"?([^\"\\n]*)\"?$"),

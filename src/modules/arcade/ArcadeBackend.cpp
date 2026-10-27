@@ -3096,9 +3096,10 @@ QStringList ArcadeBackend::madeSets(const QString &filter) const {
     } else if (filter == QLatin1String("netplay") && m_onlinePlay && fbneoReady()) {
         // The games that can be hosted, and joined in the lobby, with Online
         // Play on: FinalBurn Neo's, whichever engine plays them off line, as
-        // a game online plays in it (canHost()).
+        // a game online plays in it, with the memory to host them
+        // (canHost()).
         for (const QString &set : index().games) {
-            if (fbneoHas(set))
+            if (fbneoHas(set) && netplayTooBig(set, false, true).isEmpty())
                 sets << set;
         }
     }
@@ -3241,6 +3242,12 @@ bool ArcadeBackend::playFbneo(const QString &name, libretro::Launch::Netplay net
     if (m_misnamed.contains(name)) {
         m_lastError = looksForLowerCase(QStringLiteral("FinalBurn Neo"), name) + QStringLiteral(": rename the file to ") + mameFileName(name);
         return false;
+    }
+    // Over the network, the memory RetroArch's states of it need.
+    if (netplay != Netplay::None) {
+        m_lastError = netplayTooBig(name, lanCore, netplay == Netplay::Host || netplay == Netplay::LanHost);
+        if (!m_lastError.isEmpty())
+            return false;
     }
 
     // RetroArch's keeping, in a folder of its own: a config with a token in
@@ -3472,8 +3479,32 @@ bool ArcadeBackend::playsOnLanCore(const QString &set) const {
     return m_fbneoMachines.value(set).sourceFile == QLatin1String("cave/cv1k.cpp");
 }
 
+void ArcadeBackend::setMemory(qint64 bytes) {
+    if (bytes == m_memory)
+        return;
+    m_memory = bytes;
+    emit gamesChanged();
+}
+
+QString ArcadeBackend::netplayTooBig(const QString &set, bool lanCore, bool hosting) const {
+    if (m_memory <= 0)
+        return QString();
+    const auto machine = m_fbneoMachines.constFind(set);
+    const qint64 needs = machine == m_fbneoMachines.constEnd()
+                             ? 0
+                             : libretro::netplayMemory(libretro::netplayStateSize(machine->sourceFile, lanCore), hosting);
+    if (needs <= m_memory)
+        return QString();
+    // As Settings → About says a machine's memory.
+    const auto gigabytes = [](qint64 bytes) {
+        return QStringLiteral("%1 GB").arg(double(bytes) / double(qint64(1) << 30), 0, 'f', 1);
+    };
+    return QStringLiteral("%1 it over the network needs %2 of memory, and this machine has %3")
+        .arg(hosting ? QStringLiteral("Hosting") : QStringLiteral("Joining"), gigabytes(needs), gigabytes(m_memory));
+}
+
 bool ArcadeBackend::canHost(const QString &set) const {
-    return m_onlinePlay && fbneoPlays(set);
+    return m_onlinePlay && fbneoPlays(set) && netplayTooBig(set, false, true).isEmpty();
 }
 
 bool ArcadeBackend::hostGame(const QString &set) {
@@ -3490,7 +3521,7 @@ bool ArcadeBackend::joinRoom(int id) {
 }
 
 bool ArcadeBackend::canHostLan(const QString &set) const {
-    return m_lanPlay && fbneoPlays(set);
+    return m_lanPlay && fbneoPlays(set) && netplayTooBig(set, playsOnLanCore(set), true).isEmpty();
 }
 
 bool ArcadeBackend::hostLanGame(const QString &set) {
@@ -3683,16 +3714,17 @@ QVariantList ArcadeBackend::lanRooms() const {
         return list;
     const QDateTime now = QDateTime::currentDateTimeUtc();
     for (const libretro::Room &room : m_lanRooms) {
-        // As rooms(): a game in the folder FinalBurn Neo plays (only rooms
-        // joined without a password are kept: readLanAnswers()).
-        if (!fbneoHas(room.game))
+        // As rooms(): a game in the folder FinalBurn Neo plays, with the
+        // memory to join it on the core it is hosted with (only rooms joined
+        // without a password are kept: readLanAnswers()).
+        const bool lanCore = room.core == libretro::kLanCoreName;
+        if (!fbneoHas(room.game) || !netplayTooBig(room.game, lanCore, false).isEmpty())
             continue;
         // What its host answered with, as the lobby's rooms are told of
         // (FinalBurn Neo is ready, so ours are what is known of them; a room
         // of OSD/OS's own core for CV1000 games, against that core, and
         // whether it is here, coreHere), and where it is joined: its host's
         // address on this network, and the game's file in the folder.
-        const bool lanCore = room.core == libretro::kLanCoreName;
         const bool coreHere = !lanCore || !libretro::lanCorePath(m_dataRoot).isEmpty();
         QVariantMap info = roomInfo(room, now, coreHere, lanCore ? m_lanCoreVersion : m_coreVersion, m_retroarchVersion);
         info.insert(QStringLiteral("coreHere"), coreHere);
@@ -3712,10 +3744,10 @@ QVariantList ArcadeBackend::rooms() const {
     const QDateTime now = QDateTime::currentDateTimeUtc();
     for (const libretro::Room &room : m_rooms) {
         // A game in the folder FinalBurn Neo plays, joined without a
-        // password (RetroArch would ask for one on its own screen); with
-        // what the lobby says of it, as lobby() has it (FinalBurn Neo is
-        // ready, so ours are what is known of them).
-        if (room.password || !fbneoHas(room.game))
+        // password (RetroArch would ask for one on its own screen), with the
+        // memory to join it; with what the lobby says of it, as lobby() has
+        // it (FinalBurn Neo is ready, so ours are what is known of them).
+        if (room.password || !fbneoHas(room.game) || !netplayTooBig(room.game, false, false).isEmpty())
             continue;
         list << QVariantMap{ { QStringLiteral("id"), room.id }, { QStringLiteral("set"), room.game },
                              { QStringLiteral("title"), titleOf(room.game) },
@@ -3759,6 +3791,8 @@ QVariantMap ArcadeBackend::roomInfo(const libretro::Room &room, const QDateTime 
         why = m_fbneoGames.contains(room.game)
                   ? looksForLowerCase(QStringLiteral("FinalBurn Neo"), room.game)
                   : QStringLiteral("FinalBurn Neo has no game called %1").arg(room.game);
+    else
+        why = netplayTooBig(room.game, lanCore, false);
     return { { QStringLiteral("id"), room.id }, { QStringLiteral("title"), title }, { QStringLiteral("rom"), room.rom },
              { QStringLiteral("set"), have ? room.game : QString() }, { QStringLiteral("crc"), room.crc },
              { QStringLiteral("core"), room.core }, { QStringLiteral("coreVersion"), room.coreVersion },

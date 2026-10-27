@@ -283,6 +283,8 @@ int main(int argc, char *argv[]) {
     ScriptsBackend      scriptsBackend(appRoot, dataRoot, &displayHandoff);
     // The games in MAME, which takes the screen as a script does.
     ArcadeBackend       arcadeBackend(appRoot, dataRoot, &appCore, &displayHandoff);
+    // Over the network, only the games whose states RetroArch has the memory for.
+    arcadeBackend.setMemory(SystemInfo::memoryTotal());
     // A RetroAchievements account pasted from OSD/OS Setup, taken at once.
     QObject::connect(&appCore, &AppCore::setupAccountWritten, &arcadeBackend, &ArcadeBackend::takeSetupAccount);
     // Its Recently Played is the Arcade module's.

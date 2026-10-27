@@ -67,6 +67,28 @@ QString packagedLicense();
 QString lanCorePath(const QString &dataRoot);
 inline constexpr QLatin1String kLanCoreName("FinalBurn Neo (cv1k subset)");
 
+// The memory RetroArch 1.20's netplay takes for a game: a state of it each
+// frame, in a ring of 62 on a machine joining and of 124 on its host, and
+// room for two more to compress one in (netplay_init_buffers(),
+// netplay_init_serialization()).
+inline constexpr int kJoinStates = 62 + 2;
+inline constexpr int kHostStates = 124 + 2;
+// A state's size in bytes, over the network, of a game of the board whose
+// driver is sourceFile ("cave/cv1k.cpp", as FinalBurn Neo's list names it
+// without its "d_"), on FinalBurn Neo's core or, with lanCore, on OSD/OS's
+// own for CV1000 games; 0 for a board whose states are under 8 MiB, under
+// 1 GiB in all even hosting. Measured on the arcade sets of the commit
+// scripts/fbneo-lan.env names, each driver started on zero-filled ROMs and
+// what retro_serialize_size() scans in a rollback-netplay context added up:
+// 8361 of its 8446 sets start so, and the others' sizes come from their
+// drivers' scans.
+qint64 netplayStateSize(const QString &sourceFile, bool lanCore);
+// The memory a machine needs to play over the network a game whose state is
+// stateSize: its states (kHostStates of them hosting, else kJoinStates) and
+// 1 GiB more for the system, RetroArch and the core, or twice its states on
+// a machine of less than 2 GiB.
+qint64 netplayMemory(qint64 stateSize, bool hosting);
+
 // FinalBurn Neo's arcade games, from its DAT (ClrMame Pro's XML): each
 // game's set by its description. Not a BIOS set (neogeo), which games start
 // from but which isn't one. Empty for a file that can't be read. With

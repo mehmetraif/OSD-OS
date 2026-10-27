@@ -88,6 +88,10 @@ public:
     // drives among it. Linux's files under OSDOS_SYSTEM_ROOT, for tests.
     static Facts read(const QString &dataRoot, const QString &mediaRoot);
     static QVariantList rowsOf(const Facts &facts);
+    // The memory there is, in bytes; -1 where it can't be read. The Arcade
+    // module plays a game over the network only where RetroArch's states of
+    // it fit in it (ArcadeBackend::setMemory()).
+    static qint64 memoryTotal();
     // A name the network takes of what was typed (RFC 1123: letters, digits
     // and hyphens, 63 at most, neither end a hyphen), in small letters, its
     // spaces as hyphens; "" when it can't be one, why saying so.

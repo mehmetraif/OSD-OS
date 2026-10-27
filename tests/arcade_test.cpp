@@ -5760,6 +5760,163 @@ private slots:
         QCOMPARE(startedWith(), core);
     }
 
+    // Over the network, only the games whose states RetroArch has the memory
+    // for on this machine: on a Raspberry Pi of 8 GB, Akai Katana (CV1000)
+    // neither hosted online nor its room joined, saying why, but on the local
+    // network on OSD/OS's own core; on a machine of 2 GB not there either; on
+    // one of 32 GB everywhere. Street Fighter II on all of them.
+    void netplayMemory() {
+        const qint64 gib = qint64(1) << 30;
+        QCOMPARE(libretro::netplayStateSize(QStringLiteral("cave/cv1k.cpp"), false), qint64(151780188));
+        QCOMPARE(libretro::netplayStateSize(QStringLiteral("cave/cv1k.cpp"), true), qint64(17562464));
+        QCOMPARE(libretro::netplayStateSize(QStringLiteral("capcom/cps1.cpp"), false), qint64(0));
+        QCOMPARE(libretro::netplayMemory(0, true), qint64(0));
+        QCOMPARE(libretro::netplayMemory(151780188, false), 64 * qint64(151780188) + gib);
+        QCOMPARE(libretro::netplayMemory(151780188, true), 126 * qint64(151780188) + gib);
+        // Twice its states where that is less than 1 GiB more.
+        QCOMPARE(libretro::netplayMemory(1 << 20, true), 2 * 126 * qint64(1 << 20));
+
+        QTemporaryDir data;
+        QVERIFY(data.isValid());
+        const QString games = data.path() + QStringLiteral("/media/Games/Arcade");
+        for (const char *set : { "sf2.zip", "akatana.zip" })
+            writeFile(games + QLatin1Char('/') + QLatin1String(set));
+        QVERIFY(QDir().mkpath(data.path() + QStringLiteral("/bin")));
+        QVERIFY(QFile::copy(mamePath(), data.path() + QStringLiteral("/bin/mame")));
+        writeFile(data.path() + QStringLiteral("/bin/retroarch"), fixture("retroarch"));
+        const QString coreInfo = data.path() + QStringLiteral("/bin/coreinfo");
+        writeFile(coreInfo, "#!/bin/sh\ncase \"$2\" in\n"
+                            "*fbneo_cv1k_libretro*) printf 'name=FinalBurn Neo (cv1k subset)\\nversion=v1.0.0.03 6e7c2a1\\n' ;;\n"
+                            "*) printf 'name=FinalBurn Neo\\nversion=v1.0.0.03 6e7c2a1\\n' ;;\nesac\n");
+        for (const char *program : { "/bin/mame", "/bin/retroarch", "/bin/coreinfo" })
+            QVERIFY(QFile::setPermissions(data.path() + QLatin1String(program),
+                                          QFile::ReadOwner | QFile::WriteOwner | QFile::ExeOwner));
+        const QString core = libretro::downloadedCore(data.path());
+        writeFile(core);
+        writeFile(QFileInfo(core).path() + QStringLiteral("/fbneo_cv1k_libretro.so"));
+        writeFile(libretro::downloadedDat(data.path()),
+                  fixture("fbneo-arcade.dat")
+                      .replace("</datafile>", "\t<game name=\"akatana\" sourcefile=\"cave/d_cv1k.cpp\"><description>"
+                                              "Akai Katana (2010/ 8/13 MASTER VER.)</description></game>\n</datafile>"));
+        qputenv("RA_CONFIG_COPY", (data.path() + QStringLiteral("/ra.cfg")).toUtf8());
+        qputenv("OSDOS_MEDIA_DIR", (data.path() + QStringLiteral("/media")).toUtf8());
+        const auto restore = qScopeGuard([this] {
+            qunsetenv("RA_CONFIG_COPY");
+            qputenv("OSDOS_MEDIA_DIR", (m_data.path() + QStringLiteral("/media")).toUtf8());
+        });
+        // The lobby, with a room of each, and the local network's hosts:
+        // Akai Katana on OSD/OS's core, Street Fighter II on FinalBurn Neo's.
+        const QByteArray lobby =
+            "[{\"fields\": {\"id\": 11, \"username\": \"ann\", \"game_name\": \"SF2\", \"core_name\": \"FinalBurn Neo\","
+            " \"ip\": \"203.0.113.5\", \"port\": 55435, \"host_method\": 0, \"connectable\": true,"
+            " \"has_password\": false, \"retroarch_version\": \"1.20.0\"}},"
+            " {\"fields\": {\"id\": 12, \"username\": \"bob\", \"game_name\": \"akatana\", \"core_name\": \"FinalBurn Neo\","
+            " \"ip\": \"203.0.113.6\", \"port\": 55435, \"host_method\": 0, \"connectable\": true,"
+            " \"has_password\": false, \"retroarch_version\": \"1.20.0\"}}]";
+        QTcpServer server;
+        QVERIFY(server.listen(QHostAddress::LocalHost));
+        connect(&server, &QTcpServer::newConnection, &server, [&server, &lobby] {
+            QTcpSocket *socket = server.nextPendingConnection();
+            connect(socket, &QTcpSocket::readyRead, socket, [socket, &lobby] {
+                socket->readAll();
+                socket->write("HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: "
+                              + QByteArray::number(lobby.size()) + "\r\nConnection: close\r\n\r\n" + lobby);
+                socket->disconnectFromHost();
+            });
+        });
+        QUdpSocket hosts;
+        QVERIFY(hosts.bind(QHostAddress::LocalHost, 0));
+        connect(&hosts, &QUdpSocket::readyRead, &hosts, [&hosts] {
+            while (hosts.hasPendingDatagrams()) {
+                const QNetworkDatagram query = hosts.receiveDatagram();
+                if (query.data() != libretro::lanQuery())
+                    continue;
+                for (const QByteArray &answer : { lanAnswer("ann", "akatana", 55435, 0, "1.22.2", 0, "FinalBurn Neo (cv1k subset)"),
+                                                  lanAnswer("bob", "sf2", 55436) })
+                    hosts.writeDatagram(answer, query.senderAddress(), query.senderPort());
+            }
+        });
+
+        ArcadeBackend arcade(data.path(), data.path(), nullptr, nullptr);
+        arcade.setLobbyUrl(QUrl(QStringLiteral("http://127.0.0.1:%1/list").arg(server.serverPort())));
+        arcade.setLanDiscovery(QStringLiteral("127.0.0.1"), hosts.localPort());
+        arcade.setLanListenTime(150);
+        arcade.setCoreInfoCommand({ coreInfo, QStringLiteral("--core-info") });
+        // A Raspberry Pi 5 of 8 GB, as its /proc/meminfo has it: 7.9 GB.
+        const qint64 pi = 8245100LL * 1024;
+        arcade.setMemory(pi);
+        refreshed(arcade);
+        const QString module = QStringLiteral("com.osdos.arcade");
+        arcade.onSettingChanged(module, QStringLiteral("online_play"), QStringLiteral("On"));
+        arcade.onSettingChanged(module, QStringLiteral("lan_play"), QStringLiteral("On"));
+        QTRY_VERIFY_WITH_TIMEOUT(!arcade.filters().isEmpty(), 10000);
+        const auto playable = [&arcade] {
+            QStringList sets;
+            for (const QVariant &v : arcade.filterGames(QStringLiteral("netplay"), 0, 10))
+                sets << v.toMap().value(QStringLiteral("set")).toString();
+            return sets;
+        };
+        const auto setsOf = [](const QVariantList &rooms) {
+            QStringList sets;
+            for (const QVariant &v : rooms)
+                sets << v.toMap().value(QStringLiteral("set")).toString();
+            sets.sort();
+            return sets;
+        };
+        QSignalSpy ready(&arcade, &ArcadeBackend::entriesReady);
+        QVERIFY(!arcade.requestEntries(QStringLiteral("online")).isValid());
+        QTRY_VERIFY_WITH_TIMEOUT(ready.contains(QVariantList{ QStringLiteral("online") }), 5000);
+        QSignalSpy lanRead(&arcade, &ArcadeBackend::lanRoomsChanged);
+        arcade.refreshLanRooms();
+        QVERIFY(lanRead.wait(5000));
+        const auto lobbyWhy = [&arcade](int id) {
+            for (const QVariant &v : arcade.lobby().value(QStringLiteral("rooms")).toList()) {
+                if (v.toMap().value(QStringLiteral("id")).toInt() == id)
+                    return v.toMap().value(QStringLiteral("why")).toString();
+            }
+            return QStringLiteral("not listed");
+        };
+
+        // Online: Street Fighter II hosted and its room listed; Akai Katana
+        // neither, the lobby saying why of its room, and either said why of
+        // when started.
+        QVERIFY(arcade.canHost(QStringLiteral("sf2")));
+        QVERIFY(!arcade.canHost(QStringLiteral("akatana")));
+        QCOMPARE(playable(), QStringList{ QStringLiteral("sf2") });
+        QCOMPARE(setsOf(arcade.rooms()), QStringList{ QStringLiteral("sf2") });
+        const QString joining = QStringLiteral("Joining it over the network needs 10.0 GB of memory, and this machine has 7.9 GB");
+        QCOMPARE(lobbyWhy(11), QString());
+        QCOMPARE(lobbyWhy(12), joining);
+        QVERIFY(!arcade.hostGame(QStringLiteral("akatana")));
+        QCOMPARE(arcade.lastError(),
+                 QStringLiteral("Hosting it over the network needs 18.8 GB of memory, and this machine has 7.9 GB"));
+        QVERIFY(!arcade.joinRoom(12));
+        QCOMPARE(arcade.lastError(), joining);
+        // On the local network, on OSD/OS's own core: both.
+        QVERIFY(arcade.canHostLan(QStringLiteral("akatana")));
+        QVERIFY(arcade.canHostLan(QStringLiteral("sf2")));
+        QCOMPARE(setsOf(arcade.lanRooms()), QStringList({ QStringLiteral("akatana"), QStringLiteral("sf2") }));
+
+        // A machine of 2 GB: Akai Katana not on the local network either.
+        const qint64 small = 1948000LL * 1024;
+        arcade.setMemory(small);
+        QVERIFY(!arcade.canHostLan(QStringLiteral("akatana")));
+        QVERIFY(arcade.canHostLan(QStringLiteral("sf2")));
+        QCOMPARE(setsOf(arcade.lanRooms()), QStringList{ QStringLiteral("sf2") });
+        QVERIFY(!arcade.hostLanGame(QStringLiteral("akatana")));
+        QCOMPARE(arcade.lastError(),
+                 QStringLiteral("Hosting it over the network needs 3.1 GB of memory, and this machine has 1.9 GB"));
+
+        // One of 32 GB: Akai Katana everywhere.
+        arcade.setMemory(32 * gib);
+        QVERIFY(arcade.canHost(QStringLiteral("akatana")));
+        QVERIFY(arcade.canHostLan(QStringLiteral("akatana")));
+        QCOMPARE(playable(), QStringList({ QStringLiteral("akatana"), QStringLiteral("sf2") }));
+        QCOMPARE(setsOf(arcade.rooms()), QStringList({ QStringLiteral("akatana"), QStringLiteral("sf2") }));
+        QCOMPARE(lobbyWhy(12), QString());
+        QCOMPARE(setsOf(arcade.lanRooms()), QStringList({ QStringLiteral("akatana"), QStringLiteral("sf2") }));
+    }
+
     // Our RetroArch's and core's versions, which the lobby's rooms are
     // matched against: still being read, then read; a read too slow asked
     // once more (a core loads faster the second time), and a file whose read
