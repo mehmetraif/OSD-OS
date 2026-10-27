@@ -195,6 +195,8 @@ private slots:
         QCOMPARE(facts.serial, QStringLiteral("a1b2c3d4e5f60718"));
         QCOMPARE(facts.cpu, QStringLiteral("Cortex-A76"));
         QCOMPARE(facts.memoryTotal, 8245100LL * 1024);
+        // As the Arcade module is told it, for its games over the network.
+        QCOMPARE(SystemInfo::memoryTotal(), facts.memoryTotal);
         QCOMPARE(facts.memoryFree, 6291456LL * 1024);
         QCOMPARE(facts.uptime, 274325LL);
         QVERIFY(facts.temperature);

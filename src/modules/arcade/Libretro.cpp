@@ -348,6 +348,32 @@ QString lanCorePath(const QString &dataRoot) {
     return firstFile({ QFileInfo(downloadedCore(dataRoot)).path() + QLatin1Char('/') + kLanCoreFile, own + kLanCoreFile });
 }
 
+qint64 netplayStateSize(const QString &sourceFile, bool lanCore) {
+    // The boards whose states are 8 MiB or more, at their largest set's:
+    // - Cave's CV1000: 136.75 to 144.75 MiB on FinalBurn Neo's core, its
+    //   128 MiB of video memory among them, and 8.75 to 16.75 MiB on
+    //   OSD/OS's own, which plays its games alone, without it.
+    // - Killer Instinct's: its 8.5 MiB of RAM and, under 64 KiB, its CPUs'
+    //   and sound's, as its driver's DrvScan() has them, since it doesn't
+    //   start on zero-filled ROMs to be measured.
+    // The next are Neo Geo CD's (7.8 MiB), SSV's (5.6), and Taito's Under
+    // Fire and F3 boards' (4.6).
+    static const struct { const char *sourceFile; qint64 size; qint64 lanSize; } boards[] = {
+        { "cave/cv1k.cpp", 151780188, 17562464 },
+        { "midway/kinst.cpp", 0x890000, 0x890000 },
+    };
+    for (const auto &board : boards) {
+        if (sourceFile == QLatin1String(board.sourceFile))
+            return lanCore ? board.lanSize : board.size;
+    }
+    return 0;
+}
+
+qint64 netplayMemory(qint64 stateSize, bool hosting) {
+    const qint64 states = stateSize * (hosting ? kHostStates : kJoinStates);
+    return std::min(states + (qint64(1) << 30), states * 2);
+}
+
 QString corePath(const QString &dataRoot) {
     const QString home = QDir::homePath();
     return firstFile({ downloadedCore(dataRoot),
