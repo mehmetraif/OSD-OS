@@ -261,16 +261,43 @@ QString coreInfoText(bool lanCore = false);
 
 // What a run's log says (RetroArch's own, -v --log-file). Over the network,
 // hosting or joining (hosting says which), netplayFailure is why RetroArch
-// couldn't, after which it played the game alone (netplayFailure()).
+// couldn't, after which it played the game alone, and hostLeft that, joining,
+// it was connected and the host left the game (NetplayLog).
 struct Run {
     bool logged = false;          // there was a log to read
     bool started = false;         // FinalBurn Neo started the game
     QStringList missing;          // files it needed and found none of
     QString loginFailure;         // why RetroAchievements didn't take the account
     QString netplayFailure;       // why it couldn't host or join the game
+    bool hostLeft = false;        // joined, the host left the game
     QString error;                // RetroArch's last error line
 };
 Run readLog(const QString &path, bool hosting = false);
+// RetroArch's log of a game over the network, read a line at a time as it is
+// written (ArcadeBackend::watchNetplay()) or once the game is over
+// (readLog()): what ends the game. failure() is why RetroArch couldn't host or
+// join it (netplayFailure() of its netplay errors), after which it plays on
+// alone; "" until then. hostLeft() is that, joining, it was connected to the
+// host ("Connected to") and the connection has ended since ("Netplay
+// disconnected"): the host left the game, or stopped answering for 10 s.
+// RetroArch 1.20 plays on alone then too, and unthrottled, had it been
+// catching up with the host as it hung up: its catch-up's state is never
+// undone. A joiner's errors once it is connected end nothing; its connection
+// ending before then is a join that failed, why the last error before it.
+class NetplayLog {
+public:
+    explicit NetplayLog(bool hosting = false) : m_hosting(hosting) {}
+    void read(const QString &line);
+    QString failure() const { return m_failure; }
+    bool hostLeft() const { return m_hostLeft; }
+
+private:
+    bool m_hosting;
+    bool m_connected = false;
+    bool m_hostLeft = false;
+    QStringList m_errors;
+    QString m_failure;
+};
 // A line of the log that is one of RetroArch's netplay errors ("[ERROR]
 // [Netplay] ..."): what it says, its full stop dropped; nothing for any other
 // line.

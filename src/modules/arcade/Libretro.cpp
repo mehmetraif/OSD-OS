@@ -505,6 +505,11 @@ QString configText(const Launch &launch) {
     // A config RetroArch saves on exit only for that token: the rest is
     // written here again each time.
     set("config_save_on_exit", on(swapping));
+    // English (RETRO_LANGUAGE_ENGLISH), the language OSD/OS reads RetroArch's
+    // log in (readLog(), NetplayLog): left to itself, RetroArch speaks a
+    // Windows' own (a German, French, Spanish or Japanese one's, say), and
+    // logs its netplay lines in it too.
+    set("user_language", QStringLiteral("0"));
     set("video_fullscreen", on(true));
     set("pause_nonactive", on(false));
     // RGUI: its menu reads at a CRT's 240 lines.
@@ -864,13 +869,37 @@ QString netplayFailure(const QStringList &errors, bool hosting) {
     return QString();
 }
 
+void NetplayLog::read(const QString &line) {
+    if (m_hostLeft || !m_failure.isEmpty())
+        return;
+    // netplay_frontend.c's: the handshake done (netplay_handshake_ready(),
+    // MSG_CONNECTED_TO), and a connection that has ended (netplay_hangup(),
+    // MSG_NETPLAY_CLIENT_HANGUP), the host's gone or it stalled out.
+    if (!m_hosting && line.contains(QLatin1String("[Netplay] Connected to"))) {
+        m_connected = true;
+        return;
+    }
+    if (!m_hosting && line.contains(QLatin1String("[Netplay] Netplay disconnected"))) {
+        if (m_connected)
+            m_hostLeft = true;
+        else
+            m_failure = m_errors.isEmpty() ? QStringLiteral("Netplay disconnected") : m_errors.last();
+        return;
+    }
+    const std::optional<QString> error = netplayError(line);
+    if (!error || m_connected)
+        return;
+    m_errors << *error;
+    m_failure = netplayFailure(m_errors, m_hosting);
+}
+
 Run readLog(const QString &path, bool hosting) {
     Run run;
     QFile file(path);
     if (!file.open(QIODevice::ReadOnly | QIODevice::Text))
         return run;
     static const QRegularExpression rom(QStringLiteral("\\[FBNeo\\] ROM at index \\d+ with name (\\S+) and CRC"));
-    QStringList netplayErrors;
+    NetplayLog netplay(hosting);
     QTextStream in(&file);
     while (!in.atEnd()) {
         const QString line = in.readLine();
@@ -887,12 +916,12 @@ Run readLog(const QString &path, bool hosting) {
         }
         if (const std::optional<QString> failure = loginFailure(line))
             run.loginFailure = *failure;
-        if (const std::optional<QString> error = netplayError(line))
-            netplayErrors << *error;
+        netplay.read(line);
         if (line.contains(QLatin1String("[ERROR]")))
             run.error = line.section(QLatin1String("[ERROR]"), 1).trimmed();
     }
-    run.netplayFailure = netplayFailure(netplayErrors, hosting);
+    run.netplayFailure = netplay.failure();
+    run.hostLeft = netplay.hostLeft();
     return run;
 }
 

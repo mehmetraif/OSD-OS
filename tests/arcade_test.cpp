@@ -1184,7 +1184,8 @@ private slots:
         QString config = libretro::configText(launch);
         const auto has = [&config](const QString &line) { return config.split(QLatin1Char('\n')).contains(line); };
         QVERIFY2(has(QStringLiteral("config_save_on_exit = \"true\"")), qPrintable(config));
-        for (const char *line : { "video_driver = \"gl\"", "video_context_driver = \"kms\"", "input_driver = \"udev\"",
+        for (const char *line : { "user_language = \"0\"", "video_driver = \"gl\"", "video_context_driver = \"kms\"",
+                                  "input_driver = \"udev\"",
                                   "audio_driver = \"alsa\"", "audio_device = \"\"", "input_joypad_driver = \"sdl2\"",
                                   // RetroArch's Standard Gamepad for every player, its own
                                   // look-up off: no "not configured" over the game.
@@ -1807,6 +1808,53 @@ private slots:
                  QStringLiteral("Failed to connect to relay server 1.2.3.4 on port 55435"));
         QCOMPARE(libretro::netplayFailure({ QStringLiteral("Failed to initialize netplay") }, false),
                  QStringLiteral("Failed to initialize netplay"));
+        // Joining, the log read a line at a time: connected to the host, its
+        // errors then end nothing, even one that would have turned the join
+        // down before; the connection ending then is the host gone. Ended
+        // before it was connected, the join failed, why the last error
+        // before it, or the disconnection itself. A host's log never says
+        // so of itself, and its start failing ends its game as before.
+        const auto readLines = [](libretro::NetplayLog log, const QStringList &lines) {
+            for (const QString &line : lines)
+                log.read(line);
+            return log;
+        };
+        const QString connected = QStringLiteral("[INFO] [Netplay] Connected to: \"ann\"");
+        const QString disconnected = QStringLiteral("[INFO] [Netplay] Netplay disconnected");
+        libretro::NetplayLog joined = readLines(libretro::NetplayLog(),
+                                                { QStringLiteral("[INFO] [Netplay] Connecting to netplay host 192.168.1.20:55435."),
+                                                  connected,
+                                                  QStringLiteral("[ERROR] [Netplay] Failed to receive header from host."),
+                                                  QStringLiteral("[ERROR] [Netplay] NETPLAY_CMD_INPUT received an unexpected payload size.") });
+        QVERIFY(!joined.hostLeft());
+        QVERIFY(joined.failure().isEmpty());
+        joined = readLines(joined, { disconnected, QStringLiteral("[ERROR] [Netplay] Failed to initialize netplay.") });
+        QVERIFY(joined.hostLeft());
+        QVERIFY(joined.failure().isEmpty());
+        joined = readLines(libretro::NetplayLog(), { QStringLiteral("[ERROR] [Netplay] Netplay input out of order."), disconnected });
+        QVERIFY(!joined.hostLeft());
+        QCOMPARE(joined.failure(), QStringLiteral("Netplay input out of order"));
+        QCOMPARE(readLines(libretro::NetplayLog(), { disconnected }).failure(), QStringLiteral("Netplay disconnected"));
+        QCOMPARE(readLines(libretro::NetplayLog(), { QStringLiteral("[ERROR] [Netplay] Incorrect password."), connected,
+                                                     disconnected }).failure(),
+                 QStringLiteral("Incorrect password"));
+        const libretro::NetplayLog hosted = readLines(libretro::NetplayLog(true), { connected, disconnected });
+        QVERIFY(!hosted.hostLeft());
+        QVERIFY(hosted.failure().isEmpty());
+        QCOMPARE(readLines(libretro::NetplayLog(true), { QStringLiteral("[ERROR] [Netplay] Failed to bind port 55435."),
+                                                        QStringLiteral("[ERROR] [Netplay] Failed to initialize netplay.") })
+                     .failure(),
+                 QStringLiteral("Failed to bind port 55435"));
+        writeFile(dir.path() + QStringLiteral("/left.log"),
+                  "[INFO] [Netplay] Connected to: \"ann\"\n"
+                  "[libretro INFO] [FBNeo] Driver successfully started\n"
+                  "[ERROR] [Netplay] NETPLAY_CMD_INPUT received an unexpected payload size.\n"
+                  "[INFO] [Netplay] Netplay disconnected\n");
+        run = libretro::readLog(dir.path() + QStringLiteral("/left.log"));
+        QVERIFY(run.hostLeft);
+        QVERIFY(run.netplayFailure.isEmpty());
+        QVERIFY(!libretro::readLog(dir.path() + QStringLiteral("/left.log"), true).hostLeft);
+        QVERIFY(!libretro::readLog(dir.path() + QStringLiteral("/joining.log")).hostLeft);
 
         writeFile(dir.path() + QStringLiteral("/saved.cfg"),
                   "cheevos_enable = \"true\"\ncheevos_password = \"\"\ncheevos_token = \"tok456\"\n");
@@ -5424,6 +5472,20 @@ private slots:
                                 "The host didn't answer: its game may have ended, or a firewall there keeps the port closed"));
         QTRY_VERIFY(!claimed.isEmpty() && claimed.last() == libretro::claimRelease());
         QVERIFY(!arcade.running());
+        // Connected, then the host gone a second later: RetroArch plays on
+        // alone, unthrottled had it been catching up; stopped as its log says
+        // so, the ports given back, the game played, and the end says the
+        // host left. An error while connected ended nothing.
+        const qint64 playedBefore = arcade.gameDetails(QStringLiteral("sf2")).value(QStringLiteral("playTime")).toLongLong();
+        qputenv("RA_HOST_LEAVES", "1");
+        QFile::remove(m_log);
+        const QVariantList left = ended([&arcade] { return arcade.joinLanRoom(1); });
+        qunsetenv("RA_HOST_LEAVES");
+        QCOMPARE(left.value(1).toString(), QStringLiteral("stopped"));
+        QCOMPARE(left.value(2).toString(), QStringLiteral("The host left the game"));
+        QTRY_VERIFY(!claimed.isEmpty() && claimed.last() == libretro::claimRelease());
+        QVERIFY(!arcade.running());
+        QVERIFY(arcade.gameDetails(QStringLiteral("sf2")).value(QStringLiteral("playTime")).toLongLong() > playedBefore);
         // A host that doesn't say, RetroArch alone or an older OSD/OS: asked
         // twice, then joined with the ports from 2, on the Classic layout,
         // the stick's buttons by number.
