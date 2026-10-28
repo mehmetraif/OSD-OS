@@ -49,9 +49,12 @@ pick_downloader() {
 
 # $1 into the file $2, saying nothing, in place of the shell it runs in: it
 # is called in a subshell, ( ) or &, whose PID is then the downloader's.
+# curl writes what comes in at once (--no-buffer), so the file holds all of
+# it for the counter that measures it: buffered, up to a block lags behind,
+# and a download that stalls shows a percent short of where it stopped.
 download_quietly() {
     case $tool in
-        curl)  exec curl -fsSL -o "$2" "$1" ;;
+        curl)  exec curl -fsSL --no-buffer -o "$2" "$1" ;;
         wget)  exec wget -q -O "$2" "$1" ;;
         fetch) exec fetch -qo "$2" "$1" ;;
         ftp)   exec ftp -MVo "$2" "$1" ;;
