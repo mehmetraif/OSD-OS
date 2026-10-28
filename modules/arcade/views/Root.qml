@@ -90,8 +90,9 @@ FocusScope {
     // A game a view asks for (navigateTo Play.qml with its set and title);
     // coming back lands on it as listState says. With Start Info Screen on,
     // Play.qml says how to come back first, then starts it. With it off the
-    // game starts from the list itself, which stays on the screen while MAME
-    // starts and has every key kept from it till the game ends (keyCatcher):
+    // game starts from the list itself, under the loading screen
+    // (GameLoading.qml), which stays on the screen while MAME starts; the list
+    // has every key kept from it till the game ends (keyCatcher), and
     // Play.qml only says why a game didn't play.
     function playGame(params, listState) {
         if (startInfo) {
@@ -106,8 +107,9 @@ FocusScope {
     // headless Pi hands that over, not a frame of what was there before.
     readonly property int handOverDelay: 150
 
-    // The list on the screen first, without the window a game may have been
-    // chosen in (its options), as a headless Pi hands it over to MAME.
+    // The loading screen on the screen first, over the list and the window a
+    // game may have been chosen in (its options), as a headless Pi hands it
+    // over to MAME.
     Timer {
         id: listLaunch
         interval: moduleRoot.handOverDelay
@@ -121,9 +123,11 @@ FocusScope {
                                   game.listState)
         }
     }
-    // The game playGame() started from the list, while it runs: { game,
-    // title, listState }; null for none. Nothing of the menus moves behind
-    // it: their effects rest, as for a game's own screen (Play.qml).
+    // The game playGame() starts from the list, from the moment it is
+    // chosen until it ends: { game, title, online, listState }; null for
+    // none. The loading screen covers the list meanwhile, and nothing of the
+    // menus moves behind it: their effects rest, as for a game's own screen
+    // (Play.qml).
     property var playing: null
     onPlayingChanged: root.restFor(moduleRoot, playing !== null)
     Component.onDestruction: root.restFor(moduleRoot, false)
@@ -213,6 +217,14 @@ FocusScope {
             }
             function onGoBack() { moduleRoot.navigateBack() }
         }
+    }
+
+    // Over the list, a game played straight from it (playGame()): its
+    // loading screen.
+    GameLoading {
+        anchors.fill: parent
+        visible: moduleRoot.playing !== null
+        title: moduleRoot.playing ? moduleRoot.playing.title || moduleRoot.playing.game : ""
     }
 
     Component.onCompleted: {

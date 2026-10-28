@@ -6,15 +6,15 @@ import "../../views/Components/Hover.js" as Hover
 // screen), ArcadeScreen.qml and Play.qml, against a stand-in for
 // ArcadeBackend: a game chosen in the tree, the startup favourite played at
 // once, and a game's screen, from how to come back (player 1's own buttons)
-// to MAME having the screen, every key kept from the menus meanwhile, and
-// back to the list, or why it didn't play. The Arcade screen: its filters
-// and pages, a game's details and high scores, COIN, select (let go or
-// held) and START, the selected name and a long filter's name scrolling,
-// the room of its hint bar and help line, and the credits going in with
-// the game. The module's
-// router, Root.qml: a game played straight from the list with Start Info
-// Screen off, every key kept from it meanwhile, back on it after, or why it
-// didn't play.
+// through its loading screen to MAME having the screen, every key kept from
+// the menus meanwhile, and back to the list, or why it didn't play. The
+// Arcade screen: its filters and pages, a game's details and high scores,
+// COIN, select (let go or held) and START, the selected name and a long
+// filter's name scrolling, the room of its hint bar and help line, and the
+// credits going in with the game. The module's router, Root.qml: a game
+// played straight from the list with Start Info Screen off, under the
+// loading screen, every key kept from it meanwhile, back on it after, or
+// why it didn't play.
 Rectangle {
     id: root
     color: surfaceColor
@@ -692,6 +692,7 @@ Rectangle {
             compare(play.exitKeys, "6 + START")
             verify(findText(play, "Press 6 + START together") !== null)
             compare(play.phase, "opening")
+            verify(!findChild(play, "gameLoading").visible)
             // The first game this run waits for that to be read.
             wait(500)
             compare(arcadeBackend.started, [])
@@ -722,6 +723,7 @@ Rectangle {
             arcadeBackend.running = false
             arcadeBackend.finished(2, "failed", "Missing sp-s2.sp1, looked for in mslug.zip, neogeo.zip")
             compare(play.phase, "failed")
+            verify(!findChild(play, "gameLoading").visible)
             compare(root.backs, 0)
             verify(findText(play, "Missing sp-s2.sp1") !== null)
             verify(findText(play, "NOT FOUND (tried in mslug neogeo)") !== null)
@@ -736,6 +738,7 @@ Rectangle {
             arcadeBackend.error = "MAME is not installed"
             var play = open("Play.qml", { game: "galaga", title: "Galaga" })
             tryCompare(play, "phase", "error")
+            verify(!findChild(play, "gameLoading").visible)
             verify(findText(play, "On Test OS: install mame", true) !== null)
             keyClick(Qt.Key_Escape)
             compare(root.backs, 1)
@@ -2915,8 +2918,22 @@ Rectangle {
             compare(play.phase, "opening")
             compare(root.backs, 0)
             keyClick(Qt.Key_Space)
-            compare(play.phase, "running")
+            // The loading screen first, a moment before the game starts: the
+            // game's name, LOADING... and how to come back, and it stays up
+            // while the game runs.
+            compare(play.phase, "loading")
             verify(!play.takesCoin)
+            compare(arcadeBackend.started, [])
+            var loading = findChild(play, "gameLoading")
+            verify(loading.visible)
+            verify(findText(loading, "Street Fighter II", true) !== null)
+            // Nothing in brackets: no line for it.
+            compare(loading.detail, "")
+            verify(findText(loading, "Loading...", true) !== null)
+            verify(findText(loading, "Press COIN + START together\nto come back to OSD/OS\nor Esc on a keyboard",
+                            true) !== null)
+            tryCompare(play, "phase", "running")
+            verify(loading.visible)
             compare(arcadeBackend.started, ["sf2"])
             compare(arcadeBackend.credited, [4])
             compare(moduleRoot.credits, 0)
@@ -2997,8 +3014,19 @@ Rectangle {
             compare(screen.currentSet, "sf2")
             keyClick(Qt.Key_5)
             keyClick(Qt.Key_Return)
-            // The list's own frame first.
+            // The loading screen first, over the list: the game's name, what
+            // it has in brackets on the line under it, LOADING... two lines
+            // below, and nothing of how to come back with Start Info Screen
+            // off.
             compare(arcadeBackend.started, [])
+            var loading = findChild(router, "gameLoading")
+            verify(loading.visible)
+            verify(findText(loading, "Street Fighter II: The World Warrior", true) !== null)
+            verify(findText(loading, "(World 910522)", true) !== null)
+            var line = findText(loading, "Loading...", true)
+            verify(line !== null)
+            compare(line.topPadding, 2 * line.contentHeight)
+            compare(findText(loading, "Press"), null)
             tryVerify(function() { return arcadeBackend.started.length === 1 })
             compare(arcadeBackend.started, ["sf2"])
             compare(arcadeBackend.credited, [1])
@@ -3006,6 +3034,7 @@ Rectangle {
             compare(appCore.added, [["com.osdos.arcade", "recent", "game:sf2"]])
             compare(shown(router), screen)
             compare(router.playing.game, "sf2")
+            verify(loading.visible)
             verify(root.effectsResting)
             tryVerify(function() { return idleTracker.resets > 0 })
             keyClick(Qt.Key_Down)
@@ -3017,6 +3046,7 @@ Rectangle {
             arcadeBackend.running = false
             arcadeBackend.finished(0, "ok", "")
             compare(router.playing, null)
+            verify(!loading.visible)
             verify(!root.effectsResting)
             compare(shown(router), screen)
             compare(screen.currentSet, "sf2")
@@ -3063,6 +3093,7 @@ Rectangle {
             tryVerify(function() { return shown(router).phase === "error" })
             play = shown(router)
             compare(router.playing, null)
+            verify(!findChild(router, "gameLoading").visible)
             verify(findText(play, "On Test OS: install mame", true) !== null)
             // On Recently Played: the game MAME started, not the one it
             // couldn't.
@@ -3087,7 +3118,11 @@ Rectangle {
             play = shown(router)
             compare(play.phase, "opening")
             keyClick(Qt.Key_Space)
-            compare(play.phase, "running")
+            // Its own loading screen, not the router's over the list.
+            compare(play.phase, "loading")
+            verify(findChild(play, "gameLoading").visible)
+            verify(!findChild(router, "gameLoading").visible)
+            tryCompare(play, "phase", "running")
             compare(arcadeBackend.started, ["sf2"])
             compare(appCore.added, [["com.osdos.arcade", "recent", "game:sf2"]])
             compare(appCore.lastAdded.name, "Street Fighter II: The World Warrior (World 910522)")

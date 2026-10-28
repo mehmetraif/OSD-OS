@@ -3,15 +3,17 @@ import Components
 
 // A game in MAME (ArcadeBackend::play). This view says which game and how to
 // come back (Settings → Arcade → Start Info Screen), then MAME has the screen
-// until the game ends, and the view goes back to the list. On a headless Pi
-// it isn't drawn while MAME runs: what it shows just before the hand-off
-// stays on the screen while MAME starts. A game that couldn't start, or that
-// MAME ended with an error, says why here: with Start Info Screen off a game
-// starts from the list itself (Root.qml's playGame), and this view opens only
-// for that, with navParams.error (it never started) or navParams.failed (MAME
-// ended with an error: message and output). Root.qml starts the game, with
-// the credits bought, and puts it on Recently Played once it has started
-// (startGame()), and keeps the screen saver off while it runs.
+// until the game ends, and the view goes back to the list. The game is
+// started under its loading screen (GameLoading.qml), how to come back on it
+// too, drawn a moment before: on a headless Pi nothing is drawn while MAME
+// runs, and what the screen showed just before the hand-off stays there
+// while MAME starts. A game that couldn't start, or that MAME ended with an
+// error, says why here: with Start Info Screen off a game starts from the
+// list itself (Root.qml's playGame), and this view opens only for that, with
+// navParams.error (it never started) or navParams.failed (MAME ended with an
+// error: message and output). Root.qml starts the game, with the credits
+// bought, and puts it on Recently Played once it has started (startGame()),
+// and keeps the screen saver off while it runs.
 //
 // From the Arcade screen (ArcadeScreen.qml) it has that screen's bar, says
 // how many credits go in, and takes COIN (another credit: MAME's 5, which a
@@ -40,8 +42,9 @@ FocusScope {
 
     focus: true
 
-    // "opening", "running", "error" (never started), "failed" (MAME ended
-    // with an error) or "canceled".
+    // "opening", "loading" (the loading screen drawn, the game about to be
+    // started), "running", "error" (never started), "failed" (MAME ended with
+    // an error) or "canceled".
     property string phase: "opening"
     property string message: ""
     property string output: ""
@@ -55,7 +58,14 @@ FocusScope {
     // its engine says, and online always.
     readonly property bool fbneo: !!online
                                   || (!!arcadeBackend && game !== "" && arcadeBackend.engineOf(game) === "fbneo")
-    readonly property bool before: phase === "opening" || phase === "running"
+    // The loading screen up: from just before the game is started until it
+    // ends.
+    readonly property bool loadingShown: phase === "loading" || phase === "running"
+    readonly property bool before: phase === "opening" || loadingShown
+    // How to come back, line by line.
+    readonly property var howTo: exitKeys !== "" ? ["Press " + exitKeys + " together", "to come back to OSD/OS",
+                                                    "or Esc on a keyboard"]
+                                                 : ["Press Esc on a keyboard", "to come back to OSD/OS"]
     // A pad's Coin (its Back unless its Arcade Buttons say) is COIN before a
     // game from the Arcade screen (InputManager): one MAME plays, FinalBurn
     // Neo's coins go in the game.
@@ -68,9 +78,12 @@ FocusScope {
         return key === Qt.Key_Escape || key === Qt.Key_Backspace || key === Qt.Key_Back
     }
 
+    // The loading screen first, the game a moment later (start()).
     function launch() {
-        if (playRoot.phase !== "opening")
-            return
+        if (playRoot.phase === "opening")
+            playRoot.phase = "loading"
+    }
+    function start() {
         if (moduleRoot.startGame(playRoot.game, playRoot.title, playRoot.online)) {
             playRoot.phase = "running"
         } else {
@@ -104,13 +117,19 @@ FocusScope {
     }
 
     // Long enough to read how to come back: from the Arcade screen every
-    // time, from the tree the first game this run, as the screen stays as it
-    // is while MAME starts; otherwise just long enough for this screen to be
-    // what a headless Pi hands over.
+    // time, from the tree the first game this run, as the loading screen says
+    // it too while MAME starts; otherwise that screen at once.
     Timer {
-        interval: playRoot.arcade ? 3000 : arcadeBackend && arcadeBackend.played ? moduleRoot.handOverDelay : 1500
+        interval: playRoot.arcade ? 3000 : arcadeBackend && arcadeBackend.played ? 0 : 1500
         running: playRoot.phase === "opening"
         onTriggered: playRoot.launch()
+    }
+    // The loading screen on the screen before the game is started, as a
+    // headless Pi hands it over (Root.qml's handOverDelay).
+    Timer {
+        interval: moduleRoot.handOverDelay
+        running: playRoot.phase === "loading"
+        onTriggered: playRoot.start()
     }
 
     Connections {
@@ -234,11 +253,7 @@ FocusScope {
                 width: parent.width - 2 * x
                 spacing: root.sh * 0.0125 //6
                 Repeater {
-                    model: (playRoot.exitKeys !== "" ? ["Press " + playRoot.exitKeys + " together",
-                                                         "to come back to OSD/OS",
-                                                         "or Esc on a keyboard"]
-                                                      : ["Press Esc on a keyboard",
-                                                         "to come back to OSD/OS"])
+                    model: playRoot.howTo
                     Text {
                         required property string modelData
                         width: parent.width
@@ -335,7 +350,7 @@ FocusScope {
     }
 
     HintBar {
-        visible: playRoot.phase !== "running"
+        visible: !playRoot.loadingShown
         text: playRoot.phase !== "opening" ? root.hints.back + ":BACK"
               : playRoot.arcade ? root.hints.back + ":CANCEL " + (playRoot.fbneo ? "" : root.hints.coin + ":COIN ")
                                   + root.hints.play_pause + ":PLAY"
@@ -344,5 +359,12 @@ FocusScope {
         anchors.left: parent.left
         anchors.bottomMargin: root.sh * 0.1041667 //50
         anchors.leftMargin: root.sw * 0.125 //80
+    }
+
+    GameLoading {
+        anchors.fill: parent
+        visible: playRoot.loadingShown
+        title: playRoot.title
+        note: playRoot.howTo.join("\n")
     }
 }
