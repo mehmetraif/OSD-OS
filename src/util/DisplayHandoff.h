@@ -46,13 +46,14 @@ struct DrmSavedState {
 //     DRM pipeline, and the kernel falls back to the text console on Qt's VT.
 //     200 ms is more than three VSync periods at 60 Hz.
 //
-// On macOS and on desktop Linux (X11/Wayland present) there is nothing to hand
-// off — the child just opens a window over ours — so acquire() is a no-op that
-// returns 0 and every other call short-circuits.
+// On macOS and on desktop Linux (X11/Wayland present) there is no DRM/VT work
+// — the child just opens a window over ours — so acquire() still returns 0,
+// but it still records the owner so held/heldChanged track a logical hand-off
+// (InputManager can release its SDL pads for the child).
 class DisplayHandoff : public QObject {
     Q_OBJECT
-    // True while a child has the screen (a hand-off is held, so only ever on
-    // headless Linux): nothing Qt draws meanwhile reaches it. QML reads it as
+    // True while a child has the screen (a hand-off is held). On headless
+    // Linux nothing Qt draws meanwhile reaches it; everywhere, QML reads it as
     // root.screenHandedOff (Main.qml), so that animations rest until it is
     // back, leaving the CPU to the child (LoadingScreen).
     Q_PROPERTY(bool held READ held NOTIFY heldChanged)
