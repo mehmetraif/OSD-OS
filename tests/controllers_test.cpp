@@ -1434,6 +1434,61 @@ private slots:
         pad.button(SDL_CONTROLLER_BUTTON_START, false);
     }
 
+    // A pad SDL hears only through its reports (its HIDAPI driver's, as a
+    // Retro-Bit's) that reports only what changes says the Coin and Start
+    // that quit a game are held once another of its inputs changes, however
+    // long after the pads opened again: until it is heard holding nothing,
+    // nothing of it but a direction counts, for three seconds at most. A pad
+    // that says what is held as it opens has no such wait.
+    void heldThroughHandoffReportedLate() {
+        AppCore core(m_app.path(), m_data.path());
+        InputManager im(m_data.path(), &core);
+        QSignalSpy keys(&im, &InputManager::mpvKeyRequested);
+        VirtualPad pad;
+        QVERIFY(pad.attach("OSD/OS Handoff Pad", 0x1209, 0x00ac));
+        QTRY_VERIFY(entry(im, "OSD/OS Handoff Pad").value("present").toBool());
+        const auto handOff = [&] {
+            im.releaseJoysticksForHandoff();
+            im.reclaimJoysticksAfterHandoff();
+            QTRY_VERIFY(entry(im, "OSD/OS Handoff Pad").value("present").toBool());
+        };
+
+        // A pad that says what is held as it opens: Start is Start once the
+        // first moment is over.
+        handOff();
+        QTest::qWait(700);
+        QCOMPARE(tap(pad, SDL_CONTROLLER_BUTTON_START, keys), QString("SPACE"));
+
+        im.padsReportLateForTest();
+        // Back and Start said to be held long after the pads opened again,
+        // then let go of one after the other: neither reaches the menus, and
+        // the pad, heard holding nothing, presses afresh.
+        handOff();
+        QTest::qWait(900);
+        keys.clear();
+        pad.button(SDL_CONTROLLER_BUTTON_BACK, true);
+        pad.button(SDL_CONTROLLER_BUTTON_START, true);
+        QTest::qWait(100);
+        pad.button(SDL_CONTROLLER_BUTTON_BACK, false);
+        QTest::qWait(100);
+        release(pad, SDL_CONTROLLER_BUTTON_START);
+        QTest::qWait(100);
+        QCOMPARE(keysOf(keys), QStringList());
+        QCOMPARE(tap(pad, SDL_CONTROLLER_BUTTON_START, keys), QString("SPACE"));
+
+        // A direction counts at once, and the pad heard holding nothing
+        // after it presses Start afresh.
+        handOff();
+        QTest::qWait(700);
+        QCOMPARE(tap(pad, SDL_CONTROLLER_BUTTON_DPAD_DOWN, keys), QString("DOWN"));
+        QCOMPARE(tap(pad, SDL_CONTROLLER_BUTTON_START, keys), QString("SPACE"));
+
+        // Not heard from at all: Start is Start once the wait is over.
+        handOff();
+        QTest::qWait(3200);
+        QCOMPARE(tap(pad, SDL_CONTROLLER_BUTTON_START, keys), QString("SPACE"));
+    }
+
     // Six players: the JAMMA board's two, then the other pads in the order
     // they came; a seventh plays none. Three of a model are three players.
     void sixPlayers() {

@@ -75,6 +75,9 @@ public:
     // writes /dev/input's nodes (input_event), read as they are.
     void adoptNodeForTest(int fd, const QString &name);
 #endif
+    // Every pad taken for one SDL hears only through its reports, as its
+    // HIDAPI driver's (the tests' virtual pads say what is held as they open).
+    void padsReportLateForTest() { m_padsReportLate = true; }
     QString lastInputDevice() const { return m_lastInputDevice; }
     QVariantMap hints() const { return m_hints; }
     QVariantList controllers() const;
@@ -338,6 +341,8 @@ private:
     // is dropped if another game has already taken the pads again.
     quint64 m_joystickHandoffEpoch = 0;
     void finishReclaimJoysticks();
+    bool heldThroughGame(SDL_JoystickID which, Action a, const QString &input);
+    void settleAfterHandoff(SDL_JoystickID which);
 
     QTimer m_pollTimer;
     QTimer m_repeatDelayTimer;
@@ -406,9 +411,16 @@ private:
     QSet<HeldInput> m_coinInputs;
     // Pad inputs held down as the pads opened again after a game (the Coin
     // and Start that quit it), pressed before m_handoffSettleEnds (m_clock's
-    // time): neither their press nor their release goes to the menus.
+    // time), or on a pad of m_lateAfterHandoff (heldThroughGame()): neither
+    // their press nor their release goes to the menus.
     QSet<HeldInput> m_heldThroughHandoff;
     qint64 m_handoffSettleEnds = 0;
+    // The pads opened again after a game that SDL hears only through their
+    // reports, with m_clock's time until which their presses but their
+    // directions' are taken for held through it, unless they are heard
+    // holding nothing before (settleAfterHandoff()).
+    QHash<SDL_JoystickID, qint64> m_lateAfterHandoff;
+    bool m_padsReportLate = false;                   // padsReportLateForTest()
     // A remote's buttons held down that went to the views as keys of their
     // own (readNode()): their release is the key's.
     QHash<HeldInput, int> m_postedKeys;
