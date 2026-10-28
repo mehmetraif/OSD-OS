@@ -346,6 +346,55 @@ void InputManager::closeController(SDL_JoystickID instanceId) {
     emit controllersChanged();
 }
 
+void InputManager::releaseJoysticksForHandoff() {
+    if (!m_sdlReady || m_joysticksReleasedForHandoff)
+        return;
+    m_joysticksReleasedForHandoff = true;
+    m_pollTimer.stop();
+
+    // Let go of held buttons before close so reclaim does not leave stuck keys.
+    const QList<SDL_JoystickID> ids = m_controllers.keys();
+    for (SDL_JoystickID id : ids)
+        letGoOfPad(id);
+
+    for (SDL_GameController *gc : std::as_const(m_controllers))
+        SDL_GameControllerClose(gc);
+    m_controllers.clear();
+    m_pads.clear();
+    m_axisState.clear();
+    m_playerPads = QList<SDL_JoystickID>(controllers::kPlayers, -1);
+    m_lastActiveController = -1;
+    // Drain SDL's REMOVED events for the closes above so reclaim does not
+    // treat them as real unplugs after it re-opens.
+    SDL_Event e;
+    while (SDL_PollEvent(&e)) { }
+
+    // Do not call updatePlayers(): controllers::playerVariables() and
+    // padMappings() stay as they were so ScriptLauncher / Arcade can hand
+    // the child the same OSDOS_PLAYER* env and SDL_GAMECONTROLLERCONFIG.
+    recomputeSuppressedDevices();
+    updateHints();
+    emit controllersChanged();
+    qInfo("[input] joysticks released for display hand-off");
+}
+
+void InputManager::reclaimJoysticksAfterHandoff() {
+    if (!m_sdlReady || !m_joysticksReleasedForHandoff)
+        return;
+    m_joysticksReleasedForHandoff = false;
+
+    SDL_Event e;
+    while (SDL_PollEvent(&e)) { }
+
+    const int n = SDL_NumJoysticks();
+    for (int i = 0; i < n; ++i) {
+        if (SDL_IsGameController(i))
+            openController(i);
+    }
+    m_pollTimer.start(16);
+    qInfo("[input] joysticks reclaimed after display hand-off");
+}
+
 // ── Mapping ───────────────────────────────────────────────────────────────────
 
 void InputManager::rebuildMapping() {

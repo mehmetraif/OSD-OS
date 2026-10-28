@@ -143,6 +143,10 @@ public:
                            DisplayHandoff *handoff, QObject *parent = nullptr);
     ~ArcadeBackend() override;
 
+    // Who has the screen (DisplayHandoff) while a game plays: the menus let
+    // go of the pads for it (main.cpp).
+    static constexpr const char *kHandoffOwner = "arcade";
+
     // The screen the games play on, as OSD/OS has it: a TV's tube or not
     // (DisplayOutput::isTube()), and its size in pixels. Emulator Video's
     // Auto goes by it: on a tube MAME and RetroArch are told it is 4:3,

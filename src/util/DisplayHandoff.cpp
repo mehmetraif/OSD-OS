@@ -85,10 +85,16 @@ int DisplayHandoff::acquire(const QString &owner) {
                  qPrintable(owner));
         return -1;
     }
-    if (!isHeadless())
+    // Owner is tracked on every platform: held/heldChanged describe a logical
+    // hand-off too (InputManager releases its SDL pads for RetroArch/MAME),
+    // not only a DRM master drop. Headless Linux continues below with the
+    // VT/DRM work; elsewhere the child just opens a window over ours.
+    m_owner = owner;
+    if (!isHeadless()) {
+        emit heldChanged();
         return 0;
+    }
 
-    m_owner      = owner;
     m_previousVt = getActiveVt();
     m_qtDrmFd    = -1;
 

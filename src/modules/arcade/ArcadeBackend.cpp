@@ -475,7 +475,7 @@ ArcadeBackend::ArcadeBackend(const QString &appRoot, const QString &dataRoot, Ap
     // Online's made again when next asked for, before the screen asks.
     connect(this, &ArcadeBackend::gamesChanged, this, [this] { m_madeSets.clear(); });
     m_launcher = new ScriptLauncher(m_appRoot, m_dataRoot, handoff, this);
-    m_launcher->setHandoffOwner(QStringLiteral("arcade"));
+    m_launcher->setHandoffOwner(QLatin1String(kHandoffOwner));
     connect(m_launcher, &ScriptLauncher::runningChanged, this, &ArcadeBackend::runningChanged);
     connect(m_launcher, &ScriptLauncher::finished, this, [this](int exitCode, const QString &launcherReason) {
         QString reason = launcherReason;

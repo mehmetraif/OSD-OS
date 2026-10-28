@@ -181,6 +181,15 @@ public:
     // pad's Back button can still cancel the overlay.
     Q_INVOKABLE void setRemapCapture(bool active);
 
+    // Close every open SDL game controller so a child that takes the screen
+    // (RetroArch, MAME) can open the same pads with its own SDL. Player env
+    // and pad mappings are left as they were for ScriptLauncher / Arcade.
+    // main.cpp calls this when an arcade game holds DisplayHandoff
+    // (ArcadeBackend::kHandoffOwner); every other hand-off keeps the pads.
+    void releaseJoysticksForHandoff();
+    // Open the pads again once the display is back.
+    void reclaimJoysticksAfterHandoff();
+
 signals:
     void lastInputDeviceChanged();
     void hintsChanged();
@@ -322,6 +331,8 @@ private:
     AppCore *m_appCore = nullptr;
     QString m_dataRoot;
     bool m_sdlReady = false;
+    // True between releaseJoysticksForHandoff() and reclaimJoysticksAfterHandoff().
+    bool m_joysticksReleasedForHandoff = false;
 
     QTimer m_pollTimer;
     QTimer m_repeatDelayTimer;

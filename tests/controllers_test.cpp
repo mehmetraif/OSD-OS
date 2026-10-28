@@ -1346,6 +1346,42 @@ private slots:
         QCOMPARE(SDL_JoystickGetPlayerIndex(twin2.joystick), 1);
     }
 
+    // A display hand-off closes every SDL pad so RetroArch/MAME can open
+    // them, without wiping the player env or mappings the child is given;
+    // reclaim opens the pads again for the menus.
+    void handoffReleasesJoysticks() {
+        AppCore core(m_app.path(), m_data.path());
+        InputManager im(m_data.path(), &core);
+        VirtualPad pad;
+        QVERIFY(pad.attach("OSD/OS Handoff Pad", 0x1209, 0x00aa));
+        QTRY_VERIFY(entry(im, "OSD/OS Handoff Pad").value("present").toBool());
+
+        QProcessEnvironment before;
+        controllers::applyPlayersTo(before);
+        QCOMPARE(before.value("OSDOS_PLAYER1_NAME"), QString("OSD/OS Handoff Pad"));
+        const QStringList mappingsBefore = controllers::padMappings();
+        QVERIFY(!mappingsBefore.isEmpty());
+
+        im.releaseJoysticksForHandoff();
+        QCOMPARE(entry(im, "OSD/OS Handoff Pad").value("present").toBool(), false);
+
+        // Frozen for ScriptLauncher / Arcade while the child has the pads.
+        QProcessEnvironment during;
+        controllers::applyPlayersTo(during);
+        QCOMPARE(during.value("OSDOS_PLAYER1_NAME"), QString("OSD/OS Handoff Pad"));
+        QCOMPARE(controllers::padMappings(), mappingsBefore);
+
+        im.reclaimJoysticksAfterHandoff();
+        QTRY_VERIFY(entry(im, "OSD/OS Handoff Pad").value("present").toBool());
+        QProcessEnvironment after;
+        controllers::applyPlayersTo(after);
+        QCOMPARE(after.value("OSDOS_PLAYER1_NAME"), QString("OSD/OS Handoff Pad"));
+
+        // A second reclaim with nothing released is a no-op.
+        im.reclaimJoysticksAfterHandoff();
+        QVERIFY(entry(im, "OSD/OS Handoff Pad").value("present").toBool());
+    }
+
     // Six players: the JAMMA board's two, then the other pads in the order
     // they came; a seventh plays none. Three of a model are three players.
     void sixPlayers() {
