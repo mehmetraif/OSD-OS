@@ -606,14 +606,16 @@ QString configText(const Launch &launch) {
     set("input_menu_toggle_gamepad_combo", QStringLiteral("0"));
     set("input_exit_emulator", QStringLiteral("escape"));
     set("quit_press_twice", on(false));
-    // Each player's pad kept for them (2), or only preferred (1) where
-    // RetroArch knows pads by name.
+    // Each player's pad preferred for them. Exclusive reservation (2) left a
+    // lone pad on port 2 when RetroArch's SDL named it differently from
+    // OSD/OS (a Retrobit on a Pi 5: MAME saw it, FinalBurn Neo did not).
+    // Preferred (1) still steers the right pad to the player when the name
+    // matches, and falls back to the first free port when it does not.
     for (int p = 0; p < launch.pads.size(); ++p) {
         if (launch.pads.at(p).isEmpty())
             continue;
         const QByteArray player = QByteArray("input_player") + QByteArray::number(p + 1);
-        set((player + "_device_reservation_type").constData(),
-            launch.padsByVendor ? QStringLiteral("2") : QStringLiteral("1"));
+        set((player + "_device_reservation_type").constData(), QStringLiteral("1"));
         set((player + "_reserved_device").constData(), launch.pads.at(p));
     }
     set("system_directory", launch.systemDir);

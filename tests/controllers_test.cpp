@@ -370,10 +370,14 @@ private slots:
         // A remote's Consumer Control, an IR remote's few keys.
         QCOMPARE(classifyNode({ KEY_VOLUMEUP, KEY_VOLUMEDOWN, KEY_PLAYPAUSE, KEY_HOMEPAGE }), K::Remote);
         QCOMPARE(classifyNode({ KEY_UP, KEY_DOWN, KEY_LEFT, KEY_RIGHT, KEY_OK }), K::Remote);
-        // A USB sound card's volume HID alone is not a remote (CM108 and the like).
+        // A USB sound card's volume / media HID alone is not a remote (CM108).
         QCOMPARE(classifyNode({ KEY_MUTE, KEY_VOLUMEUP, KEY_VOLUMEDOWN }), K::None);
         QCOMPARE(classifyNode({ KEY_VOLUMEUP, KEY_VOLUMEDOWN }), K::None);
         QCOMPARE(classifyNode({ KEY_MUTE }), K::None);
+        QCOMPARE(classifyNode({ KEY_MUTE, KEY_VOLUMEUP, KEY_PLAYPAUSE, KEY_NEXTSONG }), K::None);
+        QVERIFY(controllers::looksLikeUsbAudioHid(QStringLiteral("USB Audio Device")));
+        QVERIFY(controllers::looksLikeUsbAudioHid(QStringLiteral("C-Media USB Headphone Set")));
+        QVERIFY(!controllers::looksLikeUsbAudioHid(QStringLiteral("Xbox Wireless Controller")));
         // A pad is SDL's, even with keys; a mouse, a power button, nothing.
         QSet<int> pad = keyboard;
         pad.insert(BTN_SOUTH);
@@ -1372,6 +1376,8 @@ private slots:
         QCOMPARE(controllers::padMappings(), mappingsBefore);
 
         im.reclaimJoysticksAfterHandoff();
+        // Reclaim is deferred so Coin+Start still held from quitting a game
+        // is not delivered to the menus.
         QTRY_VERIFY(entry(im, "OSD/OS Handoff Pad").value("present").toBool());
         QProcessEnvironment after;
         controllers::applyPlayersTo(after);

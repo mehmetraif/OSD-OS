@@ -1254,7 +1254,7 @@ private slots:
                                   "input_player4_select = \"num8\"", "input_player4_start = \"num4\"",
                                   "menu_driver = \"rgui\"", "ui_companion_enable = \"false\"",
                                   "system_directory = \"/ra/system\"", "savefile_directory = \"/ra/saves\"",
-                                  "input_player1_device_reservation_type = \"2\"",
+                                  "input_player1_device_reservation_type = \"1\"",
                                   "input_player1_reserved_device = \"045e:028e Xbox 360 Controller\"",
                                   "input_player3_reserved_device = \"JAMMA P3\"",
                                   "cheevos_enable = \"true\"", "cheevos_username = \"player\"", "cheevos_token = \"\"",
@@ -1264,12 +1264,14 @@ private slots:
                                   "libretro_directory = \"/cores\"", "libretro_info_path = \"/ra/info\"",
                                   "core_info_cache_enable = \"false\"" })
             QVERIFY2(has(QLatin1String(line)), line);
-        // Where RetroArch knows pads by name alone, each player's is only
-        // preferred: a pad it names otherwise keeps the port it comes on.
+        // Preferred on every platform: exclusive (2) left a lone pad on port 2
+        // when RetroArch's SDL named it differently from OSD/OS.
         launch.padsByVendor = false;
         QVERIFY(libretro::configText(launch).split(QLatin1Char('\n'))
                     .contains(QStringLiteral("input_player1_device_reservation_type = \"1\"")));
         launch.padsByVendor = true;
+        QVERIFY(libretro::configText(launch).split(QLatin1Char('\n'))
+                    .contains(QStringLiteral("input_player1_device_reservation_type = \"1\"")));
         // That file, by the core's name: its states deterministic, the same
         // on every machine, without which RetroArch neither hosts nor joins
         // a game with it.
