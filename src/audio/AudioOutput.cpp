@@ -59,6 +59,7 @@ struct Card {
 //    0 [Headphones     ]: bcm2835_headpho - bcm2835 Headphones
 //                         bcm2835 Headphones
 struct AlsaCard {
+    int index = -1;           // its number: card0 is ALSA's default
     QString id;
     QString driver;           // "USB-Audio" for a USB sound card
     QString shortName;
@@ -79,7 +80,7 @@ QList<AlsaCard> alsaCards() {
             continue;
         const QDir card(asoundDir() + QStringLiteral("/card") + m.captured(1));
         const bool playback = !card.entryList({ QStringLiteral("pcm*p") }, QDir::Dirs | QDir::NoDotAndDotDot).isEmpty();
-        cards.append({ m.captured(2), m.captured(3), m.captured(4).trimmed(), playback });
+        cards.append({ m.captured(1).toInt(), m.captured(2), m.captured(3), m.captured(4).trimmed(), playback });
     }
     return cards;
 }
@@ -113,6 +114,42 @@ bool playsNow(const AlsaCard &card) {
         || std::any_of(connectors.cbegin(), connectors.cend(), [&drm](const QString &connector) {
                return readSmall(drm.filePath(connector + QStringLiteral("/enabled"))) == QLatin1String("enabled");
            });
+}
+
+// Whether ALSA's default card is set outside OSD/OS: ALSA_CARD (or
+// ALSA_PCM_CARD) in OSD/OS's own environment, or an ALSA configuration, the
+// system's (/etc/asound.conf, where INSTALL.md sets it) or the user's
+// (~/.asoundrc, ~/.config/alsa/asoundrc). OSDOS_ALSA_CONFIG stands in for
+// those files, for tests.
+bool defaultSetElsewhere() {
+    if (qEnvironmentVariableIsSet("ALSA_CARD") || qEnvironmentVariableIsSet("ALSA_PCM_CARD"))
+        return true;
+    if (legacy::envIsSet("ALSA_CONFIG"))
+        return QFileInfo::exists(legacy::env("ALSA_CONFIG"));
+    QString config = qEnvironmentVariable("XDG_CONFIG_HOME");
+    if (config.isEmpty())
+        config = QDir::homePath() + QStringLiteral("/.config");
+    const QStringList files { QStringLiteral("/etc/asound.conf"), QDir::homePath() + QStringLiteral("/.asoundrc"),
+                              config + QStringLiteral("/alsa/asoundrc") };
+    return std::any_of(files.cbegin(), files.cend(), [](const QString &file) { return QFileInfo::exists(file); });
+}
+
+// On Auto, the card the players are given in place of ALSA's default where
+// that can't play now: its first card, card0, unless it is set elsewhere
+// (defaultSetElsewhere()). A Pi 5's HDMI0 can't while the picture goes out
+// of HDMI1, a JAMMA board or composite: the first card that can plays, the
+// picture's HDMI or a USB sound card, rather than none. "" while ALSA's
+// default plays, and with no card that can.
+QString autoCard(const QList<AlsaCard> &cards) {
+    const auto first = std::find_if(cards.cbegin(), cards.cend(), [](const AlsaCard &card) { return card.index == 0; });
+    if ((first != cards.cend() && playsNow(*first)) || defaultSetElsewhere())
+        return QString();
+    const auto plays = std::find_if(cards.cbegin(), cards.cend(), playsNow);
+    return plays == cards.cend() ? QString() : plays->id;
+}
+#else
+QString autoCard(const QList<AlsaCard> &) {
+    return QString();
 }
 #endif
 
@@ -249,12 +286,22 @@ QString usbNote(const QList<AlsaCard> &cards) {
     return note;
 }
 
+// mpv's device for a card: ALSA's default device on it, the card's own where
+// ALSA has one (a USB card's mixes what plays at once, the Pi's HDMI wants
+// its samples framed as IEC958), else the card's first device, converting.
+QString deviceOf(const QString &id) {
+    return QStringLiteral("alsa/default:CARD=%1").arg(id);
+}
+
 QString describe() {
-    if (g_card.isEmpty())
-        return QStringLiteral("ALSA's default card");
-    if (AudioOutput::card().isEmpty())
-        return QStringLiteral("ALSA's default card, %1 being unplugged").arg(g_card);
-    return g_card;
+    const QString used = AudioOutput::card();
+    if (!g_card.isEmpty() && used == g_card)
+        return g_card;
+    QString text = used.isEmpty() ? QStringLiteral("ALSA's default card")
+                                  : QStringLiteral("%1, as ALSA's default card can't play now").arg(used);
+    if (!g_card.isEmpty())
+        text += QStringLiteral(", %1 being unplugged").arg(g_card);
+    return text;
 }
 
 } // namespace
@@ -288,12 +335,17 @@ void AudioOutput::load() {
 }
 
 QVariantMap AudioOutput::settingRow() const {
-    QStringList options { QStringLiteral("Auto") };
+    const QList<AlsaCard> all = alsaCards();
+    const QList<Card> cards = playbackCards(all);
+    // Auto names the card it plays through while ALSA's default can't.
+    const QString autoId = autoCard(all);
+    const auto autoPlays = std::find_if(cards.cbegin(), cards.cend(), [&autoId](const Card &c) { return c.id == autoId; });
+    QStringList options { autoId.isEmpty() || autoPlays == cards.cend() ? QStringLiteral("Auto")
+                                                                         : QStringLiteral("Auto (%1)").arg(autoPlays->label) };
     QVariantList values { QString() };
     QString value = options.first();
     bool plugged = false;
-    const QList<AlsaCard> all = alsaCards();
-    for (const Card &c : playbackCards(all)) {
+    for (const Card &c : cards) {
         options.append(c.label);
         values.append(QVariantMap { { QStringLiteral("card"), c.id }, { QStringLiteral("name"), c.label } });
         if (c.id == g_card) {
@@ -315,28 +367,32 @@ QVariantMap AudioOutput::settingRow() const {
 }
 
 QString AudioOutput::card() {
-    if (!g_available || g_card.isEmpty())
+    if (!g_available)
         return QString();
-    for (const Card &c : playbackCards(alsaCards())) {
-        if (c.id == g_card)
-            return g_card;
+    const QList<AlsaCard> all = alsaCards();
+    if (!g_card.isEmpty()) {
+        for (const Card &c : playbackCards(all)) {
+            if (c.id == g_card)
+                return g_card;
+        }
     }
-    return QString();
+    // Auto, or the card chosen unplugged.
+    return autoCard(all);
 }
 
 QString AudioOutput::mpvDevice() {
     const QString id = card();
-    // ALSA's default device on that card: the card's own where ALSA has one
-    // (a USB card's mixes what plays at once, the Pi's HDMI wants its
-    // samples framed as IEC958), else the card's first device, converting.
-    return id.isEmpty() ? QString() : QStringLiteral("alsa/default:CARD=%1").arg(id);
+    return id.isEmpty() ? QString() : deviceOf(id);
 }
 
-QStringList AudioOutput::mpvArgs() {
-    const QString device = mpvDevice();
-    if (device.isEmpty())
+QStringList AudioOutput::mpvArgs(bool inApp) {
+    const QString id = card();
+    // Auto's card reaches a process as ALSA's default (applyTo()), so that an
+    // audio-device in its mpv.conf still has the last word: only a card
+    // chosen goes on its command line. libmpv reads neither.
+    if (id.isEmpty() || (!inApp && id != g_card))
         return {};
-    return { QStringLiteral("--audio-device=%1").arg(device) };
+    return { QStringLiteral("--audio-device=") + deviceOf(id) };
 }
 
 bool AudioOutput::hasPlaybackCard() {

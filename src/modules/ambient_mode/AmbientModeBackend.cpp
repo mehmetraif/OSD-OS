@@ -6,6 +6,7 @@
 #include <QFile>
 #include <QJsonDocument>
 #include <QJsonObject>
+#include <QProcessEnvironment>
 #include <QStandardPaths>
 #include <QDebug>
 
@@ -103,12 +104,16 @@ void AmbientModeBackend::startAudio(const QStringList &paths, bool shuffle)
     // replays on every wrap rather than being reshuffled each cycle.
     if (shuffle)
         args << QStringLiteral("--shuffle");
-    // Settings → Audio Output's card, while it is plugged in.
+    // Settings → Audio Output's card, while it is plugged in; Auto's as
+    // ALSA's default.
     args << AudioOutput::mpvArgs();
+    QProcessEnvironment env = QProcessEnvironment::systemEnvironment();
+    AudioOutput::applyTo(env);
 
     // The menu music stops first: this has the sound card now.
     MenuMusic::hold(QStringLiteral("ambient"));
     m_audioProcess = new QProcess(this);
+    m_audioProcess->setProcessEnvironment(env);
     m_audioProcess->start(bin, args);
     qDebug("[AmbientMode] audio process started: %lld entr%s%s",
            static_cast<long long>(paths.size()),

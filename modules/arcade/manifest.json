@@ -169,7 +169,7 @@
       "type": "list_single",
       "options": ["Off", "On"],
       "default": "Off",
-      "description": "Playing a game with someone over the internet, in FinalBurn Neo\n[ON] Online Games lists the rooms RetroArch's lobby has of your games, RetroArch Lobby every room of it, Playable Online the games that can be played online, and a game's options can host one"
+      "description": "Playing a game with someone over the internet, in FinalBurn Neo\n[ON] Online Games lists the rooms RetroArch's lobby has of your games, RetroArch Lobby every room of it, Playable Online the games that can be played online, and a game's options can host one. Played alone, a game FinalBurn Neo has plays in it too, while its Engine is Auto"
     },
     {
       "key": "relay_server",
@@ -186,7 +186,7 @@
       "type": "list_single",
       "options": ["Off", "On"],
       "default": "Off",
-      "description": "Playing a game with someone on the same network, in FinalBurn Neo: straight from one machine to the other, without the internet\n[ON] LAN Games lists the games hosted on the network that you have, and a game's options can host one. Up to six players across the machines: the host's take the first ports, each machine joining the next"
+      "description": "Playing a game with someone on the same network, in FinalBurn Neo: straight from one machine to the other, without the internet\n[ON] LAN Games lists the games hosted on the network that you have, and a game's options can host one. Up to six players across the machines: the host's take the first ports, each machine joining the next. Played alone, a game FinalBurn Neo has plays in it too, while its Engine is Auto"
     },
     {
       "key": "online_name",

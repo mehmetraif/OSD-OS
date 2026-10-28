@@ -424,7 +424,7 @@ FocusScope {
                 value: audio.value,
                 description: "Which sound card plays: the AV jack, HDMI or a USB sound card, from the moment it is chosen"
                              + (usbNote !== "" ? ". " + usbNote : "")
-                             + "\n[AUTO] The Pi's own default  [UNPLUGGED] Chosen but not plugged in: sound goes as on Auto until it is back",
+                             + "\n[AUTO] The Pi's own default, or the first card that can play while that one can't (a Pi 5's HDMI without the picture)  [UNPLUGGED] Chosen but not plugged in: sound goes as on Auto until it is back",
                 moduleId: ""
             })
         }

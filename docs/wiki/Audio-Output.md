@@ -4,7 +4,7 @@ Settings → **Audio Output** picks the sound card OSD/OS plays through: a Raspb
 
 ## Where it is, and when
 
-**Settings → Audio Output** is in Settings' Application section, under Display Output. Its help line reads: *Which sound card plays: the AV jack, HDMI or a USB sound card, from the moment it is chosen. [AUTO] The Pi's own default. [UNPLUGGED] Chosen but not plugged in: sound goes as on Auto until it is back.*
+**Settings → Audio Output** is in Settings' Application section, under Display Output. Its help line reads: *Which sound card plays: the AV jack, HDMI or a USB sound card, from the moment it is chosen. [AUTO] The Pi's own default, or the first card that can play while that one can't (a Pi 5's HDMI without the picture). [UNPLUGGED] Chosen but not plugged in: sound goes as on Auto until it is back.*
 
 It is offered on Linux where the players talk to ALSA, the kernel's sound system, directly ([`src/audio/AudioOutput.cpp`](https://github.com/mehmetraif/OSD-OS/blob/main/src/audio/AudioOutput.cpp)):
 
@@ -35,7 +35,7 @@ The word in brackets is the card's **id** (`Headphones`), and after the dash com
 
 HDMI cards are numbered after the board's own ports, `HDMI0` and `HDMI1` as printed on a Pi 4 or a Pi 5, whichever driver names them. A Bluetooth speaker isn't an ALSA card, so it isn't listed.
 
-The row offers, with ◄ ►: **Auto**, then each card that is there now, in ALSA's order, then a chosen card that isn't plugged in, marked **(Unplugged)**. The list is read as Settings opens: a card plugged in shows the next time it is opened.
+The row offers, with ◄ ►: **Auto** (named for the card it plays through while ALSA's default can't, **Auto (USB Audio Device)**: [Auto](#auto)), then each card that is there now, in ALSA's order, then a chosen card that isn't plugged in, marked **(Unplugged)**. The list is read as Settings opens: a card plugged in shows the next time it is opened.
 
 Without a USB sound card among them, the help line says what the system sees of one, to tell a card that isn't there from one the system couldn't use:
 
@@ -65,7 +65,7 @@ The choice is saved and used at once. ALSA's own default (`/etc/asound.conf`) is
 
 ```mermaid
 flowchart TD
-    S["Settings → Audio Output<br/>◄ ► saves app.audio_output"] --> A["AudioOutput<br/>the chosen card, while it is plugged in"]
+    S["Settings → Audio Output<br/>◄ ► saves app.audio_output"] --> A["AudioOutput<br/>the chosen card, while it is plugged in;<br/>on Auto, one that can play"]
     A --> V["A video's mpv<br/>--audio-device=alsa/default:CARD=id"]
     A --> M["The menu music<br/>starts again on the new card"]
     A --> W["Weather's and Ambient:Mode's music<br/>--audio-device as they start"]
@@ -76,32 +76,33 @@ flowchart TD
 - **A video** is played by mpv started with `--audio-device=alsa/default:CARD=<id>`. That is ALSA's `default` device on that card: the card's own where ALSA has one (a USB card's mixes what plays at once; the Pi's HDMI under full KMS wants its samples framed as IEC958, which this does), else the card's first device, converting.
 - **The menu music** stops and starts again, after a moment, on the new card. Since Settings is a menu, you hear the change straight away when menu music is on.
 - **Weather's music and Ambient:Mode's music** play through the card chosen when they start.
-- **Anything else OSD/OS starts** (a script, MAME for an Arcade game, Chromium for Netflix, Prime Video or YouTube's sign-in) gets `ALSA_CARD=<id>` in its environment, which ALSA's `default` device follows.
-- **A video playing behind the menus** (Transparent Background) moves to the new card as it plays: OSD/OS sets mpv's `audio-device` property, `auto` for Auto. An mpv process can't be playing while Settings is up; the next one starts with the card.
+- **Everything OSD/OS starts** (those mpvs, a script, MAME or RetroArch for an Arcade game, Chromium for Netflix, Prime Video or YouTube's sign-in) gets `ALSA_CARD=<id>` in its environment, which ALSA's `default` device follows.
+- **A video playing behind the menus** (Transparent Background) moves to the new card as it plays: OSD/OS sets mpv's `audio-device` property, `auto` for Auto (or Auto's card, while ALSA's default can't play). An mpv process can't be playing while Settings is up; the next one starts with the card.
 - **OSD/OS's own environment isn't touched.** Each player is told; nothing else changes.
 
 From the code, every mpv OSD/OS starts takes these options:
 
 ```cpp
-QString AudioOutput::mpvDevice() {
+QStringList AudioOutput::mpvArgs(bool inApp) {
     const QString id = card();
-    // ALSA's default device on that card: the card's own where ALSA has one
-    // (a USB card's mixes what plays at once, the Pi's HDMI wants its
-    // samples framed as IEC958), else the card's first device, converting.
-    return id.isEmpty() ? QString() : QStringLiteral("alsa/default:CARD=%1").arg(id);
-}
-
-QStringList AudioOutput::mpvArgs() {
-    const QString device = mpvDevice();
-    if (device.isEmpty())
+    // Auto's card reaches a process as ALSA's default (applyTo()), so that an
+    // audio-device in its mpv.conf still has the last word: only a card
+    // chosen goes on its command line. libmpv reads neither.
+    if (id.isEmpty() || (!inApp && id != g_card))
         return {};
-    return { QStringLiteral("--audio-device=%1").arg(device) };
+    return { QStringLiteral("--audio-device=") + deviceOf(id) };
 }
 ```
 
+`deviceOf()` is `alsa/default:CARD=<id>`, the card's own ALSA `default` device, as above.
+
 ### Auto
 
-**Auto** puts nothing on mpv's command line and nothing in anyone's environment: sound goes wherever it would without OSD/OS. That is ALSA's `default` device, which is the first card ALSA found unless you set it otherwise, and it is not always the card you are plugged into. Two places set it outside OSD/OS, and they apply only on Auto: a card chosen in Settings wins over both.
+**Auto** puts nothing on mpv's command line: sound goes where ALSA's `default` device takes it, which is the first card ALSA found (card 0) unless you set it otherwise, and it is not always the card you are plugged into.
+
+Where that card can't play now, OSD/OS gives the players the first card that can, in ALSA's order, as `ALSA_CARD=<id>` in their environment (a video inside the app, which has no environment of its own, as its device). A Pi 5's HDMI 0 is card 0 and plays only while its port shows the picture: with the picture on HDMI 1 the sound goes there, and with it on a JAMMA board or composite, to a USB sound card. The row then says so: **Auto (USB Audio Device)**. Nothing is chosen for you: plugged into another port, or with the USB card gone, Auto follows. With no card that can play, MAME and RetroArch play the games without sound.
+
+Two places set the card outside OSD/OS, and they apply only on Auto: a card chosen in Settings wins over both.
 
 - **For every program**, `/etc/asound.conf`, with the card's id:
 
@@ -110,13 +111,15 @@ QStringList AudioOutput::mpvArgs() {
   defaults.ctl.card "Headphones"
   ```
 
+  While it is there (or a `~/.asoundrc`, or `ALSA_CARD` in OSD/OS's own environment), Auto leaves ALSA's default as it sets it, whether that card can play or not.
+
 - **For mpv only**, `~/.config/mpv/mpv.conf` of the user OSD/OS runs as (on the image, `/home/pi/.config/mpv/mpv.conf`):
 
   ```ini
   audio-device=alsa/default:CARD=Headphones
   ```
 
-  `mpv --audio-device=help` lists the devices mpv accepts. mpv.conf is read by an mpv process, not by a video played inside OSD/OS with Transparent Background, and not by the menu music, which starts mpv with `--no-config`. This is the precedence of mpv's options at work ([Playback and mpv](https://github.com/mehmetraif/OSD-OS/wiki/Playback-and-mpv)): what OSD/OS puts on the command line wins over mpv.conf.
+  `mpv --audio-device=help` lists the devices mpv accepts. mpv.conf is read by an mpv process, not by a video played inside OSD/OS with Transparent Background, and not by the menu music, which starts mpv with `--no-config`. This is the precedence of mpv's options at work ([Playback and mpv](https://github.com/mehmetraif/OSD-OS/wiki/Playback-and-mpv)): what OSD/OS puts on the command line wins over mpv.conf. The card Auto gives while ALSA's first card can't play is no command-line option, only `ALSA_CARD`, so this line still wins over it.
 
 ### A card that is unplugged
 
@@ -125,7 +128,16 @@ A chosen card that isn't plugged in stays chosen. While it is gone, the row show
 ```text
 [AudioOutput] Sound through Headphones
 [AudioOutput] Sound through ALSA's default card, Device being unplugged
+[AudioOutput] Sound through Device, as ALSA's default card can't play now
 ```
+
+And each game, script or web player says what it was given as it starts, the card and, on a Pi 5, the screen's DRM card:
+
+```text
+[Scripts] Running 'mame' (direct, takeover, vt 2, with args, sound card Device, DRM card 1)
+```
+
+`no sound card that can play` in its place means MAME and RetroArch play the game without sound.
 
 ## Where it is saved
 
@@ -170,7 +182,7 @@ The volume keys go to mpv, never to the menus, and hold to repeat. With Transpar
 
 ## When there is no sound
 
-1. **Choose the card.** In Settings → Audio Output, choose the card you are plugged into rather than Auto. On Auto the sound goes to ALSA's first card, which may not be that one.
+1. **Choose the card.** In Settings → Audio Output, choose the card you are plugged into rather than Auto. On Auto the sound goes to ALSA's first card, which may not be that one (or, while that one can't play, to the first card that can).
 2. **See what ALSA has.** From a shell (Exit to Terminal, or SSH; `alsa-utils` is on the image):
 
    ```sh
@@ -199,14 +211,14 @@ The volume keys go to mpv, never to the menus, and hold to repeat. With Transpar
    journalctl -b -u osdos | grep AudioOutput
    ```
 
-   `Sound through <id>` is the card in use; `ALSA's default card` means Auto, or a chosen card that is unplugged. mpv's own log, `/tmp/osdos-mpv.log`, says why a video's sound couldn't open.
+   `Sound through <id>` is the card in use; `ALSA's default card` means Auto, or a chosen card that is unplugged; `<id>, as ALSA's default card can't play now`, Auto playing through another card. `journalctl -b -u osdos | grep -F "[Scripts] Running"` says the card each game was given. mpv's own log, `/tmp/osdos-mpv.log`, says why a video's sound couldn't open.
 6. **Check the other end.** The TV's input and volume; the right HDMI port of two; on SCART, pins 6 and 2 with ground on 4.
 
 | What you see | Why, and what to do |
 |---|---|
 | No Audio Output row | A sound server is running (a desktop), or it isn't Linux. Choose the output in the system's sound settings |
 | A Pi 4 on composite, sound only on HDMI or nowhere | Choose **AV Jack**: Auto may be on an HDMI card, which composite turns off |
-| A Pi 5 on a CRT, no sound | It has no analog sound, and its HDMI plays only while that port shows the picture: plug in a USB sound card and choose it. Until then MAME and RetroArch play the games without sound |
+| A Pi 5 on a CRT, no sound | It has no analog sound, and its HDMI plays only while that port shows the picture: plug in a USB sound card, which Auto then plays through (or choose it). Until then MAME and RetroArch play the games without sound |
 | A USB sound card isn't among the cards | The row's help line says what the system sees ([The cards and their names](#the-cards-and-their-names)): nothing plugged in, a device no driver took, one the driver took but ALSA made no card of, one with no output, or the Pi's power too low. `lsusb -t` and `dmesg | grep -i usb` from a shell say more |
 | HDMI 0 and HDMI 1, one silent | The TV is on the other port. Pick by the port's label on the board |
 | The card shows **(Unplugged)** | It isn't plugged in, or ALSA doesn't see it (`aplay -l`). Sound goes as on Auto until it is back |

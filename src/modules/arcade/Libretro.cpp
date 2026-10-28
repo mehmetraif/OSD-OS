@@ -523,7 +523,7 @@ QString configText(const Launch &launch) {
         set("video_context_driver", QStringLiteral("kms"));
         set("input_driver", QStringLiteral("udev"));
         set("audio_driver", QStringLiteral("alsa"));
-        // ALSA's default: the card Settings → Audio Output chose (ALSA_CARD).
+        // ALSA's default: the card Settings → Audio Output gives (ALSA_CARD).
         set("audio_device", QString());
         set("assets_directory", QStringLiteral("/usr/share/libretro/assets"));
     }

@@ -412,11 +412,22 @@ bool ScriptLauncher::start(const ScriptEntry &entry, QString *errorOut) {
 
     m_startTimer->start();
 
-    qInfo("[Scripts] Running '%s' (%s, %s%s%s)", qPrintable(entry.basename),
+    // The sound card and the screen it was given, easy to get wrong on a
+    // Pi 5: the card ALSA_CARD names (else ALSA's default), or that none can
+    // play, and the DRM card SDL opens.
+    QString given;
+    if (env.contains(QStringLiteral("ALSA_CARD")))
+        given += QStringLiteral(", sound card ") + env.value(QStringLiteral("ALSA_CARD"));
+    else if (!AudioOutput::hasPlaybackCard())
+        given += QStringLiteral(", no sound card that can play");
+    if (env.contains(QStringLiteral("SDL_KMSDRM_DEVICE_INDEX")))
+        given += QStringLiteral(", DRM card ") + env.value(QStringLiteral("SDL_KMSDRM_DEVICE_INDEX"));
+    qInfo("[Scripts] Running '%s' (%s, %s%s%s%s)", qPrintable(entry.basename),
           direct ? "direct" : "/bin/sh",
           takeover ? "takeover" : "console",
           vt > 0 ? qPrintable(QStringLiteral(", vt %1").arg(vt)) : "",
-          extra.isEmpty() ? "" : ", with args");
+          extra.isEmpty() ? "" : ", with args",
+          qPrintable(given));
     emit runningChanged();
     return true;
 }

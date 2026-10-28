@@ -381,10 +381,10 @@ Settings → TV / Movie → Channel Logo puts OSD/OS's logo in a corner of the p
 
 Settings → Audio Output (Linux with plain ALSA: the image and Raspberry Pi OS Lite) tells mpv the card: `--audio-device=alsa/default:CARD=<id>`, the card's own ALSA `default` device. That is the right door to each card: a USB card's `default` mixes what plays at once, and the Pi's HDMI under full KMS takes only samples framed as IEC958, which `plughw:` can't give it.
 
-- The menu music's mpv, Ambient:Mode's and Weather's music get the same flag; a script, an Arcade game's MAME or a web player's browser gets `ALSA_CARD=<id>`.
+- The menu music's mpv, Ambient:Mode's and Weather's music get the same flag; every program OSD/OS starts (those mpvs too, a script, an Arcade game's MAME or RetroArch, a web player's browser) gets `ALSA_CARD=<id>`.
 - With Transparent Background, a video playing behind the menus moves to a newly chosen card at once (`set_property audio-device`). An mpv process can't be playing while Settings is open; the next one starts with the card.
 - A card chosen but unplugged is passed over until it is back: nothing is added, as on Auto.
-- On **Auto** nothing is added, so `audio-device=` in `mpv.conf` or the default card in `/etc/asound.conf` still choose. `mpv --audio-device=help` lists the devices mpv can use.
+- On **Auto** nothing is added, so `audio-device=` in `mpv.conf` or the default card in `/etc/asound.conf` still choose. While ALSA's first card can't play (a Pi 5's HDMI without the picture) and nothing sets the default otherwise, an mpv process gets the first card that can as `ALSA_CARD`, under its `mpv.conf`'s `audio-device=`, and a video inside the app as its device. `mpv --audio-device=help` lists the devices mpv can use.
 
 More on the cards in [Audio Output](https://github.com/mehmetraif/OSD-OS/wiki/Audio-Output).
 
