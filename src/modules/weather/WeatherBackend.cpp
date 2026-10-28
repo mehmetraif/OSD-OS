@@ -623,7 +623,8 @@ void WeatherBackend::startMusic() {
          << QStringLiteral("--no-terminal")
          << QStringLiteral("--really-quiet")
          << QStringLiteral("--input-ipc-server=%1").arg(m_musicSocketPath)
-         // Settings → Audio Output's card, while it is plugged in.
+         // Settings → Audio Output's card, while it is plugged in; Auto's as
+         // ALSA's default (applyTo() below).
          << AudioOutput::mpvArgs()
          // Everything after this is a file, so an entry starting with '-'
          // cannot be mistaken for an option.
@@ -634,6 +635,9 @@ void WeatherBackend::startMusic() {
     // The menu music stops first: this has the sound card now.
     MenuMusic::hold(QStringLiteral("weather"));
     m_music = new QProcess(this);
+    QProcessEnvironment env = QProcessEnvironment::systemEnvironment();
+    AudioOutput::applyTo(env);
+    m_music->setProcessEnvironment(env);
     // mpv exiting on its own (no network, no readable files) leaves a stale
     // pointer that would make startMusic() a no-op on the next visit.
     connect(m_music, &QProcess::finished, this, [this](int, QProcess::ExitStatus) {

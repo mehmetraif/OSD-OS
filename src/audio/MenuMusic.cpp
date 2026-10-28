@@ -11,6 +11,7 @@
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
+#include <QProcessEnvironment>
 #include <QStandardPaths>
 #include <QUrl>
 
@@ -292,12 +293,16 @@ void MenuMusic::play(const QString &file) {
          << QStringLiteral("--loop-file=inf")
          << QStringLiteral("--volume=%1").arg(m_volume)
          << QStringLiteral("--input-ipc-server=%1").arg(m_socketPath)
-         // Settings → Audio Output's card, while it is plugged in.
+         // Settings → Audio Output's card, while it is plugged in; Auto's as
+         // ALSA's default (applyTo() below).
          << AudioOutput::mpvArgs()
          << QStringLiteral("--")
          << file;
     auto *process = new QProcess(this);
     process->setProcessChannelMode(QProcess::ForwardedErrorChannel);
+    QProcessEnvironment env = QProcessEnvironment::systemEnvironment();
+    AudioOutput::applyTo(env);
+    process->setProcessEnvironment(env);
     QElapsedTimer clock;
     clock.start();
     whenOver(process, this, [this, process, clock](int code) {

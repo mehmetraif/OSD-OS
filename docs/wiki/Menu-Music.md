@@ -59,7 +59,7 @@ mpv --no-config --no-video --no-terminal --really-quiet --loop-file=inf
 - **`--no-config`**: mpv's own `mpv.conf` isn't read for the menu music.
 - **`--volume`** starts at Music Volume; moving the slider changes it over the socket (`--input-ipc-server`) as the music plays.
 - **It starts 700 ms after it is wanted** and nothing holds it, from the beginning of the tune, every time. It doesn't start between a hold and a release in quick turns.
-- **On another sound card**: when Settings → Audio Output changes, the music starts again from the beginning on the new card. The card is looked up each time the music starts: a chosen card that is unplugged is passed over for the system's default until it is back.
+- **On another sound card**: when Settings → Audio Output changes, the music starts again from the beginning on the new card. The card is looked up each time the music starts: a chosen card that is unplugged is passed over for the system's default until it is back. On Auto, while the system's default can't play, the music gets the first card that can, as `ALSA_CARD`.
 
 ## Formats
 

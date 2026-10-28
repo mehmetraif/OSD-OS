@@ -478,8 +478,10 @@ QStringList MpvController::sessionArgs(const QString &url, float startSeconds,
         args << QString("--image-display-duration=%1").arg(double(imageDurationSec), 0, 'f', 1);
     if (muteAudio)
         args << QStringLiteral("--no-audio");
-    // Settings → Audio Output: the sound card chosen, while it is plugged in.
-    args << AudioOutput::mpvArgs();
+    // Settings → Audio Output: the sound card chosen, while it is plugged in;
+    // inside the app, Auto's too, which a process has as ALSA's default
+    // instead (its environment, startProcess()).
+    args << AudioOutput::mpvArgs(embedded);
     // See ytdlEnabled above: default the hook off unless the caller opted in.
     if (!ytdlEnabled)
         args << QStringLiteral("--ytdl=no");
@@ -838,6 +840,8 @@ void MpvController::startProcess(QStringList args, const QStringList &media) {
             if (!fcConf.isEmpty())
                 env.insert("FONTCONFIG_FILE", fcConf);
 #endif
+            // Settings → Audio Output's card as ALSA's default.
+            AudioOutput::applyTo(env);
             m_process->setProcessEnvironment(env);
         }
 
@@ -899,6 +903,7 @@ void MpvController::startProcess(QStringList args, const QStringList &media) {
         if (!fcConf.isEmpty())
             env.insert("FONTCONFIG_FILE", fcConf);
 #endif
+        AudioOutput::applyTo(env);
         m_process->setProcessEnvironment(env);
         args << "--fullscreen" << "--no-native-fs";
         // Playback follows the UI's display (app-level "display_index"). Only
@@ -1594,8 +1599,8 @@ void MpvController::leavePlayerMenu() {
 
 void MpvController::followAudioOutput() {
     // A video playing inside the app, behind the menus, goes on through the
-    // card chosen. An mpv process can't be playing while Settings is up; the
-    // next one is started with it.
+    // card chosen, or Auto's. An mpv process can't be playing while Settings
+    // is up; the next one is started with it.
     if (!m_embedded || !m_embedded->running())
         return;
     const QString device = AudioOutput::mpvDevice();

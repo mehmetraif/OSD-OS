@@ -1,4 +1,5 @@
 #include "AppCore.h"
+#include "audio/AudioOutput.h"
 #include "input/ControllerProfile.h"
 #include "modules/arcade/ArcadeBackend.h"
 #include "modules/arcade/FbneoInstaller.h"
@@ -99,6 +100,7 @@ esac
 	echo "play $*"
 	echo "cwd $(pwd)"
 	echo "kms ${SDL_KMSDRM_DEVICE_INDEX:-}"
+	echo "alsa ${ALSA_CARD:-}"
 	echo "labels ${SDL_GAMECONTROLLER_USE_BUTTON_LABELS:-}"
 	echo "mappings ${SDL_GAMECONTROLLERCONFIG:-}"
 } >> "$MAME_LOG"
@@ -1028,17 +1030,21 @@ private slots:
     // A Pi 5's HDMI plays only while its port shows the picture: with both
     // off (the picture on a JAMMA board) and no other card, MAME plays none
     // too, as PortAudio, which it falls back to, would crash; with one
-    // showing it, the game plays through it.
+    // showing it, the game plays through it, and with a USB sound card
+    // beside the two dark, through that: Audio Output on Auto names the card
+    // ALSA's default can't be (ALSA_CARD). The log says what each was given,
+    // the screen's DRM card too.
     void hdmiSoundOff() {
         QTemporaryDir asound;
         QTemporaryDir drm;
         QTemporaryDir runtime;
-        QVERIFY(asound.isValid() && drm.isValid() && runtime.isValid());
-        writeFile(asound.path() + QStringLiteral("/cards"),
-                  " 0 [vc4hdmi0       ]: vc4-hdmi - vc4-hdmi-0\n"
-                  "                      vc4-hdmi-0\n"
-                  " 1 [vc4hdmi1       ]: vc4-hdmi - vc4-hdmi-1\n"
-                  "                      vc4-hdmi-1\n");
+        QTemporaryDir data;
+        QVERIFY(asound.isValid() && drm.isValid() && runtime.isValid() && data.isValid());
+        const QByteArray hdmi = " 0 [vc4hdmi0       ]: vc4-hdmi - vc4-hdmi-0\n"
+                                "                      vc4-hdmi-0\n"
+                                " 1 [vc4hdmi1       ]: vc4-hdmi - vc4-hdmi-1\n"
+                                "                      vc4-hdmi-1\n";
+        writeFile(asound.path() + QStringLiteral("/cards"), hdmi);
         QVERIFY(QDir().mkpath(asound.path() + QStringLiteral("/card0/pcm0p")));
         QVERIFY(QDir().mkpath(asound.path() + QStringLiteral("/card1/pcm0p")));
         writeFile(drm.path() + QStringLiteral("/card1-HDMI-A-1/enabled"), "disabled\n");
@@ -1046,32 +1052,72 @@ private slots:
         writeFile(drm.path() + QStringLiteral("/card1-DPI-1/enabled"), "enabled\n");
         const QByteArray pulse = qgetenv("PULSE_SERVER");
         const QByteArray xdg = qgetenv("XDG_RUNTIME_DIR");
+        const QByteArray alsaCard = qgetenv("ALSA_CARD");
         qunsetenv("PULSE_SERVER");
+        qunsetenv("ALSA_CARD");
         qputenv("XDG_RUNTIME_DIR", runtime.path().toUtf8());
         qputenv("OSDOS_ASOUND_DIR", asound.path().toUtf8());
         qputenv("OSDOS_DRM_DIR", drm.path().toUtf8());
-        const auto playLine = [this] {
+        // No ALSA configuration of the machine's sets the default.
+        qputenv("OSDOS_ALSA_CONFIG", (asound.path() + QStringLiteral("/asound.conf")).toUtf8());
+        // Audio Output on Auto, as the app has it.
+        AppCore core(data.path(), data.path());
+        AudioOutput audio(&core);
+        // The game's command line, the card ALSA_CARD names it, and what the
+        // log says it was given.
+        static QStringList logged;
+        const auto launch = [this]() -> QStringList {
             QFile::remove(m_log);
             ArcadeBackend arcade(m_data.path(), m_data.path(), nullptr, nullptr);
             refreshed(arcade);
+            logged.clear();
+            const QtMessageHandler previous = qInstallMessageHandler(
+                [](QtMsgType, const QMessageLogContext &, const QString &message) { logged << message; });
             const QString reason = played(arcade, QStringLiteral("galaga")).at(1).toString();
+            qInstallMessageHandler(previous);
             const QStringList lines = logLines(QStringLiteral("play"));
-            return reason == QLatin1String("ok") && lines.size() == 1 ? lines.first() : reason;
+            if (reason != QLatin1String("ok") || lines.size() != 1)
+                return { reason };
+            const QStringList running = logged.filter(QStringLiteral("[Scripts] Running 'mame'"));
+            return { lines.first(), logLines(QStringLiteral("alsa")).value(0), running.value(0) };
         };
-        const QString off = playLine();
+        const QStringList off = launch();
         // HDMI1 shows the picture.
         writeFile(drm.path() + QStringLiteral("/card1-HDMI-A-2/enabled"), "enabled\n");
-        const QString on = playLine();
+        const QStringList on = launch();
+        // Both dark again, a USB sound card plugged in.
+        writeFile(drm.path() + QStringLiteral("/card1-HDMI-A-2/enabled"), "disabled\n");
+        writeFile(asound.path() + QStringLiteral("/cards"),
+                  hdmi + " 2 [Device         ]: USB-Audio - USB Audio Device\n"
+                         "                      GeneralPlus USB Audio Device at usb-xhci-hcd.0-1.3, full speed\n");
+        QVERIFY(QDir().mkpath(asound.path() + QStringLiteral("/card2/pcm0p")));
+        // The output's DRM card, as a Pi 5's launcher names it.
+        qputenv("OSDOS_DRM_DEVICE", "/dev/dri/card1");
+        const QStringList usb = launch();
+        qunsetenv("OSDOS_DRM_DEVICE");
         qputenv("OSDOS_ASOUND_DIR", (m_data.path() + QStringLiteral("/asound")).toUtf8());
         qunsetenv("OSDOS_DRM_DIR");
+        qunsetenv("OSDOS_ALSA_CONFIG");
         if (!pulse.isNull())
             qputenv("PULSE_SERVER", pulse);
+        if (!alsaCard.isNull())
+            qputenv("ALSA_CARD", alsaCard);
         if (xdg.isNull())
             qunsetenv("XDG_RUNTIME_DIR");
         else
             qputenv("XDG_RUNTIME_DIR", xdg);
-        QVERIFY2(off.startsWith(QStringLiteral("play ")) && off.endsWith(QStringLiteral(" -sound none")), qPrintable(off));
-        QVERIFY2(on.startsWith(QStringLiteral("play ")) && !on.contains(QStringLiteral("-sound")), qPrintable(on));
+        QVERIFY2(off.value(0).startsWith(QStringLiteral("play ")) && off.value(0).endsWith(QStringLiteral(" -sound none")),
+                 qPrintable(off.join(QLatin1Char('|'))));
+        QCOMPARE(off.value(1), QStringLiteral("alsa "));
+        QVERIFY2(off.value(2).endsWith(QStringLiteral(", no sound card that can play)")), qPrintable(off.value(2)));
+        QVERIFY2(on.value(0).startsWith(QStringLiteral("play ")) && !on.value(0).contains(QStringLiteral("-sound")),
+                 qPrintable(on.join(QLatin1Char('|'))));
+        QCOMPARE(on.value(1), QStringLiteral("alsa vc4hdmi1"));
+        QVERIFY2(on.value(2).endsWith(QStringLiteral(", sound card vc4hdmi1)")), qPrintable(on.value(2)));
+        QVERIFY2(usb.value(0).startsWith(QStringLiteral("play ")) && !usb.value(0).contains(QStringLiteral("-sound")),
+                 qPrintable(usb.join(QLatin1Char('|'))));
+        QCOMPARE(usb.value(1), QStringLiteral("alsa Device"));
+        QVERIFY2(usb.value(2).endsWith(QStringLiteral(", sound card Device, DRM card 1)")), qPrintable(usb.value(2)));
     }
 
     // Recently Played and Favorites: the games still in the folder, as MAME

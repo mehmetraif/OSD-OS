@@ -553,7 +553,7 @@ mame galaga \
 | `Missing …, looked for in …` | The set lacks files this MAME needs. The sets it names say where: a clone also needs its parent's set (`puckman.zip` for `pacman.zip`), unless the sets are non-merged; a Neo-Geo game needs `neogeo.zip`, a PGM game `pgm.zip`, and so on. A set made for another version of MAME often lacks a file or two |
 | `MAME stopped: …` about OpenGL, video or a window | Try another **MAME Video** in Settings → Arcade → Emulator Video |
 | `MAME closed unexpectedly` | MAME crashed. Try another **MAME Video** in Settings → Arcade → Emulator Video; if every one does the same, run MAME by hand ([below](#troubleshooting)) to see its last lines |
-| The game plays but there is no sound | Check **Settings → Audio Output**: on a Pi 5 with the JAMMA board, the USB sound card |
+| The game plays but there is no sound | Check **Settings → Audio Output**: on a Pi 5 with the JAMMA board, the USB sound card, which Auto plays through too. The log's `[Scripts] Running 'mame'` line names the card the game was given |
 | A game plays without some of its sounds | It plays them from samples: put its sample set (`dkong.zip` for Donkey Kong) in a `samples` folder in the games folder |
 | A player's controls are wrong | Check **Settings → Controls → Players**: who is player 1 is who MAME's joystick 1 is. Then MAME's own menu: **Tab → Input Settings** |
 | Coin and Start don't bring you back | Press them together on one player's controller (one Settings → Controls → Players gives a player), or Esc on a keyboard. A button changed in MAME's menu for UI Cancel replaces the way back |

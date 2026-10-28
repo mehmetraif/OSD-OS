@@ -11,11 +11,13 @@ class QProcessEnvironment;
 // ALSA has (/proc/asound): the Pi's AV jack, its HDMI, a USB sound card.
 // ALSA's own default is left as it is; each player is told the card as it
 // starts: mpv (a video, Ambient Mode's and Weather's music) with
-// --audio-device, any other program (a web player's browser, a script) with
-// ALSA_CARD in its environment, and a video playing behind the menus moves to
-// a new one at once (MpvController::followAudioOutput). A card chosen but
-// unplugged is passed over until it is back: sound goes where it would
-// without the setting.
+// --audio-device, every program OSD/OS starts (a web player's browser, a
+// script, MAME, RetroArch, those mpvs) with ALSA_CARD in its environment, and
+// a video playing behind the menus moves to a new one at once
+// (MpvController::followAudioOutput). A card chosen but unplugged is passed
+// over until it is back: sound goes as on Auto, where ALSA's default plays,
+// or, while that can't (a Pi 5's HDMI without the picture), the first card
+// that can.
 //
 // Offered on Linux where nothing between the players and ALSA picks the card
 // itself, no PipeWire or PulseAudio server: the OS image. OSDOS_ASOUND_DIR
@@ -29,9 +31,10 @@ public:
 
     bool available() const;
 
-    // Settings' row, { options, values, value, note }: Auto, then each card
-    // that can play now by its name, and the chosen one marked when it is
-    // unplugged. A value is the setting as saved (app.audio_output): "" for
+    // Settings' row, { options, values, value, note }: Auto (naming the card
+    // it plays through while ALSA's default can't), then each card that can
+    // play by its name, and the chosen one marked when it is unplugged. A
+    // value is the setting as saved (app.audio_output): "" for
     // Auto, else { card, name }, the card's ALSA id and its name then. note,
     // for the row's help, without a USB sound card among those that can play:
     // why, as far as the system can tell ("" with one): no USB sound device
@@ -42,13 +45,20 @@ public:
     // for tests.
     Q_INVOKABLE QVariantMap settingRow() const;
 
-    // The chosen card's ALSA id while it is plugged in, else "".
+    // The card the players are given, by its ALSA id: the chosen one while it
+    // is plugged in; else "" for ALSA's default, unless that can't play now
+    // and nothing outside OSD/OS sets it (/etc/asound.conf, ~/.asoundrc,
+    // ALSA_CARD): then the first card that can, a USB sound card beside a
+    // Pi 5 whose picture goes out of a JAMMA board say. "" with none.
     static QString card();
     // mpv's --audio-device for it ("alsa/default:CARD=<id>"), else "".
     static QString mpvDevice();
-    // The options an mpv about to start takes for it: none without one.
-    static QStringList mpvArgs();
-    // For another program about to start: ALSA_CARD names the card.
+    // The options an mpv about to start takes: a card chosen, none on Auto,
+    // whose card a process has through ALSA_CARD (applyTo()), so that its
+    // mpv.conf's audio-device still applies. inApp, for libmpv, which reads
+    // neither: Auto's card too.
+    static QStringList mpvArgs(bool inApp = false);
+    // For a program about to start: ALSA_CARD names the card.
     static void applyTo(QProcessEnvironment &env);
     // Whether there is a card that can play now, as far as ALSA says: false
     // only where ALSA is all there is and it lists none that can (the Pi 5's

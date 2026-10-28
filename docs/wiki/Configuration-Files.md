@@ -67,6 +67,7 @@ OSD/OS reads these. Each is also read under its 240-MP name, `MP240_<NAME>`, whe
 | `OSDOS_NFC_SERIAL_DEVICE` | Nothing | A serial device to use as the PN532 reader (`/dev/ttyUSB0`), instead of looking for one |
 | `OSDOS_BOARD_MODEL` | Nothing | Stands in for the board's model (`/proc/device-tree/model`), for tests: it picks the decode profile and the outputs Display Output offers |
 | `OSDOS_ASOUND_DIR` | Nothing | Stands in for `/proc/asound` (Audio Output), for tests |
+| `OSDOS_ALSA_CONFIG` | Nothing | Stands in for ALSA's configuration files (`/etc/asound.conf`, `~/.asoundrc`), which keep Audio Output's Auto on ALSA's own default, for tests |
 | `OSDOS_DEVICE_NAME` | Nothing | Stands in for the device's name, its hostname (System Information, LAN Play's default name), for tests |
 | `OSDOS_SYSTEM_ROOT` | Nothing | A folder that stands in for `/` where System Information reads `/proc` and `/sys` (memory, time up, temperature, processor, serial number, which network devices are a device's own), for tests |
 | `OSDOS_MOUNTINFO` | Nothing | Stands in for `/proc/self/mountinfo` (Local Files' USB drives), for tests |
@@ -79,8 +80,8 @@ Two Qt variables matter too. OSD/OS sets `QT_QPA_EGLFS_HIDECURSOR=1` for itself 
 
 | To | Variables |
 |---|---|
-| An mpv process | `APP_ROOT`; on Linux `FONTCONFIG_FILE=/tmp/osdos-fonts.conf`, so mpv's on-screen menu finds the VCR font; on a Linux desktop with `DISPLAY` set, `WAYLAND_DISPLAY` removed, so mpv runs on X11 or Xwayland |
-| A script (the Scripts module), and what runs as a takeover script: `web-player.sh` (Netflix, Prime Video, YouTube's sign-in) and MAME (the Arcade module) | `APP_ROOT`, `DATA_ROOT`, `OSDOS_MODE` (`console` or `takeover`), `OSDOS_VT` for a takeover on its own VT, the same two as `MP240_MODE` and `MP240_VT`, `ALSA_CARD` when Settings → Audio Output names a card, on a Pi 5 `SDL_KMSDRM_DEVICE_INDEX` (the number of the DRM card of the output the display preset names, for SDL programs), and the players' pads (`OSDOS_PLAYER1_NAME`, `_GUID`, `_DEVICE`, and players 2 to 6's) |
+| An mpv process | `APP_ROOT`; on Linux `FONTCONFIG_FILE=/tmp/osdos-fonts.conf`, so mpv's on-screen menu finds the VCR font; `ALSA_CARD`, when a script gets it (below); on a Linux desktop with `DISPLAY` set, `WAYLAND_DISPLAY` removed, so mpv runs on X11 or Xwayland |
+| A script (the Scripts module), and what runs as a takeover script: `web-player.sh` (Netflix, Prime Video, YouTube's sign-in) and MAME (the Arcade module) | `APP_ROOT`, `DATA_ROOT`, `OSDOS_MODE` (`console` or `takeover`), `OSDOS_VT` for a takeover on its own VT, the same two as `MP240_MODE` and `MP240_VT`, `ALSA_CARD` when Settings → Audio Output names a card (or on Auto, the card that plays while ALSA's first can't), on a Pi 5 `SDL_KMSDRM_DEVICE_INDEX` (the number of the DRM card of the output the display preset names, for SDL programs), and the players' pads (`OSDOS_PLAYER1_NAME`, `_GUID`, `_DEVICE`, and players 2 to 6's) |
 
 ## What is in it
 

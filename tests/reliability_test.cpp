@@ -376,6 +376,111 @@ private slots:
         QCOMPARE(note(audio), QString());
     }
 
+    // Audio Output on Auto where ALSA's default card can't play now: a Pi 5
+    // whose HDMI shows no picture (it goes out of a JAMMA board) plays
+    // through the first card that can, a USB card, or the HDMI port with the
+    // picture, given a process as ALSA's default and libmpv as its device.
+    // Not while card0 plays, nor while ALSA's default is set outside OSD/OS;
+    // a card chosen plays as chosen, and one unplugged as on Auto.
+    void autoCardWhereTheDefaultCantPlay() {
+        QTemporaryDir dir, runtime;
+        QVERIFY(dir.isValid() && runtime.isValid());
+        const QString asound = dir.path() + "/asound", drm = dir.path() + "/drm";
+        const auto write = [](const QString &path, const QByteArray &data) {
+            QDir().mkpath(QFileInfo(path).path()); QFile file(path);
+            return file.open(QIODevice::WriteOnly) && file.write(data) == data.size();
+        };
+        QVERIFY(write(asound + "/cards", " 0 [vc4hdmi0       ]: vc4-hdmi - vc4-hdmi-0\n"
+                                         "                      vc4-hdmi-0\n"
+                                         " 1 [vc4hdmi1       ]: vc4-hdmi - vc4-hdmi-1\n"
+                                         "                      vc4-hdmi-1\n"
+                                         " 2 [Device         ]: USB-Audio - USB Audio Device\n"
+                                         "                      GeneralPlus USB Audio Device at usb-xhci-hcd.0-1.3, full speed\n"));
+        for (const char *card : { "/card0/pcm0p", "/card1/pcm0p", "/card2/pcm0p" })
+            QVERIFY(QDir().mkpath(asound + card));
+        QVERIFY(write(drm + "/card1-HDMI-A-1/enabled", "disabled\n"));
+        QVERIFY(write(drm + "/card1-HDMI-A-2/enabled", "disabled\n"));
+        QVERIFY(write(drm + "/card1-DPI-1/enabled", "enabled\n"));
+        const QByteArray pulse = qgetenv("PULSE_SERVER"), xdg = qgetenv("XDG_RUNTIME_DIR"),
+                         alsaCard = qgetenv("ALSA_CARD"), alsaPcmCard = qgetenv("ALSA_PCM_CARD");
+        for (const char *name : { "PULSE_SERVER", "ALSA_CARD", "ALSA_PCM_CARD" })
+            qunsetenv(name);
+        qputenv("XDG_RUNTIME_DIR", runtime.path().toUtf8());
+        qputenv("OSDOS_ASOUND_DIR", asound.toUtf8());
+        qputenv("OSDOS_DRM_DIR", drm.toUtf8());
+        qputenv("OSDOS_ALSA_CONFIG", (dir.path() + "/asound.conf").toUtf8());
+        const auto restore = qScopeGuard([&] {
+            for (const char *name : { "OSDOS_ASOUND_DIR", "OSDOS_DRM_DIR", "OSDOS_ALSA_CONFIG" })
+                qunsetenv(name);
+            const auto put = [](const char *name, const QByteArray &value) {
+                if (value.isNull()) qunsetenv(name); else qputenv(name, value);
+            };
+            put("PULSE_SERVER", pulse); put("XDG_RUNTIME_DIR", xdg);
+            put("ALSA_CARD", alsaCard); put("ALSA_PCM_CARD", alsaPcmCard);
+        });
+        AppCore core(dir.path(), dir.path());
+        AudioOutput audio(&core);
+        QVERIFY(audio.available());
+        const auto given = [] {
+            QProcessEnvironment env;
+            AudioOutput::applyTo(env);
+            return env.value("ALSA_CARD", "-");
+        };
+        const auto autoLabel = [&audio] { return audio.settingRow().value("options").toStringList().value(0); };
+
+        // Both HDMI ports dark: the USB card.
+        QCOMPARE(AudioOutput::card(), QString("Device"));
+        QCOMPARE(given(), QString("Device"));
+        QCOMPARE(AudioOutput::mpvArgs(), QStringList());
+        QCOMPARE(AudioOutput::mpvArgs(true), QStringList({ "--audio-device=alsa/default:CARD=Device" }));
+        QCOMPARE(AudioOutput::mpvDevice(), QString("alsa/default:CARD=Device"));
+        QCOMPARE(autoLabel(), QString("Auto (USB Audio Device)"));
+        QCOMPARE(audio.settingRow().value("value").toString(), QString("Auto (USB Audio Device)"));
+        // The picture on HDMI1: its port, ahead of the USB card.
+        QVERIFY(write(drm + "/card1-HDMI-A-2/enabled", "enabled\n"));
+        QCOMPARE(AudioOutput::card(), QString("vc4hdmi1"));
+        QCOMPARE(autoLabel(), QString("Auto (HDMI 1)"));
+        // On HDMI0, card0: ALSA's own default plays.
+        QVERIFY(write(drm + "/card1-HDMI-A-1/enabled", "enabled\n"));
+        QCOMPARE(AudioOutput::card(), QString());
+        QCOMPARE(given(), QString("-"));
+        QCOMPARE(AudioOutput::mpvArgs(true), QStringList());
+        QCOMPARE(autoLabel(), QString("Auto"));
+        QVERIFY(write(drm + "/card1-HDMI-A-1/enabled", "disabled\n"));
+        QVERIFY(write(drm + "/card1-HDMI-A-2/enabled", "disabled\n"));
+
+        // ALSA's default set elsewhere stands: in an ALSA configuration, or
+        // OSD/OS's own environment.
+        QVERIFY(write(dir.path() + "/asound.conf", "defaults.pcm.card \"vc4hdmi1\"\n"));
+        QCOMPARE(AudioOutput::card(), QString());
+        QCOMPARE(autoLabel(), QString("Auto"));
+        QVERIFY(QFile::remove(dir.path() + "/asound.conf"));
+        qputenv("ALSA_CARD", "vc4hdmi1");
+        QCOMPARE(AudioOutput::card(), QString());
+        qunsetenv("ALSA_CARD");
+        QCOMPARE(AudioOutput::card(), QString("Device"));
+
+        // A card chosen, on its command line too, whether it can play or
+        // not; one unplugged as on Auto, which a process has as ALSA's
+        // default rather than on its command line.
+        QVERIFY(core.save_setting(QString(), "audio_output", QVariantMap{ { "card", "vc4hdmi0" }, { "name", "HDMI 0" } }));
+        QCOMPARE(AudioOutput::card(), QString("vc4hdmi0"));
+        QCOMPARE(AudioOutput::mpvArgs(), QStringList({ "--audio-device=alsa/default:CARD=vc4hdmi0" }));
+        QCOMPARE(given(), QString("vc4hdmi0"));
+        QVERIFY(core.save_setting(QString(), "audio_output", QVariantMap{ { "card", "Gone" }, { "name", "Gone Card" } }));
+        QCOMPARE(AudioOutput::card(), QString("Device"));
+        QCOMPARE(AudioOutput::mpvArgs(), QStringList());
+        QCOMPARE(AudioOutput::mpvArgs(true), QStringList({ "--audio-device=alsa/default:CARD=Device" }));
+        QCOMPARE(given(), QString("Device"));
+        QCOMPARE(audio.settingRow().value("value").toString(), QString("Gone Card (Unplugged)"));
+
+        // No card that can play: none given.
+        QVERIFY(QDir(asound + "/card2").removeRecursively());
+        QVERIFY(core.save_setting(QString(), "audio_output", QString()));
+        QCOMPARE(AudioOutput::card(), QString());
+        QVERIFY(!AudioOutput::hasPlaybackCard());
+    }
+
     // What of a text OSD/OS Setup's file is (setupfile::parse()), checked as
     // the card's applier checks it, and its settings merged key by key.
     void setupFileChecked() {
