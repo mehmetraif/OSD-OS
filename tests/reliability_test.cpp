@@ -383,6 +383,9 @@ private slots:
     // Not while card0 plays, nor while ALSA's default is set outside OSD/OS;
     // a card chosen plays as chosen, and one unplugged as on Auto.
     void autoCardWhereTheDefaultCantPlay() {
+#ifndef Q_OS_LINUX
+        QSKIP("ALSA's cards are Linux's");
+#else
         QTemporaryDir dir, runtime;
         QVERIFY(dir.isValid() && runtime.isValid());
         const QString asound = dir.path() + "/asound", drm = dir.path() + "/drm";
@@ -479,6 +482,7 @@ private slots:
         QVERIFY(core.save_setting(QString(), "audio_output", QString()));
         QCOMPARE(AudioOutput::card(), QString());
         QVERIFY(!AudioOutput::hasPlaybackCard());
+#endif
     }
 
     // What of a text OSD/OS Setup's file is (setupfile::parse()), checked as
