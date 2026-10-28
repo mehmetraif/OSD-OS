@@ -51,6 +51,11 @@ constexpr Sint16 kAxisRelease = 12000;
 constexpr int kRepeatDelayMs    = 400;
 constexpr int kRepeatIntervalMs = 100;
 
+// How long after the pads open again as a game ends a pad's press is still
+// taken for one held through it (finishReclaimJoysticks()): an evdev pad
+// says what is held as it opens, a Bluetooth one with its next report.
+constexpr int kHandoffSettleMs = 500;
+
 // Qt reports both shift keys as Qt::Key_Shift; telling them apart takes the
 // platform code. Linux keymaps (eglfs/evdev, X11, Wayland) report evdev's
 // KEY_RIGHTSHIFT, with or without the X11-style +8 offset; macOS reports
@@ -77,21 +82,6 @@ int keyId(const QKeyEvent *ke) {
     }
 #endif
     return ke->key();
-}
-
-// A USB sound card's volume HID mis-named as a gamepad (CM108 and the like),
-// by its SDL name. Not opened as a controller — Settings → Audio Output is
-// where that device belongs. Not by an Audio class interface on its USB
-// device: a DualShock 4 or a DualSense on USB has one beside its pad.
-bool looksLikeUsbAudioHid(const QString &name) {
-    const QString n = name.toLower();
-    return n.contains(QLatin1String("usb audio"))
-        || n.contains(QLatin1String("usb pnp sound"))
-        || n.contains(QLatin1String("usb headphone"))
-        || n.contains(QLatin1String("usb sound"))
-        || (n.contains(QLatin1String("c-media"))
-            && (n.contains(QLatin1String("sound")) || n.contains(QLatin1String("audio"))
-                || n.contains(QLatin1String("headphone"))));
 }
 
 // A remote's OK that the views don't take for Return (by keyId()): keypad
@@ -312,7 +302,7 @@ void InputManager::openController(int deviceIndex) {
     }
     SDL_Joystick *joystick = SDL_GameControllerGetJoystick(gc);
     const QString name = QString::fromUtf8(SDL_JoystickName(joystick));
-    if (looksLikeUsbAudioHid(name)) {
+    if (controllers::looksLikeUsbAudioHid(name)) {
         qInfo("[input] ignoring USB sound card HID as a controller: %s", qPrintable(name));
         SDL_GameControllerClose(gc);
         return;
@@ -349,6 +339,9 @@ void InputManager::closeController(SDL_JoystickID instanceId) {
 void InputManager::releaseJoysticksForHandoff() {
     if (!m_sdlReady || m_joysticksReleasedForHandoff)
         return;
+    // Cancel a reclaim still waiting from the last hand-off (a new game
+    // started before the deferred reopen ran).
+    ++m_joystickHandoffEpoch;
     m_joysticksReleasedForHandoff = true;
     m_pollTimer.stop();
 
@@ -381,6 +374,20 @@ void InputManager::releaseJoysticksForHandoff() {
 void InputManager::reclaimJoysticksAfterHandoff() {
     if (!m_sdlReady || !m_joysticksReleasedForHandoff)
         return;
+    // Defer past DisplayHandoff::doRestore and past Coin+Start still held
+    // from quitting MAME / RetroArch, so those presses are not delivered to
+    // the menus the moment the pads reopen (which froze the UI on a Pi 5).
+    const quint64 epoch = m_joystickHandoffEpoch;
+    QTimer::singleShot(200, this, [this, epoch] {
+        if (epoch != m_joystickHandoffEpoch || !m_joysticksReleasedForHandoff)
+            return;
+        finishReclaimJoysticks();
+    });
+}
+
+void InputManager::finishReclaimJoysticks() {
+    if (!m_sdlReady || !m_joysticksReleasedForHandoff)
+        return;
     m_joysticksReleasedForHandoff = false;
 
     SDL_Event e;
@@ -391,6 +398,11 @@ void InputManager::reclaimJoysticksAfterHandoff() {
         if (SDL_IsGameController(i))
             openController(i);
     }
+    // What is still held down (the Coin and Start that quit the game) comes
+    // in as presses once each pad says so, an evdev pad's at once and a
+    // Bluetooth one's with its next report: neither they nor their releases
+    // reach the menus (handleButton(), handleAxis()).
+    m_handoffSettleEnds = m_clock.elapsed() + kHandoffSettleMs;
     m_pollTimer.start(16);
     qInfo("[input] joysticks reclaimed after display hand-off");
 }
@@ -1574,12 +1586,19 @@ void InputManager::scanNodes() {
             if ((bits[k / kBitsPerLong] >> (k % kBitsPerLong)) & 1UL)
                 keys.insert(k);
         }
+        const QString nodeName = QString::fromUtf8(name).trimmed();
+        // A USB sound card's volume HID by name, even when it also reports
+        // Play/Pause and would otherwise look like a remote.
+        if (controllers::looksLikeUsbAudioHid(nodeName)) {
+            ::close(fd);
+            continue;
+        }
         const controllers::NodeKind kind = controllers::classifyNode(keys);
         if (kind == controllers::NodeKind::None) {
             ::close(fd);
             continue;
         }
-        addNode(fd, path, QString::fromUtf8(name).trimmed(),
+        addNode(fd, path, nodeName,
                 controllers::evdevKey(id.bustype, id.vendor, id.product), kind);
         changed = true;
     }
@@ -1861,6 +1880,8 @@ void InputManager::handleButton(SDL_JoystickID which, Uint8 button, bool pressed
         return;
     const HeldInput input{ padSource(which), button };
     if (!pressed) {
+        if (m_heldThroughHandoff.remove(input))
+            return;
         if (m_coinInputs.remove(input)) {
             postKey(Qt::Key_5, QEvent::KeyRelease, false);
             return;
@@ -1870,6 +1891,10 @@ void InputManager::handleButton(SDL_JoystickID which, Uint8 button, bool pressed
             noteActiveController(which);
             releaseAction(held);
         }
+        return;
+    }
+    if (m_clock.elapsed() < m_handoffSettleEnds) {
+        m_heldThroughHandoff.insert(input);
         return;
     }
     const QString key = pad->key;
@@ -1931,7 +1956,7 @@ void InputManager::handleAxis(SDL_JoystickID which, Uint8 axis, Sint16 value) {
     // Only a real engage/release counts as "using" this controller — idle
     // stick jitter must not steal label ownership from the pad in use. A
     // release lets go of what the engage began, as a button's does.
-    if (old != 0) {
+    if (old != 0 && !m_heldThroughHandoff.remove(input)) {
         if (m_coinInputs.remove(input)) {
             postKey(Qt::Key_5, QEvent::KeyRelease, false);
         } else {
@@ -1944,6 +1969,10 @@ void InputManager::handleAxis(SDL_JoystickID which, Uint8 axis, Sint16 value) {
     }
     if (now == 0)
         return;
+    if (m_clock.elapsed() < m_handoffSettleEnds) {
+        m_heldThroughHandoff.insert(input);
+        return;
+    }
     noteController(key);
     const QString token = axisToken(axis, now);
     if (capturing(key)) {
@@ -2055,6 +2084,8 @@ void InputManager::releaseHeld(const QString &source) {
     }
     for (const Action a : std::as_const(held))
         releaseAction(a);
+    for (auto it = m_heldThroughHandoff.begin(); it != m_heldThroughHandoff.end();)
+        it = it->first == source ? m_heldThroughHandoff.erase(it) : std::next(it);
     for (auto it = m_coinInputs.begin(); it != m_coinInputs.end();) {
         if (it->first == source) {
             it = m_coinInputs.erase(it);

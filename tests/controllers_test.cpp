@@ -370,10 +370,14 @@ private slots:
         // A remote's Consumer Control, an IR remote's few keys.
         QCOMPARE(classifyNode({ KEY_VOLUMEUP, KEY_VOLUMEDOWN, KEY_PLAYPAUSE, KEY_HOMEPAGE }), K::Remote);
         QCOMPARE(classifyNode({ KEY_UP, KEY_DOWN, KEY_LEFT, KEY_RIGHT, KEY_OK }), K::Remote);
-        // A USB sound card's volume HID alone is not a remote (CM108 and the like).
+        // A USB sound card's volume / media HID alone is not a remote (CM108).
         QCOMPARE(classifyNode({ KEY_MUTE, KEY_VOLUMEUP, KEY_VOLUMEDOWN }), K::None);
         QCOMPARE(classifyNode({ KEY_VOLUMEUP, KEY_VOLUMEDOWN }), K::None);
         QCOMPARE(classifyNode({ KEY_MUTE }), K::None);
+        QCOMPARE(classifyNode({ KEY_MUTE, KEY_VOLUMEUP, KEY_PLAYPAUSE, KEY_NEXTSONG }), K::None);
+        QVERIFY(controllers::looksLikeUsbAudioHid(QStringLiteral("USB Audio Device")));
+        QVERIFY(controllers::looksLikeUsbAudioHid(QStringLiteral("C-Media USB Headphone Set")));
+        QVERIFY(!controllers::looksLikeUsbAudioHid(QStringLiteral("Xbox Wireless Controller")));
         // A pad is SDL's, even with keys; a mouse, a power button, nothing.
         QSet<int> pad = keyboard;
         pad.insert(BTN_SOUTH);
@@ -1372,6 +1376,8 @@ private slots:
         QCOMPARE(controllers::padMappings(), mappingsBefore);
 
         im.reclaimJoysticksAfterHandoff();
+        // Reclaim is deferred so Coin+Start still held from quitting a game
+        // is not delivered to the menus.
         QTRY_VERIFY(entry(im, "OSD/OS Handoff Pad").value("present").toBool());
         QProcessEnvironment after;
         controllers::applyPlayersTo(after);
@@ -1380,6 +1386,52 @@ private slots:
         // A second reclaim with nothing released is a no-op.
         im.reclaimJoysticksAfterHandoff();
         QVERIFY(entry(im, "OSD/OS Handoff Pad").value("present").toBool());
+    }
+
+    // Coin and Start held as a game ends (they quit it) reach the menus
+    // neither as presses nor as releases, Start would play the game again:
+    // whether the pad says they are held as it opens (an evdev pad's state)
+    // or only with its next report (a Bluetooth one's, here the virtual
+    // pad's buttons set after the pads are open again). A press after that
+    // is one.
+    void heldThroughHandoff() {
+        AppCore core(m_app.path(), m_data.path());
+        InputManager im(m_data.path(), &core);
+        QSignalSpy keys(&im, &InputManager::mpvKeyRequested);
+        VirtualPad pad;
+        QVERIFY(pad.attach("OSD/OS Handoff Pad", 0x1209, 0x00ab));
+        QTRY_VERIFY(entry(im, "OSD/OS Handoff Pad").value("present").toBool());
+
+        // Held before the pads open again.
+        im.releaseJoysticksForHandoff();
+        pad.button(SDL_CONTROLLER_BUTTON_BACK, true);
+        pad.button(SDL_CONTROLLER_BUTTON_START, true);
+        im.reclaimJoysticksAfterHandoff();
+        QTRY_VERIFY(entry(im, "OSD/OS Handoff Pad").value("present").toBool());
+        QTest::qWait(100);
+        pad.button(SDL_CONTROLLER_BUTTON_BACK, false);
+        pad.button(SDL_CONTROLLER_BUTTON_START, false);
+        QTest::qWait(100);
+        QCOMPARE(keysOf(keys), QStringList());
+
+        // Said to be held only once the pads are open again.
+        im.releaseJoysticksForHandoff();
+        im.reclaimJoysticksAfterHandoff();
+        QTRY_VERIFY(entry(im, "OSD/OS Handoff Pad").value("present").toBool());
+        pad.button(SDL_CONTROLLER_BUTTON_BACK, true);
+        pad.button(SDL_CONTROLLER_BUTTON_START, true);
+        QTest::qWait(100);
+        QCOMPARE(keysOf(keys), QStringList());
+        pad.button(SDL_CONTROLLER_BUTTON_BACK, false);
+        pad.button(SDL_CONTROLLER_BUTTON_START, false);
+        QTest::qWait(100);
+        QCOMPARE(keysOf(keys), QStringList());
+
+        // Pressed afresh once the pads have settled: a press.
+        QTest::qWait(500);
+        pad.button(SDL_CONTROLLER_BUTTON_START, true);
+        QTRY_COMPARE(keysOf(keys), QStringList({ "SPACE" }));
+        pad.button(SDL_CONTROLLER_BUTTON_START, false);
     }
 
     // Six players: the JAMMA board's two, then the other pads in the order

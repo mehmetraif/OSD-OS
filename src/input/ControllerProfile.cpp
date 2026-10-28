@@ -357,6 +357,32 @@ QString evdevKey(int bus, int vendor, int product) {
         .arg(product & 0xffff, 4, 16, QLatin1Char('0'));
 }
 
+bool looksLikeUsbAudioHid(const QString &name) {
+    const QString n = name.trimmed().toLower();
+    if (n.isEmpty())
+        return false;
+    if (n.contains(QLatin1String("usb audio"))
+        || n.contains(QLatin1String("usb pnp sound"))
+        || n.contains(QLatin1String("usb headphone"))
+        || n.contains(QLatin1String("usb sound"))
+        || n.contains(QLatin1String("usb headset")))
+        return true;
+    if (n.contains(QLatin1String("cm108")) || n.contains(QLatin1String("cm119"))
+        || n.contains(QLatin1String("cm6206")) || n.contains(QLatin1String("pcm270"))
+        || n.contains(QLatin1String("pcm290")))
+        return true;
+    if (n.contains(QLatin1String("c-media"))
+        && (n.contains(QLatin1String("sound")) || n.contains(QLatin1String("audio"))
+            || n.contains(QLatin1String("headphone"))))
+        return true;
+    // Generic product strings on cheap adapters (often without a "USB" prefix).
+    if ((n.contains(QLatin1String("audio device")) || n.contains(QLatin1String("sound device"))
+         || n.contains(QLatin1String("audio adapter")) || n.contains(QLatin1String("sound adapter")))
+        && !n.contains(QLatin1String("controller")) && !n.contains(QLatin1String("gamepad")))
+        return true;
+    return false;
+}
+
 NodeKind classifyNode(const QSet<int> &keys) {
 #ifdef Q_OS_LINUX
     // A joystick's or a gamepad's buttons: SDL's to read.
@@ -366,25 +392,27 @@ NodeKind classifyNode(const QSet<int> &keys) {
     }
     if (keys.contains(KEY_A) && keys.contains(KEY_Z) && keys.contains(KEY_ENTER))
         return NodeKind::Keyboard;
-    // A USB sound card's Consumer Control HID (CM108 and the like) only has
-    // Mute / Volume Up / Volume Down: not a remote to list in Settings →
-    // Controls, and not a pad. A headset or remote that also has Play/Pause
-    // or Home still counts as a remote below.
+    // A USB sound card's Consumer Control HID: Mute / Volume, and often
+    // Play/Pause / Next / Prev with no navigation keys. Not a remote to list
+    // in Settings → Controls. A TV remote that also has arrows or Home still
+    // counts as a remote below.
     {
-        static const int kVolumeOnly[] = {
+        static const int kSoundHidKeys[] = {
             KEY_MUTE, KEY_VOLUMEUP, KEY_VOLUMEDOWN, KEY_MICMUTE,
+            KEY_PLAYPAUSE, KEY_PLAY, KEY_PAUSE, KEY_STOP,
+            KEY_NEXTSONG, KEY_PREVIOUSSONG, KEY_REWIND, KEY_FASTFORWARD,
         };
         bool any = false;
         bool only = !keys.isEmpty();
         for (const int k : keys) {
-            bool volume = false;
-            for (int v : kVolumeOnly) {
+            bool sound = false;
+            for (int v : kSoundHidKeys) {
                 if (k == v) {
-                    volume = true;
+                    sound = true;
                     break;
                 }
             }
-            if (volume)
+            if (sound)
                 any = true;
             else
                 only = false;

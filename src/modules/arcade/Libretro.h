@@ -145,10 +145,9 @@ struct Launch {
     double  aspect = 0;
     bool    integerScale = false;
     // Each player's controller, as reservedDevice() makes it: "" for none.
-    // Kept for its player where RetroArch knows pads by vendor and product
-    // (padsByVendor, kPadsByVendor); where it knows them by name, only
-    // preferred, so that one it names otherwise plays on the port it comes
-    // on rather than being moved off it.
+    // Preferred for its player (reservation type 1): matched by vendor and
+    // product where RetroArch knows them (padsByVendor, kPadsByVendor), else
+    // by name; a pad it doesn't match takes the first port free.
     QStringList pads;
     bool padsByVendor = true;
     // Which players' controllers are arcade panels, a JAMMA board's sticks:

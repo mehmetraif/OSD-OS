@@ -606,14 +606,16 @@ QString configText(const Launch &launch) {
     set("input_menu_toggle_gamepad_combo", QStringLiteral("0"));
     set("input_exit_emulator", QStringLiteral("escape"));
     set("quit_press_twice", on(false));
-    // Each player's pad kept for them (2), or only preferred (1) where
-    // RetroArch knows pads by name.
+    // Each player's pad preferred for them (1), not kept (2): a pad RetroArch
+    // doesn't match to its player (by vendor and product where its SDL reads
+    // them, else by name) takes the first port free, where kept that
+    // player's port would stay empty waiting for it. One it matches goes to
+    // its player either way.
     for (int p = 0; p < launch.pads.size(); ++p) {
         if (launch.pads.at(p).isEmpty())
             continue;
         const QByteArray player = QByteArray("input_player") + QByteArray::number(p + 1);
-        set((player + "_device_reservation_type").constData(),
-            launch.padsByVendor ? QStringLiteral("2") : QStringLiteral("1"));
+        set((player + "_device_reservation_type").constData(), QStringLiteral("1"));
         set((player + "_reserved_device").constData(), launch.pads.at(p));
     }
     set("system_directory", launch.systemDir);

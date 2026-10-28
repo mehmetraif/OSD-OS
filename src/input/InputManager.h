@@ -187,7 +187,8 @@ public:
     // main.cpp calls this when an arcade game holds DisplayHandoff
     // (ArcadeBackend::kHandoffOwner); every other hand-off keeps the pads.
     void releaseJoysticksForHandoff();
-    // Open the pads again once the display is back.
+    // Open the pads again once the display is back (deferred: see
+    // finishReclaimJoysticks()).
     void reclaimJoysticksAfterHandoff();
 
 signals:
@@ -331,8 +332,12 @@ private:
     AppCore *m_appCore = nullptr;
     QString m_dataRoot;
     bool m_sdlReady = false;
-    // True between releaseJoysticksForHandoff() and reclaimJoysticksAfterHandoff().
+    // True between releaseJoysticksForHandoff() and finishReclaimJoysticks().
     bool m_joysticksReleasedForHandoff = false;
+    // Bumped on each release so a deferred reclaim from an earlier hand-off
+    // is dropped if another game has already taken the pads again.
+    quint64 m_joystickHandoffEpoch = 0;
+    void finishReclaimJoysticks();
 
     QTimer m_pollTimer;
     QTimer m_repeatDelayTimer;
@@ -399,6 +404,11 @@ private:
     // Coin inputs (Back, or the Arcade Buttons' Coin) held down as the coin
     // key: their release is its release.
     QSet<HeldInput> m_coinInputs;
+    // Pad inputs held down as the pads opened again after a game (the Coin
+    // and Start that quit it), pressed before m_handoffSettleEnds (m_clock's
+    // time): neither their press nor their release goes to the menus.
+    QSet<HeldInput> m_heldThroughHandoff;
+    qint64 m_handoffSettleEnds = 0;
     // A remote's buttons held down that went to the views as keys of their
     // own (readNode()): their release is the key's.
     QHash<HeldInput, int> m_postedKeys;
