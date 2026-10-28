@@ -79,6 +79,21 @@ int keyId(const QKeyEvent *ke) {
     return ke->key();
 }
 
+// A USB sound card's volume HID mis-named as a gamepad (CM108 and the like),
+// by its SDL name. Not opened as a controller — Settings → Audio Output is
+// where that device belongs. Not by an Audio class interface on its USB
+// device: a DualShock 4 or a DualSense on USB has one beside its pad.
+bool looksLikeUsbAudioHid(const QString &name) {
+    const QString n = name.toLower();
+    return n.contains(QLatin1String("usb audio"))
+        || n.contains(QLatin1String("usb pnp sound"))
+        || n.contains(QLatin1String("usb headphone"))
+        || n.contains(QLatin1String("usb sound"))
+        || (n.contains(QLatin1String("c-media"))
+            && (n.contains(QLatin1String("sound")) || n.contains(QLatin1String("audio"))
+                || n.contains(QLatin1String("headphone"))));
+}
+
 // A remote's OK that the views don't take for Return (by keyId()): keypad
 // Enter, which most of them don't handle, the Select key, and the OK and
 // Select keys libinput has no symbol for.
@@ -295,7 +310,14 @@ void InputManager::openController(int deviceIndex) {
         qWarning("[input] could not open controller %d: %s", deviceIndex, SDL_GetError());
         return;
     }
-    SDL_JoystickID id = SDL_JoystickInstanceID(SDL_GameControllerGetJoystick(gc));
+    SDL_Joystick *joystick = SDL_GameControllerGetJoystick(gc);
+    const QString name = QString::fromUtf8(SDL_JoystickName(joystick));
+    if (looksLikeUsbAudioHid(name)) {
+        qInfo("[input] ignoring USB sound card HID as a controller: %s", qPrintable(name));
+        SDL_GameControllerClose(gc);
+        return;
+    }
+    SDL_JoystickID id = SDL_JoystickInstanceID(joystick);
     m_controllers.insert(id, gc);
     adoptLegacyJammaKey(id);
     rebuildPad(id);
