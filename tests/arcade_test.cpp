@@ -1264,8 +1264,8 @@ private slots:
                                   "libretro_directory = \"/cores\"", "libretro_info_path = \"/ra/info\"",
                                   "core_info_cache_enable = \"false\"" })
             QVERIFY2(has(QLatin1String(line)), line);
-        // Preferred on every platform: exclusive (2) left a lone pad on port 2
-        // when RetroArch's SDL named it differently from OSD/OS.
+        // Preferred on every platform: a pad RetroArch doesn't match to its
+        // player takes the first port free rather than leaving that one empty.
         launch.padsByVendor = false;
         QVERIFY(libretro::configText(launch).split(QLatin1Char('\n'))
                     .contains(QStringLiteral("input_player1_device_reservation_type = \"1\"")));

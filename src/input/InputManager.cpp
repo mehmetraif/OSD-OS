@@ -51,6 +51,11 @@ constexpr Sint16 kAxisRelease = 12000;
 constexpr int kRepeatDelayMs    = 400;
 constexpr int kRepeatIntervalMs = 100;
 
+// How long after the pads open again as a game ends a pad's press is still
+// taken for one held through it (finishReclaimJoysticks()): an evdev pad
+// says what is held as it opens, a Bluetooth one with its next report.
+constexpr int kHandoffSettleMs = 500;
+
 // Qt reports both shift keys as Qt::Key_Shift; telling them apart takes the
 // platform code. Linux keymaps (eglfs/evdev, X11, Wayland) report evdev's
 // KEY_RIGHTSHIFT, with or without the X11-style +8 offset; macOS reports
@@ -393,30 +398,11 @@ void InputManager::finishReclaimJoysticks() {
         if (SDL_IsGameController(i))
             openController(i);
     }
-    // Seed holds for buttons still down (Coin+Start that quit the game)
-    // without synthesizing presses, so only their later release is heard.
-    for (auto it = m_controllers.cbegin(); it != m_controllers.cend(); ++it) {
-        const SDL_JoystickID id = it.key();
-        SDL_GameController *gc = it.value();
-        const Pad pad = m_pads.value(id);
-        for (int b = 0; b < SDL_CONTROLLER_BUTTON_MAX; ++b) {
-            if (!SDL_GameControllerGetButton(gc, static_cast<SDL_GameControllerButton>(b)))
-                continue;
-            const Action a = pad.buttons.value(b, Action::None);
-            if (a == Action::None)
-                continue;
-            m_heldInputs.insert({ padSource(id), b }, a);
-        }
-    }
-    while (SDL_PollEvent(&e)) {
-        if (e.type == SDL_CONTROLLERBUTTONDOWN || e.type == SDL_CONTROLLERBUTTONUP
-            || e.type == SDL_CONTROLLERAXISMOTION)
-            continue;
-        if (e.type == SDL_CONTROLLERDEVICEADDED)
-            openController(e.cdevice.which);
-        else if (e.type == SDL_CONTROLLERDEVICEREMOVED)
-            closeController(e.cdevice.which);
-    }
+    // What is still held down (the Coin and Start that quit the game) comes
+    // in as presses once each pad says so, an evdev pad's at once and a
+    // Bluetooth one's with its next report: neither they nor their releases
+    // reach the menus (handleButton(), handleAxis()).
+    m_handoffSettleEnds = m_clock.elapsed() + kHandoffSettleMs;
     m_pollTimer.start(16);
     qInfo("[input] joysticks reclaimed after display hand-off");
 }
@@ -1894,6 +1880,8 @@ void InputManager::handleButton(SDL_JoystickID which, Uint8 button, bool pressed
         return;
     const HeldInput input{ padSource(which), button };
     if (!pressed) {
+        if (m_heldThroughHandoff.remove(input))
+            return;
         if (m_coinInputs.remove(input)) {
             postKey(Qt::Key_5, QEvent::KeyRelease, false);
             return;
@@ -1903,6 +1891,10 @@ void InputManager::handleButton(SDL_JoystickID which, Uint8 button, bool pressed
             noteActiveController(which);
             releaseAction(held);
         }
+        return;
+    }
+    if (m_clock.elapsed() < m_handoffSettleEnds) {
+        m_heldThroughHandoff.insert(input);
         return;
     }
     const QString key = pad->key;
@@ -1964,7 +1956,7 @@ void InputManager::handleAxis(SDL_JoystickID which, Uint8 axis, Sint16 value) {
     // Only a real engage/release counts as "using" this controller — idle
     // stick jitter must not steal label ownership from the pad in use. A
     // release lets go of what the engage began, as a button's does.
-    if (old != 0) {
+    if (old != 0 && !m_heldThroughHandoff.remove(input)) {
         if (m_coinInputs.remove(input)) {
             postKey(Qt::Key_5, QEvent::KeyRelease, false);
         } else {
@@ -1977,6 +1969,10 @@ void InputManager::handleAxis(SDL_JoystickID which, Uint8 axis, Sint16 value) {
     }
     if (now == 0)
         return;
+    if (m_clock.elapsed() < m_handoffSettleEnds) {
+        m_heldThroughHandoff.insert(input);
+        return;
+    }
     noteController(key);
     const QString token = axisToken(axis, now);
     if (capturing(key)) {
@@ -2088,6 +2084,8 @@ void InputManager::releaseHeld(const QString &source) {
     }
     for (const Action a : std::as_const(held))
         releaseAction(a);
+    for (auto it = m_heldThroughHandoff.begin(); it != m_heldThroughHandoff.end();)
+        it = it->first == source ? m_heldThroughHandoff.erase(it) : std::next(it);
     for (auto it = m_coinInputs.begin(); it != m_coinInputs.end();) {
         if (it->first == source) {
             it = m_coinInputs.erase(it);

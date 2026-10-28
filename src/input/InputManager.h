@@ -404,6 +404,11 @@ private:
     // Coin inputs (Back, or the Arcade Buttons' Coin) held down as the coin
     // key: their release is its release.
     QSet<HeldInput> m_coinInputs;
+    // Pad inputs held down as the pads opened again after a game (the Coin
+    // and Start that quit it), pressed before m_handoffSettleEnds (m_clock's
+    // time): neither their press nor their release goes to the menus.
+    QSet<HeldInput> m_heldThroughHandoff;
+    qint64 m_handoffSettleEnds = 0;
     // A remote's buttons held down that went to the views as keys of their
     // own (readNode()): their release is the key's.
     QHash<HeldInput, int> m_postedKeys;
