@@ -366,6 +366,32 @@ NodeKind classifyNode(const QSet<int> &keys) {
     }
     if (keys.contains(KEY_A) && keys.contains(KEY_Z) && keys.contains(KEY_ENTER))
         return NodeKind::Keyboard;
+    // A USB sound card's Consumer Control HID (CM108 and the like) only has
+    // Mute / Volume Up / Volume Down: not a remote to list in Settings →
+    // Controls, and not a pad. A headset or remote that also has Play/Pause
+    // or Home still counts as a remote below.
+    {
+        static const int kVolumeOnly[] = {
+            KEY_MUTE, KEY_VOLUMEUP, KEY_VOLUMEDOWN, KEY_MICMUTE,
+        };
+        bool any = false;
+        bool only = !keys.isEmpty();
+        for (const int k : keys) {
+            bool volume = false;
+            for (int v : kVolumeOnly) {
+                if (k == v) {
+                    volume = true;
+                    break;
+                }
+            }
+            if (volume)
+                any = true;
+            else
+                only = false;
+        }
+        if (any && only)
+            return NodeKind::None;
+    }
     // What a remote has, its own buttons (Consumer Control) or a few keys; a
     // mouse has only buttons, a power button only that.
     static const int kRemoteKeys[] = {

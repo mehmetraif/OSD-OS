@@ -45,7 +45,8 @@ QString legacyJammaKey(const QString &sdlGuid, const QString &name);
 
 // What an evdev node is to Settings → Controls, by the keys it has: a
 // keyboard, a remote, or nothing to list (a gamepad, which is SDL's; a mouse;
-// a power button). Linux only; None elsewhere.
+// a power button; a USB sound card's volume-only HID). Linux only; None
+// elsewhere.
 enum class NodeKind { None, Keyboard, Remote };
 NodeKind classifyNode(const QSet<int> &keys);
 

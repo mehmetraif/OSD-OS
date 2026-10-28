@@ -79,6 +79,47 @@ int keyId(const QKeyEvent *ke) {
     return ke->key();
 }
 
+// A USB sound card's volume HID mis-named as a gamepad (CM108 and the like):
+// by its SDL name, or on Linux by sharing a USB device with an Audio class
+// interface. Not opened as a controller — Settings → Audio Output is where
+// that device belongs.
+bool looksLikeUsbAudioHid(const QString &name) {
+    const QString n = name.toLower();
+    return n.contains(QLatin1String("usb audio"))
+        || n.contains(QLatin1String("usb pnp sound"))
+        || n.contains(QLatin1String("usb headphone"))
+        || n.contains(QLatin1String("usb sound"))
+        || (n.contains(QLatin1String("c-media"))
+            && (n.contains(QLatin1String("sound")) || n.contains(QLatin1String("audio"))
+                || n.contains(QLatin1String("headphone"))));
+}
+
+#ifdef Q_OS_LINUX
+bool inputEventIsUsbAudioHid(const QString &devPath) {
+    if (!devPath.startsWith(QLatin1String("/dev/input/")))
+        return false;
+    QString dir = QFileInfo(QStringLiteral("/sys/class/input/%1/device")
+                                .arg(QFileInfo(devPath).fileName()))
+                      .canonicalFilePath();
+    for (int i = 0; i < 8 && !dir.isEmpty() && dir != QLatin1String("/"); ++i) {
+        if (QFileInfo::exists(dir + QStringLiteral("/idVendor"))) {
+            const QDir usb(dir);
+            const QString base = usb.dirName();
+            const QDir parent(QFileInfo(dir).absolutePath());
+            for (const QString &entry : parent.entryList(
+                     QStringList{ base + QStringLiteral(":*") }, QDir::Dirs | QDir::NoDotAndDotDot)) {
+                QFile f(parent.filePath(entry + QStringLiteral("/bInterfaceClass")));
+                if (f.open(QIODevice::ReadOnly) && f.readAll().trimmed() == "01")
+                    return true;
+            }
+            return false;
+        }
+        dir = QFileInfo(dir + QStringLiteral("/..")).canonicalFilePath();
+    }
+    return false;
+}
+#endif
+
 // A remote's OK that the views don't take for Return (by keyId()): keypad
 // Enter, which most of them don't handle, the Select key, and the OK and
 // Select keys libinput has no symbol for.
@@ -295,7 +336,23 @@ void InputManager::openController(int deviceIndex) {
         qWarning("[input] could not open controller %d: %s", deviceIndex, SDL_GetError());
         return;
     }
-    SDL_JoystickID id = SDL_JoystickInstanceID(SDL_GameControllerGetJoystick(gc));
+    SDL_Joystick *joystick = SDL_GameControllerGetJoystick(gc);
+    const QString name = QString::fromUtf8(SDL_JoystickName(joystick));
+    bool usbAudio = looksLikeUsbAudioHid(name);
+#ifdef Q_OS_LINUX
+#if SDL_VERSION_ATLEAST(2, 24, 0)
+    if (!usbAudio) {
+        if (const char *path = SDL_JoystickPath(joystick))
+            usbAudio = inputEventIsUsbAudioHid(QString::fromUtf8(path));
+    }
+#endif
+#endif
+    if (usbAudio) {
+        qInfo("[input] ignoring USB sound card HID as a controller: %s", qPrintable(name));
+        SDL_GameControllerClose(gc);
+        return;
+    }
+    SDL_JoystickID id = SDL_JoystickInstanceID(joystick);
     m_controllers.insert(id, gc);
     adoptLegacyJammaKey(id);
     rebuildPad(id);

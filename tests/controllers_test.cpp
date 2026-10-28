@@ -370,6 +370,10 @@ private slots:
         // A remote's Consumer Control, an IR remote's few keys.
         QCOMPARE(classifyNode({ KEY_VOLUMEUP, KEY_VOLUMEDOWN, KEY_PLAYPAUSE, KEY_HOMEPAGE }), K::Remote);
         QCOMPARE(classifyNode({ KEY_UP, KEY_DOWN, KEY_LEFT, KEY_RIGHT, KEY_OK }), K::Remote);
+        // A USB sound card's volume HID alone is not a remote (CM108 and the like).
+        QCOMPARE(classifyNode({ KEY_MUTE, KEY_VOLUMEUP, KEY_VOLUMEDOWN }), K::None);
+        QCOMPARE(classifyNode({ KEY_VOLUMEUP, KEY_VOLUMEDOWN }), K::None);
+        QCOMPARE(classifyNode({ KEY_MUTE }), K::None);
         // A pad is SDL's, even with keys; a mouse, a power button, nothing.
         QSet<int> pad = keyboard;
         pad.insert(BTN_SOUTH);
