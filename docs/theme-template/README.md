@@ -57,6 +57,7 @@ To see a picture or a shader you changed in a theme already in use, restart OSD/
 | `skin` | A skin's name, its folder's (`"dos"`, `"rounded"`, or one in the data folder's `skins`), or a skin of its own: its parts as in a `skin.json` (see the [skin template](../skin-template/)), its pictures in the theme's folder |
 | `effects` | Any of `text`, `background`, `selector`, `screen` and `transition`, below |
 | `music` | The menu music: a file in the theme's folder, below |
+| `arcade` | The Arcade screen's look: `"orb"` draws it in 3D (the Orb theme's), where Qt Quick 3D is installed; left out, the Arcade screen keeps its own |
 
 ### Effects
 

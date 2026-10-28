@@ -224,7 +224,13 @@ test("the looks offered are the app's", () => {
     const folders = dir => readdirSync(join(root, "assets", dir), { withFileTypes: true })
         .filter(e => e.isDirectory() && existsSync(join(root, "assets", dir, e.name, `${dir.slice(0, -1)}.json`)))
         .map(e => e.name).sort();
-    assert.deepEqual(offered("osd_theme"), folders("themes"));
+    // Every theme but one whose theme.json says "setup": false, which is the
+    // app's alone (Orb's).
+    const appsAlone = folders("themes").filter(name =>
+        JSON.parse(readFileSync(join(root, "assets/themes", name, "theme.json"), "utf8")).setup === false);
+    assert.ok(appsAlone.includes("orb"));
+    assert.deepEqual(offered("osd_theme"), folders("themes").filter(name => !appsAlone.includes(name)));
+    assert.ok(!appsAlone.some(name => name in schema.looks.themes));
     assert.deepEqual(offered("skin"), folders("skins"));
 });
 

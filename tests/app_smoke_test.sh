@@ -48,10 +48,14 @@ else
     CONFIG="${CONFIG%, }}}"
 fi
 
-# Qt's own QML modules the screen imports, each looked for in Qt's QML folder.
+# Qt's own QML modules the screen imports, each looked for in Qt's QML folder;
+# but Qt Quick 3D, which only the Arcade screen's Orb look imports, loaded
+# where Qt has it and drawing on the GPU (never here, with Qt's software
+# renderer), the screen's own look drawn without it.
 if [ -f "$QML/QtQuick/qmldir" ]; then
     # find picks the QML files: the BSDs' grep has no --include after the pattern.
-    for module in $(find "${SOURCES[@]}" -name '*.qml' -exec grep -hoE '^import Qt[A-Za-z0-9.]*' {} + | cut -d' ' -f2 | sort -u); do
+    for module in $(find "${SOURCES[@]}" -name '*.qml' -exec grep -hoE '^import Qt[A-Za-z0-9.]*' {} + | cut -d' ' -f2 \
+                    | grep -v '^QtQuick3D' | sort -u); do
         [ -f "$QML/${module//.//}/qmldir" ] \
             || { echo "SKIP: $WHAT needs $module, which this Qt doesn't have ($QML)"; exit 77; }
     done

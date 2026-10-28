@@ -79,8 +79,9 @@ jobs:
           host: mac
           target: desktop
           arch: clang_64
-          # Compiles the screen's effects (shaders/) into the app.
-          modules: 'qtshadertools'
+          # Compiles the screen's effects (shaders/) into the app; Qt Quick
+          # 3D draws the Arcade screen's Orb look.
+          modules: 'qtshadertools qtquick3d'
           cache: true
 
       - name: Build SDL2 from source (pinned — Homebrew's sdl2 is now the sdl2-compat/SDL3 shim)
@@ -348,8 +349,9 @@ jobs:
           host: linux
           target: desktop
           arch: linux_gcc_64
-          # Compiles the screen's effects (shaders/) into the app.
-          modules: 'qtshadertools'
+          # Compiles the screen's effects (shaders/) into the app; Qt Quick
+          # 3D draws the Arcade screen's Orb look.
+          modules: 'qtshadertools qtquick3d'
           cache: true
 
       - name: Install build + bundling dependencies

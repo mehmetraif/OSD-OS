@@ -59,6 +59,14 @@ import "Rooms.js" as Rooms
 // round the area: ▲ ▼ ◄ ► move that side of it out, or in once select has
 // switched to shrinking, the list and the column following at once; select
 // held puts it back where the design has it, and back keeps it and leaves.
+//
+// A theme may give the screen its Orb look (OrbLook.qml, "arcade": "orb" in
+// its theme.json), in 3D where the GPU draws the screen and Qt Quick 3D is
+// there: the list on a glass panel a page at a time, the pictures in a glass
+// orb, the box a panel under it and the hint bar its buttons, the whole
+// nudged by each key; a game played starts once the camera has gone into the
+// orb. The keys, the list and what is shown stay this screen's, as do the
+// help line, Search's keys (over the orb) and the dialogs.
 FocusScope {
     id: arcadeScreen
 
@@ -96,6 +104,31 @@ FocusScope {
     readonly property real u: root.sw / 960
     readonly property real v: root.sh / 720
 
+    // The Orb look: the theme's (root.theme.arcade), where the GPU draws the
+    // screen (not Qt Quick's software renderer); drawn once OrbLook.qml has
+    // loaded, which it doesn't without Qt Quick 3D (this screen's own then).
+    readonly property bool orbWanted: !!root.theme && root.theme.arcade === "orb"
+                                      && GraphicsInfo.api !== GraphicsInfo.Software
+    readonly property bool orb: orbLook.status === Loader.Ready
+    // A game starting in it, the camera going into the orb: no key counts.
+    readonly property bool launching: orb && orbLook.item.launching
+    // How far its panels have swung out for it, 0 to 1: the help line and
+    // the status icons go with them.
+    readonly property real orbGoing: orb ? orbLook.item.swing : 0
+    // Its panel's rows.
+    readonly property int orbRows: 8
+    // A point of its design (its orb and panels, 120..840 by 90..610) in the
+    // area: as large as fits above the help line and the hint bar's place
+    // (listBottom), in the middle across, as Screen Adjustment moves the
+    // area's sides. Its keys lie in the hint bar's place (orbFootY).
+    readonly property real orbScale: Math.min(areaWidth / 720, (listBottom - areaTop) / 520)
+    readonly property real orbLeft: areaLeft + (areaWidth - 720 * orbScale) / 2
+    function orbX(x) { return orbLeft + (x - 120) * orbScale }
+    function orbY(y) { return areaTop + (y - 90) * orbScale }
+    readonly property real orbFootY: areaBottom - hintLine.height / (2 * v)
+    // A dialog over the screen, the options or the engines.
+    readonly property bool covered: options.visible || engines.visible
+
     // The letters, in the design's lines: the hint bar's and the help
     // line's, 18 of 480 lines, and the games' names larger.
     readonly property int textLines: 27
@@ -123,7 +156,7 @@ FocusScope {
     // rows, furthest out, the others going back and fading the further they
     // are from it, and the wheel turns a row once it would leave them.
     readonly property bool straight: moduleRoot.listStyle === "Straight"
-    readonly property bool wheel: moduleRoot.listStyle === "3D Curved"
+    readonly property bool wheel: !orb && moduleRoot.listStyle === "3D Curved"
     // The rows under the bar, as many as fit minPitch lines apart (seven with
     // both bars, as the design has it), spread over the room; the wheel's, as
     // many as it holds packed as a wheel is (wheelRows()).
@@ -132,7 +165,7 @@ FocusScope {
     readonly property int rowHeight: 48
     readonly property int minPitch: 54
     readonly property int rowsFit: Math.floor((listRoom - rowHeight) / minPitch) + 1
-    readonly property int perPage: wheel ? wheelRows() : rowsFit
+    readonly property int perPage: orb ? orbRows : wheel ? wheelRows() : rowsFit
     readonly property int pitch: Math.floor((listRoom - rowHeight) / Math.max(1, perPage - 1))
     // The wheel's middle row (of an even number, the lower of the two), where
     // a game chosen afresh comes to (a filter, the screen opened), and how
@@ -224,7 +257,7 @@ FocusScope {
     readonly property int playTimeTop: listBottom - infoPadY - textLines
     readonly property int infoLines: Math.max(0, Math.floor((playTimeTop - 3 - textLines - scoresTop - scoreFirst)
                                                             / scorePitch) + 1)
-    readonly property int scoreRows: Math.min(3, infoLines)
+    readonly property int scoreRows: orb ? 3 : Math.min(3, infoLines)
     readonly property int detailRows: Math.min(4, infoLines - scoreRows)
 
     // The filters with games (ArcadeBackend::filters), the one shown, and the
@@ -505,6 +538,8 @@ FocusScope {
         if (wheel && count >= perPage && (row < 0 || row >= perPage))
             wheelTop = (wheelTop + delta + count) % count
         selected = (selected + delta + count) % count
+        if (orb)
+            orbLook.item.nudge(0, delta)
     }
 
     // The row under the mouse becomes the game chosen (Main.qml's
@@ -515,8 +550,17 @@ FocusScope {
     // chosen changes (wheelLayout()), so only the middle half of a row
     // counts there, where the pointer stays in the row it chose.
     function hoverAt(x, y) {
-        if (typing || adjusting || options.visible || engines.visible)
+        if (typing || adjusting || options.visible || engines.visible || launching)
             return
+        // The Orb look's bars, where the camera sees them.
+        if (orb) {
+            var hit = rows[orbLook.item.rowAt(x, y)]
+            if (hit && hit.place !== selected) {
+                browsed = true
+                selected = hit.place
+            }
+            return
+        }
         for (var i = 0; i < gameRows.count; ++i) {
             var row = gameRows.itemAt(i)
             var inset = wheel ? row.height / 4 : 0
@@ -540,20 +584,27 @@ FocusScope {
         wanted = filterId
         selected = 0
         placeWheel(0)
+        if (orb)
+            orbLook.item.nudge(delta, 0)
     }
 
     // Plays a game; coming back lands on it in listFilter.
     // A game played, or with online, a room of the lobby joined ({ room,
     // host }) or one hosted ({ hosting: true }), of the local network with
-    // lan: true too.
-    function play(set, name, listFilter, online) {
+    // lan: true too. In the Orb look once the camera has gone into the orb,
+    // but at once at startup.
+    function play(set, name, listFilter, online, atOnce) {
         var params = { game: set, title: name }
         var state = { filter: listFilter, set: set, row: selectedRow }
         if (online)
             params.online = online
         if (online && online.room !== undefined)
             state.room = online.room
-        arcadeScreen.navigateTo("Play.qml", params, state)
+        var go = function() { arcadeScreen.navigateTo("Play.qml", params, state) }
+        if (orb && !atOnce)
+            orbLook.item.launch(go)
+        else
+            go()
     }
     function playCurrent() {
         // Nothing to play: select downloads MAME where it is what is
@@ -695,7 +746,7 @@ FocusScope {
         // There as it plays, for a game played from the screen itself.
         wanted = "favorites"
         reload(set)
-        play(set, game.name, "favorites")
+        play(set, game.name, "favorites", undefined, true)
     }
 
     Component.onCompleted: {
@@ -781,6 +832,9 @@ FocusScope {
             // COIN, for MAME to put in: FinalBurn Neo takes the game's own.
             if (!event.isAutoRepeat && arcadeScreen.buysCredits)
                 moduleRoot.addCredit()
+        } else if (launching) {
+            // A game starting in the Orb look: but for a coin, which goes in
+            // with it, no key counts.
         } else if (event.key === Qt.Key_Space || event.key === Qt.Key_1) {
             if (!event.isAutoRepeat)
                 playCurrent()
@@ -815,6 +869,8 @@ FocusScope {
         if ((event.key !== Qt.Key_Return && event.key !== Qt.Key_Enter) || event.isAutoRepeat)
             return
         event.accepted = true
+        if (launching)
+            return
         if (!holdTimer.running)
             return
         holdTimer.stop()
@@ -850,24 +906,35 @@ FocusScope {
         event.accepted = true
     }
 
+    // The Orb look, under the help line, Search's keys and the dialogs.
+    Loader {
+        id: orbLook
+        anchors.fill: parent
+        active: arcadeScreen.orbWanted
+        source: "OrbLook.qml"
+        onStatusChanged: if (status === Loader.Error) console.warn("[Arcade] the Orb look needs Qt Quick 3D: the Arcade screen's own is drawn")
+    }
+
     // ---
     // The list
     // ---
 
+    // The bar's right end: the page of so many; on the wheel, the game of so
+    // many; on Search, how many games its words find, as they are typed.
+    readonly property string barRight: adjusting ? ""
+                                       : filterId === "search" ? (count - 1) + " Found"
+                                       : count === 0 ? ""
+                                       : wheel ? (selected + 1) + "/" + count
+                                       : (page + 1) + "/" + pages
+
     ArcadeBar {
-        visible: arcadeScreen.adjusting || arcadeScreen.filters.length > 0
+        visible: !arcadeScreen.orb && (arcadeScreen.adjusting || arcadeScreen.filters.length > 0)
         x: Math.round(arcadeScreen.areaLeft * arcadeScreen.u)
         y: Math.round(arcadeScreen.areaTop * arcadeScreen.v)
         width: Math.round(arcadeScreen.listWidth * arcadeScreen.u)
         text: arcadeScreen.adjusting ? "Screen Adjustment" : arcadeScreen.filter ? arcadeScreen.filter.name : ""
         arrows: !arcadeScreen.adjusting && arcadeScreen.filters.length > 1
-        // The page of so many; on the wheel, the game of so many; on Search,
-        // how many games its words find, as they are typed.
-        rightText: arcadeScreen.adjusting ? ""
-                   : arcadeScreen.filterId === "search" ? (arcadeScreen.count - 1) + " Found"
-                   : arcadeScreen.count === 0 ? ""
-                   : arcadeScreen.wheel ? (arcadeScreen.selected + 1) + "/" + arcadeScreen.count
-                   : (arcadeScreen.page + 1) + "/" + arcadeScreen.pages
+        rightText: arcadeScreen.barRight
     }
 
     Repeater {
@@ -902,7 +969,7 @@ FocusScope {
                                             + (isCurrent ? 16 : 0)
             readonly property color ink: isCurrent ? root.surfaceColor : root.primaryColor
             readonly property real gap: Math.round(10 * size * arcadeScreen.u)
-            visible: entry !== null
+            visible: entry !== null && !arcadeScreen.orb
             opacity: 1 - 0.6 * depth
             // Made smaller from its left end, which keeps to the arc; on the
             // wheel, nearer the next row as it is smaller (wheelLayout()).
@@ -1017,7 +1084,7 @@ FocusScope {
     Rectangle {
         id: preview
         objectName: "preview"
-        visible: arcadeScreen.filters.length > 0 && !arcadeScreen.onRoom
+        visible: arcadeScreen.filters.length > 0 && !arcadeScreen.onRoom && !arcadeScreen.orb
         x: Math.round(arcadeScreen.columnX * arcadeScreen.u)
         y: Math.round(arcadeScreen.areaTop * arcadeScreen.v)
         width: Math.round(arcadeScreen.columnWidth * arcadeScreen.u)
@@ -1109,20 +1176,11 @@ FocusScope {
                 font.family: root.globalFont
                 font.pixelSize: arcadeScreen.textSize
             }
-            // Why none was downloaded: RetroAchievements' pictures come with
-            // the account's Web API key alone (Settings → Arcade →
-            // RetroAchievements Account); or that every game's are being
-            // looked for (Download Pictures), and how far that has got.
             Text {
-                readonly property bool noKey: arcadeBackend ? !arcadeBackend.achievementsKey : false
-                readonly property bool refused: arcadeBackend ? arcadeBackend.achievementsKeyRefused : false
-                readonly property var progress: (arcadeBackend && arcadeBackend.picturesProgress) || ({})
-                readonly property bool looking: !!progress.active && !progress.again && progress.total > 0
-                visible: arcadeScreen.isGame && (looking || noKey || refused)
+                visible: arcadeScreen.isGame && arcadeScreen.pictureNote !== ""
                 width: parent.width
                 horizontalAlignment: Text.AlignHCenter
-                text: looking ? "Downloading " + Math.min(progress.done, progress.total) + "/" + progress.total
-                      : refused ? "Web API Key Refused" : "No Web API Key"
+                text: arcadeScreen.pictureNote
                 elide: Text.ElideRight
                 color: root.primaryColor
                 font.family: root.globalFont
@@ -1154,11 +1212,25 @@ FocusScope {
         }
     }
 
+    // Why a game has no picture: RetroAchievements' pictures come with the
+    // account's Web API key alone (Settings → Arcade → RetroAchievements
+    // Account); or that every game's are being looked for (Download
+    // Pictures), and how far that has got. "" for neither.
+    readonly property string pictureNote: {
+        if (!arcadeBackend)
+            return ""
+        var progress = arcadeBackend.picturesProgress || {}
+        if (!!progress.active && !progress.again && progress.total > 0)
+            return "Downloading " + Math.min(progress.done, progress.total) + "/" + progress.total
+        return arcadeBackend.achievementsKeyRefused ? "Web API Key Refused"
+             : !arcadeBackend.achievementsKey ? "No Web API Key" : ""
+    }
+
     // The box under the picture, framed as the picture is; on a room, the
     // whole column, from its top.
     Rectangle {
         objectName: "infoBox"
-        visible: arcadeScreen.filters.length > 0
+        visible: arcadeScreen.filters.length > 0 && !arcadeScreen.orb
         x: Math.round(arcadeScreen.columnX * arcadeScreen.u)
         y: Math.round(arcadeScreen.boxTop * arcadeScreen.v)
         width: Math.round(arcadeScreen.columnWidth * arcadeScreen.u)
@@ -1174,7 +1246,7 @@ FocusScope {
     // of the room (and whose scores aren't asked for).
     readonly property bool gameBox: isGame && !onRoom
     Item {
-        visible: arcadeScreen.gameBox && arcadeScreen.scoreRows > 0
+        visible: arcadeScreen.gameBox && arcadeScreen.scoreRows > 0 && !arcadeScreen.orb
         x: Math.round(arcadeScreen.infoX * arcadeScreen.u)
         y: Math.round(arcadeScreen.scoresTop * arcadeScreen.v)
         width: Math.round(arcadeScreen.infoWidth * arcadeScreen.u)
@@ -1288,7 +1360,7 @@ FocusScope {
             required property int index
             readonly property var detail: index < arcadeScreen.detailRows ? arcadeScreen.detailList[index]
                                           : { label: "Play Time", value: moduleRoot.playTime(arcadeScreen.details.playTime) }
-            visible: arcadeScreen.gameBox
+            visible: arcadeScreen.gameBox && !arcadeScreen.orb
             y: Math.round((arcadeScreen.playTimeTop - (arcadeScreen.detailRows - index) * arcadeScreen.scorePitch)
                           * arcadeScreen.v)
             label: detail.label
@@ -1303,12 +1375,43 @@ FocusScope {
     // help line has the rest.
     readonly property int roomRows: Math.max(0, Math.floor((playTimeTop - roomTop) / scorePitch) + 1)
     readonly property var roomLines: roomInfo ? Rooms.roomLines(roomInfo, lobbyInfo, roomKind) : []
+
+    // The Orb look's panel under the orb, its lines { label, value, heading }:
+    // the high scores' heading and three of them (or why there are none),
+    // who made the game and when, how many play it and how long it has been
+    // played; on a room, what is said of it, as far as there is room. The
+    // help line says the rest.
+    readonly property var orbShown: ["Maker", "Year", "Players"]
+    readonly property var orbLines: {
+        if (!orb)
+            return []
+        if (onRoom)
+            return roomLines.slice(0, 6).map(function(line) {
+                return { label: line.label || "", value: line.value || "", heading: false }
+            })
+        if (!gameBox)
+            return []
+        var lines = [{ label: onlineScores ? "RA Hi-Score" : "Hi-Score", value: "", heading: true }]
+        if (scores.length === 0)
+            lines.push({ label: board.state === "loading" ? "Reading…"
+                                : board.state === "failed" ? "Not Reachable" : "No Scores Yet", value: "", heading: false })
+        for (var i = 0; i < Math.min(3, scores.length); ++i)
+            lines.push({ label: scores[i].rank + "  " + scores[i].score, value: scores[i].name, heading: false })
+        while (lines.length < 4)
+            lines.push({ label: "", value: "", heading: false })
+        var d = details
+        lines.push({ label: d.maker || "?", value: d.year || "?", heading: true })
+        lines.push({ label: moduleRoot.players(d.players > 0 ? d.players : 0) || "? Players",
+                     value: moduleRoot.playTime(d.playTime), heading: true })
+        return lines
+    }
     Repeater {
         model: Math.min(arcadeScreen.roomRows, arcadeScreen.roomLines.length)
         BoxLine {
             required property int index
             objectName: "roomLine"
             readonly property var line: arcadeScreen.roomLines[index] || ({})
+            visible: !arcadeScreen.orb
             y: Math.round((arcadeScreen.roomTop + index * arcadeScreen.scorePitch) * arcadeScreen.v)
             label: line.label || ""
             value: line.value || ""
@@ -1329,9 +1432,18 @@ FocusScope {
         : filterId === "lobby" && count === 0 ? lobbyInfo.problem || ""
         : count === 0 && emptyInfo.detail ? emptyInfo.detail
         : (current && current.lan && current.detail ? [current.detail] : [])
-          .concat([details.name || ""]).concat(detailList.slice(onRoom ? 0 : detailRows).map(function(detail) {
+          .concat([details.name || ""]).concat(boxLeaves().map(function(detail) {
               return detail.told
           })).join("\n")
+    // What the help line says of the game, which the box has no line for:
+    // every one on a room.
+    function boxLeaves() {
+        if (onRoom)
+            return detailList
+        if (orb)
+            return detailList.filter(function(detail) { return orbShown.indexOf(detail.label) < 0 })
+        return detailList.slice(detailRows)
+    }
 
     // ---
     // Nothing to list
@@ -1358,19 +1470,21 @@ FocusScope {
     // no game of ours, or that FinalBurn Neo isn't installed; on Favorites
     // and Recently Played, that no game is on them yet); under Search's own
     // row, that its words find no game.
+    readonly property bool noneFound: filterId === "search" && count === 1
+    readonly property string emptyLine: noneFound ? "No Game Found"
+                                        : filterId === "lobby" && count === 0 ? Rooms.emptyLine(lobbyInfo)
+                                        : count === 0 && !!emptyInfo.name ? emptyInfo.name : ""
+    // Its row: under Search's own, else the first.
+    readonly property int emptyRow: noneFound ? 1 : 0
     Text {
-        readonly property bool lobbyEmpty: arcadeScreen.filterId === "lobby" && arcadeScreen.count === 0
-        readonly property bool saysWhy: arcadeScreen.count === 0 && !!arcadeScreen.emptyInfo.name
-        readonly property bool noneFound: arcadeScreen.filterId === "search" && arcadeScreen.count === 1
-        readonly property int rowTop: !noneFound ? arcadeScreen.listTop
+        readonly property int rowTop: !arcadeScreen.noneFound ? arcadeScreen.listTop
                                       : arcadeScreen.wheel ? arcadeScreen.wheelTops[1] || arcadeScreen.listTop
                                       : arcadeScreen.listTop + arcadeScreen.pitch
-        visible: lobbyEmpty || saysWhy || noneFound
+        visible: arcadeScreen.emptyLine !== "" && !arcadeScreen.orb
         x: Math.round((arcadeScreen.areaLeft + 16) * arcadeScreen.u)
         y: Math.round((rowTop + (arcadeScreen.rowHeight - arcadeScreen.nameLines) / 2) * arcadeScreen.v)
         width: Math.round((arcadeScreen.listWidth - 16) * arcadeScreen.u)
-        text: noneFound ? "No Game Found" : lobbyEmpty ? Rooms.emptyLine(arcadeScreen.lobbyInfo)
-              : arcadeScreen.emptyInfo.name || ""
+        text: arcadeScreen.emptyLine
         textFormat: Text.PlainText
         wrapMode: Text.WordWrap
         color: root.primaryColor
@@ -1386,8 +1500,11 @@ FocusScope {
     // In the frame's padding, in the box's letters, or smaller where the
     // frame is too short for the line typed and the five rows of keys (a
     // key 1.4 letters high, OnScreenKeyboard's inline layout).
-    readonly property int keysTop: areaTop + infoPadY
-    readonly property int keysHeight: pictureHeight - 2 * infoPadY
+    // In the Orb look, over the orb, which gives way to them.
+    readonly property int keysTop: orb ? Math.round(orbY(110)) : areaTop + infoPadY
+    readonly property int keysHeight: orb ? Math.round(orbY(380) - orbY(110)) : pictureHeight - 2 * infoPadY
+    readonly property int keysX: orb ? Math.round(orbX(140)) : infoX
+    readonly property int keysWidth: orb ? Math.round(orbX(452) - orbX(140)) : infoWidth
     readonly property int keysFontSize: Math.min(textSize, Math.floor((keysHeight * v - 2 * root.px - 4) / 8.8))
     OnScreenKeyboard {
         id: searchKeys
@@ -1395,9 +1512,9 @@ FocusScope {
         inline: true
         allowEmpty: true
         visible: arcadeScreen.filterId === "search"
-        x: Math.round(arcadeScreen.infoX * arcadeScreen.u)
+        x: Math.round(arcadeScreen.keysX * arcadeScreen.u)
         y: Math.round(arcadeScreen.keysTop * arcadeScreen.v)
-        width: Math.round(arcadeScreen.infoWidth * arcadeScreen.u)
+        width: Math.round(arcadeScreen.keysWidth * arcadeScreen.u)
         height: Math.round(arcadeScreen.keysHeight * arcadeScreen.v)
         fontSize: arcadeScreen.keysFontSize
         onTextChanged: if (arcadeBackend && text !== arcadeBackend.search()) arcadeScreen.searchFor(text)
@@ -1415,6 +1532,7 @@ FocusScope {
     HelpLine {
         id: helpBox
         visible: (arcadeScreen.adjusting || arcadeScreen.filters.length > 0) && !options.visible
+        opacity: (shown ? 1 : 0) * (1 - arcadeScreen.orbGoing)
         width: Math.round(arcadeScreen.areaWidth * arcadeScreen.u) - (root.helpLine ? arcadeScreen.statusRoom : 0)
         text: arcadeScreen.adjusting ? "The frame's sides go to the screen's edges: ▲ ▼ ◄ ► move each, and the list holds as many games as fit"
               : arcadeScreen.problem !== "" ? arcadeScreen.problemLine
@@ -1427,30 +1545,40 @@ FocusScope {
         anchors.leftMargin: Math.round(arcadeScreen.areaLeft * arcadeScreen.u)
     }
 
-    // ▲ ▼ and ◄ ► go without saying, the filter's bar showing ◄ ►, and
-    // START with select: the bar has room for four, and with no help line,
-    // for the status icons at its right end. COIN only where it buys a
-    // credit (buysCredits).
+    // What the hint bar says, as { key, word } pairs ("[ENTER]", "PLAY"),
+    // which the Orb look lays out as its buttons: ▲ ▼ and ◄ ► go without
+    // saying, the filter's bar showing ◄ ►, and START with select: the bar
+    // has room for four, and with no help line, for the status icons at its
+    // right end. COIN only where it buys a credit (buysCredits).
+    readonly property var hintPairs: {
+        var h = root.hints
+        var back = function(word) { return { key: h.back, word: word } }
+        var select = function(word) { return { key: h.select, word: word } }
+        if (adjusting)
+            return [back("DONE"), { key: h.arrows, word: shrinking ? "SHRINK" : "EXPAND" },
+                    select(shrinking ? "EXPAND" : "SHRINK"), { key: "HOLD", word: "RESET" }]
+        if (typing)
+            return [back("DONE"), { key: h.arrows, word: "MOVE" }, select("TYPE")]
+        if (filters.length === 0 || !current)
+            return [back("BACK")]
+        if (onSearch)
+            return [back("BACK"), select("SEARCH")]
+        if (lobbyRoom)
+            return [back("BACK")].concat(lobbyRoom.joinable ? [select("JOIN"), { key: "HOLD", word: "DETAILS" }]
+                                                            : [select("DETAILS")])
+        if (current.room !== undefined)
+            return [back("BACK"), select("JOIN")]
+        if (current.unknown)
+            return [back("BACK")]
+        return [back("BACK")].concat(buysCredits ? [{ key: h.coin, word: "COIN" }] : [])
+                             .concat([select("PLAY"), { key: "HOLD", word: "OPTIONS" }])
+    }
     HintBar {
         id: hintLine
-        visible: !options.visible
+        visible: !options.visible && !arcadeScreen.orb
         width: Math.round(arcadeScreen.areaWidth * arcadeScreen.u)
         rightPadding: root.sw * 0.0125 + (root.helpLine ? 0 : arcadeScreen.statusRoom) //8
-        text: arcadeScreen.adjusting
-              ? root.hints.back + ":DONE " + root.hints.arrows + (arcadeScreen.shrinking ? ":SHRINK " : ":EXPAND ")
-                + root.hints.select + (arcadeScreen.shrinking ? ":EXPAND" : ":SHRINK") + " HOLD:RESET"
-              : arcadeScreen.typing
-                ? root.hints.back + ":DONE " + root.hints.arrows + ":MOVE " + root.hints.select + ":TYPE"
-              : arcadeScreen.filters.length === 0 || !arcadeScreen.current ? root.hints.back + ":BACK"
-              : arcadeScreen.onSearch ? root.hints.back + ":BACK " + root.hints.select + ":SEARCH"
-              : arcadeScreen.lobbyRoom
-                ? root.hints.back + ":BACK " + root.hints.select
-                  + (arcadeScreen.lobbyRoom.joinable ? ":JOIN HOLD:DETAILS" : ":DETAILS")
-              : arcadeScreen.current.room !== undefined
-                ? root.hints.back + ":BACK " + root.hints.select + ":JOIN"
-              : arcadeScreen.current.unknown ? root.hints.back + ":BACK"
-              : root.hints.back + ":BACK " + (arcadeScreen.buysCredits ? root.hints.coin + ":COIN " : "")
-                + root.hints.select + ":PLAY HOLD:OPTIONS"
+        text: arcadeScreen.hintPairs.map(function(pair) { return pair.key + ":" + pair.word }).join(" ")
         anchors.bottom: parent.bottom
         anchors.left: parent.left
         anchors.bottomMargin: root.sh * 0.1041667 + Math.round((645 - arcadeScreen.areaBottom) * arcadeScreen.v) //50
@@ -1460,7 +1588,8 @@ FocusScope {
     // What is on (Settings → Status Icons), at the screen's bottom right: at
     // the right of the help line, which makes room for them; with no help
     // line, at the hint bar's right end, in its letters' colour, while the
-    // hint line still fits beside them; with neither, none.
+    // hint line still fits beside them (in the Orb look, at the right of its
+    // keys, which make room); with neither, none.
     readonly property int statusRoom: statusRow.shown ? statusRow.width + Math.round(12 * u) : 0
     // The hint line at its smallest, which beside the icons must still fit.
     TextMetrics {
@@ -1473,10 +1602,12 @@ FocusScope {
         id: statusRow
         readonly property Item beside: root.helpLine ? helpBox : hintLine
         readonly property bool shown: root.statusIcons.length > 0
-                                      && (root.helpLine || (root.hintBar && hintProbe.advanceWidth <= hintLine.width
-                                          - hintLine.leftPadding - root.sw * 0.0125 - width - Math.round(12 * arcadeScreen.u)))
-        visible: shown && beside.visible
-        color: root.helpLine ? root.primaryColor : root.surfaceColor
+                                      && (root.helpLine || (root.hintBar && (arcadeScreen.orb
+                                          || hintProbe.advanceWidth <= hintLine.width - hintLine.leftPadding
+                                             - root.sw * 0.0125 - width - Math.round(12 * arcadeScreen.u))))
+        visible: shown && (beside.visible || (beside === hintLine && arcadeScreen.orb && !options.visible))
+        opacity: 1 - arcadeScreen.orbGoing
+        color: root.helpLine || arcadeScreen.orb ? root.primaryColor : root.surfaceColor
         x: Math.round(arcadeScreen.areaRight * arcadeScreen.u) - width - (root.helpLine ? 0 : Math.round(root.sw * 0.0125))
         y: Math.round(beside.y + (beside.height - height) / 2)
     }

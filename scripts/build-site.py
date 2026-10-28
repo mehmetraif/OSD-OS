@@ -86,11 +86,19 @@ def languages():
     return out
 
 
+def offered(folder, file_name):
+    """The built-in themes or skins the page offers, as (path, JSON): every
+    one but a theme whose theme.json says "setup": false, which is the app's
+    alone (chosen in its Settings)."""
+    for path in sorted((ROOT / "assets" / folder).glob("*/" + file_name)):
+        obj = json.loads(path.read_text())
+        if obj.get("setup", True) is not False:
+            yield path, obj
+
+
 def looks(folder, file_name):
     """The built-in themes or skins: [name, folder], by name."""
-    out = []
-    for path in sorted((ROOT / "assets" / folder).glob("*/" + file_name)):
-        out.append([json.loads(path.read_text())["name"], path.parent.name])
+    out = [[obj["name"], path.parent.name] for path, obj in offered(folder, file_name)]
     return sorted(out, key=lambda o: o[0].lower())
 
 
@@ -327,9 +335,9 @@ def looks_data():
     """What the live preview draws a look with, as the app has it: Main.qml's
     colour schemes (the two colours everything is drawn in) and effects (the
     screen's and the text's knobs, each background's shader, the selectors'
-    and transitions' names and the transitions' shaders), each theme's parts
-    and each skin's pictures, and the shaders' names (shaders/, copied as they
-    are)."""
+    and transitions' names and the transitions' shaders), the parts of each
+    theme the page offers (offered()) and each skin's pictures, and the
+    shaders' names (shaders/, copied as they are)."""
     main = (ROOT / "Main.qml").read_text()
     entries = lambda block: re.findall(r'"([^"]+)"\s*:\s*\{([^{}]*)\}', block)
     schemes = {}
@@ -343,8 +351,7 @@ def looks_data():
     for path in sorted((ROOT / "assets/skins").glob("*/skin.json")):
         skins[path.parent.name] = skin_parts(json.loads(path.read_text()), path.parent, f"skins/{path.parent.name}")
     themes = {}
-    for path in sorted((ROOT / "assets/themes").glob("*/theme.json")):
-        obj = json.loads(path.read_text())
+    for path, obj in offered("themes", "theme.json"):
         theme = {"name": obj.get("name", path.parent.name), "effects": obj.get("effects", {})}
         if "colors" in obj:
             theme["colors"] = obj["colors"]
@@ -368,8 +375,8 @@ def looks_data():
 
 
 def landing_themes(looks):
-    """themes.json, the landing page's theme previews: each theme the app has,
-    by its folder, with its name, its line, its two colours (its own, or its
+    """themes.json, the landing page's theme previews: each theme the page
+    offers, by its folder, with its name, its line, its two colours (its own, or its
     colour scheme's; the default scheme's without either) and its pictures, a
     still from site/assets and the recording docs/images holds of it. A theme
     without both pictures isn't shown."""

@@ -117,7 +117,8 @@ private slots:
                 "'selector': 'Welding', "
                 "'screen': { 'scanlines': 0.4, 'rainbow': 1, 'animate': true, 'shader': 'crt.frag.qsb' }, "
                 "'transition': 'Ripple' }, "
-            "'music': 'tune.opus' "
+            "'music': 'tune.opus', "
+            "'arcade': 'orb' "
         "}"));
         QVERIFY(!own.isEmpty());
         QVERIFY(writeFile(own + "/frame.png", png()));
@@ -130,7 +131,8 @@ private slots:
             "'skin': 42, "
             "'effects': { 'text': 5, 'background': { 'area': 'sideways' }, "
                          "'screen': { 'shader': '../own/crt.frag.qsb' } }, "
-            "'music': '../own/tune.opus' "
+            "'music': '../own/tune.opus', "
+            "'arcade': 'cube' "
         "}")).isEmpty());
     }
 
@@ -228,6 +230,8 @@ private slots:
                  QVariantMap({ { "scanlines", 0.4 }, { "animate", true }, { "shader", url(dir + "/crt.frag.qsb") } }));
         QCOMPARE(effects.value("transition").toString(), QString("Ripple"));
         QCOMPARE(theme.value("music").toString(), url(dir + "/tune.opus"));
+        // The Arcade screen's look.
+        QCOMPARE(theme.value("arcade").toString(), QString("orb"));
     }
 
     // A module's and a MIDI file's music too, of any case.
@@ -253,11 +257,14 @@ private slots:
             QVERIFY(effect.toMap().isEmpty());
         // Out of its folder.
         QVERIFY(!wrong.contains("music"));
+        // Not a look the Arcade screen has.
+        QVERIFY(!wrong.contains("arcade"));
 
         const QVariantMap plain = core.theme("plain");
         QVERIFY(!plain.contains("colors"));
         QVERIFY(!plain.contains("skin"));
         QVERIFY(!plain.contains("music"));
+        QVERIFY(!plain.contains("arcade"));
         QCOMPARE(plain.value("effects").toMap(), QVariantMap({ { "screen", "Off" } }));
     }
 

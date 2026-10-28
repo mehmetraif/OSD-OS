@@ -1,8 +1,8 @@
 # Themes
 
-A theme is the whole look of OSD/OS in one folder: the two colours everything is drawn in, the [skin](https://github.com/mehmetraif/OSD-OS/wiki/Skins) that dresses the window, the [effects](https://github.com/mehmetraif/OSD-OS/wiki/Effects) (on the text, behind the menus, round the selected line, over the screen and between windows) and the [menu music](https://github.com/mehmetraif/OSD-OS/wiki/Menu-Music). Settings → **Theme** picks one, and each of its parts can then be changed or turned off on a row of its own. This page covers the eight themes that come with OSD/OS and the file each is made of, how a theme and Settings' rows work together, every key of `theme.json`, making a theme of your own step by step, three complete example themes, and what the log says when part of a theme can't be used.
+A theme is the whole look of OSD/OS in one folder: the two colours everything is drawn in, the [skin](https://github.com/mehmetraif/OSD-OS/wiki/Skins) that dresses the window, the [effects](https://github.com/mehmetraif/OSD-OS/wiki/Effects) (on the text, behind the menus, round the selected line, over the screen and between windows) and the [menu music](https://github.com/mehmetraif/OSD-OS/wiki/Menu-Music). Settings → **Theme** picks one, and each of its parts can then be changed or turned off on a row of its own. This page covers the nine themes that come with OSD/OS and the file each is made of, how a theme and Settings' rows work together, every key of `theme.json`, making a theme of your own step by step, three complete example themes, and what the log says when part of a theme can't be used.
 
-## The eight themes
+## The nine themes
 
 | Theme | Colors | Skin | Effects | Transition | Music |
 |---|---|---|---|---|---|
@@ -14,6 +14,7 @@ A theme is the whole look of OSD/OS in one folder: the two colours everything is
 | **Arcade** | Synthwave | Rounded | Background: Stars · Text: Rainbow · Selector: Rainbow | Cube | a bouncy chiptune |
 | **Winter** | ice on night blue, its own | Rounded | Background: Snow · Text: Shimmer · Selector: Sparkles | Drop | a music box |
 | **Demoscene** | gold on purple, its own | DOS | Background: Stars · Text: Glow · Selector: Sparkles | Cube | a tracker's XM |
+| **Orb** | lime on dark green, its own | none | none (its Arcade screen is drawn in 3D) | none | none |
 
 <table>
 <tr><th width="50%">Trinitron</th><th width="50%">Late Show</th></tr>
@@ -39,13 +40,21 @@ A theme is the whole look of OSD/OS in one folder: the two colours everything is
 <tr><td>Ice on night blue: snow falling, a glint sweeping across the text, and sparkles flying off the selected line. Windows spread from a drop.</td><td>Gold on purple: a starfield, glowing text and sparkles, windows turning left like a demo's cube, and a tracker's XM for its music.</td></tr>
 </table>
 
+<table>
+<tr><th width="50%">Orb: the Arcade screen</th><th width="50%">Orb: a game starting</th></tr>
+<tr><td><img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/screenshots/arcade-orb.png" width="100%" alt="Theme: Orb, the Arcade screen in 3D: the games on a glass panel at the right, the game's picture in a glass orb, its high scores under it" /></td><td><img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/screenshots/arcade-orb-start.png" width="100%" alt="Theme: Orb, a game starting: the panels swung out and the camera going into the orb" /></td></tr>
+<tr><td>The Arcade screen in x-ray glass, in 3D: the list on a panel at the right, the game's pictures inside an orb, its high scores and what it is on a panel under it, fog drifting behind, and the whole swaying slowly; ▲ ▼ ◄ ► nudge it.</td><td>A game started: the panels swing out on their hinges, the orb comes to the middle and the camera goes into it, its picture opening out to the whole screen, before the game's loading screen.</td></tr>
+</table>
+
+Orb is a look for the [Arcade screen](https://github.com/mehmetraif/OSD-OS/wiki/Arcade#the-orb-look) above all: its other menus are plain, in its two colours. It is chosen in Settings → Theme only; the [Setup page](https://mehmetraif.github.io/OSD-OS/setup/) doesn't offer it.
+
 Without a theme (Theme: None), OSD/OS is plain on purpose: Video 1's two colours, OSD/OS's own window, nothing moving but the cursor, and no music.
 
 <p align="center"><img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/images/default-look.gif" width="640" alt="OSD/OS without a theme: the main menu, Local Files' tree, the Arcade screen and Settings" /></p>
 
 ## What each theme is made of
 
-Each of the eight is a folder in [assets/themes](https://github.com/mehmetraif/OSD-OS/tree/main/assets/themes): its `theme.json` and, for all but Green Screen, its music. Here they are as they come. Every key is explained in the [theme.json reference](#themejson-reference) below. The tunes are made by [make-menu-music.py](https://github.com/mehmetraif/OSD-OS/blob/main/scripts/make-menu-music.py) ([Menu music](https://github.com/mehmetraif/OSD-OS/wiki/Menu-Music#making-tunes-with-make-menu-musicpy)).
+Each of the nine is a folder in [assets/themes](https://github.com/mehmetraif/OSD-OS/tree/main/assets/themes): its `theme.json` and, for all but Green Screen and Orb, its music. Here they are as they come. Every key is explained in the [theme.json reference](#themejson-reference) below. The tunes are made by [make-menu-music.py](https://github.com/mehmetraif/OSD-OS/blob/main/scripts/make-menu-music.py) ([Menu music](https://github.com/mehmetraif/OSD-OS/wiki/Menu-Music#making-tunes-with-make-menu-musicpy)).
 
 ### Trinitron
 
@@ -193,6 +202,19 @@ The one theme whose music is a tracker's module: a four-channel FastTracker 2 XM
 }
 ```
 
+### Orb
+
+Two colours of its own, a lime green on a dark green, and the Arcade screen's Orb look (`arcade`). `setup` keeps it off the Setup page, where it isn't offered yet.
+
+```json
+{
+    "name": "Orb",
+    "colors": { "primary": "#9BE02B", "surface": "#061206" },
+    "arcade": "orb",
+    "setup": false
+}
+```
+
 ## How a theme is applied
 
 ### Theme and the rows under it
@@ -203,7 +225,7 @@ Settings → **Theme** lists None and every theme by name ([Settings](https://gi
 
 | Setting | Values | Default | What it does | Config key |
 |---|---|---|---|---|
-| Theme | None, then every theme by name: OSD/OS's eight and those in the data folder's `themes` | None | The whole look in one: the color scheme, the skin, the effects and the menu music. Choosing one sets every row below back to THEME | `app.osd_theme`: the theme's folder name, `""` for None |
+| Theme | None, then every theme by name: OSD/OS's nine and those in the data folder's `themes` | None | The whole look in one: the color scheme, the skin, the effects and the menu music. Choosing one sets every row below back to THEME | `app.osd_theme`: the theme's folder name, `""` for None |
 
 Under it comes a row for each part of a theme:
 
@@ -311,6 +333,7 @@ That is the [theme template](https://github.com/mehmetraif/OSD-OS/tree/main/docs
 | `skin` | string or object | A skin's folder name, or a skin's parts as in a `skin.json` | OSD/OS's own window |
 | `effects` | object | Any of `text`, `background`, `selector`, `screen` and `transition` | No effects |
 | `music` | string | A sound file in the theme's folder | No music |
+| `arcade` | string | The Arcade screen's look: `"orb"` | The Arcade screen's own |
 
 Every key is optional, and `null` is the same as leaving it out. Keys OSD/OS doesn't know are ignored.
 
@@ -377,6 +400,10 @@ A sound file in the theme's folder, played over and over under the menus: OGG, O
 
 For no music, leave `music` out: any string is read as a file name.
 
+### arcade
+
+The Arcade screen's look. `"orb"` draws it in 3D: the games on a glass panel, the game's pictures inside a glass orb, its high scores on a panel under it, and a game started by going into the orb ([Arcade → The Orb look](https://github.com/mehmetraif/OSD-OS/wiki/Arcade#the-orb-look)). It needs Qt Quick 3D, and a GPU: without them the Arcade screen is drawn as it always is, in the theme's colours. Left out, the Arcade screen keeps its own look, whatever else the theme changes.
+
 ### Files a theme names
 
 The pictures of its skin, its shaders and its music:
@@ -402,6 +429,8 @@ Each time a theme is read, the log has a line saying which and from where, and o
 | `[AppCore] theme my-theme: its background effect's area is not "window" or "foot": the window` | `area` is something else | The window |
 | `[AppCore] theme my-theme: its background shader, "../rain.frag.qsb", is not a qsb file in its folder` | The shader file is missing, out of the folder, or not `.qsb` | That effect without a shader |
 | `[AppCore] theme my-theme: its music, "tune.wma", is not a ogg/opus/mp3/flac/wav/m4a/aac/mid/midi/xm/mod/s3m/it file in its folder` | The music file is missing, out of the folder, or of another type | No music |
+| `[AppCore] theme my-theme: its arcade, "cube", is not a look the Arcade screen has` | `arcade` is something other than `"orb"` | The Arcade screen's own look |
+| `qml: [Arcade] the Orb look needs Qt Quick 3D: the Arcade screen's own is drawn` | `arcade` is `"orb"`, and this Qt has no Qt Quick 3D (or its Helpers) | The Arcade screen's own look |
 | `[AppCore] theme my-theme: its window, "frame.jpg", is not a png/gif/bmp file in its folder` | A picture of its own skin can't be used (the [Skins](https://github.com/mehmetraif/OSD-OS/wiki/Skins#what-the-log-says) page has every skin line) | That part as OSD/OS draws it |
 | `qml: [Effect] file:///…/tube.frag.qsb can't be used, OSD/OS's own in its place` | The screen shader didn't load | OSD/OS's screen shader, with the theme's numbers |
 | `qml: [Effect] file:///…/plasma.frag.qsb can't be used` | The background shader didn't load | No background effect |

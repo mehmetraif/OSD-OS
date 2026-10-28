@@ -1,0 +1,8 @@
+// A quad's own coordinates, for the orb's screen (screen.frag) and the fog
+// (fog.frag).
+VARYING vec2 vUV;
+void MAIN()
+{
+    vUV = UV0;
+    POSITION = MODELVIEWPROJECTION_MATRIX * vec4(VERTEX, 1.0);
+}

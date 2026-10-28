@@ -263,6 +263,26 @@ COIN puts in a credit, up to 9, shown as `Credit 2` on the picture. They go in w
 
 With no credits, the game starts as it always does, and a coin goes in in the game itself (COIN).
 
+### The Orb look
+
+<table>
+<tr><th width="50%">The list</th><th width="50%">A game starting</th></tr>
+<tr><td><img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/screenshots/arcade-orb.png" width="100%" alt="The Arcade screen in the Orb look: the games on a glass panel at the right, the game's picture in a glass orb at the left, its high scores on a panel under it, BACK and PLAY buttons at the foot" /></td><td><img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/screenshots/arcade-orb-start.png" width="100%" alt="The Orb look as a game starts: the panels swung out and the screen going into the orb" /></td></tr>
+</table>
+
+Settings → **Theme** → **Orb** draws the Arcade screen in 3D, in x-ray glass that lights up where its parts cross. The keys do what they do on the screen above; only the look changes.
+
+- **The list**, on a glass panel at the right: the filter's name and the page on its tab, with ◄ ►, and eight games to a page on glass bars. The selected game's bar lights up and stands out towards you; the one you left goes back slowly. A heart marks a favorite.
+- **The orb**, at the left: the game's pictures inside it, and the credits bought at its foot. On Search the keys to type with take its place.
+- **The panel under it**: the game's high scores, as in [the box](#the-box-under-the-picture), then its maker and year, its players and its play time; on a room of the lobby, what is said of the room.
+- **The keys**, at the foot, in the hint bar's place: back's button and what it does at the left, select's at the right, the others between them. The help line stays above them.
+- **Fog** drifts slowly behind, and the whole sways a little. ▲ ▼ tip it as if pushed, ◄ ► turn it, and it springs back.
+- **A game started** swings the panels out on their hinges, brings the orb to the middle and goes into it, its picture opening out to fill the screen, before the screen that starts the game; about two and a half seconds, in which no key counts. Back from the game, the screen comes back as it was.
+
+The mouse works as on the screen above: the bar under the pointer is selected. Screen Adjustment moves and sizes the panels with the area, and Hint Bar and Help Line give their room to them; List Style, Border and Info Background are the screen above's only.
+
+The Orb look needs Qt Quick 3D, which the OSD/OS image, `install.sh` and the Mac and Windows builds bring; on another Linux it is `qml6-module-qtquick3d` and `qml6-module-qtquick3d-helpers`, on FreeBSD `qt6-quick3d`, on OpenBSD `qt6-qtquick3d`. It needs a GPU too. Without them the Arcade screen is drawn as above, in Orb's two colours, and the log says `[Arcade] the Orb look needs Qt Quick 3D: the Arcade screen's own is drawn`. Orb is chosen in Settings: the [Setup page](https://mehmetraif.github.io/OSD-OS/setup/) doesn't offer it yet.
+
 ## Game Details
 
 **Game Details**, in a game's options on either screen ([A game's options](#a-games-options)), opens a page of the game: under its title, a line of what it is (maker, year, players, system and how long it has been played), then its achievements on RetroAchievements.
