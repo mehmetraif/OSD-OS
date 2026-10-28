@@ -87,7 +87,7 @@ FocusScope {
             return (info.core ? info.core : "Its core for RetroArch, with its list of games")
                    + " • Free to use and share, never to sell; its license is in Settings → About"
         case "games":
-            return "FinalBurn Neo's arcade games: a set of these plays in it when Online High Scores or Online Play is on, or its options choose it"
+            return "FinalBurn Neo's arcade games: a set of these plays in it when Online High Scores, Online Play or LAN Play is on, or its options choose it"
         case "download":
             return failure !== "" ? failure
                                   : "The latest core from libretro's build server, its list of games and its licence (some 35 MB)"
