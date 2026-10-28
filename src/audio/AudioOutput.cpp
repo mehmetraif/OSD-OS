@@ -92,6 +92,30 @@ QString readSmall(const QString &path) {
     return QString::fromUtf8(f.read(256)).trimmed();
 }
 
+#ifdef Q_OS_LINUX
+// Whether a card can play now. The Pi 5's HDMI (KMS's vc4hdmi0 and
+// vc4hdmi1) only while its port shows the picture: vc4-hdmi refuses to be
+// opened (error 524) while that HDMI is off, as it is when the picture goes
+// out through a JAMMA board, composite or the other port. DRM calls the
+// board's HDMI0 and HDMI1 HDMI-A-1 and HDMI-A-2, each "enabled" while it
+// has a picture; a port DRM doesn't list is taken to play, as is any other
+// card.
+bool playsNow(const AlsaCard &card) {
+    if (!card.playback)
+        return false;
+    const int port = hdmiPort(card.id, card.shortName);
+    if (port < 0 || !card.id.startsWith(QLatin1String("vc4hdmi")))
+        return true;
+    const QDir drm(legacy::env("DRM_DIR", QStringLiteral("/sys/class/drm")));
+    const QStringList connectors = drm.entryList({ QStringLiteral("card*-HDMI-A-%1").arg(port + 1) },
+                                                 QDir::Dirs | QDir::NoDotAndDotDot);
+    return connectors.isEmpty()
+        || std::any_of(connectors.cbegin(), connectors.cend(), [&drm](const QString &connector) {
+               return readSmall(drm.filePath(connector + QStringLiteral("/enabled"))) == QLatin1String("enabled");
+           });
+}
+#endif
+
 // The USB devices plugged in that have a sound interface (class 01), by
 // their product names, as the kernel lists them, whether ALSA made a card of
 // them or not; and whether a driver (the kernel's snd-usb-audio) took one of
@@ -319,7 +343,8 @@ bool AudioOutput::hasPlaybackCard() {
 #ifdef Q_OS_LINUX
     if (!QFileInfo::exists(asoundDir() + QStringLiteral("/cards")) || soundServer())
         return true;
-    return !playbackCards(alsaCards()).isEmpty();
+    const QList<AlsaCard> cards = alsaCards();
+    return std::any_of(cards.cbegin(), cards.cend(), playsNow);
 #else
     return true;
 #endif

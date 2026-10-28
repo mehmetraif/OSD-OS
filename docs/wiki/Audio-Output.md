@@ -206,7 +206,7 @@ The volume keys go to mpv, never to the menus, and hold to repeat. With Transpar
 |---|---|
 | No Audio Output row | A sound server is running (a desktop), or it isn't Linux. Choose the output in the system's sound settings |
 | A Pi 4 on composite, sound only on HDMI or nowhere | Choose **AV Jack**: Auto may be on an HDMI card, which composite turns off |
-| A Pi 5 on a CRT, no sound | It has no analog sound: plug in a USB sound card and choose it |
+| A Pi 5 on a CRT, no sound | It has no analog sound, and its HDMI plays only while that port shows the picture: plug in a USB sound card and choose it. Until then MAME and RetroArch play the games without sound |
 | A USB sound card isn't among the cards | The row's help line says what the system sees ([The cards and their names](#the-cards-and-their-names)): nothing plugged in, a device no driver took, one the driver took but ALSA made no card of, one with no output, or the Pi's power too low. `lsusb -t` and `dmesg | grep -i usb` from a shell say more |
 | HDMI 0 and HDMI 1, one silent | The TV is on the other port. Pick by the port's label on the board |
 | The card shows **(Unplugged)** | It isn't plugged in, or ALSA doesn't see it (`aplay -l`). Sound goes as on Auto until it is back |
