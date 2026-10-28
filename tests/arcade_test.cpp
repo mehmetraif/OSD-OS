@@ -1025,6 +1025,55 @@ private slots:
         QVERIFY2(lines.first().endsWith(QStringLiteral(" -sound none")), qPrintable(lines.first()));
     }
 
+    // A Pi 5's HDMI plays only while its port shows the picture: with both
+    // off (the picture on a JAMMA board) and no other card, MAME plays none
+    // too, as PortAudio, which it falls back to, would crash; with one
+    // showing it, the game plays through it.
+    void hdmiSoundOff() {
+        QTemporaryDir asound;
+        QTemporaryDir drm;
+        QTemporaryDir runtime;
+        QVERIFY(asound.isValid() && drm.isValid() && runtime.isValid());
+        writeFile(asound.path() + QStringLiteral("/cards"),
+                  " 0 [vc4hdmi0       ]: vc4-hdmi - vc4-hdmi-0\n"
+                  "                      vc4-hdmi-0\n"
+                  " 1 [vc4hdmi1       ]: vc4-hdmi - vc4-hdmi-1\n"
+                  "                      vc4-hdmi-1\n");
+        QVERIFY(QDir().mkpath(asound.path() + QStringLiteral("/card0/pcm0p")));
+        QVERIFY(QDir().mkpath(asound.path() + QStringLiteral("/card1/pcm0p")));
+        writeFile(drm.path() + QStringLiteral("/card1-HDMI-A-1/enabled"), "disabled\n");
+        writeFile(drm.path() + QStringLiteral("/card1-HDMI-A-2/enabled"), "disabled\n");
+        writeFile(drm.path() + QStringLiteral("/card1-DPI-1/enabled"), "enabled\n");
+        const QByteArray pulse = qgetenv("PULSE_SERVER");
+        const QByteArray xdg = qgetenv("XDG_RUNTIME_DIR");
+        qunsetenv("PULSE_SERVER");
+        qputenv("XDG_RUNTIME_DIR", runtime.path().toUtf8());
+        qputenv("OSDOS_ASOUND_DIR", asound.path().toUtf8());
+        qputenv("OSDOS_DRM_DIR", drm.path().toUtf8());
+        const auto playLine = [this] {
+            QFile::remove(m_log);
+            ArcadeBackend arcade(m_data.path(), m_data.path(), nullptr, nullptr);
+            refreshed(arcade);
+            const QString reason = played(arcade, QStringLiteral("galaga")).at(1).toString();
+            const QStringList lines = logLines(QStringLiteral("play"));
+            return reason == QLatin1String("ok") && lines.size() == 1 ? lines.first() : reason;
+        };
+        const QString off = playLine();
+        // HDMI1 shows the picture.
+        writeFile(drm.path() + QStringLiteral("/card1-HDMI-A-2/enabled"), "enabled\n");
+        const QString on = playLine();
+        qputenv("OSDOS_ASOUND_DIR", (m_data.path() + QStringLiteral("/asound")).toUtf8());
+        qunsetenv("OSDOS_DRM_DIR");
+        if (!pulse.isNull())
+            qputenv("PULSE_SERVER", pulse);
+        if (xdg.isNull())
+            qunsetenv("XDG_RUNTIME_DIR");
+        else
+            qputenv("XDG_RUNTIME_DIR", xdg);
+        QVERIFY2(off.startsWith(QStringLiteral("play ")) && off.endsWith(QStringLiteral(" -sound none")), qPrintable(off));
+        QVERIFY2(on.startsWith(QStringLiteral("play ")) && !on.contains(QStringLiteral("-sound")), qPrintable(on));
+    }
+
     // Recently Played and Favorites: the games still in the folder, as MAME
     // says they are.
     void lists() {

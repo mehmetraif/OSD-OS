@@ -2978,8 +2978,11 @@ bool ArcadeBackend::play(const QString &name, int credits) {
         args << QStringLiteral("-video") << m_video;
     // Emulator Video: the screen's shape, and the game's lines whole.
     args << mame::screenArguments(m_machines.value(name), m_screenSize.height(), screenShape(), integerScale());
-    // MAME may not start at all without a sound card it can open (no USB
-    // card on a Pi 5 whose HDMI is off): the game is played in silence.
+    // Without a sound card that can play now (a Pi 5 whose picture goes out
+    // through a JAMMA board or composite, its HDMI off, with no USB card),
+    // the game is played in silence: MAME's SDL sound fails there, and
+    // PortAudio, which MAME 0.276 falls back to, takes no output device for
+    // one and crashes (signal 11).
     if (!AudioOutput::hasPlaybackCard())
         args << QStringLiteral("-sound") << QStringLiteral("none");
     // The credits bought on the Arcade screen, put in as the game starts.

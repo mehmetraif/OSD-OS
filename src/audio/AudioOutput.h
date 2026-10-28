@@ -50,10 +50,11 @@ public:
     static QStringList mpvArgs();
     // For another program about to start: ALSA_CARD names the card.
     static void applyTo(QProcessEnvironment &env);
-    // Whether there is a card to play through, as far as ALSA says: false
-    // only where ALSA is all there is and it lists none that can play. A
-    // program that can't open one may not start at all (MAME), and is better
-    // told to play no sound.
+    // Whether there is a card that can play now, as far as ALSA says: false
+    // only where ALSA is all there is and it lists none that can (the Pi 5's
+    // HDMI counts only while that port shows the picture). A program that
+    // can't open one may not start at all (MAME), and is better told to play
+    // no sound.
     static bool hasPlaybackCard();
 
 signals:
