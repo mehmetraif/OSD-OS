@@ -344,13 +344,16 @@ int main(int argc, char *argv[]) {
     // gamepad actions bypass QML and drive mpv directly over IPC.
     QObject::connect(&inputManager, &InputManager::mpvKeyRequested,
                      &mpvController, &MpvController::sendKey);
-    // RetroArch and MAME open pads with their own SDL: close ours while they
-    // hold the screen, and open them again when the display comes back. mpv
-    // keeps the pads so gamepads still drive it over IPC during playback.
+    // RetroArch and MAME open pads with their own SDL: close ours while an
+    // arcade game holds the screen, and open them again when the display
+    // comes back. Every other hand-off keeps them: mpv, so gamepads still
+    // drive it over IPC during playback, and Netflix's and Prime Video's
+    // browser, which a pad's held BACK closes from the menu behind it
+    // (WebPlayerLaunch.qml).
     QObject::connect(&displayHandoff, &DisplayHandoff::heldChanged,
                      &inputManager, [&inputManager, &displayHandoff] {
                          if (displayHandoff.held()) {
-                             if (displayHandoff.currentOwner() != QLatin1String("mpv"))
+                             if (displayHandoff.currentOwner() == QLatin1String(ArcadeBackend::kHandoffOwner))
                                  inputManager.releaseJoysticksForHandoff();
                          } else {
                              inputManager.reclaimJoysticksAfterHandoff();
