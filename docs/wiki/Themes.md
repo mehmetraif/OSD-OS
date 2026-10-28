@@ -204,7 +204,7 @@ The one theme whose music is a tracker's module: a four-channel FastTracker 2 XM
 
 ### Orb
 
-Two colours of its own, a lime green on a dark green, and the Arcade screen's Orb look (`arcade`). `setup` keeps it off the Setup page, where it isn't offered yet.
+Two colours of its own, a lime green on a dark green, and the Arcade screen's Orb look (`arcade`). `setup` keeps it off the Setup page, where it isn't offered yet. With it, Settings has an **Orb Fog** row under Theme: the fog behind the panels as a picture drifting (Picture, the default) or worked out as it drifts (Live), as any theme with the look has ([Settings](https://github.com/mehmetraif/OSD-OS/wiki/Settings#the-look)).
 
 ```json
 {

@@ -276,7 +276,7 @@ Settings → **Theme** → **Orb** draws the Arcade screen in 3D, in x-ray glass
 - **The orb**, at the left: the game's pictures inside it, and the credits bought at its foot. On Search the keys to type with take its place.
 - **The panel under it**: the game's high scores, as in [the box](#the-box-under-the-picture), then its maker and year, its players and its play time; on a room of the lobby, what is said of the room.
 - **The keys**, at the foot, in the hint bar's place: back's button and what it does at the left, select's at the right, the others between them. The help line stays above them.
-- **Fog** drifts slowly behind, and the whole sways a little. ▲ ▼ tip it as if pushed, ◄ ► turn it, and it springs back.
+- **Fog** drifts slowly behind, and the whole sways a little. ▲ ▼ tip it as if pushed, ◄ ► turn it, and it springs back. Settings → **Orb Fog**, under Theme, chooses the fog: **Picture**, a picture of fog drifting, light on the GPU (the default), or **Live**, fog worked out for every pixel as it drifts, as in the look's first design, thicker and quicker, and more work for a Raspberry Pi's GPU.
 - **A game started** swings the panels out on their hinges, brings the orb to the middle and goes into it, its picture opening out to fill the screen, before the screen that starts the game; about two and a half seconds, in which no key counts. Back from the game, the screen comes back as it was.
 
 The mouse works as on the screen above: the bar under the pointer is selected. Screen Adjustment moves and sizes the panels with the area, and Hint Bar and Help Line give their room to them; List Style, Border and Info Background are the screen above's only.

@@ -476,13 +476,20 @@ Item {
 
             // ---
             // Fog: three layers at three depths, drifting, the further the
-            // darker
+            // darker. Settings → Orb Fog: the fog picture's (fog.frag), or
+            // worked out as it drifts (fogLive.frag), with the first design's
+            // layers.
             // ---
             Repeater3D {
-                model: [{ z: -500, tint: look.ink, strength: 0.52, scale: 1.2, seed: 0.13, radius: 0.55 },
-                        { z: -1100, tint: look.sea, strength: 0.42, scale: 0.92, seed: 0.77, radius: 0.45 },
-                        { z: -1900, tint: look.mix(look.ink, look.ground, 0.25), strength: 0.56, scale: 0.64,
-                          seed: 0.31, radius: 0.35 }]
+                model: root.orbFogLive
+                       ? [{ z: -500, tint: look.ink, strength: 0.7, scale: 3.0, seed: 1.3, radius: 0.55 },
+                          { z: -1100, tint: look.sea, strength: 0.55, scale: 2.3, seed: 7.7, radius: 0.45 },
+                          { z: -1900, tint: look.mix(look.ink, look.ground, 0.25), strength: 0.75, scale: 1.6,
+                            seed: 3.1, radius: 0.35 }]
+                       : [{ z: -500, tint: look.ink, strength: 0.52, scale: 1.2, seed: 0.13, radius: 0.55 },
+                          { z: -1100, tint: look.sea, strength: 0.42, scale: 0.92, seed: 0.77, radius: 0.45 },
+                          { z: -1900, tint: look.mix(look.ink, look.ground, 0.25), strength: 0.56, scale: 0.64,
+                            seed: 0.31, radius: 0.35 }]
                 Model {
                     required property var modelData
                     // As big as the view at its depth, and half again.
@@ -496,8 +503,8 @@ Item {
                         property real scale: modelData.scale
                         property real seed: modelData.seed
                         property real radius: modelData.radius
-                        // Once round in two minutes.
-                        property real phase: look.time / 120
+                        // Once round in two minutes, Live's in twelve seconds.
+                        property real phase: look.time / (root.orbFogLive ? 12 : 120)
                         // (Not "noise": the shaders' compiler takes that name.)
                         property TextureInput fogNoise: TextureInput {
                             texture: Texture {
@@ -514,7 +521,7 @@ Item {
                         cullMode: Material.NoCulling
                         depthDrawMode: Material.NeverDepthDraw
                         vertexShader: "orb/flat.vert"
-                        fragmentShader: "orb/fog.frag"
+                        fragmentShader: root.orbFogLive ? "orb/fogLive.frag" : "orb/fog.frag"
                     }
                 }
             }

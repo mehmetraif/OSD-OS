@@ -650,6 +650,8 @@ Window {
                 root.backdropSolidity = root.solidityOf(value)
             } else if (key === "loading_effect") {
                 root.loadingEffect = value !== "Off"
+            } else if (key === "orb_fog") {
+                root.orbFogLive = value === "Live"
             } else if (key === "boot_colors") {
                 root.bootThemed = value !== "Default"
             } else if (key === "loading_colors") {
@@ -727,6 +729,7 @@ Window {
         root.backdropSolidity = root.solidityOf(cfg.app && cfg.app.transparent_background)
         root.pointerSetting = String((cfg.app && cfg.app.mouse_pointer) || "5")
         root.loadingEffect = !(cfg.app && cfg.app.loading_effect === "Off")
+        root.orbFogLive = !!(cfg.app && cfg.app.orb_fog === "Live")
         root.bootThemed = !(cfg.app && cfg.app.boot_colors === "Default")
         root.loadingThemed = !(cfg.app && cfg.app.loading_colors === "Default")
         root.hintBarSetting = !(cfg.app && cfg.app.hint_bar === "Off")
@@ -933,6 +936,10 @@ Window {
     // "loading_effect": the tape's noise and bands on the screen a video
     // loads behind (LoadingScreen), "On" (the default, when unset) or "Off".
     property bool loadingEffect: true
+    // "orb_fog": the fog behind the Arcade screen's Orb look (OrbLook.qml),
+    // "Picture" (the default, when unset), a picture drifting, or "Live",
+    // worked out as it drifts.
+    property bool orbFogLive: false
     // "hint_bar": the key hints on the bar at the foot of every screen
     // (HintBar), "On" (the default, when unset) or "Off".
     property bool hintBarSetting: true

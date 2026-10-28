@@ -85,7 +85,8 @@ Under the **GENERAL SETTINGS** heading are the rows for the whole app: the look,
 
 The first rows under the heading set how the menus look: **Theme**, then one row for each part of a theme.
 
-- **Theme** names one of the themes, or None. Eight come with OSD/OS, and any folder with a `theme.json` in the data folder's `themes` is one too ([Themes](https://github.com/mehmetraif/OSD-OS/wiki/Themes)). Choosing one with ◄ ► sets every part row below back to THEME, including the rows that are hidden at the time.
+- **Theme** names one of the themes, or None. Nine come with OSD/OS, and any folder with a `theme.json` in the data folder's `themes` is one too ([Themes](https://github.com/mehmetraif/OSD-OS/wiki/Themes)). Choosing one with ◄ ► sets every part row below back to THEME, including the rows that are hidden at the time.
+- **Orb Fog** comes under it while the theme is one with the Arcade screen's [Orb look](https://github.com/mehmetraif/OSD-OS/wiki/Arcade#the-orb-look), as Orb is.
 - **THEME** in a part row (saved as `""`) means the part as the theme has it.
 - **Off** (saved as `"Off"`) means none of that part, whatever the theme says.
 - **A choice of its own** (saved by its name) replaces the theme's. It stays as you set it until you choose another theme.
@@ -94,7 +95,8 @@ The first rows under the heading set how the menus look: **Theme**, then one row
 
 | Setting | Values | Default | What it does | Config key |
 |---|---|---|---|---|
-| Theme | None, then the themes by name: Arcade, Demoscene, Green Screen, Inferno, Late Show, Matrix, Trinitron, Winter, and those in the data folder's `themes` | None | The whole look in one: the color scheme, the skin, the effects and the menu music. Two themes of one name are told apart by their folder, `Name (folder)` | `app.osd_theme`: the theme's folder name (`trinitron`, `late-show`), `""` for None |
+| Theme | None, then the themes by name: Arcade, Demoscene, Green Screen, Inferno, Late Show, Matrix, Orb, Trinitron, Winter, and those in the data folder's `themes` | None | The whole look in one: the color scheme, the skin, the effects and the menu music. Two themes of one name are told apart by their folder, `Name (folder)` | `app.osd_theme`: the theme's folder name (`trinitron`, `late-show`), `""` for None |
+| Orb Fog | Picture, Live | Picture | The fog drifting behind the Arcade screen's panels in the Orb look: a picture of fog drifting, light on the GPU, or fog worked out for every pixel as it drifts, as in the look's first design, thicker and quicker, and more work for a Raspberry Pi's GPU. Offered with a theme that has the Orb look | `app.orb_fog`: `"Picture"` or `"Live"` |
 | Color Scheme | THEME (with a theme), Video 1, Late Night, Synthwave, Terminal, T-120, Amber, Kinescope, SMPTE ECR 1-1978, and your own | THEME; without a theme, Video 1 | The two colours everything is drawn in: the text, lines and selection, and the background | `app.color_scheme`: the scheme's name, `""` for THEME |
 | Skin | THEME (with a theme), None, DOS, Rounded, and those in the data folder's `skins` | THEME; without a theme, None | The shapes of the window's frame, the title and hint bars and the selected line, and icons of its own, drawn in the color scheme's colours ([Skins](https://github.com/mehmetraif/OSD-OS/wiki/Skins)) | `app.skin`: the skin's folder name (`dos`, `rounded`), `"Off"` for None, `""` for THEME |
 | Text Effect | THEME, Off, Rainbow, Shimmer, Glow, Flicker | THEME; without a theme, Off | What the text, the lines and the bars do, drawn by the GPU | `app.text_effect` |

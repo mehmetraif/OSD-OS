@@ -127,6 +127,22 @@ FocusScope {
         items.push(lookRow("osd_theme", "Theme", "None", appCore.themes(),
             "The whole look in one: the color scheme, the skin, the effects and the menu music\n[NONE] OSD/OS's own  Choosing one sets each row below back to the theme's  A new one is a folder in the data folder's themes, see the wiki"))
 
+        // Orb Fog — the fog behind the panels of the Arcade screen's Orb look
+        // (OrbLook.qml; Main.qml's orbFogLive), offered while the theme is
+        // one with that look: the rows are made again as one is chosen
+        // (themeChosen()).
+        if (root.theme && root.theme.arcade === "orb") {
+            items.push({
+                type: "list_single",
+                key: "orb_fog",
+                label: "Orb Fog",
+                options: ["Picture", "Live"],
+                value: appSettings["orb_fog"] === "Live" ? "Live" : "Picture",
+                description: "The fog drifting behind the Arcade screen's panels in the Orb look\n[PICTURE] A picture of fog, light on the GPU  [LIVE] Worked out as it drifts, as in the look's first design, more work for a Raspberry Pi's GPU",
+                moduleId: ""
+            })
+        }
+
         // Main.qml's schemes, the custom ones among them (root.allSchemes).
         items.push(partRow("color_scheme", "Color Scheme", Object.keys(root.allSchemes), false,
             "The two colors everything is drawn in\n[THEME] The theme's, else Video 1  Please see the wiki for details on adding a custom one"))
