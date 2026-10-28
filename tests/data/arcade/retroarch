@@ -13,7 +13,9 @@
 # $RA_SECONDS to end. With $RA_NETPLAY_FAILS set, hosting (--host) or joining
 # (--connect), it logs what RetroArch does as netplay fails, the port not
 # bound or the host not reached, and plays on until it is stopped, as
-# RetroArch would.
+# RetroArch would. With $RA_HOST_LEAVES set, joining, it logs what RetroArch
+# does as it is connected to the host, an error that ends nothing, and a
+# second later the host gone, and plays on alone until it is stopped.
 #
 # Started with OSD/OS's sign-in core, to check a sign-in, it says on its
 # output what RetroArch's log does as it signs in, its token in the config
@@ -118,8 +120,18 @@ game=$(basename "$content"); game="${game%.*}"
 		esac
 		echo "[ERROR] [Netplay] Failed to initialize netplay."
 	fi
+	if [ -n "${RA_HOST_LEAVES:-}" ]; then
+		echo "[INFO] [Netplay] Connecting to netplay host 127.0.0.1:55435."
+		echo "[INFO] [Netplay] Connected to: \"ann\""
+		echo "[INFO] [Netplay] You have joined as player 3"
+		echo "[ERROR] [Netplay] NETPLAY_CMD_INPUT received an unexpected payload size."
+	fi
 } > "$log"
-if [ -n "${RA_NETPLAY_FAILS:-}" ]; then
+if [ -n "${RA_HOST_LEAVES:-}" ]; then
+	sleep 1
+	echo "[INFO] [Netplay] Netplay disconnected" >> "$log"
+fi
+if [ -n "${RA_NETPLAY_FAILS:-}${RA_HOST_LEAVES:-}" ]; then
 	trap 'kill $! 2>/dev/null; exit 0' TERM
 	sleep 30 &
 	wait

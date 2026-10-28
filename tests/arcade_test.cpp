@@ -1184,7 +1184,8 @@ private slots:
         QString config = libretro::configText(launch);
         const auto has = [&config](const QString &line) { return config.split(QLatin1Char('\n')).contains(line); };
         QVERIFY2(has(QStringLiteral("config_save_on_exit = \"true\"")), qPrintable(config));
-        for (const char *line : { "video_driver = \"gl\"", "video_context_driver = \"kms\"", "input_driver = \"udev\"",
+        for (const char *line : { "user_language = \"0\"", "video_driver = \"gl\"", "video_context_driver = \"kms\"",
+                                  "input_driver = \"udev\"",
                                   "audio_driver = \"alsa\"", "audio_device = \"\"", "input_joypad_driver = \"sdl2\"",
                                   // RetroArch's Standard Gamepad for every player, its own
                                   // look-up off: no "not configured" over the game.
@@ -1524,6 +1525,20 @@ private slots:
         QVERIFY(!config.contains(QStringLiteral("netplay_mitm_server ")));
         QCOMPARE(libretro::arguments(launch).mid(6),
                  QStringList({ QStringLiteral("--host"), QStringLiteral("/games/sf2.zip") }));
+        // At the game's own rate: its sound neither stretched to the screen
+        // nor nudged, and RetroArch waiting on the sound card. Otherwise as
+        // RetroArch has it, and its frame limiter never on.
+        const char *const gameRate[] = { "audio_sync = \"true\"", "audio_max_timing_skew = \"0.000000\"",
+                                         "audio_rate_control = \"false\"" };
+        for (const char *line : gameRate)
+            QVERIFY2(!has(QLatin1String(line)), line);
+        launch.gameRate = true;
+        config = libretro::configText(launch);
+        for (const char *line : gameRate)
+            QVERIFY2(has(QLatin1String(line)), line);
+        QVERIFY(!config.contains(QStringLiteral("vrr_runloop_enable")));
+        launch.gameRate = false;
+        config = libretro::configText(launch);
 
         // The game's ports this machine's players take, asked for by number:
         // up to the last player with a controller, one at least; none asked
@@ -1595,6 +1610,17 @@ private slots:
         QCOMPARE(range("OSDOS LAYOUT panel"), QStringLiteral("none"));
         QVERIFY(!libretro::readClaimQuery(QByteArray("OSDOS LAYOUT panel")));
         QVERIFY(!libretro::isClaimRelease(QByteArray("OSDOS LAYOUT panel")));
+        // That the host plays at the game's own rate: a packet of its own,
+        // which an older OSD/OS joining takes for none of the others.
+        QCOMPARE(libretro::claimPace(), QByteArray("OSDOS PACE game"));
+        QVERIFY(libretro::isClaimPace(libretro::claimPace()));
+        for (const char *packet : { "OSDOS PACE", "OSDOS PACE screen", "OSDOS PACE game ", "OSDOS LAYOUT panel",
+                                    "OSDOS PORTS 3 2", "" })
+            QVERIFY2(!libretro::isClaimPace(QByteArray(packet)), packet);
+        QVERIFY(!libretro::readClaimLayout(libretro::claimPace()));
+        QCOMPARE(range("OSDOS PACE game"), QStringLiteral("none"));
+        QVERIFY(!libretro::readClaimQuery(libretro::claimPace()));
+        QVERIFY(!libretro::isClaimRelease(libretro::claimPace()));
         // A host's layout by its players: the panel's with a JAMMA stick or
         // a pad's Arcade Buttons among them, else Classic; Classic too in a
         // game of five or six players, where one machine may bring four, one
@@ -1807,6 +1833,53 @@ private slots:
                  QStringLiteral("Failed to connect to relay server 1.2.3.4 on port 55435"));
         QCOMPARE(libretro::netplayFailure({ QStringLiteral("Failed to initialize netplay") }, false),
                  QStringLiteral("Failed to initialize netplay"));
+        // Joining, the log read a line at a time: connected to the host, its
+        // errors then end nothing, even one that would have turned the join
+        // down before; the connection ending then is the host gone. Ended
+        // before it was connected, the join failed, why the last error
+        // before it, or the disconnection itself. A host's log never says
+        // so of itself, and its start failing ends its game as before.
+        const auto readLines = [](libretro::NetplayLog log, const QStringList &lines) {
+            for (const QString &line : lines)
+                log.read(line);
+            return log;
+        };
+        const QString connected = QStringLiteral("[INFO] [Netplay] Connected to: \"ann\"");
+        const QString disconnected = QStringLiteral("[INFO] [Netplay] Netplay disconnected");
+        libretro::NetplayLog joined = readLines(libretro::NetplayLog(),
+                                                { QStringLiteral("[INFO] [Netplay] Connecting to netplay host 192.168.1.20:55435."),
+                                                  connected,
+                                                  QStringLiteral("[ERROR] [Netplay] Failed to receive header from host."),
+                                                  QStringLiteral("[ERROR] [Netplay] NETPLAY_CMD_INPUT received an unexpected payload size.") });
+        QVERIFY(!joined.hostLeft());
+        QVERIFY(joined.failure().isEmpty());
+        joined = readLines(joined, { disconnected, QStringLiteral("[ERROR] [Netplay] Failed to initialize netplay.") });
+        QVERIFY(joined.hostLeft());
+        QVERIFY(joined.failure().isEmpty());
+        joined = readLines(libretro::NetplayLog(), { QStringLiteral("[ERROR] [Netplay] Netplay input out of order."), disconnected });
+        QVERIFY(!joined.hostLeft());
+        QCOMPARE(joined.failure(), QStringLiteral("Netplay input out of order"));
+        QCOMPARE(readLines(libretro::NetplayLog(), { disconnected }).failure(), QStringLiteral("Netplay disconnected"));
+        QCOMPARE(readLines(libretro::NetplayLog(), { QStringLiteral("[ERROR] [Netplay] Incorrect password."), connected,
+                                                     disconnected }).failure(),
+                 QStringLiteral("Incorrect password"));
+        const libretro::NetplayLog hosted = readLines(libretro::NetplayLog(true), { connected, disconnected });
+        QVERIFY(!hosted.hostLeft());
+        QVERIFY(hosted.failure().isEmpty());
+        QCOMPARE(readLines(libretro::NetplayLog(true), { QStringLiteral("[ERROR] [Netplay] Failed to bind port 55435."),
+                                                        QStringLiteral("[ERROR] [Netplay] Failed to initialize netplay.") })
+                     .failure(),
+                 QStringLiteral("Failed to bind port 55435"));
+        writeFile(dir.path() + QStringLiteral("/left.log"),
+                  "[INFO] [Netplay] Connected to: \"ann\"\n"
+                  "[libretro INFO] [FBNeo] Driver successfully started\n"
+                  "[ERROR] [Netplay] NETPLAY_CMD_INPUT received an unexpected payload size.\n"
+                  "[INFO] [Netplay] Netplay disconnected\n");
+        run = libretro::readLog(dir.path() + QStringLiteral("/left.log"));
+        QVERIFY(run.hostLeft);
+        QVERIFY(run.netplayFailure.isEmpty());
+        QVERIFY(!libretro::readLog(dir.path() + QStringLiteral("/left.log"), true).hostLeft);
+        QVERIFY(!libretro::readLog(dir.path() + QStringLiteral("/joining.log")).hostLeft);
 
         writeFile(dir.path() + QStringLiteral("/saved.cfg"),
                   "cheevos_enable = \"true\"\ncheevos_password = \"\"\ncheevos_token = \"tok456\"\n");
@@ -5310,11 +5383,11 @@ private slots:
         QUdpSocket claims;
         QVERIFY(claims.bind(QHostAddress::LocalHost, 0));
         QList<QByteArray> claimed;
-        // How the stand-in host answers: the layout then the ports, as OSD/OS
-        // does; the ports first and the layout a moment later (the two are
-        // datagrams of their own); or the ports alone, as an older OSD/OS.
-        // It plays on the panel's layout and gives ports 3 and 4, unless
-        // said otherwise.
+        // How the stand-in host answers: that it plays at the game's own
+        // rate, the layout, then the ports, as OSD/OS does; the ports first
+        // and the layout a moment later (the three are datagrams of their
+        // own); or the ports alone, as an older OSD/OS. It plays on the
+        // panel's layout and gives ports 3 and 4, unless said otherwise.
         enum { LayoutThenPorts, PortsThenLayout, PortsAlone } answering = LayoutThenPorts;
         libretro::Launch::Layout saidLayout = libretro::Launch::Layout::Panel;
         libretro::PortRange portsGiven = { 3, 2 };
@@ -5329,6 +5402,8 @@ private slots:
                 const auto layout = [&claims, said = saidLayout, to, port] {
                     claims.writeDatagram(libretro::claimLayout(said), to, port);
                 };
+                if (answering != PortsAlone)
+                    claims.writeDatagram(libretro::claimPace(), to, port);
                 if (answering == LayoutThenPorts)
                     layout();
                 claims.writeDatagram(libretro::claimAnswer(portsGiven), to, port);
@@ -5360,6 +5435,9 @@ private slots:
         QVERIFY(config.contains(QStringLiteral("input_player2_b_btn = \"0\"")));
         QVERIFY(!QFile::exists(libretro::coreRemapPath(home + QStringLiteral("/remaps"))));
         QVERIFY(logLines().contains(QStringLiteral("coreinfo deterministic")));
+        // At the game's own rate, as the host said it plays.
+        for (const char *line : { "audio_max_timing_skew = \"0.000000\"", "audio_rate_control = \"false\"" })
+            QVERIFY2(config.contains(QLatin1String(line)), line);
         QTRY_VERIFY(!claimed.isEmpty() && claimed.last() == libretro::claimRelease());
         QCOMPARE(claimed.first(), libretro::claimQuery(2));
         QVERIFY(!arcade.running());
@@ -5373,7 +5451,7 @@ private slots:
         QVERIFY2(config.contains(QStringLiteral("input_player1_y_btn = \"0\"")), qPrintable(config));
         QTRY_VERIFY(!claimed.isEmpty() && claimed.last() == libretro::claimRelease());
         // The ports alone, from an older OSD/OS: joined with them a moment
-        // later, on the Classic layout.
+        // later, on the Classic layout, at the screen's rate as it plays.
         answering = PortsAlone;
         QFile::remove(m_log);
         QCOMPARE(ended([&arcade] { return arcade.joinLanRoom(1); }).value(1).toString(), QStringLiteral("ok"));
@@ -5381,6 +5459,7 @@ private slots:
         QCOMPARE(requested(config), QStringLiteral("3 4"));
         QVERIFY2(config.contains(QStringLiteral("input_player1_b_btn = \"0\"")), qPrintable(config));
         QVERIFY(config.contains(QStringLiteral("input_player1_y_btn = \"2\"")));
+        QVERIFY(!config.contains(QStringLiteral("audio_rate_control")));
         QTRY_VERIFY(!claimed.isEmpty() && claimed.last() == libretro::claimRelease());
         // Four players here, given four ports by a host that doesn't keep
         // to the panel's three (an older OSD/OS): three of them taken on the
@@ -5424,6 +5503,20 @@ private slots:
                                 "The host didn't answer: its game may have ended, or a firewall there keeps the port closed"));
         QTRY_VERIFY(!claimed.isEmpty() && claimed.last() == libretro::claimRelease());
         QVERIFY(!arcade.running());
+        // Connected, then the host gone a second later: RetroArch plays on
+        // alone, unthrottled had it been catching up; stopped as its log says
+        // so, the ports given back, the game played, and the end says the
+        // host left. An error while connected ended nothing.
+        const qint64 playedBefore = arcade.gameDetails(QStringLiteral("sf2")).value(QStringLiteral("playTime")).toLongLong();
+        qputenv("RA_HOST_LEAVES", "1");
+        QFile::remove(m_log);
+        const QVariantList left = ended([&arcade] { return arcade.joinLanRoom(1); });
+        qunsetenv("RA_HOST_LEAVES");
+        QCOMPARE(left.value(1).toString(), QStringLiteral("stopped"));
+        QCOMPARE(left.value(2).toString(), QStringLiteral("The host left the game"));
+        QTRY_VERIFY(!claimed.isEmpty() && claimed.last() == libretro::claimRelease());
+        QVERIFY(!arcade.running());
+        QVERIFY(arcade.gameDetails(QStringLiteral("sf2")).value(QStringLiteral("playTime")).toLongLong() > playedBefore);
         // A host that doesn't say, RetroArch alone or an older OSD/OS: asked
         // twice, then joined with the ports from 2, on the Classic layout,
         // the stick's buttons by number.
@@ -5435,14 +5528,15 @@ private slots:
         QVERIFY2(config.contains(QStringLiteral("input_player1_b_btn = \"0\"")), qPrintable(config));
         QVERIFY(config.contains(QStringLiteral("input_player1_y_btn = \"2\"")));
         QVERIFY(config.contains(QStringLiteral("input_player1_l_btn = \"10\"")));
-        // Hosted: on the network alone, straight, under the online name.
-        // Street Fighter II takes two players: this machine's first on port
-        // 1, whatever its second stick, so that the machine joining has the
-        // other. It asks for its players' ports while the game runs and is
-        // told the layout (the panel's, a JAMMA stick among this machine's
-        // players: every port on it in the remap file) and given port 2
-        // alone, whatever its players, its own anew as it asks again; none
-        // once the game is over.
+        // Hosted: on the network alone, straight, under the online name, at
+        // the game's own rate. Street Fighter II takes two players: this
+        // machine's first on port 1, whatever its second stick, so that the
+        // machine joining has the other. It asks for its players' ports while
+        // the game runs and is told that the game plays at its own rate, the
+        // layout (the panel's, a JAMMA stick among this machine's players:
+        // every port on it in the remap file), and given port 2 alone,
+        // whatever its players, its own anew as it asks again; none once the
+        // game is over.
         arcade.onSettingChanged(module, QStringLiteral("online_name"), QStringLiteral("Mehmet"));
         quint16 claimPort = 0;
         {
@@ -5462,14 +5556,15 @@ private slots:
         const auto asking = [&joiner, claimPort](const QByteArray &packet, int mostMs) {
             joiner.writeDatagram(packet, QHostAddress::LocalHost, claimPort);
             QByteArrayList answers;
-            for (int waited = 0; waited < mostMs && answers.size() < 2; waited += 20) {
+            for (int waited = 0; waited < mostMs && answers.size() < 3; waited += 20) {
                 QTest::qWait(20);
                 while (joiner.hasPendingDatagrams())
                     answers << joiner.receiveDatagram().data();
             }
             return answers.isEmpty() ? QByteArray("no answer") : answers.join(" / ");
         };
-        const QByteArray panelThenPort2 = libretro::claimLayout(libretro::Launch::Layout::Panel) + " / "
+        const QByteArray paced = libretro::claimPace() + " / ";
+        const QByteArray panelThenPort2 = paced + libretro::claimLayout(libretro::Launch::Layout::Panel) + " / "
                                           + libretro::claimAnswer({ 2, 1 });
         QCOMPARE(asking(libretro::claimQuery(2), 2000), panelThenPort2);
         QCOMPARE(asking(libretro::claimQuery(4), 2000), panelThenPort2);
@@ -5482,7 +5577,8 @@ private slots:
         config = QString::fromUtf8(contents(configCopy));
         for (const char *line : { "netplay_nickname = \"Mehmet\"", "netplay_public_announce = \"false\"",
                                   "netplay_use_mitm_server = \"false\"", "netplay_nat_traversal = \"false\"",
-                                  "input_player1_y_btn = \"0\"", "input_player2_b_btn = \"0\"" })
+                                  "input_player1_y_btn = \"0\"", "input_player2_b_btn = \"0\"",
+                                  "audio_max_timing_skew = \"0.000000\"", "audio_rate_control = \"false\"" })
             QVERIFY2(config.contains(QLatin1String(line)), line);
         QCOMPARE(requested(config), QStringLiteral("1"));
         QVERIFY(logLines().contains(QStringLiteral("coreinfo deterministic")));
@@ -5501,7 +5597,7 @@ private slots:
         QVERIFY(arcade.hostLanGame(QStringLiteral("xmen6p")));
         QVERIFY(!QFile::exists(hostRemap));
         QCOMPARE(asking(libretro::claimQuery(4), 2000),
-                 libretro::claimLayout(libretro::Launch::Layout::Classic) + " / " + libretro::claimAnswer({ 3, 4 }));
+                 paced + libretro::claimLayout(libretro::Launch::Layout::Classic) + " / " + libretro::claimAnswer({ 3, 4 }));
         QVERIFY(hostEnded.wait(10000) || !hostEnded.isEmpty());
         QCOMPARE(hostEnded.first().value(1).toString(), QStringLiteral("ok"));
         config = QString::fromUtf8(contents(configCopy));
@@ -5514,7 +5610,7 @@ private slots:
         hostEnded.clear();
         QVERIFY(arcade.hostLanGame(QStringLiteral("dino")));
         QCOMPARE(asking(libretro::claimQuery(4), 2000),
-                 libretro::claimLayout(libretro::Launch::Layout::Panel) + " / " + libretro::claimAnswer({ 2, 3 }));
+                 paced + libretro::claimLayout(libretro::Launch::Layout::Panel) + " / " + libretro::claimAnswer({ 2, 3 }));
         QVERIFY(hostEnded.wait(10000) || !hostEnded.isEmpty());
         QCOMPARE(hostEnded.first().value(1).toString(), QStringLiteral("ok"));
         config = QString::fromUtf8(contents(configCopy));

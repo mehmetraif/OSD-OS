@@ -194,6 +194,12 @@ struct Launch {
     // Arcade Buttons under Panel alone. Off line each player has their own
     // (onPanel()), whatever this says.
     enum class Layout { Classic, Panel } layout = Layout::Classic;
+    // On the local network, the game at its own rate on every machine, its
+    // frames as the sound card takes its sound, not as the screen takes
+    // them (configText()). A host's OSD/OS plays so, and says so to the OSD/OS
+    // machines joining it (claimPace()), which then do too. Online, where
+    // the other machines are anyone's RetroArch, each plays as theirs do.
+    bool gameRate = false;
 };
 // Whether a game is hosted (Host, LanHost), rather than joined or played alone.
 constexpr bool hosts(Launch::Netplay netplay) {
@@ -261,16 +267,43 @@ QString coreInfoText(bool lanCore = false);
 
 // What a run's log says (RetroArch's own, -v --log-file). Over the network,
 // hosting or joining (hosting says which), netplayFailure is why RetroArch
-// couldn't, after which it played the game alone (netplayFailure()).
+// couldn't, after which it played the game alone, and hostLeft that, joining,
+// it was connected and the host left the game (NetplayLog).
 struct Run {
     bool logged = false;          // there was a log to read
     bool started = false;         // FinalBurn Neo started the game
     QStringList missing;          // files it needed and found none of
     QString loginFailure;         // why RetroAchievements didn't take the account
     QString netplayFailure;       // why it couldn't host or join the game
+    bool hostLeft = false;        // joined, the host left the game
     QString error;                // RetroArch's last error line
 };
 Run readLog(const QString &path, bool hosting = false);
+// RetroArch's log of a game over the network, read a line at a time as it is
+// written (ArcadeBackend::watchNetplay()) or once the game is over
+// (readLog()): what ends the game. failure() is why RetroArch couldn't host or
+// join it (netplayFailure() of its netplay errors), after which it plays on
+// alone; "" until then. hostLeft() is that, joining, it was connected to the
+// host ("Connected to") and the connection has ended since ("Netplay
+// disconnected"): the host left the game, or stopped answering for 10 s.
+// RetroArch 1.20 plays on alone then too, and unthrottled, had it been
+// catching up with the host as it hung up: its catch-up's state is never
+// undone. A joiner's errors once it is connected end nothing; its connection
+// ending before then is a join that failed, why the last error before it.
+class NetplayLog {
+public:
+    explicit NetplayLog(bool hosting = false) : m_hosting(hosting) {}
+    void read(const QString &line);
+    QString failure() const { return m_failure; }
+    bool hostLeft() const { return m_hostLeft; }
+
+private:
+    bool m_hosting;
+    bool m_connected = false;
+    bool m_hostLeft = false;
+    QStringList m_errors;
+    QString m_failure;
+};
 // A line of the log that is one of RetroArch's netplay errors ("[ERROR]
 // [Netplay] ..."): what it says, its full stop dropped; nothing for any other
 // line.
@@ -386,7 +419,10 @@ bool isLanSender(const QHostAddress &address);
 // joiner then asks for ports from 2 with more than one player, else for
 // none. Before the ports, a host says the layout it plays with
 // (claimLayout(), Launch::layout), which an older OSD/OS doesn't: Classic
-// then.
+// then. Before the layout, it says that it plays at the game's own rate
+// (claimPace(), Launch::gameRate), and a joiner then plays so too; joining an
+// older OSD/OS, which says nothing of it, or RetroArch alone, it plays at its
+// screen's rate, as they do.
 constexpr quint16 kLanClaimPort = 55436;
 // The ports a game is played on at most: FinalBurn Neo's six-player games,
 // as many as the players the menus have controllers for.
@@ -419,13 +455,16 @@ QByteArray claimQuery(int players);
 QByteArray claimAnswer(const PortRange &ports);
 QByteArray claimRelease();
 QByteArray claimLayout(Launch::Layout layout);
+QByteArray claimPace();
 // What a packet says: a query for so many ports (1 to kMostPorts), an answer
-// giving the first and how many (within kMostPorts, or none), a release, or
-// the host's layout; nothing for a packet that isn't one.
+// giving the first and how many (within kMostPorts, or none), a release, the
+// host's layout, or that it plays at the game's own rate; nothing for a
+// packet that isn't one.
 std::optional<int> readClaimQuery(const QByteArray &packet);
 std::optional<PortRange> readClaimAnswer(const QByteArray &packet);
 bool isClaimRelease(const QByteArray &packet);
 std::optional<Launch::Layout> readClaimLayout(const QByteArray &packet);
+bool isClaimPace(const QByteArray &packet);
 
 // A host's count of the ports taken: its own, 1 to own, and each joiner's
 // by its address, within the game's ports (most), each joiner's players no

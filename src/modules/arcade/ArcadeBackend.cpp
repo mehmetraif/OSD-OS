@@ -106,10 +106,10 @@ constexpr int kClaimAskings = 3;
 // How long ports that came without the host's layout wait for it (a datagram
 // of its own, sent before them: lost, or an older OSD/OS's, which says none).
 constexpr int kLayoutWaitMs = 150;
-// Over the network, how often RetroArch's log is read as the game starts, and
-// for how long: a host it can't reach it gives up on after 10 s, and the
-// handshake takes a moment after; what fails later (a peer leaving) isn't a
-// start that failed.
+// Over the network, how often RetroArch's log is read as the game goes on, and
+// for how long hosting: a port it can't take it says at once, and a client it
+// turns away or that leaves ends nothing. Joining, it is read for as long as
+// the game goes on, as the host may leave at any time.
 constexpr int kNetplayWatchMs = 500;
 constexpr int kNetplayWatchFor = 60000;
 
@@ -3203,7 +3203,8 @@ QString ArcadeBackend::onlineLayout(const QString &set, bool hosting) const {
 }
 
 bool ArcadeBackend::playFbneo(const QString &name, libretro::Launch::Netplay netplay, const QString &joinAddress,
-                              int portsFrom, int portsGiven, libretro::Launch::Layout layout, bool lanCore) {
+                              int portsFrom, int portsGiven, libretro::Launch::Layout layout, bool lanCore,
+                              bool gameRate) {
     using Netplay = libretro::Launch::Netplay;
     // As play() checks before coming here: one game at a time, whether
     // hosted, joined or played alone.
@@ -3348,6 +3349,10 @@ bool ArcadeBackend::playFbneo(const QString &name, libretro::Launch::Netplay net
     // joining takes what it was told, Classic from a host that said nothing
     // (RetroArch alone, an older OSD/OS, or a room of the lobby).
     launch.layout = hosting ? libretro::hostLayout(launch.panels, launch.arcade, gamePlayers(name)) : layout;
+    // On the local network, the game at its own rate on every machine: one
+    // hosted so, and a room joined so where the host's OSD/OS said it plays
+    // so. Online, as the other machines' RetroArch plays.
+    launch.gameRate = netplay == Netplay::LanHost || (netplay == Netplay::LanJoin && gameRate);
     // The game's ports this machine's players take: a host's from 1
     // (hostPorts()); joining on the local network, those its host's OSD/OS
     // gave, or, with no answer, from 2, where more than one player is to
@@ -3465,7 +3470,7 @@ bool ArcadeBackend::playFbneo(const QString &name, libretro::Launch::Netplay net
     if (netplay != libretro::Launch::Netplay::None) {
         m_netplayLogRead = 0;
         m_netplayLogTail.clear();
-        m_netplayErrors.clear();
+        m_netplayLog = libretro::NetplayLog(hosting);
         m_netplayWatch->start();
     }
     if (!m_played) {
@@ -3596,6 +3601,13 @@ void ArcadeBackend::readPortsAnswer() {
         const QNetworkDatagram answer = m_claimAsk->receiveDatagram(64);
         const QHostAddress from(answer.senderAddress().toIPv4Address());
         const bool fromHost = m_pendingJoin && from == QHostAddress(m_pendingJoin->host);
+        // That the host plays at the game's own rate, ahead of its layout:
+        // this machine then does too (an older OSD/OS says nothing of it).
+        if (libretro::isClaimPace(answer.data())) {
+            if (fromHost)
+                m_pendingJoin->gameRate = true;
+            continue;
+        }
         // The host's layout comes ahead of the ports (an older OSD/OS says
         // none: Classic), each a datagram of its own: ports that come first
         // wait a moment for it.
@@ -3636,7 +3648,7 @@ void ArcadeBackend::startPendingJoin(const std::optional<libretro::PortRange> &p
         qInfo("[Arcade] %s doesn't say which ports are taken: RetroArch is asked for them", qPrintable(join.host));
     const int first = ports ? ports->first : -1;
     if (playFbneo(join.game, libretro::Launch::Netplay::LanJoin, join.joinAddress, first, ports ? ports->players : 0,
-                  ports ? join.layout : libretro::Launch::Layout::Classic, join.lanCore)) {
+                  ports ? join.layout : libretro::Launch::Layout::Classic, join.lanCore, ports && join.gameRate)) {
         m_claimedFrom = first > 0 ? join.host : QString();
         return;
     }
@@ -3675,10 +3687,12 @@ void ArcadeBackend::answerClaims() {
             continue;
         const QString from = QHostAddress(packet.senderAddress().toIPv4Address()).toString();
         if (const std::optional<int> players = libretro::readClaimQuery(packet.data())) {
-            // The layout first, the ports after: a joiner starts its game on
-            // the ports, and takes the layout with them; an older one reads
-            // the ports alone.
+            // That the game plays at its own rate (a game hosted on the local
+            // network does, Launch::gameRate), the layout, then the ports: a
+            // joiner starts its game on the ports, and takes the rest with
+            // them; an older one reads the ports alone.
             const libretro::PortRange ports = m_claims.claim(from, *players);
+            m_claimSocket->writeDatagram(libretro::claimPace(), packet.senderAddress(), packet.senderPort());
             m_claimSocket->writeDatagram(libretro::claimLayout(m_claimLayout), packet.senderAddress(),
                                          packet.senderPort());
             m_claimSocket->writeDatagram(libretro::claimAnswer(ports), packet.senderAddress(), packet.senderPort());
@@ -4299,11 +4313,13 @@ QString ArcadeBackend::lanDetail(const libretro::Room &room) const {
 void ArcadeBackend::watchNetplay() {
     // RetroArch that can't host or join (the host not reached, the handshake
     // refused, its port taken) says so once on its screen and plays the game
-    // alone, as if nothing had been asked; its log says so too, a line at a
-    // time as it goes. The log is read as it grows while the game starts,
-    // and the game stopped at the first such line: the end then says why
-    // (fbneoNotice()).
-    if (m_playClock.elapsed() > kNetplayWatchFor || !m_launcher->isBusy()) {
+    // alone, as if nothing had been asked; so it does too, joining, once the
+    // host has left, and unthrottled when it was catching up with it then.
+    // Its log says so, a line at a time as it goes: read as it grows while
+    // the game starts, joining for as long as it goes on, and the game
+    // stopped at the first such line. The end then says why (fbneoNotice()).
+    const bool hosting = libretro::hosts(m_playingNetplay);
+    if ((hosting && m_playClock.elapsed() > kNetplayWatchFor) || !m_launcher->isBusy()) {
         m_netplayWatch->stop();
         return;
     }
@@ -4318,16 +4334,15 @@ void ArcadeBackend::watchNetplay() {
         return;
     const QList<QByteArray> lines = m_netplayLogTail.left(end).split('\n');
     m_netplayLogTail.remove(0, end + 1);
-    const bool hosting = libretro::hosts(m_playingNetplay);
     for (const QByteArray &line : lines) {
-        const std::optional<QString> error = libretro::netplayError(QString::fromUtf8(line));
-        if (!error)
+        m_netplayLog.read(QString::fromUtf8(line));
+        const QString failure = m_netplayLog.failure();
+        if (failure.isEmpty() && !m_netplayLog.hostLeft())
             continue;
-        m_netplayErrors << *error;
-        const QString failure = libretro::netplayFailure(m_netplayErrors, hosting);
-        if (failure.isEmpty())
-            continue;
-        qWarning("[Arcade] %s: RetroArch plays on alone, \"%s\": stopped", qPrintable(m_playing), qPrintable(failure));
+        if (m_netplayLog.hostLeft())
+            qWarning("[Arcade] %s: the host left the game, and RetroArch plays on alone: stopped", qPrintable(m_playing));
+        else
+            qWarning("[Arcade] %s: RetroArch plays on alone, \"%s\": stopped", qPrintable(m_playing), qPrintable(failure));
         m_netplayWatch->stop();
         m_launcher->requestStop();
         return;
@@ -4349,6 +4364,10 @@ QString ArcadeBackend::fbneoNotice(int exitCode, const QString &reason, const li
             notice += QStringLiteral("\nThe host didn't answer: its game may have ended, or a firewall there keeps the port closed");
         return notice;
     }
+    // Joined: the host gone, after which RetroArch played on alone, stopped
+    // (watchNetplay()) or not yet.
+    if (reason == QLatin1String("stopped") && run.hostLeft && !libretro::hosts(m_playingNetplay))
+        return QStringLiteral("The host left the game");
     if (reason == QLatin1String("stopped"))
         return QStringLiteral("The game was stopped");
     if (m_launcher->lastRunCrashed())
