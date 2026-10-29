@@ -650,26 +650,6 @@ QString configText(const Launch &launch) {
             set(key.constData(), on(launch.ports > 0 && p >= launch.portsFrom && p < launch.portsFrom + launch.ports));
         }
     }
-    if (launch.gameRate) {
-        // The game at its own rate (its driver's frames a second: Batsugun's
-        // 59.64) on every machine. RetroArch stretches a game's sound to the
-        // rate it takes the screen for where the two are within 5%
-        // (audio_max_timing_skew), and the game with it, and nudges the sound
-        // by up to half a percent to keep its buffer half full
-        // (audio_rate_control): a CRT of 60.05 Hz played Batsugun at 60.05
-        // frames a second, and a monitor of 240 Hz at a rate of its own. Over
-        // the network the machine behind then ran unthrottled now and then to
-        // catch up, its sound breaking up, and the one ahead stalled. Neither
-        // stretch nor nudge, and the sound card's clock paces the game at its
-        // own rate on every machine whose screen is faster than it, the
-        // screen showing a frame twice now and then (a CRT of 60.05 Hz, every
-        // 2.4 s). RetroArch's Sync to Exact Content Framerate
-        // (vrr_runloop_enable) would hold a machine fallen behind to the
-        // game's rate too, and it would never catch up.
-        set("audio_sync", on(true));
-        set("audio_max_timing_skew", QStringLiteral("0.000000"));
-        set("audio_rate_control", on(false));
-    }
     if (launch.netplay == Launch::Netplay::Host) {
         // In the lobby, through a relay: a home connection takes no calls.
         set("netplay_public_announce", on(true));
@@ -1170,7 +1150,6 @@ const char kClaimReleaseText[] = "OSDOS PORTS FREE";
 const char kClaimLayoutHead[] = "OSDOS LAYOUT ";
 const char kLayoutPanel[] = "panel";
 const char kLayoutClassic[] = "classic";
-const char kClaimPaceText[] = "OSDOS PACE game";
 
 // A number of at most two digits, least to most; nothing for anything else.
 std::optional<int> number(const QByteArray &digits, int least, int most) {
@@ -1249,14 +1228,6 @@ std::optional<Launch::Layout> readClaimLayout(const QByteArray &packet) {
     if (words->first() == kLayoutClassic)
         return Launch::Layout::Classic;
     return std::nullopt;
-}
-
-QByteArray claimPace() {
-    return QByteArray(kClaimPaceText);
-}
-
-bool isClaimPace(const QByteArray &packet) {
-    return packet == kClaimPaceText;
 }
 
 Launch::Layout hostLayout(const QList<bool> &panels, const QList<QStringList> &arcade, int players) {

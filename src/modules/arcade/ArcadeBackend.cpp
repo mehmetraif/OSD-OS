@@ -3206,8 +3206,7 @@ QString ArcadeBackend::onlineLayout(const QString &set, bool hosting) const {
 }
 
 bool ArcadeBackend::playFbneo(const QString &name, libretro::Launch::Netplay netplay, const QString &joinAddress,
-                              int portsFrom, int portsGiven, libretro::Launch::Layout layout, bool lanCore,
-                              bool gameRate) {
+                              int portsFrom, int portsGiven, libretro::Launch::Layout layout, bool lanCore) {
     using Netplay = libretro::Launch::Netplay;
     // As play() checks before coming here: one game at a time, whether
     // hosted, joined or played alone.
@@ -3352,10 +3351,6 @@ bool ArcadeBackend::playFbneo(const QString &name, libretro::Launch::Netplay net
     // joining takes what it was told, Classic from a host that said nothing
     // (RetroArch alone, an older OSD/OS, or a room of the lobby).
     launch.layout = hosting ? libretro::hostLayout(launch.panels, launch.arcade, gamePlayers(name)) : layout;
-    // On the local network, the game at its own rate on every machine: one
-    // hosted so, and a room joined so where the host's OSD/OS said it plays
-    // so. Online, as the other machines' RetroArch plays.
-    launch.gameRate = netplay == Netplay::LanHost || (netplay == Netplay::LanJoin && gameRate);
     // The game's ports this machine's players take: a host's from 1
     // (hostPorts()); joining on the local network, those its host's OSD/OS
     // gave, or, with no answer, from 2, where more than one player is to
@@ -3604,13 +3599,6 @@ void ArcadeBackend::readPortsAnswer() {
         const QNetworkDatagram answer = m_claimAsk->receiveDatagram(64);
         const QHostAddress from(answer.senderAddress().toIPv4Address());
         const bool fromHost = m_pendingJoin && from == QHostAddress(m_pendingJoin->host);
-        // That the host plays at the game's own rate, ahead of its layout:
-        // this machine then does too (an older OSD/OS says nothing of it).
-        if (libretro::isClaimPace(answer.data())) {
-            if (fromHost)
-                m_pendingJoin->gameRate = true;
-            continue;
-        }
         // The host's layout comes ahead of the ports (an older OSD/OS says
         // none: Classic), each a datagram of its own: ports that come first
         // wait a moment for it.
@@ -3626,6 +3614,8 @@ void ArcadeBackend::readPortsAnswer() {
             continue;
         }
         const std::optional<libretro::PortRange> ports = libretro::readClaimAnswer(answer.data());
+        // Neither, passed over: OSD/OS 0.0.28 to 0.0.32 said first that it
+        // played at the game's own rate (OSDOS PACE game).
         if (!ports)
             continue;
         // One that comes too late, or from another host: its ports given
@@ -3651,7 +3641,7 @@ void ArcadeBackend::startPendingJoin(const std::optional<libretro::PortRange> &p
         qInfo("[Arcade] %s doesn't say which ports are taken: RetroArch is asked for them", qPrintable(join.host));
     const int first = ports ? ports->first : -1;
     if (playFbneo(join.game, libretro::Launch::Netplay::LanJoin, join.joinAddress, first, ports ? ports->players : 0,
-                  ports ? join.layout : libretro::Launch::Layout::Classic, join.lanCore, ports && join.gameRate)) {
+                  ports ? join.layout : libretro::Launch::Layout::Classic, join.lanCore)) {
         m_claimedFrom = first > 0 ? join.host : QString();
         return;
     }
@@ -3690,12 +3680,10 @@ void ArcadeBackend::answerClaims() {
             continue;
         const QString from = QHostAddress(packet.senderAddress().toIPv4Address()).toString();
         if (const std::optional<int> players = libretro::readClaimQuery(packet.data())) {
-            // That the game plays at its own rate (a game hosted on the local
-            // network does, Launch::gameRate), the layout, then the ports: a
-            // joiner starts its game on the ports, and takes the rest with
-            // them; an older one reads the ports alone.
+            // The layout first, the ports after: a joiner starts its game on
+            // the ports, and takes the layout with them; an older one reads
+            // the ports alone.
             const libretro::PortRange ports = m_claims.claim(from, *players);
-            m_claimSocket->writeDatagram(libretro::claimPace(), packet.senderAddress(), packet.senderPort());
             m_claimSocket->writeDatagram(libretro::claimLayout(m_claimLayout), packet.senderAddress(),
                                          packet.senderPort());
             m_claimSocket->writeDatagram(libretro::claimAnswer(ports), packet.senderAddress(), packet.senderPort());
