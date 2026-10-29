@@ -53,8 +53,16 @@ constexpr int kRepeatIntervalMs = 100;
 
 // How long after the pads open again as a game ends a pad's press is still
 // taken for one held through it (finishReclaimJoysticks()): an evdev pad
-// says what is held as it opens, a Bluetooth one with its next report.
+// says what is held as it opens, a pad SDL hears only through its reports
+// (reportsLate()) with its next report.
 constexpr int kHandoffSettleMs = 500;
+// A pad that reports only what changes sends that report once another of its
+// inputs changes: when the player lets go of one of the two buttons that quit
+// the game, the other comes in as a press then, however long after. Until such
+// a pad is heard holding nothing (settleAfterHandoff()), for this long at
+// most, its presses but its directions' are taken for ones held through the
+// game: a Start that came in late would play the game again.
+constexpr int kHandoffReportMs = 3000;
 
 // Qt reports both shift keys as Qt::Key_Shift; telling them apart takes the
 // platform code. Linux keymaps (eglfs/evdev, X11, Wayland) report evdev's
@@ -149,6 +157,16 @@ QString padLabel(const QHash<int, QString> &overrides, controllers::LabelStyle s
 // (pad, axis) as one key.
 qint64 axisKey(SDL_JoystickID pad, int axis) {
     return (qint64(pad) << 8) | axis;
+}
+
+// Whether SDL hears a pad only through the reports it sends rather than by
+// asking it what is held, so that it knows what is held only from the pad's
+// next report: its HIDAPI driver's pads ('h', the GUID's driver byte), as a
+// Retro-Bit's and the Switch and PlayStation pads, and Windows's Raw Input
+// ('r'). Linux's evdev pads, as the JAMMA board's sticks, say it as they open.
+bool reportsLate(SDL_Joystick *joystick) {
+    const Uint8 driver = SDL_JoystickGetGUID(joystick).data[14];
+    return driver == 'h' || driver == 'r';
 }
 
 // True when an editable text field (e.g. a QML TextInput/TextField) currently
@@ -282,12 +300,15 @@ void InputManager::pollSdl() {
         case SDL_CONTROLLERDEVICEREMOVED: closeController(e.cdevice.which); break;
         case SDL_CONTROLLERBUTTONDOWN:
             handleButton(e.cbutton.which, e.cbutton.button, true);
+            settleAfterHandoff(e.cbutton.which);
             break;
         case SDL_CONTROLLERBUTTONUP:
             handleButton(e.cbutton.which, e.cbutton.button, false);
+            settleAfterHandoff(e.cbutton.which);
             break;
         case SDL_CONTROLLERAXISMOTION:
             handleAxis(e.caxis.which, e.caxis.axis, e.caxis.value);
+            settleAfterHandoff(e.caxis.which);
             break;
         default: break;
         }
@@ -325,6 +346,7 @@ void InputManager::closeController(SDL_JoystickID instanceId) {
     qInfo("[input] controller removed: %s", qPrintable(m_pads.value(instanceId).name));
     SDL_GameControllerClose(gc);
     m_pads.remove(instanceId);
+    m_lateAfterHandoff.remove(instanceId);
 
     letGoOfPad(instanceId);
     recomputeSuppressedDevices();   // built-in may have unplugged → unsuppress
@@ -355,6 +377,7 @@ void InputManager::releaseJoysticksForHandoff() {
     m_controllers.clear();
     m_pads.clear();
     m_axisState.clear();
+    m_lateAfterHandoff.clear();
     m_playerPads = QList<SDL_JoystickID>(controllers::kPlayers, -1);
     m_lastActiveController = -1;
     // Drain SDL's REMOVED events for the closes above so reclaim does not
@@ -393,18 +416,81 @@ void InputManager::finishReclaimJoysticks() {
     SDL_Event e;
     while (SDL_PollEvent(&e)) { }
 
+    QElapsedTimer opening;
+    opening.start();
     const int n = SDL_NumJoysticks();
     for (int i = 0; i < n; ++i) {
         if (SDL_IsGameController(i))
             openController(i);
     }
     // What is still held down (the Coin and Start that quit the game) comes
-    // in as presses once each pad says so, an evdev pad's at once and a
-    // Bluetooth one's with its next report: neither they nor their releases
-    // reach the menus (handleButton(), handleAxis()).
-    m_handoffSettleEnds = m_clock.elapsed() + kHandoffSettleMs;
+    // in as presses once each pad says so, an evdev pad's at once and one
+    // that reports late with its next report: neither they nor their
+    // releases reach the menus (heldThroughGame()).
+    const qint64 now = m_clock.elapsed();
+    m_handoffSettleEnds = now + kHandoffSettleMs;
+    for (auto it = m_controllers.cbegin(); it != m_controllers.cend(); ++it) {
+        if (m_padsReportLate || reportsLate(SDL_GameControllerGetJoystick(it.value())))
+            m_lateAfterHandoff.insert(it.key(), now + kHandoffReportMs);
+    }
     m_pollTimer.start(16);
-    qInfo("[input] joysticks reclaimed after display hand-off");
+    qInfo("[input] joysticks reclaimed after display hand-off: %d opened in %lld ms, %d reporting late",
+          int(m_controllers.size()), qint64(opening.elapsed()), int(m_lateAfterHandoff.size()));
+}
+
+// Whether a pad's press as the pads open again after a game is one held
+// through it (the Coin and Start that quit it): any in the first moment, and
+// on a pad that reports late any but a direction until it is heard holding
+// nothing (settleAfterHandoff()) or kHandoffReportMs have gone by. Said in the
+// journal, as a press the menus never see.
+bool InputManager::heldThroughGame(SDL_JoystickID which, Action a, const QString &input) {
+    const qint64 now = m_clock.elapsed();
+    if (now >= m_handoffSettleEnds) {
+        const auto late = m_lateAfterHandoff.constFind(which);
+        if (late == m_lateAfterHandoff.constEnd())
+            return false;
+        if (now >= *late) {
+            m_lateAfterHandoff.erase(late);
+            return false;
+        }
+        if (isDirectional(a))
+            return false;
+    }
+    qInfo("[input] %s: %s held through the game, %lld ms after the pads opened again: not taken",
+          qPrintable(m_pads.value(which).name), qPrintable(input), now - m_handoffSettleEnds + kHandoffSettleMs);
+    return true;
+}
+
+// A pad that reports late, heard holding nothing since the pads opened again
+// after a game (no button down, nothing of it held, taken for held through
+// the game or not, no stick or trigger off its rest): what it presses now is
+// its player's.
+void InputManager::settleAfterHandoff(SDL_JoystickID which) {
+    if (!m_lateAfterHandoff.contains(which))
+        return;
+    SDL_GameController *gc = m_controllers.value(which, nullptr);
+    if (!gc)
+        return;
+    for (int b = 0; b < SDL_CONTROLLER_BUTTON_MAX; ++b) {
+        if (SDL_GameControllerGetButton(gc, SDL_GameControllerButton(b)))
+            return;
+    }
+    // Not by SDL's state alone: a press it has seen let go of may still be
+    // to come in, after one taken for held.
+    const QString source = padSource(which);
+    const auto ofPad = [&source](const HeldInput &input) { return input.first == source; };
+    if (std::any_of(m_heldThroughHandoff.cbegin(), m_heldThroughHandoff.cend(), ofPad)
+        || std::any_of(m_coinInputs.cbegin(), m_coinInputs.cend(), ofPad))
+        return;
+    for (auto it = m_heldInputs.cbegin(); it != m_heldInputs.cend(); ++it) {
+        if (ofPad(it.key()))
+            return;
+    }
+    for (auto it = m_axisState.cbegin(); it != m_axisState.cend(); ++it) {
+        if ((it.key() >> 8) == which)
+            return;
+    }
+    m_lateAfterHandoff.remove(which);
 }
 
 // ── Mapping ───────────────────────────────────────────────────────────────────
@@ -1893,7 +1979,8 @@ void InputManager::handleButton(SDL_JoystickID which, Uint8 button, bool pressed
         }
         return;
     }
-    if (m_clock.elapsed() < m_handoffSettleEnds) {
+    const Action a = pad->buttons.value(button, Action::None);
+    if (heldThroughGame(which, a, buttonToken(button))) {
         m_heldThroughHandoff.insert(input);
         return;
     }
@@ -1913,7 +2000,6 @@ void InputManager::handleButton(SDL_JoystickID which, Uint8 button, bool pressed
         postKey(Qt::Key_5, QEvent::KeyPress, false);
         return;
     }
-    const Action a = pad->buttons.value(button, Action::None);
     if (a == Action::None)
         return;
     noteActiveController(which);
@@ -1969,12 +2055,13 @@ void InputManager::handleAxis(SDL_JoystickID which, Uint8 axis, Sint16 value) {
     }
     if (now == 0)
         return;
-    if (m_clock.elapsed() < m_handoffSettleEnds) {
+    const QString token = axisToken(axis, now);
+    const Action pressed = now < 0 ? actions.first : actions.second;
+    if (heldThroughGame(which, pressed, token)) {
         m_heldThroughHandoff.insert(input);
         return;
     }
     noteController(key);
-    const QString token = axisToken(axis, now);
     if (capturing(key)) {
         emit controllerInputCaptured(key, token, controllers::inputLabel(labels, token));
         return;
@@ -1988,7 +2075,6 @@ void InputManager::handleAxis(SDL_JoystickID which, Uint8 axis, Sint16 value) {
         postKey(Qt::Key_5, QEvent::KeyPress, false);
         return;
     }
-    const Action pressed = now < 0 ? actions.first : actions.second;
     if (pressed == Action::None)
         return;
     noteActiveController(which);

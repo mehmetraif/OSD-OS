@@ -281,6 +281,7 @@ Every key Settings writes, with the row it belongs to. The values and defaults a
 | Key | Settings row | Type |
 |---|---|---|
 | `osd_theme` | Theme | string: a theme's folder name, `""` for None |
+| `orb_fog` | Orb Fog | string: `"Picture"` (when unset) or `"Live"` |
 | `color_scheme`, `skin`, `text_effect`, `background_effect`, `selector_effect`, `screen_effect`, `transition`, `menu_music` | The theme's parts | string: `""` for THEME, `"Off"`, or a name (`skin` takes a folder name) |
 | `menu_music_file` | Music File | string: a full path, `""` for none |
 | `menu_music_volume` | Music Volume | number, 0 to 100 |

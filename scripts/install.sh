@@ -66,6 +66,10 @@ sudo apt-get install -y \
     timgm6mb-soundfont \
     openmpt123 \
     polkitd
+# Qt Quick 3D, which draws the Arcade screen's Orb look (the Orb theme's), where
+# the system has it: without it the Arcade screen keeps its own look.
+sudo apt-get install -y qml6-module-qtquick3d qml6-module-qtquick3d-helpers \
+    || echo "Qt Quick 3D isn't available: the Orb theme's Arcade screen keeps its own look"
 
 # ── udev rule: allow tty group to open /dev/tty0 for VT switching ─────────────
 echo 'KERNEL=="tty0", GROUP="tty", MODE="0620"' \

@@ -17,6 +17,7 @@ brew install cmake
 - Download from [qt.io/download](https://qt.io/download) or `brew install qt@6`.
 - Install to `~/Qt/`
 - With the installer, add **Qt Shader Tools** (under Additional Libraries; Homebrew's Qt includes it): it compiles the effects' shaders into the app. Optional: without it Settings leaves out the text, background and screen effects and the Ripple, Wave and Drop transitions, and a theme's with them.
+- And **Qt Quick 3D** (Homebrew's Qt includes it): it draws the Arcade screen's Orb look (the Orb theme's). Optional, and only at run time: without it the Arcade screen keeps its own look.
 
 **Install mpv (required for playback):**
 
@@ -149,7 +150,9 @@ sudo apt-get install -y \
 
 `mpv` is the playback engine — OSD/OS launches it as a subprocess. No libmpv build dependency is required. `libmpv-dev` is optional: with its headers the Transparent Background setting is built in, which plays video inside the app's window through libmpv (`libmpv2`, opened at run time; `install.sh` and the OS image install it).
 
-`qt6-shadertools-dev` is optional too: it compiles the effects' shaders (`shaders/`) into the app, for the text, background and screen effects and the Ripple, Wave and Drop transitions; without it they are left out. Nothing of it is needed at run time. To compile a theme's own shader, `qt6-shader-baker` brings `qsb` (`/usr/lib/qt6/bin/qsb`; see the [theme template](docs/theme-template/)).
+`qt6-shadertools-dev` is optional too: it compiles the effects' shaders (`shaders/`) into the app, for the text, background and screen effects and the Ripple, Wave and Drop transitions; without it they are left out. Nothing of it is needed at run time.
+
+`qml6-module-qtquick3d` and `qml6-module-qtquick3d-helpers` (Qt 6.6 or later) draw the Arcade screen's Orb look, the Orb theme's, at run time only: nothing is built against them, and without them the Arcade screen keeps its own look (`install.sh` and the OS image install them). To compile a theme's own shader, `qt6-shader-baker` brings `qsb` (`/usr/lib/qt6/bin/qsb`; see the [theme template](docs/theme-template/)).
 
 The menu music plays MIDI files with FluidSynth and a SoundFont, and a tracker's module mpv can't play with openmpt123, at run time only: `sudo apt install fluidsynth timgm6mb-soundfont openmpt123` (`install.sh` and the OS image install them). Without them those files don't play; recordings (MP3, OGG, FLAC, WAV …) need only mpv.
 
@@ -318,7 +321,7 @@ A build for Windows 11 on x64, which each release publishes as `OSD-OS-<tag>-win
 ### Prerequisites (one-time)
 
 - **Visual Studio 2022 Build Tools** with the *Desktop development with C++* workload (MSVC, the Windows SDK, CMake and Ninja).
-- **Qt 6.8** for MSVC 2022 64-bit from the Qt installer, with **Qt Shader Tools** (the effects' shaders; optional, as on macOS).
+- **Qt 6.8** for MSVC 2022 64-bit from the Qt installer, with **Qt Shader Tools** (the effects' shaders) and **Qt Quick 3D** (the Arcade screen's Orb look; both optional, as on macOS).
 - **vcpkg** for SDL2, OpenSSL and minizip (with zlib):
 
 ```bat
@@ -386,7 +389,7 @@ pkg_add cmake ninja qt6-qtbase qt6-qtdeclarative qt6-qtsvg qt6-qtshadertools sdl
 ```
 
 - **mpv** plays every video, and its libmpv is Transparent Background's: CMake finds the headers through pkg-config, and the app opens the library from `/usr/local/lib` at run time.
-- Optional: `pcsc-lite` for PC/SC NFC readers (CMake finds it through pkg-config), the system's `mame` and `retroarch` packages for the Arcade module, `yt-dlp` (and Deno, where the system has a package) for YouTube.
+- Optional: `pcsc-lite` for PC/SC NFC readers (CMake finds it through pkg-config), the system's `mame` and `retroarch` packages for the Arcade module, `yt-dlp` (and Deno, where the system has a package) for YouTube, and Qt Quick 3D for the Arcade screen's Orb look (`qt6-quick3d` on FreeBSD, `qt6-qtquick3d` on OpenBSD; at run time only, the package doesn't bring it).
 - For FinalBurn Neo's cores and the package ([Packages](#packages)): `gmake` and `bash`, and on FreeBSD `perl5` for the CV1000 LAN core's list of games (OpenBSD's base system has Perl, and both have `patch`).
 - For the regression tests: `bash`, Lua 5.4 (`lua54` on FreeBSD, `lua%5.4` on OpenBSD) and, on FreeBSD, the `dejavu` fonts the view tests draw their text with.
 

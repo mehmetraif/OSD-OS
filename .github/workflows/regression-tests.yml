@@ -119,7 +119,7 @@ jobs:
         run: |
           DEBIAN_FRONTEND=noninteractive apt-get install -y build-essential lua5.4 cmake pkgconf qt6-base-dev qt6-declarative-dev qml6-module-qttest qml6-module-qtquick qml6-module-qtqml-workerscript qml6-module-qtquick-window qt6-svg-dev \
             qt6-shadertools-dev libdrm-dev libssl-dev libsdl2-dev libpcsclite-dev libmpv-dev libminizip-dev dbus-daemon tzdata \
-            python3
+            qml6-module-qtquick3d qml6-module-qtquick3d-helpers python3
       - name: Configure application
         run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
       - name: Build application

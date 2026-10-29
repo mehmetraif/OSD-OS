@@ -1,0 +1,6 @@
+{
+    "name": "Orb",
+    "colors": { "primary": "#9BE02B", "surface": "#061206" },
+    "arcade": "orb",
+    "setup": false
+}

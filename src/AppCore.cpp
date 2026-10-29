@@ -906,6 +906,14 @@ QVariantMap AppCore::theme(const QString &id) const {
                                    QStringLiteral("music"));
     if (!music.isEmpty())
         theme["music"] = music;
+    // The Arcade screen's look: "orb", in 3D (the Arcade module's
+    // OrbLook.qml). Any other is left out, and the screen keeps its own.
+    const QString arcade = obj.value(QStringLiteral("arcade")).toString();
+    if (arcade == QLatin1String("orb"))
+        theme["arcade"] = arcade;
+    else if (obj.contains(QStringLiteral("arcade")))
+        qWarning("[AppCore] %s: its arcade, \"%s\", is not a look the Arcade screen has", qPrintable(look),
+                 qPrintable(arcade));
     qInfo("[AppCore] theme %s: %s", qPrintable(id), qPrintable(path));
     return theme;
 }

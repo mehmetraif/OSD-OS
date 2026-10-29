@@ -105,10 +105,11 @@ public:
     Q_INVOKABLE QVariantList themes() const;
     // One theme read for QML (Main.qml's root.theme): { id, name, colors,
     // skin, effects: { text, background, selector, screen, transition },
-    // music }, those it has. colors is a scheme's name or { primary, surface
-    // }; skin as skin() reads one; each effect a preset's name or its own
-    // ({ its numbers, 0 to 1; animate; shader, a .qsb of its own }); music a
-    // sound file's URL. Empty for none, or for one gone or unreadable.
+    // music, arcade }, those it has. colors is a scheme's name or { primary,
+    // surface }; skin as skin() reads one; each effect a preset's name or its
+    // own ({ its numbers, 0 to 1; animate; shader, a .qsb of its own });
+    // music a sound file's URL; arcade the Arcade screen's look, "orb". Empty
+    // for none, or for one gone or unreadable.
     Q_INVOKABLE QVariantMap theme(const QString &id) const;
     // One of the effects' shaders built into the app (shaders/<name>.frag),
     // as a URL; "" in a build without them (one made without Qt Shader
