@@ -60,6 +60,12 @@ test("the website's files are all there", () => {
         assert.ok(existsSync(join(out, path)), `${file}'s ${path}`);
     const landing = readFileSync(join(out, "index.html"), "utf8");
     assert.ok(landing.includes('href="setup/"'), "the landing page leads to Setup");
+    // An MP4 recording plays in the video beside its still, muted and put
+    // away until it plays: the tour's, and the theme preview's (Orb's).
+    assert.match(landing, /data-recording="assets\/tour\.mp4"[^>]*>\s*<video id="tour-video"[^>]*\bmuted\b[^>]*\bhidden\b/,
+                 "the tour's video beside its still");
+    assert.match(landing, /<img id="theme-image"[^>]*>\s*<video id="theme-video"[^>]*\bmuted\b[^>]*\bhidden\b/,
+                 "the theme preview's video beside its still");
     // Nothing of the page from elsewhere: no script, style, font or picture
     // off the site.
     const loads = [...landing.matchAll(/<(?:script|img)\b[^>]*\bsrc="([^"]+)"|<link\b[^>]*\brel="(?:stylesheet|icon|preload)"[^>]*\bhref="([^"]+)"/g)]
@@ -111,8 +117,6 @@ test("the landing page's themes are the app's, Setup's and the app's alone alike
     assert.match(orb.recording, /\.mp4$/);
     assert.match(orb.recorded, /Arcade screen/);
     assert.ok(themes.filter(t => t.id !== "orb").every(t => !("recorded" in t)), "the others recorded in the menus");
-    // The page has the video an MP4 plays in, put away until it plays.
-    assert.match(readFileSync(join(out, "index.html"), "utf8"), /<video id="theme-video"[^>]*\bmuted\b[^>]*\bhidden\b/);
 });
 
 test("the live preview draws with the app's own shaders, as they are", () => {

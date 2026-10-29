@@ -1,9 +1,9 @@
-// OSD/OS's landing page: the theme previews (a still in the HTML, the
-// recording swapped in once it is loaded, unless the visitor asked for less
-// motion), the tabs, and the terminal commands' Copy buttons. The
-// themes come from themes.json, which scripts/build-site.py writes from the
-// app's own themes: each with its name, its two colours and its pictures,
-// the recording a GIF or, for a 3D look a GIF would blur, an MP4.
+// OSD/OS's landing page: the tour and the theme previews (a still in the
+// HTML, the recording swapped in once it is loaded, unless the visitor asked
+// for less motion: a GIF, or an MP4 where a GIF would blur a 3D look), the
+// tabs, and the terminal commands' Copy buttons. The themes come from
+// themes.json, which scripts/build-site.py writes from the app's own themes:
+// each with its name, its two colours and its pictures.
 
 function pixelIcon(name) {
     const ns = "http://www.w3.org/2000/svg";
@@ -18,7 +18,6 @@ function pixelIcon(name) {
 
 // --- The theme previews.
 const image = document.querySelector("#theme-image");
-const video = document.querySelector("#theme-video");
 const nameLabel = document.querySelector("#theme-name");
 const motion = document.querySelector("#motion");
 const buttons = document.querySelector("#theme-buttons");
@@ -43,7 +42,7 @@ function whenNear(img, then) {
 
 // A recording shown once it is in, the still until then: a blank frame
 // while it loads would be a flicker. Asked for another meanwhile, this one
-// is left where it is. An MP4 plays in the theme preview's video instead.
+// is left where it is. An MP4 plays in the video beside the picture instead.
 function showRecording(img, recording, alt) {
     img.dataset.wanted = recording;
     whenNear(img, () => {
@@ -62,11 +61,12 @@ function showRecording(img, recording, alt) {
     });
 }
 
-// The video in the picture's place, the still its poster until it plays,
-// and for good where it can't: a browser without H.264, or one holding back
-// a muted video's playing (iOS's Low Power Mode). Played, not preloaded, it
-// is downloaded only to be played.
+// The video beside a picture in the picture's place, the still its poster
+// until it plays, and for good where it can't: a browser without H.264, or
+// one holding back a muted video's playing (iOS's Low Power Mode). Played,
+// not preloaded, it is downloaded only to be played.
 function playVideo(img, recording, alt) {
+    const video = img.parentElement.querySelector("video");
     video.poster = img.getAttribute("src");
     video.setAttribute("aria-label", alt);
     video.src = recording;
@@ -75,15 +75,16 @@ function playVideo(img, recording, alt) {
     video.play().catch(() => {});
 }
 
-// The video stopped and put away, the picture back in its place.
-function stopVideo() {
-    if (!video.hasAttribute("src"))
+// A picture's video stopped and put away, the picture back in its place.
+function stopVideo(img) {
+    const video = img.parentElement.querySelector("video");
+    if (!video || !video.hasAttribute("src"))
         return;
     video.pause();
     video.removeAttribute("src");
     video.load();
     video.hidden = true;
-    image.hidden = false;
+    img.hidden = false;
 }
 
 function updateMotionButton() {
@@ -102,7 +103,7 @@ function updateTheme() {
         return;
     const stillAlt = `The ${current.name} theme: ${current.about}`;
     const recordingAlt = `The ${current.name} theme, recorded ${current.recorded || "as the menus are browsed"}: ${current.about}`;
-    stopVideo();
+    stopVideo(image);
     image.dataset.wanted = "";
     image.src = current.still;
     image.alt = stillAlt;
@@ -122,6 +123,7 @@ function updateTour() {
     if (!tour)
         return;
     if (paused) {
+        stopVideo(tour);
         tour.dataset.wanted = "";
         tour.src = tour.dataset.still;
         tour.alt = tour.dataset.altStill;
