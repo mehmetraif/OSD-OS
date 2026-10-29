@@ -45,8 +45,11 @@ Item {
     function wave(hz, phase) { return Math.sin(2 * Math.PI * hz * time + phase) }
 
     // The sway: slow waves of different lengths, so it never quite repeats a
-    // move; calmed as a game starts.
-    readonly property real calm: 1 - clamp01(since / 0.5)
+    // move; calmed as a game starts. On a TV's tube (root.tube) there is none,
+    // and the keys don't nudge it either: letters that move by less than a line
+    // are drawn anew every frame, and the tube's 240 or 480 lines lose their
+    // strokes.
+    readonly property real calm: root.tube ? 0 : 1 - clamp01(since / 0.5)
     readonly property real yaw: calm * (3.2 * wave(0.23, 0) + 1.2 * wave(0.41, 1.3))
     readonly property real pitchAngle: calm * (2.0 * wave(0.19, 0.7) + 0.8 * wave(0.53, 2.1))
     readonly property real roll: calm * 0.6 * wave(0.31, 0.4)
@@ -308,6 +311,14 @@ Item {
         return slab([[left, top], [right, top], [right - 16, bottom], [left, bottom]], 6, on ? 18 : 10)
     }
 
+    // On a tube the letters are drawn as the classic look draws them, at the
+    // size the screen shows them, and the panels face the camera, so that a
+    // pixel font's strokes stay whole on the tube's few lines: a Sheet's
+    // texels to a design unit (twice the unit elsewhere, for sharp letters),
+    // and the panels' turn (all of it, or none).
+    readonly property real sheetScale: root.tube ? arcadeScreen.v : 2
+    readonly property real angled: root.tube ? 0 : 1
+
     // Seen as the screen opens, and after a game played from the list.
     NumberAnimation {
         id: fadeIn
@@ -343,8 +354,8 @@ Item {
         }
 
         // A sheet in its node's plane, w by h round its middle, showing 2D
-        // content (drawn at twice its size, for sharp letters) over what is
-        // behind it: the letters on a panel.
+        // content (Drawn, sheetScale texels to the unit) over what is behind
+        // it: the letters on a panel.
         component Sheet: Model {
             property real w
             property real h
@@ -359,18 +370,18 @@ Item {
                 baseColorMap: Texture { id: picture; generateMipmaps: true; mipFilter: Texture.Linear }
             }
         }
-        // 2D content in design units, drawn at twice its size for a Sheet.
-        component Twice: Item {
+        // 2D content in design units, drawn at sheetScale for a Sheet.
+        component Drawn: Item {
             default property alias contents: inner.data
             property real w
             property real h
-            width: w * 2
-            height: h * 2
+            width: w * look.sheetScale
+            height: h * look.sheetScale
             Item {
                 id: inner
                 width: parent.w
                 height: parent.h
-                scale: 2
+                scale: look.sheetScale
                 transformOrigin: Item.TopLeft
             }
         }
@@ -439,7 +450,7 @@ Item {
                 z: 14
                 w: key.wide
                 h: 40
-                content: Twice {
+                content: Drawn {
                     w: key.wide
                     h: 40
                     Letters {
@@ -456,7 +467,7 @@ Item {
                 z: 10
                 w: key.word + 8
                 h: 40
-                content: Twice {
+                content: Drawn {
                     w: key.word + 8
                     h: 40
                     Letters {
@@ -602,7 +613,7 @@ Item {
                             z: look.orbR * 0.75
                             w: 200
                             h: 40
-                            content: Twice {
+                            content: Drawn {
                                 w: 200
                                 h: 40
                                 Rectangle {
@@ -623,10 +634,10 @@ Item {
                         }
                     }
 
-                    // The list's panel, its right side back, held from the
-                    // right by arms on a hinge past the screen's edge: as a
-                    // game starts it swings out on it, its inner side towards
-                    // us.
+                    // The list's panel, its right side back (facing us on a
+                    // tube, angled), held from the right by arms on a hinge
+                    // past the screen's edge: as a game starts it swings out
+                    // on it, its inner side towards us.
                     Node {
                         id: listHinge
                         x: 620
@@ -637,8 +648,8 @@ Item {
                             id: listPanel
                             x: look.sx((look.panelLeft + look.panelRight) / 2) - listHinge.x
                             z: -listHinge.z
-                            eulerRotation.y: 16
-                            eulerRotation.x: -3
+                            eulerRotation.y: 16 * look.angled
+                            eulerRotation.x: -3 * look.angled
 
                             Model {
                                 geometry: Mesh {
@@ -734,7 +745,7 @@ Item {
                                         z: 22
                                         w: look.panelWidth - 40
                                         h: look.rowHeight
-                                        content: Twice {
+                                        content: Drawn {
                                             id: rowSheet
                                             w: look.panelWidth - 40
                                             h: look.rowHeight
@@ -819,7 +830,7 @@ Item {
                                 y: look.panelHeight / 2 - (look.tabBottom - look.panelTop) / 2
                                 w: look.panelWidth
                                 h: look.tabBottom - look.panelTop
-                                content: Twice {
+                                content: Drawn {
                                     id: tab
                                     w: look.panelWidth
                                     h: look.tabBottom - look.panelTop
@@ -865,7 +876,7 @@ Item {
                                    - 60
                                 w: look.panelWidth - 40
                                 h: 120
-                                content: Twice {
+                                content: Drawn {
                                     w: look.panelWidth - 40
                                     h: 120
                                     Letters {
@@ -907,9 +918,9 @@ Item {
                         }
                     }
 
-                    // The details' panel, its left side back, held from the
-                    // left on a hinge past the screen's left edge, swinging out
-                    // the other way.
+                    // The details' panel, its left side back (facing us on a
+                    // tube), held from the left on a hinge past the screen's
+                    // left edge, swinging out the other way.
                     Node {
                         id: infoHinge
                         x: -600
@@ -922,8 +933,8 @@ Item {
                             readonly property real h: look.infoBottom - look.infoTop
                             x: look.sx((look.infoLeft + look.infoRight) / 2) - infoHinge.x
                             z: 10 - infoHinge.z
-                            eulerRotation.y: -12
-                            eulerRotation.x: -4
+                            eulerRotation.y: -12 * look.angled
+                            eulerRotation.x: -4 * look.angled
 
                             Model {
                                 geometry: Mesh { made: look.slab(look.chamfered(0, 0, infoPanel.w, infoPanel.h, 22), -8, 10) }
@@ -964,7 +975,7 @@ Item {
                                 z: 14
                                 w: infoPanel.w
                                 h: infoPanel.h
-                                content: Twice {
+                                content: Drawn {
                                     w: infoPanel.w
                                     h: infoPanel.h
                                     Column {
@@ -1043,7 +1054,7 @@ Item {
                         z: 30
                         w: Math.max(40, to - from)
                         h: 40
-                        content: Twice {
+                        content: Drawn {
                             w: betweenSheet.w
                             h: 40
                             Letters {
