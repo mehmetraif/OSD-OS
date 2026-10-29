@@ -35,11 +35,11 @@ cd OSD-OS
 Any of three:
 
 - **Qt's online installer** ([qt.io/download](https://qt.io/download)), installed to `~/Qt`. Under Additional Libraries, add **Qt Shader Tools**.
-- **aqtinstall**, the unattended installer behind the release workflow's Qt. The workflow builds with Qt 6.7 and its `qtshadertools` module:
+- **aqtinstall**, the unattended installer behind the release workflow's Qt. The workflow builds with Qt 6.7 and its `qtshadertools` and `qtquick3d` modules (Qt Quick 3D draws the Orb look, at run time only):
 
   ```sh
   python3 -m pip install aqtinstall
-  aqt install-qt mac desktop 6.7.3 clang_64 -m qtshadertools -O ~/Qt
+  aqt install-qt mac desktop 6.7.3 clang_64 -m qtshadertools qtquick3d -O ~/Qt
   ```
 
 - **Homebrew**: `brew install qt@6` (an alias of Homebrew's `qt`, which includes Qt Shader Tools).
@@ -268,6 +268,7 @@ CMAKE_PREFIX_PATH=/path/to/Qt/6.7.x/gcc_64 scripts/build-appimage.sh --configure
 - On its first run the script downloads `linuxdeploy`, `linuxdeploy-plugin-qt` and `appimagetool` into `.appimage-tools/`, and keeps them.
 - Its environment: `BUILD_DIR` (default `build`), `APPDIR` (default `AppDir`), `VERSION` (default `git describe`), `MPV_BIN` (the mpv to bundle, default the one on the `PATH`), `QMAKE`, `CMAKE_PREFIX_PATH`.
 - It bundles a copy of mpv, deploys Qt, then takes out the GPU and driver libraries the target must bring itself (VA-API, GL, libdrm). It then checks every library the AppImage's programs need: one neither bundled nor allowed from the host fails the build, with the libraries named. `ALLOW_HOST_LIBS_EXTRA="soname …"` lets a release through without editing the script.
+- A Qt with Qt Quick 3D (the Orb look) needs **Qt Quick Timeline** too. The script bundles every module of Qt Quick 3D, and AssetUtils' library links against Timeline's, so without it that library is left out and the check above stops the build. The release workflow's Qt has `qtshadertools qtquick3d qtquicktimeline`.
 - **The bundled mpv must be 0.38 or newer.** Ubuntu 24.04's is 0.37 and 22.04's 0.34.1, so build one first and hand it over:
 
   ```sh
