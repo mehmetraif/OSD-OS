@@ -430,7 +430,7 @@ Each time a theme is read, the log has a line saying which and from where, and o
 | `[AppCore] theme my-theme: its background shader, "../rain.frag.qsb", is not a qsb file in its folder` | The shader file is missing, out of the folder, or not `.qsb` | That effect without a shader |
 | `[AppCore] theme my-theme: its music, "tune.wma", is not a ogg/opus/mp3/flac/wav/m4a/aac/mid/midi/xm/mod/s3m/it file in its folder` | The music file is missing, out of the folder, or of another type | No music |
 | `[AppCore] theme my-theme: its arcade, "cube", is not a look the Arcade screen has` | `arcade` is something other than `"orb"` | The Arcade screen's own look |
-| `qml: [Arcade] the Orb look needs Qt Quick 3D: the Arcade screen's own is drawn` | `arcade` is `"orb"`, and this Qt has no Qt Quick 3D (or its Helpers) | The Arcade screen's own look |
+| `qml: [Arcade] the Orb look needs Qt Quick 3D: the Arcade screen's own is drawn` | `arcade` is `"orb"`, and this Qt has no Qt Quick 3D (or its Helpers): a Raspberry Pi set up before 0.0.31 needs them [installed once](https://github.com/mehmetraif/OSD-OS/wiki/Arcade#the-orb-look), which Settings → Update doesn't do | The Arcade screen's own look |
 | `[AppCore] theme my-theme: its window, "frame.jpg", is not a png/gif/bmp file in its folder` | A picture of its own skin can't be used (the [Skins](https://github.com/mehmetraif/OSD-OS/wiki/Skins#what-the-log-says) page has every skin line) | That part as OSD/OS draws it |
 | `qml: [Effect] file:///…/tube.frag.qsb can't be used, OSD/OS's own in its place` | The screen shader didn't load | OSD/OS's screen shader, with the theme's numbers |
 | `qml: [Effect] file:///…/plasma.frag.qsb can't be used` | The background shader didn't load | No background effect |
