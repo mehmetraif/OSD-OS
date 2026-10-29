@@ -350,8 +350,11 @@ jobs:
           target: desktop
           arch: linux_gcc_64
           # Compiles the screen's effects (shaders/) into the app; Qt Quick
-          # 3D draws the Arcade screen's Orb look.
-          modules: 'qtshadertools qtquick3d'
+          # 3D draws the Arcade screen's Orb look. linuxdeploy bundles every
+          # module of Qt Quick 3D, AssetUtils among them, whose library links
+          # against Qt Quick Timeline's: without Timeline, AssetUtils' library
+          # is left out and the AppImage's library audit stops the build.
+          modules: 'qtshadertools qtquick3d qtquicktimeline'
           cache: true
 
       - name: Install build + bundling dependencies
