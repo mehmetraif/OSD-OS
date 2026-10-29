@@ -15,6 +15,7 @@ on:
     paths:
       - 'site/**'
       - 'docs/images/theme-*.gif'
+      - 'docs/images/theme-*.mp4'
       - 'docs/images/default-look.gif'
       - 'docs/images/osdos-on-a-crt.jpg'
       - 'docs/images/osdos-logo.svg'
@@ -37,6 +38,7 @@ on:
     paths:
       - 'site/**'
       - 'docs/images/theme-*.gif'
+      - 'docs/images/theme-*.mp4'
       - 'docs/images/default-look.gif'
       - 'docs/images/osdos-on-a-crt.jpg'
       - 'docs/images/osdos-logo.svg'

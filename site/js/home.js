@@ -2,7 +2,8 @@
 // recording swapped in once it is loaded, unless the visitor asked for less
 // motion), the tabs, and the terminal commands' Copy buttons. The
 // themes come from themes.json, which scripts/build-site.py writes from the
-// app's own themes: each with its name, its two colours and its pictures.
+// app's own themes: each with its name, its two colours and its pictures,
+// the recording a GIF or, for a 3D look a GIF would blur, an MP4.
 
 function pixelIcon(name) {
     const ns = "http://www.w3.org/2000/svg";
@@ -17,6 +18,7 @@ function pixelIcon(name) {
 
 // --- The theme previews.
 const image = document.querySelector("#theme-image");
+const video = document.querySelector("#theme-video");
 const nameLabel = document.querySelector("#theme-name");
 const motion = document.querySelector("#motion");
 const buttons = document.querySelector("#theme-buttons");
@@ -41,12 +43,14 @@ function whenNear(img, then) {
 
 // A recording shown once it is in, the still until then: a blank frame
 // while it loads would be a flicker. Asked for another meanwhile, this one
-// is left where it is.
+// is left where it is. An MP4 plays in the theme preview's video instead.
 function showRecording(img, recording, alt) {
     img.dataset.wanted = recording;
     whenNear(img, () => {
         if (img.dataset.wanted !== recording)
             return;
+        if (recording.endsWith(".mp4"))
+            return playVideo(img, recording, alt);
         const loader = new Image();
         loader.onload = () => {
             if (img.dataset.wanted !== recording)
@@ -56,6 +60,30 @@ function showRecording(img, recording, alt) {
         };
         loader.src = recording;
     });
+}
+
+// The video in the picture's place, the still its poster until it plays,
+// and for good where it can't: a browser without H.264, or one holding back
+// a muted video's playing (iOS's Low Power Mode). Played, not preloaded, it
+// is downloaded only to be played.
+function playVideo(img, recording, alt) {
+    video.poster = img.getAttribute("src");
+    video.setAttribute("aria-label", alt);
+    video.src = recording;
+    img.hidden = true;
+    video.hidden = false;
+    video.play().catch(() => {});
+}
+
+// The video stopped and put away, the picture back in its place.
+function stopVideo() {
+    if (!video.hasAttribute("src"))
+        return;
+    video.pause();
+    video.removeAttribute("src");
+    video.load();
+    video.hidden = true;
+    image.hidden = false;
 }
 
 function updateMotionButton() {
@@ -73,7 +101,8 @@ function updateTheme() {
     if (!current)
         return;
     const stillAlt = `The ${current.name} theme: ${current.about}`;
-    const recordingAlt = `The ${current.name} theme, recorded as the menus are browsed: ${current.about}`;
+    const recordingAlt = `The ${current.name} theme, recorded ${current.recorded || "as the menus are browsed"}: ${current.about}`;
+    stopVideo();
     image.dataset.wanted = "";
     image.src = current.still;
     image.alt = stillAlt;

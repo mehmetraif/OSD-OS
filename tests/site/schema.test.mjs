@@ -86,18 +86,33 @@ test("the website's files are all there", () => {
     }
 });
 
-test("the landing page's themes are the app's, each with its colours and pictures", () => {
+test("the landing page's themes are the app's, Setup's and the app's alone alike, each with its colours and pictures", () => {
     const themes = JSON.parse(readFileSync(join(out, "themes.json"), "utf8"));
-    const offered = valuesOf(appRows.find(r => r.key === "osd_theme")).filter(v => v !== "" && v !== "Off").sort();
-    assert.deepEqual(themes.map(t => t.id).sort(), offered);
+    // Every built-in theme: those Setup offers, and Orb, which the app alone
+    // offers ("setup": false).
+    const folders = readdirSync(join(root, "assets/themes"))
+        .filter(folder => existsSync(join(root, "assets/themes", folder, "theme.json"))).sort();
+    assert.deepEqual(themes.map(t => t.id).sort(), folders);
+    const offered = valuesOf(appRows.find(r => r.key === "osd_theme")).filter(v => v !== "" && v !== "Off");
+    assert.ok(offered.every(id => folders.includes(id)), `Setup's themes: ${offered.join(" ")}`);
+    assert.ok(!offered.includes("orb") && folders.includes("orb"), "Orb on the landing page, not in Setup");
     for (const theme of themes) {
-        assert.equal(theme.name, schema.looks.themes[theme.id].name);
+        assert.equal(theme.name, JSON.parse(read(`assets/themes/${theme.id}/theme.json`)).name);
         assert.ok(theme.about.length > 0, `${theme.id}'s line`);
         assert.match(theme.primary, /^#[0-9A-Fa-f]{6}$/, theme.id);
         assert.match(theme.surface, /^#[0-9A-Fa-f]{6}$/, theme.id);
+        assert.match(theme.recording, /\.(?:gif|mp4)$/, theme.id);
         for (const file of [theme.still, theme.recording])
             assert.ok(existsSync(join(out, file)), `${theme.id}'s ${file}`);
     }
+    // Orb's look is the Arcade screen's alone: its recording, an MP4, is
+    // made there, and its line says so.
+    const orb = themes.find(t => t.id === "orb");
+    assert.match(orb.recording, /\.mp4$/);
+    assert.match(orb.recorded, /Arcade screen/);
+    assert.ok(themes.filter(t => t.id !== "orb").every(t => !("recorded" in t)), "the others recorded in the menus");
+    // The page has the video an MP4 plays in, put away until it plays.
+    assert.match(readFileSync(join(out, "index.html"), "utf8"), /<video id="theme-video"[^>]*\bmuted\b[^>]*\bhidden\b/);
 });
 
 test("the live preview draws with the app's own shaders, as they are", () => {
