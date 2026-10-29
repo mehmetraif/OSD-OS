@@ -632,6 +632,8 @@ Settings → **Update** checks GitHub for the latest release ([Installation](htt
 
 This works because `/opt/osdos` belongs to `pi`, the launcher's API is set, and the app is `/opt/osdos/bin/osdos`. `install.sh` run on the image (for a particular release, say) keeps the image's own `osdos.service` as it is, with its user, and brings the app, the launcher and the helpers around the service up to date.
 
+An update brings OSD/OS alone. What a newer release needs of the system, a package or one of the helpers around the service, comes with a newer image, or with `install.sh` run again, which keeps the settings. The Orb theme's Qt Quick 3D, in the image since 0.0.31, is such a package: a card flashed before needs it installed once ([Arcade → The Orb look](https://github.com/mehmetraif/OSD-OS/wiki/Arcade#the-orb-look)).
+
 An image built by the **OS image** workflow (or locally from a branch) has an app built as `dev`. Its Update screen checks, to read the notes, but says **Dev build — self-update is disabled.** That way a branch's image can't replace itself with a release that doesn't have the branch's changes.
 
 ### yt-dlp

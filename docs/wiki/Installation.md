@@ -693,6 +693,8 @@ On a Raspberry Pi the launcher unpacks the new version beside the old one, makes
 
 Your settings stay as they are. Some installs can't update in place, and the page says why: an install from before in-app updates (run `install.sh` once more, below), an install in a non-standard place, an AppImage in a read-only folder (download the new one by hand), or a `dev` build, such as an image from the OS image workflow, which can check and read the notes but not download.
 
+On a Raspberry Pi an update replaces OSD/OS alone, never the system's packages: a package a newer release needs comes with `install.sh` run again ([below](#updating-with-installsh)), or with a newer image. The Orb theme's Qt Quick 3D is one, for a Pi set up before 0.0.31 ([Arcade → The Orb look](https://github.com/mehmetraif/OSD-OS/wiki/Arcade#the-orb-look)).
+
 ### Updating with install.sh
 
 On Raspberry Pi OS, running the installer again also updates OSD/OS, keeping your settings. It is the way for an install made before in-app updates existed:

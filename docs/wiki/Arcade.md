@@ -281,7 +281,17 @@ Settings → **Theme** → **Orb** draws the Arcade screen in 3D, in x-ray glass
 
 The mouse works as on the screen above: the bar under the pointer is selected. Screen Adjustment moves and sizes the panels with the area, and Hint Bar and Help Line give their room to them; List Style, Border and Info Background are the screen above's only.
 
-The Orb look needs Qt Quick 3D, which the OSD/OS image, `install.sh` and the Mac and Windows builds bring; on another Linux it is `qml6-module-qtquick3d` and `qml6-module-qtquick3d-helpers`, on FreeBSD `qt6-quick3d`, on OpenBSD `qt6-qtquick3d`. It needs a GPU too. Without them the Arcade screen is drawn as above, in Orb's two colours, and the log says `[Arcade] the Orb look needs Qt Quick 3D: the Arcade screen's own is drawn`. Orb is chosen in Settings: the [Setup page](https://mehmetraif.github.io/OSD-OS/setup/) doesn't offer it yet.
+The Orb look needs Qt Quick 3D, which the OSD/OS image and `install.sh` (both since 0.0.31) and the Mac and Windows builds bring; on another Linux it is `qml6-module-qtquick3d` and `qml6-module-qtquick3d-helpers`, on FreeBSD `qt6-quick3d`, on OpenBSD `qt6-qtquick3d`. It needs a GPU too. Without them the Arcade screen is drawn as above, in Orb's two colours, and the log says `[Arcade] the Orb look needs Qt Quick 3D: the Arcade screen's own is drawn`. Orb is chosen in Settings: the [Setup page](https://mehmetraif.github.io/OSD-OS/setup/) doesn't offer it yet.
+
+**A Raspberry Pi set up before 0.0.31**, from the image or with `install.sh`, has no Qt Quick 3D, and Settings → Update doesn't bring it: an update replaces OSD/OS in `/opt/osdos`, never the system's packages. Install them once, from SSH or Exit to Terminal, as a user who can use `sudo`, and restart the Pi:
+
+```sh
+sudo apt update
+sudo apt install qml6-module-qtquick3d qml6-module-qtquick3d-helpers
+sudo reboot
+```
+
+Running `install.sh` again does the same, with whatever else a newer release needs of the system ([Installation → Updating with install.sh](https://github.com/mehmetraif/OSD-OS/wiki/Installation#updating-with-installsh)). An image built without a password has no `sudo` ([The user, its password and sudo](https://github.com/mehmetraif/OSD-OS/wiki/The-OSD-OS-Image#the-user-its-password-and-sudo)): flash the image of 0.0.31 or later instead, after copying your games and films off the card's **OSD-OS** partition.
 
 ## Game Details
 
