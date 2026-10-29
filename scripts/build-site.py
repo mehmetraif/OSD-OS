@@ -40,6 +40,9 @@ SHADERS = ROOT / "shaders"
 ISO3166 = pathlib.Path("/usr/share/zoneinfo/iso3166.tab")
 ZONES = pathlib.Path("/usr/share/zoneinfo/zone.tab")
 MARK = ".osdos-site"
+# A theme's recording on the landing page: a GIF, or an MP4 where a GIF would
+# blur the look and weigh far more (Orb's Arcade screen, in 3D).
+RECORDINGS = (".gif", ".mp4")
 
 # The landing page's line on each theme, after the wiki's Themes page: what
 # its recording shows, read out for the picture.
@@ -56,10 +59,17 @@ THEME_ABOUT = {
                  "text flickering like a neon sign",
     "matrix": "green on black, Matrix rain behind the menus, glowing text and lightning crackling out "
               "of the selected line; windows ripple",
+    "orb": "the Arcade screen in 3D x-ray glass: the games on a panel, the game's picture in an orb and "
+           "fog drifting behind; a game started takes the camera into the orb",
     "trinitron": "Video 1's blue in rounded windows on a tube's curved face, with scanlines and glow; "
                  "windows turn over like a cube",
     "winter": "ice on night blue, snow falling, a glint sweeping across the text and sparkles flying "
               "off the selected line; windows spread from a drop",
+}
+# What a theme's recording shows where it isn't the menus being browsed: a
+# look of the Arcade screen alone is recorded there.
+THEME_RECORDED = {
+    "orb": "on the Arcade screen as a game is chosen and started",
 }
 
 
@@ -86,14 +96,17 @@ def languages():
     return out
 
 
-def offered(folder, file_name):
-    """The built-in themes or skins the page offers, as (path, JSON): every
-    one but a theme whose theme.json says "setup": false, which is the app's
-    alone (chosen in its Settings)."""
+def builtin(folder, file_name):
+    """The built-in themes or skins, as (path, JSON)."""
     for path in sorted((ROOT / "assets" / folder).glob("*/" + file_name)):
-        obj = json.loads(path.read_text())
-        if obj.get("setup", True) is not False:
-            yield path, obj
+        yield path, json.loads(path.read_text())
+
+
+def offered(folder, file_name):
+    """The built-in themes or skins the page offers: every one but a theme
+    whose theme.json says "setup": false, which is the app's alone (chosen in
+    its Settings)."""
+    return ((path, obj) for path, obj in builtin(folder, file_name) if obj.get("setup", True) is not False)
 
 
 def looks(folder, file_name):
@@ -375,26 +388,33 @@ def looks_data():
 
 
 def landing_themes(looks):
-    """themes.json, the landing page's theme previews: each theme the page
-    offers, by its folder, with its name, its line, its two colours (its own, or its
-    colour scheme's; the default scheme's without either) and its pictures, a
-    still from site/assets and the recording docs/images holds of it. A theme
-    without both pictures isn't shown."""
+    """themes.json, the landing page's theme previews: each built-in theme,
+    Setup's and the app's alone (Orb's) alike, by its folder, with its name, its
+    line, its two colours (its own, or its colour scheme's; the default
+    scheme's without either), its pictures, a still from site/assets and the
+    recording docs/images holds of it (RECORDINGS), and what the recording
+    shows where it isn't the menus being browsed. A theme without both
+    pictures isn't shown."""
     out = []
-    for folder, theme in looks["themes"].items():
+    for path, theme in builtin("themes", "theme.json"):
+        folder = path.parent.name
         still = SITE / "assets" / f"theme-{folder}.png"
-        recording = IMAGES / f"theme-{folder}.gif"
-        if not still.is_file() or not recording.is_file():
+        recording = next((IMAGES / f"theme-{folder}{ext}" for ext in RECORDINGS
+                          if (IMAGES / f"theme-{folder}{ext}").is_file()), None)
+        if not still.is_file() or recording is None:
             continue
         colors = theme.get("colors")
         if isinstance(colors, str):
             colors = looks["schemes"].get(colors)
         if not isinstance(colors, dict):
             colors = looks["schemes"].get("Video 1") or next(iter(looks["schemes"].values()))
-        out.append({"id": folder, "name": theme["name"],
-                    "about": THEME_ABOUT.get(folder, "its own colours, effects and music"),
-                    "primary": colors["primary"], "surface": colors["surface"],
-                    "still": f"assets/{still.name}", "recording": f"assets/{recording.name}"})
+        entry = {"id": folder, "name": theme.get("name", folder),
+                 "about": THEME_ABOUT.get(folder, "its own colours, effects and music"),
+                 "primary": colors["primary"], "surface": colors["surface"],
+                 "still": f"assets/{still.name}", "recording": f"assets/{recording.name}"}
+        if folder in THEME_RECORDED:
+            entry["recorded"] = THEME_RECORDED[folder]
+        out.append(entry)
     return out
 
 
@@ -502,7 +522,8 @@ def main():
     copy_fonts(out)
     write_icons(out, logo=False)
     (out / "assets").mkdir()
-    for path in sorted((SITE / "assets").glob("*.png")) + sorted(IMAGES.glob("theme-*.gif")):
+    recordings = sorted(p for ext in RECORDINGS for p in IMAGES.glob(f"theme-*{ext}"))
+    for path in sorted((SITE / "assets").glob("*.png")) + recordings:
         shutil.copy2(path, out / "assets" / path.name)
     for name in ("default-look.gif", "osdos-on-a-crt.jpg", "osdos-logo.svg"):
         shutil.copy2(IMAGES / name, out / "assets" / name)
