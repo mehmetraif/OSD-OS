@@ -9,6 +9,7 @@
 #include "player/EmbeddedMpv.h"
 #include "player/VideoSurface.h"
 #include "audio/MenuMusic.h"
+#include "util/DisplayHandoff.h"
 #include "AppCore.h"
 #include <QBuffer>
 #include <QDir>
@@ -85,6 +86,22 @@ class PlaybackRetireTest : public QObject {
     bool listen(QLocalServer &control) {
         QLocalServer::removeServer(socketPath());
         return control.listen(socketPath());
+    }
+    QVariantMap menuNote(const char *title) const {
+        return {{QStringLiteral("module"), QStringLiteral("com.osdos.local_files")},
+                {QStringLiteral("title"), QLatin1String(title)}, {QStringLiteral("menu"), true}};
+    }
+    // A controller with Transparent Background on: its videos play inside
+    // the window (libmpv), with `handoff` as the screen's.
+    void useEmbedded(AppCore &core, const QString &data, DisplayHandoff *handoff = nullptr) {
+        core.save_setting(QString(), QStringLiteral("transparent_background"), QStringLiteral("40"));
+        delete m_mpv;
+        m_mpv = new MpvController(m_dir.path(), data, &core, handoff);
+    }
+    // A picture mpv makes itself (lavfi), without a file or sound.
+    void playPicture(const char *source) {
+        m_mpv->loadAndPlay(QStringLiteral("av://lavfi:") + QLatin1String(source), 0, -1, -1, {}, {}, false, -1, 0,
+                           QString(), true);
     }
     static bool write(const QString &path, const QByteArray &text) {
         QFile file(path);
@@ -360,6 +377,59 @@ private slots:
         QCOMPARE(ended.count(), 1);
     }
 
+    // Transparent Background: a video asked for while the last one's player
+    // has its menu open over the picture (a card tapped, a favourite chosen)
+    // used to hear, inside its own loadAndPlay(), that playback had ended:
+    // the last session's end, which its view took for its own and left on.
+    // The end of a session replaced is no one's to hear.
+    void aVideoReplacedUnderItsMenuTellsNoOne() {
+        if (!EmbeddedMpv::available())
+            QSKIP("libmpv isn't installed here");
+        QTemporaryDir data;
+        QVERIFY(data.isValid());
+        AppCore core(data.path(), data.path());
+        useEmbedded(core, data.path());
+        const auto end = qScopeGuard([this] { delete m_mpv; m_mpv = nullptr; });
+        QSignalSpy ended(m_mpv, &MpvController::playbackEnded);
+        QSignalSpy menu(m_mpv, &MpvController::playerMenuRequested);
+        playPicture("color=c=gray:s=64x48:r=10");
+        QTRY_VERIFY_WITH_TIMEOUT(!m_mpv->videoFrame().isNull(), 10000);
+        m_mpv->noteSession(menuNote("gray"));
+        m_mpv->sendKey(QStringLiteral("ESC"));
+        QCOMPARE(menu.count(), 1);
+        QVERIFY(m_mpv->background());
+        QCOMPARE(ended.count(), 0);
+        playPicture("color=c=blue:s=64x48:r=10");
+        QCOMPARE(ended.count(), 0);  // not inside the call
+        QVERIFY(!m_mpv->background());
+        QTRY_VERIFY_WITH_TIMEOUT(m_mpv->videoActive() && !m_mpv->videoFrame().isNull(), 10000);
+        QTest::qWait(300);
+        QCOMPARE(ended.count(), 0);  // nor after: the end was the old session's
+    }
+
+    // Something else taking the screen (a game, a takeover script) while a
+    // video plays inside the window full screen: the video ends and its
+    // player is told, a tick later, where before only a video behind the
+    // menus ended and one full screen played on, unseen, under the game.
+    void aHandOffEndsAFullScreenVideo() {
+        if (!EmbeddedMpv::available())
+            QSKIP("libmpv isn't installed here");
+        QTemporaryDir data;
+        QVERIFY(data.isValid());
+        AppCore core(data.path(), data.path());
+        DisplayHandoff handoff;
+        useEmbedded(core, data.path(), &handoff);
+        const auto end = qScopeGuard([this] { delete m_mpv; m_mpv = nullptr; });
+        QSignalSpy ended(m_mpv, &MpvController::playbackEnded);
+        playPicture("color=c=gray:s=64x48:r=10");
+        QTRY_VERIFY_WITH_TIMEOUT(!m_mpv->videoFrame().isNull(), 10000);
+        emit handoff.handingOff(QStringLiteral("arcade"));
+        QVERIFY(!m_mpv->videoActive());
+        QCOMPARE(ended.count(), 0);
+        QTRY_COMPARE_WITH_TIMEOUT(ended.count(), 1, 3000);
+        QCOMPARE(ended.first().at(2).toString(), QStringLiteral("stopped"));
+    }
+
     // The app goes on while the old player quits, and the new one starts
     // once it has.
     void replacingDoesNotHoldTheApp() {
@@ -452,6 +522,32 @@ private slots:
         QVERIFY(!overlapped());
     }
 
+    // Keys pressed while the next player is on its way (loadAndPlay()'s tick,
+    // the old player quitting) used to be dropped, its loading screen up
+    // all the while: they wait for it now, as keys wait for its control
+    // connection, and reach it in their order once it listens.
+    void keysInTheLaunchGapReachTheNextPlayer() {
+        play("A");
+        QTRY_VERIFY_WITH_TIMEOUT(happened("start A"), 5000);
+        play("B");
+        m_mpv->sendKey(QStringLiteral("UP"));    // within the tick
+        QTest::qWait(60);                        // past it: B waits for A to quit
+        m_mpv->sendKey(QStringLiteral("DOWN"));
+        QTRY_VERIFY_WITH_TIMEOUT(happened("start B"), 5000);
+        QLocalServer control;
+        QVERIFY(listen(control));
+        QTRY_VERIFY_WITH_TIMEOUT(control.hasPendingConnections(), 5000);
+        QScopedPointer<QLocalSocket> socket(control.nextPendingConnection());
+        QByteArray commands;
+        connect(socket.data(), &QLocalSocket::readyRead, this, [&]() { commands += socket->readAll(); });
+        // What came as it connected, before anything was listening for it.
+        commands += socket->readAll();
+        QTRY_VERIFY2_WITH_TIMEOUT(commands.contains("DOWN"), commands.constData(), 3000);
+        QVERIFY(commands.contains("UP"));
+        QVERIFY(commands.indexOf("observe_property") < commands.indexOf("UP"));
+        QVERIFY(commands.indexOf("UP") < commands.indexOf("DOWN"));
+    }
+
     // A key held: its press goes as one, its repeats hold it down in mpv,
     // which repeats it at its own pace (the session's --input-ar-* options)
     // until it is let go (releaseKeys), or until the repeats stop coming.
@@ -514,6 +610,62 @@ private slots:
         m_mpv->sendKey(QStringLiteral("ESC"), true);
         QTest::qWait(100);
         QCOMPARE(lines().size(), 0);
+    }
+
+    // Back while the next player is on its way, its view up and its menu
+    // noted: the video ends for the menu, as back during it would, where it
+    // was to start. A player without a menu hears it stopped.
+    void backInTheLaunchGapOpensTheMenu() {
+        QSignalSpy ended(m_mpv, &MpvController::playbackEnded);
+        play("A", 12);
+        m_mpv->noteSession(menuNote("A"));
+        m_mpv->sendKey(QStringLiteral("ESC"));
+        QTRY_COMPARE_WITH_TIMEOUT(ended.count(), 1, 3000);
+        QCOMPARE(ended.first().at(0).toInt(), 12000);
+        QCOMPARE(ended.first().at(2).toString(), QStringLiteral("menu"));
+        QTest::qWait(200);
+        QVERIFY(!happened("start A"));
+        play("B", 3);
+        m_mpv->noteSession({{QStringLiteral("module"), QStringLiteral("com.osdos.youtube")},
+                            {QStringLiteral("title"), QStringLiteral("B")}});
+        m_mpv->sendKey(QStringLiteral("BS"));
+        QTRY_COMPARE_WITH_TIMEOUT(ended.count(), 2, 3000);
+        QCOMPARE(ended.last().at(0).toInt(), 3000);
+        QCOMPARE(ended.last().at(2).toString(), QStringLiteral("stopped"));
+        QTest::qWait(200);
+        QVERIFY(!happened("start B"));
+    }
+
+    // Back on a player that never acts on its quit (an mpv stuck in a
+    // driver's call reads neither that nor a signal): after a moment's grace
+    // it is terminated, then killed, and its player is told, where before
+    // nothing more happened and the screen stayed the player's for good.
+    void aFrozenPlayerIsEndedByBack() {
+        qputenv("FAKE_MPV_MODE", "ignore");   // takes no SIGTERM either
+        QSignalSpy ended(m_mpv, &MpvController::playbackEnded);
+        play("A");
+        QTRY_VERIFY_WITH_TIMEOUT(happened("start A"), 5000);
+        QLocalServer control;
+        QVERIFY(listen(control));
+        QTRY_VERIFY_WITH_TIMEOUT(control.hasPendingConnections(), 5000);
+        QScopedPointer<QLocalSocket> socket(control.nextPendingConnection());
+        QByteArray commands;
+        connect(socket.data(), &QLocalSocket::readyRead, this, [&]() { commands += socket->readAll(); });
+        m_mpv->noteSession(menuNote("A"));
+        QElapsedTimer since;
+        since.start();
+        m_mpv->sendKey(QStringLiteral("ESC"));
+        QTRY_VERIFY_WITH_TIMEOUT(commands.contains("quit"), 3000);
+        QCOMPARE(ended.count(), 0);
+        // The quit read by no one, the player is terminated after its
+        // grace, not before...
+        QTRY_VERIFY_WITH_TIMEOUT(happened("term A"), 5000);
+        QVERIFY2(since.elapsed() >= 1200, qPrintable(QStringLiteral("terminated after %1 ms").arg(since.elapsed())));
+        // ...and killed when the signal does nothing either: its player
+        // hears the end back asked for.
+        QTRY_COMPARE_WITH_TIMEOUT(ended.count(), 1, 5000);
+        QCOMPARE(ended.first().at(2).toString(), QStringLiteral("menu"));
+        QVERIFY(!happened("exit A"));
     }
 
     // A video its menu's Browse left (an mpv process having ended for the

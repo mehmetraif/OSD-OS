@@ -232,9 +232,10 @@ private:
     // is free (screenBusy()).
     void launchAfterRetirement(int serial, const QStringList &args,
                                const QStringList &media, bool embedded);
-    // stop() before that session started: its player is told it stopped once
+    // stop() before that session started: its player is told it stopped
+    // ("stopped", or "menu" for back on a player with a menu of its own) once
     // the screen is free, and back with the app.
-    void stopAfterRetirement(int serial, int positionMs);
+    void stopAfterRetirement(int serial, int positionMs, const QString &reason);
     // True while the next session must wait: the process loadAndPlay()
     // retired for it is still on its way out, or the screen is being handed
     // back to the app (handBackScreen()). A retired process that outlives its
