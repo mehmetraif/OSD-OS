@@ -40,7 +40,7 @@ ROM sets are copyrighted, like the games on them: use the games you are entitled
 | **Original** | OSD/OS's own tree, as the other modules have: Recently Played, Favorites, Search, All Games, and the games by players, decade and maker ([below](#the-original-screen)) |
 | **Arcade** (the default) | A cabinet's selection screen: one filter's games at a time, straight, on an arc or on a wheel, with the selected one's picture, high scores and details beside them; ◄ ► go through the filters, COIN buys credits and select or START plays ([below](#the-arcade-screen)) |
 
-Both list the same games from the same folder, share Recently Played and Favorites, and play a game the same way. Start Filter, Menu Filters, List Style, Border, Info Background, Screen Adjustment, Hint Bar and Help Line are the Arcade screen's own settings, so Settings → Arcade shows them only while Screen is Arcade. Its look is Settings' own, as every screen's is: its theme, colors, skin, background, selector effect and transitions.
+Both list the same games from the same folder, share Recently Played and Favorites, and play a game the same way. Start Filter, Menu Filters, List Style, Border, Info Background, Screen Adjustment, Hint Bar, Help Line and Attract Mode are the Arcade screen's own settings, so Settings → Arcade shows them only while Screen is Arcade. Its look is Settings' own, as every screen's is: its theme, colors, skin, background, selector effect and transitions.
 
 ## The original screen
 
@@ -78,7 +78,7 @@ Right on a game opens its options:
 
 With **Settings → Arcade → Screen** on **Arcade**, Arcade opens on a cabinet's selection screen, in letters made to be read on a CRT: none smaller than the hint bar's, the games' names larger.
 
-- **The list**, on the left: the games of one filter, seven to a page (as many as fit, in an area [Screen Adjustment](#screen-adjustment) made larger or smaller), each with its number and its title (`Galaga`, where MAME's name is `Galaga (Namco rev. B)`), and a heart on a favorite. They lie as **List Style** says ([below](#list-style)): on an arc unless it is changed. The selected game stands out of the others to the left, and its title, when it is too long for the row, scrolls through; the others are cut short with `…`.
+- **The list**, on the left: the games of one filter, seven to a page (as many as fit, in an area [Screen Adjustment](#screen-adjustment) made larger or smaller), each with its number and its title (`Galaga`, where MAME's name is `Galaga (Namco rev. B)`), and a heart on a favorite (in every filter but Favorites, where every game is one). They lie as **List Style** says ([below](#list-style)): on an arc unless it is changed. The selected game stands out of the others to the left, and its title, when it is too long for the row, scrolls through; the others are cut short with `…`.
 - **The bar** over it: the filter, with ◄ ► while there are others, and the page (`1/4`); on the wheel of 3D Curved, the game (`12/512`). A filter's name too long for the bar (`Playable Online` beside `1/7474`, a genre's, a publisher's) scrolls through it, as the selected title does.
 - **The picture**, on the right ([below](#pictures)), with the credits bought in its corner (`Credit 2`). A game with more than one picture shows the next every 4 seconds.
 - **The box** under the picture, a line for each of these that its height has room for ([below](#the-box-under-the-picture)):
@@ -263,6 +263,16 @@ COIN puts in a credit, up to 9, shown as `Credit 2` on the picture. They go in w
 
 With no credits, the game starts as it always does, and a coin goes in in the game itself (COIN).
 
+### Attract Mode
+
+Left alone, the Arcade screen can go through its games on its own, as a cabinet's attract mode shows off what it has. **Settings → Arcade → Attract Mode**, Off by default, says how: **In Order** moves to the next game every six seconds, down the list and round from the last game to the first; **Random** moves to a game at random each time. **Attract After** says how long the screen is left alone first: 30 seconds, 1 minute (the default), 2 or 5 minutes.
+
+- **The first button or key ends it**, and does nothing else: the game it moved to stays selected, and the next press acts as ever. A coin (COIN) both ends it and puts in a credit. The mouse moving over the screen ends it too.
+- **It waits** while a window is open over the list (a game's options, the engine's choice, Screen Adjustment, Game Details), while a game is starting or playing, on Search, Online Games, LAN Games and RetroArch Lobby, and on a filter of fewer than two games; the wait starts again once the screen is as it was.
+- **The screen saver stays away** while it goes on: the games moving are what the screen shows.
+
+With Cabinet Lock ([Settings](https://github.com/mehmetraif/OSD-OS/wiki/Settings#cabinet-lock)) a cabinet stays on this screen, and Attract Mode keeps it moving between players.
+
 ### The Orb look
 
 <table>
@@ -272,11 +282,11 @@ With no credits, the game starts as it always does, and a coin goes in in the ga
 
 Settings → **Theme** → **Orb** draws the Arcade screen in 3D, in x-ray glass that lights up where its parts cross. The keys do what they do on the screen above; only the look changes.
 
-- **The list**, on a glass panel at the right: the filter's name and the page on its tab, with ◄ ►, and eight games to a page on glass bars. The selected game's bar lights up and stands out towards you; the one you left goes back slowly. A heart marks a favorite.
+- **The list**, on a glass panel at the right: the filter's name and the page on its tab, with ◄ ►, and eight games to a page on glass bars. The selected game's bar lights up and stands out towards you; the one you left goes back slowly. A heart marks a favorite, in every filter but Favorites.
 - **The orb**, at the left: the game's pictures inside it, and the credits bought at its foot. On Search the keys to type with take its place.
 - **The panel under it**: the game's high scores, as in [the box](#the-box-under-the-picture), then its maker and year, its players and its play time; on a room of the lobby, what is said of the room.
 - **The keys**, at the foot, in the hint bar's place: back's button and what it does at the left, select's at the right, the others between them. The help line stays above them.
-- **Fog** drifts slowly behind, and the whole sways a little. ▲ ▼ tip it as if pushed, ◄ ► turn it, and it springs back. Settings → **Orb Fog**, under Theme, chooses the fog: **Picture**, a picture of fog drifting, light on the GPU (the default), or **Live**, fog worked out for every pixel as it drifts, as in the look's first design, thicker and quicker, and more work for a Raspberry Pi's GPU.
+- **Fog** drifts slowly behind, and the whole sways a little. ▲ ▼ tip it as if pushed, ◄ ► turn it, and it springs back. On a TV's or an arcade monitor's tube (the JAMMA board's 15 kHz modes, composite, SCART) its letters are drawn at the size the screen shows them, as the classic look's are: finer ones lose their strokes on its 240 or 480 lines. Settings → **Orb Fog**, under Theme, chooses the fog: **Picture**, a picture of fog drifting, light on the GPU (the default), or **Live**, fog worked out for every pixel as it drifts, as in the look's first design, thicker and quicker, and more work for a Raspberry Pi's GPU.
 - **A game started** swings the panels out on their hinges, brings the orb to the middle and goes into it, its picture opening out to fill the screen, before the screen that starts the game; about two and a half seconds, in which no key counts. Back from the game, the screen comes back as it was.
 
 The mouse works as on the screen above: the bar under the pointer is selected. Screen Adjustment moves and sizes the panels with the area, and Hint Bar and Help Line give their room to them; List Style, Border and Info Background are the screen above's only.
@@ -346,7 +356,7 @@ With MAME's own defaults, each joystick works its player's controls:
 
 On the JAMMA board that is the cabinet's own layout for both players, with the kick harness's buttons 4 to 6. Change a game's buttons in MAME's menu (**Tab → Input Settings**); MAME keeps them in `arcade/cfg`. The Arcade screen takes Coin and Start as MAME does: Coin a credit, Start the game ([The Arcade screen](#the-arcade-screen)).
 
-**Arcade Buttons.** A pad's own page in Settings → Controls says which of its buttons is each of a cabinet's, Button 1 to 8, Coin and Start, from a layout (**Fighting 6**, **Neo Geo 4**) or one by one ([Controls → Arcade Buttons](https://github.com/mehmetraif/OSD-OS/wiki/Controls#arcade-buttons)). A player whose pad has them plays every game with them, in MAME, and in FinalBurn Neo off line: the controller file gives that player's buttons 1 to 8, coin and start the pad's inputs (`<port type="P1_BUTTON1">` and on, with MAME's keys for them beside, for players 1 to 4), and that player's Coin and Start leave the game. A Coin or a Start the pad turns out not to have is its own Back or Start, or the other's own where the other of the two has its own. Under **Default**, the pad's, MAME numbers a pad's buttons its own way, as in the table above. What is changed in MAME's menu still comes before them: **Input Settings → Input Assignments (general)** for every game (`arcade/cfg/default.cfg`), and a game's own for that game.
+**Arcade Buttons.** A pad's own page in Settings → Controls says which of its buttons is each of a cabinet's, Button 1 to 8, Coin and Start, from a layout (**Fighting 6**, **Neo Geo 4**, or a console pad's: **NES**, **Mega Drive**, **SNES**, **Saturn**, **N64**) or one by one ([Controls → Arcade Buttons](https://github.com/mehmetraif/OSD-OS/wiki/Controls#arcade-buttons)). A player whose pad has them plays every game with them, in MAME, and in FinalBurn Neo off line: the controller file gives that player's buttons 1 to 8, coin and start the pad's inputs (`<port type="P1_BUTTON1">` and on, with MAME's keys for them beside, for players 1 to 4), and that player's Coin and Start leave the game. A Coin or a Start the pad turns out not to have is its own Back or Start, or the other's own where the other of the two has its own. Under **Default**, the pad's, MAME numbers a pad's buttons its own way, as in the table above. What is changed in MAME's menu still comes before them: **Input Settings → Input Assignments (general)** for every game (`arcade/cfg/default.cfg`), and a game's own for that game.
 
 Two pads of the same model have the same GUID, so MAME can't tell them apart: the lower-numbered player of the two has its number, and the other takes the place MAME's own order gives it. The JAMMA board's two sticks are told apart. Keyboards play too, with MAME's keys (5 coin, 1 start, the arrows and Ctrl, Alt, Space for player 1).
 
@@ -472,6 +482,8 @@ Settings → Arcade, the second row of Settings' first screen. The page is share
 | Screen Adjustment | (opens the Arcade screen to adjust) | As OSD/OS lays it out | Fits the Arcade screen to the screen: a frame whose sides ▲ ▼ ◄ ► move, the list and the box under the picture holding as many games and lines as fit ([Screen Adjustment](#screen-adjustment)). Shown while Screen is Arcade | `modules.com.osdos.arcade.screen_adjustment` |
 | Hint Bar | ON, OFF | ON | The keys at the foot of the Arcade screen and its windows, in place of Settings' own Hint Bar; off, the list and the box under the picture take its room. Shown while Screen is Arcade | `modules.com.osdos.arcade.hint_bar` |
 | Help Line | ON, OFF | ON | The game's full name, and what the box under the picture has no line for of its maker, year, players and system, under the Arcade screen's list, in place of Settings' own Help Line; off, the list and the box take its room. Shown while Screen is Arcade | `modules.com.osdos.arcade.help_line` |
+| Attract Mode | Off, In Order, Random | Off | Left alone, the Arcade screen goes through its games on its own, a game every six seconds: down the list, or at random; the first button or key ends it ([Attract Mode](#attract-mode)). Shown while Screen is Arcade | `modules.com.osdos.arcade.attract_mode` |
+| Attract After | 30 Seconds, 1 Minute, 2 Minutes, 5 Minutes | 1 Minute | How long the Arcade screen is left alone before Attract Mode begins. Shown while Attract Mode isn't Off | `modules.com.osdos.arcade.attract_after` |
 | Start Info Screen | ON, OFF | ON | Before a game, the screen of how to come back (and from the Arcade screen, the credits going in); off, the game starts straight from the list, under its loading screen ([Playing](#playing)) | `modules.com.osdos.arcade.start_info` |
 | Save High Scores | ON, OFF | ON | Keeps the games' high score tables with MAME's hiscore plugin ([above](#high-scores)) | `modules.com.osdos.arcade.high_scores` |
 | Online High Scores | Off, RetroAchievements | Off | RetroAchievements: a game FinalBurn Neo has plays in it, in hardcore mode, its scores going to RetroAchievements' leaderboards ([FinalBurn Neo](#finalburn-neo)) | `modules.com.osdos.arcade.online_high_scores` |
@@ -501,6 +513,8 @@ Settings → Arcade, the second row of Settings' first screen. The page is share
 | `menu_filters` | The filters turned on or off, by id: `{ "genres/Puzzle": false, "makers/Capcom": true }`, `"achievements"` for RetroAchievements, `"netplay"` for Playable Online and `"unknown"` for Not Recognized. One not in it is on, but a publisher's |
 | `play_at_startup` | The game's set (`"galaga"`), `""` for None; the app's own `startup_favorite` holds the same game, and either changes the other |
 | `list_style` | `"Straight"`, `"Curved"` or `"3D Curved"` |
+| `attract_mode` | `"Off"`, `"In Order"` or `"Random"` |
+| `attract_after` | `"30 Seconds"`, `"1 Minute"`, `"2 Minutes"` or `"5 Minutes"` |
 | `info_background` | A number from 0 (transparent) to 100 (solid) |
 | `screen_adjustment` | How far each side of the Arcade screen is moved out (in, below 0) from where OSD/OS lays it out, in 960ths of the screen's width and 720ths of its height: `{ "top": 30, "bottom": 54, "left": 12, "right": 12 }`. Edited by hand, a side out past the screen's edge is drawn at the edge, and two opposite sides that leave less room than the list and the picture need are drawn where OSD/OS lays them out |
 | `online_high_scores` | `"Off"` or `"RetroAchievements"` |
@@ -613,7 +627,7 @@ mame galaga \
 | **LAN Games** says `FinalBurn Neo Not Installed` | LAN games play in FinalBurn Neo, and RetroArch or the core is missing: install RetroArch, and download the core in **Settings → Arcade → FinalBurn Neo** ([Setting it up](#setting-it-up)) |
 | A CV1000 game on the network stays black, saying `Waiting for player 2` | It waits for player 2, the machine joining, to press something, so that both machines start it at the same moment ([LAN play](#lan-play)). A machine that joined a game already started says its picture may be wrong: host it again, and join before pressing anything |
 | RetroArch's picture is on the other screen, or none | On a Pi with two screens plugged in, RetroArch opens the first with a screen. Unplug the other |
-| The Arcade screen's settings aren't in Settings → Arcade | Start Filter, Menu Filters, List Style, Border, Info Background, Screen Adjustment, Hint Bar and Help Line show while **Screen** is **Arcade** |
+| The Arcade screen's settings aren't in Settings → Arcade | Start Filter, Menu Filters, List Style, Border, Info Background, Screen Adjustment, Hint Bar, Help Line and Attract Mode show while **Screen** is **Arcade** |
 | The Arcade screen's edges are cut off on a CRT, or it leaves a border unused | **Settings → Arcade → Screen Adjustment**: move each side of the frame to the screen's edge ([Screen Adjustment](#screen-adjustment)) |
 | A genre, a decade or Favorites isn't among the Arcade screen's filters | It has no games, or **Settings → Arcade → Menu Filters** has it off ([Menu Filters](#menu-filters)) |
 

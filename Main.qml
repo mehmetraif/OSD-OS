@@ -652,6 +652,8 @@ Window {
                 root.loadingEffect = value !== "Off"
             } else if (key === "orb_fog") {
                 root.orbFogLive = value === "Live"
+            } else if (key === "cabinet_lock") {
+                root.setCabinetLock(value === "On")
             } else if (key === "boot_colors") {
                 root.bootThemed = value !== "Default"
             } else if (key === "loading_colors") {
@@ -730,6 +732,7 @@ Window {
         root.pointerSetting = String((cfg.app && cfg.app.mouse_pointer) || "5")
         root.loadingEffect = !(cfg.app && cfg.app.loading_effect === "Off")
         root.orbFogLive = !!(cfg.app && cfg.app.orb_fog === "Live")
+        root.cabinetLockOn = !!(cfg.app && cfg.app.cabinet_lock === "On")
         root.bootThemed = !(cfg.app && cfg.app.boot_colors === "Default")
         root.loadingThemed = !(cfg.app && cfg.app.loading_colors === "Default")
         root.hintBarSetting = !(cfg.app && cfg.app.hint_bar === "Off")
@@ -880,6 +883,61 @@ Window {
                 listState: {}
             })
             moduleLoader.setSource(entryPoint, { "navParams": params })
+        }
+    }
+
+    // --- CABINET LOCK (Settings → Cabinet Lock, views/CabinetLock.qml) ---
+    // On, OSD/OS stays on its Start on Module, a cabinet's Arcade screen:
+    // back there goes nowhere, and back from anywhere else comes to it, so
+    // the main menu, Settings and Quit are out of reach, as is Ctrl+Q. The
+    // unlock buttons held together for three seconds
+    // (InputManager::unlockRequested) open the main menu, which stays open
+    // until OSD/OS starts again or they are held again; turned on in
+    // Settings, the lock is in force at once.
+    property bool cabinetLockOn: false
+    property bool cabinetUnlocked: false
+    // In force: on, not unlocked, with a module to stay on and buttons to
+    // unlock it (a config.json set by hand may have none: no lock then).
+    function cabinetLocked() {
+        return cabinetLockOn && !cabinetUnlocked && inputManager.unlockButtons !== ""
+               && appCore.startupModuleEntryPoint() !== ""
+    }
+    // The Start on Module alone above the main menu, as at startup.
+    function openHome() {
+        var entry = appCore.startupModuleEntryPoint()
+        if (!entry)
+            return
+        dismissScreenSaver()
+        appNavStack = [{ source: Qt.resolvedUrl("views/ModuleList.qml"), params: {}, listState: {} }]
+        appCurrentParams = {}
+        changeWindow(moduleLoader, entry, { "navParams": {} })
+    }
+    function openMainMenu() {
+        dismissScreenSaver()
+        appNavStack = []
+        appCurrentParams = {}
+        changeWindow(moduleLoader, Qt.resolvedUrl("views/ModuleList.qml"), { "navParams": {} })
+    }
+    function setCabinetLock(on) {
+        cabinetLockOn = on
+        cabinetUnlocked = false
+        if (cabinetLocked())
+            openHome()
+    }
+    Connections {
+        target: inputManager
+        ignoreUnknownSignals: true
+        function onUnlockRequested() {
+            // Not while a game or a video has the screen, nor before the
+            // start module has opened.
+            if (!root.cabinetLockOn || root.screenHandedOff || root.bootActive || root.startupHolding
+                    || !root._startupNavigated || appCore.startupModuleEntryPoint() === "")
+                return
+            root.cabinetUnlocked = !root.cabinetUnlocked
+            if (root.cabinetUnlocked)
+                root.openMainMenu()
+            else
+                root.openHome()
         }
     }
 
@@ -1187,7 +1245,7 @@ Window {
                 onSourceChanged: mpvController.setActiveModule(appCore.moduleIdForSource(source.toString()))
 
                 Keys.onPressed: (event) => {
-                    if ((event.modifiers & Qt.ControlModifier) && event.key === Qt.Key_Q) {
+                    if ((event.modifiers & Qt.ControlModifier) && event.key === Qt.Key_Q && !root.cabinetLocked()) {
                         Qt.quit()
                     }
                 }
@@ -1214,6 +1272,14 @@ Window {
 
                     function onGoBack() {
                         if (root.appNavStack.length === 0) return
+                        // Locked: the start module in the main menu's place,
+                        // and nothing behind it.
+                        if (root.appNavStack.length === 1 && root.cabinetLocked()) {
+                            if (appCore.moduleIdForSource(moduleLoader.source.toString())
+                                    !== appCore.get_setting("", "startup_module"))
+                                root.openHome()
+                            return
+                        }
                         var prev = root.appNavStack.pop()
                         root.appCurrentParams = prev.params
                         // Where its list was, in its params as the routers
@@ -1395,7 +1461,7 @@ Window {
             // can't see keys focused here — handle the chord directly).
             Keys.onPressed: (event) => {
                 event.accepted = true
-                if ((event.modifiers & Qt.ControlModifier) && event.key === Qt.Key_Q) {
+                if ((event.modifiers & Qt.ControlModifier) && event.key === Qt.Key_Q && !root.cabinetLocked()) {
                     Qt.quit()
                     return
                 }

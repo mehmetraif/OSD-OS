@@ -289,6 +289,8 @@ Every key Settings writes, with the row it belongs to. The values and defaults a
 | `startup_module` | Start on Module | string: a module id, or `"None"` |
 | `startup_favorite` | Play at Startup | object `{ "module", "path", "name" }`, or `""` |
 | `startup_from` | Startup From | string: `"Resume"` or `"Beginning"` |
+| `cabinet_lock` | Cabinet Lock | string: `"On"` or `"Off"` |
+| `unlock_buttons` | Cabinet Lock → Unlock Buttons | array of one to four `{ "input", "name" }`: `input` is a pad's button or direction by the player whose pad it is (`"p1/start"`, `"p2/dpup"`), by the pad for one of no player's, or a key by its Qt key code (`"key/49"` for 1); `name` is what the page shows (`"P1 START"`) |
 | `smooth_playback` | 1080p Playback (Pi 3) | string: `"On"` or `"Off"` |
 | `video_scaling` | Scaling | string: `"Letterbox"`, `"14:9"`, `"Pan & Scan"`, `"Anamorphic"` |
 | `transparent_background` | Transparent Background | number, 0 to 100, or the string `"Off"`. Its first values, `"On"` and `"Dim"`, still read as 0 and 60 |
@@ -350,7 +352,7 @@ When each part is read:
 |---|---|
 | The look (Theme and its parts, menu music), OSD Background, Window Frame, Transparent Background's solidity, Loading Effect, Loading Screen Colors, Boot Screen Colors, Hint Bar, Help Line, Mouse Pointer, Window Mode, Screen Saver | At start, then at each change made in Settings |
 | `display_index` | At start |
-| Audio Output, Controls' buttons and button labels | At start, then at each change made in Settings |
+| Audio Output, Controls' buttons and button labels, Cabinet Lock and its unlock buttons | At start, then at each change made in Settings |
 | The modules' folders (Media Directory, Tags Directory, Scripts Directory, Ambient:Mode's, Arcade's Games Folder) | At start, then at each change made in their settings |
 | Scaling (the app's and the module's), Video Levels, Channel Logo, Logo Image, Screen Saver's script, 1080p Playback, `mpv_video_args`, Transparent Background on or off | As each video starts |
 | Start on Module, Play at Startup, Startup From | As OSD/OS starts |

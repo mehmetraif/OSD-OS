@@ -40,6 +40,7 @@ The row offers, with ◄ ►: **Auto** (named for the card it plays through whil
 Without a USB sound card among them, the help line says what the system sees of one, to tell a card that isn't there from one the system couldn't use:
 
 - *No USB sound card is plugged in, as far as the system can tell*: the kernel lists no USB device with a sound interface. Check the plug, or try another USB port.
+- *USB Audio is plugged in, but shows no sound interface: some adapters show one only when something is in their jack as they are plugged in*: a USB device whose product name says it is for sound (*audio* or *sound* in it) shows the kernel its buttons alone (HID). Some adapters do so while nothing is in their jack, Realtek's USB Audio (`0bda:4ef0`) among them, found in a UGREEN USB to 3.5 mm adapter. Plug headphones or a cable into the jack, then unplug the adapter and plug it in again. An adapter wired to an amplifier keeps a cable plugged into its jack for good.
 - *USB Audio Device is plugged in, but the USB sound driver (snd-usb-audio) didn't take it*: the device is there, by its product name, with a sound interface no driver is bound to. The kernel's `snd-usb-audio` module loads by itself for one; `dmesg | grep -i usb` says why it didn't here (a device the driver needs a quirk for, or a module missing).
 - *USB Audio Device is plugged in and the USB sound driver took it, but ALSA made no card of it to play through*: the driver has the interface and still made no card of it; `dmesg` says why.
 - *USB Audio Device is plugged in, but it has no output to play through*: ALSA's card of it has an input alone (a microphone).
@@ -165,7 +166,9 @@ OSD/OS has no system volume setting. There are three volumes, each its own:
 |---|---|---|
 | **The menu music** | Settings → **Music Volume**, a slider from QUIET to LOUD in steps of 10, offered while Menu Music isn't Off. It changes as the slider moves | `app.menu_music_volume`, 0 to 100, 60 when unset |
 | **A video** | A keyboard's or remote's volume keys (volume up, volume down, mute) while it plays: steps of 5, with a VOLUME bar, MUTE while muted ([Controls](https://github.com/mehmetraif/OSD-OS/wiki/Controls)) | No. Each video starts afresh at mpv's own volume (100), or at `volume=` in mpv.conf for an mpv process |
-| **The sound card itself** | `alsamixer`, or `amixer`, from a shell | `sudo alsactl store` keeps it across reboots |
+| **The sound card itself** | Kept at its full level by OSD/OS. As anything starts to play, a level below 0 dB goes to 0 dB (to 100% on a card that gives no dB), and one switched off is switched on. It is never lowered, so a level set higher with `alsamixer` or `amixer` stays, and a microphone's or a line in's controls are left as they are | Nothing to keep: it is set again as each player starts |
+
+How loud it is, then, is the TV's volume, or an amplifier's: a JAMMA board's volume knob. OSD/OS's log says when it raised a card (`<card> at full level: 'PCM',0`).
 
 The volume keys go to mpv, never to the menus, and hold to repeat. With Transparent Background they also reach a video playing behind the menus. They don't change the menu music, nor Weather's or Ambient:Mode's music, which play at mpv's own volume. [Menu music](https://github.com/mehmetraif/OSD-OS/wiki/Menu-Music) has more on it.
 
@@ -197,14 +200,14 @@ The volume keys go to mpv, never to the menus, and hold to repeat. With Transpar
    ```
 
    It says "Front Left" and "Front Right". Silence here means the card, the cable or the TV, not OSD/OS.
-4. **Quiet on the AV jack?** Raise the card's own level, and keep it ([INSTALL.md](https://github.com/mehmetraif/OSD-OS/blob/main/INSTALL.md)):
+4. **Quiet on the AV jack?** OSD/OS keeps the card at 0 dB, its full level without a boost ([Volume](#volume)). The AV jack's level goes 4 dB higher, which OSD/OS leaves as it is, though loud sound can clip there:
 
    ```sh
-   amixer sset PCM 100%
+   amixer -c Headphones sset PCM 100%
    sudo alsactl store
    ```
 
-   `amixer` changes the default card; `amixer -c Headphones sset PCM 100%` names the AV jack's. `alsamixer` does the same with a picture of the levels: F6 picks the card.
+   `amixer` without `-c` changes the default card. `alsamixer` does the same with a picture of the levels: F6 picks the card.
 5. **Read what OSD/OS did.**
 
    ```sh

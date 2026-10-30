@@ -99,6 +99,19 @@ const Layout kLayouts[] = {
                                    "leftshoulder", "lefttrigger+", "back", "start" } },
     { "neogeo4",   "Neo Geo 4",  { "a", "b", "x", "y", "leftshoulder", "rightshoulder",
                                    "lefttrigger+", "righttrigger+", "back", "start" } },
+    // The consoles' pads, as SDL's database maps them: a NES pad's A and B,
+    // and an N64's, by their letters, its C buttons the right stick and its
+    // Z LT; a SNES pad's by their places, as OSD/OS reads a Nintendo pad (B
+    // south, A east, Y west, X north); a Mega Drive's and a Saturn's A B X Y
+    // so, C RT and Z RB, a Saturn's L LB and R LT. A Saturn and an N64 have
+    // no Select: Coin is L and Z.
+    { "nes",       "NES",        { "b", "a", "", "", "", "", "", "", "back", "start" } },
+    { "megadrive", "Mega Drive", { "a", "b", "righttrigger+", "x", "y", "rightshoulder", "", "", "back", "start" } },
+    { "snes",      "SNES",       { "x", "y", "leftshoulder", "a", "b", "rightshoulder", "", "", "back", "start" } },
+    { "saturn",    "Saturn",     { "x", "y", "rightshoulder", "a", "b", "righttrigger+", "lefttrigger+", "",
+                                   "leftshoulder", "start" } },
+    { "n64",       "N64",        { "b", "rightx-", "righty-", "a", "righty+", "rightx+", "leftshoulder",
+                                   "rightshoulder", "lefttrigger+", "start" } },
     { "custom",    "Custom",     {} },
 };
 

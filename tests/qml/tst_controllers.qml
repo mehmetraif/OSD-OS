@@ -124,6 +124,15 @@ Rectangle {
             calls = calls.concat([["arcadeInputs", key, tokens]])
             return "set"
         }
+        // Cabinet Lock's unlock buttons, and the wait for new ones.
+        property string unlockButtons: ""
+        signal unlockButtonsHeld(string names, bool tooMany)
+        signal unlockCaptureEnded(bool saved)
+        function captureUnlockButtons(on) {
+            calls = calls.concat([["captureUnlock", on]])
+            if (!on)
+                unlockCaptureEnded(false)
+        }
         function setPlayer(player, key) {
             calls = calls.concat([["player", player, key]])
             var list = players.slice()
@@ -149,6 +158,8 @@ Rectangle {
     QtObject {
         id: appCore
         property var settings: ({})
+        property var modules: [{ id: "com.osdos.arcade", name: "Arcade", enabled: true }]
+        function get_installed_modules() { return modules }
         function get_setting(module, key) { return settings[key] }
         function save_setting(module, key, value) {
             var s = settings
@@ -179,9 +190,13 @@ Rectangle {
                        ["lefttrigger+", "LT"], ["righttrigger+", "RT"], ["back", "BACK"], ["start", "START"],
                        ["leftstick", "LS"], ["rightstick", "RS"]]
         return { key: root.padKey, name: "8BitDo Pro 2", present: present !== false, jamma: 0, layout: layout,
-                 layoutTitle: { "default": "Default", fighting6: "Fighting 6", neogeo4: "Neo Geo 4", custom: "Custom" }[layout],
+                 layoutTitle: { "default": "Default", fighting6: "Fighting 6", neogeo4: "Neo Geo 4", nes: "NES",
+                                megadrive: "Mega Drive", snes: "SNES", saturn: "Saturn", n64: "N64", custom: "Custom" }[layout],
                  layouts: [{ layout: "default", title: "Default" }, { layout: "fighting6", title: "Fighting 6" },
-                           { layout: "neogeo4", title: "Neo Geo 4" }, { layout: "custom", title: "Custom" }],
+                           { layout: "neogeo4", title: "Neo Geo 4" }, { layout: "nes", title: "NES" },
+                           { layout: "megadrive", title: "Mega Drive" }, { layout: "snes", title: "SNES" },
+                           { layout: "saturn", title: "Saturn" }, { layout: "n64", title: "N64" },
+                           { layout: "custom", title: "Custom" }],
                  rows: rows, choices: choices.map(function(c) { return { token: c[0], label: c[1] } }) }
     }
     readonly property var padInputs: ["a", "b", "x", "y", "leftshoulder", "rightshoulder", "lefttrigger+", "righttrigger+",
@@ -287,6 +302,18 @@ Rectangle {
             // As Main.qml gives it: the view loaded takes the keys.
             loader.item.forceActiveFocus()
             return loader.item
+        }
+
+        // The text item shown with this in it.
+        function findText(item, text) {
+            if (item.text !== undefined && item.visible && String(item.text).indexOf(text) >= 0)
+                return item
+            for (var i = 0; i < item.children.length; i++) {
+                var found = findText(item.children[i], text)
+                if (found)
+                    return found
+            }
+            return null
         }
 
         function test_list() {
@@ -857,6 +884,32 @@ Rectangle {
             compare(root.navigations[2].path, "views/ArcadeButtons.qml")
         }
 
+        // A console pad's own layouts, after Neo Geo 4: each says what its
+        // buttons are by the console's names for them.
+        function test_arcadeConsoleLayouts() {
+            var page = open("ArcadeButtons.qml", { key: root.padKey })
+            keyClick(Qt.Key_Right)
+            keyClick(Qt.Key_Right)
+            keyClick(Qt.Key_Right)
+            compare(inputManager.calls[2], ["arcadeLayout", root.padKey, "nes"])
+            compare(page.rows[0].value, "NES")
+            verify(page.rows[0].description.indexOf("B is button 1, A button 2") >= 0, page.rows[0].description)
+            var said = {}
+            var layouts = ["megadrive", "snes", "saturn", "n64"]
+            for (var i = 0; i < layouts.length; i++) {
+                keyClick(Qt.Key_Right)
+                compare(inputManager.calls[3 + i], ["arcadeLayout", root.padKey, layouts[i]])
+                said[layouts[i]] = page.rows[0].description
+            }
+            compare(page.rows[0].value, "N64")
+            verify(said.megadrive.indexOf("A B C are buttons 1 2 3, X Y Z 4 5 6") >= 0, said.megadrive)
+            verify(said.snes.indexOf("punches 1 2 3 on Y X L, kicks 4 5 6 on B A R") >= 0, said.snes)
+            verify(said.saturn.indexOf("punches 1 2 3 on X Y Z, kicks 4 5 6 on A B C") >= 0, said.saturn)
+            verify(said.n64.indexOf("Z is Coin") >= 0, said.n64)
+            keyClick(Qt.Key_Right)
+            compare(page.rows[0].value, "Custom")
+        }
+
         // A pad's Arcade Buttons: its layout, a line set by a press (and
         // what InputManager made of it), or with ◄ ► among the inputs no
         // other line has (Coin and Start never none).
@@ -1198,6 +1251,59 @@ Rectangle {
             compare(inputManager.capturing, "")
             keyClick(Qt.Key_Escape)
             compare(root.backs, 1)
+        }
+
+        // Settings → Cabinet Lock (views/CabinetLock.qml): turned on without
+        // unlock buttons, they are waited for first, what is held shown as it
+        // changes, too many said so; once they are kept, it asks before it
+        // locks, and Lock saves it. Without a module to stay on, it says so
+        // and stays off. Off is saved at once.
+        function test_cabinetLock() {
+            appCore.settings = { startup_module: "com.osdos.arcade" }
+            var page = open("CabinetLock.qml")
+            verify(findText(page, "Cabinet Lock") !== null)
+            verify(findText(page, "None") !== null)
+            keyClick(Qt.Key_Return)
+            compare(inputManager.calls[inputManager.calls.length - 1], ["captureUnlock", true])
+            verify(page.capturing)
+            verify(findText(page, "Nothing held") !== null)
+            inputManager.unlockButtonsHeld("P1 START", false)
+            verify(findText(page, "P1 START") !== null)
+            inputManager.unlockButtonsHeld("P1 START + P2 START + P1 1 + P2 1 + P1 COIN", true)
+            verify(findText(page, "At most four") !== null)
+            inputManager.unlockButtonsHeld("P1 START + P2 START", false)
+            inputManager.unlockButtons = "P1 START + P2 START"
+            inputManager.unlockCaptureEnded(true)
+            verify(!page.capturing)
+            tryVerify(function() { return findText(page, "Lock the cabinet?") !== null })
+            verify(findText(page, "Hold P1 START + P2 START together for three seconds") !== null)
+            keyClick(Qt.Key_Return)   // Lock
+            compare(appCore.settings.cabinet_lock, "On")
+            // Off again, at once.
+            page.refresh()
+            verify(page.lockOn)
+            keyClick(Qt.Key_Left)
+            compare(appCore.settings.cabinet_lock, "Off")
+            verify(!page.lockOn)
+            // A wait ended from the page keeps the old ones.
+            keyClick(Qt.Key_Down)
+            keyClick(Qt.Key_Return)
+            verify(page.capturing)
+            keyClick(Qt.Key_Escape)
+            compare(inputManager.calls[inputManager.calls.length - 1], ["captureUnlock", false])
+            verify(!page.capturing)
+            verify(findText(page, "P1 START + P2 START") !== null)
+            // No module to stay on: said, and off.
+            appCore.settings = {}
+            page.refresh()
+            keyClick(Qt.Key_Up)
+            keyClick(Qt.Key_Return)
+            tryVerify(function() { return findText(page, "No Start on Module") !== null })
+            compare(appCore.settings.cabinet_lock, undefined)
+            keyClick(Qt.Key_Return)
+            keyClick(Qt.Key_Escape)
+            compare(root.backs, 1)
+            inputManager.unlockButtons = ""
         }
     }
 }

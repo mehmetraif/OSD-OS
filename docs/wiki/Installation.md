@@ -507,7 +507,7 @@ osdos
 
   `monitoraspect` is the screen's shape, the same in every mode; `monitorpixelaspect` is a pixel's, which changes with the mode ([pixel aspect ratio](https://en.wikipedia.org/wiki/Pixel_aspect_ratio#Introduction)). A `monitorpixelaspect=0.888889` line from earlier advice is only right for 720×480: remove it, and OSD/OS gives mpv the screen's shape itself.
 
-- **Composite sound unusually quiet:** `amixer sset PCM 100%`, and `sudo alsactl store` to keep the level across reboots.
+- **Composite sound unusually quiet:** OSD/OS keeps the card at 0 dB as it plays. `amixer sset PCM 100%` raises the AV jack 4 dB above that, which OSD/OS leaves as it is, and `sudo alsactl store` keeps it across reboots; loud sound can clip there.
 - **No sound at all:** Settings → Audio Output picks the sound card (the AV jack, HDMI or a USB card) where plain ALSA plays, as on Raspberry Pi OS Lite. [Audio Output](https://github.com/mehmetraif/OSD-OS/wiki/Audio-Output) also covers choosing it for the whole system.
 
 ## On macOS (Apple Silicon)

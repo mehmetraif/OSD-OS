@@ -224,7 +224,8 @@ At this point you can type `osdos` at any time to start up the app.  And if you 
 **Audio**
 
 - If analog / composite audio is unusually quiet:** 
-    - Run `amixer sset PCM 100%`
+    - OSD/OS keeps the card at 0 dB, its full level without a boost, as anything plays
+    - Run `amixer sset PCM 100%` to raise the AV jack 4 dB above that, which OSD/OS leaves as it is (loud sound can clip there)
     - If that solves it and you want to keep the level across reboots, run `sudo alsactl store`
 - If there is no audio at all:** 
     - **Settings → Audio Output** picks the card from the app, where plain ALSA plays (Raspberry Pi OS Lite, the OSD/OS image): it lists the cards there are, the AV jack, HDMI or a USB sound card, and plays through the one chosen from then on. The two options below choose outside the app, for every program or for mpv; a card chosen in Settings wins over both, and on **Auto** they apply. Without the first of them, Auto gives every player the first card that can play while ALSA's first card can't (a Pi 5's HDMI without the picture); the second still has the last word for mpv.

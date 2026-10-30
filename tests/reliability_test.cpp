@@ -303,8 +303,10 @@ private slots:
     }
 
     // Audio Output's note without a USB sound card to play through: nothing
-    // plugged in, a USB sound device no driver took (by its product name,
-    // once for its two sound interfaces, a keyboard left out), one the driver
+    // plugged in, an adapter named for sound showing its buttons alone (HID),
+    // as one does with nothing in its jack (a keyboard left out), a USB sound
+    // device no driver took (by its product name, once for its two sound
+    // interfaces, the keyboard left out), one the driver
     // took that ALSA made no card of, the Pi's power having dropped (the
     // firmware's flags, or the hwmon's alarm where the kernel has no such
     // file), a USB card with no output; none once ALSA has the card.
@@ -332,12 +334,18 @@ private slots:
         AudioOutput audio(&core);
         const auto note = [](const AudioOutput &output) { return output.settingRow().value("note").toString(); };
         QCOMPARE(note(audio), QString("No USB sound card is plugged in, as far as the system can tell"));
+        QVERIFY(write(usb + "/1-1.4/product", "Keyboard\n"));
+        QVERIFY(write(usb + "/1-1.4:1.0/bInterfaceClass", "03\n"));
+        QCOMPARE(note(audio), QString("No USB sound card is plugged in, as far as the system can tell"));
+        QVERIFY(write(usb + "/1-2/product", "USB Audio\n"));
+        QVERIFY(write(usb + "/1-2:1.0/bInterfaceClass", "03\n"));
+        QCOMPARE(note(audio), QString("USB Audio is plugged in, but shows no sound interface: some adapters show"
+                                      " one only when something is in their jack as they are plugged in"));
+        QVERIFY(QDir(usb + "/1-2").removeRecursively() && QDir(usb + "/1-2:1.0").removeRecursively());
 
         QVERIFY(write(usb + "/1-1.3/product", "USB Audio Device\n"));
         QVERIFY(write(usb + "/1-1.3:1.0/bInterfaceClass", "01\n"));
         QVERIFY(write(usb + "/1-1.3:1.1/bInterfaceClass", "01\n"));
-        QVERIFY(write(usb + "/1-1.4/product", "Keyboard\n"));
-        QVERIFY(write(usb + "/1-1.4:1.0/bInterfaceClass", "03\n"));
         const QString unmade = "USB Audio Device is plugged in, but the USB sound driver (snd-usb-audio) didn't take it";
         QCOMPARE(note(audio), unmade);
         // The driver bound to one of its sound interfaces (the kernel's link
@@ -482,6 +490,143 @@ private slots:
         QVERIFY(core.save_setting(QString(), "audio_output", QString()));
         QCOMPARE(AudioOutput::card(), QString());
         QVERIFY(!AudioOutput::hasPlaybackCard());
+#endif
+    }
+
+    // The card given to the players at its full level, through amixer (a
+    // stand-in noting what it is asked, its controls as a file says): a
+    // playback control below 0 dB to 0 dB, one without dB below 100% to
+    // 100%, one switched off on; never lowered (one at +4 dB, one at a top
+    // below 0 dB), an input's left as they are (a microphone's, a line in's,
+    // a control of both). Nothing asked of a card already full. Once for the
+    // players given it together; ALSA's default card on Auto; a test's cards
+    // none without the stand-in.
+    void cardAtFullLevel() {
+#ifndef Q_OS_LINUX
+        QSKIP("ALSA's cards are Linux's");
+#else
+        QTemporaryDir dir, runtime;
+        QVERIFY(dir.isValid() && runtime.isValid());
+        const QString asound = dir.path() + "/asound", amixer = dir.path() + "/amixer", log = dir.path() + "/amixer.log";
+        const auto write = [](const QString &path, const QByteArray &data) {
+            QDir().mkpath(QFileInfo(path).path()); QFile file(path);
+            return file.open(QIODevice::WriteOnly) && file.write(data) == data.size();
+        };
+        QVERIFY(write(asound + "/cards", " 0 [Headphones     ]: bcm2835_headpho - bcm2835 Headphones\n"
+                                         "                      bcm2835 Headphones\n"
+                                         " 1 [Device         ]: USB-Audio - USB Audio Device\n"
+                                         "                      GeneralPlus USB Audio Device at usb-xhci-hcd.0-1.3, full speed\n"));
+        QVERIFY(QDir().mkpath(asound + "/card0/pcm0p") && QDir().mkpath(asound + "/card1/pcm0p"));
+        QVERIFY(write(amixer, "#!/bin/sh\n"
+                              "echo \"$*\" >> \"$(dirname \"$0\")/amixer.log\"\n"
+                              "case \"$*\" in *scontents*) cat \"$(dirname \"$0\")/scontents\" ;; esac\n"));
+        QVERIFY(QFile::setPermissions(amixer, QFileDevice::ReadOwner | QFileDevice::WriteOwner | QFileDevice::ExeOwner));
+        // As amixer lists them: a USB card's PCM at -20 dB, a control without
+        // dB at 32%, a switch alone off, the AV jack's boost (+4 dB), one at
+        // its top below 0 dB, and an input's three.
+        const QByteArray low =
+            "Simple mixer control 'PCM',0\n"
+            "  Capabilities: pvolume pswitch pswitch-joined\n"
+            "  Playback channels: Front Left - Front Right\n"
+            "  Limits: Playback 0 - 87\n"
+            "  Mono:\n"
+            "  Front Left: Playback 40 [46%] [-20.00dB] [on]\n"
+            "  Front Right: Playback 40 [46%] [-20.00dB] [on]\n"
+            "Simple mixer control 'Headphone',0\n"
+            "  Capabilities: pvolume pvolume-joined\n"
+            "  Playback channels: Mono\n"
+            "  Limits: Playback 0 - 31\n"
+            "  Mono: Playback 10 [32%]\n"
+            "Simple mixer control 'Speaker',0\n"
+            "  Capabilities: pswitch pswitch-joined\n"
+            "  Playback channels: Mono\n"
+            "  Mono: Playback [off]\n"
+            "Simple mixer control 'Master',0\n"
+            "  Capabilities: pvolume pvolume-joined pswitch pswitch-joined\n"
+            "  Playback channels: Mono\n"
+            "  Limits: Playback -10239 - 400\n"
+            "  Mono: Playback 400 [100%] [4.00dB] [on]\n"
+            "Simple mixer control 'Top',0\n"
+            "  Capabilities: pvolume pvolume-joined\n"
+            "  Playback channels: Mono\n"
+            "  Limits: Playback 0 - 100\n"
+            "  Mono: Playback 100 [100%] [-0.39dB]\n"
+            "Simple mixer control 'Mic',0\n"
+            "  Capabilities: pvolume pvolume-joined cvolume cvolume-joined pswitch pswitch-joined cswitch cswitch-joined\n"
+            "  Playback channels: Mono\n"
+            "  Capture channels: Mono\n"
+            "  Limits: Playback 0 - 31 Capture 0 - 16\n"
+            "  Mono: Playback 0 [0%] [-23.00dB] [off] Capture 10 [62%] [10.00dB] [on]\n"
+            "Simple mixer control 'Line',0\n"
+            "  Capabilities: pvolume pswitch\n"
+            "  Playback channels: Mono\n"
+            "  Limits: Playback 0 - 31\n"
+            "  Mono: Playback 0 [0%] [-34.50dB] [off]\n"
+            "Simple mixer control 'Auto Gain Control',0\n"
+            "  Capabilities: switch switch-joined\n"
+            "  Playback channels: Mono\n"
+            "  Mono: [off]\n";
+        QVERIFY(write(dir.path() + "/scontents", low));
+        const QByteArray pulse = qgetenv("PULSE_SERVER"), xdg = qgetenv("XDG_RUNTIME_DIR"),
+                         alsaCard = qgetenv("ALSA_CARD"), alsaPcmCard = qgetenv("ALSA_PCM_CARD");
+        for (const char *name : { "PULSE_SERVER", "ALSA_CARD", "ALSA_PCM_CARD" })
+            qunsetenv(name);
+        qputenv("XDG_RUNTIME_DIR", runtime.path().toUtf8());
+        qputenv("OSDOS_ASOUND_DIR", asound.toUtf8());
+        qputenv("OSDOS_DRM_DIR", (dir.path() + "/drm").toUtf8());
+        qputenv("OSDOS_ALSA_CONFIG", (dir.path() + "/asound.conf").toUtf8());
+        qputenv("OSDOS_AMIXER", amixer.toUtf8());
+        const auto restore = qScopeGuard([&] {
+            for (const char *name : { "OSDOS_ASOUND_DIR", "OSDOS_DRM_DIR", "OSDOS_ALSA_CONFIG", "OSDOS_AMIXER" })
+                qunsetenv(name);
+            const auto put = [](const char *name, const QByteArray &value) {
+                if (value.isNull()) qunsetenv(name); else qputenv(name, value);
+            };
+            put("PULSE_SERVER", pulse); put("XDG_RUNTIME_DIR", xdg);
+            put("ALSA_CARD", alsaCard); put("ALSA_PCM_CARD", alsaPcmCard);
+        });
+        // What amixer was asked since the last look, a line each.
+        const auto asked = [&log] {
+            if (!QFileInfo::exists(log))
+                return QStringList();
+            const QString text = QString::fromUtf8(contents(log));
+            QFile::remove(log);
+            return text.split('\n', Qt::SkipEmptyParts);
+        };
+        AppCore core(dir.path(), dir.path());
+        AudioOutput audio(&core);
+        QVERIFY(audio.available());
+        asked();
+
+        // The USB card chosen, at once.
+        const QVariantMap usb { { "card", "Device" }, { "name", "USB Audio Device" } };
+        QVERIFY(core.save_setting(QString(), "audio_output", usb));
+        QCOMPARE(asked(), QStringList({ "-c Device scontents",
+                                        "-c Device -q sset 'PCM',0 0dB",
+                                        "-c Device -q sset 'Headphone',0 100%",
+                                        "-c Device -q sset 'Speaker',0 unmute" }));
+        // An mpv process's command line and environment: nothing more.
+        QProcessEnvironment env;
+        AudioOutput::mpvArgs();
+        AudioOutput::applyTo(env);
+        QCOMPARE(env.value("ALSA_CARD"), QString("Device"));
+        QCOMPARE(asked(), QStringList());
+        // Auto, with card0 playing: ALSA's default card, as amixer has it.
+        QVERIFY(core.save_setting(QString(), "audio_output", QString()));
+        QCOMPARE(asked().value(0), QString("scontents"));
+        // Already full: looked at, nothing set.
+        QByteArray full = low;
+        full.replace("Playback 40 [46%] [-20.00dB]", "Playback 87 [100%] [0.00dB]")
+            .replace("Playback 10 [32%]", "Playback 31 [100%]")
+            .replace("Mono: Playback [off]", "Mono: Playback [on]");
+        QVERIFY(write(dir.path() + "/scontents", full));
+        QVERIFY(core.save_setting(QString(), "audio_output", usb));
+        QCOMPARE(asked(), QStringList({ "-c Device scontents" }));
+        // A test's cards without the stand-in: amixer isn't run.
+        qunsetenv("OSDOS_AMIXER");
+        QVERIFY(core.save_setting(QString(), "audio_output", QString()));
+        QCOMPARE(AudioOutput::card(), QString());
+        QVERIFY(!QFileInfo::exists(log));
 #endif
     }
 

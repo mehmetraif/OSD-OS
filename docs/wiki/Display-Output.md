@@ -511,7 +511,7 @@ The Pi 5's part, the kernel's DPI:
 | `dtparam=hsync-invert,vsync-invert,rgb666-padhi` | Both syncs active low, as RGUI-Pi's DPI driver drives the board, and 6 bits a colour in the "mode 6" layout |
 | `dtoverlay=osdos-jamma-dpi` | The image's own overlay: the DPI on GPIO 2 to 9, 12 to 17 and 20 to 25 only, the Pi 5's own pin group for it. `rgb666-padhi` alone takes GPIO 0 and 1 too, from the controls. Built from [`osdos-jamma-dpi.dts`](https://github.com/mehmetraif/OSD-OS/blob/main/os/stage-osdos/03-boot/files/osdos-jamma-dpi.dts) into `/boot/firmware/overlays/osdos-jamma-dpi.dtbo` as the image is made |
 
-**The sound on a Pi 5.** A Pi 5 has its audio out only on GPIO 12 and 13 (`audremap-pi5`), which the picture takes, so the board's amplifier stays quiet. Plug in a USB sound card and choose it in [Settings → Audio Output](https://github.com/mehmetraif/OSD-OS/wiki/Audio-Output).
+**The sound on a Pi 5.** A Pi 5 has its audio out only on GPIO 12 and 13 (`audremap-pi5`), which the picture takes, so the board's amplifier stays quiet. Plug in a USB sound card and choose it in [Settings → Audio Output](https://github.com/mehmetraif/OSD-OS/wiki/Audio-Output). Some adapters show their sound only with something in their jack, so the cable from one to the cabinet's amplifier stays plugged into it. OSD/OS keeps the card at its full level, so the board's volume knob sets how loud it is.
 
 **Should the picture roll**: on a Pi 4, change the 2nd and 7th numbers of `dpi_timings` from `1` to `0`; on a Pi 5, take `hsync-invert,vsync-invert,` out of the line `dtparam=hsync-invert,vsync-invert,rgb666-padhi`. A monitor that drops its sync now and then may need a sync cleaner, as it would with other Pi boards.
 

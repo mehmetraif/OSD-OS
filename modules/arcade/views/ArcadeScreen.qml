@@ -552,6 +552,7 @@ FocusScope {
     function hoverAt(x, y) {
         if (typing || adjusting || options.visible || engines.visible || launching)
             return
+        noteActivity()
         // The Orb look's bars, where the camera sees them.
         if (orb) {
             var hit = rows[orbLook.item.rowAt(x, y)]
@@ -714,6 +715,61 @@ FocusScope {
         onTriggered: arcadeBackend.refreshLanRooms()
     }
 
+    // Attract Mode (Root.qml's attractMode): left alone for Attract After
+    // with the keys, on a filter of games, the screen goes through them on
+    // its own, the next or one at random every few seconds. The first key
+    // ends it and does nothing else, but for a coin; a game moved to stays.
+    // It holds the screen saver off while it goes on.
+    property bool attracting: false
+    readonly property bool attractable: moduleRoot.attractMode !== "Off" && activeFocus && !covered && !typing
+                                        && !adjusting && !launching && !roomFilter && filterId !== "search"
+                                        && count > 1 && !moduleRoot.playing
+    onAttractableChanged: if (!attractable) attracting = false
+    Timer {
+        id: attractIdle
+        objectName: "attractIdle"
+        interval: moduleRoot.attractAfter * 1000
+        running: arcadeScreen.attractable && !arcadeScreen.attracting
+        onTriggered: if (arcadeScreen.attractable) arcadeScreen.attracting = true
+    }
+    Timer {
+        objectName: "attractStep"
+        interval: 6000
+        repeat: true
+        triggeredOnStart: true
+        running: arcadeScreen.attracting
+        onTriggered: arcadeScreen.attractNext()
+    }
+    // The next game, round from the last to the first, or one at random.
+    function attractNext() {
+        if (idleTracker)
+            idleTracker.resetActivity()
+        if (count < 2)
+            return
+        if (moduleRoot.attractMode !== "Random") {
+            move(1)
+            return
+        }
+        var place = Math.floor(Math.random() * (count - 1))
+        browsed = true
+        selected = place >= selected ? place + 1 : place
+        if (wheel)
+            placeWheel(middleRow)
+        if (orb)
+            orbLook.item.nudge(0, 1)
+    }
+    // Something done on the screen: no attract mode till it is left alone
+    // again. True when it was going on.
+    function noteActivity() {
+        // Only a wait already going: the timer goes by its binding.
+        if (attractIdle.running)
+            attractIdle.restart()
+        if (!attracting)
+            return false
+        attracting = false
+        return true
+    }
+
     // Select plays the game as it is let go, and opens its options once held
     // this long (while the screen is adjusted, switches between moving the
     // sides out and in, and held puts them back). Only a press this screen
@@ -815,6 +871,11 @@ FocusScope {
     }
 
     Keys.onPressed: function(event) {
+        // The attract mode's end, the key spent on it but a coin.
+        if (noteActivity() && event.key !== Qt.Key_5) {
+            event.accepted = true
+            return
+        }
         // Keys the options leave go no further.
         if (options.visible)
             return
@@ -1057,14 +1118,14 @@ FocusScope {
                     PropertyAction { target: nameText; property: "x"; value: 0 }
                 }
             }
-            // A favourite's heart; Search's glass on its own row; and on a
-            // room of the lobby, ▶ for one to join, a lock for one with a
-            // password.
+            // A favourite's heart, but in Favorites, where every game is
+            // one; Search's glass on its own row; and on a room of the
+            // lobby, ▶ for one to join, a lock for one with a password.
             PixelIcon {
                 id: markIcon
                 readonly property string mark: row.game.search ? "search"
                                                : row.game.lobby ? Rooms.mark(row.game.lobby)
-                                               : row.game.favorite ? "heart" : ""
+                                               : row.game.favorite && arcadeScreen.filterId !== "favorites" ? "heart" : ""
                 visible: mark !== ""
                 name: mark
                 color: row.ink

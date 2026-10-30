@@ -15,6 +15,8 @@
 #include <QTextStream>
 
 #include <algorithm>
+#include <memory>
+#include <utility>
 #ifdef Q_OS_LINUX
 #include <QSocketNotifier>
 #include <QDir>
@@ -63,6 +65,23 @@ constexpr int kHandoffSettleMs = 500;
 // most, its presses but its directions' are taken for ones held through the
 // game: a Start that came in late would play the game again.
 constexpr int kHandoffReportMs = 3000;
+
+// Cabinet Lock's unlock buttons: at most four, held together for three
+// seconds. A press of one of them waits this long for the rest before it
+// acts. Chosen anew, the same held for two seconds is kept, and ten seconds
+// with nothing held end the wait.
+constexpr int kUnlockMax = 4;
+constexpr int kUnlockHoldMs = 3000;
+constexpr int kUnlockWaitMs = 300;
+constexpr int kUnlockCaptureHoldMs = 2000;
+constexpr int kUnlockCaptureIdleMs = 10000;
+// Planted in nativeVirtualKey of a key replayed after one held back for them
+// (replayKey()), which eventFilter() lets go on then as the real key it was.
+constexpr quint32 kReplayVirtualKey = 0x240F00E;
+// The keys' source among the inputs held (HeldInput), every keyboard's.
+QString keySource() {
+    return QStringLiteral("keys");
+}
 
 // Qt reports both shift keys as Qt::Key_Shift; telling them apart takes the
 // platform code. Linux keymaps (eglfs/evdev, X11, Wayland) report evdev's
@@ -196,8 +215,28 @@ InputManager::InputManager(const QString &dataRoot, AppCore *appCore, QObject *p
     connect(&m_repeatTimer,      &QTimer::timeout, this, &InputManager::onRepeatTick);
     m_clock.start();
 
+    // Cabinet Lock (captureUnlockButtons()).
+    m_unlockTimer.setSingleShot(true);
+    m_unlockTimer.setInterval(kUnlockHoldMs);
+    connect(&m_unlockTimer, &QTimer::timeout, this, &InputManager::unlockHeldOut);
+    m_heldBackTimer.setSingleShot(true);
+    m_heldBackTimer.setInterval(kUnlockWaitMs);
+    connect(&m_heldBackTimer, &QTimer::timeout, this, &InputManager::flushHeldBack);
+    m_captureHoldTimer.setSingleShot(true);
+    m_captureHoldTimer.setInterval(kUnlockCaptureHoldMs);
+    connect(&m_captureHoldTimer, &QTimer::timeout, this, [this] {
+        QVariantList kept;
+        for (const auto &held : std::as_const(m_captureHeld))
+            kept << QVariantMap{ { QStringLiteral("input"), held.first }, { QStringLiteral("name"), held.second } };
+        endUnlockCapture(m_appCore && m_appCore->save_setting(QString(), QStringLiteral("unlock_buttons"), kept));
+    });
+    m_captureIdleTimer.setSingleShot(true);
+    m_captureIdleTimer.setInterval(kUnlockCaptureIdleMs);
+    connect(&m_captureIdleTimer, &QTimer::timeout, this, [this] { endUnlockCapture(false); });
+
     loadProfiles();
     loadPlayers();
+    loadUnlock();
     rebuildMapping();
     initSdl();
 
@@ -253,6 +292,7 @@ InputManager::~InputManager() {
 
 void InputManager::setTargetWindow(QQuickWindow *window) {
     m_window = window;
+    m_replayDevices.clear();
 }
 
 // ── SDL lifecycle ─────────────────────────────────────────────────────────────
@@ -942,6 +982,188 @@ void InputManager::onAppSettingChanged(const QString &key, const QString &value)
         loadPlayers();
         updatePlayers();
     }
+    if (key == QLatin1String("cabinet_lock") || key == QLatin1String("unlock_buttons"))
+        loadUnlock();
+}
+
+// config.json's app.cabinet_lock ("On") and app.unlock_buttons ([{ input,
+// name }], as captureUnlockButtons() keeps them).
+void InputManager::loadUnlock() {
+    const QStringList names = m_unlockNames;
+    m_lockOn = false;
+    m_unlockInputs.clear();
+    m_unlockNames.clear();
+    if (m_appCore) {
+        m_lockOn = m_appCore->get_setting(QString(), QStringLiteral("cabinet_lock")).toString() == QLatin1String("On");
+        const QVariantList kept = m_appCore->get_setting(QString(), QStringLiteral("unlock_buttons")).toList();
+        for (const QVariant &v : kept) {
+            const QVariantMap one = v.toMap();
+            const QString input = one.value(QStringLiteral("input")).toString();
+            if (input.isEmpty() || m_unlockInputs.contains(input) || m_unlockInputs.size() == kUnlockMax)
+                continue;
+            m_unlockInputs << input;
+            m_unlockNames << one.value(QStringLiteral("name")).toString();
+        }
+    }
+    // Held from before, they count once pressed again.
+    flushHeldBack();
+    m_unlockHeld.clear();
+    m_unlockTimer.stop();
+    if (m_unlockNames != names)
+        emit unlockButtonsChanged();
+}
+
+QString InputManager::padInputId(SDL_JoystickID which, const QString &token) const {
+    const int player = m_playerPads.indexOf(which);
+    return (player >= 0 ? QStringLiteral("p%1").arg(player + 1) : m_pads.value(which).key)
+           + QLatin1Char('/') + token;
+}
+
+QString InputManager::padInputName(SDL_JoystickID which, const QString &token) const {
+    const Pad pad = m_pads.value(which);
+    const int player = m_playerPads.indexOf(which);
+    return (player >= 0 ? QStringLiteral("P%1").arg(player + 1) : pad.name) + QLatin1Char(' ')
+           + padInputLabel(pad, token);
+}
+
+void InputManager::captureUnlockButtons(bool on) {
+    if (!on) {
+        endUnlockCapture(false);
+        return;
+    }
+    // What waited for the rest of the unlock buttons acts first.
+    flushHeldBack();
+    m_unlockHeld.clear();
+    m_unlockTimer.stop();
+    m_unlockCapture = true;
+    m_captureHeld.clear();
+    m_captureHoldTimer.stop();
+    m_captureIdleTimer.start();
+}
+
+void InputManager::endUnlockCapture(bool saved) {
+    if (!m_unlockCapture)
+        return;
+    m_unlockCapture = false;
+    m_captureHeld.clear();
+    m_captureHoldTimer.stop();
+    m_captureIdleTimer.stop();
+    emit unlockCaptureEnded(saved);
+}
+
+// What is held while new unlock buttons are waited for: said, and kept once
+// it has stayed the same for two seconds, but more than four.
+void InputManager::unlockCaptureChanged() {
+    QStringList names;
+    for (const auto &held : std::as_const(m_captureHeld))
+        names << held.second;
+    const bool tooMany = m_captureHeld.size() > kUnlockMax;
+    emit unlockButtonsHeld(names.join(QStringLiteral(" + ")), tooMany);
+    if (m_captureHeld.isEmpty()) {
+        m_captureHoldTimer.stop();
+        m_captureIdleTimer.start();
+        return;
+    }
+    m_captureIdleTimer.stop();
+    if (tooMany)
+        m_captureHoldTimer.stop();
+    else
+        m_captureHoldTimer.start();
+}
+
+bool InputManager::unlockPress(const QString &id, const QString &name, const HeldInput &input, bool direction,
+                               const std::function<void()> &act) {
+    if (m_unlockCapture) {
+        const bool known = std::any_of(m_captureHeld.cbegin(), m_captureHeld.cend(),
+                                       [&id](const QPair<QString, QString> &held) { return held.first == id; });
+        if (!known)
+            m_captureHeld.append({ id, name });
+        unlockCaptureChanged();
+        return true;
+    }
+    if (!watchingUnlock())
+        return false;
+    if (!m_unlockInputs.contains(id)) {
+        // Another input: what was held back goes first.
+        flushHeldBack();
+        return false;
+    }
+    m_unlockHeld.insert(id, input);
+    if (m_unlockHeld.size() == m_unlockInputs.size()) {
+        unlockAllHeld();
+        return true;
+    }
+    if (direction && m_heldBack.isEmpty())
+        return false;
+    m_heldBack.append({ id, input.first, act });
+    if (!m_heldBackTimer.isActive())
+        m_heldBackTimer.start();
+    return true;
+}
+
+bool InputManager::unlockRelease(const QString &id) {
+    if (m_unlockCapture) {
+        // One held from before the wait goes as it would have.
+        const auto held = std::find_if(m_captureHeld.begin(), m_captureHeld.end(),
+                                       [&id](const QPair<QString, QString> &h) { return h.first == id; });
+        if (held == m_captureHeld.end())
+            return false;
+        m_captureHeld.erase(held);
+        unlockCaptureChanged();
+        return true;
+    }
+    if (m_unlockHeld.contains(id)) {
+        // Held long enough while the app was too busy to run the timer out
+        // (a slow start): it counts as if it had.
+        if (m_unlockTimer.isActive() && m_unlockSince.elapsed() >= kUnlockHoldMs)
+            unlockHeldOut();
+        m_unlockHeld.remove(id);
+        m_unlockTimer.stop();
+    }
+    // Its press first, had it waited.
+    if (heldBack(id))
+        flushHeldBack();
+    return false;
+}
+
+bool InputManager::heldBack(const QString &id) const {
+    return std::any_of(m_heldBack.cbegin(), m_heldBack.cend(), [&id](const HeldBack &h) { return h.id == id; });
+}
+
+void InputManager::flushHeldBack() {
+    m_heldBackTimer.stop();
+    const QList<HeldBack> held = std::exchange(m_heldBack, {});
+    for (const HeldBack &h : held)
+        h.act();
+}
+
+// All the unlock buttons held: none of them acts. What one began before the
+// rest came (a direction's move) is let go of, so that it goes no further,
+// and a key's repeats and its release go nowhere.
+void InputManager::unlockAllHeld() {
+    m_heldBack.clear();
+    m_heldBackTimer.stop();
+    for (auto it = m_unlockHeld.cbegin(); it != m_unlockHeld.cend(); ++it) {
+        const HeldInput &input = it.value();
+        if (input.first == keySource()) {
+            m_capturedKeys.insert(input.second);
+            continue;
+        }
+        const Action a = m_heldInputs.take(input);
+        if (a != Action::None)
+            releaseAction(a);
+        else if (m_coinInputs.remove(input))
+            postKey(Qt::Key_5, QEvent::KeyRelease, false);
+    }
+    m_unlockSince.start();
+    m_unlockTimer.start();
+}
+
+// All of them held for kUnlockHoldMs.
+void InputManager::unlockHeldOut() {
+    m_unlockTimer.stop();
+    qInfo("[input] unlock buttons held: %s", qPrintable(unlockButtons()));
+    emit unlockRequested();
 }
 
 // config.json's app.players: { "1": { key, name }, "2": … }, the controller
@@ -1099,6 +1321,12 @@ void InputManager::updatePlayers() {
     mappings.sort();
     controllers::setPadMappings(mappings);
 
+    // An unlock button is named by its pad's player (padInputId()): one held
+    // as the players change counts once pressed again.
+    if (m_playerPads != playing) {
+        m_unlockHeld.clear();
+        m_unlockTimer.stop();
+    }
     m_playerPads = playing;
     publishArcade();
     emit playersChanged();
@@ -1965,8 +2193,11 @@ void InputManager::handleButton(SDL_JoystickID which, Uint8 button, bool pressed
     if (pad == m_pads.constEnd())
         return;
     const HeldInput input{ padSource(which), button };
+    const QString token = buttonToken(button);
     if (!pressed) {
         if (m_heldThroughHandoff.remove(input))
+            return;
+        if (unlockRelease(padInputId(which, token)))
             return;
         if (m_coinInputs.remove(input)) {
             postKey(Qt::Key_5, QEvent::KeyRelease, false);
@@ -1980,20 +2211,29 @@ void InputManager::handleButton(SDL_JoystickID which, Uint8 button, bool pressed
         return;
     }
     const Action a = pad->buttons.value(button, Action::None);
-    if (heldThroughGame(which, a, buttonToken(button))) {
+    if (heldThroughGame(which, a, token)) {
         m_heldThroughHandoff.insert(input);
         return;
     }
     const QString key = pad->key;
     noteController(key);
     if (capturing(key)) {
-        const QString token = buttonToken(button);
         emit controllerInputCaptured(key, token, padLabel(m_labelOverrides, pad->labels, token, button));
         return;
     }
-    // MAME's coin, where the focus takes one: its key, whatever the button
-    // is bound to.
-    if (!pad->coin.isEmpty() && buttonToken(button) == pad->coin && takesCoin()) {
+    if (unlockPress(padInputId(which, token), m_unlockCapture ? padInputName(which, token) : QString(), input,
+                    isDirectional(a), [this, which, input, token, a] { actOnPadPress(which, input, token, a); }))
+        return;
+    actOnPadPress(which, input, token, a);
+}
+
+void InputManager::actOnPadPress(SDL_JoystickID which, const HeldInput &input, const QString &token, Action a) {
+    const auto pad = m_pads.constFind(which);
+    if (pad == m_pads.constEnd() || m_suppressedDevices.contains(which))
+        return;
+    // MAME's coin, where the focus takes one: its key, whatever the input
+    // is bound to (a button, a trigger, the right stick).
+    if (!pad->coin.isEmpty() && token == pad->coin && takesCoin()) {
         noteActiveController(which);
         setLastInputDevice(QStringLiteral("gamepad"));
         m_coinInputs.insert(input);
@@ -2015,7 +2255,6 @@ void InputManager::handleAxis(SDL_JoystickID which, Uint8 axis, Sint16 value) {
         return;
     const QString key = pad->key;
     const controllers::LabelStyle labels = pad->labels;
-    const QString coin = pad->coin;
     const QPair<Action, Action> actions = pad->axes.value(axis, { Action::None, Action::None });
     const HeldInput input{ padSource(which), SDL_CONTROLLER_BUTTON_MAX + axis };
 
@@ -2042,7 +2281,7 @@ void InputManager::handleAxis(SDL_JoystickID which, Uint8 axis, Sint16 value) {
     // Only a real engage/release counts as "using" this controller — idle
     // stick jitter must not steal label ownership from the pad in use. A
     // release lets go of what the engage began, as a button's does.
-    if (old != 0 && !m_heldThroughHandoff.remove(input)) {
+    if (old != 0 && !m_heldThroughHandoff.remove(input) && !unlockRelease(padInputId(which, axisToken(axis, old)))) {
         if (m_coinInputs.remove(input)) {
             postKey(Qt::Key_5, QEvent::KeyRelease, false);
         } else {
@@ -2066,20 +2305,11 @@ void InputManager::handleAxis(SDL_JoystickID which, Uint8 axis, Sint16 value) {
         emit controllerInputCaptured(key, token, controllers::inputLabel(labels, token));
         return;
     }
-    // The coin on a trigger or the right stick (its Arcade Buttons'), as a
-    // button's.
-    if (!coin.isEmpty() && token == coin && takesCoin()) {
-        noteActiveController(which);
-        setLastInputDevice(QStringLiteral("gamepad"));
-        m_coinInputs.insert(input);
-        postKey(Qt::Key_5, QEvent::KeyPress, false);
+    if (unlockPress(padInputId(which, token), m_unlockCapture ? padInputName(which, token) : QString(), input,
+                    isDirectional(pressed),
+                    [this, which, input, token, pressed] { actOnPadPress(which, input, token, pressed); }))
         return;
-    }
-    if (pressed == Action::None)
-        return;
-    noteActiveController(which);
-    m_heldInputs.insert(input, pressed);
-    pressAction(pressed);
+    actOnPadPress(which, input, token, pressed);
 }
 
 void InputManager::pressAction(Action a) {
@@ -2184,6 +2414,18 @@ void InputManager::releaseHeld(const QString &source) {
         if (it.key().first == source) {
             postKey(it.value(), QEvent::KeyRelease, false);
             it = m_postedKeys.erase(it);
+        } else {
+            ++it;
+        }
+    }
+    // Nor what it pressed of the unlock buttons: held back, it never acts.
+    m_heldBack.removeIf([&source](const HeldBack &h) { return h.source == source; });
+    if (m_heldBack.isEmpty())
+        m_heldBackTimer.stop();
+    for (auto it = m_unlockHeld.begin(); it != m_unlockHeld.end();) {
+        if (it->first == source) {
+            it = m_unlockHeld.erase(it);
+            m_unlockTimer.stop();
         } else {
             ++it;
         }
@@ -2342,6 +2584,50 @@ QString InputManager::mpvKeyForMediaEvent(const QKeyEvent *ke) {
     }
 }
 
+// A key's part in Cabinet Lock's unlock buttons, as a pad's input's (see
+// unlockPress()): a key held back goes on later as a replay of it
+// (replayKey()), and what comes before that replay is in goes after it
+// (eventFilter()), so that the views have the keys in the order they came.
+std::optional<bool> InputManager::unlockKey(const QKeyEvent *ke, int id, const QString &device) {
+    // A page waiting for a key of its own has it as it is.
+    if (m_remapCapture || capturing(device))
+        return std::nullopt;
+    const QString input = QStringLiteral("key/%1").arg(id);
+    // Its repeats wait with its press, and go nowhere while new unlock
+    // buttons are chosen.
+    if (ke->isAutoRepeat())
+        return m_unlockCapture || heldBack(input) ? std::optional<bool>(true) : std::nullopt;
+    if (ke->type() == QEvent::KeyRelease) {
+        if (!unlockRelease(input))
+            return std::nullopt;
+        m_capturedKeys.remove(ke->key());
+        return true;
+    }
+    if (m_unlockCapture) {
+        // Swallowed till let go, should the wait end first (m_capturedKeys).
+        m_capturedKeys.insert(ke->key());
+        unlockPress(input, keyDisplayName(id), { keySource(), ke->key() }, false, {});
+        return true;
+    }
+    // Typed into a text field, it is as typed.
+    if (!watchingUnlock() || (m_unlockInputs.contains(input) && textInputHasFocus()))
+        return std::nullopt;
+    const std::shared_ptr<QKeyEvent> copy(ke->clone());
+    if (unlockPress(input, QString(), { keySource(), ke->key() }, isDirectional(keyActionOn(device, id)),
+                    [this, copy, device] { replayKey(*copy, device); }))
+        return true;
+    return std::nullopt;
+}
+
+void InputManager::replayKey(const QKeyEvent &ke, const QString &device) {
+    if (!m_window)
+        return;
+    m_replayDevices.append(device);
+    QCoreApplication::postEvent(m_window, new QKeyEvent(ke.type(), ke.key(), ke.modifiers(), ke.nativeScanCode(),
+                                                        kReplayVirtualKey, ke.nativeModifiers(), ke.text(),
+                                                        ke.isAutoRepeat(), quint16(ke.count())));
+}
+
 // ── Active-device tracking & footer hints ─────────────────────────────────────
 
 bool InputManager::eventFilter(QObject *obj, QEvent *event) {
@@ -2409,6 +2695,9 @@ bool InputManager::eventFilter(QObject *obj, QEvent *event) {
         return false;
     const auto *ke = static_cast<QKeyEvent *>(event);
     const bool synthetic = ke->nativeScanCode() == kSyntheticScanCode;
+    // A key held back for the unlock buttons, now given the views
+    // (replayKey()): as real as it was, its keyboard the one it had.
+    const bool replay = !synthetic && ke->nativeVirtualKey() == kReplayVirtualKey;
     const int id = keyId(ke);
 
     // Whose key it is, from the keyboards' nodes (scanNodes()): worked out
@@ -2418,8 +2707,10 @@ bool InputManager::eventFilter(QObject *obj, QEvent *event) {
     // reported to a wait) is that node's alone, and Qt's copy of it goes no
     // further.
     QString device;
+    if (replay && obj && obj->isWindowType() && !m_replayDevices.isEmpty())
+        device = m_replayDevices.takeFirst();
 #ifdef Q_OS_LINUX
-    if (!synthetic && obj && obj->isWindowType() && !m_nodes.isEmpty()) {
+    if (!synthetic && !replay && obj && obj->isWindowType() && !m_nodes.isEmpty()) {
         drainNodes();
         device = whoseKey(m_keySources, ke, m_clock.elapsed());
         if (type == QEvent::KeyPress && !ke->isAutoRepeat())
@@ -2461,6 +2752,17 @@ bool InputManager::eventFilter(QObject *obj, QEvent *event) {
                 deliverRelease(Action::Back, false);
         }
         return true;
+    }
+
+    // Cabinet Lock's unlock buttons (unlockKey()), where a real key comes in,
+    // at its window; and after the keys replayed that haven't come in yet.
+    if (!synthetic && !replay && obj && obj->isWindowType()) {
+        if (const std::optional<bool> taken = unlockKey(ke, id, device))
+            return *taken;
+        if (!m_replayDevices.isEmpty() && m_window) {
+            replayKey(*ke, device);
+            return true;
+        }
     }
 
     // A key a wait took (below) stays swallowed until it is let go: held,

@@ -120,6 +120,24 @@
       "description": "The game's full name, as MAME has it, and those of its maker, year, players and system the box under the picture has no line for, under the Arcade screen's list\n[OFF] No line: the list takes a game more, the box more of the game's details"
     },
     {
+      "key": "attract_mode",
+      "label": "Attract Mode",
+      "type": "list_single",
+      "options": ["Off", "In Order", "Random"],
+      "default": "Off",
+      "shown_with": { "key": "screen", "value": "Arcade" },
+      "description": "Left alone, the Arcade screen goes through its games on its own, a game every six seconds, as a cabinet's attract mode does; the first button or key ends it, and does nothing else but for a coin\n[IN ORDER] From top to bottom, then from the top again  [RANDOM] A game at random each time"
+    },
+    {
+      "key": "attract_after",
+      "label": "Attract After",
+      "type": "list_single",
+      "options": ["30 Seconds", "1 Minute", "2 Minutes", "5 Minutes"],
+      "default": "1 Minute",
+      "shown_with": [{ "key": "attract_mode", "value": "In Order" }, { "key": "attract_mode", "value": "Random" }],
+      "description": "How long the Arcade screen is left alone before its attract mode begins"
+    },
+    {
       "key": "start_info",
       "label": "Start Info Screen",
       "type": "toggle",
