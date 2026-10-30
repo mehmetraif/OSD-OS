@@ -308,6 +308,12 @@ Item {
         return slab([[left, top], [right, top], [right - 16, bottom], [left, bottom]], 6, on ? 18 : 10)
     }
 
+    // A Sheet's texels to a design unit: twice the unit, for sharp letters,
+    // but on a TV's tube (root.tube) the size the screen shows them, as the
+    // classic look draws them: finer letters, made smaller on the tube's 240
+    // or 480 lines, lose a pixel font's strokes.
+    readonly property real sheetScale: root.tube ? arcadeScreen.v : 2
+
     // Seen as the screen opens, and after a game played from the list.
     NumberAnimation {
         id: fadeIn
@@ -343,8 +349,8 @@ Item {
         }
 
         // A sheet in its node's plane, w by h round its middle, showing 2D
-        // content (drawn at twice its size, for sharp letters) over what is
-        // behind it: the letters on a panel.
+        // content (Drawn, sheetScale texels to the unit) over what is behind
+        // it: the letters on a panel.
         component Sheet: Model {
             property real w
             property real h
@@ -359,18 +365,18 @@ Item {
                 baseColorMap: Texture { id: picture; generateMipmaps: true; mipFilter: Texture.Linear }
             }
         }
-        // 2D content in design units, drawn at twice its size for a Sheet.
-        component Twice: Item {
+        // 2D content in design units, drawn at sheetScale for a Sheet.
+        component Drawn: Item {
             default property alias contents: inner.data
             property real w
             property real h
-            width: w * 2
-            height: h * 2
+            width: w * look.sheetScale
+            height: h * look.sheetScale
             Item {
                 id: inner
                 width: parent.w
                 height: parent.h
-                scale: 2
+                scale: look.sheetScale
                 transformOrigin: Item.TopLeft
             }
         }
@@ -439,7 +445,7 @@ Item {
                 z: 14
                 w: key.wide
                 h: 40
-                content: Twice {
+                content: Drawn {
                     w: key.wide
                     h: 40
                     Letters {
@@ -456,7 +462,7 @@ Item {
                 z: 10
                 w: key.word + 8
                 h: 40
-                content: Twice {
+                content: Drawn {
                     w: key.word + 8
                     h: 40
                     Letters {
@@ -602,7 +608,7 @@ Item {
                             z: look.orbR * 0.75
                             w: 200
                             h: 40
-                            content: Twice {
+                            content: Drawn {
                                 w: 200
                                 h: 40
                                 Rectangle {
@@ -734,7 +740,7 @@ Item {
                                         z: 22
                                         w: look.panelWidth - 40
                                         h: look.rowHeight
-                                        content: Twice {
+                                        content: Drawn {
                                             id: rowSheet
                                             w: look.panelWidth - 40
                                             h: look.rowHeight
@@ -819,7 +825,7 @@ Item {
                                 y: look.panelHeight / 2 - (look.tabBottom - look.panelTop) / 2
                                 w: look.panelWidth
                                 h: look.tabBottom - look.panelTop
-                                content: Twice {
+                                content: Drawn {
                                     id: tab
                                     w: look.panelWidth
                                     h: look.tabBottom - look.panelTop
@@ -865,7 +871,7 @@ Item {
                                    - 60
                                 w: look.panelWidth - 40
                                 h: 120
-                                content: Twice {
+                                content: Drawn {
                                     w: look.panelWidth - 40
                                     h: 120
                                     Letters {
@@ -964,7 +970,7 @@ Item {
                                 z: 14
                                 w: infoPanel.w
                                 h: infoPanel.h
-                                content: Twice {
+                                content: Drawn {
                                     w: infoPanel.w
                                     h: infoPanel.h
                                     Column {
@@ -1043,7 +1049,7 @@ Item {
                         z: 30
                         w: Math.max(40, to - from)
                         h: 40
-                        content: Twice {
+                        content: Drawn {
                             w: betweenSheet.w
                             h: 40
                             Letters {
