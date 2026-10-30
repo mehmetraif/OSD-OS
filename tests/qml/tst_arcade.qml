@@ -74,6 +74,9 @@ Rectangle {
         property string listStyle: "Curved"
         property bool border: true
         property var screenAdjustment: ({ top: 0, bottom: 0, left: 0, right: 0 })
+        property string attractMode: "Off"
+        property int attractAfter: 60
+        property var playing: null
         function addCredit() { credits = Math.min(maxCredits, credits + 1) }
         function playTime(seconds) {
             if (!seconds)
@@ -547,6 +550,8 @@ Rectangle {
 
         function cleanup() {
             loader.source = ""
+            moduleRoot.attractMode = "Off"
+            moduleRoot.attractAfter = 60
         }
 
         function open(view, params) {
@@ -927,6 +932,51 @@ Rectangle {
             compare(nav.listState.set, "sf2")
             keyClick(Qt.Key_Escape)
             compare(root.backs, 1)
+        }
+
+        // Attract Mode: left alone for Attract After, the screen goes through
+        // its games, the next at once and every few seconds on, round from
+        // the last; the first key ends it and does nothing else (select plays
+        // nothing), but a coin, which goes in. Random comes to another game
+        // each time. Under the options, or on Search, it never begins.
+        function test_screenAttract() {
+            moduleRoot.attractMode = "In Order"
+            moduleRoot.attractAfter = 1
+            var screen = openScreen()
+            compare(screen.selected, 0)
+            verify(!screen.attracting)
+            tryVerify(function() { return screen.attracting }, 3000)
+            tryCompare(screen, "selected", 1)
+            compare(idleTracker.resets > 0, true)
+            keyClick(Qt.Key_Return)
+            verify(!screen.attracting)
+            compare(root.navigations.length, 0)
+            compare(screen.selected, 1)
+            // Round from the last.
+            screen.selected = screen.count - 1
+            tryVerify(function() { return screen.attracting }, 3000)
+            tryCompare(screen, "selected", 0)
+            keyClick(Qt.Key_5)
+            verify(!screen.attracting)
+            compare(moduleRoot.credits, 1)
+            // Random: another game.
+            moduleRoot.attractMode = "Random"
+            var before = screen.selected
+            tryVerify(function() { return screen.attracting }, 3000)
+            tryVerify(function() { return screen.selected !== before })
+            keyClick(Qt.Key_Down)
+            verify(!screen.attracting)
+            // Under the options: nothing.
+            keyPress(Qt.Key_Return)
+            tryVerify(function() { return findText(screen, "Game Details", true) !== null }, 1500)
+            keyRelease(Qt.Key_Return)
+            verify(!screen.attractable)
+            wait(1500)
+            verify(!screen.attracting)
+            keyClick(Qt.Key_Escape)
+            // Off: never.
+            moduleRoot.attractMode = "Off"
+            verify(!screen.attractable)
         }
 
         // A game FinalBurn Neo plays takes no credits bought (COIN), and

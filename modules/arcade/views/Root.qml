@@ -39,6 +39,10 @@ FocusScope {
     // moved out from where the design has it (in, below 0), in the design's
     // units, a 960th of the width and a 720th of the height.
     property var screenAdjustment: ({ top: 0, bottom: 0, left: 0, right: 0 })
+    // Attract Mode: "Off", "In Order" or "Random"; and how long the Arcade
+    // screen is left alone before it begins, in seconds.
+    property string attractMode: "Off"
+    property int attractAfter: 60
     // The Arcade screen's Hint Bar and Help Line, which Main.qml's hintBar and
     // helpLine go by while the module is open, its dialogs and all; the
     // original screen goes by Settings' own.
@@ -236,6 +240,8 @@ FocusScope {
         startInfo = isOn(own.start_info)
         startFilter = own.start_filter || "all"
         listStyle = own.list_style || "Curved"
+        attractMode = own.attract_mode === "In Order" || own.attract_mode === "Random" ? own.attract_mode : "Off"
+        attractAfter = ({ "30 Seconds": 30, "2 Minutes": 120, "5 Minutes": 300 })[own.attract_after] || 60
         border = isOn(own.border)
         var ground = parseInt(own.info_background)
         infoBackground = isNaN(ground) ? 100 : Math.max(0, Math.min(100, ground))

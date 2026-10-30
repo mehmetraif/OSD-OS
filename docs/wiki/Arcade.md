@@ -40,7 +40,7 @@ ROM sets are copyrighted, like the games on them: use the games you are entitled
 | **Original** | OSD/OS's own tree, as the other modules have: Recently Played, Favorites, Search, All Games, and the games by players, decade and maker ([below](#the-original-screen)) |
 | **Arcade** (the default) | A cabinet's selection screen: one filter's games at a time, straight, on an arc or on a wheel, with the selected one's picture, high scores and details beside them; ◄ ► go through the filters, COIN buys credits and select or START plays ([below](#the-arcade-screen)) |
 
-Both list the same games from the same folder, share Recently Played and Favorites, and play a game the same way. Start Filter, Menu Filters, List Style, Border, Info Background, Screen Adjustment, Hint Bar and Help Line are the Arcade screen's own settings, so Settings → Arcade shows them only while Screen is Arcade. Its look is Settings' own, as every screen's is: its theme, colors, skin, background, selector effect and transitions.
+Both list the same games from the same folder, share Recently Played and Favorites, and play a game the same way. Start Filter, Menu Filters, List Style, Border, Info Background, Screen Adjustment, Hint Bar, Help Line and Attract Mode are the Arcade screen's own settings, so Settings → Arcade shows them only while Screen is Arcade. Its look is Settings' own, as every screen's is: its theme, colors, skin, background, selector effect and transitions.
 
 ## The original screen
 
@@ -263,6 +263,16 @@ COIN puts in a credit, up to 9, shown as `Credit 2` on the picture. They go in w
 
 With no credits, the game starts as it always does, and a coin goes in in the game itself (COIN).
 
+### Attract Mode
+
+Left alone, the Arcade screen can go through its games on its own, as a cabinet's attract mode shows off what it has. **Settings → Arcade → Attract Mode**, Off by default, says how: **In Order** moves to the next game every six seconds, down the list and round from the last game to the first; **Random** moves to a game at random each time. **Attract After** says how long the screen is left alone first: 30 seconds, 1 minute (the default), 2 or 5 minutes.
+
+- **The first button or key ends it**, and does nothing else: the game it moved to stays selected, and the next press acts as ever. A coin (COIN) both ends it and puts in a credit. The mouse moving over the screen ends it too.
+- **It waits** while a window is open over the list (a game's options, the engine's choice, Screen Adjustment, Game Details), while a game is starting or playing, on Search, Online Games, LAN Games and RetroArch Lobby, and on a filter of fewer than two games; the wait starts again once the screen is as it was.
+- **The screen saver stays away** while it goes on: the games moving are what the screen shows.
+
+With Cabinet Lock ([Settings](https://github.com/mehmetraif/OSD-OS/wiki/Settings#cabinet-lock)) a cabinet stays on this screen, and Attract Mode keeps it moving between players.
+
 ### The Orb look
 
 <table>
@@ -472,6 +482,8 @@ Settings → Arcade, the second row of Settings' first screen. The page is share
 | Screen Adjustment | (opens the Arcade screen to adjust) | As OSD/OS lays it out | Fits the Arcade screen to the screen: a frame whose sides ▲ ▼ ◄ ► move, the list and the box under the picture holding as many games and lines as fit ([Screen Adjustment](#screen-adjustment)). Shown while Screen is Arcade | `modules.com.osdos.arcade.screen_adjustment` |
 | Hint Bar | ON, OFF | ON | The keys at the foot of the Arcade screen and its windows, in place of Settings' own Hint Bar; off, the list and the box under the picture take its room. Shown while Screen is Arcade | `modules.com.osdos.arcade.hint_bar` |
 | Help Line | ON, OFF | ON | The game's full name, and what the box under the picture has no line for of its maker, year, players and system, under the Arcade screen's list, in place of Settings' own Help Line; off, the list and the box take its room. Shown while Screen is Arcade | `modules.com.osdos.arcade.help_line` |
+| Attract Mode | Off, In Order, Random | Off | Left alone, the Arcade screen goes through its games on its own, a game every six seconds: down the list, or at random; the first button or key ends it ([Attract Mode](#attract-mode)). Shown while Screen is Arcade | `modules.com.osdos.arcade.attract_mode` |
+| Attract After | 30 Seconds, 1 Minute, 2 Minutes, 5 Minutes | 1 Minute | How long the Arcade screen is left alone before Attract Mode begins. Shown while Attract Mode isn't Off | `modules.com.osdos.arcade.attract_after` |
 | Start Info Screen | ON, OFF | ON | Before a game, the screen of how to come back (and from the Arcade screen, the credits going in); off, the game starts straight from the list, under its loading screen ([Playing](#playing)) | `modules.com.osdos.arcade.start_info` |
 | Save High Scores | ON, OFF | ON | Keeps the games' high score tables with MAME's hiscore plugin ([above](#high-scores)) | `modules.com.osdos.arcade.high_scores` |
 | Online High Scores | Off, RetroAchievements | Off | RetroAchievements: a game FinalBurn Neo has plays in it, in hardcore mode, its scores going to RetroAchievements' leaderboards ([FinalBurn Neo](#finalburn-neo)) | `modules.com.osdos.arcade.online_high_scores` |
@@ -501,6 +513,8 @@ Settings → Arcade, the second row of Settings' first screen. The page is share
 | `menu_filters` | The filters turned on or off, by id: `{ "genres/Puzzle": false, "makers/Capcom": true }`, `"achievements"` for RetroAchievements, `"netplay"` for Playable Online and `"unknown"` for Not Recognized. One not in it is on, but a publisher's |
 | `play_at_startup` | The game's set (`"galaga"`), `""` for None; the app's own `startup_favorite` holds the same game, and either changes the other |
 | `list_style` | `"Straight"`, `"Curved"` or `"3D Curved"` |
+| `attract_mode` | `"Off"`, `"In Order"` or `"Random"` |
+| `attract_after` | `"30 Seconds"`, `"1 Minute"`, `"2 Minutes"` or `"5 Minutes"` |
 | `info_background` | A number from 0 (transparent) to 100 (solid) |
 | `screen_adjustment` | How far each side of the Arcade screen is moved out (in, below 0) from where OSD/OS lays it out, in 960ths of the screen's width and 720ths of its height: `{ "top": 30, "bottom": 54, "left": 12, "right": 12 }`. Edited by hand, a side out past the screen's edge is drawn at the edge, and two opposite sides that leave less room than the list and the picture need are drawn where OSD/OS lays them out |
 | `online_high_scores` | `"Off"` or `"RetroAchievements"` |
@@ -613,7 +627,7 @@ mame galaga \
 | **LAN Games** says `FinalBurn Neo Not Installed` | LAN games play in FinalBurn Neo, and RetroArch or the core is missing: install RetroArch, and download the core in **Settings → Arcade → FinalBurn Neo** ([Setting it up](#setting-it-up)) |
 | A CV1000 game on the network stays black, saying `Waiting for player 2` | It waits for player 2, the machine joining, to press something, so that both machines start it at the same moment ([LAN play](#lan-play)). A machine that joined a game already started says its picture may be wrong: host it again, and join before pressing anything |
 | RetroArch's picture is on the other screen, or none | On a Pi with two screens plugged in, RetroArch opens the first with a screen. Unplug the other |
-| The Arcade screen's settings aren't in Settings → Arcade | Start Filter, Menu Filters, List Style, Border, Info Background, Screen Adjustment, Hint Bar and Help Line show while **Screen** is **Arcade** |
+| The Arcade screen's settings aren't in Settings → Arcade | Start Filter, Menu Filters, List Style, Border, Info Background, Screen Adjustment, Hint Bar, Help Line and Attract Mode show while **Screen** is **Arcade** |
 | The Arcade screen's edges are cut off on a CRT, or it leaves a border unused | **Settings → Arcade → Screen Adjustment**: move each side of the frame to the screen's edge ([Screen Adjustment](#screen-adjustment)) |
 | A genre, a decade or Favorites isn't among the Arcade screen's filters | It has no games, or **Settings → Arcade → Menu Filters** has it off ([Menu Filters](#menu-filters)) |
 
