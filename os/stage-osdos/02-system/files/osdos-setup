@@ -674,6 +674,10 @@ def keyfile(ssid, password, hidden):
             "autoconnect=true\n"
             "\n[wifi]\n"
             "mode=infrastructure\n"
+            # Without power saving, as the image's NetworkManager has it for
+            # every connection (osdos-wifi-powersave.conf); said here too, so
+            # that nmcli shows it on this one.
+            "powersave=2\n"
             f"ssid={keyfile_ssid(ssid)}\n")
     if hidden:
         text += "hidden=true\n"

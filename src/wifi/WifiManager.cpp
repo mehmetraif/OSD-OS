@@ -245,6 +245,12 @@ QMap<QString, QVariantMap> newConnection(const QByteArray &ssid, const QString &
     QVariantMap wireless{
         { QStringLiteral("ssid"), ssid },
         { QStringLiteral("mode"), QStringLiteral("infrastructure") },
+        // Without power saving (NM_SETTING_WIRELESS_POWERSAVE_DISABLE): the
+        // radio sleeps between packets otherwise and wakes for each, a lag a
+        // LAN game or a stream feels. The OSD/OS image says so for every
+        // connection (osdos-wifi-powersave.conf); said here too, so that a
+        // connection OSD/OS makes shows it (nmcli) and has it anywhere.
+        { QStringLiteral("powersave"), 2u },
     };
     if (hidden)
         wireless.insert(QStringLiteral("hidden"), true);
