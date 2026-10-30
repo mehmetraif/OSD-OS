@@ -314,6 +314,7 @@ Settings → **Wi-Fi** joins a network from the couch: select one and type its p
 | **wrong password?** | The password, or a network whose password changed | Select it: **New Password**, or Forget it and join it again |
 | **it gave no address (DHCP)** | The router answered but gave no address | Restart the router; check how many devices it lets in |
 | **it is out of reach** | The network isn't heard, or doesn't say its name | Search again, or join it with **Network Not Listed** |
+| A LAN game stutters, a stream's buffer runs dry, SSH pauses, over Wi-Fi | The Wi-Fi radio sleeps between packets and wakes for each (the driver's power saving, which an image from before this version left on) | Update the image, or add `/etc/NetworkManager/conf.d/osdos-wifi-powersave.conf` with `[connection]` and `wifi.powersave = 2` and restart; on any other Raspberry Pi OS the same file, or `sudo nmcli connection modify "MyHomeWiFi" 802-11-wireless.powersave 2`. `iw dev wlan0 get power_save` says what it is ([The OSD/OS image → Wi-Fi](https://github.com/mehmetraif/OSD-OS/wiki/The-OSD-OS-Image#wi-fi)) |
 
 The other ways, as before:
 

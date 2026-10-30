@@ -24,6 +24,10 @@ install -m 644 files/osdos-name.socket files/osdos-name@.service "${ETC}/systemd
 sed -i "s/@OSDOS_GROUP@/${FIRST_USER_NAME}/" "${ETC}/systemd/system/osdos-name.socket"
 install -D -m 644 files/50-osdos-networkmanager.rules "${ETC}/polkit-1/rules.d/50-osdos-networkmanager.rules"
 sed -i "s/@OSDOS_USER@/${FIRST_USER_NAME}/" "${ETC}/polkit-1/rules.d/50-osdos-networkmanager.rules"
+# Wi-Fi without power saving: the Pi's Wi-Fi sleeps between packets unless
+# told not to, and the lag of waking it is a stutter in a LAN game and a
+# buffer run dry in a stream. A box on the mains has nothing to save.
+install -D -m 644 files/osdos-wifi-powersave.conf "${ETC}/NetworkManager/conf.d/osdos-wifi-powersave.conf"
 install -m 644 files/99-osdos-tty.rules "${ETC}/udev/rules.d/"
 install -d "${LIB}"
 install -m 755 files/wait-for-app files/wait-for-display "${LIB}/"
