@@ -1,8 +1,10 @@
 // OSD/OS Setup's live preview against the app: each of the app's shaders made
 // WebGL's (site/setup/js/preview/glsl.mjs) taking only what the preview sets it, a
-// look worked out from the settings as Main.qml works it out (look.mjs), and
-// the selector effects (selector.mjs) drawn as src/fx/SelectorFx.cpp draws
-// them.
+// look worked out from the settings as Main.qml works it out (look.mjs), the
+// selector effects (selector.mjs) drawn as src/fx/SelectorFx.cpp draws them,
+// and the Orb look (orb.mjs) as modules/arcade/views/OrbLook.qml has it: its
+// shaders taking what its materials set them, its meshes, its colours in
+// linear light and its nodes turned as Qt Quick 3D turns them.
 //   node --test tests/site/*.test.mjs
 import { test, after } from "node:test";
 import assert from "node:assert/strict";
@@ -11,9 +13,12 @@ import { mkdtempSync, readFileSync, readdirSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { fromQt, uniformsOf } from "../../site/setup/js/preview/glsl.mjs";
+import { fromQt, fromQt3D, uniformsOf } from "../../site/setup/js/preview/glsl.mjs";
 import { lookOf, ARCADE } from "../../site/setup/js/preview/look.mjs";
 import { SelectorFx } from "../../site/setup/js/preview/selector.mjs";
+import { arcadeLayout, arcadeHintPairs, ARCADE_FILTERS, ORB_ROWS } from "../../site/setup/js/preview/screens.mjs";
+import { MATERIALS, SHADER_FILES, tube, slab, chamfered, bar, node, point, IDENTITY, linear }
+    from "../../site/setup/js/preview/orb.mjs";
 
 const root = fileURLToPath(new URL("../..", import.meta.url));
 const out = mkdtempSync(join(tmpdir(), "osdos-preview-"));
@@ -214,4 +219,113 @@ test("a selector draws nothing without a box or an effect, and stops clear", () 
     fx.setEffect("Nothing");
     assert.equal(fx.kind, "");
     assert.equal(fx.tick({ x: 40, y: 50, w: 120, h: 12 }), false);
+});
+
+// The properties each of OrbLook.qml's custom materials sets its shaders, by
+// the shader's file: a colour a vec4, a number a float, a texture a sampler2D.
+function orbMaterials() {
+    const qml = readFileSync(join(root, "modules/arcade/views/OrbLook.qml"), "utf8");
+    const types = { color: "vec4", real: "float", TextureInput: "sampler2D" };
+    const found = {};
+    for (let at = qml.indexOf("CustomMaterial {"); at >= 0; at = qml.indexOf("CustomMaterial {", at + 1)) {
+        let depth = 0, end = at;
+        for (let i = qml.indexOf("{", at); i < qml.length; ++i) {
+            depth += qml[i] === "{" ? 1 : qml[i] === "}" ? -1 : 0;
+            if (depth === 0) {
+                end = i;
+                break;
+            }
+        }
+        const block = qml.slice(at, end);
+        const properties = Object.fromEntries([...block.matchAll(/^\s*property (color|real|TextureInput) (\w+)/gm)]
+            .map(([, type, name]) => [name, types[type]]));
+        for (const [, shader] of block.matchAll(/"orb\/(\w+)\.frag"/g))
+            found[shader] = properties;
+    }
+    return found;
+}
+
+test("the Orb look's shaders made WebGL's, the app's code as it is, taking what its materials set them", () => {
+    assert.deepEqual(SHADER_FILES.slice().sort(), readdirSync(join(root, "modules/arcade/views/orb"))
+        .filter(f => /\.(vert|frag)$/.test(f)).sort());
+    const qml = orbMaterials();
+    assert.deepEqual(Object.keys(qml).sort(), ["fog", "fogLive", "glass", "screen"]);
+    for (const [name, material] of Object.entries(MATERIALS)) {
+        const vertex = readFileSync(join(root, "modules/arcade/views/orb", material.vertex), "utf8");
+        const made = fromQt3D(vertex, "vertex");
+        assert.match(made, /^#version 300 es\nprecision highp float;\n/, name);
+        assert.ok(made.endsWith(vertex), `${name}: its vertex shader as it is`);
+        for (const builtIn of ["VERTEX", "NORMAL", "UV0", "MODEL_MATRIX", "NORMAL_MATRIX", "MODELVIEWPROJECTION_MATRIX", "CAMERA_POSITION"])
+            assert.match(made, new RegExp(`\\b${builtIn};`), `${name}: ${builtIn}`);
+        // The sheets' stand-in for a PrincipledMaterial is the page's own.
+        if (!material.fragment)
+            continue;
+        const source = readFileSync(join(root, "modules/arcade/views/orb", material.fragment), "utf8");
+        const fragment = fromQt3D(source, "fragment", material.properties);
+        assert.ok(fragment.endsWith(source), `${name}: its fragment shader as it is`);
+        assert.deepEqual(material.properties, qml[material.fragment.slice(0, -5)], `${name}: OrbLook.qml's properties`);
+        for (const [property, type] of Object.entries(material.properties))
+            assert.ok(fragment.includes(`uniform ${type} ${property};`), `${name}: ${property}`);
+        assert.match(fragment, /out vec4 FRAGCOLOR;/);
+    }
+});
+
+test("the Orb look's meshes, made as OrbLook.qml makes them", () => {
+    // A closed tube round the panel's outline: a ring of sides a corner, two
+    // triangles a side between rings, every normal of length 1.
+    const outline = chamfered(0, 0, 330, 500, 24);
+    assert.deepEqual(outline[0], [-165 + 24, 250]);
+    const t = tube(outline, 6, 10, true);
+    assert.equal(t.positions.length, outline.length * 10);
+    assert.equal(t.indexes.length, outline.length * 10 * 6);
+    assert.ok(t.normals.every(n => Math.abs(Math.hypot(...n) - 1) < 1e-9));
+    assert.ok(t.indexes.every(i => i < t.positions.length));
+    // An open tube has one ring fewer between.
+    assert.equal(tube([[0, 0, 0], [10, 0, 0]], 3, 8, false).indexes.length, 8 * 6);
+    // A slab: its two faces fanned, four corners a side.
+    const s = slab(outline, -8, 10);
+    assert.equal(s.positions.length, 2 * outline.length + 4 * outline.length);
+    assert.equal(s.indexes.length, 2 * 3 * (outline.length - 2) + 6 * outline.length);
+    assert.deepEqual([Math.min(...s.positions.map(p => p[2])), Math.max(...s.positions.map(p => p[2]))], [-13, -3]);
+    // The selected bar deeper and further right.
+    const right = m => Math.max(...m.positions.map(p => p[0])), deep = m => Math.max(...m.positions.map(p => p[2]));
+    assert.deepEqual([right(bar(false)), right(bar(true)), deep(bar(false)), deep(bar(true))], [149, 157, 11, 15]);
+});
+
+test("the Orb look's nodes turned as Qt Quick 3D turns them, its colours in linear light as Qt gives them", () => {
+    const near = (a, b) => a.every((v, i) => Math.abs(v - b[i]) < 1e-9);
+    // Round y, its right side away: x to -z.
+    assert.ok(near(point(node(IDENTITY, { ry: 90 }), [1, 0, 0]), [0, 0, -1]));
+    // Round z, then x, then y (QQuaternion::fromEulerAngles()); then the
+    // position: x goes to y, to z, to x; y to -x, stays, to z.
+    const m = node(IDENTITY, { x: 5, rx: 90, ry: 90, rz: 90 });
+    assert.ok(near(point(m, [1, 0, 0]), [6, 0, 0]));
+    assert.ok(near(point(m, [0, 1, 0]), [5, 0, 1]));
+    // Scale before the turn: a unit along x scaled by 2 and turned.
+    assert.ok(near(point(node(IDENTITY, { ry: 90, s: [2, 1, 1] }), [1, 0, 0]), [0, 0, -2]));
+    // Qt's curve: a grey of 0.5 at 0.21497 (55 of 255, as Qt Quick 3D draws it).
+    const [r, , , a] = linear([0.5, 0.5, 0.5]);
+    assert.ok(Math.abs(r - 0.21497) < 1e-4 && a === 1);
+    assert.equal(Math.round(r * 255), 55);
+});
+
+test("the Orb theme draws the Arcade screen in its look, its rows on its panel", () => {
+    const orb = lookOf(looks, settings({ osd_theme: "orb", color_scheme: "", orb_fog: "Picture" }));
+    assert.deepEqual([orb.orb, orb.orbFogLive, orb.primary, orb.surface],
+                     [true, false, looks.themes.orb.colors.primary, looks.themes.orb.colors.surface]);
+    assert.equal(lookOf(looks, settings({ osd_theme: "orb", orb_fog: "Live" })).orbFogLive, true);
+    assert.equal(lookOf(looks, settings({ osd_theme: "inferno" })).orb, false);
+    // Eight rows, never the wheel, its design as large as fits above the help
+    // line (ArcadeScreen.qml's orbScale), in the middle across.
+    const L = arcadeLayout({ ...orb, arcade: { ...orb.arcade, listStyle: "3D Curved" } });
+    assert.deepEqual([L.perPage, L.wheel, ORB_ROWS], [8, false, 8]);
+    assert.ok(Math.abs(L.orbScale - (552 - 90) / 520) < 1e-9);
+    assert.ok(Math.abs(L.orbLeft + 360 * L.orbScale - 480) < 1e-9);
+    // The keys at its foot: COIN where it buys a credit, not on Search.
+    const all = ARCADE_FILTERS[0], search = ARCADE_FILTERS.find(f => f.id === "search");
+    const words = pairs => pairs.map(p => p.word);
+    assert.deepEqual(words(arcadeHintPairs({}, all, all.games[0])), ["BACK", "COIN", "PLAY", "OPTIONS"]);
+    assert.deepEqual(words(arcadeHintPairs({}, search, search.games[1])), ["BACK", "PLAY", "OPTIONS"]);
+    assert.deepEqual(words(arcadeHintPairs({}, search, search.games[0])), ["BACK", "SEARCH"]);
+    assert.deepEqual(words(arcadeHintPairs({ typing: true }, search, search.games[0])), ["DONE", "MOVE", "TYPE"]);
 });

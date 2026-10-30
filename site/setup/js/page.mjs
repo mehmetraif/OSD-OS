@@ -1,7 +1,8 @@
 // OSD/OS Setup's page: the form made from schema.json (scripts/build-site.py
 // writes it from the app), what it holds, and the file it gives
 // (core.mjs makes it). Only what is changed goes into the file, marked • on
-// its line; ↺ takes a line out again.
+// its line; ↺ takes a line out again. Three views show fewer of its lines or
+// all of them (core.VIEWS); what any of them set stays set.
 import * as core from "./core.mjs";
 import { el } from "./dom.mjs";
 import { Preview } from "./preview/preview.mjs";
@@ -27,6 +28,31 @@ function fresh() {
         raUser: "", raPassword: "", raKey: "",
         config: {},
     };
+}
+
+// The form's view (core.VIEWS): Basic, Logins or Advanced, Basic at first;
+// kept in the browser for the next visit, where it can be.
+const VIEW_KEY = "osdos-setup-view";
+let view = (() => {
+    try {
+        const kept = localStorage.getItem(VIEW_KEY);
+        return core.VIEWS.some(v => v.id === kept) ? kept : "basic";
+    } catch {
+        return "basic";
+    }
+})();
+// Whether the view shows a line of the form in `part` ("basic", "logins", or
+// "advanced" for one Advanced alone shows).
+const shows = part => core.inView(view, part);
+
+function setView(id) {
+    view = id;
+    try {
+        localStorage.setItem(VIEW_KEY, id);
+    } catch {
+        // Kept for this visit only.
+    }
+    render();
 }
 
 // The rows a theme gives (Settings' themeParts, marked theme_part in the
@@ -121,20 +147,33 @@ function say(message, ok = false) {
 }
 
 // --- The parts of the form.
+// One of a few choices, each with what it means, the one chosen inverted as a
+// menu's line: [value, name, about].
+function chooser(name, label, choices, chosen, onchoose) {
+    return el("div", { class: "kinds", role: "radiogroup", "aria-label": label },
+        choices.map(([value, title, about]) => el("label", { class: "kind" + (chosen === value ? " chosen" : "") },
+            el("input", { type: "radio", name, value, checked: chosen === value, onchange: () => onchoose(value) }),
+            el("span", { class: "kind-name", text: title }),
+            el("span", { class: "kind-about", text: about }))));
+}
+
+// Which of the settings the form shows.
+function views() {
+    return section("Settings Shown", "Fewer of them, or all. What is set in one view stays set in the others, and goes into the file.",
+        chooser("view", "Settings shown", core.VIEWS.map(v => [v.id, v.name, v.about]), view, setView));
+}
+
 // What the card goes into, first: a cabinet starts on the Arcade screen, and
 // the TV's settings are put away.
 function device() {
+    if (!shows("basic"))
+        return null;
     const kinds = [
         ["tv", "TV", "Films, series and music videos on a TV: OSD/OS starts on its main menu."],
         ["arcade", "Arcade Cabinet", "Arcade games in a cabinet: OSD/OS starts on the Arcade screen, and the TV / Movie settings are put away."],
     ];
     return section("Device", "What the card goes into. The settings below follow it, and anything can still be changed.",
-        el("div", { class: "kinds", role: "radiogroup", "aria-label": "Device" },
-            kinds.map(([value, label, about]) => el("label", { class: "kind" + (state.kind === value ? " chosen" : "") },
-                el("input", { type: "radio", name: "kind", value, checked: state.kind === value,
-                              onchange: () => setKind(value) }),
-                el("span", { class: "kind-name", text: label }),
-                el("span", { class: "kind-about", text: about })))));
+        chooser("kind", "Device", kinds, state.kind, setKind));
 }
 
 function setKind(kind) {
@@ -161,6 +200,8 @@ function setKind(kind) {
 }
 
 function raspberryPi() {
+    if (!shows("basic"))
+        return null;
     const models = [["Raspberry Pi 5", "pi5"], ["Raspberry Pi 4", "pi4"], ["Raspberry Pi 3", "pi3"]];
     return section("Raspberry Pi", "Which Pi the card is for: the display outputs below are the ones it has.",
         line("Model", select(models, state.model, value => {
@@ -173,6 +214,8 @@ function raspberryPi() {
 }
 
 function displayOutput() {
+    if (!shows("basic"))
+        return null;
     let offered = schema.presets.filter(p => p.models.includes(state.model));
     // A cabinet's JAMMA board first.
     if (state.kind === "arcade")
@@ -191,13 +234,24 @@ function displayOutput() {
         chosen && chosen.warning ? el("p", { class: "help warn", text: chosen.warning }) : null);
 }
 
+// The device's name in Advanced; Wi-Fi in Logins.
 function network() {
+    const named = shows("advanced"), wifi = shows("logins");
+    if (!named && !wifi)
+        return null;
     const name = state.deviceName ? core.hostnameFor(state.deviceName) : null;
     return section("Network", "The device's name tells it apart from others on the network (Settings → About → System Information shows it). Wi-Fi joins a network at start; Ethernet needs nothing.",
-        line("Device Name", text(state.deviceName, value => { state.deviceName = value; refreshDeviceNameHelp(); markChanged("device-name", !!value); },
-                                 { id: "device-name", placeholder: "osdos" }),
-             { changed: !!state.deviceName, onReset: () => { state.deviceName = ""; render(); } }),
-        el("p", { class: "help" + (name && name.why ? " error" : ""), id: "device-name-help", text: deviceNameHelp() }),
+        named ? [
+            line("Device Name", text(state.deviceName, value => { state.deviceName = value; refreshDeviceNameHelp(); markChanged("device-name", !!value); },
+                                     { id: "device-name", placeholder: "osdos" }),
+                 { changed: !!state.deviceName, onReset: () => { state.deviceName = ""; render(); } }),
+            el("p", { class: "help" + (name && name.why ? " error" : ""), id: "device-name-help", text: deviceNameHelp() }),
+        ] : null,
+        wifi ? wifiLines() : null);
+}
+
+function wifiLines() {
+    return [
         line("Wi-Fi Country", select(schema.countries, state.wifiCountry, value => { state.wifiCountry = value; render(); },
                                      { id: "wifi-country", leave: "Leave as it is" }),
              { help: "The country whose rules Wi-Fi keeps to. Raspberry Pi OS keeps Wi-Fi off until one is set.",
@@ -210,7 +264,8 @@ function network() {
              { id: "wifi-password" }),
         line("Hidden Network", toggle(state.wifiHidden, value => { state.wifiHidden = value; }, { id: "wifi-hidden" }),
              { id: "wifi-hidden", help: "On for a network that doesn't say its name." }),
-        el("p", { class: "help", id: "wifi-help" }));
+        el("p", { class: "help", id: "wifi-help" }),
+    ];
 }
 
 function deviceNameHelp() {
@@ -237,6 +292,8 @@ function wifiProblem() {
 
 function refreshWifiHelp() {
     const node = document.getElementById("wifi-help");
+    if (!node)
+        return;
     const problem = wifiProblem();
     node.textContent = problem;
     node.classList.toggle("error", !!problem);
@@ -250,37 +307,44 @@ function markChanged(id, changed) {
 }
 
 // Time zones as the card has them: the zone list's names (build-site.py
-// reads them from the time zone database), not a browser's older ones.
+// reads them from the time zone database), not a browser's older ones. pi's
+// password and SSH in Logins, the time zone in Basic, the keyboard in
+// Advanced alone.
 function system() {
+    const logins = shows("logins"), basic = shows("basic"), keyboard = shows("advanced");
+    if (!logins && !basic && !keyboard)
+        return null;
     const imported = state.passwordHash && !state.passwordPlain;
     const zones = schema.zones.map(z => [z.replace(/_/g, " "), z]);
     return section("System", "The user OSD/OS runs as, pi, and the system around it, as Raspberry Pi Imager would set them.",
-        line("pi's Password", secret(state.passwordPlain, value => { state.passwordPlain = value; markChanged("pi-password", !!value || !!state.passwordHash); },
-                                     { id: "pi-password", placeholder: imported ? "Kept from the imported file" : "Empty: as it is",
-                                       autocomplete: "new-password" }),
-             { id: "pi-password", changed: !!(state.passwordPlain || state.passwordHash),
-               help: "For logging in, over SSH too, and for sudo. Only its hash goes into the file.",
-               onReset: () => { state.passwordPlain = ""; state.passwordHash = ""; render(); } }),
-        line("SSH", toggle(state.sshEnabled === true, value => { state.sshEnabled = value; render(); },
-                           { id: "ssh", unset: state.sshEnabled === null }),
-             { id: "ssh", changed: state.sshEnabled !== null,
-               help: "A login from another computer: ssh pi@<device name>.local.",
-               onReset: () => { state.sshEnabled = null; state.sshPasswordLogin = true; state.sshKeys = ""; render(); } }),
-        state.sshEnabled ? line("Password Login", toggle(state.sshPasswordLogin, value => { state.sshPasswordLogin = value; },
-                                                         { id: "ssh-password-login" }),
-                                { id: "ssh-password-login",
-                                  help: "On: with pi's password, set above. Off: only the keys below log in." }) : null,
-        state.sshEnabled ? el("div", { class: "line" },
-            el("label", { for: "ssh-keys", class: "label", text: "SSH Keys" }),
-            el("textarea", { id: "ssh-keys", placeholder: "ssh-ed25519 AAAA… one public key a line", spellcheck: "false",
-                             oninput: e => { state.sshKeys = e.target.value; } }, state.sshKeys)) : null,
-        line("Time Zone", select(zones, state.timezone, value => { state.timezone = value; render(); },
-                                 { id: "timezone", leave: "Leave as it is" }),
-             { changed: !!state.timezone, onReset: () => { state.timezone = ""; render(); } }),
-        line("Keyboard", select(schema.keyboards, state.keyboard, value => { state.keyboard = value; render(); },
-                                { id: "keyboard", leave: "Leave as it is" }),
-             { help: "A keyboard's layout, at Exit to Terminal.", changed: !!state.keyboard,
-               onReset: () => { state.keyboard = ""; render(); } }));
+        logins ? [
+            line("pi's Password", secret(state.passwordPlain, value => { state.passwordPlain = value; markChanged("pi-password", !!value || !!state.passwordHash); },
+                                         { id: "pi-password", placeholder: imported ? "Kept from the imported file" : "Empty: as it is",
+                                           autocomplete: "new-password" }),
+                 { id: "pi-password", changed: !!(state.passwordPlain || state.passwordHash),
+                   help: "For logging in, over SSH too, and for sudo. Only its hash goes into the file.",
+                   onReset: () => { state.passwordPlain = ""; state.passwordHash = ""; render(); } }),
+            line("SSH", toggle(state.sshEnabled === true, value => { state.sshEnabled = value; render(); },
+                               { id: "ssh", unset: state.sshEnabled === null }),
+                 { id: "ssh", changed: state.sshEnabled !== null,
+                   help: "A login from another computer: ssh pi@<device name>.local.",
+                   onReset: () => { state.sshEnabled = null; state.sshPasswordLogin = true; state.sshKeys = ""; render(); } }),
+            state.sshEnabled ? line("Password Login", toggle(state.sshPasswordLogin, value => { state.sshPasswordLogin = value; },
+                                                             { id: "ssh-password-login" }),
+                                    { id: "ssh-password-login",
+                                      help: "On: with pi's password, set above. Off: only the keys below log in." }) : null,
+            state.sshEnabled ? el("div", { class: "line" },
+                el("label", { for: "ssh-keys", class: "label", text: "SSH Keys" }),
+                el("textarea", { id: "ssh-keys", placeholder: "ssh-ed25519 AAAA… one public key a line", spellcheck: "false",
+                                 oninput: e => { state.sshKeys = e.target.value; } }, state.sshKeys)) : null,
+        ] : null,
+        basic ? line("Time Zone", select(zones, state.timezone, value => { state.timezone = value; render(); },
+                                         { id: "timezone", leave: "Leave as it is" }),
+                     { changed: !!state.timezone, onReset: () => { state.timezone = ""; render(); } }) : null,
+        keyboard ? line("Keyboard", select(schema.keyboards, state.keyboard, value => { state.keyboard = value; render(); },
+                                           { id: "keyboard", leave: "Leave as it is" }),
+                        { help: "A keyboard's layout, at Exit to Terminal.", changed: !!state.keyboard,
+                          onReset: () => { state.keyboard = ""; render(); } }) : null);
 }
 
 // --- OSD/OS's own settings: app.<key>, and modules.<id>.<key>.
@@ -390,7 +454,7 @@ function settingLines(scope, rows) {
         const row = rows.find(r => r.key === key);
         return row ? valueAt(scope, row) : core.getPath(state.config, [...scope, key]);
     };
-    return rows.filter(row => core.shown(row, valueOf)).map(row => settingLine(scope, row));
+    return rows.filter(row => shows(row.view) && core.shown(row, valueOf)).map(row => settingLine(scope, row));
 }
 
 function retroAchievements() {
@@ -427,7 +491,7 @@ function moduleBlock(module) {
              { id: idFor(...scope, "enabled"), changed: enabledSet !== undefined, onReset: () => unset(scope, "enabled"),
                help: startsOn && enabledSet === undefined ? "On: OSD/OS starts on it (Start on Module)." : "On the main menu, or not." }),
         settingLines(scope, module.settings),
-        module.retroachievements ? retroAchievements() : null);
+        module.retroachievements && shows("logins") ? retroAchievements() : null);
     details.addEventListener("toggle", () => {
         if (details.open) openModules.add(module.id);
         else openModules.delete(module.id);
@@ -470,17 +534,21 @@ function osdos() {
     for (const group of schema.app) {
         if (group.title === TV_GROUP && !tvShown)
             continue;
-        parts.push(el("details", { open: true },
-            el("summary", { text: group.title }),
-            settingLines(["app"], group.settings)));
+        const lines = settingLines(["app"], group.settings);
+        if (lines.length)
+            parts.push(el("details", { open: true }, el("summary", { text: group.title }), lines));
     }
-    let groups = [...new Set(schema.modules.map(m => m.group))].filter(g => g !== TV_GROUP || tvShown);
+    // The modules, each on or off with the view's lines of it: in Logins,
+    // those that sign in or connect to something.
+    const listed = module => view !== "logins" || module.retroachievements || module.settings.some(r => r.view === "logins");
+    const modules = schema.modules.filter(listed);
+    let groups = [...new Set(modules.map(m => m.group))].filter(g => g !== TV_GROUP || tvShown);
     // A cabinet's own modules first.
     if (arcade)
         groups = [...groups.filter(g => g === "Arcade"), ...groups.filter(g => g !== "Arcade")];
     for (const group of groups) {
         parts.push(el("h3", { class: "group", text: group === "Modules" ? "Other Modules" : `${group} Modules` }));
-        for (const module of schema.modules.filter(m => m.group === group))
+        for (const module of modules.filter(m => m.group === group))
             parts.push(moduleBlock(module));
     }
     return section("OSD/OS", "OSD/OS's own settings, as Settings has them. Each module's section has its settings; a module that is off stays off the main menu.", parts);
@@ -490,7 +558,7 @@ function render() {
     const form = document.getElementById("form");
     const scroll = window.scrollY;
     const focused = document.activeElement && document.activeElement.id;
-    form.replaceChildren(device(), raspberryPi(), displayOutput(), network(), system(), osdos());
+    form.replaceChildren(...[views(), device(), raspberryPi(), displayOutput(), network(), system(), osdos()].filter(Boolean));
     preview.update(previewSettings());
     refreshWifiHelp();
     window.scrollTo(0, scroll);
@@ -502,37 +570,41 @@ function render() {
 }
 
 // --- The file.
+// What keeps it from being made, each named with the view its line is in
+// when the form shows another.
 function problems() {
     const out = [];
+    const add = (text, part) => out.push(shows(part) ? text : `${text} (${core.VIEWS.find(v => v.id === part).name})`);
     if (state.deviceName) {
         const name = core.hostnameFor(state.deviceName);
         if (name.why)
-            out.push(`Device Name: ${name.why}`);
+            add(`Device Name: ${name.why}`, "advanced");
     }
     const wifi = wifiProblem();
     if (wifi)
-        out.push(`Wi-Fi: ${wifi}`);
+        add(`Wi-Fi: ${wifi}`, "logins");
     const password = core.checkPassword(state.passwordPlain);
     if (password)
-        out.push(`pi's Password: ${password}`);
+        add(`pi's Password: ${password}`, "logins");
     if (state.sshEnabled === true) {
         const keys = core.keyLines(state.sshKeys);
         // The card won't let a password in that this file doesn't set: the
         // one it had may be every card's.
         if (state.sshPasswordLogin && !state.passwordPlain && !state.passwordHash)
-            out.push("SSH: password login needs pi's password, set here; or turn it off and give a key");
+            add("SSH: password login needs pi's password, set here; or turn it off and give a key", "logins");
         if (!state.sshPasswordLogin && !keys.length)
-            out.push("SSH: with password login off, give a key");
+            add("SSH: with password login off, give a key", "logins");
         for (const key of keys) {
             if (!core.checkKey(key))
-                out.push(`SSH Keys: not a whole public key: ${key.slice(0, 32)}…`);
+                add(`SSH Keys: not a whole public key: ${key.slice(0, 32)}…`, "logins");
         }
     }
-    out.push(...core.checkRetroAchievements(state.raUser, state.raPassword, state.raKey));
+    for (const problem of core.checkRetroAchievements(state.raUser, state.raPassword, state.raKey))
+        add(problem, "logins");
     const startup = startupModule();
     if (startup && startup !== "None" && core.getPath(state.config, ["modules", startup, "enabled"]) === false) {
         const module = schema.modules.find(m => m.id === startup);
-        out.push(`Start on Module: ${module ? module.name : startup} is turned off`);
+        add(`Start on Module: ${module ? module.name : startup} is turned off`, "basic");
     }
     return out;
 }

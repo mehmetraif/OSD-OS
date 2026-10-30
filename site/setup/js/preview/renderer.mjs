@@ -7,8 +7,10 @@
 //     one: Fade, the Cube's turn (its matrices), or Ripple, Wave and Drop
 //     (shaders/ripple.frag, wave.frag, drop.frag);
 //   the screen's and the text's effects over all of it (shaders/effects.frag).
-// Each pass sets its shader's uniforms by the names Main.qml sets them by.
-import { fromQt } from "./glsl.mjs";
+// Each pass sets its shader's uniforms by the names Main.qml sets them by. The
+// Orb look's scene (orb.mjs) is drawn with it too, its own programs linked by
+// link3D() into a multisampled target with a depth buffer (msaaTarget()).
+import { fromQt, ATTRIBUTES } from "./glsl.mjs";
 
 const VERTEX = `#version 300 es
 in vec2 corner;
@@ -72,13 +74,25 @@ export class Renderer {
 
     link(name, fragmentSource) {
         const gl = this.gl;
-        const fragment = this.compile(gl.FRAGMENT_SHADER, fragmentSource, name);
-        if (!fragment || !this.vertex)
+        return this.linkWith(name, this.vertex, this.compile(gl.FRAGMENT_SHADER, fragmentSource, name), ["corner"]);
+    }
+
+    // A 3D program, its vertex shader's attributes VERTEX, NORMAL and UV0
+    // (glsl.mjs's fromQt3D()) at 0, 1 and 2.
+    link3D(name, vertexSource, fragmentSource) {
+        const gl = this.gl;
+        return this.linkWith(name, this.compile(gl.VERTEX_SHADER, vertexSource, name),
+                             this.compile(gl.FRAGMENT_SHADER, fragmentSource, name), ATTRIBUTES);
+    }
+
+    linkWith(name, vertex, fragment, attributes) {
+        const gl = this.gl;
+        if (!vertex || !fragment)
             return null;
         const program = gl.createProgram();
-        gl.attachShader(program, this.vertex);
+        gl.attachShader(program, vertex);
         gl.attachShader(program, fragment);
-        gl.bindAttribLocation(program, 0, "corner");
+        attributes.forEach((attribute, i) => gl.bindAttribLocation(program, i, attribute));
         gl.linkProgram(program);
         if (!gl.getProgramParameter(program, gl.LINK_STATUS)) {
             console.warn(`${name}: ${gl.getProgramInfoLog(program)}`);
@@ -121,6 +135,32 @@ export class Renderer {
         gl.bindFramebuffer(gl.FRAMEBUFFER, framebuffer);
         gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, texture, 0);
         return { texture, framebuffer, width, height };
+    }
+
+    // A target drawn with up to four samples a pixel and a depth buffer, as
+    // the Orb look's View3D is (MSAA, High), and the texture it is resolved
+    // into (resolve()).
+    msaaTarget(width, height) {
+        const gl = this.gl;
+        const samples = Math.min(4, gl.getParameter(gl.MAX_SAMPLES));
+        const framebuffer = gl.createFramebuffer();
+        gl.bindFramebuffer(gl.FRAMEBUFFER, framebuffer);
+        for (const [attachment, format] of [[gl.COLOR_ATTACHMENT0, gl.RGBA8], [gl.DEPTH_ATTACHMENT, gl.DEPTH_COMPONENT24]]) {
+            const buffer = gl.createRenderbuffer();
+            gl.bindRenderbuffer(gl.RENDERBUFFER, buffer);
+            gl.renderbufferStorageMultisample(gl.RENDERBUFFER, samples, format, width, height);
+            gl.framebufferRenderbuffer(gl.FRAMEBUFFER, attachment, gl.RENDERBUFFER, buffer);
+        }
+        return { framebuffer, width, height, resolved: this.target(width, height, gl.LINEAR) };
+    }
+
+    resolve(msaa) {
+        const gl = this.gl;
+        gl.bindFramebuffer(gl.READ_FRAMEBUFFER, msaa.framebuffer);
+        gl.bindFramebuffer(gl.DRAW_FRAMEBUFFER, msaa.resolved.framebuffer);
+        gl.blitFramebuffer(0, 0, msaa.width, msaa.height, 0, 0, msaa.width, msaa.height, gl.COLOR_BUFFER_BIT, gl.NEAREST);
+        gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+        return msaa.resolved.texture;
     }
 
     // A canvas (premultiplied as it is drawn) or a frame of premultiplied
@@ -171,8 +211,14 @@ export class Renderer {
             gl.disable(gl.BLEND);
         }
         const width = target ? target.width : this.width, height = target ? target.height : this.height;
-        const values = { rect: rect || [0, 0, width, height], target: [width, height], flipY: target ? -1 : 1,
-                         transform, qt_Opacity: 1, ...uniforms };
+        this.setUniforms(program, { rect: rect || [0, 0, width, height], target: [width, height], flipY: target ? -1 : 1,
+                                    transform, qt_Opacity: 1, ...uniforms }, textures);
+        gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+    }
+
+    // A program's uniforms by name, its samplers' textures by theirs.
+    setUniforms(program, values, textures) {
+        const gl = this.gl;
         let unit = 0;
         for (const [name, { location, type }] of program.uniforms) {
             if (type === gl.SAMPLER_2D) {
@@ -188,10 +234,10 @@ export class Renderer {
             else if (type === gl.FLOAT_VEC2) gl.uniform2fv(location, value);
             else if (type === gl.FLOAT_VEC3) gl.uniform3fv(location, value);
             else if (type === gl.FLOAT_VEC4) gl.uniform4fv(location, value);
+            else if (type === gl.FLOAT_MAT3) gl.uniformMatrix3fv(location, false, value);
             else if (type === gl.FLOAT_MAT4) gl.uniformMatrix4fv(location, false, value);
             else if (type === gl.INT || type === gl.BOOL) gl.uniform1i(location, value);
         }
-        gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
     }
 
     // A picture drawn as it is, or scaled, over what is there.

@@ -103,6 +103,18 @@ test("a row shows as the app shows it", () => {
     assert.equal(core.shown({ shown_unless: { key: "menu_music", value: "File" } }, valueOf), true);
 });
 
+test("the page's three views: Basic and Logins their own lines, Advanced every one", () => {
+    assert.deepEqual(core.VIEWS.map(v => v.id), ["basic", "logins", "advanced"]);
+    assert.ok(core.VIEWS.every(v => v.name && v.about));
+    for (const part of ["basic", "logins", "advanced", undefined])
+        assert.equal(core.inView("advanced", part), true, String(part));
+    assert.equal(core.inView("basic", "basic"), true);
+    assert.equal(core.inView("logins", "logins"), true);
+    // A line of no view is Advanced's alone.
+    for (const [view, part] of [["basic", "logins"], ["logins", "basic"], ["basic", undefined], ["logins", "advanced"]])
+        assert.equal(core.inView(view, part), false, `${view} ${part}`);
+});
+
 test("the setup file made and read back", () => {
     const state = {
         deviceName: "den-tv", model: "pi5", displayPreset: "scart-rgb-pal",

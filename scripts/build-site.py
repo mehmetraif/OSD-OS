@@ -8,7 +8,8 @@ release's files, given GitHub's record of the release), the terminal
 downloads beside it (site/get.sh and site/get.ps1), and OSD/OS Setup,
 the settings page, under setup/ (site/setup/): its own files, the app's font
 and logo, the display presets, what its live preview draws with (the app's
-own shaders, shaders/, and the skins' pictures), and schema.json, the
+own shaders, shaders/, the Orb look's shaders and fog picture,
+modules/arcade/views/orb/, and the skins' pictures), and schema.json, the
 settings the page offers, read from the app as it is: Settings' own rows
 (site/setup/schema-extra.json), the modules' manifests, the presets
 (os/stage-osdos/03-boot/files, with the names Settings → Display Output gives
@@ -37,6 +38,9 @@ IMAGES = ROOT / "docs/images"
 SCREENSHOTS = ROOT / "docs/screenshots"
 PRESETS = ROOT / "os/stage-osdos/03-boot/files"
 SHADERS = ROOT / "shaders"
+# The Arcade screen's Orb look's shaders and its fog picture (OrbLook.qml's),
+# which the preview draws the look with.
+ORB = ROOT / "modules/arcade/views/orb"
 ISO3166 = pathlib.Path("/usr/share/zoneinfo/iso3166.tab")
 ZONES = pathlib.Path("/usr/share/zoneinfo/zone.tab")
 MARK = ".osdos-site"
@@ -102,25 +106,20 @@ def builtin(folder, file_name):
         yield path, json.loads(path.read_text())
 
 
-def offered(folder, file_name):
-    """The built-in themes or skins the page offers: every one but a theme
-    whose theme.json says "setup": false, which is the app's alone (chosen in
-    its Settings)."""
-    return ((path, obj) for path, obj in builtin(folder, file_name) if obj.get("setup", True) is not False)
-
-
 def looks(folder, file_name):
     """The built-in themes or skins: [name, folder], by name."""
-    out = [[obj["name"], path.parent.name] for path, obj in offered(folder, file_name)]
+    out = [[obj["name"], path.parent.name] for path, obj in builtin(folder, file_name)]
     return sorted(out, key=lambda o: o[0].lower())
 
 
 def module_settings(manifest, extra):
     """A manifest's rows as the page offers them: those whose values are
     known without the device (submenus' rows flat under the module, as the
-    app keeps them), and the extra ones. Views and actions have none."""
+    app keeps them), and the extra ones, each with the page's view it is in
+    besides Advanced (views, by key). Views and actions have none."""
     options = extra.get("options", {})
     defaults = extra.get("defaults", {})
+    views = extra.get("views", {})
     out = []
 
     def walk(settings):
@@ -129,6 +128,8 @@ def module_settings(manifest, extra):
             row = {"key": key, "label": s.get("label", key), "help": help_text(s.get("description"))}
             if "shown_with" in s:
                 row["shown_with"] = s["shown_with"]
+            if key in views:
+                row["view"] = views[key]
             if kind == "submenu":
                 out.append({"type": "heading", "label": s.get("label", "")})
                 walk(s.get("settings", []))
@@ -349,8 +350,8 @@ def looks_data():
     colour schemes (the two colours everything is drawn in) and effects (the
     screen's and the text's knobs, each background's shader, the selectors'
     and transitions' names and the transitions' shaders), the parts of each
-    theme the page offers (offered()) and each skin's pictures, and the
-    shaders' names (shaders/, copied as they are)."""
+    theme (with its Arcade screen's look, Orb's "arcade") and each skin's
+    pictures, and the shaders' names (shaders/, copied as they are)."""
     main = (ROOT / "Main.qml").read_text()
     entries = lambda block: re.findall(r'"([^"]+)"\s*:\s*\{([^{}]*)\}', block)
     schemes = {}
@@ -364,10 +365,11 @@ def looks_data():
     for path in sorted((ROOT / "assets/skins").glob("*/skin.json")):
         skins[path.parent.name] = skin_parts(json.loads(path.read_text()), path.parent, f"skins/{path.parent.name}")
     themes = {}
-    for path, obj in offered("themes", "theme.json"):
+    for path, obj in builtin("themes", "theme.json"):
         theme = {"name": obj.get("name", path.parent.name), "effects": obj.get("effects", {})}
-        if "colors" in obj:
-            theme["colors"] = obj["colors"]
+        for key in ("colors", "arcade"):
+            if key in obj:
+                theme[key] = obj[key]
         if isinstance(obj.get("skin"), str):
             theme["skin"] = obj["skin"]
         elif isinstance(obj.get("skin"), dict):
@@ -389,8 +391,8 @@ def looks_data():
 
 def landing_themes(looks):
     """themes.json, the landing page's theme previews: each built-in theme,
-    Setup's and the app's alone (Orb's) alike, by its folder, with its name, its
-    line, its two colours (its own, or its colour scheme's; the default
+    by its folder, with its name, its line, its two colours (its own, or its
+    colour scheme's; the default
     scheme's without either), its pictures, a still from site/assets and the
     recording docs/images holds of it (RECORDINGS), and what the recording
     shows where it isn't the menus being browsed. A theme without both
@@ -548,6 +550,9 @@ def main():
     (setup / "shaders").mkdir()
     for path in SHADERS.glob("*.frag"):
         shutil.copy2(path, setup / "shaders" / path.name)
+    (setup / "orb").mkdir()
+    for path in [*ORB.glob("*.vert"), *ORB.glob("*.frag"), ORB / "fog.png"]:
+        shutil.copy2(path, setup / "orb" / path.name)
     # The skins' pictures, where the page reads them: the file's own path
     # isn't the page's business.
     parts = [p for skin in data["looks"]["skins"].values() for p in skin.values()]

@@ -36,3 +36,26 @@ export function fromQt(source) {
 export function uniformsOf(source) {
     return [...fromQt(source).matchAll(/^\s*uniform\s+\w+\s+(\w+)\s*;/gm)].map(m => m[1]);
 }
+
+// A Qt Quick 3D custom material's shader (the Orb look's, in
+// modules/arcade/views/orb/) as WebGL 2 takes it: its MAIN, VARYING and
+// FRAGCOLOR, and the built-ins it reads (VERTEX, NORMAL and UV0 at
+// attributes 0, 1 and 2; the matrices and the camera's position as uniforms),
+// said in GLSL ES 3.00 ahead of it, and in the fragment shader each of the
+// material's properties a uniform (`properties`: name → GLSL type; a colour's
+// a vec4, a texture's a sampler2D). The shader itself is left as it is.
+export const ATTRIBUTES = ["VERTEX", "NORMAL", "UV0"];
+export function fromQt3D(source, stage, properties = {}) {
+    const head = ["#version 300 es", "precision highp float;", "precision highp int;", "#define MAIN main"];
+    if (stage === "vertex") {
+        head.push("#define VARYING out", "#define POSITION gl_Position",
+                  "in vec3 VERTEX;", "in vec3 NORMAL;", "in vec2 UV0;",
+                  "uniform mat4 MODEL_MATRIX;", "uniform mat3 NORMAL_MATRIX;",
+                  "uniform mat4 MODELVIEWPROJECTION_MATRIX;", "uniform vec3 CAMERA_POSITION;");
+    } else {
+        head.push("#define VARYING in", "out vec4 FRAGCOLOR;");
+        for (const [name, type] of Object.entries(properties))
+            head.push(`uniform ${type} ${name};`);
+    }
+    return head.join("\n") + "\n" + String(source);
+}

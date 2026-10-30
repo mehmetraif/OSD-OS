@@ -141,13 +141,19 @@ Replace `/dev/sdX` with the card's device (a whole disk, such as `/dev/sdb` or `
 
 ### OSD/OS Setup: settings on the card before the first boot
 
-[OSD/OS Setup](https://osdos.tv/setup/) is a web page where you choose what the card starts with, before it goes into the Pi. It looks like OSD/OS's own menus, and has:
+[OSD/OS Setup](https://osdos.tv/setup/) is a web page where you choose what the card starts with, before it goes into the Pi. It looks like OSD/OS's own menus. Three views show its settings, and what one sets stays set in the others and goes into the file:
 
-- **Device:** what the card goes into, a **TV** or an **Arcade Cabinet**. A cabinet starts on the Arcade screen, has the JAMMA outputs first, and puts the TV / Movie settings and modules out of sight (its **TV / Movie Settings** switch shows them);
-- **Raspberry Pi and Display Output:** the Pi the card is for, and its output (HDMI, composite, SCART RGB, a JAMMA cabinet), the ones that Pi has;
-- **Network:** the device's name, the Wi-Fi country, and a Wi-Fi network with its password (hidden or not);
-- **System:** `pi`'s password, SSH on or off with password login or keys only, the time zone and the keyboard;
-- **OSD/OS:** every setting of Settings, the theme and the effects among them, each module on or off with its own settings, and the Arcade's RetroAchievements account (user name, password and Web API key). A live preview shows the main menu or the Arcade screen in the look chosen, at 640×480, as OSD/OS draws it: its own effects running in the browser, and, once it is clicked, the remote's keys working on it.
+- **Basic:** how the card starts and its look: the device, the Pi and its display output, the time zone, the theme, the module it opens on, and which modules are on. The page opens on it, and remembers the view you choose;
+- **Logins:** what it signs in with: Wi-Fi, `pi`'s password and SSH, the Jellyfin and Emby servers' addresses, Plex's automatic sign-in, the RetroAchievements account and the online name;
+- **Advanced:** every setting, in these parts:
+
+  - **Device:** what the card goes into, a **TV** or an **Arcade Cabinet**. A cabinet starts on the Arcade screen, has the JAMMA outputs first, and puts the TV / Movie settings and modules out of sight (its **TV / Movie Settings** switch shows them);
+  - **Raspberry Pi and Display Output:** the Pi the card is for, and its output (HDMI, composite, SCART RGB, a JAMMA cabinet), the ones that Pi has;
+  - **Network:** the device's name, the Wi-Fi country, and a Wi-Fi network with its password (hidden or not);
+  - **System:** `pi`'s password, SSH on or off with password login or keys only, the time zone and the keyboard;
+  - **OSD/OS:** every setting of Settings, the theme and the effects among them, each module on or off with its own settings, and the Arcade's RetroAchievements account (user name, password and Web API key).
+
+In every view, a live preview shows the main menu or the Arcade screen in the look chosen, at 640×480, as OSD/OS draws it: its own effects running in the browser, the Orb theme's Arcade screen in 3D, and, once it is clicked, the remote's keys working on it.
 
 Each on/off setting is a checkbox, each password field has a **Show** / **Hide** button, and only what you change goes into the file (marked •; ↺ leaves a setting as the card has it). Everything happens in your browser: nothing you type leaves it.
 

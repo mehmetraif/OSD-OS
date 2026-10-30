@@ -1,11 +1,15 @@
 {
-  "_about": "OSD/OS Setup's settings beside what scripts/build-site.py reads from the app itself (the modules' manifest.json, the display presets, the themes and skins): Settings' own rows (views/Settings.qml), the choices the modules make up as they run (their backends' get_*_options), keys a module keeps without a row, and the system's lists. tests/site/schema.test.mjs checks the rows against Settings.qml and Main.qml. An option is [label, value], or a string that is both. A row's theme_part is one of the theme's parts (Settings' themeParts), legacy the numbers old words stand for, max_length and trim as the app keeps the value. The keyboards are those with Latin letters, in which a user's name and password can be typed at Exit to Terminal.",
+  "_about": "OSD/OS Setup's settings beside what scripts/build-site.py reads from the app itself (the modules' manifest.json, the display presets, the themes and skins): Settings' own rows (views/Settings.qml), the choices the modules make up as they run (their backends' get_*_options), keys a module keeps without a row, and the system's lists. tests/site/schema.test.mjs checks the rows against Settings.qml and Main.qml. An option is [label, value], or a string that is both. A row's theme_part is one of the theme's parts (Settings' themeParts), legacy the numbers old words stand for, max_length and trim as the app keeps the value, view the page's view the row is in besides Advanced, every row's (basic: how the card starts and its look; logins: what it signs in with), and a module's views its manifest rows' by key. The keyboards are those with Latin letters, in which a user's name and password can be typed at Exit to Terminal.",
   "app": [
     {
       "title": "General Settings",
       "settings": [
         { "key": "osd_theme", "label": "Theme", "type": "choice", "options": [["None", ""]], "options_from": "themes", "default": "",
+          "view": "basic",
           "help": "The whole look in one: the color scheme, the skin, the effects and the menu music. [NONE] OSD/OS's own. The rows below left at THEME follow it." },
+        { "key": "orb_fog", "label": "Orb Fog", "type": "choice", "default": "Picture", "options": ["Picture", "Live"],
+          "shown_with": { "key": "osd_theme", "value": "orb" },
+          "help": "The fog drifting behind the Arcade screen's panels in the Orb look. [PICTURE] A picture of fog, light on the GPU. [LIVE] Worked out as it drifts, as in the look's first design, more work for a Raspberry Pi's GPU." },
         { "key": "color_scheme", "theme_part": true, "label": "Color Scheme", "type": "choice", "default": "",
           "options": [["Theme", ""], "Video 1", "Late Night", "Synthwave", "Terminal", "T-120", "Amber", "Kinescope", "SMPTE ECR 1-1978"],
           "help": "The two colors everything is drawn in. [THEME] The theme's, else Video 1." },
@@ -42,6 +46,7 @@
           "shown_with": { "key": "osd_background", "value": "Window" },
           "help": "The frame of the OSD Background's window. [SHADOW] The line and a shadow below and to the right, like a DOS window's." },
         { "key": "startup_module", "label": "Start on Module", "type": "choice", "default": "None", "options": [["None", "None"]], "options_from": "modules",
+          "view": "basic",
           "help": "Open straight into a module as OSD/OS starts. The module is turned on with it." },
         { "key": "boot_colors", "label": "Boot Screen Colors", "type": "choice", "default": "Theme", "options": ["Theme", "Default"],
           "help": "The colours of the boot screen, with its cassette. [THEME] The theme's or color scheme's. [DEFAULT] White on blue." },
@@ -114,7 +119,8 @@
         "video_quality": [["Direct Play", "auto"], ["8 Mbps (1080p)", "8000"], ["4 Mbps (720p)", "4000"], ["2 Mbps (480p)", "2000"]],
         "resume_playback": [["Ask", "ask"], ["Always", "yes"]]
       },
-      "defaults": { "video_quality": "auto" }
+      "defaults": { "video_quality": "auto" },
+      "views": { "auto_sign_in": "logins" }
     },
     "com.osdos.jellyfin": {
       "options": {
@@ -123,7 +129,7 @@
       },
       "extra": [
         { "key": "server_url", "label": "Server Address", "type": "text", "default": "", "placeholder": "http://192.168.1.10:8096",
-          "help": "Your Jellyfin server, filled in on the sign-in screen." }
+          "view": "logins", "help": "Your Jellyfin server, filled in on the sign-in screen." }
       ]
     },
     "com.osdos.emby": {
@@ -133,7 +139,7 @@
       },
       "extra": [
         { "key": "server_url", "label": "Server Address", "type": "text", "default": "", "placeholder": "http://192.168.1.10:8096",
-          "help": "Your Emby server, filled in on the sign-in screen." }
+          "view": "logins", "help": "Your Emby server, filled in on the sign-in screen." }
       ]
     },
     "com.osdos.arcade": {
@@ -144,7 +150,7 @@
       "defaults": { "start_filter": "all" },
       "extra": [
         { "key": "online_name", "label": "Online Name", "type": "text", "default": "", "placeholder": "Empty: the device's name on the network", "after": "lan_play",
-          "max_length": 32, "trim": true,
+          "max_length": 32, "trim": true, "view": "logins",
           "shown_with": [{ "key": "online_play", "value": "On" }, { "key": "lan_play", "value": "On" }],
           "help": "The name the others see, online and on the network. Empty: online, the RetroAchievements account's, else OSD-OS; on the network, this device's name." }
       ],
