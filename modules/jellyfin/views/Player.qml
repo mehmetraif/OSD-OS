@@ -626,6 +626,8 @@ FocusScope {
                 // the next episode inherits it.
                 captureCarryLanguages()
 
+                // The loading screen up while the server is waited for.
+                playbackStarted = false
                 pendingRetryTranscode = true
                 var newAIdx = selectedAudioId ? parseInt(selectedAudioId) : -1
                 var newSIdx = selectedSubtitleId ? parseInt(selectedSubtitleId) : -1
@@ -636,9 +638,11 @@ FocusScope {
                 if (!isTranscoding) {
                     // Direct play failed (e.g. a codec mpv couldn't handle, or a
                     // network drop). Retry transparently with a transcode, resuming
-                    // at the last known position. Mirrors the Plex module.
+                    // at the last known position. Mirrors the Plex module. The
+                    // loading screen is up while the server is waited for.
                     reportStopped(finalPositionMs, finalDurationMs, true)
                     stoppedReported = false
+                    playbackStarted = false
                     pendingRetryTranscode = true
                     var aIdx = selectedAudioId ? parseInt(selectedAudioId) : -1
                     var sIdx = selectedSubtitleId ? parseInt(selectedSubtitleId) : -1
@@ -688,7 +692,13 @@ FocusScope {
 
     Component.onCompleted: {
         initStreamIndices()
-        if (streamUrl === "") return
+        // Nothing to play: back out, a tick later (the router isn't
+        // listening for goBack yet), rather than stand on a black screen
+        // with no video to end it.
+        if (streamUrl === "") {
+            Qt.callLater(playerRoot.goBack)
+            return
+        }
         var resumeSetting = appCore.get_setting(moduleRoot.moduleId, "resume_playback") || "ask"
         // Match ModuleSettings.qml's reading of a toggle: stored as a real bool
         // once the user touches it, but accept the legacy "ON" string too.

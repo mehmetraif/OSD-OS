@@ -343,7 +343,13 @@ FocusScope {
     }
 
     Component.onCompleted: {
-        if (filePath === "") return
+        // Nothing to play: back out, a tick later (the router isn't
+        // listening for goBack yet), rather than stand on a loading screen
+        // with no video to end it.
+        if (filePath === "") {
+            Qt.callLater(playerRoot.goBack)
+            return
+        }
         readSettings()
 
         imageContent = isImage(filePath) ||

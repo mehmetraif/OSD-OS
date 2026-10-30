@@ -69,7 +69,8 @@ FocusScope {
 
     Component.onCompleted: {
         if (videoPath === "" && videoPaths.length === 0) {
-            goBack()
+            // A tick later: the router isn't listening for goBack yet.
+            Qt.callLater(playerRoot.goBack)
             return
         }
 

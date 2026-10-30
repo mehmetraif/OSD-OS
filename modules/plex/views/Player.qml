@@ -379,7 +379,9 @@ FocusScope {
             if (reason === "failed") {
                 if (!isTranscoding) {
                     // Direct play failed (e.g. HTTP 500 from PMS on WAN). Retry
-                    // transparently with transcoding at the same resume offset.
+                    // transparently with transcoding at the same resume offset,
+                    // the loading screen up while the server is waited for.
+                    playbackStarted = false
                     pendingRetryTranscode = true
                     plexBackend.request_transcode(ratingKey, partKey, sessionId,
                                                   selectedAudioId, selectedSubtitleId,
@@ -435,7 +437,13 @@ FocusScope {
 
     Component.onCompleted: {
         initStreamIndices()
-        if (streamUrl === "") return
+        // Nothing to play: back out, a tick later (the router isn't
+        // listening for goBack yet), rather than stand on a black screen
+        // with no video to end it.
+        if (streamUrl === "") {
+            Qt.callLater(playerRoot.goBack)
+            return
+        }
         resumeSetting = appCore.get_setting(moduleRoot.moduleId, "resume_playback") || "ask"
         // Match ModuleSettings.qml's reading of a toggle: stored as a real bool
         // once the user touches it, but accept the legacy "ON" string too.

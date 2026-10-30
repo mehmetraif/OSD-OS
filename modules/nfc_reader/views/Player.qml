@@ -171,7 +171,8 @@ FocusScope {
 
     Component.onCompleted: {
         if (videoPath === "") {
-            goBack()
+            // A tick later: the router isn't listening for goBack yet.
+            Qt.callLater(playerRoot.goBack)
             return
         }
         // A card tap is user activity but arrives with no key event — if the

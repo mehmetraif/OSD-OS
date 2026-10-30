@@ -38,6 +38,7 @@ Rectangle {
     property var statusIcons: []
     property var takeBackNote: ({})
     property bool videoBehind: false
+    property bool videoActive: false
     readonly property real hintRoom: 0
     readonly property real helpRoom: 0
     readonly property real helpLineMargin: sh * 0.1583333
