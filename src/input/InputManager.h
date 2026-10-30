@@ -11,6 +11,9 @@
 #include <QElapsedTimer>
 #include <SDL.h>
 
+#include <functional>
+#include <optional>
+
 #include "ControllerProfile.h"
 
 class QQuickWindow;
@@ -49,6 +52,14 @@ class JammaPins;
 // which of its inputs is each of a cabinet's, Button 1 to 8, Coin and Start,
 // in every game: kept in its profile, and given to the Arcade module for
 // each player as MAME and RetroArch name them (controllers::playerArcade()).
+//
+// Cabinet Lock's unlock buttons (Settings → Cabinet Lock) are one to four
+// inputs, of any pads and keyboards, held together: with the lock on
+// (config.json app.cabinet_lock), held for three seconds they are
+// unlockRequested(), and Main.qml opens the main menu. A press of one of them
+// that isn't a direction waits a moment for the rest before it acts, so that
+// a START among them doesn't start a game first; once they are all held,
+// none of them acts.
 class InputManager : public QObject {
     Q_OBJECT
     Q_PROPERTY(QString lastInputDevice READ lastInputDevice NOTIFY lastInputDeviceChanged)
@@ -64,6 +75,9 @@ class InputManager : public QObject {
     // chosen, "" for Auto), name (the one playing, or the one chosen while
     // it is away), playing (the key of the one playing, ""), connected }].
     Q_PROPERTY(QVariantList players READ players NOTIFY playersChanged)
+    // Cabinet Lock's unlock buttons by name, joined ("P1 START + P2 START"),
+    // "" for none.
+    Q_PROPERTY(QString unlockButtons READ unlockButtons NOTIFY unlockButtonsChanged)
 
 public:
     explicit InputManager(const QString &dataRoot, AppCore *appCore, QObject *parent = nullptr);
@@ -83,6 +97,7 @@ public:
     QVariantList controllers() const;
     QString activeController() const { return m_activeController; }
     QVariantList players() const;
+    QString unlockButtons() const { return m_unlockNames.join(QStringLiteral(" + ")); }
 
     // One controller's page: { key, name, kind, present, labels, labelsInUse,
     // jamma, arcade, rows }; labels the style chosen ("auto"...), labelsInUse
@@ -173,6 +188,13 @@ public:
     Q_INVOKABLE void watchJammaPins(bool on);
     // A stand-in for osdos-jamma, for the tests.
     void setJammaProgram(const QString &program);
+    // Cabinet Lock's unlock buttons chosen anew (true), or the wait for them
+    // ended (false). While it waits, every pad's input and every key is
+    // reported (unlockButtonsHeld()) instead of acting; those held together
+    // for two seconds, one to four, become the unlock buttons, kept in
+    // config.json's app.unlock_buttons, and end it (unlockCaptureEnded()),
+    // as ten seconds with nothing held do.
+    Q_INVOKABLE void captureUnlockButtons(bool on);
 
     // Remap-capture mode, held on by the remap screen while its "press a
     // button" overlay is up. While active, remap delivery is suspended and
@@ -221,6 +243,13 @@ signals:
     void jammaPinChanged(int player, const QString &address, const QString &pin, bool pressed,
                          const QString &input);
     void jammaPinsFailed(const QString &reason);
+    // Cabinet Lock on: its unlock buttons held together for three seconds.
+    void unlockRequested();
+    void unlockButtonsChanged();
+    // captureUnlockButtons()'s: what is held now, by name ("" for nothing),
+    // and whether that is more than four.
+    void unlockButtonsHeld(const QString &names, bool tooMany);
+    void unlockCaptureEnded(bool saved);
 
 protected:
     bool eventFilter(QObject *obj, QEvent *event) override;
@@ -314,6 +343,42 @@ private:
     void releaseHeld(const QString &source);
     void letGoOfPad(SDL_JoystickID id);
     static bool essentialAction(Action a);
+    // What a pad's press does (handleButton(), handleAxis()): MAME's coin
+    // key where the focus takes one, else its action. Nothing for a pad gone
+    // or no longer listened to since, as for a press held back.
+    void actOnPadPress(SDL_JoystickID which, const HeldInput &input, const QString &token, Action a);
+
+    // Cabinet Lock (captureUnlockButtons()). An input as the unlock buttons
+    // name it: a pad's by the player it plays ("p1/start"), else by its key
+    // ("pad-…/start"); a key by its id ("key/16777220"). Its name as the
+    // page shows it: "P1 START", a pad of no player's by its name.
+    void loadUnlock();
+    bool watchingUnlock() const { return m_lockOn && !m_unlockInputs.isEmpty(); }
+    QString padInputId(SDL_JoystickID which, const QString &token) const;
+    QString padInputName(SDL_JoystickID which, const QString &token) const;
+    // A press, while the unlock buttons are waited for, reported (true); else,
+    // with the lock on, one of them held back until the rest come or a moment
+    // has gone by (true), act then, but a direction, which acts at once
+    // unless one is held back already; all of them held, kept from the views
+    // (true). False for a press to act on now.
+    bool unlockPress(const QString &id, const QString &name, const HeldInput &input, bool direction,
+                     const std::function<void()> &act);
+    // A release: reported while they are waited for (true); else, all of
+    // them held long enough though the timer couldn't run out, the unlock
+    // first (unlockHeldOut()); what was held back acted on, if this input's
+    // press was; and false.
+    bool unlockRelease(const QString &id);
+    bool heldBack(const QString &id) const;
+    void flushHeldBack();
+    void unlockAllHeld();
+    void unlockHeldOut();
+    void unlockCaptureChanged();
+    void endUnlockCapture(bool saved);
+    // A key's part in it (eventFilter()): true to keep the key from the
+    // views, nullopt to let it go on. A key that must come after one held
+    // back goes on as a replay of it, posted after that one's.
+    std::optional<bool> unlockKey(const QKeyEvent *ke, int id, const QString &device);
+    void replayKey(const QKeyEvent &ke, const QString &device);
     void deliverPress(Action a, bool autoRepeat);
     void deliverRelease(Action a, bool autoRepeat);
     void postKey(int qtKey, QEvent::Type type, bool autoRepeat);
@@ -427,6 +492,33 @@ private:
     // Keys whose press a wait for a press took (Qt::Key): swallowed until let
     // go, as their repeats would act as what they were just given.
     QSet<int> m_capturedKeys;
+    // Cabinet Lock: whether it is on (config.json app.cabinet_lock), its
+    // unlock buttons (padInputId()) and their names (app.unlock_buttons).
+    bool m_lockOn = false;
+    QStringList m_unlockInputs;
+    QStringList m_unlockNames;
+    // Those of them held down now, each as the input it is (a key's source
+    // "keys", its Qt key); all of them start m_unlockTimer.
+    QHash<QString, HeldInput> m_unlockHeld;
+    QTimer m_unlockTimer;
+    QElapsedTimer m_unlockSince;    // since all of them were held
+    // Presses of theirs held back, in the order they came, and what they do.
+    struct HeldBack {
+        QString id;
+        QString source;   // a pad's padSource(), "keys"
+        std::function<void()> act;
+    };
+    QList<HeldBack> m_heldBack;
+    QTimer m_heldBackTimer;
+    // The devices of the keys replayed (replayKey()), as they were posted.
+    QStringList m_replayDevices;
+    // Waiting for new unlock buttons: what is held, as it was pressed, and its
+    // name; the same held for two seconds is kept (m_captureHoldTimer), ten
+    // seconds with nothing held end the wait (m_captureIdleTimer).
+    bool m_unlockCapture = false;
+    QList<QPair<QString, QString>> m_captureHeld;
+    QTimer m_captureHoldTimer;
+    QTimer m_captureIdleTimer;
     bool m_remapCapture = false;                     // see setRemapCapture()
     int  m_wheelTurn = 0;                            // the mouse wheel's turn short of a notch (eventFilter())
 

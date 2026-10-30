@@ -12,7 +12,7 @@ Back on the main menu opens Settings (the hint bar there says `[ESC]:SETTINGS`).
 |---|---|---|---|
 | ▲ ▼ | Up, Down | D-pad, left stick | Moves to the row above or below. Past the last row the cursor goes round to the first |
 | ◄ ► | Left, Right | D-pad, left stick, LB, RB | Changes the value, round from the last choice to the first. A slider moves by 10. On a row that ends in ►, ► opens it as select does |
-| Select | Enter | A | Opens a page (TV / Movie, Arcade, a module's settings, Controls, Wi-Fi, Bluetooth, Update, About), the list of Display Output, the file browser of Music File and Logo Image, or the Quit question: the rows that end in ►. On Transparent Background it turns the setting on or off |
+| Select | Enter | A | Opens a page (TV / Movie, Arcade, a module's settings, Cabinet Lock, Controls, Wi-Fi, Bluetooth, Update, About), the list of Display Output, the file browser of Music File and Logo Image, or the Quit question: the rows that end in ►. On Transparent Background it turns the setting on or off |
 | Back | Esc, Backspace | B, or the pad's Back/Select button | Back to the main menu; from a page, back to the row that opened it |
 
 - **A change is saved at once.** Settings calls `appCore.save_setting("", key, value)`, on TV / Movie's page as on the first screen, which writes the value into `config.json` under `app.<key>` ([Configuration files](https://github.com/mehmetraif/OSD-OS/wiki/Configuration-Files#configjson)). Most rows take effect at once. The rows mpv is started with (Scaling, Video Levels, Channel Logo, Logo Image, Screen Saver during a video) apply from the next video. A value that can't be saved (a full or read-only disk) isn't applied, here or on a module's page: the row stays on the value saved, and the log says `[AppCore] Setting not saved: …`.
@@ -145,9 +145,36 @@ Schemes of your own come from two files in the data folder: `custom_color_scheme
 | Start on Module | None, then each module that is turned on, by name | None | Opens that module straight after start (on the OSD/OS image, once the boot screen has closed). A module turned off later is never opened, and the row shows None | `app.startup_module`: the module's id, such as `com.osdos.local_files`; `"None"` |
 | Play at Startup | None, or the name of the favourite chosen | None | A favourite played straight after start, ahead of Start on Module. You choose it in its module: ► on the entry, then **Play at Startup** (it goes on Favorites too). Here you can only turn it off. It plays only while it is still one of that module's favourites | `app.startup_favorite`: `{ "module", "path", "name" }`, or `""` for None |
 | Startup From | Resume, Beginning | Resume | Offered while there is a favourite to play at startup. Where it begins, without asking: where it was stopped, or from the start | `app.startup_from` |
+| Cabinet Lock | (opens its page) On, Off | Off | Keeps OSD/OS on Start on Module's module, a cabinet's Arcade screen: the main menu, Settings and Quit open only with the unlock buttons held together for three seconds ([below](#cabinet-lock)) | `app.cabinet_lock`: `"On"` or `"Off"`; the buttons `app.unlock_buttons` |
 | Boot Screen Colors | Theme, Default | Theme | The colours of the boot screen on the OSD/OS image, its cassette and the services coming up: the theme's or colour scheme's, or white on blue | `app.boot_colors`: `"Theme"` or `"Default"` |
 
 The Scripts module's **Auto-Run On Startup** runs a script when OSD/OS starts on that module, so it needs Start on Module set to Scripts ([Scripts](https://github.com/mehmetraif/OSD-OS/wiki/Scripts)).
+
+### Cabinet Lock
+
+**Cabinet Lock** keeps a cabinet on its game list for the players: OSD/OS stays on Start on Module's module, the Arcade screen on a cabinet, and the menus behind it are out of their reach. The row opens its page, with two rows:
+
+| Row | What it does |
+|---|---|
+| Cabinet Lock | ◄ ► or select turn it on or off. On asks first, **Lock the cabinet?**, naming the module it stays on and the buttons that unlock it. It needs a Start on Module, and says so without one; without unlock buttons it asks for them first, then asks to lock. Off turns it off at once |
+| Unlock Buttons | Select, then hold the buttons that unlock it together for two seconds: one to four of them, of any pads and keyboards together, a direction among them if you like. The window names them as they are held (`P1 START + P2 START`); a fifth asks you to let one go. Nothing held for ten seconds, or back, keeps the old ones |
+
+<table>
+<tr><th width="33%">Cabinet Lock</th><th width="33%">Unlock Buttons</th><th width="33%">Lock the cabinet?</th></tr>
+<tr><td><img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/screenshots/cabinet-lock.png" width="100%" alt="Cabinet Lock: Cabinet Lock On and Unlock Buttons 1 + 2" /></td><td><img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/screenshots/cabinet-lock-buttons.png" width="100%" alt="Unlock Buttons: hold the buttons that unlock the cabinet together, 3 + 4 held" /></td><td><img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/screenshots/cabinet-lock-confirm.png" width="100%" alt="Lock the cabinet? OSD/OS stays on Arcade. Hold 3 + 4 together for three seconds to open the menus. Lock, Cancel" /></td></tr>
+<tr><td>The page: the lock and the buttons that open it.</td><td>The buttons held, named as they are, kept after two seconds.</td><td>Asked before it locks, with what unlocks it.</td></tr>
+</table>
+
+While it is locked:
+
+- **Back** on the start module goes nowhere: no main menu, no Settings, no Quit. Back inside the module works as ever (a game's options, Game Details, the screen before a game), and a game plays as ever; back from another module, one an NFC card opened, say, comes to the start module.
+- **Ctrl+Q** doesn't quit.
+- **The unlock buttons**, held together for three seconds, open the main menu. Everything is reachable then until OSD/OS starts again, or until they are held again, which takes it back to the start module, locked.
+- Turned on in Settings, it locks at once and goes to the start module. It locks only with a Start on Module that is turned on and with unlock buttons: `cabinet_lock` set to `"On"` in `config.json` without them locks nothing.
+
+The unlock buttons are named by the player whose pad presses them (`P1 START` is player 1's START, whichever pad player 1 has), a pad of no player's by the pad, and a key by its name. Each of them but a direction waits a moment (0.3 seconds) for the others before it acts, so that a START among them doesn't start a game on its own; pressed alone, it acts after that moment, and a direction acts at once. Held together, none of them acts.
+
+Forgot the buttons, or a pad that is gone? Turn the lock off from outside: put an `osdos-setup.json` holding `{"osdos_setup": 1, "config": {"app": {"cabinet_lock": "Off"}}}` on the card's boot partition (**bootfs**) or in the data folder and start OSD/OS ([Installation](https://github.com/mehmetraif/OSD-OS/wiki/Installation#osdos-setup-settings-on-the-card-before-the-first-boot)), or set `app.cabinet_lock` to `"Off"` in `config.json` over SSH with OSD/OS stopped ([Configuration files](https://github.com/mehmetraif/OSD-OS/wiki/Configuration-Files#editing-by-hand)).
 
 ### The menus
 

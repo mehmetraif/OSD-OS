@@ -124,6 +124,15 @@ Rectangle {
             calls = calls.concat([["arcadeInputs", key, tokens]])
             return "set"
         }
+        // Cabinet Lock's unlock buttons, and the wait for new ones.
+        property string unlockButtons: ""
+        signal unlockButtonsHeld(string names, bool tooMany)
+        signal unlockCaptureEnded(bool saved)
+        function captureUnlockButtons(on) {
+            calls = calls.concat([["captureUnlock", on]])
+            if (!on)
+                unlockCaptureEnded(false)
+        }
         function setPlayer(player, key) {
             calls = calls.concat([["player", player, key]])
             var list = players.slice()
@@ -149,6 +158,8 @@ Rectangle {
     QtObject {
         id: appCore
         property var settings: ({})
+        property var modules: [{ id: "com.osdos.arcade", name: "Arcade", enabled: true }]
+        function get_installed_modules() { return modules }
         function get_setting(module, key) { return settings[key] }
         function save_setting(module, key, value) {
             var s = settings
@@ -287,6 +298,18 @@ Rectangle {
             // As Main.qml gives it: the view loaded takes the keys.
             loader.item.forceActiveFocus()
             return loader.item
+        }
+
+        // The text item shown with this in it.
+        function findText(item, text) {
+            if (item.text !== undefined && item.visible && String(item.text).indexOf(text) >= 0)
+                return item
+            for (var i = 0; i < item.children.length; i++) {
+                var found = findText(item.children[i], text)
+                if (found)
+                    return found
+            }
+            return null
         }
 
         function test_list() {
@@ -1198,6 +1221,59 @@ Rectangle {
             compare(inputManager.capturing, "")
             keyClick(Qt.Key_Escape)
             compare(root.backs, 1)
+        }
+
+        // Settings → Cabinet Lock (views/CabinetLock.qml): turned on without
+        // unlock buttons, they are waited for first, what is held shown as it
+        // changes, too many said so; once they are kept, it asks before it
+        // locks, and Lock saves it. Without a module to stay on, it says so
+        // and stays off. Off is saved at once.
+        function test_cabinetLock() {
+            appCore.settings = { startup_module: "com.osdos.arcade" }
+            var page = open("CabinetLock.qml")
+            verify(findText(page, "Cabinet Lock") !== null)
+            verify(findText(page, "None") !== null)
+            keyClick(Qt.Key_Return)
+            compare(inputManager.calls[inputManager.calls.length - 1], ["captureUnlock", true])
+            verify(page.capturing)
+            verify(findText(page, "Nothing held") !== null)
+            inputManager.unlockButtonsHeld("P1 START", false)
+            verify(findText(page, "P1 START") !== null)
+            inputManager.unlockButtonsHeld("P1 START + P2 START + P1 1 + P2 1 + P1 COIN", true)
+            verify(findText(page, "At most four") !== null)
+            inputManager.unlockButtonsHeld("P1 START + P2 START", false)
+            inputManager.unlockButtons = "P1 START + P2 START"
+            inputManager.unlockCaptureEnded(true)
+            verify(!page.capturing)
+            tryVerify(function() { return findText(page, "Lock the cabinet?") !== null })
+            verify(findText(page, "Hold P1 START + P2 START together for three seconds") !== null)
+            keyClick(Qt.Key_Return)   // Lock
+            compare(appCore.settings.cabinet_lock, "On")
+            // Off again, at once.
+            page.refresh()
+            verify(page.lockOn)
+            keyClick(Qt.Key_Left)
+            compare(appCore.settings.cabinet_lock, "Off")
+            verify(!page.lockOn)
+            // A wait ended from the page keeps the old ones.
+            keyClick(Qt.Key_Down)
+            keyClick(Qt.Key_Return)
+            verify(page.capturing)
+            keyClick(Qt.Key_Escape)
+            compare(inputManager.calls[inputManager.calls.length - 1], ["captureUnlock", false])
+            verify(!page.capturing)
+            verify(findText(page, "P1 START + P2 START") !== null)
+            // No module to stay on: said, and off.
+            appCore.settings = {}
+            page.refresh()
+            keyClick(Qt.Key_Up)
+            keyClick(Qt.Key_Return)
+            tryVerify(function() { return findText(page, "No Start on Module") !== null })
+            compare(appCore.settings.cabinet_lock, undefined)
+            keyClick(Qt.Key_Return)
+            keyClick(Qt.Key_Escape)
+            compare(root.backs, 1)
+            inputManager.unlockButtons = ""
         }
     }
 }

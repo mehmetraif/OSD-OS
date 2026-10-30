@@ -3,8 +3,10 @@
 #include "input/InputManager.h"
 #include "input/JammaPins.h"
 
+#include <QElapsedTimer>
 #include <QFile>
 #include <QJsonDocument>
+#include <QJsonArray>
 #include <QJsonObject>
 #include <QKeyEvent>
 #include <QMouseEvent>
@@ -14,6 +16,7 @@
 #include <QSaveFile>
 #include <QSignalSpy>
 #include <QTemporaryDir>
+#include <QThread>
 #include <QtTest>
 #include <QWindow>
 
@@ -141,6 +144,12 @@ class ControllersTest : public QObject {
         pad.button(b, false);
         QVERIFY2(QTest::qWaitFor([&] { return SDL_JoystickGetButton(pad.joystick, b) == 0; }, 1000),
                  "SDL never saw the release");
+    }
+    // Pressed and held, once InputManager's poll has read it.
+    static void hold(VirtualPad &pad, SDL_GameControllerButton b) {
+        pad.button(b, true);
+        QVERIFY2(QTest::qWaitFor([&] { return SDL_JoystickGetButton(pad.joystick, b) == 1; }, 1000),
+                 "SDL never saw the press");
     }
     static void centre(VirtualPad &pad, SDL_GameControllerAxis a) {
         pad.axis(a, 0);
@@ -1834,6 +1843,208 @@ private slots:
         QVERIFY(QTest::qWaitFor([&] { return !catcher.released.isEmpty(); }, 1000));
         QCOMPARE(catcher.released, QList<int>({ int(Qt::Key_5) }));
         QCOMPARE(im.hints().value("coin").toString(), QString("[7]"));
+        window.removeEventFilter(&catcher);
+        im.setTargetWindow(nullptr);
+    }
+
+    // Cabinet Lock's unlock buttons: chosen by holding them for two seconds,
+    // four at most, nothing acting meanwhile, and named by the players their
+    // pads play. With the lock on, a press of one that isn't a direction
+    // waits a moment for the rest before it acts, and another input lets
+    // what waited go first; all of them held for three seconds ask to
+    // unlock, and none acts, nor does a release. Off, nothing waits. Keys
+    // the same, the ones held back given the window later, in order.
+    void cabinetLock() {
+        using B = SDL_GameControllerButton;
+        AppCore core(m_app.path(), m_data.path());
+        InputManager im(m_data.path(), &core);
+        QSignalSpy keys(&im, &InputManager::mpvKeyRequested);
+        QSignalSpy held(&im, &InputManager::unlockButtonsHeld);
+        QSignalSpy ended(&im, &InputManager::unlockCaptureEnded);
+        QSignalSpy unlock(&im, &InputManager::unlockRequested);
+        VirtualPad p1, p2;
+        QVERIFY(p1.attach("OSD/OS JAMMA P1", 0x0001, 0x0001));
+        QVERIFY(p2.attach("OSD/OS JAMMA P2", 0x0001, 0x0002));
+        QTRY_VERIFY(entry(im, "OSD/OS JAMMA P1").value("present").toBool());
+        QTRY_VERIFY(entry(im, "OSD/OS JAMMA P2").value("present").toBool());
+        QTRY_COMPARE(player(im, 2).value("name").toString(), QString("OSD/OS JAMMA P2"));
+        QCOMPARE(im.unlockButtons(), QString());
+
+        // Five held are too many; one let go, the four left are kept two
+        // seconds on.
+        im.captureUnlockButtons(true);
+        for (const B b : { SDL_CONTROLLER_BUTTON_START, SDL_CONTROLLER_BUTTON_DPAD_UP, SDL_CONTROLLER_BUTTON_BACK })
+            hold(p1, b);
+        hold(p2, SDL_CONTROLLER_BUTTON_START);
+        hold(p2, SDL_CONTROLLER_BUTTON_A);
+        QCOMPARE(held.last().at(0).toString(), QString("P1 START + P1 D-PAD ▲ + P1 COIN + P2 START + P2 1"));
+        QVERIFY(held.last().at(1).toBool());
+        QTest::qWait(2300);
+        QCOMPARE(ended.count(), 0);
+        release(p2, SDL_CONTROLLER_BUTTON_A);
+        QVERIFY(!held.last().at(1).toBool());
+        QVERIFY(ended.wait(3000));
+        QCOMPARE(ended.at(0).at(0).toBool(), true);
+        QCOMPARE(im.unlockButtons(), QString("P1 START + P1 D-PAD ▲ + P1 COIN + P2 START"));
+        const QJsonArray kept = [this] {
+            QFile f(m_data.path() + "/config.json");
+            return f.open(QIODevice::ReadOnly) ? QJsonDocument::fromJson(f.readAll()).object().value("app")
+                                                     .toObject().value("unlock_buttons").toArray()
+                                               : QJsonArray();
+        }();
+        QCOMPARE(kept.size(), 4);
+        QCOMPARE(kept.at(1).toObject().value("input").toString(), QString("p1/dpup"));
+        QCOMPARE(kept.at(3).toObject().value("input").toString(), QString("p2/start"));
+        for (const B b : { SDL_CONTROLLER_BUTTON_START, SDL_CONTROLLER_BUTTON_DPAD_UP, SDL_CONTROLLER_BUTTON_BACK })
+            release(p1, b);
+        release(p2, SDL_CONTROLLER_BUTTON_START);
+        QCOMPARE(keysOf(keys), QStringList());
+
+        // Locked: START waits for the rest, then acts; a direction acts at
+        // once. How long a press takes to act, held on.
+        const auto actsAfter = [&keys](VirtualPad &pad, B b) -> qint64 {
+            keys.clear();
+            QElapsedTimer since;
+            since.start();
+            hold(pad, b);
+            if (keys.isEmpty() && !keys.wait(1000))
+                return -1;
+            return since.elapsed();
+        };
+        QVERIFY(core.save_setting(QString(), "cabinet_lock", "On"));
+        QVERIFY(actsAfter(p1, SDL_CONTROLLER_BUTTON_START) >= 250);
+        QCOMPARE(keysOf(keys), QStringList({ "SPACE" }));
+        release(p1, SDL_CONTROLLER_BUTTON_START);
+        const qint64 up = actsAfter(p1, SDL_CONTROLLER_BUTTON_DPAD_UP);
+        QVERIFY2(up >= 0 && up < 250, qPrintable(QString::number(up)));
+        release(p1, SDL_CONTROLLER_BUTTON_DPAD_UP);
+        // Another button lets START go first.
+        keys.clear();
+        hold(p1, SDL_CONTROLLER_BUTTON_START);
+        hold(p1, SDL_CONTROLLER_BUTTON_A);
+        QTRY_COMPARE(keysOf(keys), QStringList({ "SPACE", "ENTER" }));
+        release(p1, SDL_CONTROLLER_BUTTON_A);
+        release(p1, SDL_CONTROLLER_BUTTON_START);
+
+        // All four held for three seconds: unlock, and nothing else.
+        const auto holdAll = [&] {
+            for (const B b : { SDL_CONTROLLER_BUTTON_START, SDL_CONTROLLER_BUTTON_DPAD_UP, SDL_CONTROLLER_BUTTON_BACK })
+                p1.button(b, true);
+            p2.button(SDL_CONTROLLER_BUTTON_START, true);
+            QVERIFY(QTest::qWaitFor([&] {
+                return SDL_JoystickGetButton(p1.joystick, SDL_CONTROLLER_BUTTON_DPAD_UP)
+                    && SDL_JoystickGetButton(p2.joystick, SDL_CONTROLLER_BUTTON_START);
+            }, 1000));
+        };
+        keys.clear();
+        holdAll();
+        QTest::qWait(2000);
+        QCOMPARE(unlock.count(), 0);
+        QVERIFY(unlock.wait(2500));
+        // One let go before then: no unlock, until it is held again.
+        release(p2, SDL_CONTROLLER_BUTTON_START);
+        hold(p2, SDL_CONTROLLER_BUTTON_START);
+        QTest::qWait(1000);
+        release(p2, SDL_CONTROLLER_BUTTON_START);
+        QTest::qWait(2500);
+        QCOMPARE(unlock.count(), 1);
+        hold(p2, SDL_CONTROLLER_BUTTON_START);
+        QVERIFY(unlock.wait(4000));
+        for (const B b : { SDL_CONTROLLER_BUTTON_START, SDL_CONTROLLER_BUTTON_DPAD_UP, SDL_CONTROLLER_BUTTON_BACK })
+            release(p1, b);
+        release(p2, SDL_CONTROLLER_BUTTON_START);
+        QTest::qWait(400);
+        QCOMPARE(keysOf(keys), QStringList());
+        QCOMPARE(unlock.count(), 2);
+
+        // Off: nothing waits.
+        QVERIFY(core.save_setting(QString(), "cabinet_lock", "Off"));
+        const qint64 start = actsAfter(p1, SDL_CONTROLLER_BUTTON_START);
+        QVERIFY2(start >= 0 && start < 250, qPrintable(QString::number(start)));
+        release(p1, SDL_CONTROLLER_BUTTON_START);
+
+        // Keys: 1 and 2 chosen, their releases kept from the window too.
+        QQuickWindow window;
+        im.setTargetWindow(&window);
+        struct Catcher : QObject {
+            QList<int> pressed, released;
+            bool eventFilter(QObject *, QEvent *event) override {
+                if (event->type() == QEvent::KeyPress)
+                    pressed << static_cast<QKeyEvent *>(event)->key();
+                else if (event->type() == QEvent::KeyRelease)
+                    released << static_cast<QKeyEvent *>(event)->key();
+                return false;
+            }
+        } catcher;
+        window.installEventFilter(&catcher);
+        const auto send = [&window](QEvent::Type type, int key, bool repeat = false) {
+            QKeyEvent event(type, key, Qt::NoModifier, QString(), repeat);
+            QCoreApplication::sendEvent(&window, &event);
+        };
+        ended.clear();
+        im.captureUnlockButtons(true);
+        send(QEvent::KeyPress, Qt::Key_1);
+        send(QEvent::KeyPress, Qt::Key_2);
+        send(QEvent::KeyPress, Qt::Key_2, true);
+        QVERIFY(ended.wait(3000));
+        QCOMPARE(im.unlockButtons(), QString("1 + 2"));
+        send(QEvent::KeyRelease, Qt::Key_1);
+        send(QEvent::KeyRelease, Qt::Key_2);
+        QCOMPARE(catcher.pressed, QList<int>());
+        QCOMPARE(catcher.released, QList<int>());
+
+        // Locked: 1 waits, then the window has it, and its release after it;
+        // 3 coming meanwhile goes after it.
+        QVERIFY(core.save_setting(QString(), "cabinet_lock", "On"));
+        send(QEvent::KeyPress, Qt::Key_1);
+        QCOMPARE(catcher.pressed, QList<int>());
+        QTRY_COMPARE(catcher.pressed, QList<int>({ Qt::Key_1 }));
+        send(QEvent::KeyRelease, Qt::Key_1);
+        QCOMPARE(catcher.released, QList<int>({ Qt::Key_1 }));
+        catcher.pressed.clear();
+        catcher.released.clear();
+        send(QEvent::KeyPress, Qt::Key_1);
+        send(QEvent::KeyPress, Qt::Key_3);
+        send(QEvent::KeyRelease, Qt::Key_1);
+        QCOMPARE(catcher.pressed, QList<int>());
+        QTRY_COMPARE(catcher.released, QList<int>({ Qt::Key_1 }));
+        QCOMPARE(catcher.pressed, QList<int>({ Qt::Key_1, Qt::Key_3 }));
+        send(QEvent::KeyRelease, Qt::Key_3);
+        // Both held: unlock, and the window has neither.
+        catcher.pressed.clear();
+        catcher.released.clear();
+        unlock.clear();
+        send(QEvent::KeyPress, Qt::Key_1);
+        send(QEvent::KeyPress, Qt::Key_2);
+        send(QEvent::KeyPress, Qt::Key_1, true);
+        QVERIFY(unlock.wait(4000));
+        send(QEvent::KeyRelease, Qt::Key_2);
+        send(QEvent::KeyRelease, Qt::Key_1);
+        QTest::qWait(400);
+        QCOMPARE(catcher.pressed, QList<int>());
+        QCOMPARE(catcher.released, QList<int>());
+        QCOMPARE(unlock.count(), 1);
+
+        // Held three seconds while the app was too busy to see the time go
+        // by, and let go before it could: they count all the same, once.
+        unlock.clear();
+        send(QEvent::KeyPress, Qt::Key_1);
+        send(QEvent::KeyPress, Qt::Key_2);
+        QThread::msleep(3100);
+        send(QEvent::KeyRelease, Qt::Key_2);
+        QCOMPARE(unlock.count(), 1);
+        send(QEvent::KeyRelease, Qt::Key_1);
+        QTest::qWait(400);
+        QCOMPARE(unlock.count(), 1);
+        QCOMPARE(catcher.pressed, QList<int>());
+        QCOMPARE(catcher.released, QList<int>());
+
+        // A wait ended from its page says nothing was kept.
+        ended.clear();
+        im.captureUnlockButtons(true);
+        im.captureUnlockButtons(false);
+        QCOMPARE(ended.count(), 1);
+        QVERIFY(!ended.at(0).at(0).toBool());
         window.removeEventFilter(&catcher);
         im.setTargetWindow(nullptr);
     }

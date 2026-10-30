@@ -299,6 +299,17 @@ FocusScope {
             moduleId: ""
         })
 
+        // CABINET LOCK — OSD/OS kept on Start on Module, the main menu and
+        // Settings opened with the unlock buttons alone (views/CabinetLock.qml).
+        items.push({
+            type: "submenu",
+            key: "cabinet_lock",
+            label: "Cabinet Lock",
+            value: appSettings["cabinet_lock"] === "On" ? "On" : "Off",
+            description: "Keeps OSD/OS on its Start on Module, a cabinet's Arcade screen: the main menu, Settings and Quit open only with the unlock buttons held together for three seconds",
+            moduleId: ""
+        })
+
         // BOOT SCREEN COLORS — the boot screen in the colours in force, as
         // the loading screen's are (TV / Movie). Read in Main.qml
         // (root.bootInk).
@@ -915,6 +926,8 @@ FocusScope {
                     settingsRoot.navigateTo("views/Bluetooth.qml", {}, { currentIndex: settingsList.currentIndex })
                 else if (row.key === "about")
                     settingsRoot.navigateTo("views/About.qml", {}, { currentIndex: settingsList.currentIndex })
+                else if (row.key === "cabinet_lock")
+                    settingsRoot.navigateTo("views/CabinetLock.qml", {}, { currentIndex: settingsList.currentIndex })
                 else if (row.key === "group_tv")
                     settingsRoot.navigateTo("views/Settings.qml", { group: "tv" }, { currentIndex: settingsList.currentIndex })
                 else
@@ -993,7 +1006,7 @@ FocusScope {
                 heading: rowItem.row.type === "section"
                 label: rowItem.row.label || ""
                 value: rowItem.row.type === "list_single" || rowItem.row.type === "display_output"
-                       || rowItem.row.type === "file"
+                       || rowItem.row.type === "file" || rowItem.row.type === "submenu"
                        ? (rowItem.row.value || "")
                      : rowItem.slider && rowItem.row.on !== undefined ? (rowItem.row.on ? "On" : "Off") : ""
                 opens: settingsList.opens(rowItem.row)
