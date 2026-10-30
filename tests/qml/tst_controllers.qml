@@ -190,9 +190,13 @@ Rectangle {
                        ["lefttrigger+", "LT"], ["righttrigger+", "RT"], ["back", "BACK"], ["start", "START"],
                        ["leftstick", "LS"], ["rightstick", "RS"]]
         return { key: root.padKey, name: "8BitDo Pro 2", present: present !== false, jamma: 0, layout: layout,
-                 layoutTitle: { "default": "Default", fighting6: "Fighting 6", neogeo4: "Neo Geo 4", custom: "Custom" }[layout],
+                 layoutTitle: { "default": "Default", fighting6: "Fighting 6", neogeo4: "Neo Geo 4", nes: "NES",
+                                megadrive: "Mega Drive", snes: "SNES", saturn: "Saturn", n64: "N64", custom: "Custom" }[layout],
                  layouts: [{ layout: "default", title: "Default" }, { layout: "fighting6", title: "Fighting 6" },
-                           { layout: "neogeo4", title: "Neo Geo 4" }, { layout: "custom", title: "Custom" }],
+                           { layout: "neogeo4", title: "Neo Geo 4" }, { layout: "nes", title: "NES" },
+                           { layout: "megadrive", title: "Mega Drive" }, { layout: "snes", title: "SNES" },
+                           { layout: "saturn", title: "Saturn" }, { layout: "n64", title: "N64" },
+                           { layout: "custom", title: "Custom" }],
                  rows: rows, choices: choices.map(function(c) { return { token: c[0], label: c[1] } }) }
     }
     readonly property var padInputs: ["a", "b", "x", "y", "leftshoulder", "rightshoulder", "lefttrigger+", "righttrigger+",
@@ -878,6 +882,32 @@ Rectangle {
             keyClick(Qt.Key_Right)
             compare(root.navigations.length, 3)
             compare(root.navigations[2].path, "views/ArcadeButtons.qml")
+        }
+
+        // A console pad's own layouts, after Neo Geo 4: each says what its
+        // buttons are by the console's names for them.
+        function test_arcadeConsoleLayouts() {
+            var page = open("ArcadeButtons.qml", { key: root.padKey })
+            keyClick(Qt.Key_Right)
+            keyClick(Qt.Key_Right)
+            keyClick(Qt.Key_Right)
+            compare(inputManager.calls[2], ["arcadeLayout", root.padKey, "nes"])
+            compare(page.rows[0].value, "NES")
+            verify(page.rows[0].description.indexOf("B is button 1, A button 2") >= 0, page.rows[0].description)
+            var said = {}
+            var layouts = ["megadrive", "snes", "saturn", "n64"]
+            for (var i = 0; i < layouts.length; i++) {
+                keyClick(Qt.Key_Right)
+                compare(inputManager.calls[3 + i], ["arcadeLayout", root.padKey, layouts[i]])
+                said[layouts[i]] = page.rows[0].description
+            }
+            compare(page.rows[0].value, "N64")
+            verify(said.megadrive.indexOf("A B C are buttons 1 2 3, X Y Z 4 5 6") >= 0, said.megadrive)
+            verify(said.snes.indexOf("punches 1 2 3 on Y X L, kicks 4 5 6 on B A R") >= 0, said.snes)
+            verify(said.saturn.indexOf("punches 1 2 3 on X Y Z, kicks 4 5 6 on A B C") >= 0, said.saturn)
+            verify(said.n64.indexOf("Z is Coin") >= 0, said.n64)
+            keyClick(Qt.Key_Right)
+            compare(page.rows[0].value, "Custom")
         }
 
         // A pad's Arcade Buttons: its layout, a line set by a press (and

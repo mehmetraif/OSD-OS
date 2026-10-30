@@ -264,7 +264,8 @@ private slots:
     // RetroArch name each of its inputs.
     void arcadeAsKept() {
         using namespace controllers;
-        QCOMPARE(arcadeLayouts(), QStringList({ "default", "fighting6", "neogeo4", "custom" }));
+        QCOMPARE(arcadeLayouts(), QStringList({ "default", "fighting6", "neogeo4", "nes", "megadrive", "snes", "saturn", "n64",
+                                                "custom" }));
         QCOMPARE(arcadeLayoutTitle("fighting6"), QString("Fighting 6"));
         QCOMPARE(arcadeLayoutTitle(""), QString("Default"));
         QCOMPARE(arcadeInputName(kArcadeCoin), QString("coin"));
@@ -577,7 +578,7 @@ private slots:
         QCOMPARE(im->controllerPage(key).value("arcade").toString(), QString("Default"));
         QCOMPARE(values(), QStringList({ "Auto", "Auto", "Auto", "Auto", "Auto", "Auto", "Auto", "Auto", "BACK", "START" }));
         QCOMPARE(listed(page.value("layouts").toList(), "title"),
-                 QStringList({ "Default", "Fighting 6", "Neo Geo 4", "Custom" }));
+                 QStringList({ "Default", "Fighting 6", "Neo Geo 4", "NES", "Mega Drive", "SNES", "Saturn", "N64", "Custom" }));
         // Every input it has that can be one: all but a touchpad, which SDL
         // gives no pad it makes up.
         QStringList has = controllers::arcadeTokens();
@@ -657,6 +658,26 @@ private slots:
         QCOMPARE(im->arcadePage(key).value("layout").toString(), QString("default"));
         im->setArcadeLayout(key, "neogeo4");
         QCOMPARE(values().mid(0, 4), QStringList({ "A", "B", "X", "Y" }));
+        // A console pad's own, by the inputs SDL gives its buttons: none
+        // where its pad has fewer; a Saturn's Coin on L and an N64's on Z,
+        // which have no Select.
+        im->setArcadeLayout(key, "nes");
+        QCOMPARE(values(), QStringList({ "B", "A", "None", "None", "None", "None", "None", "None", "BACK", "START" }));
+        im->setArcadeLayout(key, "megadrive");
+        QCOMPARE(values(), QStringList({ "A", "B", "RT", "X", "Y", "RB", "None", "None", "BACK", "START" }));
+        im->setArcadeLayout(key, "snes");
+        QCOMPARE(values(), QStringList({ "X", "Y", "LB", "A", "B", "RB", "None", "None", "BACK", "START" }));
+        im->setArcadeLayout(key, "saturn");
+        QCOMPARE(values(), QStringList({ "X", "Y", "RB", "A", "B", "RT", "LT", "None", "LB", "START" }));
+        im->setArcadeLayout(key, "n64");
+        QCOMPARE(values(), QStringList({ "B", "R STICK ◄", "R STICK ▲", "A", "R STICK ▼", "R STICK ►", "LB", "RB",
+                                         "LT", "START" }));
+        QCOMPARE(im->controllerPage(key).value("arcade").toString(), QString("N64"));
+        QCOMPARE(controllers::playerArcade().value(0).mame,
+                 QStringList({ "BUTTON2", "ZAXIS_NEG_SWITCH", "RZAXIS_NEG_SWITCH", "BUTTON1", "RZAXIS_POS_SWITCH",
+                               "ZAXIS_POS_SWITCH", "BUTTON5", "BUTTON6", "SLIDER1_NEG_SWITCH", "START" }));
+        QCOMPARE(controllers::playerArcade().value(0).retroarch,
+                 QStringList({ "1", "-2", "-3", "0", "+3", "+2", "9", "10", "+4", "6" }));
         im->resetController(key);
         QCOMPARE(im->arcadePage(key).value("layout").toString(), QString("default"));
         QVERIFY(controllers::playerArcade().value(0).isEmpty());

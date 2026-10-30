@@ -283,7 +283,7 @@ Settings → **Controls** lists every controller connected, each with a page of 
 |---|---|---|
 | **Button Labels** | What its buttons are called, here and in the hints: Auto, Xbox, PlayStation, Nintendo or Arcade ([below](https://github.com/mehmetraif/OSD-OS/wiki/Controls#button-labels)). ◄ ► or select go round them | (none) |
 | **Test Buttons** / **Test Keys** | Select, then press its buttons and move its sticks: each press shows what it is called, the last at the top, and does nothing else. On the JAMMA board's sticks it tests both players' controls, on a grid of the edge connector's pins, each press with its pin on the board, and a keyboard's N changes the layout that names them ([A JAMMA cabinet](https://github.com/mehmetraif/OSD-OS/wiki/Controls#a-jamma-cabinet)) | Select, then press its keys: each shows what it is called. Whatever does Back on it ends the test |
-| **Arcade Buttons** | Which of its buttons is each of an arcade cabinet's, Button 1 to 8, Coin and Start, in the Arcade module's games: the line reads its layout, Default, Fighting 6, Neo Geo 4 or Custom. Select opens its page ([below](https://github.com/mehmetraif/OSD-OS/wiki/Controls#arcade-buttons)) | (none) |
+| **Arcade Buttons** | Which of its buttons is each of an arcade cabinet's, Button 1 to 8, Coin and Start, in the Arcade module's games: the line reads its layout, Default, Fighting 6, Neo Geo 4, a console pad's (NES, Mega Drive, SNES, Saturn, N64) or Custom. Select opens its page ([below](https://github.com/mehmetraif/OSD-OS/wiki/Controls#arcade-buttons)) | (none) |
 | **Up**, **Down**, **Left**, **Right**, **Select / OK**, **Back**, **Play / Pause** | The buttons and stick directions that do it, by their labels (`D-PAD ▲, L STICK ▲`), or `NONE`. Select, then press a button on the pad: it does this from now on | `DEFAULT`, or `DEFAULT + ` its extra keys. Select, then press a key on it: one more key for the action, on this one only |
 | **Clear a Button** / **Remove a Key** | Select, then press a button: it does nothing from now on (not its only Select / OK or Back) | Select, then press one of its extra keys: it is taken away (not one that does Select / OK or Back) |
 | **Reset to Defaults** | Its buttons as every pad has them, Auto labels and Default Arcade Buttons | No extra keys of its own. A controller away has nothing left, and its line goes |
@@ -327,7 +327,7 @@ Beside the lines is a two-player arcade cabinet's control panel, drawn in the th
 
 | Row | What it does |
 |---|---|
-| **Layout** | Where its buttons come from: **Default**, **Fighting 6**, **Neo Geo 4** or **Custom** (below). ◄ ► or select go round them |
+| **Layout** | Where its buttons come from: **Default**, **Fighting 6**, **Neo Geo 4**, a console pad's (**NES**, **Mega Drive**, **SNES**, **Saturn**, **N64**) or **Custom** (below). ◄ ► or select go round them |
 | **Set All Buttons** | Select, then press its buttons in turn: Buttons 1 to 6, Coin, Start, then Buttons 7 and 8. Buttons 2 to 8 are each waited for 5 seconds and left none on a pad with fewer buttons; Button 1, Coin and Start for 10. Its layout is then Custom |
 | **Test Buttons** | Select, then press its buttons: each press shows which of the cabinet's it is (`X → BUTTON 1`, `→ NONE` for none of them), the D-pad's and the left stick's `→ JOYSTICK`, Guide's `→ MAME'S MENU`; under Default a pad's buttons show by their names alone, as the emulators number them. It does nothing else, and ends 10 seconds after the last press, or with another controller's Back |
 | **Button 1** to **Button 8**, **Coin**, **Start** | The button each is on this pad, or `NONE`. Select, then press the button on the pad; or ◄ ► go round the inputs the pad has that no other line has. Either makes the layout Custom |
@@ -339,7 +339,14 @@ The layouts, by an Xbox pad's labels (the page names a pad's buttons by its own)
 | **Default** | None of its own (`AUTO`): MAME and FinalBurn Neo number a pad's buttons their own ways, as OSD/OS always left them. On the JAMMA board's sticks, the pins' buttons in their order, 1 to 8 | BACK, START |
 | **Fighting 6** | A six-button cabinet's two rows: punches 1, 2, 3 on X, Y, RB, kicks 4, 5, 6 on A, B, RT; 7 and 8 on LB and LT | BACK, START |
 | **Neo Geo 4** | A Neo Geo's A, B, C, D on A, B, X, Y; 5 to 8 on LB, RB, LT, RT | BACK, START |
+| **NES** | A NES pad's: B is 1, A is 2; 3 to 8 none | SELECT, START |
+| **Mega Drive** | A Mega Drive pad's: A, B, C are 1, 2, 3, as most of its games have them; a six-button pad's X, Y, Z are 4, 5, 6; 7 and 8 none | MODE, START |
+| **SNES** | Street Fighter II's on a SNES: punches 1, 2, 3 on Y, X, L, kicks 4, 5, 6 on B, A, R; 7 and 8 none | SELECT, START |
+| **Saturn** | Its fighters': punches 1, 2, 3 on X, Y, Z, kicks 4, 5, 6 on A, B, C; R is 7, 8 none | L (a Saturn pad has no Select), START |
+| **N64** | Killer Instinct Gold's: punches 1, 2, 3 on B, C◄, C▲, kicks 4, 5, 6 on A, C▼, C►; L is 7, R is 8 | Z (an N64 pad has no Select), START |
 | **Custom** | As they are set here | As they are set here |
+
+The console layouts take a pad's buttons as SDL's controller database names that kind of pad: a SNES pad's by their places (its B, A, Y, X where an Xbox pad has A, B, X, Y), a NES or an N64 pad's A and B by their letters (an N64's C buttons as its right stick, its Z as the left trigger), a Mega Drive's or a Saturn's A, B, X, Y so, with C as the right trigger and Z as the right shoulder (a Saturn's L and R the left shoulder and trigger). The lines show what each is on the pad itself: one that a pad names otherwise is set with a press.
 
 - **One button, one input.** A button pressed for an input another has swaps the two (`A is Button 1 now, and X is Button 4`); the other is left None when the line had an input the pad hasn't. Coin and Start always have a button: neither can be None, nor give its button to an input that has none (`BACK stays Coin: Coin and Start always have a button`).
 - **What can be one**: the face buttons, the shoulders and triggers, Back, Start, the stick buttons, Misc, the paddles and the touchpad, and the right stick pushed one way, of those the pad has; one it hasn't reads `NONE`. Not Guide, which shows MAME's menu (`GUIDE shows MAME's menu, not a button`). A D-pad or left-stick press is the joystick's, not taken (`D-PAD ▲ is the joystick, not a button`).
@@ -439,7 +446,7 @@ The pages save these as you choose, and OSD/OS takes them up at once. A change m
 |---|---|---|---|---|
 | Player 1 to Player 6 | Auto, or a pad connected | Auto | The pad that player has in games | `app.players.1` to `app.players.6`: `{ "key", "name" }` |
 | A pad's Button Labels | Auto, Xbox, PlayStation, Nintendo, Arcade | Auto | What its buttons are called | `app.controllers.<key>.labels` |
-| A pad's Arcade Buttons | Default, Fighting 6, Neo Geo 4, Custom; each input one of its buttons | Default | Which of its buttons is each of a cabinet's in the Arcade module's games | `app.controllers.<key>.arcade` |
+| A pad's Arcade Buttons | Default, Fighting 6, Neo Geo 4, NES, Mega Drive, SNES, Saturn, N64, Custom; each input one of its buttons | Default | Which of its buttons is each of a cabinet's in the Arcade module's games | `app.controllers.<key>.arcade` |
 | A controller's Up, Down, Left, Right, Select / OK, Back, Play / Pause | A pad's buttons; a keyboard's DEFAULT + its keys | As every pad, or keyboard, has them | Which of its buttons do the action | `app.controllers.<key>.bindings` |
 | All Keyboards & Remotes → Up, Down, Left, Right, Select / OK, Back | DEFAULT, or DEFAULT + a button | DEFAULT | One more button for that action | `app.remote_keymap.up`, `.down`, `.left`, `.right`, `.select`, `.back` |
 

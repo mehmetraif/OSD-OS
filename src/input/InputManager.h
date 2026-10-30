@@ -135,8 +135,8 @@ public:
     Q_INVOKABLE void resetController(const QString &key);
     // A pad's Arcade Buttons page: { key, name, present, jamma, layout,
     // layoutTitle, layouts [{ layout, title }], rows [{ input, label, token,
-    // value }], choices [{ token, label }] }. layout "default", "fighting6",
-    // "neogeo4" or "custom"; a row's input "1" to "8", "coin" or "start", its
+    // value }], choices [{ token, label }] }. layout one of
+    // controllers::arcadeLayouts(); a row's input "1" to "8", "coin" or "start", its
     // token the pad's input that is it, as it acts on a pad connected
     // (arcadeInputsOf()) ("" for none; under Default the one a layout of its
     // own starts from), and value that as the pad's labels call it, "None"

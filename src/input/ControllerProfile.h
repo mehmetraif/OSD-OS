@@ -75,8 +75,12 @@ bool isArcadeToken(const QString &token);
 // FinalBurn Neo each lay a pad's buttons out their own way); "fighting6", a
 // fighter's punches over its kicks where a pad has them (X Y RB over A B
 // RT); "neogeo4", a Neo Geo's A B C D on A B X Y, as MAME numbers a pad's
-// buttons; and "custom", set button by button. Their titles, and a layout's
-// inputs (kArcadeInputs tokens; none for default and custom).
+// buttons; a console pad's own: "nes" (B A), "megadrive" (A B C, then X Y
+// Z), "snes" (Street Fighter II's: Y X L over B A R), "saturn" (its
+// fighters': X Y Z over A B C) and "n64" (Killer Instinct Gold's: B C◄ C▲
+// over A C▼ C►); and "custom", set button by button. Their titles, and a
+// layout's inputs (kArcadeInputs tokens, "" for none; none at all for
+// default and custom).
 QStringList arcadeLayouts();
 QString arcadeLayoutTitle(const QString &layout);
 QStringList arcadeLayoutInputs(const QString &layout);

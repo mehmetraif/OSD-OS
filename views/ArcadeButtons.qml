@@ -8,8 +8,10 @@ import Components
 //
 // LAYOUT starts it from a preset (Fighting 6: a fighter's punches over its
 // kicks, as a six-button cabinet's two rows; Neo Geo 4: A B C D on the four
-// face buttons), leaves it to the emulators (Default: what OSD/OS always did,
-// a JAMMA stick's pins' buttons in their order), or is Custom, set here:
+// face buttons; NES, Mega Drive, SNES, Saturn and N64: a console pad's own,
+// its buttons as that console's games had them), leaves it to the emulators
+// (Default: what OSD/OS always did, a JAMMA stick's pins' buttons in their
+// order), or is Custom, set here:
 // SET ALL BUTTONS takes them from presses in turn, 1 to 6, Coin, Start, 7 and
 // 8 (2 to 8 none if their wait runs out: a pad may have fewer); a line of its
 // own takes one press, or ◄ ► goes round the inputs the pad has left. The
@@ -164,6 +166,18 @@ FocusScope {
             return "A fighter's six: punches 1 2 3 on " + on(0, 2) + ", kicks 4 5 6 on " + on(3, 5)
         if (page.layout === "neogeo4")
             return "A Neo Geo's A B C D, buttons 1 to 4, on " + on(0, 3)
+        // A console's pad by its own buttons, the lines below saying what
+        // they are on this one.
+        if (page.layout === "nes")
+            return "A NES pad's: B is button 1, A button 2"
+        if (page.layout === "megadrive")
+            return "A Mega Drive pad's: A B C are buttons 1 2 3, X Y Z 4 5 6"
+        if (page.layout === "snes")
+            return "Street Fighter II on a SNES: punches 1 2 3 on Y X L, kicks 4 5 6 on B A R"
+        if (page.layout === "saturn")
+            return "A Saturn's fighters: punches 1 2 3 on X Y Z, kicks 4 5 6 on A B C; R is 7, L Coin"
+        if (page.layout === "n64")
+            return "Killer Instinct Gold's: punches 1 2 3 on B C◄ C▲, kicks 4 5 6 on A C▼ C►; Z is Coin"
         if (page.layout === "custom")
             return "Set button by button below, or with Set All Buttons"
         return jamma ? "Its pins' buttons in their order, 1 to 8, COIN and START"
