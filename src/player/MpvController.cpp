@@ -126,6 +126,25 @@ bool userSetsScreenShape(const QString &videoArgs) {
     return false;
 }
 
+// mpv's terminal output without its status line, the "AV: 00:12:34 / ..."
+// (or "A:", "V:", "(Paused) AV:") it prints a few times a second while it
+// plays, which says nothing the control connection doesn't, and trimmed.
+QString withoutStatusLines(const QString &text) {
+    QStringList kept;
+    const QStringList lines = text.split(QLatin1Char('\n'));
+    for (const QString &raw : lines) {
+        const QString line = raw.trimmed();
+        if (line.isEmpty())
+            continue;
+        const QString status = line.startsWith(QLatin1String("(Paused) ")) ? line.mid(9) : line;
+        if (status.startsWith(QLatin1String("AV: ")) || status.startsWith(QLatin1String("A: "))
+                || status.startsWith(QLatin1String("V: ")))
+            continue;
+        kept << line;
+    }
+    return kept.join(QLatin1Char('\n'));
+}
+
 // Text for the log with every token the modules hand mpv blanked out: a
 // server's in a URL's query (Jellyfin's ApiKey, Emby's api_key), Plex's in
 // its header, Jellyfin's in its Authorization header.
@@ -838,11 +857,13 @@ void MpvController::startProcess(QStringList args, const QStringList &media) {
         endAtOnce(QStringLiteral("failed"));
     });
     // mpv's own output, to the journal: what it plays among it, so without
-    // the tokens.
+    // the tokens, and without its status line (AV: 00:12:34 / ..., a few
+    // times a second for the whole film, which buried the lines that matter
+    // and wrote the journal to the card all the while).
     connect(m_process, &QProcess::readyRead, this, [this]() {
-        const QByteArray out = m_process->readAll();
+        const QString out = withoutStatusLines(QString::fromUtf8(m_process->readAll()));
         if (!out.isEmpty())
-            qWarning("[mpv] %s", qPrintable(redactSecrets(QString::fromUtf8(out).trimmed())));
+            qWarning("[mpv] %s", qPrintable(redactSecrets(out)));
     });
     auto launch = [this, bin, media](QStringList options) {
         options << QStringLiteral("--") << media;
@@ -1168,9 +1189,9 @@ void MpvController::onIpcReadyRead() {
 void MpvController::onProcessFinished() {
     int exitCode = m_process ? m_process->exitCode() : -1;
     if (m_process) {
-        const QByteArray remaining = m_process->readAll();
+        const QString remaining = withoutStatusLines(QString::fromUtf8(m_process->readAll()));
         if (!remaining.isEmpty())
-            qWarning("[mpv] %s", qPrintable(redactSecrets(QString::fromUtf8(remaining).trimmed())));
+            qWarning("[mpv] %s", qPrintable(redactSecrets(remaining)));
     }
     if (exitCode != 0)
         qWarning("[MpvController] mpv exited with code %d", exitCode);
