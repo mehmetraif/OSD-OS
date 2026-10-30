@@ -79,6 +79,13 @@ class PlaybackRetireTest : public QObject {
         m_mpv->loadAndPlay(m_dir.path() + QLatin1Char('/') + QLatin1String(name) + QStringLiteral(".mp4"),
                            startSeconds, -1, -1);
     }
+    // The player's control connection, stood in for by the test: mpv's
+    // socket, which the controller connects to once it listens.
+    QString socketPath() const { return m_dir.path() + QStringLiteral("/osdos-mpv.sock"); }
+    bool listen(QLocalServer &control) {
+        QLocalServer::removeServer(socketPath());
+        return control.listen(socketPath());
+    }
     static bool write(const QString &path, const QByteArray &text) {
         QFile file(path);
         return file.open(QIODevice::WriteOnly) && file.write(text) == text.size();
@@ -443,6 +450,70 @@ private slots:
         QVERIFY2(since.elapsed() >= 900, qPrintable(QStringLiteral("B started after %1 ms").arg(since.elapsed())));
         QVERIFY(happened("term A"));
         QVERIFY(!overlapped());
+    }
+
+    // A key held: its press goes as one, its repeats hold it down in mpv,
+    // which repeats it at its own pace (the session's --input-ar-* options)
+    // until it is let go (releaseKeys), or until the repeats stop coming.
+    // Sent as a press each, they queued up in a busy player and went on
+    // after the finger had come off.
+    void aHeldKeyIsHeldDownInMpv() {
+        play("A");
+        QTRY_VERIFY_WITH_TIMEOUT(happened("start A"), 5000);
+        QVERIFY(arguments().contains(QStringLiteral("--input-ar-delay=150")));
+        QVERIFY(arguments().contains(QStringLiteral("--input-ar-rate=6")));
+        QLocalServer control;
+        QVERIFY(listen(control));
+        QTRY_VERIFY_WITH_TIMEOUT(control.hasPendingConnections(), 5000);
+        QScopedPointer<QLocalSocket> socket(control.nextPendingConnection());
+        QByteArray commands;
+        connect(socket.data(), &QLocalSocket::readyRead, this, [&]() { commands += socket->readAll(); });
+        commands += socket->readAll();  // what came as it connected
+        QTRY_VERIFY_WITH_TIMEOUT(commands.contains("observe_property"), 3000);
+        QTest::qWait(50);
+        commands.clear();
+        const auto lines = [&commands]() {
+            QStringList out;
+            for (const QByteArray &line : commands.split('\n'))
+                if (!line.isEmpty())
+                    out << QString::fromUtf8(line);
+            return out;
+        };
+        m_mpv->sendKey(QStringLiteral("RIGHT"));
+        m_mpv->sendKey(QStringLiteral("RIGHT"), true);
+        m_mpv->sendKey(QStringLiteral("RIGHT"), true);
+        m_mpv->sendKey(QStringLiteral("RIGHT"), true);
+        QTRY_COMPARE_WITH_TIMEOUT(lines().size(), 2, 3000);
+        QVERIFY(lines().at(0).contains(QStringLiteral("\"keypress\",\"RIGHT\"")));
+        QVERIFY(lines().at(1).contains(QStringLiteral("\"keydown\",\"RIGHT\"")));
+        QTest::qWait(150);
+        QCOMPARE(lines().size(), 2);  // the repeats hold it, nothing more goes
+        m_mpv->releaseKeys();
+        QTRY_COMPARE_WITH_TIMEOUT(lines().size(), 3, 3000);
+        QVERIFY(lines().at(2).contains(QStringLiteral("\"keyup\",\"RIGHT\"")));
+        m_mpv->releaseKeys();
+        QTest::qWait(100);
+        QCOMPARE(lines().size(), 3);  // nothing held, nothing let go
+        // Repeats that stop coming (a release that went astray) let it go by
+        // themselves; another key's press lets a held one go first.
+        commands.clear();
+        m_mpv->sendKey(QStringLiteral("LEFT"), true);
+        QTRY_COMPARE_WITH_TIMEOUT(lines().size(), 1, 3000);
+        QVERIFY(lines().at(0).contains(QStringLiteral("\"keydown\",\"LEFT\"")));
+        QTRY_COMPARE_WITH_TIMEOUT(lines().size(), 2, 3000);
+        QVERIFY(lines().at(1).contains(QStringLiteral("\"keyup\",\"LEFT\"")));
+        commands.clear();
+        m_mpv->sendKey(QStringLiteral("VOLUME_UP"), true);
+        m_mpv->sendKey(QStringLiteral("UP"));
+        QTRY_COMPARE_WITH_TIMEOUT(lines().size(), 3, 3000);
+        QVERIFY(lines().at(0).contains(QStringLiteral("\"keydown\",\"VOLUME_UP\"")));
+        QVERIFY(lines().at(1).contains(QStringLiteral("\"keyup\",\"VOLUME_UP\"")));
+        QVERIFY(lines().at(2).contains(QStringLiteral("\"keypress\",\"UP\"")));
+        // Back's repeats are nobody's.
+        commands.clear();
+        m_mpv->sendKey(QStringLiteral("ESC"), true);
+        QTest::qWait(100);
+        QCOMPARE(lines().size(), 0);
     }
 
     // A video its menu's Browse left (an mpv process having ended for the

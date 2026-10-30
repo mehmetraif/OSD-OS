@@ -944,33 +944,45 @@ private slots:
     }
 
     // A held volume key, which the keyboard repeats every 80 ms or so, goes
-    // to mpv every 150 ms (the whole range in three seconds); a press goes at
-    // once, and any other media key once per press, however long it is held.
+    // to mpv as a press and then as repeats, each said to be one, so that
+    // mpv holds the key down and turns the volume at its own pace
+    // (MpvController::sendKey); letting go is said too. Any other media key
+    // goes once per press, however long it is held.
     void heldVolumeKey() {
         AppCore core(m_app.path(), m_data.path());
         InputManager im(m_data.path(), &core);
         QSignalSpy keys(&im, &InputManager::mpvKeyRequested);
+        QSignalSpy released(&im, &InputManager::mpvKeysReleased);
         QWindow window;
-        const auto press = [&window](int qtKey, bool repeat) {
-            QKeyEvent event(QEvent::KeyPress, qtKey, Qt::NoModifier, QString(), repeat);
+        const auto key = [&window](QEvent::Type type, int qtKey, bool repeat) {
+            QKeyEvent event(type, qtKey, Qt::NoModifier, QString(), repeat);
             QCoreApplication::sendEvent(&window, &event);
         };
-        press(Qt::Key_VolumeUp, false);
-        for (int i = 0; i < 5; ++i)
-            press(Qt::Key_VolumeUp, true);
-        QCOMPARE(keysOf(keys), QStringList({ "VOLUME_UP" }));
-        QTest::qWait(170);
-        press(Qt::Key_VolumeUp, true);
-        press(Qt::Key_VolumeUp, true);
-        QCOMPARE(keysOf(keys), QStringList({ "VOLUME_UP", "VOLUME_UP" }));
-        // Let go and pressed again, at once.
-        press(Qt::Key_VolumeDown, false);
-        QCOMPARE(keysOf(keys), QStringList({ "VOLUME_UP", "VOLUME_UP", "VOLUME_DOWN" }));
-        press(Qt::Key_MediaNext, false);
-        press(Qt::Key_MediaNext, true);
-        QTest::qWait(170);
-        press(Qt::Key_MediaNext, true);
+        const auto repeats = [&keys]() {
+            QList<bool> flags;
+            for (const QList<QVariant> &args : keys)
+                flags << args.at(1).toBool();
+            return flags;
+        };
+        key(QEvent::KeyPress, Qt::Key_VolumeUp, false);
+        key(QEvent::KeyPress, Qt::Key_VolumeUp, true);
+        key(QEvent::KeyPress, Qt::Key_VolumeUp, true);
+        QCOMPARE(keysOf(keys), QStringList({ "VOLUME_UP", "VOLUME_UP", "VOLUME_UP" }));
+        QCOMPARE(repeats(), QList<bool>({ false, true, true }));
+        QCOMPARE(released.count(), 0);
+        key(QEvent::KeyRelease, Qt::Key_VolumeUp, false);
+        QCOMPARE(released.count(), 1);
+        // Pressed again, at once.
+        key(QEvent::KeyPress, Qt::Key_VolumeDown, false);
+        QCOMPARE(keysOf(keys).last(), QStringLiteral("VOLUME_DOWN"));
+        QCOMPARE(repeats().last(), false);
+        // The other media keys once per press, and their release is nobody's.
+        key(QEvent::KeyPress, Qt::Key_MediaNext, false);
+        key(QEvent::KeyPress, Qt::Key_MediaNext, true);
+        key(QEvent::KeyPress, Qt::Key_MediaNext, true);
+        key(QEvent::KeyRelease, Qt::Key_MediaNext, false);
         QCOMPARE(keysOf(keys).count("NEXT"), 1);
+        QCOMPARE(released.count(), 1);
     }
 
     // A remote's OK, however it comes, is Select / OK: keypad Enter, which

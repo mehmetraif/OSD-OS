@@ -107,32 +107,39 @@ FocusScope {
                 leaveWaiting()
             event.accepted = true
         } else {
+            // A key's repeats go as repeats: mpv holds the key down for
+            // them, and lets it go as the key is (Keys.onReleased).
             if (event.key === Qt.Key_Escape || event.key === Qt.Key_Back) {
-                mpvController.sendKey("ESC")
+                mpvController.sendKey("ESC", event.isAutoRepeat)
                 event.accepted = true
             } else if (event.key === Qt.Key_Backspace) {
-                mpvController.sendKey("BS")
+                mpvController.sendKey("BS", event.isAutoRepeat)
                 event.accepted = true
             } else if (event.key === Qt.Key_Up) {
-                mpvController.sendKey("UP")
+                mpvController.sendKey("UP", event.isAutoRepeat)
                 event.accepted = true
             } else if (event.key === Qt.Key_Down) {
-                mpvController.sendKey("DOWN")
+                mpvController.sendKey("DOWN", event.isAutoRepeat)
                 event.accepted = true
             } else if (event.key === Qt.Key_Left) {
-                mpvController.sendKey("LEFT")
+                mpvController.sendKey("LEFT", event.isAutoRepeat)
                 event.accepted = true
             } else if (event.key === Qt.Key_Right) {
-                mpvController.sendKey("RIGHT")
+                mpvController.sendKey("RIGHT", event.isAutoRepeat)
                 event.accepted = true
             } else if (event.key === Qt.Key_Space) {
-                mpvController.sendKey("SPACE")
+                mpvController.sendKey("SPACE", event.isAutoRepeat)
                 event.accepted = true
             } else if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter) {
-                mpvController.sendKey("ENTER")
+                mpvController.sendKey("ENTER", event.isAutoRepeat)
                 event.accepted = true
             }
         }
+    }
+    // A key let go: the one mpv holds down for its repeats, if any, with it.
+    Keys.onReleased: function(event) {
+        if (!event.isAutoRepeat)
+            mpvController.releaseKeys()
     }
 
     function newSessionId() {

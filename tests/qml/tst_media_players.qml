@@ -153,6 +153,7 @@ Rectangle {
         function closePlayerMenu() {}
         function setVideoProperty(name, value) {}
         function sendKey(key) { keys = keys.concat([key]) }
+        function releaseKeys() {}
         function stop() {}
         function seekTo(ms) {}
         function clearOsdPrompt() {}

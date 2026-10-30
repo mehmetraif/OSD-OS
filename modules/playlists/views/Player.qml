@@ -246,12 +246,19 @@ FocusScope {
             // once per press however long the key is held.
             keys[Qt.Key_PageUp] = "CHANNEL_UP"; keys[Qt.Key_ChannelUp] = "CHANNEL_UP"
             keys[Qt.Key_PageDown] = "CHANNEL_DOWN"; keys[Qt.Key_ChannelDown] = "CHANNEL_DOWN"
+            // The other keys' repeats go as repeats: mpv holds the key down
+            // for them, and lets it go as the key is (Keys.onReleased).
             if (keys[event.key] !== undefined) {
                 if (!(event.isAutoRepeat && keys[event.key].startsWith("CHANNEL")))
-                    mpvController.sendKey(keys[event.key])
+                    mpvController.sendKey(keys[event.key], event.isAutoRepeat)
                 event.accepted = true
             }
         }
+    }
+    // A key let go: the one mpv holds down for its repeats, if any, with it.
+    Keys.onReleased: function(event) {
+        if (!event.isAutoRepeat)
+            mpvController.releaseKeys()
     }
 
     Connections {

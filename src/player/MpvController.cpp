@@ -38,6 +38,18 @@ constexpr int kRetireKillMs   = 1000;
 constexpr int kRetireGiveUpMs = 5000;
 // Commands kept for the player's control connection to come (sendCommand()).
 constexpr int kMostCommandsWaiting = 32;
+// A key held down in mpv for its repeats (sendKey()) is let go when no
+// repeat has come for this long: a keyboard's repeats come every few dozen
+// milliseconds, a pad's every 100 ms, so a release that went astray (the
+// view lost its focus meanwhile) can't leave a key down for good.
+constexpr int kHeldKeyMs = 400;
+// How mpv repeats a key held down (the --input-ar-* options every session
+// gets): after a moment, six times a second, each repeat run as the player
+// gets to it and no faster, and none once the key is up. A TV remote's
+// volume key takes the range in three seconds or so at that rate, and a
+// held ◄ ► scans at a minute a second.
+constexpr int kMpvRepeatDelayMs = 150;
+constexpr int kMpvRepeatsPerSecond = 6;
 
 // A channel logo of the user's own (Settings → TV / Movie → Logo Image), read
 // for mpv-logo.lua to lay over the picture with mpv's overlay-add: at the
@@ -202,11 +214,19 @@ MpvController::MpvController(const QString &appRoot, const QString &dataRoot,
         sendCommand({"observe_property", 2, "duration"});
         sendCommand({"observe_property", 3, "playlist-pos"});
         sendCommand({"observe_property", 4, "pause"});
-        // What was asked before the connection came, in its order.
+        // What was asked before the connection came, in its order: a key's
+        // keydown and keyup among it (sendKey()), so a key held down across a
+        // break is let go as it was.
         const QList<QJsonArray> waiting = std::exchange(m_commandsWaiting, {});
         for (const QJsonArray &command : waiting)
             sendCommand(command);
     });
+
+    // A key held down in mpv (sendKey()) let go when its repeats stop coming.
+    m_keyUpTimer = new QTimer(this);
+    m_keyUpTimer->setSingleShot(true);
+    m_keyUpTimer->setInterval(kHeldKeyMs);
+    connect(m_keyUpTimer, &QTimer::timeout, this, &MpvController::releaseKeys);
     connect(m_ipc, &QLocalSocket::readyRead, this, &MpvController::onIpcReadyRead);
 
     m_connectTimer = new QTimer(this);
@@ -573,9 +593,12 @@ void MpvController::loadAndPlay(const QString &url, float startSeconds,
     // every word there. Absolute paths or URLs, extraUrls too; mpv options go
     // in extraArgs.
     const QStringList media = QStringList(url) + extraUrls;
-    // The deck's keys, and audio as the clock; ahead of the video arguments,
-    // so a setting's mpv_video_args still has the last word.
+    // The deck's keys, how a held one repeats (sendKey()), and audio as the
+    // clock; ahead of the video arguments, so a setting's mpv_video_args
+    // still has the last word.
     args << QString("--input-conf=%1").arg(m_inputConfPath)
+         << QStringLiteral("--input-ar-delay=%1").arg(kMpvRepeatDelayMs)
+         << QStringLiteral("--input-ar-rate=%1").arg(kMpvRepeatsPerSecond)
          << QStringLiteral("--video-sync=audio");
     if (embedded) {
         appendEmbeddedVideoArgs(args, embeddedPlayer()->gpuAvailable());
@@ -752,6 +775,9 @@ void MpvController::closeIpc(bool drain, int *pos, int *dur) {
     m_ipcWanted = false;
     m_reconnecting = false;
     m_commandsWaiting.clear();
+    // Nothing is held down in a player that is over.
+    m_keyDown.clear();
+    m_keyUpTimer->stop();
     m_connectTimer->stop();
     m_watchdogTimer->stop();
     if (drain && m_ipc->state() == QLocalSocket::ConnectedState)
@@ -976,12 +1002,44 @@ void MpvController::seekTo(int positionMs) {
     sendCommand({"seek", positionMs / 1000.0, "absolute+exact"});
 }
 
-void MpvController::sendKey(const QString &key) {
+void MpvController::sendKey(const QString &key, bool autoRepeat) {
     if (key == QLatin1String("ESC") || key == QLatin1String("BS")) {
-        backKey(key);
+        // Once per press: a held back has nothing more to do.
+        if (!autoRepeat)
+            backKey(key);
         return;
     }
-    sendCommand({"keypress", key});
+    if (!autoRepeat) {
+        // A new press ends the hold of any other key.
+        releaseKeys();
+        sendCommand({"keypress", key});
+        return;
+    }
+    // A key held: down in mpv, which repeats it at its own pace (the
+    // --input-ar-* options, sessionArgs()) for as long as it is, so that a
+    // player slow to act on them is never left a queue of presses to work
+    // through once the key is up. Sent as a press each, a held ◄ went on
+    // seeking, and a held volume key on turning, after the finger had come
+    // off. Each repeat that comes keeps it down (kHeldKeyMs); the key's
+    // release (releaseKeys()) or the end of its repeats lets it go. A key
+    // whose binding doesn't repeat (the deck menu's ▲ ▼) is held for nothing.
+    if (m_keyDown != key) {
+        if (!m_keyDown.isEmpty())
+            sendCommand({"keyup", m_keyDown});
+        m_keyDown = key;
+        sendCommand({"keydown", key});
+    }
+    m_keyUpTimer->start();
+}
+
+void MpvController::releaseKeys() {
+    m_keyUpTimer->stop();
+    if (m_keyDown.isEmpty())
+        return;
+    // By name: a keyup without one, which would let every key go, is a
+    // crash in mpv 0.37 over the control connection.
+    const QString key = std::exchange(m_keyDown, {});
+    sendCommand({"keyup", key});
 }
 
 // Back used to go to mpv as any key, whose input.conf maps it to osdos-menu,
