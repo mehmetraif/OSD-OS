@@ -99,18 +99,28 @@ local function draw_menu()
     mp.set_osd_ass(ww, wh, ass.text)
 end
 
+-- A script's key bindings reach mpv's input from an idle handler, after the
+-- callback that added or removed them returns. Flushed here instead, as in
+-- mpv-osc.lua, so that OSD/OS is told the menu is up only once the keys are
+-- the menu's, and told it is down only once they are given back (mpv 0.35
+-- and later; older ones apply bindings at once).
+local function flush_keybindings()
+    if mp.flush_keybindings then mp.flush_keybindings() end
+end
+
 -- The menu off the screen: its drawing, its refresh and its keys. OSD/OS is
 -- told each way (osdos-osd-menu shown / hidden, as mpv-osc.lua tells it):
 -- while the menu is up, back closes it here; otherwise OSD/OS acts on back
 -- itself, at once.
 local function hide_menu()
     menu_visible = false
-    mp.commandv("script-message", "osdos-osd-menu", "hidden")
     mp.set_osd_ass(0, 0, "")
     if update_timer then update_timer:stop() end
     for _, name in ipairs({ "menu-left", "menu-right", "menu-enter", "menu-esc", "menu-bs" }) do
         mp.remove_key_binding(name)
     end
+    flush_keybindings()
+    mp.commandv("script-message", "osdos-osd-menu", "hidden")
 end
 
 local function reset_idle_timer()
@@ -141,16 +151,19 @@ local function toggle_menu()
         if idle_timer then idle_timer:kill() end
     else
         menu_visible = true
-        mp.commandv("script-message", "osdos-osd-menu", "shown")
-        draw_menu()
-        update_timer = mp.add_periodic_timer(0.5, draw_menu)
-        reset_idle_timer()
 
         mp.add_forced_key_binding("LEFT",  "menu-left",  function() update_nav("left")  end)
         mp.add_forced_key_binding("RIGHT", "menu-right", function() update_nav("right") end)
         mp.add_forced_key_binding("ENTER", "menu-enter", function() update_nav("enter") end)
         mp.add_forced_key_binding("ESC",   "menu-esc",   toggle_menu)
         mp.add_forced_key_binding("BS",    "menu-bs",    toggle_menu)
+        flush_keybindings()
+        -- Told once the keys are the menu's (above).
+        mp.commandv("script-message", "osdos-osd-menu", "shown")
+
+        draw_menu()
+        update_timer = mp.add_periodic_timer(0.5, draw_menu)
+        reset_idle_timer()
     end
 end
 

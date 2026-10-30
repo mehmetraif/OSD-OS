@@ -317,18 +317,30 @@ local function draw_menu()
     mp.set_osd_ass(ww, wh, ass.text)
 end
 
+-- A script's key bindings reach mpv's input from an idle handler, after the
+-- callback that added or removed them returns. Flushed here instead, so that
+-- OSD/OS is told the menu is up (osdos-osd-menu shown, on which it sends back
+-- to mpv for the menu to close) only once the keys are the menu's, and told
+-- it is down only once they are given back: a key in between went to
+-- input.conf (back ended the video instead of closing the menu) or moved a
+-- menu that was gone (mpv 0.35 and later; older ones apply bindings at once).
+local function flush_keybindings()
+    if mp.flush_keybindings then mp.flush_keybindings() end
+end
+
 -- The menu off the screen and its keys given back. OSD/OS is told each way
 -- (osdos-osd-menu shown / hidden): while the menu is up, back closes it
 -- here; otherwise OSD/OS acts on back itself, at once.
 local function hide_menu()
     menu_visible = false
-    mp.commandv("script-message", "osdos-osd-menu", "hidden")
     mp.set_osd_ass(0, 0, "")
     if update_timer then update_timer:stop() end
     for _, name in ipairs({ "menu-up", "menu-down", "menu-left", "menu-right",
                             "menu-enter", "menu-esc", "menu-bs" }) do
         mp.remove_key_binding(name)
     end
+    flush_keybindings()
+    mp.commandv("script-message", "osdos-osd-menu", "hidden")
 end
 
 -- The buttons on the left of the bar, as wide as it is now.
@@ -389,11 +401,7 @@ local function toggle_menu()
         -- share the same spot and are mutually exclusive.
         mp.commandv("script-message", "osdos-osd-volume-hide")
         menu_visible = true
-        mp.commandv("script-message", "osdos-osd-menu", "shown")
         focus_row    = 1
-        draw_menu()
-        update_timer = mp.add_periodic_timer(0.5, draw_menu)
-        reset_idle_timer()
 
         mp.add_forced_key_binding("UP",    "menu-up",    function() update_nav("up")    end)
         mp.add_forced_key_binding("DOWN",  "menu-down",  function() update_nav("down")  end)
@@ -402,6 +410,13 @@ local function toggle_menu()
         mp.add_forced_key_binding("ENTER", "menu-enter", function() update_nav("enter") end)
         mp.add_forced_key_binding("ESC",   "menu-esc",   toggle_menu)
         mp.add_forced_key_binding("BS",    "menu-bs",    toggle_menu)
+        flush_keybindings()
+        -- Told once the keys are the menu's (above).
+        mp.commandv("script-message", "osdos-osd-menu", "shown")
+
+        draw_menu()
+        update_timer = mp.add_periodic_timer(0.5, draw_menu)
+        reset_idle_timer()
     end
 end
 
