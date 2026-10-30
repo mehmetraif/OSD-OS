@@ -303,8 +303,10 @@ private slots:
     }
 
     // Audio Output's note without a USB sound card to play through: nothing
-    // plugged in, a USB sound device no driver took (by its product name,
-    // once for its two sound interfaces, a keyboard left out), one the driver
+    // plugged in, an adapter named for sound showing its buttons alone (HID),
+    // as one does with nothing in its jack (a keyboard left out), a USB sound
+    // device no driver took (by its product name, once for its two sound
+    // interfaces, the keyboard left out), one the driver
     // took that ALSA made no card of, the Pi's power having dropped (the
     // firmware's flags, or the hwmon's alarm where the kernel has no such
     // file), a USB card with no output; none once ALSA has the card.
@@ -332,12 +334,18 @@ private slots:
         AudioOutput audio(&core);
         const auto note = [](const AudioOutput &output) { return output.settingRow().value("note").toString(); };
         QCOMPARE(note(audio), QString("No USB sound card is plugged in, as far as the system can tell"));
+        QVERIFY(write(usb + "/1-1.4/product", "Keyboard\n"));
+        QVERIFY(write(usb + "/1-1.4:1.0/bInterfaceClass", "03\n"));
+        QCOMPARE(note(audio), QString("No USB sound card is plugged in, as far as the system can tell"));
+        QVERIFY(write(usb + "/1-2/product", "USB Audio\n"));
+        QVERIFY(write(usb + "/1-2:1.0/bInterfaceClass", "03\n"));
+        QCOMPARE(note(audio), QString("USB Audio is plugged in, but shows no sound interface: some adapters show"
+                                      " one only when something is in their jack as they are plugged in"));
+        QVERIFY(QDir(usb + "/1-2").removeRecursively() && QDir(usb + "/1-2:1.0").removeRecursively());
 
         QVERIFY(write(usb + "/1-1.3/product", "USB Audio Device\n"));
         QVERIFY(write(usb + "/1-1.3:1.0/bInterfaceClass", "01\n"));
         QVERIFY(write(usb + "/1-1.3:1.1/bInterfaceClass", "01\n"));
-        QVERIFY(write(usb + "/1-1.4/product", "Keyboard\n"));
-        QVERIFY(write(usb + "/1-1.4:1.0/bInterfaceClass", "03\n"));
         const QString unmade = "USB Audio Device is plugged in, but the USB sound driver (snd-usb-audio) didn't take it";
         QCOMPARE(note(audio), unmade);
         // The driver bound to one of its sound interfaces (the kernel's link

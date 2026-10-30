@@ -184,6 +184,25 @@ QList<UsbSoundDevice> usbSoundDevices() {
     return found;
 }
 
+// The USB devices plugged in whose product names say they are for sound
+// ("USB Audio"), whatever interfaces they show. Asked when none shows a sound
+// interface: some adapters show their buttons' (HID) alone while nothing is
+// in their jack, Realtek's USB Audio (0bda:4ef0) among them.
+QStringList usbSoundNames() {
+    const QDir devices(legacy::env("USB_DEVICES_DIR", QStringLiteral("/sys/bus/usb/devices")));
+    QStringList names;
+    for (const QString &device : devices.entryList(QDir::Dirs | QDir::NoDotAndDotDot)) {
+        if (device.contains(QLatin1Char(':')))
+            continue;
+        const QString product = readSmall(devices.filePath(device + QStringLiteral("/product")));
+        if ((product.contains(QLatin1String("audio"), Qt::CaseInsensitive)
+             || product.contains(QLatin1String("sound"), Qt::CaseInsensitive))
+            && !names.contains(product))
+            names.append(product);
+    }
+    return names;
+}
+
 // Whether the Pi's power is too low, which can keep USB devices from coming
 // up, as a sentence: since it started (its firmware's get_throttled, bit 16,
 // or bit 0 for now), or, where the kernel no longer has that file (6.12 on),
@@ -270,7 +289,12 @@ QString usbNote(const QList<AlsaCard> &cards) {
             if (d.driven)
                 driven.append(d.name);
         }
-        if (usb.isEmpty())
+        const QStringList silent = usb.isEmpty() ? usbSoundNames() : QStringList();
+        if (!silent.isEmpty())
+            note = silent.join(QStringLiteral(", "))
+                   + QStringLiteral(" is plugged in, but shows no sound interface: some adapters show one only"
+                                    " when something is in their jack as they are plugged in");
+        else if (usb.isEmpty())
             note = QStringLiteral("No USB sound card is plugged in, as far as the system can tell");
         else if (driven.isEmpty())
             note = names.join(QStringLiteral(", "))
