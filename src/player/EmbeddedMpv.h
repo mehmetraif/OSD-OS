@@ -1,4 +1,5 @@
 #pragma once
+#include <QElapsedTimer>
 #include <QImage>
 #include <QMutex>
 #include <QObject>
@@ -64,10 +65,30 @@ public:
     bool gpuAvailable();
 
     // Starts playing what an mpv command line asks for. False if libmpv
-    // could not be set up (finished() does not follow then).
+    // could not be set up (finished() does not follow then). A core still
+    // retiring (below) is waited for first.
     bool start(const QStringList &args);
-    // Ends the session at once, without finished().
+    // Ends the session at once, without finished(): its core is gone, its
+    // threads joined and its devices closed, before this returns.
     void stop();
+    // Ends the session as stop() does, but its core goes on a thread of its
+    // own: destroying it joins the demuxer, the decoder, the sound output,
+    // the scripts and the control connection, which takes a film on a Pi a
+    // while, and the GUI thread stood still for it (a loading screen with
+    // it). retiring() says so until it has gone, then retired(). The sound
+    // card and the decoder are the core's until then, so the next session
+    // waits for it (MpvController::screenBusy()); start() and stop() wait
+    // for it themselves.
+    void retire();
+    bool retiring() const { return m_retiring.load(); }
+    // How long the core has been retiring, in milliseconds; 0 with none.
+    int retiringMs() const;
+    // Gives up on a retiring core that won't go (stuck in a driver's call,
+    // or on a mount gone away): left to finish by itself, should it ever,
+    // and retiring() is false from here, so that the next session can
+    // start. stop() gives up by itself after kRetireWaitMs.
+    void abandonRetirement();
+    static constexpr int kRetireWaitMs = 5000;
     // Asks mpv to quit, as its own quit command does: finished() follows.
     void quit();
     bool running() const { return m_mpv != nullptr; }
@@ -91,6 +112,8 @@ public:
 signals:
     void frameReady();
     void finished(const QString &lastEndReason);
+    // A retiring core has gone (retire()).
+    void retired();
 
 private:
     class Renderer;
@@ -98,7 +121,13 @@ private:
 
     static void onWakeup(void *self);
     void drainEvents();
+    // The session's core taken down before this returns: retire(), waited
+    // for.
     void teardown();
+    // A retiring core gone before this returns.
+    void waitForRetirement();
+    // The retiring core numbered serial has gone.
+    void retirementDone(int serial);
     // On the GUI thread, from the GPU renderer: the scaling turned down to
     // its level-th step, the pictures having taken tookMs each.
     void drawCheaper(int level, double tookMs);
@@ -113,6 +142,12 @@ private:
     Renderer           *m_renderer = nullptr;
     std::atomic<bool>   m_drainQueued { false };
     QString             m_lastEndReason;
+    // The thread destroying a retired core (retire()), none between; each
+    // numbered, so a late word from an earlier one counts for nothing.
+    std::atomic<bool>   m_retiring { false };
+    QThread            *m_retireThread = nullptr;
+    int                 m_retireSerial = 0;
+    QElapsedTimer       m_retiringSince;
 
     // The GPU's: kept from one session to the next.
     QThread           *m_gpuThread   = nullptr;

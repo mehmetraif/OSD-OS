@@ -789,6 +789,15 @@ void MpvController::stopAfterRetirement(int serial, int positionMs, const QStrin
 bool MpvController::screenBusy() {
     if (m_handingBack)
         return true;
+    // The core of a session played inside the window, replaced, is still on
+    // its way out (EmbeddedMpv::retire()): the sound card and the decoder
+    // are its until it has gone. One that never goes is given up on, as a
+    // process is, or the next session would wait on it for good.
+    if (m_embedded && m_embedded->retiring()) {
+        if (m_embedded->retiringMs() < kRetireGiveUpMs)
+            return true;
+        m_embedded->abandonRetirement();
+    }
     if (!m_retiringProcess || m_retiringProcess->state() == QProcess::NotRunning)
         return false;
     if (m_retireClock.elapsed() < kRetireGiveUpMs)
@@ -1624,7 +1633,11 @@ void MpvController::startEmbedded(QStringList args) {
 void MpvController::endEmbedded() {
     if (!m_embedded || !m_embedded->running())
         return;
-    m_embedded->stop();
+    // Its core goes on a thread of its own: taking it down holds the GUI
+    // thread for as long as its decoder, sound output and scripts take to
+    // end, a loading screen standing still meanwhile. The next session
+    // waits for it (screenBusy()).
+    m_embedded->retire();
     // Its control connection with it: left, it would be made again, to a
     // socket of a session that is over.
     int pos = 0, dur = 0;

@@ -12,8 +12,10 @@
 #include <QOpenGLContext>
 #include <QOpenGLFunctions>
 #include <QQuickWindow>
+#include <QSemaphore>
 #include <QThread>
 #include <cstdlib>
+#include <memory>
 #include <type_traits>
 #include <vector>
 
@@ -38,6 +40,7 @@ struct MpvApi {
     decltype(&mpv_set_option_string)                  setOptionString = nullptr;
     decltype(&mpv_set_option)                         setOption = nullptr;
     decltype(&mpv_command)                            command = nullptr;
+    decltype(&mpv_command_async)                      commandAsync = nullptr;
     decltype(&mpv_wait_event)                         waitEvent = nullptr;
     decltype(&mpv_set_wakeup_callback)                setWakeupCallback = nullptr;
     decltype(&mpv_request_log_messages)               requestLogMessages = nullptr;
@@ -107,6 +110,7 @@ const MpvApi &api() {
         resolve(a.setOptionString, "mpv_set_option_string");
         resolve(a.setOption, "mpv_set_option");
         resolve(a.command, "mpv_command");
+        resolve(a.commandAsync, "mpv_command_async");
         resolve(a.waitEvent, "mpv_wait_event");
         resolve(a.setWakeupCallback, "mpv_set_wakeup_callback");
         resolve(a.requestLogMessages, "mpv_request_log_messages");
@@ -755,11 +759,126 @@ void EmbeddedMpv::stop() {
     teardown();
 }
 
+void EmbeddedMpv::retire() {
+    if (!m_mpv)
+        return;
+    // Never two at once: the one before has gone first (start() and
+    // MpvController wait for it, so this is for form).
+    waitForRetirement();
+    const MpvApi *a = &api();
+    a->setWakeupCallback(m_mpv, nullptr, nullptr);
+    mpv_handle *core = m_mpv;
+    m_mpv = nullptr;
+    // Told to quit first, without waiting for it: a core still playing holds
+    // the freeing of its render context a quarter of a second, for a picture
+    // no one will draw; one quitting lets it go at once. The video of a
+    // core quitting ends anyway (the destroy follows).
+    const char *quit[] = { "quit", nullptr };
+    a->commandAsync(core, 0, quit);
+    // The render context goes before the core (libmpv's order), and freeing
+    // it disables the video forcefully, which waits on the core's playloop:
+    // a few hundred milliseconds with a film playing. The GPU's is freed on
+    // the GPU's thread, where its context is current, told here and waited
+    // for by the retiring thread; the software renderer's on the retiring
+    // thread itself, once the render thread has finished (a picture at
+    // most). Neither on the GUI thread.
+    auto renderDown = std::make_shared<QSemaphore>();
+    mpv_render_context *render = nullptr;
+    if (m_gpu) {
+        GpuRenderer *renderer = m_gpuRenderer;
+        QMetaObject::invokeMethod(renderer, [renderer, renderDown] {
+            renderer->detach();
+            renderDown->release();
+        }, Qt::QueuedConnection);
+        m_gpu = false;
+    } else {
+        m_thread->quit();
+        m_thread->wait();
+        // The core asks the renderer for no more pictures before the
+        // renderer goes: the callback off first (nothing else calls into
+        // the context now that its thread has finished), the object after.
+        a->renderSetUpdateCallback(m_render, nullptr, nullptr);
+        delete m_renderer;
+        m_renderer = nullptr;
+        delete m_thread;
+        m_thread = nullptr;
+        render = m_render;
+        m_render = nullptr;
+        renderDown->release();
+    }
+    {
+        QMutexLocker lock(&m_frameLock);
+        m_frame = QImage();
+        m_gpuPublished = GpuFrame();
+        m_gpuPublishedIndex = -1;
+    }
+    m_retiring = true;
+    m_retiringSince.start();
+    const int serial = ++m_retireSerial;
+    QThread *thread = QThread::create([a, core, render, renderDown] {
+        renderDown->acquire();
+        if (render)
+            a->renderFree(render);
+        a->terminateDestroy(core);
+        // What the core freed goes back to the system, film by film
+        // (util/Diagnostics), rather than staying with the app.
+        diagnostics::releaseFreedMemory();
+    });
+    thread->setObjectName(QStringLiteral("mpv-retire"));
+    m_retireThread = thread;
+    connect(thread, &QThread::finished, this, [this, serial] { retirementDone(serial); });
+    thread->start();
+}
+
+void EmbeddedMpv::retirementDone(int serial) {
+    if (serial != m_retireSerial || !m_retireThread)
+        return;
+    m_retireThread->deleteLater();
+    m_retireThread = nullptr;
+    m_retiring = false;
+    emit retired();
+}
+
+void EmbeddedMpv::waitForRetirement() {
+    if (!m_retireThread)
+        return;
+    if (!m_retireThread->wait(kRetireWaitMs))
+        abandonRetirement();
+    else
+        retirementDone(m_retireSerial);
+}
+
+int EmbeddedMpv::retiringMs() const {
+    return m_retiring ? int(m_retiringSince.elapsed()) : 0;
+}
+
+void EmbeddedMpv::abandonRetirement() {
+    if (!m_retireThread)
+        return;
+    // Stuck where even its destroy can't reach it (a read off a mount gone
+    // away, a decoder's call that never returns). Left to finish by itself,
+    // should it ever; its word of that counts for nothing (the serial), and
+    // it deletes itself. The next session starts beside it: its sound card
+    // may be busy still, which a core can't be left to hold for good.
+    qWarning("[EmbeddedMpv] a retired core is still there %d s after it was let go of; going on without it",
+             int(m_retiringSince.elapsed() / 1000));
+    QThread *thread = m_retireThread;
+    m_retireThread = nullptr;
+    disconnect(thread, nullptr, this, nullptr);
+    connect(thread, &QThread::finished, thread, &QObject::deleteLater);
+    ++m_retireSerial;
+    m_retiring = false;
+    emit retired();
+}
+
+// Commands that need no answer go to the core without waiting for it
+// (mpv_command_async): mpv_command waits for the playloop, which, busy with
+// a slow seek or a read off a slow mount, would hold the GUI thread with it.
 void EmbeddedMpv::quit() {
     if (!m_mpv)
         return;
     const char *cmd[] = { "quit", nullptr };
-    api().command(m_mpv, cmd);
+    api().commandAsync(m_mpv, 0, cmd);
 }
 
 void EmbeddedMpv::drawCheaper(int level, double tookMs) {
@@ -770,7 +889,7 @@ void EmbeddedMpv::drawCheaper(int level, double tookMs) {
                                 : "the picture is scaled bilinearly now, without dithering");
     for (const auto &[name, value] : cheaperScaling(level)) {
         const char *cmd[] = { "set", name, value, nullptr };
-        api().command(m_mpv, cmd);
+        api().commandAsync(m_mpv, 0, cmd);
     }
 }
 
@@ -850,7 +969,7 @@ void EmbeddedMpv::drainEvents() {
                          qPrintable(m_copyBackHwdec));
                 const QByteArray modes = m_copyBackHwdec.toUtf8();
                 const char *cmd[] = { "set", "hwdec", modes.constData(), nullptr };
-                api().command(m_mpv, cmd);
+                api().commandAsync(m_mpv, 0, cmd);
                 m_copyBackHwdec.clear();
                 m_gpuCopyBack = true;
             }
@@ -861,7 +980,9 @@ void EmbeddedMpv::drainEvents() {
             break;
         case MPV_EVENT_SHUTDOWN: {
             const QString reason = m_lastEndReason;
-            teardown();
+            // Gone on a thread of its own, as a replaced core goes: what is
+            // left to destroy after the quit is the core's own threads.
+            retire();
             emit finished(reason);
             return;
         }
@@ -872,38 +993,8 @@ void EmbeddedMpv::drainEvents() {
 }
 
 void EmbeddedMpv::teardown() {
-    if (!m_mpv)
-        return;
-    const MpvApi &a = api();
-    a.setWakeupCallback(m_mpv, nullptr, nullptr);
-    // The render context goes before the core (libmpv's order): the GPU's on
-    // its thread, the software renderer's once its thread has finished.
-    if (m_gpu) {
-        QMetaObject::invokeMethod(m_gpuRenderer, [this] { m_gpuRenderer->detach(); },
-                                  Qt::BlockingQueuedConnection);
-        m_gpu = false;
-    } else {
-        m_thread->quit();
-        m_thread->wait();
-        a.renderSetUpdateCallback(m_render, nullptr, nullptr);
-        a.renderFree(m_render);
-        m_render = nullptr;
-        delete m_renderer;
-        m_renderer = nullptr;
-        delete m_thread;
-        m_thread = nullptr;
-    }
-    a.terminateDestroy(m_mpv);
-    m_mpv = nullptr;
-    {
-        QMutexLocker lock(&m_frameLock);
-        m_frame = QImage();
-        m_gpuPublished = GpuFrame();
-        m_gpuPublishedIndex = -1;
-    }
-    // What the core freed goes back to the system, film by film
-    // (util/Diagnostics), rather than staying with the app.
-    diagnostics::releaseFreedMemory();
+    retire();
+    waitForRetirement();
 }
 
 #else // !OSDOS_EMBEDDED_MPV — built without libmpv's headers: never available.
@@ -916,8 +1007,13 @@ EmbeddedMpv::EmbeddedMpv(QObject *parent) : QObject(parent) {}
 EmbeddedMpv::~EmbeddedMpv() = default;
 bool EmbeddedMpv::start(const QStringList &) { return false; }
 void EmbeddedMpv::stop() {}
+void EmbeddedMpv::retire() {}
+int EmbeddedMpv::retiringMs() const { return 0; }
+void EmbeddedMpv::abandonRetirement() {}
 void EmbeddedMpv::quit() {}
 void EmbeddedMpv::drawCheaper(int, double) {}
+void EmbeddedMpv::waitForRetirement() {}
+void EmbeddedMpv::retirementDone(int) {}
 void EmbeddedMpv::setTargetSize(const QSize &size) {
     QMutexLocker lock(&m_frameLock);
     m_targetSize = size;

@@ -430,6 +430,37 @@ private slots:
         QCOMPARE(ended.first().at(2).toString(), QStringLiteral("stopped"));
     }
 
+    // Replacing a video played inside the window takes its core down, which
+    // joins its decoder, sound output and scripts: on a thread of its own
+    // now, the next starting once it has gone, where before the GUI thread
+    // stood still for it with the loading screen on it.
+    void replacingAnEmbeddedVideoDoesNotHoldTheApp() {
+        if (!EmbeddedMpv::available())
+            QSKIP("libmpv isn't installed here");
+        QTemporaryDir data;
+        QVERIFY(data.isValid());
+        AppCore core(data.path(), data.path());
+        useEmbedded(core, data.path());
+        const auto end = qScopeGuard([this] { delete m_mpv; m_mpv = nullptr; });
+        QSignalSpy ended(m_mpv, &MpvController::playbackEnded);
+        playPicture("testsrc=s=640x480:r=30");
+        QTRY_VERIFY_WITH_TIMEOUT(!m_mpv->videoFrame().isNull(), 10000);
+        QSignalSpy positions(m_mpv, &MpvController::positionChanged);
+        QElapsedTimer held;
+        held.start();
+        playPicture("color=c=blue:s=64x48:r=10");
+        const qint64 ms = held.elapsed();
+        // Freeing the render context alone took a quarter of a second here
+        // with the picture playing; a render thread's last picture, at most,
+        // now.
+        QVERIFY2(ms < 150, qPrintable(QStringLiteral("loadAndPlay held the app %1 ms").arg(ms)));
+        QVERIFY(m_mpv->videoFrame().isNull());  // the old picture let go at once
+        QTRY_VERIFY_WITH_TIMEOUT(m_mpv->videoActive() && !m_mpv->videoFrame().isNull(), 10000);
+        QCOMPARE(m_mpv->videoFrame().size(), QSize(640, 480));
+        QTRY_VERIFY_WITH_TIMEOUT(positions.count() > 0, 10000);
+        QCOMPARE(ended.count(), 0);
+    }
+
     // The app goes on while the old player quits, and the new one starts
     // once it has.
     void replacingDoesNotHoldTheApp() {
