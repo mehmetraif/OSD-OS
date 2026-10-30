@@ -3,8 +3,10 @@
 #include "../util/LegacyNames.h"
 
 #include <QDir>
+#include <QElapsedTimer>
 #include <QFile>
 #include <QFileInfo>
+#include <QProcess>
 #include <QProcessEnvironment>
 #include <QRegularExpression>
 #include <algorithm>
@@ -317,6 +319,112 @@ QString deviceOf(const QString &id) {
     return QStringLiteral("alsa/default:CARD=%1").arg(id);
 }
 
+// amixer, which sets a card's levels (keepFull()). OSDOS_AMIXER stands in for
+// it in tests; without it a test's cards (OSDOS_ASOUND_DIR) get none, as
+// they are not the system's.
+QString amixer() {
+    if (legacy::envIsSet("ASOUND_DIR"))
+        return legacy::env("AMIXER");
+    return legacy::env("AMIXER", QStringLiteral("amixer"));
+}
+
+// amixer on a card ("" for ALSA's default), for a second at most: whether it
+// did what it was asked, and what it said.
+bool runAmixer(const QString &program, const QString &id, const QStringList &args, QByteArray *output = nullptr) {
+    QProcess process;
+    process.start(program, (id.isEmpty() ? QStringList() : QStringList { QStringLiteral("-c"), id }) + args);
+    if (!process.waitForFinished(1000)) {
+        process.kill();
+        process.waitForFinished(500);
+        return false;
+    }
+    if (output)
+        *output = process.readAllStandardOutput();
+    return process.exitStatus() == QProcess::NormalExit && process.exitCode() == 0;
+}
+
+// A card at its full level as it is given to a player ("" for ALSA's default
+// card): the volume is what it plays into, a TV's, or an amplifier's knob (a
+// JAMMA board's). Each of its controls with a playback volume below 0 dB
+// goes to 0 dB, its top where that is lower, or one that gives no dB to
+// 100%; one switched off is switched on. Never lower: one set above 0 dB
+// (the AV jack goes to +4 dB, which can clip) stays so. A control of an
+// input is left as it is, its capture's or its playback's, which plays what
+// comes in (a microphone's, a line in's). Once for the players given it
+// together (an mpv process asks mpvArgs() and applyTo()).
+void keepFull(const QString &id) {
+    static QString last;
+    static QElapsedTimer since;
+    if (since.isValid() && id == last && since.elapsed() < 2000)
+        return;
+    last = id;
+    since.start();
+    const QString program = amixer();
+    QByteArray contents;
+    if (program.isEmpty() || !runAmixer(program, id, { QStringLiteral("scontents") }, &contents))
+        return;
+    // amixer's words: a control's line, what it has (p for playback, c for
+    // capture, volume and switch without either for both), its playback's
+    // range, and each channel's level, raw, in percent and in dB where it
+    // gives dB, then on or off.
+    static const QRegularExpression head(QStringLiteral("^Simple mixer control '([^']*)',(\\d+)$"),
+                                         QRegularExpression::MultilineOption);
+    static const QRegularExpression capabilities(QStringLiteral("^\\s*Capabilities:(.*)$"),
+                                                 QRegularExpression::MultilineOption);
+    static const QRegularExpression limits(QStringLiteral("^\\s*Limits: Playback (-?\\d+) - (-?\\d+)"),
+                                           QRegularExpression::MultilineOption);
+    static const QRegularExpression level(QStringLiteral("Playback (-?\\d+) \\[(\\d+)%\\](?: \\[(-?\\d+\\.\\d+)dB\\])?"));
+    static const QRegularExpression input(
+        QStringLiteral("\\b(mic|line|capture|input|loopback|sidetone|monitor|aux|cd|phone|video|beep)\\b"),
+        QRegularExpression::CaseInsensitiveOption);
+    const QString text = QString::fromUtf8(contents);
+    QList<QRegularExpressionMatch> heads;
+    for (QRegularExpressionMatchIterator it = head.globalMatch(text); it.hasNext();)
+        heads.append(it.next());
+    QStringList raised;
+    for (int i = 0; i < heads.size(); ++i) {
+        const QRegularExpressionMatch &h = heads.at(i);
+        const int end = i + 1 < heads.size() ? heads.at(i + 1).capturedStart() : text.size();
+        const QString block = text.mid(h.capturedEnd(), end - h.capturedEnd());
+        if (input.match(h.captured(1)).hasMatch())
+            continue;
+        const QStringList has = capabilities.match(block).captured(1).split(QLatin1Char(' '), Qt::SkipEmptyParts);
+        const bool volume = has.contains(QLatin1String("pvolume"));
+        if ((!volume && !has.contains(QLatin1String("pswitch"))) || has.contains(QLatin1String("cvolume"))
+            || has.contains(QLatin1String("cswitch")) || has.contains(QLatin1String("volume"))
+            || has.contains(QLatin1String("switch")))
+            continue;
+        QStringList set;
+        if (volume) {
+            const QRegularExpressionMatch range = limits.match(block);
+            bool low = false, dB = false;
+            for (QRegularExpressionMatchIterator it = level.globalMatch(block); it.hasNext();) {
+                const QRegularExpressionMatch channel = it.next();
+                if (!channel.captured(3).isEmpty()) {
+                    dB = true;
+                    const bool belowTop = !range.hasMatch()
+                                          || channel.captured(1).toLongLong() < range.captured(2).toLongLong();
+                    low = low || (channel.captured(3).toDouble() < 0 && belowTop);
+                } else {
+                    low = low || channel.captured(2).toInt() < 100;
+                }
+            }
+            if (low)
+                set.append(dB ? QStringLiteral("0dB") : QStringLiteral("100%"));
+        }
+        if (block.contains(QLatin1String("[off]")))
+            set.append(QStringLiteral("unmute"));
+        if (set.isEmpty())
+            continue;
+        const QString control = QStringLiteral("'%1',%2").arg(h.captured(1), h.captured(2));
+        runAmixer(program, id, QStringList { QStringLiteral("-q"), QStringLiteral("sset"), control } + set);
+        raised.append(control);
+    }
+    if (!raised.isEmpty())
+        qInfo("[AudioOutput] %s at full level: %s", qPrintable(id.isEmpty() ? QStringLiteral("ALSA's default card") : id),
+              qPrintable(raised.join(QStringLiteral(", "))));
+}
+
 QString describe() {
     const QString used = AudioOutput::card();
     if (!g_card.isEmpty() && used == g_card)
@@ -394,14 +502,13 @@ QString AudioOutput::card() {
     if (!g_available)
         return QString();
     const QList<AlsaCard> all = alsaCards();
-    if (!g_card.isEmpty()) {
-        for (const Card &c : playbackCards(all)) {
-            if (c.id == g_card)
-                return g_card;
-        }
-    }
+    const QList<Card> cards = playbackCards(all);
+    const bool plugged = !g_card.isEmpty()
+                         && std::any_of(cards.cbegin(), cards.cend(), [](const Card &c) { return c.id == g_card; });
     // Auto, or the card chosen unplugged.
-    return autoCard(all);
+    const QString id = plugged ? g_card : autoCard(all);
+    keepFull(id);
+    return id;
 }
 
 QString AudioOutput::mpvDevice() {

@@ -172,7 +172,7 @@ The loading screen comes, then the menu again, or an error. The log says which o
 
 1. **Choose the card** in Settings → Audio Output: AV Jack, HDMI or a USB sound card. On **Auto**, sound goes to ALSA's first card, which may not be the one plugged in, or while that one can't play (a Pi 5's HDMI without the picture), to the first card that can. A Pi 5 has no AV jack: use HDMI, or a USB sound card on a CRT.
 2. **See the cards ALSA has**: `aplay -l`, or `cat /proc/asound/cards`, the card's id in brackets.
-3. **Quiet AV jack**: `amixer sset PCM 100%`, then `sudo alsactl store` to keep it.
+3. **Quiet AV jack**: OSD/OS keeps the card at 0 dB as it plays. `amixer sset PCM 100%` raises it 4 dB above that, which OSD/OS leaves as it is (`sudo alsactl store` keeps it); loud sound can clip there.
 4. **Read the log**: `journalctl -b -u osdos | grep AudioOutput` shows `Sound through <card>`. mpv's own log, `/tmp/osdos-mpv.log`, says why a video's sound couldn't open.
 
 No Audio Output row at all means a sound server (PipeWire, PulseAudio) runs, as on a desktop: choose the output in the system's sound settings there. [Audio Output → When there is no sound](https://github.com/mehmetraif/OSD-OS/wiki/Audio-Output#when-there-is-no-sound) has the rest, and [INSTALL.md](https://github.com/mehmetraif/OSD-OS/blob/main/INSTALL.md) the ALSA settings outside the app (`/etc/asound.conf`, `audio-device=` in `mpv.conf`).

@@ -492,7 +492,7 @@ Settings → TV / Movie → Video Levels: **Limited** if blacks crush and whites
 
 ### No sound
 
-Choose the card in Settings → Audio Output. If the Pi's analog output is too quiet, `amixer sset PCM 100%` (and `sudo alsactl store` to keep it). [Audio Output](https://github.com/mehmetraif/OSD-OS/wiki/Audio-Output) has the rest.
+Choose the card in Settings → Audio Output; OSD/OS keeps it at its full level as anything plays. [Audio Output](https://github.com/mehmetraif/OSD-OS/wiki/Audio-Output) has the rest.
 
 ### YouTube won't play
 

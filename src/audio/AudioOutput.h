@@ -17,7 +17,8 @@ class QProcessEnvironment;
 // (MpvController::followAudioOutput). A card chosen but unplugged is passed
 // over until it is back: sound goes as on Auto, where ALSA's default plays,
 // or, while that can't (a Pi 5's HDMI without the picture), the first card
-// that can.
+// that can. The card given is at its full level (card()): the volume is
+// what it plays into, a TV's or an amplifier's knob.
 //
 // Offered on Linux where nothing between the players and ALSA picks the card
 // itself, no PipeWire or PulseAudio server: the OS image. OSDOS_ASOUND_DIR
@@ -49,7 +50,11 @@ public:
     // is plugged in; else "" for ALSA's default, unless that can't play now
     // and nothing outside OSD/OS sets it (/etc/asound.conf, ~/.asoundrc,
     // ALSA_CARD): then the first card that can, a USB sound card beside a
-    // Pi 5 whose picture goes out of a JAMMA board say. "" with none.
+    // Pi 5 whose picture goes out of a JAMMA board say. "" with none. The
+    // card is put at its full level as it is given, through amixer: its
+    // playback controls below 0 dB at 0 dB (their top where that is lower,
+    // 100% where they give no dB), and on; never lowered, an input's left
+    // as they are. OSDOS_AMIXER stands in for amixer, for tests.
     static QString card();
     // mpv's --audio-device for it ("alsa/default:CARD=<id>"), else "".
     static QString mpvDevice();

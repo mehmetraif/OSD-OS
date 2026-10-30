@@ -166,7 +166,9 @@ OSD/OS has no system volume setting. There are three volumes, each its own:
 |---|---|---|
 | **The menu music** | Settings → **Music Volume**, a slider from QUIET to LOUD in steps of 10, offered while Menu Music isn't Off. It changes as the slider moves | `app.menu_music_volume`, 0 to 100, 60 when unset |
 | **A video** | A keyboard's or remote's volume keys (volume up, volume down, mute) while it plays: steps of 5, with a VOLUME bar, MUTE while muted ([Controls](https://github.com/mehmetraif/OSD-OS/wiki/Controls)) | No. Each video starts afresh at mpv's own volume (100), or at `volume=` in mpv.conf for an mpv process |
-| **The sound card itself** | `alsamixer`, or `amixer`, from a shell | `sudo alsactl store` keeps it across reboots |
+| **The sound card itself** | Kept at its full level by OSD/OS. As anything starts to play, a level below 0 dB goes to 0 dB (to 100% on a card that gives no dB), and one switched off is switched on. It is never lowered, so a level set higher with `alsamixer` or `amixer` stays, and a microphone's or a line in's controls are left as they are | Nothing to keep: it is set again as each player starts |
+
+How loud it is, then, is the TV's volume, or an amplifier's: a JAMMA board's volume knob. OSD/OS's log says when it raised a card (`<card> at full level: 'PCM',0`).
 
 The volume keys go to mpv, never to the menus, and hold to repeat. With Transparent Background they also reach a video playing behind the menus. They don't change the menu music, nor Weather's or Ambient:Mode's music, which play at mpv's own volume. [Menu music](https://github.com/mehmetraif/OSD-OS/wiki/Menu-Music) has more on it.
 
@@ -198,14 +200,14 @@ The volume keys go to mpv, never to the menus, and hold to repeat. With Transpar
    ```
 
    It says "Front Left" and "Front Right". Silence here means the card, the cable or the TV, not OSD/OS.
-4. **Quiet on the AV jack?** Raise the card's own level, and keep it ([INSTALL.md](https://github.com/mehmetraif/OSD-OS/blob/main/INSTALL.md)):
+4. **Quiet on the AV jack?** OSD/OS keeps the card at 0 dB, its full level without a boost ([Volume](#volume)). The AV jack's level goes 4 dB higher, which OSD/OS leaves as it is, though loud sound can clip there:
 
    ```sh
-   amixer sset PCM 100%
+   amixer -c Headphones sset PCM 100%
    sudo alsactl store
    ```
 
-   `amixer` changes the default card; `amixer -c Headphones sset PCM 100%` names the AV jack's. `alsamixer` does the same with a picture of the levels: F6 picks the card.
+   `amixer` without `-c` changes the default card. `alsamixer` does the same with a picture of the levels: F6 picks the card.
 5. **Read what OSD/OS did.**
 
    ```sh
