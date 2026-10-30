@@ -1,6 +1,6 @@
 // OSD/OS Setup's settings against the app's own: schema.json as
 // scripts/build-site.py makes it, each row one the app has, offering the
-// values the app takes, the website's files all there
+// values the app takes, in the page's views, the website's files all there
 // (the landing page's pictures and themes, and Setup's live preview, the
 // app's shaders, the Orb look's and the skins' pictures among them), the looks
 // the preview draws as Main.qml has them, and the time zones the card has.
@@ -256,6 +256,24 @@ test("the looks offered are the app's", () => {
     const fog = appRows.find(r => r.key === "orb_fog");
     assert.deepEqual([valuesOf(fog), fog.default, fog.shown_with], [["Picture", "Live"], "Picture", { key: "osd_theme", value: "orb" }]);
     assert.match(settingsQml, /key: "orb_fog",[\s\S]*?options: \["Picture", "Live"\]/);
+});
+
+test("the rows of the page's Basic and Logins views", () => {
+    const rows = [...appRows.map(r => ["app", r]), ...schema.modules.flatMap(m => m.settings.map(r => [m.id, r]))];
+    for (const [scope, row] of rows)
+        assert.ok(row.view === undefined || ["basic", "logins"].includes(row.view), `${scope}.${row.key}: ${row.view}`);
+    const inView = view => rows.filter(([, r]) => r.view === view).map(([scope, r]) => `${scope}.${r.key}`).sort();
+    // How the card starts and its look; what it signs in with.
+    assert.deepEqual(inView("basic"), ["app.osd_theme", "app.startup_module"]);
+    assert.deepEqual(inView("logins"), ["com.osdos.arcade.online_name", "com.osdos.emby.server_url",
+                                        "com.osdos.jellyfin.server_url", "com.osdos.plex.auto_sign_in"]);
+    // A module's views name its own rows.
+    const extra = JSON.parse(read("site/setup/schema-extra.json"));
+    for (const [id, more] of Object.entries(extra.modules)) {
+        const keys = schema.modules.find(m => m.id === id).settings.map(r => r.key);
+        for (const key of Object.keys(more.views || {}))
+            assert.ok(keys.includes(key), `${id}'s view of ${key}`);
+    }
 });
 
 test("each module's rows are its manifest's, with values it takes", () => {

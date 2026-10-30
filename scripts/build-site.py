@@ -115,9 +115,11 @@ def looks(folder, file_name):
 def module_settings(manifest, extra):
     """A manifest's rows as the page offers them: those whose values are
     known without the device (submenus' rows flat under the module, as the
-    app keeps them), and the extra ones. Views and actions have none."""
+    app keeps them), and the extra ones, each with the page's view it is in
+    besides Advanced (views, by key). Views and actions have none."""
     options = extra.get("options", {})
     defaults = extra.get("defaults", {})
+    views = extra.get("views", {})
     out = []
 
     def walk(settings):
@@ -126,6 +128,8 @@ def module_settings(manifest, extra):
             row = {"key": key, "label": s.get("label", key), "help": help_text(s.get("description"))}
             if "shown_with" in s:
                 row["shown_with"] = s["shown_with"]
+            if key in views:
+                row["view"] = views[key]
             if kind == "submenu":
                 out.append({"type": "heading", "label": s.get("label", "")})
                 walk(s.get("settings", []))

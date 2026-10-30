@@ -335,6 +335,24 @@ export function shown(row, valueOf) {
     return !(row.shown_unless && holds(row.shown_unless));
 }
 
+// The page's three views of the form, each { id, name, about }: Basic, how
+// the card starts and its look; Logins, what it signs in and connects with;
+// Advanced, every setting. A view only shows fewer lines: what is set in one
+// stays set, and goes into the file, from any.
+export const VIEWS = [
+    { id: "basic", name: "Basic",
+      about: "How it starts: the device, the Pi and its display output, the time zone, the theme, the module it opens on, the modules on." },
+    { id: "logins", name: "Logins",
+      about: "What it signs in with: Wi-Fi, pi's password and SSH, the media servers' addresses, the RetroAchievements account and the online name." },
+    { id: "advanced", name: "Advanced", about: "Every setting." },
+];
+// Whether a view shows a line of the form that is in `part` ("basic" or
+// "logins", a row's view in the schema; "advanced" or none for every other):
+// Advanced shows them all.
+export function inView(view, part) {
+    return view === "advanced" || (part || "advanced") === view;
+}
+
 // The module OSD/OS starts on, turned on with it unless turned off on purpose
 // (which the page says it can't be).
 export function withStartupModule(config) {
