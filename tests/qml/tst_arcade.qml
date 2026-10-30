@@ -3212,6 +3212,23 @@ Rectangle {
             return found
         }
 
+        // A favourite's heart beside its name in every filter but Favorites,
+        // where every game is one.
+        function test_screenFavoriteHearts() {
+            var screen = openScreen()
+            compare(screen.filterId, "all")
+            compare(marks(screen), ["heart", "heart"])
+            loader.source = ""
+            screen = openScreen({ navListState: { filter: "favorites", set: "sf2" } })
+            compare(screen.filterId, "favorites")
+            compare(screen.count, 2)
+            compare(marks(screen), [])
+            loader.source = ""
+            screen = openScreen({ navListState: { filter: "genres/Fighting", set: "kinst" } })
+            compare(screen.filterId, "genres/Fighting")
+            compare(marks(screen), ["heart"])
+        }
+
         // The whole lobby as a filter of the Arcade screen's, as filters()
         // and filterGames() give it.
         function lobbyFilter(rooms) {

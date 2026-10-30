@@ -78,7 +78,7 @@ Right on a game opens its options:
 
 With **Settings → Arcade → Screen** on **Arcade**, Arcade opens on a cabinet's selection screen, in letters made to be read on a CRT: none smaller than the hint bar's, the games' names larger.
 
-- **The list**, on the left: the games of one filter, seven to a page (as many as fit, in an area [Screen Adjustment](#screen-adjustment) made larger or smaller), each with its number and its title (`Galaga`, where MAME's name is `Galaga (Namco rev. B)`), and a heart on a favorite. They lie as **List Style** says ([below](#list-style)): on an arc unless it is changed. The selected game stands out of the others to the left, and its title, when it is too long for the row, scrolls through; the others are cut short with `…`.
+- **The list**, on the left: the games of one filter, seven to a page (as many as fit, in an area [Screen Adjustment](#screen-adjustment) made larger or smaller), each with its number and its title (`Galaga`, where MAME's name is `Galaga (Namco rev. B)`), and a heart on a favorite (in every filter but Favorites, where every game is one). They lie as **List Style** says ([below](#list-style)): on an arc unless it is changed. The selected game stands out of the others to the left, and its title, when it is too long for the row, scrolls through; the others are cut short with `…`.
 - **The bar** over it: the filter, with ◄ ► while there are others, and the page (`1/4`); on the wheel of 3D Curved, the game (`12/512`). A filter's name too long for the bar (`Playable Online` beside `1/7474`, a genre's, a publisher's) scrolls through it, as the selected title does.
 - **The picture**, on the right ([below](#pictures)), with the credits bought in its corner (`Credit 2`). A game with more than one picture shows the next every 4 seconds.
 - **The box** under the picture, a line for each of these that its height has room for ([below](#the-box-under-the-picture)):
@@ -282,7 +282,7 @@ With Cabinet Lock ([Settings](https://github.com/mehmetraif/OSD-OS/wiki/Settings
 
 Settings → **Theme** → **Orb** draws the Arcade screen in 3D, in x-ray glass that lights up where its parts cross. The keys do what they do on the screen above; only the look changes.
 
-- **The list**, on a glass panel at the right: the filter's name and the page on its tab, with ◄ ►, and eight games to a page on glass bars. The selected game's bar lights up and stands out towards you; the one you left goes back slowly. A heart marks a favorite.
+- **The list**, on a glass panel at the right: the filter's name and the page on its tab, with ◄ ►, and eight games to a page on glass bars. The selected game's bar lights up and stands out towards you; the one you left goes back slowly. A heart marks a favorite, in every filter but Favorites.
 - **The orb**, at the left: the game's pictures inside it, and the credits bought at its foot. On Search the keys to type with take its place.
 - **The panel under it**: the game's high scores, as in [the box](#the-box-under-the-picture), then its maker and year, its players and its play time; on a room of the lobby, what is said of the room.
 - **The keys**, at the foot, in the hint bar's place: back's button and what it does at the left, select's at the right, the others between them. The help line stays above them.

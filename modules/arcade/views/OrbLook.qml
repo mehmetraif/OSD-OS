@@ -733,8 +733,10 @@ Item {
                                     }
                                     // The game's name, scrolled through while
                                     // it is selected and too long for its bar;
-                                    // a favourite's heart, Search's glass on its
-                                    // own row, a room of the lobby's ▶ or lock;
+                                    // a favourite's heart (but in Favorites,
+                                    // where every game is one), Search's glass
+                                    // on its own row, a room of the lobby's ▶
+                                    // or lock;
                                     // ▲ ▼ where there is a page before or after.
                                     Sheet {
                                         z: 22
@@ -793,7 +795,8 @@ Item {
                                                 id: mark
                                                 readonly property string kind: row.game.search ? "search"
                                                                                : row.game.lobby ? Rooms.mark(row.game.lobby)
-                                                                               : row.game.favorite ? "heart" : ""
+                                                                               : row.game.favorite && arcadeScreen.filterId !== "favorites"
+                                                                                 ? "heart" : ""
                                                 visible: kind !== ""
                                                 name: kind
                                                 color: rowSheet.ink

@@ -1118,14 +1118,14 @@ FocusScope {
                     PropertyAction { target: nameText; property: "x"; value: 0 }
                 }
             }
-            // A favourite's heart; Search's glass on its own row; and on a
-            // room of the lobby, ▶ for one to join, a lock for one with a
-            // password.
+            // A favourite's heart, but in Favorites, where every game is
+            // one; Search's glass on its own row; and on a room of the
+            // lobby, ▶ for one to join, a lock for one with a password.
             PixelIcon {
                 id: markIcon
                 readonly property string mark: row.game.search ? "search"
                                                : row.game.lobby ? Rooms.mark(row.game.lobby)
-                                               : row.game.favorite ? "heart" : ""
+                                               : row.game.favorite && arcadeScreen.filterId !== "favorites" ? "heart" : ""
                 visible: mark !== ""
                 name: mark
                 color: row.ink
