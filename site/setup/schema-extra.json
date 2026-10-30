@@ -6,6 +6,9 @@
       "settings": [
         { "key": "osd_theme", "label": "Theme", "type": "choice", "options": [["None", ""]], "options_from": "themes", "default": "",
           "help": "The whole look in one: the color scheme, the skin, the effects and the menu music. [NONE] OSD/OS's own. The rows below left at THEME follow it." },
+        { "key": "orb_fog", "label": "Orb Fog", "type": "choice", "default": "Picture", "options": ["Picture", "Live"],
+          "shown_with": { "key": "osd_theme", "value": "orb" },
+          "help": "The fog drifting behind the Arcade screen's panels in the Orb look. [PICTURE] A picture of fog, light on the GPU. [LIVE] Worked out as it drifts, as in the look's first design, more work for a Raspberry Pi's GPU." },
         { "key": "color_scheme", "theme_part": true, "label": "Color Scheme", "type": "choice", "default": "",
           "options": [["Theme", ""], "Video 1", "Late Night", "Synthwave", "Terminal", "T-120", "Amber", "Kinescope", "SMPTE ECR 1-1978"],
           "help": "The two colors everything is drawn in. [THEME] The theme's, else Video 1." },

@@ -3,10 +3,11 @@
 // ground (Components/OsdGround), the main menu (views/ModuleList.qml with
 // AppBar, its rows and HintBar) and the Arcade screen
 // (modules/arcade/views/ArcadeScreen.qml with ArcadeBar, its list, the
-// column, MenuRow, HelpLine and the status icons). Each part is drawn where
-// the QML puts it, in the scheme's two colours and the deck's letters; the
-// skins' pictures in those colours, nine-sliced on art pixels. The effects
-// are the app's own shaders, run over these by the preview (renderer.mjs).
+// column, MenuRow, HelpLine and the status icons; in the Orb look, the parts
+// it keeps in 2D over the scene orb.mjs draws). Each part is drawn where the
+// QML puts it, in the scheme's two colours and the deck's letters; the skins'
+// pictures in those colours, nine-sliced on art pixels. The effects are the
+// app's own shaders, run over these by the preview (renderer.mjs).
 import { bytesOf } from "./look.mjs";
 
 export const SW = 640, SH = 480;
@@ -16,7 +17,7 @@ const FONT = '"VCR OSD Mono"';
 // VCR OSD Mono's ascent and descent, of its size, as Qt takes them: its OS/2
 // table's (its hhea table has no descent), each in whole pixels. A line's
 // baseline is its ascent down it; a line is the two together.
-const ascentOf = size => Math.round(size * 1800 / 2048);
+export const ascentOf = size => Math.round(size * 1800 / 2048);
 const descentOf = size => Math.round(size * 200 / 2048);
 // How far above the baseline the middle of its capitals is (MenuRow's).
 const CAP_MIDDLE = 800 / 2048;
@@ -44,19 +45,19 @@ function frameRect(ctx, x, y, w, h, color, width) {
 const rgba = (hex, alpha) => `rgba(${bytesOf(hex).join(",")},${alpha})`;
 
 // --- Letters: a Text's line, its box `top` after its top padding.
-const lineHeight = size => ascentOf(size) + descentOf(size);
-function measure(ctx, size, s) {
+export const lineHeight = size => ascentOf(size) + descentOf(size);
+export function measure(ctx, size, s) {
     ctx.font = `${size}px ${FONT}`;
     return ctx.measureText(s).width;
 }
-function drawText(ctx, s, x, top, size, color) {
+export function drawText(ctx, s, x, top, size, color) {
     ctx.font = `${size}px ${FONT}`;
     ctx.fillStyle = color;
     ctx.textBaseline = "alphabetic";
     ctx.fillText(s, x, top + ascentOf(size));
 }
 // Cut short with "…" as Text.ElideRight cuts it.
-function elided(ctx, size, s, width) {
+export function elided(ctx, size, s, width) {
     if (measure(ctx, size, s) <= width + 0.01)
         return s;
     let n = s.length;
@@ -64,7 +65,7 @@ function elided(ctx, size, s, width) {
         --n;
     return s.slice(0, n) + "…";
 }
-function clipped(ctx, x, y, w, h, draw) {
+export function clipped(ctx, x, y, w, h, draw) {
     ctx.save();
     ctx.beginPath();
     ctx.rect(x, y, w, h);
@@ -80,11 +81,14 @@ export const screenMoves = () => moving;
 
 // A value scrolled through as MenuRow's and the selected names are: still a
 // second and a half, along at 20 ms a pixel, still two seconds, back.
-function scrolled(elapsed, by) {
-    moving = true;
+export function scrollOffset(elapsed, by) {
     const move = Math.abs(by) * 20;
     const t = elapsed % (1500 + move + 2000);
     return t < 1500 ? 0 : t < 1500 + move ? by * (t - 1500) / move : by;
+}
+function scrolled(elapsed, by) {
+    moving = true;
+    return scrollOffset(elapsed, by);
 }
 
 // --- The deck's symbols (Components/PixelIcon): "#" a set cell.
@@ -100,19 +104,23 @@ const SHAPES = {
     globe: ["..###..", ".#.#.#.", "#..#..#", "#######", "#..#..#", ".#.#.#.", "..###.."],
     network: ["..###..", "..###..", "...#...", ".#####.", ".#...#.", "###.###", "###.###"],
 };
-const iconWidth = name => (SHAPES[name] ? SHAPES[name][0].length : 0) * PX;
-const iconHeight = name => (SHAPES[name] || []).length * PX;
-function drawIcon(ctx, name, x, y, color) {
+// A symbol's size and the symbol itself, `pixel` a cell's size: an art pixel
+// on the screen, or the Orb look's 3 design units on its sheets.
+export const iconWidth = (name, pixel = PX) => (SHAPES[name] ? SHAPES[name][0].length : 0) * pixel;
+export const iconHeight = (name, pixel = PX) => (SHAPES[name] || []).length * pixel;
+export function drawIcon(ctx, name, x, y, color, pixel = PX) {
     const rows = SHAPES[name] || [];
-    x = snap(x);
-    y = snap(y);
+    if (pixel === PX) {
+        x = snap(x);
+        y = snap(y);
+    }
     ctx.fillStyle = color;
     rows.forEach((row, r) => {
         for (let c = 0; c < row.length;) {
             if (row[c] !== "#") { ++c; continue; }
             const start = c;
             while (c < row.length && row[c] === "#") ++c;
-            ctx.fillRect(x + start * PX, y + r * PX, (c - start) * PX, PX);
+            ctx.fillRect(x + start * pixel, y + r * pixel, (c - start) * pixel, pixel);
         }
     });
 }
@@ -237,23 +245,22 @@ function drawAppBar(ctx, look, assets, x, y, title) {
 }
 
 // The hint bar (Components/HintBar), from its bottom margin, at its own size
-// or as much smaller as the line needs. Returns where it is.
-function drawHintBar(ctx, look, assets, text, { x = SW * 0.125, bottom = SH * 0.1041667, width = SW * 0.75,
-                                               rightPadding = SW * 0.0125, shown = true } = {}) {
+// or as much smaller as the line needs: where it is, and its letters' size.
+function hintBar(ctx, text, { x = SW * 0.125, bottom = SH * 0.1041667, width = SW * 0.75, rightPadding = SW * 0.0125 } = {}) {
     const largest = SH * 0.0375, smallest = SH * 0.0291667;
     const leftPadding = SW * 0.0125;
     const probe = measure(ctx, largest, text);
     const size = Math.trunc(Math.max(smallest, Math.min(largest,
         Math.floor(largest * (width - leftPadding - rightPadding) / Math.max(1, probe)))));
     const height = lineHeight(size) + 2 * PX;
-    const y = SH - bottom - height;
-    if (shown) {
-        if (!drawSkin(ctx, look, assets, look.skin.hintBar, x, y, width, height))
-            fillRect(ctx, x, y, width, height, look.primary);
-        drawText(ctx, elided(ctx, size, text, width - leftPadding - rightPadding), x + leftPadding, y + PX, size,
-                 look.surface);
-    }
-    return { x, y, w: width, h: height };
+    return { x, y: SH - bottom - height, w: width, h: height, size, leftPadding, rightPadding };
+}
+function drawHintBar(ctx, look, assets, text, bar = hintBar(ctx, text)) {
+    if (!drawSkin(ctx, look, assets, look.skin.hintBar, bar.x, bar.y, bar.w, bar.h))
+        fillRect(ctx, bar.x, bar.y, bar.w, bar.h, look.primary);
+    drawText(ctx, elided(ctx, bar.size, text, bar.w - bar.leftPadding - bar.rightPadding), bar.x + bar.leftPadding,
+             bar.y + PX, bar.size, look.surface);
+    return bar;
 }
 
 // The help line (Components/HelpLine): the line in an outlined box, centred,
@@ -359,7 +366,8 @@ export function drawMainMenu(ctx, look, assets, ui, now) {
         drawIcon(ctx, "up", listX + (listW - iconWidth("up")) / 2, listY - gap - iconHeight("up"), look.primary);
     if (ui.top + listH < rows.length * rowH - 1)
         drawIcon(ctx, "down", listX + (listW - iconWidth("down")) / 2, listY + listH + gap, look.primary);
-    drawHintBar(ctx, look, assets, "[ESC]:SETTINGS [▲▼]:NAVIGATE [ENTER]:SELECT", { shown: look.hintBar });
+    if (look.hintBar)
+        drawHintBar(ctx, look, assets, "[ESC]:SETTINGS [▲▼]:NAVIGATE [ENTER]:SELECT");
     return box;
 }
 // The main menu's rows shown with the cursor on `index`, from `top` as it was
@@ -459,13 +467,21 @@ export const lastKeyOf = column => Math.floor(column / 4);
 export const columnOf = key => key * 4;
 
 // The Arcade screen's layout, in the design's units (a 960th of the width,
-// a 720th of the height), as ArcadeScreen.qml works it out.
+// a 720th of the height), as ArcadeScreen.qml works it out. In the Orb look,
+// eight rows on its panel, and its design (120..840 by 90..610) as large as
+// fits above the help line, in the middle across (orbScale, orbLeft).
+export const ORB_ROWS = 8;
+// The details the Orb look's panel has lines for; the help line says the rest.
+export const ORB_SHOWN = ["Maker", "Year", "Players"];
 export function arcadeLayout(look) {
     const a = look.arcade;
     const u = SW / 960, v = SH / 720;
     const areaLeft = 120, areaTop = 90, areaRight = 840, areaBottom = 645, areaWidth = 720;
     const listBottom = areaBottom - (a.hintBar ? (a.helpLine ? 93 : 41) : (a.helpLine ? 53 : 1));
-    const straight = a.listStyle === "Straight", wheel = a.listStyle === "3D Curved";
+    const orb = look.orb;
+    const straight = a.listStyle === "Straight", wheel = !orb && a.listStyle === "3D Curved";
+    const orbScale = Math.min(areaWidth / 720, (listBottom - areaTop) / 520);
+    const orbLeft = areaLeft + (areaWidth - 720 * orbScale) / 2;
     const listTop = areaTop + 57, listRoom = listBottom - listTop, rowHeight = 48, minPitch = 54;
     const rowsFit = Math.floor((listRoom - rowHeight) / minPitch) + 1;
     const wheelSize = (distance, reach) => 1 - 0.3 * Math.min(1, distance / reach);
@@ -500,7 +516,7 @@ export function arcadeLayout(look) {
         }
         return rows;
     };
-    const perPage = wheel ? wheelRows() : rowsFit;
+    const perPage = orb ? ORB_ROWS : wheel ? wheelRows() : rowsFit;
     const pitch = Math.floor((listRoom - rowHeight) / Math.max(1, perPage - 1));
     const middleRow = Math.floor(perPage / 2);
     const textLines = 27;
@@ -520,7 +536,42 @@ export function arcadeLayout(look) {
         textSize: Math.round(textLines * v), nameSize: Math.round(30 * v), columnWidth, columnX, pictureHeight,
         listWidth, infoTop, infoX: columnX + 10, infoWidth: columnWidth - 20, scoresTop, playTimeTop,
         scoreRows, detailRows: Math.min(4, infoLines - scoreRows),
+        orb, orbScale, orbLeft, orbX: x => orbLeft + (x - 120) * orbScale, orbY: y => areaTop + (y - 90) * orbScale,
     };
+}
+
+// What the hint bar says on the Arcade screen, as { key, word } pairs
+// (ArcadeScreen.qml's hintPairs), with a keyboard's keys: ▲ ▼ and ◄ ► go
+// without saying, and COIN only where it buys a credit, not on Search.
+export function arcadeHintPairs(ui, filter, current) {
+    const back = word => ({ key: "[ESC]", word }), select = word => ({ key: "[ENTER]", word });
+    if (ui.typing)
+        return [back("DONE"), { key: "[▲▼◄►]", word: "MOVE" }, select("TYPE")];
+    if (!current)
+        return [back("BACK")];
+    if (current.search)
+        return [back("BACK"), select("SEARCH")];
+    return [back("BACK"), ...(filter.id !== "search" ? [{ key: "[5]", word: "COIN" }] : []),
+            select("PLAY"), { key: "HOLD", word: "OPTIONS" }];
+}
+
+// The Arcade screen's foot: the hint bar's line and where the bar is, and
+// the status icons (Settings → Status Icons), at the help line's right, or
+// with no help line at the hint bar's end while the hint line still fits
+// beside them at its smallest (in the Orb look, at the right of its keys,
+// which make room); with neither, none. statusRoom is the room they take.
+export function arcadeFoot(ctx, look, L, pairs) {
+    const a = look.arcade;
+    const text = pairs.map(pair => `${pair.key}:${pair.word}`).join(" ");
+    const width = Math.round(L.areaWidth * L.u);
+    const icons = look.statusIcons;
+    const iconsW = icons.length ? statusWidth(icons) : 0;
+    const iconsShown = iconsW > 0 && (a.helpLine || (a.hintBar && (look.orb
+        || measure(ctx, SH * 0.0291667, text) <= width - SW * 0.0125 - SW * 0.0125 - iconsW - Math.round(12 * L.u))));
+    const statusRoom = iconsShown ? iconsW + Math.round(12 * L.u) : 0;
+    const bar = hintBar(ctx, text, { x: Math.round(L.areaLeft * L.u), width,
+                                     rightPadding: SW * 0.0125 + (a.helpLine ? 0 : statusRoom) });
+    return { text, bar, icons, iconsW, iconsShown, statusRoom };
 }
 
 // The game in each row: the page's, or the wheel's from its top row on.
@@ -549,14 +600,22 @@ export function arcadeSelectedRow(L, filter, ui) {
                    : ui.selected - Math.floor(ui.selected / L.perPage) * L.perPage;
 }
 
-// Search's keys in the picture's frame, in the box's letters or smaller to
-// fit it; the box on a key and the cursor after the line typed while they
-// have the keys (ui.typing).
+// Search's keys in the picture's frame, inside its padding (in the Orb look,
+// over the orb, which gives way to them: ArcadeScreen.qml's keysX, keysTop,
+// keysWidth and keysHeight), in the box's letters or smaller to fit it; the
+// box on a key and the cursor after the line typed while they have the keys
+// (ui.typing).
+function keysBox(L) {
+    const r = Math.round;
+    return L.orb ? { x: r(L.orbX(140)), y: r(L.orbY(110)), w: r(L.orbX(452) - L.orbX(140)), h: r(L.orbY(380) - L.orbY(110)) }
+                 : { x: L.infoX, y: L.areaTop + 6, w: L.infoWidth, h: L.pictureHeight - 12 };
+}
 function drawKeys(ctx, look, L, ui, now) {
     const { u, v } = L;
-    const size = Math.min(L.textSize, Math.floor(((L.pictureHeight - 12) * v - 2 * PX - 4) / 8.8));
-    const x = Math.round(L.infoX * u), y = Math.round((L.areaTop + 6) * v);
-    const cellW = Math.floor(Math.round(L.infoWidth * u) / 10), cellH = Math.round(size * 1.4);
+    const keys = keysBox(L);
+    const size = Math.min(L.textSize, Math.floor((keys.h * v - 2 * PX - 4) / 8.8));
+    const x = Math.round(keys.x * u), y = Math.round(keys.y * v);
+    const cellW = Math.floor(Math.round(keys.w * u) / 10), cellH = Math.round(size * 1.4);
     const lineH = cellH + 2 * PX;
     frameRect(ctx, x, y, cellW * 10, lineH, look.primary, PX);
     clipped(ctx, x, y, cellW * 10, lineH, () => {
@@ -591,8 +650,11 @@ function drawKeys(ctx, look, L, ui, now) {
 
 // ui: { filter, selected, wheelTop, credits, since, words (Search's),
 // typing (Search's keys have the keys), keysRow, keysCol }; bar, the bar's
-// name and since when it scrolls, is kept there as it is drawn.
-export function drawArcade(ctx, look, assets, ui, now) {
+// name and since when it scrolls, is kept there as it is drawn. In the Orb
+// look only what it keeps in 2D: Search's keys over the orb, the help line
+// and the status icons, which go as its panels swing out for a game (going,
+// 0 to 1); orb.mjs draws the rest.
+export function drawArcade(ctx, look, assets, ui, now, going = 0) {
     moving = false;
     const L = arcadeLayout(look);
     const a = look.arcade;
@@ -606,152 +668,8 @@ export function drawArcade(ctx, look, assets, ui, now) {
     const current = rows[selectedRow] ? rows[selectedRow].game : null;
     const elapsed = now - ui.since;
     let box = null;
-
-    // The bar over the list: the filter, ◄ ►, the page of so many.
-    {
-        const x = Math.round(L.areaLeft * u), y = Math.round(L.areaTop * v);
-        const w = Math.round(L.listWidth * u), h = Math.round(45 * v);
-        const pad = Math.round(12 * u), gap = Math.round(8 * u), size = SH * 0.0375;
-        if (!drawSkin(ctx, look, assets, look.skin.titleBar, x, y, w, h))
-            fillRect(ctx, x, y, w, h, look.primary);
-        const page = Math.floor(ui.selected / L.perPage), pages = Math.max(1, Math.ceil(count / L.perPage));
-        const right = onSearch ? `${count - 1} FOUND` : L.wheel ? `${ui.selected + 1}/${count}` : `${page + 1}/${pages}`;
-        const rightW = measure(ctx, size, right);
-        const arrows = filters.length > 1;
-        const arrowW = measure(ctx, size, "◄");
-        // The filter's name in what is left of the bar, cut between two
-        // letters: too long for it, it scrolls through, started over as the
-        // name or the room changes (ArcadeBar's labelClip).
-        const label = filter.name.toUpperCase();
-        const labelFull = measure(ctx, size, label);
-        const cell = Math.max(1, measure(ctx, size, "M"));
-        const room = w - 2 * pad - (rightW + 2 * gap) - (arrows ? 2 * (arrowW + gap) : 0);
-        const labelW = Math.max(0, Math.min(labelFull, Math.floor(room / cell) * cell));
-        if (!ui.bar || ui.bar.label !== label || ui.bar.width !== labelW)
-            ui.bar = { label, width: labelW, since: now };
-        const top = y + (h - lineHeight(size)) / 2;
-        let at = x + pad;
-        if (arrows) {
-            drawText(ctx, "◄", at, top, size, look.surface);
-            at += arrowW + gap;
-        }
-        const labelX = at;
-        if (labelFull > labelW)
-            clipped(ctx, labelX, y, labelW, h, () =>
-                drawText(ctx, label, labelX + scrolled(now - ui.bar.since, labelW - labelFull), top, size, look.surface));
-        else
-            drawText(ctx, label, labelX, top, size, look.surface);
-        at += labelW + gap;
-        if (arrows)
-            drawText(ctx, "►", at, top, size, look.surface);
-        drawText(ctx, right, x + w - pad - rightW, top, size, look.surface);
-    }
-
-    // The rows: straight, on an arc, or on the wheel, the game chosen standing
-    // out to the left.
-    const wheelTops = L.wheel ? L.wheelLayout(L.perPage, selectedRow).tops : [];
-    rows.forEach((entry, index) => {
-        if (!entry)
-            return;
-        const isCurrent = index === selectedRow;
-        const depth = L.wheel ? Math.min(1, Math.abs(index - selectedRow) / L.wheelReach) : 0;
-        const size = L.wheel ? L.wheelSize(Math.abs(index - selectedRow), L.wheelReach) : 1;
-        const arc = L.straight ? 0 : Math.round(24 * Math.sin(Math.PI * (index + 0.5) / L.perPage));
-        const boxLeft = L.areaLeft + (L.straight ? 16 : 12 + arc) - (isCurrent ? 16 : 0);
-        const boxWidth = L.listWidth - (L.straight ? 16 : 35) + (isCurrent ? 16 : 0);
-        const ink = isCurrent ? look.surface : look.primary;
-        const gap = Math.round(10 * size * u);
-        const x = Math.round(boxLeft * u);
-        const y = Math.round((L.wheel ? wheelTops[index] || 0 : L.listTop + index * L.pitch) * v);
-        const w = Math.round(boxWidth * size * u), h = Math.round(L.rowHeight * size * v);
-        ctx.save();
-        ctx.globalAlpha = 1 - 0.6 * depth;
-        if (isCurrent) {
-            drawSelection(ctx, look, assets, x, y, w, h);
-            box = { x, y, w, h };
-        } else {
-            frameRect(ctx, x, y, w, h, look.primary, PX);
-        }
-        // Search's games counted under its own row, which has none, and its
-        // glass at the right end.
-        const numberSize = Math.round(27 * size * v);
-        const number = entry.place + (onSearch ? 0 : 1);
-        const numberText = entry.game.search ? "" : ("00" + number).slice(-Math.max(3, String(number).length));
-        const numberX = x + gap + PX;
-        const numberW = numberText ? measure(ctx, numberSize, numberText) : 0;
-        drawText(ctx, numberText, numberX, y + (h - lineHeight(numberSize)) / 2, numberSize, ink);
-        const markX = x + w - iconWidth("search") - gap - PX;
-        if (entry.game.search)
-            drawIcon(ctx, "search", markX, y + (h - iconHeight("search")) / 2, ink);
-        const nameSize = Math.round(30 * size * v);
-        const nameX = numberX + numberW + gap;
-        const nameW = (entry.game.search ? markX - gap : x + w - gap - PX) - nameX;
-        const name = (entry.game.search ? ui.words || "Search" : entry.game.name).toUpperCase();
-        const fullW = measure(ctx, nameSize, name);
-        const nameTop = y + (h - lineHeight(nameSize)) / 2;
-        clipped(ctx, nameX, y, nameW, h, () => {
-            if (isCurrent && fullW > nameW)
-                drawText(ctx, name, nameX + scrolled(elapsed, nameW - fullW), nameTop, nameSize, ink);
-            else
-                drawText(ctx, elided(ctx, nameSize, name, nameW), nameX, nameTop, nameSize, ink);
-        });
-        ctx.restore();
-    });
-
-    // The column: the picture's frame (none yet: which file it would be), the
-    // credits bought, and the box of high scores, details and play time.
-    const ground = rgba(look.surface, a.infoBackground / 100);
-    const frame = a.border ? PX : 0;
-    {
-        const x = Math.round(L.columnX * u), y = Math.round(L.areaTop * v);
-        const w = Math.round(L.columnWidth * u), h = Math.round(L.pictureHeight * v);
-        fillRect(ctx, x, y, w, h, ground);
-        frameRect(ctx, x, y, w, h, look.primary, frame);
-        if (onSearch)
-            drawKeys(ctx, look, L, ui, now);
-        else if (current) {
-            const lines = [["No Picture".toUpperCase(), L.nameSize], [`snap/${current.set}.png`, L.textSize]];
-            if (!a.webApiKey)
-                lines.push(["No Web API Key".toUpperCase(), L.textSize]);
-            const spacing = Math.round(12 * v);
-            const height = lines.reduce((sum, [, size], i) => sum + lineHeight(size) + (i ? spacing : 0), 0);
-            const colW = w - 4 * PX, colX = x + (w - colW) / 2;
-            let top = y + (h - height) / 2;
-            for (const [text, size] of lines) {
-                const s = elided(ctx, size, text, colW);
-                drawText(ctx, s, colX + (colW - measure(ctx, size, s)) / 2, top, size, look.primary);
-                top += lineHeight(size) + spacing;
-            }
-        }
-        if (!onSearch) {
-            const credit = `CREDIT ${ui.credits}`;
-            const creditW = measure(ctx, L.textSize, credit) + 2 * Math.round(6 * u);
-            const creditH = lineHeight(L.textSize) + 2 * PX;
-            const cx = x + w - frame - creditW, cy = y + h - frame - creditH;
-            fillRect(ctx, cx, cy, creditW, creditH, look.surface);
-            drawText(ctx, credit, cx + Math.round(6 * u), cy + PX, L.textSize, look.primary);
-        }
-    }
-    // Under Search's own row, that its words find no game.
-    if (onSearch && count === 1) {
-        const rowTop = L.wheel ? L.wheelLayout(L.perPage, selectedRow).tops[1] || L.listTop : L.listTop + L.pitch;
-        drawText(ctx, "NO GAME FOUND", Math.round((L.areaLeft + 16) * u),
-                 Math.round((rowTop + (L.rowHeight - 30) / 2) * v), L.nameSize, look.primary);
-    }
-    {
-        const x = Math.round(L.columnX * u), y = Math.round(L.infoTop * v);
-        const w = Math.round(L.columnWidth * u), h = Math.round(L.listBottom * v) - y;
-        fillRect(ctx, x, y, w, h, ground);
-        frameRect(ctx, x, y, w, h, look.primary, frame);
-    }
     const game = current && !current.search ? current : null;
-    if (game && L.scoreRows > 0) {
-        const x = Math.round(L.infoX * u), y = Math.round(L.scoresTop * v);
-        drawText(ctx, "HI-SCORE", x, y, L.textSize, look.primary);
-        drawText(ctx, "NO SCORES YET", x, y + Math.round(32 * v), L.textSize, look.primary);
-    }
-    // The details over the play time, as many as the box has lines for; the
-    // help line says the rest.
+    // What the game is, for the box and the help line.
     const details = game ? [
         { label: "Maker", value: game.maker || "?", told: game.maker || "" },
         { label: "Year", value: game.year || "?", told: game.year || "" },
@@ -759,46 +677,196 @@ export function drawArcade(ctx, look, assets, ui, now) {
           told: game.players > 0 ? game.players + (game.players === 1 ? " Player" : " Players") : "" },
         { label: "System", value: "?", told: "" },
     ] : [];
-    if (game) {
-        const pad = SW * 0.009375;
-        for (let i = 0; i <= L.detailRows; ++i) {
-            const detail = i < L.detailRows ? details[i] : { label: "Play Time", value: "Never" };
-            const x = Math.round(L.infoX * u) - pad;
-            const y = Math.round((L.playTimeTop - (L.detailRows - i) * 29) * v);
-            drawMenuRow(ctx, look, x, y, Math.round(L.infoWidth * u) + 2 * pad, L.textSize, L.textSize,
-                        detail.label, detail.value, elapsed);
+
+    if (!look.orb) {
+        // The bar over the list: the filter, ◄ ►, the page of so many.
+        {
+            const x = Math.round(L.areaLeft * u), y = Math.round(L.areaTop * v);
+            const w = Math.round(L.listWidth * u), h = Math.round(45 * v);
+            const pad = Math.round(12 * u), gap = Math.round(8 * u), size = SH * 0.0375;
+            if (!drawSkin(ctx, look, assets, look.skin.titleBar, x, y, w, h))
+                fillRect(ctx, x, y, w, h, look.primary);
+            const page = Math.floor(ui.selected / L.perPage), pages = Math.max(1, Math.ceil(count / L.perPage));
+            const right = onSearch ? `${count - 1} FOUND` : L.wheel ? `${ui.selected + 1}/${count}` : `${page + 1}/${pages}`;
+            const rightW = measure(ctx, size, right);
+            const arrows = filters.length > 1;
+            const arrowW = measure(ctx, size, "◄");
+            // The filter's name in what is left of the bar, cut between
+            // two letters: too long for it, it scrolls through, started over
+            // as the name or the room changes (ArcadeBar's labelClip).
+            const label = filter.name.toUpperCase();
+            const labelFull = measure(ctx, size, label);
+            const cell = Math.max(1, measure(ctx, size, "M"));
+            const room = w - 2 * pad - (rightW + 2 * gap) - (arrows ? 2 * (arrowW + gap) : 0);
+            const labelW = Math.max(0, Math.min(labelFull, Math.floor(room / cell) * cell));
+            if (!ui.bar || ui.bar.label !== label || ui.bar.width !== labelW)
+                ui.bar = { label, width: labelW, since: now };
+            const top = y + (h - lineHeight(size)) / 2;
+            let at = x + pad;
+            if (arrows) {
+                drawText(ctx, "◄", at, top, size, look.surface);
+                at += arrowW + gap;
+            }
+            const labelX = at;
+            if (labelFull > labelW)
+                clipped(ctx, labelX, y, labelW, h, () =>
+                    drawText(ctx, label, labelX + scrolled(now - ui.bar.since, labelW - labelFull), top, size, look.surface));
+            else
+                drawText(ctx, label, labelX, top, size, look.surface);
+            at += labelW + gap;
+            if (arrows)
+                drawText(ctx, "►", at, top, size, look.surface);
+            drawText(ctx, right, x + w - pad - rightW, top, size, look.surface);
         }
+
+        // The rows: straight, on an arc, or on the wheel, the game chosen
+        // standing out to the left.
+        const wheelTops = L.wheel ? L.wheelLayout(L.perPage, selectedRow).tops : [];
+        rows.forEach((entry, index) => {
+            if (!entry)
+                return;
+            const isCurrent = index === selectedRow;
+            const depth = L.wheel ? Math.min(1, Math.abs(index - selectedRow) / L.wheelReach) : 0;
+            const size = L.wheel ? L.wheelSize(Math.abs(index - selectedRow), L.wheelReach) : 1;
+            const arc = L.straight ? 0 : Math.round(24 * Math.sin(Math.PI * (index + 0.5) / L.perPage));
+            const boxLeft = L.areaLeft + (L.straight ? 16 : 12 + arc) - (isCurrent ? 16 : 0);
+            const boxWidth = L.listWidth - (L.straight ? 16 : 35) + (isCurrent ? 16 : 0);
+            const ink = isCurrent ? look.surface : look.primary;
+            const gap = Math.round(10 * size * u);
+            const x = Math.round(boxLeft * u);
+            const y = Math.round((L.wheel ? wheelTops[index] || 0 : L.listTop + index * L.pitch) * v);
+            const w = Math.round(boxWidth * size * u), h = Math.round(L.rowHeight * size * v);
+            ctx.save();
+            ctx.globalAlpha = 1 - 0.6 * depth;
+            if (isCurrent) {
+                drawSelection(ctx, look, assets, x, y, w, h);
+                box = { x, y, w, h };
+            } else {
+                frameRect(ctx, x, y, w, h, look.primary, PX);
+            }
+            // Search's games counted under its own row, which has none, and
+            // its glass at the right end.
+            const numberSize = Math.round(27 * size * v);
+            const number = entry.place + (onSearch ? 0 : 1);
+            const numberText = entry.game.search ? "" : ("00" + number).slice(-Math.max(3, String(number).length));
+            const numberX = x + gap + PX;
+            const numberW = numberText ? measure(ctx, numberSize, numberText) : 0;
+            drawText(ctx, numberText, numberX, y + (h - lineHeight(numberSize)) / 2, numberSize, ink);
+            const markX = x + w - iconWidth("search") - gap - PX;
+            if (entry.game.search)
+                drawIcon(ctx, "search", markX, y + (h - iconHeight("search")) / 2, ink);
+            const nameSize = Math.round(30 * size * v);
+            const nameX = numberX + numberW + gap;
+            const nameW = (entry.game.search ? markX - gap : x + w - gap - PX) - nameX;
+            const name = (entry.game.search ? ui.words || "Search" : entry.game.name).toUpperCase();
+            const fullW = measure(ctx, nameSize, name);
+            const nameTop = y + (h - lineHeight(nameSize)) / 2;
+            clipped(ctx, nameX, y, nameW, h, () => {
+                if (isCurrent && fullW > nameW)
+                    drawText(ctx, name, nameX + scrolled(elapsed, nameW - fullW), nameTop, nameSize, ink);
+                else
+                    drawText(ctx, elided(ctx, nameSize, name, nameW), nameX, nameTop, nameSize, ink);
+            });
+            ctx.restore();
+        });
+
+        // The column: the picture's frame (none yet: which file it would
+        // be), the credits bought, and the box of high scores, details and
+        // play time.
+        const ground = rgba(look.surface, a.infoBackground / 100);
+        const frame = a.border ? PX : 0;
+        {
+            const x = Math.round(L.columnX * u), y = Math.round(L.areaTop * v);
+            const w = Math.round(L.columnWidth * u), h = Math.round(L.pictureHeight * v);
+            fillRect(ctx, x, y, w, h, ground);
+            frameRect(ctx, x, y, w, h, look.primary, frame);
+            if (onSearch)
+                drawKeys(ctx, look, L, ui, now);
+            else if (current) {
+                const lines = [["No Picture".toUpperCase(), L.nameSize], [`snap/${current.set}.png`, L.textSize]];
+                if (!a.webApiKey)
+                    lines.push(["No Web API Key".toUpperCase(), L.textSize]);
+                const spacing = Math.round(12 * v);
+                const height = lines.reduce((sum, [, size], i) => sum + lineHeight(size) + (i ? spacing : 0), 0);
+                const colW = w - 4 * PX, colX = x + (w - colW) / 2;
+                let top = y + (h - height) / 2;
+                for (const [text, size] of lines) {
+                    const s = elided(ctx, size, text, colW);
+                    drawText(ctx, s, colX + (colW - measure(ctx, size, s)) / 2, top, size, look.primary);
+                    top += lineHeight(size) + spacing;
+                }
+            }
+            if (!onSearch) {
+                const credit = `CREDIT ${ui.credits}`;
+                const creditW = measure(ctx, L.textSize, credit) + 2 * Math.round(6 * u);
+                const creditH = lineHeight(L.textSize) + 2 * PX;
+                const cx = x + w - frame - creditW, cy = y + h - frame - creditH;
+                fillRect(ctx, cx, cy, creditW, creditH, look.surface);
+                drawText(ctx, credit, cx + Math.round(6 * u), cy + PX, L.textSize, look.primary);
+            }
+        }
+        // Under Search's own row, that its words find no game.
+        if (onSearch && count === 1) {
+            const rowTop = L.wheel ? L.wheelLayout(L.perPage, selectedRow).tops[1] || L.listTop : L.listTop + L.pitch;
+            drawText(ctx, "NO GAME FOUND", Math.round((L.areaLeft + 16) * u),
+                     Math.round((rowTop + (L.rowHeight - 30) / 2) * v), L.nameSize, look.primary);
+        }
+        {
+            const x = Math.round(L.columnX * u), y = Math.round(L.infoTop * v);
+            const w = Math.round(L.columnWidth * u), h = Math.round(L.listBottom * v) - y;
+            fillRect(ctx, x, y, w, h, ground);
+            frameRect(ctx, x, y, w, h, look.primary, frame);
+        }
+        if (game && L.scoreRows > 0) {
+            const x = Math.round(L.infoX * u), y = Math.round(L.scoresTop * v);
+            drawText(ctx, "HI-SCORE", x, y, L.textSize, look.primary);
+            drawText(ctx, "NO SCORES YET", x, y + Math.round(32 * v), L.textSize, look.primary);
+        }
+        // The details over the play time, as many as the box has lines
+        // for; the help line says the rest.
+        if (game) {
+            const pad = SW * 0.009375;
+            for (let i = 0; i <= L.detailRows; ++i) {
+                const detail = i < L.detailRows ? details[i] : { label: "Play Time", value: "Never" };
+                const x = Math.round(L.infoX * u) - pad;
+                const y = Math.round((L.playTimeTop - (L.detailRows - i) * 29) * v);
+                drawMenuRow(ctx, look, x, y, Math.round(L.infoWidth * u) + 2 * pad, L.textSize, L.textSize,
+                            detail.label, detail.value, elapsed);
+            }
+        }
+    } else if (onSearch) {
+        drawKeys(ctx, look, L, ui, now);
     }
 
     // The help line and the hint bar, the status icons at the help line's
-    // right; with none, at the hint bar's end while the hint line still fits
-    // beside them at its smallest; with neither, none.
-    const hintText = ui.typing ? "[ESC]:DONE [▲▼◄►]:MOVE [ENTER]:TYPE"
-        : current && current.search ? "[ESC]:BACK [ENTER]:SEARCH" : "[ESC]:BACK [5]:COIN [ENTER]:PLAY HOLD:OPTIONS";
-    const hintWidth = Math.round(L.areaWidth * u);
-    const icons = look.statusIcons;
-    const iconsW = icons.length ? statusWidth(icons) : 0;
-    const iconsShown = iconsW > 0 && (a.helpLine || (a.hintBar && measure(ctx, SH * 0.0291667, hintText)
-        <= hintWidth - SW * 0.0125 - SW * 0.0125 - iconsW - Math.round(12 * u)));
-    const statusRoom = iconsShown ? iconsW + Math.round(12 * u) : 0;
+    // right; with none, at the hint bar's end (arcadeFoot()). The Orb look
+    // has its keys in the hint bar's place.
+    const foot = arcadeFoot(ctx, look, L, arcadeHintPairs(ui, filter, current));
+    ctx.save();
+    ctx.globalAlpha = 1 - going;
+    if (going > 0 && going < 1)
+        moving = true;
     let help = null;
     if (a.helpLine && current) {
-        const about = !current.search ? [current.description].concat(details.slice(L.detailRows).map(d => d.told)).join("\n")
+        // What the box has no line for: in the Orb look, all but the maker,
+        // the year and the players (ArcadeScreen.qml's orbShown).
+        const untold = look.orb ? details.filter(d => !ORB_SHOWN.includes(d.label)) : details.slice(L.detailRows);
+        const about = !current.search ? [current.description].concat(untold.map(d => d.told)).join("\n")
             : ui.typing ? "The games found follow each letter typed: OK goes down to them, back to the list, "
                           + "and ◄ ► past the keys' ends go round the filters"
             : "► or select to type what to look for: the games found follow each letter";
         const helpMargin = a.hintBar ? SH * 0.1583333 : SH * 0.1041667;
         const helpH = SH * 0.0583333;
         help = drawHelpLine(ctx, look, about, Math.round(L.areaLeft * u), SH - helpMargin - helpH,
-                            hintWidth - statusRoom, elapsed);
+                            foot.bar.w - foot.statusRoom, elapsed);
     }
-    const hint = drawHintBar(ctx, look, assets, hintText, {
-        x: Math.round(L.areaLeft * u), width: hintWidth, shown: a.hintBar,
-        rightPadding: SW * 0.0125 + (a.helpLine ? 0 : statusRoom) });
-    if (iconsShown && (help || a.hintBar)) {
-        const beside = help || hint;
-        drawStatus(ctx, icons, Math.round(L.areaRight * u) - iconsW - (a.helpLine ? 0 : Math.round(SW * 0.0125)),
-                   Math.round(beside.y + (beside.h - 7 * PX) / 2), a.helpLine ? look.primary : look.surface);
+    if (a.hintBar && !look.orb)
+        drawHintBar(ctx, look, assets, foot.text, foot.bar);
+    if (foot.iconsShown && (help || a.hintBar)) {
+        const beside = help || foot.bar;
+        drawStatus(ctx, foot.icons, Math.round(L.areaRight * u) - foot.iconsW - (a.helpLine ? 0 : Math.round(SW * 0.0125)),
+                   Math.round(beside.y + (beside.h - 7 * PX) / 2), a.helpLine || look.orb ? look.primary : look.surface);
     }
+    ctx.restore();
     return box;
 }

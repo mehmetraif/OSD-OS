@@ -1,9 +1,9 @@
 // OSD/OS Setup's settings against the app's own: schema.json as
 // scripts/build-site.py makes it, each row one the app has, offering the
-// values the app takes, the website's files all there (the landing page's
-// pictures and themes, and Setup's live preview, the app's shaders and the
-// skins' pictures among them), the looks the preview draws as Main.qml has
-// them, and the time zones the card has.
+// values the app takes, the website's files all there
+// (the landing page's pictures and themes, and Setup's live preview, the
+// app's shaders, the Orb look's and the skins' pictures among them), the looks
+// the preview draws as Main.qml has them, and the time zones the card has.
 //   node --test tests/site/*.test.mjs
 import { test, after } from "node:test";
 import assert from "node:assert/strict";
@@ -92,16 +92,13 @@ test("the website's files are all there", () => {
     }
 });
 
-test("the landing page's themes are the app's, Setup's and the app's alone alike, each with its colours and pictures", () => {
+test("the landing page's themes are the app's, the ones Setup offers, each with its colours and pictures", () => {
     const themes = JSON.parse(readFileSync(join(out, "themes.json"), "utf8"));
-    // Every built-in theme: those Setup offers, and Orb, which the app alone
-    // offers ("setup": false).
     const folders = readdirSync(join(root, "assets/themes"))
         .filter(folder => existsSync(join(root, "assets/themes", folder, "theme.json"))).sort();
     assert.deepEqual(themes.map(t => t.id).sort(), folders);
     const offered = valuesOf(appRows.find(r => r.key === "osd_theme")).filter(v => v !== "" && v !== "Off");
-    assert.ok(offered.every(id => folders.includes(id)), `Setup's themes: ${offered.join(" ")}`);
-    assert.ok(!offered.includes("orb") && folders.includes("orb"), "Orb on the landing page, not in Setup");
+    assert.deepEqual(offered.sort(), folders, "Setup offers every theme, Orb among them");
     for (const theme of themes) {
         assert.equal(theme.name, JSON.parse(read(`assets/themes/${theme.id}/theme.json`)).name);
         assert.ok(theme.about.length > 0, `${theme.id}'s line`);
@@ -117,6 +114,16 @@ test("the landing page's themes are the app's, Setup's and the app's alone alike
     assert.match(orb.recording, /\.mp4$/);
     assert.match(orb.recorded, /Arcade screen/);
     assert.ok(themes.filter(t => t.id !== "orb").every(t => !("recorded" in t)), "the others recorded in the menus");
+});
+
+test("the Orb look's shaders and fog picture, as they are, where the preview reads them", () => {
+    const orb = join(root, "modules/arcade/views/orb");
+    const files = readdirSync(orb).filter(f => /\.(vert|frag)$/.test(f) || f === "fog.png");
+    assert.ok(files.includes("glass.frag") && files.includes("fog.png"));
+    for (const file of files)
+        assert.ok(readFileSync(join(setup, "orb", file)).equals(readFileSync(join(orb, file))), file);
+    // Orb's theme says so to the preview.
+    assert.equal(schema.looks.themes.orb.arcade, "orb");
 });
 
 test("the live preview draws with the app's own shaders, as they are", () => {
@@ -243,14 +250,12 @@ test("the looks offered are the app's", () => {
     const folders = dir => readdirSync(join(root, "assets", dir), { withFileTypes: true })
         .filter(e => e.isDirectory() && existsSync(join(root, "assets", dir, e.name, `${dir.slice(0, -1)}.json`)))
         .map(e => e.name).sort();
-    // Every theme but one whose theme.json says "setup": false, which is the
-    // app's alone (Orb's).
-    const appsAlone = folders("themes").filter(name =>
-        JSON.parse(readFileSync(join(root, "assets/themes", name, "theme.json"), "utf8")).setup === false);
-    assert.ok(appsAlone.includes("orb"));
-    assert.deepEqual(offered("osd_theme"), folders("themes").filter(name => !appsAlone.includes(name)));
-    assert.ok(!appsAlone.some(name => name in schema.looks.themes));
+    assert.deepEqual(offered("osd_theme"), folders("themes"));
     assert.deepEqual(offered("skin"), folders("skins"));
+    // Orb Fog with a theme of the Orb look, as Settings offers it.
+    const fog = appRows.find(r => r.key === "orb_fog");
+    assert.deepEqual([valuesOf(fog), fog.default, fog.shown_with], [["Picture", "Live"], "Picture", { key: "osd_theme", value: "orb" }]);
+    assert.match(settingsQml, /key: "orb_fog",[\s\S]*?options: \["Picture", "Live"\]/);
 });
 
 test("each module's rows are its manifest's, with values it takes", () => {

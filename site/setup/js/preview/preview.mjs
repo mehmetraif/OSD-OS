@@ -1,11 +1,13 @@
 // OSD/OS Setup's live preview: the main menu and the Arcade screen as the app
 // draws them at 640×480, in the look the form holds, moving as they move on
 // the TV: the app's own shaders for the background, the screen and the text
-// (shaders/*.frag, on WebGL 2), its selector effects (SelectorFx), and its
-// window changes as the preview goes from one screen to the other. Clicked,
-// it takes the remote's keys: ▲ ▼ to move, ◄ ► the Arcade screen's filters,
-// select on ARCADE to open it, back to leave it, 5 for a coin. One element,
-// kept as the page draws its form again; update() gives it the settings.
+// (shaders/*.frag, on WebGL 2), its selector effects (SelectorFx), its window
+// changes as the preview goes from one screen to the other, and a theme's Orb
+// look of the Arcade screen in 3D (orb.mjs). Clicked, it takes the remote's
+// keys: ▲ ▼ to move, ◄ ► the Arcade screen's filters, select on ARCADE to open
+// it (in the Orb look, on a game to start it), back to leave it, 5 for a
+// coin. One element, kept as the page draws its form again; update() gives it
+// the settings.
 import { lookOf, rgbOf, bytesOf, ARCADE, SCREEN_KNOBS, TEXT_KNOBS } from "./look.mjs";
 import { el } from "../dom.mjs";
 import { Assets } from "./assets.mjs";
@@ -13,6 +15,7 @@ import { SelectorFx, FRAME } from "./selector.mjs";
 import { SW, SH, PX, drawGround, drawMainMenu, mainMenuTop, drawArcade, ARCADE_FILTERS, arcadeFilter, arcadeLayout,
          arcadeSelectedRow, screenMoves, KEY_ROWS, lastKeyOf, columnOf } from "./screens.mjs";
 import { Renderer } from "./renderer.mjs";
+import { OrbLook } from "./orb.mjs";
 
 const TICK = FRAME * 1000;
 // Main.qml's window changes: how long each takes, and how it eases.
@@ -56,7 +59,15 @@ export class Preview {
     // looks: schema.json's; base: where the page's files are.
     constructor(looks, base = "") {
         this.looks = looks;
+        this.base = base;
         this.look = null;
+        this.settings = null;
+        // The Orb look's scene, made once a theme with it is shown; given up
+        // where its shaders can't be used (the Arcade screen's own is drawn
+        // then, as the app draws it without Qt Quick 3D).
+        this.orb = null;
+        this.orbFailed = false;
+        this.orbShown = false;
         this.home = "main";
         this.screen = "main";
         this.main = { index: 0, top: 0, since: 0 };
@@ -111,6 +122,8 @@ export class Preview {
             });
             this.canvas.addEventListener("webglcontextrestored", () => {
                 this.renderer = new Renderer(this.canvas, SW, SH, this.renderer.sources);
+                this.orb = null;
+                this.orbShown = false;
                 this.lost = false;
                 this.redraw();
             });
@@ -137,7 +150,11 @@ export class Preview {
         // as their number changes (ArcadeScreen.qml's onPerPageChanged).
         const before = this.look && arcadeLayout(this.look);
         const row = before ? arcadeSelectedRow(before, arcadeFilter(this.arcade), this.arcade) : 0;
+        this.settings = settings;
         this.look = lookOf(this.looks, settings);
+        // The Orb look where WebGL 2 draws it.
+        if (this.look.orb && (!this.renderer || this.orbFailed))
+            this.look.orb = false;
         const after = arcadeLayout(this.look);
         if (before && after.wheel && (after.perPage !== before.perPage || !before.wheel))
             this.placeWheel(Math.min(row, after.perPage - 1));
@@ -195,9 +212,12 @@ export class Preview {
     // and Search with no words.
     openArcade() {
         const start = ARCADE_FILTERS.findIndex(f => f.id === this.look.arcade.startFilter);
-        this.arcade = { filter: Math.max(0, start), selected: 0, wheelTop: 0, credits: 0, since: performance.now(),
+        const now = performance.now();
+        this.arcade = { filter: Math.max(0, start), selected: 0, wheelTop: 0, credits: 0, since: now,
                         words: "", typing: false, keysRow: 0, keysCol: 0 };
         this.placeWheel(0);
+        if (this.orb)
+            this.orb.open(now);
     }
     placeWheel(row) {
         const L = arcadeLayout(this.look);
@@ -206,13 +226,19 @@ export class Preview {
     }
     // ◄ ►: the next filter round, on its first game, at the top of the list
     // (on the wheel, in its top row); Search on its own row
-    // (ArcadeScreen.qml's cycle()).
+    // (ArcadeScreen.qml's cycle()). In the Orb look, a nudge across.
     cycle(delta) {
         const a = this.arcade;
         a.filter = (a.filter + delta + ARCADE_FILTERS.length) % ARCADE_FILTERS.length;
         a.selected = 0;
         this.placeWheel(0);
         a.since = performance.now();
+        if (this.orbOn())
+            this.orb.nudge(delta, 0);
+    }
+    // Whether the Orb look draws the Arcade screen now.
+    orbOn() {
+        return this.screen === "arcade" && !!this.look && this.look.orb && !!this.orb && this.orb.ready;
     }
     // Search: its keys handed the keys, at the left end of their row, or
     // with a letter typed on a keyboard (the box then on OK); the list for
@@ -338,7 +364,12 @@ export class Preview {
             const filter = arcadeFilter(a);
             const count = filter.games.length;
             const onSearch = filter.id === "search";
-            if (a.typing) {
+            const chosen = filter.games[a.selected];
+            const orb = this.orbOn() ? this.orb : null;
+            if (orb && orb.launching) {
+                // A game starting, the camera going into the orb: no key
+                // counts.
+            } else if (a.typing) {
                 if (!this.keysKey(e, L))
                     return;
             } else if (e.key === "ArrowUp" || e.key === "ArrowDown") {
@@ -348,13 +379,19 @@ export class Preview {
                     a.wheelTop = (a.wheelTop + delta + count) % count;
                 a.selected = (a.selected + delta + count) % count;
                 a.since = now;
+                if (orb)
+                    orb.nudge(0, delta);
             } else if (e.key === "ArrowRight" && onSearch) {
                 // On Search, its keys lie to the right.
                 this.enterKeys("");
             } else if (e.key === "ArrowLeft" || e.key === "ArrowRight") {
                 this.cycle(e.key === "ArrowLeft" ? -1 : 1);
-            } else if (e.key === "Enter" && onSearch && filter.games[a.selected].search) {
+            } else if (e.key === "Enter" && onSearch && chosen.search) {
                 this.enterKeys("");
+            } else if (e.key === "Enter" && orb && chosen && !chosen.search) {
+                // The Orb look starts a game: the panels swing out and the
+                // camera goes into the orb, and the list is back after it.
+                orb.launch(now);
             } else if (e.key === "5") {
                 // A coin, where the credits are shown: not over Search's keys.
                 if (!onSearch)
@@ -402,10 +439,29 @@ export class Preview {
             for (const fx of Object.values(this.selectors))
                 selected = (fx.kind ? fx.tick(this.box) : fx.stop()) || selected;
         }
-        // Drawn again while anything on it moves, or once anything changed.
+        // Drawn again while anything on it moves, or once anything changed;
+        // the Orb look at every frame, as the app's FrameAnimation draws it.
         const effects = !this.flat && this.moving();
-        if (!this.lost && (this.dirty || this.change || (ticked && (effects || selected || this.screenMoving))))
+        if (!this.lost && (this.dirty || this.change || this.orbOn()
+                           || (ticked && (effects || selected || this.screenMoving))))
             this.draw(now);
+    }
+
+    // The Orb look's scene, made the first time a theme with it is shown.
+    orbLook() {
+        if (!this.orb && this.renderer && !this.orbFailed) {
+            this.orb = new OrbLook(this.renderer, this.base, failed => {
+                if (!failed) {
+                    this.redraw();
+                    return;
+                }
+                this.orbFailed = true;
+                this.orb = null;
+                if (this.settings)
+                    this.update(this.settings);
+            });
+        }
+        return this.orb;
     }
 
     // Whether the effects' time runs (Main.qml's fxMoving).
@@ -428,13 +484,22 @@ export class Preview {
             this.area = drawGround(ctx, look, this.assets);
             this.dirty = false;
         }
+        // The Orb look's scene, opened as it is first shown; its help line
+        // and status icons go as its panels swing out for a game.
+        const orb = this.screen === "arcade" && look.orb && !this.flat ? this.orbLook() : null;
+        const scene = orb && orb.ready;
+        if (scene && !this.orbShown)
+            orb.open(now);
+        this.orbShown = !!scene;
+        const going = scene ? orb.swing : 0;
         // The view, drawn again only when it changed or moves.
-        const redrawn = fresh || this.screenMoving;
+        const redrawn = fresh || this.screenMoving || going !== this.drawnGoing;
         if (redrawn) {
             const ctx = this.contentCanvas.getContext("2d");
             ctx.clearRect(0, 0, SW, SH);
+            this.drawnGoing = going;
             const box = this.screen === "main" ? drawMainMenu(ctx, look, this.assets, this.main, now)
-                                               : drawArcade(ctx, look, this.assets, this.arcade, now);
+                                               : drawArcade(ctx, look, this.assets, this.arcade, now, going);
             this.screenMoving = screenMoves();
             this.box = box ? { x: box.x / PX, y: box.y / PX, w: box.w / PX, h: box.h / PX } : null;
         }
@@ -453,7 +518,8 @@ export class Preview {
         const content = redrawn ? r.upload("content", this.contentCanvas, SW, SH, r.gl.NEAREST) : r.textures.content;
 
         // The window's face: its ground, the background effect over it in art
-        // pixels, the rainbow behind the view, the view, the other selectors.
+        // pixels, the Orb look's scene, the rainbow behind the view, the view,
+        // the other selectors.
         r.bindTarget(T.face);
         r.clear([0, 0, 0, 0]);
         r.copy(r.textures.ground, T.face);
@@ -469,6 +535,8 @@ export class Preview {
                                                           time: this.fxTime, ink, paper } });
             r.copy(T.bg.texture, T.face, [area.x, area.y, cols * PX, rows * PX]);
         }
+        if (scene)
+            r.copy(orb.render(look, this.arcade, now), T.face, null, { opacity: orb.opacity(now) });
         const selectorFrame = (name, fx) => fx.kind && !fx.blank ? r.upload(name, fx.frame, SW / PX, SH / PX, r.gl.NEAREST) : null;
         const back = selectorFrame("selectorBack", this.selectors.back);
         if (back)

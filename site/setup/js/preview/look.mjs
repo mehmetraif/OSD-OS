@@ -2,7 +2,9 @@
 // colour scheme's two colours (Settings' own, else the theme's), the skin,
 // each effect (Settings' row unless it is THEME, "", else the theme's), the
 // ground and its frame, the bars, the status icons, the main menu's rows and
-// the Arcade screen's settings. `looks` is schema.json's (scripts/build-site.py
+// the Arcade screen's settings, and whether the theme draws the Arcade screen
+// in its Orb look ("arcade": "orb"), with which fog (Settings → Orb Fog,
+// Main.qml's orbFogLive). `looks` is schema.json's (scripts/build-site.py
 // reads it from Main.qml, assets/themes and assets/skins); `settings` is what
 // the page holds, each row's default where it is unset.
 //   settings = { app: { key: value }, modules: [{ id, name, folder, enabled,
@@ -105,6 +107,8 @@ export function lookOf(looks, settings) {
         helpLine: on(app.help_line),
         statusIcons,
         menu: modules.map(m => ({ id: m.id, name: m.name })),
+        orb: theme.arcade === "orb",
+        orbFogLive: app.orb_fog === "Live",
         arcade: {
             screen: arcadeValues.screen || "Arcade",
             listStyle: arcadeValues.list_style || "Curved",

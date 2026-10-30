@@ -46,7 +46,7 @@ A theme is the whole look of OSD/OS in one folder: the two colours everything is
 <tr><td>The Arcade screen in x-ray glass, in 3D: the list on a panel at the right, the game's pictures inside an orb, its high scores and what it is on a panel under it, fog drifting behind, and the whole swaying slowly; ▲ ▼ ◄ ► nudge it.</td><td>A game started: the panels swing out on their hinges, the orb comes to the middle and the camera goes into it, its picture opening out to the whole screen, before the game's loading screen.</td></tr>
 </table>
 
-Orb is a look for the [Arcade screen](https://github.com/mehmetraif/OSD-OS/wiki/Arcade#the-orb-look) above all: its other menus are plain, in its two colours. It is chosen in Settings → Theme only; the [Setup page](https://mehmetraif.github.io/OSD-OS/setup/) doesn't offer it.
+Orb is a look for the [Arcade screen](https://github.com/mehmetraif/OSD-OS/wiki/Arcade#the-orb-look) above all: its other menus are plain, in its two colours. It is chosen in Settings → Theme or on the [Setup page](https://osdos.tv/setup/), whose live preview draws its Arcade screen in 3D as OSD/OS does.
 
 Without a theme (Theme: None), OSD/OS is plain on purpose: Video 1's two colours, OSD/OS's own window, nothing moving but the cursor, and no music.
 
@@ -204,14 +204,13 @@ The one theme whose music is a tracker's module: a four-channel FastTracker 2 XM
 
 ### Orb
 
-Two colours of its own, a lime green on a dark green, and the Arcade screen's Orb look (`arcade`). `setup` keeps it off the Setup page, where it isn't offered yet. With it, Settings has an **Orb Fog** row under Theme: the fog behind the panels as a picture drifting (Picture, the default) or worked out as it drifts (Live), as any theme with the look has ([Settings](https://github.com/mehmetraif/OSD-OS/wiki/Settings#the-look)).
+Two colours of its own, a lime green on a dark green, and the Arcade screen's Orb look (`arcade`). With it, Settings has an **Orb Fog** row under Theme, and the Setup page too: the fog behind the panels as a picture drifting (Picture, the default) or worked out as it drifts (Live), as any theme with the look has ([Settings](https://github.com/mehmetraif/OSD-OS/wiki/Settings#the-look)).
 
 ```json
 {
     "name": "Orb",
     "colors": { "primary": "#9BE02B", "surface": "#061206" },
-    "arcade": "orb",
-    "setup": false
+    "arcade": "orb"
 }
 ```
 
