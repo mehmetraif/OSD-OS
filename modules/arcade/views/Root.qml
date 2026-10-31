@@ -91,21 +91,35 @@ FocusScope {
         return true
     }
 
-    // A game a view asks for (navigateTo Play.qml with its set and title);
-    // coming back lands on it as listState says. With Start Info Screen on,
-    // Play.qml says how to come back first, then starts it. With it off the
-    // game starts from the list itself, under the loading screen
-    // (GameLoading.qml), which stays on the screen while MAME starts; the list
-    // has every key kept from it till the game ends (keyCatcher), and
-    // Play.qml only says why a game didn't play.
+    // A game a view asks for (navigateTo Play.qml with its set and title).
+    // With Start Info Screen on, Play.qml says how to come back first, then
+    // starts it. With it off the game starts from the list itself, under the
+    // loading screen (GameLoading.qml), which stays on the screen while MAME
+    // starts; the list has every key kept from it till the game ends
+    // (keyCatcher), and Play.qml only says why a game didn't play. Either
+    // way the list stays loaded under the game, as it was, and is on the
+    // screen again the moment the game ends.
     function playGame(params, listState) {
         if (startInfo) {
-            navigateTo("Play.qml", params, listState)
+            openPlay(params)
             return
         }
         playing = { game: params.game, title: params.title, online: params.online, listState: listState || {} }
         keyCatcher.forceActiveFocus()
         listLaunch.restart()
+    }
+    // Play.qml over the list (playLayer), rather than in its place: the list
+    // is not loaded again behind a game's end, its picture, its 3D look and
+    // its thousands of rows, while the screen waits on it.
+    function openPlay(params) {
+        root.changeWindow(playLayer, Qt.resolvedUrl("Play.qml"), { "navParams": params || {} })
+    }
+    function closePlay() {
+        if (!playLayer.item)
+            return
+        root.changeWindow(playLayer, "", {})
+        if (internalLoader.item)
+            internalLoader.item.forceActiveFocus()
     }
     // How long what is on the screen stays before MAME takes it, so that a
     // headless Pi hands that over, not a frame of what was there before.
@@ -122,9 +136,8 @@ FocusScope {
             if (!game || moduleRoot.startGame(game.game, game.title, game.online))
                 return
             moduleRoot.playing = null
-            moduleRoot.navigateTo("Play.qml", { game: game.game, title: game.title,
-                                                error: arcadeBackend ? arcadeBackend.lastError() : "" },
-                                  game.listState)
+            moduleRoot.openPlay({ game: game.game, title: game.title,
+                                  error: arcadeBackend ? arcadeBackend.lastError() : "" })
         }
     }
     // The game playGame() starts from the list, from the moment it is
@@ -148,9 +161,8 @@ FocusScope {
                 internalLoader.item.forceActiveFocus()
             // Back on the list, as after a video; else why it didn't play.
             if (reason !== "ok")
-                moduleRoot.navigateTo("Play.qml", { game: ended.game, title: ended.title, failed: true,
-                                                    message: notice, output: arcadeBackend.output() },
-                                      ended.listState)
+                moduleRoot.openPlay({ game: ended.game, title: ended.title, failed: true,
+                                      message: notice, output: arcadeBackend.output() })
         }
     }
 
@@ -207,6 +219,9 @@ FocusScope {
         id: internalLoader
         anchors.fill: parent
         focus: true
+        // Under Play.qml, kept but not drawn: the views draw no ground of
+        // their own, so it would show through.
+        visible: !playLayer.item
         onLoaded: { if (item) item.forceActiveFocus() }
 
         Connections {
@@ -220,6 +235,22 @@ FocusScope {
                     moduleRoot.navigateTo(path, params, listState)
             }
             function onGoBack() { moduleRoot.navigateBack() }
+        }
+    }
+
+    // Play.qml, over the list (openPlay()): how to come back before a game,
+    // its loading screen while it runs, why it didn't play. Back from it,
+    // or the game played out, is the list again, where it was.
+    Loader {
+        id: playLayer
+        objectName: "playLayer"
+        anchors.fill: parent
+        onLoaded: { if (item) item.forceActiveFocus() }
+
+        Connections {
+            target: playLayer.item
+            ignoreUnknownSignals: true
+            function onGoBack() { moduleRoot.closePlay() }
         }
     }
 
