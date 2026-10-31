@@ -195,31 +195,34 @@ int DisplayHandoff::acquire(const QString &owner) {
     // valid (its restore skipped for a DRM master still held), and a takeover
     // would then be allowed that cannot be restored.
     m_savedDrm = {};
-    // VT switch first — suspends Qt's render thread via the kernel's VT switch
-    // signal before DRM master is dropped, which is what keeps the
-    // "Failed to commit atomic request (code=-13)" (EACCES) noise down. Expect a
-    // handful of those lines anyway: Qt can still have commits in flight between
-    // the switch completing and the master drop. Pi-observed as 1-4 lines per
-    // hand-off, with the display recovering correctly. A continuous stream of them
-    // instead means the VT switch silently failed — see the warning below.
+    // The app stops drawing before the screen goes; with a cover, once it is
+    // painted from the app's frame (below). Neither the VT switch nor the
+    // master drop pauses Qt: a Pi 5 logged a refused flip ("Failed to commit
+    // atomic request (code=-13)") for every frame it drew through a game, and
+    // Qt's atomic path carries each refused flip's properties into its next
+    // commit, so the first one after a long game was refused (code=-22) with
+    // every one after it.
+    if (!m_coverPainter)
+        setDrawing(false);
+    // VT switch before DRM master is dropped: the child gets a console of its
+    // own, and Qt's goes back to it after.
     const int freeVt = findFreeVt(m_previousVt);
     m_switchedVt = m_previousVt > 0 && switchToVt(freeVt);
     if (m_previousVt <= 0) {
         // A switch with no VT to come back to would leave the app on the free
         // one, and each hand-off after it a VT further on: the lesser harm is
-        // the renderer drawing on, as below, until the child is done.
+        // the child on the app's console, as below.
         qWarning("[DisplayHandoff] The active VT is unknown, so the VT is not "
-                 "switched (it could not be switched back). Qt's renderer will "
-                 "keep drawing while DRM master is dropped.");
+                 "switched (it could not be switched back): the child shares "
+                 "the app's console.");
     } else if (!m_switchedVt) {
-        // This is not cosmetic. Without the switch, Qt's renderer keeps drawing
-        // while DRM master is dropped below it: expect a stream of
-        // "Failed to commit atomic request (code=-13)" (EACCES), and a child that
-        // draws nothing will leave the OSD/OS UI on screen rather than blanking,
-        // so a "takeover" doesn't visibly take over. It usually still recovers,
-        // which is exactly what makes it easy to miss — so say so plainly.
-        qWarning("[DisplayHandoff] Could not switch VT, so Qt's renderer will keep "
-                 "drawing while DRM master is dropped. This process needs "
+        // This is not cosmetic. Without the switch the child shares the app's
+        // console: a child that draws nothing leaves the OSD/OS UI on screen
+        // rather than blanking, so a "takeover" doesn't visibly take over. It
+        // usually still recovers, which is exactly what makes it easy to miss —
+        // so say so plainly.
+        qWarning("[DisplayHandoff] Could not switch VT, so the child shares the "
+                 "app's console. This process needs "
                  "CAP_SYS_TTY_CONFIG or membership of the 'tty' group, and "
                  "/dev/tty0 must be group-writable. The installed systemd service "
                  "grants both (see scripts/install.sh); a hand-launched dev build "
@@ -240,6 +243,7 @@ int DisplayHandoff::acquire(const QString &owner) {
         if (m_savedDrm.valid && m_coverPainter)
             showCover(m_qtDrmFd);
     }
+    setDrawing(false);
     emit heldChanged();
     return freeVt;
 #else
@@ -312,10 +316,23 @@ void DisplayHandoff::doRestore(bool useCover) {
     }
     m_previousVt = -1;
     m_switchedVt = false;
+    // The app draws again, the screen its own once more; not at shutdown,
+    // with nothing drawn after.
+    if (useCover)
+        setDrawing(true);
     if (!m_owner.isEmpty()) {
         m_owner.clear();
         emit heldChanged();
     }
+}
+
+void DisplayHandoff::setDrawing(bool draw) {
+    if (!m_drawingSwitch || m_drawingStopped == !draw)
+        return;
+    m_drawingStopped = !draw;
+    if (!draw)
+        qInfo("[DisplayHandoff] The app stops drawing while %s has the screen", qPrintable(m_owner));
+    m_drawingSwitch(draw);
 }
 
 int DisplayHandoff::getActiveVt() const {

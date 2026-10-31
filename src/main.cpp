@@ -8,6 +8,7 @@
 #include <QStandardPaths>
 #include <QCursor>
 #include <QDebug>
+#include <QPointer>
 #include <QWindow>
 #include <QQuickWindow>
 #include <QScreen>
@@ -501,6 +502,20 @@ int main(int argc, char *argv[]) {
     if (rootWindow && DisplayHandoff::isHeadless()) {
         QObject::connect(rootWindow, &QQuickWindow::frameSwapped, rootWindow,
                          [&displayHandoff] { displayHandoff.noteFrame(); }, Qt::DirectConnection);
+        // While a child has the screen the app draws nothing: the window is
+        // hidden, which takes it off the render thread (its scene and its
+        // graphics kept, so the same frame buffers come back), and shown
+        // again once the screen is back. Drawing on, every frame was a flip
+        // refused, and Qt's atomic KMS path piled them up into the commit
+        // after the hand-back until the kernel refused it and every one
+        // after (DisplayHandoff::acquire()).
+        displayHandoff.setDrawingSwitch([window = QPointer<QQuickWindow>(rootWindow)](bool draw) {
+            if (!window)
+                return;
+            window->setVisible(draw);
+            if (draw)
+                window->requestActivate();
+        });
         QObject::connect(&displayHandoff, &DisplayHandoff::screenLost, &app, [] {
             qWarning("[main] The screen is lost to this run after the hand-back: OSD/OS starts again in place");
             diagnostics::startAgain("the screen was lost to the run before after a hand-back "
