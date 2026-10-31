@@ -120,10 +120,14 @@ static volatile std::sig_atomic_t g_termSignal = 0;
 extern "C" void osdosHandleTerm(int sig) { g_termSignal = sig; }
 
 int main(int argc, char *argv[]) {
-#ifdef Q_OS_WIN
-    // A windowed program, which no console opens with: what it logs goes to
-    // osdos.log in the data folder, and to the console it was started from,
-    // if any (util/LogFile).
+#if defined(Q_OS_WIN) || defined(Q_OS_LINUX)
+    // What it logs goes to osdos.log in the data folder as well, the run
+    // before's kept as osdos-previous.log (util/LogFile). On Windows, a
+    // windowed program which no console opens with, it is the log, and goes
+    // to the console it was started from too, if any. On the OSD/OS image,
+    // whose journal lives in memory, it is what is left of a run after the
+    // Pi is switched off and on, a frozen one too: Quit → Save Logs copies
+    // it to the card.
     logfile::begin();
 #endif
     // A libretro core's name and version, which the Arcade module asks of a
@@ -204,7 +208,7 @@ int main(int argc, char *argv[]) {
                   qPrintable(qEnvironmentVariable(appRoot.isEmpty() ? "APP_ROOT" : "DATA_ROOT")));
         return 1;
     }
-#ifdef Q_OS_WIN
+#if defined(Q_OS_WIN) || defined(Q_OS_LINUX)
     logfile::open(dataRoot);
 #endif
     qDebug("[main] appRoot  = %s", qPrintable(appRoot));

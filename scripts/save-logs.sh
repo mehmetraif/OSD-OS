@@ -15,6 +15,11 @@
 #   stall-report.txt     a freeze's report, and crash-report.txt a crash's,
 #                        where there is one
 #   retroarch-last.log   RetroArch's log of the last FinalBurn Neo game
+#   app-this-run.log     what OSD/OS has logged since it started, from its own
+#                        file (osdos.log in the data folder)
+#   app-previous-run.log what the run before logged (osdos-previous.log): the
+#                        one that froze or went black, after the Pi was
+#                        switched off and on, as the journal is gone then
 #
 # Not mpv's own log (/tmp/osdos-mpv.log): it holds each video's full address,
 # a media server's token with it, and the partition is anyone's to read.
@@ -45,14 +50,41 @@ hide() {
     sed -E 's/([?&;]([Tt]|[Tt]oken|X-Plex-Token|api_?key|[Aa]pi[Kk]ey)=)[^&;[:space:]"]*/\1HIDDEN/g'
 }
 
+# A flood folded: a line saying what one of the last four lines said (its
+# time aside) is left out, and where they stop, one line says how many were
+# and when the last was. A refused flip or a driver's error, many times a
+# second, would otherwise fill the file and bury the rest.
+fold() {
+    awk '
+    function flush() {
+        if (folded) print "  ... " folded " more of the line(s) above, the last: " last
+        folded = 0
+    }
+    {
+        key = $0
+        sub(/^[A-Z][a-z][a-z] +[0-9]+ [0-9:.]+ /, "", key)
+        sub(/^[0-9][0-9]:[0-9][0-9]:[0-9][0-9][.0-9]* /, "", key)
+        for (i = 1; i <= n; i++)
+            if (recent[i] == key) { folded++; last = $0; next }
+        flush()
+        print
+        if (n < 4) n++
+        for (i = n; i > 1; i--) recent[i] = recent[i - 1]
+        recent[1] = key
+    }
+    END { flush() }'
+}
+
 if command -v journalctl > /dev/null 2>&1; then
-    journalctl -b --no-pager -o short-precise -u osdos.service 2>&1 | hide > "$dir/osdos.log"
-    journalctl -b --no-pager -o short-precise -n 50000 2>&1 | hide > "$dir/system.log"
+    journalctl -b --no-pager -o short-precise -u osdos.service 2>&1 | hide | fold > "$dir/osdos.log"
+    journalctl -b --no-pager -o short-precise -n 50000 2>&1 | hide | fold > "$dir/system.log"
 fi
 for report in stall-report.txt crash-report.txt; do
     [ -f "$data/$report" ] && hide < "$data/$report" > "$dir/$report"
 done
-[ -f "$data/arcade/retroarch/last.log" ] && hide < "$data/arcade/retroarch/last.log" > "$dir/retroarch-last.log"
+[ -f "$data/arcade/retroarch/last.log" ] && hide < "$data/arcade/retroarch/last.log" | fold > "$dir/retroarch-last.log"
+[ -f "$data/osdos.log" ] && hide < "$data/osdos.log" | fold > "$dir/app-this-run.log"
+[ -f "$data/osdos-previous.log" ] && hide < "$data/osdos-previous.log" | fold > "$dir/app-previous-run.log"
 
 # The oldest gone, past the newest ten: the shell lists them by name, which
 # is by their time.

@@ -39,6 +39,15 @@ data="$work/data"
 card="$work/card"
 mkdir -p "$data/arcade/retroarch" "$card"
 echo "stall" > "$data/stall-report.txt"
+printf '%s\n' "this run" \
+    "20:32:55.335 Failed to commit atomic request (code=-22)" \
+    "20:32:55.501 Failed to commit atomic request (code=-22)" \
+    "20:32:55.502 [input] joysticks reclaimed" \
+    "20:32:55.668 Failed to commit atomic request (code=-22)" \
+    "20:32:55.834 Failed to commit atomic request (code=-22)" \
+    "20:33:03.104 Failed to commit atomic request (code=-13)" \
+    "20:33:03.159 [input] joysticks released" > "$data/osdos.log"
+printf '%s\n' "the run before" "GET http://jellyfin.local/Videos/1/stream?api_key=SECRET3" > "$data/osdos-previous.log"
 printf '%s\n' "retroarch" "GET https://ra.example/dorequest.php?r=login2&u=me&t=SECRET1 done" \
     "http://plex.local/library?X-Plex-Token=SECRET2" > "$data/arcade/retroarch/last.log"
 # mpv's own log, which holds a media server's token, stays where it is.
@@ -52,13 +61,24 @@ done
 folder=$(sh "$script" "$data" "$card")
 check "prints the folder it wrote" "$card/Logs" "$(dirname "$folder")"
 check "the folder's name has no colons" "" "$(basename "$folder" | tr -d '0-9_-')"
-check "the files copied, not mpv's log" "osdos.log
+check "the files copied, not mpv's log" "app-previous-run.log
+app-this-run.log
+osdos.log
 retroarch-last.log
 stall-report.txt
 system.log" "$(ls "$folder")"
 check "the app's journal" "journalctl -b --no-pager -o short-precise -u osdos.service" "$(cat "$folder/osdos.log")"
 check "the whole journal" "journalctl -b --no-pager -o short-precise -n 50000" "$(cat "$folder/system.log")"
 check "a report as it was" "stall" "$(cat "$folder/stall-report.txt")"
+check "the app's own log of this run, a flood folded" "this run
+20:32:55.335 Failed to commit atomic request (code=-22)
+  ... 1 more of the line(s) above, the last: 20:32:55.501 Failed to commit atomic request (code=-22)
+20:32:55.502 [input] joysticks reclaimed
+  ... 2 more of the line(s) above, the last: 20:32:55.834 Failed to commit atomic request (code=-22)
+20:33:03.104 Failed to commit atomic request (code=-13)
+20:33:03.159 [input] joysticks released" "$(cat "$folder/app-this-run.log")"
+check "the run before's, its tokens blanked" "the run before
+GET http://jellyfin.local/Videos/1/stream?api_key=HIDDEN" "$(cat "$folder/app-previous-run.log")"
 check "RetroArch's log, its tokens blanked" "retroarch
 GET https://ra.example/dorequest.php?r=login2&u=me&t=HIDDEN done
 http://plex.local/library?X-Plex-Token=HIDDEN" "$(cat "$folder/retroarch-last.log")"
