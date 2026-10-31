@@ -1015,6 +1015,9 @@ private slots:
         QSKIP("Process groups are followed on Linux");
 #else
         writeFile(m_games + QStringLiteral("/leftover.zip"));
+        // Gone with the test whatever becomes of it: the games folder is
+        // every test's.
+        const auto removeGame = qScopeGuard([this] { QFile::remove(m_games + QStringLiteral("/leftover.zip")); });
         // The game takes the screen, as on a desktop (a hand-off with no
         // console to switch), and gives it back when its group has gone.
         const QByteArray display = qgetenv("DISPLAY");
@@ -1040,7 +1043,6 @@ private slots:
         // Gone, or a zombie left for its new parent to reap.
         QTRY_VERIFY_WITH_TIMEOUT(!QFileInfo::exists(stat)
                                      || contents(stat).mid(contents(stat).lastIndexOf(')') + 2, 1) == "Z", 3000);
-        QFile::remove(m_games + QStringLiteral("/leftover.zip"));
 #endif
     }
 

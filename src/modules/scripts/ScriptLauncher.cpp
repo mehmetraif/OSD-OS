@@ -13,6 +13,7 @@
 #include <QElapsedTimer>
 #include <QThread>
 #include <QDebug>
+#include <algorithm>
 #include <array>
 #include <csignal>   // SIGTERM, on Windows too
 #include <cstdio>
@@ -61,11 +62,15 @@ QString sanitizedLdPreload(const QString &value)
     return kept.join(QLatin1Char(':'));
 }
 
-// The processes of a process group, "name (pid)" each, for the log: what a
-// run left behind. From /proc/<pid>/stat, whose fifth field (after the name,
-// in brackets that may hold anything) is the process group.
-QString groupMembers(qint64 pgid) {
-    QStringList members;
+// A process group's processes, from /proc/<pid>/stat: its name (in brackets
+// that may hold anything), then its state, its parent and its group.
+struct GroupMember {
+    QString name;
+    QString pid;
+    bool zombie = false;
+};
+QList<GroupMember> groupProcesses(qint64 pgid) {
+    QList<GroupMember> members;
     const QStringList pids = QDir(QStringLiteral("/proc")).entryList(QDir::Dirs | QDir::NoDotAndDotDot);
     for (const QString &pid : pids) {
         bool number = false;
@@ -80,10 +85,19 @@ QString groupMembers(qint64 pgid) {
         const int close = line.lastIndexOf(')');
         if (open < 0 || close < open)
             continue;
-        // After the name: state, parent, process group.
         const QList<QByteArray> fields = line.mid(close + 2).split(' ');
         if (fields.size() > 2 && fields.at(2).toLongLong() == pgid)
-            members << QStringLiteral("%1 (%2)").arg(QString::fromUtf8(line.mid(open + 1, close - open - 1)), pid);
+            members.append({ QString::fromUtf8(line.mid(open + 1, close - open - 1)), pid, fields.at(0) == "Z" });
+    }
+    return members;
+}
+
+// What a run left behind, "name (pid)" each, for the log.
+QString groupMembers(qint64 pgid) {
+    QStringList members;
+    for (const GroupMember &member : groupProcesses(pgid)) {
+        if (!member.zombie)
+            members << QStringLiteral("%1 (%2)").arg(member.name, member.pid);
     }
     return members.isEmpty() ? QStringLiteral("none found") : members.join(QStringLiteral(", "));
 }
@@ -214,7 +228,17 @@ bool ScriptLauncher::drainingGroup() const {
 }
 
 bool ScriptLauncher::groupAlive() const {
-#ifdef Q_OS_UNIX
+#ifdef Q_OS_LINUX
+    if (m_pgid <= 0 || ::kill(static_cast<pid_t>(-m_pgid), 0) != 0)
+        return false;
+    // A zombie holds nothing, neither the screen nor the input: a group of
+    // them alone, dead but not reaped yet by the parent they were left to (an
+    // init that reaps late or never, as a container's), is gone. Alive while
+    // /proc shows none of them at all, as kill() found some.
+    const QList<GroupMember> members = groupProcesses(m_pgid);
+    return members.isEmpty()
+        || std::any_of(members.cbegin(), members.cend(), [](const GroupMember &m) { return !m.zombie; });
+#elif defined(Q_OS_UNIX)
     return m_pgid > 0 && ::kill(static_cast<pid_t>(-m_pgid), 0) == 0;
 #else
     return false;
