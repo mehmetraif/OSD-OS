@@ -18,6 +18,22 @@ struct DrmSavedState {
     drmModeModeInfo mode = {};
     bool     valid       = false;
 };
+
+// A frame buffer of the hand-off's own (a dumb buffer, XRGB8888, mapped), the
+// cover: what the screen shows while the child starts and what the child
+// puts back as it ends (see acquire()).
+struct DrmCover {
+    int      fd     = -1;
+    uint32_t handle = 0;
+    uint32_t fbId   = 0;
+    uint32_t width  = 0;
+    uint32_t height = 0;
+    uint32_t pitch  = 0;
+    uint64_t size   = 0;
+    unsigned char *pixels = nullptr;
+    bool     shown  = false;    // on the CRTC as this hand-off began
+    bool     black  = false;
+};
 #endif
 
 // Brackets a fullscreen external process on headless Linux (RPi Lite / EGLFS),
@@ -37,14 +53,31 @@ struct DrmSavedState {
 //     drmSetMaster() returns EACCES for non-root while any other process holds
 //     master, and Qt EGLFS runs VT_AUTO and never calls drmDropMaster() itself.
 //
+//     Then the cover (with a cover painter set): master taken again for a
+//     moment, the CRTC set to a frame buffer of our own holding the app's
+//     last frame, master dropped. A frame Qt draws without master is never
+//     shown (its commit fails with EACCES, and Qt 6.8 waits for no flip
+//     after a failed commit).
+//
 //   release():  drmSetMaster  ->  restore CRTC (and clear the cursor)  ->  VT switch back
 //     Exactly the inverse. The CRTC restore uses LEGACY drmModeSetCrtc, not an
 //     atomic commit: the child's atomic cleanup leaves CRTC_ACTIVE=0, and EGLFS
-//     then gets EINVAL on its first page flip.
+//     then gets EINVAL on its first page flip. It is restored with the cover,
+//     black by then, where there is one, and with Qt's last frame buffer
+//     otherwise.
 //     The default 200 ms defer lets the child's last pending KMS commit clear in
 //     the vc4 driver; commit too early and EGLFS gets EBUSY repeatedly, drops its
 //     DRM pipeline, and the kernel falls back to the text console on Qt's VT.
 //     200 ms is more than three VSync periods at 60 Hz.
+//
+//   The cover: a child that sets a mode of its own (SDL's KMS/DRM backend,
+//     RetroArch's, mpv's) saves the CRTC as it found it and sets it back as it
+//     ends, a moment before it exits. That was Qt's last frame: the loading
+//     screen the game or the video started behind, put back on the screen
+//     at the end and shown until the app drew again. With the cover it finds
+//     a frame buffer of ours instead, which shows the same picture while it
+//     starts and is blacked out once its own picture is up, so that what it
+//     puts back as it ends is black.
 //
 // On macOS and on desktop Linux (X11/Wayland present) there is no DRM/VT work
 // — the child just opens a window over ours — so acquire() still returns 0,
@@ -102,6 +135,13 @@ public:
     // would receive it is being torn down).
     void releaseNow(const QString &owner);
 
+    // Paints the app's frame as it is now into a cover of width x height
+    // (32-bit XRGB pixels, pitch bytes a line), for a hand-off on headless
+    // Linux (see the cover above); false when it can't, the hand-off then
+    // going on without a cover. main.cpp sets it from the QML window.
+    using CoverPainter = std::function<bool(int width, int height, unsigned char *pixels, int pitch)>;
+    void setCoverPainter(CoverPainter painter) { m_coverPainter = std::move(painter); }
+
 signals:
     // At the start of every acquire(), on every platform (where nothing is
     // handed over too): something is about to take the screen. A video left
@@ -126,17 +166,30 @@ private:
     bool switchToVt(int vt);
 #ifdef Q_OS_LINUX
     void saveDrmCrtcState(int fd);
-    void restoreDrmCrtcState(int fd);
+    // useCover: the CRTC set to the cover (blacked out first) where one was
+    // shown, else, or should that fail, to Qt's last frame buffer.
+    void restoreDrmCrtcState(int fd, bool useCover);
+    // The CRTC set to a cover painted with the app's frame, master taken
+    // for it and dropped again (acquire()).
+    void showCover(int fd);
+    bool ensureCover(int fd, uint32_t width, uint32_t height);
+    void blackenCover();
+    // Blacked out once the child's own picture is up (m_coverTimer).
+    void checkCover();
 #endif
-    void doRestore();
+    // useCover false for shutdown: Qt's own last frame buffer put back.
+    void doRestore(bool useCover = true);
 
     QString m_owner;                    // empty when not handed off
     int     m_previousVt   = -1;
     bool    m_switchedVt   = false;     // did the VT switch actually succeed?
     int     m_qtDrmFd      = -1;
     QTimer *m_releaseTimer = nullptr;
+    QTimer *m_coverTimer   = nullptr;
     std::function<void()> m_onRestored;
+    CoverPainter m_coverPainter;
 #ifdef Q_OS_LINUX
     DrmSavedState m_savedDrm = {};
+    DrmCover      m_cover    = {};
 #endif
 };
