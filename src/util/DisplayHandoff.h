@@ -32,7 +32,7 @@ struct DrmSavedState {
     // With Qt on atomic KMS (QT_QPA_EGLFS_KMS_ATOMIC): the plane showing
     // Qt's frames, the CRTC's MODE_ID property, and every settable property
     // of the connector, the CRTC and its planes as Qt had them, which the
-    // hand-back commits again whole (restoreAtomic()).
+    // hand-back restores with a minimal modeset (restoreAtomic()).
     uint32_t planeId     = 0;
     uint32_t modeProp    = 0;
     std::vector<DrmPropValue> props;
@@ -67,8 +67,12 @@ struct DrmCover {
 // do not reorder it, and do not re-implement these ioctls in a new caller:
 //
 //   acquire():  VT switch  ->  drmDropMaster  ->  save CRTC state
-//     The VT switch goes FIRST because it suspends Qt's render thread via the
-//     kernel's VT-switch signal before DRM master is dropped. On kernels 5.8+
+//     heldChanged fires as soon as the owner is recorded, before the VT or
+//     DRM work: main.cpp drops the scene graph then so EGLFS stops flipping
+//     into a master about to go (cabinet logs showed thousands of EACCES for
+//     the whole game when that waited until after the drop). The VT switch
+//     goes next because it suspends Qt's render thread via the kernel's
+//     VT-switch signal before DRM master is dropped. On kernels 5.8+
 //     drmSetMaster() returns EACCES for non-root while any other process holds
 //     master, and Qt EGLFS runs VT_AUTO and never calls drmDropMaster() itself.
 //
@@ -83,22 +87,26 @@ struct DrmCover {
 //     (CRTC_ACTIVE=0) or as the child had it, and EGLFS, which sets the mode
 //     only on its first frame and from then on only flips a frame buffer onto
 //     its plane, gets EINVAL on every flip after. With Qt on atomic KMS the
-//     restore is one atomic commit of what Qt had as the hand-off began
-//     (saved by acquire()): the mode, the CRTC on, and every settable property
-//     of the connector, the CRTC and its planes; LEGACY drmModeSetCrtc when
-//     that is refused, and with Qt on legacy KMS. Either restores the cover,
-//     black by then, where there is one, and Qt's last frame buffer otherwise.
+//     restore is one atomic ALLOW_MODESET of a minimal set: the connector's
+//     CRTC_ID, the CRTC ACTIVE and MODE_ID (a blob kept until the next
+//     hand-off — destroying it early left drm-rp1-dpi with a stale MODE_ID
+//     and every Qt flip after EINVAL), the primary plane's FB and geometry,
+//     and every other plane on that CRTC cleared. Restoring every saved
+//     property made TEST_ONLY FB flips succeed while Qt's own commits still
+//     failed. LEGACY drmModeSetCrtc when that is refused, and with Qt on
+//     legacy KMS. Either restores the cover, black by then, where there is
+//     one, and Qt's last frame buffer otherwise. On a DPI connector
+//     (OSDOS_DRM_CONNECTOR), releaseDeferred waits at least 500 ms
+//     (OSDOS_HANDOFF_SETTLE_MS overrides).
 //
 //   After the hand-back: Qt's flips counted for a few seconds (its own
 //     "Failed to commit atomic request" warnings against the frames it
-//     draws). When every frame it draws is refused, the screen is lost to it
-//     for good, as a Pi 5 on its DPI output showed (EINVAL on every flip after
-//     a game): the state of the screen goes to the log, and screenLost()
-//     starts the app again (main.cpp), which sets its mode afresh.
-//     The default 200 ms defer lets the child's last pending KMS commit clear in
-//     the vc4 driver; commit too early and EGLFS gets EBUSY repeatedly, drops its
-//     DRM pipeline, and the kernel falls back to the text console on Qt's VT.
-//     200 ms is more than three VSync periods at 60 Hz.
+//     draws). The first time every frame is refused, one recovery restore is
+//     tried in place; still refused, screenLost() starts the app again
+//     (main.cpp). The default 200 ms defer lets the child's last pending KMS
+//     commit clear in the vc4 driver; commit too early and EGLFS gets EBUSY
+//     repeatedly, drops its DRM pipeline, and the kernel falls back to the
+//     text console on Qt's VT. 200 ms is more than three VSync periods at 60 Hz.
 //
 //   The cover: a child that sets a mode of its own (SDL's KMS/DRM backend,
 //     RetroArch's, mpv's) saves the CRTC as it found it and sets it back as it
@@ -206,17 +214,22 @@ private:
 #ifdef Q_OS_LINUX
     void saveDrmCrtcState(int fd);
     // Qt's own values of every settable property of object (connector, CRTC
-    // or plane), for restoreAtomic().
+    // or plane), kept for diagnostics after the minimal restore.
     void saveProps(int fd, uint32_t object, uint32_t type);
     // useCover: the CRTC set to the cover (blacked out first) where one was
     // shown, else, or should that fail, to Qt's last frame buffer.
     void restoreDrmCrtcState(int fd, bool useCover);
-    // What Qt had as the hand-off began, committed again whole with fbId on
-    // its plane; false (nothing changed) when there is nothing saved or the
-    // commit is refused.
+    // Minimal atomic modeset with fbId on the primary plane; false when
+    // there is nothing saved or the commit is refused.
     bool restoreAtomic(int fd, uint32_t fbId);
-    // Qt's flips since the hand-back: screenLost() when every frame it drew
-    // was refused (m_verifyTimer, for a few seconds after a hand-back).
+    // One more minimal restore while watching flips (checkFramesShown).
+    bool recoverAtomic();
+    // Drop a mode blob kept after a restore (acquire / destructor).
+    void dropModeBlob(int fd);
+    // How long releaseDeferred actually waits (DPI longer).
+    int settleDelayMs(int delayMs) const;
+    // Qt's flips since the hand-back: recovery then screenLost() when every
+    // frame it drew was refused (m_verifyTimer, for a few seconds after).
     void checkFramesShown();
     // The CRTC, Qt's plane and its frame buffers as the kernel has them, and
     // whether it would take a flip of each, into the log.
@@ -249,8 +262,11 @@ private:
     QTimer  *m_verifyTimer   = nullptr;
     int      m_verifyFd      = -1;
     uint32_t m_verifyCrtc    = 0;
+    uint32_t m_verifyFb      = 0;     // FB last put on the plane at restore
+    uint32_t m_modeBlob      = 0;     // MODE_ID blob kept for the CRTC
     quint64  m_framesBefore  = 0;
     quint64  m_refusedBefore = 0;
     int      m_checksLeft    = 0;
+    bool     m_recoverTried  = false;
 #endif
 };

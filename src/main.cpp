@@ -486,10 +486,14 @@ int main(int argc, char *argv[]) {
             return true;
         });
     }
-    // The screen back from a child: a frame drawn at once, whether or not
-    // anything changed meanwhile (the hand-back restores a black cover).
+    // While a child has the screen: drop the scene graph so EGLFS stops
+    // flipping into a dropped DRM master (EACCES for the whole game, which
+    // left its KMS state confused for the hand-back). On the way back: drop
+    // again and ask for a frame (the hand-back restores a black cover or Qt's
+    // last buffer).
     if (rootWindow)
         QObject::connect(&displayHandoff, &DisplayHandoff::heldChanged, rootWindow, [rootWindow, &displayHandoff] {
+            rootWindow->releaseResources();
             if (!displayHandoff.held())
                 rootWindow->update();
         });
