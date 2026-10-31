@@ -1,6 +1,7 @@
 #pragma once
 #include <QObject>
 #include <QString>
+#include <atomic>
 #include <functional>
 
 class QTimer;
@@ -8,6 +9,17 @@ class QTimer;
 #ifdef Q_OS_LINUX
 #include <xf86drm.h>
 #include <xf86drmMode.h>
+#include <string>
+#include <vector>
+
+// One settable property of a KMS object (the connector, the CRTC or one of
+// its planes) as Qt had it when a hand-off began.
+struct DrmPropValue {
+    uint32_t    object = 0;
+    uint32_t    prop   = 0;
+    uint64_t    value  = 0;
+    std::string name;
+};
 
 struct DrmSavedState {
     uint32_t crtcId      = 0;
@@ -17,6 +29,13 @@ struct DrmSavedState {
     int      y           = 0;
     drmModeModeInfo mode = {};
     bool     valid       = false;
+    // With Qt on atomic KMS (QT_QPA_EGLFS_KMS_ATOMIC): the plane showing
+    // Qt's frames, the CRTC's MODE_ID property, and every settable property
+    // of the connector, the CRTC and its planes as Qt had them, which the
+    // hand-back commits again whole (restoreAtomic()).
+    uint32_t planeId     = 0;
+    uint32_t modeProp    = 0;
+    std::vector<DrmPropValue> props;
 };
 
 // A frame buffer of the hand-off's own (a dumb buffer, XRGB8888, mapped), the
@@ -60,11 +79,22 @@ struct DrmCover {
 //     after a failed commit).
 //
 //   release():  drmSetMaster  ->  restore CRTC (and clear the cursor)  ->  VT switch back
-//     Exactly the inverse. The CRTC restore uses LEGACY drmModeSetCrtc, not an
-//     atomic commit: the child's atomic cleanup leaves CRTC_ACTIVE=0, and EGLFS
-//     then gets EINVAL on its first page flip. It is restored with the cover,
-//     black by then, where there is one, and with Qt's last frame buffer
-//     otherwise.
+//     Exactly the inverse. The child's cleanup leaves the CRTC off
+//     (CRTC_ACTIVE=0) or as the child had it, and EGLFS, which sets the mode
+//     only on its first frame and from then on only flips a frame buffer onto
+//     its plane, gets EINVAL on every flip after. With Qt on atomic KMS the
+//     restore is one atomic commit of what Qt had as the hand-off began
+//     (saved by acquire()): the mode, the CRTC on, and every settable property
+//     of the connector, the CRTC and its planes; LEGACY drmModeSetCrtc when
+//     that is refused, and with Qt on legacy KMS. Either restores the cover,
+//     black by then, where there is one, and Qt's last frame buffer otherwise.
+//
+//   After the hand-back: Qt's flips counted for a few seconds (its own
+//     "Failed to commit atomic request" warnings against the frames it
+//     draws). When every frame it draws is refused, the screen is lost to it
+//     for good, as a Pi 5 on its DPI output showed (EINVAL on every flip after
+//     a game): the state of the screen goes to the log, and screenLost()
+//     starts the app again (main.cpp), which sets its mode afresh.
 //     The default 200 ms defer lets the child's last pending KMS commit clear in
 //     the vc4 driver; commit too early and EGLFS gets EBUSY repeatedly, drops its
 //     DRM pipeline, and the kernel falls back to the text console on Qt's VT.
@@ -142,12 +172,21 @@ public:
     using CoverPainter = std::function<bool(int width, int height, unsigned char *pixels, int pitch)>;
     void setCoverPainter(CoverPainter painter) { m_coverPainter = std::move(painter); }
 
+    // A frame Qt has drawn and handed to the screen, from any thread (the
+    // render thread's QQuickWindow::frameSwapped, main.cpp): what Qt's
+    // refused flips are counted against after a hand-back.
+    void noteFrame() { m_frames.fetch_add(1, std::memory_order_relaxed); }
+
 signals:
     // At the start of every acquire(), on every platform (where nothing is
     // handed over too): something is about to take the screen. A video left
     // playing behind the menus ends then (MpvController).
     void handingOff(const QString &owner);
     void heldChanged();
+    // After a hand-back, every frame Qt drew was refused by the screen: the
+    // menus run on unseen, and only a fresh start of the app sets its mode
+    // again (main.cpp starts it again in place).
+    void screenLost();
 
 private:
     int  getActiveVt() const;
@@ -166,9 +205,22 @@ private:
     bool switchToVt(int vt);
 #ifdef Q_OS_LINUX
     void saveDrmCrtcState(int fd);
+    // Qt's own values of every settable property of object (connector, CRTC
+    // or plane), for restoreAtomic().
+    void saveProps(int fd, uint32_t object, uint32_t type);
     // useCover: the CRTC set to the cover (blacked out first) where one was
     // shown, else, or should that fail, to Qt's last frame buffer.
     void restoreDrmCrtcState(int fd, bool useCover);
+    // What Qt had as the hand-off began, committed again whole with fbId on
+    // its plane; false (nothing changed) when there is nothing saved or the
+    // commit is refused.
+    bool restoreAtomic(int fd, uint32_t fbId);
+    // Qt's flips since the hand-back: screenLost() when every frame it drew
+    // was refused (m_verifyTimer, for a few seconds after a hand-back).
+    void checkFramesShown();
+    // The CRTC, Qt's plane and its frame buffers as the kernel has them, and
+    // whether it would take a flip of each, into the log.
+    void logScreenState(int fd) const;
     // The CRTC set to a cover painted with the app's frame, master taken
     // for it and dropped again (acquire()).
     void showCover(int fd);
@@ -188,8 +240,17 @@ private:
     QTimer *m_coverTimer   = nullptr;
     std::function<void()> m_onRestored;
     CoverPainter m_coverPainter;
+    std::atomic<quint64> m_frames { 0 };
 #ifdef Q_OS_LINUX
     DrmSavedState m_savedDrm = {};
     DrmCover      m_cover    = {};
+    // The hand-back being watched (checkFramesShown()): Qt's DRM file and
+    // CRTC, the frames drawn and the flips refused before it, the checks left.
+    QTimer  *m_verifyTimer   = nullptr;
+    int      m_verifyFd      = -1;
+    uint32_t m_verifyCrtc    = 0;
+    quint64  m_framesBefore  = 0;
+    quint64  m_refusedBefore = 0;
+    int      m_checksLeft    = 0;
 #endif
 };

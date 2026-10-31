@@ -10,6 +10,7 @@
 #include <cstdlib>
 #include <cstring>
 #include <thread>
+#include <vector>
 
 #ifdef Q_OS_LINUX
 #include <cerrno>
@@ -464,12 +465,59 @@ QString memoryLine() {
     return QString::fromLatin1(text);
 }
 
+void startAgain(const char *reason) {
+    ::setenv("OSDOS_STARTED_AGAIN", reason, 1);
+    // Every file closed by the exec but the journal's (0-2).
+    if (DIR *dir = ::opendir("/proc/self/fd")) {
+        const int own = ::dirfd(dir);
+        while (dirent *entry = ::readdir(dir)) {
+            const int fd = std::atoi(entry->d_name);
+            if (fd <= 2 || fd == own)
+                continue;
+            const int flags = ::fcntl(fd, F_GETFD);
+            if (flags >= 0)
+                ::fcntl(fd, F_SETFD, flags | FD_CLOEXEC);
+        }
+        ::closedir(dir);
+    }
+    // The arguments as the kernel kept them, NUL after each.
+    QByteArray cmdline;
+    {
+        QFile file(QStringLiteral("/proc/self/cmdline"));
+        if (file.open(QIODevice::ReadOnly))
+            cmdline = file.readAll();
+    }
+    std::vector<char *> argv;
+    for (char *arg = cmdline.data(), *end = arg + cmdline.size(); arg < end; arg += std::strlen(arg) + 1)
+        argv.push_back(arg);
+    argv.push_back(nullptr);
+    if (argv.size() > 1)
+        ::execv("/proc/self/exe", argv.data());
+    char line[256];
+    std::snprintf(line, sizeof line,
+                  "[main] OSD/OS could not start again in place (%s): the service starts it again.\n",
+                  std::strerror(errno));
+    writeText(STDERR_FILENO, line);
+    ::_exit(kStallExitCode);
+}
+
+QString startedAgainReason() {
+    static const QString reason = [] {
+        const QString why = qEnvironmentVariable("OSDOS_STARTED_AGAIN");
+        qunsetenv("OSDOS_STARTED_AGAIN");
+        return why;
+    }();
+    return reason;
+}
+
 #else // !Q_OS_LINUX
 
 void installCrashHandlers(const QString &) {}
 void startStallWatchdog(const QString &, int, int) {}
 void stopStallWatchdog() {}
 QString memoryLine() { return QString(); }
+void startAgain(const char *) { std::_Exit(kStallExitCode); }
+QString startedAgainReason() { return QString(); }
 
 #endif
 

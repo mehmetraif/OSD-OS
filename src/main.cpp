@@ -211,6 +211,11 @@ int main(int argc, char *argv[]) {
 #if defined(Q_OS_WIN) || defined(Q_OS_LINUX)
     logfile::open(dataRoot);
 #endif
+    // A fresh start of the run before, in the same process (diagnostics::
+    // startAgain()): why, at the top of this run's log.
+    const QString startedAgain = diagnostics::startedAgainReason();
+    if (!startedAgain.isEmpty())
+        qWarning("[main] OSD/OS started again in place: %s", qPrintable(startedAgain));
     qDebug("[main] appRoot  = %s", qPrintable(appRoot));
     qDebug("[main] dataRoot = %s", qPrintable(dataRoot));
 
@@ -452,13 +457,14 @@ int main(int argc, char *argv[]) {
     inputManager.setTargetWindow(rootWindow);
 
     // A child given the screen on a headless Pi (a game, a video, a web
-    // player) puts back, as it ends, what it found there: the app's frame
-    // is painted onto the hand-off's own cover for it to find, and the cover
-    // is blacked out once the child's picture is up (DisplayHandoff), so
-    // that coming back shows black and then the menus, never again the
-    // loading screen the child started behind. OSDOS_HANDOFF_COVER=0 leaves
-    // it out, the screen then coming back on that frame as before.
-    if (rootWindow && DisplayHandoff::isHeadless() && legacy::env("HANDOFF_COVER") != QLatin1String("0")) {
+    // player) puts back, as it ends, what it found there: with
+    // OSDOS_HANDOFF_COVER=1 the app's frame is painted onto the hand-off's
+    // own cover for it to find, and the cover is blacked out once the
+    // child's picture is up (DisplayHandoff), so that coming back shows
+    // black and then the menus rather than the loading screen the child
+    // started behind. Off unless asked for: on a Pi 4 a hand-off with it
+    // froze the menus, and one came back on a black screen that stayed.
+    if (rootWindow && DisplayHandoff::isHeadless() && legacy::env("HANDOFF_COVER") == QLatin1String("1")) {
         displayHandoff.setCoverPainter([rootWindow](int width, int height, unsigned char *pixels, int pitch) {
             QImage frame = rootWindow->grabWindow();
             if (frame.isNull())
@@ -479,6 +485,20 @@ int main(int argc, char *argv[]) {
             if (!displayHandoff.held())
                 rootWindow->update();
         });
+    // Each frame handed to the screen, counted on the render thread: after a
+    // hand-back, what the kernel's refusals of Qt's flips are counted
+    // against. Every one refused, the screen is lost to this run, and only a
+    // fresh start sets its mode again: the app starts again in place
+    // (DisplayHandoff::screenLost), the log saying so on both sides.
+    if (rootWindow && DisplayHandoff::isHeadless()) {
+        QObject::connect(rootWindow, &QQuickWindow::frameSwapped, rootWindow,
+                         [&displayHandoff] { displayHandoff.noteFrame(); }, Qt::DirectConnection);
+        QObject::connect(&displayHandoff, &DisplayHandoff::screenLost, &app, [] {
+            qWarning("[main] The screen is lost to this run after the hand-back: OSD/OS starts again in place");
+            diagnostics::startAgain("the screen was lost to the run before after a hand-back "
+                                    "(every frame it drew was refused)");
+        }, Qt::QueuedConnection);
+    }
 
     // On the OS image the services held back for the app start once its first
     // frame is on screen. The timer is a backstop for a platform whose window

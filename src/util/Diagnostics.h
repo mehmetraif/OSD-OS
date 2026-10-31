@@ -32,6 +32,19 @@ void stopStallWatchdog();
 // empty elsewhere), for the journal.
 QString memoryLine();
 
+// Starts the app again in place, for a state only a fresh start leaves (the
+// screen lost to it after a hand-off, DisplayHandoff::screenLost): on Linux
+// the same process exec'd afresh from /proc/self/exe with the arguments and
+// environment it was started with, every file it had open but the journal's
+// closed (its DRM device, whose master the new start takes, a sound card),
+// so the service sees no exit and waits for nothing. The new start says why
+// in the journal (startedAgainReason()). Where it can't, the process exits
+// with kStallExitCode and the service starts it again.
+[[noreturn]] void startAgain(const char *reason);
+// Why this start is a fresh start of the run before (startAgain()), or empty;
+// taken out of the environment, so that no child is started with it.
+QString startedAgainReason();
+
 // glibc's allocator gives each thread that allocates an arena of its own
 // (up to eight per core) and keeps what is freed in them. Every film played
 // inside the window starts a libmpv core with threads of its own, so the app
