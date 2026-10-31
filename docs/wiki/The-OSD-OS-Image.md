@@ -238,7 +238,7 @@ The `[boot]` lines read `boot screen up, watching 4 unit(s)`, `first frame … m
 | `osdos-wifi.socket` | Enabled: Settings → Wi-Fi's country, through `osdos-wifi@.service` ([The Wi-Fi country's socket](https://github.com/mehmetraif/OSD-OS/wiki/The-OSD-OS-Image#the-wi-fi-countrys-socket)) |
 | `osdos-name.socket` | Enabled: Settings → About → System Information's rename, through `osdos-name@.service` ([The device name's socket](https://github.com/mehmetraif/OSD-OS/wiki/The-OSD-OS-Image#the-device-names-socket)) |
 | `osdos-terminal.service` | Not enabled. Started only by Exit to Terminal |
-| `getty@tty1.service`, `autovt@.service` | Masked: `tty1` belongs to OSD/OS, and no login prompt appears on the console mpv switches to |
+| `getty@tty1.service`, `autovt@.service` | Masked: `tty1` belongs to OSD/OS, and no login prompt appears on the console mpv switches to. `/etc/systemd/logind.conf.d/osdos.conf` (`NAutoVTs=0`, `ReserveVT=0`) has logind start no logins on the consoles itself, so it logs no masked `autovt@` at every hand-off |
 | `apt-daily.timer`, `apt-daily-upgrade.timer`, `man-db.timer`, `e2scrub_all.timer`, `dpkg-db-backup.timer`, `cron.service` | Disabled. They wake the CPU and the SD card at random times, mid-film included. Updating the system is the image's business, not a timer's |
 | `rpi-connect-lite` | Purged: a remote-access agent has no place on a TV box |
 
@@ -272,9 +272,10 @@ ExecStartPre=+-/usr/bin/systemctl stop osdos-terminal.service
 ExecStartPre=-/usr/lib/osdos/wait-for-display
 ExecStart=/usr/local/bin/osdos
 Restart=on-failure
+RestartForceExitStatus=11
 RestartSec=5s
 RestartMode=direct
-SuccessExitStatus=10 12 20 21 22 23 24 25 26 27 28 29 30 40 41 42 43 44 45 46 47 48 49 50 129 130 143
+SuccessExitStatus=10 11 12 20 21 22 23 24 25 26 27 28 29 30 31 32 33 34 35 36 37 38 40 41 42 43 44 45 46 47 48 49 50 51 52 53 54 55 56 57 58 129 130 143
 ExecStopPost=+/usr/local/bin/osdos-stop
 StandardOutput=journal
 StandardError=journal
@@ -287,7 +288,7 @@ WantedBy=multi-user.target
 - **`SupplementaryGroups` and `CAP_SYS_TTY_CONFIG`** let it switch virtual terminals and hand the screen to mpv. A udev rule (`/etc/udev/rules.d/99-osdos-tty.rules`) lets the `tty` group open `/dev/tty0` for that.
 - **`OSDOS_AUTOSTART=1`** tells OSD/OS it runs as the system's own: Quit offers Power Off, Restart and Exit to Terminal, and Settings offers Display Output. With `OSDOS_MEDIA_DIR` (the OSD-OS partition), Quit offers Save Logs too: the logs copied to the partition's `Logs` folder, which a computer reads.
 - **`Restart=on-failure`** starts OSD/OS again five seconds after a crash or an error exit. **`StartLimitBurst=3`** in **`StartLimitIntervalSec=120`** makes the third start in two minutes the last: when that one fails too, the service is failed, and **`OnFailure=`** starts `osdos-terminal.service`, a login prompt on the screen. **`RestartMode=direct`** (systemd 254 or later; the image has 257) keeps the failures before that from bringing the prompt up too: without it, systemd runs `OnFailure=` at every failure, a restart to follow or not. The Pi stays on throughout.
-- **`SuccessExitStatus`** counts Exit to Terminal (10), a restart (12), a display switch (20 to 30, and 40 to 50 with a power-off) and a stop from outside (129, 130, 143) as no failure, so systemd neither starts OSD/OS again over them nor brings up the login prompt. `osdos-stop` acts on them ([Quitting](https://github.com/mehmetraif/OSD-OS/wiki/The-OSD-OS-Image#quitting-restarting-and-exit-to-terminal)).
+- **`SuccessExitStatus`** counts Exit to Terminal (10), a restart (12), a display switch (20 to 38, and 40 to 58 with a power-off) and a stop from outside (129, 130, 143) as no failure, so systemd neither starts OSD/OS again over them nor brings up the login prompt. An update's restart (11) is no failure either, and **`RestartForceExitStatus=11`** starts OSD/OS again for it, the launcher applying the update first. `osdos-stop` acts on them ([Quitting](https://github.com/mehmetraif/OSD-OS/wiki/The-OSD-OS-Image#quitting-restarting-and-exit-to-terminal)).
 - **The drop-in** `/etc/systemd/system/osdos.service.d/osdos-media.conf` adds `Environment=OSDOS_MEDIA_DIR=/media/OSD-OS`: Local Files opens the **Movies** folder on the film partition while its Media Directory setting is unset, and the Arcade module its **Games/Arcade** folder while its Games Folder setting is.
 
 ## Nothing between the app and the screen
@@ -532,7 +533,7 @@ esac
 |---|---|---|
 | 0 | Quit → Power Off, Ctrl+Q | Power off |
 | 10 | Quit → Exit to Terminal | `osdos-terminal.service` starts |
-| 11 | Update → Apply & Restart | Nothing: systemd starts OSD/OS again (`Restart=on-failure`) and the launcher applies the update first |
+| 11 | Update → Apply & Restart | Nothing: systemd starts OSD/OS again (`RestartForceExitStatus=11`) and the launcher applies the update first |
 | 12 | Quit → Restart | Reboot |
 | 20 to 28, 30 | Settings → Display Output | That output's preset written, then a reboot ([Display Output](https://github.com/mehmetraif/OSD-OS/wiki/Display-Output#what-the-switch-writes)) |
 | 29 | A new display output not kept | The previous preset written back, then a reboot |

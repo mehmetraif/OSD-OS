@@ -458,9 +458,10 @@ Environment=OSDOS_AUTOSTART=1
 ExecStartPre=+-/usr/bin/systemctl stop osdos-terminal.service
 ExecStart=${LAUNCHER}
 Restart=on-failure
+RestartForceExitStatus=11
 RestartSec=5s
 RestartMode=direct
-SuccessExitStatus=10 12 20 21 22 23 24 25 26 27 28 29 30 31 32 33 34 35 36 37 38 40 41 42 43 44 45 46 47 48 49 50 51 52 53 54 55 56 57 58 129 130 143
+SuccessExitStatus=10 11 12 20 21 22 23 24 25 26 27 28 29 30 31 32 33 34 35 36 37 38 40 41 42 43 44 45 46 47 48 49 50 51 52 53 54 55 56 57 58 129 130 143
 ExecStopPost=+/usr/local/bin/osdos-stop
 StandardOutput=journal
 StandardError=journal
@@ -673,7 +674,7 @@ esac
 case "${EXIT_STATUS:-}" in
     0)  systemctl poweroff ;;  # Quit → Power Off, or Ctrl+Q
     10) systemctl start osdos-terminal.service ;;
-    11) : ;;  # in-app update restart — Restart=on-failure brings the app back up
+    11) : ;;  # in-app update restart — RestartForceExitStatus=11 brings the app back up
     12) systemctl reboot ;;  # the quit menu's Restart
     2[0-9]|3[0-8]) switch_output "${DISPLAY_PRESETS[EXIT_STATUS - 20]}"; systemctl reboot ;;
     # The same, then off: on the new output the next time the Pi is switched on.
@@ -824,6 +825,11 @@ TERMINAL_UNIT
     # login on tty1 with it.
     if [[ "${AUTOSTART_REPLY}" =~ ^[Yy]$ ]]; then
         sudo systemctl mask getty@tty1.service autovt@.service
+        # No consoles of logind's own: switched to for a game or a video, a
+        # console would have it start the masked autovt@ there, and log the
+        # failure at every hand-off. From the next start.
+        sudo install -d /etc/systemd/logind.conf.d
+        printf '[Login]\nNAutoVTs=0\nReserveVT=0\n' | sudo tee /etc/systemd/logind.conf.d/osdos.conf > /dev/null
         sudo systemctl enable osdos.service
         echo "Service installed and enabled."
     else
