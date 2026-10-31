@@ -170,6 +170,13 @@ int main(int argc, char *argv[]) {
     // (Steam Deck / RPi desktop / macOS) alike, since the app runs fullscreen
     // kiosk-style.
     QGuiApplication::setOverrideCursor(Qt::BlankCursor);
+    // EGLFS with no screen (the output not registered yet, or gone): Qt would
+    // abort making the window ("no screens available"), leaving a crash
+    // report. A plain exit instead, the service starting the app again.
+    if (DisplayHandoff::isHeadless() && QGuiApplication::screens().isEmpty()) {
+        qCritical("[main] No screen to draw on yet: OSD/OS ends, for the service to start it again");
+        return 1;
+    }
 #ifdef Q_OS_MAC
     hideMacOSMenuBar();
 #endif
