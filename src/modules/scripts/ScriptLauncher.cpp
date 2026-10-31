@@ -61,6 +61,33 @@ QString sanitizedLdPreload(const QString &value)
     return kept.join(QLatin1Char(':'));
 }
 
+// The processes of a process group, "name (pid)" each, for the log: what a
+// run left behind. From /proc/<pid>/stat, whose fifth field (after the name,
+// in brackets that may hold anything) is the process group.
+QString groupMembers(qint64 pgid) {
+    QStringList members;
+    const QStringList pids = QDir(QStringLiteral("/proc")).entryList(QDir::Dirs | QDir::NoDotAndDotDot);
+    for (const QString &pid : pids) {
+        bool number = false;
+        pid.toLongLong(&number);
+        if (!number)
+            continue;
+        QFile stat(QStringLiteral("/proc/") + pid + QStringLiteral("/stat"));
+        if (!stat.open(QIODevice::ReadOnly))
+            continue;
+        const QByteArray line = stat.readAll();
+        const int open = line.indexOf('(');
+        const int close = line.lastIndexOf(')');
+        if (open < 0 || close < open)
+            continue;
+        // After the name: state, parent, process group.
+        const QList<QByteArray> fields = line.mid(close + 2).split(' ');
+        if (fields.size() > 2 && fields.at(2).toLongLong() == pgid)
+            members << QStringLiteral("%1 (%2)").arg(QString::fromUtf8(line.mid(open + 1, close - open - 1)), pid);
+    }
+    return members.isEmpty() ? QStringLiteral("none found") : members.join(QStringLiteral(", "));
+}
+
 } // namespace
 #endif
 
@@ -113,6 +140,19 @@ ScriptLauncher::ScriptLauncher(const QString &appRoot, const QString &dataRoot,
         }
         m_groupTimer->stop();
         releaseDisplayAndReport();
+    });
+
+    // What a program left running after its SIGTERM (startGroupDrain()): a
+    // SIGKILL, so that the drain ends and the screen comes back.
+    m_leftoverTimer = new QTimer(this);
+    m_leftoverTimer->setSingleShot(true);
+    m_leftoverTimer->setInterval(kLeftoverGraceMs);
+    connect(m_leftoverTimer, &QTimer::timeout, this, [this] {
+        if (groupAlive()) {
+            qWarning("[Scripts] '%s': what it left running ignored SIGTERM — sending SIGKILL",
+                     qPrintable(m_runningBasename));
+            killGroup(SIGKILL);
+        }
     });
 
     m_startTimer = new QTimer(this);
@@ -194,8 +234,9 @@ void ScriptLauncher::clearOutput() {
 void ScriptLauncher::resetForNewRun() {
     // A stopped run's children still in their SIGTERM grace are not left
     // behind: what the grace would have done in a moment is done now.
-    if (m_killTimer->isActive()) {
+    if (m_killTimer->isActive() || m_leftoverTimer->isActive()) {
         m_killTimer->stop();
+        m_leftoverTimer->stop();
         if (groupAlive()) killGroup(SIGKILL);
     }
     m_lines.clear();
@@ -210,6 +251,7 @@ void ScriptLauncher::resetForNewRun() {
     m_pendingReason.clear();
     m_takeoverRun  = false;
     m_waitForGroup  = true;
+    m_endLeftovers  = false;
     m_downgraded    = false;
     m_drainStartMs  = 0;
     m_warnedDrain   = false;
@@ -249,6 +291,7 @@ bool ScriptLauncher::start(const ScriptEntry &entry, QString *errorOut) {
     m_runningName     = entry.meta.name;
     m_runningBasename = entry.basename;
     m_waitForGroup    = (entry.meta.wait != QLatin1String("child"));
+    m_endLeftovers    = (entry.meta.wait == QLatin1String("program"));
 
     // --- Hand the display over, if this script wants it. Everything that could
     // fail has already been checked above: nothing may be handed over before a
@@ -612,8 +655,25 @@ void ScriptLauncher::startGroupDrain() {
         m_drainStartMs = QDateTime::currentMSecsSinceEpoch();
         m_warnedDrain  = false;
         m_groupTimer->start();
-        qInfo("[Scripts] '%s' exited but left processes running — waiting before "
-              "taking the screen back", qPrintable(m_runningBasename));
+#ifdef Q_OS_LINUX
+        const QString left = groupMembers(m_pgid);
+#else
+        const QString left = QStringLiteral("not listed here");
+#endif
+        // A program a module runs (an emulator) is the whole run: what it
+        // left (a sound server it started, a helper) is ended, rather than
+        // waited for with the screen held, as a launcher script's work is.
+        // Waited for, the screen stayed on the last frame the program put
+        // back, and nothing answered.
+        if (m_endLeftovers) {
+            qWarning("[Scripts] '%s' exited but left processes running (%s) — ending them "
+                     "before taking the screen back", qPrintable(m_runningBasename), qPrintable(left));
+            killGroup(SIGTERM);
+            m_leftoverTimer->start();
+        } else {
+            qInfo("[Scripts] '%s' exited but left processes running (%s) — waiting before "
+                  "taking the screen back", qPrintable(m_runningBasename), qPrintable(left));
+        }
         emit runningChanged();   // isBusy() is now true again (draining)
         return;
     }

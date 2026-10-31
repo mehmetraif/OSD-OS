@@ -112,6 +112,9 @@ private:
     // would grow m_partial without limit.
     static constexpr int kMaxLineChars  = 8 * 1024;
     static constexpr int kKillGraceMs   = 3000;
+    // How long what a program (meta.wait "program") left running has after
+    // its SIGTERM, before a SIGKILL.
+    static constexpr int kLeftoverGraceMs = 1000;
     static constexpr int kGroupPollMs   = 250;
     static constexpr int kGroupWarnMs   = 5000;
     static constexpr int kStartWatchdogMs = 5000;
@@ -125,6 +128,7 @@ private:
     QTimer   *m_killTimer   = nullptr;   // SIGTERM -> SIGKILL grace
     QTimer   *m_groupTimer  = nullptr;   // polls the process group after exit
     QTimer   *m_startTimer  = nullptr;   // never-started watchdog
+    QTimer   *m_leftoverTimer = nullptr; // SIGKILL for what a program left behind
 
     QString     m_runningName;
     QString     m_runningBasename;
@@ -140,6 +144,9 @@ private:
     // "done" is correct on every platform.
     bool        m_takeoverRun   = false;
     bool        m_waitForGroup  = true;
+    // meta.wait "program": what the program left in its group is ended
+    // rather than waited for.
+    bool        m_endLeftovers  = false;
     bool        m_downgraded    = false;
     qint64      m_drainStartMs  = 0;
     bool        m_warnedDrain   = false;

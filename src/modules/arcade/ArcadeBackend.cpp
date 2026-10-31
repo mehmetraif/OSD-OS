@@ -3000,6 +3000,10 @@ bool ArcadeBackend::play(const QString &name, int credits) {
     entry.basename = QStringLiteral("mame");
     entry.meta.name = descriptionOf(name);
     entry.meta.mode = QStringLiteral("takeover");
+    // MAME is the whole run: what it leaves running (a sound server its
+    // sound library started) is ended as it exits, not waited for with the
+    // screen held.
+    entry.meta.wait = QStringLiteral("program");
     entry.argv = args;
     // A MAME of its own folder runs there, as by hand, to find its files
     // (MAME's paths are relative to where it runs) and its own mame.ini.
@@ -3441,6 +3445,7 @@ bool ArcadeBackend::playFbneo(const QString &name, libretro::Launch::Netplay net
     entry.basename = QStringLiteral("retroarch");
     entry.meta.name = descriptionOf(name);
     entry.meta.mode = QStringLiteral("takeover");
+    entry.meta.wait = QStringLiteral("program");    // as MAME's
     entry.argv = libretro::arguments(launch);
     entry.workingDirectory = home;
     entry.environment = padEnvironment(m_dataRoot);
