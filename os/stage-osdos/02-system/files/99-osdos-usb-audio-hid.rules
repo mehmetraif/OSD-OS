@@ -1,0 +1,24 @@
+# USB sound adapters often expose a Consumer Control / volume HID that the
+# kernel also tags as a keyboard. RetroArch's udev input driver then lists
+# them as Keyboard #0 / #1 (and OSD/OS would too without its own filter).
+# Clear the input tags so they are neither a keyboard nor a joystick.
+#
+# Realtek USB Audio (0bda:4ef0), common in UGREEN USB-to-3.5 mm adapters on
+# Pi 5 JAMMA cabinets: until a jack is plugged in it shows only this HID
+# (Settings → Audio Output says so). With a jack it also gets an ALSA card;
+# the HID still must not count as a controller.
+ACTION=="add|change", SUBSYSTEM=="input", ATTRS{idVendor}=="0bda", ATTRS{idProduct}=="4ef0", \
+  ENV{ID_INPUT}="0", ENV{ID_INPUT_KEY}="0", ENV{ID_INPUT_KEYBOARD}="0", \
+  ENV{ID_INPUT_JOYSTICK}="0", ENV{ID_INPUT_MOUSE}="0"
+
+# Same for any USB Audio Class device whose product string names it a sound
+# card: volume / mute HIDs only.
+ACTION=="add|change", SUBSYSTEM=="input", ATTRS{idVendor}=="0d8c", \
+  ENV{ID_INPUT}="0", ENV{ID_INPUT_KEY}="0", ENV{ID_INPUT_KEYBOARD}="0", \
+  ENV{ID_INPUT_JOYSTICK}="0", ENV{ID_INPUT_MOUSE}="0"
+ACTION=="add|change", SUBSYSTEM=="input", KERNELS=="input*", ATTRS{name}=="*USB Audio*", \
+  ENV{ID_INPUT}="0", ENV{ID_INPUT_KEY}="0", ENV{ID_INPUT_KEYBOARD}="0", \
+  ENV{ID_INPUT_JOYSTICK}="0", ENV{ID_INPUT_MOUSE}="0"
+ACTION=="add|change", SUBSYSTEM=="input", KERNELS=="input*", ATTRS{name}=="*USB PnP Sound*", \
+  ENV{ID_INPUT}="0", ENV{ID_INPUT_KEY}="0", ENV{ID_INPUT_KEYBOARD}="0", \
+  ENV{ID_INPUT_JOYSTICK}="0", ENV{ID_INPUT_MOUSE}="0"

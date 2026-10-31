@@ -309,7 +309,12 @@ QString usbNote(const QList<AlsaCard> &cards) {
     const QString low = underVoltage();
     if (!low.isEmpty())
         note += QStringLiteral(". ") + low + QStringLiteral(", which can keep USB devices from working");
-    qInfo("[AudioOutput] %s", qPrintable(note));
+    // Settings rebuilds its row more than once as it opens; say it once per change.
+    static QString lastLogged;
+    if (note != lastLogged) {
+        lastLogged = note;
+        qInfo("[AudioOutput] %s", qPrintable(note));
+    }
     return note;
 }
 

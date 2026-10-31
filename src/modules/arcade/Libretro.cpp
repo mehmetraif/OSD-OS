@@ -522,10 +522,19 @@ QString configText(const Launch &launch) {
         set("video_driver", QStringLiteral("gl"));
         set("video_context_driver", QStringLiteral("kms"));
         set("input_driver", QStringLiteral("udev"));
-        set("audio_driver", QStringLiteral("alsa"));
-        // ALSA's default: the card Settings → Audio Output gives (ALSA_CARD).
-        set("audio_device", QString());
+        // With no card that can play (a Pi 5 JAMMA cabinet whose USB sound
+        // adapter still shows only its volume HID), ALSA fails every start
+        // ("failed_to_start_audio_driver"); null is what MAME's -sound none is.
+        if (launch.sound) {
+            set("audio_driver", QStringLiteral("alsa"));
+            // ALSA's default: the card Settings → Audio Output gives (ALSA_CARD).
+            set("audio_device", QString());
+        } else {
+            set("audio_driver", QStringLiteral("null"));
+        }
         set("assets_directory", QStringLiteral("/usr/share/libretro/assets"));
+        // Not installed on the image; the warn otherwise lands in every game's log.
+        set("gamemode_enable", on(false));
     }
     // RetroArch knows a core by its info file, which it looks for by the
     // name of each core in libretro_directory: a core outside that folder,

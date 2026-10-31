@@ -74,8 +74,25 @@ sudo apt-get install -y qml6-module-qtquick3d qml6-module-qtquick3d-helpers \
 # ── udev rule: allow tty group to open /dev/tty0 for VT switching ─────────────
 echo 'KERNEL=="tty0", GROUP="tty", MODE="0620"' \
     | sudo tee /etc/udev/rules.d/99-osdos-tty.rules > /dev/null
+# USB sound adapters' volume HID must not count as a keyboard (RetroArch's
+# udev input driver lists "Generic USB Audio" as Keyboard #0 otherwise).
+sudo tee /etc/udev/rules.d/99-osdos-usb-audio-hid.rules > /dev/null <<'USB_AUDIO_HID'
+ACTION=="add|change", SUBSYSTEM=="input", ATTRS{idVendor}=="0bda", ATTRS{idProduct}=="4ef0", \
+  ENV{ID_INPUT}="0", ENV{ID_INPUT_KEY}="0", ENV{ID_INPUT_KEYBOARD}="0", \
+  ENV{ID_INPUT_JOYSTICK}="0", ENV{ID_INPUT_MOUSE}="0"
+ACTION=="add|change", SUBSYSTEM=="input", ATTRS{idVendor}=="0d8c", \
+  ENV{ID_INPUT}="0", ENV{ID_INPUT_KEY}="0", ENV{ID_INPUT_KEYBOARD}="0", \
+  ENV{ID_INPUT_JOYSTICK}="0", ENV{ID_INPUT_MOUSE}="0"
+ACTION=="add|change", SUBSYSTEM=="input", KERNELS=="input*", ATTRS{name}=="*USB Audio*", \
+  ENV{ID_INPUT}="0", ENV{ID_INPUT_KEY}="0", ENV{ID_INPUT_KEYBOARD}="0", \
+  ENV{ID_INPUT_JOYSTICK}="0", ENV{ID_INPUT_MOUSE}="0"
+ACTION=="add|change", SUBSYSTEM=="input", KERNELS=="input*", ATTRS{name}=="*USB PnP Sound*", \
+  ENV{ID_INPUT}="0", ENV{ID_INPUT_KEY}="0", ENV{ID_INPUT_KEYBOARD}="0", \
+  ENV{ID_INPUT_JOYSTICK}="0", ENV{ID_INPUT_MOUSE}="0"
+USB_AUDIO_HID
 sudo udevadm control --reload-rules
 sudo udevadm trigger /dev/tty0
+sudo udevadm trigger --subsystem-match=input 2>/dev/null || true
 
 # ── Choose install owner ──────────────────────────────────────────────────────
 # Asked up front so the extract step can hand /opt/osdos to the user the app
@@ -350,6 +367,9 @@ else
     QT_QPA_PLATFORM="${QT_QPA_PLATFORM:-eglfs}"
     export QT_QPA_EGLFS_ALWAYS_SET_MODE=1
     export QT_QPA_EGLFS_KMS_ATOMIC=1
+    # Before the binary runs: without this, EGLFS builds a hardware cursor
+    # plane and logs "Failed to move cursor on screen UNKNOWN1: -14" on DPI.
+    export QT_QPA_EGLFS_HIDECURSOR="${QT_QPA_EGLFS_HIDECURSOR:-1}"
 
     # On a Pi 5, the output the OSD/OS image's display preset names
     # (/boot/firmware/osdos-display.txt: "# osdos-output: <type>"), in its mode
@@ -453,6 +473,7 @@ AmbientCapabilities=CAP_SYS_TTY_CONFIG
 Environment=QT_QPA_PLATFORM=eglfs
 Environment=QT_QPA_EGLFS_ALWAYS_SET_MODE=1
 Environment=QT_QPA_EGLFS_KMS_ATOMIC=1
+Environment=QT_QPA_EGLFS_HIDECURSOR=1
 Environment=QML2_IMPORT_PATH=/usr/lib/aarch64-linux-gnu/qt6/qml
 Environment=OSDOS_AUTOSTART=1
 ExecStartPre=+-/usr/bin/systemctl stop osdos-terminal.service

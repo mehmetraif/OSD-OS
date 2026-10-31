@@ -163,8 +163,19 @@ int main(int argc, char *argv[]) {
     // Hide cursor — OSD/OS is keyboard/gamepad-only so the cursor serves no
     // purpose. Hidden everywhere: headless EGLFS and desktop compositors
     // (Steam Deck / RPi desktop / macOS) alike, since the app runs fullscreen
-    // kiosk-style.
+    // kiosk-style. HIDECURSOR above stops EGLFS creating a hardware cursor
+    // plane; without it, MoveCursor on a DPI/JAMMA output logs
+    // "Failed to move cursor on screen UNKNOWN1: -14" (EFAULT) at every start.
     QGuiApplication::setOverrideCursor(Qt::BlankCursor);
+
+    // EGLFS with no connector yet (a Pi 5 DPI/composite still probing, or a
+    // previous hand-off that left the pipe down): Qt would SIGABRT inside
+    // QWindow::init ("Failed to create window: no screens available"). Exit
+    // cleanly so systemd's Restart=on-failure tries again once the display is up.
+    if (DisplayHandoff::isHeadless() && app.screens().isEmpty()) {
+        qCritical("[main] No screen yet (EGLFS) — waiting for the display");
+        return 1;
+    }
 #ifdef Q_OS_MAC
     hideMacOSMenuBar();
 #endif
@@ -468,16 +479,17 @@ int main(int argc, char *argv[]) {
             return true;
         });
     }
-    // The screen back from a child: drop graphics resources that tracked the
-    // child's KMS state (EGLFS can keep an atomic commit that then fails with
-    // EINVAL forever after a Pi 5 DPI hand-off), then ask for a frame. The
-    // hand-back restores a black cover, so the new frame is the menus.
+    // While a child has the screen: drop the scene graph so EGLFS stops
+    // page-flipping into a dropped DRM master (a continuous
+    // "Failed to commit atomic request (code=-13)" for the whole game).
+    // On the way back: drop again (resources may still track the child's
+    // KMS state — EINVAL forever after a Pi 5 DPI hand-off), then ask for
+    // a frame. The hand-back restores a black cover, so that frame is the menus.
     if (rootWindow)
         QObject::connect(&displayHandoff, &DisplayHandoff::heldChanged, rootWindow, [rootWindow, &displayHandoff] {
-            if (!displayHandoff.held()) {
-                rootWindow->releaseResources();
+            rootWindow->releaseResources();
+            if (!displayHandoff.held())
                 rootWindow->update();
-            }
         });
 
     // On the OS image the services held back for the app start once its first

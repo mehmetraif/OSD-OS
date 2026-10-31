@@ -31,7 +31,7 @@ The rest of this page follows that picture from the top.
 
 [`src/main.cpp`](https://github.com/mehmetraif/OSD-OS/blob/main/src/main.cpp) sets everything up, in this order:
 
-1. **Before the application exists:** Qt's own mouse cursor is hidden on a headless screen (`QT_QPA_EGLFS_HIDECURSOR=1`, unless set), and OpenGL contexts share their objects (`Qt::AA_ShareOpenGLContexts`), so a video drawn inside the window can be shown as it is.
+1. **Before the application exists:** Qt's own mouse cursor is hidden on a headless screen (`QT_QPA_EGLFS_HIDECURSOR=1`, set by the launcher and the systemd service as well as the binary, unless already set — without it EGLFS logs `Failed to move cursor on screen UNKNOWN1: -14` on a DPI output), and OpenGL contexts share their objects (`Qt::AA_ShareOpenGLContexts`), so a video drawn inside the window can be shown as it is.
 2. **The application**, named `OSD-OS`, its version the build's (`APP_VERSION`; `dev` for a build that isn't a release). The pointer is hidden; the app draws its own.
 3. **Signals.** SIGTERM, SIGINT and SIGHUP are only noted; a 100 ms timer then leaves the event loop with 128 plus the signal's number, so destructors run, mpv is stopped and the screen is given back. That exit code is also how the service's stop helper tells `systemctl stop` from the user's Quit ([The OSD/OS image → osdos-stop](https://github.com/mehmetraif/OSD-OS/wiki/The-OSD-OS-Image#osdos-stop)).
 4. **The two folders** (below), and a line in the log for every screen attached: `[main] display index 0: "<name>" 720x480 at (0,0)`.
