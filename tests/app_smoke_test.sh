@@ -120,11 +120,6 @@ fi
 if [ "$status" -ne 143 ]; then
     echo "FAIL: the app exited with $status on SIGTERM, not 143"; report; failed=1
 fi
-# Its logs copied to OSDOS_MEDIA_DIR's Logs folder as it quit, as on the
-# image to the card's OSD-OS partition (scripts/save-logs.sh).
-if ! compgen -G "$T/media/Logs/????-??-??_??-??-??" > /dev/null; then
-    echo "FAIL: the app didn't save its logs to the Logs folder of OSDOS_MEDIA_DIR as it quit"; report; failed=1
-fi
 if [ "$FOLDER" = "--setup" ]; then
     if [ -e "$T/data/osdos-setup.json" ]; then
         echo "FAIL: osdos-setup.json is still in the data folder"; failed=1

@@ -3,11 +3,11 @@
 #
 #   save-logs.sh <data folder> <card folder>
 #
-# The app runs this as it quits on the OSD/OS image (Quit → Power Off, Restart,
-# an update's restart), with its data folder and OSDOS_MEDIA_DIR, the card's
+# The app runs this for Settings → Quit → Save Logs on the OSD/OS image
+# (AppCore::saveLogs()), with its data folder and OSDOS_MEDIA_DIR, the card's
 # OSD-OS partition, which Windows and macOS show as a drive of its own. The
 # journal lives in memory there and is gone at the next start, so what a bug
-# report wants is copied to that partition first, into Logs/<date_time>/:
+# report wants is copied to that partition, into Logs/<date_time>/:
 #
 #   osdos.log            the app's journal since the Pi started
 #   system.log           the whole journal since then (the kernel's and the
@@ -21,7 +21,7 @@
 #
 # The newest ten folders are kept. Nothing is done when the folder isn't
 # there or can't be written (the partition not mounted, or read-only). Prints
-# the folder it wrote. OSDOS_SAVE_LOGS=0 keeps the app from running it.
+# the folder it wrote.
 set -u
 
 data=${1:-}

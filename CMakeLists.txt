@@ -415,8 +415,8 @@ else()
         DESTINATION "${OSDOS_INSTALL_DATADIR}"
         COMPONENT Runtime)
     # Of scripts/, what the app runs: mpv's Lua scripts, the web player's
-    # browser launcher and, on the OSD/OS image, the logs' copy to the card as
-    # it quits; not the build and release tooling beside them.
+    # browser launcher and, on the OSD/OS image, the logs' copy to the card
+    # (Quit → Save Logs); not the build and release tooling beside them.
     install(DIRECTORY "${CMAKE_SOURCE_DIR}/scripts"
         DESTINATION "${OSDOS_INSTALL_DATADIR}"
         COMPONENT Runtime

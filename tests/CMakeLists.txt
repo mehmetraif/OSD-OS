@@ -19,7 +19,8 @@ add_executable(reliability_test
     ../src/util/LogFile.cpp
     ../src/util/MpvLocator.cpp)
 target_include_directories(reliability_test PRIVATE ../src)
-target_compile_definitions(reliability_test PRIVATE APP_VERSION="test")
+target_compile_definitions(reliability_test PRIVATE APP_VERSION="test"
+    OSDOS_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}/..")
 target_link_libraries(reliability_test PRIVATE Qt6::Core Qt6::Network Qt6::Qml Qt6::Test)
 add_test(NAME reliability COMMAND reliability_test)
 # What a view says under "… is not installed", for the system OSD/OS runs
@@ -357,7 +358,7 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
     add_test(NAME release_downloads COMMAND bash ${CMAKE_CURRENT_SOURCE_DIR}/release_downloads_test.sh
                                             ${CMAKE_CURRENT_SOURCE_DIR}/../.github/workflows/release.yml)
 
-    # The logs' copy to the card as the app quits on the image
+    # The logs' copy to the card for Quit → Save Logs on the image
     # (scripts/save-logs.sh), on a stand-in partition and journalctl.
     add_test(NAME save_logs COMMAND bash ${CMAKE_CURRENT_SOURCE_DIR}/save_logs_test.sh
                                      ${CMAKE_CURRENT_SOURCE_DIR}/../scripts/save-logs.sh)

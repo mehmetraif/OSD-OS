@@ -6,6 +6,8 @@
 #include <QDir>
 #include <QFile>
 #include <QFileInfo>
+#include <QProcess>
+#include <QTimer>
 #include <QJsonDocument>
 #include <QJsonArray>
 #include <QMetaProperty>
@@ -364,6 +366,63 @@ QVariantMap AppCore::applySetupText(const QString &text) {
     if (applied == 0)
         return notice(false, ok ? QStringLiteral("Nothing set from OSD/OS Setup") : QStringLiteral("Not pasted"), lines);
     return notice(ok, ok ? QStringLiteral("OSD/OS Setup pasted") : QStringLiteral("OSD/OS Setup partly pasted"), lines);
+}
+
+bool AppCore::canSaveLogs() const {
+#ifdef Q_OS_LINUX
+    return !legacy::env("MEDIA_DIR").isEmpty()
+        && QFileInfo::exists(m_appRoot + QStringLiteral("/scripts/save-logs.sh"));
+#else
+    return false;
+#endif
+}
+
+bool AppCore::saveLogs() {
+    if (m_logSaver || !canSaveLogs())
+        return false;
+    const QString card = legacy::env("MEDIA_DIR");
+    auto *saver = new QProcess(this);
+    m_logSaver = saver;
+    // The journal, the reports and RetroArch's log take a second or two on
+    // a card; one that hangs (a card gone bad) is ended rather than waited
+    // on for good.
+    auto *limit = new QTimer(saver);
+    limit->setSingleShot(true);
+    connect(limit, &QTimer::timeout, saver, [saver] { saver->kill(); });
+    const auto done = [this, saver](bool ok, const QString &detail) {
+        if (m_logSaver != saver)
+            return;
+        m_logSaver = nullptr;
+        if (ok)
+            qInfo("[logs] Saved to %s", qPrintable(detail));
+        else
+            qWarning("[logs] Not saved: %s", qPrintable(detail));
+        emit logsSaved(ok, detail);
+        saver->deleteLater();
+    };
+    connect(saver, &QProcess::errorOccurred, this, [saver, done](QProcess::ProcessError error) {
+        if (error == QProcess::FailedToStart)
+            done(false, QStringLiteral("save-logs.sh could not be run: ") + saver->errorString());
+    });
+    connect(saver, &QProcess::finished, this, [saver, card, limit, done](int code, QProcess::ExitStatus status) {
+        const bool tooLong = !limit->isActive();
+        limit->stop();
+        const QString folder = QString::fromUtf8(saver->readAllStandardOutput()).trimmed();
+        const QString error = QString::fromUtf8(saver->readAllStandardError()).trimmed();
+        if (status != QProcess::NormalExit)
+            done(false, tooLong ? QStringLiteral("Copying them took over 30 seconds") : QStringLiteral("save-logs.sh ended unexpectedly"));
+        else if (code == 0 && folder.isEmpty())
+            // Nothing written: the partition not mounted, or read-only.
+            done(false, QStringLiteral("The card's OSD-OS partition isn't there or can't be written"));
+        else if (code == 0)
+            done(true, QDir(card).relativeFilePath(folder));
+        else
+            done(false, error.isEmpty() ? QStringLiteral("save-logs.sh ended with %1").arg(code) : error);
+    });
+    limit->start(30000);
+    saver->start(QStringLiteral("/bin/sh"),
+                 { m_appRoot + QStringLiteral("/scripts/save-logs.sh"), m_dataRoot, card });
+    return true;
 }
 
 void AppCore::tellChanges(const QJsonObject &before, const QJsonObject &after) {

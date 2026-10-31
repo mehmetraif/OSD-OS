@@ -13,6 +13,7 @@
 #include <QCoreApplication>
 
 class QQmlContext;
+class QProcess;
 
 struct ModuleEntry {
     QString id;
@@ -74,6 +75,14 @@ public:
     Q_INVOKABLE bool canRestartSystem() const {
         return isAutostartSession() && legacy::envInt("LAUNCHER_API") >= 2;
     }
+    // The quit overlay's "Save Logs", on the OSD/OS image: OSDOS_MEDIA_DIR,
+    // the card's OSD-OS partition, which a computer reading the card shows as
+    // a drive, and scripts/save-logs.sh beside the app (Linux only).
+    Q_INVOKABLE bool canSaveLogs() const;
+    // The logs a bug report wants copied to that partition's Logs folder by
+    // scripts/save-logs.sh, in a process of its own: logsSaved() says how it
+    // went. False, and nothing done, while a copy runs or where it can't.
+    Q_INVOKABLE bool saveLogs();
 
     Q_INVOKABLE void scan_for_modules();
     Q_INVOKABLE QVariant get_settings();
@@ -191,6 +200,9 @@ signals:
     void moduleAuthStateChanged(const QString &moduleId);
     // A module's status icons changed, or a module was turned on or off.
     void statusIconsChanged();
+    // saveLogs() done: ok with the folder written, relative to the partition
+    // ("Logs/2026-10-31_16-05-12"), else why not.
+    void logsSaved(bool ok, const QString &detail);
 
 private slots:
     // Receive a backend's signal and re-emit it with the module ID prepended, recovering
@@ -240,6 +252,8 @@ private:
 
     QString m_appRoot;
     QString m_dataRoot;
+    // saveLogs()'s copy while it runs.
+    QProcess *m_logSaver = nullptr;
     // config.json as last read, good for as long as the file's time and
     // size stay (loadConfig()): every get_setting() read and parsed the file
     // anew, a dozen times and more as a video started.
