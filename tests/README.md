@@ -12,6 +12,7 @@ ctest --test-dir build-tests --output-on-failure
   - The main menu with every module on it, and each module as the startup module, comes up (Qt's import trace names its view), and up to the shutdown the app prints no QML warning: no error in a binding or a script, no type, QML module or file missing, no value that can't be assigned.
   - With an OSD/OS Setup file in the data folder (`app_setup_file`), the app takes it as it starts: OSD/OS Setup's notice comes up (`views/SetupNotice.qml`), the file is gone, its setting is in `config.json`, and the log says what was set.
   - SIGTERM stops it within 15 seconds, with 143 (128 + the signal), as the service's stop helper expects.
+  - As it quits it copies its logs to the Logs folder of `OSDOS_MEDIA_DIR` (`scripts/save-logs.sh`), as on the image to the card's OSD-OS partition.
   - Skipped without the app, and for a module that imports a QML module of Qt's the Qt in use doesn't have.
 - **app_core_info** (`app_core_info_test.sh`, where the arcade test's core is built): the app asked a libretro core's name and version (`--core-info`), as the Arcade module asks a copy of it, with nothing of an environment (no display, no platform for Qt, no data folder): it prints the test core's (`arcade_test_core`), and refuses a file that isn't a core, saying why. Skipped without the app.
 - **tree_browser** (`qml/tst_tree_browser.qml`, run by `tree_browser_test.cpp` on Qt Quick Test, offscreen, with the software renderer): the `TreeBrowser` on its own, over a made-up tree.
@@ -153,6 +154,7 @@ ctest --test-dir build-tests --output-on-failure
   - No service yet: autostart declined, the files go to the user installing (under sudo, the user who ran it, not root); chosen, `pi` offered, or the user given.
   - A service installed before: its user offered when it is installed again, and kept when it isn't.
   - On the OSD/OS image (`/etc/osdos/boot-units`), its own service: nothing asked, its user kept; the marker without the service asks as anywhere else.
+- **save_logs** (`save_logs_test.sh`, Linux only). The logs' copy to the card as the app quits on the image (`scripts/save-logs.sh`), on a stand-in partition with a stand-in `journalctl`: the app's journal, the whole journal, the reports and RetroArch's log in `Logs/<date_time>/` (no colon in the name), a token in an address blanked, mpv's own log left out, the newest ten folders kept; nothing done for a partition that isn't there (or is read-only, when not run as root), and the usage without arguments.
 - **release_notes** (`release_notes_test.sh`, Linux only). A release's notes (`scripts/release-notes.sh`) on a made-up git history with tags.
   - The commits since the previous tag, by subject: `feat:` and "Add…" under What's New, `fix:` and "Fix…" under Bug Fixes, the rest under Changelog; a merge commit left out, a subject listed once, its `<` and `>` escaped.
   - The previous tag found by itself or given; the first release lists the whole history; a section with nothing in it is left out; no tag is an error.

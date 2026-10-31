@@ -12,6 +12,7 @@
 #include <QQuickWindow>
 #include <QScreen>
 #include <QTimer>
+#include <QProcess>
 #include <locale.h>
 #include <csignal>
 #include <cstdio>
@@ -107,6 +108,43 @@ static QString resolveDataRoot() {
     legacy::migrateModuleIds(path);
     return path;
 }
+
+#ifdef Q_OS_LINUX
+// On the OSD/OS image (OSDOS_MEDIA_DIR, the card's OSD-OS partition, which a
+// computer reading the card shows as a drive) the journal lives in memory and
+// is gone at the next start: as the app quits, Quit → Power Off or Restart, the
+// logs a bug report wants are copied to that partition's Logs folder by
+// scripts/save-logs.sh. 15 s at most, so a power-off never waits on it for
+// long. OSDOS_SAVE_LOGS=0 leaves them where they are.
+static void saveLogsToCard(const QString &appRoot, const QString &dataRoot) {
+    const QString card = legacy::env("MEDIA_DIR");
+    if (card.isEmpty() || legacy::env("SAVE_LOGS") == QLatin1String("0"))
+        return;
+    const QString script = appRoot + QStringLiteral("/scripts/save-logs.sh");
+    if (!QFileInfo::exists(script))
+        return;
+    QProcess saver;
+    saver.start(QStringLiteral("/bin/sh"), { script, dataRoot, card });
+    if (!saver.waitForStarted(2000)) {
+        qWarning("[logs] %s could not be run: %s", qPrintable(script), qPrintable(saver.errorString()));
+        return;
+    }
+    if (!saver.waitForFinished(15000)) {
+        saver.kill();
+        saver.waitForFinished(1000);
+        qWarning("[logs] Saving the logs to %s took over 15 s: left unfinished", qPrintable(card));
+        return;
+    }
+    const QString folder = QString::fromUtf8(saver.readAllStandardOutput()).trimmed();
+    if (saver.exitStatus() == QProcess::NormalExit && saver.exitCode() == 0) {
+        if (!folder.isEmpty())
+            qInfo("[logs] Saved to %s", qPrintable(folder));
+    } else {
+        qWarning("[logs] The logs could not be saved to %s: %s", qPrintable(card),
+                 qPrintable(QString::fromUtf8(saver.readAllStandardError()).trimmed()));
+    }
+}
+#endif
 
 // Terminating signals must unwind normally rather than killing the process where
 // it stands. Without this, `systemctl stop`, `pkill`, or a shutdown can leave mpv
@@ -528,5 +566,9 @@ int main(int argc, char *argv[]) {
     }
 #endif
 
-    return app.exec();
+    const int exitCode = app.exec();
+#ifdef Q_OS_LINUX
+    saveLogsToCard(appRoot, dataRoot);
+#endif
+    return exitCode;
 }

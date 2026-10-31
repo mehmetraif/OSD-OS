@@ -357,6 +357,11 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
     add_test(NAME release_downloads COMMAND bash ${CMAKE_CURRENT_SOURCE_DIR}/release_downloads_test.sh
                                             ${CMAKE_CURRENT_SOURCE_DIR}/../.github/workflows/release.yml)
 
+    # The logs' copy to the card as the app quits on the image
+    # (scripts/save-logs.sh), on a stand-in partition and journalctl.
+    add_test(NAME save_logs COMMAND bash ${CMAKE_CURRENT_SOURCE_DIR}/save_logs_test.sh
+                                     ${CMAKE_CURRENT_SOURCE_DIR}/../scripts/save-logs.sh)
+
     # The image's stop helper, osdos-stop (scripts/install.sh), on a stand-in
     # boot partition: the display presets it writes, and At Next Start's and
     # the Wi-Fi country's requests, good and bad.
