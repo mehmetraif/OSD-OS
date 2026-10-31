@@ -468,12 +468,16 @@ int main(int argc, char *argv[]) {
             return true;
         });
     }
-    // The screen back from a child: a frame drawn at once, whether or not
-    // anything changed meanwhile (the hand-back restores a black cover).
+    // The screen back from a child: drop graphics resources that tracked the
+    // child's KMS state (EGLFS can keep an atomic commit that then fails with
+    // EINVAL forever after a Pi 5 DPI hand-off), then ask for a frame. The
+    // hand-back restores a black cover, so the new frame is the menus.
     if (rootWindow)
         QObject::connect(&displayHandoff, &DisplayHandoff::heldChanged, rootWindow, [rootWindow, &displayHandoff] {
-            if (!displayHandoff.held())
+            if (!displayHandoff.held()) {
+                rootWindow->releaseResources();
                 rootWindow->update();
+            }
         });
 
     // On the OS image the services held back for the app start once its first
