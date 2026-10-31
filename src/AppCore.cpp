@@ -383,9 +383,10 @@ bool AppCore::saveLogs() {
     const QString card = legacy::env("MEDIA_DIR");
     auto *saver = new QProcess(this);
     m_logSaver = saver;
-    // The journal, the reports and RetroArch's log take a second or two on
-    // a card; one that hangs (a card gone bad) is ended rather than waited
-    // on for good.
+    // A second or two on a card, and more for a journal a flood of lines
+    // has filled (save-logs.sh copies the small files first and writes them
+    // to the card before it reads the journal); one that hangs (a card gone
+    // bad) is ended rather than waited on for good.
     auto *limit = new QTimer(saver);
     limit->setSingleShot(true);
     connect(limit, &QTimer::timeout, saver, [saver] { saver->kill(); });
@@ -410,7 +411,7 @@ bool AppCore::saveLogs() {
         const QString folder = QString::fromUtf8(saver->readAllStandardOutput()).trimmed();
         const QString error = QString::fromUtf8(saver->readAllStandardError()).trimmed();
         if (status != QProcess::NormalExit)
-            done(false, tooLong ? QStringLiteral("Copying them took over 30 seconds") : QStringLiteral("save-logs.sh ended unexpectedly"));
+            done(false, tooLong ? QStringLiteral("Copying them took over 90 seconds") : QStringLiteral("save-logs.sh ended unexpectedly"));
         else if (code == 0 && folder.isEmpty())
             // Nothing written: the partition not mounted, or read-only.
             done(false, QStringLiteral("The card's OSD-OS partition isn't there or can't be written"));
@@ -419,7 +420,7 @@ bool AppCore::saveLogs() {
         else
             done(false, error.isEmpty() ? QStringLiteral("save-logs.sh ended with %1").arg(code) : error);
     });
-    limit->start(30000);
+    limit->start(90000);
     saver->start(QStringLiteral("/bin/sh"),
                  { m_appRoot + QStringLiteral("/scripts/save-logs.sh"), m_dataRoot, card });
     return true;

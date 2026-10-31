@@ -75,16 +75,22 @@ fold() {
     END { flush() }'
 }
 
-if command -v journalctl > /dev/null 2>&1; then
-    journalctl -b --no-pager -o short-precise -u osdos.service 2>&1 | hide | fold > "$dir/osdos.log"
-    journalctl -b --no-pager -o short-precise -n 50000 2>&1 | hide | fold > "$dir/system.log"
-fi
+# The small files first, on the card before the journal is read: a journal
+# a flood has filled takes longest, and should the copy be cut short (the
+# app's time limit, the Pi switched off), what matters most is there.
+[ -f "$data/osdos.log" ] && hide < "$data/osdos.log" | fold > "$dir/app-this-run.log"
+[ -f "$data/osdos-previous.log" ] && hide < "$data/osdos-previous.log" | fold > "$dir/app-previous-run.log"
 for report in stall-report.txt crash-report.txt; do
     [ -f "$data/$report" ] && hide < "$data/$report" > "$dir/$report"
 done
 [ -f "$data/arcade/retroarch/last.log" ] && hide < "$data/arcade/retroarch/last.log" | fold > "$dir/retroarch-last.log"
-[ -f "$data/osdos.log" ] && hide < "$data/osdos.log" | fold > "$dir/app-this-run.log"
-[ -f "$data/osdos-previous.log" ] && hide < "$data/osdos-previous.log" | fold > "$dir/app-previous-run.log"
+sync
+
+if command -v journalctl > /dev/null 2>&1; then
+    journalctl -b --no-pager -o short-precise -u osdos.service 2>&1 | hide | fold > "$dir/osdos.log"
+    sync
+    journalctl -b --no-pager -o short-precise -n 50000 2>&1 | hide | fold > "$dir/system.log"
+fi
 
 # The oldest gone, past the newest ten: the shell lists them by name, which
 # is by their time.
