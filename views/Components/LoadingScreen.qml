@@ -49,8 +49,10 @@ Item {
     // The display's jump sideways now and then, in art pixels.
     property int jitter: 0
     // Running. Not while mpv has the Pi's screen (the hand-off before its
-    // picture shows): nothing drawn here would reach it.
-    readonly property bool live: visible && !root.screenHandedOff
+    // picture shows), nor while a video played inside the window has its
+    // picture over this (Transparent Background, until its first position
+    // takes the screen down): nothing drawn here would reach the screen.
+    readonly property bool live: visible && !root.screenHandedOff && !root.videoActive
     // The tape's effects: its noise and bands, the display's jumps and its
     // colour bleeding (Settings → TV / Movie → Loading Effect).
     property bool effect: root.loadingEffect

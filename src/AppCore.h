@@ -3,6 +3,7 @@
 #define APP_BUILD ""
 #endif
 #include "util/LegacyNames.h"
+#include <QDateTime>
 #include <QObject>
 #include <QStringList>
 #include <QVariant>
@@ -239,6 +240,13 @@ private:
 
     QString m_appRoot;
     QString m_dataRoot;
+    // config.json as last read, good for as long as the file's time and
+    // size stay (loadConfig()): every get_setting() read and parsed the file
+    // anew, a dozen times and more as a video started.
+    mutable QJsonObject m_configCache;
+    mutable QDateTime   m_configCacheModified;
+    mutable qint64      m_configCacheSize = -1;
+    mutable bool        m_configCacheValid = false;
     QList<ModuleEntry> m_modules;
     QMap<QString, QObject*> m_backends;
     QStringList m_statusIcons;

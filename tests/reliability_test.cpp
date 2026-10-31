@@ -585,22 +585,29 @@ private slots:
             put("PULSE_SERVER", pulse); put("XDG_RUNTIME_DIR", xdg);
             put("ALSA_CARD", alsaCard); put("ALSA_PCM_CARD", alsaPcmCard);
         });
-        // What amixer was asked since the last look, a line each.
-        const auto asked = [&log] {
+        // What amixer has been asked, a line each; and the same taken, for the
+        // next look. amixer runs on a thread of its own, so a look waits for
+        // what it expects.
+        const auto lines = [&log] {
             if (!QFileInfo::exists(log))
                 return QStringList();
-            const QString text = QString::fromUtf8(contents(log));
+            return QString::fromUtf8(contents(log)).split('\n', Qt::SkipEmptyParts);
+        };
+        const auto asked = [&log, &lines] {
+            const QStringList all = lines();
             QFile::remove(log);
-            return text.split('\n', Qt::SkipEmptyParts);
+            return all;
         };
         AppCore core(dir.path(), dir.path());
         AudioOutput audio(&core);
         QVERIFY(audio.available());
+        QTest::qWait(200);
         asked();
 
-        // The USB card chosen, at once.
+        // The USB card chosen, at once, the player going on meanwhile.
         const QVariantMap usb { { "card", "Device" }, { "name", "USB Audio Device" } };
         QVERIFY(core.save_setting(QString(), "audio_output", usb));
+        QTRY_COMPARE_WITH_TIMEOUT(lines().size(), 4, 5000);
         QCOMPARE(asked(), QStringList({ "-c Device scontents",
                                         "-c Device -q sset 'PCM',0 0dB",
                                         "-c Device -q sset 'Headphone',0 100%",
@@ -610,9 +617,12 @@ private slots:
         AudioOutput::mpvArgs();
         AudioOutput::applyTo(env);
         QCOMPARE(env.value("ALSA_CARD"), QString("Device"));
+        QTest::qWait(300);
         QCOMPARE(asked(), QStringList());
         // Auto, with card0 playing: ALSA's default card, as amixer has it.
         QVERIFY(core.save_setting(QString(), "audio_output", QString()));
+        QTRY_VERIFY_WITH_TIMEOUT(!lines().isEmpty(), 5000);
+        QTRY_VERIFY_WITH_TIMEOUT(lines().size() >= 4, 5000);
         QCOMPARE(asked().value(0), QString("scontents"));
         // Already full: looked at, nothing set.
         QByteArray full = low;
@@ -621,13 +631,55 @@ private slots:
             .replace("Mono: Playback [off]", "Mono: Playback [on]");
         QVERIFY(write(dir.path() + "/scontents", full));
         QVERIFY(core.save_setting(QString(), "audio_output", usb));
+        QTRY_COMPARE_WITH_TIMEOUT(lines().size(), 1, 5000);
+        QTest::qWait(300);
         QCOMPARE(asked(), QStringList({ "-c Device scontents" }));
         // A test's cards without the stand-in: amixer isn't run.
         qunsetenv("OSDOS_AMIXER");
         QVERIFY(core.save_setting(QString(), "audio_output", QString()));
         QCOMPARE(AudioOutput::card(), QString());
+        QTest::qWait(300);
         QVERIFY(!QFileInfo::exists(log));
 #endif
+    }
+
+    // config.json is read once and kept while the file stays as it was: a
+    // setting saved by OSD/OS, or the file edited by hand (its time or size
+    // changed), is read afresh.
+    void configReadOnceWhileUnchanged() {
+        QTemporaryDir dir;
+        QVERIFY(dir.isValid());
+        AppCore core(dir.path(), dir.path());
+        QVERIFY(core.save_setting(QString(), "osd_theme", "VHS"));
+        QCOMPARE(core.get_setting(QString(), "osd_theme").toString(), QString("VHS"));
+        // The file changed under the app with its time and size as they were
+        // (a value of the same length, the time put back): kept as read.
+        const QString path = dir.path() + "/config.json";
+        const QByteArray saved = contents(path);
+        const QDateTime modified = QFileInfo(path).lastModified();
+        QByteArray edited = saved;
+        edited.replace("\"VHS\"", "\"VH2\"");
+        QVERIFY(edited != saved);
+        QCOMPARE(edited.size(), saved.size());
+        const auto writeFile = [&path, &edited](const QDateTime &time) {
+            QFile file(path);
+            if (!file.open(QIODevice::WriteOnly) || file.write(edited) != edited.size())
+                return false;
+            file.close();
+            return file.open(QIODevice::ReadWrite) && file.setFileTime(time, QFileDevice::FileModificationTime);
+        };
+        QVERIFY(writeFile(modified));
+        QCOMPARE(QFileInfo(path).lastModified(), modified);
+        QCOMPARE(core.get_setting(QString(), "osd_theme").toString(), QString("VHS"));
+        // Edited by hand, a second on: read again.
+        QVERIFY(writeFile(modified.addSecs(2)));
+        QCOMPARE(core.get_setting(QString(), "osd_theme").toString(), QString("VH2"));
+        // Saved by OSD/OS: read again at once, whatever the file's time.
+        QVERIFY(core.save_setting(QString(), "osd_theme", "Video 1"));
+        QCOMPARE(core.get_setting(QString(), "osd_theme").toString(), QString("Video 1"));
+        // Gone: the defaults, as before, not what was read.
+        QVERIFY(QFile::remove(path));
+        QCOMPARE(core.get_setting(QString(), "osd_theme").toString(), QString());
     }
 
     // What of a text OSD/OS Setup's file is (setupfile::parse()), checked as

@@ -220,9 +220,13 @@ signals:
     void lastInputDeviceChanged();
     void hintsChanged();
     // Emitted instead of posting a key event when the Qt window is inactive
-    // (fullscreen mpv holds OS focus on macOS, which clears QML active focus).
-    // main.cpp connects this to MpvController::sendKey.
-    void mpvKeyRequested(const QString &key);
+    // (fullscreen mpv holds OS focus on macOS, which clears QML active focus),
+    // and for the media keys, which always drive mpv: a press, or a repeat of
+    // a key held (autoRepeat). main.cpp connects this to
+    // MpvController::sendKey, and mpvKeysReleased(), which says such a key
+    // was let go, to MpvController::releaseKeys.
+    void mpvKeyRequested(const QString &key, bool autoRepeat);
+    void mpvKeysReleased();
     // Capture-mode reporting (see setRemapCapture): a raw press on any of the
     // three remappable input paths — a real keyboard key (its Qt::Key), a
     // Consumer Control button (kEvdevKeyBase + Linux KEY_* code; Linux only,
@@ -412,7 +416,6 @@ private:
     QTimer m_pollTimer;
     QTimer m_repeatDelayTimer;
     QTimer m_repeatTimer;
-    QElapsedTimer m_volumeRepeat;   // since the last volume key sent to mpv
     QFileSystemWatcher m_watcher;
     QDateTime m_cfgLastModified;
 

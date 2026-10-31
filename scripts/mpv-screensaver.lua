@@ -90,23 +90,35 @@ end
 -- behavior (Main.qml). Includes both navigation keys and the HID media-key
 -- names mpv-media-keys.lua binds (PLAYPAUSE etc.) — otherwise e.g. a hardware
 -- Play press falls straight through to mpv-media-keys.lua and resumes playback
--- behind the still-active screen saver.
+-- behind the still-active screen saver. Every key OSD/OS forwards to mpv is
+-- here: BS is back on a keyboard or remote whose back key is Backspace (the
+-- players send it as the pads' ESC), and without it the key fell through to
+-- input.conf's osdos-menu, which ended or detached the video under the black
+-- frame; CHANNEL_UP / CHANNEL_DOWN step a playlist (mpv-media-keys.lua).
 local DISMISS_KEYS = {
-    "SPACE", "ENTER", "KP_ENTER", "ESC",
+    "SPACE", "ENTER", "KP_ENTER", "ESC", "BS",
     "LEFT", "RIGHT", "UP", "DOWN", "PGUP", "PGDWN",
     "HOME", "END",
     "MBTN_LEFT", "MBTN_RIGHT",
     "PLAYPAUSE", "STOP", "FORWARD", "REWIND", "NEXT", "PREV",
+    "CHANNEL_UP", "CHANNEL_DOWN",
     "VOLUME_UP", "VOLUME_DOWN", "MUTE",
 }
+
+-- A script's key bindings reach mpv's input from an idle handler, after the
+-- callback that added or removed them returns. Flushed here instead, so that
+-- OSD/OS is told the saver is up (osdos-screensaver shown, on which it sends
+-- back to mpv for the saver to take) only once the keys are the saver's, and
+-- told it is down only once they are given back; a key in between would have
+-- gone where it shouldn't (mpv 0.35 and later; older ones apply bindings at
+-- once).
+local function flush_keybindings()
+    if mp.flush_keybindings then mp.flush_keybindings() end
+end
 
 activate = function()
     if ss_active then return end
     ss_active = true
-    -- OSD/OS is told (osdos-screensaver shown / hidden): while the saver is
-    -- up, back wakes the screen here, as any key does, rather than leaving
-    -- the video.
-    mp.commandv("script-message", "osdos-screensaver", "shown")
 
     local ww, wh = mp.get_osd_size()
     if ww == 0 then ww = 640 end
@@ -131,6 +143,11 @@ activate = function()
     for _, k in ipairs(DISMISS_KEYS) do
         mp.add_forced_key_binding(k, "ss-dismiss-" .. k, dismiss)
     end
+    flush_keybindings()
+    -- OSD/OS is told (osdos-screensaver shown / hidden): while the saver is
+    -- up, back wakes the screen here, as any key does, rather than leaving
+    -- the video. Told once the keys are the saver's (above).
+    mp.commandv("script-message", "osdos-screensaver", "shown")
 
     draw_frame(ww, wh, x, y)
     anim_timer:resume()
@@ -140,7 +157,6 @@ dismiss = function()
     if not ss_active then return end
     ss_active = false
     paused_sec = 0
-    mp.commandv("script-message", "osdos-screensaver", "hidden")
 
     overlay:remove()
     anim_timer:kill()
@@ -148,6 +164,9 @@ dismiss = function()
     for _, k in ipairs(DISMISS_KEYS) do
         pcall(mp.remove_key_binding, "ss-dismiss-" .. k)
     end
+    flush_keybindings()
+    -- Told once the keys are given back (above).
+    mp.commandv("script-message", "osdos-screensaver", "hidden")
 end
 
 -- ─── 1-second tick: count up while paused ────────────────────────────────────

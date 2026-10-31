@@ -66,8 +66,16 @@ public:
     Q_INVOKABLE void seekTo(int positionMs);
     // A key for mpv, as its keypress command takes it ("UP", "ENTER"). Back,
     // "ESC" or "BS", is acted on here instead (backKey()) unless mpv's own
-    // deck menu or screen saver is up, which take it first.
-    Q_INVOKABLE void sendKey(const QString &key);
+    // deck menu or screen saver is up, which take it first. A key's repeats
+    // (autoRepeat: Qt's for a key held on a keyboard or remote, InputManager's
+    // for a pad's button) hold the key down in mpv instead (keydown), which
+    // repeats it at its own pace for as long as it is down, and let it go
+    // (keyup) when releaseKeys() says so, or when no repeat has come for a
+    // moment: sent as presses, one per repeat, they queued up in a busy
+    // player and ran on after the key was let go. A view that forwards keys
+    // calls releaseKeys() as a key is let go.
+    Q_INVOKABLE void sendKey(const QString &key, bool autoRepeat = false);
+    Q_INVOKABLE void releaseKeys();
     Q_INVOKABLE void showOsdSkipPrompt();
     Q_INVOKABLE void clearOsdPrompt();
 
@@ -224,9 +232,10 @@ private:
     // is free (screenBusy()).
     void launchAfterRetirement(int serial, const QStringList &args,
                                const QStringList &media, bool embedded);
-    // stop() before that session started: its player is told it stopped once
+    // stop() before that session started: its player is told it stopped
+    // ("stopped", or "menu" for back on a player with a menu of its own) once
     // the screen is free, and back with the app.
-    void stopAfterRetirement(int serial, int positionMs);
+    void stopAfterRetirement(int serial, int positionMs, const QString &reason);
     // True while the next session must wait: the process loadAndPlay()
     // retired for it is still on its way out, or the screen is being handed
     // back to the app (handBackScreen()). A retired process that outlives its
@@ -328,6 +337,10 @@ private:
     // Commands asked while the connection is wanted but not there yet (a
     // session's first moments, a break): sent as it comes (sendCommand()).
     QList<QJsonArray> m_commandsWaiting;
+    // The key held down in mpv for its repeats (sendKey()), and the timer
+    // that lets it go when no repeat has come for a moment.
+    QString       m_keyDown;
+    QTimer       *m_keyUpTimer     = nullptr;
     QTimer       *m_connectTimer   = nullptr;
     QTimer       *m_watchdogTimer  = nullptr;
     qint64        m_lastIpcEventMs = 0;

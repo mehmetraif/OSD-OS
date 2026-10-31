@@ -57,13 +57,16 @@ Every video's mpv listens on a Unix socket, `--input-ipc-server=/tmp/osdos-mpv.s
 {"command":["observe_property",3,"playlist-pos"]}
 {"command":["observe_property",4,"pause"]}
 {"command":["keypress","RIGHT"]}
+{"command":["keydown","RIGHT"]}
+{"command":["keyup","RIGHT"]}
 {"command":["seek",754.2,"absolute+exact"]}
 {"command":["set_property","speed",1.5]}
 {"command":["quit"]}
 ```
 
 - **From mpv** come `property-change` events (the position, the length, the place in a playlist, pausing), which the players show and save, and `end-file`, which says why a video ended.
-- **Keys reach mpv this way.** On a Pi, mpv reads no keyboard itself (`--no-input-terminal`): the player view gets every key, as it does in the menus, and forwards it as a `keypress`. A gamepad's buttons arrive as the same keys ([Controls](https://github.com/mehmetraif/OSD-OS/wiki/Controls)).
+- **Keys reach mpv this way.** On a Pi, mpv reads no keyboard itself (`--no-input-terminal`): the player view gets every key, as it does in the menus, and forwards it as a `keypress`. A gamepad's buttons arrive as the same keys ([Controls](https://github.com/mehmetraif/OSD-OS/wiki/Controls)). A key **held** (◄ ► in the deck menu, a remote's volume key) is held down in mpv instead (`keydown`), which repeats it at its own pace, six times a second, for as long as it is down, and let go as the key is (`keyup`), or when its repeats stop coming. Sent as a press each, as the keyboard repeats them, they queued up in a busy player and the seeking or the volume went on after the finger had come off.
+- **Keys pressed while the next video is on its way** (its loading screen up, the last video's mpv quitting) wait for it and reach it as it starts, in their order.
 - **Settings changed during a video** go to it with `set_property`: the speed, looping, Scaling's `panscan` and `keepaspect`, the sound card.
 - **mpv talks back** with client messages (`script-message`): `osdos-menu` (back, from the key bindings below), and from the deck menu `skip-segment` (SKIP), `cycle-sub` and `cycle-audio` (a stream whose tracks only the server can change).
 - **A watchdog** checks every 10 seconds, and warns in the log when no position has come for 30 seconds while the video isn't paused: `[MpvController] WATCHDOG: no IPC time-pos event for 40 s — possible freeze`.

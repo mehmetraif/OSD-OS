@@ -9,6 +9,7 @@
 #include <QProcess>
 #include <QProcessEnvironment>
 #include <QRegularExpression>
+#include <QThread>
 #include <algorithm>
 
 namespace {
@@ -343,25 +344,14 @@ bool runAmixer(const QString &program, const QString &id, const QStringList &arg
     return process.exitStatus() == QProcess::NormalExit && process.exitCode() == 0;
 }
 
-// A card at its full level as it is given to a player ("" for ALSA's default
-// card): the volume is what it plays into, a TV's, or an amplifier's knob (a
-// JAMMA board's). Each of its controls with a playback volume below 0 dB
-// goes to 0 dB, its top where that is lower, or one that gives no dB to
-// 100%; one switched off is switched on. Never lower: one set above 0 dB
-// (the AV jack goes to +4 dB, which can clip) stays so. A control of an
-// input is left as it is, its capture's or its playback's, which plays what
-// comes in (a microphone's, a line in's). Once for the players given it
-// together (an mpv process asks mpvArgs() and applyTo()).
-void keepFull(const QString &id) {
-    static QString last;
-    static QElapsedTimer since;
-    if (since.isValid() && id == last && since.elapsed() < 2000)
-        return;
-    last = id;
-    since.start();
-    const QString program = amixer();
+// A card's levels raised, through amixer (keepFull()): on a thread of its
+// own, as amixer reads alsa-lib's whole configuration and every control of
+// the card (over USB for a USB card), tens of milliseconds, and a second and
+// a half when the card doesn't answer, which held the GUI thread at every
+// video's start.
+void raiseLevels(const QString &program, const QString &id) {
     QByteArray contents;
-    if (program.isEmpty() || !runAmixer(program, id, { QStringLiteral("scontents") }, &contents))
+    if (!runAmixer(program, id, { QStringLiteral("scontents") }, &contents))
         return;
     // amixer's words: a control's line, what it has (p for playback, c for
     // capture, volume and switch without either for both), its playback's
@@ -423,6 +413,33 @@ void keepFull(const QString &id) {
     if (!raised.isEmpty())
         qInfo("[AudioOutput] %s at full level: %s", qPrintable(id.isEmpty() ? QStringLiteral("ALSA's default card") : id),
               qPrintable(raised.join(QStringLiteral(", "))));
+}
+
+// A card at its full level as it is given to a player ("" for ALSA's default
+// card): the volume is what it plays into, a TV's, or an amplifier's knob (a
+// JAMMA board's). Each of its controls with a playback volume below 0 dB
+// goes to 0 dB, its top where that is lower, or one that gives no dB to
+// 100%; one switched off is switched on. Never lower: one set above 0 dB
+// (the AV jack goes to +4 dB, which can clip) stays so. A control of an
+// input is left as it is, its capture's or its playback's, which plays what
+// comes in (a microphone's, a line in's). Once for the players given it
+// together (an mpv process asks mpvArgs() and applyTo()), and off the GUI
+// thread (raiseLevels()): the player starts meanwhile, and plays into the
+// levels as they rise.
+void keepFull(const QString &id) {
+    static QString last;
+    static QElapsedTimer since;
+    if (since.isValid() && id == last && since.elapsed() < 2000)
+        return;
+    last = id;
+    since.start();
+    const QString program = amixer();
+    if (program.isEmpty())
+        return;
+    QThread *thread = QThread::create([program, id] { raiseLevels(program, id); });
+    thread->setObjectName(QStringLiteral("amixer"));
+    QObject::connect(thread, &QThread::finished, thread, &QObject::deleteLater);
+    thread->start();
 }
 
 QString describe() {

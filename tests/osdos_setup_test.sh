@@ -140,6 +140,7 @@ conn="$T/etc/NetworkManager/system-connections/$wifi"
 check "the connection only root's" "600" "$(mode "$conn")"
 check "its network's name" "ssid=Home\\s5G" "$(grep '^ssid=' "$conn")"
 check "hidden" "hidden=true" "$(grep '^hidden=' "$conn")"
+check "without power saving" "powersave=2" "$(grep '^powersave=' "$conn")"
 check "its password, as GLib keeps a string" "psk=correct\\sbattery\\\\x" "$(grep '^psk=' "$conn")"
 check "WPA" "key-mgmt=wpa-psk" "$(grep '^key-mgmt=' "$conn")"
 check "Wi-Fi switched on for NetworkManager, with its country" "[main] NetworkingEnabled=true WirelessEnabled=true" \

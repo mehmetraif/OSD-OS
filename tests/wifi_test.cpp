@@ -561,6 +561,8 @@ private slots:
         QCOMPARE(wireless.value(QStringLiteral("ssid")).toByteArray(), QByteArray("Cafe"));
         QCOMPARE(wireless.value(QStringLiteral("mode")).toString(), QStringLiteral("infrastructure"));
         QVERIFY(!wireless.contains(QStringLiteral("hidden")));
+        // Without power saving, as NetworkManager's enum has it (2, disable).
+        QCOMPARE(wireless.value(QStringLiteral("powersave")).toUInt(), 2u);
         const QVariantMap security = settings.value(QStringLiteral("802-11-wireless-security")).toMap();
         QCOMPARE(security.value(QStringLiteral("key-mgmt")).toString(), QStringLiteral("wpa-psk"));
         QCOMPARE(security.value(QStringLiteral("psk")).toString(), QStringLiteral("espresso-42"));

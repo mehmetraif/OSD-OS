@@ -2363,9 +2363,12 @@ void InputManager::releaseAction(Action a) {
         m_repeatDelayTimer.stop();
         m_repeatTimer.stop();
     }
-    // mpv's "keypress" command is one-shot — releases only matter for QML.
+    // A press that went to mpv over IPC (deliverPress()) may be held down
+    // there for its repeats: let go with the button.
     if (windowActive())
         postKey(qtKeyForAction(a), QEvent::KeyRelease, false);
+    else
+        emit mpvKeysReleased();
 }
 
 QString InputManager::padSource(SDL_JoystickID id) {
@@ -2443,16 +2446,19 @@ void InputManager::deliverPress(Action a, bool autoRepeat) {
     if (windowActive())
         postKey(qtKeyForAction(a), QEvent::KeyPress, autoRepeat);
     else
-        emit mpvKeyRequested(mpvKeyForAction(a));
+        emit mpvKeyRequested(mpvKeyForAction(a), autoRepeat);
 }
 
 // A key that stood for an action (eventFilter()) let go: the action's key is
 // let go too, as a view that acts on the release (the Arcade screen's select)
-// waits for it. A key isn't held as a pad's button is (m_heldActions): the
-// system repeats it itself. mpv's keypress has no release.
+// waits for it, and as mpv does for a key it holds down for its repeats
+// (MpvController::sendKey). A key isn't held as a pad's button is
+// (m_heldActions): the system repeats it itself.
 void InputManager::deliverRelease(Action a, bool autoRepeat) {
     if (windowActive())
         postKey(qtKeyForAction(a), QEvent::KeyRelease, autoRepeat);
+    else if (!autoRepeat)
+        emit mpvKeysReleased();
 }
 
 void InputManager::onRepeatDelayElapsed() {
@@ -2645,8 +2651,12 @@ bool InputManager::eventFilter(QObject *obj, QEvent *event) {
         while (qAbs(m_wheelTurn) >= 120) {
             const Action a = m_wheelTurn > 0 ? Action::Up : Action::Down;
             m_wheelTurn += a == Action::Up ? -120 : 120;
-            pressFrom(QStringLiteral("keyboard"), a);
-            releaseAction(a);
+            // Delivered as a keyboard's key is, apart from what a pad holds
+            // (m_heldActions): a notch while a pad's direction was held used
+            // to end that hold and swallow the pad's own release.
+            setLastInputDevice(QStringLiteral("keyboard"));
+            deliverPress(a, false);
+            deliverRelease(a, false);
         }
         return true;
     }
@@ -2859,21 +2869,19 @@ bool InputManager::eventFilter(QObject *obj, QEvent *event) {
     // never reach us — mpv binds the same names natively.
     const QString mediaKey = mpvKeyForMediaEvent(ke);
     if (!mediaKey.isEmpty()) {
+        // A held volume key's repeats hold the key down in mpv, which turns
+        // the volume at its own pace until the key is let go
+        // (MpvController::sendKey): sent as presses, as the keyboard repeats
+        // them (every 80 ms on the Pi's console), they queued up in a busy
+        // player and the volume went on turning after the finger had come
+        // off. Everything else fires once per press. mediaKey is the single
+        // source of truth for which key this is.
+        const bool isVolume = mediaKey.startsWith(QLatin1String("VOLUME"));
         if (type == QEvent::KeyPress) {
-            // A held volume key repeats as the keyboard repeats it (every 80 ms
-            // on the Pi's console), each repeat 5 points in mpv: taken every
-            // 150 ms, so that the whole range takes three seconds, as a TV
-            // remote's does, rather than two. Everything else fires once per
-            // press. mediaKey is the single source of truth for which key
-            // this is.
-            constexpr int kVolumeRepeatMs = 150;
-            const bool isVolume = mediaKey.startsWith(QLatin1String("VOLUME"));
-            const bool repeatDue = !m_volumeRepeat.isValid() || m_volumeRepeat.elapsed() >= kVolumeRepeatMs;
-            if (!ke->isAutoRepeat() || (isVolume && repeatDue)) {
-                if (isVolume)
-                    m_volumeRepeat.start();
-                emit mpvKeyRequested(mediaKey);
-            }
+            if (!ke->isAutoRepeat() || isVolume)
+                emit mpvKeyRequested(mediaKey, ke->isAutoRepeat());
+        } else if (type == QEvent::KeyRelease && !ke->isAutoRepeat() && isVolume) {
+            emit mpvKeysReleased();
         }
         return true;
     }

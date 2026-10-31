@@ -33,11 +33,55 @@ namespace {
 
 // A process retired for the next session (loadAndPlay) is told to quit, is
 // killed if it is still there a second later, and is given up on
-// (screenBusy) if even that hasn't ended it a few seconds on.
+// (screenBusy) if even that hasn't ended it a few seconds on. One the user
+// stopped (stop(), back) is asked to quit over its control connection first,
+// and has this long to act on it before it is terminated the same way.
 constexpr int kRetireKillMs   = 1000;
 constexpr int kRetireGiveUpMs = 5000;
+constexpr int kQuitGraceMs    = 1500;
 // Commands kept for the player's control connection to come (sendCommand()).
 constexpr int kMostCommandsWaiting = 32;
+// A key held down in mpv for its repeats (sendKey()) is let go when no
+// repeat has come for this long: a keyboard's repeats come every few dozen
+// milliseconds, a pad's every 100 ms, so a release that went astray (the
+// view lost its focus meanwhile) can't leave a key down for good.
+constexpr int kHeldKeyMs = 400;
+// How mpv repeats a key held down (the --input-ar-* options every session
+// gets): after a moment, six times a second, each repeat run as the player
+// gets to it and no faster, and none once the key is up. A TV remote's
+// volume key takes the range in three seconds or so at that rate, and a
+// held ◄ ► scans at a minute a second.
+constexpr int kMpvRepeatDelayMs = 150;
+constexpr int kMpvRepeatsPerSecond = 6;
+
+// kill() for a process still running delayMs on. Timed on the process
+// itself, so one gone and deleted meanwhile is left alone.
+void killUnlessGone(QProcess *process, int delayMs) {
+    QPointer<QProcess> proc(process);
+    QTimer::singleShot(delayMs, process, [proc]() {
+        if (!proc || proc->state() == QProcess::NotRunning)
+            return;
+        qWarning("[MpvController] mpv (pid %lld) is still there after SIGTERM; killing it",
+                 qint64(proc->processId()));
+        proc->kill();
+    });
+}
+
+// terminate() for a process still running delayMs after it was asked to
+// quit, and kill() kRetireKillMs after that: an mpv that reads neither its
+// quit nor the signal (stuck in a driver's call, or on a mount gone away)
+// goes all the same, and the screen with it.
+void terminateUnlessGone(QProcess *process, int delayMs) {
+    QPointer<QProcess> proc(process);
+    QTimer::singleShot(delayMs, process, [proc, delayMs]() {
+        if (!proc || proc->state() == QProcess::NotRunning)
+            return;
+        qWarning("[MpvController] mpv (pid %lld) hasn't quit %d ms after it was asked to; terminating it",
+                 qint64(proc->processId()), delayMs);
+        proc->terminate();
+        killUnlessGone(proc, kRetireKillMs);
+    });
+}
 
 // A channel logo of the user's own (Settings → TV / Movie → Logo Image), read
 // for mpv-logo.lua to lay over the picture with mpv's overlay-add: at the
@@ -114,6 +158,25 @@ bool userSetsScreenShape(const QString &videoArgs) {
     return false;
 }
 
+// mpv's terminal output without its status line, the "AV: 00:12:34 / ..."
+// (or "A:", "V:", "(Paused) AV:") it prints a few times a second while it
+// plays, which says nothing the control connection doesn't, and trimmed.
+QString withoutStatusLines(const QString &text) {
+    QStringList kept;
+    const QStringList lines = text.split(QLatin1Char('\n'));
+    for (const QString &raw : lines) {
+        const QString line = raw.trimmed();
+        if (line.isEmpty())
+            continue;
+        const QString status = line.startsWith(QLatin1String("(Paused) ")) ? line.mid(9) : line;
+        if (status.startsWith(QLatin1String("AV: ")) || status.startsWith(QLatin1String("A: "))
+                || status.startsWith(QLatin1String("V: ")))
+            continue;
+        kept << line;
+    }
+    return kept.join(QLatin1Char('\n'));
+}
+
 // Text for the log with every token the modules hand mpv blanked out: a
 // server's in a URL's query (Jellyfin's ApiKey, Emby's api_key), Plex's in
 // its header, Jellyfin's in its Authorization header.
@@ -170,11 +233,13 @@ MpvController::MpvController(const QString &appRoot, const QString &dataRoot,
         f.write("ENTER cycle pause\n");
         f.close();
     }
-    // A video left playing behind the menus ends when anything else takes the
-    // screen (a takeover script, a web player), or the setting is turned off.
+    // A video played inside the window ends when anything else takes the
+    // screen (a takeover script, a web player, a game): left playing behind
+    // the menus, or full screen still, whose player is told (endEmbedded());
+    // and when the setting is turned off.
     if (m_handoff) {
         connect(m_handoff, &DisplayHandoff::handingOff, this, [this](const QString &owner) {
-            if (owner != QLatin1String(kHandoffOwner) && m_background)
+            if (owner != QLatin1String(kHandoffOwner) && m_embedded && m_embedded->running())
                 endEmbedded();
         });
     }
@@ -202,11 +267,19 @@ MpvController::MpvController(const QString &appRoot, const QString &dataRoot,
         sendCommand({"observe_property", 2, "duration"});
         sendCommand({"observe_property", 3, "playlist-pos"});
         sendCommand({"observe_property", 4, "pause"});
-        // What was asked before the connection came, in its order.
+        // What was asked before the connection came, in its order: a key's
+        // keydown and keyup among it (sendKey()), so a key held down across a
+        // break is let go as it was.
         const QList<QJsonArray> waiting = std::exchange(m_commandsWaiting, {});
         for (const QJsonArray &command : waiting)
             sendCommand(command);
     });
+
+    // A key held down in mpv (sendKey()) let go when its repeats stop coming.
+    m_keyUpTimer = new QTimer(this);
+    m_keyUpTimer->setSingleShot(true);
+    m_keyUpTimer->setInterval(kHeldKeyMs);
+    connect(m_keyUpTimer, &QTimer::timeout, this, &MpvController::releaseKeys);
     connect(m_ipc, &QLocalSocket::readyRead, this, &MpvController::onIpcReadyRead);
 
     m_connectTimer = new QTimer(this);
@@ -573,9 +646,12 @@ void MpvController::loadAndPlay(const QString &url, float startSeconds,
     // every word there. Absolute paths or URLs, extraUrls too; mpv options go
     // in extraArgs.
     const QStringList media = QStringList(url) + extraUrls;
-    // The deck's keys, and audio as the clock; ahead of the video arguments,
-    // so a setting's mpv_video_args still has the last word.
+    // The deck's keys, how a held one repeats (sendKey()), and audio as the
+    // clock; ahead of the video arguments, so a setting's mpv_video_args
+    // still has the last word.
     args << QString("--input-conf=%1").arg(m_inputConfPath)
+         << QStringLiteral("--input-ar-delay=%1").arg(kMpvRepeatDelayMs)
+         << QStringLiteral("--input-ar-rate=%1").arg(kMpvRepeatsPerSecond)
          << QStringLiteral("--video-sync=audio");
     if (embedded) {
         appendEmbeddedVideoArgs(args, embeddedPlayer()->gpuAvailable());
@@ -620,10 +696,7 @@ void MpvController::loadAndPlay(const QString &url, float startSeconds,
             });
             connect(old, &QProcess::started, old, [old]() { old->terminate(); });
             old->terminate();
-            QTimer::singleShot(kRetireKillMs, old, [old]() {
-                if (old->state() != QProcess::NotRunning)
-                    old->kill();
-            });
+            killUnlessGone(old, kRetireKillMs);
         } else {
             old->deleteLater();
         }
@@ -696,26 +769,35 @@ void MpvController::launchAfterRetirement(int serial, const QStringList &args,
         startProcess(args, media);
 }
 
-void MpvController::stopAfterRetirement(int serial, int positionMs) {
+void MpvController::stopAfterRetirement(int serial, int positionMs, const QString &reason) {
     if (serial != m_launchSerial)
         return;
     if (screenBusy()) {
-        QTimer::singleShot(25, this, [this, serial, positionMs]() {
-            stopAfterRetirement(serial, positionMs);
+        QTimer::singleShot(25, this, [this, serial, positionMs, reason]() {
+            stopAfterRetirement(serial, positionMs, reason);
         });
         return;
     }
     QFile::remove(m_socketPath);
     // Unless another session was asked for meanwhile: it is that one's now.
-    handBackScreen([this, serial, positionMs]() {
+    handBackScreen([this, serial, positionMs, reason]() {
         if (serial == m_launchSerial)
-            emit playbackEnded(positionMs, 0, QStringLiteral("stopped"));
+            emit playbackEnded(positionMs, 0, reason);
     });
 }
 
 bool MpvController::screenBusy() {
     if (m_handingBack)
         return true;
+    // The core of a session played inside the window, replaced, is still on
+    // its way out (EmbeddedMpv::retire()): the sound card and the decoder
+    // are its until it has gone. One that never goes is given up on, as a
+    // process is, or the next session would wait on it for good.
+    if (m_embedded && m_embedded->retiring()) {
+        if (m_embedded->retiringMs() < kRetireGiveUpMs)
+            return true;
+        m_embedded->abandonRetirement();
+    }
     if (!m_retiringProcess || m_retiringProcess->state() == QProcess::NotRunning)
         return false;
     if (m_retireClock.elapsed() < kRetireGiveUpMs)
@@ -752,6 +834,9 @@ void MpvController::closeIpc(bool drain, int *pos, int *dur) {
     m_ipcWanted = false;
     m_reconnecting = false;
     m_commandsWaiting.clear();
+    // Nothing is held down in a player that is over.
+    m_keyDown.clear();
+    m_keyUpTimer->stop();
     m_connectTimer->stop();
     m_watchdogTimer->stop();
     if (drain && m_ipc->state() == QLocalSocket::ConnectedState)
@@ -812,11 +897,13 @@ void MpvController::startProcess(QStringList args, const QStringList &media) {
         endAtOnce(QStringLiteral("failed"));
     });
     // mpv's own output, to the journal: what it plays among it, so without
-    // the tokens.
+    // the tokens, and without its status line (AV: 00:12:34 / ..., a few
+    // times a second for the whole film, which buried the lines that matter
+    // and wrote the journal to the card all the while).
     connect(m_process, &QProcess::readyRead, this, [this]() {
-        const QByteArray out = m_process->readAll();
+        const QString out = withoutStatusLines(QString::fromUtf8(m_process->readAll()));
         if (!out.isEmpty())
-            qWarning("[mpv] %s", qPrintable(redactSecrets(QString::fromUtf8(out).trimmed())));
+            qWarning("[mpv] %s", qPrintable(redactSecrets(out)));
     });
     auto launch = [this, bin, media](QStringList options) {
         options << QStringLiteral("--") << media;
@@ -950,13 +1037,18 @@ void MpvController::startProcess(QStringList args, const QStringList &media) {
 void MpvController::stop() {
     // Not started yet (the tick loadAndPlay() waits): it never does, and for
     // its player it stopped where it was to start. Told as a process's exit
-    // is, not from inside the player's own call.
+    // is, not from inside the player's own call; and as back would tell it
+    // (backFromProcess()): a player with a menu of its own opens it there.
     if (m_launchPending) {
         const int serial = ++m_launchSerial;
         m_launchPending = false;
+        // The keys asked of it meanwhile go with it (sendCommand()).
+        m_commandsWaiting.clear();
         const int pos = m_pendingStartMs;
-        QTimer::singleShot(0, this, [this, serial, pos]() {
-            stopAfterRetirement(serial, pos);
+        const QString reason = m_menuOnExit ? QStringLiteral("menu") : QStringLiteral("stopped");
+        m_menuOnExit = false;
+        QTimer::singleShot(0, this, [this, serial, pos, reason]() {
+            stopAfterRetirement(serial, pos, reason);
         });
         return;
     }
@@ -967,8 +1059,16 @@ void MpvController::stop() {
     }
     if (m_ipc->state() == QLocalSocket::ConnectedState) {
         sendCommand({"quit"});
+        // An mpv that never acts on it (stuck in a driver's call, or on a
+        // mount gone away: it reads neither its quit nor a SIGTERM) is made
+        // to go, as one retired for the next session is (loadAndPlay()).
+        // Left to it, the screen stayed its on the Pi, and back did nothing
+        // more.
+        if (m_process)
+            terminateUnlessGone(m_process, kQuitGraceMs);
     } else if (m_process && m_process->state() != QProcess::NotRunning) {
         m_process->terminate();
+        killUnlessGone(m_process, kRetireKillMs);
     }
 }
 
@@ -976,12 +1076,44 @@ void MpvController::seekTo(int positionMs) {
     sendCommand({"seek", positionMs / 1000.0, "absolute+exact"});
 }
 
-void MpvController::sendKey(const QString &key) {
+void MpvController::sendKey(const QString &key, bool autoRepeat) {
     if (key == QLatin1String("ESC") || key == QLatin1String("BS")) {
-        backKey(key);
+        // Once per press: a held back has nothing more to do.
+        if (!autoRepeat)
+            backKey(key);
         return;
     }
-    sendCommand({"keypress", key});
+    if (!autoRepeat) {
+        // A new press ends the hold of any other key.
+        releaseKeys();
+        sendCommand({"keypress", key});
+        return;
+    }
+    // A key held: down in mpv, which repeats it at its own pace (the
+    // --input-ar-* options, sessionArgs()) for as long as it is, so that a
+    // player slow to act on them is never left a queue of presses to work
+    // through once the key is up. Sent as a press each, a held ◄ went on
+    // seeking, and a held volume key on turning, after the finger had come
+    // off. Each repeat that comes keeps it down (kHeldKeyMs); the key's
+    // release (releaseKeys()) or the end of its repeats lets it go. A key
+    // whose binding doesn't repeat (the deck menu's ▲ ▼) is held for nothing.
+    if (m_keyDown != key) {
+        if (!m_keyDown.isEmpty())
+            sendCommand({"keyup", m_keyDown});
+        m_keyDown = key;
+        sendCommand({"keydown", key});
+    }
+    m_keyUpTimer->start();
+}
+
+void MpvController::releaseKeys() {
+    m_keyUpTimer->stop();
+    if (m_keyDown.isEmpty())
+        return;
+    // By name: a keyup without one, which would let every key go, is a
+    // crash in mpv 0.37 over the control connection.
+    const QString key = std::exchange(m_keyDown, {});
+    sendCommand({"keyup", key});
 }
 
 // Back used to go to mpv as any key, whose input.conf maps it to osdos-menu,
@@ -1110,9 +1242,9 @@ void MpvController::onIpcReadyRead() {
 void MpvController::onProcessFinished() {
     int exitCode = m_process ? m_process->exitCode() : -1;
     if (m_process) {
-        const QByteArray remaining = m_process->readAll();
+        const QString remaining = withoutStatusLines(QString::fromUtf8(m_process->readAll()));
         if (!remaining.isEmpty())
-            qWarning("[mpv] %s", qPrintable(redactSecrets(QString::fromUtf8(remaining).trimmed())));
+            qWarning("[mpv] %s", qPrintable(redactSecrets(remaining)));
     }
     if (exitCode != 0)
         qWarning("[MpvController] mpv exited with code %d", exitCode);
@@ -1151,9 +1283,11 @@ void MpvController::sendCommand(const QJsonArray &args) {
     if (m_ipc->state() != QLocalSocket::ConnectedState) {
         // A session's connection takes a moment to come (and comes again
         // after a break): what is asked meanwhile waits for it, rather than
-        // being lost, a few dozen commands at most. With no session wanted
-        // there is nothing to wait for.
-        if (m_ipcWanted && m_commandsWaiting.size() < kMostCommandsWaiting) {
+        // being lost, a few dozen commands at most. So does what is asked of
+        // a session on its way (loadAndPlay()'s tick, the player it replaces
+        // on its way out): its loading screen is up, and a key pressed over
+        // it is for it. With no session wanted there is nothing to wait for.
+        if ((m_ipcWanted || m_launchPending) && m_commandsWaiting.size() < kMostCommandsWaiting) {
             m_commandsWaiting << args;
             return;
         }
@@ -1499,7 +1633,11 @@ void MpvController::startEmbedded(QStringList args) {
 void MpvController::endEmbedded() {
     if (!m_embedded || !m_embedded->running())
         return;
-    m_embedded->stop();
+    // Its core goes on a thread of its own: taking it down holds the GUI
+    // thread for as long as its decoder, sound output and scripts take to
+    // end, a loading screen standing still meanwhile. The next session
+    // waits for it (screenBusy()).
+    m_embedded->retire();
     // Its control connection with it: left, it would be made again, to a
     // socket of a session that is over.
     int pos = 0, dur = 0;
@@ -1508,6 +1646,7 @@ void MpvController::endEmbedded() {
     m_sessionNote.clear();
     m_oscMenuShown = false;
     m_saverShown = false;
+    const bool wasBackground = m_background;
     const bool wasMenu = m_playerMenu;
     m_playerMenu = false;
     if (m_background) {
@@ -1515,10 +1654,20 @@ void MpvController::endEmbedded() {
         emit backgroundChanged();
     }
     emit videoActiveChanged();
-    // Its player had its menu open over it (something else took the screen):
-    // for it, playback stopped.
-    if (wasMenu)
-        emit playbackEnded(pos, dur, QStringLiteral("stopped"));
+    // Its player still had it, full screen or under its own menu, and
+    // something else took the screen: for it, playback stopped. Told a tick
+    // later, as a process's end is, and not when another session was asked
+    // for in its place (loadAndPlay(), whose serial moves on first): a player
+    // is never told from inside its own call, nor of a session that was
+    // never its. Left behind the menus, its module took it as stopped when
+    // back left it there.
+    if (wasMenu || !wasBackground) {
+        const int serial = m_launchSerial;
+        QTimer::singleShot(0, this, [this, serial, pos, dur]() {
+            if (serial == m_launchSerial)
+                emit playbackEnded(pos, dur, QStringLiteral("stopped"));
+        });
+    }
 }
 
 void MpvController::onEmbeddedFinished(const QString &lastEndReason) {

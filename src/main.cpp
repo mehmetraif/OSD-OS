@@ -341,9 +341,12 @@ int main(int argc, char *argv[]) {
     arcadeBackend.setScreen(tube, screenPixels);
 
     // When the Qt window is inactive (fullscreen mpv has OS focus on macOS),
-    // gamepad actions bypass QML and drive mpv directly over IPC.
+    // gamepad actions bypass QML and drive mpv directly over IPC; the media
+    // keys always do. A key held is held down in mpv, and let go with it.
     QObject::connect(&inputManager, &InputManager::mpvKeyRequested,
                      &mpvController, &MpvController::sendKey);
+    QObject::connect(&inputManager, &InputManager::mpvKeysReleased,
+                     &mpvController, &MpvController::releaseKeys);
     // RetroArch and MAME open pads with their own SDL: close ours while an
     // arcade game holds the screen, and open them again when the display
     // comes back. Every other hand-off keeps them: mpv, so gamepads still

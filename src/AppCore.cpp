@@ -87,14 +87,32 @@ AppCore::AppCore(const QString &appRoot, const QString &dataRoot, QObject *paren
 // ---------------------------------------------------------------------------
 
 QJsonObject AppCore::loadConfig(bool *broken) const {
+    const QString path = m_dataRoot + "/config.json";
+    // As last read, while the file is as it was then (its time and size):
+    // the settings are asked for by the dozen as a video starts, and the
+    // file is a few dozen kilobytes to parse each time. A save of OSD/OS's
+    // own (saveConfig()) or an edit by hand reads it anew.
+    const QFileInfo info(path);
+    if (m_configCacheValid && info.exists() && info.lastModified() == m_configCacheModified
+            && info.size() == m_configCacheSize) {
+        if (broken)
+            *broken = false;
+        return m_configCache;
+    }
     QJsonObject config;
     QString why;
-    const bool ok = readJsonObject(m_dataRoot + "/config.json", &config, &why);
+    const bool ok = readJsonObject(path, &config, &why);
     // One that is there but can't be read (a stray comma from editing it by
     // hand) must not be written over: these defaults would then replace every
     // setting in it. Readers get the defaults meanwhile; save_setting refuses.
     if (broken)
         *broken = !ok && !why.isEmpty();
+    m_configCacheValid = ok && info.exists();
+    if (m_configCacheValid) {
+        m_configCache = config;
+        m_configCacheModified = info.lastModified();
+        m_configCacheSize = info.size();
+    }
     if (ok)
         return config;
     return QJsonObject{
@@ -104,6 +122,7 @@ QJsonObject AppCore::loadConfig(bool *broken) const {
 }
 
 bool AppCore::saveConfig(const QJsonObject &config) const {
+    m_configCacheValid = false;
     return writeFileAtomically(m_dataRoot + "/config.json",
                                QJsonDocument(config).toJson(QJsonDocument::Indented));
 }

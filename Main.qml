@@ -928,9 +928,13 @@ Window {
         target: inputManager
         ignoreUnknownSignals: true
         function onUnlockRequested() {
-            // Not while a game or a video has the screen, nor before the
-            // start module has opened.
-            if (!root.cabinetLockOn || root.screenHandedOff || root.bootActive || root.startupHolding
+            // Not while a game or a video has the screen (an mpv process
+            // holding the hand-off, or a video played inside the window and
+            // full screen: its player's view would go, the picture staying
+            // over the menus with no one to take it back), nor before the
+            // start module has opened. A video behind the menus is no bar.
+            if (!root.cabinetLockOn || root.screenHandedOff || (root.videoActive && !root.videoBehind)
+                    || root.bootActive || root.startupHolding
                     || !root._startupNavigated || appCore.startupModuleEntryPoint() === "")
                 return
             root.cabinetUnlocked = !root.cabinetUnlocked
