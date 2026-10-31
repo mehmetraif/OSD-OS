@@ -522,10 +522,22 @@ QString configText(const Launch &launch) {
         set("video_driver", QStringLiteral("gl"));
         set("video_context_driver", QStringLiteral("kms"));
         set("input_driver", QStringLiteral("udev"));
-        set("audio_driver", QStringLiteral("alsa"));
-        // ALSA's default: the card Settings → Audio Output gives (ALSA_CARD).
-        set("audio_device", QString());
+        // Without a card that can play (a USB sound adapter showing only its
+        // volume buttons until a cable is in its jack), ALSA fails to start
+        // at every game whatever audio_enable says
+        // ("failed_to_start_audio_driver"): no driver at all then, as MAME
+        // gets -sound none.
+        if (launch.sound) {
+            set("audio_driver", QStringLiteral("alsa"));
+            // ALSA's default: the card Settings → Audio Output gives (ALSA_CARD).
+            set("audio_device", QString());
+        } else {
+            set("audio_driver", QStringLiteral("null"));
+        }
         set("assets_directory", QStringLiteral("/usr/share/libretro/assets"));
+        // Feral's GameMode isn't on the image: off, rather than a warning in
+        // every game's log.
+        set("gamemode_enable", on(false));
     }
     // RetroArch knows a core by its info file, which it looks for by the
     // name of each core in libretro_directory: a core outside that folder,

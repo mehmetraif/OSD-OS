@@ -4,9 +4,12 @@
 
 // What the app logs, kept in a file in the data folder as well: osdos.log,
 // with the run before's as osdos-previous.log. The Windows build is a
-// windowed program, which no console opens with, so its log goes there;
-// main() starts it on Windows alone (the Pi's log goes to the journal, a
-// desktop's to the terminal it was started from).
+// windowed program, which no console opens with, so its log goes there. On
+// Linux it goes to the journal or the terminal as before, and to the file
+// too: the OSD/OS image's journal lives in memory, and the file is what is
+// left of a run once the Pi has been switched off and on (a frozen one
+// too), which Quit → Save Logs copies to the card. main() starts it on
+// Windows and Linux.
 namespace logfile {
 
 // Before anything is logged: on Windows, the console the app was started

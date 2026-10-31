@@ -1328,7 +1328,8 @@ private slots:
         QVERIFY2(has(QStringLiteral("config_save_on_exit = \"true\"")), qPrintable(config));
         for (const char *line : { "user_language = \"0\"", "video_driver = \"gl\"", "video_context_driver = \"kms\"",
                                   "input_driver = \"udev\"",
-                                  "audio_driver = \"alsa\"", "audio_device = \"\"", "input_joypad_driver = \"sdl2\"",
+                                  "audio_driver = \"alsa\"", "audio_device = \"\"", "gamemode_enable = \"false\"",
+                                  "input_joypad_driver = \"sdl2\"",
                                   // RetroArch's Standard Gamepad for every player, its own
                                   // look-up off: no "not configured" over the game.
                                   "input_autodetect_enable = \"false\"", "input_player1_b_btn = \"0\"",
@@ -1365,6 +1366,16 @@ private slots:
         launch.padsByVendor = true;
         QVERIFY(libretro::configText(launch).split(QLatin1Char('\n'))
                     .contains(QStringLiteral("input_player1_device_reservation_type = \"1\"")));
+        // No card that can play: no audio driver at all, rather than ALSA
+        // failing at every start ("failed_to_start_audio_driver").
+        launch.sound = false;
+        {
+            const QStringList quiet = libretro::configText(launch).split(QLatin1Char('\n'));
+            QVERIFY(quiet.contains(QStringLiteral("audio_driver = \"null\"")));
+            QVERIFY(quiet.contains(QStringLiteral("audio_enable = \"false\"")));
+            QVERIFY(!quiet.contains(QStringLiteral("audio_driver = \"alsa\"")));
+        }
+        launch.sound = true;
         // That file, by the core's name: its states deterministic, the same
         // on every machine, without which RetroArch neither hosts nor joins
         // a game with it.

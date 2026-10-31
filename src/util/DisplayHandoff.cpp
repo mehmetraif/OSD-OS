@@ -1,6 +1,7 @@
 #include "DisplayHandoff.h"
 #include <QDir>
 #include <QFile>
+#include <QStringList>
 #include <QTimer>
 #include <QDebug>
 
@@ -21,9 +22,82 @@
 #endif
 #endif
 
+#ifdef Q_OS_LINUX
+namespace {
+
+// Qt's own word of a flip the kernel refused, counted from its warnings: the
+// atomic path's "Failed to commit atomic request (code=...)" and the legacy
+// one's "Could not queue DRM page flip". Qt reports nothing else of it.
+std::atomic<quint64> g_refusedFlips { 0 };
+QtMessageHandler g_nextHandler = nullptr;
+
+void countRefusedFlips(QtMsgType type, const QMessageLogContext &context, const QString &message) {
+    if (type == QtWarningMsg
+            && (message.startsWith(QLatin1String("Failed to commit atomic request"))
+                || message.startsWith(QLatin1String("Could not queue DRM page flip"))))
+        g_refusedFlips.fetch_add(1, std::memory_order_relaxed);
+    if (g_nextHandler)
+        g_nextHandler(type, context, message);
+}
+
+bool qtUsesAtomic() {
+    return qEnvironmentVariableIntValue("QT_QPA_EGLFS_KMS_ATOMIC") != 0;
+}
+
+// A property a hand-back puts back: settable, and not a blob (one may be gone
+// by then; the mode goes back from the saved mode instead), nor one an
+// atomic commit refuses or that is not state (fences, damage, DPMS, which
+// only the legacy call takes, and link-status, which only goes to "Good").
+bool restorable(const drmModePropertyRes *p) {
+    if (p->flags & (DRM_MODE_PROP_IMMUTABLE | DRM_MODE_PROP_BLOB))
+        return false;
+    static const char *const skipped[] = { "DPMS", "link-status", "IN_FENCE_FD", "OUT_FENCE_PTR",
+                                           "HOTSPOT_X", "HOTSPOT_Y" };
+    for (const char *name : skipped) {
+        if (std::strcmp(p->name, name) == 0)
+            return false;
+    }
+    return true;
+}
+
+// The value of object's property name, as the kernel has it now.
+bool propValue(int fd, uint32_t object, uint32_t type, const char *name, uint64_t *value, uint32_t *id = nullptr) {
+    drmModeObjectPropertiesPtr props = drmModeObjectGetProperties(fd, object, type);
+    if (!props)
+        return false;
+    bool found = false;
+    for (uint32_t i = 0; i < props->count_props && !found; ++i) {
+        drmModePropertyPtr p = drmModeGetProperty(fd, props->props[i]);
+        if (!p)
+            continue;
+        if (std::strcmp(p->name, name) == 0) {
+            found = true;
+            if (value)
+                *value = props->prop_values[i];
+            if (id)
+                *id = p->prop_id;
+        }
+        drmModeFreeProperty(p);
+    }
+    drmModeFreeObjectProperties(props);
+    return found;
+}
+
+} // namespace
+#endif
+
 DisplayHandoff::DisplayHandoff(QObject *parent)
     : QObject(parent)
 {
+#ifdef Q_OS_LINUX
+    // Qt's refused flips counted (checkFramesShown()), every message passed
+    // on to the handler before (util/LogFile's, then Qt's own).
+    if (isHeadless())
+        g_nextHandler = qInstallMessageHandler(countRefusedFlips);
+    m_verifyTimer = new QTimer(this);
+    m_verifyTimer->setInterval(1000);
+    connect(m_verifyTimer, &QTimer::timeout, this, &DisplayHandoff::checkFramesShown);
+#endif
     // A member timer rather than QTimer::singleShot so releaseNow() can cancel a
     // pending release during shutdown — the stored callback captures an object
     // that is being destroyed.
@@ -115,6 +189,8 @@ int DisplayHandoff::acquire(const QString &owner) {
     m_qtDrmFd    = -1;
 
 #ifdef Q_OS_LINUX
+    // A hand-back still being watched is over: the screen goes again.
+    m_verifyTimer->stop();
     // This hand-off's own saved state, or none: the last one's could be left
     // valid (its restore skipped for a DRM master still held), and a takeover
     // would then be allowed that cannot be restored.
@@ -207,7 +283,20 @@ void DisplayHandoff::doRestore(bool useCover) {
             // the cover, black, or Qt's last framebuffer, so EGLFS's first
             // atomic page flip succeeds instead of getting EINVAL from a
             // disabled CRTC.
+            const uint32_t crtcId = m_savedDrm.crtcId;
+            const bool restored = m_savedDrm.valid;
             restoreDrmCrtcState(m_qtDrmFd, useCover);
+            // Whether Qt's frames reach the screen now, watched for a few
+            // seconds (checkFramesShown()); not at shutdown, with nothing
+            // drawn after.
+            if (restored && useCover) {
+                m_verifyFd = m_qtDrmFd;
+                m_verifyCrtc = crtcId;
+                m_framesBefore = m_frames.load(std::memory_order_relaxed);
+                m_refusedBefore = g_refusedFlips.load(std::memory_order_relaxed);
+                m_checksLeft = 6;
+                m_verifyTimer->start();
+            }
         }
         m_qtDrmFd = -1;
     }
@@ -409,15 +498,61 @@ void DisplayHandoff::saveDrmCrtcState(int fd) {
         }
         drmModeFreeCrtc(crtc);
     }
+
+    // With Qt on atomic KMS, all it had: the connector's, the CRTC's and its
+    // planes' settable properties (a child may leave any of them changed),
+    // the cursor planes aside (Qt's legacy cursor, cleared at the hand-back).
+    if (m_savedDrm.valid && qtUsesAtomic()) {
+        int crtcIndex = -1;
+        for (int i = 0; i < res->count_crtcs; ++i) {
+            if (res->crtcs[i] == m_savedDrm.crtcId)
+                crtcIndex = i;
+        }
+        saveProps(fd, m_savedDrm.connectorId, DRM_MODE_OBJECT_CONNECTOR);
+        saveProps(fd, m_savedDrm.crtcId, DRM_MODE_OBJECT_CRTC);
+        propValue(fd, m_savedDrm.crtcId, DRM_MODE_OBJECT_CRTC, "MODE_ID", nullptr, &m_savedDrm.modeProp);
+        drmModePlaneResPtr planes = drmModeGetPlaneResources(fd);
+        for (uint32_t i = 0; planes && crtcIndex >= 0 && i < planes->count_planes; ++i) {
+            drmModePlanePtr plane = drmModeGetPlane(fd, planes->planes[i]);
+            if (!plane)
+                continue;
+            uint64_t type = 0;
+            if ((plane->possible_crtcs & (1u << crtcIndex))
+                    && propValue(fd, plane->plane_id, DRM_MODE_OBJECT_PLANE, "type", &type)
+                    && type != DRM_PLANE_TYPE_CURSOR) {
+                saveProps(fd, plane->plane_id, DRM_MODE_OBJECT_PLANE);
+                if (type == DRM_PLANE_TYPE_PRIMARY && plane->crtc_id == m_savedDrm.crtcId)
+                    m_savedDrm.planeId = plane->plane_id;
+            }
+            drmModeFreePlane(plane);
+        }
+        if (planes)
+            drmModeFreePlaneResources(planes);
+    }
     drmModeFreeResources(res);
 
     if (m_savedDrm.valid)
-        qDebug("[DisplayHandoff] Saved CRTC %u connector %u mode %dx%d@%d",
+        qDebug("[DisplayHandoff] Saved CRTC %u connector %u mode %dx%d@%d, %zu properties",
                m_savedDrm.crtcId, m_savedDrm.connectorId,
                m_savedDrm.mode.hdisplay, m_savedDrm.mode.vdisplay,
-               m_savedDrm.mode.vrefresh);
+               m_savedDrm.mode.vrefresh, m_savedDrm.props.size());
     else
         qWarning("[DisplayHandoff] Could not save CRTC state");
+}
+
+void DisplayHandoff::saveProps(int fd, uint32_t object, uint32_t type) {
+    drmModeObjectPropertiesPtr props = drmModeObjectGetProperties(fd, object, type);
+    if (!props)
+        return;
+    for (uint32_t i = 0; i < props->count_props; ++i) {
+        drmModePropertyPtr p = drmModeGetProperty(fd, props->props[i]);
+        if (!p)
+            continue;
+        if (restorable(p))
+            m_savedDrm.props.push_back({ object, p->prop_id, props->prop_values[i], p->name });
+        drmModeFreeProperty(p);
+    }
+    drmModeFreeObjectProperties(props);
 }
 
 void DisplayHandoff::restoreDrmCrtcState(int fd, bool useCover) {
@@ -427,30 +562,32 @@ void DisplayHandoff::restoreDrmCrtcState(int fd, bool useCover) {
     // (the loading screen it handed the screen over from) never comes back
     // on the screen, which shows black until the app's next frame. Should
     // the cover not be taken, Qt's own frame buffer, as before covers.
-    bool restored = false;
-    if (useCover && m_cover.shown && m_cover.fd == fd) {
+    const bool cover = useCover && m_cover.shown && m_cover.fd == fd;
+    if (cover)
         blackenCover();
+    // What Qt had, whole, where it is on atomic KMS; the CRTC alone by the
+    // legacy call otherwise, or should the commit be refused.
+    const char *how = nullptr;
+    if (restoreAtomic(fd, cover ? m_cover.fbId : m_savedDrm.fbId))
+        how = "Qt's display state committed whole";
+    if (!how && cover) {
         if (drmModeSetCrtc(fd, m_savedDrm.crtcId, m_cover.fbId, 0, 0,
                            &m_savedDrm.connectorId, 1, &m_savedDrm.mode) == 0)
-            restored = true;
+            how = "the CRTC set to the cover";
         else
             qWarning("[DisplayHandoff] The cover could not be put back (%s): the app's last frame is",
                      strerror(errno));
     }
-    int ret = 0;
-    if (!restored)
-        ret = drmModeSetCrtc(fd,
-                             m_savedDrm.crtcId,
-                             m_savedDrm.fbId,
-                             m_savedDrm.x, m_savedDrm.y,
-                             &m_savedDrm.connectorId, 1,
-                             &m_savedDrm.mode);
-    if (ret < 0)
-        qWarning("[DisplayHandoff] drmModeSetCrtc restore failed: %s", strerror(errno));
-    else
-        qDebug("[DisplayHandoff] CRTC restored (mode %dx%d@%d%s)",
-               m_savedDrm.mode.hdisplay, m_savedDrm.mode.vdisplay,
-               m_savedDrm.mode.vrefresh, restored ? ", black" : "");
+    if (!how) {
+        if (drmModeSetCrtc(fd, m_savedDrm.crtcId, m_savedDrm.fbId, m_savedDrm.x, m_savedDrm.y,
+                           &m_savedDrm.connectorId, 1, &m_savedDrm.mode) == 0)
+            how = "the CRTC set to the app's last frame";
+        else
+            qWarning("[DisplayHandoff] drmModeSetCrtc restore failed: %s", strerror(errno));
+    }
+    if (how)
+        qInfo("[DisplayHandoff] Screen back (mode %dx%d@%d): %s",
+              m_savedDrm.mode.hdisplay, m_savedDrm.mode.vdisplay, m_savedDrm.mode.vrefresh, how);
 
     // A child that drew a mouse pointer (cage does, when there is a mouse) can
     // leave it on the CRTC's cursor plane, over the menus. The app draws none.
@@ -458,6 +595,138 @@ void DisplayHandoff::restoreDrmCrtcState(int fd, bool useCover) {
         qDebug("[DisplayHandoff] Clearing the cursor failed: %s", strerror(errno));
 
     m_savedDrm.valid = false;
+}
+
+bool DisplayHandoff::restoreAtomic(int fd, uint32_t fbId) {
+    if (m_savedDrm.props.empty() || !m_savedDrm.planeId || !m_savedDrm.modeProp)
+        return false;
+    // The mode as a blob of our own: the one the CRTC had may be gone with
+    // the child's state.
+    uint32_t blob = 0;
+    if (drmModeCreatePropertyBlob(fd, &m_savedDrm.mode, sizeof m_savedDrm.mode, &blob) != 0) {
+        qWarning("[DisplayHandoff] Qt's display state can't be committed whole (no mode blob: %s)",
+                 strerror(errno));
+        return false;
+    }
+    drmModeAtomicReqPtr request = drmModeAtomicAlloc();
+    if (!request) {
+        drmModeDestroyPropertyBlob(fd, blob);
+        return false;
+    }
+    for (const DrmPropValue &p : m_savedDrm.props) {
+        const bool frame = p.object == m_savedDrm.planeId && p.name == "FB_ID";
+        drmModeAtomicAddProperty(request, p.object, p.prop, frame ? fbId : p.value);
+    }
+    drmModeAtomicAddProperty(request, m_savedDrm.crtcId, m_savedDrm.modeProp, blob);
+    const int ret = drmModeAtomicCommit(fd, request, DRM_MODE_ATOMIC_ALLOW_MODESET, nullptr);
+    drmModeAtomicFree(request);
+    // The CRTC keeps the mode it was given; the blob's id is ours to let go.
+    drmModeDestroyPropertyBlob(fd, blob);
+    if (ret != 0) {
+        qWarning("[DisplayHandoff] Qt's display state could not be committed whole (%s)", strerror(-ret));
+        return false;
+    }
+    return true;
+}
+
+void DisplayHandoff::checkFramesShown() {
+    if (!m_owner.isEmpty() || m_verifyFd < 0) {
+        m_verifyTimer->stop();
+        return;
+    }
+    const quint64 drawn = m_frames.load(std::memory_order_relaxed) - m_framesBefore;
+    const quint64 refused = g_refusedFlips.load(std::memory_order_relaxed) - m_refusedBefore;
+    // Frames getting through (a refusal or two as the hand-back settles
+    // aside): the screen is the app's again.
+    if (drawn >= refused + 2) {
+        qInfo("[DisplayHandoff] Screen back and confirmed: the app's frames reach it "
+              "(%llu drawn, %llu refused since the hand-back)", drawn, refused);
+        m_verifyTimer->stop();
+        return;
+    }
+    // Every frame drawn refused, enough of them to tell: the menus run on
+    // unseen, and only a fresh start sets the mode again.
+    if (refused >= 3 && refused + 1 >= drawn) {
+        qWarning("[DisplayHandoff] Screen lost: the kernel refused the %llu frames the app drew since "
+                 "the hand-back; the screen as it is:", refused);
+        logScreenState(m_verifyFd);
+        m_verifyTimer->stop();
+        emit screenLost();
+        return;
+    }
+    if (--m_checksLeft <= 0) {
+        qInfo("[DisplayHandoff] Screen back, not confirmed: %llu frames drawn, %llu refused since the hand-back",
+              drawn, refused);
+        m_verifyTimer->stop();
+    }
+}
+
+void DisplayHandoff::logScreenState(int fd) const {
+    uint64_t active = 0;
+    propValue(fd, m_verifyCrtc, DRM_MODE_OBJECT_CRTC, "ACTIVE", &active);
+    if (drmModeCrtcPtr crtc = drmModeGetCrtc(fd, m_verifyCrtc)) {
+        qWarning("[DisplayHandoff]   CRTC %u: %s, mode %s %ux%u@%u, frame buffer %u", crtc->crtc_id,
+                 active ? "active" : "not active", crtc->mode_valid ? crtc->mode.name : "(none)",
+                 crtc->mode.hdisplay, crtc->mode.vdisplay, crtc->mode.vrefresh, crtc->buffer_id);
+        drmModeFreeCrtc(crtc);
+    }
+    // The primary plane on that CRTC, every property of it.
+    uint32_t planeId = 0;
+    if (drmModePlaneResPtr planes = drmModeGetPlaneResources(fd)) {
+        for (uint32_t i = 0; i < planes->count_planes && !planeId; ++i) {
+            uint64_t type = 0, crtcId = 0;
+            if (propValue(fd, planes->planes[i], DRM_MODE_OBJECT_PLANE, "type", &type)
+                    && propValue(fd, planes->planes[i], DRM_MODE_OBJECT_PLANE, "CRTC_ID", &crtcId)
+                    && type == DRM_PLANE_TYPE_PRIMARY && crtcId == m_verifyCrtc)
+                planeId = planes->planes[i];
+        }
+        drmModeFreePlaneResources(planes);
+    }
+    if (drmModeObjectPropertiesPtr props = planeId ? drmModeObjectGetProperties(fd, planeId, DRM_MODE_OBJECT_PLANE)
+                                                   : nullptr) {
+        QStringList values;
+        for (uint32_t i = 0; i < props->count_props; ++i) {
+            if (drmModePropertyPtr p = drmModeGetProperty(fd, props->props[i])) {
+                values << QStringLiteral("%1=%2").arg(QLatin1String(p->name)).arg(props->prop_values[i]);
+                drmModeFreeProperty(p);
+            }
+        }
+        drmModeFreeObjectProperties(props);
+        qWarning("[DisplayHandoff]   plane %u: %s", planeId, qPrintable(values.join(QLatin1Char(' '))));
+    } else {
+        qWarning("[DisplayHandoff]   no primary plane on the CRTC");
+    }
+    // The app's frame buffers (its DRM file's), and whether the kernel would
+    // take a flip of each onto that plane as Qt asks for one.
+    uint32_t fbProp = 0, crtcProp = 0;
+    const bool canTest = qtUsesAtomic() && planeId
+                         && propValue(fd, planeId, DRM_MODE_OBJECT_PLANE, "FB_ID", nullptr, &fbProp)
+                         && propValue(fd, planeId, DRM_MODE_OBJECT_PLANE, "CRTC_ID", nullptr, &crtcProp);
+    drmModeResPtr res = drmModeGetResources(fd);
+    for (int i = 0; res && i < res->count_fbs; ++i) {
+        const uint32_t id = res->fbs[i];
+        QString line = QStringLiteral("frame buffer %1").arg(id);
+        if (drmModeFBPtr fb = drmModeGetFB(fd, id)) {
+            line += QStringLiteral(": %1x%2, %3 bits a pixel, pitch %4").arg(fb->width).arg(fb->height)
+                        .arg(fb->bpp).arg(fb->pitch);
+            drmModeFreeFB(fb);
+        }
+        if (id == m_cover.fbId)
+            line += QStringLiteral(" (the cover)");
+        if (canTest) {
+            drmModeAtomicReqPtr test = drmModeAtomicAlloc();
+            drmModeAtomicAddProperty(test, planeId, fbProp, id);
+            drmModeAtomicAddProperty(test, planeId, crtcProp, m_verifyCrtc);
+            const int ret = drmModeAtomicCommit(fd, test,
+                                                DRM_MODE_ATOMIC_TEST_ONLY | DRM_MODE_ATOMIC_ALLOW_MODESET, nullptr);
+            drmModeAtomicFree(test);
+            line += ret == 0 ? QStringLiteral(", a flip of it would be taken")
+                             : QStringLiteral(", a flip of it would be refused: %1").arg(QString::fromLocal8Bit(strerror(-ret)));
+        }
+        qWarning("[DisplayHandoff]   %s", qPrintable(line));
+    }
+    if (res)
+        drmModeFreeResources(res);
 }
 
 // A dumb buffer of width x height, 32-bit XRGB, mapped, as the cover; the one
