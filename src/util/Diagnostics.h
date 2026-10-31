@@ -54,4 +54,11 @@ QString startedAgainReason();
 void limitMallocArenas();
 void releaseFreedMemory();
 
+// Linux: the soft limit of files open raised towards the hard one (65536 at
+// most; a service starts with 1024). A GPU buffer handed between the video
+// decoder and the screen is a file while it is handed over; with the limit
+// reached, the Pi's driver refuses every one ("Failed to export gem bo") and
+// the picture stops. memoryLine() says how many are open.
+void raiseFileLimit();
+
 }

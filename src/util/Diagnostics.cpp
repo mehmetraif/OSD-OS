@@ -4,6 +4,7 @@
 #include <QFile>
 #include <QTimer>
 
+#include <algorithm>
 #include <atomic>
 #include <chrono>
 #include <cstdio>
@@ -19,6 +20,7 @@
 #include <dirent.h>
 #include <execinfo.h>
 #include <fcntl.h>
+#include <sys/resource.h>
 #include <sys/syscall.h>
 #include <unistd.h>
 #endif
@@ -99,7 +101,38 @@ struct Memory {
     long availableKb = -1;
     long swapTotalKb = -1;
     long swapFreeKb = -1;
+    // Files the app has open, and how many it may (its soft limit): a leak
+    // of them ends in every new one refused, a GPU's buffers among them.
+    long files = -1;
+    long filesMax = -1;
 };
+
+// The entries of /proc/self/fd, counted without allocating (the watchdog's
+// thread reads it while the main thread may hold the allocator's lock).
+long openFiles() {
+    const int dir = ::open("/proc/self/fd", O_RDONLY | O_DIRECTORY | O_CLOEXEC);
+    if (dir < 0)
+        return -1;
+    long count = 0;
+    alignas(8) char buffer[4096];
+    for (;;) {
+        const long n = ::syscall(SYS_getdents64, dir, buffer, sizeof buffer);
+        if (n <= 0)
+            break;
+        for (long at = 0; at < n;) {
+            // struct linux_dirent64: d_ino, d_off, d_reclen, d_type, d_name.
+            unsigned short length;
+            std::memcpy(&length, buffer + at + 16, sizeof length);
+            const char *name = buffer + at + 19;
+            if (name[0] != '.')
+                ++count;
+            at += length;
+        }
+    }
+    ::close(dir);
+    // The directory's own, open while it was read.
+    return count - 1;
+}
 
 bool readFile(const char *path, char *buffer, size_t size) {
     const int fd = ::open(path, O_RDONLY | O_CLOEXEC);
@@ -137,13 +170,17 @@ Memory readMemory() {
         m.swapTotalKb = fieldKb(text, "SwapTotal:");
         m.swapFreeKb = fieldKb(text, "SwapFree:");
     }
+    m.files = openFiles();
+    rlimit limit {};
+    if (::getrlimit(RLIMIT_NOFILE, &limit) == 0 && limit.rlim_cur != RLIM_INFINITY)
+        m.filesMax = long(limit.rlim_cur);
     return m;
 }
 
 void formatMemory(const Memory &m, char *out, size_t size) {
-    std::snprintf(out, size, "app %ld MB, available %ld of %ld MB, swap %ld of %ld MB in use",
+    std::snprintf(out, size, "app %ld MB, available %ld of %ld MB, swap %ld of %ld MB in use, %ld of %ld files open",
                   m.rssKb / 1024, m.availableKb / 1024, m.totalKb / 1024,
-                  (m.swapTotalKb - m.swapFreeKb) / 1024, m.swapTotalKb / 1024);
+                  (m.swapTotalKb - m.swapFreeKb) / 1024, m.swapTotalKb / 1024, m.files, m.filesMax);
 }
 
 // --- A crash ---
@@ -531,6 +568,19 @@ void limitMallocArenas() {
 void releaseFreedMemory() {
 #if defined(__GLIBC__)
     malloc_trim(0);
+#endif
+}
+
+void raiseFileLimit() {
+#ifdef Q_OS_LINUX
+    rlimit limit {};
+    if (::getrlimit(RLIMIT_NOFILE, &limit) != 0)
+        return;
+    const rlim_t wanted = limit.rlim_max == RLIM_INFINITY ? rlim_t(65536) : std::min<rlim_t>(limit.rlim_max, 65536);
+    if (limit.rlim_cur != RLIM_INFINITY && limit.rlim_cur < wanted) {
+        limit.rlim_cur = wanted;
+        ::setrlimit(RLIMIT_NOFILE, &limit);
+    }
 #endif
 }
 

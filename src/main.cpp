@@ -149,6 +149,7 @@ int main(int argc, char *argv[]) {
     // (util/Diagnostics), or every film played inside the window leaves tens
     // of MB behind.
     diagnostics::limitMallocArenas();
+    diagnostics::raiseFileLimit();
     // On a headless screen (EGLFS) Qt draws the mouse pointer itself, as a
     // hardware cursor, and the BlankCursor below doesn't always keep it hidden:
     // it came back over the menus after a web player session. The app has no
