@@ -447,6 +447,35 @@ int main(int argc, char *argv[]) {
     QQuickWindow *rootWindow = qobject_cast<QQuickWindow *>(engine.rootObjects().first());
     inputManager.setTargetWindow(rootWindow);
 
+    // A child given the screen on a headless Pi (a game, a video, a web
+    // player) puts back, as it ends, what it found there: the app's frame
+    // is painted onto the hand-off's own cover for it to find, and the cover
+    // is blacked out once the child's picture is up (DisplayHandoff), so
+    // that coming back shows black and then the menus, never again the
+    // loading screen the child started behind. OSDOS_HANDOFF_COVER=0 leaves
+    // it out, the screen then coming back on that frame as before.
+    if (rootWindow && DisplayHandoff::isHeadless() && legacy::env("HANDOFF_COVER") != QLatin1String("0")) {
+        displayHandoff.setCoverPainter([rootWindow](int width, int height, unsigned char *pixels, int pitch) {
+            QImage frame = rootWindow->grabWindow();
+            if (frame.isNull())
+                return false;
+            if (frame.size() != QSize(width, height))
+                frame = frame.scaled(width, height, Qt::IgnoreAspectRatio, Qt::FastTransformation);
+            frame = frame.convertToFormat(QImage::Format_RGB32);    // XRGB8888, as the cover is
+            const qsizetype line = qsizetype(width) * 4;
+            for (int y = 0; y < height; ++y)
+                std::memcpy(pixels + qsizetype(y) * pitch, frame.constScanLine(y), size_t(line));
+            return true;
+        });
+    }
+    // The screen back from a child: a frame drawn at once, whether or not
+    // anything changed meanwhile (the hand-back restores a black cover).
+    if (rootWindow)
+        QObject::connect(&displayHandoff, &DisplayHandoff::heldChanged, rootWindow, [rootWindow, &displayHandoff] {
+            if (!displayHandoff.held())
+                rootWindow->update();
+        });
+
     // On the OS image the services held back for the app start once its first
     // frame is on screen. The timer is a backstop for a platform whose window
     // never reports a swap; markReady() only acts once.

@@ -285,7 +285,7 @@ WantedBy=multi-user.target
 
 - **After `sound.target`, not `multi-user.target`.** The default dependencies put it after `basic.target`. `Wants=network-online.target` pulls in the online check the boot screen ends on, without waiting for it.
 - **`SupplementaryGroups` and `CAP_SYS_TTY_CONFIG`** let it switch virtual terminals and hand the screen to mpv. A udev rule (`/etc/udev/rules.d/99-osdos-tty.rules`) lets the `tty` group open `/dev/tty0` for that.
-- **`OSDOS_AUTOSTART=1`** tells OSD/OS it runs as the system's own: Quit offers Power Off, Restart and Exit to Terminal, and Settings offers Display Output.
+- **`OSDOS_AUTOSTART=1`** tells OSD/OS it runs as the system's own: Quit offers Power Off, Restart and Exit to Terminal, and Settings offers Display Output. With `OSDOS_MEDIA_DIR` (the OSD-OS partition), Quit offers Save Logs too: the logs copied to the partition's `Logs` folder, which a computer reads.
 - **`Restart=on-failure`** starts OSD/OS again five seconds after a crash or an error exit. **`StartLimitBurst=3`** in **`StartLimitIntervalSec=120`** makes the third start in two minutes the last: when that one fails too, the service is failed, and **`OnFailure=`** starts `osdos-terminal.service`, a login prompt on the screen. **`RestartMode=direct`** (systemd 254 or later; the image has 257) keeps the failures before that from bringing the prompt up too: without it, systemd runs `OnFailure=` at every failure, a restart to follow or not. The Pi stays on throughout.
 - **`SuccessExitStatus`** counts Exit to Terminal (10), a restart (12), a display switch (20 to 30, and 40 to 50 with a power-off) and a stop from outside (129, 130, 143) as no failure, so systemd neither starts OSD/OS again over them nor brings up the login prompt. `osdos-stop` acts on them ([Quitting](https://github.com/mehmetraif/OSD-OS/wiki/The-OSD-OS-Image#quitting-restarting-and-exit-to-terminal)).
 - **The drop-in** `/etc/systemd/system/osdos.service.d/osdos-media.conf` adds `Environment=OSDOS_MEDIA_DIR=/media/OSD-OS`: Local Files opens the **Movies** folder on the film partition while its Media Directory setting is unset, and the Arcade module its **Games/Arcade** folder while its Games Folder setting is.
@@ -494,7 +494,7 @@ Without a password, `os/build.sh` hands pi-gen a random one and the stage locks 
 <table>
 <tr><th width="50%">Quit</th><th width="50%">Update</th></tr>
 <tr><td><img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/screenshots/quit.png" width="100%" alt="Really quit? with Yes and No" /></td><td><img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/screenshots/update.png" width="100%" alt="Update: installed version DEV, press Enter to check for the latest" /></td></tr>
-<tr><td>Settings → Quit, run by hand: Yes or No. Started with the system, as on the image, it offers Power Off, Restart, Exit to Terminal and Cancel instead.</td><td>Settings → Update checks for a newer release and installs it.</td></tr>
+<tr><td>Settings → Quit, run by hand: Yes or No. Started with the system, as on the image, it offers Power Off, Restart, Exit to Terminal, Save Logs and Cancel instead.</td><td>Settings → Update checks for a newer release and installs it.</td></tr>
 </table>
 
 Settings → **Quit** on the image asks **Really quit?** with:

@@ -13,6 +13,7 @@
 #include <QElapsedTimer>
 #include <QThread>
 #include <QDebug>
+#include <algorithm>
 #include <array>
 #include <csignal>   // SIGTERM, on Windows too
 #include <cstdio>
@@ -59,6 +60,46 @@ QString sanitizedLdPreload(const QString &value)
         kept << entry;
     }
     return kept.join(QLatin1Char(':'));
+}
+
+// A process group's processes, from /proc/<pid>/stat: its name (in brackets
+// that may hold anything), then its state, its parent and its group.
+struct GroupMember {
+    QString name;
+    QString pid;
+    bool zombie = false;
+};
+QList<GroupMember> groupProcesses(qint64 pgid) {
+    QList<GroupMember> members;
+    const QStringList pids = QDir(QStringLiteral("/proc")).entryList(QDir::Dirs | QDir::NoDotAndDotDot);
+    for (const QString &pid : pids) {
+        bool number = false;
+        pid.toLongLong(&number);
+        if (!number)
+            continue;
+        QFile stat(QStringLiteral("/proc/") + pid + QStringLiteral("/stat"));
+        if (!stat.open(QIODevice::ReadOnly))
+            continue;
+        const QByteArray line = stat.readAll();
+        const int open = line.indexOf('(');
+        const int close = line.lastIndexOf(')');
+        if (open < 0 || close < open)
+            continue;
+        const QList<QByteArray> fields = line.mid(close + 2).split(' ');
+        if (fields.size() > 2 && fields.at(2).toLongLong() == pgid)
+            members.append({ QString::fromUtf8(line.mid(open + 1, close - open - 1)), pid, fields.at(0) == "Z" });
+    }
+    return members;
+}
+
+// What a run left behind, "name (pid)" each, for the log.
+QString groupMembers(qint64 pgid) {
+    QStringList members;
+    for (const GroupMember &member : groupProcesses(pgid)) {
+        if (!member.zombie)
+            members << QStringLiteral("%1 (%2)").arg(member.name, member.pid);
+    }
+    return members.isEmpty() ? QStringLiteral("none found") : members.join(QStringLiteral(", "));
 }
 
 } // namespace
@@ -113,6 +154,19 @@ ScriptLauncher::ScriptLauncher(const QString &appRoot, const QString &dataRoot,
         }
         m_groupTimer->stop();
         releaseDisplayAndReport();
+    });
+
+    // What a program left running after its SIGTERM (startGroupDrain()): a
+    // SIGKILL, so that the drain ends and the screen comes back.
+    m_leftoverTimer = new QTimer(this);
+    m_leftoverTimer->setSingleShot(true);
+    m_leftoverTimer->setInterval(kLeftoverGraceMs);
+    connect(m_leftoverTimer, &QTimer::timeout, this, [this] {
+        if (groupAlive()) {
+            qWarning("[Scripts] '%s': what it left running ignored SIGTERM — sending SIGKILL",
+                     qPrintable(m_runningBasename));
+            killGroup(SIGKILL);
+        }
     });
 
     m_startTimer = new QTimer(this);
@@ -174,7 +228,17 @@ bool ScriptLauncher::drainingGroup() const {
 }
 
 bool ScriptLauncher::groupAlive() const {
-#ifdef Q_OS_UNIX
+#ifdef Q_OS_LINUX
+    if (m_pgid <= 0 || ::kill(static_cast<pid_t>(-m_pgid), 0) != 0)
+        return false;
+    // A zombie holds nothing, neither the screen nor the input: a group of
+    // them alone, dead but not reaped yet by the parent they were left to (an
+    // init that reaps late or never, as a container's), is gone. Alive while
+    // /proc shows none of them at all, as kill() found some.
+    const QList<GroupMember> members = groupProcesses(m_pgid);
+    return members.isEmpty()
+        || std::any_of(members.cbegin(), members.cend(), [](const GroupMember &m) { return !m.zombie; });
+#elif defined(Q_OS_UNIX)
     return m_pgid > 0 && ::kill(static_cast<pid_t>(-m_pgid), 0) == 0;
 #else
     return false;
@@ -194,8 +258,9 @@ void ScriptLauncher::clearOutput() {
 void ScriptLauncher::resetForNewRun() {
     // A stopped run's children still in their SIGTERM grace are not left
     // behind: what the grace would have done in a moment is done now.
-    if (m_killTimer->isActive()) {
+    if (m_killTimer->isActive() || m_leftoverTimer->isActive()) {
         m_killTimer->stop();
+        m_leftoverTimer->stop();
         if (groupAlive()) killGroup(SIGKILL);
     }
     m_lines.clear();
@@ -210,6 +275,7 @@ void ScriptLauncher::resetForNewRun() {
     m_pendingReason.clear();
     m_takeoverRun  = false;
     m_waitForGroup  = true;
+    m_endLeftovers  = false;
     m_downgraded    = false;
     m_drainStartMs  = 0;
     m_warnedDrain   = false;
@@ -249,6 +315,7 @@ bool ScriptLauncher::start(const ScriptEntry &entry, QString *errorOut) {
     m_runningName     = entry.meta.name;
     m_runningBasename = entry.basename;
     m_waitForGroup    = (entry.meta.wait != QLatin1String("child"));
+    m_endLeftovers    = (entry.meta.wait == QLatin1String("program"));
 
     // --- Hand the display over, if this script wants it. Everything that could
     // fail has already been checked above: nothing may be handed over before a
@@ -612,8 +679,25 @@ void ScriptLauncher::startGroupDrain() {
         m_drainStartMs = QDateTime::currentMSecsSinceEpoch();
         m_warnedDrain  = false;
         m_groupTimer->start();
-        qInfo("[Scripts] '%s' exited but left processes running — waiting before "
-              "taking the screen back", qPrintable(m_runningBasename));
+#ifdef Q_OS_LINUX
+        const QString left = groupMembers(m_pgid);
+#else
+        const QString left = QStringLiteral("not listed here");
+#endif
+        // A program a module runs (an emulator) is the whole run: what it
+        // left (a sound server it started, a helper) is ended, rather than
+        // waited for with the screen held, as a launcher script's work is.
+        // Waited for, the screen stayed on the last frame the program put
+        // back, and nothing answered.
+        if (m_endLeftovers) {
+            qWarning("[Scripts] '%s' exited but left processes running (%s) — ending them "
+                     "before taking the screen back", qPrintable(m_runningBasename), qPrintable(left));
+            killGroup(SIGTERM);
+            m_leftoverTimer->start();
+        } else {
+            qInfo("[Scripts] '%s' exited but left processes running (%s) — waiting before "
+                  "taking the screen back", qPrintable(m_runningBasename), qPrintable(left));
+        }
         emit runningChanged();   // isBusy() is now true again (draining)
         return;
     }

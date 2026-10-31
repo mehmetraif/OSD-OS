@@ -77,6 +77,13 @@ Rectangle {
         }
         function isAutostartSession() { return false }
         function canRestartSystem() { return false }
+        // Quit's Save Logs: offered while canLogs, saveLogs() counted, the
+        // answer sent with logsSaved().
+        property bool canLogs: false
+        property int logSaves: 0
+        signal logsSaved(bool ok, string detail)
+        function canSaveLogs() { return canLogs }
+        function saveLogs() { logSaves++; return true }
         function themes() { return [] }
         function skins() { return [] }
         function getCustomColorSchemes() { return ({}) }
@@ -148,6 +155,8 @@ Rectangle {
         function init() {
             appCore.values = {}
             appCore.pasted = ""
+            appCore.canLogs = false
+            appCore.logSaves = 0
             root.navigations = []
             wifiManager.supported = false
         }
@@ -419,6 +428,55 @@ Rectangle {
             verify(yesNo.itemAtIndex(1).current)
             keyClick(Qt.Key_Escape)
             compare(root.navigations.length, 0)
+        }
+
+        // On the OSD/OS image Quit offers Save Logs before No: the logs go
+        // to the card's OSD-OS drive, a notice saying so while they are
+        // copied, then where they are (Windows' way: Logs\<time>) or why not.
+        function test_quitSavesLogs() {
+            appCore.canLogs = true
+            var page = open()
+            var all = lines(page)
+            var list = null
+            for (var i = 0; i < page.children.length; i++) {
+                if (page.children[i].currentIndex !== undefined && page.children[i].model !== undefined)
+                    list = page.children[i]
+            }
+            list.currentIndex = all.indexOf("Quit")
+            keyClick(Qt.Key_Return)
+            compare(page.quitOptions.map(function(o) { return o.label }), ["Yes", "Save Logs", "No"])
+            keyClick(Qt.Key_Down)
+            keyClick(Qt.Key_Return)
+            compare(appCore.logSaves, 1)
+            var notice = null
+            for (var j = 0; j < page.children.length; j++) {
+                if (page.children[j].promptText === "Saving logs…")
+                    notice = page.children[j]
+            }
+            verify(notice !== null && notice.visible, "the notice says it is saving")
+            compare(notice.subtitleText, "To the card's OSD-OS drive")
+            appCore.logsSaved(true, "Logs/2026-10-31_16-05-12")
+            compare(notice.promptText, "Logs saved")
+            compare(notice.subtitleText, "On the card's OSD-OS drive, in Logs\\2026-10-31_16-05-12")
+            keyClick(Qt.Key_Escape)
+            verify(!notice.visible, "back closes it")
+            compare(cursor(page), "Quit")
+            // A copy that failed says why.
+            keyClick(Qt.Key_Return)
+            keyClick(Qt.Key_Down)
+            keyClick(Qt.Key_Return)
+            compare(appCore.logSaves, 2)
+            appCore.logsSaved(false, "The card's OSD-OS partition isn't there or can't be written")
+            compare(notice.promptText, "Logs not saved")
+            compare(notice.subtitleText, "The card's OSD-OS partition isn't there or can't be written")
+            keyClick(Qt.Key_Return)
+            verify(!notice.visible, "select closes it too")
+        }
+
+        // Nothing to save logs to (not the image): Quit is Yes or No.
+        function test_quitWithoutLogs() {
+            var page = open()
+            compare(page.quitOptions.map(function(o) { return o.label }), ["Yes", "No"])
         }
 
         // Wi-Fi among the general settings once NetworkManager can be asked

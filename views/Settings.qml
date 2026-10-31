@@ -36,6 +36,9 @@ FocusScope {
     // they are not needed on macOS/Desktop or when run by hand, so it's yes/no for that case.
     property bool autostartSession: false
     property bool canRestart: false
+    // Quit's Save Logs: on the OSD/OS image, the logs copied to the card's
+    // OSD-OS partition, which a computer shows as a drive (AppCore::saveLogs).
+    property bool canSaveLogs: false
 
     // Display Output, read from displayOutput in buildModel(): the outputs
     // this board has, the one in force, the one written for the next start,
@@ -50,13 +53,16 @@ FocusScope {
     property bool outputPowerOff: false
     property var outputChoice: ({})
     property string outputFailure: ""
+    readonly property var saveLogsOption: settingsRoot.canSaveLogs ? [{ label: "Save Logs", action: "logs" }] : []
     property var quitOptions: settingsRoot.autostartSession
         ? [{ label: "Power Off",        action: "quit"     }]
           .concat(settingsRoot.canRestart ? [{ label: "Restart", action: "restart" }] : [])
-          .concat([{ label: "Exit to Terminal", action: "terminal" },
-                   { label: "Cancel",           action: "cancel"   }])
-        : [{ label: "Yes", action: "quit" },
-           { label: "No",  action: "cancel" }]
+          .concat([{ label: "Exit to Terminal", action: "terminal" }])
+          .concat(saveLogsOption)
+          .concat([{ label: "Cancel",           action: "cancel"   }])
+        : [{ label: "Yes", action: "quit" }]
+          .concat(saveLogsOption)
+          .concat([{ label: "No",  action: "cancel" }])
 
     // `at`: the row the cursor stays on, else the one it was on last.
     function buildModel(at) {
@@ -65,6 +71,7 @@ FocusScope {
         installedModules = appCore.get_installed_modules()
         autostartSession = appCore.isAutostartSession()
         canRestart = appCore.canRestartSystem()
+        canSaveLogs = appCore.canSaveLogs()
 
         var items = []
         if (group === "tv")
@@ -1190,7 +1197,45 @@ FocusScope {
             if (act === "quit")          Qt.quit()
             else if (act === "restart")  Qt.exit(12)   // osdos-stop reboots on it
             else if (act === "terminal") Qt.exit(10)   // matches EXIT_STATUS check in osdos-stop
+            else if (act === "logs")     settingsRoot.saveLogs()
         }
+        onClosed: settingsList.forceActiveFocus()
+    }
+
+    // --- SAVE LOGS ---
+    // Saving, then where they went or why not. Back closes it meanwhile; the
+    // copy goes on and is told in the log.
+    function saveLogs() {
+        logsNotice.saving = true
+        logsNotice.saved = false
+        logsNotice.detail = ""
+        logsNotice.open()
+        if (!appCore.saveLogs()) {
+            logsNotice.saving = false
+            logsNotice.detail = "A copy is already being made, or this system has no card to copy them to"
+        }
+    }
+    Connections {
+        target: appCore
+        ignoreUnknownSignals: true
+        function onLogsSaved(ok, detail) {
+            logsNotice.saving = false
+            logsNotice.saved = ok
+            logsNotice.detail = detail
+        }
+    }
+    ChoiceOverlay {
+        id: logsNotice
+        property bool saving: false
+        property bool saved: false
+        property string detail: ""
+        anchors.fill: parent
+        promptKind: "notice"
+        promptText: saving ? "Saving logs…" : saved ? "Logs saved" : "Logs not saved"
+        subtitleText: saving ? "To the card's OSD-OS drive"
+                    : saved ? "On the card's OSD-OS drive, in " + detail.replace(/\//g, "\\")
+                    : detail
+        choices: []
         onClosed: settingsList.forceActiveFocus()
     }
 }

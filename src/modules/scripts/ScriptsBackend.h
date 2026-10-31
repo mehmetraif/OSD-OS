@@ -17,7 +17,12 @@ struct ScriptMeta {
     bool    favorite = false;                     // adds a main-menu row (Phase 5)
     bool    confirm  = false;                     // yes/no prompt before running
     QString args;                                 // appended after the script path
-    QString wait     = QStringLiteral("pgroup");  // takeover: "pgroup" | "child"
+    // takeover: "pgroup" (the screen comes back once everything the script
+    // started has gone) | "child" (once the script itself has) | "program"
+    // (a program a module runs, MAME or RetroArch: once it has exited, what
+    // it left running in its group is ended, and the screen comes back as
+    // soon as that has gone)
+    QString wait     = QStringLiteral("pgroup");
     bool    tty      = false;                     // takeover + Linux: give the child the VT
 
     bool isTakeover() const { return mode == QLatin1String("takeover"); }

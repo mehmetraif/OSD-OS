@@ -5,9 +5,11 @@
 #include <QDebug>
 
 #ifdef Q_OS_LINUX
+#include <QElapsedTimer>
 #include <fcntl.h>
 #include <unistd.h>
 #include <sys/ioctl.h>
+#include <sys/mman.h>
 #include <sys/stat.h>
 #include <sys/sysmacros.h>
 #include <linux/vt.h>
@@ -33,6 +35,13 @@ DisplayHandoff::DisplayHandoff(QObject *parent)
         doRestore();
         if (cb) cb();
     });
+    // While a child has the screen, whether its own picture is up yet: the
+    // cover is blacked out then (checkCover()).
+    m_coverTimer = new QTimer(this);
+    m_coverTimer->setInterval(250);
+#ifdef Q_OS_LINUX
+    connect(m_coverTimer, &QTimer::timeout, this, &DisplayHandoff::checkCover);
+#endif
 }
 
 DisplayHandoff::~DisplayHandoff() {
@@ -43,8 +52,15 @@ DisplayHandoff::~DisplayHandoff() {
         m_onRestored = nullptr;
         // Not heldChanged: QML outlives this object, and has nothing to redraw.
         blockSignals(true);
-        doRestore();
+        // Qt's own frame, not the cover: nothing is drawn after this.
+        doRestore(false);
     }
+#ifdef Q_OS_LINUX
+    // The cover's mapping; the buffer itself goes with the app's DRM file,
+    // which may be on the screen still.
+    if (m_cover.pixels)
+        ::munmap(m_cover.pixels, m_cover.size);
+#endif
 }
 
 bool DisplayHandoff::isHeadless() {
@@ -143,6 +159,10 @@ int DisplayHandoff::acquire(const QString &owner) {
         // child exits. An atomic cleanup disables the CRTC (CRTC_ACTIVE=0);
         // without this restore, Qt EGLFS gets EINVAL on its next page flip.
         saveDrmCrtcState(m_qtDrmFd);
+        // The app's last frame on a frame buffer of our own: what the child
+        // saves, and puts back as it ends, blacked out by then.
+        if (m_savedDrm.valid && m_coverPainter)
+            showCover(m_qtDrmFd);
     }
     emit heldChanged();
     return freeVt;
@@ -174,7 +194,8 @@ void DisplayHandoff::releaseNow(const QString &owner) {
     doRestore();
 }
 
-void DisplayHandoff::doRestore() {
+void DisplayHandoff::doRestore(bool useCover) {
+    m_coverTimer->stop();
 #ifdef Q_OS_LINUX
     if (m_qtDrmFd >= 0) {
         if (::ioctl(m_qtDrmFd, DRM_IOCTL_SET_MASTER, 0) < 0) {
@@ -183,12 +204,16 @@ void DisplayHandoff::doRestore() {
             qDebug("[DisplayHandoff] DRM master restored (fd %d)", m_qtDrmFd);
             // Restore the CRTC to its pre-hand-off state using legacy
             // drmModeSetCrtc. This re-enables the CRTC with the original mode and
-            // Qt's last framebuffer, so EGLFS's first atomic page flip succeeds
-            // instead of getting EINVAL from a disabled CRTC.
-            restoreDrmCrtcState(m_qtDrmFd);
+            // the cover, black, or Qt's last framebuffer, so EGLFS's first
+            // atomic page flip succeeds instead of getting EINVAL from a
+            // disabled CRTC.
+            restoreDrmCrtcState(m_qtDrmFd, useCover);
         }
         m_qtDrmFd = -1;
     }
+    m_cover.shown = false;
+#else
+    Q_UNUSED(useCover)
 #endif
     // Only switch back if we actually switched away — otherwise this just logs a
     // second, confusing permission error on a VT we never left.
@@ -395,21 +420,37 @@ void DisplayHandoff::saveDrmCrtcState(int fd) {
         qWarning("[DisplayHandoff] Could not save CRTC state");
 }
 
-void DisplayHandoff::restoreDrmCrtcState(int fd) {
+void DisplayHandoff::restoreDrmCrtcState(int fd, bool useCover) {
     if (!m_savedDrm.valid) return;
 
-    int ret = drmModeSetCrtc(fd,
-                              m_savedDrm.crtcId,
-                              m_savedDrm.fbId,
-                              m_savedDrm.x, m_savedDrm.y,
-                              &m_savedDrm.connectorId, 1,
-                              &m_savedDrm.mode);
+    // The cover, black, where this hand-off showed one: the app's last frame
+    // (the loading screen it handed the screen over from) never comes back
+    // on the screen, which shows black until the app's next frame. Should
+    // the cover not be taken, Qt's own frame buffer, as before covers.
+    bool restored = false;
+    if (useCover && m_cover.shown && m_cover.fd == fd) {
+        blackenCover();
+        if (drmModeSetCrtc(fd, m_savedDrm.crtcId, m_cover.fbId, 0, 0,
+                           &m_savedDrm.connectorId, 1, &m_savedDrm.mode) == 0)
+            restored = true;
+        else
+            qWarning("[DisplayHandoff] The cover could not be put back (%s): the app's last frame is",
+                     strerror(errno));
+    }
+    int ret = 0;
+    if (!restored)
+        ret = drmModeSetCrtc(fd,
+                             m_savedDrm.crtcId,
+                             m_savedDrm.fbId,
+                             m_savedDrm.x, m_savedDrm.y,
+                             &m_savedDrm.connectorId, 1,
+                             &m_savedDrm.mode);
     if (ret < 0)
         qWarning("[DisplayHandoff] drmModeSetCrtc restore failed: %s", strerror(errno));
     else
-        qDebug("[DisplayHandoff] CRTC restored (mode %dx%d@%d)",
+        qDebug("[DisplayHandoff] CRTC restored (mode %dx%d@%d%s)",
                m_savedDrm.mode.hdisplay, m_savedDrm.mode.vdisplay,
-               m_savedDrm.mode.vrefresh);
+               m_savedDrm.mode.vrefresh, restored ? ", black" : "");
 
     // A child that drew a mouse pointer (cage does, when there is a mouse) can
     // leave it on the CRTC's cursor plane, over the menus. The app draws none.
@@ -417,5 +458,122 @@ void DisplayHandoff::restoreDrmCrtcState(int fd) {
         qDebug("[DisplayHandoff] Clearing the cursor failed: %s", strerror(errno));
 
     m_savedDrm.valid = false;
+}
+
+// A dumb buffer of width x height, 32-bit XRGB, mapped, as the cover; the one
+// there kept when it is of that size. Never called while the cover is on the
+// screen: removing a frame buffer that is shown turns its CRTC off.
+bool DisplayHandoff::ensureCover(int fd, uint32_t width, uint32_t height) {
+    if (m_cover.fbId && m_cover.fd == fd && m_cover.width == width && m_cover.height == height)
+        return true;
+    if (m_cover.fbId) {
+        if (m_cover.pixels)
+            ::munmap(m_cover.pixels, m_cover.size);
+        if (m_cover.fd >= 0 && ::fcntl(m_cover.fd, F_GETFD) != -1) {
+            drmModeRmFB(m_cover.fd, m_cover.fbId);
+            drm_mode_destroy_dumb destroy {};
+            destroy.handle = m_cover.handle;
+            drmIoctl(m_cover.fd, DRM_IOCTL_MODE_DESTROY_DUMB, &destroy);
+        }
+        m_cover = {};
+    }
+    drm_mode_create_dumb create {};
+    create.width = width;
+    create.height = height;
+    create.bpp = 32;
+    if (drmIoctl(fd, DRM_IOCTL_MODE_CREATE_DUMB, &create) != 0) {
+        qWarning("[DisplayHandoff] No cover for the screen (%ux%u): %s", width, height, strerror(errno));
+        return false;
+    }
+    const auto destroy = [fd, &create] {
+        drm_mode_destroy_dumb gone {};
+        gone.handle = create.handle;
+        drmIoctl(fd, DRM_IOCTL_MODE_DESTROY_DUMB, &gone);
+    };
+    uint32_t fbId = 0;
+    if (drmModeAddFB(fd, width, height, 24, 32, create.pitch, create.handle, &fbId) != 0) {
+        qWarning("[DisplayHandoff] No cover for the screen (a frame buffer of %ux%u): %s",
+                 width, height, strerror(errno));
+        destroy();
+        return false;
+    }
+    drm_mode_map_dumb map {};
+    map.handle = create.handle;
+    void *pixels = MAP_FAILED;
+    if (drmIoctl(fd, DRM_IOCTL_MODE_MAP_DUMB, &map) == 0)
+        pixels = ::mmap(nullptr, create.size, PROT_READ | PROT_WRITE, MAP_SHARED, fd, off_t(map.offset));
+    if (pixels == MAP_FAILED) {
+        qWarning("[DisplayHandoff] No cover for the screen (its memory): %s", strerror(errno));
+        drmModeRmFB(fd, fbId);
+        destroy();
+        return false;
+    }
+    m_cover.fd = fd;
+    m_cover.handle = create.handle;
+    m_cover.fbId = fbId;
+    m_cover.width = width;
+    m_cover.height = height;
+    m_cover.pitch = create.pitch;
+    m_cover.size = create.size;
+    m_cover.pixels = static_cast<unsigned char *>(pixels);
+    return true;
+}
+
+void DisplayHandoff::showCover(int fd) {
+    const uint32_t width = m_savedDrm.mode.hdisplay;
+    const uint32_t height = m_savedDrm.mode.vdisplay;
+    if (!width || !height || !ensureCover(fd, width, height))
+        return;
+    QElapsedTimer took;
+    took.start();
+    if (!m_coverPainter(int(width), int(height), m_cover.pixels, int(m_cover.pitch))) {
+        qWarning("[DisplayHandoff] The app's frame could not be painted for the cover: none this time");
+        return;
+    }
+    m_cover.black = false;
+    // Master again for the moment it takes, as before the drop: no one
+    // else has taken it, the child not started yet.
+    if (::ioctl(fd, DRM_IOCTL_SET_MASTER, 0) < 0) {
+        qWarning("[DisplayHandoff] No cover: drmSetMaster failed: %s", strerror(errno));
+        return;
+    }
+    const bool shown = drmModeSetCrtc(fd, m_savedDrm.crtcId, m_cover.fbId, 0, 0,
+                                      &m_savedDrm.connectorId, 1, &m_savedDrm.mode) == 0;
+    const int setError = errno;
+    if (::ioctl(fd, DRM_IOCTL_DROP_MASTER, 0) < 0)
+        qWarning("[DisplayHandoff] DRM master could not be dropped again after the cover: %s",
+                 strerror(errno));
+    if (!shown) {
+        qWarning("[DisplayHandoff] The cover could not be shown (%s): the child finds the app's own frame",
+                 strerror(setError));
+        return;
+    }
+    m_cover.shown = true;
+    m_coverTimer->start();
+    qDebug("[DisplayHandoff] Cover %ux%u shown, painted in %lld ms", width, height, qint64(took.elapsed()));
+}
+
+void DisplayHandoff::blackenCover() {
+    if (!m_cover.pixels || m_cover.black)
+        return;
+    std::memset(m_cover.pixels, 0, m_cover.size);
+    m_cover.black = true;
+}
+
+void DisplayHandoff::checkCover() {
+    if (!m_cover.shown || m_qtDrmFd < 0) {
+        m_coverTimer->stop();
+        return;
+    }
+    drmModeCrtcPtr crtc = drmModeGetCrtc(m_qtDrmFd, m_savedDrm.crtcId);
+    const uint32_t onScreen = crtc ? crtc->buffer_id : m_cover.fbId;
+    if (crtc)
+        drmModeFreeCrtc(crtc);
+    // The child's own picture up (or the screen off): what it puts back as
+    // it ends is black.
+    if (onScreen != m_cover.fbId) {
+        blackenCover();
+        m_coverTimer->stop();
+    }
 }
 #endif

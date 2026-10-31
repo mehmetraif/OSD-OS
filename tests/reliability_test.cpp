@@ -643,6 +643,65 @@ private slots:
 #endif
     }
 
+    // Quit's Save Logs on the image: OSDOS_MEDIA_DIR (the card's OSD-OS
+    // partition) and scripts/save-logs.sh beside the app, the repository's
+    // own, run in a process of its own: the reports in Logs/<date_time>/,
+    // the folder told relative to the partition, one copy at a time; a
+    // partition not there told as such; nothing offered without one.
+    void savesLogsToTheCard() {
+#ifndef Q_OS_LINUX
+        QSKIP("The logs are copied on the OSD/OS image (Linux)");
+#else
+        QTemporaryDir app;
+        QTemporaryDir data;
+        QTemporaryDir card;
+        QVERIFY(app.isValid() && data.isValid() && card.isValid());
+        QVERIFY(QDir(app.path()).mkpath(QStringLiteral("scripts")));
+        QVERIFY(QFile::copy(QStringLiteral(OSDOS_SOURCE_DIR "/scripts/save-logs.sh"),
+                            app.path() + QStringLiteral("/scripts/save-logs.sh")));
+        QFile report(data.path() + QStringLiteral("/stall-report.txt"));
+        QVERIFY(report.open(QIODevice::WriteOnly));
+        report.write("stalled\n");
+        report.close();
+        const QByteArray media = qgetenv("OSDOS_MEDIA_DIR");
+        const auto restore = qScopeGuard([&media] {
+            if (media.isNull())
+                qunsetenv("OSDOS_MEDIA_DIR");
+            else
+                qputenv("OSDOS_MEDIA_DIR", media);
+        });
+
+        qunsetenv("OSDOS_MEDIA_DIR");
+        AppCore core(app.path(), data.path());
+        QVERIFY(!core.canSaveLogs());
+        QVERIFY(!core.saveLogs());
+
+        qputenv("OSDOS_MEDIA_DIR", card.path().toUtf8());
+        QVERIFY(core.canSaveLogs());
+        QSignalSpy saved(&core, &AppCore::logsSaved);
+        QVERIFY(core.saveLogs());
+        QVERIFY(!core.saveLogs());   // one copy at a time
+        QVERIFY(saved.wait(20000));
+        QCOMPARE(saved.size(), 1);
+        QVERIFY2(saved.at(0).at(0).toBool(), qPrintable(saved.at(0).at(1).toString()));
+        const QString folder = saved.at(0).at(1).toString();
+        QVERIFY2(QRegularExpression(QStringLiteral("^Logs/\\d{4}-\\d\\d-\\d\\d_\\d\\d-\\d\\d-\\d\\d$")).match(folder).hasMatch(),
+                 qPrintable(folder));
+        QFile copied(card.path() + QLatin1Char('/') + folder + QStringLiteral("/stall-report.txt"));
+        QVERIFY(copied.open(QIODevice::ReadOnly));
+        QCOMPARE(copied.readAll(), QByteArray("stalled\n"));
+
+        // The partition gone (not mounted): said so, nothing made.
+        qputenv("OSDOS_MEDIA_DIR", (card.path() + QStringLiteral("/gone")).toUtf8());
+        QVERIFY(core.saveLogs());
+        QVERIFY(saved.wait(20000));
+        QCOMPARE(saved.size(), 2);
+        QVERIFY(!saved.at(1).at(0).toBool());
+        QCOMPARE(saved.at(1).at(1).toString(), QStringLiteral("The card's OSD-OS partition isn't there or can't be written"));
+        QVERIFY(!QFileInfo::exists(card.path() + QStringLiteral("/gone")));
+#endif
+    }
+
     // config.json is read once and kept while the file stays as it was: a
     // setting saved by OSD/OS, or the file edited by hand (its time or size
     // changed), is read afresh.

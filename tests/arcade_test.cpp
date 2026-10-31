@@ -7,6 +7,7 @@
 #include "modules/arcade/ProgramInstaller.h"
 #include "modules/arcade/Mame.h"
 #include "modules/arcade/RetroAchievements.h"
+#include "util/DisplayHandoff.h"
 
 #include <QDateTime>
 #include <QDir>
@@ -133,6 +134,12 @@ crash)
 	;;
 slowgame)
 	sleep 1
+	;;
+leftover)
+	# A helper it starts, as a sound library starts a sound server, left
+	# running in its process group when it exits.
+	sleep 60 &
+	echo "helper $!" >> "$MAME_LOG"
 	;;
 *)
 	[ -n "$MAME_SECONDS" ] && sleep "$MAME_SECONDS"
@@ -997,6 +1004,46 @@ private slots:
         QVERIFY(!arcade.play(QStringLiteral("galaga")));
         QCOMPARE(arcade.lastError(), QStringLiteral("A game is still running"));
         QVERIFY(finished.wait(10000));
+    }
+
+    // MAME leaving a process of its own running as it exits (a sound server
+    // its sound library started): the game ends as MAME does, and what it
+    // left is ended, where the screen used to wait for it for good, the
+    // game's last frame up and nothing answering.
+    void aGameLeavingAProcessBehindEnds() {
+#ifndef Q_OS_LINUX
+        QSKIP("Process groups are followed on Linux");
+#else
+        writeFile(m_games + QStringLiteral("/leftover.zip"));
+        // Gone with the test whatever becomes of it: the games folder is
+        // every test's.
+        const auto removeGame = qScopeGuard([this] { QFile::remove(m_games + QStringLiteral("/leftover.zip")); });
+        // The game takes the screen, as on a desktop (a hand-off with no
+        // console to switch), and gives it back when its group has gone.
+        const QByteArray display = qgetenv("DISPLAY");
+        qputenv("DISPLAY", ":99");
+        const auto restore = qScopeGuard([&display] {
+            if (display.isEmpty())
+                qunsetenv("DISPLAY");
+            else
+                qputenv("DISPLAY", display);
+        });
+        DisplayHandoff handoff;
+        ArcadeBackend arcade(m_data.path(), m_data.path(), nullptr, &handoff);
+        refreshed(arcade);
+        QElapsedTimer took;
+        took.start();
+        QCOMPARE(played(arcade, QStringLiteral("leftover")).at(1).toString(), QStringLiteral("ok"));
+        QVERIFY2(took.elapsed() < 5000, qPrintable(QStringLiteral("ended after %1 ms").arg(took.elapsed())));
+        QVERIFY(!arcade.running());
+        QVERIFY(!handoff.held());
+        const QStringList helper = logLines(QStringLiteral("helper "));
+        QCOMPARE(helper.size(), 1);
+        const QString stat = QStringLiteral("/proc/") + helper.first().mid(7) + QStringLiteral("/stat");
+        // Gone, or a zombie left for its new parent to reap.
+        QTRY_VERIFY_WITH_TIMEOUT(!QFileInfo::exists(stat)
+                                     || contents(stat).mid(contents(stat).lastIndexOf(')') + 2, 1) == "Z", 3000);
+#endif
     }
 
     // With no sound card ALSA can play through, MAME is told to play none:

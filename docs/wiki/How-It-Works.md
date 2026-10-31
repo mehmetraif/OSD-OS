@@ -539,7 +539,7 @@ What OSD/OS reads from its environment. Each `OSDOS_…` name is also read as `M
 |---|---|
 | `APP_ROOT` | The app's folder ([What happens at start](https://github.com/mehmetraif/OSD-OS/wiki/How-It-Works#the-apps-folder-and-the-data-folder)) |
 | `DATA_ROOT` | The data folder, an existing one; the launcher looks for staged updates there too |
-| `OSDOS_AUTOSTART` | Set by the autostart service: Quit offers Power Off, Restart and Exit to Terminal |
+| `OSDOS_AUTOSTART` | Set by the autostart service: Quit offers Power Off, Restart and Exit to Terminal (and Save Logs on the image, with `OSDOS_MEDIA_DIR`) |
 | `OSDOS_LAUNCHER_API` | Set by the launcher: what its stop helper can do ([The launcher API](https://github.com/mehmetraif/OSD-OS/wiki/The-OSD-OS-Image#the-launcher-api)) |
 | `OSDOS_BOOT_UNITS_FILE`, `OSDOS_READY_FILE` | The OSD/OS image's boot screen: the services it follows, the file written at the first frame |
 | `OSDOS_MEDIA_DIR` | The folder the media go in (the image's film partition): Local Files opens `Movies` there while its setting is unset, the Arcade module `Games/Arcade` while its own is |

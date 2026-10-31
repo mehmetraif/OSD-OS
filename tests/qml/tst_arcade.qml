@@ -3027,20 +3027,40 @@ Rectangle {
             appCore.settings = settings
             return open("Root.qml")
         }
-        function shown(router) {
+        // The view it shows: Play.qml over the list (its playLayer) while
+        // that is up, else the list's own view.
+        function shownLoader(router) {
+            var list = null
             for (var i = 0; i < router.children.length; ++i) {
-                if (router.children[i].source !== undefined)
-                    return router.children[i].item
+                var child = router.children[i]
+                if (child.source === undefined)
+                    continue
+                if (child.objectName === "playLayer") {
+                    if (child.item)
+                        return child
+                } else if (!list) {
+                    list = child
+                }
             }
-            return null
+            return list
+        }
+        function shown(router) {
+            var loader = shownLoader(router)
+            return loader ? loader.item : null
         }
         // The file of the view it shows.
         function shownFile(router) {
+            var loader = shownLoader(router)
+            return loader ? String(loader.source).replace(/.*\//, "") : ""
+        }
+        // The list's own view, under Play.qml or not.
+        function listView(router) {
             for (var i = 0; i < router.children.length; ++i) {
-                if (router.children[i].source !== undefined)
-                    return String(router.children[i].source).replace(/.*\//, "")
+                var child = router.children[i]
+                if (child.source !== undefined && child.objectName !== "playLayer")
+                    return child.item
             }
-            return ""
+            return null
         }
 
         // Screen unset, the module opens on the Arcade screen; set to
@@ -3155,13 +3175,19 @@ Rectangle {
         // it isn't.
         function test_rootStartInfoOn() {
             var router = openRoot({ screen: "Arcade" })
+            var screen = shown(router)
             keyClick(Qt.Key_Return)
             var play = shown(router)
             compare(play.game, "sf2")
             compare(play.phase, "opening")
+            // Over the list, which is kept, not drawn under it.
+            compare(listView(router), screen)
+            verify(!screen.visible)
             compare(arcadeBackend.started, [])
             compare(appCore.added, [])
             keyClick(Qt.Key_Escape)
+            compare(shown(router), screen)
+            verify(screen.visible)
             compare(shown(router).currentSet, "sf2")
             compare(appCore.added, [])
             keyClick(Qt.Key_Return)
@@ -3176,6 +3202,17 @@ Rectangle {
             compare(arcadeBackend.started, ["sf2"])
             compare(appCore.added, [["com.osdos.arcade", "recent", "game:sf2"]])
             compare(appCore.lastAdded.name, "Street Fighter II: The World Warrior (World 910522)")
+            // The game over: the list it was chosen on, the same one, there at
+            // once with its keys, rather than loaded again behind the
+            // game's loading screen.
+            arcadeBackend.running = false
+            arcadeBackend.finished(0, "ok", "")
+            compare(shown(router), screen)
+            verify(screen.visible)
+            compare(screen.currentSet, "sf2")
+            keyClick(Qt.Key_Down)
+            compare(screen.currentSet, "1942")
+            compare(root.backs, 0)
         }
 
         // Settings → Arcade → Screen Adjustment opens the Arcade screen to
