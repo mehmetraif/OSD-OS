@@ -64,11 +64,17 @@ struct DrmCover {
 //     atomic commit: the child's atomic cleanup leaves CRTC_ACTIVE=0, and EGLFS
 //     then gets EINVAL on its first page flip. It is restored with the cover,
 //     black by then, where there is one, and with Qt's last frame buffer
-//     otherwise.
+//     otherwise. Before that SetCrtc, every other plane still attached to the
+//     CRTC is disabled: RetroArch and SDL's KMS backends leave overlay planes
+//     armed, and EGLFS's next atomic commit then fails with EINVAL forever —
+//     a black screen after Coin+Start on a Pi 5 JAMMA DPI cabinet.
 //     The default 200 ms defer lets the child's last pending KMS commit clear in
 //     the vc4 driver; commit too early and EGLFS gets EBUSY repeatedly, drops its
 //     DRM pipeline, and the kernel falls back to the text console on Qt's VT.
-//     200 ms is more than three VSync periods at 60 Hz.
+//     200 ms is more than three VSync periods at 60 Hz. On a Pi 5 DPI output
+//     (drm-rp1-dpi, OSDOS_DRM_CONNECTOR naming DPI) the pipe disable/enable at
+//     child exit needs longer — releaseDeferred waits at least 500 ms there
+//     unless OSDOS_HANDOFF_SETTLE_MS sets the wait.
 //
 //   The cover: a child that sets a mode of its own (SDL's KMS/DRM backend,
 //     RetroArch's, mpv's) saves the CRTC as it found it and sets it back as it
@@ -77,7 +83,8 @@ struct DrmCover {
 //     at the end and shown until the app drew again. With the cover it finds
 //     a frame buffer of ours instead, which shows the same picture while it
 //     starts and is blacked out once its own picture is up, so that what it
-//     puts back as it ends is black.
+//     puts back as it ends is black. main.cpp then releaseResources()+update()
+//     so EGLFS rebuilds against the restored CRTC.
 //
 // On macOS and on desktop Linux (X11/Wayland present) there is no DRM/VT work
 // — the child just opens a window over ours — so acquire() still returns 0,
@@ -123,7 +130,8 @@ public:
     // because a different owner already holds the screen.
     int  acquire(const QString &owner);
 
-    // Restores the display after delayMs, then invokes onRestored. The callback
+    // Restores the display after delayMs (raised for a Pi 5 DPI output — see
+    // the header comment on release), then invokes onRestored. The callback
     // always runs — even if this owner never held the screen — because callers
     // use it to emit their "finished" signal, and dropping it would leave a view
     // focused over a defunct process with the app looking frozen.
@@ -169,6 +177,11 @@ private:
     // useCover: the CRTC set to the cover (blacked out first) where one was
     // shown, else, or should that fail, to Qt's last frame buffer.
     void restoreDrmCrtcState(int fd, bool useCover);
+    // Disable every plane still on crtcId except one whose FB is keepFbId
+    // (0: disable all). Leaves EGLFS's atomic commit able to flip again.
+    void disableExtraPlanes(int fd, uint32_t crtcId, uint32_t keepFbId);
+    // Mode from the connector that matches the saved one, else the saved mode.
+    drmModeModeInfo connectorMode(int fd) const;
     // The CRTC set to a cover painted with the app's frame, master taken
     // for it and dropped again (acquire()).
     void showCover(int fd);
@@ -177,6 +190,9 @@ private:
     // Blacked out once the child's own picture is up (m_coverTimer).
     void checkCover();
 #endif
+    // How long releaseDeferred actually waits: at least delayMs, longer on
+    // drm-rp1-dpi, or OSDOS_HANDOFF_SETTLE_MS when set.
+    int settleDelayMs(int delayMs) const;
     // useCover false for shutdown: Qt's own last frame buffer put back.
     void doRestore(bool useCover = true);
 

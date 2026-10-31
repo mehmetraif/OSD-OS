@@ -1,6 +1,7 @@
 #include "DisplayHandoff.h"
 #include <QDir>
 #include <QFile>
+#include <QThread>
 #include <QTimer>
 #include <QDebug>
 
@@ -171,6 +172,26 @@ int DisplayHandoff::acquire(const QString &owner) {
 #endif
 }
 
+int DisplayHandoff::settleDelayMs(int delayMs) const {
+    // A tester can force the wait (including 0) without rebuilding.
+    bool ok = false;
+    const int fromEnv = qEnvironmentVariableIntValue("OSDOS_HANDOFF_SETTLE_MS", &ok);
+    if (ok && fromEnv >= 0)
+        return fromEnv;
+    int ms = delayMs;
+#ifdef Q_OS_LINUX
+    // Pi 5 JAMMA / SCART RGB use drm-rp1-dpi. The child's exit bounces that
+    // pipe (rp1dpi_pipe_disable then enable in the kernel log). 200 ms is
+    // enough for vc4 HDMI; on DPI, EGLFS's first atomic flip after a too-early
+    // restore fails with EINVAL and never recovers — a permanent black screen
+    // after Coin+Start. Wait at least half a second for the pipe to settle.
+    const QByteArray connector = qgetenv("OSDOS_DRM_CONNECTOR");
+    if (connector.contains("DPI") || connector.contains("dpi"))
+        ms = qMax(ms, 500);
+#endif
+    return ms;
+}
+
 void DisplayHandoff::releaseDeferred(const QString &owner,
                                      std::function<void()> onRestored,
                                      int delayMs) {
@@ -183,7 +204,7 @@ void DisplayHandoff::releaseDeferred(const QString &owner,
         return;
     }
     m_onRestored = std::move(onRestored);
-    m_releaseTimer->start(delayMs);
+    m_releaseTimer->start(settleDelayMs(delayMs));
 }
 
 void DisplayHandoff::releaseNow(const QString &owner) {
@@ -206,8 +227,14 @@ void DisplayHandoff::doRestore(bool useCover) {
             // drmModeSetCrtc. This re-enables the CRTC with the original mode and
             // the cover, black, or Qt's last framebuffer, so EGLFS's first
             // atomic page flip succeeds instead of getting EINVAL from a
-            // disabled CRTC.
+            // disabled CRTC. Extra planes the child left on the CRTC are
+            // cleared inside restoreDrmCrtcState.
             restoreDrmCrtcState(m_qtDrmFd, useCover);
+            // Give drm-rp1-dpi a frame to lock after SetCrtc before the VT
+            // switch wakes Qt's renderer into its first atomic flip.
+            const QByteArray connector = qgetenv("OSDOS_DRM_CONNECTOR");
+            if (connector.contains("DPI") || connector.contains("dpi"))
+                QThread::msleep(50);
         }
         m_qtDrmFd = -1;
     }
@@ -420,20 +447,96 @@ void DisplayHandoff::saveDrmCrtcState(int fd) {
         qWarning("[DisplayHandoff] Could not save CRTC state");
 }
 
+drmModeModeInfo DisplayHandoff::connectorMode(int fd) const {
+    drmModeModeInfo mode = m_savedDrm.mode;
+    drmModeConnectorPtr conn = drmModeGetConnector(fd, m_savedDrm.connectorId);
+    if (!conn)
+        return mode;
+    if (conn->connection == DRM_MODE_CONNECTED && conn->count_modes > 0) {
+        bool matched = false;
+        for (int i = 0; i < conn->count_modes; ++i) {
+            const drmModeModeInfo &cand = conn->modes[i];
+            if (cand.hdisplay == m_savedDrm.mode.hdisplay
+                && cand.vdisplay == m_savedDrm.mode.vdisplay
+                && cand.vrefresh == m_savedDrm.mode.vrefresh
+                && cand.clock == m_savedDrm.mode.clock) {
+                mode = cand;
+                matched = true;
+                break;
+            }
+        }
+        // Same size, any refresh: a child's modeset can leave a twin mode
+        // preferred; picking it keeps SetCrtc from EINVAL on a stale blob.
+        if (!matched) {
+            for (int i = 0; i < conn->count_modes; ++i) {
+                const drmModeModeInfo &cand = conn->modes[i];
+                if (cand.hdisplay == m_savedDrm.mode.hdisplay
+                    && cand.vdisplay == m_savedDrm.mode.vdisplay) {
+                    mode = cand;
+                    matched = true;
+                    break;
+                }
+            }
+        }
+        if (!matched)
+            mode = conn->modes[0];
+    }
+    drmModeFreeConnector(conn);
+    return mode;
+}
+
+void DisplayHandoff::disableExtraPlanes(int fd, uint32_t crtcId, uint32_t keepFbId) {
+    // Without universal planes, GetPlaneResources only lists overlays — still
+    // the ones RetroArch/SDL leave behind. Failure here is non-fatal: the
+    // SetCrtc below may still recover a CRTC that only lost ACTIVE.
+    drmSetClientCap(fd, DRM_CLIENT_CAP_UNIVERSAL_PLANES, 1);
+    drmModePlaneResPtr planes = drmModeGetPlaneResources(fd);
+    if (!planes)
+        return;
+    int cleared = 0;
+    for (uint32_t i = 0; i < planes->count_planes; ++i) {
+        drmModePlanePtr plane = drmModeGetPlane(fd, planes->planes[i]);
+        if (!plane)
+            continue;
+        if (plane->crtc_id == crtcId && plane->fb_id != 0
+            && (keepFbId == 0 || plane->fb_id != keepFbId)) {
+            if (drmModeSetPlane(fd, plane->plane_id, 0, 0, 0,
+                                0, 0, 0, 0, 0, 0, 0, 0) == 0)
+                ++cleared;
+            else
+                qDebug("[DisplayHandoff] Could not clear plane %u: %s",
+                       plane->plane_id, strerror(errno));
+        }
+        drmModeFreePlane(plane);
+    }
+    drmModeFreePlaneResources(planes);
+    if (cleared > 0)
+        qDebug("[DisplayHandoff] Cleared %d leftover plane(s) on CRTC %u",
+               cleared, crtcId);
+}
+
 void DisplayHandoff::restoreDrmCrtcState(int fd, bool useCover) {
     if (!m_savedDrm.valid) return;
+
+    // Planes first: an overlay still bound to this CRTC makes EGLFS's atomic
+    // page flip return EINVAL even after a successful legacy SetCrtc.
+    disableExtraPlanes(fd, m_savedDrm.crtcId, 0);
+
+    drmModeModeInfo mode = connectorMode(fd);
 
     // The cover, black, where this hand-off showed one: the app's last frame
     // (the loading screen it handed the screen over from) never comes back
     // on the screen, which shows black until the app's next frame. Should
     // the cover not be taken, Qt's own frame buffer, as before covers.
     bool restored = false;
+    uint32_t shownFb = m_savedDrm.fbId;
     if (useCover && m_cover.shown && m_cover.fd == fd) {
         blackenCover();
         if (drmModeSetCrtc(fd, m_savedDrm.crtcId, m_cover.fbId, 0, 0,
-                           &m_savedDrm.connectorId, 1, &m_savedDrm.mode) == 0)
+                           &m_savedDrm.connectorId, 1, &mode) == 0) {
             restored = true;
-        else
+            shownFb = m_cover.fbId;
+        } else
             qWarning("[DisplayHandoff] The cover could not be put back (%s): the app's last frame is",
                      strerror(errno));
     }
@@ -444,13 +547,37 @@ void DisplayHandoff::restoreDrmCrtcState(int fd, bool useCover) {
                              m_savedDrm.fbId,
                              m_savedDrm.x, m_savedDrm.y,
                              &m_savedDrm.connectorId, 1,
-                             &m_savedDrm.mode);
-    if (ret < 0)
-        qWarning("[DisplayHandoff] drmModeSetCrtc restore failed: %s", strerror(errno));
-    else
+                             &mode);
+    if (ret < 0) {
+        qWarning("[DisplayHandoff] drmModeSetCrtc restore failed: %s — trying a full modeset",
+                 strerror(errno));
+        // RP1 DPI sometimes rejects the first SetCrtc after pipe_disable; a
+        // disable then enable matches the kernel's own recovery path.
+        drmModeSetCrtc(fd, m_savedDrm.crtcId, 0, 0, 0, nullptr, 0, nullptr);
+        QThread::msleep(20);
+        const uint32_t fb = (useCover && m_cover.shown && m_cover.fd == fd)
+                            ? m_cover.fbId : m_savedDrm.fbId;
+        const int x = (fb == m_savedDrm.fbId) ? m_savedDrm.x : 0;
+        const int y = (fb == m_savedDrm.fbId) ? m_savedDrm.y : 0;
+        ret = drmModeSetCrtc(fd, m_savedDrm.crtcId, fb, x, y,
+                             &m_savedDrm.connectorId, 1, &mode);
+        if (ret < 0)
+            qWarning("[DisplayHandoff] drmModeSetCrtc restore failed again: %s",
+                     strerror(errno));
+        else {
+            restored = (fb != m_savedDrm.fbId) || restored;
+            shownFb = fb;
+        }
+    }
+    if (ret >= 0)
         qDebug("[DisplayHandoff] CRTC restored (mode %dx%d@%d%s)",
-               m_savedDrm.mode.hdisplay, m_savedDrm.mode.vdisplay,
-               m_savedDrm.mode.vrefresh, restored ? ", black" : "");
+               mode.hdisplay, mode.vdisplay, mode.vrefresh,
+               restored ? ", black" : "");
+
+    // Keep only the FB we just programmed on the primary plane; anything else
+    // that raced back onto the CRTC would break the next atomic flip again.
+    if (ret >= 0)
+        disableExtraPlanes(fd, m_savedDrm.crtcId, shownFb);
 
     // A child that drew a mouse pointer (cage does, when there is a mouse) can
     // leave it on the CRTC's cursor plane, over the menus. The app draws none.
