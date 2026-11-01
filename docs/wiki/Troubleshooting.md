@@ -192,7 +192,7 @@ YouTube runs through yt-dlp: the module searches and lists playlists with it, an
 
 **Updating yt-dlp.** A yt-dlp a few weeks old soon stops finding videos.
 
-- The image keeps its own, yt-dlp's nightly build, at `/home/pi/.local/share/OSD-OS/bin/yt-dlp`, and updates it two minutes after each boot and once a day (`osdos-yt-dlp-update.timer`). `journalctl -u osdos-yt-dlp-update` shows how the last update went; `~/.local/share/OSD-OS/bin/yt-dlp --update` updates it now.
+- The image keeps its own, yt-dlp's nightly build, at `/home/pi/.local/share/OSD-OS/bin/yt-dlp`, and updates it two minutes after each boot and once a day while YouTube or a playlist uses it, and as the YouTube module opens (`osdos-yt-dlp-update.timer`). `journalctl -u osdos-yt-dlp-update` shows how the last update went; `~/.local/share/OSD-OS/bin/yt-dlp --update` updates it now.
 - An install made by hand: `sudo yt-dlp -U` for the copy in `/usr/local/bin` from [BUILDING.md](https://github.com/mehmetraif/OSD-OS/blob/main/BUILDING.md#raspberry-pi-os-arm64), `brew upgrade yt-dlp` on a Mac.
 
 **Deno.** Current yt-dlp needs a JavaScript runtime to answer YouTube's challenges; without one, a video plays in few formats or none. Deno is the recommended one ([yt-dlp's EJS notes](https://github.com/yt-dlp/yt-dlp/wiki/EJS)). It must be on the `PATH` of the user, or the systemd service, that runs OSD/OS: a service's `PATH` holds `/usr/local/bin` and the system's folders, not a folder in your home. The image has it in `/usr/local/bin`; `brew install deno` on a Mac.

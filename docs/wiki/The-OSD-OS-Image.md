@@ -230,7 +230,7 @@ The `[boot]` lines read `boot screen up, watching 4 unit(s)`, `first frame … m
 | `NetworkManager-wait-online.service` | Gives up after 20 seconds (`NM_ONLINE_TIMEOUT=20`) instead of a minute |
 | `osdos-cloud-init-once.service` | After the first boot, writes `/etc/cloud/cloud-init.disabled`: cloud-init's stages would otherwise delay every boot. Delete that file to have cloud-init run again |
 | `osdos-setup-app.service`, `osdos-setup.service` | Enabled, and run only with an `osdos-setup.json` on the boot partition (or what a start cut short left): OSD/OS Setup's file taken off it and OSD/OS's own settings set before OSD/OS starts, the rest once it is on screen, as SETTINGS on the boot screen ([OSD/OS Setup](https://github.com/mehmetraif/OSD-OS/wiki/The-OSD-OS-Image#osdos-setup)) |
-| `osdos-yt-dlp-update.timer` | Updates yt-dlp two minutes after each boot and once a day ([Updates](https://github.com/mehmetraif/OSD-OS/wiki/The-OSD-OS-Image#updates)) |
+| `osdos-yt-dlp-update.timer` | Updates yt-dlp two minutes after each boot and once a day, while YouTube or a playlist uses it; the YouTube module starts it too as it opens ([Updates](https://github.com/mehmetraif/OSD-OS/wiki/The-OSD-OS-Image#yt-dlp)) |
 | `osdos-usb-mount@<device>.service` | One per USB drive plugged in ([USB drives](https://github.com/mehmetraif/OSD-OS/wiki/The-OSD-OS-Image#usb-drives)) |
 | `osdos-media-folders.service` | Started by the film partition's mount (`media-OSD\x2dOS.mount.wants`): makes the **Movies** folder on it, so the card has it from its first boot on. OSD/OS itself may start before the partition is mounted (it is mounted `nofail`, which holds nothing back), and a folder it made then would lie under the mount point |
 | `osdos-jamma.service` | Enabled, and does something only with the JAMMA display preset in force: a Raspberry Pi to JAMMA board's joysticks and buttons as two gamepads ([Controls](https://github.com/mehmetraif/OSD-OS/wiki/Controls#a-jamma-cabinet)), as a user of its own (`DynamicUser=yes`) in the `i2c` and `input` groups. Without the preset it exits at once; with it and no board, after 15 seconds |
@@ -239,6 +239,8 @@ The `[boot]` lines read `boot screen up, watching 4 unit(s)`, `first frame … m
 | `osdos-name.socket` | Enabled: Settings → About → System Information's rename, through `osdos-name@.service` ([The device name's socket](https://github.com/mehmetraif/OSD-OS/wiki/The-OSD-OS-Image#the-device-names-socket)) |
 | `osdos-terminal.service` | Not enabled. Started only by Exit to Terminal |
 | `getty@tty1.service`, `autovt@.service` | Masked: `tty1` belongs to OSD/OS, and no login prompt appears on the console mpv switches to. `/etc/systemd/logind.conf.d/osdos.conf` (`NAutoVTs=0`, `ReserveVT=0`) has logind start no logins on the consoles itself, so it logs no masked `autovt@` at every hand-off |
+| `serial-getty@ttyAMA10.service` | Masked: no login on the Pi 5's debug UART, which nothing plugs into on a TV box or a cabinet |
+| `udisks2.service` | Masked: USB drives are mounted by the image's own rule ([USB drives](https://github.com/mehmetraif/OSD-OS/wiki/The-OSD-OS-Image#usb-drives)), and nothing else asks udisks for anything. Masked rather than disabled, as D-Bus would start it the moment anything looked for it |
 | `apt-daily.timer`, `apt-daily-upgrade.timer`, `man-db.timer`, `e2scrub_all.timer`, `dpkg-db-backup.timer`, `cron.service` | Disabled. They wake the CPU and the SD card at random times, mid-film included. Updating the system is the image's business, not a timer's |
 | `rpi-connect-lite` | Purged: a remote-access agent has no place on a TV box |
 
@@ -648,13 +650,16 @@ YouTube changes often, and a yt-dlp a few weeks old soon stops finding its video
 [Service]
 Type=oneshot
 User=pi
+ExecCondition=/usr/lib/osdos/yt-dlp-wanted
 ExecCondition=/usr/bin/nm-online -q -t 300
 ExecStart=/home/pi/.local/share/OSD-OS/bin/yt-dlp --update
 Nice=19
 IOSchedulingClass=idle
 ```
 
-A check is one small request to GitHub, an update one write of about 3 MB, at the lowest priority so a film playing isn't disturbed. Without a connection within five minutes the run is skipped, not failed: a player that only plays its own films may never be online. `journalctl -u osdos-yt-dlp-update` shows each run.
+A run goes ahead only while something uses yt-dlp: `yt-dlp-wanted` reads OSD/OS's `config.json` and `playlists.json`, and lets it run while the YouTube module is on, or while the Playlists module is on with a YouTube video on one of its lists. Otherwise it is skipped, not failed, as on an arcade cabinet or a box that plays only its own films. The YouTube module starts the update itself the first time it opens after OSD/OS starts (`systemctl start`, which `/etc/polkit-1/rules.d/50-osdos-yt-dlp-update.rules` lets the app's user do for this one unit), so a module turned on later never plays with a yt-dlp weeks old.
+
+A check is one small request to GitHub, an update one write of about 3 MB, at the lowest priority so a film playing isn't disturbed. Without a connection within five minutes the run is skipped, not failed: a player that only plays its own films may never be online. `journalctl -u osdos-yt-dlp-update` shows each run, and why one was skipped.
 
 ### The system's packages
 

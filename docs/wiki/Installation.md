@@ -721,7 +721,7 @@ sudo apt full-upgrade
 sudo reboot
 ```
 
-YouTube's yt-dlp is the exception: on the image it replaces itself with its newest nightly build two minutes after each boot and once a day (`osdos-yt-dlp-update.timer`), when there is a connection.
+YouTube's yt-dlp is the exception: on the image it replaces itself with its newest nightly build two minutes after each boot and once a day (`osdos-yt-dlp-update.timer`), when there is a connection and YouTube or a playlist uses it, and as the YouTube module opens.
 
 ## Uninstalling
 

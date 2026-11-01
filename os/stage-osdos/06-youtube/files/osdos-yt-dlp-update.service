@@ -2,11 +2,15 @@
 Description=Update yt-dlp for OSD/OS's YouTube module
 # YouTube changes often, and a yt-dlp a few weeks old soon stops finding its
 # videos. The image's copy (stage 06-youtube) replaces itself with the latest
-# nightly build when there is one. Started by osdos-yt-dlp-update.timer.
+# nightly build when there is one. Started by osdos-yt-dlp-update.timer, and
+# by the app as the YouTube module opens (50-osdos-yt-dlp-update.rules).
 
 [Service]
 Type=oneshot
 User=@FIRST_USER_NAME@
+# Only while something uses yt-dlp: the YouTube module, or a YouTube video on
+# a playlist. Otherwise the run is skipped, as on an arcade cabinet.
+ExecCondition=/usr/lib/osdos/yt-dlp-wanted
 # Waits up to five minutes for a connection, since Wi-Fi can take longer than
 # the boot screen's check. Without one the run is skipped, not failed: a player
 # that only plays its own films may never be online.

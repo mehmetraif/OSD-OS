@@ -47,9 +47,15 @@ install -m 755 "${DOWNLOADS}/yt-dlp" "${ROOTFS_DIR}${DATA_BIN}/yt-dlp"
 install -m 755 "${DOWNLOADS}/deno" "${ROOTFS_DIR}/usr/local/bin/deno"
 install -D -m 644 files/deno-LICENSE.md "${ROOTFS_DIR}/usr/local/share/doc/deno/LICENSE.md"
 
+# The update, with the check that something uses yt-dlp (yt-dlp-wanted), and
+# the polkit rule that lets the app start it as the YouTube module opens.
 UNITS="${ROOTFS_DIR}/etc/systemd/system"
 install -m 644 files/osdos-yt-dlp-update.service files/osdos-yt-dlp-update.timer "${UNITS}/"
 sed -i "s/@FIRST_USER_NAME@/${FIRST_USER_NAME}/g" "${UNITS}/osdos-yt-dlp-update.service"
+install -D -m 755 files/yt-dlp-wanted "${ROOTFS_DIR}/usr/lib/osdos/yt-dlp-wanted"
+RULE="${ROOTFS_DIR}/etc/polkit-1/rules.d/50-osdos-yt-dlp-update.rules"
+install -D -m 644 files/50-osdos-yt-dlp-update.rules "${RULE}"
+sed -i "s/@OSDOS_USER@/${FIRST_USER_NAME}/" "${RULE}"
 
 on_chroot << CHROOT
 chown -R "${FIRST_USER_NAME}:" "/home/${FIRST_USER_NAME}/.local"

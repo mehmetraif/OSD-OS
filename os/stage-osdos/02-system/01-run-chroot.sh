@@ -14,7 +14,14 @@ if [ "${OSDOS_LOCK_FIRST_USER:-0}" = "1" ]; then
 fi
 
 # tty1 belongs to the app; "Exit to Terminal" starts osdos-terminal.service.
-systemctl mask getty@tty1.service autovt@.service
+# The Pi 5's debug UART (ttyAMA10) offers no login either: nobody plugs a
+# serial lead into an appliance.
+systemctl mask getty@tty1.service autovt@.service serial-getty@ttyAMA10.service
+
+# udisks2: nothing on the image asks it for anything. USB drives are mounted
+# by OSD/OS's own rule (stage 07-usb), and there is no desktop. Masked, as
+# D-Bus would otherwise start it the moment anything looked for it.
+systemctl mask udisks2.service
 
 # Settings → Bluetooth talks to BlueZ as this user, which BlueZ's D-Bus policy
 # lets in through the bluetooth group.
