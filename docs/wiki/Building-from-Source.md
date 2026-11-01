@@ -101,7 +101,7 @@ This is [BUILDING.md](https://github.com/mehmetraif/OSD-OS/blob/main/BUILDING.md
 | `libpcsclite-dev` | PC/SC NFC readers. Run `bash scripts/setup-nfc-reader.sh` once either way: it lets the user open a PN532 reader, and sets up `pcscd` where PC/SC is usable |
 | `fluidsynth timgm6mb-soundfont openmpt123` | Menu music in MIDI and trackers' formats (run time only) |
 | `mame` | The Arcade module's games, in MAME (run time only; the image has it) |
-| `retroarch` | The Arcade module's second engine, FinalBurn Neo, whose core comes with OSD/OS's packages, built from the commit `scripts/engines.env` names; a build of your own downloads it in Settings → Arcade → FinalBurn Neo, or takes the one `scripts/build-fbneo.sh` builds (run time only; the image has both) |
+| `retroarch` | The Arcade module's second engine, FinalBurn Neo, whose core comes with OSD/OS's packages, built from the commit `scripts/engines.env` names; a build of your own downloads it in Settings → Arcade → FinalBurn Neo, or takes the one `scripts/build-fbneo.sh` builds, and `scripts/build-fbneo-lan.sh` builds OSD/OS's LAN core, which games on the local network play on (run time only; the image has both) |
 | `libminizip-dev` | The High Scores module's tables. Its static library is linked in, so nothing more is needed at run time |
 | `bluez`, and the user in the `bluetooth` group | Settings → Bluetooth (run time; Raspberry Pi OS Lite has BlueZ). `sudo usermod -aG bluetooth $USER` |
 | NetworkManager | Settings → Wi-Fi (run time; Raspberry Pi OS has it). Run as a service, outside a desktop session, OSD/OS's user needs `install.sh`'s polkit rule to use it |
@@ -206,12 +206,13 @@ install/bin/osdos
 
 The install is laid out as on Linux, `bin/` and `share/osdos/`, which the app finds from its own folder; the data folder is `~/.local/share/OSD-OS/`, as on Linux. The tests build and run as on Linux, with `-DCMAKE_PREFIX_PATH=/usr/local` ([below](#the-regression-tests)).
 
-The package is made as the workflows make it, from an install staged under `/usr/local`: [scripts/build-fbneo.sh](https://github.com/mehmetraif/OSD-OS/blob/main/scripts/build-fbneo.sh) builds FinalBurn Neo's libretro core from libretro's source at the commit `scripts/engines.env` names, as for every package, its code unchanged, into `lib/osdos/` and `share/osdos/fbneo/`, with the Game Boy Advance's picture worker switched off (`GBAPPU_WORKER_DISABLE`, FinalBurn Neo's own switch), whose thread naming doesn't compile on the BSDs and which no arcade game uses, and [scripts/bsd-package.sh](https://github.com/mehmetraif/OSD-OS/blob/main/scripts/bsd-package.sh) makes the package with `pkg create` or `pkg_create`, depending on the packages the program's libraries come from, and on mpv and Qt's SVG module:
+The package is made as the workflows make it, from an install staged under `/usr/local`: [scripts/build-fbneo.sh](https://github.com/mehmetraif/OSD-OS/blob/main/scripts/build-fbneo.sh) builds FinalBurn Neo's libretro core from libretro's source at the commit `scripts/engines.env` names, as for every package, its code unchanged, into `lib/osdos/` and `share/osdos/fbneo/`, and [scripts/build-fbneo-lan.sh](https://github.com/mehmetraif/OSD-OS/blob/main/scripts/build-fbneo-lan.sh) OSD/OS's LAN core beside it from another copy of the same source, with OSD/OS's [patch](https://github.com/mehmetraif/OSD-OS/blob/main/scripts/fbneo-lan.patch) ([Arcade → OSD/OS's LAN core](https://github.com/mehmetraif/OSD-OS/wiki/Arcade#osdoss-lan-core)), both with the Game Boy Advance's picture worker switched off (`GBAPPU_WORKER_DISABLE`, FinalBurn Neo's own switch), whose thread naming doesn't compile on the BSDs and which no arcade game uses, and [scripts/bsd-package.sh](https://github.com/mehmetraif/OSD-OS/blob/main/scripts/bsd-package.sh) makes the package with `pkg create` or `pkg_create`, depending on the packages the program's libraries come from, and on mpv and Qt's SVG module:
 
 ```sh
 cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_PREFIX_PATH=/usr/local -DCMAKE_INSTALL_PREFIX=/usr/local -DAPP_VERSION=v0.0.24
 cmake --build build --parallel
 DESTDIR="$PWD/stage" cmake --install build
+bash scripts/build-fbneo-lan.sh <another FBNeo source> stage/usr/local/lib/osdos stage/usr/local/share/osdos/fbneo/license.txt
 bash scripts/build-fbneo.sh <FBNeo source> stage/usr/local/lib/osdos stage/usr/local/share/osdos/fbneo/fbneo-arcade.dat stage/usr/local/share/osdos/fbneo/license.txt
 bash scripts/bsd-package.sh stage v0.0.24 .   # OSD-OS-v0.0.24-freebsd-amd64.pkg, or OSD-OS-0.0.24-openbsd-amd64.tgz
 ```

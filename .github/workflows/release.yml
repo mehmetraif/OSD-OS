@@ -139,7 +139,7 @@ jobs:
           APP="${GITHUB_WORKSPACE}/install/osdos.app"
           "${QT_ROOT_DIR}/bin/macdeployqt" "$APP" -qmldir="${GITHUB_WORKSPACE}" -verbose=2
 
-      # OSD/OS's FinalBurn Neo cores, the whole one and the CV1000 LAN one,
+      # OSD/OS's FinalBurn Neo cores, the whole one and the LAN one,
       # in the bundle's Frameworks, where the app looks for them
       # (libretro::packagedCore(), lanCorePath()) and the signing below takes
       # them in; FinalBurn Neo's list of games and its licence in Resources.
@@ -155,7 +155,7 @@ jobs:
           APP="${GITHUB_WORKSPACE}/install/osdos.app"
           FW="$APP/Contents/Frameworks"
           test -f "$FW/libSDL2-2.0.0.dylib" || { echo "SDL2 not bundled"; exit 1; }
-          test -f "$FW/fbneo_cv1k_libretro.dylib" || { echo "CV1000 LAN core not bundled"; exit 1; }
+          test -f "$FW/osdos_lan_libretro.dylib" || { echo "LAN core not bundled"; exit 1; }
           test -f "$FW/fbneo_libretro.dylib" || { echo "FinalBurn Neo core not bundled"; exit 1; }
           ! ls "$FW" | grep -qi sdl3 || { echo "SDL3 leaked into bundle"; exit 1; }
           # minizip too, had the app been linked with its dynamic library
@@ -302,7 +302,7 @@ jobs:
       - name: Install
         run: cmake --install build
 
-      # OSD/OS's FinalBurn Neo cores, the whole one and the CV1000 LAN one,
+      # OSD/OS's FinalBurn Neo cores, the whole one and the LAN one,
       # under the prefix, where the app looks for them
       # (libretro::packagedCore(), lanCorePath()), with FinalBurn Neo's list
       # of games and its licence.
@@ -429,7 +429,7 @@ jobs:
       - name: Build
         run: cmake --build build --parallel
 
-      # OSD/OS's FinalBurn Neo cores, the whole one and the CV1000 LAN one,
+      # OSD/OS's FinalBurn Neo cores, the whole one and the LAN one,
       # with FinalBurn Neo's list of games and its licence, laid out as a
       # prefix that the AppImage's script puts in its usr/ (FBNEO_PREFIX).
       - name: FinalBurn Neo cores

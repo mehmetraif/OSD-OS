@@ -876,24 +876,30 @@ private:
     // of every game made: alone, hosted online or joining a room. Online,
     // this machine's players take the game's ports: a host's from 1
     // (hostPorts()), a room of the lobby's RetroArch's own, the first free.
-    // On the local network one port a machine, its player 1's: a host's
-    // port 1, and joining, the one its host's OSD/OS gave, portsFrom (0 for
-    // none left, -1 for no answer: RetroArch's own), on the layout it said
-    // (libretro::Launch::layout; a host chooses its own by its players,
-    // libretro::hostLayout()). On the local
-    // network, a CV1000 game (playsOnLanCore()) is hosted with OSD/OS's own
-    // core for it (libretro::lanCorePath()), and a room is joined with the
-    // core it is hosted with: lanCore, that one.
+    // On the local network a game is hosted on OSD/OS's LAN core where there
+    // is one (playsOnLanCore(), libretro::lanCorePath()), and a room is
+    // joined with the core it is hosted with: lanCore, that one. On it every
+    // controller here takes a port, a host's from 1, joining portsGiven from
+    // portsFrom as its host's OSD/OS gave them (0 for none left, -1 for no
+    // answer: RetroArch's own), and the core seats the players in the order
+    // they press COIN or START; on FinalBurn Neo's own core one port a
+    // machine, its player 1's. A machine joining plays on the layout its host
+    // said (libretro::Launch::layout; a host chooses its own by its players,
+    // libretro::hostLayout()).
     bool playFbneo(const QString &name, libretro::Launch::Netplay netplay = libretro::Launch::Netplay::None,
                    const QString &joinAddress = QString(), int portsFrom = -1, int portsGiven = 0,
                    libretro::Launch::Layout layout = libretro::Launch::Layout::Classic, bool lanCore = false,
                    int credits = 0);
-    // Whether a set is one of Cave's CV1000 board's (FinalBurn Neo's
-    // cave/d_cv1k.cpp), whose games are hosted on the local network with
-    // OSD/OS's own core (libretro::lanCorePath()).
+    // Whether set is hosted on the local network on OSD/OS's LAN core
+    // (libretro::lanCorePath()): every game where there is one, and a CV1000
+    // game always (none there, it can't be hosted).
     bool playsOnLanCore(const QString &set) const;
+    // Whether a set is one of Cave's CV1000 board's (FinalBurn Neo's
+    // cave/d_cv1k.cpp), which plays on the local network on OSD/OS's LAN
+    // core alone.
+    bool isCv1000(const QString &set) const;
     // Why set can't be hosted (hosting) or joined over the network on this
-    // machine, on OSD/OS's own core for CV1000 games (lanCore) or on
+    // machine, on OSD/OS's LAN core (lanCore) or on
     // FinalBurn Neo's: the memory it needs (setMemory()); "" where it can.
     QString netplayTooBig(const QString &set, bool lanCore, bool hosting) const;
     // How many players set plays at once, as MAME says (up to
@@ -921,6 +927,7 @@ private:
         QString game;
         QString joinAddress;
         QString host;
+        int players = 1;
         int asked = 0;
         // The host's layout, as it said before the ports (Classic until it
         // does), and whether it has; the ports that came before it did,
@@ -936,12 +943,12 @@ private:
     void startPendingJoin(const std::optional<libretro::PortRange> &ports);
     void releaseClaim(const QString &address);
     // Hosting on the local network: the ports taken counted (m_claims, this
-    // machine's port 1 first, of the game's most), and each OSD/OS joining
-    // told the layout and given its one port at the claim port
-    // (answerClaims()), until the game ends (stopClaims()). False without
-    // the socket for it: a machine joining then takes RetroArch's first
-    // free port.
-    bool startClaims(int most, libretro::Launch::Layout layout);
+    // machine's own first, 1 to own, of most, each machine joining's players
+    // no more than each), and each OSD/OS joining told the layout and given
+    // its ports at the claim port (answerClaims()), until the game ends
+    // (stopClaims()). False without the socket for it: a machine joining
+    // then takes RetroArch's first free port.
+    bool startClaims(int own, int most, int each, libretro::Launch::Layout layout);
     void answerClaims();
     void stopClaims();
     // Over the network, RetroArch's log read every so often as the game
