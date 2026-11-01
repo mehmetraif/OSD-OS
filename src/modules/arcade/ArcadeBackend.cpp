@@ -3394,33 +3394,31 @@ bool ArcadeBackend::playFbneo(const QString &name, libretro::Launch::Netplay net
     // joining takes what it was told, Classic from a host that said nothing
     // (RetroArch alone, an older OSD/OS, or a room of the lobby).
     launch.layout = hosting ? libretro::hostLayout(launch.panels, launch.arcade, gamePlayers(name)) : layout;
-    // The game's ports this machine's players take: a host's from 1
-    // (hostPorts()); joining on the local network, those its host's OSD/OS
-    // gave, or, with no answer, from 2, where more than one player is to
-    // play. Joining a room of the lobby, RetroArch's own: one port, the
-    // first free.
+    // The game's ports this machine's players take. Hosting online, from 1
+    // (hostPorts()); joining a room of the lobby, RetroArch's own: one port,
+    // the first free. On the local network one port a machine, its player
+    // 1's, so that the players take the game's ports in the order their
+    // machines come in: a host's port 1, and a machine joining the one its
+    // host's OSD/OS gave, or, with no answer, RetroArch's first free. A
+    // machine can't take another port once it plays (RetroArch's host drops
+    // one that asks), so a second player there doesn't play.
     int most = libretro::kMostPorts;
     const int own = hostPorts(name, &most);
-    const int ports = libretro::localPorts(guids);
     if (hosting) {
         launch.portsFrom = 1;
-        launch.ports = own;
+        launch.ports = netplay == Netplay::LanHost ? 1 : own;
     } else if (netplay == Netplay::LanJoin && portsFrom > 0) {
         launch.portsFrom = portsFrom;
-        launch.ports = std::clamp(portsGiven, 1, ports);
-    } else if (netplay == Netplay::LanJoin && portsFrom < 0 && ports > 1) {
-        launch.portsFrom = 2;
-        launch.ports = ports;
+        launch.ports = std::min(portsGiven, 1);
     }
     // No more than RetroArch sends one machine's input for on the layout
-    // (libretro::kPanelPorts on the panel's), whatever a host gave: one
-    // more, and the host would drop this machine.
+    // (libretro::kPanelPorts on the panel's): one more, and the host would
+    // drop this machine.
     launch.ports = std::min(launch.ports, libretro::mostPortsOn(launch.layout));
     // Hosting on the local network: the machines joining given their ports
-    // from now on. Without the socket for it this machine keeps to port 1,
-    // so that a machine joining, unanswered, finds port 2 free.
-    if (netplay == Netplay::LanHost && !startClaims(launch.ports, most, launch.layout))
-        launch.ports = 1;
+    // from now on.
+    if (netplay == Netplay::LanHost)
+        startClaims(most, launch.layout);
     // FinalBurn Neo's remap file: the arcade panels' players, and those with
     // Arcade Buttons, on its 6-Button Panel; none without one, nor online.
     // One of the user's own stays as it is, loaded in its place.
@@ -3594,11 +3592,10 @@ bool ArcadeBackend::joinLanRoom(int id) {
             m_lastError = QStringLiteral("A game is still running");
             return false;
         }
-        // The players' ports asked of the host's OSD/OS first, the game
+        // This machine's port asked of the host's OSD/OS first, the game
         // started once it has answered, or hasn't; a host that can't be
         // asked at all is joined at once, on RetroArch's own terms.
-        m_pendingJoin = PendingJoin{ room.game, room.joinAddress, room.joinAddress.section(QLatin1Char('|'), 0, 0),
-                                     libretro::localPorts(controllers::playerGuids()), 0 };
+        m_pendingJoin = PendingJoin{ room.game, room.joinAddress, room.joinAddress.section(QLatin1Char('|'), 0, 0) };
         m_pendingJoin->lanCore = room.core == libretro::kLanCoreName;
         if (askForPorts())
             return true;
@@ -3634,7 +3631,7 @@ bool ArcadeBackend::askForPorts() {
     const QHostAddress host(m_pendingJoin->host);
     if (m_pendingJoin->asked >= kClaimAskings || host.isNull()
         || (m_claimAsk->state() != QAbstractSocket::BoundState && !m_claimAsk->bind(QHostAddress(QHostAddress::AnyIPv4), 0))
-        || m_claimAsk->writeDatagram(libretro::claimQuery(m_pendingJoin->players), host, m_claimPort) < 0)
+        || m_claimAsk->writeDatagram(libretro::claimQuery(1), host, m_claimPort) < 0)
         return false;
     ++m_pendingJoin->asked;
     m_claimWait->start(kClaimWaitMs);
@@ -3645,8 +3642,7 @@ void ArcadeBackend::readPortsAnswer() {
     // The host's layout and its ports have both come: the game starts.
     const auto start = [this](const libretro::PortRange &ports) {
         m_claimWait->stop();
-        qInfo("[Arcade] %s gives this machine's %d player(s) %d port(s) from %d, on the %s layout",
-              qPrintable(m_pendingJoin->host), m_pendingJoin->players, ports.players, ports.first,
+        qInfo("[Arcade] %s gives this machine port %d, on the %s layout", qPrintable(m_pendingJoin->host), ports.first,
               m_pendingJoin->layout == libretro::Launch::Layout::Panel ? "panel" : "classic");
         startPendingJoin(ports);
     };
@@ -3713,9 +3709,11 @@ void ArcadeBackend::releaseClaim(const QString &address) {
     socket.writeDatagram(libretro::claimRelease(), QHostAddress(address), m_claimPort);
 }
 
-bool ArcadeBackend::startClaims(int own, int most, libretro::Launch::Layout layout) {
+bool ArcadeBackend::startClaims(int most, libretro::Launch::Layout layout) {
     stopClaims();
-    m_claims.reset(own, most, libretro::mostPortsOn(layout));
+    // This machine's port 1, and one port for each machine joining,
+    // whatever its players.
+    m_claims.reset(1, most, 1);
     m_claimLayout = layout;
     m_claimSocket = new QUdpSocket(this);
     if (!m_claimSocket->bind(QHostAddress(QHostAddress::AnyIPv4), m_claimPort)) {

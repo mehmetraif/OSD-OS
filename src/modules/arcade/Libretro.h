@@ -439,18 +439,20 @@ bool isLanSender(const QHostAddress &address);
 // RetroArch gives the machine hosting port 1 and each machine joining one
 // port, the first free, unless a machine asks for its ports by number
 // (Launch::portsFrom): the ports its players drive in order, its player 1
-// the first asked for. So a host asks for ports 1 to its players' count
+// the first asked for. Online a host asks for ports 1 to its players' count
 // (localPorts(), one fewer than the game plays at once at most, so that a
-// machine joining has a port) and its OSD/OS keeps count of the ports the
-// machines joining take (PortClaims): each OSD/OS joining asks it, at
-// kLanClaimPort, for ports for its players (claimQuery()) and is answered
-// with the first of theirs and how many (claimAnswer()), none when the game
-// has none left; one leaving gives its ports back (claimRelease()). A host
-// that doesn't answer, RetroArch alone or an older OSD/OS, holds port 1: a
-// joiner then asks for ports from 2 with more than one player, else for
-// none. Before the ports, a host says the layout it plays with
-// (claimLayout(), Launch::layout), which an older OSD/OS doesn't: Classic
-// then.
+// machine joining has a port). On the local network every machine takes
+// one port, its player 1's, so that the players take the game's ports in
+// the order their machines come in; a machine can't take another once it
+// plays (RetroArch's host drops a machine already playing that asks for
+// more). There the host asks for port 1 and its OSD/OS keeps count of the
+// ports the machines joining take (PortClaims): each OSD/OS joining asks
+// it, at kLanClaimPort, for a port (claimQuery()) and is answered with it
+// (claimAnswer()), none when the game has none left; one leaving gives its
+// port back (claimRelease()). A host that doesn't answer, RetroArch alone
+// or an older OSD/OS, leaves a joiner to RetroArch's first free port.
+// Before the port, a host says the layout it plays with (claimLayout(),
+// Launch::layout), which an older OSD/OS doesn't: Classic then.
 constexpr quint16 kLanClaimPort = 55436;
 // The ports a game is played on at most: FinalBurn Neo's six-player games,
 // as many as the players the menus have controllers for.
@@ -493,7 +495,8 @@ std::optional<Launch::Layout> readClaimLayout(const QByteArray &packet);
 
 // A host's count of the ports taken: its own, 1 to own, and each joiner's
 // by its address, within the game's ports (most), each joiner's players no
-// more than each (mostPortsOn() the layout). A joiner is given the first run
+// more than each (one, as OSD/OS hosts on the local network, whatever an
+// older OSD/OS joining asks for). A joiner is given the first run
 // of free ports that takes all its players, else the first free port and
 // what follows it; one asking again is given its ports anew, and one leaving
 // gives them up.

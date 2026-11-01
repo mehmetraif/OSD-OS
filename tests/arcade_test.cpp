@@ -1878,6 +1878,12 @@ private slots:
         QCOMPARE(given("a", 4), QStringLiteral("2+3"));
         QCOMPARE(given("b", 4), QStringLiteral("5+2"));
         QCOMPARE(given("a", 1), QStringLiteral("2+1"));
+        // One each, as OSD/OS hosts on the local network: one port whatever
+        // a machine asks for.
+        claims.reset(1, 6, 1);
+        QCOMPARE(given("a", 2), QStringLiteral("2+1"));
+        QCOMPARE(given("b", 4), QStringLiteral("3+1"));
+        QCOMPARE(given("c", 1), QStringLiteral("4+1"));
         claims.reset(1, 6, 0);
         QCOMPARE(claims.each(), 1);
         claims.reset(1);
@@ -5556,12 +5562,12 @@ private slots:
         QCOMPARE(changed.size(), 0);
 
         // Joined: RetroArch connects straight to the host, at the port it
-        // gave, under the device's name, this machine's two players (a JAMMA
-        // stick and a pad) on the ports the host's OSD/OS gives them: asked
-        // for at the claim port as the room is chosen, the game started on
-        // the answer, on the layout the host said before it (the panel's:
-        // the stick in the cabinet's rows, the pad as itself), and given
-        // back as it ends.
+        // gave, under the device's name, this machine's player 1 (a JAMMA
+        // stick, a pad as player 2) on the one port the host's OSD/OS gives
+        // it: asked for at the claim port as the room is chosen, the game
+        // started on the answer, on the layout the host said before it (the
+        // panel's: the stick in the cabinet's rows, the pad as itself), and
+        // given back as it ends.
         using Players = QList<QPair<QString, QString>>;
         const Players twoPlayers = { { QStringLiteral("OSDOS_PLAYER1_GUID"), QStringLiteral("0600aaaa") },
                                      { QStringLiteral("OSDOS_PLAYER1_NAME"), QStringLiteral("OSD/OS JAMMA P1") },
@@ -5576,8 +5582,9 @@ private slots:
         // does; the ports first and the layout a moment later (the two are
         // datagrams of their own); the ports alone, as an older OSD/OS; or
         // first that it plays at the game's own rate, as OSD/OS 0.0.28 to
-        // 0.0.32 did. It plays on the panel's layout and gives ports 3 and
-        // 4, unless said otherwise.
+        // 0.0.32 did. It plays on the panel's layout and gives port 3, and 4
+        // after it as an older OSD/OS gave a machine of two players, unless
+        // said otherwise: one taken, port 3.
         enum { LayoutThenPorts, PortsThenLayout, PortsAlone, PacedFirst } answering = LayoutThenPorts;
         libretro::Launch::Layout saidLayout = libretro::Launch::Layout::Panel;
         libretro::PortRange portsGiven = { 3, 2 };
@@ -5619,7 +5626,7 @@ private slots:
         QString config = QString::fromUtf8(contents(configCopy));
         QVERIFY2(config.contains(QStringLiteral("netplay_nickname = \"garage-cab\"")), qPrintable(config));
         QVERIFY(!config.contains(QStringLiteral("netplay_public_announce")));
-        QCOMPARE(requested(config), QStringLiteral("3 4"));
+        QCOMPARE(requested(config), QStringLiteral("3"));
         QVERIFY2(config.contains(QStringLiteral("input_player1_y_btn = \"0\"")), qPrintable(config));
         QVERIFY(config.contains(QStringLiteral("input_player1_l_btn = \"2\"")));
         QVERIFY(config.contains(QStringLiteral("input_player2_b_btn = \"0\"")));
@@ -5629,7 +5636,7 @@ private slots:
         for (const char *key : { "audio_sync", "audio_max_timing_skew", "audio_rate_control" })
             QVERIFY2(!config.contains(QLatin1String(key)), key);
         QTRY_VERIFY(!claimed.isEmpty() && claimed.last() == libretro::claimRelease());
-        QCOMPARE(claimed.first(), libretro::claimQuery(2));
+        QCOMPARE(claimed.first(), libretro::claimQuery(1));
         QVERIFY(!arcade.running());
         // The ports before the layout: the game waits a moment for it, and
         // starts on the panel's layout as before.
@@ -5637,7 +5644,7 @@ private slots:
         QFile::remove(m_log);
         QCOMPARE(ended([&arcade] { return arcade.joinLanRoom(1); }).value(1).toString(), QStringLiteral("ok"));
         config = QString::fromUtf8(contents(configCopy));
-        QCOMPARE(requested(config), QStringLiteral("3 4"));
+        QCOMPARE(requested(config), QStringLiteral("3"));
         QVERIFY2(config.contains(QStringLiteral("input_player1_y_btn = \"0\"")), qPrintable(config));
         QTRY_VERIFY(!claimed.isEmpty() && claimed.last() == libretro::claimRelease());
         // The ports alone, from an older OSD/OS: joined with them a moment
@@ -5646,7 +5653,7 @@ private slots:
         QFile::remove(m_log);
         QCOMPARE(ended([&arcade] { return arcade.joinLanRoom(1); }).value(1).toString(), QStringLiteral("ok"));
         config = QString::fromUtf8(contents(configCopy));
-        QCOMPARE(requested(config), QStringLiteral("3 4"));
+        QCOMPARE(requested(config), QStringLiteral("3"));
         QVERIFY2(config.contains(QStringLiteral("input_player1_b_btn = \"0\"")), qPrintable(config));
         QVERIFY(config.contains(QStringLiteral("input_player1_y_btn = \"2\"")));
         QTRY_VERIFY(!claimed.isEmpty() && claimed.last() == libretro::claimRelease());
@@ -5656,15 +5663,12 @@ private slots:
         QFile::remove(m_log);
         QCOMPARE(ended([&arcade] { return arcade.joinLanRoom(1); }).value(1).toString(), QStringLiteral("ok"));
         config = QString::fromUtf8(contents(configCopy));
-        QCOMPARE(requested(config), QStringLiteral("3 4"));
+        QCOMPARE(requested(config), QStringLiteral("3"));
         QVERIFY2(config.contains(QStringLiteral("input_player1_y_btn = \"0\"")), qPrintable(config));
         QVERIFY(!config.contains(QStringLiteral("audio_max_timing_skew")));
         QTRY_VERIFY(!claimed.isEmpty() && claimed.last() == libretro::claimRelease());
-        // Four players here, given four ports by a host that doesn't keep
-        // to the panel's three (an older OSD/OS): three of them taken on the
-        // panel's layout, as many as RetroArch sends one machine's input for
-        // on it (a fourth, and the host would drop this machine), the fourth
-        // player driving no one; all four on Classic.
+        // Four players here, given four ports by an older OSD/OS: one taken,
+        // the first, player 1's, on either layout; the others watch.
         const Players fourPlayers = twoPlayers
                                     + Players{ { QStringLiteral("OSDOS_PLAYER3_GUID"), QStringLiteral("0600cccc") },
                                                { QStringLiteral("OSDOS_PLAYER3_NAME"), QStringLiteral("Xbox 360 Controller") },
@@ -5677,14 +5681,14 @@ private slots:
         QFile::remove(m_log);
         QCOMPARE(ended([&arcade] { return arcade.joinLanRoom(1); }).value(1).toString(), QStringLiteral("ok"));
         config = QString::fromUtf8(contents(configCopy));
-        QCOMPARE(requested(config), QStringLiteral("2 3 4"));
+        QCOMPARE(requested(config), QStringLiteral("2"));
         QTRY_VERIFY(!claimed.isEmpty() && claimed.last() == libretro::claimRelease());
-        QCOMPARE(claimed.first(), libretro::claimQuery(4));
+        QCOMPARE(claimed.first(), libretro::claimQuery(1));
         saidLayout = libretro::Launch::Layout::Classic;
         QFile::remove(m_log);
         QCOMPARE(ended([&arcade] { return arcade.joinLanRoom(1); }).value(1).toString(), QStringLiteral("ok"));
         config = QString::fromUtf8(contents(configCopy));
-        QCOMPARE(requested(config), QStringLiteral("2 3 4 5"));
+        QCOMPARE(requested(config), QStringLiteral("2"));
         QTRY_VERIFY(!claimed.isEmpty() && claimed.last() == libretro::claimRelease());
         controllers::setPlayerEnvironment(twoPlayers);
         saidLayout = libretro::Launch::Layout::Panel;
@@ -5717,24 +5721,24 @@ private slots:
         QVERIFY(!arcade.running());
         QVERIFY(arcade.gameDetails(QStringLiteral("sf2")).value(QStringLiteral("playTime")).toLongLong() > playedBefore);
         // A host that doesn't say, RetroArch alone or an older OSD/OS: asked
-        // twice, then joined with the ports from 2, on the Classic layout,
-        // the stick's buttons by number.
+        // twice, then joined on RetroArch's own terms (the first free port),
+        // on the Classic layout, the stick's buttons by number.
         claims.close();
         QFile::remove(m_log);
         QCOMPARE(ended([&arcade] { return arcade.joinLanRoom(1); }).value(1).toString(), QStringLiteral("ok"));
         config = QString::fromUtf8(contents(configCopy));
-        QCOMPARE(requested(config), QStringLiteral("2 3"));
+        QCOMPARE(requested(config), QString());
         QVERIFY2(config.contains(QStringLiteral("input_player1_b_btn = \"0\"")), qPrintable(config));
         QVERIFY(config.contains(QStringLiteral("input_player1_y_btn = \"2\"")));
         QVERIFY(config.contains(QStringLiteral("input_player1_l_btn = \"10\"")));
         // Hosted: on the network alone, straight, under the online name.
         // Street Fighter II takes two players: this machine's first on port
-        // 1, whatever its second stick, so that the machine joining has the
-        // other. It asks for its players' ports while the game runs and is
-        // told the layout (the panel's, a JAMMA stick among this machine's
-        // players: every port on it in the remap file) and given port 2
-        // alone, whatever its players, its own anew as it asks again; none
-        // once the game is over.
+        // 1, whatever its second stick, and the machine joining the other.
+        // It asks for its port while the game runs and is told the layout
+        // (the panel's, a JAMMA stick among this machine's players: every
+        // port on it in the remap file) and given port 2 alone, whatever its
+        // players, its own anew as it asks again; none once the game is
+        // over.
         arcade.onSettingChanged(module, QStringLiteral("online_name"), QStringLiteral("Mehmet"));
         quint16 claimPort = 0;
         {
@@ -5779,11 +5783,11 @@ private slots:
         QCOMPARE(requested(config), QStringLiteral("1"));
         QVERIFY(logLines().contains(QStringLiteral("coreinfo deterministic")));
         QCOMPARE(asking(libretro::claimQuery(1), 300), QByteArray("no answer"));
-        // X-Men's six players, hosted with the same two: on Classic, where
-        // the panel's layout would leave a machine joining with four players
-        // more ports than RetroArch sends one machine's input for. This
-        // machine's two on ports 1 and 2, the stick's buttons by number and
-        // no remap file; a machine joining with four given ports 3 to 6.
+        // X-Men's six players, hosted with the same two: on Classic, the
+        // stick's buttons by number and no remap file. On the local network
+        // one port a machine, so that the players take the ports in the
+        // order their machines come in: this machine's first on port 1
+        // alone, and a machine joining with four given port 2 alone.
         QCOMPARE(arcade.onlineLayout(QStringLiteral("xmen6p"), true), QStringLiteral("classic"));
         QCOMPARE(arcade.onlineLayout(QStringLiteral("sf2"), true), QStringLiteral("panel"));
         QCOMPARE(arcade.onlineLayout(QStringLiteral("dino"), true), QStringLiteral("panel"));
@@ -5793,20 +5797,20 @@ private slots:
         QVERIFY(arcade.hostLanGame(QStringLiteral("xmen6p")));
         QVERIFY(!QFile::exists(hostRemap));
         QCOMPARE(asking(libretro::claimQuery(4), 2000),
-                 libretro::claimLayout(libretro::Launch::Layout::Classic) + " / " + libretro::claimAnswer({ 3, 4 }));
+                 libretro::claimLayout(libretro::Launch::Layout::Classic) + " / " + libretro::claimAnswer({ 2, 1 }));
         QVERIFY(hostEnded.wait(10000) || !hostEnded.isEmpty());
         QCOMPARE(hostEnded.first().value(1).toString(), QStringLiteral("ok"));
         config = QString::fromUtf8(contents(configCopy));
-        QCOMPARE(requested(config), QStringLiteral("1 2"));
+        QCOMPARE(requested(config), QStringLiteral("1"));
         QVERIFY2(config.contains(QStringLiteral("input_player1_b_btn = \"0\"")), qPrintable(config));
         // Cadillacs and Dinosaurs, whose players aren't known: the panel's
         // layout kept, this machine on port 1 alone, and a machine joining
-        // with four given three ports, the most it sends the input of.
+        // with four given port 2 alone.
         QFile::remove(m_log);
         hostEnded.clear();
         QVERIFY(arcade.hostLanGame(QStringLiteral("dino")));
         QCOMPARE(asking(libretro::claimQuery(4), 2000),
-                 libretro::claimLayout(libretro::Launch::Layout::Panel) + " / " + libretro::claimAnswer({ 2, 3 }));
+                 libretro::claimLayout(libretro::Launch::Layout::Panel) + " / " + libretro::claimAnswer({ 2, 1 }));
         QVERIFY(hostEnded.wait(10000) || !hostEnded.isEmpty());
         QCOMPARE(hostEnded.first().value(1).toString(), QStringLiteral("ok"));
         config = QString::fromUtf8(contents(configCopy));
