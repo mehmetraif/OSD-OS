@@ -1685,7 +1685,7 @@ void InputManager::setArcadeLayout(const QString &key, const QString &layout) {
     else if (layout == QLatin1String("custom"))
         saveArcade(key, layout, arcadeInputsOf(key));
     else
-        saveArcade(key, layout, controllers::arcadeLayoutInputs(layout));
+        saveArcade(key, layout, controllers::arcadeLayoutInputs(layout, jammaPlayer(padOf(key, m_seenAs.value(key).name)) > 0));
 }
 
 QVariantMap InputManager::setArcadeInput(const QString &key, const QString &input, const QString &token) {

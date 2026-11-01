@@ -337,7 +337,7 @@ The layouts, by an Xbox pad's labels (the page names a pad's buttons by its own)
 | Layout | Buttons 1 to 8 | Coin, Start |
 |---|---|---|
 | **Default** | None of its own (`AUTO`): MAME and FinalBurn Neo number a pad's buttons their own ways, as OSD/OS always left them. On the JAMMA board's sticks, the pins' buttons in their order, 1 to 8 | BACK, START |
-| **Fighting 6** | A six-button cabinet's two rows: punches 1, 2, 3 on X, Y, RB, kicks 4, 5, 6 on A, B, RT; 7 and 8 on LB and LT | BACK, START |
+| **Fighting 6** | A six-button cabinet's two rows: punches 1, 2, 3 on X, Y, RB, kicks 4, 5, 6 on A, B, RT; 7 and 8 on LB and LT. On a JAMMA board's stick, whose panel is wired 1 2 3 over 4 5 6, its buttons 1 to 8 in order | BACK, START |
 | **Neo Geo 4** | A Neo Geo's A, B, C, D on A, B, X, Y; 5 to 8 on LB, RB, LT, RT | BACK, START |
 | **NES** | A NES pad's: B is 1, A is 2; 3 to 8 none | SELECT, START |
 | **Mega Drive** | A Mega Drive pad's: A, B, C are 1, 2, 3, as most of its games have them; a six-button pad's X, Y, Z are 4, 5, 6; 7 and 8 none | MODE, START |
