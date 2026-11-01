@@ -61,20 +61,22 @@ QString downloadedLicense(const QString &dataRoot);
 QString packagedCore();
 QString packagedDat();
 // FinalBurn Neo's licence as every package of OSD/OS's brings it, with the
-// CV1000 LAN core (lanCorePath()): beside osdos.exe on Windows
+// LAN core (lanCorePath()): beside osdos.exe on Windows
 // (fbneo-license.txt), in the bundle's Resources on a Mac, else in
 // <prefix>/share/osdos/fbneo/license.txt.
 QString packagedLicense();
-// OSD/OS's own FinalBurn Neo core for games of Cave's CV1000 board (Akai
-// Katana...) on the local network, which comes with the app
-// (scripts/build-fbneo-lan.sh): the app's own, where packagedCore() is,
-// else one put in <data>/arcade/retroarch/cores (fbneo_cv1k_libretro.so,
-// .dylib, .dll) for a build that brought none. "" for none. It names itself kLanCoreName, which RetroArch won't
-// let a machine with another core join. The game's video memory isn't in
-// netplay's states with it, and it waits from power on until player 2
-// presses something, so that it starts on every machine at the same frame.
+// OSD/OS's own FinalBurn Neo core for the local network, which comes with
+// the app (scripts/build-fbneo-lan.sh): the app's own, where packagedCore()
+// is, else one put in <data>/arcade/retroarch/cores (fbneo_lan_libretro.so,
+// .dylib, .dll) for a build that brought none. "" for none. It names itself
+// kLanCoreName, which RetroArch won't let a machine with another core join.
+// It seats the game's players in the order they first press COIN or START
+// (the host's player 1 is player 1), whichever machine and port they are on;
+// with a CV1000 game the board's video memory isn't in netplay's states, and
+// the game waits from power on until player 2 presses something, so that it
+// starts on every machine at the same frame.
 QString lanCorePath(const QString &dataRoot);
-inline constexpr QLatin1String kLanCoreName("FinalBurn Neo (cv1k subset)");
+inline constexpr QLatin1String kLanCoreName("FinalBurn Neo (OSD/OS LAN)");
 
 // The memory RetroArch 1.20's netplay takes for a game: a state of it each
 // frame, in a ring of 62 on a machine joining and of 124 on its host, and
@@ -288,7 +290,7 @@ QString netplayOptionsPath(const QString &configDir);
 QString netplayOptionsText(const QString &userOptions);
 // FinalBurn Neo's info file, which RetroArch looks for in infoDir by the
 // core's name (fbneo_libretro.info; lanCore, lanCorePath()'s:
-// fbneo_cv1k_libretro.info), and the text OSD/OS writes in it before each
+// fbneo_lan_libretro.info), and the text OSD/OS writes in it before each
 // game: what libretro's own information on the core says that RetroArch acts
 // on, above all that its states come out the same on every machine, without
 // which RetroArch neither hosts nor joins a game with it ("Core does not

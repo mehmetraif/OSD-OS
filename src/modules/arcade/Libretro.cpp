@@ -31,18 +31,18 @@ namespace {
 
 #if defined(Q_OS_MACOS)
 const QString kCoreFile = QStringLiteral("fbneo_libretro.dylib");
-const QString kLanCoreFile = QStringLiteral("fbneo_cv1k_libretro.dylib");
+const QString kLanCoreFile = QStringLiteral("fbneo_lan_libretro.dylib");
 #elif defined(Q_OS_WIN)
 const QString kCoreFile = QStringLiteral("fbneo_libretro.dll");
-const QString kLanCoreFile = QStringLiteral("fbneo_cv1k_libretro.dll");
+const QString kLanCoreFile = QStringLiteral("fbneo_lan_libretro.dll");
 #else
 const QString kCoreFile = QStringLiteral("fbneo_libretro.so");
-const QString kLanCoreFile = QStringLiteral("fbneo_cv1k_libretro.so");
+const QString kLanCoreFile = QStringLiteral("fbneo_lan_libretro.so");
 #endif
 // Their info files, named as RetroArch looks for them: the core's, without
 // the extension.
 const QString kCoreInfoFile = QStringLiteral("fbneo_libretro.info");
-const QString kLanCoreInfoFile = QStringLiteral("fbneo_cv1k_libretro.info");
+const QString kLanCoreInfoFile = QStringLiteral("fbneo_lan_libretro.info");
 
 QString firstFile(const QStringList &candidates) {
     for (const QString &candidate : candidates) {

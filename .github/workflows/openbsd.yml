@@ -137,7 +137,7 @@ jobs:
             [ "$status" -eq 0 ]
             # The list of games is the last thing the scripts write. Both
             # cores from the commit scripts/engines.env names, each from a
-            # copy of its own: the CV1000 LAN core's patch goes in its copy.
+            # copy of its own: the LAN core's patch goes in its copy.
             if [ ! -f fbneo/share/osdos/fbneo/fbneo-arcade.dat ]; then
               mkdir -p fbneo-src fbneo-lan-src
               tar -xzf fbneo-src.tar.gz -C fbneo-src -s '|^[^/]*/||'
@@ -157,9 +157,9 @@ jobs:
             pkg_add -I -D unsigned "./$package"
             pkg_info OSD-OS
             /usr/local/bin/osdos --core-info /usr/local/lib/osdos/fbneo_libretro.so
-            lan=$(/usr/local/bin/osdos --core-info /usr/local/lib/osdos/fbneo_cv1k_libretro.so)
+            lan=$(/usr/local/bin/osdos --core-info /usr/local/lib/osdos/fbneo_lan_libretro.so)
             echo "$lan"
-            echo "$lan" | grep -qx 'name=FinalBurn Neo (cv1k subset)'
+            echo "$lan" | grep -qx 'name=FinalBurn Neo (OSD/OS LAN)'
             bash tests/app_smoke_test.sh /usr/local/bin/osdos /usr/local/share/osdos /usr/local/lib/qt6/qml
             pkg_delete OSD-OS
             [ ! -e /usr/local/bin/osdos ] && [ ! -e /usr/local/lib/osdos ] && [ ! -e /usr/local/share/osdos ]

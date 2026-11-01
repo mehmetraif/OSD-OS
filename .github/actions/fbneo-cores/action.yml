@@ -2,8 +2,8 @@ name: FinalBurn Neo cores
 description: >
   OSD/OS's two FinalBurn Neo cores, built from the commit scripts/engines.env
   names or kept from an earlier run: the whole core with FinalBurn Neo's list
-  of arcade games (scripts/build-fbneo.sh), and the CV1000 LAN core
-  (scripts/build-fbneo-lan.sh). Each is loaded once to check that it names
+  of arcade games (scripts/build-fbneo.sh), and the LAN core, the whole core
+  with OSD/OS's patch (scripts/build-fbneo-lan.sh). Each is loaded once to check that it names
   itself as RetroArch matches it. Both are put where the package keeps them,
   with the list and FinalBurn Neo's licence. Run from the repository's root,
   after the checkout.
@@ -37,8 +37,8 @@ runs:
         path: fbneo-cores
         key: fbneo-cores-${{ steps.image.outputs.image }}-${{ runner.arch }}-${{ hashFiles('scripts/engines.env', 'scripts/build-fbneo.sh', 'scripts/build-fbneo-lan.sh', 'scripts/fbneo-lan.patch') }}
 
-    # One download, unpacked twice: the CV1000 LAN core's patch goes in a
-    # copy of its own. Without the source's project files for IDEs, whose
+    # One download, unpacked twice: the LAN core's patch goes in a copy of
+    # its own. Without the source's project files for IDEs, whose
     # symbolic links Windows can't make.
     - name: Download FinalBurn Neo's source
       if: steps.cache.outputs.cache-hit != 'true'
@@ -92,7 +92,7 @@ runs:
       run: |
         . scripts/engines.env
         python=$(command -v python || command -v python3)
-        "$python" - "${FBNEO_COMMIT:0:7}" fbneo-cores/fbneo_libretro.* fbneo-cores/fbneo_cv1k_libretro.* <<'EOF'
+        "$python" - "${FBNEO_COMMIT:0:7}" fbneo-cores/fbneo_libretro.* fbneo-cores/fbneo_lan_libretro.* <<'EOF'
         import ctypes, os, sys
 
         class Info(ctypes.Structure):
@@ -113,7 +113,7 @@ runs:
         name, version = info(whole)
         ok = name == "FinalBurn Neo" and commit in version and not version.endswith("-lan")
         name, version = info(lan)
-        ok = ok and name == "FinalBurn Neo (cv1k subset)" and version.endswith("-lan")
+        ok = ok and name == "FinalBurn Neo (OSD/OS LAN)" and version.endswith("-lan")
         sys.exit(0 if ok else 1)
         EOF
         test "$(grep -c '<game name=' fbneo-cores/fbneo-arcade.dat)" -gt 1000
@@ -126,6 +126,6 @@ runs:
         LICENSE_FILE: ${{ inputs.license }}
       run: |
         mkdir -p "$CORE_DIR" "$(dirname "$DAT_FILE")" "$(dirname "$LICENSE_FILE")"
-        cp fbneo-cores/fbneo_libretro.* fbneo-cores/fbneo_cv1k_libretro.* "$CORE_DIR/"
+        cp fbneo-cores/fbneo_libretro.* fbneo-cores/fbneo_lan_libretro.* "$CORE_DIR/"
         cp fbneo-cores/fbneo-arcade.dat "$DAT_FILE"
         cp fbneo-cores/license.txt "$LICENSE_FILE"

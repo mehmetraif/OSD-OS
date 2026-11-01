@@ -1420,15 +1420,15 @@ private slots:
             QVERIFY2(info.contains(QLatin1String(line)), line);
         // OSD/OS's own core for CV1000 games on the local network: its info
         // file and its remap file by its own names.
-        QCOMPARE(libretro::coreInfoPath(QStringLiteral("/ra/info"), true), QStringLiteral("/ra/info/fbneo_cv1k_libretro.info"));
+        QCOMPARE(libretro::coreInfoPath(QStringLiteral("/ra/info"), true), QStringLiteral("/ra/info/fbneo_lan_libretro.info"));
         const QStringList lanInfo = libretro::coreInfoText(true).split(QLatin1Char('\n'));
-        for (const char *line : { "corename = \"FinalBurn Neo (cv1k subset)\"", "savestate = \"true\"",
+        for (const char *line : { "corename = \"FinalBurn Neo (OSD/OS LAN)\"", "savestate = \"true\"",
                                   "savestate_features = \"deterministic\"" })
             QVERIFY2(lanInfo.contains(QLatin1String(line)), line);
         QCOMPARE(libretro::coreRemapPath(QStringLiteral("/ra/remaps")),
                  QStringLiteral("/ra/remaps/FinalBurn Neo/FinalBurn Neo.rmp"));
         QCOMPARE(libretro::coreRemapPath(QStringLiteral("/ra/remaps"), true),
-                 QStringLiteral("/ra/remaps/FinalBurn Neo (cv1k subset)/FinalBurn Neo (cv1k subset).rmp"));
+                 QStringLiteral("/ra/remaps/FinalBurn Neo (OSD/OS LAN)/FinalBurn Neo (OSD/OS LAN).rmp"));
         // The core's options file, where RetroArch keeps FinalBurn Neo's, and
         // the option hardcore wants in it: patched sets disallowed, which the
         // core's default allows; the rest of the file as it is, and the text
@@ -1930,7 +1930,7 @@ private slots:
         QVERIFY(!libretro::readLanAnswer(lanAnswer("cy", "sf2", 55435, 0, "1.22.2", 0, "Snes9x"),
                                          QStringLiteral("10.0.0.5"))->joinable);
         // OSD/OS's own core for CV1000 games: joined, with it.
-        QVERIFY(libretro::readLanAnswer(lanAnswer("cy", "akatana", 55435, 0, "1.22.2", 0, "FinalBurn Neo (cv1k subset)"),
+        QVERIFY(libretro::readLanAnswer(lanAnswer("cy", "akatana", 55435, 0, "1.22.2", 0, "FinalBurn Neo (OSD/OS LAN)"),
                                         QStringLiteral("10.0.0.5"))->joinable);
         QVERIFY(!libretro::readLanAnswer(lanAnswer("di", "N/A", 55435), QStringLiteral("10.0.0.5"))->joinable);
         lan = libretro::readLanAnswer(lanAnswer("eve", "sf2", 0), QStringLiteral("10.0.0.5"));
@@ -5897,11 +5897,12 @@ private slots:
         QCOMPARE(arcade.engineOf(QStringLiteral("sf2")), QStringLiteral("mame"));
     }
 
-    // A CV1000 game (FinalBurn Neo's cave/d_cv1k.cpp) on the local network:
-    // hosted with OSD/OS's own core for them, and a room hosted so joined
-    // with it, matched against it; any other game, and a CV1000 game hosted
-    // online, with FinalBurn Neo's; without OSD/OS's core, neither, saying
-    // why.
+    // OSD/OS's LAN core: every game hosted on the local network with it, and
+    // a room hosted so joined with it, matched against it, every controller
+    // here on a port of its own; a room hosted with FinalBurn Neo's joined
+    // with that, and a game hosted online with it. Without OSD/OS's core, a
+    // game hosted with FinalBurn Neo's, but a CV1000 game (FinalBurn Neo's
+    // cave/d_cv1k.cpp) neither hosted nor joined, saying why.
     void lanPlayCv1000() {
         QTemporaryDir data;
         QVERIFY(data.isValid());
@@ -5915,7 +5916,7 @@ private slots:
         // OSD/OS's own, another for FinalBurn Neo's.
         const QString coreInfo = data.path() + QStringLiteral("/bin/coreinfo");
         writeFile(coreInfo, "#!/bin/sh\ncase \"$2\" in\n"
-                            "*fbneo_cv1k_libretro*) printf 'name=FinalBurn Neo (cv1k subset)\\nversion=v1.0.0.03 6e7c2a1\\n' ;;\n"
+                            "*fbneo_lan_libretro*) printf 'name=FinalBurn Neo (OSD/OS LAN)\\nversion=v1.0.0.03 6e7c2a1\\n' ;;\n"
                             "*) printf 'name=FinalBurn Neo\\nversion=v1.0.0.03 0000000\\n' ;;\nesac\n");
         for (const char *program : { "/bin/mame", "/bin/retroarch", "/bin/coreinfo" })
             QVERIFY(QFile::setPermissions(data.path() + QLatin1String(program),
@@ -5923,7 +5924,7 @@ private slots:
         const QString core = libretro::downloadedCore(data.path());
         writeFile(core);
         QCOMPARE(libretro::lanCorePath(data.path()), QString());
-        const QString lanCore = QFileInfo(core).path() + QStringLiteral("/fbneo_cv1k_libretro.so");
+        const QString lanCore = QFileInfo(core).path() + QStringLiteral("/fbneo_lan_libretro.so");
         writeFile(lanCore);
         QCOMPARE(libretro::lanCorePath(data.path()), lanCore);
         writeFile(libretro::downloadedDat(data.path()),
@@ -5945,7 +5946,7 @@ private slots:
                 const QNetworkDatagram query = hosts.receiveDatagram();
                 if (query.data() != libretro::lanQuery())
                     continue;
-                for (const QByteArray &answer : { lanAnswer("ann", "akatana", 55435, 0, "1.22.2", 0, "FinalBurn Neo (cv1k subset)"),
+                for (const QByteArray &answer : { lanAnswer("ann", "akatana", 55435, 0, "1.22.2", 0, "FinalBurn Neo (OSD/OS LAN)"),
                                                   lanAnswer("bob", "sf2", 55436) })
                     hosts.writeDatagram(answer, query.senderAddress(), query.senderPort());
             }
@@ -5988,12 +5989,40 @@ private slots:
         QVERIFY(logLines(QStringLiteral("retroarch ")).value(0).contains(QStringLiteral(" --host ")));
         QVERIFY(logLines().contains(QStringLiteral("coreinfo deterministic")));
         QVERIFY(contents(libretro::coreInfoPath(home + QStringLiteral("/info"), true))
-                    .contains("corename = \"FinalBurn Neo (cv1k subset)\""));
-        // Street Fighter II hosted, and Akai Katana online: FinalBurn Neo's.
+                    .contains("corename = \"FinalBurn Neo (OSD/OS LAN)\""));
+        // Street Fighter II hosted on OSD/OS's core too, with a JAMMA stick
+        // and a pad here: a port each, 1 and 2, whatever the game's two
+        // players, as the core seats a player only as they first press COIN
+        // or START; a machine joining with two given the next two, of the
+        // six, three at most on the panel's layout.
+        controllers::setPlayerEnvironment({ { QStringLiteral("OSDOS_PLAYER1_GUID"), QStringLiteral("0600aaaa") },
+                                            { QStringLiteral("OSDOS_PLAYER1_NAME"), QStringLiteral("OSD/OS JAMMA P1") },
+                                            { QStringLiteral("OSDOS_PLAYER2_GUID"), QStringLiteral("0600bbbb") },
+                                            { QStringLiteral("OSDOS_PLAYER2_NAME"), QStringLiteral("Xbox 360 Controller") } });
+        const auto noPlayers = qScopeGuard([] { controllers::setPlayerEnvironment({}); });
+        qputenv("RA_SECONDS", "3");
         QFile::remove(m_log);
-        QCOMPARE(ended([&arcade] { return arcade.hostLanGame(QStringLiteral("sf2")); }).value(1).toString(),
-                 QStringLiteral("ok"));
-        QCOMPARE(startedWith(), core);
+        QSignalSpy sf2Ended(&arcade, &ArcadeBackend::finished);
+        QVERIFY(arcade.hostLanGame(QStringLiteral("sf2")));
+        QUdpSocket joiner;
+        QVERIFY(joiner.bind(QHostAddress::LocalHost, 0));
+        joiner.writeDatagram(libretro::claimQuery(4), QHostAddress::LocalHost, claimPort);
+        QByteArrayList answers;
+        QTRY_VERIFY_WITH_TIMEOUT(([&joiner, &answers] {
+            while (joiner.hasPendingDatagrams())
+                answers << joiner.receiveDatagram().data();
+            return answers.size() == 2;
+        }()), 2000);
+        QCOMPARE(answers, QByteArrayList({ libretro::claimLayout(libretro::Launch::Layout::Panel),
+                                           libretro::claimAnswer({ 3, 3 }) }));
+        QVERIFY(sf2Ended.wait(10000) || !sf2Ended.isEmpty());
+        qunsetenv("RA_SECONDS");
+        QCOMPARE(startedWith(), lanCore);
+        const QString config = QString::fromUtf8(contents(data.path() + QStringLiteral("/ra.cfg")));
+        for (const char *line : { "netplay_request_device_p1 = \"true\"", "netplay_request_device_p2 = \"true\"",
+                                  "netplay_request_device_p3 = \"false\"" })
+            QVERIFY2(config.contains(QLatin1String(line)), line);
+        // Akai Katana online: FinalBurn Neo's.
         arcade.onSettingChanged(module, QStringLiteral("online_play"), QStringLiteral("On"));
         QFile::remove(m_log);
         QCOMPARE(ended([&arcade] { return arcade.hostGame(QStringLiteral("akatana")); }).value(1).toString(),
@@ -6018,7 +6047,7 @@ private slots:
         QTRY_COMPARE_WITH_TIMEOUT(room(QStringLiteral("sf2")).value(QStringLiteral("info")).toMap()
                                       .value(QStringLiteral("coreMatch")).toString(), QStringLiteral("other"), 5000);
         QVariantMap info = room(QStringLiteral("akatana")).value(QStringLiteral("info")).toMap();
-        QCOMPARE(info.value(QStringLiteral("core")).toString(), QStringLiteral("FinalBurn Neo (cv1k subset)"));
+        QCOMPARE(info.value(QStringLiteral("core")).toString(), QStringLiteral("FinalBurn Neo (OSD/OS LAN)"));
         QVERIFY(info.value(QStringLiteral("coreHere")).toBool());
         QVERIFY(info.value(QStringLiteral("joinable")).toBool());
         QVERIFY(room(QStringLiteral("akatana")).value(QStringLiteral("detail")).toString()
@@ -6039,9 +6068,10 @@ private slots:
         QCOMPARE(startedWith(), core);
 
         // Without OSD/OS's core: Akai Katana neither hosted on the network
-        // nor its room joined, saying why; Street Fighter II as before.
+        // nor its room joined, saying why; Street Fighter II hosted on
+        // FinalBurn Neo's.
         QVERIFY(QFile::remove(lanCore));
-        const QString noCore = QStringLiteral("This OSD/OS has no core of its own for CV1000 games on the local network: "
+        const QString noCore = QStringLiteral("This OSD/OS has no core of its own for the local network: "
                                               "OSD/OS's packages bring it");
         QVERIFY(!arcade.hostLanGame(QStringLiteral("akatana")));
         QCOMPARE(arcade.lastError(), noCore);
@@ -6082,14 +6112,14 @@ private slots:
         writeFile(data.path() + QStringLiteral("/bin/retroarch"), fixture("retroarch"));
         const QString coreInfo = data.path() + QStringLiteral("/bin/coreinfo");
         writeFile(coreInfo, "#!/bin/sh\ncase \"$2\" in\n"
-                            "*fbneo_cv1k_libretro*) printf 'name=FinalBurn Neo (cv1k subset)\\nversion=v1.0.0.03 6e7c2a1\\n' ;;\n"
+                            "*fbneo_lan_libretro*) printf 'name=FinalBurn Neo (OSD/OS LAN)\\nversion=v1.0.0.03 6e7c2a1\\n' ;;\n"
                             "*) printf 'name=FinalBurn Neo\\nversion=v1.0.0.03 6e7c2a1\\n' ;;\nesac\n");
         for (const char *program : { "/bin/mame", "/bin/retroarch", "/bin/coreinfo" })
             QVERIFY(QFile::setPermissions(data.path() + QLatin1String(program),
                                           QFile::ReadOwner | QFile::WriteOwner | QFile::ExeOwner));
         const QString core = libretro::downloadedCore(data.path());
         writeFile(core);
-        writeFile(QFileInfo(core).path() + QStringLiteral("/fbneo_cv1k_libretro.so"));
+        writeFile(QFileInfo(core).path() + QStringLiteral("/fbneo_lan_libretro.so"));
         writeFile(libretro::downloadedDat(data.path()),
                   fixture("fbneo-arcade.dat")
                       .replace("</datafile>", "\t<game name=\"akatana\" sourcefile=\"cave/d_cv1k.cpp\"><description>"
@@ -6127,7 +6157,7 @@ private slots:
                 const QNetworkDatagram query = hosts.receiveDatagram();
                 if (query.data() != libretro::lanQuery())
                     continue;
-                for (const QByteArray &answer : { lanAnswer("ann", "akatana", 55435, 0, "1.22.2", 0, "FinalBurn Neo (cv1k subset)"),
+                for (const QByteArray &answer : { lanAnswer("ann", "akatana", 55435, 0, "1.22.2", 0, "FinalBurn Neo (OSD/OS LAN)"),
                                                   lanAnswer("bob", "sf2", 55436) })
                     hosts.writeDatagram(answer, query.senderAddress(), query.senderPort());
             }

@@ -119,63 +119,35 @@ index f3714ae..b48ba75 100644
  	}
  
  	serflash_scan(nAction, pnMin); // writes back to flash (hiscores ddpdfk, etc) here
-diff --git a/src/burner/libretro/Makefile.cv1k b/src/burner/libretro/Makefile.cv1k
-new file mode 100644
-index 0000000..5b9259a
---- /dev/null
-+++ b/src/burner/libretro/Makefile.cv1k
-@@ -0,0 +1,19 @@
-+# Drivers, cpus and devices for cv1k subset (Cave CV1000), OSD/OS's LAN build
-+SOURCES_CXX += $(SH4_CPU_DIR)/sh4.cpp \
-+	$(FBNEO_BURN_DEVICES_DIR)/epic12.cpp \
-+	$(FBNEO_BURN_DEVICES_DIR)/rtc9701.cpp \
-+	$(FBNEO_BURN_DEVICES_DIR)/serflash.cpp \
-+	$(FBNEO_BURN_SND_DIR)/mpeg_audio.cpp \
-+	$(FBNEO_BURN_SND_DIR)/ymz770.cpp \
-+	$(FBNEO_BURN_DIR)/burn_bitmap.cpp \
-+	$(FBNEO_BURN_DIR)/burn_led.cpp \
-+	$(FBNEO_BURN_DIR)/burn_pal.cpp \
-+	$(FBNEO_BURN_DIR)/burn_sha1.cpp \
-+	$(FBNEO_BURN_DIR)/burn_shift.cpp \
-+	$(FBNEO_BURN_DIR)/tilemap_generic.cpp \
-+	$(FBNEO_BURN_DIR)/tiles_generic.cpp \
-+	$(FBNEO_BURN_DEVICES_DIR)/joyprocess.cpp \
-+	$(CAVE_DIR)/d_cv1k.cpp
-+
-+CFLAGS += -DSUBSET=\"$(SUBSET)\" -DSUPPORT_SPLIT_DRIVER
-+CXXFLAGS += -DSUBSET=\"$(SUBSET)\" -DSUPPORT_SPLIT_DRIVER
 diff --git a/src/burner/libretro/libretro.cpp b/src/burner/libretro/libretro.cpp
-index 9e89835..1ed7bcd 100644
+index 9e89835..ea8af31 100644
 --- a/src/burner/libretro/libretro.cpp
 +++ b/src/burner/libretro/libretro.cpp
-@@ -1366,6 +1366,39 @@ static void VideoBufferInit()
+@@ -41,6 +41,10 @@
+ #define APP_TITLE "FinalBurn Neo (" SUBSET " subset)"
+ #endif
+ 
++// OSD/OS's LAN build, which RetroArch lets no machine with another core join.
++#undef APP_TITLE
++#define APP_TITLE "FinalBurn Neo (OSD/OS LAN)"
++
+ int counter;           // General purpose variable used when debugging
+ 
+ static void log_dummy(enum retro_log_level level, const char *fmt, ...) { }
+@@ -1366,6 +1370,50 @@ static void VideoBufferInit()
  		memset(pVidImage, 0, nSize);
  }
  
-+// OSD/OS's LAN build: on screen, what the CV1000 driver waits for, and why its
-+// picture may be wrong on a machine that joined a game already started
-+// (d_cv1k.cpp).
++// OSD/OS's LAN build: on screen, who has come in as which player
++// (retro_input.cpp), what the CV1000 driver waits for, and why its picture
++// may be wrong on a machine that joined a game already started (d_cv1k.cpp).
++extern INT32 nLanSeat[MAX_PLAYERS];
++extern UINT32 nLanSeatsAnnounced;
 +extern INT32 nCv1kLanWaiting;
 +extern INT32 nCv1kLanLateJoin;
 +
-+static void Cv1kLanNotices()
++static void LanNotice(const char *text, unsigned ms)
 +{
-+	static UINT32 nNextWaitingNotice = 0;
-+	const char *text = NULL;
-+	unsigned ms = 5000;
-+
-+	if (nCv1kLanLateJoin) {
-+		nCv1kLanLateJoin = 0;
-+		text = "This game started before you joined, so its picture may be wrong. Ask the host to host it again.";
-+		ms = 10000;
-+		log_cb(RETRO_LOG_WARN, "[FBNeo] OSD/OS LAN: joined a CV1000 game already started\n");
-+	} else if (nCv1kLanWaiting && (nCurrentFrame >= nNextWaitingNotice || nCurrentFrame + 300 < nNextWaitingNotice)) {
-+		nNextWaitingNotice = nCurrentFrame + 300;
-+		text = "Waiting for player 2: the game starts when player 2 presses a button.";
-+	}
-+	if (!text)
-+		return;
-+
 +	if (libretro_msg_interface_version >= 1) {
 +		struct retro_message_ext msg = { text, ms, 1, RETRO_LOG_INFO, RETRO_MESSAGE_TARGET_OSD, RETRO_MESSAGE_TYPE_NOTIFICATION, -1 };
 +		environ_cb(RETRO_ENVIRONMENT_SET_MESSAGE_EXT, &msg);
@@ -185,15 +157,157 @@ index 9e89835..1ed7bcd 100644
 +	}
 +}
 +
++static void LanNotices()
++{
++	static UINT32 nNextWaitingNotice = 0;
++	char seated[32];
++
++	// Once each, though a rollback seats a player again.
++	for (int player = 1; player < MAX_PLAYERS; player++) {
++		if (nLanSeat[player] < 0 || (nLanSeatsAnnounced & (1 << player)))
++			continue;
++		nLanSeatsAnnounced |= 1 << player;
++		snprintf(seated, sizeof(seated), "Player %d is in", player + 1);
++		log_cb(RETRO_LOG_INFO, "[FBNeo] OSD/OS LAN: port %d sits as player %d\n", nLanSeat[player] + 1, player + 1);
++		LanNotice(seated, 3000);
++	}
++
++	if (nCv1kLanLateJoin) {
++		nCv1kLanLateJoin = 0;
++		log_cb(RETRO_LOG_WARN, "[FBNeo] OSD/OS LAN: joined a CV1000 game already started\n");
++		LanNotice("This game started before you joined, so its picture may be wrong. Ask the host to host it again.", 10000);
++	} else if (nCv1kLanWaiting && (nCurrentFrame >= nNextWaitingNotice || nCurrentFrame + 300 < nNextWaitingNotice)) {
++		nNextWaitingNotice = nCurrentFrame + 300;
++		LanNotice("Waiting for player 2: the game starts when a second player presses COIN or START.", 5000);
++	}
++}
++
  void retro_run()
  {
  	bool bEnableVideo  = true;
-@@ -1479,6 +1512,8 @@ void retro_run()
+@@ -1479,6 +1527,8 @@ void retro_run()
  
  	ForceFrameStep();
  
-+	Cv1kLanNotices();
++	LanNotices();
 +
  	if (bPresentAudio)
  	{
  		if (bLowPassFilterEnabled)
+diff --git a/src/burner/libretro/retro_input.cpp b/src/burner/libretro/retro_input.cpp
+index ffc57cf..0fdaaa1 100644
+--- a/src/burner/libretro/retro_input.cpp
++++ b/src/burner/libretro/retro_input.cpp
+@@ -48,6 +48,52 @@ static bool bLibretroSupportsBitmasks = false;
+ static char* pDirections[MAX_PLAYERS][6];
+ UINT32 nDiagInputHoldCounter = 0;
+ 
++// OSD/OS's LAN build: the game's players are seated in the order they come
++// in. Netplay's port 0, the host's player 1, is player 1; any other port sits
++// as the first free player when it first presses COIN or START, and drives
++// that player from then on, so that a controller no one plays holds no
++// player. The seats are in the core's states (LibretroAreaScan()): every
++// machine seats alike, through a rollback too.
++INT32 nLanSeat[MAX_PLAYERS];
++UINT32 nLanSeatsAnnounced = 0;
++
++static void LanSeatsReset()
++{
++	for (int i = 0; i < MAX_PLAYERS; i++)
++		nLanSeat[i] = -1;
++	nLanSeat[0] = 0;
++	nLanSeatsAnnounced = 1;
++}
++
++static void LanSeatComers()
++{
++	const int nCome = (1 << RETRO_DEVICE_ID_JOYPAD_SELECT) | (1 << RETRO_DEVICE_ID_JOYPAD_START);
++	for (int port = 1; port < MAX_PLAYERS; port++) {
++		int player;
++		for (player = 0; player < MAX_PLAYERS && nLanSeat[player] != port; player++)
++			;
++		if (player < MAX_PLAYERS)
++			continue;
++		int nPressed;
++		if (bLibretroSupportsBitmasks) {
++			if (nLibretroInputBitmask[port] == -1)
++				nLibretroInputBitmask[port] = input_cb(port, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_MASK);
++			nPressed = nLibretroInputBitmask[port] & nCome;
++		} else {
++			nPressed = input_cb(port, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_SELECT)
++			        || input_cb(port, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_START);
++		}
++		if (!nPressed)
++			continue;
++		for (player = 1; player < nMaxPlayers && player < MAX_PLAYERS; player++) {
++			if (nLanSeat[player] < 0) {
++				nLanSeat[player] = port;
++				break;
++			}
++		}
++	}
++}
++
+ // hardware macros
+ #define HW_NEOGEO (((BurnDrvGetHardwareCode() & HARDWARE_PUBLIC_MASK) == HARDWARE_SNK_NEOGEO) || ((BurnDrvGetHardwareCode() & HARDWARE_PUBLIC_MASK) == HARDWARE_SNK_NEOCD))
+ #define HW_NES    (((BurnDrvGetHardwareCode() & HARDWARE_PUBLIC_MASK) == HARDWARE_NES) || ((BurnDrvGetHardwareCode() & HARDWARE_PUBLIC_MASK) == HARDWARE_FDS))
+@@ -427,6 +473,13 @@ INT32 GameInpInit()
+ 
+ static inline int input_cb_wrapper(unsigned port, unsigned device, unsigned index, unsigned id)
+ {
++	// OSD/OS's LAN build: a player is driven by the port seated there.
++	if (port < (unsigned)nMaxPlayers && port < MAX_PLAYERS) {
++		if (nLanSeat[port] < 0)
++			return 0;
++		port = nLanSeat[port];
++	}
++
+ 	if (bLibretroSupportsBitmasks && device == RETRO_DEVICE_JOYPAD) {
+ 		if (nLibretroInputBitmask[port] == -1)
+ 			nLibretroInputBitmask[port] = input_cb(port, RETRO_DEVICE_JOYPAD, index, RETRO_DEVICE_ID_JOYPAD_MASK);
+@@ -3368,6 +3421,8 @@ void InputMake(void)
+ 
+ 	poll_cb();
+ 
++	LanSeatComers();
++
+ 	if (PollDiagInput())
+ 		return;
+ 
+@@ -3544,6 +3599,7 @@ void InputInit()
+ 
+ 	GameInpInit();
+ 	GameInpDefault();
++	LanSeatsReset();
+ 
+ 	bInputInitialized = true;
+ }
+diff --git a/src/burner/libretro/retro_memory.cpp b/src/burner/libretro/retro_memory.cpp
+index 45d7b9c..c680d24 100644
+--- a/src/burner/libretro/retro_memory.cpp
++++ b/src/burner/libretro/retro_memory.cpp
+@@ -1,5 +1,6 @@
+ #include "retro_common.h"
+ #include "retro_memory.h"
++#include "retro_input.h"
+ 
+ // Cheevos support
+ static void* pMainRamData = NULL;
+@@ -263,6 +264,9 @@ static int StateLenAcb(BurnArea *pba)
+ 	return 0;
+ }
+ 
++// OSD/OS's LAN build: who sits as which player (retro_input.cpp).
++extern INT32 nLanSeat[MAX_PLAYERS];
++
+ static INT32 LibretroAreaScan(INT32 nAction)
+ {
+ 	nStateTmpLen[nSavestateContext] = 0;
+@@ -275,6 +279,7 @@ static INT32 LibretroAreaScan(INT32 nAction)
+ 	// including multiple iterations of the same frame through runahead,
+ 	// but it needs to stay synced between multiple iterations of a given frame
+ 	SCAN_VAR(nCurrentFrame);
++	SCAN_VAR(nLanSeat);
+ 
+ 	BurnAreaScan(nAction, 0);
+ 

@@ -2,7 +2,7 @@ name: FinalBurn Neo cores
 
 # Builds OSD/OS's two FinalBurn Neo cores from the commit scripts/engines.env
 # names (.github/actions/fbneo-cores): the whole core with FinalBurn Neo's
-# list of arcade games (scripts/build-fbneo.sh), and the CV1000 LAN core
+# list of arcade games (scripts/build-fbneo.sh), and the LAN core
 # (scripts/build-fbneo-lan.sh). It runs on each runner that a package of the
 # release builds on: Linux x86_64 (the AppImage), Linux arm64 (the tarball
 # and the OSD/OS image), macOS on Apple Silicon and Windows x64. The BSDs

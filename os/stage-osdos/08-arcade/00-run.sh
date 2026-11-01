@@ -21,7 +21,7 @@
 # shellcheck source=/dev/null
 . files/engines.env
 
-for file in lib/osdos/fbneo_libretro.so lib/osdos/fbneo_cv1k_libretro.so \
+for file in lib/osdos/fbneo_libretro.so lib/osdos/fbneo_lan_libretro.so \
 	share/osdos/fbneo/fbneo-arcade.dat share/osdos/fbneo/license.txt; do
 	if [ ! -s "${ROOTFS_DIR}/opt/osdos/${file}" ]; then
 		echo "The app's tarball has no ${file}: FinalBurn Neo's cores come with the app" >&2
