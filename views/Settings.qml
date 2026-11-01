@@ -1244,6 +1244,10 @@ FocusScope {
         height: settingsRoot.monitor ? chrome.listHeight : root.sh * 0.4666667 + root.helpRoom + root.hintRoom //224
         // Flat Panel's page, again as its rows take more room or less.
         onHeightChanged: if (settingsRoot.flat) Qt.callLater(settingsRoot.showCurrent)
+        // Flat Panel's last page filled out to a whole page, and the view
+        // left where its page puts it (not moved to follow the cursor).
+        footer: Item { width: 1; height: chrome.pageFill(settingsList.count) }
+        highlightFollowsCurrentItem: !settingsRoot.flat
         clip: true
         focus: true
 

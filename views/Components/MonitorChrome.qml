@@ -85,14 +85,20 @@ Item {
     readonly property real listHeight: Math.max(rowHeight, Math.floor((listBottom - listY) / rowHeight + 0.001) * rowHeight)
 
     // Flat Panel: the page the list's cursor is on, scrolled to its top.
-    // Every row is rowHeight high in the monitor layouts.
+    // Every row is rowHeight high in the monitor layouts. The list's last
+    // page is filled out with empty rows (pageFill(), its footer's height),
+    // so every page's top is within the list's bounds, where a ListView
+    // keeps it.
+    readonly property int perPage: Math.max(1, Math.floor(listHeight / rowHeight + 0.001))
+    function pageFill(count) {
+        return flat ? (Math.ceil(count / perPage) * perPage - count) * rowHeight : 0
+    }
     function pageTo(list) {
         if (!list)
             return
-        var per = Math.max(1, Math.floor(list.height / rowHeight + 0.001))
-        pages = Math.max(1, Math.ceil(list.count / per))
-        page = Math.min(pages - 1, Math.floor(Math.max(0, list.currentIndex) / per))
-        list.contentY = list.originY + page * per * rowHeight
+        pages = Math.max(1, Math.ceil(list.count / perPage))
+        page = Math.min(pages - 1, Math.floor(Math.max(0, list.currentIndex) / perPage))
+        list.contentY = list.originY + page * perPage * rowHeight
     }
 
     // Broadcast's and Flat Panel's ground over the whole screen, as solid

@@ -858,6 +858,10 @@ Rectangle {
                 keyClick(Qt.Key_Down)
             compare(chrome.page, 1)
             compare(list.contentY, list.originY + per * chrome.rowHeight)
+            // The last page filled out to a whole page: its top within the
+            // list's bounds, where a ListView keeps it.
+            verify(list.contentY <= list.originY + list.contentHeight - list.height + 0.5,
+                   list.contentY + " past " + (list.contentHeight - list.height))
             keyClick(Qt.Key_Up)
             compare(chrome.page, 0)
             moveTo(page, "Status Icons")

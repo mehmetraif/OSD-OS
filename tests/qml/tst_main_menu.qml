@@ -237,6 +237,7 @@ Rectangle {
             keyClick(Qt.Key_Up)
             compare(cursor(menu), "Scripts")
             compare(chrome.page, chrome.pages - 1)
+            verify(list.contentY <= list.originY + list.contentHeight - list.height + 0.5)
             keyClick(Qt.Key_Return)
             compare(root.navigations[0].path, "modules/scripts/views/Root.qml")
         }
