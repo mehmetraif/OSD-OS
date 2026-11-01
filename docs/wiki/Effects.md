@@ -272,5 +272,5 @@ Where the work goes, and what keeps it small:
 - [Shaders](https://github.com/mehmetraif/OSD-OS/wiki/Shaders): a background or screen effect of your own
 - [Skins](https://github.com/mehmetraif/OSD-OS/wiki/Skins): the shapes the effects play round
 - [Menu music](https://github.com/mehmetraif/OSD-OS/wiki/Menu-Music): rests with the effects
-- [Settings](https://github.com/mehmetraif/OSD-OS/wiki/Settings#the-look): every row of the look
+- [Settings](https://github.com/mehmetraif/OSD-OS/wiki/Settings#look): every row of the look
 - [How it works](https://github.com/mehmetraif/OSD-OS/wiki/How-It-Works): the shell, the display path and playback

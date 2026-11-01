@@ -240,7 +240,7 @@ function network() {
     if (!named && !wifi)
         return null;
     const name = state.deviceName ? core.hostnameFor(state.deviceName) : null;
-    return section("Network", "The device's name tells it apart from others on the network (Settings → About → System Information shows it). Wi-Fi joins a network at start; Ethernet needs nothing.",
+    return section("Network", "The device's name tells it apart from others on the network (Settings → System → About → System Information shows it). Wi-Fi joins a network at start; Ethernet needs nothing.",
         named ? [
             line("Device Name", text(state.deviceName, value => { state.deviceName = value; refreshDeviceNameHelp(); markChanged("device-name", !!value); },
                                      { id: "device-name", placeholder: "osdos" }),
@@ -667,7 +667,7 @@ async function downloadZip() {
     say(`Saved osdos-setup.zip: ${files.map(f => f.name).join(" and ")}. Unpack it onto bootfs.`, true);
 }
 
-// The same file on the clipboard, for OSD/OS on a computer (Settings → Paste
+// The same file on the clipboard, for OSD/OS on a computer (Settings → System → Paste
 // OSD/OS Setup). The clipboard is handed its text as a promise in the click
 // itself, which Safari asks for, while pi's password may still be hashing.
 async function copySetup() {
@@ -685,7 +685,7 @@ async function copySetup() {
             say("The browser didn't let the page copy: export osdos-setup.json and put it in OSD/OS's data folder instead.");
         return;
     }
-    say(`Copied: ${counted(await made)}. In OSD/OS on a computer, Settings → Paste OSD/OS Setup sets it.`, true);
+    say(`Copied: ${counted(await made)}. In OSD/OS on a computer, Settings → System → Paste OSD/OS Setup sets it.`, true);
 }
 
 // What a file read in brings that gets a card in: said, so that one from

@@ -3,7 +3,7 @@
 # the sound), at 640x480: 60 Hz, 31.47 kHz, VGA's, for a 31 kHz monitor or
 # a tri-sync one. ONLY for such a monitor: too high a horizontal
 # frequency can damage a 15 kHz one. The timing is VESA's 640x480 at 60
-# Hz. Chosen in Settings → Display Output, or copied over
+# Hz. Chosen in Settings → Screen → Display Output, or copied over
 # osdos-display.txt (config.txt says how).
 # osdos-controls: jamma
 # A Pi 5 keeps HDMI on beside it: OSD/OS takes this output, in this mode. The

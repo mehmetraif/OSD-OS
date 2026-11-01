@@ -2,7 +2,7 @@
 # layout, as osdos-display-jamma-240p.txt has it (the pins, the controls,
 # the sound), at 1920x288, a super resolution of PAL's lines: 50 Hz, 15.65
 # kHz. The timing is Recalbox's (default:pal:288@50). Chosen in Settings →
-# Display Output, or copied over osdos-display.txt (config.txt says how).
+# Screen → Display Output, or copied over osdos-display.txt (config.txt says how).
 # osdos-controls: jamma
 # A Pi 5 keeps HDMI on beside it: OSD/OS takes this output, in this mode. The
 # board makes the composite sync itself, so none on GPIO 1 (osdos-stop).

@@ -3,7 +3,7 @@ import QtQuick
 // The title bar every view starts with, the way a deck's on-screen menu does:
 // the module's logo, then a solid bar with its name and where you are in it in
 // the background colour, and at its right end the status icons (Settings →
-// Status Icons). The logo is in the bar's colour, a fifth taller than the bar
+// Look → Status Icons). The logo is in the bar's colour, a fifth taller than the bar
 // so it stands out of it above and below, with an art pixel of space either
 // side of it.
 Item {
@@ -51,7 +51,7 @@ Item {
         width: implicitWidth
         sourceSize.height: appBar.logoHeight
         // Drawn by OsdIconProvider in the bar's colour, from the original at
-        // this height, or from the skin's icon of its name (Settings → Skin).
+        // this height, or from the skin's icon of its name (Settings → Look → Skin).
         // Resolved here, so a path relative to this file works as it always
         // has.
         source: appBar.iconSource.toString() !== "" && appBar.logoHeight > 0
@@ -65,7 +65,7 @@ Item {
         x: appBar.hasLogo ? logo.x + logo.width + root.px : 0
         width: appBar.width - x
         height: appBar.height
-        // The skin's picture of the bar, when it has one (Settings → Skin).
+        // The skin's picture of the bar, when it has one (Settings → Look → Skin).
         color: skinnedBar.shown ? "transparent" : root.primaryColor
         antialiasing: false
 

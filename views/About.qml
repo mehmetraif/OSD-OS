@@ -77,7 +77,7 @@ FocusScope {
                        + " • The arcade's under ARCADE, below" },
         { key: "testpatterns", label: "Test Patterns", value: "240p Test Suite", license: "assets/licenses/GPL-2.0.txt",
           licenseName: "GNU General Public License, version 2 or later",
-          description: "Settings → Test Patterns' pictures, from the 240p Test Suite by Artemio Urbina and its"
+          description: "Settings → Screen → Test Patterns' pictures, from the 240p Test Suite by Artemio Urbina and its"
                        + " contributors, the Monoscope by Keith Raney, github.com/ArtemioUrbina/240pTestSuite"
                        + " • Free software under the GNU General Public License, version 2 or later • {select}"
                        + " The license's text" },

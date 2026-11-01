@@ -1,7 +1,7 @@
 import QtQuick
 import Components
 
-// What pairing a Bluetooth device needs, over Settings → Bluetooth while it
+// What pairing a Bluetooth device needs, over Settings → Network → Bluetooth while it
 // does (bluetoothManager.prompt):
 // - "passkey": a code to type on the device (a keyboard), then its Enter. The
 //   digits typed so far stand out, for a device that says.

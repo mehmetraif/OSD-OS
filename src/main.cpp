@@ -335,12 +335,12 @@ int main(int argc, char *argv[]) {
     IdleTracker         idleTracker(60);   // disabled until Main.qml applies the saved setting
     UpdateManager       updateManager(appRoot, dataRoot);
     BootProgress        bootProgress;      // inert outside the OSD/OS image (os/)
-    DisplayOutput       displayOutput(dataRoot); // Settings → Display Output, on the image
-    AudioOutput         audioOutput(&appCore);   // Settings → Audio Output (ALSA)
-    MenuMusic           menuMusic(dataRoot);     // Settings → Menu Music, or a theme's
-    BluetoothManager    bluetoothManager;  // Settings → Bluetooth (BlueZ on Linux)
-    WifiManager         wifiManager;       // Settings → Wi-Fi (NetworkManager on Linux)
-    // Settings → About → System Information, the films' drive Local Files'
+    DisplayOutput       displayOutput(dataRoot); // Settings → Screen → Display Output, on the image
+    AudioOutput         audioOutput(&appCore);   // Settings → Sound → Audio Output (ALSA)
+    MenuMusic           menuMusic(dataRoot);     // Settings → Sound → Menu Music, or a theme's
+    BluetoothManager    bluetoothManager;  // Settings → Network → Bluetooth (BlueZ on Linux)
+    WifiManager         wifiManager;       // Settings → Network → Wi-Fi (NetworkManager on Linux)
+    // Settings → System → About → System Information, the films' drive Local Files'
     // folder's.
     SystemInfo          systemInfo(dataRoot, [&localFiles] { return localFiles.mediaRoot(); });
 
@@ -451,7 +451,7 @@ int main(int argc, char *argv[]) {
     // and a tape's noise, for the screen a video loads behind (LoadingScreen).
     qmlRegisterType<VideoSurface>("OSDOS.Video", 1, 0, "VideoSurface");
     qmlRegisterType<VhsNoise>("OSDOS.Video", 1, 0, "VhsNoise");
-    // Settings → Selector Effect's sparks round the selected line.
+    // Settings → Look → Effects → Selector Effect's sparks round the selected line.
     qmlRegisterType<SelectorFx>("OSDOS.Video", 1, 0, "SelectorFx");
 
     engine.load(QUrl::fromLocalFile(appRoot + "/Main.qml"));

@@ -1,6 +1,6 @@
 # Composite to a CRT, NTSC, 4:3, from a Pi 5's GPIO pins: an 8-bit code on
 # GPIO 4-11 that a DAC turns into the picture (os/README.md). Chosen in
-# Settings → Display Output, or copied over osdos-display.txt (config.txt
+# Settings → Screen → Display Output, or copied over osdos-display.txt (config.txt
 # says how).
 # A Pi 5 may keep HDMI on beside it: OSD/OS takes this output, in this mode,
 # whose lines make it NTSC there:

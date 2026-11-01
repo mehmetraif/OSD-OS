@@ -103,11 +103,11 @@ qml: Routing to: modules/local_files/views/Root.qml
 | `[mpv]` | mpv's own output | Why a file won't open, an option it refuses |
 | `[EmbeddedMpv]` | Transparent Background (libmpv inside the window) | Whether libmpv was found (`using libmpv.so.2`, or `libmpv not found: Transparent Background is unavailable`), where the pictures are drawn (`pictures drawn on the GPU: <renderer>`, or by mpv's software renderer), an option this libmpv doesn't know, a GPU that can't take the decoder's frames |
 | `[DisplayHandoff]` | A Pi without a desktop handing its screen to mpv, a takeover script, MAME or a web player, and taking it back (VTs, DRM) | A VT that couldn't be switched, or the VT in use that couldn't be read (the screen is then handed over without a switch), DRM master or the CRTC that couldn't be saved or restored: the lines behind a black screen after a video |
-| `[DisplayOutput]` | Settings → Display Output | The switch asked for, and an output not kept |
-| `[AudioOutput]` | Settings → Audio Output | `Sound through <card>` at start and at each change |
+| `[DisplayOutput]` | Settings → Screen → Display Output | The switch asked for, and an output not kept |
+| `[AudioOutput]` | Settings → Sound → Audio Output | `Sound through <card>` at start and at each change |
 | `[MenuMusic]` | The menu music | What it plays, what it makes into a WAV first, and why a file can't play |
-| `[Bluetooth]` | Settings → Bluetooth | No system bus (D-Bus), the pairing agent, an adapter that wouldn't power on |
-| `[Wi-Fi]` | Settings → Wi-Fi | No system bus, NetworkManager's objects that couldn't be read, a network not joined and why, a country not set and why |
+| `[Bluetooth]` | Settings → Network → Bluetooth | No system bus (D-Bus), the pairing agent, an adapter that wouldn't power on |
+| `[Wi-Fi]` | Settings → Network → Wi-Fi | No system bus, NetworkManager's objects that couldn't be read, a network not joined and why, a country not set and why |
 | `[input]` | Gamepads, keyboards and remotes | SDL ready or failed, controllers added (with their key in `app.controllers`) and removed, `input.cfg` lines ignored (with their line number) and the bindings applied, `gamecontrollerdb.txt` mappings loaded, each keyboard and remote found (Linux) and gone |
 | `[crash]` | A crash (Linux) | The signal it ended by and where it was, as in `crash-report.txt` |
 | `[watchdog]` | Freezes (Linux) | The screens not answering for 5 seconds, the memory, and where the app is stuck; answering again, or the app ending to start again, as in `stall-report.txt`; and, short of a freeze, the screens answering late: `The main thread was away for 640 ms (app 372 MB, …)`, once in ten seconds at most |
@@ -131,13 +131,13 @@ qml: Routing to: modules/local_files/views/Root.qml
 
 ## A module is missing from the main menu
 
-Most modules come switched off. Only Local Files and Playlists are on at first; Ambient:Mode, Arcade, Emby, High Scores, Jellyfin, Netflix, NFC Reader, Plex, Prime Video, Scripts, Weather and YouTube each have an **Enabled** setting that starts at Off. Turn it on, and the module joins the main menu: Settings → TV / Movie → *the module's name* → Enabled for the video modules and Weather, Settings → Arcade → Enabled for Arcade (High Scores' Enabled follows on the same page, under its heading), and Settings → Scripts → Enabled for Scripts. With every module off, the main menu says **No modules enabled**.
+Most modules come switched off. Only Local Files and Playlists are on at first; Ambient:Mode, Arcade, Emby, High Scores, Jellyfin, Netflix, NFC Reader, Plex, Prime Video, Scripts, Weather and YouTube each have an **Enabled** setting that starts at Off. Turn it on, and the module joins the main menu: Settings → TV / Movie → *the module's name* → Enabled for the video modules and Weather, Settings → Arcade → Enabled for Arcade (High Scores' Enabled follows on the same page, under its heading), and Settings → System → Scripts → Enabled for Scripts. With every module off, the main menu says **No modules enabled**.
 
 ## Black screen or no picture
 
 | Cause | Fix |
 |---|---|
-| Settings → Display Output switched to an output the TV doesn't show | Wait: 30 seconds after OSD/OS starts on the new output without **Keep**, it goes back to the old one by itself and restarts again |
+| Settings → Screen → Display Output switched to an output the TV doesn't show | Wait: 30 seconds after OSD/OS starts on the new output without **Keep**, it goes back to the old one by itself and restarts again |
 | Nothing at all, even after that | Take the card to a computer and copy `osdos-display-hdmi.txt` (or an output you know works) over `osdos-display.txt` on the **bootfs** drive |
 | A Pi 4 on composite or SCART RGB, and HDMI went dark | As it should be: a Pi 4 has one output on at a time |
 | An app install on Raspberry Pi OS, a CRT showing nothing | Raspberry Pi OS's own `config.txt` drives HDMI. Composite needs `enable_tvout=1`, `sdtv_mode` and `sdtv_aspect`, and OSD/OS's video settings expect fake KMS on a Pi 3 or 4 (`dtoverlay=vc4-fkms-v3d,cma-256`): use the composite `config.txt` in [INSTALL.md](https://github.com/mehmetraif/OSD-OS/blob/main/INSTALL.md) ([Installation](https://github.com/mehmetraif/OSD-OS/wiki/Installation)) |
@@ -172,7 +172,7 @@ The loading screen comes, then the menu again, or an error. The log says which o
 
 ## No sound
 
-1. **Choose the card** in Settings → Audio Output: AV Jack, HDMI or a USB sound card. On **Auto**, sound goes to ALSA's first card, which may not be the one plugged in, or while that one can't play (a Pi 5's HDMI without the picture), to the first card that can. A Pi 5 has no AV jack: use HDMI, or a USB sound card on a CRT.
+1. **Choose the card** in Settings → Sound → Audio Output: AV Jack, HDMI or a USB sound card. On **Auto**, sound goes to ALSA's first card, which may not be the one plugged in, or while that one can't play (a Pi 5's HDMI without the picture), to the first card that can. A Pi 5 has no AV jack: use HDMI, or a USB sound card on a CRT.
 2. **See the cards ALSA has**: `aplay -l`, or `cat /proc/asound/cards`, the card's id in brackets.
 3. **Quiet AV jack**: OSD/OS keeps the card at 0 dB as it plays. `amixer sset PCM 100%` raises it 4 dB above that, which OSD/OS leaves as it is (`sudo alsactl store` keeps it); loud sound can clip there.
 4. **Read the log**: `journalctl -b -u osdos | grep AudioOutput` shows `Sound through <card>`. mpv's own log, `/tmp/osdos-mpv.log`, says why a video's sound couldn't open.
@@ -271,8 +271,8 @@ The Arcade module lists the ROM sets in its games folder as MAME names them, and
 | `This game is known but one of your romsets is missing files for THIS VERSION of FBNeo … None of those archives was found in your paths` on FinalBurn Neo's screen on Windows, for a set that plays on the Pi | An older OSD/OS gave RetroArch the set's path with slashes, and FinalBurn Neo finds the set's folder by the last backslash on Windows, so it looked in RetroArch's own folder; a BIOS set in the games folder's `bios` folder was linked as a Windows shortcut, which FinalBurn Neo can't open | Update OSD/OS: the paths go with Windows' own separators, and the `bios` folder's sets are copied beside FinalBurn Neo's files. For the same message about a set that plays nowhere, the set lacks files this FinalBurn Neo wants ([Arcade → FinalBurn Neo](https://github.com/mehmetraif/OSD-OS/wiki/Arcade#finalburn-neo)) |
 | `Hardcore paused. Setting not allowed: …` on RetroArch's screen as a FinalBurn Neo game starts, and no score reaches RetroAchievements | A core option RetroAchievements' hardcore mode disallows is set: `fbneo-allow-patched-romsets=enabled` on an older OSD/OS, which left FinalBurn Neo's default, or in a game's own options file saved from RetroArch's menu; a cheat turned on | Update OSD/OS, which sets Allow patched romsets to disabled before each RetroAchievements game; turn the option off in RetroArch's menu (F1 → Core Options) for a game with options of its own, or a cheat ([Arcade → FinalBurn Neo](https://github.com/mehmetraif/OSD-OS/wiki/Arcade#finalburn-neo)) |
 | `… fbneo-arcade.dat could not be put in place` as **Download Again** ends on Settings → Arcade → FinalBurn Neo, on Windows | An older OSD/OS moved the list and the licence over the ones before with a call that, on Windows, refuses a file that exists, so every download after the first failed there | Update OSD/OS. With a reason after the message (`Access is denied`), another program holds the file: close RetroArch, or let an antivirus finish with it, and download again |
-| The Orb theme's Arcade screen is drawn flat, in Orb's two colours, on a Raspberry Pi, and the log says `the Orb look needs Qt Quick 3D` | The Pi was set up before 0.0.31, which brought Qt Quick 3D to the image and to `install.sh`; Settings → Update replaces OSD/OS, never the system's packages | Install `qml6-module-qtquick3d` and `qml6-module-qtquick3d-helpers` once and restart the Pi, or run `install.sh` again ([Arcade → The Orb look](https://github.com/mehmetraif/OSD-OS/wiki/Arcade#the-orb-look)) |
-| Back does nothing on the Arcade screen, and the main menu and Settings can't be reached | Settings → **Cabinet Lock** is on: OSD/OS stays on Start on Module's module | Hold the unlock buttons together for three seconds ([Settings → Cabinet Lock](https://github.com/mehmetraif/OSD-OS/wiki/Settings#cabinet-lock)); the log says `[input] unlock buttons held: …` as they count |
+| The Orb theme's Arcade screen is drawn flat, in Orb's two colours, on a Raspberry Pi, and the log says `the Orb look needs Qt Quick 3D` | The Pi was set up before 0.0.31, which brought Qt Quick 3D to the image and to `install.sh`; Settings → System → Update replaces OSD/OS, never the system's packages | Install `qml6-module-qtquick3d` and `qml6-module-qtquick3d-helpers` once and restart the Pi, or run `install.sh` again ([Arcade → The Orb look](https://github.com/mehmetraif/OSD-OS/wiki/Arcade#the-orb-look)) |
+| Back does nothing on the Arcade screen, and the main menu and Settings can't be reached | Settings → Startup → **Cabinet Lock** is on: OSD/OS stays on Start on Module's module | Hold the unlock buttons together for three seconds ([Settings → Startup → Cabinet Lock](https://github.com/mehmetraif/OSD-OS/wiki/Settings#cabinet-lock)); the log says `[input] unlock buttons held: …` as they count |
 | The unlock buttons are forgotten, or were a pad that is gone | Cabinet Lock is on, and nothing can hold its unlock buttons | Put `osdos-setup.json` on the card's boot partition (or in the data folder) holding `{"osdos_setup": 1, "config": {"app": {"cabinet_lock": "Off"}}}` and start OSD/OS, or set `app.cabinet_lock` to `"Off"` in `config.json` over SSH with OSD/OS stopped |
 | The Arcade screen moves from game to game by itself | Settings → Arcade → **Attract Mode** is In Order or Random, and the screen was left alone for Attract After | Any button or key ends it; Attract Mode Off turns it off ([Arcade → Attract Mode](https://github.com/mehmetraif/OSD-OS/wiki/Arcade#attract-mode)) |
 
@@ -294,7 +294,7 @@ The log has the module's lines: `journalctl -u osdos -b | grep HighScores`.
 
 ## Bluetooth won't turn on
 
-Settings → Bluetooth tries a second time two seconds after BlueZ refuses (bluetoothd may still be setting the adapter up). After a second refusal its help line says why, **Couldn't turn Bluetooth on: …**, and a **Details** line appears: what BlueZ says about the adapter, the rfkill switches, and the system log's last Bluetooth lines, made to be photographed.
+Settings → Network → Bluetooth tries a second time two seconds after BlueZ refuses (bluetoothd may still be setting the adapter up). After a second refusal its help line says why, **Couldn't turn Bluetooth on: …**, and a **Details** line appears: what BlueZ says about the adapter, the rfkill switches, and the system log's last Bluetooth lines, made to be photographed.
 
 | The message ends in | Cause | Fix |
 |---|---|---|
@@ -306,13 +306,13 @@ Settings → Bluetooth tries a second time two seconds after BlueZ refuses (blue
 
 ## Wi-Fi on the image
 
-Settings → **Wi-Fi** joins a network from the couch: select one and type its password ([Settings → Wi-Fi](https://github.com/mehmetraif/OSD-OS/wiki/Settings#wi-fi)). NetworkManager keeps it and joins it by itself at every start. The boot screen's last line, **ONLINE**, is the check that the network is up; with no network it ends with `[FAIL]` after 20 seconds, and OSD/OS carries on without it.
+Settings → Network → **Wi-Fi** joins a network from the couch: select one and type its password ([Settings → Network → Wi-Fi](https://github.com/mehmetraif/OSD-OS/wiki/Settings#wi-fi)). NetworkManager keeps it and joins it by itself at every start. The boot screen's last line, **ONLINE**, is the check that the network is up; with no network it ends with `[FAIL]` after 20 seconds, and OSD/OS carries on without it.
 
 | What you see | Cause | Fix |
 |---|---|---|
 | No Wi-Fi row in Settings | An image, or an `install.sh` run, from before the version that brought it (launcher level 7), a Mac, or a build without Qt D-Bus | Run `install.sh` again, or use one of the ways below |
 | **No Wi-Fi** on the page | NetworkManager isn't running, or there is no Wi-Fi | `systemctl status NetworkManager`; a USB Wi-Fi stick may want its firmware |
-| Wi-Fi turns on, then goes off again | No country set: Raspberry Pi OS keeps Wi-Fi off until it is | Settings → Wi-Fi → **Country** |
+| Wi-Fi turns on, then goes off again | No country set: Raspberry Pi OS keeps Wi-Fi off until it is | Settings → Network → Wi-Fi → **Country** |
 | **NetworkManager didn't allow it (polkit)** | The polkit rule that lets OSD/OS's user use NetworkManager isn't there | Run `install.sh` again. `ls /etc/polkit-1/rules.d/` should list `50-osdos-networkmanager.rules` |
 | **Couldn't set the country: …** | `osdos-wifi.socket` isn't listening, or raspi-config refused the code | `sudo systemctl enable --now osdos-wifi.socket`; the system log has raspi-config's answer |
 | **wrong password?** | The password, or a network whose password changed | Select it: **New Password**, or Forget it and join it again |
@@ -330,13 +330,13 @@ The other ways, as before:
   ```
 
   Both need `sudo`, so an image built with a password.
-- Wi-Fi stays off until its country is set: Settings → Wi-Fi, Imager's customisation and `network-config`'s `regulatory-domain` set it.
+- Wi-Fi stays off until its country is set: Settings → Network → Wi-Fi, Imager's customisation and `network-config`'s `regulatory-domain` set it.
 
 Settings shows the Pi's IP address at the right end of its title bar once there is one. More in [The OSD/OS image → Wi-Fi](https://github.com/mehmetraif/OSD-OS/wiki/The-OSD-OS-Image#wi-fi).
 
 ## Two OSD/OS on one network
 
-Every OSD/OS image starts as `osdos`, so two of them on one network share a name: a router lists them alike, `osdos.local` reaches either, and LAN Play's games are hosted by two `osdos`. **Settings → About → System Information** shows each one's name, IP and MAC addresses; select on **Device Name** to give each a name of its own ([Settings → About → System Information](https://github.com/mehmetraif/OSD-OS/wiki/Settings#system-information)), or name each card in Raspberry Pi Imager's customisation as it is written.
+Every OSD/OS image starts as `osdos`, so two of them on one network share a name: a router lists them alike, `osdos.local` reaches either, and LAN Play's games are hosted by two `osdos`. **Settings → System → About → System Information** shows each one's name, IP and MAC addresses; select on **Device Name** to give each a name of its own ([Settings → System → About → System Information](https://github.com/mehmetraif/OSD-OS/wiki/Settings#system-information)), or name each card in Raspberry Pi Imager's customisation as it is written.
 
 | What you see | Cause | Fix |
 |---|---|---|
@@ -390,7 +390,7 @@ More in [The OSD/OS image → Films on the card](https://github.com/mehmetraif/O
 
 | What you see | Why |
 |---|---|
-| Not in Settings → Theme at all | Its `theme.json` isn't JSON (the first line above, written when Settings lists the themes), or it isn't in a folder of its own under `themes` |
+| Not in Settings → Look → Theme at all | Its `theme.json` isn't JSON (the first line above, written when Settings lists the themes), or it isn't in a folder of its own under `themes` |
 | Listed by its folder's name | Its `name` is missing, or longer than 28 characters |
 | A built-in theme gone | A theme in the data folder with the same folder name takes its place |
 | A `theme.json` in the data folder's `themes` listed under Skin instead | It holds only window pictures (`window`, `titleBar`, `hintBar`, `selection`): a skin from before skins had a folder of their own |
@@ -419,37 +419,42 @@ qsb --glsl "100 es,120,150" --hlsl 50 --msl 12 -o plasma.frag.qsb plasma.frag
 
 ## No menu music
 
-The menu music plays only in the menus: never while a video plays, loads or has its menu open, never under the boot screen, the screen saver or Weather's and Ambient:Mode's own music, and only 700 ms after nothing else holds it. Settings → Menu Music must be the theme's (and the theme have music) or **File** with a Music File, and Music Volume above QUIET. Then the log says the rest:
+The menu music plays only in the menus: never while a video plays, loads or has its menu open, never under the boot screen, the screen saver or Weather's and Ambient:Mode's own music, and only 700 ms after nothing else holds it. Settings → Sound → Menu Music must be the theme's (and the theme have music) or **File** with a Music File, and Music Volume above QUIET. Then the log says the rest:
 
 | What the log says | Cause | Fix |
 |---|---|---|
-| `[MenuMusic] playing <file>` | It plays: check the sound card (Settings → Audio Output; the menu music follows it) | |
+| `[MenuMusic] playing <file>` | It plays: check the sound card (Settings → Sound → Audio Output; the menu music follows it) | |
 | `[MenuMusic] <file>: a MIDI file needs FluidSynth and a SoundFont: fluidsynth is not installed` | A MIDI file, made into a WAV first, and no FluidSynth | `sudo apt install fluidsynth timgm6mb-soundfont` (`install.sh` and the image have them); `brew install fluid-synth` on a Mac |
 | `… needs FluidSynth and a SoundFont: no SoundFont found` | No General MIDI SoundFont | A `.sf2` beside the MIDI file with its name, or in the data folder's `soundfonts`, or the system's (`timgm6mb-soundfont`). Homebrew's FluidSynth brings none |
 | `[MenuMusic] mpv couldn't play <file>, and openmpt123 is not installed` | A tracker's module (XM, MOD, S3M, IT) this mpv can't play | `sudo apt install openmpt123`; `brew install libopenmpt` on a Mac |
 | `[MenuMusic] mpv couldn't play <file> (exit N)` | mpv ended within three seconds | The file is damaged or of a kind mpv can't play. It isn't tried again until the music changes |
-| `[MenuMusic] <file>: no such file` | The file moved | Pick it again in Settings → Music File |
+| `[MenuMusic] <file>: no such file` | The file moved | Pick it again in Settings → Sound → Music File |
 | `[MenuMusic] mpv not found: no menu music` | No mpv | Install mpv |
 
 The menu music's mpv starts with `--no-config`: nothing in `mpv.conf` reaches it. More in [Menu music](https://github.com/mehmetraif/OSD-OS/wiki/Menu-Music).
 
-## Rows missing in Settings
+## Rows dimmed in Settings
 
-Settings offers a row only where it can work (on the first screen, unless TV / Movie's page is named):
+Settings never hides a row: one that can't work here, or can't with another row as it is set, is dimmed, a checkerboard over it, and the help line under it starts with why. Each row below is on the page named after it:
 
-| Row | Offered when |
+| Row | Can be used when |
 |---|---|
-| Text Effect, Background Effect, Screen Effect | The build has OSD/OS's shaders (Qt Shader Tools at build time) and Qt draws on a GPU, not with its software renderer |
-| Ripple, Wave and Drop among the Transitions | The same; without them a theme's Ripple, Wave or Drop fades instead |
-| Selector Effect, and Fade and the Cubes | Always: they need no shader |
+| Text Effect, Background Effect, Screen Effect (Look → Effects) | The build has OSD/OS's shaders (Qt Shader Tools at build time) and Qt draws on a GPU, not with its software renderer |
+| Ripple, Wave and Drop among the Transitions (Look → Effects) | The same; without them a theme's Ripple, Wave or Drop fades instead, and the row doesn't list them |
+| Selector Effect, and Fade and the Cubes (Look → Effects) | Always: they need no shader |
+| Orb Fog (Look) | The theme has the Arcade screen's Orb look |
+| Window Frame (Look) | OSD Background is Window |
 | Transparent Background (TV / Movie) | libmpv was found at run time (`libmpv2` on Raspberry Pi OS, part of Homebrew's mpv), and the build has libmpv's headers. The log says `[EmbeddedMpv] libmpv not found: Transparent Background is unavailable` |
-| Display Output | The OSD/OS image, OSD/OS started by its service, and more than one output for this board |
-| Audio Output | Linux with ALSA's cards (`/proc/asound/cards`) and no sound server |
-| Bluetooth | Linux, a build with Qt D-Bus |
 | 1080p Playback (TV / Movie) | A Raspberry Pi 3, whose smooth path can't crop |
-| Window Frame | OSD Background is Window |
-| Music File, Music Volume | Menu Music is File; Menu Music isn't Off |
 | Logo Image (TV / Movie) | Channel Logo isn't Off |
+| Display Output (Screen) | The OSD/OS image, OSD/OS started by its service, and more than one output for this board |
+| Window Mode (Screen) | Windows, or a Linux or BSD desktop (X11 or Wayland) |
+| Audio Output (Sound) | Linux with ALSA's cards (`/proc/asound/cards`) and no sound server |
+| Music File, Music Volume (Sound) | Menu Music is File; Menu Music isn't Off |
+| Wi-Fi (Network) | Linux, a build with Qt D-Bus, and NetworkManager running |
+| Bluetooth (Network) | Linux, a build with Qt D-Bus, and BlueZ running |
+| Startup From (Startup) | A favourite is set to Play at Startup |
+| Paste OSD/OS Setup (System) | A clipboard to paste from: a computer, not the OSD/OS image's console |
 | Startup From | A favourite is set to Play at Startup |
 
 A build without Qt Shader Tools says so when CMake configures it: `Qt Shader Tools not found — the shader effects will be unavailable` ([Building from source](https://github.com/mehmetraif/OSD-OS/wiki/Building-from-Source#qt-shader-tools)). Under Qt's software renderer (`QT_QUICK_BACKEND=software`) the shaders can't run whatever the build; OpenGL drawn on the CPU (Mesa's llvmpipe) still runs them, slowly. More in [Effects](https://github.com/mehmetraif/OSD-OS/wiki/Effects).
@@ -527,11 +532,11 @@ Open an issue at [github.com/mehmetraif/OSD-OS/issues](https://github.com/mehmet
 - **The hardware**: the board (`cat /proc/device-tree/model` on a Pi), or the Mac or PC.
 - **The output**: composite NTSC or PAL, SCART RGB, HDMI; and the `config.txt` or Display Output preset in use (`cat /boot/firmware/osdos-display.txt` on the image). Overscan and `config.txt` differences are common causes.
 - **How OSD/OS is installed**: the image, `install.sh`, the DMG, the AppImage, or built from source.
-- **The version**: Settings shows a release's in its title bar, after SETTINGS, and Settings → About any build's in its own (`DEV` for a build from source); About → Build has the commit and the day the build was made.
+- **The version**: Settings shows a release's in its title bar, after SETTINGS, and Settings → System → About any build's in its own (`DEV` for a build from source); About → Build has the commit and the day the build was made.
 - **mpv's version**, the first line of `mpv --version`: playback problems often come from it.
 - **The log**, as text: `journalctl -u osdos -b --no-pager > osdos.log` on the image, or the terminal's output. For a playback problem, `/tmp/osdos-mpv.log` too, once you have looked through it for addresses and tokens.
 - **After a crash or a freeze**, `crash-report.txt` or `stall-report.txt` from the data folder ([the reports](https://github.com/mehmetraif/OSD-OS/wiki/Troubleshooting#when-it-crashes-or-freezes-the-reports)).
-- **A photo of the screen** where it helps: Settings → Bluetooth's Details page is made for one.
+- **A photo of the screen** where it helps: Settings → Network → Bluetooth's Details page is made for one.
 
 ## See also
 

@@ -18,11 +18,11 @@ A skin to copy and make your own. A skin dresses the window: it gives the shapes
    - macOS: `~/Library/Application Support/OSD-OS/skins/<name>/`
 
    The folder's name is what Settings saves. A folder named like one of OSD/OS's own (`dos`, `rounded`) is used in its place. A skin made before skins had their name, a `theme.json` of these parts in the data folder's `themes`, is read as a skin too.
-2. **Name it.** `"name"` in `skin.json` is what Settings → Skin shows: 28 characters at most, else the folder's name is shown.
+2. **Name it.** `"name"` in `skin.json` is what Settings → Look → Skin shows: 28 characters at most, else the folder's name is shown.
 3. **Draw it**, either way:
    - in `make-pictures.py`: change the drawings and run `python3 make-pictures.py`, which writes the PNGs beside it. In a drawing `#` is light, `o` dark and `.` clear.
    - in any pixel editor, in white, black and transparent.
-4. **Pick it** in Settings → Skin. A new folder is listed the next time Settings opens. The window's frame shows with OSD Background set to Window and Window Frame On or Shadow.
+4. **Pick it** in Settings → Look → Skin. A new folder is listed the next time Settings opens. The window's frame shows with OSD Background set to Window and Window Frame On or Shadow.
 
 To see a picture you changed in a skin already in use, restart OSD/OS: a picture already shown stays in memory.
 

@@ -6,7 +6,7 @@ import QtQuick
 //   WINDOW  a window of it behind what a view shows (root.osdWindow), black
 //           around it, framed as Settings' WINDOW FRAME has it
 //           (root.osdFrame): ON a line in the scheme's colour, or the skin's
-//           frame (Settings → Skin, root.skin.window); OFF none; SHADOW the
+//           frame (Settings → Look → Skin, root.skin.window); OFF none; SHADOW the
 //           frame and a shadow below and to the right, like a DOS window's;
 //   OFF     none: black, the menus in the scheme's lighter colour on it, as a
 //           deck's OSD with nothing playing (root.surfaceColor is then black).
@@ -18,7 +18,7 @@ import QtQuick
 // strip of it (the keyboard's, below the title bar), and the window shows
 // through that strip as it lies on the screen.
 //
-// Over the window's ground goes the background effect (Settings → Background
+// Over the window's ground goes the background effect (Settings → Look → Effects → Background
 // Effect, or the theme's: BackgroundFx), the same picture under every ground.
 // One laid over a view `cover`s it: the selector effect plays round a selected
 // line in front of it only (Main.qml's root.selector).

@@ -73,7 +73,7 @@ flowchart LR
 - **It runs** whenever the theme's screen effect has a shader, even with every number 0, where there is a GPU and the effects aren't resting.
 - **It draws the whole screen**: write an opaque colour, alpha 1.
 - **Pixels and art pixels**: `qt_TexCoord0 * resolution` is the point in screen pixels, and that `/ px` in art pixels; `floor()` of it is the art pixel. Work in whole art pixels and the menus stay crisp.
-- **It replaces OSD/OS's screen shader, text effects and all.** Settings → Text Effect's numbers still reach your shader, as `rainbow`, `shimmer`, `flicker` and `inkGlow`, but they show only if your shader draws them ([example 4](#4-keeping-the-text-effects)).
+- **It replaces OSD/OS's screen shader, text effects and all.** Settings → Look → Effects → Text Effect's numbers still reach your shader, as `rainbow`, `shimmer`, `flicker` and `inkGlow`, but they show only if your shader draws them ([example 4](#4-keeping-the-text-effects)).
 
 ## A background effect's shader
 
@@ -396,7 +396,7 @@ void main()
 
 ### 4. Keeping the text effects
 
-A screen shader of your own takes the place of OSD/OS's, which is the one that draws the text effects (Rainbow, Shimmer, Glow, Flicker). This one draws them as OSD/OS's does, from the same numbers, so Settings → Text Effect and the theme's `text` keep working; its own look is only scanlines, where yours goes.
+A screen shader of your own takes the place of OSD/OS's, which is the one that draws the text effects (Rainbow, Shimmer, Glow, Flicker). This one draws them as OSD/OS's does, from the same numbers, so Settings → Look → Effects → Text Effect and the theme's `text` keep working; its own look is only scanlines, where yours goes.
 
 ```json
 {
@@ -409,7 +409,7 @@ A screen shader of your own takes the place of OSD/OS's, which is the one that d
 
 ```glsl
 #version 440
-// A screen effect of one's own that keeps Settings → Text Effect working:
+// A screen effect of one's own that keeps Settings → Look → Effects → Text Effect working:
 // the text effects are drawn by OSD/OS's own screen shader, which this one
 // replaces, so it draws them itself, as OSD/OS's does (shaders/effects.frag).
 // Its own look here is only scanlines: put yours where it says.
@@ -502,7 +502,7 @@ void main()
 
 ### plasma.frag: a background
 
-The [template](https://github.com/mehmetraif/OSD-OS/blob/main/docs/theme-template/plasma.frag)'s background effect: a plasma, the old demos' favourite, drifting slowly behind the menus in the scheme's colour, faint and dithered as an old computer would draw it. OSD/OS has it built in too, as Settings → Background Effect's **Plasma** (`shaders/bg-plasma.frag`).
+The [template](https://github.com/mehmetraif/OSD-OS/blob/main/docs/theme-template/plasma.frag)'s background effect: a plasma, the old demos' favourite, drifting slowly behind the menus in the scheme's colour, faint and dithered as an old computer would draw it. OSD/OS has it built in too, as Settings → Look → Effects → Background Effect's **Plasma** (`shaders/bg-plasma.frag`).
 
 ```glsl
 #version 440

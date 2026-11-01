@@ -136,7 +136,7 @@ Item {
                     height: answers.rowHeight
 
                     // The answer under the cursor, boxed, or in the skin's
-                    // picture of a selected line (Settings → Skin).
+                    // picture of a selected line (Settings → Look → Skin).
                     SelectionBox {
                         anchors.fill: label
                         visible: parent.current

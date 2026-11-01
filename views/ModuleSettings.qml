@@ -72,8 +72,8 @@ FocusScope {
         return row && row.type === "submenu" ? row : null
     }
 
-    // `keepId`: the row the cursor stays on (rowId()), as rows come and go
-    // round it.
+    // `keepId`: the row the cursor stays on (rowId()), as the rows are made
+    // again round it.
     function buildModel(keepId) {
         var schema = appCore.get_module_settings_schema(moduleId)
         fullSchema = schema
@@ -124,20 +124,46 @@ FocusScope {
         return false
     }
 
-    // A menu's rows on the page now (another module's, `mid`, marked as its):
-    // those no sign-in, capability or other row's value keeps back.
+    // A menu's rows on the page (another module's, `mid`, marked as its), all
+    // of them: one a sign-in, a capability or another row's value keeps back
+    // is dimmed rather than hidden, the cursor stopping on it and the help
+    // line saying why (_off; _offBy, what keeps it back: "auth",
+    // "capability" or "shown_with").
     function offered(schema, mid) {
         var state = mid !== "" ? (alsoAuthStates[mid] || "") : authState
         var caps = dynamicOptions[optionKey(mid, "_capabilities")] || []
         var rows = []
         for (var i = 0; i < schema.length; i++) {
             var item = schema[i]
-            if (item.requires_auth && (state === "none" || state === "")) continue
-            if (item.requires_capability && caps.indexOf(item.requires_capability) < 0) continue
-            if (item.shown_with && !shownWith(item.shown_with, mid)) continue
-            rows.push(mid !== "" ? Object.assign({ _module: mid }, item) : item)
+            var off = "", by = ""
+            if (item.requires_auth && (state === "none" || state === "")) {
+                off = "Only once signed in"
+                by = "auth"
+            } else if (item.requires_capability && caps.indexOf(item.requires_capability) < 0) {
+                off = "Not offered by the server"
+                by = "capability"
+            } else if (item.shown_with && !shownWith(item.shown_with, mid)) {
+                off = shownWithReason(item.shown_with, mid)
+                by = "shown_with"
+            }
+            var row = mid !== "" ? Object.assign({ _module: mid }, item) : item
+            rows.push(off !== "" ? Object.assign({ _off: off, _offBy: by }, row) : row)
         }
         return rows
+    }
+
+    // What a row's "shown_with" waits for, in words: "Only with Screen on
+    // Arcade", an on or off one's "Only with Online Play on", several "… or
+    // …".
+    function shownWithReason(cond, mid) {
+        var parts = conditions(cond).map(function(one) {
+            var row = findRow(mid !== "" ? (alsoSchemas[mid] || []) : fullSchema, one.key)
+            var label = row ? (row.label || one.key) : one.key
+            var value = String(one.value)
+            var lower = value.toLowerCase()
+            return lower === "on" || lower === "off" ? label + " " + lower : label + " on " + value
+        })
+        return "Only with " + parts.join(" or ")
     }
 
     // The module's whole schema, submenus and all, and this menu's rows, as
@@ -146,11 +172,11 @@ FocusScope {
     property var menuSchema: []
     property var alsoSchemas: ({})
 
-    // A row offered only while another of the module's (`mid`, "" for this
-    // page's own) has a value (manifest "shown_with": { "key", "value" }),
-    // such as the Arcade module's rows for its Arcade screen: that row's
-    // value as the page shows it, and never while that row is hidden itself.
-    // A list of them offers it while any holds.
+    // Whether a row usable only while another of the module's (`mid`, ""
+    // for this page's own) has a value (manifest "shown_with": { "key",
+    // "value" }), such as the Arcade module's rows for its Arcade screen, can
+    // be used now: that row's value as the page shows it, and never while
+    // that row can't be used itself. A list of them holds while any holds.
     function shownWith(cond, mid, depth) {
         if (cond.key === undefined)
             return conditions(cond).some(function(one) { return shownWith(one, mid, depth) })
@@ -204,7 +230,7 @@ FocusScope {
         return null
     }
 
-    // Whether a row of this menu comes and goes with this key's value, of
+    // Whether a row of this menu is dimmed or not by this key's value, of
     // this page's own module or another's (`mid`).
     function rowsFollow(key, mid) {
         var rows = mid ? (alsoSchemas[mid] || []) : menuSchema
@@ -214,16 +240,21 @@ FocusScope {
         return false
     }
 
-    // Asks the backend for the choices of the dynamic rows shown that it
-    // hasn't sent yet (a row just offered), or of all of them again (a
-    // sign-in changes them). A multi-select row's are its own page's, which
-    // asks for them as it opens.
+    // Asks the backend for the choices of the dynamic rows it hasn't been
+    // asked for yet (a row a sign-in or a capability no longer keeps back),
+    // or of all of them again (a sign-in changes them). A multi-select row's
+    // are its own page's, which asks for them as it opens.
+    property var askedOptions: ({})
     function requestOptions(again) {
         for (var i = 0; i < schemaItems.length; i++) {
             var item = schemaItems[i]
+            var id = rowId(item)
             if (item.options_source === "dynamic" && item.options_slot && item.type !== "multiselect_submenu"
-                && (again || dynamicOptions[rowId(item)] === undefined))
+                && item._offBy !== "auth" && item._offBy !== "capability"
+                && (again || (dynamicOptions[id] === undefined && !askedOptions[id]))) {
+                askedOptions[id] = true
                 appCore.invoke_module_action(moduleOf(item), item.options_slot)
+            }
         }
     }
 
@@ -284,7 +315,7 @@ FocusScope {
 
     function cycleValue(index, direction) {
         var item = schemaItems[index]
-        if (!item) return
+        if (!item || item._off) return
 
         if (item.type === "toggle") {
             store(item, currentDisplayValue(item) !== "ON")
@@ -329,13 +360,14 @@ FocusScope {
     // A line select leads on from, to a page of its own: a submenu's rows, a
     // multi-select's choices, the module's own view, the folder picker. ►
     // opens it too, and its line ends in a ►.
+    // A dimmed line (_off) neither opens nor changes.
     function opens(item) {
-        return !!item && (item.type === "submenu" || item.type === "multiselect_submenu"
-                          || item.type === "module_view" || item.type === "directory_browser")
+        return !!item && !item._off && (item.type === "submenu" || item.type === "multiselect_submenu"
+                                        || item.type === "module_view" || item.type === "directory_browser")
     }
     // A line whose value ◄ ► change on it: between a ◄ and a ►.
     function changes(item) {
-        return !!item && (item.type === "toggle" || item.type === "list_single")
+        return !!item && !item._off && (item.type === "toggle" || item.type === "list_single")
     }
 
     // Forward dynamicOptionsReady from appCore into our local cache
@@ -432,7 +464,7 @@ FocusScope {
 
         Keys.onReturnPressed: {
             var item = schemaItems[currentIndex]
-            if (!item) return
+            if (!item || item._off) return
             if (item.type === "toggle")
                 moduleSettingsRoot.cycleValue(currentIndex, 1)
             else if (moduleSettingsRoot.opens(item))
@@ -474,11 +506,13 @@ FocusScope {
                     ? moduleSettingsRoot.currentDisplayValue(rowItem.modelData) : ""
                 opens: moduleSettingsRoot.opens(rowItem.modelData)
                 changes: moduleSettingsRoot.changes(rowItem.modelData)
+                dimmed: !!rowItem.modelData._off
                 selected: settingsList.currentIndex === rowItem.index
             }
             Loader {
                 id: tape
                 active: rowItem.slider
+                visible: !rowItem.modelData._off
                 x: root.sw * 0.009375 //6
                 y: rowItem.lineHeight + Math.round((rowItem.barLines * rowItem.lineHeight - height) / 2)
                 width: parent.width - 2 * x
@@ -495,10 +529,11 @@ FocusScope {
 
     // --- HELP TEXT --- (shown when a focused row has a description), on one
     // line that scrolls when it is too long for the box.
+    // A dimmed row's says first why it can't be used now.
     HelpLine {
         property var currentRow: moduleSettingsRoot.schemaItems[settingsList.currentIndex]
-        visible: !!(currentRow && currentRow.description)
-        text: (currentRow && currentRow.description) || ""
+        visible: !!(currentRow && (currentRow.description || currentRow._off))
+        text: (currentRow && currentRow._off ? currentRow._off + "\n" : "") + ((currentRow && currentRow.description) || "")
         anchors.bottom: parent.bottom
         anchors.left: parent.left
         anchors.bottomMargin: root.helpLineMargin

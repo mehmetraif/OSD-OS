@@ -1,6 +1,6 @@
 import QtQuick
 
-// Settings → Test Patterns: pictures to set a TV or monitor up by, its own
+// Settings → Screen → Test Patterns: pictures to set a TV or monitor up by, its own
 // knobs or service menu, from Artemio Urbina's 240p Test Suite
 // (assets/testpatterns, GPL v2 or later; its README says which file came
 // from where).

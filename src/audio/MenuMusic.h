@@ -7,10 +7,10 @@
 #include <QString>
 #include <QTimer>
 
-// Settings → Menu Music, or a theme's: a tune looping under the menus. Main.qml
+// Settings → Sound → Menu Music, or a theme's: a tune looping under the menus. Main.qml
 // says what plays (`source`, a sound file, "" for none), how loud (`volume`,
 // 0 to 100) and when it is wanted: in the menus, and never while a video
-// plays or loads. An mpv process plays it, on Settings → Audio Output's card.
+// plays or loads. An mpv process plays it, on Settings → Sound → Audio Output's card.
 //
 // A recording (OGG, Opus, MP3, FLAC, WAV, M4A, AAC) and a tracker's module
 // (XM, MOD, S3M, IT, through ffmpeg's libopenmpt) play as they are. A MIDI
@@ -50,7 +50,7 @@ public:
     static void release(const QString &who);
 
 public slots:
-    // On another sound card (Settings → Audio Output): from the start there.
+    // On another sound card (Settings → Sound → Audio Output): from the start there.
     void restart();
 
 signals:

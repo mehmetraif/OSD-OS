@@ -48,7 +48,7 @@ Five principles from CONTRIBUTING.md shape every module:
 | `icon` | | Its logo, relative to the module's folder |
 | `entry_point_qml` | Yes | Its router, relative to the module's folder: `views/Root.qml` |
 | `settings` | | Its settings, in the order Settings shows them. A module with none isn't listed in Settings |
-| `settings_group` | | Where Settings lists the module's page: `"tv"` under **Modules** on the **TV / Movie** page, with the video modules; `"arcade"` on the **Arcade** page, its rows after the Arcade module's under its name as a heading. Left out, as Hello Channel's is (or naming a group Settings has no page for), the page is under **Modules** on Settings' first screen. Its settings are saved under `modules.<id>` whichever it is |
+| `settings_group` | | Where Settings lists the module's page: `"tv"` under **Modules** on the **TV / Movie** page, with the video modules; `"arcade"` on the **Arcade** page, its rows after the Arcade module's under its name as a heading. Left out, as Hello Channel's is (or naming a group Settings has no page for), the page is under **Modules** on Settings' **System** page. Its settings are saved under `modules.<id>` whichever it is |
 
 A manifest that isn't JSON is left out, with `[AppCore] Bad manifest.json in <folder>: <error>` in the log; one without `id` or `entry_point_qml`, with `[AppCore] Skipping <folder>: manifest missing 'id' or 'entry_point_qml'`.
 
@@ -264,7 +264,7 @@ How it works:
 - **The stack's first entry is empty.** The first `navigateTo()` pushes the loader's empty source; back from the first view pops it, and `navigateBack()` then calls `goBack()`: the module is left.
 - **Position comes back.** A view leaves with a list state (`{ currentIndex: … }`), and gets it back as `navParams.navListState` when back returns to it.
 - **`replaceWith()`** shows a view without pushing it: Plex's `CardPlay.qml` hands over to its player this way, so back from the video returns to the NFC Reader.
-- **Starting params.** What the shell opens the module with is in the router's own `navParams`: `resumePlayer` (which this router passes on, below); `fromAppStartup` when OSD/OS opened the module by itself as it started (Settings → Start on Module, or Play at Startup); and `startupPlay`, the favourite to play at once, with Play at Startup. Local Files' router passes `startupPlay` on to its tree; Scripts' runs its Auto-Run On Startup script at `fromAppStartup`.
+- **Starting params.** What the shell opens the module with is in the router's own `navParams`: `resumePlayer` (which this router passes on, below); `fromAppStartup` when OSD/OS opened the module by itself as it started (Settings → Startup → Start on Module, or Play at Startup); and `startupPlay`, the favourite to play at once, with Play at Startup. Local Files' router passes `startupPlay` on to its tree; Scripts' runs its Auto-Run On Startup script at `fromAppStartup`.
 
 ### Channels.qml: a list view
 
@@ -411,7 +411,7 @@ What each part does, and why it is written so:
 - **Files.** `appCore.folderEntries(path, types)` gives a folder's entries, `[{ name, path, isFolder }]`: its folders, then its files of those types, hidden ones left out. A pure-QML module can list a folder with it.
 - **`MenuList`** is the menu in the place every view has it, under the title bar, with ▲ ▼ when rows are hidden; its cursor steps over rows of `type: "section"` and goes round the ends. The view gives it the rows and a delegate, and handles select and back.
 - **`MenuRow`** draws a line the way a camcorder's menu does, `TEST CARD······MP4`; `heading` makes a group's heading (`CHANNEL ────`); `keepValue` cuts the label short rather than the value; `opens` ends a line that leads to another screen in a ► (open it with ► as with select), and `changes` puts a value ◄ ► change between a ◄ and a ►.
-- **`HelpLine`** is the box under the menu, scrolling a line too long for it; Settings → Help Line hides every one. `root.helpLineMargin` puts it over the hint bar, or in its place while Settings → Hint Bar is off.
+- **`HelpLine`** is the box under the menu, scrolling a line too long for it; Settings → Look → Help Line hides every one. `root.helpLineMargin` puts it over the hint bar, or in its place while Settings → Look → Hint Bar is off.
 - **`HintBar`**, always at the foot, in the same place on every screen. Its text is built from **`root.hints`**: `[ESC]`, `[ENTER]` and `[▲▼]` on a keyboard, the button's own label once a gamepad was touched. Never type `[ESC]`, and never bind to `inputManager.hints`: as the router swaps views, the old view's context properties go null, while `root` stays.
 - **Sizes** are fractions of the screen, `root.sw` and `root.sh`, with the 640 × 480 pixels in a comment. The title bar starts at `root.sh * 0.125` and `root.sw * 0.125`; the hint bar ends `root.sh * 0.1041667` above the bottom. These keep the view inside a CRT's safe area at any resolution. A list of your own grows by `root.hintRoom` (and, over a help line, `root.helpRoom`): a row for each bar that Settings turns off, `MenuList` doing it by itself.
 - **Colours and font.** The shared components already draw in `root.primaryColor` on `root.surfaceColor`, in `root.globalFont`, capitals: a view of its own uses the same, so the colour schemes and themes reach it.
@@ -505,7 +505,7 @@ APP_ROOT=$(pwd) ./build/osdos
 <table>
 <tr><th width="50%">The modules in Settings</th><th width="50%">A module's settings</th></tr>
 <tr><td><img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/screenshots/settings-modules.png" width="100%" alt="Settings → TV / Movie: each video module is turned on and set up from its own row, under the MODULES heading" /></td><td><img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/screenshots/module-settings.png" width="100%" alt="Local Files' settings page, made from its manifest" /></td></tr>
-<tr><td>A row per module that has settings, under a MODULES heading, in the order of their folders: here the video modules', on the TV / Movie page (<code>"settings_group": "tv"</code>). Hello Channel names no group, so its row is under the MODULES heading of Settings' first screen, before Scripts'.</td><td>A settings page made from a manifest, Local Files' here: a toggle, a folder, lists. Hello Channel's has its five rows the same way.</td></tr>
+<tr><td>A row per module that has settings, under a MODULES heading, in the order of their folders: here the video modules', on the TV / Movie page (<code>"settings_group": "tv"</code>). Hello Channel names no group, so its row is under the MODULES heading of Settings' System page, before Scripts'.</td><td>A settings page made from a manifest, Local Files' here: a toggle, a folder, lists. Hello Channel's has its five rows the same way.</td></tr>
 </table>
 
 Changing a row saves it at once. With Sort Order on Z to A and Loop Playback on, `config.json` has, among the rest:

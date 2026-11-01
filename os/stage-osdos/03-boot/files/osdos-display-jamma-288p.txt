@@ -2,7 +2,7 @@
 # layout, as osdos-display-jamma-240p.txt has it (the pins, the controls,
 # the sound), at 720x288: 50 Hz, 15.63 kHz, PAL's lines, for a monitor and
 # games of 50 Hz. The timing is the SCART RGB 288p preset's, CEA-861's.
-# Chosen in Settings → Display Output, or copied over osdos-display.txt
+# Chosen in Settings → Screen → Display Output, or copied over osdos-display.txt
 # (config.txt says how).
 # osdos-controls: jamma
 # A Pi 5 keeps HDMI on beside it: OSD/OS takes this output, in this mode. The

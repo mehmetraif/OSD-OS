@@ -158,7 +158,7 @@ weather-music/Smooth Jazz 02.ogg
 https://archive.org/download/weatherscancompletecollection/02 Beach Frolic.mp3
 ```
 
-The music is a second mpv of its own, apart from the one that plays videos: `mpv --no-video --loop-playlist=inf --shuffle --no-terminal --really-quiet --input-ipc-server=<temp folder>/osdos-weather-music.sock`, on Settings → Audio Output's card. It starts as the module opens and stops as you leave it (or when the location can't be found). While it plays, the menu music (Settings → Menu Music) is held off, and comes back afterwards. ▼ pauses and resumes it over its socket, so the track carries on where it was.
+The music is a second mpv of its own, apart from the one that plays videos: `mpv --no-video --loop-playlist=inf --shuffle --no-terminal --really-quiet --input-ipc-server=<temp folder>/osdos-weather-music.sock`, on Settings → Sound → Audio Output's card. It starts as the module opens and stops as you leave it (or when the location can't be found). While it plays, the menu music (Settings → Sound → Menu Music) is held off, and comes back afterwards. ▼ pauses and resumes it over its socket, so the track carries on where it was.
 
 ## Settings
 
@@ -204,7 +204,7 @@ A screen missing from `displays` counts as on.
 
 ## Attribution
 
-- Weather data by [Open-Meteo.com](https://open-meteo.com), under [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/). OSD/OS says so in Settings → About too.
+- Weather data by [Open-Meteo.com](https://open-meteo.com), under [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/). OSD/OS says so in Settings → System → About too.
 - Current observations for US places from the National Weather Service ([api.weather.gov](https://api.weather.gov)), which asks every client to name itself: OSD/OS sends `OSD-OS/<version>` with a link to the project.
 - The look is inspired by [WeatherStar 3000+](https://github.com/netbymatt/ws3kp) by netbymatt, after The Weather Channel's WeatherStar.
 - The built-in music is from the Weatherscan collection on the [Internet Archive](https://archive.org/details/weatherscancompletecollection).
@@ -231,7 +231,7 @@ When the module can't start, it says why:
 
 **An extra place is missing from Other Locations.** It couldn't be found, and was skipped: the log says `skipping other location`. Add qualifiers or use coordinates. If no extra place could be found, the screen leaves the loop.
 
-**No music.** Check Settings → TV / Movie → WEATHER → Music, the network (the built-in tracks stream), that each line of `weather_music.txt` names a file that exists, and Settings → Audio Output. The log says `music process exited` when mpv gave up, and `mpv not found` when there is no mpv.
+**No music.** Check Settings → TV / Movie → WEATHER → Music, the network (the built-in tracks stream), that each line of `weather_music.txt` names a file that exists, and Settings → Sound → Audio Output. The log says `music process exited` when mpv gave up, and `mpv not found` when there is no mpv.
 
 **The clock shows another time than the device.** It shows the time where the weather is: that is on purpose.
 

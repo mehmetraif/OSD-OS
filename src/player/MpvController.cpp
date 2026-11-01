@@ -551,7 +551,7 @@ QStringList MpvController::sessionArgs(const QString &url, float startSeconds,
         args << QString("--image-display-duration=%1").arg(double(imageDurationSec), 0, 'f', 1);
     if (muteAudio)
         args << QStringLiteral("--no-audio");
-    // Settings → Audio Output: the sound card chosen, while it is plugged in;
+    // Settings → Sound → Audio Output: the sound card chosen, while it is plugged in;
     // inside the app, Auto's too, which a process has as ALSA's default
     // instead (its environment, startProcess()).
     args << AudioOutput::mpvArgs(embedded);
@@ -927,7 +927,7 @@ void MpvController::startProcess(QStringList args, const QStringList &media) {
             if (!fcConf.isEmpty())
                 env.insert("FONTCONFIG_FILE", fcConf);
 #endif
-            // Settings → Audio Output's card as ALSA's default.
+            // Settings → Sound → Audio Output's card as ALSA's default.
             AudioOutput::applyTo(env);
             m_process->setProcessEnvironment(env);
         }

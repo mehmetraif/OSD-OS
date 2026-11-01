@@ -1,5 +1,5 @@
 #version 440
-// Settings → Background Effect's Matrix: rain of glyphs down the window, each
+// Settings → Look → Effects → Background Effect's Matrix: rain of glyphs down the window, each
 // column at its own speed, the newest glyph bright, those behind it fading.
 // Drawn in art pixels (Main.qml draws it at that size and scales it up), on
 // the screen's grid: every ground (OsdGround) under a dialog draws the same

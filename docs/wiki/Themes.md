@@ -1,6 +1,6 @@
 # Themes
 
-A theme is the whole look of OSD/OS in one folder: the two colours everything is drawn in, the [skin](https://github.com/mehmetraif/OSD-OS/wiki/Skins) that dresses the window, the [effects](https://github.com/mehmetraif/OSD-OS/wiki/Effects) (on the text, behind the menus, round the selected line, over the screen and between windows) and the [menu music](https://github.com/mehmetraif/OSD-OS/wiki/Menu-Music). Settings → **Theme** picks one, and each of its parts can then be changed or turned off on a row of its own. This page covers the nine themes that come with OSD/OS and the file each is made of, how a theme and Settings' rows work together, every key of `theme.json`, making a theme of your own step by step, three complete example themes, and what the log says when part of a theme can't be used.
+A theme is the whole look of OSD/OS in one folder: the two colours everything is drawn in, the [skin](https://github.com/mehmetraif/OSD-OS/wiki/Skins) that dresses the window, the [effects](https://github.com/mehmetraif/OSD-OS/wiki/Effects) (on the text, behind the menus, round the selected line, over the screen and between windows) and the [menu music](https://github.com/mehmetraif/OSD-OS/wiki/Menu-Music). Settings → Look → **Theme** picks one, and each of its parts can then be changed or turned off on a row of its own. This page covers the nine themes that come with OSD/OS and the file each is made of, how a theme and Settings' rows work together, every key of `theme.json`, making a theme of your own step by step, three complete example themes, and what the log says when part of a theme can't be used.
 
 ## The nine themes
 
@@ -46,7 +46,7 @@ A theme is the whole look of OSD/OS in one folder: the two colours everything is
 <tr><td>The Arcade screen in x-ray glass, in 3D: the list on a panel at the right, the game's pictures inside an orb, its high scores and what it is on a panel under it, fog drifting behind, and the whole swaying slowly; ▲ ▼ ◄ ► nudge it.</td><td>A game started: the panels swing out on their hinges, the orb comes to the middle and the camera goes into it, its picture opening out to the whole screen, before the game's loading screen.</td></tr>
 </table>
 
-Orb is a look for the [Arcade screen](https://github.com/mehmetraif/OSD-OS/wiki/Arcade#the-orb-look) above all: its other menus are plain, in its two colours. It is chosen in Settings → Theme or on the [Setup page](https://osdos.tv/setup/), whose live preview draws its Arcade screen in 3D as OSD/OS does.
+Orb is a look for the [Arcade screen](https://github.com/mehmetraif/OSD-OS/wiki/Arcade#the-orb-look) above all: its other menus are plain, in its two colours. It is chosen in Settings → Look → Theme or on the [Setup page](https://osdos.tv/setup/), whose live preview draws its Arcade screen in 3D as OSD/OS does.
 
 Without a theme (Theme: None), OSD/OS is plain on purpose: Video 1's two colours, OSD/OS's own window, nothing moving but the cursor, and no music.
 
@@ -204,7 +204,7 @@ The one theme whose music is a tracker's module: a four-channel FastTracker 2 XM
 
 ### Orb
 
-Two colours of its own, a lime green on a dark green, and the Arcade screen's Orb look (`arcade`). With it, Settings has an **Orb Fog** row under Theme, and the Setup page too: the fog behind the panels as a picture drifting (Picture, the default) or worked out as it drifts (Live), as any theme with the look has ([Settings](https://github.com/mehmetraif/OSD-OS/wiki/Settings#the-look)).
+Two colours of its own, a lime green on a dark green, and the Arcade screen's Orb look (`arcade`). With it, Settings → Look's **Orb Fog** row under Theme can be used (with any other theme it is dimmed), and the Setup page has it too: the fog behind the panels as a picture drifting (Picture, the default) or worked out as it drifts (Live), as any theme with the look has ([Settings](https://github.com/mehmetraif/OSD-OS/wiki/Settings#look)).
 
 ```json
 {
@@ -218,9 +218,9 @@ Two colours of its own, a lime green on a dark green, and the Arcade screen's Or
 
 ### Theme and the rows under it
 
-<img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/screenshots/settings.png" width="100%" alt="Settings: TV / Movie and Arcade, then under the GENERAL SETTINGS heading Theme and a row for each of its parts" />
+<img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/screenshots/settings-look.png" width="100%" alt="Settings → Look: THEME NONE, ORB FOG dimmed, COLOR SCHEME VIDEO 1, SKIN NONE, EFFECTS, OSD BACKGROUND FULL, WINDOW FRAME dimmed, BOOT SCREEN COLORS THEME" />
 
-Settings → **Theme** lists None and every theme by name ([Settings](https://github.com/mehmetraif/OSD-OS/wiki/Settings#the-look)):
+Settings → Look → **Theme** lists None and every theme by name ([Settings](https://github.com/mehmetraif/OSD-OS/wiki/Settings#look)):
 
 | Setting | Values | Default | What it does | Config key |
 |---|---|---|---|---|
@@ -327,7 +327,7 @@ That is the [theme template](https://github.com/mehmetraif/OSD-OS/tree/main/docs
 
 | Key | Type | What it takes | Left out |
 |---|---|---|---|
-| `name` | string | What Settings → Theme shows, 28 characters at most | The folder's name |
+| `name` | string | What Settings → Look → Theme shows, 28 characters at most | The folder's name |
 | `colors` | string or object | A color scheme's name, or `{ "primary": "#rrggbb", "surface": "#rrggbb" }` | Video 1's colours |
 | `skin` | string or object | A skin's folder name, or a skin's parts as in a `skin.json` | OSD/OS's own window |
 | `effects` | object | Any of `text`, `background`, `selector`, `screen` and `transition` | No effects |
@@ -338,16 +338,16 @@ Every key is optional, and `null` is the same as leaving it out. Keys OSD/OS doe
 
 ### name
 
-What Settings → Theme shows. Runs of spaces count as one. Longer than 28 characters, or empty, and the folder's name is shown instead.
+What Settings → Look → Theme shows. Runs of spaces count as one. Longer than 28 characters, or empty, and the folder's name is shown instead.
 
 ### colors
 
 The two colours everything is drawn in: `primary`, the text, the lines and the selection, and `surface`, the background. OSD/OS draws in those two only, like a deck's on-screen display. Either:
 
-- **A color scheme's name**, exactly as Settings → Color Scheme lists it: `"Video 1"`, `"Late Night"`, `"Synthwave"`, `"Terminal"`, `"T-120"`, `"Amber"`, `"Kinescope"`, `"SMPTE ECR 1-1978"` (their colours are in [Settings](https://github.com/mehmetraif/OSD-OS/wiki/Settings#the-look)), or one of your own from `custom_color_schemes.json` or `custom_color_scheme.json` (`"Custom"`) ([Configuration files](https://github.com/mehmetraif/OSD-OS/wiki/Configuration-Files#custom-color-schemes)). Names are matched exactly, capitals and all; a name that isn't a scheme is drawn as Video 1, without a line in the log.
+- **A color scheme's name**, exactly as Settings → Look → Color Scheme lists it: `"Video 1"`, `"Late Night"`, `"Synthwave"`, `"Terminal"`, `"T-120"`, `"Amber"`, `"Kinescope"`, `"SMPTE ECR 1-1978"` (their colours are in [Settings](https://github.com/mehmetraif/OSD-OS/wiki/Settings#look)), or one of your own from `custom_color_schemes.json` or `custom_color_scheme.json` (`"Custom"`) ([Configuration files](https://github.com/mehmetraif/OSD-OS/wiki/Configuration-Files#custom-color-schemes)). Names are matched exactly, capitals and all; a name that isn't a scheme is drawn as Video 1, without a line in the log.
 - **Two colours of its own**: `{ "primary": "#FFD84A", "surface": "#120024" }`, each `#` and exactly six hex digits. A scheme's other three keys (`secondary`, `tertiary`, `accent`) may be there too; they aren't used. If either colour is missing or isn't `#rrggbb` (`"black"`, `"#000"`), the theme is drawn in Video 1's colours and the log says so.
 
-Settings → OSD Background: Off draws the menus on black in the lighter of the two colours, whichever that is, so a theme with dark text on a light background stays readable there.
+Settings → Look → OSD Background: Off draws the menus on black in the lighter of the two colours, whichever that is, so a theme with dark text on a light background stays readable there.
 
 ### skin
 
@@ -429,7 +429,7 @@ Each time a theme is read, the log has a line saying which and from where, and o
 | `[AppCore] theme my-theme: its background shader, "../rain.frag.qsb", is not a qsb file in its folder` | The shader file is missing, out of the folder, or not `.qsb` | That effect without a shader |
 | `[AppCore] theme my-theme: its music, "tune.wma", is not a ogg/opus/mp3/flac/wav/m4a/aac/mid/midi/xm/mod/s3m/it file in its folder` | The music file is missing, out of the folder, or of another type | No music |
 | `[AppCore] theme my-theme: its arcade, "cube", is not a look the Arcade screen has` | `arcade` is something other than `"orb"` | The Arcade screen's own look |
-| `qml: [Arcade] the Orb look needs Qt Quick 3D: the Arcade screen's own is drawn` | `arcade` is `"orb"`, and this Qt has no Qt Quick 3D (or its Helpers): a Raspberry Pi set up before 0.0.31 needs them [installed once](https://github.com/mehmetraif/OSD-OS/wiki/Arcade#the-orb-look), which Settings → Update doesn't do | The Arcade screen's own look |
+| `qml: [Arcade] the Orb look needs Qt Quick 3D: the Arcade screen's own is drawn` | `arcade` is `"orb"`, and this Qt has no Qt Quick 3D (or its Helpers): a Raspberry Pi set up before 0.0.31 needs them [installed once](https://github.com/mehmetraif/OSD-OS/wiki/Arcade#the-orb-look), which Settings → System → Update doesn't do | The Arcade screen's own look |
 | `[AppCore] theme my-theme: its window, "frame.jpg", is not a png/gif/bmp file in its folder` | A picture of its own skin can't be used (the [Skins](https://github.com/mehmetraif/OSD-OS/wiki/Skins#what-the-log-says) page has every skin line) | That part as OSD/OS draws it |
 | `qml: [Effect] file:///…/tube.frag.qsb can't be used, OSD/OS's own in its place` | The screen shader didn't load | OSD/OS's screen shader, with the theme's numbers |
 | `qml: [Effect] file:///…/plasma.frag.qsb can't be used` | The background shader didn't load | No background effect |
@@ -710,11 +710,11 @@ More on the logs in [Configuration files](https://github.com/mehmetraif/OSD-OS/w
 
 | What you see | Why | What to do |
 |---|---|---|
-| The theme isn't in Settings → Theme | Settings was open when you made the folder; or its `theme.json` isn't JSON (a line with the reason is in the log); or it isn't in the data folder's `themes`, or the file isn't named `theme.json`; or it holds only window pictures, and is listed under Skin | Open Settings again; fix the JSON (a trailing comma is the usual cause) |
+| The theme isn't in Settings → Look → Theme | Settings was open when you made the folder; or its `theme.json` isn't JSON (a line with the reason is in the log); or it isn't in the data folder's `themes`, or the file isn't named `theme.json`; or it holds only window pictures, and is listed under Skin | Open Settings again; fix the JSON (a trailing comma is the usual cause) |
 | It is listed by its folder's name | Its `name` is missing, empty or over 28 characters | Shorten it |
 | Its colours don't show: Video 1 instead | Color Scheme isn't THEME (choose the theme again to reset it); or `colors` isn't two `#rrggbb` (logged), or names no scheme (a typo, or a custom scheme added without a restart) | Choose the theme again; check the spelling |
 | One part doesn't show | Its row in Settings isn't THEME; a name is misspelt (nothing is logged for that); a file is out of the folder or of the wrong type (logged) | Check the row, the spelling, the log |
-| The window's frame doesn't show | OSD Background isn't Window, or Window Frame is Off | Settings → OSD Background: Window, Window Frame: On or Shadow |
+| The window's frame doesn't show | OSD Background isn't Window, or Window Frame is Off | Settings → Look → OSD Background: Window, Window Frame: On or Shadow |
 | No Text, Background or Screen Effect row, and no Ripple, Wave or Drop | This build has no Qt Shader Tools, or Qt draws without a GPU. The theme's colours, skin, selector effect, other transitions and music work all the same | See [Effects](https://github.com/mehmetraif/OSD-OS/wiki/Effects#what-needs-a-gpu-and-qt-shader-tools) |
 | Its text effect doesn't show, with a screen shader of its own | That shader replaces the one that draws the text effects | Draw them in it ([Shaders](https://github.com/mehmetraif/OSD-OS/wiki/Shaders#4-keeping-the-text-effects)) |
 | `[Effect] … can't be used` | The `.qsb` isn't a compiled shader, or was compiled by a newer Qt than the one OSD/OS runs on | Compile it again with qsb ([Shaders](https://github.com/mehmetraif/OSD-OS/wiki/Shaders#loading-fallback-and-the-log)) |
@@ -740,6 +740,6 @@ Started by hand instead, stop it in its terminal (Ctrl+C) and start it again. To
 - [Effects](https://github.com/mehmetraif/OSD-OS/wiki/Effects): every effect, its numbers, and what it needs
 - [Shaders](https://github.com/mehmetraif/OSD-OS/wiki/Shaders): a background or screen effect of your own
 - [Menu music](https://github.com/mehmetraif/OSD-OS/wiki/Menu-Music): the tune under the menus
-- [Settings](https://github.com/mehmetraif/OSD-OS/wiki/Settings#the-look): the look's rows, and the color schemes
+- [Settings](https://github.com/mehmetraif/OSD-OS/wiki/Settings#look): the look's rows, and the color schemes
 - [Configuration files](https://github.com/mehmetraif/OSD-OS/wiki/Configuration-Files): the data folder, `config.json` and the logs
 - [Troubleshooting](https://github.com/mehmetraif/OSD-OS/wiki/Troubleshooting)

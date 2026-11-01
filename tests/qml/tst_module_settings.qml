@@ -2,12 +2,12 @@ import QtQuick
 import QtTest
 
 // A module's settings page, views/ModuleSettings.qml, against a stand-in for
-// AppCore: rows offered only while another row has a value (manifest
+// AppCore: rows usable only while another row has a value (manifest
 // "shown_with", as the Arcade module's rows for its Arcade screen are), an
-// unset one by its default, coming and going as that row changes with the
-// cursor kept on it, and their values kept while they are hidden; a dynamic
-// row's choices asked for as it comes; a toggle's value as ON or OFF, and a
-// row whose own row is hidden hidden too, and one shown with any of several;
+// unset one by its default, there all the time but dimmed while that row
+// keeps them back, the help line saying why, ◄ ► and select leaving them as
+// they are; a toggle's value as ON or OFF, and a row whose own row is dimmed
+// dimmed too, and one usable with any of several;
 // a slider and its tape bar; a value that couldn't be saved left as it was. A
 // multiselect_submenu row's page, views/MultiSelectSettings.qml, with its
 // headings. A group's page, with another module's rows under its name, saved
@@ -124,6 +124,16 @@ Rectangle {
         function keys(page) {
             return page.schemaItems.map(function(item) { return item.key })
         }
+        // The rows that can be used now, by their keys; the others are
+        // dimmed (_off), their reason this.
+        function usable(page) {
+            return page.schemaItems.filter(function(item) { return item.type !== "section" && !item._off })
+                       .map(function(item) { return item.key })
+        }
+        function off(page, key) {
+            var item = page.schemaItems.filter(function(i) { return i.key === key })[0]
+            return item ? (item._off || "") : "?"
+        }
         function findText(item, text) {
             if (item.text !== undefined && String(item.text).indexOf(text) >= 0 && item.visible)
                 return item
@@ -220,22 +230,23 @@ Rectangle {
             ]
             appCore.values = { enabled: true }
             var page = open(["com.osdos.other"])
-            compare(keys(page), ["enabled", "screen", "video", undefined, "enabled"])
-            compare(page.schemaItems[3].type, "section")
-            compare(page.schemaItems[3].label, "Other")
+            compare(keys(page), ["enabled", "screen", "start_filter", "look", "video", undefined, "enabled", "mode"])
+            compare(usable(page), ["enabled", "screen", "video", "enabled"])
+            compare(page.schemaItems[5].type, "section")
+            compare(page.schemaItems[5].label, "Other")
             verify(findText(page, "Other") !== null)
             compare(page.currentDisplayValue(page.schemaItems[0]), "ON")
-            compare(page.currentDisplayValue(page.schemaItems[4]), "OFF")
-            keyClick(Qt.Key_Down)
-            keyClick(Qt.Key_Down)
-            keyClick(Qt.Key_Down)
-            compare(cursorIndex(page), 4)
+            compare(page.currentDisplayValue(page.schemaItems[6]), "OFF")
+            compare(page.schemaItems[7]._off, "Only with Enabled on")
+            for (var i = 0; i < 5; ++i)
+                keyClick(Qt.Key_Down)
+            compare(cursorIndex(page), 6)
             keyClick(Qt.Key_Right)
             compare(appCore.otherValues.enabled, true)
             compare(appCore.values.enabled, true)
-            compare(page.currentDisplayValue(page.schemaItems[4]), "ON")
-            compare(keys(page), ["enabled", "screen", "video", undefined, "enabled", "mode"])
-            compare(cursorIndex(page), 4)
+            compare(page.currentDisplayValue(page.schemaItems[6]), "ON")
+            compare(usable(page), ["enabled", "screen", "video", "enabled", "mode"])
+            compare(cursorIndex(page), 6)
             keyClick(Qt.Key_Down)
             keyClick(Qt.Key_Right)
             compare(appCore.otherValues.mode, "B")
@@ -247,24 +258,44 @@ Rectangle {
             // A page of one module has no other rows.
             loader.source = ""
             page = open()
-            compare(keys(page), ["enabled", "screen", "video"])
+            compare(keys(page), ["enabled", "screen", "start_filter", "look", "video"])
         }
 
-        // Unset, Screen is its default, Original: the Arcade screen's rows
-        // aren't offered, nor their choices asked for. Arcade offers them,
-        // the cursor staying on Screen, and asks for Start Filter's; Original
-        // takes them away, what was set in them kept.
+        // Unset, Screen is its default, Original: the Arcade screen's rows are
+        // there but dimmed, saying for what, and ◄ ► and select leave them
+        // as they are; their choices are asked for at once, so they show
+        // what they hold. Arcade makes them usable, the cursor staying on
+        // Screen; Original dims them again, what was set in them kept.
         function test_shownWith() {
             var page = open()
-            compare(keys(page), ["enabled", "screen", "video"])
-            compare(appCore.actions, [])
+            compare(keys(page), ["enabled", "screen", "start_filter", "look", "video"])
+            compare(usable(page), ["enabled", "screen", "video"])
+            compare(off(page, "start_filter"), "Only with Screen on Arcade")
+            compare(appCore.actions, ["startFilterOptions"])
             keyClick(Qt.Key_Down)
+            keyClick(Qt.Key_Down)
+            compare(cursor(page), "start_filter")
+            var row = menuRow(page, 2)
+            verify(row.dimmed)
+            verify(!row.changes)
+            verify(findText(page, "Only with Screen on Arcade") !== null)
+            keyClick(Qt.Key_Right)
+            keyClick(Qt.Key_Return)
+            compare(appCore.values.start_filter, undefined)
+            keyClick(Qt.Key_Down)
+            compare(cursor(page), "look")
+            verify(!menuRow(page, 3).opens)
+            keyClick(Qt.Key_Right)
+            compare(root.navigations.length, 0)
+            keyClick(Qt.Key_Up)
+            keyClick(Qt.Key_Up)
             compare(cursor(page), "screen")
             keyClick(Qt.Key_Right)
             compare(appCore.values.screen, "Arcade")
-            compare(keys(page), ["enabled", "screen", "start_filter", "look", "video"])
+            compare(usable(page), ["enabled", "screen", "start_filter", "look", "video"])
             compare(cursor(page), "screen")
             compare(appCore.actions, ["startFilterOptions"])
+            verify(!menuRow(page, 2).dimmed)
             appCore.dynamicOptionsReady("com.osdos.test", "start_filter",
                                         [{ id: "all", label: "All Games" }, { id: "favorites", label: "Favorites" }])
             compare(page.currentDisplayValue(page.schemaItems[2]), "All Games")
@@ -275,16 +306,17 @@ Rectangle {
             keyClick(Qt.Key_Up)
             keyClick(Qt.Key_Left)
             compare(appCore.values.screen, "Original")
-            compare(keys(page), ["enabled", "screen", "video"])
+            compare(usable(page), ["enabled", "screen", "video"])
             compare(cursor(page), "screen")
             compare(appCore.values.start_filter, "favorites")
-            // Saved as Arcade before the page opened: offered from the start,
+            compare(page.currentDisplayValue(page.schemaItems[2]), "Favorites")
+            // Saved as Arcade before the page opened: usable from the start,
             // its choices asked for with the rest.
             loader.source = ""
             appCore.values = { screen: "Arcade" }
             appCore.actions = []
             page = open()
-            compare(keys(page), ["enabled", "screen", "start_filter", "look", "video"])
+            compare(usable(page), ["enabled", "screen", "start_filter", "look", "video"])
             compare(appCore.actions, ["startFilterOptions"])
         }
 
@@ -297,7 +329,7 @@ Rectangle {
             keyClick(Qt.Key_Right)
             compare(appCore.values.screen, undefined)
             compare(page.currentDisplayValue(page.schemaItems[1]), "Original")
-            compare(keys(page), ["enabled", "screen", "video"])
+            compare(usable(page), ["enabled", "screen", "video"])
             keyClick(Qt.Key_Up)
             keyClick(Qt.Key_Right)
             compare(page.currentDisplayValue(page.schemaItems[0]), "OFF")
@@ -308,7 +340,7 @@ Rectangle {
         }
 
         // A toggle's rows follow it as ON or OFF, unset as its default and
-        // saved as true or false; a row whose own row is hidden is hidden
+        // saved as true or false; a row whose own row is dimmed is dimmed
         // too, whatever that row holds.
         function test_shownWithToggle() {
             appCore.schema = [
@@ -319,25 +351,28 @@ Rectangle {
                   shown_with: { key: "volume", value: "High" } }
             ]
             var page = open()
-            compare(keys(page), ["music", "volume", "loud"])
+            compare(usable(page), ["music", "volume", "loud"])
             keyClick(Qt.Key_Right)
             compare(appCore.values.music, false)
-            compare(keys(page), ["music"])
+            compare(keys(page), ["music", "volume", "loud"])
+            compare(usable(page), ["music"])
+            compare(off(page, "volume"), "Only with Music on")
+            compare(off(page, "loud"), "Only with Volume on High")
             keyClick(Qt.Key_Right)
             compare(appCore.values.music, true)
-            compare(keys(page), ["music", "volume", "loud"])
+            compare(usable(page), ["music", "volume", "loud"])
             keyClick(Qt.Key_Down)
             keyClick(Qt.Key_Right)
             compare(appCore.values.volume, "Low")
-            compare(keys(page), ["music", "volume"])
+            compare(usable(page), ["music", "volume"])
             compare(cursor(page), "volume")
         }
 
-        // A row shown with a list of rows' values (the Arcade module's
-        // Online Name, with Online Play or LAN Play): offered while any of
-        // them has its value, taken away once none has. The list as a JS
-        // array, and as the app hands a manifest's list over from C++: a
-        // sequence, which isn't one (Array.isArray() says no).
+        // A row usable with a list of rows' values (the Arcade module's
+        // Online Name, with Online Play or LAN Play): usable while any of
+        // them has its value, dimmed once none has. The list as a JS array,
+        // and as the app hands a manifest's list over from C++: a sequence,
+        // which isn't one (Array.isArray() says no).
         function test_shownWithAny_data() {
             var either = [{ key: "online", value: "On" }, { key: "lan", value: "On" }]
             return [{ tag: "array", shownWith: either },
@@ -351,23 +386,25 @@ Rectangle {
                   shown_with: data.shownWith }
             ]
             var page = open()
-            compare(keys(page), ["online", "lan"])
+            compare(keys(page), ["online", "lan", "name"])
+            compare(usable(page), ["online", "lan"])
+            compare(off(page, "name"), "Only with Online Play on or LAN Play on")
             keyClick(Qt.Key_Down)
             keyClick(Qt.Key_Right)
             compare(appCore.values.lan, "On")
-            compare(keys(page), ["online", "lan", "name"])
+            compare(usable(page), ["online", "lan", "name"])
             compare(cursor(page), "lan")
             keyClick(Qt.Key_Up)
             keyClick(Qt.Key_Right)
-            compare(keys(page), ["online", "lan", "name"])
+            compare(usable(page), ["online", "lan", "name"])
             keyClick(Qt.Key_Down)
             keyClick(Qt.Key_Left)
             compare(appCore.values.lan, "Off")
-            compare(keys(page), ["online", "lan", "name"])
+            compare(usable(page), ["online", "lan", "name"])
             keyClick(Qt.Key_Up)
             keyClick(Qt.Key_Left)
             compare(appCore.values.online, "Off")
-            compare(keys(page), ["online", "lan"])
+            compare(usable(page), ["online", "lan"])
             compare(cursor(page), "online")
         }
 

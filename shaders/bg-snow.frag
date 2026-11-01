@@ -1,5 +1,5 @@
 #version 440
-// Settings → Background Effect's Snow: flakes falling down the window, swaying
+// Settings → Look → Effects → Background Effect's Snow: flakes falling down the window, swaying
 // as they fall, the nearer ones bigger and faster. In art pixels, on the
 // screen's grid, as the Matrix rain is (bg-matrix.frag).
 

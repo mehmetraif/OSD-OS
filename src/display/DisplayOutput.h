@@ -4,7 +4,7 @@
 #include <QString>
 #include <QVariantList>
 
-// Settings → Display Output on the OSD/OS image: where the picture goes, among
+// Settings → Screen → Display Output on the OSD/OS image: where the picture goes, among
 // the outputs the board has (util/Board): HDMI, composite (the Pi 4's AV jack,
 // the Pi 5's TV pads, a Pi 5's GPIO pins), RGB on the GPIO pins for SCART, and
 // a JAMMA cabinet through a Raspberry Pi to JAMMA board.

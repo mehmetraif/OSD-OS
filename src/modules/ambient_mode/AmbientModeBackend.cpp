@@ -104,7 +104,7 @@ void AmbientModeBackend::startAudio(const QStringList &paths, bool shuffle)
     // replays on every wrap rather than being reshuffled each cycle.
     if (shuffle)
         args << QStringLiteral("--shuffle");
-    // Settings → Audio Output's card, while it is plugged in; Auto's as
+    // Settings → Sound → Audio Output's card, while it is plugged in; Auto's as
     // ALSA's default.
     args << AudioOutput::mpvArgs();
     QProcessEnvironment env = QProcessEnvironment::systemEnvironment();

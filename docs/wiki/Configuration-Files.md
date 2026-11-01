@@ -52,14 +52,14 @@ OSD/OS reads these. Each is also read under its 240-MP name, `MP240_<NAME>`, whe
 | Variable | Set by | What it does |
 |---|---|---|
 | `OSDOS_AUTOSTART` | The autostart service (`Environment=OSDOS_AUTOSTART=1`) | Set to anything: OSD/OS runs as the system's app. Quit offers Power Off, Restart and Exit to Terminal (and Save Logs with `OSDOS_MEDIA_DIR`); Update's Apply & Restart exits for the service to start it again; Display Output can be offered |
-| `OSDOS_LAUNCHER_API` | The launcher, `/usr/local/bin/osdos` (`8`) | What the launcher and its stop helper can do. Set at all, with the app in `/opt/osdos`: in-app updates can be applied. `2` or more: Quit offers Restart. `3` or more: Settings offers Display Output. `4` or more: JAMMA 240p 15 kHz (720x240) among its outputs. `5` or more: Switch and Power Off and At Next Start. `6` or more: the JAMMA board's other modes. `7` or more: Settings → Wi-Fi. `8` or more: System Information renames the device |
+| `OSDOS_LAUNCHER_API` | The launcher, `/usr/local/bin/osdos` (`8`) | What the launcher and its stop helper can do. Set at all, with the app in `/opt/osdos`: in-app updates can be applied. `2` or more: Quit offers Restart. `3` or more: Settings offers Display Output. `4` or more: JAMMA 240p 15 kHz (720x240) among its outputs. `5` or more: Switch and Power Off and At Next Start. `6` or more: the JAMMA board's other modes. `7` or more: Settings → Network → Wi-Fi. `8` or more: System Information renames the device |
 | `OSDOS_DRM_DEVICE`, `OSDOS_DRM_CONNECTOR`, `OSDOS_DRM_MODE` | The launcher, on a Pi 5, from the display preset's `# osdos-output:` and `# osdos-mode:` lines | The output OSD/OS draws on, which mpv plays on too: `--drm-device`, `--drm-connector` and, when set, `--drm-mode` ([Playback and mpv](https://github.com/mehmetraif/OSD-OS/wiki/Playback-and-mpv#per-device-decode-profiles)) |
 | `OSDOS_MEDIA_DIR` | The OSD/OS image: `/media/OSD-OS`, in `/etc/systemd/system/osdos.service.d/osdos-media.conf` | The folder the media go in; else `media` in the data folder. Local Files opens the `Movies` folder there while its Media Directory is Default, and the Playlists module then downloads into a `Playlists` folder in `Movies` unless its Download Folder names another. The Arcade module looks for its games in `Games/Arcade` there unless its Games Folder names another |
 | `OSDOS_BOOT_UNITS_FILE` | The OSD/OS image: `/etc/osdos/boot-units` | The services the boot screen follows, as `unit\|LABEL` lines. Unset, there is no boot screen |
 | `OSDOS_READY_FILE` | The OSD/OS image: `/run/osdos/ready` | Written, with OSD/OS's process id, once its first frame is on screen: the image's held-back services wait for it |
-| `OSDOS_BOOT_DIR` | Nothing; `/boot/firmware` by default | Where Display Output finds `osdos-display.txt` and its presets, and Settings → Wi-Fi the country the kernel started with (`cmdline.txt`) |
-| `OSDOS_RUN_DIR` | Nothing; `/run` by default | Where Display Output finds At Next Start's socket (`osdos-display.sock`) and the preset this boot started on (`osdos-display-boot.txt`), Settings → Wi-Fi the country's socket (`osdos-wifi.sock`), and System Information the device name's (`osdos-name.sock`), for tests |
-| `OSDOS_ZONEINFO_DIR` | Nothing; `/usr/share/zoneinfo` by default | Where Settings → Wi-Fi finds the list of countries (`iso3166.tab`), for tests |
+| `OSDOS_BOOT_DIR` | Nothing; `/boot/firmware` by default | Where Display Output finds `osdos-display.txt` and its presets, and Settings → Network → Wi-Fi the country the kernel started with (`cmdline.txt`) |
+| `OSDOS_RUN_DIR` | Nothing; `/run` by default | Where Display Output finds At Next Start's socket (`osdos-display.sock`) and the preset this boot started on (`osdos-display-boot.txt`), Settings → Network → Wi-Fi the country's socket (`osdos-wifi.sock`), and System Information the device name's (`osdos-name.sock`), for tests |
+| `OSDOS_ZONEINFO_DIR` | Nothing; `/usr/share/zoneinfo` by default | Where Settings → Network → Wi-Fi finds the list of countries (`iso3166.tab`), for tests |
 | `OSDOS_WATCHDOG` | Nothing | `0`: no freeze reports, and no restart after 20 seconds frozen under the service. For a debugger, which stops the app at a breakpoint ([Troubleshooting](https://github.com/mehmetraif/OSD-OS/wiki/Troubleshooting#when-it-crashes-or-freezes-the-reports)) |
 | `OSDOS_EMBEDDED_RENDER` | Nothing | With Transparent Background: `sw` draws the video on the CPU always; `gpu` draws it with OpenGL even when OpenGL itself runs on the CPU (Mesa's llvmpipe), for tests |
 | `OSDOS_UPDATE_FEED_URL` | Nothing | The release feed Update asks, in place of `https://api.github.com/repos/mehmetraif/OSD-OS/releases/latest` |
@@ -81,7 +81,7 @@ Two Qt variables matter too. OSD/OS sets `QT_QPA_EGLFS_HIDECURSOR=1` for itself 
 | To | Variables |
 |---|---|
 | An mpv process | `APP_ROOT`; on Linux `FONTCONFIG_FILE=/tmp/osdos-fonts.conf`, so mpv's on-screen menu finds the VCR font; `ALSA_CARD`, when a script gets it (below); on a Linux desktop with `DISPLAY` set, `WAYLAND_DISPLAY` removed, so mpv runs on X11 or Xwayland |
-| A script (the Scripts module), and what runs as a takeover script: `web-player.sh` (Netflix, Prime Video, YouTube's sign-in) and MAME (the Arcade module) | `APP_ROOT`, `DATA_ROOT`, `OSDOS_MODE` (`console` or `takeover`), `OSDOS_VT` for a takeover on its own VT, the same two as `MP240_MODE` and `MP240_VT`, `ALSA_CARD` when Settings → Audio Output names a card (or on Auto, the card that plays while ALSA's first can't), on a Pi 5 `SDL_KMSDRM_DEVICE_INDEX` (the number of the DRM card of the output the display preset names, for SDL programs), and the players' pads (`OSDOS_PLAYER1_NAME`, `_GUID`, `_DEVICE`, and players 2 to 6's) |
+| A script (the Scripts module), and what runs as a takeover script: `web-player.sh` (Netflix, Prime Video, YouTube's sign-in) and MAME (the Arcade module) | `APP_ROOT`, `DATA_ROOT`, `OSDOS_MODE` (`console` or `takeover`), `OSDOS_VT` for a takeover on its own VT, the same two as `MP240_MODE` and `MP240_VT`, `ALSA_CARD` when Settings → Sound → Audio Output names a card (or on Auto, the card that plays while ALSA's first can't), on a Pi 5 `SDL_KMSDRM_DEVICE_INDEX` (the number of the DRM card of the output the display preset names, for SDL programs), and the players' pads (`OSDOS_PLAYER1_NAME`, `_GUID`, `_DEVICE`, and players 2 to 6's) |
 
 ## What is in it
 
@@ -126,7 +126,7 @@ Two Qt variables matter too. OSD/OS sets `QT_QPA_EGLFS_HIDECURSOR=1` for itself 
 ├── netflix/browser/            Chromium's profile for Netflix: the sign-in
 ├── prime_video/browser/        Chromium's profile for Prime Video
 ├── youtube/browser/            Chromium's profile for the YouTube sign-in
-└── updates/                    downloads of Settings → Update
+└── updates/                    downloads of Settings → System → Update
 ```
 
 A file or folder appears only once something needs it. The rest of this section says what each holds; the formats of a module's own files are on its page.
@@ -145,7 +145,7 @@ A file or folder appears only once something needs it. The rest of this section 
 | `weather_location.txt`, `weather_music.txt` | You | Weather's places (a name, or `lat, lon`) and its optional music ([Weather](https://github.com/mehmetraif/OSD-OS/wiki/Weather)) |
 | `custom_color_schemes.json`, `custom_color_scheme.json` | You | Color schemes of your own ([below](https://github.com/mehmetraif/OSD-OS/wiki/Configuration-Files#custom-color-schemes)) |
 | `input.cfg`, `gamecontrollerdb.txt` | You | Gamepad remapping, read again as soon as it changes, and extra SDL controller mappings, read at start ([Controls](https://github.com/mehmetraif/OSD-OS/wiki/Controls)) |
-| `display-output.json` | Settings → Display Output | `{ "from", "to" }` while a new output waits to be kept, `{ "reverted" }` after one wasn't. Deleted once the output is kept, or once OSD/OS has said what became of it |
+| `display-output.json` | Settings → Screen → Display Output | `{ "from", "to" }` while a new output waits to be kept, `{ "reverted" }` after one wasn't. Deleted once the output is kept, or once OSD/OS has said what became of it |
 | `osdos-setup.json` | You, from [OSD/OS Setup](https://osdos.tv/setup/) | Settings chosen on the page: at the next start OSD/OS deletes it, merges its `config` into `config.json` and hands its RetroAchievements account to the Arcade module, then says what it set. One beside the app (`osdos.exe`'s folder, the folder `osdos.app` is in, the AppImage's) is taken the same way ([Installation](https://github.com/mehmetraif/OSD-OS/wiki/Installation#osdos-setup-on-a-computer)) |
 | `crash-report.txt`, `stall-report.txt` | OSD/OS on Linux: at a crash, and when its screens stop answering for 5 seconds | The latest crash or freeze only: when, the memory, and where the app was ([Troubleshooting](https://github.com/mehmetraif/OSD-OS/wiki/Troubleshooting#when-it-crashes-or-freezes-the-reports)) |
 | `themes/`, `skins/` | You | A theme or skin of the same folder name as one of OSD/OS's replaces it ([Themes](https://github.com/mehmetraif/OSD-OS/wiki/Themes), [Skins](https://github.com/mehmetraif/OSD-OS/wiki/Skins)). A `theme.json` of window pictures only in `themes/` is read as a skin |
@@ -156,7 +156,7 @@ A file or folder appears only once something needs it. The rest of this section 
 | `arcade/` | The Arcade module, and MAME | `games.json`, what MAME said of each set and which MAME said it; `playtime.json`, how long each game has been played; `coins.lua`, the credits bought on the Arcade screen, for the game being started; `catver.ini`, the games' genres, when it isn't in the games folder (put there, or downloaded by OSD/OS); MAME's settings for each game (`cfg/`), the games' NVRAM (`nvram/`), the hiscore plugin's tables (`hiscore/`), save states, snapshots, input recordings and hard disk diffs (`sta/`, `snap/`, `inp/`, `diff/`), the controller file written before each game (`ctrlr/osdos.cfg`), and RetroAchievements': the account (`retroachievements.json`), its list of arcade games (`retroachievements-games.json`) and the achievements' badges when the games folder's `snap` can't be written (`badges/`) ([Arcade](https://github.com/mehmetraif/OSD-OS/wiki/Arcade#files-it-keeps)) |
 | `highscores/` | The High Scores module | `scores.json`, the tables read of each game's files in `arcade/`, why a file couldn't be read, and the games' names, so a file is read again only once it has changed; `mame/`, links to `arcade/hiscore`, `arcade/nvram` and MAME's `hiscore.dat`, as openhi2txt reads them ([High Scores](https://github.com/mehmetraif/OSD-OS/wiki/High-Scores#files-it-keeps)) |
 | `<service>/browser/` | Chromium, through `web-player.sh` | A browser profile per service, which keeps its sign-in. Sign out deletes it. A run with a Scaling other than Letterbox also leaves `<service>/scaling/` (the small extension that applies it), and a run under `cage` keeps `<service>/wayland` while it lasts |
-| `updates/` | Settings → Update | The downloaded release with `staged.json` (what it is), `staged.sha256` (written at Apply: it arms the release for the launcher), unfinished `*.part` downloads (deleted at the next start), and on an AppImage or a Mac the helper script and its `apply.log` |
+| `updates/` | Settings → System → Update | The downloaded release with `staged.json` (what it is), `staged.sha256` (written at Apply: it arms the release for the launcher), unfinished `*.part` downloads (deleted at the next start), and on an AppImage or a Mac the helper script and its `apply.log` |
 
 ## config.json
 
@@ -379,13 +379,13 @@ Stop OSD/OS first, edit, check the JSON, then start it again.
    An error names the line and the column. `python3` is on Raspberry Pi OS and the OSD/OS image.
 4. **Start OSD/OS**: `sudo systemctl start osdos`, or `osdos` by hand.
 
-Settings chosen on [OSD/OS Setup](https://osdos.tv/setup/) need no editing: Settings → Paste OSD/OS Setup sets them while OSD/OS runs, and its `osdos-setup.json` in the data folder sets them at the next start ([Installation](https://github.com/mehmetraif/OSD-OS/wiki/Installation#osdos-setup-on-a-computer)).
+Settings chosen on [OSD/OS Setup](https://osdos.tv/setup/) need no editing: Settings → System → Paste OSD/OS Setup sets them while OSD/OS runs, and its `osdos-setup.json` in the data folder sets them at the next start ([Installation](https://github.com/mehmetraif/OSD-OS/wiki/Installation#osdos-setup-on-a-computer)).
 
 The files you write for a module (`tmdb_api_key.txt`, `youtube_subscriptions.txt`, `weather_location.txt`) are read when the module needs them, not only at start, so they can be written while OSD/OS runs; open the module again to see the change. `input.cfg` takes effect as soon as it is saved.
 
 ### Custom color schemes
 
-Settings → Color Scheme offers schemes of your own from two files in the data folder, read at start.
+Settings → Look → Color Scheme offers schemes of your own from two files in the data folder, read at start.
 
 `custom_color_schemes.json` adds any number, each under its name (3 to 28 characters: letters, digits, spaces and ASCII punctuation but `"` and `` ` ``):
 
@@ -435,7 +435,7 @@ tar -czf ~/osdos-backup-$(date +%F).tar.gz -C ~/.local/share OSD-OS
 sudo systemctl start osdos
 ```
 
-To leave out the downloaded updates, which Settings → Update fetches again, add `--exclude=OSD-OS/updates` before `-C`. Keep `bin/`: on the image its timer only updates the yt-dlp there (`yt-dlp --update`), and nothing puts it back once it is gone. On a Mac, quit OSD/OS and use `-C ~/"Library/Application Support" OSD-OS`.
+To leave out the downloaded updates, which Settings → System → Update fetches again, add `--exclude=OSD-OS/updates` before `-C`. Keep `bin/`: on the image its timer only updates the yt-dlp there (`yt-dlp --update`), and nothing puts it back once it is gone. On a Mac, quit OSD/OS and use `-C ~/"Library/Application Support" OSD-OS`.
 
 To restore, stop OSD/OS, move the folder there aside, and unpack the copy in its place:
 

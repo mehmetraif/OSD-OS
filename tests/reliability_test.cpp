@@ -850,7 +850,7 @@ private slots:
         QCOMPARE(setupfile::noticeTitle(refused), QString("OSD/OS Setup partly applied"));
     }
 
-    // Settings → Paste OSD/OS Setup (AppCore::applySetupText()): the
+    // Settings → System → Paste OSD/OS Setup (AppCore::applySetupText()): the
     // settings set at once, each one that changed told as Settings tells it
     // (a value of values by its dotted keys), the account handed to the
     // Arcade module, and the notice saying so.

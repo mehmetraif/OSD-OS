@@ -178,7 +178,7 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
     target_link_libraries(diagnostics_test PRIVATE Qt6::Core Qt6::Test)
     add_test(NAME diagnostics COMMAND diagnostics_test)
 
-    # Settings → Display Output against the image's presets in a stand-in boot
+    # Settings → Screen → Display Output against the image's presets in a stand-in boot
     # partition: which are offered, by board and launcher API, and At Next
     # Start through a stand-in for its socket.
     add_executable(display_output_test
@@ -209,7 +209,7 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
     target_link_libraries(boot_progress_test PRIVATE Qt6::Core Qt6::Test)
     add_test(NAME boot_progress COMMAND boot_progress_test)
 
-    # Settings → About → System Information (SystemInfo): its rows from what
+    # Settings → System → About → System Information (SystemInfo): its rows from what
     # the system says, Linux's files from a stand-in root, the name a network
     # takes of what is typed, and the device renamed through a stand-in for
     # osdos-name.socket.
@@ -223,7 +223,7 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
     target_link_libraries(system_info_test PRIVATE Qt6::Core Qt6::Network Qt6::Test)
     add_test(NAME system_info COMMAND system_info_test)
 
-    # Settings → Wi-Fi (WifiManager) against a stand-in for NetworkManager
+    # Settings → Network → Wi-Fi (WifiManager) against a stand-in for NetworkManager
     # (fake_networkmanager) on a D-Bus of the test's own, and for the country
     # against a stand-in boot partition and osdos-wifi.socket. Built where Qt
     # has D-Bus, as the app's Wi-Fi is; the test skips itself without
@@ -420,7 +420,7 @@ set_tests_properties(module_settings_view PROPERTIES ENVIRONMENT "QT_QPA_PLATFOR
 add_test(NAME settings_view COMMAND tree_browser_test -input ${CMAKE_CURRENT_SOURCE_DIR}/qml/tst_settings.qml
                                     -import ${CMAKE_CURRENT_SOURCE_DIR}/../views)
 set_tests_properties(settings_view PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen;QT_QUICK_BACKEND=software")
-# Settings → Wi-Fi (views/Wifi.qml) against a stand-in for WifiManager: the
+# Settings → Network → Wi-Fi (views/Wifi.qml) against a stand-in for WifiManager: the
 # switch, the country and its chooser, joining with a password, a network's
 # options, one not listed, and a search.
 add_test(NAME wifi_views COMMAND tree_browser_test -input ${CMAKE_CURRENT_SOURCE_DIR}/qml/tst_wifi.qml
@@ -432,7 +432,7 @@ set_tests_properties(wifi_views PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscree
 add_test(NAME about_view COMMAND tree_browser_test -input ${CMAKE_CURRENT_SOURCE_DIR}/qml/tst_about.qml
                                  -import ${CMAKE_CURRENT_SOURCE_DIR}/../views)
 set_tests_properties(about_view PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen;QT_QUICK_BACKEND=software")
-# Settings → Test Patterns (views/TestPatterns.qml): every pattern there and
+# Settings → Screen → Test Patterns (views/TestPatterns.qml): every pattern there and
 # loading, the keys through them, the name and keys over them, the effects
 # resting and the screen saver waiting.
 add_test(NAME test_patterns_view COMMAND tree_browser_test -input ${CMAKE_CURRENT_SOURCE_DIR}/qml/tst_test_patterns.qml

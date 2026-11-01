@@ -33,6 +33,11 @@ Item {
     // all the time rather than only while the line is selected: lines that
     // are read rather than chosen (About's).
     property bool alwaysScroll: false
+    // A line that can't be used now (another line's value, or what this
+    // system has, keeps it back): shown all the same, faded the two-colour
+    // way (Dither) until the cursor is on it. Its host gives it no ◄ ► or ►
+    // and says why in the help line.
+    property bool dimmed: false
     // Pixel symbols at the line's end, after the value (PixelIcon's names): a
     // Wi-Fi network's lock and signal. They take whole cells, a cell before
     // them, which the value and the dots stop short of.
@@ -220,5 +225,13 @@ Item {
                 color: menuRow.ink
             }
         }
+    }
+
+    // A dimmed line, faded over all it draws; made only for such a line, a
+    // canvas being a square per art pixel.
+    Loader {
+        anchors.fill: parent
+        active: menuRow.dimmed && !menuRow.selected
+        sourceComponent: Dither {}
     }
 }

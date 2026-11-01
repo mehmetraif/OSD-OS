@@ -114,13 +114,13 @@ if ! id -u "${OWNER_USER}" > /dev/null 2>&1; then
     exit 1
 fi
 
-# Settings → Bluetooth talks to BlueZ as the user the app runs as, which
+# Settings → Network → Bluetooth talks to BlueZ as the user the app runs as, which
 # BlueZ's D-Bus policy lets in through the bluetooth group.
 if getent group bluetooth > /dev/null; then
     sudo usermod -aG bluetooth "${OWNER_USER}"
 fi
 
-# Settings → Wi-Fi scans, joins and forgets networks and turns Wi-Fi on and
+# Settings → Network → Wi-Fi scans, joins and forgets networks and turns Wi-Fi on and
 # off through NetworkManager, as the user the service runs the app as. The
 # service is outside any login session, where polkit would ask for a password
 # nobody can type: this rule lets that user use the five NetworkManager actions
@@ -475,7 +475,7 @@ if [ -n "${SERVICE_USER}" ]; then
     # ExecStopPost helper: the user's Quit → Power Off (exit 0) powers the Pi off;
     # exit 10 means the user chose "Exit to Terminal", so instead spawn a login
     # shell on tty1 (see views/Settings.qml). Exit 12 is the quit menu's
-    # "Restart": reboot. Exit 20-38 is Settings → Display Output on the OSD/OS
+    # "Restart": reboot. Exit 20-38 is Settings → Screen → Display Output on the OSD/OS
     # image: a display preset written, then a reboot; 40-58 the same, then off
     # (Switch and Power Off). SuccessExitStatus= counts
     # those as no failure, so Restart=on-failure doesn't start the app again
@@ -495,8 +495,8 @@ if [ -n "${SERVICE_USER}" ]; then
 # Called by osdos.service ExecStopPost. systemd sets $EXIT_STATUS to the app's
 # exit code, or to the signal name if a signal killed it. Called with
 # next-start, by osdos-display.socket instead: Display Output's At Next Start;
-# with wifi-country, by osdos-wifi.socket: Settings → Wi-Fi's country; with
-# device-name, by osdos-name.socket: Settings → About → System Information's
+# with wifi-country, by osdos-wifi.socket: Settings → Network → Wi-Fi's country; with
+# device-name, by osdos-name.socket: Settings → System → About → System Information's
 # Device Name.
 
 # What comes in is read as the C locale reads it, whatever the system's
@@ -504,7 +504,7 @@ if [ -n "${SERVICE_USER}" ]; then
 # takes ç, é and İ too.
 export LC_ALL=C
 
-# Settings → Display Output on the OSD/OS image: the chosen preset (or the one
+# Settings → Screen → Display Output on the OSD/OS image: the chosen preset (or the one
 # before it, to go back) over osdos-display.txt, which the firmware reads only
 # at power-on. A missing preset changes nothing; the app says so after the
 # reboot. The one to go back to is the output this boot started on, which
@@ -573,7 +573,7 @@ next_start() {
     echo ok
 }
 
-# Settings → Wi-Fi's country: a two-letter code on a line from the app,
+# Settings → Network → Wi-Fi's country: a two-letter code on a line from the app,
 # through the socket, and "ok" back, or why not. Only two capital letters,
 # and of those only a code the time zone database lists as a country (the
 # check raspi-config makes itself); never echoed. raspi-config writes the
@@ -594,7 +594,7 @@ wifi_country() {
     echo ok
 }
 
-# Settings → About → System Information's Device Name: a name on a line from
+# Settings → System → About → System Information's Device Name: a name on a line from
 # the app, through the socket, and "ok" back, or why not. Only a name the
 # network takes (RFC 1123, as the app has it too: letters, digits and
 # hyphens, 63 at most, neither end a hyphen), never echoed. hostnamectl sets
@@ -692,7 +692,7 @@ STOP_HELPER
     # as root, writes that preset for the next start and answers.
     sudo tee /etc/systemd/system/osdos-display.socket > /dev/null << 'DISPLAY_SOCKET'
 [Unit]
-Description=OSD/OS display output for the next start (Settings → Display Output)
+Description=OSD/OS display output for the next start (Settings → Screen → Display Output)
 
 [Socket]
 ListenStream=/run/osdos-display.sock
@@ -723,12 +723,12 @@ PrivateTmp=yes
 ProtectHome=yes
 DISPLAY_SERVICE
 
-    # Settings → Wi-Fi's country, while the app runs: it writes a two-letter
+    # Settings → Network → Wi-Fi's country, while the app runs: it writes a two-letter
     # code to this socket, which only its user may, and osdos-stop
     # wifi-country, as root, has raspi-config set it and answers.
     sudo tee /etc/systemd/system/osdos-wifi.socket > /dev/null << 'WIFI_SOCKET'
 [Unit]
-Description=OSD/OS Wi-Fi country (Settings → Wi-Fi)
+Description=OSD/OS Wi-Fi country (Settings → Network → Wi-Fi)
 
 [Socket]
 ListenStream=/run/osdos-wifi.sock
@@ -761,12 +761,12 @@ PrivateTmp=yes
 ProtectHome=yes
 WIFI_SERVICE
 
-    # Settings → About → System Information's Device Name, while the app
+    # Settings → System → About → System Information's Device Name, while the app
     # runs: it writes a name to this socket, which only its user may, and
     # osdos-stop device-name, as root, sets it and answers.
     sudo tee /etc/systemd/system/osdos-name.socket > /dev/null << 'NAME_SOCKET'
 [Unit]
-Description=OSD/OS device name (Settings → About → System Information)
+Description=OSD/OS device name (Settings → System → About → System Information)
 
 [Socket]
 ListenStream=/run/osdos-name.sock

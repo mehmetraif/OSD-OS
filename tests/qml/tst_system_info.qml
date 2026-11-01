@@ -1,7 +1,7 @@
 import QtQuick
 import QtTest
 
-// Settings → About → System Information, views/SystemInfo.qml, against a
+// Settings → System → About → System Information, views/SystemInfo.qml, against a
 // stand-in for SystemInfo: read again as it opens, its rows under the
 // device's name, the cursor stepping over the Network heading and kept on its
 // line, by its key, as the rows are read again; select on the name opens the

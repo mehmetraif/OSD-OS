@@ -1,7 +1,7 @@
 import QtQuick
 import Components
 
-// Settings → Cabinet Lock: OSD/OS kept on its Start on Module, a cabinet's
+// Settings → Startup → Cabinet Lock: OSD/OS kept on its Start on Module, a cabinet's
 // Arcade screen, while the lock is on (Main.qml). Back there goes nowhere,
 // so the main menu, Settings and Quit are out of reach, but for the unlock
 // buttons: one to four inputs of any pads and keyboards, a direction among
@@ -67,7 +67,7 @@ FocusScope {
         }
         if (homeName === "") {
             notice.promptText = "No Start on Module"
-            notice.subtitleText = "Choose the module the cabinet stays on in Settings → Start on Module first"
+            notice.subtitleText = "Choose the module the cabinet stays on in Settings → Startup → Start on Module first"
             notice.open()
             return
         }

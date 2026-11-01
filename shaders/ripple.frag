@@ -1,5 +1,5 @@
 #version 440
-// Settings → Transition's Ripple: one window gives way to the next in waves,
+// Settings → Look → Effects → Transition's Ripple: one window gives way to the next in waves,
 // the old one rippling out as the new one ripples in, the waves strongest half
 // way and on whole art pixels.
 

@@ -1,4 +1,4 @@
-// Settings → Wi-Fi's backend (src/wifi/WifiManager) against a stand-in for
+// Settings → Network → Wi-Fi's backend (src/wifi/WifiManager) against a stand-in for
 // NetworkManager (fake_networkmanager) on a private D-Bus, a dbus-daemon of
 // the test's own: NetworkManager away, starting later and stopping; the device
 // and its state; the networks as the page lists them; Wi-Fi turned on and off

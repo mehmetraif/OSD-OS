@@ -1,7 +1,7 @@
 # RGB to a CRT through SCART, PAL timing (576i), from the GPIO pins: GPIO 4-21
 # carry the colours to a resistor DAC (the VGA666's layout), GPIO 2 and 3 the
 # vertical and horizontal sync (os/README.md has the cable). Chosen in
-# Settings → Display Output, or copied over osdos-display.txt (config.txt says
+# Settings → Screen → Display Output, or copied over osdos-display.txt (config.txt says
 # how).
 # A Pi 5 keeps HDMI on beside it: OSD/OS takes this output. Its composite
 # sync, for SCART, is on GPIO 1 (/etc/modprobe.d/osdos-display.conf).

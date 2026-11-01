@@ -6,7 +6,7 @@ import "views/Components/Hover.js" as Hover
 
 Window {
     id: root
-    // Settings → Window Mode (app.window_mode, Off): the menus in a window on
+    // Settings → Screen → Window Mode (app.window_mode, Off): the menus in a window on
     // the desktop in place of the whole screen, 960×720 (4:3) in the middle
     // of the screen the first time, then where the desktop last had it,
     // moved and sized as any window; F11 or Alt+Enter switches. Only where
@@ -141,7 +141,7 @@ Window {
         }
     })
     property var allSchemes: schemes  // may gain a "Custom" entry on startup
-    // --- THE LOOK: Settings → Theme, and each of its parts ---
+    // --- THE LOOK: Settings → Look → Theme, and each of its parts ---
     // Settings' THEME (app.osd_theme, a theme's folder name; none when unset):
     // AppCore::theme()'s reading of it, {} for none. A theme brings the colour
     // scheme, the skin, the effects (text, background, selector, screen and
@@ -306,7 +306,7 @@ Window {
         onTriggered: root.fxTime = (root.fxTime + interval / 1000) % 3600
     }
 
-    // --- THE SELECTOR (Settings → Selector Effect) ---
+    // --- THE SELECTOR (Settings → Look → Effects → Selector Effect) ---
     // Every selected line's box (SelectionBox) and every ground laid over a
     // view (OsdGround) say when they show, the latest last. The selector is
     // the latest box in front: inside the latest ground's layer, if any is
@@ -352,7 +352,7 @@ Window {
         return false
     }
 
-    // --- WINDOW CHANGES (Settings → Transition, or the theme's) ---
+    // --- WINDOW CHANGES (Settings → Look → Effects → Transition, or the theme's) ---
     // A window changing, the view a loader shows (Main.qml's moduleLoader, a
     // module's own) giving way to the next: the old one is caught as a
     // picture (lastFace) a moment before, and the two play out the change.
@@ -470,7 +470,7 @@ Window {
     }
 
     // The view `loader` shows becomes `source` (with `properties`, as
-    // Loader.setSource has them), as Settings → Transition has it. Never into
+    // Loader.setSource has them), as Settings → Look → Effects → Transition has it. Never into
     // or out of a video's views (a player's, a launch's), nor while the
     // effects rest, nor at the very start.
     function changeWindow(loader, source, properties) {
@@ -513,7 +513,7 @@ Window {
         transitionAnimation.restart()
     }
 
-    // --- MENU MUSIC (Settings → Menu Music, or the theme's) ---
+    // --- MENU MUSIC (Settings → Sound → Menu Music, or the theme's) ---
     // In the menus only: not while the effects rest, a script or a module's
     // own music plays (they hold it off themselves, MenuMusic), the boot
     // screen or the screen saver shows.
@@ -804,7 +804,7 @@ Window {
         openStartupModule()
     }
 
-    // --- DISPLAY OUTPUT (Settings → Display Output) ---
+    // --- DISPLAY OUTPUT (Settings → Screen → Display Output) ---
     // displayOutput mirrored, as bootProgress is, for the same teardown-safety.
     readonly property bool   displayConfirmPending: displayOutput ? displayOutput.confirmPending : false
     readonly property string displayNotice:         displayOutput ? displayOutput.notice : ""
@@ -886,7 +886,7 @@ Window {
         }
     }
 
-    // --- CABINET LOCK (Settings → Cabinet Lock, views/CabinetLock.qml) ---
+    // --- CABINET LOCK (Settings → Startup → Cabinet Lock, views/CabinetLock.qml) ---
     // On, OSD/OS stays on its Start on Module, a cabinet's Arcade screen:
     // back there goes nowhere, and back from anywhere else comes to it, so
     // the main menu, Settings and Quit are out of reach, as is Ctrl+Q. The
@@ -1099,7 +1099,7 @@ Window {
     // All the screen shows but a video is drawn in here: the window (the menus
     // on their ground, the selector's effect), the boot screen, the screen
     // saver, the pointer. With a screen or text effect in force (Settings →
-    // Screen Effect and Text Effect, or the theme's), it is drawn into one
+    // Look → Effects → Screen Effect and Text Effect, or the theme's), it is drawn into one
     // texture first, and that through one shader on the GPU on its way to the
     // screen (shaders/effects.frag, or a theme's own): scanlines, a picture
     // tube's curve, glow, colour bleed, noise, a vignette, and the ink in the
@@ -1209,7 +1209,7 @@ Window {
                 surround: !root.videoBehind
             }
 
-            // The selector's effect (Settings → Selector Effect, or the
+            // The selector's effect (Settings → Look → Effects → Selector Effect, or the
             // theme's): the rainbow runs down from under the selected line,
             // behind the lines below it (in front, in a dialog, whose ground
             // would hide it); the rest play in front of everything.
@@ -1309,7 +1309,7 @@ Window {
             }
         }
 
-        // --- WINDOW CHANGES (Settings → Transition, or the theme's) ---
+        // --- WINDOW CHANGES (Settings → Look → Effects → Transition, or the theme's) ---
         // The window as it was, caught a moment before the next comes in
         // (changeWindow()): under the window while it is caught, then turned
         // away with it (the cube), faded out over it (fade), or rippled into

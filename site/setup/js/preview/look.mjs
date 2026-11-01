@@ -3,7 +3,7 @@
 // each effect (Settings' row unless it is THEME, "", else the theme's), the
 // ground and its frame, the bars, the status icons, the main menu's rows and
 // the Arcade screen's settings, and whether the theme draws the Arcade screen
-// in its Orb look ("arcade": "orb"), with which fog (Settings → Orb Fog,
+// in its Orb look ("arcade": "orb"), with which fog (Settings → Look → Orb Fog,
 // Main.qml's orbFogLive). `looks` is schema.json's (scripts/build-site.py
 // reads it from Main.qml, assets/themes and assets/skins); `settings` is what
 // the page holds, each row's default where it is unset.
@@ -74,7 +74,7 @@ export function lookOf(looks, settings) {
     const arcadeModule = settings.modules.find(m => m.id === ARCADE);
     const arcadeValues = arcadeModule ? arcadeModule.values : {};
 
-    // What is on (Settings → Status Icons): the Arcade's, while it is on, then
+    // What is on (Settings → Look → Status Icons): the Arcade's, while it is on, then
     // Wi-Fi's bars once the card has a network.
     const statusIcons = [];
     if (on(app.status_icons)) {

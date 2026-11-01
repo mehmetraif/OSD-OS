@@ -773,7 +773,7 @@ FocusScope {
 
                 // The cursor: the row in a solid box, its name in the
                 // background colour, as a deck's menu marks what is selected
-                // (or the skin's picture of a selected line, Settings → Skin).
+                // (or the skin's picture of a selected line, Settings → Look → Skin).
                 SelectionBox {
                     visible: row.cursor
                     x: -tree.pad

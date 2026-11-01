@@ -1,10 +1,10 @@
 # Audio Output
 
-Settings → **Audio Output** picks the sound card OSD/OS plays through: a Raspberry Pi's AV jack, one of its HDMI ports, or a USB sound card. This page covers where the setting is offered, how the cards are found and named, what each Pi has, how the choice reaches mpv, the menu music and everything else that plays, what happens when a chosen card is unplugged, where the choice is saved, volume, getting the sound to a CRT, and what to do when there is no sound.
+Settings → Sound → **Audio Output** picks the sound card OSD/OS plays through: a Raspberry Pi's AV jack, one of its HDMI ports, or a USB sound card. This page covers where the setting is offered, how the cards are found and named, what each Pi has, how the choice reaches mpv, the menu music and everything else that plays, what happens when a chosen card is unplugged, where the choice is saved, volume, getting the sound to a CRT, and what to do when there is no sound.
 
 ## Where it is, and when
 
-**Settings → Audio Output** is in Settings' Application section, under Display Output. Its help line reads: *Which sound card plays: the AV jack, HDMI or a USB sound card, from the moment it is chosen. [AUTO] The Pi's own default, or the first card that can play while that one can't (a Pi 5's HDMI without the picture). [UNPLUGGED] Chosen but not plugged in: sound goes as on Auto until it is back.*
+**Settings → Sound → Audio Output** is in Settings' Application section, under Display Output. Its help line reads: *Which sound card plays: the AV jack, HDMI or a USB sound card, from the moment it is chosen. [AUTO] The Pi's own default, or the first card that can play while that one can't (a Pi 5's HDMI without the picture). [UNPLUGGED] Chosen but not plugged in: sound goes as on Auto until it is back.*
 
 It is offered on Linux where the players talk to ALSA, the kernel's sound system, directly ([`src/audio/AudioOutput.cpp`](https://github.com/mehmetraif/OSD-OS/blob/main/src/audio/AudioOutput.cpp)):
 
@@ -66,7 +66,7 @@ The choice is saved and used at once. ALSA's own default (`/etc/asound.conf`) is
 
 ```mermaid
 flowchart TD
-    S["Settings → Audio Output<br/>◄ ► saves app.audio_output"] --> A["AudioOutput<br/>the chosen card, while it is plugged in;<br/>on Auto, one that can play"]
+    S["Settings → Sound → Audio Output<br/>◄ ► saves app.audio_output"] --> A["AudioOutput<br/>the chosen card, while it is plugged in;<br/>on Auto, one that can play"]
     A --> V["A video's mpv<br/>--audio-device=alsa/default:CARD=id"]
     A --> M["The menu music<br/>starts again on the new card"]
     A --> W["Weather's and Ambient:Mode's music<br/>--audio-device as they start"]
@@ -164,7 +164,7 @@ OSD/OS has no system volume setting. There are three volumes, each its own:
 
 | What | Changed with | Saved |
 |---|---|---|
-| **The menu music** | Settings → **Music Volume**, a slider from QUIET to LOUD in steps of 10, offered while Menu Music isn't Off. It changes as the slider moves | `app.menu_music_volume`, 0 to 100, 60 when unset |
+| **The menu music** | Settings → Sound → **Music Volume**, a slider from QUIET to LOUD in steps of 10, offered while Menu Music isn't Off. It changes as the slider moves | `app.menu_music_volume`, 0 to 100, 60 when unset |
 | **A video** | A keyboard's or remote's volume keys (volume up, volume down, mute) while it plays: steps of 5, with a VOLUME bar, MUTE while muted ([Controls](https://github.com/mehmetraif/OSD-OS/wiki/Controls)) | No. Each video starts afresh at mpv's own volume (100), or at `volume=` in mpv.conf for an mpv process |
 | **The sound card itself** | Kept at its full level by OSD/OS. As anything starts to play, a level below 0 dB goes to 0 dB (to 100% on a card that gives no dB), and one switched off is switched on. It is never lowered, so a level set higher with `alsamixer` or `amixer` stays, and a microphone's or a line in's controls are left as they are | Nothing to keep: it is set again as each player starts |
 
@@ -185,7 +185,7 @@ The volume keys go to mpv, never to the menus, and hold to repeat. With Transpar
 
 ## When there is no sound
 
-1. **Choose the card.** In Settings → Audio Output, choose the card you are plugged into rather than Auto. On Auto the sound goes to ALSA's first card, which may not be that one (or, while that one can't play, to the first card that can).
+1. **Choose the card.** In Settings → Sound → Audio Output, choose the card you are plugged into rather than Auto. On Auto the sound goes to ALSA's first card, which may not be that one (or, while that one can't play, to the first card that can).
 2. **See what ALSA has.** From a shell (Exit to Terminal, or SSH; `alsa-utils` is on the image):
 
    ```sh

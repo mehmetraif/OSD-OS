@@ -1,6 +1,6 @@
 import QtQuick
 
-// What is on, the way a phone's status bar shows it (Settings → Status
+// What is on, the way a phone's status bar shows it (Settings → Look → Status
 // Icons): the deck's pixel symbols (PixelIcon) in a row, as Main.qml's
 // statusIcons lists them: the modules' (the Arcade's HI for Save High
 // Scores, a trophy for RetroAchievements, a globe for Online Play, a network

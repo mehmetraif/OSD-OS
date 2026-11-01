@@ -53,7 +53,7 @@ However, if you already have Raspberry Pi OS set up and working for your TV then
 
     I would also suggest filling out Hostname, User and Wifi in the customization section and enabling SSH there as it will save you from having to set those up manually later.
 
-2) After the write is complete, reconnect the card to your PC and update your config.txt to one of the following (please make sure to choose the one that best matches your TV). The OSD/OS image comes set up instead, and switches between HDMI, composite and SCART RGB in Settings → Display Output ([os/README.md](os/README.md#display-output-hdmi-composite-or-scart)):
+2) After the write is complete, reconnect the card to your PC and update your config.txt to one of the following (please make sure to choose the one that best matches your TV). The OSD/OS image comes set up instead, and switches between HDMI, composite and SCART RGB in Settings → Screen → Display Output ([os/README.md](os/README.md#display-output-hdmi-composite-or-scart)):
 
     **Option 1: For composite out on a CRT TV (NTSC)...**
     ```
@@ -228,7 +228,7 @@ At this point you can type `osdos` at any time to start up the app.  And if you 
     - Run `amixer sset PCM 100%` to raise the AV jack 4 dB above that, which OSD/OS leaves as it is (loud sound can clip there)
     - If that solves it and you want to keep the level across reboots, run `sudo alsactl store`
 - If there is no audio at all:** 
-    - **Settings → Audio Output** picks the card from the app, where plain ALSA plays (Raspberry Pi OS Lite, the OSD/OS image): it lists the cards there are, the AV jack, HDMI or a USB sound card, and plays through the one chosen from then on. The two options below choose outside the app, for every program or for mpv; a card chosen in Settings wins over both, and on **Auto** they apply. Without the first of them, Auto gives every player the first card that can play while ALSA's first card can't (a Pi 5's HDMI without the picture); the second still has the last word for mpv.
+    - **Settings → Sound → Audio Output** picks the card from the app, where plain ALSA plays (Raspberry Pi OS Lite, the OSD/OS image): it lists the cards there are, the AV jack, HDMI or a USB sound card, and plays through the one chosen from then on. The two options below choose outside the app, for every program or for mpv; a card chosen in Settings wins over both, and on **Auto** they apply. Without the first of them, Auto gives every player the first card that can play while ALSA's first card can't (a Pi 5's HDMI without the picture); the second still has the last word for mpv.
     - ALSA's `default` device resolves to whichever sound card enumerated first and sometimes that may not be the one your audio is actually plugged into, which will result in missing audio.
     - To see the cards your Pi enumerated run `cat /proc/asound/cards` (or `aplay -l`).  The short name in brackets is the card id you'll in one of the options below.  The ids you see will also depend on which config.txt from step 2 you used. (the Pi 3 / Pi 4 run fake KMS where analog / composite audio shows up as `Headphones`, while the Pi 5 blocks run Full KMS where HDMI audio shows up as `vc4hdmi0` and `vc4hdmi1`).  Any USB audio devices you've attached will have their own entries too, so please read the ids off your own Pi vs copying from here.
     - Once you have the ID for your audio device there are two options to fix it, please pick whichever fits your setup best:
@@ -246,7 +246,7 @@ At this point you can type `osdos` at any time to start up the app.  And if you 
                 audio-device=alsa/default:CARD=your-card-id
                 ```
             - Run `mpv --audio-device=help` to see the exact device strings mpv will accept and copy the one that matches your audio output device. `default:CARD=` is ALSA's own way to the card: `plughw:` can't feed the Pi's HDMI under full KMS, which takes its samples framed as IEC958.
-    - In both options the change applies the next time playback starts, as long as Settings → Audio Output is on Auto. Option 1 reaches everything that plays sound; Option 2 every mpv OSD/OS starts for a video, but not the menu music's (which runs mpv without a config) or the player inside the window under Transparent Background (libmpv, which reads no `mpv.conf`).  Please see [ARCHITECTURE.md → How mpv flags are layered](ARCHITECTURE.md#how-mpv-flags-are-layered-the-precedence-cascade) for how the two layer.
+    - In both options the change applies the next time playback starts, as long as Settings → Sound → Audio Output is on Auto. Option 1 reaches everything that plays sound; Option 2 every mpv OSD/OS starts for a video, but not the menu music's (which runs mpv without a config) or the player inside the window under Transparent Background (libmpv, which reads no `mpv.conf`).  Please see [ARCHITECTURE.md → How mpv flags are layered](ARCHITECTURE.md#how-mpv-flags-are-layered-the-precedence-cascade) for how the two layer.
 
 **Exit to Terminal and Restart**
 
@@ -259,7 +259,7 @@ At this point you can type `osdos` at any time to start up the app.  And if you 
 
 ### Update
 
-**From within the app (recommended):** go to `Settings → Update`, check for updates, download, and choose Apply & Restart. Your settings will be retained. Only a newer release is ever offered, and if the power goes out while the update is being swapped in, the next start puts the previous version back whole and applies the update again.
+**From within the app (recommended):** go to `Settings → System → Update`, check for updates, download, and choose Apply & Restart. Your settings will be retained. Only a newer release is ever offered, and if the power goes out while the update is being swapped in, the next start puts the previous version back whole and applies the update again.
 
 > Installs made before in-app updates were possible need to re-run the install script **once** (just follow the steps below).  Doing that will pick up the new launcher.  There is a check on the Update screen that will let you know if that's the case for you.
 
@@ -325,13 +325,13 @@ If you don't have a Raspberry Pi and would like to try OSD/OS, I also provide a 
 
 **Settings from OSD/OS Setup**
 
-- Choose the settings on [OSD/OS Setup](https://osdos.tv/setup/), press **Copy for a computer** there, then Settings → **Paste OSD/OS Setup** in OSD/OS: its own settings and the RetroAchievements account are set at once.
+- Choose the settings on [OSD/OS Setup](https://osdos.tv/setup/), press **Copy for a computer** there, then Settings → System → **Paste OSD/OS Setup** in OSD/OS: its own settings and the RetroAchievements account are set at once.
 - Or save the page's `osdos-setup.json` in `~/Library/Application Support/OSD-OS/`, or in the folder `osdos.app` is in: OSD/OS applies it at its next start, says what it set, and deletes the file, which holds the account's password.
 - The device's name, the display output, Wi-Fi and the system's settings are set on an OSD/OS card alone, and left as they are on a Mac.
 
 ### Update
 
-**From within the app (recommended):** go to `Settings → Update`, check for updates, download, and choose Apply & Relaunch — the app will swap itself in `/Applications` and reopen on the new version. Your settings will be retained.
+**From within the app (recommended):** go to `Settings → System → Update`, check for updates, download, and choose Apply & Relaunch — the app will swap itself in `/Applications` and reopen on the new version. Your settings will be retained.
 
 Or manually:
 1. Download the DMG archive from the latest release
@@ -378,13 +378,13 @@ The AppImage carries its own copy of the Wayland client libraries and uses them 
 
 **Settings from OSD/OS Setup**
 
-- Choose the settings on [OSD/OS Setup](https://osdos.tv/setup/), press **Copy for a computer** there, then Settings → **Paste OSD/OS Setup** in OSD/OS: its own settings and the RetroAchievements account are set at once.
+- Choose the settings on [OSD/OS Setup](https://osdos.tv/setup/), press **Copy for a computer** there, then Settings → System → **Paste OSD/OS Setup** in OSD/OS: its own settings and the RetroAchievements account are set at once.
 - Or save the page's `osdos-setup.json` in `~/.local/share/OSD-OS/`, or beside the AppImage: OSD/OS applies it at its next start, says what it set, and deletes the file, which holds the account's password.
 - The device's name, the display output, Wi-Fi and the system's settings are set on an OSD/OS card alone, and left as they are on a computer.
 
 ### Update
 
-- **From within the app (recommended):** go to `Settings → Update`, check for updates, download, and choose **Quit & Apply on Next Launch**. 
+- **From within the app (recommended):** go to `Settings → System → Update`, check for updates, download, and choose **Quit & Apply on Next Launch**. 
 - The app verifies the download, swaps the new `.AppImage` over your current one in place (keeping a `.bak` of the previous version until the new one launches cleanly). 
 - In Desktop Mode the app then starts again on the new version by itself. In **Gaming Mode** the app needs to close after applying; so simply relaunch it from your Steam library to pick up the new version (the file path is unchanged, so your existing shortcut will still work). 
 - Your settings in `~/.local/share/OSD-OS/` are retained.
@@ -429,11 +429,11 @@ For Windows 11 on x64, OSD/OS comes as a zip: one folder, `osdos`, with `osdos.e
 
 **A window on the desktop**
 
-- Settings → **Window Mode** shows OSD/OS in a window on the desktop instead of the whole screen; F11 or Alt+Enter switches at any time.
+- Settings → Screen → **Window Mode** shows OSD/OS in a window on the desktop instead of the whole screen; F11 or Alt+Enter switches at any time.
 
 **Settings from OSD/OS Setup**
 
-- Choose the settings on [OSD/OS Setup](https://osdos.tv/setup/), press **Copy for a computer** there, then Settings → **Paste OSD/OS Setup** in OSD/OS: its own settings and the RetroAchievements account are set at once.
+- Choose the settings on [OSD/OS Setup](https://osdos.tv/setup/), press **Copy for a computer** there, then Settings → System → **Paste OSD/OS Setup** in OSD/OS: its own settings and the RetroAchievements account are set at once.
 - Or save the page's `osdos-setup.json` in `%APPDATA%\OSD-OS\`, or in the `osdos` folder beside `osdos.exe`: OSD/OS applies it at its next start, says what it set, and deletes the file, which holds the account's password.
 - The device's name, the display output, Wi-Fi and the system's settings are set on an OSD/OS card alone, and left as they are on a PC.
 
@@ -443,7 +443,7 @@ For Windows 11 on x64, OSD/OS comes as a zip: one folder, `osdos`, with `osdos.e
 
 ### Update
 
-Settings → Update says when a newer version is out and names its zip, but on Windows it doesn't put the new version in place itself:
+Settings → System → Update says when a newer version is out and names its zip, but on Windows it doesn't put the new version in place itself:
 
 1. Download the new `OSD-OS-<version>-windows-x64.zip` from the [latest release](https://github.com/mehmetraif/OSD-OS/releases/latest).
 2. Close OSD/OS, delete the old `osdos` folder and unzip the new one in its place. *Your settings are in `%APPDATA%\OSD-OS\`, apart from the app, and stay as they are, as do the MAME and RetroArch it downloaded.*
@@ -485,7 +485,7 @@ For FreeBSD 15 on an amd64 PC, OSD/OS comes as a FreeBSD package, `OSD-OS-<versi
 
 **Settings from OSD/OS Setup**
 
-- Choose the settings on [OSD/OS Setup](https://osdos.tv/setup/), press **Copy for a computer** there, then Settings → **Paste OSD/OS Setup** in OSD/OS; or save the page's `osdos-setup.json` in `~/.local/share/OSD-OS/`, which OSD/OS applies at its next start.
+- Choose the settings on [OSD/OS Setup](https://osdos.tv/setup/), press **Copy for a computer** there, then Settings → System → **Paste OSD/OS Setup** in OSD/OS; or save the page's `osdos-setup.json` in `~/.local/share/OSD-OS/`, which OSD/OS applies at its next start.
 
 **What a FreeBSD PC doesn't have**
 
@@ -493,7 +493,7 @@ For FreeBSD 15 on an amd64 PC, OSD/OS comes as a FreeBSD package, `OSD-OS-<versi
 
 ### Update
 
-Settings → Update says when a newer version is out and names its package. Download it from the [latest release](https://github.com/mehmetraif/OSD-OS/releases/latest) and add it as root, which puts it in the place of the version installed: `pkg add OSD-OS-<version>-freebsd-amd64.pkg`. *Your settings are in `~/.local/share/OSD-OS/` and stay as they are.*
+Settings → System → Update says when a newer version is out and names its package. Download it from the [latest release](https://github.com/mehmetraif/OSD-OS/releases/latest) and add it as root, which puts it in the place of the version installed: `pkg add OSD-OS-<version>-freebsd-amd64.pkg`. *Your settings are in `~/.local/share/OSD-OS/` and stay as they are.*
 
 ### Uninstall
 
@@ -535,7 +535,7 @@ The package is made for one release of OpenBSD, 8.0 for now: OpenBSD's libraries
 
 **Settings from OSD/OS Setup**
 
-- Choose the settings on [OSD/OS Setup](https://osdos.tv/setup/), press **Copy for a computer** there, then Settings → **Paste OSD/OS Setup** in OSD/OS; or save the page's `osdos-setup.json` in `~/.local/share/OSD-OS/`, which OSD/OS applies at its next start.
+- Choose the settings on [OSD/OS Setup](https://osdos.tv/setup/), press **Copy for a computer** there, then Settings → System → **Paste OSD/OS Setup** in OSD/OS; or save the page's `osdos-setup.json` in `~/.local/share/OSD-OS/`, which OSD/OS applies at its next start.
 
 **What an OpenBSD PC doesn't have**
 
@@ -543,7 +543,7 @@ The package is made for one release of OpenBSD, 8.0 for now: OpenBSD's libraries
 
 ### Update
 
-Settings → Update says when a newer version is out and names its package. Download it from the [latest release](https://github.com/mehmetraif/OSD-OS/releases/latest) and add it as root, which updates the version installed: `pkg_add -D unsigned OSD-OS-<number>-openbsd-amd64.tgz`. *Your settings are in `~/.local/share/OSD-OS/` and stay as they are.*
+Settings → System → Update says when a newer version is out and names its package. Download it from the [latest release](https://github.com/mehmetraif/OSD-OS/releases/latest) and add it as root, which updates the version installed: `pkg_add -D unsigned OSD-OS-<number>-openbsd-amd64.tgz`. *Your settings are in `~/.local/share/OSD-OS/` and stay as they are.*
 
 ### Uninstall
 

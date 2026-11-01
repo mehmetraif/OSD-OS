@@ -8,7 +8,7 @@
 #include <functional>
 #include <optional>
 
-// Settings → About → System Information (views/SystemInfo.qml): what this
+// Settings → System → About → System Information (views/SystemInfo.qml): what this
 // device is and how the network knows it, as the context property
 // "systemInfo".
 //

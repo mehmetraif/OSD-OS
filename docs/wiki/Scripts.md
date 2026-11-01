@@ -10,7 +10,7 @@ Your own shell scripts, run from the remote. The Scripts module lists the `.sh` 
 
 ## Setting it up
 
-1. Settings → **Scripts** → **ENABLED**: On. Scripts appears on the main menu.
+1. Settings → System → **Scripts** → **ENABLED**: On. Scripts appears on the main menu.
 2. Put your scripts in the scripts folder: `user_scripts` in the data folder, which OSD/OS creates.
 
    | System | Folder |
@@ -18,7 +18,7 @@ Your own shell scripts, run from the remote. The Scripts module lists the `.sh` 
    | OSD/OS image, Raspberry Pi OS, SteamOS | `~/.local/share/OSD-OS/user_scripts/` |
    | macOS | `~/Library/Application Support/OSD-OS/user_scripts/` |
 
-   Or pick another with Settings → Scripts → **Scripts Directory**, on the same folder tree Local Files is browsed with: **USE THIS FOLDER** picks the one open, **Default Folder** goes back to `user_scripts`.
+   Or pick another with Settings → System → Scripts → **Scripts Directory**, on the same folder tree Local Files is browsed with: **USE THIS FOLDER** picks the one open, **Default Folder** goes back to `user_scripts`.
 3. Open **Scripts**. Every script gets its `.txt` file the first time it is listed; edit it to name the script and choose its mode.
 
 The scripts are the files ending in `.sh` (in any case: `FOO.SH` counts) directly in the folder, not in folders under it, sorted by name. Hidden files are left out. The folder is read again every time the list opens, so a script you add, or a `.txt` you edit, shows the next time you open Scripts. **Rescan Scripts** in Settings reads it at once and writes any missing `.txt` files.
@@ -167,8 +167,8 @@ A script marked `favorite = yes` (or with ► in the list) gets a row of its own
 
 To have OSD/OS run a script every time it starts, for a machine that should boot into RetroArch or a TV channel, say:
 
-1. Settings → Scripts → **Auto-Run On Startup**: the script (**None** by default).
-2. Settings → **Start on Module**: Scripts.
+1. Settings → System → Scripts → **Auto-Run On Startup**: the script (**None** by default).
+2. Settings → Startup → **Start on Module**: Scripts.
 
 At start, OSD/OS opens Scripts and, after three quarters of a second (time for the screen's first frame, which a takeover has to save), runs the script, without asking even if its `.txt` says `confirm = yes`: nobody is there to answer. When it is done you are on the main menu (a takeover that exits with 0 goes there by itself; otherwise back does). If the script no longer exists, the Scripts list opens instead. A favourite chosen with **Play at Startup** ([Settings](https://github.com/mehmetraif/OSD-OS/wiki/Settings)) comes before Start on Module.
 
@@ -184,7 +184,7 @@ The setting stores the script's file name, not its path, so moving the scripts f
 | **`DATA_ROOT`** | The data folder (`~/.local/share/OSD-OS` on Linux and the image), where `bin/yt-dlp`, `config.json` and the rest are. |
 | **`OSDOS_MODE`** | `console` or `takeover`: how it is really running (`console` for a takeover that couldn't be handed the screen). |
 | **`OSDOS_VT`** | Only when the screen was handed over (a takeover on Linux without a desktop): the number of the virtual console OSD/OS switched to. |
-| **`ALSA_CARD`** | Only when Settings → Audio Output names a sound card, or is on Auto while ALSA's first card can't play: that card, so a program playing through ALSA's default device plays where OSD/OS does. |
+| **`ALSA_CARD`** | Only when Settings → Sound → Audio Output names a sound card, or is on Auto while ALSA's first card can't play: that card, so a program playing through ALSA's default device plays where OSD/OS does. |
 | **`SDL_KMSDRM_DEVICE_INDEX`** | Only on a Pi 5: the number of the DRM card of the output the display preset names (`1` for the launcher's `OSDOS_DRM_DEVICE=/dev/dri/card1`), so an SDL program opens that output rather than the first card with a screen plugged in. One already in the environment is kept. |
 | **`OSDOS_PLAYER1_NAME`, `OSDOS_PLAYER1_GUID`, `OSDOS_PLAYER1_DEVICE`** | Player 1's pad (Settings → Controls → [Players](https://github.com/mehmetraif/OSD-OS/wiki/Controls#players)): its name, SDL's GUID for it, and its device node (`/dev/input/event7` on Linux), for a game or an emulator to give player 1 that pad. `OSDOS_PLAYER2_…` to `OSDOS_PLAYER6_…` the same for players 2 to 6. None for a player without a pad. |
 | **`MP240_MODE`, `MP240_VT`** | The same as `OSDOS_MODE` and `OSDOS_VT`, under 240-MP's names, for scripts written for it. |
@@ -319,19 +319,19 @@ wait = pgroup
 tty = yes
 ```
 
-On a Pi 4, `--hwdec=v4l2m2m-copy` in place of `--hwdec=auto-safe` decodes H.264 in hardware, as OSD/OS's own playback does there. mpv plays through Settings → Audio Output's card (`ALSA_CARD`). Without the udev rule mpv gets no keys, and with no stop key during a takeover the channel runs until it is stopped from elsewhere: over SSH, `pkill -x mpv` ends mpv (OSD/OS's own mpv isn't running during a takeover), the script then exits, and OSD/OS shows mpv's exit code with back to leave. Ending only the script wouldn't do: mpv, which it started, would keep the screen, and OSD/OS waits for it (`wait = pgroup`).
+On a Pi 4, `--hwdec=v4l2m2m-copy` in place of `--hwdec=auto-safe` decodes H.264 in hardware, as OSD/OS's own playback does there. mpv plays through Settings → Sound → Audio Output's card (`ALSA_CARD`). Without the udev rule mpv gets no keys, and with no stop key during a takeover the channel runs until it is stopped from elsewhere: over SSH, `pkill -x mpv` ends mpv (OSD/OS's own mpv isn't running during a takeover), the script then exits, and OSD/OS shows mpv's exit code with back to leave. Ending only the script wouldn't do: mpv, which it started, would keep the screen, and OSD/OS waits for it (`wait = pgroup`).
 
 FieldStation42 itself, or any program with a launcher of its own, is listed the same way: a short takeover script that changes to its folder and starts it, and `wait = pgroup` so OSD/OS waits for whatever the launcher leaves running.
 
 ## Settings
 
-Settings → **Scripts**:
+Settings → System → **Scripts**:
 
 | Setting | Values | Default | What it does | Config key |
 |---|---|---|---|---|
 | ENABLED | On, Off | Off | Shows Scripts, and the favourites' rows, on the main menu. | `modules.com.osdos.scripts.enabled` |
 | Scripts Directory | A folder, or Default Folder | Default (`user_scripts` in the data folder) | The folder holding your `.sh` files. | `modules.com.osdos.scripts.scripts_directory` (`""` for the default) |
-| Auto-Run On Startup | None, or one of your scripts | None | Runs that script when OSD/OS starts on this module (Settings → Start on Module: Scripts). | `modules.com.osdos.scripts.startup_script` (the script's file name, or `None`) |
+| Auto-Run On Startup | None, or one of your scripts | None | Runs that script when OSD/OS starts on this module (Settings → Startup → Start on Module: Scripts). | `modules.com.osdos.scripts.startup_script` (the script's file name, or `None`) |
 | Rescan Scripts | Select | | Reads the scripts folder again and writes any missing `.txt` files. | |
 
 ## Files and config keys
@@ -358,7 +358,7 @@ Settings → **Scripts**:
 
 ## Troubleshooting
 
-**No scripts found.** The files must end in `.sh` and sit directly in the scripts folder (check Settings → Scripts → Scripts Directory), readable by the user OSD/OS runs as.
+**No scripts found.** The files must end in `.sh` and sit directly in the scripts folder (check Settings → System → Scripts → Scripts Directory), readable by the user OSD/OS runs as.
 
 **COULD NOT START: …** OSD/OS refused before starting anything: **File no longer exists**, **Not a regular file**, **File is not readable**, **Not executable and /bin/sh is missing**, **Another script is still running** (a takeover's processes are still exiting), or **The screen is in use** (something else holds the display).
 

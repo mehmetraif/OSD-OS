@@ -1646,7 +1646,7 @@ FocusScope {
         anchors.leftMargin: Math.round(arcadeScreen.areaLeft * arcadeScreen.u)
     }
 
-    // What is on (Settings → Status Icons), at the screen's bottom right: at
+    // What is on (Settings → Look → Status Icons), at the screen's bottom right: at
     // the right of the help line, which makes room for them; with no help
     // line, at the hint bar's right end, in its letters' colour, while the
     // hint line still fits beside them (in the Orb look, at the right of its

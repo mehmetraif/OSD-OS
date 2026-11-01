@@ -623,7 +623,7 @@ void WeatherBackend::startMusic() {
          << QStringLiteral("--no-terminal")
          << QStringLiteral("--really-quiet")
          << QStringLiteral("--input-ipc-server=%1").arg(m_musicSocketPath)
-         // Settings → Audio Output's card, while it is plugged in; Auto's as
+         // Settings → Sound → Audio Output's card, while it is plugged in; Auto's as
          // ALSA's default (applyTo() below).
          << AudioOutput::mpvArgs()
          // Everything after this is a file, so an entry starting with '-'

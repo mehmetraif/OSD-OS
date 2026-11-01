@@ -20,9 +20,9 @@ A theme to copy and make your own. A theme is the whole look in one folder: the 
    - macOS: `~/Library/Application Support/OSD-OS/themes/<name>/`
 
    The folder's name is what Settings saves. A folder named like one of OSD/OS's own (`trinitron`, `matrix`, `demoscene`…) is used in its place.
-2. **Name it.** `"name"` in `theme.json` is what Settings → Theme shows: 28 characters at most, else the folder's name is shown.
+2. **Name it.** `"name"` in `theme.json` is what Settings → Look → Theme shows: 28 characters at most, else the folder's name is shown.
 3. **Change what you like**, or take a part out: a part the theme leaves out is drawn without it (no effect, OSD/OS's own window, no music; the colors Video 1's).
-4. **Pick it** in Settings → Theme. A new folder is listed the next time Settings opens. Picking a theme sets every part to it (each row below Theme says THEME); a row changed after that keeps your choice, or Off, until the next theme is picked. The window's frame shows with OSD Background set to Window.
+4. **Pick it** in Settings → Look → Theme. A new folder is listed the next time Settings opens. Picking a theme sets every part to it (each row below Theme says THEME); a row changed after that keeps your choice, or Off, until the next theme is picked. The window's frame shows with OSD Background set to Window.
 
 To see a picture or a shader you changed in a theme already in use, restart OSD/OS: one already shown stays in memory.
 
@@ -53,7 +53,7 @@ To see a picture or a shader you changed in a theme already in use, restart OSD/
 | Key | |
 |---|---|
 | `name` | What Settings shows |
-| `colors` | A color scheme's name, as Settings → Color Scheme lists it (`"Video 1"`, `"Late Night"`), or two colors of its own, each `#rrggbb`: `primary`, the text, the lines and the selection, and `surface`, the background. OSD/OS draws in those two only, like a deck's on-screen display |
+| `colors` | A color scheme's name, as Settings → Look → Color Scheme lists it (`"Video 1"`, `"Late Night"`), or two colors of its own, each `#rrggbb`: `primary`, the text, the lines and the selection, and `surface`, the background. OSD/OS draws in those two only, like a deck's on-screen display |
 | `skin` | A skin's name, its folder's (`"dos"`, `"rounded"`, or one in the data folder's `skins`), or a skin of its own: its parts as in a `skin.json` (see the [skin template](../skin-template/)), its pictures in the theme's folder |
 | `effects` | Any of `text`, `background`, `selector`, `screen` and `transition`, below |
 | `music` | The menu music: a file in the theme's folder, below |
@@ -83,7 +83,7 @@ CRT is `{ "scanlines": 0.35, "curvature": 0.6, "glow": 0.35, "vignette": 0.5 }`,
 - **A tracker's module:** XM, MOD, S3M or IT, played by mpv through ffmpeg's libopenmpt, or made into a WAV by openmpt123 where mpv can't play it. The [Demoscene](../../assets/themes/demoscene/) theme's is one.
 - **A MIDI file**, as the template's: FluidSynth plays it into a WAV once (kept in the cache folder) with a SoundFont: one beside it of the same name (`tune.sf2` beside `tune.mid`, a theme's own), else the first in the data folder's `soundfonts`, else the system's General MIDI one. The OSD/OS image comes with FluidSynth and a small SoundFont; elsewhere install FluidSynth and one (`sudo apt install fluidsynth fluid-soundfont-gm`, `brew install fluid-synth` and a `.sf2` in the data folder's `soundfonts`).
 
-The music stops at once whenever anything else is about to play sound, and plays again from the start once back in the menus. Settings → Music Volume sets how loud.
+The music stops at once whenever anything else is about to play sound, and plays again from the start once back in the menus. Settings → Sound → Music Volume sets how loud.
 
 ## A shader of its own
 

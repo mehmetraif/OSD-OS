@@ -4,7 +4,7 @@
 # picture of 240 lines whose pixels are six times narrower than they are
 # tall, so a game of any width fills it with its lines whole and its
 # columns hardly uneven. The timing is Switchres' arcade_15, as Recalbox's
-# modes have it. Chosen in Settings → Display Output, or copied over
+# modes have it. Chosen in Settings → Screen → Display Output, or copied over
 # osdos-display.txt (config.txt says how).
 # osdos-controls: jamma
 # A Pi 5 keeps HDMI on beside it: OSD/OS takes this output, in this mode. The

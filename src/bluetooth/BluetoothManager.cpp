@@ -553,7 +553,7 @@ void BluetoothManager::agentRequestConfirmation(const QString &device, uint pass
 void BluetoothManager::agentRequestAuthorization(const QString &device, const QDBusMessage &call) {
     bus().send(device == m_pairingPath
                ? call.createReply()
-               : call.createErrorReply(kRejected, QStringLiteral("Pair it from Settings → Bluetooth")));
+               : call.createErrorReply(kRejected, QStringLiteral("Pair it from Settings → Network → Bluetooth")));
 }
 
 // A device not trusted yet that wants a service: yes if it is paired.

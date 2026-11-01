@@ -1,7 +1,7 @@
 # RGB to a CRT through SCART, NTSC timing (240p), from a Pi 4's GPIO pins,
 # should its 480i not hold: GPIO 4-21 carry the colours to a resistor DAC (the
 # VGA666's layout), GPIO 2 and 3 the vertical and horizontal sync
-# (os/README.md has the cable). Chosen in Settings → Display Output, or copied
+# (os/README.md has the cable). Chosen in Settings → Screen → Display Output, or copied
 # over osdos-display.txt (config.txt says how).
 
 # The Pi 4's DPI is its firmware's, the only output, its syncs negative as a

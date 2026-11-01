@@ -1,7 +1,7 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 440 150" width="880" height="300">
 <title>OSD/OS: Smart TV for CRT</title>
 <!-- The OSD/OS logo, made with ChatGPT (OpenAI) for the owner. The wordmark
-     as Settings → About shows it: on the blue of the Video 1 colour scheme,
+     as Settings → System → About shows it: on the blue of the Video 1 colour scheme,
      the letters in its white, the slash in its three colours. -->
 <rect width="440" height="150" rx="6" fill="#0110C5"/>
 <g>

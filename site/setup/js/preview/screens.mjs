@@ -124,7 +124,7 @@ export function drawIcon(ctx, name, x, y, color, pixel = PX) {
         }
     });
 }
-// Settings → Status Icons' row (Components/StatusIcons).
+// Settings → Look → Status Icons' row (Components/StatusIcons).
 const statusWidth = icons => icons.reduce((w, name, i) => w + iconWidth(name) + (i ? 3 * PX : 0), 0);
 function drawStatus(ctx, icons, x, y, color) {
     for (const name of icons) {
@@ -556,7 +556,7 @@ export function arcadeHintPairs(ui, filter, current) {
 }
 
 // The Arcade screen's foot: the hint bar's line and where the bar is, and
-// the status icons (Settings → Status Icons), at the help line's right, or
+// the status icons (Settings → Look → Status Icons), at the help line's right, or
 // with no help line at the hint bar's end while the hint line still fits
 // beside them at its smallest (in the Orb look, at the right of its keys,
 // which make room); with neither, none. statusRoom is the room they take.

@@ -35,7 +35,7 @@ Text {
         text: hint.text
     }
 
-    // The bar, or the skin's picture of it (Settings → Skin).
+    // The bar, or the skin's picture of it (Settings → Look → Skin).
     SkinImage {
         id: skinnedBar
         z: -1

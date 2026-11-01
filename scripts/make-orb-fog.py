@@ -6,7 +6,7 @@ its panels, each this picture drifting slowly (orb/fog.frag): three noises
 in its red, green and blue, each the sum of a few octaves of value noise
 (fbm) that tiles, so that the picture repeats without a seam. Drawn once
 here rather than worked out for every pixel of every frame, which costs a
-Raspberry Pi's GPU more than the rest of the screen: Settings → Orb Fog's
+Raspberry Pi's GPU more than the rest of the screen: Settings → Look → Orb Fog's
 Live does that instead (orb/fogLive.frag). Run it again after changing the
 numbers below; it needs Python 3 alone, and writes the file in place.
 

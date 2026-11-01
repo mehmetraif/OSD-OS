@@ -149,7 +149,7 @@ Once signed in, each opens on the server's Continue Watching and its libraries. 
 <table>
 <tr><th width="50%">Settings</th><th width="50%">TV / Movie</th></tr>
 <tr><td><img src="screenshots/settings.png" width="100%" alt="Settings" /></td><td><img src="screenshots/settings-modules.png" width="100%" alt="TV / Movie" /></td></tr>
-<tr><td>Laid out like a camcorder's menu. TV / Movie and Arcade open the videos' and the games' pages; under General Settings comes the look: Theme, then each of its parts (the color scheme, the skin, the effects, the transition and the menu music), each the theme's, Off or one of your own. Further down, Hint Bar takes the key hints off the foot of every screen, Help Line the box under the menu.</td><td>The videos' page: Transparent Background is a slider, the deck's tape bar, from TRANSPARENT to SOLID; Channel Logo puts OSD/OS's logo in a corner of the picture while a video plays. Under Modules, each video module is turned on and set up from its own page.</td></tr>
+<tr><td>Laid out like a camcorder's menu, a short first screen of pages: TV / Movie and Arcade for the videos and the games, then Look, Screen, Sound, Controls, Network, Startup and System, each a screenful. Nothing is hidden: a line that can't be used here is dimmed, and the help line says why.</td><td>The videos' page: Transparent Background is a slider, the deck's tape bar, from TRANSPARENT to SOLID; Channel Logo puts OSD/OS's logo in a corner of the picture while a video plays. Under Modules, each video module is turned on and set up from its own page.</td></tr>
 </table>
 
 <table>
@@ -196,7 +196,7 @@ Once signed in, each opens on the server's Continue Watching and its libraries. 
 
 ### Themes
 
-Settings → Theme sets the whole look at once: the color scheme, the skin, the effects and the menu music. Each part has its row under Theme, to change, and all but the color scheme to turn off. None of it ever lies over a video: the effects and the music rest while one plays, loads or has its menu open.
+Settings → Look → Theme sets the whole look at once: the color scheme, the skin, the effects and the menu music. Each part has its row under Theme, to change, and all but the color scheme to turn off. None of it ever lies over a video: the effects and the music rest while one plays, loads or has its menu open.
 
 <table>
 <tr><th width="50%">Trinitron</th><th width="50%">Late Show</th></tr>

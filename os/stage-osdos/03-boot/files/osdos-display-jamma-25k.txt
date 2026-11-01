@@ -3,7 +3,7 @@
 # the sound), at 496x384: 60 Hz, 24.96 kHz, for a medium resolution monitor
 # (25 kHz) or a tri-sync one. ONLY for such a monitor: too high a
 # horizontal frequency can damage a 15 kHz one. The timing is Recalbox RGB
-# JAMMA's, for a board of the same layout. Chosen in Settings → Display
+# JAMMA's, for a board of the same layout. Chosen in Settings → Screen → Display
 # Output, or copied over osdos-display.txt (config.txt says how).
 # osdos-controls: jamma
 # A Pi 5 keeps HDMI on beside it: OSD/OS takes this output, in this mode. The

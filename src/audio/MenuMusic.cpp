@@ -293,7 +293,7 @@ void MenuMusic::play(const QString &file) {
          << QStringLiteral("--loop-file=inf")
          << QStringLiteral("--volume=%1").arg(m_volume)
          << QStringLiteral("--input-ipc-server=%1").arg(m_socketPath)
-         // Settings → Audio Output's card, while it is plugged in; Auto's as
+         // Settings → Sound → Audio Output's card, while it is plugged in; Auto's as
          // ALSA's default (applyTo() below).
          << AudioOutput::mpvArgs()
          << QStringLiteral("--")

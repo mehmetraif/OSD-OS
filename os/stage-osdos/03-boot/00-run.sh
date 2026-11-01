@@ -2,7 +2,7 @@
 
 # Boot partition: a quiet boot straight to the app, with the display preset in
 # a file of its own next to config.txt, a copy of one of the presets beside it:
-# Settings → Display Output switches between them (as root, through
+# Settings → Screen → Display Output switches between them (as root, through
 # osdos-stop), and from any computer it is a file copy.
 
 BOOT="${ROOTFS_DIR}/boot/firmware"

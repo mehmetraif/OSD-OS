@@ -18,9 +18,9 @@ A skin dresses the window: it gives the shapes of OSD Background's window frame,
 
 | Part | Key | Where it shows | Without the skin's picture |
 |---|---|---|---|
-| The window's frame | `window` | With Settings → OSD Background: Window, and Window Frame On or Shadow. The picture is drawn over the whole window, so its middle is the window's ground | A line an art pixel wide in the scheme's colour, round a window of its background |
+| The window's frame | `window` | With Settings → Look → OSD Background: Window, and Window Frame On or Shadow. The picture is drawn over the whole window, so its middle is the window's ground | A line an art pixel wide in the scheme's colour, round a window of its background |
 | The title bar | `titleBar` | At the top of every screen, behind the title, right of the logo | A solid bar in the scheme's colour |
-| The hint bar | `hintBar` | At the foot of every screen and dialog, behind the key hints (none with Settings → Hint Bar: Off) | A solid bar |
+| The hint bar | `hintBar` | At the foot of every screen and dialog, behind the key hints (none with Settings → Look → Hint Bar: Off) | A solid bar |
 | The selected line | `selection` | Every selected line: the main menu, Settings and every module's settings, the tree's cursor, the answers of a question | A solid bar |
 | Icons | `icons` | The logo at the left end of the title bar | OSD/OS's own icons |
 
@@ -28,7 +28,7 @@ The on-screen keyboard's keys stay plain bars: a key isn't a line. The selector 
 
 ## Choosing a skin
 
-Settings → **Skin** offers THEME (while there is a theme: the theme's skin), **None** (OSD/OS's own drawing), DOS, Rounded, and every skin in the data folder's `skins`, by name. It is saved as `app.skin` in `config.json`: the skin's folder name, `"Off"` for None, `""` for THEME. Choosing a theme sets it back to THEME ([Themes](https://github.com/mehmetraif/OSD-OS/wiki/Themes#how-a-theme-is-applied)). A skin chosen before skins had their own row was saved as `app.theme`, and is read while `app.skin` is unset.
+Settings → Look → **Skin** offers THEME (while there is a theme: the theme's skin), **None** (OSD/OS's own drawing), DOS, Rounded, and every skin in the data folder's `skins`, by name. It is saved as `app.skin` in `config.json`: the skin's folder name, `"Off"` for None, `""` for THEME. Choosing a theme sets it back to THEME ([Themes](https://github.com/mehmetraif/OSD-OS/wiki/Themes#how-a-theme-is-applied)). A skin chosen before skins had their own row was saved as `app.theme`, and is read while `app.skin` is unset.
 
 | Setting | Values | Default | What it does | Config key |
 |---|---|---|---|---|
@@ -112,7 +112,7 @@ That is the [skin template](https://github.com/mehmetraif/OSD-OS/tree/main/docs/
 
 | Key | What it is | Left out |
 |---|---|---|
-| `name` | What Settings → Skin shows, 28 characters at most (runs of spaces count as one) | The folder's name |
+| `name` | What Settings → Look → Skin shows, 28 characters at most (runs of spaces count as one) | The folder's name |
 | `window` | The frame of OSD Background's window, drawn over the whole window | A line round the window |
 | `titleBar` | The bar at the top of every screen, behind the title | A solid bar |
 | `hintBar` | The bar at the foot, behind the key hints | A solid bar |
@@ -160,7 +160,7 @@ A skin gives shapes, and the color scheme gives the colours. Every pixel of a pi
 
 Brightness is the eye's: grey = (11 × red + 16 × green + 5 × blue) / 32, light from 128 up. Pure red (87) and even pure green (127) count as dark, yellow (215) as light. A drawing in colours works, but white, black and transparent show what you will get. There are no half tones: a soft edge becomes hard, one side or the other.
 
-The picture is drawn again in new colours when the scheme changes, and with Settings → OSD Background: Off, where the menus are in the scheme's lighter colour on black.
+The picture is drawn again in new colours when the scheme changes, and with Settings → Look → OSD Background: Off, where the menus are in the scheme's lighter colour on black.
 
 ### Art pixels
 
@@ -436,7 +436,7 @@ A theme names a skin, or brings one of its own:
 }
 ```
 
-In the second, the pictures are in the theme's folder. A skin inside a theme takes the same keys as a `skin.json`, but `name`, and the same rules. With Settings → Skin on THEME, the theme's skin is used; any other choice there replaces it ([Themes](https://github.com/mehmetraif/OSD-OS/wiki/Themes#skin)).
+In the second, the pictures are in the theme's folder. A skin inside a theme takes the same keys as a `skin.json`, but `name`, and the same rules. With Settings → Look → Skin on THEME, the theme's skin is used; any other choice there replaces it ([Themes](https://github.com/mehmetraif/OSD-OS/wiki/Themes#skin)).
 
 ## Early skins: theme.json in themes
 
@@ -477,8 +477,8 @@ Where to read the log: [Themes](https://github.com/mehmetraif/OSD-OS/wiki/Themes
 
 | What you see | Why | What to do |
 |---|---|---|
-| The skin isn't in Settings → Skin | Settings was open when you made the folder; or `skin.json` isn't JSON (logged); or the file isn't named `skin.json`, or the folder isn't in the data folder's `skins` | Open Settings again; fix the JSON |
-| No frame round the window | OSD Background isn't Window, or Window Frame is Off; or the skin has no `window`, or its picture couldn't be used (logged) | Settings → OSD Background: Window, Window Frame: On or Shadow |
+| The skin isn't in Settings → Look → Skin | Settings was open when you made the folder; or `skin.json` isn't JSON (logged); or the file isn't named `skin.json`, or the folder isn't in the data folder's `skins` | Open Settings again; fix the JSON |
+| No frame round the window | OSD Background isn't Window, or Window Frame is Off; or the skin has no `window`, or its picture couldn't be used (logged) | Settings → Look → OSD Background: Window, Window Frame: On or Shadow |
 | A part is drawn as OSD/OS draws it | Its picture couldn't be used (logged), or the skin has none for it | Check the log |
 | The text on a bar or the selected line is hard to read | The middle of its picture is dark, or clear | Draw the middle light |
 | Parts of a picture come out in the wrong colour | Its colours are taken as light or dark by brightness, and alpha under half as clear | Draw in white, black and transparent |
@@ -491,6 +491,6 @@ Where to read the log: [Themes](https://github.com/mehmetraif/OSD-OS/wiki/Themes
 
 - [Themes](https://github.com/mehmetraif/OSD-OS/wiki/Themes): the whole look, a skin among it
 - [Effects](https://github.com/mehmetraif/OSD-OS/wiki/Effects): what goes on behind and round what a skin draws
-- [Settings](https://github.com/mehmetraif/OSD-OS/wiki/Settings#the-look): Skin, OSD Background and Window Frame
+- [Settings](https://github.com/mehmetraif/OSD-OS/wiki/Settings#look): Skin, OSD Background and Window Frame
 - [Configuration files](https://github.com/mehmetraif/OSD-OS/wiki/Configuration-Files): the data folder and its `skins`
 - [The skin template](https://github.com/mehmetraif/OSD-OS/tree/main/docs/skin-template), in the repository

@@ -23,7 +23,7 @@ systemctl mask getty@tty1.service autovt@.service serial-getty@ttyAMA10.service
 # D-Bus would otherwise start it the moment anything looked for it.
 systemctl mask udisks2.service
 
-# Settings → Bluetooth talks to BlueZ as this user, which BlueZ's D-Bus policy
+# Settings → Network → Bluetooth talks to BlueZ as this user, which BlueZ's D-Bus policy
 # lets in through the bluetooth group.
 if getent group bluetooth > /dev/null; then
 	usermod -aG bluetooth "${FIRST_USER_NAME}"

@@ -1,4 +1,4 @@
-// Settings → Selector Effect, as the app plays it round the selected line:
+// Settings → Look → Effects → Selector Effect, as the app plays it round the selected line:
 // src/fx/SelectorFx.cpp step for step (its random numbers, its frame of 33
 // milliseconds, its sparks, bolts, flakes and rainbow), drawing in art pixels
 // into a frame of its own, premultiplied, that the preview lays over the

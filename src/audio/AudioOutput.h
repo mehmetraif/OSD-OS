@@ -7,7 +7,7 @@
 class AppCore;
 class QProcessEnvironment;
 
-// Settings → Audio Output: the sound card OSD/OS plays through, among those
+// Settings → Sound → Audio Output: the sound card OSD/OS plays through, among those
 // ALSA has (/proc/asound): the Pi's AV jack, its HDMI, a USB sound card.
 // ALSA's own default is left as it is; each player is told the card as it
 // starts: mpv (a video, Ambient Mode's and Weather's music) with
@@ -73,7 +73,7 @@ public:
     static bool hasPlaybackCard();
 
 signals:
-    // Settings → Audio Output was saved (another card, or the same again).
+    // Settings → Sound → Audio Output was saved (another card, or the same again).
     void cardChanged();
 
 private:

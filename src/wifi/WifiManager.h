@@ -15,7 +15,7 @@
 class QDBusServiceWatcher;
 #endif
 
-// Settings → Wi-Fi: joins a Wi-Fi network through NetworkManager, which runs
+// Settings → Network → Wi-Fi: joins a Wi-Fi network through NetworkManager, which runs
 // the Pi's network, on the system bus (org.freedesktop.NetworkManager). Exposed
 // to QML as the context property "wifiManager" (views/Wifi.qml).
 //

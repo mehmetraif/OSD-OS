@@ -1,6 +1,6 @@
 import QtQuick
 
-// One of the skin's pictures (Settings → Skin, or the theme's: root.skin) over
+// One of the skin's pictures (Settings → Look → Skin, or the theme's: root.skin) over
 // a part of the window: its frame, a selected line, the title bar, the hint
 // bar. The skin gives the shape, the colour scheme the colours: the picture is
 // drawn in the scheme's two (image://osdskin), light in the scheme's colour,
