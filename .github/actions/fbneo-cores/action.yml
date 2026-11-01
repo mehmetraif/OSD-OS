@@ -29,13 +29,14 @@ runs:
       shell: bash
       run: echo "image=${ImageOS:-$RUNNER_OS}" >> "$GITHUB_OUTPUT"
 
-    # Kept from a run before for the same commit, patch and scripts.
+    # Kept from a run before for the same commit, patch and scripts (and on
+    # Windows the same MSYS2 environment).
     - name: Restore FinalBurn Neo's cores
       id: cache
       uses: actions/cache/restore@v6.1.0
       with:
         path: fbneo-cores
-        key: fbneo-cores-${{ steps.image.outputs.image }}-${{ runner.arch }}-${{ hashFiles('scripts/engines.env', 'scripts/build-fbneo.sh', 'scripts/build-fbneo-lan.sh', 'scripts/fbneo-lan.patch') }}
+        key: fbneo-cores-${{ steps.image.outputs.image }}-${{ runner.arch }}-${{ runner.os == 'Windows' && 'ucrt64-' || '' }}${{ hashFiles('scripts/engines.env', 'scripts/build-fbneo.sh', 'scripts/build-fbneo-lan.sh', 'scripts/fbneo-lan.patch') }}
 
     # One download, unpacked twice: the LAN core's patch goes in a copy of
     # its own. Without the source's project files for IDEs, whose
@@ -53,13 +54,15 @@ runs:
         rm fbneo-src.tar.gz
 
     # On Windows MSYS2's MinGW-w64, which FinalBurn Neo's makefile builds a
-    # DLL with (its MSVC builds are UWP's).
+    # DLL with (its MSVC builds are UWP's), in its UCRT64 environment: on
+    # Windows' Universal C Runtime, which every Windows 10 and later has, as
+    # the app needs. MSYS2 is retiring MINGW64, on the old msvcrt.dll.
     - name: MSYS2
       if: steps.cache.outputs.cache-hit != 'true' && runner.os == 'Windows'
       uses: msys2/setup-msys2@v2
       with:
-        msystem: MINGW64
-        install: mingw-w64-x86_64-gcc make perl patch
+        msystem: UCRT64
+        install: mingw-w64-ucrt-x86_64-gcc make perl patch
 
     - name: Build FinalBurn Neo's cores
       if: steps.cache.outputs.cache-hit != 'true' && runner.os != 'Windows'
@@ -68,7 +71,7 @@ runs:
         bash scripts/build-fbneo-lan.sh fbneo-lan-src fbneo-cores fbneo-cores/license.txt
         bash scripts/build-fbneo.sh fbneo-src fbneo-cores fbneo-cores/fbneo-arcade.dat fbneo-cores/license.txt
 
-    - name: Build FinalBurn Neo's cores (MinGW-w64)
+    - name: Build FinalBurn Neo's cores (MSYS2 UCRT64)
       if: steps.cache.outputs.cache-hit != 'true' && runner.os == 'Windows'
       shell: msys2 {0}
       run: |

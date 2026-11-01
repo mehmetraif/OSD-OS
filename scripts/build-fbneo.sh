@@ -13,11 +13,12 @@
 # (v1.0.0.03 <date> GIT<commit>), which the commit and its date make, so that
 # it matches libretro's own build of the same commit. Nothing of FinalBurn
 # Neo's code is changed. The core is fbneo_libretro.so (.dylib on a Mac, for
-# macOS 11 and later; .dll on Windows, built with MSYS2's MinGW-w64 and
-# linked statically, so that it needs no DLL of MinGW's beside it). The list
-# of games is FinalBurn Neo's arcade DAT of the same commit, which the app
-# lists the games from. The licence goes with the core, as the licence asks
-# of every copy.
+# macOS 11 and later; .dll on Windows, built in MSYS2's UCRT64 environment,
+# MinGW-w64 on Windows' Universal C Runtime, which every Windows 10 and later
+# has, and linked statically, so that it needs no DLL of MinGW's beside it).
+# The list of games is FinalBurn Neo's arcade DAT of the same commit, which
+# the app lists the games from. The licence goes with the core, as the
+# licence asks of every copy.
 #
 # On FreeBSD and OpenBSD: the makefile's Unix build with the system's
 # compiler (cc, c++), without -no-undefined, which OpenBSD can't link a
