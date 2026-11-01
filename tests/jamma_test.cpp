@@ -151,6 +151,152 @@ private slots:
         QVERIFY(has(panel.update(bit("A6"), 1006), EV_KEY, BTN_A, 1));
     }
 
+    void sharedCoinGoesToPlayerOneAlone() {
+        // Without player 2's Start held, the coin button is player 1's, and
+        // everything else goes through as it came.
+        SharedCoin coin;
+        std::vector<Event> p1 = { { EV_KEY, BTN_SELECT, 1 }, { EV_KEY, BTN_A, 1 } };
+        std::vector<Event> p2 = { { EV_ABS, ABS_X, 1 } };
+        coin.route(p1, p2);
+        QVERIFY(has(p1, EV_KEY, BTN_SELECT, 1));
+        QVERIFY(has(p1, EV_KEY, BTN_A, 1));
+        QCOMPARE(int(p2.size()), 1);
+        QVERIFY(has(p2, EV_ABS, ABS_X, 1));
+        QVERIFY(!coin.routed());
+        // Player 2's Start pressed after the coin: the coin stays player 1's.
+        p1 = {};
+        p2 = { { EV_KEY, BTN_START, 1 } };
+        coin.route(p1, p2);
+        QVERIFY(p1.empty());
+        QCOMPARE(int(p2.size()), 1);
+        QVERIFY(has(p2, EV_KEY, BTN_START, 1));
+        p1 = { { EV_KEY, BTN_SELECT, 0 } };
+        p2 = {};
+        coin.route(p1, p2);
+        QCOMPARE(int(p1.size()), 1);
+        QVERIFY(has(p1, EV_KEY, BTN_SELECT, 0));
+        QVERIFY(p2.empty());
+    }
+
+    void sharedCoinWithStartIsPlayerTwos() {
+        SharedCoin coin;
+        std::vector<Event> p1, p2 = { { EV_KEY, BTN_START, 1 } };
+        coin.route(p1, p2);
+        QVERIFY(has(p2, EV_KEY, BTN_START, 1));
+        // The coin pressed with Start held: player 2's, its Start let go
+        // first, so that the pad never has Coin and Start together (the way
+        // out of a game in MAME and RetroArch).
+        p1 = { { EV_KEY, BTN_SELECT, 1 }, { EV_KEY, BTN_B, 1 } };
+        p2 = {};
+        coin.route(p1, p2);
+        QCOMPARE(int(p1.size()), 1);
+        QVERIFY(has(p1, EV_KEY, BTN_B, 1));
+        QCOMPARE(int(p2.size()), 2);
+        QCOMPARE(int(p2[0].code), BTN_START);
+        QCOMPARE(p2[0].value, 0);
+        QCOMPARE(int(p2[1].code), BTN_SELECT);
+        QCOMPARE(p2[1].value, 1);
+        QVERIFY(coin.routed());
+        // Start let go and pressed again while the coin is in: held back.
+        p1 = {};
+        p2 = { { EV_KEY, BTN_START, 0 } };
+        coin.route(p1, p2);
+        QVERIFY(p2.empty());
+        p2 = { { EV_KEY, BTN_START, 1 } };
+        coin.route(p1, p2);
+        QVERIFY(p2.empty());
+        // The coin out: player 2's, and the Start still held goes in again
+        // after it, which starts player 2.
+        p1 = { { EV_KEY, BTN_SELECT, 0 } };
+        p2 = {};
+        coin.route(p1, p2);
+        QVERIFY(p1.empty());
+        QCOMPARE(int(p2.size()), 2);
+        QCOMPARE(int(p2[0].code), BTN_SELECT);
+        QCOMPARE(p2[0].value, 0);
+        QCOMPARE(int(p2[1].code), BTN_START);
+        QCOMPARE(p2[1].value, 1);
+        QVERIFY(!coin.routed());
+        // Start let go before the coin: nothing goes in again.
+        p2 = { { EV_KEY, BTN_START, 0 } };
+        p1 = {};
+        coin.route(p1, p2);
+        QVERIFY(has(p2, EV_KEY, BTN_START, 0));
+        p2 = { { EV_KEY, BTN_START, 1 } };
+        coin.route(p1, p2);
+        p1 = { { EV_KEY, BTN_SELECT, 1 } };
+        p2 = {};
+        coin.route(p1, p2);
+        p1 = {};
+        p2 = { { EV_KEY, BTN_START, 0 } };
+        coin.route(p1, p2);
+        QVERIFY(p2.empty());
+        p1 = { { EV_KEY, BTN_SELECT, 0 } };
+        coin.route(p1, p2);
+        QCOMPARE(int(p2.size()), 1);
+        QVERIFY(has(p2, EV_KEY, BTN_SELECT, 0));
+    }
+
+    void sharedCoinKeepsPlayerTwosOwnCoin() {
+        // A cabinet with both coin buttons: player 2's own Coin is as it was,
+        // and the shared one held over it keeps the pad's Coin in.
+        SharedCoin coin;
+        std::vector<Event> p1, p2 = { { EV_KEY, BTN_SELECT, 1 } };
+        coin.route(p1, p2);
+        QVERIFY(has(p2, EV_KEY, BTN_SELECT, 1));
+        p2 = { { EV_KEY, BTN_SELECT, 0 } };
+        coin.route(p1, p2);
+        QVERIFY(has(p2, EV_KEY, BTN_SELECT, 0));
+        p2 = { { EV_KEY, BTN_START, 1 } };
+        coin.route(p1, p2);
+        p1 = { { EV_KEY, BTN_SELECT, 1 } };
+        p2 = {};
+        coin.route(p1, p2);
+        QVERIFY(has(p2, EV_KEY, BTN_SELECT, 1));
+        p1 = {};
+        p2 = { { EV_KEY, BTN_SELECT, 1 } };
+        coin.route(p1, p2);
+        QVERIFY(p2.empty());
+        p2 = { { EV_KEY, BTN_SELECT, 0 } };
+        coin.route(p1, p2);
+        QVERIFY(p2.empty());  // the shared coin still in
+    }
+
+    void sharedCoinNeverCoinAndStartTogether() {
+        // Every order of the three controls pressed and let go, read by read:
+        // player 2's pad never has Coin and Start held at once but where its
+        // own two are (the way out a player asks for), and player 1's coin
+        // goes to one pad only.
+        const int codes[3][2] = { { 1, BTN_SELECT }, { 2, BTN_SELECT }, { 2, BTN_START } };
+        for (int order = 0; order < 729; ++order) {
+            SharedCoin coin;
+            bool held[3] = {};
+            bool pad1Coin = false, pad2Coin = false, pad2Start = false;
+            int steps = order;
+            for (int step = 0; step < 6; ++step) {
+                const int which = steps % 3;
+                steps /= 3;
+                held[which] = !held[which];
+                std::vector<Event> p1, p2;
+                (codes[which][0] == 1 ? p1 : p2).push_back({ EV_KEY, uint16_t(codes[which][1]), held[which] ? 1 : 0 });
+                coin.route(p1, p2);
+                for (const Event &e : p1)
+                    pad1Coin = e.value != 0;
+                for (const Event &e : p2) {
+                    if (e.code == BTN_SELECT)
+                        pad2Coin = e.value != 0;
+                    else
+                        pad2Start = e.value != 0;
+                }
+                const bool own = held[1] && held[2];
+                QVERIFY2(!(pad2Coin && pad2Start) || own, qPrintable(QString("order %1 step %2").arg(order).arg(step)));
+                QCOMPARE(pad1Coin, held[0] && !coin.routed());
+                QCOMPARE(pad2Coin, held[1] || coin.routed());
+                QVERIFY(!coin.routed() || held[0]);
+            }
+        }
+    }
+
     void releaseAllLetsGoAtOnce() {
         Panel panel(defaultMap(0x20), 5);
         panel.update(bit("A6") | bit("A2"), 1000);
