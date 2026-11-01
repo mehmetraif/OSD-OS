@@ -675,13 +675,13 @@ stateDiagram-v2
     Available --> Downloading: select (DOWNLOAD)
     Downloading --> Ready: the file matches its digest
     Downloading --> Available: back cancels it
-    Ready --> Install: select (INSTALL), then the apply choice
+    Ready --> Install: at once, or select (INSTALL), then the apply choice
     Ready --> Available: Discard Update
 ```
 
 - **CHECK** asks GitHub for the latest release, and offers it only when it is newer than the installed version (**You're up to date** otherwise). Versions are compared by their numbers, so `v0.10.0` comes after `v0.9.0`, and a pre-release before its release (`v0.2.0-rc.1` before `v0.2.0`): an older release is never offered. Pre-releases (tags with `-rc`, `-beta` or `-alpha`) are never the latest, so they are never offered.
 - **DOWNLOAD** fetches the file for this system (the `.tar.gz` on a Raspberry Pi, the `.dmg` on a Mac, the AppImage on x86_64 Linux; on Windows the page names the new zip instead, below) into the data folder's `updates` folder, and checks it against the SHA-256 digest GitHub keeps for it. It needs three times the file's size free. Back during the download cancels it.
-- **INSTALL** asks **Install update?** A downloaded update does nothing until you choose to apply it; back, or **Discard Update**, leaves the installed version as it is. A download that is no longer newer than the version running when OSD/OS next starts (a newer one installed with `install.sh` meanwhile, say) is deleted then.
+- **INSTALL** asks **Install update?**, and the page asks it by itself as the download finishes, without a press. A downloaded update does nothing until you choose to apply it; back, or **Discard Update**, leaves the installed version as it is. A download that is no longer newer than the version running when OSD/OS next starts (a newer one installed with `install.sh` meanwhile, say) is deleted then.
 
 What applying does depends on the system:
 

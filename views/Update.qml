@@ -87,7 +87,19 @@ FocusScope {
         }
     }
 
-    Component.onCompleted: autostartSession = appCore.isAutostartSession()
+    Component.onCompleted: {
+        autostartSession = appCore.isAutostartSession()
+        lastState = updState
+    }
+
+    // Downloaded: on to the install's question at once (Apply & Restart or
+    // Discard Update), as Select would ask it, without a press between.
+    property string lastState: ""
+    onUpdStateChanged: {
+        if (updState === "readyToApply" && lastState === "downloading" && !confirmPrompt.visible)
+            confirmPrompt.open()
+        lastState = updState
+    }
 
     // Header
     AppBar {
