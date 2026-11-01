@@ -319,12 +319,31 @@ QString downloadedLicense(const QString &dataRoot) {
     return dataRoot + QStringLiteral("/arcade/retroarch/fbneo-license.txt");
 }
 
+// Where a package of OSD/OS's keeps FinalBurn Neo's cores: in the bundle's
+// Frameworks on a Mac, where its signing takes a library in; beside
+// osdos.exe on Windows; else under its prefix.
+static QString packageCoreDir() {
+#if defined(Q_OS_MACOS)
+    return packagePrefix() + QStringLiteral("/Frameworks/");
+#elif defined(Q_OS_WIN)
+    return QCoreApplication::applicationDirPath() + QLatin1Char('/');
+#else
+    return packagePrefix() + QStringLiteral("/lib/osdos/");
+#endif
+}
+
 QString packagedCore() {
-    return packagePrefix() + QStringLiteral("/lib/osdos/") + kCoreFile;
+    return packageCoreDir() + kCoreFile;
 }
 
 QString packagedDat() {
+#if defined(Q_OS_MACOS)
+    return packagePrefix() + QStringLiteral("/Resources/fbneo-arcade.dat");
+#elif defined(Q_OS_WIN)
+    return QCoreApplication::applicationDirPath() + QStringLiteral("/fbneo-arcade.dat");
+#else
     return packagePrefix() + QStringLiteral("/share/osdos/fbneo/fbneo-arcade.dat");
+#endif
 }
 
 QString packagedLicense() {
@@ -338,15 +357,9 @@ QString packagedLicense() {
 }
 
 QString lanCorePath(const QString &dataRoot) {
-#if defined(Q_OS_MACOS)
-    // In the bundle's Frameworks, where its signing takes a library in.
-    const QString own = packagePrefix() + QStringLiteral("/Frameworks/");
-#elif defined(Q_OS_WIN)
-    const QString own = QCoreApplication::applicationDirPath() + QLatin1Char('/');
-#else
-    const QString own = packagePrefix() + QStringLiteral("/lib/osdos/");
-#endif
-    return firstFile({ QFileInfo(downloadedCore(dataRoot)).path() + QLatin1Char('/') + kLanCoreFile, own + kLanCoreFile });
+    // The package's first, built from the commit every machine's is.
+    return firstFile({ packageCoreDir() + kLanCoreFile,
+                       QFileInfo(downloadedCore(dataRoot)).path() + QLatin1Char('/') + kLanCoreFile });
 }
 
 qint64 netplayStateSize(const QString &sourceFile, bool lanCore) {
@@ -375,10 +388,25 @@ qint64 netplayMemory(qint64 stateSize, bool hosting) {
     return std::min(states + (qint64(1) << 30), states * 2);
 }
 
+QString latestChosenMarker(const QString &dataRoot) {
+    return QFileInfo(downloadedCore(dataRoot)).path() + QStringLiteral("/fbneo-latest-chosen");
+}
+
+bool latestChosen(const QString &dataRoot) {
+    return QFileInfo::exists(latestChosenMarker(dataRoot)) && QFileInfo::exists(downloadedCore(dataRoot));
+}
+
 QString corePath(const QString &dataRoot) {
+    // The package's first: every package's is built from the commit
+    // scripts/engines.env names, so that machines play together, and an
+    // update brings a new one. One downloaded is played only when the user
+    // chose libretro's newest over it, or for a build that brought none: a
+    // nightly downloaded before OSD/OS brought its own is left aside.
+    if (latestChosen(dataRoot))
+        return downloadedCore(dataRoot);
     const QString home = QDir::homePath();
-    return firstFile({ downloadedCore(dataRoot),
-                       packagedCore(),
+    return firstFile({ packagedCore(),
+                       downloadedCore(dataRoot),
                        QStringLiteral("/usr/local/lib/libretro/") + kCoreFile,
                        QStringLiteral("/usr/lib/aarch64-linux-gnu/libretro/") + kCoreFile,
                        QStringLiteral("/usr/lib/x86_64-linux-gnu/libretro/") + kCoreFile,
@@ -388,8 +416,11 @@ QString corePath(const QString &dataRoot) {
 }
 
 QString datPath(const QString &dataRoot) {
-    return firstFile({ downloadedDat(dataRoot),
-                       packagedDat(),
+    // The list that came with the core played.
+    if (latestChosen(dataRoot) && QFileInfo::exists(downloadedDat(dataRoot)))
+        return downloadedDat(dataRoot);
+    return firstFile({ packagedDat(),
+                       downloadedDat(dataRoot),
                        QStringLiteral("/usr/local/share/libretro/fbneo/fbneo-arcade.dat") });
 }
 

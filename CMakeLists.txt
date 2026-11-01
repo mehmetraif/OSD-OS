@@ -139,6 +139,9 @@ add_executable(osdos
 )
 
 target_compile_definitions(osdos PRIVATE APP_VERSION="${APP_VERSION}" APP_BUILD="${APP_BUILD}")
+# The engines' versions every machine plays with (scripts/engines.env).
+include(cmake/engines.cmake)
+osdos_engine_definitions(osdos)
 
 # MSVC: the standard's C++ (Qt 6 asks for both flags), sources in UTF-8, and
 # windows.h without its min/max macros and the rarely needed parts. SDL's header

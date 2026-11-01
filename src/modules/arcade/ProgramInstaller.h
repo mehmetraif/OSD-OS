@@ -11,12 +11,12 @@ class QNetworkReply;
 // a 7z archive and unpacked into <data>/arcade: RetroArch (Settings → Arcade
 // → FinalBurn Neo), from libretro's build server, and MAME (Settings → Arcade
 // → MAME), from mamedev's releases on GitHub, a self-extracting archive. Each
-// is the version the OSD/OS image has, Debian trixie's (kRetroArchVersion,
-// kMameVersion), so that a PC plays with a Pi on the same programs: the same
-// sets, and the same RetroArch over the network. The archive is downloaded as
-// a .part file and unpacked beside it (SevenZip), and the folder the program
-// came out in is moved into place once it is whole, over one downloaded
-// before. Nothing is in place before all of it is.
+// is the version every OSD/OS machine plays with (scripts/engines.env): the
+// OSD/OS image's, Debian trixie's, so that a PC plays with a Pi on the same
+// programs: the same sets, and the same RetroArch over the network. The
+// archive is downloaded as a .part file and unpacked beside it (SevenZip),
+// and the folder the program came out in is moved into place once it is
+// whole, over one downloaded before. Nothing is in place before all of it is.
 class ProgramInstaller : public QObject {
     Q_OBJECT
 public:

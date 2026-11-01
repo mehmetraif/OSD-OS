@@ -1,0 +1,131 @@
+name: FinalBurn Neo cores
+description: >
+  OSD/OS's two FinalBurn Neo cores, built from the commit scripts/engines.env
+  names or kept from an earlier run: the whole core with FinalBurn Neo's list
+  of arcade games (scripts/build-fbneo.sh), and the CV1000 LAN core
+  (scripts/build-fbneo-lan.sh). Each is loaded once to check that it names
+  itself as RetroArch matches it. Both are put where the package keeps them,
+  with the list and FinalBurn Neo's licence. Run from the repository's root,
+  after the checkout.
+
+inputs:
+  core-dir:
+    description: The folder both cores go in
+    required: true
+  dat:
+    description: The file FinalBurn Neo's list of arcade games goes in
+    required: true
+  license:
+    description: The file FinalBurn Neo's licence goes in
+    required: true
+
+runs:
+  using: composite
+  steps:
+    # The runner's image as well as its system and processor: a core built
+    # on a newer Linux than a package's asks for a newer glibc.
+    - name: The runner's image
+      id: image
+      shell: bash
+      run: echo "image=${ImageOS:-$RUNNER_OS}" >> "$GITHUB_OUTPUT"
+
+    # Kept from a run before for the same commit, patch and scripts.
+    - name: Restore FinalBurn Neo's cores
+      id: cache
+      uses: actions/cache/restore@v6.1.0
+      with:
+        path: fbneo-cores
+        key: fbneo-cores-${{ steps.image.outputs.image }}-${{ runner.arch }}-${{ hashFiles('scripts/engines.env', 'scripts/build-fbneo.sh', 'scripts/build-fbneo-lan.sh', 'scripts/fbneo-lan.patch') }}
+
+    # One download, unpacked twice: the CV1000 LAN core's patch goes in a
+    # copy of its own. Without the source's project files for IDEs, whose
+    # symbolic links Windows can't make.
+    - name: Download FinalBurn Neo's source
+      if: steps.cache.outputs.cache-hit != 'true'
+      shell: bash
+      run: |
+        . scripts/engines.env
+        curl -fsSL --retry 3 -o fbneo-src.tar.gz "https://github.com/libretro/FBNeo/archive/${FBNEO_COMMIT}.tar.gz"
+        for dir in fbneo-src fbneo-lan-src; do
+          mkdir -p "$dir"
+          tar -xzf fbneo-src.tar.gz -C "$dir" --strip-components 1 --exclude='*/projectfiles'
+        done
+        rm fbneo-src.tar.gz
+
+    # On Windows MSYS2's MinGW-w64, which FinalBurn Neo's makefile builds a
+    # DLL with (its MSVC builds are UWP's).
+    - name: MSYS2
+      if: steps.cache.outputs.cache-hit != 'true' && runner.os == 'Windows'
+      uses: msys2/setup-msys2@v2
+      with:
+        msystem: MINGW64
+        install: mingw-w64-x86_64-gcc make perl patch
+
+    - name: Build FinalBurn Neo's cores
+      if: steps.cache.outputs.cache-hit != 'true' && runner.os != 'Windows'
+      shell: bash
+      run: |
+        bash scripts/build-fbneo-lan.sh fbneo-lan-src fbneo-cores fbneo-cores/license.txt
+        bash scripts/build-fbneo.sh fbneo-src fbneo-cores fbneo-cores/fbneo-arcade.dat fbneo-cores/license.txt
+
+    - name: Build FinalBurn Neo's cores (MinGW-w64)
+      if: steps.cache.outputs.cache-hit != 'true' && runner.os == 'Windows'
+      shell: msys2 {0}
+      run: |
+        bash scripts/build-fbneo-lan.sh fbneo-lan-src fbneo-cores fbneo-cores/license.txt
+        bash scripts/build-fbneo.sh fbneo-src fbneo-cores fbneo-cores/fbneo-arcade.dat fbneo-cores/license.txt
+
+    - name: Keep FinalBurn Neo's cores
+      if: steps.cache.outputs.cache-hit != 'true'
+      uses: actions/cache/save@v6.1.0
+      with:
+        path: fbneo-cores
+        key: ${{ steps.cache.outputs.cache-primary-key }}
+
+    # Loaded as RetroArch loads them, on their own: a DLL that needs one of
+    # MinGW's beside it doesn't load. Their names and versions are what
+    # RetroArch matches the machines' cores by, and the app the rooms of
+    # them: the whole core's version carries the commit, as libretro's own
+    # build of it does.
+    - name: Check FinalBurn Neo's cores
+      shell: bash
+      run: |
+        . scripts/engines.env
+        python=$(command -v python || command -v python3)
+        "$python" - "${FBNEO_COMMIT:0:7}" fbneo-cores/fbneo_libretro.* fbneo-cores/fbneo_cv1k_libretro.* <<'EOF'
+        import ctypes, os, sys
+
+        class Info(ctypes.Structure):
+            _fields_ = [("library_name", ctypes.c_char_p), ("library_version", ctypes.c_char_p),
+                        ("valid_extensions", ctypes.c_char_p), ("need_fullpath", ctypes.c_bool),
+                        ("block_extract", ctypes.c_bool)]
+
+        def info(path):
+            core = ctypes.CDLL(os.path.abspath(path))
+            core.retro_api_version.restype = ctypes.c_uint
+            got = Info()
+            core.retro_get_system_info(ctypes.byref(got))
+            name, version = got.library_name.decode(), got.library_version.decode()
+            print(f"{os.path.basename(path)}: {name} {version}, libretro API {core.retro_api_version()}")
+            return name, version
+
+        commit, whole, lan = sys.argv[1:4]
+        name, version = info(whole)
+        ok = name == "FinalBurn Neo" and commit in version and not version.endswith("-lan")
+        name, version = info(lan)
+        ok = ok and name == "FinalBurn Neo (cv1k subset)" and version.endswith("-lan")
+        sys.exit(0 if ok else 1)
+        EOF
+        test "$(grep -c '<game name=' fbneo-cores/fbneo-arcade.dat)" -gt 1000
+
+    - name: Put FinalBurn Neo's cores in place
+      shell: bash
+      env:
+        CORE_DIR: ${{ inputs.core-dir }}
+        DAT_FILE: ${{ inputs.dat }}
+        LICENSE_FILE: ${{ inputs.license }}
+      run: |
+        mkdir -p "$CORE_DIR" "$(dirname "$DAT_FILE")" "$(dirname "$LICENSE_FILE")"
+        cp fbneo-cores/fbneo_libretro.* fbneo-cores/fbneo_cv1k_libretro.* "$CORE_DIR/"
+        cp fbneo-cores/fbneo-arcade.dat "$DAT_FILE"
+        cp fbneo-cores/license.txt "$LICENSE_FILE"

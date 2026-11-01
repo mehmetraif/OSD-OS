@@ -19,11 +19,11 @@
 #   MPV_BIN        mpv to bundle                          (default: $(command -v mpv))
 #   QMAKE          qmake for linuxdeploy-plugin-qt        (default: auto-detect)
 #   CMAKE_PREFIX_PATH  passed through to cmake --configure (find Qt)
-#   FBNEO_LAN_PREFIX   a prefix with OSD/OS's FinalBurn Neo core for CV1000 games
-#                  on the local network and FinalBurn Neo's licence
-#                  (lib/osdos/, share/osdos/fbneo/: scripts/build-fbneo-lan.sh),
-#                  copied into the AppDir's usr/ (default: none, the AppImage
-#                  without it)
+#   FBNEO_PREFIX   a prefix with OSD/OS's FinalBurn Neo cores, the whole one
+#                  and the CV1000 LAN one, FinalBurn Neo's list of arcade games
+#                  and its licence (lib/osdos/, share/osdos/fbneo/:
+#                  .github/actions/fbneo-cores), copied into the AppDir's usr/
+#                  (default: none, the AppImage without them)
 #
 # Requires: cmake, a C++ toolchain, mpv (to bundle), and network access on first
 # run to fetch linuxdeploy + linuxdeploy-plugin-qt + appimagetool (cached under
@@ -99,10 +99,11 @@ fi
 log "Installing into $APPDIR"
 rm -rf "$APPDIR"
 DESTDIR="$SRC_ROOT/$APPDIR" cmake --install "$BUILD_DIR" --prefix /usr
-# The CV1000 LAN core under the same prefix, usr/lib/osdos/, where the app
-# looks for it (libretro::lanCorePath()).
-if [ -n "${FBNEO_LAN_PREFIX:-}" ]; then
-    cp -R "$FBNEO_LAN_PREFIX/." "$APPDIR/usr/"
+# FinalBurn Neo's cores under the same prefix, usr/lib/osdos/, and its list
+# in usr/share/osdos/fbneo/, where the app looks for them
+# (libretro::packagedCore(), lanCorePath()).
+if [ -n "${FBNEO_PREFIX:-}" ]; then
+    cp -R "$FBNEO_PREFIX/." "$APPDIR/usr/"
 fi
 
 # ── 4. Bundle mpv ─────────────────────────────────────────────────────────────

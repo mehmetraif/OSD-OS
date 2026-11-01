@@ -16,11 +16,12 @@
 
 namespace {
 
-// The versions the OSD/OS image has, Debian trixie's mame and retroarch
-// (os/stage-osdos/08-arcade): the same on every machine, for the sets the
-// games are made of and for playing together over the network.
-constexpr const char *kRetroArchVersion = "1.20.0";
-constexpr const char *kMameVersion = "0.276";
+// The versions every OSD/OS machine plays with (scripts/engines.env, which
+// CMake passes in): the OSD/OS image's, Debian trixie's mame and retroarch,
+// the lowest any distribution has, for the sets the games are made of and
+// for playing together over the network. They rise with that floor.
+constexpr const char *kRetroArchVersion = OSDOS_RETROARCH_VERSION;
+constexpr const char *kMameVersion = OSDOS_MAME_VERSION;
 
 // The progress the download reaches, the unpacking after it.
 constexpr int kDownloadDone = 90;

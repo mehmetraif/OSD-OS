@@ -50,7 +50,7 @@ each came from, with the GPL-2.0's text in
 The Arcade module plays Cave's CV1000 games on the local network with
 OSD/OS's own build of FinalBurn Neo (https://github.com/libretro/FBNeo),
 /opt/osdos/lib/osdos/fbneo_cv1k_libretro.so: FinalBurn Neo's libretro core
-of that board's driver alone, built from the commit scripts/fbneo-lan.env
+of that board's driver alone, built from the commit scripts/engines.env
 names in OSD/OS's source, with OSD/OS's changes to it, which are public
 there, in scripts/fbneo-lan.patch, as FinalBurn Neo's licence asks. It is
 Team FB Neo's, under that licence (section 3), whose full text is beside
@@ -100,15 +100,15 @@ the image.
 
 - FinalBurn Neo (https://github.com/libretro/FBNeo), the arcade emulator
   RetroArch plays the Arcade module's games with for RetroAchievements and
-  online play: the core /usr/local/lib/libretro/fbneo_libretro.so, from
-  libretro's nightly builds (https://buildbot.libretro.com), with its list
-  of arcade games in /usr/local/share/libretro/fbneo/. It is Team FB Neo's,
-  under its own licence, which also brings in MAME's: it may be used and
-  shared, never sold, and a project that uses it may not ask for
-  donations. The licence's full text is in
-  /usr/local/share/doc/fbneo/license.txt, and the build's date and CRC in
-  /usr/local/share/doc/fbneo/BUILD. No ROM images come with it.
-  RetroArch itself is Debian's retroarch package (GPL-3.0).
+  online play: the core /opt/osdos/lib/osdos/fbneo_libretro.so, which
+  comes with the app, built unchanged from libretro's source at the commit
+  scripts/engines.env names in OSD/OS's source, with its list of arcade
+  games in /opt/osdos/share/osdos/fbneo/. It is Team FB Neo's, under its own
+  licence, which also brings in MAME's: it may be used and shared, never
+  sold, and a project that uses it may not ask for donations. The
+  licence's full text is in /opt/osdos/share/osdos/fbneo/license.txt. No
+  ROM images come with it. RetroArch itself is Debian's retroarch package
+  (GPL-3.0).
 
 - Widevine (the libwidevinecdm0 package), Google's content decryption
   module, which the Netflix and Prime Video players need. It is installed

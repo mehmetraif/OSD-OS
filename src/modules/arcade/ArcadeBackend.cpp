@@ -561,6 +561,14 @@ ArcadeBackend::ArcadeBackend(const QString &appRoot, const QString &dataRoot, Ap
     connect(m_installer, &FbneoInstaller::progressChanged, this, &ArcadeBackend::fbneoProgressChanged);
     connect(m_installer, &FbneoInstaller::finished, this, [this](bool ok, const QString &message) {
         m_fbneoMessage = message;
+        // Downloaded over the package's core: the user chose libretro's
+        // newest, which plays from now on (libretro::latestChosen()).
+        if (ok && QFileInfo::exists(libretro::packagedCore())) {
+            QFile marker(libretro::latestChosenMarker(m_dataRoot));
+            if (!marker.open(QIODevice::WriteOnly | QIODevice::Truncate))
+                qWarning("[Arcade] %s could not be written: %s", qPrintable(marker.fileName()),
+                         qPrintable(marker.errorString()));
+        }
         // Its list read with the folder, now that it has changed.
         if (ok)
             refresh();
@@ -1465,8 +1473,10 @@ void ArcadeBackend::onScanFinished(int exitCode, QProcess::ExitStatus status) {
                 m_unknown.insert(name);
         }
         invalidate();
-        if (!m_reader.build().isEmpty())
+        if (!m_reader.build().isEmpty()) {
             m_build = m_reader.build();
+            raiseOwnDownloads();
+        }
         // Kept as it comes, every so often: a session shorter than the whole
         // scan of a full set (a Pi powered off before the end) keeps what was
         // answered, instead of asking about every set again next time.
@@ -3998,6 +4008,36 @@ void ArcadeBackend::downloadGenres() {
     });
 }
 
+void ArcadeBackend::raiseOwnDownloads() {
+    // RetroArch and MAME as OSD/OS downloaded them (Windows), older than the
+    // versions every machine plays with (scripts/engines.env): the floor
+    // rose with an update, and they rise with it, once a run each, as their
+    // versions are learned. Not beside a game, which may be playing in one.
+    // A program installed otherwise is the system's or the user's.
+    if (m_launcher->isBusy())
+        return;
+    const auto older = [](const QString &have, const QString &want) {
+        const QVersionNumber version = QVersionNumber::fromString(have.section(QLatin1Char(' '), 0, 0));
+        return !version.isNull() && version < QVersionNumber::fromString(want);
+    };
+    const ProgramInstaller::Source retroarch = ProgramInstaller::retroarch(m_dataRoot);
+    if (!m_retroarchRaised && retroarch.available && !m_retroarchVersion.isEmpty()
+        && retroarchPath() == libretro::downloadedRetroArch(m_dataRoot) && older(m_retroarchVersion, retroarch.version)) {
+        m_retroarchRaised = true;
+        qInfo("[Arcade] RetroArch %s downloaded before: %s in its place, as every machine plays with",
+              qPrintable(m_retroarchVersion), qPrintable(retroarch.version));
+        downloadRetroArch();
+    }
+    const ProgramInstaller::Source mame = ProgramInstaller::mame(m_dataRoot);
+    if (!m_mameRaised && mame.available && !m_build.isEmpty()
+        && mamePath() == mame::downloadedMame(m_dataRoot) && older(m_build, mame.version)) {
+        m_mameRaised = true;
+        qInfo("[Arcade] MAME %s downloaded before: %s in its place, as every machine plays with",
+              qPrintable(m_build), qPrintable(mame.version));
+        downloadMame();
+    }
+}
+
 void ArcadeBackend::readOwnVersions() {
     // A file is done with once its read has ended, or been stopped before it
     // said its version twice (slow): asked again, a core loads faster from
@@ -4029,6 +4069,7 @@ void ArcadeBackend::readOwnVersions() {
                 m_retroarchVersion = libretro::readVersion(output);
                 if (doneWith(programStamp, timedOut && m_retroarchVersion.isEmpty()))
                     m_retroarchVersionOf = programStamp;
+                raiseOwnDownloads();
             });
         }
     }
@@ -4477,11 +4518,16 @@ QString ArcadeBackend::fbneoNotice(int exitCode, const QString &reason, const li
 
 QVariantMap ArcadeBackend::fbneoInfo() const {
     const QString core = libretro::corePath(m_dataRoot);
+    // The package's core, built from the commit every machine's is
+    // (scripts/engines.env), or libretro's newest chosen over it.
+    const bool packaged = !core.isEmpty() && core == libretro::packagedCore();
+    const bool hasPackaged = QFileInfo::exists(libretro::packagedCore());
+    const bool downloaded = !core.isEmpty() && core == libretro::downloadedCore(m_dataRoot);
     // The licence of the core found: the one downloaded with it, the
-    // package's, or the OSD/OS image's.
-    QString license = libretro::downloadedLicense(m_dataRoot);
+    // package's, or an older OSD/OS image's.
+    QString license = downloaded ? libretro::downloadedLicense(m_dataRoot) : libretro::packagedLicense();
     if (!QFileInfo::exists(license))
-        license = libretro::packagedLicense();
+        license = downloaded ? libretro::packagedLicense() : libretro::downloadedLicense(m_dataRoot);
     const QString imageLicense = QStringLiteral("/usr/local/share/doc/fbneo/license.txt");
 #ifdef OSDOS_MINIZIP
     const bool unpacks = true;
@@ -4492,7 +4538,12 @@ QVariantMap ArcadeBackend::fbneoInfo() const {
              { QStringLiteral("core"), core },
              { QStringLiteral("coreDate"), core.isEmpty() ? QString()
                                            : QFileInfo(core).lastModified().toString(QStringLiteral("yyyy-MM-dd")) },
-             { QStringLiteral("downloaded"), !core.isEmpty() && core == libretro::downloadedCore(m_dataRoot) },
+             { QStringLiteral("downloaded"), downloaded },
+             { QStringLiteral("packaged"), packaged },
+             { QStringLiteral("hasPackaged"), hasPackaged },
+             { QStringLiteral("latest"), hasPackaged && downloaded },
+             { QStringLiteral("version"), QStringLiteral("%1 (%2)").arg(QLatin1String(OSDOS_FBNEO_COMMIT).left(7),
+                                                                         QLatin1String(OSDOS_FBNEO_DATE)) },
              { QStringLiteral("games"), static_cast<int>(m_fbneoGames.size()) },
              { QStringLiteral("license"), QFileInfo::exists(license) ? license
                                           : QFileInfo::exists(imageLicense) ? imageLicense : QString() },
@@ -4506,6 +4557,21 @@ QVariantMap ArcadeBackend::fbneoInfo() const {
 QString ArcadeBackend::fbneoLicenseText() const {
     QFile file(fbneoInfo().value(QStringLiteral("license")).toString());
     return file.open(QIODevice::ReadOnly) ? QString::fromUtf8(file.readAll()) : QString();
+}
+
+void ArcadeBackend::useOwnFbneo() {
+    if (m_installer->running())
+        return;
+    // The newest core downloaded goes, its list and licence with it: the
+    // package's plays again.
+    for (const QString &file : { libretro::latestChosenMarker(m_dataRoot), libretro::downloadedCore(m_dataRoot),
+                                 libretro::downloadedDat(m_dataRoot), libretro::downloadedLicense(m_dataRoot) }) {
+        if (QFileInfo::exists(file) && !QFile::remove(file))
+            qWarning("[Arcade] %s could not be removed", qPrintable(file));
+    }
+    m_fbneoMessage.clear();
+    refresh();
+    emit fbneoChanged();
 }
 
 void ArcadeBackend::downloadFbneo() {

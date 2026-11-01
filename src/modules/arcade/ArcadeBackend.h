@@ -445,9 +445,13 @@ public:
     // FinalBurn Neo's page (Settings → Arcade → FinalBurn Neo): { retroarch
     // (its program, "" for none), core ("" for none), coreDate (its file's,
     // yyyy-MM-dd), downloaded (the core is the one downloadFbneo() put
-    // there), games (how many its list has), license (its file, "" for
-    // none), canDownload (libretro builds it for this machine, and this
-    // build can unpack it), canDownloadRetroarch (libretro builds RetroArch
+    // there), packaged (it is the one OSD/OS's package brought, built from
+    // scripts/engines.env's commit), hasPackaged (the package brought one,
+    // played or not), latest (libretro's newest, chosen over the package's
+    // with downloadFbneo()), version (the package's commit, short, and its
+    // date: "2b0c1c0 (261021)"), games (how many its list has), license (its
+    // file, "" for none), canDownload (libretro builds it for this machine,
+    // and this build can unpack it), canDownloadRetroarch (libretro builds RetroArch
     // itself for this machine: 64-bit Windows), retroarchDownloadVersion
     // (the one downloadRetroArch() fetches, the OSD/OS image's),
     // retroarchDownloaded (the RetroArch found is the one it put there) }.
@@ -456,8 +460,12 @@ public:
     Q_INVOKABLE QString fbneoLicenseText() const;
     // Downloads the core, its list of games and its licence (FbneoInstaller);
     // fbneoProgressChanged() as it goes, fbneoChanged() as it starts and
-    // ends, and the list read again once it is in.
+    // ends, and the list read again once it is in. Over a package's core it
+    // is libretro's newest, chosen over it (libretro::latestChosen()).
     Q_INVOKABLE void downloadFbneo();
+    // Back to the package's core: the newest one downloaded is deleted with
+    // its list and licence, and the games read again.
+    Q_INVOKABLE void useOwnFbneo();
     // Downloads RetroArch itself, libretro's build for Windows, into
     // <data>/arcade/retroarch (ProgramInstaller), over one downloaded
     // before; the same signals, and the list read again once it is in, as
@@ -982,6 +990,13 @@ private:
     // meanwhile, and once more after a read stopped before it said it: what
     // the lobby's rooms are matched against.
     void readOwnVersions();
+    // RetroArch and MAME that OSD/OS downloaded (Windows) and that are older
+    // than the versions every machine plays with (scripts/engines.env) are
+    // downloaded again at those versions, once a run each, as soon as their
+    // own versions are known.
+    void raiseOwnDownloads();
+    bool m_retroarchRaised = false;
+    bool m_mameRaised = false;
     // program's answer to arguments given to take as it ends, however it
     // does (it couldn't start, or was stopped after a while: timedOut), then
     // roomsChanged(); the process, till then.

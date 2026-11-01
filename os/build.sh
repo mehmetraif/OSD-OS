@@ -23,10 +23,10 @@
 #                     latest nightly build, which then updates itself) and
 #                     Deno, the JavaScript runtime it needs, about 90 MB
 #   OSDOS_ARCADE      1 (default) or 0: MAME, which the Arcade module plays
-#                     arcade games in, about 450 MB, and RetroArch with
-#                     FinalBurn Neo (its latest nightly build), the module's
-#                     engine for RetroAchievements and online play, about
-#                     230 MB
+#                     arcade games in, about 450 MB, and RetroArch, which
+#                     plays FinalBurn Neo's core (it comes with the app), the
+#                     module's engine for RetroAchievements and online play,
+#                     about 230 MB, at the versions scripts/engines.env pins
 #   OSDOS_ROOT_SIZE   GiB the system keeps of the card, 8 by default; the rest
 #                     becomes the exFAT film partition on the first boot. 0: no
 #                     film partition, the system takes the whole card
@@ -150,6 +150,10 @@ grep -q '^polkit\.addRule(' "${STAGE}/02-system/files/50-osdos-networkmanager.ru
     || { echo "error: could not extract 50-osdos-networkmanager.rules from scripts/install.sh" >&2; exit 1; }
 
 cp "${TARBALL}" "${STAGE}/01-app/files/osdos.tar.gz"
+# The engines' versions every OSD/OS machine plays with, which the arcade
+# stage checks Debian's MAME and RetroArch against.
+mkdir -p "${STAGE}/08-arcade/files"
+cp "${REPO_ROOT}/scripts/engines.env" "${STAGE}/08-arcade/files/engines.env"
 # What the image is made of and under which licences, os/NOTICE.
 cp "${HERE}/NOTICE" "${STAGE}/01-app/files/NOTICE"
 
