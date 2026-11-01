@@ -100,15 +100,22 @@ private:
 // it was.
 //
 // Player 2's Start is let go on player 2's pad while that coin is in: MAME
-// and RetroArch end a game on Coin and Start together on one pad. As the
-// coin comes out, the Start still held goes in again, which starts player 2
-// with the credit. Between the panels' events and the pads, events in and
-// events out, in order: what is let go before what is pressed.
+// and RetroArch end a game on Coin and Start together. As the coin comes
+// out, the Start still held goes in again, which starts player 2 with the
+// credit. RetroArch looks for the two on all of a machine's pads at once (it
+// ORs their buttons before it looks), so a Start is held back too while a
+// coin is in on the other pad: player 1's Coin and player 2's Start pressed
+// in either order never end a game, nor do player 2's Coin and player 1's
+// Start. Coin and Start reach the pads together only as one player's own
+// two, held together: that player's way out of a game. Between the panels'
+// events and the pads, events in and events out, in order: what is let go
+// before what is pressed.
 class SharedCoin {
 public:
     // Both players' events for one read of the expanders, as they go out:
     // player 1's coin, its press and its release, on player 2's pad while it
-    // is player 2's, and player 2's Start held back meanwhile.
+    // is player 2's, and a Start held back while a coin is in on the other
+    // pad.
     void route(std::vector<Event> &p1, std::vector<Event> &p2);
     // Whether the coin held now is player 2's.
     bool routed() const { return m_routed; }
@@ -116,6 +123,7 @@ public:
 private:
     // The controls as their panels have them.
     bool m_p1Coin = false;
+    bool m_p1Start = false;
     bool m_p2Coin = false;
     bool m_p2Start = false;
     // Player 1's Coin, pressed while player 2's Start was held, is player
@@ -123,6 +131,7 @@ private:
     bool m_routed = false;
     // What each pad has been sent.
     bool m_out1Coin = false;
+    bool m_out1Start = false;
     bool m_out2Coin = false;
     bool m_out2Start = false;
 };

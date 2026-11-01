@@ -109,7 +109,7 @@ jobs:
       # OSD/OS's FinalBurn Neo cores, the whole one and the LAN one,
       # beside osdos.exe in the install with FinalBurn Neo's list of games and
       # its licence, where the app looks for them (libretro::packagedCore(),
-      # lanCorePath()). Built with MSYS2's MinGW-w64 before the MSVC
+      # lanCorePath()). Built with MSYS2's UCRT64 before the MSVC
       # environment below, which is no business of its compilers'.
       - name: FinalBurn Neo cores
         uses: ./.github/actions/fbneo-cores

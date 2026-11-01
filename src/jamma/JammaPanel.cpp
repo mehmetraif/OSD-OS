@@ -237,6 +237,7 @@ void SharedCoin::route(std::vector<Event> &p1, std::vector<Event> &p2) {
     };
     const bool coinBefore = m_p1Coin;
     take(p1, BTN_SELECT, &m_p1Coin);
+    take(p1, BTN_START, &m_p1Start);
     take(p2, BTN_SELECT, &m_p2Coin);
     take(p2, BTN_START, &m_p2Start);
     // A coin pressed now goes where Start says, for as long as it is held.
@@ -247,16 +248,21 @@ void SharedCoin::route(std::vector<Event> &p1, std::vector<Event> &p2) {
 
     const bool want1Coin = m_p1Coin && !m_routed;
     const bool want2Coin = m_p2Coin || m_routed;
-    const bool want2Start = m_p2Start && !m_routed;
+    // A Start waits while a coin is in on the other pad (and player 2's
+    // while the shared coin is player 2's): RetroArch takes a Coin on one
+    // pad and a Start on another for its way out.
+    const bool want1Start = m_p1Start && !want2Coin;
+    const bool want2Start = m_p2Start && !m_routed && !want1Coin;
     const auto change = [](std::vector<Event> &events, int code, bool want, bool *out, bool pressing) {
         if (want == *out || want != pressing)
             return;
         events.push_back({ EV_KEY, uint16_t(code), want ? 1 : 0 });
         *out = want;
     };
-    // What is let go first, then what is pressed: never Coin and Start
-    // pressed together on player 2's pad for this.
+    // What is let go first, then what is pressed: never a Coin and a Start
+    // in together for this, on one pad or two.
     for (const bool pressing : { false, true }) {
+        change(p1, BTN_START, want1Start, &m_out1Start, pressing);
         change(p1, BTN_SELECT, want1Coin, &m_out1Coin, pressing);
         change(p2, BTN_START, want2Start, &m_out2Start, pressing);
         change(p2, BTN_SELECT, want2Coin, &m_out2Coin, pressing);

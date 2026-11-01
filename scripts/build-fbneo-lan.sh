@@ -11,6 +11,13 @@
 #   on whichever machine, becomes the first free player as it comes in, so
 #   that a controller no one plays holds no player. The seats are in the
 #   core's states, so every machine seats alike.
+# - sets a game's DIP switch for how many players its cabinet has
+#   ("Cabinet: 2 Players / 4 Players", "Number of Players", "Max Players")
+#   to the most it has inputs for, each with a coin slot of its own where
+#   the switch offers one, by default, which is what every machine on the
+#   network plays with: a game left on two players reads no third or fourth
+#   player's coin, start or controls. A setting for two boards linked, a
+#   cocktail table or free play is never taken.
 # - for Cave's CV1000 board (Akai Katana, Mushihime-sama, DoDonPachi
 #   DaiFukkatsu...), leaves the board's 128 MiB of video memory out of the
 #   states netplay keeps a ring of, and has the game wait from power on
@@ -23,8 +30,10 @@
 # The source is the commit scripts/engines.env names, unpacked
 # (github.com/libretro/FBNeo's archive of it), in a folder of its own, which
 # the patch is applied to. The core is osdos_lan_libretro.so (.dylib on a
-# Mac, for macOS 11 and later; .dll on Windows, built with MSYS2's
-# MinGW-w64 and linked statically, so it needs no DLL of MinGW's beside it),
+# Mac, for macOS 11 and later; .dll on Windows, built in MSYS2's UCRT64
+# environment, MinGW-w64 on Windows' Universal C Runtime, which every
+# Windows 10 and later has, and linked statically, so it needs no DLL of
+# MinGW's beside it),
 # built as scripts/build-fbneo.sh builds the whole core. FinalBurn Neo's
 # licence goes with it, as the licence asks of every copy. The core names
 # itself OSD-OS LAN Core, which RetroArch won't let a machine with another
