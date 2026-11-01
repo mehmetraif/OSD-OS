@@ -335,7 +335,9 @@ void ListXmlReader::read() {
     }
 }
 
-QStringList screenArguments(const Machine &machine, int screenLines, const QString &shape, bool integer) {
+QStringList screenArguments(const Machine &machine, int screenLines, const QString &shape, bool integer, bool fill) {
+    if (fill)
+        return { QStringLiteral("-nokeepaspect") };
     QStringList args;
     if (!shape.isEmpty())
         args << QStringLiteral("-aspect") << shape;

@@ -144,6 +144,10 @@ struct Launch {
     // core's on square ones; and its lines drawn whole where they fit.
     double  aspect = 0;
     bool    integerScale = false;
+    // Game Picture on Fit to Screen: the picture stretched over the whole
+    // screen, whatever its shape (aspect_ratio_index 24, Full), aspect and
+    // integerScale aside.
+    bool    fill = false;
     // Each player's controller, as reservedDevice() makes it: "" for none.
     // Preferred for its player (reservation type 1): matched by vendor and
     // product where RetroArch knows them (padsByVendor, kPadsByVendor), else

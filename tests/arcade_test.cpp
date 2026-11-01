@@ -554,6 +554,9 @@ private slots:
         QCOMPARE(mame::screenArguments(vertical, 240, QStringLiteral("4:3"), true), shape);
         QCOMPARE(mame::screenArguments(vertical, 1080, QString(), true), whole);
         QCOMPARE(mame::screenArguments(mame::Machine(), 240, QStringLiteral("4:3"), true), shape);
+        // Fit to Screen: stretched over the whole screen, whatever else.
+        QCOMPARE(mame::screenArguments(wide, 240, QStringLiteral("4:3"), true, true),
+                 QStringList({ QStringLiteral("-nokeepaspect") }));
         QCOMPARE(mame::screenArguments(wide, 240, QStringLiteral("16:9"), false),
                  QStringList({ QStringLiteral("-aspect"), QStringLiteral("16:9") }));
         QVERIFY(mame::screenArguments(wide, 1080, QString(), false).isEmpty());
@@ -1619,6 +1622,15 @@ private slots:
                                   "video_aspect_ratio_auto = \"false\"", "video_scale_integer = \"true\"",
                                   "video_scale_integer_axis = \"0\"", "video_scale_integer_scaling = \"0\"" })
             QVERIFY2(has(QLatin1String(line)), line);
+        // Fit to Screen: the whole screen (Full), its lines not kept whole,
+        // whatever the shape and Integer Scale say.
+        launch.fill = true;
+        config = libretro::configText(launch);
+        for (const char *line : { "aspect_ratio_index = \"24\"", "video_aspect_ratio_auto = \"false\"",
+                                  "video_scale_integer = \"false\"" })
+            QVERIFY2(has(QLatin1String(line)), line);
+        QVERIFY(!config.contains(QStringLiteral("video_aspect_ratio = ")));
+        launch.fill = false;
         launch.aspect = 0;
         launch.integerScale = false;
         // With a token: the password is no longer RetroArch's, nor saved.

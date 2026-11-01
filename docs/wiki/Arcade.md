@@ -459,6 +459,7 @@ MAME draws the game in the display mode OSD/OS runs in (**Settings → Display O
 - **Screen Shape**: the shape of your screen, which a game's picture is drawn to in its own shape (a horizontal game 4:3, a vertical one 3:4). A CRT's display mode doesn't have square pixels: JAMMA 240p is 720×240 on a 4:3 tube, which an emulator left to itself takes as a screen three times as wide as it is tall, squeezing the game into the middle third. **Auto** says 4:3 on a CRT's display output (composite, SCART RGB, JAMMA; off the OSD/OS image, a display mode of 576 lines or fewer) and square pixels on HDMI. **4:3** and **16:9** say so whatever the output; **Square Pixels** leaves the picture as the screen's pixels give it.
 - **Integer Scale**: a game's lines drawn whole, once (twice on a 480-line output), rather than spread over the screen's. On a CRT the lines stay sharp, with a thin border above and below a 224-line game on a 240-line screen; spread over 240, one line in fourteen comes out doubled or blurred. **Auto** is on on a CRT's display output and off elsewhere. A game with more lines than the screen (a vertical one on a 240p tube) fills it either way.
 - **MAME Video**: how MAME draws: if a game shows no picture, or MAME stops with an error about OpenGL, try another.
+- **Game Picture**: **Original** (the default) draws the game in its own shape, as Screen Shape and Integer Scale say, black around it where it doesn't fill the screen. **Fit to Screen** stretches it over the whole screen, top to bottom and side to side, whatever its shape or lines; Screen Shape and Integer Scale then don't apply. MAME's `-nokeepaspect`; RetroArch's full-screen aspect (`aspect_ratio_index 24`), without integer scaling.
 
 On a JAMMA cabinet at 240p, with everything on Auto, a horizontal game of 224 lines is drawn once each, as wide as its shape on the tube, and a vertical game upright in the middle, its lines spread over the screen's.
 
@@ -497,6 +498,7 @@ Settings → Arcade, the second row of Settings' first screen. The page is share
 | MAME | (opens MAME's page) | | Whether MAME is installed and where, its hiscore plugin, and on Windows its download ([MAME's page](#mames-page)) | |
 | FinalBurn Neo | (opens FinalBurn Neo's page) | | What is installed of RetroArch and FinalBurn Neo, and the core's download ([FinalBurn Neo](#finalburn-neo)); its licence is in Settings → About | |
 | Emulator Video | (opens its page) | | How MAME and FinalBurn Neo draw a game on your screen ([Emulator Video](#emulator-video)) | |
+| Emulator Video → Game Picture | Original, Fit to Screen | Original | The game in its own shape, or stretched over the whole screen. MAME's `-nokeepaspect`; RetroArch's full-screen aspect | `modules.com.osdos.arcade.game_picture` |
 | Emulator Video → Screen Shape | Auto, 4:3, 16:9, Square Pixels | Auto | The screen's shape the games are drawn to: Auto 4:3 on a CRT's display output, square pixels on HDMI. MAME's `-aspect`; for FinalBurn Neo, the picture's shape in the screen's pixels (`video_aspect_ratio`) | `modules.com.osdos.arcade.screen_shape` |
 | Emulator Video → Integer Scale | Auto, On, Off | Auto | A game's lines drawn whole rather than spread over the screen's: Auto on on a CRT's display output. MAME's `-nounevenstretch -unevenstretchx` for a game whose lines fit; RetroArch's `video_scale_integer` | `modules.com.osdos.arcade.integer_scale` |
 | Emulator Video → MAME Video | Auto, OpenGL, BGFX, Accelerated, Software | Auto | How MAME draws the game: Auto leaves it to MAME's own settings (Debian's `mame.ini` says OpenGL); the others are MAME's `-video opengl`, `bgfx`, `accel` and `soft` | `modules.com.osdos.arcade.video` |
@@ -523,6 +525,7 @@ Settings → Arcade, the second row of Settings' first screen. The page is share
 | `relay_server` | `"New York"`, `"Madrid"`, `"São Paulo"`, `"Singapore"` or `"Chuncheon"` |
 | `engines` | Each game's Engine, by set, but Auto's: `{ "sf2": "fbneo", "mslug": "mame" }` |
 | `video` | `"Auto"`, `"OpenGL"`, `"BGFX"`, `"Accelerated"` or `"Software"` |
+| `game_picture` | `"Original"` or `"Fit to Screen"` |
 
 The module's entry in `config.json` (in the data folder), with the games on a USB drive, the Arcade screen opening on the fighting games without its hint bar, its filters without the puzzle games and with Capcom's, and MAME's software drawing:
 
@@ -584,7 +587,7 @@ mame galaga \
     -autoboot_script ~/.local/share/OSD-OS/arcade/coins.lua
 ```
 
-(`;…/bios` while there is a `bios` folder; `-samplepath` while there is a `samples` folder, in place of MAME's own; the plugin's two while High Scores is on; `-video …` with any MAME Video but Auto; `-aspect` with a Screen Shape that isn't square pixels, and the two `unevenstretch` with Integer Scale on, for a game whose lines fit in the screen's ([Emulator Video](#emulator-video)); `-sound none` without a sound card that can play; `-autoboot_script` with credits bought on the Arcade screen.) Everything else is MAME's own settings: `/etc/mame/mame.ini` on the image, or a `mame.ini` of your own in `~/.mame`. A MAME of your own with its folders beside it runs in its own folder instead, as it would by hand, to find them, and reads the `mame.ini` there.
+(`;…/bios` while there is a `bios` folder; `-samplepath` while there is a `samples` folder, in place of MAME's own; the plugin's two while High Scores is on; `-video …` with any MAME Video but Auto; `-aspect` with a Screen Shape that isn't square pixels, and the two `unevenstretch` with Integer Scale on, for a game whose lines fit in the screen's, or `-nokeepaspect` in their place with Game Picture on Fit to Screen ([Emulator Video](#emulator-video)); `-sound none` without a sound card that can play; `-autoboot_script` with credits bought on the Arcade screen.) Everything else is MAME's own settings: `/etc/mame/mame.ini` on the image, or a `mame.ini` of your own in `~/.mame`. A MAME of your own with its folders beside it runs in its own folder instead, as it would by hand, to find them, and reads the `mame.ini` there.
 
 ## Troubleshooting
 

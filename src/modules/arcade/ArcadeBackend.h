@@ -1045,6 +1045,7 @@ private:
     QString m_video;              // "" for MAME's own (mame.ini's)
     QString m_screenShape;        // Emulator Video: "4:3", "16:9", "Square Pixels"; "" for Auto
     QString m_integerScale;       // "On", "Off"; "" for Auto
+    bool    m_fitScreen = false;  // Game Picture: Fit to Screen rather than Original
     bool    m_tube = false;       // setScreen()'s
     QSize   m_screenSize;
     QVariantMap m_menuFilters;    // Menu Filters: filter id → shown

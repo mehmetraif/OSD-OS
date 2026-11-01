@@ -235,6 +235,14 @@
       "description": "How MAME and FinalBurn Neo draw a game's picture on your screen",
       "settings": [
         {
+          "key": "game_picture",
+          "label": "Game Picture",
+          "type": "list_single",
+          "options": ["Original", "Fit to Screen"],
+          "default": "Original",
+          "description": "How a game's picture fills your screen, in MAME and FinalBurn Neo alike\n[ORIGINAL] In the game's own shape, as Screen Shape and Integer Scale draw it, black around it where it doesn't fill the screen  [FIT TO SCREEN] Stretched over the whole screen, top to bottom and side to side; Screen Shape and Integer Scale then don't apply"
+        },
+        {
           "key": "screen_shape",
           "label": "Screen Shape",
           "type": "list_single",

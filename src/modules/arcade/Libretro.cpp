@@ -549,9 +549,13 @@ QString configText(const Launch &launch) {
     set("libretro_info_path", launch.infoDir);
     set("core_info_cache_enable", on(false));
     set("audio_enable", on(launch.sound));
-    // The picture in its shape on a screen whose pixels aren't square
-    // (aspect_ratio_index 20, Config: the ratio as it is).
-    if (launch.aspect > 0) {
+    // Fit to Screen: the whole screen, whatever the game's shape
+    // (aspect_ratio_index 24, Full). Otherwise the picture in its shape on a
+    // screen whose pixels aren't square (20, Config: the ratio as it is).
+    if (launch.fill) {
+        set("aspect_ratio_index", QStringLiteral("24"));
+        set("video_aspect_ratio_auto", on(false));
+    } else if (launch.aspect > 0) {
         set("aspect_ratio_index", QStringLiteral("20"));
         set("video_aspect_ratio", QString::number(launch.aspect, 'f', 6));
         set("video_aspect_ratio_auto", on(false));
@@ -559,8 +563,9 @@ QString configText(const Launch &launch) {
     // Its lines whole, the width to the shape (axis 0), fewer times rather
     // than cut (scaling 0); a picture with more lines than the screen is
     // spread over them.
-    set("video_scale_integer", on(launch.integerScale));
-    if (launch.integerScale) {
+    const bool integerScale = launch.integerScale && !launch.fill;
+    set("video_scale_integer", on(integerScale));
+    if (integerScale) {
         set("video_scale_integer_axis", QStringLiteral("0"));
         set("video_scale_integer_scaling", QStringLiteral("0"));
     }

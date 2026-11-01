@@ -676,7 +676,7 @@ ArcadeBackend::ArcadeBackend(const QString &appRoot, const QString &dataRoot, Ap
     // The module's settings as they stand. games.json waits for the list to
     // open (refresh()): with a full set of MAME's games it is megabytes.
     for (const char *key : { "games_directory", "hide_bootlegs", "regions", "high_scores", "video", "screen_shape",
-                             "integer_scale", "menu_filters", "online_high_scores", "online_play", "engines",
+                             "integer_scale", "game_picture", "menu_filters", "online_high_scores", "online_play", "engines",
                              "online_name", "relay_server", "lan_play", "pictures_source" }) {
         const QString k = QLatin1String(key);
         applySetting(k, m_appCore ? m_appCore->get_setting(kModuleId, k) : QVariant());
@@ -801,6 +801,8 @@ void ArcadeBackend::applySetting(const QString &key, const QVariant &value) {
     } else if (key == QLatin1String("integer_scale")) {
         const QString scale = value.toString();
         m_integerScale = scale == QLatin1String("On") || scale == QLatin1String("Off") ? scale : QString();
+    } else if (key == QLatin1String("game_picture")) {
+        m_fitScreen = value.toString() == QLatin1String("Fit to Screen");
     } else if (key == QLatin1String("menu_filters")) {
         // Saved whole at every change (MultiSelectSettings.qml).
         m_menuFilters = value.toMap();
@@ -2977,7 +2979,8 @@ bool ArcadeBackend::play(const QString &name, int credits) {
     if (!m_video.isEmpty())
         args << QStringLiteral("-video") << m_video;
     // Emulator Video: the screen's shape, and the game's lines whole.
-    args << mame::screenArguments(m_machines.value(name), m_screenSize.height(), screenShape(), integerScale());
+    args << mame::screenArguments(m_machines.value(name), m_screenSize.height(), screenShape(), integerScale(),
+                                  m_fitScreen);
     // Without a sound card that can play now (a Pi 5 whose picture goes out
     // through a JAMMA board or composite, its HDMI off, with no USB card),
     // the game is played in silence: MAME's SDL sound fails there, and
@@ -3312,7 +3315,9 @@ bool ArcadeBackend::playFbneo(const QString &name, libretro::Launch::Netplay net
     launch.console = false;
 #endif
     launch.sound = AudioOutput::hasPlaybackCard();
-    // Emulator Video: the picture's shape on the screen, and its lines whole.
+    // Emulator Video: the picture over the whole screen (Fit to Screen), or
+    // in its shape on the screen, its lines whole.
+    launch.fill = m_fitScreen;
     const QString shape = screenShape();
     if (!shape.isEmpty())
         launch.aspect = libretro::viewportAspect(gameAspect(name), m_screenSize,

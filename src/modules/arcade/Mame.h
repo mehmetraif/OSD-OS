@@ -89,8 +89,11 @@ private:
 // on; "" leaves them square); and with integer, that a game's lines are
 // drawn whole, once or twice, the width to the picture's shape, where at
 // least one of each fits in the screen's (screenLines): a game with more is
-// spread over them, as MAME would otherwise draw it once and cut it.
-QStringList screenArguments(const Machine &machine, int screenLines, const QString &shape, bool integer);
+// spread over them, as MAME would otherwise draw it once and cut it. fill
+// (Game Picture on Fit to Screen): the picture stretched over the whole
+// screen, whatever its shape, and none of the rest.
+QStringList screenArguments(const Machine &machine, int screenLines, const QString &shape, bool integer,
+                            bool fill = false);
 
 // A set's file or folder name MAME may know: letters, digits and underscores
 // only. Anything else (a space, a wildcard MAME would match against every
