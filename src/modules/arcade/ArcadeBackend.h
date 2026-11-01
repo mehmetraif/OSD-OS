@@ -877,7 +877,8 @@ private:
     // core it is hosted with: lanCore, that one.
     bool playFbneo(const QString &name, libretro::Launch::Netplay netplay = libretro::Launch::Netplay::None,
                    const QString &joinAddress = QString(), int portsFrom = -1, int portsGiven = 0,
-                   libretro::Launch::Layout layout = libretro::Launch::Layout::Classic, bool lanCore = false);
+                   libretro::Launch::Layout layout = libretro::Launch::Layout::Classic, bool lanCore = false,
+                   int credits = 0);
     // Whether a set is one of Cave's CV1000 board's (FinalBurn Neo's
     // cave/d_cv1k.cpp), whose games are hosted on the local network with
     // OSD/OS's own core (libretro::lanCorePath()).
@@ -937,6 +938,13 @@ private:
     // the netplay error it would play on alone after, or the host leaving,
     // the game is stopped, and the end says why (fbneoNotice()).
     void watchNetplay();
+    // The credits bought, put in a FinalBurn Neo game played alone as MAME's
+    // script puts them in (libretro::coinDown()): RetroArch's log read every
+    // so often until the game runs, then player 1's coin pressed through its
+    // network RetroPad (Launch::coinPort), a message every kCoinTickMs.
+    // stopCoins() as the game ends, or once they are in.
+    void feedCoins();
+    void stopCoins();
     // The Online Games folder's entries: the rooms, or a line saying why
     // there are none.
     QVariantList roomEntries() const;
@@ -1317,6 +1325,18 @@ private:
     qint64      m_netplayLogRead = 0;
     QByteArray  m_netplayLogTail;
     libretro::NetplayLog m_netplayLog;
+    // feedCoins()'s: the coins to put in, RetroArch's port for them, how much
+    // of its log has been read (and the end of it kept, for a line read in
+    // two parts), and when they start going in (-1 until the game runs), by
+    // m_coinClock.
+    QTimer     *m_coinFeed = nullptr;
+    QUdpSocket *m_coinSocket = nullptr;
+    int         m_coins = 0;
+    quint16     m_coinPort = 0;
+    qint64      m_coinLogRead = 0;
+    QByteArray  m_coinLogTail;
+    qint64      m_coinsFrom = -1;
+    QElapsedTimer m_coinClock;
     QElapsedTimer m_playClock;    // since the game playing started
     bool    m_played = false;
 };

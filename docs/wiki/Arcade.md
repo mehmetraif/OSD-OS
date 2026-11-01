@@ -96,7 +96,7 @@ With **Settings → Arcade → Screen** on **Arcade**, Arcade opens on a cabinet
 |---|---|---|---|
 | ▲ ▼ | Joystick, D-pad | Arrows | The game before or after, from page to page, and round from the last to the first |
 | ◄ ► | Joystick, D-pad | Arrows | The filter before or after, on its first game |
-| COIN | **COIN** (Back, Select, -) | **5** | Puts a credit in, up to 9: they go in with the next game played |
+| COIN | **COIN** (Back, Select, -) | **5** | Puts a credit in, up to 9: they go in with the next game played (none in Free Play, [Credits](#credits)) |
 | Select | Button 1 (A) | **Enter** | Plays the game, with the credits, as you let it go |
 | Select, held | Button 1 (A), held | **Enter**, held | The game's options, once it has been held most of a second: **Play**, **Game Details**, **Add to Favorites** or **Remove from Favorites**, **Play at Startup** ([above](#a-games-options)). Letting it go then plays nothing |
 | START | **START** | **Space**, **1** | Plays the game, with the credits |
@@ -259,9 +259,14 @@ With a **Web API Key** given in **Settings → Arcade → RetroAchievements Acco
 
 ### Credits
 
-COIN puts in a credit, up to 9, shown as `Credit 2` on the picture. They go in with the next game played, whichever it is: OSD/OS has MAME press player 1's coin once for each, a few seconds after the game starts (5 seconds of the game's own time, past the start-up checks most boards run), as if the coins had been dropped in the cabinet. MAME is given a small script for it (`arcade/coins.lua`, with `-autoboot_script`), which puts them in once: a reset of the game (F3 in MAME) doesn't put them in again. The credits are spent once MAME starts, even if the game then stops with an error. A game that is still starting up after 5 seconds may not count them all: insert a coin in the game then.
+COIN puts in a credit, up to 9, shown as `Credit 2` on the picture. They go in with the next game played, whichever it is and whichever engine plays it, as if the coins had been dropped in the cabinet: player 1's coin is pressed once for each, a few seconds after the game starts, past the start-up checks most boards run. The credits are spent once the game starts, even if it then stops with an error. A game that is still starting up then may not count them all: insert a coin in the game.
+
+- **MAME** puts them in 5 seconds into the game's own time, with a small script OSD/OS gives it (`arcade/coins.lua`, with `-autoboot_script`), once: a reset of the game (F3 in MAME) doesn't put them in again.
+- **FinalBurn Neo** has them put in 5 seconds after its log says the game has started, through RetroArch's network RetroPad: RetroArch listens for player 1's buttons on a port of this machine only for that game (`network_remote_enable`), and OSD/OS presses its Select, FinalBurn Neo's coin, once for each credit. A game played online or on the local network takes none: insert a coin in the game.
 
 With no credits, the game starts as it always does, and a coin goes in in the game itself (COIN).
+
+**Free Play.** **Settings → Arcade → Play Mode** is **Credits** by default, as above. **Free Play** puts 9 credits in with every game, in MAME and FinalBurn Neo alike, with no coin bought: the picture says `Free Play` in place of the credits, COIN buys none and the hint bar leaves it out, and the screen before a game says `Free Play: 9 credits go in as the game starts`.
 
 ### Attract Mode
 
@@ -386,7 +391,7 @@ FinalBurn Neo is an arcade emulator of its own, played here in RetroArch as a li
 
 A game hosted or joined over the network or on the local network plays in FinalBurn Neo whatever its Engine says: MAME has no netplay ([Online play](#online-play), [LAN play](#lan-play)).
 
-The Arcade screen's box and the screen before a game say nothing different; the credits do: COIN buys none for a FinalBurn Neo game, as nothing puts them in for it, and the hint bar leaves it out: insert a coin in the game itself.
+The Arcade screen's box, the credits and the screen before a game say nothing different: the credits bought go in as they do in MAME ([Credits](#credits)).
 
 **Its sets** are FinalBurn Neo's own, named as MAME names its games, and most of a ROM set for MAME 0.276 plays in it too: a set it doesn't know, or one it needs another file for, stops with a notice naming the files, and **Engine: MAME** plays it as before (where there is no other engine, for a set MAME doesn't know, online or without MAME, the notice says the set may be for another version of FinalBurn Neo, or a BIOS set it needs isn't in the games folder). A Neo-Geo game needs `neogeo.zip`, beside the games or in their `bios` folder, as for MAME. It plays a zip or a 7z, not a folder of files.
 
@@ -486,6 +491,7 @@ Settings → Arcade, the second row of Settings' first screen. The page is share
 | Attract Mode | Off, In Order, Random | Off | Left alone, the Arcade screen goes through its games on its own, a game every six seconds: down the list, or at random; the first button or key ends it ([Attract Mode](#attract-mode)). Shown while Screen is Arcade | `modules.com.osdos.arcade.attract_mode` |
 | Attract After | 30 Seconds, 1 Minute, 2 Minutes, 5 Minutes | 1 Minute | How long the Arcade screen is left alone before Attract Mode begins. Shown while Attract Mode isn't Off | `modules.com.osdos.arcade.attract_after` |
 | Start Info Screen | ON, OFF | ON | Before a game, the screen of how to come back (and from the Arcade screen, the credits going in); off, the game starts straight from the list, under its loading screen ([Playing](#playing)) | `modules.com.osdos.arcade.start_info` |
+| Play Mode | Credits, Free Play | Credits | Credits: COIN on the Arcade screen buys credits, which go in as the game starts; Free Play: every game starts with 9 credits in, MAME's and FinalBurn Neo's alike ([Credits](#credits)) | `modules.com.osdos.arcade.play_mode` |
 | Save High Scores | ON, OFF | ON | Keeps the games' high score tables with MAME's hiscore plugin ([above](#high-scores)) | `modules.com.osdos.arcade.high_scores` |
 | Online High Scores | Off, RetroAchievements | Off | RetroAchievements: a game FinalBurn Neo has plays in it, in hardcore mode, its scores going to RetroAchievements' leaderboards ([FinalBurn Neo](#finalburn-neo)) | `modules.com.osdos.arcade.online_high_scores` |
 | RetroAchievements Account | (opens the account's page) | | The account the scores go to with Online High Scores: sign in and out, and the Web API key the leaderboards, the games' pictures and their achievements are read with ([FinalBurn Neo](#finalburn-neo), [Pictures](#pictures-from-retroachievements), [Game Details](#game-details)) | |
@@ -525,6 +531,7 @@ Settings → Arcade, the second row of Settings' first screen. The page is share
 | `relay_server` | `"New York"`, `"Madrid"`, `"São Paulo"`, `"Singapore"` or `"Chuncheon"` |
 | `engines` | Each game's Engine, by set, but Auto's: `{ "sf2": "fbneo", "mslug": "mame" }` |
 | `video` | `"Auto"`, `"OpenGL"`, `"BGFX"`, `"Accelerated"` or `"Software"` |
+| `play_mode` | `"Credits"` or `"Free Play"` |
 | `game_picture` | `"Original"` or `"Fit to Screen"` |
 
 The module's entry in `config.json` (in the data folder), with the games on a USB drive, the Arcade screen opening on the fighting games without its hint bar, its filters without the puzzle games and with Capcom's, and MAME's software drawing:

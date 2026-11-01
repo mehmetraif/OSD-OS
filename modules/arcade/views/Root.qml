@@ -51,10 +51,16 @@ FocusScope {
 
     // The credits bought on the Arcade screen with COIN: they go in the next
     // game started (startGame()), as many as ArcadeBackend puts in
-    // (kMaxCredits).
+    // (kMaxCredits), MAME's and FinalBurn Neo's alike. With Settings → Arcade
+    // → Play Mode on Free Play every game starts with the most, and COIN
+    // buys none.
     property int credits: 0
     readonly property int maxCredits: 9
-    function addCredit() { credits = Math.min(maxCredits, credits + 1) }
+    property bool freePlay: false
+    function addCredit() {
+        if (!freePlay)
+            credits = Math.min(maxCredits, credits + 1)
+    }
 
     // How long a game has been played, as its screens say it ("1H 31M",
     // "Never"), and how many play it ("2 Players", "" when MAME doesn't say).
@@ -83,7 +89,7 @@ FocusScope {
         var started = online && online.room !== undefined
                       ? (lan ? arcadeBackend.joinLanRoom(online.room) : arcadeBackend.joinRoom(online.room))
                     : online && online.hosting ? (lan ? arcadeBackend.hostLanGame(set) : arcadeBackend.hostGame(set))
-                    : arcadeBackend.play(set, credits)
+                    : arcadeBackend.play(set, freePlay ? maxCredits : credits)
         if (!started)
             return false
         credits = 0
@@ -269,6 +275,7 @@ FocusScope {
         hintBar = isOn(own.hint_bar)
         helpLine = isOn(own.help_line)
         startInfo = isOn(own.start_info)
+        freePlay = own.play_mode === "Free Play"
         startFilter = own.start_filter || "all"
         listStyle = own.list_style || "Curved"
         attractMode = own.attract_mode === "In Order" || own.attract_mode === "Random" ? own.attract_mode : "Off"

@@ -127,6 +127,26 @@ inline constexpr bool kPadsByVendor = false;
 // whatever the GUID's checksum, else name.
 QString reservedDevice(const QString &guid, const QString &name, bool byVendor);
 
+// What FinalBurn Neo logs once a game runs, which readLog() takes for a game
+// started.
+inline constexpr char kDriverStarted[] = "[FBNeo] Driver successfully started";
+
+// The credits bought on the Arcade screen, put in as a FinalBurn Neo game
+// starts, as MAME's script puts them in (mame::coinScript()): player 1's
+// coin, the RetroPad's Select (kRetroPadSelect, FinalBurn Neo's Coin),
+// pressed through RetroArch's network RetroPad (Launch::coinPort) once the
+// game runs (kDriverStarted in its log) and kCoinDelayMs more, past its
+// start-up checks; each held kCoinHoldMs and let go kCoinGapMs. coinDown():
+// whether it is down ms after the first, false with done once all are in.
+inline constexpr int kRetroPadSelect = 2;
+inline constexpr int kCoinDelayMs = 5000;
+inline constexpr int kCoinHoldMs = 100;
+inline constexpr int kCoinGapMs = 200;
+bool coinDown(qint64 ms, int coins, bool *done);
+// RetroArch's message to its network RetroPad (struct remote_message in its
+// input/input_driver.h): a RetroPad button down or let go.
+QByteArray remotePadMessage(int button, bool down);
+
 // What a game is started with.
 struct Launch {
     QString core;
@@ -148,6 +168,11 @@ struct Launch {
     // screen, whatever its shape (aspect_ratio_index 24, Full), aspect and
     // integerScale aside.
     bool    fill = false;
+    // The credits bought on the Arcade screen, put in by OSD/OS through
+    // RetroArch's network RetroPad on this UDP port, player 1's
+    // (network_remote_base_port; coinDown(), remotePadMessage()), off line
+    // only; 0 for none.
+    quint16 coinPort = 0;
     // Each player's controller, as reservedDevice() makes it: "" for none.
     // Preferred for its player (reservation type 1): matched by vendor and
     // product where RetroArch knows them (padsByVendor, kPadsByVendor), else

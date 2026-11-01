@@ -145,6 +145,14 @@
       "description": "Before a game, how to come back to OSD/OS (and from the Arcade screen, the credits going in)\n[OFF] The game starts straight from the list, under its loading screen"
     },
     {
+      "key": "play_mode",
+      "label": "Play Mode",
+      "type": "list_single",
+      "options": ["Credits", "Free Play"],
+      "default": "Credits",
+      "description": "How a game is paid for, in MAME and FinalBurn Neo alike, played on this machine\n[CREDITS] COIN on the game list puts credits in, up to 9, which go in as the game starts  [FREE PLAY] Every game starts with 9 credits in, no coin needed"
+    },
+    {
       "key": "high_scores",
       "label": "Save High Scores",
       "type": "toggle",

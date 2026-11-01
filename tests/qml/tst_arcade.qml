@@ -70,6 +70,7 @@ Rectangle {
         readonly property int handOverDelay: 150
         property int credits: 0
         readonly property int maxCredits: 9
+        property bool freePlay: false
         property int infoBackground: 100
         property string listStyle: "Curved"
         property bool border: true
@@ -77,7 +78,10 @@ Rectangle {
         property string attractMode: "Off"
         property int attractAfter: 60
         property var playing: null
-        function addCredit() { credits = Math.min(maxCredits, credits + 1) }
+        function addCredit() {
+            if (!freePlay)
+                credits = Math.min(maxCredits, credits + 1)
+        }
         function playTime(seconds) {
             if (!seconds)
                 return "Never"
@@ -90,7 +94,7 @@ Rectangle {
             var started = online && online.room !== undefined
                           ? (lan ? arcadeBackend.joinLanRoom(online.room) : arcadeBackend.joinRoom(online.room))
                         : online && online.hosting ? (lan ? arcadeBackend.hostLanGame(set) : arcadeBackend.hostGame(set))
-                        : arcadeBackend.play(set, credits)
+                        : arcadeBackend.play(set, freePlay ? maxCredits : credits)
             if (!started)
                 return false
             credits = 0
@@ -463,6 +467,7 @@ Rectangle {
             moduleRoot.border = true
             moduleRoot.screenAdjustment = { top: 0, bottom: 0, left: 0, right: 0 }
             moduleRoot.credits = 0
+            moduleRoot.freePlay = false
             arcadeBackend.credited = []
             arcadeBackend.fbneoSets = []
             arcadeBackend.engines = {}
@@ -979,18 +984,19 @@ Rectangle {
             verify(!screen.attractable)
         }
 
-        // A game FinalBurn Neo plays takes no credits bought (COIN), and
-        // shows none; its options offer its engine, Auto naming FinalBurn
-        // Neo, and MAME chosen there is saved for it, which takes credits.
+        // A game FinalBurn Neo plays takes credits bought (COIN) as MAME's
+        // do, and shows them; its options offer its engine, Auto naming
+        // FinalBurn Neo, and MAME chosen there is saved for it.
         function test_screenFbneoGame() {
             arcadeBackend.fbneoSets = ["sf2"]
             var screen = openScreen()
             compare(screen.currentSet, "sf2")
-            verify(screen.fbneo)
+            verify(screen.showsCredits)
+            verify(findText(screen, "Credit 0") !== null)
             keyClick(Qt.Key_5)
-            compare(moduleRoot.credits, 0)
-            compare(findText(screen, "Credit 0"), null)
-            verify(findText(screen, "[ESC]:BACK [ENTER]:PLAY HOLD:OPTIONS", true) !== null)
+            compare(moduleRoot.credits, 1)
+            verify(findText(screen, "Credit 1") !== null)
+            moduleRoot.credits = 0
             keyPress(Qt.Key_Return)
             tryVerify(function() { return findText(screen, "Engine: Auto (FinalBurn Neo)") !== null }, 1500)
             keyRelease(Qt.Key_Return)
@@ -1003,7 +1009,6 @@ Rectangle {
             keyClick(Qt.Key_Down)
             keyClick(Qt.Key_Return)
             compare(arcadeBackend.engineChoicesMade, ["sf2=mame"])
-            verify(!screen.fbneo)
             keyClick(Qt.Key_5)
             compare(moduleRoot.credits, 1)
             verify(findText(screen, "Credit 1") !== null)
@@ -1687,7 +1692,7 @@ Rectangle {
             moduleRoot.startFilter = "online"
             var screen = openScreen()
             compare(screen.current.room, 14)
-            verify(screen.fbneo)
+            verify(!screen.showsCredits)
             verify(screen.onRoom)
             verify(!screen.gameBox)
             verify(!findChild(screen, "preview").visible)
@@ -2019,7 +2024,7 @@ Rectangle {
             arcadeBackend.engines = { sf2: "mame" }
             inputManager.arcadeCoin = "6"
             var play = open("Play.qml", { game: "sf2", title: "Street Fighter II (ann)", online: { room: 11, host: "ann" } })
-            verify(play.fbneo)
+            verify(!play.takesCredits)
             compare(play.exitKeys, "COIN + START")
             verify(findText(play, "Joining ann's game online") !== null)
             tryCompare(play, "phase", "running", 3000)
@@ -2213,7 +2218,7 @@ Rectangle {
         function test_playLan() {
             var play = open("Play.qml", { game: "sf2", title: "Street Fighter II (ann)",
                                           online: { room: 1, host: "ann", lan: true } })
-            verify(play.fbneo)
+            verify(!play.takesCredits)
             verify(findText(play, "Joining ann's game on this network") !== null)
             tryCompare(play, "phase", "running", 3000)
             compare(arcadeBackend.lanJoined, [1])
@@ -2987,6 +2992,34 @@ Rectangle {
             compare(arcadeBackend.started, ["sf2"])
             compare(arcadeBackend.credited, [4])
             compare(moduleRoot.credits, 0)
+        }
+
+        // Free Play: the screen says so in place of the credits, COIN buys
+        // none and isn't offered, and every game starts with the most
+        // credits there are, put in for the players.
+        function test_screenFreePlay() {
+            moduleRoot.freePlay = true
+            var screen = openScreen()
+            verify(screen.showsCredits)
+            verify(!screen.buysCredits)
+            verify(findText(screen, "Free Play") !== null)
+            compare(findText(screen, "Credit 0"), null)
+            keyClick(Qt.Key_5)
+            compare(moduleRoot.credits, 0)
+            verify(findText(screen, "[ESC]:BACK [ENTER]:PLAY HOLD:OPTIONS", true) !== null)
+        }
+
+        function test_playFreePlay() {
+            moduleRoot.screen = "Arcade"
+            moduleRoot.freePlay = true
+            var play = open("Play.qml", { game: "sf2", title: "Street Fighter II" })
+            verify(findText(play, "Free Play: 9 credits go in as the game starts") !== null)
+            verify(!play.takesCoin)
+            keyClick(Qt.Key_5)
+            compare(moduleRoot.credits, 0)
+            keyClick(Qt.Key_Space)
+            tryCompare(play, "phase", "running")
+            compare(arcadeBackend.credited, [9])
         }
 
         // Opened for why a game played from the list didn't (Start Info

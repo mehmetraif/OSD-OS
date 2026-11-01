@@ -601,10 +601,10 @@ Item {
                                 fade: orb.opacity
                             }
                         }
-                        // The credits bought, where COIN buys them, on the
-                        // glass at its foot.
+                        // The credits bought, or Free Play, on the glass at
+                        // its foot.
                         Sheet {
-                            visible: arcadeScreen.buysCredits
+                            visible: arcadeScreen.showsCredits
                             opacity: 1 - look.swing
                             y: -0.7 * look.orbR
                             z: look.orbR * 0.75
@@ -624,7 +624,7 @@ Item {
                                     Letters {
                                         id: creditText
                                         anchors.centerIn: parent
-                                        text: "Credit " + moduleRoot.credits
+                                        text: arcadeScreen.creditLine
                                     }
                                 }
                             }

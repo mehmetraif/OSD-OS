@@ -31,6 +31,8 @@
 #include <QtEndian>
 #include <QtTest>
 
+#include <cstring>
+
 #include <functional>
 
 // The Arcade module against a stand-in for MAME (a shell script in the data
@@ -329,6 +331,35 @@ exit 0
     }
 
 private slots:
+    // The credits put in a FinalBurn Neo game: each coin held 100 ms and
+    // let go 200 ms, from the first on; RetroArch's message for its network
+    // RetroPad, struct remote_message as the machine lays it out.
+    void coinFeed() {
+        bool done = false;
+        QVERIFY(libretro::coinDown(0, 2, &done) && !done);
+        QVERIFY(libretro::coinDown(99, 2, &done) && !done);
+        QVERIFY(!libretro::coinDown(100, 2, &done) && !done);
+        QVERIFY(!libretro::coinDown(299, 2, &done) && !done);
+        QVERIFY(libretro::coinDown(300, 2, &done) && !done);
+        QVERIFY(!libretro::coinDown(400, 2, &done) && !done);
+        QVERIFY(!libretro::coinDown(600, 2, &done) && done);
+        QVERIFY(!libretro::coinDown(0, 0, &done) && done);
+        for (const bool down : { true, false }) {
+            const QByteArray message = libretro::remotePadMessage(libretro::kRetroPadSelect, down);
+            QCOMPARE(message.size(), 20);
+            qint32 fields[4];
+            quint16 state = 7;
+            std::memcpy(fields, message.constData(), sizeof fields);
+            std::memcpy(&state, message.constData() + sizeof fields, sizeof state);
+            QCOMPARE(fields[0], 0);
+            QCOMPARE(fields[1], 1);   // RETRO_DEVICE_JOYPAD
+            QCOMPARE(fields[2], 0);
+            QCOMPARE(fields[3], 2);   // RETRO_DEVICE_ID_JOYPAD_SELECT
+            QCOMPARE(state, quint16(down ? 1 : 0));
+            QCOMPARE(message.mid(18), QByteArray(2, '\0'));
+        }
+    }
+
     void initTestCase() {
         QVERIFY(m_data.isValid());
         m_log = m_data.path() + QStringLiteral("/mame.log");
@@ -1633,6 +1664,17 @@ private slots:
         launch.fill = false;
         launch.aspect = 0;
         launch.integerScale = false;
+        // No credits to put in: no network RetroPad. Credits: player 1's,
+        // on the port given.
+        config = libretro::configText(launch);
+        QVERIFY(has(QStringLiteral("network_remote_enable = \"false\"")));
+        QVERIFY(!config.contains(QStringLiteral("network_remote_base_port")));
+        launch.coinPort = 41234;
+        config = libretro::configText(launch);
+        for (const char *line : { "network_remote_enable = \"true\"", "network_remote_enable_user_p1 = \"true\"",
+                                  "network_remote_base_port = \"41234\"" })
+            QVERIFY2(has(QLatin1String(line)), line);
+        launch.coinPort = 0;
         // With a token: the password is no longer RetroArch's, nor saved.
         launch.achievementsToken = QStringLiteral("tok123");
         config = libretro::configText(launch);

@@ -51,6 +51,13 @@ constexpr int kCacheVersion = 3;
 
 // The most credits a game is started with, as most games show at most 9.
 constexpr int kMaxCredits = 9;
+// FinalBurn Neo's credits (feedCoins()): RetroArch's log read this often
+// until the game runs, for at most kCoinWaitMs; then a message to its
+// network RetroPad this often, more than a frame's worth a second, as it
+// reads one a frame.
+constexpr int kCoinLogMs = 250;
+constexpr int kCoinWaitMs = 60000;
+constexpr int kCoinTickMs = 16;
 
 // MAME asked about this many sets at a time: a short enough command line, and
 // what it says comes in batches.
@@ -482,6 +489,7 @@ ArcadeBackend::ArcadeBackend(const QString &appRoot, const QString &dataRoot, Ap
         QString notice;
         bool refused = false;
         m_netplayWatch->stop();
+        stopCoins();
         if (m_playingEngine == QLatin1String("fbneo")) {
             const libretro::Run run = libretro::readLog(retroarchHome() + QStringLiteral("/last.log"),
                                                         libretro::hosts(m_playingNetplay));
@@ -540,6 +548,10 @@ ArcadeBackend::ArcadeBackend(const QString &appRoot, const QString &dataRoot, Ap
     m_netplayWatch = new QTimer(this);
     m_netplayWatch->setInterval(kNetplayWatchMs);
     connect(m_netplayWatch, &QTimer::timeout, this, &ArcadeBackend::watchNetplay);
+    m_coinFeed = new QTimer(this);
+    m_coinFeed->setTimerType(Qt::PreciseTimer);
+    connect(m_coinFeed, &QTimer::timeout, this, &ArcadeBackend::feedCoins);
+    m_coinSocket = new QUdpSocket(this);
 
     m_watcher = new QFutureWatcher<Read>(this);
     connect(m_watcher, &QFutureWatcherBase::finished, this, &ArcadeBackend::onRead);
@@ -2913,7 +2925,8 @@ bool ArcadeBackend::play(const QString &name, int credits) {
         return false;
     }
     if (engineOf(name) == QLatin1String("fbneo"))
-        return playFbneo(name);
+        return playFbneo(name, libretro::Launch::Netplay::None, QString(), -1, 0, libretro::Launch::Layout::Classic,
+                         false, credits);
     const QString program = mamePath();
     if (program.isEmpty()) {
         m_lastError = QStringLiteral("MAME is not installed");
@@ -3213,7 +3226,8 @@ QString ArcadeBackend::onlineLayout(const QString &set, bool hosting) const {
 }
 
 bool ArcadeBackend::playFbneo(const QString &name, libretro::Launch::Netplay netplay, const QString &joinAddress,
-                              int portsFrom, int portsGiven, libretro::Launch::Layout layout, bool lanCore) {
+                              int portsFrom, int portsGiven, libretro::Launch::Layout layout, bool lanCore,
+                              int credits) {
     using Netplay = libretro::Launch::Netplay;
     // As play() checks before coming here: one game at a time, whether
     // hosted, joined or played alone.
@@ -3323,6 +3337,16 @@ bool ArcadeBackend::playFbneo(const QString &name, libretro::Launch::Netplay net
         launch.aspect = libretro::viewportAspect(gameAspect(name), m_screenSize,
                                                  shape == QLatin1String("16:9") ? 16.0 / 9.0 : 4.0 / 3.0);
     launch.integerScale = integerScale();
+    // The credits bought, played alone: put in once the game runs
+    // (feedCoins()), through a UDP port free on this machine.
+    const int coins = netplay == Netplay::None ? std::min(credits, kMaxCredits) : 0;
+    if (coins > 0) {
+        QUdpSocket probe;
+        if (probe.bind(QHostAddress::AnyIPv4, 0))
+            launch.coinPort = probe.localPort();
+        else
+            qWarning("[Arcade] No port for the credits: the game starts without them");
+    }
     const QStringList guids = controllers::playerGuids();
     const QStringList names = controllers::playerNames();
     const QList<controllers::ArcadeBinds> arcade = controllers::playerArcade();
@@ -3473,6 +3497,17 @@ bool ArcadeBackend::playFbneo(const QString &name, libretro::Launch::Netplay net
     m_playingEngine = QStringLiteral("fbneo");
     m_playingNetplay = netplay;
     m_playClock.start();
+    stopCoins();
+    if (launch.coinPort != 0) {
+        m_coins = coins;
+        m_coinPort = launch.coinPort;
+        m_coinLogRead = 0;
+        m_coinLogTail.clear();
+        m_coinsFrom = -1;
+        m_coinClock.start();
+        m_coinFeed->setInterval(kCoinLogMs);
+        m_coinFeed->start();
+    }
     // Over the network: RetroArch's log watched for the failure it would
     // play on alone after.
     if (netplay != libretro::Launch::Netplay::None) {
@@ -4309,6 +4344,54 @@ QString ArcadeBackend::lanDetail(const libretro::Room &room) const {
     if (core == QLatin1String("same") && retroarch == QLatin1String("same"))
         parts << QStringLiteral("The same FinalBurn Neo and RetroArch as yours");
     return parts.join(QStringLiteral(" • "));
+}
+
+void ArcadeBackend::feedCoins() {
+    const qint64 now = m_coinClock.elapsed();
+    if (m_coinsFrom < 0) {
+        // Until the game runs, as FinalBurn Neo says it does: RetroArch's log
+        // read as it grows, the end of what was read kept for a line read in
+        // two parts.
+        if (now > kCoinWaitMs || !m_launcher->isBusy()) {
+            qWarning("[Arcade] %s: the game was not seen running, its credits not put in", qPrintable(m_playing));
+            stopCoins();
+            return;
+        }
+        QFile log(retroarchHome() + QStringLiteral("/last.log"));
+        if (!log.open(QIODevice::ReadOnly) || log.size() <= m_coinLogRead || !log.seek(m_coinLogRead))
+            return;
+        m_coinLogTail += log.readAll();
+        m_coinLogRead = log.pos();
+        const QByteArray started(libretro::kDriverStarted);
+        if (!m_coinLogTail.contains(started)) {
+            m_coinLogTail = m_coinLogTail.right(started.size());
+            return;
+        }
+        m_coinLogTail.clear();
+        m_coinsFrom = now + libretro::kCoinDelayMs;
+        m_coinFeed->setInterval(kCoinTickMs);
+        return;
+    }
+    if (now < m_coinsFrom)
+        return;
+    // Down or let go, sent every tick: RetroArch on Windows lets go of a
+    // button in a frame without a message.
+    bool done = false;
+    const bool down = libretro::coinDown(now - m_coinsFrom, m_coins, &done);
+    m_coinSocket->writeDatagram(libretro::remotePadMessage(libretro::kRetroPadSelect, down), QHostAddress::LocalHost,
+                                m_coinPort);
+    if (done) {
+        qInfo("[Arcade] %s: %d credit(s) put in", qPrintable(m_playing), m_coins);
+        stopCoins();
+    }
+}
+
+void ArcadeBackend::stopCoins() {
+    m_coinFeed->stop();
+    m_coins = 0;
+    m_coinPort = 0;
+    m_coinsFrom = -1;
+    m_coinLogTail.clear();
 }
 
 void ArcadeBackend::watchNetplay() {
