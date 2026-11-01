@@ -154,6 +154,11 @@ FocusScope {
     property var playing: null
     onPlayingChanged: root.restFor(moduleRoot, playing !== null)
     Component.onDestruction: root.restFor(moduleRoot, false)
+    // A game chosen and not yet back on the list, whichever way it went:
+    // started from the list (playing), or Play.qml over it, how to come back,
+    // the game's own loading screen, or why it didn't play. Its end, by
+    // either, is the list's again (OrbLook.qml's start undone).
+    readonly property bool gameUp: playing !== null || !!playLayer.item
 
     Connections {
         target: arcadeBackend

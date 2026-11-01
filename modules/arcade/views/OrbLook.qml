@@ -130,10 +130,13 @@ Item {
                 done()
         }
     }
-    // Back on the list after a game played from it (Root.qml's playing,
-    // the loading screen over the list meanwhile): everything in its place
-    // again, fading in as the screen does when it opens.
-    readonly property bool gameOn: !!moduleRoot.playing
+    // Back on the list after a game (Root.qml's gameUp): played from it,
+    // the loading screen over the list meanwhile, or from Play.qml over it,
+    // the game played, canceled on how to come back, or ended with why it
+    // didn't play. Everything in its place again, fading in as the screen
+    // does when it opens. Left started, the look stayed faded out, and kept
+    // every key but COIN, on a black screen.
+    readonly property bool gameOn: !!moduleRoot.gameUp
     onGameOnChanged: {
         if (!gameOn && launching && !launchEnd.running) {
             launching = false
