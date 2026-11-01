@@ -1,61 +1,91 @@
 #!/usr/bin/env bash
-# FinalBurn Neo's libretro core built from libretro's own source, for the
-# systems libretro's build server has no build for (FreeBSD, OpenBSD): the
-# core, the list of arcade games it reads and its licence, laid out under a
-# prefix where the app looks for them in its package (src/modules/arcade/
-# Libretro.cpp, packagedCore()):
+# FinalBurn Neo's libretro core, built from libretro's own source at the
+# commit scripts/engines.env names, for every package of OSD/OS: the same
+# core on every machine, so that machines play together over the network
+# (RetroArch warns of a peer with another version, and their games drift
+# apart), and so that an update of OSD/OS brings the core along.
 #
-#   <prefix>/lib/osdos/fbneo_libretro.so
-#   <prefix>/share/osdos/fbneo/fbneo-arcade.dat, license.txt and BUILD
-#
-#   FBNEO_COMMIT=<40-hex commit> FBNEO_DATE=<yymmdd> \
-#     scripts/build-fbneo.sh <FBNeo source folder> <prefix>
+#   scripts/build-fbneo.sh <FBNeo source folder> <folder for the core> \
+#     <file for the list of games> <file for the licence>
 #
 # The source is the commit named, unpacked (github.com/libretro/FBNeo's
 # archive of it). The core reports the version a build from git reports
 # (v1.0.0.03 <date> GIT<commit>), which the commit and its date make, so that
-# it matches libretro's build of the same commit, which online play compares.
-# Nothing of FinalBurn Neo's code is changed: the makefile's own Unix build,
-# with the system's compiler (cc, c++), without -no-undefined, which OpenBSD
-# can't link a library with (its libraries leave libc's symbols to the
-# program that loads them), and with GBAPPU_WORKER_DISABLE, a switch of
-# FinalBurn Neo's own (src/burn/drv/gba/gbappu_worker.h) that draws the Game
-# Boy Advance's picture on the emulator's thread instead of a thread of its
-# own: that thread is named with macOS's pthread_setname_np(name) on every
-# BSD, which FreeBSD's takes the thread as well and OpenBSD hasn't, so it
-# doesn't compile on either. The arcade games, all OSD/OS plays, don't use it.
+# it matches libretro's own build of the same commit. Nothing of FinalBurn
+# Neo's code is changed. The core is fbneo_libretro.so (.dylib on a Mac, for
+# macOS 11 and later; .dll on Windows, built with MSYS2's MinGW-w64 and
+# linked statically, so that it needs no DLL of MinGW's beside it). The list
+# of games is FinalBurn Neo's arcade DAT of the same commit, which the app
+# lists the games from. The licence goes with the core, as the licence asks
+# of every copy.
+#
+# On FreeBSD and OpenBSD: the makefile's Unix build with the system's
+# compiler (cc, c++), without -no-undefined, which OpenBSD can't link a
+# library with (its libraries leave libc's symbols to the program that loads
+# them), and with GBAPPU_WORKER_DISABLE, a switch of FinalBurn Neo's own
+# (src/burn/drv/gba/gbappu_worker.h) that draws the Game Boy Advance's
+# picture on the emulator's thread instead of a thread of its own: that
+# thread is named with macOS's pthread_setname_np(name) on every BSD, which
+# FreeBSD's takes the thread as well and OpenBSD hasn't, so it doesn't compile
+# on either. The arcade games, all OSD/OS plays, don't use it.
 set -euo pipefail
 
-src=${1:?usage: build-fbneo.sh <FBNeo source folder> <prefix>}
-prefix=${2:?usage: build-fbneo.sh <FBNeo source folder> <prefix>}
-commit=${FBNEO_COMMIT:?FBNEO_COMMIT: the commit the source is}
-date=${FBNEO_DATE:?FBNEO_DATE: the commit date, yymmdd}
+usage="usage: build-fbneo.sh <FBNeo source folder> <folder for the core> <file for the list of games> <file for the licence>"
+src=${1:?$usage}
+out=${2:?$usage}
+dat=${3:?$usage}
+license=${4:?$usage}
+here=$(cd "$(dirname "$0")" && pwd)
+# shellcheck source-path=SCRIPTDIR source=engines.env
+. "$here/engines.env"
+commit=$FBNEO_COMMIT
+date=$FBNEO_DATE
 
 make=$(command -v gmake || command -v make)
 jobs=$(getconf NPROCESSORS_ONLN 2>/dev/null || sysctl -n hw.ncpu 2>/dev/null || echo 2)
 
-# $(VERSION_SCRIPT) is the makefile's own, for make to expand. The define
-# goes in from the environment, which the makefile's FBNEO_DEFINES += adds
-# its own to (one on make's command line would replace them).
-# shellcheck disable=SC2016
-FBNEO_DEFINES=-DGBAPPU_WORKER_DISABLE "$make" -C "$src/src/burner/libretro" -j"$jobs" CC=cc CXX=c++ \
-    SHARED='-shared -Wl,--version-script=$(VERSION_SCRIPT)' \
-    GIT_VERSION="${commit:0:7}" GIT_DATE="$date"
+args=(GIT_VERSION="${commit:0:7}" GIT_DATE="$date")
+strip=(strip)
+case "$(uname -s)" in
+    Darwin)
+        ext=dylib
+        # The oldest macOS the app runs on, not the one it is built on.
+        export MACOSX_DEPLOYMENT_TARGET=${MACOSX_DEPLOYMENT_TARGET:-11.0}
+        # A library's own symbols are what RetroArch loads it by.
+        strip=(strip -x) ;;
+    MINGW* | MSYS*)
+        ext=dll
+        # MinGW's compilers by name: make's own default for C is cc.
+        args+=(CC=gcc CXX=g++)
+        # From the environment, which the makefile's LDFLAGS += adds its own
+        # to: winpthreads, which MinGW's libstdc++ is built on, in the DLL too.
+        export LDFLAGS=-static ;;
+    *BSD)
+        ext=so
+        # $(VERSION_SCRIPT) is the makefile's own, for make to expand. The
+        # define goes in from the environment, which the makefile's
+        # FBNEO_DEFINES += adds its own to (one on make's command line would
+        # replace them).
+        # shellcheck disable=SC2016
+        args+=(CC=cc CXX=c++ SHARED='-shared -Wl,--version-script=$(VERSION_SCRIPT)')
+        export FBNEO_DEFINES=-DGBAPPU_WORKER_DISABLE ;;
+    *)
+        ext=so ;;
+esac
+"$make" -C "$src/src/burner/libretro" -j"$jobs" "${args[@]}"
 
-core=$src/src/burner/libretro/fbneo_libretro.so
-dat="$src/dats/FinalBurn Neo (ClrMame Pro XML, Arcade only).dat"
+core=fbneo_libretro.$ext
+list="$src/dats/FinalBurn Neo (ClrMame Pro XML, Arcade only).dat"
 # The list is the one the app reads its games from: a short one is a broken
-# download, not a list.
-games=$(grep -c '<game name=' "$dat")
-[ "$games" -gt 1000 ] || { echo "only $games games in $dat" >&2; exit 1; }
+# source, not a list.
+games=$(grep -c '<game name=' "$list")
+[ "$games" -gt 1000 ] || { echo "only $games games in $list" >&2; exit 1; }
 
-install -d "$prefix/lib/osdos" "$prefix/share/osdos/fbneo"
-install -m 644 "$core" "$prefix/lib/osdos/fbneo_libretro.so"
-strip "$prefix/lib/osdos/fbneo_libretro.so"
-install -m 644 "$dat" "$prefix/share/osdos/fbneo/fbneo-arcade.dat"
-install -m 644 "$src/src/license.txt" "$prefix/share/osdos/fbneo/license.txt"
-printf 'FinalBurn Neo %s (%s), built from https://github.com/libretro/FBNeo/tree/%s\n' \
-    "${commit:0:7}" "$date" "$commit" > "$prefix/share/osdos/fbneo/BUILD"
+mkdir -p "$out" "$(dirname "$dat")" "$(dirname "$license")"
+cp "$src/src/burner/libretro/$core" "$out/$core"
+"${strip[@]}" "$out/$core"
+cp "$list" "$dat"
+cp "$src/src/license.txt" "$license"
 # The file's own size: du counts the disk blocks written so far, which ZFS
 # (FreeBSD's) reports late for a file just made.
-echo "FinalBurn Neo ${commit:0:7}: $games games, $(( $(wc -c < "$prefix/lib/osdos/fbneo_libretro.so") / 1024 )) KB"
+echo "FinalBurn Neo ${commit:0:7} ($date): $games games, $(( $(wc -c < "$out/$core") / 1024 )) KB"

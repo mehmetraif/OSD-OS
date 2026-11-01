@@ -35,6 +35,8 @@ add_test(NAME install_hint COMMAND install_hint_test)
 # whole with its folders, the limits on their size, a damaged one, and an
 # entry named to leave the folder, which is skipped.
 include(${CMAKE_CURRENT_SOURCE_DIR}/../cmake/lzma.cmake)
+# The engines' versions (scripts/engines.env), as the app has them.
+include(${CMAKE_CURRENT_SOURCE_DIR}/../cmake/engines.cmake)
 add_executable(sevenzip_test sevenzip_test.cpp ../src/util/SevenZip.cpp)
 target_include_directories(sevenzip_test PRIVATE ../src)
 target_compile_definitions(sevenzip_test PRIVATE TESTS_DIR="${CMAKE_CURRENT_SOURCE_DIR}")
@@ -271,6 +273,7 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
         ../src/util/LegacyNames.cpp)
     target_include_directories(arcade_test PRIVATE ../src ${Libdrm_INCLUDE_DIRS})
     target_compile_definitions(arcade_test PRIVATE TESTS_DIR="${CMAKE_CURRENT_SOURCE_DIR}")
+    osdos_engine_definitions(arcade_test)
     target_link_libraries(arcade_test PRIVATE
         Qt6::Core Qt6::Network Qt6::Qml Qt6::Test ${Libdrm_LIBRARIES} osdos_lzma)
     # FinalBurn Neo's download unpacks its core with minizip, where there is one.

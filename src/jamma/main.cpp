@@ -20,6 +20,10 @@
 //
 //   osdos-jamma [--bus /dev/i2c-N] [--map FILE] [--test]
 //
+// The cabinet's coin button counts for player 2 too, held with player 2's
+// Start (jamma::SharedCoin): a cabinet with one coin button, as many have,
+// has no Coin of player 2's otherwise.
+//
 // --test prints each pin as it changes, with what the mapping makes of it, and
 // plays nothing: the way to find out a board's wiring. It watches any other
 // expander on the bus too (0x22 to 0x27), as player "0", should a board wire
@@ -394,11 +398,16 @@ int main(int argc, char **argv) {
     if (g_test)
         std::printf("Press each control; Ctrl+C ends.\n");
 
+    // Player 1's coin for player 2 while player 2's Start is held: both
+    // players' events for a read go through it before they go out.
+    jamma::SharedCoin sharedCoin;
     timespec next;
     clock_gettime(CLOCK_MONOTONIC, &next);
     while (!g_stop) {
         const uint64_t now = nowMs();
-        for (Player &p : players) {
+        std::vector<std::vector<jamma::Event>> out(players.size());
+        for (size_t i = 0; i < players.size(); ++i) {
+            Player &p = players[i];
             if (p.lost) {
                 if (now < p.retryAt)
                     continue;
@@ -417,17 +426,21 @@ int main(int argc, char **argv) {
                     say("the expander at 0x%02x stopped answering: %s", p.address, std::strerror(errno));
                     p.lost = true;
                     p.retryAt = now + kRetryMs;
-                    deliver(p, p.panel.releaseAll(now));
+                    out[i] = p.panel.releaseAll(now);
                 }
                 continue;
             }
             p.lastGood = now;
             const uint16_t before = p.panel.state();
-            const std::vector<jamma::Event> events = p.panel.update(pressed, now);
+            out[i] = p.panel.update(pressed, now);
             if (g_test)
                 printChanges(p, before, p.panel.state());
-            else
-                deliver(p, events);
+        }
+        if (!g_test) {
+            // Players 1 and 2 are the first two, always there.
+            sharedCoin.route(out[0], out[1]);
+            for (size_t i = 0; i < players.size(); ++i)
+                deliver(players[i], out[i]);
         }
         next.tv_nsec += kPeriodNs;
         if (next.tv_nsec >= 1'000'000'000) {

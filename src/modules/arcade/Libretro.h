@@ -28,13 +28,22 @@ QString programPath(const QString &dataRoot);
 // <data>/arcade/retroarch/RetroArch-Win64/retroarch.exe.
 QString downloadedRetroArch(const QString &dataRoot);
 
-// The FinalBurn Neo core: the one Settings → Arcade → FinalBurn Neo
-// downloaded (<data>/arcade/retroarch/cores), else the one OSD/OS's package
-// brought (packagedCore()), else the OSD/OS image's (/usr/local/lib/libretro),
-// else one installed for the system's or the user's RetroArch. "" for none.
+// The FinalBurn Neo core: the one OSD/OS's package brought (packagedCore()),
+// built from the commit scripts/engines.env names, so that every machine
+// plays with the same one, unless the user chose libretro's newest over it
+// (latestChosen()); else the one Settings → Arcade → FinalBurn Neo
+// downloaded for a build that brought none (<data>/arcade/retroarch/cores);
+// else an older OSD/OS image's (/usr/local/lib/libretro), else one installed
+// for the system's or the user's RetroArch. "" for none.
 QString corePath(const QString &dataRoot);
-// FinalBurn Neo's list of its arcade games (its DAT), downloaded, the
-// package's or the image's, as corePath() looks; "" for none.
+// Settings → Arcade → FinalBurn Neo → Upgrade to Latest: the file beside the
+// downloaded core that says the user chose libretro's newest core over the
+// package's, and whether they did (the file and the core both there). A
+// core downloaded without it, before OSD/OS brought its own, is left aside.
+QString latestChosenMarker(const QString &dataRoot);
+bool latestChosen(const QString &dataRoot);
+// FinalBurn Neo's list of its arcade games (its DAT): the package's,
+// downloaded or the image's, as corePath() looks; "" for none.
 QString datPath(const QString &dataRoot);
 // Where Settings → Arcade → FinalBurn Neo puts the core, its list and its
 // licence: <data>/arcade/retroarch/cores/fbneo_libretro.so (.dylib on a
@@ -42,11 +51,13 @@ QString datPath(const QString &dataRoot);
 QString downloadedCore(const QString &dataRoot);
 QString downloadedDat(const QString &dataRoot);
 QString downloadedLicense(const QString &dataRoot);
-// Where OSD/OS's FreeBSD and OpenBSD packages put the core they bring, built
-// from FinalBurn Neo's source for want of a build of libretro's
-// (scripts/build-fbneo.sh), with its list: under the app's own prefix,
-// <prefix>/lib/osdos/ and <prefix>/share/osdos/fbneo/, the prefix being the
-// folder above the app's (/usr/local).
+// Where every package of OSD/OS's puts the core it brings, built from
+// FinalBurn Neo's source at the commit scripts/engines.env names
+// (scripts/build-fbneo.sh), with its list: in the bundle's Frameworks and
+// Resources on a Mac, beside osdos.exe on Windows (fbneo-arcade.dat), else
+// under the app's own prefix, <prefix>/lib/osdos/ and
+// <prefix>/share/osdos/fbneo/, the prefix being the folder above the app's
+// (/opt/osdos on the OSD/OS image, /usr/local on the BSDs).
 QString packagedCore();
 QString packagedDat();
 // FinalBurn Neo's licence as every package of OSD/OS's brings it, with the
@@ -56,11 +67,9 @@ QString packagedDat();
 QString packagedLicense();
 // OSD/OS's own FinalBurn Neo core for games of Cave's CV1000 board (Akai
 // Katana...) on the local network, which comes with the app
-// (scripts/build-fbneo-lan.sh): one put in <data>/arcade/retroarch/cores
-// (fbneo_cv1k_libretro.so, .dylib, .dll), else the app's own, beside
-// osdos.exe on Windows, in the bundle's Frameworks on a Mac, else under its
-// prefix (<prefix>/lib/osdos/: /opt/osdos on the OSD/OS image, /usr/local on
-// the BSDs). "" for none. It names itself kLanCoreName, which RetroArch won't
+// (scripts/build-fbneo-lan.sh): the app's own, where packagedCore() is,
+// else one put in <data>/arcade/retroarch/cores (fbneo_cv1k_libretro.so,
+// .dylib, .dll) for a build that brought none. "" for none. It names itself kLanCoreName, which RetroArch won't
 // let a machine with another core join. The game's video memory isn't in
 // netplay's states with it, and it waits from power on until player 2
 // presses something, so that it starts on every machine at the same frame.
@@ -77,9 +86,9 @@ inline constexpr int kHostStates = 124 + 2;
 // driver is sourceFile ("cave/cv1k.cpp", as FinalBurn Neo's list names it
 // without its "d_"), on FinalBurn Neo's core or, with lanCore, on OSD/OS's
 // own for CV1000 games; 0 for a board whose states are under 8 MiB, under
-// 1 GiB in all even hosting. Measured on the arcade sets of the commit
-// scripts/fbneo-lan.env names, each driver started on zero-filled ROMs and
-// what retro_serialize_size() scans in a rollback-netplay context added up:
+// 1 GiB in all even hosting. Measured on the arcade sets of FinalBurn Neo's
+// commit 2b0c1c0, each driver started on zero-filled ROMs and what
+// retro_serialize_size() scans in a rollback-netplay context added up:
 // 8361 of its 8446 sets start so, and the others' sizes come from their
 // drivers' scans.
 qint64 netplayStateSize(const QString &sourceFile, bool lanCore);
@@ -430,18 +439,20 @@ bool isLanSender(const QHostAddress &address);
 // RetroArch gives the machine hosting port 1 and each machine joining one
 // port, the first free, unless a machine asks for its ports by number
 // (Launch::portsFrom): the ports its players drive in order, its player 1
-// the first asked for. So a host asks for ports 1 to its players' count
+// the first asked for. Online a host asks for ports 1 to its players' count
 // (localPorts(), one fewer than the game plays at once at most, so that a
-// machine joining has a port) and its OSD/OS keeps count of the ports the
-// machines joining take (PortClaims): each OSD/OS joining asks it, at
-// kLanClaimPort, for ports for its players (claimQuery()) and is answered
-// with the first of theirs and how many (claimAnswer()), none when the game
-// has none left; one leaving gives its ports back (claimRelease()). A host
-// that doesn't answer, RetroArch alone or an older OSD/OS, holds port 1: a
-// joiner then asks for ports from 2 with more than one player, else for
-// none. Before the ports, a host says the layout it plays with
-// (claimLayout(), Launch::layout), which an older OSD/OS doesn't: Classic
-// then.
+// machine joining has a port). On the local network every machine takes
+// one port, its player 1's, so that the players take the game's ports in
+// the order their machines come in; a machine can't take another once it
+// plays (RetroArch's host drops a machine already playing that asks for
+// more). There the host asks for port 1 and its OSD/OS keeps count of the
+// ports the machines joining take (PortClaims): each OSD/OS joining asks
+// it, at kLanClaimPort, for a port (claimQuery()) and is answered with it
+// (claimAnswer()), none when the game has none left; one leaving gives its
+// port back (claimRelease()). A host that doesn't answer, RetroArch alone
+// or an older OSD/OS, leaves a joiner to RetroArch's first free port.
+// Before the port, a host says the layout it plays with (claimLayout(),
+// Launch::layout), which an older OSD/OS doesn't: Classic then.
 constexpr quint16 kLanClaimPort = 55436;
 // The ports a game is played on at most: FinalBurn Neo's six-player games,
 // as many as the players the menus have controllers for.
@@ -484,7 +495,8 @@ std::optional<Launch::Layout> readClaimLayout(const QByteArray &packet);
 
 // A host's count of the ports taken: its own, 1 to own, and each joiner's
 // by its address, within the game's ports (most), each joiner's players no
-// more than each (mostPortsOn() the layout). A joiner is given the first run
+// more than each (one, as OSD/OS hosts on the local network, whatever an
+// older OSD/OS joining asks for). A joiner is given the first run
 // of free ports that takes all its players, else the first free port and
 // what follows it; one asking again is given its ports anew, and one leaving
 // gives them up.

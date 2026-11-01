@@ -91,4 +91,40 @@ private:
     int m_y = 0;
 };
 
+// The cabinet's coin button for player 2 too: player 1's Coin pressed while
+// player 2's Start is held is player 2's coin. A cabinet with one coin
+// button has no Coin of player 2's, and a game with a coin slot for each
+// player (most four-player games, and any game the cabinet plays over the
+// network as two of its players) gives player 2 credits only from player
+// 2's. A cabinet with both buttons loses nothing: player 2's own Coin is as
+// it was.
+//
+// Player 2's Start is let go on player 2's pad while that coin is in: MAME
+// and RetroArch end a game on Coin and Start together on one pad. As the
+// coin comes out, the Start still held goes in again, which starts player 2
+// with the credit. Between the panels' events and the pads, events in and
+// events out, in order: what is let go before what is pressed.
+class SharedCoin {
+public:
+    // Both players' events for one read of the expanders, as they go out:
+    // player 1's coin, its press and its release, on player 2's pad while it
+    // is player 2's, and player 2's Start held back meanwhile.
+    void route(std::vector<Event> &p1, std::vector<Event> &p2);
+    // Whether the coin held now is player 2's.
+    bool routed() const { return m_routed; }
+
+private:
+    // The controls as their panels have them.
+    bool m_p1Coin = false;
+    bool m_p2Coin = false;
+    bool m_p2Start = false;
+    // Player 1's Coin, pressed while player 2's Start was held, is player
+    // 2's until it is let go.
+    bool m_routed = false;
+    // What each pad has been sent.
+    bool m_out1Coin = false;
+    bool m_out2Coin = false;
+    bool m_out2Start = false;
+};
+
 } // namespace jamma

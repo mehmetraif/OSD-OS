@@ -139,14 +139,15 @@ jobs:
           APP="${GITHUB_WORKSPACE}/install/osdos.app"
           "${QT_ROOT_DIR}/bin/macdeployqt" "$APP" -qmldir="${GITHUB_WORKSPACE}" -verbose=2
 
-      # OSD/OS's FinalBurn Neo core for CV1000 games on the local network, in
-      # the bundle's Frameworks, where the app looks for it
-      # (libretro::lanCorePath()) and the signing below takes it in, and
-      # FinalBurn Neo's licence in Resources.
-      - name: CV1000 LAN core
-        uses: ./.github/actions/fbneo-lan-core
+      # OSD/OS's FinalBurn Neo cores, the whole one and the CV1000 LAN one,
+      # in the bundle's Frameworks, where the app looks for them
+      # (libretro::packagedCore(), lanCorePath()) and the signing below takes
+      # them in; FinalBurn Neo's list of games and its licence in Resources.
+      - name: FinalBurn Neo cores
+        uses: ./.github/actions/fbneo-cores
         with:
           core-dir: install/osdos.app/Contents/Frameworks
+          dat: install/osdos.app/Contents/Resources/fbneo-arcade.dat
           license: install/osdos.app/Contents/Resources/fbneo-license.txt
 
       - name: Verify bundled libraries
@@ -155,6 +156,7 @@ jobs:
           FW="$APP/Contents/Frameworks"
           test -f "$FW/libSDL2-2.0.0.dylib" || { echo "SDL2 not bundled"; exit 1; }
           test -f "$FW/fbneo_cv1k_libretro.dylib" || { echo "CV1000 LAN core not bundled"; exit 1; }
+          test -f "$FW/fbneo_libretro.dylib" || { echo "FinalBurn Neo core not bundled"; exit 1; }
           ! ls "$FW" | grep -qi sdl3 || { echo "SDL3 leaked into bundle"; exit 1; }
           # minizip too, had the app been linked with its dynamic library
           # rather than the static one (cmake/openhi2txt.cmake).
@@ -300,13 +302,15 @@ jobs:
       - name: Install
         run: cmake --install build
 
-      # OSD/OS's FinalBurn Neo core for CV1000 games on the local network,
-      # under the prefix, where the app looks for it
-      # (libretro::lanCorePath()), with FinalBurn Neo's licence.
-      - name: CV1000 LAN core
-        uses: ./.github/actions/fbneo-lan-core
+      # OSD/OS's FinalBurn Neo cores, the whole one and the CV1000 LAN one,
+      # under the prefix, where the app looks for them
+      # (libretro::packagedCore(), lanCorePath()), with FinalBurn Neo's list
+      # of games and its licence.
+      - name: FinalBurn Neo cores
+        uses: ./.github/actions/fbneo-cores
         with:
           core-dir: install/usr/local/lib/osdos
+          dat: install/usr/local/share/osdos/fbneo/fbneo-arcade.dat
           license: install/usr/local/share/osdos/fbneo/license.txt
 
       - name: Create tarball
@@ -425,14 +429,15 @@ jobs:
       - name: Build
         run: cmake --build build --parallel
 
-      # OSD/OS's FinalBurn Neo core for CV1000 games on the local network,
-      # with FinalBurn Neo's licence, laid out as a prefix that the AppImage's
-      # script puts in its usr/ (FBNEO_LAN_PREFIX).
-      - name: CV1000 LAN core
-        uses: ./.github/actions/fbneo-lan-core
+      # OSD/OS's FinalBurn Neo cores, the whole one and the CV1000 LAN one,
+      # with FinalBurn Neo's list of games and its licence, laid out as a
+      # prefix that the AppImage's script puts in its usr/ (FBNEO_PREFIX).
+      - name: FinalBurn Neo cores
+        uses: ./.github/actions/fbneo-cores
         with:
-          core-dir: fbneo-lan-prefix/lib/osdos
-          license: fbneo-lan-prefix/share/osdos/fbneo/license.txt
+          core-dir: fbneo-prefix/lib/osdos
+          dat: fbneo-prefix/share/osdos/fbneo/fbneo-arcade.dat
+          license: fbneo-prefix/share/osdos/fbneo/license.txt
 
       - name: Build AppImage
         env:
@@ -441,7 +446,7 @@ jobs:
           APPIMAGE_EXTRACT_AND_RUN: '1'
           QMAKE: ${{ env.QT_ROOT_DIR }}/bin/qmake
           VERSION: ${{ github.ref_name }}
-          FBNEO_LAN_PREFIX: ${{ github.workspace }}/fbneo-lan-prefix
+          FBNEO_PREFIX: ${{ github.workspace }}/fbneo-prefix
           # MPV_BIN was exported by the "Build mpv" step above.
         run: scripts/build-appimage.sh
 

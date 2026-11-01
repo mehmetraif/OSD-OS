@@ -605,7 +605,7 @@ On Windows:
 
 - The data folder, with your settings, is `%APPDATA%\OSD-OS\`, apart from the app.
 - OSD/OS opens no console window. Its log is `osdos.log` in the data folder, the run before's kept as `osdos-previous.log`; started from a Command Prompt or PowerShell, it writes the log there as well ([Troubleshooting](https://github.com/mehmetraif/OSD-OS/wiki/Troubleshooting#where-the-log-is)).
-- **Arcade.** Settings → Arcade → **MAME** downloads MAME, and Settings → Arcade → **FinalBurn Neo** downloads RetroArch and the FinalBurn Neo core, the versions the OSD/OS image has, so a PC plays online and over the local network with a Pi ([Arcade](https://github.com/mehmetraif/OSD-OS/wiki/Arcade)).
+- **Arcade.** FinalBurn Neo's core comes with OSD/OS, beside `osdos.exe`. Settings → Arcade → **MAME** downloads MAME, and Settings → Arcade → **FinalBurn Neo** downloads RetroArch. All three are the versions the OSD/OS image has, so a PC plays online and over the local network with a Pi ([The same engines on every machine](https://github.com/mehmetraif/OSD-OS/wiki/Arcade#the-same-engines-on-every-machine)).
 - **YouTube.** Put `yt-dlp.exe` in the data folder's `bin` folder (`%APPDATA%\OSD-OS\bin\`), beside `osdos.exe` or on the `PATH`, and `deno.exe` on the `PATH`.
 - **Window Mode.** Settings → Window Mode shows OSD/OS in a window on the desktop instead of the whole screen; F11 or Alt+Enter switches at any time.
 - **OSD/OS Setup.** Settings → Paste OSD/OS Setup, or its file in the data folder or beside `osdos.exe` ([below](#osdos-setup-on-a-computer)).

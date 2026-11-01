@@ -222,4 +222,45 @@ std::vector<Event> Panel::releaseAll(uint64_t nowMs) {
     return update(0, nowMs);
 }
 
+void SharedCoin::route(std::vector<Event> &p1, std::vector<Event> &p2) {
+    // Takes a pad's events for one button out of the list, keeping where the
+    // button ends up.
+    const auto take = [](std::vector<Event> &events, int code, bool *held) {
+        events.erase(std::remove_if(events.begin(), events.end(),
+                                    [code, held](const Event &e) {
+                                        if (e.type != EV_KEY || e.code != code)
+                                            return false;
+                                        *held = e.value != 0;
+                                        return true;
+                                    }),
+                     events.end());
+    };
+    const bool coinBefore = m_p1Coin;
+    take(p1, BTN_SELECT, &m_p1Coin);
+    take(p2, BTN_SELECT, &m_p2Coin);
+    take(p2, BTN_START, &m_p2Start);
+    // A coin pressed now goes where Start says, for as long as it is held.
+    if (m_p1Coin && !coinBefore)
+        m_routed = m_p2Start;
+    if (!m_p1Coin)
+        m_routed = false;
+
+    const bool want1Coin = m_p1Coin && !m_routed;
+    const bool want2Coin = m_p2Coin || m_routed;
+    const bool want2Start = m_p2Start && !m_routed;
+    const auto change = [](std::vector<Event> &events, int code, bool want, bool *out, bool pressing) {
+        if (want == *out || want != pressing)
+            return;
+        events.push_back({ EV_KEY, uint16_t(code), want ? 1 : 0 });
+        *out = want;
+    };
+    // What is let go first, then what is pressed: never Coin and Start
+    // pressed together on player 2's pad for this.
+    for (const bool pressing : { false, true }) {
+        change(p1, BTN_SELECT, want1Coin, &m_out1Coin, pressing);
+        change(p2, BTN_START, want2Start, &m_out2Start, pressing);
+        change(p2, BTN_SELECT, want2Coin, &m_out2Coin, pressing);
+    }
+}
+
 } // namespace jamma

@@ -3,5 +3,5 @@
 # bash takes a CR for part of the line. The Windows build runs
 # scripts/build-fbneo-lan.sh.
 *.sh text eol=lf
-scripts/fbneo-lan.env text eol=lf
+scripts/engines.env text eol=lf
 scripts/fbneo-lan.patch text eol=lf

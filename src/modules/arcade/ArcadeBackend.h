@@ -445,9 +445,13 @@ public:
     // FinalBurn Neo's page (Settings → Arcade → FinalBurn Neo): { retroarch
     // (its program, "" for none), core ("" for none), coreDate (its file's,
     // yyyy-MM-dd), downloaded (the core is the one downloadFbneo() put
-    // there), games (how many its list has), license (its file, "" for
-    // none), canDownload (libretro builds it for this machine, and this
-    // build can unpack it), canDownloadRetroarch (libretro builds RetroArch
+    // there), packaged (it is the one OSD/OS's package brought, built from
+    // scripts/engines.env's commit), hasPackaged (the package brought one,
+    // played or not), latest (libretro's newest, chosen over the package's
+    // with downloadFbneo()), version (the package's commit, short, and its
+    // date: "2b0c1c0 (261021)"), games (how many its list has), license (its
+    // file, "" for none), canDownload (libretro builds it for this machine,
+    // and this build can unpack it), canDownloadRetroarch (libretro builds RetroArch
     // itself for this machine: 64-bit Windows), retroarchDownloadVersion
     // (the one downloadRetroArch() fetches, the OSD/OS image's),
     // retroarchDownloaded (the RetroArch found is the one it put there) }.
@@ -456,8 +460,12 @@ public:
     Q_INVOKABLE QString fbneoLicenseText() const;
     // Downloads the core, its list of games and its licence (FbneoInstaller);
     // fbneoProgressChanged() as it goes, fbneoChanged() as it starts and
-    // ends, and the list read again once it is in.
+    // ends, and the list read again once it is in. Over a package's core it
+    // is libretro's newest, chosen over it (libretro::latestChosen()).
     Q_INVOKABLE void downloadFbneo();
+    // Back to the package's core: the newest one downloaded is deleted with
+    // its list and licence, and the games read again.
+    Q_INVOKABLE void useOwnFbneo();
     // Downloads RetroArch itself, libretro's build for Windows, into
     // <data>/arcade/retroarch (ProgramInstaller), over one downloaded
     // before; the same signals, and the list read again once it is in, as
@@ -867,11 +875,12 @@ private:
     // A game started in RetroArch with FinalBurn Neo, the checks play() makes
     // of every game made: alone, hosted online or joining a room. Online,
     // this machine's players take the game's ports: a host's from 1
-    // (hostPorts()); joining on the local network, the ports its host's
-    // OSD/OS gave, portsGiven from portsFrom (0 for none left; -1 for no
-    // answer: from 2 with more than one player, else RetroArch's own, the
-    // first free), on the layout it said (libretro::Launch::layout; a host
-    // chooses its own by its players, libretro::hostLayout()). On the local
+    // (hostPorts()), a room of the lobby's RetroArch's own, the first free.
+    // On the local network one port a machine, its player 1's: a host's
+    // port 1, and joining, the one its host's OSD/OS gave, portsFrom (0 for
+    // none left, -1 for no answer: RetroArch's own), on the layout it said
+    // (libretro::Launch::layout; a host chooses its own by its players,
+    // libretro::hostLayout()). On the local
     // network, a CV1000 game (playsOnLanCore()) is hosted with OSD/OS's own
     // core for it (libretro::lanCorePath()), and a room is joined with the
     // core it is hosted with: lanCore, that one.
@@ -890,15 +899,16 @@ private:
     // How many players set plays at once, as MAME says (up to
     // libretro::kMostPorts); 0 for a game MAME doesn't know.
     int gamePlayers(const QString &set) const;
-    // The ports this machine's players take hosting set: up to the last
-    // player with a controller (libretro::localPorts()), but one fewer than
-    // the game plays at once, so that a machine joining has a port. With
+    // The ports this machine's players take hosting set online: up to the
+    // last player with a controller (libretro::localPorts()), but one fewer
+    // than the game plays at once, so that a machine joining has a port
+    // (one on the local network, playFbneo()). With
     // most, the game's ports: as many as it plays at once, or
     // libretro::kMostPorts for a game MAME doesn't know the players of
     // (FinalBurn Neo's list doesn't say), taken for one of six.
     int hostPorts(const QString &set, int *most = nullptr) const;
-    // A LAN game joined once its host's OSD/OS has said which ports this
-    // machine's players take (libretro::claimQuery() to the host at the
+    // A LAN game joined once its host's OSD/OS has said which port this
+    // machine's player 1 takes (libretro::claimQuery() to the host at the
     // claim port, asked three times at most, a quarter of a second each:
     // askForPorts(), readPortsAnswer()), or hasn't (startPendingJoin() with
     // no ports); running() meanwhile. An answer that comes too late, or from
@@ -911,7 +921,6 @@ private:
         QString game;
         QString joinAddress;
         QString host;
-        int players = 1;
         int asked = 0;
         // The host's layout, as it said before the ports (Classic until it
         // does), and whether it has; the ports that came before it did,
@@ -927,10 +936,12 @@ private:
     void startPendingJoin(const std::optional<libretro::PortRange> &ports);
     void releaseClaim(const QString &address);
     // Hosting on the local network: the ports taken counted (m_claims, this
-    // machine's own first, of the game's most), and each OSD/OS joining
-    // told the layout and given theirs at the claim port (answerClaims()),
-    // until the game ends (stopClaims()). False without the socket for it.
-    bool startClaims(int own, int most, libretro::Launch::Layout layout);
+    // machine's port 1 first, of the game's most), and each OSD/OS joining
+    // told the layout and given its one port at the claim port
+    // (answerClaims()), until the game ends (stopClaims()). False without
+    // the socket for it: a machine joining then takes RetroArch's first
+    // free port.
+    bool startClaims(int most, libretro::Launch::Layout layout);
     void answerClaims();
     void stopClaims();
     // Over the network, RetroArch's log read every so often as the game
@@ -982,6 +993,13 @@ private:
     // meanwhile, and once more after a read stopped before it said it: what
     // the lobby's rooms are matched against.
     void readOwnVersions();
+    // RetroArch and MAME that OSD/OS downloaded (Windows) and that are older
+    // than the versions every machine plays with (scripts/engines.env) are
+    // downloaded again at those versions, once a run each, as soon as their
+    // own versions are known.
+    void raiseOwnDownloads();
+    bool m_retroarchRaised = false;
+    bool m_mameRaised = false;
     // program's answer to arguments given to take as it ends, however it
     // does (it couldn't start, or was stopped after a while: timedOut), then
     // roomsChanged(); the process, till then.

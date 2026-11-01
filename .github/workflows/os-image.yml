@@ -69,10 +69,11 @@ jobs:
         run: cmake --install build
 
       # As the release workflow's Linux arm64 job has it.
-      - name: CV1000 LAN core
-        uses: ./.github/actions/fbneo-lan-core
+      - name: FinalBurn Neo cores
+        uses: ./.github/actions/fbneo-cores
         with:
           core-dir: install/usr/local/lib/osdos
+          dat: install/usr/local/share/osdos/fbneo/fbneo-arcade.dat
           license: install/usr/local/share/osdos/fbneo/license.txt
 
       - name: Create tarball

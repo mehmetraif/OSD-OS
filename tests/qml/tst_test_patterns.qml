@@ -116,6 +116,55 @@ Rectangle {
             compare(art.height * art.scale, 240)
         }
 
+        // On a screen of 288 or 576 lines (or any other a whole number of the
+        // Grid's 16-line squares, but 240 and 480), the Grid is drawn on them
+        // one for one, as the suite draws it: squares of 16 with a border a
+        // line wide and a 2 × 2 dot, red round the edge, white inside, over
+        // the screen's height and 4:3 across. Elsewhere, the suite's picture.
+        function test_drawnGrid() {
+            var sizes = [[288, 24, 18], [576, 48, 36]]
+            for (var i = 0; i < sizes.length; i++) {
+                loader.source = ""
+                root.sh = sizes[i][0]
+                var page = open()
+                compare(page.kind.draw, "grid")
+                compare(page.kind.w, sizes[i][1] * 16)
+                compare(page.kind.h, sizes[i][2] * 16)
+                var art = child(page, "patternArt")
+                compare(art.scale, 1)
+                var canvas = child(page, "patternDrawn")
+                verify(canvas.visible)
+                verify(!child(page, "patternImage").visible)
+                // The canvas's own pixels, as drawn: the corner square red,
+                // its dot red; the next square white, its middle black and
+                // its dot white; the edge's last square red at the foot.
+                var w = sizes[i][1] * 16, h = sizes[i][2] * 16
+                tryVerify(function() { return canvas.available }, 3000)
+                var ctx = canvas.getContext("2d")
+                function at(x, y) {
+                    var d = ctx.getImageData(x, y, 1, 1).data
+                    return [d[0], d[1], d[2]]
+                }
+                var red = [255, 0, 0], white = [255, 255, 255], black = [0, 0, 0]
+                tryVerify(function() { return at(0, 0)[0] === 255 }, 3000, "the grid is drawn")
+                compare(at(0, 0), red)
+                compare(at(7, 7), red)
+                compare(at(16, 16), white)
+                compare(at(19, 19), black)
+                compare(at(23, 24), white)
+                compare(at(31, 20), white)
+                compare(at(w - 1, h - 1), red)
+                compare(at(w - 9, h - 9), red)
+            }
+            // A screen of 1080 lines isn't a whole number of squares: the
+            // suite's 640 × 480 picture, scaled.
+            loader.source = ""
+            root.sh = 1080
+            page = open()
+            compare(page.kind.image, "grid-480.png")
+            verify(!child(page, "patternDrawn").visible)
+        }
+
         // Every pattern's every kind is there and loads: a picture, a tile,
         // or a colour over the whole screen.
         function test_everyPatternLoads() {

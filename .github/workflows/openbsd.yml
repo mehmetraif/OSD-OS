@@ -34,7 +34,7 @@ on:
       - 'scripts/build-fbneo.sh'
       - 'scripts/build-fbneo-lan.sh'
       - 'scripts/fbneo-lan.patch'
-      - 'scripts/fbneo-lan.env'
+      - 'scripts/engines.env'
       - 'scripts/bsd-package.sh'
       - '.github/workflows/openbsd.yml'
   pull_request:
@@ -48,7 +48,7 @@ on:
       - 'scripts/build-fbneo.sh'
       - 'scripts/build-fbneo-lan.sh'
       - 'scripts/fbneo-lan.patch'
-      - 'scripts/fbneo-lan.env'
+      - 'scripts/engines.env'
       - 'scripts/bsd-package.sh'
       - '.github/workflows/openbsd.yml'
 
@@ -62,10 +62,6 @@ env:
   # The OpenBSD the package is built on, and for: an OpenBSD package installs
   # on the release it was made on, whose libraries it was linked with.
   OPENBSD_RELEASE: "8.0"
-  # FinalBurn Neo's commit the core is built from, and its date (yymmdd),
-  # which the core's version is made of: the FreeBSD build's.
-  FBNEO_COMMIT: 2b0c1c0679df115cada7df9199ea2762222e58fd
-  FBNEO_DATE: "261021"
   # The tag for a release, else dev (a package of version 0.0.0).
   VERSION: ${{ github.ref_type == 'tag' && github.ref_name || 'dev' }}
 
@@ -96,15 +92,14 @@ jobs:
         uses: actions/cache/restore@v6.1.0
         with:
           path: fbneo
-          key: fbneo-openbsd-${{ env.OPENBSD_RELEASE }}-${{ env.FBNEO_COMMIT }}-${{ hashFiles('scripts/build-fbneo.sh', 'scripts/build-fbneo-lan.sh', 'scripts/fbneo-lan.patch', 'scripts/fbneo-lan.env') }}
+          key: fbneo-openbsd-${{ env.OPENBSD_RELEASE }}-${{ hashFiles('scripts/engines.env', 'scripts/build-fbneo.sh', 'scripts/build-fbneo-lan.sh', 'scripts/fbneo-lan.patch') }}
 
-      # And the commit the CV1000 LAN core is built from (scripts/fbneo-lan.env).
+      # The commit scripts/engines.env names, both cores' source.
       - name: Download FinalBurn Neo's source
         if: steps.fbneo.outputs.cache-hit != 'true'
         run: |
+          . scripts/engines.env
           curl -fsSL --retry 3 -o fbneo-src.tar.gz "https://github.com/libretro/FBNeo/archive/${FBNEO_COMMIT}.tar.gz"
-          . scripts/fbneo-lan.env
-          curl -fsSL --retry 3 -o fbneo-lan-src.tar.gz "https://github.com/libretro/FBNeo/archive/${FBNEO_LAN_COMMIT}.tar.gz"
 
       # The packages: Qt 6 with its QML, SVG and shader tools, SDL2
       # (gamepads), minizip (High Scores' tables, FinalBurn Neo's download),
@@ -115,7 +110,7 @@ jobs:
         uses: vmactions/openbsd-vm@v1
         with:
           release: ${{ env.OPENBSD_RELEASE }}
-          envs: 'FBNEO_COMMIT FBNEO_DATE VERSION'
+          envs: 'VERSION'
           mem: 6144
           sync: rsync
           copyback: true
@@ -140,15 +135,16 @@ jobs:
             # let go: a warning on Linux, a crash on OpenBSD, so any is listed.
             grep -n "invalid context\|delayed function evaluation" build-tests/Testing/Temporary/LastTest.log || true
             [ "$status" -eq 0 ]
-            # The core's BUILD note is the last thing the scripts write. The
-            # CV1000 LAN core from a source of its own, which its patch goes
-            # in.
-            if [ ! -f fbneo/share/osdos/fbneo/BUILD ]; then
+            # The list of games is the last thing the scripts write. Both
+            # cores from the commit scripts/engines.env names, each from a
+            # copy of its own: the CV1000 LAN core's patch goes in its copy.
+            if [ ! -f fbneo/share/osdos/fbneo/fbneo-arcade.dat ]; then
               mkdir -p fbneo-src fbneo-lan-src
               tar -xzf fbneo-src.tar.gz -C fbneo-src -s '|^[^/]*/||'
-              tar -xzf fbneo-lan-src.tar.gz -C fbneo-lan-src -s '|^[^/]*/||'
+              tar -xzf fbneo-src.tar.gz -C fbneo-lan-src -s '|^[^/]*/||'
               bash scripts/build-fbneo-lan.sh fbneo-lan-src fbneo/lib/osdos fbneo/share/osdos/fbneo/license.txt
-              bash scripts/build-fbneo.sh fbneo-src fbneo
+              bash scripts/build-fbneo.sh fbneo-src fbneo/lib/osdos fbneo/share/osdos/fbneo/fbneo-arcade.dat \
+                fbneo/share/osdos/fbneo/license.txt
             fi
             tar -C fbneo -cf - . | tar -C stage/usr/local -xf -
             bash scripts/bsd-package.sh stage "$VERSION" .
@@ -179,7 +175,7 @@ jobs:
       # Kept once it is built, whether or not the package after it is made,
       # so that a run after a failed one doesn't build it again.
       - name: Keep FinalBurn Neo's core
-        if: always() && steps.fbneo.outputs.cache-hit != 'true' && hashFiles('fbneo/share/osdos/fbneo/BUILD') != ''
+        if: always() && steps.fbneo.outputs.cache-hit != 'true' && hashFiles('fbneo/share/osdos/fbneo/fbneo-arcade.dat') != ''
         uses: actions/cache/save@v6.1.0
         with:
           path: fbneo

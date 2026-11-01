@@ -2,9 +2,13 @@ import QtQuick
 import Components
 
 // Settings → Arcade → FinalBurn Neo: the second engine's parts, RetroArch and
-// the FinalBurn Neo core with its list of games, whether each is there, and
-// the core's download (ArcadeBackend::downloadFbneo()) for an install the
-// OSD/OS image didn't bring it with. On Windows, where no package manager
+// the FinalBurn Neo core with its list of games, whether each is there. The
+// core comes with OSD/OS, built from the commit every machine's is
+// (scripts/engines.env), so that machines play together on the local network
+// and online, and an update brings a new one. Upgrade to Latest downloads
+// libretro's newest core in its place (ArcadeBackend::downloadFbneo()), and
+// Back to OSD/OS's Version goes back (useOwnFbneo()); a build that brought
+// none downloads it as before. On Windows, where no package manager
 // brings RetroArch, its download too (downloadRetroArch()), under
 // RetroArch's line while there is none, or the one downloaded is the one
 // found. Its licence, which comes with it, is in Settings → About, with the
@@ -40,6 +44,8 @@ FocusScope {
         made.push("core", "games")
         if (info.canDownload)
             made.push("download")
+        if (info.latest)
+            made.push("own")
         if (JSON.stringify(made) === JSON.stringify(keys))
             return
         var at = keys[list.currentIndex]
@@ -57,7 +63,9 @@ FocusScope {
         case "retroarch_download": return info.retroarch ? "Download RetroArch Again" : "Download RetroArch"
         case "core": return "FinalBurn Neo"
         case "games": return "Games It Knows"
-        case "download": return info.core && info.downloaded ? "Download Again" : "Download"
+        case "download": return info.hasPackaged ? (info.latest ? "Download Latest Again" : "Upgrade to Latest")
+                                : info.core && info.downloaded ? "Download Again" : "Download"
+        case "own": return "Back to OSD/OS's Version"
         }
         return ""
     }
@@ -65,7 +73,10 @@ FocusScope {
         switch (key) {
         case "retroarch": return info.retroarch ? (info.retroarchDownloaded ? "Downloaded" : "Installed") : "Not Installed"
         case "retroarch_download": return retroarchDownloading ? retroarchProgress + "%" : (retroarchFailure !== "" ? "Failed" : "")
-        case "core": return !info.core ? "Not Installed" : (info.downloaded ? "Downloaded " + info.coreDate : "Installed")
+        case "core": return !info.core ? "Not Installed"
+                           : info.packaged ? "With OSD/OS"
+                           : info.latest ? "Latest " + info.coreDate
+                           : info.downloaded ? "Downloaded " + info.coreDate : "Installed"
         case "games": return info.games > 0 ? String(info.games) : "None"
         case "download": return downloading ? progress + "%" : (failure !== "" ? "Failed" : "")
         }
@@ -84,13 +95,19 @@ FocusScope {
                                   : "RetroArch " + info.retroarchDownloadVersion + " for Windows from libretro's build"
                                     + " server, the OSD/OS image's version, into OSD/OS's own folder (some 200 MB)"
         case "core":
-            return (info.core ? info.core : "Its core for RetroArch, with its list of games")
+            return (info.packaged ? "Version " + info.version + ", the same on every OSD/OS machine: an update of OSD/OS brings a new one"
+                    : info.core ? info.core : "Its core for RetroArch, with its list of games")
                    + " • Free to use and share, never to sell; its license is in Settings → About"
         case "games":
             return "FinalBurn Neo's arcade games: a set of these plays in it when Online High Scores, Online Play or LAN Play is on, or its options choose it"
         case "download":
             return failure !== "" ? failure
-                                  : "The latest core from libretro's build server, its list of games and its licence (some 35 MB)"
+                 : info.hasPackaged ? "libretro's newest core, its list of games and its licence in place of OSD/OS's (some 35 MB)."
+                                      + " Every machine playing together on the network needs the same core: play with OSD/OS's"
+                                      + " machines on OSD/OS's version"
+                 : "The latest core from libretro's build server, its list of games and its licence (some 35 MB)"
+        case "own":
+            return "The core that came with OSD/OS, version " + info.version + ", the same on every OSD/OS machine. The newest one downloaded is deleted"
         }
         return ""
     }
@@ -132,6 +149,8 @@ FocusScope {
                 return
             if (key === "download" && !fbneoRoot.downloading)
                 arcadeBackend.downloadFbneo()
+            else if (key === "own" && !fbneoRoot.downloading)
+                arcadeBackend.useOwnFbneo()
             else if (key === "retroarch_download" && !fbneoRoot.retroarchDownloading)
                 arcadeBackend.downloadRetroArch()
         }
@@ -157,7 +176,8 @@ FocusScope {
         readonly property bool downloads: (key === "download" && !fbneoRoot.downloading)
                                           || (key === "retroarch_download" && !fbneoRoot.retroarchDownloading)
         text: root.hints.back + ":BACK " + root.hints.navigate + ":NAVIGATE"
-              + (downloads ? " " + root.hints.select + ":DOWNLOAD" : "")
+              + (downloads ? " " + root.hints.select + ":DOWNLOAD"
+                 : key === "own" && !fbneoRoot.downloading ? " " + root.hints.select + ":SELECT" : "")
         anchors.bottom: parent.bottom
         anchors.left: parent.left
         anchors.bottomMargin: root.sh * 0.1041667 //50

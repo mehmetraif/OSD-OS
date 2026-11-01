@@ -13,7 +13,7 @@
 #   scripts/build-fbneo-lan.sh <FBNeo source folder> <folder for the core> \
 #     <file for FinalBurn Neo's licence>
 #
-# The source is the commit scripts/fbneo-lan.env names, unpacked
+# The source is the commit scripts/engines.env names, unpacked
 # (github.com/libretro/FBNeo's archive of it), which the patch is then
 # applied to. The core is fbneo_cv1k_libretro.so (.dylib on a Mac, for macOS
 # 11 and later; .dll on Windows, built with MSYS2's MinGW-w64 and linked
@@ -33,10 +33,10 @@ src=${1:?$usage}
 out=${2:?$usage}
 license=${3:?$usage}
 here=$(cd "$(dirname "$0")" && pwd)
-# shellcheck source-path=SCRIPTDIR source=fbneo-lan.env
-. "$here/fbneo-lan.env"
-commit=$FBNEO_LAN_COMMIT
-date=$FBNEO_LAN_DATE
+# shellcheck source-path=SCRIPTDIR source=engines.env
+. "$here/engines.env"
+commit=$FBNEO_COMMIT
+date=$FBNEO_DATE
 
 make=$(command -v gmake || command -v make)
 jobs=$(getconf NPROCESSORS_ONLN 2>/dev/null || sysctl -n hw.ncpu 2>/dev/null || echo 2)

@@ -1,0 +1,139 @@
+name: Engines
+
+# Raises the arcade engines every OSD/OS machine plays with
+# (scripts/engines.env) when the floor they stand on rises, so that every
+# machine rises together and none stays behind on a fixed version:
+#
+# - RetroArch and MAME: Debian trixie's, the OSD/OS image's, the lowest that
+#   any distribution of OSD/OS has. A version Debian has raised is taken once
+#   OSD/OS can download it for Windows as well: libretro's stable build of
+#   RetroArch and mamedev's release of MAME.
+# - FinalBurn Neo: the newest commit of libretro's FBNeo, which OSD/OS builds
+#   for every package. The pull request's own checks build it on every
+#   system (fbneo.yml, windows.yml, freebsd.yml, openbsd.yml), and the CV1000
+#   LAN core's patch has to apply to it.
+#
+# A rise is a pull request on the branch engines/raise, made again on each
+# run while it is open. Merged, the next release brings the new engines to
+# every machine. The repository has to let GitHub Actions create pull
+# requests (Settings → Actions → General).
+
+on:
+  schedule:
+    # Mondays at 04:23 UTC.
+    - cron: '23 4 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: engines
+  cancel-in-progress: false
+
+jobs:
+  raise:
+    name: Raise the engines
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7.0.1
+
+      - name: The newest each can be
+        id: newest
+        run: |
+          set -euo pipefail
+          . scripts/engines.env
+          # Debian trixie's version of a source package, upstream's part of
+          # it: 1.20.0 of 1.20.0+dfsg-2.
+          debian() {
+            curl -fsSL --retry 3 "https://qa.debian.org/madison.php?package=$1&s=trixie&text=on" \
+              | awk -F'|' '$3 ~ /trixie/ && $4 ~ /source/ { gsub(/ /, "", $2); print $2; exit }' \
+              | sed -e 's/^[0-9]*://' -e 's/[+~-].*$//'
+          }
+          retroarch=$(debian retroarch)
+          mame=$(debian mame)
+          if [ -z "$retroarch" ] || [ -z "$mame" ]; then
+            echo "Debian's versions could not be read" >&2
+            exit 1
+          fi
+          # A version OSD/OS can't download for Windows yet stays as it is.
+          if [ "$retroarch" != "$RETROARCH_VERSION" ] && ! curl -fsSIL --retry 3 -o /dev/null \
+              "https://buildbot.libretro.com/stable/${retroarch}/windows/x86_64/RetroArch.7z"; then
+            echo "::notice::Debian has RetroArch ${retroarch}, which libretro has no Windows build of yet"
+            retroarch=$RETROARCH_VERSION
+          fi
+          tag="mame${mame//./}"
+          if [ "$mame" != "$MAME_VERSION" ] && ! curl -fsSIL --retry 3 -o /dev/null \
+              "https://github.com/mamedev/mame/releases/download/${tag}/${tag}b_64bit.exe"; then
+            echo "::notice::Debian has MAME ${mame}, which mamedev has no Windows build of"
+            mame=$MAME_VERSION
+          fi
+          # FinalBurn Neo's newest commit, and its date as the core's build
+          # makes it (git's committer date, yymmdd), so that the version
+          # matches libretro's own build of the same commit.
+          git init -q fbneo
+          git -C fbneo fetch -q --depth 1 --filter=blob:none https://github.com/libretro/FBNeo.git master
+          commit=$(git -C fbneo rev-parse FETCH_HEAD)
+          date=$(git -C fbneo log -1 --format=%cd --date=format:%y%m%d FETCH_HEAD)
+          rm -rf fbneo
+          {
+            echo "retroarch=$retroarch"
+            echo "mame=$mame"
+            echo "commit=$commit"
+            echo "date=$date"
+          } >> "$GITHUB_OUTPUT"
+          echo "RetroArch ${RETROARCH_VERSION} -> ${retroarch}, MAME ${MAME_VERSION} -> ${mame}," \
+               "FinalBurn Neo ${FBNEO_COMMIT:0:7} -> ${commit:0:7} (${date})"
+
+      - name: Raise engines.env
+        id: raise
+        env:
+          RETROARCH: ${{ steps.newest.outputs.retroarch }}
+          MAME: ${{ steps.newest.outputs.mame }}
+          COMMIT: ${{ steps.newest.outputs.commit }}
+          DATE: ${{ steps.newest.outputs.date }}
+        run: |
+          set -euo pipefail
+          sed -i -e "s/^RETROARCH_VERSION=.*/RETROARCH_VERSION=${RETROARCH}/" \
+                 -e "s/^MAME_VERSION=.*/MAME_VERSION=${MAME}/" \
+                 -e "s/^FBNEO_COMMIT=.*/FBNEO_COMMIT=${COMMIT}/" \
+                 -e "s/^FBNEO_DATE=.*/FBNEO_DATE=${DATE}/" scripts/engines.env
+          if git diff --quiet scripts/engines.env; then
+            echo "The engines are the newest they can be"
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+          else
+            git diff scripts/engines.env
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Pull request
+        if: steps.raise.outputs.changed == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RETROARCH: ${{ steps.newest.outputs.retroarch }}
+          MAME: ${{ steps.newest.outputs.mame }}
+          COMMIT: ${{ steps.newest.outputs.commit }}
+          DATE: ${{ steps.newest.outputs.date }}
+        run: |
+          set -euo pipefail
+          title="chore: arcade engines raised to FinalBurn Neo ${COMMIT:0:7}, RetroArch ${RETROARCH} and MAME ${MAME}"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git switch -C engines/raise
+          git commit -q -am "$title" -m "Every OSD/OS machine plays with these: FinalBurn Neo ${COMMIT} (${DATE}), built for every package, and Debian trixie's RetroArch and MAME, which OSD/OS downloads for Windows."
+          git push -f origin engines/raise
+          body="The floor the arcade engines stand on has risen, so every machine rises with it (scripts/engines.env):
+
+          - FinalBurn Neo: libretro/FBNeo@${COMMIT} (${DATE}), built for every package by this pull request's checks.
+          - RetroArch ${RETROARCH} and MAME ${MAME}: Debian trixie's, the OSD/OS image's, which Windows downloads too.
+
+          Merged, the next release brings them to every machine."
+          if [ -z "$(gh pr list --head engines/raise --state open --json number --jq '.[].number')" ]; then
+            gh pr create --head engines/raise --base "${{ github.event.repository.default_branch }}" --title "$title" --body "$body"
+          else
+            gh pr edit engines/raise --title "$title" --body "$body"
+          fi

@@ -3137,6 +3137,7 @@ Rectangle {
             compare(appCore.added, [["com.osdos.arcade", "recent", "game:sf2"]])
             compare(shown(router), screen)
             compare(router.playing.game, "sf2")
+            verify(router.gameUp)
             verify(loading.visible)
             verify(root.effectsResting)
             tryVerify(function() { return idleTracker.resets > 0 })
@@ -3149,6 +3150,7 @@ Rectangle {
             arcadeBackend.running = false
             arcadeBackend.finished(0, "ok", "")
             compare(router.playing, null)
+            verify(!router.gameUp)
             verify(!loading.visible)
             verify(!root.effectsResting)
             compare(shown(router), screen)
@@ -3184,9 +3186,13 @@ Rectangle {
             arcadeBackend.finished(2, "failed", "Missing 1942.zip")
             var play = shown(router)
             compare(play.phase, "failed")
+            // Still up, the list under why it didn't play (the Orb look's
+            // start undone only back on it, OrbLook.qml).
+            verify(router.gameUp)
             verify(findText(play, "Missing 1942.zip") !== null)
             verify(findText(play, "NOT FOUND (tried in mslug neogeo)") !== null)
             keyClick(Qt.Key_Escape)
+            verify(!router.gameUp)
             var screen = shown(router)
             compare(screen.currentSet, "1942")
             compare(root.backs, 0)
@@ -3213,6 +3219,8 @@ Rectangle {
             var play = shown(router)
             compare(play.game, "sf2")
             compare(play.phase, "opening")
+            compare(router.playing, null)
+            verify(router.gameUp)
             // Over the list, which is kept, not drawn under it.
             compare(listView(router), screen)
             verify(!screen.visible)
@@ -3220,6 +3228,7 @@ Rectangle {
             compare(appCore.added, [])
             keyClick(Qt.Key_Escape)
             compare(shown(router), screen)
+            verify(!router.gameUp)
             verify(screen.visible)
             compare(shown(router).currentSet, "sf2")
             compare(appCore.added, [])
@@ -3238,9 +3247,11 @@ Rectangle {
             // The game over: the list it was chosen on, the same one, there at
             // once with its keys, rather than loaded again behind the
             // game's loading screen.
+            verify(router.gameUp)
             arcadeBackend.running = false
             arcadeBackend.finished(0, "ok", "")
             compare(shown(router), screen)
+            verify(!router.gameUp)
             verify(screen.visible)
             compare(screen.currentSet, "sf2")
             keyClick(Qt.Key_Down)
