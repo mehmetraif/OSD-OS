@@ -38,8 +38,17 @@ FocusScope {
     // TV / Movie, Arcade, More (the modules of neither), then Settings; the
     // rows beside it the group's. ◄ goes to the icons (groupIcons), ▲ ▼ there
     // from group to group, ► or select into the group's rows; on Settings'
-    // they open Settings.
-    readonly property bool camcorder: root.menuLayout === "Camcorder"
+    // they open Settings. Studio Monitor does the same in a monitor's window
+    // (Components/MonitorChrome), the icons in its strip. Broadcast and Flat
+    // Panel are lists as Standard is, in a monitor's look: Broadcast's ends
+    // in a row for Settings after a gap, Flat Panel's goes a page at a time.
+    readonly property string layout: root.menuLayout
+    readonly property bool camcorder: layout === "Camcorder"
+    readonly property bool studio: layout === "Studio Monitor"
+    readonly property bool broadcast: layout === "Broadcast"
+    readonly property bool flat: layout === "Flat Panel"
+    readonly property bool monitor: studio || broadcast || flat
+    readonly property bool iconMenu: camcorder || studio
     property var groups: []
     property int groupIndex: 0
     property bool groupIcons: false
@@ -48,8 +57,9 @@ FocusScope {
                                        { key: "", icon: "apps", label: "More" }]
     // Menu Layout changed while the menu is open, once its rows are laid out
     // (not as the menu is made, when the binding first takes its value).
+    // A tick later, so every binding on the layout has its new value.
     property bool laidOut: false
-    onCamcorderChanged: if (laidOut) showRows(cursorState())
+    onLayoutChanged: if (laidOut) Qt.callLater(function() { appRoot.showRows(appRoot.cursorState()) })
 
     // The rows in Camcorder's groups, each group's in the order the rows
     // come, the groups with none left out; Settings' last, always.
@@ -77,7 +87,14 @@ FocusScope {
         groupIndex = (groupIndex + direction + n) % n
         menuList.model = groups[groupIndex].rows
         menuList.currentIndex = 0
-        menuList.positionViewAtIndex(0, ListView.Contain)
+        showCurrent()
+    }
+    // Where the cursor's row shows: in Flat Panel its page.
+    function showCurrent() {
+        if (flat)
+            chrome.pageTo(menuList)
+        else
+            menuList.positionViewAtIndex(menuList.currentIndex, ListView.Contain)
     }
     // ► or select on an icon: into the group's rows; Settings' opens it.
     function enterGroup() {
@@ -98,7 +115,7 @@ FocusScope {
     // In Camcorder, its group's and whether the keys were in the icons.
     function cursorState() {
         var row = menuList.model[menuList.currentIndex]
-        var group = camcorder ? groups[groupIndex] : null
+        var group = iconMenu ? groups[groupIndex] : null
         return { currentIndex: menuList.currentIndex, entry: row ? row.entry_point : "",
                  name: row ? row.name : "", behind: !!(row && row.behind),
                  group: group ? group.key : undefined, groupIcons: !!group && groupIcons }
@@ -133,7 +150,7 @@ FocusScope {
                            group: owner ? owner.group : "tv" })
         }
         var index = keptRow(rows, keep)
-        if (camcorder) {
+        if (iconMenu) {
             groups = groupsOf(rows)
             var at = -1
             var found = index >= 0 ? rows[index] : null
@@ -154,6 +171,12 @@ FocusScope {
         } else {
             groups = []
             groupIcons = false
+            // Broadcast's Settings, after a gap the cursor passes over.
+            if (broadcast) {
+                rows.push({ name: "", gap: true })
+                rows.push({ name: "Settings", entry_point: "views/Settings.qml" })
+                index = keptRow(rows, keep)
+            }
         }
         laidOut = true
         menuList.model = rows
@@ -162,11 +185,12 @@ FocusScope {
         if (index < 0)
             index = keep && keep.currentIndex !== undefined ? Math.min(keep.currentIndex, rows.length - 1) : 0
         menuList.currentIndex = index
-        menuList.positionViewAtIndex(index, ListView.Contain)
+        showCurrent()
     }
 
     // Header: in Camcorder, the group's name.
     AppBar {
+        visible: !appRoot.monitor
         subtitle: appRoot.camcorder && appRoot.groups[appRoot.groupIndex] ? appRoot.groups[appRoot.groupIndex].label : ""
         anchors.top: parent.top
         anchors.left: parent.left
@@ -199,28 +223,67 @@ FocusScope {
         }
     }
 
+    // A monitor layout's window or ground, title, the groups' icons in
+    // Studio Monitor's strip, and the key guide, under the rows. No help
+    // line: the main menu has none.
+    MonitorChrome {
+        id: chrome
+        anchors.fill: parent
+        visible: appRoot.monitor
+        hasHelp: false
+        title: appRoot.studio ? (appRoot.groups[appRoot.groupIndex] || { label: "OSD/OS" }).label : "OSD/OS"
+        icons: appRoot.studio ? appRoot.groups.map(function(group) { return group.icon }) : []
+        iconIndex: appRoot.groupIndex
+        iconsActive: appRoot.groupIcons
+        guide: {
+            var h = root.hints
+            if (appRoot.studio)
+                return [h.navigate + ":MENU/ITEM", appRoot.groupIcons ? h.browse + ":ENTER" : h.left + ":GROUPS",
+                        h.back + ":SETTINGS"].concat(root.videoBehind ? [h.play_pause + ":STOP"] : [])
+            // Broadcast's three lines, as a monitor's guide has them.
+            if (appRoot.broadcast)
+                return ["TO SELECT  :" + h.navigate, "TO ENTER   :" + h.select, "TO SETTINGS:" + h.back]
+            return [h.navigate + " Select", h.select + " Open", h.back + " Settings"]
+                   .concat(root.videoBehind ? [h.play_pause + " Stop"] : [])
+        }
+    }
+
     ListView {
         id: menuList;
         model: [];
         anchors.top: parent.top
         anchors.left: parent.left
-        anchors.topMargin: root.sh * 0.25 //120
-        // Beside Camcorder's icons, or where every view has its list.
-        anchors.leftMargin: appRoot.camcorder ? root.sw * 0.209375 : root.sw * 0.115625 //134 : 74
-        width: appRoot.camcorder ? root.sw * 0.675 : root.sw * 0.76875 //432 : 492
-        height: root.sh * 0.525 + root.hintRoom //252
+        // Where a monitor layout has its rows (MonitorChrome), beside
+        // Camcorder's icons, or where every view has its list.
+        anchors.topMargin: appRoot.monitor ? chrome.listY : root.sh * 0.25 //120
+        anchors.leftMargin: appRoot.monitor ? chrome.listX : appRoot.camcorder ? root.sw * 0.209375 : root.sw * 0.115625 //134 : 74
+        width: appRoot.monitor ? chrome.listWidth : appRoot.camcorder ? root.sw * 0.675 : root.sw * 0.76875 //432 : 492
+        height: appRoot.monitor ? chrome.listHeight : root.sh * 0.525 + root.hintRoom //252
+        onHeightChanged: if (appRoot.flat) Qt.callLater(appRoot.showCurrent)
         clip: true;
         focus: true;
 
         delegate: Item {
             // In Camcorder's icons the box is on the icon.
             readonly property bool current: menuList.currentIndex === index
-                                            && !(appRoot.camcorder && appRoot.groupIcons)
+                                            && !(appRoot.iconMenu && appRoot.groupIcons)
             width: menuList.width;
             height: root.sh * 0.0583333 //28
 
+            // The row in a monitor layout: Broadcast's "...", Flat Panel's ▶.
+            Loader {
+                active: appRoot.monitor
+                anchors.fill: parent
+                sourceComponent: MonitorRow {
+                    label: modelData.name || ""
+                    opens: !modelData.gap && !appRoot.studio
+                    selected: current
+                }
+            }
+
             Item {
                 id: textClipContainer;
+                visible: !appRoot.monitor
                 width: Math.min(rowText.implicitWidth, menuList.width);
                 height: parent.height;
                 clip: true;
@@ -281,37 +344,39 @@ FocusScope {
         }
 
         Keys.onUpPressed: {
-            if (appRoot.camcorder && appRoot.groupIcons) {
+            if (appRoot.iconMenu && appRoot.groupIcons) {
                 appRoot.moveGroup(-1)
                 return
             }
+            step(-1)
+        }
+        // A row up (-1) or down (1), round, over Broadcast's gap.
+        function step(direction) {
             if (count === 0) return
-            if (currentIndex > 0) currentIndex--
-            else                  currentIndex = count - 1
-            menuList.positionViewAtIndex(menuList.currentIndex, ListView.Contain)
+            do {
+                currentIndex = (currentIndex + direction + count) % count
+            } while (model[currentIndex] && model[currentIndex].gap)
+            appRoot.showCurrent()
         }
         Keys.onDownPressed: {
-            if (appRoot.camcorder && appRoot.groupIcons) {
+            if (appRoot.iconMenu && appRoot.groupIcons) {
                 appRoot.moveGroup(1)
                 return
             }
-            if (count === 0) return
-            if (currentIndex < count - 1) currentIndex++
-            else                          currentIndex = 0
-            menuList.positionViewAtIndex(menuList.currentIndex, ListView.Contain)
+            step(1)
         }
 
 
         // Camcorder: ◄ from the rows to the icons, ► from the icons into the
         // rows.
         Keys.onLeftPressed: function(event) {
-            if (appRoot.camcorder)
+            if (appRoot.iconMenu)
                 appRoot.groupIcons = true
             else
                 event.accepted = false
         }
         Keys.onRightPressed: function(event) {
-            if (appRoot.camcorder && appRoot.groupIcons)
+            if (appRoot.iconMenu && appRoot.groupIcons)
                 appRoot.enterGroup()
             else
                 event.accepted = false
@@ -320,12 +385,14 @@ FocusScope {
         // The mouse over a row (Hover.js): in Camcorder's icons, the keys go
         // into the rows.
         function hoverRow(index, list) {
+            if (model[index] && model[index].gap)
+                return
             appRoot.groupIcons = false
             currentIndex = index
         }
 
         Keys.onReturnPressed: {
-            if (appRoot.camcorder && appRoot.groupIcons) {
+            if (appRoot.iconMenu && appRoot.groupIcons) {
                 appRoot.enterGroup()
                 return
             }
@@ -335,7 +402,7 @@ FocusScope {
             // row for the video behind the menus (resumePlayer). This view stays
             // ignorant of what any of them mean.
             var row = menuList.model[menuList.currentIndex]
-            if (!row) return
+            if (!row || row.gap) return
             console.log("Routing to: " + row.entry_point)
             appRoot.navigateTo(row.entry_point, row.params || {}, appRoot.cursorState())
         }
@@ -353,10 +420,13 @@ FocusScope {
         }
     }
 
-    // ▲ / ▼ while lines are hidden above or below.
+    // ▲ / ▼ while lines are hidden above or below; Flat Panel's page says
+    // so instead.
     ScrollMarks {
+        visible: !appRoot.flat
         anchors.fill: menuList
         list: menuList
+        color: root.menuPalette ? root.menuPalette.ink : root.primaryColor
     }
 
     // Camcorder's icons, the groups, at the left of the rows.
@@ -374,6 +444,7 @@ FocusScope {
     // --- FOOTER ---
     HintBar {
         id: footer
+        visible: !appRoot.monitor
         text: root.hints.back + ":SETTINGS " + root.hints.navigate + ":NAVIGATE "
               + (appRoot.camcorder ? (appRoot.groupIcons ? root.hints.browse + ":OPEN " : root.hints.left + ":GROUPS ") : "")
               + (root.videoBehind ? root.hints.play_pause + ":STOP " : "") + root.hints.select + ":SELECT"

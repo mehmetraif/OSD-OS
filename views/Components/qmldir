@@ -29,3 +29,5 @@ SkinImage SkinImage.qml
 SelectionBox SelectionBox.qml
 StatusIcons StatusIcons.qml
 IconColumn IconColumn.qml
+MonitorChrome MonitorChrome.qml
+MonitorRow MonitorRow.qml

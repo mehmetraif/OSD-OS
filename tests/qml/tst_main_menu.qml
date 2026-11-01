@@ -29,7 +29,18 @@ Rectangle {
                            select: "[ENTER]", play_pause: "[SPACE]" })
     property var takeBackNote: null
     property bool videoBehind: false
+    property color secondaryColor: "white"
+    property color tertiaryColor: "white"
     property string menuLayout: "Standard"
+    readonly property var menuPalette: ({
+        "Studio Monitor": { ground: "#050608", ink: "#FFFFFF", dim: "#6E7891", accent: "#2350C8",
+                            soft: "#CFDDFF", mark: "#F4D21C", bar: "#050608" },
+        "Broadcast":      { ground: "#3A55B4", ink: "#FFFFFF", dim: "#94A8EC", accent: "#FFFFFF",
+                            soft: "#FFFFFF", mark: "#FFFFFF", bar: "#3A55B4" },
+        "Flat Panel":     { ground: "#000000", ink: "#EDEDED", dim: "#7B7B7B", accent: "#7B7B7B",
+                            soft: "#9A9A9A", mark: "#F6CF00", bar: "#4C4C4C" }
+    })[menuLayout] || null
+    property int backdropSolidity: 100
     function selectorShown(item, shown) {}
     function skinIcon(url) { return url }
 
@@ -167,6 +178,69 @@ Rectangle {
             compare(root.navigations[2].path, "views/Settings.qml")
         }
 
+        // The monitor layouts' frame.
+        function chromeOf(menu) {
+            for (var i = 0; i < menu.children.length; i++) {
+                if (menu.children[i].guide !== undefined && menu.children[i].pageTo !== undefined)
+                    return menu.children[i]
+            }
+            return null
+        }
+
+        // Studio Monitor: Camcorder's groups, their icons in the window's
+        // strip, its tab naming the group.
+        function test_studioMonitor() {
+            root.menuLayout = "Studio Monitor"
+            var menu = open()
+            var chrome = chromeOf(menu)
+            verify(chrome.visible)
+            compare(chrome.icons, ["tv", "joystick", "apps", "gear"])
+            compare(chrome.title, "TV / Movie")
+            compare(names(menu), ["Local Files", "Plex"])
+            keyClick(Qt.Key_Left)
+            verify(chrome.iconsActive)
+            keyClick(Qt.Key_Down)
+            compare(chrome.title, "Arcade")
+            compare(names(menu), ["Arcade", "High Scores"])
+            keyClick(Qt.Key_Return)
+            keyClick(Qt.Key_Return)
+            compare(root.navigations[0].path, "modules/arcade/views/Root.qml")
+        }
+
+        // Broadcast: every module's row, then a gap the cursor passes over
+        // and a row for Settings.
+        function test_broadcast() {
+            root.menuLayout = "Broadcast"
+            var menu = open()
+            compare(chromeOf(menu).title, "OSD/OS")
+            compare(names(menu), ["Arcade", "High Scores", "Local Files", "Plex", "Scripts", "", "Settings"])
+            keyClick(Qt.Key_Up)
+            compare(cursor(menu), "Settings")
+            keyClick(Qt.Key_Up)
+            compare(cursor(menu), "Scripts")
+            keyClick(Qt.Key_Down)
+            keyClick(Qt.Key_Return)
+            compare(root.navigations[0].path, "views/Settings.qml")
+            keyClick(Qt.Key_Escape)
+            compare(root.navigations[1].path, "views/Settings.qml")
+        }
+
+        // Flat Panel: the rows a page at a time.
+        function test_flatPanel() {
+            root.menuLayout = "Flat Panel"
+            var menu = open()
+            var chrome = chromeOf(menu)
+            var list = listOf(menu)
+            var per = Math.floor(list.height / chrome.rowHeight + 0.001)
+            compare(chrome.pages, Math.ceil(5 / per))
+            compare(chrome.page, 0)
+            keyClick(Qt.Key_Up)
+            compare(cursor(menu), "Scripts")
+            compare(chrome.page, chrome.pages - 1)
+            keyClick(Qt.Key_Return)
+            compare(root.navigations[0].path, "modules/scripts/views/Root.qml")
+        }
+
         // Menu Layout changed while the menu is open: the cursor stays on its
         // row, in its group in Camcorder.
         function test_layoutChanged() {
@@ -176,10 +250,11 @@ Rectangle {
             keyClick(Qt.Key_Down)
             compare(cursor(menu), "Plex")
             root.menuLayout = "Camcorder"
+            tryVerify(function() { return names(menu).length === 2 })
             compare(names(menu), ["Local Files", "Plex"])
             compare(cursor(menu), "Plex")
             root.menuLayout = "Standard"
-            compare(names(menu).length, 5)
+            tryVerify(function() { return names(menu).length === 5 })
             compare(cursor(menu), "Plex")
         }
     }

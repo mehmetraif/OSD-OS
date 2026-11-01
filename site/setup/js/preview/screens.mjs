@@ -355,6 +355,8 @@ export function camcorderGroups(rows) {
 // of the cursor's row's group beside them, the keys in the rows.
 export function drawMainMenu(ctx, look, assets, ui, now) {
     moving = false;
+    if (MENU_PALETTES[look.menuLayout])
+        return drawMonitorMenu(ctx, look, ui);
     const camcorder = look.menuLayout === "Camcorder";
     let rows = look.menu;
     const listY = SH * 0.25;
@@ -427,6 +429,146 @@ export function drawMainMenu(ctx, look, assets, ui, now) {
                                                  : "[ESC]:SETTINGS [▲▼]:NAVIGATE [ENTER]:SELECT");
     return box;
 }
+// Menu Layout's monitor layouts (Main.qml's menuPalette): their own colours,
+// whatever the colour scheme. Kept as Main.qml has them (tests/site checks).
+export const MENU_PALETTES = {
+    "Studio Monitor": { ground: "#050608", ink: "#FFFFFF", dim: "#6E7891", accent: "#2350C8",
+                        soft: "#CFDDFF", mark: "#F4D21C", bar: "#050608" },
+    "Broadcast": { ground: "#3A55B4", ink: "#FFFFFF", dim: "#94A8EC", accent: "#FFFFFF",
+                   soft: "#FFFFFF", mark: "#FFFFFF", bar: "#3A55B4" },
+    "Flat Panel": { ground: "#000000", ink: "#EDEDED", dim: "#7B7B7B", accent: "#7B7B7B",
+                    soft: "#9A9A9A", mark: "#F6CF00", bar: "#4C4C4C" },
+};
+
+// The main menu in a monitor layout, as views/ModuleList.qml lays it out
+// with Components/MonitorChrome and MonitorRow (the main menu has no help
+// line): Studio Monitor's window over the ground, Camcorder's groups in its
+// blue strip; Broadcast's plain blue with a gap and Settings after the
+// modules; Flat Panel's black, a page of rows at a time. The rows'
+// selection is a mark, not a box: no selector effect plays round it.
+function drawMonitorMenu(ctx, look, ui) {
+    const layout = look.menuLayout, pal = MENU_PALETTES[layout];
+    const studio = layout === "Studio Monitor", broadcast = layout === "Broadcast";
+    const rowH = SH * 0.0583333, inset = 3 * PX;
+    const winX = SW * 0.103125, winY = SH * 0.1625, winW = SW * 0.79375;
+    const winBottom = look.hintBar ? SH * 0.8291667 : SH * 0.8958333;
+    const stripW = SW * 0.0625;
+    const listX = studio ? winX + inset + stripW + SW * 0.009375 : broadcast ? SW * 0.125 : SW * 0.11875;
+    const listY = studio ? winY + SH * 0.025 : broadcast ? SH * 0.1916667 : SH * 0.2;
+    const listW = studio ? winX + winW - SW * 0.028125 - listX : broadcast ? SW * 0.75 : SW * 0.7625;
+    const listBottom = studio ? winBottom - inset - PX
+                     : broadcast ? (look.hintBar ? SH * 0.7541667 : SH * 0.8958333)
+                     : (look.hintBar ? SH * 0.8333333 : SH * 0.8958333);
+    const listH = Math.max(rowH, Math.floor((listBottom - listY) / rowH + 0.001) * rowH);
+    const status = look.statusIcons;
+    let rows = look.menu, index = ui.index, title = "OSD/OS";
+    if (!studio)
+        fillRect(ctx, 0, 0, SW, SH, pal.ground);
+    if (studio) {
+        const groups = camcorderGroups(rows);
+        const at = Math.max(0, groups.findIndex(group => group.rows.includes(rows[ui.index])));
+        title = groups[at].label;
+        index = Math.max(0, groups[at].rows.indexOf(rows[ui.index]));
+        rows = groups[at].rows;
+        // The window, framed; the title's tab over its top left corner.
+        fillRect(ctx, winX, winY, winW, winBottom - winY, pal.ground);
+        frameRect(ctx, winX, winY, winW, winBottom - winY, pal.accent, PX);
+        const tabSize = SH * 0.0375, tabY = SH * 0.1041667;
+        const tabW = Math.round((measure(ctx, tabSize, title.toUpperCase()) + SW * 0.040625) / PX) * PX;
+        fillRect(ctx, winX, tabY, tabW, winY - tabY + 2 * PX, pal.accent);
+        drawText(ctx, title.toUpperCase(), winX + SW * 0.0203125,
+                 tabY + Math.round((winY - tabY - lineHeight(tabSize)) / 2), tabSize, pal.soft);
+        // The strip of the groups' icons, the one shown framed.
+        const stripX = winX + inset, stripY = winY + inset, stripH = winBottom - winY - 2 * inset;
+        fillRect(ctx, stripX, stripY, stripW, stripH, pal.accent);
+        const cell = Math.min(SH * 0.0666667, Math.floor(stripH / Math.max(1, groups.length) / PX) * PX);
+        groups.forEach((group, i) => {
+            const cy = stripY + i * cell;
+            if (i === at)
+                frameRect(ctx, stripX, cy, stripW, cell, pal.mark, PX);
+            drawIcon(ctx, group.icon, stripX + Math.round((stripW - iconWidth(group.icon)) / 2 / PX) * PX,
+                     cy + Math.round((cell - iconHeight(group.icon)) / 2 / PX) * PX, pal.soft);
+        });
+        if (status.length)
+            drawStatus(ctx, status, winX + winW - statusWidth(status), SH * 0.1166667, pal.soft);
+        if (look.hintBar) {
+            const gy = SH * 0.8416667, gh = SH * 0.05, size = SH * 0.0291667;
+            fillRect(ctx, winX, gy, winW, gh, pal.accent);
+            drawText(ctx, "[▲▼]:MENU/ITEM  [◄]:GROUPS  [ESC]:SETTINGS", winX + SW * 0.01875,
+                     gy + (gh - lineHeight(size)) / 2, size, pal.soft);
+        }
+    } else if (broadcast) {
+        rows = rows.concat([{ name: "", gap: true }, { name: "Settings" }]);
+        const size = SH * 0.05;
+        drawText(ctx, title, (SW - measure(ctx, size, title)) / 2, SH * 0.1, size, pal.ink);
+        if (status.length)
+            drawStatus(ctx, status, SW * 0.884375 - statusWidth(status), SH * 0.1166667, pal.ink);
+        if (look.hintBar) {
+            const lines = ["TO SELECT  :[▲▼]", "TO ENTER   :[ENTER]", "TO SETTINGS:[ESC]"];
+            const gs = SH * 0.0333333, gl = SH * 0.0416667;
+            lines.forEach((line, i) => drawText(ctx, line, SW * 0.2625,
+                                                SH * 0.7708333 + i * gl + (gl - lineHeight(gs)) / 2, gs, pal.ink));
+        }
+    } else {
+        drawText(ctx, title, SW * 0.125, SH * 0.1083333, SH * 0.0416667, pal.ink);
+        if (look.hintBar) {
+            fillRect(ctx, listX, SH * 0.8416667, listW, PX, pal.accent);
+            drawText(ctx, "[▲▼] Select   [ENTER] Open   [ESC] Settings", listX + SW * 0.025, SH * 0.8541667,
+                     SH * 0.0291667, pal.soft);
+        }
+    }
+    // Where the rows stand: Flat Panel's page, else the cursor's row in view.
+    const per = Math.max(1, Math.floor(listH / rowH + 0.001));
+    const pages = Math.max(1, Math.ceil(rows.length / per));
+    const page = Math.min(pages - 1, Math.floor(index / per));
+    const top = layout === "Flat Panel" ? page * per * rowH : Math.max(0, (index + 1) * rowH - listH);
+    if (layout === "Flat Panel") {
+        let right = SW * 0.875;
+        if (pages > 1) {
+            const s = `${page + 1}/${pages}`, size = SH * 0.0333333;
+            const markW = measure(ctx, size, s) + SW * 0.009375 + iconWidth("up");
+            right -= markW;
+            drawText(ctx, s, right, SH * 0.1125, size, pal.ink);
+            const ix = right + measure(ctx, size, s) + SW * 0.009375, iy = SH * 0.1125 + (lineHeight(size) - 9 * PX) / 2;
+            drawIcon(ctx, "up", ix, iy, pal.ink);
+            drawIcon(ctx, "down", ix, iy + 5 * PX, pal.ink);
+            right -= SW * 0.0125;
+        } else {
+            right = SW * 0.884375;
+        }
+        if (status.length)
+            drawStatus(ctx, status, right - statusWidth(status), SH * 0.1166667, pal.ink);
+    }
+    const flat = layout === "Flat Panel";
+    const size = flat ? SH * 0.0458333 : SH * 0.05, gutter = flat ? SW * 0.025 : SW * 0.03125;
+    clipped(ctx, listX, listY, listW, listH, () => {
+        rows.forEach((row, i) => {
+            const rowY = listY + i * rowH - top;
+            if (rowY + rowH < listY || rowY > listY + listH || row.gap)
+                return;
+            const current = i === index;
+            if (flat && current)
+                fillRect(ctx, listX, rowY, listW, rowH, pal.bar);
+            if (current && !flat) {
+                const w = Math.round(size * 0.4583 / PX) * PX;
+                fillRect(ctx, listX + Math.round((gutter - w) / 2 / PX) * PX, rowY + (rowH - w) / 2, w, w, pal.mark);
+            }
+            const label = flat ? row.name : row.name.toUpperCase() + (broadcast ? "..." : "");
+            drawText(ctx, label, listX + gutter, rowY + (rowH - lineHeight(size)) / 2, size, pal.ink);
+            if (flat)
+                drawIcon(ctx, "play", listX + Math.round(listW * 0.496), rowY + Math.round((rowH - 7 * PX) / 2 / PX) * PX, pal.ink);
+        });
+    });
+    if (!flat) {
+        const gap = PX * 3;
+        if (top > 0)
+            drawIcon(ctx, "up", listX + (listW - iconWidth("up")) / 2, listY - gap - iconHeight("up"), pal.ink);
+        if (top + listH < rows.length * rowH - 1)
+            drawIcon(ctx, "down", listX + (listW - iconWidth("down")) / 2, listY + listH + gap, pal.ink);
+    }
+    return null;
+}
+
 // The main menu's rows shown with the cursor on `index`, from `top` as it was
 // (ListView.positionViewAtIndex's Contain).
 export function mainMenuTop(look, index, top) {
