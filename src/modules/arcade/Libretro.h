@@ -67,16 +67,18 @@ QString packagedDat();
 QString packagedLicense();
 // OSD/OS's own FinalBurn Neo core for the local network, which comes with
 // the app (scripts/build-fbneo-lan.sh): the app's own, where packagedCore()
-// is, else one put in <data>/arcade/retroarch/cores (fbneo_lan_libretro.so,
+// is, else one put in <data>/arcade/retroarch/cores (osdos_lan_libretro.so,
 // .dylib, .dll) for a build that brought none. "" for none. It names itself
-// kLanCoreName, which RetroArch won't let a machine with another core join.
+// kLanCoreName, which RetroArch won't let a machine with another core join,
+// with no slash in it: RetroArch makes folders of a core's name for its
+// options and remap files (coreRemapPath()).
 // It seats the game's players in the order they first press COIN or START
 // (the host's player 1 is player 1), whichever machine and port they are on;
 // with a CV1000 game the board's video memory isn't in netplay's states, and
 // the game waits from power on until player 2 presses something, so that it
 // starts on every machine at the same frame.
 QString lanCorePath(const QString &dataRoot);
-inline constexpr QLatin1String kLanCoreName("FinalBurn Neo (OSD/OS LAN)");
+inline constexpr QLatin1String kLanCoreName("OSD-OS LAN Core");
 
 // The memory RetroArch 1.20's netplay takes for a game: a state of it each
 // frame, in a ring of 62 on a machine joining and of 124 on its host, and
@@ -290,7 +292,7 @@ QString netplayOptionsPath(const QString &configDir);
 QString netplayOptionsText(const QString &userOptions);
 // FinalBurn Neo's info file, which RetroArch looks for in infoDir by the
 // core's name (fbneo_libretro.info; lanCore, lanCorePath()'s:
-// fbneo_lan_libretro.info), and the text OSD/OS writes in it before each
+// osdos_lan_libretro.info), and the text OSD/OS writes in it before each
 // game: what libretro's own information on the core says that RetroArch acts
 // on, above all that its states come out the same on every machine, without
 // which RetroArch neither hosts nor joins a game with it ("Core does not

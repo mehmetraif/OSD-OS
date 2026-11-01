@@ -127,9 +127,9 @@ index 9e89835..ea8af31 100644
  #define APP_TITLE "FinalBurn Neo (" SUBSET " subset)"
  #endif
  
-+// OSD/OS's LAN build, which RetroArch lets no machine with another core join.
++// OSD/OS's LAN core: RetroArch lets no other core join it, and makes folders of its name.
 +#undef APP_TITLE
-+#define APP_TITLE "FinalBurn Neo (OSD/OS LAN)"
++#define APP_TITLE "OSD-OS LAN Core"
 +
  int counter;           // General purpose variable used when debugging
  

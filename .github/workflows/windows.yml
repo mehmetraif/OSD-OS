@@ -6,7 +6,7 @@ name: Windows build
 # views/, modules/, assets/, scripts/, LICENSE) in the same folder, as the
 # install rules lay them out on Windows, with OSD/OS's FinalBurn Neo cores,
 # the whole one and the LAN one, its list of games and its licence
-# (fbneo_libretro.dll, fbneo_lan_libretro.dll, fbneo-arcade.dat,
+# (fbneo_libretro.dll, osdos_lan_libretro.dll, fbneo-arcade.dat,
 # fbneo-license.txt; .github/actions/fbneo-cores);
 # unpacked anywhere, osdos.exe runs from it. mpv is not in it: mpv.exe goes
 # beside the app or on the PATH. The release workflow calls it for a tag, and

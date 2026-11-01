@@ -22,13 +22,14 @@
 #
 # The source is the commit scripts/engines.env names, unpacked
 # (github.com/libretro/FBNeo's archive of it), in a folder of its own, which
-# the patch is applied to. The core is fbneo_lan_libretro.so (.dylib on a
+# the patch is applied to. The core is osdos_lan_libretro.so (.dylib on a
 # Mac, for macOS 11 and later; .dll on Windows, built with MSYS2's
 # MinGW-w64 and linked statically, so it needs no DLL of MinGW's beside it),
 # built as scripts/build-fbneo.sh builds the whole core. FinalBurn Neo's
 # licence goes with it, as the licence asks of every copy. The core names
-# itself FinalBurn Neo (OSD/OS LAN), which RetroArch won't let a machine
-# with another core join, and its version is a build from git's (v1.0.0.03
+# itself OSD-OS LAN Core, which RetroArch won't let a machine with another
+# core join (no slash in it: RetroArch makes folders of a core's name for its
+# options and remap files), and its version is a build from git's (v1.0.0.03
 # <date> GIT<commit>) with -lan after it.
 set -euo pipefail
 
@@ -74,7 +75,7 @@ case "$(uname -s)" in
 esac
 "$make" -C "$src/src/burner/libretro" -j"$jobs" "${args[@]}"
 
-core=fbneo_lan_libretro.$ext
+core=osdos_lan_libretro.$ext
 mkdir -p "$out" "$(dirname "$license")"
 cp "$src/src/burner/libretro/fbneo_libretro.$ext" "$out/$core"
 "${strip[@]}" "$out/$core"

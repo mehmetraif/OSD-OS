@@ -157,9 +157,9 @@ jobs:
             pkg_add -I -D unsigned "./$package"
             pkg_info OSD-OS
             /usr/local/bin/osdos --core-info /usr/local/lib/osdos/fbneo_libretro.so
-            lan=$(/usr/local/bin/osdos --core-info /usr/local/lib/osdos/fbneo_lan_libretro.so)
+            lan=$(/usr/local/bin/osdos --core-info /usr/local/lib/osdos/osdos_lan_libretro.so)
             echo "$lan"
-            echo "$lan" | grep -qx 'name=FinalBurn Neo (OSD/OS LAN)'
+            echo "$lan" | grep -qx 'name=OSD-OS LAN Core'
             bash tests/app_smoke_test.sh /usr/local/bin/osdos /usr/local/share/osdos /usr/local/lib/qt6/qml
             pkg_delete OSD-OS
             [ ! -e /usr/local/bin/osdos ] && [ ! -e /usr/local/lib/osdos ] && [ ! -e /usr/local/share/osdos ]

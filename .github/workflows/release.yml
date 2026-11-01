@@ -155,7 +155,7 @@ jobs:
           APP="${GITHUB_WORKSPACE}/install/osdos.app"
           FW="$APP/Contents/Frameworks"
           test -f "$FW/libSDL2-2.0.0.dylib" || { echo "SDL2 not bundled"; exit 1; }
-          test -f "$FW/fbneo_lan_libretro.dylib" || { echo "LAN core not bundled"; exit 1; }
+          test -f "$FW/osdos_lan_libretro.dylib" || { echo "LAN core not bundled"; exit 1; }
           test -f "$FW/fbneo_libretro.dylib" || { echo "FinalBurn Neo core not bundled"; exit 1; }
           ! ls "$FW" | grep -qi sdl3 || { echo "SDL3 leaked into bundle"; exit 1; }
           # minizip too, had the app been linked with its dynamic library

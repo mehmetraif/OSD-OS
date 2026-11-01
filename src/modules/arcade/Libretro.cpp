@@ -31,18 +31,18 @@ namespace {
 
 #if defined(Q_OS_MACOS)
 const QString kCoreFile = QStringLiteral("fbneo_libretro.dylib");
-const QString kLanCoreFile = QStringLiteral("fbneo_lan_libretro.dylib");
+const QString kLanCoreFile = QStringLiteral("osdos_lan_libretro.dylib");
 #elif defined(Q_OS_WIN)
 const QString kCoreFile = QStringLiteral("fbneo_libretro.dll");
-const QString kLanCoreFile = QStringLiteral("fbneo_lan_libretro.dll");
+const QString kLanCoreFile = QStringLiteral("osdos_lan_libretro.dll");
 #else
 const QString kCoreFile = QStringLiteral("fbneo_libretro.so");
-const QString kLanCoreFile = QStringLiteral("fbneo_lan_libretro.so");
+const QString kLanCoreFile = QStringLiteral("osdos_lan_libretro.so");
 #endif
 // Their info files, named as RetroArch looks for them: the core's, without
 // the extension.
 const QString kCoreInfoFile = QStringLiteral("fbneo_libretro.info");
-const QString kLanCoreInfoFile = QStringLiteral("fbneo_lan_libretro.info");
+const QString kLanCoreInfoFile = QStringLiteral("osdos_lan_libretro.info");
 
 QString firstFile(const QStringList &candidates) {
     for (const QString &candidate : candidates) {
@@ -875,13 +875,15 @@ QString coreInfoPath(const QString &infoDir, bool lanCore) {
 QString coreInfoText(bool lanCore) {
     // Of libretro's own (libretro-core-info's fbneo_libretro.info), the
     // core's names and its states: deterministic, the same on every machine,
-    // as netplay needs them (and run-ahead).
+    // as netplay needs them (and run-ahead). The LAN core's name in
+    // RetroArch's menus says what it is built from.
     return QStringLiteral("# Written by OSD/OS for each game it starts: what is changed here is lost at the next.\n"
-                          "display_name = \"Arcade (FinalBurn Neo)\"\n"
-                          "corename = \"%1\"\n"
+                          "display_name = \"%1\"\n"
+                          "corename = \"%2\"\n"
                           "savestate = \"true\"\n"
                           "savestate_features = \"deterministic\"\n")
-        .arg(lanCore ? kLanCoreName : kCoreName);
+        .arg(lanCore ? QStringLiteral("OSD/OS LAN Core (FinalBurn Neo)") : QStringLiteral("Arcade (FinalBurn Neo)"),
+             lanCore ? kLanCoreName : kCoreName);
 }
 
 QStringList arguments(const Launch &launch) {

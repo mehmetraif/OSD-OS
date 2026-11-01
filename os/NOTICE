@@ -49,7 +49,7 @@ each came from, with the GPL-2.0's text in
 
 The Arcade module plays its games on the local network with OSD/OS's own
 build of FinalBurn Neo (https://github.com/libretro/FBNeo),
-/opt/osdos/lib/osdos/fbneo_lan_libretro.so: FinalBurn Neo's libretro core,
+/opt/osdos/lib/osdos/osdos_lan_libretro.so: FinalBurn Neo's libretro core,
 built from the commit scripts/engines.env names in OSD/OS's source, with
 OSD/OS's changes to it, which are public there, in scripts/fbneo-lan.patch,
 as FinalBurn Neo's licence asks. It is
