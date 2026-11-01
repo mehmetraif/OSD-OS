@@ -30,5 +30,8 @@ Taken unchanged from the suite at commit
 
 The view draws only the picture of a texture (`sourceClipRect`), tiles the
 tiles over a 320 × 240 picture as the suite does, and scales each to the
-screen's height without smoothing. The help shown with each pattern is put
+screen's height without smoothing. On a screen whose lines are a whole
+number of the Grid's 16-line squares but for 240 and 480 (288p, 576i), the
+view draws the Grid itself, in the suite's squares, one line for each of the
+screen's, rather than scale `grid-240.png` by a fraction. The help shown with each pattern is put
 from the suite's own help screens.

@@ -13,9 +13,12 @@ import QtQuick
 // screen of 400 lines or more, where the suite has one), drawn pixel for
 // pixel, scaled whole to the screen's height in the 4:3 middle of it: on a
 // tube that is the whole picture, which the Grid's red squares should just
-// reach. Nothing moves or is drawn over it: the screen effects rest and
-// the screen saver waits while it is up, so it can be left on while the set
-// is adjusted.
+// reach. On a screen of other lines that are a whole number of the Grid's
+// 16-line squares (288p, 576i, 384, 720), the Grid is drawn here instead,
+// square for square as the suite draws it, one line of it to each of the
+// screen's, so no line of it is doubled where others aren't. Nothing moves
+// or is drawn over it: the screen effects rest and the screen saver waits
+// while it is up, so it can be left on while the set is adjusted.
 FocusScope {
     id: patternsRoot
 
@@ -27,17 +30,26 @@ FocusScope {
     // The suite's 640 × 480 pictures, where it has them, on a screen with the
     // lines for them.
     readonly property bool tall: root.sh >= 400
+    // The screen's lines, and whether the Grid is drawn on them one for one:
+    // where they are a whole number of its 16-line squares, but for 240 and
+    // 480, which have the suite's own pictures.
+    readonly property int lines: Math.round(root.sh)
+    readonly property bool drawnGrid: lines > 0 && lines % 16 === 0 && lines !== 240 && lines !== 480
+    readonly property int gridRows: Math.round(lines / 16)
+    readonly property int gridColumns: Math.round(gridRows * 4 / 3)
     readonly property string folder: "../assets/testpatterns/"
 
     // Each pattern: its name, what to set with it (the suite's help, put
     // shortly), and its kinds: a picture (`image`, `w` × `h` of it, the rest
     // of a texture left out), a tile repeated over a 320 × 240 picture
-    // (`tile`), or a colour over the whole screen (`color`).
+    // (`tile`), the Grid drawn here (`draw`, `w` × `h`), or a colour over the
+    // whole screen (`color`).
     readonly property var patterns: [
         { name: "Grid",
           help: "The whole 4:3 picture. Set the screen's size and position until the red squares just show at every"
                 + " edge, every square whole and square, with no bend or slant anywhere",
-          kinds: [ tall ? { image: "grid-480.png", w: 640, h: 480 } : { image: "grid-240.png", w: 320, h: 240 } ] },
+          kinds: [ drawnGrid ? { draw: "grid", w: gridColumns * 16, h: lines }
+                   : tall ? { image: "grid-480.png", w: 640, h: 480 } : { image: "grid-240.png", w: 320, h: 240 } ] },
         { name: "Monoscope",
           help: "A tube's setup: the centre cross for static convergence, the sides for the edges', the corners for"
                 + " corner convergence, purity and geometry. The red square is square on a screen set right:"
@@ -189,6 +201,40 @@ FocusScope {
             smooth: false
             mipmap: false
             cache: false
+        }
+        // The Grid on the screen's own lines, as the suite draws it: squares
+        // of 16 × 16, each with its own border a line wide and a dot of 2 × 2
+        // in its middle, white, and red round the edge.
+        Canvas {
+            id: gridCanvas
+            objectName: "patternDrawn"
+            anchors.fill: parent
+            visible: patternsRoot.kind.draw === "grid"
+            smooth: false
+            antialiasing: false
+            onVisibleChanged: if (visible) requestPaint()
+            onWidthChanged: requestPaint()
+            onHeightChanged: requestPaint()
+            onPaint: {
+                var ctx = getContext("2d")
+                ctx.fillStyle = "#000000"
+                ctx.fillRect(0, 0, width, height)
+                var columns = Math.round(width / 16)
+                var rows = Math.round(height / 16)
+                for (var r = 0; r < rows; r++) {
+                    for (var c = 0; c < columns; c++) {
+                        var x = c * 16
+                        var y = r * 16
+                        var edge = r === 0 || c === 0 || r === rows - 1 || c === columns - 1
+                        ctx.fillStyle = edge ? "#ff0000" : "#ffffff"
+                        ctx.fillRect(x, y, 16, 1)
+                        ctx.fillRect(x, y + 15, 16, 1)
+                        ctx.fillRect(x, y + 1, 1, 14)
+                        ctx.fillRect(x + 15, y + 1, 1, 14)
+                        ctx.fillRect(x + 7, y + 7, 2, 2)
+                    }
+                }
+            }
         }
         Image {
             objectName: "patternTile"

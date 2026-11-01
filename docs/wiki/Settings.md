@@ -303,7 +303,7 @@ A picture over the whole screen to set up a TV or monitor by, with its own knobs
 | Sharpness | | Sharpness (aperture on a monitor): black and grey meet cleanly, without a white ghost between them |
 | Solid Color | White, Black, Red, Green, Blue | Purity and white balance: one colour, even from corner to corner |
 
-Each is the suite's own picture, 320 × 240, or 640 × 480 on a screen of 400 lines or more where the suite has one (the Grid and the Monoscope), drawn pixel for pixel and scaled whole to the screen's height in its 4:3 middle: on a tube, the whole picture. While a pattern is up the screen effects rest and the screen saver waits, so it can be left on while the set is adjusted. The pictures and where each came from are in `assets/testpatterns` in the source.
+Each is the suite's own picture, 320 × 240, or 640 × 480 on a screen of 400 lines or more where the suite has one (the Grid and the Monoscope), drawn pixel for pixel and scaled whole to the screen's height in its 4:3 middle: on a tube, the whole picture. The Grid is drawn one line for each of the screen's lines wherever they make a whole number of its 16-line squares: on 288p and 576i (and 384 or 720 lines) as many squares as fit, 24 × 18 on 288p and 48 × 36 on 576i, so every square is sharp there too, where a scaled 240-line picture would come out uneven. 240p and 480i have the suite's own pictures at their own size. While a pattern is up the screen effects rest and the screen saver waits, so it can be left on while the set is adjusted. The pictures and where each came from are in `assets/testpatterns` in the source.
 
 ### Audio Output
 
