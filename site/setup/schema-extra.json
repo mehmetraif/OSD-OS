@@ -40,6 +40,8 @@
           "start_text": "QUIET", "end_text": "LOUD",
           "shown_unless": { "key": "menu_music", "value": "Off" },
           "help": "How loud the menu music is." },
+        { "key": "menu_layout", "label": "Menu Layout", "type": "choice", "default": "Standard", "options": ["Standard", "Camcorder"],
+          "help": "How Settings and the main menu are laid out. [STANDARD] A list, a page at a time. [CAMCORDER] As a camcorder's menu: the pages, or the main menu's groups, as icons in a column, the rows of the one chosen beside it." },
         { "key": "osd_background", "label": "OSD Background", "type": "choice", "default": "Full", "options": ["Full", "Off", "Window"],
           "help": "What the menus are drawn on. [FULL] The color scheme's background, all over. [OFF] None, the menus on black like a deck's on-screen display. [WINDOW] A framed window of it behind the menus, black around it." },
         { "key": "osd_frame", "label": "Window Frame", "type": "choice", "default": "On", "options": ["On", "Off", "Shadow"],

@@ -103,6 +103,16 @@ const SHAPES = {
     trophy: ["#######", "#.###.#", ".#####.", "..###..", "...#...", "..###..", ".#####."],
     globe: ["..###..", ".#.#.#.", "#..#..#", "#######", "#..#..#", ".#.#.#.", "..###.."],
     network: ["..###..", "..###..", "...#...", ".#####.", ".#...#.", "###.###", "###.###"],
+    // Menu Layout's Camcorder column (Components/PixelIcon's): the main
+    // menu's groups.
+    tv: ["..#.....#..", "...#...#...", "....#.#....", "###########", "#.........#", "#.........#",
+         "#.........#", "#.........#", "#.........#", "###########", ".#.......#."],
+    joystick: ["....###....", "...#####...", "...#####...", "....###....", ".....#.....", ".....#.....",
+               ".....#.....", "..#######..", ".#########.", ".#########."],
+    apps: ["####.####", "####.####", "####.####", "####.####", ".........", "####.####", "####.####",
+           "####.####", "####.####"],
+    gear: ["....#.#....", ".#.#####.#.", "..#######..", ".###...###.", "####...####", ".###...###.",
+           "..#######..", ".#.#####.#.", "....#.#...."],
 };
 // A symbol's size and the symbol itself, `pixel` a cell's size: an art pixel
 // on the screen, or the Orb look's 3 design units on its sheets.
@@ -216,7 +226,7 @@ export function drawGround(ctx, look, assets) {
 // --- The bars every view has.
 // The title bar (Components/AppBar): the logo in the bar's colour on its own
 // ground, then the bar with the title, the status icons at its end.
-function drawAppBar(ctx, look, assets, x, y, title) {
+function drawAppBar(ctx, look, assets, x, y, title, subtitle = "") {
     const width = SW * 0.75;
     const contentHeight = Math.max(lineHeight(SH * 0.05), SH * 0.05);
     const height = contentHeight + 2 * PX;
@@ -238,8 +248,17 @@ function drawAppBar(ctx, look, assets, x, y, title) {
     const status = look.statusIcons;
     const statusW = status.length ? statusWidth(status) : 0;
     const room = bw - 2 * contentX - (statusW ? statusW + SW * 0.025 : 0);
-    clipped(ctx, bx + contentX, y, Math.max(0, room), height, () =>
-        drawText(ctx, title.toUpperCase(), bx + contentX, rowY + (contentHeight - lineHeight(size)) / 2, size, look.surface));
+    clipped(ctx, bx + contentX, y, Math.max(0, room), height, () => {
+        drawText(ctx, title.toUpperCase(), bx + contentX, rowY + (contentHeight - lineHeight(size)) / 2, size, look.surface);
+        // The subtitle after a rule, smaller, a spacing either side.
+        if (!subtitle)
+            return;
+        const spacing = SW * 0.025, small = SH * 0.0333333;
+        let sx = bx + contentX + measure(ctx, size, title.toUpperCase()) + spacing;
+        fillRect(ctx, snap(sx), snap(y + (height - SH * 0.05) / 2), PX, SH * 0.05, look.surface);
+        sx += PX + spacing;
+        drawText(ctx, subtitle.toUpperCase(), sx, y + (height - lineHeight(small)) / 2, small, look.surface);
+    });
     if (statusW)
         drawStatus(ctx, status, bx + bw - contentX - statusW, y + (height - 7 * PX) / 2, look.surface);
 }
@@ -317,17 +336,54 @@ function drawMenuRow(ctx, look, x, y, width, height, size, label, value, elapsed
         drawText(ctx, valueText, vx + (valueW > vw ? scrolled(elapsed, vw - valueW) : 0), top, size, look.primary));
 }
 
+// Menu Layout's Camcorder (views/ModuleList.qml's groups): the modules in
+// groups by their settings group, TV / Movie, Arcade, then More (the modules
+// of neither), each with its icon, the groups with none left out; Settings'
+// last.
+const GROUPS = [["TV / Movie", "tv"], ["Arcade", "joystick"], ["More", "apps"]];
+export function camcorderGroups(rows) {
+    const labelOf = row => row.group === "TV / Movie" || row.group === "Arcade" ? row.group : "More";
+    const groups = GROUPS.map(([label, icon]) => ({ label, icon, rows: rows.filter(row => labelOf(row) === label) }))
+        .filter(group => group.rows.length);
+    groups.push({ label: "Settings", icon: "gear", rows: [{ name: "Settings" }] });
+    return groups;
+}
+
 // --- The main menu (views/ModuleList.qml): the title bar, the modules on, the
-// hint bar. ui: { index, top } (the cursor's row, the first row shown).
+// hint bar. ui: { index, top } (the cursor's row, the first row shown). In
+// Camcorder, the groups' icons at the left (Components/IconColumn), the rows
+// of the cursor's row's group beside them, the keys in the rows.
 export function drawMainMenu(ctx, look, assets, ui, now) {
     moving = false;
-    drawAppBar(ctx, look, assets, SW * 0.125, SH * 0.125, "OSD/OS");
-    const rows = look.menu;
-    const listX = SW * 0.115625, listY = SH * 0.25, listW = SW * 0.76875;
+    const camcorder = look.menuLayout === "Camcorder";
+    let rows = look.menu;
+    const listY = SH * 0.25;
+    const listX = camcorder ? SW * 0.209375 : SW * 0.115625, listW = camcorder ? SW * 0.675 : SW * 0.76875;
     const rowH = SH * 0.0583333;
     const listH = SH * 0.525 + (look.hintBar ? 0 : rowH);
+    if (camcorder) {
+        const groups = camcorderGroups(rows);
+        const at = Math.max(0, groups.findIndex(group => group.rows.includes(rows[ui.index])));
+        const colX = SW * 0.115625, iconsW = SW * 0.084375 - 2 * PX;
+        groups.forEach((group, i) => {
+            const cy = listY + i * rowH;
+            if (cy + rowH > listY + listH)
+                return;
+            if (i === at)
+                frameRect(ctx, colX, cy, iconsW, rowH, look.primary, PX);
+            drawIcon(ctx, group.icon, colX + Math.round((iconsW - iconWidth(group.icon)) / 2 / PX) * PX,
+                     cy + Math.round((rowH - iconHeight(group.icon)) / 2 / PX) * PX, look.primary);
+        });
+        fillRect(ctx, colX + iconsW + PX, listY, PX, listH, look.primary);
+        drawAppBar(ctx, look, assets, SW * 0.125, SH * 0.125, "OSD/OS", groups[at].label);
+        const index = Math.max(0, groups[at].rows.indexOf(rows[ui.index]));
+        rows = groups[at].rows;
+        ui = { index, top: Math.max(0, (index + 1) * rowH - listH), since: ui.since };
+    } else {
+        drawAppBar(ctx, look, assets, SW * 0.125, SH * 0.125, "OSD/OS");
+    }
     let box = null;
-    if (rows.length === 0) {
+    if (look.menu.length === 0) {
         const lines = [["No modules enabled", SH * 0.05], ["Please enable one in settings", SH * 0.0333333]];
         const height = lineHeight(lines[0][1]) + SH * 0.0333333 + lineHeight(lines[1][1]);
         let y = (SH - height) / 2;
@@ -367,7 +423,8 @@ export function drawMainMenu(ctx, look, assets, ui, now) {
     if (ui.top + listH < rows.length * rowH - 1)
         drawIcon(ctx, "down", listX + (listW - iconWidth("down")) / 2, listY + listH + gap, look.primary);
     if (look.hintBar)
-        drawHintBar(ctx, look, assets, "[ESC]:SETTINGS [▲▼]:NAVIGATE [ENTER]:SELECT");
+        drawHintBar(ctx, look, assets, camcorder ? "[ESC]:SETTINGS [▲▼]:NAVIGATE [◄]:GROUPS [ENTER]:SELECT"
+                                                 : "[ESC]:SETTINGS [▲▼]:NAVIGATE [ENTER]:SELECT");
     return box;
 }
 // The main menu's rows shown with the cursor on `index`, from `top` as it was

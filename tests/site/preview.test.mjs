@@ -16,7 +16,7 @@ import { fileURLToPath } from "node:url";
 import { fromQt, fromQt3D, uniformsOf } from "../../site/setup/js/preview/glsl.mjs";
 import { lookOf, ARCADE } from "../../site/setup/js/preview/look.mjs";
 import { SelectorFx } from "../../site/setup/js/preview/selector.mjs";
-import { arcadeLayout, arcadeHintPairs, ARCADE_FILTERS, ORB_ROWS } from "../../site/setup/js/preview/screens.mjs";
+import { arcadeLayout, arcadeHintPairs, ARCADE_FILTERS, ORB_ROWS, camcorderGroups } from "../../site/setup/js/preview/screens.mjs";
 import { MATERIALS, SHADER_FILES, tube, slab, chamfered, bar, node, point, IDENTITY, linear }
     from "../../site/setup/js/preview/orb.mjs";
 
@@ -166,6 +166,30 @@ test("the main menu's rows and the status icons, from the modules on", () => {
     modules[1].enabled = false;
     look = lookOf(looks, settings({ status_icons: "On" }, modules, { wifi: true, account: true }));
     assert.deepEqual([look.menu.map(m => m.name), look.statusIcons], [["YouTube"], ["signal4"]]);
+});
+
+// Menu Layout's Camcorder: the main menu's rows in groups, as ModuleList.qml
+// makes them (its settings group, TV / Movie, Arcade, More), the groups with
+// none left out, Settings' last.
+test("the main menu in Menu Layout's Camcorder: its groups, as the app makes them", () => {
+    const modules = [
+        { id: "com.osdos.youtube", name: "YouTube", folder: "youtube", group: "TV / Movie", enabled: true, values: {} },
+        { id: ARCADE, name: "Arcade", folder: "arcade", group: "Arcade", enabled: true, values: {} },
+        { id: "com.osdos.scripts", name: "Scripts", folder: "scripts", group: "Modules", enabled: true, values: {} },
+        { id: "com.osdos.plex", name: "Plex", folder: "plex", group: "TV / Movie", enabled: true, values: {} },
+    ];
+    let look = lookOf(looks, settings({}, modules));
+    assert.equal(look.menuLayout, "Standard");
+    look = lookOf(looks, settings({ menu_layout: "Camcorder" }, modules));
+    assert.equal(look.menuLayout, "Camcorder");
+    const groups = camcorderGroups(look.menu);
+    assert.deepEqual(groups.map(g => [g.label, g.icon, g.rows.map(r => r.name)]),
+                     [["TV / Movie", "tv", ["Plex", "YouTube"]], ["Arcade", "joystick", ["Arcade"]],
+                      ["More", "apps", ["Scripts"]], ["Settings", "gear", ["Settings"]]]);
+    // A group with nothing on is left out.
+    modules[1].enabled = false;
+    assert.deepEqual(camcorderGroups(lookOf(looks, settings({}, modules)).menu).map(g => g.label),
+                     ["TV / Movie", "More", "Settings"]);
 });
 
 test("each selector effect, drawn the same from the same start, round the box", () => {

@@ -41,7 +41,10 @@ Rectangle {
     property real fxTime: 0
     property var selector: null
     property var hints: ({ back: "[ESC]", navigate: "[▲▼]", arrows: "[▲▼◄►]", change: "[◄►]",
-                           browse: "[►]", select: "[ENTER]", play_pause: "[SPACE]" })
+                           browse: "[►]", left: "[◄]", select: "[ENTER]", play_pause: "[SPACE]" })
+    // Settings → Look → Menu Layout, as Main.qml reads it.
+    property string menuLayout: "Standard"
+    function menuLayoutOf(raw) { return raw === "Camcorder" ? raw : "Standard" }
     function selectorShown(item, shown) {}
     function coverShown(item, shown) {}
     function skinIcon(url) { return url }
@@ -133,8 +136,9 @@ Rectangle {
         property bool supported: false
     }
 
-    // Where the page asked to go.
+    // Where the page asked to go, and how often back out of it.
     property var navigations: []
+    property int backs: 0
 
     Loader {
         id: loader
@@ -145,7 +149,10 @@ Rectangle {
         target: loader.item
         ignoreUnknownSignals: true
         function onNavigateTo(path, params, listState) {
-            root.navigations = root.navigations.concat([{ path: path, params: params }])
+            root.navigations = root.navigations.concat([{ path: path, params: params, listState: listState }])
+        }
+        function onGoBack() {
+            root.backs++
         }
     }
 
@@ -159,6 +166,8 @@ Rectangle {
             appCore.canLogs = false
             appCore.logSaves = 0
             root.navigations = []
+            root.backs = 0
+            root.menuLayout = "Standard"
             wifiManager.supported = false
         }
         function cleanup() {
@@ -251,8 +260,9 @@ Rectangle {
         // them there on every system, those it can't use dimmed.
         function test_pages_data() {
             return [
-                { tag: "look", lines: ["Theme", "Orb Fog", "Color Scheme", "Skin", "Effects", "OSD Background",
-                                       "Window Frame", "Boot Screen Colors", "Hint Bar", "Help Line", "Status Icons"] },
+                { tag: "look", lines: ["Theme", "Orb Fog", "Color Scheme", "Skin", "Effects", "Menu Layout",
+                                       "OSD Background", "Window Frame", "Boot Screen Colors", "Hint Bar", "Help Line",
+                                       "Status Icons"] },
                 { tag: "effects", lines: ["Text Effect", "Background Effect", "Selector Effect", "Screen Effect",
                                           "Transition"] },
                 { tag: "screen", lines: ["Display Output", "Test Patterns", "Screen Saver", "Mouse Pointer",
@@ -538,11 +548,7 @@ Rectangle {
             appCore.canLogs = true
             var page = open()
             var all = lines(page)
-            var list = null
-            for (var i = 0; i < page.children.length; i++) {
-                if (page.children[i].currentIndex !== undefined && page.children[i].model !== undefined)
-                    list = page.children[i]
-            }
+            var list = listOf(page)
             list.currentIndex = all.indexOf("Quit")
             keyClick(Qt.Key_Return)
             compare(page.quitOptions.map(function(o) { return o.label }), ["Yes", "Save Logs", "No"])
@@ -578,6 +584,140 @@ Rectangle {
         function test_quitWithoutLogs() {
             var page = open()
             compare(page.quitOptions.map(function(o) { return o.label }), ["Yes", "No"])
+        }
+
+        // Menu Layout, on Look's page: Standard or Camcorder, saved as it
+        // changes; Standard while unset.
+        function test_menuLayoutRow() {
+            var page = open({ group: "look" })
+            compare(row(page, "Menu Layout").options, ["Standard", "Camcorder"])
+            compare(row(page, "Menu Layout").value, "Standard")
+            moveTo(page, "Menu Layout")
+            keyClick(Qt.Key_Right)
+            compare(appCore.values.menu_layout, "Camcorder")
+            compare(row(page, "Menu Layout").value, "Camcorder")
+        }
+
+        // The icon of the page the keys are on in Camcorder's column.
+        function icons(page) {
+            for (var i = 0; i < page.children.length; i++) {
+                if (page.children[i].active !== undefined && page.children[i].count !== undefined)
+                    return page.children[i]
+            }
+            return null
+        }
+
+        // Camcorder: the first screen's pages as icons, the keys on them,
+        // the rows of the one the cursor is on beside them, none boxed; ▲ ▼
+        // from page to page (round), ► or select into the rows, back out to
+        // the icons, and back again to the main menu.
+        function test_camcorder() {
+            root.menuLayout = "Camcorder"
+            var page = open()
+            verify(page.camcorder)
+            compare(page.camPages.map(function(p) { return p.icon }),
+                    ["tv", "joystick", "sparkle", "monitor", "speaker", "gamepad", "antenna", "power", "gear", "eject"])
+            compare(page.camIndex, 0)
+            verify(page.inIcons())
+            var column = icons(page)
+            verify(column !== null && column.visible)
+            verify(column.active)
+            compare(lines(page).slice(0, 2), ["Scaling", "Transparent Background"])
+            verify(!menuRow(page, 0).selected, "the box is on the icon")
+            keyClick(Qt.Key_Down)
+            keyClick(Qt.Key_Down)
+            compare(page.camIndex, 2)
+            compare(lines(page)[0], "Theme")
+            verify(helpOf(page).text.indexOf("The whole look") === 0, helpOf(page).text)
+            keyClick(Qt.Key_Right)
+            verify(!page.inIcons())
+            verify(!column.active)
+            compare(cursor(page), "Theme")
+            verify(menuRow(page, 0).selected)
+            // The rows as on Look's page: Menu Layout changes, dimmed rows
+            // stay as they are.
+            moveTo(page, "Color Scheme")
+            keyClick(Qt.Key_Right)
+            verify(appCore.values.color_scheme !== undefined)
+            keyClick(Qt.Key_Escape)
+            verify(page.inIcons())
+            compare(page.camIndex, 2)
+            compare(root.backs, 0)
+            // Round from the first page to Quit, a page of one row, which
+            // select opens.
+            keyClick(Qt.Key_Up)
+            keyClick(Qt.Key_Up)
+            keyClick(Qt.Key_Up)
+            compare(page.camIndex, 9)
+            compare(lines(page), ["Quit"])
+            keyClick(Qt.Key_Return)
+            var yesNo = answers(page)
+            verify(yesNo !== null && yesNo.count === 2)
+            keyClick(Qt.Key_Escape)
+            verify(page.inIcons())
+            keyClick(Qt.Key_Escape)
+            compare(root.backs, 1)
+        }
+
+        // Camcorder: a page that is a view of its own (Arcade's) shows its
+        // first-screen row, and ► opens it, keeping where the cursor was;
+        // a page opened from the rows (Look's Effects) has the column too,
+        // its heading's icon framed, the keys in its rows.
+        function test_camcorderPages() {
+            root.menuLayout = "Camcorder"
+            var page = open()
+            keyClick(Qt.Key_Down)
+            compare(lines(page), ["Arcade"])
+            keyClick(Qt.Key_Right)
+            var went = root.navigations[root.navigations.length - 1]
+            compare(went.path, "views/ModuleSettings.qml")
+            compare(went.params.moduleId, "com.osdos.arcade")
+            compare(went.listState.currentIndex, 1)
+            compare(went.listState.camRows, false)
+            keyClick(Qt.Key_Down)
+            keyClick(Qt.Key_Return)
+            moveTo(page, "Effects")
+            keyClick(Qt.Key_Return)
+            went = root.navigations[root.navigations.length - 1]
+            compare(went.params.group, "effects")
+            compare(went.listState.currentIndex, 2)
+            compare(went.listState.camRows, true)
+            compare(went.listState.rowIndex, lines(page).indexOf("Effects"))
+            // Back there: Look's rows, the cursor on Effects.
+            loader.source = ""
+            page = open({ navListState: went.listState })
+            compare(page.camIndex, 2)
+            verify(!page.inIcons())
+            compare(cursor(page), "Effects")
+            // The effects' page.
+            loader.source = ""
+            page = open({ group: "effects" })
+            compare(page.camIndex, 2)
+            verify(!page.inIcons())
+            verify(icons(page).visible)
+            verify(!icons(page).active)
+            compare(cursor(page), "Text Effect")
+            keyClick(Qt.Key_Escape)
+            compare(root.backs, 1)
+        }
+
+        // Menu Layout changed while the first screen is open: laid out again
+        // with the cursor where it was, on the page in Camcorder's icons, on
+        // its row in Standard's list.
+        function test_layoutChanged() {
+            root.menuLayout = "Camcorder"
+            var page = open()
+            keyClick(Qt.Key_Down)
+            keyClick(Qt.Key_Down)
+            keyClick(Qt.Key_Right)
+            root.menuLayout = "Standard"
+            tryVerify(function() { return page.settingsItems.length === 10 })
+            compare(cursor(page), "Look")
+            verify(!icons(page).visible)
+            keyClick(Qt.Key_Down)
+            root.menuLayout = "Camcorder"
+            tryVerify(function() { return page.camIndex === 3 && page.inIcons() })
+            compare(lines(page)[0], "Display Output")
         }
 
         // Test Patterns, on Screen's page on every machine, opens its page.

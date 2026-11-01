@@ -511,7 +511,7 @@ function previewSettings() {
     return {
         app: values(["app"], schema.app.flatMap(group => group.settings)),
         modules: schema.modules.map(module => ({
-            id: module.id, name: module.name, folder: module.folder,
+            id: module.id, name: module.name, folder: module.folder, group: module.group,
             enabled: moduleEnabled(module),
             values: values(["modules", module.id], module.settings),
         })),

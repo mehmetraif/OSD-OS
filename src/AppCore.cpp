@@ -166,6 +166,9 @@ void AppCore::scan_for_modules() {
         QVariantMap entry;
         entry["name"]        = m.name;
         entry["entry_point"] = entryPoint;
+        // The manifest's settings_group: the main menu's group in Settings →
+        // Look → Menu Layout's Camcorder ("tv", "arcade", "" for none).
+        entry["group"]       = m.settingsGroup;
         displayData.append(entry);
         qDebug("[AppCore] Module: %s -> %s", qPrintable(m.name), qPrintable(entryPoint));
     }
@@ -192,6 +195,7 @@ void AppCore::scan_for_modules() {
             }
             if (!entry.contains("entry_point"))
                 entry["entry_point"] = entryPointOf(m);
+            entry["group"] = m.settingsGroup;
             displayData.append(entry);
             qDebug("[AppCore] Menu entry from %s: %s -> %s", qPrintable(m.id),
                    qPrintable(entry.value("name").toString()),

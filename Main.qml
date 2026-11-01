@@ -539,6 +539,14 @@ Window {
     // default, a line in the scheme's colour (or the skin's window image);
     // "Off", none; "Shadow", the line and a DOS window's shadow.
     property string osdFrame: "On"
+    // Settings → Look → Menu Layout (app.menu_layout), how Settings and the
+    // main menu are laid out: "Standard", the default, a list a page at a
+    // time; "Camcorder", a camcorder's menu, the pages (the main menu's
+    // groups) as icons in a column at the left and the rows of the one the
+    // cursor is on beside them (Components/IconColumn). The Arcade module's
+    // screens keep their own. Read as the window is made, before the main
+    // menu is, so that it opens laid out as it will stay.
+    property string menuLayout: menuLayoutOf((appCore.get_settings().app || {}).menu_layout)
     property string primaryColor:   osdOff ? lighterOf(scheme.primary, scheme.surface) : scheme.primary
     property string surfaceColor:   osdOff ? "#000000" : scheme.surface
     // Two colours only, like a deck's on-screen display: everything is drawn in
@@ -666,6 +674,8 @@ Window {
                 root.statusIconsSetting = value !== "Off"
             } else if (key === "osd_background") {
                 root.osdBackground = root.osdBackgroundOf(value)
+            } else if (key === "menu_layout") {
+                root.menuLayout = root.menuLayoutOf(value)
             } else if (key === "window_mode") {
                 root.setWindowed(root.canWindow && value === "On")
             } else if (key === "mouse_pointer") {
@@ -1063,6 +1073,9 @@ Window {
     function backgroundOn(raw) {
         var s = String(raw === undefined || raw === null ? "" : raw).trim().toLowerCase()
         return s === "on" || s === "dim" || !isNaN(parseInt(s))
+    }
+    function menuLayoutOf(raw) {
+        return raw === "Camcorder" ? raw : "Standard"
     }
     function osdBackgroundOf(raw) {
         return raw === "Window" || raw === "Off" ? raw : "Full"

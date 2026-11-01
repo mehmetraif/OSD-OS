@@ -103,6 +103,7 @@ The third row opens Look's page, `SETTINGS | LOOK`: the theme and its parts, the
 | Color Scheme | THEME (with a theme), Video 1, Late Night, Synthwave, Terminal, T-120, Amber, Kinescope, SMPTE ECR 1-1978, and your own | THEME; without a theme, Video 1 | The two colours everything is drawn in: the text, lines and selection, and the background | `app.color_scheme`: the scheme's name, `""` for THEME |
 | Skin | THEME (with a theme), None, DOS, Rounded, and those in the data folder's `skins` | THEME; without a theme, None | The shapes of the window's frame, the title and hint bars and the selected line, and icons of its own, drawn in the color scheme's colours ([Skins](https://github.com/mehmetraif/OSD-OS/wiki/Skins)) | `app.skin`: the skin's folder name (`dos`, `rounded`), `"Off"` for None, `""` for THEME |
 | Effects | A page | | What the text, the background, the selected line and the screen do, and how one window gives way to the next ([below](#effects)) | |
+| Menu Layout | Standard, Camcorder | Standard | How Settings and the main menu are laid out. **Standard**: a list, a page at a time. **Camcorder**: as a camcorder's menu, the pages (the main menu's groups) as icons in a column at the left, the rows of the one the cursor is on beside it ([below](#menu-layout)). It changes at once | `app.menu_layout`: `"Standard"` or `"Camcorder"` |
 | OSD Background | Full, Off, Window | Full | What the menus are drawn on. **Full**: the color scheme's background over the whole screen. **Off**: none; the menus on black, in whichever of the scheme's two colours is the lighter, like a deck's on-screen display with nothing playing (so T-120's dark text doesn't vanish). **Window**: a framed window of the scheme's background behind the menus, black around it. Over a video playing behind the menus, the window lies over the picture, which shows whole around it | `app.osd_background` |
 | Window Frame | On, Off, Shadow | On | Dimmed but with Window. **On**: a line round the window in the scheme's colour, or the skin's own frame. **Off**: no frame. **Shadow**: the line and a DOS window's shadow down the right side and along the foot, a half tone of the window's colour (over a video, it darkens the picture) | `app.osd_frame` |
 | Boot Screen Colors | Theme, Default | Theme | The colours of the boot screen on the OSD/OS image, its cassette and the services coming up: the theme's or colour scheme's, or white on blue | `app.boot_colors`: `"Theme"` or `"Default"` |
@@ -123,6 +124,20 @@ The Effects row opens their page, `SETTINGS | LOOK / EFFECTS`. Each is a part of
 | Transition | THEME, Off, Fade, Cube, Ripple, Wave, Drop | THEME; without a theme, Off | How one window gives way to the next. Ripple, Wave and Drop need a GPU; without one a theme's falls back to Fade | `app.transition` |
 
 The effects and the menu music rest while a video plays, loads or has its menu open, and while a player has the screen ([Effects](https://github.com/mehmetraif/OSD-OS/wiki/Effects)).
+
+### Menu Layout
+
+<table>
+<tr><th width="50%">Settings in Camcorder</th><th width="50%">The main menu in Camcorder</th></tr>
+<tr><td><img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/screenshots/settings-camcorder.png" width="100%" alt="Settings in Camcorder: SETTINGS | LOOK in the title bar, a column of icons at the left with Look's boxed, Look's rows beside it, Menu Layout's row on Camcorder selected and the help line about it" /></td><td><img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/screenshots/main-menu-camcorder.png" width="100%" alt="The main menu in Camcorder: OSD/OS | TV / MOVIE in the title bar, the TV, Arcade, More and Settings icons at the left, the video modules beside them" /></td></tr>
+<tr><td>The pages as icons, the rows of the one the cursor is on beside them.</td><td>The modules in groups: TV / Movie, Arcade, More, and Settings.</td></tr>
+</table>
+
+**Standard** is the list this page describes, a page at a time. **Camcorder** lays the same pages and rows out the way a camcorder's menu does, the icons at the left, a rule, then the rows:
+
+- **Settings.** The first screen is a column of the pages' icons (TV / Movie, Arcade, Look, Screen, Sound, Controls, Network, Startup, System, then Quit's eject), the title bar naming the page the cursor is on, its rows beside the column. ▲ ▼ go from page to page, round, its rows shown at once; ► or select goes into them, where the keys work as on a page of their own; back comes out to the icons, and back again to the main menu. A page that is a view of its own (Arcade's, Controls, Quit) shows its one row, and ► or select opens it. A page opened from the rows (Look's Effects) has the column too, its heading's icon framed.
+- **The main menu.** The modules are in groups, by the page their settings are on: **TV / Movie**, **Arcade** and **More** (the modules of neither, Scripts), then **Settings**; a group with no module turned on is left out. The keys start in the rows of the module's group, as they were left; ◄ goes to the icons, ▲ ▼ there from group to group, ► or select into its rows, and on Settings' icon they open Settings. Back opens Settings from anywhere, as in Standard.
+- The Help Line and Hint Bar give the rows their room when they are off, as in Standard, and the status icons stay at the title bar's right. The Arcade screen and the Arcade module's own pages keep their own layout.
 
 ### Color schemes
 

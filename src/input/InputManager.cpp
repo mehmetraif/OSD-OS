@@ -2908,6 +2908,7 @@ void InputManager::updateHints() {
     h["arrows"]     = QStringLiteral("[▲▼◄►]");   // the trees: all four move
     h["change"]     = QStringLiteral("[◄►]");
     h["browse"]     = QStringLiteral("[►]");
+    h["left"]       = QStringLiteral("[◄]");   // Camcorder's rows back to the icons
     h["back"]       = QStringLiteral("[ESC]");
     h["select"]     = QStringLiteral("[ENTER]");
     h["play_pause"] = QStringLiteral("[SPACE]");
