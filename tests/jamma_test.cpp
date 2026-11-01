@@ -163,19 +163,48 @@ private slots:
         QCOMPARE(int(p2.size()), 1);
         QVERIFY(has(p2, EV_ABS, ABS_X, 1));
         QVERIFY(!coin.routed());
-        // Player 2's Start pressed after the coin: the coin stays player 1's.
+        // Player 2's Start pressed after the coin: the coin stays player 1's,
+        // and the Start waits for it to come out, since RetroArch takes a
+        // Coin on one pad and a Start on another for its way out.
         p1 = {};
         p2 = { { EV_KEY, BTN_START, 1 } };
         coin.route(p1, p2);
         QVERIFY(p1.empty());
-        QCOMPARE(int(p2.size()), 1);
-        QVERIFY(has(p2, EV_KEY, BTN_START, 1));
+        QVERIFY(p2.empty());
         p1 = { { EV_KEY, BTN_SELECT, 0 } };
         p2 = {};
         coin.route(p1, p2);
         QCOMPARE(int(p1.size()), 1);
         QVERIFY(has(p1, EV_KEY, BTN_SELECT, 0));
-        QVERIFY(p2.empty());
+        QCOMPARE(int(p2.size()), 1);
+        QVERIFY(has(p2, EV_KEY, BTN_START, 1));
+        QVERIFY(!coin.routed());
+    }
+
+    void sharedCoinHoldsPlayerOnesStartForPlayerTwosCoin() {
+        // Player 2's own Coin in: player 1's Start waits for it, and is let
+        // go while it goes in if held already.
+        SharedCoin coin;
+        std::vector<Event> p1 = { { EV_KEY, BTN_START, 1 } }, p2;
+        coin.route(p1, p2);
+        QVERIFY(has(p1, EV_KEY, BTN_START, 1));
+        p1 = {};
+        p2 = { { EV_KEY, BTN_SELECT, 1 } };
+        coin.route(p1, p2);
+        QCOMPARE(int(p1.size()), 1);
+        QVERIFY(has(p1, EV_KEY, BTN_START, 0));
+        QCOMPARE(int(p2.size()), 1);
+        QVERIFY(has(p2, EV_KEY, BTN_SELECT, 1));
+        p1 = {};
+        p2 = { { EV_KEY, BTN_SELECT, 0 } };
+        coin.route(p1, p2);
+        QVERIFY(has(p2, EV_KEY, BTN_SELECT, 0));
+        QVERIFY(has(p1, EV_KEY, BTN_START, 1));
+        // A player's own Coin and Start, held together: their way out.
+        p1 = { { EV_KEY, BTN_SELECT, 1 } };
+        p2 = {};
+        coin.route(p1, p2);
+        QVERIFY(has(p1, EV_KEY, BTN_SELECT, 1));
     }
 
     void sharedCoinWithStartIsPlayerTwos() {
@@ -263,37 +292,53 @@ private slots:
     }
 
     void sharedCoinNeverCoinAndStartTogether() {
-        // Every order of the three controls pressed and let go, read by read:
-        // player 2's pad never has Coin and Start held at once but where its
-        // own two are (the way out a player asks for), and player 1's coin
-        // goes to one pad only.
-        const int codes[3][2] = { { 1, BTN_SELECT }, { 2, BTN_SELECT }, { 2, BTN_START } };
-        for (int order = 0; order < 729; ++order) {
+        // Every order of the four controls pressed and let go, read by read:
+        // no Coin is in on either pad while a Start is in on either (how
+        // RetroArch sees a machine's pads, all at once) but where one
+        // player's own two are held (the way out a player asks for), and
+        // player 1's coin goes to one pad only.
+        const int codes[4][2] = { { 1, BTN_SELECT }, { 2, BTN_SELECT }, { 2, BTN_START }, { 1, BTN_START } };
+        for (int order = 0; order < 65536; ++order) {
             SharedCoin coin;
-            bool held[3] = {};
-            bool pad1Coin = false, pad2Coin = false, pad2Start = false;
+            bool held[4] = {};
+            bool pad1Coin = false, pad1Start = false, pad2Coin = false, pad2Start = false;
             int steps = order;
-            for (int step = 0; step < 6; ++step) {
-                const int which = steps % 3;
-                steps /= 3;
+            for (int step = 0; step < 8; ++step) {
+                const int which = steps % 4;
+                steps /= 4;
                 held[which] = !held[which];
                 std::vector<Event> p1, p2;
                 (codes[which][0] == 1 ? p1 : p2).push_back({ EV_KEY, uint16_t(codes[which][1]), held[which] ? 1 : 0 });
                 coin.route(p1, p2);
                 for (const Event &e : p1)
-                    pad1Coin = e.value != 0;
-                for (const Event &e : p2) {
-                    if (e.code == BTN_SELECT)
-                        pad2Coin = e.value != 0;
-                    else
-                        pad2Start = e.value != 0;
-                }
-                const bool own = held[1] && held[2];
-                QVERIFY2(!(pad2Coin && pad2Start) || own, qPrintable(QString("order %1 step %2").arg(order).arg(step)));
-                QCOMPARE(pad1Coin, held[0] && !coin.routed());
-                QCOMPARE(pad2Coin, held[1] || coin.routed());
-                QVERIFY(!coin.routed() || held[0]);
+                    (e.code == BTN_SELECT ? pad1Coin : pad1Start) = e.value != 0;
+                for (const Event &e : p2)
+                    (e.code == BTN_SELECT ? pad2Coin : pad2Start) = e.value != 0;
+                const bool own1 = held[0] && held[3] && pad1Coin && pad1Start;
+                const bool own2 = held[1] && held[2] && pad2Coin && pad2Start;
+                const QString where = QString("order %1 step %2").arg(order).arg(step);
+                QVERIFY2(!((pad1Coin || pad2Coin) && (pad1Start || pad2Start)) || own1 || own2, qPrintable(where));
+                QVERIFY2(pad1Coin == (held[0] && !coin.routed()), qPrintable(where));
+                QVERIFY2(pad2Coin == (held[1] || coin.routed()), qPrintable(where));
+                QVERIFY2(!coin.routed() || held[0], qPrintable(where));
+                // A Start not held never goes in.
+                QVERIFY2(!pad1Start || held[3], qPrintable(where));
+                QVERIFY2(!pad2Start || held[2], qPrintable(where));
             }
+            // Everything let go: so are the pads.
+            for (int which = 0; which < 4; ++which) {
+                if (!held[which])
+                    continue;
+                held[which] = false;
+                std::vector<Event> p1, p2;
+                (codes[which][0] == 1 ? p1 : p2).push_back({ EV_KEY, uint16_t(codes[which][1]), 0 });
+                coin.route(p1, p2);
+                for (const Event &e : p1)
+                    (e.code == BTN_SELECT ? pad1Coin : pad1Start) = e.value != 0;
+                for (const Event &e : p2)
+                    (e.code == BTN_SELECT ? pad2Coin : pad2Start) = e.value != 0;
+            }
+            QVERIFY2(!pad1Coin && !pad1Start && !pad2Coin && !pad2Start, qPrintable(QString("order %1").arg(order)));
         }
     }
 
