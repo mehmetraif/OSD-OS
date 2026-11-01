@@ -188,6 +188,10 @@ In a JAMMA cabinet, the cabinet's controls answer it: button 1 keeps the new out
 
 After a switch back, the old output says so once: **Back to <old output>**, *<new output> was not kept*. If the Pi came back on the same output, as when a preset was missing and nothing was written, it says **Still on <output>**, *The display output couldn't be switched to <output>*. Select or back closes it.
 
+## Setting the screen up
+
+Once the picture is on the output, **Settings → Test Patterns** has the pictures to set the screen up by: the Grid for its size, position and geometry (red squares just showing at every edge), the Monoscope and Convergence for a tube's convergence, PLUGE, Color Bars and Gray Ramp for brightness, contrast and colour, and solid colours for purity ([Settings → Test Patterns](https://github.com/mehmetraif/OSD-OS/wiki/Settings#test-patterns)).
+
 ## The base config.txt
 
 The image's [`config.txt`](https://github.com/mehmetraif/OSD-OS/blob/main/os/stage-osdos/03-boot/files/config.txt) holds what doesn't change with the output, and includes `osdos-display.txt` for what does:

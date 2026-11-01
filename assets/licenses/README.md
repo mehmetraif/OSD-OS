@@ -1,11 +1,12 @@
 # Licences shown in About
 
-Settings → About → Arcade shows the licence of each piece of free software
-the arcade uses. The GNU GPL v3 is OSD/OS's own `LICENSE`; these are the
-others that wouldn't otherwise ship with every build:
+Settings → About shows the licence of each piece of free software the
+arcade and the test patterns use. The GNU GPL v3 is OSD/OS's own `LICENSE`;
+these are the others that wouldn't otherwise ship with every build:
 
 - `GPL-2.0.txt`: the GNU General Public License, version 2, for MAME (version
-  2 or later) and hi2txt's game definitions.
+  2 or later), hi2txt's game definitions and the 240p Test Suite's pictures
+  in Settings → Test Patterns (version 2 or later, `assets/testpatterns`).
 - `RapidXML.txt`: RapidXML's, the Boost Software License 1.0 or the MIT
   License, as in `thirdparty/openhi2txt/thirdparty/rapidxml-1.13/LICENSE`.
 - `zlib.txt`: minizip's and zlib's notices, under the zlib License.

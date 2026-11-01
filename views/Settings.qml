@@ -440,6 +440,16 @@ FocusScope {
                 moduleId: ""
             })
         }
+        // TEST PATTERNS — a picture to set a TV or monitor up by, its own
+        // knobs or menu: geometry, size, convergence, brightness, colour
+        // (views/TestPatterns.qml).
+        items.push({
+            type: "submenu",
+            key: "test_patterns",
+            label: "Test Patterns",
+            description: "Pictures to set up the screen by, with its own knobs or menu: size and position, geometry, convergence, focus, brightness, contrast and colour",
+            moduleId: ""
+        })
         // AUDIO OUTPUT — the sound card the players play through, among those
         // ALSA has now (audioOutput): ◄ ► change it at once, for a video
         // playing behind the menus too. One chosen but unplugged stays
@@ -933,6 +943,8 @@ FocusScope {
                     settingsRoot.navigateTo("views/Bluetooth.qml", {}, { currentIndex: settingsList.currentIndex })
                 else if (row.key === "about")
                     settingsRoot.navigateTo("views/About.qml", {}, { currentIndex: settingsList.currentIndex })
+                else if (row.key === "test_patterns")
+                    settingsRoot.navigateTo("views/TestPatterns.qml", {}, { currentIndex: settingsList.currentIndex })
                 else if (row.key === "cabinet_lock")
                     settingsRoot.navigateTo("views/CabinetLock.qml", {}, { currentIndex: settingsList.currentIndex })
                 else if (row.key === "group_tv")

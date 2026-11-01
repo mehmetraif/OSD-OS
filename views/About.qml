@@ -75,6 +75,12 @@ FocusScope {
           description: "Qt 6 (LGPL v3) • SDL2 (zlib) • mpv and libmpv (GPL v2+)"
                        + " • On the OSD/OS image: yt-dlp (Unlicense), Deno (MIT), FFmpeg (LGPL/GPL), Chromium (BSD)"
                        + " • The arcade's under ARCADE, below" },
+        { key: "testpatterns", label: "Test Patterns", value: "240p Test Suite", license: "assets/licenses/GPL-2.0.txt",
+          licenseName: "GNU General Public License, version 2 or later",
+          description: "Settings → Test Patterns' pictures, from the 240p Test Suite by Artemio Urbina and its"
+                       + " contributors, the Monoscope by Keith Raney, github.com/ArtemioUrbina/240pTestSuite"
+                       + " • Free software under the GNU General Public License, version 2 or later • {select}"
+                       + " The license's text" },
         { key: "system", label: "Image OS", value: "Raspberry Pi OS",
           description: "The OSD/OS image is Raspberry Pi OS Lite (64-bit), which is based on Debian 13 (trixie),"
                        + " built with Raspberry Pi's pi-gen, and OSD/OS on top • Each package keeps its own license:"

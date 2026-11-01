@@ -429,6 +429,12 @@ set_tests_properties(wifi_views PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscree
 add_test(NAME about_view COMMAND tree_browser_test -input ${CMAKE_CURRENT_SOURCE_DIR}/qml/tst_about.qml
                                  -import ${CMAKE_CURRENT_SOURCE_DIR}/../views)
 set_tests_properties(about_view PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen;QT_QUICK_BACKEND=software")
+# Settings → Test Patterns (views/TestPatterns.qml): every pattern there and
+# loading, the keys through them, the name and keys over them, the effects
+# resting and the screen saver waiting.
+add_test(NAME test_patterns_view COMMAND tree_browser_test -input ${CMAKE_CURRENT_SOURCE_DIR}/qml/tst_test_patterns.qml
+                                       -import ${CMAKE_CURRENT_SOURCE_DIR}/../views)
+set_tests_properties(test_patterns_view PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen;QT_QUICK_BACKEND=software")
 # About → System Information (views/SystemInfo.qml): its rows, the cursor kept on its
 # line as they are read again, and the device renamed on the keyboard, against
 # a stand-in for SystemInfo.
