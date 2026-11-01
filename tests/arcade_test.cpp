@@ -3821,8 +3821,9 @@ private slots:
     // saved in the games folder's snap folder as <set>_<n> in the first
     // numbers free, never over the user's own (whatever its suffix's case)
     // nor as a set's name, a clone's under its parent's name when it is its
-    // parent's game and shown after the clone's own snap, listed among its
-    // pictures (the snap first) and kept through the folder read again; each
+    // parent's game and shown before the clone's own snap, listed among its
+    // pictures (by their numbers, the snap after them) and kept through the
+    // folder read again; each
     // game's looked for once, this run and the next (its record, beside
     // them); one that failed not again at once; none with no key, nor for a
     // game RetroAchievements hasn't. Its achievements counted for the Arcade
@@ -3892,8 +3893,8 @@ private slots:
         QSignalSpy changed(&arcade, &ArcadeBackend::picturesChanged);
         arcade.setAchievementsKey(QStringLiteral("key1"));
         QCOMPARE(arcade.gameDetails(QStringLiteral("sf2")).value(QStringLiteral("pictures")),
-                 urls({ snap + QStringLiteral("/sf2.png"), snap + QStringLiteral("/sf2_1.png"),
-                        snap + QStringLiteral("/sf2_4.PNG") }));
+                 urls({ snap + QStringLiteral("/sf2_1.png"), snap + QStringLiteral("/sf2_4.PNG"),
+                        snap + QStringLiteral("/sf2.png") }));
         QTRY_VERIFY_WITH_TIMEOUT(arcade.achievementsKeyWorks(), 5000);
         QTest::qWait(600);
         QCOMPARE(standIn.asked, QStringList({ QStringLiteral("/API/API_GetConsoleIDs.php?") }));
@@ -3922,12 +3923,12 @@ private slots:
         QCOMPARE(stems, QStringList({ QStringLiteral("sf2_2"), QStringLiteral("sf2_5"), QStringLiteral("sf2_6") }));
         // In the order they came: the title screen, the screenshot, the box.
         QCOMPARE(bytes, QList<QByteArray>({ png("title"), png("ingame"), jpeg("box") }));
-        // Shown by their numbers, the user's among them.
-        const QStringList shown{ snap + QStringLiteral("/sf2.png"), snap + QStringLiteral("/sf2_1.png"), saved.at(0),
-                                 snap + QStringLiteral("/sf2_4.PNG"), saved.at(1), saved.at(2) };
+        // Shown by their numbers, the user's among them, the snap after.
+        const QStringList shown{ snap + QStringLiteral("/sf2_1.png"), saved.at(0), snap + QStringLiteral("/sf2_4.PNG"),
+                                 saved.at(1), saved.at(2), snap + QStringLiteral("/sf2.png") };
         QCOMPARE(arcade.gameDetails(QStringLiteral("sf2")).value(QStringLiteral("pictures")), urls(shown));
         QCOMPARE(arcade.gameDetails(QStringLiteral("sf2")).value(QStringLiteral("picture")).toString(),
-                 QUrl::fromLocalFile(snap + QStringLiteral("/sf2.png")).toString());
+                 QUrl::fromLocalFile(snap + QStringLiteral("/sf2_1.png")).toString());
         // The record, written after the pictures off the GUI thread.
         const auto kept = [record](const char *name) {
             return QJsonDocument::fromJson(contents(record)).object().value(QLatin1String(name)).toObject();
@@ -3941,14 +3942,14 @@ private slots:
         QTest::qWait(700);
         QVERIFY(standIn.asked.isEmpty());
 
-        // Pac-Man is its parent's game: saved as Puck Man's, shown after its
+        // Pac-Man is its parent's game: saved as Puck Man's, shown before its
         // own snap. Galaga isn't RetroAchievements': nothing read, asked
         // again or not.
         arcade.wantPictures(QStringLiteral("pacman"));
         QTRY_COMPARE_WITH_TIMEOUT(changed.size(), 4, 10000);
         QCOMPARE(changed.last().at(0).toString(), QStringLiteral("puckman"));
         QCOMPARE(arcade.gameDetails(QStringLiteral("pacman")).value(QStringLiteral("pictures")),
-                 urls({ snap + QStringLiteral("/pacman.png"), snap + QStringLiteral("/puckman_1.png") }));
+                 urls({ snap + QStringLiteral("/puckman_1.png"), snap + QStringLiteral("/pacman.png") }));
         standIn.asked.clear();
         arcade.wantPictures(QStringLiteral("galaga"));
         QTest::qWait(700);
@@ -4286,7 +4287,7 @@ private slots:
         QVERIFY(!queries.first().contains(QLatin1String("use_parent")));
         QCOMPARE(asked("/API/API_GetGame.php").size(), 1);
         QCOMPARE(arcade.gameDetails(QStringLiteral("galaga")).value(QStringLiteral("pictures")).toStringList(),
-                 urls({ snap + QStringLiteral("/galaga.png"), titles + QStringLiteral("/galaga.png") }));
+                 urls({ titles + QStringLiteral("/galaga.png"), snap + QStringLiteral("/galaga.png") }));
         QCOMPARE(arcade.gameDetails(QStringLiteral("pacman")).value(QStringLiteral("pictures")).toStringList(),
                  urls({ snap + QStringLiteral("/pacman.png") }));
         // What ArcadeDB had of each, noted (the record is written off the GUI
@@ -4334,7 +4335,7 @@ private slots:
         QVERIFY(asked("/service_scraper.php?").first().contains(QLatin1String("game_name=mslug")));
         QVERIFY(!asked("/service_scraper.php?").first().contains(QLatin1String("mspacman")));
         QCOMPARE(arcade.gameDetails(QStringLiteral("mslug")).value(QStringLiteral("pictures")).toStringList(),
-                 urls({ snap + QStringLiteral("/mslug.png"), titles + QStringLiteral("/mslug.png") }));
+                 urls({ titles + QStringLiteral("/mslug.png"), snap + QStringLiteral("/mslug.png") }));
         // Shown again: nothing more asked.
         standIn.asked.clear();
         arcade.wantPictures(QStringLiteral("mslug"));

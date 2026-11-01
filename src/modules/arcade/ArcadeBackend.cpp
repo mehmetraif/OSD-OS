@@ -1879,21 +1879,13 @@ QStringList ArcadeBackend::setAndParent(const QString &set) const {
 
 QStringList ArcadeBackend::picturesOf(const QString &set) const {
     const QStringList sets = setAndParent(set);
-    // Its own; then of a clone, its parent's numbered pictures (those
-    // RetroAchievements has of a clone of the same game are saved under the
-    // parent's name), and the parent's snap only for a clone without one.
+    // The title screen first, as every game's pictures start from it: the
+    // titles folder's, its own else its parent's. Then the numbered ones,
+    // its own and of a clone its parent's (those RetroAchievements has of a
+    // clone of the same game are saved under the parent's name), whose first
+    // is RetroAchievements' title screen; then its snap, the parent's only
+    // for a clone without any other; then MAME's own snapshot.
     QStringList pictures;
-    const QString snap = m_snaps.value(set);
-    if (!snap.isEmpty())
-        pictures << snap;
-    pictures << m_numbered.value(set);
-    if (sets.size() > 1) {
-        const QString parentSnap = m_snaps.value(sets.at(1));
-        if (pictures.isEmpty() && !parentSnap.isEmpty())
-            pictures << parentSnap;
-        pictures << m_numbered.value(sets.at(1));
-    }
-    // Its title screen, else its parent's; then MAME's own snapshot.
     for (const QString &s : sets) {
         const QString title = m_titles.value(s);
         if (!title.isEmpty()) {
@@ -1901,6 +1893,14 @@ QStringList ArcadeBackend::picturesOf(const QString &set) const {
             break;
         }
     }
+    pictures << m_numbered.value(set);
+    if (sets.size() > 1)
+        pictures << m_numbered.value(sets.at(1));
+    QString snap = m_snaps.value(set);
+    if (snap.isEmpty() && sets.size() > 1 && pictures.isEmpty())
+        snap = m_snaps.value(sets.at(1));
+    if (!snap.isEmpty())
+        pictures << snap;
     for (const QString &s : sets) {
         const QString shot = m_shots.value(s);
         if (!shot.isEmpty()) {
