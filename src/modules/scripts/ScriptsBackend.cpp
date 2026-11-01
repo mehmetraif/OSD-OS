@@ -40,14 +40,14 @@ ScriptsBackend::ScriptsBackend(const QString &appRoot, const QString &dataRoot,
     setScriptsDir(configured);
 }
 
-// An empty (or "USE DEFAULT") setting means the dataRoot default.
+// An empty (or "USE DEFAULT") setting means the dataRoot default. The folder
+// is read only when the module asks for its scripts (every call that lists
+// or runs one scans it first), so with the module off it is never read.
 void ScriptsBackend::setScriptsDir(const QString &path) {
     m_scriptsDir = path.isEmpty() ? m_dataRoot + "/" + QLatin1String(kScriptsDirName)
                                   : path;
-    QDir().mkpath(m_scriptsDir);
     m_warnedUnwritable = false;   // new directory, new chance to be writable
     qDebug("[Scripts] Scripts dir: %s", qPrintable(m_scriptsDir));
-    scanScriptsDir();
 }
 
 void ScriptsBackend::onSettingChanged(const QString &moduleId, const QString &key,
@@ -204,6 +204,7 @@ void ScriptsBackend::writeStubSidecar(const QString &sidecarPath,
 
 void ScriptsBackend::scanScriptsDir() {
     m_scripts.clear();
+    QDir().mkpath(m_scriptsDir);
 
     // QDir::Files excludes hidden entries (.DS_Store and friends). The suffix is
     // compared manually because nameFilters are case-sensitive on Linux, and a

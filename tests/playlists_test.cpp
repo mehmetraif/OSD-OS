@@ -1,8 +1,10 @@
+#include "AppCore.h"
 #include "modules/playlists/PlaylistsBackend.h"
 #include "util/AtomicFile.h"
 
 #include <QDir>
 #include <QFileInfo>
+#include <QScopeGuard>
 #include <QTemporaryDir>
 #include <QtTest>
 
@@ -56,6 +58,43 @@ private slots:
         QVERIFY(failed.value(QStringLiteral("error")).toString().startsWith(QStringLiteral("The list could not be written")));
         QCOMPARE(folder.entryList({ QStringLiteral("*.m3u") }, QDir::Files),
                  QStringList({ QFileInfo(second).fileName() }));
+    }
+
+    // An offline list's downloads only while the module is on: off, a video
+    // put on one waits in the queue; turned on, the queue goes on. (No
+    // yt-dlp to run here, so the download it starts fails at once, saying so.)
+    void downloadsOnlyWhileOn() {
+        QTemporaryDir app;
+        QTemporaryDir data;
+        QVERIFY(app.isValid() && data.isValid());
+        QVERIFY(QDir().mkpath(app.path() + QStringLiteral("/modules/playlists")));
+        QVERIFY(writeFileAtomically(app.path() + QStringLiteral("/modules/playlists/manifest.json"),
+                                    R"({"id": "com.osdos.playlists", "entry_point_qml": "views/Root.qml",
+                                        "settings": [{"key": "enabled", "type": "toggle", "default": "ON"}]})"));
+        QVERIFY(writeFileAtomically(data.path() + QStringLiteral("/config.json"),
+                                    R"({"modules": {"com.osdos.playlists": {"enabled": false}}})"));
+        const QByteArray path = qgetenv("PATH");
+        const auto restore = qScopeGuard([&path] { qputenv("PATH", path); });
+        qputenv("PATH", data.path().toUtf8());   // no yt-dlp
+
+        AppCore core(app.path(), data.path());
+        QVERIFY(!core.is_module_enabled(QStringLiteral("com.osdos.playlists")));
+        PlaylistsBackend playlists(data.path(), &core, nullptr, nullptr, {});
+        connect(&core, &AppCore::moduleSettingChanged, &playlists, &PlaylistsBackend::onSettingChanged);
+        const QString id = playlists.createPlaylist(QStringLiteral("Away"), QStringLiteral("offline"));
+        QVERIFY(playlists.addEntry(id, QStringLiteral("com.osdos.youtube"),
+                                   { { QStringLiteral("videoId"), QStringLiteral("aqz-KE-bpKQ") },
+                                     { QStringLiteral("title"), QStringLiteral("Film") } })
+                    .value(QStringLiteral("ok")).toBool());
+        const auto state = [&]() {
+            return playlists.playlist(id).value(QStringLiteral("items")).toList().value(0).toMap();
+        };
+        QTest::qWait(200);
+        QCOMPARE(state().value(QStringLiteral("state")).toString(), QStringLiteral("queued"));
+
+        QVERIFY(core.save_setting(QStringLiteral("com.osdos.playlists"), QStringLiteral("enabled"), true));
+        QTRY_COMPARE(state().value(QStringLiteral("state")).toString(), QStringLiteral("failed"));
+        QCOMPARE(state().value(QStringLiteral("reason")).toString(), QStringLiteral("no yt-dlp"));
     }
 };
 

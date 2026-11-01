@@ -106,8 +106,10 @@ PlaylistsBackend::PlaylistsBackend(const QString &dataRoot, AppCore *appCore, Lo
       m_youtube(youtube), m_servers(servers) {
     load();
     // What was left to download goes on once the app has settled (and the
-    // network, at boot, has had a chance to come up).
-    QTimer::singleShot(15000, this, &PlaylistsBackend::queueOfflineItems);
+    // network, at boot, has had a chance to come up), and only with the
+    // module on: off, it downloads nothing until it is turned on again.
+    if (moduleEnabled())
+        QTimer::singleShot(15000, this, &PlaylistsBackend::queueOfflineItems);
 }
 
 PlaylistsBackend::~PlaylistsBackend() {
@@ -188,13 +190,28 @@ QString PlaylistsBackend::sourceFolder(const QString &name) const {
     return folder;
 }
 
+bool PlaylistsBackend::moduleEnabled() const {
+    return !m_appCore || m_appCore->is_module_enabled(kModuleId);
+}
+
 void PlaylistsBackend::onSettingChanged(const QString &moduleId, const QString &key,
                                         const QVariant &value) {
     Q_UNUSED(value)
+    if (moduleId != kModuleId)
+        return;
     // Downloads made so far stay where they are; what comes next goes to the
     // folder now chosen.
-    if (moduleId == kModuleId && key == QLatin1String("download_folder"))
+    if (key == QLatin1String("download_folder")) {
         emit playlistsChanged();
+    } else if (key == QLatin1String("enabled")) {
+        if (moduleEnabled()) {
+            queueOfflineItems();
+            // What waited in the queue while it was off goes on too.
+            QTimer::singleShot(0, this, &PlaylistsBackend::startNext);
+        } else {
+            pauseDownloads();
+        }
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -720,7 +737,7 @@ bool PlaylistsBackend::enqueue(const QString &key) {
 }
 
 void PlaylistsBackend::startNext() {
-    if (!m_active.key.isEmpty())
+    if (!m_active.key.isEmpty() || !moduleEnabled())
         return;
     while (!m_queue.isEmpty()) {
         const QString key = m_queue.takeFirst();
@@ -913,10 +930,7 @@ void PlaylistsBackend::record(bool ok) {
     QTimer::singleShot(0, this, &PlaylistsBackend::startNext);
 }
 
-void PlaylistsBackend::cancel(const QString &key) {
-    m_queue.removeAll(key);
-    if (m_active.key != key)
-        return;
+void PlaylistsBackend::stopActive() {
     if (QProcess *process = m_active.process) {
         process->disconnect(this);
         // An interrupt first, for yt-dlp to tidy up, and the kill a moment
@@ -930,13 +944,33 @@ void PlaylistsBackend::cancel(const QString &key) {
     }
     if (m_active.download)
         m_active.download->cancel();
+    m_active = Active();
+}
+
+void PlaylistsBackend::cancel(const QString &key) {
+    m_queue.removeAll(key);
+    if (m_active.key != key)
+        return;
     // A finished file still on its way to the card, or what a download got
     // through: no list wants it now.
-    if (!m_active.finalPath.isEmpty())
-        QFile::remove(m_active.finalPath);
+    const QString finalPath = m_active.finalPath;
+    stopActive();
+    if (!finalPath.isEmpty())
+        QFile::remove(finalPath);
     removePartials(key);
-    m_active = Active();
     QTimer::singleShot(0, this, &PlaylistsBackend::startNext);
+}
+
+void PlaylistsBackend::pauseDownloads() {
+    // The module turned off: the download under way stops and waits at the
+    // head of the queue, what yt-dlp fetched kept for it to carry on from
+    // once the module is on again. One already on its way to the card ends.
+    if (m_active.key.isEmpty() || m_active.flushing)
+        return;
+    qDebug("[Playlists] module off, download of %s paused", qPrintable(m_active.key));
+    m_queue.prepend(m_active.key);
+    stopActive();
+    emit playlistsChanged();
 }
 
 void PlaylistsBackend::removePartials(const QString &key) const {

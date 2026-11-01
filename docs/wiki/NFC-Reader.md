@@ -78,7 +78,7 @@ Settings → TV / Movie → **NFC Reader** → **Enabled**: On. NFC Reader then 
 
 ## How cards map to videos
 
-Each card has a text file in the tags folder: `nfc_tags` in the data folder (`~/.local/share/OSD-OS/nfc_tags/` on Linux and the image, `~/Library/Application Support/OSD-OS/nfc_tags/` on a Mac), or the folder Settings → TV / Movie → NFC Reader → **Tags Directory** names. OSD/OS creates it if it is missing.
+Each card has a text file in the tags folder: `nfc_tags` in the data folder (`~/.local/share/OSD-OS/nfc_tags/` on Linux and the image, `~/Library/Application Support/OSD-OS/nfc_tags/` on a Mac), or the folder Settings → TV / Movie → NFC Reader → **Tags Directory** names. OSD/OS creates it if it is missing, and reads it only while the module is on.
 
 A tag file:
 

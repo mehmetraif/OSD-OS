@@ -266,7 +266,7 @@ The server's own certificate is accepted as the server module accepts it (a self
 
 ### One at a time
 
-Downloads run one after another, in the order they were queued. Queued videos start downloading 15 seconds after OSD/OS starts (time for the network to come up at boot), and a video put on an offline list joins the queue at once. A download stays at 100% for a moment while the file is written out to the card, and only then counts as **READY**, so switching the Pi off right after doesn't leave a half-written film on the partition.
+Downloads run one after another, in the order they were queued. Queued videos start downloading 15 seconds after OSD/OS starts (time for the network to come up at boot), and a video put on an offline list joins the queue at once. All of it only while the Playlists module is on: turned off in Settings, it downloads nothing, and a download under way stops and waits (what yt-dlp fetched is kept for it to carry on from); turned on again, the queue goes on. A download stays at 100% for a moment while the file is written out to the card, and only then counts as **READY**, so switching the Pi off right after doesn't leave a half-written film on the partition.
 
 A failed download is tried again each time OSD/OS starts, and with **Retry Downloads**; one the server refused (**NOT ALLOWED**) only with Retry Downloads. A downloaded file deleted from outside OSD/OS shows **QUEUED** and downloads again the next time OSD/OS starts.
 
@@ -483,7 +483,7 @@ A YouTube video is written as `https://www.youtube.com/watch?v=<id>` (mpv's yt-d
 | **NOT ALLOWED** | Your Jellyfin or Emby user may not download media; an administrator can allow it on the server, then **Retry Downloads** |
 | **FAILED**, `signed out` | Sign in again in the Jellyfin or Emby module, then **Retry Downloads** |
 | **MISSING** | The Local Files file was moved, renamed or deleted, or is on a USB drive that is out (plug it back in); on an online list, a server video while you are signed out of it. A moved file has to be added again |
-| A video stays **QUEUED** | Downloads run one at a time, and start 15 seconds after OSD/OS does; a server that stops sending fails after 30 seconds and the queue moves on |
+| A video stays **QUEUED** | Downloads run one at a time, and start 15 seconds after OSD/OS does, only while the Playlists module is on; a server that stops sending fails after 30 seconds and the queue moves on |
 | The card fills up | Every offline video is a full file. Take videos off offline lists, or delete lists you don't need: their downloads go at once. `bytes` in `playlists.json` gives each file's size |
 | **Nothing to play** | The list is empty, nothing is downloaded yet, or nothing can be reached: see [Playing](#playing) |
 | **Could not play** · The list could not be written in … | The disk the data folder is on is full or read-only. Make room on it, then play the list again |
