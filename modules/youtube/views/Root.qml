@@ -58,6 +58,8 @@ FocusScope {
     // (resumePlayer), or the sign-in page (SIGN IN in the module's settings),
     // whose back returns there.
     Component.onCompleted: {
+        if (typeof youtubeBackend !== "undefined" && youtubeBackend)
+            youtubeBackend.opened()
         if (navParams.signIn)
             navigateTo("SignIn.qml", navParams)
         else

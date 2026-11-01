@@ -67,6 +67,22 @@ void YouTubeBackend::signOut() {
     m_browser->signOut();
 }
 
+void YouTubeBackend::opened() {
+#ifdef Q_OS_LINUX
+    static const QString unit = QStringLiteral("osdos-yt-dlp-update.service");
+    if (m_updateStarted || !QFileInfo::exists(QStringLiteral("/etc/systemd/system/") + unit))
+        return;
+    m_updateStarted = true;
+    // Started through systemd, which runs one update at a time, so never
+    // alongside the timer's; its polkit rule lets the app's user start it.
+    // Without a connection, or with nothing new, it ends by itself.
+    if (QProcess::startDetached(QStringLiteral("systemctl"),
+                                {QStringLiteral("--no-ask-password"), QStringLiteral("--no-block"),
+                                 QStringLiteral("start"), unit}))
+        qDebug("[YouTube] yt-dlp update started");
+#endif
+}
+
 QString YouTubeBackend::cookiesFromBrowser() const {
     const QString profile = m_browser->browserProfile();
     // Chromium's cookie store: in Network/ since Chromium 96, beside it before.

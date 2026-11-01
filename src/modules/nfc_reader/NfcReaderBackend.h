@@ -166,6 +166,8 @@ private:
     QString tagsDirPath() const;
     void setTagsDir(const QString &path);
     void scanTagsDir();
+    void loadTagsDir();  // mkpath + scanTagsDir
+    bool m_tagsRead = false;  // m_mapping is the tags folder's, read since it was set
     bool parseTagFile(const QString &filePath, QString &uidOut, QString &pathOut,
                       QString &modeOut) const;
     void writeStubFile(const QString &normalizedUid);

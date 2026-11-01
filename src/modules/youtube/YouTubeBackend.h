@@ -59,6 +59,12 @@ public:
     // it the sign-in yt-dlp reads.
     Q_INVOKABLE void signOut();
 
+    // Root.qml, as the module opens: brings yt-dlp up to date on OSD/OS's
+    // image, where its update (osdos-yt-dlp-update.service) otherwise runs
+    // only while YouTube or a playlist uses it, so a module turned on later
+    // may find it weeks old. Once an app run; nothing where the unit isn't.
+    Q_INVOKABLE void opened();
+
     // The yt-dlp format the ADVANCED settings ask for: at most the
     // playback_resolution's height (240p to 2160p, unknown → 480p) and, with
     // max_frame_rate "30", 30 fps; H.264 first (video_codec "H.264", which the
@@ -149,6 +155,8 @@ signals:
     void problemChanged();
 
 private:
+    bool m_updateStarted = false;
+
     struct ChannelEntry {
         QString      channelId;
         QString      channelName;      // from the RSS feed <title>

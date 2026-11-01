@@ -450,7 +450,7 @@ Installing the dependencies can take a while; over Wi-Fi, about 20 minutes. Then
 | Puts the app in place | `OSD-OS-<version>-linux-arm64.tar.gz`, checked against the SHA-256 GitHub keeps for it, into `/opt/osdos` the way the launcher applies an in-app update: unpacked whole into `/opt/osdos/.new` first, then `bin` and `share` swapped in through `/opt/osdos/.old`, so that a Pi switched off meanwhile starts on the release before, which the launcher puts back whole. OSD/OS, if it is running, stops for the swap and starts again as the script ends. All of it is owned by the user OSD/OS runs as (run as `sudo bash install.sh`, the user who ran sudo), so in-app updates can replace it; it warns when that user still can't write there, as in-app updates then won't apply |
 | Replaces 240-MP | An install from OSD/OS's days as 240-MP (`/opt/240mp`, `240mp.service`) is removed once OSD/OS is in place, so the two never fight over the screen and a download that fails leaves it as it was. OSD/OS moves 240-MP's data folder over to its own on its first start |
 | The launcher | `/usr/local/bin/osdos`: applies a downloaded update, then starts OSD/OS on Wayland or X11 when there is a desktop, or straight on the screen (Qt's EGLFS) when there isn't, on the right display card (a Pi 5's video card is not always the first) |
-| The service | After **y**: `/etc/systemd/system/osdos.service`. With any service, a new one or one kept, what goes with it: its stop helper `/usr/local/bin/osdos-stop`, `osdos-terminal.service` for Exit to Terminal, `osdos-display.socket` with `osdos-display@.service` for Display Output's At Next Start, `osdos-wifi.socket` with `osdos-wifi@.service` for Settings → Wi-Fi's country, and `osdos-name.socket` with `osdos-name@.service` for renaming the device in Settings → About → System Information. After **y**, and on the OSD/OS image, the console login on `tty1` is masked (`getty@tty1`, `autovt@`), so the screen is OSD/OS's. The OSD/OS image's own `osdos.service`, and one kept with **N**, is left as it is, enabled or not; one kept with **N** leaves the login on `tty1` as it is too. The rest is written afresh |
+| The service | After **y**: `/etc/systemd/system/osdos.service`. With any service, a new one or one kept, what goes with it: its stop helper `/usr/local/bin/osdos-stop`, `osdos-terminal.service` for Exit to Terminal, `osdos-display.socket` with `osdos-display@.service` for Display Output's At Next Start, `osdos-wifi.socket` with `osdos-wifi@.service` for Settings → Wi-Fi's country, and `osdos-name.socket` with `osdos-name@.service` for renaming the device in Settings → About → System Information. After **y**, and on the OSD/OS image, the console login on `tty1` is masked (`getty@tty1`, `autovt@`), so the screen is OSD/OS's, and logind starts no logins on the consoles itself (`/etc/systemd/logind.conf.d/osdos.conf`, from the next start). The OSD/OS image's own `osdos.service`, and one kept with **N**, is left as it is, enabled or not; one kept with **N** leaves the login on `tty1` as it is too. The rest is written afresh |
 
 #### The autostart service
 
@@ -460,7 +460,7 @@ The service starts OSD/OS after the rest of the system (`multi-user.target`), as
 |---|---|---|
 | 0 | Quit → Power Off (or Ctrl+Q) | The Pi powers off |
 | 10 | Quit → Exit to Terminal | A login prompt on `tty1`; the service stays installed for the next boot |
-| 11 | Settings → Update → Apply & Restart | Nothing: systemd starts OSD/OS again through the launcher, which applies the update |
+| 11 | Settings → Update → Apply & Restart | Nothing: systemd starts OSD/OS again through the launcher (`RestartForceExitStatus=11`), which applies the update |
 | 12 | Quit → Restart | The Pi reboots |
 | 20–38 | Settings → Display Output (the OSD/OS image) | A display preset is written, then the Pi reboots |
 | 40–58 | Settings → Display Output → Switch and Power Off | A display preset is written, then the Pi powers off |
@@ -721,7 +721,7 @@ sudo apt full-upgrade
 sudo reboot
 ```
 
-YouTube's yt-dlp is the exception: on the image it replaces itself with its newest nightly build two minutes after each boot and once a day (`osdos-yt-dlp-update.timer`), when there is a connection.
+YouTube's yt-dlp is the exception: on the image it replaces itself with its newest nightly build two minutes after each boot and once a day (`osdos-yt-dlp-update.timer`), when there is a connection and YouTube or a playlist uses it, and as the YouTube module opens.
 
 ## Uninstalling
 

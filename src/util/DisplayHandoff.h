@@ -66,9 +66,13 @@ struct DrmCover {
 // The ORDER HERE IS LOAD-BEARING and was established against real Pi hardware —
 // do not reorder it, and do not re-implement these ioctls in a new caller:
 //
-//   acquire():  VT switch  ->  drmDropMaster  ->  save CRTC state
-//     The VT switch goes FIRST because it suspends Qt's render thread via the
-//     kernel's VT-switch signal before DRM master is dropped. On kernels 5.8+
+//   acquire():  the app stops drawing  ->  VT switch  ->  drmDropMaster  ->  save CRTC state
+//     Drawing stops FIRST (the drawing switch, main.cpp: the window hidden).
+//     Neither the VT switch nor the master drop pauses Qt EGLFS: drawing on,
+//     every frame it drew through a whole game was a flip refused (EACCES), and
+//     Qt's atomic path keeps each refused flip's properties in its next commit,
+//     so the first commit after a long game carried thousands of them and was
+//     refused (EINVAL) with every one after it, on a Pi 5. On kernels 5.8+
 //     drmSetMaster() returns EACCES for non-root while any other process holds
 //     master, and Qt EGLFS runs VT_AUTO and never calls drmDropMaster() itself.
 //
@@ -79,6 +83,7 @@ struct DrmCover {
 //     after a failed commit).
 //
 //   release():  drmSetMaster  ->  restore CRTC (and clear the cursor)  ->  VT switch back
+//               ->  the app draws again
 //     Exactly the inverse. The child's cleanup leaves the CRTC off
 //     (CRTC_ACTIVE=0) or as the child had it, and EGLFS, which sets the mode
 //     only on its first frame and from then on only flips a frame buffer onto
@@ -172,6 +177,14 @@ public:
     using CoverPainter = std::function<bool(int width, int height, unsigned char *pixels, int pitch)>;
     void setCoverPainter(CoverPainter painter) { m_coverPainter = std::move(painter); }
 
+    // Stops (false) and starts again (true) the app's own drawing, for a
+    // hand-off on headless Linux: stopped before the screen goes (after the
+    // cover is painted, where there is one) and started again once it is
+    // back, so that Qt attempts no flip meanwhile (see acquire() above).
+    // main.cpp sets it from the QML window.
+    using DrawingSwitch = std::function<void(bool draw)>;
+    void setDrawingSwitch(DrawingSwitch drawingSwitch) { m_drawingSwitch = std::move(drawingSwitch); }
+
     // A frame Qt has drawn and handed to the screen, from any thread (the
     // render thread's QQuickWindow::frameSwapped, main.cpp): what Qt's
     // refused flips are counted against after a hand-back.
@@ -231,6 +244,8 @@ private:
 #endif
     // useCover false for shutdown: Qt's own last frame buffer put back.
     void doRestore(bool useCover = true);
+    // The drawing switch thrown, once each way.
+    void setDrawing(bool draw);
 
     QString m_owner;                    // empty when not handed off
     int     m_previousVt   = -1;
@@ -240,6 +255,8 @@ private:
     QTimer *m_coverTimer   = nullptr;
     std::function<void()> m_onRestored;
     CoverPainter m_coverPainter;
+    DrawingSwitch m_drawingSwitch;
+    bool    m_drawingStopped = false;
     std::atomic<quint64> m_frames { 0 };
 #ifdef Q_OS_LINUX
     DrmSavedState m_savedDrm = {};

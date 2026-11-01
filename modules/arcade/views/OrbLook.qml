@@ -365,8 +365,10 @@ Item {
                 baseColorMap: Texture { id: picture; generateMipmaps: true; mipFilter: Texture.Linear }
             }
         }
-        // 2D content in design units, drawn at sheetScale for a Sheet.
-        component Drawn: Item {
+        // 2D content in design units, drawn at sheetScale for a Sheet. A
+        // focus scope from the start: Qt Quick 3D makes a Texture's
+        // sourceItem one, and warns when the item has children by then.
+        component Drawn: FocusScope {
             default property alias contents: inner.data
             property real w
             property real h
@@ -1087,7 +1089,8 @@ Item {
     // screenshot fills the screen (a vertical game's 3:4, upright in the
     // middle), one of another shape keeps its own. Without one, which file
     // it would be, or that a set isn't a game; on a room, its game's name.
-    readonly property Item screen: Item {
+    // A focus scope from the start, as Drawn is (a Texture's sourceItem).
+    readonly property Item screen: FocusScope {
         id: screen
         width: 760
         height: 570

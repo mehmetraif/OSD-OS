@@ -1,0 +1,75 @@
+#!/usr/bin/python3 -I
+"""Whether OSD/OS has a use for yt-dlp: osdos-yt-dlp-update.service's condition.
+
+yt-dlp is wanted while the YouTube module is on, or while the Playlists module
+is on with a YouTube video on one of its lists (it plays through yt-dlp, and an
+offline list downloads with it). Otherwise the update is skipped: a box that
+plays only its own films or arcade games has no use for it. The YouTube
+module, turned on later, starts the update itself as it opens.
+
+The settings are the app's (config.json in its data directory); a module
+without one is on or off as its manifest says by default: YouTube off,
+Playlists on. Exits 0 when yt-dlp is wanted, 1 when not, and 0 when the
+settings can't be read, since an update when in doubt costs one request.
+
+    yt-dlp-wanted [DATA_DIR]
+"""
+
+import json
+import os
+import sys
+
+YOUTUBE = "com.osdos.youtube"
+PLAYLISTS = "com.osdos.playlists"
+# The manifests' defaults (modules/*/manifest.json, "enabled").
+DEFAULTS = {YOUTUBE: False, PLAYLISTS: True}
+
+
+def read(path):
+    try:
+        with open(path, encoding="utf-8-sig") as f:
+            return json.load(f)
+    except FileNotFoundError:
+        return {}
+
+
+def enabled(modules, module_id):
+    # As AppCore::isModuleEnabled: only a setting that is there counts, and
+    # anything but an explicit false is on.
+    settings = modules.get(module_id)
+    if isinstance(settings, dict) and "enabled" in settings:
+        return settings["enabled"] is not False
+    return DEFAULTS[module_id]
+
+
+def has_youtube_video(playlists):
+    for playlist in playlists.get("playlists") or []:
+        if not isinstance(playlist, dict):
+            continue
+        for item in playlist.get("items") or []:
+            if isinstance(item, dict) and item.get("module") == YOUTUBE:
+                return True
+    return False
+
+
+def main():
+    data = sys.argv[1] if len(sys.argv) > 1 else os.path.expanduser("~/.local/share/OSD-OS")
+    try:
+        config = read(os.path.join(data, "config.json"))
+        modules = config.get("modules") if isinstance(config, dict) else None
+        modules = modules if isinstance(modules, dict) else {}
+        if enabled(modules, YOUTUBE):
+            return 0
+        if enabled(modules, PLAYLISTS):
+            playlists = read(os.path.join(data, "playlists.json"))
+            if isinstance(playlists, dict) and has_youtube_video(playlists):
+                return 0
+    except (OSError, ValueError) as e:
+        print(f"Settings not read ({e}); yt-dlp is updated", file=sys.stderr)
+        return 0
+    print("Neither YouTube nor a playlist uses yt-dlp; no update", file=sys.stderr)
+    return 1
+
+
+if __name__ == "__main__":
+    sys.exit(main())

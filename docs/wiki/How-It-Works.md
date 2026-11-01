@@ -239,8 +239,8 @@ flowchart LR
 Only one program draws on the screen at a time: the one holding the DRM *master*. When something else must have the screen, [`DisplayHandoff`](https://github.com/mehmetraif/OSD-OS/blob/main/src/util/DisplayHandoff.cpp) hands it over and takes it back, in an order found on real Pis and not to be changed:
 
 ```text
-acquire():  VT switch  ->  drmDropMaster  ->  save CRTC state
-release():  drmSetMaster  ->  restore CRTC (and clear the cursor)  ->  VT switch back
+acquire():  the app stops drawing  ->  VT switch  ->  drmDropMaster  ->  save CRTC state
+release():  drmSetMaster  ->  restore CRTC (and clear the cursor)  ->  VT switch back  ->  the app draws again
 ```
 
 ```mermaid
@@ -250,19 +250,21 @@ sequenceDiagram
     participant Q as Qt (EGLFS)
     participant C as mpv --vo=drm
     P->>H: acquire("mpv")
-    H->>Q: switch to a free VT, Qt stops drawing
+    H->>Q: hide the window: Qt stops drawing
+    H->>H: switch to a free VT
     H->>H: drop DRM master, save the CRTC
     P->>C: start mpv
     C->>C: takes DRM master, plays
     C-->>P: exits
     P->>H: releaseDeferred, 200 ms later
     H->>H: take DRM master back, restore the CRTC
-    H->>Q: switch back to Qt's VT, drawing resumes
+    H->>H: switch back to Qt's VT
+    H->>Q: show the window: drawing resumes
     H-->>P: done: report the end of playback
 ```
 
-- **The VT switch goes first**, because it suspends Qt's drawing before the master is dropped; on kernels from 5.8 a process not root can't take master while another holds it.
-- **No VT to come back to, no switch.** The VT in use is read from `/sys/class/tty/tty0/active`, else asked of the console itself (`/dev/tty0`). When neither answers there would be no VT to switch back to, so the screen is handed over without a switch, and the log says so: Qt draws on meanwhile, rather than the console being left on another VT.
+- **The app stops drawing first**: its window is hidden until the screen is back. Neither the VT switch nor dropping the master pauses Qt, and a frame drawn meanwhile is a flip the kernel refuses; Qt carries every refused flip into its next commit, which after a long game was refused for good. On kernels from 5.8 a process not root can't take master while another holds it.
+- **No VT to come back to, no switch.** The VT in use is read from `/sys/class/tty/tty0/active`, else asked of the console itself (`/dev/tty0`). When neither answers there would be no VT to switch back to, so the screen is handed over without a switch, and the log says so: the child shares the app's console, rather than the console being left on another VT.
 - **The 200 ms wait** lets the child's last display commit clear in the vc4 driver, and the restore uses the old `drmModeSetCrtc`, not an atomic commit, which would fail after the child's cleanup.
 - **One owner at a time.** `acquire()` takes a name and refuses another while one holds the screen. The names are `mpv`, `scripts`, `arcade` (the Arcade module's MAME), and the web players' `netflix`, `prime_video` and `youtube` (its sign-in).
 - **What Qt last drew stays on the glass** for the whole hand-off, since nothing clears it. So a screen is painted, and presented, before the hand-off: a video's loading screen, a takeover script's notice.

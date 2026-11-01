@@ -145,6 +145,9 @@ private:
     // not from inside whatever started it.
     void failLater(const QString &reason);
     void cancel(const QString &key);
+    void stopActive();
+    void pauseDownloads();
+    bool moduleEnabled() const;
     QString sourceFolder(const QString &name) const;
     // Whether a download can go in the folder; if not, it fails, saying so.
     bool writable(const QString &folder);

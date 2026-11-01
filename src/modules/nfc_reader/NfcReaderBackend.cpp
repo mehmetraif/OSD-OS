@@ -169,9 +169,6 @@ NfcReaderBackend::NfcReaderBackend(const QString &appRoot, const QString &dataRo
     }
     qDebug("[NfcReader] Tags dir: %s", qPrintable(tagsDirPath()));
 
-    QDir().mkpath(tagsDirPath());
-    scanTagsDir();
-
     // If the worker wedges inside a PC/SC call, first report the reader as
     // disconnected rather than showing a stale "tap a card" while taps go
     // nowhere; if it stays wedged, abandon that thread and start a fresh one.
@@ -202,11 +199,19 @@ NfcReaderBackend::NfcReaderBackend(const QString &appRoot, const QString &dataRo
         }
     });
 
+    // The cards' folder is read only with the module on; off, nothing scans
+    // it until the module is turned on.
     if (configuredEnabled) {
+        loadTagsDir();
         setPollingEnabled(true);
     } else {
         qInfo("[NfcReader] Polling disabled by configuration");
     }
+}
+
+void NfcReaderBackend::loadTagsDir() {
+    QDir().mkpath(tagsDirPath());
+    scanTagsDir();
 }
 
 bool NfcReaderBackend::pcscAvailable() const {
@@ -324,9 +329,11 @@ QString NfcReaderBackend::tagsDirPath() const {
 void NfcReaderBackend::setTagsDir(const QString &path) {
     // An empty (cleared) setting means back to the dataRoot/nfc_tags default.
     m_tagsDir = path.isEmpty() ? m_dataRoot + "/" + kTagsDirName : path;
-    QDir().mkpath(m_tagsDir);
     qDebug("[NfcReader] Tags dir: %s", qPrintable(m_tagsDir));
-    scanTagsDir();
+    if (m_pollingEnabled)
+        loadTagsDir();
+    else
+        m_tagsRead = false;   // read when the module is turned on, or a card written
 }
 
 void NfcReaderBackend::onSettingChanged(const QString &moduleId, const QString &key, const QVariant &value) {
@@ -336,6 +343,8 @@ void NfcReaderBackend::onSettingChanged(const QString &moduleId, const QString &
         // Same rule as the constructor / AppCore::isModuleEnabled: only an
         // explicit false turns polling off.
         const bool enabled = value.metaType().id() != QMetaType::Bool || value.toBool();
+        if (enabled && !m_pollingEnabled)
+            loadTagsDir();
         setPollingEnabled(enabled);
     } else if (key == QLatin1String("tags_directory")) {
         setTagsDir(value.toString());
@@ -380,6 +389,7 @@ bool NfcReaderBackend::parseTagFile(const QString &filePath, QString &uidOut, QS
 }
 
 void NfcReaderBackend::scanTagsDir() {
+    m_tagsRead = true;
     m_mapping.clear();
 
     // QDir's default filter excludes hidden files (.DS_Store etc.). The .txt
@@ -476,7 +486,11 @@ bool NfcReaderBackend::writeCardFile(const QString &uid, const QString &title,
     QString name = safeFileName(title, QLatin1Char('-'), 0, QString(), 240);
     if (name.isEmpty()) name = QString(normalizedUid).replace(u':', u'-');
 
-    QDir().mkpath(tagsDirPath());
+    // With the module off the folder may not have been read yet.
+    if (m_tagsRead)
+        QDir().mkpath(tagsDirPath());
+    else
+        loadTagsDir();
 
     // The file this UID is mapped to today, if any. It is the one existing file
     // this write is allowed to replace.

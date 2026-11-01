@@ -29,6 +29,7 @@ sed -i "s/@OSDOS_USER@/${FIRST_USER_NAME}/" "${ETC}/polkit-1/rules.d/50-osdos-ne
 # buffer run dry in a stream. A box on the mains has nothing to save.
 install -D -m 644 files/osdos-wifi-powersave.conf "${ETC}/NetworkManager/conf.d/osdos-wifi-powersave.conf"
 install -m 644 files/99-osdos-tty.rules "${ETC}/udev/rules.d/"
+install -D -m 644 files/osdos-logind.conf "${ETC}/systemd/logind.conf.d/osdos.conf"
 install -d "${LIB}"
 install -m 755 files/wait-for-app files/wait-for-display "${LIB}/"
 

@@ -32,7 +32,7 @@ The Subscriptions feed and the Channels folders need neither yt-dlp nor Deno to 
 Nothing to install. The image comes with:
 
 - **yt-dlp's nightly build** in the data folder, at `/home/pi/.local/share/OSD-OS/bin/yt-dlp`, where OSD/OS looks first. The nightly channel is the one yt-dlp's own README recommends for regular use.
-- **`osdos-yt-dlp-update.timer`**, which runs `yt-dlp --update` two minutes after each boot and then once a day. It waits up to five minutes for a connection (`nm-online`) and skips the run without one, and runs at the lowest priority, out of the way of a film. A check is one small request to GitHub.
+- **`osdos-yt-dlp-update.timer`**, which runs `yt-dlp --update` two minutes after each boot and then once a day, while the YouTube module is on (or a playlist has a YouTube video), and the YouTube module starts the same update the first time it opens after OSD/OS starts. It waits up to five minutes for a connection (`nm-online`) and skips the run without one, and runs at the lowest priority, out of the way of a film. A check is one small request to GitHub.
 - **Deno** in `/usr/local/bin/deno` (its licence in `/usr/local/share/doc/deno/LICENSE.md`).
 - `python3-pycryptodome`, `python3-requests` and `python3-brotli`, which make yt-dlp faster on a Pi (pycryptodome decrypts the sign-in's cookies far faster than yt-dlp's own code), and `ffmpeg`.
 

@@ -1,0 +1,11 @@
+// Lets OSD/OS's app start the yt-dlp update as the YouTube module opens. The
+// app's service is outside any login session, where polkit would otherwise
+// ask for a password. Starting it is all: not stopping it, nor any other unit.
+polkit.addRule(function(action, subject) {
+    if (subject.user == "@OSDOS_USER@" &&
+        action.id == "org.freedesktop.systemd1.manage-units" &&
+        action.lookup("unit") == "osdos-yt-dlp-update.service" &&
+        action.lookup("verb") == "start") {
+        return polkit.Result.YES;
+    }
+});
