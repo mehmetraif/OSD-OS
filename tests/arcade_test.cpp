@@ -31,6 +31,8 @@
 #include <QtEndian>
 #include <QtTest>
 
+#include <cstring>
+
 #include <functional>
 
 // The Arcade module against a stand-in for MAME (a shell script in the data
@@ -329,6 +331,35 @@ exit 0
     }
 
 private slots:
+    // The credits put in a FinalBurn Neo game: each coin held 100 ms and
+    // let go 200 ms, from the first on; RetroArch's message for its network
+    // RetroPad, struct remote_message as the machine lays it out.
+    void coinFeed() {
+        bool done = false;
+        QVERIFY(libretro::coinDown(0, 2, &done) && !done);
+        QVERIFY(libretro::coinDown(99, 2, &done) && !done);
+        QVERIFY(!libretro::coinDown(100, 2, &done) && !done);
+        QVERIFY(!libretro::coinDown(299, 2, &done) && !done);
+        QVERIFY(libretro::coinDown(300, 2, &done) && !done);
+        QVERIFY(!libretro::coinDown(400, 2, &done) && !done);
+        QVERIFY(!libretro::coinDown(600, 2, &done) && done);
+        QVERIFY(!libretro::coinDown(0, 0, &done) && done);
+        for (const bool down : { true, false }) {
+            const QByteArray message = libretro::remotePadMessage(libretro::kRetroPadSelect, down);
+            QCOMPARE(message.size(), 20);
+            qint32 fields[4];
+            quint16 state = 7;
+            std::memcpy(fields, message.constData(), sizeof fields);
+            std::memcpy(&state, message.constData() + sizeof fields, sizeof state);
+            QCOMPARE(fields[0], 0);
+            QCOMPARE(fields[1], 1);   // RETRO_DEVICE_JOYPAD
+            QCOMPARE(fields[2], 0);
+            QCOMPARE(fields[3], 2);   // RETRO_DEVICE_ID_JOYPAD_SELECT
+            QCOMPARE(state, quint16(down ? 1 : 0));
+            QCOMPARE(message.mid(18), QByteArray(2, '\0'));
+        }
+    }
+
     void initTestCase() {
         QVERIFY(m_data.isValid());
         m_log = m_data.path() + QStringLiteral("/mame.log");
@@ -554,6 +585,9 @@ private slots:
         QCOMPARE(mame::screenArguments(vertical, 240, QStringLiteral("4:3"), true), shape);
         QCOMPARE(mame::screenArguments(vertical, 1080, QString(), true), whole);
         QCOMPARE(mame::screenArguments(mame::Machine(), 240, QStringLiteral("4:3"), true), shape);
+        // Fit to Screen: stretched over the whole screen, whatever else.
+        QCOMPARE(mame::screenArguments(wide, 240, QStringLiteral("4:3"), true, true),
+                 QStringList({ QStringLiteral("-nokeepaspect") }));
         QCOMPARE(mame::screenArguments(wide, 240, QStringLiteral("16:9"), false),
                  QStringList({ QStringLiteral("-aspect"), QStringLiteral("16:9") }));
         QVERIFY(mame::screenArguments(wide, 1080, QString(), false).isEmpty());
@@ -1619,8 +1653,28 @@ private slots:
                                   "video_aspect_ratio_auto = \"false\"", "video_scale_integer = \"true\"",
                                   "video_scale_integer_axis = \"0\"", "video_scale_integer_scaling = \"0\"" })
             QVERIFY2(has(QLatin1String(line)), line);
+        // Fit to Screen: the whole screen (Full), its lines not kept whole,
+        // whatever the shape and Integer Scale say.
+        launch.fill = true;
+        config = libretro::configText(launch);
+        for (const char *line : { "aspect_ratio_index = \"24\"", "video_aspect_ratio_auto = \"false\"",
+                                  "video_scale_integer = \"false\"" })
+            QVERIFY2(has(QLatin1String(line)), line);
+        QVERIFY(!config.contains(QStringLiteral("video_aspect_ratio = ")));
+        launch.fill = false;
         launch.aspect = 0;
         launch.integerScale = false;
+        // No credits to put in: no network RetroPad. Credits: player 1's,
+        // on the port given.
+        config = libretro::configText(launch);
+        QVERIFY(has(QStringLiteral("network_remote_enable = \"false\"")));
+        QVERIFY(!config.contains(QStringLiteral("network_remote_base_port")));
+        launch.coinPort = 41234;
+        config = libretro::configText(launch);
+        for (const char *line : { "network_remote_enable = \"true\"", "network_remote_enable_user_p1 = \"true\"",
+                                  "network_remote_base_port = \"41234\"" })
+            QVERIFY2(has(QLatin1String(line)), line);
+        launch.coinPort = 0;
         // With a token: the password is no longer RetroArch's, nor saved.
         launch.achievementsToken = QStringLiteral("tok123");
         config = libretro::configText(launch);
@@ -3821,8 +3875,9 @@ private slots:
     // saved in the games folder's snap folder as <set>_<n> in the first
     // numbers free, never over the user's own (whatever its suffix's case)
     // nor as a set's name, a clone's under its parent's name when it is its
-    // parent's game and shown after the clone's own snap, listed among its
-    // pictures (the snap first) and kept through the folder read again; each
+    // parent's game and shown before the clone's own snap, listed among its
+    // pictures (by their numbers, the snap after them) and kept through the
+    // folder read again; each
     // game's looked for once, this run and the next (its record, beside
     // them); one that failed not again at once; none with no key, nor for a
     // game RetroAchievements hasn't. Its achievements counted for the Arcade
@@ -3892,8 +3947,8 @@ private slots:
         QSignalSpy changed(&arcade, &ArcadeBackend::picturesChanged);
         arcade.setAchievementsKey(QStringLiteral("key1"));
         QCOMPARE(arcade.gameDetails(QStringLiteral("sf2")).value(QStringLiteral("pictures")),
-                 urls({ snap + QStringLiteral("/sf2.png"), snap + QStringLiteral("/sf2_1.png"),
-                        snap + QStringLiteral("/sf2_4.PNG") }));
+                 urls({ snap + QStringLiteral("/sf2_1.png"), snap + QStringLiteral("/sf2_4.PNG"),
+                        snap + QStringLiteral("/sf2.png") }));
         QTRY_VERIFY_WITH_TIMEOUT(arcade.achievementsKeyWorks(), 5000);
         QTest::qWait(600);
         QCOMPARE(standIn.asked, QStringList({ QStringLiteral("/API/API_GetConsoleIDs.php?") }));
@@ -3922,12 +3977,12 @@ private slots:
         QCOMPARE(stems, QStringList({ QStringLiteral("sf2_2"), QStringLiteral("sf2_5"), QStringLiteral("sf2_6") }));
         // In the order they came: the title screen, the screenshot, the box.
         QCOMPARE(bytes, QList<QByteArray>({ png("title"), png("ingame"), jpeg("box") }));
-        // Shown by their numbers, the user's among them.
-        const QStringList shown{ snap + QStringLiteral("/sf2.png"), snap + QStringLiteral("/sf2_1.png"), saved.at(0),
-                                 snap + QStringLiteral("/sf2_4.PNG"), saved.at(1), saved.at(2) };
+        // Shown by their numbers, the user's among them, the snap after.
+        const QStringList shown{ snap + QStringLiteral("/sf2_1.png"), saved.at(0), snap + QStringLiteral("/sf2_4.PNG"),
+                                 saved.at(1), saved.at(2), snap + QStringLiteral("/sf2.png") };
         QCOMPARE(arcade.gameDetails(QStringLiteral("sf2")).value(QStringLiteral("pictures")), urls(shown));
         QCOMPARE(arcade.gameDetails(QStringLiteral("sf2")).value(QStringLiteral("picture")).toString(),
-                 QUrl::fromLocalFile(snap + QStringLiteral("/sf2.png")).toString());
+                 QUrl::fromLocalFile(snap + QStringLiteral("/sf2_1.png")).toString());
         // The record, written after the pictures off the GUI thread.
         const auto kept = [record](const char *name) {
             return QJsonDocument::fromJson(contents(record)).object().value(QLatin1String(name)).toObject();
@@ -3941,14 +3996,14 @@ private slots:
         QTest::qWait(700);
         QVERIFY(standIn.asked.isEmpty());
 
-        // Pac-Man is its parent's game: saved as Puck Man's, shown after its
+        // Pac-Man is its parent's game: saved as Puck Man's, shown before its
         // own snap. Galaga isn't RetroAchievements': nothing read, asked
         // again or not.
         arcade.wantPictures(QStringLiteral("pacman"));
         QTRY_COMPARE_WITH_TIMEOUT(changed.size(), 4, 10000);
         QCOMPARE(changed.last().at(0).toString(), QStringLiteral("puckman"));
         QCOMPARE(arcade.gameDetails(QStringLiteral("pacman")).value(QStringLiteral("pictures")),
-                 urls({ snap + QStringLiteral("/pacman.png"), snap + QStringLiteral("/puckman_1.png") }));
+                 urls({ snap + QStringLiteral("/puckman_1.png"), snap + QStringLiteral("/pacman.png") }));
         standIn.asked.clear();
         arcade.wantPictures(QStringLiteral("galaga"));
         QTest::qWait(700);
@@ -4286,7 +4341,7 @@ private slots:
         QVERIFY(!queries.first().contains(QLatin1String("use_parent")));
         QCOMPARE(asked("/API/API_GetGame.php").size(), 1);
         QCOMPARE(arcade.gameDetails(QStringLiteral("galaga")).value(QStringLiteral("pictures")).toStringList(),
-                 urls({ snap + QStringLiteral("/galaga.png"), titles + QStringLiteral("/galaga.png") }));
+                 urls({ titles + QStringLiteral("/galaga.png"), snap + QStringLiteral("/galaga.png") }));
         QCOMPARE(arcade.gameDetails(QStringLiteral("pacman")).value(QStringLiteral("pictures")).toStringList(),
                  urls({ snap + QStringLiteral("/pacman.png") }));
         // What ArcadeDB had of each, noted (the record is written off the GUI
@@ -4334,7 +4389,7 @@ private slots:
         QVERIFY(asked("/service_scraper.php?").first().contains(QLatin1String("game_name=mslug")));
         QVERIFY(!asked("/service_scraper.php?").first().contains(QLatin1String("mspacman")));
         QCOMPARE(arcade.gameDetails(QStringLiteral("mslug")).value(QStringLiteral("pictures")).toStringList(),
-                 urls({ snap + QStringLiteral("/mslug.png"), titles + QStringLiteral("/mslug.png") }));
+                 urls({ titles + QStringLiteral("/mslug.png"), snap + QStringLiteral("/mslug.png") }));
         // Shown again: nothing more asked.
         standIn.asked.clear();
         arcade.wantPictures(QStringLiteral("mslug"));

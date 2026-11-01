@@ -481,6 +481,20 @@ Rectangle {
 
         // Wi-Fi among the general settings once NetworkManager can be asked
         // (wifiManager.supported), after Controls; select opens its page.
+        // Test Patterns, among the application's rows on every machine,
+        // opens its page.
+        function test_testPatternsRow() {
+            var page = open()
+            var all = lines(page)
+            verify(all.indexOf("Test Patterns") > all.indexOf("# Application"))
+            verify(all.indexOf("Test Patterns") < all.indexOf("Controls"))
+            for (var i = 0; i < all.length && cursor(page) !== "Test Patterns"; i++)
+                keyClick(Qt.Key_Down)
+            compare(cursor(page), "Test Patterns")
+            keyClick(Qt.Key_Return)
+            compare(root.navigations[root.navigations.length - 1].path, "views/TestPatterns.qml")
+        }
+
         function test_wifiRow() {
             var page = open()
             verify(lines(page).indexOf("Wi-Fi") < 0)

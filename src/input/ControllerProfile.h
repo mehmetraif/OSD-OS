@@ -80,10 +80,13 @@ bool isArcadeToken(const QString &token);
 // fighters': X Y Z over A B C) and "n64" (Killer Instinct Gold's: B C◄ C▲
 // over A C▼ C►); and "custom", set button by button. Their titles, and a
 // layout's inputs (kArcadeInputs tokens, "" for none; none at all for
-// default and custom).
+// default and custom). numbered: a stick whose buttons are wired by number,
+// a JAMMA board's, whose six-button panel is its pins 1 2 3 over 4 5 6:
+// "fighting6" is its buttons in order (arcadeDefaultInputs()), where a
+// pad's has its face buttons' rows.
 QStringList arcadeLayouts();
 QString arcadeLayoutTitle(const QString &layout);
-QStringList arcadeLayoutInputs(const QString &layout);
+QStringList arcadeLayoutInputs(const QString &layout, bool numbered = false);
 // Where a layout set by hand starts from: A, B, X, Y, the shoulders and the
 // triggers Button 1 to 8, Back and Start Coin and Start. A JAMMA board's
 // stick has these under Default too: its pins' buttons 1 to 8, COIN and

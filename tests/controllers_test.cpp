@@ -284,6 +284,13 @@ private slots:
         QCOMPARE(p.arcadeLayout, QString("fighting6"));
         QCOMPARE(p.arcade, arcadeLayoutInputs("fighting6"));
         QVERIFY(!p.isEmpty());
+        // On a JAMMA board's stick, wired by number, Fighting 6 is its
+        // buttons in order, 1 2 3 over 4 5 6; on a pad, its face buttons'
+        // rows.
+        QCOMPARE(arcadeLayoutInputs("fighting6", true), arcadeDefaultInputs());
+        QCOMPARE(arcadeLayoutInputs("fighting6").mid(0, 6),
+                 QStringList({ "x", "y", "rightshoulder", "a", "b", "righttrigger+" }));
+        QCOMPARE(arcadeLayoutInputs("neogeo4", true), arcadeLayoutInputs("neogeo4"));
         QVERIFY(Profile::fromVariant(QVariantMap{ { "arcade", QVariantMap{ { "layout", "default" } } } }).isEmpty());
         // Set by hand: an input it can't be, or one another has (the first
         // keeps it), is none; one without a Coin or a Start is none at all.

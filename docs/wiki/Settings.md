@@ -12,7 +12,7 @@ Back on the main menu opens Settings (the hint bar there says `[ESC]:SETTINGS`).
 |---|---|---|---|
 | ▲ ▼ | Up, Down | D-pad, left stick | Moves to the row above or below. Past the last row the cursor goes round to the first |
 | ◄ ► | Left, Right | D-pad, left stick, LB, RB | Changes the value, round from the last choice to the first. A slider moves by 10. On a row that ends in ►, ► opens it as select does |
-| Select | Enter | A | Opens a page (TV / Movie, Arcade, a module's settings, Cabinet Lock, Controls, Wi-Fi, Bluetooth, Update, About), the list of Display Output, the file browser of Music File and Logo Image, or the Quit question: the rows that end in ►. On Transparent Background it turns the setting on or off |
+| Select | Enter | A | Opens a page (TV / Movie, Arcade, a module's settings, Cabinet Lock, Test Patterns, Controls, Wi-Fi, Bluetooth, Update, About), the list of Display Output, the file browser of Music File and Logo Image, or the Quit question: the rows that end in ►. On Transparent Background it turns the setting on or off |
 | Back | Esc, Backspace | B, or the pad's Back/Select button | Back to the main menu; from a page, back to the row that opened it |
 
 - **A change is saved at once.** Settings calls `appCore.save_setting("", key, value)`, on TV / Movie's page as on the first screen, which writes the value into `config.json` under `app.<key>` ([Configuration files](https://github.com/mehmetraif/OSD-OS/wiki/Configuration-Files#configjson)). Most rows take effect at once. The rows mpv is started with (Scaling, Video Levels, Channel Logo, Logo Image, Screen Saver during a video) apply from the next video. A value that can't be saved (a full or read-only disk) isn't applied, here or on a module's page: the row stays on the value saved, and the log says `[AppCore] Setting not saved: …`.
@@ -225,7 +225,7 @@ Every module's first row is **Enabled**. A module that is turned off is left off
 | Module | Module id | On by default | Its rows, in order |
 |---|---|---|---|
 | [Ambient:Mode](https://github.com/mehmetraif/OSD-OS/wiki/Ambient-Mode) | `com.osdos.ambient_mode` | No | Enabled, Media Directory, Auto-Launch Playback, Scaling |
-| [Arcade](https://github.com/mehmetraif/OSD-OS/wiki/Arcade) | `com.osdos.arcade` | No | Enabled, Games Folder, Hide Hacks and Bootlegs, Regions, Screen, Play at Startup, Start Info Screen, Save High Scores, Online High Scores (with RetroAchievements, RetroAchievements Account), Pictures From, Game Pictures, Online Play (with On, Relay Server), LAN Play, Online Name (with either on), MAME, FinalBurn Neo, Emulator Video (Screen Shape, Integer Scale, MAME Video), Read the Games Again; with Screen on Arcade, Start Filter, Menu Filters, List Style, Border, Info Background, Screen Adjustment, Hint Bar, Help Line, Attract Mode and Attract After too |
+| [Arcade](https://github.com/mehmetraif/OSD-OS/wiki/Arcade) | `com.osdos.arcade` | No | Enabled, Games Folder, Hide Hacks and Bootlegs, Regions, Screen, Play at Startup, Start Info Screen, Play Mode, Save High Scores, Online High Scores (with RetroAchievements, RetroAchievements Account), Pictures From, Game Pictures, Online Play (with On, Relay Server), LAN Play, Online Name (with either on), MAME, FinalBurn Neo, Emulator Video (Game Picture, Screen Shape, Integer Scale, MAME Video), Read the Games Again; with Screen on Arcade, Start Filter, Menu Filters, List Style, Border, Info Background, Screen Adjustment, Hint Bar, Help Line, Attract Mode and Attract After too |
 | [Emby](https://github.com/mehmetraif/OSD-OS/wiki/Emby) | `com.osdos.emby` | No | Enabled; once signed in Libraries, Video Quality, Resume Playback, Autoplay Next Episode, Intro Skip, Credit Skip; Scaling; Sign out once signed in |
 | [High Scores](https://github.com/mehmetraif/OSD-OS/wiki/High-Scores) | `com.osdos.highscores` | No | Enabled, on the Arcade page under the **HIGH SCORES** heading |
 | [Jellyfin](https://github.com/mehmetraif/OSD-OS/wiki/Jellyfin) | `com.osdos.jellyfin` | No | Enabled; once signed in Libraries, Video Quality, Resume Playback, Autoplay Next Episode, and Intro Skip and Credit Skip where the server has the Intro Skipper plugin; Scaling; Sign out once signed in |
@@ -265,6 +265,7 @@ Some rows wait for something:
 | Setting | Values | Default | What it does | Config key |
 |---|---|---|---|---|
 | Display Output | HDMI, Composite NTSC, Composite PAL, GPIO Composite NTSC, GPIO Composite PAL, SCART RGB NTSC, SCART RGB PAL, SCART RGB 240p, SCART RGB 288p, JAMMA 240p 15 kHz (720x240), JAMMA 240p 15 kHz (320x240), JAMMA 240p 15 kHz (1920x240), JAMMA 288p 15 kHz (720x288), JAMMA 288p 15 kHz (1920x288), JAMMA 480i 15 kHz (720x480), JAMMA 576i 15 kHz (720x576), JAMMA 25 kHz (496x384), JAMMA 31 kHz (640x480): those this Pi has | The image's build setting, HDMI unless built otherwise | On the OSD/OS image only. Where the picture goes. A change restarts the Pi on the new output, powers it off for it, or waits for its next start, and the new output stays only when you keep it. **Next: <output>** while one waits | None: the preset is copied over `/boot/firmware/osdos-display.txt` |
+| Test Patterns | A page | | Pictures to set the screen up by, with its own knobs or service menu: Grid, Monoscope, Convergence, PLUGE, Color Bars, SMPTE Color Bars, Gray Ramp, Sharpness and Solid Color, from the 240p Test Suite ([below](#test-patterns)) | None |
 | Audio Output | Auto, then each sound card that can play: AV Jack, HDMI (HDMI 0 and HDMI 1 when there are two), a USB card by its name | Auto | Which sound card plays, from the moment you choose it, for a video playing behind the menus too. Auto is the Pi's own default, or while that can't play (a Pi 5's HDMI without the picture), the first card that can | `app.audio_output`: `""` for Auto, or `{ "card", "name" }` |
 | Controls | A page | | Each controller connected, with its own buttons and a pad's button labels; the pads of players 1 to 6; and one more key for each action on every keyboard and remote | `app.controllers.<key>`, `app.players`, `app.remote_keymap.<action>` |
 | Wi-Fi | A page | | The networks within reach, joined with their passwords; one not listed; the networks saved; the country Wi-Fi keeps to the rules of | None: NetworkManager keeps the networks joined |
@@ -285,6 +286,24 @@ Select opens the list of the outputs this Pi has, with the board's model and the
 On the new output it first asks **Keep this display output?**. **Keep** keeps it. **Switch Back**, or 30 seconds without an answer (a TV that shows nothing), goes back to the output before, restarting again, and says so. Back does nothing there, so a key pressed at random on a blank screen can't keep it.
 
 The row needs the OSD/OS image's presets beside `config.txt`, the app started by the image's service, and a launcher new enough to switch (`OSDOS_LAUNCHER_API` 3; 4 for JAMMA 240p; 5 for At Next Start and Switch and Power Off; 6 for the JAMMA board's other modes). JAMMA 25 kHz and 31 kHz say first that they are for a monitor made for that scan rate only: too high a one can damage a 15 kHz monitor. The outputs, the cables and how to put a card right from a computer are in [Display Output](https://github.com/mehmetraif/OSD-OS/wiki/Display-Output).
+
+### Test Patterns
+
+A picture over the whole screen to set up a TV or monitor by, with its own knobs or service menu, from Artemio Urbina's [240p Test Suite](https://github.com/ArtemioUrbina/240pTestSuite) (GPL v2 or later). **◄ ►** go through the patterns, **▲ ▼** through a pattern's kinds, **select** shows or hides its name, what to set with it and the keys (shown for a few seconds as it opens and changes), and **back** leaves.
+
+| Pattern | Kinds | What to set with it |
+|---|---|---|
+| Grid | | Size, position and geometry: the whole 4:3 picture, white squares with a dot in each and red ones round the edge. Set the screen's height, width and position until the red squares just show at every edge, every square whole and square, with no bend or slant |
+| Monoscope | | A tube's setup: the centre cross for static convergence, the sides for the edges', the corners for corner convergence, purity and geometry. The red square is square on a screen set right: measure it, and set the height and width until its sides match |
+| Convergence | Lines, Crosses, Dots, Colors, Colors on Black | Red, green and blue landing on one another: no coloured fringe on the white lines, crosses or dots, none where the colours meet. Set at a lowered brightness |
+| PLUGE | | Black level: lower Brightness until the bars at the sides are gone, raise it until they just show, then back one step |
+| Color Bars | | White level with Contrast, then each colour's: the brightest steps of a bar just told apart, the darkest just showing |
+| SMPTE Color Bars | | Colour and tint for video, with a blue filter or the set's blue-only mode: the bars and the blocks under them match |
+| Gray Ramp | | Colour balance: every bar grey, with no red or blue in it; white level with Contrast |
+| Sharpness | | Sharpness (aperture on a monitor): black and grey meet cleanly, without a white ghost between them |
+| Solid Color | White, Black, Red, Green, Blue | Purity and white balance: one colour, even from corner to corner |
+
+Each is the suite's own picture, 320 × 240, or 640 × 480 on a screen of 400 lines or more where the suite has one (the Grid and the Monoscope), drawn pixel for pixel and scaled whole to the screen's height in its 4:3 middle: on a tube, the whole picture. While a pattern is up the screen effects rest and the screen saver waits, so it can be left on while the set is adjusted. The pictures and where each came from are in `assets/testpatterns` in the source.
 
 ### Audio Output
 

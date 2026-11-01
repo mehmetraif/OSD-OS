@@ -206,7 +206,9 @@ QString arcadeLayoutTitle(const QString &layout) {
     return QLatin1String(kLayouts[0].title);
 }
 
-QStringList arcadeLayoutInputs(const QString &layout) {
+QStringList arcadeLayoutInputs(const QString &layout, bool numbered) {
+    if (numbered && layout == QLatin1String("fighting6"))
+        return arcadeDefaultInputs();
     for (const Layout &l : kLayouts) {
         if (layout != QLatin1String(l.name) || !l.inputs[0])
             continue;

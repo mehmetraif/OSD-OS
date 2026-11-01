@@ -96,7 +96,7 @@ With **Settings → Arcade → Screen** on **Arcade**, Arcade opens on a cabinet
 |---|---|---|---|
 | ▲ ▼ | Joystick, D-pad | Arrows | The game before or after, from page to page, and round from the last to the first |
 | ◄ ► | Joystick, D-pad | Arrows | The filter before or after, on its first game |
-| COIN | **COIN** (Back, Select, -) | **5** | Puts a credit in, up to 9: they go in with the next game played |
+| COIN | **COIN** (Back, Select, -) | **5** | Puts a credit in, up to 9: they go in with the next game played (none in Free Play, [Credits](#credits)) |
 | Select | Button 1 (A) | **Enter** | Plays the game, with the credits, as you let it go |
 | Select, held | Button 1 (A), held | **Enter**, held | The game's options, once it has been held most of a second: **Play**, **Game Details**, **Add to Favorites** or **Remove from Favorites**, **Play at Startup** ([above](#a-games-options)). Letting it go then plays nothing |
 | START | **START** | **Space**, **1** | Plays the game, with the credits |
@@ -233,12 +233,12 @@ A Start Filter saved under the genres OSD/OS 0.0.9 listed, catver.ini's own, is 
 
 ### Pictures
 
-A game's pictures are, in this order:
+A game's pictures are, in this order, its title screen first:
 
-1. `snap/<set>.png` (or `.jpg`) in the games folder: `snap/galaga.png`, named by the set as MAME names it, the way the picture packs for MAME (progetto-SNAPS' *Snapshots*) lay them out, your own or downloaded from progetto-SNAPS ([below](#pictures-from-progetto-snaps));
-2. those numbered after the set there, by their numbers: `snap/galaga_1.png`, `snap/galaga_2.jpg`…, your own and those downloaded from RetroAchievements ([below](#pictures-from-retroachievements));
-3. for a clone, its parent's numbered pictures (`snap/puckman_1.png` for `pacman`), and its parent's `snap/puckman.png` when the clone has no picture of its own;
-4. its title screen, `titles/<set>.png` in the games folder, the way the *Titles* pack lays them out, your own or downloaded from progetto-SNAPS; a clone's own, else its parent's;
+1. its title screen, `titles/<set>.png` in the games folder, the way the *Titles* pack lays them out, your own or downloaded from progetto-SNAPS ([below](#pictures-from-progetto-snaps)); a clone's own, else its parent's;
+2. those numbered after the set in the games folder's `snap` folder, by their numbers: `snap/galaga_1.png`, `snap/galaga_2.jpg`…, your own and those downloaded from RetroAchievements, whose first is the title screen ([below](#pictures-from-retroachievements));
+3. for a clone, its parent's numbered pictures (`snap/puckman_1.png` for `pacman`);
+4. `snap/<set>.png` (or `.jpg`): `snap/galaga.png`, named by the set as MAME names it, the way the picture packs for MAME (progetto-SNAPS' *Snapshots*) lay them out, your own or downloaded from progetto-SNAPS; for a clone with no other picture, its parent's `snap/puckman.png`;
 5. the first snapshot taken of it in MAME (F12 in the game), which MAME keeps in `arcade/snap/<set>/`.
 
 With more than one, the Arcade screen shows the next every 4 seconds, cutting straight to it, and the first again whenever the game is chosen. A screenshot fills the frame in the game's own shape, 4:3, as the game itself does, whatever its pixels; a picture of another shape (a box, a flyer) keeps its own, as large as fits, on black. Without any, the frame says `No Picture` and the file it would be, and, while no pictures can be downloaded for it, why: `No Web API Key` or `Web API Key Refused` ([below](#pictures-from-retroachievements)); while every game's pictures are being looked for ([Download Pictures](#download-pictures)), how far that has got (`Downloading 120/900`). A vertical game's picture (Galaga, 1943) stands upright in the middle of the frame. `snap` and `titles` aren't sets: they are never listed as games.
@@ -247,7 +247,7 @@ With more than one, the Arcade screen shows the next every 4 seconds, cutting st
 
 #### Pictures from RetroAchievements
 
-With a **Web API Key** given in **Settings → Arcade → RetroAchievements Account** ([FinalBurn Neo](#finalburn-neo); Online High Scores needn't be on) and a connection, OSD/OS downloads the pictures RetroAchievements has of a game (any it lists, whether or not it has achievements or leaderboards), its title screen, a screenshot in play and its box art, the first time the game is shown on the Arcade screen or its [Game Details](#game-details) are opened. They go in the games folder's `snap` folder, named after the game with the first number free: `sf2_1.png`, `sf2_2.png`, `sf2_3.png`. A file already there is never written over: your own pictures keep their names, and a downloaded one takes the next number no file has. A clone that RetroAchievements counts as the same game as its parent gets the parent's pictures, under the parent's name (`puckman_1.png` for `pacman`), which every clone of it shows after its own. What was downloaded of each game is noted beside the pictures, in `snap/.retroachievements.json`, so a game's pictures are downloaded once into that folder, whichever machine uses it; one that couldn't be is tried again ten minutes later. A picture you don't want can be deleted: it isn't downloaded again. Nothing is downloaded into a folder that can't be written, such as a USB drive's (mounted read-only). RetroAchievements lists some thousands of arcade games, far from all of MAME's: the rest have no pictures there, which is what progetto-SNAPS' are for. When RetroAchievements answers that there were too many requests (it asks a pause of those who read its site), OSD/OS waits as long as it says, a minute unless it says, and asks again; such an answer, or its guard's page, never counts as the key refused.
+With a **Web API Key** given in **Settings → Arcade → RetroAchievements Account** ([FinalBurn Neo](#finalburn-neo); Online High Scores needn't be on) and a connection, OSD/OS downloads the pictures RetroAchievements has of a game (any it lists, whether or not it has achievements or leaderboards), its title screen, a screenshot in play and its box art, the first time the game is shown on the Arcade screen or its [Game Details](#game-details) are opened. They go in the games folder's `snap` folder, named after the game with the first number free: `sf2_1.png`, `sf2_2.png`, `sf2_3.png`. A file already there is never written over: your own pictures keep their names, and a downloaded one takes the next number no file has. A clone that RetroAchievements counts as the same game as its parent gets the parent's pictures, under the parent's name (`puckman_1.png` for `pacman`), which every clone of it shows before its own snap. What was downloaded of each game is noted beside the pictures, in `snap/.retroachievements.json`, so a game's pictures are downloaded once into that folder, whichever machine uses it; one that couldn't be is tried again ten minutes later. A picture you don't want can be deleted: it isn't downloaded again. Nothing is downloaded into a folder that can't be written, such as a USB drive's (mounted read-only). RetroAchievements lists some thousands of arcade games, far from all of MAME's: the rest have no pictures there, which is what progetto-SNAPS' are for. When RetroAchievements answers that there were too many requests (it asks a pause of those who read its site), OSD/OS waits as long as it says, a minute unless it says, and asks again; such an answer, or its guard's page, never counts as the key refused.
 
 #### Pictures from progetto-SNAPS
 
@@ -259,9 +259,14 @@ With a **Web API Key** given in **Settings → Arcade → RetroAchievements Acco
 
 ### Credits
 
-COIN puts in a credit, up to 9, shown as `Credit 2` on the picture. They go in with the next game played, whichever it is: OSD/OS has MAME press player 1's coin once for each, a few seconds after the game starts (5 seconds of the game's own time, past the start-up checks most boards run), as if the coins had been dropped in the cabinet. MAME is given a small script for it (`arcade/coins.lua`, with `-autoboot_script`), which puts them in once: a reset of the game (F3 in MAME) doesn't put them in again. The credits are spent once MAME starts, even if the game then stops with an error. A game that is still starting up after 5 seconds may not count them all: insert a coin in the game then.
+COIN puts in a credit, up to 9, shown as `Credit 2` on the picture. They go in with the next game played, whichever it is and whichever engine plays it, as if the coins had been dropped in the cabinet: player 1's coin is pressed once for each, a few seconds after the game starts, past the start-up checks most boards run. The credits are spent once the game starts, even if it then stops with an error. A game that is still starting up then may not count them all: insert a coin in the game.
+
+- **MAME** puts them in 5 seconds into the game's own time, with a small script OSD/OS gives it (`arcade/coins.lua`, with `-autoboot_script`), once: a reset of the game (F3 in MAME) doesn't put them in again.
+- **FinalBurn Neo** has them put in 5 seconds after its log says the game has started, through RetroArch's network RetroPad: RetroArch listens for player 1's buttons on a port of this machine only for that game (`network_remote_enable`), and OSD/OS presses its Select, FinalBurn Neo's coin, once for each credit. A game played online or on the local network takes none: insert a coin in the game.
 
 With no credits, the game starts as it always does, and a coin goes in in the game itself (COIN).
+
+**Free Play.** **Settings → Arcade → Play Mode** is **Credits** by default, as above. **Free Play** puts 9 credits in with every game, in MAME and FinalBurn Neo alike, with no coin bought: the picture says `Free Play` in place of the credits, COIN buys none and the hint bar leaves it out, and the screen before a game says `Free Play: 9 credits go in as the game starts`.
 
 ### Attract Mode
 
@@ -386,7 +391,7 @@ FinalBurn Neo is an arcade emulator of its own, played here in RetroArch as a li
 
 A game hosted or joined over the network or on the local network plays in FinalBurn Neo whatever its Engine says: MAME has no netplay ([Online play](#online-play), [LAN play](#lan-play)).
 
-The Arcade screen's box and the screen before a game say nothing different; the credits do: COIN buys none for a FinalBurn Neo game, as nothing puts them in for it, and the hint bar leaves it out: insert a coin in the game itself.
+The Arcade screen's box, the credits and the screen before a game say nothing different: the credits bought go in as they do in MAME ([Credits](#credits)).
 
 **Its sets** are FinalBurn Neo's own, named as MAME names its games, and most of a ROM set for MAME 0.276 plays in it too: a set it doesn't know, or one it needs another file for, stops with a notice naming the files, and **Engine: MAME** plays it as before (where there is no other engine, for a set MAME doesn't know, online or without MAME, the notice says the set may be for another version of FinalBurn Neo, or a BIOS set it needs isn't in the games folder). A Neo-Geo game needs `neogeo.zip`, beside the games or in their `bios` folder, as for MAME. It plays a zip or a 7z, not a folder of files.
 
@@ -459,6 +464,7 @@ MAME draws the game in the display mode OSD/OS runs in (**Settings → Display O
 - **Screen Shape**: the shape of your screen, which a game's picture is drawn to in its own shape (a horizontal game 4:3, a vertical one 3:4). A CRT's display mode doesn't have square pixels: JAMMA 240p is 720×240 on a 4:3 tube, which an emulator left to itself takes as a screen three times as wide as it is tall, squeezing the game into the middle third. **Auto** says 4:3 on a CRT's display output (composite, SCART RGB, JAMMA; off the OSD/OS image, a display mode of 576 lines or fewer) and square pixels on HDMI. **4:3** and **16:9** say so whatever the output; **Square Pixels** leaves the picture as the screen's pixels give it.
 - **Integer Scale**: a game's lines drawn whole, once (twice on a 480-line output), rather than spread over the screen's. On a CRT the lines stay sharp, with a thin border above and below a 224-line game on a 240-line screen; spread over 240, one line in fourteen comes out doubled or blurred. **Auto** is on on a CRT's display output and off elsewhere. A game with more lines than the screen (a vertical one on a 240p tube) fills it either way.
 - **MAME Video**: how MAME draws: if a game shows no picture, or MAME stops with an error about OpenGL, try another.
+- **Game Picture**: **Original** (the default) draws the game in its own shape, as Screen Shape and Integer Scale say, black around it where it doesn't fill the screen. **Fit to Screen** stretches it over the whole screen, top to bottom and side to side, whatever its shape or lines; Screen Shape and Integer Scale then don't apply. MAME's `-nokeepaspect`; RetroArch's full-screen aspect (`aspect_ratio_index 24`), without integer scaling.
 
 On a JAMMA cabinet at 240p, with everything on Auto, a horizontal game of 224 lines is drawn once each, as wide as its shape on the tube, and a vertical game upright in the middle, its lines spread over the screen's.
 
@@ -485,6 +491,7 @@ Settings → Arcade, the second row of Settings' first screen. The page is share
 | Attract Mode | Off, In Order, Random | Off | Left alone, the Arcade screen goes through its games on its own, a game every six seconds: down the list, or at random; the first button or key ends it ([Attract Mode](#attract-mode)). Shown while Screen is Arcade | `modules.com.osdos.arcade.attract_mode` |
 | Attract After | 30 Seconds, 1 Minute, 2 Minutes, 5 Minutes | 1 Minute | How long the Arcade screen is left alone before Attract Mode begins. Shown while Attract Mode isn't Off | `modules.com.osdos.arcade.attract_after` |
 | Start Info Screen | ON, OFF | ON | Before a game, the screen of how to come back (and from the Arcade screen, the credits going in); off, the game starts straight from the list, under its loading screen ([Playing](#playing)) | `modules.com.osdos.arcade.start_info` |
+| Play Mode | Credits, Free Play | Credits | Credits: COIN on the Arcade screen buys credits, which go in as the game starts; Free Play: every game starts with 9 credits in, MAME's and FinalBurn Neo's alike ([Credits](#credits)) | `modules.com.osdos.arcade.play_mode` |
 | Save High Scores | ON, OFF | ON | Keeps the games' high score tables with MAME's hiscore plugin ([above](#high-scores)) | `modules.com.osdos.arcade.high_scores` |
 | Online High Scores | Off, RetroAchievements | Off | RetroAchievements: a game FinalBurn Neo has plays in it, in hardcore mode, its scores going to RetroAchievements' leaderboards ([FinalBurn Neo](#finalburn-neo)) | `modules.com.osdos.arcade.online_high_scores` |
 | RetroAchievements Account | (opens the account's page) | | The account the scores go to with Online High Scores: sign in and out, and the Web API key the leaderboards, the games' pictures and their achievements are read with ([FinalBurn Neo](#finalburn-neo), [Pictures](#pictures-from-retroachievements), [Game Details](#game-details)) | |
@@ -497,6 +504,7 @@ Settings → Arcade, the second row of Settings' first screen. The page is share
 | MAME | (opens MAME's page) | | Whether MAME is installed and where, its hiscore plugin, and on Windows its download ([MAME's page](#mames-page)) | |
 | FinalBurn Neo | (opens FinalBurn Neo's page) | | What is installed of RetroArch and FinalBurn Neo, and the core's download ([FinalBurn Neo](#finalburn-neo)); its licence is in Settings → About | |
 | Emulator Video | (opens its page) | | How MAME and FinalBurn Neo draw a game on your screen ([Emulator Video](#emulator-video)) | |
+| Emulator Video → Game Picture | Original, Fit to Screen | Original | The game in its own shape, or stretched over the whole screen. MAME's `-nokeepaspect`; RetroArch's full-screen aspect | `modules.com.osdos.arcade.game_picture` |
 | Emulator Video → Screen Shape | Auto, 4:3, 16:9, Square Pixels | Auto | The screen's shape the games are drawn to: Auto 4:3 on a CRT's display output, square pixels on HDMI. MAME's `-aspect`; for FinalBurn Neo, the picture's shape in the screen's pixels (`video_aspect_ratio`) | `modules.com.osdos.arcade.screen_shape` |
 | Emulator Video → Integer Scale | Auto, On, Off | Auto | A game's lines drawn whole rather than spread over the screen's: Auto on on a CRT's display output. MAME's `-nounevenstretch -unevenstretchx` for a game whose lines fit; RetroArch's `video_scale_integer` | `modules.com.osdos.arcade.integer_scale` |
 | Emulator Video → MAME Video | Auto, OpenGL, BGFX, Accelerated, Software | Auto | How MAME draws the game: Auto leaves it to MAME's own settings (Debian's `mame.ini` says OpenGL); the others are MAME's `-video opengl`, `bgfx`, `accel` and `soft` | `modules.com.osdos.arcade.video` |
@@ -523,6 +531,8 @@ Settings → Arcade, the second row of Settings' first screen. The page is share
 | `relay_server` | `"New York"`, `"Madrid"`, `"São Paulo"`, `"Singapore"` or `"Chuncheon"` |
 | `engines` | Each game's Engine, by set, but Auto's: `{ "sf2": "fbneo", "mslug": "mame" }` |
 | `video` | `"Auto"`, `"OpenGL"`, `"BGFX"`, `"Accelerated"` or `"Software"` |
+| `play_mode` | `"Credits"` or `"Free Play"` |
+| `game_picture` | `"Original"` or `"Fit to Screen"` |
 
 The module's entry in `config.json` (in the data folder), with the games on a USB drive, the Arcade screen opening on the fighting games without its hint bar, its filters without the puzzle games and with Capcom's, and MAME's software drawing:
 
@@ -584,7 +594,7 @@ mame galaga \
     -autoboot_script ~/.local/share/OSD-OS/arcade/coins.lua
 ```
 
-(`;…/bios` while there is a `bios` folder; `-samplepath` while there is a `samples` folder, in place of MAME's own; the plugin's two while High Scores is on; `-video …` with any MAME Video but Auto; `-aspect` with a Screen Shape that isn't square pixels, and the two `unevenstretch` with Integer Scale on, for a game whose lines fit in the screen's ([Emulator Video](#emulator-video)); `-sound none` without a sound card that can play; `-autoboot_script` with credits bought on the Arcade screen.) Everything else is MAME's own settings: `/etc/mame/mame.ini` on the image, or a `mame.ini` of your own in `~/.mame`. A MAME of your own with its folders beside it runs in its own folder instead, as it would by hand, to find them, and reads the `mame.ini` there.
+(`;…/bios` while there is a `bios` folder; `-samplepath` while there is a `samples` folder, in place of MAME's own; the plugin's two while High Scores is on; `-video …` with any MAME Video but Auto; `-aspect` with a Screen Shape that isn't square pixels, and the two `unevenstretch` with Integer Scale on, for a game whose lines fit in the screen's, or `-nokeepaspect` in their place with Game Picture on Fit to Screen ([Emulator Video](#emulator-video)); `-sound none` without a sound card that can play; `-autoboot_script` with credits bought on the Arcade screen.) Everything else is MAME's own settings: `/etc/mame/mame.ini` on the image, or a `mame.ini` of your own in `~/.mame`. A MAME of your own with its folders beside it runs in its own folder instead, as it would by hand, to find them, and reads the `mame.ini` there.
 
 ## Troubleshooting
 

@@ -18,8 +18,9 @@ import Components
 // From the Arcade screen (ArcadeScreen.qml) it has that screen's bar, says
 // how many credits go in, and takes COIN (another credit: MAME's 5, which a
 // pad's Coin, its Back unless its Arcade Buttons say, is meanwhile) and
-// START or select (the game at once) before MAME starts; the credits go in
-// with the game (ArcadeBackend::play), and are spent.
+// START or select (the game at once) before the game starts; the credits go
+// in with the game, MAME's or FinalBurn Neo's (ArcadeBackend::play), and are
+// spent.
 //
 // The way back is MAME's own, Coin and Start together on any player's
 // controller or Esc on a keyboard (the controller file ArcadeBackend writes),
@@ -54,10 +55,10 @@ FocusScope {
     property string exitKeys: ""
     // Played from the Arcade screen rather than the original tree.
     readonly property bool arcade: moduleRoot.arcadeScreen
-    // Played in FinalBurn Neo, which takes no credits bought beforehand: as
-    // its engine says, and online always.
-    readonly property bool fbneo: !!online
-                                  || (!!arcadeBackend && game !== "" && arcadeBackend.engineOf(game) === "fbneo")
+    // The credits bought beforehand go in a game played here, in MAME or
+    // FinalBurn Neo; one over the network takes none, its coins going in the
+    // game. On Free Play every game starts with the most (Root.qml).
+    readonly property bool takesCredits: !online
     // The loading screen up: from just before the game is started until it
     // ends.
     readonly property bool loadingShown: phase === "loading" || phase === "running"
@@ -67,9 +68,9 @@ FocusScope {
                                                     "or Esc on a keyboard"]
                                                  : ["Press Esc on a keyboard", "to come back to OSD/OS"]
     // A pad's Coin (its Back unless its Arcade Buttons say) is COIN before a
-    // game from the Arcade screen (InputManager): one MAME plays, FinalBurn
-    // Neo's coins go in the game.
-    readonly property bool takesCoin: arcade && phase === "opening" && !fbneo
+    // game from the Arcade screen (InputManager): another credit, but on Free
+    // Play and over the network.
+    readonly property bool takesCoin: arcade && phase === "opening" && takesCredits && !moduleRoot.freePlay
     // The finer print: in the Arcade screen's look, no smaller than its own
     // letters (the hint bar's).
     readonly property real smallText: arcade ? root.sh * 0.0375 : root.sh * 0.0291667 //18, or 14
@@ -156,7 +157,7 @@ FocusScope {
             // As on the Arcade screen: COIN buys another credit, START or
             // select plays at once.
             if (event.key === Qt.Key_5) {
-                if (!playRoot.fbneo)
+                if (playRoot.takesCoin)
                     moduleRoot.addCredit()
                 return
             }
@@ -289,7 +290,8 @@ FocusScope {
         Text {
             visible: playRoot.arcade && playRoot.before
             width: parent.width
-            text: playRoot.fbneo ? "FinalBurn Neo: insert a coin in the game"
+            text: !playRoot.takesCredits ? "Over the network: insert a coin in the game"
+                  : moduleRoot.freePlay ? "Free Play: " + moduleRoot.maxCredits + " credits go in as the game starts"
                   : moduleRoot.credits === 0 ? "No credit: insert a coin in the game"
                   : moduleRoot.credits + (moduleRoot.credits === 1 ? " credit goes" : " credits go")
                     + " in as the game starts"
@@ -352,7 +354,7 @@ FocusScope {
     HintBar {
         visible: !playRoot.loadingShown
         text: playRoot.phase !== "opening" ? root.hints.back + ":BACK"
-              : playRoot.arcade ? root.hints.back + ":CANCEL " + (playRoot.fbneo ? "" : root.hints.coin + ":COIN ")
+              : playRoot.arcade ? root.hints.back + ":CANCEL " + (playRoot.takesCoin ? root.hints.coin + ":COIN " : "")
                                   + root.hints.play_pause + ":PLAY"
               : root.hints.back + ":CANCEL"
         anchors.bottom: parent.bottom

@@ -384,12 +384,12 @@ FocusScope {
     property int achievementsRevision: 0
     readonly property var achievementCount: (revision, achievementsRevision,
                                              gameBox && arcadeBackend ? arcadeBackend.achievementCount(currentSet) : ({}))
-    // The game plays in FinalBurn Neo, which takes no credits bought here: as
-    // its engine says, and a room of the lobby always.
-    readonly property bool fbneo: details.engine === "fbneo" || (!!current && current.room !== undefined)
-    // Where COIN buys a credit: on a game MAME plays, where the credits
-    // bought are shown (not over Search's keys).
-    readonly property bool buysCredits: isGame && !fbneo && filterId !== "search"
+    // Where the credits are shown: on a game played here, in MAME or
+    // FinalBurn Neo, not on a room (a game over the network takes none) nor
+    // over Search's keys. COIN buys one there, but on Free Play.
+    readonly property bool showsCredits: isGame && !onRoom && filterId !== "search"
+    readonly property bool buysCredits: showsCredits && !moduleRoot.freePlay
+    readonly property string creditLine: moduleRoot.freePlay ? "Free Play" : "Credit " + moduleRoot.credits
     // The column's ground, the scheme's background as solid as Settings →
     // Arcade → Info Background says (Root.qml's infoBackground), over Settings'
     // Background Effect. Main.qml names its colours; a color property reads
@@ -890,7 +890,7 @@ FocusScope {
         // keys: on Search a keyboard's letters go onto the keys, its digits
         // through the on-screen ones.
         if (event.key === Qt.Key_5) {
-            // COIN, for MAME to put in: FinalBurn Neo takes the game's own.
+            // COIN, a credit to put in as the game starts.
             if (!event.isAutoRepeat && arcadeScreen.buysCredits)
                 moduleRoot.addCredit()
         } else if (launching) {
@@ -1250,10 +1250,10 @@ FocusScope {
             }
         }
 
-        // The credits bought, where COIN buys them, on a ground of their own
-        // so they read over the picture.
+        // The credits bought, or Free Play, on a ground of their own so they
+        // read over the picture.
         Rectangle {
-            visible: arcadeScreen.buysCredits
+            visible: arcadeScreen.showsCredits
             anchors.right: parent.right
             anchors.bottom: parent.bottom
             anchors.margins: arcadeScreen.frame
@@ -1264,7 +1264,7 @@ FocusScope {
             Text {
                 id: creditText
                 anchors.centerIn: parent
-                text: "Credit " + moduleRoot.credits
+                text: arcadeScreen.creditLine
                 color: root.primaryColor
                 font.family: root.globalFont
                 font.capitalization: Font.AllUppercase

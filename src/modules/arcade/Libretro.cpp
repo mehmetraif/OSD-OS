@@ -20,6 +20,7 @@
 #include <QXmlStreamReader>
 #include <QtEndian>
 #include <algorithm>
+#include <cstring>
 #include <iterator>
 #include <optional>
 #include <utility>
@@ -471,6 +472,25 @@ double viewportAspect(double gameAspect, const QSize &screen, double screenAspec
     return gameAspect * screen.width() / screen.height() / screenAspect;
 }
 
+bool coinDown(qint64 ms, int coins, bool *done) {
+    const qint64 each = kCoinHoldMs + kCoinGapMs;
+    *done = ms >= qint64(coins) * each;
+    return ms >= 0 && !*done && ms % each < kCoinHoldMs;
+}
+
+QByteArray remotePadMessage(int button, bool down) {
+    // Its port, device, index and id ints, then its state, a uint16_t, the
+    // whole padded to 20 bytes, in the machine's own byte order: RetroArch
+    // reads it on the same machine, and takes only a message of its size.
+    // The player is the port it comes to (network_remote_base_port + user).
+    const qint32 fields[4] = { 0, 1 /* RETRO_DEVICE_JOYPAD */, 0, button };
+    const quint16 state = down ? 1 : 0;
+    QByteArray message(20, '\0');
+    std::memcpy(message.data(), fields, sizeof fields);
+    std::memcpy(message.data() + sizeof fields, &state, sizeof state);
+    return message;
+}
+
 QString reservedDevice(const QString &guid, const QString &name, bool byVendor) {
     if (!byVendor) {
         // The mappings are kept without the GUID's checksum (mappingWithoutCrc()).
@@ -549,9 +569,13 @@ QString configText(const Launch &launch) {
     set("libretro_info_path", launch.infoDir);
     set("core_info_cache_enable", on(false));
     set("audio_enable", on(launch.sound));
-    // The picture in its shape on a screen whose pixels aren't square
-    // (aspect_ratio_index 20, Config: the ratio as it is).
-    if (launch.aspect > 0) {
+    // Fit to Screen: the whole screen, whatever the game's shape
+    // (aspect_ratio_index 24, Full). Otherwise the picture in its shape on a
+    // screen whose pixels aren't square (20, Config: the ratio as it is).
+    if (launch.fill) {
+        set("aspect_ratio_index", QStringLiteral("24"));
+        set("video_aspect_ratio_auto", on(false));
+    } else if (launch.aspect > 0) {
         set("aspect_ratio_index", QStringLiteral("20"));
         set("video_aspect_ratio", QString::number(launch.aspect, 'f', 6));
         set("video_aspect_ratio_auto", on(false));
@@ -559,8 +583,9 @@ QString configText(const Launch &launch) {
     // Its lines whole, the width to the shape (axis 0), fewer times rather
     // than cut (scaling 0); a picture with more lines than the screen is
     // spread over them.
-    set("video_scale_integer", on(launch.integerScale));
-    if (launch.integerScale) {
+    const bool integerScale = launch.integerScale && !launch.fill;
+    set("video_scale_integer", on(integerScale));
+    if (integerScale) {
         set("video_scale_integer_axis", QStringLiteral("0"));
         set("video_scale_integer_scaling", QStringLiteral("0"));
     }
@@ -635,6 +660,13 @@ QString configText(const Launch &launch) {
     set("savestate_directory", launch.stateDir);
     set("rgui_config_directory", launch.configDir);
     set("libretro_log_level", QStringLiteral("1"));
+    // The credits bought, put in by OSD/OS once the game runs: player 1's
+    // network RetroPad, on this machine's UDP port (coinPort), else none.
+    set("network_remote_enable", on(launch.coinPort != 0));
+    if (launch.coinPort != 0) {
+        set("network_remote_enable_user_p1", on(true));
+        set("network_remote_base_port", QString::number(launch.coinPort));
+    }
 
     set("cheevos_enable", on(achievements));
     if (achievements) {
@@ -918,7 +950,7 @@ Run readLog(const QString &path, bool hosting) {
     while (!in.atEnd()) {
         const QString line = in.readLine();
         run.logged = true;
-        if (line.contains(QLatin1String("[FBNeo] Driver successfully started"))) {
+        if (line.contains(QLatin1String(kDriverStarted))) {
             run.started = true;
             continue;
         }
