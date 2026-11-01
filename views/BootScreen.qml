@@ -10,7 +10,7 @@ import Components
 //
 // Binds only to root.* (Main.qml mirrors bootProgress there), which stays
 // valid while this Loader-hosted view is torn down. Its colours are
-// root.bootInk and root.bootPaper: the theme's, or Video 1's (Settings → Boot
+// root.bootInk and root.bootPaper: the theme's, or Video 1's (Settings → Look → Boot
 // Screen Colors).
 FocusScope {
     id: bootRoot

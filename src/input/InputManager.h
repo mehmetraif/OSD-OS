@@ -53,7 +53,7 @@ class JammaPins;
 // in every game: kept in its profile, and given to the Arcade module for
 // each player as MAME and RetroArch name them (controllers::playerArcade()).
 //
-// Cabinet Lock's unlock buttons (Settings → Cabinet Lock) are one to four
+// Cabinet Lock's unlock buttons (Settings → Startup → Cabinet Lock) are one to four
 // inputs, of any pads and keyboards, held together: with the lock on
 // (config.json app.cabinet_lock), held for three seconds they are
 // unlockRequested(), and Main.qml opens the main menu. A press of one of them

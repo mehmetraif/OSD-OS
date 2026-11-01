@@ -3,7 +3,7 @@
 # the sound), at 720x576 interlaced: 50 fields a second, 15.63 kHz, PAL's
 # lines twice over. A Pi 4 only: the Pi 5's DPI can interlace only with
 # GPIO 1, which carries the board's controls (I2C). The timing is
-# Raspberry Pi's own for 576i. Chosen in Settings → Display Output, or
+# Raspberry Pi's own for 576i. Chosen in Settings → Screen → Display Output, or
 # copied over osdos-display.txt (config.txt says how).
 # osdos-controls: jamma
 # The board makes the composite sync itself, so none on GPIO 1 (osdos-stop).

@@ -15,9 +15,9 @@ OSD/OS is one C++17 program (Qt 6 and QML) built with CMake 3.21 or newer. CMake
 | Qt Shader Tools | The effects' shaders, compiled into the binary ([below](#qt-shader-tools)) | `Qt Shader Tools not found — the shader effects will be unavailable` |
 | libmpv's headers, through pkg-config | Transparent Background: video inside the app's window | `libmpv headers not found — Transparent Background will be unavailable` |
 | PC/SC (`libpcsclite`, Linux; `pcsc-lite` on the BSDs; macOS has it; not looked for on Windows, whose build has no NFC Reader) | ACR122U and other PC/SC NFC readers | `PC/SC not found — NFC reader module will build with PN532 USB serial support only` |
-| Qt D-Bus (Linux) | Settings → Bluetooth and Wi-Fi, through BlueZ and NetworkManager | `Qt D-Bus not found — Settings → Bluetooth and Wi-Fi will be unavailable` |
+| Qt D-Bus (Linux) | Settings → Network → Bluetooth and Wi-Fi, through BlueZ and NetworkManager | `Qt D-Bus not found — Settings → Network → Bluetooth and Wi-Fi will be unavailable` |
 | zlib and minizip | The High Scores module's tables, read by openhi2txt (`thirdparty/openhi2txt`, built with the app) | `minizip not found — High Scores will show no tables` |
-| git | The commit in Settings → About → Build | The build has the day alone |
+| git | The commit in Settings → System → About → Build | The build has the day alone |
 
 At run time OSD/OS starts other programs rather than linking them: **mpv** for every video (0.38 or newer), and for some modules yt-dlp and Deno (YouTube), FluidSynth with a SoundFont and openmpt123 (menu music in MIDI or a tracker's format), Chromium with Widevine (Netflix and Prime Video), MAME and RetroArch (Arcade). None of them is needed to build.
 
@@ -103,8 +103,8 @@ This is [BUILDING.md](https://github.com/mehmetraif/OSD-OS/blob/main/BUILDING.md
 | `mame` | The Arcade module's games, in MAME (run time only; the image has it) |
 | `retroarch` | The Arcade module's second engine, FinalBurn Neo, whose core comes with OSD/OS's packages, built from the commit `scripts/engines.env` names; a build of your own downloads it in Settings → Arcade → FinalBurn Neo, or takes the one `scripts/build-fbneo.sh` builds, and `scripts/build-fbneo-lan.sh` builds OSD/OS's LAN core, which games on the local network play on (run time only; the image has both) |
 | `libminizip-dev` | The High Scores module's tables. Its static library is linked in, so nothing more is needed at run time |
-| `bluez`, and the user in the `bluetooth` group | Settings → Bluetooth (run time; Raspberry Pi OS Lite has BlueZ). `sudo usermod -aG bluetooth $USER` |
-| NetworkManager | Settings → Wi-Fi (run time; Raspberry Pi OS has it). Run as a service, outside a desktop session, OSD/OS's user needs `install.sh`'s polkit rule to use it |
+| `bluez`, and the user in the `bluetooth` group | Settings → Network → Bluetooth (run time; Raspberry Pi OS Lite has BlueZ). `sudo usermod -aG bluetooth $USER` |
+| NetworkManager | Settings → Network → Wi-Fi (run time; Raspberry Pi OS has it). Run as a service, outside a desktop session, OSD/OS's user needs `install.sh`'s polkit rule to use it |
 
 For YouTube, yt-dlp from its own releases (the one apt brings is too old) and Deno, on the `PATH` of the user that runs OSD/OS ([yt-dlp's EJS notes](https://github.com/yt-dlp/yt-dlp/wiki/EJS)):
 
@@ -157,7 +157,7 @@ Two things to know about Ubuntu 24.04:
 
 ## Windows (x64)
 
-A build for Windows 11 on x64, which each release publishes as `OSD-OS-<version>-windows-x64.zip` ([Installation](https://github.com/mehmetraif/OSD-OS/wiki/Installation#on-windows-x64)): the **Windows build** workflow builds it on every pull request that touches the sources and uploads `osdos-windows-x64`, a copy to try, and the release workflow calls it for a tag ([below](#continuous-integration)). The menus, Local Files and the media servers, YouTube, the Arcade module with Windows builds of MAME and RetroArch, RetroAchievements, netplay and High Scores are in it. What is the Pi's or a Linux desktop's is left out, as on a Mac: Display Output, Audio Output's cards (the default device plays), Bluetooth and Wi-Fi (Windows' own settings), the JAMMA helper, Scripts, the NFC Reader, the updater's install (it names the newer version's zip, to put in place by hand) and, for now, Transparent Background (CMake looks for libmpv's headers through pkg-config, and the Windows build has no libmpv). Settings → **Window Mode** (F11, or Alt+Enter) puts the menus in a window on the desktop, 960×720 to start with, in place of the whole screen, on Windows as on a Linux desktop.
+A build for Windows 11 on x64, which each release publishes as `OSD-OS-<version>-windows-x64.zip` ([Installation](https://github.com/mehmetraif/OSD-OS/wiki/Installation#on-windows-x64)): the **Windows build** workflow builds it on every pull request that touches the sources and uploads `osdos-windows-x64`, a copy to try, and the release workflow calls it for a tag ([below](#continuous-integration)). The menus, Local Files and the media servers, YouTube, the Arcade module with Windows builds of MAME and RetroArch, RetroAchievements, netplay and High Scores are in it. What is the Pi's or a Linux desktop's is left out, as on a Mac: Display Output, Audio Output's cards (the default device plays), Bluetooth and Wi-Fi (Windows' own settings), the JAMMA helper, Scripts, the NFC Reader, the updater's install (it names the newer version's zip, to put in place by hand) and, for now, Transparent Background (CMake looks for libmpv's headers through pkg-config, and the Windows build has no libmpv). Settings → Screen → **Window Mode** (F11, or Alt+Enter) puts the menus in a window on the desktop, 960×720 to start with, in place of the whole screen, on Windows as on a Linux desktop.
 
 - **Visual Studio 2022 Build Tools** with the *Desktop development with C++* workload (MSVC, the Windows SDK, CMake and Ninja).
 - **Qt 6.8** for MSVC 2022 64-bit, with Qt Shader Tools: from Qt's installer, or `aqt install-qt windows desktop 6.8.3 win64_msvc2022_64 -m qtshadertools -O C:\Qt`.
@@ -249,13 +249,13 @@ APP_ROOT=$(pwd) ./build/osdos
 
   Without it, the build uses the usual data folder: `~/.local/share/OSD-OS/` on Linux and the BSDs, `~/Library/Application Support/OSD-OS/` on a Mac, `%APPDATA%\OSD-OS\` on Windows ([Configuration files](https://github.com/mehmetraif/OSD-OS/wiki/Configuration-Files)).
 - **The log** prints in the terminal. A build configured without `-DCMAKE_BUILD_TYPE=Release`, as above, keeps OSD/OS's debug lines, which a Release build strips (`-DQT_NO_DEBUG_OUTPUT`): the modules loaded, every setting saved, each video's mpv command line ([Troubleshooting](https://github.com/mehmetraif/OSD-OS/wiki/Troubleshooting#what-a-build-from-source-adds)).
-- **The version** of a local build is `dev` (CMake's `APP_VERSION`; CI passes the tag), which Settings → About shows in its title bar; Settings' own title bar shows a release's version only. A `dev` build's Update screen doesn't download releases: `Dev build — self-update is disabled.`
+- **The version** of a local build is `dev` (CMake's `APP_VERSION`; CI passes the tag), which Settings → System → About shows in its title bar; Settings' own title bar shows a release's version only. A `dev` build's Update screen doesn't download releases: `Dev build — self-update is disabled.`
 - **Another screen.** On a Mac or a Linux desktop, `display_index` under `"app"` in `config.json` opens OSD/OS on another display; the log lists each display's index at start ([BUILDING.md → Choosing the display](https://github.com/mehmetraif/OSD-OS/blob/main/BUILDING.md#choosing-the-display-display_index)).
 - **Ctrl+Q** on a keyboard quits.
 
-<img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/screenshots/about.png" width="100%" alt="Settings → About of a build from source: DEV in the title bar, and the build line with the commit and the day" />
+<img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/screenshots/about.png" width="100%" alt="Settings → System → About of a build from source: DEV in the title bar, and the build line with the commit and the day" />
 
-Settings → About of a build from source: `DEV` in the title bar, and **Build** with the commit the tree was configured from and the day (CMake's `APP_BUILD`). A build keeps its configure's commit until CMake configures again.
+Settings → System → About of a build from source: `DEV` in the title bar, and **Build** with the commit the tree was configured from and the day (CMake's `APP_BUILD`). A build keeps its configure's commit until CMake configures again.
 
 ## The AppImage and mpv 0.38
 
@@ -339,7 +339,7 @@ Any tag matching `v*.*.*` starts `release.yml`; one containing `-rc`, `-beta` or
 | `build-openbsd-amd64` | An OpenBSD 8.0 virtual machine, calling `openbsd.yml` | `OSD-OS-<number>-openbsd-amd64.tgz` (the tag's number without its `v`), with FinalBurn Neo's core built from its source |
 | `build-os-image` | `ubuntu-24.04-arm` | `OSD-OS-<tag>-raspberry-pi.img.xz`, from the release's own tarball |
 
-A release made on the web interface is public, and the latest, the moment **Publish release** makes its tag, before any of its files is built. The workflow's first job, `hold-release`, takes it back to a draft, so that, like a pushed tag's, it is public only once every file is attached, and a Pi's Settings → Update never reads it as a release without a package for it.
+A release made on the web interface is public, and the latest, the moment **Publish release** makes its tag, before any of its files is built. The workflow's first job, `hold-release`, takes it back to a draft, so that, like a pushed tag's, it is public only once every file is attached, and a Pi's Settings → System → Update never reads it as a release without a package for it.
 
 The last job, `release`, waits for the builds and the regression tests: a tag whose tests fail has its builds made, but no release published. It writes release notes with absolute links, ending with a Downloads table (a row per file, with the system it is for, what it is, and how it is installed and updated, in the order the release page lists the files: by name, as GitHub sorts them), publishes the release with the builds' seven files and `install.sh`, each listed under Assets by its own file name, as the Downloads table names it; GitHub keeps each file's SHA-256 digest with it, which the in-app updater checks a download against. While the workflow runs, each job's file can be downloaded from its run's **Artifacts**.
 

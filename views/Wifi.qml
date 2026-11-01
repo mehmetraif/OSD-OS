@@ -1,7 +1,7 @@
 import QtQuick
 import Components
 
-// Settings → Wi-Fi: joins a Wi-Fi network through wifiManager
+// Settings → Network → Wi-Fi: joins a Wi-Fi network through wifiManager
 // (NetworkManager). Laid out like Settings: WI-FI on or off, the COUNTRY whose
 // rules the radio keeps to, SEARCH, NETWORK NOT LISTED for one that doesn't
 // say its name, then the SAVED networks and the other NETWORKS heard, each with

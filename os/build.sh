@@ -117,7 +117,7 @@ fi
 chmod +x "${STAGE}/prerun.sh" "${STAGE}"/*/[0-9][0-9]-run.sh
 
 # The launcher, the stop helper, the exit-to-terminal unit, Display Output's
-# next-start socket, Settings → Wi-Fi's country socket and the polkit rule
+# next-start socket, Settings → Network → Wi-Fi's country socket and the polkit rule
 # that lets the app's user use NetworkManager are taken verbatim from
 # scripts/install.sh, so the image and a manual install never drift apart.
 extract() {

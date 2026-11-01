@@ -4,13 +4,14 @@ import "../../views/Components" as Components
 import "../../views/Components/Hover.js" as Hover
 
 // Settings, views/Settings.qml, against stand-ins for AppCore and the rest it
-// reads: the first screen opens on TV / Movie's and Arcade's pages, then the
-// general settings under their heading, the modules of no group and the
-// application's rows; TV / Movie's page holds the videos' rows and the video
-// modules'; select opens TV / Movie's page, and Arcade's as the arcade
-// modules' settings on one page (ModuleSettings, alsoModules). And the title
-// bar its questions share with every view (AppBar): a title too long for it,
-// as a long display output's name makes Switch to …?, scrolls through it.
+// reads: the first screen is a heading for each page (TV / Movie, Arcade,
+// Look, Screen, Sound, Controls, Network, Startup, System) and Quit; each
+// page has its rows, every one on every system, a row this system or another
+// row's value keeps back dimmed, the help line saying why; select opens a
+// heading's page, and Arcade's as the arcade modules' settings on one page
+// (ModuleSettings, alsoModules). And the title bar its questions share with
+// every view (AppBar): a title too long for it, as a long display output's
+// name makes Switch to …?, scrolls through it.
 Rectangle {
     id: root
     color: surfaceColor
@@ -211,66 +212,143 @@ Rectangle {
             return null
         }
 
-        // The first screen: TV / Movie and Arcade at the top, the general
-        // settings under their heading, the modules of no group (with
-        // settings; a group with no page counts as none), then the
-        // application's; no video or arcade rows.
+        // The list in the page, and the help line under it.
+        function listOf(page) {
+            for (var i = 0; i < page.children.length; i++) {
+                if (page.children[i].currentIndex !== undefined && page.children[i].model !== undefined)
+                    return page.children[i]
+            }
+            return null
+        }
+        function helpOf(page) {
+            for (var i = 0; i < page.children.length; i++) {
+                if (page.children[i].currentRow !== undefined)
+                    return page.children[i]
+            }
+            return null
+        }
+        // Down until the cursor is on the row of this label.
+        function moveTo(page, label) {
+            for (var i = 0; i < page.settingsItems.length && cursor(page) !== label; i++)
+                keyClick(Qt.Key_Down)
+            compare(cursor(page), label)
+        }
+
+        // The first screen: a heading for each page, every row under one of
+        // them, then Quit. Arcade's is the arcade modules' page; the modules
+        // of no group (with settings; a group with no page counts as none)
+        // are on System's.
         function test_firstScreen() {
             var page = open()
-            var all = lines(page)
-            compare(all.slice(0, 4), ["TV / Movie", "Arcade", "# General Settings", "Theme"])
-            verify(all.indexOf("Mouse Pointer") > all.indexOf("# General Settings"))
-            verify(all.indexOf("Boot Screen Colors") > 0)
-            var elsewhere = ["Scaling", "Transparent Background", "Video Levels", "Loading Effect",
-                             "Loading Screen Colors", "Channel Logo", "Info Screen", "Local Files", "Plex",
-                             "High Scores", "System Information"]
-            for (var i = 0; i < elsewhere.length; i++)
-                verify(all.indexOf(elsewhere[i]) < 0, elsewhere[i] + " isn't on the first screen")
-            var modules = all.indexOf("# Modules")
-            compare(all.slice(modules + 1, modules + 4), ["Scripts", "Radio", "# Application"])
-            compare(all.slice(-2), ["About", "Quit"])
+            compare(lines(page), ["TV / Movie", "Arcade", "Look", "Screen", "Sound", "Controls", "Network",
+                                  "Startup", "System", "Quit"])
             compare(row(page, "Arcade").moduleId, "com.osdos.arcade")
             compare(row(page, "Arcade").alsoModules, ["com.osdos.highscores"])
             compare(cursor(page), "TV / Movie")
         }
 
-        // Window Mode is offered where the menus can be a window, on a
-        // desktop, and nowhere else: not on the offscreen platform the tests
-        // run on, as not on the Pi's console.
-        function test_windowModeRow() {
-            var page = open()
-            var all = lines(page)
-            compare(all.indexOf("Window Mode") >= 0, page.desktopWindow)
-            compare(page.desktopWindow, Qt.platform.os === "windows" || Qt.platform.pluginName === "xcb"
-                                        || Qt.platform.pluginName === "wayland")
-            if (page.desktopWindow) {
-                compare(row(page, "Window Mode").options, ["Off", "On"])
-                compare(row(page, "Window Mode").value, "Off")
-            }
+        // Each heading's page: its rows, at most a screenful, every one of
+        // them there on every system, those it can't use dimmed.
+        function test_pages_data() {
+            return [
+                { tag: "look", lines: ["Theme", "Orb Fog", "Color Scheme", "Skin", "Effects", "OSD Background",
+                                       "Window Frame", "Boot Screen Colors", "Hint Bar", "Help Line", "Status Icons"] },
+                { tag: "effects", lines: ["Text Effect", "Background Effect", "Selector Effect", "Screen Effect",
+                                          "Transition"] },
+                { tag: "screen", lines: ["Display Output", "Test Patterns", "Screen Saver", "Mouse Pointer",
+                                         "Window Mode"] },
+                { tag: "sound", lines: ["Audio Output", "Menu Music", "Music File", "Music Volume"] },
+                { tag: "network", lines: ["Wi-Fi", "Bluetooth"] },
+                { tag: "startup", lines: ["Start on Module", "Play at Startup", "Startup From", "Cabinet Lock"] },
+                { tag: "system", lines: ["Paste OSD/OS Setup", "Update", "About", "# Modules", "Scripts", "Radio"] }
+            ]
+        }
+        function test_pages(data) {
+            var page = open({ group: data.tag })
+            compare(lines(page), data.lines)
+            verify(page.settingsItems.length <= 12, "a screenful")
         }
 
-        // Paste OSD/OS Setup, where there is a clipboard to paste from (not
-        // the Pi's own console), before Update: select hands the clipboard's
-        // text to AppCore, the notice it answers with shows over the rows,
-        // made again as they are now, and back closes it.
+        // A row that goes with another's value is dimmed rather than hidden:
+        // the cursor stops on it, ◄ ► and select leave it as it is, and the
+        // help line says why. Its row set so, it is a row like the others.
+        function test_dimmedRow() {
+            var page = open({ group: "look" })
+            moveTo(page, "Window Frame")
+            var at = lines(page).indexOf("Window Frame")
+            compare(page.offReason(at), "Only with OSD Background on Window")
+            var frame = menuRow(page, at)
+            verify(frame.dimmed)
+            verify(!frame.changes)
+            var help = helpOf(page)
+            verify(help.visible)
+            verify(help.text.indexOf("Only with OSD Background on Window") === 0, help.text)
+            keyClick(Qt.Key_Right)
+            keyClick(Qt.Key_Left)
+            keyClick(Qt.Key_Return)
+            compare(appCore.values.osd_frame, undefined)
+            compare(row(page, "Window Frame").value, "On")
+            // OSD Background on Window: Window Frame's own.
+            keyClick(Qt.Key_Up)
+            compare(cursor(page), "OSD Background")
+            keyClick(Qt.Key_Left)
+            compare(appCore.values.osd_background, "Window")
+            compare(page.offReason(at), "")
+            verify(!menuRow(page, at).dimmed)
+            keyClick(Qt.Key_Down)
+            keyClick(Qt.Key_Right)
+            compare(appCore.values.osd_frame, "Off")
+        }
+
+        // Sound: Menu Music's rows dimmed while it is Off, each saying for
+        // what; Audio Output dimmed where OSD/OS can't choose a sound card.
+        function test_soundPage() {
+            var page = open({ group: "sound" })
+            var all = lines(page)
+            verify(page.offReason(all.indexOf("Audio Output")).indexOf("Only where") === 0)
+            compare(page.offReason(all.indexOf("Menu Music")), "")
+            compare(page.offReason(all.indexOf("Music File")), "Only with Menu Music on File")
+            compare(page.offReason(all.indexOf("Music Volume")), "Off while Menu Music is Off")
+            moveTo(page, "Menu Music")
+            keyClick(Qt.Key_Right)
+            compare(appCore.values.menu_music, "File")
+            compare(page.offReason(all.indexOf("Music File")), "")
+            compare(page.offReason(all.indexOf("Music Volume")), "")
+        }
+
+        // Window Mode, on Screen's page, can be used where the menus can be
+        // a window, on a desktop, and is dimmed anywhere else: on the
+        // offscreen platform the tests run on, as on the Pi's console.
+        function test_windowModeRow() {
+            var page = open({ group: "screen" })
+            var at = lines(page).indexOf("Window Mode")
+            compare(page.desktopWindow, Qt.platform.os === "windows" || Qt.platform.pluginName === "xcb"
+                                        || Qt.platform.pluginName === "wayland")
+            compare(page.offReason(at) === "", page.desktopWindow)
+            compare(row(page, "Window Mode").options, ["Off", "On"])
+            compare(row(page, "Window Mode").value, "Off")
+            // Display Output: nothing to switch off a Pi.
+            verify(page.offReason(lines(page).indexOf("Display Output")) !== "")
+        }
+
+        // Paste OSD/OS Setup, on System's page before Update, used where
+        // there is a clipboard to paste from (not the Pi's own console):
+        // select hands the clipboard's text to AppCore, the notice it answers
+        // with shows over the rows, made again as they are now, and back
+        // closes it.
         function test_pasteSetup() {
-            var page = open()
+            var page = open({ group: "system" })
             var all = lines(page)
             compare(page.canPaste, Qt.platform.pluginName !== "eglfs" && Qt.platform.pluginName !== "linuxfb")
-            compare(all.indexOf("Paste OSD/OS Setup") >= 0, page.canPaste)
+            compare(all.indexOf("Paste OSD/OS Setup") + 1, all.indexOf("Update"))
+            compare(page.offReason(all.indexOf("Paste OSD/OS Setup")) === "", page.canPaste)
             if (!page.canPaste)
                 return
-            verify(all.indexOf("Paste OSD/OS Setup") > all.indexOf("# Application"))
-            compare(all.indexOf("Paste OSD/OS Setup") + 1, all.indexOf("Update"))
             var text = '{"osdos_setup": 1, "config": {"app": {"screensaver_timeout": "OFF"}}}'
             clipboardSource.text = text
             clipboardSource.selectAll()
             clipboardSource.copy()
-            var list = null
-            for (var i = 0; i < page.children.length; i++) {
-                if (page.children[i].currentIndex !== undefined && page.children[i].model !== undefined)
-                    list = page.children[i]
-            }
+            var list = listOf(page)
             list.currentIndex = all.indexOf("Paste OSD/OS Setup")
             verify(list.opens(row(page, "Paste OSD/OS Setup")), "its line ends in a ►")
             keyClick(Qt.Key_Return)
@@ -290,12 +368,14 @@ Rectangle {
         }
 
         // TV / Movie's page: the videos' rows, then the video modules with
-        // settings; nothing of the look or the application.
+        // settings; nothing of the look or the application. 1080p Playback
+        // is there, dimmed, off the Pi 3's decode path.
         function test_tvPage() {
             var page = open({ group: "tv" })
             var all = lines(page)
-            compare(all.slice(0, 2), ["Scaling", "Transparent Background"])
-            verify(all.indexOf("Video Levels") > 0)
+            compare(all.slice(0, 4), ["Scaling", "Transparent Background", "Video Levels", "1080p Playback"])
+            verify(page.offReason(all.indexOf("1080p Playback")) !== "")
+            compare(page.offReason(all.indexOf("Transparent Background")), "")
             verify(all.indexOf("Loading Effect") > 0)
             verify(all.indexOf("Loading Screen Colors") > 0)
             verify(all.indexOf("Channel Logo") > 0)
@@ -305,15 +385,16 @@ Rectangle {
             verify(all.indexOf("Boot Screen Colors") < 0)
             verify(all.indexOf("Quit") < 0)
             verify(all.indexOf("Bare") < 0)
-            // Its rows change as on the first screen.
+            // Its rows change as on any page.
             compare(cursor(page), "Scaling")
             keyClick(Qt.Key_Down)
             keyClick(Qt.Key_Right)
             compare(appCore.values.transparent_background, 40)
         }
 
-        // Select on TV / Movie opens its page; on Arcade, the arcade modules'
-        // settings, the first module's page with the others' rows on it.
+        // Select on a heading opens its page; on Arcade, the arcade modules'
+        // settings, the first module's page with the others' rows on it;
+        // Look's Effects, the effects' page.
         function test_groups() {
             open()
             keyClick(Qt.Key_Return)
@@ -326,14 +407,26 @@ Rectangle {
             compare(root.navigations[1].path, "views/ModuleSettings.qml")
             compare(root.navigations[1].params.moduleId, "com.osdos.arcade")
             compare(root.navigations[1].params.alsoModules, ["com.osdos.highscores"])
-            // Down from Arcade steps over the heading, onto Theme.
+            var pages = ["look", "screen", "sound"]
+            for (var i = 0; i < pages.length; i++) {
+                keyClick(Qt.Key_Down)
+                keyClick(Qt.Key_Return)
+                compare(root.navigations[root.navigations.length - 1].params.group, pages[i])
+            }
             keyClick(Qt.Key_Down)
-            compare(cursor(loader.item), "Theme")
+            compare(cursor(loader.item), "Controls")
+            keyClick(Qt.Key_Return)
+            compare(root.navigations[root.navigations.length - 1].path, "views/Controllers.qml")
+            loader.source = ""
+            var look = open({ group: "look" })
+            moveTo(look, "Effects")
+            keyClick(Qt.Key_Return)
+            compare(root.navigations[root.navigations.length - 1].params.group, "effects")
         }
 
-        // A line that leads on (TV / Movie, Arcade, a module's, Quit) ends in
-        // a ►, and ► opens it as select does; a list's choice stands between
-        // the ◄ and ► that change it, and ► changes it, opening nothing; a
+        // A line that leads on (a heading's, a module's, Quit) ends in a ►,
+        // and ► opens it as select does; a list's choice stands between the
+        // ◄ and ► that change it, and ► changes it, opening nothing; a
         // heading has neither.
         function test_marks() {
             var page = open()
@@ -341,12 +434,7 @@ Rectangle {
             verify(tv !== null)
             verify(tv.opens)
             verify(!tv.changes)
-            var heading = menuRow(page, 2)
-            verify(!heading.opens)
-            verify(!heading.changes)
-            var theme = menuRow(page, 3)
-            verify(theme.changes)
-            verify(!theme.opens)
+            verify(menuRow(page, 2).opens)          // Look
             keyClick(Qt.Key_Right)
             compare(root.navigations.length, 1)
             compare(root.navigations[0].path, "views/Settings.qml")
@@ -355,14 +443,25 @@ Rectangle {
             keyClick(Qt.Key_Right)
             compare(root.navigations.length, 2)
             compare(root.navigations[1].path, "views/ModuleSettings.qml")
+            loader.source = ""
+            page = open({ group: "look" })
+            var theme = menuRow(page, 0)
+            verify(theme.changes)
+            verify(!theme.opens)
             keyClick(Qt.Key_Down)
             keyClick(Qt.Key_Down)
             compare(cursor(page), "Color Scheme")
-            verify(menuRow(page, 4).changes)
+            verify(menuRow(page, 2).changes)
             var before = row(page, "Color Scheme").value
             keyClick(Qt.Key_Right)
             compare(root.navigations.length, 2)
             verify(row(page, "Color Scheme").value !== before)
+            // System's Modules heading has neither.
+            loader.source = ""
+            page = open({ group: "system" })
+            var heading = menuRow(page, lines(page).indexOf("# Modules"))
+            verify(!heading.opens)
+            verify(!heading.changes)
             // TV / Movie's page: a slider's line has no ◄ ► of its own (its
             // bar has them), a list's does.
             loader.source = ""
@@ -392,11 +491,7 @@ Rectangle {
         // the question left as it is.
         function test_hover() {
             var page = open()
-            var list = null
-            for (var i = 0; i < page.children.length && !list; i++) {
-                if (page.children[i].currentIndex !== undefined && page.children[i].model !== undefined)
-                    list = page.children[i]
-            }
+            var list = listOf(page)
             verify(list !== null)
             // The lines are laid out again as the cursor moves (the help line
             // under them): a moment for that, as a mouse takes between rows.
@@ -404,9 +499,7 @@ Rectangle {
             var middle = function(item) { verify(item !== null); return item.mapToItem(root, item.width / 2, item.height / 2) }
             compare(cursor(page), "TV / Movie")
             hover(middle(list.itemAtIndex(3)))
-            compare(cursor(page), "Theme")
-            hover(middle(list.itemAtIndex(2)))
-            compare(cursor(page), "Theme")
+            compare(cursor(page), "Screen")
             hover(middle(list.itemAtIndex(1)))
             compare(cursor(page), "Arcade")
             hover(Qt.point(root.width / 2, 10))
@@ -423,11 +516,19 @@ Rectangle {
             hover(middle(yesNo.itemAtIndex(1)))
             verify(yesNo.itemAtIndex(1).current)
             verify(!yesNo.itemAtIndex(0).current)
-            hover(middle(list.itemAtIndex(list.count - 2)))   // About, under the question
+            hover(middle(list.itemAtIndex(list.count - 2)))   // System, under the question
             compare(cursor(page), "Quit")
             verify(yesNo.itemAtIndex(1).current)
             keyClick(Qt.Key_Escape)
             compare(root.navigations.length, 0)
+            // A heading (System's Modules) is passed over.
+            loader.source = ""
+            page = open({ group: "system" })
+            list = listOf(page)
+            hover(middle(list.itemAtIndex(2)))
+            compare(cursor(page), "About")
+            hover(middle(list.itemAtIndex(3)))
+            compare(cursor(page), "About")
         }
 
         // On the OSD/OS image Quit offers Save Logs before No: the logs go
@@ -479,33 +580,27 @@ Rectangle {
             compare(page.quitOptions.map(function(o) { return o.label }), ["Yes", "No"])
         }
 
-        // Wi-Fi among the general settings once NetworkManager can be asked
-        // (wifiManager.supported), after Controls; select opens its page.
-        // Test Patterns, among the application's rows on every machine,
-        // opens its page.
+        // Test Patterns, on Screen's page on every machine, opens its page.
         function test_testPatternsRow() {
-            var page = open()
-            var all = lines(page)
-            verify(all.indexOf("Test Patterns") > all.indexOf("# Application"))
-            verify(all.indexOf("Test Patterns") < all.indexOf("Controls"))
-            for (var i = 0; i < all.length && cursor(page) !== "Test Patterns"; i++)
-                keyClick(Qt.Key_Down)
-            compare(cursor(page), "Test Patterns")
+            var page = open({ group: "screen" })
+            moveTo(page, "Test Patterns")
             keyClick(Qt.Key_Return)
             compare(root.navigations[root.navigations.length - 1].path, "views/TestPatterns.qml")
         }
 
+        // Wi-Fi, on Network's page, opens its page once NetworkManager can be
+        // asked (wifiManager.supported); without it, dimmed, it opens nothing.
         function test_wifiRow() {
-            var page = open()
-            verify(lines(page).indexOf("Wi-Fi") < 0)
+            var page = open({ group: "network" })
+            compare(cursor(page), "Wi-Fi")
+            verify(page.offReason(0).indexOf("NetworkManager") > 0)
+            keyClick(Qt.Key_Return)
+            keyClick(Qt.Key_Right)
+            compare(root.navigations.length, 0)
             loader.source = ""
             wifiManager.supported = true
-            page = open()
-            var all = lines(page)
-            verify(all.indexOf("Wi-Fi") > all.indexOf("Controls"))
-            for (var i = 0; i < all.length && cursor(page) !== "Wi-Fi"; i++)
-                keyClick(Qt.Key_Down)
-            compare(cursor(page), "Wi-Fi")
+            page = open({ group: "network" })
+            compare(page.offReason(0), "")
             keyClick(Qt.Key_Return)
             compare(root.navigations[root.navigations.length - 1].path, "views/Wifi.qml")
         }

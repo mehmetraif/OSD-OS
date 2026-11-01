@@ -1,5 +1,5 @@
 #version 440
-// Settings → Transition's Drop: a drop falls in a corner and its ring spreads
+// Settings → Look → Effects → Transition's Drop: a drop falls in a corner and its ring spreads
 // out across the screen, slowing as it goes, the new window inside it and the
 // old one outside. Ripples run on behind the ring and settle; its rim and
 // their crests catch the light in the scheme's colour. On whole art pixels,

@@ -3563,7 +3563,7 @@ QString ArcadeBackend::netplayTooBig(const QString &set, bool lanCore, bool host
                              : libretro::netplayMemory(libretro::netplayStateSize(machine->sourceFile, lanCore), hosting);
     if (needs <= m_memory)
         return QString();
-    // As Settings → About says a machine's memory.
+    // As Settings → System → About says a machine's memory.
     const auto gigabytes = [](qint64 bytes) {
         return QStringLiteral("%1 GB").arg(double(bytes) / double(qint64(1) << 30), 0, 'f', 1);
     };

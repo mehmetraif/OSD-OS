@@ -124,7 +124,7 @@ On a display without a server, the signal comes once the screen is OSD/OS's agai
 | `<` `>` | In a playlist | The previous or the next video |
 | STOP | Always | Ends the video |
 
-`scripts/mpv-media-keys.lua` handles a keyboard's or a remote's media keys in every video, and `scripts/mpv-screensaver.lua`, loaded only when Settings → Screen Saver isn't OFF, puts the bouncing logo over a video paused that long.
+`scripts/mpv-media-keys.lua` handles a keyboard's or a remote's media keys in every video, and `scripts/mpv-screensaver.lua`, loaded only when Settings → Screen → Screen Saver isn't OFF, puts the bouncing logo over a video paused that long.
 
 ### A full command line on a Pi 4
 
@@ -216,7 +216,7 @@ The picture is never touched by an effect: the effects and the menu music rest w
 </table>
 
 - **Back** during a Local Files, YouTube or Playlists video opens its menu over the picture. First come its module's settings for it, which ◄ ► change: the speed, looping and Scaling at once, the others (subtitles, YouTube's format and languages) by reloading the video where it is as you go back to it. Then, in Local Files and YouTube, Add to Favorites and Play at Startup (and YouTube's Watch Later); then **Browse** (back to the module's menus) and **Close Video** (to the main menu). Back from the menu returns to the video. Back during any other module's video returns to the module's menus.
-- **Behind the menus** the video plays on, sound and all. The menus' ground (Settings → OSD Background: all over, or only the window, the picture showing whole around it) lies over it as solid as the slider says; at SOLID none of the picture shows, and none is drawn either: the video is decoded and heard, its pictures drawn a few pixels wide until the ground lets them through again, so the GPU is the menus' alone. The module has saved where it got to.
+- **Behind the menus** the video plays on, sound and all. The menus' ground (Settings → Look → OSD Background: all over, or only the window, the picture showing whole around it) lies over it as solid as the slider says; at SOLID none of the picture shows, and none is drawn either: the video is decoded and heard, its pictures drawn a few pixels wide until the ground lets them through again, so the GPU is the menus' alone. The module has saved where it got to.
 - **The main menu** leads with a row for it, `► <title>`, the cursor on it (YouTube, Local Files and Playlists note their videos; other modules' come back by choosing them again). Select brings it back full screen where it is. Choosing the same video in its module does the same, without its resume question: OSD/OS knows it by its command line, and carries on rather than starting it again.
 - **It ends** when it plays out, with play/pause on the main menu (`[SPACE]:STOP`), when anything else plays, when something else takes the screen (a takeover script, an Arcade game, Netflix or Prime Video's browser), and when Transparent Background is turned off.
 - **Without Transparent Background** mpv has the screen, so the video stops for its menu, and starts again where it was as the menu closes. **Browse** leaves it stopped there, and the main menu leads with its row all the same: select starts it again where it was saved, without asking. The row stays until mpv plays anything else.
@@ -356,7 +356,7 @@ A player tells mpv which tracks to start with; the deck menu changes them during
 
 <img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/screenshots/resume.png" width="100%" alt="Resume: pick up where you left off, or start from the beginning" />
 
-A module's Resume Playback says whether to ask (**Ask**), always resume (**Always**) or, in Local Files and the NFC Reader, never (**Never**). A favourite played at startup never asks: it starts where Settings → Startup From says. The point reaches mpv as `--start=<seconds>`. mpv applies that option to every file it loads, so once the video has started OSD/OS clears it (`set_property start none`): a looped video or the next in a playlist starts from the beginning.
+A module's Resume Playback says whether to ask (**Ask**), always resume (**Always**) or, in Local Files and the NFC Reader, never (**Never**). A favourite played at startup never asks: it starts where Settings → Startup → Startup From says. The point reaches mpv as `--start=<seconds>`. mpv applies that option to every file it loads, so once the video has started OSD/OS clears it (`set_property start none`): a looped video or the next in a playlist starts from the beginning.
 
 ## The loading screen
 
@@ -382,7 +382,7 @@ Settings → TV / Movie → Channel Logo puts OSD/OS's logo in a corner of the p
 
 ## Audio Output and mpv
 
-Settings → Audio Output (Linux with plain ALSA: the image and Raspberry Pi OS Lite) tells mpv the card: `--audio-device=alsa/default:CARD=<id>`, the card's own ALSA `default` device. That is the right door to each card: a USB card's `default` mixes what plays at once, and the Pi's HDMI under full KMS takes only samples framed as IEC958, which `plughw:` can't give it.
+Settings → Sound → Audio Output (Linux with plain ALSA: the image and Raspberry Pi OS Lite) tells mpv the card: `--audio-device=alsa/default:CARD=<id>`, the card's own ALSA `default` device. That is the right door to each card: a USB card's `default` mixes what plays at once, and the Pi's HDMI under full KMS takes only samples framed as IEC958, which `plughw:` can't give it.
 
 - The menu music's mpv, Ambient:Mode's and Weather's music get the same flag; every program OSD/OS starts (those mpvs too, a script, an Arcade game's MAME or RetroArch, a web player's browser) gets `ALSA_CARD=<id>`.
 - With Transparent Background, a video playing behind the menus moves to a newly chosen card at once (`set_property audio-device`). An mpv process can't be playing while Settings is open; the next one starts with the card.
@@ -413,7 +413,7 @@ sub-scale=1.2
 # Sound late or early against the picture (a TV or a receiver's own delay): seconds, + or -.
 audio-delay=0.1
 
-# The sound card for mpv only, while Settings → Audio Output is on Auto.
+# The sound card for mpv only, while Settings → Sound → Audio Output is on Auto.
 audio-device=alsa/default:CARD=Headphones
 ```
 
@@ -495,7 +495,7 @@ Settings → TV / Movie → Video Levels: **Limited** if blacks crush and whites
 
 ### No sound
 
-Choose the card in Settings → Audio Output; OSD/OS keeps it at its full level as anything plays. [Audio Output](https://github.com/mehmetraif/OSD-OS/wiki/Audio-Output) has the rest.
+Choose the card in Settings → Sound → Audio Output; OSD/OS keeps it at its full level as anything plays. [Audio Output](https://github.com/mehmetraif/OSD-OS/wiki/Audio-Output) has the rest.
 
 ### YouTube won't play
 

@@ -12,7 +12,7 @@ own shaders, shaders/, the Orb look's shaders and fog picture,
 modules/arcade/views/orb/, and the skins' pictures), and schema.json, the
 settings the page offers, read from the app as it is: Settings' own rows
 (site/setup/schema-extra.json), the modules' manifests, the presets
-(os/stage-osdos/03-boot/files, with the names Settings → Display Output gives
+(os/stage-osdos/03-boot/files, with the names Settings → Screen → Display Output gives
 them in src/display/DisplayOutput.cpp), the themes and skins (assets/), the
 looks Main.qml has (its colour schemes and effects), the subtitle languages,
 and the time zone database's countries and zones.
@@ -199,7 +199,7 @@ def modules(extra):
 
 
 def preset_models(pid):
-    """The boards a preset is for, as Settings → Display Output offers it
+    """The boards a preset is for, as Settings → Screen → Display Output offers it
     (DisplayOutput.cpp's boardHas()): keep the two in step."""
     if pid == "hdmi":
         return ["pi3", "pi4", "pi5"]

@@ -1,6 +1,6 @@
 # Test patterns
 
-Settings → Test Patterns (`views/TestPatterns.qml`) shows these pictures to
+Settings → Screen → Test Patterns (`views/TestPatterns.qml`) shows these pictures to
 set up a TV or monitor by. They are from the **240p Test Suite** by Artemio
 Urbina and its contributors (the Monoscope designed by Keith Raney, the Grid
 after the CPS-2's), https://github.com/ArtemioUrbina/240pTestSuite, free

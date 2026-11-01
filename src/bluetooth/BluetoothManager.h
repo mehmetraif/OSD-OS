@@ -14,7 +14,7 @@
 class QDBusServiceWatcher;
 #endif
 
-// Settings → Bluetooth: finds, pairs and connects Bluetooth devices (a
+// Settings → Network → Bluetooth: finds, pairs and connects Bluetooth devices (a
 // keyboard, a gamepad, a remote) through BlueZ, the Linux Bluetooth daemon, on
 // the system bus (org.bluez). Exposed to QML as the context property
 // "bluetoothManager" (views/Bluetooth.qml).

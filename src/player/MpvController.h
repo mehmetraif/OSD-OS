@@ -146,7 +146,7 @@ public:
     // (a player's menu where its process ended) it does nothing: the next
     // one starts with the setting.
     Q_INVOKABLE void setVideoProperty(const QString &name, const QVariant &value);
-    // Settings → Audio Output changed: a video playing behind the menus moves
+    // Settings → Sound → Audio Output changed: a video playing behind the menus moves
     // to the card chosen at once (AudioOutput).
     void followAudioOutput();
     // The embedded session's newest picture, and the size to draw it at

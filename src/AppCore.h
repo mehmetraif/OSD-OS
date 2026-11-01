@@ -34,7 +34,7 @@ class AppCore : public QObject {
     Q_PROPERTY(QString appVersion READ appVersion CONSTANT)
     // The build: the commit it was made from and the day (CMake's APP_BUILD).
     Q_PROPERTY(QString appBuild READ appBuild CONSTANT)
-    // The status icons the modules add (Settings → Status Icons, Main.qml's
+    // The status icons the modules add (Settings → Look → Status Icons, Main.qml's
     // statusIcons): those of every enabled module whose backend has a
     // statusIcons property (a QStringList of PixelIcon's names, with a
     // notify signal), in the modules' order.
@@ -55,7 +55,7 @@ public:
     QString setupNoticeDetail() const { return m_setupNoticeDetail; }
     void setSetupNotice(const QString &title, const QString &detail);
     Q_INVOKABLE void dismissSetupNotice();
-    // Settings → Paste OSD/OS Setup: the text copied on OSD/OS Setup's page
+    // Settings → System → Paste OSD/OS Setup: the text copied on OSD/OS Setup's page
     // (its Copy), as its file, applied at once: the settings merged into
     // config.json, each change told as Settings tells one (appSettingChanged,
     // moduleSettingChanged), and the RetroAchievements account handed to
@@ -96,7 +96,7 @@ public:
     Q_INVOKABLE QVariant get_installed_modules();
     Q_INVOKABLE QVariantMap getCustomColorScheme() const;
     Q_INVOKABLE QVariantMap getCustomColorSchemes() const;
-    // Settings → Skin: how the window is dressed, apart from the colours: the
+    // Settings → Look → Skin: how the window is dressed, apart from the colours: the
     // skins there are, [{ id, name }] by name. A skin is a folder with a
     // skin.json, the app's own (assets/skins) or the data folder's (skins),
     // one there in place of the app's of the same name; its id is the
@@ -109,7 +109,7 @@ public:
     // ({ name: URL }) in place of OSD/OS's of those names, only those it has
     // that can be used; empty for none, or for one gone or unreadable.
     Q_INVOKABLE QVariantMap skin(const QString &id) const;
-    // Settings → Theme: the whole look in one folder with a theme.json, found
+    // Settings → Look → Theme: the whole look in one folder with a theme.json, found
     // as skins are (assets/themes, the data folder's themes). The themes
     // there are, [{ id, name }] by name.
     Q_INVOKABLE QVariantList themes() const;

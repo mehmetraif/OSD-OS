@@ -131,7 +131,7 @@ FocusScope {
                 clip: true;
 
                 // The selected row's box, or the skin's picture of a selected
-                // line (Settings → Skin).
+                // line (Settings → Look → Skin).
                 SelectionBox {
                     anchors.fill: rowText;
                     visible: menuList.currentIndex === index;

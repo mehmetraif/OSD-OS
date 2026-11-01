@@ -546,7 +546,7 @@ def wifi_problem(ssid, password):
 
 
 def board_has(preset, board, keyboard):
-    """Whether a Pi has the output, as Settings → Display Output offers it
+    """Whether a Pi has the output, as Settings → Screen → Display Output offers it
     (DisplayOutput.cpp's boardHas(), and build-site.py's preset_models()):
     keep the three in step."""
     if preset == "hdmi":

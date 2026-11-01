@@ -13,7 +13,7 @@ The module is in [modules/emby](https://github.com/mehmetraif/OSD-OS/tree/main/m
 ## What you need
 
 - An Emby server the device can reach. For **Local Server** you need its address (`http://` or `https://`, the host or IP address, and the port: Emby's own defaults are 8096 for HTTP and 8920 for HTTPS) and a user account on it. For **Emby Connect** you need an emby.media account linked to the server.
-- A keyboard to type with, once: a USB keyboard, or one paired in **Settings → Bluetooth**. The sign-in screen has no on-screen keyboard. The server's address can be put in `config.json` instead ([below](#fill-in-the-address-beforehand)), but a username and password always need typing.
+- A keyboard to type with, once: a USB keyboard, or one paired in **Settings → Network → Bluetooth**. The sign-in screen has no on-screen keyboard. The server's address can be put in `config.json` instead ([below](#fill-in-the-address-beforehand)), but a username and password always need typing.
 
 ## Turning it on
 
@@ -212,7 +212,7 @@ The Emby Connect token is used for the sign-in only and never saved; neither is 
 
 | Problem | What to do |
 |---|---|
-| No way to type | Plug in or pair a keyboard (Settings → Bluetooth). The address alone can [go in config.json](#fill-in-the-address-beforehand) |
+| No way to type | Plug in or pair a keyboard (Settings → Network → Bluetooth). The address alone can [go in config.json](#fill-in-the-address-beforehand) |
 | **CONNECTION FAILED: …** | Check the address has `http://` or `https://` and the port. From the device, `curl http://192.168.1.30:8096/System/Info/Public` (with your address) should answer with the server's name |
 | **INCORRECT USERNAME OR PASSWORD** | The server's own account, not the emby.media one (that is Emby Connect) |
 | **NO SERVERS LINKED TO THIS ACCOUNT** | Link the server to your emby.media account in the server's user settings, or sign in with Local Server |

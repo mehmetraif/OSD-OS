@@ -26,7 +26,7 @@ What Settings saves in `config.json` ([Configuration files](https://github.com/m
 }
 ```
 
-On the OSD/OS image, the easiest way to a tune of your own: copy it from your computer onto the card's OSD-OS partition (Windows and macOS open it), then choose Settings → Menu Music: File, and Music File → Media → OSD-OS → the file.
+On the OSD/OS image, the easiest way to a tune of your own: copy it from your computer onto the card's OSD-OS partition (Windows and macOS open it), then choose Settings → Sound → Menu Music: File, and Music File → Media → OSD-OS → the file.
 
 ## The themes' tunes
 
@@ -47,7 +47,7 @@ The six OGGs are Opus, mono, 90 to 170 KB each, and made to loop: what rings on 
 
 ## What plays it
 
-An **mpv** process of its own plays the music, on the card Settings → Audio Output chooses ([Audio Output](https://github.com/mehmetraif/OSD-OS/wiki/Audio-Output)):
+An **mpv** process of its own plays the music, on the card Settings → Sound → Audio Output chooses ([Audio Output](https://github.com/mehmetraif/OSD-OS/wiki/Audio-Output)):
 
 ```text
 mpv --no-config --no-video --no-terminal --really-quiet --loop-file=inf
@@ -59,7 +59,7 @@ mpv --no-config --no-video --no-terminal --really-quiet --loop-file=inf
 - **`--no-config`**: mpv's own `mpv.conf` isn't read for the menu music.
 - **`--volume`** starts at Music Volume; moving the slider changes it over the socket (`--input-ipc-server`) as the music plays.
 - **It starts 700 ms after it is wanted** and nothing holds it, from the beginning of the tune, every time. It doesn't start between a hold and a release in quick turns.
-- **On another sound card**: when Settings → Audio Output changes, the music starts again from the beginning on the new card. The card is looked up each time the music starts: a chosen card that is unplugged is passed over for the system's default until it is back. On Auto, while the system's default can't play, the music gets the first card that can, as `ALSA_CARD`.
+- **On another sound card**: when Settings → Sound → Audio Output changes, the music starts again from the beginning on the new card. The card is looked up each time the music starts: a chosen card that is unplugged is passed over for the system's default until it is back. On Auto, while the system's default can't play, the music gets the first card that can, as `ALSA_CARD`.
 
 ## Formats
 
@@ -428,7 +428,7 @@ journalctl -u osdos -b | grep MenuMusic
 
 | What you hear | Why | What to do |
 |---|---|---|
-| Nothing, and no `[MenuMusic]` line | Menu Music is Off; or THEME with a theme that has none (Green Screen); or File without a Music File; or something is resting it (a video behind the menus) | Check Settings → Menu Music and Music File |
+| Nothing, and no `[MenuMusic]` line | Menu Music is Off; or THEME with a theme that has none (Green Screen); or File without a Music File; or something is resting it (a video behind the menus) | Check Settings → Sound → Menu Music and Music File |
 | Nothing, though the log says `playing` | Music Volume at QUIET, or the sound going to another card | Music Volume; [Audio Output](https://github.com/mehmetraif/OSD-OS/wiki/Audio-Output) |
 | A failed tune doesn't come back after you fix it | A file that failed isn't tried again until the tune changes | Choose another theme or file and back, or restart OSD/OS |
 | A MIDI tune sounds the same after you changed its SoundFont | Same path: the WAV in the cache is used | Delete the [cache folder](#the-cache) |
@@ -441,6 +441,6 @@ journalctl -u osdos -b | grep MenuMusic
 - [Themes](https://github.com/mehmetraif/OSD-OS/wiki/Themes): a theme's `music`, and making a theme
 - [Effects](https://github.com/mehmetraif/OSD-OS/wiki/Effects#never-over-a-video): the music rests with the effects
 - [Audio Output](https://github.com/mehmetraif/OSD-OS/wiki/Audio-Output): the card it plays on
-- [Settings](https://github.com/mehmetraif/OSD-OS/wiki/Settings#the-look): Menu Music, Music File and Music Volume
+- [Settings](https://github.com/mehmetraif/OSD-OS/wiki/Settings#sound): Menu Music, Music File and Music Volume
 - [Configuration files](https://github.com/mehmetraif/OSD-OS/wiki/Configuration-Files): the data folder, the cache and the logs
 - [Ambient:Mode](https://github.com/mehmetraif/OSD-OS/wiki/Ambient-Mode) and [Weather](https://github.com/mehmetraif/OSD-OS/wiki/Weather): modules with music of their own

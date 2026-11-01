@@ -10,7 +10,7 @@ export const SETUP_VERSION = 1;
 export const SETUP_FILE = "osdos-setup.json";
 export const ARCADE_MODULE = "com.osdos.arcade";
 
-// --- The device's name, as Settings → About → System Information makes one
+// --- The device's name, as Settings → System → About → System Information makes one
 // (SystemInfo::hostnameFor): small letters, spaces and underscores as
 // hyphens, then RFC 1123's letters, digits and hyphens, 63 at most, no hyphen
 // at either end.

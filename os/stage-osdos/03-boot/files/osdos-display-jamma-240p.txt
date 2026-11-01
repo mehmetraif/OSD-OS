@@ -5,7 +5,7 @@
 # I2C bus of its two MCP23017s, the players' controls, which osdos-jamma reads
 # (the line below tells it to). The sound: on a Pi 4 GPIO 18 and 19, to the
 # board's amplifier; a Pi 5 can't put it there, so a USB sound card's (Settings
-# → Audio Output). Chosen in Settings → Display Output, or copied over
+# → Audio Output). Chosen in Settings → Screen → Display Output, or copied over
 # osdos-display.txt (config.txt says how).
 # osdos-controls: jamma
 # A Pi 5 keeps HDMI on beside it: OSD/OS takes this output, in this mode. The

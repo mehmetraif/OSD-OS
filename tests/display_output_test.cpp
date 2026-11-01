@@ -1,4 +1,4 @@
-// Settings → Display Output (src/display/DisplayOutput) against the image's
+// Settings → Screen → Display Output (src/display/DisplayOutput) against the image's
 // own presets in a stand-in boot partition: the JAMMA preset is offered only
 // where osdos-stop knows its code (launcher API 4), and is told apart from the
 // others when it is in force. Switch and Power Off and At Next Start come with

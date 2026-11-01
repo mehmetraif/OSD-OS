@@ -583,7 +583,7 @@ export class OrbLook {
         };
 
         // Fog: three layers at three depths, drifting, the further the darker
-        // (Settings → Orb Fog: the fog picture's, or worked out as it drifts).
+        // (Settings → Look → Orb Fog: the fog picture's, or worked out as it drifts).
         const live = look.orbFogLive;
         const fogs = live
             ? [[-500, ink, 0.7, 3.0, 1.3, 0.55], [-1100, sea, 0.55, 2.3, 7.7, 0.45], [-1900, mix(ink, ground, 0.25), 0.75, 1.6, 3.1, 0.35]]

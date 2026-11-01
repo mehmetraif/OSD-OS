@@ -1,5 +1,5 @@
 #version 440
-// Settings → Background Effect's Checkered Flag: the window a chequered
+// Settings → Look → Effects → Background Effect's Checkered Flag: the window a chequered
 // racing flag waving in the wind, its waves running along it from the left,
 // where a pole would hold it, each fold lit as it lifts and shaded as it
 // falls away. Behind the menus, so faint: its light squares in the scheme's

@@ -1,7 +1,7 @@
 #!/bin/bash -e
 
 # The app's service, its exit-to-terminal shell, its stop helper, Display
-# Output's next-start socket, Settings → Wi-Fi's country socket, System
+# Output's next-start socket, Settings → Network → Wi-Fi's country socket, System
 # Information's device name socket and the polkit rule that lets the app's
 # user use NetworkManager (all but the service taken from scripts/install.sh
 # by os/build.sh), OSD/OS Setup's file applied at start, and the boot order:
@@ -101,7 +101,7 @@ cat > "${ETC}/systemd/system/NetworkManager-wait-online.service.d/osdos.conf" <<
 Environment=NM_ONLINE_TIMEOUT=20
 EOF
 
-# Bluetooth is switched on and off in Settings → Bluetooth, through BlueZ, and
+# Bluetooth is switched on and off in Settings → Network → Bluetooth, through BlueZ, and
 # rfkill has no business keeping it off. Raspberry Pi OS starts every radio
 # blocked (raspberrypi-sys-mods sets rfkill.default_state=0, so Wi-Fi stays off
 # until its country is set), then unblocks Bluetooth only on the adapters

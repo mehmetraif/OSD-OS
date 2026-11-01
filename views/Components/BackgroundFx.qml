@@ -1,6 +1,6 @@
 import QtQuick
 
-// Settings → Background Effect, or the theme's (root.backgroundEffect):
+// Settings → Look → Effects → Background Effect, or the theme's (root.backgroundEffect):
 // something going on behind the menus, over the window's ground and under
 // what a view shows. Matrix rain, stars, snow, a checkered flag, a plasma and
 // fire fill the window inside its frame (the whole screen without one), the

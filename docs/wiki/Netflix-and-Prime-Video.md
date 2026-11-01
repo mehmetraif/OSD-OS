@@ -286,7 +286,7 @@ This product uses the TMDB API but is not endorsed or certified by TMDB. Which s
 
 **A title opens at the service's search instead of its page.** Wikidata has no id for it on that service. Pick it from the search results.
 
-**No sound.** The browser plays through Settings → Audio Output's card, which the web player passes on to it ([Audio Output](https://github.com/mehmetraif/OSD-OS/wiki/Audio-Output)).
+**No sound.** The browser plays through Settings → Sound → Audio Output's card, which the web player passes on to it ([Audio Output](https://github.com/mehmetraif/OSD-OS/wiki/Audio-Output)).
 
 More in [Troubleshooting](https://github.com/mehmetraif/OSD-OS/wiki/Troubleshooting).
 

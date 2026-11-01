@@ -188,10 +188,10 @@ With **Hide File Extensions** on, as it is unless you turn it off, the tree show
 | Option | What it does |
 |---|---|
 | **Add to Favorites** / **Remove from Favorites** | Puts the file on Favorites, or takes it off. Taking off the file that plays at startup turns Play at Startup off too |
-| **Play at Startup** / **Don't Play at Startup** | Makes the file the one OSD/OS plays straight after the boot screen, ahead of Settings → Start on Module. It goes on Favorites too. There is one for the whole app: choosing another replaces it |
+| **Play at Startup** / **Don't Play at Startup** | Makes the file the one OSD/OS plays straight after the boot screen, ahead of Settings → Startup → Start on Module. It goes on Favorites too. There is one for the whole app: choosing another replaces it |
 | **Add to Playlist** | Puts the file on one of the [Playlists](https://github.com/mehmetraif/OSD-OS/wiki/Playlists) module's lists, or on a new one. Offered while the Playlists module is on |
 
-The favourite played at startup begins without asking: where it was stopped, or from the beginning, as **Settings → Startup From** says (Resume or Beginning; the row shows while there is a startup favourite). **Settings → Play at Startup** shows which file it is and can only turn it off. It plays only while it is still one of Local Files' favourites.
+The favourite played at startup begins without asking: where it was stopped, or from the beginning, as **Settings → Startup → Startup From** says (Resume or Beginning; the row shows while there is a startup favourite). **Settings → Startup → Play at Startup** shows which file it is and can only turn it off. It plays only while it is still one of Local Files' favourites.
 
 ## Playing a file
 

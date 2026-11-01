@@ -364,7 +364,7 @@ bool ScriptLauncher::start(const ScriptEntry &entry, QString *errorOut) {
         env.insert(QStringLiteral("OSDOS_VT"), QString::number(vt));
         env.insert(QStringLiteral("MP240_VT"), QString::number(vt));
     }
-    // Settings → Audio Output's card, for what plays sound through ALSA (a
+    // Settings → Sound → Audio Output's card, for what plays sound through ALSA (a
     // web player's browser among them).
     AudioOutput::applyTo(env);
     // On a Pi 5 the launcher names the card of the output in use (as it does

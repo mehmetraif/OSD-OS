@@ -78,7 +78,7 @@ Run from a source tree, `APP_ROOT=$(pwd) ./build/osdos` points the app at the ch
 }
 ```
 
-- **The settings** a manifest lists become the module's page in Settings, saved under `modules.<id>` in `config.json`. Its `settings_group` says where Settings lists that page: `"tv"` under Modules on the TV / Movie page, as here; `"arcade"` on the Arcade page, which the arcade modules share; none, under Modules on Settings' first screen. No C++ is needed to add one ([ARCHITECTURE.md → manifest.json Reference](https://github.com/mehmetraif/OSD-OS/blob/main/ARCHITECTURE.md#manifestjson-reference)).
+- **The settings** a manifest lists become the module's page in Settings, saved under `modules.<id>` in `config.json`. Its `settings_group` says where Settings lists that page: `"tv"` under Modules on the TV / Movie page, as here; `"arcade"` on the Arcade page, which the arcade modules share; none, under Modules on Settings' System page. No C++ is needed to add one ([ARCHITECTURE.md → manifest.json Reference](https://github.com/mehmetraif/OSD-OS/blob/main/ARCHITECTURE.md#manifestjson-reference)).
 - **Enabled or not**: the module's `enabled` in `config.json`, else its manifest's default for `enabled`, else on.
 - **The main menu** (`views/ModuleList.qml`) asks `scan_for_modules()` and gets the enabled modules, each with its entry point (`modules/<folder>/views/Root.qml`). A backend may add rows of its own after them (`get_menu_entries()`), as Scripts does for the scripts you put on the main menu.
 
@@ -114,8 +114,8 @@ All fourteen modules have one: `com.osdos.local_files`, `plex`, `jellyfin`, `emb
 | `mpvController` | Playback |
 | `inputManager` | Gamepads, remaps, the hints for the foot of each screen |
 | `displayHandoff` | Whether something else has the screen |
-| `audioOutput`, `menuMusic`, `displayOutput`, `bootProgress` | Settings → Audio Output, the menu music, Settings → Display Output, the boot screen |
-| `updateManager`, `bluetoothManager`, `wifiManager`, `idleTracker` | Settings → Update, Settings → Bluetooth, Settings → Wi-Fi, the screen saver |
+| `audioOutput`, `menuMusic`, `displayOutput`, `bootProgress` | Settings → Sound → Audio Output, the menu music, Settings → Screen → Display Output, the boot screen |
+| `updateManager`, `bluetoothManager`, `wifiManager`, `idleTracker` | Settings → System → Update, Settings → Network → Bluetooth, Settings → Network → Wi-Fi, the screen saver |
 
 ## Main.qml and the screens
 
@@ -180,7 +180,7 @@ function navigateBack() {
 
 - **Back from a module's first view** empties its stack: `Root.qml` emits `goBack()`, and `Main.qml` pops its own stack, back to the main menu. Back on the main menu opens Settings.
 - **`replaceWith(path, params)`** loads a view without stacking the one before, for a step that shouldn't come back (a sign-in done, a card resolved into its player).
-- **`root.changeWindow(loader, source, properties)`** is how every view changes, the app's and each module's. It plays Settings → Transition: the old window is caught as a picture (`lastFace`), then it fades, turns like a cube, ripples, rides a wave or spreads from a drop. It changes at once, with no transition, into or out of a video's views, while the effects rest, under the boot screen, the display question or OSD/OS Setup's notice, and for the very first view:
+- **`root.changeWindow(loader, source, properties)`** is how every view changes, the app's and each module's. It plays Settings → Look → Effects → Transition: the old window is caught as a picture (`lastFace`), then it fades, turns like a cube, ripples, rides a wave or spreads from a drop. It changes at once, with no transition, into or out of a video's views, while the effects rest, under the boot screen, the display question or OSD/OS Setup's notice, and for the very first view:
 
 ```qml
 if (transition === "" || windowChange.changing || effectsRest || bootActive || startupHolding
@@ -190,7 +190,7 @@ if (transition === "" || windowChange.changing || effectsRest || bootActive || s
 }
 ```
 
-- **At start**, once the boot screen and the display question are gone, `openStartupModule()` opens Settings → Start on Module's module with `navParams.fromAppStartup`, or, when a favourite is set to Play at Startup, that favourite's module with `navParams.startupPlay`.
+- **At start**, once the boot screen and the display question are gone, `openStartupModule()` opens Settings → Startup → Start on Module's module with `navParams.fromAppStartup`, or, when a favourite is set to Play at Startup, that favourite's module with `navParams.startupPlay`.
 
 [ARCHITECTURE.md → QML View Patterns](https://github.com/mehmetraif/OSD-OS/blob/main/ARCHITECTURE.md#qml-view-patterns) has the full router and view templates.
 
@@ -317,7 +317,7 @@ sequenceDiagram
         << "--osd-level=0";
    ```
 
-2. **Its scripts**: the deck's menu (`scripts/mpv-osc.lua`, or Ambient:Mode's own), media keys and the VOLUME bar (`mpv-media-keys.lua`), the channel logo (`mpv-logo.lua`, unless Channel Logo is Off), the screen saver (`mpv-screensaver.lua`, when Settings → Screen Saver has a time), and for photos `mpv-slideshow-redraw.lua`.
+2. **Its scripts**: the deck's menu (`scripts/mpv-osc.lua`, or Ambient:Mode's own), media keys and the VOLUME bar (`mpv-media-keys.lua`), the channel logo (`mpv-logo.lua`, unless Channel Logo is Off), the screen saver (`mpv-screensaver.lua`, when Settings → Screen → Screen Saver has a time), and for photos `mpv-slideshow-redraw.lua`.
 3. **The old player** is told to quit (SIGTERM), killed a second later if it is still there, and given up on after five seconds. The new one waits until the old one is gone and the screen is free.
 4. **The socket.** `MpvController` sends JSON commands over `/tmp/osdos-mpv.sock` (seek, keys) and follows what mpv reports. Its input file, `/tmp/osdos-input.conf`, maps Escape and Backspace to `script-message osdos-menu` (back: it ends the video, or for a player with a menu of its own, opens that menu) and Enter to pause. The deck's menu, while open, takes back first.
 5. **The end.** `playbackEnded(finalPos, finalDur, reason)` comes once mpv has exited and, on a Pi, the screen is the app's again:
@@ -412,7 +412,7 @@ mpv --no-config --no-video --no-terminal --really-quiet --loop-file=inf --volume
 
 - **When.** `Main.qml` wants it in the menus only: not while the effects rest (a video playing, loading or showing its menu), nor under the boot screen, the screen saver or the display question.
 - **Held off.** Anything about to play sound holds it first: a video (`video`), Ambient:Mode's music, Weather's music, a script, an Arcade game or a web player. A hold kills the music's mpv and waits for it, so the sound card is free before the other opens it. It starts again, from the beginning, 700 ms after nothing holds it.
-- **Live.** Settings → Music Volume changes its volume over its socket as the slider moves, and a new sound card in Settings → Audio Output restarts it there.
+- **Live.** Settings → Sound → Music Volume changes its volume over its socket as the slider moves, and a new sound card in Settings → Sound → Audio Output restarts it there.
 - **MIDI and trackers.** A MIDI file is made into a WAV first by FluidSynth, with a SoundFont; a tracker's module mpv can't play, by openmpt123. The WAV is kept in the cache folder, so a file is made once. A file mpv gives up on within three seconds isn't tried again until the setting changes.
 
 [Menu music](https://github.com/mehmetraif/OSD-OS/wiki/Menu-Music) has what it plays and how to give it yours.
@@ -524,8 +524,8 @@ OSD/OS logs to its standard output and error: a terminal when you run it by hand
 | `[MenuMusic]` | What the menu music plays, or why it can't |
 | `[input]` | Gamepads, remaps, `input.cfg` |
 | `[Scripts]`, `[WebPlayer]`, `[TMDB]` | Scripts, the web players and their catalogue |
-| `[Bluetooth]` | Settings → Bluetooth |
-| `[Wi-Fi]` | Settings → Wi-Fi |
+| `[Bluetooth]` | Settings → Network → Bluetooth |
+| `[Wi-Fi]` | Settings → Network → Wi-Fi |
 | `[LocalFiles]`, `[Plex]`, `[Jellyfin]`, `[Emby]`, `[Playlists]`, `[Weather]`, `[NfcReader]`, `[AmbientMode]`, `[Arcade]`, `[HighScores]` | The modules |
 | `[legacy]` | 240-MP's data brought over |
 | `[AtomicFile]` | A file that couldn't be saved |
@@ -547,11 +547,11 @@ What OSD/OS reads from its environment. Each `OSDOS_…` name is also read as `M
 | `OSDOS_MEDIA_DIR` | The folder the media go in (the image's film partition): Local Files opens `Movies` there while its setting is unset, the Arcade module `Games/Arcade` while its own is |
 | `OSDOS_DRM_DEVICE`, `OSDOS_DRM_CONNECTOR`, `OSDOS_DRM_MODE` | Set by the launcher on a Pi 5: the output mpv plays on |
 | `OSDOS_EMBEDDED_RENDER` | `sw` keeps Transparent Background's pictures on the CPU; `gpu` takes OpenGL drawn on the CPU too |
-| `OSDOS_UPDATE_FEED_URL` | Where Settings → Update looks for releases |
+| `OSDOS_UPDATE_FEED_URL` | Where Settings → System → Update looks for releases |
 | `OSDOS_NFC_SERIAL_DEVICE`, `OSDOS_NFC_DEBUG` | The NFC reader's serial port, when detection can't find it; more about detection in the log |
 | `OSDOS_BOARD_MODEL`, `OSDOS_BOOT_DIR`, `OSDOS_RUN_DIR`, `OSDOS_ZONEINFO_DIR`, `OSDOS_ASOUND_DIR`, `OSDOS_MOUNTINFO`, `OSDOS_TMDB_URL`, `OSDOS_WIKIDATA_URL` | Stand-ins for tests: the board's model, `/boot/firmware`, `/run`, `/usr/share/zoneinfo`, `/proc/asound`, the mount table, TMDB and Wikidata |
 
-And what it gives the programs it starts: `APP_ROOT` to mpv and to scripts; on Linux, `FONTCONFIG_FILE` to mpv, so its menus find OSD/OS's fonts; `DATA_ROOT`, `OSDOS_MODE` (`console` or `takeover`) and, for a takeover on a Pi, `OSDOS_VT` to scripts; `ALSA_CARD` to mpv, scripts and web players when Settings → Audio Output names a card, or on Auto the card that plays while ALSA's first can't; on a Pi 5, `SDL_KMSDRM_DEVICE_INDEX` to scripts, the number of the DRM card of the output the display preset names, for SDL programs such as the Arcade module's MAME; and to scripts, the players' pads from Settings → Controls (`OSDOS_PLAYER1_NAME`, `_GUID` and `_DEVICE`, and players 2 to 6's) ([Scripts](https://github.com/mehmetraif/OSD-OS/wiki/Scripts)).
+And what it gives the programs it starts: `APP_ROOT` to mpv and to scripts; on Linux, `FONTCONFIG_FILE` to mpv, so its menus find OSD/OS's fonts; `DATA_ROOT`, `OSDOS_MODE` (`console` or `takeover`) and, for a takeover on a Pi, `OSDOS_VT` to scripts; `ALSA_CARD` to mpv, scripts and web players when Settings → Sound → Audio Output names a card, or on Auto the card that plays while ALSA's first can't; on a Pi 5, `SDL_KMSDRM_DEVICE_INDEX` to scripts, the number of the DRM card of the output the display preset names, for SDL programs such as the Arcade module's MAME; and to scripts, the players' pads from Settings → Controls (`OSDOS_PLAYER1_NAME`, `_GUID` and `_DEVICE`, and players 2 to 6's) ([Scripts](https://github.com/mehmetraif/OSD-OS/wiki/Scripts)).
 
 ## Tests
 

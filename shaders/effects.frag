@@ -1,5 +1,5 @@
 #version 440
-// The menus' screen and text effects (Settings → Screen Effect and Text
+// The menus' screen and text effects (Settings → Look → Effects → Screen Effect and Text
 // Effect, or a theme's): one pass over the picture of the menus, the layer of
 // the item that holds them in Main.qml. A video is never in it: the effects
 // rest while one plays. Each effect is off at 0 and at its strongest at 1. A

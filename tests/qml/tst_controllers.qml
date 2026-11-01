@@ -1253,7 +1253,7 @@ Rectangle {
             compare(root.backs, 1)
         }
 
-        // Settings → Cabinet Lock (views/CabinetLock.qml): turned on without
+        // Settings → Startup → Cabinet Lock (views/CabinetLock.qml): turned on without
         // unlock buttons, they are waited for first, what is held shown as it
         // changes, too many said so; once they are kept, it asks before it
         // locks, and Lock saves it. Without a module to stay on, it says so

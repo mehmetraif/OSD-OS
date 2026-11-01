@@ -11,7 +11,7 @@ import Components
 // none downloads it as before. On Windows, where no package manager
 // brings RetroArch, its download too (downloadRetroArch()), under
 // RetroArch's line while there is none, or the one downloaded is the one
-// found. Its licence, which comes with it, is in Settings → About, with the
+// found. Its licence, which comes with it, is in Settings → System → About, with the
 // rest of the arcade's.
 FocusScope {
     id: fbneoRoot
@@ -97,7 +97,7 @@ FocusScope {
         case "core":
             return (info.packaged ? "Version " + info.version + ", the same on every OSD/OS machine: an update of OSD/OS brings a new one"
                     : info.core ? info.core : "Its core for RetroArch, with its list of games")
-                   + " • Free to use and share, never to sell; its license is in Settings → About"
+                   + " • Free to use and share, never to sell; its license is in Settings → System → About"
         case "games":
             return "FinalBurn Neo's arcade games: a set of these plays in it when Online High Scores, Online Play or LAN Play is on, or its options choose it"
         case "download":

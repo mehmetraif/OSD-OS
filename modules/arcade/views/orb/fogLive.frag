@@ -1,4 +1,4 @@
-// Settings → Orb Fog's Live: a layer of fog behind the Orb look's panels
+// Settings → Look → Orb Fog's Live: a layer of fog behind the Orb look's panels
 // worked out for every pixel as it drifts, as in the look's first design,
 // where fog.frag reads its picture (fog.png). Value noise in four octaves
 // (fbm), bent by two more, drifting on a circle of radius (phase, 0 to 1,

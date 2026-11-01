@@ -487,7 +487,7 @@ Item {
 
             // ---
             // Fog: three layers at three depths, drifting, the further the
-            // darker. Settings → Orb Fog: the fog picture's (fog.frag), or
+            // darker. Settings → Look → Orb Fog: the fog picture's (fog.frag), or
             // worked out as it drifts (fogLive.frag), with the first design's
             // layers.
             // ---

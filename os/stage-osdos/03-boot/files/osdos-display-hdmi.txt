@@ -1,4 +1,4 @@
-# HDMI to a modern TV, its resolution detected. Chosen in Settings → Display
+# HDMI to a modern TV, its resolution detected. Chosen in Settings → Screen → Display
 # Output, or copied over osdos-display.txt (config.txt says how).
 display_auto_detect=1
 hdmi_force_hotplug=1

@@ -1,7 +1,7 @@
 import QtQuick
 import Components
 
-// Settings → Bluetooth: pairs a Bluetooth keyboard, gamepad or remote with the
+// Settings → Network → Bluetooth: pairs a Bluetooth keyboard, gamepad or remote with the
 // Pi, through bluetoothManager (BlueZ). Laid out like Settings: BLUETOOTH on
 // or off, SEARCH, then PAIRED and FOUND devices. SEARCH looks for devices for a
 // minute, listing what answers as it does; select on one found pairs it, and a

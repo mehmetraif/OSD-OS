@@ -6,7 +6,7 @@
 #include <QTimer>
 #include <QVector>
 
-// Settings → Selector Effect, or a theme's: something always going on round
+// Settings → Look → Effects → Selector Effect, or a theme's: something always going on round
 // the selected line, drawn in art pixels over the menus. `target` is the
 // selection's box (Main.qml's root.selector, whichever is in front), followed
 // wherever it goes; the effect plays out from it, across the whole item, so

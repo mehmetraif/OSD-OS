@@ -210,7 +210,7 @@ On the info screen, select plays, ▲ ▼ close it and move on through the list,
 ► on a video's info screen (or on the video, with the info screen off) offers:
 
 - **Add to Favorites** / **Remove from Favorites**
-- **Play at Startup** / **Don't Play at Startup**: OSD/OS plays this video straight after the boot screen, instead of opening a module. It goes on Favorites too. Settings → Play at Startup turns it off, and Settings → Startup From says whether it resumes or starts from the beginning.
+- **Play at Startup** / **Don't Play at Startup**: OSD/OS plays this video straight after the boot screen, instead of opening a module. It goes on Favorites too. Settings → Startup → Play at Startup turns it off, and Settings → Startup → Startup From says whether it resumes or starts from the beginning.
 - **Add to Playlist**, when the [Playlists](https://github.com/mehmetraif/OSD-OS/wiki/Playlists) module is on.
 - **Save to Watch Later** / **Remove from Watch Later**
 

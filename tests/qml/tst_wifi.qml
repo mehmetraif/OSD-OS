@@ -1,7 +1,7 @@
 import QtQuick
 import QtTest
 
-// Settings → Wi-Fi, views/Wifi.qml, against a stand-in for WifiManager: no
+// Settings → Network → Wi-Fi, views/Wifi.qml, against a stand-in for WifiManager: no
 // Wi-Fi; Wi-Fi off with no country, which select on WI-FI asks for first; the
 // country's chooser, ▲ ▼ and ◄ ► from letter to letter; the lines (Search,
 // Network Not Listed, the saved networks and the others, each with its lock and

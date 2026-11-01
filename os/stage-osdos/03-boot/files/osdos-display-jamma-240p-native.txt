@@ -3,7 +3,7 @@
 # the sound), at 320x240: 60 Hz, 15.66 kHz, the width many arcade games
 # were drawn at, so each pixel of theirs is one of the screen's. The timing
 # is Recalbox RGB JAMMA's (p320x240jamma), for a board of the same layout.
-# Chosen in Settings → Display Output, or copied over osdos-display.txt
+# Chosen in Settings → Screen → Display Output, or copied over osdos-display.txt
 # (config.txt says how).
 # osdos-controls: jamma
 # A Pi 5 keeps HDMI on beside it: OSD/OS takes this output, in this mode. The

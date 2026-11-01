@@ -54,9 +54,9 @@ With no video in the folder, the screen says **No items found: Please add items 
 
 - **The video loops forever**, full screen: one clip round and round, or with SHUFFLE all of them, in an order mpv shuffles once and then repeats (`--loop-playlist=inf`, with `--shuffle`). It only stops when you stop it.
 - **With VIDEO AUDIO**, you hear the clip's own sound.
-- **With music chosen**, the clip plays silent (`--no-audio`), and the music plays from a second mpv of its own, apart from the video: `mpv <files> --no-video --loop-playlist=inf --no-terminal --really-quiet`, with `--shuffle` for SHUFFLE, on Settings → Audio Output's card. The two run side by side; they aren't mixed, the music replaces the clip's sound. The music loops forever too, so its length doesn't have to match the clip's.
+- **With music chosen**, the clip plays silent (`--no-audio`), and the music plays from a second mpv of its own, apart from the video: `mpv <files> --no-video --loop-playlist=inf --no-terminal --really-quiet`, with `--shuffle` for SHUFFLE, on Settings → Sound → Audio Output's card. The two run side by side; they aren't mixed, the music replaces the clip's sound. The music loops forever too, so its length doesn't have to match the clip's.
 - **With Audio on SHUFFLE**, the files and playlists are shuffled as whole entries: a playlist counts as one, and its tracks play in their own order when its turn comes. The order is shuffled once, then repeats.
-- **The menu music** (Settings → Menu Music) is held off while the clip and the music play, and comes back afterwards.
+- **The menu music** (Settings → Sound → Menu Music) is held off while the clip and the music play, and comes back afterwards.
 - **The screen saver** stays away while it plays.
 - The module's own **Scaling** applies: how a 16:9 clip fills a 4:3 screen (Settings → TV / Movie → Ambient:Mode → Scaling, or Settings → TV / Movie → Scaling while it says Default).
 
@@ -97,7 +97,7 @@ The `music` folder itself isn't listed (only files directly in the media folder 
 **Auto-Launch Playback** plays straight away when OSD/OS starts on this module, for a TV that should come on as a fireplace:
 
 1. Settings → TV / Movie → Ambient:Mode → **Auto-Launch Playback**: On.
-2. Settings → **Start on Module**: Ambient:Mode.
+2. Settings → Startup → **Start on Module**: Ambient:Mode.
 
 At start it always shuffles: the videos on SHUFFLE when there is more than one (the only one otherwise), and the music on SHUFFLE when there is more than one audio file or playlist; with one or none, the clip's own sound. It doesn't happen when you open the module from the main menu, so the screen stays reachable to choose, and back from the auto-launched playback lands on the Ambient:Mode screen rather than starting it again. A favourite chosen with **Play at Startup** comes before Start on Module ([Settings](https://github.com/mehmetraif/OSD-OS/wiki/Settings)).
 
@@ -153,13 +153,13 @@ The module keeps no other files: what you chose on its screen isn't remembered b
 
 **A file I put in the folder isn't on the Audio row.** Its type isn't listed (Opus, for one): put it in an `m3u`.
 
-**No music.** The music needs mpv on the `PATH` (or beside the app): the log says `[AmbientMode] mpv not found in PATH — audio will not play` otherwise. In a playlist, check the paths: a relative one is relative to the playlist's folder, and names are case-sensitive on Linux. Check Settings → Audio Output too.
+**No music.** The music needs mpv on the `PATH` (or beside the app): the log says `[AmbientMode] mpv not found in PATH — audio will not play` otherwise. In a playlist, check the paths: a relative one is relative to the playlist's folder, and names are case-sensitive on Linux. Check Settings → Sound → Audio Output too.
 
 **I hear the clip's own sound.** Audio is on VIDEO AUDIO. Choose a file, a playlist or SHUFFLE.
 
 **Black bars round the clip.** Set Scaling (Pan & Scan fills a 4:3 screen with a 16:9 clip), or use CROP in the playback menu.
 
-**It doesn't start by itself.** Settings → Start on Module must be Ambient:Mode, Auto-Launch Playback on, and the folder must hold at least one video. A Play at Startup favourite takes precedence.
+**It doesn't start by itself.** Settings → Startup → Start on Module must be Ambient:Mode, Auto-Launch Playback on, and the folder must hold at least one video. A Play at Startup favourite takes precedence.
 
 **The clip stutters on a Pi.** A Pi decodes H.264 in hardware (a Pi 5 on its GPU), and a Pi 4 or 5 HEVC too; other codecs, VP9 and AV1 among them, are decoded by the CPU ([Playback and mpv](https://github.com/mehmetraif/OSD-OS/wiki/Playback-and-mpv)). A 1080p or 720p H.264 copy of the clip loops smoothly.
 

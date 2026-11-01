@@ -1,5 +1,5 @@
 // fake_networkmanager: the stand-in for NetworkManager (fake_networkmanager.h)
-// on its own, for screenshots of Settings → Wi-Fi without a Raspberry Pi. It
+// on its own, for screenshots of Settings → Network → Wi-Fi without a Raspberry Pi. It
 // registers on the bus whose address is its argument, else the one
 // DBUS_SYSTEM_BUS_ADDRESS names, with five networks heard: Home, saved and
 // joined; Workshop, saved; Arcade Hall (WPA3), Corner Cafe (open) and

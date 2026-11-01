@@ -1,5 +1,5 @@
 #version 440
-// Settings → Transition's Wave: a wave runs out from a corner across the
+// Settings → Look → Effects → Transition's Wave: a wave runs out from a corner across the
 // screen, the old window swelling up and settling into the new one as it
 // passes, smaller the further it goes, until it dies away at the far side.
 // On whole art pixels, as the menus are drawn.

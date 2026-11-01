@@ -12,7 +12,7 @@ set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -DQT_NO_DEBUG_OUTPUT")
 # builds report "dev", which disables the in-app self-update download path.
 set(APP_VERSION "dev" CACHE STRING "Release version (CI passes the git tag)")
 
-# The build, for Settings → About: the commit the tree was configured from and
+# The build, for Settings → System → About: the commit the tree was configured from and
 # the day. CI configures each build afresh; a local build keeps its configure's
 # commit until the next one. A tree without git (a source archive) has the
 # day alone.
@@ -255,7 +255,7 @@ else()
     message(STATUS "Qt Shader Tools not found — the shader effects will be unavailable")
 endif()
 
-# BlueZ and NetworkManager over D-Bus for Settings → Bluetooth and Wi-Fi
+# BlueZ and NetworkManager over D-Bus for Settings → Network → Bluetooth and Wi-Fi
 # (src/bluetooth, src/wifi). Linux only: a Mac or a PC pairs devices and joins
 # networks in its own settings. Without Qt D-Bus the rows are left out.
 if(OSDOS_LINUX)
@@ -266,7 +266,7 @@ if(Qt6DBus_FOUND)
     target_compile_definitions(osdos PRIVATE OSDOS_BLUETOOTH=1 OSDOS_WIFI=1)
     target_link_libraries(osdos PRIVATE Qt6::DBus)
 else()
-    message(STATUS "Qt D-Bus not found — Settings → Bluetooth and Wi-Fi will be unavailable")
+    message(STATUS "Qt D-Bus not found — Settings → Network → Bluetooth and Wi-Fi will be unavailable")
 endif()
 
 # openhi2txt, for the High Scores module's tables (src/modules/highscores): it
@@ -349,7 +349,7 @@ if(APPLE)
 
     # Use a hardcoded relative path — $<TARGET_BUNDLE_CONTENT_DIR> resolves to
     # the build tree, not the install prefix, inside install() rules.
-    # LICENSE goes with every copy, as the GPL asks; Settings → About shows it.
+    # LICENSE goes with every copy, as the GPL asks; Settings → System → About shows it.
     install(FILES "${CMAKE_SOURCE_DIR}/Main.qml" "${CMAKE_SOURCE_DIR}/LICENSE"
         DESTINATION "osdos.app/Contents/Resources"
         COMPONENT Runtime)
@@ -406,7 +406,7 @@ else()
             COMPONENT Runtime)
     endif()
 
-    # LICENSE goes with every copy, as the GPL asks; Settings → About shows it.
+    # LICENSE goes with every copy, as the GPL asks; Settings → System → About shows it.
     install(FILES "${CMAKE_SOURCE_DIR}/Main.qml" "${CMAKE_SOURCE_DIR}/LICENSE"
         DESTINATION "${OSDOS_INSTALL_DATADIR}"
         COMPONENT Runtime)

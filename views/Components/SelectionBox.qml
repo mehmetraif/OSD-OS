@@ -1,12 +1,12 @@
 import QtQuick
 
 // The selected line's box: the skin's picture of a selected line (Settings →
-// Skin, or the theme's), or a solid bar of the scheme's colour. Every selected
+// Look → Skin, or the theme's), or a solid bar of the scheme's colour. Every selected
 // line is one: a MenuRow's, the main menu's, the tree's cursor, a
 // PromptScreen's answer, the on-screen keyboard's key (`skinned` false: the
 // plain bar, a key not being a line).
 //
-// While it shows, it is a selector Settings → Selector Effect may play round:
+// While it shows, it is a selector Settings → Look → Effects → Selector Effect may play round:
 // it tells Main.qml (root.selectorShown), whose root.selector is the one in
 // front, and the effect follows it there.
 //

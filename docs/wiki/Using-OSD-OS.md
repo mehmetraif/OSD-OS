@@ -54,11 +54,11 @@ On the [OSD/OS image](https://github.com/mehmetraif/OSD-OS/wiki/The-OSD-OS-Image
 | `[FAIL] …` | It failed to start |
 | `[ -- ] …` | Skipped, as its conditions weren't met |
 
-`SSH` has a line when the image was built with SSH on, and the last line, `ONLINE`, waits until the network is really up, or 20 seconds without one. The screen closes by itself once every line has settled, or after a minute, whatever keys are pressed: no key does anything while it is up but Ctrl+Q, which powers the Pi off. Then the main menu opens, or the module Settings → Start on Module names, or the favourite set to [play at startup](https://github.com/mehmetraif/OSD-OS/wiki/Using-OSD-OS#play-at-startup).
+`SSH` has a line when the image was built with SSH on, and the last line, `ONLINE`, waits until the network is really up, or 20 seconds without one. The screen closes by itself once every line has settled, or after a minute, whatever keys are pressed: no key does anything while it is up but Ctrl+Q, which powers the Pi off. Then the main menu opens, or the module Settings → Startup → Start on Module names, or the favourite set to [play at startup](https://github.com/mehmetraif/OSD-OS/wiki/Using-OSD-OS#play-at-startup).
 
 On an app install (Raspberry Pi OS, macOS, SteamOS) there is no boot screen: OSD/OS opens on the main menu.
 
-**After Settings → Display Output** switched to another output, the first thing on the new one, over the boot screen, is **Keep this display output?**, with the time left. **Keep** keeps it; **Switch Back**, or 30 seconds without an answer, goes back to the old output, restarting again. Back does nothing there: on a screen that shows nothing, a key pressed at random must not keep it. [Display Output](https://github.com/mehmetraif/OSD-OS/wiki/Display-Output) has the rest.
+**After Settings → Screen → Display Output** switched to another output, the first thing on the new one, over the boot screen, is **Keep this display output?**, with the time left. **Keep** keeps it; **Switch Back**, or 30 seconds without an answer, goes back to the old output, restarting again. Back does nothing there: on a screen that shows nothing, a key pressed at random must not keep it. [Display Output](https://github.com/mehmetraif/OSD-OS/wiki/Display-Output) has the rest.
 
 ## The main menu
 
@@ -66,7 +66,7 @@ On an app install (Raspberry Pi OS, macOS, SteamOS) there is no boot screen: OSD
 
 The main menu lists the modules, like the inputs on a deck: Local Files, Plex, YouTube and the rest. Select opens one; back opens Settings.
 
-- **Which modules.** Only the modules that are turned on, in the order of their folders' names (`modules/ambient_mode`, `arcade`, `emby`, …). Out of the box, **Local Files** and **Playlists** are on. Turn others on in Settings, with the **Enabled** row on each module's page: the video modules' and Weather's are under **Modules** on the **TV / Movie** page, Arcade and High Scores share the **Arcade** page, and Scripts is under **Modules** on the first screen. The picture above has most of them on. With none on, the menu says **No modules enabled** and **Please enable one in settings**.
+- **Which modules.** Only the modules that are turned on, in the order of their folders' names (`modules/ambient_mode`, `arcade`, `emby`, …). Out of the box, **Local Files** and **Playlists** are on. Turn others on in Settings, with the **Enabled** row on each module's page: the video modules' and Weather's are under **Modules** on the **TV / Movie** page, Arcade and High Scores share the **Arcade** page, and Scripts is under **Modules** on the **System** page. The picture above has most of them on. With none on, the menu says **No modules enabled** and **Please enable one in settings**.
 - **Rows a module adds.** A module can put rows of its own on the menu, after the modules: a script you marked in [Scripts](https://github.com/mehmetraif/OSD-OS/wiki/Scripts) has one, which runs it.
 - **The video playing behind.** With [Transparent Background](https://github.com/mehmetraif/OSD-OS/wiki/Using-OSD-OS#transparent-background), a video left playing behind the menus leads the list as `► <its title>`, with the cursor on it.
 - ▲ ▼ go round from the last row to the first. The menu remembers the row you left it on.
@@ -316,7 +316,7 @@ To spare a CRT's phosphor, a screen saver puts OSD/OS's logo bouncing across a b
 
 ## The hint bar and the help line
 
-<img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/screenshots/settings.png" width="100%" alt="Settings: TV / MOVIE selected, ARCADE, the GENERAL SETTINGS heading, THEME NONE, COLOR SCHEME VIDEO 1, SKIN NONE, TEXT EFFECT and BACKGROUND EFFECT OFF, a help line scrolling its text, and the hint bar [ESC]:BACK [▲▼]:NAVIGATE [◄►]:CHANGE [ENTER]:SELECT" />
+<img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/screenshots/settings.png" width="100%" alt="Settings: TV / MOVIE selected, then ARCADE, LOOK, SCREEN, SOUND, CONTROLS, NETWORK and STARTUP, a ▼ for the rows below, a help line scrolling its text, and the hint bar [ESC]:BACK [▲▼]:NAVIGATE [◄►]:CHANGE [ENTER]:SELECT" />
 
 - **The hint bar**, the solid bar at the foot of every screen, says which keys do what there, as a deck's menu ends with "SELECT WITH (▲▼) AND (OK)". It shows the keyboard's keys (`[ESC]`, `[ENTER]`, `[SPACE]`) until you press a gamepad button, then that gamepad's (`[B]`, `[A]`, `[START]`, or a PlayStation pad's `[O]`, `[X]`, as its button labels in Settings → Controls name them), and back again with the next key ([Controls](https://github.com/mehmetraif/OSD-OS/wiki/Controls#the-hints-at-the-foot-of-the-screen)).
 - **The help line** is the box under a menu (Settings, a module's settings, Controls, Wi-Fi, Bluetooth, a video's menu, About) with a line about the selected row. A line too long for the box scrolls through it like a ticker, pausing each time its start comes round.
@@ -340,12 +340,18 @@ A mouse, or a keyboard's touchpad, shows OSD/OS's own pointer, drawn in its pixe
 
 Back on the main menu opens Settings, laid out like a camcorder's menu: a line per setting, its value at the end between the arrows that change it (`COLOR SCHEME······◄ VIDEO 1 ►`), and a ► at the end of a line that leads somewhere (`TV / MOVIE······►`). A release's version is in the title bar, and the IP address at its right.
 
-- ▲ ▼ move, skipping the headings, round from the bottom to the top. ◄ ► change the value, saved at once. Select, or ►, opens a line that ends in ► (TV / Movie, Arcade, a module's settings, Wi-Fi, Bluetooth, Update, a file or folder picker), and select turns a slider on or off. Back from a page returns to the line it was opened from.
-- **TV / Movie** opens the videos' page: Scaling, Transparent Background, Video Levels, Loading Effect, Loading Screen Colors, Channel Logo and Info Screen, then under **Modules** a line per video module (and Weather), for its settings, its **Enabled** row among them.
-- **Arcade** opens the Arcade module's settings, with the High Scores module's after them under its own heading.
-- **General Settings**: the look first, Theme, then its parts (Color Scheme, Skin, the effects, Transition, Menu Music), then OSD Background and Window Frame. Then startup (Start on Module, Play at Startup, Boot Screen Colors) and the screen (Hint Bar, Help Line, Screen Saver, Mouse Pointer, and on a PC's desktop Window Mode, the menus in a window, F11).
-- **Modules**: a line for each module on neither page, Scripts, for its settings.
-- **Application**: Display Output (on the image), Audio Output (where plain ALSA plays), Controls, Wi-Fi and Bluetooth (on Linux), Paste OSD/OS Setup (on a computer: the settings copied on [OSD/OS Setup](https://osdos.tv/setup/), set at once), Update, About (this device's System Information first) and Quit.
+- ▲ ▼ move, skipping the headings, round from the bottom to the top. ◄ ► change the value, saved at once. Select, or ►, opens a line that ends in ► (a page, a module's settings, Wi-Fi, Bluetooth, Update, a file or folder picker), and select turns a slider on or off. Back from a page returns to the line it was opened from.
+- Nothing is hidden: a line that can't be used, on this system or with another line as it is set, is dimmed, a checkerboard over it. The cursor stops on it, and the help line says why (`Only with OSD Background on Window`).
+- The first screen is a line for each page, then Quit:
+  - **TV / Movie**: Scaling, Transparent Background, Video Levels, 1080p Playback, Loading Effect, Loading Screen Colors, Channel Logo and Info Screen, then under **Modules** a line per video module (and Weather), for its settings, its **Enabled** row among them.
+  - **Arcade**: the Arcade module's settings, with the High Scores module's after them under its own heading.
+  - **Look**: Theme, then its parts (Color Scheme, Skin, and Effects, a page of the text, background, selector and screen effects and the transition), OSD Background and Window Frame, Boot Screen Colors, Hint Bar, Help Line and Status Icons.
+  - **Screen**: Display Output (on the image), Test Patterns, Screen Saver, Mouse Pointer and Window Mode (on a PC's desktop: the menus in a window, F11).
+  - **Sound**: Audio Output (where plain ALSA plays), Menu Music, Music File and Music Volume.
+  - **Controls**: every controller, the players' pads, and more keys for the keyboards and remotes.
+  - **Network**: Wi-Fi and Bluetooth (on Linux).
+  - **Startup**: Start on Module, Play at Startup, Startup From and Cabinet Lock.
+  - **System**: Paste OSD/OS Setup (on a computer: the settings copied on [OSD/OS Setup](https://osdos.tv/setup/), set at once), Update, About (this device's System Information first), then under **Modules** a line for each module of no page, Scripts.
 
 <table>
 <tr><th width="50%">A module's settings</th><th width="50%">Picking a folder</th></tr>
@@ -383,11 +389,11 @@ Ctrl+Q (⌘Q on a Mac) quits at once from most screens, without asking: with the
 <tr><td>This device's System Information, then what OSD/OS is, who makes it, what it is made of and under which license, each line's detail in the help line.</td><td>Behind the LICENSE line: the notice, then the GNU GPL's text, a page at a time.</td></tr>
 </table>
 
-Settings → **About** opens on the OSD/OS wordmark and **SMART TV FOR CRT**, then **System Information**, this device's name on its line, and a line each for what OSD/OS is made of, who makes it and under which license; the help line under them gives each line's detail, and stays even with Help Line off.
+Settings → System → **About** opens on the OSD/OS wordmark and **SMART TV FOR CRT**, then **System Information**, this device's name on its line, and a line each for what OSD/OS is made of, who makes it and under which license; the help line under them gives each line's detail, and stays even with Help Line off.
 
 | Line | Says |
 |---|---|
-| System Information | This device's name. Select opens its page: the name, which tells it apart from others on the network, what the device is and each network connection's IP and MAC addresses; on the OSD/OS image, select on the name renames the device ([Settings → About → System Information](https://github.com/mehmetraif/OSD-OS/wiki/Settings#system-information)) |
+| System Information | This device's name. Select opens its page: the name, which tells it apart from others on the network, what the device is and each network connection's IP and MAC addresses; on the OSD/OS image, select on the name renames the device ([Settings → System → About → System Information](https://github.com/mehmetraif/OSD-OS/wiki/Settings#system-information)) |
 | Build | The commit this build was made from, and the day (the version is in the title bar) |
 | Developer | mehmet raif tasdemir (darkBLACK), who develops OSD/OS |
 | Based On | 240-MP, by Anthony Caccese and its contributors, which OSD/OS is a modified version of |

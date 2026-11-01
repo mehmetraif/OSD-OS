@@ -13,7 +13,7 @@ Everything it takes to get OSD/OS running: the OSD/OS image, which makes a Raspb
 | Starts | At power-on, before the rest of the system | At boot (with the autostart service), or with `osdos` | Like any app | Like any app, or from Steam | `osdos.exe`, from its folder | With `osdos`, from the desktop's terminal |
 | mpv | On the image | Installed by `install.sh` | `brew install mpv` | In the AppImage | A Windows build from [mpv.io](https://mpv.io/installation/), beside it | The system's package |
 | Transparent Background | Yes | Yes (`libmpv2`) | Yes (Homebrew's libmpv) | No | No | Yes (the system's libmpv) |
-| Settings → Display Output | Yes | No | No | No | No | No |
+| Settings → Screen → Display Output | Yes | No | No | No | No | No |
 | What YouTube, Netflix, Prime Video and Arcade run | On the image (yt-dlp, Deno, Chromium with Widevine, MAME) | Installed by hand ([below](https://github.com/mehmetraif/OSD-OS/wiki/Installation#optional-extras)) | See [YouTube](https://github.com/mehmetraif/OSD-OS/wiki/YouTube), [Netflix and Prime Video](https://github.com/mehmetraif/OSD-OS/wiki/Netflix-and-Prime-Video) and [Arcade](https://github.com/mehmetraif/OSD-OS/wiki/Arcade) | See the same pages | MAME and RetroArch downloaded from Settings → Arcade; yt-dlp by hand; no Netflix or Prime Video ([below](https://github.com/mehmetraif/OSD-OS/wiki/Installation#on-windows-x64)) | FinalBurn Neo's core in the package; MAME, RetroArch and yt-dlp from the system's packages; no Netflix or Prime Video ([below](https://github.com/mehmetraif/OSD-OS/wiki/Installation#on-freebsd-or-openbsd-amd64)) |
 
 The OSD/OS image is the simplest way, and the only one where OSD/OS is the whole system. The app installs keep the system you already have.
@@ -49,9 +49,9 @@ The OSD/OS image is Raspberry Pi OS Lite (64-bit), based on Debian 13 "trixie" a
 
 - A Raspberry Pi 4 or 5 (see [Supported hardware](https://github.com/mehmetraif/OSD-OS/wiki/Installation#supported-hardware)).
 - A microSD card. The system keeps 8 GiB of it; the rest becomes the film partition, as long as at least 2 GiB is left over: on a 16 GB card that is about 6 GiB for films, on an 8 GB card none.
-- A TV. The image starts on HDMI. For a CRT, it switches to composite (or SCART RGB on the GPIO pins) in Settings → Display Output, or you can pick the output on the card before the first boot ([below](https://github.com/mehmetraif/OSD-OS/wiki/Installation#composite-or-scart-from-the-first-boot)).
-- A USB keyboard, remote or gamepad. A Bluetooth one can be paired later, from Settings → Bluetooth ([Controls](https://github.com/mehmetraif/OSD-OS/wiki/Controls#bluetooth)).
-- A network, if you want the network modules: an Ethernet cable, or Wi-Fi, set up while flashing or later in Settings → Wi-Fi.
+- A TV. The image starts on HDMI. For a CRT, it switches to composite (or SCART RGB on the GPIO pins) in Settings → Screen → Display Output, or you can pick the output on the card before the first boot ([below](https://github.com/mehmetraif/OSD-OS/wiki/Installation#composite-or-scart-from-the-first-boot)).
+- A USB keyboard, remote or gamepad. A Bluetooth one can be paired later, from Settings → Network → Bluetooth ([Controls](https://github.com/mehmetraif/OSD-OS/wiki/Controls#bluetooth)).
+- A network, if you want the network modules: an Ethernet cable, or Wi-Fi, set up while flashing or later in Settings → Network → Wi-Fi.
 
 ### Download
 
@@ -197,7 +197,7 @@ network:
 - `regulatory-domain` is the Wi-Fi country. Raspberry Pi OS keeps Wi-Fi switched off until a country is set.
 - Indent with spaces, never tabs: YAML reads the indentation. Keep the quotes around the name and the password.
 - For an open network, replace the `password:` line with `auth:` and, under it, `key-management: none`; for a hidden one, add `hidden: true` at the same level as `password:`.
-- It is applied on the first boot only. To change the Wi-Fi later, use Settings → Wi-Fi, or NetworkManager on the Pi itself, over SSH or from Exit to Terminal: `sudo nmcli device wifi connect "My Home WiFi" password "correct battery horse staple"`.
+- It is applied on the first boot only. To change the Wi-Fi later, use Settings → Network → Wi-Fi, or NetworkManager on the Pi itself, over SSH or from Exit to Terminal: `sudo nmcli device wifi connect "My Home WiFi" password "correct battery horse staple"`.
 
 ### Composite or SCART from the first boot
 
@@ -219,7 +219,7 @@ cp /Volumes/bootfs/osdos-display-crt-pal.txt /Volumes/bootfs/osdos-display.txt  
 | `osdos-display-jamma-240p-native.txt`, `-240p-super.txt`, `-288p.txt`, `-288p-super.txt`, `-25k.txt`, `-31k.txt` | The same board in its other modes: 320×240, 1920×240, 720×288, 1920×288, and a 25 kHz or 31 kHz monitor's (only for such a monitor) | ✓ | ✓ |
 | `osdos-display-jamma-480i.txt`, `osdos-display-jamma-576i.txt` | The same board interlaced, 480i / 576i | ✓ | |
 
-A Pi 5's SCART RGB also needs a line on the system partition (`options drm_rp1_dpi force_csync=1` in `/etc/modprobe.d/osdos-display.conf`), which Windows and macOS can't reach: choose it on [OSD/OS Setup](https://github.com/mehmetraif/OSD-OS/wiki/Installation#osdos-setup-settings-on-the-card-before-the-first-boot), or in Settings → Display Output, which both write it. Once running, Settings → Display Output switches outputs, and keeps a new one only when you confirm it on its own screen. [Display Output](https://github.com/mehmetraif/OSD-OS/wiki/Display-Output) has the cables and every detail.
+A Pi 5's SCART RGB also needs a line on the system partition (`options drm_rp1_dpi force_csync=1` in `/etc/modprobe.d/osdos-display.conf`), which Windows and macOS can't reach: choose it on [OSD/OS Setup](https://github.com/mehmetraif/OSD-OS/wiki/Installation#osdos-setup-settings-on-the-card-before-the-first-boot), or in Settings → Screen → Display Output, which both write it. Once running, Settings → Screen → Display Output switches outputs, and keeps a new one only when you confirm it on its own screen. [Display Output](https://github.com/mehmetraif/OSD-OS/wiki/Display-Output) has the cables and every detail.
 
 ### The first boot
 
@@ -445,12 +445,12 @@ Installing the dependencies can take a while; over Wi-Fi, about 20 minutes. Then
 | Finds the release | The latest release from GitHub's API, or the one whose tag you gave it: its tag, and the SHA-256 GitHub keeps for its tarball |
 | Installs packages | `libqt6quick6 libqt6qml6 libqt6opengl6 libqt6network6 libqt6svg6 qt6-svg-plugins qt6-wayland qml6-module-qtquick qml6-module-qtquick-controls qml6-module-qtquick-window libsdl2-2.0-0 libpcsclite1 libmpv2 mpv fluidsynth timgm6mb-soundfont openmpt123 polkitd` |
 | A udev rule | `/etc/udev/rules.d/99-osdos-tty.rules`: lets the `tty` group open `/dev/tty0`, for handing the screen to mpv and back |
-| The `bluetooth` group | Adds the user OSD/OS runs as, so Settings → Bluetooth can talk to BlueZ |
-| A polkit rule | With a service, a new one or one kept: `/etc/polkit-1/rules.d/50-osdos-networkmanager.rules`, which lets the user the service runs OSD/OS as scan, join and forget networks and turn Wi-Fi on and off through NetworkManager for Settings → Wi-Fi. The service runs outside any login session, where polkit would otherwise ask for a password nobody can type |
+| The `bluetooth` group | Adds the user OSD/OS runs as, so Settings → Network → Bluetooth can talk to BlueZ |
+| A polkit rule | With a service, a new one or one kept: `/etc/polkit-1/rules.d/50-osdos-networkmanager.rules`, which lets the user the service runs OSD/OS as scan, join and forget networks and turn Wi-Fi on and off through NetworkManager for Settings → Network → Wi-Fi. The service runs outside any login session, where polkit would otherwise ask for a password nobody can type |
 | Puts the app in place | `OSD-OS-<version>-linux-arm64.tar.gz`, checked against the SHA-256 GitHub keeps for it, into `/opt/osdos` the way the launcher applies an in-app update: unpacked whole into `/opt/osdos/.new` first, then `bin` and `share` swapped in through `/opt/osdos/.old`, so that a Pi switched off meanwhile starts on the release before, which the launcher puts back whole. OSD/OS, if it is running, stops for the swap and starts again as the script ends. All of it is owned by the user OSD/OS runs as (run as `sudo bash install.sh`, the user who ran sudo), so in-app updates can replace it; it warns when that user still can't write there, as in-app updates then won't apply |
 | Replaces 240-MP | An install from OSD/OS's days as 240-MP (`/opt/240mp`, `240mp.service`) is removed once OSD/OS is in place, so the two never fight over the screen and a download that fails leaves it as it was. OSD/OS moves 240-MP's data folder over to its own on its first start |
 | The launcher | `/usr/local/bin/osdos`: applies a downloaded update, then starts OSD/OS on Wayland or X11 when there is a desktop, or straight on the screen (Qt's EGLFS) when there isn't, on the right display card (a Pi 5's video card is not always the first) |
-| The service | After **y**: `/etc/systemd/system/osdos.service`. With any service, a new one or one kept, what goes with it: its stop helper `/usr/local/bin/osdos-stop`, `osdos-terminal.service` for Exit to Terminal, `osdos-display.socket` with `osdos-display@.service` for Display Output's At Next Start, `osdos-wifi.socket` with `osdos-wifi@.service` for Settings → Wi-Fi's country, and `osdos-name.socket` with `osdos-name@.service` for renaming the device in Settings → About → System Information. After **y**, and on the OSD/OS image, the console login on `tty1` is masked (`getty@tty1`, `autovt@`), so the screen is OSD/OS's, and logind starts no logins on the consoles itself (`/etc/systemd/logind.conf.d/osdos.conf`, from the next start). The OSD/OS image's own `osdos.service`, and one kept with **N**, is left as it is, enabled or not; one kept with **N** leaves the login on `tty1` as it is too. The rest is written afresh |
+| The service | After **y**: `/etc/systemd/system/osdos.service`. With any service, a new one or one kept, what goes with it: its stop helper `/usr/local/bin/osdos-stop`, `osdos-terminal.service` for Exit to Terminal, `osdos-display.socket` with `osdos-display@.service` for Display Output's At Next Start, `osdos-wifi.socket` with `osdos-wifi@.service` for Settings → Network → Wi-Fi's country, and `osdos-name.socket` with `osdos-name@.service` for renaming the device in Settings → System → About → System Information. After **y**, and on the OSD/OS image, the console login on `tty1` is masked (`getty@tty1`, `autovt@`), so the screen is OSD/OS's, and logind starts no logins on the consoles itself (`/etc/systemd/logind.conf.d/osdos.conf`, from the next start). The OSD/OS image's own `osdos.service`, and one kept with **N**, is left as it is, enabled or not; one kept with **N** leaves the login on `tty1` as it is too. The rest is written afresh |
 
 #### The autostart service
 
@@ -460,10 +460,10 @@ The service starts OSD/OS after the rest of the system (`multi-user.target`), as
 |---|---|---|
 | 0 | Quit → Power Off (or Ctrl+Q) | The Pi powers off |
 | 10 | Quit → Exit to Terminal | A login prompt on `tty1`; the service stays installed for the next boot |
-| 11 | Settings → Update → Apply & Restart | Nothing: systemd starts OSD/OS again through the launcher (`RestartForceExitStatus=11`), which applies the update |
+| 11 | Settings → System → Update → Apply & Restart | Nothing: systemd starts OSD/OS again through the launcher (`RestartForceExitStatus=11`), which applies the update |
 | 12 | Quit → Restart | The Pi reboots |
-| 20–38 | Settings → Display Output (the OSD/OS image) | A display preset is written, then the Pi reboots |
-| 40–58 | Settings → Display Output → Switch and Power Off | A display preset is written, then the Pi powers off |
+| 20–38 | Settings → Screen → Display Output (the OSD/OS image) | A display preset is written, then the Pi reboots |
+| 40–58 | Settings → Screen → Display Output → Switch and Power Off | A display preset is written, then the Pi powers off |
 | 129, 130, 143 (SIGHUP, SIGINT, SIGTERM, which OSD/OS turns into these), or SIGKILL | `systemctl stop` / `restart`, a shutdown | Nothing: the Pi stays on |
 | Anything else: a crash (SIGSEGV, SIGABRT…), an error exit such as 1 | | Nothing: the Pi stays on, and systemd starts OSD/OS again five seconds later. After three starts in two minutes it gives up and starts `osdos-terminal.service`: a login prompt on `tty1`, where `sudo systemctl reset-failed osdos` and `sudo systemctl start osdos` try again |
 
@@ -514,7 +514,7 @@ osdos
   `monitoraspect` is the screen's shape, the same in every mode; `monitorpixelaspect` is a pixel's, which changes with the mode ([pixel aspect ratio](https://en.wikipedia.org/wiki/Pixel_aspect_ratio#Introduction)). A `monitorpixelaspect=0.888889` line from earlier advice is only right for 720×480: remove it, and OSD/OS gives mpv the screen's shape itself.
 
 - **Composite sound unusually quiet:** OSD/OS keeps the card at 0 dB as it plays. `amixer sset PCM 100%` raises the AV jack 4 dB above that, which OSD/OS leaves as it is, and `sudo alsactl store` keeps it across reboots; loud sound can clip there.
-- **No sound at all:** Settings → Audio Output picks the sound card (the AV jack, HDMI or a USB card) where plain ALSA plays, as on Raspberry Pi OS Lite. [Audio Output](https://github.com/mehmetraif/OSD-OS/wiki/Audio-Output) also covers choosing it for the whole system.
+- **No sound at all:** Settings → Sound → Audio Output picks the sound card (the AV jack, HDMI or a USB card) where plain ALSA plays, as on Raspberry Pi OS Lite. [Audio Output](https://github.com/mehmetraif/OSD-OS/wiki/Audio-Output) also covers choosing it for the whole system.
 
 ## On macOS (Apple Silicon)
 
@@ -541,8 +541,8 @@ OSD/OS runs on Apple Silicon Macs (not Intel ones), full screen. It plays videos
 On a Mac:
 
 - The data folder, with your settings, is `~/Library/Application Support/OSD-OS/`.
-- **OSD/OS Setup.** Settings → Paste OSD/OS Setup, or its file in the data folder or in the folder `osdos.app` is in ([OSD/OS Setup on a computer](#osdos-setup-on-a-computer)).
-- There is no Settings → Bluetooth: pair keyboards, remotes and gamepads in macOS's own Bluetooth settings. Settings → Display Output and Audio Output are not offered either.
+- **OSD/OS Setup.** Settings → System → Paste OSD/OS Setup, or its file in the data folder or in the folder `osdos.app` is in ([OSD/OS Setup on a computer](#osdos-setup-on-a-computer)).
+- Settings → Network → Bluetooth is dimmed: pair keyboards, remotes and gamepads in macOS's own Bluetooth settings. So are Settings → Screen → Display Output and Settings → Sound → Audio Output.
 - With several displays, OSD/OS opens on the main one. To open it on another (a CRT through an adapter, say), find the display's number in the log (`[main] display index 1: …`) and set `display_index` in `config.json`, then start it again; videos follow it:
 
   ```json
@@ -587,8 +587,8 @@ OSD/OS hands the same copy to mpv. For a JavaScript runtime for it, see yt-dlp's
 On the AppImage:
 
 - The data folder is `~/.local/share/OSD-OS/`, as on the Pi.
-- **OSD/OS Setup.** Settings → Paste OSD/OS Setup, or its file in the data folder or beside the AppImage ([OSD/OS Setup on a computer](#osdos-setup-on-a-computer)).
-- **Transparent Background is not offered**: the AppImage is built without libmpv, which it needs.
+- **OSD/OS Setup.** Settings → System → Paste OSD/OS Setup, or its file in the data folder or beside the AppImage ([OSD/OS Setup on a computer](#osdos-setup-on-a-computer)).
+- **Transparent Background is dimmed**: the AppImage is built without libmpv, which it needs.
 - Gamepads work through Steam Input too: when Steam's virtual gamepad is present, OSD/OS listens to it alone, so that no press arrives twice ([Controls](https://github.com/mehmetraif/OSD-OS/wiki/Controls#gamepads)).
 - `display_index` chooses the display, as on a Mac (above).
 
@@ -607,9 +607,9 @@ On Windows:
 - OSD/OS opens no console window. Its log is `osdos.log` in the data folder, the run before's kept as `osdos-previous.log`; started from a Command Prompt or PowerShell, it writes the log there as well ([Troubleshooting](https://github.com/mehmetraif/OSD-OS/wiki/Troubleshooting#where-the-log-is)).
 - **Arcade.** FinalBurn Neo's core comes with OSD/OS, beside `osdos.exe`. Settings → Arcade → **MAME** downloads MAME, and Settings → Arcade → **FinalBurn Neo** downloads RetroArch. All three are the versions the OSD/OS image has, so a PC plays online and over the local network with a Pi ([The same engines on every machine](https://github.com/mehmetraif/OSD-OS/wiki/Arcade#the-same-engines-on-every-machine)).
 - **YouTube.** Put `yt-dlp.exe` in the data folder's `bin` folder (`%APPDATA%\OSD-OS\bin\`), beside `osdos.exe` or on the `PATH`, and `deno.exe` on the `PATH`.
-- **Window Mode.** Settings → Window Mode shows OSD/OS in a window on the desktop instead of the whole screen; F11 or Alt+Enter switches at any time.
-- **OSD/OS Setup.** Settings → Paste OSD/OS Setup, or its file in the data folder or beside `osdos.exe` ([below](#osdos-setup-on-a-computer)).
-- Netflix and Prime Video, Transparent Background, Display Output, Audio Output's cards, Bluetooth and Wi-Fi are not offered: pair gamepads and choose the sound device in Windows' own settings.
+- **Window Mode.** Settings → Screen → Window Mode shows OSD/OS in a window on the desktop instead of the whole screen; F11 or Alt+Enter switches at any time.
+- **OSD/OS Setup.** Settings → System → Paste OSD/OS Setup, or its file in the data folder or beside `osdos.exe` ([below](#osdos-setup-on-a-computer)).
+- Netflix and Prime Video aren't offered, and Settings dims Transparent Background, Display Output, Audio Output, Bluetooth and Wi-Fi: pair gamepads and choose the sound device in Windows' own settings.
 
 ## On FreeBSD or OpenBSD (amd64)
 
@@ -632,9 +632,9 @@ Then start it from the desktop's terminal: `osdos`. On the BSDs:
 - The data folder, with your settings, is `~/.local/share/OSD-OS/`, as on Linux.
 - **Arcade.** MAME and RetroArch are the system's packages: `pkg install mame retroarch` (FreeBSD) or `pkg_add mame retroarch` (OpenBSD), as root. FinalBurn Neo's core comes with OSD/OS, in `/usr/local/lib/osdos/`, apart from any core of the system's; Settings → Arcade → FinalBurn Neo shows it, with the games it knows. With RetroArch there, its games play with RetroAchievements and online play, as on the other systems ([Arcade](https://github.com/mehmetraif/OSD-OS/wiki/Arcade)).
 - **YouTube.** `pkg install yt-dlp` or `pkg_add yt-dlp`.
-- **Window Mode.** Settings → Window Mode shows OSD/OS in a window on the desktop instead of the whole screen; F11 or Alt+Enter switches at any time.
-- **OSD/OS Setup.** Settings → Paste OSD/OS Setup, or its file in the data folder ([below](#osdos-setup-on-a-computer)).
-- Netflix and Prime Video (no browser on the BSDs has Widevine), Display Output, Audio Output's cards (the default device plays), Bluetooth and Wi-Fi are not offered: the system's own tools do those.
+- **Window Mode.** Settings → Screen → Window Mode shows OSD/OS in a window on the desktop instead of the whole screen; F11 or Alt+Enter switches at any time.
+- **OSD/OS Setup.** Settings → System → Paste OSD/OS Setup, or its file in the data folder ([below](#osdos-setup-on-a-computer)).
+- Netflix and Prime Video aren't offered (no browser on the BSDs has Widevine), and Settings dims Display Output, Audio Output (the default device plays), Bluetooth and Wi-Fi: the system's own tools do those.
 
 [INSTALL.md](https://github.com/mehmetraif/OSD-OS/blob/main/INSTALL.md#on-freebsd-amd64) has each system's steps in full.
 
@@ -642,7 +642,7 @@ Then start it from the desktop's terminal: `osdos`. On the BSDs:
 
 The settings chosen on [OSD/OS Setup](https://osdos.tv/setup/) work on a computer too: on Windows, a Mac, the AppImage, Raspberry Pi OS with `install.sh`, or a BSD. There OSD/OS takes two parts of them: its own settings (every setting of Settings, the theme and the effects among them, and each module on or off with its own settings) and the Arcade's RetroAchievements account. The device's name, the display output, Wi-Fi, `pi`'s password, SSH, the time zone and the keyboard are set on an OSD/OS card alone; OSD/OS names any of them the settings hold, and leaves them as they are.
 
-- **Copy and paste.** On the page, choose **Copy for a computer**; then in OSD/OS, Settings → **Paste OSD/OS Setup**. The settings are set at once, and a window says what was set. The row is offered where there is a desktop to copy on, so not on a Pi without one, such as the OSD/OS image, whose card takes the file instead.
+- **Copy and paste.** On the page, choose **Copy for a computer**; then in OSD/OS, Settings → System → **Paste OSD/OS Setup**. The settings are set at once, and a window says what was set. The row can be used where there is a desktop to copy on; on a Pi without one, such as the OSD/OS image, it is dimmed, and the card takes the file instead.
 - **The file.** Export `osdos-setup.json` and put it in the data folder ([below](#the-data-folder)), or beside the app: in the `osdos` folder beside `osdos.exe` on Windows, in the folder `osdos.app` is in on a Mac, or beside the AppImage. OSD/OS takes it as it starts, before anything else: it deletes the file first, as it holds the RetroAchievements password and would otherwise be applied at every start, then sets what it can, and a window says what was set until select or back closes it. A file that can't be deleted isn't applied, and the window says so.
 
 The account goes to the Arcade module, which signs in through RetroArch, as Settings → Arcade → RetroAchievements Account does, and keeps the token it gets, never the password.
@@ -661,11 +661,11 @@ It holds `config.json` (the settings), `lists.json` (each module's Recently Watc
 
 ## Updating
 
-<img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/screenshots/update.png" width="100%" alt="Settings → Update: INSTALLED: DEV, and PRESS [ENTER] TO CHECK FOR LATEST" />
+<img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/screenshots/update.png" width="100%" alt="Settings → System → Update: INSTALLED: DEV, and PRESS [ENTER] TO CHECK FOR LATEST" />
 
-### Settings → Update
+### Settings → System → Update
 
-Settings → **Update** checks GitHub for the [latest release](https://github.com/mehmetraif/OSD-OS/releases/latest) of OSD/OS and installs it, on every system. It shows the version installed, the latest one and its release notes (▲ ▼ scroll them), and select does the next step:
+Settings → System → **Update** checks GitHub for the [latest release](https://github.com/mehmetraif/OSD-OS/releases/latest) of OSD/OS and installs it, on every system. It shows the version installed, the latest one and its release notes (▲ ▼ scroll them), and select does the next step:
 
 ```mermaid
 stateDiagram-v2
@@ -713,7 +713,7 @@ If the service is installed, answer **y** to the autostart question: the service
 
 ### Updating Raspberry Pi OS on the image
 
-Settings → Update updates OSD/OS, which lives in `/opt/osdos` and isn't a Debian package. The system underneath, Raspberry Pi OS (the kernel, the firmware, mpv, Qt, Chromium), updates with apt. The image has switched off the timers that would run apt by itself, so that nothing wakes the card mid-film: update it by hand when you choose, from SSH or Exit to Terminal, as a user who can use `sudo`:
+Settings → System → Update updates OSD/OS, which lives in `/opt/osdos` and isn't a Debian package. The system underneath, Raspberry Pi OS (the kernel, the firmware, mpv, Qt, Chromium), updates with apt. The image has switched off the timers that would run apt by itself, so that nothing wakes the card mid-film: update it by hand when you choose, from SSH or Exit to Terminal, as a user who can use `sudo`:
 
 ```sh
 sudo apt update
@@ -757,9 +757,9 @@ Stopping the service from outside leaves the Pi on. The packages `install.sh` in
 
 OSD/OS is tested on a **Raspberry Pi 4** and a **Raspberry Pi 5 (8 GB)**: the Pi 4 as a TV, the Pi 5 in a JAMMA arcade cabinet, and LAN Play between the two. Nothing else has been tested with OSD/OS so far: on another board, please tell us how it went in an [issue](https://github.com/mehmetraif/OSD-OS/issues).
 
-OSD/OS reads the board's model (`/proc/device-tree/model`) and sets itself up for its family: the mpv flags it plays videos with, and the outputs Settings → Display Output offers.
+OSD/OS reads the board's model (`/proc/device-tree/model`) and sets itself up for its family: the mpv flags it plays videos with, and the outputs Settings → Screen → Display Output offers.
 
-| Board | With OSD/OS | Display driver | mpv's video flags | Settings → Display Output offers (on the image) |
+| Board | With OSD/OS | Display driver | mpv's video flags | Settings → Screen → Display Output offers (on the image) |
 |---|---|---|---|---|
 | Raspberry Pi 4 | Tested | Fake KMS (`vc4-fkms-v3d`) | `--vo=drm --hwdec=drm-copy,v4l2m2m-copy` | HDMI, composite (AV jack), SCART RGB 480i/576i/240p/288p, JAMMA 240p/288p/480i/576i/25 kHz/31 kHz |
 | Raspberry Pi 5 | The owner also tests on one (8 GB) | Full KMS (`vc4-kms-v3d`) | `--vo=drm --hwdec=auto-safe` | HDMI, composite (TV pads, or GPIO), SCART RGB 480i/576i, JAMMA 240p/288p/25 kHz/31 kHz |
@@ -771,8 +771,8 @@ Of the outputs, only the Pi 4's HDMI and composite have been tried on a TV. The 
 
 ### How a Raspberry Pi 5 differs
 
-- **No AV jack.** Its composite video comes from two pads on the board (J7), which need wires or a pin header soldered on. Settings → Display Output calls it Composite NTSC or PAL, as on a Pi 4. A Pi 5 can also send composite from its GPIO pins, as an 8-bit code for a DAC to turn into a picture; the pads are the simpler way. A Pi 5 may keep HDMI on beside the CRT: the display preset names the output and the mode OSD/OS and its videos use.
-- **No analog sound.** Sound goes out over HDMI, or through a USB sound card for a CRT, chosen in Settings → Audio Output.
+- **No AV jack.** Its composite video comes from two pads on the board (J7), which need wires or a pin header soldered on. Settings → Screen → Display Output calls it Composite NTSC or PAL, as on a Pi 4. A Pi 5 can also send composite from its GPIO pins, as an 8-bit code for a DAC to turn into a picture; the pads are the simpler way. A Pi 5 may keep HDMI on beside the CRT: the display preset names the output and the mode OSD/OS and its videos use.
+- **No analog sound.** Sound goes out over HDMI, or through a USB sound card for a CRT, chosen in Settings → Sound → Audio Output.
 - **Full KMS.** It boots the full KMS driver (`vc4-kms-v3d`), so mpv draws straight to the screen (`--vo=drm`), and `--hwdec=auto-safe` picks FFmpeg's Vulkan decoder on the Pi 5's GPU, which reaches its HEVC hardware and keeps H.264 light too, with crop working.
 - **SCART RGB** on its GPIO pins is the kernel's (480i and 576i, no 240p or 288p), with the composite sync SCART needs made on GPIO 1.
 - **The display card.** On a Pi 5 the GPU's render-only device often comes first, so OSD/OS's launcher picks the card that has a display connected.

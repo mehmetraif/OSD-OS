@@ -51,7 +51,7 @@ enum class NodeKind { None, Keyboard, Remote };
 NodeKind classifyNode(const QSet<int> &keys);
 // A USB sound card's Consumer Control / volume HID by the name the kernel or
 // SDL gives it (CM108 and the like). Not a pad or a remote: Settings →
-// Audio Output is where that device belongs.
+// Sound → Audio Output is where that device belongs.
 bool looksLikeUsbAudioHid(const QString &name);
 
 // Settings → Controls → a pad → Arcade Buttons: which of its inputs is each

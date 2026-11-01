@@ -1,39 +1,44 @@
 # Settings
 
-Settings is OSD/OS's own menu: the look, the menus, playback, startup, the outputs, and a page for every module. Its first screen opens with two pages, **TV / Movie** for the videos and **Arcade** for the games, then lists the general settings, the modules that belong to neither page, and the application's own rows. This page goes through every row in the order the screens list them, with its values, its default, what it does, the key it is saved under in `config.json`, and when it is offered at all.
+Settings is OSD/OS's own menu. Its first screen is a short list of pages: **TV / Movie** for the videos, **Arcade** for the games, **Look**, **Screen**, **Sound**, **Controls**, **Network**, **Startup** and **System**, then **Quit**. This page goes through every page and every row on it in the order the screens list them, with its values, its default, what it does, the key it is saved under in `config.json`, and when it can be used.
 
-<img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/screenshots/settings.png" width="100%" alt="Settings: TV / Movie and Arcade, then the GENERAL SETTINGS heading over Theme, Color Scheme, Skin, Text Effect and Background Effect, the help line under them" />
+<img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/screenshots/settings.png" width="100%" alt="Settings' first screen: TV / Movie, Arcade, Look, Screen, Sound, Controls, Network and Startup, each ending in a ►, a ▼ for System and Quit below, the help line under them" />
 
 ## Getting around
 
-Back on the main menu opens Settings (the hint bar there says `[ESC]:SETTINGS`). Each row reads like a camcorder's menu, `LABEL······VALUE`. A row that leads to another screen ends in a ► (`TV / MOVIE······►`), and ► opens it as select does; a row whose value ◄ ► change shows it between the two (`THEME······◄ NONE ►`); a slider has the two arrows beyond its bar's ends. The first screen opens with two rows that lead to a page each, **TV / Movie** and **Arcade**; under them come three headings drawn as a rule, **GENERAL SETTINGS**, **MODULES** and **APPLICATION**.
+Back on the main menu opens Settings (the hint bar there says `[ESC]:SETTINGS`). Each row reads like a camcorder's menu, `LABEL······VALUE`. A row that leads to another screen ends in a ► (`LOOK······►`), and ► opens it as select does; a row whose value ◄ ► change shows it between the two (`THEME······◄ NONE ►`); a slider has the two arrows beyond its bar's ends. Every row of the first screen but Quit opens a page, and each page fits on a screen, but for the module pages, which scroll.
 
 | Action | Keyboard | Gamepad | What it does in Settings |
 |---|---|---|---|
 | ▲ ▼ | Up, Down | D-pad, left stick | Moves to the row above or below. Past the last row the cursor goes round to the first |
 | ◄ ► | Left, Right | D-pad, left stick, LB, RB | Changes the value, round from the last choice to the first. A slider moves by 10. On a row that ends in ►, ► opens it as select does |
-| Select | Enter | A | Opens a page (TV / Movie, Arcade, a module's settings, Cabinet Lock, Test Patterns, Controls, Wi-Fi, Bluetooth, Update, About), the list of Display Output, the file browser of Music File and Logo Image, or the Quit question: the rows that end in ►. On Transparent Background it turns the setting on or off |
+| Select | Enter | A | Opens a page (each of the first screen's, Look's Effects, a module's settings, Test Patterns, Cabinet Lock, Wi-Fi, Bluetooth, Update, About), the list of Display Output, the file browser of Music File and Logo Image, or the Quit question: the rows that end in ►. On Transparent Background it turns the setting on or off |
 | Back | Esc, Backspace | B, or the pad's Back/Select button | Back to the main menu; from a page, back to the row that opened it |
 
-- **A change is saved at once.** Settings calls `appCore.save_setting("", key, value)`, on TV / Movie's page as on the first screen, which writes the value into `config.json` under `app.<key>` ([Configuration files](https://github.com/mehmetraif/OSD-OS/wiki/Configuration-Files#configjson)). Most rows take effect at once. The rows mpv is started with (Scaling, Video Levels, Channel Logo, Logo Image, Screen Saver during a video) apply from the next video. A value that can't be saved (a full or read-only disk) isn't applied, here or on a module's page: the row stays on the value saved, and the log says `[AppCore] Setting not saved: …`.
-- **The title bar** of the first screen shows a release's version; a build made from source shows none there (About names it `DEV`). TV / Movie's page shows its name there instead, `SETTINGS | TV / MOVIE`. The first screen's title bar shows the device's IP address on the network at its right end, before the status icons, wired before Wi-Fi, read again every five seconds: handy for SSH.
-- **The help line** under the list explains the selected row, and scrolls when the text is longer than the box. Settings → Help Line turns it off.
-- **Rows that come and go.** Some rows are offered only sometimes. A row that depends on another row (Window Frame on OSD Background, Music File and Music Volume on Menu Music, Logo Image on Channel Logo) stays in the list without a line while it isn't offered: the list doesn't move as it comes and goes, and the cursor skips over it.
+- **A change is saved at once.** Settings calls `appCore.save_setting("", key, value)`, on every page, which writes the value into `config.json` under `app.<key>` ([Configuration files](https://github.com/mehmetraif/OSD-OS/wiki/Configuration-Files#configjson)). Most rows take effect at once. The rows mpv is started with (Scaling, Video Levels, Channel Logo, Logo Image, Screen Saver during a video) apply from the next video. A value that can't be saved (a full or read-only disk) isn't applied, here or on a module's page: the row stays on the value saved, and the log says `[AppCore] Setting not saved: …`.
+- **The title bar** of the first screen shows a release's version; a build made from source shows none there (About names it `DEV`). A page shows its name there instead, `SETTINGS | LOOK`, and Look's Effects `SETTINGS | LOOK / EFFECTS`. The first screen's title bar shows the device's IP address on the network at its right end, before the status icons, wired before Wi-Fi, read again every five seconds: handy for SSH.
+- **The help line** under the list explains the selected row, and scrolls when the text is longer than the box. Settings → Look → Help Line turns it off.
+- **Nothing is hidden.** A row that can't be used on this system, or can't with another row as it is set, keeps its place, dimmed: a checkerboard of the background lies over it. The cursor stops on it as on any row, and the help line starts with why (`Only with OSD Background on Window`, `Off while Menu Music is Off`, `Only where BlueZ runs, as on the OSD/OS image`), then says what the row does; ◄ ►, select and ► leave it as it is. It lights up the moment it can be used: Window Frame as OSD Background is set to Window. A module's page dims its rows the same way ([below](#the-kinds-of-row-a-module-can-have)).
 
-| Row | Offered when |
+<img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/screenshots/settings-dimmed.png" width="100%" alt="Settings → Look with Window Frame selected and dimmed rows for Orb Fog and Window Frame, the help line starting: Only with OSD Background on Window" />
+
+| Row | Dimmed, unless |
 |---|---|
-| 1080p Playback (TV / Movie) | On a Raspberry Pi 3 only |
 | Transparent Background (TV / Movie) | libmpv could be opened (`libmpv2` on Raspberry Pi OS and the image, Homebrew's mpv on a Mac), in a build made with libmpv's headers |
+| 1080p Playback (TV / Movie) | On a Raspberry Pi 3 |
 | Logo Image (TV / Movie) | Channel Logo isn't Off |
-| Text Effect, Background Effect, Screen Effect, and the Ripple, Wave and Drop transitions | The build has Qt Shader Tools (the releases and the OSD/OS image do) and Qt draws with a GPU, not its software renderer |
-| Music File | Menu Music is File |
-| Music Volume | Menu Music isn't Off |
-| Window Frame | OSD Background is Window |
-| Startup From | A favourite is set to Play at Startup |
-| Display Output | On the OSD/OS image, started by its service, on a Pi with more than one output to offer |
-| Audio Output | On Linux where plain ALSA plays, with no PipeWire or PulseAudio server: the image and Raspberry Pi OS Lite |
-| Wi-Fi | On Linux builds made with Qt D-Bus (not on a Mac); on the OSD/OS image, from a launcher at level 7 |
-| Bluetooth | On Linux builds made with Qt D-Bus (not on a Mac) |
+| Orb Fog (Look) | The theme has the Arcade screen's Orb look, as Orb does |
+| Window Frame (Look) | OSD Background is Window |
+| Text Effect, Background Effect, Screen Effect (Look → Effects) | The build has Qt Shader Tools (the releases and the OSD/OS image do) and Qt draws with a GPU, not its software renderer. Without them Transition has no Ripple, Wave or Drop |
+| Display Output (Screen) | On the OSD/OS image, started by its service, on a Pi with more than one output to offer |
+| Window Mode (Screen) | On Windows, and on a Linux or BSD desktop (X11 or Wayland) |
+| Audio Output (Sound) | On Linux where plain ALSA plays, with no PipeWire or PulseAudio server: the image and Raspberry Pi OS Lite |
+| Music File (Sound) | Menu Music is File |
+| Music Volume (Sound) | Menu Music isn't Off |
+| Wi-Fi (Network) | On Linux builds made with Qt D-Bus (not on a Mac), where NetworkManager runs; on the OSD/OS image, from a launcher at level 7 |
+| Bluetooth (Network) | On Linux builds made with Qt D-Bus (not on a Mac), where BlueZ runs |
+| Startup From (Startup) | A favourite is set to Play at Startup |
+| Paste OSD/OS Setup (System) | Where there is a clipboard to paste from: on a computer, not on the OSD/OS image's console |
 
 ## TV / Movie
 
@@ -41,14 +46,14 @@ The first row opens TV / Movie's page, `SETTINGS | TV / MOVIE`: the rows for the
 
 | Setting | Values | Default | What it does | Config key |
 |---|---|---|---|---|
-| 1080p Playback | On, Off | On | Raspberry Pi 3 only. **On**: the smooth overlay path that plays 1080p, where cropping can't work, so 14:9 and Pan & Scan show the whole picture and the deck menu has no CROP. **Off**: the scaler path, where cropping works but 1080p stutters. From the next video | `app.smooth_playback` |
 | Scaling | Letterbox, 14:9, Pan & Scan, Anamorphic | Letterbox | How a 16:9 picture fills a 4:3 screen, in every module whose own Scaling is Default. **Letterbox**: all of it, bars above and below. **14:9**: a little of the sides cut, thinner bars. **Pan & Scan**: fills the screen, the sides cut. **Anamorphic**: fills it squeezed, for a TV set to 16:9. From the next video; the deck menu's CROP changes it during one | `app.video_scaling` |
 | Transparent Background | Off, or a slider from TRANSPARENT to SOLID, 0 to 100 in steps of 10 | Off | Plays the video inside OSD/OS's own window (libmpv), so back from a video returns to the menus with the picture going on behind them; the main menu's first row takes it back to full screen. The slider says how solid the menus' ground is over the picture: at SOLID none of it shows, but it plays on, sound and all. Select turns it on or off. ◄ ► on it while it is off turn it on where its bar waits: at 40, or where it was if you turned it off on this visit to Settings. A change shows at once over a video playing behind the menus, and turning it off stops that video | `app.transparent_background`: a number from 0 to 100, or `"Off"` |
 | Video Levels | Auto, Limited, Full | Auto | The colour range mpv sends: **Limited** if blacks look crushed, **Full** if blacks look grey. Auto adds nothing, leaving mpv's default and your `mpv.conf`. From the next video | `app.video_output_levels` |
+| 1080p Playback | On, Off | On | Raspberry Pi 3 only, dimmed elsewhere. **On**: the smooth overlay path that plays 1080p, where cropping can't work, so 14:9 and Pan & Scan show the whole picture and the deck menu has no CROP. **Off**: the scaler path, where cropping works but 1080p stutters. From the next video | `app.smooth_playback` |
 | Loading Effect | On, Off | On | While a video loads, a tape's noise and tracking bands roll over the dubbing deck's counters. Off leaves the counters alone on the plain background | `app.loading_effect` |
 | Loading Screen Colors | Theme, Default | Theme | The colours of the screen a video loads behind: the theme's or colour scheme's, or OSD/OS's own, white on a VCR's blue, whatever the look | `app.loading_colors`: `"Theme"` or `"Default"` |
 | Channel Logo | Off, Top Left, Top Right, Bottom Left, Bottom Right, All Corners | Top Right | OSD/OS's logo in a corner of the picture while a video plays, the way a channel's sits in a broadcast. mpv draws it into the picture, so with Transparent Background the menus lie over it. From the next video | `app.video_logo`: `off`, `tl`, `tr`, `bl`, `br` or `all` |
-| Logo Image | OSD/OS Logo, or a picture picked on the file browser: PNG, JPG, JPEG, SVG, GIF, BMP or WebP | OSD/OS | Offered while Channel Logo isn't Off. A picture of your own in the logo's place, made as tall as OSD/OS's logo (7% of the screen's height), its shape kept. A PNG with a clear background works best. A picture that can't be read leaves OSD/OS's logo. From the next video | `app.video_logo_image`: the file's full path, `""` for OSD/OS's |
+| Logo Image | OSD/OS Logo, or a picture picked on the file browser: PNG, JPG, JPEG, SVG, GIF, BMP or WebP | OSD/OS | Dimmed while Channel Logo is Off. A picture of your own in the logo's place, made as tall as OSD/OS's logo (7% of the screen's height), its shape kept. A PNG with a clear background works best. A picture that can't be read leaves OSD/OS's logo. From the next video | `app.video_logo_image`: the file's full path, `""` for OSD/OS's |
 | Info Screen | Off, Key, 1 sec, 2 sec, 3 sec, 5 sec | 3 sec | A film's details (story, genre, director, cast, rating) in the Netflix, Prime Video and YouTube trees. **Key**: only with ► on a film. **A number**: also on its own once the cursor has rested on a film that long. **Off**: no info screen; ► offers the film's options instead | `app.info_screen`: `off`, `key`, `1`, `2`, `3` or `5` |
 
 The older setting `app.auto_crop` (`On` or `Off`), from before Scaling, still counts while Scaling has never been set: `On` reads as Pan & Scan.
@@ -67,7 +72,7 @@ The older setting `app.auto_crop` (`On` or `Off`), from before Scaling, still co
 
 **The file browser** that Music File and Logo Image open is the tree Local Files is browsed with. At its top is the default (**No File**, **OSD/OS Logo**), then the places that exist on this system: **Home**, **Media** (`/media`, where the image mounts its OSD-OS partition and USB drives), **Drives** (`/run/media/<user>`), **Volumes** (`/Volumes`, on a Mac) and **Root** (`/`). It shows folders and the files of the types the setting takes, hidden ones left out, and opens at the file chosen now. Select on a file picks it and goes back; back at the top leaves the setting as it was.
 
-<img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/screenshots/settings-modules.png" width="100%" alt="TV / Movie's page further down: Video Levels, Loading Effect, Loading Screen Colors, Channel Logo, Logo Image, Info Screen, then the MODULES heading and Ambient:Mode" />
+<img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/screenshots/settings-modules.png" width="100%" alt="TV / Movie's page further down: 1080p Playback dimmed, Loading Effect, Loading Screen Colors, Channel Logo, Logo Image, Info Screen, then the MODULES heading and Ambient:Mode" />
 
 ### The video modules
 
@@ -77,17 +82,15 @@ Under the page's **MODULES** heading is a row for each module of the TV / Movie 
 
 The second row opens the games' page, `SETTINGS | ARCADE`: the [Arcade](https://github.com/mehmetraif/OSD-OS/wiki/Arcade#settings) module's own rows, then under a **HIGH SCORES** heading the [High Scores](https://github.com/mehmetraif/OSD-OS/wiki/High-Scores#settings) module's, its **Enabled**, which puts High Scores on the main menu. The two modules make up the Arcade group (`"settings_group": "arcade"`), which shares one page: the cursor steps over the heading, and each row is saved in its own module, under `modules.com.osdos.arcade` or `modules.com.osdos.highscores`. Neither module has a row under a **MODULES** heading.
 
-## General Settings
+## Look
 
-Under the **GENERAL SETTINGS** heading are the rows for the whole app: the look, what the menus are drawn on, starting up, and the menus' bars, screen saver and pointer.
+The third row opens Look's page, `SETTINGS | LOOK`: the theme and its parts, the effects on a page of their own, what the menus are drawn on, the boot screen's colours, and the bars round the menus.
 
-### The look
+<img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/screenshots/settings-look.png" width="100%" alt="Settings → Look: THEME NONE, ORB FOG dimmed, COLOR SCHEME VIDEO 1, SKIN NONE, EFFECTS, OSD BACKGROUND FULL, WINDOW FRAME dimmed, BOOT SCREEN COLORS THEME" />
 
-The first rows under the heading set how the menus look: **Theme**, then one row for each part of a theme.
-
-- **Theme** names one of the themes, or None. Nine come with OSD/OS, and any folder with a `theme.json` in the data folder's `themes` is one too ([Themes](https://github.com/mehmetraif/OSD-OS/wiki/Themes)). Choosing one with ◄ ► sets every part row below back to THEME, including the rows that are hidden at the time.
-- **Orb Fog** comes under it while the theme is one with the Arcade screen's [Orb look](https://github.com/mehmetraif/OSD-OS/wiki/Arcade#the-orb-look), as Orb is.
-- **THEME** in a part row (saved as `""`) means the part as the theme has it.
+- **Theme** names one of the themes, or None. Nine come with OSD/OS, and any folder with a `theme.json` in the data folder's `themes` is one too ([Themes](https://github.com/mehmetraif/OSD-OS/wiki/Themes)). Choosing one with ◄ ► sets every part row below back to THEME, on this page and on Effects'.
+- **Orb Fog**, under it, is for a theme with the Arcade screen's [Orb look](https://github.com/mehmetraif/OSD-OS/wiki/Arcade#the-orb-look), as Orb has; with any other it is dimmed.
+- **THEME** in a part row (Color Scheme, Skin, the effects, Menu Music), saved as `""`, means the part as the theme has it.
 - **Off** (saved as `"Off"`) means none of that part, whatever the theme says.
 - **A choice of its own** (saved by its name) replaces the theme's. It stays as you set it until you choose another theme.
 - **Without a theme** the rows have no THEME choice, and `""` shows as what the part is without one: Video 1, None or Off.
@@ -96,19 +99,32 @@ The first rows under the heading set how the menus look: **Theme**, then one row
 | Setting | Values | Default | What it does | Config key |
 |---|---|---|---|---|
 | Theme | None, then the themes by name: Arcade, Demoscene, Green Screen, Inferno, Late Show, Matrix, Orb, Trinitron, Winter, and those in the data folder's `themes` | None | The whole look in one: the color scheme, the skin, the effects and the menu music. Two themes of one name are told apart by their folder, `Name (folder)` | `app.osd_theme`: the theme's folder name (`trinitron`, `late-show`), `""` for None |
-| Orb Fog | Picture, Live | Picture | The fog drifting behind the Arcade screen's panels in the Orb look: a picture of fog drifting, light on the GPU, or fog worked out for every pixel as it drifts, as in the look's first design, thicker and quicker, and more work for a Raspberry Pi's GPU. Offered with a theme that has the Orb look | `app.orb_fog`: `"Picture"` or `"Live"` |
+| Orb Fog | Picture, Live | Picture | The fog drifting behind the Arcade screen's panels in the Orb look: a picture of fog drifting, light on the GPU, or fog worked out for every pixel as it drifts, as in the look's first design, thicker and quicker, and more work for a Raspberry Pi's GPU. Dimmed without a theme that has the Orb look | `app.orb_fog`: `"Picture"` or `"Live"` |
 | Color Scheme | THEME (with a theme), Video 1, Late Night, Synthwave, Terminal, T-120, Amber, Kinescope, SMPTE ECR 1-1978, and your own | THEME; without a theme, Video 1 | The two colours everything is drawn in: the text, lines and selection, and the background | `app.color_scheme`: the scheme's name, `""` for THEME |
 | Skin | THEME (with a theme), None, DOS, Rounded, and those in the data folder's `skins` | THEME; without a theme, None | The shapes of the window's frame, the title and hint bars and the selected line, and icons of its own, drawn in the color scheme's colours ([Skins](https://github.com/mehmetraif/OSD-OS/wiki/Skins)) | `app.skin`: the skin's folder name (`dos`, `rounded`), `"Off"` for None, `""` for THEME |
+| Effects | A page | | What the text, the background, the selected line and the screen do, and how one window gives way to the next ([below](#effects)) | |
+| OSD Background | Full, Off, Window | Full | What the menus are drawn on. **Full**: the color scheme's background over the whole screen. **Off**: none; the menus on black, in whichever of the scheme's two colours is the lighter, like a deck's on-screen display with nothing playing (so T-120's dark text doesn't vanish). **Window**: a framed window of the scheme's background behind the menus, black around it. Over a video playing behind the menus, the window lies over the picture, which shows whole around it | `app.osd_background` |
+| Window Frame | On, Off, Shadow | On | Dimmed but with Window. **On**: a line round the window in the scheme's colour, or the skin's own frame. **Off**: no frame. **Shadow**: the line and a DOS window's shadow down the right side and along the foot, a half tone of the window's colour (over a video, it darkens the picture) | `app.osd_frame` |
+| Boot Screen Colors | Theme, Default | Theme | The colours of the boot screen on the OSD/OS image, its cassette and the services coming up: the theme's or colour scheme's, or white on blue | `app.boot_colors`: `"Theme"` or `"Default"` |
+| Hint Bar | On, Off | On | The key hints on the bar at the foot of every screen. Off hides every one, and what is above it takes its room: a row more in every menu, more of the file browser, a help line moved down into its place; the keys work as before, and the window stays as it is | `app.hint_bar` |
+| Help Line | On, Off | On | The box under a menu with a line about the selected row. Off hides it everywhere but About, whose lines are the page, and the menu above it gets a row more | `app.help_line` |
+| Status Icons | On, Off | On | What is on, at the right end of every title bar and at the bottom right of the Arcade screen ([below](#status-icons)). Off hides them | `app.status_icons` |
+
+### Effects
+
+The Effects row opens their page, `SETTINGS | LOOK / EFFECTS`. Each is a part of the theme, THEME, Off or one of its own, as above.
+
+| Setting | Values | Default | What it does | Config key |
+|---|---|---|---|---|
 | Text Effect | THEME, Off, Rainbow, Shimmer, Glow, Flicker | THEME; without a theme, Off | What the text, the lines and the bars do, drawn by the GPU | `app.text_effect` |
 | Background Effect | THEME, Off, Matrix, Fire, Stars, Snow, Checkered Flag, Plasma | THEME; without a theme, Off | What goes on behind the menus, in the window, drawn by the GPU | `app.background_effect` |
-| Selector Effect | THEME, Off, Sparkles, Welding, Lightning, Rainbow, Snow | THEME; without a theme, Off | What goes on round the selected line. Drawn by the CPU, so offered everywhere | `app.selector_effect` |
+| Selector Effect | THEME, Off, Sparkles, Welding, Lightning, Rainbow, Snow | THEME; without a theme, Off | What goes on round the selected line. Drawn by the CPU, so it can be used everywhere | `app.selector_effect` |
 | Screen Effect | THEME, Off, Scanlines, CRT, VHS | THEME; without a theme, Off | A picture tube's or a tape's look over the whole screen, drawn by the GPU | `app.screen_effect` |
 | Transition | THEME, Off, Fade, Cube, Ripple, Wave, Drop | THEME; without a theme, Off | How one window gives way to the next. Ripple, Wave and Drop need a GPU; without one a theme's falls back to Fade | `app.transition` |
-| Menu Music | THEME, Off, File | THEME; without a theme, Off | A tune under the menus: the theme's, if it has one (Green Screen has none), or the file below ([Menu music](https://github.com/mehmetraif/OSD-OS/wiki/Menu-Music)) | `app.menu_music`: `""`, `"Off"` or `"File"` |
-| Music File | A file picked on the file browser: MP3, WAV, OGG, Opus, FLAC, M4A, AAC, MID, MIDI, XM, MOD, S3M or IT; or No File | None | The menu music's own file, played over and over. Select opens the file browser | `app.menu_music_file`: the file's full path |
-| Music Volume | A slider from QUIET to LOUD, 0 to 100 in steps of 10 | 60 | How loud the menu music is. It changes while the music plays | `app.menu_music_volume`: a number |
 
 The effects and the menu music rest while a video plays, loads or has its menu open, and while a player has the screen ([Effects](https://github.com/mehmetraif/OSD-OS/wiki/Effects)).
+
+### Color schemes
 
 The eight color schemes, by the two colours they draw with (`primary` on `surface`):
 
@@ -127,65 +143,11 @@ Schemes of your own come from two files in the data folder: `custom_color_scheme
 
 ### OSD Background and Window Frame
 
-| Setting | Values | Default | What it does | Config key |
-|---|---|---|---|---|
-| OSD Background | Full, Off, Window | Full | What the menus are drawn on. **Full**: the color scheme's background over the whole screen. **Off**: none; the menus on black, in whichever of the scheme's two colours is the lighter, like a deck's on-screen display with nothing playing (so T-120's dark text doesn't vanish). **Window**: a framed window of the scheme's background behind the menus, black around it. Over a video playing behind the menus, the window lies over the picture, which shows whole around it | `app.osd_background` |
-| Window Frame | On, Off, Shadow | On | Offered with Window only. **On**: a line round the window in the scheme's colour, or the skin's own frame. **Off**: no frame. **Shadow**: the line and a DOS window's shadow down the right side and along the foot, a half tone of the window's colour (over a video, it darkens the picture) | `app.osd_frame` |
-
 <table>
 <tr><th width="33%">OSD Background: Window</th><th width="33%">OSD Background: Off</th><th width="33%">Window Frame: Shadow</th></tr>
 <tr><td><img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/screenshots/osd-window.png" width="100%" alt="OSD Background: Window" /></td><td><img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/screenshots/osd-off.png" width="100%" alt="OSD Background: Off" /></td><td><img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/screenshots/skin-dos.png" width="100%" alt="Skin: DOS, Window Frame: Shadow" /></td></tr>
 <tr><td>The menus in a framed window of the color scheme's background, black around it.</td><td>No background: the menus on black, in the scheme's lighter colour.</td><td>Skin DOS gives the frame a double line; Window Frame Shadow adds a DOS window's shadow.</td></tr>
 </table>
-
-### Starting up
-
-| Setting | Values | Default | What it does | Config key |
-|---|---|---|---|---|
-| Start on Module | None, then each module that is turned on, by name | None | Opens that module straight after start (on the OSD/OS image, once the boot screen has closed). A module turned off later is never opened, and the row shows None | `app.startup_module`: the module's id, such as `com.osdos.local_files`; `"None"` |
-| Play at Startup | None, or the name of the favourite chosen | None | A favourite played straight after start, ahead of Start on Module. You choose it in its module: ► on the entry, then **Play at Startup** (it goes on Favorites too). Here you can only turn it off. It plays only while it is still one of that module's favourites | `app.startup_favorite`: `{ "module", "path", "name" }`, or `""` for None |
-| Startup From | Resume, Beginning | Resume | Offered while there is a favourite to play at startup. Where it begins, without asking: where it was stopped, or from the start | `app.startup_from` |
-| Cabinet Lock | (opens its page) On, Off | Off | Keeps OSD/OS on Start on Module's module, a cabinet's Arcade screen: the main menu, Settings and Quit open only with the unlock buttons held together for three seconds ([below](#cabinet-lock)) | `app.cabinet_lock`: `"On"` or `"Off"`; the buttons `app.unlock_buttons` |
-| Boot Screen Colors | Theme, Default | Theme | The colours of the boot screen on the OSD/OS image, its cassette and the services coming up: the theme's or colour scheme's, or white on blue | `app.boot_colors`: `"Theme"` or `"Default"` |
-
-The Scripts module's **Auto-Run On Startup** runs a script when OSD/OS starts on that module, so it needs Start on Module set to Scripts ([Scripts](https://github.com/mehmetraif/OSD-OS/wiki/Scripts)).
-
-### Cabinet Lock
-
-**Cabinet Lock** keeps a cabinet on its game list for the players: OSD/OS stays on Start on Module's module, the Arcade screen on a cabinet, and the menus behind it are out of their reach. The row opens its page, with two rows:
-
-| Row | What it does |
-|---|---|
-| Cabinet Lock | ◄ ► or select turn it on or off. On asks first, **Lock the cabinet?**, naming the module it stays on and the buttons that unlock it. It needs a Start on Module, and says so without one; without unlock buttons it asks for them first, then asks to lock. Off turns it off at once |
-| Unlock Buttons | Select, then hold the buttons that unlock it together for two seconds: one to four of them, of any pads and keyboards together, a direction among them if you like. The window names them as they are held (`P1 START + P2 START`); a fifth asks you to let one go. Nothing held for ten seconds, or back, keeps the old ones |
-
-<table>
-<tr><th width="33%">Cabinet Lock</th><th width="33%">Unlock Buttons</th><th width="33%">Lock the cabinet?</th></tr>
-<tr><td><img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/screenshots/cabinet-lock.png" width="100%" alt="Cabinet Lock: Cabinet Lock On and Unlock Buttons 1 + 2" /></td><td><img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/screenshots/cabinet-lock-buttons.png" width="100%" alt="Unlock Buttons: hold the buttons that unlock the cabinet together, 3 + 4 held" /></td><td><img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/screenshots/cabinet-lock-confirm.png" width="100%" alt="Lock the cabinet? OSD/OS stays on Arcade. Hold 3 + 4 together for three seconds to open the menus. Lock, Cancel" /></td></tr>
-<tr><td>The page: the lock and the buttons that open it.</td><td>The buttons held, named as they are, kept after two seconds.</td><td>Asked before it locks, with what unlocks it.</td></tr>
-</table>
-
-While it is locked:
-
-- **Back** on the start module goes nowhere: no main menu, no Settings, no Quit. Back inside the module works as ever (a game's options, Game Details, the screen before a game), and a game plays as ever; back from another module, one an NFC card opened, say, comes to the start module.
-- **Ctrl+Q** doesn't quit.
-- **The unlock buttons**, held together for three seconds, open the main menu. Everything is reachable then until OSD/OS starts again, or until they are held again, which takes it back to the start module, locked.
-- Turned on in Settings, it locks at once and goes to the start module. It locks only with a Start on Module that is turned on and with unlock buttons: `cabinet_lock` set to `"On"` in `config.json` without them locks nothing.
-
-The unlock buttons are named by the player whose pad presses them (`P1 START` is player 1's START, whichever pad player 1 has), a pad of no player's by the pad, and a key by its name. Each of them but a direction waits a moment (0.3 seconds) for the others before it acts, so that a START among them doesn't start a game on its own; pressed alone, it acts after that moment, and a direction acts at once. Held together, none of them acts.
-
-Forgot the buttons, or a pad that is gone? Turn the lock off from outside: put an `osdos-setup.json` holding `{"osdos_setup": 1, "config": {"app": {"cabinet_lock": "Off"}}}` on the card's boot partition (**bootfs**) or in the data folder and start OSD/OS ([Installation](https://github.com/mehmetraif/OSD-OS/wiki/Installation#osdos-setup-settings-on-the-card-before-the-first-boot)), or set `app.cabinet_lock` to `"Off"` in `config.json` over SSH with OSD/OS stopped ([Configuration files](https://github.com/mehmetraif/OSD-OS/wiki/Configuration-Files#editing-by-hand)).
-
-### The menus
-
-| Setting | Values | Default | What it does | Config key |
-|---|---|---|---|---|
-| Hint Bar | On, Off | On | The key hints on the bar at the foot of every screen. Off hides every one, and what is above it takes its room: a row more in every menu, more of the file browser, a help line moved down into its place; the keys work as before, and the window stays as it is | `app.hint_bar` |
-| Help Line | On, Off | On | The box under a menu with a line about the selected row. Off hides it everywhere but About, whose lines are the page, and the menu above it gets a row more | `app.help_line` |
-| Status Icons | On, Off | On | What is on, at the right end of every title bar and at the bottom right of the Arcade screen ([below](#status-icons)). Off hides them | `app.status_icons` |
-| Screen Saver | OFF, 30, 60, 120 | OFF | Seconds before a black screen with the OSD/OS logo bouncing across it, against CRT burn-in: in the menus after that long without a key or a mouse move, and over a video paused that long (mpv draws it then). Never over a playing video, a running script or the boot screen. The first key only wakes it | `app.screensaver_timeout`: `"OFF"` or the seconds |
-| Mouse Pointer | Off, 2 sec, 5 sec, 10 sec, 30 sec, Always | 5 sec | A mouse's pointer, or a keyboard touchpad's, drawn in the OSD's pixels: it shows as the mouse moves and goes again after this long without moving. **Off**: never shown, and the selection stays where it is as the mouse moves. **Always**: stays. Moving the mouse also wakes the screen saver. While the pointer shows, the selection follows it over a menu; a left click is Select, a right click Back and the wheel ▲ ▼ whatever this is set to ([Controls](https://github.com/mehmetraif/OSD-OS/wiki/Controls#the-mouse)) | `app.mouse_pointer`: `off`, `2`, `5`, `10`, `30` or `always` |
-| Window Mode | Off, On | Off | On Windows and on a Linux or BSD desktop only: the menus in a window on the desktop instead of the whole screen, 960×720 to start with, moved and sized as any window. F11 or Alt+Enter switches at any time. The OSD/OS image's console has no windows and a Mac keeps its own full screen, so neither has the row | `app.window_mode`: `Off` or `On` |
 
 ### Status Icons
 
@@ -202,78 +164,17 @@ With **Status Icons** on, the right end of every title bar shows what is on, the
 
 The Arcade screen, whose bar is its own, shows them at its bottom right, beside the help line (with the help line off, at the right end of the hint bar, while the keys still fit beside them). A module turned off takes its icons with it.
 
-## Modules
+## Screen
 
-Under the first screen's **MODULES** heading is a row for each module that belongs to neither page: Scripts, and a module of your own that names no group. Every module that has settings, which is all fourteen, brings them in its `manifest.json` ([Writing a module](https://github.com/mehmetraif/OSD-OS/wiki/Writing-a-Module)), and select on its row opens its page, `SETTINGS | <MODULE>`; the Arcade group's two share the Arcade page. Where a module's row is depends on its group, `settings_group` in the manifest:
-
-| Group | Where the module's page is | Modules, in the order of their folders |
-|---|---|---|
-| None | Under **MODULES** on the first screen, after the general settings | Scripts |
-| `"tv"` | Under **MODULES** on TV / Movie's page ([above](#the-video-modules)) | Ambient:Mode, Emby, Jellyfin, Local Files, Netflix, NFC Reader, Playlists, Plex, Prime Video, Weather, YouTube |
-| `"arcade"` | The Arcade page, which the group's modules share, each after the first under its name as a heading ([above](#arcade)) | Arcade, High Scores |
-
-<table>
-<tr><th width="50%">A module's settings</th><th width="50%">Picking a folder</th></tr>
-<tr><td><img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/screenshots/module-settings.png" width="100%" alt="A module's settings: Local Files" /></td><td><img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/screenshots/folder-picker.png" width="100%" alt="Picking a folder" /></td></tr>
-<tr><td>Local Files: its folder, looping, shuffle, resume, subtitles, and its own Scaling.</td><td>A folder is picked on the same tree: <b>Use This Folder</b> picks the folder open, <b>Default Folder</b> the module's own.</td></tr>
-</table>
-
-### Turning a module on
-
-Every module's first row is **Enabled**. A module that is turned off is left off the main menu, can't be chosen in Start on Module, and an NFC card can't hand off to it. Until you change the row, the manifest's default applies: **Local Files** and **Playlists** are on, the other twelve off. The main menu picks up a change the next time you go back to it. The setting is saved as `modules.<module id>.enabled`, `true` or `false`.
-
-| Module | Module id | On by default | Its rows, in order |
-|---|---|---|---|
-| [Ambient:Mode](https://github.com/mehmetraif/OSD-OS/wiki/Ambient-Mode) | `com.osdos.ambient_mode` | No | Enabled, Media Directory, Auto-Launch Playback, Scaling |
-| [Arcade](https://github.com/mehmetraif/OSD-OS/wiki/Arcade) | `com.osdos.arcade` | No | Enabled, Games Folder, Hide Hacks and Bootlegs, Regions, Screen, Play at Startup, Start Info Screen, Play Mode, Save High Scores, Online High Scores (with RetroAchievements, RetroAchievements Account), Pictures From, Game Pictures, Online Play (with On, Relay Server), LAN Play, Online Name (with either on), MAME, FinalBurn Neo, Emulator Video (Game Picture, Screen Shape, Integer Scale, MAME Video), Read the Games Again; with Screen on Arcade, Start Filter, Menu Filters, List Style, Border, Info Background, Screen Adjustment, Hint Bar, Help Line, Attract Mode and Attract After too |
-| [Emby](https://github.com/mehmetraif/OSD-OS/wiki/Emby) | `com.osdos.emby` | No | Enabled; once signed in Libraries, Video Quality, Resume Playback, Autoplay Next Episode, Intro Skip, Credit Skip; Scaling; Sign out once signed in |
-| [High Scores](https://github.com/mehmetraif/OSD-OS/wiki/High-Scores) | `com.osdos.highscores` | No | Enabled, on the Arcade page under the **HIGH SCORES** heading |
-| [Jellyfin](https://github.com/mehmetraif/OSD-OS/wiki/Jellyfin) | `com.osdos.jellyfin` | No | Enabled; once signed in Libraries, Video Quality, Resume Playback, Autoplay Next Episode, and Intro Skip and Credit Skip where the server has the Intro Skipper plugin; Scaling; Sign out once signed in |
-| [Local Files](https://github.com/mehmetraif/OSD-OS/wiki/Local-Files) | `com.osdos.local_files` | Yes | Enabled, Media Directory, Loop Playback, Shuffle Playback, Resume Playback, Auto Show Subtitles, Subtitle Language, Image Duration, Hide File Extensions, Scaling |
-| [Netflix](https://github.com/mehmetraif/OSD-OS/wiki/Netflix-and-Prime-Video) | `com.osdos.netflix` | No | Enabled, Catalogue Region, Catalogue Language, Scaling, Sign in, Sign out |
-| [NFC Reader](https://github.com/mehmetraif/OSD-OS/wiki/NFC-Reader) | `com.osdos.nfc_reader` | No | Enabled, Tags Directory, Resume Playback, YouTube Video Resolution, Auto Show Subtitles, Subtitle Language, Scaling |
-| [Playlists](https://github.com/mehmetraif/OSD-OS/wiki/Playlists) | `com.osdos.playlists` | Yes | Enabled, Download Folder, Subtitles, Loop Playback, Scaling |
-| [Plex](https://github.com/mehmetraif/OSD-OS/wiki/Plex) | `com.osdos.plex` | No | Enabled; once signed in Current User, Auto Sign In, Server, Libraries, Video Quality, Resume Playback, Autoplay Next Episode; Scaling; Sign out once signed in |
-| [Prime Video](https://github.com/mehmetraif/OSD-OS/wiki/Netflix-and-Prime-Video) | `com.osdos.prime_video` | No | Enabled, Catalogue Region, Catalogue Language, Scaling, Sign in, Sign out |
-| [Scripts](https://github.com/mehmetraif/OSD-OS/wiki/Scripts) | `com.osdos.scripts` | No | Enabled, Scripts Directory, Auto-Run On Startup, Rescan Scripts |
-| [Weather](https://github.com/mehmetraif/OSD-OS/wiki/Weather) | `com.osdos.weather` | No | Enabled, Displays, Music, Units, Screen Time, Hours Format |
-| [YouTube](https://github.com/mehmetraif/OSD-OS/wiki/YouTube) | `com.osdos.youtube` | No | Enabled, Advanced (Playback Resolution, Video Codec, Max Frame Rate, Scaling, Audio Language, Subtitles, Subtitle Language, Playback Speed, Resume Playback, Display Shorts), Delete Watch Later, Delete Recently Watched, Sign in, Sign out |
-
-Each module's page on this wiki explains its rows. Every module that plays video has its own **Scaling**: **Default** (follow Settings → TV / Movie → Scaling) or one of the four, for that module only.
-
-### The kinds of row a module can have
-
-| Kind (`type` in the manifest) | How the row looks | ◄ ► | Select | Saved in `modules.<id>` as |
-|---|---|---|---|---|
-| `toggle` | `LABEL······◄ ON ►` | Flips it | Flips it | `true` or `false`; unset, the manifest's `default` (`"ON"` or `"OFF"`) |
-| `list_single` | `LABEL······◄ VALUE ►` | Steps through the choices, round | Nothing | The choice's text for a fixed list (`"Pan & Scan"`); for a list the module supplies (`"options_source": "dynamic"`), the choice's id (`"ask"`, `"forced"`) |
-| `multiselect_submenu` | `LABEL······►` | ► opens it | Opens a page of `NAME······◄ ON ►` lines, one per choice, under headings when the module groups them; ◄, ► or select flips one, and on a heading turns all of its group on, or off once they all are on | An object under the key, `{ "<id>": true, "<id>": false }`, saved whole at every change; a choice not in it is on (Plex's Libraries: every library shows until you turn it off), unless the module makes it off until turned on (Arcade's Menu Filters' publishers) |
-| `submenu` | `LABEL······►` | ► opens it | Opens a page of its own rows, titled `MODULE / LABEL` (YouTube's Advanced) | Nothing itself; its rows' keys stay flat under the module |
-| `directory_browser` | `LABEL······/PATH ►`, or `DEFAULT ►` | ► opens it | Opens the folder picker: **Default Folder** first, then the places, and **Use This Folder** at the top of every folder | The folder's path; `""` for the module's own |
-| `slider` | `LABEL`, and under it the deck's tape bar between its two ends' names, a ◄ and a ► beyond its ends | Moves the ▼ a step toward either end | Nothing | A number from 0 to 100; unset, the manifest's `default` (Arcade's Info Background) |
-| `action` | `LABEL` | Nothing | Runs it at once: Sign out, Delete Watch Later, Rescan Scripts | Nothing |
-| `module_view` | `LABEL` | Nothing | Opens the module on one of its own screens, enabled or not: Sign in for Netflix, Prime Video and YouTube, Arcade's Screen Adjustment | Nothing |
-
-Some rows wait for something:
-
-- **Once signed in** (`requires_auth`): Plex's, Jellyfin's and Emby's server rows appear only after you have signed in, from inside the module.
-- **When the server can** (`requires_capability`): Jellyfin's Intro Skip and Credit Skip appear only when the server reports media segments, which its Intro Skipper plugin provides.
-- **At once** (`apply_slot`): changing Plex's Current User or Server tells the module straight away, and it switches.
-
-## Application
+The fourth row opens Screen's page, `SETTINGS | SCREEN`: where the picture goes, setting the screen up, and what the menus do while no one is at them.
 
 | Setting | Values | Default | What it does | Config key |
 |---|---|---|---|---|
 | Display Output | HDMI, Composite NTSC, Composite PAL, GPIO Composite NTSC, GPIO Composite PAL, SCART RGB NTSC, SCART RGB PAL, SCART RGB 240p, SCART RGB 288p, JAMMA 240p 15 kHz (720x240), JAMMA 240p 15 kHz (320x240), JAMMA 240p 15 kHz (1920x240), JAMMA 288p 15 kHz (720x288), JAMMA 288p 15 kHz (1920x288), JAMMA 480i 15 kHz (720x480), JAMMA 576i 15 kHz (720x576), JAMMA 25 kHz (496x384), JAMMA 31 kHz (640x480): those this Pi has | The image's build setting, HDMI unless built otherwise | On the OSD/OS image only. Where the picture goes. A change restarts the Pi on the new output, powers it off for it, or waits for its next start, and the new output stays only when you keep it. **Next: <output>** while one waits | None: the preset is copied over `/boot/firmware/osdos-display.txt` |
 | Test Patterns | A page | | Pictures to set the screen up by, with its own knobs or service menu: Grid, Monoscope, Convergence, PLUGE, Color Bars, SMPTE Color Bars, Gray Ramp, Sharpness and Solid Color, from the 240p Test Suite ([below](#test-patterns)) | None |
-| Audio Output | Auto, then each sound card that can play: AV Jack, HDMI (HDMI 0 and HDMI 1 when there are two), a USB card by its name | Auto | Which sound card plays, from the moment you choose it, for a video playing behind the menus too. Auto is the Pi's own default, or while that can't play (a Pi 5's HDMI without the picture), the first card that can | `app.audio_output`: `""` for Auto, or `{ "card", "name" }` |
-| Controls | A page | | Each controller connected, with its own buttons and a pad's button labels; the pads of players 1 to 6; and one more key for each action on every keyboard and remote | `app.controllers.<key>`, `app.players`, `app.remote_keymap.<action>` |
-| Wi-Fi | A page | | The networks within reach, joined with their passwords; one not listed; the networks saved; the country Wi-Fi keeps to the rules of | None: NetworkManager keeps the networks joined |
-| Bluetooth | A page | | Searching for, pairing and connecting keyboards, gamepads and remotes | None: BlueZ keeps the pairings |
-| Paste OSD/OS Setup | An action | | Sets at once the settings copied on [OSD/OS Setup](https://osdos.tv/setup/) (**Copy for a computer**): OSD/OS's own and the RetroAchievements account. Where there is a clipboard: not on the OSD/OS image, whose card takes the page's file instead | Those it sets ([below](#paste-osdos-setup)) |
-| Update | A page | | Checks for a newer release, downloads it and installs it | None |
-| About | A page | | This device's System Information first: its name, which tells it apart from others on the network, what it is and each network connection's IP and MAC addresses, the name renamed on the OSD/OS image. Then what OSD/OS is, who makes it, what it is made of, the arcade's free software and sites, and their licenses | None: the device's name is the system's hostname |
-| Quit | A question | | Quits OSD/OS, or under the image's service powers off, restarts or drops to a terminal | None |
+| Screen Saver | OFF, 30, 60, 120 | OFF | Seconds before a black screen with the OSD/OS logo bouncing across it, against CRT burn-in: in the menus after that long without a key or a mouse move, and over a video paused that long (mpv draws it then). Never over a playing video, a running script or the boot screen. The first key only wakes it | `app.screensaver_timeout`: `"OFF"` or the seconds |
+| Mouse Pointer | Off, 2 sec, 5 sec, 10 sec, 30 sec, Always | 5 sec | A mouse's pointer, or a keyboard touchpad's, drawn in the OSD's pixels: it shows as the mouse moves and goes again after this long without moving. **Off**: never shown, and the selection stays where it is as the mouse moves. **Always**: stays. Moving the mouse also wakes the screen saver. While the pointer shows, the selection follows it over a menu; a left click is Select, a right click Back and the wheel ▲ ▼ whatever this is set to ([Controls](https://github.com/mehmetraif/OSD-OS/wiki/Controls#the-mouse)) | `app.mouse_pointer`: `off`, `2`, `5`, `10`, `30` or `always` |
+| Window Mode | Off, On | Off | On Windows and on a Linux or BSD desktop only: the menus in a window on the desktop instead of the whole screen, 960×720 to start with, moved and sized as any window. F11 or Alt+Enter switches at any time. The OSD/OS image's console has no windows and a Mac keeps its own full screen, so there the row is dimmed | `app.window_mode`: `Off` or `On` |
 
 ### Display Output
 
@@ -305,11 +206,24 @@ A picture over the whole screen to set up a TV or monitor by, with its own knobs
 
 Each is the suite's own picture, 320 × 240, or 640 × 480 on a screen of 400 lines or more where the suite has one (the Grid and the Monoscope), drawn pixel for pixel and scaled whole to the screen's height in its 4:3 middle: on a tube, the whole picture. The Grid is drawn one line for each of the screen's lines wherever they make a whole number of its 16-line squares: on 288p and 576i (and 384 or 720 lines) as many squares as fit, 24 × 18 on 288p and 48 × 36 on 576i, so every square is sharp there too, where a scaled 240-line picture would come out uneven. 240p and 480i have the suite's own pictures at their own size. While a pattern is up the screen effects rest and the screen saver waits, so it can be left on while the set is adjusted. The pictures and where each came from are in `assets/testpatterns` in the source.
 
+## Sound
+
+The fifth row opens Sound's page, `SETTINGS | SOUND`: the sound card the players play through, and the music under the menus ([Menu music](https://github.com/mehmetraif/OSD-OS/wiki/Menu-Music)).
+
+| Setting | Values | Default | What it does | Config key |
+|---|---|---|---|---|
+| Audio Output | Auto, then each sound card that can play: AV Jack, HDMI (HDMI 0 and HDMI 1 when there are two), a USB card by its name | Auto | Which sound card plays, from the moment you choose it, for a video playing behind the menus too. Auto is the Pi's own default, or while that can't play (a Pi 5's HDMI without the picture), the first card that can | `app.audio_output`: `""` for Auto, or `{ "card", "name" }` |
+| Menu Music | THEME, Off, File | THEME; without a theme, Off | A tune under the menus: the theme's, if it has one (Green Screen has none), or the file below ([Menu music](https://github.com/mehmetraif/OSD-OS/wiki/Menu-Music)) | `app.menu_music`: `""`, `"Off"` or `"File"` |
+| Music File | A file picked on the file browser: MP3, WAV, OGG, Opus, FLAC, M4A, AAC, MID, MIDI, XM, MOD, S3M or IT; or No File | None | The menu music's own file, played over and over. Select opens the file browser. Dimmed but with Menu Music on File | `app.menu_music_file`: the file's full path |
+| Music Volume | A slider from QUIET to LOUD, 0 to 100 in steps of 10 | 60 | How loud the menu music is. It changes while the music plays. Dimmed while Menu Music is Off | `app.menu_music_volume`: a number |
+
 ### Audio Output
 
 ◄ ► step through **Auto** and the cards ALSA lists that can play (so a webcam's microphone isn't one). The Pi's analog card is **AV Jack**, its HDMI cards **HDMI**, and any other card shows by its own name, its id after it when two share one. mpv is told the card as `--audio-device=alsa/default:CARD=<id>`, and a script or a web player's browser gets `ALSA_CARD=<id>`. A card chosen and then unplugged stays chosen, shown as `NAME (Unplugged)`: sound goes as on Auto until it is back. Without a USB sound card to choose, the help line says what the system sees of one: none plugged in, one plugged in that the system made no sound card of, and on a Pi a power supply too weak for USB devices. On Auto nothing is added, so `audio-device` in `mpv.conf` and `/etc/asound.conf` still choose; only while ALSA's first card can't play, and nothing sets it otherwise, every player gets the first card that can as `ALSA_CARD`, and the row says so: **Auto (USB Audio Device)**. More in [Audio Output](https://github.com/mehmetraif/OSD-OS/wiki/Audio-Output).
 
-### Controls
+## Controls
+
+The sixth row opens Controls, a page of its own.
 
 <img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/screenshots/controls.png" width="100%" alt="Controls: ALL KEYBOARDS & REMOTES; PLAYERS: PLAYER 1 AUTO (OSD/OS JAMMA P1), PLAYER 2 AUTO (XBOX WIRELESS CO…), PLAYER 3 to PLAYER 6 AUTO" />
 
@@ -328,6 +242,10 @@ The first line, **All Keyboards & Remotes**, adds one more button to each of six
 - Saved as `app.remote_keymap.up`, `.down`, `.left`, `.right`, `.select` and `.back`, each a number: a Qt key code; a Consumer Control button as 33554432 (`0x02000000`) plus its Linux key code; a mouse button as 50331648 (`0x03000000`) plus Qt's button number (1 left, 2 right). `0` means none.
 
 A controller's own settings are saved under `app.controllers`, by its key. Every gamepad's buttons, the map each pad starts from, can also be set in the data folder's `input.cfg`. All of it is in [Controls](https://github.com/mehmetraif/OSD-OS/wiki/Controls#settings--controls).
+
+## Network
+
+The seventh row opens Network's page, `SETTINGS | NETWORK`: **Wi-Fi** and **Bluetooth**, a page each. Neither is saved in `config.json`: NetworkManager keeps the networks joined, and BlueZ the pairings.
 
 ### Wi-Fi
 
@@ -367,6 +285,55 @@ The page talks to BlueZ, Linux's Bluetooth service, as the user OSD/OS runs as (
 - Leaving the page stops a search and cancels a pairing.
 
 If BlueZ isn't running, or the computer has no adapter, the page says **No Bluetooth**. On a Mac, pair devices in the Mac's own Bluetooth settings.
+
+## Startup
+
+The eighth row opens Startup's page, `SETTINGS | STARTUP`: what OSD/OS opens on, and keeping it there.
+
+| Setting | Values | Default | What it does | Config key |
+|---|---|---|---|---|
+| Start on Module | None, then each module that is turned on, by name | None | Opens that module straight after start (on the OSD/OS image, once the boot screen has closed). A module turned off later is never opened, and the row shows None | `app.startup_module`: the module's id, such as `com.osdos.local_files`; `"None"` |
+| Play at Startup | None, or the name of the favourite chosen | None | A favourite played straight after start, ahead of Start on Module. You choose it in its module: ► on the entry, then **Play at Startup** (it goes on Favorites too). Here you can only turn it off. It plays only while it is still one of that module's favourites | `app.startup_favorite`: `{ "module", "path", "name" }`, or `""` for None |
+| Startup From | Resume, Beginning | Resume | Dimmed while there is no favourite to play at startup. Where it begins, without asking: where it was stopped, or from the start | `app.startup_from` |
+| Cabinet Lock | (opens its page) On, Off | Off | Keeps OSD/OS on Start on Module's module, a cabinet's Arcade screen: the main menu, Settings and Quit open only with the unlock buttons held together for three seconds ([below](#cabinet-lock)) | `app.cabinet_lock`: `"On"` or `"Off"`; the buttons `app.unlock_buttons` |
+
+The Scripts module's **Auto-Run On Startup** runs a script when OSD/OS starts on that module, so it needs Start on Module set to Scripts ([Scripts](https://github.com/mehmetraif/OSD-OS/wiki/Scripts)).
+
+### Cabinet Lock
+
+**Cabinet Lock** keeps a cabinet on its game list for the players: OSD/OS stays on Start on Module's module, the Arcade screen on a cabinet, and the menus behind it are out of their reach. The row opens its page, with two rows:
+
+| Row | What it does |
+|---|---|
+| Cabinet Lock | ◄ ► or select turn it on or off. On asks first, **Lock the cabinet?**, naming the module it stays on and the buttons that unlock it. It needs a Start on Module, and says so without one; without unlock buttons it asks for them first, then asks to lock. Off turns it off at once |
+| Unlock Buttons | Select, then hold the buttons that unlock it together for two seconds: one to four of them, of any pads and keyboards together, a direction among them if you like. The window names them as they are held (`P1 START + P2 START`); a fifth asks you to let one go. Nothing held for ten seconds, or back, keeps the old ones |
+
+<table>
+<tr><th width="33%">Cabinet Lock</th><th width="33%">Unlock Buttons</th><th width="33%">Lock the cabinet?</th></tr>
+<tr><td><img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/screenshots/cabinet-lock.png" width="100%" alt="Cabinet Lock: Cabinet Lock On and Unlock Buttons 1 + 2" /></td><td><img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/screenshots/cabinet-lock-buttons.png" width="100%" alt="Unlock Buttons: hold the buttons that unlock the cabinet together, 3 + 4 held" /></td><td><img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/screenshots/cabinet-lock-confirm.png" width="100%" alt="Lock the cabinet? OSD/OS stays on Arcade. Hold 3 + 4 together for three seconds to open the menus. Lock, Cancel" /></td></tr>
+<tr><td>The page: the lock and the buttons that open it.</td><td>The buttons held, named as they are, kept after two seconds.</td><td>Asked before it locks, with what unlocks it.</td></tr>
+</table>
+
+While it is locked:
+
+- **Back** on the start module goes nowhere: no main menu, no Settings, no Quit. Back inside the module works as ever (a game's options, Game Details, the screen before a game), and a game plays as ever; back from another module, one an NFC card opened, say, comes to the start module.
+- **Ctrl+Q** doesn't quit.
+- **The unlock buttons**, held together for three seconds, open the main menu. Everything is reachable then until OSD/OS starts again, or until they are held again, which takes it back to the start module, locked.
+- Turned on in Settings, it locks at once and goes to the start module. It locks only with a Start on Module that is turned on and with unlock buttons: `cabinet_lock` set to `"On"` in `config.json` without them locks nothing.
+
+The unlock buttons are named by the player whose pad presses them (`P1 START` is player 1's START, whichever pad player 1 has), a pad of no player's by the pad, and a key by its name. Each of them but a direction waits a moment (0.3 seconds) for the others before it acts, so that a START among them doesn't start a game on its own; pressed alone, it acts after that moment, and a direction acts at once. Held together, none of them acts.
+
+Forgot the buttons, or a pad that is gone? Turn the lock off from outside: put an `osdos-setup.json` holding `{"osdos_setup": 1, "config": {"app": {"cabinet_lock": "Off"}}}` on the card's boot partition (**bootfs**) or in the data folder and start OSD/OS ([Installation](https://github.com/mehmetraif/OSD-OS/wiki/Installation#osdos-setup-settings-on-the-card-before-the-first-boot)), or set `app.cabinet_lock` to `"Off"` in `config.json` over SSH with OSD/OS stopped ([Configuration files](https://github.com/mehmetraif/OSD-OS/wiki/Configuration-Files#editing-by-hand)).
+
+## System
+
+The ninth row opens System's page, `SETTINGS | SYSTEM`: OSD/OS Setup's settings pasted, the update, About, then under a **MODULES** heading the modules of no group ([Modules](#modules)), Scripts among them.
+
+| Setting | Values | Default | What it does | Config key |
+|---|---|---|---|---|
+| Paste OSD/OS Setup | An action | | Sets at once the settings copied on [OSD/OS Setup](https://osdos.tv/setup/) (**Copy for a computer**): OSD/OS's own and the RetroAchievements account. Where there is a clipboard: not on the OSD/OS image, whose card takes the page's file instead | Those it sets ([below](#paste-osdos-setup)) |
+| Update | A page | | Checks for a newer release, downloads it and installs it | None |
+| About | A page | | This device's System Information first: its name, which tells it apart from others on the network, what it is and each network connection's IP and MAC addresses, the name renamed on the OSD/OS image. Then what OSD/OS is, who makes it, what it is made of, the arcade's free software and sites, and their licenses | None: the device's name is the system's hostname |
 
 ### Paste OSD/OS Setup
 
@@ -419,7 +386,71 @@ About's first line, **System Information**, opens a page that tells one OSD/OS f
 
 On the OSD/OS image, select on Device Name renames the device on the on-screen keyboard: letters, digits and hyphens, 63 at most, neither end a hyphen. A space or an underscore becomes a hyphen, and capitals small letters. The new name holds at once and after a restart, and the help line says **Now called …**, or why not. The image's stop helper sets it as root (launcher level 8, [The device name's socket](https://github.com/mehmetraif/OSD-OS/wiki/The-OSD-OS-Image#the-device-names-socket)). Elsewhere, rename the computer in its own settings: `sudo hostnamectl set-hostname <name>` on Raspberry Pi OS.
 
-### Quit
+## Modules
+
+Under System's **MODULES** heading is a row for each module that belongs to no group: Scripts, and a module of your own that names none. Every module that has settings, which is all fourteen, brings them in its `manifest.json` ([Writing a module](https://github.com/mehmetraif/OSD-OS/wiki/Writing-a-Module)), and select on its row opens its page, `SETTINGS | <MODULE>`; the Arcade group's two share the Arcade page. Where a module's row is depends on its group, `settings_group` in the manifest:
+
+| Group | Where the module's page is | Modules, in the order of their folders |
+|---|---|---|
+| None | Under **MODULES** on System's page ([above](#system)) | Scripts |
+| `"tv"` | Under **MODULES** on TV / Movie's page ([above](#the-video-modules)) | Ambient:Mode, Emby, Jellyfin, Local Files, Netflix, NFC Reader, Playlists, Plex, Prime Video, Weather, YouTube |
+| `"arcade"` | The Arcade page, which the group's modules share, each after the first under its name as a heading ([above](#arcade)) | Arcade, High Scores |
+
+<table>
+<tr><th width="50%">A module's settings</th><th width="50%">Picking a folder</th></tr>
+<tr><td><img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/screenshots/module-settings.png" width="100%" alt="A module's settings: Local Files" /></td><td><img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/screenshots/folder-picker.png" width="100%" alt="Picking a folder" /></td></tr>
+<tr><td>Local Files: its folder, looping, shuffle, resume, subtitles, and its own Scaling.</td><td>A folder is picked on the same tree: <b>Use This Folder</b> picks the folder open, <b>Default Folder</b> the module's own.</td></tr>
+</table>
+
+### Turning a module on
+
+Every module's first row is **Enabled**. A module that is turned off is left off the main menu, can't be chosen in Start on Module, and an NFC card can't hand off to it. Until you change the row, the manifest's default applies: **Local Files** and **Playlists** are on, the other twelve off. The main menu picks up a change the next time you go back to it. The setting is saved as `modules.<module id>.enabled`, `true` or `false`.
+
+| Module | Module id | On by default | Its rows, in order |
+|---|---|---|---|
+| [Ambient:Mode](https://github.com/mehmetraif/OSD-OS/wiki/Ambient-Mode) | `com.osdos.ambient_mode` | No | Enabled, Media Directory, Auto-Launch Playback, Scaling |
+| [Arcade](https://github.com/mehmetraif/OSD-OS/wiki/Arcade) | `com.osdos.arcade` | No | Enabled, Games Folder, Hide Hacks and Bootlegs, Regions, Screen, Play at Startup, Start Info Screen, Play Mode, Save High Scores, Online High Scores (with RetroAchievements, RetroAchievements Account), Pictures From, Game Pictures, Online Play (with On, Relay Server), LAN Play, Online Name (with either on), MAME, FinalBurn Neo, Emulator Video (Game Picture, Screen Shape, Integer Scale, MAME Video), Read the Games Again; with Screen on Arcade, Start Filter, Menu Filters, List Style, Border, Info Background, Screen Adjustment, Hint Bar, Help Line, Attract Mode and Attract After too |
+| [Emby](https://github.com/mehmetraif/OSD-OS/wiki/Emby) | `com.osdos.emby` | No | Enabled; once signed in Libraries, Video Quality, Resume Playback, Autoplay Next Episode, Intro Skip, Credit Skip; Scaling; Sign out once signed in |
+| [High Scores](https://github.com/mehmetraif/OSD-OS/wiki/High-Scores) | `com.osdos.highscores` | No | Enabled, on the Arcade page under the **HIGH SCORES** heading |
+| [Jellyfin](https://github.com/mehmetraif/OSD-OS/wiki/Jellyfin) | `com.osdos.jellyfin` | No | Enabled; once signed in Libraries, Video Quality, Resume Playback, Autoplay Next Episode, and Intro Skip and Credit Skip where the server has the Intro Skipper plugin; Scaling; Sign out once signed in |
+| [Local Files](https://github.com/mehmetraif/OSD-OS/wiki/Local-Files) | `com.osdos.local_files` | Yes | Enabled, Media Directory, Loop Playback, Shuffle Playback, Resume Playback, Auto Show Subtitles, Subtitle Language, Image Duration, Hide File Extensions, Scaling |
+| [Netflix](https://github.com/mehmetraif/OSD-OS/wiki/Netflix-and-Prime-Video) | `com.osdos.netflix` | No | Enabled, Catalogue Region, Catalogue Language, Scaling, Sign in, Sign out |
+| [NFC Reader](https://github.com/mehmetraif/OSD-OS/wiki/NFC-Reader) | `com.osdos.nfc_reader` | No | Enabled, Tags Directory, Resume Playback, YouTube Video Resolution, Auto Show Subtitles, Subtitle Language, Scaling |
+| [Playlists](https://github.com/mehmetraif/OSD-OS/wiki/Playlists) | `com.osdos.playlists` | Yes | Enabled, Download Folder, Subtitles, Loop Playback, Scaling |
+| [Plex](https://github.com/mehmetraif/OSD-OS/wiki/Plex) | `com.osdos.plex` | No | Enabled; once signed in Current User, Auto Sign In, Server, Libraries, Video Quality, Resume Playback, Autoplay Next Episode; Scaling; Sign out once signed in |
+| [Prime Video](https://github.com/mehmetraif/OSD-OS/wiki/Netflix-and-Prime-Video) | `com.osdos.prime_video` | No | Enabled, Catalogue Region, Catalogue Language, Scaling, Sign in, Sign out |
+| [Scripts](https://github.com/mehmetraif/OSD-OS/wiki/Scripts) | `com.osdos.scripts` | No | Enabled, Scripts Directory, Auto-Run On Startup, Rescan Scripts |
+| [Weather](https://github.com/mehmetraif/OSD-OS/wiki/Weather) | `com.osdos.weather` | No | Enabled, Displays, Music, Units, Screen Time, Hours Format |
+| [YouTube](https://github.com/mehmetraif/OSD-OS/wiki/YouTube) | `com.osdos.youtube` | No | Enabled, Advanced (Playback Resolution, Video Codec, Max Frame Rate, Scaling, Audio Language, Subtitles, Subtitle Language, Playback Speed, Resume Playback, Display Shorts), Delete Watch Later, Delete Recently Watched, Sign in, Sign out |
+
+Each module's page on this wiki explains its rows. Every module that plays video has its own **Scaling**: **Default** (follow Settings → TV / Movie → Scaling) or one of the four, for that module only.
+
+### The kinds of row a module can have
+
+| Kind (`type` in the manifest) | How the row looks | ◄ ► | Select | Saved in `modules.<id>` as |
+|---|---|---|---|---|
+| `toggle` | `LABEL······◄ ON ►` | Flips it | Flips it | `true` or `false`; unset, the manifest's `default` (`"ON"` or `"OFF"`) |
+| `list_single` | `LABEL······◄ VALUE ►` | Steps through the choices, round | Nothing | The choice's text for a fixed list (`"Pan & Scan"`); for a list the module supplies (`"options_source": "dynamic"`), the choice's id (`"ask"`, `"forced"`) |
+| `multiselect_submenu` | `LABEL······►` | ► opens it | Opens a page of `NAME······◄ ON ►` lines, one per choice, under headings when the module groups them; ◄, ► or select flips one, and on a heading turns all of its group on, or off once they all are on | An object under the key, `{ "<id>": true, "<id>": false }`, saved whole at every change; a choice not in it is on (Plex's Libraries: every library shows until you turn it off), unless the module makes it off until turned on (Arcade's Menu Filters' publishers) |
+| `submenu` | `LABEL······►` | ► opens it | Opens a page of its own rows, titled `MODULE / LABEL` (YouTube's Advanced) | Nothing itself; its rows' keys stay flat under the module |
+| `directory_browser` | `LABEL······/PATH ►`, or `DEFAULT ►` | ► opens it | Opens the folder picker: **Default Folder** first, then the places, and **Use This Folder** at the top of every folder | The folder's path; `""` for the module's own |
+| `slider` | `LABEL`, and under it the deck's tape bar between its two ends' names, a ◄ and a ► beyond its ends | Moves the ▼ a step toward either end | Nothing | A number from 0 to 100; unset, the manifest's `default` (Arcade's Info Background) |
+| `action` | `LABEL` | Nothing | Runs it at once: Sign out, Delete Watch Later, Rescan Scripts | Nothing |
+| `module_view` | `LABEL` | Nothing | Opens the module on one of its own screens, enabled or not: Sign in for Netflix, Prime Video and YouTube, Arcade's Screen Adjustment | Nothing |
+
+Some rows are dimmed until something has happened, their help line saying what:
+
+- **Once signed in** (`requires_auth`): Plex's, Jellyfin's and Emby's server rows are dimmed until you have signed in, from inside the module: `Only once signed in`.
+- **When the server can** (`requires_capability`): Jellyfin's Intro Skip and Credit Skip are dimmed unless the server reports media segments, which its Intro Skipper plugin provides: `Not offered by the server`.
+- **With another row** (`shown_with`): a row that goes with another's value, such as Arcade's Relay Server with Online Play, is dimmed while that row is set otherwise: `Only with Online Play on`.
+
+Rows that act at once:
+
+- **At once** (`apply_slot`): changing Plex's Current User or Server tells the module straight away, and it switches.
+
+## Quit
+
+The first screen's last row.
 
 <img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/screenshots/quit.png" width="100%" alt="Quit" />
 

@@ -1,7 +1,7 @@
 import QtQuick
 import QtTest
 
-// Settings → Test Patterns, views/TestPatterns.qml: the 240p Test Suite's
+// Settings → Screen → Test Patterns, views/TestPatterns.qml: the 240p Test Suite's
 // pictures, every one of them there and loading; ◄ ► through the patterns
 // and round, ▲ ▼ through a pattern's kinds; the name and keys over it as it
 // opens and changes, gone after a few seconds or with select; the effects

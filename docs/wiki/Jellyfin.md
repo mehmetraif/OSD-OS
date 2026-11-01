@@ -15,7 +15,7 @@ The module is in [modules/jellyfin](https://github.com/mehmetraif/OSD-OS/tree/ma
 - A Jellyfin server the device can reach, and its address: `http://` or `https://`, the host or IP address, and the port (Jellyfin's usual ones are 8096 for HTTP and 8920 for HTTPS), such as `http://192.168.1.20:8096`.
 - **Quick Connect** turned on in the server's settings (an administrator can do it in the Jellyfin dashboard).
 - A phone, tablet or computer where you are signed in to Jellyfin as the user OSD/OS should play as, to approve the code.
-- Something to type the server's address with, once: a USB keyboard, or one paired in **Settings → Bluetooth**. The sign-in screen has no on-screen keyboard. Without a keyboard, put the address in `config.json` first ([below](#sign-in-without-a-keyboard)), and the remote does the rest.
+- Something to type the server's address with, once: a USB keyboard, or one paired in **Settings → Network → Bluetooth**. The sign-in screen has no on-screen keyboard. Without a keyboard, put the address in `config.json` first ([below](#sign-in-without-a-keyboard)), and the remote does the rest.
 
 ## Turning it on
 
@@ -266,7 +266,7 @@ OSD/OS's own requests to the server accept a certificate the server made itself,
 
 | Problem | What to do |
 |---|---|
-| No way to type the address | Plug in or pair a keyboard (Settings → Bluetooth), or [put the address in config.json](#sign-in-without-a-keyboard) |
+| No way to type the address | Plug in or pair a keyboard (Settings → Network → Bluetooth), or [put the address in config.json](#sign-in-without-a-keyboard) |
 | **CONNECTION FAILED: …** | Check the address has `http://` or `https://` and the port. From the device, `curl http://192.168.1.20:8096/System/Info/Public` (with your address) should answer with the server's name |
 | **CONNECTION FAILED: HOST REQUIRES AUTHENTICATION** | Quick Connect is off: turn it on in the Jellyfin dashboard |
 | **CODE EXPIRED** | Approve within 2 minutes; go back and start again for a new code |

@@ -1,7 +1,7 @@
 import QtQuick
 import Components
 
-// After Settings → Display Output switched the picture to another output, the
+// After Settings → Screen → Display Output switched the picture to another output, the
 // first thing on it, over the boot screen: kept with select, else the old
 // output comes back after `seconds` (displayOutput.revert()), so a screen that
 // shows nothing puts itself right. Or, when the last change didn't stay, a

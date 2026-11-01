@@ -14,6 +14,6 @@ alsa-utils
 # where mpv's ffmpeg can't play one itself.
 fluidsynth timgm6mb-soundfont openmpt123
 # polkitd, which reads the rule that lets the app's user use NetworkManager
-# (Settings → Wi-Fi, 02-system). network-manager pulls it in already; named
+# (Settings → Network → Wi-Fi, 02-system). network-manager pulls it in already; named
 # so it stays.
 polkitd

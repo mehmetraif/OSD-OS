@@ -1,5 +1,5 @@
 #version 440
-// Settings → Background Effect's Plasma: the old demos' favourite, as the
+// Settings → Look → Effects → Background Effect's Plasma: the old demos' favourite, as the
 // template theme draws it (docs/theme-template/plasma.frag, the Shaders wiki
 // page), drifting slowly behind the menus in the colour scheme's colour.
 // Faint, so the menus stay easy to read, in art pixels on the screen's grid,

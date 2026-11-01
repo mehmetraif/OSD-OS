@@ -13,7 +13,7 @@
 #include <QTest>
 #include <QVariantMap>
 
-// Settings → About → System Information (src/system/SystemInfo): its rows of
+// Settings → System → About → System Information (src/system/SystemInfo): its rows of
 // what the device is, read from a stand-in for Linux's own files, the names
 // the network takes of what is typed, and the device renamed through a
 // stand-in for osdos-name.socket. Every name is an invented one.

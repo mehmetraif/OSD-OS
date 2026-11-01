@@ -1,7 +1,7 @@
 # OSD/OS image boot configuration. More options: http://rptl.io/configtxt
 #
 # The display output is set in osdos-display.txt, next to this file, a copy of
-# one of the presets beside it. Settings → Display Output switches between the
+# one of the presets beside it. Settings → Screen → Display Output switches between the
 # ones the Pi has; from any computer, copy one over it:
 #   osdos-display-hdmi.txt            HDMI, resolution auto-detected
 #   osdos-display-crt-ntsc.txt        composite, NTSC, 4:3 (AV jack, Pi 5 TV pads)

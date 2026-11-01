@@ -1,19 +1,19 @@
 # Display Output
 
-Settings → **Display Output**, on the OSD/OS image, switches where the picture goes: HDMI, composite, or RGB for SCART through a cable on the GPIO pins, among the outputs your Raspberry Pi has. This page covers how OSD/OS knows which Pi it runs on, every output each model offers, exactly what each one writes to the boot partition, the switch and its keep-or-go-back question, the cables, overscan and the safe area, setting the output by hand (on the image and on an app install), and what to do about a black screen.
+Settings → Screen → **Display Output**, on the OSD/OS image, switches where the picture goes: HDMI, composite, or RGB for SCART through a cable on the GPIO pins, among the outputs your Raspberry Pi has. This page covers how OSD/OS knows which Pi it runs on, every output each model offers, exactly what each one writes to the boot partition, the switch and its keep-or-go-back question, the cables, overscan and the safe area, setting the output by hand (on the image and on an app install), and what to do about a black screen.
 
 ## Where it is, and when
 
-**Settings → Display Output** is in Settings' Application section, its value the output in force (`HDMI`, `Composite PAL`, …). Its help line reads: *Where the picture goes, among the outputs this Pi has: a change restarts OSD/OS, and the new output stays only when you keep it on its screen, else the old one comes back in 30 seconds.*
+**Settings → Screen → Display Output** is on Settings' Screen page, its value the output in force (`HDMI`, `Composite PAL`, …). Its help line reads: *Where the picture goes, among the outputs this Pi has: a change restarts OSD/OS, and the new output stays only when you keep it on its screen, else the old one comes back in 30 seconds.*
 
-The row is there only when all of this holds ([`src/display/DisplayOutput.cpp`](https://github.com/mehmetraif/OSD-OS/blob/main/src/display/DisplayOutput.cpp)):
+The row can be used only when all of this holds, and is dimmed otherwise ([`src/display/DisplayOutput.cpp`](https://github.com/mehmetraif/OSD-OS/blob/main/src/display/DisplayOutput.cpp)):
 
 1. `/boot/firmware/osdos-display.txt` exists, as on the OSD/OS image, with the presets beside it.
 2. OSD/OS was started by its service (`OSDOS_AUTOSTART` set), whose stop helper writes the presets as root.
 3. The launcher is level 3 or later (`OSDOS_LAUNCHER_API`), so the stop helper knows how. **Switch and Power Off** and **At Next Start** need level 5, JAMMA 240p level 4 and the JAMMA board's other modes level 6.
 4. The Pi has more than one output to choose from.
 
-So it isn't offered on macOS, SteamOS or desktop Linux, on Raspberry Pi OS with the app installed (unless you add the presets, see [On an app install](https://github.com/mehmetraif/OSD-OS/wiki/Display-Output#on-an-app-install)), when `osdos` is started by hand from a shell, or on a board OSD/OS doesn't know.
+So it is dimmed on macOS, SteamOS or desktop Linux, on Raspberry Pi OS with the app installed (unless you add the presets, see [On an app install](https://github.com/mehmetraif/OSD-OS/wiki/Display-Output#on-an-app-install)), when `osdos` is started by hand from a shell, or on a board OSD/OS doesn't know.
 
 | Setting | Values | Default | What it does | Config key |
 |---|---|---|---|---|
@@ -110,7 +110,7 @@ JAMMA 240p is offered only by a launcher at level 4 or later, whose stop helper 
 
 ## Switching
 
-1. Open **Settings → Display Output** and press select. A chooser opens: **Display Output**, with the Pi's model and **Now: <output>** under it (and **Next start: <output>** while one waits). The arrows move, select chooses, back closes it.
+1. Open **Settings → Screen → Display Output** and press select. A chooser opens: **Display Output**, with the Pi's model and **Now: <output>** under it (and **Next start: <output>** while one waits). The arrows move, select chooses, back closes it.
 2. Choose another output. OSD/OS asks **Switch to <output>?**, *Now, or from the next time the Pi starts. Keep it there, or in 30 seconds it comes back to <output now>*:
    - **Switch and Restart**: now. The Pi restarts on it.
    - **At Next Start**: written now, and the Pi stays on, on the output it has. It starts on the new one the next time it starts, however that comes: Quit, the power switch, a power cut ([At the next start](https://github.com/mehmetraif/OSD-OS/wiki/Display-Output#at-the-next-start)).
@@ -125,7 +125,7 @@ JAMMA 240p is offered only by a launcher at level 4 or later, whose stop helper 
 
 ```mermaid
 flowchart TD
-    A["Settings → Display Output<br/>choose an output"] --> B["Switch to …?<br/>Switch and Restart"]
+    A["Settings → Screen → Display Output<br/>choose an output"] --> B["Switch to …?<br/>Switch and Restart"]
     B --> C["display-output.json: from, to<br/>exit 20 to 38, or 40 to 58 to power off"]
     C --> D["osdos-stop, as root:<br/>osdos-display.txt → osdos-display-previous.txt<br/>preset → osdos-display.txt<br/>modprobe line for a Pi 5's SCART"]
     D --> E["reboot, or off until switched on"]
@@ -190,7 +190,7 @@ After a switch back, the old output says so once: **Back to <old output>**, *<ne
 
 ## Setting the screen up
 
-Once the picture is on the output, **Settings → Test Patterns** has the pictures to set the screen up by: the Grid for its size, position and geometry (red squares just showing at every edge), the Monoscope and Convergence for a tube's convergence, PLUGE, Color Bars and Gray Ramp for brightness, contrast and colour, and solid colours for purity ([Settings → Test Patterns](https://github.com/mehmetraif/OSD-OS/wiki/Settings#test-patterns)).
+Once the picture is on the output, **Settings → Screen → Test Patterns** has the pictures to set the screen up by: the Grid for its size, position and geometry (red squares just showing at every edge), the Monoscope and Convergence for a tube's convergence, PLUGE, Color Bars and Gray Ramp for brightness, contrast and colour, and solid colours for purity ([Settings → Screen → Test Patterns](https://github.com/mehmetraif/OSD-OS/wiki/Settings#test-patterns)).
 
 ## The base config.txt
 
@@ -262,7 +262,7 @@ Two comment lines matter to OSD/OS, not to the firmware. On a Pi 5, the launcher
 ### HDMI
 
 ```ini
-# HDMI to a modern TV, its resolution detected. Chosen in Settings → Display
+# HDMI to a modern TV, its resolution detected. Chosen in Settings → Screen → Display
 # Output, or copied over osdos-display.txt (config.txt says how).
 display_auto_detect=1
 hdmi_force_hotplug=1
@@ -281,7 +281,7 @@ NTSC, 480 lines, 4:3:
 
 ```ini
 # Composite to a CRT, NTSC, 4:3: the AV jack of a Pi 3 or 4, the TV pads (J7)
-# of a Pi 5. Chosen in Settings → Display Output, or copied over
+# of a Pi 5. Chosen in Settings → Screen → Display Output, or copied over
 # osdos-display.txt (config.txt says how).
 # A Pi 5 may keep HDMI on beside it: OSD/OS takes this output, in this mode,
 # whose lines make it NTSC there:
@@ -314,7 +314,7 @@ On a Pi 3 or 4 the AV jack carries the picture and the sound. A Pi 5 has no AV j
 ```ini
 # Composite to a CRT, NTSC, 4:3, from a Pi 5's GPIO pins: an 8-bit code on
 # GPIO 4-11 that a DAC turns into the picture (os/README.md). Chosen in
-# Settings → Display Output, or copied over osdos-display.txt (config.txt
+# Settings → Screen → Display Output, or copied over osdos-display.txt (config.txt
 # says how).
 # A Pi 5 may keep HDMI on beside it: OSD/OS takes this output, in this mode,
 # whose lines make it NTSC there:
@@ -340,7 +340,7 @@ RGB comes out of the GPIO pins as the Pi's parallel display interface (DPI), in 
 # RGB to a CRT through SCART, NTSC timing (480i), from the GPIO pins: GPIO
 # 4-21 carry the colours to a resistor DAC (the VGA666's layout), GPIO 2 and 3
 # the vertical and horizontal sync (os/README.md has the cable). Chosen in
-# Settings → Display Output, or copied over osdos-display.txt (config.txt says
+# Settings → Screen → Display Output, or copied over osdos-display.txt (config.txt says
 # how).
 # A Pi 5 keeps HDMI on beside it: OSD/OS takes this output. Its composite
 # sync, for SCART, is on GPIO 1 (/etc/modprobe.d/osdos-display.conf).
@@ -447,7 +447,7 @@ It has a part for the Pi 4 and one for the Pi 5. Crown Arcade names the Pi 3 B+ 
 # I2C bus of its two MCP23017s, the players' controls, which osdos-jamma reads
 # (the line below tells it to). The sound: on a Pi 4 GPIO 18 and 19, to the
 # board's amplifier; a Pi 5 can't put it there, so a USB sound card's (Settings
-# → Audio Output). Chosen in Settings → Display Output, or copied over
+# → Audio Output). Chosen in Settings → Screen → Display Output, or copied over
 # osdos-display.txt (config.txt says how).
 # osdos-controls: jamma
 # A Pi 5 keeps HDMI on beside it: OSD/OS takes this output, in this mode. The
@@ -504,7 +504,7 @@ The Pi 4's part, its firmware's DPI:
 | `dpi_output_format=6` | 6 bits a colour, in that layout ("mode 6") |
 | `dpi_timings=…` | 240p at 15.7 kHz and 60 Hz, as `scart-rgb-240p`, with both syncs `1`, as RGB-Pi's own Pi 4 timings have them |
 | `dtparam=i2c_vc=on` | I2C on GPIO 0 and 1 (`/dev/i2c-0`), where the board's two MCP23017s read the controls |
-| `dtoverlay=audremap,pins_18_19` | The sound on GPIO 18 and 19, the board's amplifier. The AV jack goes quiet, and Settings → Audio Output's **AV Jack** is the cabinet's speaker |
+| `dtoverlay=audremap,pins_18_19` | The sound on GPIO 18 and 19, the board's amplifier. The AV jack goes quiet, and Settings → Sound → Audio Output's **AV Jack** is the cabinet's speaker |
 
 The Pi 5's part, the kernel's DPI:
 
@@ -515,7 +515,7 @@ The Pi 5's part, the kernel's DPI:
 | `dtparam=hsync-invert,vsync-invert,rgb666-padhi` | Both syncs active low, as RGUI-Pi's DPI driver drives the board, and 6 bits a colour in the "mode 6" layout |
 | `dtoverlay=osdos-jamma-dpi` | The image's own overlay: the DPI on GPIO 2 to 9, 12 to 17 and 20 to 25 only, the Pi 5's own pin group for it. `rgb666-padhi` alone takes GPIO 0 and 1 too, from the controls. Built from [`osdos-jamma-dpi.dts`](https://github.com/mehmetraif/OSD-OS/blob/main/os/stage-osdos/03-boot/files/osdos-jamma-dpi.dts) into `/boot/firmware/overlays/osdos-jamma-dpi.dtbo` as the image is made |
 
-**The sound on a Pi 5.** A Pi 5 has its audio out only on GPIO 12 and 13 (`audremap-pi5`), which the picture takes, so the board's amplifier stays quiet. Plug in a USB sound card and choose it in [Settings → Audio Output](https://github.com/mehmetraif/OSD-OS/wiki/Audio-Output). Some adapters show their sound only with something in their jack, so the cable from one to the cabinet's amplifier stays plugged into it. OSD/OS keeps the card at its full level, so the board's volume knob sets how loud it is.
+**The sound on a Pi 5.** A Pi 5 has its audio out only on GPIO 12 and 13 (`audremap-pi5`), which the picture takes, so the board's amplifier stays quiet. Plug in a USB sound card and choose it in [Settings → Sound → Audio Output](https://github.com/mehmetraif/OSD-OS/wiki/Audio-Output). Some adapters show their sound only with something in their jack, so the cable from one to the cabinet's amplifier stays plugged into it. OSD/OS keeps the card at its full level, so the board's volume knob sets how loud it is.
 
 **Should the picture roll**: on a Pi 4, change the 2nd and 7th numbers of `dpi_timings` from `1` to `0`; on a Pi 5, take `hsync-invert,vsync-invert,` out of the line `dtparam=hsync-invert,vsync-invert,rgb666-padhi`. A monitor that drops its sync now and then may need a sync cleaner, as it would with other Pi boards.
 
@@ -567,7 +567,7 @@ The presets above that this page shows only by what differs, exactly as they are
 
 ```ini
 # Composite to a CRT, PAL, 4:3: the AV jack of a Pi 3 or 4, the TV pads (J7)
-# of a Pi 5. Chosen in Settings → Display Output, or copied over
+# of a Pi 5. Chosen in Settings → Screen → Display Output, or copied over
 # osdos-display.txt (config.txt says how).
 # A Pi 5 may keep HDMI on beside it: OSD/OS takes this output, in this mode,
 # whose lines make it PAL there:
@@ -588,7 +588,7 @@ dtoverlay=vc4-kms-v3d,cma-512,composite=1
 ```ini
 # Composite to a CRT, PAL, 4:3, from a Pi 5's GPIO pins: an 8-bit code on
 # GPIO 4-11 that a DAC turns into the picture (os/README.md). Chosen in
-# Settings → Display Output, or copied over osdos-display.txt (config.txt
+# Settings → Screen → Display Output, or copied over osdos-display.txt (config.txt
 # says how).
 # A Pi 5 may keep HDMI on beside it: OSD/OS takes this output, in this mode,
 # whose lines make it PAL there:
@@ -608,7 +608,7 @@ dtoverlay=vec-gpio-pi5
 # RGB to a CRT through SCART, PAL timing (576i), from the GPIO pins: GPIO 4-21
 # carry the colours to a resistor DAC (the VGA666's layout), GPIO 2 and 3 the
 # vertical and horizontal sync (os/README.md has the cable). Chosen in
-# Settings → Display Output, or copied over osdos-display.txt (config.txt says
+# Settings → Screen → Display Output, or copied over osdos-display.txt (config.txt says
 # how).
 # A Pi 5 keeps HDMI on beside it: OSD/OS takes this output. Its composite
 # sync, for SCART, is on GPIO 1 (/etc/modprobe.d/osdos-display.conf).
@@ -641,7 +641,7 @@ dtparam=hsync-invert,vsync-invert,interlaced
 # RGB to a CRT through SCART, NTSC timing (240p), from a Pi 4's GPIO pins,
 # should its 480i not hold: GPIO 4-21 carry the colours to a resistor DAC (the
 # VGA666's layout), GPIO 2 and 3 the vertical and horizontal sync
-# (os/README.md has the cable). Chosen in Settings → Display Output, or copied
+# (os/README.md has the cable). Chosen in Settings → Screen → Display Output, or copied
 # over osdos-display.txt (config.txt says how).
 
 # The Pi 4's DPI is its firmware's, the only output, its syncs negative as a
@@ -664,7 +664,7 @@ dpi_timings=720 0 16 62 60 240 0 4 3 15 0 0 0 60 0 13500000 1
 # RGB to a CRT through SCART, PAL timing (288p), from a Pi 4's GPIO pins,
 # should its 576i not hold: GPIO 4-21 carry the colours to a resistor DAC (the
 # VGA666's layout), GPIO 2 and 3 the vertical and horizontal sync
-# (os/README.md has the cable). Chosen in Settings → Display Output, or copied
+# (os/README.md has the cable). Chosen in Settings → Screen → Display Output, or copied
 # over osdos-display.txt (config.txt says how).
 
 # The Pi 4's DPI is its firmware's, the only output, its syncs negative as a
@@ -978,7 +978,7 @@ dtoverlay=vc4-kms-v3d
 
 They are close to the image's `config.txt` with its `crt-ntsc` or `hdmi` preset written into the same file.
 
-**Settings → Display Output on an app install.** The setting needs only what the image puts on the boot partition. An install made with `install.sh` and its autostart service already has the rest: the stop helper that writes the presets, the next-start socket, and the launcher at level 5 (an install from before needs `install.sh` run again once). Keep the old `config.txt`, then fetch the image's into place, starting on HDMI:
+**Settings → Screen → Display Output on an app install.** The setting needs only what the image puts on the boot partition. An install made with `install.sh` and its autostart service already has the rest: the stop helper that writes the presets, the next-start socket, and the launcher at level 5 (an install from before needs `install.sh` run again once). Keep the old `config.txt`, then fetch the image's into place, starting on HDMI:
 
 ```sh
 base=https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/os/stage-osdos/03-boot/files

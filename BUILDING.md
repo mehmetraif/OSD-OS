@@ -158,7 +158,7 @@ The menu music plays MIDI files with FluidSynth and a SoundFont, and a tracker's
 
 For the NFC Reader module, `libpcsclite-dev` is optional and only needed for PC/SC readers such as the ACR122U — it is detected automatically at configure time. A PN532 USB reader needs no build dependency at all.
 
-Settings → Bluetooth talks to BlueZ through Qt D-Bus, which `qt6-base-dev` includes; without it the row is left out. At run time it needs `bluez` (Raspberry Pi OS Lite has it), with the user the app runs as in the `bluetooth` group (`sudo usermod -aG bluetooth $USER`; `install.sh` and the OS image do this).
+Settings → Network → Bluetooth talks to BlueZ through Qt D-Bus, which `qt6-base-dev` includes; without it the row is left out. At run time it needs `bluez` (Raspberry Pi OS Lite has it), with the user the app runs as in the `bluetooth` group (`sudo usermod -aG bluetooth $USER`; `install.sh` and the OS image do this).
 
 ```bash
 sudo apt-get install -y libpcsclite-dev
@@ -645,7 +645,7 @@ git push origin v1.0.0-rc1
 
 Tags containing `-rc`, `-beta`, or `-alpha` are published as GitHub pre-releases.
 
-A release can also be made on GitHub's **Releases** page (**Draft a new release**, a new tag, **Publish release**): the tag it makes starts the same workflow. GitHub makes such a release public, and the latest, at once, before any of its files is built, so the workflow's first job (`hold-release`) takes it back to a draft, and the `release` job publishes it once every file is attached, some twenty minutes later. Meanwhile the release shows as a draft on the Releases page, and a Pi's Settings → Update still reads the release before it as the latest, instead of a release without a package for it.
+A release can also be made on GitHub's **Releases** page (**Draft a new release**, a new tag, **Publish release**): the tag it makes starts the same workflow. GitHub makes such a release public, and the latest, at once, before any of its files is built, so the workflow's first job (`hold-release`) takes it back to a draft, and the `release` job publishes it once every file is attached, some twenty minutes later. Meanwhile the release shows as a draft on the Releases page, and a Pi's Settings → System → Update still reads the release before it as the latest, instead of a release without a package for it.
 
 ### What the workflow does
 

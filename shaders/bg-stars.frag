@@ -1,5 +1,5 @@
 #version 440
-// Settings → Background Effect's Stars: a starfield drifting past the window,
+// Settings → Look → Effects → Background Effect's Stars: a starfield drifting past the window,
 // the nearer stars faster and brighter, twinkling. In art pixels, on the
 // screen's grid, as the Matrix rain is (bg-matrix.frag).
 

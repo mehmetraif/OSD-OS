@@ -1,5 +1,5 @@
 #version 440
-// Settings → Background Effect's Fire: pixel flames burning up from the
+// Settings → Look → Effects → Background Effect's Fire: pixel flames burning up from the
 // window's foot, inside its frame, in a fire's colours and dithered where one
 // shade meets the next. In art pixels, on the screen's grid, as the
 // Matrix rain is (bg-matrix.frag).

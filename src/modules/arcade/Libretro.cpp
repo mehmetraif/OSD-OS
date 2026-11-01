@@ -580,7 +580,7 @@ QString configText(const Launch &launch) {
         // gets -sound none.
         if (launch.sound) {
             set("audio_driver", QStringLiteral("alsa"));
-            // ALSA's default: the card Settings → Audio Output gives (ALSA_CARD).
+            // ALSA's default: the card Settings → Sound → Audio Output gives (ALSA_CARD).
             set("audio_device", QString());
         } else {
             set("audio_driver", QStringLiteral("null"));

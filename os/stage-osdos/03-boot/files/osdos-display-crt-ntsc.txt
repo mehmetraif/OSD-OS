@@ -1,5 +1,5 @@
 # Composite to a CRT, NTSC, 4:3: the AV jack of a Pi 3 or 4, the TV pads (J7)
-# of a Pi 5. Chosen in Settings → Display Output, or copied over
+# of a Pi 5. Chosen in Settings → Screen → Display Output, or copied over
 # osdos-display.txt (config.txt says how).
 # A Pi 5 may keep HDMI on beside it: OSD/OS takes this output, in this mode,
 # whose lines make it NTSC there:
