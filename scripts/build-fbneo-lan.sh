@@ -11,6 +11,13 @@
 #   on whichever machine, becomes the first free player as it comes in, so
 #   that a controller no one plays holds no player. The seats are in the
 #   core's states, so every machine seats alike.
+# - sets a game's DIP switch for how many players its cabinet has
+#   ("Cabinet: 2 Players / 4 Players", "Number of Players", "Max Players")
+#   to the most it has inputs for, each with a coin slot of its own where
+#   the switch offers one, by default, which is what every machine on the
+#   network plays with: a game left on two players reads no third or fourth
+#   player's coin, start or controls. A setting for two boards linked, a
+#   cocktail table or free play is never taken.
 # - for Cave's CV1000 board (Akai Katana, Mushihime-sama, DoDonPachi
 #   DaiFukkatsu...), leaves the board's 128 MiB of video memory out of the
 #   states netplay keeps a ring of, and has the game wait from power on

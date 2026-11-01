@@ -120,7 +120,7 @@ index f3714ae..b48ba75 100644
  
  	serflash_scan(nAction, pnMin); // writes back to flash (hiscores ddpdfk, etc) here
 diff --git a/src/burner/libretro/libretro.cpp b/src/burner/libretro/libretro.cpp
-index 9e89835..ea8af31 100644
+index 9e89835..7a6e9eb 100644
 --- a/src/burner/libretro/libretro.cpp
 +++ b/src/burner/libretro/libretro.cpp
 @@ -41,6 +41,10 @@
@@ -134,7 +134,140 @@ index 9e89835..ea8af31 100644
  int counter;           // General purpose variable used when debugging
  
  static void log_dummy(enum retro_log_level level, const char *fmt, ...) { }
-@@ -1366,6 +1370,50 @@ static void VideoBufferInit()
+@@ -498,6 +502,123 @@ void InpDIPSWResetDIPs (void)
+ 	}
+ }
+ 
++// OSD/OS's LAN core: the count just before "player" in a DIP switch's text
++// ("4 Players", "4-player", "Two Players"), 0 for none.
++static int LanCountBefore(const std::string &text, size_t at)
++{
++	static const char *const words[] = { "one", "two", "three", "four", "five", "six" };
++	size_t end = at;
++	while (end > 0 && (text[end - 1] == ' ' || text[end - 1] == '-'))
++		end--;
++	if (end == 0)
++		return 0;
++	if (text[end - 1] >= '1' && text[end - 1] <= '9')
++		return (end >= 2 && text[end - 2] >= '0' && text[end - 2] <= '9') ? 0 : text[end - 1] - '0';
++	size_t begin = end;
++	while (begin > 0 && isalpha((unsigned char)text[begin - 1]))
++		begin--;
++	const std::string word = text.substr(begin, end - begin);
++	for (int i = 0; i < 6; i++) {
++		if (word == words[i])
++			return i + 1;
++	}
++	return 0;
++}
++
++// OSD/OS's LAN core: how many players a DIP switch's setting gives, from a
++// count before "player" or "P" ("4 Players", "Upright (2P)"), a bare count
++// where the switch counts players ("Players: 4"), or "On" where its name
++// does ("4 Players Mode"); 0 for none, and for a setting for two boards
++// linked, a cocktail table's turned screen or free play, none of them a
++// network's. *ownCoins: each player has a coin slot of their own.
++static int LanPlayersOf(const char *setting, bool bare, int named, bool *ownCoins)
++{
++	static const char *const unfit[] = { "link", "combin", "2 cabinets", "2 machines", "x2", "cocktail", "coctail", "table", "free" };
++	*ownCoins = false;
++	if (!setting)
++		return 0;
++	std::string text = setting;
++	for (size_t i = 0; i < text.size(); i++)
++		text[i] = tolower((unsigned char)text[i]);
++	for (int i = 0; i < (int)(sizeof(unfit) / sizeof(unfit[0])); i++) {
++		if (text.find(unfit[i]) != std::string::npos)
++			return 0;
++	}
++	int players = 0;
++	if (bare && text.size() == 1 && text[0] >= '1' && text[0] <= '9')
++		players = text[0] - '0';
++	if (named && (text == "on" || text == "yes"))
++		players = named;
++	for (size_t at = text.find("player"); at != std::string::npos; at = text.find("player", at + 1)) {
++		const int count = LanCountBefore(text, at);
++		if (count > players)
++			players = count;
++	}
++	for (size_t i = 0; i + 1 < text.size(); i++) {
++		if (text[i] >= '1' && text[i] <= '9' && text[i + 1] == 'p' && (i == 0 || !isalnum((unsigned char)text[i - 1]))
++			&& (i + 2 == text.size() || !isalpha((unsigned char)text[i + 2])) && text[i] - '0' > players)
++			players = text[i] - '0';
++	}
++	if (players > 1) {
++		const char slots[] = { char('0' + players), ' ', 0 };
++		*ownCoins = text.find("separ") != std::string::npos || text.find("seprate") != std::string::npos;
++		for (size_t at = text.find(slots); at != std::string::npos && !*ownCoins; at = text.find(slots, at + 1))
++			*ownCoins = text.compare(at + 2, 4, "coin") == 0 || text.compare(at + 2, 4, "slot") == 0;
++	}
++	return players;
++}
++
++// OSD/OS's LAN core: a DIP switch that sets how many players the cabinet has
++// ("Cabinet: 2 Players / 4 Players", "Number of Players", "Max Players")
++// defaults to the most the game has inputs for, each with a coin slot of
++// their own where the switch says so. Every machine on the network plays
++// with the DIP switches' defaults, and a game left on two players reads no
++// third or fourth player's coin, start or controls.
++static void LanMostPlayersByDefault(dipswitch_core_option *dip_option)
++{
++	static const char *const counts[] = { "players", "number of players", "number of players (game)", "max players" };
++	static const char *const other[] = { "credit", "time", "live", "life", "score", "continue", "vitality", "skill", "energy",
++		"power", "speed", "damage", "bullet", "start", "select", "inning", "round", "enem", "skin", "truck", "car ", "controls", "only", "test" };
++	std::string name = dip_option->friendly_name_categorized;
++	for (size_t i = 0; i < name.size(); i++)
++		name[i] = tolower((unsigned char)name[i]);
++	if (name.find("player") == std::string::npos && name.find("cabinet") == std::string::npos)
++		return;
++	for (int i = 0; i < (int)(sizeof(other) / sizeof(other[0])); i++) {
++		if (name.find(other[i]) != std::string::npos)
++			return;
++	}
++	bool bare = false;
++	for (int i = 0; i < (int)(sizeof(counts) / sizeof(counts[0])); i++)
++		bare = bare || name == counts[i];
++	int named = 0;
++	for (size_t at = name.find("player"); at != std::string::npos; at = name.find("player", at + 1)) {
++		const int count = LanCountBefore(name, at);
++		if (count > named)
++			named = count;
++	}
++	if (named < 2)
++		named = 0;
++
++	bool own = false;
++	int players = LanPlayersOf(dip_option->default_bdi.szText, bare, named, &own);
++	int best = players * 2 + own;
++	int chosen = -1;
++	for (int v = 0; v < (int)dip_option->values.size(); v++) {
++		const int count = LanPlayersOf(dip_option->values[v].bdi.szText, bare, named, &own);
++		if (count < 2 || count > nMaxPlayers || count * 2 + own <= best)
++			continue;
++		best = count * 2 + own;
++		players = count;
++		chosen = v;
++	}
++	if (chosen < 0)
++		return;
++	dip_option->default_bdi = dip_option->values[chosen].bdi;
++	log_cb(RETRO_LOG_INFO, "[FBNeo] OSD/OS LAN: DIP switch \"%s\" set to \"%s\" for %d players\n",
++		dip_option->friendly_name_categorized.c_str(), dip_option->default_bdi.szText, players);
++}
++
+ static int create_variables_from_dipswitches()
+ {
+ 	HandleMessage(RETRO_LOG_INFO, "Initialize DIP switches.\n");
+@@ -624,6 +745,8 @@ static int create_variables_from_dipswitches()
+ 				dipswitch_core_options.pop_back();
+ 				continue;
+ 			}
++
++			LanMostPlayersByDefault(dip_option);
+ 		}
+ 	}
+ 
+@@ -1366,6 +1489,50 @@ static void VideoBufferInit()
  		memset(pVidImage, 0, nSize);
  }
  
@@ -185,7 +318,7 @@ index 9e89835..ea8af31 100644
  void retro_run()
  {
  	bool bEnableVideo  = true;
-@@ -1479,6 +1527,8 @@ void retro_run()
+@@ -1479,6 +1646,8 @@ void retro_run()
  
  	ForceFrameStep();
  
