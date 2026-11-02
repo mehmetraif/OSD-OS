@@ -57,7 +57,7 @@ Arcade games, on a cabinet's selection screen, for up to six players, and with o
 | Page | What is in it |
 |---|---|
 | [Settings](https://github.com/mehmetraif/OSD-OS/wiki/Settings) | Every row of Settings: what it does, its choices and where it is saved |
-| [Themes](https://github.com/mehmetraif/OSD-OS/wiki/Themes) | The whole look at once: the eight that come with it, and making your own |
+| [Themes](https://github.com/mehmetraif/OSD-OS/wiki/Themes) | The whole look at once: the nine that come with it, Orb's 3D Arcade screen among them, and making your own |
 | [Skins](https://github.com/mehmetraif/OSD-OS/wiki/Skins) | The window's shapes and icons, and drawing your own |
 | [Effects](https://github.com/mehmetraif/OSD-OS/wiki/Effects) | Text, background, selector and screen effects, and the transitions between windows |
 | [Shaders](https://github.com/mehmetraif/OSD-OS/wiki/Shaders) | Writing a background or screen effect of your own for the GPU |

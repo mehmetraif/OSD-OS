@@ -290,7 +290,7 @@ What Settings saves, in `config.json` in the data folder ([Configuration files](
 
 | What | Where |
 |---|---|
-| OSD/OS's eight | The app's `assets/themes`: `/opt/osdos/share/osdos/assets/themes/` on Raspberry Pi OS and the OSD/OS image, `/Applications/osdos.app/Contents/Resources/assets/themes/` on a Mac, [assets/themes](https://github.com/mehmetraif/OSD-OS/tree/main/assets/themes) in the repository |
+| OSD/OS's nine | The app's `assets/themes`: `/opt/osdos/share/osdos/assets/themes/` on Raspberry Pi OS and the OSD/OS image, `/Applications/osdos.app/Contents/Resources/assets/themes/` on a Mac, [assets/themes](https://github.com/mehmetraif/OSD-OS/tree/main/assets/themes) in the repository |
 | Yours | The data folder's `themes`: `~/.local/share/OSD-OS/themes/` on Linux (on the OSD/OS image, `/home/pi/.local/share/OSD-OS/themes/`), `~/Library/Application Support/OSD-OS/themes/` on a Mac, or `themes` in the folder `DATA_ROOT` names ([the data folder](https://github.com/mehmetraif/OSD-OS/wiki/Configuration-Files#the-data-folder)) |
 
 - **A theme is a folder with a `theme.json`.** The folder's name is the theme's id: it is what Settings saves, so keep it short and plain (`my-theme`). Everything else the theme uses goes in that folder.
@@ -537,7 +537,7 @@ A part you don't want at all: take its key out. Delete what the theme no longer 
 
 ### Starting from one of OSD/OS's themes
 
-Copy one of the eight into your themes folder. Under its own folder name it replaces it; under another it is a theme beside it:
+Copy one of the nine into your themes folder. Under its own folder name it replaces it; under another it is a theme beside it:
 
 ```sh
 # Arcade, changed in place: your copy is used instead of OSD/OS's
@@ -547,7 +547,7 @@ cp -r /opt/osdos/share/osdos/assets/themes/arcade ~/.local/share/OSD-OS/themes/a
 cp -r /opt/osdos/share/osdos/assets/themes/winter ~/.local/share/OSD-OS/themes/blizzard
 ```
 
-On a Mac, the eight are in `/Applications/osdos.app/Contents/Resources/assets/themes/`. Give a copy under another folder a `name` of its own, or Settings lists two of the same name, the second told apart by its folder: `Winter` and `Winter (winter)`.
+On a Mac, the nine are in `/Applications/osdos.app/Contents/Resources/assets/themes/`. Give a copy under another folder a `name` of its own, or Settings lists two of the same name, the second told apart by its folder: `Winter` and `Winter (winter)`.
 
 ## Three example themes
 

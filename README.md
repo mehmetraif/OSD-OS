@@ -10,7 +10,7 @@
 
 <p align="center"><img src="docs/images/default-look.gif" width="640" alt="OSD/OS as it comes, in two colors: the main menu, Local Files' tree, the Arcade screen's games on a 3D wheel, its filters and the games others host online, and Settings" /></p>
 
-Out of the box it is plain on purpose, as above: two colors, and nothing moving but the cursor. If you want more, a theme changes the whole look at once, with effects, transitions between windows and music of its own, from a tube's curved glass to Matrix rain and a fire in the window. Eight come with it, here each on the Arcade screen and in Local Files' tree:
+Out of the box it is plain on purpose, as above: two colors, and nothing moving but the cursor. If you want more, a theme changes the whole look at once, with effects, transitions between windows and music of its own, from a tube's curved glass to Matrix rain and a fire in the window. Nine come with it: eight here on the Arcade screen and in Local Files' tree, and Orb, which draws the Arcade screen in 3D, below them:
 
 <table>
 <tr>
@@ -27,6 +27,11 @@ Out of the box it is plain on purpose, as above: two colors, and nothing moving 
 <td><img src="docs/images/theme-winter.gif" width="100%" alt="Theme: Winter" /></td>
 </tr>
 <tr><td align="center">Late Show</td><td align="center">Green Screen</td><td align="center">Arcade</td><td align="center">Winter</td></tr>
+<tr>
+<td colspan="2"><img src="docs/screenshots/arcade-orb.png" width="100%" alt="Theme: Orb, the Arcade screen in 3D: the games on a glass panel at the right, the game's picture in a glass orb at the left, its high scores on a panel under it" /></td>
+<td colspan="2"><img src="docs/screenshots/arcade-orb-start.png" width="100%" alt="Theme: Orb, a game starting: the panels swung out and the screen going into the orb" /></td>
+</tr>
+<tr><td colspan="2" align="center">Orb: the Arcade screen in 3D</td><td colspan="2" align="center">Orb: a game starting</td></tr>
 </table>
 
 ## What it does
@@ -50,7 +55,7 @@ Out of the box it is plain on purpose, as above: two colors, and nothing moving 
 
 - **Made for CRTs**: composite, SCART RGB or HDMI from Settings; menus, videos and games kept in their shapes on a tube's non-square pixels; 16:9 films fitted to 4:3, a channel logo in the corner, and a tape loading while a video starts.
 - **Status icons** at the top right of the title bar: Wi-Fi's signal, Bluetooth, and the arcade's high scores, RetroAchievements and netplay while they are on.
-- **Themes**, the whole look at once: the colors, the skin, effects like the ones above and the menu music. Eight come with it, and a new one is a folder.
+- **Themes**, the whole look at once: the colors, the skin, effects like the ones above and the menu music. Nine come with it, Orb's Arcade screen in 3D among them, and a new one is a folder.
 - **Menu Layout**: Settings and the main menu as a list, as a camcorder's menu, or as a studio monitor's, from a window over the picture to a broadcast monitor's plain blue.
 
 The [feature list](https://github.com/mehmetraif/OSD-OS/wiki/Features) has the rest.

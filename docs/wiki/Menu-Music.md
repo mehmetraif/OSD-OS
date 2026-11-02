@@ -30,7 +30,7 @@ On the OSD/OS image, the easiest way to a tune of your own: copy it from your co
 
 ## The themes' tunes
 
-Seven of the eight themes have a tune of their own, each a short loop made by [make-menu-music.py](https://github.com/mehmetraif/OSD-OS/blob/main/scripts/make-menu-music.py) ([below](#making-tunes-with-make-menu-musicpy)):
+Seven of the nine themes have a tune of their own, each a short loop made by [make-menu-music.py](https://github.com/mehmetraif/OSD-OS/blob/main/scripts/make-menu-music.py) ([below](#making-tunes-with-make-menu-musicpy)):
 
 | Theme | File | What it is | Length |
 |---|---|---|---|
