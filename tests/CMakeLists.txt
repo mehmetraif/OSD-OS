@@ -420,6 +420,12 @@ set_tests_properties(module_settings_view PROPERTIES ENVIRONMENT "QT_QPA_PLATFOR
 add_test(NAME settings_view COMMAND tree_browser_test -input ${CMAKE_CURRENT_SOURCE_DIR}/qml/tst_settings.qml
                                     -import ${CMAKE_CURRENT_SOURCE_DIR}/../views)
 set_tests_properties(settings_view PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen;QT_QUICK_BACKEND=software")
+# The main menu (views/ModuleList.qml) against a stand-in for AppCore: the
+# modules' rows, and Menu Layout's Camcorder, the rows in groups beside a
+# column of icons.
+add_test(NAME main_menu_view COMMAND tree_browser_test -input ${CMAKE_CURRENT_SOURCE_DIR}/qml/tst_main_menu.qml
+                                     -import ${CMAKE_CURRENT_SOURCE_DIR}/../views)
+set_tests_properties(main_menu_view PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen;QT_QUICK_BACKEND=software")
 # Settings → Network → Wi-Fi (views/Wifi.qml) against a stand-in for WifiManager: the
 # switch, the country and its chooser, joining with a password, a network's
 # options, one not listed, and a search.
@@ -495,7 +501,13 @@ if(UNIX)
     add_test(NAME app_main_menu COMMAND bash ${smoke})
     # OSD/OS Setup's file in the data folder, taken as the app starts.
     add_test(NAME app_setup_file COMMAND bash ${smoke} --setup)
-    set(smoke_tests app_main_menu app_setup_file)
+    # The main menu in each of Settings → Look → Menu Layout's other layouts.
+    add_test(NAME app_main_menu_camcorder COMMAND bash ${smoke} --layout=Camcorder)
+    add_test(NAME app_main_menu_studio_monitor COMMAND bash ${smoke} "--layout=Studio Monitor")
+    add_test(NAME app_main_menu_broadcast COMMAND bash ${smoke} --layout=Broadcast)
+    add_test(NAME app_main_menu_flat_panel COMMAND bash ${smoke} "--layout=Flat Panel")
+    set(smoke_tests app_main_menu app_setup_file app_main_menu_camcorder app_main_menu_studio_monitor
+                    app_main_menu_broadcast app_main_menu_flat_panel)
     file(GLOB manifests CONFIGURE_DEPENDS ${osdos_root}/modules/*/manifest.json)
     foreach(manifest ${manifests})
         get_filename_component(folder ${manifest} DIRECTORY)

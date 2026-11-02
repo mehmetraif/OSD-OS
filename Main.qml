@@ -539,6 +539,32 @@ Window {
     // default, a line in the scheme's colour (or the skin's window image);
     // "Off", none; "Shadow", the line and a DOS window's shadow.
     property string osdFrame: "On"
+    // Settings → Look → Menu Layout (app.menu_layout), how Settings and the
+    // main menu are laid out: "Standard", the default, a list a page at a
+    // time; "Camcorder", a camcorder's menu, the pages (the main menu's
+    // groups) as icons in a column at the left and the rows of the one the
+    // cursor is on beside them (Components/IconColumn); and three after a
+    // studio monitor's menus, in colours of their own (menuPalette,
+    // Components/MonitorChrome and MonitorRow): "Studio Monitor", a black
+    // window over the picture with a strip of the pages' icons; "Broadcast",
+    // plain blue, a value changed in two steps; "Flat Panel", black, mixed
+    // case, a page of rows at a time. The Arcade module's screens keep their
+    // own. Read as the window is made, before the main menu is, so that it
+    // opens laid out as it will stay.
+    property string menuLayout: menuLayoutOf((appCore.get_settings().app || {}).menu_layout)
+    // The monitor layouts' colours, whatever the colour scheme: the ground,
+    // the text, a row that can't be used, the strips and bars (accent), the
+    // text on them and the guide (soft), the cursor's mark or a value being
+    // changed (mark), and Flat Panel's selected row (bar). null in Standard
+    // and Camcorder, which draw in the scheme's two colours.
+    readonly property var menuPalette: ({
+        "Studio Monitor": { ground: "#050608", ink: "#FFFFFF", dim: "#6E7891", accent: "#2350C8",
+                            soft: "#CFDDFF", mark: "#F4D21C", bar: "#050608" },
+        "Broadcast":      { ground: "#3A55B4", ink: "#FFFFFF", dim: "#94A8EC", accent: "#FFFFFF",
+                            soft: "#FFFFFF", mark: "#FFFFFF", bar: "#3A55B4" },
+        "Flat Panel":     { ground: "#000000", ink: "#EDEDED", dim: "#7B7B7B", accent: "#7B7B7B",
+                            soft: "#9A9A9A", mark: "#F6CF00", bar: "#4C4C4C" }
+    })[menuLayout] || null
     property string primaryColor:   osdOff ? lighterOf(scheme.primary, scheme.surface) : scheme.primary
     property string surfaceColor:   osdOff ? "#000000" : scheme.surface
     // Two colours only, like a deck's on-screen display: everything is drawn in
@@ -666,6 +692,8 @@ Window {
                 root.statusIconsSetting = value !== "Off"
             } else if (key === "osd_background") {
                 root.osdBackground = root.osdBackgroundOf(value)
+            } else if (key === "menu_layout") {
+                root.menuLayout = root.menuLayoutOf(value)
             } else if (key === "window_mode") {
                 root.setWindowed(root.canWindow && value === "On")
             } else if (key === "mouse_pointer") {
@@ -1063,6 +1091,9 @@ Window {
     function backgroundOn(raw) {
         var s = String(raw === undefined || raw === null ? "" : raw).trim().toLowerCase()
         return s === "on" || s === "dim" || !isNaN(parseInt(s))
+    }
+    function menuLayoutOf(raw) {
+        return ["Camcorder", "Studio Monitor", "Broadcast", "Flat Panel"].indexOf(raw) >= 0 ? raw : "Standard"
     }
     function osdBackgroundOf(raw) {
         return raw === "Window" || raw === "Off" ? raw : "Full"

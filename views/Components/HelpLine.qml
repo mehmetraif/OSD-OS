@@ -12,6 +12,10 @@ Rectangle {
 
     property string text: ""
     property bool always: false
+    // Its text and outline: the scheme's colour, or a monitor layout's
+    // (MonitorChrome), which may leave the box unframed.
+    property color ink: root.primaryColor
+    property bool framed: true
     readonly property bool shown: always || root.helpLine
 
     readonly property string line: text.split("\n")
@@ -30,8 +34,8 @@ Rectangle {
     height: root.sh * 0.0583333 //28
     // Outlined rather than tinted: the OSD keeps to two colours.
     color: "transparent"
-    border.width: root.px
-    border.color: root.primaryColor
+    border.width: framed ? root.px : 0
+    border.color: ink
     antialiasing: false
     opacity: shown ? 1 : 0
 
@@ -50,8 +54,8 @@ Rectangle {
     Item {
         id: window
         anchors.fill: parent
-        anchors.leftMargin: help.border.width + help.pad
-        anchors.rightMargin: help.border.width + help.pad
+        anchors.leftMargin: root.px + help.pad
+        anchors.rightMargin: root.px + help.pad
         clip: true
 
         Row {
@@ -64,7 +68,7 @@ Rectangle {
                 text: help.line
                 // As it is: what a line quotes (a name, a file) isn't markup.
                 textFormat: Text.PlainText
-                color: root.primaryColor
+                color: help.ink
                 font.family: root.globalFont
                 font.pixelSize: root.sh * 0.0375 //18
             }
@@ -73,7 +77,7 @@ Rectangle {
                 visible: help.scrolls
                 text: help.line
                 textFormat: Text.PlainText
-                color: root.primaryColor
+                color: help.ink
                 font.family: root.globalFont
                 font.pixelSize: root.sh * 0.0375 //18
             }

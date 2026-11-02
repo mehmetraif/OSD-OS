@@ -8,6 +8,7 @@ Item {
     id: marks
 
     property Flickable list: null
+    property color color: root.primaryColor
 
     readonly property real gap: root.px * 3
     readonly property bool moreAbove: list !== null && list.contentY > list.originY + 1
@@ -16,6 +17,7 @@ Item {
 
     PixelIcon {
         name: "up"
+        color: marks.color
         visible: marks.moreAbove
         anchors.horizontalCenter: parent.horizontalCenter
         anchors.bottom: parent.top
@@ -23,6 +25,7 @@ Item {
     }
     PixelIcon {
         name: "down"
+        color: marks.color
         visible: marks.moreBelow
         anchors.horizontalCenter: parent.horizontalCenter
         anchors.top: parent.bottom

@@ -18,6 +18,203 @@ FocusScope {
                                           screen: "Screen", sound: "Sound", network: "Network",
                                           startup: "Startup", system: "System" })
 
+    // Settings → Look → Menu Layout (Main.qml's menuLayout). Camcorder lays
+    // the first screen out as a camcorder's menu: its rows (camPages) as
+    // icons in a column at the left, the rows of the page the cursor is on
+    // beside them, ► or select going into them and back out to the icons
+    // again (camIcons). A page with no rows of its own (Arcade's, Controls,
+    // Quit) has its first-screen row there, which ► or select opens. A page
+    // opened from the rows (Look's Effects) has the column too, its
+    // heading's icon framed. Studio Monitor does the same in a monitor's
+    // window (Components/MonitorChrome), a STATUS page first, what is set,
+    // read alone (statusRows()). Broadcast and Flat Panel are lists, as
+    // Standard is, in a monitor's look: a value changed in two steps
+    // (editIndex), and Cabinet Lock at the first screen's foot as Key
+    // Protect; Flat Panel a page of rows at a time.
+    readonly property string layout: root.menuLayout
+    readonly property bool camcorder: layout === "Camcorder"
+    readonly property bool studio: layout === "Studio Monitor"
+    readonly property bool broadcast: layout === "Broadcast"
+    readonly property bool flat: layout === "Flat Panel"
+    // Drawn by MonitorChrome and MonitorRow, in the layout's own colours.
+    readonly property bool monitor: studio || broadcast || flat
+    // The pages as icons beside the rows: Camcorder's column, Studio
+    // Monitor's strip.
+    readonly property bool iconMenu: camcorder || studio
+    // A value changed in two steps: select, ▲ ▼, then select again (back
+    // leaves it as it was).
+    readonly property bool twoStep: broadcast || flat
+    property var camPages: []
+    property int camIndex: 0
+    property bool camIcons: true
+    // Each first-screen row's icon (PixelIcon's names), by its key or type.
+    readonly property var pageIcons: ({ group_tv: "tv", group_arcade: "joystick", group_look: "sparkle",
+                                        group_screen: "monitor", group_sound: "speaker", remap_controls: "gamepad",
+                                        group_network: "antenna", group_startup: "power", group_system: "gear",
+                                        quit: "eject", group_status: "status" })
+    // Studio Monitor's first page, before the first screen's.
+    readonly property var statusPage: ({ type: "submenu", key: "group_status", label: "Status",
+                                         description: "What is set, at a glance: the outputs, the network, the theme and what OSD/OS starts on",
+                                         moduleId: "" })
+    // The page a first-screen row opens in this view, "" for one that is a
+    // view of its own.
+    function pageGroup(row) {
+        return row && row.key && row.key.indexOf("group_") === 0 && row.key !== "group_arcade" ? row.key.substring(6) : ""
+    }
+    // A first-screen row's key, which every layout's first screen keeps.
+    function pageKey(row) {
+        return row ? (row.key || row.type || "") : ""
+    }
+    // The keys in the icons.
+    function inIcons() {
+        return iconMenu && group === "" && camIcons
+    }
+    // Where the list is, for the view this page opens to bring it back: the
+    // row; on the icons' first screen the page (as the first screen's row,
+    // so every layout finds its own), its row and whether the keys were in
+    // the rows.
+    function listState() {
+        if (!(iconMenu && group === ""))
+            return { currentIndex: settingsList.currentIndex }
+        var page = camPages[camIndex]
+        return { currentIndex: Math.max(0, camIndex - (studio ? 1 : 0)), page: pageKey(page && page.row),
+                 rowIndex: settingsList.currentIndex, camRows: !camIcons }
+    }
+    // The icons: the page above (-1) or below (1), round, its rows beside
+    // them at once.
+    function moveIcon(direction) {
+        var n = camPages.length
+        if (n === 0)
+            return
+        camIndex = (camIndex + direction + n) % n
+        buildModel(0)
+    }
+    // ► or select on an icon: into the page's rows, or a view of its own
+    // opened. STATUS is read from the icons.
+    function enterPage() {
+        var page = camPages[camIndex]
+        if (!page)
+            return
+        if (pageGroup(page.row) === "") {
+            settingsList.openRow(page.row)
+            return
+        }
+        if (settingsList.currentIndex >= 0 && selectable(settingsList.currentIndex))
+            camIcons = false
+    }
+    // Menu Layout changed while the page is open: laid out again where the
+    // cursor is (deferred, as the change comes from the row's own save), once
+    // the rows are laid out for the other layout (builtLayout: not as the
+    // page is made, when the binding first takes its value). On the first
+    // screen the page under the cursor stays, an icon or a row.
+    property string builtLayout: ""
+    property bool builtIcons: false
+    onLayoutChanged: Qt.callLater(relayout)
+    function relayout() {
+        if (builtLayout === "" || builtLayout === layout)
+            return
+        editIndex = -1
+        if (group !== "") {
+            buildModel(settingsList.currentIndex)
+            return
+        }
+        var key = builtIcons ? pageKey((camPages[camIndex] || {}).row) : pageKey(settingsItems[settingsList.currentIndex])
+        if (iconMenu) {
+            camIcons = true
+            camIndex = 0
+            buildModel(0)
+            camIndex = Math.max(0, camPages.findIndex(function(page) { return pageKey(page.row) === key }))
+            buildModel(0)
+        } else {
+            buildModel(0)
+            buildModel(Math.max(0, settingsItems.findIndex(function(row) { return pageKey(row) === key })))
+        }
+    }
+
+    // Broadcast's and Flat Panel's second step: the row whose value is being
+    // changed (-1 for none) and the value it would take, a choice's label or
+    // a slider's number (-1 for a slider's Off). Nothing is saved until
+    // select; back leaves the row as it was.
+    property int editIndex: -1
+    property var editValue
+    function startEdit() {
+        var row = settingsItems[settingsList.currentIndex]
+        editIndex = settingsList.currentIndex
+        editValue = row.type === "slider" ? (row.on === false ? -1 : row.value) : row.value
+    }
+    // ▲ (1) or ▼ (-1): the next choice round, or a step up or down the
+    // slider, below its first step to Off where it can be.
+    function stepEdit(direction) {
+        var row = settingsItems[editIndex]
+        if (row.type === "slider") {
+            var v = editValue < 0 ? (direction > 0 ? 0 : -1) : editValue + direction * row.step
+            editValue = Math.min(100, v < 0 ? (row.on !== undefined ? -1 : 0) : v)
+        } else {
+            var opts = row.options
+            editValue = opts[(opts.indexOf(editValue) + direction + opts.length) % opts.length]
+        }
+    }
+    function confirmEdit() {
+        var row = settingsItems[editIndex]
+        var value = editValue
+        editIndex = -1
+        if (row.type === "slider")
+            settingsList.setSlider(value)
+        else
+            settingsList.setChoice(row.options.indexOf(value))
+    }
+    // What a row shows as its value in a monitor layout: a slider's number
+    // (or Off), the value being changed while it is.
+    function shownValue(row, index) {
+        var v = index === editIndex ? editValue : row.type === "slider" ? (row.on === false ? -1 : row.value) : row.value
+        if (row.type === "slider")
+            return v < 0 ? "Off" : v + "%"
+        return v === undefined || v === null ? "" : String(v)
+    }
+    // A monitor layout's title: Studio Monitor's tab names the page shown;
+    // Broadcast's MENU or the page's name; Flat Panel's the path to it.
+    readonly property string monitorTitle: {
+        var page = group !== "" ? (groupTitles[group] || "") : ""
+        if (studio)
+            return page !== "" ? page : ((camPages[camIndex] || {}).row || {}).label || "Settings"
+        if (flat)
+            return page !== "" ? ">" + page.split(" / ").join(" >") : "Menu"
+        return page !== "" ? page : "Menu"
+    }
+    // Its key guide, as a monitor's: Broadcast's three lines, a value's
+    // second step its own.
+    readonly property var monitorGuide: {
+        var h = root.hints
+        if (studio)
+            return [h.navigate + ":MENU/ITEM", (inIcons() ? h.browse + ":ENTER" : h.change + ":CHANGE"), h.back + ":BACK"]
+        if (broadcast)
+            return editIndex >= 0 ? ["TO CHANGE  :" + h.navigate, "TO CONFIRM :" + h.select, "TO CANCEL  :" + h.back]
+                                  : ["TO SELECT  :" + h.navigate, "TO ENTER   :" + h.select, "TO CANCEL  :" + h.back]
+        return editIndex >= 0 ? [h.navigate + " Change", h.select + " Confirm", h.back + " Cancel"]
+                              : [h.navigate + " Select", h.browse + "/" + h.select + " Open", h.left + "/" + h.back + " Back"]
+    }
+
+    // Back: a value being changed left as it was; from the rows to the
+    // icons; else out of the page.
+    function back() {
+        if (editIndex >= 0)
+            editIndex = -1
+        else if (iconMenu && group === "" && !camIcons)
+            camIcons = true
+        else
+            goBack()
+    }
+    // Where the cursor's row shows: in Flat Panel its page, else scrolled
+    // into view a whole row at a time.
+    function showCurrent() {
+        if (flat) {
+            chrome.pageTo(settingsList)
+        } else {
+            settingsList.positionViewAtIndex(settingsList.currentIndex, ListView.Contain)
+            settingsList.showWholeRows()
+        }
+    }
+
     property var appSettings: ({})
     // Where the menus can be a window on a desktop (Main.qml's canWindow):
     // Windows, and a Linux or BSD desktop. On the Pi's console and a Mac the
@@ -79,39 +276,60 @@ FocusScope {
         canRestart = appCore.canRestartSystem()
         canSaveLogs = appCore.canSaveLogs()
 
+        // The first screen's rows, and with icons its pages (Studio
+        // Monitor's STATUS first): the page shown is the icon's, a page
+        // opened from one has its heading's.
+        var first = []
+        firstRows(first)
+        builtLayout = layout
+        builtIcons = iconMenu
+        editIndex = -1
+        var pages = iconMenu ? (studio ? [statusPage] : []).concat(first) : []
+        camPages = pages.map(function(row) { return { row: row, icon: pageIcons[pageKey(row)] || "" } })
+        if (iconMenu && group !== "") {
+            var heading = "group_" + (group === "effects" ? "look" : group)
+            camIndex = Math.max(0, pages.findIndex(function(row) { return row.key === heading }))
+        }
+        camIndex = Math.max(0, Math.min(camIndex, pages.length - 1))
+        var shown = iconMenu && group === "" ? pageGroup(pages[camIndex]) : group
+
         var items = []
-        if (group === "tv")
+        if (shown === "tv")
             tvRows(items)
-        else if (group === "look")
+        else if (shown === "look")
             lookRows(items)
-        else if (group === "effects")
+        else if (shown === "effects")
             effectRows(items)
-        else if (group === "screen")
+        else if (shown === "screen")
             screenRows(items)
-        else if (group === "sound")
+        else if (shown === "sound")
             soundRows(items)
-        else if (group === "network")
+        else if (shown === "network")
             networkRows(items)
-        else if (group === "startup")
+        else if (shown === "startup")
             startupRows(items)
-        else if (group === "system")
+        else if (shown === "system")
             systemRows(items)
+        else if (shown === "status")
+            statusRows(items)
+        else if (iconMenu && group === "")
+            items = [pages[camIndex]]
         else
-            firstRows(items)
+            items = first
 
         settingsItems = items
 
         // Restore saved position, or default to first selectable row
         var start = at !== undefined ? Math.min(at, items.length - 1)
                   : navListState.currentIndex !== undefined ? Math.min(navListState.currentIndex, items.length - 1) : 0
+        settingsList.currentIndex = Math.max(0, Math.min(start, items.length - 1))
         for (var k = 0; k < items.length; k++) {
             if (selectable((start + k) % items.length)) {
                 settingsList.currentIndex = (start + k) % items.length
                 break
             }
         }
-        settingsList.positionViewAtIndex(settingsList.currentIndex, ListView.Contain)
-        settingsList.showWholeRows()
+        showCurrent()
     }
 
     // The first screen: a heading for each page, every row under one of them,
@@ -146,7 +364,48 @@ FocusScope {
         items.push(groupRow("network", "Wi-Fi's networks, and pairing Bluetooth keyboards, gamepads and remotes"))
         items.push(groupRow("startup", "What OSD/OS opens on: Start on Module, Play at Startup and Cabinet Lock"))
         items.push(groupRow("system", "OSD/OS Setup's settings pasted, Update, About, and the settings of the modules of no group"))
-        items.push({ type: "quit", label: "Quit" })
+        items.push({ type: "quit", label: "Quit",
+                     description: settingsRoot.autostartSession ? "Power off or restart the Pi, or leave OSD/OS for a terminal"
+                                                                : "Leave OSD/OS" })
+        // Broadcast's and Flat Panel's: Cabinet Lock as a monitor's Key
+        // Protect, at the foot after a gap (also on Startup's page).
+        if (twoStep) {
+            items.push({ type: "section", label: "" })
+            items.push(Object.assign(cabinetLockRow(), { label: "Key Protect" }))
+        }
+    }
+
+    // STATUS (Studio Monitor): what is set, a line each, read alone; each
+    // value as its own row has it.
+    function statusRows(items) {
+        function valueOf(build, key) {
+            var rows = []
+            build(rows)
+            var row = rows.filter(function(r) { return r.key === key || r.type === key })[0]
+            return !row || row.unavailable ? "None" : (row.value || "None")
+        }
+        var wifi = "None"
+        if (wifiManager && wifiManager.supported) {
+            wifi = wifiManager.state === "connected" ? ((wifiManager.current || {}).ssid || "Joined")
+                 : wifiManager.state === "off" || wifiManager.state === "blocked" || !wifiManager.enabled ? "Off"
+                 : "Not Joined"
+        }
+        var bluetooth = "None"
+        if (bluetoothManager && bluetoothManager.supported) {
+            var linked = (bluetoothManager.devices || []).filter(function(d) { return !!d.connected }).length
+            bluetooth = !bluetoothManager.powered ? "Off" : linked > 0 ? linked + " Connected" : "On"
+        }
+        var lines = [["Output", valueOf(screenRows, "display_output")],
+                     ["Audio", valueOf(soundRows, "audio_output")],
+                     ["Wi-Fi", wifi],
+                     ["Bluetooth", bluetooth],
+                     ["Theme", valueOf(lookRows, "osd_theme")],
+                     ["Start On", valueOf(startupRows, "startup_module")],
+                     ["Cabinet Lock", appSettings["cabinet_lock"] === "On" ? "On" : "Off"],
+                     ["Version", root.devBuild ? "Dev" : root.appVersion],
+                     ["IP Address", ipAddress || "None"]]
+        for (var i = 0; i < lines.length; i++)
+            items.push({ type: "info", label: lines[i][0], value: lines[i][1] })
     }
 
     // A heading's row: its page, this view again; its label the page's
@@ -206,6 +465,18 @@ FocusScope {
         items.push(skinRow)
 
         items.push(groupRow("effects", "What the text, the background, the selected line and the screen do, and how one window gives way to the next", "Effects"))
+
+        // MENU LAYOUT — how Settings and the main menu are laid out (Main.qml's
+        // menuLayout): a list a page at a time, or a camcorder's menu.
+        items.push({
+            type: "list_single",
+            key: "menu_layout",
+            label: "Menu Layout",
+            options: ["Standard", "Camcorder", "Studio Monitor", "Broadcast", "Flat Panel"],
+            value: root.menuLayoutOf(appSettings["menu_layout"]),
+            description: "How Settings and the main menu are laid out\n[STANDARD] A list, a page at a time  [CAMCORDER] As a camcorder's menu: the pages, or the main menu's groups, as icons in a column, the rows of the one chosen beside it  [STUDIO MONITOR] As a studio monitor's window over the picture, the pages as icons in a strip, a Status page first  [BROADCAST] As a broadcast monitor's menu, plain blue, a value changed in two steps: select, then ▲ ▼, then select  [FLAT PANEL] As a flat-panel monitor's menu, black, a page of rows at a time, a value changed in two steps",
+            moduleId: ""
+        })
 
         // OSD Background — what the menus are drawn on (Components/OsdGround,
         // read in Main.qml): the colour scheme's background over the whole
@@ -549,16 +820,20 @@ FocusScope {
             moduleId: ""
         })
 
-        // CABINET LOCK — OSD/OS kept on Start on Module, the main menu and
-        // Settings opened with the unlock buttons alone (views/CabinetLock.qml).
-        items.push({
+        items.push(cabinetLockRow())
+    }
+
+    // CABINET LOCK — OSD/OS kept on Start on Module, the main menu and
+    // Settings opened with the unlock buttons alone (views/CabinetLock.qml).
+    function cabinetLockRow() {
+        return {
             type: "submenu",
             key: "cabinet_lock",
             label: "Cabinet Lock",
             value: appSettings["cabinet_lock"] === "On" ? "On" : "Off",
             description: "Keeps OSD/OS on its Start on Module, a cabinet's Arcade screen: the main menu, Settings and Quit open only with the unlock buttons held together for three seconds",
             moduleId: ""
-        })
+        }
     }
 
     // SYSTEM: OSD/OS Setup's settings, the update, About, and the modules
@@ -849,9 +1124,11 @@ FocusScope {
         buildModel(settingsList.currentIndex)
     }
 
-    // The cursor stops on rows, not on headings or rows not offered now.
+    // The cursor stops on rows, not on headings or STATUS's lines, read
+    // alone.
     function selectable(idx) {
-        return settingsItems[idx].type !== "section"
+        var type = settingsItems[idx].type
+        return type !== "section" && type !== "info"
     }
 
     // Paste OSD/OS Setup: the clipboard's text, through a box no one sees
@@ -894,15 +1171,29 @@ FocusScope {
         return idx
     }
 
-    Component.onCompleted: buildModel()
+    // Back on Camcorder's first screen: the page, its row and where the keys
+    // were, as listState() left them.
+    Component.onCompleted: {
+        if (iconMenu && group === "") {
+            // The first screen's row, after Studio Monitor's STATUS.
+            camIndex = navListState.currentIndex === undefined || navListState.page === "group_status" ? 0
+                     : navListState.currentIndex + (studio ? 1 : 0)
+            camIcons = !navListState.camRows
+            buildModel(navListState.rowIndex !== undefined ? navListState.rowIndex : 0)
+        } else {
+            buildModel()
+        }
+    }
 
     // Header: a release's version beside the title; none for a build made
     // from source ("dev"), which About names. A group's page: its name. The
     // first page's: the IP address at the bar's right end.
     AppBar {
+        visible: !settingsRoot.monitor
         iconSource: "../../assets/images/settings.svg"
         title: "Settings"
         subtitle: settingsRoot.group !== "" ? (settingsRoot.groupTitles[settingsRoot.group] || "")
+                  : settingsRoot.camcorder ? (settingsRoot.camPages[settingsRoot.camIndex] ? settingsRoot.camPages[settingsRoot.camIndex].row.label : "")
                   : root.devBuild ? "" : root.appVersion
         note: settingsRoot.group === "" ? settingsRoot.ipAddress : ""
         anchors.top: parent.top
@@ -913,6 +1204,8 @@ FocusScope {
 
     // IP address, on the first page's bar alone.
     property string ipAddress: ""
+    // STATUS shows it too.
+    onIpAddressChanged: if (studio && group === "" && pageGroup((camPages[camIndex] || {}).row) === "status") buildModel(0)
     Timer {
         interval: 5000
         running: settingsRoot.group === ""
@@ -921,29 +1214,66 @@ FocusScope {
         onTriggered: settingsRoot.ipAddress = appCore.localIpAddress()
     }
 
+    // A monitor layout's window, title, icons, help line and key guide,
+    // under the rows (Settings → Look → Menu Layout).
+    MonitorChrome {
+        id: chrome
+        anchors.fill: parent
+        visible: settingsRoot.monitor
+        title: settingsRoot.monitorTitle
+        icons: settingsRoot.studio ? settingsRoot.camPages.map(function(page) { return page.icon }) : []
+        iconIndex: settingsRoot.camIndex
+        iconsActive: settingsRoot.inIcons()
+        helpText: settingsRoot.monitor && root.helpLine ? settingsRoot.helpText : ""
+        guide: settingsRoot.monitorGuide
+    }
+
     ListView {
         id: settingsList
         model: settingsItems
         anchors.top: parent.top
         anchors.left: parent.left
-        anchors.topMargin: root.sh * 0.25 //120
-        anchors.leftMargin: root.sw * 0.115625 //74
-        width: root.sw * 0.76875 //492
+        // Where a monitor layout has its rows (MonitorChrome), beside
+        // Camcorder's icons, or where every view has its list.
+        anchors.topMargin: settingsRoot.monitor ? chrome.listY : root.sh * 0.25 //120
+        anchors.leftMargin: settingsRoot.monitor ? chrome.listX
+                          : settingsRoot.camcorder ? root.sw * 0.209375 : root.sw * 0.115625 //134 : 74
+        width: settingsRoot.monitor ? chrome.listWidth : settingsRoot.camcorder ? root.sw * 0.675 : root.sw * 0.76875 //432 : 492
         // One row short of the space, so the ▼ fits above the help line; a
         // row more for each bar that is off (Main.qml's helpRoom, hintRoom).
-        height: root.sh * 0.4666667 + root.helpRoom + root.hintRoom //224
+        height: settingsRoot.monitor ? chrome.listHeight : root.sh * 0.4666667 + root.helpRoom + root.hintRoom //224
+        // Flat Panel's page, again as its rows take more room or less.
+        onHeightChanged: if (settingsRoot.flat) Qt.callLater(settingsRoot.showCurrent)
+        // Flat Panel's last page filled out to a whole page, and the view
+        // left where its page puts it (not moved to follow the cursor).
+        footer: Item { width: 1; height: chrome.pageFill(settingsList.count) }
+        highlightFollowsCurrentItem: !settingsRoot.flat
         clip: true
         focus: true
 
         Keys.onUpPressed: {
+            if (settingsRoot.inIcons()) {
+                settingsRoot.moveIcon(-1)
+                return
+            }
+            if (settingsRoot.editIndex >= 0) {
+                settingsRoot.stepEdit(1)
+                return
+            }
             currentIndex = settingsRoot.nextSelectable(currentIndex, -1)
-            settingsList.positionViewAtIndex(currentIndex, ListView.Contain)
-            showWholeRows()
+            settingsRoot.showCurrent()
         }
         Keys.onDownPressed: {
+            if (settingsRoot.inIcons()) {
+                settingsRoot.moveIcon(1)
+                return
+            }
+            if (settingsRoot.editIndex >= 0) {
+                settingsRoot.stepEdit(-1)
+                return
+            }
             currentIndex = settingsRoot.nextSelectable(currentIndex, 1)
-            settingsList.positionViewAtIndex(currentIndex, ListView.Contain)
-            showWholeRows()
+            settingsRoot.showCurrent()
         }
 
         // Rows are whole lines, a slider's several, so a scroll can stop with
@@ -994,14 +1324,32 @@ FocusScope {
         // A list row's choice, one step back (-1) or on (1), saved and shown;
         // the label shown, the parallel value saved when there is one.
         function cycleList(direction) {
+            var opts = settingsItems[currentIndex].options
+            setChoice((opts.indexOf(settingsItems[currentIndex].value) + direction + opts.length) % opts.length)
+        }
+        function setChoice(newIdx) {
             var row = settingsItems[currentIndex]
             var opts = row.options
-            var newIdx = (opts.indexOf(row.value) + direction + opts.length) % opts.length
+            if (newIdx < 0 || opts[newIdx] === row.value)
+                return
             if (!appCore.save_setting(row.moduleId, row.key, row.values ? row.values[newIdx] : opts[newIdx]))
                 return
             replaceCurrentRow(Object.assign({}, row, { value: opts[newIdx] }))
             if (row.key === "osd_theme")
                 settingsRoot.themeChosen()
+        }
+        // A slider set at once (a monitor layout's second step): a value,
+        // or -1 for Off where it can be.
+        function setSlider(v) {
+            var row = settingsItems[currentIndex]
+            if (v < 0) {
+                if (row.on !== false && appCore.save_setting(row.moduleId, row.key, row.offValue))
+                    replaceCurrentRow(Object.assign({}, row, { on: false }))
+                return
+            }
+            if ((v === row.value && row.on !== false) || !appCore.save_setting(row.moduleId, row.key, v))
+                return
+            replaceCurrentRow(Object.assign({}, row, row.on !== undefined ? { value: v, on: true } : { value: v }))
         }
 
         // A line select leads on from, to another screen: a page's, Display
@@ -1015,25 +1363,25 @@ FocusScope {
         function openRow(row) {
             if (row.type === "submenu") {
                 if (row.key === "software_update")
-                    settingsRoot.navigateTo("views/Update.qml", {}, { currentIndex: settingsList.currentIndex })
+                    settingsRoot.navigateTo("views/Update.qml", {}, settingsRoot.listState())
                 else if (row.key === "remap_controls")
-                    settingsRoot.navigateTo("views/Controllers.qml", {}, { currentIndex: settingsList.currentIndex })
+                    settingsRoot.navigateTo("views/Controllers.qml", {}, settingsRoot.listState())
                 else if (row.key === "wifi")
-                    settingsRoot.navigateTo("views/Wifi.qml", {}, { currentIndex: settingsList.currentIndex })
+                    settingsRoot.navigateTo("views/Wifi.qml", {}, settingsRoot.listState())
                 else if (row.key === "bluetooth")
-                    settingsRoot.navigateTo("views/Bluetooth.qml", {}, { currentIndex: settingsList.currentIndex })
+                    settingsRoot.navigateTo("views/Bluetooth.qml", {}, settingsRoot.listState())
                 else if (row.key === "about")
-                    settingsRoot.navigateTo("views/About.qml", {}, { currentIndex: settingsList.currentIndex })
+                    settingsRoot.navigateTo("views/About.qml", {}, settingsRoot.listState())
                 else if (row.key === "test_patterns")
-                    settingsRoot.navigateTo("views/TestPatterns.qml", {}, { currentIndex: settingsList.currentIndex })
+                    settingsRoot.navigateTo("views/TestPatterns.qml", {}, settingsRoot.listState())
                 else if (row.key === "cabinet_lock")
-                    settingsRoot.navigateTo("views/CabinetLock.qml", {}, { currentIndex: settingsList.currentIndex })
+                    settingsRoot.navigateTo("views/CabinetLock.qml", {}, settingsRoot.listState())
                 else if (row.key && row.key.indexOf("group_") === 0 && row.key !== "group_arcade")
                     settingsRoot.navigateTo("views/Settings.qml", { group: row.key.substring(6) },
-                                            { currentIndex: settingsList.currentIndex })
+                                            settingsRoot.listState())
                 else
                     settingsRoot.navigateTo("views/ModuleSettings.qml", { moduleId: row.moduleId, alsoModules: row.alsoModules || [] },
-                                            { currentIndex: settingsList.currentIndex })
+                                            settingsRoot.listState())
             } else if (row.type === "display_output") {
                 settingsRoot.openOutputs()
             } else if (row.type === "file") {
@@ -1041,7 +1389,7 @@ FocusScope {
                 settingsRoot.navigateTo("views/FilePicker.qml",
                                         Object.assign({ moduleId: row.moduleId, settingKey: row.key,
                                                         currentPath: row.path, label: row.label }, row.picker),
-                                        { currentIndex: settingsList.currentIndex })
+                                        settingsRoot.listState())
             } else if (row.type === "quit") {
                 quitPrompt.open()
             } else if (row.type === "paste_setup") {
@@ -1056,7 +1404,13 @@ FocusScope {
 
         Keys.onLeftPressed: {
             var row = settingsItems[currentIndex]
-            if (!usable())
+            // Flat Panel: ◄ is back (and leaves a value being changed).
+            if (settingsRoot.flat) {
+                settingsRoot.back()
+                return
+            }
+            // Broadcast: ▲ ▼ change a value, in its second step.
+            if (settingsRoot.inIcons() || !usable() || settingsRoot.twoStep)
                 return
             if (row && row.type === "slider")
                 moveSlider(-1)
@@ -1065,9 +1419,18 @@ FocusScope {
         }
 
         Keys.onRightPressed: {
-            var row = settingsItems[currentIndex]
-            if (!usable())
+            if (settingsRoot.inIcons()) {
+                settingsRoot.enterPage()
                 return
+            }
+            var row = settingsItems[currentIndex]
+            if (!usable() || settingsRoot.editIndex >= 0)
+                return
+            if (settingsRoot.twoStep) {
+                if (opens(row))
+                    openRow(row)
+                return
+            }
             if (row && row.type === "slider")
                 moveSlider(1)
             else if (row && row.type === "list_single")
@@ -1077,9 +1440,22 @@ FocusScope {
         }
 
         Keys.onReturnPressed: {
+            if (settingsRoot.inIcons()) {
+                settingsRoot.enterPage()
+                return
+            }
+            if (settingsRoot.editIndex >= 0) {
+                settingsRoot.confirmEdit()
+                return
+            }
             var row = settingsItems[currentIndex]
             if (!usable())
                 return
+            // Broadcast and Flat Panel: select starts a value's change.
+            if (settingsRoot.twoStep && row && (row.type === "list_single" || row.type === "slider")) {
+                settingsRoot.startEdit()
+                return
+            }
             if (opens(row))
                 openRow(row)
             else if (row && row.type === "slider" && row.on !== undefined)
@@ -1088,9 +1464,23 @@ FocusScope {
 
         Keys.onPressed: function(event) {
             if (event.key === Qt.Key_Escape || event.key === Qt.Key_Backspace || event.key === Qt.Key_Back) {
-                settingsRoot.goBack()
+                settingsRoot.back()
                 event.accepted = true
             }
+        }
+
+        // The mouse over a row (Hover.js): on Camcorder's first screen, the
+        // keys go into the rows; over the row of a page with none of its own,
+        // they stay in the icons.
+        function hoverRow(index, list) {
+            if (index !== currentIndex)
+                settingsRoot.editIndex = -1
+            if (settingsRoot.inIcons()) {
+                if (settingsRoot.pageGroup(settingsRoot.camPages[settingsRoot.camIndex].row) === "")
+                    return
+                settingsRoot.camIcons = false
+            }
+            currentIndex = index
         }
 
         delegate: Item {
@@ -1104,15 +1494,18 @@ FocusScope {
             readonly property real lineHeight: root.sh * 0.0583333 //28
             // A slider's bar takes whole lines under its own, so every line
             // keeps to the list's rule as it scrolls.
-            readonly property int barLines: slider ? Math.ceil((tape.height + 2 * root.px) / lineHeight) : 0
+            // In a monitor layout a slider is its line alone, its value a
+            // number (shownValue()).
+            readonly property int barLines: slider && !settingsRoot.monitor ? Math.ceil((tape.height + 2 * root.px) / lineHeight) : 0
             width: settingsList.width
-            height: lineHeight * (1 + barLines)
+            height: settingsRoot.monitor ? chrome.rowHeight : lineHeight * (1 + barLines)
 
             // A line laid out like a camcorder's menu, "DISPLAY······ON", or a
             // section's heading, as large as the lines under it: "MODULES ─────".
             // A line that leads to a page ends in a ►; a list's choice, which
             // ◄ ► change, stands between a ◄ and a ►.
             MenuRow {
+                visible: !settingsRoot.monitor
                 width: parent.width
                 height: rowItem.lineHeight
                 heading: rowItem.row.type === "section"
@@ -1124,15 +1517,33 @@ FocusScope {
                 opens: rowItem.off === "" && settingsList.opens(rowItem.row)
                 changes: rowItem.off === "" && rowItem.row.type === "list_single"
                 dimmed: rowItem.off !== ""
-                selected: settingsList.currentIndex === index
+                // In Camcorder's icons the box is on the icon.
+                selected: settingsList.currentIndex === index && !settingsRoot.inIcons()
             }
 
             // A slider's setting, as the deck's tape bar shows how far the
             // tape is: ◄ ► move the ▼ between the two ends, and stand beyond
             // them. Off, or dimmed, its lines stay, empty.
+            // The line in a monitor layout.
+            Loader {
+                active: settingsRoot.monitor
+                width: parent.width
+                height: rowItem.height
+                sourceComponent: MonitorRow {
+                    label: rowItem.row.label || ""
+                    heading: rowItem.row.type === "section"
+                    value: (settingsRoot.editIndex, settingsRoot.editValue,
+                            settingsRoot.shownValue(rowItem.row, index))
+                    opens: rowItem.off === "" && settingsList.opens(rowItem.row)
+                    dimmed: rowItem.off !== ""
+                    selected: settingsList.currentIndex === index && !settingsRoot.inIcons()
+                    editing: settingsRoot.editIndex === index
+                }
+            }
+
             Loader {
                 id: tape
-                active: rowItem.slider
+                active: rowItem.slider && !settingsRoot.monitor
                 visible: rowItem.row.on !== false && rowItem.off === ""
                 x: root.sw * 0.009375 //6
                 y: rowItem.lineHeight + Math.round((rowItem.barLines * rowItem.lineHeight - height) / 2)
@@ -1148,20 +1559,38 @@ FocusScope {
         }
     }
 
-    // ▲ / ▼ while lines are hidden above or below.
+    // ▲ / ▼ while lines are hidden above or below; Flat Panel's page says
+    // so instead.
     ScrollMarks {
+        visible: !settingsRoot.flat
         anchors.fill: settingsList
         list: settingsList
+        color: root.menuPalette ? root.menuPalette.ink : root.primaryColor
+    }
+
+    // Camcorder's icons, the first screen's pages, at the left of the rows.
+    IconColumn {
+        visible: settingsRoot.camcorder
+        model: settingsRoot.camPages
+        currentIndex: settingsRoot.camIndex
+        active: settingsRoot.inIcons()
+        x: root.sw * 0.115625 //74
+        y: settingsList.y
+        width: root.sw * 0.084375 //54
+        height: settingsList.height
     }
 
     // --- HELP TEXT --- (shown when a focused row has a description), on one
     // line that scrolls when it is too long for the box.
     // A dimmed row's says first why it can't be used now.
+    // In Camcorder's icons, the page's.
+    readonly property var helpRow: inIcons() ? (camPages[camIndex] || {}).row : settingsItems[settingsList.currentIndex]
+    readonly property string helpOff: inIcons() ? "" : (revision, offReason(settingsList.currentIndex))
+    readonly property string helpText: (helpOff !== "" ? helpOff + "\n" : "") + ((helpRow && helpRow.description) || "")
     HelpLine {
-        property var currentRow: settingsRoot.settingsItems[settingsList.currentIndex]
-        readonly property string off: (settingsRoot.revision, settingsRoot.offReason(settingsList.currentIndex))
-        visible: !!(currentRow && (currentRow.description || off !== ""))
-        text: (off !== "" ? off + "\n" : "") + ((currentRow && currentRow.description) || "")
+        objectName: "helpLine"
+        visible: !settingsRoot.monitor && text !== ""
+        text: settingsRoot.helpText
         anchors.bottom: parent.bottom
         anchors.left: parent.left
         anchors.bottomMargin: root.helpLineMargin
@@ -1171,7 +1600,10 @@ FocusScope {
     // --- FOOTER ---
     HintBar {
         id: footer
-        text: root.hints.back + ":BACK " + root.hints.navigate + ":NAVIGATE " + root.hints.change + ":CHANGE " + root.hints.select + ":SELECT"
+        visible: !settingsRoot.monitor
+        text: root.hints.back + ":BACK " + root.hints.navigate + ":NAVIGATE "
+              + (settingsRoot.inIcons() ? root.hints.browse + ":OPEN " : root.hints.change + ":CHANGE ")
+              + root.hints.select + ":SELECT"
         anchors.bottom: parent.bottom
         anchors.left: parent.left
         anchors.bottomMargin: root.sh * 0.1041667 //50

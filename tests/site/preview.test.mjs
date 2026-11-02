@@ -16,7 +16,8 @@ import { fileURLToPath } from "node:url";
 import { fromQt, fromQt3D, uniformsOf } from "../../site/setup/js/preview/glsl.mjs";
 import { lookOf, ARCADE } from "../../site/setup/js/preview/look.mjs";
 import { SelectorFx } from "../../site/setup/js/preview/selector.mjs";
-import { arcadeLayout, arcadeHintPairs, ARCADE_FILTERS, ORB_ROWS } from "../../site/setup/js/preview/screens.mjs";
+import { arcadeLayout, arcadeHintPairs, ARCADE_FILTERS, ORB_ROWS, camcorderGroups, MENU_PALETTES, drawMainMenu }
+    from "../../site/setup/js/preview/screens.mjs";
 import { MATERIALS, SHADER_FILES, tube, slab, chamfered, bar, node, point, IDENTITY, linear }
     from "../../site/setup/js/preview/orb.mjs";
 
@@ -166,6 +167,63 @@ test("the main menu's rows and the status icons, from the modules on", () => {
     modules[1].enabled = false;
     look = lookOf(looks, settings({ status_icons: "On" }, modules, { wifi: true, account: true }));
     assert.deepEqual([look.menu.map(m => m.name), look.statusIcons], [["YouTube"], ["signal4"]]);
+});
+
+// Menu Layout's Camcorder: the main menu's rows in groups, as ModuleList.qml
+// makes them (its settings group, TV / Movie, Arcade, More), the groups with
+// none left out, Settings' last.
+test("the main menu in Menu Layout's Camcorder: its groups, as the app makes them", () => {
+    const modules = [
+        { id: "com.osdos.youtube", name: "YouTube", folder: "youtube", group: "TV / Movie", enabled: true, values: {} },
+        { id: ARCADE, name: "Arcade", folder: "arcade", group: "Arcade", enabled: true, values: {} },
+        { id: "com.osdos.scripts", name: "Scripts", folder: "scripts", group: "Modules", enabled: true, values: {} },
+        { id: "com.osdos.plex", name: "Plex", folder: "plex", group: "TV / Movie", enabled: true, values: {} },
+    ];
+    let look = lookOf(looks, settings({}, modules));
+    assert.equal(look.menuLayout, "Standard");
+    look = lookOf(looks, settings({ menu_layout: "Camcorder" }, modules));
+    assert.equal(look.menuLayout, "Camcorder");
+    const groups = camcorderGroups(look.menu);
+    assert.deepEqual(groups.map(g => [g.label, g.icon, g.rows.map(r => r.name)]),
+                     [["TV / Movie", "tv", ["Plex", "YouTube"]], ["Arcade", "joystick", ["Arcade"]],
+                      ["More", "apps", ["Scripts"]], ["Settings", "gear", ["Settings"]]]);
+    // A group with nothing on is left out.
+    modules[1].enabled = false;
+    assert.deepEqual(camcorderGroups(lookOf(looks, settings({}, modules)).menu).map(g => g.label),
+                     ["TV / Movie", "More", "Settings"]);
+});
+
+// Menu Layout's monitor layouts: their colours as Main.qml's menuPalette has
+// them, and the main menu drawn in each, its rows' labels as the app writes
+// them (Broadcast's "..." and its Settings row, Flat Panel's mixed case).
+test("the main menu in Menu Layout's monitor layouts: Main.qml's colours, the rows as the app draws them", () => {
+    const main = readFileSync(join(root, "Main.qml"), "utf8");
+    const block = main.slice(main.indexOf("readonly property var menuPalette"), main.indexOf("})[menuLayout]"));
+    const qml = {};
+    for (const [, name, body] of block.matchAll(/"([^"]+)":\s*\{([^}]*)\}/g))
+        qml[name] = Object.fromEntries([...body.matchAll(/(\w+):\s*"(#[0-9A-Fa-f]{6})"/g)].map(([, k, v]) => [k, v]));
+    assert.deepEqual(MENU_PALETTES, qml);
+    const modules = [
+        { id: "com.osdos.youtube", name: "YouTube", folder: "youtube", group: "TV / Movie", enabled: true, values: {} },
+        { id: ARCADE, name: "Arcade", folder: "arcade", group: "Arcade", enabled: true, values: {} },
+    ];
+    for (const layout of Object.keys(MENU_PALETTES)) {
+        const look = lookOf(looks, settings({ menu_layout: layout }, modules));
+        assert.equal(look.menuLayout, layout);
+        const texts = [], fills = new Set();
+        const ctx = {
+            save() {}, restore() {}, beginPath() {}, rect() {}, clip() {}, drawImage() {},
+            measureText: s => ({ width: s.length * 12 }),
+            fillRect() { fills.add(this.fillStyle); },
+            fillText(s) { texts.push(s); },
+        };
+        assert.equal(drawMainMenu(ctx, look, { logo: () => null, skin: () => null }, { index: 0, top: 0, since: 0 }, 0), null);
+        assert.ok(fills.has(MENU_PALETTES[layout].ground), layout);
+        const rows = { "Studio Monitor": ["ARCADE"], "Broadcast": ["ARCADE...", "YOUTUBE...", "SETTINGS..."],
+                       "Flat Panel": ["Arcade", "YouTube"] }[layout];
+        for (const row of rows)
+            assert.ok(texts.includes(row), `${layout}: ${row} in ${texts}`);
+    }
 });
 
 test("each selector effect, drawn the same from the same start, round the box", () => {

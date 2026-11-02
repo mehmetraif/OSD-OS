@@ -9,7 +9,9 @@
 # nothing leaves the machine. With --setup, an OSD/OS Setup file in the data
 # folder instead: the app takes it as it starts, says what became of it
 # (views/SetupNotice.qml), and its setting is in config.json, the file gone.
-#   app_smoke_test.sh <osdos> <repository> <Qt's QML folder> [module folder | --setup]
+# With --layout=<name>, the main menu in that Menu Layout (Settings → Look →
+# Menu Layout: Camcorder, Studio Monitor, Broadcast, Flat Panel).
+#   app_smoke_test.sh <osdos> <repository> <Qt's QML folder> [module folder | --setup | --layout=<name>]
 # Skipped (77) without the app, which is built apart from the tests (build/),
 # and for a module that imports a QML module of Qt's this Qt doesn't have.
 set -u
@@ -28,7 +30,7 @@ if [ "$FOLDER" = "--setup" ]; then
     VIEW="views/SetupNotice.qml"
     SOURCES=("$ROOT/Main.qml" "$ROOT/views")
     CONFIG='{"app": {"color_scheme": "Video 1"}, "modules": {}}'
-elif [ -n "$FOLDER" ]; then
+elif [ -n "$FOLDER" ] && [ "${FOLDER#--layout=}" = "$FOLDER" ]; then
     MANIFEST="$ROOT/modules/$FOLDER/manifest.json"
     ID=$(id "$MANIFEST")
     ENTRY=$(sed -n 's/^ *"entry_point_qml": *"\([^"]*\)".*/\1/p' "$MANIFEST" | head -n 1)
@@ -41,7 +43,12 @@ else
     WHAT="the main menu"
     VIEW="views/ModuleList.qml"
     SOURCES=("$ROOT/Main.qml" "$ROOT/views")
-    CONFIG="{\"modules\": {"
+    LAYOUT=Standard
+    if [ -n "$FOLDER" ]; then
+        LAYOUT="${FOLDER#--layout=}"
+        WHAT="the main menu in Menu Layout's $LAYOUT"
+    fi
+    CONFIG="{\"app\": {\"menu_layout\": \"$LAYOUT\"}, \"modules\": {"
     for manifest in "$ROOT"/modules/*/manifest.json; do
         CONFIG="$CONFIG\"$(id "$manifest")\": {\"enabled\": true}, "
     done

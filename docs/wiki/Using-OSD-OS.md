@@ -70,6 +70,8 @@ The main menu lists the modules, like the inputs on a deck: Local Files, Plex, Y
 - **Rows a module adds.** A module can put rows of its own on the menu, after the modules: a script you marked in [Scripts](https://github.com/mehmetraif/OSD-OS/wiki/Scripts) has one, which runs it.
 - **The video playing behind.** With [Transparent Background](https://github.com/mehmetraif/OSD-OS/wiki/Using-OSD-OS#transparent-background), a video left playing behind the menus leads the list as `► <its title>`, with the cursor on it.
 - ▲ ▼ go round from the last row to the first. The menu remembers the row you left it on.
+- **As a camcorder's menu.** With Settings → Look → **Menu Layout** on Camcorder, the modules are in groups, each an icon in a column at the left: **TV / Movie**, **Arcade**, **More** (the modules of neither) and **Settings**, the rows of one beside the column. ◄ goes to the icons, ▲ ▼ there from group to group, ► or select back into the rows ([Settings → Menu Layout](https://github.com/mehmetraif/OSD-OS/wiki/Settings#menu-layout)).
+- **As a studio monitor's menu.** Menu Layout's **Studio Monitor** puts the same groups in a monitor's window, their icons in its blue strip; **Broadcast** lists the modules on plain blue, a row for Settings at the end; **Flat Panel** lists them on black, a page at a time ([Settings → Menu Layout](https://github.com/mehmetraif/OSD-OS/wiki/Settings#menu-layout)).
 
 [Modules](https://github.com/mehmetraif/OSD-OS/wiki/Modules) describes each module, and its own page how to set it up.
 
@@ -342,10 +344,12 @@ Back on the main menu opens Settings, laid out like a camcorder's menu: a line p
 
 - ▲ ▼ move, skipping the headings, round from the bottom to the top. ◄ ► change the value, saved at once. Select, or ►, opens a line that ends in ► (a page, a module's settings, Wi-Fi, Bluetooth, Update, a file or folder picker), and select turns a slider on or off. Back from a page returns to the line it was opened from.
 - Nothing is hidden: a line that can't be used, on this system or with another line as it is set, is dimmed, a checkerboard over it. The cursor stops on it, and the help line says why (`Only with OSD Background on Window`).
+- Look → **Menu Layout** on Camcorder shows the pages as icons in a column at the left and the rows of the one the cursor is on beside it, as a camcorder's menu does: ▲ ▼ from page to page, ► or select into its rows, back out to the icons ([Menu Layout](https://github.com/mehmetraif/OSD-OS/wiki/Settings#menu-layout)).
+- Look → **Menu Layout** has three more layouts after studio monitors' menus, in colours of their own: **Studio Monitor**, a window with the pages' icons in a strip and a Status page first; **Broadcast**, plain blue; and **Flat Panel**, black, a page of rows at a time. In Broadcast and Flat Panel a value changes in two steps: select, ▲ ▼, then select to save or back to leave it ([Menu Layout](https://github.com/mehmetraif/OSD-OS/wiki/Settings#menu-layout)).
 - The first screen is a line for each page, then Quit:
   - **TV / Movie**: Scaling, Transparent Background, Video Levels, 1080p Playback, Loading Effect, Loading Screen Colors, Channel Logo and Info Screen, then under **Modules** a line per video module (and Weather), for its settings, its **Enabled** row among them.
   - **Arcade**: the Arcade module's settings, with the High Scores module's after them under its own heading.
-  - **Look**: Theme, then its parts (Color Scheme, Skin, and Effects, a page of the text, background, selector and screen effects and the transition), OSD Background and Window Frame, Boot Screen Colors, Hint Bar, Help Line and Status Icons.
+  - **Look**: Theme, then its parts (Color Scheme, Skin, and Effects, a page of the text, background, selector and screen effects and the transition), Menu Layout, OSD Background and Window Frame, Boot Screen Colors, Hint Bar, Help Line and Status Icons.
   - **Screen**: Display Output (on the image), Test Patterns, Screen Saver, Mouse Pointer and Window Mode (on a PC's desktop: the menus in a window, F11).
   - **Sound**: Audio Output (where plain ALSA plays), Menu Music, Music File and Music Volume.
   - **Controls**: every controller, the players' pads, and more keys for the keyboards and remotes.

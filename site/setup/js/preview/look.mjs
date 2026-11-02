@@ -106,7 +106,10 @@ export function lookOf(looks, settings) {
         hintBar: on(app.hint_bar),
         helpLine: on(app.help_line),
         statusIcons,
-        menu: modules.map(m => ({ id: m.id, name: m.name })),
+        menu: modules.map(m => ({ id: m.id, name: m.name, group: m.group })),
+        // Settings → Look → Menu Layout.
+        menuLayout: ["Camcorder", "Studio Monitor", "Broadcast", "Flat Panel"].includes(app.menu_layout)
+            ? app.menu_layout : "Standard",
         orb: theme.arcade === "orb",
         orbFogLive: app.orb_fog === "Live",
         arcade: {
