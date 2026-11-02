@@ -335,6 +335,8 @@ Without MAME the sets are listed by their names, and select says MAME is not ins
 - **FinalBurn Neo first**: the CRC of every ROM in its list (the DAT that came with the core) against the table of the game's zip or 7z, then of the sets it takes ROMs from: its parent, and its BIOS set in the games folder or its `bios` folder. Nothing is unpacked.
 - **Then MAME**, which checks its own way (`mame -verifyroms`, a hundred games at a time, with the games folder and its `bios` folder). A game started meanwhile, or MAME asked about new games, holds it (the page says `Waiting`); it goes on once they end.
 
+<img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/screenshots/check-roms.png" width="480" alt="Settings → Arcade → Check ROMs: Last Check Never, the counts of Complete, FinalBurn Neo Only, MAME Only, Incomplete and Not Checked games, and the Check ROMs row">
+
 The page counts the games: **Complete** (whole for every engine that knows them), **FinalBurn Neo Only** and **MAME Only** (whole for one engine and not the other), **Incomplete** (whole for neither) and **Not Checked**. What the check found is used at once:
 
 - **The engine**: with **Engine** at Auto, a game missing files for one engine plays in the other where that one has them all ([FinalBurn Neo](#finalburn-neo)). An engine chosen for a game is kept whatever was found.
