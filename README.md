@@ -53,7 +53,7 @@ The [feature list](https://github.com/mehmetraif/OSD-OS/wiki/Features) has the r
 - **As an app** on [Raspberry Pi OS](INSTALL.md#on-a-raspberry-pi), [macOS (ARM)](INSTALL.md#on-macos-arm), [SteamOS and other Linux x86_64](INSTALL.md#on-steamos--linux-x86_64) or [Windows 11 (x64)](INSTALL.md#on-windows-x64), or as a package on [FreeBSD](INSTALL.md#on-freebsd-amd64) and [OpenBSD](INSTALL.md#on-openbsd-amd64).
 - **From a terminal**: `curl -fsSL https://osdos.tv/get.sh | sh` downloads the file for the computer it runs on into the current folder, and with `sh -s -- image` at its end the OSD/OS image; in Windows PowerShell, `irm https://osdos.tv/get.ps1 | iex` downloads the app and unzips it. Each checks the file against the SHA-256 GitHub keeps for it and says what comes next ([the commands for each system](https://osdos.tv/)).
 
-Tested on a Raspberry Pi 4 and a Raspberry Pi 5 (8 GB): the Pi 4 as a TV, the Pi 5 in a JAMMA arcade cabinet, and LAN Play between the two. On another board? Tell us how it went in an [issue](https://github.com/mehmetraif/OSD-OS/issues).
+Tested on a Raspberry Pi 4 and a Raspberry Pi 5 (8 GB), the Pi 4 as a TV and the Pi 5 in a JAMMA arcade cabinet, and as an app on a Windows 11 PC, with LAN Play among the three. On another board? Tell us how it went in an [issue](https://github.com/mehmetraif/OSD-OS/issues).
 
 ## Learn more
 
