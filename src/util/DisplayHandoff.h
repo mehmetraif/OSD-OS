@@ -1,4 +1,5 @@
 #pragma once
+#include <QElapsedTimer>
 #include <QObject>
 #include <QString>
 #include <atomic>
@@ -141,6 +142,12 @@ public:
     // to, and look for Qt's DRM fd after its master is already dropped.
     bool    isHeldBy(const QString &owner) const;
     QString currentOwner() const { return m_owner; }
+    // Who held the screen last, once it is back: for the log's line on how
+    // long the way back took (main.cpp).
+    QString lastOwner() const { return m_lastOwner; }
+    // Milliseconds since the screen was last asked back (releaseDeferred(),
+    // releaseNow()), as the child ended; -1 before it ever was.
+    qint64 sinceReleaseAsked() const { return m_releaseAsked.isValid() ? m_releaseAsked.elapsed() : -1; }
 
     // False when the CRTC state captured by acquire() is unusable, meaning the
     // post-exit restore will NOT be able to put the display back. A caller that
@@ -248,6 +255,8 @@ private:
     void setDrawing(bool draw);
 
     QString m_owner;                    // empty when not handed off
+    QString m_lastOwner;                // who it was last handed to
+    QElapsedTimer m_releaseAsked;       // since the screen was last asked back
     int     m_previousVt   = -1;
     bool    m_switchedVt   = false;     // did the VT switch actually succeed?
     int     m_qtDrmFd      = -1;
