@@ -10,7 +10,6 @@
 - [The OSD/OS image](https://github.com/mehmetraif/OSD-OS/wiki/The-OSD-OS-Image)
 - [Display Output](https://github.com/mehmetraif/OSD-OS/wiki/Display-Output)
 - [Audio Output](https://github.com/mehmetraif/OSD-OS/wiki/Audio-Output)
-- [How it works](https://github.com/mehmetraif/OSD-OS/wiki/How-It-Works)
 
 **Modules**
 - [All modules](https://github.com/mehmetraif/OSD-OS/wiki/Modules)
@@ -38,11 +37,14 @@
 - [Configuration files](https://github.com/mehmetraif/OSD-OS/wiki/Configuration-Files)
 - [Playback and mpv](https://github.com/mehmetraif/OSD-OS/wiki/Playback-and-mpv)
 
-**Help and development**
+**Help**
 - [Troubleshooting](https://github.com/mehmetraif/OSD-OS/wiki/Troubleshooting)
 - [FAQ](https://github.com/mehmetraif/OSD-OS/wiki/FAQ)
+- [Credits and license](https://github.com/mehmetraif/OSD-OS/wiki/Credits)
+
+**Development**
+- [How it works](https://github.com/mehmetraif/OSD-OS/wiki/How-It-Works)
 - [Writing a module](https://github.com/mehmetraif/OSD-OS/wiki/Writing-a-Module)
 - [Building from source](https://github.com/mehmetraif/OSD-OS/wiki/Building-from-Source)
-- [Credits and license](https://github.com/mehmetraif/OSD-OS/wiki/Credits)
 
 [Screen tour](https://github.com/mehmetraif/OSD-OS/blob/main/docs/TOUR.md)

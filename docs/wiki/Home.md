@@ -20,7 +20,6 @@ OSD/OS makes a TV, preferably a CRT, a smart TV with the look of a VCR. On a Ras
 | [The OSD/OS image](https://github.com/mehmetraif/OSD-OS/wiki/The-OSD-OS-Image) | What the image changes in Raspberry Pi OS: the boot, the services, the films partition, USB drives, SSH, logs, building it yourself |
 | [Display Output](https://github.com/mehmetraif/OSD-OS/wiki/Display-Output) | HDMI, composite and SCART RGB on a Pi 4 and a Pi 5, the cables, and what each choice writes |
 | [Audio Output](https://github.com/mehmetraif/OSD-OS/wiki/Audio-Output) | The AV jack, HDMI or a USB sound card |
-| [How it works](https://github.com/mehmetraif/OSD-OS/wiki/How-It-Works) | The shell and its modules, the display path, playback, the effects, settings and logs |
 
 ## Modules
 
@@ -42,15 +41,23 @@ OSD/OS makes a TV, preferably a CRT, a smart TV with the look of a VCR. On a Ras
 | [Configuration files](https://github.com/mehmetraif/OSD-OS/wiki/Configuration-Files) | The data folder, config.json and the other files OSD/OS keeps |
 | [Playback and mpv](https://github.com/mehmetraif/OSD-OS/wiki/Playback-and-mpv) | How videos play, mpv's options, scaling, subtitles and resume |
 
-## Help and development
+## Help
 
 | Page | What is in it |
 |---|---|
 | [Troubleshooting](https://github.com/mehmetraif/OSD-OS/wiki/Troubleshooting) | Reading the log, and problems by symptom |
 | [FAQ](https://github.com/mehmetraif/OSD-OS/wiki/FAQ) | Kodi, other Raspberry Pis, 240p, RGB, HDMI, Bluetooth and the name |
+| [Credits and license](https://github.com/mehmetraif/OSD-OS/wiki/Credits) | Who made it, what it stands on, and its license |
+
+## Development
+
+For those who build OSD/OS themselves or add to it. Nothing here is needed to use it.
+
+| Page | What is in it |
+|---|---|
+| [How it works](https://github.com/mehmetraif/OSD-OS/wiki/How-It-Works) | The shell and its modules, the display path, playback, the effects, settings and logs |
 | [Writing a module](https://github.com/mehmetraif/OSD-OS/wiki/Writing-a-Module) | A module of your own, step by step, with working code |
 | [Building from source](https://github.com/mehmetraif/OSD-OS/wiki/Building-from-Source) | Building the app, the tests and the image; CI and releases |
-| [Credits and license](https://github.com/mehmetraif/OSD-OS/wiki/Credits) | Who made it, what it stands on, and its license |
 
 Every screen is also in the [screen tour](https://github.com/mehmetraif/OSD-OS/blob/main/docs/TOUR.md).
 
