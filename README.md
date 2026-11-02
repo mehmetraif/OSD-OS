@@ -27,12 +27,9 @@ Out of the box it is plain on purpose, as above: two colors, and nothing moving 
 <td><img src="docs/images/theme-winter.gif" width="100%" alt="Theme: Winter" /></td>
 </tr>
 <tr><td align="center">Late Show</td><td align="center">Green Screen</td><td align="center">Arcade</td><td align="center">Winter</td></tr>
-<tr>
-<td colspan="2"><img src="docs/screenshots/arcade-orb.png" width="100%" alt="Theme: Orb, the Arcade screen in 3D: the games on a glass panel at the right, the game's picture in a glass orb at the left, its high scores on a panel under it" /></td>
-<td colspan="2"><img src="docs/screenshots/arcade-orb-start.png" width="100%" alt="Theme: Orb, a game starting: the panels swung out and the screen going into the orb" /></td>
-</tr>
-<tr><td colspan="2" align="center">Orb: the Arcade screen in 3D</td><td colspan="2" align="center">Orb: a game starting</td></tr>
 </table>
+
+<p align="center"><img src="docs/images/orb-look.gif" width="640" alt="Theme: Orb, the Arcade screen in 3D: the games on a glass panel at the right, the selected game's picture in a glass orb at the left and its high scores under it, going through All Games and Favorites, then a game started, the screen going into the orb" /></p>
 
 ## What it does
 
