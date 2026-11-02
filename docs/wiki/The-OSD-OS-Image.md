@@ -496,8 +496,8 @@ Without a password, `os/build.sh` hands pi-gen a random one and the stage locks 
 
 <table>
 <tr><th width="50%">Quit</th><th width="50%">Update</th></tr>
-<tr><td><img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/screenshots/quit.png" width="100%" alt="Really quit? with Yes and No" /></td><td><img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/screenshots/update.png" width="100%" alt="Update: installed version DEV, press Enter to check for the latest" /></td></tr>
-<tr><td>Settings → Quit, run by hand: Yes or No. Started with the system, as on the image, it offers Power Off, Restart, Exit to Terminal, Save Logs and Cancel instead.</td><td>Settings → System → Update checks for a newer release and installs it.</td></tr>
+<tr><td><img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/screenshots/quit.png" width="100%" alt="Really quit? with Yes, Save Logs and No" /></td><td><img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/screenshots/update.png" width="100%" alt="Update: installed version DEV, press Enter to check for the latest" /></td></tr>
+<tr><td>Settings → Quit, run by hand: Yes or No, with Save Logs between them. Started with the system, as on the image, it offers Power Off, Restart, Exit to Terminal, Save Logs and Cancel instead.</td><td>Settings → System → Update checks for a newer release and installs it.</td></tr>
 </table>
 
 Settings → **Quit** on the image asks **Really quit?** with:
@@ -724,7 +724,7 @@ Then start OSD/OS again ([Exit to Terminal](https://github.com/mehmetraif/OSD-OS
 | `/etc/initramfs-tools/scripts/local-premount/resize_early` | The first boot's card split |
 | `/usr/local/bin/deno` | The JavaScript runtime yt-dlp needs for YouTube |
 | `/usr/games/mame`, `/etc/mame/mame.ini` | MAME, which the Arcade module plays its games in, and MAME's own settings ([Arcade](https://github.com/mehmetraif/OSD-OS/wiki/Arcade)) |
-| `/usr/bin/retroarch`, `/opt/osdos/lib/osdos/fbneo_libretro.so`, `/opt/osdos/share/osdos/fbneo/` | RetroArch (Debian's) and the FinalBurn Neo core, the Arcade module's second engine, which comes with the app, with FinalBurn Neo's list of arcade games and its licence; the same core as every other OSD/OS of the release ([Arcade](https://github.com/mehmetraif/OSD-OS/wiki/Arcade#the-same-engines-on-every-machine)) |
+| `/usr/bin/retroarch`, `/opt/osdos/lib/osdos/fbneo_libretro.so`, `/opt/osdos/share/osdos/fbneo/` | RetroArch (Debian's) and the FinalBurn Neo core, the Arcade module's second engine, which comes with the app, with FinalBurn Neo's list of arcade games and its licence; the same core as every other OSD/OS of the release ([Arcade](https://github.com/mehmetraif/OSD-OS/wiki/Online-and-LAN-Play#the-same-engines-on-every-machine)) |
 | `/usr/share/doc/osdos/NOTICE` | What the image is made of, and under which licences |
 | `/tmp/osdos-mpv.log` | mpv's own log ([Logs](https://github.com/mehmetraif/OSD-OS/wiki/The-OSD-OS-Image#logs)) |
 

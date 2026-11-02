@@ -4,6 +4,7 @@
 #include <QStringList>
 #include <QTimer>
 #include <QDebug>
+#include <utility>
 
 #ifdef Q_OS_LINUX
 #include <QElapsedTimer>
@@ -263,6 +264,7 @@ void DisplayHandoff::releaseDeferred(const QString &owner,
         return;
     }
     m_onRestored = std::move(onRestored);
+    m_releaseAsked.start();
     m_releaseTimer->start(delayMs);
 }
 
@@ -271,6 +273,7 @@ void DisplayHandoff::releaseNow(const QString &owner) {
         return;
     m_releaseTimer->stop();
     m_onRestored = nullptr;
+    m_releaseAsked.start();
     doRestore();
 }
 
@@ -321,7 +324,7 @@ void DisplayHandoff::doRestore(bool useCover) {
     if (useCover)
         setDrawing(true);
     if (!m_owner.isEmpty()) {
-        m_owner.clear();
+        m_lastOwner = std::exchange(m_owner, QString());
         emit heldChanged();
     }
 }

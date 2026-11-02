@@ -10,10 +10,8 @@
 - [The OSD/OS image](https://github.com/mehmetraif/OSD-OS/wiki/The-OSD-OS-Image)
 - [Display Output](https://github.com/mehmetraif/OSD-OS/wiki/Display-Output)
 - [Audio Output](https://github.com/mehmetraif/OSD-OS/wiki/Audio-Output)
-- [How it works](https://github.com/mehmetraif/OSD-OS/wiki/How-It-Works)
 
-**Modules**
-- [All modules](https://github.com/mehmetraif/OSD-OS/wiki/Modules)
+**TV / Movie**
 - [Local Files](https://github.com/mehmetraif/OSD-OS/wiki/Local-Files)
 - [Plex](https://github.com/mehmetraif/OSD-OS/wiki/Plex)
 - [Jellyfin](https://github.com/mehmetraif/OSD-OS/wiki/Jellyfin)
@@ -23,10 +21,17 @@
 - [Playlists](https://github.com/mehmetraif/OSD-OS/wiki/Playlists)
 - [NFC Reader](https://github.com/mehmetraif/OSD-OS/wiki/NFC-Reader)
 - [Weather](https://github.com/mehmetraif/OSD-OS/wiki/Weather)
-- [Arcade](https://github.com/mehmetraif/OSD-OS/wiki/Arcade)
-- [High Scores](https://github.com/mehmetraif/OSD-OS/wiki/High-Scores)
-- [Scripts](https://github.com/mehmetraif/OSD-OS/wiki/Scripts)
 - [Ambient:Mode](https://github.com/mehmetraif/OSD-OS/wiki/Ambient-Mode)
+
+**Arcade**
+- [Arcade](https://github.com/mehmetraif/OSD-OS/wiki/Arcade)
+- [Online and LAN Play](https://github.com/mehmetraif/OSD-OS/wiki/Online-and-LAN-Play)
+- [High Scores](https://github.com/mehmetraif/OSD-OS/wiki/High-Scores)
+- [JAMMA cabinets](https://github.com/mehmetraif/OSD-OS/wiki/Display-Output#jamma-a-raspberry-pi-to-jamma-board)
+
+**Modules**
+- [All modules](https://github.com/mehmetraif/OSD-OS/wiki/Modules)
+- [Scripts](https://github.com/mehmetraif/OSD-OS/wiki/Scripts)
 
 **Making it yours**
 - [Settings](https://github.com/mehmetraif/OSD-OS/wiki/Settings)
@@ -38,11 +43,14 @@
 - [Configuration files](https://github.com/mehmetraif/OSD-OS/wiki/Configuration-Files)
 - [Playback and mpv](https://github.com/mehmetraif/OSD-OS/wiki/Playback-and-mpv)
 
-**Help and development**
+**Help**
 - [Troubleshooting](https://github.com/mehmetraif/OSD-OS/wiki/Troubleshooting)
 - [FAQ](https://github.com/mehmetraif/OSD-OS/wiki/FAQ)
+- [Credits and license](https://github.com/mehmetraif/OSD-OS/wiki/Credits)
+
+**Development**
+- [How it works](https://github.com/mehmetraif/OSD-OS/wiki/How-It-Works)
 - [Writing a module](https://github.com/mehmetraif/OSD-OS/wiki/Writing-a-Module)
 - [Building from source](https://github.com/mehmetraif/OSD-OS/wiki/Building-from-Source)
-- [Credits and license](https://github.com/mehmetraif/OSD-OS/wiki/Credits)
 
 [Screen tour](https://github.com/mehmetraif/OSD-OS/blob/main/docs/TOUR.md)

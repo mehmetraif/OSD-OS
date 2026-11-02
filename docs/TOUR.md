@@ -1,6 +1,6 @@
 # The OSD/OS screen tour
 
-Every screen of OSD/OS, module by module. The [wiki](https://github.com/mehmetraif/OSD-OS/wiki) tells what each does.
+Every screen of OSD/OS: its two sides, TV / Movie and Arcade, then Settings and the themes. The [wiki](https://github.com/mehmetraif/OSD-OS/wiki) tells what each does.
 
 Every screen below is the app itself, running at 640×480. The film and YouTube entries are sample data; the weather is real.
 
@@ -9,8 +9,10 @@ Every screen below is the app itself, running at 640×480. The film and YouTube 
 <table>
 <tr><th width="33%">Boot screen</th><th width="33%">Main menu</th><th width="33%">Quit</th></tr>
 <tr><td><img src="screenshots/boot.png" width="100%" alt="Boot screen" /></td><td><img src="screenshots/main-menu.png" width="100%" alt="Main menu" /></td><td><img src="screenshots/quit.png" width="100%" alt="Quit" /></td></tr>
-<tr><td>On the OSD/OS image, the OSD/OS cassette winds its tape from reel to reel while the services start, <code>[ OK ]</code> once each is up. It closes by itself when the last one has settled.</td><td>The modules, like the inputs on a deck. Select opens one; back opens Settings.</td><td>Settings → Quit. When OSD/OS starts with the system, it offers Power Off, Restart or Exit to Terminal instead.</td></tr>
+<tr><td>On the OSD/OS image, the OSD/OS cassette winds its tape from reel to reel while the services start, <code>[ OK ]</code> once each is up. It closes by itself when the last one has settled.</td><td>The modules turned on, like the inputs on a deck, and at the top right the status icons of what is on. Select opens one; back opens Settings.</td><td>Settings → Quit. On the OSD/OS image, Save Logs copies the logs to the card's OSD-OS partition. When OSD/OS starts with the system, it offers Power Off, Restart or Exit to Terminal instead.</td></tr>
 </table>
+
+## TV / Movie
 
 ### Local Files
 
@@ -96,34 +98,6 @@ Once signed in, each opens on the server's Continue Watching and its libraries. 
 <tr><td>Local Files, YouTube, Jellyfin and Emby in one tree, down to a show's episodes. Select adds a video and stays, for the next.</td><td>From a module itself: a video's options (►), or ► on PLAY in Jellyfin and Emby.</td></tr>
 </table>
 
-### Arcade
-
-<table>
-<tr><th width="50%">The games</th><th width="50%">All Games</th></tr>
-<tr><td><img src="screenshots/arcade.png" width="100%" alt="Arcade" /></td><td><img src="screenshots/arcade-games.png" width="100%" alt="All Games" /></td></tr>
-<tr><td>MAME's ROM sets from the games folder, by players, decade and maker, as MAME names them.</td><td>A game's year, maker, players and file under the tree. Select plays it in MAME.</td></tr>
-</table>
-
-<table>
-<tr><th width="50%">Playing</th><th width="50%">A game that couldn't start</th></tr>
-<tr><td><img src="screenshots/arcade-play.png" width="100%" alt="Playing" /></td><td><img src="screenshots/arcade-missing.png" width="100%" alt="A game that couldn't start" /></td></tr>
-<tr><td>How to come back, in player 1's own buttons, then MAME has the screen, with Settings → Controls' players as its players 1 to 6.</td><td>What the set lacked and where MAME looked: here the Neo-Geo BIOS.</td></tr>
-</table>
-
-### High Scores
-
-<table>
-<tr><th width="50%">The games</th><th width="50%">All Games</th></tr>
-<tr><td><img src="screenshots/high-scores.png" width="100%" alt="High Scores" /></td><td><img src="screenshots/high-scores-games.png" width="100%" alt="All Games" /></td></tr>
-<tr><td>The games played last in Arcade, latest first, those with a table.</td><td>A game's table beside it, and under the tree its best entry and the file MAME kept it in.</td></tr>
-</table>
-
-<table>
-<tr><th width="50%">A game's table</th><th width="50%">Several tables</th></tr>
-<tr><td><img src="screenshots/high-scores-table.png" width="100%" alt="A game's table" /></td><td><img src="screenshots/high-scores-tables.png" width="100%" alt="Several tables" /></td></tr>
-<tr><td>An entry's cells by column, under the tree.</td><td>A game with a table for each mode, a folder each.</td></tr>
-</table>
-
 ### Weather, Ambient:Mode, NFC Reader and Scripts
 
 <table>
@@ -144,6 +118,110 @@ Once signed in, each opens on the server's Continue Watching and its libraries. 
 <tr><td>Your own shell scripts. ► puts one on the main menu.</td><td>A console script shows its output. A takeover script gets the whole screen until it exits.</td></tr>
 </table>
 
+## Arcade
+
+### The Arcade screen
+
+<table>
+<tr><th width="50%">The Arcade screen</th><th width="50%">A game started from it</th></tr>
+<tr><td><img src="screenshots/arcade-screen.png" width="100%" alt="The Arcade screen: one genre's games on an arc, Final Fight selected, its picture with Credit 2, and its high scores, maker and play time in the box under it" /></td><td><img src="screenshots/arcade-screen-play.png" width="100%" alt="Play ▶ Final Fight: press COIN + START together to come back to OSD/OS, or Esc on a keyboard; 2 credits go in as the game starts" /></td></tr>
+<tr><td>A cabinet's selection screen, Settings → Arcade → Screen's default: one filter's games at a time, ◄ ► from filter to filter, the selected one's picture, high scores, maker and play time. COIN buys credits; select or START plays. The pictures here are stand-ins.</td><td>How to come back, and the credits going in with the game.</td></tr>
+</table>
+
+<table>
+<tr><th width="50%">List Style: Straight</th><th width="50%">List Style: 3D Curved</th></tr>
+<tr><td><img src="screenshots/arcade-list-straight.png" width="100%" alt="List Style Straight: seven games one under another, Final Fight selected" /></td><td><img src="screenshots/arcade-list-3d-curved.png" width="100%" alt="List Style 3D Curved: the games on a wheel, smaller and fainter the further they are from the cursor" /></td></tr>
+<tr><td>Settings → Arcade → List Style lays the games out straight, on an arc, or on a 3D wheel.</td><td>The 3D wheel: the cursor roams the list and the wheel turns with it.</td></tr>
+</table>
+
+<table>
+<tr><th width="50%">Menu Filters</th><th width="50%">Screen Adjustment</th></tr>
+<tr><td><img src="screenshots/arcade-menu-filters.png" width="100%" alt="Settings → Arcade → Menu Filters: the Lists and Genres headings, each filter ON or OFF" /></td><td><img src="screenshots/arcade-screen-adjustment.png" width="100%" alt="Screen Adjustment: the Arcade screen inside a frame with an arrow beyond each side" /></td></tr>
+<tr><td>Which filters ◄ ► go through: lists, genres, players, decades and makers, under headings that turn a whole group on or off.</td><td>The screen's frame moved to a tube's edges, live, with the arrows: the Arcade screen fits inside it.</td></tr>
+</table>
+
+### The Orb look
+
+<table>
+<tr><th width="50%">The Orb look</th><th width="50%">A game starting</th></tr>
+<tr><td><img src="screenshots/arcade-orb.png" width="100%" alt="The Arcade screen in the Orb look: the games on a glass panel at the right, the game's picture in a glass orb, its high scores under it, BACK and PLAY at the foot" /></td><td><img src="screenshots/arcade-orb-start.png" width="100%" alt="The Orb look as a game starts" /></td></tr>
+<tr><td>Settings → Look → Theme → Orb draws the Arcade screen in 3D, in x-ray glass that lights up where its parts cross. The keys do what they do on the plain screen.</td><td>The same game started in the Orb look.</td></tr>
+</table>
+
+### Playing together
+
+Settings → Arcade → **LAN Play** and **Online Play**: up to six players across Raspberry Pis, PCs and Macs, each machine bringing as many as it has controllers ([Online and LAN Play](https://github.com/mehmetraif/OSD-OS/wiki/Online-and-LAN-Play)).
+
+<table>
+<tr><th width="50%">LAN Games</th><th width="50%">RetroArch Lobby</th></tr>
+<tr><td><img src="screenshots/arcade-screen-lan.png" width="100%" alt="The Arcade screen's LAN Games filter: Final Fight and Cadillacs and Dinosaurs hosted on the network, Final Fight's room in the box on the right" /></td><td><img src="screenshots/arcade-screen-lobby.png" width="100%" alt="The Arcade screen's RetroArch Lobby filter: every room hosted in RetroArch's lobby, Garou's room in the box on the right" /></td></tr>
+<tr><td>Games hosted on your network that you have, with what the host's machine says of the one selected: who hosts it and where, its core, versions and system. Select joins it, no internet needed.</td><td>Every game hosted in RetroArch's lobby, ▶ on those you can join and a lock on those with a password, with what the lobby says of the one selected.</td></tr>
+</table>
+
+### The original screen
+
+<table>
+<tr><th width="50%">The games</th><th width="50%">All Games</th></tr>
+<tr><td><img src="screenshots/arcade.png" width="100%" alt="Arcade" /></td><td><img src="screenshots/arcade-games.png" width="100%" alt="All Games" /></td></tr>
+<tr><td>MAME's ROM sets from the games folder, by players, decade and maker, as MAME names them.</td><td>A game's year, maker, players and file under the tree. Select plays it in MAME.</td></tr>
+</table>
+
+<table>
+<tr><th width="50%">Playing</th><th width="50%">A game that couldn't start</th></tr>
+<tr><td><img src="screenshots/arcade-play.png" width="100%" alt="Playing" /></td><td><img src="screenshots/arcade-missing.png" width="100%" alt="A game that couldn't start" /></td></tr>
+<tr><td>How to come back, in player 1's own buttons, then MAME has the screen, with Settings → Controls' players as its players 1 to 6.</td><td>What the set lacked and where MAME looked: here the Neo-Geo BIOS.</td></tr>
+</table>
+
+### Check ROMs and Cabinet Lock
+
+<table>
+<tr><th width="50%">Check ROMs</th><th width="50%">Cabinet Lock</th></tr>
+<tr><td><img src="screenshots/check-roms.png" width="100%" alt="Settings → Arcade → Check ROMs: Last Check, the counts of Complete, FinalBurn Neo Only, MAME Only, Incomplete and Not Checked games, and the Check ROMs row" /></td><td><img src="screenshots/cabinet-lock.png" width="100%" alt="Settings → Startup → Cabinet Lock: the lock and the buttons that open it" /></td></tr>
+<tr><td>Started only from here: whether every game's files are whole, for MAME and for FinalBurn Neo. Each game then plays in the engine that has its files.</td><td>Settings → Startup → Cabinet Lock keeps a cabinet on the Arcade screen for the players; the menus open only with up to four buttons of your choosing held together.</td></tr>
+</table>
+
+<table>
+<tr><th width="50%">Unlock Buttons</th><th width="50%">Lock the cabinet?</th></tr>
+<tr><td><img src="screenshots/cabinet-lock-buttons.png" width="100%" alt="Unlock Buttons: the buttons held, named as they are" /></td><td><img src="screenshots/cabinet-lock-confirm.png" width="100%" alt="Lock the cabinet? with what unlocks it" /></td></tr>
+<tr><td>The buttons held, named as they are, kept after two seconds.</td><td>Asked before it locks, with what unlocks it.</td></tr>
+</table>
+
+### Controls and Arcade Buttons
+
+<table>
+<tr><th width="50%">A pad's page</th><th width="50%">Players 1 to 6</th></tr>
+<tr><td><img src="screenshots/controller-page.png" width="100%" alt="Settings → Controls: the JAMMA board's first stick, its buttons named as the cabinet numbers them" /></td><td><img src="screenshots/controller-players.png" width="100%" alt="Player 1: which pad is player 1, Auto or one of the pads connected" /></td></tr>
+<tr><td>Each controller apart: the JAMMA board's first stick here, its buttons named as the cabinet numbers them, every button and direction listed under the action it does.</td><td>Which pad is each player, 1 to 6, for MAME, FinalBurn Neo and the games played together.</td></tr>
+</table>
+
+<table>
+<tr><th width="50%">Test Buttons</th><th width="50%">Waiting for a press</th></tr>
+<tr><td><img src="screenshots/controller-test.png" width="100%" alt="Test Buttons: a grid of the JAMMA edge's pins, the ones held lit" /></td><td><img src="screenshots/controller-capture.png" width="100%" alt="Waiting for a press on that controller" /></td></tr>
+<tr><td>Test Buttons on the JAMMA board's sticks: both players' controls on a grid of the edge connector's pins, each press lit as it is held.</td><td>Select on an action waits for a press on that controller, and only that one.</td></tr>
+</table>
+
+<table>
+<tr><th width="50%">A pad's Arcade Buttons</th><th width="50%">Set All Buttons</th></tr>
+<tr><td><img src="screenshots/arcade-buttons.png" width="100%" alt="Arcade Buttons: Fighting 6 on an Xbox pad, the control panel lighting the line's button" /></td><td><img src="screenshots/arcade-buttons-set-all.png" width="100%" alt="Set All Buttons: the control panel lighting the button it asks for" /></td></tr>
+<tr><td>The game's buttons 1 to 8 on a pad, here Fighting 6: a fighter's punches on X, Y and RB, its kicks on A, B and RT. The control panel lights the line's button.</td><td>Set All takes the buttons from presses in turn, the control panel lighting the one it asks for.</td></tr>
+</table>
+
+### High Scores
+
+<table>
+<tr><th width="50%">The games</th><th width="50%">All Games</th></tr>
+<tr><td><img src="screenshots/high-scores.png" width="100%" alt="High Scores" /></td><td><img src="screenshots/high-scores-games.png" width="100%" alt="All Games" /></td></tr>
+<tr><td>The games played last in Arcade, latest first, those with a table.</td><td>A game's table beside it, and under the tree its best entry and the file MAME kept it in.</td></tr>
+</table>
+
+<table>
+<tr><th width="50%">A game's table</th><th width="50%">Several tables</th></tr>
+<tr><td><img src="screenshots/high-scores-table.png" width="100%" alt="A game's table" /></td><td><img src="screenshots/high-scores-tables.png" width="100%" alt="Several tables" /></td></tr>
+<tr><td>An entry's cells by column, under the tree.</td><td>A game with a table for each mode, a folder each.</td></tr>
+</table>
+
+## Settings and the look
+
 ### Settings
 
 <table>
@@ -153,9 +231,51 @@ Once signed in, each opens on the server's Continue Watching and its libraries. 
 </table>
 
 <table>
+<tr><th width="50%">Dimmed rows</th><th width="50%">Look</th></tr>
+<tr><td><img src="screenshots/settings-dimmed.png" width="100%" alt="Settings → Look with dimmed rows, the help line saying why" /></td><td><img src="screenshots/settings-look.png" width="100%" alt="Settings → Look: Theme, Color Scheme, Skin, Effects, OSD Background, Window Frame, Boot Screen Colors" /></td></tr>
+<tr><td>A row that can't be used here is dimmed, never hidden, and the help line says why.</td><td>The whole look at once with Theme, or each part on its own row.</td></tr>
+</table>
+
+#### Menu Layout
+
+Settings → Look → Menu Layout draws Settings and the main menu as a list (above), or as a camcorder's menu or a studio monitor's, from a window over the picture to a broadcast monitor's plain blue.
+
+<table>
+<tr><th width="50%">Camcorder</th><th width="50%">Camcorder</th></tr>
+<tr><td><img src="screenshots/main-menu-camcorder.png" width="100%" alt="The main menu in the Camcorder layout" /></td><td><img src="screenshots/settings-camcorder.png" width="100%" alt="Settings in the Camcorder layout" /></td></tr>
+<tr><td>The main menu in groups: TV / Movie, Arcade, More, and Settings.</td><td>The pages as icons, the rows of the one the cursor is on beside them.</td></tr>
+</table>
+
+<table>
+<tr><th width="50%">Studio Monitor</th><th width="50%">Studio Monitor</th></tr>
+<tr><td><img src="screenshots/main-menu-studio-monitor.png" width="100%" alt="The main menu in the Studio Monitor layout" /></td><td><img src="screenshots/settings-studio-monitor.png" width="100%" alt="Settings in the Studio Monitor layout" /></td></tr>
+<tr><td>A black window over the picture, the name on a blue tab.</td><td>The pages' icons in a blue strip, a yellow square before the selected row; its first page, Status, is what is set at a glance.</td></tr>
+</table>
+
+<table>
+<tr><th width="50%">Broadcast</th><th width="50%">Broadcast</th></tr>
+<tr><td><img src="screenshots/main-menu-broadcast.png" width="100%" alt="The main menu in the Broadcast layout" /></td><td><img src="screenshots/settings-broadcast.png" width="100%" alt="Settings in the Broadcast layout" /></td></tr>
+<tr><td>Plain blue, the title centred, a filled square for the cursor.</td><td>Three dots after a row that opens another level, a three-line key guide; a value changes in two steps.</td></tr>
+</table>
+
+<table>
+<tr><th width="50%">Flat Panel</th><th width="50%">Flat Panel</th></tr>
+<tr><td><img src="screenshots/main-menu-flat-panel.png" width="100%" alt="The main menu in the Flat Panel layout" /></td><td><img src="screenshots/settings-flat-panel.png" width="100%" alt="Settings in the Flat Panel layout" /></td></tr>
+<tr><td>Black, mixed case, the title the path to the page.</td><td>The rows a page at a time, the page at the top right, a value yellow while it is changed.</td></tr>
+</table>
+
+#### The look and the screen
+
+<table>
 <tr><th width="50%">OSD Background: Window</th><th width="50%">OSD Background: Off</th></tr>
 <tr><td><img src="screenshots/osd-window.png" width="100%" alt="OSD Background: Window" /></td><td><img src="screenshots/osd-off.png" width="100%" alt="OSD Background: Off" /></td></tr>
 <tr><td>The menus in a framed window of the color scheme's background, black around it. Over a video behind the menus, the picture shows whole around the window.</td><td>No background: the menus on black, like a deck's on-screen display with nothing playing, in the scheme's lighter color.</td></tr>
+</table>
+
+<table>
+<tr><th width="50%">Test Patterns</th><th width="50%">Monoscope</th></tr>
+<tr><td><img src="screenshots/test-patterns.png" width="100%" alt="Settings → Screen → Test Patterns: the Grid, with its name and what to set with it in a box" /></td><td><img src="screenshots/test-patterns-monoscope.png" width="100%" alt="The Monoscope test pattern, with what to set with it" /></td></tr>
+<tr><td>Settings → Screen → Test Patterns: pictures from the 240p Test Suite to set a TV or monitor up by. ◄ ► go through them; select hides the box.</td><td>A tube's convergence, purity and geometry, each pattern saying what to set with it.</td></tr>
 </table>
 
 <table>
@@ -164,10 +284,24 @@ Once signed in, each opens on the server's Continue Watching and its libraries. 
 <tr><td>Local Files: its folder, looping, shuffle, resume, subtitles, and its own Scaling.</td><td>Folders are picked on the same tree Local Files is browsed with, from home, the drives and the root down: USE THIS FOLDER picks the one open, Default Folder the module's own.</td></tr>
 </table>
 
+#### Network and system
+
+<table>
+<tr><th width="50%">Wi-Fi</th><th width="50%">The country</th></tr>
+<tr><td><img src="screenshots/wifi.png" width="100%" alt="Settings → Network → Wi-Fi: the networks, each with its lock and signal" /></td><td><img src="screenshots/wifi-country.png" width="100%" alt="Wi-Fi's country, a country at a time" /></td></tr>
+<tr><td>Each network with its lock, when it wants a password, and its signal in bars; joined with a password typed on the on-screen keyboard.</td><td>Wi-Fi stays off until the country is set.</td></tr>
+</table>
+
 <table>
 <tr><th width="50%">Bluetooth</th><th width="50%">Pairing a keyboard</th></tr>
 <tr><td><img src="screenshots/bluetooth.png" width="100%" alt="Bluetooth" /></td><td><img src="screenshots/bluetooth-pairing.png" width="100%" alt="Pairing a keyboard" /></td></tr>
 <tr><td>Search finds what is in pairing mode nearby for a minute, keyboards, gamepads and the like. Select pairs one and connects it, and it comes back by itself after a restart. Select on a paired one connects, disconnects or forgets it.</td><td>A keyboard is paired by typing the code it asks for, then its Enter. The digits light up as they are typed.</td></tr>
+</table>
+
+<table>
+<tr><th width="50%">System Information</th><th width="50%">Renaming the device</th></tr>
+<tr><td><img src="screenshots/system-info.png" width="100%" alt="Settings → System → About → System Information: the device's name, what it is and its addresses" /></td><td><img src="screenshots/system-info-rename.png" width="100%" alt="Renaming the device on the on-screen keyboard" /></td></tr>
+<tr><td>The device's name first, the name LAN Play shows the others, then what it is and each connection's addresses.</td><td>On the image, select on the name types a new one.</td></tr>
 </table>
 
 <table>
@@ -181,6 +315,8 @@ Once signed in, each opens on the server's Continue Watching and its libraries. 
 <tr><td><img src="screenshots/about.png" width="100%" alt="About" /></td><td><img src="screenshots/license.png" width="100%" alt="The license" /></td></tr>
 <tr><td>What OSD/OS is, who makes it, what it is made of and under which license, each line's detail in the help line.</td><td>Behind the LICENSE line: the notice, then the GNU GPL's text, a page at a time.</td></tr>
 </table>
+
+#### Channel Logo
 
 <table>
 <tr><th width="50%">Channel Logo</th><th width="50%">Under the menus</th></tr>

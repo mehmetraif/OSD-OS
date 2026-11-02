@@ -63,6 +63,39 @@ private slots:
         QVERIFY(error.endsWith(QStringLiteral("none.7z could not be opened")));
     }
 
+    // Each file's size and CRC-32 as the table gives them, nothing decoded:
+    // what Check ROMs compares a set's ROMs with.
+    void entries() {
+        const auto crc32Of = [](const QByteArray &data) {
+            quint32 crc = 0xFFFFFFFFu;
+            for (const char byte : data) {
+                crc ^= quint8(byte);
+                for (int bit = 0; bit < 8; ++bit)
+                    crc = (crc >> 1) ^ (0xEDB88320u & (0u - (crc & 1u)));
+            }
+            return ~crc;
+        };
+        QString error;
+        const QList<sevenzip::Entry> files = sevenzip::entries(fixture("retroarch.7z"), &error);
+        QVERIFY(error.isEmpty());
+        QStringList names;
+        for (const sevenzip::Entry &file : files)
+            names << file.name;
+        QCOMPARE(names, QStringList({ QStringLiteral("RetroArch-Win64/retroarch.exe"), QStringLiteral("RetroArch-Win64/retroarch.cfg"),
+                                      QStringLiteral("RetroArch-Win64/assets/readme.txt"),
+                                      QStringLiteral("RetroArch-Win64/assets/empty.txt") }));
+        QCOMPARE(files.at(0).size, program().size());
+        QVERIFY(files.at(0).hasCrc);
+        QCOMPARE(files.at(0).crc, crc32Of(program()));
+        QCOMPARE(files.at(3).size, 0);
+        const QList<sevenzip::Entry> other = sevenzip::entries(fixture("other.7z"));
+        QCOMPARE(other.size(), 1);
+        QCOMPARE(other.at(0).size, 14);
+        QCOMPARE(other.at(0).crc, 0xBC318C06u);
+        QVERIFY(sevenzip::entries(fixture("fbneo-arcade.dat"), &error).isEmpty());
+        QCOMPARE(error, QStringLiteral("The file is not a 7z archive"));
+    }
+
     // Every file out, whole, with its folders, the progress as they come,
     // and a file already there written over.
     void extraction() {

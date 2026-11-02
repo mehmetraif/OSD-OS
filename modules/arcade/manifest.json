@@ -26,6 +26,13 @@
       "description": "The sets that are a bootleg or a hack of a game rather than its maker's own release, as MAME names them: bootleg or hack in the parentheses of the name, or as the maker\n[ON] Left off every list and filter, Favorites and Recently Played too, until it is off again"
     },
     {
+      "key": "hide_incomplete",
+      "label": "Hide Incomplete Games",
+      "type": "toggle",
+      "default": "OFF",
+      "description": "The games Check ROMs found files missing of, for MAME and for FinalBurn Neo alike\n[ON] Left off every list and filter, until it is off again or their files change\nNothing is left off until Check ROMs has been run"
+    },
+    {
       "key": "regions",
       "label": "Regions",
       "type": "multiselect_submenu",
@@ -275,6 +282,15 @@
           "description": "How MAME draws the game\n[AUTO] As MAME's own settings say\nTry another when a game shows no picture"
         }
       ]
+    },
+    {
+      "key": "check_roms",
+      "label": "Check ROMs",
+      "type": "module_view",
+      "params": {
+        "romCheck": true
+      },
+      "description": "Whether every game's files are whole, for MAME and for FinalBurn Neo: started here alone, as it reads every game's file\nA game missing files for one engine plays in the other, and its details say what it lacks"
     },
     {
       "key": "rescan",

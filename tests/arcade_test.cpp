@@ -7,6 +7,7 @@
 #include "modules/arcade/ProgramInstaller.h"
 #include "modules/arcade/Mame.h"
 #include "modules/arcade/RetroAchievements.h"
+#include "modules/arcade/RomCheck.h"
 #include "util/DisplayHandoff.h"
 
 #include <QDateTime>
@@ -77,6 +78,38 @@ machine() {
 	*) return 1 ;;
 	esac
 }
+# Check ROMs: -rompath, then -verifyroms and the sets. mslug lacks files
+# (one with no good dump known, which doesn't count), sf2 has one wrong,
+# galaga none of its files at all (MAME then says nothing of it), pacman
+# is as good as known dumps make it, any other is good.
+if [ "$1" = "-rompath" ] && [ "$3" = "-verifyroms" ]; then
+	echo "verifyroms $2" >> "$MAME_LOG"
+	shift 3
+	echo "verifyroms $*" >> "$MAME_LOG"
+	bad=0
+	for name in "$@"; do
+		case "$name" in
+		mslug)
+			echo "mslug       : sp-s2.sp1 (131072 bytes) - NOT FOUND"
+			echo "mslug       : pal.bin - NOT FOUND - NO GOOD DUMP KNOWN"
+			echo "mslug       : 000-lo.lo (131072 bytes) - NOT FOUND"
+			echo "romset mslug [neogeo] is bad"
+			bad=1 ;;
+		sf2)
+			echo "sf2         : sf2_30.11e (5 bytes) - INCORRECT CHECKSUM:"
+			echo "EXPECTED: CRC(01234567) SHA1(0000000000000000000000000000000000000000)"
+			echo "   FOUND: CRC(76543210) SHA1(1111111111111111111111111111111111111111)"
+			echo "romset sf2 is bad"
+			bad=1 ;;
+		galaga) ;;
+		pacman) echo "romset pacman [puckman] is best available" ;;
+		*) echo "romset $name is good" ;;
+		esac
+	done
+	echo "$# romsets found"
+	[ "$bad" = 1 ] && exit 2
+	exit 0
+fi
 case "$1" in
 -listxml)
 	shift
@@ -3081,6 +3114,264 @@ private slots:
         QCOMPARE(checks(), checked);
         QVERIFY(QFileInfo::exists(setup));
         QTRY_VERIFY_WITH_TIMEOUT(checks() > checked, 5000);
+    }
+
+    // A file's CRC-32, as a zip's table gives it.
+    static quint32 crc32Of(const QByteArray &data) {
+        quint32 crc = 0xFFFFFFFFu;
+        for (const char byte : data) {
+            crc ^= quint8(byte);
+            for (int bit = 0; bit < 8; ++bit)
+                crc = (crc >> 1) ^ (0xEDB88320u & (0u - (crc & 1u)));
+        }
+        return ~crc;
+    }
+
+    // A zip of those files, stored as they are.
+    static QByteArray zipOf(const QList<std::pair<QByteArray, QByteArray>> &files) {
+        QByteArray out;
+        QByteArray central;
+        const auto le16 = [](QByteArray &b, quint32 v) {
+            b.append(char(v & 0xFF));
+            b.append(char((v >> 8) & 0xFF));
+        };
+        const auto le32 = [&le16](QByteArray &b, quint32 v) {
+            le16(b, v & 0xFFFF);
+            le16(b, v >> 16);
+        };
+        for (const auto &[name, data] : files) {
+            const quint32 crc = crc32Of(data);
+            const quint32 offset = quint32(out.size());
+            le32(out, 0x04034b50);
+            for (int i = 0; i < 5; ++i)   // version, flags, method, time, date
+                le16(out, i == 0 ? 20 : 0);
+            le32(out, crc);
+            le32(out, quint32(data.size()));
+            le32(out, quint32(data.size()));
+            le16(out, quint32(name.size()));
+            le16(out, 0);
+            out += name;
+            out += data;
+            le32(central, 0x02014b50);
+            for (int i = 0; i < 6; ++i)   // made by, version, flags, method, time, date
+                le16(central, i < 2 ? 20 : 0);
+            le32(central, crc);
+            le32(central, quint32(data.size()));
+            le32(central, quint32(data.size()));
+            le16(central, quint32(name.size()));
+            for (int i = 0; i < 4; ++i)   // extra, comment, disk, internal
+                le16(central, 0);
+            le32(central, 0);
+            le32(central, offset);
+            central += name;
+        }
+        const quint32 centralAt = quint32(out.size());
+        out += central;
+        le32(out, 0x06054b50);
+        le16(out, 0);
+        le16(out, 0);
+        le16(out, quint32(files.size()));
+        le16(out, quint32(files.size()));
+        le32(out, quint32(central.size()));
+        le32(out, centralAt);
+        le16(out, 0);
+        return out;
+    }
+
+    // MAME's -verifyroms read as it comes, a line cut anywhere.
+    void verifyReader() {
+        romcheck::VerifyReader reader;
+        reader.addData("mslug       : sp-s2.sp1 (131072 bytes) - NOT FOUND\nmslug       : pal.bin - NOT FOUND - NO GOOD DUMP KNOWN\r\n");
+        reader.addData("romset mslug [neogeo] is b");
+        QVERIFY(reader.take().isEmpty());
+        reader.addData("ad\r\nromset pacman [puckman] is best available\nromset galaga is good");
+        QHash<QString, romcheck::Verdict> verdicts = reader.take();
+        QCOMPARE(verdicts.size(), 2);
+        QVERIFY(!verdicts.value(QStringLiteral("mslug")).good);
+        QCOMPARE(verdicts.value(QStringLiteral("mslug")).missing, QStringList({ QStringLiteral("sp-s2.sp1") }));
+        QVERIFY(verdicts.value(QStringLiteral("pacman")).good);
+        reader.finish();
+        verdicts = reader.take();
+        QVERIFY(verdicts.value(QStringLiteral("galaga")).good);
+    }
+
+    // Settings → Arcade → Check ROMs, started by the user: FinalBurn Neo's
+    // list's CRCs against the archives' tables (a BIOS set's too), MAME's
+    // -verifyroms with the folder and its bios folder; what it found picks
+    // the engine that has a game's files where the other lacks them, says so
+    // in its details, leaves it out of online play where FinalBurn Neo's are
+    // missing, and of every list with Hide Incomplete Games; kept in
+    // romcheck.json, and holding while the archives are as they were.
+    void checkRoms() {
+#ifndef OSDOS_MINIZIP
+        QSKIP("minizip isn't in this build");
+#endif
+        QTemporaryDir data;
+        QVERIFY(data.isValid());
+        if (!libretro::corePath(data.path()).isEmpty() || !libretro::datPath(data.path()).isEmpty())
+            QSKIP("FinalBurn Neo is installed here");
+        const QString games = data.path() + QStringLiteral("/media/Games/Arcade");
+        const QByteArray sf2Rom("SF2-A");
+        const QByteArray galagaRom("GAL1");
+        const QByteArray s1945Rom("1945");
+        const QByteArray mslugRom("MSL1");
+        const QByteArray biosRom("BIOS");
+        const auto crc = [](const QByteArray &rom) { return QString::number(crc32Of(rom), 16).rightJustified(8, QLatin1Char('0')); };
+        // sf2 and galaga whole, s1945 and mslug with a ROM wrong (mslug's
+        // BIOS ROM in the bios folder's neogeo), pacman FinalBurn Neo hasn't.
+        writeFile(games + QStringLiteral("/sf2.zip"), zipOf({ { "sf2_30.11e", sf2Rom } }));
+        writeFile(games + QStringLiteral("/galaga.zip"), zipOf({ { "gg1_1b.3p", galagaRom } }));
+        writeFile(games + QStringLiteral("/s1945.zip"), zipOf({ { "2s.u40", "XXXX" } }));
+        writeFile(games + QStringLiteral("/mslug.zip"), zipOf({ { "201-p1.p1", "BAD!" } }));
+        writeFile(games + QStringLiteral("/bios/neogeo.zip"), zipOf({ { "sp-s2.sp1", biosRom } }));
+        writeFile(games + QStringLiteral("/pacman.zip"), zipOf({ { "pacman.6e", "PAC1" } }));
+        const QString dat = QStringLiteral(
+            "<?xml version=\"1.0\"?><datafile>"
+            "<game name=\"sf2\"><description>Street Fighter II</description><rom name=\"sf2_30.11e\" size=\"5\" crc=\"%1\"/>"
+            "<rom name=\"sf2_pal.bin\" size=\"5\" status=\"nodump\"/></game>"
+            "<game name=\"galaga\"><description>Galaga</description><rom name=\"gg1_1b.3p\" size=\"4\" crc=\"%2\"/></game>"
+            "<game name=\"s1945\"><description>Strikers 1945</description><rom name=\"2s.u40\" size=\"4\" crc=\"%3\"/></game>"
+            "<game name=\"mslug\" romof=\"neogeo\"><description>Metal Slug</description><rom name=\"201-p1.p1\" size=\"4\" crc=\"%4\"/>"
+            "<rom name=\"sp-s2.sp1\" merge=\"sp-s2.sp1\" size=\"4\" crc=\"%5\"/></game>"
+            "<game name=\"neogeo\" isbios=\"yes\"><description>Neo-Geo</description><rom name=\"sp-s2.sp1\" size=\"4\" crc=\"%5\"/></game>"
+            "</datafile>")
+            .arg(crc(sf2Rom), crc(galagaRom), crc(s1945Rom), crc(mslugRom), crc(biosRom));
+        writeFile(libretro::downloadedCore(data.path()));
+        writeFile(libretro::downloadedDat(data.path()), dat.toUtf8());
+        QVERIFY(QDir().mkpath(data.path() + QStringLiteral("/bin")));
+        QVERIFY(QFile::copy(mamePath(), data.path() + QStringLiteral("/bin/mame")));
+        writeFile(data.path() + QStringLiteral("/bin/retroarch"), fixture("retroarch"));
+        for (const char *program : { "/bin/mame", "/bin/retroarch" })
+            QVERIFY(QFile::setPermissions(data.path() + QLatin1String(program),
+                                          QFile::ReadOwner | QFile::WriteOwner | QFile::ExeOwner));
+        qputenv("OSDOS_MEDIA_DIR", (data.path() + QStringLiteral("/media")).toUtf8());
+        const auto restore = qScopeGuard([this] {
+            qputenv("OSDOS_MEDIA_DIR", (m_data.path() + QStringLiteral("/media")).toUtf8());
+        });
+        QFile::remove(m_log);
+
+        const auto romsOf = [](ArcadeBackend &arcade, const char *set) {
+            return arcade.gameDetails(QLatin1String(set)).value(QStringLiteral("roms")).toString();
+        };
+        const auto infoOf = [](ArcadeBackend &arcade) {
+            const QVariantMap info = arcade.romCheckInfo();
+            return QList<int>{ info.value(QStringLiteral("games")).toInt(), info.value(QStringLiteral("complete")).toInt(),
+                               info.value(QStringLiteral("fbneoOnly")).toInt(), info.value(QStringLiteral("mameOnly")).toInt(),
+                               info.value(QStringLiteral("incomplete")).toInt(), info.value(QStringLiteral("unchecked")).toInt() };
+        };
+        const auto setsIn = [](ArcadeBackend &arcade, const char *filter) {
+            QStringList sets;
+            const QVariantList rows = arcade.filterGames(QLatin1String(filter), 0, 1000);
+            for (const QVariant &row : rows)
+                sets << row.toMap().value(QStringLiteral("set")).toString();
+            return sets;
+        };
+        const QString module = QStringLiteral("com.osdos.arcade");
+        {
+            ArcadeBackend arcade(data.path(), data.path(), nullptr, nullptr);
+            refreshed(arcade);
+            QVERIFY(arcade.fbneoReady());
+            // Nothing checked until asked: nothing said, the engines as
+            // they are, nothing hidden.
+            QCOMPARE(infoOf(arcade), QList<int>({ 5, 0, 0, 0, 0, 5 }));
+            QVERIFY(arcade.romCheckInfo().value(QStringLiteral("checked")).toString().isEmpty());
+            QVERIFY(logLines(QStringLiteral("verifyroms")).isEmpty());
+            QCOMPARE(arcade.engineOf(QStringLiteral("sf2")), QStringLiteral("mame"));
+
+            QSignalSpy changed(&arcade, &ArcadeBackend::romCheckChanged);
+            arcade.checkRoms();
+            QVERIFY(arcade.romCheckProgress().value(QStringLiteral("active")).toBool());
+            QTRY_VERIFY_WITH_TIMEOUT(!arcade.romCheckProgress().value(QStringLiteral("active")).toBool(), 10000);
+            QCOMPARE(arcade.romCheckProgress().value(QStringLiteral("result")).toString(), QStringLiteral("Done"));
+            QVERIFY(!changed.isEmpty());
+            // MAME asked once, with the games folder and its bios folder,
+            // about the games it knows.
+            QCOMPARE(logLines(QStringLiteral("verifyroms")),
+                     QStringList({ QStringLiteral("verifyroms %1;%1/bios").arg(games),
+                                   QStringLiteral("verifyroms galaga mslug pacman s1945 sf2") }));
+
+            QCOMPARE(infoOf(arcade), QList<int>({ 5, 1, 2, 1, 1, 0 }));
+            QVERIFY(!arcade.romCheckInfo().value(QStringLiteral("checked")).toString().isEmpty());
+            QCOMPARE(romsOf(arcade, "pacman"), QString());
+            QCOMPARE(romsOf(arcade, "sf2"), QStringLiteral("1 File Missing for MAME"));
+            QCOMPARE(romsOf(arcade, "galaga"), QStringLiteral("Files Missing for MAME"));
+            QCOMPARE(romsOf(arcade, "s1945"), QStringLiteral("1 File Missing for FinalBurn Neo"));
+            QCOMPARE(romsOf(arcade, "mslug"), QStringLiteral("2 Files Missing"));
+            // Auto plays a game where its files are whole.
+            QCOMPARE(arcade.engineOf(QStringLiteral("sf2")), QStringLiteral("fbneo"));
+            QCOMPARE(arcade.engineOf(QStringLiteral("galaga")), QStringLiteral("fbneo"));
+            QCOMPARE(arcade.engineOf(QStringLiteral("s1945")), QStringLiteral("mame"));
+            arcade.onSettingChanged(module, QStringLiteral("online_high_scores"), QStringLiteral("RetroAchievements"));
+            QCOMPARE(arcade.engineOf(QStringLiteral("s1945")), QStringLiteral("mame"));
+            QCOMPARE(arcade.engineOf(QStringLiteral("sf2")), QStringLiteral("fbneo"));
+            // Chosen for a game, an engine is played whatever was found.
+            arcade.onSettingChanged(module, QStringLiteral("engines"),
+                                    QVariantMap{ { QStringLiteral("sf2"), QStringLiteral("mame") } });
+            QCOMPARE(arcade.engineOf(QStringLiteral("sf2")), QStringLiteral("mame"));
+            arcade.onSettingChanged(module, QStringLiteral("engines"), QVariantMap());
+            arcade.onSettingChanged(module, QStringLiteral("online_high_scores"), QStringLiteral("Off"));
+            // Online, nothing FinalBurn Neo's files are missing of.
+            arcade.onSettingChanged(module, QStringLiteral("online_play"), QStringLiteral("On"));
+            const QStringList online = setsIn(arcade, "netplay");
+            QVERIFY(online.contains(QStringLiteral("galaga")));
+            QVERIFY(!online.contains(QStringLiteral("s1945")));
+            QVERIFY(!online.contains(QStringLiteral("mslug")));
+            arcade.onSettingChanged(module, QStringLiteral("online_play"), QStringLiteral("Off"));
+
+            // Hide Incomplete Games: mslug alone, whole in neither.
+            QVERIFY(setsIn(arcade, "all").contains(QStringLiteral("mslug")));
+            arcade.onSettingChanged(module, QStringLiteral("hide_incomplete"), QStringLiteral("ON"));
+            QStringList shown = setsIn(arcade, "all");
+            QVERIFY(!shown.contains(QStringLiteral("mslug")));
+            QVERIFY(shown.contains(QStringLiteral("s1945")));
+            QVERIFY(shown.contains(QStringLiteral("sf2")));
+            QCOMPARE(arcade.romCheckInfo().value(QStringLiteral("incomplete")).toInt(), 1);
+            QTRY_VERIFY(QFileInfo::exists(data.path() + QStringLiteral("/arcade/romcheck.json")));
+        }
+        // Kept for the next start; a game's archive changed, or its BIOS
+        // set's, and what was found of it no longer holds.
+        QThreadPool::globalInstance()->waitForDone();
+        {
+            ArcadeBackend arcade(data.path(), data.path(), nullptr, nullptr);
+            arcade.onSettingChanged(module, QStringLiteral("hide_incomplete"), QStringLiteral("ON"));
+            refreshed(arcade);
+            QCOMPARE(infoOf(arcade), QList<int>({ 5, 1, 2, 1, 1, 0 }));
+            QVERIFY(!setsIn(arcade, "all").contains(QStringLiteral("mslug")));
+            QCOMPARE(romsOf(arcade, "sf2"), QStringLiteral("1 File Missing for MAME"));
+
+            QTest::qWait(20);
+            writeFile(games + QStringLiteral("/bios/neogeo.zip"), zipOf({ { "sp-s2.sp1", biosRom }, { "000-lo.lo", "LO" } }));
+            writeFile(games + QStringLiteral("/galaga.zip"), zipOf({ { "gg1_1b.3p", galagaRom }, { "extra", "X" } }));
+            refreshed(arcade);
+            QCOMPARE(infoOf(arcade), QList<int>({ 5, 1, 1, 1, 0, 2 }));
+            QVERIFY(setsIn(arcade, "all").contains(QStringLiteral("mslug")));
+            QCOMPARE(romsOf(arcade, "mslug"), QString());
+            QCOMPARE(arcade.engineOf(QStringLiteral("galaga")), QStringLiteral("mame"));
+        }
+        // Started while a game plays: MAME isn't asked beside it, but once
+        // it has ended.
+        {
+            ArcadeBackend arcade(data.path(), data.path(), nullptr, nullptr);
+            refreshed(arcade);
+            QFile::remove(m_log);
+            qputenv("MAME_SECONDS", "1");
+            const auto seconds = qScopeGuard([] { qunsetenv("MAME_SECONDS"); });
+            QSignalSpy finished(&arcade, &ArcadeBackend::finished);
+            QVERIFY(arcade.play(QStringLiteral("pacman")));
+            arcade.checkRoms();
+            QTRY_VERIFY(arcade.romCheckProgress().value(QStringLiteral("stage")).toString() == QLatin1String("MAME"));
+            QVERIFY(arcade.romCheckProgress().value(QStringLiteral("held")).toBool());
+            QVERIFY(arcade.romCheckProgress().value(QStringLiteral("active")).toBool());
+            QVERIFY(logLines(QStringLiteral("verifyroms")).isEmpty());
+            QVERIFY(finished.wait(10000));
+            QTRY_VERIFY_WITH_TIMEOUT(!arcade.romCheckProgress().value(QStringLiteral("active")).toBool(), 10000);
+            QCOMPARE(arcade.romCheckProgress().value(QStringLiteral("result")).toString(), QStringLiteral("Done"));
+            const QStringList lines = logLines();
+            const qsizetype ended = lines.indexOf(QStringLiteral("end pacman"));
+            QVERIFY(ended >= 0);
+            // indexOf() takes an exact match.
+            QVERIFY(lines.indexOf(QRegularExpression(QStringLiteral("verifyroms .*"))) > ended);
+        }
     }
 
     // Settings → Arcade → FinalBurn Neo's download from a stand-in server:

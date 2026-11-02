@@ -482,6 +482,9 @@ ArcadeBackend::ArcadeBackend(const QString &appRoot, const QString &dataRoot, Ap
     // Online's made again when next asked for, before the screen asks.
     connect(this, &ArcadeBackend::gamesChanged, this, [this] { m_madeSets.clear(); });
     m_launcher = new ScriptLauncher(m_appRoot, m_dataRoot, handoff, this);
+    m_romCheck = new RomCheck(this);
+    connect(m_romCheck, &RomCheck::progressChanged, this, &ArcadeBackend::romCheckChanged);
+    connect(m_romCheck, &RomCheck::done, this, &ArcadeBackend::romCheckDone);
     m_launcher->setHandoffOwner(QLatin1String(kHandoffOwner));
     connect(m_launcher, &ScriptLauncher::runningChanged, this, &ArcadeBackend::runningChanged);
     connect(m_launcher, &ScriptLauncher::finished, this, [this](int exitCode, const QString &launcherReason) {
@@ -541,9 +544,11 @@ ArcadeBackend::ArcadeBackend(const QString &appRoot, const QString &dataRoot, Ap
             releaseClaim(std::exchange(m_claimedFrom, QString()));
         m_playing.clear();
         emit finished(exitCode, reason, notice);
-        // The sets MAME was still to be asked about, held while it played.
+        // The sets MAME was still to be asked about, held while it played;
+        // then a check's.
         if (!m_scan && !m_toAsk.isEmpty())
             scanNext();
+        resumeRomCheck();
     });
     m_netplayWatch = new QTimer(this);
     m_netplayWatch->setInterval(kNetplayWatchMs);
@@ -595,6 +600,8 @@ ArcadeBackend::ArcadeBackend(const QString &appRoot, const QString &dataRoot, Ap
             refresh();
         else if (!m_scan && !m_toAsk.isEmpty() && !m_launcher->isBusy())
             scanNext();
+        if (!m_launcher->isBusy())
+            resumeRomCheck();
         emit mameChanged();
     });
 
@@ -788,6 +795,12 @@ void ArcadeBackend::applySetting(const QString &key, const QVariant &value) {
         // The lists made again without the bootlegs and hacks, or with them
         // back (isGame()).
         m_hideBootlegs = isOn(value, false);
+        invalidate();
+        emit gamesChanged();
+    } else if (key == QLatin1String("hide_incomplete")) {
+        // The lists made again without the games Check ROMs found files
+        // missing of in every engine, or with them back (isGame()).
+        m_hideIncomplete = isOn(value, false);
         invalidate();
         emit gamesChanged();
     } else if (key == QLatin1String("regions")) {
@@ -1002,6 +1015,7 @@ ArcadeBackend::Read ArcadeBackend::read(const QString &folder, const QString &ho
         if (read.sets.contains(name) && (isFolder || !read.folders.contains(name)))
             continue;
         read.sets.insert(name, info.fileName());
+        read.stamps.insert(name, romcheck::stampOf(info));
         if (isFolder)
             read.folders.insert(name);
         else
@@ -1016,9 +1030,24 @@ ArcadeBackend::Read ArcadeBackend::read(const QString &folder, const QString &ho
             read.misnamed.remove(name);
     }
 
+    // The BIOS sets of a bios folder there, which Check ROMs' results are
+    // held against too.
+    if (const QString bios = read.otherFolders.value(QStringLiteral("bios")); !bios.isEmpty()) {
+        QDirIterator biosSets(folder + QLatin1Char('/') + bios, { QStringLiteral("*.zip"), QStringLiteral("*.7z") },
+                              QDir::Files);
+        while (biosSets.hasNext()) {
+            biosSets.next();
+            const QString name = biosSets.fileInfo().completeBaseName().toLower();
+            if (!read.stamps.contains(name))
+                read.stamps.insert(name, romcheck::stampOf(biosSets.fileInfo()));
+        }
+    }
+
     // What MAME said of the sets, while it hasn't been read: with a full set
-    // of MAME's games it is megabytes.
+    // of MAME's games it is megabytes. What Check ROMs last found, with it.
     read.cacheAsked = withCache;
+    if (withCache)
+        read.roms = romcheck::load(home + QStringLiteral("/romcheck.json"));
     QFile cacheFile(home + QStringLiteral("/games.json"));
     if (withCache && cacheFile.open(QIODevice::ReadOnly)) {
         const QJsonObject cache = QJsonDocument::fromJson(cacheFile.readAll()).object();
@@ -1165,6 +1194,9 @@ void ArcadeBackend::onRead() {
         m_machines = std::move(read.machines);
         m_unknown = std::move(read.unknown);
         m_unknownBefore = std::move(read.unknownBefore);
+        // Unless a check has ended meanwhile.
+        if (!m_roms.checked.isValid())
+            m_roms = std::move(read.roms);
         invalidate();
     }
     // Another folder chosen meanwhile, or the list opened again since this
@@ -1176,6 +1208,11 @@ void ArcadeBackend::onRead() {
     }
     m_listed = true;
     m_otherFolders = std::move(read.otherFolders);
+    // What Check ROMs found holds while the archives are as they were.
+    if (read.stamps != m_stamps) {
+        m_stamps = std::move(read.stamps);
+        invalidate();
+    }
     // The list stays as it was made while the folder is as it was.
     if (read.sets != m_sets || read.misnamed != m_misnamed) {
         m_sets = std::move(read.sets);
@@ -1400,6 +1437,8 @@ void ArcadeBackend::startScan() {
 }
 
 void ArcadeBackend::scanNext() {
+    // Not two of MAME's at once: a check's part waits for the asking.
+    m_romCheck->pause();
     m_asked = m_toAsk.mid(0, kBatch);
     m_toAsk = m_toAsk.mid(kBatch);
     m_reader.reset();
@@ -1511,6 +1550,8 @@ void ArcadeBackend::finishScan() {
     checkProblem();
     emit scanningChanged();
     emitShown();
+    if (!m_launcher->isBusy())
+        resumeRomCheck();
 }
 
 void ArcadeBackend::emitShown() {
@@ -1549,6 +1590,10 @@ bool ArcadeBackend::isGame(const QString &set) const {
     // Hide Hacks and Bootlegs: the makers' own releases alone, whichever of
     // MAME and FinalBurn Neo's list describes the set.
     if (!machine->isGame() || (m_hideBootlegs && mame::isBootlegOrHack(*machine)))
+        return false;
+    // Hide Incomplete Games: those Check ROMs found files missing of for
+    // every engine that knows them.
+    if (m_hideIncomplete && romsIncomplete(set))
         return false;
     // Regions: a set of several ("(Japan / World)") goes once they all are
     // off, one whose name gives none never.
@@ -1881,7 +1926,8 @@ QVariantMap ArcadeBackend::gameDetails(const QString &set) {
                          { QStringLiteral("playTime"), playTimeOf(set) },
                          { QStringLiteral("pictures"), pictures },
                          { QStringLiteral("picture"), pictures.value(0) },
-                         { QStringLiteral("engine"), engineOf(set) } };
+                         { QStringLiteral("engine"), engineOf(set) },
+                         { QStringLiteral("roms"), romsDetail(set) } };
     const mame::Machine *machine = machineOf(set);
     if (!machine)
         return details;
@@ -2431,6 +2477,185 @@ QVariantMap ArcadeBackend::picturesProgress() const {
              { QStringLiteral("failed"), m_sweepFailed },
              { QStringLiteral("again"), m_sweepAgain->isActive() },
              { QStringLiteral("result"), m_sweepResult } };
+}
+
+// ---------------------------------------------------------------------------
+// Check ROMs.
+
+void ArcadeBackend::checkRoms() {
+    if (m_romCheck->active() || m_gamesFolder.isEmpty() || !m_listed)
+        return;
+    RomCheck::Job job;
+    const bool haveMame = !mamePath().isEmpty();
+    if (haveMame) {
+        job.mame = mamePath();
+        job.rompath = rompath();
+        job.workDir = m_home;
+        job.mameFrom = m_identity;
+    }
+    if (!m_fbneoGames.isEmpty()) {
+        job.dat = libretro::datPath(m_dataRoot);
+        job.fbneoFrom = m_fbneoFrom;
+    }
+    for (auto it = m_sets.cbegin(); it != m_sets.cend(); ++it) {
+        const QString &set = it.key();
+        // Every archive, a BIOS set's too: the games take ROMs from them.
+        if (!m_folders.contains(set))
+            job.archives.insert(set, m_gamesFolder + QLatin1Char('/') + it.value());
+        if (!romCheckable(set))
+            continue;
+        if (haveMame && m_machines.contains(set))
+            job.mameSets << set;
+        if (fbneoHas(set))
+            job.fbneoSets << set;
+        if (const mame::Machine *machine = machineOf(set); machine && !machine->cloneOf.isEmpty())
+            job.parents.insert(set, machine->cloneOf);
+    }
+    // The BIOS sets of a bios folder there.
+    if (const QString bios = otherFolder(QStringLiteral("bios")); !bios.isEmpty()) {
+        const QFileInfoList files = QDir(bios).entryInfoList({ QStringLiteral("*.zip"), QStringLiteral("*.7z") }, QDir::Files);
+        for (const QFileInfo &file : files) {
+            const QString name = file.completeBaseName().toLower();
+            if (!job.archives.contains(name))
+                job.archives.insert(name, file.filePath());
+        }
+    }
+    job.mameSets.sort();
+    job.fbneoSets.sort();
+    job.stamps = m_stamps;
+    qInfo("[Arcade] Check ROMs: %lld games for MAME, %lld for FinalBurn Neo",
+          static_cast<long long>(job.mameSets.size()), static_cast<long long>(job.fbneoSets.size()));
+    // MAME's part waits for a game or MAME's own asking to end.
+    m_romCheck->start(job, m_scan || m_launcher->isBusy());
+}
+
+void ArcadeBackend::resumeRomCheck() {
+    if (!m_scan)
+        m_romCheck->resume();
+}
+
+void ArcadeBackend::romCheckDone(const romcheck::Results &results) {
+    m_roms = results;
+    int complete = 0;
+    int incomplete = 0;
+    for (auto it = m_roms.sets.cbegin(); it != m_roms.sets.cend(); ++it) {
+        if (romsIncomplete(it.key())) {
+            ++incomplete;
+            const QStringList missing = it->mameMissing.isEmpty() ? it->fbneoMissing : it->mameMissing;
+            qInfo("[Arcade] Check ROMs: %s is incomplete%s%s", qPrintable(it.key()),
+                  missing.isEmpty() ? "" : ": ", qPrintable(missing.join(QStringLiteral(", "))));
+        } else if (it->mame == 1 || it->fbneo == 1) {
+            ++complete;
+        }
+    }
+    qInfo("[Arcade] Check ROMs: %s, %d whole for an engine, %d incomplete",
+          qPrintable(m_romCheck->progress().value(QStringLiteral("result")).toString()), complete, incomplete);
+    // Off the app's thread, as games.json is.
+    const QByteArray json = romcheck::toJson(m_roms);
+    const QString path = m_home + QStringLiteral("/romcheck.json");
+    m_pictureSaves.start([json, path, home = m_home] {
+        QDir().mkpath(home);
+        writeFileAtomically(path, json);
+    });
+    invalidate();
+    emit gamesChanged();
+    emit romCheckChanged();
+}
+
+QVariantMap ArcadeBackend::romCheckProgress() const {
+    return m_romCheck->progress();
+}
+
+bool ArcadeBackend::romCheckable(const QString &set) const {
+    if (isUnrecognized(set))
+        return false;
+    const mame::Machine *machine = machineOf(set);
+    return !machine || machine->isGame();
+}
+
+const romcheck::State *ArcadeBackend::romStateOf(const QString &set) const {
+    const auto it = m_roms.sets.constFind(set);
+    if (it == m_roms.sets.constEnd())
+        return nullptr;
+    for (auto file = it->family.cbegin(); file != it->family.cend(); ++file) {
+        if (m_stamps.value(file.key()) != file.value())
+            return nullptr;
+    }
+    return &it.value();
+}
+
+int ArcadeBackend::mameRoms(const QString &set) const {
+    const romcheck::State *state = romStateOf(set);
+    return state && !m_roms.mame.isEmpty() && m_roms.mame == m_identity ? state->mame : 0;
+}
+
+int ArcadeBackend::fbneoRoms(const QString &set) const {
+    const romcheck::State *state = romStateOf(set);
+    return state && !m_roms.fbneo.isEmpty() && m_roms.fbneo == m_fbneoFrom ? state->fbneo : 0;
+}
+
+bool ArcadeBackend::romsIncomplete(const QString &set) const {
+    const int mame = mameRoms(set);
+    const int fbneo = fbneoRoms(set);
+    if (mame == 0 && fbneo == 0)
+        return false;
+    // Not whole where it was checked, and not known to the other engine.
+    const bool notMame = mame == -1 || (mame == 0 && mameLacks(set));
+    const bool notFbneo = fbneo == -1 || (fbneo == 0 && !fbneoHas(set));
+    return notMame && notFbneo;
+}
+
+QString ArcadeBackend::romsDetail(const QString &set) const {
+    const romcheck::State *state = romStateOf(set);
+    const int mame = mameRoms(set);
+    const int fbneo = fbneoRoms(set);
+    if (!state || (mame != -1 && fbneo != -1))
+        return QString();
+    const auto files = [](const QStringList &missing) {
+        return missing.isEmpty() ? QStringLiteral("Files") : missing.size() == 1 ? QStringLiteral("1 File")
+                                                                                 : QStringLiteral("%1 Files").arg(missing.size());
+    };
+    if (romsIncomplete(set)) {
+        const QStringList missing = mame == -1 ? state->mameMissing : state->fbneoMissing;
+        return files(missing) + QStringLiteral(" Missing");
+    }
+    if (mame == -1)
+        return files(state->mameMissing) + QStringLiteral(" Missing for MAME");
+    return files(state->fbneoMissing) + QStringLiteral(" Missing for FinalBurn Neo");
+}
+
+QVariantMap ArcadeBackend::romCheckInfo() const {
+    int games = 0;
+    int complete = 0;
+    int fbneoOnly = 0;
+    int mameOnly = 0;
+    int incomplete = 0;
+    int unchecked = 0;
+    for (auto it = m_sets.cbegin(); it != m_sets.cend(); ++it) {
+        const QString &set = it.key();
+        if (!romCheckable(set))
+            continue;
+        ++games;
+        const int mame = mameRoms(set);
+        const int fbneo = fbneoRoms(set);
+        if (mame == 0 && fbneo == 0)
+            ++unchecked;
+        else if (romsIncomplete(set))
+            ++incomplete;
+        else if (mame == -1)
+            ++fbneoOnly;
+        else if (fbneo == -1)
+            ++mameOnly;
+        else
+            ++complete;
+    }
+    return { { QStringLiteral("checked"), m_roms.checked.isValid() ? m_roms.checked.toString(Qt::ISODate) : QString() },
+             { QStringLiteral("games"), games },
+             { QStringLiteral("complete"), complete },
+             { QStringLiteral("fbneoOnly"), fbneoOnly },
+             { QStringLiteral("mameOnly"), mameOnly },
+             { QStringLiteral("incomplete"), incomplete },
+             { QStringLiteral("unchecked"), unchecked } };
 }
 
 QVariantMap ArcadeBackend::picturesInfo() const {
@@ -3041,11 +3266,13 @@ bool ArcadeBackend::play(const QString &name, int credits) {
     // MAME asked about the sets meanwhile would share the machine with the
     // game: it is stopped, and asked again once the game has ended.
     pauseScan();
+    m_romCheck->pause();
     QString error;
     if (!m_launcher->start(entry, &error)) {
         m_lastError = error;
         if (!m_scan && !m_toAsk.isEmpty())
             scanNext();
+        resumeRomCheck();
         return false;
     }
     m_playing = name;
@@ -3103,7 +3330,16 @@ QString ArcadeBackend::engineFor(const QString &set, bool fbneoUsable, bool have
     // missing of FinalBurn Neo's.
     if (chosen == QLatin1String("mame"))
         return QStringLiteral("mame");
-    if (fbneo && (chosen == QLatin1String("fbneo") || fbneoWanted() || !haveMame))
+    // Auto, where Check ROMs found files missing for one engine and none
+    // for the other: the other, whatever would have it otherwise.
+    const int mameFiles = haveMame ? mameRoms(set) : 0;
+    const int fbneoFiles = fbneo ? fbneoRoms(set) : 0;
+    if (fbneo && (chosen == QLatin1String("fbneo") || fbneoWanted() || !haveMame)) {
+        if (chosen != QLatin1String("fbneo") && haveMame && fbneoFiles == -1 && mameFiles == 1)
+            return QStringLiteral("mame");
+        return QStringLiteral("fbneo");
+    }
+    if (fbneo && mameFiles == -1 && fbneoFiles == 1)
         return QStringLiteral("fbneo");
     return QStringLiteral("mame");
 }
@@ -3132,7 +3368,7 @@ QStringList ArcadeBackend::madeSets(const QString &filter) const {
         // a game online plays in it, with the memory to host them
         // (canHost()).
         for (const QString &set : index().games) {
-            if (fbneoHas(set) && netplayTooBig(set, false, true).isEmpty())
+            if (fbneoHas(set) && fbneoRoms(set) != -1 && netplayTooBig(set, false, true).isEmpty())
                 sets << set;
         }
     }
@@ -3497,6 +3733,7 @@ bool ArcadeBackend::playFbneo(const QString &name, libretro::Launch::Netplay net
 
     // As for MAME: the batch MAME is asked meanwhile shares the machine.
     pauseScan();
+    m_romCheck->pause();
     QString error;
     if (!m_launcher->start(entry, &error)) {
         m_lastError = error;
@@ -3507,6 +3744,7 @@ bool ArcadeBackend::playFbneo(const QString &name, libretro::Launch::Netplay net
         stopClaims();
         if (!m_scan && !m_toAsk.isEmpty())
             scanNext();
+        resumeRomCheck();
         return false;
     }
     m_playing = name;
@@ -3791,7 +4029,7 @@ QVariantList ArcadeBackend::lanRooms() const {
         // memory to join it on the core it is hosted with (only rooms joined
         // without a password are kept: readLanAnswers()).
         const bool lanCore = room.core == libretro::kLanCoreName;
-        if (!fbneoHas(room.game) || !netplayTooBig(room.game, lanCore, false).isEmpty())
+        if (!fbneoHas(room.game) || fbneoRoms(room.game) == -1 || !netplayTooBig(room.game, lanCore, false).isEmpty())
             continue;
         // What its host answered with, as the lobby's rooms are told of
         // (FinalBurn Neo is ready, so ours are what is known of them; a room
@@ -3820,7 +4058,8 @@ QVariantList ArcadeBackend::rooms() const {
         // password (RetroArch would ask for one on its own screen), with the
         // memory to join it; with what the lobby says of it, as lobby() has
         // it (FinalBurn Neo is ready, so ours are what is known of them).
-        if (room.password || !fbneoHas(room.game) || !netplayTooBig(room.game, false, false).isEmpty())
+        if (room.password || !fbneoHas(room.game) || fbneoRoms(room.game) == -1
+            || !netplayTooBig(room.game, false, false).isEmpty())
             continue;
         list << QVariantMap{ { QStringLiteral("id"), room.id }, { QStringLiteral("set"), room.game },
                              { QStringLiteral("title"), titleOf(room.game) },
@@ -3864,6 +4103,8 @@ QVariantMap ArcadeBackend::roomInfo(const libretro::Room &room, const QDateTime 
         why = m_fbneoGames.contains(room.game)
                   ? looksForLowerCase(QStringLiteral("FinalBurn Neo"), room.game)
                   : QStringLiteral("FinalBurn Neo has no game called %1").arg(room.game);
+    else if (fbneoRoms(room.game) == -1)
+        why = QStringLiteral("Files of it are missing for FinalBurn Neo, as Settings → Arcade → Check ROMs found");
     else
         why = netplayTooBig(room.game, lanCore, false);
     return { { QStringLiteral("id"), room.id }, { QStringLiteral("title"), title }, { QStringLiteral("rom"), room.rom },
@@ -4642,6 +4883,7 @@ void ArcadeBackend::downloadMame() {
     // succeeds reads every set anew (the installer's finished()).
     if (source.available)
         pauseScan();
+    m_romCheck->pause();
     m_mameInstaller->start(source);
     emit mameChanged();
 }

@@ -421,7 +421,7 @@ For Windows 11 on x64, OSD/OS comes as a zip: one folder, `osdos`, with `osdos.e
 
 **Arcade**
 
-- FinalBurn Neo's core comes with OSD/OS, beside `osdos.exe`. Settings → Arcade → **MAME** downloads MAME, and Settings → Arcade → **FinalBurn Neo** downloads RetroArch. All three are the versions the OSD/OS image has, so a PC plays online and over the local network with a Pi ([The same engines on every machine](https://github.com/mehmetraif/OSD-OS/wiki/Arcade#the-same-engines-on-every-machine)).
+- FinalBurn Neo's core comes with OSD/OS, beside `osdos.exe`. Settings → Arcade → **MAME** downloads MAME, and Settings → Arcade → **FinalBurn Neo** downloads RetroArch. All three are the versions the OSD/OS image has, so a PC plays online and over the local network with a Pi ([The same engines on every machine](https://github.com/mehmetraif/OSD-OS/wiki/Online-and-LAN-Play#the-same-engines-on-every-machine)).
 
 **YouTube**
 

@@ -523,6 +523,28 @@ int main(int argc, char *argv[]) {
         }, Qt::QueuedConnection);
     }
 
+    // The memory as the menus first come up (how long they took is
+    // BootProgress's line), and how long they took to come back after a game
+    // or a video that had the screen (from the child's end to the menus'
+    // first frame), with the memory then: lines Quit → Save Logs carries,
+    // numbers measured on the device itself.
+    if (rootWindow) {
+        QObject::connect(rootWindow, &QQuickWindow::frameSwapped, rootWindow, [] {
+            if (const QString memory = diagnostics::memoryLine(); !memory.isEmpty())
+                qInfo("[main] Memory as the menus came up: %s", qPrintable(memory));
+        }, Qt::SingleShotConnection);
+        QObject::connect(&displayHandoff, &DisplayHandoff::heldChanged, rootWindow, [rootWindow, &displayHandoff] {
+            if (displayHandoff.held())
+                return;
+            QObject::connect(rootWindow, &QQuickWindow::frameSwapped, rootWindow, [&displayHandoff] {
+                const QString memory = diagnostics::memoryLine();
+                qInfo("[main] The menus are back on the screen %lld ms after %s ended%s%s",
+                      static_cast<long long>(displayHandoff.sinceReleaseAsked()),
+                      qPrintable(displayHandoff.lastOwner()), memory.isEmpty() ? "" : ": ", qPrintable(memory));
+            }, Qt::SingleShotConnection);
+        });
+    }
+
     // On the OS image the services held back for the app start once its first
     // frame is on screen. The timer is a backstop for a platform whose window
     // never reports a swap; markReady() only acts once.
