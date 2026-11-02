@@ -601,7 +601,9 @@ jobs:
       # commits' subjects), then a Downloads table, a row per file with the
       # system it is for and how it is installed and updated, with absolute
       # links (a release's body doesn't resolve the repository's relative
-      # ones), and a word on a DMG that isn't notarized. The rows go in the
+      # ones), then a few lines under it: macOS's first start when the DMG
+      # isn't notarized, Windows' first start, the BSD packages, the
+      # terminal downloads and the machines OSD/OS is tested on. The rows go in the
       # order the release page lists the files under Assets, so that the two
       # read alike: GitHub sorts them by name, case-blind, whatever order
       # they are uploaded in, and offers no other order. install.sh comes
@@ -626,21 +628,25 @@ jobs:
             echo "| System | File | What it is | Install and update |"
             echo "|---|---|---|---|"
             echo "| **Raspberry Pi OS (arm64)** you set up yourself | \`install.sh\` | The installer, which installs the app, \`OSD-OS-${TAG}-linux-arm64.tar.gz\`, with its service | \`bash <(curl -fsSL ${REPO}/releases/latest/download/install.sh)\`: ${REPO}/blob/${TAG}/INSTALL.md#on-a-raspberry-pi. Updates: Settings → System → Update, or the same command again: ${REPO}/blob/${TAG}/INSTALL.md#update |"
-            echo "| **OpenBSD ${OPENBSD} (amd64)** | \`${OPENBSD_PACKAGE}\` | An OpenBSD package: the app, with FinalBurn Neo's core built for OpenBSD; Qt 6, SDL2 and mpv are OpenBSD's own packages, which come with it | As root: \`pkg_add -D unsigned ${OPENBSD_PACKAGE}\` (the package isn't signed with OpenBSD's key): ${REPO}/blob/${TAG}/INSTALL.md#on-openbsd-amd64. Updates: the next release's package the same way |"
-            echo "| **Steam Deck, Linux PCs (x86_64)** | \`OSD-OS-linux-x86_64.AppImage\` | The app with Qt, SDL2 and mpv inside; nothing to install | Make it executable (\`chmod +x\`) and run it: ${REPO}/blob/${TAG}/INSTALL.md#on-steamos--linux-x86_64. Updates: Settings → System → Update swaps it in place, or the latest AppImage over your copy |"
-            echo "| **FreeBSD ${FREEBSD%%.*} (amd64)** | \`OSD-OS-${TAG}-freebsd-amd64.pkg\` | A FreeBSD package: the app, with FinalBurn Neo's core built for FreeBSD; Qt 6, SDL2 and mpv are FreeBSD's own packages | As root, its packages, then the app: \`pkg install -y qt6-base qt6-declarative qt6-svg sdl2 minizip mpv\` and \`pkg add OSD-OS-${TAG}-freebsd-amd64.pkg\`: ${REPO}/blob/${TAG}/INSTALL.md#on-freebsd-amd64. Updates: the next release's package the same way |"
+            echo "| **OpenBSD ${OPENBSD} (amd64)** | \`${OPENBSD_PACKAGE}\` | An OpenBSD package: the app, with FinalBurn Neo's cores built for OpenBSD; Qt 6, SDL2 and mpv are OpenBSD's own packages, which come with it | As root: \`pkg_add -D unsigned ${OPENBSD_PACKAGE}\` (the package isn't signed with OpenBSD's key): ${REPO}/blob/${TAG}/INSTALL.md#on-openbsd-amd64. Updates: the next release's package the same way |"
+            echo "| **Steam Deck, Linux PCs (x86_64)** | \`OSD-OS-linux-x86_64.AppImage\` | The app with Qt, SDL2, mpv and FinalBurn Neo's cores inside; nothing to install | Make it executable (\`chmod +x\`) and run it: ${REPO}/blob/${TAG}/INSTALL.md#on-steamos--linux-x86_64. Updates: Settings → System → Update swaps it in place, or the latest AppImage over your copy |"
+            echo "| **FreeBSD ${FREEBSD%%.*} (amd64)** | \`OSD-OS-${TAG}-freebsd-amd64.pkg\` | A FreeBSD package: the app, with FinalBurn Neo's cores built for FreeBSD; Qt 6, SDL2 and mpv are FreeBSD's own packages | As root, its packages, then the app: \`pkg install -y qt6-base qt6-declarative qt6-svg sdl2 minizip mpv\` and \`pkg add OSD-OS-${TAG}-freebsd-amd64.pkg\`: ${REPO}/blob/${TAG}/INSTALL.md#on-freebsd-amd64. Updates: the next release's package the same way |"
             echo "| **Raspberry Pi OS (arm64)** you set up yourself | \`OSD-OS-${TAG}-linux-arm64.tar.gz\` | The app alone, which \`install.sh\` and the updater install | Nothing to download by hand: \`install.sh\` fetches it, and Settings → System → Update fetches the next one |"
-            echo "| **macOS on Apple Silicon** | \`OSD-OS-${TAG}-macOS-arm64.dmg\` | osdos.app in a disk image | Open it and move osdos.app to your Applications folder. Updates: Settings → System → Update, or the next \`.dmg\` the same way |"
-            echo "| **Raspberry Pi 4 and 5** | \`OSD-OS-${TAG}-raspberry-pi.img.xz\` | The whole system: Raspberry Pi OS Lite (64-bit, Debian 13 trixie) with OSD/OS on top. The Pi boots straight into OSD/OS. What it is made of, under which licences: ${REPO}/blob/${TAG}/os/NOTICE | Flash it with Raspberry Pi Imager (**Use custom**): ${REPO}/blob/${TAG}/os/README.md#flashing. Updates: Settings → System → Update in the app |"
-            echo "| **Windows 11 (x64)** | \`OSD-OS-${TAG}-windows-x64.zip\` | The app in one folder, \`osdos\`, with Qt and its libraries beside \`osdos.exe\`; mpv is not inside | Unzip it anywhere, put mpv beside it and run \`osdos.exe\`: ${REPO}/blob/${TAG}/INSTALL.md#on-windows-x64. Updates: Settings → System → Update names the new zip, whose \`osdos\` folder takes the old one's place |"
+            echo "| **macOS on Apple Silicon** | \`OSD-OS-${TAG}-macOS-arm64.dmg\` | osdos.app in a disk image, with FinalBurn Neo's cores inside; mpv is not inside | Open it, move osdos.app to your Applications folder and install mpv (\`brew install mpv\`): ${REPO}/blob/${TAG}/INSTALL.md#on-macos-arm. Updates: Settings → System → Update, or the next \`.dmg\` the same way |"
+            echo "| **Raspberry Pi 4 and 5** | \`OSD-OS-${TAG}-raspberry-pi.img.xz\` | The whole system: Raspberry Pi OS Lite (64-bit, Debian 13 trixie) with OSD/OS on top. The Pi boots straight into OSD/OS. What it is made of, under which licences: ${REPO}/blob/${TAG}/os/NOTICE | Flash it with Raspberry Pi Imager (**Use custom**): ${REPO}/blob/${TAG}/os/README.md#flashing. OSD/OS Setup, https://osdos.tv/setup/, chooses what the card starts with, for a TV or an arcade cabinet. Updates: Settings → System → Update in the app |"
+            echo "| **Windows 11 (x64)** | \`OSD-OS-${TAG}-windows-x64.zip\` | The app in one folder, \`osdos\`, with Qt, its libraries and FinalBurn Neo's cores beside \`osdos.exe\`; mpv is not inside | Unzip it anywhere, put mpv beside it and run \`osdos.exe\`: ${REPO}/blob/${TAG}/INSTALL.md#on-windows-x64. Updates: Settings → System → Update names the new zip, whose \`osdos\` folder takes the old one's place |"
             echo
             if [ "$NOTARIZED" != "true" ]; then
               echo "The macOS build is not notarized, so macOS refuses to open it the first time: then go to System Settings → Privacy & Security and choose **Open Anyway** (or run \`xattr -dr com.apple.quarantine /Applications/osdos.app\` before opening it)."
               echo
             fi
+            echo "Windows may stop the first start of \`osdos.exe\` (**Windows protected your PC**): choose **More info**, then **Run anyway**."
+            echo
             echo "On FreeBSD and OpenBSD, the Arcade module plays in the system's own MAME and RetroArch packages, installed apart (\`mame\`, \`retroarch\`). The packages are built, installed and started in FreeBSD and OpenBSD virtual machines; they haven't been tried on a BSD computer yet."
             echo
-            echo "Tested on a Raspberry Pi 4 and a Raspberry Pi 5 (8 GB): the Pi 4 as a TV, the Pi 5 in a JAMMA arcade cabinet, and LAN Play between the two; the Windows build on a Windows 11 PC. Each file's SHA-256 digest is beside it under Assets."
+            echo "From a terminal, \`curl -fsSL https://osdos.tv/get.sh | sh\` downloads the file for the computer it runs on, and with \`sh -s -- image\` at its end the OSD/OS image; in Windows PowerShell, \`irm https://osdos.tv/get.ps1 | iex\` downloads the Windows zip and unzips it. Each checks the file against the SHA-256 digest GitHub keeps for it, shown beside it under Assets."
+            echo
+            echo "Tested on a Raspberry Pi 4 and a Raspberry Pi 5 (8 GB), and the Windows build on a Windows 11 PC, with LAN Play among the three. On another board or system, tell us how it went: ${REPO}/issues"
           } > release-notes.md
           cat release-notes.md
 
