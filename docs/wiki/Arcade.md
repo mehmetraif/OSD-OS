@@ -182,6 +182,8 @@ On a CRT, move each side to where the tube's edge cuts the picture off (its over
 
 **Settings → Arcade → Hide Hacks and Bootlegs** leaves the sets that are a bootleg or a hack of a game, rather than its maker's own release, off every filter and list, on both screens: a set is one when MAME (or FinalBurn Neo's list, for a set MAME doesn't know) says so in the parentheses of its name (`Galaga (bootleg)`, `Pac-Man (Midway, speedup hack)`, `Puckman (Japan set 1, Probably Bootleg)`) or as its maker (`bootleg`, `bootleg (Playmark)`, `hack`). They are hidden, not gone: Favorites and Recently Played keep them for when it is off again, a card that names one still plays it, and the filters' counts are of the games shown.
 
+**Settings → Arcade → Hide Incomplete Games** leaves off every filter and list, in the same way, the games [Check ROMs](#check-roms) found files missing of for every engine that knows them. Nothing is left off until a check has been made, and a game comes back as soon as its file, its parent's or its BIOS set's changes.
+
 **Settings → Arcade → Regions** hides the sets of the regions turned off, the same way. A set's region is the one in the parentheses of its name, as MAME (or FinalBurn Neo's list) writes it: `Street Fighter II: The World Warrior (USA 910206)`, `(910522 World)`, `Street Fighter Alpha 3 (Euro 980904)`. The page lists the same regions whatever the games folder holds, each ON until turned OFF: World, USA, Europe, Asia, Japan, Korea, China, Hong Kong, Taiwan, Hispanic, Brazil, Oceania and Others. `US` counts as USA and `Euro` as Europe, a country with few sets of its own as its region (Germany, Italy or UK as Europe, Canada as USA, Australia as Oceania), Sega's `Export` sets as World, and a region the list doesn't name (Israel, Middle East) as Others. A set of several regions (`Strikers 1945 (Japan / World)`) goes once they all are off, and one whose name gives none (`Ms. Pac-Man`, `Galaga (Namco rev. B)`) is always listed.
 
 **Settings → Arcade → Start Filter** is the one the screen opens on: All Games, Favorites, Recently Played, with LAN Play on LAN Games, with Online Play on Online Games and RetroArch Lobby, or one of the other lists, genres, numbers of players, decades and publishers that Menu Filters shows, in the order the screen goes round them. One that isn't there then (a genre no game has, one Menu Filters no longer shows) opens on All Games. RetroAchievements is waited for while its list of games is read (the first time, and a week on): the screen shows All Games meanwhile and moves to it as the list comes. Every filter opens on its first game, at the top of its list; back from a game, the screen is on its filter and on the game again.
@@ -310,7 +312,7 @@ Running `install.sh` again does the same, with whatever else a newer release nee
 
 ## Game Details
 
-**Game Details**, in a game's options on either screen ([A game's options](#a-games-options)), opens a page of the game: under its title, a line of what it is (maker, year, players, system and how long it has been played), then its achievements on RetroAchievements.
+**Game Details**, in a game's options on either screen ([A game's options](#a-games-options)), opens a page of the game: under its title, a line of what it is (maker, year, players, system and how long it has been played, and what [Check ROMs](#check-roms) found missing of its files: `2 Files Missing for MAME`), then its achievements on RetroAchievements.
 
 - **How many**: `2 of 3 Earned • 35 of 40 Points`, or without a signed-in account, `3 Achievements • 40 Points`.
 - **The list**: those you have earned under **Earned**, then the rest under **Not Earned** (all under **Achievements** without an account), each with its badge, its title and its points. A badge, RetroAchievements' picture of the achievement, is in colour once earned and grey until then (in colour for all without an account).
@@ -325,6 +327,22 @@ They are read with the account's **Web API Key** and, for which you have earned,
 The names, years, makers and players, and each game's system, come from MAME (`mame -listxml`); those of a set MAME doesn't know that FinalBurn Neo has, from FinalBurn Neo's list ([FinalBurn Neo](#finalburn-neo)). Each time it opens the module reads the folder, in the background so the screen keeps answering however many sets it holds, then asks MAME about the sets it hasn't asked about yet: all of them the first time, a few hundred at a time, then only the sets new in the folder. While it reads and asks, the tree's folders show `loading…` and the line `Reading the games…`; Recently Played and Favorites are there at once (on the Arcade screen, the only filters until MAME has answered), and a game played from them meanwhile pauses the asking until it ends. What MAME said is kept in `arcade/games.json` in the data folder (read as the list first opens), until MAME itself changes (an update, or a MAME of your own): then it is asked about every set again, as it is once after OSD/OS updates from a version that kept less of each game. Until it has answered, what it said before holds, even across a restart: a set only FinalBurn Neo has still plays in it, and one neither has stays under Not Recognized. **Settings → Arcade → Read the Games Again** does the same by hand, and then, with a Web API key, downloads RetroAchievements' pictures of every game ([Pictures from RetroAchievements](#pictures-from-retroachievements)).
 
 Without MAME the sets are listed by their names, and select says MAME is not installed.
+
+## Check ROMs
+
+**Settings → Arcade → Check ROMs** says whether each game's files are whole, for MAME and for FinalBurn Neo. You start it, with **Check ROMs** on that page: nothing starts it by itself, as it reads every game's file in the folder, which takes a few minutes on a Raspberry Pi.
+
+- **FinalBurn Neo first**: the CRC of every ROM in its list (the DAT that came with the core) against the table of the game's zip or 7z, then of the sets it takes ROMs from: its parent, and its BIOS set in the games folder or its `bios` folder. Nothing is unpacked.
+- **Then MAME**, which checks its own way (`mame -verifyroms`, a hundred games at a time, with the games folder and its `bios` folder). A game started meanwhile, or MAME asked about new games, holds it (the page says `Waiting`); it goes on once they end.
+
+The page counts the games: **Complete** (whole for every engine that knows them), **FinalBurn Neo Only** and **MAME Only** (whole for one engine and not the other), **Incomplete** (whole for neither) and **Not Checked**. What the check found is used at once:
+
+- **The engine**: with **Engine** at Auto, a game missing files for one engine plays in the other where that one has them all ([FinalBurn Neo](#finalburn-neo)). An engine chosen for a game is kept whatever was found.
+- **Online and LAN play**: a game missing files for FinalBurn Neo isn't offered for hosting, and a room of it can't be joined, its page saying why.
+- **Game Details** says how many files it lacks ([Game Details](#game-details)), and the log names them.
+- **Hide Incomplete Games** leaves the games whole for neither engine off the lists ([Filters](#filters)).
+
+What it found holds for a game while its file, its parent's and its BIOS set's are as they were, and while MAME and FinalBurn Neo's list are the same ones: a game whose file changes, or all of them after an update of MAME or of FinalBurn Neo, is **Not Checked** until the next check. It is kept in `arcade/romcheck.json` in the data folder.
 
 ## Playing
 
@@ -507,6 +525,7 @@ Settings → Arcade, the second row of Settings' first screen. The page is share
 | Enabled | ON, OFF | OFF | Shows Arcade on the main menu | `modules.com.osdos.arcade.enabled` |
 | Games Folder | Default, or a folder | Default | The folder of ROM sets. Default: `Games/Arcade` beside Local Files' `Movies` folder, on the OSD/OS image `/media/OSD-OS/Games/Arcade` | `modules.com.osdos.arcade.games_directory` |
 | Hide Hacks and Bootlegs | ON, OFF | OFF | Leaves the sets that are a bootleg or a hack of a game, as MAME names them, off every list and filter, Favorites and Recently Played too ([Filters](#filters)) | `modules.com.osdos.arcade.hide_bootlegs` |
+| Hide Incomplete Games | ON, OFF | OFF | Leaves the games [Check ROMs](#check-roms) found files missing of, for every engine that knows them, off every list and filter | `modules.com.osdos.arcade.hide_incomplete` |
 | Regions | A page of World, USA, Europe, Asia, Japan, Korea, China, Hong Kong, Taiwan, Hispanic, Brazil, Oceania and Others (the regions the list doesn't name), each ON or OFF | All on | Leaves a region's sets off every list and filter, Favorites and Recently Played too: a set of several regions once they all are off, one whose name gives none never ([Filters](#filters)) | `modules.com.osdos.arcade.regions` |
 | Screen | Original, Arcade | Arcade | How the games are listed, from the next time Arcade opens: the tree, or the Arcade screen ([Two screens](#two-screens)) | `modules.com.osdos.arcade.screen` |
 | Start Filter | All Games, Favorites, Recently Played, LAN Games (with LAN Play on), Online Games and RetroArch Lobby (with Online Play on), then the other lists, genres, players, decades and publishers Menu Filters shows | All Games | The filter the Arcade screen opens on ([Filters](#filters)); while it isn't there, the first that is. Shown while Screen is Arcade | `modules.com.osdos.arcade.start_filter` |
@@ -538,6 +557,7 @@ Settings → Arcade, the second row of Settings' first screen. The page is share
 | Emulator Video → Screen Shape | Auto, 4:3, 16:9, Square Pixels | Auto | The screen's shape the games are drawn to: Auto 4:3 on a CRT's display output, square pixels on HDMI. MAME's `-aspect`; for FinalBurn Neo, the picture's shape in the screen's pixels (`video_aspect_ratio`) | `modules.com.osdos.arcade.screen_shape` |
 | Emulator Video → Integer Scale | Auto, On, Off | Auto | A game's lines drawn whole rather than spread over the screen's: Auto on on a CRT's display output. MAME's `-nounevenstretch -unevenstretchx` for a game whose lines fit; RetroArch's `video_scale_integer` | `modules.com.osdos.arcade.integer_scale` |
 | Emulator Video → MAME Video | Auto, OpenGL, BGFX, Accelerated, Software | Auto | How MAME draws the game: Auto leaves it to MAME's own settings (Debian's `mame.ini` says OpenGL); the others are MAME's `-video opengl`, `bgfx`, `accel` and `soft` | `modules.com.osdos.arcade.video` |
+| Check ROMs | (page) | | Whether every game's files are whole for MAME and FinalBurn Neo, checked when you start it ([Check ROMs](#check-roms)) | |
 | Read the Games Again | (action) | | Asks MAME about every set in the folder again ([Reading the games](#reading-the-games)), then looks for every game's pictures as Pictures From allows ([Download Pictures](#download-pictures)) | |
 
 ### How the values are saved
@@ -590,6 +610,7 @@ Everything MAME writes is in `arcade` in the data folder (`~/.local/share/OSD-OS
 | File | What it holds |
 |---|---|
 | `arcade/games.json` | What MAME said of each set ([Reading the games](#reading-the-games)), and which MAME said it |
+| `arcade/romcheck.json` | What [Check ROMs](#check-roms) last found of each game, with the stamps of the files it holds for and the MAME and FinalBurn Neo list it was made with |
 | `arcade/playtime.json` | How long each game has been played, in seconds, by set: the Arcade screen's Play Time. A game MAME refused to start (files missing, no such game) adds nothing |
 | `arcade/coins.lua` | The credits bought on the Arcade screen, as the script MAME runs to put them in, written afresh before each game started with credits ([Credits](#credits)) |
 | `arcade/catver.ini` | The games' genres, when they aren't in the games folder ([Genres](#genres)): you put it there, or OSD/OS downloaded it |

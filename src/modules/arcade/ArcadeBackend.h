@@ -21,6 +21,7 @@
 #include <utility>
 #include "Libretro.h"
 #include "Mame.h"
+#include "RomCheck.h"
 
 class AppCore;
 class ArcadeDb;
@@ -132,6 +133,12 @@ class ArcadeBackend : public QObject {
     // to try those again), result (how the last look ended, "" for none
     // yet) }.
     Q_PROPERTY(QVariantMap picturesProgress READ picturesProgress NOTIFY picturesProgressChanged)
+    // Check ROMs (checkRoms()): { active (under way), stage ("Archives":
+    // their tables read, FinalBurn Neo's side; "MAME": its -verifyroms),
+    // done and total (the stage's sets), held (waiting for a game or MAME's
+    // reading of the folder to end), result ("" for none yet, "Done", or why
+    // it stopped) }.
+    Q_PROPERTY(QVariantMap romCheckProgress READ romCheckProgress NOTIFY romCheckChanged)
     // The status icons the module adds (AppCore's statusIcons): "hiscore"
     // while Save High Scores is on, "trophy" while Online High Scores plays
     // with RetroAchievements and its account is signed in (or signs in at
@@ -246,6 +253,22 @@ public:
     // Download Pictures: every game's pictures looked for, from the sources
     // Pictures From allows (startPictureSweep()); one under way starts anew.
     Q_INVOKABLE void downloadPictures();
+    // Settings → Arcade → Check ROMs: whether every game's files are whole,
+    // for MAME (its -verifyroms) and FinalBurn Neo (the CRCs of its list
+    // against the archives' tables). Started here alone, never by itself:
+    // it reads every archive of the folder. What it found holds for a game
+    // while its archive, its parent's and its BIOS set's are unchanged, and
+    // MAME and FinalBurn Neo's list are the same: an engine missing files
+    // isn't chosen where the other has them all (engineOf()), the game says
+    // so in its details, and Hide Incomplete Games leaves out those whole in
+    // neither. One under way goes on; MAME's part waits while a game plays.
+    Q_INVOKABLE void checkRoms();
+    // What the Check ROMs page shows: { checked (when, "" for never), games
+    // (those it checks), complete, fbneoOnly (whole for FinalBurn Neo, not
+    // MAME), mameOnly (the other way), incomplete (whole in neither engine
+    // that knows it), unchecked }.
+    Q_INVOKABLE QVariantMap romCheckInfo() const;
+    QVariantMap romCheckProgress() const;
     // A game's achievements on RetroAchievements, for its Game Details
     // (Details.qml), as RetroAchievements::achievements() reads them with
     // the Web API key and the account's user: { state, achievements,
@@ -578,6 +601,7 @@ signals:
     // its parent's.
     void picturesChanged(const QString &set);
     void picturesProgressChanged();
+    void romCheckChanged();
     void statusIconsChanged();
     void roomsChanged();
     void lanRoomsChanged();
@@ -609,6 +633,11 @@ private:
         QSet<QString> misnamed;
         QSet<QString> folders;
         QHash<QString, QString> otherFolders;
+        // Each archive's stamp by its set's name, its bios folder's too
+        // (romcheck::stampOf()).
+        QHash<QString, QString> stamps;
+        // romcheck.json, read with games.json (cacheAsked).
+        romcheck::Results roms;
         // games.json, when it was to be read (cacheAsked): what MAME said,
         // and the sets it had no machine of before it was asked about every
         // set again (one made by an older version: all it had none of).
@@ -1026,6 +1055,26 @@ private:
     // A setting only FinalBurn Neo serves is on (Online High Scores, Online
     // Play, LAN Play): Auto then plays a game it has in it.
     bool fbneoWanted() const { return m_achievements || m_onlinePlay || m_lanPlay; }
+    // What Check ROMs last found of a set, while it holds: its archives, its
+    // parent's and those it takes ROMs from as they were (m_stamps); nullptr
+    // for none.
+    const romcheck::State *romStateOf(const QString &set) const;
+    // A set's files whole (1), not (-1) or not known (0) for MAME, while the
+    // MAME it was checked with is the one there; for FinalBurn Neo, while
+    // its list is.
+    int mameRoms(const QString &set) const;
+    int fbneoRoms(const QString &set) const;
+    // Whole in neither engine that knows it, as last checked.
+    bool romsIncomplete(const QString &set) const;
+    // A set Check ROMs looks at: one recognised, not a BIOS set or a device.
+    bool romCheckable(const QString &set) const;
+    // What a game lacks, for its Game Details: "" when nothing is known
+    // missing.
+    QString romsDetail(const QString &set) const;
+    // MAME's part of a check goes on once nothing else of MAME's, nor a
+    // game, is running.
+    void resumeRomCheck();
+    void romCheckDone(const romcheck::Results &results);
     void saveAchievements() const;
     // The sign-in checked at once (libretro::SignIn): RetroArch, with no
     // picture, sound or controllers, signs in with the password and the
@@ -1073,6 +1122,7 @@ private:
     // Settings.
     QString m_gamesFolder;
     bool    m_hideBootlegs = false;   // Hide Hacks and Bootlegs
+    bool    m_hideIncomplete = false; // Hide Incomplete Games
     QSet<QString> m_hiddenRegions;    // Regions: the ids turned off
     bool    m_highScores = true;
     QString m_video;              // "" for MAME's own (mame.ini's)
@@ -1309,6 +1359,11 @@ private:
     QHash<QString, double> m_fbneoAspects;  // set → its shape, where FinalBurn Neo's list says
     QHash<QString, mame::Machine> m_fbneoMachines;  // set → its game, as FinalBurn Neo's list describes it
     QString m_fbneoFrom;          // the list of them read: its path, size and time
+    // Check ROMs: the one under way, what the last found, and each archive's
+    // stamp now, which what it found is held against.
+    RomCheck *m_romCheck = nullptr;
+    romcheck::Results m_roms;
+    QHash<QString, QString> m_stamps;
     mutable Index m_index;
     mutable bool  m_indexed = false;
 

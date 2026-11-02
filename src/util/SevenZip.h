@@ -25,6 +25,20 @@ QString safeRelativePath(const QString &entryName);
 // as a 7z archive.
 QStringList list(const QString &archive, QString *error = nullptr);
 
+// A file of an archive as its table gives it: its name, size and CRC-32
+// (hasCrc false where the table holds none).
+struct Entry {
+    QString name;
+    qint64 size = 0;
+    quint32 crc = 0;
+    bool hasCrc = false;
+};
+// The archive's files, not its folders, as its table gives them, nothing
+// decoded: what an arcade set's ROMs are checked against (RomCheck). Empty,
+// with why in error where given, for a file that can't be read as a 7z
+// archive.
+QList<Entry> entries(const QString &archive, QString *error = nullptr);
+
 // Every file of the archive at that path, under folder (made where it isn't
 // there, as the files' own are), a file already there written over; an
 // entry whose name safeRelativePath() refuses is skipped. "" once all are

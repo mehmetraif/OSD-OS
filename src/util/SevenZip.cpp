@@ -229,6 +229,30 @@ QStringList list(const QString &archivePath, QString *error) {
     return names;
 }
 
+QList<Entry> entries(const QString &archivePath, QString *error) {
+    Archive archive;
+    const QString problem = archive.open(archivePath);
+    if (error)
+        *error = problem;
+    if (!problem.isEmpty())
+        return {};
+    const CSzArEx &db = archive.db;
+    QList<Entry> files;
+    files.reserve(int(db.NumFiles));
+    for (UInt32 i = 0; i < db.NumFiles; ++i) {
+        if (SzArEx_IsDir(&db, i))
+            continue;
+        Entry entry;
+        entry.name = archive.nameOf(i);
+        entry.size = qint64(SzArEx_GetFileSize(&db, i));
+        entry.hasCrc = SzBitWithVals_Check(&db.CRCs, i);
+        if (entry.hasCrc)
+            entry.crc = db.CRCs.Vals[i];
+        files.append(entry);
+    }
+    return files;
+}
+
 QString extract(const QString &archivePath, const QString &folder, qint64 mostTotalBytes, qint64 mostBlockBytes,
                 const std::function<bool(qint64, qint64)> &progress) {
     Archive archive;

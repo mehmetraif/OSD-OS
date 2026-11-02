@@ -78,7 +78,8 @@ FocusScope {
         list.currentIndex = rows.length > 1 ? 1 : 0
     }
 
-    // What the game is: its maker, year, players, system and play time.
+    // What the game is: its maker, year, players, system and play time, and
+    // the files Check ROMs found it lacks.
     readonly property string facts: {
         var d = details
         var parts = []
@@ -92,6 +93,9 @@ FocusScope {
             parts.push(d.system)
         if (d.playTime > 0)
             parts.push("Played " + moduleRoot.playTime(d.playTime))
+        // What Check ROMs found missing of its files.
+        if (d.roms)
+            parts.push(d.roms)
         return parts.join(" • ")
     }
 

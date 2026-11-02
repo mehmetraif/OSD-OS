@@ -242,6 +242,16 @@ Rectangle {
             picturesProgress = { active: true, source: "RetroAchievements", done: 0, total: 0, asked: 0, failed: 0,
                                  again: false, result: "" }
         }
+        // The Check ROMs page: what romCheckInfo() answers, and the check
+        // under way (romCheckProgress, as the backend's property).
+        property var romCheckProgress: ({ active: false, result: "" })
+        property var romInfo: ({ checked: "", games: 0, complete: 0, fbneoOnly: 0, mameOnly: 0, incomplete: 0, unchecked: 0 })
+        property int romChecks: 0
+        function romCheckInfo() { return romInfo }
+        function checkRoms() {
+            romChecks++
+            romCheckProgress = { active: true, stage: "Archives", done: 0, total: 0, held: false, result: "" }
+        }
         function fbneoLicenseText() { return "You may freely use, modify, and distribute FB Neo." }
         function downloadFbneo() { downloads++; fbneoDownloading = true; fbneoProgress = 40; fbneoChanged() }
         function downloadRetroArch() {
@@ -1171,6 +1181,40 @@ Rectangle {
             tryVerify(function() { return findText(page, "117/120") !== null }, 1000)
             verify(findText(page, "Key Refused") !== null)
             verify(findText(page, "Off") !== null)
+            compare(root.backs, 0)
+            keyClick(Qt.Key_Escape)
+            compare(root.backs, 1)
+        }
+
+        // The Check ROMs page: nothing checked yet, the check started by
+        // select alone and its way shown as it goes (waiting for a game, the
+        // stage and how far), how it ended, and the counts read again then;
+        // back closes the page.
+        function test_romCheckPage() {
+            arcadeBackend.romInfo = { checked: "", games: 40, complete: 0, fbneoOnly: 0, mameOnly: 0, incomplete: 0,
+                                      unchecked: 40 }
+            var page = open("RomCheck.qml")
+            verify(findText(page, "Never") !== null)
+            verify(findText(page, "40") !== null)
+            compare(arcadeBackend.romChecks, 0)
+            for (var i = 0; i < page.keys.length - 1; ++i)
+                keyClick(Qt.Key_Down)
+            keyClick(Qt.Key_Return)
+            compare(arcadeBackend.romChecks, 1)
+            tryVerify(function() { return findText(page, "Starting") !== null }, 1000)
+            arcadeBackend.romCheckProgress = { active: true, stage: "MAME", done: 12, total: 40, held: false, result: "" }
+            tryVerify(function() { return findText(page, "MAME 12/40") !== null }, 1000)
+            arcadeBackend.romCheckProgress = { active: true, stage: "MAME", done: 12, total: 40, held: true, result: "" }
+            tryVerify(function() { return findText(page, "Waiting") !== null }, 1000)
+            // Select while it goes on starts nothing anew.
+            keyClick(Qt.Key_Return)
+            compare(arcadeBackend.romChecks, 1)
+            arcadeBackend.romInfo = { checked: "2026-11-02T05:00:00Z", games: 40, complete: 31, fbneoOnly: 4, mameOnly: 2,
+                                      incomplete: 3, unchecked: 0 }
+            arcadeBackend.romCheckProgress = { active: false, stage: "MAME", done: 40, total: 40, held: false, result: "Done" }
+            tryVerify(function() { return findText(page, "Done") !== null }, 1000)
+            verify(findText(page, "31") !== null)
+            verify(findText(page, "2 Nov 2026") !== null)
             compare(root.backs, 0)
             keyClick(Qt.Key_Escape)
             compare(root.backs, 1)
