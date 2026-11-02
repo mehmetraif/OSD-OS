@@ -11,8 +11,7 @@
 - [Display Output](https://github.com/mehmetraif/OSD-OS/wiki/Display-Output)
 - [Audio Output](https://github.com/mehmetraif/OSD-OS/wiki/Audio-Output)
 
-**Modules**
-- [All modules](https://github.com/mehmetraif/OSD-OS/wiki/Modules)
+**TV / Movie**
 - [Local Files](https://github.com/mehmetraif/OSD-OS/wiki/Local-Files)
 - [Plex](https://github.com/mehmetraif/OSD-OS/wiki/Plex)
 - [Jellyfin](https://github.com/mehmetraif/OSD-OS/wiki/Jellyfin)
@@ -22,10 +21,17 @@
 - [Playlists](https://github.com/mehmetraif/OSD-OS/wiki/Playlists)
 - [NFC Reader](https://github.com/mehmetraif/OSD-OS/wiki/NFC-Reader)
 - [Weather](https://github.com/mehmetraif/OSD-OS/wiki/Weather)
-- [Arcade](https://github.com/mehmetraif/OSD-OS/wiki/Arcade)
-- [High Scores](https://github.com/mehmetraif/OSD-OS/wiki/High-Scores)
-- [Scripts](https://github.com/mehmetraif/OSD-OS/wiki/Scripts)
 - [Ambient:Mode](https://github.com/mehmetraif/OSD-OS/wiki/Ambient-Mode)
+
+**Arcade**
+- [Arcade](https://github.com/mehmetraif/OSD-OS/wiki/Arcade)
+- [Online and LAN Play](https://github.com/mehmetraif/OSD-OS/wiki/Online-and-LAN-Play)
+- [High Scores](https://github.com/mehmetraif/OSD-OS/wiki/High-Scores)
+- [JAMMA cabinets](https://github.com/mehmetraif/OSD-OS/wiki/Display-Output#jamma-a-raspberry-pi-to-jamma-board)
+
+**Modules**
+- [All modules](https://github.com/mehmetraif/OSD-OS/wiki/Modules)
+- [Scripts](https://github.com/mehmetraif/OSD-OS/wiki/Scripts)
 
 **Making it yours**
 - [Settings](https://github.com/mehmetraif/OSD-OS/wiki/Settings)

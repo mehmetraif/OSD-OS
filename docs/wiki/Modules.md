@@ -1,6 +1,6 @@
 # Modules
 
-Everything OSD/OS plays comes in through a module, like the inputs on a VHS deck: each is a source of video, browsed in OSD/OS's own menus and handed to mpv, or, for Netflix and Prime Video, to the service's own player. This page lists them all and shows how to turn them on. Each has a page of its own, with its setup, its settings and examples.
+Everything OSD/OS plays comes in through a module, like the inputs on a VHS deck. They make its two sides: **TV / Movie**, whose modules are each a source of video, browsed in OSD/OS's own menus and handed to mpv, or, for Netflix and Prime Video, to the service's own player; and **Arcade**, the arcade games and their high scores, which the wiki covers in a section of its own ([Arcade](https://github.com/mehmetraif/OSD-OS/wiki/Arcade), [Online and LAN Play](https://github.com/mehmetraif/OSD-OS/wiki/Online-and-LAN-Play), [High Scores](https://github.com/mehmetraif/OSD-OS/wiki/High-Scores)). This page lists them all and shows how to turn them on. Each has a page of its own, with its setup, its settings and examples.
 
 <table>
 <tr><th width="50%">The main menu</th><th width="50%">Settings → TV / Movie</th></tr>
@@ -9,6 +9,8 @@ Everything OSD/OS plays comes in through a module, like the inputs on a VHS deck
 </table>
 
 ## All of them
+
+### TV / Movie
 
 | Module | What it plays | On at first | What it needs |
 |---|---|---|---|
@@ -21,10 +23,20 @@ Everything OSD/OS plays comes in through a module, like the inputs on a VHS deck
 | [Netflix and Prime Video](https://github.com/mehmetraif/OSD-OS/wiki/Netflix-and-Prime-Video) | The service's catalogue in your country, from TMDB; a title plays in the service's own player | No | A TMDB API key; Chromium with Widevine, cage and wtype (the OSD/OS image has them) |
 | [NFC Reader](https://github.com/mehmetraif/OSD-OS/wiki/NFC-Reader) | The video an NFC card stands for, the moment it touches the reader | No | A PN532 USB reader, or a PC/SC reader with pcscd. On Linux, `setup-nfc-reader.sh` gives OSD/OS access to it; the image doesn't run it for you |
 | [Weather](https://github.com/mehmetraif/OSD-OS/wiki/Weather) | The weather, the way a 90s cable channel showed it | No | The network (Open-Meteo, and NWS in the US) |
-| [Arcade](https://github.com/mehmetraif/OSD-OS/wiki/Arcade) | Arcade games in MAME, from a folder of ROM sets, listed by players, decade and maker, or on a cabinet's selection screen with pictures, high scores and genres | No | MAME (the OSD/OS image has it) and MAME's ROM sets; for genres and pictures, catver.ini and a snap folder |
-| [High Scores](https://github.com/mehmetraif/OSD-OS/wiki/High-Scores) | The high score tables of the games played in Arcade, as MAME kept them | No | Games played in Arcade |
-| [Scripts](https://github.com/mehmetraif/OSD-OS/wiki/Scripts) | Your own shell scripts: anything else on the machine | No | Nothing more |
 | [Ambient:Mode](https://github.com/mehmetraif/OSD-OS/wiki/Ambient-Mode) | A video on a loop, a fireplace or an aquarium, with music of your choice | No | Nothing more |
+
+### Arcade
+
+| Module | What it plays | On at first | What it needs |
+|---|---|---|---|
+| [Arcade](https://github.com/mehmetraif/OSD-OS/wiki/Arcade) | Arcade games in MAME and FinalBurn Neo, from a folder of ROM sets, listed by players, decade and maker, or on a cabinet's selection screen with pictures, high scores and genres; played with others online and on the local network | No | MAME (the OSD/OS image has it) and MAME's ROM sets; for genres and pictures, catver.ini and a snap folder; for FinalBurn Neo, RetroAchievements and playing with others, RetroArch (the image has it; FinalBurn Neo comes with OSD/OS) |
+| [High Scores](https://github.com/mehmetraif/OSD-OS/wiki/High-Scores) | The high score tables of the games played in Arcade, as MAME kept them | No | Games played in Arcade |
+
+### System
+
+| Module | What it plays | On at first | What it needs |
+|---|---|---|---|
+| [Scripts](https://github.com/mehmetraif/OSD-OS/wiki/Scripts) | Your own shell scripts: anything else on the machine | No | Nothing more |
 
 ## Turning a module on or off
 

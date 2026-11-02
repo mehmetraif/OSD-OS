@@ -1,6 +1,6 @@
 # OSD/OS wiki
 
-OSD/OS makes a TV, preferably a CRT, a smart TV with the look of a VCR. On a Raspberry Pi it is the whole system: flash it, plug the Pi into the TV, and it starts straight into its menus. These pages cover all of it: getting it running, using it, every setting and module, making it look the way you want, and how it works inside.
+OSD/OS makes a TV, preferably a CRT, a smart TV with the look of a VCR. On a Raspberry Pi it is the whole system: flash it, plug the Pi into the TV, and it starts straight into its menus. It has two sides, TV / Movie and Arcade. These pages cover all of it: getting it running, using it, every setting and module, playing arcade games alone and together, making it look the way you want, and how it works inside.
 
 <p align="center"><img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/images/default-look.gif" width="640" alt="OSD/OS as it comes: the main menu, Local Files' tree, the Arcade screen's games on a 3D wheel, its filters and the games others host online, and Settings" /></p>
 
@@ -21,12 +21,36 @@ OSD/OS makes a TV, preferably a CRT, a smart TV with the look of a VCR. On a Ras
 | [Display Output](https://github.com/mehmetraif/OSD-OS/wiki/Display-Output) | HDMI, composite and SCART RGB on a Pi 4 and a Pi 5, the cables, and what each choice writes |
 | [Audio Output](https://github.com/mehmetraif/OSD-OS/wiki/Audio-Output) | The AV jack, HDMI or a USB sound card |
 
+## TV / Movie
+
+Your films and videos, each source a module, like the inputs on a deck.
+
+| Page | What is in it |
+|---|---|
+| [Local Files](https://github.com/mehmetraif/OSD-OS/wiki/Local-Files) | Films, videos and photos in a folder: the card's Movies folder, a USB drive, a network share |
+| [Plex](https://github.com/mehmetraif/OSD-OS/wiki/Plex) · [Jellyfin](https://github.com/mehmetraif/OSD-OS/wiki/Jellyfin) · [Emby](https://github.com/mehmetraif/OSD-OS/wiki/Emby) | A media server's libraries, signed in from the TV |
+| [YouTube](https://github.com/mehmetraif/OSD-OS/wiki/YouTube) | Subscriptions, channels, playlists and search, with no account needed |
+| [Netflix and Prime Video](https://github.com/mehmetraif/OSD-OS/wiki/Netflix-and-Prime-Video) | The service's catalogue in OSD/OS's tree, played in the service's own player |
+| [Playlists](https://github.com/mehmetraif/OSD-OS/wiki/Playlists) | Lists of videos across modules, streamed or downloaded |
+| [NFC Reader](https://github.com/mehmetraif/OSD-OS/wiki/NFC-Reader) · [Weather](https://github.com/mehmetraif/OSD-OS/wiki/Weather) · [Ambient:Mode](https://github.com/mehmetraif/OSD-OS/wiki/Ambient-Mode) | A card that plays a film, a 90s weather channel, a fireplace on a loop |
+
+## Arcade
+
+Arcade games, on a cabinet's selection screen, for up to six players, and with others on every system OSD/OS runs on.
+
+| Page | What is in it |
+|---|---|
+| [Arcade](https://github.com/mehmetraif/OSD-OS/wiki/Arcade) | MAME and FinalBurn Neo from a folder of ROM sets: the two screens, filters, pictures, credits, Check ROMs, RetroAchievements, every setting |
+| [Online and LAN Play](https://github.com/mehmetraif/OSD-OS/wiki/Online-and-LAN-Play) | Playing together: online through RetroArch's lobby, or on the local network with no internet, up to six players across Raspberry Pis, PCs and Macs, Cave's CV1000 games on a Pi on OSD/OS's own core |
+| [High Scores](https://github.com/mehmetraif/OSD-OS/wiki/High-Scores) | Each game's high score table, as MAME kept it |
+| [JAMMA cabinets](https://github.com/mehmetraif/OSD-OS/wiki/Display-Output#jamma-a-raspberry-pi-to-jamma-board) | A cabinet's own monitor and controls, through a Raspberry Pi to JAMMA board |
+
 ## Modules
 
 | Page | What is in it |
 |---|---|
 | [Modules](https://github.com/mehmetraif/OSD-OS/wiki/Modules) | All of them at a glance, and turning them on |
-| [Local Files](https://github.com/mehmetraif/OSD-OS/wiki/Local-Files) · [Plex](https://github.com/mehmetraif/OSD-OS/wiki/Plex) · [Jellyfin](https://github.com/mehmetraif/OSD-OS/wiki/Jellyfin) · [Emby](https://github.com/mehmetraif/OSD-OS/wiki/Emby) · [YouTube](https://github.com/mehmetraif/OSD-OS/wiki/YouTube) · [Netflix and Prime Video](https://github.com/mehmetraif/OSD-OS/wiki/Netflix-and-Prime-Video) · [Playlists](https://github.com/mehmetraif/OSD-OS/wiki/Playlists) · [NFC Reader](https://github.com/mehmetraif/OSD-OS/wiki/NFC-Reader) · [Weather](https://github.com/mehmetraif/OSD-OS/wiki/Weather) · [Arcade](https://github.com/mehmetraif/OSD-OS/wiki/Arcade) · [High Scores](https://github.com/mehmetraif/OSD-OS/wiki/High-Scores) · [Scripts](https://github.com/mehmetraif/OSD-OS/wiki/Scripts) · [Ambient:Mode](https://github.com/mehmetraif/OSD-OS/wiki/Ambient-Mode) | One page each: setting it up, using it, its settings, examples |
+| [Scripts](https://github.com/mehmetraif/OSD-OS/wiki/Scripts) | Your own shell scripts: anything else on the machine |
 
 ## Making it yours
 

@@ -724,7 +724,7 @@ Then start OSD/OS again ([Exit to Terminal](https://github.com/mehmetraif/OSD-OS
 | `/etc/initramfs-tools/scripts/local-premount/resize_early` | The first boot's card split |
 | `/usr/local/bin/deno` | The JavaScript runtime yt-dlp needs for YouTube |
 | `/usr/games/mame`, `/etc/mame/mame.ini` | MAME, which the Arcade module plays its games in, and MAME's own settings ([Arcade](https://github.com/mehmetraif/OSD-OS/wiki/Arcade)) |
-| `/usr/bin/retroarch`, `/opt/osdos/lib/osdos/fbneo_libretro.so`, `/opt/osdos/share/osdos/fbneo/` | RetroArch (Debian's) and the FinalBurn Neo core, the Arcade module's second engine, which comes with the app, with FinalBurn Neo's list of arcade games and its licence; the same core as every other OSD/OS of the release ([Arcade](https://github.com/mehmetraif/OSD-OS/wiki/Arcade#the-same-engines-on-every-machine)) |
+| `/usr/bin/retroarch`, `/opt/osdos/lib/osdos/fbneo_libretro.so`, `/opt/osdos/share/osdos/fbneo/` | RetroArch (Debian's) and the FinalBurn Neo core, the Arcade module's second engine, which comes with the app, with FinalBurn Neo's list of arcade games and its licence; the same core as every other OSD/OS of the release ([Arcade](https://github.com/mehmetraif/OSD-OS/wiki/Online-and-LAN-Play#the-same-engines-on-every-machine)) |
 | `/usr/share/doc/osdos/NOTICE` | What the image is made of, and under which licences |
 | `/tmp/osdos-mpv.log` | mpv's own log ([Logs](https://github.com/mehmetraif/OSD-OS/wiki/The-OSD-OS-Image#logs)) |
 
