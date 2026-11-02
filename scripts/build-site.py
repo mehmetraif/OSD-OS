@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Builds OSD/OS's website, published on GitHub Pages (site/), into a folder:
 the landing page at its root (site/index.html, with the tour and the theme
-recordings, the photo and the logo from docs/images, the Arcade screen from
+recordings, the photo and the logo from docs/images, the Arcade screen and LAN Games from
 docs/screenshots and the stills from site/assets, and themes.json, the themes
 with their colours and pictures; its download buttons lead to the latest
 release's files, given GitHub's record of the release), the terminal
@@ -530,6 +530,7 @@ def main():
     for name in ("tour.mp4", "osdos-on-a-crt.jpg", "osdos-logo.svg"):
         shutil.copy2(IMAGES / name, out / "assets" / name)
     shutil.copy2(SCREENSHOTS / "arcade-list-3d-curved.png", out / "assets/arcade-screen.png")
+    shutil.copy2(SCREENSHOTS / "arcade-screen-lan.png", out / "assets/arcade-lan.png")
     (out / "themes.json").write_text(json.dumps(landing_themes(data["looks"]), indent=1, ensure_ascii=False) + "\n")
 
     # OSD/OS Setup, under setup/: its own files, the app's font and logo, the

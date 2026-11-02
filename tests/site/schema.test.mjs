@@ -263,8 +263,10 @@ test("the rows of the page's Basic and Logins views", () => {
     for (const [scope, row] of rows)
         assert.ok(row.view === undefined || ["basic", "logins"].includes(row.view), `${scope}.${row.key}: ${row.view}`);
     const inView = view => rows.filter(([, r]) => r.view === view).map(([scope, r]) => `${scope}.${r.key}`).sort();
-    // How the card starts and its look; what it signs in with.
-    assert.deepEqual(inView("basic"), ["app.osd_theme", "app.startup_module"]);
+    // How the card starts, its look and the arcade's playing together; what
+    // it signs in with.
+    assert.deepEqual(inView("basic"), ["app.osd_theme", "app.startup_module",
+                                       "com.osdos.arcade.lan_play", "com.osdos.arcade.online_play"]);
     assert.deepEqual(inView("logins"), ["com.osdos.arcade.online_name", "com.osdos.emby.server_url",
                                         "com.osdos.jellyfin.server_url", "com.osdos.plex.auto_sign_in"]);
     // A module's views name its own rows.

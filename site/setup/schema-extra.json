@@ -146,10 +146,11 @@
     },
     "com.osdos.arcade": {
       "options": {
-        "start_filter": [["All Games", "all"], ["Favorites", "favorites"], ["Recently Played", "recent"], ["RetroAchievements", "achievements"], ["Playable Online", "netplay"]],
+        "start_filter": [["All Games", "all"], ["Favorites", "favorites"], ["Recently Played", "recent"], ["LAN Games", "lan"], ["Online Games", "online"], ["RetroArch Lobby", "lobby"], ["RetroAchievements", "achievements"], ["Playable Online", "netplay"]],
         "regions": [["World", "world"], ["USA", "usa"], ["Europe", "europe"], ["Asia", "asia"], ["Japan", "japan"], ["Korea", "korea"], ["China", "china"], ["Hong Kong", "hong_kong"], ["Taiwan", "taiwan"], ["Hispanic", "hispanic"], ["Brazil", "brazil"], ["Oceania", "oceania"], ["Others", "others"]]
       },
       "defaults": { "start_filter": "all" },
+      "views": { "online_play": "basic", "lan_play": "basic" },
       "extra": [
         { "key": "online_name", "label": "Online Name", "type": "text", "default": "", "placeholder": "Empty: the device's name on the network", "after": "lan_play",
           "max_length": 32, "trim": true, "view": "logins",

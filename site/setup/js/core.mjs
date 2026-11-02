@@ -341,7 +341,7 @@ export function shown(row, valueOf) {
 // stays set, and goes into the file, from any.
 export const VIEWS = [
     { id: "basic", name: "Basic",
-      about: "How it starts: the device, the Pi and its display output, the time zone, the theme, the module it opens on, the modules on." },
+      about: "How it starts: the device, the Pi and its display output, the time zone, the theme, the module it opens on, the modules on, and the arcade's Online Play and LAN Play." },
     { id: "logins", name: "Logins",
       about: "What it signs in with: Wi-Fi, pi's password and SSH, the media servers' addresses, the RetroAchievements account and the online name." },
     { id: "advanced", name: "Advanced", about: "Every setting." },
