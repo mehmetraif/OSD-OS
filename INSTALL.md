@@ -397,7 +397,7 @@ The AppImage carries its own copy of the Wayland client libraries and uses them 
 
 ## On Windows (x64)
 
-For Windows 11 on x64, OSD/OS comes as a zip: one folder, `osdos`, with `osdos.exe`, Qt and the libraries it needs, and OSD/OS's own files. Nothing is installed: the folder runs from wherever you put it.
+For Windows 11 on x64, OSD/OS comes as a zip: one folder, `osdos`, with `osdos.exe`, Qt and the libraries it needs, and OSD/OS's own files. Nothing is installed: the folder runs from wherever you put it. *It is tried on a Windows 11 PC, LAN Play with the Raspberry Pis included.*
 
 ### Requirements
 

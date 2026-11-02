@@ -755,7 +755,7 @@ Stopping the service from outside leaves the Pi on. The packages `install.sh` in
 
 ## Supported hardware
 
-OSD/OS is tested on a **Raspberry Pi 4** and a **Raspberry Pi 5 (8 GB)**: the Pi 4 as a TV, the Pi 5 in a JAMMA arcade cabinet, and LAN Play between the two. Nothing else has been tested with OSD/OS so far: on another board, please tell us how it went in an [issue](https://github.com/mehmetraif/OSD-OS/issues).
+OSD/OS is tested on a **Raspberry Pi 4** and a **Raspberry Pi 5 (8 GB)**, and as an app on a **Windows 11** PC (x64), with LAN Play among the three. Nothing else has been tested with OSD/OS so far: on another board, please tell us how it went in an [issue](https://github.com/mehmetraif/OSD-OS/issues).
 
 OSD/OS reads the board's model (`/proc/device-tree/model`) and sets itself up for its family: the mpv flags it plays videos with, and the outputs Settings → Screen → Display Output offers.
 
@@ -784,7 +784,7 @@ Of the outputs, only the Pi 4's HDMI and composite have been tried on a TV. The 
 - **Raspberry Pi 3B / 3B+.** OSD/OS keeps the settings 240-MP's author used on a Pi 3. Its mpv flags send the video straight to a hardware overlay, which keeps 1080p H.264 smooth but can't crop: Settings → TV / Movie → **1080p Playback** (shown on a Pi 3 only) trades that the other way, and [Playback and mpv](https://github.com/mehmetraif/OSD-OS/wiki/Playback-and-mpv) shows how to set the flags yourself (`mpv_video_args`). Some USB flash drives hang a Pi 3 booting from USB: if it won't start from one, try an SD card first.
 - **Raspberry Pi 400 / 500** are read as a Pi 4 and a Pi 5, without the AV jack or TV pads they don't have.
 - **Boards without a 64-bit Raspberry Pi OS** (the Pi 1 and the first Pi Zero, for example) can't run OSD/OS: the image and the app are 64-bit (arm64), and `install.sh` stops on anything else.
-- **Other computers:** an Apple Silicon Mac, an x86_64 Linux machine with the AppImage, or a Windows 11 PC (above).
+- **Other computers:** an Apple Silicon Mac, an x86_64 Linux machine with the AppImage, or a Windows 11 PC (above), which OSD/OS is tested on.
 
 ## See also
 
