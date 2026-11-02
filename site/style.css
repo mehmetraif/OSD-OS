@@ -338,7 +338,7 @@ h1 em { font-style: normal; }
 }
 
 /* --- Sections. */
-.intro-section, .arcade-section, .hardware-section, .faq-section { padding-block: 64px; }
+.intro-section, .arcade-section, .together-section, .hardware-section, .faq-section { padding-block: 64px; }
 .section-intro {
     display: flex;
     align-items: flex-end;
@@ -406,7 +406,22 @@ h3 { font-size: 23px; line-height: 1.2; text-transform: uppercase; }
 /* The arcade: the same screen and points, the screen on the right. */
 .experience-grid.flip { grid-template-columns: 1fr 1.05fr; }
 .flip .screen-demo { order: 2; }
-.arcade-section .feature-list .text-link { margin-top: 26px; }
+.feature-list .text-link { margin-top: 26px; }
+
+/* Playing together: the same screen and points, then four figures in a strip. */
+.together-section { border-top: 3px double var(--ink); }
+.together-specs {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    margin: 44px 0 0;
+    border: 4px double var(--ink);
+    box-shadow: 7px 7px 0 var(--shadow);
+}
+.together-specs > div, .together-specs > div:first-child { padding: 18px 20px; border-bottom: 0; border-left: 1px dashed var(--line); }
+.together-specs > div:first-child { border-left: 0; }
+.together-specs dt { font-family: var(--deck); font-size: 12px; text-transform: uppercase; }
+.together-specs dd { margin: 10px 0 0; font-family: var(--deck); font-size: 34px; line-height: 1; }
+.together-specs .spec-note { margin-top: 8px; font-family: inherit; font-size: 13px; line-height: 1.4; }
 
 /* The themes. */
 .themes-section {
@@ -826,7 +841,11 @@ dd { margin: 0; font-size: 16px; line-height: 1.5; }
     .hero-photo { box-shadow: 5px 5px 0 var(--shadow); }
     .signal-strip { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; padding: 19px 18px; font-size: 12px; }
     .signal-strip li::before { margin-right: 8px; }
-    .intro-section, .arcade-section, .hardware-section, .faq-section, .themes-section, .setup-section { padding-block: 42px; }
+    .intro-section, .arcade-section, .together-section, .hardware-section, .faq-section, .themes-section, .setup-section { padding-block: 42px; }
+    .together-specs { grid-template-columns: repeat(2, minmax(0, 1fr)); margin-top: 32px; }
+    .together-specs > div:nth-child(3) { border-left: 0; }
+    .together-specs > div:nth-child(n+3) { border-top: 1px dashed var(--line); }
+    .together-specs dd { font-size: 28px; }
     .section-label { font-size: 13px; margin-bottom: 22px; }
     .section-intro { display: block; margin-bottom: 28px; }
     .section-intro > p { margin-top: 20px; max-width: 440px; }

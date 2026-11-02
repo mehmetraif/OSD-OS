@@ -169,8 +169,8 @@ function device() {
     if (!shows("basic"))
         return null;
     const kinds = [
-        ["tv", "TV", "Films, series and music videos on a TV: OSD/OS starts on its main menu."],
-        ["arcade", "Arcade Cabinet", "Arcade games in a cabinet: OSD/OS starts on the Arcade screen, and the TV / Movie settings are put away."],
+        ["tv", "TV", "Films, series and arcade games on a TV: OSD/OS starts on its main menu, TV / Movie and Arcade side by side."],
+        ["arcade", "Arcade Cabinet", "Arcade games in a cabinet, alone or with other machines on the network: OSD/OS starts on the Arcade screen, and the TV / Movie settings are put away."],
     ];
     return section("Device", "What the card goes into. The settings below follow it, and anything can still be changed.",
         chooser("kind", "Device", kinds, state.kind, setKind));
