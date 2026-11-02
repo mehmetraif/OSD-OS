@@ -224,6 +224,12 @@ The row needs the OSD/OS image's presets beside `config.txt`, the app started by
 
 A picture over the whole screen to set up a TV or monitor by, with its own knobs or service menu, from Artemio Urbina's [240p Test Suite](https://github.com/ArtemioUrbina/240pTestSuite) (GPL v2 or later). **◄ ►** go through the patterns, **▲ ▼** through a pattern's kinds, **select** shows or hides its name, what to set with it and the keys (shown for a few seconds as it opens and changes), and **back** leaves.
 
+<table>
+<tr><th width="50%">Grid</th><th width="50%">Monoscope</th></tr>
+<tr><td><img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/screenshots/test-patterns.png" width="100%" alt="Settings → Screen → Test Patterns: the Grid, white squares with a dot in each and red ones round the edge, and in a box at the foot its name, what to set with it and the keys" /></td><td><img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/screenshots/test-patterns-monoscope.png" width="100%" alt="The Monoscope: the centre cross, the arrows at the sides, the corners' patterns and the red square, with its name and what to set with it in the box" /></td></tr>
+<tr><td>The whole 4:3 picture, to set the screen's size, position and geometry by.</td><td>A tube's convergence, purity and geometry. Select hides the box.</td></tr>
+</table>
+
 | Pattern | Kinds | What to set with it |
 |---|---|---|
 | Grid | | Size, position and geometry: the whole 4:3 picture, white squares with a dot in each and red ones round the edge. Set the screen's height, width and position until the red squares just show at every edge, every square whole and square, with no bend or slant |

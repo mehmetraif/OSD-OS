@@ -62,7 +62,7 @@ On an app install (Raspberry Pi OS, macOS, SteamOS) there is no boot screen: OSD
 
 ## The main menu
 
-<img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/screenshots/main-menu.png" width="100%" alt="The main menu: OSD/OS's logo and name in the title bar, then the modules: AMBIENT:MODE, EMBY, JELLYFIN, LOCAL FILES, NETFLIX, NFC READER, PLAYLISTS, PLEX, PRIME VIDEO, and a ▼ for more" />
+<img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/screenshots/main-menu.png" width="100%" alt="The main menu: OSD/OS's logo and name in the title bar, the status icons at its right, then the modules: AMBIENT:MODE, ARCADE, EMBY, HIGH SCORES, JELLYFIN, LOCAL FILES, NETFLIX, NFC READER, PLAYLISTS, and a ▼ for more" />
 
 The main menu lists the modules, like the inputs on a deck: Local Files, Plex, YouTube and the rest. Select opens one; back opens Settings.
 
@@ -367,14 +367,14 @@ Back on the main menu opens Settings, laid out like a camcorder's menu: a line p
 
 ## Quit, Restart, Power Off, Exit to Terminal
 
-<img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/screenshots/quit.png" width="100%" alt="REALLY QUIT?: YES and NO" />
+<img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/screenshots/quit.png" width="100%" alt="REALLY QUIT?: YES, SAVE LOGS and NO" />
 
 **Quit** is the last line of Settings. It asks **Really quit?**, and what it offers depends on how OSD/OS was started:
 
 | Started | Choices |
 |---|---|
-| By hand (`osdos`), on a Mac, as an AppImage | **Yes** quits OSD/OS; **No** stays |
-| With the system: the OSD/OS image, or `install.sh`'s autostart service | **Power Off**, **Restart**, **Exit to Terminal**, **Cancel** |
+| By hand (`osdos`), on a Mac, as an AppImage | **Yes** quits OSD/OS; **No** stays; on the OSD/OS image, **Save Logs** between them |
+| With the system: the OSD/OS image, or `install.sh`'s autostart service | **Power Off**, **Restart**, **Exit to Terminal**, **Save Logs** (on the image), **Cancel** |
 
 With the system:
 
@@ -382,6 +382,8 @@ With the system:
 - **Restart** reboots the Pi. It is offered only where the service's stop helper knows how; an install from before it was added needs `install.sh` run once more ([Installation](https://github.com/mehmetraif/OSD-OS/wiki/Installation#updating-with-installsh)).
 - **Exit to Terminal** drops to a text login on the Pi's screen, and leaves the service in place for the next boot. On an image built without a password, it logs the user `pi` in by itself. From there, as a user who can use `sudo`, `sudo systemctl start osdos` brings OSD/OS back and `sudo reboot` starts the Pi afresh; as any user, `osdos` runs OSD/OS by hand (where Quit then asks Yes or No, and returns to the shell).
 - **Cancel**, or back, stays.
+
+**Save Logs**, on the OSD/OS image, copies OSD/OS's logs to the card's **OSD-OS** partition, the one a computer shows as a drive when the card is put in, to send with a report ([Troubleshooting](https://github.com/mehmetraif/OSD-OS/wiki/Troubleshooting)).
 
 Ctrl+Q (⌘Q on a Mac) quits at once from most screens, without asking: with the system, that switches the Pi off, as Power Off does.
 

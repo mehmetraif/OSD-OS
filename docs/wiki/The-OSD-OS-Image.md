@@ -496,8 +496,8 @@ Without a password, `os/build.sh` hands pi-gen a random one and the stage locks 
 
 <table>
 <tr><th width="50%">Quit</th><th width="50%">Update</th></tr>
-<tr><td><img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/screenshots/quit.png" width="100%" alt="Really quit? with Yes and No" /></td><td><img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/screenshots/update.png" width="100%" alt="Update: installed version DEV, press Enter to check for the latest" /></td></tr>
-<tr><td>Settings → Quit, run by hand: Yes or No. Started with the system, as on the image, it offers Power Off, Restart, Exit to Terminal, Save Logs and Cancel instead.</td><td>Settings → System → Update checks for a newer release and installs it.</td></tr>
+<tr><td><img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/screenshots/quit.png" width="100%" alt="Really quit? with Yes, Save Logs and No" /></td><td><img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/screenshots/update.png" width="100%" alt="Update: installed version DEV, press Enter to check for the latest" /></td></tr>
+<tr><td>Settings → Quit, run by hand: Yes or No, with Save Logs between them. Started with the system, as on the image, it offers Power Off, Restart, Exit to Terminal, Save Logs and Cancel instead.</td><td>Settings → System → Update checks for a newer release and installs it.</td></tr>
 </table>
 
 Settings → **Quit** on the image asks **Really quit?** with:

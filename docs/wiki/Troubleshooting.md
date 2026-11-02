@@ -33,8 +33,8 @@ On the image, the user OSD/OS runs as (`pi`) is in the `adm` group, so `journalc
 
 <table>
 <tr><th width="50%">Settings → Quit, run by hand</th><th width="50%">The boot screen (the image)</th></tr>
-<tr><td><img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/screenshots/quit.png" width="100%" alt="The quit question: Yes or No" /></td><td><img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/screenshots/boot.png" width="100%" alt="The boot screen: the cassette and a line per service" /></td></tr>
-<tr><td>Run by hand, Quit asks Yes or No. Started by the service, it offers Power Off, Restart, Exit to Terminal, Save Logs and Cancel.</td><td>A line per service as it comes up: <code>[ OK ]</code> once it is up, <code>[FAIL]</code> if it failed, <code>[ -- ]</code> if it was skipped.</td></tr>
+<tr><td><img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/screenshots/quit.png" width="100%" alt="The quit question: Yes, Save Logs and No" /></td><td><img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/screenshots/boot.png" width="100%" alt="The boot screen: the cassette and a line per service" /></td></tr>
+<tr><td>Run by hand, Quit asks Yes or No, with Save Logs between them on the OSD/OS image. Started by the service, it offers Power Off, Restart, Exit to Terminal, Save Logs and Cancel.</td><td>A line per service as it comes up: <code>[ OK ]</code> once it is up, <code>[FAIL]</code> if it failed, <code>[ -- ]</code> if it was skipped.</td></tr>
 </table>
 
 ### When it crashes or freezes: the reports
