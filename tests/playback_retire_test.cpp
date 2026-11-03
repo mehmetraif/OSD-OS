@@ -248,6 +248,7 @@ private slots:
         QVERIFY(write(photo, onItsSide(stored)));
         QCOMPARE(int(QImageReader(photo).transformation()), int(QImageIOHandler::TransformationRotate90));
         AppCore core(data.path(), data.path());
+        QVERIFY(core.save_setting(QString(), QStringLiteral("video_logo"), QStringLiteral("tr")));
         QVERIFY(core.save_setting(QString(), QStringLiteral("video_logo_image"), photo));
         delete m_mpv;
         m_mpv = new MpvController(m_dir.path(), data.path(), &core);

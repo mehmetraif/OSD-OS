@@ -983,14 +983,14 @@ FocusScope {
         // MpvController at each launch, so it applies from the next video).
         var logoVals = ["off", "tl", "tr", "bl", "br", "all"]
         var logoOpts = ["Off", "Top Left", "Top Right", "Bottom Left", "Bottom Right", "All Corners"]
-        var logoIdx = logoVals.indexOf(appSettings["video_logo"] || "tr")
+        var logoIdx = logoVals.indexOf(appSettings["video_logo"] || "off")
         items.push({
             type: "list_single",
             key: "video_logo",
             label: "Channel Logo",
             options: logoOpts,
             values: logoVals,
-            value: logoOpts[logoIdx < 0 ? logoVals.indexOf("tr") : logoIdx],
+            value: logoOpts[logoIdx < 0 ? 0 : logoIdx],
             description: "A logo in a corner of the picture while a video plays, like a channel's: OSD/OS's, or your own (Logo Image), from the next video on\n[ALL CORNERS] In all four  [OFF] None",
             moduleId: ""
         })

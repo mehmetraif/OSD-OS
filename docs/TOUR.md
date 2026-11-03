@@ -321,7 +321,7 @@ Settings → Look → Menu Layout draws Settings and the main menu as a list (ab
 <table>
 <tr><th width="50%">Channel Logo</th><th width="50%">Under the menus</th></tr>
 <tr><td><img src="screenshots/channel-logo.png" width="100%" alt="Channel Logo" /></td><td><img src="screenshots/channel-logo-menu.png" width="100%" alt="The logo under the menus" /></td></tr>
-<tr><td>OSD/OS's logo in a corner of the picture while a video plays, the way a channel's sits in a broadcast. Settings → TV / Movie → Channel Logo picks the corner, all four, or none.</td><td>It is in the picture itself, so with Transparent Background the menus lie over it.</td></tr>
+<tr><td>OSD/OS's logo in a corner of the picture while a video plays, the way a channel's sits in a broadcast. It is off at first: Settings → TV / Movie → Channel Logo picks the corner, all four, or none.</td><td>It is in the picture itself, so with Transparent Background the menus lie over it.</td></tr>
 </table>
 
 <table>

@@ -128,7 +128,7 @@ On a display without a server, the signal comes once the screen is OSD/OS's agai
 
 ### A full command line on a Pi 4
 
-What OSD/OS runs to play a film from Local Files on a Pi 4 with the OSD/OS image: Settings and Local Files as they come (Channel Logo top right, Scaling Letterbox, Video Levels Auto, Audio Output Auto, Transparent Background off, Auto Show Subtitles Forced Only, Image Duration 5 seconds), the film resumed at 12:34.2:
+What OSD/OS runs to play a film from Local Files on a Pi 4 with the OSD/OS image: Settings and Local Files as they come but for Channel Logo, set to Top Right (Scaling Letterbox, Video Levels Auto, Audio Output Auto, Transparent Background off, Auto Show Subtitles Forced Only, Image Duration 5 seconds), the film resumed at 12:34.2:
 
 ```sh
 /usr/bin/mpv \

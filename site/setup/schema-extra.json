@@ -80,7 +80,7 @@
           "help": "While a video loads, a tape's noise and tracking bands roll over its counters." },
         { "key": "loading_colors", "label": "Loading Screen Colors", "type": "choice", "default": "Theme", "options": ["Theme", "Default"],
           "help": "The colours of the screen a video loads behind. [DEFAULT] White on blue." },
-        { "key": "video_logo", "label": "Channel Logo", "type": "choice", "default": "tr",
+        { "key": "video_logo", "label": "Channel Logo", "type": "choice", "default": "off",
           "options": [["Off", "off"], ["Top Left", "tl"], ["Top Right", "tr"], ["Bottom Left", "bl"], ["Bottom Right", "br"], ["All Corners", "all"]],
           "help": "A logo in a corner of the picture while a video plays, like a channel's." },
         { "key": "video_logo_image", "label": "Logo Image", "type": "text", "default": "", "placeholder": "/media/OSD-OS/logo.png",

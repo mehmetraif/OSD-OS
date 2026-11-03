@@ -50,7 +50,7 @@ Out of the box it is plain on purpose, as above: two colors, and nothing moving 
 
 ### On every screen
 
-- **Made for CRTs**: composite, SCART RGB or HDMI from Settings; menus, videos and games kept in their shapes on a tube's non-square pixels; 16:9 films fitted to 4:3, a channel logo in the corner, and a tape loading while a video starts.
+- **Made for CRTs**: composite, SCART RGB or HDMI from Settings; menus, videos and games kept in their shapes on a tube's non-square pixels; 16:9 films fitted to 4:3, a channel logo in a corner if you want one, and a tape loading while a video starts.
 - **Status icons** at the top right of the title bar: Wi-Fi's signal, Bluetooth, and the arcade's high scores, RetroAchievements and netplay while they are on.
 - **Themes**, the whole look at once: the colors, the skin, effects like the ones above and the menu music. Nine come with it, Orb's Arcade screen in 3D among them, and a new one is a folder.
 - **Menu Layout**: Settings and the main menu as a list, as a camcorder's menu, or as a studio monitor's, from a window over the picture to a broadcast monitor's plain blue.

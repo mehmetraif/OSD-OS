@@ -391,7 +391,8 @@ QStringList MpvController::sessionArgs(const QString &url, float startSeconds,
     // Settings' CHANNEL LOGO: OSD/OS's logo in a corner of the picture, drawn
     // by mpv itself (scripts/mpv-logo.lua), so it is in the picture in both
     // modes and under whatever the app draws over it. The corner reaches the
-    // script with the script options below; unset is the top right.
+    // script with the script options below; unset is off, as is anything
+    // but a corner or all four.
     // Settings → TV / Movie → Logo Image puts a picture of the user's own
     // there instead, made for the script as an overlay of the size it is
     // shown at.
@@ -400,10 +401,11 @@ QStringList MpvController::sessionArgs(const QString &url, float startSeconds,
     if (m_appCore) {
         const QString corner = m_appCore->get_setting(QString(), "video_logo").toString();
         const QString logoScript = m_appRoot + "/scripts/mpv-logo.lua";
-        if (corner != QLatin1String("off") && QFile::exists(logoScript)) {
-            logoCorner = (corner == QLatin1String("tl") || corner == QLatin1String("bl")
-                          || corner == QLatin1String("br") || corner == QLatin1String("all"))
-                         ? corner : QStringLiteral("tr");
+        static const QStringList corners = { QStringLiteral("tl"), QStringLiteral("tr"),
+                                             QStringLiteral("bl"), QStringLiteral("br"),
+                                             QStringLiteral("all") };
+        if (corners.contains(corner) && QFile::exists(logoScript)) {
+            logoCorner = corner;
             args << QString("--script=%1").arg(logoScript);
             const QString image = m_appCore->get_setting(QString(), "video_logo_image").toString();
             // What mpv draws on: the window's own session the size
