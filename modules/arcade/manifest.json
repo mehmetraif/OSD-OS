@@ -292,6 +292,15 @@
       ]
     },
     {
+      "key": "favorites_file",
+      "label": "Favorites",
+      "type": "module_view",
+      "params": {
+        "favorites": true
+      },
+      "description": "The favorites as a file of their own, osdos-favorites.txt in the games folder: Export writes it, a copy to keep, to edit or to take to another OSD/OS, and Import adds the games it names"
+    },
+    {
       "key": "check_roms",
       "label": "Check ROMs",
       "type": "module_view",

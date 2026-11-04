@@ -75,7 +75,7 @@ Right on a game opens its options. Those that start the game come first, each wi
 | **Game Details** | What the game is, and its achievements on RetroAchievements, those you have earned and those you haven't ([Game Details](#game-details)) |
 | **Monitor** | Shown for a vertical game while Settings → Screen → Monitor isn't turned, as `Monitor: Default (Horizontal)`: the monitor you play it on, **Turned Right** or **Turned Left** for one you turn on its side for it (its top on the right or on the left as you face it), or **Default**, as Settings → Arcade → Emulator Video → Vertical Games says (named in brackets). Kept for the game: it is played and hosted that way, online and on the local network too ([A monitor on its side](#a-monitor-on-its-side-tate)) |
 | **Difficulty** | Shown for a game MAME plays (its **Engine**) whose board sets its difficulty with a DIP switch, as `Difficulty: Normal`: the board's settings, by the names MAME gives them (Easy, Normal, Hard…), the board's own first under the cursor. MAME starts the game with the one chosen, and keeps it for it ([Difficulty](#difficulty)) |
-| **Add to Favorites** / **Remove from Favorites** | Puts it on Favorites, or takes it off |
+| **Add to Favorites** / **Remove from Favorites** | Puts it on Favorites, or takes it off (100 at most). They can be kept as a file, and taken to another OSD/OS ([Favorites as a file](#favorites-as-a-file)) |
 | **Engine** | Shown for a game both MAME and FinalBurn Neo have, as `Engine: Auto (MAME)`: which emulator plays it. **Auto**, MAME, unless Online High Scores, Online Play or LAN Play is on, which only FinalBurn Neo has ([FinalBurn Neo](#finalburn-neo)); **MAME** (`MAME (Not Installed)` where there is none: the game then says so rather than playing in FinalBurn Neo); or **FinalBurn Neo**. A game hosted or joined over the network or on the local network plays in FinalBurn Neo whatever this says: MAME has no netplay |
 | **Host Online Game** | With **Online Play** on, for a game FinalBurn Neo has: starts it for others to join from RetroArch's lobby ([Online play](https://github.com/mehmetraif/OSD-OS/wiki/Online-and-LAN-Play#online-play)) |
 | **Host LAN Game** | With **LAN Play** on, for a game FinalBurn Neo has: starts it for others on your local network to join ([LAN play](https://github.com/mehmetraif/OSD-OS/wiki/Online-and-LAN-Play#lan-play)) |
@@ -318,6 +318,20 @@ sudo reboot
 
 Running `install.sh` again does the same, with whatever else a newer release needs of the system ([Installation → Updating with install.sh](https://github.com/mehmetraif/OSD-OS/wiki/Installation#updating-with-installsh)). An image built without a password has no `sudo` ([The user, its password and sudo](https://github.com/mehmetraif/OSD-OS/wiki/The-OSD-OS-Image#the-user-its-password-and-sudo)): flash the image of 0.0.31 or later instead, after copying your games and films off the card's **OSD-OS** partition.
 
+### Favorites as a file
+
+**Settings → Arcade → Favorites** keeps the favorites as a file of their own, `osdos-favorites.txt` in the games folder: on an OSD/OS card, the OSD-OS partition, which a computer opens as a drive. **Export** writes it, a game's set a line, its title after a `#`:
+
+```
+# OSD/OS's Arcade favorites: a game's set a line, its title after the #.
+1942         # 1942 (Revision B)
+sf2          # Street Fighter II: The World Warrior
+```
+
+**Import** adds the games such a file names that aren't favorites yet, in its order, with their titles, as many as fit (100 favorites at most); the help line says how many were added, how many were there already and how many didn't fit. Anything after a `#` is left out, and a line holds a game's set alone, so a list typed by hand, one set a line, does too.
+
+They go with the rest of the settings too: **Settings → System → Export to OSD/OS Setup** puts them in its codes ([Export to OSD/OS Setup](https://github.com/mehmetraif/OSD-OS/wiki/Settings#export-to-osdos-setup)), and the card's file made of them adds them as the new card starts, once its games have been read.
+
 ### Difficulty
 
 Most boards of the 1980s and 1990s set their game's difficulty with a DIP switch, which an operator changed inside the cabinet. **Difficulty**, in a game's options, sets that switch before the game starts, for a game MAME plays: MAME's list of games names the switch and its settings, and OSD/OS writes the one chosen into MAME's own settings for the game (`cfg/<set>.cfg` in the Arcade module's folder), which MAME reads as the game starts and keeps, as if set in MAME's own menu (Tab → DIP Switches). A game never set keeps whatever MAME's menu set.
@@ -544,6 +558,7 @@ Settings → Arcade, the second row of Settings' first screen. The page is share
 | Emulator Video → Integer Scale | Auto, On, Off | Auto | A game's lines drawn whole rather than spread over the screen's: Auto on on a CRT's display output. MAME's `-nounevenstretch -unevenstretchx` for a game whose lines fit; RetroArch's `video_scale_integer` | `modules.com.osdos.arcade.integer_scale` |
 | Emulator Video → Vertical Games | Horizontal, Turned Right, Turned Left | Horizontal | A monitor you turn on its side for a vertical game: the vertical games turned to stand upright on it (MAME's `-rol` or `-ror`, RetroArch's `video_rotation`), the menus and the horizontal games as they are. Settings → Screen → Monitor, a monitor that stays turned, goes before it | `modules.com.osdos.arcade.vertical_monitor` |
 | Emulator Video → MAME Video | Auto, OpenGL, BGFX, Accelerated, Software | Auto | How MAME draws the game: Auto leaves it to MAME's own settings (Debian's `mame.ini` says OpenGL); the others are MAME's `-video opengl`, `bgfx`, `accel` and `soft` | `modules.com.osdos.arcade.video` |
+| Favorites | (page) | | The favorites as a file of their own, `osdos-favorites.txt` in the games folder: Export and Import ([Favorites as a file](#favorites-as-a-file)) | |
 | Check ROMs | (page) | | Whether every game's files are whole for MAME and FinalBurn Neo, checked when you start it ([Check ROMs](#check-roms)) | |
 | Read the Games Again | (action) | | Asks MAME about every set in the folder again ([Reading the games](#reading-the-games)), then looks for every game's pictures as Pictures From allows ([Download Pictures](#download-pictures)) | |
 

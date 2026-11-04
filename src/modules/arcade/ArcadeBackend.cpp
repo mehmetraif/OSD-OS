@@ -49,6 +49,9 @@ const QString kModuleId = QStringLiteral("com.osdos.arcade");
 // picture on a tube; 4: its difficulty's DIP switch, for its options).
 constexpr int kCacheVersion = 4;
 
+// The most favourites the list keeps, as EntryOptions adds them.
+constexpr int kMostFavorites = 100;
+
 // The most credits a game is started with, as most games show at most 9.
 constexpr int kMaxCredits = 9;
 // FinalBurn Neo's credits (feedCoins()): RetroArch's log read this often
@@ -748,9 +751,11 @@ ArcadeBackend::ArcadeBackend(const QString &appRoot, const QString &dataRoot, Ap
         syncStartupGame();
     }
 
-    // An account OSD/OS Setup brought, taken once the event loop runs.
+    // An account OSD/OS Setup brought, taken once the event loop runs; its
+    // favourites once the games have been read.
     m_setupRetryMs = kSetupRetryMs;
     QTimer::singleShot(0, this, &ArcadeBackend::takeSetupAccount);
+    QTimer::singleShot(0, this, &ArcadeBackend::afterReadTakeSetupFavorites);
 }
 
 ArcadeBackend::~ArcadeBackend() {
@@ -2941,8 +2946,14 @@ void ArcadeBackend::startupGameOptions() {
         if (!path.startsWith(QLatin1String("game:")))
             continue;
         const QString set = path.mid(5);
-        const QString name = entry.value(QStringLiteral("name")).toString();
-        games.append({ mame::titleOf(name.isEmpty() ? set : name), set });
+        // One put there without a title (OSD/OS Setup's, an import, before
+        // MAME had said what it is): MAME's.
+        QString name = entry.value(QStringLiteral("name")).toString();
+        if (name.isEmpty()) {
+            const mame::Machine *machine = machineOf(set);
+            name = machine && !machine->description.isEmpty() ? machine->description : set;
+        }
+        games.append({ mame::titleOf(name), set });
     }
     std::sort(games.begin(), games.end(), [](const auto &a, const auto &b) {
         return a.first.compare(b.first, Qt::CaseInsensitive) < 0;
@@ -3505,6 +3516,141 @@ QVariantList ArcadeBackend::monitorChoices(const QString &set) const {
                                                            ? QStringLiteral("Default (%1)").arg(byDefault) : id },
                             { QStringLiteral("current"), id == chosen } };
     return out;
+}
+
+QString ArcadeBackend::favoritesFile() const {
+    return m_gamesFolder + QStringLiteral("/osdos-favorites.txt");
+}
+
+QStringList ArcadeBackend::favoriteSets() const {
+    QStringList sets;
+    const QVariantList favorites = m_appCore ? m_appCore->get_list(kModuleId, QStringLiteral("favorites")) : QVariantList();
+    for (const QVariant &v : favorites) {
+        const QString path = v.toMap().value(QStringLiteral("path")).toString();
+        if (path.startsWith(QLatin1String("game:")) && !sets.contains(path.mid(5)))
+            sets << path.mid(5);
+    }
+    return sets;
+}
+
+int ArcadeBackend::favoritesCount() const {
+    return int(favoriteSets().size());
+}
+
+QString ArcadeBackend::favoritesText(const QStringList &sets) const {
+    QString text = QStringLiteral("# OSD/OS's Arcade favorites: a game's set a line, its title after the #.\n"
+                                  "# Settings → Arcade → Favorites → Import adds those that aren't favorites yet.\n");
+    for (const QString &set : sets) {
+        const mame::Machine *machine = machineOf(set);
+        const QString title = machine && !machine->description.isEmpty() ? machine->description : m_sets.value(set);
+        text += title.isEmpty() ? set + QLatin1Char('\n')
+                                : set.leftJustified(12) + QStringLiteral(" # ") + title + QLatin1Char('\n');
+    }
+    return text;
+}
+
+QStringList ArcadeBackend::setsOfFavoritesText(const QString &text) {
+    QStringList sets;
+    const QStringList lines = text.split(QLatin1Char('\n'));
+    for (const QString &line : lines) {
+        // A set alone before any #: a line of words is none.
+        const QString set = line.section(QLatin1Char('#'), 0, 0).trimmed().toLower();
+        if (mame::isShortName(set) && !sets.contains(set))
+            sets << set;
+    }
+    return sets;
+}
+
+QVariantMap ArcadeBackend::addFavorites(const QStringList &sets) {
+    const QStringList there = favoriteSets();
+    QStringList adding;
+    int already = 0;
+    for (const QString &set : sets) {
+        if (there.contains(set))
+            ++already;
+        else if (!adding.contains(set))
+            adding << set;
+    }
+    const int room = std::max(0, kMostFavorites - int(there.size()));
+    const int full = std::max(0, int(adding.size()) - room);
+    adding = adding.mid(0, room);
+    // Each put first: the file's first one last, so that they keep its order.
+    // With its title where MAME has said it; else none, and the title is
+    // MAME's once it has (startupGameOptions(); the lists' are anyway).
+    for (auto it = adding.crbegin(); it != adding.crend(); ++it) {
+        const mame::Machine *machine = machineOf(*it);
+        const QString title = machine ? machine->description : QString();
+        if (m_appCore)
+            m_appCore->add_to_list(kModuleId, QStringLiteral("favorites"),
+                                   QVariantMap{ { QStringLiteral("name"), title },
+                                                { QStringLiteral("path"), QStringLiteral("game:") + *it },
+                                                { QStringLiteral("isFolder"), false } },
+                                   kMostFavorites);
+    }
+    if (!adding.isEmpty()) {
+        m_madeSets.clear();
+        emit gamesChanged();
+    }
+    return { { QStringLiteral("added"), int(adding.size()) }, { QStringLiteral("there"), already },
+             { QStringLiteral("full"), full } };
+}
+
+QVariantMap ArcadeBackend::exportFavorites() {
+    const QStringList sets = favoriteSets();
+    const QString file = favoritesFile();
+    if (sets.isEmpty())
+        return { { QStringLiteral("ok"), false }, { QStringLiteral("message"), QStringLiteral("No favorites to export") } };
+    if (!QFileInfo(m_gamesFolder).isDir() || !writeFileAtomically(file, favoritesText(sets).toUtf8()))
+        return { { QStringLiteral("ok"), false },
+                 { QStringLiteral("message"), QStringLiteral("Couldn't write ") + file } };
+    return { { QStringLiteral("ok"), true },
+             { QStringLiteral("message"), QStringLiteral("%1 favorite%2 written to %3")
+                                              .arg(sets.size()).arg(sets.size() == 1 ? "" : "s", file) } };
+}
+
+QVariantMap ArcadeBackend::importFavorites() {
+    const QString file = favoritesFile();
+    QFile in(file);
+    if (!in.open(QIODevice::ReadOnly))
+        return { { QStringLiteral("ok"), false },
+                 { QStringLiteral("message"), QStringLiteral("No file to import: put osdos-favorites.txt in ") + m_gamesFolder } };
+    const QStringList sets = setsOfFavoritesText(QString::fromUtf8(in.read(1024 * 1024)));
+    if (sets.isEmpty())
+        return { { QStringLiteral("ok"), false }, { QStringLiteral("message"), file + QStringLiteral(" names no game") } };
+    const QVariantMap done = addFavorites(sets);
+    QStringList parts{ QStringLiteral("%1 added").arg(done.value(QStringLiteral("added")).toInt()) };
+    if (done.value(QStringLiteral("there")).toInt() > 0)
+        parts << QStringLiteral("%1 there already").arg(done.value(QStringLiteral("there")).toInt());
+    if (done.value(QStringLiteral("full")).toInt() > 0)
+        parts << QStringLiteral("%1 didn't fit (%2 favorites at most)")
+                     .arg(done.value(QStringLiteral("full")).toInt()).arg(kMostFavorites);
+    return { { QStringLiteral("ok"), true },
+             { QStringLiteral("message"), QStringLiteral("From ") + file + QStringLiteral(": ") + parts.join(QStringLiteral(", ")) } };
+}
+
+void ArcadeBackend::afterReadTakeSetupFavorites() {
+    if (QFileInfo::exists(setupFavoritesPath()))
+        afterRead([this] { takeSetupFavorites(); });
+}
+
+void ArcadeBackend::takeSetupFavorites() {
+    QFile file(setupFavoritesPath());
+    if (!file.open(QIODevice::ReadOnly))
+        return;
+    const QJsonArray list = QJsonDocument::fromJson(file.read(1024 * 1024)).object()
+                                .value(QStringLiteral("favorites")).toArray();
+    file.close();
+    QStringList sets;
+    for (const QJsonValue &v : list) {
+        const QString set = v.toString().toLower();
+        if (mame::isShortName(set))
+            sets << set;
+    }
+    const QVariantMap done = addFavorites(sets);
+    qInfo("[Arcade] Favorites from OSD/OS Setup: %d added, %d there already, %d didn't fit",
+          done.value(QStringLiteral("added")).toInt(), done.value(QStringLiteral("there")).toInt(),
+          done.value(QStringLiteral("full")).toInt());
+    QFile::remove(setupFavoritesPath());
 }
 
 void ArcadeBackend::setMonitor(const QString &set, const QString &monitor) {

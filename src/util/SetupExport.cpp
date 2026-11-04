@@ -173,7 +173,8 @@ void readSystem(System &system, const QString &root, const QString &home) {
     }
 }
 
-QJsonObject build(const QJsonObject &config, const Form &form, const QJsonObject &account, const System &system) {
+QJsonObject build(const QJsonObject &config, const Form &form, const QJsonObject &account, const System &system,
+                  const QStringList &favorites) {
     QJsonObject setup{ { QStringLiteral("osdos_setup"), 1 } };
 
     QJsonObject device;
@@ -221,6 +222,9 @@ QJsonObject build(const QJsonObject &config, const Form &form, const QJsonObject
     }
     if (!ra.isEmpty())
         setup.insert(QStringLiteral("retroachievements"), ra);
+    if (!favorites.isEmpty())
+        setup.insert(QStringLiteral("favorites"),
+                     QJsonObject{ { QStringLiteral("com.osdos.arcade"), QJsonArray::fromStringList(favorites) } });
 
     // The settings on the form, those at their defaults left out.
     QJsonObject app;

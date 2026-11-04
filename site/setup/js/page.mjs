@@ -29,6 +29,9 @@ function fresh() {
         // OSD/OS Setup in place of the password it doesn't keep.
         raUser: "", raPassword: "", raToken: "", raKey: "",
         config: {},
+        // A module's favourites brought from a device or a file, by id:
+        // games' sets (the Arcade's).
+        favorites: {},
     };
 }
 
@@ -500,6 +503,7 @@ function moduleBlock(module) {
              { id: idFor(...scope, "enabled"), changed: enabledSet !== undefined, onReset: () => unset(scope, "enabled"),
                help: startsOn && enabledSet === undefined ? "On: OSD/OS starts on it (Start on Module)." : "On the main menu, or not." }),
         settingLines(scope, module.settings),
+        favoritesLine(module),
         module.retroachievements && shows("logins") ? retroAchievements() : null);
     details.addEventListener("toggle", () => {
         if (details.open) openModules.add(module.id);
@@ -508,6 +512,18 @@ function moduleBlock(module) {
     return details;
 }
 const openModules = new Set();
+
+// A module's favourites brought in (from a device's codes or a file): how
+// many, the file adding them to the device's list; ↺ leaves them out.
+function favoritesLine(module) {
+    const sets = (state.favorites || {})[module.id] || [];
+    if (!sets.length)
+        return null;
+    const count = sets.length === 1 ? "1 game" : `${sets.length} games`;
+    return line("Favorites", el("span", { class: "value", id: `${module.id}-favorites`, text: `${count}, carried over` }),
+                { changed: true, help: `Added to the favorites as OSD/OS starts: ${sets.slice(0, 8).join(", ")}${sets.length > 8 ? "…" : ""}`,
+                  onReset: () => { const next = { ...state.favorites }; delete next[module.id]; state.favorites = next; render(); } });
+}
 
 // What the live preview draws with: every row as the card would have it
 // (each unset one at its default; a theme's part "" for THEME, as the app

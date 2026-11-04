@@ -306,6 +306,8 @@ int main(int argc, char *argv[]) {
     arcadeBackend.setMemory(SystemInfo::memoryTotal());
     // A RetroAchievements account pasted from OSD/OS Setup, taken at once.
     QObject::connect(&appCore, &AppCore::setupAccountWritten, &arcadeBackend, &ArcadeBackend::takeSetupAccount);
+    QObject::connect(&appCore, &AppCore::setupFavoritesWritten, &arcadeBackend,
+                     [&arcadeBackend] { arcadeBackend.afterReadTakeSetupFavorites(); });
     // Its Recently Played is the Arcade module's.
     HighScoresBackend   highScoresBackend(appRoot, dataRoot, [&arcadeBackend] { return arcadeBackend.recentSets(); });
     // The streaming services opened as their own web players. TMDB's

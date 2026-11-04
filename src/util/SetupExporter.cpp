@@ -93,7 +93,16 @@ void SetupExporter::finish(const QVariantMap &joined, int maxVersion, int run) {
         m_missing << QStringLiteral("pi's password: only its hash is kept, which the app can't read");
     }
 
-    const QJsonObject setup = setupexport::build(config, form, account, system);
+    // The Arcade's favourites, by set.
+    QStringList favorites;
+    const QVariantList listed = m_appCore ? m_appCore->get_list(QStringLiteral("com.osdos.arcade"), QStringLiteral("favorites"))
+                                          : QVariantList();
+    for (const QVariant &v : listed) {
+        const QString path = v.toMap().value(QStringLiteral("path")).toString();
+        if (path.startsWith(QLatin1String("game:")) && !favorites.contains(path.mid(5)))
+            favorites << path.mid(5);
+    }
+    const QJsonObject setup = setupexport::build(config, form, account, system, favorites);
     if (!system.wifiPassword.isEmpty())
         m_carried << QStringLiteral("the Wi-Fi password");
     if (!account.value(QStringLiteral("token")).toString().isEmpty())

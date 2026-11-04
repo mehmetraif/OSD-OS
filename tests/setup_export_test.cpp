@@ -135,6 +135,13 @@ private slots:
                  json(R"({ "app": { "monitor": "Turned Right", "osd_theme": "orb" },
                            "modules": { "com.osdos.arcade": { "enabled": true, "screen": "List" } } })"));
 
+        // The Arcade's favourites, by set.
+        const QJsonObject withFavorites = setupexport::build(QJsonObject(), form, QJsonObject(), setupexport::System(),
+                                                             { QStringLiteral("1942"), QStringLiteral("sf2") });
+        QCOMPARE(withFavorites.value(QStringLiteral("favorites")).toObject(),
+                 json(R"({ "com.osdos.arcade": ["1942", "sf2"] })"));
+        QVERIFY(!setup.contains(QStringLiteral("favorites")));
+
         // A computer's: its settings and the account alone.
         const QJsonObject computer = setupexport::build(config, form, QJsonObject(), setupexport::System());
         QCOMPARE(QStringList(computer.keys()), QStringList({ QStringLiteral("config"), QStringLiteral("osdos_setup") }));

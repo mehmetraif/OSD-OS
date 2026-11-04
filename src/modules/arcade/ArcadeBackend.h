@@ -321,6 +321,28 @@ public:
     // with (monitorFor()).
     Q_INVOKABLE QVariantList monitorChoices(const QString &set) const;
     Q_INVOKABLE void setMonitor(const QString &set, const QString &monitor);
+
+    // Settings → Arcade → Favorites (Favorites.qml): the favourites as a
+    // file of their own, osdos-favorites.txt in the games folder (on an
+    // OSD/OS card, its OSD-OS partition, which a computer opens), a game's
+    // set a line, its title after a # (favoritesText()); and back from it,
+    // the games it names added to the favourites as far as they hold
+    // (kMostFavorites). Each answers { ok, message }, the message a line on
+    // how it went, the file named.
+    Q_INVOKABLE QString favoritesFile() const;
+    Q_INVOKABLE int favoritesCount() const;
+    Q_INVOKABLE QVariantMap exportFavorites();
+    Q_INVOKABLE QVariantMap importFavorites();
+    // The favourites' sets, in the list's order.
+    QStringList favoriteSets() const;
+    // The sets added to the favourites, those not there yet, as many as
+    // fit: { added, there, full } (full: those that didn't fit).
+    QVariantMap addFavorites(const QStringList &sets);
+    // The file's text of the sets, a title after each; and the sets a file
+    // names (anything after a # left out, a line's set alone, MAME's names
+    // alone).
+    QString favoritesText(const QStringList &sets) const;
+    static QStringList setsOfFavoritesText(const QString &text);
     // RetroArch, the FinalBurn Neo core and its list of games are there.
     Q_INVOKABLE bool fbneoReady() const;
     // FinalBurn Neo can play the game: it is ready, has the set, and the set
@@ -1120,6 +1142,15 @@ private:
     void forgetSetupAccount();
     void retrySetupSignIn();
     QString setupAccountPath() const { return m_home + QStringLiteral("/retroachievements-setup.json"); }
+    // The favourites OSD/OS Setup brought ({ "favorites": [sets] }), added
+    // once the games have been read, then gone (takeSetupFavorites()).
+    QString setupFavoritesPath() const { return m_home + QStringLiteral("/favorites-setup.json"); }
+    void takeSetupFavorites();
+public:
+    // The favourites OSD/OS Setup brought (favorites-setup.json, written as
+    // the app started or pasted), added once the games have been read.
+    void afterReadTakeSetupFavorites();
+private:
     QString signInDir() const { return retroarchHome() + QStringLiteral("/sign-in"); }
     // catver.ini into <data>/arcade, for the games' genres, and the folder
     // read again with it; once at a time, and an hour after one that failed.

@@ -265,6 +265,14 @@ printf '{ "osdos_setup": 1, "retroachievements": { "user": "denplayer", "token":
 apply
 check "a token not like one: no account" "no" "$(there "$ra")"
 
+# The Arcade's favourites for the app, MAME's names alone, each once.
+printf '{ "osdos_setup": 1, "favorites": { "com.osdos.arcade": ["SF2", "1942", "sf2", "../x"], "com.osdos.plex": ["a"] } }\n' > "$BOOT/osdos-setup.json"
+apply
+fav="$DATA/arcade/favorites-setup.json"
+check "the Arcade's favorites for the app" '["sf2", "1942"]' "$(json "$fav" favorites)"
+check "said" "1" "$(logged "Arcade favorites: 2, added as the games are read")"
+rm -f "$fav"
+
 # A network's name of other letters, kept as its bytes; a semicolon escaped.
 cat > "$BOOT/osdos-setup.json" << 'EOF'
 { "osdos_setup": 1, "wifi": { "ssid": "Çay Evi", "password": "" } }

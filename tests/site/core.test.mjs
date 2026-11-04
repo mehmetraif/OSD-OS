@@ -272,6 +272,19 @@ test("a device's settings from its codes, in any order", async () => {
         assert.equal(core.exportPart(hash), null, hash);
 });
 
+test("the Arcade's favorites carried, read back and fitted", () => {
+    const read = core.readSetup(JSON.stringify({ osdos_setup: 1,
+        favorites: { "com.osdos.arcade": ["SF2", "1942", "sf2", "../x", 3], "com.osdos.plex": ["a"] } }));
+    assert.deepEqual(read.favorites, { "com.osdos.arcade": ["sf2", "1942"], "com.osdos.plex": ["a"] });
+    const schema = { presets: [], countries: [], zones: [], keyboards: [], app: [],
+                     modules: [{ id: "com.osdos.arcade", settings: [] }, { id: "com.osdos.plex", settings: [] }] };
+    const { state, dropped } = core.fitImport(read, schema);
+    assert.deepEqual(state.favorites, { "com.osdos.arcade": ["sf2", "1942"] });
+    assert.ok(dropped.includes("favorites.com.osdos.plex"));
+    assert.deepEqual(core.buildSetup(state).favorites, { "com.osdos.arcade": ["sf2", "1942"] });
+    assert.equal(core.buildSetup({ favorites: { "com.osdos.arcade": [] } }).favorites, undefined);
+});
+
 test("a toggle's value read as on", () => {
     const words = { on: "On", off: "Off" }, bool = { on: true, off: false };
     assert.equal(core.toggleOn(words, "ON"), true, "the on-word in any case");

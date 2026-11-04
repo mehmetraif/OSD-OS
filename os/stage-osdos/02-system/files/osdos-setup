@@ -54,7 +54,7 @@ MAX_SIZE = 1024 * 1024
 # Raspberry Pi OS's own PATH for services, where osdos-stop is too.
 PATH = "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
 # The parts the app reads as it starts, set before it does.
-APP_PARTS = ("config", "retroachievements")
+APP_PARTS = ("config", "retroachievements", "favorites")
 # First of sshd's drop-ins, as sshd keeps the first value it reads: another's
 # PasswordAuthentication (cloud-init's 50-cloud-init.conf) can't undo it.
 SSHD_CONF = "/etc/ssh/sshd_config.d/00-osdos-setup.conf"
@@ -86,6 +86,8 @@ KEY_LINE = re.compile(r"(?:^|\s)" + KEY_TYPE + r" [A-Za-z0-9+/=]{16,}")
 ZONE = re.compile(r"[A-Za-z0-9_+-]+(/[A-Za-z0-9_+-]+)*")
 LAYOUT = re.compile(r"[a-z]{2,5}")
 RA_KEY = re.compile(r"[A-Za-z0-9]{1,64}")
+# A game's set, as MAME names it.
+SET_NAME = re.compile(r"[a-z0-9_]{1,64}")
 # A RetroAchievements token, as RetroArch keeps one (cheevos_token).
 RA_TOKEN = re.compile(r"[A-Za-z0-9]{1,128}")
 # The boards, as the app tells them apart (src/util/Board.cpp: the device
@@ -182,6 +184,9 @@ class Setup:
         account = retroachievements(app.get("retroachievements"))
         if account:
             files["retroachievements"] = account
+        favorites = arcade_favorites(app.get("favorites"))
+        if favorites:
+            files["favorites"] = favorites
         if files:
             self.step("OSD/OS", lambda: self.write_user_files(files, "OSD/OS"))
         self.save_pending()
@@ -690,6 +695,21 @@ def keyfile(ssid, password, hidden):
     return text + "\n[ipv4]\nmethod=auto\n\n[ipv6]\nmethod=auto\n"
 
 
+def arcade_favorites(favorites):
+    """The Arcade's favourites by set, MAME's names alone, each once, in the
+    file's order (favorites: { "com.osdos.arcade": [...] })."""
+    if not isinstance(favorites, dict):
+        return []
+    sets = favorites.get("com.osdos.arcade")
+    if not isinstance(sets, list):
+        return []
+    out = []
+    for name in sets:
+        if isinstance(name, str) and SET_NAME.fullmatch(name.lower()) and name.lower() not in out:
+            out.append(name.lower())
+    return out
+
+
 def retroachievements(ra):
     """The account as the app takes it: the user with the password, or with
     a device's sign-in (its token, from OSD/OS's Export to OSD/OS Setup) in
@@ -825,6 +845,18 @@ def user_files(home, files):
             tell("RetroAchievements: " + "; ".join(parts))
         except OSError as e:
             tell(f"RetroAchievements: not set: {e.strerror}", ok=False)
+    favorites = files.get("favorites")
+    if favorites:
+        # The Arcade module adds them once it has read the games, for their
+        # titles (ArcadeBackend::takeSetupFavorites()), then the file goes.
+        folder = os.path.join(data, "arcade")
+        try:
+            os.makedirs(folder, mode=0o755, exist_ok=True)
+            write_atomically(os.path.join(folder, "favorites-setup.json"),
+                             (json.dumps({"favorites": favorites}) + "\n").encode(), 0o644)
+            tell(f"Arcade favorites: {len(favorites)}, added as the games are read")
+        except OSError as e:
+            tell(f"Arcade favorites: not added: {e.strerror}", ok=False)
     if "authorized_keys" in files:
         keys = files["authorized_keys"]
         folder = os.path.join(home, ".ssh")

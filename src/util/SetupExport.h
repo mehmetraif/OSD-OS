@@ -16,10 +16,10 @@
 // site/setup/js/core.mjs): OSD/OS's settings on the page's form that differ
 // from their defaults, the Arcade's RetroAchievements account (its user,
 // the token RetroAchievements gave for the password, which is kept nowhere,
-// and the Web API key), and what the card's setup sets: the device's name,
-// the display output, Wi-Fi with its password, the time zone, the keyboard
-// and SSH with its keys. pi's password can't go: only its hash is kept,
-// where root alone reads it.
+// and the Web API key), the Arcade's favourites, and what the card's setup
+// sets: the device's name, the display output, Wi-Fi with its password, the
+// time zone, the keyboard and SSH with its keys. pi's password can't go:
+// only its hash is kept, where root alone reads it.
 //
 // The file is compressed (zlib) and written in base64url after the page's
 // address and #s=, which a browser never sends on to the page's server: in
@@ -62,8 +62,10 @@ struct System {
 void readSystem(System &system, const QString &root, const QString &home);
 
 // The page's file (osdos_setup 1) of config.json's settings on the form, the
-// account ({ user, token, key }, as the Arcade keeps it) and the system.
-QJsonObject build(const QJsonObject &config, const Form &form, const QJsonObject &account, const System &system);
+// account ({ user, token, key }, as the Arcade keeps it), the system, and the
+// Arcade's favourites by set (favorites: { "com.osdos.arcade": [...] }).
+QJsonObject build(const QJsonObject &config, const Form &form, const QJsonObject &account, const System &system,
+                  const QStringList &favorites = {});
 
 // The byte capacity of a QR code of a version (1-40) at the lowest error
 // correction, the most it holds.

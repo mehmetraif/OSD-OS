@@ -1165,6 +1165,91 @@ private slots:
         QVERIFY2(line.contains(QStringLiteral(" -rol")) && !line.contains(QStringLiteral("-ror")), qPrintable(line));
     }
 
+    // Settings → Arcade → Favorites: the favourites written to
+    // osdos-favorites.txt in the games folder, a set a line with its title;
+    // those such a file names added, by MAME's names alone, each once, with
+    // their titles, as many as the list holds; and those OSD/OS Setup
+    // brought, added once the games have been read, the file gone.
+    void favoritesFile() {
+        const QString module = QStringLiteral("com.osdos.arcade");
+        const QString file = m_games + QStringLiteral("/osdos-favorites.txt");
+        const QString setup = m_data.path() + QStringLiteral("/arcade/favorites-setup.json");
+        const auto restore = qScopeGuard([&file, &setup, this] {
+            QFile::remove(file);
+            QFile::remove(setup);
+            QFile::remove(m_data.path() + QStringLiteral("/lists.json"));
+        });
+        QFile::remove(m_data.path() + QStringLiteral("/lists.json"));
+        AppCore core(m_data.path(), m_data.path());
+        ArcadeBackend arcade(m_data.path(), m_data.path(), &core, nullptr);
+        refreshed(arcade);
+        QCOMPARE(arcade.favoritesFile(), file);
+        QCOMPARE(arcade.favoritesCount(), 0);
+        QVariantMap done = arcade.exportFavorites();
+        QVERIFY(!done.value(QStringLiteral("ok")).toBool());
+        QVERIFY(!QFileInfo::exists(file));
+
+        const auto favorite = [](const QString &set, const QString &name) {
+            return QVariantMap{ { QStringLiteral("name"), name }, { QStringLiteral("path"), QStringLiteral("game:") + set },
+                                { QStringLiteral("isFolder"), false } };
+        };
+        core.add_to_list(module, QStringLiteral("favorites"), favorite(QStringLiteral("galaga"), QStringLiteral("Galaga")), 100);
+        core.add_to_list(module, QStringLiteral("favorites"), favorite(QStringLiteral("pacman"), QStringLiteral("Pac-Man (Midway)")), 100);
+        QCOMPARE(arcade.favoritesCount(), 2);
+        done = arcade.exportFavorites();
+        QVERIFY2(done.value(QStringLiteral("ok")).toBool(), qPrintable(done.value(QStringLiteral("message")).toString()));
+        QCOMPARE(done.value(QStringLiteral("message")).toString(), QStringLiteral("2 favorites written to ") + file);
+        const QString text = QString::fromUtf8(contents(file));
+        QVERIFY2(text.contains(QStringLiteral("\npacman       # Pac-Man (Midway)\ngalaga       # Galaga")), qPrintable(text));
+        QCOMPARE(ArcadeBackend::setsOfFavoritesText(text), QStringList({ QStringLiteral("pacman"), QStringLiteral("galaga") }));
+
+        // A file of one's own: comments, a name in capitals, one there
+        // already, one that is no set's name.
+        writeFile(file, "# mine\nsf2   # Street Fighter II\n\tPACMAN\nnot a set!\n\nmslug\nsf2\n");
+        done = arcade.importFavorites();
+        QCOMPARE(done.value(QStringLiteral("message")).toString(),
+                 QStringLiteral("From %1: 2 added, 1 there already").arg(file));
+        QCOMPARE(arcade.favoriteSets(), QStringList({ QStringLiteral("sf2"), QStringLiteral("mslug"), QStringLiteral("pacman"),
+                                                      QStringLiteral("galaga") }));
+        // Added with their titles, as MAME has them.
+        QCOMPARE(core.get_list(module, QStringLiteral("favorites")).first().toMap().value(QStringLiteral("name")).toString(),
+                 QStringLiteral("Street Fighter II: The World Warrior"));
+        // None there.
+        QFile::remove(file);
+        QVERIFY(arcade.importFavorites().value(QStringLiteral("message")).toString().startsWith(QStringLiteral("No file to import")));
+
+        // As many as the list holds, the rest said.
+        QStringList many;
+        for (int i = 0; i < 100; ++i)
+            many << QStringLiteral("game%1").arg(i, 3, 10, QLatin1Char('0'));
+        done = arcade.addFavorites(many);
+        QCOMPARE(done.value(QStringLiteral("added")).toInt(), 96);
+        QCOMPARE(done.value(QStringLiteral("full")).toInt(), 4);
+        QCOMPARE(arcade.favoritesCount(), 100);
+        QVERIFY(arcade.favoriteSets().contains(QStringLiteral("galaga")));
+
+        // OSD/OS Setup's, once the games have been read: on a new card,
+        // before MAME has said what they are, without titles, which are
+        // MAME's once it has (Play at Startup's choices).
+        QFile::remove(m_data.path() + QStringLiteral("/lists.json"));
+        QFile::remove(m_data.path() + QStringLiteral("/arcade/games.json"));
+        writeFile(setup, R"({"favorites": ["kinst", "sf2", "../x"]})");
+        ArcadeBackend again(m_data.path(), m_data.path(), &core, nullptr);
+        QTRY_VERIFY_WITH_TIMEOUT(!QFileInfo::exists(setup), 10000);
+        QCOMPARE(again.favoriteSets(), QStringList({ QStringLiteral("kinst"), QStringLiteral("sf2") }));
+        refreshed(again);
+        QSignalSpy options(&again, &ArcadeBackend::dynamicOptionsReady);
+        again.startupGameOptions();
+        QStringList startup;
+        for (const QList<QVariant> &args : std::as_const(options)) {
+            if (args.value(0).toString() != QLatin1String("play_at_startup"))
+                continue;
+            for (const QVariant &choice : args.value(1).toList())
+                startup << choice.toMap().value(QStringLiteral("label")).toString();
+        }
+        QVERIFY2(startup.contains(QStringLiteral("Killer Instinct")), qPrintable(startup.join(QStringLiteral(" | "))));
+    }
+
     // MAME's cfg file with a DIP switch set: as MAME writes one, in place of
     // the switch's own, the rest kept; a new one for none, or for one that
     // isn't XML.

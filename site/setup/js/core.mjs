@@ -374,7 +374,9 @@ export function withStartupModule(config) {
 //     retroachievements: { user, password, key },   the Arcade's account; or a
 //                        token for the password, as OSD/OS's Export to
 //                        OSD/OS Setup carries a device's sign-in
-//     config:  { app: {...}, modules: { "<id>": {...} } } }   merged into config.json
+//     config:  { app: {...}, modules: { "<id>": {...} } },   merged into config.json
+//     favorites: { "com.osdos.arcade": ["<set>", …] } }   the Arcade's favourites,
+//                        added to its list (a device's, from Export to OSD/OS Setup)
 export function buildSetup(state) {
     const setup = { osdos_setup: SETUP_VERSION };
     const device = {};
@@ -430,7 +432,25 @@ export function buildSetup(state) {
     const config = withStartupModule(state.config || {});
     if (Object.keys(config).length)
         setup.config = config;
+    const favorites = {};
+    for (const [id, sets] of Object.entries(isPlainObject(state.favorites) ? state.favorites : {})) {
+        if (Array.isArray(sets) && sets.length)
+            favorites[id] = sets;
+    }
+    if (Object.keys(favorites).length)
+        setup.favorites = favorites;
     return setup;
+}
+
+// A module's favourites as a file carries them: games' sets, MAME's names
+// alone, each once.
+export function favoriteSets(list) {
+    const out = [];
+    for (const name of Array.isArray(list) ? list : []) {
+        if (typeof name === "string" && /^[a-z0-9_]{1,64}$/.test(name.toLowerCase()) && !out.includes(name.toLowerCase()))
+            out.push(name.toLowerCase());
+    }
+    return out;
 }
 
 // A file read back: one of the page's own (from: "setup"), or OSD/OS's
@@ -479,6 +499,13 @@ export function readSetup(text) {
             if (typeof ra[key] === "string") state[field] = ra[key];
         }
         state.config = isPlainObject(json.config) ? json.config : {};
+        const favorites = isPlainObject(json.favorites) ? json.favorites : {};
+        state.favorites = {};
+        for (const [id, list] of Object.entries(favorites)) {
+            const sets = favoriteSets(list);
+            if (sets.length)
+                state.favorites[id] = sets;
+        }
         state.from = "setup";
         return state;
     }
@@ -611,6 +638,15 @@ export function fitImport(read, schema) {
         }
     }
     state.config = config;
+    // Favourites the page takes: the Arcade's alone, for now.
+    const favorites = {};
+    for (const [id, sets] of Object.entries(isPlainObject(state.favorites) ? state.favorites : {})) {
+        if (id === ARCADE_MODULE && schema.modules.some(m => m.id === id))
+            favorites[id] = sets;
+        else
+            dropped.push(`favorites.${id}`);
+    }
+    state.favorites = favorites;
     return { state, dropped };
 }
 

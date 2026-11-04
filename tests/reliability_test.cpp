@@ -774,6 +774,18 @@ private slots:
         QCOMPARE(setup.account, QJsonDocument::fromJson(R"({"user": "a", "token": "Tok1"})").object());
         QVERIFY(setupfile::parse(R"({"osdos_setup": 1, "retroachievements": {"user": "a", "token": "../x"}})", &setup, &why));
         QVERIFY(setup.account.isEmpty());
+        // The Arcade's favourites: MAME's names alone, each once, in small
+        // letters; another module's left out.
+        QVERIFY(setupfile::parse(R"({"osdos_setup": 1, "favorites": {"com.osdos.arcade": ["SF2", "1942", "sf2", "../x", 3],
+                                                                       "com.osdos.plex": ["a"]}})", &setup, &why));
+        QCOMPARE(setup.favorites, QStringList({ "sf2", "1942" }));
+        QTemporaryDir favoritesData;
+        QVERIFY(setupfile::writeFavorites(setup.favorites, favoritesData.path(), &why));
+        QFile written(favoritesData.path() + "/arcade/favorites-setup.json");
+        QVERIFY(written.open(QIODevice::ReadOnly));
+        QCOMPARE(QJsonDocument::fromJson(written.readAll()).object(),
+                 QJsonDocument::fromJson(R"({"favorites": ["sf2", "1942"]})").object());
+        QCOMPARE(setupfile::favoritesLine(2), QString("Arcade favorites: 2, added as the games are read"));
         // Objects key by key, anything else in place of what was there.
         const QJsonObject into = QJsonDocument::fromJson(R"({"a": {"x": 1, "y": [1]}, "b": 2})").object();
         const QJsonObject update = QJsonDocument::fromJson(R"({"a": {"y": [2], "z": {"q": 1}}, "b": {"c": 3}})").object();

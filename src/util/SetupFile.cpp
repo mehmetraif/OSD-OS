@@ -148,6 +148,14 @@ bool parse(const QByteArray &data, Setup *setup, QString *why) {
             out.config[QLatin1String(part)] = value;
     }
     out.account = account(file.value(QLatin1String("retroachievements")).toObject());
+    static const QRegularExpression kSet(QStringLiteral("^[a-z0-9_]{1,64}$"));
+    const QJsonArray favorites = file.value(QLatin1String("favorites")).toObject()
+                                     .value(QLatin1String("com.osdos.arcade")).toArray();
+    for (const QJsonValue &v : favorites) {
+        const QString set = v.toString().toLower();
+        if (kSet.match(set).hasMatch() && !out.favorites.contains(set))
+            out.favorites << set;
+    }
     out.cardOnly = cardOnly(file);
     *setup = out;
     return true;
@@ -186,6 +194,27 @@ bool writeAccount(const QJsonObject &account, const QString &dataRoot, QString *
         return false;
     }
     return true;
+}
+
+bool writeFavorites(const QStringList &favorites, const QString &dataRoot, QString *why) {
+    const QString folder = dataRoot + QStringLiteral("/arcade");
+    if (!QDir().mkpath(folder)) {
+        if (why)
+            *why = QStringLiteral("its folder couldn't be made");
+        return false;
+    }
+    const QJsonObject file{ { QStringLiteral("favorites"), QJsonArray::fromStringList(favorites) } };
+    if (!writeFileAtomically(folder + QStringLiteral("/favorites-setup.json"),
+                             QJsonDocument(file).toJson(QJsonDocument::Compact) + '\n')) {
+        if (why)
+            *why = QStringLiteral("it couldn't be written");
+        return false;
+    }
+    return true;
+}
+
+QString favoritesLine(int favorites) {
+    return QStringLiteral("Arcade favorites: %1, added as the games are read").arg(favorites);
 }
 
 QString settingsLine(int settings) {
@@ -299,9 +328,17 @@ Result applyAtStart(const QString &dataRoot) {
                 say(QStringLiteral("RetroAchievements: not set: ") + why, false);
             }
         }
+        if (!setup.favorites.isEmpty()) {
+            if (writeFavorites(setup.favorites, dataRoot, &why)) {
+                say(favoritesLine(int(setup.favorites.size())));
+                ++result.applied;
+            } else {
+                say(QStringLiteral("Arcade favorites: not added: ") + why, false);
+            }
+        }
         if (!setup.cardOnly.isEmpty())
             say(cardOnlyLine(setup.cardOnly));
-        if (setup.config.isEmpty() && setup.account.isEmpty() && setup.cardOnly.isEmpty())
+        if (setup.config.isEmpty() && setup.account.isEmpty() && setup.favorites.isEmpty() && setup.cardOnly.isEmpty())
             say(QStringLiteral("Nothing in it to set"));
     }
     return result;
