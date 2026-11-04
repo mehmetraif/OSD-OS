@@ -24,27 +24,27 @@ Item {
     implicitHeight: dateRow.height + dataRow.height + (root.sh * 0.012)
 
     function _tick() {
-        // Shift real UTC by the location's offset. getTimezoneOffset() is in
-        // minutes and positive west of UTC, hence the addition.
-        var now = new Date()
-        var loc = new Date(now.getTime()
-                           + utcOffsetSeconds * 1000
-                           + now.getTimezoneOffset() * 60000)
+        // Real UTC shifted by the location's offset, read back with the UTC
+        // getters: the device's own time zone never comes into it. Shifted
+        // with the device's offset and read in its zone, the time was an
+        // hour out around the device's daylight-saving changes, its offset
+        // at the shifted moment not the one taken off.
+        var loc = new Date(Date.now() + utcOffsetSeconds * 1000)
 
         var days   = ["SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT"]
         var months = ["JAN", "FEB", "MAR", "APR", "MAY", "JUN",
                       "JUL", "AUG", "SEP", "OCT", "NOV", "DEC"]
-        _date = days[loc.getDay()] + " " + months[loc.getMonth()] + " " + loc.getDate()
+        _date = days[loc.getUTCDay()] + " " + months[loc.getUTCMonth()] + " " + loc.getUTCDate()
 
-        var h = loc.getHours()
+        var h = loc.getUTCHours()
         var suffix = ""
         if (twelveHour) {
             suffix = h < 12 ? " AM" : " PM"
             h = h % 12
             if (h === 0) h = 12
-            _time = h + ":" + root.pad(loc.getMinutes()) + ":" + root.pad(loc.getSeconds()) + suffix
+            _time = h + ":" + root.pad(loc.getUTCMinutes()) + ":" + root.pad(loc.getUTCSeconds()) + suffix
         } else {
-            _time = root.pad(h) + ":" + root.pad(loc.getMinutes()) + ":" + root.pad(loc.getSeconds())
+            _time = root.pad(h) + ":" + root.pad(loc.getUTCMinutes()) + ":" + root.pad(loc.getUTCSeconds())
         }
     }
 
