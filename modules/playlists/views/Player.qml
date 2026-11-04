@@ -32,9 +32,6 @@ FocusScope {
     property int    choiceIndex:     0
     // The resume question's choices: { label, startMs, plPos }.
     property var    choices:         []
-    property string errorTitle:      ""
-    property string errorMessage:    ""
-    property bool   canRetry:        false
 
     // The video has shown its first position: the loading screen goes.
     property bool   playbackStarted: false
@@ -83,10 +80,11 @@ FocusScope {
         return spec
     }
 
-    function showError(title, message, retry) {
-        errorTitle = title
-        errorMessage = message
-        canRetry = retry
+    // What stands in the way, in the standard window (PlaybackNotice), with
+    // what there is to add as it is written (mpv's own line).
+    function showError(title, message, retry, detail) {
+        failure.title = title
+        failure.show(message, detail || "", retry)
     }
 
     Component.onCompleted: {
@@ -214,15 +212,7 @@ FocusScope {
     Keys.onPressed: function(event) {
         var back = event.key === Qt.Key_Escape || event.key === Qt.Key_Backspace || event.key === Qt.Key_Back
         var enter = event.key === Qt.Key_Return || event.key === Qt.Key_Enter
-        if (errorMessage !== "") {
-            if (back || (enter && !canRetry)) {
-                goBack()
-            } else if (enter) {
-                errorMessage = ""
-                play(lastStartMs, startedAt)
-            }
-            event.accepted = back || enter
-        } else if (overlayVisible) {
+        if (overlayVisible) {
             if (back) {
                 goBack()
             } else if (event.key === Qt.Key_Up) {
@@ -290,9 +280,10 @@ FocusScope {
             if (reason === "failed" && !playerRoot.playbackStarted) {
                 playerMenu.close()
                 playerRoot.showError("Playback failed",
-                                     prepared.youtube
+                                     mpvController.playerFailed ? mpvController.lastError
+                                     : prepared.youtube
                                      ? "Its YouTube videos need yt-dlp, up to date, and the network"
-                                     : "None of its videos would play", true)
+                                     : "None of its videos would play", true, mpvController.lastErrorDetail)
                 return
             }
             if (reason === "eof") {
@@ -329,15 +320,7 @@ FocusScope {
             source: moduleRoot.moduleName
             startMs: playerRoot.lastStartMs
             durationMs: playerRoot.lastKnownDurationMs
-            visible: !overlayVisible && !playbackStarted && errorMessage === ""
-        }
-
-        PromptScreen {
-            visible: errorMessage !== ""
-            kind: "notice"
-            title: playerRoot.errorTitle
-            message: playerRoot.errorMessage
-            hint: root.hints.back + ":BACK" + (playerRoot.canRetry ? " " + root.hints.select + ":RETRY" : "")
+            visible: !overlayVisible && !playbackStarted && !failure.visible
         }
     }
 
@@ -360,5 +343,11 @@ FocusScope {
         choices: playerRoot.choices
         currentIndex: choiceIndex
         onHovered: function(index) { choiceIndex = index }
+    }
+
+    PlaybackNotice {
+        id: failure
+        onRetried: playerRoot.play(playerRoot.lastStartMs, playerRoot.startedAt)
+        onDismissed: playerRoot.goBack()
     }
 }

@@ -37,6 +37,13 @@ fi
 echo "$$ $media" >> "$log.pids"
 printf '%s\n' "$@" > "$log.args"
 echo "start $media" >> "$log"
+if [ "$FAKE_MPV_MODE" = fail ]; then
+  echo "[ffmpeg/video] h264: error while decoding MB 1 2"
+  echo "[ffmpeg] https: HTTP error 404 Not Found"
+  echo "Failed to open $media.mp4."
+  echo 'Exiting... (Errors when loading file)'
+  exit 2
+fi
 if [ "$FAKE_MPV_MODE" = ignore ]; then
   trap 'echo "term $media" >> "$log"' TERM
 else
@@ -698,6 +705,46 @@ private slots:
         QTRY_COMPARE_WITH_TIMEOUT(ended.count(), 1, 5000);
         QCOMPARE(ended.first().at(2).toString(), QStringLiteral("menu"));
         QVERIFY(!happened("exit A"));
+    }
+
+    // No mpv to play with: its player hears the video failed, why, with how
+    // to install mpv, and that it was the player's own failure, which no
+    // transcode would mend.
+    void aMissingMpvSaysSo() {
+        QSignalSpy ended(m_mpv, &MpvController::playbackEnded);
+        const QByteArray path = qgetenv("PATH");
+        const QString empty = m_dir.path() + QStringLiteral("/no-mpv");
+        QVERIFY(QDir().mkpath(empty));
+        qputenv("PATH", empty.toUtf8());
+        const auto restore = qScopeGuard([path] { qputenv("PATH", path); });
+        play("A");
+        QTRY_COMPARE_WITH_TIMEOUT(ended.count(), 1, 5000);
+        QCOMPARE(ended.first().at(2).toString(), QStringLiteral("failed"));
+        QCOMPARE(m_mpv->lastError(), QStringLiteral("mpv is not installed"));
+        // How to install it, on this system.
+        QVERIFY2(m_mpv->lastErrorDetail().contains(QLatin1String("mpv")), qPrintable(m_mpv->lastErrorDetail()));
+        QVERIFY(m_mpv->playerFailed());
+        // The next video asked for starts with none.
+        qputenv("PATH", path);
+        play("B");
+        QVERIFY(m_mpv->lastError().isEmpty());
+        QVERIFY(m_mpv->lastErrorDetail().isEmpty());
+        QVERIFY(!m_mpv->playerFailed());
+        QTRY_VERIFY_WITH_TIMEOUT(happened("start B"), 5000);
+    }
+
+    // A video mpv couldn't play: why, in mpv's own first words on it, past a
+    // decoder's complaint and without the token in its address; the video's
+    // failure, not the player's.
+    void aVideoMpvCouldNotPlaySaysWhy() {
+        qputenv("FAKE_MPV_MODE", "fail");
+        QSignalSpy ended(m_mpv, &MpvController::playbackEnded);
+        play("A");
+        QTRY_COMPARE_WITH_TIMEOUT(ended.count(), 1, 5000);
+        QCOMPARE(ended.first().at(2).toString(), QStringLiteral("failed"));
+        QCOMPARE(m_mpv->lastError(), QStringLiteral("mpv could not play it"));
+        QCOMPARE(m_mpv->lastErrorDetail(), QStringLiteral("[ffmpeg] https: HTTP error 404 Not Found"));
+        QVERIFY(!m_mpv->playerFailed());
     }
 
     // A video its menu's Browse left (an mpv process having ended for the

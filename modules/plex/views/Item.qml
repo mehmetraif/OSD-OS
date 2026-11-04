@@ -186,6 +186,9 @@ FocusScope {
 
         function onErrorOccurred(msg) {
             console.log("[Item] Error: " + msg)
+            // The stream PLAY asked for won't come: said so.
+            if (detailRoot.isLaunching)
+                failure.show("The server could not stream it", msg, false)
             detailRoot.isLaunching = false
         }
     }
@@ -644,4 +647,10 @@ FocusScope {
         onClosed: detailRoot.forceActiveFocus()
     }
 
+    // The stream PLAY asked for, refused by the server: why, and back to the
+    // details.
+    PlaybackNotice {
+        id: failure
+        z: 101
+    }
 }

@@ -83,6 +83,14 @@ FocusScope {
     property int lastKnownPositionMs: 0
     property int lastKnownDurationMs: 0
 
+    // The video that failed, again where it got to (the notice's RETRY), as
+    // it was played: direct, or the transcode a failed direct play fell back
+    // to.
+    function retryPlayback() {
+        playbackStarted = false
+        doStartPlayback(lastKnownPositionMs > 0 ? lastKnownPositionMs : lastStartMs)
+    }
+
     focus: true
 
     Keys.onPressed: function(event) {
@@ -239,10 +247,17 @@ FocusScope {
         target: plexBackend
         function onErrorOccurred(msg) {
             console.log("[Player] Backend error: " + msg)
-            // The stream it waited for won't come: back to the detail screen,
-            // not a black screen with no mpv to take a key.
-            if (waiting)
-                leaveWaiting()
+            // The stream it waited for won't come: said so, and back from it
+            // to the detail screen, not a black screen with no mpv to take a
+            // key.
+            if (waiting) {
+                var next = pendingNextEpisode
+                pendingNextEpisode = false
+                pendingRetryTranscode = false
+                plexBackend.cancel_stream()
+                failure.show(next ? "The next video could not be started" : "The server could not stream it",
+                             msg, false)
+            }
         }
         function onStreamUrlReady(url, plexToken) {
             if (pendingNextEpisode) {
@@ -377,7 +392,7 @@ FocusScope {
 
         function onPlaybackEnded(finalPositionMs, finalDurationMs, reason) {
             if (reason === "failed") {
-                if (!isTranscoding) {
+                if (!isTranscoding && !mpvController.playerFailed) {
                     // Direct play failed (e.g. HTTP 500 from PMS on WAN). Retry
                     // transparently with transcoding at the same resume offset,
                     // the loading screen up while the server is waited for.
@@ -387,7 +402,10 @@ FocusScope {
                                                   selectedAudioId, selectedSubtitleId,
                                                   0)
                 } else {
-                    goBack()
+                    // The transcode failed too, or mpv itself did (not
+                    // installed, say), which no transcode mends: why, with
+                    // RETRY.
+                    failure.showMpv(true)
                 }
                 return
             }
@@ -469,7 +487,7 @@ FocusScope {
             source: moduleRoot.moduleName
             startMs: playerRoot.lastStartMs
             durationMs: playerRoot.itemDurationMs || playerRoot.lastKnownDurationMs
-            visible: streamUrl !== "" && !overlayVisible && !playbackStarted
+            visible: streamUrl !== "" && !overlayVisible && !playbackStarted && !failure.visible
         }
     }
 
@@ -483,5 +501,11 @@ FocusScope {
         ]
         currentIndex: choiceIndex
         onHovered: function(index) { choiceIndex = index }
+    }
+
+    PlaybackNotice {
+        id: failure
+        onRetried: playerRoot.retryPlayback()
+        onDismissed: playerRoot.goBack()
     }
 }

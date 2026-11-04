@@ -11,6 +11,7 @@
 #include "../util/Board.h"
 #include "../util/LegacyNames.h"
 #include "../util/Diagnostics.h"
+#include "../util/InstallHint.h"
 #include <QCoreApplication>
 #include <QGuiApplication>
 #include <QImageReader>
@@ -175,6 +176,24 @@ QString withoutStatusLines(const QString &text) {
         kept << line;
     }
     return kept.join(QLatin1Char('\n'));
+}
+
+// mpv's line on what went wrong, among its output: the first that says an
+// error or a failure, past the decoders' complaints about a damaged frame,
+// which a video plays on through, and mpv's "Exiting... (Errors when loading
+// file)", which says nothing of why. Cut short for a notice.
+QString firstErrorLine(const QString &text) {
+    static const QRegularExpression kError(QStringLiteral("\\b(error|failed|cannot|unable)\\b"),
+                                           QRegularExpression::CaseInsensitiveOption);
+    for (const QString &raw : text.split(QLatin1Char('\n'))) {
+        const QString line = raw.trimmed();
+        if (line.startsWith(QLatin1String("Exiting...")) || line.startsWith(QLatin1String("[ffmpeg/video]"))
+                || line.startsWith(QLatin1String("[ffmpeg/audio]")) || line.startsWith(QLatin1String("[vd]"))
+                || line.startsWith(QLatin1String("[ad]")) || !kError.match(line).hasMatch())
+            continue;
+        return line.size() > 160 ? line.left(159) + QChar(0x2026) : line;
+    }
+    return {};
 }
 
 // Text for the log with every token the modules hand mpv blanked out: a
@@ -724,6 +743,9 @@ void MpvController::loadAndPlay(const QString &url, float startSeconds,
     m_playlistPos = -1;
     m_paused      = false;
     m_lastEndFileReason.clear();
+    m_lastEndFileError.clear();
+    m_firstMpvError.clear();
+    setFailure(QString(), QString(), false);
     m_pendingStartClear = startSeconds > 0.5f;
 
     // Stamp the log file so each session is identifiable when tailing over SSH.
@@ -890,7 +912,8 @@ void MpvController::startProcess(QStringList args, const QStringList &media) {
     const QString bin = mpvbin::locate();
     if (bin.isEmpty()) {
         qWarning("[MpvController] mpv not found (no bundled sibling, none on PATH)");
-        endAtOnce(QStringLiteral("stopped"));
+        setFailure(QStringLiteral("mpv is not installed"), installhint::forProgram(QStringLiteral("mpv")), true);
+        endAtOnce(QStringLiteral("failed"));
         return;
     }
 
@@ -906,6 +929,7 @@ void MpvController::startProcess(QStringList args, const QStringList &media) {
         if (error != QProcess::FailedToStart || proc != m_process)
             return;
         qWarning("[MpvController] mpv could not be started: %s", qPrintable(proc->errorString()));
+        setFailure(QStringLiteral("mpv could not be started"), proc->errorString(), true);
         m_ipcWanted = false;
         m_connectTimer->stop();
         proc->deleteLater();
@@ -920,6 +944,8 @@ void MpvController::startProcess(QStringList args, const QStringList &media) {
         const QString out = withoutStatusLines(QString::fromUtf8(m_process->readAll()));
         if (!out.isEmpty())
             qWarning("[mpv] %s", qPrintable(redactSecrets(out)));
+        if (m_firstMpvError.isEmpty())
+            m_firstMpvError = redactSecrets(firstErrorLine(out));
     });
     auto launch = [this, bin, media](QStringList options) {
         options << QStringLiteral("--") << media;
@@ -975,6 +1001,7 @@ void MpvController::startProcess(QStringList args, const QStringList &media) {
         if (m_handoff && m_handoff->acquire(QLatin1String(kHandoffOwner)) < 0) {
             qWarning("[MpvController] Cannot start playback: %s has the screen",
                      qPrintable(m_handoff->currentOwner()));
+            setFailure(QStringLiteral("Another program has the screen"), m_handoff->currentOwner(), true);
             m_headlessMode = false;
             m_process->deleteLater();
             m_process = nullptr;
@@ -1190,6 +1217,8 @@ void MpvController::onIpcReadyRead() {
             // so onProcessFinished can distinguish a natural finish from a quit.
             if (event == "end-file") {
                 m_lastEndFileReason = obj["reason"].toString();
+                if (m_lastEndFileReason == QLatin1String("error"))
+                    m_lastEndFileError = obj["file_error"].toString();
             } else if (event == "playback-restart" && m_pendingStartClear) {
                 // --start is a global option that mpv re-applies on *every* file load,
                 // and --loop-playlist reloads its entries on wrap. Left set, a resumed
@@ -1261,6 +1290,8 @@ void MpvController::onProcessFinished() {
         const QString remaining = withoutStatusLines(QString::fromUtf8(m_process->readAll()));
         if (!remaining.isEmpty())
             qWarning("[mpv] %s", qPrintable(redactSecrets(remaining)));
+        if (m_firstMpvError.isEmpty())
+            m_firstMpvError = redactSecrets(firstErrorLine(remaining));
     }
     if (exitCode != 0)
         qWarning("[MpvController] mpv exited with code %d", exitCode);
@@ -1285,14 +1316,30 @@ void MpvController::onProcessFinished() {
     else if (m_menuOnExit)                 reason = QStringLiteral("menu");
     else                                   reason = QStringLiteral("stopped");
     m_menuOnExit = false;
+    // What mpv said of it: its own first line on the failure, else the
+    // end-file's word for it ("loading failed").
+    const bool failed = reason == QLatin1String("failed");
+    const QString why = !m_firstMpvError.isEmpty() ? m_firstMpvError : m_lastEndFileError;
 
     // Told with the screen back, unless another session was asked for
     // meanwhile: the end isn't its.
     const int serial = m_launchSerial;
-    handBackScreen([this, serial, pos, dur, reason]() {
-        if (serial == m_launchSerial)
-            emit playbackEnded(pos, dur, reason);
+    handBackScreen([this, serial, pos, dur, reason, failed, why]() {
+        if (serial != m_launchSerial)
+            return;
+        if (failed)
+            setFailure(QStringLiteral("mpv could not play it"), why, false);
+        emit playbackEnded(pos, dur, reason);
     });
+}
+
+void MpvController::setFailure(const QString &error, const QString &detail, bool player) {
+    if (m_lastError == error && m_lastErrorDetail == detail && m_playerFailed == player)
+        return;
+    m_lastError = error;
+    m_lastErrorDetail = detail;
+    m_playerFailed = player;
+    emit lastErrorChanged();
 }
 
 void MpvController::sendCommand(const QJsonArray &args) {
@@ -1637,6 +1684,8 @@ void MpvController::startEmbedded(QStringList args) {
     qDebug("[MpvController] embedded launch: mpv %s", qPrintable(redactSecrets(args.join(QLatin1Char(' ')))));
     if (!embeddedPlayer()->start(args)) {
         qWarning("[MpvController] Cannot start playback: libmpv could not be set up");
+        setFailure(QStringLiteral("The player inside the window could not be set up"),
+                   QStringLiteral("libmpv could not be started"), true);
         endAtOnce(QStringLiteral("failed"));
         return;
     }
@@ -1711,6 +1760,8 @@ void MpvController::onEmbeddedFinished(const QString &lastEndReason) {
     if (lastEndReason == QLatin1String("error"))    reason = QStringLiteral("failed");
     else if (lastEndReason == QLatin1String("eof")) reason = QStringLiteral("eof");
     else                                            reason = QStringLiteral("stopped");
+    if (reason == QLatin1String("failed"))
+        setFailure(QStringLiteral("mpv could not play it"), m_lastEndFileError, false);
     emit playbackEnded(pos, dur, reason);
 }
 

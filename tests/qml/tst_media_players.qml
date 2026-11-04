@@ -8,8 +8,10 @@ import QtTest
 // waiting for one lead back to the detail screen, not a black screen with no
 // mpv to take a key; a detail screen plays only the stream it asked for; a
 // launch given up drops its stream; signing out leaves no view signed out of
-// for back to return to. And Local Files' player: a remote's channel or page
-// keys step through the folder's films.
+// for back to return to. A video that fails says why (PlaybackNotice), with
+// RETRY, mpv itself missing without the transcode no transcode would mend.
+// And Local Files' player: a remote's channel or page keys step through the
+// folder's films.
 Rectangle {
     id: root
     color: surfaceColor
@@ -135,6 +137,10 @@ Rectangle {
         property int position: 0
         property int duration: 0
         property bool videoActive: false
+        // Why the last session failed (MpvController's lastError).
+        property string lastError: ""
+        property string lastErrorDetail: ""
+        property bool playerFailed: false
         property int loads: 0
         property var urls: []
         property var starts: []
@@ -281,6 +287,9 @@ Rectangle {
             mpvController.urls = []
             mpvController.starts = []
             mpvController.keys = []
+            mpvController.lastError = ""
+            mpvController.lastErrorDetail = ""
+            mpvController.playerFailed = false
             localFilesBackend.folder = []
             localFilesBackend.positions = {}
             plexBackend.cancels = 0
@@ -315,17 +324,33 @@ Rectangle {
                                                 title: "Episode 1" })
         }
 
+        // The view's notice of a video that failed (PlaybackNotice).
+        function noticeOf(item) {
+            for (var i = 0; i < item.children.length; i++) {
+                if (item.children[i].showMpv !== undefined)
+                    return item.children[i]
+            }
+            return null
+        }
+
         // Direct play fails, and the transcode it falls back to fails too:
-        // back to the detail screen, the stream dropped.
-        function test_plexFallbackFailureGoesBack() {
+        // why, the stream dropped, and back from it to the detail screen.
+        function test_plexFallbackFailureSaysWhy() {
             var player = openPlexPlayer()
             compare(mpvController.loads, 1)
             mpvController.playbackEnded(0, 0, "failed")
             compare(plexBackend.transcodes, 1)
             verify(player.waiting)
             plexBackend.errorOccurred("TRANSCODE FAILED: Host unreachable")
-            compare(root.backs, 1)
+            var notice = noticeOf(player)
+            verify(notice.visible)
+            compare(notice.reason, "The server could not stream it")
+            compare(notice.detail, "TRANSCODE FAILED: Host unreachable")
+            verify(!player.waiting)
             compare(plexBackend.cancels, 1)
+            compare(root.backs, 0)
+            keyClick(Qt.Key_Return)  // nothing to retry: back too
+            compare(root.backs, 1)
             compare(mpvController.loads, 1)
         }
 
@@ -340,19 +365,77 @@ Rectangle {
             compare(plexBackend.cancels, 1)
         }
 
-        // Autoplay's next episode can't be transcoded: back, not a black
-        // screen.
+        // Autoplay's next episode can't be transcoded: said so, and back
+        // from it, not a black screen.
         function test_plexNextEpisodeFailureGoesBack() {
             appCore.settings = { autoplay_next_episode: true }
-            openPlexPlayer()
+            var player = openPlexPlayer()
             mpvController.playbackEnded(60000, 60000, "eof")
             compare(plexBackend.nextAsks, 1)
             plexBackend.nextEpisodeReady({ ratingKey: "11", partKey: "/library/parts/11", title: "Episode 2",
                                            forceTranscode: true, audioStreams: [], subtitleStreams: [] })
             compare(plexBackend.transcodes, 1)
             plexBackend.errorOccurred("TRANSCODE FAILED: Internal Server Error")
+            compare(noticeOf(player).reason, "The next video could not be started")
+            keyClick(Qt.Key_Escape)
             compare(root.backs, 1)
             compare(mpvController.loads, 1)
+        }
+
+        // mpv itself failed (not installed): no transcode, which wouldn't
+        // mend it, but why and how to install it; RETRY plays it again where
+        // it was started, and back from a second failure leaves (Plex,
+        // Jellyfin, Emby, Local Files).
+        function test_mpvMissingSaysWhy_data() {
+            return [{ tag: "plex", module: "plex" }, { tag: "jellyfin", module: "jellyfin" },
+                    { tag: "emby", module: "emby" }, { tag: "local_files", module: "local_files" }]
+        }
+        function test_mpvMissingSaysWhy(data) {
+            var player = data.module === "plex" ? openPlexPlayer()
+                       : data.module === "local_files" ? open("local_files", "Player.qml", { filePath: "/films/B.mkv", title: "B.mkv" })
+                       : openJellyfinPlayer(data.module)
+            compare(mpvController.loads, 1)
+            mpvController.playerFailed = true
+            mpvController.lastError = "mpv is not installed"
+            mpvController.lastErrorDetail = "On Raspberry Pi OS: sudo apt install mpv"
+            mpvController.playbackEnded(0, 0, "failed")
+            compare(plexBackend.transcodes, 0)
+            compare(jellyfinBackend.asks + embyBackend.asks, 0)
+            var notice = noticeOf(player)
+            verify(notice.visible)
+            compare(notice.reason, "mpv is not installed")
+            compare(notice.detail, "On Raspberry Pi OS: sudo apt install mpv")
+            verify(notice.canRetry)
+            compare(root.backs, 0)
+            keyClick(Qt.Key_Return)
+            verify(!notice.visible)
+            compare(mpvController.loads, 2)
+            mpvController.playbackEnded(0, 0, "failed")
+            verify(notice.visible)
+            keyClick(Qt.Key_Escape)
+            compare(root.backs, 1)
+            compare(mpvController.loads, 2)
+        }
+
+        // A transcode that fails as a direct play's fallback: why, in mpv's
+        // own words, reported stopped as a failed playback.
+        function test_serverTranscodeFailureSaysWhy() {
+            var player = openJellyfinPlayer("jellyfin")
+            mpvController.playbackEnded(0, 0, "failed")
+            compare(jellyfinBackend.asks, 1)
+            jellyfinBackend.streamUrlReady("http://server/videos/e1/master.m3u8")
+            compare(mpvController.loads, 2)
+            var stops = jellyfinBackend.stops
+            mpvController.lastError = "mpv could not play it"
+            mpvController.lastErrorDetail = "[ffmpeg] http: HTTP error 500 Internal Server Error"
+            mpvController.playbackEnded(0, 0, "failed")
+            compare(jellyfinBackend.asks, 1)
+            compare(jellyfinBackend.stops, stops + 1)
+            var notice = noticeOf(player)
+            compare(notice.reason, "mpv could not play it")
+            compare(notice.detail, "[ffmpeg] http: HTTP error 500 Internal Server Error")
+            keyClick(Qt.Key_Return)
+            compare(mpvController.urls[2], "http://server/videos/e1/master.m3u8")
         }
 
         // While a video plays, nothing is waited for: an error elsewhere
@@ -386,6 +469,25 @@ Rectangle {
             compare(root.navigations.length, 1)
             compare(root.navigations[0].path, "Player.qml")
             compare(root.navigations[0].params.streamUrl, "http://plex/film")
+        }
+
+        // The server refuses the stream PLAY asked for: why, and back from
+        // it to the details, which have the keys again.
+        function test_plexDetailRefusedStreamSaysWhy() {
+            var detail = openPlexDetail()
+            keyClick(Qt.Key_Return)
+            verify(detail.isLaunching)
+            plexBackend.errorOccurred("TRANSCODE FAILED: Forbidden")
+            verify(!detail.isLaunching)
+            var notice = noticeOf(detail)
+            verify(notice.visible)
+            compare(notice.detail, "TRANSCODE FAILED: Forbidden")
+            keyClick(Qt.Key_Escape)
+            verify(!notice.visible)
+            compare(root.backs, 0)
+            verify(detail.activeFocus)
+            keyClick(Qt.Key_Return)
+            compare(plexBackend.transcodes, 2)
         }
 
         // Back while the film's transcode is on its way gives it up.
@@ -461,10 +563,13 @@ Rectangle {
             backend.nextEpisodeReady({ itemId: "e2", mediaSourceId: "e2", title: "Episode 2",
                                        audioStreams: [], subtitleStreams: [] })
             compare(backend.asks, 1)
-            if (data.back)
+            if (data.back) {
                 keyClick(Qt.Key_Escape)
-            else
+            } else {
                 backend.errorOccurred("PLAYBACK INFO FAILED: Host unreachable")
+                compare(root.backs, 0)
+                keyClick(Qt.Key_Escape)
+            }
             compare(root.backs, 1)
             compare(backend.cancels, 1)
             compare(mpvController.loads, 1)
@@ -559,6 +664,24 @@ Rectangle {
             keyClick(Qt.Key_PageUp)
             keyClick(Qt.Key_PageDown)
             compare(mpvController.keys, ["CHANNEL_UP", "CHANNEL_DOWN"])
+        }
+
+        // mpv missing, for a playlist: said so, not its videos blamed, with
+        // RETRY.
+        function test_playlistsPlayerSaysMpvIsMissing() {
+            var player = open("playlists", "Player.qml", { playlistId: "p1", name: "Night", startMs: 0, plPos: 0 })
+            compare(mpvController.loads, 1)
+            mpvController.playerFailed = true
+            mpvController.lastError = "mpv is not installed"
+            mpvController.lastErrorDetail = "On macOS: brew install mpv"
+            mpvController.playbackEnded(0, 0, "failed")
+            var notice = noticeOf(player)
+            verify(notice.visible)
+            compare(notice.title, "Playback failed")
+            compare(notice.reason, "mpv is not installed")
+            compare(notice.detail, "On macOS: brew install mpv")
+            keyClick(Qt.Key_Return)
+            compare(mpvController.loads, 2)
         }
     }
 }

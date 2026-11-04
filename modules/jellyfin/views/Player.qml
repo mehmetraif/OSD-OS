@@ -83,6 +83,15 @@ FocusScope {
         goBack()
     }
 
+    // The video that failed, again where it got to (the notice's RETRY), as
+    // it was played: direct, or the transcode a failed direct play fell back
+    // to. Reported as playing again from there.
+    function retryPlayback() {
+        stoppedReported = false
+        playbackStarted = false
+        doStartPlayback(lastKnownPositionMs > 0 ? lastKnownPositionMs : lastStartMs)
+    }
+
     focus: true
 
     Keys.onPressed: function(event) {
@@ -466,10 +475,21 @@ FocusScope {
         target: jellyfinBackend
         function onErrorOccurred(msg) {
             console.log("[Jellyfin Player] Backend error: " + msg)
-            // The stream it waited for won't come: back to the detail screen,
-            // not LOADING with no mpv to take a key.
-            if (waiting)
-                leaveWaiting()
+            // The stream it waited for won't come: said so, and back from it
+            // to the detail screen, not LOADING with no mpv to take a key. A
+            // transcode retried is reported stopped as a failed one is; a next
+            // episode never started is reported nothing (leaveWaiting).
+            if (waiting) {
+                var next = pendingNextEpisode
+                if (pendingRetryTranscode)
+                    reportStopped(lastKnownPositionMs, lastKnownDurationMs, true)
+                stoppedReported = true
+                pendingNextEpisode = false
+                pendingRetryTranscode = false
+                jellyfinBackend.cancel_playback_url()
+                failure.show(next ? "The next video could not be started" : "The server could not stream it",
+                             msg, false)
+            }
         }
 
         function onSegmentsReady(itemId_, segments_) {
@@ -635,7 +655,7 @@ FocusScope {
                 return
             }
             if (reason === "failed") {
-                if (!isTranscoding) {
+                if (!isTranscoding && !mpvController.playerFailed) {
                     // Direct play failed (e.g. a codec mpv couldn't handle, or a
                     // network drop). Retry transparently with a transcode, resuming
                     // at the last known position. Mirrors the Plex module. The
@@ -649,12 +669,14 @@ FocusScope {
                     jellyfinBackend.get_playback_url(itemId, mediaSourceId, aIdx, sIdx, true)
                     return
                 }
-                // mpv exited with an error. Report as failed so the server
-                // doesn't update the resume position. reportStopped uses the
-                // last known position internally, so this is safe even when
-                // mpv exited before the first position update.
+                // mpv exited with an error, the transcode's too, or mpv itself
+                // failed (not installed, say), which no transcode mends.
+                // Report as failed so the server doesn't update the resume
+                // position. reportStopped uses the last known position
+                // internally, so this is safe even when mpv exited before the
+                // first position update. Then why, with RETRY.
                 reportStopped(finalPositionMs, finalDurationMs, true)
-                goBack()
+                failure.showMpv(true)
                 return
             }
 
@@ -742,7 +764,7 @@ FocusScope {
             source: moduleRoot.moduleName
             startMs: playerRoot.lastStartMs
             durationMs: playerRoot.itemDurationMs || playerRoot.lastKnownDurationMs
-            visible: streamUrl !== "" && !overlayVisible && !playbackStarted
+            visible: streamUrl !== "" && !overlayVisible && !playbackStarted && !failure.visible
         }
     }
 
@@ -756,5 +778,11 @@ FocusScope {
         ]
         currentIndex: choiceIndex
         onHovered: function(index) { choiceIndex = index }
+    }
+
+    PlaybackNotice {
+        id: failure
+        onRetried: playerRoot.retryPlayback()
+        onDismissed: playerRoot.goBack()
     }
 }

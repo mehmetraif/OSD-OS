@@ -16,7 +16,6 @@ FocusScope {
     property bool   playbackStarted:  false
     property int    savedPositionMs:  0
     property int    choiceIndex:      0
-    property string errorMessage:     ""
     property var    ytdlArgs:         []
     // Subtitles, from ADVANCED: -2 none, 0 the Subtitle Language's (subLangs).
     property int    subTrack:         -2
@@ -171,16 +170,7 @@ FocusScope {
     }
 
     Keys.onPressed: function(event) {
-        if (errorMessage !== "") {
-            if (event.key === Qt.Key_Escape || event.key === Qt.Key_Backspace || event.key === Qt.Key_Back) {
-                goBack()
-                event.accepted = true
-            } else if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter) {
-                errorMessage = ""
-                play(lastStartMs)
-                event.accepted = true
-            }
-        } else if (overlayVisible) {
+        if (overlayVisible) {
             if (event.key === Qt.Key_Escape || event.key === Qt.Key_Backspace || event.key === Qt.Key_Back) {
                 goBack()
                 event.accepted = true
@@ -250,9 +240,12 @@ FocusScope {
 
         function onPlaybackEnded(finalPositionMs, finalDurationMs, reason) {
             // yt-dlp missing/outdated or an unplayable stream surfaces as mpv exit
-            // code 2 before any position event — show the error instead of leaving.
+            // code 2 before any position event — show the error instead of leaving,
+            // with mpv's own line on it (yt-dlp's ERROR). mpv itself missing says so.
             if (reason === "failed" && !playbackStarted) {
-                playerRoot.errorMessage = "Please check that yt-dlp is installed and up to date"
+                failure.show(mpvController.playerFailed ? mpvController.lastError
+                                                        : "Please check that yt-dlp is installed and up to date",
+                             mpvController.lastErrorDetail, true)
                 return
             }
             var pos = lastKnownPositionMs || finalPositionMs
@@ -327,15 +320,7 @@ FocusScope {
             source: moduleRoot.moduleName
             startMs: playerRoot.lastStartMs
             durationMs: playerRoot.lastKnownDurationMs
-            visible: !overlayVisible && !playbackStarted && errorMessage === ""
-        }
-
-        PromptScreen {
-            visible: errorMessage !== ""
-            kind: "notice"
-            title: "Playback failed"
-            message: errorMessage
-            hint: root.hints.back + ":BACK " + root.hints.select + ":RETRY"
+            visible: !overlayVisible && !playbackStarted && !failure.visible
         }
     }
 
@@ -364,4 +349,9 @@ FocusScope {
         onClosed: playerRoot.backToVideo()
     }
 
+    PlaybackNotice {
+        id: failure
+        onRetried: playerRoot.play(playerRoot.lastStartMs)
+        onDismissed: playerRoot.goBack()
+    }
 }

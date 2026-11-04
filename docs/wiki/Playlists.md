@@ -161,6 +161,7 @@ The subtitles are those inside the file or stream. A Jellyfin or Emby video's su
 | **Could not play** · The list could not be written in … | Its m3u couldn't be written in the data folder's `playlists` folder (a full or read-only disk), so nothing plays ([below](#the-m3u-it-writes)) |
 | **Playback failed** · Its YouTube videos need yt-dlp, up to date, and the network | mpv stopped before showing anything, on a list with streamed YouTube videos. Select retries |
 | **Playback failed** · None of its videos would play | The same, on any other list. Select retries |
+| **Playback failed** · mpv is not installed | mpv isn't there; the line under it says how to install it on this system. Select retries |
 
 ## The player's menu
 
