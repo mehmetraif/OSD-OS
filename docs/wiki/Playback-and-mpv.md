@@ -487,6 +487,7 @@ MPV_BIN=$(scripts/build-mpv.sh)
 ### The picture is squeezed or stretched
 
 - A CRT's pixels aren't square: on a CRT's display output OSD/OS tells mpv the screen is 4:3 (`--monitoraspect=4:3`), and draws a video played inside it (Transparent Background) in that shape. A tube whose picture still isn't quite right takes `monitoraspect` or `monitorpixelaspect` from `mpv.conf` in its place: adjust it with a 4:3 test pattern ([Installation](https://github.com/mehmetraif/OSD-OS/wiki/Installation)). A Pi 5's composite output sometimes reports a narrow raster (704×432 rather than 720×480), which the same setting can make up for.
+- A monitor turned on its side (Settings → Screen → Monitor): a video played inside OSD/OS (Transparent Background) is drawn on the screen as one sees it and turned with the menus, its subtitles and mpv's displays with it; mpv's own window turns the picture alone (`--video-rotate=270` for a monitor turned right, `90` for one turned left), its subtitles and displays lying across the screen as it is ([Arcade → A monitor on its side](https://github.com/mehmetraif/OSD-OS/wiki/Arcade#a-monitor-on-its-side-tate)).
 - Anamorphic squeezes on purpose, for a TV set to 16:9: choose another Scaling.
 
 ### Washed-out or crushed colours

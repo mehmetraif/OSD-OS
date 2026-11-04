@@ -507,8 +507,12 @@ if(UNIX)
     add_test(NAME app_main_menu_studio_monitor COMMAND bash ${smoke} "--layout=Studio Monitor")
     add_test(NAME app_main_menu_broadcast COMMAND bash ${smoke} --layout=Broadcast)
     add_test(NAME app_main_menu_flat_panel COMMAND bash ${smoke} "--layout=Flat Panel")
+    # The Arcade screen on a monitor turned on its side (Settings → Screen →
+    # Monitor), in its tall layout.
+    add_test(NAME app_arcade_turned_right COMMAND bash ${smoke} "--monitor=Turned Right")
+    add_test(NAME app_arcade_turned_left COMMAND bash ${smoke} "--monitor=Turned Left")
     set(smoke_tests app_main_menu app_setup_file app_main_menu_camcorder app_main_menu_studio_monitor
-                    app_main_menu_broadcast app_main_menu_flat_panel)
+                    app_main_menu_broadcast app_main_menu_flat_panel app_arcade_turned_right app_arcade_turned_left)
     file(GLOB manifests CONFIGURE_DEPENDS ${osdos_root}/modules/*/manifest.json)
     foreach(manifest ${manifests})
         get_filename_component(folder ${manifest} DIRECTORY)

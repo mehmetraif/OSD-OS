@@ -50,6 +50,9 @@
         { "key": "startup_module", "label": "Start on Module", "type": "choice", "default": "None", "options": [["None", "None"]], "options_from": "modules",
           "view": "basic",
           "help": "Open straight into a module as OSD/OS starts. The module is turned on with it." },
+        { "key": "monitor", "label": "Monitor", "type": "choice", "default": "Horizontal", "options": ["Horizontal", "Turned Right", "Turned Left"],
+          "view": "basic",
+          "help": "A monitor turned on its side for vertical games (TATE): the menus, games and videos are turned to stand upright on it. Vertical games then fill the screen with their own lines, as in their cabinets. [TURNED RIGHT] Its top on the right as you face it. [TURNED LEFT] Its top on the left." },
         { "key": "boot_colors", "label": "Boot Screen Colors", "type": "choice", "default": "Theme", "options": ["Theme", "Default"],
           "help": "The colours of the boot screen, with its cassette. [THEME] The theme's or color scheme's. [DEFAULT] White on blue." },
         { "key": "hint_bar", "label": "Hint Bar", "type": "toggle", "on": "On", "off": "Off", "default": "On",
@@ -146,7 +149,7 @@
     },
     "com.osdos.arcade": {
       "options": {
-        "start_filter": [["All Games", "all"], ["Favorites", "favorites"], ["Recently Played", "recent"], ["LAN Games", "lan"], ["Online Games", "online"], ["RetroArch Lobby", "lobby"], ["RetroAchievements", "achievements"], ["Playable Online", "netplay"]],
+        "start_filter": [["All Games", "all"], ["Favorites", "favorites"], ["Recently Played", "recent"], ["LAN Games", "lan"], ["Online Games", "online"], ["RetroArch Lobby", "lobby"], ["RetroAchievements", "achievements"], ["Playable Online", "netplay"], ["Vertical Games", "vertical"]],
         "regions": [["World", "world"], ["USA", "usa"], ["Europe", "europe"], ["Asia", "asia"], ["Japan", "japan"], ["Korea", "korea"], ["China", "china"], ["Hong Kong", "hong_kong"], ["Taiwan", "taiwan"], ["Hispanic", "hispanic"], ["Brazil", "brazil"], ["Oceania", "oceania"], ["Others", "others"]]
       },
       "defaults": { "start_filter": "all" },

@@ -599,6 +599,20 @@ QStringList MpvController::sessionArgs(const QString &url, float startSeconds,
             && !userSetsScreenShape(m_appCore ? m_appCore->get_setting(QString(), "mpv_video_args").toString()
                                               : QString()))
         args << QStringLiteral("--monitoraspect=4:3");
+    // Settings → Screen → Monitor turned on its side (TATE): the picture
+    // turned to stand upright on it, against the way the monitor went (its
+    // top to the right, the picture a quarter turn the other way). The
+    // window's own session is drawn on the screen as one sees it and turned
+    // with the menus (Main.qml), its subtitles and displays with it; mpv's
+    // own window turns the picture alone, its subtitles and displays lying
+    // across the screen as it is.
+    if (!embedded && m_appCore) {
+        const QString monitor = m_appCore->get_setting(QString(), "monitor").toString();
+        if (monitor == QLatin1String("Turned Right"))
+            args << QStringLiteral("--video-rotate=270");
+        else if (monitor == QLatin1String("Turned Left"))
+            args << QStringLiteral("--video-rotate=90");
+    }
 
     // Video Levels: the RGB range mpv converts YUV into. Emitted only when the
     // user has overridden it, so "Auto" leaves both mpv's own default and

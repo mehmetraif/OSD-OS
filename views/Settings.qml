@@ -617,6 +617,19 @@ FocusScope {
                 moduleId: ""
             })
         }
+        // MONITOR — a monitor turned on its side for vertical games (TATE):
+        // Main.qml turns what it draws to stand upright on it, MAME, RetroArch
+        // and mpv their pictures, from the next game or video.
+        var monitorOpts = ["Horizontal", "Turned Right", "Turned Left"]
+        items.push({
+            type: "list_single",
+            key: "monitor",
+            label: "Monitor",
+            options: monitorOpts,
+            value: monitorOpts.indexOf(appSettings["monitor"]) >= 0 ? appSettings["monitor"] : "Horizontal",
+            description: "A monitor turned on its side for vertical games (TATE): the menus, games and videos are turned to stand upright on it. Vertical games then fill the screen with their own lines, as in their cabinets, and the others lie across its middle. On a desktop, turn the screen in the system's display settings instead\n[TURNED RIGHT] Its top on the right as you face it  [TURNED LEFT] Its top on the left",
+            moduleId: ""
+        })
         // TEST PATTERNS — a picture to set a TV or monitor up by, its own
         // knobs or menu: geometry, size, convergence, brightness, colour
         // (views/TestPatterns.qml).

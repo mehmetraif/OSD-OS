@@ -616,6 +616,10 @@ QString configText(const Launch &launch) {
     // spread over them.
     const bool integerScale = launch.integerScale && !launch.fill;
     set("video_scale_integer", on(integerScale));
+    // A monitor on its side: the picture turned to stand upright on it,
+    // on top of the turn the core asks for a vertical game; set every time,
+    // so that one turned back plays straight again.
+    set("video_rotation", QString::number(launch.rotation));
     if (integerScale) {
         set("video_scale_integer_axis", QStringLiteral("0"));
         set("video_scale_integer_scaling", QStringLiteral("0"));

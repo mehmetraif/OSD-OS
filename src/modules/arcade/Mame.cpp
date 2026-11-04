@@ -335,16 +335,21 @@ void ListXmlReader::read() {
     }
 }
 
-QStringList screenArguments(const Machine &machine, int screenLines, const QString &shape, bool integer, bool fill) {
-    if (fill)
-        return { QStringLiteral("-nokeepaspect") };
+QStringList screenArguments(const Machine &machine, int screenLines, const QString &shape, bool integer, bool fill,
+                            const QString &monitor) {
     QStringList args;
+    const bool turned = monitor == QLatin1String("Turned Right") || monitor == QLatin1String("Turned Left");
+    if (turned)
+        args << (monitor == QLatin1String("Turned Right") ? QStringLiteral("-rol") : QStringLiteral("-ror"));
+    if (fill)
+        return args << QStringLiteral("-nokeepaspect");
     if (!shape.isEmpty())
         args << QStringLiteral("-aspect") << shape;
     // The lines the picture has on the screen: a vertical game's are its
-    // width before the rotation.
+    // width before the rotation, on a monitor turned on its side a
+    // horizontal game's.
     const bool vertical = machine.rotate == 90 || machine.rotate == 270;
-    const int lines = vertical ? machine.width : machine.height;
+    const int lines = vertical != turned ? machine.width : machine.height;
     if (integer && lines > 0 && lines <= screenLines)
         args << QStringLiteral("-nounevenstretch") << QStringLiteral("-unevenstretchx");
     return args;

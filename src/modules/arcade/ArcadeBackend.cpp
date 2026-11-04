@@ -158,7 +158,7 @@ const char *const kFolderKinds[] = { "players", "years", "makers" };
 // two), and Not Recognized after, which the tree has too.
 constexpr std::pair<const char *, const char *> kLists[] = {
     { "favorites", "Favorites" }, { "recent", "Recently Played" }, { "achievements", "RetroAchievements" },
-    { "netplay", "Playable Online" },
+    { "netplay", "Playable Online" }, { "vertical", "Vertical Games" },
 };
 constexpr std::pair<const char *, const char *> kUnknown = { "unknown", "Not Recognized" };
 // The lists kept here, Favorites and Recently Played, which the Arcade
@@ -1782,7 +1782,8 @@ QStringList ArcadeBackend::filterSets(const QString &filter) const {
     // Search's own row, then the games found.
     if (filter == QLatin1String("search"))
         return searchRows();
-    if (filter == QLatin1String("achievements") || filter == QLatin1String("netplay"))
+    if (filter == QLatin1String("achievements") || filter == QLatin1String("netplay")
+        || filter == QLatin1String("vertical"))
         return madeSets(filter);
     const Index &games = index();
     if (filter == QLatin1String("all"))
@@ -3228,7 +3229,7 @@ bool ArcadeBackend::play(const QString &name, int credits) {
         args << QStringLiteral("-video") << m_video;
     // Emulator Video: the screen's shape, and the game's lines whole.
     args << mame::screenArguments(m_machines.value(name), m_screenSize.height(), screenShape(), integerScale(),
-                                  m_fitScreen);
+                                  m_fitScreen, monitor());
     // Without a sound card that can play now (a Pi 5 whose picture goes out
     // through a JAMMA board or composite, its HDMI off, with no USB card),
     // the game is played in silence: MAME's SDL sound fails there, and
@@ -3296,6 +3297,10 @@ QString ArcadeBackend::screenShape() const {
     if (!m_screenShape.isEmpty())
         return m_screenShape;
     return m_tube ? QStringLiteral("4:3") : QString();
+}
+
+QString ArcadeBackend::monitor() const {
+    return m_appCore ? m_appCore->get_setting(QString(), QStringLiteral("monitor")).toString() : QString();
 }
 
 bool ArcadeBackend::integerScale() const {
@@ -3369,6 +3374,15 @@ QStringList ArcadeBackend::madeSets(const QString &filter) const {
         // (canHost()).
         for (const QString &set : index().games) {
             if (fbneoHas(set) && fbneoRoms(set) != -1 && netplayTooBig(set, false, true).isEmpty())
+                sets << set;
+        }
+    } else if (filter == QLatin1String("vertical")) {
+        // The games whose screen stood upright in their cabinets, taller than
+        // wide, as MAME or FinalBurn Neo's list has it (gameAspect()): the
+        // ones a monitor turned on its side is for (Settings → Screen →
+        // Monitor).
+        for (const QString &set : index().games) {
+            if (gameAspect(set) < 1.0)
                 sets << set;
         }
     }
@@ -3579,10 +3593,17 @@ bool ArcadeBackend::playFbneo(const QString &name, libretro::Launch::Netplay net
     // Emulator Video: the picture over the whole screen (Fit to Screen), or
     // in its shape on the screen, its lines whole.
     launch.fill = m_fitScreen;
+    // A monitor on its side (Settings → Screen → Monitor): the picture a
+    // quarter turn against it, its shape on the screen the other way round.
+    const QString turn = monitor();
+    launch.rotation = turn == QLatin1String("Turned Right") ? 1 : turn == QLatin1String("Turned Left") ? 3 : 0;
+    const double shown = launch.rotation % 2 ? 1.0 / gameAspect(name) : gameAspect(name);
     const QString shape = screenShape();
     if (!shape.isEmpty())
-        launch.aspect = libretro::viewportAspect(gameAspect(name), m_screenSize,
+        launch.aspect = libretro::viewportAspect(shown, m_screenSize,
                                                  shape == QLatin1String("16:9") ? 16.0 / 9.0 : 4.0 / 3.0);
+    else if (launch.rotation % 2)
+        launch.aspect = shown;
     launch.integerScale = integerScale();
     // The credits bought, played alone: put in once the game runs
     // (feedCoins()), through a UDP port free on this machine.

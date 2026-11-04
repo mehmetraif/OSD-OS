@@ -277,7 +277,7 @@ Rectangle {
                                        "Status Icons"] },
                 { tag: "effects", lines: ["Text Effect", "Background Effect", "Selector Effect", "Screen Effect",
                                           "Transition"] },
-                { tag: "screen", lines: ["Display Output", "Test Patterns", "Screen Saver", "Mouse Pointer",
+                { tag: "screen", lines: ["Display Output", "Monitor", "Test Patterns", "Screen Saver", "Mouse Pointer",
                                          "Window Mode"] },
                 { tag: "sound", lines: ["Audio Output", "Menu Music", "Music File", "Music Volume"] },
                 { tag: "network", lines: ["Wi-Fi", "Bluetooth"] },

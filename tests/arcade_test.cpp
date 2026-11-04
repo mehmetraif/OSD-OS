@@ -618,6 +618,23 @@ private slots:
         QCOMPARE(mame::screenArguments(vertical, 240, QStringLiteral("4:3"), true), shape);
         QCOMPARE(mame::screenArguments(vertical, 1080, QString(), true), whole);
         QCOMPARE(mame::screenArguments(mame::Machine(), 240, QStringLiteral("4:3"), true), shape);
+        // A monitor on its side: the picture turned against it, a vertical
+        // game's lines (its height before the rotation) lying along the
+        // screen's and drawn whole, a horizontal game's width across them.
+        const QStringList left{ QStringLiteral("-rol") };
+        const QStringList right{ QStringLiteral("-ror") };
+        QCOMPARE(mame::screenArguments(vertical, 240, QStringLiteral("4:3"), true, false, QStringLiteral("Turned Right")),
+                 left + shape + whole);
+        QCOMPARE(mame::screenArguments(vertical, 240, QStringLiteral("4:3"), true, false, QStringLiteral("Turned Left")),
+                 right + shape + whole);
+        QCOMPARE(mame::screenArguments(wide, 240, QStringLiteral("4:3"), true, false, QStringLiteral("Turned Right")),
+                 left + shape);
+        QCOMPARE(mame::screenArguments(wide, 480, QStringLiteral("4:3"), true, false, QStringLiteral("Turned Right")),
+                 left + shape + whole);
+        QCOMPARE(mame::screenArguments(wide, 240, QStringLiteral("4:3"), true, true, QStringLiteral("Turned Left")),
+                 right + QStringList({ QStringLiteral("-nokeepaspect") }));
+        QCOMPARE(mame::screenArguments(vertical, 240, QStringLiteral("4:3"), true, false, QStringLiteral("Horizontal")),
+                 shape);
         // Fit to Screen: stretched over the whole screen, whatever else.
         QCOMPARE(mame::screenArguments(wide, 240, QStringLiteral("4:3"), true, true),
                  QStringList({ QStringLiteral("-nokeepaspect") }));
@@ -1699,6 +1716,13 @@ private slots:
         launch.fill = false;
         launch.aspect = 0;
         launch.integerScale = false;
+        // Straight, unless the monitor is on its side (Settings → Screen →
+        // Monitor): then turned a quarter against it, every time.
+        QVERIFY(has(QStringLiteral("video_rotation = \"0\"")));
+        launch.rotation = 1;
+        config = libretro::configText(launch);
+        QVERIFY(has(QStringLiteral("video_rotation = \"1\"")));
+        launch.rotation = 0;
         // No credits to put in: no network RetroPad. Credits: player 1's,
         // on the port given.
         config = libretro::configText(launch);
@@ -2640,6 +2664,10 @@ private slots:
                  QStringList({ QUrl::fromLocalFile(games + QStringLiteral("/snap/sf2.png")).toString() }));
         QVERIFY(arcade.gameDetails(QStringLiteral("1943")).value(QStringLiteral("vertical")).toBool());
         QVERIFY(!arcade.gameDetails(QStringLiteral("kof98")).value(QStringLiteral("vertical")).toBool());
+        // Vertical Games: the games whose screen stood upright, the one a
+        // monitor turned on its side is for.
+        QVERIFY(setsOf(arcade, QStringLiteral("vertical")).contains(QStringLiteral("1943")));
+        QVERIFY(!setsOf(arcade, QStringLiteral("vertical")).contains(QStringLiteral("kof98")));
 
         // FinalBurn Neo's whatever engine was chosen, Online High Scores off;
         // no MAME offered, one chosen before taken for Auto.
@@ -5024,10 +5052,10 @@ private slots:
             arcade.menuFilterOptions();
             QTRY_COMPARE_WITH_TIMEOUT(options.size(), 1, 5000);
             QCOMPARE(options.last().at(0).toString(), QStringLiteral("menu_filters"));
-            QCOMPARE(labels(options.last().at(1)).mid(0, 6),
+            QCOMPARE(labels(options.last().at(1)).mid(0, 7),
                      QStringList({ QStringLiteral("Lists"), QStringLiteral("Favorites"), QStringLiteral("Recently Played"),
                                    QStringLiteral("RetroAchievements"), QStringLiteral("Playable Online"),
-                                   QStringLiteral("Not Recognized") }));
+                                   QStringLiteral("Vertical Games"), QStringLiteral("Not Recognized") }));
             arcade.startFilterOptions();
             QTRY_COMPARE_WITH_TIMEOUT(options.size(), 2, 5000);
             QCOMPARE(options.last().at(0).toString(), QStringLiteral("start_filter"));
@@ -6915,7 +6943,8 @@ private slots:
         };
         QCOMPARE(described(arcade.filters()), QStringList({
             QStringLiteral("all All Games 7"), QStringLiteral("favorites Favorites 2"),
-            QStringLiteral("recent Recently Played 1"), QStringLiteral("genres/Beat 'em Up Beat 'em Up 1"),
+            QStringLiteral("recent Recently Played 1"), QStringLiteral("vertical Vertical Games 2"),
+            QStringLiteral("genres/Beat 'em Up Beat 'em Up 1"),
             QStringLiteral("genres/Fighting Fighting 2"), QStringLiteral("genres/Maze Maze 1"),
             QStringLiteral("genres/Shmup Shmup 1"),
             QStringLiteral("players/1 1 Player 1"), QStringLiteral("players/2 2 Players 5"),
@@ -6999,7 +7028,7 @@ private slots:
             ids << v.toMap().value(QStringLiteral("id")).toString();
         QCOMPARE(options.at(0).at(0).toString(), QStringLiteral("start_filter"));
         QCOMPARE(ids, QStringList({ QStringLiteral("all"), QStringLiteral("favorites"), QStringLiteral("recent"),
-                                    QStringLiteral("achievements"), QStringLiteral("netplay"),
+                                    QStringLiteral("achievements"), QStringLiteral("netplay"), QStringLiteral("vertical"),
                                     QStringLiteral("genres/Beat 'em Up"), QStringLiteral("genres/Fighting"),
                                     QStringLiteral("genres/Maze"), QStringLiteral("genres/Shmup"),
                                     QStringLiteral("players/1"),
@@ -7026,7 +7055,7 @@ private slots:
         QVERIFY(arcade.filterGames(QStringLiteral("all"), 0, 3).isEmpty());
         QTRY_VERIFY_WITH_TIMEOUT(!arcade.scanning(), 10000);
         QVERIFY(!changed.isEmpty());
-        QCOMPARE(arcade.filters().size(), 14);
+        QCOMPARE(arcade.filters().size(), 15);
     }
 
     // Search, the Arcade screen's last filter, as its words are typed: its
@@ -7429,7 +7458,7 @@ private slots:
         QCOMPARE(page, QStringList({
             QStringLiteral("LISTS"), QStringLiteral("favorites=Favorites"), QStringLiteral("recent=Recently Played"),
             QStringLiteral("achievements=RetroAchievements"), QStringLiteral("netplay=Playable Online"),
-            QStringLiteral("unknown=Not Recognized"),
+            QStringLiteral("vertical=Vertical Games"), QStringLiteral("unknown=Not Recognized"),
             QStringLiteral("GENRES"), QStringLiteral("genres/Beat 'em Up=Beat 'em Up"),
             QStringLiteral("genres/Fighting=Fighting"), QStringLiteral("genres/Shmup=Shmup"),
             QStringLiteral("PLAYERS"), QStringLiteral("players/1=1 Player"), QStringLiteral("players/2=2 Players"),
@@ -7440,7 +7469,7 @@ private slots:
             QStringLiteral("makers/Rare=Rare off") }));
         // Favorites and Recently Played with no game on them yet.
         QCOMPARE(ids(arcade.filters()), QStringList({
-            QStringLiteral("all"), QStringLiteral("favorites"), QStringLiteral("recent"),
+            QStringLiteral("all"), QStringLiteral("favorites"), QStringLiteral("recent"), QStringLiteral("vertical"),
             QStringLiteral("genres/Beat 'em Up"), QStringLiteral("genres/Fighting"),
             QStringLiteral("genres/Shmup"), QStringLiteral("players/1"), QStringLiteral("players/2"),
             QStringLiteral("players/6"), QStringLiteral("years/1980s"), QStringLiteral("years/1990s"),
@@ -7456,7 +7485,7 @@ private slots:
         core.save_setting(module, QStringLiteral("menu_filters"), shown);
         QCOMPARE(changed.size(), 2);
         QCOMPARE(ids(arcade.filters()), QStringList({
-            QStringLiteral("all"), QStringLiteral("favorites"), QStringLiteral("recent"),
+            QStringLiteral("all"), QStringLiteral("favorites"), QStringLiteral("recent"), QStringLiteral("vertical"),
             QStringLiteral("genres/Beat 'em Up"), QStringLiteral("genres/Shmup"),
             QStringLiteral("players/1"), QStringLiteral("players/2"), QStringLiteral("players/6"),
             QStringLiteral("years/1980s"), QStringLiteral("years/1990s"), QStringLiteral("makers/Namco"),
@@ -7466,15 +7495,16 @@ private slots:
         arcade.startFilterOptions();
         QCOMPARE(ids(options.at(0).at(1).toList()), QStringList({
             QStringLiteral("all"), QStringLiteral("favorites"), QStringLiteral("recent"), QStringLiteral("achievements"),
-            QStringLiteral("netplay"),
+            QStringLiteral("netplay"), QStringLiteral("vertical"),
             QStringLiteral("genres/Beat 'em Up"), QStringLiteral("genres/Shmup"), QStringLiteral("players/1"),
             QStringLiteral("players/2"), QStringLiteral("players/6"), QStringLiteral("years/1980s"),
             QStringLiteral("years/1990s"), QStringLiteral("makers/Namco") }));
 
         // A heading's all at once: the players off, Favorites, Recently
-        // Played, RetroAchievements and Playable Online too, Favorites off
-        // with a game on it as without.
-        for (const char *id : { "players/1", "players/2", "players/6", "favorites", "recent", "achievements", "netplay" })
+        // Played, RetroAchievements, Playable Online and Vertical Games too,
+        // Favorites off with a game on it as without.
+        for (const char *id : { "players/1", "players/2", "players/6", "favorites", "recent", "achievements", "netplay",
+                                "vertical" })
             shown.insert(QLatin1String(id), false);
         core.save_setting(module, QStringLiteral("menu_filters"), shown);
         QCOMPARE(ids(arcade.filters()), QStringList({

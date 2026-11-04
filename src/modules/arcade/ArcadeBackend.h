@@ -898,6 +898,9 @@ private:
     // On, Off, Auto on a tube.
     QString screenShape() const;
     bool integerScale() const;
+    // Settings → Screen → Monitor: "Turned Right" or "Turned Left" for a
+    // monitor on its side, which the games' pictures are turned against.
+    QString monitor() const;
     // A game's shape on the glass, its width over its height: FinalBurn
     // Neo's list's, else 3:4 for a vertical one (machineOf()), else 4:3.
     double gameAspect(const QString &set) const;

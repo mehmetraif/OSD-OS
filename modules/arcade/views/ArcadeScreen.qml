@@ -100,15 +100,26 @@ FocusScope {
     // the keys, nor while the screen is adjusted (InputManager).
     readonly property bool takesCoin: !options.visible && !engines.visible && !typing && !adjusting
 
-    // The design's units.
-    readonly property real u: root.sw / 960
-    readonly property real v: root.sh / 720
+    // On a screen taller than it is wide (a monitor turned on its side for
+    // vertical games: Settings → Screen → Monitor), the whole of it, not the
+    // stage's 4:3 band across its middle (Main.qml's root.portrait): the
+    // screen is moved up by the band's place (transform below), and its own
+    // design is 720 by 960, the picture and the box side by side above the
+    // list. The dialogs keep to the band.
+    readonly property bool portrait: root.portrait
+    transform: Translate { y: arcadeScreen.portrait ? -root.stageY : 0 }
+
+    // The design's units: of 960 by 720, or on a tall screen 720 by 960.
+    readonly property int designW: portrait ? 720 : 960
+    readonly property int designH: portrait ? 960 : 720
+    readonly property real u: root.sw / designW
+    readonly property real v: (portrait ? root.canvasH : root.sh) / designH
 
     // The Orb look: the theme's (root.theme.arcade), where the GPU draws the
     // screen (not Qt Quick's software renderer); drawn once OrbLook.qml has
     // loaded, which it doesn't without Qt Quick 3D (this screen's own then).
     readonly property bool orbWanted: !!root.theme && root.theme.arcade === "orb"
-                                      && GraphicsInfo.api !== GraphicsInfo.Software
+                                      && GraphicsInfo.api !== GraphicsInfo.Software && !portrait
     readonly property bool orb: orbLook.status === Loader.Ready
     // A game starting in it, the camera going into the orb: no key counts.
     readonly property bool launching: orb && orbLook.item.launching
@@ -142,10 +153,14 @@ FocusScope {
     // (Root.qml's screenAdjustment), in the design's units, within what
     // adjustSide() allows (withinLimits()).
     readonly property var adjustment: withinLimits(moduleRoot.screenAdjustment)
-    readonly property int areaLeft: 120 - adjustment.left
-    readonly property int areaTop: 90 - adjustment.top
-    readonly property int areaRight: 840 + adjustment.right
-    readonly property int areaBottom: 645 + adjustment.bottom
+    readonly property int baseLeft: portrait ? 50 : 120
+    readonly property int baseTop: portrait ? 70 : 90
+    readonly property int baseRight: portrait ? 670 : 840
+    readonly property int baseBottom: portrait ? 895 : 645
+    readonly property int areaLeft: baseLeft - adjustment.left
+    readonly property int areaTop: baseTop - adjustment.top
+    readonly property int areaRight: baseRight + adjustment.right
+    readonly property int areaBottom: baseBottom + adjustment.bottom
     readonly property int areaWidth: areaRight - areaLeft
     // Where the list and the column end: above the help line, or above what
     // is in its place.
@@ -160,7 +175,7 @@ FocusScope {
     // The rows under the bar, as many as fit minPitch lines apart (seven with
     // both bars, as the design has it), spread over the room; the wheel's, as
     // many as it holds packed as a wheel is (wheelRows()).
-    readonly property int listTop: areaTop + 57
+    readonly property int listTop: barTop + 57
     readonly property int listRoom: listBottom - listTop
     readonly property int rowHeight: 48
     readonly property int minPitch: 54
@@ -230,22 +245,37 @@ FocusScope {
     readonly property int infoGap: 7
     readonly property int infoPadX: 10
     readonly property int infoPadY: 6
-    readonly property real pictureAspect: 345 / 259
+    // On a tall screen the column lies along the top: the picture at its
+    // left, 3:4 for the vertical games such a screen is for, the box beside
+    // it as tall, and the bar and the list under both, the area's width;
+    // on Search the frame has the whole top for its keys.
+    readonly property real pictureAspect: portrait ? 3 / 4 : 345 / 259
     readonly property int pictureRoom: listBottom - areaTop - infoGap - 2 * infoPadY - textLines
-    readonly property int columnWidth: Math.min(Math.round(345 * areaWidth / 720), Math.floor(pictureRoom * pictureAspect))
-    readonly property int columnX: areaRight - columnWidth
-    readonly property int pictureHeight: Math.round(columnWidth / pictureAspect)
-    readonly property int listWidth: columnX - 20 - areaLeft
-    readonly property int infoTop: areaTop + pictureHeight + infoGap
+    readonly property int columnWidth: portrait ? (filterId === "search" ? areaWidth : Math.round(areaWidth * 0.38))
+                                                : Math.min(Math.round(345 * areaWidth / 720), Math.floor(pictureRoom * pictureAspect))
+    readonly property int columnX: portrait ? areaLeft : areaRight - columnWidth
+    readonly property int pictureHeight: portrait ? Math.round(areaWidth * 0.38 / pictureAspect)
+                                                  : Math.round(columnWidth / pictureAspect)
+    readonly property int listWidth: portrait ? areaWidth : columnX - 20 - areaLeft
+    readonly property int infoTop: portrait ? areaTop : areaTop + pictureHeight + infoGap
+    // The list's bar: at the area's top, or under the column on a tall
+    // screen.
+    readonly property int barTop: portrait ? areaTop + pictureHeight + 14 : areaTop
     // On a room (onRoom) the box has the whole column, from the area's top,
     // where the picture's frame gives way to it, down to the list's foot:
     // what is said of the room takes the frame's room, and its lines start
     // at the box's top (roomTop).
     readonly property int boxTop: onRoom ? areaTop : infoTop
     readonly property int roomTop: areaTop + infoPadY
+    // The box across: under the picture, the column's width; on a tall
+    // screen beside it to the area's right (on a room, the whole top). Its
+    // foot: the list's, or the picture's on a tall screen.
+    readonly property int boxX: portrait && !onRoom ? columnX + columnWidth + 10 : columnX
+    readonly property int boxWidth: portrait ? areaRight - boxX : columnWidth
+    readonly property int boxBottom: portrait ? areaTop + pictureHeight : listBottom
     // The box's inside, across: where its lines start, and their width.
-    readonly property int infoX: columnX + infoPadX
-    readonly property int infoWidth: columnWidth - 2 * infoPadX
+    readonly property int infoX: boxX + infoPadX
+    readonly property int infoWidth: boxWidth - 2 * infoPadX
     // The box's lines, a scorePitch apart, as many as its height holds, in
     // this order: the play time, against its foot; the high scores' heading
     // with the first of them, scoreFirst under it; the next two; then the
@@ -254,7 +284,7 @@ FocusScope {
     readonly property int scoresTop: infoTop + infoPadY
     readonly property int scoreFirst: 32
     readonly property int scorePitch: 29
-    readonly property int playTimeTop: listBottom - infoPadY - textLines
+    readonly property int playTimeTop: boxBottom - infoPadY - textLines
     readonly property int infoLines: Math.max(0, Math.floor((playTimeTop - 3 - textLines - scoresTop - scoreFirst)
                                                             / scorePitch) + 1)
     readonly property int scoreRows: orb ? 3 : Math.min(3, infoLines)
@@ -421,19 +451,19 @@ FocusScope {
     readonly property bool adjusting: !!navParams.adjust
     property bool shrinking: false
     readonly property int adjustStep: 6
-    readonly property int minAreaWidth: 600
-    readonly property int minAreaHeight: 420
+    readonly property int minAreaWidth: portrait ? 480 : 600
+    readonly property int minAreaHeight: portrait ? 640 : 420
 
     // A saved adjustment as adjustSide() could have made it, whatever
     // config.json says: no side out past the screen's edge, and a pair of
     // sides that leaves less than the least room back where the design has
     // them.
     function withinLimits(saved) {
-        var sides = { top: Math.min(90, saved.top), bottom: Math.min(720 - 645, saved.bottom),
-                      left: Math.min(120, saved.left), right: Math.min(960 - 840, saved.right) }
-        if (840 + sides.right - (120 - sides.left) < minAreaWidth)
+        var sides = { top: Math.min(baseTop, saved.top), bottom: Math.min(designH - baseBottom, saved.bottom),
+                      left: Math.min(baseLeft, saved.left), right: Math.min(designW - baseRight, saved.right) }
+        if (baseRight + sides.right - (baseLeft - sides.left) < minAreaWidth)
             sides.left = sides.right = 0
-        if (645 + sides.bottom - (90 - sides.top) < minAreaHeight)
+        if (baseBottom + sides.bottom - (baseTop - sides.top) < minAreaHeight)
             sides.top = sides.bottom = 0
         return sides
     }
@@ -444,7 +474,7 @@ FocusScope {
     function adjustSide(side) {
         var across = side === "left" || side === "right"
         var room = side === "left" ? areaLeft : side === "top" ? areaTop
-                 : side === "right" ? 960 - areaRight : 720 - areaBottom
+                 : side === "right" ? designW - areaRight : designH - areaBottom
         var spare = across ? areaWidth - minAreaWidth : areaBottom - areaTop - minAreaHeight
         var by = shrinking ? -Math.min(adjustStep, Math.max(0, spare)) : Math.min(adjustStep, Math.max(0, room))
         if (by === 0)
@@ -991,7 +1021,7 @@ FocusScope {
     ArcadeBar {
         visible: !arcadeScreen.orb && (arcadeScreen.adjusting || arcadeScreen.filters.length > 0)
         x: Math.round(arcadeScreen.areaLeft * arcadeScreen.u)
-        y: Math.round(arcadeScreen.areaTop * arcadeScreen.v)
+        y: Math.round(arcadeScreen.barTop * arcadeScreen.v)
         width: Math.round(arcadeScreen.listWidth * arcadeScreen.u)
         text: arcadeScreen.adjusting ? "Screen Adjustment" : arcadeScreen.filter ? arcadeScreen.filter.name : ""
         arrows: !arcadeScreen.adjusting && arcadeScreen.filters.length > 1
@@ -1185,9 +1215,13 @@ FocusScope {
         // vertical game's 3:4, upright in the middle); one of another shape (a
         // box, a flyer, a marquee) keeps its own, as big as fits. Each is
         // decoded no bigger than the screen, in its own shape (sourceSize).
-        readonly property real screenHeight: height - 2 * arcadeScreen.frame
-        readonly property real screenWidth: arcadeScreen.details.vertical ? Math.round(screenHeight * 3 / 4)
-                                                                          : width - 2 * arcadeScreen.frame
+        // The game's screen in the frame: as big as fits, in its shape.
+        readonly property real gameShape: arcadeScreen.details.vertical ? 3 / 4 : 4 / 3
+        readonly property real roomWidth: width - 2 * arcadeScreen.frame
+        readonly property real roomHeight: height - 2 * arcadeScreen.frame
+        readonly property bool heightBound: roomHeight > 0 && gameShape < roomWidth / roomHeight
+        readonly property real screenHeight: heightBound ? roomHeight : Math.round(roomWidth / gameShape)
+        readonly property real screenWidth: heightBound ? Math.round(roomHeight * gameShape) : roomWidth
         component Picture: Image {
             id: picture
             readonly property real shape: implicitHeight > 0 ? implicitWidth / implicitHeight : 0
@@ -1292,10 +1326,11 @@ FocusScope {
     Rectangle {
         objectName: "infoBox"
         visible: arcadeScreen.filters.length > 0 && !arcadeScreen.orb
-        x: Math.round(arcadeScreen.columnX * arcadeScreen.u)
+                 && !(arcadeScreen.portrait && arcadeScreen.filterId === "search")
+        x: Math.round(arcadeScreen.boxX * arcadeScreen.u)
         y: Math.round(arcadeScreen.boxTop * arcadeScreen.v)
-        width: Math.round(arcadeScreen.columnWidth * arcadeScreen.u)
-        height: Math.round(arcadeScreen.listBottom * arcadeScreen.v) - y
+        width: Math.round(arcadeScreen.boxWidth * arcadeScreen.u)
+        height: Math.round(arcadeScreen.boxBottom * arcadeScreen.v) - y
         color: arcadeScreen.ground
         border.width: arcadeScreen.frame
         border.color: root.primaryColor
@@ -1514,6 +1549,7 @@ FocusScope {
     // asked, that it is.
     NoGames {
         visible: arcadeScreen.filters.length === 0
+        anchors.verticalCenterOffset: arcadeScreen.portrait ? root.stageY : 0
         reading: arcadeScreen.scanning
         problem: arcadeScreen.problem
         folderReadable: arcadeScreen.folderReadable
@@ -1564,8 +1600,8 @@ FocusScope {
     // In the Orb look, over the orb, which gives way to them.
     readonly property int keysTop: orb ? Math.round(orbY(110)) : areaTop + infoPadY
     readonly property int keysHeight: orb ? Math.round(orbY(380) - orbY(110)) : pictureHeight - 2 * infoPadY
-    readonly property int keysX: orb ? Math.round(orbX(140)) : infoX
-    readonly property int keysWidth: orb ? Math.round(orbX(452) - orbX(140)) : infoWidth
+    readonly property int keysX: orb ? Math.round(orbX(140)) : columnX + infoPadX
+    readonly property int keysWidth: orb ? Math.round(orbX(452) - orbX(140)) : columnWidth - 2 * infoPadX
     readonly property int keysFontSize: Math.min(textSize, Math.floor((keysHeight * v - 2 * root.px - 4) / 8.8))
     OnScreenKeyboard {
         id: searchKeys
@@ -1602,7 +1638,9 @@ FocusScope {
               : arcadeScreen.about
         anchors.bottom: parent.bottom
         anchors.left: parent.left
-        anchors.bottomMargin: root.helpLineMargin + Math.round((645 - arcadeScreen.areaBottom) * arcadeScreen.v)
+        // Over the hint bar's place, the area's foot.
+        anchors.bottomMargin: arcadeScreen.height - Math.round((arcadeScreen.areaBottom - (root.hintBar ? 39 : 0))
+                                                              * arcadeScreen.v)
         anchors.leftMargin: Math.round(arcadeScreen.areaLeft * arcadeScreen.u)
     }
 
@@ -1642,7 +1680,8 @@ FocusScope {
         text: arcadeScreen.hintPairs.map(function(pair) { return pair.key + ":" + pair.word }).join(" ")
         anchors.bottom: parent.bottom
         anchors.left: parent.left
-        anchors.bottomMargin: root.sh * 0.1041667 + Math.round((645 - arcadeScreen.areaBottom) * arcadeScreen.v) //50
+        // On the area's foot (the screen's on a tall one, below the stage).
+        anchors.bottomMargin: arcadeScreen.height - Math.round(arcadeScreen.areaBottom * arcadeScreen.v)
         anchors.leftMargin: Math.round(arcadeScreen.areaLeft * arcadeScreen.u)
     }
 
@@ -1682,8 +1721,8 @@ FocusScope {
         visible: arcadeScreen.adjusting
         x: Math.round(Math.max(0, arcadeScreen.areaLeft - gap) * arcadeScreen.u)
         y: Math.round(Math.max(0, arcadeScreen.areaTop - gap) * arcadeScreen.v)
-        width: Math.round(Math.min(960, arcadeScreen.areaRight + gap) * arcadeScreen.u) - x
-        height: Math.round(Math.min(720, arcadeScreen.areaBottom + gap) * arcadeScreen.v) - y
+        width: Math.round(Math.min(arcadeScreen.designW, arcadeScreen.areaRight + gap) * arcadeScreen.u) - x
+        height: Math.round(Math.min(arcadeScreen.designH, arcadeScreen.areaBottom + gap) * arcadeScreen.v) - y
 
         Rectangle {
             anchors.fill: parent
@@ -1700,9 +1739,9 @@ FocusScope {
                 width: mark.implicitWidth + 4 * root.px
                 height: mark.implicitHeight
                 visible: modelData.across === 0 ? adjustFrame.x >= width
-                         : modelData.across === 1 ? adjustFrame.x + adjustFrame.width + width <= arcadeScreen.width
+                         : modelData.across === 1 ? adjustFrame.x + adjustFrame.width + width <= arcadeScreen.designW * arcadeScreen.u
                          : modelData.down === 0 ? adjustFrame.y >= height
-                         : adjustFrame.y + adjustFrame.height + height <= arcadeScreen.height
+                         : adjustFrame.y + adjustFrame.height + height <= arcadeScreen.designH * arcadeScreen.v
                 x: modelData.across === 0.5 ? Math.round((adjustFrame.width - width) / 2)
                    : modelData.across === 0 ? -width : adjustFrame.width
                 y: modelData.down === 0.5 ? Math.round((adjustFrame.height - height) / 2)
@@ -1721,13 +1760,29 @@ FocusScope {
         }
     }
 
+    // On a tall screen the dialogs keep to the stage's band across its
+    // middle: the ground over the rest of the screen while one is up, as
+    // Main.qml's lies under the views, so that nothing of the screen shows
+    // round it.
+    OsdGround {
+        visible: arcadeScreen.portrait && arcadeScreen.covered
+        cover: false
+        width: root.canvasW
+        height: root.canvasH
+        bandY: root.stageY
+        wholeArea: Qt.rect(0, -root.stageY, root.canvasW, root.canvasH)
+    }
+
     // A game's options: Play, Game Details, its favourite, Play at Startup,
     // its engine where MAME and FinalBurn Neo both have it, with Online Play
     // on, hosting it, and with LAN Play on, hosting it on the local network.
     // RetroArch's whole lobby is a filter of its own.
     EntryOptions {
         id: options
-        anchors.fill: parent
+        // On the stage, which a tall screen's design is moved up from.
+        y: arcadeScreen.portrait ? root.stageY : 0
+        width: parent.width
+        height: parent.height
         moduleId: moduleRoot.moduleId
         firstChoices: [{ label: "Play", action: "play" }, { label: "Game Details", action: "details" }]
         // Made as the options open, not for every game the cursor passes.
@@ -1755,7 +1810,9 @@ FocusScope {
     }
     EngineChooser {
         id: engines
-        anchors.fill: parent
+        y: arcadeScreen.portrait ? root.stageY : 0
+        width: parent.width
+        height: parent.height
         onEngineChosen: arcadeScreen.revision++
         onClosed: arcadeScreen.forceActiveFocus()
     }

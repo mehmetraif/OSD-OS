@@ -38,6 +38,13 @@ Item {
     // behind the menus, which then shows there whole.
     property bool surround: true
 
+    // Where the stage's top lies in this ground's parent, and the whole of
+    // the screen in the stage's coordinates: the stage itself for a layer on
+    // it; Main.qml's, under the views, is the screen's on a screen taller
+    // than wide, the stage a band across its middle (root.stageY down).
+    property real bandY: 0
+    property rect wholeArea: Qt.rect(0, 0, root.sw, root.sh)
+
     readonly property bool windowed: root.osdBackground === "Window"
     readonly property bool framed: root.osdFrame !== "Off"
     // A DOS window's shadow, a few art pixels deep both ways, dithered: it
@@ -68,7 +75,7 @@ Item {
         Dither {
             required property rect modelData
             x: modelData.x - ground.x
-            y: modelData.y - ground.y
+            y: modelData.y + ground.bandY - ground.y
             width: modelData.width
             height: modelData.height
             color: ground.surround ? root.surfaceColor : "#000000"
@@ -81,7 +88,7 @@ Item {
     Rectangle {
         visible: ground.windowed
         x: root.osdWindow.x - ground.x
-        y: root.osdWindow.y - ground.y
+        y: root.osdWindow.y + ground.bandY - ground.y
         width: root.osdWindow.width
         height: root.osdWindow.height
         // The skin's frame draws the window whole, its middle too: what the
@@ -104,16 +111,16 @@ Item {
     // one; or, for a theme's along the foot ("area": "foot"), from the
     // screen's foot up through the window.
     BackgroundFx {
-        readonly property rect win: ground.windowed ? root.osdWindow : Qt.rect(0, 0, root.sw, root.sh)
+        readonly property rect win: ground.windowed ? root.osdWindow : ground.wholeArea
         readonly property var border: ground.windowed && ground.framed
                                       ? (skinnedFrame.shown ? root.skin.window.border : [1, 1, 1, 1]) : [0, 0, 0, 0]
         area: root.backgroundEffect.area === "foot"
-              ? Qt.rect(win.x, win.y, win.width, root.sh - win.y)
+              ? Qt.rect(win.x, win.y, win.width, ground.wholeArea.y + ground.wholeArea.height - win.y)
               : Qt.rect(win.x + border[0] * root.px, win.y + border[1] * root.px,
                         win.width - (border[0] + border[2]) * root.px,
                         win.height - (border[1] + border[3]) * root.px)
         x: area.x - ground.x
-        y: area.y - ground.y
+        y: area.y + ground.bandY - ground.y
         width: area.width
         height: area.height
     }

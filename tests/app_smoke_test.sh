@@ -10,8 +10,11 @@
 # folder instead: the app takes it as it starts, says what became of it
 # (views/SetupNotice.qml), and its setting is in config.json, the file gone.
 # With --layout=<name>, the main menu in that Menu Layout (Settings → Look →
-# Menu Layout: Camcorder, Studio Monitor, Broadcast, Flat Panel).
-#   app_smoke_test.sh <osdos> <repository> <Qt's QML folder> [module folder | --setup | --layout=<name>]
+# Menu Layout: Camcorder, Studio Monitor, Broadcast, Flat Panel). With
+# --monitor=<name>, the Arcade module's screen on a monitor turned on its
+# side (Settings → Screen → Monitor: Turned Right, Turned Left), drawn in its
+# tall layout and turned with the rest.
+#   app_smoke_test.sh <osdos> <repository> <Qt's QML folder> [module folder | --setup | --layout=<name> | --monitor=<name>]
 # Skipped (77) without the app, which is built apart from the tests (build/),
 # and for a module that imports a QML module of Qt's this Qt doesn't have.
 set -u
@@ -30,6 +33,16 @@ if [ "$FOLDER" = "--setup" ]; then
     VIEW="views/SetupNotice.qml"
     SOURCES=("$ROOT/Main.qml" "$ROOT/views")
     CONFIG='{"app": {"color_scheme": "Video 1"}, "modules": {}}'
+elif [ "${FOLDER#--monitor=}" != "$FOLDER" ]; then
+    MONITOR="${FOLDER#--monitor=}"
+    MANIFEST="$ROOT/modules/arcade/manifest.json"
+    ID=$(id "$MANIFEST")
+    ENTRY=$(sed -n 's/^ *"entry_point_qml": *"\([^"]*\)".*/\1/p' "$MANIFEST" | head -n 1)
+    [ -n "$ID" ] && [ -n "$ENTRY" ] || { echo "FAIL: no id or entry point in $MANIFEST"; exit 1; }
+    WHAT="the Arcade module on a monitor $MONITOR"
+    VIEW="modules/arcade/$ENTRY"
+    SOURCES=("$ROOT/Main.qml" "$ROOT/views" "$ROOT/modules/arcade")
+    CONFIG="{\"app\": {\"startup_module\": \"$ID\", \"monitor\": \"$MONITOR\"}, \"modules\": {\"$ID\": {\"enabled\": true}}}"
 elif [ -n "$FOLDER" ] && [ "${FOLDER#--layout=}" = "$FOLDER" ]; then
     MANIFEST="$ROOT/modules/$FOLDER/manifest.json"
     ID=$(id "$MANIFEST")

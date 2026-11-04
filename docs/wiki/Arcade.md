@@ -178,6 +178,7 @@ On a CRT, move each side to where the tube's edge cuts the picture off (its over
 | **RetroArch Lobby** | With **Online Play** on and games in the folder: every game hosted in RetroArch's lobby, of every core, with who hosts it, the box on the right saying what the lobby says of it; there while no one hosts a game, or the lobby can't be reached, to say so ([Online play](https://github.com/mehmetraif/OSD-OS/wiki/Online-and-LAN-Play#online-play)) |
 | **RetroAchievements** | With **Online High Scores** on RetroAchievements and a Web API key: the games you can earn achievements or a leaderboard's scores in, by name. A game is on it when RetroAchievements has achievements or a leaderboard for its set, as its site lists each set by its MD5 (of the file's name: a clone needs its own), and it plays in FinalBurn Neo, so a game set to MAME in its options leaves it ([FinalBurn Neo](#finalburn-neo)) |
 | **Playable Online** | With **Online Play** on and FinalBurn Neo installed: the games you can play with others through RetroArch, by name: those FinalBurn Neo has, which you can host from a game's options or join when someone hosts them, and which your machine has the memory to host ([Online play](https://github.com/mehmetraif/OSD-OS/wiki/Online-and-LAN-Play#online-play)). A game set to MAME in its options is on it too, as a game played online always plays in FinalBurn Neo ([Online play](https://github.com/mehmetraif/OSD-OS/wiki/Online-and-LAN-Play#online-play)) |
+| **Vertical Games** | The games whose screen stood upright in their cabinets, taller than wide (most shmups: 1942, Galaga, DoDonPachi), as MAME or FinalBurn Neo's list has them: the ones a monitor turned on its side is for ([below](#a-monitor-on-its-side-tate)) |
 | A genre (**Beat 'em Up**, **Fighting**, **Shmup**, **Run and Gun**…) | The games of that genre, by catver.ini ([below](#genres)) |
 | **1 Player**, **2 Players**… | The games for that many players at once |
 | **1980s**, **1990s**… | The games of each decade, **Year Unknown** last |
@@ -209,7 +210,7 @@ Search finds a game by its name as it is typed. It is the last filter, and while
 
 <img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/screenshots/arcade-menu-filters.png" width="100%" alt="Settings / Arcade / Menu Filters: the LISTS heading over Favorites, Recently Played, RetroAchievements, Playable Online and Not Recognized, ON; the GENRES heading selected, over Beat 'em Up, ON; the help line: Turns all of the choices under it on or off" />
 
-**Settings → Arcade → Menu Filters** chooses the filters ◄ ► goes round. Its page lists them under five headings, each with the ones the games in the folder have: **Lists** (Favorites, Recently Played, RetroAchievements, Playable Online, Not Recognized), **Genres**, **Players**, **Years** and **Publishers**.
+**Settings → Arcade → Menu Filters** chooses the filters ◄ ► goes round. Its page lists them under five headings, each with the ones the games in the folder have: **Lists** (Favorites, Recently Played, RetroAchievements, Playable Online, Vertical Games, Not Recognized), **Genres**, **Players**, **Years** and **Publishers**.
 
 - ◄, ► or select on a filter turns it **ON** or **OFF**.
 - On a heading, they turn every filter under it on at once, or off once they all are on.
@@ -314,6 +315,20 @@ sudo reboot
 ```
 
 Running `install.sh` again does the same, with whatever else a newer release needs of the system ([Installation → Updating with install.sh](https://github.com/mehmetraif/OSD-OS/wiki/Installation#updating-with-installsh)). An image built without a password has no `sudo` ([The user, its password and sudo](https://github.com/mehmetraif/OSD-OS/wiki/The-OSD-OS-Image#the-user-its-password-and-sudo)): flash the image of 0.0.31 or later instead, after copying your games and films off the card's **OSD-OS** partition.
+
+### A monitor on its side (TATE)
+
+<img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/screenshots/arcade-tate.png" width="360" alt="The Arcade screen on a monitor turned on its side: the game's picture, upright and 3:4, at the top left beside the box of its high scores and details, the bar and the games under them across the screen's width, the help line and the hint bar at the foot" />
+
+Most shmups stood upright in their cabinets: their monitor was turned on its side, so that the screen is taller than wide. On a horizontal screen such a game is drawn upright in the middle, small, with black on either side, and on a 15 kHz tube its 256 to 320 lines are squeezed into the 240 the tube has. **Settings → Screen → Monitor** says that your monitor is turned the same way: **Turned Right** with its top on the right as you face it, **Turned Left** on the left.
+
+- **The games** are turned to stand upright on it: MAME with `-rol` or `-ror`, RetroArch with its own rotation (`video_rotation`), on top of the turn a vertical game already has. A vertical game then fills the screen with its own lines, as in its cabinet, and on a 15 kHz tube they are its lines whole (Integer Scale); a horizontal game lies across the screen's middle.
+- **The Arcade screen** takes the whole of the tall screen in a layout of its own: the game's picture at the top left, 3:4 for the vertical games such a screen is for, the box of its high scores and details beside it, and the bar and the games under them, across the screen's width. Its dialogs (a game's options, the engines) open across the screen's middle. The Orb look is drawn for a screen wider than tall: on one turned, the Arcade screen is drawn in its own look.
+- **The menus** keep their 4:3 design, as wide as the screen, in a band across its middle.
+- **Videos** are turned too. One played in OSD/OS's window (Transparent Background) is turned with its subtitles and mpv's displays; one played in mpv's own (the default) has its picture turned, its subtitles and mpv's displays lying across the screen as it is.
+- **The controls** stay as they are: the sticks don't turn with the monitor.
+
+The Pi's display can't turn a picture a quarter turn itself, so each program turns its own. A desktop's monitor is turned in the system's display settings instead: OSD/OS then sees a screen taller than wide, and lays the menus and the Arcade screen out for it in the same way, with nothing to turn. The **Vertical Games** filter lists the games for such a screen ([Filters](#filters)).
 
 ## Game Details
 
@@ -525,8 +540,8 @@ Settings → Arcade, the second row of Settings' first screen. The page is share
 | `enabled`, `border`, `hint_bar`, `help_line`, `start_info`, `high_scores` | `true` or `false` |
 | `games_directory` | `""` for the default, else the folder's full path |
 | `screen` | `"Original"` or `"Arcade"` |
-| `start_filter` | The filter's id: `"all"`, `"favorites"`, `"recent"`, `"lan"` (LAN Games), `"online"` (Online Games), `"lobby"` (RetroArch Lobby), `"achievements"` (RetroAchievements), `"netplay"` (Playable Online), `"genres/<genre>"` (`"genres/Fighting"`), `"players/<n>"` (`"players/2"`), `"years/<decade>"` (`"years/1980s"`, `"years/unknown"`) or `"makers/<publisher>"` (`"makers/Capcom"`) |
-| `menu_filters` | The filters turned on or off, by id: `{ "genres/Puzzle": false, "makers/Capcom": true }`, `"achievements"` for RetroAchievements, `"netplay"` for Playable Online and `"unknown"` for Not Recognized. One not in it is on, but a publisher's |
+| `start_filter` | The filter's id: `"all"`, `"favorites"`, `"recent"`, `"lan"` (LAN Games), `"online"` (Online Games), `"lobby"` (RetroArch Lobby), `"achievements"` (RetroAchievements), `"netplay"` (Playable Online), `"vertical"` (Vertical Games), `"genres/<genre>"` (`"genres/Fighting"`), `"players/<n>"` (`"players/2"`), `"years/<decade>"` (`"years/1980s"`, `"years/unknown"`) or `"makers/<publisher>"` (`"makers/Capcom"`) |
+| `menu_filters` | The filters turned on or off, by id: `{ "genres/Puzzle": false, "makers/Capcom": true }`, `"achievements"` for RetroAchievements, `"netplay"` for Playable Online, `"vertical"` for Vertical Games and `"unknown"` for Not Recognized. One not in it is on, but a publisher's |
 | `play_at_startup` | The game's set (`"galaga"`), `""` for None; the app's own `startup_favorite` holds the same game, and either changes the other |
 | `list_style` | `"Straight"`, `"Curved"` or `"3D Curved"` |
 | `attract_mode` | `"Off"`, `"In Order"` or `"Random"` |

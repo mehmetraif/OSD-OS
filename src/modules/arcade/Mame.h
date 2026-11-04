@@ -91,9 +91,13 @@ private:
 // least one of each fits in the screen's (screenLines): a game with more is
 // spread over them, as MAME would otherwise draw it once and cut it. fill
 // (Game Picture on Fit to Screen): the picture stretched over the whole
-// screen, whatever its shape, and none of the rest.
+// screen, whatever its shape, and none of the rest. monitor: Settings →
+// Screen → Monitor, a monitor turned on its side ("Turned Right", "Turned
+// Left"), against which the picture is turned to stand upright on it (-rol,
+// -ror): a vertical game's lines then lie along the screen's, a horizontal
+// game's width across them.
 QStringList screenArguments(const Machine &machine, int screenLines, const QString &shape, bool integer,
-                            bool fill = false);
+                            bool fill = false, const QString &monitor = QString());
 
 // A set's file or folder name MAME may know: letters, digits and underscores
 // only. Anything else (a space, a wildcard MAME would match against every
