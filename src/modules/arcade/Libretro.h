@@ -177,6 +177,11 @@ struct Launch {
     // core's on square ones; and its lines drawn whole where they fit.
     double  aspect = 0;
     bool    integerScale = false;
+    // Settings → Screen → Monitor on its side: the picture turned by so many
+    // quarter turns anticlockwise (video_rotation) to stand upright on it,
+    // 1 for a monitor turned right, 3 for one turned left; aspect is then
+    // the turned picture's.
+    int     rotation = 0;
     // Game Picture on Fit to Screen: the picture stretched over the whole
     // screen, whatever its shape (aspect_ratio_index 24, Full), aspect and
     // integerScale aside.

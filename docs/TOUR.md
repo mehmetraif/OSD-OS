@@ -140,6 +140,12 @@ Once signed in, each opens on the server's Continue Watching and its libraries. 
 <tr><td>Which filters ◄ ► go through: lists, genres, players, decades and makers, under headings that turn a whole group on or off.</td><td>The screen's frame moved to a tube's edges, live, with the arrows: the Arcade screen fits inside it.</td></tr>
 </table>
 
+<table>
+<tr><th>On a monitor turned on its side</th></tr>
+<tr><td><img src="screenshots/arcade-tate.png" width="360" alt="The Arcade screen on a monitor turned on its side: the game's picture, upright and 3:4, at the top left beside the box of its high scores and details, the bar and the games under them across the screen's width" /></td></tr>
+<tr><td>Settings → Screen → Monitor turned right or left, for vertical games (TATE): the Arcade screen takes the whole tall screen, the menus and the games are turned to stand upright on it, and a shmup fills it with its own lines.</td></tr>
+</table>
+
 ### The Orb look
 
 <table>
@@ -321,7 +327,7 @@ Settings → Look → Menu Layout draws Settings and the main menu as a list (ab
 <table>
 <tr><th width="50%">Channel Logo</th><th width="50%">Under the menus</th></tr>
 <tr><td><img src="screenshots/channel-logo.png" width="100%" alt="Channel Logo" /></td><td><img src="screenshots/channel-logo-menu.png" width="100%" alt="The logo under the menus" /></td></tr>
-<tr><td>OSD/OS's logo in a corner of the picture while a video plays, the way a channel's sits in a broadcast. Settings → TV / Movie → Channel Logo picks the corner, all four, or none.</td><td>It is in the picture itself, so with Transparent Background the menus lie over it.</td></tr>
+<tr><td>OSD/OS's logo in a corner of the picture while a video plays, the way a channel's sits in a broadcast. It is off at first: Settings → TV / Movie → Channel Logo picks the corner, all four, or none.</td><td>It is in the picture itself, so with Transparent Background the menus lie over it.</td></tr>
 </table>
 
 <table>

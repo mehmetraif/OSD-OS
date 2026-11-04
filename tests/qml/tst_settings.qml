@@ -277,12 +277,12 @@ Rectangle {
                                        "Status Icons"] },
                 { tag: "effects", lines: ["Text Effect", "Background Effect", "Selector Effect", "Screen Effect",
                                           "Transition"] },
-                { tag: "screen", lines: ["Display Output", "Test Patterns", "Screen Saver", "Mouse Pointer",
+                { tag: "screen", lines: ["Display Output", "Monitor", "Test Patterns", "Screen Saver", "Mouse Pointer",
                                          "Window Mode"] },
                 { tag: "sound", lines: ["Audio Output", "Menu Music", "Music File", "Music Volume"] },
                 { tag: "network", lines: ["Wi-Fi", "Bluetooth"] },
                 { tag: "startup", lines: ["Start on Module", "Play at Startup", "Startup From", "Cabinet Lock"] },
-                { tag: "system", lines: ["Paste OSD/OS Setup", "Update", "About", "# Modules", "Scripts", "Radio"] }
+                { tag: "system", lines: ["Paste OSD/OS Setup", "Export to OSD/OS Setup", "Update", "About", "# Modules", "Scripts", "Radio"] }
             ]
         }
         function test_pages(data) {
@@ -353,7 +353,8 @@ Rectangle {
             verify(page.offReason(lines(page).indexOf("Display Output")) !== "")
         }
 
-        // Paste OSD/OS Setup, on System's page before Update, used where
+        // Paste OSD/OS Setup, on System's page before Export to OSD/OS Setup
+        // and Update, used where
         // there is a clipboard to paste from (not the Pi's own console):
         // select hands the clipboard's text to AppCore, the notice it answers
         // with shows over the rows, made again as they are now, and back
@@ -362,7 +363,8 @@ Rectangle {
             var page = open({ group: "system" })
             var all = lines(page)
             compare(page.canPaste, Qt.platform.pluginName !== "eglfs" && Qt.platform.pluginName !== "linuxfb")
-            compare(all.indexOf("Paste OSD/OS Setup") + 1, all.indexOf("Update"))
+            compare(all.indexOf("Paste OSD/OS Setup") + 1, all.indexOf("Export to OSD/OS Setup"))
+            compare(all.indexOf("Export to OSD/OS Setup") + 1, all.indexOf("Update"))
             compare(page.offReason(all.indexOf("Paste OSD/OS Setup")) === "", page.canPaste)
             if (!page.canPaste)
                 return
@@ -547,9 +549,9 @@ Rectangle {
             loader.source = ""
             page = open({ group: "system" })
             list = listOf(page)
-            hover(middle(list.itemAtIndex(2)))
-            compare(cursor(page), "About")
             hover(middle(list.itemAtIndex(3)))
+            compare(cursor(page), "About")
+            hover(middle(list.itemAtIndex(4)))
             compare(cursor(page), "About")
         }
 

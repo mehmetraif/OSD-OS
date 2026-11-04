@@ -206,6 +206,12 @@ Rectangle {
         // choices made.
         property var fbneoSets: []
         property var engines: ({})
+        // A game's difficulty's settings, by set (difficultyChoices()), and
+        // the one chosen for each.
+        property var difficultySettings: ({})
+        property var difficulties: ({})
+        // A vertical game's own monitor, by set (monitorChoices()).
+        property var monitors: ({})
         property var engineChoicesMade: []
         // FinalBurn Neo's page, and the RetroAchievements account's.
         property var fbneo: ({})
@@ -355,6 +361,35 @@ Rectangle {
                     { id: "mame", label: "MAME", current: engines[set] === "mame" },
                     { id: "fbneo", label: "FinalBurn Neo", current: engines[set] === "fbneo" }]
         }
+        function difficultyChoices(set) {
+            var settings = difficultySettings[set] || []
+            if (engineOf(set) !== "mame")
+                return []
+            var chosen = difficulties[set] || settings[0]
+            return settings.map(function(name) { return { id: name, label: name, current: name === chosen } })
+        }
+        function monitorChoices(set) {
+            var details = gameInfo[set]
+            if (!details || !details.vertical)
+                return []
+            var chosen = monitors[set] || "default"
+            return ["default", "Turned Right", "Turned Left"].map(function(id) {
+                return { id: id, label: id === "default" ? "Default (Horizontal)" : id, current: id === chosen }
+            })
+        }
+        function setMonitor(set, monitor) {
+            var map = Object.assign({}, monitors)
+            if (monitor === "default")
+                delete map[set]
+            else
+                map[set] = monitor
+            monitors = map
+        }
+        function setDifficulty(set, name) {
+            var map = Object.assign({}, difficulties)
+            map[set] = name
+            difficulties = map
+        }
         function setEngine(set, engine) {
             engineChoicesMade = engineChoicesMade.concat([set + "=" + engine])
             var map = Object.assign({}, engines)
@@ -482,6 +517,9 @@ Rectangle {
             arcadeBackend.fbneoSets = []
             arcadeBackend.engines = {}
             arcadeBackend.engineChoicesMade = []
+            arcadeBackend.difficultySettings = {}
+            arcadeBackend.difficulties = {}
+            arcadeBackend.monitors = {}
             arcadeBackend.fbneo = { retroarch: "/usr/bin/retroarch", core: "", coreDate: "", downloaded: false,
                                     games: 0, license: "", canDownload: true, canDownloadRetroarch: false,
                                     retroarchDownloadVersion: "1.20.0", retroarchDownloaded: false }
@@ -1031,6 +1069,66 @@ Rectangle {
             compare(findText(screen, "Engine:"), null)
         }
 
+        // A game's options: Play first, a line the cursor passes over, then
+        // what is set for it: a vertical game's monitor, which it is played
+        // and hosted with, and a MAME game's difficulty from its DIP switch,
+        // each chosen and kept; neither for a game without them.
+        function test_screenMonitorAndDifficulty() {
+            arcadeBackend.difficultySettings = { "1942": ["Normal", "Easy", "Hard"] }
+            var screen = openScreen()
+            keyPress(Qt.Key_Return)
+            tryVerify(function() { return findText(screen, "Add to Favorites") !== null }, 1500)
+            keyRelease(Qt.Key_Return)
+            compare(screen.currentSet, "sf2")
+            compare(findText(screen, "Monitor:"), null)      // not vertical
+            compare(findText(screen, "Difficulty:"), null)   // no switch
+            keyClick(Qt.Key_Escape)
+            keyClick(Qt.Key_Down)
+            compare(screen.currentSet, "1942")
+            keyPress(Qt.Key_Return)
+            tryVerify(function() { return findText(screen, "Game Details") !== null }, 1500)
+            keyRelease(Qt.Key_Return)
+            // Over the line to Game Details, and back to Play.
+            keyClick(Qt.Key_Down)
+            keyClick(Qt.Key_Up)
+            keyClick(Qt.Key_Down)
+            keyClick(Qt.Key_Return)
+            compare(root.navigations[root.navigations.length - 1].path, "Details.qml")
+
+            loader.source = ""
+            root.navigations = []
+            screen = openScreen()
+            keyClick(Qt.Key_Down)
+            keyPress(Qt.Key_Return)
+            tryVerify(function() { return findText(screen, "Difficulty: Normal") !== null }, 1500)
+            keyRelease(Qt.Key_Return)
+            verify(findText(screen, "Monitor: Default (Horizontal)") !== null)
+            // The last of them, round from Play: Difficulty, then Monitor.
+            keyClick(Qt.Key_Up)
+            keyClick(Qt.Key_Return)
+            tryVerify(function() { return findText(screen, "Hard", true) !== null }, 1000)
+            keyClick(Qt.Key_Down)
+            keyClick(Qt.Key_Down)
+            keyClick(Qt.Key_Return)
+            compare(arcadeBackend.difficulties["1942"], "Hard")
+            keyPress(Qt.Key_Return)
+            tryVerify(function() { return findText(screen, "Difficulty: Hard") !== null }, 1500)
+            keyRelease(Qt.Key_Return)
+            keyClick(Qt.Key_Up)
+            keyClick(Qt.Key_Up)     // Monitor
+            keyClick(Qt.Key_Return)
+            tryVerify(function() { return findText(screen, "Turned Left", true) !== null }, 1000)
+            keyClick(Qt.Key_Down)
+            keyClick(Qt.Key_Down)
+            keyClick(Qt.Key_Return)
+            compare(arcadeBackend.monitors["1942"], "Turned Left")
+            keyPress(Qt.Key_Return)
+            tryVerify(function() { return findText(screen, "Monitor: Turned Left") !== null }, 1500)
+            keyRelease(Qt.Key_Return)
+            keyClick(Qt.Key_Escape)
+            compare(root.navigations.length, 0)
+        }
+
         // FinalBurn Neo's page: RetroArch there, the core not; Download
         // starts it and shows how far it has got; once it is in, the core's
         // date and its games, its licence left to About.
@@ -1471,6 +1569,8 @@ Rectangle {
             keyClick(Qt.Key_Right)  // into it, on Galaga
             keyClick(Qt.Key_Right)  // its options
             verify(findText(games, "Game Details", true) !== null)
+            // A vertical game's monitor among what is set for it.
+            verify(findText(games, "Monitor: Default (Horizontal)", true) !== null)
             keyClick(Qt.Key_Return)
             compare(root.navigations.length, 1)
             compare(root.navigations[0].path, "Details.qml")
@@ -1661,15 +1761,14 @@ Rectangle {
             compare(root.navigations[0].params.game, "sf2")
             compare(root.navigations[0].params.online.room, 11)
             compare(root.navigations[0].params.online.host, "ann")
-            // Pac-Man, in Favorites: hosted from its options, the last of
-            // them.
+            // Pac-Man, in Favorites: hosted from its options, the first of
+            // them, as it starts the game.
             keyClick(Qt.Key_Left)
             keyClick(Qt.Key_Down)
             keyClick(Qt.Key_Down)
             keyClick(Qt.Key_Right)
             keyClick(Qt.Key_Right)
             tryVerify(function() { return findText(games, "Host Online Game") !== null }, 1000)
-            keyClick(Qt.Key_Up)
             keyClick(Qt.Key_Return)
             compare(root.navigations.length, 2)
             compare(root.navigations[1].params.game, "pacman")
@@ -1708,7 +1807,7 @@ Rectangle {
             keyPress(Qt.Key_Return)
             tryVerify(function() { return findText(screen, "Host Online Game") !== null }, 1500)
             keyRelease(Qt.Key_Return)
-            keyClick(Qt.Key_Up)
+            keyClick(Qt.Key_Down)   // after Play, with what starts the game
             keyClick(Qt.Key_Return)
             compare(root.navigations.length, 2)
             compare(root.navigations[1].params.game, "sf2")
@@ -2134,7 +2233,6 @@ Rectangle {
             keyClick(Qt.Key_Right)
             tryVerify(function() { return findText(games, "Host LAN Game") !== null }, 1000)
             compare(findText(games, "Host Online Game"), null)
-            keyClick(Qt.Key_Up)
             keyClick(Qt.Key_Return)
             compare(root.navigations.length, 2)
             compare(root.navigations[1].params.game, "pacman")
@@ -2219,7 +2317,7 @@ Rectangle {
             tryVerify(function() { return findText(screen, "Host LAN Game") !== null }, 1500)
             keyRelease(Qt.Key_Return)
             compare(findText(screen, "Host Online Game"), null)
-            keyClick(Qt.Key_Up)
+            keyClick(Qt.Key_Down)   // after Play, with what starts the game
             keyClick(Qt.Key_Return)
             compare(root.navigations.length, 2)
             compare(root.navigations[1].params.game, "sf2")

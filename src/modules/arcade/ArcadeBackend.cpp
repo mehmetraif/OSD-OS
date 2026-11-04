@@ -46,8 +46,11 @@ const QString kModuleId = QStringLiteral("com.osdos.arcade");
 // games.json's layout: of one of another, only the sets MAME had no machine
 // of are read, kept apart as every set is asked about again (2: each
 // machine's source file, for its system; 3: its screen's size, for its
-// picture on a tube).
-constexpr int kCacheVersion = 3;
+// picture on a tube; 4: its difficulty's DIP switch, for its options).
+constexpr int kCacheVersion = 4;
+
+// The most favourites the list keeps, as EntryOptions adds them.
+constexpr int kMostFavorites = 100;
 
 // The most credits a game is started with, as most games show at most 9.
 constexpr int kMaxCredits = 9;
@@ -158,7 +161,7 @@ const char *const kFolderKinds[] = { "players", "years", "makers" };
 // two), and Not Recognized after, which the tree has too.
 constexpr std::pair<const char *, const char *> kLists[] = {
     { "favorites", "Favorites" }, { "recent", "Recently Played" }, { "achievements", "RetroAchievements" },
-    { "netplay", "Playable Online" },
+    { "netplay", "Playable Online" }, { "vertical", "Vertical Games" },
 };
 constexpr std::pair<const char *, const char *> kUnknown = { "unknown", "Not Recognized" };
 // The lists kept here, Favorites and Recently Played, which the Arcade
@@ -703,7 +706,8 @@ ArcadeBackend::ArcadeBackend(const QString &appRoot, const QString &dataRoot, Ap
     // The module's settings as they stand. games.json waits for the list to
     // open (refresh()): with a full set of MAME's games it is megabytes.
     for (const char *key : { "games_directory", "hide_bootlegs", "regions", "high_scores", "video", "screen_shape",
-                             "integer_scale", "game_picture", "menu_filters", "online_high_scores", "online_play", "engines",
+                             "integer_scale", "game_picture", "vertical_monitor", "difficulties", "monitors",
+                             "menu_filters", "online_high_scores", "online_play", "engines",
                              "online_name", "relay_server", "lan_play", "pictures_source" }) {
         const QString k = QLatin1String(key);
         applySetting(k, m_appCore ? m_appCore->get_setting(kModuleId, k) : QVariant());
@@ -747,9 +751,11 @@ ArcadeBackend::ArcadeBackend(const QString &appRoot, const QString &dataRoot, Ap
         syncStartupGame();
     }
 
-    // An account OSD/OS Setup brought, taken once the event loop runs.
+    // An account OSD/OS Setup brought, taken once the event loop runs; its
+    // favourites once the games have been read.
     m_setupRetryMs = kSetupRetryMs;
     QTimer::singleShot(0, this, &ArcadeBackend::takeSetupAccount);
+    QTimer::singleShot(0, this, &ArcadeBackend::afterReadTakeSetupFavorites);
 }
 
 ArcadeBackend::~ArcadeBackend() {
@@ -836,6 +842,9 @@ void ArcadeBackend::applySetting(const QString &key, const QVariant &value) {
         m_integerScale = scale == QLatin1String("On") || scale == QLatin1String("Off") ? scale : QString();
     } else if (key == QLatin1String("game_picture")) {
         m_fitScreen = value.toString() == QLatin1String("Fit to Screen");
+    } else if (key == QLatin1String("vertical_monitor")) {
+        const QString turn = value.toString();
+        m_verticalMonitor = turn == QLatin1String("Turned Right") || turn == QLatin1String("Turned Left") ? turn : QString();
     } else if (key == QLatin1String("menu_filters")) {
         // Saved whole at every change (MultiSelectSettings.qml).
         m_menuFilters = value.toMap();
@@ -863,6 +872,12 @@ void ArcadeBackend::applySetting(const QString &key, const QVariant &value) {
         }
         emit gamesChanged();
         emit statusIconsChanged();
+    } else if (key == QLatin1String("difficulties")) {
+        // Saved whole by setDifficulty().
+        m_difficulties = value.toMap();
+    } else if (key == QLatin1String("monitors")) {
+        // Saved whole by setMonitor().
+        m_monitors = value.toMap();
     } else if (key == QLatin1String("engines")) {
         // Saved whole by setEngine(). A game moved to MAME leaves the
         // RetroAchievements filter.
@@ -1782,7 +1797,8 @@ QStringList ArcadeBackend::filterSets(const QString &filter) const {
     // Search's own row, then the games found.
     if (filter == QLatin1String("search"))
         return searchRows();
-    if (filter == QLatin1String("achievements") || filter == QLatin1String("netplay"))
+    if (filter == QLatin1String("achievements") || filter == QLatin1String("netplay")
+        || filter == QLatin1String("vertical"))
         return madeSets(filter);
     const Index &games = index();
     if (filter == QLatin1String("all"))
@@ -2930,8 +2946,14 @@ void ArcadeBackend::startupGameOptions() {
         if (!path.startsWith(QLatin1String("game:")))
             continue;
         const QString set = path.mid(5);
-        const QString name = entry.value(QStringLiteral("name")).toString();
-        games.append({ mame::titleOf(name.isEmpty() ? set : name), set });
+        // One put there without a title (OSD/OS Setup's, an import, before
+        // MAME had said what it is): MAME's.
+        QString name = entry.value(QStringLiteral("name")).toString();
+        if (name.isEmpty()) {
+            const mame::Machine *machine = machineOf(set);
+            name = machine && !machine->description.isEmpty() ? machine->description : set;
+        }
+        games.append({ mame::titleOf(name), set });
     }
     std::sort(games.begin(), games.end(), [](const auto &a, const auto &b) {
         return a.first.compare(b.first, Qt::CaseInsensitive) < 0;
@@ -3190,6 +3212,22 @@ bool ArcadeBackend::play(const QString &name, int credits) {
     // with their Arcade Buttons.
     for (const char *dir : { "cfg", "nvram", "ctrlr" })
         QDir().mkpath(m_home + QLatin1Char('/') + QLatin1String(dir));
+    // The difficulty chosen in its options (difficultyChoices()), set in the
+    // game's own cfg file, which MAME reads as it starts and keeps; a game
+    // never set leaves the file as it is, as MAME's own menu set it.
+    if (m_difficulties.contains(name)) {
+        const mame::Machine *machine = machineOf(name);
+        if (machine && machine->difficulty.isValid()) {
+            const QString path = m_home + QStringLiteral("/cfg/") + name + QStringLiteral(".cfg");
+            QFile cfg(path);
+            const QByteArray before = cfg.open(QIODevice::ReadOnly) ? cfg.read(4 * 1024 * 1024) : QByteArray();
+            cfg.close();
+            const QByteArray after = mame::withDip(before, name, machine->difficulty,
+                                                   machine->difficulty.valueOf(m_difficulties.value(name).toString()));
+            if (after != before && !writeFileAnew(path, after))
+                qWarning("[Arcade] The difficulty couldn't be set in %s", qPrintable(path));
+        }
+    }
     QList<QStringList> arcade;
     for (const controllers::ArcadeBinds &binds : controllers::playerArcade())
         arcade << binds.mame;
@@ -3228,7 +3266,7 @@ bool ArcadeBackend::play(const QString &name, int credits) {
         args << QStringLiteral("-video") << m_video;
     // Emulator Video: the screen's shape, and the game's lines whole.
     args << mame::screenArguments(m_machines.value(name), m_screenSize.height(), screenShape(), integerScale(),
-                                  m_fitScreen);
+                                  m_fitScreen, monitorFor(name));
     // Without a sound card that can play now (a Pi 5 whose picture goes out
     // through a JAMMA board or composite, its HDMI off, with no USB card),
     // the game is played in silence: MAME's SDL sound fails there, and
@@ -3296,6 +3334,22 @@ QString ArcadeBackend::screenShape() const {
     if (!m_screenShape.isEmpty())
         return m_screenShape;
     return m_tube ? QStringLiteral("4:3") : QString();
+}
+
+QString ArcadeBackend::screenMonitor() const {
+    const QString monitor = m_appCore ? m_appCore->get_setting(QString(), QStringLiteral("monitor")).toString()
+                                      : QString();
+    return monitor == QLatin1String("Turned Right") || monitor == QLatin1String("Turned Left") ? monitor : QString();
+}
+
+QString ArcadeBackend::monitorFor(const QString &set) const {
+    const QString monitor = screenMonitor();
+    if (!monitor.isEmpty())
+        return monitor;
+    const QString own = m_monitors.value(set).toString();
+    if (own == QLatin1String("Turned Right") || own == QLatin1String("Turned Left"))
+        return own;
+    return gameAspect(set) < 1.0 ? m_verticalMonitor : QString();
 }
 
 bool ArcadeBackend::integerScale() const {
@@ -3371,6 +3425,15 @@ QStringList ArcadeBackend::madeSets(const QString &filter) const {
             if (fbneoHas(set) && fbneoRoms(set) != -1 && netplayTooBig(set, false, true).isEmpty())
                 sets << set;
         }
+    } else if (filter == QLatin1String("vertical")) {
+        // The games whose screen stood upright in their cabinets, taller than
+        // wide, as MAME or FinalBurn Neo's list has it (gameAspect()): the
+        // ones a monitor turned on its side is for (Settings → Screen →
+        // Monitor).
+        for (const QString &set : index().games) {
+            if (gameAspect(set) < 1.0)
+                sets << set;
+        }
     }
     m_madeSets.insert(filter, sets);
     return sets;
@@ -3420,6 +3483,195 @@ void ArcadeBackend::setEngine(const QString &set, const QString &engine) {
         engines.remove(set);
     // Comes back through onSettingChanged(), which takes it.
     m_appCore->save_setting(kModuleId, QStringLiteral("engines"), engines);
+}
+
+QVariantList ArcadeBackend::difficultyChoices(const QString &set) const {
+    const mame::Machine *machine = machineOf(set);
+    if (!machine || !machine->difficulty.isValid() || engineOf(set) != QLatin1String("mame"))
+        return {};
+    const mame::Dip &dip = machine->difficulty;
+    // The one chosen, else the board's own; one no longer among them, the
+    // board's.
+    QString chosen = m_difficulties.value(set).toString();
+    if (std::none_of(dip.values.cbegin(), dip.values.cend(), [&](const auto &v) { return v.first == chosen; }))
+        chosen = dip.defaultName();
+    QVariantList out;
+    for (const auto &value : dip.values)
+        out << QVariantMap{ { QStringLiteral("id"), value.first }, { QStringLiteral("label"), value.first },
+                            { QStringLiteral("current"), value.first == chosen } };
+    return out;
+}
+
+QVariantList ArcadeBackend::monitorChoices(const QString &set) const {
+    if (!screenMonitor().isEmpty() || !m_sets.contains(set) || !(gameAspect(set) < 1.0))
+        return {};
+    QString chosen = m_monitors.value(set).toString();
+    if (chosen != QLatin1String("Turned Right") && chosen != QLatin1String("Turned Left"))
+        chosen = QStringLiteral("default");
+    const QString byDefault = m_verticalMonitor.isEmpty() ? QStringLiteral("Horizontal") : m_verticalMonitor;
+    QVariantList out;
+    for (const QString &id : { QStringLiteral("default"), QStringLiteral("Turned Right"), QStringLiteral("Turned Left") })
+        out << QVariantMap{ { QStringLiteral("id"), id },
+                            { QStringLiteral("label"), id == QLatin1String("default")
+                                                           ? QStringLiteral("Default (%1)").arg(byDefault) : id },
+                            { QStringLiteral("current"), id == chosen } };
+    return out;
+}
+
+QString ArcadeBackend::favoritesFile() const {
+    return m_gamesFolder + QStringLiteral("/osdos-favorites.txt");
+}
+
+QStringList ArcadeBackend::favoriteSets() const {
+    QStringList sets;
+    const QVariantList favorites = m_appCore ? m_appCore->get_list(kModuleId, QStringLiteral("favorites")) : QVariantList();
+    for (const QVariant &v : favorites) {
+        const QString path = v.toMap().value(QStringLiteral("path")).toString();
+        if (path.startsWith(QLatin1String("game:")) && !sets.contains(path.mid(5)))
+            sets << path.mid(5);
+    }
+    return sets;
+}
+
+int ArcadeBackend::favoritesCount() const {
+    return int(favoriteSets().size());
+}
+
+QString ArcadeBackend::favoritesText(const QStringList &sets) const {
+    QString text = QStringLiteral("# OSD/OS's Arcade favorites: a game's set a line, its title after the #.\n"
+                                  "# Settings → Arcade → Favorites → Import adds those that aren't favorites yet.\n");
+    for (const QString &set : sets) {
+        const mame::Machine *machine = machineOf(set);
+        const QString title = machine && !machine->description.isEmpty() ? machine->description : m_sets.value(set);
+        text += title.isEmpty() ? set + QLatin1Char('\n')
+                                : set.leftJustified(12) + QStringLiteral(" # ") + title + QLatin1Char('\n');
+    }
+    return text;
+}
+
+QStringList ArcadeBackend::setsOfFavoritesText(const QString &text) {
+    QStringList sets;
+    const QStringList lines = text.split(QLatin1Char('\n'));
+    for (const QString &line : lines) {
+        // A set alone before any #: a line of words is none.
+        const QString set = line.section(QLatin1Char('#'), 0, 0).trimmed().toLower();
+        if (mame::isShortName(set) && !sets.contains(set))
+            sets << set;
+    }
+    return sets;
+}
+
+QVariantMap ArcadeBackend::addFavorites(const QStringList &sets) {
+    const QStringList there = favoriteSets();
+    QStringList adding;
+    int already = 0;
+    for (const QString &set : sets) {
+        if (there.contains(set))
+            ++already;
+        else if (!adding.contains(set))
+            adding << set;
+    }
+    const int room = std::max(0, kMostFavorites - int(there.size()));
+    const int full = std::max(0, int(adding.size()) - room);
+    adding = adding.mid(0, room);
+    // Each put first: the file's first one last, so that they keep its order.
+    // With its title where MAME has said it; else none, and the title is
+    // MAME's once it has (startupGameOptions(); the lists' are anyway).
+    for (auto it = adding.crbegin(); it != adding.crend(); ++it) {
+        const mame::Machine *machine = machineOf(*it);
+        const QString title = machine ? machine->description : QString();
+        if (m_appCore)
+            m_appCore->add_to_list(kModuleId, QStringLiteral("favorites"),
+                                   QVariantMap{ { QStringLiteral("name"), title },
+                                                { QStringLiteral("path"), QStringLiteral("game:") + *it },
+                                                { QStringLiteral("isFolder"), false } },
+                                   kMostFavorites);
+    }
+    if (!adding.isEmpty()) {
+        m_madeSets.clear();
+        emit gamesChanged();
+    }
+    return { { QStringLiteral("added"), int(adding.size()) }, { QStringLiteral("there"), already },
+             { QStringLiteral("full"), full } };
+}
+
+QVariantMap ArcadeBackend::exportFavorites() {
+    const QStringList sets = favoriteSets();
+    const QString file = favoritesFile();
+    if (sets.isEmpty())
+        return { { QStringLiteral("ok"), false }, { QStringLiteral("message"), QStringLiteral("No favorites to export") } };
+    if (!QFileInfo(m_gamesFolder).isDir() || !writeFileAtomically(file, favoritesText(sets).toUtf8()))
+        return { { QStringLiteral("ok"), false },
+                 { QStringLiteral("message"), QStringLiteral("Couldn't write ") + file } };
+    return { { QStringLiteral("ok"), true },
+             { QStringLiteral("message"), QStringLiteral("%1 favorite%2 written to %3")
+                                              .arg(sets.size()).arg(sets.size() == 1 ? "" : "s", file) } };
+}
+
+QVariantMap ArcadeBackend::importFavorites() {
+    const QString file = favoritesFile();
+    QFile in(file);
+    if (!in.open(QIODevice::ReadOnly))
+        return { { QStringLiteral("ok"), false },
+                 { QStringLiteral("message"), QStringLiteral("No file to import: put osdos-favorites.txt in ") + m_gamesFolder } };
+    const QStringList sets = setsOfFavoritesText(QString::fromUtf8(in.read(1024 * 1024)));
+    if (sets.isEmpty())
+        return { { QStringLiteral("ok"), false }, { QStringLiteral("message"), file + QStringLiteral(" names no game") } };
+    const QVariantMap done = addFavorites(sets);
+    QStringList parts{ QStringLiteral("%1 added").arg(done.value(QStringLiteral("added")).toInt()) };
+    if (done.value(QStringLiteral("there")).toInt() > 0)
+        parts << QStringLiteral("%1 there already").arg(done.value(QStringLiteral("there")).toInt());
+    if (done.value(QStringLiteral("full")).toInt() > 0)
+        parts << QStringLiteral("%1 didn't fit (%2 favorites at most)")
+                     .arg(done.value(QStringLiteral("full")).toInt()).arg(kMostFavorites);
+    return { { QStringLiteral("ok"), true },
+             { QStringLiteral("message"), QStringLiteral("From ") + file + QStringLiteral(": ") + parts.join(QStringLiteral(", ")) } };
+}
+
+void ArcadeBackend::afterReadTakeSetupFavorites() {
+    if (QFileInfo::exists(setupFavoritesPath()))
+        afterRead([this] { takeSetupFavorites(); });
+}
+
+void ArcadeBackend::takeSetupFavorites() {
+    QFile file(setupFavoritesPath());
+    if (!file.open(QIODevice::ReadOnly))
+        return;
+    const QJsonArray list = QJsonDocument::fromJson(file.read(1024 * 1024)).object()
+                                .value(QStringLiteral("favorites")).toArray();
+    file.close();
+    QStringList sets;
+    for (const QJsonValue &v : list) {
+        const QString set = v.toString().toLower();
+        if (mame::isShortName(set))
+            sets << set;
+    }
+    const QVariantMap done = addFavorites(sets);
+    qInfo("[Arcade] Favorites from OSD/OS Setup: %d added, %d there already, %d didn't fit",
+          done.value(QStringLiteral("added")).toInt(), done.value(QStringLiteral("there")).toInt(),
+          done.value(QStringLiteral("full")).toInt());
+    QFile::remove(setupFavoritesPath());
+}
+
+void ArcadeBackend::setMonitor(const QString &set, const QString &monitor) {
+    if (!m_appCore || !mame::isShortName(set))
+        return;
+    QVariantMap monitors = m_monitors;
+    if (monitor == QLatin1String("Turned Right") || monitor == QLatin1String("Turned Left"))
+        monitors.insert(set, monitor);
+    else
+        monitors.remove(set);
+    // Comes back through onSettingChanged(), which takes it.
+    m_appCore->save_setting(kModuleId, QStringLiteral("monitors"), monitors);
+}
+
+void ArcadeBackend::setDifficulty(const QString &set, const QString &name) {
+    if (!m_appCore || !mame::isShortName(set))
+        return;
+    QVariantMap difficulties = m_difficulties;
+    difficulties.insert(set, name);
+    // Comes back through onSettingChanged(), which takes it.
+    m_appCore->save_setting(kModuleId, QStringLiteral("difficulties"), difficulties);
 }
 
 bool ArcadeBackend::fbneoReady() const {
@@ -3579,10 +3831,18 @@ bool ArcadeBackend::playFbneo(const QString &name, libretro::Launch::Netplay net
     // Emulator Video: the picture over the whole screen (Fit to Screen), or
     // in its shape on the screen, its lines whole.
     launch.fill = m_fitScreen;
+    // A monitor on its side (Settings → Screen → Monitor, or for a vertical
+    // game Emulator Video → Vertical Games): the picture a quarter turn
+    // against it, its shape on the screen the other way round.
+    const QString turn = monitorFor(name);
+    launch.rotation = turn == QLatin1String("Turned Right") ? 1 : turn == QLatin1String("Turned Left") ? 3 : 0;
+    const double shown = launch.rotation % 2 ? 1.0 / gameAspect(name) : gameAspect(name);
     const QString shape = screenShape();
     if (!shape.isEmpty())
-        launch.aspect = libretro::viewportAspect(gameAspect(name), m_screenSize,
+        launch.aspect = libretro::viewportAspect(shown, m_screenSize,
                                                  shape == QLatin1String("16:9") ? 16.0 / 9.0 : 4.0 / 3.0);
+    else if (launch.rotation % 2)
+        launch.aspect = shown;
     launch.integerScale = integerScale();
     // The credits bought, played alone: put in once the game runs
     // (feedCoins()), through a UDP port free on this machine.
@@ -4931,8 +5191,27 @@ void ArcadeBackend::takeSetupAccount() {
     const QString key = setup.value(QStringLiteral("key")).toString().trimmed();
     const QString user = setup.value(QStringLiteral("user")).toString().trimmed();
     const QString password = setup.value(QStringLiteral("password")).toString();
+    const QString token = setup.value(QStringLiteral("token")).toString();
     if (!key.isEmpty() && key != m_raKey)
         setAchievementsKey(key);
+    // A device's sign-in (Export to OSD/OS Setup): taken as it is, as one
+    // RetroArch gave this device; the next game's RetroArch says if it no
+    // longer works.
+    if (!user.isEmpty() && password.isEmpty() && !token.isEmpty()) {
+        if (token != m_raToken || user.compare(m_raUser, Qt::CaseInsensitive) != 0) {
+            qInfo("[Arcade] RetroAchievements sign-in from OSD/OS Setup: %s", qPrintable(user));
+            stopSignIn();
+            m_raUser = user;
+            m_raToken = token;
+            m_raPassword.clear();
+            m_raFailure.clear();
+            m_retroAchievements->setUser(m_raUser);
+            saveAchievements();
+            emit achievementsChanged();
+        }
+        forgetSetupAccount();
+        return;
+    }
     // Without a password, or for the account signed in already: its key
     // alone (a file brought again keeps the token that works).
     if (user.isEmpty() || password.isEmpty()

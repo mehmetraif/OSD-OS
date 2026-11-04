@@ -55,6 +55,7 @@
 #include "util/Diagnostics.h"
 #include "util/LogFile.h"
 #include "util/SetupFile.h"
+#include "util/SetupExporter.h"
 #ifdef Q_OS_MAC
 #include "util/MacosUtils.h"
 #endif
@@ -305,6 +306,8 @@ int main(int argc, char *argv[]) {
     arcadeBackend.setMemory(SystemInfo::memoryTotal());
     // A RetroAchievements account pasted from OSD/OS Setup, taken at once.
     QObject::connect(&appCore, &AppCore::setupAccountWritten, &arcadeBackend, &ArcadeBackend::takeSetupAccount);
+    QObject::connect(&appCore, &AppCore::setupFavoritesWritten, &arcadeBackend,
+                     [&arcadeBackend] { arcadeBackend.afterReadTakeSetupFavorites(); });
     // Its Recently Played is the Arcade module's.
     HighScoresBackend   highScoresBackend(appRoot, dataRoot, [&arcadeBackend] { return arcadeBackend.recentSets(); });
     // The streaming services opened as their own web players. TMDB's
@@ -427,6 +430,10 @@ int main(int argc, char *argv[]) {
     ctx->setContextProperty("bluetoothManager", &bluetoothManager);
     ctx->setContextProperty("wifiManager", &wifiManager);
     ctx->setContextProperty("systemInfo", &systemInfo);
+    // Settings → System → Export to OSD/OS Setup: the settings as QR codes
+    // (image://qr/), which open OSD/OS Setup's page with them.
+    SetupExporter setupExport(dataRoot, &appCore, &displayOutput, &wifiManager);
+    ctx->setContextProperty("setupExport", &setupExport);
     // Whether a child has the screen (Main.qml: root.screenHandedOff).
     ctx->setContextProperty("displayHandoff", &displayHandoff);
     ctx->setContextProperty("screenIsTube", tube);
@@ -447,6 +454,7 @@ int main(int argc, char *argv[]) {
     // (image://osdicon/…). The engine owns it.
     engine.addImageProvider(QStringLiteral("osdicon"), new OsdIconProvider);
     engine.addImageProvider(QStringLiteral("osdskin"), new OsdSkinProvider);
+    engine.addImageProvider(QStringLiteral("qr"), new QrImageProvider);
     // The picture of a video played inside this window (Transparent Background),
     // and a tape's noise, for the screen a video loads behind (LoadingScreen).
     qmlRegisterType<VideoSurface>("OSDOS.Video", 1, 0, "VideoSurface");

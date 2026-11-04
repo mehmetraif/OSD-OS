@@ -305,6 +305,44 @@ public:
     // between, the game's options have no Engine.
     Q_INVOKABLE QVariantList engineChoices(const QString &set) const;
     Q_INVOKABLE void setEngine(const QString &set, const QString &engine);
+    // A game's difficulty, for its options, where MAME plays it and its board
+    // sets it with a DIP switch (mame::Machine's difficulty): [{ id, label,
+    // current }], the switch's settings in MAME's order, the one chosen (or
+    // the board's own) current; none otherwise. setDifficulty() keeps the
+    // game's (Settings' difficulties, by set), which play() writes into MAME's
+    // cfg file for it before it starts.
+    Q_INVOKABLE QVariantList difficultyChoices(const QString &set) const;
+    Q_INVOKABLE void setDifficulty(const QString &set, const QString &name);
+    // A vertical game's monitor, for its options, while Settings → Screen →
+    // Monitor isn't turned: [{ id, label, current }], "default" (Emulator
+    // Video → Vertical Games', named: "Default (Horizontal)"), "Turned
+    // Right" and "Turned Left"; none otherwise. setMonitor() keeps the
+    // game's (Settings' monitors, by set), which it is played and hosted
+    // with (monitorFor()).
+    Q_INVOKABLE QVariantList monitorChoices(const QString &set) const;
+    Q_INVOKABLE void setMonitor(const QString &set, const QString &monitor);
+
+    // Settings → Arcade → Favorites (Favorites.qml): the favourites as a
+    // file of their own, osdos-favorites.txt in the games folder (on an
+    // OSD/OS card, its OSD-OS partition, which a computer opens), a game's
+    // set a line, its title after a # (favoritesText()); and back from it,
+    // the games it names added to the favourites as far as they hold
+    // (kMostFavorites). Each answers { ok, message }, the message a line on
+    // how it went, the file named.
+    Q_INVOKABLE QString favoritesFile() const;
+    Q_INVOKABLE int favoritesCount() const;
+    Q_INVOKABLE QVariantMap exportFavorites();
+    Q_INVOKABLE QVariantMap importFavorites();
+    // The favourites' sets, in the list's order.
+    QStringList favoriteSets() const;
+    // The sets added to the favourites, those not there yet, as many as
+    // fit: { added, there, full } (full: those that didn't fit).
+    QVariantMap addFavorites(const QStringList &sets);
+    // The file's text of the sets, a title after each; and the sets a file
+    // names (anything after a # left out, a line's set alone, MAME's names
+    // alone).
+    QString favoritesText(const QStringList &sets) const;
+    static QStringList setsOfFavoritesText(const QString &text);
     // RetroArch, the FinalBurn Neo core and its list of games are there.
     Q_INVOKABLE bool fbneoReady() const;
     // FinalBurn Neo can play the game: it is ready, has the set, and the set
@@ -898,6 +936,15 @@ private:
     // On, Off, Auto on a tube.
     QString screenShape() const;
     bool integerScale() const;
+    // The monitor a game is played on, "Turned Right" or "Turned Left" for
+    // one on its side, which its picture is turned against: Settings →
+    // Screen → Monitor, a monitor that stays turned; else the game's own,
+    // from its options (monitorChoices()); else, for a vertical game,
+    // Emulator Video → Vertical Games, a monitor turned for it.
+    QString monitorFor(const QString &set) const;
+    // Settings → Screen → Monitor turned ("Turned Right", "Turned Left"), a
+    // monitor that stays turned; "" for Horizontal.
+    QString screenMonitor() const;
     // A game's shape on the glass, its width over its height: FinalBurn
     // Neo's list's, else 3:4 for a vertical one (machineOf()), else 4:3.
     double gameAspect(const QString &set) const;
@@ -1095,6 +1142,15 @@ private:
     void forgetSetupAccount();
     void retrySetupSignIn();
     QString setupAccountPath() const { return m_home + QStringLiteral("/retroachievements-setup.json"); }
+    // The favourites OSD/OS Setup brought ({ "favorites": [sets] }), added
+    // once the games have been read, then gone (takeSetupFavorites()).
+    QString setupFavoritesPath() const { return m_home + QStringLiteral("/favorites-setup.json"); }
+    void takeSetupFavorites();
+public:
+    // The favourites OSD/OS Setup brought (favorites-setup.json, written as
+    // the app started or pasted), added once the games have been read.
+    void afterReadTakeSetupFavorites();
+private:
     QString signInDir() const { return retroarchHome() + QStringLiteral("/sign-in"); }
     // catver.ini into <data>/arcade, for the games' genres, and the folder
     // read again with it; once at a time, and an hour after one that failed.
@@ -1129,12 +1185,15 @@ private:
     QString m_screenShape;        // Emulator Video: "4:3", "16:9", "Square Pixels"; "" for Auto
     QString m_integerScale;       // "On", "Off"; "" for Auto
     bool    m_fitScreen = false;  // Game Picture: Fit to Screen rather than Original
+    QString m_verticalMonitor;    // Vertical Games: "Turned Right", "Turned Left"; "" for Horizontal
     bool    m_tube = false;       // setScreen()'s
     QSize   m_screenSize;
     QVariantMap m_menuFilters;    // Menu Filters: filter id → shown
     bool    m_achievements = false;   // Online High Scores: RetroAchievements
     bool    m_onlinePlay = false;
     QVariantMap m_engines;        // set → "mame" or "fbneo", as its options chose
+    QVariantMap m_difficulties;   // set → its difficulty's setting, as its options chose
+    QVariantMap m_monitors;       // set → "Turned Right" or "Turned Left", as its options chose
     QString m_onlineName;         // the name the others see ("" for nickname()'s own)
     QString m_relay = QStringLiteral("nyc");   // the relay a hosted game goes through
     bool    m_lanPlay = false;

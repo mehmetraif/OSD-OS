@@ -50,9 +50,16 @@ QJsonObject account(const QJsonObject &ra) {
     QJsonObject out;
     const QString user = text(ra, "user");
     const QString password = text(ra, "password");
+    // The user with the password, or with a device's sign-in (its token,
+    // from Export to OSD/OS Setup) in the password's place.
+    static const QRegularExpression kToken(QStringLiteral("^[A-Za-z0-9]{1,128}$"));
+    const QString token = text(ra, "token");
     if (!user.trimmed().isEmpty() && !password.isEmpty() && user.size() <= 64 && password.size() <= 256) {
         out[QStringLiteral("user")] = user.trimmed();
         out[QStringLiteral("password")] = password;
+    } else if (!user.trimmed().isEmpty() && user.size() <= 64 && kToken.match(token).hasMatch()) {
+        out[QStringLiteral("user")] = user.trimmed();
+        out[QStringLiteral("token")] = token;
     }
     const QString key = text(ra, "key").trimmed();
     if (kKey.match(key).hasMatch())
@@ -141,6 +148,14 @@ bool parse(const QByteArray &data, Setup *setup, QString *why) {
             out.config[QLatin1String(part)] = value;
     }
     out.account = account(file.value(QLatin1String("retroachievements")).toObject());
+    static const QRegularExpression kSet(QStringLiteral("^[a-z0-9_]{1,64}$"));
+    const QJsonArray favorites = file.value(QLatin1String("favorites")).toObject()
+                                     .value(QLatin1String("com.osdos.arcade")).toArray();
+    for (const QJsonValue &v : favorites) {
+        const QString set = v.toString().toLower();
+        if (kSet.match(set).hasMatch() && !out.favorites.contains(set))
+            out.favorites << set;
+    }
     out.cardOnly = cardOnly(file);
     *setup = out;
     return true;
@@ -181,6 +196,27 @@ bool writeAccount(const QJsonObject &account, const QString &dataRoot, QString *
     return true;
 }
 
+bool writeFavorites(const QStringList &favorites, const QString &dataRoot, QString *why) {
+    const QString folder = dataRoot + QStringLiteral("/arcade");
+    if (!QDir().mkpath(folder)) {
+        if (why)
+            *why = QStringLiteral("its folder couldn't be made");
+        return false;
+    }
+    const QJsonObject file{ { QStringLiteral("favorites"), QJsonArray::fromStringList(favorites) } };
+    if (!writeFileAtomically(folder + QStringLiteral("/favorites-setup.json"),
+                             QJsonDocument(file).toJson(QJsonDocument::Compact) + '\n')) {
+        if (why)
+            *why = QStringLiteral("it couldn't be written");
+        return false;
+    }
+    return true;
+}
+
+QString favoritesLine(int favorites) {
+    return QStringLiteral("Arcade favorites: %1, added as the games are read").arg(favorites);
+}
+
 QString settingsLine(int settings) {
     return QStringLiteral("OSD/OS settings: %1 set").arg(settings);
 }
@@ -188,7 +224,9 @@ QString settingsLine(int settings) {
 QString accountLine(const QJsonObject &account) {
     QStringList parts;
     if (account.contains(QLatin1String("user")))
-        parts << account.value(QLatin1String("user")).toString() + QStringLiteral(", signed in with the password");
+        parts << account.value(QLatin1String("user")).toString()
+                     + (account.contains(QLatin1String("token")) ? QStringLiteral(", signed in as on the device")
+                                                                 : QStringLiteral(", signed in with the password"));
     if (account.contains(QLatin1String("key")))
         parts << QStringLiteral("Web API key kept");
     return QStringLiteral("RetroAchievements: ") + parts.join(QStringLiteral("; "));
@@ -290,9 +328,17 @@ Result applyAtStart(const QString &dataRoot) {
                 say(QStringLiteral("RetroAchievements: not set: ") + why, false);
             }
         }
+        if (!setup.favorites.isEmpty()) {
+            if (writeFavorites(setup.favorites, dataRoot, &why)) {
+                say(favoritesLine(int(setup.favorites.size())));
+                ++result.applied;
+            } else {
+                say(QStringLiteral("Arcade favorites: not added: ") + why, false);
+            }
+        }
         if (!setup.cardOnly.isEmpty())
             say(cardOnlyLine(setup.cardOnly));
-        if (setup.config.isEmpty() && setup.account.isEmpty() && setup.cardOnly.isEmpty())
+        if (setup.config.isEmpty() && setup.account.isEmpty() && setup.favorites.isEmpty() && setup.cardOnly.isEmpty())
             say(QStringLiteral("Nothing in it to set"));
     }
     return result;

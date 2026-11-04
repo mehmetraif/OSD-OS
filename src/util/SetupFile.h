@@ -24,6 +24,10 @@ struct Setup {
     // The RetroAchievements account: user and password, the Web API key, or
     // both, as the card's retroachievements() keeps them.
     QJsonObject account;
+    // The Arcade's favourites, by set (favorites."com.osdos.arcade", MAME's
+    // names alone), added to the list once the games are read
+    // (ArcadeBackend::takeSetupFavorites()).
+    QStringList favorites;
     // The parts of the file only a card sets, by name, in the file's order.
     QStringList cardOnly;
 };
@@ -57,6 +61,9 @@ int count(const QJsonObject &values);
 // RetroArch signing in with the password. Owner-only, beside its other
 // files in <data>/arcade. False, with why, when it couldn't be written.
 bool writeAccount(const QJsonObject &account, const QString &dataRoot, QString *why);
+// The favourites for the Arcade module to add: <data>/arcade/favorites-setup.json.
+bool writeFavorites(const QStringList &favorites, const QString &dataRoot, QString *why);
+QString favoritesLine(int favorites);
 
 // The lines saying what of a Setup was set: its settings (how many), its
 // account, and what a card alone sets.

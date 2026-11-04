@@ -68,12 +68,14 @@ The line under the tree says what the entry under the cursor is: a game's year, 
 
 ### A game's options
 
-Right on a game opens its options:
+Right on a game opens its options. Those that start the game come first, each with a ▶ before it (Play, Host Online Game, Host LAN Game), and a line separates them from the rest, which set something or open a page; the cursor passes over the line:
 
 | Option | What it does |
 |---|---|
 | **Game Details** | What the game is, and its achievements on RetroAchievements, those you have earned and those you haven't ([Game Details](#game-details)) |
-| **Add to Favorites** / **Remove from Favorites** | Puts it on Favorites, or takes it off |
+| **Monitor** | Shown for a vertical game while Settings → Screen → Monitor isn't turned, as `Monitor: Default (Horizontal)`: the monitor you play it on, **Turned Right** or **Turned Left** for one you turn on its side for it (its top on the right or on the left as you face it), or **Default**, as Settings → Arcade → Emulator Video → Vertical Games says (named in brackets). Kept for the game: it is played and hosted that way, online and on the local network too ([A monitor on its side](#a-monitor-on-its-side-tate)) |
+| **Difficulty** | Shown for a game MAME plays (its **Engine**) whose board sets its difficulty with a DIP switch, as `Difficulty: Normal`: the board's settings, by the names MAME gives them (Easy, Normal, Hard…), the board's own first under the cursor. MAME starts the game with the one chosen, and keeps it for it ([Difficulty](#difficulty)) |
+| **Add to Favorites** / **Remove from Favorites** | Puts it on Favorites, or takes it off (100 at most). They can be kept as a file, and taken to another OSD/OS ([Favorites as a file](#favorites-as-a-file)) |
 | **Engine** | Shown for a game both MAME and FinalBurn Neo have, as `Engine: Auto (MAME)`: which emulator plays it. **Auto**, MAME, unless Online High Scores, Online Play or LAN Play is on, which only FinalBurn Neo has ([FinalBurn Neo](#finalburn-neo)); **MAME** (`MAME (Not Installed)` where there is none: the game then says so rather than playing in FinalBurn Neo); or **FinalBurn Neo**. A game hosted or joined over the network or on the local network plays in FinalBurn Neo whatever this says: MAME has no netplay |
 | **Host Online Game** | With **Online Play** on, for a game FinalBurn Neo has: starts it for others to join from RetroArch's lobby ([Online play](https://github.com/mehmetraif/OSD-OS/wiki/Online-and-LAN-Play#online-play)) |
 | **Host LAN Game** | With **LAN Play** on, for a game FinalBurn Neo has: starts it for others on your local network to join ([LAN play](https://github.com/mehmetraif/OSD-OS/wiki/Online-and-LAN-Play#lan-play)) |
@@ -178,6 +180,7 @@ On a CRT, move each side to where the tube's edge cuts the picture off (its over
 | **RetroArch Lobby** | With **Online Play** on and games in the folder: every game hosted in RetroArch's lobby, of every core, with who hosts it, the box on the right saying what the lobby says of it; there while no one hosts a game, or the lobby can't be reached, to say so ([Online play](https://github.com/mehmetraif/OSD-OS/wiki/Online-and-LAN-Play#online-play)) |
 | **RetroAchievements** | With **Online High Scores** on RetroAchievements and a Web API key: the games you can earn achievements or a leaderboard's scores in, by name. A game is on it when RetroAchievements has achievements or a leaderboard for its set, as its site lists each set by its MD5 (of the file's name: a clone needs its own), and it plays in FinalBurn Neo, so a game set to MAME in its options leaves it ([FinalBurn Neo](#finalburn-neo)) |
 | **Playable Online** | With **Online Play** on and FinalBurn Neo installed: the games you can play with others through RetroArch, by name: those FinalBurn Neo has, which you can host from a game's options or join when someone hosts them, and which your machine has the memory to host ([Online play](https://github.com/mehmetraif/OSD-OS/wiki/Online-and-LAN-Play#online-play)). A game set to MAME in its options is on it too, as a game played online always plays in FinalBurn Neo ([Online play](https://github.com/mehmetraif/OSD-OS/wiki/Online-and-LAN-Play#online-play)) |
+| **Vertical Games** | The games whose screen stood upright in their cabinets, taller than wide (most shmups: 1942, Galaga, DoDonPachi), as MAME or FinalBurn Neo's list has them: the ones a monitor turned on its side is for ([below](#a-monitor-on-its-side-tate)) |
 | A genre (**Beat 'em Up**, **Fighting**, **Shmup**, **Run and Gun**…) | The games of that genre, by catver.ini ([below](#genres)) |
 | **1 Player**, **2 Players**… | The games for that many players at once |
 | **1980s**, **1990s**… | The games of each decade, **Year Unknown** last |
@@ -209,7 +212,7 @@ Search finds a game by its name as it is typed. It is the last filter, and while
 
 <img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/screenshots/arcade-menu-filters.png" width="100%" alt="Settings / Arcade / Menu Filters: the LISTS heading over Favorites, Recently Played, RetroAchievements, Playable Online and Not Recognized, ON; the GENRES heading selected, over Beat 'em Up, ON; the help line: Turns all of the choices under it on or off" />
 
-**Settings → Arcade → Menu Filters** chooses the filters ◄ ► goes round. Its page lists them under five headings, each with the ones the games in the folder have: **Lists** (Favorites, Recently Played, RetroAchievements, Playable Online, Not Recognized), **Genres**, **Players**, **Years** and **Publishers**.
+**Settings → Arcade → Menu Filters** chooses the filters ◄ ► goes round. Its page lists them under five headings, each with the ones the games in the folder have: **Lists** (Favorites, Recently Played, RetroAchievements, Playable Online, Vertical Games, Not Recognized), **Genres**, **Players**, **Years** and **Publishers**.
 
 - ◄, ► or select on a filter turns it **ON** or **OFF**.
 - On a heading, they turn every filter under it on at once, or off once they all are on.
@@ -314,6 +317,44 @@ sudo reboot
 ```
 
 Running `install.sh` again does the same, with whatever else a newer release needs of the system ([Installation → Updating with install.sh](https://github.com/mehmetraif/OSD-OS/wiki/Installation#updating-with-installsh)). An image built without a password has no `sudo` ([The user, its password and sudo](https://github.com/mehmetraif/OSD-OS/wiki/The-OSD-OS-Image#the-user-its-password-and-sudo)): flash the image of 0.0.31 or later instead, after copying your games and films off the card's **OSD-OS** partition.
+
+### Favorites as a file
+
+**Settings → Arcade → Favorites** keeps the favorites as a file of their own, `osdos-favorites.txt` in the games folder: on an OSD/OS card, the OSD-OS partition, which a computer opens as a drive. **Export** writes it, a game's set a line, its title after a `#`:
+
+```
+# OSD/OS's Arcade favorites: a game's set a line, its title after the #.
+1942         # 1942 (Revision B)
+sf2          # Street Fighter II: The World Warrior
+```
+
+**Import** adds the games such a file names that aren't favorites yet, in its order, with their titles, as many as fit (100 favorites at most); the help line says how many were added, how many were there already and how many didn't fit. Anything after a `#` is left out, and a line holds a game's set alone, so a list typed by hand, one set a line, does too.
+
+They go with the rest of the settings too: **Settings → System → Export to OSD/OS Setup** puts them in its codes ([Export to OSD/OS Setup](https://github.com/mehmetraif/OSD-OS/wiki/Settings#export-to-osdos-setup)), and the card's file made of them adds them as the new card starts, once its games have been read.
+
+### Difficulty
+
+Most boards of the 1980s and 1990s set their game's difficulty with a DIP switch, which an operator changed inside the cabinet. **Difficulty**, in a game's options, sets that switch before the game starts, for a game MAME plays: MAME's list of games names the switch and its settings, and OSD/OS writes the one chosen into MAME's own settings for the game (`cfg/<set>.cfg` in the Arcade module's folder), which MAME reads as the game starts and keeps, as if set in MAME's own menu (Tab → DIP Switches). A game never set keeps whatever MAME's menu set.
+
+- **Which games**: those whose switch MAME calls Difficulty (or Game Difficulty, Difficulty Level). A board that keeps its difficulty in the game's own settings (CPS2 and CPS3, the Neo-Geo, most boards from the late 1990s on) has no such switch: its difficulty is set in the game's service menu (F2 in MAME), and its options have no Difficulty.
+- **MAME only**: a game FinalBurn Neo plays (its **Engine**, or played online or on the local network) has no Difficulty in its options for now.
+- **High scores** are kept whatever the difficulty, as the cabinet kept them.
+
+### A monitor on its side (TATE)
+
+<img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/screenshots/arcade-tate.png" width="360" alt="The Arcade screen on a monitor turned on its side: the game's picture, upright and 3:4, at the top left beside the box of its high scores and details, the bar and the games under them across the screen's width, the help line and the hint bar at the foot" />
+
+Most shmups stood upright in their cabinets: their monitor was turned on its side, so that the screen is taller than wide. On a horizontal screen such a game is drawn upright in the middle, small, with black on either side, and on a 15 kHz tube its 256 to 320 lines are squeezed into the 240 the tube has. **Settings → Screen → Monitor** says that your monitor is turned the same way: **Turned Right** with its top on the right as you face it, **Turned Left** on the left.
+
+- **The games** are turned to stand upright on it: MAME with `-rol` or `-ror`, RetroArch with its own rotation (`video_rotation`), on top of the turn a vertical game already has. A vertical game then fills the screen with its own lines, as in its cabinet, and on a 15 kHz tube they are its lines whole (Integer Scale); a horizontal game lies across the screen's middle.
+- **The Arcade screen** takes the whole of the tall screen in a layout of its own: the game's picture at the top left, 3:4 for the vertical games such a screen is for, the box of its high scores and details beside it, and the bar and the games under them, across the screen's width. Its dialogs (a game's options, the engines) open across the screen's middle. The Orb look is drawn for a screen wider than tall: on one turned, the Arcade screen is drawn in its own look.
+- **The menus** keep their 4:3 design, as wide as the screen, in a band across its middle.
+- **Videos** are turned too. One played in OSD/OS's window (Transparent Background) is turned with its subtitles and mpv's displays; one played in mpv's own (the default) has its picture turned, its subtitles and mpv's displays lying across the screen as it is.
+- **The controls** stay as they are: the sticks don't turn with the monitor.
+
+**A monitor that pivots**, turned for a vertical game and back for the rest, is **Settings → Arcade → Emulator Video → Vertical Games** instead, Turned Right or Turned Left: the menus and the horizontal games stay as they are, and only the vertical games start turned to stand upright on it. One game of its own, played or hosted turned (or not), has **Monitor** in its options, which goes before Vertical Games for it ([A game's options](#a-games-options)).
+
+The Pi's display can't turn a picture a quarter turn itself, so each program turns its own. A desktop's monitor is turned in the system's display settings instead: OSD/OS then sees a screen taller than wide, and lays the menus and the Arcade screen out for it in the same way, with nothing to turn. The **Vertical Games** filter lists the games for such a screen ([Filters](#filters)).
 
 ## Game Details
 
@@ -469,6 +510,7 @@ MAME draws the game in the display mode OSD/OS runs in (**Settings → Screen �
 
 - **Screen Shape**: the shape of your screen, which a game's picture is drawn to in its own shape (a horizontal game 4:3, a vertical one 3:4). A CRT's display mode doesn't have square pixels: JAMMA 240p is 720×240 on a 4:3 tube, which an emulator left to itself takes as a screen three times as wide as it is tall, squeezing the game into the middle third. **Auto** says 4:3 on a CRT's display output (composite, SCART RGB, JAMMA; off the OSD/OS image, a display mode of 576 lines or fewer) and square pixels on HDMI. **4:3** and **16:9** say so whatever the output; **Square Pixels** leaves the picture as the screen's pixels give it.
 - **Integer Scale**: a game's lines drawn whole, once (twice on a 480-line output), rather than spread over the screen's. On a CRT the lines stay sharp, with a thin border above and below a 224-line game on a 240-line screen; spread over 240, one line in fourteen comes out doubled or blurred. **Auto** is on on a CRT's display output and off elsewhere. A game with more lines than the screen (a vertical one on a 240p tube) fills it either way.
+- **Vertical Games**: a monitor you turn on its side for a vertical game, **Turned Right** or **Turned Left**: the vertical games are turned to stand upright on it, the menus and the horizontal games staying as they are ([A monitor on its side](#a-monitor-on-its-side-tate)).
 - **MAME Video**: how MAME draws: if a game shows no picture, or MAME stops with an error about OpenGL, try another.
 - **Game Picture**: **Original** (the default) draws the game in its own shape, as Screen Shape and Integer Scale say, black around it where it doesn't fill the screen. **Fit to Screen** stretches it over the whole screen, top to bottom and side to side, whatever its shape or lines; Screen Shape and Integer Scale then don't apply. MAME's `-nokeepaspect`; RetroArch's full-screen aspect (`aspect_ratio_index 24`), without integer scaling.
 
@@ -514,7 +556,9 @@ Settings → Arcade, the second row of Settings' first screen. The page is share
 | Emulator Video → Game Picture | Original, Fit to Screen | Original | The game in its own shape, or stretched over the whole screen. MAME's `-nokeepaspect`; RetroArch's full-screen aspect | `modules.com.osdos.arcade.game_picture` |
 | Emulator Video → Screen Shape | Auto, 4:3, 16:9, Square Pixels | Auto | The screen's shape the games are drawn to: Auto 4:3 on a CRT's display output, square pixels on HDMI. MAME's `-aspect`; for FinalBurn Neo, the picture's shape in the screen's pixels (`video_aspect_ratio`) | `modules.com.osdos.arcade.screen_shape` |
 | Emulator Video → Integer Scale | Auto, On, Off | Auto | A game's lines drawn whole rather than spread over the screen's: Auto on on a CRT's display output. MAME's `-nounevenstretch -unevenstretchx` for a game whose lines fit; RetroArch's `video_scale_integer` | `modules.com.osdos.arcade.integer_scale` |
+| Emulator Video → Vertical Games | Horizontal, Turned Right, Turned Left | Horizontal | A monitor you turn on its side for a vertical game: the vertical games turned to stand upright on it (MAME's `-rol` or `-ror`, RetroArch's `video_rotation`), the menus and the horizontal games as they are. Settings → Screen → Monitor, a monitor that stays turned, goes before it | `modules.com.osdos.arcade.vertical_monitor` |
 | Emulator Video → MAME Video | Auto, OpenGL, BGFX, Accelerated, Software | Auto | How MAME draws the game: Auto leaves it to MAME's own settings (Debian's `mame.ini` says OpenGL); the others are MAME's `-video opengl`, `bgfx`, `accel` and `soft` | `modules.com.osdos.arcade.video` |
+| Favorites | (page) | | The favorites as a file of their own, `osdos-favorites.txt` in the games folder: Export and Import ([Favorites as a file](#favorites-as-a-file)) | |
 | Check ROMs | (page) | | Whether every game's files are whole for MAME and FinalBurn Neo, checked when you start it ([Check ROMs](#check-roms)) | |
 | Read the Games Again | (action) | | Asks MAME about every set in the folder again ([Reading the games](#reading-the-games)), then looks for every game's pictures as Pictures From allows ([Download Pictures](#download-pictures)) | |
 
@@ -525,8 +569,8 @@ Settings → Arcade, the second row of Settings' first screen. The page is share
 | `enabled`, `border`, `hint_bar`, `help_line`, `start_info`, `high_scores` | `true` or `false` |
 | `games_directory` | `""` for the default, else the folder's full path |
 | `screen` | `"Original"` or `"Arcade"` |
-| `start_filter` | The filter's id: `"all"`, `"favorites"`, `"recent"`, `"lan"` (LAN Games), `"online"` (Online Games), `"lobby"` (RetroArch Lobby), `"achievements"` (RetroAchievements), `"netplay"` (Playable Online), `"genres/<genre>"` (`"genres/Fighting"`), `"players/<n>"` (`"players/2"`), `"years/<decade>"` (`"years/1980s"`, `"years/unknown"`) or `"makers/<publisher>"` (`"makers/Capcom"`) |
-| `menu_filters` | The filters turned on or off, by id: `{ "genres/Puzzle": false, "makers/Capcom": true }`, `"achievements"` for RetroAchievements, `"netplay"` for Playable Online and `"unknown"` for Not Recognized. One not in it is on, but a publisher's |
+| `start_filter` | The filter's id: `"all"`, `"favorites"`, `"recent"`, `"lan"` (LAN Games), `"online"` (Online Games), `"lobby"` (RetroArch Lobby), `"achievements"` (RetroAchievements), `"netplay"` (Playable Online), `"vertical"` (Vertical Games), `"genres/<genre>"` (`"genres/Fighting"`), `"players/<n>"` (`"players/2"`), `"years/<decade>"` (`"years/1980s"`, `"years/unknown"`) or `"makers/<publisher>"` (`"makers/Capcom"`) |
+| `menu_filters` | The filters turned on or off, by id: `{ "genres/Puzzle": false, "makers/Capcom": true }`, `"achievements"` for RetroAchievements, `"netplay"` for Playable Online, `"vertical"` for Vertical Games and `"unknown"` for Not Recognized. One not in it is on, but a publisher's |
 | `play_at_startup` | The game's set (`"galaga"`), `""` for None; the app's own `startup_favorite` holds the same game, and either changes the other |
 | `list_style` | `"Straight"`, `"Curved"` or `"3D Curved"` |
 | `attract_mode` | `"Off"`, `"In Order"` or `"Random"` |

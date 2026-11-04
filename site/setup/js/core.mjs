@@ -371,8 +371,12 @@ export function withStartupModule(config) {
 //     wifi:    { country, ssid, password, hidden },
 //     system:  { password_hash, ssh: { enabled, password_login, authorized_keys: [] },
 //                timezone, keyboard },
-//     retroachievements: { user, password, key },   the Arcade's account
-//     config:  { app: {...}, modules: { "<id>": {...} } } }   merged into config.json
+//     retroachievements: { user, password, key },   the Arcade's account; or a
+//                        token for the password, as OSD/OS's Export to
+//                        OSD/OS Setup carries a device's sign-in
+//     config:  { app: {...}, modules: { "<id>": {...} } },   merged into config.json
+//     favorites: { "com.osdos.arcade": ["<set>", …] } }   the Arcade's favourites,
+//                        added to its list (a device's, from Export to OSD/OS Setup)
 export function buildSetup(state) {
     const setup = { osdos_setup: SETUP_VERSION };
     const device = {};
@@ -413,19 +417,40 @@ export function buildSetup(state) {
     }
     if (Object.keys(system).length)
         setup.system = system;
-    // The name and the key with nothing round them, as the card takes them.
+    // The name and the key with nothing round them, as the card takes them;
+    // a password typed in place of a sign-in brought from a device.
     const ra = {};
     for (const [key, field, trim] of [["user", "raUser", true], ["password", "raPassword", false], ["key", "raKey", true]]) {
         const value = trim ? (state[field] || "").trim() : state[field];
         if (value)
             ra[key] = value;
     }
+    if (state.raToken && !state.raPassword && ra.user)
+        ra.token = state.raToken;
     if (Object.keys(ra).length)
         setup.retroachievements = ra;
     const config = withStartupModule(state.config || {});
     if (Object.keys(config).length)
         setup.config = config;
+    const favorites = {};
+    for (const [id, sets] of Object.entries(isPlainObject(state.favorites) ? state.favorites : {})) {
+        if (Array.isArray(sets) && sets.length)
+            favorites[id] = sets;
+    }
+    if (Object.keys(favorites).length)
+        setup.favorites = favorites;
     return setup;
+}
+
+// A module's favourites as a file carries them: games' sets, MAME's names
+// alone, each once.
+export function favoriteSets(list) {
+    const out = [];
+    for (const name of Array.isArray(list) ? list : []) {
+        if (typeof name === "string" && /^[a-z0-9_]{1,64}$/.test(name.toLowerCase()) && !out.includes(name.toLowerCase()))
+            out.push(name.toLowerCase());
+    }
+    return out;
 }
 
 // A file read back: one of the page's own (from: "setup"), or OSD/OS's
@@ -470,10 +495,17 @@ export function readSetup(text) {
             if (typeof system[key] === "string") state[key] = system[key];
         }
         const ra = isPlainObject(json.retroachievements) ? json.retroachievements : {};
-        for (const [key, field] of [["user", "raUser"], ["password", "raPassword"], ["key", "raKey"]]) {
+        for (const [key, field] of [["user", "raUser"], ["password", "raPassword"], ["token", "raToken"], ["key", "raKey"]]) {
             if (typeof ra[key] === "string") state[field] = ra[key];
         }
         state.config = isPlainObject(json.config) ? json.config : {};
+        const favorites = isPlainObject(json.favorites) ? json.favorites : {};
+        state.favorites = {};
+        for (const [id, list] of Object.entries(favorites)) {
+            const sets = favoriteSets(list);
+            if (sets.length)
+                state.favorites[id] = sets;
+        }
         state.from = "setup";
         return state;
     }
@@ -486,13 +518,51 @@ export function readSetup(text) {
     throw new Error("Neither an OSD/OS Setup file nor OSD/OS's config.json");
 }
 
+// --- OSD/OS's Export to OSD/OS Setup (Settings → System): the device's
+// settings in QR codes, each a link to this page with a part of its file
+// after #s=, as <part>.<parts>.<id>.<text>; the text the file compressed
+// (zlib) in base64url, cut into the parts in order (src/util/SetupExport).
+
+// A link's part, from its hash; null for none.
+export function exportPart(hash) {
+    const m = /^#s=(\d{1,3})\.(\d{1,3})\.([0-9a-f]{6})\.([A-Za-z0-9_-]+)$/.exec(hash || "");
+    if (!m)
+        return null;
+    const part = Number(m[1]), parts = Number(m[2]);
+    return part >= 1 && part <= parts ? { part, parts, id: m[3], text: m[4] } : null;
+}
+
+// The parts read so far (by number, { id, parts, texts: { n: text } }) with
+// one more: the same file's, else its own start. done once it has them all.
+export function addExportPart(kept, part) {
+    const same = kept && kept.id === part.id && kept.parts === part.parts;
+    const next = { id: part.id, parts: part.parts, texts: { ...(same ? kept.texts : {}), [part.part]: part.text } };
+    next.done = Object.keys(next.texts).length === part.parts;
+    return next;
+}
+
+// The file's text back from all its parts' text.
+export async function exportText(texts, parts) {
+    let base64 = "";
+    for (let i = 1; i <= parts; i++) {
+        if (typeof texts[i] !== "string")
+            throw new Error(`Code ${i} of ${parts} hasn't been read`);
+        base64 += texts[i];
+    }
+    base64 = base64.replace(/-/g, "+").replace(/_/g, "/");
+    const bytes = Uint8Array.from(atob(base64 + "=".repeat((4 - base64.length % 4) % 4)), c => c.charCodeAt(0));
+    const stream = new Blob([bytes]).stream().pipeThrough(new DecompressionStream("deflate"));
+    return await new Response(stream).text();
+}
+
 // The RetroAchievements account as the card takes it (osdos-setup): the user
-// name and the password together, the name and the key with nothing round
-// them, the key letters and digits alone. What isn't so, said.
-export function checkRetroAchievements(user, password, key) {
+// name and the password together (or a device's sign-in, its token, for the
+// password), the name and the key with nothing round them, the key letters
+// and digits alone. What isn't so, said.
+export function checkRetroAchievements(user, password, key, token = "") {
     const out = [];
     const name = (user || "").trim();
-    if ((name || password) && !(name && password))
+    if ((name || password) && !(name && (password || token)))
         out.push("RetroAchievements: both the user name and the password, to sign in");
     if (name.length > 64)
         out.push("RetroAchievements: a user name has 64 letters at most");
@@ -568,6 +638,15 @@ export function fitImport(read, schema) {
         }
     }
     state.config = config;
+    // Favourites the page takes: the Arcade's alone, for now.
+    const favorites = {};
+    for (const [id, sets] of Object.entries(isPlainObject(state.favorites) ? state.favorites : {})) {
+        if (id === ARCADE_MODULE && schema.modules.some(m => m.id === id))
+            favorites[id] = sets;
+        else
+            dropped.push(`favorites.${id}`);
+    }
+    state.favorites = favorites;
     return { state, dropped };
 }
 

@@ -183,6 +183,28 @@ QString pluginsFolder(const QString &program) {
     return QString();
 }
 
+int Dip::valueOf(const QString &name) const {
+    for (const auto &value : values) {
+        if (value.first == name)
+            return value.second;
+    }
+    return defaultValue;
+}
+
+QString Dip::defaultName() const {
+    for (const auto &value : values) {
+        if (value.second == defaultValue)
+            return value.first;
+    }
+    return QString();
+}
+
+bool isDifficulty(const QString &dipName) {
+    const QString name = dipName.trimmed().toLower();
+    return name == QLatin1String("difficulty") || name == QLatin1String("game difficulty")
+           || name == QLatin1String("difficulty level");
+}
+
 QVariantMap Machine::toVariant() const {
     QVariantMap map{ { QStringLiteral("description"), description } };
     // Only what a machine has, to keep the cache short.
@@ -202,6 +224,15 @@ QVariantMap Machine::toVariant() const {
     if (width > 0 && height > 0) {
         map.insert(QStringLiteral("width"), width);
         map.insert(QStringLiteral("height"), height);
+    }
+    if (difficulty.isValid()) {
+        QVariantList values;
+        for (const auto &value : difficulty.values)
+            values << QVariant(QVariantList{ value.first, value.second });
+        map.insert(QStringLiteral("difficulty"), QVariantMap{ { QStringLiteral("tag"), difficulty.tag },
+                                                              { QStringLiteral("mask"), difficulty.mask },
+                                                              { QStringLiteral("default"), difficulty.defaultValue },
+                                                              { QStringLiteral("values"), values } });
     }
     if (bios)
         map.insert(QStringLiteral("bios"), true);
@@ -225,6 +256,15 @@ Machine Machine::fromVariant(const QString &name, const QVariantMap &map) {
     m.rotate = map.value(QStringLiteral("rotate")).toInt();
     m.width = map.value(QStringLiteral("width")).toInt();
     m.height = map.value(QStringLiteral("height")).toInt();
+    const QVariantMap dip = map.value(QStringLiteral("difficulty")).toMap();
+    m.difficulty.tag = dip.value(QStringLiteral("tag")).toString();
+    m.difficulty.mask = dip.value(QStringLiteral("mask")).toInt();
+    m.difficulty.defaultValue = dip.value(QStringLiteral("default")).toInt();
+    for (const QVariant &v : dip.value(QStringLiteral("values")).toList()) {
+        const QVariantList pair = v.toList();
+        if (pair.size() == 2)
+            m.difficulty.values.append({ pair.at(0).toString(), pair.at(1).toInt() });
+    }
     m.bios = map.value(QStringLiteral("bios")).toBool();
     m.device = map.value(QStringLiteral("device")).toBool();
     m.runnable = map.value(QStringLiteral("runnable"), true).toBool();
@@ -238,6 +278,7 @@ void ListXmlReader::reset() {
     m_inMachine = false;
     m_depth = 0;
     m_hadDisplay = false;
+    m_inDifficulty = false;
     m_field.clear();
     m_text.clear();
     m_build.clear();
@@ -275,6 +316,7 @@ void ListXmlReader::read() {
                     m_inMachine = true;
                     m_depth = 0;
                     m_hadDisplay = false;
+                    m_inDifficulty = false;
                     m_machine = Machine();
                     m_machine.name = attrs.value(QLatin1String("name")).toString();
                     m_machine.cloneOf = attrs.value(QLatin1String("cloneof")).toString();
@@ -287,6 +329,13 @@ void ListXmlReader::read() {
                 continue;
             }
             ++m_depth;
+            // The difficulty's settings: a dipvalue each, its default said.
+            if (m_depth == 2 && m_inDifficulty && name == QLatin1String("dipvalue")) {
+                const int value = attrs.value(QLatin1String("value")).toInt();
+                m_machine.difficulty.values.append({ attrs.value(QLatin1String("name")).toString(), value });
+                if (attrs.value(QLatin1String("default")) == QLatin1String("yes"))
+                    m_machine.difficulty.defaultValue = value;
+            }
             if (m_depth != 1)
                 continue;
             const QString element = name.toString();
@@ -305,6 +354,16 @@ void ListXmlReader::read() {
                 m_machine.players = attrs.value(QLatin1String("players")).toInt();
             } else if (element == QLatin1String("driver")) {
                 m_machine.status = attrs.value(QLatin1String("status")).toString();
+            } else if (element == QLatin1String("dipswitch") && m_machine.difficulty.tag.isEmpty()
+                       && isDifficulty(attrs.value(QLatin1String("name")).toString())) {
+                // Its port's tag as MAME's own cfg file names it, from the
+                // machine's root.
+                QString tag = attrs.value(QLatin1String("tag")).toString();
+                if (!tag.isEmpty() && !tag.startsWith(QLatin1Char(':')))
+                    tag.prepend(QLatin1Char(':'));
+                m_machine.difficulty.tag = tag;
+                m_machine.difficulty.mask = attrs.value(QLatin1String("mask")).toInt();
+                m_inDifficulty = true;
             }
         } else if (token == QXmlStreamReader::Characters) {
             if (m_inMachine && m_depth == 1 && !m_field.isEmpty())
@@ -318,6 +377,12 @@ void ListXmlReader::read() {
                 if (!m_machine.name.isEmpty())
                     m_done.append(m_machine);
                 continue;
+            }
+            if (m_depth == 1 && m_inDifficulty) {
+                // </dipswitch>: one with a single setting is none to choose.
+                m_inDifficulty = false;
+                if (!m_machine.difficulty.isValid())
+                    m_machine.difficulty = Dip();
             }
             if (m_depth == 1 && !m_field.isEmpty()) {
                 const QString value = m_text.trimmed();
@@ -335,16 +400,117 @@ void ListXmlReader::read() {
     }
 }
 
-QStringList screenArguments(const Machine &machine, int screenLines, const QString &shape, bool integer, bool fill) {
-    if (fill)
-        return { QStringLiteral("-nokeepaspect") };
+QByteArray withDip(const QByteArray &cfg, const QString &system, const Dip &dip, int value) {
+    const auto port = [&](QXmlStreamWriter &w) {
+        w.writeEmptyElement(QStringLiteral("port"));
+        w.writeAttribute(QStringLiteral("tag"), dip.tag);
+        w.writeAttribute(QStringLiteral("type"), QStringLiteral("DIPSWITCH"));
+        w.writeAttribute(QStringLiteral("mask"), QString::number(dip.mask));
+        w.writeAttribute(QStringLiteral("defvalue"), QString::number(dip.defaultValue));
+        w.writeAttribute(QStringLiteral("value"), QString::number(value & dip.mask));
+    };
+    const auto fresh = [&] {
+        QByteArray made;
+        QXmlStreamWriter w(&made);
+        w.setAutoFormatting(true);
+        w.setAutoFormattingIndent(4);
+        w.writeStartDocument();
+        w.writeStartElement(QStringLiteral("mameconfig"));
+        w.writeAttribute(QStringLiteral("version"), QStringLiteral("10"));
+        w.writeStartElement(QStringLiteral("system"));
+        w.writeAttribute(QStringLiteral("name"), system);
+        w.writeStartElement(QStringLiteral("input"));
+        port(w);
+        w.writeEndDocument();
+        return made;
+    };
+    if (cfg.trimmed().isEmpty())
+        return fresh();
+
+    QByteArray out;
+    QXmlStreamWriter w(&out);
+    w.setAutoFormatting(true);
+    w.setAutoFormattingIndent(4);
+
+    QXmlStreamReader r(cfg);
+    // Where the reader is: in the game's system element, in its input, and
+    // whether the port is written yet.
+    int depth = 0;
+    bool inSystem = false, inInput = false, written = false;
+    int skipping = 0;   // within a port of the switch's, left out
+    while (!r.atEnd()) {
+        const QXmlStreamReader::TokenType token = r.readNext();
+        if (r.hasError())
+            return fresh();
+        if (skipping > 0) {
+            if (token == QXmlStreamReader::StartElement)
+                ++skipping;
+            else if (token == QXmlStreamReader::EndElement)
+                --skipping;
+            continue;
+        }
+        if (token == QXmlStreamReader::StartElement) {
+            ++depth;
+            const QXmlStreamAttributes a = r.attributes();
+            if (depth == 2 && r.name() == QLatin1String("system") && a.value(QLatin1String("name")) == system)
+                inSystem = true;
+            else if (inSystem && depth == 3 && r.name() == QLatin1String("input"))
+                inInput = true;
+            else if (inInput && depth == 4 && r.name() == QLatin1String("port")
+                     && a.value(QLatin1String("tag")) == dip.tag
+                     && a.value(QLatin1String("type")) == QLatin1String("DIPSWITCH")
+                     && a.value(QLatin1String("mask")).toInt() == dip.mask) {
+                --depth;
+                skipping = 1;
+                continue;
+            }
+        } else if (token == QXmlStreamReader::EndElement) {
+            if (inInput && depth == 3) {
+                port(w);
+                written = true;
+                inInput = false;
+            } else if (inSystem && depth == 2) {
+                if (!written) {
+                    w.writeStartElement(QStringLiteral("input"));
+                    port(w);
+                    w.writeEndElement();
+                    written = true;
+                }
+                inSystem = false;
+            } else if (depth == 1 && !written) {
+                w.writeStartElement(QStringLiteral("system"));
+                w.writeAttribute(QStringLiteral("name"), system);
+                w.writeStartElement(QStringLiteral("input"));
+                port(w);
+                w.writeEndElement();
+                w.writeEndElement();
+                written = true;
+            }
+            --depth;
+        } else if (token == QXmlStreamReader::Characters && r.isWhitespace()) {
+            // The writer lays the file out again.
+            continue;
+        }
+        w.writeCurrentToken(r);
+    }
+    return written ? out : fresh();
+}
+
+QStringList screenArguments(const Machine &machine, int screenLines, const QString &shape, bool integer, bool fill,
+                            const QString &monitor) {
     QStringList args;
+    const bool turned = monitor == QLatin1String("Turned Right") || monitor == QLatin1String("Turned Left");
+    if (turned)
+        args << (monitor == QLatin1String("Turned Right") ? QStringLiteral("-rol") : QStringLiteral("-ror"));
+    if (fill)
+        return args << QStringLiteral("-nokeepaspect");
     if (!shape.isEmpty())
         args << QStringLiteral("-aspect") << shape;
     // The lines the picture has on the screen: a vertical game's are its
-    // width before the rotation.
+    // width before the rotation, on a monitor turned on its side a
+    // horizontal game's.
     const bool vertical = machine.rotate == 90 || machine.rotate == 270;
-    const int lines = vertical ? machine.width : machine.height;
+    const int lines = vertical != turned ? machine.width : machine.height;
     if (integer && lines > 0 && lines <= screenLines)
         args << QStringLiteral("-nounevenstretch") << QStringLiteral("-unevenstretchx");
     return args;

@@ -617,6 +617,19 @@ FocusScope {
                 moduleId: ""
             })
         }
+        // MONITOR — a monitor turned on its side for vertical games (TATE):
+        // Main.qml turns what it draws to stand upright on it, MAME, RetroArch
+        // and mpv their pictures, from the next game or video.
+        var monitorOpts = ["Horizontal", "Turned Right", "Turned Left"]
+        items.push({
+            type: "list_single",
+            key: "monitor",
+            label: "Monitor",
+            options: monitorOpts,
+            value: monitorOpts.indexOf(appSettings["monitor"]) >= 0 ? appSettings["monitor"] : "Horizontal",
+            description: "A monitor turned on its side for vertical games (TATE): the menus, games and videos are turned to stand upright on it. Vertical games then fill the screen with their own lines, as in their cabinets, and the others lie across its middle. On a desktop, turn the screen in the system's display settings instead\n[TURNED RIGHT] Its top on the right as you face it  [TURNED LEFT] Its top on the left",
+            moduleId: ""
+        })
         // TEST PATTERNS — a picture to set a TV or monitor up by, its own
         // knobs or menu: geometry, size, convergence, brightness, colour
         // (views/TestPatterns.qml).
@@ -851,6 +864,16 @@ FocusScope {
             unavailable: settingsRoot.canPaste ? "" : "Only on a computer, from its clipboard; an OSD/OS card takes OSD/OS Setup's file",
             moduleId: ""
         })
+        // EXPORT TO OSD/OS SETUP — this device's settings as QR codes, which
+        // open OSD/OS Setup's page with them (views/SetupExport.qml).
+        items.push({
+            type: "submenu",
+            key: "export_setup",
+            label: "Export to OSD/OS Setup",
+            description: "This device's settings as QR codes: a phone opens OSD/OS Setup's page (osdos.tv/setup) from"
+                         + " them, filled in, passwords too, to change what you need and make a card's file of",
+            moduleId: ""
+        })
         items.push({
             type: "submenu",
             key: "software_update",
@@ -983,14 +1006,14 @@ FocusScope {
         // MpvController at each launch, so it applies from the next video).
         var logoVals = ["off", "tl", "tr", "bl", "br", "all"]
         var logoOpts = ["Off", "Top Left", "Top Right", "Bottom Left", "Bottom Right", "All Corners"]
-        var logoIdx = logoVals.indexOf(appSettings["video_logo"] || "tr")
+        var logoIdx = logoVals.indexOf(appSettings["video_logo"] || "off")
         items.push({
             type: "list_single",
             key: "video_logo",
             label: "Channel Logo",
             options: logoOpts,
             values: logoVals,
-            value: logoOpts[logoIdx < 0 ? logoVals.indexOf("tr") : logoIdx],
+            value: logoOpts[logoIdx < 0 ? 0 : logoIdx],
             description: "A logo in a corner of the picture while a video plays, like a channel's: OSD/OS's, or your own (Logo Image), from the next video on\n[ALL CORNERS] In all four  [OFF] None",
             moduleId: ""
         })
@@ -1372,6 +1395,8 @@ FocusScope {
                     settingsRoot.navigateTo("views/Bluetooth.qml", {}, settingsRoot.listState())
                 else if (row.key === "about")
                     settingsRoot.navigateTo("views/About.qml", {}, settingsRoot.listState())
+                else if (row.key === "export_setup")
+                    settingsRoot.navigateTo("views/SetupExport.qml", {}, settingsRoot.listState())
                 else if (row.key === "test_patterns")
                     settingsRoot.navigateTo("views/TestPatterns.qml", {}, settingsRoot.listState())
                 else if (row.key === "cabinet_lock")

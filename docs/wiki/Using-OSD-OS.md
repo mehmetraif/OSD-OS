@@ -292,7 +292,7 @@ It needs libmpv, which OSD/OS opens as it runs: `libmpv2` on Raspberry Pi OS (on
 <table>
 <tr><th width="50%">Channel Logo</th><th width="50%">Under the menus</th></tr>
 <tr><td><img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/screenshots/channel-logo.png" width="100%" alt="A playing video with the OSD/OS logo in its top right corner" /></td><td><img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/screenshots/channel-logo-menu.png" width="100%" alt="The menus over a playing video, the logo still in the picture's corner under them" /></td></tr>
-<tr><td>OSD/OS's logo in a corner of the picture while a video plays, the way a channel's sits in a broadcast. Settings → TV / Movie → Channel Logo picks the corner, all four, or none.</td><td>It is in the picture itself, so with Transparent Background the menus lie over it.</td></tr>
+<tr><td>OSD/OS's logo in a corner of the picture while a video plays, the way a channel's sits in a broadcast. It is off at first: Settings → TV / Movie → Channel Logo picks the corner, all four, or none.</td><td>It is in the picture itself, so with Transparent Background the menus lie over it.</td></tr>
 </table>
 
 <table>
@@ -305,7 +305,7 @@ mpv draws the logo into the picture, 7% of its height tall and 10% of the pictur
 
 | Setting | Values | Default | What it does | Config key |
 |---|---|---|---|---|
-| Channel Logo | Off, Top Left, Top Right, Bottom Left, Bottom Right, All Corners | Top Right | Where the logo sits while a video plays | `app.video_logo` (`off`, `tl`, `tr`, `bl`, `br`, `all`) |
+| Channel Logo | Off, Top Left, Top Right, Bottom Left, Bottom Right, All Corners | Off | Where the logo sits while a video plays | `app.video_logo` (`off`, `tl`, `tr`, `bl`, `br`, `all`) |
 | Logo Image | OSD/OS (OSD/OS Logo on the picker), or a picture (PNG, JPEG, SVG, GIF, BMP, WebP) | OSD/OS | The logo's picture, picked on the file picker; a PNG with a clear background works best. Shown while Channel Logo isn't Off | `app.video_logo_image` (a path; unset for OSD/OS's) |
 
 ## The screen saver
@@ -355,7 +355,7 @@ Back on the main menu opens Settings, laid out like a camcorder's menu: a line p
   - **Controls**: every controller, the players' pads, and more keys for the keyboards and remotes.
   - **Network**: Wi-Fi and Bluetooth (on Linux).
   - **Startup**: Start on Module, Play at Startup, Startup From and Cabinet Lock.
-  - **System**: Paste OSD/OS Setup (on a computer: the settings copied on [OSD/OS Setup](https://osdos.tv/setup/), set at once), Update, About (this device's System Information first), then under **Modules** a line for each module of no page, Scripts.
+  - **System**: Paste OSD/OS Setup (on a computer: the settings copied on [OSD/OS Setup](https://osdos.tv/setup/), set at once), Export to OSD/OS Setup (this device's settings as QR codes, which open the page with them), Update, About (this device's System Information first), then under **Modules** a line for each module of no page, Scripts.
 
 <table>
 <tr><th width="50%">A module's settings</th><th width="50%">Picking a folder</th></tr>
@@ -410,6 +410,8 @@ Settings → System → **About** opens on the OSD/OS wordmark and **SMART TV FO
 | Artwork | ChatGPT, which the logos and the boot screen's cassette were made with |
 | Fonts | VCR OSD Mono and GNU Unifont |
 | Built With | Qt, SDL2 and mpv, with their licenses, and what else the image carries |
+| Test Patterns | The 240p Test Suite, whose pictures Settings → Screen → Test Patterns shows, GPL v2 or later. Select opens the license |
+| QR Code generator | Project Nayuki's library, which draws the codes of Export to OSD/OS Setup, MIT. Select opens the license |
 | Image OS | Raspberry Pi OS Lite on Debian 13, and the trademark notices |
 | Data | TMDB, Open-Meteo and Wikidata, with the notices their terms ask for |
 | *Arcade* | A heading over the arcade's lines |

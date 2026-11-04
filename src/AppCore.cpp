@@ -361,6 +361,16 @@ QVariantMap AppCore::applySetupText(const QString &text) {
             ok = false;
         }
     }
+    if (!setup.favorites.isEmpty()) {
+        if (setupfile::writeFavorites(setup.favorites, m_dataRoot, &why)) {
+            lines << setupfile::favoritesLine(int(setup.favorites.size()));
+            ++applied;
+            emit setupFavoritesWritten();
+        } else {
+            lines << QStringLiteral("Arcade favorites: not added: ") + why;
+            ok = false;
+        }
+    }
     if (!setup.cardOnly.isEmpty())
         lines << setupfile::cardOnlyLine(setup.cardOnly);
     if (lines.isEmpty())

@@ -61,7 +61,7 @@ class ArcadeTest : public QObject {
     static constexpr const char *kFakeMame = R"SH(#!/bin/sh
 machine() {
 	case "$1" in
-	pacman) echo '<machine name="pacman" sourcefile="pacman/pacman.cpp" cloneof="puckman" romof="puckman"><description>Pac-Man (Midway)</description><year>1980</year><manufacturer>Namco (Midway license)</manufacturer><rom name="pacman.6e" size="4096"/><display tag="screen" type="raster" rotate="90" width="288" height="224"/><input players="2" coins="2"><control type="joy" player="1"/></input><driver status="good"/></machine>' ;;
+	pacman) echo '<machine name="pacman" sourcefile="pacman/pacman.cpp" cloneof="puckman" romof="puckman"><description>Pac-Man (Midway)</description><year>1980</year><manufacturer>Namco (Midway license)</manufacturer><rom name="pacman.6e" size="4096"/><display tag="screen" type="raster" rotate="90" width="288" height="224"/><input players="2" coins="2"><control type="joy" player="1"/></input><dipswitch name="Coinage" tag="DSW1" mask="3"><dipvalue name="Free Play" value="0"/><dipvalue name="1C/1C" value="1" default="yes"/></dipswitch><dipswitch name="Difficulty" tag="DSW1" mask="64"><diplocation name="SW" number="7"/><dipvalue name="Normal" value="64" default="yes"/><dipvalue name="Hard" value="0"/></dipswitch><driver status="good"/></machine>' ;;
 	galaga) echo '<machine name="galaga" sourcefile="namco/galaga.cpp"><description>Galaga (Namco rev. B)</description><year>1981</year><manufacturer>Namco</manufacturer><input players="2"/><driver status="good"/></machine>' ;;
 	mslug) echo '<machine name="mslug" sourcefile="neogeo/neogeo.cpp" romof="neogeo"><description>Metal Slug - Super Vehicle-001</description><year>1996</year><manufacturer>Nazca</manufacturer><display tag="screen" type="raster" rotate="0" width="320" height="224"/><input players="2"/><driver status="good"/></machine>' ;;
 	neogeo) echo '<machine name="neogeo" isbios="yes"><description>Neo-Geo MV-6F</description><year>1990</year><manufacturer>SNK</manufacturer></machine>' ;;
@@ -618,6 +618,23 @@ private slots:
         QCOMPARE(mame::screenArguments(vertical, 240, QStringLiteral("4:3"), true), shape);
         QCOMPARE(mame::screenArguments(vertical, 1080, QString(), true), whole);
         QCOMPARE(mame::screenArguments(mame::Machine(), 240, QStringLiteral("4:3"), true), shape);
+        // A monitor on its side: the picture turned against it, a vertical
+        // game's lines (its height before the rotation) lying along the
+        // screen's and drawn whole, a horizontal game's width across them.
+        const QStringList left{ QStringLiteral("-rol") };
+        const QStringList right{ QStringLiteral("-ror") };
+        QCOMPARE(mame::screenArguments(vertical, 240, QStringLiteral("4:3"), true, false, QStringLiteral("Turned Right")),
+                 left + shape + whole);
+        QCOMPARE(mame::screenArguments(vertical, 240, QStringLiteral("4:3"), true, false, QStringLiteral("Turned Left")),
+                 right + shape + whole);
+        QCOMPARE(mame::screenArguments(wide, 240, QStringLiteral("4:3"), true, false, QStringLiteral("Turned Right")),
+                 left + shape);
+        QCOMPARE(mame::screenArguments(wide, 480, QStringLiteral("4:3"), true, false, QStringLiteral("Turned Right")),
+                 left + shape + whole);
+        QCOMPARE(mame::screenArguments(wide, 240, QStringLiteral("4:3"), true, true, QStringLiteral("Turned Left")),
+                 right + QStringList({ QStringLiteral("-nokeepaspect") }));
+        QCOMPARE(mame::screenArguments(vertical, 240, QStringLiteral("4:3"), true, false, QStringLiteral("Horizontal")),
+                 shape);
         // Fit to Screen: stretched over the whole screen, whatever else.
         QCOMPARE(mame::screenArguments(wide, 240, QStringLiteral("4:3"), true, true),
                  QStringList({ QStringLiteral("-nokeepaspect") }));
@@ -1026,6 +1043,249 @@ private slots:
         arcade.onSettingChanged(module, QStringLiteral("screen_shape"), QStringLiteral("Auto"));
         line = args("mslug");
         QVERIFY2(!line.contains(QStringLiteral("-aspect")) && !line.contains(QStringLiteral("stretch")), qPrintable(line));
+
+        // Vertical Games: a monitor turned for a vertical game alone, which
+        // Pac-Man is turned against; Metal Slug, horizontal, as it is.
+        arcade.onSettingChanged(module, QStringLiteral("vertical_monitor"), QStringLiteral("Turned Right"));
+        QVERIFY(args("pacman").endsWith(QStringLiteral(" -rol")));
+        line = args("mslug");
+        QVERIFY2(!line.contains(QStringLiteral("-rol")) && !line.contains(QStringLiteral("-ror")), qPrintable(line));
+        arcade.onSettingChanged(module, QStringLiteral("vertical_monitor"), QStringLiteral("Turned Left"));
+        QVERIFY(args("pacman").endsWith(QStringLiteral(" -ror")));
+        arcade.onSettingChanged(module, QStringLiteral("vertical_monitor"), QStringLiteral("Horizontal"));
+        line = args("pacman");
+        QVERIFY2(!line.contains(QStringLiteral("-rol")) && !line.contains(QStringLiteral("-ror")), qPrintable(line));
+    }
+
+    // A game's options: its difficulty, where MAME plays it and its board has
+    // a DIP switch for it (Pac-Man's, not its coinage's), set in MAME's own
+    // cfg file for the game as it starts, the rest of the file kept, and kept
+    // in games.json; and a vertical game's monitor (its options' Monitor),
+    // which it plays with, Emulator Video → Vertical Games named as its
+    // default, Settings → Screen → Monitor turned going before it.
+    void difficultyAndMonitor() {
+        const QString module = QStringLiteral("com.osdos.arcade");
+        const QString cfg = m_data.path() + QStringLiteral("/arcade/cfg/pacman.cfg");
+        ArcadeBackend arcade(m_data.path(), m_data.path(), nullptr, nullptr);
+        refreshed(arcade);
+        const auto restore = qScopeGuard([&arcade, &module, &cfg] {
+            arcade.onSettingChanged(module, QStringLiteral("difficulties"), QVariantMap());
+            arcade.onSettingChanged(module, QStringLiteral("monitors"), QVariantMap());
+            arcade.onSettingChanged(module, QStringLiteral("vertical_monitor"), QStringLiteral("Horizontal"));
+            QFile::remove(cfg);
+        });
+        const auto labels = [&arcade](const char *set) {
+            QStringList out;
+            for (const QVariant &v : arcade.difficultyChoices(QLatin1String(set))) {
+                const QVariantMap choice = v.toMap();
+                out << choice.value(QStringLiteral("label")).toString()
+                           + (choice.value(QStringLiteral("current")).toBool() ? QStringLiteral("*") : QString());
+            }
+            return out;
+        };
+        QCOMPARE(labels("pacman"), QStringList({ QStringLiteral("Normal*"), QStringLiteral("Hard") }));
+        QVERIFY(labels("galaga").isEmpty());
+        // Never chosen: MAME's file as it was, none here.
+        QFile::remove(cfg);
+        played(arcade, QStringLiteral("pacman"));
+        QVERIFY(!QFileInfo::exists(cfg));
+
+        arcade.onSettingChanged(module, QStringLiteral("difficulties"), QVariantMap{ { QStringLiteral("pacman"), QStringLiteral("Hard") } });
+        QCOMPARE(labels("pacman"), QStringList({ QStringLiteral("Normal"), QStringLiteral("Hard*") }));
+        writeFile(cfg, R"(<?xml version="1.0"?>
+<!-- This file is autogenerated; comments and unknown tags will be stripped -->
+<mameconfig version="10">
+    <system name="pacman">
+        <input>
+            <port tag=":IN0" type="P1_JOYSTICK_UP" mask="1" defvalue="1">
+                <newseq type="standard">KEYCODE_W</newseq>
+            </port>
+            <port tag=":DSW1" type="DIPSWITCH" mask="64" defvalue="64" value="64" />
+            <port tag=":DSW1" type="DIPSWITCH" mask="3" defvalue="1" value="0" />
+        </input>
+        <counters>
+            <coins index="0" number="3" />
+        </counters>
+    </system>
+</mameconfig>
+)");
+        QCOMPARE(played(arcade, QStringLiteral("pacman")).value(1).toString(), QStringLiteral("ok"));
+        QByteArray written = contents(cfg);
+        QVERIFY2(written.contains(R"(<port tag=":DSW1" type="DIPSWITCH" mask="64" defvalue="64" value="0"/>)"), written.constData());
+        QCOMPARE(written.count("mask=\"64\""), 1);
+        // The rest kept: a button, the coinage, the counters.
+        QVERIFY(written.contains("KEYCODE_W"));
+        QVERIFY(written.contains(R"(mask="3" defvalue="1" value="0")"));
+        QVERIFY(written.contains(R"(<coins index="0" number="3"/>)"));
+        // Back to the board's own.
+        arcade.onSettingChanged(module, QStringLiteral("difficulties"), QVariantMap{ { QStringLiteral("pacman"), QStringLiteral("Normal") } });
+        played(arcade, QStringLiteral("pacman"));
+        QVERIFY(contents(cfg).contains(R"(mask="64" defvalue="64" value="64")"));
+        // A new file where MAME had none.
+        QFile::remove(cfg);
+        arcade.onSettingChanged(module, QStringLiteral("difficulties"), QVariantMap{ { QStringLiteral("pacman"), QStringLiteral("Hard") } });
+        played(arcade, QStringLiteral("pacman"));
+        written = contents(cfg);
+        QVERIFY2(written.contains(R"(<system name="pacman">)") && written.contains(R"(value="0"/>)"), written.constData());
+
+        // Kept with what MAME said: the next start has it without asking.
+        {
+            ArcadeBackend again(m_data.path(), m_data.path(), nullptr, nullptr);
+            refreshed(again);
+            QCOMPARE(again.difficultyChoices(QStringLiteral("pacman")).size(), 2);
+        }
+
+        // A vertical game's monitor: Vertical Games' first, named; the
+        // game's own kept and played with; none for a horizontal game.
+        const auto monitors = [&arcade](const char *set) {
+            QStringList out;
+            for (const QVariant &v : arcade.monitorChoices(QLatin1String(set))) {
+                const QVariantMap choice = v.toMap();
+                out << choice.value(QStringLiteral("label")).toString()
+                           + (choice.value(QStringLiteral("current")).toBool() ? QStringLiteral("*") : QString());
+            }
+            return out;
+        };
+        QCOMPARE(monitors("pacman"), QStringList({ QStringLiteral("Default (Horizontal)*"), QStringLiteral("Turned Right"),
+                                                   QStringLiteral("Turned Left") }));
+        QVERIFY(monitors("mslug").isEmpty());
+        arcade.onSettingChanged(module, QStringLiteral("vertical_monitor"), QStringLiteral("Turned Right"));
+        QCOMPARE(monitors("pacman").first(), QStringLiteral("Default (Turned Right)*"));
+        arcade.onSettingChanged(module, QStringLiteral("monitors"), QVariantMap{ { QStringLiteral("pacman"), QStringLiteral("Turned Left") } });
+        QCOMPARE(monitors("pacman"), QStringList({ QStringLiteral("Default (Turned Right)"), QStringLiteral("Turned Right"),
+                                                   QStringLiteral("Turned Left*") }));
+        QFile::remove(m_log);
+        played(arcade, QStringLiteral("pacman"));
+        QVERIFY(logLines(QStringLiteral("play ")).value(0).contains(QStringLiteral(" -ror")));
+        // Its own set back to the default: Vertical Games'.
+        arcade.onSettingChanged(module, QStringLiteral("monitors"), QVariantMap());
+        QFile::remove(m_log);
+        played(arcade, QStringLiteral("pacman"));
+        const QString line = logLines(QStringLiteral("play ")).value(0);
+        QVERIFY2(line.contains(QStringLiteral(" -rol")) && !line.contains(QStringLiteral("-ror")), qPrintable(line));
+    }
+
+    // Settings → Arcade → Favorites: the favourites written to
+    // osdos-favorites.txt in the games folder, a set a line with its title;
+    // those such a file names added, by MAME's names alone, each once, with
+    // their titles, as many as the list holds; and those OSD/OS Setup
+    // brought, added once the games have been read, the file gone.
+    void favoritesFile() {
+        const QString module = QStringLiteral("com.osdos.arcade");
+        const QString file = m_games + QStringLiteral("/osdos-favorites.txt");
+        const QString setup = m_data.path() + QStringLiteral("/arcade/favorites-setup.json");
+        const auto restore = qScopeGuard([&file, &setup, this] {
+            QFile::remove(file);
+            QFile::remove(setup);
+            QFile::remove(m_data.path() + QStringLiteral("/lists.json"));
+        });
+        QFile::remove(m_data.path() + QStringLiteral("/lists.json"));
+        AppCore core(m_data.path(), m_data.path());
+        ArcadeBackend arcade(m_data.path(), m_data.path(), &core, nullptr);
+        refreshed(arcade);
+        QCOMPARE(arcade.favoritesFile(), file);
+        QCOMPARE(arcade.favoritesCount(), 0);
+        QVariantMap done = arcade.exportFavorites();
+        QVERIFY(!done.value(QStringLiteral("ok")).toBool());
+        QVERIFY(!QFileInfo::exists(file));
+
+        const auto favorite = [](const QString &set, const QString &name) {
+            return QVariantMap{ { QStringLiteral("name"), name }, { QStringLiteral("path"), QStringLiteral("game:") + set },
+                                { QStringLiteral("isFolder"), false } };
+        };
+        core.add_to_list(module, QStringLiteral("favorites"), favorite(QStringLiteral("galaga"), QStringLiteral("Galaga")), 100);
+        core.add_to_list(module, QStringLiteral("favorites"), favorite(QStringLiteral("pacman"), QStringLiteral("Pac-Man (Midway)")), 100);
+        QCOMPARE(arcade.favoritesCount(), 2);
+        done = arcade.exportFavorites();
+        QVERIFY2(done.value(QStringLiteral("ok")).toBool(), qPrintable(done.value(QStringLiteral("message")).toString()));
+        QCOMPARE(done.value(QStringLiteral("message")).toString(), QStringLiteral("2 favorites written to ") + file);
+        const QString text = QString::fromUtf8(contents(file));
+        QVERIFY2(text.contains(QStringLiteral("\npacman       # Pac-Man (Midway)\ngalaga       # Galaga")), qPrintable(text));
+        QCOMPARE(ArcadeBackend::setsOfFavoritesText(text), QStringList({ QStringLiteral("pacman"), QStringLiteral("galaga") }));
+
+        // A file of one's own: comments, a name in capitals, one there
+        // already, one that is no set's name.
+        writeFile(file, "# mine\nsf2   # Street Fighter II\n\tPACMAN\nnot a set!\n\nmslug\nsf2\n");
+        done = arcade.importFavorites();
+        QCOMPARE(done.value(QStringLiteral("message")).toString(),
+                 QStringLiteral("From %1: 2 added, 1 there already").arg(file));
+        QCOMPARE(arcade.favoriteSets(), QStringList({ QStringLiteral("sf2"), QStringLiteral("mslug"), QStringLiteral("pacman"),
+                                                      QStringLiteral("galaga") }));
+        // Added with their titles, as MAME has them.
+        QCOMPARE(core.get_list(module, QStringLiteral("favorites")).first().toMap().value(QStringLiteral("name")).toString(),
+                 QStringLiteral("Street Fighter II: The World Warrior"));
+        // None there.
+        QFile::remove(file);
+        QVERIFY(arcade.importFavorites().value(QStringLiteral("message")).toString().startsWith(QStringLiteral("No file to import")));
+
+        // As many as the list holds, the rest said.
+        QStringList many;
+        for (int i = 0; i < 100; ++i)
+            many << QStringLiteral("game%1").arg(i, 3, 10, QLatin1Char('0'));
+        done = arcade.addFavorites(many);
+        QCOMPARE(done.value(QStringLiteral("added")).toInt(), 96);
+        QCOMPARE(done.value(QStringLiteral("full")).toInt(), 4);
+        QCOMPARE(arcade.favoritesCount(), 100);
+        QVERIFY(arcade.favoriteSets().contains(QStringLiteral("galaga")));
+
+        // OSD/OS Setup's, once the games have been read: on a new card,
+        // before MAME has said what they are, without titles, which are
+        // MAME's once it has (Play at Startup's choices).
+        QFile::remove(m_data.path() + QStringLiteral("/lists.json"));
+        QFile::remove(m_data.path() + QStringLiteral("/arcade/games.json"));
+        writeFile(setup, R"({"favorites": ["kinst", "sf2", "../x"]})");
+        ArcadeBackend again(m_data.path(), m_data.path(), &core, nullptr);
+        QTRY_VERIFY_WITH_TIMEOUT(!QFileInfo::exists(setup), 10000);
+        QCOMPARE(again.favoriteSets(), QStringList({ QStringLiteral("kinst"), QStringLiteral("sf2") }));
+        refreshed(again);
+        QSignalSpy options(&again, &ArcadeBackend::dynamicOptionsReady);
+        again.startupGameOptions();
+        QStringList startup;
+        for (const QList<QVariant> &args : std::as_const(options)) {
+            if (args.value(0).toString() != QLatin1String("play_at_startup"))
+                continue;
+            for (const QVariant &choice : args.value(1).toList())
+                startup << choice.toMap().value(QStringLiteral("label")).toString();
+        }
+        QVERIFY2(startup.contains(QStringLiteral("Killer Instinct")), qPrintable(startup.join(QStringLiteral(" | "))));
+    }
+
+    // MAME's cfg file with a DIP switch set: as MAME writes one, in place of
+    // the switch's own, the rest kept; a new one for none, or for one that
+    // isn't XML.
+    void dipInCfg() {
+        mame::Dip dip;
+        dip.tag = QStringLiteral(":DSW");
+        dip.mask = 12;
+        dip.defaultValue = 12;
+        dip.values = { { QStringLiteral("Easy"), 8 }, { QStringLiteral("Normal"), 12 }, { QStringLiteral("Hard"), 4 } };
+        QCOMPARE(dip.valueOf(QStringLiteral("Hard")), 4);
+        QCOMPARE(dip.valueOf(QStringLiteral("Gone")), 12);
+        QCOMPARE(dip.defaultName(), QStringLiteral("Normal"));
+        QVERIFY(mame::isDifficulty(QStringLiteral("Game Difficulty")));
+        QVERIFY(!mame::isDifficulty(QStringLiteral("Bonus Life")));
+        const QByteArray fresh = mame::withDip(QByteArray(), QStringLiteral("1942"), dip, 4);
+        QVERIFY2(fresh.contains(R"(<mameconfig version="10">)") && fresh.contains(R"(<system name="1942">)")
+                     && fresh.contains(R"(<port tag=":DSW" type="DIPSWITCH" mask="12" defvalue="12" value="4"/>)"),
+                 fresh.constData());
+        QCOMPARE(mame::withDip("not xml <", QStringLiteral("1942"), dip, 4), fresh);
+        // Another system's file, and one without input: the port where it goes.
+        const QByteArray other = mame::withDip(R"(<mameconfig version="10"><system name="1943"><input><port tag=":DSW" type="DIPSWITCH" mask="12" defvalue="12" value="8"/></input></system></mameconfig>)",
+                                               QStringLiteral("1942"), dip, 8);
+        QVERIFY(other.contains(R"(<system name="1943">)") && other.contains(R"(<system name="1942">)"));
+        QCOMPARE(other.count("DIPSWITCH"), 2);
+        const QByteArray noInput = mame::withDip(R"(<mameconfig version="10"><system name="1942"><counters><coins index="0" number="1"/></counters></system></mameconfig>)",
+                                                 QStringLiteral("1942"), dip, 8);
+        QVERIFY2(noInput.contains("<input>") && noInput.contains(R"(value="8"/>)") && noInput.contains("<coins"), noInput.constData());
+        // Read back as XML, a single system.
+        QXmlStreamReader check(noInput);
+        int systems = 0;
+        while (!check.atEnd()) {
+            if (check.readNext() == QXmlStreamReader::StartElement && check.name() == QLatin1String("system"))
+                ++systems;
+        }
+        QVERIFY(!check.hasError());
+        QCOMPARE(systems, 1);
     }
 
     // What a game that didn't play says.
@@ -1699,6 +1959,13 @@ private slots:
         launch.fill = false;
         launch.aspect = 0;
         launch.integerScale = false;
+        // Straight, unless the monitor is on its side (Settings → Screen →
+        // Monitor): then turned a quarter against it, every time.
+        QVERIFY(has(QStringLiteral("video_rotation = \"0\"")));
+        launch.rotation = 1;
+        config = libretro::configText(launch);
+        QVERIFY(has(QStringLiteral("video_rotation = \"1\"")));
+        launch.rotation = 0;
         // No credits to put in: no network RetroPad. Credits: player 1's,
         // on the port given.
         config = libretro::configText(launch);
@@ -2519,6 +2786,21 @@ private slots:
         config = QString::fromUtf8(contents(configCopy));
         QVERIFY(!config.contains(QStringLiteral("aspect_ratio_index")));
         QVERIFY(config.contains(QStringLiteral("video_scale_integer = \"false\"")));
+        QVERIFY(config.contains(QStringLiteral("video_rotation = \"0\"")));
+        // Vertical Games: a monitor turned for it, Galaga turned against it,
+        // in its shape turned.
+        arcade.onSettingChanged(module, QStringLiteral("vertical_monitor"), QStringLiteral("Turned Left"));
+        played(arcade, QStringLiteral("galaga"));
+        arcade.onSettingChanged(module, QStringLiteral("vertical_monitor"), QStringLiteral("Horizontal"));
+        config = QString::fromUtf8(contents(configCopy));
+        QVERIFY2(config.contains(QStringLiteral("video_rotation = \"3\"")), qPrintable(config));
+        QVERIFY(config.contains(QStringLiteral("video_aspect_ratio = \"1.333333\"")));
+        // The game's own monitor (its options' Monitor), as FinalBurn Neo
+        // plays and hosts it.
+        arcade.onSettingChanged(module, QStringLiteral("monitors"), QVariantMap{ { QStringLiteral("galaga"), QStringLiteral("Turned Right") } });
+        played(arcade, QStringLiteral("galaga"));
+        arcade.onSettingChanged(module, QStringLiteral("monitors"), QVariantMap());
+        QVERIFY(QString::fromUtf8(contents(configCopy)).contains(QStringLiteral("video_rotation = \"1\"")));
         // FinalBurn Neo's info file that can't be written (a file where its
         // folder goes): nothing started, as with RetroArch's settings.
         QVERIFY(QDir(home + QStringLiteral("/info")).removeRecursively());
@@ -2640,6 +2922,10 @@ private slots:
                  QStringList({ QUrl::fromLocalFile(games + QStringLiteral("/snap/sf2.png")).toString() }));
         QVERIFY(arcade.gameDetails(QStringLiteral("1943")).value(QStringLiteral("vertical")).toBool());
         QVERIFY(!arcade.gameDetails(QStringLiteral("kof98")).value(QStringLiteral("vertical")).toBool());
+        // Vertical Games: the games whose screen stood upright, the one a
+        // monitor turned on its side is for.
+        QVERIFY(setsOf(arcade, QStringLiteral("vertical")).contains(QStringLiteral("1943")));
+        QVERIFY(!setsOf(arcade, QStringLiteral("vertical")).contains(QStringLiteral("kof98")));
 
         // FinalBurn Neo's whatever engine was chosen, Online High Scores off;
         // no MAME offered, one chosen before taken for Auto.
@@ -2702,7 +2988,7 @@ private slots:
         writeFile(cache, R"({"version": 1, "unknown": ["kof98"]})");
         QCOMPARE(engineWhileAsked(kof98, false), QStringLiteral("fbneo"));
         // One of another version that kept them apart too.
-        writeFile(cache, R"({"version": 4, "unknownBefore": ["kof98"]})");
+        writeFile(cache, R"({"version": 5, "unknownBefore": ["kof98"]})");
         QCOMPARE(engineWhileAsked(kof98, false), QStringLiteral("fbneo"));
         // Read the Games Again before the list was ever opened: games.json
         // read first.
@@ -3011,6 +3297,24 @@ private slots:
             arcade.setSignInCore(data.path() + QStringLiteral("/none.so"));
             QTRY_VERIFY_WITH_TIMEOUT(!QFileInfo::exists(setup), 5000);
             QCOMPARE(arcade.achievementsState(), QStringLiteral("pending"));
+            QTest::qWait(150);
+            QCOMPARE(checks(), 0);
+        }
+
+        // A device's sign-in (Export to OSD/OS Setup), its token in the
+        // password's place: taken as it is, signed in with no check, the
+        // file gone.
+        QFile::remove(kept);
+        writeFile(setup, R"({"user": " carried ", "token": "tok789", "key": "k5y"})");
+        {
+            QFile::remove(m_log);
+            ArcadeBackend arcade(data.path(), data.path(), nullptr, nullptr);
+            prepare(arcade);
+            QTRY_VERIFY_WITH_TIMEOUT(!QFileInfo::exists(setup), 5000);
+            QCOMPARE(arcade.achievementsState(), QStringLiteral("signedIn"));
+            QCOMPARE(account().value(QStringLiteral("user")).toString(), QStringLiteral("carried"));
+            QCOMPARE(account().value(QStringLiteral("token")).toString(), QStringLiteral("tok789"));
+            QCOMPARE(account().value(QStringLiteral("key")).toString(), QStringLiteral("k5y"));
             QTest::qWait(150);
             QCOMPARE(checks(), 0);
         }
@@ -5024,10 +5328,10 @@ private slots:
             arcade.menuFilterOptions();
             QTRY_COMPARE_WITH_TIMEOUT(options.size(), 1, 5000);
             QCOMPARE(options.last().at(0).toString(), QStringLiteral("menu_filters"));
-            QCOMPARE(labels(options.last().at(1)).mid(0, 6),
+            QCOMPARE(labels(options.last().at(1)).mid(0, 7),
                      QStringList({ QStringLiteral("Lists"), QStringLiteral("Favorites"), QStringLiteral("Recently Played"),
                                    QStringLiteral("RetroAchievements"), QStringLiteral("Playable Online"),
-                                   QStringLiteral("Not Recognized") }));
+                                   QStringLiteral("Vertical Games"), QStringLiteral("Not Recognized") }));
             arcade.startFilterOptions();
             QTRY_COMPARE_WITH_TIMEOUT(options.size(), 2, 5000);
             QCOMPARE(options.last().at(0).toString(), QStringLiteral("start_filter"));
@@ -6915,7 +7219,8 @@ private slots:
         };
         QCOMPARE(described(arcade.filters()), QStringList({
             QStringLiteral("all All Games 7"), QStringLiteral("favorites Favorites 2"),
-            QStringLiteral("recent Recently Played 1"), QStringLiteral("genres/Beat 'em Up Beat 'em Up 1"),
+            QStringLiteral("recent Recently Played 1"), QStringLiteral("vertical Vertical Games 2"),
+            QStringLiteral("genres/Beat 'em Up Beat 'em Up 1"),
             QStringLiteral("genres/Fighting Fighting 2"), QStringLiteral("genres/Maze Maze 1"),
             QStringLiteral("genres/Shmup Shmup 1"),
             QStringLiteral("players/1 1 Player 1"), QStringLiteral("players/2 2 Players 5"),
@@ -6999,7 +7304,7 @@ private slots:
             ids << v.toMap().value(QStringLiteral("id")).toString();
         QCOMPARE(options.at(0).at(0).toString(), QStringLiteral("start_filter"));
         QCOMPARE(ids, QStringList({ QStringLiteral("all"), QStringLiteral("favorites"), QStringLiteral("recent"),
-                                    QStringLiteral("achievements"), QStringLiteral("netplay"),
+                                    QStringLiteral("achievements"), QStringLiteral("netplay"), QStringLiteral("vertical"),
                                     QStringLiteral("genres/Beat 'em Up"), QStringLiteral("genres/Fighting"),
                                     QStringLiteral("genres/Maze"), QStringLiteral("genres/Shmup"),
                                     QStringLiteral("players/1"),
@@ -7026,7 +7331,7 @@ private slots:
         QVERIFY(arcade.filterGames(QStringLiteral("all"), 0, 3).isEmpty());
         QTRY_VERIFY_WITH_TIMEOUT(!arcade.scanning(), 10000);
         QVERIFY(!changed.isEmpty());
-        QCOMPARE(arcade.filters().size(), 14);
+        QCOMPARE(arcade.filters().size(), 15);
     }
 
     // Search, the Arcade screen's last filter, as its words are typed: its
@@ -7429,7 +7734,7 @@ private slots:
         QCOMPARE(page, QStringList({
             QStringLiteral("LISTS"), QStringLiteral("favorites=Favorites"), QStringLiteral("recent=Recently Played"),
             QStringLiteral("achievements=RetroAchievements"), QStringLiteral("netplay=Playable Online"),
-            QStringLiteral("unknown=Not Recognized"),
+            QStringLiteral("vertical=Vertical Games"), QStringLiteral("unknown=Not Recognized"),
             QStringLiteral("GENRES"), QStringLiteral("genres/Beat 'em Up=Beat 'em Up"),
             QStringLiteral("genres/Fighting=Fighting"), QStringLiteral("genres/Shmup=Shmup"),
             QStringLiteral("PLAYERS"), QStringLiteral("players/1=1 Player"), QStringLiteral("players/2=2 Players"),
@@ -7440,7 +7745,7 @@ private slots:
             QStringLiteral("makers/Rare=Rare off") }));
         // Favorites and Recently Played with no game on them yet.
         QCOMPARE(ids(arcade.filters()), QStringList({
-            QStringLiteral("all"), QStringLiteral("favorites"), QStringLiteral("recent"),
+            QStringLiteral("all"), QStringLiteral("favorites"), QStringLiteral("recent"), QStringLiteral("vertical"),
             QStringLiteral("genres/Beat 'em Up"), QStringLiteral("genres/Fighting"),
             QStringLiteral("genres/Shmup"), QStringLiteral("players/1"), QStringLiteral("players/2"),
             QStringLiteral("players/6"), QStringLiteral("years/1980s"), QStringLiteral("years/1990s"),
@@ -7456,7 +7761,7 @@ private slots:
         core.save_setting(module, QStringLiteral("menu_filters"), shown);
         QCOMPARE(changed.size(), 2);
         QCOMPARE(ids(arcade.filters()), QStringList({
-            QStringLiteral("all"), QStringLiteral("favorites"), QStringLiteral("recent"),
+            QStringLiteral("all"), QStringLiteral("favorites"), QStringLiteral("recent"), QStringLiteral("vertical"),
             QStringLiteral("genres/Beat 'em Up"), QStringLiteral("genres/Shmup"),
             QStringLiteral("players/1"), QStringLiteral("players/2"), QStringLiteral("players/6"),
             QStringLiteral("years/1980s"), QStringLiteral("years/1990s"), QStringLiteral("makers/Namco"),
@@ -7466,15 +7771,16 @@ private slots:
         arcade.startFilterOptions();
         QCOMPARE(ids(options.at(0).at(1).toList()), QStringList({
             QStringLiteral("all"), QStringLiteral("favorites"), QStringLiteral("recent"), QStringLiteral("achievements"),
-            QStringLiteral("netplay"),
+            QStringLiteral("netplay"), QStringLiteral("vertical"),
             QStringLiteral("genres/Beat 'em Up"), QStringLiteral("genres/Shmup"), QStringLiteral("players/1"),
             QStringLiteral("players/2"), QStringLiteral("players/6"), QStringLiteral("years/1980s"),
             QStringLiteral("years/1990s"), QStringLiteral("makers/Namco") }));
 
         // A heading's all at once: the players off, Favorites, Recently
-        // Played, RetroAchievements and Playable Online too, Favorites off
-        // with a game on it as without.
-        for (const char *id : { "players/1", "players/2", "players/6", "favorites", "recent", "achievements", "netplay" })
+        // Played, RetroAchievements, Playable Online and Vertical Games too,
+        // Favorites off with a game on it as without.
+        for (const char *id : { "players/1", "players/2", "players/6", "favorites", "recent", "achievements", "netplay",
+                                "vertical" })
             shown.insert(QLatin1String(id), false);
         core.save_setting(module, QStringLiteral("menu_filters"), shown);
         QCOMPARE(ids(arcade.filters()), QStringList({
@@ -7669,7 +7975,7 @@ private slots:
             QVERIFY(f.open(QIODevice::ReadOnly));
             cache = QJsonDocument::fromJson(f.readAll()).object();
         }
-        QCOMPARE(cache.value(QStringLiteral("version")).toInt(), 3);
+        QCOMPARE(cache.value(QStringLiteral("version")).toInt(), 4);
         cache.remove(QStringLiteral("version"));
         writeFile(path, QJsonDocument(cache).toJson());
         QFile::remove(m_log);

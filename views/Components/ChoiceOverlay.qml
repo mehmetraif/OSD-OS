@@ -34,9 +34,24 @@ FocusScope {
     focus: visible
 
     function open() {
-        choiceIndex = 0
+        choiceIndex = step(-1, 1)
         visible = true
         forceActiveFocus()
+    }
+
+    // The next choice from one, by ▲ (-1) or ▼ (1), round the ends: a line
+    // between groups ({ divider: true }, PromptScreen) passed over.
+    function step(from, by) {
+        var count = choices.length
+        if (count === 0)
+            return 0
+        var at = from
+        for (var i = 0; i < count; i++) {
+            at = (at + by + count) % count
+            if (!(choices[at] && choices[at].divider))
+                return at
+        }
+        return Math.max(0, from)
     }
 
     function close() {
@@ -66,9 +81,9 @@ FocusScope {
             else
                 close()
         } else if (event.key === Qt.Key_Up && choices.length > 0) {
-            choiceIndex = (choiceIndex - 1 + choices.length) % choices.length
+            choiceIndex = step(choiceIndex, -1)
         } else if (event.key === Qt.Key_Down && choices.length > 0) {
-            choiceIndex = (choiceIndex + 1) % choices.length
+            choiceIndex = step(choiceIndex, 1)
         }
         // A window over the host's view: its keys stop here (the host may
         // have uses for ◄ ►), but for a chord like Ctrl+Q.

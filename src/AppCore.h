@@ -196,6 +196,8 @@ signals:
     // (applySetupText()): the Arcade module takes it at once, as it does a
     // card's as it starts (ArcadeBackend::takeSetupAccount()).
     void setupAccountWritten();
+    // The Arcade's favourites pasted, for it to add (favorites-setup.json).
+    void setupFavoritesWritten();
     void dynamicOptionsReady(const QString &moduleId, const QString &key, const QVariant &options);
     void moduleAuthStateChanged(const QString &moduleId);
     // A module's status icons changed, or a module was turned on or off.

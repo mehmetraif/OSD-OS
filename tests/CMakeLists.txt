@@ -3,7 +3,7 @@ project(osdos_regression_tests LANGUAGES CXX)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_AUTOMOC ON)
-find_package(Qt6 REQUIRED COMPONENTS Core Concurrent Network Qml Test)
+find_package(Qt6 REQUIRED COMPONENTS Core Concurrent Gui Network Qml Test)
 enable_testing()
 link_libraries(Qt6::Concurrent)
 add_executable(reliability_test
@@ -42,6 +42,14 @@ target_include_directories(sevenzip_test PRIVATE ../src)
 target_compile_definitions(sevenzip_test PRIVATE TESTS_DIR="${CMAKE_CURRENT_SOURCE_DIR}")
 target_link_libraries(sevenzip_test PRIVATE Qt6::Core Qt6::Test osdos_lzma)
 add_test(NAME sevenzip COMMAND sevenzip_test)
+# Settings → System → Export to OSD/OS Setup: the settings gathered as the
+# page's file, cut into the links of QR codes, and drawn as codes.
+include(${CMAKE_CURRENT_SOURCE_DIR}/../cmake/qrcodegen.cmake)
+add_executable(setup_export_test setup_export_test.cpp ../src/util/SetupExport.cpp)
+target_include_directories(setup_export_test PRIVATE ../src)
+target_compile_definitions(setup_export_test PRIVATE SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}/..")
+target_link_libraries(setup_export_test PRIVATE Qt6::Core Qt6::Gui Qt6::Test osdos_qrcodegen)
+add_test(NAME setup_export COMMAND setup_export_test)
 find_program(LUA_EXECUTABLE NAMES lua5.4 lua54 lua REQUIRED)   # lua54: the BSDs' packages
 add_test(NAME osc_controls COMMAND ${LUA_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/osc_test.lua
                                   ${CMAKE_CURRENT_SOURCE_DIR}/../scripts/mpv-osc.lua)
@@ -507,8 +515,12 @@ if(UNIX)
     add_test(NAME app_main_menu_studio_monitor COMMAND bash ${smoke} "--layout=Studio Monitor")
     add_test(NAME app_main_menu_broadcast COMMAND bash ${smoke} --layout=Broadcast)
     add_test(NAME app_main_menu_flat_panel COMMAND bash ${smoke} "--layout=Flat Panel")
+    # The Arcade screen on a monitor turned on its side (Settings → Screen →
+    # Monitor), in its tall layout.
+    add_test(NAME app_arcade_turned_right COMMAND bash ${smoke} "--monitor=Turned Right")
+    add_test(NAME app_arcade_turned_left COMMAND bash ${smoke} "--monitor=Turned Left")
     set(smoke_tests app_main_menu app_setup_file app_main_menu_camcorder app_main_menu_studio_monitor
-                    app_main_menu_broadcast app_main_menu_flat_panel)
+                    app_main_menu_broadcast app_main_menu_flat_panel app_arcade_turned_right app_arcade_turned_left)
     file(GLOB manifests CONFIGURE_DEPENDS ${osdos_root}/modules/*/manifest.json)
     foreach(manifest ${manifests})
         get_filename_component(folder ${manifest} DIRECTORY)

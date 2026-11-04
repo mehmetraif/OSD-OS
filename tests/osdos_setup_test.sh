@@ -253,6 +253,26 @@ check "no command for what was refused" "" "$(cat "$T/asked")"
 check "both stages fail" "1 1" "$status"
 printf '{}\n' > "$DATA/config.json"
 
+# A device's sign-in in the password's place (OSD/OS's Export to OSD/OS
+# Setup): the user and the token for the app; a token not like one, nothing.
+printf '{ "osdos_setup": 1, "retroachievements": { "user": " denplayer ", "token": "Tok123abc" } }\n' > "$BOOT/osdos-setup.json"
+apply
+check "a device's sign-in for the app" '"denplayer" "Tok123abc"' "$(json "$ra" user) $(json "$ra" token)"
+check "and no password" "no" "$(grep -q password "$ra" && echo yes || echo no)"
+check "said as an account" "1" "$(logged "RetroAchievements: denplayer, signed in as OSD/OS starts")"
+rm -f "$ra"
+printf '{ "osdos_setup": 1, "retroachievements": { "user": "denplayer", "token": "../x" } }\n' > "$BOOT/osdos-setup.json"
+apply
+check "a token not like one: no account" "no" "$(there "$ra")"
+
+# The Arcade's favourites for the app, MAME's names alone, each once.
+printf '{ "osdos_setup": 1, "favorites": { "com.osdos.arcade": ["SF2", "1942", "sf2", "../x"], "com.osdos.plex": ["a"] } }\n' > "$BOOT/osdos-setup.json"
+apply
+fav="$DATA/arcade/favorites-setup.json"
+check "the Arcade's favorites for the app" '["sf2", "1942"]' "$(json "$fav" favorites)"
+check "said" "1" "$(logged "Arcade favorites: 2, added as the games are read")"
+rm -f "$fav"
+
 # A network's name of other letters, kept as its bytes; a semicolon escaped.
 cat > "$BOOT/osdos-setup.json" << 'EOF'
 { "osdos_setup": 1, "wifi": { "ssid": "Çay Evi", "password": "" } }

@@ -47,6 +47,12 @@ contributors, the Monoscope by Keith Raney, under the GPL-2.0 or later:
 each came from, with the GPL-2.0's text in
 /opt/osdos/share/osdos/assets/licenses/.
 
+Settings -> System -> Export to OSD/OS Setup draws its QR codes with
+Project Nayuki's QR Code generator library
+(https://www.nayuki.io/page/qr-code-generator-library), built into OSD/OS,
+Copyright (c) Project Nayuki, under the MIT License, whose text is in
+/opt/osdos/share/osdos/assets/licenses/qrcodegen.txt.
+
 The Arcade module plays its games on the local network with OSD/OS's own
 build of FinalBurn Neo (https://github.com/libretro/FBNeo),
 /opt/osdos/lib/osdos/osdos_lan_libretro.so: FinalBurn Neo's libretro core,

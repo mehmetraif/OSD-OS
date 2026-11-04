@@ -32,6 +32,9 @@ ChoiceOverlay {
     // Whether it can go on a playlist.
     property bool playlists: false
     // The host's own, before FAVORITES' and after them: [{ label, action }].
+    // Those with starts: true start the entry (a game played, hosted): they
+    // come first, whichever list they are in, a ▶ before each and a line
+    // under them (PromptScreen), the rest under the line.
     property var firstChoices: []
     property var moreChoices: []
 
@@ -48,11 +51,18 @@ ChoiceOverlay {
 
     promptText: "Options"
     subtitleText: entry ? (entry.title || entry.name || "") : ""
-    choices: firstChoices
-             .concat([{ label: favorite ? "Remove from Favorites" : "Add to Favorites", action: "favorite" },
-                      { label: atStartup ? "Don't Play at Startup" : "Play at Startup", action: "startup" }])
-             .concat(playlists ? [{ label: "Add to Playlist", action: "playlist" }] : [])
-             .concat(moreChoices)
+    choices: {
+        var all = firstChoices
+                  .concat([{ label: favorite ? "Remove from Favorites" : "Add to Favorites", action: "favorite" },
+                           { label: atStartup ? "Don't Play at Startup" : "Play at Startup", action: "startup" }])
+                  .concat(playlists ? [{ label: "Add to Playlist", action: "playlist" }] : [])
+                  .concat(moreChoices)
+        var starting = all.filter(function(c) { return !!c.starts })
+        var rest = all.filter(function(c) { return !c.starts })
+        return starting.length > 0 && rest.length > 0
+               ? starting.concat([{ divider: true, label: "", action: "" }]).concat(rest)
+               : starting.concat(rest)
+    }
 
     // ADD TO PLAYLIST opens the adder over these options, which stay under
     // it and close with it; any other choice closes them first, as a

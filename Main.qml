@@ -584,8 +584,59 @@ Window {
     // drawn stretched across the screen (the screen item below), so that they
     // keep their shapes. Anywhere else the stage is the window.
     readonly property bool tube: typeof screenIsTube !== "undefined" && screenIsTube === true
-    readonly property real sw: tube ? Math.round(height * 4 / 3) : width
-    readonly property real sh: height
+    // The width of the window's pixels against their height: a tube's mode
+    // has them narrower or wider than square (a JAMMA board's 720×240 more
+    // than twice as tall as wide), anything else square. Video drawn in the
+    // window takes its picture's shape from it (VideoSurface).
+    readonly property real framePixelAspect: tube && width > 0 ? Math.round(height * 4 / 3) / width : 1
+    // Settings → Screen → Monitor (app.monitor, Horizontal): a monitor turned
+    // on its side for vertical games (TATE), which the system doesn't know
+    // of, as a cabinet's or a Pi's: Turned Right has the monitor's top on
+    // the right as one faces it, Turned Left on the left. Everything OSD/OS
+    // draws is turned to stand upright on it (the screen item's matrix), and
+    // what it starts too: MAME, RetroArch and mpv each turn their picture
+    // (ArcadeBackend, MpvController).
+    property string monitor: "Horizontal"
+    function monitorOf(raw) {
+        return raw === "Turned Right" || raw === "Turned Left" ? raw : "Horizontal"
+    }
+    readonly property bool turned: monitor !== "Horizontal"
+    // The screen as one sees it, in the stage's square pixels: the window
+    // turned with the monitor, a tube's pixels made square across its lines.
+    readonly property real canvasW: turned ? height : tube ? Math.round(height * 4 / 3) : width
+    readonly property real canvasH: turned ? (tube ? Math.round(height * 4 / 3) : width) : height
+    // A screen taller than it is wide (a monitor turned, or a window or
+    // desktop made so): the menus keep their 4:3 design, as wide as the
+    // screen, in a band across its middle (stageY down), and the Arcade
+    // screen alone takes the whole of it, in a layout of its own.
+    readonly property bool portrait: canvasH > canvasW
+    readonly property real sw: canvasW
+    readonly property real sh: portrait ? Math.round(canvasW * 3 / 4) : canvasH
+    readonly property real stageY: Math.round((canvasH - sh) / 2)
+    // The screen item's place on the window: turned with the monitor, and
+    // stretched across a tube's lines to the window's pixels.
+    readonly property matrix4x4 screenMatrix: {
+        if (monitor === "Turned Right") {
+            // The monitor's top went right: the stage's top lies along the
+            // window's left edge, its left along the window's foot.
+            var kr = canvasH > 0 ? width / canvasH : 1
+            return Qt.matrix4x4(0, kr, 0, 0,
+                                -1, 0, 0, height,
+                                0, 0, 1, 0,
+                                0, 0, 0, 1)
+        }
+        if (monitor === "Turned Left") {
+            var kl = canvasH > 0 ? width / canvasH : 1
+            return Qt.matrix4x4(0, -kl, 0, width,
+                                1, 0, 0, 0,
+                                0, 0, 1, 0,
+                                0, 0, 0, 1)
+        }
+        return Qt.matrix4x4(canvasW > 0 ? width / canvasW : 1, 0, 0, 0,
+                            0, 1, 0, 0,
+                            0, 0, 1, 0,
+                            0, 0, 0, 1)
+    }
     // One pixel of a 240-line picture, in screen pixels: the unit the
     // pixel-drawn OSD elements (Components/Osd*, PixelIcon) are built on.
     readonly property int px: Math.max(1, Math.floor(sh / 240))
@@ -696,6 +747,8 @@ Window {
                 root.menuLayout = root.menuLayoutOf(value)
             } else if (key === "window_mode") {
                 root.setWindowed(root.canWindow && value === "On")
+            } else if (key === "monitor") {
+                root.monitor = root.monitorOf(value)
             } else if (key === "mouse_pointer") {
                 root.pointerSetting = String(value)
                 if (root.pointerShown)
@@ -767,6 +820,7 @@ Window {
         root.helpLineSetting = !(cfg.app && cfg.app.help_line === "Off")
         root.statusIconsSetting = !(cfg.app && cfg.app.status_icons === "Off")
         root.osdBackground = root.osdBackgroundOf(cfg.app && cfg.app.osd_background)
+        root.monitor = root.monitorOf(cfg.app && cfg.app.monitor)
         root.setWindowed(root.canWindow && !!(cfg.app && cfg.app.window_mode === "On"))
 
         // Screensaver: the tracker starts disabled; this is the single place the
@@ -1117,13 +1171,21 @@ Window {
     // (SOLID, the ground all over the screen) it isn't drawn at all, and the
     // session draws its pictures small meanwhile (VideoSurface): the video
     // plays on, sound and all, for nothing on the screen.
-    VideoSurface {
-        anchors.fill: parent
-        controller: mpvController
-        pixelAspect: root.width > 0 ? root.sw / root.width : 1
+    // On a monitor turned on its side it is drawn on the screen as one sees
+    // it and turned with the menus (root.screenMatrix), so that mpv lays out
+    // the picture, its subtitles and its own displays upright on it.
+    Item {
+        width: root.turned ? root.canvasW : root.width
+        height: root.turned ? root.canvasH : root.height
+        transform: Matrix4x4 { matrix: root.turned ? root.screenMatrix : Qt.matrix4x4() }
         visible: root.videoActive
                  && (!root.videoBehind || root.backdropSolidity < 100 || root.osdBackground === "Window")
         z: root.videoBehind ? -1 : 1
+        VideoSurface {
+            anchors.fill: parent
+            controller: mpvController
+            pixelAspect: root.turned ? 1 : root.framePixelAspect
+        }
     }
 
     // --- THE SCREEN, AND ITS EFFECTS ---
@@ -1137,15 +1199,20 @@ Window {
     // rainbow, glinting, flickering or glowing. With none, or while the
     // effects rest (root.effectsRest), neither the texture nor the shader is
     // there.
-    // It is the stage, sw by sh, stretched over the window on a tube; its
-    // textures (the effects', the window changes') then have the window's
-    // pixels, the effects counting in the stage's.
+    // It is the screen as one sees it, canvasW by canvasH, laid on the window
+    // by root.screenMatrix: stretched across a tube's lines, turned with the
+    // monitor. Its textures (the effects', the window changes') then have
+    // the window's pixels, the effects counting in the stage's. The views
+    // lie on the stage, sw by sh: the whole of it, or on a screen taller
+    // than wide a band across its middle (root.stageY down).
     Item {
         id: screen
-        width: root.sw
-        height: root.sh
-        transform: Scale { xScale: root.sw > 0 ? root.width / root.sw : 1 }
-        readonly property size texturePixels: root.tube ? Qt.size(root.width, root.height) : Qt.size(0, 0)
+        width: root.canvasW
+        height: root.canvasH
+        transform: Matrix4x4 { matrix: root.screenMatrix }
+        readonly property size texturePixels: !root.tube ? Qt.size(0, 0)
+                                               : root.turned ? Qt.size(root.height, root.width)
+                                                             : Qt.size(root.width, root.height)
 
         // The software renderer draws no shaders.
         readonly property bool gpu: GraphicsInfo.api !== GraphicsInfo.Software
@@ -1169,7 +1236,7 @@ Window {
         layer.textureSize: texturePixels
         layer.effect: ShaderEffect {
             fragmentShader: screen.shader
-            property size resolution: Qt.size(root.sw, root.sh)
+            property size resolution: Qt.size(root.canvasW, root.canvasH)
             property real px: root.px
             property real time: root.fxTime
             property real scanlines: root.screenEffect.scanlines || 0
@@ -1233,6 +1300,9 @@ Window {
             // around it.
             OsdGround {
                 anchors.fill: parent
+                // The whole screen, the stage a band of it on a tall one.
+                bandY: root.stageY
+                wholeArea: Qt.rect(0, -root.stageY, root.canvasW, root.canvasH)
                 z: -1
                 cover: false
                 visible: !root.videoBehind || root.backdropSolidity > 0
@@ -1271,7 +1341,11 @@ Window {
             // --- MODULE LOADER ---
             Loader {
                 id: moduleLoader;
-                anchors.fill: parent;
+                // The stage (the Arcade screen alone draws outside it, on a
+                // tall screen: ArcadeScreen.qml's portrait).
+                y: root.stageY
+                width: root.sw
+                height: root.sh
                 focus: true;
                 source: "views/ModuleList.qml";
 
@@ -1375,7 +1449,7 @@ Window {
                 property variant from: lastFace
                 property variant to: nextFace
                 property real progress: windowChange.progress
-                property size resolution: Qt.size(root.sw, root.sh)
+                property size resolution: Qt.size(root.canvasW, root.canvasH)
                 property real px: root.px
                 property point corner: Qt.point(windowChange.direction % 2, Math.floor(windowChange.direction / 2))
                 property color ink: root.primaryColor
@@ -1409,7 +1483,9 @@ Window {
         // moduleLoader so its focus grab wins over the first view's.
         Loader {
             id: bootScreenLoader
-            anchors.fill: parent
+            y: root.stageY
+            width: root.sw
+            height: root.sh
             z: 9000
             active: root.bootActive
             source: "views/BootScreen.qml"
@@ -1419,7 +1495,9 @@ Window {
         // Above the boot screen: on a new display output, keep it or go back.
         Loader {
             id: displayKeepLoader
-            anchors.fill: parent
+            y: root.stageY
+            width: root.sw
+            height: root.sh
             z: 9500
             active: root.displayHolding
             source: "views/DisplayKeep.qml"
@@ -1429,7 +1507,9 @@ Window {
         // Then what became of OSD/OS Setup's file, once that window is done.
         Loader {
             id: setupNoticeLoader
-            anchors.fill: parent
+            y: root.stageY
+            width: root.sw
+            height: root.sh
             z: 9400
             active: root.setupNotice !== "" && !root.displayHolding
             source: "views/SetupNotice.qml"
@@ -1542,9 +1622,11 @@ Window {
         // Only follows the mouse: clicks and the wheel go on to what is under it.
         acceptedButtons: Qt.NoButton
         onPositionChanged: function(mouse) {
-            // On the stage, whose pixels are the window's on all but a tube.
-            pointer.x = root.width > 0 ? mouse.x * root.sw / root.width : mouse.x
-            pointer.y = mouse.y
+            // On the screen as one sees it: stretched back off a tube's
+            // lines, turned back with the monitor.
+            var at = screen.mapFromItem(null, mouse.x, mouse.y)
+            pointer.x = at.x
+            pointer.y = at.y
             root.pointerShown = true
             pointerTimer.restart()
             idleTracker.resetActivity()

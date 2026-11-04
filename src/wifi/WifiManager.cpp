@@ -653,8 +653,12 @@ void WifiManager::fetchSaved(const QString &path) {
         // A network joined, not one the Pi makes (a hotspot).
         if (connection.value(QStringLiteral("type")).toString() == QLatin1String("802-11-wireless") && !ssid.isEmpty()
             && (mode.isEmpty() || mode == QLatin1String("infrastructure"))) {
+            // Its security: "" for an open network, else NetworkManager's
+            // key management ("wpa-psk", "sae", "wpa-eap", "none" for WEP).
+            const QVariantMap security = settings.value(QStringLiteral("802-11-wireless-security")).toMap();
             m_saved.insert(path, { { QStringLiteral("ssid"), ssid },
-                                   { QStringLiteral("hidden"), wireless.value(QStringLiteral("hidden")).toBool() } });
+                                   { QStringLiteral("hidden"), wireless.value(QStringLiteral("hidden")).toBool() },
+                                   { QStringLiteral("security"), security.value(QStringLiteral("key-mgmt")).toString() } });
         } else {
             m_saved.remove(path);
         }
@@ -1039,10 +1043,61 @@ void WifiManager::refresh() {
     }
 }
 
+void WifiManager::readJoined(std::function<void(const QVariantMap &)> done) {
+    const QVariantMap device = interfaceOf(m_device, kDevice);
+    const QVariantMap active = interfaceOf(pathOf(device.value(QStringLiteral("ActiveConnection"))), kActive);
+    const QString path = pathOf(active.value(QStringLiteral("Connection")));
+    const QVariantMap saved = m_saved.value(path);
+    if (m_device.isEmpty() || saved.isEmpty()) {
+        done({});
+        return;
+    }
+    const QVariantMap joined{ { QStringLiteral("ssid"), QString::fromUtf8(saved.value(QStringLiteral("ssid")).toByteArray()) },
+                              { QStringLiteral("hidden"), saved.value(QStringLiteral("hidden")).toBool() } };
+    const QString security = saved.value(QStringLiteral("security")).toString();
+    // An open network: no password to read.
+    if (security.isEmpty()) {
+        QVariantMap open = joined;
+        open.insert(QStringLiteral("password"), QString());
+        open.insert(QStringLiteral("read"), true);
+        done(open);
+        return;
+    }
+    // A password the card's setup can save again (a WPA one's): read;
+    // another (WEP, an enterprise network's), not.
+    if (security != QLatin1String("wpa-psk") && security != QLatin1String("sae")) {
+        QVariantMap unread = joined;
+        unread.insert(QStringLiteral("read"), false);
+        done(unread);
+        return;
+    }
+    call(path, kSaved, QStringLiteral("GetSecrets"), { QStringLiteral("802-11-wireless-security") }, kCallTimeoutMs,
+         [joined, done](const QDBusMessage &reply) {
+        QVariantMap out = joined;
+        const QString psk = reply.type() == QDBusMessage::ReplyMessage && !reply.arguments().isEmpty()
+                                ? plain(reply.arguments().constFirst()).toMap()
+                                      .value(QStringLiteral("802-11-wireless-security")).toMap()
+                                      .value(QStringLiteral("psk")).toString()
+                                : QString();
+        if (psk.isEmpty())
+            qWarning("[Wi-Fi] The joined network's password couldn't be read: %s", qPrintable(reply.errorMessage()));
+        out.insert(QStringLiteral("password"), psk);
+        out.insert(QStringLiteral("read"), !psk.isEmpty());
+        done(out);
+    });
+}
+
 void WifiManager::call(const QString &path, const QString &interface, const QString &method,
                        const QVariantList &args, int timeoutMs,
                        std::function<void(const QDBusMessage &reply)> done) {
     dbuscall::call(m_bus, kService, path, interface, method, args, timeoutMs, this, std::move(done));
 }
 
+#endif
+
+#ifndef OSDOS_WIFI
+// No NetworkManager: no network joined to say.
+void WifiManager::readJoined(std::function<void(const QVariantMap &)> done) {
+    done({});
+}
 #endif

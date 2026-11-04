@@ -125,6 +125,12 @@ public:
     // The country by its code: false when it can't be asked, else the
     // message says how it went.
     Q_INVOKABLE bool setCountry(const QString &code);
+    // The network joined, as it was saved, for Settings → System → Export to
+    // OSD/OS Setup (SetupExporter): done is given { ssid, hidden, password,
+    // read } (read: whether the password is known, an open network's ""),
+    // or nothing off Wi-Fi. A password is NetworkManager's to give: one it
+    // keeps for the app's user, or a system one to an active local session.
+    void readJoined(std::function<void(const QVariantMap &)> done);
     Q_INVOKABLE void clearMessage();
 
 signals:
