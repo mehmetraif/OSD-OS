@@ -68,7 +68,7 @@ The line under the tree says what the entry under the cursor is: a game's year, 
 
 ### A game's options
 
-Right on a game opens its options:
+Right on a game opens its options. Those that start the game come first, each with a ▶ before it (Play, Play Turned Right and Left, Host Online Game, Host LAN Game), and a line separates them from the rest, which set something or open a page; the cursor passes over the line:
 
 | Option | What it does |
 |---|---|

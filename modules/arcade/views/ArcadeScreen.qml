@@ -1786,12 +1786,13 @@ FocusScope {
         width: parent.width
         height: parent.height
         moduleId: moduleRoot.moduleId
-        // A vertical game played turned once, on a monitor turned for it,
-        // while Settings → Screen → Monitor isn't turned.
-        firstChoices: [{ label: "Play", action: "play" }]
+        // Those that start the game first (starts, a line under them): a
+        // vertical game played turned once, on a monitor turned for it,
+        // while Settings → Screen → Monitor isn't turned, and hosting it.
+        firstChoices: [{ label: "Play", action: "play", starts: true }]
                       .concat(arcadeScreen.details.vertical && !root.turned
-                              ? [{ label: "Play Turned Right", action: "playRight" },
-                                 { label: "Play Turned Left", action: "playLeft" }] : [])
+                              ? [{ label: "Play Turned Right", action: "playRight", starts: true },
+                                 { label: "Play Turned Left", action: "playLeft", starts: true }] : [])
                       .concat([{ label: "Game Details", action: "details" }])
         // Made as the options open, not for every game the cursor passes.
         moreChoices: !options.visible ? []
@@ -1801,9 +1802,9 @@ FocusScope {
                         .concat(engines.offered(arcadeScreen.currentSet)
                          ? [{ label: engines.lineFor(arcadeScreen.currentSet), action: "engine" }] : [])
                         .concat(arcadeBackend && arcadeBackend.canHost(arcadeScreen.currentSet)
-                                ? [{ label: "Host Online Game", action: "host" }] : [])
+                                ? [{ label: "Host Online Game", action: "host", starts: true }] : [])
                         .concat(arcadeBackend && arcadeBackend.canHostLan(arcadeScreen.currentSet)
-                                ? [{ label: "Host LAN Game", action: "hostLan" }] : []))
+                                ? [{ label: "Host LAN Game", action: "hostLan", starts: true }] : []))
         onActivated: function(action) {
             if (action === "play")
                 arcadeScreen.playCurrent()

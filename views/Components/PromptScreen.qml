@@ -30,14 +30,17 @@ Item {
     // Under the bar: what it is about (a title, a device), or a notice's
     // details. It wraps.
     property string message: ""
-    // The answers: labels, or maps with a label ({ label, action }).
+    // The answers: labels, or maps with a label ({ label, action }). A map
+    // with starts: true is one that starts what the window is for (a game),
+    // a ▶ before it; { divider: true } is a line between groups of answers,
+    // which the cursor passes over (ChoiceOverlay) and the mouse leaves.
     property var choices: []
     property int currentIndex: 0
     // The answer the mouse is over (Main.qml's followPointer()): the host
     // moves its cursor there (onHovered), as it does for ▲ ▼.
     signal hovered(int index)
     function hoverRow(index) {
-        if (index >= 0 && index < choices.length)
+        if (index >= 0 && index < choices.length && !(choices[index] && choices[index].divider))
             hovered(index)
     }
     // More answers than this show a window of them that follows the cursor,
@@ -131,32 +134,60 @@ Item {
                 onCountChanged: Qt.callLater(keep)
 
                 delegate: Item {
+                    id: answer
                     readonly property bool current: index === prompt.currentIndex
+                    readonly property bool divider: typeof modelData === "object" && !!modelData.divider
+                    readonly property bool starts: typeof modelData === "object" && !!modelData.starts
                     width: answers.width
                     height: answers.rowHeight
 
-                    // The answer under the cursor, boxed, or in the skin's
-                    // picture of a selected line (Settings → Look → Skin).
-                    SelectionBox {
-                        anchors.fill: label
-                        visible: parent.current
+                    // A line between groups: a rule across the middle half.
+                    Rectangle {
+                        visible: answer.divider
+                        anchors.centerIn: parent
+                        width: Math.round(parent.width * 0.5)
+                        height: root.px
+                        color: root.primaryColor
+                        antialiasing: false
                     }
 
-                    Text {
-                        id: label
+                    // The answer under the cursor, boxed, or in the skin's
+                    // picture of a selected line (Settings → Look → Skin):
+                    // its ▶ and its label.
+                    SelectionBox {
+                        anchors.fill: line
+                        visible: answer.current && !answer.divider
+                    }
+
+                    Row {
+                        id: line
+                        visible: !answer.divider
                         anchors.centerIn: parent
-                        width: Math.min(implicitWidth, parent.width)
-                        textFormat: Text.PlainText
-                        text: typeof modelData === "string" ? modelData : (modelData.label || "")
-                        color: parent.current ? root.surfaceColor : root.primaryColor
-                        font.family: root.globalFont
-                        font.capitalization: Font.AllUppercase
-                        font.pixelSize: root.sh * 0.05 //24
-                        elide: Text.ElideRight
-                        topPadding: root.sh * 0.0041667 //2
                         leftPadding: root.sw * 0.009375 //6
                         rightPadding: root.sw * 0.009375 //6
-                        bottomPadding: root.sh * 0.00625 //3
+                        spacing: answer.starts ? root.sw * 0.0125 : 0 //8
+
+                        PixelIcon {
+                            visible: answer.starts
+                            name: "play"
+                            color: answer.current ? root.surfaceColor : root.primaryColor
+                            anchors.verticalCenter: parent.verticalCenter
+                        }
+
+                        Text {
+                            id: label
+                            width: Math.min(implicitWidth, answers.width - line.leftPadding - line.rightPadding
+                                            - (answer.starts ? line.spacing + root.px * 7 : 0))
+                            textFormat: Text.PlainText
+                            text: typeof modelData === "string" ? modelData : (modelData.label || "")
+                            color: answer.current ? root.surfaceColor : root.primaryColor
+                            font.family: root.globalFont
+                            font.capitalization: Font.AllUppercase
+                            font.pixelSize: root.sh * 0.05 //24
+                            elide: Text.ElideRight
+                            topPadding: root.sh * 0.0041667 //2
+                            bottomPadding: root.sh * 0.00625 //3
+                        }
                     }
                 }
             }

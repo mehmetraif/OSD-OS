@@ -1068,8 +1068,12 @@ Rectangle {
             tryVerify(function() { return findText(screen, "Play Turned Right") !== null }, 1500)
             keyRelease(Qt.Key_Return)
             verify(findText(screen, "Play Turned Left") !== null)
+            // Those that start the game, then a line the cursor passes
+            // over: Game Details next after Play Turned Left, and back.
             keyClick(Qt.Key_Down)
             keyClick(Qt.Key_Down)   // Play Turned Left
+            keyClick(Qt.Key_Down)   // over the line, Game Details
+            keyClick(Qt.Key_Up)     // over it again, Play Turned Left
             keyClick(Qt.Key_Return)
             var played = root.navigations[root.navigations.length - 1]
             compare(played.path, "Play.qml")
@@ -1734,15 +1738,14 @@ Rectangle {
             compare(root.navigations[0].params.game, "sf2")
             compare(root.navigations[0].params.online.room, 11)
             compare(root.navigations[0].params.online.host, "ann")
-            // Pac-Man, in Favorites: hosted from its options, the last of
-            // them.
+            // Pac-Man, in Favorites: hosted from its options, the first of
+            // them, as it starts the game.
             keyClick(Qt.Key_Left)
             keyClick(Qt.Key_Down)
             keyClick(Qt.Key_Down)
             keyClick(Qt.Key_Right)
             keyClick(Qt.Key_Right)
             tryVerify(function() { return findText(games, "Host Online Game") !== null }, 1000)
-            keyClick(Qt.Key_Up)
             keyClick(Qt.Key_Return)
             compare(root.navigations.length, 2)
             compare(root.navigations[1].params.game, "pacman")
@@ -1781,7 +1784,7 @@ Rectangle {
             keyPress(Qt.Key_Return)
             tryVerify(function() { return findText(screen, "Host Online Game") !== null }, 1500)
             keyRelease(Qt.Key_Return)
-            keyClick(Qt.Key_Up)
+            keyClick(Qt.Key_Down)   // after Play, with what starts the game
             keyClick(Qt.Key_Return)
             compare(root.navigations.length, 2)
             compare(root.navigations[1].params.game, "sf2")
@@ -2207,7 +2210,6 @@ Rectangle {
             keyClick(Qt.Key_Right)
             tryVerify(function() { return findText(games, "Host LAN Game") !== null }, 1000)
             compare(findText(games, "Host Online Game"), null)
-            keyClick(Qt.Key_Up)
             keyClick(Qt.Key_Return)
             compare(root.navigations.length, 2)
             compare(root.navigations[1].params.game, "pacman")
@@ -2292,7 +2294,7 @@ Rectangle {
             tryVerify(function() { return findText(screen, "Host LAN Game") !== null }, 1500)
             keyRelease(Qt.Key_Return)
             compare(findText(screen, "Host Online Game"), null)
-            keyClick(Qt.Key_Up)
+            keyClick(Qt.Key_Down)   // after Play, with what starts the game
             keyClick(Qt.Key_Return)
             compare(root.navigations.length, 2)
             compare(root.navigations[1].params.game, "sf2")

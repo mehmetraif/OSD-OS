@@ -241,11 +241,12 @@ FocusScope {
         onCanceled: tree.forceActiveFocus()
     }
 
-    // A game's options: a vertical game played turned once (while Settings →
-    // Screen → Monitor isn't turned), its Game Details (Details.qml), its
-    // difficulty where MAME plays it with a DIP switch for it, its engine
-    // where MAME and FinalBurn Neo both have it, and with Online Play or LAN
-    // Play on, hosting it.
+    // A game's options, those that start it first (starts: a ▶ before each,
+    // a line under them): a vertical game played turned once (while Settings
+    // → Screen → Monitor isn't turned), and with Online Play or LAN Play on,
+    // hosting it; then its Game Details (Details.qml), its difficulty where
+    // MAME plays it with a DIP switch for it, and its engine where MAME and
+    // FinalBurn Neo both have it.
     property int engineRevision: 0
     readonly property string optionsSet: options.entry && String(options.entry.path).indexOf("game:") === 0
                                          ? String(options.entry.path).substring(5) : ""
@@ -256,8 +257,8 @@ FocusScope {
         anchors.fill: parent
         moduleId: moduleRoot.moduleId
         firstChoices: (gamesRoot.optionsVertical && !root.turned
-                       ? [{ label: "Play Turned Right", action: "playRight" },
-                          { label: "Play Turned Left", action: "playLeft" }] : [])
+                       ? [{ label: "Play Turned Right", action: "playRight", starts: true },
+                          { label: "Play Turned Left", action: "playLeft", starts: true }] : [])
                       .concat([{ label: "Game Details", action: "details" }])
         moreChoices: (gamesRoot.engineRevision,
                       (difficulty.offered(gamesRoot.optionsSet)
@@ -265,9 +266,9 @@ FocusScope {
                       .concat(engines.offered(gamesRoot.optionsSet)
                        ? [{ label: engines.lineFor(gamesRoot.optionsSet), action: "engine" }] : [])
                       .concat(arcadeBackend && arcadeBackend.canHost(gamesRoot.optionsSet)
-                              ? [{ label: "Host Online Game", action: "host" }] : [])
+                              ? [{ label: "Host Online Game", action: "host", starts: true }] : [])
                       .concat(arcadeBackend && arcadeBackend.canHostLan(gamesRoot.optionsSet)
-                              ? [{ label: "Host LAN Game", action: "hostLan" }] : []))
+                              ? [{ label: "Host LAN Game", action: "hostLan", starts: true }] : []))
         onActivated: function(action) {
             if (action === "details")
                 gamesRoot.navigateTo("Details.qml", { game: gamesRoot.optionsSet, title: options.entry.name },
