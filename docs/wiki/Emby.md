@@ -13,7 +13,7 @@ The module is in [modules/emby](https://github.com/mehmetraif/OSD-OS/tree/main/m
 ## What you need
 
 - An Emby server the device can reach. For **Local Server** you need its address (`http://` or `https://`, the host or IP address, and the port: Emby's own defaults are 8096 for HTTP and 8920 for HTTPS) and a user account on it. For **Emby Connect** you need an emby.media account linked to the server.
-- A keyboard to type with, once: a USB keyboard, or one paired in **Settings → Network → Bluetooth**. The sign-in screen has no on-screen keyboard. The server's address can be put in `config.json` instead ([below](#fill-in-the-address-beforehand)), but a username and password always need typing.
+- Nothing to type with but the remote or a gamepad: select on a field opens the on-screen keyboard. A USB keyboard, or one paired in **Settings → Network → Bluetooth**, types into the fields too, and the server's address can go in `config.json` beforehand ([below](#fill-in-the-address-beforehand)).
 
 ## Turning it on
 
@@ -29,7 +29,7 @@ Open **Emby** from the main menu. The **Connect to Server** screen starts with t
 | **Username** / **Email** | Your username on that server | Your emby.media email (or user name) |
 | **Password** | Its password (masked; leave it empty for a user without one) | Your emby.media password |
 
-▲ ▼ (or Tab and Shift+Tab) move from row to row, round the ends; below the first row ◄ ► do the same, so they don't move the cursor inside a field. Enter in any field, or on **Sign In**, signs in. Backspace deletes a character; Esc leaves the screen. The line above **Sign In** says what to do (**CHOOSE HOW TO SIGN IN**, **SIGN IN WITH YOUR SERVER ACCOUNT**, **EMBY CONNECT USES YOUR EMBY.MEDIA EMAIL**), **CONNECTING...** while it works, or what went wrong. The Server URL field holds the address used last time, if any.
+▲ ▼ (or Tab and Shift+Tab) move from row to row, round the ends; below the first row ◄ ► do the same, so they don't move the cursor inside a field. Select on a field opens the on-screen keyboard with what is in it (the address on `http://` to go on from); its two rows of signs have every sign a keyboard has, SHIFT gives capitals and the second row's other signs, and for the password **SHOW** shows what was typed (**HIDE** hides it again). OK goes on to the next field, then to **Sign In**, where select signs in. A keyboard types into the fields as well, Backspace deleting a character; Esc leaves the screen. The line above **Sign In** says what to do (**CHOOSE HOW TO SIGN IN**, **SIGN IN WITH YOUR SERVER ACCOUNT**, **EMBY CONNECT USES YOUR EMBY.MEDIA EMAIL**), **CONNECTING...** while it works, or what went wrong. The Server URL field holds the address used last time, if any.
 
 ### Local Server
 
@@ -212,7 +212,7 @@ The Emby Connect token is used for the sign-in only and never saved; neither is 
 
 | Problem | What to do |
 |---|---|
-| No way to type | Plug in or pair a keyboard (Settings → Network → Bluetooth). The address alone can [go in config.json](#fill-in-the-address-beforehand) |
+| No way to type | Select on a field opens the on-screen keyboard; a keyboard (Settings → Network → Bluetooth) types into it too. The address can also [go in config.json](#fill-in-the-address-beforehand) |
 | **CONNECTION FAILED: …** | Check the address has `http://` or `https://` and the port. From the device, `curl http://192.168.1.30:8096/System/Info/Public` (with your address) should answer with the server's name |
 | **INCORRECT USERNAME OR PASSWORD** | The server's own account, not the emby.media one (that is Emby Connect) |
 | **NO SERVERS LINKED TO THIS ACCOUNT** | Link the server to your emby.media account in the server's user settings, or sign in with Local Server |

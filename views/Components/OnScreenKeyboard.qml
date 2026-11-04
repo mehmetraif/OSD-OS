@@ -4,11 +4,15 @@ import QtQuick
 // letters and digits under a line showing what has been typed. The arrows move
 // the box, select types what is in it (or SPACE, DEL, OK on the last row), and
 // back cancels. A real keyboard types straight in, which moves the box to OK
-// so Enter then finishes. It covers its parent below the title bar.
+// so Enter then finishes. The mouse moves the box to the key under it, so a
+// click types that key. Opened on text already there, the box starts on OK.
+// It covers its parent below the title bar.
 //     OnScreenKeyboard { anchors.fill: parent; onAccepted: (text) => … }
-// For a password or a key (caseSensitive), letters in both cases (SHIFT) and
-// the signs one may hold, typed as they are and given back untrimmed; masked
-// shows a star for each. Inline, it lies in another view's window (the
+// For a password, a key or an address (caseSensitive), letters in both cases
+// (SHIFT) and every sign on a keyboard, in two rows, the second of them
+// changing with SHIFT: typed as they are and given back untrimmed. masked
+// shows a star for each, and SHOW on the last row shows what was typed
+// (HIDE hides it again). Inline, it lies in another view's window (the
 // Arcade screen's Search, read as it is typed), which shows it and hands it
 // the keys: only the line typed and the keys, across its own width, in
 // letters of fontSize, the box and the cursor only while it has the keys
@@ -22,6 +26,8 @@ FocusScope {
     property int maxLength: 40
     property bool caseSensitive: false
     property bool masked: false
+    // masked, shown as typed for now (SHOW).
+    property bool revealed: false
     property bool shifted: false
     property bool inline: false
     property bool allowEmpty: false
@@ -33,13 +39,20 @@ FocusScope {
 
     function open(initial) {
         text = initial || ""
-        row = 0
-        col = 0
         shifted = false
+        revealed = false
+        // On text to edit, the box on OK, one select from keeping it; else on
+        // the first letter.
+        row = text !== "" ? rows.length - 1 : 0
+        col = text !== "" ? okCol : 0
         visible = true
         forceActiveFocus()
     }
-    function close() { visible = false }
+    // Hidden, it lets go of the keys too, so its view's own can have them.
+    function close() {
+        visible = false
+        focus = false
+    }
 
     readonly property var letters: [
         ["A", "B", "C", "D", "E", "F", "G", "H", "I", "J"],
@@ -47,10 +60,18 @@ FocusScope {
         ["U", "V", "W", "X", "Y", "Z", "0", "1", "2", "3"],
         ["4", "5", "6", "7", "8", "9", "-", "'", ".", "&"]
     ]
+    // The signs: those of a password, then those of an address and the rest,
+    // which SHIFT changes as it does the letters. / and : stay where they
+    // are, the pairs (( ) [ ] and < > { }) under each other.
+    readonly property var signs: ["@", "_", "!", "?", "#", "$", "%", "*", "+", "="]
+    readonly property var moreSigns: shifted ? ["/", ":", "^", "`", "<", ">", "{", "}", "~", "|"]
+                                             : ["/", ":", ",", ";", "(", ")", "[", "]", "\"", "\\"]
     readonly property var rows: caseSensitive
         ? letters.map(function(keys) {
               return keys.map(function(key) { return shifted ? key : key.toLowerCase() })
-          }).concat([["@", "_", "!", "?", "#", "$", "%", "*", "+", "="], ["SHIFT", "SPACE", "DEL", "OK"]])
+          }).concat([signs, moreSigns,
+                     masked ? ["SHIFT", "SPACE", "DEL", revealed ? "HIDE" : "SHOW", "OK"]
+                            : ["SHIFT", "SPACE", "DEL", "OK"]])
         : letters.concat([["SPACE", "DEL", "OK"]])
     property int row: 0
     property int col: 0
@@ -70,6 +91,8 @@ FocusScope {
             text = text.slice(0, -1)
         } else if (key === "SHIFT") {
             shifted = !shifted
+        } else if (key === "SHOW" || key === "HIDE") {
+            revealed = key === "SHOW"
         } else if (text.length < maxLength) {
             text += key === "SPACE" ? " " : key
         }
@@ -136,18 +159,45 @@ FocusScope {
                 close()
             canceled()
             return
-        case Qt.Key_Backspace: press("DEL"); return
+        case Qt.Key_Backspace:
+        case Qt.Key_Delete: press("DEL"); return
         }
         typeIn(event.text)
     }
-    // Typed on a real keyboard: straight in, and the box goes to OK.
+    // Typed on a real keyboard: straight in, and the box goes to OK. Not a
+    // control character (a Delete's U+007F).
     function typeIn(typed) {
         var ch = caseSensitive ? typed : typed.toUpperCase()
-        if (ch.length === 1 && ch >= " " && text.length < maxLength) {
+        if (ch.length === 1 && ch >= " " && ch !== "\u007f" && text.length < maxLength) {
             text += ch
             row = rows.length - 1
             col = okCol
         }
+    }
+
+    // The mouse over a key (Hover.js, as Main.qml's pointer moves): the box
+    // goes to it, so a click, which is select, types it.
+    function hoverAt(x, y) {
+        if (!live)
+            return
+        for (var r = 0; r < rows.length; r++) {
+            for (var c = 0; c < rows[r].length; c++) {
+                var key = keyItem(r, c)
+                if (!key)
+                    continue
+                var p = key.mapFromItem(osk, x, y)
+                if (p.x >= 0 && p.y >= 0 && p.x < key.width && p.y < key.height) {
+                    moveTo(r, c)
+                    return
+                }
+            }
+        }
+    }
+
+    // The key drawn at row r, column c.
+    function keyItem(r, c) {
+        var line = keyRows.itemAt(r)
+        return line ? line.keyAt(c) : null
     }
 
     property real fontSize: root.sh * 0.05 //24
@@ -193,7 +243,7 @@ FocusScope {
                 Text {
                     id: typed
                     textFormat: Text.PlainText
-                    text: osk.masked ? "*".repeat(osk.text.length) : osk.text
+                    text: osk.masked && !osk.revealed ? "*".repeat(osk.text.length) : osk.text
                     color: root.primaryColor
                     font.family: root.globalFont
                     font.capitalization: osk.caseSensitive ? Font.MixedCase : Font.AllUppercase
@@ -220,14 +270,17 @@ FocusScope {
 
         Column {
             Repeater {
+                id: keyRows
                 model: osk.rows.length
                 Row {
                     id: keyRow
                     required property int index
                     readonly property var keys: osk.rows[index]
-                    // The last row's three keys share the grid's width.
+                    // The last row's keys share the grid's width.
                     readonly property real keyW: keys.length === 10 ? osk.cellW : osk.cellW * 10 / keys.length
+                    function keyAt(c) { return keyRepeater.itemAt(c) }
                     Repeater {
+                        id: keyRepeater
                         model: keyRow.keys
                         Item {
                             required property int index
@@ -245,6 +298,7 @@ FocusScope {
                             Text {
                                 id: keyText
                                 anchors.centerIn: parent
+                                textFormat: Text.PlainText
                                 text: modelData
                                 color: parent.current && osk.live ? root.surfaceColor : root.primaryColor
                                 font.family: root.globalFont

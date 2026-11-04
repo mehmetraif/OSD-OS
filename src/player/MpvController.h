@@ -33,6 +33,19 @@ class MpvController : public QObject {
     // had the screen (leaveSession), for the main menu to offer back as it
     // does one behind the menus; empty while there is none.
     Q_PROPERTY(QVariantMap leftNote READ leftNote NOTIFY leftNoteChanged)
+    // Why the last session ended "failed", in a few words for its player to
+    // show (Components/PlaybackNotice.qml): "mpv is not installed", "mpv
+    // could not be started", "Another program has the screen", "mpv could
+    // not play it". Empty again as the next session is asked for.
+    Q_PROPERTY(QString lastError READ lastError NOTIFY lastErrorChanged)
+    // And what there is to add, as it is written: how to install mpv on this
+    // system, the system's word on why it couldn't start, the screen's
+    // holder, or mpv's own line on the video ("[ffmpeg] https: HTTP error
+    // 404 Not Found"). Empty where there is none.
+    Q_PROPERTY(QString lastErrorDetail READ lastErrorDetail NOTIFY lastErrorChanged)
+    // That failure was the player's own, not the video's: nothing a transcode
+    // or another stream would mend, so a player doesn't fall back to one.
+    Q_PROPERTY(bool playerFailed READ playerFailed NOTIFY lastErrorChanged)
 
 public:
     explicit MpvController(const QString &appRoot, const QString &dataRoot,
@@ -122,6 +135,9 @@ public:
     // it where it was saved without asking.
     Q_INVOKABLE void leaveSession();
     QVariantMap leftNote() const { return m_leftNote; }
+    QString lastError() const { return m_lastError; }
+    QString lastErrorDetail() const { return m_lastErrorDetail; }
+    bool playerFailed() const { return m_playerFailed; }
     // The session behind the menus, full screen again where it is, for the
     // player it belongs to (backgroundNote says whose it is): false when
     // there is none, and the player starts its video as it would any.
@@ -184,7 +200,10 @@ signals:
     //   "stopped" — user quit/stopped before the end (also the safe default for a
     //               crash/kill with no end-file event).
     //   "failed"  — mpv exited with an error (code 2 — file could not be played;
-    //               Up to the module as to when/how to use; for example Plex retries when transcoding).
+    //               Up to the module as to when/how to use; for example Plex retries when transcoding),
+    //               or never got going (not installed, couldn't be started, the
+    //               screen another's): lastError says which, playerFailed whether
+    //               it was the player's own.
     //   "menu"    — the process ended for its player's menu (back, for a player
     //               whose note says menu: true, see closePlayerMenu): the player
     //               opens it, and starts the video again where it was as it closes.
@@ -197,6 +216,7 @@ signals:
     void videoActiveChanged();
     void backgroundChanged();
     void leftNoteChanged();
+    void lastErrorChanged();
     void playerMenuRequested();
     void videoFrameReady();
     // The OSC's SUBTITLE button when the sub is burned into the stream and mpv
@@ -359,6 +379,16 @@ private:
     int           m_logoOverlayWidth = 0;
     int           m_logoOverlayHeight = 0;
     QString       m_lastEndFileReason;  // mpv end-file "reason" for the current session
+    QString       m_lastEndFileError;   // and its "file_error", when the reason is "error"
+    // mpv's first line of its own on what went wrong, from the process's
+    // output: "[ffmpeg] https: HTTP error 404 Not Found".
+    QString       m_firstMpvError;
+    QString       m_lastError;          // lastError, lastErrorDetail, playerFailed
+    QString       m_lastErrorDetail;
+    bool          m_playerFailed = false;
+    // A failed session's lastError and its detail: the player's own failure
+    // (player), or the video's.
+    void setFailure(const QString &error, const QString &detail, bool player);
     // Set when this session passed --start; cleared once mpv has applied it. See
     // onIpcReadyRead's playback-restart handling for why the option can't just stay set.
     bool          m_pendingStartClear = false;

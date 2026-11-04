@@ -15,7 +15,7 @@ The module is in [modules/jellyfin](https://github.com/mehmetraif/OSD-OS/tree/ma
 - A Jellyfin server the device can reach, and its address: `http://` or `https://`, the host or IP address, and the port (Jellyfin's usual ones are 8096 for HTTP and 8920 for HTTPS), such as `http://192.168.1.20:8096`.
 - **Quick Connect** turned on in the server's settings (an administrator can do it in the Jellyfin dashboard).
 - A phone, tablet or computer where you are signed in to Jellyfin as the user OSD/OS should play as, to approve the code.
-- Something to type the server's address with, once: a USB keyboard, or one paired in **Settings → Network → Bluetooth**. The sign-in screen has no on-screen keyboard. Without a keyboard, put the address in `config.json` first ([below](#sign-in-without-a-keyboard)), and the remote does the rest.
+- Nothing to type with but the remote or a gamepad: select on the server's address opens the on-screen keyboard. A USB keyboard, or one paired in **Settings → Network → Bluetooth**, types into the field too, and the address can go in `config.json` beforehand ([below](#sign-in-without-a-keyboard)).
 
 ## Turning it on
 
@@ -24,13 +24,13 @@ Jellyfin is off until you turn it on: **Settings → TV / Movie → Jellyfin →
 ## Signing in with Quick Connect
 
 1. Open **Jellyfin** from the main menu. The **Connect to Server** screen has a **Server URL** field and a **Quick Connect** button. The field holds the address used last time, if any.
-2. Type the server's address in the field, with its `http://` or `https://` and its port.
-3. Press Enter (in the field, or with ▼ on **Quick Connect**). **CONNECTING…** shows while OSD/OS asks the server for a code.
+2. Select on the field opens the on-screen keyboard, on `http://` (or the address there) for you to go on from: the server's address with its port, as `http://192.168.1.20:8096`. Its two rows of signs have `:` and `/`, as every sign a keyboard has; SHIFT gives capitals and the second row's other signs. OK goes on to **Quick Connect**. A keyboard types into the field as well.
+3. Select on **Quick Connect**. **CONNECTING…** shows while OSD/OS asks the server for a code.
 4. The code fills the screen, with **Enter the above code at:** and an address on your server ending `/web/#quickconnect`, and **Waiting…** under it.
 5. On your other device, signed in to Jellyfin as the user you want, open Quick Connect (that address, in a browser), enter the code and authorize it.
 6. OSD/OS asks the server every 2 seconds whether the code has been approved. Once it has, the screen reads **Approved**, OSD/OS signs in, and the libraries open.
 
-Back on the code screen cancels (OSD/OS asks the server to drop the code). After 2 minutes without approval the screen reads **CODE EXPIRED**; back (`[ESC]:RETRY`) returns to the first screen to ask for a new one.
+Back on the code screen cancels (OSD/OS asks the server to drop the code). After 2 minutes without approval the screen reads **CODE EXPIRED**; back (`[ESC]:RETRY`) returns to the first screen to ask for a new one, the address typed still in the field.
 
 ```mermaid
 sequenceDiagram
@@ -266,7 +266,7 @@ OSD/OS's own requests to the server accept a certificate the server made itself,
 
 | Problem | What to do |
 |---|---|
-| No way to type the address | Plug in or pair a keyboard (Settings → Network → Bluetooth), or [put the address in config.json](#sign-in-without-a-keyboard) |
+| No way to type the address | Select on the field opens the on-screen keyboard; a keyboard (Settings → Network → Bluetooth) types into it too, or [put the address in config.json](#sign-in-without-a-keyboard) |
 | **CONNECTION FAILED: …** | Check the address has `http://` or `https://` and the port. From the device, `curl http://192.168.1.20:8096/System/Info/Public` (with your address) should answer with the server's name |
 | **CONNECTION FAILED: HOST REQUIRES AUTHENTICATION** | Quick Connect is off: turn it on in the Jellyfin dashboard |
 | **CODE EXPIRED** | Approve within 2 minutes; go back and start again for a new code |

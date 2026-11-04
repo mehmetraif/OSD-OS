@@ -149,7 +149,7 @@ Most modules come switched off. Only Local Files and Playlists are on at first; 
 
 ## A video won't play
 
-The loading screen comes, then the menu again, or an error. The log says which of these it is:
+The loading screen comes, then **Playback failed** with why: *mpv is not installed* with how to install it, or *mpv could not play it* with mpv's own line on the video, or the server's message. **Select** tries again, **back** leaves. The log says more:
 
 | What the log says | Cause | Fix |
 |---|---|---|

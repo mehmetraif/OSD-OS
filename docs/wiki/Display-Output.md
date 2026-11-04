@@ -179,12 +179,12 @@ A restart of OSD/OS alone, without the Pi's, keeps it waiting: `/run` lasts unti
 
 On the new output, before anything else and over the boot screen, OSD/OS asks **Keep this display output?**, with the new output's name and *Back to <old output> in 30 sec*, counting down from when OSD/OS starts, which leaves a CRT time to warm up and show the picture first ([`views/DisplayKeep.qml`](https://github.com/mehmetraif/OSD-OS/blob/main/views/DisplayKeep.qml)):
 
-- **Keep** (select): the output stays. `display-output.json` is removed.
-- **Switch Back**, or no answer within **30 seconds**: OSD/OS exits with 29, `osdos-stop` copies `osdos-display-previous.txt` back over `osdos-display.txt`, and the Pi reboots on the old output. A screen that shows nothing, or a TV that can't show that standard, so puts itself right.
-- **Back does nothing** here, on purpose: on a screen that shows nothing, a key pressed at random must not keep it. ▲ ▼ move between the two answers.
+- **Keep** (▲ to it, then select): the output stays. `display-output.json` is removed.
+- **Switch Back**, where the cursor starts, back, or no answer within **30 seconds**: OSD/OS exits with 29, `osdos-stop` copies `osdos-display-previous.txt` back over `osdos-display.txt`, and the Pi reboots on the old output. A screen that shows nothing, or a TV that can't show that standard, so puts itself right.
+- **Select at once switches back**, on purpose: on a screen that shows nothing, a key pressed at random must bring the old output back, never keep the new one. ▲ ▼ move between the two answers.
 - Until it is answered, the startup module waits, and so does a favourite set to Play at Startup. The menu music waits too.
 
-In a JAMMA cabinet, the cabinet's controls answer it: button 1 keeps the new output ([Controls → A JAMMA cabinet](https://github.com/mehmetraif/OSD-OS/wiki/Controls#a-jamma-cabinet)).
+In a JAMMA cabinet, the cabinet's controls answer it: the joystick up to **Keep**, then button 1 keeps the new output ([Controls → A JAMMA cabinet](https://github.com/mehmetraif/OSD-OS/wiki/Controls#a-jamma-cabinet)).
 
 After a switch back, the old output says so once: **Back to <old output>**, *<new output> was not kept*. If the Pi came back on the same output, as when a preset was missing and nothing was written, it says **Still on <output>**, *The display output couldn't be switched to <output>*. Select or back closes it.
 
@@ -788,7 +788,7 @@ To set it up:
 
 1. Choose **JAMMA 240p 15 kHz (720x240)**, or the mode the cabinet's monitor takes ([The board's other modes](https://github.com/mehmetraif/OSD-OS/wiki/Display-Output#the-boards-other-modes)), on the screen you have, with **At Next Start** or **Switch and Power Off**.
 2. Move the Pi into the cabinet and switch it on. It starts on the cabinet's monitor.
-3. There, **Keep this display output?** comes up. Button 1 keeps it, as the cabinet's controls work once a JAMMA preset is in force.
+3. There, **Keep this display output?** comes up. The joystick up to **Keep**, then button 1 keeps it, as the cabinet's controls work once a JAMMA preset is in force.
 
 Or copy `osdos-display-jamma-240p.txt` (or another mode's) over `osdos-display.txt` from a computer, which asks nothing ([Doing it by hand](https://github.com/mehmetraif/OSD-OS/wiki/Display-Output#doing-it-by-hand)). **Switch and Restart** away from the cabinet would ask on its monitor, which isn't there, and go back to the old output after 30 seconds.
 

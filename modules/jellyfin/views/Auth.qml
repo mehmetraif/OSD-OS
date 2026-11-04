@@ -10,7 +10,10 @@ FocusScope {
     signal navigateTo(string path, var params, var listState)
     signal goBack()
 
-    property string serverUrl: appCore.get_setting(moduleRoot.moduleId, "server_url") || ""
+    // The address typed before a Quick Connect that failed (back from it
+    // returns here with it), else the one saved.
+    property string serverUrl: (navParams.navListState && navParams.navListState.serverUrl)
+                               || appCore.get_setting(moduleRoot.moduleId, "server_url") || ""
     property bool waiting: false
     property string errorMsg: ""
 
@@ -34,7 +37,7 @@ FocusScope {
                 serverUrl: authRoot.serverUrl,
                 code: code,
                 secret: secret
-            }, {})
+            }, { serverUrl: authRoot.serverUrl })
         }
 
         function onQuickConnectFailed(msg) {
@@ -76,9 +79,27 @@ FocusScope {
             if (focusIndex < 1) focusIndex++
             event.accepted = true
         } else if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter) {
-            authRoot.submit()
+            // On the address, the on-screen keyboard, for a remote or a pad
+            // (a keyboard types into the field as well).
+            if (focusIndex === 0)
+                authRoot.typeServerUrl()
+            else
+                authRoot.submit()
             event.accepted = true
         }
+    }
+
+    // The address on the on-screen keyboard: what is there, else http:// to
+    // go on from. OK goes on to Quick Connect.
+    function typeServerUrl() {
+        keyboard.open(serverUrl !== "" ? serverUrl : "http://")
+    }
+    // The keys back to the field or the button, as the cursor is.
+    function refocus() {
+        if (focusIndex === 0)
+            serverInput.forceActiveFocus()
+        else
+            authRoot.forceActiveFocus()
     }
 
     function submit() {
@@ -140,7 +161,7 @@ FocusScope {
                     text: authRoot.serverUrl
                     color: root.primaryColor
                     font.family: root.globalFont
-                    font.capitalization: Font.AllUppercase
+                    // As typed: an address's path keeps its case.
                     font.pixelSize: root.sh * 0.0375 //18
                     clip: true
                     focus: authRoot.focusIndex === 0
@@ -201,10 +222,26 @@ FocusScope {
 
     // Footer
     HintBar {
-        text: root.hints.back + ":BACK " + root.hints.navigate + ":NAVIGATE " + root.hints.select + ":CONNECT"
+        text: root.hints.back + ":BACK " + root.hints.navigate + ":NAVIGATE " + root.hints.select
+              + (focusIndex === 0 ? ":TYPE" : ":CONNECT")
         anchors.bottom: parent.bottom
         anchors.left: parent.left
         anchors.bottomMargin: root.sh * 0.1041667 //50
         anchors.leftMargin: root.sw * 0.125 //80
+    }
+
+    OnScreenKeyboard {
+        id: keyboard
+        anchors.fill: parent
+        title: "Server URL"
+        caseSensitive: true
+        maxLength: 200
+        onAccepted: function(text) {
+            authRoot.serverUrl = text.trim()
+            authRoot.errorMsg = ""
+            authRoot.focusIndex = 1
+            authRoot.refocus()
+        }
+        onCanceled: authRoot.refocus()
     }
 }

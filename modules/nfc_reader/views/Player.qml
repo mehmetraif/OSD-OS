@@ -12,7 +12,6 @@ FocusScope {
     property string videoTitle: navParams.title || ""
 
     property bool   playbackStarted: false
-    property string errorMessage:    ""
     property int    lastStartMs:     0   // what the last attempt started from, for retry
     property int    lastPlPos:       -1
 
@@ -56,16 +55,7 @@ FocusScope {
     }
 
     Keys.onPressed: function(event) {
-        if (errorMessage !== "") {
-            if (event.key === Qt.Key_Escape || event.key === Qt.Key_Backspace || event.key === Qt.Key_Back) {
-                goBack()
-                event.accepted = true
-            } else if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter) {
-                errorMessage = ""
-                play(lastStartMs, lastPlPos)
-                event.accepted = true
-            }
-        } else if (overlayVisible) {
+        if (overlayVisible) {
             if (event.key === Qt.Key_Escape || event.key === Qt.Key_Backspace || event.key === Qt.Key_Back) {
                 goBack()
                 event.accepted = true
@@ -138,9 +128,12 @@ FocusScope {
 
         function onPlaybackEnded(finalPositionMs, finalDurationMs, reason) {
             // A bad mapping path or missing yt-dlp surfaces as an mpv failure
-            // before any position event — show the error instead of leaving.
+            // before any position event — show the error instead of leaving,
+            // with mpv's own line on it. mpv itself missing says so.
             if (reason === "failed" && !playbackStarted) {
-                playerRoot.errorMessage = "Check the mapped path or URL\n(YouTube links require yt-dlp)"
+                failure.show(mpvController.playerFailed ? mpvController.lastError
+                                                        : "Check the mapped path or URL\n(YouTube links require yt-dlp)",
+                             mpvController.lastErrorDetail, true)
                 return
             }
             var pos   = lastKnownPositionMs || finalPositionMs
@@ -231,15 +224,7 @@ FocusScope {
             title: videoTitle
             startMs: playerRoot.lastStartMs
             durationMs: playerRoot.lastKnownDurationMs
-            visible: !overlayVisible && !playbackStarted && errorMessage === ""
-        }
-
-        PromptScreen {
-            visible: errorMessage !== ""
-            kind: "notice"
-            title: "Playback failed"
-            message: errorMessage
-            hint: root.hints.back + ":BACK " + root.hints.select + ":RETRY"
+            visible: !overlayVisible && !playbackStarted && !failure.visible
         }
     }
 
@@ -257,4 +242,9 @@ FocusScope {
         onHovered: function(index) { choiceIndex = index }
     }
 
+    PlaybackNotice {
+        id: failure
+        onRetried: playerRoot.play(playerRoot.lastStartMs, playerRoot.lastPlPos)
+        onDismissed: playerRoot.goBack()
+    }
 }

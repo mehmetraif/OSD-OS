@@ -319,13 +319,19 @@ FocusScope {
 
         // mpv exited for any reason ("eof"/"stopped"/"failed"). Local Files has no
         // autoplay-next or transcode-retry, so every exit is handled the same way:
-        // save/clear the resume position and return to the menu. Handling the single
+        // save/clear the resume position and return to the menu, a failure
+        // saying why first (RETRY plays it again where it got to). Handling the single
         // playbackEnded signal here is what keeps the app from freezing on a natural
         // end-of-file (the original bug was a missing per-reason handler).
         function onPlaybackEnded(finalPositionMs, finalDurationMs, reason) {
             rememberPosition(lastKnownPositionMs || finalPositionMs,
                              lastKnownDurationMs || finalDurationMs,
                              lastKnownPlaylistPos, reason)
+            if (reason === "failed") {
+                playerMenu.close()
+                failure.showMpv(true)
+                return
+            }
             // Back during an mpv process, which has the screen while it
             // plays: the video ended for this menu, and starts again where
             // it was as the menu closes (backToVideo).
@@ -469,7 +475,7 @@ FocusScope {
             source: moduleRoot.moduleName
             startMs: playerRoot.lastStartMs
             durationMs: playerRoot.lastKnownDurationMs
-            visible: !overlayVisible && !playbackStarted
+            visible: !overlayVisible && !playbackStarted && !failure.visible
         }
     }
 
@@ -493,6 +499,14 @@ FocusScope {
         choices: playerRoot.choices
         currentIndex: choiceIndex
         onHovered: function(index) { choiceIndex = index }
+    }
+
+    PlaybackNotice {
+        id: failure
+        onRetried: playerRoot.play(playerRoot.lastKnownPositionMs || playerRoot.lastStartMs,
+                                   playerRoot.lastKnownPlaylistPos, playerRoot.startedShuffled)
+        // CLOSE VIDEO leaves the module for the main menu.
+        onDismissed: playerRoot.closeToMainMenu ? moduleRoot.goBack() : playerRoot.goBack()
     }
 
     function isPlaylist(path) {

@@ -8,8 +8,11 @@ import QtTest
 // waiting for one lead back to the detail screen, not a black screen with no
 // mpv to take a key; a detail screen plays only the stream it asked for; a
 // launch given up drops its stream; signing out leaves no view signed out of
-// for back to return to. And Local Files' player: a remote's channel or page
-// keys step through the folder's films.
+// for back to return to. A video that fails says why (PlaybackNotice), with
+// RETRY, mpv itself missing without the transcode no transcode would mend.
+// Jellyfin's and Emby's sign-in screens take their fields on the on-screen
+// keyboard (its signs, SHOW, the mouse). And Local Files' player: a remote's
+// channel or page keys step through the folder's films.
 Rectangle {
     id: root
     color: surfaceColor
@@ -135,6 +138,10 @@ Rectangle {
         property int position: 0
         property int duration: 0
         property bool videoActive: false
+        // Why the last session failed (MpvController's lastError).
+        property string lastError: ""
+        property string lastErrorDetail: ""
+        property bool playerFailed: false
         property int loads: 0
         property var urls: []
         property var starts: []
@@ -223,6 +230,17 @@ Rectangle {
         property int asks: 0
         property int nextAsks: 0
         property int stops: 0
+        // The sign-ins asked for: [kind, ...what they were given].
+        property var signIns: []
+        signal authStateChanged()
+        signal quickConnectCodeReady(string code, string secret)
+        signal quickConnectFailed(string message)
+        signal connectServersReady(var servers)
+        signal connectFailed(string message)
+        function get_auth_state() { return "none" }
+        function quick_connect_initiate(url) { signIns = signIns.concat([["quick", url]]) }
+        function authenticate(url, user, password) { signIns = signIns.concat([["direct", url, user, password]]) }
+        function connect_authenticate(user, password) { signIns = signIns.concat([["connect", user, password]]) }
         signal streamUrlReady(string url)
         signal errorOccurred(string message)
         signal nextEpisodeReady(var detail)
@@ -281,6 +299,9 @@ Rectangle {
             mpvController.urls = []
             mpvController.starts = []
             mpvController.keys = []
+            mpvController.lastError = ""
+            mpvController.lastErrorDetail = ""
+            mpvController.playerFailed = false
             localFilesBackend.folder = []
             localFilesBackend.positions = {}
             plexBackend.cancels = 0
@@ -294,6 +315,7 @@ Rectangle {
                 backend.asks = 0
                 backend.nextAsks = 0
                 backend.stops = 0
+                backend.signIns = []
             }
         }
 
@@ -315,17 +337,33 @@ Rectangle {
                                                 title: "Episode 1" })
         }
 
+        // The view's notice of a video that failed (PlaybackNotice).
+        function noticeOf(item) {
+            for (var i = 0; i < item.children.length; i++) {
+                if (item.children[i].showMpv !== undefined)
+                    return item.children[i]
+            }
+            return null
+        }
+
         // Direct play fails, and the transcode it falls back to fails too:
-        // back to the detail screen, the stream dropped.
-        function test_plexFallbackFailureGoesBack() {
+        // why, the stream dropped, and back from it to the detail screen.
+        function test_plexFallbackFailureSaysWhy() {
             var player = openPlexPlayer()
             compare(mpvController.loads, 1)
             mpvController.playbackEnded(0, 0, "failed")
             compare(plexBackend.transcodes, 1)
             verify(player.waiting)
             plexBackend.errorOccurred("TRANSCODE FAILED: Host unreachable")
-            compare(root.backs, 1)
+            var notice = noticeOf(player)
+            verify(notice.visible)
+            compare(notice.reason, "The server could not stream it")
+            compare(notice.detail, "TRANSCODE FAILED: Host unreachable")
+            verify(!player.waiting)
             compare(plexBackend.cancels, 1)
+            compare(root.backs, 0)
+            keyClick(Qt.Key_Return)  // nothing to retry: back too
+            compare(root.backs, 1)
             compare(mpvController.loads, 1)
         }
 
@@ -340,19 +378,77 @@ Rectangle {
             compare(plexBackend.cancels, 1)
         }
 
-        // Autoplay's next episode can't be transcoded: back, not a black
-        // screen.
+        // Autoplay's next episode can't be transcoded: said so, and back
+        // from it, not a black screen.
         function test_plexNextEpisodeFailureGoesBack() {
             appCore.settings = { autoplay_next_episode: true }
-            openPlexPlayer()
+            var player = openPlexPlayer()
             mpvController.playbackEnded(60000, 60000, "eof")
             compare(plexBackend.nextAsks, 1)
             plexBackend.nextEpisodeReady({ ratingKey: "11", partKey: "/library/parts/11", title: "Episode 2",
                                            forceTranscode: true, audioStreams: [], subtitleStreams: [] })
             compare(plexBackend.transcodes, 1)
             plexBackend.errorOccurred("TRANSCODE FAILED: Internal Server Error")
+            compare(noticeOf(player).reason, "The next video could not be started")
+            keyClick(Qt.Key_Escape)
             compare(root.backs, 1)
             compare(mpvController.loads, 1)
+        }
+
+        // mpv itself failed (not installed): no transcode, which wouldn't
+        // mend it, but why and how to install it; RETRY plays it again where
+        // it was started, and back from a second failure leaves (Plex,
+        // Jellyfin, Emby, Local Files).
+        function test_mpvMissingSaysWhy_data() {
+            return [{ tag: "plex", module: "plex" }, { tag: "jellyfin", module: "jellyfin" },
+                    { tag: "emby", module: "emby" }, { tag: "local_files", module: "local_files" }]
+        }
+        function test_mpvMissingSaysWhy(data) {
+            var player = data.module === "plex" ? openPlexPlayer()
+                       : data.module === "local_files" ? open("local_files", "Player.qml", { filePath: "/films/B.mkv", title: "B.mkv" })
+                       : openJellyfinPlayer(data.module)
+            compare(mpvController.loads, 1)
+            mpvController.playerFailed = true
+            mpvController.lastError = "mpv is not installed"
+            mpvController.lastErrorDetail = "On Raspberry Pi OS: sudo apt install mpv"
+            mpvController.playbackEnded(0, 0, "failed")
+            compare(plexBackend.transcodes, 0)
+            compare(jellyfinBackend.asks + embyBackend.asks, 0)
+            var notice = noticeOf(player)
+            verify(notice.visible)
+            compare(notice.reason, "mpv is not installed")
+            compare(notice.detail, "On Raspberry Pi OS: sudo apt install mpv")
+            verify(notice.canRetry)
+            compare(root.backs, 0)
+            keyClick(Qt.Key_Return)
+            verify(!notice.visible)
+            compare(mpvController.loads, 2)
+            mpvController.playbackEnded(0, 0, "failed")
+            verify(notice.visible)
+            keyClick(Qt.Key_Escape)
+            compare(root.backs, 1)
+            compare(mpvController.loads, 2)
+        }
+
+        // A transcode that fails as a direct play's fallback: why, in mpv's
+        // own words, reported stopped as a failed playback.
+        function test_serverTranscodeFailureSaysWhy() {
+            var player = openJellyfinPlayer("jellyfin")
+            mpvController.playbackEnded(0, 0, "failed")
+            compare(jellyfinBackend.asks, 1)
+            jellyfinBackend.streamUrlReady("http://server/videos/e1/master.m3u8")
+            compare(mpvController.loads, 2)
+            var stops = jellyfinBackend.stops
+            mpvController.lastError = "mpv could not play it"
+            mpvController.lastErrorDetail = "[ffmpeg] http: HTTP error 500 Internal Server Error"
+            mpvController.playbackEnded(0, 0, "failed")
+            compare(jellyfinBackend.asks, 1)
+            compare(jellyfinBackend.stops, stops + 1)
+            var notice = noticeOf(player)
+            compare(notice.reason, "mpv could not play it")
+            compare(notice.detail, "[ffmpeg] http: HTTP error 500 Internal Server Error")
+            keyClick(Qt.Key_Return)
+            compare(mpvController.urls[2], "http://server/videos/e1/master.m3u8")
         }
 
         // While a video plays, nothing is waited for: an error elsewhere
@@ -386,6 +482,25 @@ Rectangle {
             compare(root.navigations.length, 1)
             compare(root.navigations[0].path, "Player.qml")
             compare(root.navigations[0].params.streamUrl, "http://plex/film")
+        }
+
+        // The server refuses the stream PLAY asked for: why, and back from
+        // it to the details, which have the keys again.
+        function test_plexDetailRefusedStreamSaysWhy() {
+            var detail = openPlexDetail()
+            keyClick(Qt.Key_Return)
+            verify(detail.isLaunching)
+            plexBackend.errorOccurred("TRANSCODE FAILED: Forbidden")
+            verify(!detail.isLaunching)
+            var notice = noticeOf(detail)
+            verify(notice.visible)
+            compare(notice.detail, "TRANSCODE FAILED: Forbidden")
+            keyClick(Qt.Key_Escape)
+            verify(!notice.visible)
+            compare(root.backs, 0)
+            verify(detail.activeFocus)
+            keyClick(Qt.Key_Return)
+            compare(plexBackend.transcodes, 2)
         }
 
         // Back while the film's transcode is on its way gives it up.
@@ -461,10 +576,13 @@ Rectangle {
             backend.nextEpisodeReady({ itemId: "e2", mediaSourceId: "e2", title: "Episode 2",
                                        audioStreams: [], subtitleStreams: [] })
             compare(backend.asks, 1)
-            if (data.back)
+            if (data.back) {
                 keyClick(Qt.Key_Escape)
-            else
+            } else {
                 backend.errorOccurred("PLAYBACK INFO FAILED: Host unreachable")
+                compare(root.backs, 0)
+                keyClick(Qt.Key_Escape)
+            }
             compare(root.backs, 1)
             compare(backend.cancels, 1)
             compare(mpvController.loads, 1)
@@ -488,6 +606,136 @@ Rectangle {
             compare(mpvController.keys.length, 0)
             compare(backend.cancels, 1)
             compare(backend.stops, stops + 1)
+        }
+
+        // The view's on-screen keyboard.
+        function keyboardOf(item) {
+            for (var i = 0; i < item.children.length; i++) {
+                if (item.children[i].okCol !== undefined)
+                    return item.children[i]
+            }
+            return null
+        }
+        // Types on it as a remote does: the box to each key, then select.
+        function typeOn(keyboard, text) {
+            for (var t = 0; t < text.length; t++) {
+                var found = false
+                // As it is, else with SHIFT.
+                for (var tries = 0; tries < 2 && !found; tries++) {
+                    for (var r = 0; r < keyboard.rows.length && !found; r++) {
+                        var c = keyboard.rows[r].indexOf(text[t])
+                        if (c >= 0) {
+                            keyboard.moveTo(r, c)
+                            keyClick(Qt.Key_Return)
+                            found = true
+                        }
+                    }
+                    if (!found) {
+                        keyboard.moveTo(keyboard.rows.length - 1, 0)  // SHIFT
+                        keyClick(Qt.Key_Return)
+                    }
+                }
+                verify(found, "a key for " + text[t])
+            }
+        }
+        function okOn(keyboard) {
+            keyboard.moveTo(keyboard.rows.length - 1, keyboard.okCol)
+            keyClick(Qt.Key_Return)
+        }
+
+        // Jellyfin: select on the address opens the keyboard on http://, its
+        // signs type the rest, OK goes on to Quick Connect, which connects
+        // with it. The field shows it as typed.
+        function test_jellyfinSignInOnTheKeyboard() {
+            moduleRoot.moduleId = "com.osdos.jellyfin"
+            var auth = open("jellyfin", "Auth.qml", {})
+            keyClick(Qt.Key_Return)
+            var keyboard = keyboardOf(auth)
+            verify(keyboard.visible)
+            compare(keyboard.text, "http://")
+            // On text there, the box starts on OK.
+            compare(keyboard.row, keyboard.rows.length - 1)
+            compare(keyboard.col, keyboard.okCol)
+            typeOn(keyboard, "nas.local:8096/jf")
+            okOn(keyboard)
+            verify(!keyboard.visible)
+            compare(auth.serverUrl, "http://nas.local:8096/jf")
+            compare(auth.focusIndex, 1)
+            keyClick(Qt.Key_Return)
+            compare(jellyfinBackend.signIns, [["quick", "http://nas.local:8096/jf"]])
+        }
+
+        // Back from a Quick Connect that failed: the address typed is still
+        // there.
+        function test_jellyfinKeepsTheAddressAfterQuickConnect() {
+            var auth = open("jellyfin", "Auth.qml", { navListState: { serverUrl: "http://nas:8096" } })
+            compare(auth.serverUrl, "http://nas:8096")
+        }
+
+        // Emby: each field on the keyboard in turn, OK going on to the next;
+        // the password masked, SHOW showing it; then Sign In.
+        function test_embySignInOnTheKeyboard() {
+            var auth = open("emby", "Auth.qml", {})
+            keyClick(Qt.Key_Down)          // the server's address
+            keyClick(Qt.Key_Return)
+            var keyboard = keyboardOf(auth)
+            verify(keyboard.visible)
+            compare(keyboard.title, "Server URL")
+            typeOn(keyboard, "10.0.0.2:8096")
+            okOn(keyboard)
+            compare(auth.serverUrl, "http://10.0.0.2:8096")
+            compare(auth.focusIndex, 2)
+            keyClick(Qt.Key_Return)
+            compare(keyboard.title, "Username")
+            verify(!keyboard.masked)
+            typeOn(keyboard, "Ann")
+            okOn(keyboard)
+            compare(auth.username, "Ann")
+            keyClick(Qt.Key_Return)
+            compare(keyboard.title, "Password")
+            verify(keyboard.masked)
+            typeOn(keyboard, "p[w]\\\"")
+            compare(keyboard.rows[keyboard.rows.length - 1][3], "SHOW")
+            verify(!keyboard.revealed)
+            keyboard.moveTo(keyboard.rows.length - 1, 3)
+            keyClick(Qt.Key_Return)
+            verify(keyboard.revealed)
+            compare(keyboard.rows[keyboard.rows.length - 1][3], "HIDE")
+            okOn(keyboard)
+            compare(auth.password, "p[w]\\\"")
+            compare(auth.focusIndex, 4)
+            keyClick(Qt.Key_Return)
+            compare(embyBackend.signIns, [["direct", "http://10.0.0.2:8096", "Ann", "p[w]\\\""]])
+        }
+
+        // The keyboard's signs: every one a keyboard has, SHIFT changing the
+        // second row; the mouse moves the box to the key under it; a real
+        // keyboard's Delete deletes.
+        function test_keyboardSignsMouseAndDelete() {
+            var auth = open("jellyfin", "Auth.qml", {})
+            keyClick(Qt.Key_Return)
+            var keyboard = keyboardOf(auth)
+            var all = []
+            for (var lower = 0; lower < 2; lower++) {
+                for (var r = 0; r < keyboard.rows.length - 1; r++)
+                    all = all.concat(keyboard.rows[r])
+                keyboard.shifted = !keyboard.shifted
+            }
+            for (var code = 33; code < 127; code++)
+                verify(all.indexOf(String.fromCharCode(code)) >= 0, "a key for " + String.fromCharCode(code))
+            keyboard.shifted = false
+            // The mouse over "k", then a click (select): "k" typed.
+            keyboard.open("")
+            var key = keyboard.keyItem(1, 0)
+            verify(key !== null)
+            var at = key.mapToItem(keyboard, key.width / 2, key.height / 2)
+            keyboard.hoverAt(at.x, at.y)
+            compare(keyboard.row, 1)
+            compare(keyboard.col, 0)
+            keyClick(Qt.Key_Return)
+            compare(keyboard.text, "k")
+            keyClick(Qt.Key_Delete)
+            compare(keyboard.text, "")
         }
 
         // Local Files: Page Up or Channel + plays the folder's next film,
@@ -559,6 +807,24 @@ Rectangle {
             keyClick(Qt.Key_PageUp)
             keyClick(Qt.Key_PageDown)
             compare(mpvController.keys, ["CHANNEL_UP", "CHANNEL_DOWN"])
+        }
+
+        // mpv missing, for a playlist: said so, not its videos blamed, with
+        // RETRY.
+        function test_playlistsPlayerSaysMpvIsMissing() {
+            var player = open("playlists", "Player.qml", { playlistId: "p1", name: "Night", startMs: 0, plPos: 0 })
+            compare(mpvController.loads, 1)
+            mpvController.playerFailed = true
+            mpvController.lastError = "mpv is not installed"
+            mpvController.lastErrorDetail = "On macOS: brew install mpv"
+            mpvController.playbackEnded(0, 0, "failed")
+            var notice = noticeOf(player)
+            verify(notice.visible)
+            compare(notice.title, "Playback failed")
+            compare(notice.reason, "mpv is not installed")
+            compare(notice.detail, "On macOS: brew install mpv")
+            keyClick(Qt.Key_Return)
+            compare(mpvController.loads, 2)
         }
     }
 }

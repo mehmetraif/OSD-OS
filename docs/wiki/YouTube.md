@@ -246,7 +246,7 @@ Back in the menu returns to the video.
 - **With Transparent Background** (Settings → TV / Movie), the menu lies over the picture, which plays on. Playback Speed and Scaling change at once; the others (resolution, codec, frame rate, audio and subtitles) reload the video where it is when you go back to it. **Browse YouTube** leaves it playing behind the menus, and the main menu's first row takes it back to full screen.
 - **Without it**, mpv has the screen, so the video stops for the menu, and starts again where it was, with the settings as you left them, when you go back to it. **Browse YouTube** leaves it stopped there, and the main menu's first row, or the same video in the tree, starts it again where it was, without asking.
 
-If mpv fails before the video starts (yt-dlp missing, out of date, or YouTube refusing), OSD/OS shows **Playback failed: Please check that yt-dlp is installed and up to date**. Select retries; back returns to the tree.
+If mpv fails before the video starts (yt-dlp missing, out of date, or YouTube refusing), OSD/OS shows **Playback failed: Please check that yt-dlp is installed and up to date**, with mpv's own line on it under it (yt-dlp's `ERROR:`, as it wrote it). With mpv itself missing it says **mpv is not installed**, with how to install it. Select retries; back returns to the tree.
 
 ## The Advanced settings, and what yt-dlp is asked for
 

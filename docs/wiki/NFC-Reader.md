@@ -335,7 +335,7 @@ The device should belong to `dialout` (or `uucp`) with `rw` for the group, and `
 
 **Tapping does nothing.** The NFC Reader screen must be open. A card already on the reader has to be lifted and touched again. While a video plays, cards are ignored.
 
-**Playback failed: Check the mapped path or URL (YouTube links require yt-dlp).** The second line names a file that isn't there (paths are case-sensitive on Linux), or a YouTube URL failed: see [YouTube](https://github.com/mehmetraif/OSD-OS/wiki/YouTube#troubleshooting) for yt-dlp. Select retries.
+**Playback failed: Check the mapped path or URL (YouTube links require yt-dlp).** The second line names a file that isn't there (paths are case-sensitive on Linux), or a YouTube URL failed: see [YouTube](https://github.com/mehmetraif/OSD-OS/wiki/YouTube#troubleshooting) for yt-dlp. Under it, mpv's own line on it, as mpv wrote it. With mpv itself missing it says **mpv is not installed**, with how to install it. Select retries.
 
 **The Plex card shows an error.** Open the Plex module and sign in, choose the server, or enter the profile's PIN there: a card never does these for you.
 
