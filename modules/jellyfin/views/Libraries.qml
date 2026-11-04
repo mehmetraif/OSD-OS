@@ -16,6 +16,9 @@ FocusScope {
     property string userName: ""
     // Why there is no list: the server couldn't be read.
     property string errorMessage: ""
+    // The server has answered: none listed is none (a server of music or
+    // books alone, or every library turned off), not LOADING.
+    property bool loaded: false
 
     Connections {
         target: jellyfinBackend
@@ -24,6 +27,7 @@ FocusScope {
             // The backend prepends Continue Watching / Up Next (only when they
             // have content), so render the list as given.
             browseRoot.errorMessage = ""
+            browseRoot.loaded = true
             browseRoot.libraries = items
             if (items.length > 0) {
                 var restore = (navListState.currentIndex !== undefined) ? navListState.currentIndex : 0
@@ -65,7 +69,9 @@ FocusScope {
     // Loading Indicator, or why there is no list.
     Text {
         visible: libraries.length === 0
-        text: browseRoot.errorMessage !== "" ? browseRoot.errorMessage : "LOADING..."
+        text: browseRoot.errorMessage !== "" ? browseRoot.errorMessage
+              : browseRoot.loaded ? "NO LIBRARIES\nSettings → Jellyfin → Libraries chooses which are shown"
+              : "LOADING..."
         color: root.tertiaryColor
         font.family: root.globalFont
         anchors.centerIn: parent
