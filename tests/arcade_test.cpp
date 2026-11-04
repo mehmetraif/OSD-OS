@@ -243,9 +243,9 @@ exit 0
     }
 
     // A game played to its end: (exit code, reason, notice).
-    static QVariantList played(ArcadeBackend &arcade, const QString &game, const QString &turn = QString()) {
+    static QVariantList played(ArcadeBackend &arcade, const QString &game) {
         QSignalSpy finished(&arcade, &ArcadeBackend::finished);
-        if (!arcade.play(game, 0, turn))
+        if (!arcade.play(game))
             return { -1, QStringLiteral("not started"), arcade.lastError() };
         if (!finished.wait(10000) && finished.isEmpty())
             return { -1, QStringLiteral("no end"), QString() };
@@ -1060,15 +1060,18 @@ private slots:
     // A game's options: its difficulty, where MAME plays it and its board has
     // a DIP switch for it (Pac-Man's, not its coinage's), set in MAME's own
     // cfg file for the game as it starts, the rest of the file kept, and kept
-    // in games.json; and a vertical game played turned once (Play Turned),
-    // the next as ever.
-    void difficultyAndTurn() {
+    // in games.json; and a vertical game's monitor (its options' Monitor),
+    // which it plays with, Emulator Video → Vertical Games named as its
+    // default, Settings → Screen → Monitor turned going before it.
+    void difficultyAndMonitor() {
         const QString module = QStringLiteral("com.osdos.arcade");
         const QString cfg = m_data.path() + QStringLiteral("/arcade/cfg/pacman.cfg");
         ArcadeBackend arcade(m_data.path(), m_data.path(), nullptr, nullptr);
         refreshed(arcade);
         const auto restore = qScopeGuard([&arcade, &module, &cfg] {
             arcade.onSettingChanged(module, QStringLiteral("difficulties"), QVariantMap());
+            arcade.onSettingChanged(module, QStringLiteral("monitors"), QVariantMap());
+            arcade.onSettingChanged(module, QStringLiteral("vertical_monitor"), QStringLiteral("Horizontal"));
             QFile::remove(cfg);
         });
         const auto labels = [&arcade](const char *set) {
@@ -1132,14 +1135,34 @@ private slots:
             QCOMPARE(again.difficultyChoices(QStringLiteral("pacman")).size(), 2);
         }
 
-        // Played turned once: that game alone.
+        // A vertical game's monitor: Vertical Games' first, named; the
+        // game's own kept and played with; none for a horizontal game.
+        const auto monitors = [&arcade](const char *set) {
+            QStringList out;
+            for (const QVariant &v : arcade.monitorChoices(QLatin1String(set))) {
+                const QVariantMap choice = v.toMap();
+                out << choice.value(QStringLiteral("label")).toString()
+                           + (choice.value(QStringLiteral("current")).toBool() ? QStringLiteral("*") : QString());
+            }
+            return out;
+        };
+        QCOMPARE(monitors("pacman"), QStringList({ QStringLiteral("Default (Horizontal)*"), QStringLiteral("Turned Right"),
+                                                   QStringLiteral("Turned Left") }));
+        QVERIFY(monitors("mslug").isEmpty());
+        arcade.onSettingChanged(module, QStringLiteral("vertical_monitor"), QStringLiteral("Turned Right"));
+        QCOMPARE(monitors("pacman").first(), QStringLiteral("Default (Turned Right)*"));
+        arcade.onSettingChanged(module, QStringLiteral("monitors"), QVariantMap{ { QStringLiteral("pacman"), QStringLiteral("Turned Left") } });
+        QCOMPARE(monitors("pacman"), QStringList({ QStringLiteral("Default (Turned Right)"), QStringLiteral("Turned Right"),
+                                                   QStringLiteral("Turned Left*") }));
         QFile::remove(m_log);
-        played(arcade, QStringLiteral("pacman"), QStringLiteral("Turned Left"));
+        played(arcade, QStringLiteral("pacman"));
         QVERIFY(logLines(QStringLiteral("play ")).value(0).contains(QStringLiteral(" -ror")));
+        // Its own set back to the default: Vertical Games'.
+        arcade.onSettingChanged(module, QStringLiteral("monitors"), QVariantMap());
         QFile::remove(m_log);
         played(arcade, QStringLiteral("pacman"));
         const QString line = logLines(QStringLiteral("play ")).value(0);
-        QVERIFY2(!line.contains(QStringLiteral("-ror")) && !line.contains(QStringLiteral("-rol")), qPrintable(line));
+        QVERIFY2(line.contains(QStringLiteral(" -rol")) && !line.contains(QStringLiteral("-ror")), qPrintable(line));
     }
 
     // MAME's cfg file with a DIP switch set: as MAME writes one, in place of
@@ -2687,6 +2710,12 @@ private slots:
         config = QString::fromUtf8(contents(configCopy));
         QVERIFY2(config.contains(QStringLiteral("video_rotation = \"3\"")), qPrintable(config));
         QVERIFY(config.contains(QStringLiteral("video_aspect_ratio = \"1.333333\"")));
+        // The game's own monitor (its options' Monitor), as FinalBurn Neo
+        // plays and hosts it.
+        arcade.onSettingChanged(module, QStringLiteral("monitors"), QVariantMap{ { QStringLiteral("galaga"), QStringLiteral("Turned Right") } });
+        played(arcade, QStringLiteral("galaga"));
+        arcade.onSettingChanged(module, QStringLiteral("monitors"), QVariantMap());
+        QVERIFY(QString::fromUtf8(contents(configCopy)).contains(QStringLiteral("video_rotation = \"1\"")));
         // FinalBurn Neo's info file that can't be written (a file where its
         // folder goes): nothing started, as with RetroArch's settings.
         QVERIFY(QDir(home + QStringLiteral("/info")).removeRecursively());

@@ -289,12 +289,9 @@ public:
 
     // Starts a game in its engine (engineOf()), which has the screen until it
     // ends: finished(). credits: the coins MAME puts in as it starts (9 at
-    // most; FinalBurn Neo takes them from the coin button). turn: "Turned
-    // Right" or "Turned Left", a monitor turned for this game alone (a
-    // vertical game's options, Play Turned), which Settings → Screen →
-    // Monitor turned goes before. False, with lastError(), when it couldn't
-    // be started; nothing was.
-    Q_INVOKABLE bool play(const QString &name, int credits = 0, const QString &turn = QString());
+    // most; FinalBurn Neo takes them from the coin button). False, with
+    // lastError(), when it couldn't be started; nothing was.
+    Q_INVOKABLE bool play(const QString &name, int credits = 0);
     // The engine a game plays in: "fbneo", RetroArch with the FinalBurn Neo
     // core, for a set FinalBurn Neo has, chosen in its options, or by itself
     // (Auto) while Online High Scores, Online Play or LAN Play is on, which
@@ -316,6 +313,14 @@ public:
     // cfg file for it before it starts.
     Q_INVOKABLE QVariantList difficultyChoices(const QString &set) const;
     Q_INVOKABLE void setDifficulty(const QString &set, const QString &name);
+    // A vertical game's monitor, for its options, while Settings → Screen →
+    // Monitor isn't turned: [{ id, label, current }], "default" (Emulator
+    // Video → Vertical Games', named: "Default (Horizontal)"), "Turned
+    // Right" and "Turned Left"; none otherwise. setMonitor() keeps the
+    // game's (Settings' monitors, by set), which it is played and hosted
+    // with (monitorFor()).
+    Q_INVOKABLE QVariantList monitorChoices(const QString &set) const;
+    Q_INVOKABLE void setMonitor(const QString &set, const QString &monitor);
     // RetroArch, the FinalBurn Neo core and its list of games are there.
     Q_INVOKABLE bool fbneoReady() const;
     // FinalBurn Neo can play the game: it is ready, has the set, and the set
@@ -911,10 +916,13 @@ private:
     bool integerScale() const;
     // The monitor a game is played on, "Turned Right" or "Turned Left" for
     // one on its side, which its picture is turned against: Settings →
-    // Screen → Monitor, a monitor that stays turned; else the one play() was
-    // given (Play Turned); else, for a vertical game, Emulator Video →
-    // Vertical Games, a monitor turned for it.
+    // Screen → Monitor, a monitor that stays turned; else the game's own,
+    // from its options (monitorChoices()); else, for a vertical game,
+    // Emulator Video → Vertical Games, a monitor turned for it.
     QString monitorFor(const QString &set) const;
+    // Settings → Screen → Monitor turned ("Turned Right", "Turned Left"), a
+    // monitor that stays turned; "" for Horizontal.
+    QString screenMonitor() const;
     // A game's shape on the glass, its width over its height: FinalBurn
     // Neo's list's, else 3:4 for a vertical one (machineOf()), else 4:3.
     double gameAspect(const QString &set) const;
@@ -1154,7 +1162,7 @@ private:
     bool    m_onlinePlay = false;
     QVariantMap m_engines;        // set → "mame" or "fbneo", as its options chose
     QVariantMap m_difficulties;   // set → its difficulty's setting, as its options chose
-    QString m_turnOnce;           // play()'s turn, for the game it starts
+    QVariantMap m_monitors;       // set → "Turned Right" or "Turned Left", as its options chose
     QString m_onlineName;         // the name the others see ("" for nickname()'s own)
     QString m_relay = QStringLiteral("nyc");   // the relay a hosted game goes through
     bool    m_lanPlay = false;

@@ -60,16 +60,13 @@ FocusScope {
 
     // Plays a game, or joins a room of the lobby or the local network
     // (item.room, item.lan), or with online ({ hosting: true, lan }) hosts
-    // it; trail is where coming back lands. turn: a monitor turned for this
-    // game alone (Play Turned).
-    function play(item, trail, online, turn) {
+    // it; trail is where coming back lands.
+    function play(item, trail, online) {
         var params = { game: item.game, title: item.name }
         if (item.room !== undefined)
             params.online = { room: item.room, host: item.host, lan: !!item.lan }
         else if (online)
             params.online = online
-        if (turn)
-            params.turn = turn
         gamesRoot.navigateTo("Play.qml", params, { trail: trail })
     }
 
@@ -242,26 +239,23 @@ FocusScope {
     }
 
     // A game's options, those that start it first (starts: a ▶ before each,
-    // a line under them): a vertical game played turned once (while Settings
-    // → Screen → Monitor isn't turned), and with Online Play or LAN Play on,
-    // hosting it; then its Game Details (Details.qml), its difficulty where
-    // MAME plays it with a DIP switch for it, and its engine where MAME and
-    // FinalBurn Neo both have it.
+    // a line under them): with Online Play or LAN Play on, hosting it; then
+    // its Game Details (Details.qml), a vertical game's monitor (while
+    // Settings → Screen → Monitor isn't turned), which it is played and
+    // hosted with, its difficulty where MAME plays it with a DIP switch for
+    // it, and its engine where MAME and FinalBurn Neo both have it.
     property int engineRevision: 0
     readonly property string optionsSet: options.entry && String(options.entry.path).indexOf("game:") === 0
                                          ? String(options.entry.path).substring(5) : ""
-    readonly property bool optionsVertical: options.visible && gamesRoot.optionsSet !== "" && !!arcadeBackend
-                                            && !!arcadeBackend.gameDetails(gamesRoot.optionsSet).vertical
     EntryOptions {
         id: options
         anchors.fill: parent
         moduleId: moduleRoot.moduleId
-        firstChoices: (gamesRoot.optionsVertical && !root.turned
-                       ? [{ label: "Play Turned Right", action: "playRight", starts: true },
-                          { label: "Play Turned Left", action: "playLeft", starts: true }] : [])
-                      .concat([{ label: "Game Details", action: "details" }])
+        firstChoices: [{ label: "Game Details", action: "details" }]
         moreChoices: (gamesRoot.engineRevision,
-                      (difficulty.offered(gamesRoot.optionsSet)
+                      (monitor.offered(gamesRoot.optionsSet)
+                       ? [{ label: monitor.lineFor(gamesRoot.optionsSet), action: "monitor" }] : [])
+                      .concat(difficulty.offered(gamesRoot.optionsSet)
                        ? [{ label: difficulty.lineFor(gamesRoot.optionsSet), action: "difficulty" }] : [])
                       .concat(engines.offered(gamesRoot.optionsSet)
                        ? [{ label: engines.lineFor(gamesRoot.optionsSet), action: "engine" }] : [])
@@ -273,9 +267,8 @@ FocusScope {
             if (action === "details")
                 gamesRoot.navigateTo("Details.qml", { game: gamesRoot.optionsSet, title: options.entry.name },
                                      { trail: tree.trailState() })
-            else if (action === "playRight" || action === "playLeft")
-                gamesRoot.play({ game: gamesRoot.optionsSet, name: options.entry.name }, tree.trailState(), null,
-                               action === "playRight" ? "Turned Right" : "Turned Left")
+            else if (action === "monitor")
+                monitor.offer(gamesRoot.optionsSet, options.entry.name)
             else if (action === "difficulty")
                 difficulty.offer(gamesRoot.optionsSet, options.entry.name)
             else if (action === "engine")
@@ -285,12 +278,24 @@ FocusScope {
                                { hosting: true, lan: action === "hostLan" })
         }
         onFavoritesEdited: tree.refresh("favorites")
-        onClosed: if (!engines.visible && !difficulty.visible) tree.forceActiveFocus()
+        onClosed: if (!engines.visible && !difficulty.visible && !monitor.visible) tree.forceActiveFocus()
     }
-    DifficultyChooser {
+    GameChoice {
+        id: monitor
+        anchors.fill: parent
+        name: "Monitor"
+        choicesFor: function(game) { return arcadeBackend ? arcadeBackend.monitorChoices(game) : [] }
+        keep: function(game, id) { if (arcadeBackend) arcadeBackend.setMonitor(game, id) }
+        onChosen: gamesRoot.engineRevision++
+        onClosed: tree.forceActiveFocus()
+    }
+    GameChoice {
         id: difficulty
         anchors.fill: parent
-        onDifficultyChosen: gamesRoot.engineRevision++
+        name: "Difficulty"
+        choicesFor: function(game) { return arcadeBackend ? arcadeBackend.difficultyChoices(game) : [] }
+        keep: function(game, id) { if (arcadeBackend) arcadeBackend.setDifficulty(game, id) }
+        onChosen: gamesRoot.engineRevision++
         onClosed: tree.forceActiveFocus()
     }
     EngineChooser {

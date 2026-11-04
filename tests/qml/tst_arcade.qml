@@ -210,6 +210,8 @@ Rectangle {
         // the one chosen for each.
         property var difficultySettings: ({})
         property var difficulties: ({})
+        // A vertical game's own monitor, by set (monitorChoices()).
+        property var monitors: ({})
         property var engineChoicesMade: []
         // FinalBurn Neo's page, and the RetroAchievements account's.
         property var fbneo: ({})
@@ -366,6 +368,23 @@ Rectangle {
             var chosen = difficulties[set] || settings[0]
             return settings.map(function(name) { return { id: name, label: name, current: name === chosen } })
         }
+        function monitorChoices(set) {
+            var details = gameInfo[set]
+            if (!details || !details.vertical)
+                return []
+            var chosen = monitors[set] || "default"
+            return ["default", "Turned Right", "Turned Left"].map(function(id) {
+                return { id: id, label: id === "default" ? "Default (Horizontal)" : id, current: id === chosen }
+            })
+        }
+        function setMonitor(set, monitor) {
+            var map = Object.assign({}, monitors)
+            if (monitor === "default")
+                delete map[set]
+            else
+                map[set] = monitor
+            monitors = map
+        }
         function setDifficulty(set, name) {
             var map = Object.assign({}, difficulties)
             map[set] = name
@@ -500,6 +519,7 @@ Rectangle {
             arcadeBackend.engineChoicesMade = []
             arcadeBackend.difficultySettings = {}
             arcadeBackend.difficulties = {}
+            arcadeBackend.monitors = {}
             arcadeBackend.fbneo = { retroarch: "/usr/bin/retroarch", core: "", coreDate: "", downloaded: false,
                                     games: 0, license: "", canDownload: true, canDownloadRetroarch: false,
                                     retroarchDownloadVersion: "1.20.0", retroarchDownloaded: false }
@@ -1049,36 +1069,31 @@ Rectangle {
             compare(findText(screen, "Engine:"), null)
         }
 
-        // A vertical game's options: played turned once (Play Turned Right,
-        // Left), and a game MAME plays, its difficulty chosen from its DIP
-        // switch's settings and kept for it; none for a game without one.
-        function test_screenTurnedAndDifficulty() {
+        // A game's options: Play first, a line the cursor passes over, then
+        // what is set for it: a vertical game's monitor, which it is played
+        // and hosted with, and a MAME game's difficulty from its DIP switch,
+        // each chosen and kept; neither for a game without them.
+        function test_screenMonitorAndDifficulty() {
             arcadeBackend.difficultySettings = { "1942": ["Normal", "Easy", "Hard"] }
             var screen = openScreen()
             keyPress(Qt.Key_Return)
             tryVerify(function() { return findText(screen, "Add to Favorites") !== null }, 1500)
             keyRelease(Qt.Key_Return)
             compare(screen.currentSet, "sf2")
-            compare(findText(screen, "Play Turned Right"), null)   // not vertical
-            compare(findText(screen, "Difficulty:"), null)          // no switch
+            compare(findText(screen, "Monitor:"), null)      // not vertical
+            compare(findText(screen, "Difficulty:"), null)   // no switch
             keyClick(Qt.Key_Escape)
             keyClick(Qt.Key_Down)
             compare(screen.currentSet, "1942")
             keyPress(Qt.Key_Return)
-            tryVerify(function() { return findText(screen, "Play Turned Right") !== null }, 1500)
+            tryVerify(function() { return findText(screen, "Game Details") !== null }, 1500)
             keyRelease(Qt.Key_Return)
-            verify(findText(screen, "Play Turned Left") !== null)
-            // Those that start the game, then a line the cursor passes
-            // over: Game Details next after Play Turned Left, and back.
+            // Over the line to Game Details, and back to Play.
             keyClick(Qt.Key_Down)
-            keyClick(Qt.Key_Down)   // Play Turned Left
-            keyClick(Qt.Key_Down)   // over the line, Game Details
-            keyClick(Qt.Key_Up)     // over it again, Play Turned Left
+            keyClick(Qt.Key_Up)
+            keyClick(Qt.Key_Down)
             keyClick(Qt.Key_Return)
-            var played = root.navigations[root.navigations.length - 1]
-            compare(played.path, "Play.qml")
-            compare(played.params.game, "1942")
-            compare(played.params.turn, "Turned Left")
+            compare(root.navigations[root.navigations.length - 1].path, "Details.qml")
 
             loader.source = ""
             root.navigations = []
@@ -1087,7 +1102,8 @@ Rectangle {
             keyPress(Qt.Key_Return)
             tryVerify(function() { return findText(screen, "Difficulty: Normal") !== null }, 1500)
             keyRelease(Qt.Key_Return)
-            // The last of them, round from Play.
+            verify(findText(screen, "Monitor: Default (Horizontal)") !== null)
+            // The last of them, round from Play: Difficulty, then Monitor.
             keyClick(Qt.Key_Up)
             keyClick(Qt.Key_Return)
             tryVerify(function() { return findText(screen, "Hard", true) !== null }, 1000)
@@ -1097,6 +1113,17 @@ Rectangle {
             compare(arcadeBackend.difficulties["1942"], "Hard")
             keyPress(Qt.Key_Return)
             tryVerify(function() { return findText(screen, "Difficulty: Hard") !== null }, 1500)
+            keyRelease(Qt.Key_Return)
+            keyClick(Qt.Key_Up)
+            keyClick(Qt.Key_Up)     // Monitor
+            keyClick(Qt.Key_Return)
+            tryVerify(function() { return findText(screen, "Turned Left", true) !== null }, 1000)
+            keyClick(Qt.Key_Down)
+            keyClick(Qt.Key_Down)
+            keyClick(Qt.Key_Return)
+            compare(arcadeBackend.monitors["1942"], "Turned Left")
+            keyPress(Qt.Key_Return)
+            tryVerify(function() { return findText(screen, "Monitor: Turned Left") !== null }, 1500)
             keyRelease(Qt.Key_Return)
             keyClick(Qt.Key_Escape)
             compare(root.navigations.length, 0)
@@ -1542,12 +1569,8 @@ Rectangle {
             keyClick(Qt.Key_Right)  // into it, on Galaga
             keyClick(Qt.Key_Right)  // its options
             verify(findText(games, "Game Details", true) !== null)
-            // A vertical game played turned once first, while the monitor
-            // isn't turned.
-            verify(findText(games, "Play Turned Right", true) !== null)
-            verify(findText(games, "Play Turned Left", true) !== null)
-            keyClick(Qt.Key_Down)
-            keyClick(Qt.Key_Down)   // Game Details
+            // A vertical game's monitor among what is set for it.
+            verify(findText(games, "Monitor: Default (Horizontal)", true) !== null)
             keyClick(Qt.Key_Return)
             compare(root.navigations.length, 1)
             compare(root.navigations[0].path, "Details.qml")

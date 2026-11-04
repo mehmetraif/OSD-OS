@@ -703,7 +703,8 @@ ArcadeBackend::ArcadeBackend(const QString &appRoot, const QString &dataRoot, Ap
     // The module's settings as they stand. games.json waits for the list to
     // open (refresh()): with a full set of MAME's games it is megabytes.
     for (const char *key : { "games_directory", "hide_bootlegs", "regions", "high_scores", "video", "screen_shape",
-                             "integer_scale", "game_picture", "vertical_monitor", "difficulties", "menu_filters", "online_high_scores", "online_play", "engines",
+                             "integer_scale", "game_picture", "vertical_monitor", "difficulties", "monitors",
+                             "menu_filters", "online_high_scores", "online_play", "engines",
                              "online_name", "relay_server", "lan_play", "pictures_source" }) {
         const QString k = QLatin1String(key);
         applySetting(k, m_appCore ? m_appCore->get_setting(kModuleId, k) : QVariant());
@@ -869,6 +870,9 @@ void ArcadeBackend::applySetting(const QString &key, const QVariant &value) {
     } else if (key == QLatin1String("difficulties")) {
         // Saved whole by setDifficulty().
         m_difficulties = value.toMap();
+    } else if (key == QLatin1String("monitors")) {
+        // Saved whole by setMonitor().
+        m_monitors = value.toMap();
     } else if (key == QLatin1String("engines")) {
         // Saved whole by setEngine(). A game moved to MAME leaves the
         // RetroAchievements filter.
@@ -3160,15 +3164,12 @@ QString ArcadeBackend::ownFolder() const {
     return QString();
 }
 
-bool ArcadeBackend::play(const QString &name, int credits, const QString &turn) {
+bool ArcadeBackend::play(const QString &name, int credits) {
     m_lastError.clear();
     if (running()) {
         m_lastError = QStringLiteral("A game is still running");
         return false;
     }
-    // The monitor turned for this game alone, for the arguments made here.
-    m_turnOnce = turn == QLatin1String("Turned Right") || turn == QLatin1String("Turned Left") ? turn : QString();
-    const auto turned = qScopeGuard([this] { m_turnOnce.clear(); });
     if (engineOf(name) == QLatin1String("fbneo"))
         return playFbneo(name, libretro::Launch::Netplay::None, QString(), -1, 0, libretro::Launch::Layout::Classic,
                          false, credits);
@@ -3324,13 +3325,19 @@ QString ArcadeBackend::screenShape() const {
     return m_tube ? QStringLiteral("4:3") : QString();
 }
 
-QString ArcadeBackend::monitorFor(const QString &set) const {
+QString ArcadeBackend::screenMonitor() const {
     const QString monitor = m_appCore ? m_appCore->get_setting(QString(), QStringLiteral("monitor")).toString()
                                       : QString();
-    if (monitor == QLatin1String("Turned Right") || monitor == QLatin1String("Turned Left"))
+    return monitor == QLatin1String("Turned Right") || monitor == QLatin1String("Turned Left") ? monitor : QString();
+}
+
+QString ArcadeBackend::monitorFor(const QString &set) const {
+    const QString monitor = screenMonitor();
+    if (!monitor.isEmpty())
         return monitor;
-    if (!m_turnOnce.isEmpty())
-        return m_turnOnce;
+    const QString own = m_monitors.value(set).toString();
+    if (own == QLatin1String("Turned Right") || own == QLatin1String("Turned Left"))
+        return own;
     return gameAspect(set) < 1.0 ? m_verticalMonitor : QString();
 }
 
@@ -3482,6 +3489,34 @@ QVariantList ArcadeBackend::difficultyChoices(const QString &set) const {
         out << QVariantMap{ { QStringLiteral("id"), value.first }, { QStringLiteral("label"), value.first },
                             { QStringLiteral("current"), value.first == chosen } };
     return out;
+}
+
+QVariantList ArcadeBackend::monitorChoices(const QString &set) const {
+    if (!screenMonitor().isEmpty() || !m_sets.contains(set) || !(gameAspect(set) < 1.0))
+        return {};
+    QString chosen = m_monitors.value(set).toString();
+    if (chosen != QLatin1String("Turned Right") && chosen != QLatin1String("Turned Left"))
+        chosen = QStringLiteral("default");
+    const QString byDefault = m_verticalMonitor.isEmpty() ? QStringLiteral("Horizontal") : m_verticalMonitor;
+    QVariantList out;
+    for (const QString &id : { QStringLiteral("default"), QStringLiteral("Turned Right"), QStringLiteral("Turned Left") })
+        out << QVariantMap{ { QStringLiteral("id"), id },
+                            { QStringLiteral("label"), id == QLatin1String("default")
+                                                           ? QStringLiteral("Default (%1)").arg(byDefault) : id },
+                            { QStringLiteral("current"), id == chosen } };
+    return out;
+}
+
+void ArcadeBackend::setMonitor(const QString &set, const QString &monitor) {
+    if (!m_appCore || !mame::isShortName(set))
+        return;
+    QVariantMap monitors = m_monitors;
+    if (monitor == QLatin1String("Turned Right") || monitor == QLatin1String("Turned Left"))
+        monitors.insert(set, monitor);
+    else
+        monitors.remove(set);
+    // Comes back through onSettingChanged(), which takes it.
+    m_appCore->save_setting(kModuleId, QStringLiteral("monitors"), monitors);
 }
 
 void ArcadeBackend::setDifficulty(const QString &set, const QString &name) {

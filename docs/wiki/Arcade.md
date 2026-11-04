@@ -68,12 +68,12 @@ The line under the tree says what the entry under the cursor is: a game's year, 
 
 ### A game's options
 
-Right on a game opens its options. Those that start the game come first, each with a ▶ before it (Play, Play Turned Right and Left, Host Online Game, Host LAN Game), and a line separates them from the rest, which set something or open a page; the cursor passes over the line:
+Right on a game opens its options. Those that start the game come first, each with a ▶ before it (Play, Host Online Game, Host LAN Game), and a line separates them from the rest, which set something or open a page; the cursor passes over the line:
 
 | Option | What it does |
 |---|---|
-| **Play Turned Right** / **Play Turned Left** | Shown for a vertical game while Settings → Screen → Monitor isn't turned: plays it this once turned to stand upright on a monitor you turned for it, its top on the right or on the left as you face it ([A monitor on its side](#a-monitor-on-its-side-tate)). The next game plays as ever |
 | **Game Details** | What the game is, and its achievements on RetroAchievements, those you have earned and those you haven't ([Game Details](#game-details)) |
+| **Monitor** | Shown for a vertical game while Settings → Screen → Monitor isn't turned, as `Monitor: Default (Horizontal)`: the monitor you play it on, **Turned Right** or **Turned Left** for one you turn on its side for it (its top on the right or on the left as you face it), or **Default**, as Settings → Arcade → Emulator Video → Vertical Games says (named in brackets). Kept for the game: it is played and hosted that way, online and on the local network too ([A monitor on its side](#a-monitor-on-its-side-tate)) |
 | **Difficulty** | Shown for a game MAME plays (its **Engine**) whose board sets its difficulty with a DIP switch, as `Difficulty: Normal`: the board's settings, by the names MAME gives them (Easy, Normal, Hard…), the board's own first under the cursor. MAME starts the game with the one chosen, and keeps it for it ([Difficulty](#difficulty)) |
 | **Add to Favorites** / **Remove from Favorites** | Puts it on Favorites, or takes it off |
 | **Engine** | Shown for a game both MAME and FinalBurn Neo have, as `Engine: Auto (MAME)`: which emulator plays it. **Auto**, MAME, unless Online High Scores, Online Play or LAN Play is on, which only FinalBurn Neo has ([FinalBurn Neo](#finalburn-neo)); **MAME** (`MAME (Not Installed)` where there is none: the game then says so rather than playing in FinalBurn Neo); or **FinalBurn Neo**. A game hosted or joined over the network or on the local network plays in FinalBurn Neo whatever this says: MAME has no netplay |
@@ -338,7 +338,7 @@ Most shmups stood upright in their cabinets: their monitor was turned on its sid
 - **Videos** are turned too. One played in OSD/OS's window (Transparent Background) is turned with its subtitles and mpv's displays; one played in mpv's own (the default) has its picture turned, its subtitles and mpv's displays lying across the screen as it is.
 - **The controls** stay as they are: the sticks don't turn with the monitor.
 
-**A monitor that pivots**, turned for a vertical game and back for the rest, is **Settings → Arcade → Emulator Video → Vertical Games** instead, Turned Right or Turned Left: the menus and the horizontal games stay as they are, and only the vertical games start turned to stand upright on it. For one game, once, a vertical game's options have **Play Turned Right** and **Play Turned Left** ([A game's options](#a-games-options)).
+**A monitor that pivots**, turned for a vertical game and back for the rest, is **Settings → Arcade → Emulator Video → Vertical Games** instead, Turned Right or Turned Left: the menus and the horizontal games stay as they are, and only the vertical games start turned to stand upright on it. One game of its own, played or hosted turned (or not), has **Monitor** in its options, which goes before Vertical Games for it ([A game's options](#a-games-options)).
 
 The Pi's display can't turn a picture a quarter turn itself, so each program turns its own. A desktop's monitor is turned in the system's display settings instead: OSD/OS then sees a screen taller than wide, and lays the menus and the Arcade screen out for it in the same way, with nothing to turn. The **Vertical Games** filter lists the games for such a screen ([Filters](#filters)).
 

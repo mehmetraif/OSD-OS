@@ -75,23 +75,21 @@ FocusScope {
     }
 
     // Starts a game with the credits bought, which are then spent, and puts
-    // it on Recently Played (the newest 30), with turn on a monitor turned
-    // for it alone (Play Turned: "Turned Right", "Turned Left"); with online,
-    // joins a room of
+    // it on Recently Played (the newest 30); with online, joins a room of
     // the lobby ({ room }) or hosts the game ({ hosting: true }) instead, of
     // the local network with lan too. False, with arcadeBackend.lastError(),
     // when it couldn't be started: a game that never started, or was
     // canceled before, isn't put there (a LAN game joined is, as its host is
     // asked for the ports: it starts on the answer, or is said to have
     // ended).
-    function startGame(set, title, online, turn) {
+    function startGame(set, title, online) {
         if (!arcadeBackend)
             return false
         var lan = !!online && !!online.lan
         var started = online && online.room !== undefined
                       ? (lan ? arcadeBackend.joinLanRoom(online.room) : arcadeBackend.joinRoom(online.room))
                     : online && online.hosting ? (lan ? arcadeBackend.hostLanGame(set) : arcadeBackend.hostGame(set))
-                    : arcadeBackend.play(set, freePlay ? maxCredits : credits, turn || "")
+                    : arcadeBackend.play(set, freePlay ? maxCredits : credits)
         if (!started)
             return false
         credits = 0
