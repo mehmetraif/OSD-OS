@@ -3632,12 +3632,14 @@ private slots:
             QCOMPARE(arcade.romCheckInfo().value(QStringLiteral("incomplete")).toInt(), 1);
             QTRY_VERIFY(QFileInfo::exists(data.path() + QStringLiteral("/arcade/romcheck.json")));
         }
-        // Kept for the next start; a game's archive changed, or its BIOS
-        // set's, and what was found of it no longer holds.
+        // Kept for the next start, Hide Incomplete Games with it as it was
+        // saved; a game's archive changed, or its BIOS set's, and what was
+        // found of it no longer holds.
         QThreadPool::globalInstance()->waitForDone();
         {
-            ArcadeBackend arcade(data.path(), data.path(), nullptr, nullptr);
-            arcade.onSettingChanged(module, QStringLiteral("hide_incomplete"), QStringLiteral("ON"));
+            AppCore core(data.path(), data.path());
+            QVERIFY(core.save_setting(module, QStringLiteral("hide_incomplete"), QStringLiteral("ON")));
+            ArcadeBackend arcade(data.path(), data.path(), &core, nullptr);
             refreshed(arcade);
             QCOMPARE(infoOf(arcade), QList<int>({ 5, 1, 2, 1, 1, 0 }));
             QVERIFY(!setsIn(arcade, "all").contains(QStringLiteral("mslug")));

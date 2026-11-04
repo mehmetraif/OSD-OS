@@ -705,7 +705,8 @@ ArcadeBackend::ArcadeBackend(const QString &appRoot, const QString &dataRoot, Ap
 
     // The module's settings as they stand. games.json waits for the list to
     // open (refresh()): with a full set of MAME's games it is megabytes.
-    for (const char *key : { "games_directory", "hide_bootlegs", "regions", "high_scores", "video", "screen_shape",
+    for (const char *key : { "games_directory", "hide_bootlegs", "hide_incomplete", "regions", "high_scores", "video",
+                             "screen_shape",
                              "integer_scale", "game_picture", "vertical_monitor", "difficulties", "monitors",
                              "menu_filters", "online_high_scores", "online_play", "engines",
                              "online_name", "relay_server", "lan_play", "pictures_source" }) {
