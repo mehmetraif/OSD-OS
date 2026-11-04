@@ -217,7 +217,7 @@ Select opens the list of the outputs this Pi has, with the board's model and the
 - **At Next Start**: it is written now, and the Pi stays on as it is. It starts on the new output the next time it starts. The row reads **Next: <output>** until then; choosing the output in force again takes it back (**Stay on <output>?**, **Stay**).
 - **Switch and Power Off**: it is written, and the Pi powers off, to start on it when switched on. With At Next Start, the way to set up a screen that isn't here, as a JAMMA cabinet's.
 
-On the new output it first asks **Keep this display output?**. **Keep** keeps it. **Switch Back**, or 30 seconds without an answer (a TV that shows nothing), goes back to the output before, restarting again, and says so. Back does nothing there, so a key pressed at random on a blank screen can't keep it.
+On the new output it first asks **Keep this display output?**. **Keep** keeps it. **Switch Back**, where the cursor starts, back, or 30 seconds without an answer (a TV that shows nothing), goes back to the output before, restarting again, and says so: a key pressed at random on a blank screen can't keep it.
 
 The row needs the OSD/OS image's presets beside `config.txt`, the app started by the image's service, and a launcher new enough to switch (`OSDOS_LAUNCHER_API` 3; 4 for JAMMA 240p; 5 for At Next Start and Switch and Power Off; 6 for the JAMMA board's other modes). JAMMA 25 kHz and 31 kHz say first that they are for a monitor made for that scan rate only: too high a one can damage a 15 kHz monitor. The outputs, the cables and how to put a card right from a computer are in [Display Output](https://github.com/mehmetraif/OSD-OS/wiki/Display-Output).
 

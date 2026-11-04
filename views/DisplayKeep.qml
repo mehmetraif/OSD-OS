@@ -2,10 +2,12 @@ import QtQuick
 import Components
 
 // After Settings → Screen → Display Output switched the picture to another output, the
-// first thing on it, over the boot screen: kept with select, else the old
-// output comes back after `seconds` (displayOutput.revert()), so a screen that
-// shows nothing puts itself right. Or, when the last change didn't stay, a
-// word on it, gone with select.
+// first thing on it, over the boot screen: kept with select on KEEP, else the
+// old output comes back after `seconds` (displayOutput.revert()), so a screen
+// that shows nothing puts itself right. The cursor starts on SWITCH BACK, and
+// back switches back too: a key pressed at random on a screen that shows
+// nothing brings the old output back, never keeps the new one. Or, when the
+// last change didn't stay, a word on it, gone with select.
 //
 // Main.qml loads it while it has something to say (root.displayHolding),
 // holding the startup module back, and gives the keys back once it is done.
@@ -19,7 +21,8 @@ FocusScope {
     readonly property bool asking: root.displayConfirmPending
     readonly property bool holding: asking || root.displayNotice !== ""
     property int remaining: seconds
-    property int choiceIndex: 0
+    // 0 KEEP, 1 SWITCH BACK, where it starts.
+    property int choiceIndex: 1
 
     visible: holding
     // Hidden, it lets go of the keys.
@@ -52,14 +55,12 @@ FocusScope {
         }
         if (event.key === Qt.Key_Up || event.key === Qt.Key_Down) {
             keepRoot.choiceIndex = 1 - keepRoot.choiceIndex
-        } else if (enter) {
-            if (keepRoot.choiceIndex === 0)
-                displayOutput.keep()
-            else
-                displayOutput.revert()
+        } else if (enter && keepRoot.choiceIndex === 0) {
+            displayOutput.keep()
+        } else if (enter || event.key === Qt.Key_Escape || event.key === Qt.Key_Backspace
+                   || event.key === Qt.Key_Back) {
+            displayOutput.revert()
         }
-        // Back does nothing: on a screen that shows nothing, a key pressed at
-        // random must not keep it.
     }
 
     PromptScreen {
