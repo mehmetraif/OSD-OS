@@ -182,8 +182,11 @@ void TmdbCatalog::get(const QString &endpoint, QList<QPair<QString, QString>> qu
             return;
         }
         if (reply->error() != QNetworkReply::NoError) {
-            qWarning("[TMDB] %s: %s", qPrintable(reply->url().path()),
-                     qPrintable(reply->errorString()));
+            // The status and Qt's error code, not errorString(): that names
+            // the whole URL, the API key in its query among it, and the log
+            // goes where others read it (osdos.log, the journal, Save Logs).
+            qWarning("[TMDB] %s: HTTP %d, network error %d", qPrintable(reply->url().path()), status,
+                     static_cast<int>(reply->error()));
             m_failure = QStringLiteral("Could not reach TMDB: check the network");
             setProblem(m_failure);
             done({});
