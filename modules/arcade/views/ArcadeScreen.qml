@@ -98,7 +98,7 @@ FocusScope {
     // A pad's Coin (its Back unless its Arcade Buttons say) is COIN here, not
     // while the options or the engine chooser are up or Search's keys have
     // the keys, nor while the screen is adjusted (InputManager).
-    readonly property bool takesCoin: !options.visible && !engines.visible && !typing && !adjusting
+    readonly property bool takesCoin: !options.visible && !engines.visible && !difficulty.visible && !typing && !adjusting
 
     // On a screen taller than it is wide (a monitor turned on its side for
     // vertical games: Settings → Screen → Monitor), the whole of it, not the
@@ -138,7 +138,7 @@ FocusScope {
     function orbY(y) { return areaTop + (y - 90) * orbScale }
     readonly property real orbFootY: areaBottom - hintLine.height / (2 * v)
     // A dialog over the screen, the options or the engines.
-    readonly property bool covered: options.visible || engines.visible
+    readonly property bool covered: options.visible || engines.visible || difficulty.visible
 
     // The letters, in the design's lines: the hint bar's and the help
     // line's, 18 of 480 lines, and the games' names larger.
@@ -580,7 +580,7 @@ FocusScope {
     // chosen changes (wheelLayout()), so only the middle half of a row
     // counts there, where the pointer stays in the row it chose.
     function hoverAt(x, y) {
-        if (typing || adjusting || options.visible || engines.visible || launching)
+        if (typing || adjusting || options.visible || engines.visible || difficulty.visible || launching)
             return
         noteActivity()
         // The Orb look's bars, where the camera sees them.
@@ -624,11 +624,13 @@ FocusScope {
     // host }) or one hosted ({ hosting: true }), of the local network with
     // lan: true too. In the Orb look once the camera has gone into the orb,
     // but at once at startup.
-    function play(set, name, listFilter, online, atOnce) {
+    function play(set, name, listFilter, online, atOnce, turn) {
         var params = { game: set, title: name }
         var state = { filter: listFilter, set: set, row: selectedRow }
         if (online)
             params.online = online
+        if (turn)
+            params.turn = turn
         if (online && online.room !== undefined)
             state.room = online.room
         var go = function() { arcadeScreen.navigateTo("Play.qml", params, state) }
@@ -1784,11 +1786,19 @@ FocusScope {
         width: parent.width
         height: parent.height
         moduleId: moduleRoot.moduleId
-        firstChoices: [{ label: "Play", action: "play" }, { label: "Game Details", action: "details" }]
+        // A vertical game played turned once, on a monitor turned for it,
+        // while Settings → Screen → Monitor isn't turned.
+        firstChoices: [{ label: "Play", action: "play" }]
+                      .concat(arcadeScreen.details.vertical && !root.turned
+                              ? [{ label: "Play Turned Right", action: "playRight" },
+                                 { label: "Play Turned Left", action: "playLeft" }] : [])
+                      .concat([{ label: "Game Details", action: "details" }])
         // Made as the options open, not for every game the cursor passes.
         moreChoices: !options.visible ? []
                      : (arcadeScreen.revision,
-                        (engines.offered(arcadeScreen.currentSet)
+                        (difficulty.offered(arcadeScreen.currentSet)
+                         ? [{ label: difficulty.lineFor(arcadeScreen.currentSet), action: "difficulty" }] : [])
+                        .concat(engines.offered(arcadeScreen.currentSet)
                          ? [{ label: engines.lineFor(arcadeScreen.currentSet), action: "engine" }] : [])
                         .concat(arcadeBackend && arcadeBackend.canHost(arcadeScreen.currentSet)
                                 ? [{ label: "Host Online Game", action: "host" }] : [])
@@ -1799,6 +1809,12 @@ FocusScope {
                 arcadeScreen.playCurrent()
             else if (action === "details")
                 arcadeScreen.openDetails()
+            else if (action === "playRight" || action === "playLeft")
+                arcadeScreen.play(arcadeScreen.currentSet, arcadeScreen.details.name || arcadeScreen.current.name,
+                                  arcadeScreen.filterId, null, false,
+                                  action === "playRight" ? "Turned Right" : "Turned Left")
+            else if (action === "difficulty")
+                difficulty.offer(arcadeScreen.currentSet, arcadeScreen.details.name)
             else if (action === "engine")
                 engines.offer(arcadeScreen.currentSet, arcadeScreen.details.name)
             else if (action === "host" || action === "hostLan")
@@ -1806,7 +1822,15 @@ FocusScope {
                                   arcadeScreen.filterId, { hosting: true, lan: action === "hostLan" })
         }
         onFavoritesEdited: arcadeScreen.reload()
-        onClosed: if (!engines.visible) arcadeScreen.forceActiveFocus()
+        onClosed: if (!engines.visible && !difficulty.visible) arcadeScreen.forceActiveFocus()
+    }
+    DifficultyChooser {
+        id: difficulty
+        y: arcadeScreen.portrait ? root.stageY : 0
+        width: parent.width
+        height: parent.height
+        onDifficultyChosen: arcadeScreen.revision++
+        onClosed: arcadeScreen.forceActiveFocus()
     }
     EngineChooser {
         id: engines

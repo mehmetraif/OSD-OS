@@ -60,13 +60,16 @@ FocusScope {
 
     // Plays a game, or joins a room of the lobby or the local network
     // (item.room, item.lan), or with online ({ hosting: true, lan }) hosts
-    // it; trail is where coming back lands.
-    function play(item, trail, online) {
+    // it; trail is where coming back lands. turn: a monitor turned for this
+    // game alone (Play Turned).
+    function play(item, trail, online, turn) {
         var params = { game: item.game, title: item.name }
         if (item.room !== undefined)
             params.online = { room: item.room, host: item.host, lan: !!item.lan }
         else if (online)
             params.online = online
+        if (turn)
+            params.turn = turn
         gamesRoot.navigateTo("Play.qml", params, { trail: trail })
     }
 
@@ -238,19 +241,28 @@ FocusScope {
         onCanceled: tree.forceActiveFocus()
     }
 
-    // A game's options: its Game Details (Details.qml) first, its engine
-    // among them where MAME and FinalBurn Neo both have it, and with Online
-    // Play or LAN Play on, hosting it.
+    // A game's options: a vertical game played turned once (while Settings →
+    // Screen → Monitor isn't turned), its Game Details (Details.qml), its
+    // difficulty where MAME plays it with a DIP switch for it, its engine
+    // where MAME and FinalBurn Neo both have it, and with Online Play or LAN
+    // Play on, hosting it.
     property int engineRevision: 0
     readonly property string optionsSet: options.entry && String(options.entry.path).indexOf("game:") === 0
                                          ? String(options.entry.path).substring(5) : ""
+    readonly property bool optionsVertical: options.visible && gamesRoot.optionsSet !== "" && !!arcadeBackend
+                                            && !!arcadeBackend.gameDetails(gamesRoot.optionsSet).vertical
     EntryOptions {
         id: options
         anchors.fill: parent
         moduleId: moduleRoot.moduleId
-        firstChoices: [{ label: "Game Details", action: "details" }]
+        firstChoices: (gamesRoot.optionsVertical && !root.turned
+                       ? [{ label: "Play Turned Right", action: "playRight" },
+                          { label: "Play Turned Left", action: "playLeft" }] : [])
+                      .concat([{ label: "Game Details", action: "details" }])
         moreChoices: (gamesRoot.engineRevision,
-                      (engines.offered(gamesRoot.optionsSet)
+                      (difficulty.offered(gamesRoot.optionsSet)
+                       ? [{ label: difficulty.lineFor(gamesRoot.optionsSet), action: "difficulty" }] : [])
+                      .concat(engines.offered(gamesRoot.optionsSet)
                        ? [{ label: engines.lineFor(gamesRoot.optionsSet), action: "engine" }] : [])
                       .concat(arcadeBackend && arcadeBackend.canHost(gamesRoot.optionsSet)
                               ? [{ label: "Host Online Game", action: "host" }] : [])
@@ -260,6 +272,11 @@ FocusScope {
             if (action === "details")
                 gamesRoot.navigateTo("Details.qml", { game: gamesRoot.optionsSet, title: options.entry.name },
                                      { trail: tree.trailState() })
+            else if (action === "playRight" || action === "playLeft")
+                gamesRoot.play({ game: gamesRoot.optionsSet, name: options.entry.name }, tree.trailState(), null,
+                               action === "playRight" ? "Turned Right" : "Turned Left")
+            else if (action === "difficulty")
+                difficulty.offer(gamesRoot.optionsSet, options.entry.name)
             else if (action === "engine")
                 engines.offer(gamesRoot.optionsSet, options.entry.name)
             else if (action === "host" || action === "hostLan")
@@ -267,7 +284,13 @@ FocusScope {
                                { hosting: true, lan: action === "hostLan" })
         }
         onFavoritesEdited: tree.refresh("favorites")
-        onClosed: if (!engines.visible) tree.forceActiveFocus()
+        onClosed: if (!engines.visible && !difficulty.visible) tree.forceActiveFocus()
+    }
+    DifficultyChooser {
+        id: difficulty
+        anchors.fill: parent
+        onDifficultyChosen: gamesRoot.engineRevision++
+        onClosed: tree.forceActiveFocus()
     }
     EngineChooser {
         id: engines

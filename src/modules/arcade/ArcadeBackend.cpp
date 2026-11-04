@@ -46,8 +46,8 @@ const QString kModuleId = QStringLiteral("com.osdos.arcade");
 // games.json's layout: of one of another, only the sets MAME had no machine
 // of are read, kept apart as every set is asked about again (2: each
 // machine's source file, for its system; 3: its screen's size, for its
-// picture on a tube).
-constexpr int kCacheVersion = 3;
+// picture on a tube; 4: its difficulty's DIP switch, for its options).
+constexpr int kCacheVersion = 4;
 
 // The most credits a game is started with, as most games show at most 9.
 constexpr int kMaxCredits = 9;
@@ -703,7 +703,7 @@ ArcadeBackend::ArcadeBackend(const QString &appRoot, const QString &dataRoot, Ap
     // The module's settings as they stand. games.json waits for the list to
     // open (refresh()): with a full set of MAME's games it is megabytes.
     for (const char *key : { "games_directory", "hide_bootlegs", "regions", "high_scores", "video", "screen_shape",
-                             "integer_scale", "game_picture", "vertical_monitor", "menu_filters", "online_high_scores", "online_play", "engines",
+                             "integer_scale", "game_picture", "vertical_monitor", "difficulties", "menu_filters", "online_high_scores", "online_play", "engines",
                              "online_name", "relay_server", "lan_play", "pictures_source" }) {
         const QString k = QLatin1String(key);
         applySetting(k, m_appCore ? m_appCore->get_setting(kModuleId, k) : QVariant());
@@ -866,6 +866,9 @@ void ArcadeBackend::applySetting(const QString &key, const QVariant &value) {
         }
         emit gamesChanged();
         emit statusIconsChanged();
+    } else if (key == QLatin1String("difficulties")) {
+        // Saved whole by setDifficulty().
+        m_difficulties = value.toMap();
     } else if (key == QLatin1String("engines")) {
         // Saved whole by setEngine(). A game moved to MAME leaves the
         // RetroAchievements filter.
@@ -3157,12 +3160,15 @@ QString ArcadeBackend::ownFolder() const {
     return QString();
 }
 
-bool ArcadeBackend::play(const QString &name, int credits) {
+bool ArcadeBackend::play(const QString &name, int credits, const QString &turn) {
     m_lastError.clear();
     if (running()) {
         m_lastError = QStringLiteral("A game is still running");
         return false;
     }
+    // The monitor turned for this game alone, for the arguments made here.
+    m_turnOnce = turn == QLatin1String("Turned Right") || turn == QLatin1String("Turned Left") ? turn : QString();
+    const auto turned = qScopeGuard([this] { m_turnOnce.clear(); });
     if (engineOf(name) == QLatin1String("fbneo"))
         return playFbneo(name, libretro::Launch::Netplay::None, QString(), -1, 0, libretro::Launch::Layout::Classic,
                          false, credits);
@@ -3194,6 +3200,22 @@ bool ArcadeBackend::play(const QString &name, int credits) {
     // with their Arcade Buttons.
     for (const char *dir : { "cfg", "nvram", "ctrlr" })
         QDir().mkpath(m_home + QLatin1Char('/') + QLatin1String(dir));
+    // The difficulty chosen in its options (difficultyChoices()), set in the
+    // game's own cfg file, which MAME reads as it starts and keeps; a game
+    // never set leaves the file as it is, as MAME's own menu set it.
+    if (m_difficulties.contains(name)) {
+        const mame::Machine *machine = machineOf(name);
+        if (machine && machine->difficulty.isValid()) {
+            const QString path = m_home + QStringLiteral("/cfg/") + name + QStringLiteral(".cfg");
+            QFile cfg(path);
+            const QByteArray before = cfg.open(QIODevice::ReadOnly) ? cfg.read(4 * 1024 * 1024) : QByteArray();
+            cfg.close();
+            const QByteArray after = mame::withDip(before, name, machine->difficulty,
+                                                   machine->difficulty.valueOf(m_difficulties.value(name).toString()));
+            if (after != before && !writeFileAnew(path, after))
+                qWarning("[Arcade] The difficulty couldn't be set in %s", qPrintable(path));
+        }
+    }
     QList<QStringList> arcade;
     for (const controllers::ArcadeBinds &binds : controllers::playerArcade())
         arcade << binds.mame;
@@ -3307,6 +3329,8 @@ QString ArcadeBackend::monitorFor(const QString &set) const {
                                       : QString();
     if (monitor == QLatin1String("Turned Right") || monitor == QLatin1String("Turned Left"))
         return monitor;
+    if (!m_turnOnce.isEmpty())
+        return m_turnOnce;
     return gameAspect(set) < 1.0 ? m_verticalMonitor : QString();
 }
 
@@ -3441,6 +3465,32 @@ void ArcadeBackend::setEngine(const QString &set, const QString &engine) {
         engines.remove(set);
     // Comes back through onSettingChanged(), which takes it.
     m_appCore->save_setting(kModuleId, QStringLiteral("engines"), engines);
+}
+
+QVariantList ArcadeBackend::difficultyChoices(const QString &set) const {
+    const mame::Machine *machine = machineOf(set);
+    if (!machine || !machine->difficulty.isValid() || engineOf(set) != QLatin1String("mame"))
+        return {};
+    const mame::Dip &dip = machine->difficulty;
+    // The one chosen, else the board's own; one no longer among them, the
+    // board's.
+    QString chosen = m_difficulties.value(set).toString();
+    if (std::none_of(dip.values.cbegin(), dip.values.cend(), [&](const auto &v) { return v.first == chosen; }))
+        chosen = dip.defaultName();
+    QVariantList out;
+    for (const auto &value : dip.values)
+        out << QVariantMap{ { QStringLiteral("id"), value.first }, { QStringLiteral("label"), value.first },
+                            { QStringLiteral("current"), value.first == chosen } };
+    return out;
+}
+
+void ArcadeBackend::setDifficulty(const QString &set, const QString &name) {
+    if (!m_appCore || !mame::isShortName(set))
+        return;
+    QVariantMap difficulties = m_difficulties;
+    difficulties.insert(set, name);
+    // Comes back through onSettingChanged(), which takes it.
+    m_appCore->save_setting(kModuleId, QStringLiteral("difficulties"), difficulties);
 }
 
 bool ArcadeBackend::fbneoReady() const {

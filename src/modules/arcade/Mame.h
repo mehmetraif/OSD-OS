@@ -2,6 +2,7 @@
 #include <QByteArray>
 #include <QHash>
 #include <QList>
+#include <QPair>
 #include <QString>
 #include <QStringList>
 #include <QVariantMap>
@@ -30,6 +31,25 @@ QString downloadedMame(const QString &dataRoot);
 QString pluginsFolder(const QString &program);
 
 // A machine as -listxml describes it: what the game list shows and sorts by.
+// A DIP switch, as -listxml has it: its port's tag, its bits (mask), the
+// value it is set to on the board (its default) and each of its settings,
+// a name and the bits, in MAME's order.
+struct Dip {
+    QString tag;           // the port's: ":DSW1"
+    int     mask = 0;
+    int     defaultValue = 0;
+    QList<QPair<QString, int>> values;
+    // One with more than a setting to choose from.
+    bool isValid() const { return !tag.isEmpty() && mask != 0 && values.size() > 1; }
+    // The setting of that name, or the default.
+    int valueOf(const QString &name) const;
+    QString defaultName() const;
+};
+
+// Whether a DIP switch's name is a game's difficulty, as boards name it:
+// "Difficulty", "Game Difficulty", "Difficulty Level".
+bool isDifficulty(const QString &dipName);
+
 struct Machine {
     QString name;          // its short name, its set's: "pacman"
     QString description;   // "Pac-Man (Midway)"
@@ -44,6 +64,8 @@ struct Machine {
     // rotation: 0 where MAME doesn't say (a vector screen).
     int     width = 0;
     int     height = 0;
+    // Its difficulty's DIP switch, where the board has one (the first such).
+    Dip     difficulty;
     bool    bios = false;  // a BIOS set (neogeo), which other games start from
     bool    device = false;
     bool    runnable = true;
@@ -76,12 +98,21 @@ private:
     bool             m_inMachine = false;
     int              m_depth = 0;      // within the machine element
     bool             m_hadDisplay = false;
+    // Within the machine's difficulty DIP switch, its settings read.
+    bool             m_inDifficulty = false;
     // A text element of the machine's being read (description, year,
     // manufacturer) and its text so far: it may come over several chunks.
     QString          m_field;
     QString          m_text;
     QString          m_build;
 };
+
+// A game's cfg file (MAME's own, cfg/<set>.cfg, which it reads as the game
+// starts and writes as it ends) with a DIP switch set to value: its port in
+// the game's input, as MAME writes one (tag, DIPSWITCH, mask, its default
+// and the value), in place of any it had of that switch; the rest of the
+// file as it was. A new file for none, or one MAME can't read.
+QByteArray withDip(const QByteArray &cfg, const QString &system, const Dip &dip, int value);
 
 // What MAME is told of the screen (Settings → Arcade → Emulator Video): its
 // shape ("4:3", "16:9"), where its pixels aren't square (720×240 for JAMMA

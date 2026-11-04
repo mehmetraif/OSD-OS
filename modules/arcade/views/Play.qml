@@ -37,6 +37,8 @@ FocusScope {
     // true }, the game hosted; on the local network with lan: true too; null
     // for a game played here alone.
     readonly property var online: navParams.online || null
+    // A monitor turned for this game alone (its options' Play Turned).
+    readonly property string turn: navParams.turn || ""
 
     signal navigateTo(string path, var params, var listState)
     signal goBack()
@@ -85,7 +87,7 @@ FocusScope {
             playRoot.phase = "loading"
     }
     function start() {
-        if (moduleRoot.startGame(playRoot.game, playRoot.title, playRoot.online)) {
+        if (moduleRoot.startGame(playRoot.game, playRoot.title, playRoot.online, playRoot.turn)) {
             playRoot.phase = "running"
         } else {
             playRoot.phase = "error"

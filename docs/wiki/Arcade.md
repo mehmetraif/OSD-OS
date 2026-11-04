@@ -72,7 +72,9 @@ Right on a game opens its options:
 
 | Option | What it does |
 |---|---|
+| **Play Turned Right** / **Play Turned Left** | Shown for a vertical game while Settings → Screen → Monitor isn't turned: plays it this once turned to stand upright on a monitor you turned for it, its top on the right or on the left as you face it ([A monitor on its side](#a-monitor-on-its-side-tate)). The next game plays as ever |
 | **Game Details** | What the game is, and its achievements on RetroAchievements, those you have earned and those you haven't ([Game Details](#game-details)) |
+| **Difficulty** | Shown for a game MAME plays (its **Engine**) whose board sets its difficulty with a DIP switch, as `Difficulty: Normal`: the board's settings, by the names MAME gives them (Easy, Normal, Hard…), the board's own first under the cursor. MAME starts the game with the one chosen, and keeps it for it ([Difficulty](#difficulty)) |
 | **Add to Favorites** / **Remove from Favorites** | Puts it on Favorites, or takes it off |
 | **Engine** | Shown for a game both MAME and FinalBurn Neo have, as `Engine: Auto (MAME)`: which emulator plays it. **Auto**, MAME, unless Online High Scores, Online Play or LAN Play is on, which only FinalBurn Neo has ([FinalBurn Neo](#finalburn-neo)); **MAME** (`MAME (Not Installed)` where there is none: the game then says so rather than playing in FinalBurn Neo); or **FinalBurn Neo**. A game hosted or joined over the network or on the local network plays in FinalBurn Neo whatever this says: MAME has no netplay |
 | **Host Online Game** | With **Online Play** on, for a game FinalBurn Neo has: starts it for others to join from RetroArch's lobby ([Online play](https://github.com/mehmetraif/OSD-OS/wiki/Online-and-LAN-Play#online-play)) |
@@ -316,6 +318,14 @@ sudo reboot
 
 Running `install.sh` again does the same, with whatever else a newer release needs of the system ([Installation → Updating with install.sh](https://github.com/mehmetraif/OSD-OS/wiki/Installation#updating-with-installsh)). An image built without a password has no `sudo` ([The user, its password and sudo](https://github.com/mehmetraif/OSD-OS/wiki/The-OSD-OS-Image#the-user-its-password-and-sudo)): flash the image of 0.0.31 or later instead, after copying your games and films off the card's **OSD-OS** partition.
 
+### Difficulty
+
+Most boards of the 1980s and 1990s set their game's difficulty with a DIP switch, which an operator changed inside the cabinet. **Difficulty**, in a game's options, sets that switch before the game starts, for a game MAME plays: MAME's list of games names the switch and its settings, and OSD/OS writes the one chosen into MAME's own settings for the game (`cfg/<set>.cfg` in the Arcade module's folder), which MAME reads as the game starts and keeps, as if set in MAME's own menu (Tab → DIP Switches). A game never set keeps whatever MAME's menu set.
+
+- **Which games**: those whose switch MAME calls Difficulty (or Game Difficulty, Difficulty Level). A board that keeps its difficulty in the game's own settings (CPS2 and CPS3, the Neo-Geo, most boards from the late 1990s on) has no such switch: its difficulty is set in the game's service menu (F2 in MAME), and its options have no Difficulty.
+- **MAME only**: a game FinalBurn Neo plays (its **Engine**, or played online or on the local network) has no Difficulty in its options for now.
+- **High scores** are kept whatever the difficulty, as the cabinet kept them.
+
 ### A monitor on its side (TATE)
 
 <img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/screenshots/arcade-tate.png" width="360" alt="The Arcade screen on a monitor turned on its side: the game's picture, upright and 3:4, at the top left beside the box of its high scores and details, the bar and the games under them across the screen's width, the help line and the hint bar at the foot" />
@@ -328,7 +338,7 @@ Most shmups stood upright in their cabinets: their monitor was turned on its sid
 - **Videos** are turned too. One played in OSD/OS's window (Transparent Background) is turned with its subtitles and mpv's displays; one played in mpv's own (the default) has its picture turned, its subtitles and mpv's displays lying across the screen as it is.
 - **The controls** stay as they are: the sticks don't turn with the monitor.
 
-**A monitor that pivots**, turned for a vertical game and back for the rest, is **Settings → Arcade → Emulator Video → Vertical Games** instead, Turned Right or Turned Left: the menus and the horizontal games stay as they are, and only the vertical games start turned to stand upright on it.
+**A monitor that pivots**, turned for a vertical game and back for the rest, is **Settings → Arcade → Emulator Video → Vertical Games** instead, Turned Right or Turned Left: the menus and the horizontal games stay as they are, and only the vertical games start turned to stand upright on it. For one game, once, a vertical game's options have **Play Turned Right** and **Play Turned Left** ([A game's options](#a-games-options)).
 
 The Pi's display can't turn a picture a quarter turn itself, so each program turns its own. A desktop's monitor is turned in the system's display settings instead: OSD/OS then sees a screen taller than wide, and lays the menus and the Arcade screen out for it in the same way, with nothing to turn. The **Vertical Games** filter lists the games for such a screen ([Filters](#filters)).
 
