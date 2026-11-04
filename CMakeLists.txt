@@ -5,6 +5,15 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_AUTOMOC ON)
 
+# Release unless another build type is asked for: a plain `cmake -B build`
+# (CLAUDE.md's, BUILDING.md's on a Mac) made an unoptimised build, which
+# played the menus' effects slower and logged every qDebug line.
+# -DCMAKE_BUILD_TYPE=Debug still gives a debug build.
+get_property(OSDOS_MULTI_CONFIG GLOBAL PROPERTY GENERATOR_IS_MULTI_CONFIG)
+if(NOT OSDOS_MULTI_CONFIG AND NOT CMAKE_BUILD_TYPE)
+    set(CMAKE_BUILD_TYPE Release CACHE STRING "Build type (Release unless set)" FORCE)
+endif()
+
 # Strip qDebug(...) calls in Release builds to reduce CPU/disk noise on Pi
 set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -DQT_NO_DEBUG_OUTPUT")
 

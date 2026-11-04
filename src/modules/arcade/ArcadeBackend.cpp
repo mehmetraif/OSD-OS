@@ -597,10 +597,16 @@ ArcadeBackend::ArcadeBackend(const QString &appRoot, const QString &dataRoot, Ap
     connect(m_mameInstaller, &ProgramInstaller::finished, this, [this](bool ok, const QString &message) {
         m_mameMessage = message;
         // The games read again with MAME there, which is asked about every
-        // set, as it is another MAME. A batch stopped for a download that
+        // set, as it is another MAME: the sets the batch stopped for the
+        // download had still to ask the one before about go with it, or
+        // they would stand for an asking that never comes (scanning() for
+        // good, the filters empty). A batch stopped for a download that
         // failed is asked again (downloadMame()).
-        if (ok)
+        if (ok) {
+            if (!m_scan)
+                m_toAsk.clear();
             refresh();
+        }
         else if (!m_scan && !m_toAsk.isEmpty() && !m_launcher->isBusy())
             scanNext();
         if (!m_launcher->isBusy())
@@ -705,7 +711,8 @@ ArcadeBackend::ArcadeBackend(const QString &appRoot, const QString &dataRoot, Ap
 
     // The module's settings as they stand. games.json waits for the list to
     // open (refresh()): with a full set of MAME's games it is megabytes.
-    for (const char *key : { "games_directory", "hide_bootlegs", "regions", "high_scores", "video", "screen_shape",
+    for (const char *key : { "games_directory", "hide_bootlegs", "hide_incomplete", "regions", "high_scores", "video",
+                             "screen_shape",
                              "integer_scale", "game_picture", "vertical_monitor", "difficulties", "monitors",
                              "menu_filters", "online_high_scores", "online_play", "engines",
                              "online_name", "relay_server", "lan_play", "pictures_source" }) {
@@ -1529,7 +1536,9 @@ void ArcadeBackend::onScanFinished(int exitCode, QProcess::ExitStatus status) {
         invalidate();
         if (!m_reader.build().isEmpty()) {
             m_build = m_reader.build();
-            raiseOwnDownloads();
+            // Once this batch is done with: a download it starts stops the
+            // asking (pauseScan()), which deletes the process this is about.
+            QTimer::singleShot(0, this, &ArcadeBackend::raiseOwnDownloads);
         }
         // Kept as it comes, every so often: a session shorter than the whole
         // scan of a full set (a Pi powered off before the end) keeps what was
@@ -1543,9 +1552,9 @@ void ArcadeBackend::onScanFinished(int exitCode, QProcess::ExitStatus status) {
         // The rest are asked about the next time the list opens.
         m_toAsk.clear();
     }
-    m_scan->disconnect(this);
-    m_scan->deleteLater();
-    m_scan = nullptr;
+    QProcess *scan = std::exchange(m_scan, nullptr);
+    scan->disconnect(this);
+    scan->deleteLater();
     if (!m_toAsk.isEmpty()) {
         // Not beside a game, which would share the machine with it: the rest
         // once it has ended.

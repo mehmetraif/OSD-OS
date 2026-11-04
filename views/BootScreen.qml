@@ -82,9 +82,10 @@ FocusScope {
     }
 
     // Keys go nowhere while it is up, so none reaches the view underneath.
+    // Ctrl+Q quits, as it does over every view, unless Cabinet Lock is on.
     Keys.onPressed: function(event) {
         event.accepted = true
-        if ((event.modifiers & Qt.ControlModifier) && event.key === Qt.Key_Q)
+        if ((event.modifiers & Qt.ControlModifier) && event.key === Qt.Key_Q && !root.cabinetLocked())
             Qt.quit()
     }
 

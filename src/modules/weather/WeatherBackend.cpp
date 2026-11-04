@@ -462,6 +462,10 @@ WeatherBackend::WeatherBackend(const QString &appRoot, const QString &dataRoot,
     , m_dataRoot(dataRoot)
     , m_nam(new QNetworkAccessManager(this))
     , m_refresh(new QTimer(this)) {
+    // A service that stops answering (a captive portal holding the socket)
+    // fails after this long without a byte, and the next refresh tries
+    // again, instead of the forecast waiting on it for good.
+    m_nam->setTransferTimeout(30000);
     m_refresh->setInterval(kRefreshMs);
     connect(m_refresh, &QTimer::timeout, this, [this]() {
         fetchWeather();

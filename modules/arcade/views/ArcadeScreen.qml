@@ -723,11 +723,14 @@ FocusScope {
                    { filter: filterId, set: currentSet, row: selectedRow })
     }
 
-    // The lobby read again while its rooms are the filter shown, those of
-    // the folder's games or all of them.
+    // The lobby read as its rooms become the filter shown, those of the
+    // folder's games or all of them, and again while they are: not up to
+    // 20 s old as they come up, nor after a game.
     Timer {
+        objectName: "lobbyRefresh"
         interval: 20000
         repeat: true
+        triggeredOnStart: true
         running: (arcadeScreen.filterId === "online" || arcadeScreen.filterId === "lobby")
                  && !!arcadeBackend && !arcadeBackend.running
         onTriggered: arcadeBackend.refreshRooms()

@@ -572,7 +572,7 @@ Notes:
 
 ## Debugging & logs
 
-OSD/OS logs to **stdout/stderr** via Qt's `qDebug` / `qWarning` (used throughout `AppCore`, `MpvController`, and the module backends). A Release build (every release, the image, the AppImage) defines `QT_NO_DEBUG_OUTPUT`, so only `qWarning` and `qInfo` lines show there; build with `-DCMAKE_BUILD_TYPE=Debug` to see the `qDebug` ones. The trick is knowing where that output goes depending on how you launched the app.
+OSD/OS logs to **stdout/stderr** via Qt's `qDebug` / `qWarning` (used throughout `AppCore`, `MpvController`, and the module backends). A Release build (every release, the image, the AppImage, and a build configured without `CMAKE_BUILD_TYPE`, which is Release by default) defines `QT_NO_DEBUG_OUTPUT`, so only `qWarning` and `qInfo` lines show there; build with `-DCMAKE_BUILD_TYPE=Debug` to see the `qDebug` ones. The trick is knowing where that output goes depending on how you launched the app.
 
 ### Option 1: Running from source
 
