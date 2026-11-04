@@ -159,13 +159,15 @@ FocusScope {
             font.pixelSize: root.sh * 0.0416667 //20
         }
 
-        // Error message
+        // Error message, wrapped inside the content's width.
         Text {
             visible: errorMsg !== ""
             text: errorMsg
             color: root.accentColor
             font.family: root.globalFont
             font.capitalization: Font.AllUppercase
+            width: root.sw * 0.76875 //492
+            wrapMode: Text.WordWrap
             horizontalAlignment: Text.AlignHCenter
             anchors.horizontalCenter: parent.horizontalCenter
             font.pixelSize: root.sh * 0.0375 //20

@@ -458,6 +458,9 @@ FocusScope {
         color: root.tertiaryColor
         font.family: root.globalFont
         anchors.centerIn: parent
+        // The content's width, so a long server error wraps inside the
+        // screen instead of running off a tube's edges.
+        width: root.sw * 0.76875 //492
         wrapMode: Text.WordWrap
         horizontalAlignment: Text.AlignHCenter
         font.pixelSize: root.sh * 0.05 //24
