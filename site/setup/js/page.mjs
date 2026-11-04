@@ -25,7 +25,9 @@ function fresh() {
         passwordPlain: "", passwordHash: "",
         sshEnabled: null, sshPasswordLogin: true, sshKeys: "",
         timezone: "", keyboard: "",
-        raUser: "", raPassword: "", raKey: "",
+        // raToken: a device's sign-in, its token, brought by its Export to
+        // OSD/OS Setup in place of the password it doesn't keep.
+        raUser: "", raPassword: "", raToken: "", raKey: "",
         config: {},
     };
 }
@@ -461,8 +463,15 @@ function retroAchievements() {
     return el("div", { class: "account" },
         el("h3", { class: "subheading", text: "RetroAchievements Account" }),
         el("p", { class: "help", text: "Signed in as OSD/OS starts: RetroArch swaps the password for a token, and the password is kept nowhere. The Web API key, from retroachievements.org's Settings page, reads the leaderboards and achievements." }),
-        line("User Name", text(state.raUser, v => { state.raUser = v; markChanged("ra-user", !!v); }, { id: "ra-user" }),
-             { changed: !!state.raUser, onReset: () => { state.raUser = ""; render(); } }),
+        // Another name, the device's sign-in isn't its.
+        line("User Name", text(state.raUser, v => { state.raUser = v; state.raToken = ""; markChanged("ra-user", !!v); },
+                               { id: "ra-user", onchange: () => render() }),
+             { changed: !!state.raUser, onReset: () => { state.raUser = ""; state.raToken = ""; render(); } }),
+        state.raToken && !state.raPassword
+            ? line("Sign-In", el("span", { class: "value", id: "ra-token", text: "The device's, carried over" }),
+                   { changed: true, help: "Brought from the device's codes, in place of the password: signed in as OSD/OS starts. A password typed below goes in its place.",
+                     onReset: () => { state.raToken = ""; render(); } })
+            : null,
         line("Password", secret(state.raPassword, v => { state.raPassword = v; markChanged("ra-password", !!v); },
                                 { id: "ra-password", autocomplete: "new-password" }),
              { id: "ra-password", changed: !!state.raPassword, onReset: () => { state.raPassword = ""; render(); } }),
@@ -516,7 +525,7 @@ function previewSettings() {
             values: values(["modules", module.id], module.settings),
         })),
         wifi: !!state.wifiSsid,
-        account: !!(state.raUser && state.raPassword),
+        account: !!(state.raUser && (state.raPassword || state.raToken)),
         key: !!state.raKey,
     };
 }
@@ -599,7 +608,7 @@ function problems() {
                 add(`SSH Keys: not a whole public key: ${key.slice(0, 32)}…`, "logins");
         }
     }
-    for (const problem of core.checkRetroAchievements(state.raUser, state.raPassword, state.raKey))
+    for (const problem of core.checkRetroAchievements(state.raUser, state.raPassword, state.raKey, state.raToken))
         add(problem, "logins");
     const startup = startupModule();
     if (startup && startup !== "None" && core.getPath(state.config, ["modules", startup, "enabled"]) === false) {
@@ -702,12 +711,19 @@ function carried(read) {
         out.push("a Wi-Fi password");
     if (read.raPassword)
         out.push("a RetroAchievements password");
+    if (read.raToken)
+        out.push("a RetroAchievements sign-in");
     return out;
 }
 
 async function importFile(file) {
+    importText(await file.text(), file.name);
+}
+
+// A file's text read in, from a file (named) or a device's codes.
+function importText(textRead, name, { codes = false } = {}) {
     try {
-        const read = core.readSetup(await file.text());
+        const read = core.readSetup(textRead);
         const { state: values, dropped } = core.fitImport(read, schema);
         const notes = [];
         if (read.from === "setup") {
@@ -715,14 +731,16 @@ async function importFile(file) {
             const { from, ...rest } = values;
             state = { ...fresh(), ...rest, passwordPlain: "" };
             const what = carried(state);
-            notes.push(`Read ${file.name}: change what you need, then download it again.`);
+            notes.push(codes ? "Read the device's settings from its codes: change what you need, then download them for the card."
+                             : `Read ${name}: change what you need, then download it again.`);
             if (what.length)
-                notes.push(`It sets ${what.join(", ")}: keep those only from a file of your own.`);
+                notes.push(codes ? `They set ${what.join(", ")}: keep the file they make to yourself.`
+                                 : `It sets ${what.join(", ")}: keep those only from a file of your own.`);
         } else {
             // Its Start on Module the file's own, whatever the device.
             state.config = values.config;
             state.autoStartup = null;
-            notes.push(`Read OSD/OS's settings from ${file.name}.`);
+            notes.push(`Read OSD/OS's settings from ${name}.`);
         }
         if (dropped.length)
             notes.push(`Left out, not on this page: ${dropped.slice(0, 6).join(", ")}${dropped.length > 6 ? ` and ${dropped.length - 6} more` : ""}.`);
@@ -731,7 +749,51 @@ async function importFile(file) {
         say(notes.join(" "), true);
         render();
     } catch (e) {
-        say(`${file.name}: ${e.message}`);
+        say(`${name}: ${e.message}`);
+    }
+}
+
+// The codes of OSD/OS's Export to OSD/OS Setup (Settings → System): each
+// opens the page with a part of a device's settings after #s=. The parts read
+// so far wait in the browser, a phone's camera opening each in a tab of its
+// own, until the last of them, then the whole is read in and they are gone;
+// the address loses its part at once, passwords and all. Parts left waiting
+// longer than half an hour (the rest never scanned) go too.
+const EXPORT_KEY = "osdos-setup-export";
+const EXPORT_KEEP_MS = 30 * 60 * 1000;
+async function takeExportPart() {
+    const part = core.exportPart(location.hash);
+    if (!part)
+        return;
+    history.replaceState(null, "", location.pathname + location.search);
+    let kept = null;
+    try {
+        kept = JSON.parse(localStorage.getItem(EXPORT_KEY) || "null");
+    } catch {
+        kept = null;
+    }
+    if (kept && !(Date.now() - kept.at < EXPORT_KEEP_MS))
+        kept = null;
+    const next = { ...core.addExportPart(kept, part), at: Date.now() };
+    if (!next.done) {
+        try {
+            localStorage.setItem(EXPORT_KEY, JSON.stringify(next));
+        } catch {
+            say("This browser can't keep the codes read so far: open each in the same browser, with its storage allowed.");
+            return;
+        }
+        say(`Read code ${part.part} of ${part.parts} (${Object.keys(next.texts).length} so far): scan the others, in any order.`, true);
+        return;
+    }
+    try {
+        localStorage.removeItem(EXPORT_KEY);
+    } catch {
+        // Nothing kept.
+    }
+    try {
+        importText(await core.exportText(next.texts, next.parts), "the device's codes", { codes: true });
+    } catch (e) {
+        say(`The device's codes couldn't be read: ${e.message}`);
     }
 }
 
@@ -768,6 +830,17 @@ async function start() {
         setKind("arcade");
     else
         render();
+    // Opened from a device's code, or another scanned into the same tab; parts
+    // left waiting too long gone first.
+    try {
+        const kept = JSON.parse(localStorage.getItem(EXPORT_KEY) || "null");
+        if (kept && !(Date.now() - kept.at < EXPORT_KEEP_MS))
+            localStorage.removeItem(EXPORT_KEY);
+    } catch {
+        // Nothing kept, or nothing to keep it in.
+    }
+    await takeExportPart();
+    window.addEventListener("hashchange", takeExportPart);
 }
 
 start();

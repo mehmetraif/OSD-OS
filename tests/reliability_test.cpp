@@ -768,6 +768,12 @@ private slots:
         QVERIFY(setup.account.isEmpty());
         QCOMPARE(setup.config.keys(), QStringList({ "modules" }));
         QCOMPARE(setup.cardOnly, QStringList({ "the display output", "the password", "the keyboard" }));
+        // A device's sign-in in the password's place (Export to OSD/OS
+        // Setup): the user and the token; a token not like one, nothing.
+        QVERIFY(setupfile::parse(R"({"osdos_setup": 1, "retroachievements": {"user": " a ", "token": "Tok1"}})", &setup, &why));
+        QCOMPARE(setup.account, QJsonDocument::fromJson(R"({"user": "a", "token": "Tok1"})").object());
+        QVERIFY(setupfile::parse(R"({"osdos_setup": 1, "retroachievements": {"user": "a", "token": "../x"}})", &setup, &why));
+        QVERIFY(setup.account.isEmpty());
         // Objects key by key, anything else in place of what was there.
         const QJsonObject into = QJsonDocument::fromJson(R"({"a": {"x": 1, "y": [1]}, "b": 2})").object();
         const QJsonObject update = QJsonDocument::fromJson(R"({"a": {"y": [2], "z": {"q": 1}}, "b": {"c": 3}})").object();

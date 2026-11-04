@@ -355,7 +355,7 @@ Back on the main menu opens Settings, laid out like a camcorder's menu: a line p
   - **Controls**: every controller, the players' pads, and more keys for the keyboards and remotes.
   - **Network**: Wi-Fi and Bluetooth (on Linux).
   - **Startup**: Start on Module, Play at Startup, Startup From and Cabinet Lock.
-  - **System**: Paste OSD/OS Setup (on a computer: the settings copied on [OSD/OS Setup](https://osdos.tv/setup/), set at once), Update, About (this device's System Information first), then under **Modules** a line for each module of no page, Scripts.
+  - **System**: Paste OSD/OS Setup (on a computer: the settings copied on [OSD/OS Setup](https://osdos.tv/setup/), set at once), Export to OSD/OS Setup (this device's settings as QR codes, which open the page with them), Update, About (this device's System Information first), then under **Modules** a line for each module of no page, Scripts.
 
 <table>
 <tr><th width="50%">A module's settings</th><th width="50%">Picking a folder</th></tr>
@@ -410,6 +410,8 @@ Settings → System → **About** opens on the OSD/OS wordmark and **SMART TV FO
 | Artwork | ChatGPT, which the logos and the boot screen's cassette were made with |
 | Fonts | VCR OSD Mono and GNU Unifont |
 | Built With | Qt, SDL2 and mpv, with their licenses, and what else the image carries |
+| Test Patterns | The 240p Test Suite, whose pictures Settings → Screen → Test Patterns shows, GPL v2 or later. Select opens the license |
+| QR Code generator | Project Nayuki's library, which draws the codes of Export to OSD/OS Setup, MIT. Select opens the license |
 | Image OS | Raspberry Pi OS Lite on Debian 13, and the trademark notices |
 | Data | TMDB, Open-Meteo and Wikidata, with the notices their terms ask for |
 | *Arcade* | A heading over the arcade's lines |

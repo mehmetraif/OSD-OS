@@ -864,6 +864,16 @@ FocusScope {
             unavailable: settingsRoot.canPaste ? "" : "Only on a computer, from its clipboard; an OSD/OS card takes OSD/OS Setup's file",
             moduleId: ""
         })
+        // EXPORT TO OSD/OS SETUP — this device's settings as QR codes, which
+        // open OSD/OS Setup's page with them (views/SetupExport.qml).
+        items.push({
+            type: "submenu",
+            key: "export_setup",
+            label: "Export to OSD/OS Setup",
+            description: "This device's settings as QR codes: a phone opens OSD/OS Setup's page (osdos.tv/setup) from"
+                         + " them, filled in, passwords too, to change what you need and make a card's file of",
+            moduleId: ""
+        })
         items.push({
             type: "submenu",
             key: "software_update",
@@ -1385,6 +1395,8 @@ FocusScope {
                     settingsRoot.navigateTo("views/Bluetooth.qml", {}, settingsRoot.listState())
                 else if (row.key === "about")
                     settingsRoot.navigateTo("views/About.qml", {}, settingsRoot.listState())
+                else if (row.key === "export_setup")
+                    settingsRoot.navigateTo("views/SetupExport.qml", {}, settingsRoot.listState())
                 else if (row.key === "test_patterns")
                     settingsRoot.navigateTo("views/TestPatterns.qml", {}, settingsRoot.listState())
                 else if (row.key === "cabinet_lock")

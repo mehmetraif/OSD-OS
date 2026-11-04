@@ -231,6 +231,47 @@ test("the RetroAchievements account as the card takes it", () => {
                      { user: "player", password: " pw ", key: "abc" });
 });
 
+test("a device's sign-in carried in place of the password", () => {
+    // Read from a device's export: the user, the token and the key.
+    const read = core.readSetup(JSON.stringify({ osdos_setup: 1, retroachievements: { user: "denplayer", token: "tok123", key: "abc" } }));
+    assert.equal(read.raUser, "denplayer");
+    assert.equal(read.raToken, "tok123");
+    assert.equal(read.raPassword, undefined);
+    assert.deepEqual(core.buildSetup(read).retroachievements, { user: "denplayer", key: "abc", token: "tok123" });
+    assert.deepEqual(core.checkRetroAchievements(read.raUser, "", read.raKey, read.raToken), []);
+    // A password typed goes in its place; no token without the name.
+    assert.deepEqual(core.buildSetup({ ...read, raPassword: "hunter22" }).retroachievements,
+                     { user: "denplayer", password: "hunter22", key: "abc" });
+    assert.deepEqual(core.buildSetup({ raToken: "tok123" }), { osdos_setup: 1 });
+});
+
+test("a device's settings from its codes, in any order", async () => {
+    const { deflateSync } = await import("node:zlib");
+    const setup = { osdos_setup: 1, wifi: { ssid: "Home", password: "correct battery" },
+                    config: { app: { monitor: "Turned Right" } } };
+    // As the app writes them (src/util/SetupExport): zlib, base64url, cut.
+    const text = deflateSync(Buffer.from(JSON.stringify(setup))).toString("base64url");
+    const cut = Math.ceil(text.length / 3);
+    const links = [0, 1, 2].map(i => `https://osdos.tv/setup/#s=${i + 1}.3.0a1b2c.${text.slice(i * cut, (i + 1) * cut)}`);
+    let kept = null;
+    for (const link of [links[2], links[0], links[0], links[1]]) {
+        const part = core.exportPart(new URL(link).hash);
+        assert.ok(part, link);
+        kept = core.addExportPart(kept, part);
+    }
+    assert.equal(kept.done, true);
+    const back = core.readSetup(await core.exportText(kept.texts, kept.parts));
+    assert.equal(back.wifiPassword, "correct battery");
+    assert.deepEqual(back.config, setup.config);
+    // Another export's part starts again; one missing is said.
+    const other = core.addExportPart(kept, { part: 1, parts: 2, id: "ffffff", text: "x" });
+    assert.deepEqual(other, { id: "ffffff", parts: 2, texts: { 1: "x" }, done: false });
+    await assert.rejects(core.exportText({ 1: "x" }, 2), /Code 2 of 2/);
+    // Not a part.
+    for (const hash of ["", "#s=", "#s=0.1.0a1b2c.x", "#s=3.2.0a1b2c.x", "#s=1.1.0A1B2C.x", "#s=1.1.0a1b2c.a+b", "#other"])
+        assert.equal(core.exportPart(hash), null, hash);
+});
+
 test("a toggle's value read as on", () => {
     const words = { on: "On", off: "Off" }, bool = { on: true, off: false };
     assert.equal(core.toggleOn(words, "ON"), true, "the on-word in any case");

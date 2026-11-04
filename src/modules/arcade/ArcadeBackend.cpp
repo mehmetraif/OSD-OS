@@ -4960,8 +4960,27 @@ void ArcadeBackend::takeSetupAccount() {
     const QString key = setup.value(QStringLiteral("key")).toString().trimmed();
     const QString user = setup.value(QStringLiteral("user")).toString().trimmed();
     const QString password = setup.value(QStringLiteral("password")).toString();
+    const QString token = setup.value(QStringLiteral("token")).toString();
     if (!key.isEmpty() && key != m_raKey)
         setAchievementsKey(key);
+    // A device's sign-in (Export to OSD/OS Setup): taken as it is, as one
+    // RetroArch gave this device; the next game's RetroArch says if it no
+    // longer works.
+    if (!user.isEmpty() && password.isEmpty() && !token.isEmpty()) {
+        if (token != m_raToken || user.compare(m_raUser, Qt::CaseInsensitive) != 0) {
+            qInfo("[Arcade] RetroAchievements sign-in from OSD/OS Setup: %s", qPrintable(user));
+            stopSignIn();
+            m_raUser = user;
+            m_raToken = token;
+            m_raPassword.clear();
+            m_raFailure.clear();
+            m_retroAchievements->setUser(m_raUser);
+            saveAchievements();
+            emit achievementsChanged();
+        }
+        forgetSetupAccount();
+        return;
+    }
     // Without a password, or for the account signed in already: its key
     // alone (a file brought again keeps the token that works).
     if (user.isEmpty() || password.isEmpty()

@@ -86,6 +86,8 @@ KEY_LINE = re.compile(r"(?:^|\s)" + KEY_TYPE + r" [A-Za-z0-9+/=]{16,}")
 ZONE = re.compile(r"[A-Za-z0-9_+-]+(/[A-Za-z0-9_+-]+)*")
 LAYOUT = re.compile(r"[a-z]{2,5}")
 RA_KEY = re.compile(r"[A-Za-z0-9]{1,64}")
+# A RetroAchievements token, as RetroArch keeps one (cheevos_token).
+RA_TOKEN = re.compile(r"[A-Za-z0-9]{1,128}")
 # The boards, as the app tells them apart (src/util/Board.cpp: the device
 # tree's model, by the start of its name).
 BOARDS = {"pi5": "Raspberry Pi 5", "pi4": "Raspberry Pi 4", "pi3": "Raspberry Pi 3"}
@@ -689,14 +691,21 @@ def keyfile(ssid, password, hidden):
 
 
 def retroachievements(ra):
+    """The account as the app takes it: the user with the password, or with
+    a device's sign-in (its token, from OSD/OS's Export to OSD/OS Setup) in
+    the password's place; and the Web API key."""
     account = {}
     if not isinstance(ra, dict):
         return account
-    user, password, key = ra.get("user"), ra.get("password"), ra.get("key")
+    user, password, key, token = ra.get("user"), ra.get("password"), ra.get("key"), ra.get("token")
     if isinstance(user, str) and isinstance(password, str) and user.strip() and password \
             and len(user) <= 64 and len(password) <= 256:
         account["user"] = user.strip()
         account["password"] = password
+    elif isinstance(user, str) and isinstance(token, str) and user.strip() and RA_TOKEN.fullmatch(token) \
+            and len(user) <= 64:
+        account["user"] = user.strip()
+        account["token"] = token
     if isinstance(key, str) and RA_KEY.fullmatch(key.strip()):
         account["key"] = key.strip()
     return account

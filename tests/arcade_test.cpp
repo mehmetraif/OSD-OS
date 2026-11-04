@@ -3063,6 +3063,24 @@ private slots:
             QTest::qWait(150);
             QCOMPARE(checks(), 0);
         }
+
+        // A device's sign-in (Export to OSD/OS Setup), its token in the
+        // password's place: taken as it is, signed in with no check, the
+        // file gone.
+        QFile::remove(kept);
+        writeFile(setup, R"({"user": " carried ", "token": "tok789", "key": "k5y"})");
+        {
+            QFile::remove(m_log);
+            ArcadeBackend arcade(data.path(), data.path(), nullptr, nullptr);
+            prepare(arcade);
+            QTRY_VERIFY_WITH_TIMEOUT(!QFileInfo::exists(setup), 5000);
+            QCOMPARE(arcade.achievementsState(), QStringLiteral("signedIn"));
+            QCOMPARE(account().value(QStringLiteral("user")).toString(), QStringLiteral("carried"));
+            QCOMPARE(account().value(QStringLiteral("token")).toString(), QStringLiteral("tok789"));
+            QCOMPARE(account().value(QStringLiteral("key")).toString(), QStringLiteral("k5y"));
+            QTest::qWait(150);
+            QCOMPARE(checks(), 0);
+        }
     }
 
     // OSD/OS Setup's account still waiting for RetroAchievements as a game

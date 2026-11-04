@@ -123,6 +123,8 @@ add_executable(osdos
     src/util/Diagnostics.cpp
     src/util/LogFile.cpp
     src/util/SetupFile.cpp
+    src/util/SetupExport.cpp
+    src/util/SetupExporter.cpp
     src/input/InputManager.cpp
     src/input/ControllerProfile.cpp
     src/input/IdleTracker.cpp
@@ -288,6 +290,14 @@ endif()
 # unpacks the RetroArch for Windows it downloads with it (src/util/SevenZip).
 include(cmake/lzma.cmake)
 target_link_libraries(osdos PRIVATE osdos_lzma)
+
+# Project Nayuki's QR Code generator (thirdparty/qrcodegen), built in: Settings
+# → System → Export to OSD/OS Setup draws its codes with it
+# (src/util/SetupExport). The page's own rows (site/setup/schema-extra.json)
+# go in with it, for the export to keep to the settings the page's form has.
+include(cmake/qrcodegen.cmake)
+target_link_libraries(osdos PRIVATE osdos_qrcodegen)
+qt_add_resources(osdos "setup_schema" PREFIX "/setup" BASE "site/setup" FILES "site/setup/schema-extra.json")
 
 target_include_directories(osdos PRIVATE
     src

@@ -50,9 +50,16 @@ QJsonObject account(const QJsonObject &ra) {
     QJsonObject out;
     const QString user = text(ra, "user");
     const QString password = text(ra, "password");
+    // The user with the password, or with a device's sign-in (its token,
+    // from Export to OSD/OS Setup) in the password's place.
+    static const QRegularExpression kToken(QStringLiteral("^[A-Za-z0-9]{1,128}$"));
+    const QString token = text(ra, "token");
     if (!user.trimmed().isEmpty() && !password.isEmpty() && user.size() <= 64 && password.size() <= 256) {
         out[QStringLiteral("user")] = user.trimmed();
         out[QStringLiteral("password")] = password;
+    } else if (!user.trimmed().isEmpty() && user.size() <= 64 && kToken.match(token).hasMatch()) {
+        out[QStringLiteral("user")] = user.trimmed();
+        out[QStringLiteral("token")] = token;
     }
     const QString key = text(ra, "key").trimmed();
     if (kKey.match(key).hasMatch())
@@ -188,7 +195,9 @@ QString settingsLine(int settings) {
 QString accountLine(const QJsonObject &account) {
     QStringList parts;
     if (account.contains(QLatin1String("user")))
-        parts << account.value(QLatin1String("user")).toString() + QStringLiteral(", signed in with the password");
+        parts << account.value(QLatin1String("user")).toString()
+                     + (account.contains(QLatin1String("token")) ? QStringLiteral(", signed in as on the device")
+                                                                 : QStringLiteral(", signed in with the password"));
     if (account.contains(QLatin1String("key")))
         parts << QStringLiteral("Web API key kept");
     return QStringLiteral("RetroAchievements: ") + parts.join(QStringLiteral("; "));

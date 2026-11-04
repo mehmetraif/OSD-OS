@@ -81,6 +81,11 @@ FocusScope {
                        + " contributors, the Monoscope by Keith Raney, github.com/ArtemioUrbina/240pTestSuite"
                        + " • Free software under the GNU General Public License, version 2 or later • {select}"
                        + " The license's text" },
+        { key: "qrcodegen", label: "QR Code generator", value: "MIT", license: "assets/licenses/qrcodegen.txt",
+          licenseName: "MIT License",
+          description: "Draws the codes of Settings → System → Export to OSD/OS Setup: Project Nayuki's QR Code"
+                       + " generator library, nayuki.io/page/qr-code-generator-library • Under the MIT License • {select}"
+                       + " The license's text" },
         { key: "system", label: "Image OS", value: "Raspberry Pi OS",
           description: "The OSD/OS image is Raspberry Pi OS Lite (64-bit), which is based on Debian 13 (trixie),"
                        + " built with Raspberry Pi's pi-gen, and OSD/OS on top • Each package keeps its own license:"
