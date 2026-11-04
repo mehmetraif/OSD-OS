@@ -232,7 +232,7 @@ The `[boot]` lines read `boot screen up, watching 4 unit(s)`, `first frame … m
 | `osdos-setup-app.service`, `osdos-setup.service` | Enabled, and run only with an `osdos-setup.json` on the boot partition (or what a start cut short left): OSD/OS Setup's file taken off it and OSD/OS's own settings set before OSD/OS starts, the rest once it is on screen, as SETTINGS on the boot screen ([OSD/OS Setup](https://github.com/mehmetraif/OSD-OS/wiki/The-OSD-OS-Image#osdos-setup)) |
 | `osdos-yt-dlp-update.timer` | Updates yt-dlp two minutes after each boot and once a day, while YouTube or a playlist uses it; the YouTube module starts it too as it opens ([Updates](https://github.com/mehmetraif/OSD-OS/wiki/The-OSD-OS-Image#yt-dlp)) |
 | `osdos-usb-mount@<device>.service` | One per USB drive plugged in ([USB drives](https://github.com/mehmetraif/OSD-OS/wiki/The-OSD-OS-Image#usb-drives)) |
-| `osdos-media-folders.service` | Started by the film partition's mount (`media-OSD\x2dOS.mount.wants`): makes the **Movies** folder on it, so the card has it from its first boot on. OSD/OS itself may start before the partition is mounted (it is mounted `nofail`, which holds nothing back), and a folder it made then would lie under the mount point |
+| `osdos-media-folders.service` | Started by the film partition's mount (`media-OSD\x2dOS.mount.wants`): makes the **Movies** folder on it, so the card has it from its first boot on. OSD/OS starts after the mount has been tried (the drop-in below), and makes the folder too, but a card whose partition didn't mount would have it under the mount point |
 | `osdos-jamma.service` | Enabled, and does something only with the JAMMA display preset in force: a Raspberry Pi to JAMMA board's joysticks and buttons as two gamepads ([Controls](https://github.com/mehmetraif/OSD-OS/wiki/Controls#a-jamma-cabinet)), as a user of its own (`DynamicUser=yes`) in the `i2c` and `input` groups. Without the preset it exits at once; with it and no board, after 15 seconds |
 | `osdos-display.socket` | Enabled: Settings → Screen → Display Output's At Next Start, through `osdos-display@.service` ([At Next Start's socket](https://github.com/mehmetraif/OSD-OS/wiki/The-OSD-OS-Image#at-next-starts-socket)) |
 | `osdos-wifi.socket` | Enabled: Settings → Network → Wi-Fi's country, through `osdos-wifi@.service` ([The Wi-Fi country's socket](https://github.com/mehmetraif/OSD-OS/wiki/The-OSD-OS-Image#the-wi-fi-countrys-socket)) |
@@ -291,7 +291,7 @@ WantedBy=multi-user.target
 - **`OSDOS_AUTOSTART=1`** tells OSD/OS it runs as the system's own: Quit offers Power Off, Restart and Exit to Terminal, and Settings offers Display Output. With `OSDOS_MEDIA_DIR` (the OSD-OS partition), Quit offers Save Logs too: the logs copied to the partition's `Logs` folder, which a computer reads.
 - **`Restart=on-failure`** starts OSD/OS again five seconds after a crash or an error exit. **`StartLimitBurst=3`** in **`StartLimitIntervalSec=120`** makes the third start in two minutes the last: when that one fails too, the service is failed, and **`OnFailure=`** starts `osdos-terminal.service`, a login prompt on the screen. **`RestartMode=direct`** (systemd 254 or later; the image has 257) keeps the failures before that from bringing the prompt up too: without it, systemd runs `OnFailure=` at every failure, a restart to follow or not. The Pi stays on throughout.
 - **`SuccessExitStatus`** counts Exit to Terminal (10), a restart (12), a display switch (20 to 38, and 40 to 58 with a power-off) and a stop from outside (129, 130, 143) as no failure, so systemd neither starts OSD/OS again over them nor brings up the login prompt. An update's restart (11) is no failure either, and **`RestartForceExitStatus=11`** starts OSD/OS again for it, the launcher applying the update first. `osdos-stop` acts on them ([Quitting](https://github.com/mehmetraif/OSD-OS/wiki/The-OSD-OS-Image#quitting-restarting-and-exit-to-terminal)).
-- **The drop-in** `/etc/systemd/system/osdos.service.d/osdos-media.conf` adds `Environment=OSDOS_MEDIA_DIR=/media/OSD-OS`: Local Files opens the **Movies** folder on the film partition while its Media Directory setting is unset, and the Arcade module its **Games/Arcade** folder while its Games Folder setting is.
+- **The drop-in** `/etc/systemd/system/osdos.service.d/osdos-media.conf` adds `Environment=OSDOS_MEDIA_DIR=/media/OSD-OS`: Local Files opens the **Movies** folder on the film partition while its Media Directory setting is unset, and the Arcade module its **Games/Arcade** folder while its Games Folder setting is. Its `Wants=` and `After=media-OSD\x2dOS.mount` start OSD/OS once the partition's check and mount have been tried, so it never finds an empty Movies under the mount point nor makes its folders (an offline playlist's downloads) on the root partition. Wanted, not required: a partition that is missing or won't mount still lets OSD/OS start.
 
 ## Nothing between the app and the screen
 
@@ -337,7 +337,7 @@ The boot partition starts 8 MiB into the card, so the first two take about 8.5 G
 `/etc/fstab` has this line (`1000` is the first user's id):
 
 ```text
-LABEL=OSD-OS  /media/OSD-OS  exfat  rw,noexec,nosuid,nodev,nofail,noatime,uid=1000,gid=1000,umask=0022,x-systemd.device-timeout=10s  0  2
+LABEL=OSD-OS  /media/OSD-OS  exfat  rw,noexec,nosuid,nodev,nofail,noatime,uid=1000,gid=1000,umask=0022,x-systemd.device-timeout=3s  0  2
 ```
 
 | Option | Why |
@@ -345,7 +345,7 @@ LABEL=OSD-OS  /media/OSD-OS  exfat  rw,noexec,nosuid,nodev,nofail,noatime,uid=10
 | `rw` | Films are copied onto it from a computer, and the Playlists module downloads its offline playlists' videos into it |
 | `noexec,nosuid,nodev` | It only ever holds media, and anyone with the card can write to it, so nothing on it can run |
 | `uid=1000,gid=1000,umask=0022` | exFAT keeps no owners, so its files belong to the user OSD/OS runs as |
-| `nofail`, `x-systemd.device-timeout=10s` | A card without the partition doesn't hold the boot more than 10 seconds |
+| `nofail`, `x-systemd.device-timeout=3s` | A card without the partition holds the boot, and OSD/OS, which waits for the mount to be tried, no more than 3 seconds |
 | `noatime` | No write each time a film is read |
 | `0  2` | Checked at every boot with `fsck.exfat` before it is mounted: switching the Pi off at the wall mid-download can leave it untidy |
 

@@ -24,6 +24,14 @@ install -d "${ROOTFS_DIR}/media/OSD-OS"
 install -d "${ETC}/systemd/system/osdos.service.d"
 cat > "${ETC}/systemd/system/osdos.service.d/osdos-media.conf" << 'CONF'
 # OSD/OS image: Local Files opens Movies on the film partition by default.
+# The app starts once the partition's mount has been tried: started before,
+# it found an empty Movies under the mount point, kept that for Local Files,
+# and made its own folders (Playlists' downloads) on the root partition.
+# Wanted, not required: a card whose partition is missing or won't mount
+# still starts the app, on the root partition's empty folder.
+[Unit]
+Wants=media-OSD\x2dOS.mount
+After=media-OSD\x2dOS.mount
 [Service]
 Environment=OSDOS_MEDIA_DIR=/media/OSD-OS
 CONF

@@ -16,5 +16,5 @@ GROUP_ID=$(id -g "${FIRST_USER_NAME}")
 chown "${USER_ID}:${GROUP_ID}" /media/OSD-OS
 
 if ! grep -q '/media/OSD-OS' /etc/fstab; then
-	echo "LABEL=OSD-OS  /media/OSD-OS  exfat  rw,noexec,nosuid,nodev,nofail,noatime,uid=${USER_ID},gid=${GROUP_ID},umask=0022,x-systemd.device-timeout=10s  0  2" >> /etc/fstab
+	echo "LABEL=OSD-OS  /media/OSD-OS  exfat  rw,noexec,nosuid,nodev,nofail,noatime,uid=${USER_ID},gid=${GROUP_ID},umask=0022,x-systemd.device-timeout=3s  0  2" >> /etc/fstab
 fi
