@@ -206,6 +206,10 @@ Rectangle {
         // choices made.
         property var fbneoSets: []
         property var engines: ({})
+        // A game's difficulty's settings, by set (difficultyChoices()), and
+        // the one chosen for each.
+        property var difficultySettings: ({})
+        property var difficulties: ({})
         property var engineChoicesMade: []
         // FinalBurn Neo's page, and the RetroAchievements account's.
         property var fbneo: ({})
@@ -355,6 +359,18 @@ Rectangle {
                     { id: "mame", label: "MAME", current: engines[set] === "mame" },
                     { id: "fbneo", label: "FinalBurn Neo", current: engines[set] === "fbneo" }]
         }
+        function difficultyChoices(set) {
+            var settings = difficultySettings[set] || []
+            if (engineOf(set) !== "mame")
+                return []
+            var chosen = difficulties[set] || settings[0]
+            return settings.map(function(name) { return { id: name, label: name, current: name === chosen } })
+        }
+        function setDifficulty(set, name) {
+            var map = Object.assign({}, difficulties)
+            map[set] = name
+            difficulties = map
+        }
         function setEngine(set, engine) {
             engineChoicesMade = engineChoicesMade.concat([set + "=" + engine])
             var map = Object.assign({}, engines)
@@ -482,6 +498,8 @@ Rectangle {
             arcadeBackend.fbneoSets = []
             arcadeBackend.engines = {}
             arcadeBackend.engineChoicesMade = []
+            arcadeBackend.difficultySettings = {}
+            arcadeBackend.difficulties = {}
             arcadeBackend.fbneo = { retroarch: "/usr/bin/retroarch", core: "", coreDate: "", downloaded: false,
                                     games: 0, license: "", canDownload: true, canDownloadRetroarch: false,
                                     retroarchDownloadVersion: "1.20.0", retroarchDownloaded: false }
@@ -1031,6 +1049,55 @@ Rectangle {
             compare(findText(screen, "Engine:"), null)
         }
 
+        // A vertical game's options: played turned once (Play Turned Right,
+        // Left), and a game MAME plays, its difficulty chosen from its DIP
+        // switch's settings and kept for it; none for a game without one.
+        function test_screenTurnedAndDifficulty() {
+            arcadeBackend.difficultySettings = { "1942": ["Normal", "Easy", "Hard"] }
+            var screen = openScreen()
+            keyPress(Qt.Key_Return)
+            tryVerify(function() { return findText(screen, "Add to Favorites") !== null }, 1500)
+            keyRelease(Qt.Key_Return)
+            compare(screen.currentSet, "sf2")
+            compare(findText(screen, "Play Turned Right"), null)   // not vertical
+            compare(findText(screen, "Difficulty:"), null)          // no switch
+            keyClick(Qt.Key_Escape)
+            keyClick(Qt.Key_Down)
+            compare(screen.currentSet, "1942")
+            keyPress(Qt.Key_Return)
+            tryVerify(function() { return findText(screen, "Play Turned Right") !== null }, 1500)
+            keyRelease(Qt.Key_Return)
+            verify(findText(screen, "Play Turned Left") !== null)
+            keyClick(Qt.Key_Down)
+            keyClick(Qt.Key_Down)   // Play Turned Left
+            keyClick(Qt.Key_Return)
+            var played = root.navigations[root.navigations.length - 1]
+            compare(played.path, "Play.qml")
+            compare(played.params.game, "1942")
+            compare(played.params.turn, "Turned Left")
+
+            loader.source = ""
+            root.navigations = []
+            screen = openScreen()
+            keyClick(Qt.Key_Down)
+            keyPress(Qt.Key_Return)
+            tryVerify(function() { return findText(screen, "Difficulty: Normal") !== null }, 1500)
+            keyRelease(Qt.Key_Return)
+            // The last of them, round from Play.
+            keyClick(Qt.Key_Up)
+            keyClick(Qt.Key_Return)
+            tryVerify(function() { return findText(screen, "Hard", true) !== null }, 1000)
+            keyClick(Qt.Key_Down)
+            keyClick(Qt.Key_Down)
+            keyClick(Qt.Key_Return)
+            compare(arcadeBackend.difficulties["1942"], "Hard")
+            keyPress(Qt.Key_Return)
+            tryVerify(function() { return findText(screen, "Difficulty: Hard") !== null }, 1500)
+            keyRelease(Qt.Key_Return)
+            keyClick(Qt.Key_Escape)
+            compare(root.navigations.length, 0)
+        }
+
         // FinalBurn Neo's page: RetroArch there, the core not; Download
         // starts it and shows how far it has got; once it is in, the core's
         // date and its games, its licence left to About.
@@ -1471,6 +1538,12 @@ Rectangle {
             keyClick(Qt.Key_Right)  // into it, on Galaga
             keyClick(Qt.Key_Right)  // its options
             verify(findText(games, "Game Details", true) !== null)
+            // A vertical game played turned once first, while the monitor
+            // isn't turned.
+            verify(findText(games, "Play Turned Right", true) !== null)
+            verify(findText(games, "Play Turned Left", true) !== null)
+            keyClick(Qt.Key_Down)
+            keyClick(Qt.Key_Down)   // Game Details
             keyClick(Qt.Key_Return)
             compare(root.navigations.length, 1)
             compare(root.navigations[0].path, "Details.qml")
