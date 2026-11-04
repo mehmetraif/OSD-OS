@@ -274,6 +274,14 @@
           "description": "A game's lines drawn whole, once or twice, rather than spread over the screen's: sharp lines, with a thin border above and below\n[AUTO] On a CRT's display output  [OFF] The picture fills the screen's height\nA game with more lines than the screen fills it either way"
         },
         {
+          "key": "vertical_monitor",
+          "label": "Vertical Games",
+          "type": "list_single",
+          "options": ["Horizontal", "Turned Right", "Turned Left"],
+          "default": "Horizontal",
+          "description": "A monitor you turn on its side for a vertical game: the vertical games turned to stand upright on it, filling it with their own lines, the menus and the horizontal games as they are. Settings → Screen → Monitor, for a monitor that stays turned, goes before it\n[TURNED RIGHT] Its top on the right as you face it  [TURNED LEFT] Its top on the left"
+        },
+        {
           "key": "video",
           "label": "MAME Video",
           "type": "list_single",

@@ -703,7 +703,7 @@ ArcadeBackend::ArcadeBackend(const QString &appRoot, const QString &dataRoot, Ap
     // The module's settings as they stand. games.json waits for the list to
     // open (refresh()): with a full set of MAME's games it is megabytes.
     for (const char *key : { "games_directory", "hide_bootlegs", "regions", "high_scores", "video", "screen_shape",
-                             "integer_scale", "game_picture", "menu_filters", "online_high_scores", "online_play", "engines",
+                             "integer_scale", "game_picture", "vertical_monitor", "menu_filters", "online_high_scores", "online_play", "engines",
                              "online_name", "relay_server", "lan_play", "pictures_source" }) {
         const QString k = QLatin1String(key);
         applySetting(k, m_appCore ? m_appCore->get_setting(kModuleId, k) : QVariant());
@@ -836,6 +836,9 @@ void ArcadeBackend::applySetting(const QString &key, const QVariant &value) {
         m_integerScale = scale == QLatin1String("On") || scale == QLatin1String("Off") ? scale : QString();
     } else if (key == QLatin1String("game_picture")) {
         m_fitScreen = value.toString() == QLatin1String("Fit to Screen");
+    } else if (key == QLatin1String("vertical_monitor")) {
+        const QString turn = value.toString();
+        m_verticalMonitor = turn == QLatin1String("Turned Right") || turn == QLatin1String("Turned Left") ? turn : QString();
     } else if (key == QLatin1String("menu_filters")) {
         // Saved whole at every change (MultiSelectSettings.qml).
         m_menuFilters = value.toMap();
@@ -3229,7 +3232,7 @@ bool ArcadeBackend::play(const QString &name, int credits) {
         args << QStringLiteral("-video") << m_video;
     // Emulator Video: the screen's shape, and the game's lines whole.
     args << mame::screenArguments(m_machines.value(name), m_screenSize.height(), screenShape(), integerScale(),
-                                  m_fitScreen, monitor());
+                                  m_fitScreen, monitorFor(name));
     // Without a sound card that can play now (a Pi 5 whose picture goes out
     // through a JAMMA board or composite, its HDMI off, with no USB card),
     // the game is played in silence: MAME's SDL sound fails there, and
@@ -3299,8 +3302,12 @@ QString ArcadeBackend::screenShape() const {
     return m_tube ? QStringLiteral("4:3") : QString();
 }
 
-QString ArcadeBackend::monitor() const {
-    return m_appCore ? m_appCore->get_setting(QString(), QStringLiteral("monitor")).toString() : QString();
+QString ArcadeBackend::monitorFor(const QString &set) const {
+    const QString monitor = m_appCore ? m_appCore->get_setting(QString(), QStringLiteral("monitor")).toString()
+                                      : QString();
+    if (monitor == QLatin1String("Turned Right") || monitor == QLatin1String("Turned Left"))
+        return monitor;
+    return gameAspect(set) < 1.0 ? m_verticalMonitor : QString();
 }
 
 bool ArcadeBackend::integerScale() const {
@@ -3593,9 +3600,10 @@ bool ArcadeBackend::playFbneo(const QString &name, libretro::Launch::Netplay net
     // Emulator Video: the picture over the whole screen (Fit to Screen), or
     // in its shape on the screen, its lines whole.
     launch.fill = m_fitScreen;
-    // A monitor on its side (Settings → Screen → Monitor): the picture a
-    // quarter turn against it, its shape on the screen the other way round.
-    const QString turn = monitor();
+    // A monitor on its side (Settings → Screen → Monitor, or for a vertical
+    // game Emulator Video → Vertical Games): the picture a quarter turn
+    // against it, its shape on the screen the other way round.
+    const QString turn = monitorFor(name);
     launch.rotation = turn == QLatin1String("Turned Right") ? 1 : turn == QLatin1String("Turned Left") ? 3 : 0;
     const double shown = launch.rotation % 2 ? 1.0 / gameAspect(name) : gameAspect(name);
     const QString shape = screenShape();

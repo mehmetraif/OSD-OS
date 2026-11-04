@@ -898,9 +898,11 @@ private:
     // On, Off, Auto on a tube.
     QString screenShape() const;
     bool integerScale() const;
-    // Settings → Screen → Monitor: "Turned Right" or "Turned Left" for a
-    // monitor on its side, which the games' pictures are turned against.
-    QString monitor() const;
+    // The monitor a game is played on, "Turned Right" or "Turned Left" for
+    // one on its side, which its picture is turned against: Settings →
+    // Screen → Monitor, a monitor that stays turned; else, for a vertical
+    // game, Emulator Video → Vertical Games, a monitor turned for it.
+    QString monitorFor(const QString &set) const;
     // A game's shape on the glass, its width over its height: FinalBurn
     // Neo's list's, else 3:4 for a vertical one (machineOf()), else 4:3.
     double gameAspect(const QString &set) const;
@@ -1132,6 +1134,7 @@ private:
     QString m_screenShape;        // Emulator Video: "4:3", "16:9", "Square Pixels"; "" for Auto
     QString m_integerScale;       // "On", "Off"; "" for Auto
     bool    m_fitScreen = false;  // Game Picture: Fit to Screen rather than Original
+    QString m_verticalMonitor;    // Vertical Games: "Turned Right", "Turned Left"; "" for Horizontal
     bool    m_tube = false;       // setScreen()'s
     QSize   m_screenSize;
     QVariantMap m_menuFilters;    // Menu Filters: filter id → shown

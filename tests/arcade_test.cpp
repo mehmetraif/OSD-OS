@@ -1043,6 +1043,18 @@ private slots:
         arcade.onSettingChanged(module, QStringLiteral("screen_shape"), QStringLiteral("Auto"));
         line = args("mslug");
         QVERIFY2(!line.contains(QStringLiteral("-aspect")) && !line.contains(QStringLiteral("stretch")), qPrintable(line));
+
+        // Vertical Games: a monitor turned for a vertical game alone, which
+        // Pac-Man is turned against; Metal Slug, horizontal, as it is.
+        arcade.onSettingChanged(module, QStringLiteral("vertical_monitor"), QStringLiteral("Turned Right"));
+        QVERIFY(args("pacman").endsWith(QStringLiteral(" -rol")));
+        line = args("mslug");
+        QVERIFY2(!line.contains(QStringLiteral("-rol")) && !line.contains(QStringLiteral("-ror")), qPrintable(line));
+        arcade.onSettingChanged(module, QStringLiteral("vertical_monitor"), QStringLiteral("Turned Left"));
+        QVERIFY(args("pacman").endsWith(QStringLiteral(" -ror")));
+        arcade.onSettingChanged(module, QStringLiteral("vertical_monitor"), QStringLiteral("Horizontal"));
+        line = args("pacman");
+        QVERIFY2(!line.contains(QStringLiteral("-rol")) && !line.contains(QStringLiteral("-ror")), qPrintable(line));
     }
 
     // What a game that didn't play says.
@@ -2543,6 +2555,15 @@ private slots:
         config = QString::fromUtf8(contents(configCopy));
         QVERIFY(!config.contains(QStringLiteral("aspect_ratio_index")));
         QVERIFY(config.contains(QStringLiteral("video_scale_integer = \"false\"")));
+        QVERIFY(config.contains(QStringLiteral("video_rotation = \"0\"")));
+        // Vertical Games: a monitor turned for it, Galaga turned against it,
+        // in its shape turned.
+        arcade.onSettingChanged(module, QStringLiteral("vertical_monitor"), QStringLiteral("Turned Left"));
+        played(arcade, QStringLiteral("galaga"));
+        arcade.onSettingChanged(module, QStringLiteral("vertical_monitor"), QStringLiteral("Horizontal"));
+        config = QString::fromUtf8(contents(configCopy));
+        QVERIFY2(config.contains(QStringLiteral("video_rotation = \"3\"")), qPrintable(config));
+        QVERIFY(config.contains(QStringLiteral("video_aspect_ratio = \"1.333333\"")));
         // FinalBurn Neo's info file that can't be written (a file where its
         // folder goes): nothing started, as with RetroArch's settings.
         QVERIFY(QDir(home + QStringLiteral("/info")).removeRecursively());
