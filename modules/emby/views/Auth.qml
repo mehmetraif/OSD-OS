@@ -123,12 +123,51 @@ FocusScope {
             event.accepted = true
         } else if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter) {
             // Enter on the method row confirms the choice and moves into the
-            // form rather than submitting an empty one.
+            // form rather than submitting an empty one; on a field it opens
+            // the on-screen keyboard, for a remote or a pad (a keyboard types
+            // into the field as well).
             if (focusIndex === idxMethod) focusIndex = idxMethod + 1
+            else if (focusIndex !== idxSubmit) authRoot.typeField(focusIndex)
             else if (method === 1) authRoot.submitConnect()
             else authRoot.submit()
             event.accepted = true
         }
+    }
+
+    // The field the cursor is on (focusIndex), on the on-screen keyboard:
+    // what is there, the address else http:// to go on from. OK goes on to
+    // the next field, or to Sign In.
+    property int typing: -1
+    function typeField(index) {
+        typing = index
+        keyboard.masked = index === idxPass
+        keyboard.title = index === idxServer ? "Server URL"
+                       : index === idxPass ? "Password"
+                       : method === 1 ? "Email" : "Username"
+        keyboard.open(index === idxServer ? (serverUrl !== "" ? serverUrl : "http://")
+                    : index === idxPass ? password : username)
+    }
+    function typed(text) {
+        if (typing === idxServer)
+            serverUrl = text.trim()
+        else if (typing === idxPass)
+            password = text
+        else
+            username = text.trim()
+        typing = -1
+        errorMsg = ""
+        focusIndex = Math.min(focusIndex + 1, idxSubmit)
+        refocus()
+    }
+    // The keys back to the field the cursor is on, or to the form.
+    function refocus() {
+        var field = focusIndex === idxServer ? serverField
+                  : focusIndex === idxUser ? userField
+                  : focusIndex === idxPass ? passField : null
+        if (field)
+            field.takeFocus()
+        else
+            authRoot.forceActiveFocus()
     }
 
     // Direct sign-in against a single server (server URL + username + password).
@@ -195,6 +234,7 @@ FocusScope {
             property int index: 0
             property bool masked: false
             signal edited(string value)
+            function takeFocus() { fieldInput.forceActiveFocus() }
             spacing: root.sh * 0.0166667 //8
             width: root.sw * 0.5 //320
 
@@ -294,6 +334,7 @@ FocusScope {
                 // matters. Column positioners skip invisible children, so the row
                 // collapses rather than leaving a gap.
                 Field {
+                    id: serverField
                     visible: authRoot.method === 0
                     label: "Server URL:"
                     index: authRoot.idxServer
@@ -310,6 +351,7 @@ FocusScope {
                     // Username field — half of the Server URL width (minus the Row
                     // spacing) so the two fields together line up with the field above.
                     Field {
+                        id: userField
                         // Direct sign-in takes the server account username; Emby
                         // Connect takes the emby.media email. The method is already
                         // chosen by the time this is reached, so the label is
@@ -323,6 +365,7 @@ FocusScope {
 
                     // Password field
                     Field {
+                        id: passField
                         label: "Password:"
                         index: authRoot.idxPass
                         masked: true
@@ -381,10 +424,23 @@ FocusScope {
 
     // Footer
     HintBar {
-        text: root.hints.back + ":BACK " + root.hints.navigate + ":NAVIGATE " + root.hints.select + ":SIGN IN"
+        text: root.hints.back + ":BACK " + root.hints.navigate + ":NAVIGATE " + root.hints.select
+              + (focusIndex === idxMethod ? ":CHOOSE" : focusIndex === idxSubmit ? ":SIGN IN" : ":TYPE")
         anchors.bottom: parent.bottom
         anchors.left: parent.left
         anchors.bottomMargin: root.sh * 0.1041667 //50
         anchors.leftMargin: root.sw * 0.125 //80
+    }
+
+    OnScreenKeyboard {
+        id: keyboard
+        anchors.fill: parent
+        caseSensitive: true
+        maxLength: 200
+        onAccepted: function(text) { authRoot.typed(text) }
+        onCanceled: {
+            authRoot.typing = -1
+            authRoot.refocus()
+        }
     }
 }

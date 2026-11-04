@@ -10,8 +10,9 @@ import QtTest
 // launch given up drops its stream; signing out leaves no view signed out of
 // for back to return to. A video that fails says why (PlaybackNotice), with
 // RETRY, mpv itself missing without the transcode no transcode would mend.
-// And Local Files' player: a remote's channel or page keys step through the
-// folder's films.
+// Jellyfin's and Emby's sign-in screens take their fields on the on-screen
+// keyboard (its signs, SHOW, the mouse). And Local Files' player: a remote's
+// channel or page keys step through the folder's films.
 Rectangle {
     id: root
     color: surfaceColor
@@ -229,6 +230,17 @@ Rectangle {
         property int asks: 0
         property int nextAsks: 0
         property int stops: 0
+        // The sign-ins asked for: [kind, ...what they were given].
+        property var signIns: []
+        signal authStateChanged()
+        signal quickConnectCodeReady(string code, string secret)
+        signal quickConnectFailed(string message)
+        signal connectServersReady(var servers)
+        signal connectFailed(string message)
+        function get_auth_state() { return "none" }
+        function quick_connect_initiate(url) { signIns = signIns.concat([["quick", url]]) }
+        function authenticate(url, user, password) { signIns = signIns.concat([["direct", url, user, password]]) }
+        function connect_authenticate(user, password) { signIns = signIns.concat([["connect", user, password]]) }
         signal streamUrlReady(string url)
         signal errorOccurred(string message)
         signal nextEpisodeReady(var detail)
@@ -303,6 +315,7 @@ Rectangle {
                 backend.asks = 0
                 backend.nextAsks = 0
                 backend.stops = 0
+                backend.signIns = []
             }
         }
 
@@ -593,6 +606,136 @@ Rectangle {
             compare(mpvController.keys.length, 0)
             compare(backend.cancels, 1)
             compare(backend.stops, stops + 1)
+        }
+
+        // The view's on-screen keyboard.
+        function keyboardOf(item) {
+            for (var i = 0; i < item.children.length; i++) {
+                if (item.children[i].okCol !== undefined)
+                    return item.children[i]
+            }
+            return null
+        }
+        // Types on it as a remote does: the box to each key, then select.
+        function typeOn(keyboard, text) {
+            for (var t = 0; t < text.length; t++) {
+                var found = false
+                // As it is, else with SHIFT.
+                for (var tries = 0; tries < 2 && !found; tries++) {
+                    for (var r = 0; r < keyboard.rows.length && !found; r++) {
+                        var c = keyboard.rows[r].indexOf(text[t])
+                        if (c >= 0) {
+                            keyboard.moveTo(r, c)
+                            keyClick(Qt.Key_Return)
+                            found = true
+                        }
+                    }
+                    if (!found) {
+                        keyboard.moveTo(keyboard.rows.length - 1, 0)  // SHIFT
+                        keyClick(Qt.Key_Return)
+                    }
+                }
+                verify(found, "a key for " + text[t])
+            }
+        }
+        function okOn(keyboard) {
+            keyboard.moveTo(keyboard.rows.length - 1, keyboard.okCol)
+            keyClick(Qt.Key_Return)
+        }
+
+        // Jellyfin: select on the address opens the keyboard on http://, its
+        // signs type the rest, OK goes on to Quick Connect, which connects
+        // with it. The field shows it as typed.
+        function test_jellyfinSignInOnTheKeyboard() {
+            moduleRoot.moduleId = "com.osdos.jellyfin"
+            var auth = open("jellyfin", "Auth.qml", {})
+            keyClick(Qt.Key_Return)
+            var keyboard = keyboardOf(auth)
+            verify(keyboard.visible)
+            compare(keyboard.text, "http://")
+            // On text there, the box starts on OK.
+            compare(keyboard.row, keyboard.rows.length - 1)
+            compare(keyboard.col, keyboard.okCol)
+            typeOn(keyboard, "nas.local:8096/jf")
+            okOn(keyboard)
+            verify(!keyboard.visible)
+            compare(auth.serverUrl, "http://nas.local:8096/jf")
+            compare(auth.focusIndex, 1)
+            keyClick(Qt.Key_Return)
+            compare(jellyfinBackend.signIns, [["quick", "http://nas.local:8096/jf"]])
+        }
+
+        // Back from a Quick Connect that failed: the address typed is still
+        // there.
+        function test_jellyfinKeepsTheAddressAfterQuickConnect() {
+            var auth = open("jellyfin", "Auth.qml", { navListState: { serverUrl: "http://nas:8096" } })
+            compare(auth.serverUrl, "http://nas:8096")
+        }
+
+        // Emby: each field on the keyboard in turn, OK going on to the next;
+        // the password masked, SHOW showing it; then Sign In.
+        function test_embySignInOnTheKeyboard() {
+            var auth = open("emby", "Auth.qml", {})
+            keyClick(Qt.Key_Down)          // the server's address
+            keyClick(Qt.Key_Return)
+            var keyboard = keyboardOf(auth)
+            verify(keyboard.visible)
+            compare(keyboard.title, "Server URL")
+            typeOn(keyboard, "10.0.0.2:8096")
+            okOn(keyboard)
+            compare(auth.serverUrl, "http://10.0.0.2:8096")
+            compare(auth.focusIndex, 2)
+            keyClick(Qt.Key_Return)
+            compare(keyboard.title, "Username")
+            verify(!keyboard.masked)
+            typeOn(keyboard, "Ann")
+            okOn(keyboard)
+            compare(auth.username, "Ann")
+            keyClick(Qt.Key_Return)
+            compare(keyboard.title, "Password")
+            verify(keyboard.masked)
+            typeOn(keyboard, "p[w]\\\"")
+            compare(keyboard.rows[keyboard.rows.length - 1][3], "SHOW")
+            verify(!keyboard.revealed)
+            keyboard.moveTo(keyboard.rows.length - 1, 3)
+            keyClick(Qt.Key_Return)
+            verify(keyboard.revealed)
+            compare(keyboard.rows[keyboard.rows.length - 1][3], "HIDE")
+            okOn(keyboard)
+            compare(auth.password, "p[w]\\\"")
+            compare(auth.focusIndex, 4)
+            keyClick(Qt.Key_Return)
+            compare(embyBackend.signIns, [["direct", "http://10.0.0.2:8096", "Ann", "p[w]\\\""]])
+        }
+
+        // The keyboard's signs: every one a keyboard has, SHIFT changing the
+        // second row; the mouse moves the box to the key under it; a real
+        // keyboard's Delete deletes.
+        function test_keyboardSignsMouseAndDelete() {
+            var auth = open("jellyfin", "Auth.qml", {})
+            keyClick(Qt.Key_Return)
+            var keyboard = keyboardOf(auth)
+            var all = []
+            for (var lower = 0; lower < 2; lower++) {
+                for (var r = 0; r < keyboard.rows.length - 1; r++)
+                    all = all.concat(keyboard.rows[r])
+                keyboard.shifted = !keyboard.shifted
+            }
+            for (var code = 33; code < 127; code++)
+                verify(all.indexOf(String.fromCharCode(code)) >= 0, "a key for " + String.fromCharCode(code))
+            keyboard.shifted = false
+            // The mouse over "k", then a click (select): "k" typed.
+            keyboard.open("")
+            var key = keyboard.keyItem(1, 0)
+            verify(key !== null)
+            var at = key.mapToItem(keyboard, key.width / 2, key.height / 2)
+            keyboard.hoverAt(at.x, at.y)
+            compare(keyboard.row, 1)
+            compare(keyboard.col, 0)
+            keyClick(Qt.Key_Return)
+            compare(keyboard.text, "k")
+            keyClick(Qt.Key_Delete)
+            compare(keyboard.text, "")
         }
 
         // Local Files: Page Up or Channel + plays the folder's next film,

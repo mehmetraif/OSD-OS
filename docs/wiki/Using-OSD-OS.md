@@ -127,6 +127,9 @@ Select on **Search** brings up an on-screen keyboard, for typing with a remote t
 | Backspace | Deletes the last letter (here it isn't back) |
 | Back (Esc, or a gamepad's back) | Cancels |
 | A real keyboard's keys | Type straight in; the box jumps to OK, so Enter then searches |
+| The mouse | Moves the box to the key under it, so a click types it |
+
+Where there is already something to change (an address, a name), the keyboard opens with it and the box on OK. For a password, an address or a name it gets letters in both cases (**SHIFT**) and two rows of signs, every one a keyboard has: `@ _ ! ? # $ % * + =`, then `/ : , ; ( ) [ ] " \`, which SHIFT turns into `/ : ^`, the backtick, and `< > { } ~ |`. A password shows as stars, and **SHOW** on the last row shows it as typed (**HIDE** hides it again).
 
 A search takes up to 40 characters, and OK with nothing typed does nothing. The results open as a folder of their own in the tree, `Search: <what you typed>`. In Local Files a search finds names anywhere under the media folder and on the drives plugged in; each module's page says what its search covers. The same keyboard names a new playlist.
 
@@ -332,7 +335,7 @@ Both can go once the keys are second nature; the keys work as they always do.
 
 ## The mouse pointer
 
-A mouse, or a keyboard's touchpad, shows OSD/OS's own pointer, drawn in its pixels and colors, while it moves, and hides it again after a few seconds still. The menus take the mouse as they take the keys: over a menu or the Arcade screen's list the selection follows the pointer, a left click is Select / OK, a right click Back and the wheel ▲ ▼, on the OSD/OS image and on a desktop alike (an air-mouse remote's OK is a left click). In a file tree the wheel moves the cursor, a row a notch, and a click opens what it is on; the on-screen keyboard still goes by the keys. A mouse button made one of the actions in Settings → Controls → All Keyboards & Remotes does that instead ([Controls](https://github.com/mehmetraif/OSD-OS/wiki/Controls#the-mouse)).
+A mouse, or a keyboard's touchpad, shows OSD/OS's own pointer, drawn in its pixels and colors, while it moves, and hides it again after a few seconds still. The menus take the mouse as they take the keys: over a menu or the Arcade screen's list the selection follows the pointer, a left click is Select / OK, a right click Back and the wheel ▲ ▼, on the OSD/OS image and on a desktop alike (an air-mouse remote's OK is a left click). In a file tree the wheel moves the cursor, a row a notch, and a click opens what it is on; on the on-screen keyboard the box follows the pointer, and a click types the key under it. A mouse button made one of the actions in Settings → Controls → All Keyboards & Remotes does that instead ([Controls](https://github.com/mehmetraif/OSD-OS/wiki/Controls#the-mouse)).
 
 | Setting | Values | Default | What it does | Config key |
 |---|---|---|---|---|
