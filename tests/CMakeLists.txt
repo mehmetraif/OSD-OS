@@ -205,6 +205,10 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
     add_test(NAME display_output_pi5 COMMAND display_output_test)
     set_tests_properties(display_output_pi5 PROPERTIES
         ENVIRONMENT "OSDOS_BOARD_MODEL=Raspberry Pi 5 Model B Rev 1.0")
+    # And as a Pi 3, whose DPI is a Pi 4's: the same outputs, its AV jack too.
+    add_test(NAME display_output_pi3 COMMAND display_output_test)
+    set_tests_properties(display_output_pi3 PROPERTIES
+        ENVIRONMENT "OSDOS_BOARD_MODEL=Raspberry Pi 3 Model B Plus Rev 1.3")
 
     # The OSD/OS image's boot screen (BootProgress) against a stand-in for
     # systemctl: the services it lists as they start, and OSD/OS Setup's

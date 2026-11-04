@@ -208,13 +208,13 @@ def preset_models(pid):
     if pid.startswith("crt-"):
         return ["pi3", "pi4", "pi5"]
     if pid in ("scart-rgb-ntsc", "scart-rgb-pal"):
-        return ["pi4", "pi5"]
+        return ["pi3", "pi4", "pi5"]
     if pid.startswith("scart-rgb-"):
-        return ["pi4"]
-    if pid in ("jamma-480i", "jamma-576i"):
-        return ["pi4"]
+        return ["pi3", "pi4"]
+    if pid in ("jamma-480i", "jamma-480i-640", "jamma-576i"):
+        return ["pi3", "pi4"]
     if pid.startswith("jamma-"):
-        return ["pi4", "pi5"]
+        return ["pi3", "pi4", "pi5"]
     return []
 
 

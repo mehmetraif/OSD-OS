@@ -28,6 +28,19 @@ dpi_timings=1920 1 80 184 312 240 1 2 3 16 0 0 0 60 0 39087360 1
 dtparam=i2c_vc=on
 dtoverlay=audremap,pins_18_19
 
+# The Pi 3's DPI is the same firmware's, the same.
+[pi3]
+gpio=2-9,12-17,20-25=a2
+enable_dpi_lcd=1
+display_default_lcd=1
+hdmi_ignore_hotplug=1
+dpi_output_format=6
+dpi_group=2
+dpi_mode=87
+dpi_timings=1920 1 80 184 312 240 1 2 3 16 0 0 0 60 0 39087360 1
+dtparam=i2c_vc=on
+dtoverlay=audremap,pins_18_19
+
 # The Pi 5's DPI is the kernel's, as in osdos-display-jamma-240p.txt, both
 # syncs active low (hsync-invert, vsync-invert): should the picture roll,
 # leave them out.

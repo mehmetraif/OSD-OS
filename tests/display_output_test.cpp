@@ -3,9 +3,10 @@
 // where osdos-stop knows its code (launcher API 4), and is told apart from the
 // others when it is in force. Switch and Power Off and At Next Start come with
 // launcher API 5, the latter through a stand-in for osdos-display.socket; the
-// JAMMA board's other modes with 6. Each preset exits with the code osdos-stop
-// writes it on. On a Pi 4, or the board OSDOS_BOARD_MODEL names (ctest's
-// display_output_pi5 runs it as a Pi 5).
+// JAMMA board's other modes with 6, JAMMA 480i at 640 across with 9. Each
+// preset exits with the code osdos-stop writes it on. On a Pi 4, or the board
+// OSDOS_BOARD_MODEL names (ctest's display_output_pi5 runs it as a Pi 5,
+// display_output_pi3 as a Pi 3, whose outputs are a Pi 4's).
 #include "display/DisplayOutput.h"
 #include "util/Board.h"
 
@@ -124,7 +125,7 @@ private slots:
         qputenv("OSDOS_RUN_DIR", m_run.path().toUtf8());
         if (!qEnvironmentVariableIsSet("OSDOS_BOARD_MODEL"))
             qputenv("OSDOS_BOARD_MODEL", "Raspberry Pi 4 Model B Rev 1.5");
-        QVERIFY(board::family() == board::Family::Pi4 || pi5());
+        QVERIFY(board::family() == board::Family::Pi4 || board::family() == board::Family::Pi3 || pi5());
         qputenv("OSDOS_AUTOSTART", "1");
     }
 
@@ -171,6 +172,27 @@ private slots:
             expected.removeAll(QStringLiteral("jamma-576i"));
         }
         QCOMPARE(jamma, expected);
+        // 480i at 640 across with launcher API 9, beside the other 480i:
+        // not on a Pi 5, which can't interlace beside the board's I2C.
+        QVERIFY(!offered.contains(QStringLiteral("jamma-480i-640")));
+        qputenv("OSDOS_LAUNCHER_API", "9");
+        QStringList api9;
+        for (const QVariant &o : DisplayOutput(m_data.path()).options()) {
+            const QVariantMap m = o.toMap();
+            const QString id = m.value("id").toString();
+            if (id.startsWith(QLatin1String("jamma-")))
+                api9 << id;
+            // Named as the others are, its resolution its preset's.
+            if (id == QLatin1String("jamma-480i-640")) {
+                QCOMPARE(resolutionOf(m_boot.filePath(QStringLiteral("osdos-display-jamma-480i-640.txt"))),
+                         QStringLiteral("640x480"));
+                QCOMPARE(m.value("label").toString(), QStringLiteral("JAMMA 480i 15 kHz (640x480)"));
+            }
+        }
+        if (!pi5())
+            expected.insert(expected.indexOf(QStringLiteral("jamma-480i")) + 1, QStringLiteral("jamma-480i-640"));
+        QCOMPARE(api9, expected);
+        qputenv("OSDOS_LAUNCHER_API", "6");
         QString warning25, warning31, warning240;
         for (const QVariant &o : api6.options()) {
             const QVariantMap m = o.toMap();
@@ -373,10 +395,11 @@ private slots:
         QVERIFY(list.hasMatch());
         const QStringList order = list.captured(1).split(QRegularExpression(QStringLiteral("\\s+")), Qt::SkipEmptyParts);
         QCOMPARE(order.indexOf(QStringLiteral("previous")), 9);  // 29: back to the output before
-        qputenv("OSDOS_LAUNCHER_API", "6");
+        qputenv("OSDOS_LAUNCHER_API", "9");
         inForce(QStringLiteral("hdmi"));
         const QStringList offered = ids(DisplayOutput(m_data.path()).options());
         QVERIFY(offered.contains(QStringLiteral("jamma-31k")));
+        QCOMPARE(offered.contains(QStringLiteral("jamma-480i-640")), !pi5());
         for (const QString &id : offered) {
             const int code = 20 + int(order.indexOf(id));
             QVERIFY2(code >= 20, qPrintable(id + QStringLiteral(" isn't osdos-stop's")));
