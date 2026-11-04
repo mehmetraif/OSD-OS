@@ -301,10 +301,15 @@ FocusScope {
 
                 Text {
                     id: rowText
+                    // An episode with its show, season and number (S1E2), as
+                    // Jellyfin's and Plex's lists show it.
                     text: {
-                        var base = (modelData.type === "episode" && modelData.grandparentTitle)
-                                   ? (modelData.grandparentTitle + ": " + (modelData.title || ""))
-                                   : (modelData.title || "")
+                        if (modelData.type === "episode" && modelData.grandparentTitle) {
+                            var sNum = (modelData.parentIndex != null) ? modelData.parentIndex : "?"
+                            var eNum = (modelData.index || modelData.index === 0) ? modelData.index : "?"
+                            return modelData.grandparentTitle + " S" + sNum + "E" + eNum + ": " + (modelData.title || "")
+                        }
+                        var base = modelData.title || ""
                         return modelData.year ? base + " (" + String(modelData.year) + ")" : base
                     }
                     color: (itemList.currentIndex === index && !letterNavActive)
