@@ -52,6 +52,10 @@ JellyfinBackend::JellyfinBackend(const QString &appRoot, const QString &dataRoot
     , m_dataRoot(dataRoot)
     , m_nam(new QNetworkAccessManager(this))
 {
+    // A reply the server stops sending (a sleeping NAS, a proxy holding the
+    // socket, Wi-Fi gone) fails after this long without a byte, instead of
+    // leaving its view on LOADING..., as Plex's does.
+    m_nam->setTransferTimeout(30000);
     loadAuthState();
     if (m_deviceId.isEmpty()) {
         m_deviceId = QUuid::createUuid().toString(QUuid::WithoutBraces);

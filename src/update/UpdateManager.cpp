@@ -114,6 +114,11 @@ QString macBundlePath() {
 
 UpdateManager::UpdateManager(const QString &appRoot, const QString &dataRoot, QObject *parent)
     : QObject(parent), m_appRoot(appRoot), m_dataRoot(dataRoot) {
+    // GitHub stopping halfway (a captive portal holding the socket) fails
+    // the check or the download after this long without a byte, instead of
+    // leaving Settings on CHECKING... A download that goes on, however long,
+    // goes on.
+    m_nam.setTransferTimeout(30000);
     evaluateApplyCapability();
     reconcileStagingDir();
     // If we are running as an AppImage, reaching this point means the current
