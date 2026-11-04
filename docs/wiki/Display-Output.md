@@ -58,19 +58,20 @@ The menu lists, in this order, the presets that are on the boot partition and th
 | Composite PAL | `crt-pal` | AV jack | AV jack | | TV pads | |
 | GPIO Composite NTSC | `crt-gpio-ntsc` | | | | ✓ | ✓ |
 | GPIO Composite PAL | `crt-gpio-pal` | | | | ✓ | ✓ |
-| SCART RGB NTSC | `scart-rgb-ntsc` (480i) | | ✓ | ✓ | ✓ | ✓ |
-| SCART RGB PAL | `scart-rgb-pal` (576i) | | ✓ | ✓ | ✓ | ✓ |
-| SCART RGB 240p | `scart-rgb-240p` | | ✓ | ✓ | | |
-| SCART RGB 288p | `scart-rgb-288p` | | ✓ | ✓ | | |
-| JAMMA 240p 15 kHz (720x240) | `jamma-240p` | | ✓ | ✓ | ✓ | ✓ |
-| JAMMA 240p 15 kHz (320x240) | `jamma-240p-native` | | ✓ | ✓ | ✓ | ✓ |
-| JAMMA 240p 15 kHz (1920x240) | `jamma-240p-super` | | ✓ | ✓ | ✓ | ✓ |
-| JAMMA 288p 15 kHz (720x288) | `jamma-288p` | | ✓ | ✓ | ✓ | ✓ |
-| JAMMA 288p 15 kHz (1920x288) | `jamma-288p-super` | | ✓ | ✓ | ✓ | ✓ |
-| JAMMA 480i 15 kHz (720x480) | `jamma-480i` | | ✓ | ✓ | | |
-| JAMMA 576i 15 kHz (720x576) | `jamma-576i` | | ✓ | ✓ | | |
-| JAMMA 25 kHz (496x384) | `jamma-25k` | | ✓ | ✓ | ✓ | ✓ |
-| JAMMA 31 kHz (640x480) | `jamma-31k` | | ✓ | ✓ | ✓ | ✓ |
+| SCART RGB NTSC | `scart-rgb-ntsc` (480i) | ✓ | ✓ | ✓ | ✓ | ✓ |
+| SCART RGB PAL | `scart-rgb-pal` (576i) | ✓ | ✓ | ✓ | ✓ | ✓ |
+| SCART RGB 240p | `scart-rgb-240p` | ✓ | ✓ | ✓ | | |
+| SCART RGB 288p | `scart-rgb-288p` | ✓ | ✓ | ✓ | | |
+| JAMMA 240p 15 kHz (720x240) | `jamma-240p` | ✓ | ✓ | ✓ | ✓ | ✓ |
+| JAMMA 240p 15 kHz (320x240) | `jamma-240p-native` | ✓ | ✓ | ✓ | ✓ | ✓ |
+| JAMMA 240p 15 kHz (1920x240) | `jamma-240p-super` | ✓ | ✓ | ✓ | ✓ | ✓ |
+| JAMMA 288p 15 kHz (720x288) | `jamma-288p` | ✓ | ✓ | ✓ | ✓ | ✓ |
+| JAMMA 288p 15 kHz (1920x288) | `jamma-288p-super` | ✓ | ✓ | ✓ | ✓ | ✓ |
+| JAMMA 480i 15 kHz (720x480) | `jamma-480i` | ✓ | ✓ | ✓ | | |
+| JAMMA 480i 15 kHz (640x480) | `jamma-480i-640` | ✓ | ✓ | ✓ | | |
+| JAMMA 576i 15 kHz (720x576) | `jamma-576i` | ✓ | ✓ | ✓ | | |
+| JAMMA 25 kHz (496x384) | `jamma-25k` | ✓ | ✓ | ✓ | ✓ | ✓ |
+| JAMMA 31 kHz (640x480) | `jamma-31k` | ✓ | ✓ | ✓ | ✓ | ✓ |
 
 That is `boardHas()` in `DisplayOutput.cpp`:
 
@@ -83,23 +84,25 @@ if (id.startsWith(QLatin1String("crt-gpio-")))
 // The AV jack (Pi 3, Pi 4), the TV pads (Pi 5); none on a keyboard model.
 if (id.startsWith(QLatin1String("crt-")))
     return (pi3 || pi4 || pi5) && !board::isKeyboard();
-// RGB on the GPIO pins (DPI): 480i and 576i on both, and on the Pi 4,
-// whose interlace is the firmware's, 240p and 288p should it not hold.
+// RGB on the GPIO pins (DPI): 480i and 576i on all three, and on the Pi 4
+// and the Pi 3, whose DPI and interlace are the firmware's, alike, 240p
+// and 288p should it not hold.
 if (id == QLatin1String("scart-rgb-ntsc") || id == QLatin1String("scart-rgb-pal"))
-    return pi4 || pi5;
+    return pi3 || pi4 || pi5;
 if (id.startsWith(QLatin1String("scart-rgb-")))
-    return pi4;
-// A Raspberry Pi to JAMMA board in RGB-Pi's layout: the Pi 4's firmware
-// DPI, its sound on GPIO 18 and 19; the Pi 5's kernel DPI, its sound on a
-// USB card, which interlaces only with GPIO 1, the board's I2C. Not a
-// Pi 3's.
-if (id == QLatin1String("jamma-480i") || id == QLatin1String("jamma-576i"))
-    return pi4;
+    return pi3 || pi4;
+// A Raspberry Pi to JAMMA board in RGB-Pi's layout: the Pi 4's and the
+// Pi 3's firmware DPI, their sound on GPIO 18 and 19; the Pi 5's kernel
+// DPI, its sound on a USB card, which interlaces only with GPIO 1, the
+// board's I2C.
+if (id == QLatin1String("jamma-480i") || id == QLatin1String("jamma-480i-640")
+    || id == QLatin1String("jamma-576i"))
+    return pi3 || pi4;
 if (id.startsWith(QLatin1String("jamma-")))
-    return pi4 || pi5;
+    return pi3 || pi4 || pi5;
 ```
 
-JAMMA 240p is offered only by a launcher at level 4 or later, whose stop helper knows its code (30), and the board's other modes by one at level 6 or later (31 to 38): an image from the version that brought them, or an install whose `install.sh` was run again since.
+JAMMA 240p is offered only by a launcher at level 4 or later, whose stop helper knows its code (30), the board's other modes by one at level 6 or later (31 to 38), and its 480i at 640 across by one at level 9 or later (39): an image from the version that brought them, or an install whose `install.sh` was run again since.
 
 **What has been tried.** [os/README.md](https://github.com/mehmetraif/OSD-OS/blob/main/os/README.md#display-output-hdmi-composite-or-scart) says only the Pi 4's HDMI and composite had been tested on hardware when it was written. The other outputs are starting points, with the keep-or-go-back question to fall back on. If one works for you, or needs a change, say so in an [issue](https://github.com/mehmetraif/OSD-OS/issues).
 
@@ -126,7 +129,7 @@ JAMMA 240p is offered only by a launcher at level 4 or later, whose stop helper 
 ```mermaid
 flowchart TD
     A["Settings → Screen → Display Output<br/>choose an output"] --> B["Switch to …?<br/>Switch and Restart"]
-    B --> C["display-output.json: from, to<br/>exit 20 to 38, or 40 to 58 to power off"]
+    B --> C["display-output.json: from, to<br/>exit 20 to 39, or 40 to 59 to power off"]
     C --> D["osdos-stop, as root:<br/>osdos-display.txt → osdos-display-previous.txt<br/>preset → osdos-display.txt<br/>modprobe line for a Pi 5's SCART"]
     D --> E["reboot, or off until switched on"]
     E --> F["Keep this display output?<br/>30 seconds"]
@@ -151,7 +154,8 @@ The codes, in `DisplayOutput.cpp`'s `kPresets` and `osdos-stop`'s `DISPLAY_PRESE
 | 29 | `previous`: the output before, to go back |
 | 30 | `jamma-240p` (launcher API 4) |
 | 31 to 38 | `jamma-240p-native`, `jamma-240p-super`, `jamma-288p`, `jamma-288p-super`, `jamma-480i`, `jamma-576i`, `jamma-25k`, `jamma-31k` (launcher API 6) |
-| 40 to 48, 50 to 58 | The same presets, then the Pi powers off: Switch and Power Off (launcher API 5; 6 for 51 to 58) |
+| 39 | `jamma-480i-640` (launcher API 9) |
+| 40 to 48, 50 to 59 | The same presets, then the Pi powers off: Switch and Power Off (launcher API 5; 6 for 51 to 58, 9 for 59) |
 
 The service lists them all in `SuccessExitStatus`, so systemd counts them as no failure and doesn't start OSD/OS again on the way down. Just before it exits, OSD/OS logs a line like `[DisplayOutput] hdmi -> crt-pal: exit 22 for osdos-stop` (`journalctl -b -1 -u osdos | grep DisplayOutput` shows it, where the journal keeps the boot before).
 
@@ -330,9 +334,9 @@ dtoverlay=vec-gpio-pi5
 
 PAL is the same with `720x576`. `vec-gpio-pi5` sends the composite encoder's output to GPIO 4 (the lowest bit) to 11 as an 8-bit code, for a digital-to-analog converter you build to turn into the picture. The TV pads are the simpler way to a composite picture.
 
-### SCART RGB on a Pi 4: the firmware's DPI
+### SCART RGB on a Pi 4 or a Pi 3: the firmware's DPI
 
-RGB comes out of the GPIO pins as the Pi's parallel display interface (DPI), in the layout of the VGA666 board, to a resistor DAC: GPIO 4 to 21 carry the colours, GPIO 2 and 3 the vertical and horizontal sync. On a Pi 4 it is the firmware's, and the only output while it is on.
+RGB comes out of the GPIO pins as the Pi's parallel display interface (DPI), in the layout of the VGA666 board, to a resistor DAC: GPIO 4 to 21 carry the colours, GPIO 2 and 3 the vertical and horizontal sync. On a Pi 4 it is the firmware's, and the only output while it is on; a Pi 3's is the same firmware's, and the same lines set it up (`[pi3]`). No Pi 3 has been tried on it yet.
 
 480i (NTSC timing):
 
@@ -349,6 +353,16 @@ RGB comes out of the GPIO pins as the Pi's parallel display interface (DPI), in 
 # The Pi 4's DPI is its firmware's, the only output, its syncs negative as a
 # TV's (dpi_timings' 2nd and 7th numbers): should the picture roll, try 1.
 [pi4]
+dtoverlay=vga666
+enable_dpi_lcd=1
+display_default_lcd=1
+hdmi_ignore_hotplug=1
+dpi_group=2
+dpi_mode=87
+dpi_timings=720 0 16 62 60 480 0 9 6 30 0 0 0 30 1 13500000 1
+
+# The Pi 3's DPI is the same firmware's, the same.
+[pi3]
 dtoverlay=vga666
 enable_dpi_lcd=1
 display_default_lcd=1
@@ -437,7 +451,7 @@ It is written for any preset with `# osdos-output: DPI` in it (the two SCART RGB
 
 A Raspberry Pi to JAMMA board puts the Pi in an arcade cabinet. Its picture goes to the cabinet's monitor at 15 kHz, its sound to the cabinet's speaker through an amplifier of the board's own, and the cabinet's joysticks and buttons come back to the Pi. The **JAMMA** presets are for the boards in RGB-Pi's layout: RGB-Pi's own JAMMA board, and Crown Arcade's "Raspberry Pi TO JAMMA". Their DPI is in the "mode 6" layout, not the VGA666's, so the SCART presets would show them the wrong colours. The [Arcade](https://github.com/mehmetraif/OSD-OS/wiki/Arcade) module plays the cabinet's games in MAME, on this output and with the cabinet's controls as players 1 and 2.
 
-It has a part for the Pi 4 and one for the Pi 5. Crown Arcade names the Pi 3 B+ and the Pi 4 for its board, not the Pi 5. The Pi 5's part sets the board up as [RGUI-Pi](https://github.com/forkymcforkface/RGUI-Pi) does on a Pi 5: the same pins, colours and syncs. A Pi 5 can't send its sound to the board's amplifier, so there it goes through a USB sound card.
+It has a part for the Pi 4, the same for the Pi 3, and one for the Pi 5. Crown Arcade names the Pi 3 B+ and the Pi 4 for its board, not the Pi 5. The Pi 3's DPI is its firmware's, as the Pi 4's, under the same fake KMS: the same lines set it up. No Pi 3 has been tried on the board yet. The Pi 5's part sets the board up as [RGUI-Pi](https://github.com/forkymcforkface/RGUI-Pi) does on a Pi 5: the same pins, colours and syncs. A Pi 5 can't send its sound to the board's amplifier, so there it goes through a USB sound card.
 
 ```ini
 # A JAMMA arcade cabinet, through a Raspberry Pi to JAMMA board in RGB-Pi's
@@ -445,7 +459,7 @@ It has a part for the Pi 4 and one for the Pi 5. Crown Arcade names the Pi 3 B+ 
 # from the GPIO pins: GPIO 2 and 3 the vertical and horizontal sync (the board
 # makes them one), GPIO 4-9 blue, 12-17 green and 20-25 red; GPIO 0 and 1 the
 # I2C bus of its two MCP23017s, the players' controls, which osdos-jamma reads
-# (the line below tells it to). The sound: on a Pi 4 GPIO 18 and 19, to the
+# (the line below tells it to). The sound: on a Pi 4 or a Pi 3 GPIO 18 and 19, to the
 # board's amplifier; a Pi 5 can't put it there, so a USB sound card's (Settings
 # → Audio Output). Chosen in Settings → Screen → Display Output, or copied over
 # osdos-display.txt (config.txt says how).
@@ -461,6 +475,19 @@ It has a part for the Pi 4 and one for the Pi 5. Crown Arcade names the Pi 3 B+ 
 # The syncs as RGB-Pi's own Pi 4 timings have them (dpi_timings' 2nd and 7th
 # numbers, 1): should the picture roll, try 0.
 [pi4]
+gpio=2-9,12-17,20-25=a2
+enable_dpi_lcd=1
+display_default_lcd=1
+hdmi_ignore_hotplug=1
+dpi_output_format=6
+dpi_group=2
+dpi_mode=87
+dpi_timings=720 1 16 62 60 240 1 4 3 15 0 0 0 60 0 13500000 1
+dtparam=i2c_vc=on
+dtoverlay=audremap,pins_18_19
+
+# The Pi 3's DPI is the same firmware's, the same.
+[pi3]
 gpio=2-9,12-17,20-25=a2
 enable_dpi_lcd=1
 display_default_lcd=1
@@ -517,13 +544,13 @@ The Pi 5's part, the kernel's DPI:
 
 **The sound on a Pi 5.** A Pi 5 has its audio out only on GPIO 12 and 13 (`audremap-pi5`), which the picture takes, so the board's amplifier stays quiet. Plug in a USB sound card and choose it in [Settings → Sound → Audio Output](https://github.com/mehmetraif/OSD-OS/wiki/Audio-Output). Some adapters show their sound only with something in their jack, so the cable from one to the cabinet's amplifier stays plugged into it. OSD/OS keeps the card at its full level, so the board's volume knob sets how loud it is.
 
-**Should the picture roll**: on a Pi 4, change the 2nd and 7th numbers of `dpi_timings` from `1` to `0`; on a Pi 5, take `hsync-invert,vsync-invert,` out of the line `dtparam=hsync-invert,vsync-invert,rgb666-padhi`. A monitor that drops its sync now and then may need a sync cleaner, as it would with other Pi boards.
+**Should the picture roll**: on a Pi 4 or a Pi 3, change the 2nd and 7th numbers of `dpi_timings` from `1` to `0`; on a Pi 5, take `hsync-invert,vsync-invert,` out of the line `dtparam=hsync-invert,vsync-invert,rgb666-padhi`. A monitor that drops its sync now and then may need a sync cleaner, as it would with other Pi boards.
 
 **By hand on a Pi 5.** Copied over `osdos-display.txt` from a computer, the preset can't remove the line a SCART RGB preset leaves on the system partition (`force_csync=1`), whose sync would take GPIO 1 from the controls. After SCART RGB, choose a JAMMA preset in Settings, or delete `/etc/modprobe.d/osdos-display.conf`.
 
 #### The board's other modes
 
-An arcade monitor may be one of several kinds, so beside JAMMA 240p the board has eight more presets. Each one's name in the menu says its scan rate, 15, 25 or 31 kHz, the kind of monitor it is for, then its resolution, which tells apart the modes of the same lines. Each is JAMMA 240p's but for its mode: the same pins, controls and sound, both syncs active low, and the board making the composite sync. They need launcher API 6 ([The launcher API](https://github.com/mehmetraif/OSD-OS/wiki/The-OSD-OS-Image#the-launcher-api)).
+An arcade monitor may be one of several kinds, so beside JAMMA 240p the board has nine more presets. Each one's name in the menu says its scan rate, 15, 25 or 31 kHz, the kind of monitor it is for, then its resolution, which tells apart the modes of the same lines. Each is JAMMA 240p's but for its mode: the same pins, controls and sound, both syncs active low, and the board making the composite sync. They need launcher API 6, and 480i at 640 across 9 ([The launcher API](https://github.com/mehmetraif/OSD-OS/wiki/The-OSD-OS-Image#the-launcher-api)).
 
 | In the menu | Preset | Mode | Scan rate | For | Timing |
 |---|---|---|---|---|---|
@@ -532,14 +559,15 @@ An arcade monitor may be one of several kinds, so beside JAMMA 240p the board ha
 | JAMMA 240p 15 kHz (1920x240) | `jamma-240p-super` | 1920×240, 60 Hz | 15.66 kHz | A 15 kHz monitor, a super resolution: a game of any width fills it with its lines whole | Switchres' (arcade_15) |
 | JAMMA 288p 15 kHz (720x288) | `jamma-288p` | 720×288, 50 Hz | 15.63 kHz | A 15 kHz monitor, for games of 50 Hz | CEA-861's, as SCART RGB 288p |
 | JAMMA 288p 15 kHz (1920x288) | `jamma-288p-super` | 1920×288, 50 Hz | 15.65 kHz | The same, a super resolution | Recalbox's |
-| JAMMA 480i 15 kHz (720x480) | `jamma-480i` | 720×480 interlaced, 60 fields a second | 15.73 kHz | A 15 kHz monitor, twice the lines, which flicker. A Pi 4 only | SCART RGB 480i's |
-| JAMMA 576i 15 kHz (720x576) | `jamma-576i` | 720×576 interlaced, 50 fields a second | 15.63 kHz | The same at 50 Hz. A Pi 4 only | Raspberry Pi's 576i |
+| JAMMA 480i 15 kHz (720x480) | `jamma-480i` | 720×480 interlaced, 60 fields a second | 15.73 kHz | A 15 kHz monitor, twice the lines, which flicker. A Pi 4 or a Pi 3 | SCART RGB 480i's |
+| JAMMA 480i 15 kHz (640x480) | `jamma-480i-640` | 640×480 interlaced, 60 fields a second | 15.73 kHz | The same, 640 across: square pixels on a 4:3 tube, as 31 kHz's. A Pi 4 or a Pi 3 | NTSC's square-pixel sampling (12.27 MHz, 780 pixels a line) |
+| JAMMA 576i 15 kHz (720x576) | `jamma-576i` | 720×576 interlaced, 50 fields a second | 15.63 kHz | The same at 50 Hz. A Pi 4 or a Pi 3 | Raspberry Pi's 576i |
 | JAMMA 25 kHz (496x384) | `jamma-25k` | 496×384, 60 Hz | 24.96 kHz | A medium resolution (25 kHz) or tri-sync monitor only | Recalbox RGB JAMMA's |
 | JAMMA 31 kHz (640x480) | `jamma-31k` | 640×480, 60 Hz | 31.47 kHz | A 31 kHz (VGA) or tri-sync monitor only | VESA's |
 
 - **Too high a scan rate can damage a 15 kHz monitor.** Choosing JAMMA 25 kHz or JAMMA 31 kHz says so first, in the switch's question: *For a 31 kHz (VGA) or tri-sync monitor only: too high a scan rate can damage a 15 kHz one.* Choose them only for a monitor made for that rate. The keep-or-go-back question still brings the mode before back after 30 seconds, but a monitor that can't take the rate is driven at it until then.
-- **No interlace on a Pi 5.** The Pi 5's DPI interlaces only with a sync on GPIO 1, which carries the board's controls (I2C), so JAMMA 480i and 576i are the Pi 4's alone, interlaced by its firmware. Neither has been tried on the board yet.
-- **The picture's shape.** Every JAMMA mode is shown 4:3 whatever its pixels, and OSD/OS draws the menus, the videos and the games for that ([below](https://github.com/mehmetraif/OSD-OS/wiki/Display-Output#overscan-and-the-safe-area)). 320×240 and 640×480 have square pixels on a 4:3 tube anyway.
+- **No interlace on a Pi 5.** The Pi 5's DPI interlaces only with a sync on GPIO 1, which carries the board's controls (I2C), so JAMMA 480i (at 720 or 640 across) and 576i are the Pi 4's and the Pi 3's, interlaced by their firmware. None has been tried on the board yet.
+- **The picture's shape.** Every JAMMA mode is shown 4:3 whatever its pixels, and OSD/OS draws the menus, the videos and the games for that ([below](https://github.com/mehmetraif/OSD-OS/wiki/Display-Output#overscan-and-the-safe-area)). 320×240 and 640×480, at 15 kHz or 31, have square pixels on a 4:3 tube anyway.
 - **Should the picture roll**, change the syncs as for JAMMA 240p, above.
 
 ### The Pi 5's output
@@ -625,6 +653,16 @@ dpi_group=2
 dpi_mode=87
 dpi_timings=720 0 12 64 68 576 0 5 5 39 0 0 0 25 1 13500000 1
 
+# The Pi 3's DPI is the same firmware's, the same.
+[pi3]
+dtoverlay=vga666
+enable_dpi_lcd=1
+display_default_lcd=1
+hdmi_ignore_hotplug=1
+dpi_group=2
+dpi_mode=87
+dpi_timings=720 0 12 64 68 576 0 5 5 39 0 0 0 25 1 13500000 1
+
 [pi5]
 dtoverlay=vc4-kms-v3d,cma-512
 dtoverlay=vc4-kms-dpi-generic,clock-frequency=13500000
@@ -638,7 +676,7 @@ dtparam=hsync-invert,vsync-invert,interlaced
 `osdos-display-scart-rgb-240p.txt`:
 
 ```ini
-# RGB to a CRT through SCART, NTSC timing (240p), from a Pi 4's GPIO pins,
+# RGB to a CRT through SCART, NTSC timing (240p), from a Pi 4's or a Pi 3's GPIO pins,
 # should its 480i not hold: GPIO 4-21 carry the colours to a resistor DAC (the
 # VGA666's layout), GPIO 2 and 3 the vertical and horizontal sync
 # (os/README.md has the cable). Chosen in Settings → Screen → Display Output, or copied
@@ -655,13 +693,23 @@ dpi_group=2
 dpi_mode=87
 dpi_timings=720 0 16 62 60 240 0 4 3 15 0 0 0 60 0 13500000 1
 
+# The Pi 3's DPI is the same firmware's, the same.
+[pi3]
+dtoverlay=vga666
+enable_dpi_lcd=1
+display_default_lcd=1
+hdmi_ignore_hotplug=1
+dpi_group=2
+dpi_mode=87
+dpi_timings=720 0 16 62 60 240 0 4 3 15 0 0 0 60 0 13500000 1
+
 [all]
 ```
 
 `osdos-display-scart-rgb-288p.txt`:
 
 ```ini
-# RGB to a CRT through SCART, PAL timing (288p), from a Pi 4's GPIO pins,
+# RGB to a CRT through SCART, PAL timing (288p), from a Pi 4's or a Pi 3's GPIO pins,
 # should its 576i not hold: GPIO 4-21 carry the colours to a resistor DAC (the
 # VGA666's layout), GPIO 2 and 3 the vertical and horizontal sync
 # (os/README.md has the cable). Chosen in Settings → Screen → Display Output, or copied
@@ -670,6 +718,16 @@ dpi_timings=720 0 16 62 60 240 0 4 3 15 0 0 0 60 0 13500000 1
 # The Pi 4's DPI is its firmware's, the only output, its syncs negative as a
 # TV's (dpi_timings' 2nd and 7th numbers): should the picture roll, try 1.
 [pi4]
+dtoverlay=vga666
+enable_dpi_lcd=1
+display_default_lcd=1
+hdmi_ignore_hotplug=1
+dpi_group=2
+dpi_mode=87
+dpi_timings=720 0 12 64 68 288 0 3 3 18 0 0 0 50 0 13500000 1
+
+# The Pi 3's DPI is the same firmware's, the same.
+[pi3]
 dtoverlay=vga666
 enable_dpi_lcd=1
 display_default_lcd=1
@@ -725,7 +783,7 @@ A Pi 5 has no AV jack. Its composite comes from the two pads by HDMI 1 (J7): the
 
 `vec-gpio-pi5` puts the composite signal on GPIO 4 (the lowest bit) to 11 as an 8-bit code. It needs a digital-to-analog converter of your own between the pins and the TV. The TV pads are simpler.
 
-### SCART RGB on the GPIO pins (Pi 4, Pi 5)
+### SCART RGB on the GPIO pins (Pi 3, Pi 4, Pi 5)
 
 In the layout of the VGA666 board, which the presets use:
 
@@ -753,7 +811,7 @@ In the layout of the VGA666 board, which the presets use:
 
 The VGA666's values (510 Ω to 16 kΩ) are close enough; the E96 values halve each step exactly. 1 % resistors are close enough for 6 bits.
 
-**The sync on a Pi 4.** The Pi 4's firmware gives two negative syncs, on GPIO 2 and 3. SCART wants one, negative too. Two ways to join them:
+**The sync on a Pi 4 or a Pi 3.** Their firmware gives two negative syncs, on GPIO 2 and 3. SCART wants one, negative too. Two ways to join them:
 
 - **Two diodes**, their cathodes to GPIO 2 and 3, their anodes joined and pulled up to 3.3 V by 470 Ω, then 330 Ω to SCART pin 20.
 - **A 74HC86**, powered from 3.3 V (at 5 V it can't read the GPIO's 3.3 V), as XNOR: GPIO 2 XOR GPIO 3 in one gate, through a second gate with its other input at 3.3 V, then 680 Ω to pin 20.

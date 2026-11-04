@@ -277,7 +277,7 @@ Restart=on-failure
 RestartForceExitStatus=11
 RestartSec=5s
 RestartMode=direct
-SuccessExitStatus=10 11 12 20 21 22 23 24 25 26 27 28 29 30 31 32 33 34 35 36 37 38 40 41 42 43 44 45 46 47 48 49 50 51 52 53 54 55 56 57 58 129 130 143
+SuccessExitStatus=10 11 12 20 21 22 23 24 25 26 27 28 29 30 31 32 33 34 35 36 37 38 39 40 41 42 43 44 45 46 47 48 49 50 51 52 53 54 55 56 57 58 59 129 130 143
 ExecStopPost=+/usr/local/bin/osdos-stop
 StandardOutput=journal
 StandardError=journal
@@ -290,7 +290,7 @@ WantedBy=multi-user.target
 - **`SupplementaryGroups` and `CAP_SYS_TTY_CONFIG`** let it switch virtual terminals and hand the screen to mpv. A udev rule (`/etc/udev/rules.d/99-osdos-tty.rules`) lets the `tty` group open `/dev/tty0` for that.
 - **`OSDOS_AUTOSTART=1`** tells OSD/OS it runs as the system's own: Quit offers Power Off, Restart and Exit to Terminal, and Settings offers Display Output. With `OSDOS_MEDIA_DIR` (the OSD-OS partition), Quit offers Save Logs too: the logs copied to the partition's `Logs` folder, which a computer reads.
 - **`Restart=on-failure`** starts OSD/OS again five seconds after a crash or an error exit. **`StartLimitBurst=3`** in **`StartLimitIntervalSec=120`** makes the third start in two minutes the last: when that one fails too, the service is failed, and **`OnFailure=`** starts `osdos-terminal.service`, a login prompt on the screen. **`RestartMode=direct`** (systemd 254 or later; the image has 257) keeps the failures before that from bringing the prompt up too: without it, systemd runs `OnFailure=` at every failure, a restart to follow or not. The Pi stays on throughout.
-- **`SuccessExitStatus`** counts Exit to Terminal (10), a restart (12), a display switch (20 to 38, and 40 to 58 with a power-off) and a stop from outside (129, 130, 143) as no failure, so systemd neither starts OSD/OS again over them nor brings up the login prompt. An update's restart (11) is no failure either, and **`RestartForceExitStatus=11`** starts OSD/OS again for it, the launcher applying the update first. `osdos-stop` acts on them ([Quitting](https://github.com/mehmetraif/OSD-OS/wiki/The-OSD-OS-Image#quitting-restarting-and-exit-to-terminal)).
+- **`SuccessExitStatus`** counts Exit to Terminal (10), a restart (12), a display switch (20 to 39, and 40 to 59 with a power-off) and a stop from outside (129, 130, 143) as no failure, so systemd neither starts OSD/OS again over them nor brings up the login prompt. An update's restart (11) is no failure either, and **`RestartForceExitStatus=11`** starts OSD/OS again for it, the launcher applying the update first. `osdos-stop` acts on them ([Quitting](https://github.com/mehmetraif/OSD-OS/wiki/The-OSD-OS-Image#quitting-restarting-and-exit-to-terminal)).
 - **The drop-in** `/etc/systemd/system/osdos.service.d/osdos-media.conf` adds `Environment=OSDOS_MEDIA_DIR=/media/OSD-OS`: Local Files opens the **Movies** folder on the film partition while its Media Directory setting is unset, and the Arcade module its **Games/Arcade** folder while its Games Folder setting is. Its `Wants=` and `After=media-OSD\x2dOS.mount` start OSD/OS once the partition's check and mount have been tried, so it never finds an empty Movies under the mount point nor makes its folders (an offline playlist's downloads) on the root partition. Wanted, not required: a partition that is missing or won't mount still lets OSD/OS start.
 
 ## Nothing between the app and the screen
@@ -810,7 +810,7 @@ All of them come through the environment:
 |---|---|---|
 | `FIRST_USER_PASS` | none | The first user's password. Without one the account is locked ([The user](https://github.com/mehmetraif/OSD-OS/wiki/The-OSD-OS-Image#the-user-its-password-and-sudo)) |
 | `FIRST_USER_NAME` | `pi` | The first user, as which OSD/OS runs |
-| `OSDOS_DISPLAY` | `hdmi` | The display preset the image starts on, by its name: `hdmi`, `crt-ntsc`, `crt-pal`, `crt-gpio-ntsc`, `crt-gpio-pal`, `scart-rgb-ntsc`, `scart-rgb-pal`, `scart-rgb-240p`, `scart-rgb-288p`, `jamma-240p`, `jamma-240p-native`, `jamma-240p-super`, `jamma-288p`, `jamma-288p-super`, `jamma-480i`, `jamma-576i`, `jamma-25k`, `jamma-31k` ([Display Output](https://github.com/mehmetraif/OSD-OS/wiki/Display-Output)) |
+| `OSDOS_DISPLAY` | `hdmi` | The display preset the image starts on, by its name: `hdmi`, `crt-ntsc`, `crt-pal`, `crt-gpio-ntsc`, `crt-gpio-pal`, `scart-rgb-ntsc`, `scart-rgb-pal`, `scart-rgb-240p`, `scart-rgb-288p`, `jamma-240p`, `jamma-240p-native`, `jamma-240p-super`, `jamma-288p`, `jamma-288p-super`, `jamma-480i`, `jamma-480i-640`, `jamma-576i`, `jamma-25k`, `jamma-31k` ([Display Output](https://github.com/mehmetraif/OSD-OS/wiki/Display-Output)) |
 | `OSDOS_STREAMING` | `1` | `0` leaves out the browser Netflix, Prime Video and YouTube's sign-in open (Chromium, Widevine, cage, wtype), about 400 MB |
 | `OSDOS_YOUTUBE` | `1` | `0` leaves out yt-dlp, Deno and ffmpeg, about 90 MB; the YouTube module then says yt-dlp is missing |
 | `OSDOS_ARCADE` | `1` | `0` leaves out MAME (`mame`, `mame-data`), about 450 MB, and RetroArch with FinalBurn Neo, about 230 MB; the Arcade module then says MAME is not installed |

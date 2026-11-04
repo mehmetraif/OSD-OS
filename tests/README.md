@@ -107,13 +107,14 @@ ctest --test-dir build-tests --output-on-failure
   - A main thread stuck for a while is reported in `stall-report.txt` with where it is and where the other threads are, and again once it answers; the app goes on.
   - Stuck for good, the process ends with the code (70) that has the service start it again.
   - The memory line has the app's memory and the system's.
-- **display_output** (`display_output_test.cpp`, Linux only). Settings → Screen → Display Output on a Pi 4, and as **display_output_pi5** on a Pi 5, against the image's own presets copied into a stand-in boot partition.
+- **display_output** (`display_output_test.cpp`, Linux only). Settings → Screen → Display Output on a Pi 4, as **display_output_pi5** on a Pi 5 and as **display_output_pi3** on a Pi 3, whose outputs are a Pi 4's, against the image's own presets copied into a stand-in boot partition.
   - JAMMA 240p is offered only by a launcher whose stop helper knows its code (`OSDOS_LAUNCHER_API` 4), last in the menu, beside the board's own outputs: a Pi 5's GPIO composite, a Pi 4's 240p SCART.
   - In force, it is known for what it is.
   - Chosen, it leaves its way back (`display-output.json`); with an older launcher it can't be chosen.
   - At Next Start, through a stand-in for its socket: written while the app goes on, still waiting when the app starts again in the same boot, taken back, and asked about once the Pi has started on it. A refusal or a socket gone says why and notes nothing.
   - Switch and Power Off needs launcher API 5.
-  - The JAMMA board's other modes need launcher API 6, after JAMMA 240p: 240p at 320 and 1920 across, 288p at 720 and 1920 across, 480i and 576i (a Pi 4's alone), 25 kHz and 31 kHz, those two with what they risk on a 15 kHz monitor, each named with its scan rate and its preset's resolution (its `dpi_timings`); in force, known for what it is.
+  - JAMMA 480i at 640 across needs launcher API 9, beside the other 480i, and not on a Pi 5; its label names 640x480.
+  - The JAMMA board's other modes need launcher API 6, after JAMMA 240p: 240p at 320 and 1920 across, 288p at 720 and 1920 across, 480i and 576i (a Pi 4's and a Pi 3's), 25 kHz and 31 kHz, those two with what they risk on a 15 kHz monitor, each named with its scan rate and its preset's resolution (its `dpi_timings`); in force, known for what it is.
   - Each preset offered exits with the code `osdos-stop` writes it on: its place in `install.sh`'s `DISPLAY_PRESETS`, from 20, and 20 more to power off after it.
   - A tube (`DisplayOutput::isTube`): every preset but HDMI's, whatever its mode, but not on a 1080p screen (a Pi 5's fallback to HDMI); without one, a TV's modes (720×480, 720×576, 720×240, 1920×240), not a 480×272 or 800×480 panel or 1080p.
 - **wifi** (`wifi_test.cpp`, Linux only). Settings → Network → Wi-Fi's backend (`WifiManager`) against a stand-in for NetworkManager (`fake_networkmanager.cpp`, with NetworkManager's object paths, interfaces, properties, D-Bus types and states) on a D-Bus of the test's own, a `dbus-daemon` it starts; the country against a stand-in boot partition, time zone database list and `osdos-wifi.socket`. Skipped without `dbus-daemon`.

@@ -214,10 +214,10 @@ cp /Volumes/bootfs/osdos-display-crt-pal.txt /Volumes/bootfs/osdos-display.txt  
 | `osdos-display-crt-ntsc.txt`, `osdos-display-crt-pal.txt` | Composite NTSC / PAL, 4:3: the AV jack, or a Pi 5's TV pads | ✓ | ✓ |
 | `osdos-display-crt-gpio-ntsc.txt`, `osdos-display-crt-gpio-pal.txt` | Composite from a Pi 5's GPIO pins | | ✓ |
 | `osdos-display-scart-rgb-ntsc.txt`, `osdos-display-scart-rgb-pal.txt` | SCART RGB on the GPIO pins, 480i / 576i | ✓ | ✓ |
-| `osdos-display-scart-rgb-240p.txt`, `osdos-display-scart-rgb-288p.txt` | SCART RGB on the GPIO pins, 240p / 288p | ✓ | |
-| `osdos-display-jamma-240p.txt` | A JAMMA arcade cabinet through a Raspberry Pi to JAMMA board in RGB-Pi's layout, 240p: its picture, sound and controls | ✓ | ✓ |
+| `osdos-display-scart-rgb-240p.txt`, `osdos-display-scart-rgb-288p.txt` | SCART RGB on the GPIO pins, 240p / 288p (on a Pi 3 too) | ✓ | |
+| `osdos-display-jamma-240p.txt` | A JAMMA arcade cabinet through a Raspberry Pi to JAMMA board in RGB-Pi's layout, 240p: its picture, sound and controls (on a Pi 3 too) | ✓ | ✓ |
 | `osdos-display-jamma-240p-native.txt`, `-240p-super.txt`, `-288p.txt`, `-288p-super.txt`, `-25k.txt`, `-31k.txt` | The same board in its other modes: 320×240, 1920×240, 720×288, 1920×288, and a 25 kHz or 31 kHz monitor's (only for such a monitor) | ✓ | ✓ |
-| `osdos-display-jamma-480i.txt`, `osdos-display-jamma-576i.txt` | The same board interlaced, 480i / 576i | ✓ | |
+| `osdos-display-jamma-480i.txt`, `osdos-display-jamma-480i-640.txt`, `osdos-display-jamma-576i.txt` | The same board interlaced, 480i at 720 or 640 across / 576i (on a Pi 3 too) | ✓ | |
 
 A Pi 5's SCART RGB also needs a line on the system partition (`options drm_rp1_dpi force_csync=1` in `/etc/modprobe.d/osdos-display.conf`), which Windows and macOS can't reach: choose it on [OSD/OS Setup](https://github.com/mehmetraif/OSD-OS/wiki/Installation#osdos-setup-settings-on-the-card-before-the-first-boot), or in Settings → Screen → Display Output, which both write it. Once running, Settings → Screen → Display Output switches outputs, and keeps a new one only when you confirm it on its own screen. [Display Output](https://github.com/mehmetraif/OSD-OS/wiki/Display-Output) has the cables and every detail.
 
