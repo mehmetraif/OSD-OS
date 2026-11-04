@@ -139,7 +139,7 @@ log "Deploying Qt + libraries"
 "$LINUXDEPLOY" --appdir "$APPDIR" --plugin qt \
     --executable "$APPDIR/usr/bin/osdos" \
     --executable "$APPDIR/usr/bin/mpv" \
-    --desktop-file "$SRC_ROOT/packaging/linux/osd-os.desktop" \
+    --desktop-file "$SRC_ROOT/packaging/linux/tv.osdos.osdos.desktop" \
     --icon-file "$SRC_ROOT/packaging/linux/osd-os.png"
 
 # ── 6. Stage the Wayland fallback set ─────────────────────────────────────────
@@ -295,6 +295,10 @@ printf '%s\n' "$audit" | sed -n 's/^OK\t//p' | sort | sed 's/^/  host must provi
 install -Dm755 "$SRC_ROOT/packaging/linux/AppRun" "$APPDIR/AppRun"
 
 # ── 10. Package ───────────────────────────────────────────────────────────────
+# The AppStream metadata, which appimagetool looks for by the desktop file's
+# name and checks with appstreamcli validate-tree where that is installed.
+install -Dm644 "$SRC_ROOT/packaging/linux/tv.osdos.osdos.appdata.xml" \
+    "$APPDIR/usr/share/metainfo/tv.osdos.osdos.appdata.xml"
 log "Packaging $OUTPUT"
 ARCH=x86_64 "$APPIMAGETOOL" "$APPDIR" "$OUTPUT"
 log "Done: $OUTPUT"

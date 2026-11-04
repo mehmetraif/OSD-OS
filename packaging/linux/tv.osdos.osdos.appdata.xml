@@ -1,0 +1,73 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- OSD/OS's AppStream metadata, as software centres and AppImage tools read
+     it: scripts/build-appimage.sh puts it in the AppImage at
+     usr/share/metainfo/tv.osdos.osdos.appdata.xml. Its id, its file's name and
+     the desktop file's (packaging/linux/tv.osdos.osdos.desktop) are the same
+     reverse-DNS name: appimagetool looks for the metadata by the desktop
+     file's name, and appstreamcli validate-tree, which it runs where it is
+     installed, wants the id to be the file's name and reverse-DNS. -->
+<component type="desktop-application">
+  <id>tv.osdos.osdos</id>
+  <name>OSD/OS</name>
+  <summary>A VCR-style smart TV experience for CRTs</summary>
+  <metadata_license>CC0-1.0</metadata_license>
+  <project_license>GPL-3.0-only</project_license>
+  <developer id="tv.osdos">
+    <name>The OSD/OS contributors</name>
+  </developer>
+  <description>
+    <p>
+      OSD/OS plays films, streams and arcade games with the look of a video
+      recorder's on-screen display, made for CRT televisions and arcade
+      cabinets, and used with a remote, a gamepad or a keyboard.
+    </p>
+    <ul>
+      <li>Plex, Jellyfin, Emby and YouTube, the films on the computer, and playlists across them</li>
+      <li>Arcade games through MAME and FinalBurn Neo, with high scores, RetroAchievements and online and LAN play</li>
+      <li>Colour schemes, skins and screen effects in a television's own pixels</li>
+      <li>Playback through mpv, which must be installed beside it</li>
+    </ul>
+  </description>
+  <launchable type="desktop-id">tv.osdos.osdos.desktop</launchable>
+  <provides>
+    <binary>osdos</binary>
+  </provides>
+  <url type="homepage">https://osdos.tv/</url>
+  <url type="bugtracker">https://github.com/mehmetraif/OSD-OS/issues</url>
+  <url type="vcs-browser">https://github.com/mehmetraif/OSD-OS</url>
+  <categories>
+    <category>AudioVideo</category>
+    <category>Player</category>
+    <category>Video</category>
+  </categories>
+  <keywords>
+    <keyword>media</keyword>
+    <keyword>video</keyword>
+    <keyword>plex</keyword>
+    <keyword>jellyfin</keyword>
+    <keyword>retro</keyword>
+    <keyword>crt</keyword>
+    <keyword>arcade</keyword>
+  </keywords>
+  <screenshots>
+    <screenshot type="default">
+      <caption>The main menu</caption>
+      <image>https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/screenshots/main-menu.png</image>
+    </screenshot>
+    <screenshot>
+      <caption>The Arcade screen</caption>
+      <image>https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/screenshots/arcade-screen.png</image>
+    </screenshot>
+    <screenshot>
+      <caption>Settings</caption>
+      <image>https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/screenshots/settings.png</image>
+    </screenshot>
+  </screenshots>
+  <content_rating type="oars-1.1"/>
+  <supports>
+    <control>pointing</control>
+    <control>keyboard</control>
+    <control>gamepad</control>
+    <control>tv-remote</control>
+  </supports>
+</component>

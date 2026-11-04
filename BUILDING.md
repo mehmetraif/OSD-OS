@@ -287,7 +287,7 @@ CMAKE_PREFIX_PATH=/path/to/Qt/6.7.x/gcc_64 scripts/build-appimage.sh --configure
 
 This produces `OSD-OS-linux-x86_64.AppImage` in the repo root. On first run the script downloads `linuxdeploy`, `linuxdeploy-plugin-qt` and `appimagetool` into `.appimage-tools/` (cached). Drop `--configure` if you have already built into `build/` yourself.
 
-The script installs into an `AppDir` using the FHS layout (`usr/bin/osdos`, `usr/share/osdos`), bundles a copy of `mpv`, deploys Qt, then prunes host-provided GPU/driver libraries (VA-API, GL, libdrm…) so the target's own drivers are used.
+The script installs into an `AppDir` using the FHS layout (`usr/bin/osdos`, `usr/share/osdos`), bundles a copy of `mpv`, deploys Qt, then prunes host-provided GPU/driver libraries (VA-API, GL, libdrm…) so the target's own drivers are used. The desktop file and the AppStream metadata go in under one reverse-DNS name, `tv.osdos.osdos` (`packaging/linux/tv.osdos.osdos.desktop`, and `tv.osdos.osdos.appdata.xml` in `usr/share/metainfo`): appimagetool looks for the metadata by the desktop file's name, and where `appstreamcli` is installed it validates the two together (`validate-tree`), stopping the build on a warning.
 
 #### Wayland client libraries and X11-only targets
 
