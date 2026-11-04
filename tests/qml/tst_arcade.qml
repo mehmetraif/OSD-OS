@@ -1775,9 +1775,9 @@ Rectangle {
             verify(root.navigations[1].params.online.hosting)
         }
 
-        // The Arcade screen's Online Games: select joins the room, JOIN in
-        // the hint bar, and held, nothing; a game's options host it where it
-        // can be.
+        // The Arcade screen's Online Games: the lobby read as it comes up,
+        // not 20 s on; select joins the room, JOIN in the hint bar, and
+        // held, nothing; a game's options host it where it can be.
         function test_onlineScreen() {
             arcadeBackend.filterList = [{ id: "online", name: "Online Games", sets: ["sf2"],
                                           rows: [{ set: "sf2", name: "Street Fighter II (ann)", favorite: false,
@@ -1786,6 +1786,8 @@ Rectangle {
             moduleRoot.startFilter = "online"
             var screen = openScreen()
             compare(screen.filterId, "online")
+            verify(findChild(screen, "lobbyRefresh").running)
+            tryCompare(arcadeBackend, "roomReads", 1, 1000)
             verify(findText(screen, "Street Fighter II (ann)") !== null)
             verify(findText(screen, ":JOIN") !== null)
             keyPress(Qt.Key_Return)

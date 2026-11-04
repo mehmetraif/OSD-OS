@@ -149,11 +149,14 @@ FocusScope {
         onLeaveRequested: gamesRoot.goBack()
     }
 
-    // The lobby read again while its rooms are shown: they last a minute
-    // there, and hosts say they are still there every 20 s.
+    // The lobby read as its rooms come to be shown, and again while they
+    // are: they last a minute there, and hosts say they are still there
+    // every 20 s.
     Timer {
+        objectName: "lobbyRefresh"
         interval: 20000
         repeat: true
+        triggeredOnStart: true
         running: tree.folderName === "Online Games" && !!arcadeBackend && !arcadeBackend.running
         onTriggered: arcadeBackend.refreshRooms()
     }
