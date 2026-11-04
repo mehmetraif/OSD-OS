@@ -21,7 +21,7 @@ ctest --test-dir build-tests --output-on-failure
   - A folder opened again comes back with its cursor where it was; the compact branches keep to a few rows.
   - With Settings' Hint Bar off, the area reaches the content box's foot and shows more rows, the spine where it was.
   - Select on a folder opens it and on a file is `activated`; with nothing under the cursor, in an empty folder or an empty tree, it is left to the host's own keys.
-  - A picture of it is saved as `tree-browser-preview.png`, which CI keeps.
+  - A picture of it is saved as `tree-browser-preview.png` in the test build's folder, to look at by hand.
 - **controls_views** (`qml/tst_controllers.qml`, run by the same runner): Settings → Controls' pages, `views/Controllers.qml`, `views/ControllerSettings.qml`, `views/ArcadeButtons.qml` and `views/RemapControls.qml`, against a stand-in for `InputManager`.
   - The list: All Keyboards & Remotes, the players, a line for each of the six whatever is connected, the controllers connected by kind (P1, P2… on the pads that play), the one used last marked ◄, those away under Not Connected, nothing connected; the cursor skips the headings, keeps to its controller as another goes, and comes back to it from its page.
   - The players: Select lists Auto and the pads connected (no keyboard, remote or pad away), the player's own chosen; ◄ ► go round them; Back leaves the chooser unchanged; a pad chosen and away, and its line kept beyond the pads there.

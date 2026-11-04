@@ -135,11 +135,3 @@ jobs:
           useradd --create-home tester
           chown -R tester build-tests
           runuser -u tester -- ctest --test-dir build-tests --verbose --timeout 60
-
-      - name: Upload browser preview
-        if: always()
-        uses: actions/upload-artifact@v7.0.1
-        with:
-          name: tree-browser-preview-pi
-          path: build-tests/tree-browser-preview.png
-          if-no-files-found: ignore
