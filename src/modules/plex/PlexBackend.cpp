@@ -692,6 +692,25 @@ void PlexBackend::performUserSwitch(const QString &userId, const QString &pin,
             return;
         }
 
+        // A switch plex.tv didn't answer, or turned down for any other reason,
+        // is not a switch. Carrying on made the profile the active one all the
+        // same, on the tokens kept from before: with plex.tv out of reach, a
+        // PIN-protected owner's profile opened on any PIN, and a managed
+        // profile was shown while every request stayed the owner's. Refused,
+        // then, wherever it would change who watches in a home of several
+        // profiles. The profile already active goes on as before (its tokens
+        // refreshed where they can be), and so does an account of one profile,
+        // which plex.tv has no switch for.
+        const QJsonObject before = loadAuth();
+        const bool sameUser = before["active_user_id"].toString() == userId;
+        const bool severalProfiles = before["users"].toArray().size() > 1;
+        if (switchReply->error() != QNetworkReply::NoError && !sameUser && severalProfiles) {
+            qWarning().noquote() << "[PlexAuth] switch failed, profile not changed — status=" << switchStatus
+                                 << switchReply->errorString();
+            emit errorOccurred("COULD NOT SWITCH PROFILE: PLEX DID NOT ANSWER");
+            return;
+        }
+
         QString switchToken = masterToken;
         if (switchReply->error() == QNetworkReply::NoError) {
             QString t = QJsonDocument::fromJson(switchBody).object()["authToken"].toString();
@@ -709,7 +728,7 @@ void PlexBackend::performUserSwitch(const QString &userId, const QString &pin,
         resUrl.setQuery(q);
         auto *resReply = plexGet(resUrl, owner ? masterToken : switchToken);
         connect(resReply, &QNetworkReply::finished, this,
-                [this, resReply, userId, masterToken, switchToken, owner, callback]() {
+                [this, resReply, userId, masterToken, switchToken, owner, sameUser, callback]() {
             resReply->deleteLater();
 
             QJsonObject tokenMap;
@@ -721,6 +740,14 @@ void PlexBackend::performUserSwitch(const QString &userId, const QString &pin,
                     QString at  = r["accessToken"].toString();
                     if (!mid.isEmpty() && !at.isEmpty()) tokenMap[mid] = at;
                 }
+            }
+
+            // A managed profile switched to without its servers' tokens (the
+            // fetch failed) would be shown on the tokens kept for the managed
+            // profile before it: another person's library and watch state.
+            if (!owner && !sameUser && tokenMap.isEmpty()) {
+                emit errorOccurred("COULD NOT SWITCH PROFILE: PLEX DID NOT ANSWER");
+                return;
             }
 
             QJsonObject a = loadAuth();
