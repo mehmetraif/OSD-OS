@@ -1,30 +1,23 @@
 # The OSD/OS image
 
-On a Raspberry Pi, OSD/OS can be the whole system: one image that you flash to an SD card and that starts straight into OSD/OS. This page covers what the image is made of, everything it changes in Raspberry Pi OS and why, how its boot works, the film partition, USB drives, the network, SSH, the user and its password, quitting and updating, where every file lives, and how to build the image yourself. The source of all of it is the [`os/`](https://github.com/mehmetraif/OSD-OS/tree/main/os) folder of the repository, and its [README](https://github.com/mehmetraif/OSD-OS/blob/main/os/README.md).
+On a Raspberry Pi, OSD/OS can be the whole system: one image, flashed to an SD card, that starts straight into OSD/OS. Its source is the [`os/`](https://github.com/mehmetraif/OSD-OS/tree/main/os) folder of the repository, with its [README](https://github.com/mehmetraif/OSD-OS/blob/main/os/README.md).
 
 <table>
 <tr><th width="50%">The boot screen</th><th width="50%">Settings, once it is up</th></tr>
 <tr><td><img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/screenshots/boot.png" width="100%" alt="The boot screen: the OSD/OS cassette over a progress bar and a list of services, two of them OK" /></td><td><img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/screenshots/settings.png" width="100%" alt="Settings, with the Pi's address in its title bar" /></td></tr>
-<tr><td>From power on, the screen is OSD/OS's. The cassette winds its tape while the services start, <code>[ OK ]</code> once each is up.</td><td>The title bar shows the version and the Pi's network address, which is handy for SSH.</td></tr>
+<tr><td>Each service gets <code>[ OK ]</code> once it is up.</td><td>The title bar shows the version and the Pi's network address.</td></tr>
 </table>
 
 ## An operating system, not an app
 
-Installed as an app ([Installation](https://github.com/mehmetraif/OSD-OS/wiki/Installation)), OSD/OS runs on a system that is already set up: Raspberry Pi OS, SteamOS or macOS. That system boots its own way first, with its splash, its boot messages and its login prompt or desktop. The image is the system itself:
-
-- **It boots into OSD/OS.** There is no rainbow splash, no boot text and no login prompt. The first thing on screen is OSD/OS's boot screen, in the theme's colours, or white on blue with Settings → Look → Boot Screen Colors → Default.
-- **No desktop.** There is no display server (X11 or Wayland), no window manager and no file manager. OSD/OS draws straight to the screen through the kernel's display driver, and so does mpv ([Nothing between the app and the screen](https://github.com/mehmetraif/OSD-OS/wiki/The-OSD-OS-Image#nothing-between-the-app-and-the-screen)).
-- **Every screen is OSD/OS's own**: the boot screen, the menus, the file browser, the on-screen keyboard, Settings, Bluetooth pairing, updates, and power off. It hands the screen over only to what plays: mpv for a video, Chromium (full screen, nothing around it) for Netflix, Prime Video and YouTube's sign-in, MAME or RetroArch for the Arcade module's games, and a script of yours that asks for the screen.
-- **Nothing runs that a TV box doesn't need.** Wi-Fi, Bluetooth, the local network and SSH wait until OSD/OS is on screen. The timers that wake the SD card at random times are gone.
-- **Films go on the card**, on a partition of their own that Windows and macOS can open.
-- **USB drives** show up in Local Files as they are plugged in, read-only.
+Installed as an app ([Installation](https://github.com/mehmetraif/OSD-OS/wiki/Installation)), OSD/OS runs on a system that is already set up. The image is the system itself: it boots into OSD/OS, with no splash, boot text, login prompt or desktop. The boot screen is in the theme's colours, or white on blue with Settings → Look → Boot Screen Colors → Default.
 
 ### What it is built on
 
-- **Raspberry Pi OS Lite (64-bit)**, the system without a desktop that Raspberry Pi makes for its boards. It is based on **Debian 13 "trixie"**, arm64. Its packages are Debian's, with Raspberry Pi's on top from Raspberry Pi's archive: the kernel, the firmware, a patched FFmpeg, Widevine and more.
-- **pi-gen**, the tool Raspberry Pi builds Raspberry Pi OS with, at a pinned commit of its `arm64` branch (`PI_GEN_REF` in [`os/build.sh`](https://github.com/mehmetraif/OSD-OS/blob/main/os/build.sh), today `4d8ee447dd3d37e8b0ef8752e460d9082d9d435d`). Its stages 0 to 2 make Raspberry Pi OS Lite.
-- **One stage of OSD/OS's own**, [`os/stage-osdos`](https://github.com/mehmetraif/OSD-OS/tree/main/os/stage-osdos), on top. It adds the app and changes the system as this page describes.
-- The release name is **OSD/OS** (`PI_GEN_RELEASE`). pi-gen writes it to `/boot/firmware/issue.txt`.
+- **Raspberry Pi OS Lite (64-bit)**, based on **Debian 13 "trixie"**, arm64. Its kernel, firmware, drivers and patched FFmpeg are unchanged.
+- **pi-gen**, Raspberry Pi's image builder, at a pinned commit of its `arm64` branch (`PI_GEN_REF` in [`os/build.sh`](https://github.com/mehmetraif/OSD-OS/blob/main/os/build.sh), today `4d8ee447dd3d37e8b0ef8752e460d9082d9d435d`).
+- **One stage of OSD/OS's own**, [`os/stage-osdos`](https://github.com/mehmetraif/OSD-OS/tree/main/os/stage-osdos), on top.
+- The release name is **OSD/OS** (`PI_GEN_RELEASE`), written to `/boot/firmware/issue.txt`.
 
 ```mermaid
 flowchart LR
@@ -35,128 +28,89 @@ flowchart LR
     TAR["OSD-OS-version-linux-arm64.tar.gz<br/>the app, from its release"] --> SO
 ```
 
-The kernel, the firmware, the Wi-Fi and Bluetooth drivers and the patched FFmpeg that mpv's Pi 4 HEVC decoding relies on are exactly Raspberry Pi OS's.
-
 ### Compared with an app install
 
-What changes against flashing Raspberry Pi OS Lite and running `scripts/install.sh` with its autostart service:
+Against Raspberry Pi OS Lite with `scripts/install.sh` and its autostart service:
 
 | | Raspberry Pi OS Lite + `install.sh` | The OSD/OS image |
 |---|---|---|
-| When OSD/OS starts | After `multi-user.target`, once every other service is up | After `basic.target`, as soon as the display driver is ready |
-| First thing on screen | The boot messages, until OSD/OS starts | Black, then OSD/OS's boot screen |
-| Wi-Fi, Bluetooth, mDNS, SSH | Start with the system, ahead of OSD/OS | Wait for OSD/OS's first frame, then start one after another |
-| apt, man-db, e2scrub and dpkg-backup timers, cron | Running | Switched off |
+| OSD/OS starts | After `multi-user.target` | After `basic.target` |
+| First on screen | The boot messages | Black, then the boot screen |
+| Wi-Fi, Bluetooth, mDNS, SSH | Start ahead of OSD/OS | Wait for its first frame |
+| apt, man-db, e2scrub and dpkg-backup timers, cron | Running | Off |
 | Raspberry Pi Connect agent | Installed | Removed |
-| cloud-init | Runs at every boot | First boot only |
-| Where films go | `~/.local/share/OSD-OS/media/Movies` | Movies on the card's own exFAT partition, `/media/OSD-OS/Movies` |
-| USB drives | Not mounted by themselves | Mounted read-only under `/media/usb` as they come |
-| Netflix, Prime Video, YouTube sign-in | Install Chromium, Widevine, cage and wtype yourself | Included |
-| YouTube | Install yt-dlp and Deno yourself | Included; yt-dlp updates itself |
-| Arcade | Install MAME yourself, and RetroArch for FinalBurn Neo (its core downloaded in Settings) | Included: Debian's MAME 0.276, and Debian's RetroArch with the FinalBurn Neo core |
+| cloud-init | Every boot | First boot only |
+| Films | `~/.local/share/OSD-OS/media/Movies` | `/media/OSD-OS/Movies`, an exFAT partition |
+| USB drives | Not mounted | Mounted read-only under `/media/usb` |
+| Chromium, Widevine, cage, wtype | Install yourself | Included |
+| yt-dlp, Deno | Install yourself | Included; yt-dlp updates itself |
+| MAME, RetroArch | Install yourself | Included: Debian's MAME 0.276 and RetroArch |
 | Settings → Screen → Display Output | Not offered | Offered |
-| Bluetooth adapter blocked by rfkill | Stays blocked | Unblocked as Bluetooth starts |
-| Wi-Fi power saving | On, the driver's default: a lag now and then as the radio wakes | Off, for every connection ([Wi-Fi](#wi-fi)) |
+| Bluetooth blocked by rfkill | Stays blocked | Unblocked |
+| Wi-Fi power saving | On | Off ([Wi-Fi](#wi-fi)) |
 
-Everything else is the same as an app install: the launcher, the in-app updater, Exit to Terminal, and the data folder `~/.local/share/OSD-OS`. The launcher, the stop helper, the terminal unit, the sockets behind At Next Start and the Wi-Fi country, and the polkit rule that lets OSD/OS use NetworkManager are taken from `scripts/install.sh` when the image is built, so the two can't drift apart.
+The rest is the same: the launcher, the in-app updater, Exit to Terminal and the data folder `~/.local/share/OSD-OS`.
 
 ## Getting it onto a card
 
-Download `OSD-OS-<version>-raspberry-pi.img.xz` from the [latest release](https://github.com/mehmetraif/OSD-OS/releases/latest) and flash it with Raspberry Pi Imager (**Use custom**); from a terminal, `curl -fsSL https://osdos.tv/get.sh | sh -s -- image` downloads it and checks it against the SHA-256 GitHub keeps for it. [Installation](https://github.com/mehmetraif/OSD-OS/wiki/Installation) has the steps, and [os/README.md → Flashing](https://github.com/mehmetraif/OSD-OS/blob/main/os/README.md#flashing) the details. Two things to know first:
+Download `OSD-OS-<version>-raspberry-pi.img.xz` from the [latest release](https://github.com/mehmetraif/OSD-OS/releases/latest) and flash it with Raspberry Pi Imager (**Use custom**). [Installation](https://github.com/mehmetraif/OSD-OS/wiki/Installation) has the steps, and [os/README.md → Flashing](https://github.com/mehmetraif/OSD-OS/blob/main/os/README.md#flashing) the details.
 
-- **Raspberry Pi Imager 2 offers no OS customisation** (Wi-Fi, a user, SSH, locale, keyboard) for an image chosen with **Use custom**: it can't tell which kind of customisation the image takes. [OSD/OS Setup](https://github.com/mehmetraif/OSD-OS/wiki/The-OSD-OS-Image#osdos-setup) takes its place. Imager's own customisation needs the image opened through a local manifest that gives it `"init_format": "cloudinit-rpi"` ([Imager's notes](https://github.com/raspberrypi/rpi-imager/tree/main/doc/local_json)). Imager 1 seems to apply it, but on trixie its settings never take effect.
-- **Without either**, Ethernet needs nothing. For Wi-Fi, edit `network-config` on the card's boot partition before the first boot ([Wi-Fi](https://github.com/mehmetraif/OSD-OS/wiki/The-OSD-OS-Image#wi-fi)).
+Raspberry Pi Imager 2 offers no OS customisation for an image chosen with **Use custom**. Use [OSD/OS Setup](https://github.com/mehmetraif/OSD-OS/wiki/The-OSD-OS-Image#osdos-setup) instead, or give Imager a local manifest ([Installation](https://github.com/mehmetraif/OSD-OS/wiki/Installation#a-local-manifest-for-os-customisation)).
 
 ### OSD/OS Setup
 
-[OSD/OS Setup](https://osdos.tv/setup/) is a page where what a card starts with is chosen before it goes into the Pi: first what it goes into, a TV or an arcade cabinet, then the display output, the device's name, Wi-Fi and its country, `pi`'s password, SSH and its keys, the time zone, the keyboard, every setting of OSD/OS itself, with the chosen theme's main menu and Arcade screen shown as the app draws them (the Orb theme's in 3D), and the Arcade's RetroAchievements account, in three views: Basic (how it starts and its look), Logins (what it signs in with) and Advanced (every setting). A cabinet's file starts on the Arcade screen (Start on Module, the Arcade turned on with it); the page puts the TV / Movie settings out of sight for it and lists the JAMMA outputs first. It runs in the browser, and nothing typed on it leaves the browser. Its file, `osdos-setup.json`, goes on the boot partition (**bootfs**), with the chosen display output's `osdos-display.txt` beside it, which the zip it gives holds both of ([Installation](https://github.com/mehmetraif/OSD-OS/wiki/Installation#osdos-setup-settings-on-the-card-before-the-first-boot) has the steps).
+[OSD/OS Setup](https://osdos.tv/setup/) is a web page that chooses what a card starts with ([Installation](https://github.com/mehmetraif/OSD-OS/wiki/Installation#osdos-setup-settings-on-the-card-before-the-first-boot) has the steps). Its file, `osdos-setup.json`, goes on the boot partition (**bootfs**). `/usr/local/sbin/osdos-setup` applies it in two stages:
 
-As the Pi starts, `/usr/local/sbin/osdos-setup` applies the file in two stages:
+1. **`osdos-setup-app.service`**, before OSD/OS starts, moves the file to `/var/lib/osdos-setup/pending.json` (root's alone). It sets OSD/OS's settings and the RetroAchievements account.
+2. **`osdos-setup.service`**, once OSD/OS is on screen, sets the rest. The boot screen lists it as **SETTINGS**: `[ OK ]` when all was set, `[FAIL]` when anything wasn't. It then writes `osdos-setup.log` on the boot partition, without passwords.
 
-1. **`osdos-setup-app.service`**, after `basic.target` and before OSD/OS (`ConditionPathExists=` the file, or what a start cut short left), takes the file off the boot partition at once, root's alone from then on (`/var/lib/osdos-setup/pending.json`), and sets what OSD/OS reads as it starts: its settings and the RetroAchievements account.
-2. **`osdos-setup.service`**, once OSD/OS is on screen and ahead of NetworkManager, avahi and SSH, sets the rest. The boot screen lists it as **SETTINGS** (a step of `/etc/osdos/boot-units` it shows only on a start that has the file): `[ OK ]` when all of it was set, `[FAIL]` when anything wasn't. Then it writes `osdos-setup.log` on the boot partition: what was done, and why anything wasn't, never a password.
-
-Each part is applied on its own, so that one that can't be applied leaves the rest to go ahead. The same lines go to the journal (`journalctl -u osdos-setup-app -u osdos-setup`).
+The journal has the same lines: `journalctl -u osdos-setup-app -u osdos-setup`. Each part is applied on its own:
 
 | Part | How it is applied |
 |---|---|
-| The device's name | `osdos-stop device-name`, as Settings → System → About → System Information renames it |
-| The Wi-Fi country | `osdos-stop wifi-country`, as Settings → Network → Wi-Fi sets it |
-| Wi-Fi | A NetworkManager connection, `/etc/NetworkManager/system-connections/osdos-setup-<network>-<id>.nmconnection` (root's alone), joined as NetworkManager starts. With its country set, Wi-Fi is switched on in NetworkManager's state too, which an image built without a country starts with it off |
-| `pi`'s password | The SHA-512 crypt hash the page made in the browser (100,000 rounds), with `chpasswd -e`: the password itself is never in the file |
-| SSH | `systemctl enable` and start (or disable and stop) `ssh.service`; the keys added to `pi`'s `~/.ssh/authorized_keys`, each one checked whole; password login on or off in `/etc/ssh/sshd_config.d/00-osdos-setup.conf`, the first of sshd's drop-ins, so that no other undoes it. Password login only with `pi`'s password set in the same file, never over the one an image was built with, which every card of it shares; SSH not turned on without a key or that password to log in with |
-| The time zone and the keyboard | `timedatectl set-timezone`; `raspi-config nonint do_configure_keyboard` |
-| OSD/OS's settings | Merged into `~/.local/share/OSD-OS/config.json`: what the file doesn't name stays as it is |
-| The RetroAchievements account | Handed to OSD/OS in `~/.local/share/OSD-OS/arcade/retroachievements-setup.json` (`pi`'s alone): the Arcade module keeps the Web API key, and RetroArch signs in with the password as Settings' Sign In has it. Started before the network is up, it checks again every 30 seconds, ten times at most and never beside a game, and the file goes once RetroAchievements has answered or a game has had the password. A file for the account signed in already keeps its token. OSD/OS never keeps the password |
-| The display output | `osdos-stop next-start`, as Display Output's At Next Start writes it, a Pi 5's SCART RGB line included; when it changes what the firmware reads, the Pi restarts once. One the Pi the card is in hasn't (chosen for another) is left as it is |
+| The device's name, the Wi-Fi country, the display output | `osdos-stop device-name`, `wifi-country` and `next-start`. The Pi restarts once if the output changed. An output the Pi doesn't have is left as it is |
+| Wi-Fi | `/etc/NetworkManager/system-connections/osdos-setup-<network>-<id>.nmconnection` |
+| `pi`'s password | `chpasswd -e`, with the SHA-512 crypt hash (100,000 rounds) the page made |
+| SSH | `ssh.service` on or off; keys in `pi`'s `~/.ssh/authorized_keys`; password login in `/etc/ssh/sshd_config.d/00-osdos-setup.conf` |
+| The time zone, the keyboard | `timedatectl set-timezone`; `raspi-config nonint do_configure_keyboard` |
+| OSD/OS's settings | Merged into `~/.local/share/OSD-OS/config.json` |
+| The RetroAchievements account | `~/.local/share/OSD-OS/arcade/retroachievements-setup.json`. RetroArch signs in once the network is up, tried every 30 seconds, ten times at most |
 
-`pi`'s files are read and written by `osdos-setup` run again as `pi`, never by root, so that nothing in `pi`'s folder can point root's reads or writes elsewhere. A file it can't read is deleted, its passwords with it, and the log says why. What a start cut short leaves in `/var/lib/osdos-setup` is applied at the next. The file can go on a card that has already started: it is applied at the next start. Like cloud-init's files beside it, it is read from a partition anyone with the card can write, and until the card takes it, it holds the Wi-Fi and RetroAchievements passwords as typed: keep it to yourself. Set a thing in one place only, on the page or in Imager's customisation: Imager's time zone and keyboard are applied later on the first boot.
-
-OSD/OS on a computer takes the page's settings too, only its own and the RetroAchievements account: pasted in Settings, or from `osdos-setup.json` in its data folder at the next start ([Installation](https://github.com/mehmetraif/OSD-OS/wiki/Installation#osdos-setup-on-a-computer)).
+- SSH password login needs `pi`'s password set in the same file. SSH is not turned on without a key or that password.
+- A file that can't be read is deleted, and the log says why.
+- The file can also go on a card that has already started.
+- Until the card takes it, the file holds the Wi-Fi and RetroAchievements passwords as typed.
 
 ### The first boot
 
-The first boot does a few things once and takes longer:
+The first boot does a few things once:
 
-1. In the initramfs, the card is split: the system's partition grows to 8 GiB and the rest becomes the film partition, formatted exFAT ([Films on the card](https://github.com/mehmetraif/OSD-OS/wiki/The-OSD-OS-Image#films-on-the-card)). A first boot cut short before the film partition is formatted leaves that to the next boot.
-2. The root file system grows to fill its partition (Raspberry Pi OS's `rpi-resize.service`).
-3. cloud-init applies what Raspberry Pi Imager or `network-config` asked for: a user, Wi-Fi, SSH, the locale. Then `osdos-cloud-init-once.service` switches cloud-init off for good.
-4. With an `osdos-setup.json` on the boot partition, `osdos-setup-app.service` sets OSD/OS's own settings from it, and `osdos-setup.service` the rest once OSD/OS is on screen, as **SETTINGS** on the boot screen ([OSD/OS Setup](https://github.com/mehmetraif/OSD-OS/wiki/The-OSD-OS-Image#osdos-setup)); the Pi restarts once if the display output changed.
-5. OSD/OS starts as on every boot, with the boot screen.
+1. The card is split ([Films on the card](https://github.com/mehmetraif/OSD-OS/wiki/The-OSD-OS-Image#films-on-the-card)).
+2. cloud-init applies Raspberry Pi Imager's customisation or `network-config`, and is then switched off.
+3. An `osdos-setup.json` is applied. The Pi restarts once if the display output changed.
 
 ## The boot: OSD/OS first
 
 <img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/images/boot-order.svg" width="100%" alt="Boot order. In a manual install OSD/OS starts last, after multi-user.target. On the OSD/OS image it starts right after basic.target, and its boot screen is up while Wi-Fi, Bluetooth, the local network, SSH and the online check start one after another, after its first frame." />
 
-A manual install starts OSD/OS last, once every service is up, with the boot messages on screen until then. The image turns that around. OSD/OS starts as soon as systemd reaches `basic.target`. Wi-Fi, Bluetooth, the local network and SSH (when enabled) wait for its first frame, then start one after another. The boot screen shows them coming up.
+OSD/OS starts as soon as systemd reaches `basic.target`. Wi-Fi, Bluetooth, the local network and SSH (when enabled) wait for its first frame, then start one after another.
 
 ### Step by step
 
-1. **Firmware.** It loads the kernel with no splash (`disable_splash=1`) and no one-second pause (`boot_delay=0`).
-2. **Kernel.** It boots quietly and logs to `tty3`, so `tty1`, the screen, stays black: `console=tty3 quiet loglevel=3 logo.nologo vt.global_cursor_default=0 consoleblank=0` in `cmdline.txt`.
-3. **systemd reaches `basic.target`.** `osdos.service` starts. Its `wait-for-display` holds it, at most five seconds, until the KMS display driver has a connector: this early in the boot there may be none yet, and Qt's EGLFS fails without one.
-4. **The launcher** (`/usr/local/bin/osdos`) applies a staged update if there is one, picks the DRM card and output, and starts the app.
-5. **The first frame is on screen.** The app writes `/run/osdos/ready` (`OSDOS_READY_FILE`), holding its process id. A five-second timer writes it anyway, should the window never report a frame.
-6. **The held-back services start**, one after another: NetworkManager (Wi-Fi), Bluetooth, avahi-daemon (the local network), and SSH if it was enabled when the image was built.
-7. **The boot screen follows them**, then the check that the network is online (`NetworkManager-wait-online.service`, at most 20 seconds here instead of a minute).
-8. **The boot screen closes** once every step has settled, or after a minute whatever happens. The startup module opens then, so a module that needs the network finds it ready.
-
-```mermaid
-sequenceDiagram
-    participant FW as Firmware and kernel
-    participant SD as systemd
-    participant App as osdos.service
-    participant Held as Held-back services
-    FW->>SD: quiet boot, messages on tty3
-    SD->>App: basic.target reached, start
-    App->>App: wait-for-display, at most 5 s
-    App->>App: launcher, then the first frame
-    App->>Held: writes /run/osdos/ready
-    Held->>Held: NetworkManager, bluetooth, avahi-daemon (ssh if built with it), in turn
-    loop every 300 ms
-        App->>SD: systemctl show the units
-        SD-->>App: their states
-    end
-    App->>App: all settled, or 60 s: boot screen closes
-    App->>App: the startup module opens
-```
+1. **Firmware**: no splash (`disable_splash=1`), no pause (`boot_delay=0`).
+2. **Kernel**: quiet, logging to `tty3`: `console=tty3 quiet loglevel=3 logo.nologo vt.global_cursor_default=0 consoleblank=0` in `cmdline.txt`.
+3. **`basic.target`**: `osdos.service` starts. `wait-for-display` holds it, five seconds at most, until the display driver has a connector.
+4. **The launcher** (`/usr/local/bin/osdos`) applies a staged update, picks the display, and starts the app.
+5. **The first frame**: the app writes `/run/osdos/ready`, after five seconds at the latest.
+6. **The held-back services** start in turn: NetworkManager, Bluetooth, avahi-daemon, and SSH if built with it.
+7. **The online check** follows (`NetworkManager-wait-online.service`, 20 seconds at most).
+8. **The boot screen closes** once every step has settled, or after a minute. The startup module opens.
 
 ### How the services are held back
 
-Each held-back unit gets a drop-in, `/etc/systemd/system/<unit>.d/osdos-defer.conf`, that runs `/usr/lib/osdos/wait-for-app` before it starts and orders it after the unit before it. For `bluetooth.service`:
+Each held-back unit has a drop-in, `/etc/systemd/system/<unit>.d/osdos-defer.conf`. It runs `/usr/lib/osdos/wait-for-app` before the unit starts and orders it after the unit before it ([below](#changing-what-the-boot-screen-shows) writes one). `wait-for-app` returns when `/run/osdos/ready` exists, or after 20 seconds, and never fails.
 
-```ini
-# OSD/OS image: start once the app is on screen, after the service before it.
-[Unit]
-After=NetworkManager.service
-
-[Service]
-ExecStartPre=+-/usr/lib/osdos/wait-for-app
-```
-
-[`wait-for-app`](https://github.com/mehmetraif/OSD-OS/blob/main/os/stage-osdos/02-system/files/wait-for-app) returns as soon as `/run/osdos/ready` exists, or after 20 seconds whatever happens, and at once when OSD/OS isn't starting this boot at all (not running and no start job queued). It never fails, so a service always comes up. It is a wait rather than an `After=osdos.service` ordering on purpose: the worst a wait can cost is its timeout, while an ordering cycle with an early-boot unit could stall the whole boot.
-
-The units and their labels are listed in `/etc/osdos/boot-units`, in start order. On an image built without SSH:
+`/etc/osdos/boot-units` lists the units and their labels, in start order. On an image built without SSH:
 
 ```text
 # Services OSD/OS's boot screen follows, as unit|LABEL, in start order;
@@ -170,11 +124,11 @@ avahi-daemon.service|LOCAL NETWORK
 NetworkManager-wait-online.service|ONLINE
 ```
 
-An image built with `ENABLE_SSH=1` has `ssh.service|SSH` before the last line, and SSH waits too, after avahi-daemon. **SETTINGS** is OSD/OS Setup's ([above](https://github.com/mehmetraif/OSD-OS/wiki/The-OSD-OS-Image#osdos-setup)): on a start without its file the unit's condition fails at once, and the boot screen neither lists it nor counts it.
+An image built with `ENABLE_SSH=1` has `ssh.service|SSH` before the last line. **SETTINGS** is listed only on a start with OSD/OS Setup's file.
 
 ### The boot screen
 
-The boot screen ([`views/BootScreen.qml`](https://github.com/mehmetraif/OSD-OS/blob/main/views/BootScreen.qml), its state in [`src/boot/BootProgress`](https://github.com/mehmetraif/OSD-OS/blob/main/src/boot/BootProgress.cpp)) is a deck playing a tape: **PLAY ▶** in the corner, the OSD/OS cassette (`views/Components/VhsCassette.qml`) whose reels turn while the tape winds from one onto the other with the progress bar, then `LOADING...` (or `READY`) with a percentage, and a line per service. The one starting now is inverted, like a selected menu line.
+The boot screen shows **PLAY ▶**, the cassette, a progress bar, `LOADING...` (or `READY`) with a percentage, and a line per service:
 
 | Mark | Means |
 |---|---|
@@ -182,19 +136,17 @@ The boot screen ([`views/BootScreen.qml`](https://github.com/mehmetraif/OSD-OS/b
 | `[ .  ]`, `[ .. ]`, `[ ...]` | Starting |
 | `[ OK ]` | Started |
 | `[FAIL]` | Failed |
-| `[ -- ]` | Skipped: not installed, masked, or its condition failed (`bluetooth.service` on a board without Bluetooth) |
+| `[ -- ]` | Skipped: not installed, masked, or its condition failed |
 
-- **The bar.** A step that has settled (started, failed or skipped) counts whole, one that is starting half; an optional one only once it has started, and the bar never goes back. Once all have settled the screen stays at 100% for 1.2 seconds, so the last line can be read, then closes.
-- **It never stays more than a minute**, whatever the services do.
-- **Keys do nothing** while it is up, so none reaches the menu underneath. The one exception is Ctrl+Q on a keyboard, which quits OSD/OS, and on the image that powers the Pi off.
-- **Only during the boot.** At start, `BootProgress` asks `systemctl is-system-running`. Unless systemd says `initializing` or `starting`, there is no boot screen, so OSD/OS started again later (after an update, or Exit to Terminal and back) opens straight on its menu.
-- **Only on the image.** Without `OSDOS_BOOT_UNITS_FILE`, which only the image's service sets, `BootProgress` does nothing at all.
-- **Over it, after a display switch**, comes the question whether to keep the new display output ([Display Output](https://github.com/mehmetraif/OSD-OS/wiki/Display-Output#keep-or-go-back)).
+- It closes 1.2 seconds after every step has settled, and never stays more than a minute.
+- Keys do nothing while it is up, except Ctrl+Q, which powers the Pi off.
+- It shows only during the boot, and only on the image (`OSDOS_BOOT_UNITS_FILE`).
+- After a display switch, it asks whether to keep the new output ([Display Output](https://github.com/mehmetraif/OSD-OS/wiki/Display-Output#keep-or-go-back)).
 
 ### Changing what the boot screen shows
 
-- **A label** is the text after the `|` in `/etc/osdos/boot-units`. Change it there (`sudo nano /etc/osdos/boot-units`); it shows from the next boot. A third field, `|optional`, lists a step only once its unit starts.
-- **Another service** can be held back and shown too. Give it the same drop-in, after the last held-back unit, and add a line for it before `ONLINE` (16 lines at most). For a service of yours called `example.service`:
+- **A label** is the text after the `|` in `/etc/osdos/boot-units` (`sudo nano /etc/osdos/boot-units`). It shows from the next boot. A third field, `|optional`, lists a step only once its unit starts.
+- **Another service**: give it the same drop-in, after the last held-back unit, and add a line before `ONLINE` (16 lines at most). For `example.service`:
 
   ```sh
   sudo mkdir -p /etc/systemd/system/example.service.d
@@ -211,43 +163,41 @@ The boot screen ([`views/BootScreen.qml`](https://github.com/mehmetraif/OSD-OS/b
 
 ### Measuring the boot
 
-The app logs when its first frame appeared and when each service settled, counted from its own start:
-
 ```sh
 journalctl -b -u osdos | grep '\[boot\]'
 systemd-analyze critical-chain osdos.service
 systemd-analyze blame
 ```
 
-The `[boot]` lines read `boot screen up, watching 4 unit(s)`, `first frame … ms after start`, `<unit> done at … ms` (or `failed`, `skipped`), and `boot screen closed at … ms (all services settled)`, `(timed out)` naming what was still starting.
+The `[boot]` lines give the first frame's time and when each service settled, in milliseconds from the app's start.
 
 ## What runs, and what doesn't
 
 | Unit | On the image |
 |---|---|
-| `osdos.service` | Enabled. OSD/OS itself, as the first user (`pi`) |
-| `NetworkManager.service`, `bluetooth.service`, `avahi-daemon.service`, `ssh.service` (if built with `ENABLE_SSH=1`) | Held back until OSD/OS's first frame, then started in that order |
-| `NetworkManager-wait-online.service` | Gives up after 20 seconds (`NM_ONLINE_TIMEOUT=20`) instead of a minute |
-| `osdos-cloud-init-once.service` | After the first boot, writes `/etc/cloud/cloud-init.disabled`: cloud-init's stages would otherwise delay every boot. Delete that file to have cloud-init run again |
-| `osdos-setup-app.service`, `osdos-setup.service` | Enabled, and run only with an `osdos-setup.json` on the boot partition (or what a start cut short left): OSD/OS Setup's file taken off it and OSD/OS's own settings set before OSD/OS starts, the rest once it is on screen, as SETTINGS on the boot screen ([OSD/OS Setup](https://github.com/mehmetraif/OSD-OS/wiki/The-OSD-OS-Image#osdos-setup)) |
-| `osdos-yt-dlp-update.timer` | Updates yt-dlp two minutes after each boot and once a day, while YouTube or a playlist uses it; the YouTube module starts it too as it opens ([Updates](https://github.com/mehmetraif/OSD-OS/wiki/The-OSD-OS-Image#yt-dlp)) |
-| `osdos-usb-mount@<device>.service` | One per USB drive plugged in ([USB drives](https://github.com/mehmetraif/OSD-OS/wiki/The-OSD-OS-Image#usb-drives)) |
-| `osdos-media-folders.service` | Started by the film partition's mount (`media-OSD\x2dOS.mount.wants`): makes the **Movies** folder on it, so the card has it from its first boot on. OSD/OS starts after the mount has been tried (the drop-in below), and makes the folder too, but a card whose partition didn't mount would have it under the mount point |
-| `osdos-netplay-priority.service` | Enabled: once OSD/OS is on screen, marks a network game's packets for Wi-Fi's video queue ([Wi-Fi](https://github.com/mehmetraif/OSD-OS/wiki/The-OSD-OS-Image#wi-fi)) |
-| `osdos-jamma.service` | Enabled, and does something only with the JAMMA display preset in force: a Raspberry Pi to JAMMA board's joysticks and buttons as two gamepads ([Controls](https://github.com/mehmetraif/OSD-OS/wiki/Controls#a-jamma-cabinet)), as a user of its own (`DynamicUser=yes`) in the `i2c` and `input` groups. Without the preset it exits at once; with it and no board, after 15 seconds |
-| `osdos-display.socket` | Enabled: Settings → Screen → Display Output's At Next Start, through `osdos-display@.service` ([At Next Start's socket](https://github.com/mehmetraif/OSD-OS/wiki/The-OSD-OS-Image#at-next-starts-socket)) |
-| `osdos-wifi.socket` | Enabled: Settings → Network → Wi-Fi's country, through `osdos-wifi@.service` ([The Wi-Fi country's socket](https://github.com/mehmetraif/OSD-OS/wiki/The-OSD-OS-Image#the-wi-fi-countrys-socket)) |
-| `osdos-name.socket` | Enabled: Settings → System → About → System Information's rename, through `osdos-name@.service` ([The device name's socket](https://github.com/mehmetraif/OSD-OS/wiki/The-OSD-OS-Image#the-device-names-socket)) |
-| `osdos-terminal.service` | Not enabled. Started only by Exit to Terminal |
-| `getty@tty1.service`, `autovt@.service` | Masked: `tty1` belongs to OSD/OS, and no login prompt appears on the console mpv switches to. `/etc/systemd/logind.conf.d/osdos.conf` (`NAutoVTs=0`, `ReserveVT=0`) has logind start no logins on the consoles itself, so it logs no masked `autovt@` at every hand-off |
-| `serial-getty@ttyAMA10.service` | Masked: no login on the Pi 5's debug UART, which nothing plugs into on a TV box or a cabinet |
-| `udisks2.service` | Masked: USB drives are mounted by the image's own rule ([USB drives](https://github.com/mehmetraif/OSD-OS/wiki/The-OSD-OS-Image#usb-drives)), and nothing else asks udisks for anything. Masked rather than disabled, as D-Bus would start it the moment anything looked for it |
-| `apt-daily.timer`, `apt-daily-upgrade.timer`, `man-db.timer`, `e2scrub_all.timer`, `dpkg-db-backup.timer`, `cron.service` | Disabled. They wake the CPU and the SD card at random times, mid-film included. Updating the system is the image's business, not a timer's |
-| `rpi-connect-lite` | Purged: a remote-access agent has no place on a TV box |
+| `osdos.service` | Enabled. OSD/OS, as the first user (`pi`) |
+| `NetworkManager.service`, `bluetooth.service`, `avahi-daemon.service`, `ssh.service` (with `ENABLE_SSH=1`) | Held back until OSD/OS's first frame, then started in that order |
+| `NetworkManager-wait-online.service` | Gives up after 20 seconds (`NM_ONLINE_TIMEOUT=20`) |
+| `osdos-cloud-init-once.service` | After the first boot, writes `/etc/cloud/cloud-init.disabled`. Delete that file to run cloud-init again |
+| `osdos-setup-app.service`, `osdos-setup.service` | Run only with an `osdos-setup.json` on the boot partition |
+| `osdos-yt-dlp-update.timer` | Updates yt-dlp two minutes after each boot and once a day |
+| `osdos-usb-mount@<device>.service` | One per USB drive plugged in |
+| `osdos-media-folders.service` | Makes **Movies** on the film partition as it is mounted |
+| `osdos-netplay-priority.service` | Enabled. Marks a network game's packets for Wi-Fi's video queue ([Wi-Fi](#wi-fi)) |
+| `osdos-jamma.service` | Enabled. A JAMMA board's controls as two gamepads ([Controls](https://github.com/mehmetraif/OSD-OS/wiki/Controls#a-jamma-cabinet)). Exits without the JAMMA display preset |
+| `osdos-display.socket` | Enabled. Display Output's At Next Start |
+| `osdos-wifi.socket` | Enabled. The Wi-Fi country |
+| `osdos-name.socket` | Enabled. The device's name |
+| `osdos-terminal.service` | Not enabled. Started by Exit to Terminal |
+| `getty@tty1.service`, `autovt@.service` | Masked. `/etc/systemd/logind.conf.d/osdos.conf` sets `NAutoVTs=0`, `ReserveVT=0` |
+| `serial-getty@ttyAMA10.service` | Masked: no login on the Pi 5's debug UART |
+| `udisks2.service` | Masked |
+| `apt-daily.timer`, `apt-daily-upgrade.timer`, `man-db.timer`, `e2scrub_all.timer`, `dpkg-db-backup.timer`, `cron.service` | Disabled |
+| `rpi-connect-lite` | Purged |
 
 ### The service
 
-`osdos.service`, as the image has it (`systemctl cat osdos` shows it, with its comments, and its drop-in):
+`osdos.service`, as the image has it (`systemctl cat osdos` shows it with its drop-in):
 
 ```ini
 [Unit]
@@ -287,43 +237,36 @@ StandardError=journal
 WantedBy=multi-user.target
 ```
 
-- **After `sound.target`, not `multi-user.target`.** The default dependencies put it after `basic.target`. `Wants=network-online.target` pulls in the online check the boot screen ends on, without waiting for it.
-- **`SupplementaryGroups` and `CAP_SYS_TTY_CONFIG`** let it switch virtual terminals and hand the screen to mpv. A udev rule (`/etc/udev/rules.d/99-osdos-tty.rules`) lets the `tty` group open `/dev/tty0` for that.
-- **`OSDOS_AUTOSTART=1`** tells OSD/OS it runs as the system's own: Quit offers Power Off, Restart and Exit to Terminal, and Settings offers Display Output. With `OSDOS_MEDIA_DIR` (the OSD-OS partition), Quit offers Save Logs too: the logs copied to the partition's `Logs` folder, which a computer reads.
-- **`Restart=on-failure`** starts OSD/OS again five seconds after a crash or an error exit. **`StartLimitBurst=3`** in **`StartLimitIntervalSec=120`** makes the third start in two minutes the last: when that one fails too, the service is failed, and **`OnFailure=`** starts `osdos-terminal.service`, a login prompt on the screen. **`RestartMode=direct`** (systemd 254 or later; the image has 257) keeps the failures before that from bringing the prompt up too: without it, systemd runs `OnFailure=` at every failure, a restart to follow or not. The Pi stays on throughout.
-- **`SuccessExitStatus`** counts Exit to Terminal (10), a restart (12), a display switch (20 to 39, and 40 to 59 with a power-off) and a stop from outside (129, 130, 143) as no failure, so systemd neither starts OSD/OS again over them nor brings up the login prompt. An update's restart (11) is no failure either, and **`RestartForceExitStatus=11`** starts OSD/OS again for it, the launcher applying the update first. `osdos-stop` acts on them ([Quitting](https://github.com/mehmetraif/OSD-OS/wiki/The-OSD-OS-Image#quitting-restarting-and-exit-to-terminal)).
-- **The drop-in** `/etc/systemd/system/osdos.service.d/osdos-media.conf` adds `Environment=OSDOS_MEDIA_DIR=/media/OSD-OS`: Local Files opens the **Movies** folder on the film partition while its Media Directory setting is unset, and the Arcade module its **Games/Arcade** folder while its Games Folder setting is. Its `Wants=` and `After=media-OSD\x2dOS.mount` start OSD/OS once the partition's check and mount have been tried, so it never finds an empty Movies under the mount point nor makes its folders (an offline playlist's downloads) on the root partition. Wanted, not required: a partition that is missing or won't mount still lets OSD/OS start.
+- **`OSDOS_AUTOSTART=1`**: Quit offers Power Off, Restart and Exit to Terminal, and Settings offers Display Output.
+- **A crash** starts OSD/OS again after five seconds. When the third start in two minutes fails too, a login prompt comes up (`osdos-terminal.service`). The Pi stays on.
+- **The drop-in** `/etc/systemd/system/osdos.service.d/osdos-media.conf` sets `OSDOS_MEDIA_DIR=/media/OSD-OS`. Local Files then opens **Movies** there and the Arcade module **Games/Arcade**, while their folder settings are unset.
 
 ## Nothing between the app and the screen
 
 <img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/images/display-path.svg" width="100%" alt="How the picture reaches the TV on a desktop (labwc in between), in a kiosk (Xorg or cage in between), on the OSD/OS image (nothing in between, OSD/OS and mpv taking DRM master in turn), and on the OSD/OS image with Transparent Background (OSD/OS holds DRM master the whole time, mpv runs inside it as libmpv)" />
 
-On a desktop, OSD/OS and mpv are windows. They hand their frames to a compositor (labwc on Raspberry Pi OS), and the compositor holds the screen. A kiosk replaces the desktop with one full-screen window, but Xorg or cage still sits in between.
+The image has no display server: OSD/OS draws through Qt's EGLFS straight to the kernel's KMS/DRM driver. It hands the screen over, and takes it back, for:
 
-The image has no display server at all. OSD/OS draws through Qt's EGLFS platform straight to the kernel's KMS/DRM driver (vc4), as Kodi does on LibreELEC. Only one program draws at a time, the one holding the *DRM master*, so there are no windows to manage. `DisplayHandoff` gives the screen to whatever takes over and takes it back when that exits:
-
-- mpv (`--vo=drm`) while a video plays;
+- mpv (`--vo=drm`), for a video;
 - Chromium, in the `cage` kiosk compositor, for Netflix, Prime Video and YouTube's sign-in;
-- MAME or RetroArch, for a game in the Arcade module;
+- MAME or RetroArch, for an Arcade game;
 - a takeover script from the Scripts module.
 
-With **Transparent Background**, mpv runs inside OSD/OS as libmpv instead. OSD/OS then keeps the screen the whole time, draws the video as part of its own picture, and lays its menus over it. [How it works → The display path](https://github.com/mehmetraif/OSD-OS/wiki/How-It-Works#the-display-path) has the mechanics, and [Display Output](https://github.com/mehmetraif/OSD-OS/wiki/Display-Output) how the output itself is chosen.
+With **Transparent Background**, mpv runs inside OSD/OS as libmpv. See [How it works → The display path](https://github.com/mehmetraif/OSD-OS/wiki/How-It-Works#the-display-path) and [Display Output](https://github.com/mehmetraif/OSD-OS/wiki/Display-Output).
 
 ## Films on the card
 
-The card's free space becomes a partition of its own, in exFAT, labelled **OSD-OS**. Windows and macOS read and write exFAT, so films copied into its **Movies** folder from a computer show up in Local Files.
+The card's free space becomes an exFAT partition labelled **OSD-OS**. Films copied into its **Movies** folder from a computer show up in Local Files.
 
 ### How the card is split
 
-On the first boot, Raspberry Pi OS grows its system partition to the end of the card. The image replaces that step. Raspberry Pi OS does it in the initramfs, in a script called `resize_early` (from `raspberrypi-sys-mods`). A script of the same name in `/etc/initramfs-tools/scripts` overrides it, and the image puts [its own](https://github.com/mehmetraif/OSD-OS/blob/main/os/stage-osdos/05-media/files/resize_early) there:
+On the first boot of a freshly flashed card, the image's own [`resize_early`](https://github.com/mehmetraif/OSD-OS/blob/main/os/stage-osdos/05-media/files/resize_early) runs in the initramfs:
 
-1. It acts only on a freshly flashed card: when `resize` is on the kernel command line, which Raspberry Pi OS removes after the first boot.
-2. It grows the system partition (the second) to `OSDOS_ROOT_SIZE` GiB, 8 by default, counted from where it starts. It never shrinks it.
-3. It makes a third partition from the next 4 MiB boundary to the end of the card, of MBR type 0x07, where Windows looks for exFAT.
-4. It formats it with `mkfs.exfat -L OSD-OS`. The image's initramfs carries `mkfs.exfat` for this, and `blkid` (the hook `/etc/initramfs-tools/hooks/osdos-media`).
-5. Should less than **2 GiB** be left after the system, there is no film partition: the system takes the whole card, as on stock Raspberry Pi OS. The same goes for an image built with `OSDOS_ROOT_SIZE=0`.
+1. It grows the system partition to `OSDOS_ROOT_SIZE` GiB, 8 by default.
+2. It makes a third partition from the next 4 MiB boundary to the end of the card, MBR type 0x07.
+3. It formats it with `mkfs.exfat -L OSD-OS`.
 
-Nothing in it can stop the boot. A step that fails is logged, and the card is left as far as it got. A first boot cut short after the split finds the film partition there and leaves the partitions alone. One cut short between making the film partition and formatting it leaves the partition blank: the next boot formats it then, but only when `blkid` finds no file system on it at all. A partition with a file system of any kind, or one `blkid` can't read, is left as it is.
+With less than **2 GiB** left, or with `OSDOS_ROOT_SIZE=0`, there is no film partition: the system takes the whole card. A step that fails is logged and never stops the boot.
 
 | Partition | Label | File system | Size | Mounted at |
 |---|---|---|---|---|
@@ -331,7 +274,9 @@ Nothing in it can stop the boot. A step that fails is logged, and the card is le
 | 2 | `rootfs` | ext4 | 8 GiB (`OSDOS_ROOT_SIZE`) | `/` |
 | 3 | `OSD-OS` | exFAT | the rest of the card | `/media/OSD-OS` |
 
-The boot partition starts 8 MiB into the card, so the first two take about 8.5 GiB. A card needs about 10.5 GiB (11.3 GB as cards are sold) for a film partition. Worked out from these sizes, not measured: an 8 GB card gets none, a 16 GB card about 6 GiB of films, a 32 GB card about 21 GiB. The partition table is MBR, so on a disk over 2 TiB the partitions stop at 2 TiB. On a USB disk the system boots from, the film partition is `sda3` instead of `mmcblk0p3`.
+- A card needs about 10.5 GiB (11.3 GB as cards are sold) for a film partition. A 16 GB card gets about 6 GiB of films, a 32 GB card about 21 GiB.
+- The partition table is MBR: on a disk over 2 TiB the partitions stop at 2 TiB.
+- On a USB disk the system boots from, the film partition is `sda3` instead of `mmcblk0p3`.
 
 ### How it is mounted
 
@@ -341,41 +286,32 @@ The boot partition starts 8 MiB into the card, so the first two take about 8.5 G
 LABEL=OSD-OS  /media/OSD-OS  exfat  rw,noexec,nosuid,nodev,nofail,noatime,uid=1000,gid=1000,umask=0022,x-systemd.device-timeout=3s  0  2
 ```
 
-| Option | Why |
-|---|---|
-| `rw` | Films are copied onto it from a computer, and the Playlists module downloads its offline playlists' videos into it |
-| `noexec,nosuid,nodev` | It only ever holds media, and anyone with the card can write to it, so nothing on it can run |
-| `uid=1000,gid=1000,umask=0022` | exFAT keeps no owners, so its files belong to the user OSD/OS runs as |
-| `nofail`, `x-systemd.device-timeout=3s` | A card without the partition holds the boot, and OSD/OS, which waits for the mount to be tried, no more than 3 seconds |
-| `noatime` | No write each time a film is read |
-| `0  2` | Checked at every boot with `fsck.exfat` before it is mounted: switching the Pi off at the wall mid-download can leave it untidy |
+It is mounted read-write, nothing on it can run, and `fsck.exfat` checks it at every boot. A card without the partition holds the boot 3 seconds at most.
 
-The Playlists module writes each downloaded video to the card as it completes, into a **Playlists** folder in **Movies** (its Download Folder setting can name another).
+The Playlists module downloads into a **Playlists** folder in **Movies** (its Download Folder setting can name another).
 
 ### Copying films onto it
 
 1. Quit OSD/OS (Settings → Quit → Power Off) and take the card out.
-2. In a computer's card reader the card shows up as two drives, **bootfs** and **OSD-OS**. Copy films into the **Movies** folder on **OSD-OS**, in folders if you like.
-3. Windows also offers to format the system's partition, which it can't read. Always say no (**Cancel**): formatting it erases the system.
-4. Put the card back in the Pi. Local Files opens the **Movies** folder on **OSD-OS** (`/media/OSD-OS/Movies`) until its Media Directory setting names another folder ([Local Files](https://github.com/mehmetraif/OSD-OS/wiki/Local-Files)).
+2. In a computer the card shows up as two drives, **bootfs** and **OSD-OS**. Copy films into **Movies** on **OSD-OS**.
+3. If Windows offers to format the system's partition, choose **Cancel**: formatting erases the system.
+4. Put the card back. Local Files opens `/media/OSD-OS/Movies` until its Media Directory setting names another folder.
 
-Arcade games go on it too, beside **Movies**, so they never show among the films: the Arcade module plays the MAME ROM sets in a **Games/Arcade** folder on it, which it makes the first time it opens, or which you can make on the computer. Its Games Folder setting can name another ([Arcade](https://github.com/mehmetraif/OSD-OS/wiki/Arcade#setting-it-up)).
+Arcade games go in **Games/Arcade** beside **Movies** ([Arcade](https://github.com/mehmetraif/OSD-OS/wiki/Arcade#setting-it-up)).
 
-> **Flashing an image again erases the whole card**, the films on OSD-OS included: the new image's first boot formats the partition afresh. Copy the films off first ([Moving to a new image](https://github.com/mehmetraif/OSD-OS/wiki/The-OSD-OS-Image#moving-to-a-new-image)).
+> **Flashing an image again erases the whole card**, films included. Copy them off first ([Moving to a new image](https://github.com/mehmetraif/OSD-OS/wiki/The-OSD-OS-Image#moving-to-a-new-image)).
 
 ### A card flashed with an earlier image
 
-Images from before offline playlists mount the film partition read-only (`ro` in `/etc/fstab`), and offline playlists' downloads fail, naming the folder as the reason. Flash a new image, or edit the film partition's line in `/etc/fstab` (`/media/240-MP`, as those images named it): change `ro` to `rw,noexec,nosuid,nodev`, and its last `0` to `2`.
+If offline playlists' downloads fail, naming the folder as the reason, the film partition is mounted read-only (`ro` in `/etc/fstab`). Flash a new image, or edit its line in `/etc/fstab` (`/media/240-MP` on those images): change `ro` to `rw,noexec,nosuid,nodev`, and the last `0` to `2`.
 
 ## USB drives
 
-A USB stick or disk plugged into the Pi is mounted by itself, read-only, under `/media/usb`, in a folder named after its label. Local Files lists it at the top of its tree as `USB: <label>`. Pulled out, its folder goes, and so does its row.
+A USB stick or disk plugged into the Pi is mounted read-only under `/media/usb`, in a folder named after its label. Local Files lists it at the top of its tree as `USB: <label>`.
 
-- **Read-only**, so a drive can be pulled out at any moment, mid-film included, with nothing on it half written. A file system with a journal is mounted without replaying it, which would write to the drive.
-- **Its files belong to the user OSD/OS runs as** on FAT, exFAT, NTFS and HFS+, as the film partition's do, and nothing on it can run (`noexec`).
-- **Named after its label**, else its UUID, else its device. A slash becomes `_`; control characters, leading dots and spaces, and trailing spaces are taken out. Two drives with one label: the second is named after its device too (`KINGSTON (sdb1)`).
-- **Never the system's own.** A partition already mounted (what `/etc/fstab` mounts, the card's OSD-OS partition) or on the disk the system boots from is left alone.
-- **An app install doesn't do this**: Raspberry Pi OS Lite mounts nothing by itself. Local Files still lists a drive mounted under `/media` some other way.
+- **Read-only**: a drive can be pulled out at any moment. Nothing on it can run (`noexec`).
+- **Name**: its label, else its UUID, else its device. A second drive with the same label gets its device added (`KINGSTON (sdb1)`).
+- **Never the system's own**: a partition already mounted, or on the disk the system boots from, is left alone.
 
 | File system | Mounted as | Options besides `ro,nosuid,nodev,noexec` |
 |---|---|---|
@@ -393,13 +329,7 @@ A USB stick or disk plugged into the Pi is mounted by itself, read-only, under `
 
 ### How it works
 
-A udev rule, `/etc/udev/rules.d/99-osdos-usb-mount.rules`, starts a service for each file system that appears on a USB drive:
-
-```text
-ACTION=="add", SUBSYSTEM=="block", ENV{ID_BUS}=="usb", ENV{ID_FS_USAGE}=="filesystem", TAG+="systemd", ENV{SYSTEMD_WANTS}+="osdos-usb-mount@%k.service"
-```
-
-`osdos-usb-mount@<device>.service` is bound to the device (`BindsTo=dev-%i.device`): it runs `/usr/lib/osdos/usb-mount add <device>` as the drive comes and `usb-mount remove <device>` as it goes. The script notes each mount point in `/run/osdos-usb/<device>`, and unmounts lazily (`umount -l`), since a player may still hold a file open on a drive pulled out. Each mount, and why a drive couldn't be mounted, is in the journal:
+A udev rule, `/etc/udev/rules.d/99-osdos-usb-mount.rules`, starts `osdos-usb-mount@<device>.service` for each file system on a USB drive. It runs `/usr/lib/osdos/usb-mount add <device>` as the drive comes and `usb-mount remove <device>` as it goes. The journal has each mount, and why a drive couldn't be mounted:
 
 ```sh
 journalctl -u 'osdos-usb-mount@*'
@@ -411,55 +341,34 @@ usb-mount: /dev/sda1 (vfat) mounted read-only at /media/usb/KINGSTON
 
 ## Network, Wi-Fi and Bluetooth
 
-The network is NetworkManager's, as on Raspberry Pi OS. Settings → Network → Wi-Fi joins networks through it ([Settings → Network → Wi-Fi](https://github.com/mehmetraif/OSD-OS/wiki/Settings#wi-fi)); Raspberry Pi Imager's customisation, `network-config` before the first boot and a shell set it up too.
+The network is NetworkManager's, as on Raspberry Pi OS.
 
 ### Wi-Fi
 
-**In OSD/OS**, Settings → Network → Wi-Fi turns Wi-Fi on and off, searches for networks, joins one with its password typed on the on-screen keyboard (one that doesn't say its name too), and forgets saved ones. The service runs OSD/OS outside any login session, where NetworkManager would ask for a password nobody can type: the polkit rule `/etc/polkit-1/rules.d/50-osdos-networkmanager.rules` lets OSD/OS's user use the five NetworkManager actions they take, which reach every connection NetworkManager keeps (Ethernet's too), and nothing else.
+- **In OSD/OS**: Settings → Network → Wi-Fi ([Settings](https://github.com/mehmetraif/OSD-OS/wiki/Settings#wi-fi)). The polkit rule `/etc/polkit-1/rules.d/50-osdos-networkmanager.rules` lets OSD/OS's user use NetworkManager.
+- **The country**: Raspberry Pi OS keeps Wi-Fi off until it is set. Settings → Network → Wi-Fi asks for it. An image built with `WPA_COUNTRY` has it, and in `network-config` it is `regulatory-domain`.
+- **Power saving is off**: `/etc/NetworkManager/conf.d/osdos-wifi-powersave.conf` holds `wifi.powersave = 2` under `[connection]`. `iw dev wlan0 get power_save` says `off` once connected.
+- **A network game's packets go first**: `osdos-netplay-priority.service` has nftables read `/usr/lib/osdos/netplay-priority.nft`. Its table, `inet osdos_netplay`, marks TCP to and from RetroArch's port 55435 at private network addresses as CS4, which Wi-Fi sends from its video queue.
+- **To see or remove that marking**: `sudo nft list table inet osdos_netplay` shows the rules, and `sudo systemctl disable --now osdos-netplay-priority.service` removes them.
+- **Before the first boot**: add the network to `network-config` on **bootfs** ([Installation → Wi-Fi by hand](https://github.com/mehmetraif/OSD-OS/wiki/Installation#wi-fi-by-hand-network-config)).
+- **After the first boot**, from a shell with `sudo` ([The user, its password and sudo](https://github.com/mehmetraif/OSD-OS/wiki/The-OSD-OS-Image#the-user-its-password-and-sudo)): `sudo raspi-config` (System Options), or:
 
-Raspberry Pi OS starts every radio blocked (`rfkill.default_state=0`) so that Wi-Fi stays off until its country is set. Raspberry Pi Imager's customisation sets it with the network, an image built with `WPA_COUNTRY` has it from the start, and in `network-config` it is `regulatory-domain`. Without one, Settings → Network → Wi-Fi asks for the country as Wi-Fi is turned on, and sets it through `osdos-wifi.socket` ([The Wi-Fi country's socket](https://github.com/mehmetraif/OSD-OS/wiki/The-OSD-OS-Image#the-wi-fi-countrys-socket)).
-
-**Power saving is off.** The Pi's Wi-Fi driver (`brcmfmac`) sleeps between packets unless told not to, and wakes for each one. Raspberry Pi OS leaves it so (`iw dev wlan0 get power_save` says `on`), and the reports on it are of latency spikes, a fraction of the throughput (one measurement, 200 Mb/s down to 50) and connections that drop after a while, a Pi 5's overnight among them: a LAN game feels the spikes as a stutter, a stream as a buffer run dry, SSH as pauses. A box on the mains has nothing to save, so the image tells NetworkManager to keep the radio awake: `/etc/NetworkManager/conf.d/osdos-wifi-powersave.conf` holds `wifi.powersave = 2` (disable) under `[connection]`, the default for every connection whose own `powersave` is `0`, default, as those Imager, `network-config` and `nmcli` make are; the connections Settings → Network → Wi-Fi and OSD/OS Setup make say `powersave=2` themselves, so `nmcli -f 802-11-wireless.powersave connection show "MyHomeWiFi"` reads `2 (disable)` on them (on the others it reads `0 (default)`, the file's value standing behind it). `iw dev wlan0 get power_save` says `off` once connected. On a Raspberry Pi OS that isn't the image, the same file does the same after `sudo systemctl restart NetworkManager`, or one connection at a time: `sudo nmcli connection modify "MyHomeWiFi" 802-11-wireless.powersave 2`, in force the next time it connects (`nmcli connection down` and `up`).
-
-**A network game's packets go first.** A game on the local network is a small packet a frame each way, and is only as smooth as the latest of them. On Wi-Fi every packet waits its turn for the air with everything else there (a film streaming to the next room, a phone's backup), in one of four queues (WMM) picked by the packet's DSCP mark, which nothing sets for a game: it waits as best effort, behind all of it. The image marks them: `osdos-netplay-priority.service` has nftables read `/usr/lib/osdos/netplay-priority.nft`, a table of its own (`inet osdos_netplay`) that sets CS4, real-time interactive, on TCP to and from RetroArch's port 55435 at the private networks' addresses, which Wi-Fi sends from its video queue, ahead of best effort. The Pi's driver reads the mark of what the machine sends, and an access point that of what the other machine sent, so with every machine marking both ways go ahead; a game online, to an address on the internet, is left as it is, and a cable has no such queue to wait in. `sudo nft list table inet osdos_netplay` shows the rules, and `sudo systemctl disable --now osdos-netplay-priority.service` takes them away. Nothing depends on the unit: where the rules can't be read the packets go unmarked, as before.
-
-**What is left as Raspberry Pi OS has it**, and why: the radio keeps its own roaming (the driver's `roamoff` isn't set). Turned off, as is often advised for a Pi, it hands roaming to wpa_supplicant, which then searches every channel for another access point on NetworkManager's schedule (every five minutes on a network of more than one access point, a router with one name for its two bands among them, and every 30 seconds where the signal is weak), each search a stutter in a game; left on, the radio searches only when its signal has fallen low. The kernel's TCP settings are left too: netplay sends without delay already (`TCP_NODELAY`), and what is left to tune there changes nothing for a packet a frame. Wired, the delay is under a millisecond as it is.
-
-**Before the first boot**, with the card in a computer, open `network-config` on the **bootfs** drive. It is cloud-init's file, in netplan's format, and holds commented examples. cloud-init applies it on the first boot only. For one Wi-Fi network, the file can read:
-
-```yaml
-network:
-  version: 2
-  wifis:
-    wlan0:
-      dhcp4: true
-      optional: true
-      access-points:
-        "MyHomeWiFi":
-          password: "my-wifi-password"
-      regulatory-domain: GB
-```
-
-Use spaces, never tabs, to indent. `GB` is a two-letter country code: yours.
-
-**After the first boot**, `network-config` is no longer read. From a shell (Exit to Terminal, or SSH over Ethernet), `sudo raspi-config` sets Wi-Fi under System Options, or NetworkManager's own tool does:
-
-```sh
-sudo nmcli device wifi connect "MyHomeWiFi" password "my-wifi-password"
-```
-
-Both need `sudo`, so an image built with a password ([The user, its password and sudo](https://github.com/mehmetraif/OSD-OS/wiki/The-OSD-OS-Image#the-user-its-password-and-sudo)).
+  ```sh
+  sudo nmcli device wifi connect "MyHomeWiFi" password "my-wifi-password"
+  ```
 
 ### The local network
 
-The hostname is `osdos` (`TARGET_HOSTNAME`), unless Raspberry Pi Imager set another; Settings → System → About → System Information shows it and renames the device ([The device name's socket](https://github.com/mehmetraif/OSD-OS/wiki/The-OSD-OS-Image#the-device-names-socket)). Give each OSD/OS on one network a name of its own. avahi-daemon publishes it on the local network as `osdos.local`. Settings shows the Pi's IPv4 address in its title bar, Ethernet's before Wi-Fi's, read again every five seconds.
+- The hostname is `osdos` (`TARGET_HOSTNAME`), published as `osdos.local`.
+- Settings → System → About → System Information renames the device. Give each OSD/OS on one network its own name.
+- Settings shows the Pi's IPv4 address in its title bar, Ethernet's before Wi-Fi's.
 
 ### Bluetooth
 
-Settings → Network → Bluetooth searches for, pairs and connects keyboards, gamepads and remotes through BlueZ ([Controls](https://github.com/mehmetraif/OSD-OS/wiki/Controls)). The image prepares two things for it:
+Settings → Network → Bluetooth pairs and connects keyboards, gamepads and remotes through BlueZ ([Controls](https://github.com/mehmetraif/OSD-OS/wiki/Controls)). For it:
 
-- **The user OSD/OS runs as is in the `bluetooth` group**, which BlueZ's D-Bus policy lets in.
-- **Bluetooth is unblocked as bluetoothd starts.** After blocking every radio, Raspberry Pi OS unblocks Bluetooth only on the adapters pi-gen knows by device path. The Pi 4 this was found on wasn't one of them: its adapter stayed blocked, and BlueZ couldn't turn it on (`Failed to set mode: Failed (0x03)`). The drop-in `/etc/systemd/system/bluetooth.service.d/osdos-unblock.conf` unblocks it, and systemd-rfkill keeps it so from one boot to the next:
+- The user OSD/OS runs as is in the `bluetooth` group.
+- The drop-in `/etc/systemd/system/bluetooth.service.d/osdos-unblock.conf` unblocks Bluetooth as bluetoothd starts:
 
   ```ini
   # OSD/OS image: Bluetooth is switched in the app, through BlueZ; rfkill never blocks it.
@@ -467,14 +376,13 @@ Settings → Network → Bluetooth searches for, pairs and connects keyboards, g
   ExecStartPre=+-/usr/sbin/rfkill unblock bluetooth
   ```
 
-Bluetooth starts after OSD/OS is on screen. Settings → Network → Bluetooth calls BlueZ only once it is on the bus, so it doesn't start it early.
-
 ## SSH
 
-SSH is off on the image as it comes (`ENABLE_SSH=0`). Two ways to have it:
+SSH is off on the image as it comes (`ENABLE_SSH=0`). Three ways to have it:
 
-- **Raspberry Pi Imager's customisation** enables it, with the user it creates (Imager 2 needs the local manifest, see [Getting it onto a card](https://github.com/mehmetraif/OSD-OS/wiki/The-OSD-OS-Image#getting-it-onto-a-card)).
-- **Build the image with `ENABLE_SSH=1`.** SSH is then held back like the other services, after the local network, and has its own line on the boot screen. Built with `PUBKEY_SSH_FIRST_USER` too, a public key goes into `/home/pi/.ssh/authorized_keys`, and `PUBKEY_ONLY_SSH=1` turns password logins off.
+- **OSD/OS Setup** turns it on, with password login or keys only.
+- **Raspberry Pi Imager's customisation** enables it, with the user it creates.
+- **An image built with `ENABLE_SSH=1`** has it. `PUBKEY_SSH_FIRST_USER` adds a public key for `pi`, and `PUBKEY_ONLY_SSH=1` turns password logins off.
 
 Then, from a computer on the same network:
 
@@ -482,99 +390,78 @@ Then, from a computer on the same network:
 ssh pi@osdos.local
 ```
 
-or the address in Settings' title bar in place of `osdos.local`. The user, and whether it has a password, are set when the image is built (below).
+The address in Settings' title bar works in place of `osdos.local`.
 
 ## The user, its password and sudo
 
-The image's first user is `pi` (`FIRST_USER_NAME`), and OSD/OS runs as that user, whatever user Raspberry Pi Imager creates beside it. Its data folder is therefore `/home/pi/.local/share/OSD-OS`. pi-gen's first-boot rename wizard is off (`DISABLE_FIRST_BOOT_USER_RENAME=1`): the service needs the name it was built with, and the wizard would fight OSD/OS for `tty1`.
-
-The user is in pi-gen's groups (`adm dialout cdrom audio users sudo video games plugdev input gpio spi i2c netdev render`), and the image adds `bluetooth`. `adm` lets it read the system journal without `sudo`.
+- The first user is `pi` (`FIRST_USER_NAME`). OSD/OS runs as it, whatever user Raspberry Pi Imager creates.
+- Its groups are pi-gen's (`adm dialout cdrom audio users sudo video games plugdev input gpio spi i2c netdev render`) and `bluetooth`.
+- pi-gen's first-boot rename wizard is off (`DISABLE_FIRST_BOOT_USER_RENAME=1`).
 
 | Built | Logging in as `pi` | Exit to Terminal | `sudo` |
 |---|---|---|---|
-| With `FIRST_USER_PASS` (in CI, the secret `OS_FIRST_USER_PASS`) | With that password, on the console, and over SSH when SSH is on | A login prompt | Asks for that password |
-| Without one (the account is locked) | Not with a password; over SSH with a key (`PUBKEY_SSH_FIRST_USER`), on an image built with `ENABLE_SSH=1` | Logs `pi` in by itself | Unusable: there is no password to give |
+| With `FIRST_USER_PASS` (in CI, the secret `OS_FIRST_USER_PASS`) | With that password, on the console and over SSH | A login prompt | Asks for that password |
+| Without one (the account is locked) | Over SSH with a key only (`PUBKEY_SSH_FIRST_USER`, `ENABLE_SSH=1`) | Logs `pi` in by itself | Unusable |
 
-Without a password, `os/build.sh` hands pi-gen a random one and the stage locks it (`passwd -l pi`). Exit to Terminal would otherwise end at a login nobody can pass, so the terminal logs `pi` in by itself (`/etc/systemd/system/osdos-terminal.service.d/osdos-autologin.conf`). Whoever is at the keyboard could take the card out anyway. That shell has no root, though. For `sudo`, build the image with a password, or log in as the user Raspberry Pi Imager's customisation creates.
+For `sudo` on an image built without a password, give `pi` a password on OSD/OS Setup, or log in as the user Imager's customisation creates.
 
 ## Quitting, restarting and Exit to Terminal
 
 <table>
 <tr><th width="50%">Quit</th><th width="50%">Update</th></tr>
 <tr><td><img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/screenshots/quit.png" width="100%" alt="Really quit? with Yes, Save Logs and No" /></td><td><img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/screenshots/update.png" width="100%" alt="Update: installed version DEV, press Enter to check for the latest" /></td></tr>
-<tr><td>Settings → Quit, run by hand: Yes or No, with Save Logs between them. Started with the system, as on the image, it offers Power Off, Restart, Exit to Terminal, Save Logs and Cancel instead.</td><td>Settings → System → Update checks for a newer release and installs it.</td></tr>
+<tr><td>Settings → Quit, run by hand. On the image it offers the choices below.</td><td>Settings → System → Update.</td></tr>
 </table>
 
 Settings → **Quit** on the image asks **Really quit?** with:
 
-| Choice | Offered | OSD/OS exits with | Then |
-|---|---|---|---|
-| **Power Off** | Always | 0 | The Pi powers off |
-| **Restart** | Launcher API 2 or later (the image's is 7) | 12 | The Pi reboots |
-| **Exit to Terminal** | Always | 10 | A login shell on the screen (`tty1`); the Pi stays on |
-| **Cancel** | Always | | Back to Settings |
+| Choice | OSD/OS exits with | Then |
+|---|---|---|
+| **Power Off** | 0 | The Pi powers off |
+| **Restart** | 12 | The Pi reboots |
+| **Exit to Terminal** | 10 | A login shell on the screen (`tty1`); the Pi stays on |
+| **Save Logs** | | The logs are copied to the film partition's `Logs` folder (offered with that partition) |
+| **Cancel** | | Back to Settings |
 
-Ctrl+Q on a keyboard quits at once, from most screens, as Power Off does.
+Ctrl+Q on a keyboard quits at once, as Power Off does.
 
 ### osdos-stop
 
-The service's `ExecStopPost=+/usr/local/bin/osdos-stop` runs as root each time OSD/OS ends, with its exit code (or the signal that ended it) in `EXIT_STATUS`. That is how an app run as `pi` powers off, reboots and writes to the boot partition without `sudo`:
-
-```bash
-case "${EXIT_STATUS:-}" in
-    0)  systemctl poweroff ;;  # Quit → Power Off, or Ctrl+Q
-    10) systemctl start osdos-terminal.service ;;
-    11) : ;;  # in-app update restart — Restart=on-failure brings the app back up
-    12) systemctl reboot ;;  # the quit menu's Restart
-    2[0-9]|30) display_output "${DISPLAY_PRESETS[EXIT_STATUS - 20]}"; systemctl reboot ;;
-    # The same, then off: on the new output the next time the Pi is switched on.
-    4[0-9]|50) display_output "${DISPLAY_PRESETS[EXIT_STATUS - 40]}"; systemctl poweroff ;;
-    # Anything else leaves the Pi on: a stop from outside (129, 130, 143, or the
-    # signal itself), and a crash or an error exit, after which systemd starts
-    # the app again (Restart=on-failure), or brings up a login prompt.
-    *)  : ;;
-esac
-```
+`/usr/local/bin/osdos-stop` runs as root each time OSD/OS ends (`ExecStopPost=`), with the exit code in `EXIT_STATUS`. That is how OSD/OS powers off, reboots and writes to the boot partition without `sudo`.
 
 | Exit | From | Effect |
 |---|---|---|
 | 0 | Quit → Power Off, Ctrl+Q | Power off |
 | 10 | Quit → Exit to Terminal | `osdos-terminal.service` starts |
-| 11 | Update → Apply & Restart | Nothing: systemd starts OSD/OS again (`RestartForceExitStatus=11`) and the launcher applies the update first |
+| 11 | Update → Apply & Restart | systemd starts OSD/OS again, and the launcher applies the update first |
 | 12 | Quit → Restart | Reboot |
-| 20 to 28, 30 | Settings → Screen → Display Output | That output's preset written, then a reboot ([Display Output](https://github.com/mehmetraif/OSD-OS/wiki/Display-Output#what-the-switch-writes)) |
+| 20 to 28, 30 to 39 | Settings → Screen → Display Output | That output's preset written, then a reboot ([Display Output](https://github.com/mehmetraif/OSD-OS/wiki/Display-Output#what-the-switch-writes)) |
 | 29 | A new display output not kept | The previous preset written back, then a reboot |
-| 40 to 48, 50 | Settings → Screen → Display Output → Switch and Power Off | That output's preset written, then the Pi powers off |
-| 129, 130, 143, or killed by SIGHUP, SIGINT, SIGTERM or SIGKILL | `systemctl stop`, `systemctl restart`, a shutdown | Nothing: the Pi stays on |
-| anything else: a crash, an error exit such as 1 | | Nothing: systemd starts OSD/OS again five seconds later (`Restart=on-failure`). The third start in two minutes is the last; when it fails too, `osdos-terminal.service` starts (`OnFailure=`) |
-
-OSD/OS catches SIGTERM, SIGINT and SIGHUP and exits with 128 plus the signal's number (143, 130, 129), so `sudo systemctl stop osdos` and `sudo systemctl restart osdos` leave the Pi on.
+| 40 to 48, 50 to 59 | Display Output → Switch and Power Off | That output's preset written, then power off |
+| 129, 130, 143, or SIGHUP, SIGINT, SIGTERM, SIGKILL | `systemctl stop`, `systemctl restart`, a shutdown | Nothing: the Pi stays on |
+| anything else: a crash, an error exit | | systemd starts OSD/OS again five seconds later. After the third failure in two minutes, a login prompt comes up |
 
 ### The launcher API
 
-The launcher exports `OSDOS_LAUNCHER_API`, and OSD/OS offers only what the launcher and its stop helper can do:
+The launcher exports `OSDOS_LAUNCHER_API`. OSD/OS offers only what the launcher and its stop helper can do:
 
 | `OSDOS_LAUNCHER_API` | What it adds |
 |---|---|
-| set at all | The launcher applies staged updates: Settings → System → Update can install them |
-| 2 or more | `osdos-stop` reboots on exit 12: Quit offers Restart |
-| 3 or more | `osdos-stop` writes a display preset on exits 20 to 29, and the launcher takes the output a preset names: Settings offers Display Output |
-| 4 or more | `osdos-stop` also writes the JAMMA preset on exit 30: Display Output offers JAMMA 240p 15 kHz (720x240) |
-| 5 or more | `osdos-stop` also powers off after a preset on exits 40 to 50, and writes one for the next start through `osdos-display.socket`: Display Output offers Switch and Power Off and At Next Start |
-| 6 or more | `osdos-stop` also writes the JAMMA board's other modes on exits 31 to 38, and powers off after them on 51 to 58: Display Output offers them |
-| 7 or more | NetworkManager lets OSD/OS's user scan, join and forget networks and turn Wi-Fi on and off (the polkit rule `50-osdos-networkmanager.rules`), and `osdos-stop` sets the Wi-Fi country through `osdos-wifi.socket`: Settings offers Wi-Fi |
-| 8 or more | `osdos-stop` also names the device through `osdos-name.socket`: Settings → System → About → System Information renames it |
+| set at all | Staged updates: Settings → System → Update installs them |
+| 2 | Exit 12: Quit offers Restart |
+| 3 | Exits 20 to 29: Settings offers Display Output |
+| 4 | Exit 30: JAMMA 240p 15 kHz (720x240) |
+| 5 | Exits 40 to 50 and `osdos-display.socket`: Switch and Power Off, At Next Start |
+| 6 | Exits 31 to 38 and 51 to 58: the JAMMA board's other modes |
+| 7 | The polkit rule and `osdos-wifi.socket`: Settings offers Wi-Fi |
+| 8 | `osdos-name.socket`: System Information renames the device |
+| 9 | Exits 39 and 59: JAMMA 480i at 640 across |
 
-The image's launcher is level 8, as `install.sh`'s is.
+The image's launcher is level 9, as `install.sh`'s is.
 
 ### At Next Start's socket
 
-Settings → Screen → Display Output's **At Next Start** writes a preset while OSD/OS runs, as the Pi isn't to restart. `osdos-stop` does it as root, behind a socket ([Display Output → At the next start](https://github.com/mehmetraif/OSD-OS/wiki/Display-Output#at-the-next-start)):
-
-- **`osdos-display.socket`** listens on `/run/osdos-display.sock`, owned by root and OSD/OS's user's group, mode 0660, one connection at a time.
-- **`osdos-display@.service`** runs `osdos-stop next-start` for each request, the socket as its input and output.
-- **`osdos-stop next-start`** reads a preset's name, at most 64 characters, from a list of its own names (not `previous`), and writes that preset. It never repeats the name back. It answers `ok`, or why not, which it also logs; either way the request unit ends cleanly and is unloaded (`CollectMode=inactive-or-failed`).
-- **The output this boot started on** is kept in `/run/osdos-display-boot.txt` from the first request on. A switch made before the next start goes back to that one, not to the one waiting.
+Display Output's **At Next Start** writes a preset while OSD/OS runs ([Display Output → At the next start](https://github.com/mehmetraif/OSD-OS/wiki/Display-Output#at-the-next-start)). `osdos-display.socket` (`/run/osdos-display.sock`) has `osdos-stop next-start` write it, as root. `/run/osdos-display-boot.txt` keeps the output this boot started on, the one to go back to.
 
 ```sh
 journalctl -u 'osdos-display@*' -b    # what At Next Start did
@@ -582,11 +469,7 @@ journalctl -u 'osdos-display@*' -b    # what At Next Start did
 
 ### The Wi-Fi country's socket
 
-Raspberry Pi OS keeps Wi-Fi off until the country the Pi is used in is set, and setting it takes root. Settings → Network → Wi-Fi has `osdos-stop` set it, behind a socket, as At Next Start does:
-
-- **`osdos-wifi.socket`** listens on `/run/osdos-wifi.sock`, owned by root and OSD/OS's user's group, mode 0660, one connection at a time.
-- **`osdos-wifi@.service`** runs `osdos-stop wifi-country` for each request, the socket as its input and output. Unlike At Next Start's, it keeps the system's network (no `PrivateNetwork=`): raspi-config sets up the Pi's own Wi-Fi.
-- **`osdos-stop wifi-country`** reads a line, at most 64 characters, and takes it only as two capital letters that the time zone database lists as a country (`/usr/share/zoneinfo/iso3166.tab`, which raspi-config checks against too). It never repeats it back. It runs `raspi-config nonint do_wifi_country` with that code, which writes it into `/boot/firmware/cmdline.txt` (`cfg80211.ieee80211_regdom=`), sets it in the kernel (`iw reg set`) and turns Wi-Fi on (`nmcli radio wifi on`); what raspi-config says goes to the journal. It flushes the boot partition to the card, then answers `ok`; or it answers why not, which it also logs. Either way the request unit ends cleanly and is unloaded (`CollectMode=inactive-or-failed`).
+Settings → Network → Wi-Fi sets the country through `osdos-wifi.socket` (`/run/osdos-wifi.sock`) and `osdos-stop wifi-country`. It takes only a two-letter code that `/usr/share/zoneinfo/iso3166.tab` lists. `raspi-config nonint do_wifi_country` then writes it into `/boot/firmware/cmdline.txt` (`cfg80211.ieee80211_regdom=`) and turns Wi-Fi on.
 
 ```sh
 journalctl -u 'osdos-wifi@*' -b    # what setting the Wi-Fi country did
@@ -594,11 +477,7 @@ journalctl -u 'osdos-wifi@*' -b    # what setting the Wi-Fi country did
 
 ### The device name's socket
 
-The device's name is its hostname: what a router lists it under, what avahi-daemon publishes as `<name>.local`, and the name LAN Play's games are hosted under. Setting it takes root, so Settings → System → About → System Information has `osdos-stop` set it, behind a socket, as the Wi-Fi country is ([Settings → System → About → System Information](https://github.com/mehmetraif/OSD-OS/wiki/Settings#system-information)):
-
-- **`osdos-name.socket`** listens on `/run/osdos-name.sock`, owned by root and OSD/OS's user's group, mode 0660, one connection at a time.
-- **`osdos-name@.service`** runs `osdos-stop device-name` for each request, the socket as its input and output, without a network of its own (`PrivateNetwork=yes`): hostnamectl and systemctl reach their daemons over D-Bus.
-- **`osdos-stop device-name`** reads a line, at most 64 characters, and takes it only as a name the network takes: letters, digits and hyphens, 63 at most, neither end a hyphen, read as the C locale reads them whatever the system's language (under en_GB.UTF-8, a range such as A-Z takes ç and é too). It never repeats it back. It writes a new `/etc/hosts` aside, whose `127.0.1.1` line, as pi-gen and raspi-config keep it, names the device by the new name in place of the old, the names made of the old one (`<old>.lan`) following it, the line's other names and the file's other lines kept (the line added if there is none, the file made if there is none); sets the name with `hostnamectl set-hostname`, which writes `/etc/hostname`; and only then puts the new `/etc/hosts` in place, so that the two never name the device apart: should either step fail, it asks `hostnamectl` for the old name back. It restarts avahi-daemon, so that `<name>.local` follows at once, and flushes both files to the card. Then it answers `ok`; or it answers why not, which it also logs. Either way the request unit ends cleanly and is unloaded (`CollectMode=inactive-or-failed`).
+Settings → System → About → System Information renames the device through `osdos-name.socket` (`/run/osdos-name.sock`) and `osdos-stop device-name` ([Settings](https://github.com/mehmetraif/OSD-OS/wiki/Settings#system-information)). The name is the hostname, and the name LAN Play's games are hosted under: letters, digits and hyphens, 63 at most, neither end a hyphen. `hostnamectl set-hostname` sets it, and avahi-daemon restarts.
 
 ```sh
 journalctl -u 'osdos-name@*' -b    # what renaming the device did
@@ -606,69 +485,36 @@ journalctl -u 'osdos-name@*' -b    # what renaming the device did
 
 ### Exit to Terminal
 
-Exit to Terminal starts `osdos-terminal.service` on `tty1`:
+Exit to Terminal starts `osdos-terminal.service`, a login prompt on `tty1` (`agetty --noclear tty1 linux`). On an image built without a password, the drop-in `osdos-terminal.service.d/osdos-autologin.conf` logs `pi` in by itself. To come back to OSD/OS from that shell:
 
-```ini
-[Unit]
-Description=OSD/OS exit-to-terminal login shell
-
-[Service]
-Type=idle
-ExecStart=-/sbin/agetty --noclear tty1 linux
-StandardInput=tty
-StandardOutput=tty
-TTYPath=/dev/tty1
-TTYReset=yes
-TTYVHangup=yes
-KillMode=process
-Restart=no
-```
-
-On an image built without a password, its drop-in replaces the `ExecStart` with `agetty --autologin pi --noclear tty1 linux`. To come back to OSD/OS from that shell:
-
-- `sudo systemctl start osdos`: the service again, which first stops the terminal (needs the password);
-- `sudo reboot`: the Pi starts from scratch, into OSD/OS (needs the password);
-- `osdos`: the app run by hand in this shell, unmanaged; its Quit is then Yes or No, and Yes returns to the shell;
+- `sudo systemctl start osdos` or `sudo reboot` (both need the password);
+- `osdos`: the app run by hand, whose Quit returns to the shell;
 - or switch the Pi off and on again.
 
 ## Updates
 
 ### OSD/OS itself
 
-Settings → System → **Update** checks GitHub for the latest release ([Installation](https://github.com/mehmetraif/OSD-OS/wiki/Installation)). On an image made by a release:
+Settings → System → **Update** installs a newer release ([Installation → Updating](https://github.com/mehmetraif/OSD-OS/wiki/Installation#updating) has the steps). On the image:
 
-1. **CHECK** reads the latest release and its notes, and offers it only when its version is newer than the one installed: an older release is never offered. **DOWNLOAD** fetches its `OSD-OS-<version>-linux-arm64.tar.gz` into `~/.local/share/OSD-OS/updates`, checks it against the SHA-256 digest GitHub keeps for it, and needs three times its size free.
-2. **INSTALL** offers **Apply & Restart** and **Discard Update**. Apply & Restart arms the update (`staged.sha256`) and exits with 11.
-3. systemd starts OSD/OS again, and the launcher, before it starts the app, checks the tarball's SHA-256, unpacks it into `/opt/osdos/.new`, flushes it to the card and swaps its folders in, the old ones moved into `/opt/osdos/.old` on the way. The update stays staged until the swap has finished. A swap the power cut short is undone at the next start, the release before put back from `.old`, and the update applied again: the Pi starts on one release or the other, whole. A tarball that won't unpack is set aside rather than tried at every boot. Settings stay as they were.
-
-This works because `/opt/osdos` belongs to `pi`, the launcher's API is set, and the app is `/opt/osdos/bin/osdos`. `install.sh` run on the image (for a particular release, say) keeps the image's own `osdos.service` as it is, with its user, and brings the app, the launcher and the helpers around the service up to date.
-
-An update brings OSD/OS alone. What a newer release needs of the system, a package or one of the helpers around the service, comes with a newer image, or with `install.sh` run again, which keeps the settings. The Orb theme's Qt Quick 3D, in the image since 0.0.31, is such a package: a card flashed before needs it installed once ([Arcade → The Orb look](https://github.com/mehmetraif/OSD-OS/wiki/Arcade#the-orb-look)).
-
-An image built by the **OS image** workflow (or locally from a branch) has an app built as `dev`. Its Update screen checks, to read the notes, but says **Dev build — self-update is disabled.** That way a branch's image can't replace itself with a release that doesn't have the branch's changes.
+- The download is `OSD-OS-<version>-linux-arm64.tar.gz`, kept in `~/.local/share/OSD-OS/updates`.
+- **Apply & Restart** has the launcher swap the new version into `/opt/osdos`. Settings stay.
+- An update brings OSD/OS alone. A package a newer release needs comes with a newer image, or with `install.sh` run again.
+- Qt Quick 3D is such a package: a card flashed before 0.0.31 needs it installed once ([Arcade → The Orb look](https://github.com/mehmetraif/OSD-OS/wiki/Arcade#the-orb-look)).
+- An image built from a branch has a `dev` app. Its Update screen says **Dev build — self-update is disabled.**
 
 ### yt-dlp
 
-YouTube changes often, and a yt-dlp a few weeks old soon stops finding its videos. The image carries yt-dlp's latest nightly build in `~/.local/share/OSD-OS/bin/yt-dlp`, where OSD/OS looks first, and `osdos-yt-dlp-update.timer` replaces it with the newest build two minutes after each boot and once a day:
+The image carries yt-dlp's latest nightly build in `~/.local/share/OSD-OS/bin/yt-dlp`. `osdos-yt-dlp-update.timer` replaces it with the newest build two minutes after each boot and once a day.
 
-```ini
-[Service]
-Type=oneshot
-User=pi
-ExecCondition=/usr/lib/osdos/yt-dlp-wanted
-ExecCondition=/usr/bin/nm-online -q -t 300
-ExecStart=/home/pi/.local/share/OSD-OS/bin/yt-dlp --update
-Nice=19
-IOSchedulingClass=idle
-```
-
-A run goes ahead only while something uses yt-dlp: `yt-dlp-wanted` reads OSD/OS's `config.json` and `playlists.json`, and lets it run while the YouTube module is on, or while the Playlists module is on with a YouTube video on one of its lists. Otherwise it is skipped, not failed, as on an arcade cabinet or a box that plays only its own films. The YouTube module starts the update itself the first time it opens after OSD/OS starts (`systemctl start`, which `/etc/polkit-1/rules.d/50-osdos-yt-dlp-update.rules` lets the app's user do for this one unit), so a module turned on later never plays with a yt-dlp weeks old.
-
-A check is one small request to GitHub, an update one write of about 3 MB, at the lowest priority so a film playing isn't disturbed. Without a connection within five minutes the run is skipped, not failed: a player that only plays its own films may never be online. `journalctl -u osdos-yt-dlp-update` shows each run, and why one was skipped.
+- A run is skipped unless the YouTube module is on, or a playlist holds a YouTube video.
+- It is also skipped without a connection within five minutes.
+- The YouTube module starts the update itself the first time it opens.
+- `journalctl -u osdos-yt-dlp-update` shows each run, and why one was skipped.
 
 ### The system's packages
 
-Nothing updates the system's packages by itself: the apt timers are off. A newer image brings newer packages. To update by hand, from a shell, with `sudo`:
+Nothing updates the system's packages by itself. A newer image brings newer packages. To update by hand, with `sudo`:
 
 ```sh
 sudo apt update && sudo apt full-upgrade
@@ -676,68 +522,61 @@ sudo apt update && sudo apt full-upgrade
 
 ### Moving to a new image
 
-Flashing a new image replaces everything on the card: the system, OSD/OS's data folder (settings, lists, sign-ins) and the film partition. Before you flash, copy what you want to keep onto the film partition from a shell, then off the card with a computer:
+Flashing a new image erases the system, OSD/OS's data folder and the film partition. First copy the settings onto the film partition from a shell, then everything off the card with a computer:
 
 ```sh
 cp ~/.local/share/OSD-OS/config.json ~/.local/share/OSD-OS/lists.json /media/OSD-OS/
 ```
 
-After the new image's first boot, put the films back on OSD-OS from the computer, and the two files back into the data folder from Exit to Terminal (OSD/OS isn't running then):
+After the new image's first boot, put the films back from the computer, and the two files back from Exit to Terminal:
 
 ```sh
 cp /media/OSD-OS/config.json /media/OSD-OS/lists.json ~/.local/share/OSD-OS/
 ```
 
-Then start OSD/OS again ([Exit to Terminal](https://github.com/mehmetraif/OSD-OS/wiki/The-OSD-OS-Image#exit-to-terminal)). [Configuration files](https://github.com/mehmetraif/OSD-OS/wiki/Configuration-Files) lists the other files in the data folder.
+[Configuration files](https://github.com/mehmetraif/OSD-OS/wiki/Configuration-Files) lists the other files in the data folder.
 
 ## Where things live
 
 | Path | What |
 |---|---|
 | `/opt/osdos/bin/osdos` | The app |
-| `/opt/osdos/bin/osdos-jamma` | A JAMMA board's controls as gamepads, run by `osdos-jamma.service` |
-| `/opt/osdos/bin/osdos-modetest` | Shows a few video modes made for single games on the DPI output, one after another, and puts back the one it found: run by hand from Exit to Terminal, to see which a board and its monitor hold (`--help` says how) |
-| `/opt/osdos/share/osdos/` | Its QML, modules, assets, mpv scripts and `LICENSE` (the app's `APP_ROOT`) |
-| `/usr/local/bin/osdos` | The launcher: applies a staged update, picks the display, starts the app |
-| `/usr/local/bin/osdos-stop` | The stop helper, run as root when the app ends |
-| `/etc/systemd/system/osdos.service` | The service; its drop-in `osdos.service.d/osdos-media.conf` |
-| `/etc/systemd/system/osdos-terminal.service` | Exit to Terminal's login shell |
-| `/etc/systemd/system/osdos-display.socket`, `osdos-display@.service` | Display Output's At Next Start ([At Next Start's socket](https://github.com/mehmetraif/OSD-OS/wiki/The-OSD-OS-Image#at-next-starts-socket)) |
-| `/etc/systemd/system/osdos-wifi.socket`, `osdos-wifi@.service` | Settings → Network → Wi-Fi's country ([The Wi-Fi country's socket](https://github.com/mehmetraif/OSD-OS/wiki/The-OSD-OS-Image#the-wi-fi-countrys-socket)) |
-| `/etc/systemd/system/osdos-netplay-priority.service`, `/usr/lib/osdos/netplay-priority.nft` | A network game's packets marked for Wi-Fi's video queue ([Wi-Fi](https://github.com/mehmetraif/OSD-OS/wiki/The-OSD-OS-Image#wi-fi)) |
-| `/etc/systemd/system/osdos-name.socket`, `osdos-name@.service` | Settings → System → About → System Information's rename ([The device name's socket](https://github.com/mehmetraif/OSD-OS/wiki/The-OSD-OS-Image#the-device-names-socket)) |
-| `/etc/polkit-1/rules.d/50-osdos-networkmanager.rules` | Lets OSD/OS's user scan, join and forget networks and turn Wi-Fi on and off through NetworkManager from its service, which runs outside any login session, where polkit would otherwise ask for a password |
-| `/etc/systemd/system/osdos-cloud-init-once.service` | Turns cloud-init off after the first boot |
-| `/usr/local/sbin/osdos-setup`, `/etc/systemd/system/osdos-setup-app.service`, `osdos-setup.service` | Applies OSD/OS Setup's `osdos-setup.json` from the boot partition ([OSD/OS Setup](https://github.com/mehmetraif/OSD-OS/wiki/The-OSD-OS-Image#osdos-setup)) |
-| `/etc/systemd/system/osdos-jamma.service`, `/etc/modules-load.d/osdos-jamma.conf` | A JAMMA board's controls, and the kernel modules they go through (`i2c-dev`, `uinput`) |
-| `/etc/systemd/system/<unit>.d/osdos-defer.conf` | The held-back services' drop-ins |
+| `/opt/osdos/bin/osdos-jamma` | A JAMMA board's controls, run by `osdos-jamma.service` |
+| `/opt/osdos/bin/osdos-modetest` | Shows a few single games' video modes on the DPI output, then puts back the mode it found. Run it from Exit to Terminal (`--help` says how) |
+| `/opt/osdos/share/osdos/` | QML, modules, assets, mpv scripts and `LICENSE` (the app's `APP_ROOT`) |
+| `/opt/osdos/lib/osdos/fbneo_libretro.so`, `osdos_lan_libretro.so`, `/opt/osdos/share/osdos/fbneo/` | The FinalBurn Neo cores, their list of games and licence |
+| `/usr/local/bin/osdos`, `/usr/local/bin/osdos-stop` | The launcher and the stop helper |
+| `/usr/local/sbin/osdos-setup` | Applies OSD/OS Setup's file |
+| `/etc/systemd/system/` | The `osdos` units above, and the drop-ins `osdos.service.d/osdos-media.conf` and `<unit>.d/osdos-defer.conf` |
+| `/etc/systemd/system/osdos-netplay-priority.service`, `/usr/lib/osdos/netplay-priority.nft` | A network game's packets marked CS4 for Wi-Fi's video queue |
+| `/usr/lib/osdos/wait-for-app`, `wait-for-display`, `usb-mount`, `yt-dlp-wanted` | The image's helpers |
 | `/etc/osdos/boot-units` | What the boot screen follows |
-| `/usr/lib/osdos/wait-for-app`, `wait-for-display`, `usb-mount` | The image's helpers |
-| `/etc/udev/rules.d/99-osdos-tty.rules`, `99-osdos-usb-mount.rules`, `99-osdos-uinput.rules` | The `/dev/tty0` and USB drive rules, and `/dev/uinput` for the `input` group (a JAMMA board's gamepads) |
-| `/run/osdos/ready` | Written at OSD/OS's first frame |
-| `/run/osdos-display.sock`, `/run/osdos-display-boot.txt` | At Next Start's socket, and the display preset this boot started on once one waits for the next start |
-| `/run/osdos-wifi.sock` | The Wi-Fi country's socket |
-| `/home/pi/.local/share/OSD-OS/` | The data folder: `config.json`, `lists.json`, sign-ins, `bin/yt-dlp`, `updates/` ([Configuration files](https://github.com/mehmetraif/OSD-OS/wiki/Configuration-Files)) |
-| `/media/OSD-OS` | The film partition: films in `Movies`, the Arcade module's games in `Games/Arcade` |
-| `/media/usb/<label>` | USB drives, read-only |
-| `/boot/firmware/config.txt` | The firmware's settings, including `osdos-display.txt` |
-| `/boot/firmware/osdos-display.txt`, `osdos-display-*.txt` | The display output in force, and the presets ([Display Output](https://github.com/mehmetraif/OSD-OS/wiki/Display-Output)) |
-| `/boot/firmware/overlays/osdos-jamma-dpi.dtbo` | A JAMMA board's DPI pins on a Pi 5, without GPIO 0 and 1 ([Display Output](https://github.com/mehmetraif/OSD-OS/wiki/Display-Output#jamma-a-raspberry-pi-to-jamma-board)) |
-| `/boot/firmware/osdos-jamma.txt` | A JAMMA board's pins, should they differ from the built-in mapping: not there unless you write it ([Controls](https://github.com/mehmetraif/OSD-OS/wiki/Controls#a-jamma-cabinet)) |
-| `/boot/firmware/cmdline.txt` | The kernel's command line |
-| `/boot/firmware/network-config`, `user-data`, `meta-data` | cloud-init's first-boot files |
-| `/boot/firmware/osdos-setup.json`, `osdos-setup.log` | OSD/OS Setup's file, there until the card starts, and what became of it |
-| `/var/lib/osdos-setup/pending.json` | What of OSD/OS Setup's file is still to be set, root's alone, there from the moment the card takes it until the boot screen's SETTINGS is done |
+| `/etc/polkit-1/rules.d/50-osdos-networkmanager.rules` | Lets OSD/OS's user use NetworkManager for Wi-Fi |
+| `/etc/NetworkManager/conf.d/osdos-wifi-powersave.conf` | Wi-Fi power saving off |
+| `/etc/modules-load.d/osdos-jamma.conf` | The JAMMA controls' kernel modules (`i2c-dev`, `uinput`) |
+| `/etc/udev/rules.d/99-osdos-tty.rules`, `99-osdos-usb-mount.rules`, `99-osdos-uinput.rules` | `/dev/tty0` for the `tty` group, USB drives, `/dev/uinput` for the `input` group |
 | `/etc/initramfs-tools/scripts/local-premount/resize_early` | The first boot's card split |
-| `/usr/local/bin/deno` | The JavaScript runtime yt-dlp needs for YouTube |
-| `/usr/games/mame`, `/etc/mame/mame.ini` | MAME, which the Arcade module plays its games in, and MAME's own settings ([Arcade](https://github.com/mehmetraif/OSD-OS/wiki/Arcade)) |
-| `/usr/bin/retroarch`, `/opt/osdos/lib/osdos/fbneo_libretro.so`, `/opt/osdos/share/osdos/fbneo/` | RetroArch (Debian's) and the FinalBurn Neo core, the Arcade module's second engine, which comes with the app, with FinalBurn Neo's list of arcade games and its licence; the same core as every other OSD/OS of the release ([Arcade](https://github.com/mehmetraif/OSD-OS/wiki/Online-and-LAN-Play#the-same-engines-on-every-machine)) |
-| `/usr/share/doc/osdos/NOTICE` | What the image is made of, and under which licences |
-| `/tmp/osdos-mpv.log` | mpv's own log ([Logs](https://github.com/mehmetraif/OSD-OS/wiki/The-OSD-OS-Image#logs)) |
+| `/run/osdos/ready` | Written at OSD/OS's first frame |
+| `/run/osdos-display.sock`, `/run/osdos-wifi.sock`, `/run/osdos-name.sock` | The three sockets |
+| `/run/osdos-display-boot.txt` | The display preset this boot started on |
+| `/var/lib/osdos-setup/pending.json` | What of OSD/OS Setup's file is still to be set |
+| `/home/pi/.local/share/OSD-OS/` | The data folder: `config.json`, `lists.json`, sign-ins, `bin/yt-dlp`, `updates/` |
+| `/media/OSD-OS` | The film partition: `Movies`, `Games/Arcade` |
+| `/media/usb/<label>` | USB drives, read-only |
+| `/boot/firmware/config.txt`, `cmdline.txt` | The firmware's settings (they include `osdos-display.txt`) and the kernel's command line |
+| `/boot/firmware/osdos-display.txt`, `osdos-display-*.txt` | The display output in force, and the presets |
+| `/boot/firmware/overlays/osdos-jamma-dpi.dtbo` | A JAMMA board's DPI pins on a Pi 5 |
+| `/boot/firmware/osdos-jamma.txt` | A JAMMA board's pins, if you write it |
+| `/boot/firmware/network-config`, `user-data`, `meta-data` | cloud-init's first-boot files |
+| `/boot/firmware/osdos-setup.json`, `osdos-setup.log` | OSD/OS Setup's file, and what became of it |
+| `/usr/local/bin/deno` | The JavaScript runtime yt-dlp needs |
+| `/usr/games/mame`, `/etc/mame/mame.ini`, `/usr/bin/retroarch` | MAME, its settings, and RetroArch |
+| `/usr/share/doc/osdos/NOTICE` | What the image is made of, and its licences |
+| `/tmp/osdos-mpv.log` | mpv's own log |
 
 ## Logs
 
-OSD/OS writes its log to the journal. The first user is in the `adm` group, so it reads it without `sudo`:
+OSD/OS logs to the journal. The first user is in the `adm` group and reads it without `sudo`:
 
 ```sh
 journalctl -u osdos -b                    # this boot
@@ -750,43 +589,37 @@ journalctl -u 'osdos-display@*'           # Display Output's At Next Start
 journalctl -u 'osdos-wifi@*'              # Settings → Network → Wi-Fi's country
 ```
 
-mpv's messages reach the journal too, as `[mpv]` lines, with every token blanked out. mpv also writes its own, more detailed log to `/tmp/osdos-mpv.log`, of the last video only (mpv empties it as it starts); it is readable only by `pi`, as it can hold a server's token. [Troubleshooting](https://github.com/mehmetraif/OSD-OS/wiki/Troubleshooting) has more, and [How it works → Logs](https://github.com/mehmetraif/OSD-OS/wiki/How-It-Works#logs) the tags each part of OSD/OS logs under.
+mpv's own log of the last video is `/tmp/osdos-mpv.log`, readable only by `pi`. See [Troubleshooting](https://github.com/mehmetraif/OSD-OS/wiki/Troubleshooting) and [How it works → Logs](https://github.com/mehmetraif/OSD-OS/wiki/How-It-Works#logs).
 
 ## What it is made of: NOTICE and licences
 
-[`os/NOTICE`](https://github.com/mehmetraif/OSD-OS/blob/main/os/NOTICE), which the image carries as `/usr/share/doc/osdos/NOTICE`, lists what the image is made of and under which licences:
+[`os/NOTICE`](https://github.com/mehmetraif/OSD-OS/blob/main/os/NOTICE), on the image as `/usr/share/doc/osdos/NOTICE`, lists what the image is made of and under which licences:
 
-1. **OSD/OS**, under the GNU GPL version 3, with its licence at `/opt/osdos/share/osdos/LICENSE` and in Settings → System → About → License. Its source is the commit Settings → System → About → Build names. For the High Scores module it has openhi2txt (GPL-3.0) with RapidXML (Boost or MIT) built in, and hi2txt's game definitions (GPL-2.0) with it, their licence beside them in `/opt/osdos/share/osdos/modules/highscores/data/`; for the Arcade module, the LZMA SDK's 7z decoder (public domain); and for Export to OSD/OS Setup, Project Nayuki's QR Code generator (MIT, its notice in `/opt/osdos/share/osdos/assets/licenses/`).
-2. **Raspberry Pi OS's and Debian's packages**, unmodified, each with its own licence in `/usr/share/doc/<package>/copyright`. Which packages, at which versions, the image says itself: `dpkg-query -W` on it. Their source is in the Debian and Raspberry Pi archives, and OSD/OS offers the source of the GPL and LGPL software on an image for three years after it is published.
-3. **What the stage adds**: yt-dlp (public domain, The Unlicense), Deno (MIT; its licence in `/usr/local/share/doc/deno/LICENSE.md`), MAME (GPL-2.0 or later; Debian's `mame` and `mame-data` packages, from Debian's archive, with their copyright files in `/usr/share/doc`), RetroArch (GPL-3.0, Debian's `retroarch` package), FinalBurn Neo (Team FB Neo's own licence: it may be used and shared with its text, never sold, nor used by a project that asks for donations; OSD/OS's own build of libretro's source, unchanged, at the commit `scripts/engines.env` names, in `/opt/osdos/lib/osdos/`, its licence's full text in `/opt/osdos/share/osdos/fbneo/license.txt`), and Widevine, Google's proprietary module, from Raspberry Pi's archive as Raspberry Pi OS installs it. An image built with `OSDOS_YOUTUBE=0` has neither yt-dlp nor Deno; one built with `OSDOS_STREAMING=0` has no Chromium or Widevine; one built with `OSDOS_ARCADE=0` has no MAME, RetroArch or FinalBurn Neo.
-4. **The data the modules show**: TMDB (with the notice its terms ask for), Open-Meteo (CC BY 4.0) and Wikidata (CC0).
-5. **pi-gen's licence**, since its configuration stays on the image.
-6. **The Raspberry Pi firmware's licence**, which asks to be reproduced with it.
-7. **Trademarks**: Raspberry Pi is a trademark of Raspberry Pi Ltd, Debian a registered trademark of Software in the Public Interest, Inc., and the services' names their owners'. OSD/OS is endorsed by none of them.
+- **OSD/OS**, under the GNU GPL version 3 (`/opt/osdos/share/osdos/LICENSE`, and Settings → System → About → License), with what is built into it.
+- **Raspberry Pi OS's and Debian's packages**, each with its licence in `/usr/share/doc/<package>/copyright`. `dpkg-query -W` lists them.
+- **What the stage adds**: yt-dlp, Deno, MAME, RetroArch, FinalBurn Neo (Team FB Neo's own licence, in `/opt/osdos/share/osdos/fbneo/license.txt`) and Widevine (Google's, proprietary).
+- **The rest**: the notices for TMDB, Open-Meteo and Wikidata, pi-gen's and the Raspberry Pi firmware's licences, and the trademarks.
 
-[Credits](https://github.com/mehmetraif/OSD-OS/wiki/Credits) has who made OSD/OS and what it stands on.
+OSD/OS offers the source of the GPL and LGPL software on an image for three years after it is published. [Credits](https://github.com/mehmetraif/OSD-OS/wiki/Credits) has who made OSD/OS and what it stands on.
 
 ## Building the image yourself
 
-The image is built by pi-gen from the app's arm64 tarball: `OSD-OS-<version>-linux-arm64.tar.gz`, as a release has it, or one you build. `os/build.sh` does the rest.
+pi-gen builds the image from the app's arm64 tarball, `OSD-OS-<version>-linux-arm64.tar.gz`. `os/build.sh` does the rest.
 
 ### On GitHub
 
 1. Fork the repository and enable Actions on the fork.
-2. Optionally, add the repository secret `OS_FIRST_USER_PASS` (Settings → Secrets and variables → Actions): it becomes `pi`'s password. Without it the account is locked.
+2. Optionally, add the repository secret `OS_FIRST_USER_PASS` (Settings → Secrets and variables → Actions), which becomes `pi`'s password.
 3. Run the **OS image** workflow ([`os-image.yml`](https://github.com/mehmetraif/OSD-OS/blob/main/.github/workflows/os-image.yml)) from the Actions tab, on the branch you want.
-4. The image is the run's `osdos-image` artifact: the `.img.xz` and its `.info`, kept for 30 days. A failed run uploads pi-gen's logs as `pi-gen-logs`.
+4. The image is the run's `osdos-image` artifact (the `.img.xz` and its `.info`), kept for 30 days. A failed run uploads `pi-gen-logs`.
 
-The workflow also runs on every pull request that touches `os/`, `src/boot/`, `views/BootScreen.qml`, `views/Components/VhsCassette.qml`, `scripts/install.sh` or the workflow itself. It has two jobs, both on GitHub's arm64 runner (`ubuntu-24.04-arm`), so pi-gen needs no emulation:
-
-- **app** builds OSD/OS from the branch with `APP_VERSION` left at `dev` and packs it as `OSD-OS-dev-linux-arm64.tar.gz`;
-- **image** frees disk space, then runs `os/build.sh` on that tarball, with up to three hours to do it.
-
-**With a release**: pushing a version tag ([Building from source](https://github.com/mehmetraif/OSD-OS/wiki/Building-from-Source)) runs the release workflow, whose `build-os-image` job builds the image from that release's own tarball, names it `OSD-OS-<tag>-raspberry-pi.img.xz` and attaches it to the release, which is published only once the regression tests have passed on the tagged commit. Its app is the release's and updates itself from later releases.
+- The workflow also runs on pull requests that touch `os/`, `src/boot/`, `views/BootScreen.qml`, `views/Components/VhsCassette.qml`, `scripts/install.sh` or the workflow itself.
+- It runs on `ubuntu-24.04-arm`, with up to three hours for the image. Its app is built as `dev`.
+- A release's tag ([Building from source](https://github.com/mehmetraif/OSD-OS/wiki/Building-from-Source)) builds the image from that release's tarball and attaches it as `OSD-OS-<tag>-raspberry-pi.img.xz`.
 
 ### Locally
 
-You need Docker, on an arm64 Linux host. An x86 host works too, through QEMU emulation, but takes hours. First the tarball, built on an arm64 Debian or Ubuntu machine with the dependencies in [Building from source](https://github.com/mehmetraif/OSD-OS/wiki/Building-from-Source), the way the workflow does it:
+You need Docker, on an arm64 Linux host (an x86 host takes hours). First the tarball, built on an arm64 Debian or Ubuntu machine with the dependencies in [Building from source](https://github.com/mehmetraif/OSD-OS/wiki/Building-from-Source):
 
 ```sh
 cmake -B build -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX="$PWD/install/usr/local"
@@ -795,7 +628,9 @@ cmake --install build
 tar -czf OSD-OS-dev-linux-arm64.tar.gz -C install .
 ```
 
-Or download a release's tarball, whose app updates itself:
+This tarball has no FinalBurn Neo cores, which the `08-arcade` part requires. Build them into `install/usr/local` first ([BUILDING.md](https://github.com/mehmetraif/OSD-OS/blob/main/BUILDING.md#finalburn-neos-cores)), or set `OSDOS_ARCADE=0`.
+
+Or download a release's tarball:
 
 ```sh
 curl -fLO https://github.com/mehmetraif/OSD-OS/releases/download/<tag>/OSD-OS-<tag>-linux-arm64.tar.gz
@@ -807,7 +642,7 @@ Then the image:
 FIRST_USER_PASS='choose-a-password' os/build.sh OSD-OS-dev-linux-arm64.tar.gz
 ```
 
-The image lands in `os/work/pi-gen/deploy/`, named by pi-gen after the date and `IMG_NAME` (`image_<date>-osdos.img.xz`, and `<date>-osdos.info`).
+The image lands in `os/work/pi-gen/deploy/`, as `image_<date>-osdos.img.xz` with `<date>-osdos.info`.
 
 ### Its settings
 
@@ -815,20 +650,20 @@ All of them come through the environment:
 
 | Variable | Default | What it does |
 |---|---|---|
-| `FIRST_USER_PASS` | none | The first user's password. Without one the account is locked ([The user](https://github.com/mehmetraif/OSD-OS/wiki/The-OSD-OS-Image#the-user-its-password-and-sudo)) |
+| `FIRST_USER_PASS` | none | The first user's password. Without one the account is locked |
 | `FIRST_USER_NAME` | `pi` | The first user, as which OSD/OS runs |
-| `OSDOS_DISPLAY` | `hdmi` | The display preset the image starts on, by its name: `hdmi`, `crt-ntsc`, `crt-pal`, `crt-gpio-ntsc`, `crt-gpio-pal`, `scart-rgb-ntsc`, `scart-rgb-pal`, `scart-rgb-240p`, `scart-rgb-288p`, `jamma-240p`, `jamma-240p-native`, `jamma-240p-super`, `jamma-288p`, `jamma-288p-super`, `jamma-480i`, `jamma-480i-640`, `jamma-576i`, `jamma-25k`, `jamma-31k` ([Display Output](https://github.com/mehmetraif/OSD-OS/wiki/Display-Output)) |
-| `OSDOS_STREAMING` | `1` | `0` leaves out the browser Netflix, Prime Video and YouTube's sign-in open (Chromium, Widevine, cage, wtype), about 400 MB |
-| `OSDOS_YOUTUBE` | `1` | `0` leaves out yt-dlp, Deno and ffmpeg, about 90 MB; the YouTube module then says yt-dlp is missing |
-| `OSDOS_ARCADE` | `1` | `0` leaves out MAME (`mame`, `mame-data`), about 450 MB, and RetroArch with FinalBurn Neo, about 230 MB; the Arcade module then says MAME is not installed |
-| `OSDOS_ROOT_SIZE` | `8` | GiB the system keeps of the card; the rest becomes the film partition. A whole number. `0`: no film partition, the system takes the whole card |
-| `ENABLE_SSH` | `0` | `1` enables SSH, held back after the local network |
+| `OSDOS_DISPLAY` | `hdmi` | The display preset the image starts on: `hdmi`, `crt-ntsc`, `crt-pal`, `crt-gpio-ntsc`, `crt-gpio-pal`, `scart-rgb-ntsc`, `scart-rgb-pal`, `scart-rgb-240p`, `scart-rgb-288p`, `jamma-240p`, `jamma-240p-native`, `jamma-240p-super`, `jamma-288p`, `jamma-288p-super`, `jamma-480i`, `jamma-480i-640`, `jamma-576i`, `jamma-25k`, `jamma-31k` ([Display Output](https://github.com/mehmetraif/OSD-OS/wiki/Display-Output)) |
+| `OSDOS_STREAMING` | `1` | `0` leaves out Chromium, Widevine, cage and wtype, about 400 MB |
+| `OSDOS_YOUTUBE` | `1` | `0` leaves out yt-dlp, Deno and ffmpeg, about 90 MB |
+| `OSDOS_ARCADE` | `1` | `0` leaves out MAME (`mame`, `mame-data`), about 450 MB, and RetroArch with FinalBurn Neo, about 230 MB |
+| `OSDOS_ROOT_SIZE` | `8` | GiB the system keeps of the card, a whole number. `0`: no film partition |
+| `ENABLE_SSH` | `0` | `1` enables SSH |
 | `TARGET_HOSTNAME` | `osdos` | The hostname |
 | `IMG_NAME` | `osdos` | Part of the image's file name |
 | `DEPLOY_COMPRESSION` | `xz` | pi-gen's compression for the image |
-| `WPA_COUNTRY` | unset | The Wi-Fi country, set at build time |
+| `WPA_COUNTRY` | unset | The Wi-Fi country |
 | `LOCALE_DEFAULT` | pi-gen's, `en_GB.UTF-8` | The locale |
-| `KEYBOARD_KEYMAP`, `KEYBOARD_LAYOUT` | pi-gen's, `gb` and `English (UK)` | The console keyboard, Exit to Terminal's included |
+| `KEYBOARD_KEYMAP`, `KEYBOARD_LAYOUT` | pi-gen's, `gb` and `English (UK)` | The console keyboard |
 | `TIMEZONE_DEFAULT` | pi-gen's, `Europe/London` | The time zone |
 | `PUBKEY_SSH_FIRST_USER` | unset | A public key for the first user's SSH logins |
 | `PUBKEY_ONLY_SSH` | pi-gen's, `0` | `1` turns SSH's password logins off |
@@ -864,33 +699,33 @@ flowchart TD
     J --> K
 ```
 
-- pi-gen's stage 2 (Lite) is built but exports no image (`stage2/SKIP_IMAGES`); only `stage-osdos` does (its `EXPORT_IMAGE`).
-- `build.sh` makes the stage's scripts executable itself, since pi-gen silently skips a script that isn't, and a ZIP download or a Windows clone loses the bits.
-- Without `FIRST_USER_PASS` it prints `note: no FIRST_USER_PASS; the first user's password will be locked.`
+Without `FIRST_USER_PASS` it prints `note: no FIRST_USER_PASS; the first user's password will be locked.`
 
 ### The stage, part by part
 
+The parts are the folders of [`os/stage-osdos`](https://github.com/mehmetraif/OSD-OS/tree/main/os/stage-osdos):
+
 | Part | What it does | Left out by |
 |---|---|---|
-| [`00-packages`](https://github.com/mehmetraif/OSD-OS/tree/main/os/stage-osdos/00-packages) | What `install.sh` installs, without recommends and without `qt6-wayland`, plus alsa-utils: Qt 6, SDL2, pcsclite, mpv and libmpv2, FluidSynth, the TimGM6mb SoundFont and openmpt123 for the menu music, and polkitd, which reads the NetworkManager rule | |
-| [`01-app`](https://github.com/mehmetraif/OSD-OS/tree/main/os/stage-osdos/01-app) | The tarball unpacked into `/opt/osdos`, owned by `pi`; the launcher; the NOTICE | |
-| [`02-system`](https://github.com/mehmetraif/OSD-OS/tree/main/os/stage-osdos/02-system) | The service, the terminal, the stop helper, At Next Start's socket and the Wi-Fi country's, the NetworkManager polkit rule and its Wi-Fi power-saving switch-off, the marking of a network game's packets, the cloud-init switch, OSD/OS Setup's applier and its service, the tty rule, the JAMMA controls' service, modules and uinput rule, the boot order, the online check's 20 seconds, the Bluetooth unblock, the autologin of a locked user; the `bluetooth` group, the masked getty, the removed timers, cron and Raspberry Pi Connect | |
-| [`03-boot`](https://github.com/mehmetraif/OSD-OS/tree/main/os/stage-osdos/03-boot) | `config.txt`, the display presets and `osdos-display.txt` (from `OSDOS_DISPLAY`), the JAMMA preset's Pi 5 overlay (`osdos-jamma-dpi`, compiled with `device-tree-compiler`), the quiet `cmdline.txt` | |
-| [`04-streaming`](https://github.com/mehmetraif/OSD-OS/tree/main/os/stage-osdos/04-streaming) | `chromium`, `rpi-chromium-mods`, `libwidevinecdm0`, `libgl1-mesa-dri`, `fonts-liberation`, `cage`, `wtype` | `OSDOS_STREAMING=0` |
-| [`05-media`](https://github.com/mehmetraif/OSD-OS/tree/main/os/stage-osdos/05-media) | `exfatprogs`, the `resize_early` override and its initramfs hook, `/media/OSD-OS`, its `fstab` line, `osdos-media-folders.service` and `OSDOS_MEDIA_DIR` | `OSDOS_ROOT_SIZE=0` |
-| [`06-youtube`](https://github.com/mehmetraif/OSD-OS/tree/main/os/stage-osdos/06-youtube) | Python with pycryptodome, requests and brotli; ffmpeg; yt-dlp's nightly build, checked against its SHA-256 sums; Deno, pinned (today `v2.9.7`) with its checksum and licence; the update timer | `OSDOS_YOUTUBE=0` |
-| [`07-usb`](https://github.com/mehmetraif/OSD-OS/tree/main/os/stage-osdos/07-usb) | `ntfs-3g`, the USB rule, unit and script, `/media/usb` | |
-| [`08-arcade`](https://github.com/mehmetraif/OSD-OS/tree/main/os/stage-osdos/08-arcade) | Debian's `mame` and `mame-data`: MAME 0.276 for the Arcade module, with its data and plugins (the hiscore plugin among them), about 450 MB with what they depend on; Debian's `retroarch`, about 200 MB more; FinalBurn Neo's cores come with the app. Its `00-run.sh` checks that the app brought them and that Debian's MAME and RetroArch are the versions `scripts/engines.env` names | `OSDOS_ARCADE=0` |
+| `00-packages` | What `install.sh` installs, without `qt6-wayland`, plus alsa-utils | |
+| `01-app` | The tarball unpacked into `/opt/osdos`, owned by `pi`; the launcher; the NOTICE | |
+| `02-system` | The service, its helpers and sockets, the polkit rule, Wi-Fi power saving, the network game marking (`nftables`), OSD/OS Setup, the JAMMA controls, the boot order, the masked and disabled units | |
+| `03-boot` | `config.txt`, the display presets and `osdos-display.txt` (from `OSDOS_DISPLAY`), the JAMMA preset's Pi 5 overlay, the quiet `cmdline.txt` | |
+| `04-streaming` | `chromium`, `rpi-chromium-mods`, `libwidevinecdm0`, `libgl1-mesa-dri`, `fonts-liberation`, `cage`, `wtype` | `OSDOS_STREAMING=0` |
+| `05-media` | `exfatprogs`, the `resize_early` override, `/media/OSD-OS`, its `fstab` line, `osdos-media-folders.service` and `OSDOS_MEDIA_DIR` | `OSDOS_ROOT_SIZE=0` |
+| `06-youtube` | Python with pycryptodome, requests and brotli; ffmpeg; yt-dlp's nightly build; Deno, pinned (today `v2.9.7`); the update timer | `OSDOS_YOUTUBE=0` |
+| `07-usb` | `ntfs-3g`, the USB rule, unit and script, `/media/usb` | |
+| `08-arcade` | Debian's `mame`, `mame-data` and `retroarch`, checked against the versions `scripts/engines.env` names | `OSDOS_ARCADE=0` |
 
-A file named `00-packages-nr` is pi-gen's list of packages to install without their recommends. To put another package on the image, add its name to [`os/stage-osdos/00-packages/00-packages-nr`](https://github.com/mehmetraif/OSD-OS/blob/main/os/stage-osdos/00-packages/00-packages-nr), for example a line with `mc` for Midnight Commander.
+To put another package on the image, add its name to [`os/stage-osdos/00-packages/00-packages-nr`](https://github.com/mehmetraif/OSD-OS/blob/main/os/stage-osdos/00-packages/00-packages-nr), for example a line with `mc` for Midnight Commander.
 
 ## See also
 
-- [Installation](https://github.com/mehmetraif/OSD-OS/wiki/Installation): flashing the image, or installing OSD/OS as an app
-- [Display Output](https://github.com/mehmetraif/OSD-OS/wiki/Display-Output): HDMI, composite and SCART RGB, and their cables
-- [Audio Output](https://github.com/mehmetraif/OSD-OS/wiki/Audio-Output): the AV jack, HDMI or a USB sound card
-- [How it works](https://github.com/mehmetraif/OSD-OS/wiki/How-It-Works): the app inside, the display path and playback
-- [Local Files](https://github.com/mehmetraif/OSD-OS/wiki/Local-Files): the films on the card and on USB drives
-- [Configuration files](https://github.com/mehmetraif/OSD-OS/wiki/Configuration-Files): the data folder
+- [Installation](https://github.com/mehmetraif/OSD-OS/wiki/Installation)
+- [Display Output](https://github.com/mehmetraif/OSD-OS/wiki/Display-Output): HDMI, composite and SCART RGB
+- [Audio Output](https://github.com/mehmetraif/OSD-OS/wiki/Audio-Output)
+- [How it works](https://github.com/mehmetraif/OSD-OS/wiki/How-It-Works)
+- [Local Files](https://github.com/mehmetraif/OSD-OS/wiki/Local-Files)
+- [Configuration files](https://github.com/mehmetraif/OSD-OS/wiki/Configuration-Files)
 - [Troubleshooting](https://github.com/mehmetraif/OSD-OS/wiki/Troubleshooting)
 - [Building from source](https://github.com/mehmetraif/OSD-OS/wiki/Building-from-Source)

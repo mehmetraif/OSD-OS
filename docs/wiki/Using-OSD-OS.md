@@ -1,23 +1,23 @@
 # Using OSD/OS
 
-A tour of OSD/OS, screen by screen, as you meet them: the boot screen, the main menu, the tree every module is browsed with, searching, info screens and options, playing a video and the menus over it, the logo in the corner, and quitting. Every screen is drawn like a VCR's on-screen display, in the color scheme's two colors, and works with the arrows, select and back. [Controls](https://github.com/mehmetraif/OSD-OS/wiki/Controls) lists which key, button or remote button does each; the pictures are the app itself at 640×480.
+A tour of OSD/OS, screen by screen. Every screen works with the arrows, select and back; [Controls](https://github.com/mehmetraif/OSD-OS/wiki/Controls) lists which key or button does each.
 
 <p align="center"><img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/images/default-look.gif" width="640" alt="OSD/OS as it comes, in two colors: the main menu, Local Files' tree, the Arcade screen's games on a 3D wheel, its filters and the games others host online, and Settings" /></p>
 
 ## The basics
 
-Everything is done with a handful of actions:
-
 | Action | Keyboard | Gamepad | What it does |
 |---|---|---|---|
-| The arrows | ▲ ▼ ◄ ► | D-pad, left stick | ▲ ▼ move through a list. ◄ ► change a setting's value (one shown between ◄ and ►), ► opens a row that ends in ►, and in a tree they go up a level or open one |
+| The arrows | ▲ ▼ ◄ ► | D-pad, left stick | ▲ ▼ move through a list. ◄ ► change a value, or move through a tree. ► opens a row that ends in ► |
 | Select | Enter | A | Opens, plays, chooses |
 | Back | Esc, Backspace or Right Shift | B or Back | One step back. On the main menu it opens Settings |
 | ► on an entry | ► | D-pad right | A video's options, or its info screen |
 | Play/pause | Space | Start | Pauses a video; stops one playing behind the menus |
-| The mouse | Left click, right click, the wheel | | Over a menu the selection follows the pointer; a left click selects, a right click goes back, the wheel moves up and down |
+| The mouse | Left click, right click, the wheel | | Select, back, and up or down |
 
-The bar at the foot of every screen (the hint bar) says which keys do what there, as `[ESC]:BACK [▲▼]:NAVIGATE [ENTER]:SELECT`, and switches to the gamepad's buttons once you press one. A ▲ above a list or a ▼ below it means there are more lines that way. A line too long for the screen scrolls through while the cursor is on it.
+- The hint bar at the foot of every screen names the keys that work there: `[ESC]:BACK [▲▼]:NAVIGATE [ENTER]:SELECT`.
+- A ▲ above a list or a ▼ below it means more lines that way.
+- A line too long for the screen scrolls while the cursor is on it.
 
 How you move between the screens:
 
@@ -38,87 +38,86 @@ flowchart TD
     vmenu -- "Close Video" --> menu
 ```
 
-With [Transparent Background](https://github.com/mehmetraif/OSD-OS/wiki/Using-OSD-OS#transparent-background) on, the video goes on playing behind wherever back leads, and the main menu's first row takes it back to full screen. Without it, Browse leaves the video stopped, and the main menu's first row starts it again where it was.
+With [Transparent Background](https://github.com/mehmetraif/OSD-OS/wiki/Using-OSD-OS#transparent-background) on, the video plays on behind wherever back leads.
 
 ## The boot screen
 
 <img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/screenshots/boot.png" width="100%" alt="The boot screen: PLAY, the OSD/OS cassette, a progress bar at 50%, LOADING, and the services: WI-FI and BLUETOOTH OK, LOCAL NETWORK starting, SSH and ONLINE waiting" />
 
-On the [OSD/OS image](https://github.com/mehmetraif/OSD-OS/wiki/The-OSD-OS-Image), OSD/OS is on screen before the rest of the system has started, and the boot screen shows the rest coming up. It is a VCR playing a tape: **PLAY ▶** in the corner, and the OSD/OS cassette, whose reels turn and whose tape winds from the left reel onto the right one as the bar under it fills. Under the bar, **LOADING** and how far it has got, then a line per service, in the order they start:
+On the [OSD/OS image](https://github.com/mehmetraif/OSD-OS/wiki/The-OSD-OS-Image) the boot screen shows the system's services coming up, a line each:
 
 | Line | Means |
 |---|---|
 | `[ OK ] WI-FI` | Started (NetworkManager, which runs Ethernet too) |
-| `[ .. ] BLUETOOTH` | Starting now; the line is inverted, like a selected menu line |
-| `[    ] LOCAL NETWORK` | Waiting its turn (avahi, which makes the Pi `osdos.local` on the network) |
+| `[ .. ] BLUETOOTH` | Starting now; the line is inverted |
+| `[    ] LOCAL NETWORK` | Waiting its turn (avahi, which makes the Pi `osdos.local`) |
 | `[FAIL] …` | It failed to start |
 | `[ -- ] …` | Skipped, as its conditions weren't met |
 
-`SSH` has a line when the image was built with SSH on, and the last line, `ONLINE`, waits until the network is really up, or 20 seconds without one. The screen closes by itself once every line has settled, or after a minute, whatever keys are pressed: no key does anything while it is up but Ctrl+Q, which powers the Pi off. Then the main menu opens, or the module Settings → Startup → Start on Module names, or the favourite set to [play at startup](https://github.com/mehmetraif/OSD-OS/wiki/Using-OSD-OS#play-at-startup).
-
-On an app install (Raspberry Pi OS, macOS, SteamOS) there is no boot screen: OSD/OS opens on the main menu.
-
-**After Settings → Screen → Display Output** switched to another output, the first thing on the new one, over the boot screen, is **Keep this display output?**, with the time left. **Keep** keeps it; **Switch Back**, where the cursor starts, back, or 30 seconds without an answer, goes back to the old output, restarting again: on a screen that shows nothing, a key pressed at random must not keep it. [Display Output](https://github.com/mehmetraif/OSD-OS/wiki/Display-Output) has the rest.
+- `SSH` has a line when the image was built with SSH on.
+- The last line, `ONLINE`, waits until the network is up, or 20 seconds.
+- The screen closes once every line has settled, or after a minute. Until then the only key that works is Ctrl+Q, which powers the Pi off.
+- Any other install has no boot screen.
+- **After a Display Output change** the new output asks **Keep this display output?** **Keep** keeps it. **Switch Back**, back, or 30 seconds without an answer returns to the old output ([Display Output](https://github.com/mehmetraif/OSD-OS/wiki/Display-Output)).
 
 ## The main menu
 
 <img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/screenshots/main-menu.png" width="100%" alt="The main menu: OSD/OS's logo and name in the title bar, the status icons at its right, then the modules: AMBIENT:MODE, ARCADE, EMBY, HIGH SCORES, JELLYFIN, LOCAL FILES, NETFLIX, NFC READER, PLAYLISTS, and a ▼ for more" />
 
-The main menu lists the modules, like the inputs on a deck: Local Files, Plex, YouTube and the rest. Select opens one; back opens Settings.
+The main menu lists the modules that are turned on, in the order of their folders' names. Select opens one; back opens Settings.
 
-- **Which modules.** Only the modules that are turned on, in the order of their folders' names (`modules/ambient_mode`, `arcade`, `emby`, …). Out of the box, **Local Files** and **Playlists** are on. Turn others on in Settings, with the **Enabled** row on each module's page: the video modules' and Weather's are under **Modules** on the **TV / Movie** page, Arcade and High Scores share the **Arcade** page, and Scripts is under **Modules** on the **System** page. The picture above has most of them on. With none on, the menu says **No modules enabled** and **Please enable one in settings**.
-- **Rows a module adds.** A module can put rows of its own on the menu, after the modules: a script you marked in [Scripts](https://github.com/mehmetraif/OSD-OS/wiki/Scripts) has one, which runs it.
-- **The video playing behind.** With [Transparent Background](https://github.com/mehmetraif/OSD-OS/wiki/Using-OSD-OS#transparent-background), a video left playing behind the menus leads the list as `► <its title>`, with the cursor on it.
-- ▲ ▼ go round from the last row to the first. The menu remembers the row you left it on.
-- **As a camcorder's menu.** With Settings → Look → **Menu Layout** on Camcorder, the modules are in groups, each an icon in a column at the left: **TV / Movie**, **Arcade**, **More** (the modules of neither) and **Settings**, the rows of one beside the column. ◄ goes to the icons, ▲ ▼ there from group to group, ► or select back into the rows ([Settings → Menu Layout](https://github.com/mehmetraif/OSD-OS/wiki/Settings#menu-layout)).
-- **As a studio monitor's menu.** Menu Layout's **Studio Monitor** puts the same groups in a monitor's window, their icons in its blue strip; **Broadcast** lists the modules on plain blue, a row for Settings at the end; **Flat Panel** lists them on black, a page at a time ([Settings → Menu Layout](https://github.com/mehmetraif/OSD-OS/wiki/Settings#menu-layout)).
+- **On by default**: Local Files and Playlists.
+- **Turning one on**: the **Enabled** row on the module's Settings page. The video modules and Weather are on **TV / Movie**, Arcade and High Scores on **Arcade**, Scripts on **System**.
+- With none on, the menu says **No modules enabled** and **Please enable one in settings**.
+- A script marked in [Scripts](https://github.com/mehmetraif/OSD-OS/wiki/Scripts) has a row of its own, which runs it.
+- A video playing behind the menus leads the list as `► <its title>` ([Transparent Background](https://github.com/mehmetraif/OSD-OS/wiki/Using-OSD-OS#transparent-background)).
+- ▲ ▼ go round from the last row to the first. The menu remembers the row you left.
+- Settings → Look → **Menu Layout** lays the menu out differently ([Settings → Menu Layout](https://github.com/mehmetraif/OSD-OS/wiki/Settings#menu-layout)).
 
-[Modules](https://github.com/mehmetraif/OSD-OS/wiki/Modules) describes each module, and its own page how to set it up.
+[Modules](https://github.com/mehmetraif/OSD-OS/wiki/Modules) describes each module.
 
 ## The tree
 
-Local Files, YouTube, Netflix, Prime Video, Arcade and High Scores are all browsed the same way, as a horizontal tree, and so are the playlists' Add Videos and the pickers for folders and files in Settings. (Plex, Jellyfin and Emby have list screens of their own, and Weather, Ambient:Mode, NFC Reader and Scripts screens of their own: see their pages.)
+Local Files, YouTube, Netflix, Prime Video, Arcade and High Scores are browsed as a horizontal tree. So are Playlists' Add Videos and the folder and file pickers in Settings. The other modules have screens of their own.
 
 <table>
 <tr><th width="50%">Recently Watched</th><th width="50%">Folders</th></tr>
 <tr><td><img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/screenshots/local-files.png" width="100%" alt="Local Files' tree at the top: RECENTLY WATCHED under the cursor, a dotted line to its entries, then FAVORITES, SEARCH, ACTION, ADVENTURE, ANIMATION, their lines faint" /></td><td><img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/screenshots/tree.png" width="100%" alt="Local Files, ACTION open: RAMBO MOVIES under the cursor, branching to its four films, then CLIFFHANGER, COBRA, KILL BILL VOL 1, KILL BILL VOL 2 and TANGO AND CASH" /></td></tr>
-<tr><td>The tree opens on what you played last, then Favorites, Search and your folders. The entry under the cursor branches out to its contents in full; the other folders' branches are faint.</td><td>The open folders run along the line through the middle. The folder under the cursor branches out once more: Action › Rambo Movies › its films.</td></tr>
+<tr><td>The tree opens on what you played last, then Favorites, Search and your folders.</td><td>The open folders run along the line through the middle.</td></tr>
 </table>
 
-**How it is drawn.** The folders you have opened run from left to right along a line through the middle of the screen, the spine. Each folder's entries are stacked above and below the one the spine runs through, which is the one that leads on. In the folder you are in, every folder branches off to the right, on a dotted line, to its first few entries, and the folder under the cursor shows more of its own and branches once more from each folder in it: you see two levels ahead before opening anything. Only the branches of the folder under the cursor are drawn in full, the rest faint, so the folders side by side don't run together. Local Files and the folder picker show a folder's every entry in its branch, not just its first few. Folders opened further back slide off to the left, the spine running on from the edge of the screen. The title bar names the folder you are in. A folder still being read shows `loading…`; the folder under the cursor, if it is empty, `(empty)`, and any other empty folder no branch at all. The branches grow once the cursor stops moving.
-
-**Moving.**
+- The folders you opened run left to right along a line through the middle of the screen. Each branches to its entries, so two levels show ahead.
+- The title bar names the folder you are in.
+- A folder still being read shows `loading…`. An empty folder under the cursor shows `(empty)`.
 
 | Key | What it does |
 |---|---|
-| ▲ ▼ | Move through the folder you are in, round from the last entry to the first |
+| ▲ ▼ | Move through the folder, round from the last entry to the first |
 | ► or select on a folder | Open it |
-| ◄ | Back up to the folder before (at the top, nothing) |
-| Back | Back up to the folder before; at the top, leave the module for the main menu |
+| ◄ or back | Back up to the folder before. At the top, back leaves the module |
 | Select on a video | Play it |
 | ► on a video | Its options, or in Netflix, Prime Video and YouTube its [info screen](https://github.com/mehmetraif/OSD-OS/wiki/Using-OSD-OS#info-screens) |
 
-The hint bar follows the entry under the cursor: on a folder `[ESC]:BACK [▲▼◄►]:NAVIGATE [ENTER]:OPEN`, on a file `[ESC]:BACK [▲▼◄]:NAVIGATE [►]:OPTIONS [ENTER]:PLAY` (► is taken by the options there). Each folder remembers the entry you left it on, and coming back from a video reopens the tree exactly where it was.
+- The hint bar follows the entry under the cursor: `[ENTER]:OPEN` on a folder, `[►]:OPTIONS [ENTER]:PLAY` on a file.
+- Each folder remembers the entry you left it on. Coming back from a video reopens the tree where it was.
 
-**What is at the top.** Every module's tree but High Scores' starts with the same three entries, then the module's own:
+Every module's tree but High Scores' starts with the same three entries, then the module's own (see its page):
 
 - **Recently Watched**: what you played last, newest first (in Arcade, **Recently Played**).
 - **Favorites**: what you marked from its [options](https://github.com/mehmetraif/OSD-OS/wiki/Using-OSD-OS#options).
 - **Search**: select opens the [on-screen keyboard](https://github.com/mehmetraif/OSD-OS/wiki/Using-OSD-OS#searching).
 
-In Local Files, the drives plugged in follow, each as `USB: <its label>` (the OSD/OS image mounts USB drives by itself; on a desktop or a Mac, those the system mounts), coming and going as you plug them in and pull them out, then the media folder's own folders and files. With nothing in the media folder and no drive, Local Files says **No items found** instead. In YouTube, Subscriptions, Channels, Playlists and Watch Later follow; in Netflix and Prime Video, Movies and Series by genre, and the service's own home page; in Arcade, All Games, Players, Years and Makers. High Scores has Recently Played and All Games alone, with Not Readable when a file can't be read ([High Scores](https://github.com/mehmetraif/OSD-OS/wiki/High-Scores#the-list)). Each module's page has its tree.
-
 <table>
 <tr><th width="50%">Favorites</th><th width="50%">Search results</th></tr>
 <tr><td><img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/screenshots/favorites.png" width="100%" alt="Local Files' Favorites folder open in the tree" /></td><td><img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/screenshots/search-results.png" width="100%" alt="Local Files' search results, opened as a folder of their own in the tree" /></td></tr>
-<tr><td>What you marked from its options, in the module's own Favorites.</td><td>Names that match anywhere under the media folder.</td></tr>
+<tr><td>What you marked from its options.</td><td>Names that match anywhere under the media folder.</td></tr>
 </table>
 
 ## Searching
 
 <img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/screenshots/keyboard.png" width="100%" alt="The on-screen keyboard: SEARCH LOCAL FILES, TERMINATOR typed in the box, a grid of letters, digits and - ' . &, and SPACE, DEL and OK, with OK selected" />
 
-Select on **Search** brings up an on-screen keyboard, for typing with a remote the way a deck's menu spells a title: the letters A to Z, the digits, `-`, `'`, `.` and `&` in a grid, and **SPACE**, **DEL** and **OK** on the last row. What you have typed is in the box above, with a blinking block where the next letter goes.
+Select on **Search** opens an on-screen keyboard: the letters A to Z, the digits, `-`, `'`, `.` and `&`, then **SPACE**, **DEL** and **OK**.
 
 | Key | What it does |
 |---|---|
@@ -126,22 +125,23 @@ Select on **Search** brings up an on-screen keyboard, for typing with a remote t
 | Select | Types what is in the box, or presses SPACE, DEL or OK |
 | Backspace | Deletes the last letter (here it isn't back) |
 | Back (Esc, or a gamepad's back) | Cancels |
-| A real keyboard's keys | Type straight in; the box jumps to OK, so Enter then searches |
-| The mouse | Moves the box to the key under it, so a click types it |
+| A real keyboard's keys | Type straight in; Enter then searches |
+| The mouse | A click types the key under the pointer |
 
-Where there is already something to change (an address, a name), the keyboard opens with it and the box on OK. For a password, an address or a name it gets letters in both cases (**SHIFT**) and two rows of signs, every one a keyboard has: `@ _ ! ? # $ % * + =`, then `/ : , ; ( ) [ ] " \`, which SHIFT turns into `/ : ^`, the backtick, and `< > { } ~ |`. A password shows as stars, and **SHOW** on the last row shows it as typed (**HIDE** hides it again).
-
-A search takes up to 40 characters, and OK with nothing typed does nothing. The results open as a folder of their own in the tree, `Search: <what you typed>`. In Local Files a search finds names anywhere under the media folder and on the drives plugged in; each module's page says what its search covers. The same keyboard names a new playlist.
+- A search takes up to 40 characters. OK with nothing typed does nothing.
+- The results open as a folder in the tree, `Search: <what you typed>`. Each module's page says what its search covers.
+- **A password, an address or a name** gets both cases (**SHIFT**) and two rows of signs: `@ _ ! ? # $ % * + =`, then `/ : , ; ( ) [ ] " \`. SHIFT turns the second row into `/ : ^`, the backtick, and `< > { } ~ |`.
+- A password shows as stars. **SHOW** shows it as typed; **HIDE** hides it again.
 
 ## Info screens
 
 <table>
 <tr><th width="50%">A film's info screen</th><th width="50%">A video's info screen</th></tr>
 <tr><td><img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/screenshots/info-screen.png" width="100%" alt="Netflix's info screen for a film: PLAY ► in a box, its name, year and length, the story, then GENRE, DIRECTOR, CAST and RATING lines" /></td><td><img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/screenshots/youtube-info.png" width="100%" alt="YouTube's info screen for a video: its channel, date, length, views and description" /></td></tr>
-<tr><td>Story, genre, director, cast and rating, from TMDB. Select plays the title; ► offers its options.</td><td>Channel, date, length, views and description.</td></tr>
+<tr><td>Story, genre, director, cast and rating, from TMDB.</td><td>Channel, date, length, views and description.</td></tr>
 </table>
 
-In Netflix, Prime Video and YouTube, a title has an info screen, the way a deck's INFO key puts up what is on the tape: a **PLAY ►** box, the title, a line of facts, the story (which scrolls through when it is longer than its room) and the details as menu lines. It is the tree's last layer.
+In Netflix, Prime Video and YouTube a title has an info screen: a **PLAY ►** box, the title, a line of facts, the story and the details.
 
 | Key | What it does |
 |---|---|
@@ -150,44 +150,40 @@ In Netflix, Prime Video and YouTube, a title has an info screen, the way a deck'
 | ► | The title's [options](https://github.com/mehmetraif/OSD-OS/wiki/Using-OSD-OS#options) |
 | ◄, back, play/pause, I, or a remote's Info key | Close it |
 
-When it comes up is Settings → TV / Movie → **Info Screen**:
-
 | Setting | Values | Default | What it does | Config key |
 |---|---|---|---|---|
-| Info Screen | Off, Key, 1 sec, 2 sec, 3 sec, 5 sec | 3 sec | **Key**: with ► on a title (or play/pause, I, or a remote's Info key). **1–5 sec**: also by itself, once the cursor has rested on a title that long (once per resting place, not again after you closed it there). **Off**: no info screens; ► on a title gives its options straight away | `app.info_screen` (`off`, `key`, `1`, `2`, `3`, `5`) |
+| Info Screen (Settings → TV / Movie) | Off, Key, 1 sec, 2 sec, 3 sec, 5 sec | 3 sec | **Key**: with ► on a title (or play/pause, I, or a remote's Info key). **1–5 sec**: also by itself, once the cursor has rested on a title that long. **Off**: none; ► gives the options | `app.info_screen` (`off`, `key`, `1`, `2`, `3`, `5`) |
 
 ## Options
 
 <table>
 <tr><th width="50%">Options</th><th width="50%">Add to Playlist</th></tr>
 <tr><td><img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/screenshots/options.png" width="100%" alt="Options for a video file: ADD TO FAVORITES, PLAY AT STARTUP, ADD TO PLAYLIST" /></td><td><img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/screenshots/add-to-playlist.png" width="100%" alt="Add to playlist? for a video: the playlists, then NEW ONLINE PLAYLIST and NEW OFFLINE PLAYLIST" /></td></tr>
-<tr><td>► on any video: Add to Favorites (or Remove), Play at Startup, and Add to Playlist.</td><td>From a module itself: a video's options (►), or ► on PLAY in Jellyfin and Emby.</td></tr>
+<tr><td>► on any video.</td><td>From a video's options, or ► on PLAY in Jellyfin and Emby.</td></tr>
 </table>
 
-► on a video in a tree (or on its info screen) opens **Options**, with the video's name under the title. ▲ ▼ choose, select does it, back closes.
+► on a video in a tree, or on its info screen, opens **Options**. ▲ ▼ choose, select does it, back closes. Folders and Search have none.
 
 | Option | What it does |
 |---|---|
 | **Add to Favorites** / **Remove from Favorites** | Puts it in the module's Favorites, or takes it out |
-| **Play at Startup** / **Don't Play at Startup** | Makes it the favourite OSD/OS plays as it starts, or stops that ([below](https://github.com/mehmetraif/OSD-OS/wiki/Using-OSD-OS#play-at-startup)) |
-| **Add to Playlist** | Puts it on one of the [Playlists](https://github.com/mehmetraif/OSD-OS/wiki/Playlists) module's playlists. Offered while that module is on, for videos from Local Files, YouTube, Jellyfin and Emby |
+| **Play at Startup** / **Don't Play at Startup** | Makes it the favourite OSD/OS plays as it starts, or stops that |
+| **Add to Playlist** | Puts it on a [Playlists](https://github.com/mehmetraif/OSD-OS/wiki/Playlists#from-another-module) list. Offered while that module is on, for videos from Local Files, YouTube, Jellyfin and Emby |
 | **Save to Watch Later** / **Remove from Watch Later** | YouTube only: its Watch Later list |
-
-Folders have no options (► opens them), and neither has Search (select opens it).
-
-**Add to Playlist** lists every playlist (an offline one marked `(Offline)`), then **New Online Playlist** and **New Offline Playlist**, which you name on the on-screen keyboard. Then it says what became of the video: **Added to** the playlist (on an offline one, "It downloads in the background, once"), **Already on** it, or **Can't go on a playlist**. Select or back closes it.
 
 Favorites and Recently Watched are each module's own lists, kept in `lists.json` in the data folder ([Configuration files](https://github.com/mehmetraif/OSD-OS/wiki/Configuration-Files)).
 
 ### Play at startup
 
-One favourite can play by itself as OSD/OS starts: straight after the boot screen on the image, at once elsewhere, without a resume question. Choosing **Play at Startup** on a video also adds it to Favorites, and taking it out of Favorites stops it playing at startup. Back from it goes to its module's tree (in Favorites), and from there to the main menu. Settings has the rest:
+- One favourite can play by itself as OSD/OS starts, without a resume question.
+- **Play at Startup** on a video also adds it to Favorites. Taking it out of Favorites stops it playing at startup.
+- Back from it goes to its module's tree, in Favorites.
 
-| Setting | Values | Default | What it does | Config key |
+| Setting (Settings → Startup) | Values | Default | What it does | Config key |
 |---|---|---|---|---|
-| Play at Startup | None, or the favourite's name | None | The favourite played at startup. It is chosen in its module (► on it, Play at Startup); here it can only be turned off | `app.startup_favorite` (`{ "module", "path", "name" }`, or `""`) |
-| Startup From | Resume, Beginning | Resume | Where it begins: where it was stopped, or from the start. Shown while there is a favourite to play | `app.startup_from` |
-| Start on Module | None, or a module that is on | None | Opens that module, instead of the main menu, as OSD/OS starts. The favourite to play at startup goes first | `app.startup_module` (a module id, such as `com.osdos.youtube`) |
+| Play at Startup | None, or the favourite's name | None | Shows the favourite; here it can only be turned off | `app.startup_favorite` (`{ "module", "path", "name" }`, or `""`) |
+| Startup From | Resume, Beginning | Resume | Where it begins. Dimmed without a favourite | `app.startup_from` |
+| Start on Module | None, or a module that is on | None | Opens that module instead of the main menu. The favourite goes first | `app.startup_module` (a module id, such as `com.osdos.youtube`) |
 
 ## Playing a video
 
@@ -195,60 +191,63 @@ One favourite can play by itself as OSD/OS starts: straight after the boot scree
 
 <img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/screenshots/resume.png" width="100%" alt="RESUME PLAYBACK?: the video's name, then RESUME FROM 1:12:34 and START FROM THE BEGINNING" />
 
-A video you stopped partway asks **Resume playback?**: **Resume from 1:12:34** (where you stopped) or **Start from the beginning**. ▲ ▼ choose, select plays, back goes back to the tree. In Local Files:
+A video stopped partway asks **Resume playback?**: **Resume from 1:12:34** or **Start from the beginning**. Back returns to the tree.
 
-- a playlist file (`.m3u`) resumes at the video it was on: **Resume video 3 at 12:40**;
-- with Shuffle Playback on Ask, a playlist asks **Start playback?**: **Play in order** or **Shuffle**;
-- the place is saved when you stop after the first 5 seconds, and forgotten once you have watched 95% of it (or, for a playlist, played it to the end).
-
-Local Files, YouTube, Plex, Jellyfin, Emby and NFC Reader each have a **Resume Playback** setting (in Local Files: Ask, Always, Never), which their pages describe. A video played at startup, or taken back from behind the menus, never asks.
+- The place is saved when you stop after the first 5 seconds. It is forgotten once you have watched 95%.
+- A Local Files playlist (`.m3u`) resumes at the video it was on: **Resume video 3 at 12:40**.
+- With Shuffle Playback on Ask, a playlist asks **Start playback?**: **Play in order** or **Shuffle**.
+- Local Files, YouTube, Plex, Jellyfin, Emby and NFC Reader each have a **Resume Playback** setting, described on their pages.
+- A video played at startup, or taken back from behind the menus, never asks.
 
 ### The tape loading
 
 <img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/screenshots/loading.png" width="100%" alt="The loading screen: VHS noise, TAPE A PLAY 00:00:00 at top left, TV in the middle, TAPE B LOADING 00:02:00 at top right, SLP▶ YOUTUBE at bottom left and SLP◀ DEST at bottom right" />
 
-While a video starts, a tape loads: live VHS noise in the color scheme's colors, the tracking band jittering across the top and now and then rolling down over everything, and a dubbing deck's display in the corners. **TAPE A PLAY** counts where the video starts from; **TAPE B LOADING** blinks over the video's length once it is known (until then, the seconds it has taken); **SLP▶** names the source (the module). It goes the moment the picture comes.
+While a video starts, a tape loads, until the picture comes:
 
-| Setting | Values | Default | What it does | Config key |
+- **TAPE A PLAY** counts where the video starts from.
+- **TAPE B LOADING** blinks over the video's length once it is known; until then, the seconds it has taken.
+- **SLP▶** names the module.
+- The theme's effects and the menu music rest while a video plays, loads, or has its menu open.
+
+| Setting (Settings → TV / Movie) | Values | Default | What it does | Config key |
 |---|---|---|---|---|
-| Loading Effect | On, Off | On | **Off**: the deck's display alone, on the plain background, without the noise and the bands | `app.loading_effect` |
+| Loading Effect | On, Off | On | **Off**: the deck's display alone, without the noise and the bands | `app.loading_effect` |
 | Loading Screen Colors | Theme, Default | Theme | **Default**: white on blue, whatever the theme | `app.loading_colors` |
-
-The theme's effects and the menu music never touch a video: they rest while one plays, loads, or has its menu open.
 
 ### The deck's menu
 
 <img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/screenshots/playback-menu.png" width="100%" alt="The deck's menu over a playing video: AUDIO and CROP lines at top left, the channel logo at top right, 0:28 and 0:30 over the position bar, and AUDIO, CROP and STOP buttons" />
 
-During a video, ▲ or ▼ opens the deck's menu, drawn by mpv over the picture: the audio track, the subtitle track and the Scaling in force at the top left (`AUDIO:`, `SUBTITLE:`, `CROP:`), and at the bottom the time played and the length over the position bar, and a row of buttons:
+During a video, ▲ or ▼ opens the deck's menu. Its top left names the audio track, the subtitle track and the Scaling in force (`AUDIO:`, `SUBTITLE:`, `CROP:`). Below are the position bar and the buttons:
 
 | Button | What it does |
 |---|---|
-| **SKIP** | Skips an intro or the credits, when Jellyfin or Emby marks one (it comes first, and the cursor lands on it) |
+| **SKIP** | Skips an intro or the credits, when Jellyfin or Emby marks one |
 | **AUDIO** | The next audio track |
 | **SUBTITLE** | The next subtitle track (only when there are subtitles) |
-| **CROP** | The next Scaling: Letterbox, 14:9, Pan & Scan, Anamorphic (not on a Pi 3 with 1080p Playback on, where it can't crop) |
+| **CROP** | The next Scaling: Letterbox, 14:9, Pan & Scan, Anamorphic (not on a Pi 3 with 1080p Playback on) |
 | **<** and **>** | The previous and next video of a playlist |
 | **STOP** | Ends the video |
 
-In the menu, ▲ goes to the position bar and ▼ to the buttons (where it opens). On the bar, ◄ ► jump 10 seconds back and forward; on the buttons, they move between them, and select presses one. Back closes the menu, and it closes by itself after 5 seconds without a key.
-
-With the menu closed, ◄ ► jump 5 seconds (mpv's own keys), select and play/pause pause, and back does what the next section says. A keyboard's or remote's media keys work too: [Controls](https://github.com/mehmetraif/OSD-OS/wiki/Controls#during-playback) has them all.
+- ▲ goes to the position bar, ▼ to the buttons.
+- On the bar, ◄ ► jump 10 seconds. On the buttons they move, and select presses one.
+- Back closes the menu. It closes by itself after 5 seconds without a key.
+- With the menu closed, ◄ ► jump 5 seconds, and select and play/pause pause.
+- [Controls](https://github.com/mehmetraif/OSD-OS/wiki/Controls#during-playback) has the media keys.
 
 ### Back during a video
 
-What back does depends on the module, and on [Transparent Background](https://github.com/mehmetraif/OSD-OS/wiki/Using-OSD-OS#transparent-background):
-
 | | Transparent Background off (the default) | Transparent Background on |
 |---|---|---|
-| **Local Files, YouTube, Playlists** | The video stops, where it is, and [its menu](https://github.com/mehmetraif/OSD-OS/wiki/Using-OSD-OS#the-videos-own-menu) opens on OSD/OS's own background. Back from the menu starts it again from there | [Its menu](https://github.com/mehmetraif/OSD-OS/wiki/Using-OSD-OS#the-videos-own-menu) opens over the picture, which plays on |
+| **Local Files, YouTube, Playlists** | The video stops and [its menu](https://github.com/mehmetraif/OSD-OS/wiki/Using-OSD-OS#the-videos-own-menu) opens. Back from the menu starts it again from there | [Its menu](https://github.com/mehmetraif/OSD-OS/wiki/Using-OSD-OS#the-videos-own-menu) opens over the picture, which plays on |
 | **The other modules** | The video stops, its place saved, and you are back where you chose it | You are back where you chose it, the video playing on behind the menus |
 
 ### The video's own menu
 
 <img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/screenshots/player-menu.png" width="100%" alt="Local Files' menu for a video over the picture: AUTO SHOW SUBTITLES FORCED ONLY, SUBTITLE LANGUAGE ANY, LOOP PLAYBACK OFF, SCALING DEFAULT, ADD TO FAVORITES, PLAY AT STARTUP, BROWSE LOCAL FILES, CLOSE VIDEO" />
 
-Local Files, YouTube and Playlists give a video a menu of its own: first the module's settings that matter while it plays, then what you can do with it, then **Close Video**.
+Local Files, YouTube and Playlists give a video a menu of its own:
 
 | Module | Its lines |
 |---|---|
@@ -256,189 +255,166 @@ Local Files, YouTube and Playlists give a video a menu of its own: first the mod
 | YouTube | Playback Resolution, Video Codec, Max Frame Rate, Scaling, Audio Language, Subtitles, Subtitle Language, Playback Speed; Add to Favorites, Play at Startup, Save to Watch Later, Browse YouTube, Close Video |
 | Playlists | Subtitles, Loop Playback, Scaling; Browse Playlists, Close Video |
 
-- **◄ ►** change a setting. It is saved at once, as the module's own setting (it stays for the next video too), and applied to this one: some at once (Loop Playback, Scaling, Playback Speed), the rest as you go back to the video, which reloads where it is.
-- **Select** on an action does it. **Browse** returns to the module's menus. **Close Video** ends the video and goes to the main menu.
-- **Back** returns to the video, full screen. Play/pause still pauses the video under the menu. The hint bar reads `[ESC]:VIDEO`.
-
-With Transparent Background, the video plays on under the menu, as much of it showing as the setting says (40% solid in the picture). Without it, nothing plays under the menu: the video stopped for it, and starts again where it was, with the settings as they are now, as the menu closes. **Close Video** then leaves without a video anywhere. **Browse** leaves it stopped where it was, and the main menu leads with a row for it, `► <title>`, as for a video behind the menus: select starts it again there, without asking. The row stays until mpv plays another video.
+- **◄ ►** change a setting. It is saved at once, as the module's own setting.
+- Loop Playback, Scaling and Playback Speed apply at once. The rest apply as you go back to the video, which reloads where it is.
+- **Browse** returns to the module's menus. **Close Video** ends the video and goes to the main menu.
+- **Back** returns to the video. Play/pause still pauses it. The hint bar reads `[ESC]:VIDEO`.
+- **Without Transparent Background** the video stops for the menu, and starts again where it was as the menu closes.
+- **Browse** then leaves the video stopped. The main menu leads with `► <title>`: select starts it again there, without asking. The row stays until another video plays.
 
 ### A service's own player
 
 <img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/screenshots/netflix-player.png" width="100%" alt="NETFLIX HAS THE SCREEN: HOLD [ESC] FOR 2 SECONDS TO COME BACK TO OSD/OS OR CLOSE NETFLIX WITH CTRL+W" />
 
-Netflix and Prime Video play in the service's own web player, in Chromium, which has the screen until it closes. To come back, **hold back for two seconds**, or close the browser with Ctrl+W. The first time in a run, this screen stays up a moment before the browser opens, long enough to read it. [Netflix and Prime Video](https://github.com/mehmetraif/OSD-OS/wiki/Netflix-and-Prime-Video) has the rest.
+Netflix and Prime Video play in the service's own web player, in Chromium. To come back, **hold back for two seconds**, or close the browser with Ctrl+W ([Netflix and Prime Video](https://github.com/mehmetraif/OSD-OS/wiki/Netflix-and-Prime-Video)).
 
 ## Transparent Background
 
 <table>
 <tr><th width="33%">The video's menu</th><th width="33%">Back to the menus</th><th width="33%">Main menu</th></tr>
 <tr><td><img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/screenshots/player-menu.png" width="100%" alt="The video's menu over the picture" /></td><td><img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/screenshots/menus-over-video.png" width="100%" alt="Local Files' tree over the playing video" /></td><td><img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/screenshots/main-menu-over-video.png" width="100%" alt="The main menu over the playing video, led by ► TERMINATOR 2 (1991), with [SPACE]:STOP in the hint bar" /></td></tr>
-<tr><td>With Transparent Background, back during a Local Files or YouTube video opens its menu over the picture, which plays on, here at 40% solid. ◄ ► change its module's settings for it, at once or as you go back to it. Close Video goes to the main menu; back, to the video.</td><td>Browse in that menu, or back from any other module's video, returns to the module's menus, the video playing on behind them. Choose it again to watch it full screen from where it is.</td><td>The main menu leads with the video, the cursor on it: select takes it back to full screen where it is. Play/pause stops it (<code>[SPACE]:STOP</code>), and playing anything else replaces it.</td></tr>
+<tr><td>The video's menu over the picture, here at 40% solid.</td><td>Browse, or back from another module's video: the video plays on behind the menus.</td><td>The main menu leads with the video.</td></tr>
 </table>
 
-Normally, back from a video stops it. With Settings → TV / Movie → **Transparent Background**, OSD/OS plays videos inside its own window, so back returns to the menus while the video goes on playing behind them, the way a deck's menu lies over the tape.
+With Settings → TV / Movie → **Transparent Background**, back from a video returns to the menus while the video plays on behind them.
 
-- **The slider.** The setting is a slider, drawn as the deck's tape bar, from **TRANSPARENT** to **SOLID**: how solid the menus' background is over the video, in steps of 10%. ◄ ► move it, and save at once, so over a video playing behind you see each step. At SOLID none of the picture shows, but the video plays on, sound and all. Select turns the setting off and back on at the bar's place; ◄ ► turn it on too. Off, back stops the video, as it always did.
-- **Taking it back.** The main menu's first row is the video behind, `► <its title>`, with the cursor on it: select brings it back full screen, from where it is. Choosing the same video again in its module does the same. YouTube, Local Files and Playlists videos come back this way; another module's video only comes back by choosing it again.
-- **Stopping it.** Play/pause on the main menu stops it (`[SPACE]:STOP` in the hint bar). It also ends when its playlist has played out, when you play anything else, when something else takes the screen (a script that takes over the screen, an Arcade game in MAME, Netflix or Prime Video's browser) and when you turn the setting off.
-- **With OSD Background on Window,** only the window lies over the video, which shows whole around it.
-- The theme's effects and menu music rest while a video plays behind the menus, as they do while it plays full screen, and the screen saver doesn't come.
+- **The slider** runs from **TRANSPARENT** to **SOLID** in steps of 10%: how solid the menus' background is over the video. ◄ ► move it and turn it on. Select turns it off and back on.
+- At SOLID none of the picture shows, but the video plays on, sound and all.
+- **Taking it back.** The main menu's first row is `► <its title>`: select brings it back full screen where it is. Choosing the same video in its module does the same.
+- Only YouTube, Local Files and Playlists videos have this row.
+- **Stopping it.** Play/pause on the main menu stops it (`[SPACE]:STOP` in the hint bar).
+- **It also ends** when its playlist has played out, when you play anything else, and when you turn the setting off.
+- It ends too when something else takes the screen: a script, an Arcade game, Netflix or Prime Video's browser.
+- **With OSD Background on Window**, only the window lies over the video.
+- The effects, the menu music and the screen saver rest while a video plays behind the menus.
 
 | Setting | Values | Default | What it does | Config key |
 |---|---|---|---|---|
-| Transparent Background | Off, or TRANSPARENT (0) to SOLID (100) in steps of 10 | Off (turned on, the bar starts at 40) | Back from a video returns to the menus with the video playing behind them, this solid | `app.transparent_background` (`"Off"` or `0`–`100`) |
+| Transparent Background | Off, or TRANSPARENT (0) to SOLID (100) in steps of 10 | Off (turned on, the bar starts at 40) | How solid the menus are over a video playing behind them | `app.transparent_background` (`"Off"` or `0`–`100`) |
 
-It needs libmpv, which OSD/OS opens as it runs: `libmpv2` on Raspberry Pi OS (on the image, and installed by `install.sh`), part of Homebrew's mpv on a Mac. Where it is missing, as in the AppImage, the row isn't in Settings. On a Pi 4 or 5 and on desktop Linux the GPU draws the picture; on a Mac, mpv's software renderer does. [Playback and mpv](https://github.com/mehmetraif/OSD-OS/wiki/Playback-and-mpv) explains how it works.
+- It needs libmpv: `libmpv2` on Raspberry Pi OS (on the image, and installed by `install.sh`), part of Homebrew's mpv on a Mac.
+- Without libmpv, as in the AppImage, the row is dimmed and says `Needs libmpv, which isn't installed`.
+- [Playback and mpv](https://github.com/mehmetraif/OSD-OS/wiki/Playback-and-mpv) explains how it works.
 
 ## The channel logo
 
 <table>
 <tr><th width="50%">Channel Logo</th><th width="50%">Under the menus</th></tr>
 <tr><td><img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/screenshots/channel-logo.png" width="100%" alt="A playing video with the OSD/OS logo in its top right corner" /></td><td><img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/screenshots/channel-logo-menu.png" width="100%" alt="The menus over a playing video, the logo still in the picture's corner under them" /></td></tr>
-<tr><td>OSD/OS's logo in a corner of the picture while a video plays, the way a channel's sits in a broadcast. It is off at first: Settings → TV / Movie → Channel Logo picks the corner, all four, or none.</td><td>It is in the picture itself, so with Transparent Background the menus lie over it.</td></tr>
+<tr><td>OSD/OS's logo in a corner of the picture while a video plays.</td><td>It is in the picture itself, so the menus lie over it.</td></tr>
 </table>
 
 <table>
 <tr><th width="50%">Logo Image</th><th width="50%">Picking the picture</th></tr>
 <tr><td><img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/screenshots/channel-logo-custom.png" width="100%" alt="A playing video with a picture of the user's own in place of the OSD/OS logo" /></td><td><img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/screenshots/logo-picker.png" width="100%" alt="The file picker for Logo Image: its places, the home folder's folders, LOGOS open on its two pictures" /></td></tr>
-<tr><td>Settings → TV / Movie → Logo Image puts a picture of your own there instead, as tall as OSD/OS's logo.</td><td>Picked on the same file browser: select on a picture, or OSD/OS Logo at the top to go back to it.</td></tr>
+<tr><td>A picture of your own instead, as tall as OSD/OS's logo.</td><td>Select on a picture, or OSD/OS Logo at the top to go back to it.</td></tr>
 </table>
 
-mpv draws the logo into the picture, 7% of its height tall and 10% of the picture in from its corner (a letterboxed picture's bars stay clear of it). Both settings apply from the next video.
+- The logo is 7% of the picture's height tall, and 10% of the picture in from its corner.
+- Both settings apply from the next video.
 
-| Setting | Values | Default | What it does | Config key |
+| Setting (Settings → TV / Movie) | Values | Default | What it does | Config key |
 |---|---|---|---|---|
-| Channel Logo | Off, Top Left, Top Right, Bottom Left, Bottom Right, All Corners | Off | Where the logo sits while a video plays | `app.video_logo` (`off`, `tl`, `tr`, `bl`, `br`, `all`) |
-| Logo Image | OSD/OS (OSD/OS Logo on the picker), or a picture (PNG, JPEG, SVG, GIF, BMP, WebP) | OSD/OS | The logo's picture, picked on the file picker; a PNG with a clear background works best. Shown while Channel Logo isn't Off | `app.video_logo_image` (a path; unset for OSD/OS's) |
+| Channel Logo | Off, Top Left, Top Right, Bottom Left, Bottom Right, All Corners | Off | Where the logo sits | `app.video_logo` (`off`, `tl`, `tr`, `bl`, `br`, `all`) |
+| Logo Image | OSD/OS, or a picture (PNG, JPEG, SVG, GIF, BMP, WebP) | OSD/OS | The logo's picture; a PNG with a clear background works best. Dimmed while Channel Logo is Off | `app.video_logo_image` (a path; unset for OSD/OS's) |
 
 ## The screen saver
 
-To spare a CRT's phosphor, a screen saver puts OSD/OS's logo bouncing across a black screen, the way a DVD player's did: in the menus after that many seconds without a key, and during a video after it has been paused that long. The first key only wakes it; the next one acts. Moving the mouse wakes it too, unless Mouse Pointer is Off. It never comes while a video plays (behind the menus too), while a script runs, or over the boot screen.
+- The screen saver puts OSD/OS's logo bouncing across a black screen, to spare a CRT's phosphor.
+- It comes in the menus after the set seconds without a key, and during a video paused that long.
+- The first key only wakes it. Moving the mouse wakes it too, unless Mouse Pointer is Off.
+- It never comes while a video plays (behind the menus too), while a script runs, or over the boot screen.
 
-| Setting | Values | Default | What it does | Config key |
-|---|---|---|---|---|
-| Screen Saver | OFF, 30, 60, 120 | OFF | Seconds without a key in the menus, or paused in a video, before it comes | `app.screensaver_timeout` |
+| Setting (Settings → Screen) | Values | Default | Config key |
+|---|---|---|---|
+| Screen Saver | OFF, 30, 60, 120 (seconds) | OFF | `app.screensaver_timeout` |
 
 ## The hint bar and the help line
 
 <img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/screenshots/settings.png" width="100%" alt="Settings: TV / MOVIE selected, then ARCADE, LOOK, SCREEN, SOUND, CONTROLS, NETWORK and STARTUP, a ▼ for the rows below, a help line scrolling its text, and the hint bar [ESC]:BACK [▲▼]:NAVIGATE [◄►]:CHANGE [ENTER]:SELECT" />
 
-- **The hint bar**, the solid bar at the foot of every screen, says which keys do what there, as a deck's menu ends with "SELECT WITH (▲▼) AND (OK)". It shows the keyboard's keys (`[ESC]`, `[ENTER]`, `[SPACE]`) until you press a gamepad button, then that gamepad's (`[B]`, `[A]`, `[START]`, or a PlayStation pad's `[O]`, `[X]`, as its button labels in Settings → Controls name them), and back again with the next key ([Controls](https://github.com/mehmetraif/OSD-OS/wiki/Controls#the-hints-at-the-foot-of-the-screen)).
-- **The help line** is the box under a menu (Settings, a module's settings, Controls, Wi-Fi, Bluetooth, a video's menu, About) with a line about the selected row. A line too long for the box scrolls through it like a ticker, pausing each time its start comes round.
+- **The hint bar** at the foot of every screen says which keys do what there. It shows the keyboard's keys (`[ESC]`, `[ENTER]`, `[SPACE]`) until you press a gamepad button, then that gamepad's (`[B]`, `[A]`, `[START]`) ([Controls](https://github.com/mehmetraif/OSD-OS/wiki/Controls#the-hints-at-the-foot-of-the-screen)).
+- **The help line** is the box under a menu with a line about the selected row. A line too long for the box scrolls through it.
 
-Both can go once the keys are second nature; the keys work as they always do.
-
-| Setting | Values | Default | What it does | Config key |
+| Setting (Settings → Look) | Values | Default | What it does | Config key |
 |---|---|---|---|---|
-| Hint Bar | On, Off | On | **Off**: no key hints at the foot of any screen; the menus, the file browser and the dialogs take their room, and a help line moves down into it | `app.hint_bar` |
-| Help Line | On, Off | On | **Off**: no box with a line about the selected row, and a row more in the menu above it (About keeps its own, as those lines are the page) | `app.help_line` |
+| Hint Bar | On, Off | On | **Off**: no key hints; the menus take the bar's room | `app.hint_bar` |
+| Help Line | On, Off | On | **Off**: no box, and a row more in the menu. About keeps its own | `app.help_line` |
 
 ## The mouse pointer
 
-A mouse, or a keyboard's touchpad, shows OSD/OS's own pointer, drawn in its pixels and colors, while it moves, and hides it again after a few seconds still. The menus take the mouse as they take the keys: over a menu or the Arcade screen's list the selection follows the pointer, a left click is Select / OK, a right click Back and the wheel ▲ ▼, on the OSD/OS image and on a desktop alike (an air-mouse remote's OK is a left click). In a file tree the wheel moves the cursor, a row a notch, and a click opens what it is on; on the on-screen keyboard the box follows the pointer, and a click types the key under it. A mouse button made one of the actions in Settings → Controls → All Keyboards & Remotes does that instead ([Controls](https://github.com/mehmetraif/OSD-OS/wiki/Controls#the-mouse)).
+- A mouse or a touchpad shows OSD/OS's own pointer while it moves.
+- Over a menu the selection follows the pointer. A left click is select, a right click back, the wheel ▲ ▼.
+- In a file tree the wheel moves the cursor, and a click opens what it is on.
+- A mouse button bound in Settings → Controls → All Keyboards & Remotes does that action instead ([Controls](https://github.com/mehmetraif/OSD-OS/wiki/Controls#the-mouse)).
 
-| Setting | Values | Default | What it does | Config key |
+| Setting (Settings → Screen) | Values | Default | What it does | Config key |
 |---|---|---|---|---|
-| Mouse Pointer | Off, 2 sec, 5 sec, 10 sec, 30 sec, Always | 5 sec | How long the pointer stays after the mouse stops. **Off**: never shown. **Always**: it stays | `app.mouse_pointer` (`off`, `2`, `5`, `10`, `30`, `always`) |
+| Mouse Pointer | Off, 2 sec, 5 sec, 10 sec, 30 sec, Always | 5 sec | How long the pointer stays after the mouse stops | `app.mouse_pointer` (`off`, `2`, `5`, `10`, `30`, `always`) |
 
 ## Settings
 
-Back on the main menu opens Settings, laid out like a camcorder's menu: a line per setting, its value at the end between the arrows that change it (`COLOR SCHEME······◄ VIDEO 1 ►`), and a ► at the end of a line that leads somewhere (`TV / MOVIE······►`). A release's version is in the title bar, and the IP address at its right.
+Back on the main menu opens Settings. A line has its value between the arrows that change it (`COLOR SCHEME······◄ VIDEO 1 ►`), or a ► when it leads somewhere (`TV / MOVIE······►`). The title bar shows the version and the IP address.
 
-- ▲ ▼ move, skipping the headings, round from the bottom to the top. ◄ ► change the value, saved at once. Select, or ►, opens a line that ends in ► (a page, a module's settings, Wi-Fi, Bluetooth, Update, a file or folder picker), and select turns a slider on or off. Back from a page returns to the line it was opened from.
-- Nothing is hidden: a line that can't be used, on this system or with another line as it is set, is dimmed, a checkerboard over it. The cursor stops on it, and the help line says why (`Only with OSD Background on Window`).
-- Look → **Menu Layout** on Camcorder shows the pages as icons in a column at the left and the rows of the one the cursor is on beside it, as a camcorder's menu does: ▲ ▼ from page to page, ► or select into its rows, back out to the icons ([Menu Layout](https://github.com/mehmetraif/OSD-OS/wiki/Settings#menu-layout)).
-- Look → **Menu Layout** has three more layouts after studio monitors' menus, in colours of their own: **Studio Monitor**, a window with the pages' icons in a strip and a Status page first; **Broadcast**, plain blue; and **Flat Panel**, black, a page of rows at a time. In Broadcast and Flat Panel a value changes in two steps: select, ▲ ▼, then select to save or back to leave it ([Menu Layout](https://github.com/mehmetraif/OSD-OS/wiki/Settings#menu-layout)).
-- The first screen is a line for each page, then Quit:
-  - **TV / Movie**: Scaling, Transparent Background, Video Levels, 1080p Playback, Loading Effect, Loading Screen Colors, Channel Logo and Info Screen, then under **Modules** a line per video module (and Weather), for its settings, its **Enabled** row among them.
-  - **Arcade**: the Arcade module's settings, with the High Scores module's after them under its own heading.
-  - **Look**: Theme, then its parts (Color Scheme, Skin, and Effects, a page of the text, background, selector and screen effects and the transition), Menu Layout, OSD Background and Window Frame, Boot Screen Colors, Hint Bar, Help Line and Status Icons.
-  - **Screen**: Display Output (on the image), Test Patterns, Screen Saver, Mouse Pointer and Window Mode (on a PC's desktop: the menus in a window, F11).
-  - **Sound**: Audio Output (where plain ALSA plays), Menu Music, Music File and Music Volume.
-  - **Controls**: every controller, the players' pads, and more keys for the keyboards and remotes.
-  - **Network**: Wi-Fi and Bluetooth (on Linux).
-  - **Startup**: Start on Module, Play at Startup, Startup From and Cabinet Lock.
-  - **System**: Paste OSD/OS Setup (on a computer: the settings copied on [OSD/OS Setup](https://osdos.tv/setup/), set at once), Export to OSD/OS Setup (this device's settings as QR codes, which open the page with them), Update, About (this device's System Information first), then under **Modules** a line for each module of no page, Scripts.
+- ▲ ▼ move, round from the bottom to the top. ◄ ► change the value, saved at once.
+- Select, or ►, opens a line that ends in ►. Select turns a slider on or off.
+- Nothing is hidden: a line that can't be used is dimmed, and the help line says why (`Only with OSD Background on Window`).
+- The first screen has a line for each page, then Quit: **TV / Movie**, **Arcade**, **Look**, **Screen**, **Sound**, **Controls**, **Network**, **Startup** and **System**.
+- Look → **Menu Layout** offers Standard, Camcorder, Studio Monitor, Broadcast and Flat Panel. In Broadcast and Flat Panel a value changes in two steps: select, ▲ ▼, then select to save or back to leave it.
 
 <table>
 <tr><th width="50%">A module's settings</th><th width="50%">Picking a folder</th></tr>
 <tr><td><img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/screenshots/module-settings.png" width="100%" alt="Local Files' settings: its folder, looping, shuffle, resume, subtitles, and its own Scaling" /></td><td><img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/screenshots/folder-picker.png" width="100%" alt="The folder picker open on the films folder, the home folder's folders to its left: USE THIS FOLDER, then its folders, one for each genre, ACTION's RAMBO MOVIES faint" /></td></tr>
-<tr><td>Local Files: its folder, looping, shuffle, resume, subtitles, and its own Scaling.</td><td>Folders are picked on the same tree Local Files is browsed with, from home, the drives and the root down: USE THIS FOLDER picks the one open, Default Folder the module's own.</td></tr>
+<tr><td>Local Files' settings.</td><td>Folders are picked on the same tree: USE THIS FOLDER picks the one open, Default Folder the module's own.</td></tr>
 </table>
 
-[Settings](https://github.com/mehmetraif/OSD-OS/wiki/Settings) describes every row; [Controls](https://github.com/mehmetraif/OSD-OS/wiki/Controls), [Display Output](https://github.com/mehmetraif/OSD-OS/wiki/Display-Output), [Audio Output](https://github.com/mehmetraif/OSD-OS/wiki/Audio-Output) and [Installation](https://github.com/mehmetraif/OSD-OS/wiki/Installation#updating) the screens behind Application.
+[Settings](https://github.com/mehmetraif/OSD-OS/wiki/Settings) describes every page and row.
 
 ## Quit, Restart, Power Off, Exit to Terminal
 
 <img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/screenshots/quit.png" width="100%" alt="REALLY QUIT?: YES, SAVE LOGS and NO" />
 
-**Quit** is the last line of Settings. It asks **Really quit?**, and what it offers depends on how OSD/OS was started:
+**Quit** is the last line of Settings. It asks **Really quit?**:
 
 | Started | Choices |
 |---|---|
-| By hand (`osdos`), on a Mac, as an AppImage | **Yes** quits OSD/OS; **No** stays; on the OSD/OS image, **Save Logs** between them |
+| By hand (`osdos`), on a Mac, as an AppImage | **Yes**, **No**; on the OSD/OS image, **Save Logs** between them |
 | With the system: the OSD/OS image, or `install.sh`'s autostart service | **Power Off**, **Restart**, **Exit to Terminal**, **Save Logs** (on the image), **Cancel** |
 
-With the system:
-
 - **Power Off** quits OSD/OS and switches the Pi off. To switch it on again, unplug its power and plug it back in (a Pi 5 also has a power button).
-- **Restart** reboots the Pi. It is offered only where the service's stop helper knows how; an install from before it was added needs `install.sh` run once more ([Installation](https://github.com/mehmetraif/OSD-OS/wiki/Installation#updating-with-installsh)).
-- **Exit to Terminal** drops to a text login on the Pi's screen, and leaves the service in place for the next boot. On an image built without a password, it logs the user `pi` in by itself. From there, as a user who can use `sudo`, `sudo systemctl start osdos` brings OSD/OS back and `sudo reboot` starts the Pi afresh; as any user, `osdos` runs OSD/OS by hand (where Quit then asks Yes or No, and returns to the shell).
+- **Restart** reboots the Pi. If it is missing, run `install.sh` once more ([Installation](https://github.com/mehmetraif/OSD-OS/wiki/Installation#updating-with-installsh)).
+- **Exit to Terminal** drops to a text login and leaves the service in place for the next boot. An image built without a password logs `pi` in by itself.
+- From the terminal, `sudo systemctl start osdos` brings OSD/OS back, `sudo reboot` restarts the Pi, and `osdos` runs OSD/OS by hand.
 - **Cancel**, or back, stays.
-
-**Save Logs**, on the OSD/OS image, copies OSD/OS's logs to the card's **OSD-OS** partition, the one a computer shows as a drive when the card is put in, to send with a report ([Troubleshooting](https://github.com/mehmetraif/OSD-OS/wiki/Troubleshooting)).
-
-Ctrl+Q (⌘Q on a Mac) quits at once from most screens, without asking: with the system, that switches the Pi off, as Power Off does.
+- **Save Logs** copies OSD/OS's logs to the card's **OSD-OS** partition, to send with a report ([Troubleshooting](https://github.com/mehmetraif/OSD-OS/wiki/Troubleshooting)).
+- Ctrl+Q (⌘Q on a Mac) quits at once from most screens, without asking. With the system, that switches the Pi off.
 
 ## About and the license
 
 <table>
 <tr><th width="50%">About</th><th width="50%">The license</th></tr>
 <tr><td><img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/screenshots/about.png" width="100%" alt="About: the OSD/OS wordmark and SMART TV FOR CRT, then SYSTEM INFORMATION with this device's name, BUILD, DEVELOPER, BASED ON, LICENSE and SOURCE lines, and the help line about the selected one" /></td><td><img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/screenshots/license.png" width="100%" alt="The license page: the GPL's notice for OSD/OS, then the license's text" /></td></tr>
-<tr><td>This device's System Information, then what OSD/OS is, who makes it, what it is made of and under which license, each line's detail in the help line.</td><td>Behind the LICENSE line: the notice, then the GNU GPL's text, a page at a time.</td></tr>
+<tr><td>System Information, then a line for each part of OSD/OS.</td><td>Behind the LICENSE line: the notice, then the GNU GPL's text.</td></tr>
 </table>
 
-Settings → System → **About** opens on the OSD/OS wordmark and **SMART TV FOR CRT**, then **System Information**, this device's name on its line, and a line each for what OSD/OS is made of, who makes it and under which license; the help line under them gives each line's detail, and stays even with Help Line off.
+Settings → System → **About** lists what OSD/OS is, who makes it and what it is made of. The help line gives each line's detail, even with Help Line off.
 
 | Line | Says |
 |---|---|
-| System Information | This device's name. Select opens its page: the name, which tells it apart from others on the network, what the device is and each network connection's IP and MAC addresses; on the OSD/OS image, select on the name renames the device ([Settings → System → About → System Information](https://github.com/mehmetraif/OSD-OS/wiki/Settings#system-information)) |
-| Build | The commit this build was made from, and the day (the version is in the title bar) |
-| Developer | mehmet raif tasdemir (darkBLACK), who develops OSD/OS |
-| Based On | 240-MP, by Anthony Caccese and its contributors, which OSD/OS is a modified version of |
-| License | GNU GPL v3. Select opens the license |
-| Website | osdos.tv: what OSD/OS is, the latest release and OSD/OS Setup, which writes a card's first settings |
-| Source | Where the source, the releases and the issues are |
-| Written With | Claude Code, which OSD/OS's changes were written with |
-| Artwork | ChatGPT, which the logos and the boot screen's cassette were made with |
-| Fonts | VCR OSD Mono and GNU Unifont |
-| Built With | Qt, SDL2 and mpv, with their licenses, and what else the image carries |
-| Test Patterns | The 240p Test Suite, whose pictures Settings → Screen → Test Patterns shows, GPL v2 or later. Select opens the license |
-| QR Code generator | Project Nayuki's library, which draws the codes of Export to OSD/OS Setup, MIT. Select opens the license |
-| Image OS | Raspberry Pi OS Lite on Debian 13, and the trademark notices |
-| Data | TMDB, Open-Meteo and Wikidata, with the notices their terms ask for |
-| *Arcade* | A heading over the arcade's lines |
-| MAME | The emulator the games play in, GPL v2 or later. Select opens the license |
-| RetroArch | What plays FinalBurn Neo's games, with RetroAchievements and online play, GPL v3. Select opens the license |
-| FinalBurn Neo | The emulator RetroArch plays those games with: free to use and share, never to sell. Select opens its license, as it came with the core |
-| openhi2txt | What reads MAME's high score files, GPL v3. Select opens the license |
-| hi2txt | How each game keeps its high score table, GPL v2. Select opens the license |
-| RapidXML | The XML reader openhi2txt is built with, Boost or MIT. Select opens the licenses |
-| minizip, zlib | What opens hi2txt's definitions and FinalBurn Neo's download, zlib License. Select opens the license |
-| LZMA SDK | What unpacks the MAME and RetroArch for Windows the MAME and FinalBurn Neo pages download, public domain. Select opens its note |
-| RetroAchievements | Leaderboards and hardcore play, with your own account, and the games' pictures and the achievements' badges |
-| Online Play | libretro's lobby and relay servers |
-| progetto-SNAPS | The Snapshots and Titles packs and catver.ini, by AntoPISA, in the games folder or downloaded |
-| ArcadeDB | Arcade Database by motoschifo, whose scraper service gives progetto-SNAPS' pictures game by game |
+| System Information | This device's name. Select opens its page; on the OSD/OS image, select on the name renames the device ([System Information](https://github.com/mehmetraif/OSD-OS/wiki/Settings#system-information)) |
+| Build | The commit this build was made from, and the day |
+| License | GNU GPL v3. Select opens the notice, then the license's text; ▲ ▼ turn a page |
+| Test Patterns, QR Code generator, and the *Arcade* software lines | Select opens each one's license |
+| The other lines | Who makes OSD/OS, what it is made of, and the arcade's services |
 
-Select on **License** shows the notice the GNU GPL asks an interactive program to show (whose copyright it is, that it comes with no warranty, that you may pass it on under the license), then the license's full text, from the `LICENSE` file every build carries. ▲ ▼ turn a page at a time; back returns to the lines. Select on an arcade line with a license shows that one the same way, under its name. [Credits](https://github.com/mehmetraif/OSD-OS/wiki/Credits) has the same on the web.
+[Credits](https://github.com/mehmetraif/OSD-OS/wiki/Credits) has every credit in full.
 
 ## See also
 
-- [Controls](https://github.com/mehmetraif/OSD-OS/wiki/Controls): every key, button and remote button, remapping, Bluetooth
+- [Controls](https://github.com/mehmetraif/OSD-OS/wiki/Controls): every key, button and remote button
 - [Settings](https://github.com/mehmetraif/OSD-OS/wiki/Settings): every row of Settings
-- [Modules](https://github.com/mehmetraif/OSD-OS/wiki/Modules): what each module shows, and its own page
-- [Playback and mpv](https://github.com/mehmetraif/OSD-OS/wiki/Playback-and-mpv): how videos play, Scaling, subtitles and resume
-- [Themes](https://github.com/mehmetraif/OSD-OS/wiki/Themes), [Skins](https://github.com/mehmetraif/OSD-OS/wiki/Skins) and [Effects](https://github.com/mehmetraif/OSD-OS/wiki/Effects): changing the look
-- [Features](https://github.com/mehmetraif/OSD-OS/wiki/Features): everything at a glance
+- [Modules](https://github.com/mehmetraif/OSD-OS/wiki/Modules): what each module shows
+- [Playback and mpv](https://github.com/mehmetraif/OSD-OS/wiki/Playback-and-mpv): how videos play
+- [Themes](https://github.com/mehmetraif/OSD-OS/wiki/Themes), [Skins](https://github.com/mehmetraif/OSD-OS/wiki/Skins) and [Effects](https://github.com/mehmetraif/OSD-OS/wiki/Effects)
+- [Features](https://github.com/mehmetraif/OSD-OS/wiki/Features)
 - [The screen tour](https://github.com/mehmetraif/OSD-OS/blob/main/docs/TOUR.md): every screen, module by module
