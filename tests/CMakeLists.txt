@@ -386,6 +386,14 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
                                      ${CMAKE_CURRENT_SOURCE_DIR}/../scripts/install.sh
                                      ${CMAKE_CURRENT_SOURCE_DIR}/../os/stage-osdos/03-boot/files)
 
+    # The image's marking of a network game's packets for Wi-Fi's video
+    # queue (osdos-netplay-priority): the port against the Arcade module's,
+    # the addresses, the unit and its place in the stage, and the rules given
+    # to nft where it is here and root.
+    add_test(NAME netplay_priority COMMAND bash ${CMAKE_CURRENT_SOURCE_DIR}/netplay_priority_test.sh
+                                           ${CMAKE_CURRENT_SOURCE_DIR}/../os/stage-osdos/02-system
+                                           ${CMAKE_CURRENT_SOURCE_DIR}/../src/modules/arcade/Libretro.h)
+
     # OSD/OS Setup's file applied as the card starts (osdos-setup, the
     # image's), on a stand-in card with the image's osdos-stop: a whole file,
     # the same again, parts it refuses, files it can't read. Needs Python 3.

@@ -1,0 +1,19 @@
+[Unit]
+Description=OSD/OS: a network game's packets marked for Wi-Fi's video queue
+# Marks RetroArch's netplay packets on the local network CS4, which Wi-Fi
+# sends ahead of best effort (osdos-netplay-priority.nft says why and how).
+# Nothing depends on it: without nft, or where the rules can't be read, the
+# packets go unmarked, as they did, and the unit says so in the journal.
+ConditionPathExists=/usr/sbin/nft
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+# Once the app is on screen, as the network's own services (wait-for-app):
+# the first read loads the kernel's nftables modules from the card.
+ExecStartPre=-/usr/lib/osdos/wait-for-app
+ExecStart=/usr/sbin/nft -f /usr/lib/osdos/netplay-priority.nft
+ExecStop=-/usr/sbin/nft delete table inet osdos_netplay
+
+[Install]
+WantedBy=multi-user.target

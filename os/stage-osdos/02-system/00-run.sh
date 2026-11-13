@@ -4,7 +4,8 @@
 # Output's next-start socket, Settings → Network → Wi-Fi's country socket, System
 # Information's device name socket and the polkit rule that lets the app's
 # user use NetworkManager (all but the service taken from scripts/install.sh
-# by os/build.sh), OSD/OS Setup's file applied at start, and the boot order:
+# by os/build.sh), the network's settings for games and streams, OSD/OS
+# Setup's file applied at start, and the boot order:
 # the units below hold back until the app is on screen, then start one after
 # another.
 
@@ -32,6 +33,10 @@ install -m 644 files/99-osdos-tty.rules "${ETC}/udev/rules.d/"
 install -D -m 644 files/osdos-logind.conf "${ETC}/systemd/logind.conf.d/osdos.conf"
 install -d "${LIB}"
 install -m 755 files/wait-for-app files/wait-for-display "${LIB}/"
+# A network game's packets ahead of the rest on Wi-Fi: marked CS4, which
+# Wi-Fi sends from its video queue (the file says why; nftables reads it).
+install -m 644 files/osdos-netplay-priority.nft "${LIB}/netplay-priority.nft"
+install -m 644 files/osdos-netplay-priority.service "${ETC}/systemd/system/"
 
 # OSD/OS Setup: the settings made on its page, from osdos-setup.json on the
 # boot partition, applied once as the card starts: OSD/OS's own before the
