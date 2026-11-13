@@ -399,11 +399,14 @@ void InputManager::closeController(SDL_JoystickID instanceId) {
 }
 
 void InputManager::releaseJoysticksForHandoff() {
-    if (!m_sdlReady || m_joysticksReleasedForHandoff)
+    if (!m_sdlReady)
         return;
     // Cancel a reclaim still waiting from the last hand-off (a new game
-    // started before the deferred reopen ran).
+    // started before the deferred reopen ran): the pads, still released,
+    // would otherwise be opened again under the game that is starting.
     ++m_joystickHandoffEpoch;
+    if (m_joysticksReleasedForHandoff)
+        return;
     m_joysticksReleasedForHandoff = true;
     m_pollTimer.stop();
 

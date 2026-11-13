@@ -1,5 +1,7 @@
 #include "DisplayOutput.h"
+#include "../util/AtomicFile.h"
 #include "../util/Board.h"
+#include "../util/DurableFile.h"
 #include "../util/LegacyNames.h"
 #include "../util/RootRequest.h"
 
@@ -7,7 +9,6 @@
 #include <QFile>
 #include <QJsonDocument>
 #include <QJsonObject>
-#include <QSaveFile>
 
 #include <algorithm>
 
@@ -271,6 +272,9 @@ void DisplayOutput::keep() {
     if (!m_confirmPending)
         return;
     QFile::remove(statePath());
+    // On the disk before the answer counts: a cabinet switched off at the wall
+    // a moment after KEEP would find the note again, and switch back.
+    syncPath(m_dataRoot, true);
     m_confirmPending = false;
     emit changed();
 }
@@ -278,7 +282,8 @@ void DisplayOutput::keep() {
 void DisplayOutput::revert() {
     if (!m_confirmPending)
         return;
-    writeState({ { QStringLiteral("reverted"), currentLabel() } });
+    if (!writeState({ { QStringLiteral("reverted"), currentLabel() } }))
+        qWarning("[DisplayOutput] the note of the switch back could not be written");
     qInfo("[DisplayOutput] %s not kept: exit %d for osdos-stop", qPrintable(m_current), kRevertExitCode);
     QCoreApplication::exit(kRevertExitCode);
 }
@@ -327,10 +332,10 @@ QString DisplayOutput::statePath() const {
     return m_dataRoot + QStringLiteral("/display-output.json");
 }
 
+// Whole or not at all (writeFileAtomically): on a full card a note written
+// empty would let the switch go ahead with nothing to ask KEEP or SWITCH BACK
+// from at the next start, on an output that may show no picture.
 bool DisplayOutput::writeState(const QVariantMap &state) const {
-    QSaveFile f(statePath());
-    if (!f.open(QIODevice::WriteOnly))
-        return false;
-    f.write(QJsonDocument(QJsonObject::fromVariantMap(state)).toJson(QJsonDocument::Compact));
-    return f.commit();
+    return writeFileAtomically(statePath(),
+                               QJsonDocument(QJsonObject::fromVariantMap(state)).toJson(QJsonDocument::Compact));
 }

@@ -26,14 +26,15 @@
 #ifdef Q_OS_LINUX
 namespace {
 
-// Qt's own word of a flip the kernel refused, counted from its warnings: the
-// atomic path's "Failed to commit atomic request (code=...)" and the legacy
-// one's "Could not queue DRM page flip". Qt reports nothing else of it.
+// Qt's own word of a flip the kernel refused, counted from its messages: the
+// atomic path's "Failed to commit atomic request (code=...)", a warning, and
+// the legacy one's "Could not queue DRM page flip", which qErrnoWarning sends
+// as a critical one. Qt reports nothing else of it.
 std::atomic<quint64> g_refusedFlips { 0 };
 QtMessageHandler g_nextHandler = nullptr;
 
 void countRefusedFlips(QtMsgType type, const QMessageLogContext &context, const QString &message) {
-    if (type == QtWarningMsg
+    if ((type == QtWarningMsg || type == QtCriticalMsg)
             && (message.startsWith(QLatin1String("Failed to commit atomic request"))
                 || message.startsWith(QLatin1String("Could not queue DRM page flip"))))
         g_refusedFlips.fetch_add(1, std::memory_order_relaxed);

@@ -43,6 +43,13 @@ protected:
 private:
     QByteArray m_body;
 };
+// A reply ended as a cancelled one is: by abort(), or by the transfer's own
+// timeout when the network stops answering.
+class EndedReply : public Reply {
+public:
+    using Reply::Reply;
+    void end() { setError(OperationCanceledError, QStringLiteral("Operation canceled")); setFinished(true); }
+};
 class Network : public QNetworkAccessManager {
 public:
     using QNetworkAccessManager::QNetworkAccessManager;
@@ -172,6 +179,28 @@ private slots:
         QCOMPARE(manager.m_expectedSha256, QString());
 #endif
         QCoreApplication::setApplicationVersion(running);
+    }
+
+    // A download the network dropped ends with the error a cancel has (the
+    // transfer's timeout): it is a failure, with its reason, and only the
+    // user's own cancel goes back to the offer in silence.
+    void updateDownloadStalledIsNotACancel() {
+        QTemporaryDir tmp;
+        UpdateManager manager(tmp.path(), tmp.path());
+        const auto ended = [&manager](bool byUser) {
+            auto *reply = new EndedReply(QNetworkRequest(QUrl("https://x/package")), &manager);
+            manager.m_downloadReply = reply;
+            manager.m_downloadCancelled = false;
+            if (byUser)
+                manager.cancelDownload();
+            reply->end();
+            manager.finishDownload();
+        };
+        ended(false);
+        QCOMPARE(manager.state(), QString("error"));
+        QVERIFY2(manager.errorMessage().contains("stalled"), qPrintable(manager.errorMessage()));
+        ended(true);
+        QCOMPARE(manager.state(), QString("updateAvailable"));
     }
 
     // The log the Windows build keeps in the data folder (util/LogFile): what

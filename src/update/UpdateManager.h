@@ -105,5 +105,6 @@ private:
     // Why the download was aborted from here (a chunk that couldn't be
     // written), and how much of it reached the file.
     QString m_downloadError;
+    bool m_downloadCancelled = false;   // by the user (cancelDownload), not by a stalled transfer
     qint64 m_downloadedBytes = 0;
 };
