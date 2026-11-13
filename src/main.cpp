@@ -333,6 +333,9 @@ int main(int argc, char *argv[]) {
     PlaylistsBackend    playlistsBackend(dataRoot, &appCore, &localFiles, &youtubeBackend,
                                          {{QStringLiteral("com.osdos.jellyfin"), &jellyfinBackend},
                                           {QStringLiteral("com.osdos.emby"), &embyBackend}});
+    // No download beside a game: it has the processor and the card to itself.
+    QObject::connect(&arcadeBackend, &ArcadeBackend::runningChanged, &playlistsBackend,
+                     [&arcadeBackend, &playlistsBackend] { playlistsBackend.setHeld(arcadeBackend.running()); });
     MpvController       mpvController(appRoot, dataRoot, &appCore, &displayHandoff);
     InputManager        inputManager(dataRoot, &appCore);
     IdleTracker         idleTracker(60);   // disabled until Main.qml applies the saved setting

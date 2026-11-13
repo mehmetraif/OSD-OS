@@ -3184,9 +3184,17 @@ void ArcadeBackend::addPlayTime(const QString &set, qint64 seconds) {
     QJsonObject times;
     for (auto it = m_playTime.constBegin(); it != m_playTime.constEnd(); ++it)
         times.insert(it.key(), static_cast<double>(it.value()));
-    QDir().mkpath(m_home);
-    if (!writeFileAtomically(m_home + QStringLiteral("/playtime.json"), QJsonDocument(times).toJson(QJsonDocument::Compact)))
-        qWarning("[Arcade] The play times could not be saved");
+    // Off the app's thread, as games.json is (saveCache()): this runs as a
+    // game ends, before the menus are back, and a write that waits for the
+    // card takes tens to hundreds of milliseconds on one. In order, the
+    // newest last (m_pictureSaves is one thread, waited for as the backend
+    // goes).
+    const QByteArray json = QJsonDocument(times).toJson(QJsonDocument::Compact);
+    m_pictureSaves.start([home = m_home, json] {
+        QDir().mkpath(home);
+        if (!writeFileAtomically(home + QStringLiteral("/playtime.json"), json))
+            qWarning("[Arcade] The play times could not be saved");
+    });
 }
 
 // ---------------------------------------------------------------------------

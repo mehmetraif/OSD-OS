@@ -95,6 +95,9 @@ public:
                                        bool preview = false);
     Q_INVOKABLE void forgetListings();
 
+    // Held while a game plays: no download runs beside it (setHeld()).
+    void setHeld(bool held);
+
 signals:
     void playlistsChanged();
     void serverListingReady(const QString &moduleId, const QString &parentId);
@@ -147,6 +150,7 @@ private:
     void cancel(const QString &key);
     void stopActive();
     void pauseDownloads();
+    bool m_held = false;     // a game is playing: no download starts (setHeld())
     bool moduleEnabled() const;
     QString sourceFolder(const QString &name) const;
     // Whether a download can go in the folder; if not, it fails, saying so.

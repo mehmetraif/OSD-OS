@@ -737,7 +737,7 @@ bool PlaylistsBackend::enqueue(const QString &key) {
 }
 
 void PlaylistsBackend::startNext() {
-    if (!m_active.key.isEmpty() || !moduleEnabled())
+    if (!m_active.key.isEmpty() || !moduleEnabled() || m_held)
         return;
     while (!m_queue.isEmpty()) {
         const QString key = m_queue.takeFirst();
@@ -971,6 +971,28 @@ void PlaylistsBackend::pauseDownloads() {
     m_queue.prepend(m_active.key);
     stopActive();
     emit playlistsChanged();
+}
+
+// Held while a game plays (main.cpp, from the Arcade module's running): the
+// game has the processor and the card to itself. A YouTube download stops and
+// waits at the head of the queue, as when the module is turned off, and
+// carries on from what yt-dlp fetched; a server's, which would start again
+// from nothing, is left to end, and the next one waits. Let go, the queue
+// goes on.
+void PlaylistsBackend::setHeld(bool held) {
+    if (m_held == held)
+        return;
+    m_held = held;
+    if (held) {
+        if (!m_active.key.isEmpty() && !m_active.flushing && m_active.process) {
+            qInfo("[Playlists] a game is playing: download of %s waits", qPrintable(m_active.key));
+            m_queue.prepend(m_active.key);
+            stopActive();
+            emit playlistsChanged();
+        }
+    } else {
+        QTimer::singleShot(0, this, &PlaylistsBackend::startNext);
+    }
 }
 
 void PlaylistsBackend::removePartials(const QString &key) const {

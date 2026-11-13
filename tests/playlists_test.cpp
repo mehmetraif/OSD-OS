@@ -96,6 +96,32 @@ private slots:
         QTRY_COMPARE(state().value(QStringLiteral("state")).toString(), QStringLiteral("failed"));
         QCOMPARE(state().value(QStringLiteral("reason")).toString(), QStringLiteral("no yt-dlp"));
     }
+
+    // No download beside a game: while one plays (setHeld(), which main.cpp
+    // sets from the Arcade module's running) a video put on an offline list
+    // waits in the queue, and the queue goes on once the game has ended.
+    void downloadsWaitForAGame() {
+        QTemporaryDir data;
+        QVERIFY(data.isValid());
+        const QByteArray path = qgetenv("PATH");
+        const auto restore = qScopeGuard([&path] { qputenv("PATH", path); });
+        qputenv("PATH", data.path().toUtf8());   // no yt-dlp: a download that starts fails at once
+
+        PlaylistsBackend playlists(data.path(), nullptr, nullptr, nullptr, {});
+        playlists.setHeld(true);
+        const QString id = playlists.createPlaylist(QStringLiteral("Away"), QStringLiteral("offline"));
+        QVERIFY(playlists.addEntry(id, QStringLiteral("com.osdos.youtube"),
+                                   { { QStringLiteral("videoId"), QStringLiteral("aqz-KE-bpKQ") },
+                                     { QStringLiteral("title"), QStringLiteral("Film") } })
+                    .value(QStringLiteral("ok")).toBool());
+        const auto state = [&]() {
+            return playlists.playlist(id).value(QStringLiteral("items")).toList().value(0).toMap();
+        };
+        QTest::qWait(200);
+        QCOMPARE(state().value(QStringLiteral("state")).toString(), QStringLiteral("queued"));
+        playlists.setHeld(false);
+        QTRY_COMPARE(state().value(QStringLiteral("state")).toString(), QStringLiteral("failed"));
+    }
 };
 
 QTEST_GUILESS_MAIN(PlaylistsTest)
