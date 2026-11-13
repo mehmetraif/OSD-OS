@@ -18,6 +18,9 @@ FocusScope {
         target: appCore;
         function onModulesLoaded(moduleData) {
             appRoot.modules = moduleData
+            // The shell's too, for the column inside a module (Main.qml's
+            // moduleFrame).
+            root.menuModules = moduleData
             // With a video to go back to, the cursor starts on its row: the
             // quickest way out of the menus is then select.
             appRoot.showRows(appRoot.behind ? null : navListState)

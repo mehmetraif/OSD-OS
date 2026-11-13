@@ -692,7 +692,42 @@ Window {
         frameActive = !!active
         frameTall = !!tall
     }
-    readonly property bool framed: menuLayout === "Camcorder" && frameIcons.length > 0
+    // Inside a module the column is one level on, as the main menu's is the
+    // groups beside a group's modules: the modules of the open one's group,
+    // by their logos, the open module's framed, its own content in the pane.
+    // Worked out here from the main menu's rows (menuModules, which the main
+    // menu hands on as AppCore sends them: it is always the first view), so
+    // it is the same however the module was opened: from the main menu, at
+    // startup, by a card.
+    property var menuModules: []
+    readonly property var moduleFrame: {
+        var source = String(moduleLoader.source)
+        var open = null
+        for (var i = 0; i < menuModules.length && !open; i++) {
+            var entry = menuModules[i].entry_point
+            if (entry && menuModules[i].icon && source.slice(-entry.length - 1) === "/" + entry)
+                open = menuModules[i]
+        }
+        if (!open)
+            return null
+        var groupOf = function(row) { return row.group === "tv" || row.group === "arcade" ? row.group : "" }
+        var icons = [], seen = {}, index = 0
+        for (var n = 0; n < menuModules.length; n++) {
+            var row = menuModules[n]
+            // A module once, whatever rows of its own it adds to the menu.
+            if (!row.icon || seen[row.entry_point] || groupOf(row) !== groupOf(open))
+                continue
+            seen[row.entry_point] = true
+            if (row.entry_point === open.entry_point)
+                index = icons.length
+            icons.push({ source: row.icon })
+        }
+        return { icons: icons, index: index }
+    }
+    // The frame that is up: the open module's, else the one handed over.
+    readonly property var shownFrameIcons: moduleFrame ? moduleFrame.icons : frameIcons
+    readonly property int shownFrameIndex: moduleFrame ? moduleFrame.index : frameIndex
+    readonly property bool framed: menuLayout === "Camcorder" && shownFrameIcons.length > 0
                                    && !!moduleLoader.item && moduleLoader.item.inFrame === true
     // The pane: where a view's rows go, beside the frame's column or, with no
     // frame, where every view has its list.
@@ -1393,14 +1428,14 @@ Window {
             IconColumn {
                 z: -0.25
                 visible: root.framed
-                model: root.frameIcons
-                currentIndex: root.frameIndex
+                model: root.shownFrameIcons
+                currentIndex: root.shownFrameIndex
                 active: root.frameActive && !!moduleLoader.item && moduleLoader.item.ownsFrame === true
                 x: root.sw * 0.115625 //74
                 y: root.stageY + root.sh * 0.25 //120
                 width: root.sw * 0.084375 //54
                 // A menu's list beside it: a row more for each bar that is off.
-                height: root.frameTall ? root.sh * 0.525 + root.hintRoom //252
+                height: root.frameTall || root.moduleFrame ? root.sh * 0.525 + root.hintRoom //252
                                        : root.sh * 0.4666667 + root.helpRoom + root.hintRoom //224
             }
 

@@ -180,6 +180,11 @@ void AppCore::scan_for_modules() {
         // The manifest's settings_group: the main menu's group in Settings →
         // Look → Menu Layout's Camcorder ("tv", "arcade", "" for none).
         entry["group"]       = m.settingsGroup;
+        // Whose row it is and its logo: inside a module, Camcorder's column
+        // is the modules of its group by their logos (Main.qml's frame).
+        entry["id"]          = m.id;
+        entry["icon"]        = QUrl::fromLocalFile(QStringLiteral("%1/modules/%2/%3")
+                                                       .arg(m_appRoot, m.folder, m.iconRel)).toString();
         displayData.append(entry);
         qDebug("[AppCore] Module: %s -> %s", qPrintable(m.name), qPrintable(entryPoint));
     }

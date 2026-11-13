@@ -17,6 +17,7 @@ Rectangle {
     // The layout's frame and its pane (Main.qml): the column's icons as a
     // view hands them over, and where a view's rows go.
     property var frameIcons: []
+    property var menuModules: []
     property int frameIndex: 0
     property bool frameActive: false
     property bool framed: false
@@ -158,6 +159,9 @@ Rectangle {
             // The column is the shell's (Main.qml's frame), handed the
             // groups' icons, the group and whether the keys are in it.
             verify(menu.inFrame && menu.ownsFrame)
+            // Its rows too, for the column inside a module (the modules of
+            // its group, by their logos).
+            compare(root.menuModules.length, menu.modules.length)
             compare(root.frameIcons.map(function(icon) { return icon.icon }), ["tv", "joystick", "apps", "gear"])
             compare(root.frameIndex, 0)
             verify(!root.frameActive)
