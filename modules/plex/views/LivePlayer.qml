@@ -44,6 +44,9 @@ FocusScope {
     function teardown() {
         if (exiting) return
         exiting = true
+        // A tune still on its way answers no one (not the next channel's
+        // player either), and lets go of the tuner it took as it comes.
+        plexBackend.cancel_stream()
         plexBackend.stop_live_session(sessionId)
         mpvController.stop()
     }

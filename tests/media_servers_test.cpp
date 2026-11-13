@@ -23,7 +23,8 @@
 // forgotten at sign-out, Plex's PIN is polled for no longer once it expires
 // or the sign-in is left, every request turned away with a 498 while one
 // refresh runs is retried after it, a refused key registration is tried
-// again at the next start, and Auto quality caps no transcode.
+// again at the next start, Auto quality caps no transcode, and a live
+// channel left while it tuned plays in no one's player.
 
 class Reply : public QNetworkReply {
 public:
@@ -571,6 +572,81 @@ private slots:
         network->last()->complete(plexContainer({ { "Metadata", plexFilms({ "1" }) } }));
         QCOMPARE(next.count(), 1);
         QCOMPARE(next.first().at(0).toMap().value(QStringLiteral("ratingKey")).toString(), QStringLiteral("1"));
+    }
+
+    // A live channel left while it tuned (back, then another channel): its
+    // answer, coming late, starts no transcode and reaches no player, and
+    // the tuner it took is let go of; the channel asked for after it plays.
+    // One left as its transcode starts has the transcode stopped again.
+    void plexChannelTunedForAPlayerLeftIsDropped() {
+        QTemporaryDir tmp;
+        PlexBackend backend(tmp.path(), tmp.path());
+        Network *network = signInPlex(backend, tmp.path());
+        QVERIFY(network);
+        backend.m_liveDvrId = QStringLiteral("dvr");
+        QSignalSpy ready(&backend, &PlexBackend::streamUrlReady);
+        QSignalSpy errors(&backend, &PlexBackend::errorOccurred);
+        const auto tuned = [](const QString &key) {
+            const QJsonObject grab{ { "Metadata", QJsonObject{ { "key", key }, { "ratingKey", "airing" },
+                                                               { "duration", 1800000 } } } };
+            return plexContainer({ { "MediaSubscription",
+                                     QJsonArray{ QJsonObject{ { "MediaGrabOperation", QJsonArray{ grab } } } } } });
+        };
+        const auto asked = [](const Reply *reply, const char *name) {
+            return QUrlQuery(reply->url()).queryItemValue(QString::fromLatin1(name), QUrl::FullyDecoded);
+        };
+        backend.tune_channel(QStringLiteral("A"), QStringLiteral("sessionA"));
+        Reply *a = network->last();
+        QVERIFY(a->url().path().endsWith(QLatin1String("/channels/A/tune")));
+        // Back while it tunes, as LivePlayer's teardown has it.
+        backend.cancel_stream();
+        backend.stop_live_session(QStringLiteral("sessionA"));
+        backend.tune_channel(QStringLiteral("B"), QStringLiteral("sessionB"));
+        Reply *b = network->last();
+        QVERIFY(b->url().path().endsWith(QLatin1String("/channels/B/tune")));
+        const qsizetype before = network->replies.size();
+        a->complete(tuned(QStringLiteral("/livetv/sessions/a")));
+        // Only its timeline, stopped: no transcode started for it.
+        QCOMPARE(network->replies.size(), before + 1);
+        QVERIFY(network->last()->url().path().endsWith(QLatin1String("/:/timeline")));
+        QCOMPARE(asked(network->last(), "state"), QStringLiteral("stopped"));
+        QCOMPARE(asked(network->last(), "key"), QStringLiteral("/livetv/sessions/a"));
+        QCOMPARE(asked(network->last(), "X-Plex-Session-Identifier"), QStringLiteral("sessionA"));
+        QVERIFY(backend.m_liveTimelineKey.isEmpty());
+        QCOMPARE(ready.count(), 0);
+        // The channel asked for after it: tuned, transcoded and played.
+        b->complete(tuned(QStringLiteral("/livetv/sessions/b")));
+        Reply *start = network->last();
+        QVERIFY(start->url().path().endsWith(QLatin1String("/transcode/universal/start.m3u8")));
+        QCOMPARE(asked(start, "session"), QStringLiteral("sessionB"));
+        QCOMPARE(asked(start, "path"), QStringLiteral("/livetv/sessions/b"));
+        start->complete("#EXTM3U\nsession/b/base/index.m3u8\n");
+        QCOMPARE(ready.count(), 1);
+        QVERIFY(ready.first().at(0).toString().endsWith(QLatin1String("session/b/base/index.m3u8")));
+        QCOMPARE(backend.m_liveSessionId, QStringLiteral("sessionB"));
+
+        // Left as its transcode starts: the stop went before the transcode
+        // had begun, so it is stopped again as the server answers.
+        backend.cancel_stream();
+        backend.stop_live_session(QStringLiteral("sessionB"));
+        backend.tune_channel(QStringLiteral("C"), QStringLiteral("sessionC"));
+        network->last()->complete(tuned(QStringLiteral("/livetv/sessions/c")));
+        Reply *late = network->last();
+        QCOMPARE(asked(late, "session"), QStringLiteral("sessionC"));
+        backend.cancel_stream();
+        backend.stop_live_session(QStringLiteral("sessionC"));
+        const qsizetype stopped = network->replies.size();
+        late->complete("#EXTM3U\nsession/c/base/index.m3u8\n");
+        QCOMPARE(network->replies.size(), stopped + 1);
+        QVERIFY(network->last()->url().path().endsWith(QLatin1String("/transcode/universal/stop")));
+        QCOMPARE(asked(network->last(), "session"), QStringLiteral("sessionC"));
+        QCOMPARE(ready.count(), 1);
+        // A tune that fails for a player that has gone throws no other back.
+        backend.tune_channel(QStringLiteral("D"), QStringLiteral("sessionD"));
+        Reply *failing = network->last();
+        backend.cancel_stream();
+        failing->fail(500);
+        QCOMPARE(errors.count(), 0);
     }
 };
 

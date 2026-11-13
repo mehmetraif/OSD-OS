@@ -2875,13 +2875,22 @@ void PlexBackend::tune_channel(const QString &channelId, const QString &sessionI
     q.addQueryItem("X-Plex-Client-Identifier",  clientId());
     q.addQueryItem("X-Plex-Session-Identifier", sessionId);
     url.setQuery(q);
+    // A stream as a transcode's is (m_streamRequest): a channel left while it
+    // tuned (cancel_stream), or another stream asked for since, answers no one.
+    const int request = ++m_streamRequest;
     auto *reply = plexPost(url, token);
     connect(reply, &QNetworkReply::finished, this,
-            [this, reply, channelId, sessionId]() {
+            [this, reply, request, channelId, sessionId]() {
         reply->deleteLater();
         if (reply->error() != QNetworkReply::NoError) {
+            // Not wanted any more, and nothing tuned: no one to tell.
+            if (request != m_streamRequest)
+                return;
             if (reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt() == 498) {
-                handle498([this, channelId, sessionId]{ tune_channel(channelId, sessionId); }); return;
+                handle498([this, request, channelId, sessionId]{
+                    if (request == m_streamRequest)
+                        tune_channel(channelId, sessionId);
+                }); return;
             }
             emit errorOccurred("TUNE FAILED: " + reply->errorString()); return;
         }
@@ -2900,6 +2909,17 @@ void PlexBackend::tune_channel(const QString &channelId, const QString &sessionI
             if (!ops.isEmpty()) meta = ops[0].toObject()["Metadata"].toObject();
         }
         QString livePath = meta["key"].toString();
+        const QString ratingKey = meta["ratingKey"].toVariant().toString();
+        const int durationMs    = meta["duration"].toInt();
+        if (request != m_streamRequest) {
+            // Tuned for a player that has gone, or that waits for another
+            // stream by now: no transcode is started and no view told, and
+            // the tuner is let go of here, the player's own
+            // stop_live_session() having come before there was a session.
+            if (!livePath.isEmpty())
+                reportLiveTimeline("stopped", livePath, ratingKey, sessionId, durationMs, 0);
+            return;
+        }
         if (livePath.isEmpty()) {
             QString msg = mc["message"].toString();
             qDebug() << "[Plex] Tune produced no stream — raw:" << body.left(600);
@@ -2907,8 +2927,8 @@ void PlexBackend::tune_channel(const QString &channelId, const QString &sessionI
             return;
         }
         m_liveTimelineKey = livePath;
-        m_liveRatingKey   = meta["ratingKey"].toVariant().toString();
-        m_liveDurationMs  = meta["duration"].toInt();
+        m_liveRatingKey   = ratingKey;
+        m_liveDurationMs  = durationMs;
         m_liveSessionId   = sessionId;
         m_liveStartedMs   = QDateTime::currentMSecsSinceEpoch();
 
@@ -2939,8 +2959,17 @@ void PlexBackend::tune_channel(const QString &channelId, const QString &sessionI
         req.setRawHeader("X-Plex-Platform", "Chrome");
         auto *startReply = m_nam->get(req);
         ignoreSslErrors(startReply);
-        connect(startReply, &QNetworkReply::finished, this, [this, startReply, token]() {
+        connect(startReply, &QNetworkReply::finished, this, [this, startReply, request, token, sessionId]() {
             startReply->deleteLater();
+            if (request != m_streamRequest) {
+                // Left as its transcode started: stopped again, the player's
+                // own stop having reached the server before it had begun,
+                // with the tuner if that stop hasn't let go of it.
+                if (m_liveSessionId == sessionId)
+                    update_live_timeline("stopped");
+                stopLiveTranscode(sessionId);
+                return;
+            }
             if (startReply->error() != QNetworkReply::NoError) {
                 emit errorOccurred("LIVE STREAM FAILED: " + startReply->errorString()); return;
             }
@@ -2966,38 +2995,47 @@ void PlexBackend::tune_channel(const QString &channelId, const QString &sessionI
 
 void PlexBackend::update_live_timeline(const QString &state) {
     if (m_liveTimelineKey.isEmpty()) return;
-    QString uri = serverUrl(), token = serverToken();
     // The ratingKey + session + an advancing time are what let Plex match this
     // timeline to the active airing and keep the DVR grab rolling. Without them the
     // grab is reaped after a few minutes and the HLS playlist starts returning 404.
     qint64 elapsed = QDateTime::currentMSecsSinceEpoch() - m_liveStartedMs;
     if (elapsed < 0) elapsed = 0;
     if (m_liveDurationMs > 0 && elapsed > m_liveDurationMs) elapsed = m_liveDurationMs;
-    QUrl url(uri + "/:/timeline");
-    QUrlQuery q;
-    q.addQueryItem("ratingKey", m_liveRatingKey);
-    q.addQueryItem("key",       m_liveTimelineKey);
-    q.addQueryItem("state",     state);
-    q.addQueryItem("time",      QString::number(elapsed));
-    q.addQueryItem("duration",  QString::number(m_liveDurationMs));
-    q.addQueryItem("hasMDE",    "1");
-    q.addQueryItem("X-Plex-Session-Identifier", m_liveSessionId);
-    q.addQueryItem("X-Plex-Client-Identifier",  clientId());
-    url.setQuery(q);
-    auto *reply = plexGet(url, token);
-    connect(reply, &QNetworkReply::finished, reply, &QNetworkReply::deleteLater);
+    reportLiveTimeline(state, m_liveTimelineKey, m_liveRatingKey, m_liveSessionId, m_liveDurationMs, elapsed);
     // Releasing the tuner ends this session; forget the key so a stray timer tick
     // can't re-ping a dead session.
     if (state == "stopped") m_liveTimelineKey.clear();
 }
 
-void PlexBackend::stop_live_session(const QString &sessionId) {
+void PlexBackend::reportLiveTimeline(const QString &state, const QString &key, const QString &ratingKey,
+                                     const QString &sessionId, int durationMs, qint64 timeMs) {
     QString uri = serverUrl(), token = serverToken();
+    QUrl url(uri + "/:/timeline");
+    QUrlQuery q;
+    q.addQueryItem("ratingKey", ratingKey);
+    q.addQueryItem("key",       key);
+    q.addQueryItem("state",     state);
+    q.addQueryItem("time",      QString::number(timeMs));
+    q.addQueryItem("duration",  QString::number(durationMs));
+    q.addQueryItem("hasMDE",    "1");
+    q.addQueryItem("X-Plex-Session-Identifier", sessionId);
+    q.addQueryItem("X-Plex-Client-Identifier",  clientId());
+    url.setQuery(q);
+    auto *reply = plexGet(url, token);
+    connect(reply, &QNetworkReply::finished, reply, &QNetworkReply::deleteLater);
+}
+
+void PlexBackend::stop_live_session(const QString &sessionId) {
     // Stop the universal transcode consuming the tuner. Also report the timeline
     // stopped (best effort) before forgetting the key, so the server reclaims the
     // tuner promptly instead of waiting for the idle timeout.
     update_live_timeline("stopped");
     if (sessionId.isEmpty()) return;
+    stopLiveTranscode(sessionId);
+}
+
+void PlexBackend::stopLiveTranscode(const QString &sessionId) {
+    QString uri = serverUrl(), token = serverToken();
     QUrl url(uri + "/video/:/transcode/universal/stop");
     QUrlQuery q;
     q.addQueryItem("session", sessionId);
