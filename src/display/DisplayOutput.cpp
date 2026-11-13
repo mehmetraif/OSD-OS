@@ -48,19 +48,23 @@ const Preset kPresets[] = {
     { "jamma-240p",     "JAMMA 240p 15 kHz (720x240)", 30, 4 },
     // The JAMMA board's other modes: 320 across (the games' own pixels),
     // super resolutions 1920 across, PAL's 288 lines, interlaced 480 and 576
-    // lines (a Pi 4's alone), and the 25 and 31 kHz monitors'.
+    // lines (not a Pi 5's), 480 of them 640 across too, square pixels on a
+    // 4:3 tube, and the 25 and 31 kHz monitors'.
     { "jamma-240p-native", "JAMMA 240p 15 kHz (320x240)",  31, 6 },
     { "jamma-240p-super",  "JAMMA 240p 15 kHz (1920x240)", 32, 6 },
     { "jamma-288p",        "JAMMA 288p 15 kHz (720x288)",  33, 6 },
     { "jamma-288p-super",  "JAMMA 288p 15 kHz (1920x288)", 34, 6 },
     { "jamma-480i",        "JAMMA 480i 15 kHz (720x480)",  35, 6 },
+    // Its code after the 31 kHz one's, osdos-stop's last: in the menu beside
+    // the other 480i.
+    { "jamma-480i-640",    "JAMMA 480i 15 kHz (640x480)",  39, 9 },
     { "jamma-576i",        "JAMMA 576i 15 kHz (720x576)",  36, 6 },
     { "jamma-25k",         "JAMMA 25 kHz (496x384)",       37, 6, k25kHz },
     { "jamma-31k",         "JAMMA 31 kHz (640x480)",       38, 6, k31kHz },
 };
 // osdos-stop's for the output before the last one chosen.
 constexpr int kRevertExitCode = 29;
-// Added to a preset's code: written, then off (40-58).
+// Added to a preset's code: written, then off (40-59).
 constexpr int kPowerOff = 20;
 // The launcher whose osdos-stop powers off after a preset, and writes one for
 // the next start through osdos-display.socket.
@@ -95,20 +99,22 @@ bool boardHas(const QString &id) {
     // The AV jack (Pi 3, Pi 4), the TV pads (Pi 5); none on a keyboard model.
     if (id.startsWith(QLatin1String("crt-")))
         return (pi3 || pi4 || pi5) && !board::isKeyboard();
-    // RGB on the GPIO pins (DPI): 480i and 576i on both, and on the Pi 4,
-    // whose interlace is the firmware's, 240p and 288p should it not hold.
+    // RGB on the GPIO pins (DPI): 480i and 576i on all three, and on the Pi 4
+    // and the Pi 3, whose DPI and interlace are the firmware's, alike, 240p
+    // and 288p should it not hold.
     if (id == QLatin1String("scart-rgb-ntsc") || id == QLatin1String("scart-rgb-pal"))
-        return pi4 || pi5;
+        return pi3 || pi4 || pi5;
     if (id.startsWith(QLatin1String("scart-rgb-")))
-        return pi4;
-    // A Raspberry Pi to JAMMA board in RGB-Pi's layout: the Pi 4's firmware
-    // DPI, its sound on GPIO 18 and 19; the Pi 5's kernel DPI, its sound on a
-    // USB card, which interlaces only with GPIO 1, the board's I2C. Not a
-    // Pi 3's.
-    if (id == QLatin1String("jamma-480i") || id == QLatin1String("jamma-576i"))
-        return pi4;
+        return pi3 || pi4;
+    // A Raspberry Pi to JAMMA board in RGB-Pi's layout: the Pi 4's and the
+    // Pi 3's firmware DPI, their sound on GPIO 18 and 19; the Pi 5's kernel
+    // DPI, its sound on a USB card, which interlaces only with GPIO 1, the
+    // board's I2C.
+    if (id == QLatin1String("jamma-480i") || id == QLatin1String("jamma-480i-640")
+        || id == QLatin1String("jamma-576i"))
+        return pi3 || pi4;
     if (id.startsWith(QLatin1String("jamma-")))
-        return pi4 || pi5;
+        return pi3 || pi4 || pi5;
     return false;
 }
 

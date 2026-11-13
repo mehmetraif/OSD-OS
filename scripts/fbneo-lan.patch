@@ -1,22 +1,56 @@
 diff --git a/src/burn/devices/epic12.cpp b/src/burn/devices/epic12.cpp
-index b018515..c2f5160 100644
+index b018515..045b37d 100644
 --- a/src/burn/devices/epic12.cpp
 +++ b/src/burn/devices/epic12.cpp
-@@ -422,6 +422,13 @@ void epic12_reset()
+@@ -58,6 +58,11 @@ static UINT32 m_gfx_clip_x_shadowcopy, m_gfx_clip_y_shadowcopy;
+ 
+ static int m_gfx_size;
+ static UINT32 *m_bitmaps;
++// OSD/OS's LAN build: whether anything may have been drawn into it since it
++// was last emptied (epic12_reset()), which empties its 128 MiB only then: a
++// machine that waits for player 2 resets with it still empty, and so does
++// every replay of the frame the game starts at.
++static bool m_bitmaps_dirty;
+ static rectangle m_clip;
+ 
+ static UINT64 epic12_device_blit_delay;
+@@ -330,6 +335,7 @@ void epic12_init(INT32 ram_size, UINT16 *ram, UINT8 *dippy)
+ 
+ 	m_gfx_size = 0x2000 * 0x1000;
+ 	m_bitmaps = (UINT32*)BurnMalloc (m_gfx_size * 4);
++	m_bitmaps_dirty = true;
+ 
+ 	m_clip.set(0, 0x2000-1, 0, 0x1000-1);
+ 
+@@ -422,6 +428,17 @@ void epic12_reset()
  	m_blit_delay_ns = 0;
  	m_blit_idle_op_bytes = 0;
  
 +	// OSD/OS's LAN build: the video memory starts empty at every reset, as it
 +	// does at power on, once a blit still drawing in its thread is done. Two
 +	// machines reset together over the network then fill it alike, as it isn't
-+	// in netplay's states (epic12_scan()).
++	// in netplay's states (epic12_scan()). Left alone where nothing has drawn
++	// into it since it was last emptied.
 +	thready.notify_wait();
-+	memset(m_bitmaps, 0, m_gfx_size * 4);
++	if (m_bitmaps_dirty) {
++		memset(m_bitmaps, 0, m_gfx_size * 4);
++		m_bitmaps_dirty = false;
++	}
 +
  	thready.reset();
  }
  
-@@ -1267,7 +1274,12 @@ void epic12_scan(INT32 nAction, INT32 *pnMin)
+@@ -981,6 +998,9 @@ static void gfx_create_shadow_copy()
+ 
+ static void gfx_exec()
+ {
++	// OSD/OS's LAN build: uploads and draws write the video memory.
++	m_bitmaps_dirty = true;
++
+ 	UINT32 addr = m_gfx_addr_shadowcopy & 0x1fffffff;
+ 	m_clip.set(m_gfx_clip_x_shadowcopy - EP1C_CLIP_MARGIN, m_gfx_clip_x_shadowcopy + 320 - 1 + EP1C_CLIP_MARGIN,
+ 			   m_gfx_clip_y_shadowcopy - EP1C_CLIP_MARGIN, m_gfx_clip_y_shadowcopy + 240 - 1 + EP1C_CLIP_MARGIN);
+@@ -1267,8 +1287,15 @@ void epic12_scan(INT32 nAction, INT32 *pnMin)
  	SCAN_VAR(m_blit_delay_ns);
  	SCAN_VAR(m_blit_idle_op_bytes);
  
@@ -28,10 +62,13 @@ index b018515..c2f5160 100644
 +	// runs alike without it; the picture is drawn again as the game goes on.
 +	if (!(nAction & (ACB_RUNAHEAD | ACB_NET_OPT))) {
  		ScanVar(m_bitmaps, m_gfx_size * 4, "epic12 vram");
++		if (nAction & ACB_WRITE)
++			m_bitmaps_dirty = true;
  	}
  	thready.scan();
+ }
 diff --git a/src/burn/drv/cave/d_cv1k.cpp b/src/burn/drv/cave/d_cv1k.cpp
-index f3714ae..b48ba75 100644
+index f3714ae..eb46052 100644
 --- a/src/burn/drv/cave/d_cv1k.cpp
 +++ b/src/burn/drv/cave/d_cv1k.cpp
 @@ -44,6 +44,16 @@ static INT32 nPrevBurnCPUSpeedAdjust;
@@ -72,7 +109,7 @@ index f3714ae..b48ba75 100644
  	return 0;
  }
  
-@@ -610,6 +627,31 @@ static INT32 DrvFrame()
+@@ -610,6 +627,28 @@ static INT32 DrvFrame()
  		hold_coin.checklow(1, DrvInputs[0], 1<<3, 2);
  	}
  
@@ -81,12 +118,9 @@ index f3714ae..b48ba75 100644
 +	// the game from its reset, which empties the video memory again for a
 +	// rollback that replays this frame.
 +	if (nCv1kLanWaiting) {
-+		UINT8 player2 = DrvJoy1[3] | DrvJoy1[5];
-+		for (INT32 i = 0; i < 8; i++) {
-+			player2 |= DrvJoy4[i];
-+		}
-+
-+		if (!player2) {
++		// Player 2's coin and start, and its stick and buttons as read just
++		// above (DrvInputs[3]: a bit low for each one held).
++		if (DrvInputs[3] == 0xff && !(DrvJoy1[3] | DrvJoy1[5])) {
 +			if (pBurnSoundOut) {
 +				memset(pBurnSoundOut, 0, nBurnSoundLen * 2 * sizeof(INT16));
 +			}
@@ -104,7 +138,7 @@ index f3714ae..b48ba75 100644
  	Sh3NewFrame();
  
  	INT32 nInterleave = 240;
-@@ -666,6 +708,14 @@ static INT32 DrvScan(INT32 nAction, INT32 *pnMin)
+@@ -666,6 +705,14 @@ static INT32 DrvScan(INT32 nAction, INT32 *pnMin)
  		SCAN_VAR(nExtraCycles);
  
  		hold_coin.scan();
@@ -120,10 +154,10 @@ index f3714ae..b48ba75 100644
  
  	serflash_scan(nAction, pnMin); // writes back to flash (hiscores ddpdfk, etc) here
 diff --git a/src/burner/libretro/libretro.cpp b/src/burner/libretro/libretro.cpp
-index 9e89835..7a6e9eb 100644
+index 4e7f8b9..3c8c5bc 100644
 --- a/src/burner/libretro/libretro.cpp
 +++ b/src/burner/libretro/libretro.cpp
-@@ -41,6 +41,10 @@
+@@ -44,6 +44,10 @@
  #define APP_TITLE "FinalBurn Neo (" SUBSET " subset)"
  #endif
  
@@ -134,7 +168,7 @@ index 9e89835..7a6e9eb 100644
  int counter;           // General purpose variable used when debugging
  
  static void log_dummy(enum retro_log_level level, const char *fmt, ...) { }
-@@ -498,6 +502,123 @@ void InpDIPSWResetDIPs (void)
+@@ -503,6 +507,123 @@ void InpDIPSWResetDIPs (void)
  	}
  }
  
@@ -258,7 +292,7 @@ index 9e89835..7a6e9eb 100644
  static int create_variables_from_dipswitches()
  {
  	HandleMessage(RETRO_LOG_INFO, "Initialize DIP switches.\n");
-@@ -624,6 +745,8 @@ static int create_variables_from_dipswitches()
+@@ -629,6 +750,8 @@ static int create_variables_from_dipswitches()
  				dipswitch_core_options.pop_back();
  				continue;
  			}
@@ -267,7 +301,7 @@ index 9e89835..7a6e9eb 100644
  		}
  	}
  
-@@ -1366,6 +1489,50 @@ static void VideoBufferInit()
+@@ -1389,6 +1512,50 @@ static void VideoBufferInit()
  		memset(pVidImage, 0, nSize);
  }
  
@@ -318,7 +352,7 @@ index 9e89835..7a6e9eb 100644
  void retro_run()
  {
  	bool bEnableVideo  = true;
-@@ -1479,6 +1646,8 @@ void retro_run()
+@@ -1502,6 +1669,8 @@ void retro_run()
  
  	ForceFrameStep();
  
@@ -328,10 +362,10 @@ index 9e89835..7a6e9eb 100644
  	{
  		if (bLowPassFilterEnabled)
 diff --git a/src/burner/libretro/retro_input.cpp b/src/burner/libretro/retro_input.cpp
-index ffc57cf..0fdaaa1 100644
+index 776a104..dadf488 100644
 --- a/src/burner/libretro/retro_input.cpp
 +++ b/src/burner/libretro/retro_input.cpp
-@@ -48,6 +48,52 @@ static bool bLibretroSupportsBitmasks = false;
+@@ -51,6 +51,52 @@ static UINT16 nRumbleState[MAX_PLAYERS][2];
  static char* pDirections[MAX_PLAYERS][6];
  UINT32 nDiagInputHoldCounter = 0;
  
@@ -354,12 +388,18 @@ index ffc57cf..0fdaaa1 100644
 +
 +static void LanSeatComers()
 +{
++	// The seats fill from player 1 up and are never given up: the first free
++	// one, and the ports that sit before it. With every seat taken no port is
++	// read here at all.
++	const int nSeats = (int)nMaxPlayers < MAX_PLAYERS ? (int)nMaxPlayers : MAX_PLAYERS;
++	UINT32 nSeated = 1;
++	int nFree = 1;
++	for (; nFree < nSeats && nLanSeat[nFree] >= 0; nFree++)
++		nSeated |= 1u << nLanSeat[nFree];
++
 +	const int nCome = (1 << RETRO_DEVICE_ID_JOYPAD_SELECT) | (1 << RETRO_DEVICE_ID_JOYPAD_START);
-+	for (int port = 1; port < MAX_PLAYERS; port++) {
-+		int player;
-+		for (player = 0; player < MAX_PLAYERS && nLanSeat[player] != port; player++)
-+			;
-+		if (player < MAX_PLAYERS)
++	for (int port = 1; port < MAX_PLAYERS && nFree < nSeats; port++) {
++		if (nSeated & (1u << port))
 +			continue;
 +		int nPressed;
 +		if (bLibretroSupportsBitmasks) {
@@ -370,21 +410,15 @@ index ffc57cf..0fdaaa1 100644
 +			nPressed = input_cb(port, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_SELECT)
 +			        || input_cb(port, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_START);
 +		}
-+		if (!nPressed)
-+			continue;
-+		for (player = 1; player < nMaxPlayers && player < MAX_PLAYERS; player++) {
-+			if (nLanSeat[player] < 0) {
-+				nLanSeat[player] = port;
-+				break;
-+			}
-+		}
++		if (nPressed)
++			nLanSeat[nFree++] = port;
 +	}
 +}
 +
  // hardware macros
  #define HW_NEOGEO (((BurnDrvGetHardwareCode() & HARDWARE_PUBLIC_MASK) == HARDWARE_SNK_NEOGEO) || ((BurnDrvGetHardwareCode() & HARDWARE_PUBLIC_MASK) == HARDWARE_SNK_NEOCD))
  #define HW_NES    (((BurnDrvGetHardwareCode() & HARDWARE_PUBLIC_MASK) == HARDWARE_NES) || ((BurnDrvGetHardwareCode() & HARDWARE_PUBLIC_MASK) == HARDWARE_FDS))
-@@ -427,6 +473,13 @@ INT32 GameInpInit()
+@@ -430,6 +476,13 @@ INT32 GameInpInit()
  
  static inline int input_cb_wrapper(unsigned port, unsigned device, unsigned index, unsigned id)
  {
@@ -398,7 +432,7 @@ index ffc57cf..0fdaaa1 100644
  	if (bLibretroSupportsBitmasks && device == RETRO_DEVICE_JOYPAD) {
  		if (nLibretroInputBitmask[port] == -1)
  			nLibretroInputBitmask[port] = input_cb(port, RETRO_DEVICE_JOYPAD, index, RETRO_DEVICE_ID_JOYPAD_MASK);
-@@ -3368,6 +3421,8 @@ void InputMake(void)
+@@ -3388,6 +3441,8 @@ void InputMake(void)
  
  	poll_cb();
  
@@ -407,14 +441,14 @@ index ffc57cf..0fdaaa1 100644
  	if (PollDiagInput())
  		return;
  
-@@ -3544,6 +3599,7 @@ void InputInit()
+@@ -3607,6 +3662,7 @@ void InputInit()
  
  	GameInpInit();
  	GameInpDefault();
 +	LanSeatsReset();
  
- 	bInputInitialized = true;
- }
+ 	memset(nRumbleState, 0, sizeof(nRumbleState));
+ 	bRumbleAvailable = environ_cb(RETRO_ENVIRONMENT_GET_RUMBLE_INTERFACE, &sRumbleInterface) && sRumbleInterface.set_rumble_state;
 diff --git a/src/burner/libretro/retro_memory.cpp b/src/burner/libretro/retro_memory.cpp
 index 45d7b9c..c680d24 100644
 --- a/src/burner/libretro/retro_memory.cpp

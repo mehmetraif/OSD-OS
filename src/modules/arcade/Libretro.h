@@ -220,6 +220,12 @@ struct Launch {
     // on the local network alone (LanHost, LAN Play), or joining a room as
     // the lobby gives it (Join) or a host on the local network (LanJoin).
     enum class Netplay { None, Host, LanHost, Join, LanJoin } netplay = Netplay::None;
+    // How a game hosted on the local network keeps its machines together
+    // (configText(), where why): the host alone plays the game and every
+    // machine joining follows it (Follow), or each plays ahead on a guess of
+    // the others' buttons and corrects itself (Predict). It is the host's
+    // to say: RetroArch hands a host's way to every machine joining.
+    enum class LanSync { Follow, Predict } lanSync = LanSync::Follow;
     QString nickname;
     QString relay;            // "nyc", "madrid", "saopaulo", "singapore", "chuncheon"
     QString joinAddress;      // RetroArch's --connect: "address|port" or "address|port|session"
@@ -293,8 +299,15 @@ QString withHardcoreOptions(const QString &text);
 // (userOptions, the text of their file, coreOptionsPath()), only those that
 // change nothing but this machine's picture: vertical mode, 32-bit colour and
 // the light gun's crosshair.
+// On OSD/OS's own core for the local network (lanCore), where every machine
+// is an OSD/OS, the diagnostic input is off: FinalBurn Neo counts how long
+// START is held in every frame it runs, the ones netplay plays again too,
+// and keeps that count out of netplay's states, so a machine that played
+// more frames again would open the game's test menu on another frame than
+// the rest, or alone; and a player who holds START to come in would put
+// everyone in it.
 QString netplayOptionsPath(const QString &configDir);
-QString netplayOptionsText(const QString &userOptions);
+QString netplayOptionsText(const QString &userOptions, bool lanCore = false);
 // FinalBurn Neo's info file, which RetroArch looks for in infoDir by the
 // core's name (fbneo_libretro.info; lanCore, lanCorePath()'s:
 // osdos_lan_libretro.info), and the text OSD/OS writes in it before each
@@ -426,6 +439,15 @@ struct Room {
 QList<Room> readWholeLobby(const QByteArray &json);
 // Of them, those FinalBurn Neo hosts that can be joined (joinable).
 QList<Room> readLobby(const QByteArray &json);
+
+// The frames of input latency a game over the network plays with where its
+// machines play ahead on a guess (configText(), where why): on the local
+// network (Launch::LanSync::Predict) one for every machine and up to
+// kLanInputLatencyRange more for one that can't keep up otherwise; online
+// none, and up to kOnlineInputLatencyRange for such a machine.
+inline constexpr int kLanInputLatencyFrames = 1;
+inline constexpr int kLanInputLatencyRange = 3;
+inline constexpr int kOnlineInputLatencyRange = 4;
 
 // LAN Play, RetroArch's netplay on the local network: a host that isn't
 // relayed answers a query broadcast to its port (lanQuery()) with what it

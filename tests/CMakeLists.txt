@@ -205,6 +205,10 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
     add_test(NAME display_output_pi5 COMMAND display_output_test)
     set_tests_properties(display_output_pi5 PROPERTIES
         ENVIRONMENT "OSDOS_BOARD_MODEL=Raspberry Pi 5 Model B Rev 1.0")
+    # And as a Pi 3, whose DPI is a Pi 4's: the same outputs, its AV jack too.
+    add_test(NAME display_output_pi3 COMMAND display_output_test)
+    set_tests_properties(display_output_pi3 PROPERTIES
+        ENVIRONMENT "OSDOS_BOARD_MODEL=Raspberry Pi 3 Model B Plus Rev 1.3")
 
     # The OSD/OS image's boot screen (BootProgress) against a stand-in for
     # systemctl: the services it lists as they start, and OSD/OS Setup's
@@ -382,6 +386,14 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
                                      ${CMAKE_CURRENT_SOURCE_DIR}/../scripts/install.sh
                                      ${CMAKE_CURRENT_SOURCE_DIR}/../os/stage-osdos/03-boot/files)
 
+    # The image's marking of a network game's packets for Wi-Fi's video
+    # queue (osdos-netplay-priority): the port against the Arcade module's,
+    # the addresses, the unit and its place in the stage, and the rules given
+    # to nft where it is here and root.
+    add_test(NAME netplay_priority COMMAND bash ${CMAKE_CURRENT_SOURCE_DIR}/netplay_priority_test.sh
+                                           ${CMAKE_CURRENT_SOURCE_DIR}/../os/stage-osdos/02-system
+                                           ${CMAKE_CURRENT_SOURCE_DIR}/../src/modules/arcade/Libretro.h)
+
     # OSD/OS Setup's file applied as the card starts (osdos-setup, the
     # image's), on a stand-in card with the image's osdos-stop: a whole file,
     # the same again, parts it refuses, files it can't read. Needs Python 3.
@@ -519,8 +531,12 @@ if(UNIX)
     # Monitor), in its tall layout.
     add_test(NAME app_arcade_turned_right COMMAND bash ${smoke} "--monitor=Turned Right")
     add_test(NAME app_arcade_turned_left COMMAND bash ${smoke} "--monitor=Turned Left")
+    # Its first frame, with a theme chosen: on the theme's ground.
+    add_test(NAME app_first_frame
+             COMMAND bash ${CMAKE_CURRENT_SOURCE_DIR}/first_frame_test.sh ${OSDOS_APP} ${osdos_root})
     set(smoke_tests app_main_menu app_setup_file app_main_menu_camcorder app_main_menu_studio_monitor
-                    app_main_menu_broadcast app_main_menu_flat_panel app_arcade_turned_right app_arcade_turned_left)
+                    app_main_menu_broadcast app_main_menu_flat_panel app_arcade_turned_right app_arcade_turned_left
+                    app_first_frame)
     file(GLOB manifests CONFIGURE_DEPENDS ${osdos_root}/modules/*/manifest.json)
     foreach(manifest ${manifests})
         get_filename_component(folder ${manifest} DIRECTORY)

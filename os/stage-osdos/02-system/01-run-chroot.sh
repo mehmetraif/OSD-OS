@@ -4,7 +4,7 @@
 # appliance plugged into a TV doesn't need.
 
 systemctl enable osdos.service osdos-cloud-init-once.service osdos-jamma.service osdos-display.socket osdos-wifi.socket osdos-name.socket \
-	osdos-setup-app.service osdos-setup.service
+	osdos-setup-app.service osdos-setup.service osdos-netplay-priority.service
 
 # Built without a password (os/build.sh): the app still runs as this user, but
 # nobody logs in as it. Raspberry Pi Imager's OS customisation creates the

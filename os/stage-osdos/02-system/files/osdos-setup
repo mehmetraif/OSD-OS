@@ -563,13 +563,13 @@ def board_has(preset, board, keyboard):
     if preset.startswith("crt-"):
         return board in ("pi3", "pi4", "pi5") and not keyboard
     if preset in ("scart-rgb-ntsc", "scart-rgb-pal"):
-        return board in ("pi4", "pi5")
+        return board in ("pi3", "pi4", "pi5")
     if preset.startswith("scart-rgb-"):
-        return board == "pi4"
-    if preset in ("jamma-480i", "jamma-576i"):
-        return board == "pi4"
+        return board in ("pi3", "pi4")
+    if preset in ("jamma-480i", "jamma-480i-640", "jamma-576i"):
+        return board in ("pi3", "pi4")
     if preset.startswith("jamma-"):
-        return board in ("pi4", "pi5")
+        return board in ("pi3", "pi4", "pi5")
     return False
 
 

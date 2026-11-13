@@ -108,7 +108,7 @@ on_exit 29
 check "exit 29 goes back" scart-rgb-pal "$(in_force)"
 check "exit 29 brings SCART's sync back" yes "$(csync)"
 new_boot
-# The JAMMA board's other modes, 31-38, none with a composite sync.
+# The JAMMA board's other modes, 31-39, none with a composite sync.
 on_exit 31
 check "exit 31 writes JAMMA 240p 15 kHz (320x240)" jamma-240p-native "$(in_force)"
 check "exit 31 writes no composite sync" no "$(csync)"
@@ -121,11 +121,16 @@ on_exit 38
 check "exit 38 writes JAMMA 31 kHz" jamma-31k "$(in_force)"
 new_boot
 on_exit 39
-check "exit 39 is no preset's: nothing written" jamma-31k "$(in_force)"
-check "exit 39 is no preset's: nothing asked" "" "$(asked)"
+check "exit 39 writes JAMMA 480i at 640 across" jamma-480i-640 "$(in_force)"
+check "exit 39 writes no composite sync" no "$(csync)"
+check "exit 39 reboots" reboot "$(asked)"
+new_boot
+on_exit 60
+check "exit 60 is no preset's: nothing written" jamma-480i-640 "$(in_force)"
+check "exit 60 is no preset's: nothing asked" "" "$(asked)"
 new_boot
 on_exit 29
-check "exit 29 goes back to JAMMA 480i" jamma-480i "$(in_force)"
+check "exit 29 goes back to JAMMA 31 kHz" jamma-31k "$(in_force)"
 new_boot
 on_exit 26
 new_boot
@@ -145,8 +150,10 @@ check "exit 58 writes JAMMA 31 kHz" jamma-31k "$(in_force)"
 check "exit 58 powers off" poweroff "$(asked)"
 new_boot
 on_exit 59
-check "exit 59 is no preset's: nothing written" jamma-31k "$(in_force)"
-check "exit 59 is no preset's: nothing asked" "" "$(asked)"
+check "exit 59 writes JAMMA 480i at 640 across" jamma-480i-640 "$(in_force)"
+check "exit 59 powers off" poweroff "$(asked)"
+new_boot
+on_exit 58
 new_boot
 
 # A preset that can't be written: the output as it was and why in the

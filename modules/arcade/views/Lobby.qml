@@ -176,12 +176,14 @@ FocusScope {
         return Rooms.about(row, lobby)
     }
 
-    // The lobby read again while the page is open: rooms last a minute
-    // there, and hosts say they are still there every 20 s.
+    // The lobby read again while the page is open and shown: rooms last a
+    // minute there, and hosts say they are still there every 20 s. Not under
+    // the screen saver, nor behind a game's screen: a cabinet left on this
+    // page asked the internet for it for as long as it stood there.
     Timer {
         interval: 20000
         repeat: true
-        running: !!arcadeBackend && !arcadeBackend.running
+        running: lobbyRoot.visible && !!arcadeBackend && !arcadeBackend.running && !root.screenSaverActive
         onTriggered: {
             if (lobbyRoot.parent)
                 arcadeBackend.refreshRooms()

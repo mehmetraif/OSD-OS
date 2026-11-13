@@ -1,0 +1,37 @@
+#!/usr/sbin/nft -f
+# OSD/OS image: a network game's packets ahead of the rest.
+#
+# A game on the local network is RetroArch's netplay: a small TCP packet a
+# frame each way, to and from the host's port 55435 (libretro::kLanPort), and
+# a game is only as smooth as the latest of them. On Wi-Fi every packet waits
+# its turn for the air with everything else there: a film streaming to the
+# next room, a phone's backup. Wi-Fi has four queues for that (WMM), and
+# picks one by the packet's DSCP mark, which nothing sets for a game: it
+# queues as "best effort", behind all of it.
+#
+# So the game's packets are marked CS4, "real-time interactive" (RFC 4594),
+# which Wi-Fi sends from its video queue (RFC 8325): a shorter wait for the
+# air, ahead of best effort. The Pi's Wi-Fi driver reads the mark of what
+# this machine sends (brcmfmac, cfg80211_classify8021d()), and an access
+# point that of what the other machine sent, so with every machine marking,
+# both ways are ahead. A cable has no such queue to wait in, and a switch
+# passes the mark by.
+#
+# Only to the private networks' addresses, where LAN games are played
+# (ArcadeBackend takes rooms from no other): a game online, to an address on
+# the internet, is left as it is.
+#
+# A table of its own, made anew each time this is read, so that reading it
+# twice does no harm and nothing else's rules are touched.
+table inet osdos_netplay
+delete table inet osdos_netplay
+
+table inet osdos_netplay {
+	chain output {
+		type filter hook output priority mangle; policy accept;
+
+		# Joining: to the host's port. Hosting: from it.
+		ip daddr { 10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16 } tcp dport 55435 ip dscp set cs4
+		ip daddr { 10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16 } tcp sport 55435 ip dscp set cs4
+	}
+}

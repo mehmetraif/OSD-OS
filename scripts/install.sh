@@ -268,7 +268,9 @@ INSTALL_DIR="/opt/osdos"
 #    Wi-Fi.
 # 8: osdos-stop also names the device through osdos-name.socket, so Settings
 #    → About → System Information can rename it.
-export OSDOS_LAUNCHER_API=8
+# 9: osdos-stop also writes JAMMA 480i at 640 across on exit 39 (and powers
+#    off after it on 59), so Display Output offers it.
+export OSDOS_LAUNCHER_API=9
 
 # ── Apply a staged in-app update ───────────────────────────────────────────────
 # The app downloads the release tarball to DATA_ROOT/updates and writes
@@ -461,7 +463,7 @@ Restart=on-failure
 RestartForceExitStatus=11
 RestartSec=5s
 RestartMode=direct
-SuccessExitStatus=10 11 12 20 21 22 23 24 25 26 27 28 29 30 31 32 33 34 35 36 37 38 40 41 42 43 44 45 46 47 48 49 50 51 52 53 54 55 56 57 58 129 130 143
+SuccessExitStatus=10 11 12 20 21 22 23 24 25 26 27 28 29 30 31 32 33 34 35 36 37 38 39 40 41 42 43 44 45 46 47 48 49 50 51 52 53 54 55 56 57 58 59 129 130 143
 ExecStopPost=+/usr/local/bin/osdos-stop
 StandardOutput=journal
 StandardError=journal
@@ -475,8 +477,8 @@ if [ -n "${SERVICE_USER}" ]; then
     # ExecStopPost helper: the user's Quit → Power Off (exit 0) powers the Pi off;
     # exit 10 means the user chose "Exit to Terminal", so instead spawn a login
     # shell on tty1 (see views/Settings.qml). Exit 12 is the quit menu's
-    # "Restart": reboot. Exit 20-38 is Settings → Screen → Display Output on the OSD/OS
-    # image: a display preset written, then a reboot; 40-58 the same, then off
+    # "Restart": reboot. Exit 20-39 is Settings → Screen → Display Output on the OSD/OS
+    # image: a display preset written, then a reboot; 40-59 the same, then off
     # (Switch and Power Off). SuccessExitStatus= counts
     # those as no failure, so Restart=on-failure doesn't start the app again
     # over the shell or on the way down, and OnFailure= stays out of it.
@@ -538,7 +540,7 @@ display_output() {
 DISPLAY_PRESETS=(hdmi crt-ntsc crt-pal crt-gpio-ntsc crt-gpio-pal
                  scart-rgb-ntsc scart-rgb-pal scart-rgb-240p scart-rgb-288p previous
                  jamma-240p jamma-240p-native jamma-240p-super jamma-288p jamma-288p-super
-                 jamma-480i jamma-576i jamma-25k jamma-31k)
+                 jamma-480i jamma-576i jamma-25k jamma-31k jamma-480i-640)
 
 # A switch the app has ended for: the preset written, or why not in the
 # journal. The Pi restarts or goes off either way, since only that brings the
@@ -676,9 +678,9 @@ case "${EXIT_STATUS:-}" in
     10) systemctl start osdos-terminal.service ;;
     11) : ;;  # in-app update restart — RestartForceExitStatus=11 brings the app back up
     12) systemctl reboot ;;  # the quit menu's Restart
-    2[0-9]|3[0-8]) switch_output "${DISPLAY_PRESETS[EXIT_STATUS - 20]}"; systemctl reboot ;;
+    2[0-9]|3[0-9]) switch_output "${DISPLAY_PRESETS[EXIT_STATUS - 20]}"; systemctl reboot ;;
     # The same, then off: on the new output the next time the Pi is switched on.
-    4[0-9]|5[0-8]) switch_output "${DISPLAY_PRESETS[EXIT_STATUS - 40]}"; systemctl poweroff ;;
+    4[0-9]|5[0-9]) switch_output "${DISPLAY_PRESETS[EXIT_STATUS - 40]}"; systemctl poweroff ;;
     # Anything else leaves the Pi on: a stop from outside (129, 130, 143, or the
     # signal itself), and a crash or an error exit, after which systemd starts
     # the app again (Restart=on-failure), or brings up a login prompt.

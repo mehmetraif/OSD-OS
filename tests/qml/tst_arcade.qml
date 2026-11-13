@@ -57,6 +57,8 @@ Rectangle {
     function changeWindow(loader, source, properties) { loader.setSource(source, properties) }
     property bool effectsResting: false
     function restFor(layer, resting) { effectsResting = resting }
+    // Main.qml's: the screen saver is up.
+    property bool screenSaverActive: false
 
     // The module's router, as the views read it.
     QtObject {
@@ -2270,6 +2272,12 @@ Rectangle {
             arcadeBackend.running = false
             verify(lanRefresh.running)
             tryCompare(arcadeBackend, "lanReads", 2, 1000)
+            // Nor under the screen saver: a cabinet left on this screen
+            // doesn't ask the network for as long as it stands there.
+            root.screenSaverActive = true
+            verify(!lanRefresh.running)
+            root.screenSaverActive = false
+            verify(lanRefresh.running)
             verify(findText(screen, "Street Fighter II (ann)") !== null)
             verify(findText(screen, ":JOIN") !== null)
             // No picture: the box, in the frame's place from the column's

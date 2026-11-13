@@ -4,3 +4,6 @@ rfkill
 # python3: osdos-setup, which applies OSD/OS Setup's file (00-run.sh), is
 # written in it. Raspberry Pi OS Lite has it already; named so it stays.
 python3
+# nftables: osdos-netplay-priority.service marks a network game's packets
+# with its nft (00-run.sh).
+nftables

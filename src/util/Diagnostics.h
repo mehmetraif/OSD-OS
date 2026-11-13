@@ -1,6 +1,7 @@
 #pragma once
 
 #include <QString>
+#include <QStringList>
 
 // What the app leaves behind when it goes wrong on a device no debugger is
 // attached to (the Pi under the television): where a crash happened, where a
@@ -41,6 +42,17 @@ QString memoryLine();
 // in the journal (startedAgainReason()). Where it can't, the process exits
 // with kStallExitCode and the service starts it again.
 [[noreturn]] void startAgain(const char *reason);
+// Linux: every child of this process killed, and waited for a second at
+// most. startAgain() does it first: the processes the run before started
+// (the menu music's mpv, with the sound card) are no one's once it has
+// started again, and would play on over the new run for good.
+void endChildren();
+// Linux: what each thread of a process is doing, a line a kind ("3 x
+// mpv/demux: asleep in futex"): its name, its state and, where the kernel
+// says, the system call it is in and the file that call is on ("in ioctl
+// 0xc0585611 on /dev/video10"). For the log, of a player that has shown
+// nothing (MpvController). Empty elsewhere, and for a process that is gone.
+QStringList threadStates(qint64 pid);
 // Why this start is a fresh start of the run before (startAgain()), or empty;
 // taken out of the environment, so that no child is started with it.
 QString startedAgainReason();

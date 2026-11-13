@@ -74,9 +74,24 @@ Window {
     // display_index move main.cpp performs after load. Headless EGLFS is
     // already fullscreen, so this is a no-op there. Under Window Mode the
     // window is a window, framed, where the desktop puts it (setWindowed()).
-    visibility: Qt.platform.os === "osx" ? Window.AutomaticVisibility
-                                         : Window.FullScreen
-    visible: true
+    // Hidden until the settings are read (Component.onCompleted, which
+    // shows it: showWindow()). Shown as it was made, it drew its first frame
+    // before them, in Video 1's blue, where the platform draws a window the
+    // moment it is shown (the Pi's EGLFS): a theme's boot screen came up
+    // blue for an instant, then in its own colours.
+    visibility: Window.Hidden
+    function showWindow() {
+        if (visibility !== Window.Hidden)
+            return
+        visibility = Qt.platform.os === "osx" ? Window.AutomaticVisibility : Window.FullScreen
+        visible = true
+    }
+    // Should the settings' reading fail on the way, the window still comes.
+    Timer {
+        interval: 0
+        running: true
+        onTriggered: root.showWindow()
+    }
     // Under everything: what OSD BACKGROUND puts around its window (black
     // but for FULL). OsdGround draws the ground itself, over it.
     color: root.osdBackground === "Full" ? root.surfaceColor : "#000000"
@@ -840,6 +855,9 @@ Window {
             root.width = macScreenWidth
             root.height = macScreenHeight
         }
+        // Its first frame is drawn with all of the above (Window Mode has
+        // shown it already).
+        root.showWindow()
     }
     
     FontLoader {
