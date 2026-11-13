@@ -123,7 +123,16 @@ Rectangle {
         property var folder: []          // /films' entries
         property var positions: ({})     // path → { pos, plPos }
         signal dynamicOptionsReady(string key, var options)
-        function entries(path) { return path === "/films" ? folder : [] }
+        // The folder read on the app's thread (entries()), counted, and in
+        // the background (requestEntries(), undefined until it is in).
+        property int synced: 0
+        property var asked: []
+        property bool pending: false
+        function entries(path) { synced++; return path === "/films" ? folder : [] }
+        function requestEntries(path) {
+            asked = asked.concat([path])
+            return pending ? undefined : (path === "/films" ? folder : [])
+        }
         function isImage(path) { return /\.(jpg|png)$/.test(path) }
         function isPlaylist(path) { return /\.m3u$/.test(path) }
         function playlistContainsImages(path) { return false }
@@ -764,13 +773,20 @@ Rectangle {
                                         { name: "Search", path: "search", isFolder: false }]
             localFilesBackend.positions = { "/films/C.mkv": { pos: 90000, plPos: -1 } }
             appCore.settings = { resume_playback: "ask", shuffle_playback: "no" }
+            localFilesBackend.asked = []
+            localFilesBackend.pending = false
             var player = open("local_files", "Player.qml", { filePath: "/films/B.mkv", title: "B.mkv" })
             compare(mpvController.urls, ["/films/B.mkv"])
+            // The film's folder asked for in the background as it starts.
+            compare(localFilesBackend.asked, ["/films"])
             player.lastKnownPositionMs = 120000
             player.lastKnownDurationMs = 600000
 
             // (The channel keys take the same branch; QTest can't send them.)
+            // From the folder as read then: not read on the app's thread.
+            var synced = localFilesBackend.synced
             keyClick(Qt.Key_PageUp)
+            compare(localFilesBackend.synced, synced)
             compare(mpvController.urls, ["/films/B.mkv", "/films/C.mkv"])
             compare(mpvController.starts[1], 90)
             compare(localFilesBackend.positions["/films/B.mkv"].pos, 120000)

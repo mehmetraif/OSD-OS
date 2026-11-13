@@ -85,7 +85,10 @@ FocusScope {
         if (path === "sources")
             return sources()
         if (path.indexOf("local:") === 0) {
-            var files = localFilesBackend.entries(path.substring(6))
+            // Read off the app's thread, as Local Files' own tree reads them
+            // (entriesReady brings the folder in): on a USB drive or a disk
+            // that sleeps, each folder near the cursor was a wait.
+            var files = localFilesBackend.requestEntries(path.substring(6))
             return files === undefined ? null : moduleEntries("local:", kLocal, files)
         }
         if (path.indexOf("yt:") === 0) {
@@ -119,6 +122,10 @@ FocusScope {
     Component.onCompleted: {
         if (playlistsBackend)
             playlistsBackend.forgetListings()
+        // Local Files' folders read afresh too, so what was copied in since
+        // shows.
+        if (typeof localFilesBackend !== "undefined" && localFilesBackend)
+            localFilesBackend.clearDirectoryCache()
     }
 
     AppBar {
@@ -162,6 +169,7 @@ FocusScope {
         target: typeof localFilesBackend !== "undefined" ? localFilesBackend : null
         ignoreUnknownSignals: true
         function onSearchReady(path) { tree.refresh("local:" + path) }
+        function onEntriesReady(path) { tree.refresh("local:" + path) }
         // A USB drive plugged in or taken out, as in Local Files' own tree.
         function onDrivesChanged(gone) {
             for (var i = 0; i < gone.length; ++i)
