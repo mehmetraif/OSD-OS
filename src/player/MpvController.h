@@ -256,6 +256,22 @@ private:
     // ("stopped", or "menu" for back on a player with a menu of its own) once
     // the screen is free, and back with the app.
     void stopAfterRetirement(int serial, int positionMs, const QString &reason);
+    // A session that shows nothing (MpvController.cpp, startTimedOut()):
+    // watched from its mpv's start (watchStart()) until its first picture
+    // (noteStarted()), tried once more without the hardware decoder
+    // (relaunch()), then ended as failed. logStartState() writes what its mpv
+    // was doing to the log.
+    void watchStart();
+    void noteStarted();
+    void startTimedOut();
+    void relaunch();
+    void logStartState(const char *what);
+    static int startTimeoutMs(const QStringList &media, bool opened);
+    // "mpv showed no picture in 25 seconds", with what mpv itself said.
+    QString startFailureDetail(const QString &mpvSaid) const;
+    // The session's process told to quit, and killed if it doesn't, without
+    // waiting for it: the next one waits (screenBusy()).
+    void retireProcess();
     // True while the next session must wait: the process loadAndPlay()
     // retired for it is still on its way out, or the screen is being handed
     // back to the app (handBackScreen()). A retired process that outlives its
@@ -278,8 +294,9 @@ private:
     EmbeddedMpv *embeddedPlayer();
     void startEmbedded(QStringList args);
     // Ends an embedded session without a word to its module: as a process
-    // replaced by the next is, or one left playing behind the menus.
-    void endEmbedded();
+    // replaced by the next is, or one left playing behind the menus. One its
+    // player still had is told it ended so (reason).
+    void endEmbedded(const QString &reason = QStringLiteral("stopped"));
     void onEmbeddedFinished(const QString &lastEndReason);
     // Back during an embedded session: the menus come back over the picture.
     void detachToMenus();
@@ -363,6 +380,21 @@ private:
     QTimer       *m_keyUpTimer     = nullptr;
     QTimer       *m_connectTimer   = nullptr;
     QTimer       *m_watchdogTimer  = nullptr;
+    // The session's start, watched (watchStart()): what it was started
+    // with, since when, whether its first picture has come, whether its mpv
+    // was given a hardware decoder, whether it was told to do without one
+    // and whether it has been started again without one, and that it was
+    // ended for showing nothing.
+    QTimer       *m_startTimer     = nullptr;
+    QElapsedTimer m_startClock;
+    QStringList   m_launchArgs;
+    QStringList   m_launchMedia;
+    bool          m_launchEmbedded = false;
+    bool          m_started        = false;
+    bool          m_hardwareDecode = false;
+    bool          m_softwareAsked  = false;
+    bool          m_softwareRetry  = false;
+    bool          m_startFailed    = false;
     qint64        m_lastIpcEventMs = 0;
     bool          m_paused         = false;  // mirrors mpv's pause property (watchdog exemption)
     QString       m_appRoot;

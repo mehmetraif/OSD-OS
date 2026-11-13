@@ -3,6 +3,7 @@
 #include <QCoreApplication>
 #include <QDir>
 #include <QFile>
+#include <QMap>
 #include <QTimer>
 
 #include <algorithm>
@@ -517,6 +518,59 @@ bool statOf(const QString &path, char *state, long *parent) {
     return close >= 0 && std::sscanf(stat.constData() + close + 1, " %c %ld", state, parent) == 2;
 }
 
+QByteArray firstLine(const QString &path) {
+    QFile file(path);
+    return file.open(QIODevice::ReadOnly) ? file.readAll().trimmed() : QByteArray();
+}
+
+const char *stateName(char state) {
+    switch (state) {
+    case 'R': return "running";
+    case 'S': return "asleep";
+    case 'D': return "waiting, uninterruptible";
+    case 'T': case 't': return "stopped";
+    case 'Z': return "ended, not reaped";
+    case 'I': return "idle";
+    }
+    return "in an unknown state";
+}
+
+// The calls a player waits in, by this machine's numbers.
+const char *callName(long number) {
+    switch (number) {
+    case SYS_ioctl: return "ioctl";
+    case SYS_read: return "read";
+    case SYS_write: return "write";
+    case SYS_futex: return "futex";
+    case SYS_ppoll: return "ppoll";
+    case SYS_openat: return "openat";
+    case SYS_epoll_pwait: return "epoll_pwait";
+    case SYS_pselect6: return "pselect6";
+    case SYS_nanosleep: return "nanosleep";
+    case SYS_clock_nanosleep: return "clock_nanosleep";
+    case SYS_recvmsg: return "recvmsg";
+    case SYS_recvfrom: return "recvfrom";
+    case SYS_sendmsg: return "sendmsg";
+    case SYS_connect: return "connect";
+    case SYS_wait4: return "wait4";
+    case SYS_fsync: return "fsync";
+    case SYS_close: return "close";
+#ifdef SYS_poll
+    case SYS_poll: return "poll";
+#endif
+#ifdef SYS_open
+    case SYS_open: return "open";
+#endif
+#ifdef SYS_select
+    case SYS_select: return "select";
+#endif
+#ifdef SYS_epoll_wait
+    case SYS_epoll_wait: return "epoll_wait";
+#endif
+    }
+    return nullptr;
+}
+
 } // namespace
 
 void endChildren() {
@@ -543,6 +597,56 @@ void endChildren() {
         if (!children.empty())
             ::usleep(10000);
     }
+}
+
+QStringList threadStates(qint64 pid) {
+    const QString process = QStringLiteral("/proc/%1").arg(pid);
+    const QStringList threads = QDir(process + QStringLiteral("/task")).entryList(QDir::Dirs | QDir::NoDotAndDotDot);
+    // A line a kind, in the order first met, with how many threads it is.
+    QStringList kinds;
+    QMap<QString, int> count;
+    for (const QString &thread : threads) {
+        const QString task = process + QStringLiteral("/task/") + thread;
+        char state = 0;
+        long parent = 0;
+        if (!statOf(task + QStringLiteral("/stat"), &state, &parent))
+            continue;
+        QString line = QString::fromLocal8Bit(firstLine(task + QStringLiteral("/comm")))
+                       + QStringLiteral(": ") + QLatin1String(stateName(state));
+        // "<number> <arguments in hex> <stack> <pc>" for a thread in a call,
+        // "running" or "-1 ..." for one that isn't; not readable everywhere.
+        const QList<QByteArray> call = firstLine(task + QStringLiteral("/syscall")).split(' ');
+        bool inCall = false;
+        const long number = call.value(0).toLong(&inCall);
+        if (inCall && number >= 0) {
+            const char *name = callName(number);
+            line += name ? QStringLiteral(" in ") + QLatin1String(name)
+                         : QStringLiteral(" in system call %1").arg(number);
+            const bool onFile = number == SYS_ioctl || number == SYS_read || number == SYS_write
+                                || number == SYS_fsync || number == SYS_close;
+            if (number == SYS_ioctl)
+                line += QLatin1Char(' ') + QString::fromLatin1(call.value(2));
+            if (onFile) {
+                // As the kernel names it: a path, or "socket:[1234]".
+                const QByteArray link = QFile::encodeName(
+                    process + QStringLiteral("/fd/%1").arg(call.value(1).toLongLong(nullptr, 16)));
+                char target[512];
+                const ssize_t length = ::readlink(link.constData(), target, sizeof target - 1);
+                if (length > 0)
+                    line += QStringLiteral(" on ") + QString::fromLocal8Bit(target, int(length));
+            }
+        } else if (const QByteArray where = firstLine(task + QStringLiteral("/wchan"));
+                   !where.isEmpty() && where != "0") {
+            line += QStringLiteral(" in ") + QString::fromLatin1(where);
+        }
+        if (!count.contains(line))
+            kinds << line;
+        ++count[line];
+    }
+    QStringList lines;
+    for (const QString &kind : kinds)
+        lines << (count.value(kind) > 1 ? QStringLiteral("%1 x %2").arg(count.value(kind)).arg(kind) : kind);
+    return lines;
 }
 
 void startAgain(const char *reason) {
@@ -601,6 +705,7 @@ void stopStallWatchdog() {}
 QString memoryLine() { return QString(); }
 void startAgain(const char *) { std::_Exit(kStallExitCode); }
 void endChildren() {}
+QStringList threadStates(qint64) { return {}; }
 QString startedAgainReason() { return QString(); }
 
 #endif

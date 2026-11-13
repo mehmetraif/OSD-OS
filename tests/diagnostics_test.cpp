@@ -145,6 +145,22 @@ private slots:
         QVERIFY(!child.isEmpty());
         QVERIFY2(!QFile::exists(QStringLiteral("/proc/") + child), qPrintable(child));
     }
+
+    // What a process that shows nothing is doing, for the log: its threads
+    // by name, and that they sleep.
+    void aProcessSaysWhatItsThreadsDo() {
+        QProcess child;
+        child.start(QStringLiteral("sleep"), { QStringLiteral("30") });
+        QVERIFY(child.waitForStarted(5000));
+        QStringList states;
+        QTRY_VERIFY_WITH_TIMEOUT((states = diagnostics::threadStates(child.processId()),
+                                  states.join(QLatin1Char('\n')).contains(QStringLiteral("sleep: asleep"))), 5000);
+        QCOMPARE(states.size(), 1);
+        child.kill();
+        child.waitForFinished(5000);
+        // Gone: nothing to say.
+        QVERIFY(diagnostics::threadStates(child.processId()).isEmpty());
+    }
 #endif
 };
 

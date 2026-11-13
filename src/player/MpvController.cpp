@@ -54,6 +54,61 @@ constexpr int kHeldKeyMs = 400;
 // held ◄ ► scans at a minute a second.
 constexpr int kMpvRepeatDelayMs = 150;
 constexpr int kMpvRepeatsPerSecond = 6;
+// How long a session's mpv has to open what it plays, and from there to
+// its first picture, before it is taken for one that never will
+// (startTimedOut()): a file in a second or two on a Pi, a disc that has to
+// spin up in ten; a server's stream gets longer for both. OSDOS_START_TIMEOUT_MS
+// stands in for all four in tests.
+constexpr int kOpenLocalMs    = 25000;
+constexpr int kOpenRemoteMs   = 90000;
+constexpr int kPictureLocalMs = 10000;
+constexpr int kPictureRemoteMs = 45000;
+// Back before a session's first picture, this long after its mpv started,
+// is worth what the mpv was doing in the log.
+constexpr int kLeftEarlyMs = 4000;
+
+// The last value an option was given among these, "" if none.
+QString lastOption(const QStringList &options, const QLatin1String &name) {
+    QString value;
+    const QString prefix = QStringLiteral("--") + name + QLatin1Char('=');
+    for (const QString &option : options) {
+        if (option == QLatin1String("--"))
+            break;
+        if (option.startsWith(prefix))
+            value = option.mid(prefix.size());
+    }
+    return value;
+}
+
+// The end of the log mpv keeps of a session (--log-file): its last lines
+// since `stamp` (the line loadAndPlay() puts in the file as the session
+// starts, and the one after it), mpv's chatter aside (a script's every key
+// binding, its own options), long ones cut short.
+QStringList logEnd(const QString &path, const QLatin1String &stamp, int most) {
+    constexpr qint64 kRead = 65536;
+    QFile file(path);
+    if (!file.open(QIODevice::ReadOnly))
+        return {};
+    const qint64 size = file.size();
+    file.seek(qMax<qint64>(0, size - kRead));
+    QStringList lines = QString::fromUtf8(file.readAll()).split(QLatin1Char('\n'), Qt::SkipEmptyParts);
+    if (size > kRead && !lines.isEmpty())
+        lines.removeFirst();
+    for (int i = int(lines.size()) - 1; i >= 0; --i) {
+        if (lines.at(i).startsWith(stamp)) {
+            lines = lines.mid(i + 2);
+            break;
+        }
+    }
+    // Its options one by one, each session's the same, go too.
+    static const QRegularExpression kDebug(QStringLiteral("^\\[[ 0-9.]+\\]\\[([dt]\\]|v\\]\\[cplayer\\] Setting option )"));
+    lines.erase(std::remove_if(lines.begin(), lines.end(), [](const QString &line) { return line.contains(kDebug); }),
+                lines.end());
+    lines = lines.mid(qMax(0, int(lines.size()) - most));
+    for (QString &line : lines)
+        line.truncate(300);
+    return lines;
+}
 
 // kill() for a process still running delayMs on. Timed on the process
 // itself, so one gone and deleted meanwhile is left alone.
@@ -286,6 +341,8 @@ MpvController::MpvController(const QString &appRoot, const QString &dataRoot,
         sendCommand({"observe_property", 2, "duration"});
         sendCommand({"observe_property", 3, "playlist-pos"});
         sendCommand({"observe_property", 4, "pause"});
+        // Whether it plays yet: the end of the start's watch (watchStart()).
+        sendCommand({"observe_property", 5, "core-idle"});
         // What was asked before the connection came, in its order: a key's
         // keydown and keyup among it (sendKey()), so a key held down across a
         // break is let go as it was.
@@ -337,6 +394,10 @@ MpvController::MpvController(const QString &appRoot, const QString &dataRoot,
                      silenceMs / 1000);
         }
     });
+
+    m_startTimer = new QTimer(this);
+    m_startTimer->setSingleShot(true);
+    connect(m_startTimer, &QTimer::timeout, this, &MpvController::startTimedOut);
 }
 
 MpvController::~MpvController() {
@@ -715,28 +776,16 @@ void MpvController::loadAndPlay(const QString &url, float startSeconds,
         }
     }
 
-    // Retire the old process without waiting on the UI thread. Keep it alive
-    // until it exits: deleting a running QProcess can itself block.
-    if (m_process) {
-        QProcess *old = m_process;
-        old->disconnect();
-        if (old->state() != QProcess::NotRunning) {
-            m_retiringProcess = old;
-            m_retireClock.start();
-            connect(old, QOverload<int, QProcess::ExitStatus>::of(&QProcess::finished),
-                    old, &QObject::deleteLater);
-            connect(old, &QProcess::errorOccurred, old, [old](QProcess::ProcessError error) {
-                if (error == QProcess::FailedToStart)
-                    old->deleteLater();
-            });
-            connect(old, &QProcess::started, old, [old]() { old->terminate(); });
-            old->terminate();
-            killUnlessGone(old, kRetireKillMs);
-        } else {
-            old->deleteLater();
-        }
-        m_process = nullptr;
-    }
+    retireProcess();
+    // The session's start is watched afresh (watchStart()), with what it is
+    // started with kept for a second try.
+    m_launchArgs = args;
+    m_launchMedia = media;
+    m_launchEmbedded = embedded;
+    m_softwareRetry = false;
+    m_startFailed = false;
+    m_started = false;
+    m_startClock.invalidate();
     m_ipcWanted = false;
     endEmbedded();
     closeIpc(false, nullptr, nullptr);
@@ -779,6 +828,31 @@ void MpvController::loadAndPlay(const QString &url, float startSeconds,
     QTimer::singleShot(50, this, [this, serial, args, media, embedded]() {
         launchAfterRetirement(serial, args, media, embedded);
     });
+}
+
+// Retire the session's process without waiting on the UI thread. Keep it
+// alive until it exits: deleting a running QProcess can itself block.
+void MpvController::retireProcess() {
+    if (!m_process)
+        return;
+    QProcess *old = m_process;
+    old->disconnect();
+    if (old->state() != QProcess::NotRunning) {
+        m_retiringProcess = old;
+        m_retireClock.start();
+        connect(old, QOverload<int, QProcess::ExitStatus>::of(&QProcess::finished),
+                old, &QObject::deleteLater);
+        connect(old, &QProcess::errorOccurred, old, [old](QProcess::ProcessError error) {
+            if (error == QProcess::FailedToStart)
+                old->deleteLater();
+        });
+        connect(old, &QProcess::started, old, [old]() { old->terminate(); });
+        old->terminate();
+        killUnlessGone(old, kRetireKillMs);
+    } else {
+        old->deleteLater();
+    }
+    m_process = nullptr;
 }
 
 void MpvController::launchAfterRetirement(int serial, const QStringList &args,
@@ -877,6 +951,7 @@ void MpvController::closeIpc(bool drain, int *pos, int *dur) {
     m_keyUpTimer->stop();
     m_connectTimer->stop();
     m_watchdogTimer->stop();
+    m_startTimer->stop();
     if (drain && m_ipc->state() == QLocalSocket::ConnectedState)
         onIpcReadyRead();
     m_ipc->abort();
@@ -903,6 +978,140 @@ void MpvController::handBackScreen(std::function<void()> then) {
         m_headlessMode = false;
         then();
     });
+}
+
+// Whether what a session plays is on this machine (a path, a file: URL)
+// rather than on a server.
+static bool localMedia(const QStringList &media) {
+    const QString first = media.value(0);
+    return !first.contains(QLatin1String("://")) || first.startsWith(QLatin1String("file://"));
+}
+
+// How long a session's mpv has to open what it plays, and, opened, to show
+// its first picture.
+int MpvController::startTimeoutMs(const QStringList &media, bool opened) {
+    const int standIn = legacy::envInt("START_TIMEOUT_MS");
+    if (standIn > 0)
+        return standIn;
+    if (localMedia(media))
+        return opened ? kPictureLocalMs : kOpenLocalMs;
+    return opened ? kPictureRemoteMs : kOpenRemoteMs;
+}
+
+QString MpvController::startFailureDetail(const QString &mpvSaid) const {
+    const QString waited = QStringLiteral("mpv showed no picture in %1 seconds")
+                               .arg(m_startClock.isValid() ? qRound(m_startClock.elapsed() / 1000.0) : 0);
+    return mpvSaid.isEmpty() ? waited : waited + QLatin1Char('\n') + mpvSaid;
+}
+
+// A session's mpv can start and never show a picture: a hardware decoder
+// that takes the video and hands no frame back, a driver's call that never
+// returns. Its player then stood on a black screen, or on the loading
+// screen's last frame, for good, with back the only way out. So every
+// session's start is watched: from its mpv's start until it says it plays
+// (core-idle off, playback-restart, a position past 0), with as long as
+// opening what it plays may take, and a shorter while from there
+// (file-loaded) to the first picture.
+void MpvController::watchStart() {
+    m_started = false;
+    m_softwareAsked = false;
+    m_startClock.start();
+    m_startTimer->start(startTimeoutMs(m_launchMedia, false));
+}
+
+void MpvController::noteStarted() {
+    if (m_started)
+        return;
+    m_started = true;
+    m_startTimer->stop();
+    if (m_softwareAsked || m_softwareRetry)
+        qWarning("[MpvController] The video plays without the hardware decoder, %.1f s after its mpv started",
+                 m_startClock.elapsed() / 1000.0);
+}
+
+// The watch's time is up with nothing shown. What the mpv was doing goes to
+// the log, and the session is given what a decoder at fault needs, a step at
+// a time: the mpv that is there told to decode on the CPU (it changes
+// decoder as it plays, where it still listens); a new mpv in its place,
+// started without the hardware decoder; and, with that showing nothing
+// either, the session ended as failed, its player saying so with RETRY
+// (PlaybackNotice) instead of a screen that stays black.
+void MpvController::startTimedOut() {
+    const bool process = m_process && m_process->state() != QProcess::NotRunning;
+    if (m_started || (!process && !videoActive()))
+        return;
+    if (!m_softwareAsked)
+        logStartState("has shown nothing");
+    if (m_hardwareDecode && !m_softwareAsked && m_ipc->state() == QLocalSocket::ConnectedState) {
+        qWarning("[MpvController] Telling mpv to decode the video without the hardware decoder");
+        m_softwareAsked = true;
+        sendCommand({"set_property", "hwdec", "no"});
+        m_startTimer->start(startTimeoutMs(m_launchMedia, true));
+        return;
+    }
+    // A core inside the window isn't started again by itself: one that
+    // listens no more can hold the thread its next one is drawn on.
+    if (m_hardwareDecode && process) {
+        qWarning("[MpvController] Starting the video again without the hardware decoder");
+        m_softwareRetry = true;
+        relaunch();
+        return;
+    }
+    qWarning("[MpvController] The video is given up: its player says it did not start");
+    if (process) {
+        m_startFailed = true;
+        m_process->terminate();
+        killUnlessGone(m_process, kRetireKillMs);
+        return;
+    }
+    setFailure(QStringLiteral("The video did not start"), startFailureDetail(m_lastEndFileError), false);
+    endEmbedded(QStringLiteral("failed"));
+}
+
+// The session started again as it was asked for (m_launchArgs), its mpv
+// replaced as loadAndPlay() replaces one: the screen stays the session's,
+// and its player hears nothing.
+void MpvController::relaunch() {
+    retireProcess();
+    closeIpc(false, nullptr, nullptr);
+    m_lastEndFileReason.clear();
+    m_lastEndFileError.clear();
+    m_firstMpvError.clear();
+    m_launchPending = true;
+    const int serial = ++m_launchSerial;
+    QTimer::singleShot(50, this, [this, serial]() {
+        launchAfterRetirement(serial, m_launchArgs, m_launchMedia, m_launchEmbedded);
+    });
+}
+
+// What a session that shows nothing was doing, for the log (Quit → Save
+// Logs carries it): how long since its mpv started, whether its control
+// connection was made, what each of the process's threads is in (a call on
+// the decoder's or the screen's device says which never answered), and
+// where mpv's own log ends, lines that may hold a server's token left out.
+void MpvController::logStartState(const char *what) {
+    const bool process = m_process && m_process->state() != QProcess::NotRunning;
+    const QString who = process ? QStringLiteral("mpv (pid %1)").arg(m_process->processId())
+                                : QStringLiteral("mpv inside the window");
+    qWarning("[MpvController] The video %s %.1f s after %s started (control connection %s, %s)", what,
+             m_startClock.elapsed() / 1000.0, qPrintable(who),
+             m_ipc->state() == QLocalSocket::ConnectedState ? "made" : "not made",
+             m_hardwareDecode ? "hardware decoder asked for" : "decoded on the CPU");
+    if (process) {
+        const QStringList threads = diagnostics::threadStates(m_process->processId());
+        for (const QString &thread : threads)
+            qWarning("[MpvController]   thread %s", qPrintable(thread));
+    }
+    // A server's address goes too: its query can hold what no word gives away.
+    static const QRegularExpression kToken(QStringLiteral("token|authorization|api[_-]?key|cookie|header|https?://"),
+                                           QRegularExpression::CaseInsensitiveOption);
+    const QStringList tail = logEnd(m_logFilePath, QLatin1String("=== OSD/OS session start"), 20);
+    if (!tail.isEmpty())
+        qWarning("[MpvController]   mpv's own log ends:");
+    for (const QString &line : tail) {
+        if (!line.contains(kToken))
+            qWarning("[MpvController]   | %s", qPrintable(redactSecrets(line)));
+    }
 }
 
 void MpvController::startProcess(QStringList args, const QStringList &media) {
@@ -946,8 +1155,20 @@ void MpvController::startProcess(QStringList args, const QStringList &media) {
             qWarning("[mpv] %s", qPrintable(redactSecrets(out)));
         if (m_firstMpvError.isEmpty())
             m_firstMpvError = redactSecrets(firstErrorLine(out));
+        // Its picture is set up ("VO: [drm] 1920x1080 yuv420p"), which mpv
+        // does with the first frame in hand: started, whatever becomes of
+        // its control connection (watchStart()).
+        if (out.contains(QLatin1String("VO: [")))
+            noteStarted();
     });
     auto launch = [this, bin, media](QStringList options) {
+        // The second try of a session that showed nothing: decoded on the
+        // CPU, whatever the device's decoder list or mpv_video_args says
+        // (the last word on the command line).
+        if (m_softwareRetry)
+            options << QStringLiteral("--hwdec=no");
+        const QString hwdec = lastOption(options, QLatin1String("hwdec"));
+        m_hardwareDecode = !hwdec.isEmpty() && hwdec != QLatin1String("no");
         options << QStringLiteral("--") << media;
         qDebug("[MpvController] launch: mpv %s", qPrintable(redactSecrets(options.join(QLatin1Char(' ')))));
         m_process->start(bin, options);
@@ -956,6 +1177,7 @@ void MpvController::startProcess(QStringList args, const QStringList &media) {
         if (m_process && m_process->state() != QProcess::NotRunning) {
             m_ipcWanted = true;
             m_connectTimer->start();
+            watchStart();
         }
     };
 
@@ -1095,6 +1317,12 @@ void MpvController::stop() {
         });
         return;
     }
+    // Left before its first picture, after a wait: what its mpv was doing,
+    // for the log (once: the watch ends with it).
+    if (!m_started && m_startTimer->isActive() && m_startClock.elapsed() >= kLeftEarlyMs) {
+        logStartState("was left before it had shown anything,");
+        m_startTimer->stop();
+    }
     if (m_embedded && m_embedded->running()) {
         // finished() follows, as a process's exit does.
         m_embedded->quit();
@@ -1215,6 +1443,12 @@ void MpvController::onIpcReadyRead() {
             // mpv reports why playback ended: "eof" (played to the end),
             // "quit"/"stop" (user exited), "error", etc. Remember the last one
             // so onProcessFinished can distinguish a natural finish from a quit.
+            // The start's watch: opened, what plays has a shorter while to
+            // show its first picture; shown, it is over (watchStart()).
+            if (event == "file-loaded" && !m_started && m_startTimer->isActive())
+                m_startTimer->start(startTimeoutMs(m_launchMedia, true));
+            else if (event == "playback-restart")
+                noteStarted();
             if (event == "end-file") {
                 m_lastEndFileReason = obj["reason"].toString();
                 if (m_lastEndFileReason == QLatin1String("error"))
@@ -1258,6 +1492,15 @@ void MpvController::onIpcReadyRead() {
         if (data.isNull() || data.isUndefined()) continue; // property unavailable during shutdown
         if (name == "pause") {
             m_paused = data.toBool();
+            // Paused before its first picture: no longer a start to wait for.
+            if (m_paused)
+                noteStarted();
+            continue;
+        }
+        if (name == "core-idle") {
+            // Playing: its first picture is up (or its sound, with none).
+            if (!data.toBool())
+                noteStarted();
             continue;
         }
         const double val = data.toDouble();
@@ -1270,6 +1513,8 @@ void MpvController::onIpcReadyRead() {
         const auto ms = [](double seconds) { return int(qBound(0.0, seconds * 1000.0, double(INT_MAX))); };
         if (name == "time-pos") {
             m_position = ms(val);
+            if (m_position > 0)
+                noteStarted();
             if (report)
                 emit positionChanged(m_position);
         } else if (name == "duration") {
@@ -1310,8 +1555,11 @@ void MpvController::onProcessFinished() {
     //   quit for its player's menu (backFromProcess) -> "menu", once the
     //   screen is the app's again; a video that ended on its own meanwhile
     //   ends as any.
+    // One ended for showing nothing (startTimedOut()) failed too, as its
+    // player hears it.
+    const bool neverStarted = std::exchange(m_startFailed, false);
     QString reason;
-    if (exitCode == 2)                    reason = QStringLiteral("failed");
+    if (exitCode == 2 || neverStarted)    reason = QStringLiteral("failed");
     else if (m_lastEndFileReason == "eof") reason = QStringLiteral("eof");
     else if (m_menuOnExit)                 reason = QStringLiteral("menu");
     else                                   reason = QStringLiteral("stopped");
@@ -1319,16 +1567,20 @@ void MpvController::onProcessFinished() {
     // What mpv said of it: its own first line on the failure, else the
     // end-file's word for it ("loading failed").
     const bool failed = reason == QLatin1String("failed");
-    const QString why = !m_firstMpvError.isEmpty() ? m_firstMpvError : m_lastEndFileError;
+    const QString error = neverStarted ? QStringLiteral("The video did not start")
+                                       : QStringLiteral("mpv could not play it");
+    QString why = !m_firstMpvError.isEmpty() ? m_firstMpvError : m_lastEndFileError;
+    if (neverStarted)
+        why = startFailureDetail(why);
 
     // Told with the screen back, unless another session was asked for
     // meanwhile: the end isn't its.
     const int serial = m_launchSerial;
-    handBackScreen([this, serial, pos, dur, reason, failed, why]() {
+    handBackScreen([this, serial, pos, dur, reason, failed, error, why]() {
         if (serial != m_launchSerial)
             return;
         if (failed)
-            setFailure(QStringLiteral("mpv could not play it"), why, false);
+            setFailure(error, why, false);
         emit playbackEnded(pos, dur, reason);
     });
 }
@@ -1681,6 +1933,14 @@ void MpvController::startEmbedded(QStringList args) {
 #endif
     // The screen stays the app's, even headless: nothing to hand over.
     m_headlessMode = false;
+    // The session as it was asked for, to know it when it is asked for
+    // again; decoded on the CPU from the start where that was asked of it
+    // already (startTimedOut()).
+    const QStringList asked = args;
+    if (m_softwareRetry)
+        args.insert(qMax(0, int(args.indexOf(QStringLiteral("--")))), QStringLiteral("--hwdec=no"));
+    const QString hwdec = lastOption(args, QLatin1String("hwdec"));
+    m_hardwareDecode = !hwdec.isEmpty() && hwdec != QLatin1String("no");
     qDebug("[MpvController] embedded launch: mpv %s", qPrintable(redactSecrets(args.join(QLatin1Char(' ')))));
     if (!embeddedPlayer()->start(args)) {
         qWarning("[MpvController] Cannot start playback: libmpv could not be set up");
@@ -1689,13 +1949,14 @@ void MpvController::startEmbedded(QStringList args) {
         endAtOnce(QStringLiteral("failed"));
         return;
     }
-    m_sessionArgs = args;
+    m_sessionArgs = asked;
     emit videoActiveChanged();
     m_ipcWanted = true;
     m_connectTimer->start();
+    watchStart();
 }
 
-void MpvController::endEmbedded() {
+void MpvController::endEmbedded(const QString &reason) {
     if (!m_embedded || !m_embedded->running())
         return;
     // Its core goes on a thread of its own: taking it down holds the GUI
@@ -1728,9 +1989,9 @@ void MpvController::endEmbedded() {
     // back left it there.
     if (wasMenu || !wasBackground) {
         const int serial = m_launchSerial;
-        QTimer::singleShot(0, this, [this, serial, pos, dur]() {
+        QTimer::singleShot(0, this, [this, serial, pos, dur, reason]() {
             if (serial == m_launchSerial)
-                emit playbackEnded(pos, dur, QStringLiteral("stopped"));
+                emit playbackEnded(pos, dur, reason);
         });
     }
 }

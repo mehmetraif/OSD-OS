@@ -18,6 +18,7 @@
 #include <QGuiApplication>
 #include <QImageReader>
 #include <QLocalServer>
+#include <QRegularExpression>
 #include <QSignalSpy>
 #include <QTemporaryDir>
 #include <QtTest>
@@ -43,6 +44,9 @@ if [ "$FAKE_MPV_MODE" = fail ]; then
   echo "Failed to open $media.mp4."
   echo 'Exiting... (Errors when loading file)'
   exit 2
+fi
+if [ "$FAKE_MPV_MODE" = plays ]; then
+  echo "VO: [null] 640x480 yuv420p"
 fi
 if [ "$FAKE_MPV_MODE" = ignore ]; then
   trap 'echo "term $media" >> "$log"' TERM
@@ -745,6 +749,82 @@ private slots:
         QCOMPARE(m_mpv->lastError(), QStringLiteral("mpv could not play it"));
         QCOMPARE(m_mpv->lastErrorDetail(), QStringLiteral("[ffmpeg] https: HTTP error 404 Not Found"));
         QVERIFY(!m_mpv->playerFailed());
+    }
+
+    // An mpv that starts and never shows a picture (a hardware decoder that
+    // hands no frame back): its player no longer stands on a black screen
+    // for good. With no word from it, another mpv takes its place, started
+    // without the hardware decoder; that one showing nothing either, the
+    // video ends as failed, saying it did not start.
+    void aVideoThatShowsNothingIsStartedAgainOnTheCpu() {
+        qputenv("OSDOS_START_TIMEOUT_MS", "700");
+        const auto restore = qScopeGuard([] { qunsetenv("OSDOS_START_TIMEOUT_MS"); });
+        QSignalSpy ended(m_mpv, &MpvController::playbackEnded);
+        play("A");
+        QTRY_VERIFY_WITH_TIMEOUT(happened("start A"), 5000);
+        QVERIFY2(!arguments().contains(QStringLiteral("--hwdec=no")), qPrintable(arguments().join(QLatin1Char(' '))));
+        QTRY_COMPARE_WITH_TIMEOUT(events().count(QStringLiteral("start A")), 2, 8000);
+        QVERIFY2(arguments().contains(QStringLiteral("--hwdec=no")), qPrintable(arguments().join(QLatin1Char(' '))));
+        // After the device's own decoders: the last word on the command line.
+        QVERIFY(arguments().lastIndexOf(QStringLiteral("--hwdec=no"))
+                > arguments().indexOf(QRegularExpression(QStringLiteral("^--hwdec=(?!no$).*"))));
+        QVERIFY(before(QStringLiteral("term A"), QStringLiteral("exit A")));
+        QVERIFY(!overlapped());
+        QCOMPARE(ended.count(), 0);
+        QTRY_COMPARE_WITH_TIMEOUT(ended.count(), 1, 8000);
+        QCOMPARE(ended.first().at(2).toString(), QStringLiteral("failed"));
+        QCOMPARE(m_mpv->lastError(), QStringLiteral("The video did not start"));
+        QVERIFY2(m_mpv->lastErrorDetail().startsWith(QStringLiteral("mpv showed no picture in ")),
+                 qPrintable(m_mpv->lastErrorDetail()));
+        QVERIFY(!m_mpv->playerFailed());
+        QCOMPARE(events().count(QStringLiteral("start A")), 2);
+        // Tried again by its player (RETRY), it gets the hardware decoder
+        // again: the next one may answer.
+        play("A");
+        QTRY_COMPARE_WITH_TIMEOUT(events().count(QStringLiteral("start A")), 3, 5000);
+        QVERIFY(!arguments().contains(QStringLiteral("--hwdec=no")));
+        QVERIFY(m_mpv->lastError().isEmpty());
+    }
+
+    // The same mpv, with its control connection made: told to decode on the
+    // CPU where it is first, which an mpv that still listens does as it
+    // plays. Playing after that, it is left alone.
+    void aVideoThatShowsNothingIsToldToDecodeOnTheCpuFirst() {
+        qputenv("OSDOS_START_TIMEOUT_MS", "700");
+        const auto restore = qScopeGuard([] { qunsetenv("OSDOS_START_TIMEOUT_MS"); });
+        QSignalSpy ended(m_mpv, &MpvController::playbackEnded);
+        play("A");
+        QTRY_VERIFY_WITH_TIMEOUT(happened("start A"), 5000);
+        QLocalServer control;
+        QVERIFY(listen(control));
+        QTRY_VERIFY_WITH_TIMEOUT(control.hasPendingConnections(), 5000);
+        QScopedPointer<QLocalSocket> socket(control.nextPendingConnection());
+        QByteArray commands;
+        connect(socket.data(), &QLocalSocket::readyRead, this, [&]() { commands += socket->readAll(); });
+        QTRY_VERIFY_WITH_TIMEOUT(commands.contains("\"core-idle\""), 3000);
+        QTRY_VERIFY_WITH_TIMEOUT(commands.contains("[\"set_property\",\"hwdec\",\"no\"]"), 5000);
+        QCOMPARE(events().count(QStringLiteral("start A")), 1);
+        socket->write("{\"event\":\"property-change\",\"id\":5,\"name\":\"core-idle\",\"data\":false}\n");
+        socket->flush();
+        QTest::qWait(1800);
+        QCOMPARE(events().count(QStringLiteral("start A")), 1);
+        QVERIFY(!happened("term A"));
+        QCOMPARE(ended.count(), 0);
+    }
+
+    // A video that plays is left alone: mpv's own word that its picture is
+    // set up counts, whatever becomes of the control connection.
+    void aVideoThatPlaysIsLeftAlone() {
+        qputenv("OSDOS_START_TIMEOUT_MS", "700");
+        qputenv("FAKE_MPV_MODE", "plays");
+        const auto restore = qScopeGuard([] { qunsetenv("OSDOS_START_TIMEOUT_MS"); });
+        QSignalSpy ended(m_mpv, &MpvController::playbackEnded);
+        play("A");
+        QTRY_VERIFY_WITH_TIMEOUT(happened("start A"), 5000);
+        QTest::qWait(2200);
+        QCOMPARE(events().count(QStringLiteral("start A")), 1);
+        QVERIFY(!happened("term A"));
+        QCOMPARE(ended.count(), 0);
     }
 
     // A video its menu's Browse left (an mpv process having ended for the
