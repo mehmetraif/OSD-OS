@@ -11,6 +11,9 @@ import Components
 // startup favourite (navParams.startupPlay), it plays that at once.
 FocusScope {
     id: itemsRoot
+    // In the layout's frame (Main.qml): the tree in the pane, beside the
+    // column a layout keeps on the screen.
+    readonly property bool inFrame: true
 
     property var navParams: ({})
     property var navListState: navParams.navListState || ({})
@@ -77,9 +80,11 @@ FocusScope {
         anchors.leftMargin: root.sw * 0.125 //80
     }
 
-    // Empty state
+    // Empty state, in the middle of the pane.
     Column {
-        anchors.centerIn: parent
+        x: root.paneX
+        width: root.paneWidth
+        anchors.verticalCenter: parent.verticalCenter
         spacing: root.sh * 0.0333333 //16
         visible: tree.rootEmpty
         Text {
@@ -97,7 +102,8 @@ FocusScope {
             font.family: root.globalFont
             font.capitalization: Font.AllUppercase
             horizontalAlignment: Text.AlignHCenter
-            anchors.horizontalCenter: parent.horizontalCenter
+            width: parent.width
+            wrapMode: Text.WordWrap
             font.pixelSize: root.sh * 0.0333333 //16
         }
     }

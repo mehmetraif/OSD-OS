@@ -19,6 +19,9 @@ import Components
 //   label                 what is picked, for the title bar
 FocusScope {
     id: picker
+    // In the layout's frame (Main.qml): its tree or list in the pane, beside
+    // the column a layout keeps on the screen.
+    readonly property bool inFrame: true
 
     signal goBack()
 
