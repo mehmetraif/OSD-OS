@@ -43,6 +43,9 @@ on:
       - '.github/actions/fbneo-cores/**'
       - '.github/workflows/windows.yml'
 
+permissions:
+  contents: read
+
 concurrency:
   group: windows-${{ github.ref }}
   cancel-in-progress: true

@@ -54,6 +54,9 @@ on:
 
 # A newer push cancels the run before it: only the newest commit's result
 # matters.
+permissions:
+  contents: read
+
 concurrency:
   group: openbsd-${{ github.ref }}
   cancel-in-progress: true
