@@ -149,6 +149,13 @@ FocusScope {
         onLeaveRequested: gamesRoot.goBack()
     }
 
+    // Whether the rooms are worth asking for again: the list is on the
+    // screen, no game is playing over it, and the screen saver isn't up. A
+    // cabinet left on a list of rooms asked the network every few seconds
+    // for as long as it stood there, and the lobby with it.
+    readonly property bool roomsShown: gamesRoot.visible && !!arcadeBackend && !arcadeBackend.running
+                                       && !root.screenSaverActive
+
     // The lobby read as its rooms come to be shown, and again while they
     // are: they last a minute there, and hosts say they are still there
     // every 20 s.
@@ -157,7 +164,7 @@ FocusScope {
         interval: 20000
         repeat: true
         triggeredOnStart: true
-        running: tree.folderName === "Online Games" && !!arcadeBackend && !arcadeBackend.running
+        running: tree.folderName === "Online Games" && gamesRoot.roomsShown
         onTriggered: arcadeBackend.refreshRooms()
     }
     // The local network asked as its rooms come to be shown, and again while
@@ -168,7 +175,7 @@ FocusScope {
         interval: 5000
         repeat: true
         triggeredOnStart: true
-        running: tree.folderName === "LAN Games" && !!arcadeBackend && !arcadeBackend.running
+        running: tree.folderName === "LAN Games" && gamesRoot.roomsShown
         onTriggered: arcadeBackend.refreshLanRooms()
     }
 

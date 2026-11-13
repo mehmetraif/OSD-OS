@@ -723,6 +723,13 @@ FocusScope {
                    { filter: filterId, set: currentSet, row: selectedRow })
     }
 
+    // Whether the rooms are worth asking for again: the screen is shown, no
+    // game is playing over it, and the screen saver isn't up (a cabinet left
+    // on this screen asked the network every five seconds for as long as it
+    // stood there, and the lobby every twenty on its filters).
+    readonly property bool roomsShown: arcadeScreen.visible && !!arcadeBackend && !arcadeBackend.running
+                                       && !root.screenSaverActive
+
     // The lobby read as its rooms become the filter shown, those of the
     // folder's games or all of them, and again while they are: not up to
     // 20 s old as they come up, nor after a game.
@@ -731,8 +738,7 @@ FocusScope {
         interval: 20000
         repeat: true
         triggeredOnStart: true
-        running: (arcadeScreen.filterId === "online" || arcadeScreen.filterId === "lobby")
-                 && !!arcadeBackend && !arcadeBackend.running
+        running: (arcadeScreen.filterId === "online" || arcadeScreen.filterId === "lobby") && arcadeScreen.roomsShown
         onTriggered: arcadeBackend.refreshRooms()
     }
     // The local network asked as the screen comes up, and again while it is
@@ -744,7 +750,7 @@ FocusScope {
         interval: 5000
         repeat: true
         triggeredOnStart: true
-        running: arcadeScreen.visible && !!arcadeBackend && !arcadeBackend.running
+        running: arcadeScreen.roomsShown
         onTriggered: arcadeBackend.refreshLanRooms()
     }
 
