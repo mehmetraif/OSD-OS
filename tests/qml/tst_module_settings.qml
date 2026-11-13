@@ -45,6 +45,9 @@ Rectangle {
                            browse: "[►]", select: "[ENTER]", play_pause: "[SPACE]" })
     function selectorShown(item, shown) {}
     function skinIcon(url) { return url }
+    // The theme in force (Settings → Look → Theme), as AppCore::theme() reads
+    // it: {} for none.
+    property var theme: ({})
 
     // AppCore as the page uses it: the module's schema and saved values, and
     // another module's, of the same group.
@@ -118,6 +121,7 @@ Rectangle {
             appCore.saveFails = false
             root.navigations = []
             root.helpLine = true
+            root.theme = {}
         }
         function cleanup() {
             loader.source = ""
@@ -579,6 +583,66 @@ Rectangle {
             compare(appCore.values.online, "Off")
             compare(usable(page), ["online", "lan"])
             compare(cursor(page), "online")
+        }
+
+        // A row kept back while something holds (manifest "shown_unless",
+        // "shown_with" turned round): by the theme in force ({ theme, value },
+        // as the Arcade screen's List Style, Border and Info Background are
+        // in the Orb look), in the condition's own words or ones made of it;
+        // or by another row's value. Dimmed, ◄ ► leave it as it is; a row
+        // that "shown_with" keeps back too says that first. With another
+        // theme, or none, it is a row like the others.
+        function test_shownUnless() {
+            appCore.schema = [
+                { key: "screen", label: "Screen", type: "list_single", options: ["Original", "Arcade"],
+                  default: "Arcade" },
+                { key: "list_style", label: "List Style", type: "list_single", options: ["Straight", "Curved"],
+                  default: "Curved", shown_with: { key: "screen", value: "Arcade" },
+                  shown_unless: { theme: "arcade", value: "orb", reason: "Not with a theme in the Orb look" } },
+                { key: "border", label: "Border", type: "toggle", default: "ON",
+                  shown_unless: { theme: "arcade", value: "orb" } },
+                { key: "tree_sort", label: "Tree Sort", type: "list_single", options: ["Name", "Year"],
+                  default: "Name", shown_unless: [{ key: "screen", value: "Arcade" }] },
+                { key: "frame", label: "Frame", type: "toggle", default: "ON",
+                  shown_with: { key: "border", value: "ON" } }
+            ]
+            root.theme = { name: "Orb", arcade: "orb" }
+            var page = open()
+            compare(keys(page), ["screen", "list_style", "border", "tree_sort", "frame"])
+            compare(usable(page), ["screen"])
+            compare(off(page, "list_style"), "Not with a theme in the Orb look")
+            compare(off(page, "border"), "Not with the theme's arcade orb")
+            compare(off(page, "tree_sort"), "Not with Screen on Arcade")
+            // A row that goes with one kept back is kept back with it.
+            compare(off(page, "frame"), "Only with Border on")
+            keyClick(Qt.Key_Down)
+            compare(cursor(page), "list_style")
+            verify(menuRow(page, 1).dimmed)
+            verify(!menuRow(page, 1).changes)
+            verify(findText(page, "Not with a theme in the Orb look") !== null)
+            keyClick(Qt.Key_Right)
+            keyClick(Qt.Key_Return)
+            compare(appCore.values.list_style, undefined)
+            // Screen on Original: List Style waits for its Screen first, and
+            // Tree Sort is the tree's own.
+            keyClick(Qt.Key_Up)
+            keyClick(Qt.Key_Left)
+            compare(appCore.values.screen, "Original")
+            compare(off(page, "list_style"), "Only with Screen on Arcade")
+            compare(usable(page), ["screen", "tree_sort"])
+            compare(cursor(page), "screen")
+            // A theme without that look, and none.
+            var themes = [{ name: "Late Night" }, {}]
+            for (var i = 0; i < themes.length; i++) {
+                loader.source = ""
+                appCore.values = {}
+                root.theme = themes[i]
+                page = open()
+                compare(usable(page), ["screen", "list_style", "border", "frame"])
+                keyClick(Qt.Key_Down)
+                keyClick(Qt.Key_Left)
+                compare(appCore.values.list_style, "Straight")
+            }
         }
 
         // A slider: its label, and the tape bar between its two ends under

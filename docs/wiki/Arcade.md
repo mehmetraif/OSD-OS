@@ -302,7 +302,7 @@ Settings → Look → **Theme** → **Orb** draws the Arcade screen in 3D, in x-
 - The games are on a panel at the right, eight to a page. The game's pictures are in the orb at the left.
 - Settings → Look → **Orb Fog** chooses the fog behind: **Picture** (the default) or **Live** (more work for a Raspberry Pi's GPU).
 - A game started goes into the orb for about two and a half seconds, in which no key counts.
-- Screen Adjustment, Hint Bar and Help Line apply; List Style, Border and Info Background don't.
+- Screen Adjustment, Hint Bar and Help Line apply; List Style, Border and Info Background don't, and Settings → Arcade shows them dimmed, the help line saying why.
 
 The Orb look needs a GPU and Qt Quick 3D. Without them the screen is drawn flat, and the log says `[Arcade] the Orb look needs Qt Quick 3D: the Arcade screen's own is drawn`.
 

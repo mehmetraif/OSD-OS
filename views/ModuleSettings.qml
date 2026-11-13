@@ -131,7 +131,7 @@ FocusScope {
     // of them: one a sign-in, a capability or another row's value keeps back
     // is dimmed rather than hidden, the cursor stopping on it and the help
     // line saying why (_off; _offBy, what keeps it back: "auth",
-    // "capability" or "shown_with").
+    // "capability", "shown_with" or "shown_unless").
     function offered(schema, mid) {
         var state = mid !== "" ? (alsoAuthStates[mid] || "") : authState
         var caps = dynamicOptions[optionKey(mid, "_capabilities")] || []
@@ -148,6 +148,9 @@ FocusScope {
             } else if (item.shown_with && !shownWith(item.shown_with, mid)) {
                 off = shownWithReason(item.shown_with, mid)
                 by = "shown_with"
+            } else if (item.shown_unless && shownWith(item.shown_unless, mid)) {
+                off = shownUnlessReason(item.shown_unless, mid)
+                by = "shown_unless"
             }
             var row = mid !== "" ? Object.assign({ _module: mid }, item) : item
             rows.push(off !== "" ? Object.assign({ _off: off, _offBy: by }, row) : row)
@@ -159,14 +162,28 @@ FocusScope {
     // Arcade", an on or off one's "Only with Online Play on", several "… or
     // …".
     function shownWithReason(cond, mid) {
-        var parts = conditions(cond).map(function(one) {
-            var row = findRow(mid !== "" ? (alsoSchemas[mid] || []) : fullSchema, one.key)
-            var label = row ? (row.label || one.key) : one.key
-            var value = String(one.value)
-            var lower = value.toLowerCase()
-            return lower === "on" || lower === "off" ? label + " " + lower : label + " on " + value
-        })
+        var parts = conditions(cond).map(function(one) { return conditionWords(one, mid) })
         return "Only with " + parts.join(" or ")
+    }
+    // What a row's "shown_unless" is kept back by, in words: the first of
+    // its conditions that holds, in its own words ("reason") where it has
+    // them, else "Not with Screen on Arcade".
+    function shownUnlessReason(cond, mid) {
+        var holding = conditions(cond).filter(function(one) { return shownWith(one, mid) })[0]
+        if (!holding)
+            return ""
+        return holding.reason ? String(holding.reason) : "Not with " + conditionWords(holding, mid)
+    }
+    // A condition in words: another row's label and the value it waits for,
+    // or the theme's part and what it is.
+    function conditionWords(one, mid) {
+        var value = String(one.value)
+        if (one.theme !== undefined)
+            return "the theme's " + one.theme + " " + value
+        var row = findRow(mid !== "" ? (alsoSchemas[mid] || []) : fullSchema, one.key)
+        var label = row ? (row.label || one.key) : one.key
+        var lower = value.toLowerCase()
+        return lower === "on" || lower === "off" ? label + " " + lower : label + " on " + value
     }
 
     // The module's whole schema, submenus and all, and this menu's rows, as
@@ -180,7 +197,17 @@ FocusScope {
     // "value" }), such as the Arcade module's rows for its Arcade screen, can
     // be used now: that row's value as the page shows it, and never while
     // that row can't be used itself. A list of them holds while any holds.
+    // A condition may be on the theme in force instead (Settings → Look →
+    // Theme, Main.qml's root.theme): { "theme", "value" }, one of its parts
+    // and what it is, such as its look for the Arcade screen ("arcade":
+    // "orb"). "shown_unless" is the same turned round: its row can't be used
+    // while a condition holds (the Arcade screen's List Style in the Orb
+    // look, which lays the list out itself).
     function shownWith(cond, mid, depth) {
+        if (cond.theme !== undefined) {
+            var part = (root.theme || {})[cond.theme]
+            return String(part === undefined || part === null ? "" : part) === String(cond.value)
+        }
         if (cond.key === undefined)
             return conditions(cond).some(function(one) { return shownWith(one, mid, depth) })
         mid = mid || ""
@@ -190,13 +217,16 @@ FocusScope {
             return false
         if (row.shown_with && !shownWith(row.shown_with, mid, depth + 1))
             return false
+        if (row.shown_unless && shownWith(row.shown_unless, mid, depth + 1))
+            return false
         return String(valueOf(mid !== "" ? Object.assign({ _module: mid }, row) : row)) === String(cond.value)
     }
 
-    // A row's "shown_with" as a list of its conditions: one, or a list of
-    // them, which from the manifest is a sequence rather than a JS Array.
+    // A row's "shown_with" or "shown_unless" as a list of its conditions:
+    // one, or a list of them, which from the manifest is a sequence rather
+    // than a JS Array.
     function conditions(cond) {
-        return !cond ? [] : cond.key !== undefined ? [cond] : Array.from(cond)
+        return !cond ? [] : cond.key !== undefined || cond.theme !== undefined ? [cond] : Array.from(cond)
     }
 
     // A row's value as the page shows it: a toggle's "ON" or "OFF", a list's
@@ -238,7 +268,8 @@ FocusScope {
     function rowsFollow(key, mid) {
         var rows = mid ? (alsoSchemas[mid] || []) : menuSchema
         for (var i = 0; i < rows.length; i++) {
-            if (conditions(rows[i].shown_with).some(function(one) { return one.key === key })) return true
+            if (conditions(rows[i].shown_with).concat(conditions(rows[i].shown_unless))
+                    .some(function(one) { return one.key === key })) return true
         }
         return false
     }
