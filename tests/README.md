@@ -9,6 +9,7 @@ ctest --test-dir build-tests --output-on-failure
 ```
 
 - **app** (`app_smoke_test.sh`; `app_main_menu`, `app_main_menu_camcorder`, `app_main_menu_studio_monitor`, `app_main_menu_broadcast`, `app_main_menu_flat_panel`, `app_setup_file`, and `app_module_<folder>` for each module in `modules/`): the app itself, started offscreen on a data folder of its own, every proxy a dead port.
+  - Its first frame, with a theme chosen, is drawn on the theme's ground, not on the default scheme's blue for a frame first (`first_frame_test.sh`, `app_first_frame`): the app runs on Qt's `minimal` platform, which draws a window the moment it is shown, as the Pi's EGLFS does, on a copy of its root whose `Main.qml` says what each first frame is drawn on. Skipped where Qt has no `minimal` platform.
   - The main menu with every module on it, in each Menu Layout (Standard, then `--layout=<name>`: Camcorder, Studio Monitor, Broadcast, Flat Panel), and each module as the startup module, comes up (Qt's import trace names its view), and up to the shutdown the app prints no QML warning: no error in a binding or a script, no type, QML module or file missing, no value that can't be assigned.
   - With an OSD/OS Setup file in the data folder (`app_setup_file`), the app takes it as it starts: OSD/OS Setup's notice comes up (`views/SetupNotice.qml`), the file is gone, its setting is in `config.json`, and the log says what was set.
   - SIGTERM stops it within 15 seconds, with 143 (128 + the signal), as the service's stop helper expects.

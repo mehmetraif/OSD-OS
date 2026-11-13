@@ -523,8 +523,12 @@ if(UNIX)
     # Monitor), in its tall layout.
     add_test(NAME app_arcade_turned_right COMMAND bash ${smoke} "--monitor=Turned Right")
     add_test(NAME app_arcade_turned_left COMMAND bash ${smoke} "--monitor=Turned Left")
+    # Its first frame, with a theme chosen: on the theme's ground.
+    add_test(NAME app_first_frame
+             COMMAND bash ${CMAKE_CURRENT_SOURCE_DIR}/first_frame_test.sh ${OSDOS_APP} ${osdos_root})
     set(smoke_tests app_main_menu app_setup_file app_main_menu_camcorder app_main_menu_studio_monitor
-                    app_main_menu_broadcast app_main_menu_flat_panel app_arcade_turned_right app_arcade_turned_left)
+                    app_main_menu_broadcast app_main_menu_flat_panel app_arcade_turned_right app_arcade_turned_left
+                    app_first_frame)
     file(GLOB manifests CONFIGURE_DEPENDS ${osdos_root}/modules/*/manifest.json)
     foreach(manifest ${manifests})
         get_filename_component(folder ${manifest} DIRECTORY)
