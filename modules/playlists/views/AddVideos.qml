@@ -11,6 +11,9 @@ import Components
 // became of the last one.
 FocusScope {
     id: addRoot
+    // In the layout's frame (Main.qml): its tree or list in the pane, beside
+    // the column a layout keeps on the screen.
+    readonly property bool inFrame: true
 
     property var navParams: ({})
     readonly property string playlistId: navParams.playlistId || ""

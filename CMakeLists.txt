@@ -320,6 +320,17 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
     set_target_properties(osdos-jamma PROPERTIES AUTOMOC OFF)
 endif()
 
+# osdos-modetest: shows video modes made for single games on a Pi's DPI output
+# (a JAMMA or SCART RGB board), one after another, and puts back the mode it
+# found (src/modetest; docs/TODO-display-modes.md says what for). Linux only,
+# and no Qt: libdrm alone. Run by hand, from a terminal with the app stopped.
+if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+    add_executable(osdos-modetest src/modetest/main.cpp src/modetest/ModeLine.cpp)
+    set_target_properties(osdos-modetest PROPERTIES AUTOMOC OFF)
+    target_include_directories(osdos-modetest PRIVATE ${Libdrm_INCLUDE_DIRS})
+    target_link_libraries(osdos-modetest PRIVATE ${Libdrm_LIBRARIES})
+endif()
+
 # osdos_signin_libretro: a libretro core that plays nothing, for RetroArch to
 # sign in to RetroAchievements with as the account is typed in
 # (libretro::SignIn), beside the app, which finds it there. Where the app
@@ -417,6 +428,11 @@ else()
         COMPONENT Runtime)
     if(TARGET osdos-jamma)
         install(TARGETS osdos-jamma
+            RUNTIME DESTINATION "${OSDOS_INSTALL_BINDIR}"
+            COMPONENT Runtime)
+    endif()
+    if(TARGET osdos-modetest)
+        install(TARGETS osdos-modetest
             RUNTIME DESTINATION "${OSDOS_INSTALL_BINDIR}"
             COMPONENT Runtime)
     endif()

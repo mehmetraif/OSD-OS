@@ -19,6 +19,15 @@ Rectangle {
     height: 480
     // Main.qml's, as the views and their components read them.
     property real sw: width
+    // The layout's frame and its pane (Main.qml): the column's icons as a
+    // view hands them over, and where a view's rows go.
+    property var frameIcons: []
+    property int frameIndex: 0
+    property bool frameActive: false
+    property bool framed: false
+    readonly property real paneX: framed ? sw * 0.209375 : sw * 0.115625
+    readonly property real paneWidth: framed ? sw * 0.675 : sw * 0.76875
+    function setFrame(icons, index, active, tall) { frameIcons = icons; frameIndex = index; frameActive = active }
     property real sh: height
     property real px: 2
     property string globalFont: "monospace"
@@ -322,6 +331,20 @@ Rectangle {
 
         // A value that couldn't be saved (a full card): the row stays on what
         // is saved, its rows with it; saved, it changes.
+        // A backend that puts a row's value back (a profile switch that
+        // failed) sends its choices again: the row shows the saved value.
+        function test_valueReadAgainWithChoices() {
+            appCore.values = { screen: "Arcade", start_filter: "favorites" }
+            var page = open()
+            var choices = [{ id: "all", label: "All Games" }, { id: "favorites", label: "Favorites" }]
+            appCore.dynamicOptionsReady("com.osdos.test", "start_filter", choices)
+            compare(page.currentDisplayValue(page.schemaItems[2]), "Favorites")
+            appCore.values = { screen: "Arcade", start_filter: "all" }
+            compare(page.currentDisplayValue(page.schemaItems[2]), "Favorites")
+            appCore.dynamicOptionsReady("com.osdos.test", "start_filter", choices)
+            compare(page.currentDisplayValue(page.schemaItems[2]), "All Games")
+        }
+
         function test_unsaved() {
             var page = open()
             keyClick(Qt.Key_Down)

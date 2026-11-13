@@ -131,6 +131,11 @@ FocusScope {
         fetch: function(path, preview) {
             if (!arcadeBackend)
                 return []
+            // A glance at All Games' branch shows two names and "…": not
+            // worth every game's row made for it (thousands, on the GUI
+            // thread). Opened, it is listed.
+            if (preview && path === "all")
+                return null
             var entries = arcadeBackend.requestEntries(path)
             return entries === undefined ? null : entries
         }

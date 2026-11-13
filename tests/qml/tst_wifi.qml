@@ -16,6 +16,15 @@ Rectangle {
     height: 480
     // Main.qml's, as the views and their components read them.
     property real sw: width
+    // The layout's frame and its pane (Main.qml): the column's icons as a
+    // view hands them over, and where a view's rows go.
+    property var frameIcons: []
+    property int frameIndex: 0
+    property bool frameActive: false
+    property bool framed: false
+    readonly property real paneX: framed ? sw * 0.209375 : sw * 0.115625
+    readonly property real paneWidth: framed ? sw * 0.675 : sw * 0.76875
+    function setFrame(icons, index, active, tall) { frameIcons = icons; frameIndex = index; frameActive = active }
     property real sh: height
     property real px: 2
     property string globalFont: "monospace"
@@ -184,6 +193,26 @@ Rectangle {
             wifiManager.available = false
             var page = open()
             compare(lines(page), ["No Wi-Fi"])
+        }
+
+        // In a layout's frame (Camcorder's column, which the shell keeps on
+        // the screen): the page takes its place in it, its lines in the pane
+        // beside the column; with no frame, where every view has its list.
+        function test_inTheFrame() {
+            var page = open()
+            verify(page.inFrame)
+            var list = null
+            for (var i = 0; i < page.children.length && !list; i++) {
+                if (page.children[i].model !== undefined && page.children[i].currentIndex !== undefined)
+                    list = page.children[i]
+            }
+            verify(list !== null)
+            compare(list.x, root.sw * 0.115625)
+            compare(list.width, root.sw * 0.76875)
+            root.framed = true
+            compare(list.x, root.sw * 0.209375)
+            compare(list.width, root.sw * 0.675)
+            root.framed = false
         }
 
         // The lines in their groups, a network's value and its icons.

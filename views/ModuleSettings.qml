@@ -3,6 +3,9 @@ import Components
 
 FocusScope {
     id: moduleSettingsRoot
+    // In the layout's frame (Main.qml): its rows in the pane, beside the
+    // column a layout keeps on the screen.
+    readonly property bool inFrame: true
 
     signal navigateTo(string path, var params, var listState)
     signal goBack()
@@ -258,6 +261,23 @@ FocusScope {
         }
     }
 
+    // A backend that sends a row's choices again may have put its value back
+    // (a profile switch that failed): the saved value is read again.
+    function readAgain(mid, own, key) {
+        var saved = ((appCore.get_settings().modules || {})[mid] || {})[key]
+        var shown = own === "" ? currentValues : (alsoValues[own] || {})
+        if (saved === undefined || shown[key] === saved) return
+        var values = Object.assign({}, shown)
+        values[key] = saved
+        if (own === "") {
+            currentValues = values
+        } else {
+            var all = Object.assign({}, alsoValues)
+            all[own] = values
+            alsoValues = all
+        }
+    }
+
     // The row the cursor is on (rowId()).
     function currentKey() {
         var item = schemaItems[settingsList.currentIndex]
@@ -379,6 +399,7 @@ FocusScope {
             var updated = Object.assign({}, moduleSettingsRoot.dynamicOptions)
             updated[optionKey(own, key)] = items
             moduleSettingsRoot.dynamicOptions = updated
+            readAgain(mid, own, key)
             // The rows made again, the cursor kept on its row, when the
             // choices decide which are offered: the capabilities
             // (requires_capability) or a row others follow (shown_with).

@@ -487,7 +487,9 @@ FocusScope {
                 // that plays direct.
                 pendingRetryTranscode = false
                 playerRoot.streamUrl = url
-                doStartPlayback(lastKnownPositionMs > 0 ? lastKnownPositionMs : viewOffset)
+                // Where this start was asked from (the beginning, where it
+                // was chosen), not the item's own resume point.
+                doStartPlayback(lastKnownPositionMs > 0 ? lastKnownPositionMs : lastStartMs)
                 return
             }
         }

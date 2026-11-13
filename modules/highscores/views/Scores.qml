@@ -10,6 +10,9 @@ import Components
 // column, why a file can't be read.
 FocusScope {
     id: scoresRoot
+    // In the layout's frame (Main.qml): its tree or list in the pane, beside
+    // the column a layout keeps on the screen.
+    readonly property bool inFrame: true
 
     property var navParams: ({})
     // Context properties read null while the module's Loader tears this view
@@ -34,8 +37,10 @@ FocusScope {
 
     // No tables: what keeps them from being read, or how they come.
     Column {
-        anchors.centerIn: parent
-        width: root.sw * 0.75 //480
+        // In the middle of the pane.
+        x: root.paneX + root.sw * 0.009375 //80
+        anchors.verticalCenter: parent.verticalCenter
+        width: root.paneWidth - root.sw * 0.01875 //480
         spacing: root.sh * 0.0333333 //16
         visible: tree.rootEmpty
         Text {

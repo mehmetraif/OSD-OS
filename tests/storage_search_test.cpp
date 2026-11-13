@@ -188,6 +188,102 @@ private slots:
         QVERIFY(core.list_contains("com.osdos.local_files", "favorites", "/a.mp4"));
     }
 
+    // Several settings saved at once: one write, each told, a dotted key
+    // as save_setting takes it, nothing told where the file can't be read.
+    void severalSettingsInOneWrite() {
+        QTemporaryDir tmp;
+        QVERIFY(tmp.isValid());
+        AppCore core(tmp.path(), tmp.path());
+        const QString config = tmp.path() + "/config.json";
+        QSignalSpy app(&core, &AppCore::appSettingChanged);
+        QSignalSpy module(&core, &AppCore::moduleSettingChanged);
+
+        QVERIFY(core.save_settings("", {{"skin", "Deck"}, {"menu_music", "Off"}}));
+        QCOMPARE(app.count(), 2);
+        QCOMPARE(core.get_setting("", "skin").toString(), QString("Deck"));
+        QCOMPARE(core.get_setting("", "menu_music").toString(), QString("Off"));
+        // What was written is what a fresh read finds.
+        AppCore again(tmp.path(), tmp.path());
+        QCOMPARE(again.get_setting("", "skin").toString(), QString("Deck"));
+
+        QVERIFY(core.save_settings("com.osdos.plex", {{"libraries.movies", true}, {"quality", "Original"}}));
+        QCOMPARE(module.count(), 2);
+        QCOMPARE(core.get_setting("com.osdos.plex", "libraries.movies").toBool(), true);
+        QCOMPARE(core.get_setting("com.osdos.plex", "quality").toString(), QString("Original"));
+        QCOMPARE(core.get_setting("", "skin").toString(), QString("Deck"));
+
+        // None to save: said done, nothing written or told.
+        const QDateTime before = QFileInfo(config).lastModified();
+        QTest::qWait(20);
+        app.clear();
+        QVERIFY(core.save_settings("", {}));
+        QCOMPARE(QFileInfo(config).lastModified(), before);
+        QCOMPARE(app.count(), 0);
+
+        // A file that can't be read is not written over, and nothing is told.
+        QVERIFY(writeFileAtomically(config, "{\"app\": {"));
+        QVERIFY(!core.save_settings("", {{"skin", "Other"}, {"menu_music", "On"}}));
+        QCOMPARE(app.count(), 0);
+    }
+
+    // The lists as last read, for as long as the file is as it was then:
+    // one written by another hand is read anew, one deleted is empty, and
+    // several entries added at once are the same list as one at a time, in
+    // one write.
+    void listsAreReadOnceAndAddedTogether() {
+        QTemporaryDir tmp;
+        QVERIFY(tmp.isValid());
+        AppCore core(tmp.path(), tmp.path());
+        const QString lists = tmp.path() + "/lists.json";
+        const QString id = "com.osdos.arcade";
+
+        core.add_to_list(id, "favorites", {{"path", "game:a"}, {"name", "A"}});
+        QCOMPARE(core.get_list(id, "favorites").size(), 1);
+        QVERIFY(core.list_contains(id, "favorites", "game:a"));
+
+        // Written by another hand (a restore, an edit): read anew.
+        QTest::qWait(20);
+        QVERIFY(writeFileAtomically(lists, "{\"com.osdos.arcade\": {\"favorites\": "
+                                           "[{\"path\": \"game:x\"}, {\"path\": \"game:y\"}]}}"));
+        QCOMPARE(core.get_list(id, "favorites").size(), 2);
+        QVERIFY(core.list_contains(id, "favorites", "game:y"));
+        QVERIFY(!core.list_contains(id, "favorites", "game:a"));
+
+        // Gone: empty, and a new one starts from nothing.
+        QVERIFY(QFile::remove(lists));
+        QVERIFY(core.get_list(id, "favorites").isEmpty());
+        QVERIFY(!core.list_contains(id, "favorites", "game:x"));
+
+        // Several at once: each put first in turn, one already there moved
+        // to the front, no more than the limit kept, an entry without a path
+        // passed over.
+        core.add_to_list(id, "favorites", {{"path", "game:b"}});
+        core.add_all_to_list(id, "favorites",
+                             QVariantList{ QVariantMap{{"path", "game:c"}}, QVariantMap{{"name", "no path"}},
+                                           QVariantMap{{"path", "game:b"}}, QVariantMap{{"path", "game:d"}} }, 3);
+        QStringList paths;
+        for (const QVariant &entry : core.get_list(id, "favorites"))
+            paths << entry.toMap().value("path").toString();
+        QCOMPARE(paths, QStringList({ "game:d", "game:b", "game:c" }));
+        // The same as one at a time.
+        AppCore other(tmp.path() + "/other", tmp.path() + "/other");
+        QVERIFY(QDir().mkpath(tmp.path() + "/other"));
+        other.add_to_list(id, "favorites", {{"path", "game:b"}}, 3);
+        for (const char *path : { "game:c", "game:b", "game:d" })
+            other.add_to_list(id, "favorites", {{"path", path}}, 3);
+        QStringList one;
+        for (const QVariant &entry : other.get_list(id, "favorites"))
+            one << entry.toMap().value("path").toString();
+        QCOMPARE(paths, one);
+
+        // Nothing to add: the file isn't written.
+        const QDateTime before = QFileInfo(lists).lastModified();
+        QTest::qWait(20);
+        core.add_all_to_list(id, "favorites", QVariantList{ QVariantMap{{"name", "no path"}} });
+        core.add_all_to_list(id, "favorites", {});
+        QCOMPARE(QFileInfo(lists).lastModified(), before);
+    }
+
     void failedReplacementPreservesExistingFiles() {
 #ifndef Q_OS_UNIX
         QSKIP("Requires Unix directory permissions");

@@ -8,6 +8,15 @@ Rectangle {
     width: 1280
     height: 960
     property real sw: width
+    // The layout's frame and its pane (Main.qml): the column's icons as a
+    // view hands them over, and where a view's rows go.
+    property var frameIcons: []
+    property int frameIndex: 0
+    property bool frameActive: false
+    property bool framed: false
+    readonly property real paneX: framed ? sw * 0.209375 : sw * 0.115625
+    readonly property real paneWidth: framed ? sw * 0.675 : sw * 0.76875
+    function setFrame(icons, index, active, tall) { frameIcons = icons; frameIndex = index; frameActive = active }
     property real sh: height
     property real px: 2
     property string globalFont: "monospace"
@@ -72,6 +81,20 @@ Rectangle {
                 if (browser.blocks[i].path === path) return browser.blocks[i]
             return null
         }
+        // The tree's sides are the pane's: beside a layout's column where the
+        // view is in its frame, the content's with none. Only the window onto
+        // the tree moves; its folders stay as they are laid out.
+        function test_sidesAreThePanes() {
+            compare(browser.leftEdge, root.sw * 0.125)
+            compare(browser.rightEdge, root.sw * 0.875)
+            var widths = JSON.stringify(browser.columnW)
+            root.framed = true
+            compare(browser.leftEdge, root.sw * 0.209375 + browser.pad)
+            compare(browser.rightEdge, root.sw * 0.884375 - browser.pad)
+            root.framed = false
+            compare(JSON.stringify(browser.columnW), widths)
+        }
+
         function test_completeSiblingContents() {
             compare(block("/projects").rows.length, 7)
             compare(block("/films").rows.length, 4)

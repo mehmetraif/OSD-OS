@@ -91,6 +91,7 @@ Before opening a PR, please check your change against these:
 
 - [ ] **Changes work with remote-only navigation** works end to end — up/down/left/right, enter, and esc/backspace. No mouse or complex input added.
 - [ ] **Sized and positioned elements using the `root.sh` / `root.sw` properties**, did not hardcode pixel sizes, and kept CRT overscan in mind.
+- [ ] **A page opened from Settings takes its place in the layout's frame**: its list is a `MenuList`, or laid out by `root.paneX` and `root.paneWidth`, and the view declares `readonly property bool inFrame: true` ([ARCHITECTURE.md → Menu Layout](ARCHITECTURE.md#menu-layout-appmenu_layout)).
 - [ ] **Avoided hardcoded values** where a parameter or existing variable would do the change parameterized as much as possible.
 - [ ] **Didn't add tracking or analytics.** The only network calls (if needed) are direct to the third-party API the module integrates with.
 - [ ] **Only writes to the local data directory** (`config.json` and module state files) — nothing outside it.

@@ -30,9 +30,11 @@ Item {
     // ---
 
     // Seconds the look has been up, counted as its frames are drawn; still
-    // while a game has the screen, or a dialog is over this one.
+    // while a game has the screen, a dialog is over this one, or the screen
+    // saver is up (every frame of the 3D scene was drawn under it).
     property real time: 0
     readonly property bool resting: !visible || arcadeScreen.covered || (!!arcadeBackend && arcadeBackend.running)
+                                    || root.screenSaverActive
     FrameAnimation {
         running: !look.resting
         onTriggered: {
@@ -771,7 +773,7 @@ Item {
                                                     font.pixelSize: arcadeScreen.nameLines
                                                     onTextChanged: Qt.callLater(nameClip.updateScroll)
                                                 }
-                                                readonly property bool scrolls: row.on && nameText.implicitWidth > width
+                                                readonly property bool scrolls: row.on && !look.resting && nameText.implicitWidth > width
                                                 readonly property real scrollBy: width - nameText.implicitWidth
                                                 onScrollsChanged: Qt.callLater(updateScroll)
                                                 onScrollByChanged: Qt.callLater(updateScroll)

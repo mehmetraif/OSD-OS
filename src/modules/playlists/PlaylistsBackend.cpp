@@ -812,7 +812,7 @@ void PlaylistsBackend::startYouTube(const QString &key, const QJsonObject &item)
                 m_active.percent = percent;
                 emit downloadProgress(key, percent);
             }
-        } else if (line.startsWith(QLatin1Char('/')) && QFileInfo::exists(line)) {
+        } else if (QFileInfo(line).isAbsolute() && QFileInfo::exists(line)) {
             m_active.finalPath = line;
         } else if (line.startsWith(QLatin1String("ERROR:"))) {
             m_active.reason = line.mid(6).trimmed();

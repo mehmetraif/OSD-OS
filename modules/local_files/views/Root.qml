@@ -15,6 +15,10 @@ FocusScope {
     property string moduleName: _moduleInfo.name || ""
     property string moduleIcon: _moduleInfo.icon || ""
 
+    // In the layout's frame (Main.qml) while the view shown takes its place
+    // in it: the browser does, the player does not.
+    readonly property bool inFrame: !!internalLoader.item && internalLoader.item.inFrame === true
+
     // Internal navigation state
     property var navStack: []
     property var currentParams: ({})

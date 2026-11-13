@@ -140,8 +140,10 @@ FocusScope {
     readonly property real gap: root.sw * 0.046875 //30
     readonly property real pad: root.sw * 0.009375 //6
     readonly property real maxColumnWidth: root.sw * 0.34375 //220
-    readonly property real leftEdge: root.sw * 0.125 //80
-    readonly property real rightEdge: root.sw * 0.875 //560
+    // The tree's sides: the pane's (Main.qml's), beside a layout's column
+    // where the view is in its frame, else where every view's content is.
+    readonly property real leftEdge: root.paneX + pad //80
+    readonly property real rightEdge: root.paneX + root.paneWidth - pad //560
     readonly property real treeTop: root.sh * 0.2083333 //100
     readonly property real treeBottom: root.sh * 0.8333333 //400
     // Where the area ends: over the hint bar, or with Settings' Hint Bar off,
@@ -238,8 +240,14 @@ FocusScope {
         } else {
             var w = items.length > 0 ? 0 : textWidth("(empty)")
             var leaf = true
+            // No wider than the tree's own room is ever asked of it (width
+            // and placeColumns()'s use of fullWidth both stop there), so the
+            // names are measured only until one fills it: a list of
+            // thousands was measured name by name at every first look.
+            var most = Math.max(maxColumnWidth, rightEdge - leftEdge)
             for (var i = 0; i < items.length; ++i) {
-                w = Math.max(w, textWidth(displayName(items[i])))
+                if (w < most)
+                    w = Math.max(w, textWidth(displayName(items[i])))
                 if (items[i].isFolder) leaf = false
             }
             l = { items: items, width: Math.min(maxColumnWidth, w), fullWidth: w, leaf: leaf, pending: false }
@@ -847,15 +855,22 @@ FocusScope {
         }
     }
 
-    // The tree
+    // The tree: the pane is a window onto it. Opening a folder moves the
+    // strip, never the tree's own layout. In a layout's frame the window is
+    // cut at the pane's side, where the frame's column stands; with no frame
+    // the tree runs off the screen's edge.
     Item {
+        id: treeWindow
+        x: root.framed ? root.paneX : 0
         y: tree.treeTop
-        width: parent.width
+        width: parent.width - x
         height: tree.areaBottom - tree.treeTop - tree.reservedBottom
         clip: true
 
         Item {
             id: strip
+            // In the tree's own coordinates, wherever the window starts.
+            transform: Translate { x: -treeWindow.x }
             height: parent.height
             Behavior on x {
                 enabled: tree.ready

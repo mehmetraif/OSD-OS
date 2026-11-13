@@ -266,9 +266,140 @@ private slots:
         QVERIFY(network->replies.size() > asked + 1);
     }
 
+    // The settings page learns what the server can do as it opens, with the
+    // choices it asks for: Intro Skip and Credit Skip are usable there, on
+    // every opening, the server asked once.
+    void jellyfinSettingsPageLearnsCapabilities() {
+        QTemporaryDir tmp;
+        JellyfinBackend backend(tmp.path(), tmp.path());
+        Network *network = signIn(backend);
+        QSignalSpy options(&backend, &JellyfinBackend::dynamicOptionsReady);
+        const auto capabilities = [&options]() {
+            QVariantList last;
+            int times = 0;
+            for (const QList<QVariant> &sent : options) {
+                if (sent.at(0).toString() == QLatin1String("_capabilities")) {
+                    last = sent.at(1).toList();
+                    ++times;
+                }
+            }
+            return qMakePair(times, last);
+        };
+        backend.getVideoQualities();
+        QCOMPARE(capabilities().first, 0);          // not known yet: asked
+        network->last()->fail(400);
+        QCOMPARE(capabilities().first, 1);
+        QCOMPARE(capabilities().second, QVariantList{QStringLiteral("mediasegments")});
+        const qsizetype asked = network->replies.size();
+        backend.getVideoQualities();                // the page opened again
+        QCOMPARE(network->replies.size(), asked);
+        QCOMPARE(capabilities().first, 2);
+    }
+
     // The PIN polled for every so often: no longer once plex.tv has
     // forgotten it (404), nor once the sign-in is left, whose PIN still on
     // its way is dropped.
+    // A profile switch plex.tv doesn't answer changes nothing: the profile
+    // that was active stays, whatever PIN was typed, and nothing more is
+    // asked. The profile already active is refreshed as before.
+    void plexAFailedSwitchChangesNoProfile() {
+        QTemporaryDir tmp;
+        QVERIFY(tmp.isValid());
+        const QString file = tmp.path() + QStringLiteral("/plex_auth.json");
+        const auto write = [&](const QString &active) {
+            QFile auth(file);
+            QVERIFY(auth.open(QIODevice::WriteOnly | QIODevice::Truncate));
+            auth.write(QJsonDocument(QJsonObject{
+                { "auth_token", "token" }, { "active_server_uri", "http://server" },
+                { "account_user_id", "1" }, { "active_user_id", active },
+                { "users", QJsonArray{ QJsonObject{ { "id", "1" }, { "uuid", "owner" }, { "protected", true } },
+                                       QJsonObject{ { "id", "2" }, { "uuid", "kid" } } } },
+                { "user_server_tokens", QJsonObject{ { "m", "owner-token" } } },
+                { "managed_user_tokens", QJsonObject{ { "m", "kid-token" } } } }).toJson());
+        };
+        const auto active = [&] {
+            QFile auth(file);
+            if (!auth.open(QIODevice::ReadOnly))
+                return QString();
+            return QJsonDocument::fromJson(auth.readAll()).object().value("active_user_id").toString();
+        };
+        write(QStringLiteral("2"));
+        PlexBackend backend(tmp.path(), tmp.path());
+        delete backend.m_nam;
+        auto *network = new Network(&backend);
+        backend.m_nam = network;
+        QSignalSpy errors(&backend, &PlexBackend::errorOccurred);
+        QSignalSpy loaded(&backend, &PlexBackend::serversLoaded);
+
+        // The kid's profile is on; the owner's is asked for with some PIN,
+        // and plex.tv is out of reach.
+        backend.select_user(QStringLiteral("1"), QStringLiteral("0000"));
+        QCOMPARE(network->replies.size(), 1);
+        QVERIFY(network->last()->url().path().endsWith(QStringLiteral("/owner/switch")));
+        network->last()->fail(500);
+        QCOMPARE(errors.count(), 1);
+        QVERIFY2(errors.first().first().toString().startsWith(QStringLiteral("COULD NOT SWITCH PROFILE")),
+                 qPrintable(errors.first().first().toString()));
+        QCOMPARE(loaded.count(), 0);
+        QCOMPARE(network->replies.size(), 1);
+        QCOMPARE(active(), QStringLiteral("2"));
+
+        // The other way: from the owner's to the kid's, the same.
+        write(QStringLiteral("1"));
+        QTest::qWait(20);
+        errors.clear();
+        backend.select_user(QStringLiteral("2"), QStringLiteral("0000"));
+        network->last()->fail(500);
+        QCOMPARE(errors.count(), 1);
+        QCOMPARE(active(), QStringLiteral("1"));
+
+        // From Settings, whose Current User row is saved before the switch is
+        // asked for: the setting is put back, and the choices sent again for
+        // the row to show it.
+        const auto setting = [&] { return backend.plexSetting("current_user_id").toString(); };
+        backend.savePlexSetting("current_user_id", QStringLiteral("2"));
+        QSignalSpy options(&backend, &PlexBackend::dynamicOptionsReady);
+        errors.clear();
+        backend.applyCurrentUserSetting();
+        network->last()->fail(500);     // the profiles asked for anew: the kept ones do
+        network->last()->fail(500);     // the switch itself
+        QCOMPARE(errors.count(), 1);
+        QCOMPARE(active(), QStringLiteral("1"));
+        QCOMPARE(setting(), QStringLiteral("1"));
+        QCOMPARE(options.count(), 1);
+        QCOMPARE(options.first().first().toString(), QStringLiteral("current_user_id"));
+
+        // A config.json that can't be read is left as it is: one key written
+        // over it would be all the settings there are.
+        const QString config = tmp.path() + QStringLiteral("/config.json");
+        const QByteArray broken = "{ \"app\": { \"theme\": \"orb\" }, }";
+        {
+            QFile f(config);
+            QVERIFY(f.open(QIODevice::WriteOnly | QIODevice::Truncate));
+            f.write(broken);
+        }
+        backend.savePlexSetting("current_user_id", QStringLiteral("2"));
+        {
+            QFile f(config);
+            QVERIFY(f.open(QIODevice::ReadOnly));
+            QCOMPARE(f.readAll(), broken);
+        }
+        QVERIFY(QFile::remove(config));
+
+        // The profile that is active already goes on, on what is kept: its
+        // servers' tokens are asked for next.
+        const int asked = network->replies.size();
+        errors.clear();
+        backend.select_user(QStringLiteral("1"), QStringLiteral("0000"));
+        network->last()->fail(500);
+        QCOMPARE(network->replies.size(), asked + 2);
+        QVERIFY(network->last()->url().path().endsWith(QStringLiteral("/resources")));
+        network->last()->fail(500);
+        QCOMPARE(errors.count(), 0);
+        QCOMPARE(loaded.count(), 1);
+        QCOMPARE(active(), QStringLiteral("1"));
+    }
+
     void plexPinPollingStopsOnceTheCodeExpires() {
         QTemporaryDir tmp;
         PlexBackend backend(tmp.path(), tmp.path());

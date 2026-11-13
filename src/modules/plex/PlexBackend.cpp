@@ -2,6 +2,7 @@
 #include "../../util/AtomicFile.h"
 
 #include <QFile>
+#include <QFileInfo>
 #include <QJsonDocument>
 #include <QNetworkRequest>
 #include <QNetworkReply>
@@ -75,28 +76,47 @@ PlexBackend::PlexBackend(const QString &appRoot, const QString &dataRoot, QObjec
 // ---------------------------------------------------------------------------
 
 QJsonObject PlexBackend::loadAuth() const {
-    QFile f(m_dataRoot + "/plex_auth.json");
+    const QString path = m_dataRoot + "/plex_auth.json";
+    const QFileInfo info(path);
+    if (m_authCacheValid && info.exists() && info.lastModified() == m_authCacheModified
+            && info.size() == m_authCacheSize)
+        return m_authCache;
+    m_authCacheValid = false;
+    QFile f(path);
     if (f.open(QIODevice::ReadOnly)) {
         QJsonParseError err;
         auto doc = QJsonDocument::fromJson(f.readAll(), &err);
-        if (err.error == QJsonParseError::NoError && doc.isObject())
-            return doc.object();
+        if (err.error == QJsonParseError::NoError && doc.isObject()) {
+            m_authCache = doc.object();
+            m_authCacheModified = info.lastModified();
+            m_authCacheSize = info.size();
+            m_authCacheValid = info.exists();
+            return m_authCache;
+        }
     }
     return {};
 }
 
 void PlexBackend::saveAuth(const QJsonObject &auth) const {
+    m_authCacheValid = false;
     writeFileAtomically(m_dataRoot + "/plex_auth.json", QJsonDocument(auth).toJson(QJsonDocument::Indented),
                         QFileDevice::ReadOwner | QFileDevice::WriteOwner);
 }
 
-QJsonObject PlexBackend::loadConfig() const {
+// config.json's settings; `readable` false where the file is there and isn't
+// JSON (a hand edit gone wrong), which is not the same as no settings yet.
+QJsonObject PlexBackend::loadConfig(bool *readable) const {
+    if (readable)
+        *readable = true;
     QFile f(m_dataRoot + "/config.json");
     if (f.open(QIODevice::ReadOnly)) {
+        const QByteArray text = f.readAll();
         QJsonParseError err;
-        auto doc = QJsonDocument::fromJson(f.readAll(), &err);
+        auto doc = QJsonDocument::fromJson(text, &err);
         if (err.error == QJsonParseError::NoError && doc.isObject())
             return doc.object();
+        if (readable && !text.trimmed().isEmpty())
+            *readable = false;
     }
     return {};
 }
@@ -679,6 +699,25 @@ void PlexBackend::performUserSwitch(const QString &userId, const QString &pin,
             return;
         }
 
+        // A switch plex.tv didn't answer, or turned down for any other reason,
+        // is not a switch. Carrying on made the profile the active one all the
+        // same, on the tokens kept from before: with plex.tv out of reach, a
+        // PIN-protected owner's profile opened on any PIN, and a managed
+        // profile was shown while every request stayed the owner's. Refused,
+        // then, wherever it would change who watches in a home of several
+        // profiles. The profile already active goes on as before (its tokens
+        // refreshed where they can be), and so does an account of one profile,
+        // which plex.tv has no switch for.
+        const QJsonObject before = loadAuth();
+        const bool sameUser = before["active_user_id"].toString() == userId;
+        const bool severalProfiles = before["users"].toArray().size() > 1;
+        if (switchReply->error() != QNetworkReply::NoError && !sameUser && severalProfiles) {
+            qWarning().noquote() << "[PlexAuth] switch failed, profile not changed — status=" << switchStatus
+                                 << switchReply->errorString();
+            profileNotSwitched();
+            return;
+        }
+
         QString switchToken = masterToken;
         if (switchReply->error() == QNetworkReply::NoError) {
             QString t = QJsonDocument::fromJson(switchBody).object()["authToken"].toString();
@@ -696,7 +735,7 @@ void PlexBackend::performUserSwitch(const QString &userId, const QString &pin,
         resUrl.setQuery(q);
         auto *resReply = plexGet(resUrl, owner ? masterToken : switchToken);
         connect(resReply, &QNetworkReply::finished, this,
-                [this, resReply, userId, masterToken, switchToken, owner, callback]() {
+                [this, resReply, userId, masterToken, switchToken, owner, sameUser, callback]() {
             resReply->deleteLater();
 
             QJsonObject tokenMap;
@@ -708,6 +747,14 @@ void PlexBackend::performUserSwitch(const QString &userId, const QString &pin,
                     QString at  = r["accessToken"].toString();
                     if (!mid.isEmpty() && !at.isEmpty()) tokenMap[mid] = at;
                 }
+            }
+
+            // A managed profile switched to without its servers' tokens (the
+            // fetch failed) would be shown on the tokens kept for the managed
+            // profile before it: another person's library and watch state.
+            if (!owner && !sameUser && tokenMap.isEmpty()) {
+                profileNotSwitched();
+                return;
             }
 
             QJsonObject a = loadAuth();
@@ -1381,7 +1428,14 @@ QJsonValue PlexBackend::plexSetting(const QString &key) const {
 }
 
 void PlexBackend::savePlexSetting(const QString &key, const QJsonValue &value) {
-    QJsonObject cfg = loadConfig();
+    // Written over an unreadable file, this one key would replace every
+    // setting the user has: AppCore refuses to save over it too.
+    bool readable = true;
+    QJsonObject cfg = loadConfig(&readable);
+    if (!readable) {
+        qWarning().noquote() << "[Plex] config.json can't be read:" << key << "not saved";
+        return;
+    }
     QJsonObject mods = cfg["modules"].toObject();
     QJsonObject plexCfg = mods["com.osdos.plex"].toObject();
     plexCfg[key] = value;
@@ -3078,6 +3132,17 @@ void PlexBackend::cancel_pending_pin() {
     const QString activeId = loadAuth()["active_user_id"].toString();
     if (plexSetting("current_user_id").toString() == activeId) return;
     savePlexSetting("current_user_id", activeId);
+}
+
+// A switch that failed leaves the profile as it was. Settings saves its
+// Current User row before it asks for the switch, so the setting is put back
+// and the choices sent again: the row there shows who is still watching.
+void PlexBackend::profileNotSwitched() {
+    emit errorOccurred("COULD NOT SWITCH PROFILE: PLEX DID NOT ANSWER");
+    const QString activeId = loadAuth()["active_user_id"].toString();
+    if (!activeId.isEmpty() && plexSetting("current_user_id").toString() != activeId)
+        savePlexSetting("current_user_id", activeId);
+    getUsers();
 }
 
 void PlexBackend::reauth_select_user(const QString &userId, const QString &pin) {

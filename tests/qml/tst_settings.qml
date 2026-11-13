@@ -19,6 +19,15 @@ Rectangle {
     height: 480
     // Main.qml's, as the views and their components read them.
     property real sw: width
+    // The layout's frame and its pane (Main.qml): the column's icons as a
+    // view hands them over, and where a view's rows go.
+    property var frameIcons: []
+    property int frameIndex: 0
+    property bool frameActive: false
+    property bool framed: false
+    readonly property real paneX: framed ? sw * 0.209375 : sw * 0.115625
+    readonly property real paneWidth: framed ? sw * 0.675 : sw * 0.76875
+    function setFrame(icons, index, active, tall) { frameIcons = icons; frameIndex = index; frameActive = active }
     property real sh: height
     property real px: 2
     property string globalFont: "monospace"
@@ -111,6 +120,13 @@ Rectangle {
             values = v
             return true
         }
+        // Several at once, and how many times that was asked.
+        property int batches: 0
+        function save_settings(module, some) {
+            batches++
+            values = Object.assign({}, values, some)
+            return true
+        }
         // Paste OSD/OS Setup: what was pasted, and a setting it sets.
         property string pasted: ""
         function applySetupText(text) {
@@ -180,6 +196,7 @@ Rectangle {
             root.navigations = []
             root.backs = 0
             root.menuLayout = "Standard"
+            root.setFrame([], 0, false)
             wifiManager.supported = false
         }
         function cleanup() {
@@ -612,13 +629,10 @@ Rectangle {
             compare(row(page, "Menu Layout").value, "Camcorder")
         }
 
-        // The icon of the page the keys are on in Camcorder's column.
-        function icons(page) {
-            for (var i = 0; i < page.children.length; i++) {
-                if (page.children[i].active !== undefined && page.children[i].count !== undefined)
-                    return page.children[i]
-            }
-            return null
+        // Camcorder's column is the shell's (Main.qml's frame): the icons the
+        // page handed it, by their names.
+        function frameIcons() {
+            return root.frameIcons.map(function(icon) { return icon.icon })
         }
 
         // Camcorder: the first screen's pages as icons, the keys on them,
@@ -633,19 +647,23 @@ Rectangle {
                     ["tv", "joystick", "sparkle", "monitor", "speaker", "gamepad", "antenna", "power", "gear", "eject"])
             compare(page.camIndex, 0)
             verify(page.inIcons())
-            var column = icons(page)
-            verify(column !== null && column.visible)
-            verify(column.active)
+            // Handed to the shell, which draws the column and keeps it
+            // beside the pages opened from here.
+            verify(page.inFrame && page.ownsFrame)
+            compare(frameIcons(), ["tv", "joystick", "sparkle", "monitor", "speaker", "gamepad", "antenna", "power", "gear", "eject"])
+            compare(root.frameIndex, 0)
+            verify(root.frameActive)
             compare(lines(page).slice(0, 2), ["Scaling", "Transparent Background"])
             verify(!menuRow(page, 0).selected, "the box is on the icon")
             keyClick(Qt.Key_Down)
             keyClick(Qt.Key_Down)
             compare(page.camIndex, 2)
+            compare(root.frameIndex, 2)
             compare(lines(page)[0], "Theme")
             verify(helpOf(page).text.indexOf("The whole look") === 0, helpOf(page).text)
             keyClick(Qt.Key_Right)
             verify(!page.inIcons())
-            verify(!column.active)
+            verify(!root.frameActive)
             compare(cursor(page), "Theme")
             verify(menuRow(page, 0).selected)
             // The rows as on Look's page: Menu Layout changes, dimmed rows
@@ -708,8 +726,9 @@ Rectangle {
             page = open({ group: "effects" })
             compare(page.camIndex, 2)
             verify(!page.inIcons())
-            verify(icons(page).visible)
-            verify(!icons(page).active)
+            compare(frameIcons().length, 10)
+            compare(root.frameIndex, 2)
+            verify(!root.frameActive)
             compare(cursor(page), "Text Effect")
             keyClick(Qt.Key_Escape)
             compare(root.backs, 1)
@@ -727,7 +746,6 @@ Rectangle {
             root.menuLayout = "Standard"
             tryVerify(function() { return page.settingsItems.length === 10 })
             compare(cursor(page), "Look")
-            verify(!icons(page).visible)
             keyClick(Qt.Key_Down)
             root.menuLayout = "Camcorder"
             tryVerify(function() { return page.camIndex === 3 && page.inIcons() })

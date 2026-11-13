@@ -4,6 +4,7 @@
 #include <QNetworkAccessManager>
 #include <QNetworkReply>
 #include <QTimer>
+#include <QDateTime>
 #include <QJsonObject>
 #include <QJsonArray>
 #include <QHash>
@@ -188,9 +189,16 @@ private:
     // Auth file I/O
     QJsonObject loadAuth() const;
     void saveAuth(const QJsonObject &auth) const;
+    // plex_auth.json as last read, while the file is as it was then (its
+    // time and size): every request asks it for the server and a token, a
+    // queue of several hundred seasons several hundred times in one go.
+    mutable QJsonObject m_authCache;
+    mutable QDateTime   m_authCacheModified;
+    mutable qint64      m_authCacheSize = -1;
+    mutable bool        m_authCacheValid = false;
 
     // Config file helpers (shared with AppCore)
-    QJsonObject loadConfig() const;
+    QJsonObject loadConfig(bool *readable = nullptr) const;
     void saveConfig(const QJsonObject &cfg) const;
 
     // Plex HTTP helpers
@@ -359,6 +367,7 @@ private:
     // server every request goes to
     QJsonValue plexSetting(const QString &key) const;
     void savePlexSetting(const QString &key, const QJsonValue &value);
+    void profileNotSwitched();
     void setActiveServer(const QString &uri, const QString &machineId);
 
     // HTTP helper — POST with JSON body

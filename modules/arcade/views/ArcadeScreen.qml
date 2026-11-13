@@ -405,7 +405,10 @@ FocusScope {
         id: pictureTurn
         interval: 4000
         repeat: true
+        // Not behind a game's screen nor under the screen saver: each turn
+        // read a picture from the card for no one.
         running: arcadeScreen.pictures.length > 1 && !!arcadeBackend && !arcadeBackend.running
+                 && arcadeScreen.visible && !root.screenSaverActive
         onTriggered: arcadeScreen.pictureIndex = (arcadeScreen.pictureIndex + 1) % arcadeScreen.pictures.length
     }
     // Its achievements on RetroAchievements, counted, with a Web API key
@@ -1129,8 +1132,11 @@ FocusScope {
                 // Whether it scrolls, and how far: started (and started over)
                 // once the row has its new width, a turn of the event loop
                 // later, as MenuRow's value is; and for each name the row
-                // comes to (the wheel's rows as it turns).
-                readonly property bool scrolls: row.isCurrent && nameText.implicitWidth > width
+                // comes to (the wheel's rows as it turns). Not while the list
+                // is hidden under a game's screen or the screen saver, as
+                // MenuRow's doesn't: a long name redrew it every frame.
+                readonly property bool scrolls: row.isCurrent && row.visible && !root.screenSaverActive
+                                                && nameText.implicitWidth > width
                 readonly property real scrollBy: width - nameText.implicitWidth
                 onScrollsChanged: Qt.callLater(updateScroll)
                 onScrollByChanged: Qt.callLater(updateScroll)

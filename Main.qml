@@ -311,7 +311,11 @@ Window {
     // Seconds, for the effects that move; it counts only while one of them is
     // on and not resting, about thirty times a second.
     property real fxTime: 0
-    readonly property bool fxMoving: !effectsRest && (backgroundShader !== ""
+    // The background's and the selector's rest under the screen saver too,
+    // which covers them: they were drawn behind it, thirty frames a second,
+    // for as long as the screen stood idle. A screen effect that moves goes
+    // on: the saver's own picture is seen through it.
+    readonly property bool fxMoving: !effectsRest && ((backgroundShader !== "" && !screenSaverActive)
         || (screen.shaded && (screenEffect.noise > 0 || screenEffect.animate === true
                               || textEffect.rainbow > 0 || textEffect.shimmer > 0 || textEffect.flicker > 0)))
     Timer {
@@ -668,6 +672,32 @@ Window {
         return Qt.rect(left, top, right - left, bottom - top)
     }
     function snapPx(v) { return Math.round(v / px) * px }
+
+    // --- THE LAYOUT'S FRAME (Settings → Look → Menu Layout) ---
+    // What of a layout stays on the screen from one view to the next.
+    // Camcorder's is its column of icons, the top level's: Settings' pages or
+    // the main menu's groups. The view that owns them hands them over
+    // (setFrame(), its `ownsFrame`), and the column, drawn here under the
+    // views, stays beside every view opened from it that takes its place in
+    // the frame (a view's `inFrame`): the icon of the page it was opened from
+    // framed, the view's rows in the pane beside the column. `tall` is the
+    // main menu's column, which has no help line under it.
+    property var frameIcons: []
+    property int frameIndex: 0
+    property bool frameActive: false
+    property bool frameTall: false
+    function setFrame(icons, index, active, tall) {
+        frameIcons = icons || []
+        frameIndex = index || 0
+        frameActive = !!active
+        frameTall = !!tall
+    }
+    readonly property bool framed: menuLayout === "Camcorder" && frameIcons.length > 0
+                                   && !!moduleLoader.item && moduleLoader.item.inFrame === true
+    // The pane: where a view's rows go, beside the frame's column or, with no
+    // frame, where every view has its list.
+    readonly property real paneX: framed ? sw * 0.209375 : sw * 0.115625 //134 : 74
+    readonly property real paneWidth: framed ? sw * 0.675 : sw * 0.76875 //432 : 492
     // The room Settings' Hint Bar and Help Line leave when they are off, which
     // the content takes; the window stays as it is. A menu's list grows a row
     // (menuRowHeight) for the hint bar (hintRoom) and, over a help line, a row
@@ -1339,7 +1369,7 @@ Window {
                 effect: root.selectorEffect === "Rainbow" && !root.selectorInLayer ? "Rainbow" : ""
                 ink: root.primaryColor
                 pixel: root.px
-                running: !root.effectsRest
+                running: !root.effectsRest && !root.screenSaverActive
             }
 
             // A running user script suppresses the screen saver too — a takeover script
@@ -1354,6 +1384,24 @@ Window {
                     if (!scriptsBackend.scriptBusy)
                         root.dismissScreenSaver()
                 }
+            }
+
+            // The layout's frame: Camcorder's column of icons, under the
+            // views, so that a view's dialog covers it as it covers the view.
+            // Boxed while the keys are in it, which only the view that owns
+            // it says; framed beside the views opened from it.
+            IconColumn {
+                z: -0.25
+                visible: root.framed
+                model: root.frameIcons
+                currentIndex: root.frameIndex
+                active: root.frameActive && !!moduleLoader.item && moduleLoader.item.ownsFrame === true
+                x: root.sw * 0.115625 //74
+                y: root.stageY + root.sh * 0.25 //120
+                width: root.sw * 0.084375 //54
+                // A menu's list beside it: a row more for each bar that is off.
+                height: root.frameTall ? root.sh * 0.525 + root.hintRoom //252
+                                       : root.sh * 0.4666667 + root.helpRoom + root.hintRoom //224
             }
 
             // --- MODULE LOADER ---
@@ -1428,7 +1476,7 @@ Window {
                 ink: root.primaryColor
                 paper: root.surfaceColor
                 pixel: root.px
-                running: !root.effectsRest
+                running: !root.effectsRest && !root.screenSaverActive
             }
         }
 

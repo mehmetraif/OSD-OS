@@ -1,144 +1,186 @@
 # Online and LAN Play
 
-OSD/OS's arcade plays together. Two cabinets in one room, a cabinet and a laptop, a Raspberry Pi and a Windows PC: every OSD/OS machine plays FinalBurn Neo's games with the others, over the internet through RetroArch's lobby, or on the same network, straight from one machine to the other. This page covers what each takes, how the players are seated, which games play, and how it works.
-
-Both are turned on in **Settings → Arcade**: **Online Play** and **LAN Play**. The games themselves, their folder and the engines that play them are on the [Arcade](https://github.com/mehmetraif/OSD-OS/wiki/Arcade) page.
+Every OSD/OS machine plays FinalBurn Neo's arcade games with the others: over the internet through RetroArch's lobby, or on the same network, straight from one machine to the other. Both are turned on in **Settings → Arcade**: **Online Play** and **LAN Play**. The games and the engines are on the [Arcade](https://github.com/mehmetraif/OSD-OS/wiki/Arcade) page.
 
 <table>
 <tr><th width="50%">LAN Games</th><th width="50%">RetroArch Lobby</th></tr>
 <tr><td><img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/screenshots/arcade-screen-lan.png" width="100%" alt="The Arcade screen's LAN Games filter: Final Fight and Cadillacs and Dinosaurs hosted on the network; in the box on the right, Final Fight's room: its file, hosted by Cabinet at 192.168.50.20, OSD/OS's LAN core, its version and RetroArch marked as yours, Linux 64-bit, no password, over the LAN" /></td><td><img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/screenshots/arcade-screen-lobby.png" width="100%" alt="The Arcade screen's RetroArch Lobby filter: DoDonPachi with a lock, Garou with ▶, Metal Slug, The King of Fighters, Sonic the Hedgehog 2 and Super Mario World; in the box on the right, Garou's room: its ROM and CRC, FinalBurn Neo and its version marked as yours, hosted by nightowl in Spain, straight to the host, one player, 4 minutes ago, can be joined" /></td></tr>
-<tr><td>The games hosted on your network that you have, with what the host's machine says of the one selected. Select joins it.</td><td>Every game hosted in RetroArch's lobby, ▶ on those you can join and a lock on those with a password, with what the lobby says of the one selected.</td></tr>
+<tr><td>The games hosted on your network that you have. Select joins one.</td><td>Every game hosted in RetroArch's lobby: ▶ on those you can join, a lock on those with a password.</td></tr>
 </table>
 
 ## In short
-
-- **Every system plays with every other.** A Raspberry Pi 4 or 5 on the OSD/OS image, a Windows PC, a Mac, a Linux PC or a Steam Deck, FreeBSD and OpenBSD: each comes with the same FinalBurn Neo, which OSD/OS builds from one commit for every package, so a game played on two of them runs alike on both ([The same engines on every machine](#the-same-engines-on-every-machine)).
-- **LAN Play needs no internet.** On one network, the machines find each other's games by themselves: no account, no lobby and no relay ([LAN play](#lan-play)).
-- **Up to six players, across the machines.** Each machine brings as many players as it has controllers: a cabinet its two sticks, a PC one pad, a laptop three. Each player comes in by pressing **COIN** or **START** and is the next player of the game, whichever machine they are on ([Players](#players)).
-- **Four-player games play with four.** A four-player game whose cabinet is set for two players (Ninja Baseball Bat Man, Growl...) plays on the local network with every player it has controls for: OSD/OS's LAN core sets that DIP switch to the most ([OSD/OS's LAN core](#osdoss-lan-core)).
-- **Cave's CV1000 games on a Raspberry Pi.** Akai Katana, Mushihime-sama, DoDonPachi DaiFukkatsu and the board's other games keep up to 145 MB of the game for every moment netplay may have to go back to: online, that takes a machine of 10 GB of memory to join and 18.8 GB to host. On the local network, on OSD/OS's own core, they need 2 GB to join and 3.1 GB to host, so a Pi of 4 GB plays them with others ([Cave's CV1000 games](#caves-cv1000-games)).
-- **Online, with anyone.** **Online Games** lists the games others host in RetroArch's lobby that you have, **RetroArch Lobby** every game hosted there, and **Host Online Game** puts one of yours there, through a relay, so that no router has to let anyone in ([Online play](#online-play)).
-- **The same settings on every machine.** A game played with others plays with OSD/OS's FinalBurn Neo options, the same everywhere, not each machine's own ([The same settings on every machine](#the-same-settings-on-every-machine)).
 
 | | Online | On the local network |
 |---|---|---|
 | **Turned on with** | Settings → Arcade → **Online Play** | Settings → Arcade → **LAN Play** |
 | **Who plays** | Anyone with RetroArch and FinalBurn Neo, anywhere | The machines on your network: OSD/OS machines, in a game an OSD/OS hosts |
-| **Found through** | RetroArch's lobby (lobby.libretro.com), the game going through a relay | The network itself: each machine asks it, and each host answers |
-| **Players a machine brings** | The host as many as it has controllers for (one fewer than the game plays at once), each machine joining one | As many as it has controllers, up to six in all, each seated as they press COIN or START |
-| **The core** | FinalBurn Neo's usual core | OSD/OS's LAN core ([below](#osdoss-lan-core)) |
-| **Kept together by** | Each machine playing ahead on a guess of the others' buttons, as RetroArch does | The host's machine, which the others follow, or as online: **LAN Sync** ([Speed](#speed)) |
+| **Found through** | RetroArch's lobby (lobby.libretro.com), the game going through a relay | The network itself: no internet, account, lobby or relay |
+| **Players a machine brings** | The host as many as it has controllers for (one fewer than the game plays at once), each machine joining one | As many as it has controllers, up to six in all |
 | **A CV1000 game** | 10 GB of memory to join, 18.8 GB to host | 2 GB to join, 3.1 GB to host |
+
+- Every system plays with every other: a Raspberry Pi 4 or 5, a Windows PC, a Mac, a Linux PC or a Steam Deck, FreeBSD and OpenBSD.
+- Every machine needs the same ROM set of the game in its games folder.
+- A four-player game whose cabinet is set for two players (Ninja Baseball Bat Man, Growl...) plays on the local network with all four.
 
 ## On the local network, step by step
 
-1. **On every machine**, **Settings → Arcade → LAN Play**: **On**. The machines are on the same network, the same router, by cable or Wi-Fi, and each has the game's ROM set in its games folder: the same set.
-2. **On the machine that hosts**: the game's options (right on it in the tree, select held on the Arcade screen) → **Host LAN Game**. The game starts, and the host's **player 1** in **Settings → Controls → Players** is player 1.
-3. **On every other machine**: **LAN Games** (the tree's first folders, or a filter of the Arcade screen) lists the game, with who hosts it and where; select joins it.
-4. **Each player presses COIN** (or START) as they come in, and is the next player: the host's second stick player 2, a PC's pad player 3, a laptop's three pads players 4, 5 and 6, in the order they press. `Player 3 is in`, on screen, says who has come.
+1. **On every machine**, set **Settings → Arcade → LAN Play** to **On**. The machines are on the same network, by cable or Wi-Fi.
+2. **On the machine that hosts**: the game's options (right on it in the tree, select held on the Arcade screen) → **Host LAN Game**. The host's **player 1** in **Settings → Controls → Players** is player 1.
+3. **On every other machine**: **LAN Games** lists the game, with who hosts it. Select joins it.
+4. **Each player presses COIN** (or START) as they come in, and is the next player. `Player 3 is in`, on screen, says who has come.
 5. **Coming back**: Coin and Start together, or Esc, as from any game.
 
 ## The same engines on every machine
 
-Every system OSD/OS runs on plays arcade games with the same engines. That way machines play together on the local network and online without falling out of step, and take the same ROM sets.
+Every system plays arcade games with the same engines, so machines stay in step and take the same ROM sets.
 
-- **FinalBurn Neo comes with OSD/OS** on every system: the Raspberry Pi image, Windows, macOS, Linux, FreeBSD and OpenBSD. OSD/OS builds the core itself from one commit of FinalBurn Neo for every package, with its list of games and its licence. Two machines whose cores differ drift apart in a game they play together, and RetroArch drops one of them; with the core that comes with OSD/OS, every machine on the same release has the same one.
-- **RetroArch and MAME** are the OSD/OS image's versions, Debian's (RetroArch 1.20.0, MAME 0.276): the lowest that any system OSD/OS runs on has. On Windows, OSD/OS downloads exactly these versions. On a Mac, Linux and the BSDs they are the system's packages.
-- **They rise together.** OSD/OS's versions are the lowest that every system can have, not a fixed one: when that rises, they rise with it, FinalBurn Neo too, and the next update of OSD/OS brings them to every machine. An update replaces the core, and on Windows a RetroArch or MAME that OSD/OS downloaded is downloaded again at the new version.
-- **The newest core, if you want it.** **Settings → Arcade → FinalBurn Neo → Upgrade to Latest** downloads libretro's newest core, which libretro builds every night, in place of OSD/OS's on this machine. Machines playing together need the same core, so play LAN and online games with other OSD/OS machines on OSD/OS's version. **Back to OSD/OS's Version** deletes the newest core and goes back to the one that came with OSD/OS.
+- **FinalBurn Neo comes with OSD/OS** on every system, built from one commit of it. Machines whose cores differ drift apart in a game, and RetroArch drops one of them.
+- **RetroArch and MAME** are the OSD/OS image's versions, Debian's: RetroArch 1.20.0 and MAME 0.276. On Windows, OSD/OS downloads exactly these. Elsewhere they are the system's packages.
+- **The newest core**: **Settings → Arcade → FinalBurn Neo → Upgrade to Latest** puts libretro's newest core in place of OSD/OS's. Play with others on OSD/OS's version: **Back to OSD/OS's Version** goes back to it.
 
 ## LAN play
 
-**Settings → Arcade → LAN Play**, **On**, plays the games FinalBurn Neo has with someone on the same network as you (two cabinets, or a cabinet and a computer, on the same router), straight from one machine to the other: no internet, no lobby and no relay. It is RetroArch's own netplay on the local network, played on a FinalBurn Neo core OSD/OS builds for it, which comes with OSD/OS ([OSD/OS's LAN core](#osdoss-lan-core)): every machine in a game OSD/OS hosts is an OSD/OS, and an OSD/OS joins a game another RetroArch hosts with FinalBurn Neo too.
+**Settings → Arcade → LAN Play**, **On**, plays the games FinalBurn Neo has with someone on the same network. It is RetroArch's netplay, on a core of OSD/OS's own ([OSD/OS's LAN core](#osdoss-lan-core)). An OSD/OS can also join a game another RetroArch hosts with FinalBurn Neo.
 
 ### Joining
 
-**LAN Games** (the first folder of the tree, after Online Games, or a filter of the Arcade screen) lists the games hosted on your network that you have in your games folder, each with who hosts it and at which address; select joins one. On the Arcade screen a room has no picture: the box on the right takes the picture's place, the whole column, and says what the host's machine answered with, a line each from the top: the game and its file in your folder, who hosts it and at which address, their FinalBurn Neo, its version and their RetroArch (marked ✓ where they are yours and ✗ where not), their system, whether it asks for a password, and that it is reached over your network (**LAN**), with the ROM's CRC and the core's subsystem where the host says them. The network is asked as Arcade opens, as LAN Games opens in the tree or the Arcade screen comes up, and every 5 seconds while it is: a game comes as soon as it is hosted, and goes once its host has stopped (a game is kept through one asking it isn't heard in, as an answer can be lost on the way). On the Arcade screen, LAN Games is among the filters as long as LAN Play is on, and says why while it lists no game. A game with a password isn't listed. A game that can't be joined, the host not reached (its game ended, or a firewall there keeps the port closed) or the host turning you away (another core, an old RetroArch, a full host), ends at once, and the screen says why in RetroArch's words: `Could not join the game: Failed to connect to host 192.168.1.20 on port 55435`. RetroArch alone would go on playing the game by itself, as if nothing had been asked.
+**LAN Games** lists the games hosted on your network that you have, each with who hosts it and at which address. Select joins one. It is a folder of the tree and a filter of the Arcade screen.
+
+- The network is asked as Arcade opens, and every 5 seconds while LAN Games is shown.
+- A game with a password isn't listed. While it lists no game, LAN Games says why.
+- On the Arcade screen, the box on the right says what the host's machine answered. ✓ marks a version that is the same as yours, ✗ one that isn't.
+- A game that can't be joined ends at once, and the screen says why in RetroArch's words: `Could not join the game: Failed to connect to host 192.168.1.20 on port 55435`. The host wasn't reached (its game ended, or a firewall there keeps the port closed), or it turned you away (another core, an old RetroArch, a full host).
 
 ### Hosting
 
-**Host LAN Game**, in a game's options, starts the game for others on your network to join: from their LAN Games on OSD/OS, or among the hosts RetroArch finds on the network elsewhere. It isn't put in the lobby, and goes through no relay. A game that can't be hosted, its port taken, ends the same way: `Could not host the game: Failed to bind port 55435`.
+**Host LAN Game**, in a game's options, starts the game for others on your network to join. It isn't put in the lobby and goes through no relay. A game that can't be hosted ends the same way: `Could not host the game: Failed to bind port 55435`, the port taken.
 
 ### Players
 
-Up to six players play across the machines, in the games that take them, seated in the order they come in. The host's **player 1** in **Settings → Controls → Players** is player 1. Every other player, on the host or on a machine that joins, comes in by pressing **COIN** or **START**, and is the next player of the game: the host's TV is player 1, the cabinet joining with two sticks presses COIN on its first and is player 2, then on its second and is player 3, and a computer joining after is player 4 as it presses COIN. A controller no one plays holds no player, so a second stick left alone takes no one's place. Each player is told on screen as they come in (`Player 3 is in`), and plays on in their place to the end of the game. A player who comes once every place of the game is taken doesn't play. Every controller of a machine is given a channel of its own when the machine comes into the game, up to six in all (three a machine on the 6-Button Panel layout): the machines joining ask the host's OSD/OS for theirs as the room is chosen, and a machine given none watches. A machine's channels are given back as it leaves, and one asking again is given its own anew; a player who left keeps their place for whoever comes in on the same channel. The host's layout holds for every machine ([FinalBurn Neo](https://github.com/mehmetraif/OSD-OS/wiki/Arcade#finalburn-neo)): a cabinet hosting has every pad on its 6-Button Panel, a pad hosting has the cabinet's buttons by number; a game of five or six players is hosted on the pad layout. In a game another RetroArch hosts, and online ([Online play](#online-play)), a channel is a player as RetroArch has it: an OSD/OS joining such a game on the local network brings its player 1 alone, and online a host's players take the first places, as many as it has controllers for (one fewer than the game plays at once), and each machine joining one.
+Up to six players play across the machines, in the games that take them, seated in the order they come in.
+
+- The host's **player 1** in **Settings → Controls → Players** is player 1.
+- Every other player, on any machine, comes in by pressing **COIN** or **START** and is the next player.
+- A controller no one plays holds no player.
+- Each controller of a machine takes a channel as the machine comes in, up to six in all: three for a machine on the 6-Button Panel layout. A machine given none watches.
+- A player who left keeps their place for whoever comes in on the same channel.
+
+The host's button layout holds for every machine:
+
+| The host | Layout |
+|---|---|
+| A cabinet, in a game of up to four players | Its 6-Button Panel on every port. A pad joining has Y, X and LB above B, A and RB |
+| A pad; a game of five or six players; a room joined through the lobby; a host that isn't OSD/OS | FinalBurn Neo's usual pad layout: the cabinet's buttons 1 to 6 are the game's first six by number |
+
+An OSD/OS joining a game another RetroArch hosts brings its player 1 alone.
 
 ### Versions
 
-The line under the tree, and first on the Arcade screen's help line, say who hosts the game, at which address, and whether their FinalBurn Neo and RetroArch are yours: `Hosted by den-tv at 192.168.1.20 on this network • sf2.zip • The same FinalBurn Neo and RetroArch as yours`, or what they have where it isn't (`Its RetroArch is 1.21.0, yours 1.22.2`); the Arcade screen's box has each version on a line of its own, marked against yours. A game whose core version isn't yours can still be joined, though it may fall out of step, as RetroArch warns as it connects.
+The line under the tree, and the Arcade screen's help line, say who hosts the game and whether their FinalBurn Neo and RetroArch are yours:
+
+`Hosted by den-tv at 192.168.1.20 on this network • sf2.zip • The same FinalBurn Neo and RetroArch as yours`
+
+Where they differ, the line says so: `Its RetroArch is 1.21.0, yours 1.22.2`. Such a game can still be joined, though it may fall out of step.
 
 ### Cave's CV1000 games
 
-Cave's CV1000 games (Akai Katana, Mushihime-sama, DoDonPachi DaiFukkatsu, Espgaluda II, Deathsmiles...) play on the local network on OSD/OS's own core as every game does there, which leaves out what libretro's keeps: the board's 128 MB of video memory in each of the many moments netplay keeps of the game to go back to, more than a Raspberry Pi has room for. Hosted, the game waits on a black, silent screen, which says every few seconds `Waiting for player 2: the game starts when a second player presses COIN or START.`; it starts on every machine at the same moment as player 2 comes in, which the player on a machine joining should be, so that their machine is in the game from the start. A machine that joins a game already started says its picture may be wrong: ask the host to host it again. A machine without OSD/OS's core, an OSD/OS built without it, can't host or join them, and says so. Online, these games play on libretro's core, as everyone's do, on a machine with the memory for it ([Online play](#online-play)); played alone, as before. On the local network they need 2 GB of memory to join and 3.1 GB to host, which a machine of 4 GB has: a machine with less leaves them out of LAN Games and Host LAN Game.
+Cave's CV1000 games (Akai Katana, Mushihime-sama, DoDonPachi DaiFukkatsu, Espgaluda II, Deathsmiles...) need 2 GB of memory to join on the local network and 3.1 GB to host. A machine with less leaves them out of LAN Games and Host LAN Game.
+
+- Hosted, the game waits on a black, silent screen that says `Waiting for player 2: the game starts when a second player presses COIN or START.`
+- It starts on every machine as player 2 comes in. Player 2 should be on a machine joining.
+- A machine that joins a game already started says its picture may be wrong: ask the host to host it again.
+- An OSD/OS built without the LAN core can't host or join them, and says so.
 
 ### Speed
 
-**LAN Sync: how the machines keep together.** RetroArch hides the network's delay by guessing: a machine plays every frame the moment its own buttons are read, on a guess of what the others press, and when their buttons come a moment later and differ, it goes back and plays those frames again, with the frame it is on. That is twice the work or more at every press on another machine. A PC has the time; a Raspberry Pi 4 doesn't, so its picture skipped and its sound broke up, it fell behind, and the others were held back for it, the more so the more machines played. **Settings → Arcade → LAN Sync** chooses how a game you host is kept together instead. It is the host's choice, which every machine joining takes:
+**Settings → Arcade → LAN Sync** chooses how a game you host keeps its machines together. Every machine joining takes the host's choice.
 
 | LAN Sync | How it plays | For |
 |---|---|---|
-| **Smooth** (the default) | The host's machine plays the game and the others follow it: each sends its buttons to the host, which plays them in the frame they reach it, and every machine plays each frame once, as the host played it, with nothing guessed and nothing played twice (RetroArch's `netplay_require_slaves`). A slow machine or a moment's wait on Wi-Fi then holds no one else up. The host's buttons answer at once; a joining player's answer a few frames later, by the way to the host and back, and over Wi-Fi that delivers in bursts a tap shorter than two frames can now and then go unseen | Machines of different speeds, a Raspberry Pi 4 among them, Wi-Fi, and games of three players and more |
-| **Responsive** | Every machine plays ahead on its guess and goes back when it was wrong, with a frame of input latency: each frame is played a frame (a sixtieth of a second) after its buttons are read, by when the others' are mostly there, and a machine that still can't keep up takes up to three frames more, by RetroArch's own measure (`netplay_input_latency_frames_min` 1 and `netplay_input_latency_frames_range` 3). Every player's buttons answer as fast as the host's; a slow machine or a wait on the network is felt on every machine | Two machines of the same speed on cables |
+| **Smooth** (the default) | The host's machine plays the game and the others follow it. A slow machine or a wait on Wi-Fi holds no one else up. A joining player's buttons answer a few frames later than the host's. Over Wi-Fi, a tap shorter than two frames can now and then go unseen | Machines of different speeds, a Raspberry Pi 4 among them; Wi-Fi; three players and more |
+| **Responsive** | Every machine plays ahead on a guess of the others' buttons, with a frame of input latency. A machine that can't keep up takes up to three frames more. Every player's buttons answer alike, but a slow machine is felt on every machine | Two machines of the same speed on cables |
 
-Measured with six RetroArch on one computer, each given a different speed (2 to 10 ms of work a frame), every player pressing ten times a second for 18 seconds: playing ahead with no latency, as RetroArch has it, 1440 frames came late and the picture stood still 261 times across the machines; with **Responsive**, 252 and 9; with **Smooth**, 57 and none. Online, where anyone's RetroArch joins, a game plays ahead with no latency, as RetroArch has it, and a machine that can't keep up takes up to four frames.
+Online, a game plays ahead with no latency, and a machine that can't keep up takes up to four frames.
 
-A game on the network plays as it does online and alone, at the speed of each machine's screen. Where the two screens' rates differ a little (a cabinet's CRT of 60.05 Hz, a TV of 59.94 Hz), the machine behind now and then runs a few frames quickly to catch up. A screen of 50 Hz (**Settings → Screen → Display Output**'s 288p and 576i modes, and PAL) is slower than most arcade games, which play at 60 frames a second, and its machine catches up all the time: choose a mode of 60 Hz for them on every machine. Over Wi-Fi, a machine whose radio saves power wakes it for each packet, and the game stutters at each wait: the OSD/OS image keeps its Wi-Fi awake ([The OSD/OS image → Wi-Fi](https://github.com/mehmetraif/OSD-OS/wiki/The-OSD-OS-Image#wi-fi)); a computer joining over Wi-Fi may need the same, and a cable is better still. The image also marks the game's packets so that Wi-Fi sends them ahead of other traffic, a film streaming to another room among it (the same section). A Raspberry Pi's Bluetooth and its 2.4 GHz Wi-Fi share one aerial: with Bluetooth controllers, a 5 GHz network or a cable keeps the game's packets from waiting on the controllers'.
+For a smooth game:
+
+- **Screens of 60 Hz.** A screen of 50 Hz (Display Output's 288p and 576i modes, and PAL) is slower than most arcade games. Choose a mode of 60 Hz in **Settings → Screen → Display Output** on every machine.
+- **A cable, or Wi-Fi kept awake.** A radio that saves power stutters the game. The OSD/OS image keeps its Wi-Fi awake ([The OSD/OS image → Wi-Fi](https://github.com/mehmetraif/OSD-OS/wiki/The-OSD-OS-Image#wi-fi)); a computer joining over Wi-Fi may need the same.
+- **Bluetooth controllers** on a Raspberry Pi share an aerial with its 2.4 GHz Wi-Fi: use a 5 GHz network or a cable.
 
 ### Coming back, and the host leaving
 
-Coin and Start together, or Esc, brings a player back to OSD/OS, as from any game. When the machine that hosts the game leaves it, RetroArch on the machine joining plays on alone (faster than the game, had it been catching up as the host left), so OSD/OS ends the game there and says `The host left the game`. It says so too of a host that stops answering for 10 seconds, which RetroArch takes for gone.
+Coin and Start together, or Esc, brings a player back to OSD/OS. When the host leaves the game, or stops answering for 10 seconds, OSD/OS ends the game on the machines joining and says `The host left the game`.
 
 ### Names, and how games are found
 
-**Online Name** is the name the others see here too; unset, it is the device's name, so that two cabinets on one network are told apart by the names they have in **Settings → System → About → System Information** ([Settings → System → About → System Information](https://github.com/mehmetraif/OSD-OS/wiki/Settings#system-information)), and the address on the line tells apart two of one name. Both machines need the same game's set, as online, and play with the same FinalBurn Neo settings ([Online play](#online-play)). OSD/OS finds the games as RetroArch does: it asks every network it is on (a broadcast to UDP port 55435), and each RetroArch hosting there answers with what it plays. A game hosted online (**Host Online Game**) isn't found this way, as a RetroArch playing through a relay answers no one on the network: host it with **Host LAN Game**. The answers are other players' own, taken only from the private networks' addresses (`192.168.x.x`, `10.x.x.x`, `172.16.x.x` to `172.31.x.x`) or this machine, and shown without markup. Both machines need such an address, as RetroArch answers no query from any other: a router gives them one; two machines joined by a cable alone need one set by hand on each (`192.168.50.1` and `192.168.50.2`, say), and a network of other addresses (a VPN's, such as Tailscale's `100.x.x.x`) finds no game.
+- **Online Name** is the name the others see. Unset, it is the device's name on the local network ([System Information](https://github.com/mehmetraif/OSD-OS/wiki/Settings#system-information)).
+- OSD/OS asks every network it is on, with a broadcast to UDP port 55435, and each RetroArch hosting there answers.
+- A game hosted online (**Host Online Game**) isn't found this way: host it with **Host LAN Game**.
+- Both machines need an address of a private network: `192.168.x.x`, `10.x.x.x`, or `172.16.x.x` to `172.31.x.x`. A router gives one.
+- Two machines joined by a cable alone need one set by hand on each (`192.168.50.1` and `192.168.50.2`, say).
+- A network of other addresses (a VPN's, such as Tailscale's `100.x.x.x`) finds no game.
 
 ## OSD/OS's LAN core
 
-Games on the local network don't play on FinalBurn Neo's usual core but on one OSD/OS builds for them, its **LAN core**: `osdos_lan_libretro` (`.so`; `.dll` on Windows, `.dylib` on a Mac), which comes with every OSD/OS package beside the usual core. It is FinalBurn Neo's whole libretro core, built from the same commit as the usual one ([The same engines on every machine](#the-same-engines-on-every-machine)), with OSD/OS's changes to it: [scripts/fbneo-lan.patch](https://github.com/mehmetraif/OSD-OS/blob/main/scripts/fbneo-lan.patch), built by [scripts/build-fbneo-lan.sh](https://github.com/mehmetraif/OSD-OS/blob/main/scripts/build-fbneo-lan.sh). It plays the same games from the same ROM sets, with the same buttons, picture and sound, and with the settings every machine on the network plays with ([Online play](#online-play)). It differs from the usual core in these ways:
+Games on the local network play on a core OSD/OS builds for them: `osdos_lan_libretro` (`.so`; `.dll` on Windows, `.dylib` on a Mac), which comes with every OSD/OS package. It is FinalBurn Neo's core with OSD/OS's changes: [scripts/fbneo-lan.patch](https://github.com/mehmetraif/OSD-OS/blob/main/scripts/fbneo-lan.patch), built by [scripts/build-fbneo-lan.sh](https://github.com/mehmetraif/OSD-OS/blob/main/scripts/build-fbneo-lan.sh). The games are emulated exactly as on the usual core.
 
 | | FinalBurn Neo's usual core | OSD/OS's LAN core |
 |---|---|---|
-| **Name** | `FinalBurn Neo`, in the file `fbneo_libretro` | OSD/OS's own: `OSD-OS LAN Core`, in the file `osdos_lan_libretro`, and **OSD/OS LAN Core (FinalBurn Neo)** in RetroArch's menus; its version the commit's with `-lan` after it (`v1.0.0.03 261021 GIT2b0c1c0-lan`) |
-| **Who can join** | Any RetroArch with FinalBurn Neo | Only a machine with the same core: RetroArch turns away a machine whose core has another name, so a game an OSD/OS hosts on the local network is joined by OSD/OS machines alone |
-| **Players** | Each netplay channel is the player of its number: player 2 is whoever has channel 2, played or not, and fixed as the game starts | Seated in the order they come in: the host's player 1 is player 1, and any other channel, on whichever machine, is the next free player as it first presses **COIN** or **START**, to the end of the game. A controller no one plays holds no player, and a player can come in at any time, in a game already under way, while the game has a place free |
-| **Seats** | — | Kept in the game's state, so that every machine has the same players through the moments RetroArch takes the game back to; `Player 3 is in` on screen as each comes in, and `OSD/OS LAN: port 2 sits as player 3` in RetroArch's log |
-| **Channels a machine takes on the local network** | One, its player 1's | One for each of its controllers, up to six in all (three a machine on the 6-Button Panel layout) ([LAN play](#lan-play)) |
-| **Players a game takes** | A game's DIP switches at their defaults: a four-player game whose cabinet setting is two players (Ninja Baseball Bat Man, Growl...) reads no third or fourth player's COIN, START or controls | The DIP switch for how many players the cabinet has (**Cabinet**, **Number of Players**, **Max Players**...) set to the most the game has controls for, each player's own coin slot where it offers one, so that every player on the network plays. A setting for two boards linked, a cocktail table or free play is never taken |
-| **Cave's CV1000 games** | The board's 128 MB of video memory in every state netplay keeps: up to 145 MB a state, more memory than a Raspberry Pi has | The video memory left out of netplay's states (up to 17 MB a state) and emptied at a reset that follows a drawing; the game waits from power on until player 2 comes in, so that it starts on every machine at the same frame ([LAN play](#lan-play)) |
+| **Name** | `FinalBurn Neo`, in the file `fbneo_libretro` | `OSD-OS LAN Core`, in the file `osdos_lan_libretro`; **OSD/OS LAN Core (FinalBurn Neo)** in RetroArch's menus. Its version ends in `-lan`: `v1.0.0.03 261108 GIT77016b4-lan` |
+| **Who can join** | Any RetroArch with FinalBurn Neo | Only a machine with the same core: OSD/OS machines |
+| **Players** | Each netplay channel is the player of its number | Seated in the order they first press **COIN** or **START**, at any time while the game has a place free |
+| **Players a game takes** | As its DIP switches' defaults say: a four-player game set for two reads no third or fourth player | The DIP switch for the cabinet's number of players (**Cabinet**, **Number of Players**, **Max Players**...) is set to the most the game has controls for |
 
-Nothing else is changed: the games themselves are emulated exactly as on the usual core.
-
-- **Where it plays**: only on the local network, a game hosted with **Host LAN Game** and one joined from **LAN Games** that an OSD/OS hosts. Played alone and online, a game plays on the usual core (or the newest, after **Upgrade to Latest**, [FinalBurn Neo](https://github.com/mehmetraif/OSD-OS/wiki/Arcade#finalburn-neo)). A game another RetroArch hosts on the network, on FinalBurn Neo's usual core, is joined on the usual core too, with this machine's player 1 alone.
-- **Always OSD/OS's version**: **Upgrade to Latest** and **Back to OSD/OS's Version** don't touch it, so every OSD/OS machine of a release has the same LAN core. The Arcade screen's box and the line under the tree mark a LAN game's core version against this machine's LAN core ([LAN play](#lan-play)).
-- **Where it is**: beside the usual core, in the bundle on a Mac, beside `osdos.exe` on Windows and in `lib/osdos/` under the app's folder elsewhere. An OSD/OS built from source has it once it is built ([Building from Source](https://github.com/mehmetraif/OSD-OS/wiki/Building-from-Source)); without it, games on the local network play on the usual core, a player a machine, and CV1000 games not at all (`This OSD/OS has no core of its own for the local network`).
-- **Its licence** is FinalBurn Neo's, as the usual core's: it may be used and shared, never sold. OSD/OS's changes are published with OSD/OS's source, as the patch above.
+- **Where it plays**: only on the local network, in a game an OSD/OS hosts. Alone, online, and in a game another RetroArch hosts, a game plays on the usual core.
+- **Always OSD/OS's version**: **Upgrade to Latest** and **Back to OSD/OS's Version** don't touch it.
+- **Built from source**, OSD/OS has it once it is built ([Building from Source](https://github.com/mehmetraif/OSD-OS/wiki/Building-from-Source)). Without it, LAN games play on the usual core, a player a machine, and CV1000 games not at all: `This OSD/OS has no core of its own for the local network`.
 
 ## Online play
 
-**Settings → Arcade → Online Play**, **On**, plays the games FinalBurn Neo has with others over the internet, through RetroArch's netplay and its lobby, the list of the games RetroArch players host everywhere (lobby.libretro.com). The Arcade screen's **Playable Online** filter lists those games of yours.
+**Settings → Arcade → Online Play**, **On**, plays the games FinalBurn Neo has with others over the internet, through RetroArch's netplay and its lobby (lobby.libretro.com). The Arcade screen's **Playable Online** filter lists those games of yours.
 
-- **Joining**: **Online Games** (the first folder of the tree, or a filter of the Arcade screen) lists the games hosted in the lobby that you have in your games folder, each with who hosts it and where; select joins one. On the Arcade screen the box on the right takes the picture's place and says everything the lobby says of the room, as RetroArch Lobby's does (below). The list is read as Arcade opens, and every 20 seconds while it is shown: a game stays in the lobby only while its host is there. A game with a password isn't listed.
-- **Hosting**: **Host Online Game**, in a game's options, starts the game for others to join: it shows in the lobby under your name, through the **Relay Server** chosen, so that no router of yours has to let anyone in.
-- **Coming back**: as from any game, Coin and Start together, or Esc; the others stay or leave in RetroArch as it says.
-- **The whole lobby on the Arcade screen**: **RetroArch Lobby**, a filter of the Arcade screen's after LAN Games, lists every game hosted in RetroArch's lobby, of every core, FinalBurn Neo's first, each with who hosts it: ▶ marks one you can join and a lock one with a password. A room has no picture: the box on the right takes the picture's place, the whole column, and says what the lobby says of the one selected, a line each from the top, the lines of the room's page in the tree (below): its game, its ROM and the ROM's CRC, the core, its version and the host's RetroArch (the core and the two versions marked ✓ where they are yours and ✗ where not), the host's system, who hosts it and where, whether it goes straight to the host or through a relay, its password, how many play and watch, how long ago it was hosted, and whether you can join it; as many lines as fit, and the help line says the rest, why it can't be joined among it. Select joins one you can join, and opens the room's page otherwise; select held opens the page of any. It is there with **Online Play** on and games in the folder, even while no one hosts a game, or the lobby can't be reached: the list says so. The cursor stays on the game selected as the lobby is read again, and back from a game's page. It is read again every 20 seconds while it is shown.
-- **The whole lobby in the tree**: **RetroArch Lobby**, the last line of Online Games, lists every game hosted in RetroArch's lobby, of every core, under a heading of its core, FinalBurn Neo's first: a line each, its game and who hosts it, with ▶ for one you can join and a lock for one with a password. Under the title bar, how many rooms there are, how many are FinalBurn Neo's and how many you can join; the help line says what the lobby says of the one selected, even with **Help Line** off. Select opens a room, a line for each of what the lobby says of it: its game, its ROM and the ROM's CRC (a copy of the same ROM has the same), the core and its version, the host's RetroArch and system, who hosts it and where, whether it goes straight to the host or through a relay, its passwords, how many play and watch, how long ago it was hosted, and whether you can join it from here, and why not: another core's (OSD/OS joins FinalBurn Neo's games alone), a host whose connection takes no players, a password, a RetroArch that can't be joined or no address to join it at, a game not in your folder. The core, its version and RetroArch's are marked ✓ where they are the same as yours and ✗ where not, and the help line on each says which you have, or why that isn't known (still being read, it couldn't be, or not installed here): a room whose core version isn't yours can still be joined, though the game may fall out of step, as RetroArch warns as it connects. One you can join has **Join** first, which joins it as Online Games does. It is read as the page opens and every 20 seconds while it is open; a room open stays where you are in it, and one gone from the lobby says so. A room's page from the Arcade screen is this page on the room, and back goes back to the screen.
+- **Joining**: **Online Games** lists the games hosted in the lobby that you have, each with who hosts it and where. Select joins one. A game with a password isn't listed.
+- **Hosting**: **Host Online Game**, in a game's options, puts the game in the lobby under your name. It goes through the **Relay Server** chosen, so that no router has to let anyone in.
+- **The whole lobby**: **RetroArch Lobby** lists every game hosted there, of every core. ▶ marks one you can join, a lock one with a password. It is a filter of the Arcade screen, and the last line of Online Games in the tree.
+- **A room's page** has what the lobby says of it, with ✓ on the core and versions that are yours. Select opens it in the tree; on the Arcade screen, select held does, or select on a room you can't join. **Join** comes first on it.
+- **Read again**: the lobby is read as Arcade opens, and every 20 seconds while it is shown.
 
-**Online Name** is the name the others see, typed on the on-screen keyboard; unset, the RetroAchievements account's, else OSD-OS (never the device's name, which stays off the internet). **Relay Server** is where a game you host goes through: New York (the default), Madrid, São Paulo, Singapore or Chuncheon, the nearest playing smoothest.
+A room's page says why it can't be joined: another core's, a host whose connection takes no players, a password, a RetroArch that can't be joined, or a game not in your folder. A room whose core version isn't yours can still be joined, though the game may fall out of step.
 
-Both players need the same game's set: a game listed under Online Games is in your folder under the name the host's has, but a set of another version may not play together.
+| Setting | What it is |
+|---|---|
+| **Online Name** | The name the others see. Unset: the RetroAchievements account's, else OSD-OS; never the device's name |
+| **Relay Server** | Where a game you host goes through: New York (the default), Madrid, São Paulo, Singapore or Chuncheon. The nearest plays smoothest |
 
 ### A game too big for the machine's memory
 
-A game too big for your machine's memory isn't played over the network. RetroArch keeps a snapshot of the running game for every frame it may have to go back to, 62 of them joining and 124 hosting, and a few games' are big: a snapshot of one of Cave's CV1000 games (Akai Katana, Mushihime-sama, DoDonPachi DaiFukkatsu...) is up to 145 MB, so joining one online takes a machine of 10 GB of memory and hosting one 18.8 GB. Where yours hasn't that much, such a game is left out of Playable Online and Host Online Game, its rooms out of Online Games, and RetroArch Lobby says why of them (`Joining it over the network needs 10.0 GB of memory, and this machine has 7.9 GB`). On the local network the CV1000 games' snapshots are small, on OSD/OS's own core ([OSD/OS's LAN core](#osdoss-lan-core)). Every other game's but Killer Instinct's are under 8 MB, under 1 GB in all even hosting; Killer Instinct's are 8.6 MB, and hosting it takes a machine of 2.1 GB.
+RetroArch keeps a snapshot of the running game for every frame it may go back to: 62 joining and 124 hosting. A game whose snapshots need more memory than your machine has isn't played over the network.
+
+| Game | A snapshot | Memory needed |
+|---|---|---|
+| Cave's CV1000 games, online | Up to 145 MB | 10 GB to join, 18.8 GB to host |
+| Cave's CV1000 games, on the local network | Up to 17 MB | 2 GB to join, 3.1 GB to host |
+| Killer Instinct | 8.6 MB | 2.1 GB to host |
+| Every other game | Under 8 MB | Under 1 GB, even hosting |
+
+Such a game is left out of Playable Online and Host Online Game, and its rooms out of Online Games. RetroArch Lobby says why: `Joining it over the network needs 10.0 GB of memory, and this machine has 7.9 GB`.
 
 ## The same settings on every machine
 
-Two machines in one game have to run it exactly alike, or they fall out of step. So a game played online or on the local network doesn't play with your FinalBurn Neo options (**Core Options** in RetroArch's menu) but with OSD/OS's own, the same on every machine: FinalBurn Neo's own defaults, as a plain RetroArch has them, for everything that changes how a game runs (the CPU at 100%, no frame skip, Force 60Hz off, the sound at 48000 Hz, a Neo Geo's BIOS by the game's own switch, no memory card, SOCD as FinalBurn Neo sets it, and the diagnostic input as it sets it online and off on the local network, where holding Start for it would open a board's service menu on one machine alone), with high scores and patched ROM sets off; the game's DIP switches (difficulty, lives, free play), cheats and IPS patches at their defaults, but for how many players the cabinet has, which OSD/OS's LAN core sets to the most the game takes ([OSD/OS's LAN core](#osdoss-lan-core)). Of yours only the picture's come along: vertical mode, 32-bit colour and the light gun's crosshair. Your own options stay as they are for the games you play alone, and what you change in RetroArch's menu during a game played over the network lasts that game. The lobby's names are other players' own, shown without markup; the lobby is read over plain HTTP, as RetroArch reads it, and holds nothing of yours.
+A game played with others doesn't play with your FinalBurn Neo options (**Core Options** in RetroArch's menu) but with OSD/OS's own, the same on every machine. Machines that run a game differently fall out of step.
+
+- **At FinalBurn Neo's defaults**: the CPU at 100%, no frame skip, Force 60Hz off, the sound at 48000 Hz, a Neo Geo's BIOS by the game's own switch, no memory card, and SOCD.
+- **Off**: high scores and patched ROM sets.
+- **The diagnostic input**: as FinalBurn Neo sets it online. On the local network it is off: holding Start for it would open a board's service menu on one machine alone.
+- **The game's DIP switches** (difficulty, lives, free play), cheats and IPS patches: at their defaults, except the cabinet's number of players on the LAN core.
+- **Yours**: only the picture's options, which are vertical mode, 32-bit colour and the light gun's crosshair.
+
+Your own options stay as they are for the games you play alone. A change made in RetroArch's menu during such a game lasts that game. The lobby is read over plain HTTP, as RetroArch reads it, and holds nothing of yours.
 
 ## See also
 
-- [Arcade](https://github.com/mehmetraif/OSD-OS/wiki/Arcade): the games, their folder, the two screens and the engines.
-- [Controls → Players](https://github.com/mehmetraif/OSD-OS/wiki/Controls#players): which controller is which player on each machine.
-- [Settings → Arcade](https://github.com/mehmetraif/OSD-OS/wiki/Settings#arcade): Online Play, LAN Play, LAN Sync, Online Name and Relay Server.
-- [The OSD/OS image → Wi-Fi](https://github.com/mehmetraif/OSD-OS/wiki/The-OSD-OS-Image#wi-fi): why the image keeps its Wi-Fi awake and sends a game's packets first.
-- [Troubleshooting](https://github.com/mehmetraif/OSD-OS/wiki/Troubleshooting): a game that can't be joined or hosted.
+- [Arcade](https://github.com/mehmetraif/OSD-OS/wiki/Arcade): the games, their folder, the two screens and the engines
+- [Controls → Players](https://github.com/mehmetraif/OSD-OS/wiki/Controls#players): which controller is which player
+- [Settings → Arcade](https://github.com/mehmetraif/OSD-OS/wiki/Settings#arcade)
+- [Troubleshooting](https://github.com/mehmetraif/OSD-OS/wiki/Troubleshooting): a game that can't be joined or hosted

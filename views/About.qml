@@ -16,6 +16,9 @@ import Components
 // Neo's as it was installed).
 FocusScope {
     id: aboutRoot
+    // In the layout's frame (Main.qml): its rows in the pane, beside the
+    // column a layout keeps on the screen.
+    readonly property bool inFrame: true
 
     signal navigateTo(string path, var params, var listState)
     signal goBack()
@@ -68,13 +71,38 @@ FocusScope {
         { key: "artwork", label: "Artwork", value: "ChatGPT",
           description: "The OSD/OS logo, the channel logo over the picture and the boot screen's cassette"
                        + " were made with ChatGPT, OpenAI's assistant" },
-        { key: "fonts", label: "Fonts", value: "VCR OSD Mono, Unifont",
-          description: "VCR OSD Mono by Riciery Santos Leal (mrmanet), free from dafont.com"
-                       + " • GNU Unifont by Roman Czyborra, Paul Hardy and others, under the SIL Open Font License 1.1" },
+        { key: "font", label: "VCR OSD Mono", value: "Riciery Santos Leal",
+          description: "The menus' typeface, VCR OSD Mono, was created by Riciery Santos Leal (mrmanet),"
+                       + " dafont.com/vcr-osd-mono.font • Free from its author, and here unchanged" },
+        { key: "unifont", label: "Unifont", value: "SIL OFL 1.1", license: "assets/fonts/LICENSE-unifont.txt",
+          licenseName: "GNU Unifont's license",
+          description: "The characters VCR OSD Mono lacks: GNU Unifont by Roman Czyborra, Paul Hardy and others,"
+                       + " unifoundry.com/unifont • Under the SIL Open Font License 1.1 • {select} The license's text" },
         { key: "built", label: "Built With", value: "Qt, SDL2, mpv",
-          description: "Qt 6 (LGPL v3) • SDL2 (zlib) • mpv and libmpv (GPL v2+)"
-                       + " • On the OSD/OS image: yt-dlp (Unlicense), Deno (MIT), FFmpeg (LGPL/GPL), Chromium (BSD)"
+          description: "Qt 6, SDL2 (zlib), OpenSSL, mpv and libmpv (GPL v2+)"
+                       + " • On the OSD/OS image: yt-dlp (Unlicense), Deno (MIT), FFmpeg (LGPL/GPL), Chromium (BSD),"
+                       + " FluidSynth (LGPL v2.1) and libopenmpt (BSD) for the menu music"
                        + " • The arcade's under ARCADE, below" },
+        { key: "qt", label: "Qt", value: "LGPL v3", license: "assets/licenses/LGPL-3.0.txt",
+          licenseName: "GNU Lesser General Public License, version 3",
+          description: "Draws the menus: Qt 6, qt.io, free software under the GNU Lesser General Public License,"
+                       + " version 3, which adds to the GPL v3, OSD/OS's own license"
+                       + " • Qt Quick 3D, which draws the Arcade's Orb look, is under the GPL v3 • {select}"
+                       + " The license's text" },
+        { key: "openssl", label: "OpenSSL", value: "Apache 2.0", license: "assets/licenses/Apache-2.0.txt",
+          licenseName: "Apache License, version 2.0",
+          description: "Makes the key Plex's sign-in asks for, and secures the connections: OpenSSL, openssl.org"
+                       + " • Under the Apache License, version 2.0 • {select} The license's text" },
+        { key: "icons", label: "Icons", value: "OFL 1.1, MIT", license: "assets/licenses/Icons.txt",
+          licenseName: "The icons' notices",
+          description: "The Weather module's icons are Weather Icons by Erik Flowers, under the SIL Open Font"
+                       + " License 1.1 • NFC Reader's logo is from Phosphor Icons, under the MIT License"
+                       + " • Emby's is from Simple Icons (CC0), and Jellyfin's is the Jellyfin project's"
+                       + " (CC BY-SA 4.0) • {select} The notices' text" },
+        { key: "hash", label: "Hash without Sine", value: "MIT", license: "assets/licenses/Hash-without-Sine.txt",
+          licenseName: "MIT License",
+          description: "The grain of the screen effects and the moving backgrounds: Dave Hoskins' Hash without"
+                       + " Sine, shadertoy.com/view/4djSRW • Under the MIT License • {select} The license's text" },
         { key: "testpatterns", label: "Test Patterns", value: "240p Test Suite", license: "assets/licenses/GPL-2.0.txt",
           licenseName: "GNU General Public License, version 2 or later",
           description: "Settings → Screen → Test Patterns' pictures, from the 240p Test Suite by Artemio Urbina and its"
@@ -95,7 +123,8 @@ FocusScope {
         { key: "data", label: "Data", value: "TMDB, Open-Meteo",
           description: "This product uses the TMDB API but is not endorsed or certified by TMDB: the Netflix and"
                        + " Prime Video catalogues, with JustWatch's listings through it • Weather data by"
-                       + " Open-Meteo.com, under CC BY 4.0 • Titles' pages on the services from Wikidata" },
+                       + " Open-Meteo.com, under CC BY 4.0, with the US National Weather Service's observations,"
+                       + " weather.gov • Titles' pages on the services from Wikidata" },
 
         // The arcade's (Settings → Arcade, the High Scores module): the free
         // software its games play in and read with, each licence a page of
@@ -116,9 +145,10 @@ FocusScope {
         { key: "fbneo", label: "FinalBurn Neo", value: "Non-commercial", license: "fbneo",
           licenseName: "FinalBurn Neo's license",
           description: "The arcade emulator RetroArch plays those games with, as a libretro core, by Team FB Neo,"
-                       + " github.com/libretro/FBNeo, from libretro's build server, buildbot.libretro.com"
-                       + " • OSD/OS's own build of it for Cave's CV1000 games on the local network comes with OSD/OS,"
-                       + " with its license, its changes public in OSD/OS's source (scripts/fbneo-lan.patch)"
+                       + " github.com/libretro/FBNeo • OSD/OS's packages carry its own builds, with the license:"
+                       + " the core unchanged, and a LAN core for play on the local network, its changes public in"
+                       + " OSD/OS's source (scripts/fbneo-lan.patch) • A build without them downloads the core from"
+                       + " libretro's build server, buildbot.libretro.com"
                        + " • Free to use and share, never to sell; no ROMs come with it • {select}"
                        + " The license's text" },
         { key: "openhi2txt", label: "openhi2txt", value: "GPL v3", license: "LICENSE",
@@ -207,9 +237,10 @@ FocusScope {
     Item {
         id: mark
         visible: !licensePage.visible
-        x: root.sw * 0.125 //80
+        // In the middle of the pane.
+        x: root.paneX + root.sw * 0.009375 //80
         y: root.sh * 0.2083333 //100
-        width: root.sw * 0.75 //480
+        width: root.paneWidth - root.sw * 0.01875 //480
         height: tagline.y + tagline.height
 
         Image {

@@ -23,6 +23,9 @@ import Components
 // pins.
 FocusScope {
     id: pageRoot
+    // In the layout's frame (Main.qml): its rows in the pane, beside the
+    // column a layout keeps on the screen.
+    readonly property bool inFrame: true
 
     signal navigateTo(string path, var params, var listState)
     signal goBack()
@@ -415,8 +418,8 @@ FocusScope {
         anchors.top: parent.top
         anchors.left: parent.left
         anchors.topMargin: root.sh * 0.25 //120
-        anchors.leftMargin: root.sw * 0.115625 //74
-        width: root.sw * 0.76875 //492
+        anchors.leftMargin: root.paneX
+        width: root.paneWidth
         // One line short of the space, so the ▼ fits above the help line; a
         // line more for each bar that is off (Main.qml's helpRoom, hintRoom).
         height: root.sh * 0.4666667 + root.helpRoom + root.hintRoom //224
@@ -480,6 +483,8 @@ FocusScope {
         property var currentRow: pageRoot.rows[list.currentIndex]
         visible: !pageRoot.capturing && !pageRoot.testing && text !== ""
         text: pageRoot.notice !== "" ? pageRoot.notice : ((currentRow && currentRow.description) || "")
+        // What became of a new button is said with Help Line off too.
+        always: pageRoot.notice !== ""
         anchors.bottom: parent.bottom
         anchors.left: parent.left
         anchors.bottomMargin: root.helpLineMargin

@@ -1435,6 +1435,16 @@ private slots:
         // A second reclaim with nothing released is a no-op.
         im.reclaimJoysticksAfterHandoff();
         QVERIFY(entry(im, "OSD/OS Handoff Pad").value("present").toBool());
+
+        // The next game started before the pads were opened again: they
+        // stay released for it, the reclaim that was waiting dropped.
+        im.releaseJoysticksForHandoff();
+        im.reclaimJoysticksAfterHandoff();
+        im.releaseJoysticksForHandoff();
+        QTest::qWait(400);
+        QCOMPARE(entry(im, "OSD/OS Handoff Pad").value("present").toBool(), false);
+        im.reclaimJoysticksAfterHandoff();
+        QTRY_VERIFY(entry(im, "OSD/OS Handoff Pad").value("present").toBool());
     }
 
     // Coin and Start held as a game ends (they quit it) reach the menus

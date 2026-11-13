@@ -14,6 +14,15 @@ Rectangle {
     height: 480
     // Main.qml's, as the view and its components read them.
     property real sw: width
+    // The layout's frame and its pane (Main.qml): the column's icons as a
+    // view hands them over, and where a view's rows go.
+    property var frameIcons: []
+    property int frameIndex: 0
+    property bool frameActive: false
+    property bool framed: false
+    readonly property real paneX: framed ? sw * 0.209375 : sw * 0.115625
+    readonly property real paneWidth: framed ? sw * 0.675 : sw * 0.76875
+    function setFrame(icons, index, active, tall) { frameIcons = icons; frameIndex = index; frameActive = active }
     property real sh: height
     property real px: 2
     property string globalFont: "monospace"
@@ -86,6 +95,7 @@ Rectangle {
         function init() {
             root.navigations = []
             root.menuLayout = "Standard"
+            root.setFrame([], 0, false)
         }
         function cleanup() {
             loader.source = ""
@@ -145,12 +155,20 @@ Rectangle {
             compare(menu.groups.map(function(g) { return g.icon }), ["tv", "joystick", "apps", "gear"])
             compare(names(menu), ["Local Files", "Plex"])
             verify(!menu.groupIcons)
+            // The column is the shell's (Main.qml's frame), handed the
+            // groups' icons, the group and whether the keys are in it.
+            verify(menu.inFrame && menu.ownsFrame)
+            compare(root.frameIcons.map(function(icon) { return icon.icon }), ["tv", "joystick", "apps", "gear"])
+            compare(root.frameIndex, 0)
+            verify(!root.frameActive)
             verify(hint(menu).indexOf("[◄]:GROUPS") >= 0, hint(menu))
             keyClick(Qt.Key_Left)
             verify(menu.groupIcons)
+            verify(root.frameActive)
             verify(hint(menu).indexOf("[►]:OPEN") >= 0, hint(menu))
             keyClick(Qt.Key_Down)
             compare(menu.groupIndex, 1)
+            compare(root.frameIndex, 1)
             compare(names(menu), ["Arcade", "High Scores"])
             keyClick(Qt.Key_Right)
             verify(!menu.groupIcons)

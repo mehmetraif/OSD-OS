@@ -407,8 +407,11 @@ void JellyfinBackend::quick_connect_poll(const QString &secret) {
         int status = reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
         QByteArray body = reply->readAll();
 
-        if (reply->error() != QNetworkReply::NoError) {
-            emit quickConnectFailed("POLL FAILED: " + reply->errorString());
+        // A poll that didn't reach the server (the network a moment away, a
+        // timeout) is not the code's end: the next poll asks again, as Plex's
+        // PIN does. A status from the server is its answer.
+        if (reply->error() != QNetworkReply::NoError && status == 0) {
+            qWarning("[JellyfinBackend] Quick Connect poll didn't get through: %s", qPrintable(reply->errorString()));
             return;
         }
         if (status >= 400) {
@@ -1450,11 +1453,6 @@ void JellyfinBackend::getLibraries() {
         return;
     }
 
-    // Re-emit cached capabilities so ModuleSettings.qml can filter settings
-    // correctly on every pageload (the signal may have been missed if
-    // ModuleSettings.qml was destroyed/recreated after the initial probe).
-    probeCapabilities();
-
     QUrl url(m_serverUrl + "/Users/" + m_userId + "/Views");
     auto *reply = jellyfinGet(url);
     connect(reply, &QNetworkReply::finished, this, [this, reply]() {
@@ -1493,6 +1491,11 @@ void JellyfinBackend::getVideoQualities() {
     add("720p",  "720p");
     add("1080p", "1080p");
     emit dynamicOptionsReady("video_quality", options);
+
+    // The settings page asks for this row's choices each time it opens, and
+    // for nothing that says what the server can do: tell it here, or Intro
+    // Skip and Credit Skip stay "Not offered by the server" on every server.
+    probeCapabilities();
 }
 
 void JellyfinBackend::get_resume_playback_options() {

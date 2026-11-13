@@ -16,6 +16,9 @@ import QtQuick
 //     WebPlayerBrowse { backend: netflixBackend; serviceName: "Netflix" }
 FocusScope {
     id: browse
+    // In the layout's frame (Main.qml): its tree or list in the pane, beside
+    // the column a layout keeps on the screen.
+    readonly property bool inFrame: true
 
     property var navParams: ({})
     property var navListState: navParams.navListState || ({})
@@ -137,6 +140,8 @@ FocusScope {
         id: problemLine
         visible: !osk.visible && !info.visible && !options.visible && text !== ""
         text: browse.catalog ? browse.catalog.problem : ""
+        // A problem is said with Help Line off too.
+        always: text !== ""
         anchors.bottom: parent.bottom
         anchors.left: parent.left
         anchors.bottomMargin: root.helpLineMargin

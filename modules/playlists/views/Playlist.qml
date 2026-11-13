@@ -7,6 +7,9 @@ import Components
 // play the list from it, move it, or take it off.
 FocusScope {
     id: pageRoot
+    // In the layout's frame (Main.qml): its tree or list in the pane, beside
+    // the column a layout keeps on the screen.
+    readonly property bool inFrame: true
 
     property var navParams: ({})
     property var navListState: navParams.navListState || ({})

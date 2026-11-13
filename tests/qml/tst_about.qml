@@ -16,6 +16,15 @@ Rectangle {
     height: 480
     // Main.qml's, as the views and their components read them.
     property real sw: width
+    // The layout's frame and its pane (Main.qml): the column's icons as a
+    // view hands them over, and where a view's rows go.
+    property var frameIcons: []
+    property int frameIndex: 0
+    property bool frameActive: false
+    property bool framed: false
+    readonly property real paneX: framed ? sw * 0.209375 : sw * 0.115625
+    readonly property real paneWidth: framed ? sw * 0.675 : sw * 0.76875
+    function setFrame(icons, index, active, tall) { frameIcons = icons; frameIndex = index; frameActive = active }
     property real sh: height
     property real px: 2
     property string globalFont: "monospace"
@@ -225,6 +234,19 @@ Rectangle {
 
         // The arcade's lines under their heading, after OSD/OS's own; the
         // cursor steps over the heading.
+        // In a layout's frame the lines are in the pane, beside the column
+        // the shell keeps on the screen, and the wordmark in its middle.
+        function test_inTheFrame() {
+            var page = open()
+            verify(page.inFrame)
+            var list = childOf(page, "shownTop")
+            compare(list.x, root.sw * 0.115625)
+            root.framed = true
+            compare(list.x, root.sw * 0.209375)
+            compare(list.width, root.sw * 0.675)
+            root.framed = false
+        }
+
         function test_lines() {
             var page = open()
             var labels = page.rows.map(function(r) { return (r.type === "section" ? "# " : "") + r.label })

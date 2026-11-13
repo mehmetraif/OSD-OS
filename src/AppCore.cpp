@@ -124,9 +124,20 @@ QJsonObject AppCore::loadConfig(bool *broken) const {
 }
 
 bool AppCore::saveConfig(const QJsonObject &config) const {
+    const QString path = m_dataRoot + "/config.json";
     m_configCacheValid = false;
-    return writeFileAtomically(m_dataRoot + "/config.json",
-                               QJsonDocument(config).toJson(QJsonDocument::Indented));
+    if (!writeFileAtomically(path, QJsonDocument(config).toJson(QJsonDocument::Indented)))
+        return false;
+    // What was written is what the next read would find: kept, so that the
+    // file isn't read and parsed again after each save.
+    const QFileInfo info(path);
+    if (info.exists()) {
+        m_configCache = config;
+        m_configCacheModified = info.lastModified();
+        m_configCacheSize = info.size();
+        m_configCacheValid = true;
+    }
+    return true;
 }
 
 bool AppCore::isModuleEnabled(const ModuleEntry &m, const QJsonObject &modulesConfig) const {
@@ -243,68 +254,78 @@ QVariant AppCore::get_setting(const QString &moduleId, const QString &key) {
     return target[key].toVariant();
 }
 
+// A JS object or array from QML arrives wrapped as a QJSValue, which
+// QJsonValue::fromVariant() would store as null.
+static QVariant plainValue(const QVariant &raw) {
+    return raw.metaType() == QMetaType::fromType<QJSValue>() ? raw.value<QJSValue>().toVariant() : raw;
+}
+
 bool AppCore::save_setting(const QString &moduleId, const QString &key, const QVariant &rawValue) {
-    // A JS object or array from QML arrives wrapped as a QJSValue, which
-    // QJsonValue::fromVariant() would store as null.
-    const QVariant value = rawValue.metaType() == QMetaType::fromType<QJSValue>()
-                               ? rawValue.value<QJSValue>().toVariant() : rawValue;
+    return saveSettings(moduleId, { { key, plainValue(rawValue) } });
+}
+
+bool AppCore::save_settings(const QString &moduleId, const QVariantMap &values) {
+    QList<std::pair<QString, QVariant>> pairs;
+    for (auto it = values.cbegin(); it != values.cend(); ++it)
+        pairs.append({ it.key(), plainValue(it.value()) });
+    return pairs.isEmpty() || saveSettings(moduleId, pairs);
+}
+
+// One read of config.json and one write for all of them: a write is synced to
+// the card, tens of milliseconds and more each on an SD card (AtomicFile.h),
+// and a theme chosen saved nine settings one after another.
+bool AppCore::saveSettings(const QString &moduleId, const QList<std::pair<QString, QVariant>> &values) {
     bool broken = false;
     QJsonObject config = loadConfig(&broken);
     if (broken) {
         qWarning("[AppCore] Setting not saved: config.json is there but isn't valid JSON, "
                  "and saving %s.%s would write the defaults over it",
-                 qPrintable(moduleId.isEmpty() ? "app" : moduleId), qPrintable(key));
+                 qPrintable(moduleId.isEmpty() ? "app" : moduleId), qPrintable(values.value(0).first));
         return false;
     }
 
-    // Navigate to the target section
-    auto getTarget = [&]() -> QJsonObject {
-        if (moduleId.isEmpty())
-            return config["app"].toObject();
-        return config["modules"].toObject()[moduleId].toObject();
-    };
-    auto setTarget = [&](const QJsonObject &target) {
-        if (moduleId.isEmpty()) {
-            config["app"] = target;
+    // The target section
+    QJsonObject target = moduleId.isEmpty() ? config["app"].toObject()
+                                            : config["modules"].toObject()[moduleId].toObject();
+    for (const auto &[key, value] : values) {
+        // Dot-notation: "libraries.somekey" -> target["libraries"]["somekey"]
+        const QStringList parts = key.split('.', Qt::KeepEmptyParts);
+        if (parts.size() == 2) {
+            QJsonObject sub = target[parts[0]].toObject();
+            sub[parts[1]] = QJsonValue::fromVariant(value);
+            target[parts[0]] = sub;
         } else {
-            QJsonObject modules = config["modules"].toObject();
-            modules[moduleId] = target;
-            config["modules"] = modules;
+            target[key] = QJsonValue::fromVariant(value);
         }
-    };
-
-    QJsonObject target = getTarget();
-
-    // Handle dot-notation: "libraries.somekey" -> target["libraries"]["somekey"]
-    QStringList parts = key.split('.', Qt::KeepEmptyParts);
-    if (parts.size() == 2) {
-        QJsonObject sub = target[parts[0]].toObject();
-        sub[parts[1]] = QJsonValue::fromVariant(value);
-        target[parts[0]] = sub;
+    }
+    if (moduleId.isEmpty()) {
+        config["app"] = target;
     } else {
-        target[key] = QJsonValue::fromVariant(value);
+        QJsonObject modules = config["modules"].toObject();
+        modules[moduleId] = target;
+        config["modules"] = modules;
     }
 
-    setTarget(target);
     // Only a setting on the card is one the backends take up: one that
     // couldn't be saved would be gone at the next start, and get_setting()
     // says the old one meanwhile.
     if (!saveConfig(config)) {
         qWarning("[AppCore] Setting not saved: %s.%s",
-                 qPrintable(moduleId.isEmpty() ? "app" : moduleId), qPrintable(key));
+                 qPrintable(moduleId.isEmpty() ? "app" : moduleId), qPrintable(values.value(0).first));
         return false;
     }
-    qDebug("[AppCore] Setting saved: %s.%s = %s",
-           qPrintable(moduleId.isEmpty() ? "app" : moduleId),
-           qPrintable(key), qPrintable(value.toString()));
-
-    if (moduleId.isEmpty())
-        emit appSettingChanged(key, value.toString());
-    else
-        emit moduleSettingChanged(moduleId, key, value);
-    // A module turned on or off: its status icons come or go.
-    if (!moduleId.isEmpty() && key == QLatin1String("enabled"))
-        updateStatusIcons();
+    for (const auto &[key, value] : values) {
+        qDebug("[AppCore] Setting saved: %s.%s = %s",
+               qPrintable(moduleId.isEmpty() ? "app" : moduleId),
+               qPrintable(key), qPrintable(value.toString()));
+        if (moduleId.isEmpty())
+            emit appSettingChanged(key, value.toString());
+        else
+            emit moduleSettingChanged(moduleId, key, value);
+        // A module turned on or off: its status icons come or go.
+        if (!moduleId.isEmpty() && key == QLatin1String("enabled"))
+            updateStatusIcons();
+    }
     return true;
 }
 
@@ -1170,12 +1191,29 @@ QString AppCore::moduleIdForSource(const QString &source) const {
 // ---------------------------------------------------------------------------
 
 QJsonObject AppCore::loadLists(bool *broken) const {
+    const QString path = m_dataRoot + QStringLiteral("/lists.json");
+    // As last read, while the file is as it was then (its time and size), as
+    // config.json is: a list is asked for at every page of the Arcade
+    // screen's games, and the file was read and parsed whole each time.
+    const QFileInfo info(path);
+    if (m_listsCacheValid && info.exists() && info.lastModified() == m_listsCacheModified
+            && info.size() == m_listsCacheSize) {
+        if (broken)
+            *broken = false;
+        return m_listsCache;
+    }
     QJsonObject lists;
     QString why;
-    const bool ok = readJsonObject(m_dataRoot + QStringLiteral("/lists.json"), &lists, &why);
+    const bool ok = readJsonObject(path, &lists, &why);
     // As config.json: one there but unreadable is not written over.
     if (broken)
         *broken = !ok && !why.isEmpty();
+    m_listsCacheValid = ok && info.exists();
+    if (m_listsCacheValid) {
+        m_listsCache = lists;
+        m_listsCacheModified = info.lastModified();
+        m_listsCacheSize = info.size();
+    }
     return lists;
 }
 
@@ -1190,6 +1228,7 @@ bool AppCore::listsToChange(QJsonObject *lists) const {
 }
 
 void AppCore::saveLists(const QJsonObject &lists) const {
+    m_listsCacheValid = false;
     writeFileAtomically(m_dataRoot + QStringLiteral("/lists.json"),
                         QJsonDocument(lists).toJson(QJsonDocument::Compact));
 }
@@ -1198,23 +1237,49 @@ QVariantList AppCore::get_list(const QString &moduleId, const QString &name) con
     return loadLists().value(moduleId).toObject().value(name).toArray().toVariantList();
 }
 
-void AppCore::add_to_list(const QString &moduleId, const QString &name,
-                          const QVariantMap &entry, int limit) {
+// A list with an entry put first: the one of its path there taken out, and
+// no more than limit kept.
+static QJsonArray withFirst(const QJsonArray &list, const QVariantMap &entry, int limit) {
     const QString path = entry.value(QStringLiteral("path")).toString();
-    if (path.isEmpty())
-        return;
-    QJsonObject lists;
-    if (!listsToChange(&lists))
-        return;
-    QJsonObject module = lists.value(moduleId).toObject();
     QJsonArray kept{ QJsonObject::fromVariantMap(entry) };
-    for (const QJsonValue &v : module.value(name).toArray()) {
+    for (const QJsonValue &v : list) {
         if (kept.size() >= qMax(1, limit))
             break;
         if (v.toObject().value(QStringLiteral("path")).toString() != path)
             kept.append(v);
     }
-    module.insert(name, kept);
+    return kept;
+}
+
+void AppCore::add_to_list(const QString &moduleId, const QString &name,
+                          const QVariantMap &entry, int limit) {
+    add_all_to_list(moduleId, name, QVariantList{ entry }, limit);
+}
+
+void AppCore::add_all_to_list(const QString &moduleId, const QString &name,
+                              const QVariantList &entries, int limit) {
+    QJsonObject lists;
+    QJsonObject module;
+    QJsonArray list;
+    bool read = false;
+    for (const QVariant &one : entries) {
+        const QVariantMap entry = one.toMap();
+        if (entry.value(QStringLiteral("path")).toString().isEmpty())
+            continue;
+        // Read at the first entry there is to add: nothing is, nothing is
+        // read or written.
+        if (!read) {
+            if (!listsToChange(&lists))
+                return;
+            module = lists.value(moduleId).toObject();
+            list = module.value(name).toArray();
+            read = true;
+        }
+        list = withFirst(list, entry, limit);
+    }
+    if (!read)
+        return;
+    module.insert(name, list);
     lists.insert(moduleId, module);
     saveLists(lists);
 }

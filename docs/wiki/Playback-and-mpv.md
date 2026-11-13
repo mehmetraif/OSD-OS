@@ -1,79 +1,47 @@
 # Playback and mpv
 
-OSD/OS never decodes a video itself: [mpv](https://mpv.io) does. Usually mpv runs as a program of its own, started for each video. With Settings → TV / Movie → Transparent Background it runs inside OSD/OS as a library, libmpv, so the menus can lie over the picture. This page covers both ways, the exact flags OSD/OS gives mpv on each device and how to change them, what the modules and the settings add, subtitles, audio tracks and resume points, the loading screen and the channel logo, mpv's own configuration, installing a modern mpv, and what to do when playback goes wrong.
+[mpv](https://mpv.io) plays every video. By default it runs as a process, started for each video. With Settings → TV / Movie → Transparent Background it runs inside OSD/OS as a library, libmpv, so the menus can lie over the picture.
 
 ## Two ways to play
 
 | | An mpv process (the default) | Inside the app (Transparent Background) |
 |---|---|---|
-| What plays | `mpv`, started for each video and ended after it | libmpv, mpv as a library, inside OSD/OS (`EmbeddedMpv`) |
-| Who has the screen | mpv. On the OSD/OS image and Raspberry Pi OS Lite, OSD/OS hands it the screen; on a desktop, mpv opens a full-screen window over OSD/OS | OSD/OS, the whole time: the picture is part of its own window (`VideoSurface`) |
-| Back during a video | Ends it. A Local Files, YouTube or Playlists video opens its menu instead, then starts again where it was | Returns to the menus, the video playing on behind them |
-| Decoder and output flags | The device's profile, or `mpv_video_args` | A list of their own for each device; `mpv_video_args` isn't used |
+| What plays | `mpv`, started for each video | libmpv inside OSD/OS |
+| Who has the screen | mpv: handed the screen on the OSD/OS image and Raspberry Pi OS Lite, a full-screen window on a desktop | OSD/OS: the picture is part of its window |
+| Back during a video | Ends it. A Local Files, YouTube or Playlists video opens its menu, then starts again where it was | Returns to the menus; the video plays on behind them |
+| Decoder and output flags | The device's profile, or `mpv_video_args` | A list per device; `mpv_video_args` isn't used |
 | Your `~/.config/mpv/mpv.conf` | Read | Not read |
 | Needs | mpv | libmpv (`libmpv2`, or Homebrew's mpv on a Mac), in a build made with its headers |
 
 <img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/images/display-path.svg" width="100%" alt="How the picture reaches the TV on a desktop, in a kiosk, on the OSD/OS image, and on the OSD/OS image with Transparent Background" />
 
-Every video goes through `MpvController` (`src/player/MpvController.cpp`). A module's player calls `mpvController.loadAndPlay(url, start, audio track, subtitle track, …)`, and gets one signal back when the video is over, `playbackEnded(position, duration, reason)`.
-
-```mermaid
-flowchart TD
-    P["A module's player<br/>loadAndPlay(url, start, tracks, …)"] --> A["MpvController::sessionArgs()<br/>the mpv options for this video"]
-    A --> T{"Transparent Background on<br/>and libmpv loaded?"}
-    T -->|no| H{"A display server?<br/>DISPLAY or WAYLAND_DISPLAY"}
-    H -->|"no: a Pi's console"| D["DisplayHandoff hands mpv the screen<br/>(VT switch, DRM master dropped)"]
-    D --> M1["mpv process, --vo=drm<br/>and the device profile"]
-    H -->|yes| M2["mpv process<br/>--fullscreen window"]
-    T -->|yes| E["EmbeddedMpv: libmpv, vo=libmpv"]
-    E --> V["VideoSurface in OSD/OS's window<br/>a GPU texture or a CPU picture"]
-    M1 --> C["MpvController over /tmp/osdos-mpv.sock<br/>position, duration, keys"]
-    M2 --> C
-    E --> C
-    C --> R["playbackEnded(position, duration, reason)<br/>eof, stopped, failed or menu"]
-```
-
 ## The mpv process
 
 ### Starting a video
 
-1. **The menu music stops** first, so the sound card is free when mpv opens it. It comes back once the video is over and the menus want it.
-2. **The options are built** (`sessionArgs()`): the same for both ways of playing, up to how the picture is shown ([A full command line](https://github.com/mehmetraif/OSD-OS/wiki/Playback-and-mpv#a-full-command-line-on-a-pi-4)).
-3. **A video still playing is told to quit** (SIGTERM), and killed a second later if it is still there. OSD/OS never waits for it on its own thread; a process stuck even past the kill (in a driver, or on a network share that went away) is given up on after five seconds, so the menus come back.
-4. **The new one starts 50 ms later**, once the old one has gone and the screen is free again. The delay lets the player's loading screen be drawn first: on a Pi, starting mpv takes the screen at once, and Qt can't draw any more until it is back.
-5. **mpv is found**: an `mpv` beside the `osdos` binary first (the AppImage carries its own there), then `mpv` on `PATH`. On a Mac, `/opt/homebrew/bin` and `/usr/local/bin` are added to `PATH` first, so Homebrew's mpv is found even when the app is opened from the Finder. Without one, the log says `[MpvController] mpv not found (no bundled sibling, none on PATH)` and the player goes back.
-6. **Where it plays:**
-   - **No display server** (Linux with neither `DISPLAY` nor `WAYLAND_DISPLAY`: the OSD/OS image, Raspberry Pi OS Lite). `DisplayHandoff` gives mpv the screen: the app stops drawing (its window hidden, its keys still reaching the player), it switches to a free virtual terminal, drops DRM master and saves the display's state. mpv draws straight to the display (`--vo=drm`). When mpv exits, OSD/OS waits 200 ms for its last frame to clear, takes the screen back and restores it. If another program holds the screen (a takeover script), playback fails with `[MpvController] Cannot start playback: <owner> has the screen`.
-   - **A desktop** (X11, Wayland, macOS). mpv opens its own full-screen window (`--fullscreen --no-native-fs`). On Linux with `DISPLAY` set, `WAYLAND_DISPLAY` is removed from mpv's environment, so it runs on X11 or Xwayland: mpv's Wayland output stalls under labwc, Raspberry Pi OS's compositor. With `app.display_index` set, mpv opens on that display too (`--fs-screen` or `--fs-screen-name`).
-7. **mpv's environment** gets `APP_ROOT`, and on Linux `FONTCONFIG_FILE=/tmp/osdos-fonts.conf`, so mpv's on-screen menu finds the VCR font in OSD/OS's `assets/fonts`. On a Mac, `--osd-fonts-dir` points mpv at it instead.
+- **mpv is found** beside the `osdos` binary first (the AppImage's), then on `PATH`. On a Mac, `/opt/homebrew/bin` and `/usr/local/bin` are searched too. On Windows, `mpv.exe` beside `osdos.exe` or in its `mpv` folder comes first.
+- **No display server** (Linux with neither `DISPLAY` nor `WAYLAND_DISPLAY`: the OSD/OS image, Raspberry Pi OS Lite): OSD/OS hands mpv the screen, and mpv draws straight to the display (`--vo=drm`).
+- **A desktop** (X11, Wayland, macOS): mpv opens a full-screen window. On Linux with `DISPLAY` set it runs on X11 or Xwayland. With `app.display_index` set it opens on that display.
+
+**A video that shows no picture.** mpv has 25 seconds to open a file (90 for a server's stream), then 10 seconds (45) to show its first picture. When the time is up:
+
+1. mpv is told to decode without the hardware decoder.
+2. Still nothing: an mpv process is started again with `--hwdec=no`.
+3. Still nothing: the player says `The video did not start`, with BACK and RETRY.
+
+RETRY, or the next video, gets the device's decoders again.
 
 ### The control channel
 
-Every video's mpv listens on a Unix socket, `--input-ipc-server=/tmp/osdos-mpv.sock`. `MpvController` connects to it (trying every 100 ms until mpv is up), asks to follow four properties, and from then on talks to mpv in JSON lines:
+OSD/OS controls each video's mpv over a socket, `/tmp/osdos-mpv.sock` (`--input-ipc-server`; a named pipe on Windows).
 
-```json
-{"command":["observe_property",1,"time-pos"]}
-{"command":["observe_property",2,"duration"]}
-{"command":["observe_property",3,"playlist-pos"]}
-{"command":["observe_property",4,"pause"]}
-{"command":["keypress","RIGHT"]}
-{"command":["keydown","RIGHT"]}
-{"command":["keyup","RIGHT"]}
-{"command":["seek",754.2,"absolute+exact"]}
-{"command":["set_property","speed",1.5]}
-{"command":["quit"]}
-```
-
-- **From mpv** come `property-change` events (the position, the length, the place in a playlist, pausing), which the players show and save, and `end-file`, which says why a video ended.
-- **Keys reach mpv this way.** On a Pi, mpv reads no keyboard itself (`--no-input-terminal`): the player view gets every key, as it does in the menus, and forwards it as a `keypress`. A gamepad's buttons arrive as the same keys ([Controls](https://github.com/mehmetraif/OSD-OS/wiki/Controls)). A key **held** (◄ ► in the deck menu, a remote's volume key) is held down in mpv instead (`keydown`), which repeats it at its own pace, six times a second, for as long as it is down, and let go as the key is (`keyup`), or when its repeats stop coming. Sent as a press each, as the keyboard repeats them, they queued up in a busy player and the seeking or the volume went on after the finger had come off.
-- **Keys pressed while the next video is on its way** (its loading screen up, the last video's mpv quitting) wait for it and reach it as it starts, in their order.
-- **Settings changed during a video** go to it with `set_property`: the speed, looping, Scaling's `panscan` and `keepaspect`, the sound card.
-- **mpv talks back** with client messages (`script-message`): `osdos-menu` (back, from the key bindings below), and from the deck menu `skip-segment` (SKIP), `cycle-sub` and `cycle-audio` (a stream whose tracks only the server can change).
-- **A watchdog** checks every 10 seconds, and warns in the log when no position has come for 30 seconds while the video isn't paused: `[MpvController] WATCHDOG: no IPC time-pos event for 40 s — possible freeze`.
+- Keys reach mpv this way: on a Pi, mpv reads no keyboard itself.
+- Settings changed during a video apply this way: the speed, looping, Scaling, the sound card.
+- A watchdog warns in the log when no position has come for 30 seconds while the video isn't paused: `[MpvController] WATCHDOG: no IPC time-pos event for 40 s — possible freeze`.
 
 ### Back, and the end of a video
 
-OSD/OS writes the key bindings each video's mpv gets, a process's and Transparent Background's alike, into the temporary folder as it starts, `osdos-input.conf`, three lines:
+OSD/OS writes each video's key bindings to `osdos-input.conf` in the temporary folder:
 
 ```text
 ESC script-message osdos-menu
@@ -81,54 +49,42 @@ BS script-message osdos-menu
 ENTER cycle pause
 ```
 
-`--input-conf` points mpv at that file in place of your own `~/.config/mpv/input.conf`, which isn't read. mpv's built-in bindings stay (Space pauses, ◄ ► seek). While the deck menu or the screen saver is open its own bindings come first, so back closes the menu rather than the video.
+- Your own `~/.config/mpv/input.conf` isn't read. mpv's built-in bindings stay (Space pauses, ◄ ► seek).
+- While the deck menu or the screen saver is open, back closes that first.
+- [Using OSD/OS → Back during a video](https://github.com/mehmetraif/OSD-OS/wiki/Using-OSD-OS#back-during-a-video) says what back does in each module.
 
-A back pressed in OSD/OS (on the remote, a pad, a keyboard the app reads) is acted on by OSD/OS at once, rather than sent to mpv and waited for: late while mpv was busy with a heavy film, and lost while the control socket was down. The file's lines are for a key mpv gets itself, as on a Mac, where they send `osdos-menu` back to OSD/OS. Either way:
-
-- **A process** quits. A player with a menu of its own (Local Files, YouTube, Playlists) is told the video ended for its menu: it saves where it got to, shows the menu on OSD/OS's own background, and starts the video again from there, with the settings as they are now, as the menu closes. Any other player saves where it got to and goes back.
-- **Transparent Background**: the video goes on behind the menus ([below](https://github.com/mehmetraif/OSD-OS/wiki/Playback-and-mpv#back-to-the-menus-and-back-to-the-video)).
-
-When the video is over, the player gets `playbackEnded(position, duration, reason)`, once:
+A module's player gets one signal when the video is over, `playbackEnded(position, duration, reason)`:
 
 | Reason | When |
 |---|---|
-| `eof` | The video, or the last of a playlist, played to its end. A player may go on: Plex, Jellyfin and Emby can play the next episode (Autoplay Next Episode) |
-| `stopped` | It was stopped before the end: back, STOP, a crash or a kill (the safe default) |
-| `failed` | mpv couldn't play it: exit code 2, or libmpv's `error`. Plex tries again with a transcode; YouTube says to check yt-dlp |
-| `menu` | The process ended for its player's menu (back, above) |
+| `eof` | The video, or the last of a playlist, played to its end. Plex, Jellyfin and Emby can play the next episode (Autoplay Next Episode) |
+| `stopped` | Stopped before the end: back, STOP, a crash or a kill |
+| `failed` | mpv couldn't play it (exit code 2, or libmpv's `error`), showed no picture, or never started. Plex, Jellyfin and Emby try a transcode first. The player then shows **Playback failed** with the reason, BACK and RETRY |
+| `menu` | The process ended for its player's menu |
 
-On a display without a server, the signal comes once the screen is OSD/OS's again. An end that comes after another video has been asked for isn't reported: it would read as the new one's.
+A video whose sound card couldn't be opened plays without sound. It ends as it played, `eof` or `stopped`, not as `failed`.
 
 ### Keys during a video
 
-| Action | Keyboard | Gamepad | During a video |
-|---|---|---|---|
-| ▲ or ▼ | Up, Down | D-pad, left stick | Opens the deck menu |
-| ◄ ► | Left, Right | D-pad, left stick, LB, RB | Seeks back or forward (mpv's own keys: 5 seconds) |
-| Select | Enter | A | Pauses and plays |
-| Play/pause | Space | Start | Pauses and plays |
-| Back | Esc, Backspace | B, or the pad's Back/Select button | The video's menu, or back to the module (above) |
-| Next or previous film | Page Up, Page Down (a remote's Channel + / −) | | Local Files: the folder's next or previous film; a playlist (Local Files' or Playlists'): its next or previous video, round the end |
-| Media keys | Volume, Mute, Play/Pause, Stop, Fast Forward, Rewind, Next, Previous | | Volume up or down by 5, with a VOLUME bar; mute; play/pause; stop; 30 seconds on; 10 seconds back; the next or the previous chapter |
+| Key | During a video |
+|---|---|
+| ▲ or ▼ | Opens the deck menu |
+| ◄ ► (a pad's LB, RB too) | Seeks 5 seconds |
+| Select, play/pause | Pauses and plays |
+| Back | The video's menu, or back to the module |
+| Page Up, Page Down (a remote's Channel + / −) | The folder's next or previous film (Local Files), or a playlist's video |
+| Media keys | Volume by 5; mute; play/pause; stop; 30 seconds on; 10 seconds back; next or previous chapter |
 
 <img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/screenshots/playback-menu.png" width="100%" alt="The deck menu: AUDIO and CROP lines at the top, the times and the position bar, then the AUDIO, CROP and STOP buttons" />
 
-**The deck menu** (`scripts/mpv-osc.lua`; Ambient:Mode has its own, `mpv-osc-ambient.lua`) is drawn by mpv in OSD/OS's letters. At the top it says what plays: `AUDIO:` (the track's name, language, codec, channels and rate), `SUBTITLE:` and `CROP:` (the Scaling in force). Below are the times and the position bar, and a row of buttons. ▲ goes to the bar and ▼ to the buttons; on the bar ◄ ► seek 10 seconds, on the buttons they move between them, and select presses one. It closes again after 5 seconds without a key.
-
-| Button | Shown | What it does |
-|---|---|---|
-| SKIP | While an intro or credits can be skipped (Jellyfin and Emby, with Intro Skip or Credit Skip on Button) | Skips it |
-| AUDIO | Always | The next audio track |
-| SUBTITLE | When there are subtitle tracks | The next subtitle track, then none |
-| CROP | Unless the Pi 3's overlay path can't crop | The next of the four Scalings, at once |
-| `<` `>` | In a playlist | The previous or the next video |
-| STOP | Always | Ends the video |
-
-`scripts/mpv-media-keys.lua` handles a keyboard's or a remote's media keys in every video, and `scripts/mpv-screensaver.lua`, loaded only when Settings → Screen → Screen Saver isn't OFF, puts the bouncing logo over a video paused that long.
+- [Controls](https://github.com/mehmetraif/OSD-OS/wiki/Controls) has every key and button.
+- **The deck menu** is drawn by mpv (`scripts/mpv-osc.lua`; Ambient:Mode has `mpv-osc-ambient.lua`). [Using OSD/OS](https://github.com/mehmetraif/OSD-OS/wiki/Using-OSD-OS#the-decks-menu) lists its buttons.
+- `scripts/mpv-media-keys.lua` handles the media keys.
+- `scripts/mpv-screensaver.lua` puts the bouncing logo over a paused video, unless Settings → Screen → Screen Saver is OFF.
 
 ### A full command line on a Pi 4
 
-What OSD/OS runs to play a film from Local Files on a Pi 4 with the OSD/OS image: Settings and Local Files as they come but for Channel Logo, set to Top Right (Scaling Letterbox, Video Levels Auto, Audio Output Auto, Transparent Background off, Auto Show Subtitles Forced Only, Image Duration 5 seconds), the film resumed at 12:34.2:
+A Local Files film on a Pi 4 with the OSD/OS image, resumed at 12:34.2. All settings are at their defaults except Channel Logo, on Top Right:
 
 ```sh
 /usr/bin/mpv \
@@ -146,6 +102,8 @@ What OSD/OS runs to play a film from Local Files on a Pi 4 with the OSD/OS image
   --image-display-duration=5.0 \
   --ytdl=no \
   --input-conf=/tmp/osdos-input.conf \
+  --input-ar-delay=150 \
+  --input-ar-rate=6 \
   --video-sync=audio \
   --vo=drm \
   --hwdec=drm-copy,v4l2m2m-copy \
@@ -154,78 +112,55 @@ What OSD/OS runs to play a film from Local Files on a Pi 4 with the OSD/OS image
   '/media/OSD-OS/Movies/Sci-Fi/Terminator 2 (1991).mp4'
 ```
 
-| Flags | Why |
-|---|---|
-| `--input-ipc-server`, `--log-file` | The control channel, and mpv's own log |
-| `--osc=no`, `--osd-level=0`, `--script=…mpv-osc.lua` | mpv's own controls and messages off; OSD/OS's deck menu in their place |
-| `--script=…mpv-media-keys.lua` | Media keys and the VOLUME bar, in every video |
-| `--script=…mpv-logo.lua`, `--script-opts=logo-corner=tr` | Settings → TV / Movie → Channel Logo, top right |
-| `--start=754.200` | The resume point, in seconds |
-| `--subs-with-matching-audio=forced`, `--subs-fallback-forced=always` | Auto Show Subtitles: Forced Only |
-| `--image-display-duration=5.0` | Image Duration, for photos (mpv ignores it for a video) |
-| `--ytdl=no` | mpv's yt-dlp hook off: on a server's stream it causes errors. Only a module that needs it turns it on |
-| `--input-conf=/tmp/osdos-input.conf` | Back and select, as above |
-| `--video-sync=audio` | The picture follows the sound (mpv's default) |
-| `--vo=drm`, `--hwdec=drm-copy,v4l2m2m-copy` | The Pi 4's profile ([below](https://github.com/mehmetraif/OSD-OS/wiki/Playback-and-mpv#per-device-decode-profiles)) |
-| `--no-input-terminal` | mpv reads no keys from the console; they come over the socket |
-| `--` | What plays comes after it, so a name beginning with `-` is never taken for an option |
-
-What changes it:
-
-- **YouTube** (signed out, subtitles off, the Advanced settings as they come) has instead `--sid=no`, `--script-opts=logo-corner=tr,ytdl_hook-ytdl_path=/home/pi/.local/share/OSD-OS/bin/yt-dlp`, no `--image-display-duration` and no `--ytdl=no`, and adds `--ytdl=yes` and `--ytdl-format=bestvideo[height<=?480][vcodec^=avc1]+bestaudio/bestvideo[height<=?480]+bestaudio/best[height<=?480]/best`, with `https://www.youtube.com/watch?v=<id>` after the `--`. Signed in, it also has `--ytdl-raw-options=cookies-from-browser=%63%chromium+basictext:/home/pi/.local/share/OSD-OS/youtube/browser`.
-- **Settings** add `--panscan=0.43`, `--panscan=1` or `--keepaspect=no` (Scaling), `--video-output-levels=limited` or `full` (Video Levels), `--audio-device=alsa/default:CARD=<id>` (Audio Output), `--script=…mpv-screensaver.lua` with `screensaver_timeout=<seconds>` in the script options (Screen Saver), and `logo-image`, `logo-width` and `logo-height` in the script options (Logo Image).
-- **A Pi 5** has `--vo=drm --hwdec=auto-safe`, and on an output named by its display preset `--drm-device`, `--drm-connector` and `--drm-mode`.
-- **A desktop** has `--fullscreen --no-native-fs` and its own `--hwdec`, and no `--vo` or `--no-input-terminal`.
-
-mpv writes its command line into its own log at its verbose level: `grep 'Command line' /tmp/osdos-mpv.log` shows the last video's, tokens included (the file is readable by its owner only). A build made from source without `-DCMAKE_BUILD_TYPE=Release` also logs `[MpvController] launch: mpv …` with the tokens blanked out.
+- Settings, the module and the device change the line: see How the flags are layered, below.
+- A desktop has `--fullscreen --no-native-fs`, and no `--vo` or `--no-input-terminal`.
+- `grep 'Command line' /tmp/osdos-mpv.log` shows the last video's command line, tokens included. The file is readable by its owner only.
 
 ## Transparent Background: mpv inside the app
 
 ### What it needs
 
-- **At build time**, libmpv's headers, found by `pkg-config mpv` (`libmpv-dev` on Debian and Raspberry Pi OS; Homebrew's `mpv` with `pkgconf` on a Mac). Without them CMake says `libmpv headers not found — Transparent Background will be unavailable`, and the setting never appears. The arm64 `.tar.gz` (which the image is made from) and the Mac's `.dmg` are built with them. The x86_64 AppImage's build installs none, and its bundled mpv is built without libmpv, so the AppImage doesn't offer the setting.
-- **At run time**, libmpv itself, opened when needed rather than linked, so OSD/OS still starts where it is missing. The first of these that loads: on Linux `../lib/libmpv.so.2` beside the binary, then `libmpv.so.2`, then `libmpv.so.1`; on a Mac `../Frameworks/libmpv.2.dylib` beside the binary, `/opt/homebrew/lib/libmpv.2.dylib`, `/usr/local/lib/libmpv.2.dylib`, then `libmpv.2.dylib`. On Raspberry Pi OS it is the package `libmpv2`, which `install.sh` and the image install. The log says `[EmbeddedMpv] using <file>`, or `[EmbeddedMpv] libmpv not found: Transparent Background is unavailable`. Settings offers the row only once libmpv has loaded.
+- **At build time**, libmpv's headers, found by `pkg-config mpv`: `libmpv-dev` on Debian and Raspberry Pi OS, Homebrew's `mpv` with `pkgconf` on a Mac. Without them CMake says `libmpv headers not found — Transparent Background will be unavailable`.
+- The arm64 `.tar.gz` (the image's) and the Mac's `.dmg` are built with them. The x86_64 AppImage is not.
+- **At run time**, libmpv. The first of these that loads:
+  - Linux: `../lib/libmpv.so.2` beside the binary, `libmpv.so.2`, `libmpv.so.1`. On Raspberry Pi OS it is the package `libmpv2`.
+  - macOS: `../Frameworks/libmpv.2.dylib` beside the binary, `/opt/homebrew/lib/libmpv.2.dylib`, `/usr/local/lib/libmpv.2.dylib`, `libmpv.2.dylib`.
+- The log says `[EmbeddedMpv] using <file>`, or `[EmbeddedMpv] libmpv not found: Transparent Background is unavailable`.
+- Without libmpv, the Settings row is dimmed and says `Needs libmpv, which isn't installed`.
 
 ### The same command line, as libmpv options
 
-`EmbeddedMpv::start()` takes the command line `sessionArgs()` built for the process and turns it into libmpv's options and a playlist:
+libmpv gets the process's command line as options and a playlist, with these differences:
 
-- `--name=value` becomes option `name`, `--name` is `yes`, `--no-name` is `no`.
-- Options that may be given several times (`--script`, `--sub-file`, `--audio-file`, `--http-header-fields`) are gathered and set as lists, so an item keeps any character, a subtitle URL's `:` and `,` among them.
-- Everything after `--` is the playlist, shuffled with `--shuffle` and started at `--playlist-start`.
-- On top come `vo=libmpv`, `idle=once` (it ends when the playlist has played out, as the process would exit) and `input-default-bindings=yes` (libmpv leaves mpv's built-in keys off).
-- An option this libmpv doesn't know is left out with a warning, `[EmbeddedMpv] --name=value: <mpv's error>`, where the mpv program would refuse to start.
-
-In place of the process's own flags it gets the same `--input-conf`, `--video-sync=audio` and the embedded decoder flags of the [table below](https://github.com/mehmetraif/OSD-OS/wiki/Playback-and-mpv#per-device-decode-profiles). It reads no `mpv.conf` and doesn't use `mpv_video_args`. The socket, the scripts (the deck menu, the logo, the media keys) and `playbackEnded` work as for a process. There is no screen to hand over: OSD/OS keeps it.
+- The decoder flags are the embedded ones (the second table below).
+- No `mpv.conf` is read, and `mpv_video_args` isn't used.
+- An option this libmpv doesn't know is left out with a warning, `[EmbeddedMpv] --name=value: <mpv's error>`.
 
 ### How the picture is drawn
 
-- **On the GPU**, wherever Qt Quick draws with OpenGL: `eglfs` on a Pi, and a Linux desktop. OSD/OS makes an OpenGL context that shares its textures with Qt's, on a thread of its own (`mpv-gpu`). mpv draws each picture into one of four textures, never one the screen may still be showing, and `VideoSurface` puts that texture on the screen as it is. No picture passes through the CPU, and a hardware decoder's frames reach the GPU without a copy (`drm`, `v4l2m2m`, NVDEC). mpv's passes render into 8-bit textures (`--fbo-format=rgba8`). On a Pi it enlarges with mpv's `fast` profile, shrinks with hermite widened to the scale (`--dscale=hermite --correct-downscaling=yes`), so a 1080p or 4K picture brought down to a CRT's lines doesn't shimmer, and dithers (`--dither=fruit`). The GPU draws the menus too: a picture that takes long to draw (a 4K film brought down to 480 lines takes the widened downscaler hundreds of fetches a pixel) holds their frames up, and the menus answer late. So OSD/OS times each picture, and when they take 12 ms or more each for 48 pictures in a row (about two seconds of a film), turns mpv's scaling down a step, twice at most (first the downscaler no wider than the picture's pixels, then plain bilinear scaling without dithering), saying so in the log: `[EmbeddedMpv] the pictures took 23 ms each to draw, the menus' frames waiting behind them: the downscaler is no wider than the picture's pixels now`. The videos after start that way for the rest of the run. A film at a CRT's own resolution never gets there.
-- **On the CPU** otherwise: Metal on a Mac, `QT_QUICK_BACKEND=software`, or OpenGL that itself runs on the CPU (Mesa's llvmpipe, in a virtual machine). libmpv's software renderer draws on a thread of its own (`mpv-render`), at the pixel size of the `VideoSurface`, and each picture is uploaded from memory. A Pi 3 is short of power for this.
-- **Decided once**, before the first video, so that its decoder flags suit where it is drawn. Should the GPU then fail to take a video, that one and the rest are drawn on the CPU. Should it not take a hardware decoder's frames (mpv's `Mapping hardware decoded surface failed`: it then draws nothing), OSD/OS switches the video to the copy-back decoders in its list, `[EmbeddedMpv] the GPU can't take the decoder's frames: --hwdec=…`, and the videos after it start with them.
-- The log says which: `[EmbeddedMpv] pictures drawn on the GPU: <the GPU's name>`, or that mpv's software renderer draws them. `OSDOS_EMBEDDED_RENDER=sw` keeps to the CPU; `OSDOS_EMBEDDED_RENDER=gpu` uses OpenGL even when it runs on the CPU, for tests.
-
-The picture is never touched by an effect: the effects and the menu music rest while it plays, full screen or behind the menus.
+- **On the GPU** wherever Qt Quick draws with OpenGL: `eglfs` on a Pi, and a Linux desktop.
+- **On the CPU** otherwise: Metal on a Mac, `QT_QUICK_BACKEND=software`, or OpenGL that runs on the CPU (Mesa's llvmpipe). A Pi 3 is short of power for this.
+- If the GPU fails to take a video, that one and the rest are drawn on the CPU.
+- The log says which: `[EmbeddedMpv] pictures drawn on the GPU: <the GPU's name>`, or that mpv's software renderer draws them.
+- **Slow pictures.** When pictures take 12 ms or more each for 48 in a row, OSD/OS turns mpv's scaling down a step, twice at most, for the rest of the run. The log says `[EmbeddedMpv] the pictures took 23 ms each to draw, …`.
+- **Frames the GPU can't take** (mpv's `Mapping hardware decoded surface failed`): OSD/OS switches to the copy-back decoders. The log says `[EmbeddedMpv] the GPU can't take the decoder's frames: --hwdec=…`.
+- `OSDOS_EMBEDDED_RENDER=sw` keeps to the CPU. `OSDOS_EMBEDDED_RENDER=gpu` uses OpenGL even when it runs on the CPU, for tests.
 
 ### Back to the menus, and back to the video
 
 <table>
 <tr><th width="33%">The video's menu</th><th width="33%">Back to the menus</th><th width="33%">Main menu</th></tr>
 <tr><td><img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/screenshots/player-menu.png" width="100%" alt="The video's menu" /></td><td><img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/screenshots/menus-over-video.png" width="100%" alt="Back to the menus" /></td><td><img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/screenshots/main-menu-over-video.png" width="100%" alt="Main menu" /></td></tr>
-<tr><td>Back during a Local Files or YouTube video opens its menu over the picture, which plays on, here at 40% solid.</td><td>Browse in that menu, or back from any other module's video, returns to the module's menus, the video playing on behind them.</td><td>The main menu leads with the video: select takes it back to full screen where it is; play/pause stops it.</td></tr>
+<tr><td>Back during a Local Files or YouTube video opens its menu over the picture.</td><td>Browse, or back from another module's video, returns to the menus. The video plays on behind them.</td><td>The main menu leads with the video. Select takes it back to full screen; play/pause stops it.</td></tr>
 </table>
 
-- **Back** during a Local Files, YouTube or Playlists video opens its menu over the picture. First come its module's settings for it, which ◄ ► change: the speed, looping and Scaling at once, the others (subtitles, YouTube's format and languages) by reloading the video where it is as you go back to it. Then, in Local Files and YouTube, Add to Favorites and Play at Startup (and YouTube's Watch Later); then **Browse** (back to the module's menus) and **Close Video** (to the main menu). Back from the menu returns to the video. Back during any other module's video returns to the module's menus.
-- **Behind the menus** the video plays on, sound and all. The menus' ground (Settings → Look → OSD Background: all over, or only the window, the picture showing whole around it) lies over it as solid as the slider says; at SOLID none of the picture shows, and none is drawn either: the video is decoded and heard, its pictures drawn a few pixels wide until the ground lets them through again, so the GPU is the menus' alone. The module has saved where it got to.
-- **The main menu** leads with a row for it, `► <title>`, the cursor on it (YouTube, Local Files and Playlists note their videos; other modules' come back by choosing them again). Select brings it back full screen where it is. Choosing the same video in its module does the same, without its resume question: OSD/OS knows it by its command line, and carries on rather than starting it again.
-- **It ends** when it plays out, with play/pause on the main menu (`[SPACE]:STOP`), when anything else plays, when something else takes the screen (a takeover script, an Arcade game, Netflix or Prime Video's browser), and when Transparent Background is turned off.
-- **Without Transparent Background** mpv has the screen, so the video stops for its menu, and starts again where it was as the menu closes. **Browse** leaves it stopped there, and the main menu leads with its row all the same: select starts it again where it was saved, without asking. The row stays until mpv plays anything else.
+[Using OSD/OS → Transparent Background](https://github.com/mehmetraif/OSD-OS/wiki/Using-OSD-OS#transparent-background) has the setting, how to take the video back and what ends it.
 
 ## Per-device decode profiles
 
-OSD/OS reads the board's model once, from `/proc/device-tree/model` (`OSDOS_BOARD_MODEL` stands in for it in tests), and picks the flags for it. The log says which, at start: `[MpvController] video profile: Pi 4 — drm + drm-copy,v4l2m2m-copy`. A Pi 400 counts as a Pi 4, a Pi 500 as a Pi 5.
+OSD/OS reads the board's model from `/proc/device-tree/model` and picks the flags. The log says which at start: `[MpvController] video profile: Pi 4 — drm + drm-copy,v4l2m2m-copy`. A Pi 400 counts as a Pi 4, a Pi 500 as a Pi 5.
 
-**An mpv process.** Without a display server the flags follow the board; on a desktop they follow the system, whatever the board:
+**An mpv process:**
 
 | Where | Boot driver | Flags |
 |---|---|---|
@@ -235,8 +170,9 @@ OSD/OS reads the board's model once, from `/proc/device-tree/model` (`OSDOS_BOAR
 | Any other Linux, no display server | | `--vo=drm --hwdec=auto-safe` |
 | A Linux desktop, X11 or Wayland (a Pi running a desktop too) | | `--hwdec=vaapi,nvdec,vaapi-copy,nvdec-copy,no` |
 | macOS | | `--hwdec=videotoolbox` |
+| Windows, FreeBSD, OpenBSD | | `--hwdec=auto-safe` |
 
-**Inside the app** (Transparent Background) the flags follow the board, desktop or not, and where the picture is drawn:
+**Inside the app** (Transparent Background):
 
 | Device | Drawn on the GPU | Drawn on the CPU |
 |---|---|---|
@@ -246,30 +182,29 @@ OSD/OS reads the board's model once, from `/proc/device-tree/model` (`OSDOS_BOAR
 | Any other Linux | `--hwdec=nvdec,vaapi-copy,nvdec-copy,no --fbo-format=rgba8` | `--hwdec=vaapi-copy,nvdec-copy,no` |
 | macOS | (Qt draws with Metal there, so the picture is drawn on the CPU) | `--hwdec=videotoolbox-copy`, and `--osd-fonts-dir` for the VCR font |
 
-- **Pi 4.** `--vo=drm` draws on the display's primary plane, with exact page-flip timing, so the cadence is smooth. The decoders hand their frames back to memory (`-copy`), where mpv scales them: more CPU than the zero-copy overlay path (50 to 70% of the four cores), but the Pi 4 has the headroom, Scaling's cropping works, and the overlay path judders at 24 frames a second. `drm-copy` reaches the Pi 4's HEVC decoder through Raspberry Pi OS's own patched FFmpeg; the image's `config.txt` and INSTALL.md's load its overlay, `dtoverlay=rpivid-v4l2`, under `[pi4]`. `v4l2m2m-copy` decodes H.264. VP9 and AV1, which YouTube sends with Video Codec **Any**, have no decoder on a Pi 4 and decode in software.
-- **Pi 3.** The copy path pegs its four cores at 1080p. With Settings → TV / Movie → 1080p Playback **On** (the default), frames go straight to an overlay plane without a copy: about 15% of the CPU and smooth 1080p H.264, but an overlay plane can't crop, so 14:9 and Pan & Scan show the whole picture and the deck menu has no CROP. **Off** brings back the copy path, cropping and all, for videos of 720p and below. Inside the app (Transparent Background) the picture can always be cropped.
-- **Pi 5.** Full KMS, so `--vo=drm` draws directly. `auto-safe` finds no working VA-API or V4L2 decoder there and takes FFmpeg's Vulkan decoder on the V3D GPU for H.264 and HEVC: a copy decoder, so the frames land on the primary plane, smooth and croppable. On a Pi 5 the launcher points Qt at the output the display preset names, and exports `OSDOS_DRM_DEVICE`, `OSDOS_DRM_CONNECTOR` and `OSDOS_DRM_MODE` for mpv to play on the same one, in the same mode, when HDMI stays on beside a CRT ([Display Output](https://github.com/mehmetraif/OSD-OS/wiki/Display-Output)).
-- **A Linux desktop** (a Steam Deck, an Intel or AMD PC, a Pi with a desktop): an explicit list rather than `auto-safe`, because `auto-safe` also tries Vulkan decoding, which on a host where neither NVDEC nor VA-API works can show one frame and then hang. VA-API wins on Intel and AMD, NVDEC on NVIDIA, the `-copy` modes catch hosts whose output can't take their frames, and `no` falls back to software decoding. A Pi running a desktop gets this line too, and none of its own decoders are in it: set `mpv_video_args` there (below).
-- **macOS**: VideoToolbox, which mpv leaves off by default.
+- **Pi 4.** `drm-copy` decodes HEVC; it needs `dtoverlay=rpivid-v4l2` under `[pi4]` in `config.txt`, as the image has it. `v4l2m2m-copy` decodes H.264. VP9 and AV1 decode in software.
+- **Pi 3.** With Settings → TV / Movie → 1080p Playback **On** (the default), 1080p H.264 is smooth but can't be cropped. 14:9 and Pan & Scan then show the whole picture, and the deck menu has no CROP. **Off** crops, for videos of 720p and below. Inside the app the picture can always be cropped.
+- **Pi 5.** The launcher exports `OSDOS_DRM_DEVICE`, `OSDOS_DRM_CONNECTOR` and `OSDOS_DRM_MODE`, so mpv plays on the output the display preset names ([Display Output](https://github.com/mehmetraif/OSD-OS/wiki/Display-Output)).
+- **A Pi running a desktop** gets the desktop line, which has none of the Pi's decoders: set `mpv_video_args` (below).
 
 ## How the flags are layered
 
-Every flag mpv gets belongs to one of five layers. On mpv's command line a later flag overrides an earlier one, and the whole command line overrides `mpv.conf`:
+On mpv's command line a later flag overrides an earlier one, and the command line overrides `mpv.conf`:
 
 | Layer | Flags | Set by |
 |---|---|---|
-| App constants | `--input-ipc-server`, `--log-file`, `--osc`, `--osd-level`, `--script`, `--input-conf`, `--video-sync`, `--no-input-terminal`, `--fullscreen`, `--no-native-fs` | OSD/OS only: they wire up the control channel, the deck menu, the keys and the screen hand-off |
+| App constants | `--input-ipc-server`, `--log-file`, `--osc`, `--osd-level`, `--script`, `--input-conf`, `--input-ar-delay`, `--input-ar-rate`, `--video-sync`, `--no-input-terminal`, `--fullscreen`, `--no-native-fs` | OSD/OS only |
 | Per video | `--start`, `--playlist-start`, `--aid`, `--sid` and the subtitle flags, `--sub-file`, `--slang`, `--script-opts`, `--loop-playlist`, `--shuffle`, `--image-display-duration`, `--no-audio`, `--ytdl`, and a module's own (`--ytdl-format`, `--http-header-fields`, `--speed` …) | The player, from its module's settings |
-| Presentation | `--audio-device` (Audio Output), `--panscan` or `--keepaspect` (Scaling, the app's or the module's), `--video-output-levels` (Video Levels) | You, in Settings |
+| Presentation | `--audio-device` (Audio Output), `--panscan` or `--keepaspect` (Scaling), `--video-output-levels=limited` or `full` (Video Levels), `--monitoraspect=4:3` (a CRT's output), `--video-rotate` (Monitor) | You, in Settings |
 | Device decode | `--vo`, `--gpu-context`, `--hwdec`, `--drm-device`, `--drm-connector`, `--drm-mode` | OSD/OS by device; you, with `mpv_video_args` |
 | Your preferences | Anything else: `deinterlace`, `cache`, `sub-scale`, `monitoraspect`, profiles … | You, in `~/.config/mpv/mpv.conf` (the process only) |
 
-- **A setting at its default adds nothing**: Scaling on Letterbox, Video Levels on Auto, Audio Output on Auto. So a `video-output-levels=`, `panscan=` or `audio-device=` line in `mpv.conf` still applies then; choosing another value in Settings puts it on the command line, where it wins.
-- **The order on the command line**: the app constants, the per-video flags, Audio Output, `--ytdl=no`, the module's flags, the tokens, Scaling, Video Levels, then (the process only) `--input-conf`, `--video-sync`, the window flags, the device decode flags and `--no-input-terminal`, and last `--` with what plays. So `mpv_video_args`, near the end, wins over everything before it.
+- **A setting at its default adds nothing**: Scaling on Letterbox, Video Levels on Auto, Audio Output on Auto. A `video-output-levels=`, `panscan=` or `audio-device=` line in `mpv.conf` then still applies.
+- `mpv_video_args` comes after the Settings' flags, so it wins over them.
 
 ## mpv_video_args
 
-`mpv_video_args` in `config.json` replaces the device decode layer: the `--vo`, `--gpu-context` and `--hwdec` flags OSD/OS picks for the device, and on a Pi 5 the `--drm-*` flags too.
+`mpv_video_args` in `config.json` replaces the device decode layer: the `--vo`, `--gpu-context` and `--hwdec` flags, and on a Pi 5 the `--drm-*` flags too.
 
 ```json
 {
@@ -279,41 +214,40 @@ Every flag mpv gets belongs to one of five layers. On mpv's command line a later
 }
 ```
 
-- **Read at every video**, so a change applies to the next one, without a restart. Edit `config.json` with OSD/OS stopped ([Configuration files](https://github.com/mehmetraif/OSD-OS/wiki/Configuration-Files#editing-by-hand)), or the next setting saved in the app may be written over a file you have half edited.
+- **Read at every video**, so a change applies to the next one. Edit `config.json` with OSD/OS stopped ([Configuration files](https://github.com/mehmetraif/OSD-OS/wiki/Configuration-Files#editing-by-hand)).
 - **Split on spaces**, with no quoting: a value can't hold a space.
-- **It replaces the whole line.** On a display without a server, give `--vo` as well as `--hwdec`, or mpv picks its own output. On a Pi 5 with an output named by its preset, add `--drm-device`, `--drm-connector` and `--drm-mode` yourself (the connector is the name after `cardN-` in `/sys/class/drm`, such as `HDMI-A-1`).
+- **It replaces the whole line.** Without a display server, give `--vo` as well as `--hwdec`.
+- **On a Pi 5** with an output named by its preset, add `--drm-device`, `--drm-connector` and `--drm-mode` yourself. The connector is the name after `cardN-` in `/sys/class/drm`, such as `HDMI-A-1`.
 - **The process only**: Transparent Background ignores it.
-- **Only video output and decoder flags belong here.** The other layers are the app's or Settings', and your own preferences go in `mpv.conf`. Coming last, it would override anything before it, Video Levels included.
-- **To go back** to the device's own flags, delete the key, or set it to `""`.
-
-Examples:
+- **Only video output and decoder flags belong here.** It overrides anything before it, Video Levels included.
+- **To go back** to the device's own flags, delete the key or set it to `""`.
 
 | Value | When |
 |---|---|
-| `--vo=drm --hwdec=no` | A display without a server (the image, Raspberry Pi OS Lite): decode in software, to rule out the hardware decoder when a video plays wrong |
+| `--vo=drm --hwdec=no` | No display server: decode in software, to rule out the hardware decoder |
 | `--hwdec=no` | The same on a desktop |
-| `--vo=drm --hwdec=v4l2m2m-copy` | A Pi 4 with H.264 decoded in hardware and HEVC in software: its line before `drm-copy` was added |
-| `--hwdec=v4l2m2m-copy` | A Pi running a desktop: H.264 on the Pi's decoder, which the desktop line doesn't try |
+| `--vo=drm --hwdec=v4l2m2m-copy` | A Pi 4: H.264 in hardware, HEVC in software |
+| `--hwdec=v4l2m2m-copy` | A Pi running a desktop: H.264 on the Pi's decoder |
 
-**Cropping on a Pi 3 is a setting, not this override:** Settings → TV / Movie → 1080p Playback → Off gives exactly `--vo=drm --hwdec=v4l2m2m-copy` and lets Scaling crop. With 1080p Playback On, OSD/OS keeps the whole picture and hides CROP even when `mpv_video_args` names the copy path, because it goes by the setting.
+**Cropping on a Pi 3 is a setting, not this override:** 1080p Playback → Off gives exactly `--vo=drm --hwdec=v4l2m2m-copy`. With it On, CROP stays hidden whatever `mpv_video_args` says.
 
 ## What the modules add
 
 | Module | What its player adds |
 |---|---|
-| [Local Files](https://github.com/mehmetraif/OSD-OS/wiki/Local-Files) | Auto Show Subtitles and Subtitle Language (`--slang`); Loop Playback `--loop-playlist=inf`; for a playlist, Shuffle `--shuffle` and the video it resumes at, `--playlist-start`; Image Duration `--image-display-duration`; for photos, `scripts/mpv-slideshow-redraw.lua`, which makes the Pi's KMS output show each new photo |
-| [YouTube](https://github.com/mehmetraif/OSD-OS/wiki/YouTube) | `--ytdl=yes`; `--ytdl-format=` from Playback Resolution, Video Codec, Max Frame Rate and Audio Language; `--ytdl-raw-options=` with `write-subs=`, `sub-langs=<language>.*` and, for With Auto, `write-auto-subs=`, and `cookies-from-browser=…` once signed in; `--speed=` for a Playback Speed other than 1x; and the path of the yt-dlp OSD/OS found, `ytdl_hook-ytdl_path=` in the script options |
-| [NFC Reader](https://github.com/mehmetraif/OSD-OS/wiki/NFC-Reader) | `--ytdl=yes`, and a `--ytdl-format=` capped at its YouTube Video Resolution, so a card can name a YouTube video; its subtitle settings as Local Files' |
-| [Plex](https://github.com/mehmetraif/OSD-OS/wiki/Plex) | `--http-header-fields=X-Plex-Token:<token>`; the audio track chosen (`--aid`); external subtitles (`--sub-file`); `--tls-verify=no` for a server reached at `*.plex.direct`, whose certificates mpv's bundled list may not trust |
-| [Jellyfin](https://github.com/mehmetraif/OSD-OS/wiki/Jellyfin), [Emby](https://github.com/mehmetraif/OSD-OS/wiki/Emby) | `--http-header-fields=Authorization:MediaBrowser Token="<token>"`; `--aid` and `--sub-file` for a file played whole. A Jellyfin transcode adds `--script-opts-append=transcode-sub=…`, `sub-cycle=…`, `transcode-audio=…` and `audio-cycle=…`, so the deck menu names the tracks baked into the stream and its AUDIO and SUBTITLE ask the server for another |
-| [Ambient:Mode](https://github.com/mehmetraif/OSD-OS/wiki/Ambient-Mode) | Its own deck menu (`mpv-osc-ambient.lua`), `--loop-playlist=inf`, `--shuffle` and the other videos as more playlist entries; `--no-audio` when music of its own plays, in a second mpv (`--no-video --loop-playlist=inf`) |
+| [Local Files](https://github.com/mehmetraif/OSD-OS/wiki/Local-Files) | Subtitle Language `--slang`; Loop Playback `--loop-playlist=inf`; for a playlist, Shuffle `--shuffle` and `--playlist-start`; Image Duration `--image-display-duration`; for photos, `scripts/mpv-slideshow-redraw.lua` |
+| [YouTube](https://github.com/mehmetraif/OSD-OS/wiki/YouTube) | `--ytdl=yes`; `--ytdl-format=` from its Advanced settings; `--ytdl-raw-options=` with `write-subs=`, `sub-langs=<language>.*`, `write-auto-subs=` (With Auto) and, signed in, `cookies-from-browser=…`; `--speed=` for a Playback Speed other than 1x; `ytdl_hook-ytdl_path=` in the script options |
+| [NFC Reader](https://github.com/mehmetraif/OSD-OS/wiki/NFC-Reader) | `--ytdl=yes`, and a `--ytdl-format=` capped at its YouTube Video Resolution; subtitles as Local Files |
+| [Plex](https://github.com/mehmetraif/OSD-OS/wiki/Plex) | `--http-header-fields=X-Plex-Token:<token>`; `--aid`; `--sub-file`; `--tls-verify=no` for a server reached at `*.plex.direct` |
+| [Jellyfin](https://github.com/mehmetraif/OSD-OS/wiki/Jellyfin), [Emby](https://github.com/mehmetraif/OSD-OS/wiki/Emby) | `--http-header-fields=Authorization:MediaBrowser Token="<token>"`; `--aid` and `--sub-file` for a file played whole. A Jellyfin transcode adds `--script-opts-append=transcode-sub=…`, `sub-cycle=…`, `transcode-audio=…` and `audio-cycle=…` |
+| [Ambient:Mode](https://github.com/mehmetraif/OSD-OS/wiki/Ambient-Mode) | `mpv-osc-ambient.lua`, `--loop-playlist=inf`, `--shuffle`; `--no-audio` when its own music plays, in a second mpv (`--no-video --loop-playlist=inf`) |
 | [Playlists](https://github.com/mehmetraif/OSD-OS/wiki/Playlists) | An m3u in the data folder's `playlists/`; its Subtitles and Loop Playback; a YouTube video's flags as the YouTube module makes them |
 
 OSD/OS blanks every token out of what it logs: a URL's `ApiKey=`/`api_key=`, `X-Plex-Token`, and `Token="…"`.
 
 ## Scaling
 
-Settings → TV / Movie → Scaling, or a module's own Scaling when it isn't Default, says how a picture of another shape fills the screen, a 16:9 film on a 4:3 tube above all:
+Settings → TV / Movie → Scaling says how a picture of another shape fills the screen. A module's own Scaling overrides it unless it is Default.
 
 | Scaling | mpv flag | What you see |
 |---|---|---|
@@ -322,83 +256,80 @@ Settings → TV / Movie → Scaling, or a module's own Scaling when it isn't Def
 | Pan & Scan | `--panscan=1` | The screen filled, the sides cut |
 | Anamorphic | `--keepaspect=no` | The screen filled, the picture squeezed, for a TV switched to 16:9 |
 
-- **During a video**, the deck menu's CROP steps through the four at once, starting from the one in force, and its `CROP:` line names it. A Local Files, YouTube or Playlists video's own menu changes its module's Scaling, and the video follows at once (`set_property` of `keepaspect` and `panscan`).
-- **On a Pi 3** with 1080p Playback On, 14:9 and Pan & Scan show the whole picture, since the overlay plane can't crop. Anamorphic still applies.
-- **Netflix and Prime Video** take their module's Scaling to their browser, `web-player.sh`, which applies it with a small Chromium extension: 14:9 makes the player's video 8/7 larger, Pan & Scan 4/3 larger, Anamorphic 4/3 taller.
-- The older `app.auto_crop` set to `On` reads as Pan & Scan while Scaling has never been set.
+- **During a video**, the deck menu's CROP steps through the four at once. A Local Files, YouTube or Playlists video's own menu changes its module's Scaling, also at once.
+- **On a Pi 3** with 1080p Playback On, only Anamorphic applies.
+- **Netflix and Prime Video** apply their module's Scaling in their browser: 14:9 makes the video 8/7 larger, Pan & Scan 4/3 larger, Anamorphic 4/3 taller.
+- `app.auto_crop` set to `On` reads as Pan & Scan until a Scaling is chosen.
 
 ## Subtitles and audio tracks
 
-A player tells mpv which tracks to start with; the deck menu changes them during the video.
+A player tells mpv which tracks to start with; the deck menu's AUDIO and SUBTITLE change them during the video.
 
 | What the player asks | Flags |
 |---|---|
-| A track by number | `--sid=<n>` (subtitles), `--aid=<n>` (audio): Plex, Jellyfin and Emby, from what you chose on the item's page |
+| A track by number | `--sid=<n>` (subtitles), `--aid=<n>` (audio): Plex, Jellyfin and Emby, from the item's page |
 | Forced subtitles only (dialogue in another language) | `--subs-with-matching-audio=forced --subs-fallback-forced=always` |
 | Subtitles on | `--subs-with-matching-audio=yes --subs-fallback=yes`, and `--sid=auto` when no subtitle file is given |
 | Subtitles off (or burnt in by a transcode) | `--sid=no` |
 | A language first | `--slang=<code>`: Local Files' and the NFC Reader's Subtitle Language (Any adds nothing), YouTube's Subtitle Language |
 | Subtitles in files beside the stream | `--sub-file=<url>` for each: a Plex, Jellyfin or Emby server's |
 
-- **Module settings**: Local Files and the NFC Reader have Auto Show Subtitles (Forced Only, the default; On; Off) and Subtitle Language; Playlists has Subtitles (Forced Only, On, Off); YouTube has Subtitles (Off, On, With Auto), Subtitle Language and Audio Language. The forced-only flags need mpv 0.38 or later ([Installing a modern mpv](https://github.com/mehmetraif/OSD-OS/wiki/Playback-and-mpv#installing-a-modern-mpv)).
-- **During the video**, the deck menu's AUDIO and SUBTITLE pick the next track (SUBTITLE goes round to none). For a server's sidecar subtitles, OSD/OS writes their real names into `/tmp/osdos-mpv-subinfo.json` for the deck menu, instead of mpv's name from the URL.
-- **How subtitles look** (their size, font, position) is mpv's, so `sub-scale`, `sub-font-size` and the like in `mpv.conf` apply to the process.
+- **Module settings**: Auto Show Subtitles and Subtitle Language (Local Files, NFC Reader); Subtitles (Playlists); Subtitles, Subtitle Language and Audio Language (YouTube). Each module's page has the values.
+- The forced-only flags need mpv 0.38 or later.
+- A server's sidecar subtitles show their real names in the deck menu (`/tmp/osdos-mpv-subinfo.json`).
+- **How subtitles look** is mpv's: `sub-scale`, `sub-font-size` and the like in `mpv.conf` apply to the process.
 
 ## Resume points
 
 | Module | Where it keeps them | How |
 |---|---|---|
-| Local Files | `local_files_history.json` in the data folder, by file | Saved when you stop after 5 seconds; cleared at 95%. A playlist saves the video it was on and the point in it, and is cleared once it has played out. Photos keep none |
+| Local Files | `local_files_history.json` in the data folder, by file | Saved when you stop after 5 seconds; cleared at 95%. A playlist saves the video it was on and the point in it. Photos keep none |
 | NFC Reader | `nfc_reader_history.json`, by file or URL | As Local Files |
-| YouTube | `youtube_history.json`, by video | As Local Files; a video watched to 95% stays on Recently Watched at 0, so it isn't offered to resume |
+| YouTube | `youtube_history.json`, by video | As Local Files. A video watched to 95% stays on Recently Watched at 0 |
 | Playlists | `playlists.json`, the list's `resume` | The video a list in order stopped at and the point in it; forgotten once the list has played out |
-| Plex, Jellyfin, Emby | The server | The player reports progress to the server, which keeps the point (Continue Watching) |
+| Plex, Jellyfin, Emby | The server | The player reports progress to the server (Continue Watching) |
 
 <img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/screenshots/resume.png" width="100%" alt="Resume: pick up where you left off, or start from the beginning" />
 
-A module's Resume Playback says whether to ask (**Ask**), always resume (**Always**) or, in Local Files and the NFC Reader, never (**Never**). A favourite played at startup never asks: it starts where Settings → Startup → Startup From says. The point reaches mpv as `--start=<seconds>`. mpv applies that option to every file it loads, so once the video has started OSD/OS clears it (`set_property start none`): a looped video or the next in a playlist starts from the beginning.
+- A module's Resume Playback is **Ask**, **Always** or, in Local Files and the NFC Reader, **Never**.
+- A favourite played at startup never asks: it starts where Settings → Startup → Startup From says.
+- The point reaches mpv as `--start=<seconds>`, for the first video only: a looped video or the next in a playlist starts from the beginning.
 
 ## The loading screen
 
 <img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/screenshots/loading.png" width="100%" alt="Loading: a tape loading, VHS noise, the tracking band and a dubbing deck's display" />
 
-While a video starts, the player shows a tape loading, after a dubbing deck's on-screen display, until mpv reports its first position:
-
-- **Top left:** TAPE A, PLAY, and where the video is: while it loads, the point it starts from.
-- **Top middle:** TV, the deck's output.
-- **Top right:** TAPE B and LOADING blinking, with how long the video is once that is known (a server's length right away; mpv's once it has opened the file), and until then the seconds the screen has been up.
-- **Bottom:** SLP ▶ with the source (the module's name) on the left, SLP ◀ and DEST on the right.
-- **The tape's look**: VHS noise in the color scheme's colours (white on blue with Settings → TV / Movie → Loading Screen Colors → Default), drawn afresh about twenty times a second, and a tracking band that jitters across the top and every few seconds rolls down the picture. Settings → TV / Movie → Loading Effect → Off leaves the display alone on the plain background.
-
-On a Pi without Transparent Background, mpv takes the screen as soon as it starts, and what stays on the glass until its picture comes is the frame drawn last: the loading screen, still, which is why OSD/OS starts mpv 50 ms after the player asks. The noise rests while mpv has the screen, leaving the CPU to mpv. With Transparent Background the loading screen keeps moving until the picture comes. A still photo never moves mpv's position, so Local Files ends the loading screen as a photo starts.
+- While a video starts, the player shows a tape loading, until mpv reports its first position ([Using OSD/OS → The tape loading](https://github.com/mehmetraif/OSD-OS/wiki/Using-OSD-OS#the-tape-loading)).
+- On a Pi without Transparent Background it stands still once mpv has the screen.
 
 ## The channel logo
 
-Settings → TV / Movie → Channel Logo puts OSD/OS's logo in a corner of the picture, and Logo Image a picture of your own in its place ([Settings → TV / Movie](https://github.com/mehmetraif/OSD-OS/wiki/Settings#tv--movie)). mpv draws it: `sessionArgs()` loads `scripts/mpv-logo.lua` with `logo-corner=tl`, `tr`, `bl`, `br` or `all` in the script options, so it is in the picture in both ways of playing, under whatever OSD/OS draws over it.
+Settings → TV / Movie → Channel Logo and Logo Image put a logo in a corner of the picture ([Using OSD/OS → The channel logo](https://github.com/mehmetraif/OSD-OS/wiki/Using-OSD-OS#the-channel-logo)).
 
-- The script redraws `assets/images/logo-bug.svg` as vector shapes through mpv's on-screen display, 7% of the output's height tall, 10% of the picture's width and height in from its corner (inside the picture, so letterbox bars stay clear of it), and again whenever the output's size changes.
-- **Logo Image**: OSD/OS reads your picture at the logo's height (7% of the screen's), its shape kept, into mpv's raw overlay format (premultiplied BGRA, `/tmp/osdos-logo.bgra`), and passes `logo-image`, `logo-width` and `logo-height`. The script lays it in each corner asked for with `overlay-add`. It is made at the size it is shown because mpv before 0.38 can't scale an overlay.
-- Like everything mpv is started with, a change applies from the next video.
+- mpv draws it (`scripts/mpv-logo.lua`, with `logo-corner=tl`, `tr`, `bl`, `br` or `all` in the script options), in both ways of playing.
+- **Logo Image** is scaled to the logo's height and written to `/tmp/osdos-logo.bgra`. The script gets `logo-image`, `logo-width` and `logo-height`.
+- A change applies from the next video.
 
 ## Audio Output and mpv
 
-Settings → Sound → Audio Output (Linux with plain ALSA: the image and Raspberry Pi OS Lite) tells mpv the card: `--audio-device=alsa/default:CARD=<id>`, the card's own ALSA `default` device. That is the right door to each card: a USB card's `default` mixes what plays at once, and the Pi's HDMI under full KMS takes only samples framed as IEC958, which `plughw:` can't give it.
+Settings → Sound → Audio Output (Linux with plain ALSA: the image and Raspberry Pi OS Lite) tells mpv the card: `--audio-device=alsa/default:CARD=<id>`.
 
-- The menu music's mpv, Ambient:Mode's and Weather's music get the same flag; every program OSD/OS starts (those mpvs too, a script, an Arcade game's MAME or RetroArch, a web player's browser) gets `ALSA_CARD=<id>`.
-- With Transparent Background, a video playing behind the menus moves to a newly chosen card at once (`set_property audio-device`). An mpv process can't be playing while Settings is open; the next one starts with the card.
-- A card chosen but unplugged is passed over until it is back: nothing is added, as on Auto.
-- On **Auto** nothing is added, so `audio-device=` in `mpv.conf` or the default card in `/etc/asound.conf` still choose. While ALSA's first card can't play (a Pi 5's HDMI without the picture) and nothing sets the default otherwise, an mpv process gets the first card that can as `ALSA_CARD`, under its `mpv.conf`'s `audio-device=`, and a video inside the app as its device. `mpv --audio-device=help` lists the devices mpv can use.
+- Every program OSD/OS starts gets `ALSA_CARD=<id>`.
+- With Transparent Background, a video playing behind the menus moves to a newly chosen card at once.
+- On **Auto** nothing is added, so `audio-device=` in `mpv.conf` or the default card in `/etc/asound.conf` still choose.
+- `mpv --audio-device=help` lists the devices mpv can use.
 
-More on the cards in [Audio Output](https://github.com/mehmetraif/OSD-OS/wiki/Audio-Output).
+More in [Audio Output](https://github.com/mehmetraif/OSD-OS/wiki/Audio-Output).
 
 ## mpv's own configuration
 
-OSD/OS doesn't start mpv with `--no-config`, so an mpv process reads your `~/.config/mpv/mpv.conf` as it starts (on the OSD/OS image `/home/pi/.config/mpv/mpv.conf`, the home of the user OSD/OS runs as). Anything OSD/OS doesn't set on the command line can go there.
+An mpv process reads your `~/.config/mpv/mpv.conf` (on the OSD/OS image `/home/pi/.config/mpv/mpv.conf`). Anything OSD/OS doesn't set on the command line can go there.
 
-- **Ignored there**, because OSD/OS's command line wins: `video-sync`, `osc`, `osd-level`, `input-ipc-server`, `log-file`, `ytdl`, `hwdec` (OSD/OS always sets it) and, on a display without a server, `vo`. Scaling's options (`panscan`, `keepaspect`), Video Levels' (`video-output-levels`) and Audio Output's (`audio-device`) apply from `mpv.conf` only while those settings are at their defaults.
-- **Not read**: your `~/.config/mpv/input.conf`, replaced by OSD/OS's (`--input-conf`).
-- **Loaded as well**: scripts in `~/.config/mpv/scripts/`, which run beside OSD/OS's own; a script binding the same keys can get in their way.
-- **Transparent Background** reads no `mpv.conf` at all (libmpv loads no configuration), and the menu music's mpv is started with `--no-config`.
+- **Ignored there**: `video-sync`, `osc`, `osd-level`, `input-ipc-server`, `log-file`, `ytdl`, `hwdec` and, without a display server, `vo`.
+- **Applied only while the setting is at its default**: `panscan` and `keepaspect` (Scaling), `video-output-levels` (Video Levels), `audio-device` (Audio Output).
+- **Not read**: your `~/.config/mpv/input.conf`.
+- **Loaded as well**: scripts in `~/.config/mpv/scripts/`. One binding the same keys can get in the way of OSD/OS's own.
+- **Transparent Background** reads no `mpv.conf`. The menu music's mpv is started with `--no-config`.
 
 A `mpv.conf` with options that work with OSD/OS:
 
@@ -419,76 +350,83 @@ audio-device=alsa/default:CARD=Headphones
 
 ## Installing a modern mpv
 
-OSD/OS needs **mpv 0.38 or later**: Forced Only subtitles use `--subs-with-matching-audio=forced`, which mpv 0.38 added, and an older mpv refuses to start with it. Check with `mpv --version`.
+OSD/OS needs **mpv 0.38 or later**: an older mpv refuses to start with Forced Only subtitles' `--subs-with-matching-audio=forced`. Check with `mpv --version`.
 
 | System | mpv |
 |---|---|
 | The OSD/OS image | Comes with mpv and `libmpv2` from Raspberry Pi OS (Debian 13 "trixie") |
 | Raspberry Pi OS (trixie) | `sudo apt install mpv libmpv2`; `install.sh` installs both |
 | macOS | `brew install mpv`, which brings libmpv too. Add `pkgconf` to build OSD/OS with Transparent Background |
-| SteamOS, Linux x86_64 | The AppImage carries its own mpv 0.40, built by `scripts/build-mpv.sh` |
+| SteamOS, Linux x86_64 | The AppImage carries its own mpv 0.40 |
 | Another Linux, building from source | The distribution's mpv, if it is 0.38 or later; else build one |
 
-`scripts/build-mpv.sh` builds mpv against the system's own FFmpeg (no FFmpeg build, no PPA) and prints the path of the binary it made:
+`scripts/build-mpv.sh` builds mpv against the system's FFmpeg and prints the path of the binary:
 
 ```sh
 MPV_BIN=$(scripts/build-mpv.sh)
 "$MPV_BIN" --version
 ```
 
-- It needs `meson`, `ninja-build`, `pkg-config` and the FFmpeg, libass, libplacebo, Lua 5.2 and VA-API development packages, as the release workflow installs them for Ubuntu 24.04.
-- `MPV_TAG` picks the version (`v0.40.0` by default, the newest that builds against Ubuntu 24.04's FFmpeg 6.1), `MPV_SRC` the folder it builds in (`.mpv-build` in the repository), `MPV_LUA` another Lua (`luajit`).
-- It builds the player only (`-Dlibmpv=false`), so Transparent Background still needs a `libmpv.so.2` from the system.
-- OSD/OS uses an `mpv` beside its own binary before the one on `PATH`, so copying the binary next to `osdos` makes it OSD/OS's mpv without installing it anywhere else. `MPV_BIN=$(scripts/build-mpv.sh) scripts/build-appimage.sh --configure` bundles it into an AppImage ([Building from source](https://github.com/mehmetraif/OSD-OS/wiki/Building-from-Source)).
+- It needs `meson`, `ninja-build`, `pkg-config` and the FFmpeg, libass, libplacebo, Lua 5.2 and VA-API development packages.
+- `MPV_TAG` picks the version (`v0.40.0` by default), `MPV_SRC` the build folder (`.mpv-build`), `MPV_LUA` another Lua (`luajit`).
+- It builds the player only: Transparent Background still needs the system's `libmpv.so.2`.
+- Copy the binary next to `osdos` to make it OSD/OS's mpv. [Building from source](https://github.com/mehmetraif/OSD-OS/wiki/Building-from-Source) bundles it into an AppImage.
 
 ## Troubleshooting playback
 
 ### First, the logs
 
-- **OSD/OS's log**: `journalctl -u osdos -b` under the autostart service, or the terminal you started `osdos` from. An mpv process's own messages appear there as `[mpv] …`, among them `Using hardware decoding (…)`; with Transparent Background only libmpv's warnings and errors do.
-- **mpv's full log**: `/tmp/osdos-mpv.log`, the last video's, verbose. `grep -i 'hardware decoding' /tmp/osdos-mpv.log` says which decoder played it.
-- **The profile**: `journalctl -u osdos -b | grep 'video profile'` says which flags OSD/OS picked. `generic` on a Pi means its model wasn't recognised.
+- **OSD/OS's log**: `journalctl -u osdos -b` under the autostart service, or the terminal `osdos` was started from. An mpv process's messages appear there as `[mpv] …`.
+- **mpv's full log**: `/tmp/osdos-mpv.log`, the last video's.
+- **The profile**: `journalctl -u osdos -b | grep 'video profile'`. `generic` on a Pi means `/proc/device-tree/model` didn't name a Pi 3, 4 or 5.
 
 ### A video goes straight back to the menu
 
-- `[MpvController] mpv not found …`: install mpv, or put it on `PATH` ([above](https://github.com/mehmetraif/OSD-OS/wiki/Playback-and-mpv#installing-a-modern-mpv)).
-- mpv's lines in the log name an option it refused: mpv is older than 0.38.
-- `[MpvController] Cannot start playback: <owner> has the screen`: another program (a takeover script) has the screen; let it end.
-- `[MpvController] mpv exited with code 2`: mpv couldn't play the file or the stream. Plex tries a transcode by itself; for YouTube, see below; for a file, try it in mpv by hand.
+A video that can't play ends on a **Playback failed** notice: the reason, mpv's own line on it, BACK and, where it can be tried again, RETRY.
+
+| Message | What to do |
+|---|---|
+| `mpv is not installed` | Install mpv, or put it on `PATH` |
+| `mpv could not be started` | The mpv found can't run; the notice gives the system's error |
+| `Another program has the screen` | A takeover script has it; let it end |
+| `mpv could not play it` | Try the file in mpv by hand. An option mpv refused means it is older than 0.38 |
+| `The video did not start` | No picture came, even without the hardware decoder. Press RETRY |
+| `The player inside the window could not be set up` | libmpv could not be started (Transparent Background) |
 
 ### Judder or stutter
 
-- **A Pi 4**: the default flags exist to avoid judder. If you set `mpv_video_args`, delete it and try again.
-- **A Pi 3**: keep 1080p Playback **On** for 1080p; with it Off, keep to 720p and below.
-- **YouTube**: keep Video Codec on **H.264** and Playback Resolution at **480p**, and set Max Frame Rate to **30**. Any lets YouTube send VP9 or AV1, which a Pi decodes in software.
-- **Transparent Background**: see whether the log says the picture is drawn on the CPU; a Pi 3 is short of power for that.
+- **A Pi 4**: if you set `mpv_video_args`, delete it and try again.
+- **A Pi 3**: keep 1080p Playback **On** for 1080p.
+- **YouTube**: keep Video Codec on **H.264** and Playback Resolution at **480p**, and set Max Frame Rate to **30**. With **Any**, YouTube can send VP9 or AV1.
+- **Transparent Background**: check whether the log says the picture is drawn on the CPU.
 
 ### No hardware decoding
 
-- Check which decoder played (`grep -i 'hardware decoding' /tmp/osdos-mpv.log`). No line means software decoding.
-- **A Pi running a desktop** gets the desktop line, which has no Pi decoder: set `"mpv_video_args": "--hwdec=v4l2m2m-copy"`.
-- **HEVC on a Pi 4** comes through Raspberry Pi OS's own patched FFmpeg, with `dtoverlay=rpivid-v4l2` under `[pi4]` in `config.txt`, as the image's and INSTALL.md's are. Check the line is still there; an mpv built against another FFmpeg may decode HEVC in software.
-- **VP9 and AV1** have no hardware decoder on a Pi 4.
-- **A profile of `generic` on a Pi**: `/proc/device-tree/model` didn't name a Pi 3, 4 or 5.
+- `grep -i 'hardware decoding' /tmp/osdos-mpv.log` says which decoder played. No line means software decoding.
+- **A Pi running a desktop**: set `"mpv_video_args": "--hwdec=v4l2m2m-copy"`.
+- **HEVC on a Pi 4** needs `dtoverlay=rpivid-v4l2` in `config.txt`, and Raspberry Pi OS's own FFmpeg. VP9 and AV1 have no hardware decoder there.
+- **A video that showed no picture** was tried again in software. The log says `[MpvController] The video plays without the hardware decoder`.
 
 ### A black screen
 
-- **Transparent Background at SOLID** hides the picture on purpose: the video plays on behind the menus, sound and all. Move the slider towards TRANSPARENT.
-- **A Pi 5 with HDMI and a CRT**: mpv plays on the output the display preset names. If you set `mpv_video_args`, it must carry `--drm-device` and `--drm-connector` too.
+- **No picture as a video starts**: OSD/OS tries again without the hardware decoder, then says `The video did not start` (Starting a video, above).
+- **Transparent Background at SOLID** hides the picture on purpose. Move the slider towards TRANSPARENT.
+- **A Pi 5 with HDMI and a CRT**: if you set `mpv_video_args`, it must carry `--drm-device` and `--drm-connector` too.
 - **Nothing on a new output**: Display Output switches back by itself after 30 seconds without Keep.
-- **Transparent Background on the GPU**: if the GPU can't take the decoder's frames, OSD/OS turns to the copy decoders by itself (the log says so). To rule the GPU out, start OSD/OS with `OSDOS_EMBEDDED_RENDER=sw`.
-- **A text console or a login prompt** for a moment as a video starts, on a Pi where OSD/OS runs without the autostart service: that is a `getty` on the virtual terminal the hand-off switched to, not anything OSD/OS drew. The autostart service's install and the image mask it (`getty@tty1` and `autovt@`).
+- **Transparent Background on the GPU**: to rule the GPU out, start OSD/OS with `OSDOS_EMBEDDED_RENDER=sw`.
+- **A login prompt for a moment** as a video starts, where OSD/OS runs without the autostart service: that is a `getty`. The autostart service's install and the image mask it (`getty@tty1` and `autovt@`).
 
 ### Sound and picture out of step
 
 - `Audio/Video desynchronisation detected!` in mpv's log means the decoding can't keep up: see Judder above, and check the hardware decoder.
-- A constant offset, the same in every video (a TV's or a receiver's own delay), is mpv's `audio-delay` in `mpv.conf`, in seconds, for the process.
+- A constant offset in every video (a TV's or a receiver's delay) is mpv's `audio-delay` in `mpv.conf`, in seconds, for the process.
 
 ### The picture is squeezed or stretched
 
-- A CRT's pixels aren't square: on a CRT's display output OSD/OS tells mpv the screen is 4:3 (`--monitoraspect=4:3`), and draws a video played inside it (Transparent Background) in that shape. A tube whose picture still isn't quite right takes `monitoraspect` or `monitorpixelaspect` from `mpv.conf` in its place: adjust it with a 4:3 test pattern ([Installation](https://github.com/mehmetraif/OSD-OS/wiki/Installation)). A Pi 5's composite output sometimes reports a narrow raster (704×432 rather than 720×480), which the same setting can make up for.
-- A monitor turned on its side (Settings → Screen → Monitor): a video played inside OSD/OS (Transparent Background) is drawn on the screen as one sees it and turned with the menus, its subtitles and mpv's displays with it; mpv's own window turns the picture alone (`--video-rotate=270` for a monitor turned right, `90` for one turned left), its subtitles and displays lying across the screen as it is ([Arcade → A monitor on its side](https://github.com/mehmetraif/OSD-OS/wiki/Arcade#a-monitor-on-its-side-tate)).
-- Anamorphic squeezes on purpose, for a TV set to 16:9: choose another Scaling.
+- **A CRT**: on a CRT's display output OSD/OS tells mpv the screen is 4:3 (`--monitoraspect=4:3`). A tube whose picture still isn't right takes `monitoraspect` or `monitorpixelaspect` from `mpv.conf` instead; adjust it with a 4:3 test pattern ([Installation](https://github.com/mehmetraif/OSD-OS/wiki/Installation)).
+- **A Pi 5's composite output** sometimes reports a narrow raster (704×432 rather than 720×480); the same setting makes up for it.
+- **A monitor turned on its side** (Settings → Screen → Monitor): an mpv process turns the picture alone (`--video-rotate=270` for a monitor turned right, `90` for left). Its subtitles and deck menu lie across the screen; inside the app they turn too ([Arcade → A monitor on its side](https://github.com/mehmetraif/OSD-OS/wiki/Arcade#a-monitor-on-its-side-tate)).
+- **Anamorphic** squeezes on purpose, for a TV set to 16:9: choose another Scaling.
 
 ### Washed-out or crushed colours
 
@@ -496,19 +434,20 @@ Settings → TV / Movie → Video Levels: **Limited** if blacks crush and whites
 
 ### No sound
 
-Choose the card in Settings → Sound → Audio Output; OSD/OS keeps it at its full level as anything plays. [Audio Output](https://github.com/mehmetraif/OSD-OS/wiki/Audio-Output) has the rest.
+- Choose the card in Settings → Sound → Audio Output ([Audio Output](https://github.com/mehmetraif/OSD-OS/wiki/Audio-Output)).
+- A video whose sound card can't be opened (busy, or none there) plays without sound. The log says `[MpvController] The video played without sound: the sound card could not be opened`.
 
 ### YouTube won't play
 
-`Please check that yt-dlp is installed and up to date` means mpv's yt-dlp couldn't open the video. yt-dlp must be current, and needs Deno: OSD/OS uses `bin/yt-dlp` in the data folder first, which the image updates by itself ([YouTube](https://github.com/mehmetraif/OSD-OS/wiki/YouTube)).
+`Please check that yt-dlp is installed and up to date` means mpv's yt-dlp couldn't open the video. yt-dlp must be current, and needs Deno. OSD/OS uses `bin/yt-dlp` in the data folder first, which the image updates by itself ([YouTube](https://github.com/mehmetraif/OSD-OS/wiki/YouTube)).
 
 ## See also
 
-- [Settings](https://github.com/mehmetraif/OSD-OS/wiki/Settings): Scaling, Transparent Background, Video Levels, Loading Effect, Channel Logo and 1080p Playback
-- [Configuration files](https://github.com/mehmetraif/OSD-OS/wiki/Configuration-Files): `mpv_video_args`, the logs and the temporary files
+- [Using OSD/OS](https://github.com/mehmetraif/OSD-OS/wiki/Using-OSD-OS): the deck menu, the video's menu, Transparent Background
+- [Settings](https://github.com/mehmetraif/OSD-OS/wiki/Settings) and [Configuration files](https://github.com/mehmetraif/OSD-OS/wiki/Configuration-Files)
 - [Display Output](https://github.com/mehmetraif/OSD-OS/wiki/Display-Output) and [Audio Output](https://github.com/mehmetraif/OSD-OS/wiki/Audio-Output)
-- [Controls](https://github.com/mehmetraif/OSD-OS/wiki/Controls): keys and buttons during a video
-- [How it works](https://github.com/mehmetraif/OSD-OS/wiki/How-It-Works): the screen hand-off and the app's parts
+- [Controls](https://github.com/mehmetraif/OSD-OS/wiki/Controls)
+- [How it works](https://github.com/mehmetraif/OSD-OS/wiki/How-It-Works)
 - [The OSD/OS image](https://github.com/mehmetraif/OSD-OS/wiki/The-OSD-OS-Image)
 - [Troubleshooting](https://github.com/mehmetraif/OSD-OS/wiki/Troubleshooting)
 - [Building from source](https://github.com/mehmetraif/OSD-OS/wiki/Building-from-Source)

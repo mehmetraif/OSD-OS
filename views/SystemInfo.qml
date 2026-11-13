@@ -9,6 +9,9 @@ import Components
 // renames the device, typed on the keyboard: the help line says how it went.
 FocusScope {
     id: infoRoot
+    // In the layout's frame (Main.qml): its rows in the pane, beside the
+    // column a layout keeps on the screen.
+    readonly property bool inFrame: true
 
     signal goBack()
 

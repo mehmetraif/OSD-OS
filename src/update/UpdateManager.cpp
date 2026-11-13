@@ -465,6 +465,7 @@ void UpdateManager::download() {
     m_hash.reset();
     m_downloadProgress = 0.0;
     m_downloadError.clear();
+    m_downloadCancelled = false;
     m_downloadedBytes = 0;
     emit progressChanged();
     setState(QStringLiteral("downloading"));
@@ -491,8 +492,10 @@ void UpdateManager::download() {
 }
 
 void UpdateManager::cancelDownload() {
-    if (m_downloadReply)
+    if (m_downloadReply) {
+        m_downloadCancelled = true;
         m_downloadReply->abort();   // finishDownload cleans up and restores state
+    }
 }
 
 void UpdateManager::finishDownload() {
@@ -512,8 +515,12 @@ void UpdateManager::finishDownload() {
 
     if (!m_downloadError.isEmpty())
         return fail(std::exchange(m_downloadError, QString()));
-    if (reply->error() == QNetworkReply::OperationCanceledError)
+    // Cancelled by the user, not by the transfer's own timeout, which ends
+    // a download the network dropped with the same error.
+    if (std::exchange(m_downloadCancelled, false))
         return fail(QString());
+    if (reply->error() == QNetworkReply::OperationCanceledError)
+        return fail(QStringLiteral("Download stalled: the network stopped answering."));
     if (reply->error() != QNetworkReply::NoError)
         return fail(QStringLiteral("Download failed: %1").arg(reply->errorString()));
     // What reached the disk is what was hashed, or the hash says nothing

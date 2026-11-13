@@ -90,6 +90,10 @@ public:
     // False when config.json couldn't be written (a full or read-only card):
     // nothing then changes, and no setting changed is signalled.
     Q_INVOKABLE bool save_setting(const QString &moduleId, const QString &key, const QVariant &value);
+    // Several settings of one section at once, { key: value }, with one write
+    // of the file, each told as save_setting() tells one. False, and none
+    // saved or told, where the file couldn't be written.
+    Q_INVOKABLE bool save_settings(const QString &moduleId, const QVariantMap &values);
     Q_INVOKABLE QVariant get_module_info(const QString &moduleId);
     Q_INVOKABLE QVariant get_module_settings_schema(const QString &moduleId);
     Q_INVOKABLE void invoke_module_action(const QString &moduleId, const QString &slotName);
@@ -174,6 +178,11 @@ public:
     // keeps the newest `limit`.
     Q_INVOKABLE void add_to_list(const QString &moduleId, const QString &name,
                                  const QVariantMap &entry, int limit = 50);
+    // Several entries at once, each put first in turn as add_to_list() puts
+    // one, with one read of the file and one write (an import of a hundred
+    // favourites wrote the file a hundred times).
+    void add_all_to_list(const QString &moduleId, const QString &name,
+                         const QVariantList &entries, int limit = 100);
     Q_INVOKABLE void remove_from_list(const QString &moduleId, const QString &name,
                                       const QString &path);
     Q_INVOKABLE bool list_contains(const QString &moduleId, const QString &name,
@@ -223,6 +232,7 @@ private:
     QJsonObject loadConfig(bool *broken = nullptr) const;
     // False when it couldn't be written (the reason is in the log).
     bool saveConfig(const QJsonObject &config) const;
+    bool saveSettings(const QString &moduleId, const QList<std::pair<QString, QVariant>> &values);
     QJsonObject loadLists(bool *broken = nullptr) const;
     bool listsToChange(QJsonObject *lists) const;
     void saveLists(const QJsonObject &lists) const;
@@ -263,6 +273,12 @@ private:
     mutable QDateTime   m_configCacheModified;
     mutable qint64      m_configCacheSize = -1;
     mutable bool        m_configCacheValid = false;
+    // lists.json the same way (loadLists()): the Arcade screen asks for a
+    // list at every page of games, a tree for each list it opens.
+    mutable QJsonObject m_listsCache;
+    mutable QDateTime   m_listsCacheModified;
+    mutable qint64      m_listsCacheSize = -1;
+    mutable bool        m_listsCacheValid = false;
     QList<ModuleEntry> m_modules;
     QMap<QString, QObject*> m_backends;
     QStringList m_statusIcons;
