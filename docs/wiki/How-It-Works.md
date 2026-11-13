@@ -318,7 +318,7 @@ mpv --no-config --no-video --no-terminal --really-quiet --loop-file=inf --volume
 - **Held off.** Anything about to play sound holds it first (a video, a script, a game, a web player). A hold kills the music's mpv and waits for it. The music restarts 700 ms after nothing holds it.
 - **Live.** Music Volume changes its volume over its socket; a new sound card restarts it.
 - **MIDI and trackers.** FluidSynth (MIDI, with a SoundFont) or openmpt123 (a tracker's module) makes a WAV, kept in the cache folder.
-- **Failures.** A file mpv gives up on within three seconds isn't tried again until the setting changes.
+- **Failures.** A file mpv gives up on within three seconds isn't tried again until the setting or the sound card changes. With no sound card to play through, the music waits for one instead.
 
 More: [Menu music](https://github.com/mehmetraif/OSD-OS/wiki/Menu-Music).
 

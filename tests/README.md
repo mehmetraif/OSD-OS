@@ -107,6 +107,7 @@ ctest --test-dir build-tests --output-on-failure
   - Wanted, with a file, it plays a moment later; unwanted, it stops.
   - A hold stops it before `hold()` returns, so the sound card is free; it plays again once nothing holds it, and two holds keep it off until both let go.
   - A file mpv can't play, or that isn't there, isn't tried again.
+  - With no sound card to play through (a stand-in for ALSA's list, `OSDOS_ASOUND_DIR`), mpv's quick end isn't blamed on the file: nothing is started again while there is none, and it plays once a card is there. A file given up on is tried once more when the sound card is changed (`restart()`).
   - A MIDI file is made into a WAV by FluidSynth with the SoundFont beside it, else the data folder's first, and played; the next time, the WAV made then. A failed one isn't tried again, and one held while it is being made is stopped, nothing half made kept, and made again.
   - A tracker's module plays as it is; one mpv can't play, openmpt123 makes into a WAV for it.
 - **diagnostics** (`diagnostics_test.cpp`, Linux only). The crash and freeze reports (`util/Diagnostics`), each from a child process, the test itself run again, that crashes or freezes on purpose.

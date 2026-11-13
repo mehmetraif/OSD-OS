@@ -425,7 +425,8 @@ The menu music plays only in the menus, never under a video, the boot screen, th
 | `[MenuMusic] <file>: a MIDI file needs FluidSynth and a SoundFont: fluidsynth is not installed` | A MIDI file, and no FluidSynth | `sudo apt install fluidsynth timgm6mb-soundfont` (`install.sh` and the image have them); `brew install fluid-synth` on a Mac |
 | `… needs FluidSynth and a SoundFont: no SoundFont found` | No General MIDI SoundFont | Put a `.sf2` beside the MIDI file with its name, or in the data folder's `soundfonts`, or install `timgm6mb-soundfont` |
 | `[MenuMusic] mpv couldn't play <file>, and openmpt123 is not installed` | A tracker's module (XM, MOD, S3M, IT) this mpv can't play | `sudo apt install openmpt123`; `brew install libopenmpt` on a Mac |
-| `[MenuMusic] mpv couldn't play <file> (exit N)` | The file is damaged, or of a kind mpv can't play | Pick another file: this one isn't tried again until the music changes |
+| `[MenuMusic] mpv couldn't play <file> (exit N)` | The file is damaged, or of a kind mpv can't play | Pick another file: this one isn't tried again until the music or the sound card changes |
+| `[MenuMusic] no sound card to play <file> through: waiting for one` | No sound card can play now: a USB sound card unplugged, or not up yet | Plug it in: the music starts by itself |
 | `[MenuMusic] <file>: no such file` | The file moved | Pick it again in Settings → Sound → Music File |
 | `[MenuMusic] mpv not found: no menu music` | No mpv | Install mpv |
 

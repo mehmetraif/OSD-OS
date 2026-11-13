@@ -24,7 +24,10 @@
 // or a web player) holds it off first: hold() stops it there and then, so the
 // sound card is free before the other starts, and it plays again once nothing
 // holds it and it is still wanted, from the start. A file mpv can't play isn't
-// tried again until the source changes.
+// tried again until the source changes, or the sound card does (restart()).
+// With no sound card to play through (AudioOutput::hasPlaybackCard(): a USB
+// card unplugged, or not up yet), mpv ends just as fast: the file isn't
+// blamed then, and plays once a card is there.
 class MenuMusic : public QObject {
     Q_OBJECT
     Q_PROPERTY(QString source READ source WRITE setSource NOTIFY sourceChanged)
@@ -50,7 +53,8 @@ public:
     static void release(const QString &who);
 
 public slots:
-    // On another sound card (Settings → Sound → Audio Output): from the start there.
+    // On another sound card (Settings → Sound → Audio Output): from the start
+    // there, a tune the card before couldn't play too.
     void restart();
 
 signals:
@@ -102,4 +106,6 @@ private:
     QString m_socketPath;
     QTimer m_startDelay;
     QTimer m_connect;
+    // Runs while the music waits for a sound card to play through.
+    QTimer m_cardWait;
 };
