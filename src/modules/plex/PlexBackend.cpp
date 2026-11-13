@@ -3181,6 +3181,13 @@ void PlexBackend::getLibraries() {
                 QString id = machineId.isEmpty() ? key : machineId + "_" + key;
                 options.append(QVariantMap{{"id",id},{"label",s["title"].toString().toUpper()}});
             }
+        } else {
+            // No libraries, and why: one entry that is no choice, which the
+            // page says in their place (MultiSelectSettings.qml).
+            const int status = reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
+            options.append(QVariantMap{{"problem", status > 0
+                ? QStringLiteral("The server answered with an error (HTTP %1)").arg(status)
+                : QStringLiteral("The server could not be reached")}});
         }
         emit dynamicOptionsReady("libraries", options);
     });

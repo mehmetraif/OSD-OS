@@ -25,8 +25,9 @@
 // refresh runs is retried after it, a refused key registration is tried
 // again at the next start, Auto quality caps no transcode, a live channel
 // left while it tuned plays in no one's player, a Plex server that moved is
-// found again at the address it has now, and Emby Connect tries a server's
-// address from outside when its LAN address gives no sign-in.
+// found again at the address it has now, Emby Connect tries a server's
+// address from outside when its LAN address gives no sign-in, and Settings'
+// Libraries are told why there are none when the server can't be reached.
 
 class Reply : public QNetworkReply {
 public:
@@ -244,7 +245,59 @@ class MediaServersTest : public QObject {
         QVERIFY(network->last()->url().path().endsWith(QLatin1String("/Sessions/Playing")));
     }
 
+    // Settings → Libraries (getLibraries()) with the server out of reach, or
+    // answering with an error: no choices, and why, as the one entry the page
+    // says in their place ({ problem }); answered, its libraries.
+    static QVariantList libraries(const QSignalSpy &spy) {
+        for (qsizetype i = spy.count() - 1; i >= 0; --i) {
+            if (spy.at(i).at(0).toString() == QLatin1String("libraries"))
+                return spy.at(i).at(1).toList();
+        }
+        return { QStringLiteral("not answered") };
+    }
+    template <typename Backend> void librariesSayWhyThereAreNone(Backend &backend, Network *network,
+                                                                 const QByteArray &answer) {
+        QSignalSpy options(&backend, &Backend::dynamicOptionsReady);
+        backend.getLibraries();
+        network->last()->drop();
+        QVariantList got = libraries(options);
+        QCOMPARE(got.size(), 1);
+        QCOMPARE(got.first().toMap().value(QStringLiteral("problem")).toString(),
+                 QStringLiteral("The server could not be reached"));
+        QVERIFY(!got.first().toMap().contains(QStringLiteral("id")));
+        backend.getLibraries();
+        network->last()->fail(500);
+        got = libraries(options);
+        QCOMPARE(got.size(), 1);
+        QCOMPARE(got.first().toMap().value(QStringLiteral("problem")).toString(),
+                 QStringLiteral("The server answered with an error (HTTP 500)"));
+        backend.getLibraries();
+        network->last()->complete(answer);
+        got = libraries(options);
+        QCOMPARE(got.size(), 1);
+        QCOMPARE(got.first().toMap().value(QStringLiteral("label")).toString(), QStringLiteral("FILMS"));
+        QVERIFY(!got.first().toMap().contains(QStringLiteral("problem")));
+    }
+    template <typename Backend> void librariesSayWhyThereAreNone() {
+        QTemporaryDir tmp;
+        Backend backend(tmp.path(), tmp.path());
+        Network *network = signIn(backend);
+        const QJsonObject films{ { "Id", "1" }, { "Name", "Films" }, { "CollectionType", "movies" } };
+        librariesSayWhyThereAreNone(backend, network,
+                                    QJsonDocument(QJsonObject{ { "Items", QJsonArray{ films } } }).toJson());
+    }
+
 private slots:
+    void jellyfinLibrariesSayWhyThereAreNone() { librariesSayWhyThereAreNone<JellyfinBackend>(); }
+    void embyLibrariesSayWhyThereAreNone() { librariesSayWhyThereAreNone<EmbyBackend>(); }
+    void plexLibrariesSayWhyThereAreNone() {
+        QTemporaryDir tmp;
+        PlexBackend backend(tmp.path(), tmp.path());
+        Network *network = signInPlex(backend, tmp.path());
+        QVERIFY(network);
+        const QJsonObject films{ { "key", "1" }, { "title", "Films" }, { "type", "movie" } };
+        librariesSayWhyThereAreNone(backend, network, plexContainer({ { "Directory", QJsonArray{ films } } }));
+    }
     void jellyfinListAskedForLaterWins() { listAskedForLaterWins<JellyfinBackend>(); }
     void embyListAskedForLaterWins() { listAskedForLaterWins<EmbyBackend>(); }
     void jellyfinListKeptUntilPlaybackEnds() { listKeptUntilPlaybackEnds<JellyfinBackend>(); }

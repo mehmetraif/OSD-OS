@@ -1735,6 +1735,12 @@ void EmbyBackend::getLibraries() {
         reply->deleteLater();
         QVariantList options;
         if (reply->error() != QNetworkReply::NoError) {
+            // No libraries, and why: one entry that is no choice, which the
+            // page says in their place (MultiSelectSettings.qml).
+            const int status = reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
+            options.append(QVariantMap{{"problem", status > 0
+                ? QStringLiteral("The server answered with an error (HTTP %1)").arg(status)
+                : QStringLiteral("The server could not be reached")}});
             emit dynamicOptionsReady("libraries", options);
             return;
         }

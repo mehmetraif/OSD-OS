@@ -117,6 +117,7 @@ Rectangle {
             appCore.otherSchema = []
             appCore.saveFails = false
             root.navigations = []
+            root.helpLine = true
         }
         function cleanup() {
             loader.source = ""
@@ -729,6 +730,67 @@ Rectangle {
             var back = signalSpy.createObject(page, { target: page, signalName: "goBack" })
             keyClick(Qt.Key_Escape)
             compare(back.count, 1)
+        }
+
+        // A multiselect_submenu row's page before its choices come, and with
+        // none: Loading… until the backend answers; No Choices for an answer
+        // with none, and for one that says why (a single { problem }), which
+        // the help line says whatever Settings' Help Line is; nothing is
+        // saved from such a line. Choices that come after take its place.
+        function test_multiSelectNone() {
+            appCore.schema = [{ key: "libraries", label: "Libraries", type: "multiselect_submenu",
+                                options_source: "dynamic", options_slot: "getLibraries" }]
+            loader.setSource(Qt.resolvedUrl("../../views/MultiSelectSettings.qml"),
+                             { navParams: { moduleId: "com.osdos.test", settingKey: "libraries",
+                                            settingLabel: "Libraries" } })
+            var page = loader.item
+            verify(page !== null, "loaded MultiSelectSettings.qml")
+            page.forceActiveFocus()
+            compare(appCore.actions, ["getLibraries"])
+            verify(findText(page, "Loading…") !== null)
+            verify(findText(page, "No Choices") === null)
+            var line = menuRow(page, 0)
+            verify(!line.changes)
+            verify(!line.selected)
+            compare(line.value, "")
+            keyClick(Qt.Key_Return)
+            keyClick(Qt.Key_Right)
+            compare(appCore.values.libraries, undefined)
+
+            // Another row's choices are not this page's answer.
+            appCore.dynamicOptionsReady("com.osdos.test", "server", [])
+            verify(findText(page, "Loading…") !== null)
+
+            // The server out of reach.
+            root.helpLine = false
+            appCore.dynamicOptionsReady("com.osdos.test", "libraries", [{ problem: "The server could not be reached" }])
+            verify(findText(page, "Loading…") === null)
+            verify(findText(page, "No Choices") !== null)
+            var why = findText(page, "The server could not be reached")
+            verify(why !== null)
+            var box = why
+            while (box !== null && box.shown === undefined)
+                box = box.parent
+            verify(box !== null)
+            verify(box.shown, "said with Help Line off too")
+            compare(box.opacity, 1)
+            root.helpLine = true
+            compare(page.options.length, 0)
+            keyClick(Qt.Key_Return)
+            compare(appCore.values.libraries, undefined)
+
+            // A server with none to offer: no reason to give.
+            appCore.dynamicOptionsReady("com.osdos.test", "libraries", [])
+            verify(findText(page, "No Choices") !== null)
+            verify(findText(page, "The server could not be reached") === null)
+
+            // Asked again and answered: the choices.
+            appCore.dynamicOptionsReady("com.osdos.test", "libraries", [{ id: "1", label: "FILMS" }])
+            verify(findText(page, "No Choices") === null)
+            verify(findText(page, "FILMS") !== null)
+            verify(menuRow(page, 0).selected)
+            keyClick(Qt.Key_Return)
+            compare(appCore.values.libraries, { "1": false })
         }
 
         // A choice whose name is too long for its line is cut short, its ON
