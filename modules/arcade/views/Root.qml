@@ -124,8 +124,30 @@ FocusScope {
         if (!playLayer.item)
             return
         root.changeWindow(playLayer, "", {})
-        if (internalLoader.item)
-            internalLoader.item.forceActiveFocus()
+        focusFront()
+    }
+    // Game Details and a room's page over the list too (pageLayer): back
+    // from one is the list as it was left, at once, where it used to be
+    // made again from nothing, its rows, its dialogs and, in the Orb look,
+    // its 3D scene. The list rests under a page as it does under a game's
+    // screen: it is not drawn, and the keys are the page's.
+    function overList(path) {
+        return path === "Details.qml" || path === "Lobby.qml"
+    }
+    function openPage(path, params) {
+        root.changeWindow(pageLayer, Qt.resolvedUrl(path), { "navParams": params || {} })
+    }
+    function closePage() {
+        if (!pageLayer.item)
+            return
+        root.changeWindow(pageLayer, "", {})
+        focusFront()
+    }
+    // The keys to what is in front: a page over the list, else the list.
+    function focusFront() {
+        var front = pageLayer.item || internalLoader.item
+        if (front)
+            front.forceActiveFocus()
     }
     // How long what is on the screen stays before MAME takes it, so that a
     // headless Pi hands that over, not a frame of what was there before.
@@ -168,8 +190,7 @@ FocusScope {
             if (!ended)
                 return
             moduleRoot.playing = null
-            if (internalLoader.item)
-                internalLoader.item.forceActiveFocus()
+            moduleRoot.focusFront()
             // Back on the list, as after a video; else why it didn't play.
             if (reason !== "ok")
                 moduleRoot.openPlay({ game: ended.game, title: ended.title, failed: true,
@@ -230,9 +251,9 @@ FocusScope {
         id: internalLoader
         anchors.fill: parent
         focus: true
-        // Under Play.qml, kept but not drawn: the views draw no ground of
-        // their own, so it would show through.
-        visible: !playLayer.item
+        // Under Play.qml or a page, kept but not drawn: the views draw no
+        // ground of their own, so it would show through.
+        visible: !playLayer.item && !pageLayer.item
         onLoaded: { if (item) item.forceActiveFocus() }
 
         Connections {
@@ -242,10 +263,33 @@ FocusScope {
                 // A game asked for, played as Start Info Screen says.
                 if (path === "Play.qml" && params && params.game)
                     moduleRoot.playGame(params, listState)
+                else if (moduleRoot.overList(path))
+                    moduleRoot.openPage(path, params)
                 else
                     moduleRoot.navigateTo(path, params, listState)
             }
             function onGoBack() { moduleRoot.navigateBack() }
+        }
+    }
+
+    // Game Details or a room's page, over the list (openPage()). A game
+    // asked for from it plays as one from the list does, the page there
+    // again when it ends.
+    Loader {
+        id: pageLayer
+        objectName: "pageLayer"
+        anchors.fill: parent
+        visible: !playLayer.item
+        onLoaded: { if (item) item.forceActiveFocus() }
+
+        Connections {
+            target: pageLayer.item
+            ignoreUnknownSignals: true
+            function onNavigateTo(path, params, listState) {
+                if (path === "Play.qml" && params && params.game)
+                    moduleRoot.playGame(params, listState)
+            }
+            function onGoBack() { moduleRoot.closePage() }
         }
     }
 
