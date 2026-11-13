@@ -568,6 +568,8 @@ FocusScope {
         property var currentRow: pageRoot.rows[list.currentIndex]
         visible: !pageRoot.capturing && !pageRoot.testing && text !== ""
         text: pageRoot.notice !== "" ? pageRoot.notice : ((currentRow && currentRow.description) || "")
+        // What became of a new button is said with Help Line off too.
+        always: pageRoot.notice !== ""
         anchors.bottom: parent.bottom
         anchors.left: parent.left
         anchors.bottomMargin: root.helpLineMargin

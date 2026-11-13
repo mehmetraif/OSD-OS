@@ -40,6 +40,16 @@ FocusScope {
             qcRoot.failed = true
             qcRoot.errorMsg = msg
         }
+
+        // The exchange after the approval failing is told as an error alone:
+        // without this the screen stood on APPROVED for good.
+        function onErrorOccurred(msg) {
+            if (!qcRoot.approved || qcRoot.failed)
+                return
+            qcRoot.approved = false
+            qcRoot.failed = true
+            qcRoot.errorMsg = msg
+        }
     }
 
     Component.onCompleted: {

@@ -325,6 +325,9 @@ FocusScope {
         property var currentRow: wifiRoot.rows[list.currentIndex]
         text: wifiRoot.message !== "" ? wifiRoot.message
               : ((currentRow && currentRow.description) || "")
+        // How a join went is said with Help Line off too: without it a join
+        // that failed showed nothing at all.
+        always: wifiRoot.message !== ""
         visible: text !== "" && !keyboard.visible
         anchors.bottom: parent.bottom
         anchors.left: parent.left

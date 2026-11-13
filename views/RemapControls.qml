@@ -197,6 +197,8 @@ FocusScope {
     // --- HELP TEXT --- on one line that scrolls when it is too long.
     HelpLine {
         visible: !remapRoot.capturing
+        // What became of a new button is said with Help Line off too.
+        always: remapRoot.notice !== ""
         text: remapRoot.notice !== "" ? remapRoot.notice
               : "Map one additional button for each action\n(the default button will continue to function)"
         anchors.bottom: parent.bottom

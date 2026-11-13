@@ -232,6 +232,8 @@ FocusScope {
             heading: modelData.type === "section"
             label: (modelData.label || "") + (modelData.type === "note" ? trail : "")
             value: modelData.value ? modelData.value + trail : ""
+            // A long name is cut, not CONNECTED or PAIRED after it.
+            keepValue: modelData.type === "device"
             selected: list.currentIndex === index && bluetoothRoot.selectable(modelData)
         }
     }
@@ -247,6 +249,8 @@ FocusScope {
         property var currentRow: bluetoothRoot.rows[list.currentIndex]
         text: bluetoothRoot.message !== "" ? bluetoothRoot.message
               : ((currentRow && currentRow.description) || "")
+        // How a pairing went is said with Help Line off too.
+        always: bluetoothRoot.message !== ""
         visible: text !== ""
         anchors.bottom: parent.bottom
         anchors.left: parent.left

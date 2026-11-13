@@ -175,7 +175,7 @@ FocusScope {
                 text: updateRoot.hintText
                 color: root.secondaryColor
                 font.family: root.globalFont
-                font.capitalization: Font.AllUppercase
+                // As written: it holds a command or an address to type.
                 wrapMode: Text.WrapAtWordBoundaryOrAnywhere
                 font.pixelSize: root.sh * 0.0291667 //14
             }

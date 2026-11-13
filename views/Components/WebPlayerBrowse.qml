@@ -137,6 +137,8 @@ FocusScope {
         id: problemLine
         visible: !osk.visible && !info.visible && !options.visible && text !== ""
         text: browse.catalog ? browse.catalog.problem : ""
+        // A problem is said with Help Line off too.
+        always: text !== ""
         anchors.bottom: parent.bottom
         anchors.left: parent.left
         anchors.bottomMargin: root.helpLineMargin

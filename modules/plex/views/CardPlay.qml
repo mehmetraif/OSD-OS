@@ -145,7 +145,9 @@ FocusScope {
                 partKey:            d.partKey,
                 partId:             d.partId,
                 sessionId:          cardRoot.sessionId,
-                viewOffset:         d.viewOffset || 0,
+                // A shuffle card starts each video at its beginning, as the
+                // menu's shuffle does: no resume question that needs the remote.
+                viewOffset:         d.cardScope ? 0 : (d.viewOffset || 0),
                 duration:           d.duration || 0,
                 title:              d.title,
                 audioStreams:       d.audioStreams,

@@ -1614,7 +1614,10 @@ FocusScope {
     // In Camcorder's icons, the page's.
     readonly property var helpRow: inIcons() ? (camPages[camIndex] || {}).row : settingsItems[settingsList.currentIndex]
     readonly property string helpOff: inIcons() ? "" : (revision, offReason(settingsList.currentIndex))
-    readonly property string helpText: (helpOff !== "" ? helpOff + "\n" : "") + ((helpRow && helpRow.description) || "")
+    // "[ENTER]" in a row's description is select's name on the controller in
+    // use, as the hint bar has it.
+    readonly property string helpText: (helpOff !== "" ? helpOff + "\n" : "")
+                                       + ((helpRow && helpRow.description) || "").split("[ENTER]").join(root.hints.select)
     HelpLine {
         objectName: "helpLine"
         visible: !settingsRoot.monitor && text !== ""

@@ -407,8 +407,11 @@ void JellyfinBackend::quick_connect_poll(const QString &secret) {
         int status = reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
         QByteArray body = reply->readAll();
 
-        if (reply->error() != QNetworkReply::NoError) {
-            emit quickConnectFailed("POLL FAILED: " + reply->errorString());
+        // A poll that didn't reach the server (the network a moment away, a
+        // timeout) is not the code's end: the next poll asks again, as Plex's
+        // PIN does. A status from the server is its answer.
+        if (reply->error() != QNetworkReply::NoError && status == 0) {
+            qWarning("[JellyfinBackend] Quick Connect poll didn't get through: %s", qPrintable(reply->errorString()));
             return;
         }
         if (status >= 400) {
