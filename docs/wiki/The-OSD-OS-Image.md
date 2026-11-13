@@ -696,6 +696,7 @@ Then start OSD/OS again ([Exit to Terminal](https://github.com/mehmetraif/OSD-OS
 |---|---|
 | `/opt/osdos/bin/osdos` | The app |
 | `/opt/osdos/bin/osdos-jamma` | A JAMMA board's controls as gamepads, run by `osdos-jamma.service` |
+| `/opt/osdos/bin/osdos-modetest` | Shows a few video modes made for single games on the DPI output, one after another, and puts back the one it found: run by hand from Exit to Terminal, to see which a board and its monitor hold (`--help` says how) |
 | `/opt/osdos/share/osdos/` | Its QML, modules, assets, mpv scripts and `LICENSE` (the app's `APP_ROOT`) |
 | `/usr/local/bin/osdos` | The launcher: applies a staged update, picks the display, starts the app |
 | `/usr/local/bin/osdos-stop` | The stop helper, run as root when the app ends |

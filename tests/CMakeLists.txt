@@ -364,6 +364,26 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
     target_link_libraries(jamma_test PRIVATE Qt6::Core Qt6::Test)
     add_test(NAME jamma COMMAND jamma_test)
 
+    # osdos-modetest (src/modetest): modelines read, the built-in modes, which
+    # a screen may be given and the picture drawn in each; and the tool itself
+    # where there is no screen: a modeline that isn't one turned down, and
+    # none found to test on. Linux only, as libdrm is.
+    add_executable(modetest_test modetest_test.cpp ../src/modetest/ModeLine.cpp)
+    target_include_directories(modetest_test PRIVATE ../src)
+    target_link_libraries(modetest_test PRIVATE Qt6::Core Qt6::Test)
+    add_test(NAME modetest COMMAND modetest_test)
+    add_executable(modetest_tool ../src/modetest/main.cpp ../src/modetest/ModeLine.cpp)
+    set_target_properties(modetest_tool PROPERTIES AUTOMOC OFF)
+    target_include_directories(modetest_tool PRIVATE ${Libdrm_INCLUDE_DIRS})
+    target_link_libraries(modetest_tool PRIVATE ${Libdrm_LIBRARIES})
+    add_test(NAME modetest_tool_modeline COMMAND modetest_tool --mode "6.5 320 300 364 416 224 236 239 265")
+    set_tests_properties(modetest_tool_modeline PROPERTIES
+        PASS_REGULAR_EXPRESSION "not a modeline \\(the horizontal sync isn't in the blanking after the picture\\)")
+    add_test(NAME modetest_tool_no_screen COMMAND modetest_tool)
+    set_tests_properties(modetest_tool_no_screen PROPERTIES
+        ENVIRONMENT "OSDOS_MODETEST_DRI=${CMAKE_CURRENT_BINARY_DIR}/no-dri"
+        PASS_REGULAR_EXPRESSION "no screen to test on: no DPI output is showing a picture")
+
     # A release's notes (scripts/release-notes.sh) on a made-up history: the
     # commits since the previous tag under What's New, Changelog and Bug Fixes.
     add_test(NAME release_notes COMMAND bash ${CMAKE_CURRENT_SOURCE_DIR}/release_notes_test.sh
