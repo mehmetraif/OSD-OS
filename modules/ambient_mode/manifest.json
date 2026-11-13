@@ -21,7 +21,8 @@
       "key": "auto_launch",
       "label": "Auto-Launch Playback",
       "type": "toggle",
-      "default": "OFF"
+      "default": "OFF",
+      "description": "Starts playing, shuffled, when OSD/OS starts on this module\nSet START ON MODULE to Ambient:Mode in app settings"
     },
     {
       "key": "video_scaling",

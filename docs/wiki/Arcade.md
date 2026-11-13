@@ -551,7 +551,7 @@ A core remap file of your own (**Save Core Remap File** in RetroArch's menu) is 
 
 | Setting | Values | What it does | Config key |
 |---|---|---|---|
-| Game Picture | Original, Fit to Screen | **Original**: the game in its own shape, with black around it. **Fit to Screen**: stretched over the whole screen; Screen Shape and Integer Scale then don't apply | `modules.com.osdos.arcade.game_picture` |
+| Game Picture | Original, Fit to Screen | **Original**: the game in its own shape, with black around it. **Fit to Screen**: stretched over the whole screen; Screen Shape and Integer Scale are then dimmed | `modules.com.osdos.arcade.game_picture` |
 | Screen Shape | Auto, 4:3, 16:9, Square Pixels | The shape of your screen. **Auto**: 4:3 on a CRT's display output (composite, SCART RGB, JAMMA; off the OSD/OS image, a mode of 576 lines or fewer), square pixels on HDMI | `modules.com.osdos.arcade.screen_shape` |
 | Integer Scale | Auto, On, Off | A game's lines drawn whole, once (twice on a 480-line output), with a thin border above and below. **Auto**: on on a CRT's display output. A game with more lines than the screen fills it either way | `modules.com.osdos.arcade.integer_scale` |
 | Vertical Games | Horizontal, Turned Right, Turned Left | Turns the vertical games for a monitor you turn on its side for them ([A monitor on its side](#a-monitor-on-its-side-tate)) | `modules.com.osdos.arcade.vertical_monitor` |

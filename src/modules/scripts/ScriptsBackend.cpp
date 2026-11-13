@@ -271,6 +271,9 @@ void ScriptsBackend::getStartupScriptOptions() {
 void ScriptsBackend::rescanScripts() {
     scanScriptsDir();
     emit scriptsChanged();
+    // Settings' Auto-Run On Startup row, on the page the rescan was asked
+    // from: a script just added can be chosen without the page opened again.
+    getStartupScriptOptions();
 }
 
 QVariantList ScriptsBackend::get_menu_entries() {

@@ -1453,11 +1453,6 @@ void JellyfinBackend::getLibraries() {
         return;
     }
 
-    // Re-emit cached capabilities so ModuleSettings.qml can filter settings
-    // correctly on every pageload (the signal may have been missed if
-    // ModuleSettings.qml was destroyed/recreated after the initial probe).
-    probeCapabilities();
-
     QUrl url(m_serverUrl + "/Users/" + m_userId + "/Views");
     auto *reply = jellyfinGet(url);
     connect(reply, &QNetworkReply::finished, this, [this, reply]() {
@@ -1496,6 +1491,11 @@ void JellyfinBackend::getVideoQualities() {
     add("720p",  "720p");
     add("1080p", "1080p");
     emit dynamicOptionsReady("video_quality", options);
+
+    // The settings page asks for this row's choices each time it opens, and
+    // for nothing that says what the server can do: tell it here, or Intro
+    // Skip and Credit Skip stay "Not offered by the server" on every server.
+    probeCapabilities();
 }
 
 void JellyfinBackend::get_resume_playback_options() {

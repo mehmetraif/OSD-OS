@@ -322,6 +322,20 @@ Rectangle {
 
         // A value that couldn't be saved (a full card): the row stays on what
         // is saved, its rows with it; saved, it changes.
+        // A backend that puts a row's value back (a profile switch that
+        // failed) sends its choices again: the row shows the saved value.
+        function test_valueReadAgainWithChoices() {
+            appCore.values = { screen: "Arcade", start_filter: "favorites" }
+            var page = open()
+            var choices = [{ id: "all", label: "All Games" }, { id: "favorites", label: "Favorites" }]
+            appCore.dynamicOptionsReady("com.osdos.test", "start_filter", choices)
+            compare(page.currentDisplayValue(page.schemaItems[2]), "Favorites")
+            appCore.values = { screen: "Arcade", start_filter: "all" }
+            compare(page.currentDisplayValue(page.schemaItems[2]), "Favorites")
+            appCore.dynamicOptionsReady("com.osdos.test", "start_filter", choices)
+            compare(page.currentDisplayValue(page.schemaItems[2]), "All Games")
+        }
+
         function test_unsaved() {
             var page = open()
             keyClick(Qt.Key_Down)

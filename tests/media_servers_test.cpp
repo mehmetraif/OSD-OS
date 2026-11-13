@@ -266,6 +266,36 @@ private slots:
         QVERIFY(network->replies.size() > asked + 1);
     }
 
+    // The settings page learns what the server can do as it opens, with the
+    // choices it asks for: Intro Skip and Credit Skip are usable there, on
+    // every opening, the server asked once.
+    void jellyfinSettingsPageLearnsCapabilities() {
+        QTemporaryDir tmp;
+        JellyfinBackend backend(tmp.path(), tmp.path());
+        Network *network = signIn(backend);
+        QSignalSpy options(&backend, &JellyfinBackend::dynamicOptionsReady);
+        const auto capabilities = [&options]() {
+            QVariantList last;
+            int times = 0;
+            for (const QList<QVariant> &sent : options) {
+                if (sent.at(0).toString() == QLatin1String("_capabilities")) {
+                    last = sent.at(1).toList();
+                    ++times;
+                }
+            }
+            return qMakePair(times, last);
+        };
+        backend.getVideoQualities();
+        QCOMPARE(capabilities().first, 0);          // not known yet: asked
+        network->last()->fail(400);
+        QCOMPARE(capabilities().first, 1);
+        QCOMPARE(capabilities().second, QVariantList{QStringLiteral("mediasegments")});
+        const qsizetype asked = network->replies.size();
+        backend.getVideoQualities();                // the page opened again
+        QCOMPARE(network->replies.size(), asked);
+        QCOMPARE(capabilities().first, 2);
+    }
+
     // The PIN polled for every so often: no longer once plex.tv has
     // forgotten it (404), nor once the sign-in is left, whose PIN still on
     // its way is dropped.
@@ -322,6 +352,39 @@ private slots:
         network->last()->fail(500);
         QCOMPARE(errors.count(), 1);
         QCOMPARE(active(), QStringLiteral("1"));
+
+        // From Settings, whose Current User row is saved before the switch is
+        // asked for: the setting is put back, and the choices sent again for
+        // the row to show it.
+        const auto setting = [&] { return backend.plexSetting("current_user_id").toString(); };
+        backend.savePlexSetting("current_user_id", QStringLiteral("2"));
+        QSignalSpy options(&backend, &PlexBackend::dynamicOptionsReady);
+        errors.clear();
+        backend.applyCurrentUserSetting();
+        network->last()->fail(500);     // the profiles asked for anew: the kept ones do
+        network->last()->fail(500);     // the switch itself
+        QCOMPARE(errors.count(), 1);
+        QCOMPARE(active(), QStringLiteral("1"));
+        QCOMPARE(setting(), QStringLiteral("1"));
+        QCOMPARE(options.count(), 1);
+        QCOMPARE(options.first().first().toString(), QStringLiteral("current_user_id"));
+
+        // A config.json that can't be read is left as it is: one key written
+        // over it would be all the settings there are.
+        const QString config = tmp.path() + QStringLiteral("/config.json");
+        const QByteArray broken = "{ \"app\": { \"theme\": \"orb\" }, }";
+        {
+            QFile f(config);
+            QVERIFY(f.open(QIODevice::WriteOnly | QIODevice::Truncate));
+            f.write(broken);
+        }
+        backend.savePlexSetting("current_user_id", QStringLiteral("2"));
+        {
+            QFile f(config);
+            QVERIFY(f.open(QIODevice::ReadOnly));
+            QCOMPARE(f.readAll(), broken);
+        }
+        QVERIFY(QFile::remove(config));
 
         // The profile that is active already goes on, on what is kept: its
         // servers' tokens are asked for next.

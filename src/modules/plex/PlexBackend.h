@@ -198,7 +198,7 @@ private:
     mutable bool        m_authCacheValid = false;
 
     // Config file helpers (shared with AppCore)
-    QJsonObject loadConfig() const;
+    QJsonObject loadConfig(bool *readable = nullptr) const;
     void saveConfig(const QJsonObject &cfg) const;
 
     // Plex HTTP helpers
@@ -367,6 +367,7 @@ private:
     // server every request goes to
     QJsonValue plexSetting(const QString &key) const;
     void savePlexSetting(const QString &key, const QJsonValue &value);
+    void profileNotSwitched();
     void setActiveServer(const QString &uri, const QString &machineId);
 
     // HTTP helper — POST with JSON body

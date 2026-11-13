@@ -103,13 +103,20 @@ void PlexBackend::saveAuth(const QJsonObject &auth) const {
                         QFileDevice::ReadOwner | QFileDevice::WriteOwner);
 }
 
-QJsonObject PlexBackend::loadConfig() const {
+// config.json's settings; `readable` false where the file is there and isn't
+// JSON (a hand edit gone wrong), which is not the same as no settings yet.
+QJsonObject PlexBackend::loadConfig(bool *readable) const {
+    if (readable)
+        *readable = true;
     QFile f(m_dataRoot + "/config.json");
     if (f.open(QIODevice::ReadOnly)) {
+        const QByteArray text = f.readAll();
         QJsonParseError err;
-        auto doc = QJsonDocument::fromJson(f.readAll(), &err);
+        auto doc = QJsonDocument::fromJson(text, &err);
         if (err.error == QJsonParseError::NoError && doc.isObject())
             return doc.object();
+        if (readable && !text.trimmed().isEmpty())
+            *readable = false;
     }
     return {};
 }
@@ -707,7 +714,7 @@ void PlexBackend::performUserSwitch(const QString &userId, const QString &pin,
         if (switchReply->error() != QNetworkReply::NoError && !sameUser && severalProfiles) {
             qWarning().noquote() << "[PlexAuth] switch failed, profile not changed — status=" << switchStatus
                                  << switchReply->errorString();
-            emit errorOccurred("COULD NOT SWITCH PROFILE: PLEX DID NOT ANSWER");
+            profileNotSwitched();
             return;
         }
 
@@ -746,7 +753,7 @@ void PlexBackend::performUserSwitch(const QString &userId, const QString &pin,
             // fetch failed) would be shown on the tokens kept for the managed
             // profile before it: another person's library and watch state.
             if (!owner && !sameUser && tokenMap.isEmpty()) {
-                emit errorOccurred("COULD NOT SWITCH PROFILE: PLEX DID NOT ANSWER");
+                profileNotSwitched();
                 return;
             }
 
@@ -1421,7 +1428,14 @@ QJsonValue PlexBackend::plexSetting(const QString &key) const {
 }
 
 void PlexBackend::savePlexSetting(const QString &key, const QJsonValue &value) {
-    QJsonObject cfg = loadConfig();
+    // Written over an unreadable file, this one key would replace every
+    // setting the user has: AppCore refuses to save over it too.
+    bool readable = true;
+    QJsonObject cfg = loadConfig(&readable);
+    if (!readable) {
+        qWarning().noquote() << "[Plex] config.json can't be read:" << key << "not saved";
+        return;
+    }
     QJsonObject mods = cfg["modules"].toObject();
     QJsonObject plexCfg = mods["com.osdos.plex"].toObject();
     plexCfg[key] = value;
@@ -3118,6 +3132,17 @@ void PlexBackend::cancel_pending_pin() {
     const QString activeId = loadAuth()["active_user_id"].toString();
     if (plexSetting("current_user_id").toString() == activeId) return;
     savePlexSetting("current_user_id", activeId);
+}
+
+// A switch that failed leaves the profile as it was. Settings saves its
+// Current User row before it asks for the switch, so the setting is put back
+// and the choices sent again: the row there shows who is still watching.
+void PlexBackend::profileNotSwitched() {
+    emit errorOccurred("COULD NOT SWITCH PROFILE: PLEX DID NOT ANSWER");
+    const QString activeId = loadAuth()["active_user_id"].toString();
+    if (!activeId.isEmpty() && plexSetting("current_user_id").toString() != activeId)
+        savePlexSetting("current_user_id", activeId);
+    getUsers();
 }
 
 void PlexBackend::reauth_select_user(const QString &userId, const QString &pin) {
