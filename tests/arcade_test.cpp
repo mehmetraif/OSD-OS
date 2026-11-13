@@ -6552,8 +6552,11 @@ private slots:
         // FinalBurn Neo gone: that, first.
         const QString core = libretro::downloadedCore(data.path());
         QVERIFY(QFile::rename(core, core + QStringLiteral(".away")));
-        QCOMPARE(lanSays(), QStringLiteral("FinalBurn Neo Not Installed"));
+        // Within a second or so: where the emulators are is kept that long
+        // between looks (ArcadeBackend::programs()).
+        QTRY_COMPARE_WITH_TIMEOUT(lanSays(), QStringLiteral("FinalBurn Neo Not Installed"), 3000);
         QVERIFY(QFile::rename(core + QStringLiteral(".away"), core));
+        QTRY_COMPARE_WITH_TIMEOUT(lanSays(), QStringLiteral("Network Not Reachable"), 3000);
 
         // Off again: nothing of it.
         arcade.onSettingChanged(module, QStringLiteral("lan_play"), QStringLiteral("Off"));

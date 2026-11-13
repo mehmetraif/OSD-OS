@@ -5,6 +5,7 @@
 #include "update/UpdateManager.h"
 #include "util/AtomicFile.h"
 #include "util/DurableFile.h"
+#include "util/EndProcess.h"
 #include "util/AsyncDirectoryCache.h"
 #include "util/LogFile.h"
 #include "util/SetupFile.h"
@@ -180,6 +181,35 @@ private slots:
 #endif
         QCoreApplication::setApplicationVersion(running);
     }
+
+#ifdef Q_OS_UNIX
+    // A helper process (Weather's or Ambient's audio) is ended without the
+    // app's thread waiting for it: asked to end, killed after the grace if it
+    // won't, and the caller told once it has gone, when the card is free.
+    void processEndedWithoutWaiting() {
+        QObject context;
+        int gone = 0;
+        auto *stubborn = new QProcess(&context);
+        stubborn->start(QStringLiteral("/bin/sh"), { QStringLiteral("-c"), QStringLiteral("trap '' TERM; sleep 5") });
+        QVERIFY(stubborn->waitForStarted());
+        QTest::qWait(150);      // the trap is set
+        QElapsedTimer timer;
+        timer.start();
+        endProcessLater(stubborn, &context, [&gone]() { ++gone; }, 300);
+        QVERIFY2(timer.elapsed() < 100, "the call returned at once");
+        QCOMPARE(gone, 0);
+        QTRY_COMPARE_WITH_TIMEOUT(gone, 1, 3000);
+        QVERIFY2(timer.elapsed() >= 250, "killed after the grace, not before");
+
+        auto *willing = new QProcess(&context);
+        willing->start(QStringLiteral("/bin/sleep"), { QStringLiteral("5") });
+        QVERIFY(willing->waitForStarted());
+        timer.restart();
+        endProcessLater(willing, &context, [&gone]() { ++gone; }, 2000);
+        QTRY_COMPARE_WITH_TIMEOUT(gone, 2, 1500);
+        QVERIFY2(timer.elapsed() < 1500, "gone as asked, without the kill");
+    }
+#endif
 
     // A download the network dropped ends with the error a cancel has (the
     // transfer's timeout): it is a failure, with its reason, and only the

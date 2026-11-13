@@ -568,6 +568,7 @@ ArcadeBackend::ArcadeBackend(const QString &appRoot, const QString &dataRoot, Ap
     m_installer = new FbneoInstaller(m_dataRoot, this);
     connect(m_installer, &FbneoInstaller::progressChanged, this, &ArcadeBackend::fbneoProgressChanged);
     connect(m_installer, &FbneoInstaller::finished, this, [this](bool ok, const QString &message) {
+        forgetPrograms();
         m_fbneoMessage = message;
         // Downloaded over the package's core: the user chose libretro's
         // newest, which plays from now on (libretro::latestChosen()).
@@ -585,6 +586,7 @@ ArcadeBackend::ArcadeBackend(const QString &appRoot, const QString &dataRoot, Ap
     m_retroarchInstaller = new ProgramInstaller(this);
     connect(m_retroarchInstaller, &ProgramInstaller::progressChanged, this, &ArcadeBackend::fbneoProgressChanged);
     connect(m_retroarchInstaller, &ProgramInstaller::finished, this, [this](bool ok, const QString &message) {
+        forgetPrograms();
         m_retroarchMessage = message;
         // The games read again with RetroArch there: FinalBurn Neo's play
         // now, and its version is asked as they are listed.
@@ -595,6 +597,7 @@ ArcadeBackend::ArcadeBackend(const QString &appRoot, const QString &dataRoot, Ap
     m_mameInstaller = new ProgramInstaller(this);
     connect(m_mameInstaller, &ProgramInstaller::progressChanged, this, &ArcadeBackend::mameProgressChanged);
     connect(m_mameInstaller, &ProgramInstaller::finished, this, [this](bool ok, const QString &message) {
+        forgetPrograms();
         m_mameMessage = message;
         // The games read again with MAME there, which is asked about every
         // set, as it is another MAME: the sets the batch stopped for the
@@ -806,6 +809,7 @@ void ArcadeBackend::onSettingChanged(const QString &moduleId, const QString &key
 }
 
 void ArcadeBackend::applySetting(const QString &key, const QVariant &value) {
+    forgetPrograms();
     if (key == QLatin1String("games_directory")) {
         setGamesFolder(value.toString());
     } else if (key == QLatin1String("hide_bootlegs")) {
@@ -994,14 +998,35 @@ void ArcadeBackend::setProblem(const QString &problem) {
     emit problemChanged();
 }
 
+// Where the emulators are, as last looked for. A step of the cursor on the
+// Arcade screen asks several times over (the game's engine, its details, its
+// leaderboard, its pictures), and each look walks the PATH and the data
+// folder. Kept for a second, and looked for anew when the folder is read, an
+// installer ends, a setting changes or a game is about to start
+// (forgetPrograms()).
+const ArcadeBackend::Programs &ArcadeBackend::programs() const {
+    if (!m_programs.looked.isValid() || m_programs.looked.elapsed() > 1000) {
+        // One of the user's own first (a MAME built for CRTs, like
+        // GroovyMAME), as yt-dlp's is; then the system's.
+        m_programs.mame = mame::programPath(m_dataRoot);
+        m_programs.retroarch = libretro::programPath(m_dataRoot);
+        m_programs.core = libretro::corePath(m_dataRoot);
+        m_programs.snapFolder.clear();
+        m_programs.looked.start();
+    }
+    return m_programs;
+}
+
+void ArcadeBackend::forgetPrograms() {
+    m_programs.looked.invalidate();
+}
+
 QString ArcadeBackend::mamePath() const {
-    // One of the user's own first (a MAME built for CRTs, like GroovyMAME),
-    // as yt-dlp's is; then the system's.
-    return mame::programPath(m_dataRoot);
+    return programs().mame;
 }
 
 QString ArcadeBackend::retroarchPath() const {
-    return libretro::programPath(m_dataRoot);
+    return programs().retroarch;
 }
 
 QString ArcadeBackend::mameIdentity() const {
@@ -1328,6 +1353,7 @@ void ArcadeBackend::afterRead(std::function<void()> fn) {
 }
 
 void ArcadeBackend::checkProblem() {
+    forgetPrograms();
     // The folder first: without it there is no list for anything else to
     // stand in the way of.
     const QFileInfo folder(m_gamesFolder);
@@ -1343,6 +1369,7 @@ void ArcadeBackend::checkProblem() {
 }
 
 void ArcadeBackend::refresh() {
+    forgetPrograms();
     // The folder, games.json until it has been read, catver.ini and the
     // pictures put there since, or taken in a game; then MAME is asked about
     // what it hasn't been (onRead()). A read under way is followed by
@@ -2030,7 +2057,16 @@ QString ArcadeBackend::titlesFolder() const {
 
 bool ArcadeBackend::snapWritable() const {
     const QString folder = snapFolder();
-    return !folder.isEmpty() && QFileInfo(QFileInfo::exists(folder) ? folder : m_gamesFolder).isWritable();
+    if (folder.isEmpty())
+        return false;
+    // Looked at with the emulators (programs()), and again for another folder.
+    Programs &kept = m_programs;
+    programs();
+    if (kept.snapFolder != folder) {
+        kept.snapFolder = folder;
+        kept.snapWritable = QFileInfo(QFileInfo::exists(folder) ? folder : m_gamesFolder).isWritable();
+    }
+    return kept.snapWritable;
 }
 
 void ArcadeBackend::wantPictures(const QString &set) {
@@ -3192,6 +3228,8 @@ QString ArcadeBackend::ownFolder() const {
 }
 
 bool ArcadeBackend::play(const QString &name, int credits) {
+    // What is there now, not a moment ago.
+    forgetPrograms();
     m_lastError.clear();
     if (running()) {
         m_lastError = QStringLiteral("A game is still running");
@@ -3692,7 +3730,7 @@ void ArcadeBackend::setDifficulty(const QString &set, const QString &name) {
 }
 
 bool ArcadeBackend::fbneoReady() const {
-    return !retroarchPath().isEmpty() && !libretro::corePath(m_dataRoot).isEmpty() && !m_fbneoGames.isEmpty();
+    return !programs().retroarch.isEmpty() && !programs().core.isEmpty() && !m_fbneoGames.isEmpty();
 }
 
 bool ArcadeBackend::fbneoPlays(const QString &set) const {

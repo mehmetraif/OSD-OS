@@ -2,6 +2,7 @@
 #include "../../util/MpvLocator.h"
 #include "../../audio/AudioOutput.h"
 #include "../../audio/MenuMusic.h"
+#include "../../util/EndProcess.h"
 
 #include <QDir>
 #include <QFile>
@@ -480,7 +481,7 @@ WeatherBackend::WeatherBackend(const QString &appRoot, const QString &dataRoot,
 }
 
 WeatherBackend::~WeatherBackend() {
-    stopMusic();
+    endMusic(true);
 }
 
 QString WeatherBackend::location_file_path() const {
@@ -608,6 +609,9 @@ void WeatherBackend::startMusic() {
                              : setting.toBool(true);
     if (!enabled) return;
     if (m_music) return;
+    // One asked to end a moment ago still has the sound card: not two at once.
+    if (m_musicEnding && m_musicEnding->state() != QProcess::NotRunning)
+        m_musicEnding->waitForFinished(1000);
 
     const QStringList tracks = musicPlaylist();
     if (tracks.isEmpty()) return;
@@ -675,20 +679,36 @@ void WeatherBackend::startMusic() {
 }
 
 void WeatherBackend::stopMusic() {
+    endMusic(false);
+}
+
+// `wait` as the app ends: mpv is gone before this returns. Leaving the
+// module, it is not waited for: the menus come back at once, mpv goes in its
+// own time, and the menu music has the card only once it has.
+void WeatherBackend::endMusic(bool wait) {
     if (m_musicConnect) m_musicConnect->stop();
     if (m_musicIpc)     m_musicIpc->abort();
 
-    if (m_music) {
-        QProcess *p = m_music;
-        m_music = nullptr;          // cleared first: terminate() can re-enter
+    QProcess *p = std::exchange(m_music, nullptr);  // cleared first: terminate() can re-enter
+    m_musicPaused = false;
+    if (p) {
         p->disconnect(this);        // this slot via the finished signal
+        if (p->state() != QProcess::NotRunning && !wait) {
+            m_musicEnding = p;
+            endProcessLater(p, this, [this]() {
+                // Not while the music is on again: its hold is the new one's.
+                if (!m_music)
+                    MenuMusic::release(QStringLiteral("weather"));
+            });
+            emit musicStateChanged();
+            return;
+        }
         if (p->state() != QProcess::NotRunning) {
             p->terminate();
             p->waitForFinished(1000);
         }
         p->deleteLater();
     }
-    m_musicPaused = false;
     MenuMusic::release(QStringLiteral("weather"));
     emit musicStateChanged();
 }

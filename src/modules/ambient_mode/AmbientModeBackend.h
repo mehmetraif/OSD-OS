@@ -1,5 +1,6 @@
 #pragma once
 #include <QObject>
+#include <QPointer>
 #include <QProcess>
 #include <QStringList>
 #include <QVariantList>
@@ -25,5 +26,8 @@ private:
 
     QString   m_dataRoot;
     QString   m_mediaRoot;
+    void endAudio(bool wait);
+
     QProcess *m_audioProcess = nullptr;
+    QPointer<QProcess> m_audioEnding;   // asked to end, not gone yet
 };

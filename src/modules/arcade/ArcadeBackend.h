@@ -572,6 +572,18 @@ public:
     // Played, as main.cpp hands them over.
     QStringList recentSets() const { return listedSets(QStringLiteral("recent")); }
 
+    // Where the emulators are and whether pictures can be saved, as last
+    // looked for (programs(), kept for a second; forgetPrograms() has them
+    // looked for anew).
+    struct Programs {
+        QString mame, retroarch, core;
+        QString snapFolder;
+        bool snapWritable = false;
+        QElapsedTimer looked;
+    };
+    mutable Programs m_programs;
+    const Programs &programs() const;
+    void forgetPrograms();
     // MAME's program: DATA_ROOT/bin/mame, else mame on the PATH, else
     // Debian's /usr/games/mame (not on a service's PATH). "" for none.
     QString mamePath() const;

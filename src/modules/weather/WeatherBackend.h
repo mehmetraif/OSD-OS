@@ -1,5 +1,7 @@
 #pragma once
 #include <QObject>
+#include <QPointer>
+#include <QProcess>
 #include <QString>
 #include <QVariantMap>
 #include <QVariantList>
@@ -9,7 +11,6 @@
 
 class QNetworkAccessManager;
 class QTimer;
-class QProcess;
 class QLocalSocket;
 
 // Backend for the weather module.
@@ -208,6 +209,8 @@ private:
     // Background music. Its own mpv, its own socket — entirely separate from
     // MpvController's, which owns the screen and must not be disturbed by it.
     QProcess     *m_music       = nullptr;
+    QPointer<QProcess> m_musicEnding;   // asked to end, not gone yet
+    void endMusic(bool wait);
     QLocalSocket *m_musicIpc    = nullptr;
     QTimer       *m_musicConnect = nullptr;
     QString       m_musicSocketPath;
