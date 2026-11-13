@@ -2003,6 +2003,12 @@ private slots:
         for (const char *line : { "global_core_options = \"true\"", "core_options_path = \"/ra/config/netplay-options.cfg\"",
                                   "game_specific_options = \"false\"" })
             QVERIFY2(has(QLatin1String(line)), line);
+        // Online: no input latency to start with, as any RetroArch's, and up
+        // to four frames of it for a machine that can't play its frames
+        // again in time.
+        for (const char *line : { "netplay_input_latency_frames_min = \"0\"",
+                                  "netplay_input_latency_frames_range = \"4\"" })
+            QVERIFY2(has(QLatin1String(line)), line);
 
         QCOMPARE(libretro::arguments(launch),
                  QStringList({ QStringLiteral("-L"), QStringLiteral("/cores/fbneo_libretro.so"), QStringLiteral("--config"),
@@ -2024,6 +2030,12 @@ private slots:
         config = libretro::configText(launch);
         QVERIFY(has(QStringLiteral("netplay_nickname = \"Mehmet\"")));
         QVERIFY(!config.contains(QStringLiteral("netplay_public_announce")));
+        // On the local network a frame of input latency for every machine,
+        // so that none plays a frame again at each press on another, and up
+        // to three more for one that still can't keep up: joining...
+        for (const char *line : { "netplay_input_latency_frames_min = \"1\"",
+                                  "netplay_input_latency_frames_range = \"3\"" })
+            QVERIFY2(has(QLatin1String(line)), line);
         // LAN Play's host: on the local network alone, straight, where
         // RetroArch answers the queries made there; not in the lobby, nor
         // through a port opened on the router.
@@ -2031,7 +2043,10 @@ private slots:
         config = libretro::configText(launch);
         for (const char *line : { "netplay_nickname = \"Mehmet\"", "netplay_start_as_spectator = \"false\"",
                                   "netplay_public_announce = \"false\"", "netplay_use_mitm_server = \"false\"",
-                                  "netplay_nat_traversal = \"false\"" })
+                                  "netplay_nat_traversal = \"false\"",
+                                  // ...and hosting, whose word on it every machine joining takes.
+                                  "netplay_input_latency_frames_min = \"1\"",
+                                  "netplay_input_latency_frames_range = \"3\"" })
             QVERIFY2(has(QLatin1String(line)), line);
         QVERIFY(!config.contains(QStringLiteral("netplay_mitm_server ")));
         // Paced by the screen, as an online game and a game alone: the sound

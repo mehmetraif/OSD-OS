@@ -427,6 +427,14 @@ QList<Room> readWholeLobby(const QByteArray &json);
 // Of them, those FinalBurn Neo hosts that can be joined (joinable).
 QList<Room> readLobby(const QByteArray &json);
 
+// The frames of input latency a game over the network plays with
+// (configText(), where why): on the local network one for every machine and
+// up to kLanInputLatencyRange more for one that can't keep up otherwise;
+// online none, and up to kOnlineInputLatencyRange for such a machine.
+inline constexpr int kLanInputLatencyFrames = 1;
+inline constexpr int kLanInputLatencyRange = 3;
+inline constexpr int kOnlineInputLatencyRange = 4;
+
 // LAN Play, RetroArch's netplay on the local network: a host that isn't
 // relayed answers a query broadcast to its port (lanQuery()) with what it
 // plays, a packet of kLanAnswerSize bytes (RetroArch's struct ad_packet).

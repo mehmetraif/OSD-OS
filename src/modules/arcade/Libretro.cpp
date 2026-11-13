@@ -728,6 +728,28 @@ QString configText(const Launch &launch) {
             const QByteArray key = QByteArray("netplay_request_device_p") + QByteArray::number(p);
             set(key.constData(), on(launch.ports > 0 && p >= launch.portsFrom && p < launch.portsFrom + launch.ports));
         }
+        // How the network's delay is hidden. Left at RetroArch's 0 and 0, a
+        // machine plays every frame the moment its own buttons are read, on
+        // a guess of the others', and when theirs come a moment later and
+        // differ, goes back and plays those frames again, with the frame it
+        // is on: twice the work or more at every press on another machine.
+        // A PC has the time; a Raspberry Pi 4 doesn't, so its picture
+        // skipped and its sound broke up, it fell behind, and the others
+        // were held back for it. With input latency a machine plays each
+        // frame that much later than it reads its buttons, by when the
+        // others' are there, and nothing is played twice:
+        //  - on the local network one frame for everyone (the delay there
+        //    is a few milliseconds), and up to three more for a machine
+        //    that still can't play its frames again in time (RetroArch
+        //    measures that itself, netplay_frontend.c's
+        //    input_latency_frames);
+        //  - online none to start with, as any RetroArch's, and up to four
+        //    for such a machine, where it used to stutter.
+        // A host's are the game's: RetroArch hands them to every machine
+        // that joins.
+        const bool lan = launch.netplay == Launch::Netplay::LanHost || launch.netplay == Launch::Netplay::LanJoin;
+        set("netplay_input_latency_frames_min", QString::number(lan ? kLanInputLatencyFrames : 0));
+        set("netplay_input_latency_frames_range", QString::number(lan ? kLanInputLatencyRange : kOnlineInputLatencyRange));
     }
     if (launch.netplay == Launch::Netplay::Host) {
         // In the lobby, through a relay: a home connection takes no calls.
