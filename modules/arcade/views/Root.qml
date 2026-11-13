@@ -44,10 +44,19 @@ FocusScope {
     property string attractMode: "Off"
     property int attractAfter: 60
     // The Arcade screen's Hint Bar and Help Line, which Main.qml's hintBar and
-    // helpLine go by while the module is open, its dialogs and all; the
-    // original screen goes by Settings' own.
-    readonly property var hintBarShown: arcadeScreen ? hintBar : undefined
-    readonly property var helpLineShown: arcadeScreen ? helpLine : undefined
+    // helpLine go by while the module is open on it, its dialogs and all;
+    // the original screen goes by Settings' own, and so does a page of
+    // Settings → Arcade's the module was opened on instead (settingsPage).
+    readonly property var hintBarShown: arcadeScreen && !settingsPage ? hintBar : undefined
+    readonly property var helpLineShown: arcadeScreen && !settingsPage ? helpLine : undefined
+    // Opened from Settings → Arcade on one of its pages (MAME, FinalBurn Neo,
+    // the RetroAchievements account, Game Pictures, Check ROMs, Favorites,
+    // Online Name) rather than on the games: a page of Settings', whose
+    // hints and help are Settings' to show or hide. Screen Adjustment opens
+    // the Arcade screen itself, which keeps its own.
+    readonly property bool settingsPage: !!(navParams.mame || navParams.fbneo || navParams.achievements
+                                            || navParams.pictures || navParams.romCheck || navParams.favorites
+                                            || navParams.onlineName)
 
     // The credits bought on the Arcade screen with COIN: they go in the next
     // game started (startGame()), as many as ArcadeBackend puts in

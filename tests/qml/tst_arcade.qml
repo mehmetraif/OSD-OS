@@ -3434,6 +3434,40 @@ Rectangle {
             compare(root.backs, 1)
         }
 
+        // The module's own Hint Bar and Help Line are the Arcade screen's:
+        // opened on it (to play, or to adjust), Main.qml goes by them
+        // (hintBarShown, helpLineShown); on the tree, or on one of Settings →
+        // Arcade's pages, by Settings' own (undefined), whatever they are.
+        function test_rootOwnBars_data() {
+            return [{ tag: "arcade screen", params: {}, own: true, file: "ArcadeScreen.qml" },
+                    { tag: "screen adjustment", params: { adjustScreen: true }, own: true, file: "ArcadeScreen.qml" },
+                    { tag: "mame", params: { mame: true }, own: false, file: "Mame.qml" },
+                    { tag: "fbneo", params: { fbneo: true }, own: false, file: "Fbneo.qml" },
+                    { tag: "account", params: { achievements: true }, own: false, file: "Account.qml" },
+                    { tag: "pictures", params: { pictures: true }, own: false, file: "Pictures.qml" },
+                    { tag: "check roms", params: { romCheck: true }, own: false, file: "RomCheck.qml" },
+                    { tag: "favorites", params: { favorites: true }, own: false, file: "Favorites.qml" },
+                    { tag: "online name", params: { onlineName: true }, own: false, file: "OnlineName.qml" }]
+        }
+        function test_rootOwnBars(data) {
+            appCore.settings = { screen: "Arcade", hint_bar: false, help_line: true }
+            var router = open("Root.qml", data.params)
+            compare(shownFile(router), data.file)
+            compare(router.hintBarShown, data.own ? false : undefined)
+            compare(router.helpLineShown, data.own ? true : undefined)
+            loader.source = ""
+            appCore.settings = { screen: "Arcade", hint_bar: true, help_line: false }
+            router = open("Root.qml", data.params)
+            compare(router.hintBarShown, data.own ? true : undefined)
+            compare(router.helpLineShown, data.own ? false : undefined)
+            // The tree goes by Settings' own, as it always has.
+            loader.source = ""
+            appCore.settings = { screen: "Original", hint_bar: false, help_line: false }
+            router = open("Root.qml", {})
+            compare(router.hintBarShown, undefined)
+            compare(router.helpLineShown, undefined)
+        }
+
         // The visible marks at the rows' right ends (PixelIcon's mark): a
         // favourite's heart, Search's glass, a room's ▶ or lock.
         function marks(item) {
