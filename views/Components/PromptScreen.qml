@@ -6,6 +6,10 @@ import QtQuick
 // the middle of the space they leave both ways, what it is about and the
 // answers. However few lines it has, the bars stay where they are.
 //
+// In a layout's frame (Main.qml's, Menu Layout's Camcorder) it is asked in
+// the layout: the frame's column stays beside it, and what it is about and
+// the answers are in the middle of the pane.
+//
 // It only draws: the host keeps its keys and the cursor (currentIndex), and
 // shows it (visible); it tells the host which answer the mouse is over
 // (hovered), for the cursor to follow. Items declared inside it go under the
@@ -62,6 +66,21 @@ Item {
         anchors.fill: parent
     }
 
+    // The frame's column again, over that ground, as the shell has it under
+    // the view: its icons, the one framed, where it stands.
+    Loader {
+        active: prompt.visible && root.framed === true
+        sourceComponent: IconColumn {
+            x: root.frameColumn.x
+            y: root.frameColumn.y
+            width: root.frameColumn.width
+            height: root.frameColumn.height
+            model: root.shownFrameIcons
+            currentIndex: root.shownFrameIndex
+            active: false
+        }
+    }
+
     AppBar {
         id: titleBar
         iconSource: prompt.kind === "notice" ? "../../assets/images/notice.svg"
@@ -84,8 +103,10 @@ Item {
     }
 
     Column {
-        anchors.centerIn: middle
-        width: root.sw * 0.76875 //492
+        // In the middle of the pane (the window's, with no frame).
+        x: root.paneX
+        anchors.verticalCenter: middle.verticalCenter
+        width: root.paneWidth
         spacing: root.sh * 0.05 //24
 
         Text {

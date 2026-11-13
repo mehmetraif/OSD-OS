@@ -729,6 +729,12 @@ Window {
     readonly property int shownFrameIndex: moduleFrame ? moduleFrame.index : frameIndex
     readonly property bool framed: menuLayout === "Camcorder" && shownFrameIcons.length > 0
                                    && !!moduleLoader.item && moduleLoader.item.inFrame === true
+    // Where the column stands, in a view's own coordinates, for whatever
+    // draws it: the shell, under the views, and a question window, which
+    // draws it again over its own ground (PromptScreen), so that a question
+    // is asked in the layout, its answers in the pane.
+    readonly property rect frameColumn: Qt.rect(sw * 0.115625, sh * 0.25, sw * 0.084375, //74, 120, 54
+        frameTall || moduleFrame ? sh * 0.525 + hintRoom : sh * 0.4666667 + helpRoom + hintRoom) //252 : 224
     // The pane: where a view's rows go, beside the frame's column or, with no
     // frame, where every view has its list.
     readonly property real paneX: framed ? sw * 0.209375 : sw * 0.115625 //134 : 74
@@ -1431,12 +1437,11 @@ Window {
                 model: root.shownFrameIcons
                 currentIndex: root.shownFrameIndex
                 active: root.frameActive && !!moduleLoader.item && moduleLoader.item.ownsFrame === true
-                x: root.sw * 0.115625 //74
-                y: root.stageY + root.sh * 0.25 //120
-                width: root.sw * 0.084375 //54
                 // A menu's list beside it: a row more for each bar that is off.
-                height: root.frameTall || root.moduleFrame ? root.sh * 0.525 + root.hintRoom //252
-                                       : root.sh * 0.4666667 + root.helpRoom + root.hintRoom //224
+                x: root.frameColumn.x
+                y: root.stageY + root.frameColumn.y
+                width: root.frameColumn.width
+                height: root.frameColumn.height
             }
 
             // --- MODULE LOADER ---
