@@ -3966,7 +3966,7 @@ bool ArcadeBackend::playFbneo(const QString &name, libretro::Launch::Netplay net
         file.close();
         written = QDir().mkpath(launch.configDir)
                   && writeFileAnew(libretro::netplayOptionsPath(launch.configDir),
-                                   libretro::netplayOptionsText(userOptions).toUtf8(), kOwnerOnly);
+                                   libretro::netplayOptionsText(userOptions, lanCore).toUtf8(), kOwnerOnly);
     } else if (written && !launch.achievementsUser.isEmpty()) {
         // RetroAchievements' hardcore mode, the one whose scores the
         // leaderboards take, runs only while no core option it disallows is
@@ -4306,6 +4306,8 @@ QVariantList ArcadeBackend::lanRooms() const {
     if (!m_lanPlay || m_lanRooms.isEmpty() || !fbneoReady())
         return list;
     const QDateTime now = QDateTime::currentDateTimeUtc();
+    // Whether OSD/OS's own core is here, looked for once (two files' worth).
+    const bool lanCoreHere = !libretro::lanCorePath(m_dataRoot).isEmpty();
     for (const libretro::Room &room : m_lanRooms) {
         // As rooms(): a game in the folder FinalBurn Neo plays, with the
         // memory to join it on the core it is hosted with (only rooms joined
@@ -4318,7 +4320,7 @@ QVariantList ArcadeBackend::lanRooms() const {
         // of OSD/OS's own core for CV1000 games, against that core, and
         // whether it is here, coreHere), and where it is joined: its host's
         // address on this network, and the game's file in the folder.
-        const bool coreHere = !lanCore || !libretro::lanCorePath(m_dataRoot).isEmpty();
+        const bool coreHere = !lanCore || lanCoreHere;
         QVariantMap info = roomInfo(room, now, coreHere, lanCore ? m_lanCoreVersion : m_coreVersion, m_retroarchVersion);
         info.insert(QStringLiteral("coreHere"), coreHere);
         info.insert(QStringLiteral("address"), room.joinAddress.section(QLatin1Char('|'), 0, 0));

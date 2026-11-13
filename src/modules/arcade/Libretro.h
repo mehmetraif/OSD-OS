@@ -293,8 +293,15 @@ QString withHardcoreOptions(const QString &text);
 // (userOptions, the text of their file, coreOptionsPath()), only those that
 // change nothing but this machine's picture: vertical mode, 32-bit colour and
 // the light gun's crosshair.
+// On OSD/OS's own core for the local network (lanCore), where every machine
+// is an OSD/OS, the diagnostic input is off: FinalBurn Neo counts how long
+// START is held in every frame it runs, the ones netplay plays again too,
+// and keeps that count out of netplay's states, so a machine that played
+// more frames again would open the game's test menu on another frame than
+// the rest, or alone; and a player who holds START to come in would put
+// everyone in it.
 QString netplayOptionsPath(const QString &configDir);
-QString netplayOptionsText(const QString &userOptions);
+QString netplayOptionsText(const QString &userOptions, bool lanCore = false);
 // FinalBurn Neo's info file, which RetroArch looks for in infoDir by the
 // core's name (fbneo_libretro.info; lanCore, lanCorePath()'s:
 // osdos_lan_libretro.info), and the text OSD/OS writes in it before each

@@ -1758,6 +1758,12 @@ private slots:
                                   "fbneo-memcard-mode = \"disabled\"", "fbneo-cyclone = \"disabled\"",
                                   "fbneo-analog-speed = \"100%\"" })
             QVERIFY2(alike.split(QLatin1Char('\n')).contains(QLatin1String(line)), line);
+        // On OSD/OS's own core for the local network, the same but for the
+        // diagnostic input, off there: held START counted in frames played
+        // again would open a game's test menu on one machine alone.
+        QString onLanCore = libretro::netplayOptionsText(QString(), true);
+        QVERIFY2(onLanCore.contains(QStringLiteral("fbneo-diagnostic-input = \"None\"\n")), qPrintable(onLanCore));
+        QCOMPARE(onLanCore.replace(QStringLiteral("\"None\""), QStringLiteral("\"Hold Start\"")), alike);
         const QString own = QStringLiteral("fbneo-cpu-speed-adjust = \"150%\"\n"
                                            "fbneo-vertical-mode = \"enabled\"\n"
                                            "  fbneo-vertical-mode = \"TATE\"\n"

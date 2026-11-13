@@ -845,7 +845,7 @@ QString netplayOptionsPath(const QString &configDir) {
     return configDir + QStringLiteral("/netplay-options.cfg");
 }
 
-QString netplayOptionsText(const QString &userOptions) {
+QString netplayOptionsText(const QString &userOptions, bool lanCore) {
     // FinalBurn Neo's defaults (its libretro retro_common.cpp) for each of
     // its options that changes how a game runs, high scores and patched sets
     // aside. A plain RetroArch's host plays with these unless its user
@@ -889,8 +889,11 @@ QString netplayOptionsText(const QString &userOptions) {
         if (value != user.cend())
             lines << configLine(key, *value);
     }
-    for (const auto &[key, value] : alike)
-        lines << configLine(key, QLatin1String(value));
+    for (const auto &[key, value] : alike) {
+        // Off on OSD/OS's own core (Libretro.h says why).
+        const bool diagnosticOff = lanCore && QLatin1String(key) == QLatin1String("fbneo-diagnostic-input");
+        lines << configLine(key, diagnosticOff ? QLatin1String("None") : QLatin1String(value));
+    }
     return lines.join(QLatin1Char('\n')) + QLatin1Char('\n');
 }
 
