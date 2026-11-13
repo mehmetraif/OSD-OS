@@ -1529,6 +1529,22 @@ void MpvController::onIpcReadyRead() {
     }
 }
 
+// A video whose sound card couldn't be opened (busy, or none there) plays
+// on without sound, and mpv then calls the whole file failed as it ends:
+// exit code 2 from a process, "error" as the end's reason. The video
+// played, so its player hears the end it had, not a failure to say
+// "Playback failed" over and, for a server's, to try a transcode for.
+bool MpvController::playedWithoutSound() const {
+    return m_started && m_lastEndFileError.startsWith(QLatin1String("audio output"));
+}
+
+// Such a video's end: played out, or stopped on the way.
+QString MpvController::endOfSilent(int positionMs, int durationMs) {
+    qWarning("[MpvController] The video played without sound: the sound card could not be opened");
+    const bool playedOut = durationMs > 0 && positionMs >= qMin(durationMs - 1000, int(durationMs * 0.98));
+    return playedOut ? QStringLiteral("eof") : QStringLiteral("stopped");
+}
+
 void MpvController::onProcessFinished() {
     int exitCode = m_process ? m_process->exitCode() : -1;
     if (m_process) {
@@ -1556,10 +1572,13 @@ void MpvController::onProcessFinished() {
     //   screen is the app's again; a video that ended on its own meanwhile
     //   ends as any.
     // One ended for showing nothing (startTimedOut()) failed too, as its
-    // player hears it.
+    // player hears it. One that played without sound did not: see
+    // playedWithoutSound().
     const bool neverStarted = std::exchange(m_startFailed, false);
+    const bool silent = !neverStarted && exitCode == 2 && playedWithoutSound();
     QString reason;
-    if (exitCode == 2 || neverStarted)    reason = QStringLiteral("failed");
+    if (silent)                            reason = endOfSilent(pos, dur);
+    else if (exitCode == 2 || neverStarted) reason = QStringLiteral("failed");
     else if (m_lastEndFileReason == "eof") reason = QStringLiteral("eof");
     else if (m_menuOnExit)                 reason = QStringLiteral("menu");
     else                                   reason = QStringLiteral("stopped");
@@ -2018,7 +2037,8 @@ void MpvController::onEmbeddedFinished(const QString &lastEndReason) {
     // The same reasons as a process's: a file mpv couldn't play is "failed",
     // the playlist played out "eof", anything else (quit) "stopped".
     QString reason;
-    if (lastEndReason == QLatin1String("error"))    reason = QStringLiteral("failed");
+    if (lastEndReason == QLatin1String("error"))
+        reason = playedWithoutSound() ? endOfSilent(pos, dur) : QStringLiteral("failed");
     else if (lastEndReason == QLatin1String("eof")) reason = QStringLiteral("eof");
     else                                            reason = QStringLiteral("stopped");
     if (reason == QLatin1String("failed"))

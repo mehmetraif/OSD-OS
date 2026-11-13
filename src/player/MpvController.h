@@ -267,6 +267,9 @@ private:
     void relaunch();
     void logStartState(const char *what);
     static int startTimeoutMs(const QStringList &media, bool opened);
+    // A session mpv calls failed for its sound alone, and the end it had.
+    bool playedWithoutSound() const;
+    static QString endOfSilent(int positionMs, int durationMs);
     // "mpv showed no picture in 25 seconds", with what mpv itself said.
     QString startFailureDetail(const QString &mpvSaid) const;
     // The session's process told to quit, and killed if it doesn't, without

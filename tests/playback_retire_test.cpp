@@ -45,6 +45,13 @@ if [ "$FAKE_MPV_MODE" = fail ]; then
   echo 'Exiting... (Errors when loading file)'
   exit 2
 fi
+if [ "$FAKE_MPV_MODE" = noaudio ]; then
+  echo "Could not open/initialize audio device -> no sound."
+  echo "VO: [null] 640x480 yuv420p"
+  sleep 2
+  echo 'Exiting... (Interrupted by error)'
+  exit 2
+fi
 if [ "$FAKE_MPV_MODE" = plays ]; then
   echo "VO: [null] 640x480 yuv420p"
 fi
@@ -825,6 +832,28 @@ private slots:
         QCOMPARE(events().count(QStringLiteral("start A")), 1);
         QVERIFY(!happened("term A"));
         QCOMPARE(ended.count(), 0);
+    }
+
+    // A video whose sound card couldn't be opened plays without sound, and
+    // mpv calls the file failed as it ends (exit code 2). It played: its
+    // player hears it ended, with no failure to show.
+    void aVideoWithoutSoundEndsAsItPlayed() {
+        qputenv("FAKE_MPV_MODE", "noaudio");
+        QSignalSpy ended(m_mpv, &MpvController::playbackEnded);
+        play("A");
+        QTRY_VERIFY_WITH_TIMEOUT(happened("start A"), 5000);
+        QLocalServer control;
+        QVERIFY(listen(control));
+        QTRY_VERIFY_WITH_TIMEOUT(control.hasPendingConnections(), 5000);
+        QScopedPointer<QLocalSocket> socket(control.nextPendingConnection());
+        socket->write("{\"event\":\"property-change\",\"id\":2,\"name\":\"duration\",\"data\":6.0}\n"
+                      "{\"event\":\"property-change\",\"id\":1,\"name\":\"time-pos\",\"data\":5.96}\n"
+                      "{\"event\":\"end-file\",\"reason\":\"error\","
+                      "\"file_error\":\"audio output initialization failed\"}\n");
+        socket->flush();
+        QTRY_COMPARE_WITH_TIMEOUT(ended.count(), 1, 8000);
+        QCOMPARE(ended.first().at(2).toString(), QStringLiteral("eof"));
+        QVERIFY(m_mpv->lastError().isEmpty());
     }
 
     // A video its menu's Browse left (an mpv process having ended for the
