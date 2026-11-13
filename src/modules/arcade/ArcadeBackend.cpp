@@ -766,6 +766,10 @@ ArcadeBackend::ArcadeBackend(const QString &appRoot, const QString &dataRoot, Ap
 }
 
 ArcadeBackend::~ArcadeBackend() {
+    // The ports of a game still being played go back to its host, which
+    // would keep them from the next machine until its own game ended.
+    if (!m_claimedFrom.isEmpty())
+        releaseClaim(std::exchange(m_claimedFrom, QString()));
     // The pictures' records as they stand (m_pictureSaves waits for them).
     flushRecords();
     // The read keeps nothing of this object's: it may finish on its own.
@@ -4152,6 +4156,12 @@ bool ArcadeBackend::askForPorts() {
         });
     }
     const QHostAddress host(m_pendingJoin->host);
+    // Asking afresh: what is left of the answers to an earlier join (a
+    // second answer never read) isn't this one's.
+    if (m_pendingJoin->asked == 0) {
+        while (m_claimAsk->hasPendingDatagrams())
+            m_claimAsk->receiveDatagram(0);
+    }
     if (m_pendingJoin->asked >= kClaimAskings || host.isNull()
         || (m_claimAsk->state() != QAbstractSocket::BoundState && !m_claimAsk->bind(QHostAddress(QHostAddress::AnyIPv4), 0))
         || m_claimAsk->writeDatagram(libretro::claimQuery(m_pendingJoin->players), host, m_claimPort) < 0)
@@ -4194,9 +4204,12 @@ void ArcadeBackend::readPortsAnswer() {
         if (!ports)
             continue;
         // One that comes too late, or from another host: its ports given
-        // back.
+        // back. But not the ports this machine plays on: a host asked twice
+        // answers twice, the second answer coming once the game has started
+        // on the first, and giving those back had the host hand them to the
+        // next machine too.
         if (!fromHost) {
-            if (ports->first > 0)
+            if (ports->first > 0 && from != QHostAddress(m_claimedFrom))
                 releaseClaim(from.toString());
             continue;
         }

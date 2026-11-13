@@ -6199,7 +6199,8 @@ private slots:
         // 0.0.32 did. It plays on the panel's layout and gives port 3, and 4
         // after it as an older OSD/OS gave a machine of two players, unless
         // said otherwise: one taken, port 3.
-        enum { LayoutThenPorts, PortsThenLayout, PortsAlone, PacedFirst } answering = LayoutThenPorts;
+        // Or the ports once more a moment later: asked twice, it answers twice.
+        enum { LayoutThenPorts, PortsThenLayout, PortsAlone, PacedFirst, PortsAgainLater } answering = LayoutThenPorts;
         libretro::Launch::Layout saidLayout = libretro::Launch::Layout::Panel;
         libretro::PortRange portsGiven = { 3, 2 };
         connect(&claims, &QUdpSocket::readyRead, &claims, [&claims, &claimed, &answering, &saidLayout, &portsGiven] {
@@ -6215,11 +6216,16 @@ private slots:
                 };
                 if (answering == PacedFirst)
                     claims.writeDatagram(QByteArray("OSDOS PACE game"), to, port);
-                if (answering == LayoutThenPorts || answering == PacedFirst)
+                if (answering == LayoutThenPorts || answering == PacedFirst || answering == PortsAgainLater)
                     layout();
                 claims.writeDatagram(libretro::claimAnswer(portsGiven), to, port);
                 if (answering == PortsThenLayout)
                     QTimer::singleShot(50, &claims, layout);
+                if (answering == PortsAgainLater) {
+                    QTimer::singleShot(300, &claims, [&claims, given = portsGiven, to, port] {
+                        claims.writeDatagram(libretro::claimAnswer(given), to, port);
+                    });
+                }
             }
         });
         arcade.setLanClaimPort(claims.localPort());
@@ -6252,6 +6258,25 @@ private slots:
         QTRY_VERIFY(!claimed.isEmpty() && claimed.last() == libretro::claimRelease());
         QCOMPARE(claimed.first(), libretro::claimQuery(1));
         QVERIFY(!arcade.running());
+        // The host's answer once more, late (asked twice, it answers twice),
+        // with the game already started on the first: the ports this machine
+        // plays on stay its until its game ends, and go back then.
+        answering = PortsAgainLater;
+        qputenv("RA_SECONDS", "1.5");
+        claimed.clear();
+        QFile::remove(m_log);
+        {
+            QSignalSpy lateEnded(&arcade, &ArcadeBackend::finished);
+            QVERIFY(arcade.joinLanRoom(1));
+            QTRY_VERIFY_WITH_TIMEOUT(arcade.running(), 3000);
+            QTest::qWait(700);
+            QVERIFY(arcade.running());
+            QVERIFY2(!claimed.contains(libretro::claimRelease()), "the ports being played on were given back");
+            QVERIFY(lateEnded.wait(10000) || !lateEnded.isEmpty());
+        }
+        qunsetenv("RA_SECONDS");
+        QTRY_VERIFY(claimed.contains(libretro::claimRelease()));
+        answering = LayoutThenPorts;
         // The ports before the layout: the game waits a moment for it, and
         // starts on the panel's layout as before.
         answering = PortsThenLayout;
