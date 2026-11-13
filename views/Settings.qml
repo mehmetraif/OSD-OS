@@ -1142,8 +1142,11 @@ FocusScope {
     readonly property var themeParts: ["color_scheme", "skin", "text_effect", "background_effect",
                                        "selector_effect", "screen_effect", "transition", "menu_music"]
     function themeChosen() {
+        // In one write of the settings' file, not one a part.
+        var parts = {}
         for (var i = 0; i < themeParts.length; i++)
-            appCore.save_setting("", themeParts[i], "")
+            parts[themeParts[i]] = ""
+        appCore.save_settings("", parts)
         buildModel(settingsList.currentIndex)
     }
 

@@ -3593,16 +3593,17 @@ QVariantMap ArcadeBackend::addFavorites(const QStringList &sets) {
     // Each put first: the file's first one last, so that they keep its order.
     // With its title where MAME has said it; else none, and the title is
     // MAME's once it has (startupGameOptions(); the lists' are anyway).
+    // In one write of the lists' file, not one a game.
+    QVariantList entries;
     for (auto it = adding.crbegin(); it != adding.crend(); ++it) {
         const mame::Machine *machine = machineOf(*it);
         const QString title = machine ? machine->description : QString();
-        if (m_appCore)
-            m_appCore->add_to_list(kModuleId, QStringLiteral("favorites"),
-                                   QVariantMap{ { QStringLiteral("name"), title },
-                                                { QStringLiteral("path"), QStringLiteral("game:") + *it },
-                                                { QStringLiteral("isFolder"), false } },
-                                   kMostFavorites);
+        entries.append(QVariantMap{ { QStringLiteral("name"), title },
+                                    { QStringLiteral("path"), QStringLiteral("game:") + *it },
+                                    { QStringLiteral("isFolder"), false } });
     }
+    if (m_appCore)
+        m_appCore->add_all_to_list(kModuleId, QStringLiteral("favorites"), entries, kMostFavorites);
     if (!adding.isEmpty()) {
         m_madeSets.clear();
         emit gamesChanged();

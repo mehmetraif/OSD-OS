@@ -2,6 +2,7 @@
 #include "../../util/AtomicFile.h"
 
 #include <QFile>
+#include <QFileInfo>
 #include <QJsonDocument>
 #include <QNetworkRequest>
 #include <QNetworkReply>
@@ -75,17 +76,29 @@ PlexBackend::PlexBackend(const QString &appRoot, const QString &dataRoot, QObjec
 // ---------------------------------------------------------------------------
 
 QJsonObject PlexBackend::loadAuth() const {
-    QFile f(m_dataRoot + "/plex_auth.json");
+    const QString path = m_dataRoot + "/plex_auth.json";
+    const QFileInfo info(path);
+    if (m_authCacheValid && info.exists() && info.lastModified() == m_authCacheModified
+            && info.size() == m_authCacheSize)
+        return m_authCache;
+    m_authCacheValid = false;
+    QFile f(path);
     if (f.open(QIODevice::ReadOnly)) {
         QJsonParseError err;
         auto doc = QJsonDocument::fromJson(f.readAll(), &err);
-        if (err.error == QJsonParseError::NoError && doc.isObject())
-            return doc.object();
+        if (err.error == QJsonParseError::NoError && doc.isObject()) {
+            m_authCache = doc.object();
+            m_authCacheModified = info.lastModified();
+            m_authCacheSize = info.size();
+            m_authCacheValid = info.exists();
+            return m_authCache;
+        }
     }
     return {};
 }
 
 void PlexBackend::saveAuth(const QJsonObject &auth) const {
+    m_authCacheValid = false;
     writeFileAtomically(m_dataRoot + "/plex_auth.json", QJsonDocument(auth).toJson(QJsonDocument::Indented),
                         QFileDevice::ReadOwner | QFileDevice::WriteOwner);
 }

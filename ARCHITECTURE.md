@@ -242,6 +242,7 @@ A real example (Plex) — note `requires_auth`, dynamic options, and apply slots
 | `get_settings()` | Returns entire `config.json` as a map |
 | `get_setting(moduleId, key)` | Returns a single setting value |
 | `save_setting(moduleId, key, value)` | Writes to `config.json`; supports dot-notation keys. False when the file couldn't be written (a full or read-only card): nothing changes then, and no setting changed is signalled |
+| `save_settings(moduleId, { key: value, … })` | Several settings of one section in one write of the file, each told as `save_setting` tells one (a theme chosen sets nine): a write is synced to the card, and costs tens of milliseconds and more there |
 | `get_list(moduleId, name)` | One of a module's lists of entries (`recent`, `favorites`), newest first, from `lists.json` |
 | `add_to_list(moduleId, name, entry, limit)` | Puts an entry first, in place of one with its `path`, and keeps the newest `limit` (50 unless given) |
 | `remove_from_list(moduleId, name, path)` / `list_contains(moduleId, name, path)` | Takes an entry off a list / says whether one is on it |

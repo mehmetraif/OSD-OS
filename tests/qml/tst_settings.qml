@@ -111,6 +111,13 @@ Rectangle {
             values = v
             return true
         }
+        // Several at once, and how many times that was asked.
+        property int batches: 0
+        function save_settings(module, some) {
+            batches++
+            values = Object.assign({}, values, some)
+            return true
+        }
         // Paste OSD/OS Setup: what was pasted, and a setting it sets.
         property string pasted: ""
         function applySetupText(text) {
