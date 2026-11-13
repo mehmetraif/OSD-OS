@@ -274,7 +274,7 @@ private slots:
         QFile about(QStringLiteral(OSDOS_SOURCE_DIR "/views/About.qml"));
         QVERIFY(about.open(QIODevice::ReadOnly));
         const QString text = QString::fromUtf8(about.readAll());
-        static const QRegularExpression named(QStringLiteral("license: \"(assets/licenses/[^\"]+)\""));
+        static const QRegularExpression named(QStringLiteral("license: \"(assets/(?:licenses|fonts)/[^\"]+)\""));
         AppCore core(QStringLiteral(OSDOS_SOURCE_DIR), m_data.path());
         int found = 0;
         for (auto it = named.globalMatch(text); it.hasNext(); ++found) {

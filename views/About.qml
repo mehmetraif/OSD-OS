@@ -68,9 +68,13 @@ FocusScope {
         { key: "artwork", label: "Artwork", value: "ChatGPT",
           description: "The OSD/OS logo, the channel logo over the picture and the boot screen's cassette"
                        + " were made with ChatGPT, OpenAI's assistant" },
-        { key: "fonts", label: "Fonts", value: "VCR OSD Mono, Unifont",
-          description: "VCR OSD Mono by Riciery Santos Leal (mrmanet), free from dafont.com"
-                       + " • GNU Unifont by Roman Czyborra, Paul Hardy and others, under the SIL Open Font License 1.1" },
+        { key: "font", label: "VCR OSD Mono", value: "Riciery Santos Leal",
+          description: "The menus' typeface, VCR OSD Mono, was created by Riciery Santos Leal (mrmanet),"
+                       + " dafont.com/vcr-osd-mono.font • Free from its author, and here unchanged" },
+        { key: "unifont", label: "Unifont", value: "SIL OFL 1.1", license: "assets/fonts/LICENSE-unifont.txt",
+          licenseName: "GNU Unifont's license",
+          description: "The characters VCR OSD Mono lacks: GNU Unifont by Roman Czyborra, Paul Hardy and others,"
+                       + " unifoundry.com/unifont • Under the SIL Open Font License 1.1 • {select} The license's text" },
         { key: "built", label: "Built With", value: "Qt, SDL2, mpv",
           description: "Qt 6, SDL2 (zlib), OpenSSL, mpv and libmpv (GPL v2+)"
                        + " • On the OSD/OS image: yt-dlp (Unlicense), Deno (MIT), FFmpeg (LGPL/GPL), Chromium (BSD),"
