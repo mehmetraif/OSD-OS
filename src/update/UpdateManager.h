@@ -73,6 +73,12 @@ private:
     void finishDownload();
     void applyLinux();
     void applyAppImage();
+    // The AppImage at target replaced by the one at staged, whole or not at
+    // all: "" when it is, else what to tell the user (UpdateManager.cpp).
+    static QString replaceAppImage(const QString &staged, const QString &target);
+    // What a self-update left beside the AppImage at image, seen to as the
+    // app starts: its backup swept, or put back where the image is gone.
+    static void settleAppImage(const QString &image);
     void applyMacos();
     QString updatesDir() const;
     QString stagedJsonPath() const;

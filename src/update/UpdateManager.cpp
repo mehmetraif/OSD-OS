@@ -1,6 +1,7 @@
 #include "UpdateManager.h"
 #include "util/LegacyNames.h"
 #include "util/AtomicFile.h"
+#include "util/DurableFile.h"
 
 #include <QCoreApplication>
 #include <QDir>
@@ -15,6 +16,7 @@
 #include <QSysInfo>
 #include <QTimer>
 #include <algorithm>
+#include <cstdio>
 
 namespace {
 
@@ -119,16 +121,32 @@ UpdateManager::UpdateManager(const QString &appRoot, const QString &dataRoot, QO
     // leaving Settings on CHECKING... A download that goes on, however long,
     // goes on.
     m_nam.setTransferTimeout(30000);
+    // What a self-update left beside the AppImage, before it is asked whether
+    // the image can be replaced.
+    if (qEnvironmentVariableIsSet("APPIMAGE"))
+        settleAppImage(qEnvironmentVariable("APPIMAGE"));
     evaluateApplyCapability();
     reconcileStagingDir();
-    // If we are running as an AppImage, reaching this point means the current
-    // image launched successfully — so a .bak left by a previous self-update is
-    // the old version and can be swept (cheap local rollback insurance, spent).
-    if (qEnvironmentVariableIsSet("APPIMAGE")) {
-        const QString bak = qEnvironmentVariable("APPIMAGE") + QStringLiteral(".bak");
-        if (QFileInfo::exists(bak))
-            QFile::remove(bak);
-    }
+}
+
+// Beside the AppImage at `image` as the app starts: the copy of a new image
+// that an update was cut short on (a power cut as it was made) goes. So does
+// the .bak of a self-update before: if we are running as an AppImage, reaching
+// this point means the current image launched successfully, so the .bak is the
+// old version and can be swept (cheap local rollback insurance, spent). With
+// the image itself gone, the .bak is all there is of it, and is put back under
+// its name.
+void UpdateManager::settleAppImage(const QString &image) {
+    QFile::remove(image + QStringLiteral(".new"));
+    const QString backup = image + QStringLiteral(".bak");
+    if (!QFileInfo::exists(backup))
+        return;
+    if (QFileInfo::exists(image))
+        QFile::remove(backup);
+    else if (QFile::rename(backup, image))
+        qWarning("[UpdateManager] %s was gone: put back from its backup", qPrintable(image));
+    else
+        qWarning("[UpdateManager] %s is gone, and its backup could not be put back", qPrintable(image));
 }
 
 QString UpdateManager::currentVersion() const {
@@ -643,14 +661,82 @@ static QString sha256Of(const QString &path) {
     return QString::fromLatin1(hash.result().toHex());
 }
 
+// A file copied whole into a new one with these permissions, and on the disk
+// before this returns. Every write is checked as it is made (unbuffered): one
+// that fails only as a buffered file closes, on a full disk, would pass for
+// written. False, with nothing left at `to`, when it couldn't be.
+static bool copyToDisk(const QString &from, const QString &to, QFile::Permissions permissions) {
+    QFile in(from);
+    QFile out(to);
+    bool ok = in.open(QIODevice::ReadOnly)
+              && out.open(QIODevice::WriteOnly | QIODevice::Truncate | QIODevice::Unbuffered);
+    QByteArray block(1 << 20, Qt::Uninitialized);
+    qint64 copied = 0;
+    while (ok) {
+        const qint64 got = in.read(block.data(), block.size());
+        if (got == 0)
+            break;
+        ok = got > 0 && out.write(block.constData(), got) == got;
+        copied += qMax<qint64>(got, 0);
+    }
+    ok = ok && copied == in.size() && out.setPermissions(permissions);
+    out.close();
+    ok = ok && out.error() == QFile::NoError && syncPath(to).isEmpty();
+    if (!ok)
+        QFile::remove(to);
+    return ok;
+}
+
+// The AppImage at `target` replaced by the one at `staged`, whole or not at
+// all: "" when it is, else what to tell the user, with `target` as it was.
+// The new image is copied to a name of its own beside the target (the same
+// filesystem, wherever updates/ is) and put on the disk first, then renamed
+// over the target in one step, so that through a power cut or a kill the name
+// holds the old image or the whole new one, never nothing and never a part of
+// one. The old image stays beside it as .bak, a second name for the same file
+// made before the rename (a copy where the filesystem has no links), for cheap
+// local recovery; settleAppImage() sweeps it on the next successful start.
+QString UpdateManager::replaceAppImage(const QString &staged, const QString &target) {
+    const QFile::Permissions exec = QFile::ReadOwner | QFile::WriteOwner | QFile::ExeOwner
+                                  | QFile::ReadGroup | QFile::ExeGroup
+                                  | QFile::ReadOther | QFile::ExeOther;
+    const QString incoming = target + QStringLiteral(".new");
+    QFile::remove(incoming);
+    if (!copyToDisk(staged, incoming, exec))
+        return QStringLiteral("Could not copy the update beside the AppImage — is there room for it?");
+
+    const QString backup = target + QStringLiteral(".bak");
+    QFile::remove(backup);
+    bool kept = false;
+#ifdef Q_OS_UNIX
+    kept = ::link(QFile::encodeName(target).constData(), QFile::encodeName(backup).constData()) == 0;
+#endif
+    if (!kept && !QFile::copy(target, backup))
+        qWarning("[UpdateManager] No backup of %s could be kept", qPrintable(target));
+
+    // POSIX's rename, which replaces the target in one step; QFile::rename
+    // refuses a name that is taken.
+    if (std::rename(QFile::encodeName(incoming).constData(), QFile::encodeName(target).constData()) != 0) {
+        QFile::remove(incoming);
+        QFile::remove(backup);
+        return QStringLiteral("Could not replace the AppImage — is it writable?");
+    }
+    // The rename itself on the disk. The image is in place either way.
+    const QString unsynced = syncPath(QFileInfo(target).absolutePath(), true);
+    if (!unsynced.isEmpty())
+        qWarning("[UpdateManager] The AppImage's folder could not be synced: %s", qPrintable(unsynced));
+    return QString();
+}
+
 // In-place AppImage self-update. The staged image was SHA-256-verified at
 // download, and is checked against that hash again here: what is on the card
 // since is what gets swapped in. Swapping it over the running $APPIMAGE is safe
 // even while executing — the process keeps the old inode (FUSE mount / already
 // extracted) until it exits. The swap runs in-process (not a fire-and-forget
-// helper) so a failure — permissions, cross-filesystem, disk full — can be
-// reported to the UI without quitting. A .bak is kept for cheap local recovery
-// (swept on the next successful start; see the constructor).
+// helper) so a failure — permissions, disk full — can be reported to the UI
+// without quitting, the image in use and the staged one both as they were
+// (replaceAppImage()). A .bak is kept for cheap local recovery (swept on the
+// next successful start; see settleAppImage()).
 void UpdateManager::applyAppImage() {
     const QJsonObject staged = readStaged();
     if (staged.isEmpty()) {
@@ -677,28 +763,15 @@ void UpdateManager::applyAppImage() {
         return;
     }
 
-    const QFile::Permissions exec = QFile::ReadOwner | QFile::WriteOwner | QFile::ExeOwner
-                                  | QFile::ReadGroup | QFile::ExeGroup
-                                  | QFile::ReadOther | QFile::ExeOther;
-    QFile(stagedPath).setPermissions(exec);
-
-    // Back up the running image, then move the new one into its place. QFile::rename
-    // copies across filesystems when a plain rename fails, so the swap works whether
-    // updates/ and the AppImage share a mount or not. On any failure, restore.
-    const QString backup = target + QStringLiteral(".bak");
-    QFile::remove(backup);
-    if (!QFile::rename(target, backup)) {
-        setState(QStringLiteral("error"), QStringLiteral("Could not replace the AppImage — is it writable?"));
+    const QString failed = replaceAppImage(stagedPath, target);
+    if (!failed.isEmpty()) {
+        setState(QStringLiteral("error"), failed);
         return;
     }
-    if (!QFile::rename(stagedPath, target)) {
-        QFile::rename(backup, target);   // put the old image back
-        setState(QStringLiteral("error"), QStringLiteral("Could not install the update — restored the previous version."));
-        return;
-    }
-    QFile(target).setPermissions(exec);
 
-    // Committed — drop the staging markers so it is not re-applied on next launch.
+    // Committed — drop the staged image and its markers so it is not re-applied
+    // on next launch.
+    QFile::remove(stagedPath);
     QFile::remove(stagedJsonPath());
     QFile::remove(stagedSha256Path());
 

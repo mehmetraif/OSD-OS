@@ -300,6 +300,70 @@ private slots:
         QTRY_COMPARE_WITH_TIMEOUT(gone, 2, 1500);
         QVERIFY2(timer.elapsed() < 1500, "gone as asked, without the kill");
     }
+
+    // An AppImage's update put in place (UpdateManager::replaceAppImage): the
+    // new image whole under the name of the one in use, able to run, that
+    // one kept beside it as .bak, and nothing else left there; a new image
+    // that can't be copied beside it leaves the one in use as it was. And as
+    // the app starts (settleAppImage): the backup of an image that launched
+    // is swept, with the copy an update was cut short on, and the backup of
+    // an image that is gone is put back under its name, before the app says
+    // whether it can update itself.
+    void appImageReplacedWholeOrNotAtAll() {
+        QTemporaryDir tmp;
+        const QString image = tmp.path() + "/OSD-OS.AppImage", staged = tmp.path() + "/staged.AppImage";
+        const auto write = [](const QString &path, const QByteArray &data) {
+            QFile file(path);
+            return file.open(QIODevice::WriteOnly) && file.write(data) == data.size();
+        };
+        // Longer than one block of the copy, and no multiple of it.
+        const QByteArray newer(3 * 1024 * 1024 + 17, 'n');
+        QVERIFY(write(image, "old") && write(staged, newer));
+        // Left by an update before, and by one cut short.
+        QVERIFY(write(image + ".bak", "older") && write(image + ".new", "half"));
+        QCOMPARE(UpdateManager::replaceAppImage(staged, image), QString());
+        QCOMPARE(contents(image), newer);
+        QVERIFY(QFileInfo(image).isExecutable());
+        QCOMPARE(contents(image + ".bak"), QByteArray("old"));
+        QVERIFY(!QFileInfo::exists(image + ".new"));
+        QCOMPARE(contents(staged), newer);
+
+        QVERIFY(write(image + ".new", "half"));
+        UpdateManager::settleAppImage(image);
+        QCOMPARE(contents(image), newer);
+        QVERIFY(!QFileInfo::exists(image + ".bak"));
+        QVERIFY(!QFileInfo::exists(image + ".new"));
+
+        // No room for the copy's name (a folder that isn't empty has it), or
+        // no staged image to copy.
+        QVERIFY(QDir().mkpath(image + ".new/held"));
+        QVERIFY(write(staged, "newest"));
+        QVERIFY(!UpdateManager::replaceAppImage(staged, image).isEmpty());
+        QCOMPARE(contents(image), newer);
+        QVERIFY(!QFileInfo::exists(image + ".bak"));
+        QVERIFY(QDir(image + ".new").removeRecursively());
+        QVERIFY(!UpdateManager::replaceAppImage(tmp.path() + "/missing", image).isEmpty());
+        QCOMPARE(contents(image), newer);
+        QVERIFY(!QFileInfo::exists(image + ".bak"));
+        QVERIFY(!QFileInfo::exists(image + ".new"));
+
+        // The image gone, its backup all there is of it, as the app starts.
+        QVERIFY(QFile::rename(image, image + ".bak"));
+        const QByteArray appImage = qgetenv("APPIMAGE");
+        const bool appImageSet = qEnvironmentVariableIsSet("APPIMAGE");
+        qputenv("APPIMAGE", image.toUtf8());
+        const auto restore = qScopeGuard([appImage, appImageSet] {
+            if (appImageSet) qputenv("APPIMAGE", appImage); else qunsetenv("APPIMAGE");
+        });
+        QTest::ignoreMessage(QtWarningMsg, QRegularExpression("OSD-OS\\.AppImage was gone: put back from its backup"));
+        UpdateManager manager(tmp.path(), tmp.path() + "/data");
+        QCOMPARE(contents(image), newer);
+        QVERIFY(QFileInfo(image).isExecutable());
+        QVERIFY(!QFileInfo::exists(image + ".bak"));
+#ifndef Q_OS_MAC
+        QVERIFY(manager.canApply());
+#endif
+    }
 #endif
 
     // A download the network dropped ends with the error a cancel has (the
