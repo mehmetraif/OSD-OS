@@ -237,9 +237,11 @@ exit 0
     }
 
     // Asked about the folder, and done asking MAME.
+    // The folder read, or looked at and found as it was (lookAtNames()),
+    // and MAME asked about what it hadn't been.
     static void refreshed(ArcadeBackend &arcade) {
         arcade.refresh();
-        QTRY_VERIFY_WITH_TIMEOUT(!arcade.scanning(), 10000);
+        QTRY_VERIFY_WITH_TIMEOUT(!arcade.looking() && !arcade.scanning(), 10000);
     }
 
     // A game played to its end: (exit code, reason, notice).
@@ -3682,6 +3684,10 @@ private slots:
             QTest::qWait(20);
             writeFile(games + QStringLiteral("/bios/neogeo.zip"), zipOf({ { "sp-s2.sp1", biosRom }, { "000-lo.lo", "LO" } }));
             writeFile(games + QStringLiteral("/galaga.zip"), zipOf({ { "gg1_1b.3p", galagaRom }, { "extra", "X" } }));
+            // An archive replaced under its own name is not seen by a look at
+            // the folder's names (refresh()): by the next read, as the app
+            // starts, after a game, or from Read the Games Again.
+            arcade.markChanged();
             refreshed(arcade);
             QCOMPARE(infoOf(arcade), QList<int>({ 5, 1, 1, 1, 0, 2 }));
             QVERIFY(setsIn(arcade, "all").contains(QStringLiteral("mslug")));
@@ -7955,6 +7961,37 @@ private slots:
 
     // How long each game has been played, kept for the next start; not a
     // game MAME refused.
+    // The module opened again reads nothing while the games folder is as it
+    // was: a look at its names says so, and the list stays as it is. A game
+    // put in it, or taken out, is found by that look and the folder read.
+    void folderLookedAtBeforeItIsRead() {
+        const auto restore = qScopeGuard([this] { QFile::remove(m_games + QStringLiteral("/1944.zip")); });
+        ArcadeBackend arcade(m_data.path(), m_data.path(), nullptr, nullptr);
+        refreshed(arcade);                                  // the first: read
+        const QVariant before = arcade.requestEntries(QStringLiteral("all"));
+        QVERIFY(before.isValid());
+        QSignalSpy reading(&arcade, &ArcadeBackend::readingChanged);
+        QSignalSpy looked(&arcade, &ArcadeBackend::lookedAtNames);
+        arcade.refresh();
+        // On the screen at once, the folder not being read.
+        QVERIFY(!arcade.reading());
+        QVERIFY(arcade.requestEntries(QStringLiteral("all")).isValid());
+        QTRY_COMPARE_WITH_TIMEOUT(looked.size(), 1, 10000);
+        QCOMPARE(reading.size(), 0);
+        QCOMPARE(arcade.requestEntries(QStringLiteral("all")), before);
+
+        writeFile(m_games + QStringLiteral("/1944.zip"));
+        arcade.refresh();
+        QTRY_VERIFY_WITH_TIMEOUT(reading.size() >= 2, 10000);   // read, and done
+        QTRY_VERIFY_WITH_TIMEOUT(!arcade.looking() && !arcade.scanning(), 10000);
+        QCOMPARE(looked.size(), 1);
+        QVERIFY(names(arcade.requestEntries(QStringLiteral("unknown"))).contains(QStringLiteral("1944.zip")));
+
+        QVERIFY(QFile::remove(m_games + QStringLiteral("/1944.zip")));
+        refreshed(arcade);
+        QVERIFY(!names(arcade.requestEntries(QStringLiteral("unknown"))).contains(QStringLiteral("1944.zip")));
+    }
+
     void playTime() {
         QFile::remove(m_data.path() + QStringLiteral("/arcade/playtime.json"));
         {
