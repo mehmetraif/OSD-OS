@@ -220,6 +220,12 @@ struct Launch {
     // on the local network alone (LanHost, LAN Play), or joining a room as
     // the lobby gives it (Join) or a host on the local network (LanJoin).
     enum class Netplay { None, Host, LanHost, Join, LanJoin } netplay = Netplay::None;
+    // How a game hosted on the local network keeps its machines together
+    // (configText(), where why): the host alone plays the game and every
+    // machine joining follows it (Follow), or each plays ahead on a guess of
+    // the others' buttons and corrects itself (Predict). It is the host's
+    // to say: RetroArch hands a host's way to every machine joining.
+    enum class LanSync { Follow, Predict } lanSync = LanSync::Follow;
     QString nickname;
     QString relay;            // "nyc", "madrid", "saopaulo", "singapore", "chuncheon"
     QString joinAddress;      // RetroArch's --connect: "address|port" or "address|port|session"
@@ -434,10 +440,11 @@ QList<Room> readWholeLobby(const QByteArray &json);
 // Of them, those FinalBurn Neo hosts that can be joined (joinable).
 QList<Room> readLobby(const QByteArray &json);
 
-// The frames of input latency a game over the network plays with
-// (configText(), where why): on the local network one for every machine and
-// up to kLanInputLatencyRange more for one that can't keep up otherwise;
-// online none, and up to kOnlineInputLatencyRange for such a machine.
+// The frames of input latency a game over the network plays with where its
+// machines play ahead on a guess (configText(), where why): on the local
+// network (Launch::LanSync::Predict) one for every machine and up to
+// kLanInputLatencyRange more for one that can't keep up otherwise; online
+// none, and up to kOnlineInputLatencyRange for such a machine.
 inline constexpr int kLanInputLatencyFrames = 1;
 inline constexpr int kLanInputLatencyRange = 3;
 inline constexpr int kOnlineInputLatencyRange = 4;

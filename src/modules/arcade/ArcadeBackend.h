@@ -1197,6 +1197,9 @@ private:
     QString m_onlineName;         // the name the others see ("" for nickname()'s own)
     QString m_relay = QStringLiteral("nyc");   // the relay a hosted game goes through
     bool    m_lanPlay = false;
+    // Settings → Arcade → LAN Sync: a game hosted here has the machines
+    // joining follow this one (Smooth), or each play ahead (Responsive).
+    bool    m_lanFollow = true;
 
     // The RetroAchievements account: <data>/arcade/retroachievements.json,
     // owner-only, but the password, which RetroArch has once and swaps.

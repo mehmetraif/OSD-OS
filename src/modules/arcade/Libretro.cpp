@@ -728,28 +728,45 @@ QString configText(const Launch &launch) {
             const QByteArray key = QByteArray("netplay_request_device_p") + QByteArray::number(p);
             set(key.constData(), on(launch.ports > 0 && p >= launch.portsFrom && p < launch.portsFrom + launch.ports));
         }
-        // How the network's delay is hidden. Left at RetroArch's 0 and 0, a
-        // machine plays every frame the moment its own buttons are read, on
-        // a guess of the others', and when theirs come a moment later and
-        // differ, goes back and plays those frames again, with the frame it
-        // is on: twice the work or more at every press on another machine.
-        // A PC has the time; a Raspberry Pi 4 doesn't, so its picture
-        // skipped and its sound broke up, it fell behind, and the others
-        // were held back for it. With input latency a machine plays each
-        // frame that much later than it reads its buttons, by when the
-        // others' are there, and nothing is played twice:
-        //  - on the local network one frame for everyone (the delay there
-        //    is a few milliseconds), and up to three more for a machine
-        //    that still can't play its frames again in time (RetroArch
-        //    measures that itself, netplay_frontend.c's
-        //    input_latency_frames);
-        //  - online none to start with, as any RetroArch's, and up to four
-        //    for such a machine, where it used to stutter.
+        // How the machines of a game keep together. RetroArch's own way
+        // has each play every frame the moment its own buttons are read, on
+        // a guess of the others', and, when theirs come a moment later and
+        // differ, go back and play those frames again with the frame it is
+        // on: twice the work or more at every press on another machine, and
+        // more for each machine in the game. A PC has the time; a Raspberry
+        // Pi 4 doesn't: its picture skipped and its sound broke up, it fell
+        // behind, and the others were held back for it. Measured with a
+        // core that counts the frames it runs again, six machines of mixed
+        // speeds, 18 s: 1440 frames came late and 261 gaps were longer than
+        // 60 ms; with a frame of input latency 252 and 9; with the machines
+        // following their host 57 and none.
+        //  - On the local network the machines follow their host (LanSync::
+        //    Follow, netplay_require_slaves): the host alone plays the game,
+        //    each machine joining sends it its buttons and plays the frames
+        //    it sends back, so nothing is guessed and nothing played twice,
+        //    and a slow machine or a poor link is its own to bear, never
+        //    the others'. A joining player's buttons answer a few frames
+        //    later than the host's, and a tap shorter than a frame or two
+        //    can be lost on a link that delivers in bursts.
+        //  - Or they play ahead (LanSync::Predict), for fast machines and a
+        //    game where every frame of a button counts: with a frame of
+        //    input latency for all, so that most presses are there before
+        //    the frame they belong to is played, and up to three more for a
+        //    machine that still can't play its frames again in time
+        //    (RetroArch measures that itself, netplay_frontend.c's
+        //    input_latency_frames).
+        //  - Online, where any RetroArch joins over a link of many frames'
+        //    delay, as RetroArch has it: no latency to start with, and up to
+        //    four frames for a machine that can't keep up.
         // A host's are the game's: RetroArch hands them to every machine
         // that joins.
         const bool lan = launch.netplay == Launch::Netplay::LanHost || launch.netplay == Launch::Netplay::LanJoin;
-        set("netplay_input_latency_frames_min", QString::number(lan ? kLanInputLatencyFrames : 0));
-        set("netplay_input_latency_frames_range", QString::number(lan ? kLanInputLatencyRange : kOnlineInputLatencyRange));
+        const bool follow = lan && launch.lanSync == Launch::LanSync::Follow;
+        set("netplay_allow_slaves", on(true));
+        set("netplay_require_slaves", on(follow));
+        set("netplay_input_latency_frames_min", QString::number(lan && !follow ? kLanInputLatencyFrames : 0));
+        set("netplay_input_latency_frames_range",
+            QString::number(follow ? 0 : lan ? kLanInputLatencyRange : kOnlineInputLatencyRange));
     }
     if (launch.netplay == Launch::Netplay::Host) {
         // In the lobby, through a relay: a home connection takes no calls.
@@ -778,8 +795,7 @@ QString remapText(const Launch &launch) {
         lines << configLine(QByteArray("input_libretro_device_p" + QByteArray::number(p)).constData(),
                             QString::number(k6ButtonPanel));
     };
-    const bool hosting = launch.netplay == Launch::Netplay::Host || launch.netplay == Launch::Netplay::LanHost;
-    if (hosting) {
+    if (hosts(launch.netplay)) {
         // RetroArch gives the machines joining the host's types, and a
         // machine's players find their pads only among ports of one kind:
         // every port the panel's, or none.
@@ -978,7 +994,9 @@ QString netplayFailure(const QStringList &errors, bool hosting) {
 }
 
 void NetplayLog::read(const QString &line) {
-    if (m_hostLeft || !m_failure.isEmpty())
+    // Netplay's own lines alone: a joiner's log is read for as long as its
+    // game goes on, the core's and the drivers' lines among it.
+    if (m_hostLeft || !m_failure.isEmpty() || !line.contains(QLatin1String("[Netplay]")))
         return;
     // netplay_frontend.c's: the handshake done (netplay_handshake_ready(),
     // MSG_CONNECTED_TO), and a connection that has ended (netplay_hangup(),
@@ -994,8 +1012,11 @@ void NetplayLog::read(const QString &line) {
             m_failure = m_errors.isEmpty() ? QStringLiteral("Netplay disconnected") : m_errors.last();
         return;
     }
+    // Connected, an error is the game's to get over, not a failure to join.
+    if (m_connected)
+        return;
     const std::optional<QString> error = netplayError(line);
-    if (!error || m_connected)
+    if (!error)
         return;
     m_errors << *error;
     m_failure = netplayFailure(m_errors, m_hosting);

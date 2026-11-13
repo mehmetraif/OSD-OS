@@ -2009,10 +2009,10 @@ private slots:
         for (const char *line : { "global_core_options = \"true\"", "core_options_path = \"/ra/config/netplay-options.cfg\"",
                                   "game_specific_options = \"false\"" })
             QVERIFY2(has(QLatin1String(line)), line);
-        // Online: no input latency to start with, as any RetroArch's, and up
-        // to four frames of it for a machine that can't play its frames
-        // again in time.
-        for (const char *line : { "netplay_input_latency_frames_min = \"0\"",
+        // Online, each machine plays ahead on a guess, as any RetroArch
+        // does: no input latency to start with, and up to four frames of it
+        // for a machine that can't play its frames again in time.
+        for (const char *line : { "netplay_require_slaves = \"false\"", "netplay_input_latency_frames_min = \"0\"",
                                   "netplay_input_latency_frames_range = \"4\"" })
             QVERIFY2(has(QLatin1String(line)), line);
 
@@ -2036,11 +2036,13 @@ private slots:
         config = libretro::configText(launch);
         QVERIFY(has(QStringLiteral("netplay_nickname = \"Mehmet\"")));
         QVERIFY(!config.contains(QStringLiteral("netplay_public_announce")));
-        // On the local network a frame of input latency for every machine,
-        // so that none plays a frame again at each press on another, and up
-        // to three more for one that still can't keep up: joining...
-        for (const char *line : { "netplay_input_latency_frames_min = \"1\"",
-                                  "netplay_input_latency_frames_range = \"3\"" })
+        // On the local network the machines follow their host unless told
+        // otherwise (LanSync::Follow): nothing guessed, nothing played
+        // twice, and no input latency on top. Joining says so too, though
+        // it is its host's word that counts...
+        for (const char *line : { "netplay_allow_slaves = \"true\"", "netplay_require_slaves = \"true\"",
+                                  "netplay_input_latency_frames_min = \"0\"",
+                                  "netplay_input_latency_frames_range = \"0\"" })
             QVERIFY2(has(QLatin1String(line)), line);
         // LAN Play's host: on the local network alone, straight, where
         // RetroArch answers the queries made there; not in the lobby, nor
@@ -2050,11 +2052,22 @@ private slots:
         for (const char *line : { "netplay_nickname = \"Mehmet\"", "netplay_start_as_spectator = \"false\"",
                                   "netplay_public_announce = \"false\"", "netplay_use_mitm_server = \"false\"",
                                   "netplay_nat_traversal = \"false\"",
-                                  // ...and hosting, whose word on it every machine joining takes.
-                                  "netplay_input_latency_frames_min = \"1\"",
-                                  "netplay_input_latency_frames_range = \"3\"" })
+                                  // ...and hosting, whose word every machine joining takes.
+                                  "netplay_require_slaves = \"true\"", "netplay_input_latency_frames_min = \"0\"",
+                                  "netplay_input_latency_frames_range = \"0\"" })
             QVERIFY2(has(QLatin1String(line)), line);
         QVERIFY(!config.contains(QStringLiteral("netplay_mitm_server ")));
+        // Hosted to play ahead (LAN Sync's Responsive): a frame of input
+        // latency for every machine, so that most presses are there before
+        // their frame is played, and up to three more for one that still
+        // can't keep up.
+        launch.lanSync = libretro::Launch::LanSync::Predict;
+        config = libretro::configText(launch);
+        for (const char *line : { "netplay_require_slaves = \"false\"", "netplay_input_latency_frames_min = \"1\"",
+                                  "netplay_input_latency_frames_range = \"3\"" })
+            QVERIFY2(has(QLatin1String(line)), line);
+        launch.lanSync = libretro::Launch::LanSync::Follow;
+        config = libretro::configText(launch);
         // Paced by the screen, as an online game and a game alone: the sound
         // stretched and nudged to it as RetroArch has it.
         for (const char *key : { "audio_sync", "audio_max_timing_skew", "audio_rate_control", "vrr_runloop_enable" })
@@ -6426,6 +6439,9 @@ private slots:
                                   "input_player1_y_btn = \"0\"", "input_player2_b_btn = \"0\"" })
             QVERIFY2(config.contains(QLatin1String(line)), line);
         QCOMPARE(requested(config), QStringLiteral("1"));
+        // LAN Sync unset: Smooth, the machines joining follow this one.
+        QVERIFY2(config.contains(QStringLiteral("netplay_require_slaves = \"true\"")), qPrintable(config));
+        QVERIFY(config.contains(QStringLiteral("netplay_input_latency_frames_min = \"0\"")));
         QVERIFY(logLines().contains(QStringLiteral("coreinfo deterministic")));
         QCOMPARE(asking(libretro::claimQuery(1), 300), QByteArray("no answer"));
         // X-Men's six players, hosted with the same two: on Classic, the
@@ -6450,7 +6466,9 @@ private slots:
         QVERIFY2(config.contains(QStringLiteral("input_player1_b_btn = \"0\"")), qPrintable(config));
         // Cadillacs and Dinosaurs, whose players aren't known: the panel's
         // layout kept, this machine on port 1 alone, and a machine joining
-        // with four given port 2 alone.
+        // with four given port 2 alone. Hosted with LAN Sync on Responsive:
+        // every machine plays ahead, with a frame of input latency.
+        arcade.onSettingChanged(module, QStringLiteral("lan_sync"), QStringLiteral("Responsive"));
         QFile::remove(m_log);
         hostEnded.clear();
         QVERIFY(arcade.hostLanGame(QStringLiteral("dino")));
@@ -6460,6 +6478,10 @@ private slots:
         QCOMPARE(hostEnded.first().value(1).toString(), QStringLiteral("ok"));
         config = QString::fromUtf8(contents(configCopy));
         QCOMPARE(requested(config), QStringLiteral("1"));
+        QVERIFY2(config.contains(QStringLiteral("netplay_require_slaves = \"false\"")), qPrintable(config));
+        QVERIFY(config.contains(QStringLiteral("netplay_input_latency_frames_min = \"1\"")));
+        QVERIFY(config.contains(QStringLiteral("netplay_input_latency_frames_range = \"3\"")));
+        arcade.onSettingChanged(module, QStringLiteral("lan_sync"), QStringLiteral("Smooth"));
         // Hosting with the port taken: RetroArch says so and plays alone;
         // stopped as its log says so, no ports given meanwhile, and the end
         // says why.
