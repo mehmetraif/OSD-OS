@@ -1,12 +1,12 @@
 # Writing a module
 
-A module is how a new source of videos joins OSD/OS: one more input on the deck. This page builds one from nothing, step by step, with every file whole: **Hello Channel**, which lists the videos in a folder, plays them through OSD/OS's player, has settings of its own, then grows a C++ backend and tests. Every piece of code here was run against OSD/OS's current source, built and driven under Xvfb, and its test passed.
+A module adds a source of videos to OSD/OS. This page builds one, with every file whole: **Hello Channel** lists the videos in a folder, plays them, has settings, then gains a C++ backend and tests.
 
-The reference for all of it is [ARCHITECTURE.md](https://github.com/mehmetraif/OSD-OS/blob/main/ARCHITECTURE.md) ([Anatomy of a Module](https://github.com/mehmetraif/OSD-OS/blob/main/ARCHITECTURE.md#anatomy-of-a-module), [manifest.json](https://github.com/mehmetraif/OSD-OS/blob/main/ARCHITECTURE.md#manifestjson-reference), [AppCore](https://github.com/mehmetraif/OSD-OS/blob/main/ARCHITECTURE.md#appcore--the-app-shell), [QML View Patterns](https://github.com/mehmetraif/OSD-OS/blob/main/ARCHITECTURE.md#qml-view-patterns), [Components](https://github.com/mehmetraif/OSD-OS/blob/main/ARCHITECTURE.md#components-wip)), and the house rules are in [CONTRIBUTING.md](https://github.com/mehmetraif/OSD-OS/blob/main/CONTRIBUTING.md).
+The reference is [ARCHITECTURE.md](https://github.com/mehmetraif/OSD-OS/blob/main/ARCHITECTURE.md): [manifest.json](https://github.com/mehmetraif/OSD-OS/blob/main/ARCHITECTURE.md#manifestjson-reference), [AppCore](https://github.com/mehmetraif/OSD-OS/blob/main/ARCHITECTURE.md#appcore--the-app-shell), [QML View Patterns](https://github.com/mehmetraif/OSD-OS/blob/main/ARCHITECTURE.md#qml-view-patterns). The house rules are in [CONTRIBUTING.md](https://github.com/mehmetraif/OSD-OS/blob/main/CONTRIBUTING.md).
 
 ## What a module is
 
-OSD/OS is a browsing shell that hands off to purpose-built tools. The shell (`AppCore`) finds the modules, shows their settings and routes what they ask for; a module browses its own content and, to play, hands the video to mpv through `mpvController`. A module has up to three parts:
+A module browses its own content and hands the video to mpv through `mpvController`. It has up to three parts:
 
 | Part | Where | Needed |
 |---|---|---|
@@ -14,7 +14,7 @@ OSD/OS is a browsing shell that hands off to purpose-built tools. The shell (`Ap
 | QML views | `modules/<name>/views/`, the entry point `Root.qml` | Yes |
 | A C++ backend | `src/modules/<name>/<Name>Backend.h` and `.cpp` | Only when QML can't do it alone: files, a network API, a process |
 
-At start, `AppCore` reads every `modules/*/manifest.json`, in the order of the folders' names. A module with no backend needs no change anywhere else: drop its folder in and it is there. One with a backend adds one `registerModule(...)` call to `src/main.cpp`.
+`AppCore` reads every `modules/*/manifest.json` at start, in the order of the folders' names. A module with a backend also adds one `registerModule(...)` call to `src/main.cpp`.
 
 ```mermaid
 flowchart LR
@@ -29,28 +29,28 @@ flowchart LR
     MP -->|playbackEnded| PL
 ```
 
-Five principles from CONTRIBUTING.md shape every module:
+Five principles from CONTRIBUTING.md:
 
-1. **A remote is enough.** Every screen works with the arrows, select and back (Enter, Escape or Backspace on a keyboard). A gamepad arrives as the same keys, so a view that handles the keys handles gamepads too: never add gamepad code to a view.
-2. **Laid out for a CRT.** Everything is sized from the screen (`root.sw`, `root.sh`), never in pixels, inside the safe area every view uses, away from a tube's edges.
+1. **A remote is enough.** Every screen works with the arrows, select and back. A gamepad sends the same keys: never add gamepad code to a view.
+2. **Laid out for a CRT.** Size everything from `root.sw` and `root.sh`, never in pixels.
 3. **Self-contained.** The module's files stay in `modules/<name>` and `src/modules/<name>`.
-4. **No tracking.** A module talks only to the service it shows, and writes only to OSD/OS's data folder.
-5. **Browse, then hand off.** Playing is handed to a program made for it: mpv, or another one through `DisplayHandoff`. The module never plays anything itself.
+4. **No tracking.** A module talks only to the service it shows, and writes only to the data folder.
+5. **Browse, then hand off.** Playing is handed to mpv, or to another program through `DisplayHandoff`.
 
 ## The manifest
 
-`manifest.json` is the module's identity and the shape of its settings. Settings → *the module's name* is built from it, with no QML of the module's own.
+`manifest.json` is the module's identity and its settings. Settings builds the module's page from it.
 
 | Key | Needed | What it is |
 |---|---|---|
-| `id` | Yes | The module's id, `com.osdos.<name>` by convention. Its settings are saved under `modules.<id>` in `config.json`, its lists under it in `lists.json` |
-| `name` | | Shown on the main menu (in capitals), as the Settings row (on the Arcade page, the heading over its rows), and in the module's title bar |
+| `id` | Yes | The module's id, `com.osdos.<name>` by convention. Settings are saved under `modules.<id>` in `config.json`, lists under it in `lists.json` |
+| `name` | | Shown on the main menu, as the Settings row and in the title bar |
 | `icon` | | Its logo, relative to the module's folder |
 | `entry_point_qml` | Yes | Its router, relative to the module's folder: `views/Root.qml` |
 | `settings` | | Its settings, in the order Settings shows them. A module with none isn't listed in Settings |
-| `settings_group` | | Where Settings lists the module's page: `"tv"` under **Modules** on the **TV / Movie** page, with the video modules; `"arcade"` on the **Arcade** page, its rows after the Arcade module's under its name as a heading. Left out, as Hello Channel's is (or naming a group Settings has no page for), the page is under **Modules** on Settings' **System** page. Its settings are saved under `modules.<id>` whichever it is |
+| `settings_group` | | Where Settings lists the page: `"tv"` under **Modules** on the **TV / Movie** page; `"arcade"` on the **Arcade** page, under the module's name as a heading; left out, under **Modules** on the **System** page |
 
-A manifest that isn't JSON is left out, with `[AppCore] Bad manifest.json in <folder>: <error>` in the log; one without `id` or `entry_point_qml`, with `[AppCore] Skipping <folder>: manifest missing 'id' or 'entry_point_qml'`.
+A manifest that isn't JSON is skipped, with `[AppCore] Bad manifest.json in <folder>: <error>` in the log. One without `id` or `entry_point_qml` is skipped with `[AppCore] Skipping <folder>: manifest missing 'id' or 'entry_point_qml'`.
 
 Each setting is an object:
 
@@ -59,36 +59,36 @@ Each setting is an object:
 | `key` | Every type | Its key under `modules.<id>`. A dot reaches one level down (`libraries.abc` is `"libraries": { "abc": … }`) |
 | `label` | Every type | The row's text, shown in capitals |
 | `type` | Every type | One of the types below |
-| `default` | `toggle`, `list_single`, `slider` | What the row shows while nothing is saved: `"ON"` or `"OFF"`, one of the options (a dynamic list shows its first choice instead, and a `directory_browser` shows `Default`), or a slider's number. OSD/OS doesn't write it: your own code must read an unset key as this default too |
-| `description` | Every type | The help line under the menu while the row is selected. Lines written with `\n` read as one, joined with `•`; by convention `[WORD]` explains one of the choices |
-| `options` | `list_single` | The choices, saved as they are written |
+| `default` | `toggle`, `list_single`, `slider` | What the row shows while nothing is saved: `"ON"` or `"OFF"`, one of the options, or a slider's number. OSD/OS doesn't write it: your code must read an unset key as this default too |
+| `description` | Every type | The help line while the row is selected. Lines split with `\n` are joined with `•`. By convention `[WORD]` explains one choice |
+| `options` | `list_single` | The choices, saved as written |
 | `options_source`, `options_slot` | `list_single`, `multiselect_submenu` | `"dynamic"`, and the backend slot that sends the choices ([part 3](#part-3-a-c-backend)) |
 | `apply_slot` | `list_single` with dynamic choices | A backend slot called after each change |
 | `action_slot` | `action` | The backend slot select calls |
 | `params` | `module_view` | The `navParams` the module's `Root.qml` opens with |
 | `settings` | `submenu` | Its own rows, in this same format |
-| `step`, `start_text`, `end_text` | `slider` | How far ◄ ► move it (10 unless given), and the names under the bar's two ends, as Settings' TRANSPARENT and SOLID |
-| `requires_auth` | Every type | Shown only while the backend's `get_auth_state()` is neither `""` nor `"none"`: Plex hides its server, user and library rows until it is signed in |
-| `requires_capability` | Every type | Shown only while the backend's choices for `_capabilities` name it: Jellyfin's skip rows need its server's media segments |
-| `shown_with` | Every type | Shown only while another of the module's rows has a value as the page shows it: `{ "key": "screen", "value": "Arcade" }`, a toggle's `"ON"` or `"OFF"`, an unset row counting as its `default` (a dynamic list as its first choice), and never while that row is hidden itself. A list of them shows it while any of them holds: `[{ "key": "online_play", "value": "On" }, { "key": "lan_play", "value": "On" }]`. The rows come and go as those rows change, the cursor staying on it, a dynamic row's choices asked for as it comes, and a hidden row keeps what was saved in it: Arcade's rows for its Arcade screen, and its Online Name |
+| `step`, `start_text`, `end_text` | `slider` | How far ◄ ► move it (10 unless given), and the names under the bar's two ends |
+| `requires_auth` | Every type | Usable only while the backend's `get_auth_state()` is neither `""` nor `"none"`. Dimmed until then (`Only once signed in`) |
+| `requires_capability` | Every type | Usable only while the backend's choices for `_capabilities` name it. Dimmed otherwise (`Not offered by the server`) |
+| `shown_with` | Every type | Usable only while another row has a value as the page shows it: `{ "key": "screen", "value": "Arcade" }`. A toggle's value is `"ON"` or `"OFF"`; an unset row counts as its `default`. A list of them holds while any holds. Dimmed otherwise; a dimmed row keeps what was saved |
 
 The types, as Settings shows and saves them:
 
 | `type` | In Settings | Saved as |
 |---|---|---|
-| `toggle` | `ON` or `OFF`; ◄ ►, and select, flip it. `default` is `"ON"` or `"OFF"` | `true` or `false` |
+| `toggle` | `ON` or `OFF`; ◄ ► and select flip it | `true` or `false` |
 | `list_single` with `options` | ◄ ► step through the choices, round the ends | The choice's text |
-| `list_single` with `"options_source": "dynamic"` | The backend's labels. While nothing is saved the row shows the first choice, so put the default first | The choice's `id` |
-| `multiselect_submenu` | Select opens a page of the backend's choices, each switched on and off. Choices under a heading (`{ "label": "Genres", "heading": true }` among them) are a group, which select on the heading turns on, or off once they all are on | `{ "<id>": true, … }` under the key, saved whole at every change; every choice is on until it is switched off, but one sent with `"default": false` (Arcade's publishers), which is off until it is switched on |
-| `submenu` | Select opens its rows on a page of their own, titled `MODULE / LABEL` (YouTube's Advanced) | Its rows' keys, flat under `modules.<id>` |
-| `module_view` | Select opens the module itself, its `Root.qml` with `params` (Netflix's Sign in) | Nothing |
-| `directory_browser` | Select opens the folder picker, the tree Local Files is browsed with; the row shows the path, or `Default` | The folder's path; `""` for **Default Folder**, which the module gives a meaning |
-| `slider` | Its label, and the deck's tape bar under it with a ▼ at the value between its two ends; ◄ ► move it a `step` toward either end (Arcade's Info Background) | A number from 0 to 100 |
+| `list_single` with `"options_source": "dynamic"` | The backend's labels. Unset, the row shows the first choice, so put the default first | The choice's `id` |
+| `multiselect_submenu` | Select opens a page of the backend's choices, each switched on or off. A heading (`{ "label": "Genres", "heading": true }`) turns the choices under it on or off together | `{ "<id>": true, … }` under the key, saved whole at every change. A choice is on until switched off, unless sent with `"default": false` |
+| `submenu` | Select opens its rows on a page of their own, titled `MODULE / LABEL` | Its rows' keys, flat under `modules.<id>` |
+| `module_view` | Select opens the module itself, its `Root.qml` with `params` | Nothing |
+| `directory_browser` | Select opens the folder picker. The row shows the path, or `Default` | The folder's path; `""` for **Default Folder**, which the module gives a meaning |
+| `slider` | The deck's tape bar under its label; ◄ ► move it a `step` | A number from 0 to 100 |
 | `action` | Select calls `action_slot` | Nothing |
 
-There is no free-text type: Weather reads its places from a file in the data folder instead, and a view of your own can open the `OnScreenKeyboard`.
+There is no free-text type. A view of your own can open the `OnScreenKeyboard`.
 
-**`enabled`** is a setting like the others, with one meaning more: `AppCore` lists a module on the main menu while `modules.<id>.enabled` is true, or, unset, while its manifest's `enabled` default isn't `"OFF"`. A module without an `enabled` setting is always on. Most of OSD/OS's own ship `"OFF"`; Local Files and Playlists `"ON"`.
+**`enabled`** is a setting with one more meaning: the module is on the main menu while `modules.<id>.enabled` is true or, unset, while its manifest's `enabled` default isn't `"OFF"`. A module without an `enabled` setting is always on.
 
 ## Part 1: a pure-QML module
 
@@ -109,7 +109,7 @@ modules/hello_channel/
 
 ### manifest.json
 
-An `enabled` toggle, a folder, a list with fixed choices, another toggle, and the module's own Scaling:
+An `enabled` toggle, a folder, a fixed list, another toggle, and the module's own Scaling:
 
 ```json
 {
@@ -158,7 +158,7 @@ An `enabled` toggle, a folder, a list with fixed choices, another toggle, and th
 }
 ```
 
-`video_scaling` needs no code: while a module's views are open, the player takes that module's own `video_scaling` (unless it is `Default`) over Settings' Scaling. Every video module has this row, written as here.
+`video_scaling` needs no code: while a module's views are open, the player takes that module's `video_scaling` (unless `Default`) over Settings' Scaling.
 
 ### The logo
 
@@ -174,11 +174,11 @@ An `enabled` toggle, a folder, a list with fixed choices, another toggle, and th
 </svg>
 ```
 
-The title bar draws a logo through `OsdIconProvider`: trimmed to its shape, a fifth taller than the bar, in the colour scheme's text colour, from its alpha. So draw it white on clear, as OSD/OS's own are. A skin can draw it differently by its folder's name, with `"icons": { "hello_channel": "tv.png" }` in its `skin.json` ([Skins](https://github.com/mehmetraif/OSD-OS/wiki/Skins)).
+The title bar draws the logo from its alpha, in the colour scheme's text colour: draw it white on clear. A skin can replace it by the folder's name, with `"icons": { "hello_channel": "tv.png" }` in its `skin.json` ([Skins](https://github.com/mehmetraif/OSD-OS/wiki/Skins)).
 
 ### Root.qml: the router
 
-The shell loads `Root.qml` and listens for its `goBack()`, which leaves the module. Everything else is the router's own: a stack of views in one `Loader`. Its code is the Playlists module's router, but for the id and the first view; every module of OSD/OS has one built the same way, some deciding more as they start (YouTube's and Netflix's sign-in, Plex's NFC cards):
+The shell loads `Root.qml` and listens for its `goBack()`, which leaves the module. The router keeps a stack of views in one `Loader`:
 
 ```qml
 import QtQuick
@@ -256,15 +256,11 @@ FocusScope {
 }
 ```
 
-How it works:
-
-- **`id: moduleRoot`, always.** The views are made inside the router's `Loader`, so they reach it by that id: `moduleRoot.moduleId`, `moduleRoot.moduleName`, `moduleRoot.moduleIcon`.
-- **The id once.** `moduleId` is the only place the manifest's id is written in the module's QML. `moduleName` and `moduleIcon` come from `appCore.get_module_info()`, never typed in.
-- **`root.changeWindow(loader, source, properties)`**, never `loader.source` or `setSource()`. `root` is the app's window (`Main.qml`): `changeWindow()` plays Settings' transition between the two views, and notes a video's view so that effects and menu music rest while it shows.
-- **The stack's first entry is empty.** The first `navigateTo()` pushes the loader's empty source; back from the first view pops it, and `navigateBack()` then calls `goBack()`: the module is left.
-- **Position comes back.** A view leaves with a list state (`{ currentIndex: … }`), and gets it back as `navParams.navListState` when back returns to it.
-- **`replaceWith()`** shows a view without pushing it: Plex's `CardPlay.qml` hands over to its player this way, so back from the video returns to the NFC Reader.
-- **Starting params.** What the shell opens the module with is in the router's own `navParams`: `resumePlayer` (which this router passes on, below); `fromAppStartup` when OSD/OS opened the module by itself as it started (Settings → Startup → Start on Module, or Play at Startup); and `startupPlay`, the favourite to play at once, with Play at Startup. Local Files' router passes `startupPlay` on to its tree; Scripts' runs its Auto-Run On Startup script at `fromAppStartup`.
+- **`id: moduleRoot`, always.** Views reach the router by that id: `moduleRoot.moduleId`, `moduleRoot.moduleName`, `moduleRoot.moduleIcon`.
+- **The id once.** `moduleId` is the only place the manifest's id is written in the module's QML.
+- **`root.changeWindow(loader, source, properties)`**, never `loader.source` or `setSource()`: it plays the transition, and rests effects and menu music for a video's view.
+- **Position comes back.** A view leaves with a list state (`{ currentIndex: … }`) and gets it back as `navParams.navListState`.
+- **Starting params** are in the router's own `navParams`: `resumePlayer` (below), `fromAppStartup` when OSD/OS opened the module at start, and `startupPlay`, the favourite to play at once.
 
 ### Channels.qml: a list view
 
@@ -401,24 +397,20 @@ FocusScope {
 }
 ```
 
-What each part does, and why it is written so:
-
-- **`navParams` and `navListState`.** The router hands each view its `navParams`; a list view reads `navListState` from them and puts the cursor back where it was.
-- **`navigateTo(path, params, listState)`** always takes three arguments: the view, its params, and the state this view wants back (`{ currentIndex }`). The router resolves the path against its own folder, `views/`.
-- **`Qt.callLater`** for a `navigateTo` from `Component.onCompleted`: the router connects to a view only once it has been made, so a signal sent while it is being made reaches no one.
+- **`navigateTo(path, params, listState)`** takes the view (a path in `views/`), its params, and the state this view wants back.
+- **`Qt.callLater`** for a `navigateTo` from `Component.onCompleted`: the router connects to a view only once it is made.
 - **`goBack()`** goes one view back; only the router's own `goBack()` leaves the module.
-- **Reading settings.** `appCore.get_setting(moduleId, key)` reads `config.json` as it is now. Fall back to the manifest's `default` yourself: an unset key is `undefined`.
-- **Files.** `appCore.folderEntries(path, types)` gives a folder's entries, `[{ name, path, isFolder }]`: its folders, then its files of those types, hidden ones left out. A pure-QML module can list a folder with it.
-- **`MenuList`** is the menu in the place every view has it, under the title bar, with ▲ ▼ when rows are hidden; its cursor steps over rows of `type: "section"` and goes round the ends. The view gives it the rows and a delegate, and handles select and back.
-- **`MenuRow`** draws a line the way a camcorder's menu does, `TEST CARD······MP4`; `heading` makes a group's heading (`CHANNEL ────`); `keepValue` cuts the label short rather than the value; `opens` ends a line that leads to another screen in a ► (open it with ► as with select), and `changes` puts a value ◄ ► change between a ◄ and a ►.
-- **`HelpLine`** is the box under the menu, scrolling a line too long for it; Settings → Look → Help Line hides every one. `root.helpLineMargin` puts it over the hint bar, or in its place while Settings → Look → Hint Bar is off.
-- **`HintBar`**, always at the foot, in the same place on every screen. Its text is built from **`root.hints`**: `[ESC]`, `[ENTER]` and `[▲▼]` on a keyboard, the button's own label once a gamepad was touched. Never type `[ESC]`, and never bind to `inputManager.hints`: as the router swaps views, the old view's context properties go null, while `root` stays.
-- **Sizes** are fractions of the screen, `root.sw` and `root.sh`, with the 640 × 480 pixels in a comment. The title bar starts at `root.sh * 0.125` and `root.sw * 0.125`; the hint bar ends `root.sh * 0.1041667` above the bottom. These keep the view inside a CRT's safe area at any resolution. A list of your own grows by `root.hintRoom` (and, over a help line, `root.helpRoom`): a row for each bar that Settings turns off, `MenuList` doing it by itself.
-- **Colours and font.** The shared components already draw in `root.primaryColor` on `root.surfaceColor`, in `root.globalFont`, capitals: a view of its own uses the same, so the colour schemes and themes reach it.
+- **Settings.** `appCore.get_setting(moduleId, key)` returns `undefined` for an unset key: fall back to the manifest's `default` yourself.
+- **Files.** `appCore.folderEntries(path, types)` returns `[{ name, path, isFolder }]`: folders, then files of those types, hidden ones left out.
+- **`MenuList`**'s cursor skips rows of `type: "section"`.
+- **`MenuRow`**: `heading` makes a group's heading, `keepValue` cuts the label short rather than the value, `opens` ends the line in a ►, `changes` puts the value between ◄ and ►.
+- **`HintBar`**'s text is built from **`root.hints`**; never type `[ESC]`, and never bind to `inputManager.hints`.
+- **Sizes** are fractions of `root.sw` and `root.sh`, with the 640 × 480 pixels in a comment.
+- **Colours and font**: `root.primaryColor` on `root.surfaceColor`, in `root.globalFont`.
 
 ### Detail.qml: a leaf view
 
-**About This Channel** is a page to read: a leaf, which only goes back, so it declares `goBack()` and no `navigateTo`:
+**About This Channel** is a leaf: it only goes back, so it declares `goBack()` and no `navigateTo`:
 
 ```qml
 import QtQuick
@@ -490,25 +482,25 @@ FocusScope {
 }
 ```
 
-`AppBar`'s `subtitle` names where you are in the module. A question or a notice that hides the whole view is a `PromptScreen`, a question in the title bar behind a **?** (a notice behind a **!**) with its answers, never a line of text in the middle of a view; see the [Components](#the-shared-components) below.
+A question or a notice that hides the whole view is a `PromptScreen` ([Components](#the-shared-components)).
 
 ### Trying it
 
-Copy the folder into `modules/` and start OSD/OS (no build needed for QML):
+Copy the folder into `modules/` and start OSD/OS (QML needs no build):
 
 ```sh
 APP_ROOT=$(pwd) ./build/osdos
 ```
 
-**HELLO CHANNEL** is on the main menu, among the modules in the order of their folders' names: first, with OSD/OS's defaults. Its list says **No Folder Chosen** until Settings → Hello Channel → Video Folder names one; the page is built from the manifest:
+**HELLO CHANNEL** is on the main menu. Its list says **No Folder Chosen** until Settings → Hello Channel → Video Folder names one:
 
 <table>
 <tr><th width="50%">The modules in Settings</th><th width="50%">A module's settings</th></tr>
 <tr><td><img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/screenshots/settings-modules.png" width="100%" alt="Settings → TV / Movie: each video module is turned on and set up from its own row, under the MODULES heading" /></td><td><img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/screenshots/module-settings.png" width="100%" alt="Local Files' settings page, made from its manifest" /></td></tr>
-<tr><td>A row per module that has settings, under a MODULES heading, in the order of their folders: here the video modules', on the TV / Movie page (<code>"settings_group": "tv"</code>). Hello Channel names no group, so its row is under the MODULES heading of Settings' System page, before Scripts'.</td><td>A settings page made from a manifest, Local Files' here: a toggle, a folder, lists. Hello Channel's has its five rows the same way.</td></tr>
+<tr><td>The video modules' rows, on the TV / Movie page (<code>"settings_group": "tv"</code>). Hello Channel names no group, so its row is on the System page.</td><td>A settings page made from a manifest, Local Files' here.</td></tr>
 </table>
 
-Changing a row saves it at once. With Sort Order on Z to A and Loop Playback on, `config.json` has, among the rest:
+Changing a row saves it at once. With Sort Order on Z to A and Loop Playback on, `config.json` has:
 
 ```json
 {
@@ -522,11 +514,9 @@ Changing a row saves it at once. With Sort Order on Z to A and Loop Playback on,
 }
 ```
 
-Back in the channel, the list reads in the new order: a view reads its settings each time it is made.
-
 ## Part 2: playing a video
 
-Select on a video opens `Player.qml`, which hands the file to mpv the way Local Files' player does:
+Select on a video opens `Player.qml`, which hands the file to mpv:
 
 ```qml
 import QtQuick
@@ -665,7 +655,7 @@ sequenceDiagram
 
 ### loadAndPlay
 
-`mpvController.loadAndPlay()` takes the video and how to play it; everything after the first four arguments has a default. The ones a module uses most:
+`mpvController.loadAndPlay()` takes the video and how to play it. Everything after the first four arguments has a default:
 
 | # | Argument | Hello Channel passes | What it is |
 |---|---|---|---|
@@ -682,34 +672,33 @@ sequenceDiagram
 | 17 | `extraArgs` | | mpv options of the module's own: YouTube passes `--ytdl=yes`, with its yt-dlp options |
 | 19 | `extraUrls` | | More files after the first, one playlist |
 
-The app adds the rest itself: the board's decoder and output, Settings' Scaling (or the module's own `video_scaling`), Video Levels, Audio Output, the channel logo, the IPC socket mpv is driven through ([Playback and mpv](https://github.com/mehmetraif/OSD-OS/wiki/Playback-and-mpv)).
+The app adds the rest: the board's decoder and output, Scaling, Video Levels, Audio Output, the channel logo and the IPC socket ([Playback and mpv](https://github.com/mehmetraif/OSD-OS/wiki/Playback-and-mpv)).
 
 ### The rules a player keeps
 
-- **One handler for every end.** `playbackEnded(finalPositionMs, finalDurationMs, reason)` comes once, after mpv has gone, with `reason` `"eof"` (the end of the file), `"stopped"` (back, a stop, or a crash), `"failed"` (mpv couldn't play it, its exit code 2) or `"menu"` (only for a player whose note says `menu: true`, which opens a menu of its own, as Local Files' does). Every branch must go back, or start the next video: a player left on screen over a dead mpv freezes the app. A module can do more on one reason: Plex plays the next episode at `eof`, and retries with a transcode at `failed`.
-- **The keys go to mpv.** While mpv has the picture, its on-screen controls take the remote's keys through `mpvController.sendKey()`, by mpv's names (`ESC`, `ENTER`, `UP`, …). Back reaches mpv as `ESC`, which ends the video; while mpv's deck menu is open (▲ or ▼ opens it), back closes that first.
-- **A loading screen until the picture.** `LoadingScreen` is the tape loading every player shows (TAPE A at `startMs`, TAPE B with `durationMs` once known), until the first position arrives. On a Pi, mpv takes the screen as it starts, and what stays on it until the picture comes is the frame drawn last: this one.
-- **The name.** A view whose file name ends in `Player.qml`, `Play.qml`, `Launch.qml`, `Takeover.qml`, `SignIn.qml` or `Console.qml` is a video's view to `Main.qml`: while it shows, no effect, transition or menu music plays. A layer of a video's elsewhere says so with `root.restFor(item, true)`, as `LoadingScreen` and `PlayerMenu` do.
-- **Where it stopped.** Hello Channel keeps it on its own `recent` list, in `lists.json` beside `config.json`, through `appCore.add_to_list(moduleId, name, entry, limit)`: an entry is put first in place of one with its `path`, and the newest `limit` are kept. `get_list()`, `remove_from_list()` and `list_contains()` read and change them; Local Files' Recently Watched and Favorites are lists like this.
+- **One handler for every end.** `playbackEnded(finalPositionMs, finalDurationMs, reason)` comes once, after mpv has gone. Every branch must go back or start the next video.
+- **The reasons**: `"eof"` (the end of the file), `"stopped"` (back, a stop, or a crash), `"failed"` (mpv's exit code 2), `"menu"` (only for a player whose note says `menu: true`).
+- **A failure says why.** OSD/OS's own players show a `PlaybackNotice` at `failed` (`showMpv(canRetry)`), as CONTRIBUTING.md asks. Hello Channel only logs it, to stay short.
+- **The keys go to mpv** through `mpvController.sendKey()`, by mpv's names (`ESC`, `ENTER`, `UP`, …). `ESC` ends the video, or first closes mpv's deck menu.
+- **The name.** A view whose file name ends in `Player.qml`, `Play.qml`, `Launch.qml`, `Takeover.qml`, `SignIn.qml` or `Console.qml` is a video's view: no effect, transition or menu music plays while it shows. A layer elsewhere says so with `root.restFor(item, true)`.
+- **Where it stopped.** `appCore.add_to_list(moduleId, name, entry, limit)` puts an entry first in `lists.json`, in place of one with its `path`, and keeps the newest `limit`. `get_list()`, `remove_from_list()` and `list_contains()` read and change the lists.
 
 <img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/screenshots/loading.png" width="100%" alt="The loading screen: TAPE A, TAPE B LOADING and the source, over a tape's noise" />
 
-`LoadingScreen` as YouTube's player shows it: the module's name under SLP ▶ (`source`), TAPE A at where the video starts (`startMs`), TAPE B with its length once known (`durationMs`). Hello Channel's says HELLO CHANNEL there.
+`LoadingScreen` as YouTube's player shows it: the module's name (`source`), TAPE A at the start (`startMs`), TAPE B with the length once known (`durationMs`).
 
 ### Transparent Background, and the main menu's first row
 
-With Settings → TV / Movie → Transparent Background on, the video plays inside OSD/OS's window, and back returns to the menus with the picture going on behind them. For the player nothing changes: back still ends in `playbackEnded(…, "stopped")`, and it goes back as always. Two lines make the video easy to take back:
+With Transparent Background on, back returns to the menus with the video playing behind them. The player still gets `playbackEnded(…, "stopped")` and goes back. Two things let the user take the video back:
 
-1. **`noteSession({ module, title, params })`**, right after `loadAndPlay()`. While the video plays behind the menus, the main menu leads with a row for it, `► TEST CARD`, the cursor on it.
-2. **Routing `resumePlayer`.** Select on that row opens the module with `navParams.resumePlayer`, the `params` noted. `Root.qml` passes it to `Channels.qml`, which opens the player with it. The player starts the same file from the point back saved, and `mpvController` sees the same command line apart from the start: rather than starting the video again, it brings the one playing back to full screen, carrying on where the picture is.
+1. **`noteSession({ module, title, params })`**, right after `loadAndPlay()`. While the video plays behind the menus, the main menu leads with a row for it, `► TEST CARD`.
+2. **Routing `resumePlayer`.** Select on that row opens the module with `navParams.resumePlayer`, the `params` noted. `Root.qml` passes it to `Channels.qml`, which opens the player with it. `mpvController` then brings the playing video back to full screen.
 
-Without a note, a video behind the menus comes back only by choosing it again.
-
-A player with a menu of its own (`menu: true` in its note) gets the row without Transparent Background too. Its menu's Browse, with nothing playing under it (`mpvController.videoActive` false), calls `mpvController.leaveSession()` before going back, and the main menu offers the stopped video until mpv plays anything else. Opened with the noted `params`, the player finds its video in `root.takeBackNote` and starts it where it saved it, without asking.
+A player with a menu of its own (`menu: true` in its note) gets the row without Transparent Background too. Its menu's Browse, with nothing playing (`mpvController.videoActive` false), calls `mpvController.leaveSession()` before going back. Opened with the noted `params`, the player finds its video in `root.takeBackNote`.
 
 ## Part 3: a C++ backend
 
-A backend is a `QObject` the views call. It is worth one when QML alone can't, or shouldn't: walking folders, talking to a service's API (`QNetworkAccessManager`, asynchronous, on the main thread), running a process, keeping state in JSON files. Hello Channel's backend gives the module a folder of its own, lists it, and offers the **Video Type** setting choices that depend on what is in the folder.
+A backend is a `QObject` the views call, for what QML alone can't do: a service's API (`QNetworkAccessManager`), a process, state in JSON files. Hello Channel's gives the module a folder of its own, lists it, and fills the **Video Type** setting's choices.
 
 ```text
 src/modules/hello_channel/
@@ -846,12 +835,10 @@ void HelloChannelBackend::onSettingChanged(const QString &moduleId, const QStrin
 }
 ```
 
-The patterns are OSD/OS's own:
-
-- **The folder resolved in the constructor**, from `config.json`, as `ScriptsBackend` and `AmbientModeBackend` do, with a folder of its own in the data folder as the default (Local Files' is `media`, Ambient:Mode's `ambient`). `main.cpp` never touches a module's paths.
+- **The folder is resolved in the constructor**, from `config.json`. `main.cpp` never touches a module's paths.
 - **`Q_INVOKABLE`** for what QML calls, **signals** for what it hears back.
-- **Logging** with a prefix of the module's own, `qInfo("[HelloChannel] …")` for what a user should see in a Release build, `qWarning` for what went wrong, `qDebug` for what only a build from source should print ([Troubleshooting → Reading the log](https://github.com/mehmetraif/OSD-OS/wiki/Troubleshooting#reading-the-log)).
-- **State on disk** goes through `writeFileAtomically()` (`src/util/AtomicFile.h`), owner-only for a token or a key, never a `QFile` opened for writing: a power cut mid-write would leave it cut short. Hello Channel keeps nothing of its own: its settings are `AppCore`'s.
+- **Logging** with the module's prefix: `qInfo("[HelloChannel] …")` for a Release build's log, `qWarning` for what went wrong, `qDebug` for builds from source only ([Troubleshooting → Reading the log](https://github.com/mehmetraif/OSD-OS/wiki/Troubleshooting#reading-the-log)).
+- **State on disk** goes through `writeFileAtomically()` (`src/util/AtomicFile.h`), owner-only for a token or a key, never a `QFile` opened for writing.
 
 ### Wiring it in
 
@@ -878,18 +865,18 @@ and its source in `CMakeLists.txt`'s `add_executable(osdos …)`:
     src/modules/hello_channel/HelloChannelBackend.cpp
 ```
 
-Then configure and build again (`cmake -B build && cmake --build build`). `registerModule(moduleId, contextProperty, backend, ctx)` stores the backend for the module's slots, makes it the QML context property `helloChannelBackend`, and connects what the backend declares, looked up by name and signature, so `main.cpp` needs nothing more:
+Then configure and build again (`cmake -B build && cmake --build build`). `registerModule(moduleId, contextProperty, backend, ctx)` makes the backend the QML context property `helloChannelBackend` and connects what it declares, looked up by name and signature:
 
 | Declared on the backend | Becomes |
 |---|---|
-| signal `dynamicOptionsReady(QString, QVariant)` | `appCore.dynamicOptionsReady(moduleId, key, options)`, which Settings fills a dynamic row from |
-| signal `authStateChanged()` | `appCore.moduleAuthStateChanged(moduleId)`: Settings shows or hides the `requires_auth` rows again |
-| slot `onSettingChanged(QString, QString, QVariant)` | Called by `appCore.moduleSettingChanged` at every module's setting saved. An app setting (Settings' own rows) doesn't come here |
-| property `QStringList statusIcons`, with a notify signal | Gathered into `appCore.statusIcons`: the module's status icons, `PixelIcon`'s names, at the right end of every title bar while the module is on (the Arcade module's HI, trophy and globe) |
+| signal `dynamicOptionsReady(QString, QVariant)` | `appCore.dynamicOptionsReady(moduleId, key, options)`, which fills a dynamic row |
+| signal `authStateChanged()` | `appCore.moduleAuthStateChanged(moduleId)`: Settings checks the `requires_auth` rows again |
+| slot `onSettingChanged(QString, QString, QVariant)` | Called by `appCore.moduleSettingChanged` for every module's setting saved, not for an app setting |
+| property `QStringList statusIcons`, with a notify signal | Gathered into `appCore.statusIcons`: `PixelIcon` names shown at the right end of every title bar while the module is on |
 | `Q_INVOKABLE QString get_auth_state()` | Asked by `appCore.get_module_auth_state()` for the `requires_auth` rows |
-| `Q_INVOKABLE QVariantList get_menu_entries()` | Asked as the main menu is built: rows `{ name, params }` of the module's own, after the modules' rows (Scripts puts its favourite scripts there) |
+| `Q_INVOKABLE QVariantList get_menu_entries()` | Asked as the main menu is built: rows `{ name, params }` after the modules' rows |
 
-Settings calls `options_slot`, `action_slot` and `apply_slot` through `appCore.invoke_module_action(moduleId, slot)`, queued and with no arguments: they must be `Q_INVOKABLE` (or slots) that take none. A slot that isn't there is logged: `[AppCore] invoke_module_action: slot '<name>' not found on backend '<id>'`.
+Settings calls `options_slot`, `action_slot` and `apply_slot` through `appCore.invoke_module_action(moduleId, slot)`, queued and with no arguments. They must be `Q_INVOKABLE` (or slots) that take none. A missing slot is logged: `[AppCore] invoke_module_action: slot '<name>' not found on backend '<id>'`.
 
 ### The settings that need it
 
@@ -926,7 +913,7 @@ and, after `video_scaling`:
     }
 ```
 
-As the module's settings page opens, Settings calls `getVideoTypes()`; its answer fills the Video Type row with **All**, then one choice per type in the folder (`MP4`, `MKV`, …), and ◄ ► save the chosen one's `id`: `"video_type": "mp4"`. Rescan Folder sends the choices again, so a type copied in since shows at once. And when Video Folder changes, `onSettingChanged()` takes the new folder.
+As the settings page opens, Settings calls `getVideoTypes()`, which fills Video Type with **All** and one choice per type in the folder. ◄ ► save the chosen one's `id`: `"video_type": "mp4"`. Rescan Folder sends the choices again.
 
 ### The views, with the backend
 
@@ -969,146 +956,16 @@ In `Detail.qml`, the folder line asks the backend too:
         { label: "Folder", value: helloChannelBackend.videoFolder() },
 ```
 
-<details>
-<summary>The whole <code>Channels.qml</code>, with the backend</summary>
-
-```qml
-import QtQuick
-import Components
-
-// The channel's first page: the videos in the Video Folder, then ABOUT THIS
-// CHANNEL. Select plays a video, or opens About.
-FocusScope {
-    id: channelsRoot
-
-    property var navParams: ({})
-    property var navListState: navParams.navListState || ({})
-
-    signal navigateTo(string path, var params, var listState)
-    signal goBack()
-
-    property var rows: []
-
-    // One row per video: { type, label, value, path }, from the backend.
-    function videoRows() {
-        var type = appCore.get_setting(moduleRoot.moduleId, "video_type") || "all"
-        var videos = helloChannelBackend.videos(type)
-        var out = []
-        for (var i = 0; i < videos.length; i++)
-            out.push({ type: "video", label: videos[i].name, value: videos[i].type.toUpperCase(),
-                       path: videos[i].path })
-        if ((appCore.get_setting(moduleRoot.moduleId, "sort_order") || "A to Z") === "Z to A")
-            out.reverse()
-        return out.length > 0 ? out : [{ type: "empty", label: "No Videos", value: "" }]
-    }
-
-    function reload() {
-        rows = videoRows().concat([{ type: "section", label: "Channel" },
-                                   { type: "about", label: "About This Channel" }])
-    }
-
-    Component.onCompleted: {
-        reload()
-        // Back from a view: the cursor on the row it was on.
-        if (navListState.currentIndex !== undefined)
-            list.currentIndex = Math.min(navListState.currentIndex, rows.length - 1)
-        // From the main menu's row for a video playing behind the menus: its
-        // player, which takes it back. Deferred: the router listens to this
-        // view only once it has been made.
-        var behind = navParams.resumePlayer
-        if (!navParams.navListState && behind && behind.filePath)
-            Qt.callLater(function() {
-                channelsRoot.navigateTo("Player.qml", behind, { currentIndex: list.currentIndex })
-            })
-    }
-
-    // The backend says when the folder, or what is in it, changed.
-    Connections {
-        target: helloChannelBackend
-        function onVideosChanged() { channelsRoot.reload() }
-    }
-
-    AppBar {
-        iconSource: moduleRoot.moduleIcon
-        title: moduleRoot.moduleName
-        anchors.top: parent.top
-        anchors.left: parent.left
-        anchors.topMargin: root.sh * 0.125 //60
-        anchors.leftMargin: root.sw * 0.125 //80
-    }
-
-    MenuList {
-        id: list
-        model: channelsRoot.rows
-        focus: true
-
-        Keys.onReturnPressed: {
-            var row = channelsRoot.rows[currentIndex]
-            if (!row)
-                return
-            if (row.type === "video")
-                channelsRoot.navigateTo("Player.qml", { filePath: row.path, title: row.label },
-                                        { currentIndex: currentIndex })
-            else if (row.type === "about")
-                channelsRoot.navigateTo("Detail.qml", { videoCount: channelsRoot.rows.filter(
-                                            function(r) { return r.type === "video" }).length },
-                                        { currentIndex: currentIndex })
-        }
-        Keys.onPressed: function(event) {
-            if (event.key === Qt.Key_Escape || event.key === Qt.Key_Backspace || event.key === Qt.Key_Back) {
-                channelsRoot.goBack()
-                event.accepted = true
-            }
-        }
-
-        delegate: MenuRow {
-            width: list.width
-            height: root.sh * 0.0583333 //28
-            heading: modelData.type === "section"
-            keepValue: modelData.type === "video"
-            label: modelData.label || ""
-            value: modelData.value || ""
-            selected: list.currentIndex === index
-        }
-    }
-
-    HelpLine {
-        readonly property var row: channelsRoot.rows[list.currentIndex]
-        text: !row ? ""
-            : row.type === "video" ? row.path
-            : row.type === "empty" ? "Copy videos into " + helloChannelBackend.videoFolder()
-            : "The channel's settings, and how many videos it has"
-        anchors.bottom: parent.bottom
-        anchors.left: parent.left
-        anchors.bottomMargin: root.helpLineMargin
-        anchors.leftMargin: root.sw * 0.125 //80
-    }
-
-    HintBar {
-        readonly property var row: channelsRoot.rows[list.currentIndex]
-        text: root.hints.back + ":BACK " + root.hints.navigate + ":NAVIGATE "
-              + (row && row.type === "video" ? root.hints.select + ":PLAY"
-                 : row && row.type === "about" ? root.hints.select + ":OPEN" : "")
-        anchors.bottom: parent.bottom
-        anchors.left: parent.left
-        anchors.bottomMargin: root.sh * 0.1041667 //50
-        anchors.leftMargin: root.sw * 0.125 //80
-    }
-}
-```
-
-</details>
-
-A view that names `helloChannelBackend` needs the backend: from here on the module runs only in a build with it.
+A view that names `helloChannelBackend` runs only in a build with the backend.
 
 ### More a backend can do
 
 | To | Do as | See |
 |---|---|---|
-| Sign in to a service, its rows hidden until then | `get_auth_state()`, `authStateChanged()`, `requires_auth` | `PlexBackend`, the most complete backend and the one to study |
-| Put rows on the main menu | `get_menu_entries()`, its `params` reaching `Root.qml` as `navParams` | `ScriptsBackend` |
-| Hand the whole screen to another program | `DisplayHandoff`, never your own VT or DRM calls: getting them wrong ends in a black screen with no way back | `ScriptLauncher`, and [Adding a different hand-off target](https://github.com/mehmetraif/OSD-OS/blob/main/ARCHITECTURE.md#adding-a-different-hand-off-target) |
-| Play sound of its own in the menus | `MenuMusic::hold(who)` first, `release(who)` after, so the menu music stops | `WeatherBackend`'s and `AmbientModeBackend`'s music |
+| Sign in to a service | `get_auth_state()`, `authStateChanged()`, `requires_auth` | `PlexBackend`, the most complete backend |
+| Put rows on the main menu | `get_menu_entries()`; its `params` reach `Root.qml` as `navParams` | `ScriptsBackend` |
+| Hand the whole screen to another program | `DisplayHandoff`, never your own VT or DRM calls | `ScriptLauncher`, and [Adding a different hand-off target](https://github.com/mehmetraif/OSD-OS/blob/main/ARCHITECTURE.md#adding-a-different-hand-off-target) |
+| Play sound of its own in the menus | `MenuMusic::hold(who)` first, `release(who)` after | `WeatherBackend`, `AmbientModeBackend` |
 | Play from an NFC card | A `CardPlay.qml`, a `cardRef` branch in `Root.qml` ahead of any sign-in screen, a row in the NFC Reader's `kHandoffModules` | [Card Hand-off](https://github.com/mehmetraif/OSD-OS/blob/main/ARCHITECTURE.md#card-hand-off-nfc--a-module), Plex's `CardPlay.qml` |
 | Put its videos on playlists | A key prefix, an entry and a URL to play in `PlaylistsBackend`, or `MediaServer` for a media server | [Playlists](https://github.com/mehmetraif/OSD-OS/blob/main/ARCHITECTURE.md#playlists-videos-from-several-modules) |
 
@@ -1116,7 +973,7 @@ A view that names `helloChannelBackend` needs the backend: from here on the modu
 
 ### Under Xvfb
 
-Xvfb is an X server with a screen in memory: OSD/OS runs on it as on a desktop, xdotool presses its keys, and ImageMagick's `import` photographs the screen. On Debian or Ubuntu, `sudo apt install xvfb xdotool imagemagick ffmpeg`. From the repository's folder, after `cmake --build build`:
+Xvfb is an X server with a screen in memory. xdotool presses keys on it, and ImageMagick's `import` photographs it. On Debian or Ubuntu: `sudo apt install xvfb xdotool imagemagick ffmpeg`. Then:
 
 ```sh
 #!/bin/sh
@@ -1156,18 +1013,14 @@ kill "$APP" "$XVFB"
 cat "$D/lists.json"; echo               # the recent list, with where it stopped
 ```
 
-The three pictures show the list, the test card playing with the channel logo in its corner, and the list again; `lists.json` holds the video with its `pos`, about four seconds in. What to know:
-
-- **640 × 480** is the size the views' fractions are written against (the `//60` in the comments); try 1920 × 1080 too, the layout must hold.
-- **`DATA_ROOT`** keeps the test's settings apart from yours. It must name a folder that exists.
-- **The window to type into.** Xvfb has no window manager: when mpv's window closes, nothing gives the focus back. `xdotool windowfocus` on OSD/OS's window, found by its title `OSD/OS`, before every key.
-- **No sound card**, as in a container: mpv says `Could not open/initialize audio device -> no sound.` and plays on, but a video it plays to its end may then end as `failed` rather than `eof`. Check the end of a video on a machine with sound.
+- **640 × 480** is the size the views' fractions are written against. Try 1920 × 1080 too.
+- **No sound card**: a video played to its end may end as `failed` rather than `eof`. Check a video's end on a machine with sound.
 - **The log** is in `/tmp/hello.log`, mpv's own in `/tmp/osdos-mpv.log`. A QML mistake names its file and line there.
-- **The keys**: `Up`, `Down`, `Left`, `Right`, `Return` (select), `Escape` (back), `space` (play/pause), as a keyboard sends them.
+- **The keys**: `Up`, `Down`, `Left`, `Right`, `Return` (select), `Escape` (back), `space` (play/pause).
 
 ### A test in tests/
 
-The regression tests in [`tests/`](https://github.com/mehmetraif/OSD-OS/tree/main/tests) are Qt Test programs built apart from the app, from the sources they test. One for the backend, `tests/hello_channel_test.cpp`, checks what it lists, and that `registerModule` connects it as `main.cpp` does:
+The regression tests in [`tests/`](https://github.com/mehmetraif/OSD-OS/tree/main/tests) are Qt Test programs built from the sources they test. `tests/hello_channel_test.cpp` checks what the backend lists, and that `registerModule` connects it:
 
 ```cpp
 #include "AppCore.h"
@@ -1249,6 +1102,7 @@ Add it to `tests/CMakeLists.txt`, after the `looks` test, with `AppCore` and wha
 add_executable(hello_channel_test
     hello_channel_test.cpp
     ../src/AppCore.cpp
+    ../src/util/SetupFile.cpp
     ../src/util/LegacyNames.cpp
     ../src/modules/hello_channel/HelloChannelBackend.cpp)
 target_include_directories(hello_channel_test PRIVATE ../src)
@@ -1264,22 +1118,19 @@ cmake --build build-tests --parallel
 ctest --test-dir build-tests -R hello_channel --output-on-failure
 ```
 
-```text
-1/1 Test #3: hello_channel ....................   Passed    0.02 sec
-
-100% tests passed, 0 tests failed out of 1
-```
-
-`registerModule()` takes a null context, so a test needs no QML engine. `invoke_module_action()` is queued, hence `QTRY_COMPARE`, which lets the event loop run until the signal comes; `save_setting()` reaches `onSettingChanged()` at once. A test that needs mpv, FluidSynth or another program puts a shell script of that name first on the `PATH`, as `playback_retire` and `menu_music` do. Your module's views have a test without your writing one: `app_module_<folder>` starts the app with the module as the startup module and fails on any QML warning its first view gives. CI runs every test on each pull request that touches the app or its tests, on Ubuntu and on Raspberry Pi OS, and on each release tag, whose release is published only once they pass ([Building from source → The regression tests](https://github.com/mehmetraif/OSD-OS/wiki/Building-from-Source#the-regression-tests)).
+- `registerModule()` takes a null context, so a test needs no QML engine.
+- `invoke_module_action()` is queued, hence `QTRY_COMPARE`. `save_setting()` reaches `onSettingChanged()` at once.
+- A test that needs mpv or another program puts a shell script of that name first on the `PATH`, as `playback_retire` and `menu_music` do.
+- Your module's views are tested already: `app_module_<folder>` starts the app on the module and fails on any QML warning ([The regression tests](https://github.com/mehmetraif/OSD-OS/wiki/Building-from-Source#the-regression-tests)).
 
 ### On the device
 
-What a machine can't tell, CONTRIBUTING.md asks to check by hand:
+CONTRIBUTING.md asks to check by hand:
 
-- **With a remote or a keyboard only**: every screen of the module can be reached, and left, with the arrows, select and back.
-- **On a CRT**, if you have one: nothing in the module runs off a tube's edges, and its lines read at 480i. On HDMI too, ideally.
-- **Settings survive a restart**, and settings saved by an older version still load: a key once used stays the same key.
-- **The video's end**: Hello Channel goes back to its list at the end of a video, and starts again from the beginning next time.
+- **With a remote or a keyboard only**: every screen can be reached, and left.
+- **On a CRT**, if you have one: nothing runs off a tube's edges. On HDMI too, ideally.
+- **Settings survive a restart**, and settings saved by an older version still load.
+- **The video's end**: the module goes back to its list.
 
 ## The finished module
 
@@ -1300,49 +1151,49 @@ src/modules/hello_channel/
 tests/hello_channel_test.cpp       its regression test
 ```
 
-with three lines in `src/main.cpp`, one in `CMakeLists.txt` and a block in `tests/CMakeLists.txt`. Without the backend, `modules/hello_channel/` alone is a module.
+Plus three lines in `src/main.cpp`, one in `CMakeLists.txt` and a block in `tests/CMakeLists.txt`. Without the backend, `modules/hello_channel/` alone is a module.
 
 ## The shared components
 
-Every screen is drawn from the components in [`views/Components`](https://github.com/mehmetraif/OSD-OS/tree/main/views/Components) (`import Components`), so a module looks like the rest and a skin dresses it with the rest:
+Every screen is drawn from the components in [`views/Components`](https://github.com/mehmetraif/OSD-OS/tree/main/views/Components) (`import Components`):
 
 | Component | Use it for |
 |---|---|
 | `AppBar` | The title bar: `iconSource`, `title`, `subtitle` |
 | `HintBar` | The key hints at the foot, from `root.hints` |
-| `MenuRow`, `MenuList`, `ScrollMarks` | Lines laid out like a camcorder's menu, a menu of them, ▲ ▼ when lines are hidden |
+| `MenuRow`, `MenuList`, `ScrollMarks` | Menu lines, a menu of them, ▲ ▼ when lines are hidden |
 | `HelpLine` | The line about the selected row, under the menu |
-| `PromptScreen`, `ChoiceOverlay` | A question or a notice, full screen, and a short list of answers to one |
+| `PromptScreen`, `ChoiceOverlay` | A full-screen question or notice, and a short list of answers |
 | `OnScreenKeyboard` | Typing with a remote: `open(text)`, then `accepted(text)` or `canceled()` |
-| `TreeBrowser`, `InfoPanel`, `EntryOptions`, `PlaylistAdder` | Browsing as Local Files and YouTube do, a title's info screen, an entry's options, Add to Playlist |
-| `LoadingScreen`, `PlayerMenu` | The tape loading while a video starts, a video's own menu |
-| `OsdGround`, `SelectionBox`, `SkinImage`, `Dither` | The ground under a full-screen layer, the selected line's box, a skin's picture, the two-colour way to dim |
-| `PixelIcon`, `OsdTicks`, `OsdTapeBar`, `VhsCassette` | The deck's pixel-drawn pieces: symbols, a segment bar, the tape position bar, the boot screen's cassette |
+| `TreeBrowser`, `InfoPanel`, `EntryOptions`, `PlaylistAdder` | Browsing as Local Files does, a title's info screen, an entry's options, Add to Playlist |
+| `LoadingScreen`, `PlayerMenu`, `PlaybackNotice` | The tape loading while a video starts, a video's own menu, the notice for a video that couldn't be played |
+| `OsdGround`, `SelectionBox`, `SkinImage`, `Dither` | The ground under a full-screen layer, the selected line's box, a skin's picture, two-colour dimming |
+| `PixelIcon`, `OsdTicks`, `OsdTapeBar`, `VhsCassette` | Pixel-drawn pieces: symbols, a segment bar, the tape position bar, the boot screen's cassette |
 | `NfcCardWriter` | Writing an NFC card for what a detail view shows |
 | `WebPlayerBrowse`, `WebPlayerLaunch` | A streaming service's catalogue and its web player |
 
-`BackgroundFx` and `MousePointer` are in the folder too, but they are the shell's: `OsdGround` lays the background effect under every window, and `Main.qml` draws the mouse's pointer. Each one's properties are in [ARCHITECTURE.md → Components](https://github.com/mehmetraif/OSD-OS/blob/main/ARCHITECTURE.md#components-wip). From `Main.qml`, as `root.*`, every view also has: `sw`, `sh` and `px` (one pixel of a 240-line picture), `contentBox` (the area views lay out in), `primaryColor` and `surfaceColor`, `globalFont`, `hints`, `appVersion`, `formatTime(ms)`, `changeWindow()`, `restFor()`, and `behindNote` and `videoBehind` for a video behind the menus.
+Each component's properties are in [ARCHITECTURE.md → Components](https://github.com/mehmetraif/OSD-OS/blob/main/ARCHITECTURE.md#components-wip).
+
+Every view also has `Main.qml`'s own properties, as `root.*`:
+
+- `sw`, `sh`, `px` (one pixel of a 240-line picture) and `contentBox` (the area views lay out in);
+- `primaryColor`, `surfaceColor`, `globalFont`, `hints`, `appVersion`;
+- `formatTime(ms)`, `changeWindow()`, `restFor()`, `behindNote` and `videoBehind`.
 
 ## Before a pull request
 
 CONTRIBUTING.md's checklist, for a module:
 
-- [ ] It works with the remote's keys only: the arrows, select and back.
-- [ ] Sizes and places come from `root.sh` and `root.sw`, nothing in pixels, with a CRT's overscan in mind.
-- [ ] No tracking: its only network calls go to the service it shows.
-- [ ] It writes only to the data folder, its state files whole (`writeFileAtomically()`).
-- [ ] Playing is handed to mpv (or another purpose-built program), not done by the module.
+- [ ] It keeps the five principles [above](#what-a-module-is).
+- [ ] It writes its state files whole (`writeFileAtomically()`).
 - [ ] Its views change through `root.changeWindow()`, its hints come from `root.hints`, its screens are the shared components.
-- [ ] A setting's key, once released, never changes: users' choices are saved under it.
-- [ ] It is described for users in [`docs/wiki/Modules.md`](https://github.com/mehmetraif/OSD-OS/blob/main/docs/wiki/Modules.md), with a line in the README's list if it is a big one. The wiki's pages are kept in `docs/wiki`, reviewed with the code, and published here once they reach `main`.
-- [ ] The pull request says which platforms it was tried on, and how AI was used in it, as its template asks.
+- [ ] A setting's key, once released, never changes.
+- [ ] It is described for users in [`docs/wiki/Modules.md`](https://github.com/mehmetraif/OSD-OS/blob/main/docs/wiki/Modules.md), with a line in the README's list if it is a big one.
+- [ ] The pull request says which platforms it was tried on, and how AI was used in it.
 
 ## See also
 
 - [Modules](https://github.com/mehmetraif/OSD-OS/wiki/Modules): the modules OSD/OS comes with
 - [How it works](https://github.com/mehmetraif/OSD-OS/wiki/How-It-Works): the shell, playback and the screen's hand-off
-- [Playback and mpv](https://github.com/mehmetraif/OSD-OS/wiki/Playback-and-mpv): what the player adds to every video
 - [Building from source](https://github.com/mehmetraif/OSD-OS/wiki/Building-from-Source): building, running and the tests
 - [Configuration files](https://github.com/mehmetraif/OSD-OS/wiki/Configuration-Files): `config.json` and `lists.json`
-- [Skins](https://github.com/mehmetraif/OSD-OS/wiki/Skins) and [Themes](https://github.com/mehmetraif/OSD-OS/wiki/Themes): what dresses a module's screens
-- [Troubleshooting](https://github.com/mehmetraif/OSD-OS/wiki/Troubleshooting): reading the log

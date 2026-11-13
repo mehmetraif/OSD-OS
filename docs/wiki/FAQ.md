@@ -1,29 +1,25 @@
 # FAQ
 
 - Why not Kodi, LibreELEC or OSMC?
-    - They are all excellent, and LibreELEC is the closest relative: a system that boots straight into a media centre. OSD/OS is simpler on purpose, with far fewer options, and it looks and works like the on-screen display of a VCR from the 80s and 90s, on a CRT, with a remote.
-    - 240-MP began the same way. In Anthony's words: "I've used all of those distros and they are all excellent but I also like making things and wanted something simpler without as many options. Something that felt like a VCR from my youth."
+    - They are all excellent. OSD/OS is simpler on purpose, and looks and works like a VCR's on-screen display on a CRT.
 - Should I use OSD/OS instead of Kodi, LibreELEC or OSMC?
-    - Those are feature rich, run on a great many devices and have big, supportive teams behind them. OSD/OS is a small project for a niche: old TVs, a remote and a VCR's look.
-    - If that is what you are after, OSD/OS is a lot of fun and you are welcome to try it. Otherwise, the well known distros are the better door.
-- Will this work on other Raspberry Pi models? (like the 5, 2 zero, etc...)
-    - OSD/OS is tested on a Raspberry Pi 4 and a Raspberry Pi 5 (8 GB), and as an app on a Windows 11 PC, with LAN Play among the three. A Pi 5 boots differently and has no AV jack (composite comes from its TV pads, sound over HDMI or a USB card); OSD/OS knows both, and [Supported hardware](https://github.com/mehmetraif/OSD-OS/wiki/Installation#supported-hardware) says what changes. A Pi 3B or 3B+ works too, with the caveats listed there.
-    - On any other model the short answer is "we don't know": please try it and tell us in an [issue](https://github.com/mehmetraif/OSD-OS/issues) whether it works.
+    - OSD/OS is a small project for a niche: old TVs, a remote and a VCR's look. For anything else, those are the better choice.
+- Will this work on other Raspberry Pi models?
+    - It is tested on a Raspberry Pi 4 and a Raspberry Pi 5 (8 GB). A Pi 3B or 3B+ works with caveats ([Supported hardware](https://github.com/mehmetraif/OSD-OS/wiki/Installation#supported-hardware)).
+    - Any other model is unknown: please try it and tell us in an [issue](https://github.com/mehmetraif/OSD-OS/issues).
 - Where does the name "OSD/OS" come from?
-    - OSD is the on-screen display: the menu a VCR or a TV draws over the picture, which is all this app ever shows. OS because on a Raspberry Pi it can be the whole system ([The OSD/OS image](https://github.com/mehmetraif/OSD-OS/wiki/The-OSD-OS-Image)).
-    - It started as 240-MP. 240 had a double meaning referring to the longest [VHS tape length](https://en.wikipedia.org/wiki/VHS#Tape_lengths) and love for [CRT TVs](https://consolemods.org/wiki/CRT:What_is_240p%3F) as a display type, and MP a double meaning of "Media Player" and a play on the "SP/LP/EP/SLP" terminology that was used to refer to the recording quality for VHS recordings. OSD/OS takes over what 240-MP set up: on its first start it moves 240-MP's data folder, with its settings, lists and NFC cards, over to its own; the installer replaces a 240-MP install; and scripts and launch settings under the old names (`MP240_…`) still work.
+    - OSD is the on-screen display a VCR or a TV draws over the picture. OS because on a Raspberry Pi it can be the whole system ([The OSD/OS image](https://github.com/mehmetraif/OSD-OS/wiki/The-OSD-OS-Image)).
+    - It started as 240-MP: 240 for the longest [VHS tape length](https://en.wikipedia.org/wiki/VHS#Tape_lengths) and for [CRT TVs](https://consolemods.org/wiki/CRT:What_is_240p%3F), MP for "Media Player" and VHS's "SP/LP/EP/SLP".
+    - A 240-MP install carries over: its data folder moves on the first start, and the old `MP240_…` names still work.
 - Does it output at 240p resolution?
-    - The UI scales based on the OS config and output cables you are using.
-    - For example, on a CRT with the CRT configs OSD/OS comes with (Settings → Screen → Display Output on the image, see [Display Output](https://github.com/mehmetraif/OSD-OS/wiki/Display-Output), or `config.txt` from [Installation](https://github.com/mehmetraif/OSD-OS/wiki/Installation#2-configtxt-for-a-crt-or-for-hdmi)), the menus and the videos go out at 480i (NTSC) or 576i (PAL). A Pi 4's SCART RGB has 240p and 288p too.
+    - On a CRT the menus and videos go out at 480i (NTSC) or 576i (PAL). A Pi 4's SCART RGB and the JAMMA output have 240p and 288p too.
+    - Set the output in Settings → Screen → Display Output on the image ([Display Output](https://github.com/mehmetraif/OSD-OS/wiki/Display-Output)), or in `config.txt` ([Installation](https://github.com/mehmetraif/OSD-OS/wiki/Installation#2-configtxt-for-a-crt-or-for-hdmi)).
 - Does OSD/OS support RGB out instead of composite?
-    - Yes. On the OSD/OS image, Settings → Screen → Display Output offers SCART RGB on a Pi 4 or Pi 5, through a cable on the GPIO pins (a resistor DAC, as on the VGA666 board); [Display Output](https://github.com/mehmetraif/OSD-OS/wiki/Display-Output#the-cables) has the wiring. So far it is untested on hardware: should it show nothing, the old output comes back by itself.
-    - OSD/OS draws to whatever output the system is set up for, so an RGB or VGA add-on board set up in `config.txt` works too, from the moment it boots. 240-MP's users share the RGB setups that work for them in [its discussion](https://github.com/anthonycaccese/240-MP/discussions/44).
+    - Yes: SCART RGB on a Pi 4 or Pi 5, through a cable on the GPIO pins ([Display Output](https://github.com/mehmetraif/OSD-OS/wiki/Display-Output#the-cables)). On the OSD/OS image it is in Settings → Screen → Display Output. It is untested on hardware.
+    - An RGB or VGA add-on board set up in `config.txt` works too. 240-MP's users share setups in [its discussion](https://github.com/anthonycaccese/240-MP/discussions/44).
 - Does OSD/OS work over HDMI on a modern television too?
-    - Yes! The UI was built to scale on modern televisions over HDMI as well.
-    - HDMI is the OSD/OS image's default (Settings → Screen → Display Output switches back to it), or use the HDMI `config.txt` in [Installation](https://github.com/mehmetraif/OSD-OS/wiki/Installation#2-configtxt-for-a-crt-or-for-hdmi), and it outputs at the right resolution for a modern TV.
+    - Yes. HDMI is the OSD/OS image's default. On an app install, use the HDMI `config.txt` in [Installation](https://github.com/mehmetraif/OSD-OS/wiki/Installation#2-configtxt-for-a-crt-or-for-hdmi).
 - Does OSD/OS support bluetooth keyboards/remotes/controllers?
-    - Yes. On Linux (a Raspberry Pi included) pair them in Settings → Network → Bluetooth: SEARCH, then select the device. A keyboard shows a code on screen to type on it. Once paired, a device comes back by itself after a restart, and OSD/OS sees it as it would a USB one. [Controls](https://github.com/mehmetraif/OSD-OS/wiki/Controls#bluetooth) has the details.
-    - On a Mac, pair them in the Mac's own Bluetooth settings.
+    - Yes, on Linux, a Raspberry Pi included: pair them in Settings → Network → Bluetooth ([Controls](https://github.com/mehmetraif/OSD-OS/wiki/Controls#bluetooth)). On a Mac, use the Mac's own settings.
 - Can I join a Wi-Fi network from OSD/OS?
-    - Yes, on Linux: Settings → Network → Wi-Fi lists the networks within reach; select one and type its password on the on-screen keyboard. Wi-Fi stays off until the country is set, which the page asks for first. On the OSD/OS image it needs an image, or an `install.sh` run, from the version that brought it ([Settings → Network → Wi-Fi](https://github.com/mehmetraif/OSD-OS/wiki/Settings#wi-fi)).
-    - On a Mac, join networks in the Mac's own settings.
+    - Yes, on Linux: Settings → Network → Wi-Fi, once the country is set ([Settings → Network → Wi-Fi](https://github.com/mehmetraif/OSD-OS/wiki/Settings#wi-fi)). On a Mac, use the Mac's own settings.
