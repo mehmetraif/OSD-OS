@@ -311,7 +311,11 @@ Window {
     // Seconds, for the effects that move; it counts only while one of them is
     // on and not resting, about thirty times a second.
     property real fxTime: 0
-    readonly property bool fxMoving: !effectsRest && (backgroundShader !== ""
+    // The background's and the selector's rest under the screen saver too,
+    // which covers them: they were drawn behind it, thirty frames a second,
+    // for as long as the screen stood idle. A screen effect that moves goes
+    // on: the saver's own picture is seen through it.
+    readonly property bool fxMoving: !effectsRest && ((backgroundShader !== "" && !screenSaverActive)
         || (screen.shaded && (screenEffect.noise > 0 || screenEffect.animate === true
                               || textEffect.rainbow > 0 || textEffect.shimmer > 0 || textEffect.flicker > 0)))
     Timer {
@@ -1339,7 +1343,7 @@ Window {
                 effect: root.selectorEffect === "Rainbow" && !root.selectorInLayer ? "Rainbow" : ""
                 ink: root.primaryColor
                 pixel: root.px
-                running: !root.effectsRest
+                running: !root.effectsRest && !root.screenSaverActive
             }
 
             // A running user script suppresses the screen saver too — a takeover script
@@ -1428,7 +1432,7 @@ Window {
                 ink: root.primaryColor
                 paper: root.surfaceColor
                 pixel: root.px
-                running: !root.effectsRest
+                running: !root.effectsRest && !root.screenSaverActive
             }
         }
 

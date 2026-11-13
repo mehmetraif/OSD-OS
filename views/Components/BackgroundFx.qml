@@ -20,7 +20,7 @@ Item {
     // Where it draws, on the screen.
     property rect area
 
-    visible: root.backgroundShader !== "" && !root.effectsRest
+    visible: root.backgroundShader !== "" && !root.effectsRest && !root.screenSaverActive
 
     // Made only while it shows: a shader effect without its shader would
     // draw the default one, which wants a picture this has none of.

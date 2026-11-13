@@ -1234,7 +1234,7 @@ FocusScope {
     onIpAddressChanged: if (studio && group === "" && pageGroup((camPages[camIndex] || {}).row) === "status") buildModel(0)
     Timer {
         interval: 5000
-        running: settingsRoot.group === ""
+        running: settingsRoot.group === "" && !root.screenSaverActive
         repeat: true
         triggeredOnStart: true
         onTriggered: settingsRoot.ipAddress = appCore.localIpAddress()
