@@ -345,6 +345,57 @@ Rectangle {
             compare(page.currentDisplayValue(page.schemaItems[2]), "All Games")
         }
 
+        // A "text" row is typed on the on-screen keyboard: select or ► opens
+        // it on what is saved, OK keeps what was typed (without the spaces
+        // at its ends) and calls the row's apply slot, back leaves it; a
+        // "secret" one never shows what it holds.
+        function test_textRow() {
+            appCore.schema = [
+                { key: "enabled", label: "Enabled", type: "toggle", default: "OFF" },
+                { key: "server_url", label: "Server Address", type: "text", default: "", max_length: 64,
+                  apply_slot: "addressChanged" },
+                { key: "api_key", label: "Key", type: "text", secret: true, default: "" }
+            ]
+            var page = open()
+            var keyboard = null
+            for (var i = 0; i < page.children.length && !keyboard; i++) {
+                if (page.children[i].objectName === "keyboard")
+                    keyboard = page.children[i]
+            }
+            verify(keyboard !== null)
+            compare(page.currentDisplayValue(page.schemaItems[1]), "Not Set")
+            verify(page.opens(page.schemaItems[1]))
+            keyClick(Qt.Key_Down)
+            compare(cursor(page), "server_url")
+            keyClick(Qt.Key_Return)
+            verify(keyboard.visible)
+            compare(keyboard.title, "Server Address")
+            compare(keyboard.maxLength, 64)
+            verify(!keyboard.masked)
+            keyboard.accepted("  http://nas:8096 ")
+            compare(appCore.values.server_url, "http://nas:8096")
+            compare(page.currentDisplayValue(page.schemaItems[1]), "http://nas:8096")
+            compare(appCore.actions, ["addressChanged"])
+            // Opened again on what is saved; back keeps it.
+            keyClick(Qt.Key_Right)
+            verify(keyboard.visible)
+            compare(keyboard.text, "http://nas:8096")
+            keyboard.canceled()
+            compare(appCore.values.server_url, "http://nas:8096")
+            // A key: typed hidden, and only said to be set.
+            keyClick(Qt.Key_Down)
+            keyClick(Qt.Key_Return)
+            verify(keyboard.masked)
+            keyboard.accepted("Key456example")
+            compare(appCore.values.api_key, "Key456example")
+            compare(page.currentDisplayValue(page.schemaItems[2]), "Set")
+            // Nothing typed unsets the row.
+            keyClick(Qt.Key_Return)
+            keyboard.accepted("")
+            compare(appCore.values.api_key, "")
+            compare(page.currentDisplayValue(page.schemaItems[2]), "Not Set")
+        }
+
         function test_unsaved() {
             var page = open()
             keyClick(Qt.Key_Down)

@@ -60,7 +60,7 @@ The username and password go to the server only. The password is never stored. U
 
 ### Fill in the address beforehand
 
-For Local Server, the address can go in `config.json` in the data folder (`~/.local/share/OSD-OS/` on Linux and the image, `~/Library/Application Support/OSD-OS/` on a Mac), with OSD/OS stopped:
+For Local Server, type the address in Settings → TV / Movie → **EMBY** → **Server Address**. It can also go in `config.json` in the data folder (`~/.local/share/OSD-OS/` on Linux and the image, `~/Library/Application Support/OSD-OS/` on a Mac), with OSD/OS stopped:
 
 ```json
 {
@@ -160,7 +160,7 @@ The keys sit under `modules.com.osdos.emby`, nested as in the fragment [above](#
 | `resume_playback` | `"ask"` or `"always"` |
 | `intro_skip`, `outro_skip` | `"Off"`, `"Auto"` or `"Button"` |
 | `video_scaling` | the option's name, such as `"Letterbox"` |
-| `server_url` | the server address signed in to (no setting row) |
+| `server_url` | the server address: Settings → TV / Movie → EMBY → Server Address, and the sign-in screen |
 
 ## How the sign-in is stored
 

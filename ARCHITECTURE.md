@@ -166,6 +166,7 @@ An optional `"settings_group"` says where Settings lists the module's page: `"tv
 | `module_view` | Opens the module itself on one of its own views, like Netflix's SIGN IN | `params`: the `navParams` its `Root.qml` routes on |
 | `directory_browser` | A folder, picked on the file picker's tree ([FilePicker](#filepicker-viewsfilepickerqml)); `""` is the module's own | `default` (path string, may be empty) |
 | `slider` | A value from 0 to 100 on the deck's tape bar (`OsdTapeBar`), in whole lines under its label, as Settings' Transparent Background; ◄ ► a step toward either end | `default` (a number), `step` (10 unless given), `start_text` and `end_text`, the names under its ends |
+| `text` | A line typed on the on-screen keyboard, over the page: an address, a place's name, a key. Select or ► opens the keyboard on what is saved; OK keeps it, without the spaces at its ends, and back leaves it. The row shows what was typed, `Not Set` when empty | `default` (a string), `placeholder` (for OSD/OS Setup's field), `max_length` (64 unless given), `secret` (a key or a password: typed hidden, shown as `Set`), `apply_slot` |
 | `action` | Button that calls a backend slot | `action_slot` |
 
 Additional fields any setting may carry:

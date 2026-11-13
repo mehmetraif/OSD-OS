@@ -287,6 +287,7 @@ FocusScope {
     // Rows that show their current value after the dots.
     function hasValue(item) {
         return item.type === "toggle" || item.type === "list_single" || item.type === "directory_browser"
+               || item.type === "text"
     }
 
     function currentDisplayValue(item) {
@@ -311,6 +312,13 @@ FocusScope {
         if (type === "directory_browser") {
             var saved = valuesOf(item)[key] || ""
             return saved !== "" ? saved : "Default"
+        }
+
+        // A line typed on the on-screen keyboard: what was typed, or that
+        // something was (a key or a password, "secret", is never shown).
+        if (type === "text") {
+            var typed = String(valuesOf(item)[key] || "")
+            return typed === "" ? "Not Set" : item.secret ? "Set" : typed
         }
 
         return ""
@@ -383,7 +391,8 @@ FocusScope {
     // A dimmed line (_off) neither opens nor changes.
     function opens(item) {
         return !!item && !item._off && (item.type === "submenu" || item.type === "multiselect_submenu"
-                                        || item.type === "module_view" || item.type === "directory_browser")
+                                        || item.type === "module_view" || item.type === "directory_browser"
+                                        || item.type === "text")
     }
     // A line whose value ◄ ► change on it: between a ◄ and a ►.
     function changes(item) {
@@ -460,6 +469,14 @@ FocusScope {
                 moduleSettingsRoot.navigateTo(appCore.module_entry_point(moduleSettingsRoot.moduleOf(item)),
                                               item.params || {},
                                               { currentIndex: settingsList.currentIndex })
+            } else if (item.type === "text") {
+                // Typed on the on-screen keyboard, over the page: what is
+                // saved to start from, kept on OK, left as it was on back.
+                moduleSettingsRoot.typingRow = item
+                keyboard.title = item.label || ""
+                keyboard.maxLength = item.max_length || 64
+                keyboard.masked = !!item.secret
+                keyboard.open(String(moduleSettingsRoot.valuesOf(item)[item.key] || ""))
             } else if (item.type === "directory_browser") {
                 // Picked on the file picker's tree; "" is the module's own.
                 moduleSettingsRoot.navigateTo("views/FilePicker.qml", {
@@ -569,5 +586,33 @@ FocusScope {
         anchors.left: parent.left
         anchors.bottomMargin: root.sh * 0.1041667 //50
         anchors.leftMargin: root.sw * 0.125 //80
+    }
+
+    // A "text" row's keyboard: an address, a place's name, a key. Upper and
+    // lower case as typed, and nothing typed is an answer too (the row unset).
+    property var typingRow: null
+    OnScreenKeyboard {
+        id: keyboard
+        objectName: "keyboard"
+        anchors.fill: parent
+        visible: false
+        caseSensitive: true
+        allowEmpty: true
+        onAccepted: function(text) {
+            var item = moduleSettingsRoot.typingRow
+            moduleSettingsRoot.typingRow = null
+            keyboard.close()
+            // A key typed goes no further than the settings.
+            keyboard.text = ""
+            settingsList.forceActiveFocus()
+            if (item && moduleSettingsRoot.store(item, text.trim()) && item.apply_slot)
+                appCore.invoke_module_action(moduleSettingsRoot.moduleOf(item), item.apply_slot)
+        }
+        onCanceled: {
+            moduleSettingsRoot.typingRow = null
+            keyboard.close()
+            keyboard.text = ""
+            settingsList.forceActiveFocus()
+        }
     }
 }

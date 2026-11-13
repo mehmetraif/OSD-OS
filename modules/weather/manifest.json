@@ -12,6 +12,15 @@
       "default": "OFF"
     },
     {
+      "key": "location",
+      "label": "Location",
+      "type": "text",
+      "default": "",
+      "placeholder": "Istanbul, or 41.01, 28.98",
+      "max_length": 64,
+      "description": "Your place: its name, or its latitude and longitude with a name after them\nEmpty: the first line of weather_location.txt in the data folder"
+    },
+    {
       "key": "displays",
       "label": "Displays",
       "type": "multiselect_submenu",

@@ -78,7 +78,7 @@ void walkRows(const QJsonArray &rows, const QJsonObject &extra, QHash<QString, Q
                 out.insert(key, QJsonValue());
         } else if (type == QLatin1String("slider")) {
             out.insert(key, row.value(QLatin1String("default")).toDouble(0));
-        } else if (type == QLatin1String("directory_browser")) {
+        } else if (type == QLatin1String("directory_browser") || type == QLatin1String("text")) {
             out.insert(key, row.value(QLatin1String("default")).toString());
         }
     }

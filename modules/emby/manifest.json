@@ -12,6 +12,15 @@
       "default": "OFF"
     },
     {
+      "key": "server_url",
+      "label": "Server Address",
+      "type": "text",
+      "default": "",
+      "placeholder": "http://192.168.1.10:8096",
+      "max_length": 64,
+      "description": "Your Emby server, as http://192.168.1.10:8096\nThe sign-in screen fills it in too"
+    },
+    {
       "key": "libraries",
       "label": "Libraries",
       "type": "multiselect_submenu",

@@ -525,6 +525,12 @@ void WeatherBackend::onSettingChanged(const QString &moduleId, const QString &ke
         fetchWeather();
         fetchOthers();
     }
+    // Another place: looked up again, where the file's was looked up once a
+    // run. The forecast on the screen stays until the new one is in.
+    if (key == QLatin1String("location")) {
+        m_resolved = false;
+        resolveLocation();
+    }
 }
 
 void WeatherBackend::getDisplays() {
@@ -780,15 +786,21 @@ bool WeatherBackend::parseCoordLine(const QString &line, double *lat, double *lo
 void WeatherBackend::resolveLocation() {
     const quint64 generation = ++m_locationGeneration;
     ++m_extraLocationGeneration;
+    // Settings' Location (modules.<id>.location) is the place; the file's
+    // lines after its first are the other places then, and with no file there
+    // are none. Without the setting the file says both, as it always has.
+    const QString chosen = moduleConfig()[QStringLiteral("location")].toString().trimmed();
     QFile probe(location_file_path());
-    if (!probe.exists())                                    { emitError(QStringLiteral("missing"));    return; }
-    if (!probe.open(QIODevice::ReadOnly | QIODevice::Text)) { emitError(QStringLiteral("unreadable")); return; }
-    probe.close();
+    if (chosen.isEmpty()) {
+        if (!probe.exists())                                    { emitError(QStringLiteral("missing"));    return; }
+        if (!probe.open(QIODevice::ReadOnly | QIODevice::Text)) { emitError(QStringLiteral("unreadable")); return; }
+        probe.close();
+    }
 
     const QStringList lines = readLocationLines();
-    if (lines.isEmpty()) { emitError(QStringLiteral("empty")); return; }
+    if (chosen.isEmpty() && lines.isEmpty()) { emitError(QStringLiteral("empty")); return; }
 
-    const QString primary = lines.first();
+    const QString primary = chosen.isEmpty() ? lines.first() : chosen;
     const QStringList others = lines.mid(1);
 
     double lat = 0.0, lon = 0.0;

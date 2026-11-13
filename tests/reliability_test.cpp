@@ -85,6 +85,51 @@ private slots:
         QCOMPARE(backend.m_otherPoints.first().toMap().value("name").toString(), QString("NEWEST"));
     }
 
+    // Weather's place is Settings' Location where it is set: no file is
+    // asked for then, the file's first line is passed over and its other
+    // lines are the other places; changed, it is looked up again at once.
+    void weatherLocationFromItsSetting() {
+        QTemporaryDir tmp;
+        const auto config = [&tmp](const QByteArray &location) {
+            QFile file(tmp.path() + "/config.json");
+            QVERIFY(file.open(QIODevice::WriteOnly | QIODevice::Truncate));
+            file.write("{\"modules\":{\"com.osdos.weather\":{\"location\":\"" + location + "\"}}}");
+        };
+        WeatherBackend backend(tmp.path(), tmp.path());
+        delete backend.m_nam;
+        auto *network = new Network(&backend); backend.m_nam = network;
+        QSignalSpy errors(&backend, &WeatherBackend::locationError);
+
+        // Neither: the file is asked for, as before.
+        backend.resolveLocation();
+        QTRY_COMPARE(errors.size(), 1);
+        QCOMPARE(errors.first().first().toString(), QString("missing"));
+
+        // The setting alone, with coordinates and a name: no file, no lookup.
+        config("41.01, 28.98, Istanbul");
+        errors.clear();
+        backend.resolveLocation();
+        QVERIFY(backend.m_resolved);
+        QCOMPARE(backend.m_locationName, QString("ISTANBUL"));
+        QTest::qWait(20);
+        QCOMPARE(errors.size(), 0);
+
+        // With a file too: its first line passed over.
+        {
+            QFile file(backend.location_file_path());
+            QVERIFY(file.open(QIODevice::WriteOnly));
+            file.write("60.0, 10.0, Oslo\n");
+        }
+        backend.m_resolved = false;
+        backend.resolveLocation();
+        QCOMPARE(backend.m_locationName, QString("ISTANBUL"));
+
+        // Changed in Settings: the new place at once.
+        config("48.85, 2.35, Paris");
+        backend.onSettingChanged("com.osdos.weather", "location", "48.85, 2.35, Paris");
+        QCOMPARE(backend.m_locationName, QString("PARIS"));
+    }
+
     void markerFailureDoesNotArmUpdate() {
         QTemporaryDir tmp;
         UpdateManager manager(tmp.path(), tmp.path());

@@ -132,20 +132,14 @@
         "video_quality": [["Direct Play", "auto"], ["480p (NTSC CRT)", "480p"], ["576p (PAL CRT)", "576p"], ["720p", "720p"], ["1080p", "1080p"]],
         "resume_playback": [["Ask", "ask"], ["Always", "always"]]
       },
-      "extra": [
-        { "key": "server_url", "label": "Server Address", "type": "text", "default": "", "placeholder": "http://192.168.1.10:8096",
-          "view": "logins", "help": "Your Jellyfin server, filled in on the sign-in screen." }
-      ]
+      "views": { "server_url": "logins" }
     },
     "com.osdos.emby": {
       "options": {
         "video_quality": [["Direct Play", "auto"], ["480p (NTSC CRT)", "480p"], ["576p (PAL CRT)", "576p"], ["720p", "720p"], ["1080p", "1080p"]],
         "resume_playback": [["Ask", "ask"], ["Always", "always"]]
       },
-      "extra": [
-        { "key": "server_url", "label": "Server Address", "type": "text", "default": "", "placeholder": "http://192.168.1.10:8096",
-          "view": "logins", "help": "Your Emby server, filled in on the sign-in screen." }
-      ]
+      "views": { "server_url": "logins" }
     },
     "com.osdos.arcade": {
       "options": {
@@ -165,7 +159,14 @@
     "com.osdos.weather": {
       "options": {
         "displays": [["Current Conditions", "current"], ["Extended Forecast", "extended"], ["Other Locations", "others"], ["Almanac", "almanac"]]
-      }
+      },
+      "views": { "location": "basic" }
+    },
+    "com.osdos.netflix": {
+      "views": { "tmdb_api_key": "logins" }
+    },
+    "com.osdos.prime_video": {
+      "views": { "tmdb_api_key": "logins" }
     }
   },
   "keyboards": [["English (US)", "us"], ["English (UK)", "gb"], ["Turkish (Q)", "tr"], ["German", "de"], ["French", "fr"], ["Spanish", "es"], ["Italian", "it"], ["Portuguese", "pt"], ["Portuguese (Brazil)", "br"], ["Dutch", "nl"], ["Belgian", "be"], ["Swiss", "ch"], ["Swedish", "se"], ["Norwegian", "no"], ["Danish", "dk"], ["Finnish", "fi"], ["Polish", "pl"], ["Czech", "cz"], ["Hungarian", "hu"], ["Japanese", "jp"], ["Korean", "kr"], ["Latin American", "latam"], ["Irish", "ie"], ["Icelandic", "is"], ["Romanian", "ro"], ["Slovak", "sk"], ["Slovenian", "si"], ["Croatian", "hr"], ["Estonian", "ee"], ["Latvian", "lv"], ["Lithuanian", "lt"]]

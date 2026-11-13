@@ -47,7 +47,7 @@ Both modules are off by default: Settings → TV / Movie → **Netflix** (or **P
 
 ## The TMDB API key
 
-Both modules read the same key, from `tmdb_api_key.txt` in the data folder:
+Type it in Settings → TV / Movie → **NETFLIX** (or **PRIME VIDEO**) → **TMDB Key**: one key serves both. Or put it in `tmdb_api_key.txt` in the data folder, which is read when the row is empty:
 
 | System | File |
 |---|---|
@@ -65,7 +65,7 @@ The first line that is neither empty nor a `#` comment is the key. Written over 
 printf '%s\n' '0123456789abcdef0123456789abcdef' > ~/.local/share/OSD-OS/tmdb_api_key.txt
 ```
 
-A new key works at once, without a restart. Without one, Search, Movies and Series say **No TMDB API key: put one in tmdb_api_key.txt in the data folder (free from themoviedb.org, Settings, API)**.
+A new key works at once, without a restart. Without one, Search, Movies and Series say **No TMDB API key: type one in Settings, in the module's TMDB Key (free from themoviedb.org, Settings, API)**.
 
 ## Country and language
 
@@ -210,8 +210,8 @@ See [Credits](https://github.com/mehmetraif/OSD-OS/wiki/Credits).
 
 | Message or symptom | What to do |
 |---|---|
-| **No TMDB API key: put one in tmdb_api_key.txt in the data folder.** | The file is missing, empty, or in the wrong folder. See [The TMDB API key](https://github.com/mehmetraif/OSD-OS/wiki/Netflix-and-Prime-Video#the-tmdb-api-key). |
-| **TMDB turned the API key down: check tmdb_api_key.txt.** | Check that the whole key or token is on one line, with nothing else on it. |
+| **No TMDB API key: type one in Settings, in the module's TMDB Key.** | The row is empty, and the file is missing, empty, or in the wrong folder. See [The TMDB API key](https://github.com/mehmetraif/OSD-OS/wiki/Netflix-and-Prime-Video#the-tmdb-api-key). |
+| **TMDB turned the API key down: check the TMDB Key in Settings.** | Check that the whole key or token is on one line, with nothing else on it. |
 | **Could not reach TMDB: check the network.** | No answer from `api.themoviedb.org`. |
 | A folder is empty, or titles are missing. | Check Catalogue Region. Only titles on the subscription are listed. |
 | **Could not open Netflix: Chromium is not installed** (or **cage is not installed**) | `sudo apt install chromium libwidevinecdm0 cage wtype`. |

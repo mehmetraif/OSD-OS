@@ -160,6 +160,15 @@ def module_settings(manifest, extra):
             elif kind == "directory_browser":
                 row.update(type="text", default=s.get("default", ""), folder=True,
                            placeholder="Empty: the module's own folder")
+            elif kind == "text":
+                # A line typed on the device's keyboard: an address, a place,
+                # a key (secret: shown as a password is).
+                row.update(type="text", default=s.get("default", ""), placeholder=s.get("placeholder", ""),
+                           trim=True)
+                if s.get("max_length"):
+                    row["max_length"] = s["max_length"]
+                if s.get("secret"):
+                    row["secret"] = True
             else:
                 continue
             out.append(row)

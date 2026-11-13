@@ -10,7 +10,7 @@ The weather, shown the way a cable weather channel showed it in the 90s: current
 ## Setting it up
 
 1. Settings → TV / Movie → **WEATHER** → **Enabled**: On. Weather appears on the main menu.
-2. Write your location in `weather_location.txt` in the data folder (below).
+2. Settings → TV / Movie → **WEATHER** → **Location**: type your town, or its latitude and longitude. (Or write it in `weather_location.txt`, below, which also takes your other places.)
 3. Open **Weather** from the main menu.
 
 Until the file is there, the module says what is missing (see [Troubleshooting](https://github.com/mehmetraif/OSD-OS/wiki/Weather#troubleshooting)).
@@ -22,7 +22,7 @@ Until the file is there, the module says what is missing (see [Troubleshooting](
 | OSD/OS image, Raspberry Pi OS, SteamOS | `~/.local/share/OSD-OS/weather_location.txt` |
 | macOS | `~/Library/Application Support/OSD-OS/weather_location.txt` |
 
-- The **first line** is your location, a place name or coordinates.
+- The **first line** is your location, a place name or coordinates. With **Location** set in Settings that one is used instead, and applies at once.
 - **Each line after it** is another place for the Other Locations screen, which has room for about six.
 - Blank lines are ignored. A line starting with `#` is a comment.
 - **After changing the file, restart OSD/OS.** Places are looked up once per run.
@@ -185,7 +185,7 @@ When the module can't start, it says why:
 
 | Screen | Meaning | What to do |
 |---|---|---|
-| **NO LOCATION SET** | There is no `weather_location.txt` in the data folder. | Write it, as [above](https://github.com/mehmetraif/OSD-OS/wiki/Weather#the-location-file). Check the name (not `weather_location.txt.txt`) and the folder. |
+| **NO LOCATION SET** | Location in Settings is empty and there is no `weather_location.txt` in the data folder. | Type it in Settings → TV / Movie → WEATHER → Location, or write the file, as [above](https://github.com/mehmetraif/OSD-OS/wiki/Weather#the-location-file). |
 | **LOCATION FILE IS EMPTY** | The file has no line that isn't blank or a comment. | Add your location on the first line. |
 | **LOCATION FILE COULD NOT BE READ** | The file can't be opened. | The user running OSD/OS must be able to read it. |
 | **LOCATION NOT FOUND** | The geocoder knows no place of that name. | Check the spelling of the part before the first comma, or use coordinates. |

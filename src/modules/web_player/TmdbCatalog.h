@@ -28,7 +28,8 @@ class QNetworkReply;
 // (resolveTitleUrl), or at the service's own search for its name.
 //
 // Needs a TMDB API key, free from themoviedb.org: a v3 key or a v4 read access
-// token, on the first line of <dataRoot>/tmdb_api_key.txt.
+// token: Settings' TMDB Key (modules.<id>.tmdb_api_key, either module's), else
+// the first line of <dataRoot>/tmdb_api_key.txt.
 class TmdbCatalog : public QObject {
     Q_OBJECT
     // "" while browsing works; otherwise what is in the way, to show instead.

@@ -431,6 +431,13 @@ function settingLine(scope, row) {
         break;
     }
     default:
+        // A key or a password of a module's ("secret"): hidden until shown,
+        // as the Wi-Fi's is.
+        if (row.secret) {
+            control = secret(String(value ?? ""), v => { core.setPath(state.config, [...scope, row.key], v.trim()); markChanged(id, true); },
+                             { id, placeholder: row.placeholder || "" });
+            break;
+        }
         control = text(String(value ?? ""), v => { core.setPath(state.config, [...scope, row.key], v); markChanged(id, true); },
                        { id, placeholder: row.placeholder || "", maxlength: row.max_length || null,
                          // As the app keeps it: without spaces at either end.
