@@ -1,6 +1,7 @@
 #include "Diagnostics.h"
 
 #include <QCoreApplication>
+#include <QDir>
 #include <QFile>
 #include <QTimer>
 
@@ -22,6 +23,7 @@
 #include <fcntl.h>
 #include <sys/resource.h>
 #include <sys/syscall.h>
+#include <sys/wait.h>
 #include <unistd.h>
 #endif
 #if defined(__GLIBC__)
@@ -502,7 +504,51 @@ QString memoryLine() {
     return QString::fromLatin1(text);
 }
 
+namespace {
+
+// A process's state and its parent, from /proc/<pid>/stat: what follows the
+// name's closing bracket (a name may hold brackets and spaces of its own).
+bool statOf(const QString &path, char *state, long *parent) {
+    QFile file(path);
+    if (!file.open(QIODevice::ReadOnly))
+        return false;
+    const QByteArray stat = file.readAll();
+    const int close = stat.lastIndexOf(')');
+    return close >= 0 && std::sscanf(stat.constData() + close + 1, " %c %ld", state, parent) == 2;
+}
+
+} // namespace
+
+void endChildren() {
+    const long self = ::getpid();
+    std::vector<pid_t> children;
+    const QStringList entries = QDir(QStringLiteral("/proc")).entryList(QDir::Dirs | QDir::NoDotAndDotDot);
+    for (const QString &entry : entries) {
+        bool number = false;
+        const long pid = entry.toLong(&number);
+        char state = 0;
+        long parent = 0;
+        if (number && statOf(QStringLiteral("/proc/%1/stat").arg(pid), &state, &parent) && parent == self)
+            children.push_back(pid_t(pid));
+    }
+    for (pid_t child : children)
+        ::kill(child, SIGKILL);
+    // Reaped, so that what they held (the sound card) is free before the
+    // start that follows; a second at most.
+    for (int tries = 0; !children.empty() && tries < 100; ++tries) {
+        children.erase(std::remove_if(children.begin(), children.end(), [](pid_t child) {
+            const pid_t done = ::waitpid(child, nullptr, WNOHANG);
+            return done == child || (done < 0 && errno != EINTR);
+        }), children.end());
+        if (!children.empty())
+            ::usleep(10000);
+    }
+}
+
 void startAgain(const char *reason) {
+    // The run before's processes go with it: the new start knows none of
+    // them, and the menu music's would keep the sound card and play on.
+    endChildren();
     ::setenv("OSDOS_STARTED_AGAIN", reason, 1);
     // Every file closed by the exec but the journal's (0-2).
     if (DIR *dir = ::opendir("/proc/self/fd")) {
@@ -554,6 +600,7 @@ void startStallWatchdog(const QString &, int, int) {}
 void stopStallWatchdog() {}
 QString memoryLine() { return QString(); }
 void startAgain(const char *) { std::_Exit(kStallExitCode); }
+void endChildren() {}
 QString startedAgainReason() { return QString(); }
 
 #endif

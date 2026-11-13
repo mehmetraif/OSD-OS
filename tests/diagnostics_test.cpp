@@ -20,6 +20,27 @@ static int runChild(int argc, char **argv) {
         std::raise(SIGSEGV);
         return 0;
     }
+    if (mode == "--again") {
+        // The fresh start: says why it is one, and ends.
+        const QString why = diagnostics::startedAgainReason();
+        if (!why.isEmpty()) {
+            QFile said(folder + QStringLiteral("/again.txt"));
+            if (said.open(QIODevice::WriteOnly))
+                said.write(why.toUtf8());
+            return 0;
+        }
+        // The run before it: a child of its own running (the menu music's
+        // player, say), then the start again in place.
+        QProcess child;
+        child.start(QStringLiteral("sleep"), { QStringLiteral("60") });
+        if (!child.waitForStarted(5000))
+            return 3;
+        QFile pid(folder + QStringLiteral("/child.pid"));
+        if (pid.open(QIODevice::WriteOnly))
+            pid.write(QByteArray::number(child.processId()));
+        pid.close();
+        diagnostics::startAgain("the test asked for it");
+    }
     // --stall: stuck 1.5 s, reported at 0.3 s, and answering again after.
     // --freeze: stuck for good, so it ends at 1 s, as for a restart.
     // A thread of the app's own, waiting meanwhile, is in the report too.
@@ -110,11 +131,26 @@ private slots:
         const QString text = report("stall-report.txt");
         QVERIFY2(text.contains(QStringLiteral("starts again")), qPrintable(text));
     }
+
+#ifdef Q_OS_LINUX
+    // Started again in place, the app takes none of the run before's
+    // processes with it: the new start knows nothing of them, and the menu
+    // music's player would keep the sound card and play on over it.
+    void aFreshStartEndsTheRunsChildren() {
+        const Run r = run("--again");
+        QCOMPARE(r.status, QProcess::NormalExit);
+        QCOMPARE(r.exitCode, 0);
+        QCOMPARE(report("again.txt"), QStringLiteral("the test asked for it"));
+        const QString child = report("child.pid");
+        QVERIFY(!child.isEmpty());
+        QVERIFY2(!QFile::exists(QStringLiteral("/proc/") + child), qPrintable(child));
+    }
+#endif
 };
 
 int main(int argc, char **argv) {
     if (argc > 2 && (qstrcmp(argv[1], "--crash") == 0 || qstrcmp(argv[1], "--stall") == 0
-                     || qstrcmp(argv[1], "--freeze") == 0))
+                     || qstrcmp(argv[1], "--freeze") == 0 || qstrcmp(argv[1], "--again") == 0))
         return runChild(argc, argv);
     QCoreApplication app(argc, argv);
     DiagnosticsTest test;

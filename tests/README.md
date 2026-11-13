@@ -105,6 +105,7 @@ ctest --test-dir build-tests --output-on-failure
   - A tracker's module plays as it is; one mpv can't play, openmpt123 makes into a WAV for it.
 - **diagnostics** (`diagnostics_test.cpp`, Linux only). The crash and freeze reports (`util/Diagnostics`), each from a child process, the test itself run again, that crashes or freezes on purpose.
   - A crash is written to `crash-report.txt` with where it was, and still ends the process as a crash.
+  - Started again in place (`startAgain()`), the app takes none of its child processes with it: a child running before is gone after, and the new start says why it is one.
   - A main thread stuck for a while is reported in `stall-report.txt` with where it is and where the other threads are, and again once it answers; the app goes on.
   - Stuck for good, the process ends with the code (70) that has the service start it again.
   - The memory line has the app's memory and the system's.

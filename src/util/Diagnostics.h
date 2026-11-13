@@ -41,6 +41,11 @@ QString memoryLine();
 // in the journal (startedAgainReason()). Where it can't, the process exits
 // with kStallExitCode and the service starts it again.
 [[noreturn]] void startAgain(const char *reason);
+// Linux: every child of this process killed, and waited for a second at
+// most. startAgain() does it first: the processes the run before started
+// (the menu music's mpv, with the sound card) are no one's once it has
+// started again, and would play on over the new run for good.
+void endChildren();
 // Why this start is a fresh start of the run before (startAgain()), or empty;
 // taken out of the environment, so that no child is started with it.
 QString startedAgainReason();
