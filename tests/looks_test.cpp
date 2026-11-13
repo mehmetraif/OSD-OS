@@ -268,6 +268,22 @@ private slots:
         QCOMPARE(plain.value("effects").toMap(), QVariantMap({ { "screen", "Off" } }));
     }
 
+    // Every licence one of About's lines opens is a file the app carries,
+    // with text in it: a line added without its file would open an empty page.
+    void aboutsLicensesAreThere() {
+        QFile about(QStringLiteral(OSDOS_SOURCE_DIR "/views/About.qml"));
+        QVERIFY(about.open(QIODevice::ReadOnly));
+        const QString text = QString::fromUtf8(about.readAll());
+        static const QRegularExpression named(QStringLiteral("license: \"(assets/licenses/[^\"]+)\""));
+        AppCore core(QStringLiteral(OSDOS_SOURCE_DIR), m_data.path());
+        int found = 0;
+        for (auto it = named.globalMatch(text); it.hasNext(); ++found) {
+            const QString file = it.next().captured(1);
+            QVERIFY2(!core.licenseText(file).isEmpty(), qPrintable(file));
+        }
+        QVERIFY(found >= 10);
+    }
+
     // An id is a folder's name, nothing else.
     // LICENSE, or a file of the app's by its path, its paragraphs each on a
     // line; nothing outside the app's folder.

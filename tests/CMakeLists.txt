@@ -76,6 +76,7 @@ add_executable(looks_test
     ../src/util/SetupFile.cpp
     ../src/util/LegacyNames.cpp)
 target_include_directories(looks_test PRIVATE ../src)
+target_compile_definitions(looks_test PRIVATE OSDOS_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}/..")
 target_link_libraries(looks_test PRIVATE Qt6::Core Qt6::Network Qt6::Qml Qt6::Test)
 add_test(NAME looks COMMAND looks_test)
 

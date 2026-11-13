@@ -53,6 +53,25 @@ Project Nayuki's QR Code generator library
 Copyright (c) Project Nayuki, under the MIT License, whose text is in
 /opt/osdos/share/osdos/assets/licenses/qrcodegen.txt.
 
+The Arcade module unpacks 7z archives with the LZMA SDK's decoder
+(https://7-zip.org/sdk.html), by Igor Pavlov, built into OSD/OS, in the
+public domain: /opt/osdos/share/osdos/assets/licenses/LZMA-SDK.txt.
+
+Icons others drew, whose notices are in
+/opt/osdos/share/osdos/assets/licenses/Icons.txt: the Weather module's are
+Weather Icons (https://erikflowers.github.io/weather-icons/), by Erik
+Flowers, under the SIL Open Font License 1.1; NFC Reader's logo is from
+Phosphor Icons (https://phosphoricons.com), Copyright (c) 2023 Phosphor
+Icons, under the MIT License; Emby's is from Simple Icons
+(https://simpleicons.org), under CC0 1.0; Jellyfin's is the Jellyfin
+project's, Copyright the Jellyfin contributors, under the Creative Commons
+Attribution-ShareAlike 4.0 International License, recoloured white.
+
+The grain of the screen effects and moving backgrounds is Hash without Sine
+(https://www.shadertoy.com/view/4djSRW), Copyright (c)2014 David Hoskins,
+under the MIT License:
+/opt/osdos/share/osdos/assets/licenses/Hash-without-Sine.txt.
+
 The Arcade module plays its games on the local network with OSD/OS's own
 build of FinalBurn Neo (https://github.com/libretro/FBNeo),
 /opt/osdos/lib/osdos/osdos_lan_libretro.so: FinalBurn Neo's libretro core,
@@ -136,6 +155,10 @@ OSDOS_ARCADE=0 has no FinalBurn Neo.
   streams through it.
 - Weather data by Open-Meteo.com (https://open-meteo.com), under the
   Creative Commons Attribution 4.0 International licence (CC BY 4.0).
+- The Weather module's observations in the United States come from the
+  National Weather Service (https://www.weather.gov), whose data is in the
+  public domain. Its music, Trammell Starks' Music for Local Forecast, is
+  streamed from the Internet Archive and does not come with the image.
 - A title's page on a service comes from Wikidata (https://www.wikidata.org),
   whose data is in the public domain (CC0).
 

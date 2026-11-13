@@ -60,6 +60,7 @@ ctest --test-dir build-tests --output-on-failure
 - **looks** (`looks_test.cpp`): themes and skins (Settings → Look → Theme and Skin), read from the app's folder and the data folder's.
   - Skins and themes are listed by name, each once, the data folder's in place of the app's; one that isn't JSON is left out, for the app's of its name.
   - A skin's pictures and icons are read from its folder; one out of it, by a path or a link, is refused, and so is an icon whose name isn't one or isn't a picture. A skin made before skins had their name, a `theme.json` in the data folder's `themes`, is read as a skin, not a theme.
+  - Every licence one of About's lines opens (`views/About.qml`, `assets/licenses/`) is a file the app carries, with text in it.
   - A theme's names (a scheme's, a skin's, a preset's) are passed on, a skin's read; its own colours, skin, effects (each kind's knobs, held between 0 and 1, a background's area, a shader in its folder) and music (of every kind the menu music plays) are read from its folder, and its Arcade screen's look (`"orb"`).
   - What can't be used is there but empty (Video 1's colours, OSD/OS's own window, no effect), an Arcade screen's look it hasn't left out, and null is as left out.
   - An id is a folder's name, never a path.
