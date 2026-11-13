@@ -238,8 +238,14 @@ FocusScope {
         } else {
             var w = items.length > 0 ? 0 : textWidth("(empty)")
             var leaf = true
+            // No wider than the tree's own room is ever asked of it (width
+            // and placeColumns()'s use of fullWidth both stop there), so the
+            // names are measured only until one fills it: a list of
+            // thousands was measured name by name at every first look.
+            var most = Math.max(maxColumnWidth, rightEdge - leftEdge)
             for (var i = 0; i < items.length; ++i) {
-                w = Math.max(w, textWidth(displayName(items[i])))
+                if (w < most)
+                    w = Math.max(w, textWidth(displayName(items[i])))
                 if (items[i].isFolder) leaf = false
             }
             l = { items: items, width: Math.min(maxColumnWidth, w), fullWidth: w, leaf: leaf, pending: false }
