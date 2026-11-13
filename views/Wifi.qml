@@ -12,6 +12,9 @@ import Components
 // is set, so turning it on without one opens the country's chooser first.
 FocusScope {
     id: wifiRoot
+    // In the layout's frame (Main.qml): its rows in the pane, beside the
+    // column a layout keeps on the screen.
+    readonly property bool inFrame: true
 
     signal goBack()
 
@@ -257,8 +260,8 @@ FocusScope {
         anchors.top: parent.top
         anchors.left: parent.left
         anchors.topMargin: root.sh * 0.25 //120
-        anchors.leftMargin: root.sw * 0.115625 //74
-        width: root.sw * 0.76875 //492
+        anchors.leftMargin: root.paneX
+        width: root.paneWidth
         // One line short of the space, so the ▼ fits above the help line; a
         // line more for each bar that is off (Main.qml's helpRoom, hintRoom).
         height: root.sh * 0.4666667 + root.helpRoom + root.hintRoom //224

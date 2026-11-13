@@ -7,6 +7,9 @@ import Components
 //   idle | checking | upToDate | updateAvailable | downloading | readyToApply | error
 FocusScope {
     id: updateRoot
+    // In the layout's frame (Main.qml): its rows in the pane, beside the
+    // column a layout keeps on the screen.
+    readonly property bool inFrame: true
 
     signal goBack()
 
@@ -133,8 +136,9 @@ FocusScope {
             anchors.top: parent.top
             anchors.left: parent.left
             anchors.topMargin: root.sh * 0.25 //120
-            anchors.leftMargin: root.sw * 0.125 //80
-            width: root.sw * 0.76875 //492
+            // The pane's, its text in line with the title's.
+            anchors.leftMargin: root.paneX + root.sw * 0.009375 //80
+            width: root.paneWidth
             spacing: root.sh * 0.0291667 //14
 
             // Version summary

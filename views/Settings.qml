@@ -474,7 +474,7 @@ FocusScope {
             label: "Menu Layout",
             options: ["Standard", "Camcorder", "Studio Monitor", "Broadcast", "Flat Panel"],
             value: root.menuLayoutOf(appSettings["menu_layout"]),
-            description: "How Settings and the main menu are laid out\n[STANDARD] A list, a page at a time  [CAMCORDER] As a camcorder's menu: the pages, or the main menu's groups, as icons in a column, the rows of the one chosen beside it  [STUDIO MONITOR] As a studio monitor's window over the picture, the pages as icons in a strip, a Status page first  [BROADCAST] As a broadcast monitor's menu, plain blue, a value changed in two steps: select, then ▲ ▼, then select  [FLAT PANEL] As a flat-panel monitor's menu, black, a page of rows at a time, a value changed in two steps",
+            description: "How Settings and the main menu are laid out\n[STANDARD] A list, a page at a time  [CAMCORDER] As a camcorder's menu: the pages, or the main menu's groups, as icons in a column that stays in place, the rows of the one chosen beside it  [STUDIO MONITOR] As a studio monitor's window over the picture, the pages as icons in a strip, a Status page first  [BROADCAST] As a broadcast monitor's menu, plain blue, a value changed in two steps: select, then ▲ ▼, then select  [FLAT PANEL] As a flat-panel monitor's menu, black, a page of rows at a time, a value changed in two steps",
             moduleId: ""
         })
 
@@ -1596,17 +1596,20 @@ FocusScope {
         color: root.menuPalette ? root.menuPalette.ink : root.primaryColor
     }
 
-    // Camcorder's icons, the first screen's pages, at the left of the rows.
-    IconColumn {
-        visible: settingsRoot.camcorder
-        model: settingsRoot.camPages
-        currentIndex: settingsRoot.camIndex
-        active: settingsRoot.inIcons()
-        x: root.sw * 0.115625 //74
-        y: settingsList.y
-        width: root.sw * 0.084375 //54
-        height: settingsList.height
+    // Camcorder's icons, the first screen's pages, at the left of the rows:
+    // the layout's frame, which the shell draws (Main.qml's setFrame()) and
+    // keeps beside the pages opened from here.
+    readonly property bool inFrame: true
+    readonly property bool ownsFrame: true
+    readonly property bool frameKeys: inIcons()
+    function handFrame() {
+        if (camcorder && camPages.length > 0)
+            root.setFrame(camPages.map(function(page) { return { icon: page.icon } }), camIndex, frameKeys, false)
     }
+    onCamPagesChanged: handFrame()
+    onCamIndexChanged: handFrame()
+    onFrameKeysChanged: handFrame()
+    onCamcorderChanged: handFrame()
 
     // --- HELP TEXT --- (shown when a focused row has a description), on one
     // line that scrolls when it is too long for the box.

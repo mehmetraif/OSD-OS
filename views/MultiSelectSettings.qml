@@ -11,6 +11,9 @@ import Components
 // are on.
 FocusScope {
     id: multiSelectRoot
+    // In the layout's frame (Main.qml): its rows in the pane, beside the
+    // column a layout keeps on the screen.
+    readonly property bool inFrame: true
 
     signal goBack()
 

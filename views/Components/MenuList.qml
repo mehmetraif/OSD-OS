@@ -1,7 +1,7 @@
 import QtQuick
 
-// A view's menu: the app's rows in the place every view's list has (under the
-// title bar, one row short of the help line, so the ▼ fits above it), ▲ / ▼
+// A view's menu: the app's rows in the pane (Main.qml's), the place every
+// view's list has (under the title bar, one row short of the help line, so the ▼ fits above it), ▲ / ▼
 // while rows are hidden above or below (ScrollMarks), and a cursor that steps
 // over section headings (rows whose type is "section"), round the ends. The
 // host gives it its rows (model, a list) and their delegate, and keys it (the
@@ -28,8 +28,10 @@ Item {
     anchors.top: parent.top
     anchors.left: parent.left
     anchors.topMargin: root.sh * 0.25 //120
-    anchors.leftMargin: root.sw * 0.115625 //74
-    width: root.sw * 0.76875 //492
+    // The pane's: beside a layout's column where the view is in its frame
+    // (Main.qml's paneX, paneWidth), else where every view has its list.
+    anchors.leftMargin: root.paneX
+    width: root.paneWidth
     // A row more for each bar that is off (Main.qml's helpRoom, hintRoom).
     height: root.sh * 0.4666667 + root.helpRoom + root.hintRoom //224
 

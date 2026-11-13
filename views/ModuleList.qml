@@ -433,17 +433,18 @@ FocusScope {
         color: root.menuPalette ? root.menuPalette.ink : root.primaryColor
     }
 
-    // Camcorder's icons, the groups, at the left of the rows.
-    IconColumn {
-        visible: appRoot.camcorder
-        model: appRoot.groups
-        currentIndex: appRoot.groupIndex
-        active: appRoot.groupIcons
-        x: root.sw * 0.115625 //74
-        y: menuList.y
-        width: root.sw * 0.084375 //54
-        height: menuList.height
+    // Camcorder's icons, the groups, at the left of the rows: the layout's
+    // frame, which the shell draws (Main.qml's setFrame()).
+    readonly property bool inFrame: true
+    readonly property bool ownsFrame: true
+    function handFrame() {
+        if (camcorder && groups.length > 0)
+            root.setFrame(groups.map(function(group) { return { icon: group.icon } }), groupIndex, groupIcons, true)
     }
+    onGroupsChanged: handFrame()
+    onGroupIndexChanged: handFrame()
+    onGroupIconsChanged: handFrame()
+    onCamcorderChanged: handFrame()
 
     // --- FOOTER ---
     HintBar {

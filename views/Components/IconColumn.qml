@@ -14,8 +14,12 @@ Item {
     id: column
 
     property alias model: icons.model
-    property alias currentIndex: icons.currentIndex
+    // The column's own, not the list's: a list puts its cursor back on its
+    // first row whenever its rows are given anew, and the shell's column
+    // (Main.qml's frame) is given them by each view that owns it in turn.
+    property int currentIndex: 0
     property bool active: true
+    onCurrentIndexChanged: icons.positionViewAtIndex(currentIndex, ListView.Contain)
     readonly property alias count: icons.count
 
     ListView {
@@ -26,14 +30,13 @@ Item {
         interactive: false
         clip: true
         boundsBehavior: Flickable.StopAtBounds
-        onCurrentIndexChanged: positionViewAtIndex(currentIndex, ListView.Contain)
-        onCountChanged: positionViewAtIndex(currentIndex, ListView.Contain)
+        onCountChanged: positionViewAtIndex(column.currentIndex, ListView.Contain)
 
         delegate: Item {
             id: cell
             required property int index
             required property var modelData
-            readonly property bool current: index === icons.currentIndex
+            readonly property bool current: index === column.currentIndex
             width: icons.width
             height: root.sh * 0.0583333 //28, a menu row's
 

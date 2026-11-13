@@ -3,6 +3,9 @@ import Components
 
 FocusScope {
     id: moduleSettingsRoot
+    // In the layout's frame (Main.qml): its rows in the pane, beside the
+    // column a layout keeps on the screen.
+    readonly property bool inFrame: true
 
     signal navigateTo(string path, var params, var listState)
     signal goBack()

@@ -16,6 +16,9 @@ import Components
 // Neo's as it was installed).
 FocusScope {
     id: aboutRoot
+    // In the layout's frame (Main.qml): its rows in the pane, beside the
+    // column a layout keeps on the screen.
+    readonly property bool inFrame: true
 
     signal navigateTo(string path, var params, var listState)
     signal goBack()
@@ -234,9 +237,10 @@ FocusScope {
     Item {
         id: mark
         visible: !licensePage.visible
-        x: root.sw * 0.125 //80
+        // In the middle of the pane.
+        x: root.paneX + root.sw * 0.009375 //80
         y: root.sh * 0.2083333 //100
-        width: root.sw * 0.75 //480
+        width: root.paneWidth - root.sw * 0.01875 //480
         height: tagline.y + tagline.height
 
         Image {
