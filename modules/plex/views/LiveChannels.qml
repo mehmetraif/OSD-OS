@@ -5,6 +5,9 @@ import Components
 // one hands off to LivePlayer.qml, which tunes it and can switch channels in place.
 FocusScope {
     id: channelsRoot
+    // In the layout's frame (Main.qml): its list in the pane, beside the
+    // column a layout keeps on the screen.
+    readonly property bool inFrame: true
 
     property var navParams: ({})
     property var navListState: navParams.navListState || ({})
@@ -63,10 +66,12 @@ FocusScope {
               : (channelsRoot.loaded ? "NO CHANNELS" : "LOADING...")
         color: root.tertiaryColor
         font.family: root.globalFont
-        anchors.centerIn: parent
+        // In the middle of the pane.
+        x: root.paneX
+        anchors.verticalCenter: parent.verticalCenter
+        width: root.paneWidth
         wrapMode: Text.WordWrap
         horizontalAlignment: Text.AlignHCenter
-        width: root.sw * 0.6
         font.pixelSize: root.sh * 0.05 //24
     }
 
@@ -77,8 +82,8 @@ FocusScope {
         anchors.top: parent.top
         anchors.left: parent.left
         anchors.topMargin: root.sh * 0.25 //120
-        anchors.leftMargin: root.sw * 0.115625 //74
-        width: root.sw * 0.76875 //492
+        anchors.leftMargin: root.paneX
+        width: root.paneWidth
         height: root.sh * 0.525 + root.hintRoom //252
         clip: true
         focus: true
